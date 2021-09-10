@@ -20,9 +20,9 @@ In Progress
 ## Installing
 
 ```bash
-npm install drizzle-orm drizzle-cli
-yarn add drizzle-orm drizzle-cli
-bower install drizzle-orm drizzle-cli
+npm install drizzle-orm drizzle-kit
+yarn add drizzle-orm drizzle-kit
+bower install drizzle-orm drizzle-kit
 ```
 
 ## Connecting to database
