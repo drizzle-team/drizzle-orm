@@ -1,0 +1,38 @@
+{
+  "name": "drizzle-orm",
+  "version": "1.4.1",
+  "description": "",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "NODE_ENV=production webpack",
+    "ts": "tsc",
+    "lint": "eslint ./src --ext .ts",
+    "run": "ts-node src/tables/newAbstractTable.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lambda-direct/drizzle-orm.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/lambda-direct/drizzle-orm/issues"
+  },
+  "homepage": "https://github.com/lambda-direct/drizzle-orm#readme",
+  "devDependencies": {
+    "@types/pg": "^8.6.1",
+    "@typescript-eslint/eslint-plugin": "4.10.0",
+    "eslint": "7.15.0",
+    "eslint-config-airbnb-typescript": "12.0.0",
+    "eslint-plugin-import": "2.22.1",
+    "eslint-plugin-prefer-arrow": "1.2.2",
+    "ts-node": "^10.0.0",
+    "typescript": "^4.2.4"
+  },
+  "dependencies": {
+    "pg": "^8.6.0"
+  }
+}
