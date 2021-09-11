@@ -69,7 +69,7 @@ export default class InsertTRB<TTable extends AbstractTable<TTable>>
     let query = '';
     try {
       query = queryBuilder.build();
-    } catch (e) {
+    } catch (e: any) {
       throw new BuilderError(BuilderType.INSERT, this._tableName, this._columns, e);
     }
 

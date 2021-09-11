@@ -149,7 +149,7 @@ export default class SelectTRBWithThreeJoins<TTable extends AbstractTable<TTable
     let query = '';
     try {
       query = queryBuilder.build();
-    } catch (e) {
+    } catch (e: any) {
       throw new BuilderError(BuilderType.TWO_JOINED_SELECT,
         this._tableName, Object.values(this._columns), e, this._filter);
     }

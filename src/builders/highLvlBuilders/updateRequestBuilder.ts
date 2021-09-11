@@ -45,7 +45,7 @@ export default class UpdateTRB<TTable> extends TableRequestBuilder<TTable> {
         .columns(this._columns)
         .set(this._update).filteredBy(this._filter)
         .build();
-    } catch (e) {
+    } catch (e: any) {
       throw new BuilderError(BuilderType.UPDATE, this._tableName, this._columns, e, this._filter);
     }
 

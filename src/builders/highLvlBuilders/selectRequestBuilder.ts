@@ -151,7 +151,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>>
     let query = '';
     try {
       query = queryBuilder.build();
-    } catch (e) {
+    } catch (e: any) {
       throw new BuilderError(BuilderType.SELECT, this._tableName, this._columns, e, this._filter);
     }
 

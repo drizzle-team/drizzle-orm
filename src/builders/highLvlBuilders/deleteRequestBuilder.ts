@@ -40,7 +40,7 @@ export default class DeleteTRB<TTable> extends TableRequestBuilder<TTable> {
     let query = '';
     try {
       query = queryBuilder.build();
-    } catch (e) {
+    } catch (e: any) {
       throw new BuilderError(BuilderType.DELETE, this._tableName, this._columns, e, this._filter);
     }
 

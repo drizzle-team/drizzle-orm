@@ -20,7 +20,7 @@
     // "isolatedModules": true,
     "skipLibCheck": true,
     // "moduleResolution": "Node",
-    // "noImplicitAny": true,
+    // "noImplicitAny": false,
     // "sourceMap": true,
     // "noFallthroughCasesInSwitch": true, 
   },
