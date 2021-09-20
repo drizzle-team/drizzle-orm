@@ -7,8 +7,10 @@ import ConstArray from './constArray';
 import EqWhere from './eqWhere';
 import Greater from './greater';
 import GreaterEq from './greaterEq';
+import In from './in';
 import Less from './less';
 import LessEq from './lessEq';
+import Like from './like';
 import Or from './or';
 import Var from './var';
 import Expr from './where';
@@ -22,10 +24,10 @@ export const and = (expressions: Expr[]): Expr => new And(expressions);
 export const or = (expressions: Expr[]): Expr => new Or(expressions);
 
 export const like = <T extends AbstractColumn<ColumnType<any>, boolean, boolean>>(left: T,
-  value: ExtractCodeType<T>): Expr => new EqWhere(new Var<T>(left), new Const(value));
+  value: ExtractCodeType<T>): Expr => new Like(new Var<T>(left), new Const(value));
 
 export const inArray = <T extends AbstractColumn<ColumnType<any>, boolean, boolean>>(left: T,
-  value: ExtractCodeType<T>[]): Expr => new EqWhere(new Var<T>(left), new ConstArray(value));
+  value: ExtractCodeType<T>[]): Expr => new In(new Var<T>(left), new ConstArray(value));
 
 export const greater = <T extends AbstractColumn<ColumnType<any>, boolean, boolean>>(left: T,
   value: ExtractCodeType<T>)
