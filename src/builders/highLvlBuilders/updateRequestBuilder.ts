@@ -7,6 +7,7 @@ import BaseLogger from '../../logger/abstractLogger';
 import QueryResponseMapper from '../../mappers/responseMapper';
 import { ExtractModel } from '../../tables/inferTypes';
 import Update from '../lowLvlBuilders/updates/update';
+import { combine, set } from '../requestBuilders/updates/static';
 import UpdateExpr from '../requestBuilders/updates/updates';
 import Expr from '../requestBuilders/where/where';
 import TableRequestBuilder from './abstractRequestBuilder';
@@ -14,6 +15,7 @@ import TableRequestBuilder from './abstractRequestBuilder';
 export default class UpdateTRB<TTable> extends TableRequestBuilder<TTable> {
   private _filter: Expr;
   private _update: UpdateExpr;
+  private _objToUpdate: Partial<ExtractModel<TTable>>;
 
   public constructor(
     tableName: string,
@@ -29,8 +31,14 @@ export default class UpdateTRB<TTable> extends TableRequestBuilder<TTable> {
     return this;
   };
 
-  public set = (expr: UpdateExpr): UpdateTRB<TTable> => {
-    this._update = expr;
+  public set = (expr: Partial<ExtractModel<TTable>>): UpdateTRB<TTable> => {
+    const updates: Array<UpdateExpr> = [];
+    Object.entries(expr).forEach(([key, value]) => {
+      const column = this._mappedServiceToDb[key as keyof ExtractModel<TTable>];
+      updates.push(set(column, value as any));
+    });
+    this._update = combine(updates);
+
     return this;
   };
 
@@ -40,10 +48,12 @@ export default class UpdateTRB<TTable> extends TableRequestBuilder<TTable> {
 
   protected _execute = async (): Promise<Array<ExtractModel<TTable> | undefined>> => {
     let query = '';
+
     try {
       query = Update.in(this._tableName)
         .columns(this._columns)
-        .set(this._update).filteredBy(this._filter)
+        .set(this._update)
+        .filteredBy(this._filter)
         .build();
     } catch (e: any) {
       throw new BuilderError(BuilderType.UPDATE, this._tableName, this._columns, e, this._filter);
