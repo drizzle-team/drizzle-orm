@@ -1,6 +1,7 @@
-enum TestEnum{
-  FIRST = 'first',
-  SECOND = 'second',
+export enum ERoles {
+  ADMIN = 'admin',
+  USER = 'user',
+  GUEST = 'guest',
 }
 
-export default TestEnum;
+export default ERoles;
