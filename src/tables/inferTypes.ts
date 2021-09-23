@@ -1,7 +1,7 @@
 import { AbstractColumn, Column, IndexedColumn } from '../columns/column';
 import ColumnType from '../columns/types/columnType';
-import TestEnum from '../examples/testEnum';
 import TableIndex from '../indexes/tableIndex';
+import Type from '../types/type';
 
 export type ExtractFieldNames<TTable> = {
   [Key in keyof TTable]: TTable[Key] extends Function ? never :
@@ -33,7 +33,9 @@ export type ExtractCodeType<T extends AbstractColumn<ColumnType<any>, boolean, b
         TCodeType
         : never;
 
-export type ExtractEnumValues<TEnum> = {[Key in ExtractFieldNames<TEnum>]: TestEnum[Key]};
+export type ExtractTypeEnum<T extends Type<any>> = T extends Type<infer TEnum>
+  ? TEnum
+  : never;
 
 export type Indexing = IndexedColumn<ColumnType, boolean, boolean> | TableIndex;
 

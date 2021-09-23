@@ -1,4 +1,6 @@
+/* eslint-disable max-classes-per-file */
 import AbstractTable from '../../tables/abstractTable';
+import { rolesEnum } from '../types/rolesType';
 
 export default class UsersTable extends AbstractTable<UsersTable> {
   public id = this.int('id').autoIncrement().primaryKey();
@@ -7,7 +9,9 @@ export default class UsersTable extends AbstractTable<UsersTable> {
   public test = this.decimal('test', { notNull: true, precision: 100, scale: 2 });
   public test1 = this.bigint('test1');
   public createdAt = this.timestamp('created_at', { notNull: true });
-  public updatedAt = this.timestamp('updated_at', { notNull: true });
+  public updatedAt = this.timestamp('updated_at');
+
+  public role = this.type(rolesEnum, 'name_in_table', { notNull: true });
 
   public phoneFullNameIndex = this.index([this.phone, this.fullName]);
   public phoneIndex = this.index(this.phone);

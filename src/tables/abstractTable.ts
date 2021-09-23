@@ -17,10 +17,11 @@ import PgBigInt from '../columns/types/pgBigInt';
 import Session from '../db/session';
 import BaseLogger from '../logger/abstractLogger';
 import PgEnum from '../columns/types/pgEnum';
-import { ExtractModel } from './inferTypes';
 import DB from '../db/db';
 import { Column } from '../columns/column';
 import TableIndex from '../indexes/tableIndex';
+import { ExtractModel } from './inferTypes';
+import Enum, { ExtractEnumValues } from '../types/type';
 
 // eslint-disable-next-line max-len
 export default abstract class AbstractTable<TTable extends AbstractTable<TTable>> {
@@ -137,16 +138,29 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
     return new Column(this, name, new PgBigInt(), !params?.notNull ?? false);
   }
 
-  protected enum<TSubType extends { [s: number]: string }>(from: { [s: number]: string },
-    name: string, dbName:string, params?: {notNull: false})
-  : Column<PgEnum<TSubType>, true>;
-  protected enum<TSubType extends { [s: number]: string }>(from: { [s: number]: string },
-    name: string, dbName:string, params: {notNull: true})
-  : Column<PgEnum<TSubType>, false>;
-  protected enum<TSubType extends { [s: number]: string }>(from: { [s: number]: string },
-    name: string, dbName:string, params: {notNull?: boolean} = {}) {
-    return new Column(this, name,
-      new PgEnum<TSubType>(name, dbName, from as TSubType), !params?.notNull ?? false);
+  // protected enum<TSubType extends { [s: number]: string }>(from: { [s: number]: string },
+  //   name: string, dbName:string, params?: {notNull: false})
+  // : Column<PgEnum<TSubType>, true>;
+  // protected enum<TSubType extends { [s: number]: string }>(from: { [s: number]: string },
+  //   name: string, dbName:string, params: {notNull: true})
+  // : Column<PgEnum<TSubType>, false>;
+  // protected enum<TSubType extends { [s: number]: string }>(from: { [s: number]: string },
+  //   name: string, dbName:string, params: {notNull?: boolean} = {}) {
+  //   return new Column(this, name,
+  //     new PgEnum<TSubType>(name, dbName, from as TSubType), !params?.notNull ?? false);
+  // }
+
+  // @TODO handle enums properly
+  protected type<ETtype extends string>(typeEnum: Enum<ETtype>,
+    name: string, params?: {notNull: false})
+  : Column<PgEnum<ExtractEnumValues<Enum<ETtype>>>, true>;
+  protected type<ETtype extends string>(typeEnum: Enum<ETtype>,
+    name: string, params: {notNull: true})
+  : Column<PgEnum<ExtractEnumValues<Enum<ETtype>>>, false>;
+  protected type<ETtype extends string>(typeEnum: Enum<ETtype>,
+    name: string, params: {notNull?: boolean} = {}) {
+    const pgEnum = new PgEnum<ExtractEnumValues<typeof typeEnum>>(name);
+    return new Column(this, name, pgEnum, !params?.notNull ?? false);
   }
 
   protected decimal(name: string, params?: {notNull: false, precision: number, scale: number})
