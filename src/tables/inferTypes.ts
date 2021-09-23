@@ -1,6 +1,5 @@
 import { AbstractColumn, Column, IndexedColumn } from '../columns/column';
 import ColumnType from '../columns/types/columnType';
-import TestEnum from '../examples/testEnum';
 import TableIndex from '../indexes/tableIndex';
 import Type from '../types/type';
 
@@ -33,8 +32,6 @@ export type ExtractCodeType<T extends AbstractColumn<ColumnType<any>, boolean, b
       T extends AbstractColumn<ColumnType<infer TCodeType>, infer TNullable, infer TAutoIncrement> ?
         TCodeType
         : never;
-
-export type ExtractEnumValues<TEnum> = {[Key in ExtractFieldNames<TEnum>]: TestEnum[Key]};
 
 export type ExtractTypeEnum<T extends Type<any>> = T extends Type<infer TEnum>
   ? TEnum

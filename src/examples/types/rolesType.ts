@@ -1,11 +1,4 @@
-/* eslint-disable import/export */
-import Type from '../../types/type';
-import { ERoles } from '../testEnum';
+import { createEnum } from '../../types/type';
 
-export default class RolesType extends Type<ERoles> {
-  public type: object = ERoles;
-
-  public alias(): string {
-    return 'roles';
-  }
-}
+// eslint-disable-next-line import/prefer-default-export
+export const rolesEnum = createEnum({ alias: 'test-enum', values: ['foo', 'bar', 'baz'] });
