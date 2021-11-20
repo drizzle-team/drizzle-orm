@@ -1,3 +1,4 @@
+import { AbstractTable } from '../../tables';
 import UpdateExpr from '../requestBuilders/updates/updates';
 import Expr from '../requestBuilders/where/where';
 import Aggregator from './abstractAggregator';
@@ -8,13 +9,15 @@ export default class UpdateAggregator extends Aggregator {
   private _from: Array<string> = [];
   private _update: Array<string> = ['UPDATE'];
 
-  public constructor(tableName: string) {
-    super(tableName);
+  public constructor(table: AbstractTable<any>) {
+    super(table);
   }
 
   public where = (filters: Expr): UpdateAggregator => {
-    this._filters.push('WHERE ');
-    this._filters.push(filters.toQuery());
+    if (filters) {
+      this._filters.push('WHERE ');
+      this._filters.push(filters.toQuery());
+    }
     return this;
   };
 

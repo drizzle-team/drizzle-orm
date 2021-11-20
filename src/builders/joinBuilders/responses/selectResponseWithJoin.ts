@@ -18,4 +18,30 @@ export default class SelectResponseJoin<TTable1, TTable2> {
     }
     return objects;
   };
+
+  public foreach = (imac: (t1: ExtractModel<TTable1> | undefined,
+    t2: ExtractModel<TTable2> | undefined) => void): void => {
+    for (let i = 0; i < this._t1.length; i += 1) {
+      imac(this._t1[i], this._t2[i]);
+    }
+  };
+
+  public group = <TOne, TMany>({
+    one,
+    many,
+  }:{
+    one: (t1: ExtractModel<TTable1> | undefined,
+      t2: ExtractModel<TTable2> | undefined) => TOne,
+    many: (t1: ExtractModel<TTable1> | undefined,
+      t2: ExtractModel<TTable2> | undefined) => TMany
+  }) => {
+    const objects = new Array<TMany>();
+    for (let i = 0; i < this._t1.length; i += 1) {
+      objects.push(many(this._t1[i], this._t2[i]));
+    }
+    return {
+      one: one(this._t1[0], this._t2[0]),
+      many: objects,
+    };
+  };
 }
