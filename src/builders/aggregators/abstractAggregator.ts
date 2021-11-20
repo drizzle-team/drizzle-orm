@@ -1,20 +1,17 @@
 import { AbstractColumn, Column } from '../../columns/column';
 import ColumnType from '../../columns/types/columnType';
+import { AbstractTable } from '../../tables';
 import { ecranate } from '../../utils/ecranate';
 
 export default class Aggregator {
   protected _fields: Array<string> = [];
-  protected _tableName: string;
-  protected _columnsTypes: AbstractColumn<ColumnType>[];
+  protected _table: AbstractTable<any>;
 
-  public constructor(tableName: string) {
-    this._tableName = tableName;
+  public constructor(table: AbstractTable<any>) {
+    this._table = table;
+    this._fields = this.generateSelectArray(this._table.tableName(),
+      Object.values(this._table.mapServiceToDb()));
   }
-
-  public appendFields = (columns: AbstractColumn<ColumnType>[]) => {
-    this._fields = this.generateSelectArray(this._tableName, columns);
-    this._columnsTypes = columns;
-  };
 
   protected generateSelectArray = (table: string, columns: AbstractColumn<ColumnType>[]) => {
     const selectFields: string[] = [];

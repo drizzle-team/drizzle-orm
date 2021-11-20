@@ -22,4 +22,33 @@ export default class SelectResponseTwoJoins<T1, T2, T3> {
     }
     return objects;
   };
+
+  public foreach = (imac: (t1: ExtractModel<T1> | undefined,
+    t2: ExtractModel<T2> | undefined,
+    t3: ExtractModel<T3> | undefined) => void): void => {
+    for (let i = 0; i < this._t1.length; i += 1) {
+      imac(this._t1[i], this._t2[i], this._t3[i]);
+    }
+  };
+
+  public group = <TOne, TMany>({
+    one,
+    many,
+  }:{
+    one: (t1: ExtractModel<T1> | undefined,
+      t2: ExtractModel<T2> | undefined,
+      t3: ExtractModel<T3> | undefined) => TOne,
+    many: (t1: ExtractModel<T1> | undefined,
+      t2: ExtractModel<T2> | undefined,
+      t3: ExtractModel<T3> | undefined) => TMany
+  }) => {
+    const objects = new Array<TMany>();
+    for (let i = 0; i < this._t1.length; i += 1) {
+      objects.push(many(this._t1[i], this._t2[i], this._t3[i]));
+    }
+    return {
+      one: one(this._t1[0], this._t2[0], this._t3[0]),
+      many: objects,
+    };
+  };
 }

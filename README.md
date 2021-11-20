@@ -45,99 +45,338 @@ const db = await new DbConnector()
 		db: 'optional_db_name'
 	}).connect();
 ```
+## Project structure
+- tables folder
+- migrations folder
 
-## Creating your first table and first migration
+## Create tables
+### Users Table
+---
+```typescript
 
-```tsx
-class UsersTable extends AbstractTable<UsersTable> {
-  public id = this.int("id").primaryKey().autoIncrement();
-  public name = this.varchar("name", { size: 512 });
-  public email = this.varchar("email", { size: 512 }).unique();
+export const rolesEnum = createEnum({ alias: 'test-enum', values: ['user', 'guest', 'admin'] });
+
+export default class UsersTable extends AbstractTable<UsersTable> {
+  public id = this.int('id').autoIncrement().primaryKey();
+  public fullName = this.text('full_name');
+
+  public phone = this.varchar('phone', { size: 256 });
+  public media = this.jsonb<string[]>('media');
+  public decimalField = this.decimal('test', { notNull: true, precision: 100, scale: 2 });
+  public bigIntField = this.bigint('test1');
+  public role = this.type(rolesEnum, 'name_in_table', { notNull: true });
+
+  public createdAt = this.timestamp('created_at', { notNull: true });
+  public updatedAt = this.timestamp('updated_at');
+  public isArchived = this.bool('is_archived').defaultValue(false);
+
+  public phoneFullNameIndex = this.index([this.phone, this.fullName]);
+  public phoneIndex = this.uniqueIndex(this.phone);
 
   public tableName(): string {
-    return "users";
+    return 'users';
   }
 }
+```
+### Cities Table
+---
+```typescript
+interface CityMeta {
+  population: number,
+  connection: string,
+}
 
-// lets create your first SQL migration to create initial schema
+export default class CitiesTable extends AbstractTable<CitiesTable> {
+  public id = this.int('id').autoIncrement().primaryKey();
 
-const migrator = new Migrator(db);
-await migrator.runMigrations('./drizzle/migrations')
-// That's it!! No metaprogramming, no black magic, everything's imperative
+  public foundationDate = this.timestamp('name', { notNull: true });
+  public location = this.varchar('page', { size: 256 });
+
+  public userId = this.int('user_id').foreignKey(UsersTable, (table) => table.id, OnDelete.CASCADE);
+
+  public metadata = this.jsonb<CityMeta>('metadata');
+
+  public tableName(): string {
+    return 'cities';
+  }
+}
+```
+### User Groups Table
+---
+```typescript
+export default class UserGroupsTable extends AbstractTable<UserGroupsTable> {
+  public id = this.int('id').autoIncrement().primaryKey();
+
+  public name = this.varchar('name');
+  public description = this.varchar('description');
+
+  public tableName(): string {
+    return 'user_groups';
+  }
+}
+```
+### User to User Groups Table
+---
+#### Many to many connection between Users and User Groups
+```typescript
+export default class UsersToUserGroupsTable extends AbstractTable<UsersToUserGroupsTable> {
+  public groupId = this.int('city_id').foreignKey(UserGroupsTable, (table) => table.id, OnDelete.CASCADE);
+  public userId = this.int('user_id').foreignKey(UsersTable, (table) => table.id, OnDelete.CASCADE);
+
+  public manyToManyIndex = this.index([this.groupId, this.userId]);
+
+  public tableName(): string {
+    return 'users_to_user_groups';
+  }
+}
 ```
 
-## Inserting into tables
-Returned entity is of type ExtractModel<UsersTable> which does have a set of typed fields
+## CRUD
+### Select
+---
+```typescript
+const db = await new DbConnector()
+  .connectionString('postgresql://postgres@127.0.0.1/drizzle')
+  .connect();
 
-```tsx
-const email = 'email@example.com'
-const name = 'Full Name'
+const usersTable = new UsersTable(db);
 
-// returns inserted user
-const user = await table.insert({ email, name }).first()
+// select all
+const allSelect = await usersTable.select().all();
+
+// select first
+const firstSelect = await usersTable.select().first();
+```
+#### **Sorting and Filtering**
+---
+##### Select all records from `Users` where phone is `"hello"`
+```typescript
+const eqSelect = await usersTable.select().where(
+  eq(usersTable.phone, 'hello')
+).all();
+```
+##### Select all records from `Users` where **both** phone is `"hello"` **and** phone is `"hello"`
+```typescript
+const andSelect = await usersTable.select().where(
+  and([
+    eq(usersTable.phone, 'hello'),
+    eq(usersTable.phone, 'hello')
+  ]),
+).all();
+```
+##### Select all records from `Users` where **either** phone is `"hello"` **or** phone is `"hello"`
+```typescript
+const orSelect = await usersTable.select().where(
+  or([eq(usersTable.phone, 'hello')]),
+).all();
+```
+##### Select all records from `Users` using **LIMIT** and **OFFSET**
+```typescript
+const limitOffsetSelect = await usersTable.select({ limit: 10, offset: 10 }).all();
+```
+##### Select all records from `Users` where `phone` contains `"hello"`
+```typescript
+const likeSelect = await usersTable.select().where(
+  like(usersTable.phone, '%hello%')
+).all();
+```
+##### Select all records from `Users` where `phone` equals to some of values from array
+```typescript
+const inArraySelect = usersTable.select().where(
+  inArray(usersTable.phone, ['hello'])
+).all();
+```
+##### Select all records from `Users` where `phone` greater(**>**) than `"hello"`
+```typescript
+const greaterSelect = usersTable.select().where(
+  greater(usersTable.phone, 'hello')
+).all();
+```
+##### Select all records from `Users` where `phone` less(**<**) than `"hello"`
+```typescript
+const lessSelect = usersTable.select().where(
+  less(usersTable.phone, 'hello')
+).all();
+```
+##### Select all records from `Users` where `phone` greater or equals(**>=**) than `"hello"`
+```typescript
+const greaterEqSelect = usersTable.select().where(
+  greaterEq(usersTable.phone, 'hello')
+).all();
+```
+##### Select all records from `Users` where `phone` less or equals(**<=**) 
+```typescript
+const lessEqSelect = usersTable.select().where(
+  lessEq(usersTable.phone, 'hello')
+).all();
+```
+##### Select all records from `Users` where `phone` is **NULL**
+```typescript
+const isNullSelect = usersTable.select().where(
+  isNull(usersTable.phone)
+).all();
+```
+##### Select all records from `Users` where `phone` not equals to `"hello"`
+```typescript
+const notEqSelect = usersTable.select().where(
+  notEq(usersTable.phone, 'hello')
+).all();
+```
+##### Select all records from `Users` ordered by `phone` in ascending order
+```typescript
+const ordered = await usersTable.select().orderBy((table) => table.phone, Order.ASC).all();
 ```
 
-## Simple querying with/without filters
-__For more complex filtering - see `advanced querying`__
+### Updating tables
+---
+##### Update `fullName` to `newName` in `Users` where phone is `"hello"`
+```typescript
+await usersTable.update()
+  .where(eq(usersTable.phone, 'hello'))
+  .set({ fullName: 'newName' })
+  .execute();
+```
+##### Update `fullName` to `newName` in `Users` where phone is `"hello"` returning updated `User` model
+```typescript
+await usersTable.update()
+  .where(eq(usersTable.phone, 'hello'))
+  .set({ fullName: 'newName' })
+  .all();
+```
+##### Update `fullName` to `newName` in `Users` where phone is `"hello"` returning updated `User` model
+```typescript
+await usersTable.update()
+  .where(eq(usersTable.phone, 'hello'))
+  .set({ fullName: 'newName' })
+  .first();
+```
 
-```tsx
-const email = 'email@example.com'
+### Delete
+##### Delete `user` where phone is `"hello"`
+```typescript
+await usersTable.delete()
+      .where(eq(usersTable.phone, 'hello'))
+      .execute();
+```
+##### Delete `user` where phone is `"hello"` returning updated `User` model
+```typescript
+await usersTable.delete()
+      .where(eq(usersTable.phone, 'hello'))
+      .all();
+```
+##### Delete `user` where phone is `"hello"` returning updated `User` model
+```typescript
+await usersTable.delete()
+      .where(eq(usersTable.phone, 'hello'))
+      .first();
+```
 
-const allUsers = await table.select().all()
-const firstUser = await table.select().first()
-
-const userWithEmail = await table.select(eq(table.email, email)).first()
-
-// If you need to declare type explicitely
-type User = ExtractModel<UsersTable>
-
-const user: User = await table.select().first()
-user.email
-user.id
-
-// Works perfectly!
+### Inserting entities
+##### Insert `user` with required fields
+```typescript
+await usersTable.insert({
+  test: 1,
+  createdAt: new Date(),
+}).execute();
+```
+##### Insert `user` with required fields and get all rows as array
+```typescript
+const user = await usersTable.insert({
+  test: 1,
+  createdAt: new Date(),
+}).all();
+```
+##### Insert `user` with required fields and get inserted entity
+```typescript
+const user = await usersTable.insert({
+  test: 1,
+  createdAt: new Date(),
+}).first();
+```
+##### Insert many `users` with required fields and get all inserted entities
+```typescript
+const users = await usersTable.insertMany([{
+      test: 1,
+      createdAt: new Date(),
+    }, {
+      test: 2,
+      createdAt: new Date(),
+    }]).all();
+```
+##### Insert many `users` with required fields and get all inserted entities. If such user already exists - update `phone` field
+```typescript
+await usersTable.insertMany([{
+      test: 1,
+      createdAt: new Date(),
+    }, {
+      test: 2,
+      createdAt: new Date(),
+    }])
+      .onConflict(
+        (table) => table.phoneIndex,
+        { phone: 'confilctUpdate' },
+      ).all();
 ```
 
 ## Joins
+### Join One-To-Many Tables
+##### Join Cities with Users and map to city object with full user
+```typescript
+const usersTable = new UsersTable(db);
+const citiesTable = new CitiesTable(db);
 
-```tsx
-class ItemsTable extends AbstractTable<ItemsTable>{
-  id = this.int("id").primaryKey().autoIncrement();
-  name = this.varchar("name");
-	
-  // many to one relation
-  ownerId = this.int("owner_id").foreignKey(UsersTable, (t) => t.id); 
-}
+ const userWithCities = await citiesTable.select()
+      .where(eq(citiesTable.id, 1))
+      .leftJoin(UsersTable,
+        (city) => city.userId,
+        (users) => users.id)
+      .execute();
 
-const query = usersTable.select().leftJoin(
-	ItemsTable, 
-	(ut) => ut.id,     // user id
-	(it) => it.ownerId // item owner id
-); 
+const citiesWithUserObject = userWithCities.map((city, user) => ({ ...city, user }));
+```
 
-const result = (await query.execute()).map((user, item) => {
-	return { user, item };
-});
+### Join Many-To-Many Tables
+##### Join User Groups with Users, using many-to-many table and map response to get user object with groups array
+```typescript
+    const usersWithUserGroups = await usersToUserGroupsTable.select()
+      .where(eq(userGroupsTable.id, 1))
+      .leftJoin(UsersTable,
+        (userToGroup) => userToGroup.userId,
+        (users) => users.id)
+      .leftJoin(UserGroupsTable,
+        (userToGroup) => userToGroup.groupId,
+        (users) => users.id)
+      .execute();
 
-// result would be
-[{
-    user: { id: 10, ... },
-    item: { id: 1, ... }
-},
-{
-    user: { id: 10, ... },
-    item: { id: 2, ... }
-},
-{
-    user: { id: 10, ... },
-    item: { id: 3, ... }
-},
-{
-    user: { id: 11, ... },
-    item: { id: 4, ... }
-},
-{
-    user: { id: 11, ... },
-    item: { id: 5, ... }
-}]
+    const userGroupWithUsers = usersWithUserGroups.group({
+      one: (_, dbUser, dbUserGroup) => dbUser!,
+      many: (_, dbUser, dbUserGroup) => dbUserGroup!,
+    });
+
+    const userWithGroups: ExtractModel<UsersTable> & { groups: ExtractModel<UserGroupsTable>[] } = {
+      ...userGroupWithUsers.one,
+      groups: userGroupWithUsers.many,
+    };
+```
+##### Join User Groups with Users, using many-to-many table and map response to get user group object with users array
+```typescript
+    const usersWithUserGroups = await usersToUserGroupsTable.select()
+      .where(eq(userGroupsTable.id, 1))
+      .leftJoin(UsersTable,
+        (userToGroup) => userToGroup.userId,
+        (users) => users.id)
+      .leftJoin(UserGroupsTable,
+        (userToGroup) => userToGroup.groupId,
+        (users) => users.id)
+      .execute();
+
+    const userGroupWithUsers = usersWithUserGroups.group({
+      one: (_, dbUser, dbUserGroup) => dbUserGroup!,
+      many: (_, dbUser, dbUserGroup) => dbUser!,
+    });
+
+    const userWithGroups: ExtractModel<UserGroupsTable> & { users: ExtractModel<UsersTable>[] } = {
+      ...userGroupWithUsers.one,
+      users: userGroupWithUsers.many,
+    };
 ```

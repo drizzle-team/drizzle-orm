@@ -11,8 +11,8 @@ export default class InsertInto {
   }
 
   // @TODO refactor!!
-  public values = <T>(values: {[name: string]: any}[], columns: {[name in keyof T]:
-    Column<ColumnType>}) => new ValuesInsert(this._aggregator).apply(values, columns);
+  public values = (values: {[name: string]: any}[]) => new ValuesInsert(this._aggregator)
+    .apply(values);
 
   public build = () => this._aggregator.buildQuery();
 }
