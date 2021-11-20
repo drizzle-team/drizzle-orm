@@ -1,4 +1,4 @@
-import { Column } from '../../../columns';
+import { AbstractColumn } from '../../../columns/column';
 import ColumnType from '../../../columns/types/columnType';
 import SelectAggregator from '../../aggregators/selectAggregator';
 import Order from '../../highLvlBuilders/order';
@@ -13,22 +13,23 @@ export default class SelectJoined {
     this._aggregator = aggregator;
   }
 
-  public apply = (joins: Array<Join<{}>>): SelectJoined => {
+  public apply = (joins: Array<Join<any> | undefined>): SelectJoined => {
     this._aggregator.join(joins);
     return this;
   };
 
-  public limit = (limit: number): SelectJoined => {
+  public limit = (limit?: number): SelectJoined => {
     this._aggregator.limit(limit);
     return this;
   };
 
-  public offset = (offset: number): SelectJoined => {
+  public offset = (offset?: number): SelectJoined => {
     this._aggregator.offset(offset);
     return this;
   };
 
-  public orderBy = (orderBy: Column<ColumnType, boolean, boolean>, order: Order): SelectJoined => {
+  public orderBy = (orderBy?: AbstractColumn<ColumnType, boolean, boolean>,
+    order?: Order): SelectJoined => {
     this._aggregator.orderBy(orderBy, order);
     return this;
   };

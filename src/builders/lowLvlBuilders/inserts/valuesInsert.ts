@@ -1,6 +1,4 @@
-import { Column } from '../../../columns/column';
-import ColumnType from '../../../columns/types/columnType';
-import { ExtractModel, Indexing } from '../../../tables/inferTypes';
+import { Indexing } from '../../../tables/inferTypes';
 import InsertAggregator from '../../aggregators/insertAggregator';
 import UpdateExpr from '../../requestBuilders/updates/updates';
 import OnConflictInsert from './onConflictInsert';
@@ -12,11 +10,10 @@ export default class ValuesInsert {
     this._aggregator = aggregator;
   }
 
-  public apply = <T>(values: {[name: string]: any}[], columns: {[name in keyof ExtractModel<T>]
-    : Column<ColumnType>})
+  public apply = (values: {[name: string]: any}[])
   : ValuesInsert => {
-    this._aggregator.appendColumns(values);
-    this._aggregator.appendValues(columns, values);
+    this._aggregator.appendColumns();
+    this._aggregator.appendValues(values);
 
     return this;
   };

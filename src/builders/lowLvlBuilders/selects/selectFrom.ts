@@ -14,20 +14,21 @@ export default class SelectFrom {
     this._aggregator = aggregator;
   }
 
-  public joined =(joins: Array<Join<any>>) => new SelectJoined(this._aggregator).apply(joins);
+  public joined = (joins:
+  Array<Join<any> | undefined>) => new SelectJoined(this._aggregator).apply(joins);
 
-  public limit = (limit: number): SelectFrom => {
+  public limit = (limit?: number): SelectFrom => {
     this._aggregator.limit(limit);
     return this;
   };
 
-  public offset = (offset: number): SelectFrom => {
+  public offset = (offset?: number): SelectFrom => {
     this._aggregator.offset(offset);
     return this;
   };
 
-  public orderBy = (orderBy: AbstractColumn<ColumnType, boolean, boolean>,
-    order: Order): SelectFrom => {
+  public orderBy = (orderBy?: AbstractColumn<ColumnType, boolean, boolean>,
+    order?: Order): SelectFrom => {
     this._aggregator.orderBy(orderBy, order);
     return this;
   };
