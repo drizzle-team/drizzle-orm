@@ -33,8 +33,9 @@ export default class SelectTRBWithFiveJoins<TTable extends AbstractTable<TTable>
     props: {limit?:number, offset?:number},
     orderBy?: AbstractColumn<ColumnType, boolean, boolean>,
     order?: Order,
+    distinct?: AbstractColumn<ColumnType, boolean, boolean>,
   ) {
-    super(table, filter, session, props, orderBy, order);
+    super(table, filter, session, props, orderBy, order, distinct);
     this._join1 = join1;
     this._join2 = join2;
     this._join3 = join3;

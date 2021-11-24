@@ -23,6 +23,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>>
   private __orderBy?: AbstractColumn<ColumnType, boolean, boolean>;
   private __groupBy?: AbstractColumn<ColumnType, boolean, boolean>;
   private __order?: Order;
+  private __distinct: AbstractColumn<ColumnType, boolean, boolean>;
 
   public constructor(
     session: Session,
@@ -49,6 +50,12 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>>
     this.__order = order;
     return this;
   }
+
+  public distinct = (column: AbstractColumn<ColumnType<any>, boolean, boolean>)
+  : SelectTRB<TTable> => {
+    this.__distinct = column;
+    return this;
+  };
 
   // public groupBy(callback: (table: TTable) => Column<ColumnType, boolean, boolean>)
   //   : SelectTRB<TTable> {
@@ -77,6 +84,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>>
       this.props,
       this.__orderBy,
       this.__order,
+      this.__distinct,
     );
   }
 
@@ -101,6 +109,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>>
       this.props,
       this.__orderBy,
       this.__order,
+      this.__distinct,
     );
   }
 
@@ -125,6 +134,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>>
       this.props,
       this.__orderBy,
       this.__order,
+      this.__distinct,
     );
   }
 
@@ -149,6 +159,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>>
       this.props,
       this.__orderBy,
       this.__order,
+      this.__distinct,
     );
   }
 
@@ -161,6 +172,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>>
     // Select.from().filteredBy().limit().offset().orderBy().groupBy().build()
     const queryBuilder = Select
       .from(this._table)
+      .distinct(this.__distinct)
       .filteredBy(this._filter)
       .limit(this.props.limit)
       .offset(this.props.offset)
