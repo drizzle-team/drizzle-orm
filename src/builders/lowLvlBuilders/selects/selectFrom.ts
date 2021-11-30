@@ -33,6 +33,13 @@ export default class SelectFrom {
     return this;
   };
 
+  public distinct = (column?: AbstractColumn<ColumnType, boolean, boolean>): SelectFrom => {
+    if (column) {
+      this._aggregator.distinct(column);
+    }
+    return this;
+  };
+
   public filteredBy = (filters: Expr) => new WhereSelect(this._aggregator).apply(filters);
 
   public build = () => this._aggregator.buildQuery();

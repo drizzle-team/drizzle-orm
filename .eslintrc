@@ -19,6 +19,8 @@
           "private-method"
           ] }],
         "class-methods-use-this": "off",
+        "import/no-named-as-default": 0,
+        "import/no-named-as-default-member": 0,
         // "prefer-arrow/prefer-arrow-functions": ["error", { "classPropertiesAllowed": true }],
         "import/no-extraneous-dependencies": ["error", { "devDependencies": ["webpack.config.ts"] }],
         "linebreak-style": 0
