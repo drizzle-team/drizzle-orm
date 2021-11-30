@@ -21,6 +21,9 @@ In Progress
 
 ```bash
 npm install drizzle-orm drizzle-kit
+```
+#### **In Progress**
+```bash
 yarn add drizzle-orm drizzle-kit
 bower install drizzle-orm drizzle-kit
 ```
@@ -132,7 +135,7 @@ export default class UsersToUserGroupsTable extends AbstractTable<UsersToUserGro
 ```
 
 ## CRUD
-### Select
+### **SELECT**
 ---
 ```typescript
 const db = await new DbConnector()
@@ -227,7 +230,7 @@ const notEqSelect = usersTable.select().where(
 const ordered = await usersTable.select().orderBy((table) => table.phone, Order.ASC).all();
 ```
 
-### Updating tables
+### **Update**
 ---
 ##### Update `fullName` to `newName` in `Users` where phone is `"hello"`
 ```typescript
@@ -251,7 +254,7 @@ await usersTable.update()
   .first();
 ```
 
-### Delete
+### **Delete**
 ##### Delete `user` where phone is `"hello"`
 ```typescript
 await usersTable.delete()
@@ -271,7 +274,7 @@ await usersTable.delete()
       .first();
 ```
 
-### Inserting entities
+### **Insert**
 ##### Insert `user` with required fields
 ```typescript
 await usersTable.insert({

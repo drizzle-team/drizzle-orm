@@ -29,8 +29,9 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
     props: {limit?:number, offset?:number},
     orderBy?: AbstractColumn<ColumnType, boolean, boolean>,
     order?: Order,
+    distinct?: AbstractColumn<ColumnType, boolean, boolean>,
   ) {
-    super(table, filter, session, props, orderBy, order);
+    super(table, filter, session, props, orderBy, order, distinct);
     this._join1 = join1;
     this._join2 = join2;
   }
@@ -58,6 +59,7 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
       this._props,
       this._orderBy,
       this._order,
+      this._distinct,
     );
   }
 
@@ -84,6 +86,7 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
       this._props,
       this._orderBy,
       this._order,
+      this._distinct,
     );
   }
 
@@ -110,6 +113,7 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
       this._props,
       this._orderBy,
       this._order,
+      this._distinct,
     );
   }
 
@@ -136,6 +140,7 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
       this._props,
       this._orderBy,
       this._order,
+      this._distinct,
     );
   }
 

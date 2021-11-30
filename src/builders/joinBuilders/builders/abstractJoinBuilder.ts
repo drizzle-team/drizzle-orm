@@ -14,6 +14,7 @@ export default abstract class AbstractJoined<TTable extends AbstractTable<TTable
   protected _table: TTable;
   protected _session: Session;
   protected _filter: Expr;
+  protected _distinct?: AbstractColumn<ColumnType, boolean, boolean>;
   protected _props: {limit?:number, offset?:number};
   protected _orderBy?: AbstractColumn<ColumnType, boolean, boolean>;
   protected _order?: Order;
@@ -22,9 +23,10 @@ export default abstract class AbstractJoined<TTable extends AbstractTable<TTable
     table: TTable,
     filter: Expr,
     session: Session,
-    props: {limit?:number, offset?:number},
+    props: { limit?: number, offset?: number },
     orderBy?: AbstractColumn<ColumnType, boolean, boolean>,
     order?: Order,
+    distinct?: AbstractColumn<ColumnType, boolean, boolean>,
   ) {
     this._table = table;
     this._session = session;
@@ -32,11 +34,13 @@ export default abstract class AbstractJoined<TTable extends AbstractTable<TTable
     this._props = props;
     this._order = order;
     this._orderBy = orderBy;
+    this._distinct = distinct;
   }
 
   public execute = async (): Promise<TRes> => {
     const queryBuilder = Select
       .from(this._table)
+      .distinct(this._distinct)
       .joined(this.joins())
       .limit(this._props.limit)
       .offset(this._props.offset)

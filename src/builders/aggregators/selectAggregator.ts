@@ -1,6 +1,7 @@
 import { AbstractColumn } from '../../columns/column';
 import ColumnType from '../../columns/types/columnType';
 import { AbstractTable } from '../../tables';
+import { ecranate } from '../../utils/ecranate';
 import Order from '../highLvlBuilders/order';
 import Join from '../joinBuilders/join';
 import Expr from '../requestBuilders/where/where';
@@ -13,6 +14,7 @@ export default class SelectAggregator extends Aggregator {
   private _join: Array<string> = [];
   private _limit: Array<string> = [];
   private _offset: Array<string> = [];
+  private _distinct: Array<string> = [];
   // private _groupBy: Array<string> = [];
   private _orderBy: Array<string> = [];
 
@@ -54,6 +56,13 @@ export default class SelectAggregator extends Aggregator {
     return this;
   };
 
+  public distinct = (column?: AbstractColumn<ColumnType, boolean, boolean>): SelectAggregator => {
+    if (column) {
+      this._distinct.push(` DISTINCT ON(${column.getParent()}.${ecranate(column.getColumnName())}) `);
+    }
+    return this;
+  };
+
   public appendFrom = (tableName: string): SelectAggregator => {
     this._from.push('FROM ');
     this._from.push(tableName);
@@ -91,6 +100,7 @@ export default class SelectAggregator extends Aggregator {
   };
 
   public buildQuery = () => {
+    this._select.push(this._distinct.join(''));
     this._select.push(this._fields.join(''));
     this._select.push('\n');
     this._select.push(this._from.join(''));

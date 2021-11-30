@@ -14,12 +14,15 @@ import LessEq from './lessEq';
 import Like from './like';
 import NotEqWhere from './notEqWhere';
 import Or from './or';
+import RawWhere from './rawWhere';
 import Var from './var';
 import Expr from './where';
 
 // eslint-disable-next-line max-len
 export const eq = <T extends AbstractColumn<ColumnType<any>, boolean, boolean>>(
   left: T, value: ExtractCodeType<T>): Expr => new EqWhere(new Var<T>(left), new Const(value));
+
+export const raw = (customQuery: string): Expr => new RawWhere(customQuery);
 
 export const and = (expressions: Expr[]): Expr => new And(expressions);
 

@@ -31,6 +31,10 @@ export default class DeleteAggregator extends Aggregator {
     this._delete.push(this._from.join(''));
     this._delete.push('\n');
     this._delete.push(this._filters.join(''));
+    this._delete.push('\n');
+    this._delete.push('RETURNING');
+    this._delete.push('\n');
+    this._delete.push(this._fields.join(''));
 
     return this._delete.join('');
   };
