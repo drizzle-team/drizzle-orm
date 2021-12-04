@@ -18,6 +18,7 @@ interface ColumnAsObject {
     default?: any;
     notNull?: boolean;
     references?: {
+      foreignKeyName: string;
       onDelete?: string;
       onUpdate?: string;
       table: string;
@@ -96,6 +97,7 @@ export default class MigrationSerializer {
           const referenced = value.getReferenced();
           if (referenced) {
             columnToReturn[key].references = {
+              foreignKeyName: `${value.getParent().tableName()}_${value.getColumnName()}_fk`,
               table: referenced.getParentName(),
               column: referenced.getColumnName(),
               onDelete: value.getOnDelete(),
