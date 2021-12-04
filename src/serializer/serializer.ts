@@ -15,11 +15,11 @@ interface ColumnAsObject {
     type?: string;
     primaryKey?: boolean;
     unique?: boolean;
-    onDelete?: string;
-    onUpdate?: string;
     default?: any;
     notNull?: boolean;
     references?: {
+      onDelete?: string;
+      onUpdate?: string;
       table: string;
       column: string;
     };
@@ -88,8 +88,6 @@ export default class MigrationSerializer {
             name: value.getColumnName(),
             type: value.isAutoIncrement() ? 'serial' : (value.getColumnType() as ColumnType).getDbName(),
             primaryKey: !!value.primaryKeyName,
-            onDelete: value.getOnDelete()!,
-            onUpdate: value.getOnUpdate()!,
             unique: !!value.uniqueKeyName,
             default: value.getDefaultValue() === null ? undefined : value.getDefaultValue(),
             notNull: !value.isNullableFlag,
@@ -100,6 +98,8 @@ export default class MigrationSerializer {
             columnToReturn[key].references = {
               table: referenced.getParentName(),
               column: referenced.getColumnName(),
+              onDelete: value.getOnDelete(),
+              onUpdate: value.getOnUpdate(),
             };
           }
         }
