@@ -14,7 +14,6 @@ interface ColumnAsObject {
     name?: string;
     type?: string;
     primaryKey?: boolean;
-    autoincrement?: boolean;
     unique?: boolean;
     default?: any;
     notNull?: boolean;
@@ -85,9 +84,9 @@ export default class MigrationSerializer {
         if (value instanceof Column) {
           columnToReturn[key] = {
             name: value.getColumnName(),
-            type: (value.getColumnType() as ColumnType).getDbName(),
+            type: value.isAutoIncrement() ? 'serial' : (value.getColumnType() as ColumnType).getDbName(),
             primaryKey: !!value.primaryKeyName,
-            autoincrement: value.isAutoIncrement(),
+            // autoincrement: value.isAutoIncrement(),
             unique: !!value.uniqueKeyName,
             default: value.getDefaultValue() === null ? undefined : value.getDefaultValue(),
             notNull: !value.isNullableFlag,
