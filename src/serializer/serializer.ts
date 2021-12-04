@@ -15,6 +15,8 @@ interface ColumnAsObject {
     type?: string;
     primaryKey?: boolean;
     unique?: boolean;
+    onDelete?: string;
+    onUpdate?: string;
     default?: any;
     notNull?: boolean;
     references?: {
@@ -86,7 +88,8 @@ export default class MigrationSerializer {
             name: value.getColumnName(),
             type: value.isAutoIncrement() ? 'serial' : (value.getColumnType() as ColumnType).getDbName(),
             primaryKey: !!value.primaryKeyName,
-            // autoincrement: value.isAutoIncrement(),
+            onDelete: value.getOnDelete()!,
+            onUpdate: value.getOnUpdate()!,
             unique: !!value.uniqueKeyName,
             default: value.getDefaultValue() === null ? undefined : value.getDefaultValue(),
             notNull: !value.isNullableFlag,

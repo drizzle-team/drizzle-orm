@@ -9,16 +9,14 @@ type ExtractColumnType<T extends ColumnType> =
    TCodeType
    : never;
 
-type OnConstraint = OnDelete | OnUpdate;
-
 export enum OnDelete {
-  RESTRICT,
-  CASCADE,
+  RESTRICT = 'ON DELETE RESTRICT',
+  CASCADE = 'ON DELETE CASCADE',
 }
 
 export enum OnUpdate {
-  RESTRICT,
-  CASCADE,
+  RESTRICT = 'ON UPDATE RESTRICT',
+  CASCADE = 'ON UPDATE RESTRICT',
 }
 
 // eslint-disable-next-line max-len
@@ -28,7 +26,8 @@ export abstract class AbstractColumn<T extends ColumnType, TNullable extends boo
   public primaryKeyName?: string;
   public uniqueKeyName?: string;
 
-  protected onConstraint?: OnConstraint;
+  protected onDelete?: string;
+  protected onUpdate?: string;
   protected parent: AbstractTable<any>;
 
   protected parentTableName: string;
@@ -47,6 +46,9 @@ export abstract class AbstractColumn<T extends ColumnType, TNullable extends boo
     this.isNullableFlag = nullable;
   }
 
+  public getOnDelete = (): string | undefined => this.onDelete;
+  public getOnUpdate = (): string | undefined => this.onUpdate;
+
   public getAlias = (): string => `${this.parentTableName.replace('.', '_')}_${this.columnName}`;
 
   public getParent = (): AbstractTable<any> => this.parent;
@@ -55,7 +57,8 @@ export abstract class AbstractColumn<T extends ColumnType, TNullable extends boo
 
   public abstract foreignKey <ITable extends AbstractTable<ITable>>(table: { new(db: DB): ITable ;},
     callback: (table: ITable) => AbstractColumn<T, boolean, boolean>,
-    onConstraint?: OnConstraint)
+    onDelete?: OnDelete,
+    onUpdate?: OnUpdate)
   : AbstractColumn<T, TNullable, TAutoIncrement>;
 
   public defaultValue = (value: ExtractColumnType<T>) => {
@@ -107,11 +110,13 @@ export class Column<T extends ColumnType, TNullable extends boolean = true, TAut
   public foreignKey<ITable extends AbstractTable<ITable>>(
     table: new (db: DB) => ITable,
     callback: (table: ITable) => Column<T, boolean, boolean>,
-    onConstraint?: OnConstraint,
+    onDelete?: OnDelete,
+    onUpdate?: OnUpdate,
   ): Column<T, TNullable, TAutoIncrement> {
     const tableInstance = this.getParent().db.create(table);
     this.referenced = callback(tableInstance);
-    this.onConstraint = onConstraint;
+    this.onDelete = onDelete;
+    this.onUpdate = onUpdate;
     return this;
   }
 
@@ -142,11 +147,13 @@ export class IndexedColumn<T extends ColumnType, TNullable extends boolean = tru
   public foreignKey<ITable extends AbstractTable<ITable>>(
     table: new (db: DB) => ITable,
     callback: (table: ITable) => IndexedColumn<T, boolean, boolean>,
-    onConstraint?: OnConstraint,
+    onDelete?: OnDelete,
+    onUpdate?: OnUpdate,
   ): IndexedColumn<T, TNullable, TAutoIncrement> {
     // eslint-disable-next-line new-cap
     this.referenced = callback(this.getParent().db.create(table));
-    this.onConstraint = onConstraint;
+    this.onDelete = onDelete;
+    this.onUpdate = onUpdate;
     return this;
   }
 
