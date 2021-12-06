@@ -1,3 +1,4 @@
+import { UpdateCustomExpr } from '../builders/requestBuilders/updates/updates';
 import { AbstractColumn, Column, IndexedColumn } from '../columns/column';
 import ColumnType from '../columns/types/columnType';
 import TableIndex from '../indexes/tableIndex';
@@ -26,6 +27,12 @@ export type ExtractOptionalFieldNames<TTable> = {
 export type ExtractModel<TTable> =
   {[Key in ExtractFieldNames<TTable>]: ExtractCodeType<TTable[Key]>} &
   {[Key in ExtractOptionalFieldNames<TTable>]?: ExtractCodeType<TTable[Key]>};
+
+export type ExtractUpdateModel<TTable> =
+  {[Key in ExtractFieldNames<TTable>]:
+    ExtractCodeType<TTable[Key]> | UpdateCustomExpr<TTable[Key]>} &
+  {[Key in ExtractOptionalFieldNames<TTable>]?:
+    ExtractCodeType<TTable[Key]> | UpdateCustomExpr<TTable[Key]> };
 
 export type ExtractCodeType<T extends AbstractColumn<ColumnType<any>, boolean, boolean>> =
       // eslint-disable-next-line @typescript-eslint/no-unused-vars

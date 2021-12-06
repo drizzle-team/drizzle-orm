@@ -1,6 +1,6 @@
 import { AbstractColumn } from '../../../columns/column';
 import ColumnType from '../../../columns/types/columnType';
-import UpdateExpr from './updates';
+import { UpdateExpr } from './updates';
 
 export default class SetObject<T extends AbstractColumn<ColumnType<any>, boolean, boolean>>
   extends UpdateExpr {

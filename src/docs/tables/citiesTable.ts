@@ -1,4 +1,3 @@
-import { OnDelete } from '../../columns/column';
 import AbstractTable from '../../tables/abstractTable';
 import UsersTable from './usersTable';
 
@@ -13,7 +12,7 @@ export default class CitiesTable extends AbstractTable<CitiesTable> {
   public foundationDate = this.timestamp('name', { notNull: true });
   public location = this.varchar('page', { size: 256 });
 
-  public userId = this.int('user_id').foreignKey(UsersTable, (table) => table.id, OnDelete.CASCADE);
+  public userId = this.int('user_id').foreignKey(UsersTable, (table) => table.id, { onUpdate: 'CASCADE' });
 
   public metadata = this.jsonb<CityMeta>('metadata');
 
