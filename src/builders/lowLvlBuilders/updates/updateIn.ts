@@ -1,5 +1,5 @@
 import UpdateAggregator from '../../aggregators/updateAggregator';
-import UpdateExpr from '../../requestBuilders/updates/updates';
+import { UpdateExpr } from '../../requestBuilders/updates/updates';
 import WhereSet from './whereSet';
 
 export default class UpdateIn {

@@ -1,4 +1,4 @@
-import UpdateExpr from './updates';
+import { UpdateExpr } from './updates';
 
 export default class Combine extends UpdateExpr {
   private _setters: Array<UpdateExpr>;

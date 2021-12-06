@@ -1,7 +1,7 @@
 import { IndexedColumn } from '../../columns/column';
 import { AbstractTable } from '../../tables';
 import { ExtractModel, Indexing } from '../../tables/inferTypes';
-import UpdateExpr from '../requestBuilders/updates/updates';
+import { UpdateExpr } from '../requestBuilders/updates/updates';
 import Aggregator from './abstractAggregator';
 
 export default class InsertAggregator extends Aggregator {
