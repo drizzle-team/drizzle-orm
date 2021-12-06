@@ -9,7 +9,7 @@ import QueryResponseMapper from '../../mappers/responseMapper';
 import { AbstractTable } from '../../tables';
 import { ExtractModel, Indexing } from '../../tables/inferTypes';
 import Insert from '../lowLvlBuilders/inserts/insert';
-import UpdateExpr from '../requestBuilders/updates/updates';
+import { UpdateExpr } from '../requestBuilders/updates/updates';
 import TableRequestBuilder from './abstractRequestBuilder';
 
 export default class InsertTRB<TTable extends AbstractTable<TTable>>

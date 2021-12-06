@@ -6,10 +6,10 @@ import { DatabaseUpdateError } from '../../errors/dbErrors';
 import BaseLogger from '../../logger/abstractLogger';
 import QueryResponseMapper from '../../mappers/responseMapper';
 import { AbstractTable } from '../../tables';
-import { ExtractModel } from '../../tables/inferTypes';
+import { ExtractModel, ExtractUpdateModel } from '../../tables/inferTypes';
 import Update from '../lowLvlBuilders/updates/update';
 import { combine, set } from '../requestBuilders/updates/static';
-import UpdateExpr from '../requestBuilders/updates/updates';
+import { UpdateCustomExpr, UpdateExpr } from '../requestBuilders/updates/updates';
 import Expr from '../requestBuilders/where/where';
 import TableRequestBuilder from './abstractRequestBuilder';
 
@@ -33,11 +33,16 @@ export default class UpdateTRB<TTable extends AbstractTable<TTable>>
     return this;
   };
 
-  public set = (expr: Partial<ExtractModel<TTable>>): UpdateTRB<TTable> => {
+  public set = (expr: Partial<ExtractUpdateModel<TTable>>): UpdateTRB<TTable> => {
     const updates: Array<UpdateExpr> = [];
     Object.entries(expr).forEach(([key, value]) => {
       const column = this._mappedServiceToDb[key as keyof ExtractModel<TTable>];
-      updates.push(set(column, value as any));
+      if (value instanceof UpdateCustomExpr) {
+        value.setColumn(column);
+        updates.push(value);
+      } else {
+        updates.push(set(column, value as any));
+      }
     });
     this._update = combine(updates);
 

@@ -1,5 +1,5 @@
 import { AbstractTable } from '../../tables';
-import UpdateExpr from '../requestBuilders/updates/updates';
+import { UpdateExpr } from '../requestBuilders/updates/updates';
 import Expr from '../requestBuilders/where/where';
 import Aggregator from './abstractAggregator';
 

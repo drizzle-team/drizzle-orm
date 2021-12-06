@@ -1,6 +1,6 @@
 import { Indexing } from '../../../tables/inferTypes';
 import InsertAggregator from '../../aggregators/insertAggregator';
-import UpdateExpr from '../../requestBuilders/updates/updates';
+import { UpdateExpr } from '../../requestBuilders/updates/updates';
 import OnConflictInsert from './onConflictInsert';
 
 export default class ValuesInsert {
