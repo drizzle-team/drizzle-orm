@@ -57,8 +57,10 @@ export abstract class AbstractColumn<T extends ColumnType, TNullable extends boo
 
   public abstract foreignKey <ITable extends AbstractTable<ITable>>(table: { new(db: DB): ITable ;},
     callback: (table: ITable) => AbstractColumn<T, boolean, boolean>,
-    onDelete?: OnDelete,
-    onUpdate?: OnUpdate)
+    onConstraint: {
+      onDelete?: 'CASCADE' | 'RESTRICT',
+      onUpdate?: 'CASCADE' | 'RESTRICT'
+    })
   : AbstractColumn<T, TNullable, TAutoIncrement>;
 
   public defaultValue = (value: ExtractColumnType<T>) => {
@@ -110,13 +112,15 @@ export class Column<T extends ColumnType, TNullable extends boolean = true, TAut
   public foreignKey<ITable extends AbstractTable<ITable>>(
     table: new (db: DB) => ITable,
     callback: (table: ITable) => Column<T, boolean, boolean>,
-    onDelete?: OnDelete,
-    onUpdate?: OnUpdate,
+    onConstraint: {
+      onDelete?: 'CASCADE' | 'RESTRICT',
+      onUpdate?: 'CASCADE' | 'RESTRICT'
+    },
   ): Column<T, TNullable, TAutoIncrement> {
     const tableInstance = this.getParent().db.create(table);
     this.referenced = callback(tableInstance);
-    this.onDelete = onDelete;
-    this.onUpdate = onUpdate;
+    this.onDelete = onConstraint.onDelete ? `ON DELETE ${onConstraint.onDelete}` : undefined;
+    this.onUpdate = onConstraint.onUpdate ? `ON UPDATE ${onConstraint.onUpdate}` : undefined;
     return this;
   }
 
@@ -147,13 +151,15 @@ export class IndexedColumn<T extends ColumnType, TNullable extends boolean = tru
   public foreignKey<ITable extends AbstractTable<ITable>>(
     table: new (db: DB) => ITable,
     callback: (table: ITable) => IndexedColumn<T, boolean, boolean>,
-    onDelete?: OnDelete,
-    onUpdate?: OnUpdate,
+    onConstraint: {
+      onDelete?: 'CASCADE' | 'RESTRICT',
+      onUpdate?: 'CASCADE' | 'RESTRICT'
+    },
   ): IndexedColumn<T, TNullable, TAutoIncrement> {
     // eslint-disable-next-line new-cap
     this.referenced = callback(this.getParent().db.create(table));
-    this.onDelete = onDelete;
-    this.onUpdate = onUpdate;
+    this.onDelete = onConstraint.onDelete ? `ON DELETE ${onConstraint.onDelete}` : undefined;
+    this.onUpdate = onConstraint.onUpdate ? `ON UPDATE ${onConstraint.onUpdate}` : undefined;
     return this;
   }
 
