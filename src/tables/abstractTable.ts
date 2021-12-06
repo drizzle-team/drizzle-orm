@@ -169,17 +169,25 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
     return new Column(this, name, pgEnum, !params?.notNull ?? false);
   }
 
-  protected decimal(name: string, params?: {notNull: false, precision: number, scale: number})
+  protected decimal(name: string, params?: { precision?: number, scale: number, notNull?: false })
   : Column<PgBigDecimal, true>;
-  protected decimal(name: string, params: {notNull: true, precision: number, scale: number})
+  protected decimal(name: string, params: { precision?: number, scale: number, notNull?: true })
   : Column<PgBigDecimal, false>;
-  protected decimal(name: string, params: {notNull?: boolean,
-    precision?: number, scale?: number} = {}) {
+  protected decimal(name: string, params?: { precision: number, scale?: number, notNull?: false })
+  : Column<PgBigDecimal, true>;
+  protected decimal(name: string, params: { precision: number, scale?: number, notNull?: true })
+  : Column<PgBigDecimal, false>;
+  protected decimal(name: string, params?: { precision?: number, scale?: number, notNull?: false })
+  : Column<PgBigDecimal, true>;
+  protected decimal(name: string, params: { precision?: number, scale?: number, notNull?: true })
+  : Column<PgBigDecimal, false>;
+  protected decimal(name: string, params: { precision?: number, scale?: number,
+    notNull?: boolean } = {}) {
     return new Column(this, name,
       new PgBigDecimal(params.precision, params.scale), !params?.notNull ?? false);
   }
 
-  protected time(name: string, params?: {notNull: false}): Column<PgTime, true>;
+  protected time(name: string, params?: { notNull: false }): Column<PgTime, true>;
   protected time(name: string, params: {notNull: true}): Column<PgTime, false>;
   protected time(name: string, params: {notNull?: boolean} = {}) {
     return new Column(this, name, new PgTime(), !params?.notNull ?? false);
