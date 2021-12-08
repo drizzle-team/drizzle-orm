@@ -1,7 +1,5 @@
-import { AbstractColumn } from '../../../columns/column';
-import ColumnType from '../../../columns/types/columnType';
 import UpdateAggregator from '../../aggregators/updateAggregator';
-import UpdateExpr from '../../requestBuilders/updates/updates';
+import { UpdateExpr } from '../../requestBuilders/updates/updates';
 import WhereSet from './whereSet';
 
 export default class UpdateIn {
@@ -11,10 +9,7 @@ export default class UpdateIn {
     this._aggregator = aggregator;
   }
 
-  public columns = (columns: AbstractColumn<ColumnType>[]) => {
-    this._aggregator.appendFields(columns);
-    return new UpdateIn(this._aggregator);
-  };
+  public columns = () => new UpdateIn(this._aggregator);
 
   public set = (updates: UpdateExpr) => new WhereSet(this._aggregator).apply(updates);
 

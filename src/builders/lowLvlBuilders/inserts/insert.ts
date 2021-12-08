@@ -1,12 +1,11 @@
-import { AbstractColumn } from '../../../columns/column';
-import ColumnType from '../../../columns/types/columnType';
+import { AbstractTable } from '../../../tables';
 import InsertAggregator from '../../aggregators/insertAggregator';
 import InsertInto from './insertInto';
 
 export default class Insert {
-  public static into = (tableName: string, columns: AbstractColumn<ColumnType>[]) => {
-    const aggregator = new InsertAggregator(tableName);
-    aggregator.appendFrom(tableName).appendFields(columns);
+  public static into = <TTable extends AbstractTable<TTable>>(table: AbstractTable<TTable>) => {
+    const aggregator = new InsertAggregator(table);
+    // aggregator.appendFrom(table.tableName());
     return new InsertInto(aggregator);
   };
 }

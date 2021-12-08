@@ -1,3 +1,4 @@
+import { AbstractTable } from '../../tables';
 import Expr from '../requestBuilders/where/where';
 import Aggregator from './abstractAggregator';
 
@@ -6,13 +7,15 @@ export default class DeleteAggregator extends Aggregator {
   private _filters: Array<string> = [];
   private _delete: Array<string> = ['DELETE'];
 
-  public constructor(tableName: string) {
-    super(tableName);
+  public constructor(table: AbstractTable<any>) {
+    super(table);
   }
 
   public filters = (filters: Expr): DeleteAggregator => {
-    this._filters.push('WHERE ');
-    this._filters.push(filters.toQuery());
+    if (filters) {
+      this._filters.push('WHERE ');
+      this._filters.push(filters.toQuery());
+    }
     return this;
   };
 
@@ -28,6 +31,10 @@ export default class DeleteAggregator extends Aggregator {
     this._delete.push(this._from.join(''));
     this._delete.push('\n');
     this._delete.push(this._filters.join(''));
+    this._delete.push('\n');
+    this._delete.push('RETURNING');
+    this._delete.push('\n');
+    this._delete.push(this._fields.join(''));
 
     return this._delete.join('');
   };

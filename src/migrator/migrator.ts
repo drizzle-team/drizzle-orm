@@ -85,7 +85,7 @@ export default class Migrator {
                 hash: Buffer.from(value).toString('base64'),
               }).execute();
           }
-        } catch (e) {
+        } catch (e: any) {
           await transaction.rollback();
           throw new Error(`Migration chain ${key} was not migrated sucessfully.\nMessage: ${e.message}`);
         }

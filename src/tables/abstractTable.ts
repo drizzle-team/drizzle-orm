@@ -1,5 +1,3 @@
-/* eslint-disable import/no-cycle */
-/* eslint-disable max-classes-per-file */
 import PgVarChar from '../columns/types/pgVarChar';
 import PgTimestamp from '../columns/types/pgTimestamp';
 import PgInteger from '../columns/types/pgInteger';
@@ -17,12 +15,12 @@ import PgBigInt from '../columns/types/pgBigInt';
 import Session from '../db/session';
 import BaseLogger from '../logger/abstractLogger';
 import PgEnum from '../columns/types/pgEnum';
-import { ExtractModel } from './inferTypes';
 import DB from '../db/db';
-import { Column } from '../columns/column';
+import { AbstractColumn, Column } from '../columns/column';
 import TableIndex from '../indexes/tableIndex';
+import { ExtractModel } from './inferTypes';
+import Enum, { ExtractEnumValues } from '../types/type';
 
-// eslint-disable-next-line max-len
 export default abstract class AbstractTable<TTable extends AbstractTable<TTable>> {
   public db: DB;
 
@@ -50,17 +48,20 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
       throw new Error(`Db was not provided in constructor, while ${this.constructor.name} class was creating. Please make sure, that you provided Db object to ${this.constructor.name} class. Should be -> new ${this.constructor.name}(db)`);
     }
 
-    return new SelectTRB(this.tableName(),
-      this._session, this.mapServiceToDb(), { limit, offset },
-      this as unknown as TTable,
-      this._logger);
+    return new SelectTRB(
+      this._session,
+      this.mapServiceToDb(),
+      { limit, offset },
+      this,
+      this._logger,
+    );
   }
 
   public update = (): UpdateTRB<TTable> => {
     if (!this._session) {
       throw new Error(`Db was not provided in constructor, while ${this.constructor.name} class was creating. Please make sure, that you provided Db object to ${this.constructor.name} class. Should be -> new ${this.constructor.name}(db)`);
     }
-    return new UpdateTRB(this.tableName(), this._session, this.mapServiceToDb(), this._logger);
+    return new UpdateTRB(this, this._session, this.mapServiceToDb(), this._logger);
   };
 
   public insert = (value: ExtractModel<TTable>):
@@ -68,7 +69,7 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
     if (!this._session) {
       throw new Error(`Db was not provided in constructor, while ${this.constructor.name} class was creating. Please make sure, that you provided Db object to ${this.constructor.name} class. Should be -> new ${this.constructor.name}(db)`);
     }
-    return new InsertTRB([value], this.tableName(), this._session,
+    return new InsertTRB([value], this._session,
       this.mapServiceToDb(), this, this._logger);
   };
 
@@ -77,7 +78,7 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
     if (!this._session) {
       throw new Error(`Db was not provided in constructor, while ${this.constructor.name} class was creating. Please make sure, that you provided Db object to ${this.constructor.name} class. Should be -> new ${this.constructor.name}(db)`);
     }
-    return new InsertTRB(values, this.tableName(), this._session,
+    return new InsertTRB(values, this._session,
       this.mapServiceToDb(), this, this._logger);
   };
 
@@ -85,24 +86,30 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
     if (!this._session) {
       throw new Error(`Db was not provided in constructor, while ${this.constructor.name} class was creating. Please make sure, that you provided Db object to ${this.constructor.name} class. Should be -> new ${this.constructor.name}(db)`);
     }
-    return new DeleteTRB(this.tableName(), this._session,
-      this.mapServiceToDb(), this._logger);
+    return new DeleteTRB(this, this._session, this.mapServiceToDb(), this._logger);
   };
 
-  public mapServiceToDb(): {[name in keyof ExtractModel<TTable>]: Column<ColumnType>} {
+  public mapServiceToDb(): {[name in keyof ExtractModel<TTable>]: AbstractColumn<ColumnType>} {
     return Object.getOwnPropertyNames(this)
-      .reduce<{[name in keyof ExtractModel<TTable>]: Column<ColumnType>}>((res, fieldName) => {
+      .reduce<{[name in keyof ExtractModel<TTable>]
+      : AbstractColumn<ColumnType>}>((res, fieldName) => {
       const field: unknown = (this as unknown as TTable)[fieldName as keyof TTable];
-      if (field instanceof Column) {
+      if (field instanceof AbstractColumn) {
         res[fieldName as keyof ExtractModel<TTable>] = field;
       }
       return res;
-    }, {} as {[name in keyof ExtractModel<TTable>]: Column<ColumnType>});
+    }, {} as {[name in keyof ExtractModel<TTable>]: AbstractColumn<ColumnType>});
   }
 
   protected index(columns: Array<Column<ColumnType, boolean, boolean>>): TableIndex
   protected index(columns: Column<ColumnType, boolean, boolean>): TableIndex
   protected index(columns: any) {
+    return new TableIndex(this.tableName(), columns instanceof Array ? columns : [columns]);
+  }
+
+  protected uniqueIndex(columns: Array<Column<ColumnType, boolean, boolean>>): TableIndex
+  protected uniqueIndex(columns: Column<ColumnType, boolean, boolean>): TableIndex
+  protected uniqueIndex(columns: any) {
     return new TableIndex(this.tableName(), columns instanceof Array ? columns : [columns]);
   }
 
@@ -137,29 +144,50 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
     return new Column(this, name, new PgBigInt(), !params?.notNull ?? false);
   }
 
-  protected enum<TSubType extends { [s: number]: string }>(from: { [s: number]: string },
-    name: string, dbName:string, params?: {notNull: false})
-  : Column<PgEnum<TSubType>, true>;
-  protected enum<TSubType extends { [s: number]: string }>(from: { [s: number]: string },
-    name: string, dbName:string, params: {notNull: true})
-  : Column<PgEnum<TSubType>, false>;
-  protected enum<TSubType extends { [s: number]: string }>(from: { [s: number]: string },
-    name: string, dbName:string, params: {notNull?: boolean} = {}) {
-    return new Column(this, name,
-      new PgEnum<TSubType>(name, dbName, from as TSubType), !params?.notNull ?? false);
+  // protected enum<TSubType extends { [s: number]: string }>(from: { [s: number]: string },
+  //   name: string, dbName:string, params?: {notNull: false})
+  // : Column<PgEnum<TSubType>, true>;
+  // protected enum<TSubType extends { [s: number]: string }>(from: { [s: number]: string },
+  //   name: string, dbName:string, params: {notNull: true})
+  // : Column<PgEnum<TSubType>, false>;
+  // protected enum<TSubType extends { [s: number]: string }>(from: { [s: number]: string },
+  //   name: string, dbName:string, params: {notNull?: boolean} = {}) {
+  //   return new Column(this, name,
+  //     new PgEnum<TSubType>(name, dbName, from as TSubType), !params?.notNull ?? false);
+  // }
+
+  // @TODO handle enums properly
+  protected type<ETtype extends string>(typeEnum: Enum<ETtype>,
+    name: string, params?: {notNull: false})
+  : Column<PgEnum<ExtractEnumValues<Enum<ETtype>>>, true>;
+  protected type<ETtype extends string>(typeEnum: Enum<ETtype>,
+    name: string, params: {notNull: true})
+  : Column<PgEnum<ExtractEnumValues<Enum<ETtype>>>, false>;
+  protected type<ETtype extends string>(typeEnum: Enum<ETtype>,
+    name: string, params: {notNull?: boolean} = {}) {
+    const pgEnum = new PgEnum<ExtractEnumValues<typeof typeEnum>>(typeEnum.name);
+    return new Column(this, name, pgEnum, !params?.notNull ?? false);
   }
 
-  protected decimal(name: string, params?: {notNull: false, precision: number, scale: number})
+  protected decimal(name: string, params?: { precision?: number, scale: number, notNull?: false })
   : Column<PgBigDecimal, true>;
-  protected decimal(name: string, params: {notNull: true, precision: number, scale: number})
+  protected decimal(name: string, params: { precision?: number, scale: number, notNull?: true })
   : Column<PgBigDecimal, false>;
-  protected decimal(name: string, params: {notNull?: boolean,
-    precision?: number, scale?: number} = {}) {
+  protected decimal(name: string, params?: { precision: number, scale?: number, notNull?: false })
+  : Column<PgBigDecimal, true>;
+  protected decimal(name: string, params: { precision: number, scale?: number, notNull?: true })
+  : Column<PgBigDecimal, false>;
+  protected decimal(name: string, params?: { precision?: number, scale?: number, notNull?: false })
+  : Column<PgBigDecimal, true>;
+  protected decimal(name: string, params: { precision?: number, scale?: number, notNull?: true })
+  : Column<PgBigDecimal, false>;
+  protected decimal(name: string, params: { precision?: number, scale?: number,
+    notNull?: boolean } = {}) {
     return new Column(this, name,
       new PgBigDecimal(params.precision, params.scale), !params?.notNull ?? false);
   }
 
-  protected time(name: string, params?: {notNull: false}): Column<PgTime, true>;
+  protected time(name: string, params?: { notNull: false }): Column<PgTime, true>;
   protected time(name: string, params: {notNull: true}): Column<PgTime, false>;
   protected time(name: string, params: {notNull?: boolean} = {}) {
     return new Column(this, name, new PgTime(), !params?.notNull ?? false);

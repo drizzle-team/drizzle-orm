@@ -1,55 +1,170 @@
+import { QueryResult } from 'pg';
 import { AbstractColumn } from '../../../columns/column';
 import ColumnType from '../../../columns/types/columnType';
+import DB from '../../../db/db';
 import Session from '../../../db/session';
-import BuilderError, { BuilderType } from '../../../errors/builderError';
-import { DatabaseSelectError } from '../../../errors/dbErrors';
 import QueryResponseMapper from '../../../mappers/responseMapper';
 import { AbstractTable } from '../../../tables';
 import { ExtractModel } from '../../../tables/inferTypes';
-import Select from '../../lowLvlBuilders/selects/select';
+import Order from '../../highLvlBuilders/order';
 import Expr from '../../requestBuilders/where/where';
-import Join from '../join';
+import Join, { JoinStrategy } from '../join';
+import JoinWith from '../joinWith';
 import SelectResponseFourJoins from '../responses/selectResponseFourJoins';
 import AbstractJoined from './abstractJoinBuilder';
+import SelectTRBWithFiveJoins from './selectWithFiveJoins';
 
 export default class SelectTRBWithFourJoins<TTable extends AbstractTable<TTable>,
  TTable1, TTable2, TTable3, TTable4>
-  extends AbstractJoined<TTable> {
+  extends AbstractJoined<TTable,
+  SelectResponseFourJoins<TTable, TTable1, TTable2, TTable3, TTable4>> {
   private _join1: Join<TTable1>;
   private _join2: Join<TTable2>;
   private _join3: Join<TTable3>;
   private _join4: Join<TTable4>;
 
-  public constructor(tableName: string, session: Session,
-    filter: Expr, join1: Join<TTable1>,
-    join2: Join<TTable2>, join3: Join<TTable3>,
+  public constructor(
+    table: TTable,
+    session: Session,
+    filter: Expr,
+    join1: Join<TTable1>,
+    join2: Join<TTable2>,
+    join3: Join<TTable3>,
     join4: Join<TTable4>,
-    columns: { [name in keyof ExtractModel<TTable>]: AbstractColumn<ColumnType>; },
-    table: TTable) {
-    super(filter, tableName, session, columns, table);
+    props: {limit?:number, offset?:number},
+    orderBy?: AbstractColumn<ColumnType, boolean, boolean>,
+    order?: Order,
+    distinct?: AbstractColumn<ColumnType, boolean, boolean>,
+  ) {
+    super(table, filter, session, props, orderBy, order, distinct);
     this._join1 = join1;
     this._join2 = join2;
     this._join3 = join3;
     this._join4 = join4;
   }
 
-  public execute
-  = async (): Promise<SelectResponseFourJoins<TTable, TTable1, TTable2, TTable3, TTable4>> => {
-    const queryBuilder = Select.from(this._tableName, Object.values(this._columns));
-    if (this._filter) {
-      queryBuilder.filteredBy(this._filter);
-    }
+  public innerJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>>(
+    table: { new(db: DB): IToTable ;},
+    from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean>,
+    to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean>,
+  ): SelectTRBWithFiveJoins<TTable, TTable1, TTable2, TTable3, TTable4, IToTable> {
+    const toTable = this._table.db.create(table);
 
-    queryBuilder.joined([this._join1, this._join2, this._join3, this._join4]);
+    const fromColumn = from(this._table);
+    const toColumn = to(toTable);
 
-    let query = '';
-    try {
-      query = queryBuilder.build();
-    } catch (e) {
-      throw new BuilderError(BuilderType.TWO_JOINED_SELECT,
-        this._tableName, Object.values(this._columns), e, this._filter);
-    }
+    const join = new JoinWith(toTable.tableName(), toTable.mapServiceToDb())
+      .columns(fromColumn, toColumn).joinStrategy(JoinStrategy.INNER_JOIN);
 
+    return new SelectTRBWithFiveJoins(
+      this._table,
+      this._session,
+      this._filter,
+      this._join1,
+      this._join2,
+      this._join3,
+      this._join4,
+      join,
+      this._props,
+      this._orderBy,
+      this._order,
+      this._distinct,
+    );
+  }
+
+  public leftJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>>(
+    table: { new(db: DB): IToTable ;},
+    from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean>,
+    to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean>,
+  ): SelectTRBWithFiveJoins<TTable, TTable1, TTable2, TTable3, TTable4, IToTable> {
+    const toTable = this._table.db.create(table);
+
+    const fromColumn = from(this._table);
+    const toColumn = to(toTable);
+
+    const join = new JoinWith(toTable.tableName(), toTable.mapServiceToDb())
+      .columns(fromColumn, toColumn).joinStrategy(JoinStrategy.LEFT_JOIN);
+
+    return new SelectTRBWithFiveJoins(
+      this._table,
+      this._session,
+      this._filter,
+      this._join1,
+      this._join2,
+      this._join3,
+      this._join4,
+      join,
+      this._props,
+      this._orderBy,
+      this._order,
+      this._distinct,
+    );
+  }
+
+  public rightJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>>(
+    table: { new(db: DB): IToTable ;},
+    from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean>,
+    to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean>,
+  ): SelectTRBWithFiveJoins<TTable, TTable1, TTable2, TTable3, TTable4, IToTable> {
+    const toTable = this._table.db.create(table);
+
+    const fromColumn = from(this._table);
+    const toColumn = to(toTable);
+
+    const join = new JoinWith(toTable.tableName(), toTable.mapServiceToDb())
+      .columns(fromColumn, toColumn).joinStrategy(JoinStrategy.RIGHT_JOIN);
+
+    return new SelectTRBWithFiveJoins(
+      this._table,
+      this._session,
+      this._filter,
+      this._join1,
+      this._join2,
+      this._join3,
+      this._join4,
+      join,
+      this._props,
+      this._orderBy,
+      this._order,
+      this._distinct,
+    );
+  }
+
+  public fullJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>>(
+    table: { new(db: DB): IToTable ;},
+    from: (table: TTable) => AbstractColumn<TColumn>,
+    to: (table: IToTable) => AbstractColumn<TColumn>,
+  ): SelectTRBWithFiveJoins<TTable, TTable1, TTable2, TTable3, TTable4, IToTable> {
+    const toTable = this._table.db.create(table);
+
+    const fromColumn = from(this._table);
+    const toColumn = to(toTable);
+
+    const join = new JoinWith(toTable.tableName(), toTable.mapServiceToDb())
+      .columns(fromColumn, toColumn).joinStrategy(JoinStrategy.FULL_JOIN);
+
+    return new SelectTRBWithFiveJoins(
+      this._table,
+      this._session,
+      this._filter,
+      this._join1,
+      this._join2,
+      this._join3,
+      this._join4,
+      join,
+      this._props,
+      this._orderBy,
+      this._order,
+      this._distinct,
+    );
+  }
+
+  protected joins(): Join<any>[] {
+    return [this._join1, this._join2, this._join3, this._join4];
+  }
+
+  protected mapResponse(result: QueryResult<any>)
+    : SelectResponseFourJoins<TTable, TTable1, TTable2, TTable3, TTable4> {
     const parent:{
       [name in keyof ExtractModel<TTable1>]: AbstractColumn<ColumnType>;
     } = this._join1.mappedServiceToDb;
@@ -63,18 +178,12 @@ export default class SelectTRBWithFourJoins<TTable extends AbstractTable<TTable>
     { [name in keyof ExtractModel<TTable4>]: AbstractColumn<ColumnType>;
     } = this._join4.mappedServiceToDb;
 
-    const result = await this._session.execute(query);
-    if (result.isLeft()) {
-      const { reason } = result.value;
-      throw new DatabaseSelectError(this._tableName, reason, query);
-    } else {
-      const response = QueryResponseMapper.map(this._columns, result.value);
-      const objects = QueryResponseMapper.map(parent, result.value);
-      const objectsTwo = QueryResponseMapper.map(parentTwo, result.value);
-      const objectsThree = QueryResponseMapper.map(parentThree, result.value);
-      const objectsFour = QueryResponseMapper.map(parentFour, result.value);
+    const response = QueryResponseMapper.map(this._table.mapServiceToDb(), result);
+    const objects = QueryResponseMapper.map(parent, result);
+    const objectsTwo = QueryResponseMapper.map(parentTwo, result);
+    const objectsThree = QueryResponseMapper.map(parentThree, result);
+    const objectsFour = QueryResponseMapper.map(parentFour, result);
 
-      return new SelectResponseFourJoins(response, objects, objectsTwo, objectsThree, objectsFour);
-    }
-  };
+    return new SelectResponseFourJoins(response, objects, objectsTwo, objectsThree, objectsFour);
+  }
 }

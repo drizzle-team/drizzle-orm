@@ -3,27 +3,13 @@
     "target": "es2018",                                
     "module": "commonjs",                           
     "lib": ["es2018","es2017", "es7", "es6","es5"],
-    // "baseUrl": "src",
-    // "paths": {
-      // "@/*": ["*"]
-    // },
     "outDir": "./dist",                                
     "declaration": true,                       
     "strict": true, 
-    // "esModuleInterop": true,                         
-    // "forceConsistentCasingInFileNames": true,
     "noImplicitReturns": true,
     "strictPropertyInitialization": false,
-    // "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,
-    // "emitDecoratorMetadata": true,
-    // "isolatedModules": true,
     "skipLibCheck": true,
-    // "moduleResolution": "Node",
-    // "noImplicitAny": true,
-    // "sourceMap": true,
-    // "noFallthroughCasesInSwitch": true, 
   },
-  "include": ["src/**/*", "src/test.ts"],
-  // "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*"],
 }

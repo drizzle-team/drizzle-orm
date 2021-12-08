@@ -17,13 +17,13 @@ export default class DbConnector {
       const pool = new Pool(this.__config);
 
       await pool.connect();
-      console.log('Db connected!');
+      // console.log('Db connected!');
 
       // check if table structure is the same as in code
 
       return new DB(pool);
-    } catch (e) {
-      console.log(`Connection error: ${e.message}`);
+    } catch (e: any) {
+      // console.log(`Connection error: ${e.message}`);
       throw new Error(`Connection error: ${e.message}`);
     }
   };

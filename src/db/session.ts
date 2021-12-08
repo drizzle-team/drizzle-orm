@@ -11,7 +11,7 @@ export default class Session {
   : Promise<Either<Failure, QueryResult<any>>> => {
     try {
       return right(await this.pool.query(query));
-    } catch (e) {
+    } catch (e: any) {
       return left({
         type: PgSessionError.PgQueryExecutionError,
         reason: e,

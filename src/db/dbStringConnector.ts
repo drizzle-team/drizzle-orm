@@ -17,11 +17,11 @@ export default class DBStringConnector {
       const pool = new Pool(config);
 
       await pool.connect();
-      console.log('Db connected!');
+      // console.log('Db connected!');
 
       return new Db(pool);
-    } catch (e) {
-      console.log(`Connection error: ${e.message}`);
+    } catch (e: any) {
+      // console.log(`Connection error: ${e.message}`);
       throw new Error(`Connection error: ${e.message}`);
     }
   };
