@@ -63,7 +63,6 @@ export default class MigrationSerializer {
       const indexToReturn: IndexAsObject = {};
 
       for (const properties of tableEntries) {
-        const key = properties[0];
         const value = properties[1];
         if (value instanceof TableIndex) {
           const columns = value.getColumns();
@@ -85,7 +84,7 @@ export default class MigrationSerializer {
         }
 
         if (value instanceof Column) {
-          columnToReturn[key] = {
+          columnToReturn[value.getColumnName()] = {
             name: value.getColumnName(),
             type: value.isAutoIncrement() ? 'serial' : (value.getColumnType() as ColumnType).getDbName(),
             primaryKey: !!value.primaryKeyName,
@@ -96,7 +95,7 @@ export default class MigrationSerializer {
 
           const referenced = value.getReferenced();
           if (referenced) {
-            columnToReturn[key].references = {
+            columnToReturn[value.getColumnName()].references = {
               foreignKeyName: `${value.getParent().tableName()}_${value.getColumnName()}_fk`,
               table: referenced.getParentName(),
               column: referenced.getColumnName(),
