@@ -14,7 +14,7 @@ export default class PgBigInt extends ColumnType<number> {
 
   public insertStrategy = (value: number): string => `${value}`;
 
-  public selectStrategy(value: string): number {
-    return parseInt(value, 10);
+  public selectStrategy(value: string): number | undefined {
+    return value ? parseInt(value, 10) : undefined;
   }
 }
