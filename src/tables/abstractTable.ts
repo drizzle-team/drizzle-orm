@@ -20,6 +20,7 @@ import { AbstractColumn, Column } from '../columns/column';
 import TableIndex from '../indexes/tableIndex';
 import { ExtractModel } from './inferTypes';
 import Enum, { ExtractEnumValues } from '../types/type';
+import PgSmallInt from '../columns/types/pgSmallInt';
 
 export default abstract class AbstractTable<TTable extends AbstractTable<TTable>> {
   public db: DB;
@@ -131,6 +132,18 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
   protected int(name: string, params: {notNull?: boolean} = {}) {
     return new Column(this, name, new PgInteger(), !params?.notNull ?? false);
   }
+
+  protected smallInt(name: string, params?: {notNull: false}): Column<PgInteger, true>;
+  protected smallInt(name: string, params: {notNull: true}): Column<PgInteger, false>;
+  protected smallInt(name: string, params: {notNull?: boolean} = {}) {
+    return new Column(this, name, new PgSmallInt(), !params?.notNull ?? false);
+  }
+
+  // protected serial(name: string, params?: {notNull: false}): Column<PgInteger, true>;
+  // protected serial(name: string, params: {notNull: true}): Column<PgInteger, false>;
+  // protected serial(name: string, params: {notNull?: boolean} = {}) {
+  //   return new Column(this, name, new PgSerial(), !params?.notNull ?? false);
+  // }
 
   protected timestamp(name: string, params?: { notNull: false }): Column<PgTimestamp, true>;
   protected timestamp(name: string, params: { notNull: true }): Column<PgTimestamp, false>;
