@@ -1,6 +1,6 @@
 {
   "name": "drizzle-orm",
-  "version": "0.9.11",
+  "version": "0.9.12",
   "description": "",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
