@@ -13,7 +13,7 @@ export default class UsersTable extends AbstractTable<UsersTable> {
   public media = this.jsonb<string[]>('media');
   public decimalField = this.decimal('test', { notNull: true, precision: 100, scale: 2 });
   public bigIntField = this.bigint('test1');
-  public role = this.type(rolesEnum, 'name_in_table', { notNull: true });
+  // public role = this.type(rolesEnum, 'name_in_table', { notNull: true });
 
   public createdAt = this.timestamp('created_at', { notNull: true });
   public updatedAt = this.timestamp('updated_at');

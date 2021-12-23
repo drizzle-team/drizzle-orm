@@ -12,7 +12,7 @@ import DeleteTRB from '../builders/highLvlBuilders/deleteRequestBuilder';
 import UpdateTRB from '../builders/highLvlBuilders/updateRequestBuilder';
 import SelectTRB from '../builders/highLvlBuilders/selectRequestBuilder';
 import PgBigInt from '../columns/types/pgBigInt';
-import Session from '../db/session';
+import { ISession } from '../db/session';
 import BaseLogger from '../logger/abstractLogger';
 import PgEnum from '../columns/types/pgEnum';
 import DB from '../db/db';
@@ -25,7 +25,7 @@ import PgSmallInt from '../columns/types/pgSmallInt';
 export default abstract class AbstractTable<TTable extends AbstractTable<TTable>> {
   public db: DB;
 
-  private _session: Session;
+  private _session: ISession;
   private _logger: BaseLogger | undefined;
 
   public constructor(db: DB) {
