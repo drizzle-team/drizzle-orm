@@ -1,6 +1,7 @@
 import { ClientConfig, Pool } from 'pg';
 import DB from './db';
 import DBStringConnector from './dbStringConnector';
+import Session from './session';
 
 export default class DbConnector {
   private __config: ClientConfig;
@@ -21,7 +22,7 @@ export default class DbConnector {
 
       // check if table structure is the same as in code
 
-      return new DB(pool);
+      return new DB(new Session(pool));
     } catch (e: any) {
       // console.log(`Connection error: ${e.message}`);
       throw new Error(`Connection error: ${e.message}`);

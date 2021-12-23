@@ -3,7 +3,7 @@
 import Create from '../builders/lowLvlBuilders/create';
 import Transaction from '../builders/transaction/transaction';
 import Db from '../db/db';
-import Session from '../db/session';
+import { ISession } from '../db/session';
 import {
   ExtractModel,
 } from '../tables/inferTypes';
@@ -23,7 +23,7 @@ export class MigrationSession {
 export default class Migrator {
   private _db: Db;
   private migrationsPerVersion: Map<number, string> = new Map();
-  private session: Session;
+  private session: ISession;
 
   public constructor(db: Db) {
     this._db = db;
@@ -73,18 +73,13 @@ export default class Migrator {
           if (logger) {
             logger.info(`Executing migration with tag ${key} with query:\n${value}`);
           }
-          const result = await this._db.session().execute(value);
-          if (result.isLeft()) {
-            const { reason } = result.value;
-            throw new Error(`Error while executing migration tag ${key}. Error: ${reason}`);
-          } else {
-            await migrationsTable
-              .insert({
-                version: key,
-                createdAt: new Date(),
-                hash: Buffer.from(value).toString('base64'),
-              }).execute();
-          }
+          await this._db.session().execute(value);
+          await migrationsTable
+            .insert({
+              version: key,
+              createdAt: new Date(),
+              hash: Buffer.from(value).toString('base64'),
+            }).execute();
         } catch (e: any) {
           await transaction.rollback();
           throw new Error(`Migration chain ${key} was not migrated sucessfully.\nMessage: ${e.message}`);
