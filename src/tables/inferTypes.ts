@@ -24,6 +24,10 @@ export type ExtractOptionalFieldNames<TTable> = {
         true extends TNullable ? Key : never : never
 }[keyof TTable];
 
+export type ExtractPartialObjectFromColumns<TTable> =
+  {[Key in ExtractFieldNames<TTable>]: TTable[Key]} &
+  {[Key in ExtractOptionalFieldNames<TTable>]?: TTable[Key] };
+
 export type ExtractModel<TTable> =
   {[Key in ExtractFieldNames<TTable>]: ExtractCodeType<TTable[Key]>} &
   {[Key in ExtractOptionalFieldNames<TTable>]?: ExtractCodeType<TTable[Key]>};

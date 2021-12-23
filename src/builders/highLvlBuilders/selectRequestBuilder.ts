@@ -1,4 +1,8 @@
+/* eslint-disable max-len */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/member-ordering */
 /* eslint-disable import/no-cycle */
+import { QueryResult } from 'pg';
 import { JoinWith, Select } from '..';
 import { AbstractColumn } from '../../columns/column';
 import ColumnType from '../../columns/types/columnType';
@@ -9,7 +13,7 @@ import { DatabaseSelectError } from '../../errors/dbErrors';
 import BaseLogger from '../../logger/abstractLogger';
 import QueryResponseMapper from '../../mappers/responseMapper';
 import { AbstractTable } from '../../tables';
-import { ExtractModel } from '../../tables/inferTypes';
+import { ExtractModel, ExtractPartialObjectFromColumns } from '../../tables/inferTypes';
 import SelectTRBWithJoin from '../joinBuilders/builders/selectWithJoin';
 import { JoinStrategy } from '../joinBuilders/join';
 import Expr from '../requestBuilders/where/where';
@@ -35,6 +39,52 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>>
     super(table, session, mappedServiceToDb, logger);
     this.props = props;
   }
+
+  // eslint-disable-next-line max-len
+  private partialMapServiceToDb<T>(): {[name in keyof ExtractModel<T>]: AbstractColumn<ColumnType>} {
+    return Object.getOwnPropertyNames(this)
+      .reduce<{[name in keyof ExtractModel<T>]
+      : AbstractColumn<ColumnType>}>((res, fieldName) => {
+      const field: unknown = (this as unknown as T)[fieldName as keyof T];
+      if (field instanceof AbstractColumn) {
+        res[fieldName as keyof ExtractModel<T>] = field;
+      }
+      return res;
+    }, {} as {[name in keyof ExtractModel<T>]: AbstractColumn<ColumnType>});
+  }
+
+  public fieldsv2 = <T extends Partial<ExtractPartialObjectFromColumns<TTable>>>(partial: T): (ExtractModel<T> | undefined)[] => {
+    const result: QueryResult<any> = {
+      rows: [], rowCount: 1, command: '', oid: 1, fields: [],
+    };
+
+    return QueryResponseMapper.partialMap<{[name: string]: T}>(
+      this.partialMapServiceToDb<{[name: string]: T}>(), result,
+    );
+  };
+
+  // eslint-disable-next-line max-len
+  public fields = <T extends AbstractColumn<ColumnType<any>, boolean, boolean>>(columns: T[]): (ExtractModel<{[name: string]: T}> | undefined)[] => {
+    const objectRes:
+    {[name: string]: T} = columns.reduce(
+      (obj, item, index) => Object.assign(obj,
+        { [Object.getOwnPropertyNames(item)[index]]: item }), {},
+    );
+
+    const result: QueryResult<any> = {
+      rows: [], rowCount: 1, command: '', oid: 1, fields: [],
+    };
+
+    return QueryResponseMapper.partialMap<{[name: string]: T}>(
+      this.partialMapServiceToDb<{[name: string]: T}>(), result,
+    );
+
+    // return objectRes;
+  };
+
+  // private __fields = <T>(newObj: T): Promise<ExtractModel<T>> => {
+  //   let response: ExtractModel<T>;
+  // };
 
   public where = (expr: Expr): SelectTRB<TTable> => {
     this._filter = expr;

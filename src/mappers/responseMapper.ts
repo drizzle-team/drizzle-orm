@@ -27,4 +27,25 @@ export default class QueryResponseMapper {
     });
     return response;
   };
+
+  public static partialMap = <ITable>(mappedServiceToDb: { [name in keyof ExtractModel<ITable>]
+    : AbstractColumn<ColumnType>; },
+    queryResult: QueryResult<any>) => {
+    const response: Array<ExtractModel<ITable> | undefined> = [];
+
+    queryResult.rows.forEach((row) => {
+      const mappedRow: ExtractModel<ITable> = {} as ExtractModel<ITable>;
+
+      Object.keys(mappedServiceToDb).forEach((key) => {
+        const column = mappedServiceToDb[key as keyof ExtractModel<ITable>];
+        const value = column.getColumnType().selectStrategy(row[column.getAlias()]) as any;
+        mappedRow[key as keyof ExtractModel<ITable>] = value;
+      });
+      if (checkProperties(mappedRow)) {
+        response.push(undefined);
+      }
+      response.push(mappedRow);
+    });
+    return response;
+  };
 }
