@@ -1,21 +1,16 @@
+/* eslint-disable max-classes-per-file */
 import { Pool, QueryResult } from 'pg';
-import {
-  Either, Failure, left, PgSessionError, right,
-} from '../errors/baseError';
 
-export default class Session {
+export abstract class ISession {
+  public abstract execute(query: string): Promise<QueryResult<any>>;
+}
+
+export default class Session extends ISession {
   public constructor(private pool: Pool) {
+    super();
   }
 
-  public execute = async (query: string)
-  : Promise<Either<Failure, QueryResult<any>>> => {
-    try {
-      return right(await this.pool.query(query));
-    } catch (e: any) {
-      return left({
-        type: PgSessionError.PgQueryExecutionError,
-        reason: e,
-      });
-    }
-  };
+  public execute(query: string): Promise<QueryResult<any>> {
+    return this.pool.query(query);
+  }
 }

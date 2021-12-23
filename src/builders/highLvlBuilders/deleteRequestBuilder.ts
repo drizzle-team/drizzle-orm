@@ -1,8 +1,7 @@
 import { AbstractColumn } from '../../columns/column';
 import ColumnType from '../../columns/types/columnType';
-import Session from '../../db/session';
+import { ISession } from '../../db/session';
 import BuilderError, { BuilderType } from '../../errors/builderError';
-import { DatabaseDeleteError } from '../../errors/dbErrors';
 import BaseLogger from '../../logger/abstractLogger';
 import QueryResponseMapper from '../../mappers/responseMapper';
 import { AbstractTable } from '../../tables';
@@ -17,7 +16,7 @@ export default class DeleteTRB<TTable extends AbstractTable<TTable>>
 
   public constructor(
     table: AbstractTable<TTable>,
-    session: Session,
+    session: ISession,
     mappedServiceToDb: { [name in keyof ExtractModel<TTable>]: AbstractColumn<ColumnType>; },
     logger?: BaseLogger,
   ) {
@@ -51,11 +50,6 @@ export default class DeleteTRB<TTable extends AbstractTable<TTable>>
     }
 
     const result = await this._session.execute(query);
-    if (result.isLeft()) {
-      const { reason } = result.value;
-      throw new DatabaseDeleteError(this._table.tableName(), reason, query);
-    } else {
-      return QueryResponseMapper.map(this._mappedServiceToDb, result.value);
-    }
+    return QueryResponseMapper.map(this._mappedServiceToDb, result);
   };
 }

@@ -1,7 +1,7 @@
-import Session from '../../db/session';
+import { ISession } from '../../db/session';
 
 export default class Transaction {
-  public constructor(private session: Session) {
+  public constructor(private session: ISession) {
   }
 
   public begin = async (): Promise<Transaction> => {

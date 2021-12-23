@@ -1,9 +1,8 @@
 import { QueryResult } from 'pg';
 import { AbstractColumn } from '../../../columns/column';
 import ColumnType from '../../../columns/types/columnType';
-import Session from '../../../db/session';
+import { ISession } from '../../../db/session';
 import BuilderError, { BuilderType } from '../../../errors/builderError';
-import { DatabaseSelectError } from '../../../errors/dbErrors';
 import { AbstractTable } from '../../../tables';
 import Order from '../../highLvlBuilders/order';
 import Select from '../../lowLvlBuilders/selects/select';
@@ -12,7 +11,7 @@ import Join from '../join';
 
 export default abstract class AbstractJoined<TTable extends AbstractTable<TTable>, TRes> {
   protected _table: TTable;
-  protected _session: Session;
+  protected _session: ISession;
   protected _filter: Expr;
   protected _distinct?: AbstractColumn<ColumnType, boolean, boolean>;
   protected _props: {limit?:number, offset?:number};
@@ -22,7 +21,7 @@ export default abstract class AbstractJoined<TTable extends AbstractTable<TTable
   public constructor(
     table: TTable,
     filter: Expr,
-    session: Session,
+    session: ISession,
     props: { limit?: number, offset?: number },
     orderBy?: AbstractColumn<ColumnType, boolean, boolean>,
     order?: Order,
@@ -56,12 +55,7 @@ export default abstract class AbstractJoined<TTable extends AbstractTable<TTable
     }
 
     const result = await this._session.execute(query);
-    if (result.isLeft()) {
-      const { reason } = result.value;
-      throw new DatabaseSelectError(this._table.tableName(), reason, query);
-    } else {
-      return this.mapResponse(result.value);
-    }
+    return this.mapResponse(result);
   };
 
   protected abstract mapResponse(result: QueryResult<any>): TRes;
