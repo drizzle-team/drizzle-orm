@@ -1,24 +1,22 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable max-len */
 /* eslint-disable max-classes-per-file */
+import { PgTime, PgTimestamp } from '.';
 import DB from '../db/db';
 import { AbstractTable } from '../tables';
 import ColumnType from './types/columnType';
+import PgTimestamptz from './types/pgTimestamptz';
 
-type ExtractColumnType<T extends ColumnType> =
+export enum Defaults {
+  CURRENT_TIMESTAMP = 'CURRENT_TIMESTAMP',
+}
+
+type PgTimes = PgTimestamptz | PgTime | PgTimestamp;
+
+export type ExtractColumnType<T extends ColumnType> =
  T extends ColumnType<infer TCodeType> ?
-   TCodeType
+   T extends PgTimes ? TCodeType | Defaults : TCodeType
    : never;
-
-export enum OnDelete {
-  RESTRICT = 'ON DELETE RESTRICT',
-  CASCADE = 'ON DELETE CASCADE',
-}
-
-export enum OnUpdate {
-  RESTRICT = 'ON UPDATE RESTRICT',
-  CASCADE = 'ON UPDATE RESTRICT',
-}
 
 // eslint-disable-next-line max-len
 export abstract class AbstractColumn<T extends ColumnType, TNullable extends boolean = true, TAutoIncrement extends boolean = false> {

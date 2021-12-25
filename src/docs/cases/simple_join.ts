@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Create, DbConnector } from '../..';
 import { eq } from '../../builders';
