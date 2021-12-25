@@ -86,7 +86,7 @@ export default class MigrationSerializer {
         if (value instanceof Column) {
           columnToReturn[value.getColumnName()] = {
             name: value.getColumnName(),
-            type: value.isAutoIncrement() ? 'serial' : (value.getColumnType() as ColumnType).getDbName(),
+            type: (value.getColumnType() as ColumnType).getDbName(),
             primaryKey: !!value.primaryKeyName,
             unique: !!value.uniqueKeyName,
             default: value.getDefaultValue() === null ? undefined : value.getDefaultValue(),

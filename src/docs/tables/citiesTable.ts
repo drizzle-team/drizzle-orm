@@ -7,7 +7,7 @@ interface CityMeta {
 }
 
 export default class CitiesTable extends AbstractTable<CitiesTable> {
-  public id = this.int('id').autoIncrement().primaryKey();
+  public id = this.serial('id').primaryKey();
 
   public foundationDate = this.timestamp('name', { notNull: true });
   public location = this.varchar('page', { size: 256 });

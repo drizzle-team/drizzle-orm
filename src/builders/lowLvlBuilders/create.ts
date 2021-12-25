@@ -49,7 +49,7 @@ export default class Create<TTable extends AbstractTable<TTable>> {
         }
         this.columnsBuilder.push(ecranate(column.getColumnName()));
         this.columnsBuilder.push(' ');
-        this.columnsBuilder.push(column.isAutoIncrement() ? 'SERIAL' : column.getColumnType().getDbName());
+        this.columnsBuilder.push(column.getColumnType().getDbName());
         this.columnsBuilder.push(' ');
         this.columnsBuilder.push(column.getDefaultValue() != null ? `DEFAULT ${column.getColumnType().insertStrategy(column.getDefaultValue())}` : '');
         this.columnsBuilder.push(column.isNullableFlag ? '' : ' NOT NULL');

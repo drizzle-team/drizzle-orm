@@ -1,3 +1,4 @@
+/* eslint-disable import/export */
 import { ClientConfig } from 'pg';
 import { DB, DbConnector } from './db';
 

@@ -21,6 +21,7 @@ import TableIndex from '../indexes/tableIndex';
 import { ExtractModel } from './inferTypes';
 import Enum, { ExtractEnumValues } from '../types/type';
 import PgSmallInt from '../columns/types/pgSmallInt';
+import PgSerial from '../columns/types/pgSerial';
 
 export default abstract class AbstractTable<TTable extends AbstractTable<TTable>> {
   public db: DB;
@@ -137,6 +138,10 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
   protected smallInt(name: string, params: {notNull: true}): Column<PgInteger, false>;
   protected smallInt(name: string, params: {notNull?: boolean} = {}) {
     return new Column(this, name, new PgSmallInt(), !params?.notNull ?? false);
+  }
+
+  protected serial(name: string): Column<PgSerial, true, true> {
+    return new Column(this, name, new PgSerial(), true);
   }
 
   // protected serial(name: string, params?: {notNull: false}): Column<PgInteger, true>;

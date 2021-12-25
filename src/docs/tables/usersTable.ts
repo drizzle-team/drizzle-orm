@@ -6,7 +6,7 @@ import { createEnum } from '../../types/type';
 export const rolesEnum = createEnum({ alias: 'test-enum', values: ['user', 'guest', 'admin'] });
 
 export default class UsersTable extends AbstractTable<UsersTable> {
-  public id = this.int('id').autoIncrement().primaryKey();
+  public id = this.serial('id').primaryKey();
   public fullName = this.text('full_name');
 
   public phone = this.varchar('phone', { size: 256 });
