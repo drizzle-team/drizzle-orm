@@ -22,7 +22,7 @@ export enum OnUpdate {
 
 // eslint-disable-next-line max-len
 export abstract class AbstractColumn<T extends ColumnType, TNullable extends boolean = true, TAutoIncrement extends boolean = false> {
-  public isNullableFlag: TNullable;
+  public isNullableFlag: boolean = true;
   public primaryKeyName?: string;
   public uniqueKeyName?: string;
 
@@ -37,12 +37,11 @@ export abstract class AbstractColumn<T extends ColumnType, TNullable extends boo
   protected referenced: AbstractColumn<T, boolean, boolean>;
 
   public constructor(parent: AbstractTable<any>, columnName: string,
-    columnType: T, nullable: TNullable) {
+    columnType: T) {
     this.columnType = columnType;
     this.columnName = columnName;
     this.parentTableName = parent.tableName();
     this.parent = parent;
-    this.isNullableFlag = nullable;
   }
 
   public getOnDelete = (): string | undefined => this.onDelete;
@@ -57,8 +56,8 @@ export abstract class AbstractColumn<T extends ColumnType, TNullable extends boo
   public abstract foreignKey <ITable extends AbstractTable<ITable>>(table: { new(db: DB): ITable ;},
     callback: (table: ITable) => AbstractColumn<T, boolean, boolean>,
     onConstraint: {
-      onDelete?: 'CASCADE' | 'RESTRICT',
-      onUpdate?: 'CASCADE' | 'RESTRICT'
+      onDelete?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT',
+      onUpdate?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT'
     })
   : AbstractColumn<T, TNullable, TAutoIncrement>;
 
@@ -74,6 +73,8 @@ export abstract class AbstractColumn<T extends ColumnType, TNullable extends boo
     return this;
   };
 
+  public abstract notNull(): AbstractColumn<T, boolean, boolean>;
+
   public getColumnName = (): string => this.columnName;
 
   public getReferenced = (): AbstractColumn<T, boolean, boolean> => this.referenced;
@@ -87,8 +88,13 @@ export abstract class AbstractColumn<T extends ColumnType, TNullable extends boo
 export class Column<T extends ColumnType, TNullable extends boolean = true, TAutoIncrement extends boolean = false>
   extends AbstractColumn<T, TNullable, TAutoIncrement> {
   public constructor(parent: AbstractTable<any>, columnName: string,
-    columnType: T, nullable: TNullable) {
-    super(parent, columnName, columnType, nullable);
+    columnType: T) {
+    super(parent, columnName, columnType);
+  }
+
+  public notNull() {
+    this.isNullableFlag = false;
+    return this as unknown as Column<T, TAutoIncrement extends true ? true : TNullable extends true? false : true, TAutoIncrement>;
   }
 
   public primaryKey() {
@@ -101,8 +107,8 @@ export class Column<T extends ColumnType, TNullable extends boolean = true, TAut
     table: new (db: DB) => ITable,
     callback: (table: ITable) => Column<T, boolean, boolean>,
     onConstraint?: {
-      onDelete?: 'CASCADE' | 'RESTRICT',
-      onUpdate?: 'CASCADE' | 'RESTRICT'
+      onDelete?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT',
+      onUpdate?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT'
     },
   ): Column<T, TNullable, TAutoIncrement> {
     const tableInstance = this.getParent().db.create(table);
@@ -117,7 +123,12 @@ export class Column<T extends ColumnType, TNullable extends boolean = true, TAut
 export class IndexedColumn<T extends ColumnType, TNullable extends boolean = true, TAutoIncrement extends boolean = false> extends AbstractColumn<T, TNullable, TAutoIncrement> {
   public constructor(parent: AbstractTable<any>, columnName: string,
     columnType: T, nullable: TNullable) {
-    super(parent, columnName, columnType, nullable);
+    super(parent, columnName, columnType);
+  }
+
+  public notNull() {
+    this.isNullableFlag = false;
+    return this as unknown as IndexedColumn<T, TAutoIncrement extends true ? true : TNullable extends true? false : true, TAutoIncrement>;
   }
 
   public primaryKey() {
@@ -130,8 +141,8 @@ export class IndexedColumn<T extends ColumnType, TNullable extends boolean = tru
     table: new (db: DB) => ITable,
     callback: (table: ITable) => IndexedColumn<T, boolean, boolean>,
     onConstraint?: {
-      onDelete?: 'CASCADE' | 'RESTRICT',
-      onUpdate?: 'CASCADE' | 'RESTRICT'
+      onDelete?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT',
+      onUpdate?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT'
     },
   ): IndexedColumn<T, TNullable, TAutoIncrement> {
     // eslint-disable-next-line new-cap

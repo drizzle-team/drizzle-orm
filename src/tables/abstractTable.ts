@@ -115,120 +115,54 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
     return new TableIndex(this.tableName(), columns instanceof Array ? columns : [columns]);
   }
 
-  protected varchar(name: string, params?: {size?: number, notNull: false})
-  : Column<PgVarChar, true>;
-  protected varchar(name: string, params: {size?: number, notNull: true})
-  : Column<PgVarChar, false>;
-  protected varchar(name: string, params?: {size?: number, notNull?: false})
-  : Column<PgVarChar, true>;
-  protected varchar(name: string, params: {size?: number, notNull?: true})
-  : Column<PgVarChar, false>;
-  protected varchar(name: string, params: {size?: number, notNull?: boolean} = {}) {
-    return new Column(this, name, new PgVarChar(params.size),
-      !params?.notNull ?? false);
+  protected varchar(name: string, params: {size?: number} = {}): Column<PgVarChar, true> {
+    return new Column(this, name, new PgVarChar(params.size));
   }
 
-  protected int(name: string, params?: {notNull: false}): Column<PgInteger, true>;
-  protected int(name: string, params: {notNull: true}): Column<PgInteger, false>;
-  protected int(name: string, params: {notNull?: boolean} = {}) {
-    return new Column(this, name, new PgInteger(), !params?.notNull ?? false);
+  protected int(name: string): Column<PgInteger, true> {
+    return new Column(this, name, new PgInteger());
   }
 
-  protected smallInt(name: string, params?: {notNull: false}): Column<PgInteger, true>;
-  protected smallInt(name: string, params: {notNull: true}): Column<PgInteger, false>;
-  protected smallInt(name: string, params: {notNull?: boolean} = {}) {
-    return new Column(this, name, new PgSmallInt(), !params?.notNull ?? false);
+  protected smallInt(name: string): Column<PgInteger, true> {
+    return new Column(this, name, new PgSmallInt());
   }
 
   protected serial(name: string): Column<PgSerial, true, true> {
-    return new Column(this, name, new PgSerial(), true);
+    return new Column(this, name, new PgSerial());
   }
 
-  // protected serial(name: string, params?: {notNull: false}): Column<PgInteger, true>;
-  // protected serial(name: string, params: {notNull: true}): Column<PgInteger, false>;
-  // protected serial(name: string, params: {notNull?: boolean} = {}) {
-  //   return new Column(this, name, new PgSerial(), !params?.notNull ?? false);
-  // }
-
-  protected timestamp(name: string, params?: { notNull: false }): Column<PgTimestamp, true>;
-  protected timestamp(name: string, params: { notNull: true }): Column<PgTimestamp, false>;
-  protected timestamp(name: string, params: { notNull?: boolean } = {}) {
-    return new Column(this, name, new PgTimestamp(), !params?.notNull ?? false);
+  protected timestamp(name: string): Column<PgTimestamp, true> {
+    return new Column(this, name, new PgTimestamp());
   }
 
-  protected bigint(name: string, params?: {notNull: false}): Column<PgBigInt, true>;
-  protected bigint(name: string, params: {notNull: true}): Column<PgBigInt, false>;
-  protected bigint(name: string, params: {notNull?: boolean} = {}) {
-    return new Column(this, name, new PgBigInt(), !params?.notNull ?? false);
+  protected bigint(name: string): Column<PgBigInt, true> {
+    return new Column(this, name, new PgBigInt());
   }
 
-  // protected enum<TSubType extends { [s: number]: string }>(from: { [s: number]: string },
-  //   name: string, dbName:string, params?: {notNull: false})
-  // : Column<PgEnum<TSubType>, true>;
-  // protected enum<TSubType extends { [s: number]: string }>(from: { [s: number]: string },
-  //   name: string, dbName:string, params: {notNull: true})
-  // : Column<PgEnum<TSubType>, false>;
-  // protected enum<TSubType extends { [s: number]: string }>(from: { [s: number]: string },
-  //   name: string, dbName:string, params: {notNull?: boolean} = {}) {
-  //   return new Column(this, name,
-  //     new PgEnum<TSubType>(name, dbName, from as TSubType), !params?.notNull ?? false);
-  // }
-
-  // @TODO handle enums properly
-  protected type<ETtype extends string>(typeEnum: Enum<ETtype>,
-    name: string, params?: {notNull: false})
-  : Column<PgEnum<ExtractEnumValues<Enum<ETtype>>>, true>;
-  protected type<ETtype extends string>(typeEnum: Enum<ETtype>,
-    name: string, params: {notNull: true})
-  : Column<PgEnum<ExtractEnumValues<Enum<ETtype>>>, false>;
-  protected type<ETtype extends string>(typeEnum: Enum<ETtype>,
-    name: string, params: {notNull?: boolean} = {}) {
+  protected type<ETtype extends string>(typeEnum: Enum<ETtype>, name: string)
+    : Column<PgEnum<ExtractEnumValues<Enum<ETtype>>>, true> {
     const pgEnum = new PgEnum<ExtractEnumValues<typeof typeEnum>>(typeEnum.name);
-    return new Column(this, name, pgEnum, !params?.notNull ?? false);
+    return new Column(this, name, pgEnum);
   }
 
-  protected decimal(name: string, params?: { precision?: number, scale: number, notNull?: false })
-  : Column<PgBigDecimal, true>;
-  protected decimal(name: string, params: { precision?: number, scale: number, notNull?: true })
-  : Column<PgBigDecimal, false>;
-  protected decimal(name: string, params?: { precision: number, scale?: number, notNull?: false })
-  : Column<PgBigDecimal, true>;
-  protected decimal(name: string, params: { precision: number, scale?: number, notNull?: true })
-  : Column<PgBigDecimal, false>;
-  protected decimal(name: string, params?: { precision?: number, scale?: number, notNull?: false })
-  : Column<PgBigDecimal, true>;
-  protected decimal(name: string, params: { precision?: number, scale?: number, notNull?: true })
-  : Column<PgBigDecimal, false>;
-  protected decimal(name: string, params: { precision?: number, scale?: number,
-    notNull?: boolean } = {}) {
-    return new Column(this, name,
-      new PgBigDecimal(params.precision, params.scale), !params?.notNull ?? false);
+  protected decimal(name: string, params: { precision?: number, scale?: number}
+  = {}): Column<PgBigDecimal, true> {
+    return new Column(this, name, new PgBigDecimal(params.precision, params.scale));
   }
 
-  protected time(name: string, params?: { notNull: false }): Column<PgTime, true>;
-  protected time(name: string, params: {notNull: true}): Column<PgTime, false>;
-  protected time(name: string, params: {notNull?: boolean} = {}) {
-    return new Column(this, name, new PgTime(), !params?.notNull ?? false);
+  protected time(name: string): Column<PgTime, true> {
+    return new Column(this, name, new PgTime());
   }
 
-  protected bool(name: string, params?: {notNull: false}): Column<PgBoolean, true>;
-  protected bool(name: string, params: {notNull: true}): Column<PgBoolean, false>;
-  protected bool(name: string, params: {notNull?: boolean} = {}) {
-    return new Column(this, name, new PgBoolean(), !params?.notNull ?? false);
+  protected bool(name: string): Column<PgBoolean, true> {
+    return new Column(this, name, new PgBoolean());
   }
 
-  protected text(name: string, params?: {notNull: false}): Column<PgText, true>;
-  protected text(name: string, params: {notNull: true}): Column<PgText, false>;
-  protected text(name: string, params: {notNull?: boolean} = {}) {
-    return new Column(this, name, new PgText(), !params?.notNull ?? false);
+  protected text(name: string): Column<PgText, true> {
+    return new Column(this, name, new PgText());
   }
 
-  protected jsonb<TSubType>(name: string, params?: {notNull: false})
-  : Column<PgJsonb<TSubType>, true>;
-  protected jsonb<TSubType>(name: string, params: {notNull: true})
-  : Column<PgJsonb<TSubType>, false>;
-  protected jsonb<TSubType>(name: string, params: {notNull?: boolean} = {}) {
-    return new Column(this, name,
-      new PgJsonb<TSubType>(), !params?.notNull ?? false);
+  protected jsonb<TSubType>(name: string): Column<PgJsonb<TSubType>, true> {
+    return new Column(this, name, new PgJsonb<TSubType>());
   }
 }

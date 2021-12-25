@@ -2,7 +2,7 @@ import AbstractTable from './abstractTable';
 
 export default class MigrationsTable extends AbstractTable<MigrationsTable> {
   public id = this.serial('id').primaryKey();
-  public version = this.int('version', { notNull: true }).unique();
+  public version = this.int('version').unique().notNull();
   public hash = this.text('hash');
   public createdAt = this.timestamp('created_at');
 
