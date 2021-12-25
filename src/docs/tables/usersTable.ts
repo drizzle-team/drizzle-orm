@@ -16,6 +16,9 @@ export default class UsersTable extends AbstractTable<UsersTable> {
   // public role = this.type(rolesEnum, 'name_in_table', { notNull: true });
 
   public createdAt = this.timestamp('created_at').notNull();
+
+  public createdAtWithTimezone = this.timestamptz('created_at_time_zone');
+
   public updatedAt = this.timestamp('updated_at');
   public isArchived = this.bool('is_archived').defaultValue(false);
 

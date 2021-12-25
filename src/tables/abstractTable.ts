@@ -22,6 +22,7 @@ import { ExtractModel } from './inferTypes';
 import Enum, { ExtractEnumValues } from '../types/type';
 import PgSmallInt from '../columns/types/pgSmallInt';
 import PgSerial from '../columns/types/pgSerial';
+import PgTimestamptz from '../columns/types/pgTimestamptz';
 
 export default abstract class AbstractTable<TTable extends AbstractTable<TTable>> {
   public db: DB;
@@ -133,6 +134,10 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
 
   protected timestamp(name: string): Column<PgTimestamp, true> {
     return new Column(this, name, new PgTimestamp());
+  }
+
+  protected timestamptz(name: string): Column<PgTimestamptz, true> {
+    return new Column(this, name, new PgTimestamptz());
   }
 
   protected bigint(name: string): Column<PgBigInt, true> {
