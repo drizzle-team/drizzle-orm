@@ -1,11 +1,11 @@
 import ColumnType from './columnType';
 
-export default class PgInteger extends ColumnType<number> {
+export default class PgSmallInt extends ColumnType<number> {
   public dbName: string;
 
   public constructor() {
     super();
-    this.dbName = 'INT';
+    this.dbName = 'SMALLINT';
   }
 
   public getDbName = (): string => this.dbName;

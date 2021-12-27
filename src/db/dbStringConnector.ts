@@ -1,5 +1,6 @@
 import { ClientConfig, Pool } from 'pg';
 import Db from './db';
+import Session from './session';
 
 export default class DBStringConnector {
   private _url: string;
@@ -19,7 +20,7 @@ export default class DBStringConnector {
       await pool.connect();
       // console.log('Db connected!');
 
-      return new Db(pool);
+      return new Db(new Session(pool));
     } catch (e: any) {
       // console.log(`Connection error: ${e.message}`);
       throw new Error(`Connection error: ${e.message}`);

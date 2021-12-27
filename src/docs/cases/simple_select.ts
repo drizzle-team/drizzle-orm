@@ -47,7 +47,7 @@ import UsersTable from '../tables/usersTable';
 
     const greaterEqSelect = usersTable.select().where(greaterEq(usersTable.bigIntField, 3)).all();
 
-    const lessEqSelect = usersTable.select().where(lessEq(usersTable.bigIntField, 3)).all();
+    const lessEqSelect = usersTable.select().where(lessEq(usersTable.bigIntField, 3));
 
     const isNullSelect = usersTable.select().where(isNull(usersTable.phone)).all();
 

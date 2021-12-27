@@ -1,19 +1,18 @@
 /* eslint-disable max-classes-per-file */
-import { Pool } from 'pg';
 import BaseLogger from '../logger/abstractLogger';
 import { AbstractTable } from '../tables';
-import Session from './session';
+import { ISession } from './session';
 
 export type TableConstructor = { new (db: DB): AbstractTable<any>};
 
 export default class DB {
-  private _session: Session;
-  private _logger?: BaseLogger;
+  protected _session: ISession;
+  protected _logger?: BaseLogger;
 
-  private _cache = new Map<TableConstructor, AbstractTable<any>>();
+  protected _cache = new Map<TableConstructor, AbstractTable<any>>();
 
-  public constructor(pool: Pool) {
-    this._session = new Session(pool);
+  public constructor(session: ISession) {
+    this._session = session;
   }
 
   public create<TTable extends AbstractTable<TTable>>(t: new (db: DB) => TTable)
@@ -34,7 +33,7 @@ export default class DB {
 
   public logger = (): BaseLogger | undefined => this._logger;
 
-  public session = (): Session => this._session;
+  public session = (): ISession => this._session;
 
   protected instanceFor<TTable extends AbstractTable<TTable>>(
     t: new (db: DB) => TTable,

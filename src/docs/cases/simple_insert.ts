@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Create, DbConnector } from '../..';
+import { PgInteger } from '../../columns';
+import PgSerial from '../../columns/types/pgSerial';
 import { ExtractModel } from '../../tables/inferTypes';
 import CitiesTable from '../tables/citiesTable';
 import UserGroupsTable from '../tables/userGroupsTable';
@@ -20,7 +22,7 @@ import UsersTable from '../tables/usersTable';
     await usersTable.insert({
       decimalField: 12.4,
       createdAt: new Date(),
-      role: 'guest',
+      // role: 'guest',
     }).execute();
 
     const insertedCities = await citiesTable.insert({
@@ -43,11 +45,11 @@ import UsersTable from '../tables/usersTable';
     const conflictInsertedUsers = await usersTable.insertMany([{
       decimalField: 12.4,
       createdAt: new Date(),
-      role: 'guest',
+      // role: 'guest',
     }, {
       decimalField: 32.4,
       createdAt: new Date(),
-      role: 'admin',
+      // role: 'admin',
       phone: '+1808',
     }])
       .onConflict(

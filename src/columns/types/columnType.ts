@@ -4,5 +4,5 @@ export default abstract class ColumnType<TCodeType = {}> {
   protected abstract dbName: string;
   abstract getDbName(): string;
   abstract insertStrategy(value: TCodeType): string;
-  abstract selectStrategy(value: any): TCodeType;
+  abstract selectStrategy(value: any): TCodeType | undefined;
 }

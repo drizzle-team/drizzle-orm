@@ -1,12 +1,12 @@
-// eslint-disable-next-line max-classes-per-file
+/* eslint-disable max-classes-per-file */
 import ColumnType from './columnType';
 
-export default class PgBigInt53 extends ColumnType<number> {
+export default class PgBigSerial53 extends ColumnType<number> {
   public dbName: string;
 
   public constructor() {
     super();
-    this.dbName = 'BIGINT';
+    this.dbName = 'BIGSERIAL';
   }
 
   public getDbName = (): string => this.dbName;
@@ -18,12 +18,12 @@ export default class PgBigInt53 extends ColumnType<number> {
   }
 }
 
-export class PgBigInt64 extends ColumnType<bigint> {
+export class PgBigSerial64 extends ColumnType<bigint> {
   public dbName: string;
 
   public constructor() {
     super();
-    this.dbName = 'BIGINT';
+    this.dbName = 'BIGSERIAL';
   }
 
   public getDbName = (): string => this.dbName;

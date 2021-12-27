@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Create, DbConnector } from '../..';
 import { eq } from '../../builders';
@@ -26,11 +27,11 @@ import UsersToUserGroupsTable from '../tables/usersToUserGroups';
     const userRes = await usersTable.insertMany([{
       decimalField: 4.2,
       createdAt: new Date(),
-      role: 'guest',
+      // role: 'guest',
     }, {
       decimalField: 5.8,
       createdAt: new Date(),
-      role: 'user',
+      // role: 'user',
     }]).all();
 
     const citiesRes = await citiesTable.insertMany([{

@@ -1,13 +1,13 @@
 import { AbstractColumn } from '../../columns/column';
 import ColumnType from '../../columns/types/columnType';
-import Session from '../../db/session';
+import { ISession } from '../../db/session';
 import BaseLogger from '../../logger/abstractLogger';
 import { AbstractTable } from '../../tables';
 import { ExtractModel } from '../../tables/inferTypes';
 
 export default abstract class TableRequestBuilder<TTable extends AbstractTable<TTable>> {
   protected _table: TTable;
-  protected _session: Session;
+  protected _session: ISession;
   protected _mappedServiceToDb: { [name in keyof ExtractModel<TTable>]
     : AbstractColumn<ColumnType>; };
 
@@ -15,7 +15,7 @@ export default abstract class TableRequestBuilder<TTable extends AbstractTable<T
   protected _logger?: BaseLogger;
 
   public constructor(table: AbstractTable<TTable>,
-    session: Session,
+    session: ISession,
     mappedServiceToDb: { [name in keyof ExtractModel<TTable>]: AbstractColumn<ColumnType>; },
     logger?: BaseLogger) {
     this._mappedServiceToDb = mappedServiceToDb;
