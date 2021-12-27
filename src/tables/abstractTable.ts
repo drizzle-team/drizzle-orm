@@ -11,7 +11,7 @@ import InsertTRB from '../builders/highLvlBuilders/insertRequestBuilder';
 import DeleteTRB from '../builders/highLvlBuilders/deleteRequestBuilder';
 import UpdateTRB from '../builders/highLvlBuilders/updateRequestBuilder';
 import SelectTRB from '../builders/highLvlBuilders/selectRequestBuilder';
-import PgBigInt from '../columns/types/pgBigInt';
+import PgBigInt53, { PgBigInt64 } from '../columns/types/pgBigInt';
 import { ISession } from '../db/session';
 import BaseLogger from '../logger/abstractLogger';
 import PgEnum from '../columns/types/pgEnum';
@@ -23,6 +23,7 @@ import Enum, { ExtractEnumValues } from '../types/type';
 import PgSmallInt from '../columns/types/pgSmallInt';
 import PgSerial from '../columns/types/pgSerial';
 import PgTimestamptz from '../columns/types/pgTimestamptz';
+import PgBigSerial53, { PgBigSerial64 } from '../columns/types/pgBigSerial';
 
 export default abstract class AbstractTable<TTable extends AbstractTable<TTable>> {
   public db: DB;
@@ -132,6 +133,15 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
     return new Column(this, name, new PgSerial());
   }
 
+  protected bigSerial(name: string, maxBytes: 'max_bytes_53'): Column<PgBigSerial53, true, true>
+  protected bigSerial(name: string, maxBytes: 'max_bytes_64'): Column<PgBigSerial64, true, true>
+  protected bigSerial(name: string, maxBytes: 'max_bytes_53' | 'max_bytes_64') {
+    if (maxBytes === 'max_bytes_53') {
+      return new Column(this, name, new PgBigSerial53());
+    }
+    return new Column(this, name, new PgBigSerial64());
+  }
+
   protected timestamp(name: string): Column<PgTimestamp, true> {
     return new Column(this, name, new PgTimestamp());
   }
@@ -140,8 +150,13 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
     return new Column(this, name, new PgTimestamptz());
   }
 
-  protected bigint(name: string): Column<PgBigInt, true> {
-    return new Column(this, name, new PgBigInt());
+  protected bigint(name: string, maxBytes: 'max_bytes_53'): Column<PgBigInt53, true, true>
+  protected bigint(name: string, maxBytes: 'max_bytes_64'): Column<PgBigInt64, true, true>
+  protected bigint(name: string, maxBytes: 'max_bytes_53' | 'max_bytes_64') {
+    if (maxBytes === 'max_bytes_53') {
+      return new Column(this, name, new PgBigInt53());
+    }
+    return new Column(this, name, new PgBigInt64());
   }
 
   protected type<ETtype extends string>(typeEnum: Enum<ETtype>, name: string)
