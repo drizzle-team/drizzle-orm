@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Create, DbConnector } from '../..';
+import { PgInteger } from '../../columns';
+import PgSerial from '../../columns/types/pgSerial';
 import { ExtractModel } from '../../tables/inferTypes';
 import CitiesTable from '../tables/citiesTable';
 import UserGroupsTable from '../tables/userGroupsTable';

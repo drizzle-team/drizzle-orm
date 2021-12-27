@@ -1,12 +1,11 @@
 import AbstractTable from './abstractTable';
 
 export default class MigrationsTable extends AbstractTable<MigrationsTable> {
-  public id = this.int('id').autoIncrement().primaryKey();
-  public version = this.int('version', { notNull: true }).unique();
-  public hash = this.text('hash');
-  public createdAt = this.timestamp('created_at');
+  public id = this.serial('id').primaryKey();
+  public hash = this.text('hash').notNull();
+  public createdAt = this.bigint('created_at', 'max_bytes_53');
 
   public tableName(): string {
-    return 'migrations';
+    return 'drizzle_migrations';
   }
 }
