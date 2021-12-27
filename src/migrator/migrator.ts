@@ -1,102 +1,90 @@
+/* eslint-disable no-restricted-syntax */
 /* eslint-disable import/export */
 /* eslint-disable max-classes-per-file */
-import Create from '../builders/lowLvlBuilders/create';
+import * as fs from 'fs';
+import { Create } from '../builders';
 import Transaction from '../builders/transaction/transaction';
 import Db from '../db/db';
-import { ISession } from '../db/session';
-import {
-  ExtractModel,
-} from '../tables/inferTypes';
-import MigrationsTable from '../tables/migrationsTable';
+import { MigrationsTable } from '../tables';
 
-export class MigrationSession {
-  private finalQuery = '';
-
-  public execute = (query: string): void => {
-    this.finalQuery += query;
-    this.finalQuery += '\n';
-  };
-
-  public getQuery = (): string => this.finalQuery;
-}
+export type InCodeConfig = { migrationFolder: string };
 
 export default class Migrator {
-  private _db: Db;
-  private migrationsPerVersion: Map<number, string> = new Map();
-  private session: ISession;
-
-  public constructor(db: Db) {
-    this._db = db;
-    this.session = db.session();
+  public constructor(private db: Db) {
   }
 
-  public chain = (tag: number,
-    migration: (dbSession: MigrationSession) => void): Migrator => {
-    const migrationSession = new MigrationSession();
-    migration(migrationSession);
-    this.migrationsPerVersion.set(+tag, migrationSession.getQuery());
-    return this;
-  };
+  public async migrate(configPath: string): Promise<void>
+  public async migrate(config: InCodeConfig): Promise<void>
+  public async migrate(configPath?: any, config?: InCodeConfig): Promise<void> {
+    let migrationFolderTo: string | undefined;
+    if (configPath) {
+      const configAsString = fs.readFileSync(configPath, 'utf8');
+      const splitted = configAsString.trim().split('\n');
+      // eslint-disable-next-line no-restricted-syntax
+      for (const split of splitted) {
+        const entry = split.trim().split(':');
+        const key = entry[0];
+        const value = entry[1].trim().replace(/['"]+/g, '');
 
-  public getResultScript = (): string[] => {
-    const values: string[] = [];
-    // eslint-disable-next-line no-restricted-syntax
-    for (const value of this.migrationsPerVersion.values()) {
-      values.push(value);
-    }
-    return values;
-  };
-
-  public execute = async (): Promise<boolean> => {
-    const migrationsTable = new MigrationsTable(this._db);
-
-    await this.session.execute(Create.table(migrationsTable).build());
-
-    const migrations
-    : Array<ExtractModel<MigrationsTable> | undefined> = await migrationsTable.select().all();
-
-    const transaction = new Transaction(this.session);
-    await transaction.begin();
-    // eslint-disable-next-line no-restricted-syntax
-    for await (const [key, value] of this.migrationsPerVersion) {
-      const dbMigrationByTag = migrations.find((it) => it!.version === key);
-      if (dbMigrationByTag) {
-        // const isHashSameAsInDb =
-        // Buffer.from(dbMigrationByTag.hash, 'base64').toString('ascii') === value;
-
-        // if (!isHashSameAsInDb) {
-        //   throw Error(`Migration script was changed for version ${key}`);
-        // }
-      } else {
-        try {
-          const logger = this._db.logger();
-          if (logger) {
-            logger.info(`Executing migration with tag ${key} with query:\n${value}`);
-          }
-          await this._db.session().execute(value);
-          await migrationsTable
-            .insert({
-              version: key,
-              createdAt: new Date(),
-              hash: Buffer.from(value).toString('base64'),
-            }).execute();
-        } catch (e: any) {
-          await transaction.rollback();
-          throw new Error(`Migration chain ${key} was not migrated sucessfully.\nMessage: ${e.message}`);
+        if (key === 'migrationFolder') {
+          // proceed value
+          migrationFolderTo = value;
         }
       }
     }
 
-    await transaction.commit();
+    if (config) {
+      migrationFolderTo = config.migrationFolder;
+    }
 
-    return true;
-  };
+    if (!migrationFolderTo) {
+      throw Error('no migration folder defined');
+    }
 
-  private generateHash(value: string): number {
+    const migrationTable = new MigrationsTable(this.db);
+
+    await this.db.session().execute(Create.table(migrationTable).build());
+
+    const dbMigrations = await migrationTable.select().all();
+    const lastDbMigration = dbMigrations.length > 0
+      ? dbMigrations[dbMigrations.length - 1]
+      : undefined;
+
+    const files = fs.readdirSync(migrationFolderTo);
+    const transaction = new Transaction(this.db.session());
+    await transaction.begin();
+
+    try {
+      for await (const migrationFolder of files) {
+        const migrationFiles = fs.readdirSync(`${migrationFolderTo}/${migrationFolder}`);
+        const migrationFile = migrationFiles.filter((file) => file === 'migration.sql')[0];
+
+        const query = fs.readFileSync(`${migrationFolderTo}/${migrationFolder}/${migrationFile}`).toString();
+
+        const folderAsMillis = new Date(migrationFolder).getTime();
+        if (!lastDbMigration || lastDbMigration.createdAt! < folderAsMillis) {
+          await this.db.session().execute(query);
+          await migrationTable.insert({
+            hash: this.generateHash(query),
+            createdAt: folderAsMillis,
+          }).execute();
+        }
+      }
+
+      await transaction.commit();
+    } catch (e) {
+      if (this.db.logger()) {
+        this.db.logger()!.error(e);
+      }
+      transaction.rollback();
+    }
+  }
+
+  private generateHash(value: string): string {
     let hash = 0;
     let i;
     let chr;
-    if (value.length === 0) return hash;
+    if (value.length === 0) return '';
     for (i = 0; i < value.length; i += 1) {
       chr = value.charCodeAt(i);
       // eslint-disable-next-line no-bitwise
@@ -104,6 +92,6 @@ export default class Migrator {
       // eslint-disable-next-line no-bitwise
       hash |= 0;
     }
-    return hash;
+    return Buffer.from(value).toString('base64');
   }
 }
