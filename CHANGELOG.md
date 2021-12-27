@@ -1,9 +1,11 @@
 # Changelog
 
-### 0.9.16 (December 27, 2021)
+### 0.9.17 (December 27, 2021)
+### Fixes and Functionality:
+- Add serializer `fromDb()` method to introspect selected database to drizzle-kit json shanpsot format
 
 ---
-
+### 0.9.16 (December 27, 2021)
 ### Breaking changes:
 - Delete `autoincrement` type on columns. Right now you should use `serial` type
 
