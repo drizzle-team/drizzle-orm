@@ -61,6 +61,15 @@ public createdAt = this.timestamp('created_at').defaultValue(Defaults.CURRENT_TI
 ```typescript
 public createdAt = this.timestamptz('created_at');
 ```
+- Add migrator function to use `drizzle-kit` generated migrations
+##### Provide drizzle-kit config path
+```typescript
+await drizzle.migrator(db).migrate('src/drizzle.config.yaml');
+```
+##### Provide object with path to folder with migrations
+```typescript
+await drizzle.migrator(db).migrate({ migrationFolder: 'drizzle' });
+```
 ---
 
 ### Documentation:

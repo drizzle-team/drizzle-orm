@@ -73,7 +73,9 @@ export default class Migrator {
 
       await transaction.commit();
     } catch (e) {
-      this.db.logger()!.error(e);
+      if (this.db.logger()) {
+        this.db.logger()!.error(e);
+      }
       transaction.rollback();
     }
   }
