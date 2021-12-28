@@ -90,15 +90,14 @@ export class Column<T extends ColumnType, TNullable extends boolean = true, TAut
     super(parent, columnName, columnType);
   }
 
-  public notNull() {
+  public notNull(): Column<T, TAutoIncrement extends true ? true : TNullable extends true? false : true, TAutoIncrement> {
     this.isNullableFlag = false;
-    return this as unknown as Column<T, TAutoIncrement extends true ? true : TNullable extends true? false : true, TAutoIncrement>;
+    return this as Column<T, TAutoIncrement extends true ? true : TNullable extends true? false : true, TAutoIncrement>;
   }
 
-  public primaryKey() {
+  public primaryKey():Column<T, TAutoIncrement extends true ? true : false, TAutoIncrement> {
     this.primaryKeyName = `${this.parentTableName}_${this.columnName}`;
-    // eslint-disable-next-line max-len
-    return this as unknown as Column<T, TAutoIncrement extends true ? true : false, TAutoIncrement>;
+    return this as Column<T, TAutoIncrement extends true ? true : false, TAutoIncrement>;
   }
 
   public foreignKey<ITable extends AbstractTable<ITable>>(
@@ -124,15 +123,15 @@ export class IndexedColumn<T extends ColumnType, TNullable extends boolean = tru
     super(parent, columnName, columnType);
   }
 
-  public notNull() {
+  public notNull(): IndexedColumn<T, TAutoIncrement extends true ? true : TNullable extends true? false : true, TAutoIncrement> {
     this.isNullableFlag = false;
-    return this as unknown as IndexedColumn<T, TAutoIncrement extends true ? true : TNullable extends true? false : true, TAutoIncrement>;
+    return this as IndexedColumn<T, TAutoIncrement extends true ? true : TNullable extends true? false : true, TAutoIncrement>;
   }
 
-  public primaryKey() {
+  public primaryKey(): IndexedColumn<T, TAutoIncrement extends true ? true : false, TAutoIncrement> {
     this.primaryKeyName = `${this.parentTableName}_${this.columnName}`;
     // eslint-disable-next-line max-len
-    return this as unknown as IndexedColumn<T, TAutoIncrement extends true ? true : false, TAutoIncrement>;
+    return this as IndexedColumn<T, TAutoIncrement extends true ? true : false, TAutoIncrement>;
   }
 
   public foreignKey<ITable extends AbstractTable<ITable>>(

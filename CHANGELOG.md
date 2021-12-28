@@ -1,5 +1,11 @@
 # Changelog
 
+### 0.9.18 (December 28, 2021)
+### Fixes and Functionality:
+- Fix `any` type returning from `.notNull()` and `.primaryKey()` functions
+
+---
+
 ### 0.9.17 (December 27, 2021)
 ### Fixes and Functionality:
 - Add serializer `fromDb()` method to introspect selected database to drizzle-kit json shanpsot format
