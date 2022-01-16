@@ -1,8 +1,7 @@
 import { AbstractColumn } from '../../columns/column';
 import ColumnType from '../../columns/types/columnType';
-import Session from '../../db/session';
+import { ISession } from '../../db/session';
 import BuilderError, { BuilderType } from '../../errors/builderError';
-import { DatabaseUpdateError } from '../../errors/dbErrors';
 import BaseLogger from '../../logger/abstractLogger';
 import QueryResponseMapper from '../../mappers/responseMapper';
 import { AbstractTable } from '../../tables';
@@ -21,7 +20,7 @@ export default class UpdateTRB<TTable extends AbstractTable<TTable>>
 
   public constructor(
     table: AbstractTable<TTable>,
-    session: Session,
+    session: ISession,
     mappedServiceToDb: { [name in keyof ExtractModel<TTable>]: AbstractColumn<ColumnType>; },
     logger?: BaseLogger,
   ) {
@@ -71,11 +70,6 @@ export default class UpdateTRB<TTable extends AbstractTable<TTable>>
       this._logger.info(`Updating ${this._table.tableName()} using query:\n ${query}`);
     }
     const result = await this._session.execute(query);
-    if (result.isLeft()) {
-      const { reason } = result.value;
-      throw new DatabaseUpdateError(this._table.tableName(), reason, query);
-    } else {
-      return QueryResponseMapper.map(this._mappedServiceToDb, result.value);
-    }
+    return QueryResponseMapper.map(this._mappedServiceToDb, result);
   };
 }

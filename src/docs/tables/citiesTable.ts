@@ -7,9 +7,9 @@ interface CityMeta {
 }
 
 export default class CitiesTable extends AbstractTable<CitiesTable> {
-  public id = this.int('id').autoIncrement().primaryKey();
+  public id = this.serial('id').primaryKey();
 
-  public foundationDate = this.timestamp('name', { notNull: true });
+  public foundationDate = this.timestamp('name').notNull();
   public location = this.varchar('page', { size: 256 });
 
   public userId = this.int('user_id').foreignKey(UsersTable, (table) => table.id, { onUpdate: 'CASCADE' });

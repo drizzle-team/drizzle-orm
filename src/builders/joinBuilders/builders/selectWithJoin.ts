@@ -3,7 +3,7 @@ import { QueryResult } from 'pg';
 import { AbstractColumn } from '../../../columns/column';
 import ColumnType from '../../../columns/types/columnType';
 import DB from '../../../db/db';
-import Session from '../../../db/session';
+import { ISession } from '../../../db/session';
 import QueryResponseMapper from '../../../mappers/responseMapper';
 import AbstractTable from '../../../tables/abstractTable';
 import { ExtractModel } from '../../../tables/inferTypes';
@@ -21,7 +21,7 @@ export default class SelectTRBWithJoin<TTable extends AbstractTable<TTable>, TTa
 
   public constructor(
     table: TTable,
-    session: Session,
+    session: ISession,
     filter: Expr,
     join: Join<TTable1>,
     props: {limit?:number, offset?:number},

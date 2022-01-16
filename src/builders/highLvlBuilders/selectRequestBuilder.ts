@@ -7,9 +7,8 @@ import { JoinWith, Select } from '..';
 import { AbstractColumn } from '../../columns/column';
 import ColumnType from '../../columns/types/columnType';
 import DB from '../../db/db';
-import Session from '../../db/session';
+import { ISession } from '../../db/session';
 import BuilderError, { BuilderType } from '../../errors/builderError';
-import { DatabaseSelectError } from '../../errors/dbErrors';
 import BaseLogger from '../../logger/abstractLogger';
 import QueryResponseMapper from '../../mappers/responseMapper';
 import { AbstractTable } from '../../tables';
@@ -30,7 +29,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>>
   private __distinct: AbstractColumn<ColumnType, boolean, boolean>;
 
   public constructor(
-    session: Session,
+    session: ISession,
     mappedServiceToDb: { [name in keyof ExtractModel<TTable>]: AbstractColumn<ColumnType>; },
     props: {limit?:number, offset?:number},
     table: AbstractTable<TTable>,
@@ -241,11 +240,6 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>>
     }
 
     const result = await this._session.execute(query);
-    if (result.isLeft()) {
-      const { reason } = result.value;
-      throw new DatabaseSelectError(this._table.tableName(), reason, query);
-    } else {
-      return QueryResponseMapper.map(this._mappedServiceToDb, result.value);
-    }
+    return QueryResponseMapper.map(this._mappedServiceToDb, result);
   };
 }
