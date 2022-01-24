@@ -1,5 +1,11 @@
 # Changelog
 
+### 0.9.19 (January 24, 2022)
+### Fixes and Functionality:
+- Fix all queries by `Date`
+
+---
+
 ### 0.9.18 (December 28, 2021)
 ### Fixes and Functionality:
 - Fix `any` type returning from `.notNull()` and `.primaryKey()` functions
