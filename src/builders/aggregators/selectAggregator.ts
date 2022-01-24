@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 import { AbstractColumn } from '../../columns/column';
 import ColumnType from '../../columns/types/columnType';
 import { AbstractTable } from '../../tables';
@@ -18,8 +19,10 @@ export default class SelectAggregator extends Aggregator {
   // private _groupBy: Array<string> = [];
   private _orderBy: Array<string> = [];
 
-  public constructor(table: AbstractTable<any>) {
-    super(table);
+  // public constructor(table: AbstractTable<any>);
+  // public constructor(table: AbstractTable<any>, partial: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, AbstractTable<any>>})
+  public constructor(table: AbstractTable<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, AbstractTable<any>>}) {
+    super(table, partial);
   }
 
   public filters = (filters: Expr): SelectAggregator => {

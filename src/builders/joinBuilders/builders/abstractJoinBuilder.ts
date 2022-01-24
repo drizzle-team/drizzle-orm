@@ -1,15 +1,18 @@
+/* eslint-disable max-len */
 import { QueryResult } from 'pg';
 import { AbstractColumn } from '../../../columns/column';
 import ColumnType from '../../../columns/types/columnType';
 import { ISession } from '../../../db/session';
 import BuilderError, { BuilderType } from '../../../errors/builderError';
+import QueryResponseMapper from '../../../mappers/responseMapper';
 import { AbstractTable } from '../../../tables';
+import { ExtractModel, FullOrPartial, PartialFor } from '../../../tables/inferTypes';
 import Order from '../../highLvlBuilders/order';
 import Select from '../../lowLvlBuilders/selects/select';
 import Expr from '../../requestBuilders/where/where';
 import Join from '../join';
 
-export default abstract class AbstractJoined<TTable extends AbstractTable<TTable>, TRes> {
+export default abstract class AbstractJoined<TTable extends AbstractTable<TTable>, TRes, TPartial extends PartialFor<TTable> = {}> {
   protected _table: TTable;
   protected _session: ISession;
   protected _filter: Expr;
@@ -17,6 +20,7 @@ export default abstract class AbstractJoined<TTable extends AbstractTable<TTable
   protected _props: {limit?:number, offset?:number};
   protected _orderBy?: AbstractColumn<ColumnType, boolean, boolean>;
   protected _order?: Order;
+  protected _partial?: TPartial;
 
   public constructor(
     table: TTable,
@@ -26,6 +30,7 @@ export default abstract class AbstractJoined<TTable extends AbstractTable<TTable
     orderBy?: AbstractColumn<ColumnType, boolean, boolean>,
     order?: Order,
     distinct?: AbstractColumn<ColumnType, boolean, boolean>,
+    tablePartial?: TPartial,
   ) {
     this._table = table;
     this._session = session;
@@ -34,7 +39,18 @@ export default abstract class AbstractJoined<TTable extends AbstractTable<TTable
     this._order = order;
     this._orderBy = orderBy;
     this._distinct = distinct;
+    this._partial = tablePartial;
   }
+
+  public limit = (limit: number) => {
+    this._props.limit = limit;
+    return this;
+  };
+
+  public offset = (offset: number) => {
+    this._props.offset = offset;
+    return this;
+  };
 
   public execute = async (): Promise<TRes> => {
     const queryBuilder = Select
@@ -57,6 +73,15 @@ export default abstract class AbstractJoined<TTable extends AbstractTable<TTable
     const result = await this._session.execute(query);
     return this.mapResponse(result);
   };
+
+  protected fullOrPartial<Table extends AbstractTable<Table>, Partial extends PartialFor<Table>>(mappedServiceToDb: {
+    [name in keyof ExtractModel<Table>]: AbstractColumn<ColumnType>;
+  }, result: QueryResult<any>, partial?: Partial): Array<FullOrPartial<Table, Partial> | undefined> {
+    if (partial) {
+      return QueryResponseMapper.partialMap(mappedServiceToDb, result) as Array<FullOrPartial<Table, Partial> | undefined>;
+    }
+    return QueryResponseMapper.map(mappedServiceToDb, result) as Array<FullOrPartial<Table, Partial> | undefined>;
+  }
 
   protected abstract mapResponse(result: QueryResult<any>): TRes;
 

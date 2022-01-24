@@ -1,12 +1,12 @@
+/* eslint-disable max-len */
 /* eslint-disable import/no-cycle */
 import { QueryResult } from 'pg';
 import { AbstractColumn } from '../../../columns/column';
 import ColumnType from '../../../columns/types/columnType';
 import DB from '../../../db/db';
 import { ISession } from '../../../db/session';
-import QueryResponseMapper from '../../../mappers/responseMapper';
 import AbstractTable from '../../../tables/abstractTable';
-import { ExtractModel } from '../../../tables/inferTypes';
+import { ExtractModel, PartialFor } from '../../../tables/inferTypes';
 import Order from '../../highLvlBuilders/order';
 import Expr from '../../requestBuilders/where/where';
 import Join, { JoinStrategy } from '../join';
@@ -15,10 +15,16 @@ import SelectResponseTwoJoins from '../responses/selectResponseTwoJoins';
 import AbstractJoined from './abstractJoinBuilder';
 import SelectTRBWithThreeJoins from './selectWithThreeJoins';
 
-export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>, TTable1, TTable2>
-  extends AbstractJoined<TTable, SelectResponseTwoJoins<TTable, TTable1, TTable2>> {
+export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>, TTable1 extends AbstractTable<TTable1>, TTable2 extends AbstractTable<TTable2>,
+  TPartial extends PartialFor<TTable> = {},
+  TPartial1 extends PartialFor<TTable1> = {},
+  TPartial2 extends PartialFor<TTable2> = {}>
+  extends AbstractJoined<TTable, SelectResponseTwoJoins<TTable, TTable1, TTable2, TPartial, TPartial1, TPartial2>, TPartial> {
   private _join1: Join<TTable1>;
   private _join2: Join<TTable2>;
+
+  private _joinedPartial?: TPartial1;
+  private _joinedPartial1?: TPartial2;
 
   public constructor(
     table: TTable,
@@ -30,16 +36,22 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
     orderBy?: AbstractColumn<ColumnType, boolean, boolean>,
     order?: Order,
     distinct?: AbstractColumn<ColumnType, boolean, boolean>,
+    tablePartial?: TPartial,
+    joinedPartial?: TPartial1,
+    joinedPartial1?: TPartial2,
   ) {
-    super(table, filter, session, props, orderBy, order, distinct);
+    super(table, filter, session, props, orderBy, order, distinct, tablePartial);
     this._join1 = join1;
     this._join2 = join2;
+
+    this._joinedPartial = joinedPartial;
+    this._joinedPartial1 = joinedPartial1;
   }
 
   public innerJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>>(
     table: { new(db: DB): IToTable ;},
-    from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean>,
-    to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean>,
+    from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean, TTable>,
+    to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean, IToTable>,
   ): SelectTRBWithThreeJoins<TTable, TTable1, TTable2, IToTable> {
     const toTable = this._table.db.create(table);
 
@@ -65,8 +77,8 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
 
   public leftJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>>(
     table: { new(db: DB): IToTable ;},
-    from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean>,
-    to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean>,
+    from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean, TTable>,
+    to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean, IToTable>,
   ): SelectTRBWithThreeJoins<TTable, TTable1, TTable2, IToTable> {
     const toTable = this._table.db.create(table);
 
@@ -92,8 +104,8 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
 
   public rightJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>>(
     table: { new(db: DB): IToTable ;},
-    from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean>,
-    to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean>,
+    from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean, TTable>,
+    to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean, IToTable>,
   ): SelectTRBWithThreeJoins<TTable, TTable1, TTable2, IToTable> {
     const toTable = this._table.db.create(table);
 
@@ -119,8 +131,8 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
 
   public fullJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>>(
     table: { new(db: DB): IToTable ;},
-    from: (table: TTable) => AbstractColumn<TColumn>,
-    to: (table: IToTable) => AbstractColumn<TColumn>,
+    from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean, TTable>,
+    to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean, IToTable>,
   ): SelectTRBWithThreeJoins<TTable, TTable1, TTable2, IToTable> {
     const toTable = this._table.db.create(table);
 
@@ -145,7 +157,7 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
   }
 
   protected mapResponse(result: QueryResult<any>)
-    : SelectResponseTwoJoins<TTable, TTable1, TTable2> {
+    : SelectResponseTwoJoins<TTable, TTable1, TTable2, TPartial, TPartial1, TPartial2> {
     const parent:
     { [name in keyof ExtractModel<TTable1>]:
       AbstractColumn<ColumnType>; } = this._join1.mappedServiceToDb;
@@ -153,9 +165,9 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
     { [name in keyof ExtractModel<TTable2>]:
       AbstractColumn<ColumnType>; } = this._join2.mappedServiceToDb;
 
-    const response = QueryResponseMapper.map(this._table.mapServiceToDb(), result);
-    const objects = QueryResponseMapper.map(parent, result);
-    const objectsTwo = QueryResponseMapper.map(parentTwo, result);
+    const response = this.fullOrPartial(this._table.mapServiceToDb(), result, this._partial);
+    const objects = this.fullOrPartial(parent, result, this._joinedPartial);
+    const objectsTwo = this.fullOrPartial(parentTwo, result, this._joinedPartial1);
 
     return new SelectResponseTwoJoins(response, objects, objectsTwo);
   }

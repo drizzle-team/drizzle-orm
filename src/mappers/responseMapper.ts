@@ -28,18 +28,17 @@ export default class QueryResponseMapper {
     return response;
   };
 
-  public static partialMap = <ITable>(mappedServiceToDb: { [name in keyof ExtractModel<ITable>]
-    : AbstractColumn<ColumnType>; },
-    queryResult: QueryResult<any>) => {
-    const response: Array<ExtractModel<ITable> | undefined> = [];
+  public static partialMap = <T>(partial: { [name: string]
+  : AbstractColumn<ColumnType>; }, queryResult: QueryResult<any>) => {
+    const response: Array<ExtractModel<T> | undefined> = [];
 
     queryResult.rows.forEach((row) => {
-      const mappedRow: ExtractModel<ITable> = {} as ExtractModel<ITable>;
+      const mappedRow: ExtractModel<T> = {} as ExtractModel<T>;
 
-      Object.keys(mappedServiceToDb).forEach((key) => {
-        const column = mappedServiceToDb[key as keyof ExtractModel<ITable>];
+      Object.keys(partial).forEach((key) => {
+        const column = partial[key];
         const value = column.getColumnType().selectStrategy(row[column.getAlias()]) as any;
-        mappedRow[key as keyof ExtractModel<ITable>] = value;
+        mappedRow[key as keyof ExtractModel<T>] = value;
       });
       if (checkProperties(mappedRow)) {
         response.push(undefined);

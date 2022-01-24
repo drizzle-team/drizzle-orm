@@ -1,16 +1,23 @@
+/* eslint-disable max-len */
 import { AbstractColumn, Column } from '../../columns/column';
 import ColumnType from '../../columns/types/columnType';
 import { AbstractTable } from '../../tables';
 import { ecranate } from '../../utils/ecranate';
 
+// eslint-disable-next-line max-len
 export default class Aggregator {
   protected _fields: Array<string> = [];
   protected _table: AbstractTable<any>;
 
-  public constructor(table: AbstractTable<any>) {
+  public constructor(table: AbstractTable<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, AbstractTable<any>>}) {
     this._table = table;
-    this._fields = this.generateSelectArray(this._table.tableName(),
-      Object.values(this._table.mapServiceToDb()));
+    if (!partial) {
+      this._fields = this.generateSelectArray(this._table.tableName(),
+        Object.values(this._table.mapServiceToDb()));
+    } else {
+      this._fields = this.generateSelectArray(this._table.tableName(),
+        Object.values(partial));
+    }
   }
 
   protected generateSelectArray = (table: string, columns: AbstractColumn<ColumnType>[]) => {

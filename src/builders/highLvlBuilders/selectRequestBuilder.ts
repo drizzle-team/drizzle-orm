@@ -12,21 +12,22 @@ import BuilderError, { BuilderType } from '../../errors/builderError';
 import BaseLogger from '../../logger/abstractLogger';
 import QueryResponseMapper from '../../mappers/responseMapper';
 import { AbstractTable } from '../../tables';
-import { ExtractModel, ExtractPartialObjectFromColumns } from '../../tables/inferTypes';
+import { ExtractModel, ExtractPartialObjectFromColumns, PartialFor } from '../../tables/inferTypes';
 import SelectTRBWithJoin from '../joinBuilders/builders/selectWithJoin';
 import { JoinStrategy } from '../joinBuilders/join';
 import Expr from '../requestBuilders/where/where';
 import TableRequestBuilder from './abstractRequestBuilder';
 import Order from './order';
 
-export default class SelectTRB<TTable extends AbstractTable<TTable>>
-  extends TableRequestBuilder<TTable> {
+export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial extends {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, TTable>} = {}>
+  extends TableRequestBuilder<TTable, TPartial> {
   protected _filter: Expr;
   private props: { limit?: number, offset?: number};
   private __orderBy?: AbstractColumn<ColumnType, boolean, boolean>;
   private __groupBy?: AbstractColumn<ColumnType, boolean, boolean>;
   private __order?: Order;
   private __distinct: AbstractColumn<ColumnType, boolean, boolean>;
+  private __partial?: TPartial;
 
   public constructor(
     session: ISession,
@@ -34,58 +35,14 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>>
     props: {limit?:number, offset?:number},
     table: AbstractTable<TTable>,
     logger?: BaseLogger,
+    partial?: TPartial,
   ) {
     super(table, session, mappedServiceToDb, logger);
     this.props = props;
+    this.__partial = partial;
   }
 
-  // eslint-disable-next-line max-len
-  private partialMapServiceToDb<T>(): {[name in keyof ExtractModel<T>]: AbstractColumn<ColumnType>} {
-    return Object.getOwnPropertyNames(this)
-      .reduce<{[name in keyof ExtractModel<T>]
-      : AbstractColumn<ColumnType>}>((res, fieldName) => {
-      const field: unknown = (this as unknown as T)[fieldName as keyof T];
-      if (field instanceof AbstractColumn) {
-        res[fieldName as keyof ExtractModel<T>] = field;
-      }
-      return res;
-    }, {} as {[name in keyof ExtractModel<T>]: AbstractColumn<ColumnType>});
-  }
-
-  public fieldsv2 = <T extends Partial<ExtractPartialObjectFromColumns<TTable>>>(partial: T): (ExtractModel<T> | undefined)[] => {
-    const result: QueryResult<any> = {
-      rows: [], rowCount: 1, command: '', oid: 1, fields: [],
-    };
-
-    return QueryResponseMapper.partialMap<{[name: string]: T}>(
-      this.partialMapServiceToDb<{[name: string]: T}>(), result,
-    );
-  };
-
-  // eslint-disable-next-line max-len
-  public fields = <T extends AbstractColumn<ColumnType<any>, boolean, boolean>>(columns: T[]): (ExtractModel<{[name: string]: T}> | undefined)[] => {
-    const objectRes:
-    {[name: string]: T} = columns.reduce(
-      (obj, item, index) => Object.assign(obj,
-        { [Object.getOwnPropertyNames(item)[index]]: item }), {},
-    );
-
-    const result: QueryResult<any> = {
-      rows: [], rowCount: 1, command: '', oid: 1, fields: [],
-    };
-
-    return QueryResponseMapper.partialMap<{[name: string]: T}>(
-      this.partialMapServiceToDb<{[name: string]: T}>(), result,
-    );
-
-    // return objectRes;
-  };
-
-  // private __fields = <T>(newObj: T): Promise<ExtractModel<T>> => {
-  //   let response: ExtractModel<T>;
-  // };
-
-  public where = (expr: Expr): SelectTRB<TTable> => {
+  public where = (expr: Expr): SelectTRB<TTable, TPartial> => {
     this._filter = expr;
     return this;
   };
@@ -94,15 +51,25 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>>
     callback: (table: TTable) => AbstractColumn<TColumnType, boolean, boolean>,
     order: Order,
   )
-    : SelectTRB<TTable> {
+    : SelectTRB<TTable, TPartial> {
     this.__orderBy = callback(this._table);
     this.__order = order;
     return this;
   }
 
   public distinct = (column: AbstractColumn<ColumnType<any>, boolean, boolean>)
-  : SelectTRB<TTable> => {
+  : SelectTRB<TTable, TPartial> => {
     this.__distinct = column;
+    return this;
+  };
+
+  public limit = (limit: number): SelectTRB<TTable, TPartial> => {
+    this.props.limit = limit;
+    return this;
+  };
+
+  public offset = (offset: number): SelectTRB<TTable, TPartial> => {
+    this.props.offset = offset;
     return this;
   };
 
@@ -112,11 +79,12 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>>
   //   return this;
   // }
 
-  public innerJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>>(
+  public innerJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
     table: { new(db: DB): IToTable ;},
     from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean>,
     to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean>,
-  ): SelectTRBWithJoin<TTable, IToTable> {
+    partial?: IToPartial,
+  ): SelectTRBWithJoin<TTable, IToTable, TPartial, IToPartial> {
     const toTable = this._table.db.create(table);
 
     const fromColumn = from(this._table);
@@ -134,14 +102,17 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>>
       this.__orderBy,
       this.__order,
       this.__distinct,
+      this.__partial,
+      partial,
     );
   }
 
-  public leftJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>>(
+  public leftJoin<TColumn extends ColumnType<any>, IToColumn extends ColumnType<any>, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
     table: { new(db: DB): IToTable ;},
-    from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean>,
-    to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean>,
-  ): SelectTRBWithJoin<TTable, IToTable> {
+    from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean, TTable>,
+    to: (table: IToTable) => AbstractColumn<IToColumn, boolean, boolean, IToTable>,
+    partial?: IToPartial,
+  ): SelectTRBWithJoin<TTable, IToTable, TPartial, IToPartial> {
     const toTable = this._table.db.create(table);
 
     const fromColumn = from(this._table);
@@ -159,14 +130,17 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>>
       this.__orderBy,
       this.__order,
       this.__distinct,
+      this.__partial,
+      partial,
     );
   }
 
-  public rightJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>>(
+  public rightJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
     table: { new(db: DB): IToTable ;},
     from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean>,
     to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean>,
-  ): SelectTRBWithJoin<TTable, IToTable> {
+    partial?: IToPartial,
+  ): SelectTRBWithJoin<TTable, IToTable, TPartial, IToPartial> {
     const toTable = this._table.db.create(table);
 
     const fromColumn = from(this._table);
@@ -184,14 +158,17 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>>
       this.__orderBy,
       this.__order,
       this.__distinct,
+      this.__partial,
+      partial,
     );
   }
 
-  public fullJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>>(
+  public fullJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
     table: { new(db: DB): IToTable ;},
     from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean>,
     to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean>,
-  ): SelectTRBWithJoin<TTable, IToTable> {
+    partial?: IToPartial,
+  ): SelectTRBWithJoin<TTable, IToTable, TPartial, IToPartial> {
     const toTable = this._table.db.create(table);
 
     const fromColumn = from(this._table);
@@ -209,6 +186,8 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>>
       this.__orderBy,
       this.__order,
       this.__distinct,
+      this.__partial,
+      partial,
     );
   }
 
@@ -217,10 +196,10 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>>
     return res;
   };
 
-  protected _execute = async (): Promise<Array<ExtractModel<TTable> | undefined>> => {
+  protected _execute = async (): Promise<Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial> | undefined>> => {
     // Select.from().filteredBy().limit().offset().orderBy().groupBy().build()
     const queryBuilder = Select
-      .from(this._table)
+      .from(this._table, this.__partial)
       .distinct(this.__distinct)
       .filteredBy(this._filter)
       .limit(this.props.limit)
@@ -240,6 +219,9 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>>
     }
 
     const result = await this._session.execute(query);
-    return QueryResponseMapper.map(this._mappedServiceToDb, result);
+    if (this.__partial) {
+      return QueryResponseMapper.partialMap(this._mappedServiceToDb, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial> | undefined>;
+    }
+    return QueryResponseMapper.map(this._mappedServiceToDb, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial> | undefined>;
   };
 }

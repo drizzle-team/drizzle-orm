@@ -3,6 +3,7 @@ import { AbstractColumn, Column, IndexedColumn } from '../columns/column';
 import ColumnType from '../columns/types/columnType';
 import TableIndex from '../indexes/tableIndex';
 import Type from '../types/type';
+import AbstractTable from './abstractTable';
 
 export type ExtractFieldNames<TTable> = {
   [Key in keyof TTable]: TTable[Key] extends Function ? never :
@@ -52,3 +53,9 @@ export type Indexing = IndexedColumn<ColumnType, boolean, boolean> | TableIndex;
 
 export type AnyColumn = Column<ColumnType, boolean, boolean>
 | IndexedColumn<ColumnType, boolean, boolean>;
+
+export type PartialFor<TTable extends AbstractTable<TTable>>
+= {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, TTable>};
+
+export type FullOrPartial<TTable extends AbstractTable<TTable>, TPartial extends PartialFor<TTable>>
+= [keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>;
