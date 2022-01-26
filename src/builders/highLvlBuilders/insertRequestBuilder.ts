@@ -47,7 +47,7 @@ export default class InsertTRB<TTable extends AbstractTable<TTable>, TPartial ex
     return this;
   };
 
-  protected _execute = async (): Promise<Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial> | undefined>> => {
+  protected _execute = async (): Promise<Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>> => {
     if (!this._values) throw Error('Values should be provided firestly\nExample: table.values().execute()');
 
     const queryBuilder = Insert
@@ -67,6 +67,6 @@ export default class InsertTRB<TTable extends AbstractTable<TTable>, TPartial ex
     }
 
     const result = await this._session.execute(query);
-    return QueryResponseMapper.map(this._mappedServiceToDb, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial> | undefined>;
+    return QueryResponseMapper.map(this._mappedServiceToDb, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>;
   };
 }

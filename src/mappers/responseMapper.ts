@@ -4,13 +4,13 @@ import ColumnType from '../columns/types/columnType';
 import { ExtractModel } from '../tables/inferTypes';
 
 // eslint-disable-next-line max-len
-const checkProperties = (obj: any) => Object.values(obj).every((x) => x === null || Number.isNaN(x));
+// const checkProperties = (obj: any) => Object.values(obj).every((x) => x === null || Number.isNaN(x));
 
 export default class QueryResponseMapper {
   public static map = <ITable>(mappedServiceToDb: { [name in keyof ExtractModel<ITable>]
     : AbstractColumn<ColumnType>; },
     queryResult: QueryResult<any>, joinId?: number) => {
-    const response: Array<ExtractModel<ITable> | undefined> = [];
+    const response: Array<ExtractModel<ITable>> = [];
 
     queryResult.rows.forEach((row) => {
       const mappedRow: ExtractModel<ITable> = {} as ExtractModel<ITable>;
@@ -21,9 +21,6 @@ export default class QueryResponseMapper {
         const value = column.getColumnType().selectStrategy(row[alias]) as any;
         mappedRow[key as keyof ExtractModel<ITable>] = value;
       });
-      if (checkProperties(mappedRow)) {
-        response.push(undefined);
-      }
       response.push(mappedRow);
     });
     return response;
@@ -31,7 +28,7 @@ export default class QueryResponseMapper {
 
   public static partialMap = <T>(partial: { [name: string]
   : AbstractColumn<ColumnType>; }, queryResult: QueryResult<any>, joinId?: number) => {
-    const response: Array<ExtractModel<T> | undefined> = [];
+    const response: Array<ExtractModel<T>> = [];
 
     queryResult.rows.forEach((row) => {
       const mappedRow: ExtractModel<T> = {} as ExtractModel<T>;
@@ -42,9 +39,6 @@ export default class QueryResponseMapper {
         const value = column.getColumnType().selectStrategy(row[alias]) as any;
         mappedRow[key as keyof ExtractModel<T>] = value;
       });
-      if (checkProperties(mappedRow)) {
-        response.push(undefined);
-      }
       response.push(mappedRow);
     });
     return response;

@@ -31,10 +31,19 @@ TPartial extends {[name: string]: AbstractColumn<ColumnType<any>, boolean, boole
     return res;
   };
 
-  public first = async () => {
+  /**
+   * Current function will return an element only if response is of length 1
+   * If there are more or less than 1 element, will throw an Error
+   */
+  public findOne = async () => {
     const executionRes = await this._execute();
-    // TODO add checks for undefined or null
-    return executionRes[0];
+    if (executionRes.length >= 1) {
+      throw new Error('Request contains more than 1 element');
+    } else if (executionRes.length <= 1) {
+      throw new Error('Request contains less than 1 element ');
+    } else {
+      return executionRes[0];
+    }
   };
 
   // eslint-disable-next-line max-len

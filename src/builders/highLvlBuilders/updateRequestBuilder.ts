@@ -53,7 +53,7 @@ export default class UpdateTRB<TTable extends AbstractTable<TTable>, TPartial ex
     await this._execute();
   };
 
-  protected _execute = async (): Promise<Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial> | undefined>> => {
+  protected _execute = async (): Promise<Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>> => {
     let query = '';
 
     try {
@@ -71,6 +71,6 @@ export default class UpdateTRB<TTable extends AbstractTable<TTable>, TPartial ex
       this._logger.info(`Updating ${this._table.tableName()} using query:\n ${query}`);
     }
     const result = await this._session.execute(query);
-    return QueryResponseMapper.map(this._mappedServiceToDb, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial> | undefined>;
+    return QueryResponseMapper.map(this._mappedServiceToDb, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>;
   };
 }

@@ -33,7 +33,7 @@ export default class DeleteTRB<TTable extends AbstractTable<TTable>, TPartial ex
     await this._execute();
   };
 
-  protected _execute = async (): Promise<Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial> | undefined>> => {
+  protected _execute = async (): Promise<Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>> => {
     const queryBuilder = Delete
       .from(this._table)
       .filteredBy(this._filter);
@@ -51,6 +51,6 @@ export default class DeleteTRB<TTable extends AbstractTable<TTable>, TPartial ex
     }
 
     const result = await this._session.execute(query);
-    return QueryResponseMapper.map(this._mappedServiceToDb, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial> | undefined>;
+    return QueryResponseMapper.map(this._mappedServiceToDb, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>;
   };
 }
