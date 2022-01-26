@@ -10,6 +10,9 @@ export default class Const extends Expr {
   }
 
   public toQuery = (): string => {
+    if (this.value instanceof Date) {
+      return `'${this.value.toISOString()}'`;
+    }
     if (shouldEcranate(this.value)) {
       return `'${this.value.toString()}'`;
     }
