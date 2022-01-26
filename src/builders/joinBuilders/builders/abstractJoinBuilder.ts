@@ -77,11 +77,11 @@ export default abstract class AbstractJoined<TTable extends AbstractTable<TTable
 
   protected fullOrPartial<Table extends AbstractTable<Table>, Partial extends PartialFor<Table>>(mappedServiceToDb: {
     [name in keyof ExtractModel<Table>]: AbstractColumn<ColumnType>;
-  }, result: QueryResult<any>, partial?: Partial, joinId?: number): Array<FullOrPartial<Table, Partial> | undefined> {
+  }, result: QueryResult<any>, partial?: Partial, joinId?: number): Array<FullOrPartial<Table, Partial>> {
     if (partial) {
-      return QueryResponseMapper.partialMap(partial, result, joinId) as Array<FullOrPartial<Table, Partial> | undefined>;
+      return QueryResponseMapper.partialMap(partial, result, joinId) as Array<FullOrPartial<Table, Partial>>;
     }
-    return QueryResponseMapper.map(mappedServiceToDb, result, joinId) as Array<FullOrPartial<Table, Partial> | undefined>;
+    return QueryResponseMapper.map(mappedServiceToDb, result, joinId) as Array<FullOrPartial<Table, Partial>>;
   }
 
   protected abstract mapResponse(result: QueryResult<any>): TRes;

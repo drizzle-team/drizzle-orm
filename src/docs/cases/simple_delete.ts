@@ -25,7 +25,7 @@ import UsersTable from '../tables/usersTable';
 
     const deletedUserGroup = await userGroupsTable.delete()
       .where(eq(userGroupsTable.id, 3))
-      .first();
+      .findOne();
   } catch (e) {
     console.log(e);
   }

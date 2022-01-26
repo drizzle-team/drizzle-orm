@@ -31,7 +31,7 @@ import UsersTable from '../tables/usersTable';
 
     const insertedUserGroup = await userGroupsTable.insert({
       name: 'firstGroup',
-    }).first();
+    }).findOne();
 
     const manyInsertedCities = await citiesTable.insertMany([{
       foundationDate: new Date(),

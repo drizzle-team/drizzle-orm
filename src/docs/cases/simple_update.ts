@@ -28,7 +28,7 @@ import UsersTable from '../tables/usersTable';
     const updatedUserGroup = await userGroupsTable.update()
       .where(eq(userGroupsTable.id, 1))
       .set({ description: 'updated description' })
-      .first();
+      .findOne();
   } catch (e) {
     console.log(e);
   }

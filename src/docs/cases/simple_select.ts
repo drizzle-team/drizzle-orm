@@ -21,7 +21,7 @@ import UsersTable from '../tables/usersTable';
     const allSelect = await usersTable.select().all();
 
     // select first
-    const firstSelect = await usersTable.select().first();
+    const firstSelect = await usersTable.select().findOne();
 
     // select using filters
     const eqSelect = await usersTable.select().where(eq(usersTable.phone, 'hello')).all();
