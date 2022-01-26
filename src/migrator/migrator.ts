@@ -2,6 +2,7 @@
 /* eslint-disable import/export */
 /* eslint-disable max-classes-per-file */
 import * as fs from 'fs';
+import * as path from 'path';
 import { Create } from '../builders';
 import Transaction from '../builders/transaction/transaction';
 import Db from '../db/db';
@@ -15,10 +16,10 @@ export default class Migrator {
 
   public async migrate(configPath: string): Promise<void>
   public async migrate(config: InCodeConfig): Promise<void>
-  public async migrate(configPath?: any, config?: InCodeConfig): Promise<void> {
+  public async migrate(configPath?: unknown) {
     let migrationFolderTo: string | undefined;
-    if (configPath) {
-      const configAsString = fs.readFileSync(configPath, 'utf8');
+    if (typeof configPath === 'string') {
+      const configAsString = fs.readFileSync(path.resolve('.', configPath), 'utf8');
       const splitted = configAsString.trim().split('\n');
       // eslint-disable-next-line no-restricted-syntax
       for (const split of splitted) {
@@ -31,10 +32,8 @@ export default class Migrator {
           migrationFolderTo = value;
         }
       }
-    }
-
-    if (config) {
-      migrationFolderTo = config.migrationFolder;
+    } else {
+      migrationFolderTo = (configPath as InCodeConfig).migrationFolder;
     }
 
     if (!migrationFolderTo) {
