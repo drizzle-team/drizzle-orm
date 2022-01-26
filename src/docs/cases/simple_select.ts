@@ -35,7 +35,7 @@ import UsersTable from '../tables/usersTable';
     ).all();
 
     // select using limit, offset
-    const limitOffsetSelect = await usersTable.select({ limit: 10, offset: 10 }).all();
+    const limitOffsetSelect = await usersTable.select().limit(20).offset(20).all();
 
     const likeSelect = await usersTable.select().where(like(usersTable.phone, 'hello')).all();
 

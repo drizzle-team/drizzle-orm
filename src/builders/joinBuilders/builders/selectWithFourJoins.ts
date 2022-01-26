@@ -1,11 +1,11 @@
+/* eslint-disable max-len */
 import { QueryResult } from 'pg';
 import { AbstractColumn } from '../../../columns/column';
 import ColumnType from '../../../columns/types/columnType';
 import DB from '../../../db/db';
 import { ISession } from '../../../db/session';
-import QueryResponseMapper from '../../../mappers/responseMapper';
 import { AbstractTable } from '../../../tables';
-import { ExtractModel } from '../../../tables/inferTypes';
+import { CheckFiveTypes, ExtractModel, PartialFor } from '../../../tables/inferTypes';
 import Order from '../../highLvlBuilders/order';
 import Expr from '../../requestBuilders/where/where';
 import Join, { JoinStrategy } from '../join';
@@ -15,13 +15,23 @@ import AbstractJoined from './abstractJoinBuilder';
 import SelectTRBWithFiveJoins from './selectWithFiveJoins';
 
 export default class SelectTRBWithFourJoins<TTable extends AbstractTable<TTable>,
- TTable1, TTable2, TTable3, TTable4>
+ TTable1 extends AbstractTable<TTable1>, TTable2 extends AbstractTable<TTable2>, TTable3 extends AbstractTable<TTable3>, TTable4 extends AbstractTable<TTable4>,
+ TPartial extends PartialFor<TTable> = {},
+  TPartial1 extends PartialFor<TTable1> = {},
+  TPartial2 extends PartialFor<TTable2> = {},
+  TPartial3 extends PartialFor<TTable3> = {},
+  TPartial4 extends PartialFor<TTable4> = {}>
   extends AbstractJoined<TTable,
-  SelectResponseFourJoins<TTable, TTable1, TTable2, TTable3, TTable4>> {
+  SelectResponseFourJoins<TTable, TTable1, TTable2, TTable3, TTable4, TPartial, TPartial1, TPartial2, TPartial3, TPartial4>, TPartial> {
   private _join1: Join<TTable1>;
   private _join2: Join<TTable2>;
   private _join3: Join<TTable3>;
   private _join4: Join<TTable4>;
+
+  private _joinedPartial?: TPartial1;
+  private _joinedPartial1?: TPartial2;
+  private _joinedPartial2?: TPartial3;
+  private _joinedPartial3?: TPartial4;
 
   public constructor(
     table: TTable,
@@ -35,22 +45,35 @@ export default class SelectTRBWithFourJoins<TTable extends AbstractTable<TTable>
     orderBy?: AbstractColumn<ColumnType, boolean, boolean>,
     order?: Order,
     distinct?: AbstractColumn<ColumnType, boolean, boolean>,
+    tablePartial?: TPartial,
+    joinedPartial?: TPartial1,
+    joinedPartial1?: TPartial2,
+    joinedPartial2?: TPartial3,
+    joinedPartial3?: TPartial4,
   ) {
-    super(table, filter, session, props, orderBy, order, distinct);
+    super(table, filter, session, props, orderBy, order, distinct, tablePartial);
     this._join1 = join1;
     this._join2 = join2;
     this._join3 = join3;
     this._join4 = join4;
+
+    this._joinedPartial = joinedPartial;
+    this._joinedPartial1 = joinedPartial1;
+    this._joinedPartial2 = joinedPartial2;
+    this._joinedPartial3 = joinedPartial3;
   }
 
-  public innerJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>>(
+  public innerJoin<InputTable extends AbstractTable<InputTable>, TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
+    fromTable: { new(db: DB): InputTable ;},
     table: { new(db: DB): IToTable ;},
-    from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean>,
+    from: (table: CheckFiveTypes<InputTable, TTable, TTable1, TTable2, TTable3, TTable4>) => AbstractColumn<TColumn, boolean, boolean, CheckFiveTypes<InputTable, TTable, TTable1, TTable2, TTable3, TTable4>>,
     to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean>,
-  ): SelectTRBWithFiveJoins<TTable, TTable1, TTable2, TTable3, TTable4, IToTable> {
+    partial?: IToPartial,
+  ): SelectTRBWithFiveJoins<TTable, TTable1, TTable2, TTable3, TTable4, IToTable, TPartial, TPartial1, TPartial2, TPartial3, TPartial4, IToPartial> {
     const toTable = this._table.db.create(table);
+    const tableFrom = this._table.db.create(fromTable);
 
-    const fromColumn = from(this._table);
+    const fromColumn = from(tableFrom as unknown as CheckFiveTypes<InputTable, TTable, TTable1, TTable2, TTable3, TTable4>);
     const toColumn = to(toTable);
 
     const join = new JoinWith(toTable.tableName(), toTable.mapServiceToDb())
@@ -69,17 +92,27 @@ export default class SelectTRBWithFourJoins<TTable extends AbstractTable<TTable>
       this._orderBy,
       this._order,
       this._distinct,
+      this._partial,
+      this._joinedPartial,
+      this._joinedPartial1,
+      this._joinedPartial2,
+      this._joinedPartial3,
+      partial,
     );
   }
 
-  public leftJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>>(
+  public leftJoin<InputTable extends AbstractTable<InputTable>, TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
+    fromTable: { new(db: DB): InputTable ;},
     table: { new(db: DB): IToTable ;},
-    from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean>,
+    from: (table: CheckFiveTypes<InputTable, TTable, TTable1, TTable2, TTable3, TTable4>) => AbstractColumn<TColumn, boolean, boolean, CheckFiveTypes<InputTable, TTable, TTable1, TTable2, TTable3, TTable4>>,
     to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean>,
-  ): SelectTRBWithFiveJoins<TTable, TTable1, TTable2, TTable3, TTable4, IToTable> {
+    partial?: IToPartial,
+  ): SelectTRBWithFiveJoins<TTable, TTable1, TTable2, TTable3, TTable4, IToTable, TPartial, TPartial1, TPartial2, TPartial3, TPartial4, IToPartial> {
     const toTable = this._table.db.create(table);
+    const tableFrom = this._table.db.create(fromTable);
 
-    const fromColumn = from(this._table);
+    const fromColumn = from(tableFrom as unknown as CheckFiveTypes<InputTable, TTable, TTable1, TTable2, TTable3, TTable4>);
+
     const toColumn = to(toTable);
 
     const join = new JoinWith(toTable.tableName(), toTable.mapServiceToDb())
@@ -98,17 +131,27 @@ export default class SelectTRBWithFourJoins<TTable extends AbstractTable<TTable>
       this._orderBy,
       this._order,
       this._distinct,
+      this._partial,
+      this._joinedPartial,
+      this._joinedPartial1,
+      this._joinedPartial2,
+      this._joinedPartial3,
+      partial,
     );
   }
 
-  public rightJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>>(
+  public rightJoin<InputTable extends AbstractTable<InputTable>, TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
+    fromTable: { new(db: DB): InputTable ;},
     table: { new(db: DB): IToTable ;},
-    from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean>,
+    from: (table: CheckFiveTypes<InputTable, TTable, TTable1, TTable2, TTable3, TTable4>) => AbstractColumn<TColumn, boolean, boolean, CheckFiveTypes<InputTable, TTable, TTable1, TTable2, TTable3, TTable4>>,
     to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean>,
-  ): SelectTRBWithFiveJoins<TTable, TTable1, TTable2, TTable3, TTable4, IToTable> {
+    partial?: IToPartial,
+  ): SelectTRBWithFiveJoins<TTable, TTable1, TTable2, TTable3, TTable4, IToTable, TPartial, TPartial1, TPartial2, TPartial3, TPartial4, IToPartial> {
     const toTable = this._table.db.create(table);
+    const tableFrom = this._table.db.create(fromTable);
 
-    const fromColumn = from(this._table);
+    const fromColumn = from(tableFrom as unknown as CheckFiveTypes<InputTable, TTable, TTable1, TTable2, TTable3, TTable4>);
+
     const toColumn = to(toTable);
 
     const join = new JoinWith(toTable.tableName(), toTable.mapServiceToDb())
@@ -127,17 +170,27 @@ export default class SelectTRBWithFourJoins<TTable extends AbstractTable<TTable>
       this._orderBy,
       this._order,
       this._distinct,
+      this._partial,
+      this._joinedPartial,
+      this._joinedPartial1,
+      this._joinedPartial2,
+      this._joinedPartial3,
+      partial,
     );
   }
 
-  public fullJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>>(
+  public fullJoin<InputTable extends AbstractTable<InputTable>, TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
+    fromTable: { new(db: DB): InputTable ;},
     table: { new(db: DB): IToTable ;},
-    from: (table: TTable) => AbstractColumn<TColumn>,
+    from: (table: CheckFiveTypes<InputTable, TTable, TTable1, TTable2, TTable3, TTable4>) => AbstractColumn<TColumn, boolean, boolean, CheckFiveTypes<InputTable, TTable, TTable1, TTable2, TTable3, TTable4>>,
     to: (table: IToTable) => AbstractColumn<TColumn>,
-  ): SelectTRBWithFiveJoins<TTable, TTable1, TTable2, TTable3, TTable4, IToTable> {
+    partial?: IToPartial,
+  ): SelectTRBWithFiveJoins<TTable, TTable1, TTable2, TTable3, TTable4, IToTable, TPartial, TPartial1, TPartial2, TPartial3, TPartial4, IToPartial> {
     const toTable = this._table.db.create(table);
+    const tableFrom = this._table.db.create(fromTable);
 
-    const fromColumn = from(this._table);
+    const fromColumn = from(tableFrom as unknown as CheckFiveTypes<InputTable, TTable, TTable1, TTable2, TTable3, TTable4>);
+
     const toColumn = to(toTable);
 
     const join = new JoinWith(toTable.tableName(), toTable.mapServiceToDb())
@@ -156,15 +209,24 @@ export default class SelectTRBWithFourJoins<TTable extends AbstractTable<TTable>
       this._orderBy,
       this._order,
       this._distinct,
+      this._partial,
+      this._joinedPartial,
+      this._joinedPartial1,
+      this._joinedPartial2,
+      this._joinedPartial3,
+      partial,
     );
   }
 
-  protected joins(): Join<any>[] {
-    return [this._join1, this._join2, this._join3, this._join4];
+  protected joins(): Array<{join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>}}> {
+    return [{ join: this._join1, partial: this._joinedPartial },
+      { join: this._join2, partial: this._joinedPartial1 },
+      { join: this._join3, partial: this._joinedPartial2 },
+      { join: this._join4, partial: this._joinedPartial3 }];
   }
 
   protected mapResponse(result: QueryResult<any>)
-    : SelectResponseFourJoins<TTable, TTable1, TTable2, TTable3, TTable4> {
+    : SelectResponseFourJoins<TTable, TTable1, TTable2, TTable3, TTable4, TPartial, TPartial1, TPartial2, TPartial3, TPartial4> {
     const parent:{
       [name in keyof ExtractModel<TTable1>]: AbstractColumn<ColumnType>;
     } = this._join1.mappedServiceToDb;
@@ -178,11 +240,11 @@ export default class SelectTRBWithFourJoins<TTable extends AbstractTable<TTable>
     { [name in keyof ExtractModel<TTable4>]: AbstractColumn<ColumnType>;
     } = this._join4.mappedServiceToDb;
 
-    const response = QueryResponseMapper.map(this._table.mapServiceToDb(), result);
-    const objects = QueryResponseMapper.map(parent, result);
-    const objectsTwo = QueryResponseMapper.map(parentTwo, result);
-    const objectsThree = QueryResponseMapper.map(parentThree, result);
-    const objectsFour = QueryResponseMapper.map(parentFour, result);
+    const response = this.fullOrPartial(this._table.mapServiceToDb(), result, this._partial);
+    const objects = this.fullOrPartial(parent, result, this._joinedPartial);
+    const objectsTwo = this.fullOrPartial(parentTwo, result, this._joinedPartial1);
+    const objectsThree = this.fullOrPartial(parentThree, result, this._joinedPartial2);
+    const objectsFour = this.fullOrPartial(parentFour, result, this._joinedPartial3);
 
     return new SelectResponseFourJoins(response, objects, objectsTwo, objectsThree, objectsFour);
   }

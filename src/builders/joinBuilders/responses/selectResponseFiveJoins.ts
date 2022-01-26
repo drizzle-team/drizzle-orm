@@ -1,20 +1,23 @@
-import { ExtractModel } from '../../../tables/inferTypes';
+/* eslint-disable max-len */
+import AbstractTable from '../../../tables/abstractTable';
+import { FullOrPartial, PartialFor } from '../../../tables/inferTypes';
 
-export default class SelectResponseFiveJoins<T1, T2, T3, T4, T5, T6> {
-  public _t1: Array<ExtractModel<T1> | undefined>;
-  public _t2: Array<ExtractModel<T2> | undefined>;
-  public _t3: Array<ExtractModel<T3> | undefined>;
-  public _t4: Array<ExtractModel<T4> | undefined>;
-  public _t5: Array<ExtractModel<T5> | undefined>;
-  public _t6: Array<ExtractModel<T6> | undefined>;
+export default class SelectResponseFiveJoins<T1 extends AbstractTable<T1>, T2 extends AbstractTable<T2>, T3 extends AbstractTable<T3>, T4 extends AbstractTable<T4>, T5 extends AbstractTable<T5>, T6 extends AbstractTable<T6>,
+TPartial1 extends PartialFor<T1>, TPartial2 extends PartialFor<T2>, TPartial3 extends PartialFor<T3>, TPartial4 extends PartialFor<T4>, TPartial5 extends PartialFor<T5>, TPartial6 extends PartialFor<T6>> {
+  public _t1: Array<FullOrPartial<T1, TPartial1> | undefined>;
+  public _t2: Array<FullOrPartial<T2, TPartial2> | undefined>;
+  public _t3: Array<FullOrPartial<T3, TPartial3> | undefined>;
+  public _t4: Array<FullOrPartial<T4, TPartial4> | undefined>;
+  public _t5: Array<FullOrPartial<T5, TPartial5> | undefined>;
+  public _t6: Array<FullOrPartial<T6, TPartial6> | undefined>;
 
   public constructor(
-    t1: Array<ExtractModel<T1> | undefined>,
-    t2: Array<ExtractModel<T2> | undefined>,
-    t3: Array<ExtractModel<T3> | undefined>,
-    t4: Array<ExtractModel<T4> | undefined>,
-    t5: Array<ExtractModel<T5> | undefined>,
-    t6: Array<ExtractModel<T6> | undefined>,
+    t1: Array<FullOrPartial<T1, TPartial1> | undefined>,
+    t2: Array<FullOrPartial<T2, TPartial2> | undefined>,
+    t3: Array<FullOrPartial<T3, TPartial3> | undefined>,
+    t4: Array<FullOrPartial<T4, TPartial4> | undefined>,
+    t5: Array<FullOrPartial<T5, TPartial5> | undefined>,
+    t6: Array<FullOrPartial<T6, TPartial6> | undefined>,
   ) {
     this._t1 = t1;
     this._t2 = t2;
@@ -24,12 +27,12 @@ export default class SelectResponseFiveJoins<T1, T2, T3, T4, T5, T6> {
     this._t6 = t6;
   }
 
-  public map = <M>(imac: (t1: ExtractModel<T1> | undefined,
-    t2: ExtractModel<T2> | undefined,
-    t3: ExtractModel<T3> | undefined,
-    t4: ExtractModel<T4> | undefined,
-    t5: ExtractModel<T5> | undefined,
-    t6: ExtractModel<T6> | undefined) => M): Array<M> => {
+  public map = <M>(imac: (t1: FullOrPartial<T1, TPartial1> | undefined,
+    t2: FullOrPartial<T2, TPartial2> | undefined,
+    t3: FullOrPartial<T3, TPartial3> | undefined,
+    t4: FullOrPartial<T4, TPartial4> | undefined,
+    t5: FullOrPartial<T5, TPartial5> | undefined,
+    t6: FullOrPartial<T6, TPartial6> | undefined) => M): Array<M> => {
     const objects = new Array<M>();
     for (let i = 0; i < this._t1.length; i += 1) {
       objects.push(imac(this._t1[i], this._t2[i], this._t3[i],
@@ -38,12 +41,12 @@ export default class SelectResponseFiveJoins<T1, T2, T3, T4, T5, T6> {
     return objects;
   };
 
-  public foreach = (imac: (t1: ExtractModel<T1> | undefined,
-    t2: ExtractModel<T2> | undefined,
-    t3: ExtractModel<T3> | undefined,
-    t4: ExtractModel<T4> | undefined,
-    t5: ExtractModel<T5> | undefined,
-    t6: ExtractModel<T6> | undefined) => void): void => {
+  public foreach = (imac: (t1: FullOrPartial<T1, TPartial1> | undefined,
+    t2: FullOrPartial<T2, TPartial2> | undefined,
+    t3: FullOrPartial<T3, TPartial3> | undefined,
+    t4: FullOrPartial<T4, TPartial4> | undefined,
+    t5: FullOrPartial<T5, TPartial5> | undefined,
+    t6: FullOrPartial<T6, TPartial6> | undefined) => void): void => {
     for (let i = 0; i < this._t1.length; i += 1) {
       imac(this._t1[i], this._t2[i], this._t3[i], this._t4[i], this._t5[i], this._t6[i]);
     }
@@ -53,18 +56,18 @@ export default class SelectResponseFiveJoins<T1, T2, T3, T4, T5, T6> {
     one,
     many,
   }:{
-    one: (t1: ExtractModel<T1> | undefined,
-      t2: ExtractModel<T2> | undefined,
-      t3: ExtractModel<T3> | undefined,
-      t4: ExtractModel<T4> | undefined,
-      t5: ExtractModel<T5> | undefined,
-      t6: ExtractModel<T6> | undefined) => TOne,
-    many: (t1: ExtractModel<T1> | undefined,
-      t2: ExtractModel<T2> | undefined,
-      t3: ExtractModel<T3> | undefined,
-      t4: ExtractModel<T4> | undefined,
-      t5: ExtractModel<T5> | undefined,
-      t6: ExtractModel<T6> | undefined) => TMany
+    one: (t1: FullOrPartial<T1, TPartial1> | undefined,
+      t2: FullOrPartial<T2, TPartial2> | undefined,
+      t3: FullOrPartial<T3, TPartial3> | undefined,
+      t4: FullOrPartial<T4, TPartial4> | undefined,
+      t5: FullOrPartial<T5, TPartial5> | undefined,
+      t6: FullOrPartial<T6, TPartial6> | undefined) => TOne,
+    many: (t1: FullOrPartial<T1, TPartial1> | undefined,
+      t2: FullOrPartial<T2, TPartial2> | undefined,
+      t3: FullOrPartial<T3, TPartial3> | undefined,
+      t4: FullOrPartial<T4, TPartial4> | undefined,
+      t5: FullOrPartial<T5, TPartial5> | undefined,
+      t6: FullOrPartial<T6, TPartial6> | undefined) => TMany
   }) => {
     const objects = new Array<TMany>();
     for (let i = 0; i < this._t1.length; i += 1) {

@@ -1,25 +1,28 @@
-import { ExtractModel } from '../../../tables/inferTypes';
+/* eslint-disable max-len */
+import AbstractTable from '../../../tables/abstractTable';
+import { FullOrPartial, PartialFor } from '../../../tables/inferTypes';
 
-export default class SelectResponseThreeJoins<T1, T2, T3, T4> {
-  private _t1: Array<ExtractModel<T1> | undefined>;
-  private _t2: Array<ExtractModel<T2> | undefined>;
-  private _t3: Array<ExtractModel<T3> | undefined>;
-  private _t4: Array<ExtractModel<T4> | undefined>;
+export default class SelectResponseThreeJoins<T1 extends AbstractTable<T1>, T2 extends AbstractTable<T2>, T3 extends AbstractTable<T3>, T4 extends AbstractTable<T4>,
+TPartial1 extends PartialFor<T1>, TPartial2 extends PartialFor<T2>, TPartial3 extends PartialFor<T3>, TPartial4 extends PartialFor<T4>> {
+  private _t1: Array<FullOrPartial<T1, TPartial1> | undefined>;
+  private _t2: Array<FullOrPartial<T2, TPartial2> | undefined>;
+  private _t3: Array<FullOrPartial<T3, TPartial3> | undefined>;
+  private _t4: Array<FullOrPartial<T4, TPartial4> | undefined>;
 
-  public constructor(t1: Array<ExtractModel<T1> | undefined>,
-    t2: Array<ExtractModel<T2> | undefined>,
-    t3: Array<ExtractModel<T3> | undefined>,
-    t4: Array<ExtractModel<T4> | undefined>) {
+  public constructor(t1: Array<FullOrPartial<T1, TPartial1> | undefined>,
+    t2: Array<FullOrPartial<T2, TPartial2> | undefined>,
+    t3: Array<FullOrPartial<T3, TPartial3> | undefined>,
+    t4: Array<FullOrPartial<T4, TPartial4> | undefined>) {
     this._t1 = t1;
     this._t2 = t2;
     this._t3 = t3;
     this._t4 = t4;
   }
 
-  public map = <M>(imac: (t1: ExtractModel<T1> | undefined,
-    t2: ExtractModel<T2> | undefined,
-    t3: ExtractModel<T3> | undefined,
-    t4: ExtractModel<T4> | undefined) => M): Array<M> => {
+  public map = <M>(imac: (t1: FullOrPartial<T1, TPartial1> | undefined,
+    t2: FullOrPartial<T2, TPartial2>| undefined,
+    t3: FullOrPartial<T3, TPartial3> | undefined,
+    t4: FullOrPartial<T4, TPartial4> | undefined) => M): Array<M> => {
     const objects = new Array<M>();
     for (let i = 0; i < this._t1.length; i += 1) {
       objects.push(imac(this._t1[i], this._t2[i], this._t3[i], this._t4[i]));
@@ -27,10 +30,10 @@ export default class SelectResponseThreeJoins<T1, T2, T3, T4> {
     return objects;
   };
 
-  public foreach = (imac: (t1: ExtractModel<T1> | undefined,
-    t2: ExtractModel<T2> | undefined,
-    t3: ExtractModel<T3> | undefined,
-    t4: ExtractModel<T4> | undefined) => void): void => {
+  public foreach = (imac: (t1: FullOrPartial<T1, TPartial1> | undefined,
+    t2: FullOrPartial<T2, TPartial2> | undefined,
+    t3: FullOrPartial<T3, TPartial3> | undefined,
+    t4: FullOrPartial<T4, TPartial4> | undefined) => void): void => {
     for (let i = 0; i < this._t1.length; i += 1) {
       imac(this._t1[i], this._t2[i], this._t3[i], this._t4[i]);
     }
@@ -40,14 +43,14 @@ export default class SelectResponseThreeJoins<T1, T2, T3, T4> {
     one,
     many,
   }:{
-    one: (t1: ExtractModel<T1> | undefined,
-      t2: ExtractModel<T2> | undefined,
-      t3: ExtractModel<T3> | undefined,
-      t4: ExtractModel<T4> | undefined) => TOne,
-    many: (t1: ExtractModel<T1> | undefined,
-      t2: ExtractModel<T2> | undefined,
-      t3: ExtractModel<T3> | undefined,
-      t4: ExtractModel<T4> | undefined) => TMany
+    one: (t1: FullOrPartial<T1, TPartial1> | undefined,
+      t2: FullOrPartial<T2, TPartial2> | undefined,
+      t3: FullOrPartial<T3, TPartial3> | undefined,
+      t4: FullOrPartial<T4, TPartial4> | undefined) => TOne,
+    many: (t1: FullOrPartial<T1, TPartial1> | undefined,
+      t2: FullOrPartial<T2, TPartial2> | undefined,
+      t3: FullOrPartial<T3, TPartial3> | undefined,
+      t4: FullOrPartial<T4, TPartial4> | undefined) => TMany
   }) => {
     const objects = new Array<TMany>();
     for (let i = 0; i < this._t1.length; i += 1) {

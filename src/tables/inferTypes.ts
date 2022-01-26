@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 import { UpdateCustomExpr } from '../builders/requestBuilders/updates/updates';
 import { AbstractColumn, Column, IndexedColumn } from '../columns/column';
 import ColumnType from '../columns/types/columnType';
@@ -59,3 +60,8 @@ export type PartialFor<TTable extends AbstractTable<TTable>>
 
 export type FullOrPartial<TTable extends AbstractTable<TTable>, TPartial extends PartialFor<TTable>>
 = [keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>;
+
+export type CheckTwoTypes<TInput, TTable extends AbstractTable<TTable>, TTable1 extends AbstractTable<TTable1>> = TInput extends AbstractTable<TTable> ? TTable : TInput extends AbstractTable<TTable1> ? TTable1 : never;
+export type CheckThreeTypes<TInput, TTable extends AbstractTable<TTable>, TTable1 extends AbstractTable<TTable1>, TTable2 extends AbstractTable<TTable2>> = TInput extends AbstractTable<TTable> ? TTable : TInput extends AbstractTable<TTable1> ? TTable1 : TInput extends AbstractTable<TTable2> ? TTable2 : never;
+export type CheckFourTypes<TInput, TTable extends AbstractTable<TTable>, TTable1 extends AbstractTable<TTable1>, TTable2 extends AbstractTable<TTable2>, TTable3 extends AbstractTable<TTable3>> = TInput extends AbstractTable<TTable> ? TTable : TInput extends AbstractTable<TTable1> ? TTable1 : TInput extends AbstractTable<TTable2> ? TTable2 : TInput extends AbstractTable<TTable3> ? TTable3 : never;
+export type CheckFiveTypes<TInput, TTable extends AbstractTable<TTable>, TTable1 extends AbstractTable<TTable1>, TTable2 extends AbstractTable<TTable2>, TTable3 extends AbstractTable<TTable3>, TTable4 extends AbstractTable<TTable4>> = TInput extends AbstractTable<TTable> ? TTable : TInput extends AbstractTable<TTable1> ? TTable1 : TInput extends AbstractTable<TTable2> ? TTable2 : TInput extends AbstractTable<TTable3> ? TTable3 : TInput extends AbstractTable<TTable4> ? TTable4 : never;

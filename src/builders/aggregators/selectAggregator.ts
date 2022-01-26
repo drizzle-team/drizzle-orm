@@ -73,14 +73,19 @@ export default class SelectAggregator extends Aggregator {
   };
 
   // Add select generator for second table also
-  public join = (joins: Array<Join<any> | undefined>): SelectAggregator => {
-    joins.forEach((join: Join<any> | undefined) => {
-      if (join) {
-        const tableFrom = join.fromColumn.getParentName();
-        const tableTo = join.toColumn.getParentName();
-        const { type } = join;
+  public join = (joins: Array<{join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>}}>): SelectAggregator => {
+    joins.forEach((joinObject: {join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>}}) => {
+      if (joinObject) {
+        const tableFrom = joinObject.join.fromColumn.getParentName();
+        const tableTo = joinObject.join.toColumn.getParentName();
+        const { type } = joinObject.join;
 
-        const selectString = this.generateSelectArray(tableTo, Object.values(join.mappedServiceToDb)).join('');
+        let selectString;
+        if (joinObject.partial) {
+          selectString = this.generateSelectArray(tableTo, Object.values(joinObject.partial)).join('');
+        } else {
+          selectString = this.generateSelectArray(tableTo, Object.values(joinObject.join.mappedServiceToDb)).join('');
+        }
         this._fields.push(', ');
         this._fields.push(selectString);
         this._join.push('\n');
@@ -91,11 +96,11 @@ export default class SelectAggregator extends Aggregator {
         this._join.push('ON ');
         this._join.push(tableFrom);
         this._join.push('.');
-        this._join.push(join.fromColumn.getColumnName());
+        this._join.push(joinObject.join.fromColumn.getColumnName());
         this._join.push(' = ');
         this._join.push(tableTo);
         this._join.push('.');
-        this._join.push(join.toColumn.getColumnName());
+        this._join.push(joinObject.join.toColumn.getColumnName());
       }
     });
 

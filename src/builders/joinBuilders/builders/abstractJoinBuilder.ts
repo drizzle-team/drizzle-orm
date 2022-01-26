@@ -54,7 +54,7 @@ export default abstract class AbstractJoined<TTable extends AbstractTable<TTable
 
   public execute = async (): Promise<TRes> => {
     const queryBuilder = Select
-      .from(this._table)
+      .from(this._table, this._partial)
       .distinct(this._distinct)
       .joined(this.joins())
       .limit(this._props.limit)
@@ -65,6 +65,7 @@ export default abstract class AbstractJoined<TTable extends AbstractTable<TTable
     let query = '';
     try {
       query = queryBuilder.build();
+      console.log(query);
     } catch (e: any) {
       throw new BuilderError(BuilderType.JOINED_SELECT,
         this._table.tableName(), Object.values(this._table.mapServiceToDb()), e, this._filter);
@@ -78,12 +79,12 @@ export default abstract class AbstractJoined<TTable extends AbstractTable<TTable
     [name in keyof ExtractModel<Table>]: AbstractColumn<ColumnType>;
   }, result: QueryResult<any>, partial?: Partial): Array<FullOrPartial<Table, Partial> | undefined> {
     if (partial) {
-      return QueryResponseMapper.partialMap(mappedServiceToDb, result) as Array<FullOrPartial<Table, Partial> | undefined>;
+      return QueryResponseMapper.partialMap(partial, result) as Array<FullOrPartial<Table, Partial> | undefined>;
     }
     return QueryResponseMapper.map(mappedServiceToDb, result) as Array<FullOrPartial<Table, Partial> | undefined>;
   }
 
   protected abstract mapResponse(result: QueryResult<any>): TRes;
 
-  protected abstract joins(): Array<Join<any>>;
+  protected abstract joins(): Array<{join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>}}>;
 }

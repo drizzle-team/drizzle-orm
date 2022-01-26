@@ -6,7 +6,7 @@ import ColumnType from '../../../columns/types/columnType';
 import DB from '../../../db/db';
 import { ISession } from '../../../db/session';
 import AbstractTable from '../../../tables/abstractTable';
-import { ExtractModel, PartialFor } from '../../../tables/inferTypes';
+import { CheckThreeTypes, ExtractModel, PartialFor } from '../../../tables/inferTypes';
 import Order from '../../highLvlBuilders/order';
 import Expr from '../../requestBuilders/where/where';
 import Join, { JoinStrategy } from '../join';
@@ -48,14 +48,17 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
     this._joinedPartial1 = joinedPartial1;
   }
 
-  public innerJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>>(
+  public innerJoin<InputTable extends AbstractTable<InputTable>, TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
+    fromTable: { new(db: DB): InputTable ;},
     table: { new(db: DB): IToTable ;},
-    from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean, TTable>,
+    from: (table: CheckThreeTypes<InputTable, TTable, TTable1, TTable2>) => AbstractColumn<TColumn, boolean, boolean, CheckThreeTypes<InputTable, TTable, TTable1, TTable2>>,
     to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean, IToTable>,
-  ): SelectTRBWithThreeJoins<TTable, TTable1, TTable2, IToTable> {
+    partial?: IToPartial,
+  ): SelectTRBWithThreeJoins<TTable, TTable1, TTable2, IToTable, TPartial, TPartial1, TPartial2, IToPartial> {
     const toTable = this._table.db.create(table);
+    const tableFrom = this._table.db.create(fromTable);
 
-    const fromColumn = from(this._table);
+    const fromColumn = from(tableFrom as unknown as CheckThreeTypes<InputTable, TTable, TTable1, TTable2>);
     const toColumn = to(toTable);
 
     const join = new JoinWith(toTable.tableName(), toTable.mapServiceToDb())
@@ -72,17 +75,24 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
       this._orderBy,
       this._order,
       this._distinct,
+      this._partial,
+      this._joinedPartial,
+      this._joinedPartial1,
+      partial,
     );
   }
 
-  public leftJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>>(
+  public leftJoin<InputTable extends AbstractTable<InputTable>, TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
+    fromTable: { new(db: DB): InputTable ;},
     table: { new(db: DB): IToTable ;},
-    from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean, TTable>,
+    from: (table: CheckThreeTypes<InputTable, TTable, TTable1, TTable2>) => AbstractColumn<TColumn, boolean, boolean, CheckThreeTypes<InputTable, TTable, TTable1, TTable2>>,
     to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean, IToTable>,
-  ): SelectTRBWithThreeJoins<TTable, TTable1, TTable2, IToTable> {
+    partial?: IToPartial,
+  ): SelectTRBWithThreeJoins<TTable, TTable1, TTable2, IToTable, TPartial, TPartial1, TPartial2, IToPartial> {
     const toTable = this._table.db.create(table);
+    const tableFrom = this._table.db.create(fromTable);
 
-    const fromColumn = from(this._table);
+    const fromColumn = from(tableFrom as unknown as CheckThreeTypes<InputTable, TTable, TTable1, TTable2>);
     const toColumn = to(toTable);
 
     const join = new JoinWith(toTable.tableName(), toTable.mapServiceToDb())
@@ -99,17 +109,24 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
       this._orderBy,
       this._order,
       this._distinct,
+      this._partial,
+      this._joinedPartial,
+      this._joinedPartial1,
+      partial,
     );
   }
 
-  public rightJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>>(
+  public rightJoin<InputTable extends AbstractTable<InputTable>, TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
+    fromTable: { new(db: DB): InputTable ;},
     table: { new(db: DB): IToTable ;},
-    from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean, TTable>,
+    from: (table: CheckThreeTypes<InputTable, TTable, TTable1, TTable2>) => AbstractColumn<TColumn, boolean, boolean, CheckThreeTypes<InputTable, TTable, TTable1, TTable2>>,
     to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean, IToTable>,
-  ): SelectTRBWithThreeJoins<TTable, TTable1, TTable2, IToTable> {
+    partial?: IToPartial,
+  ): SelectTRBWithThreeJoins<TTable, TTable1, TTable2, IToTable, TPartial, TPartial1, TPartial2, IToPartial> {
     const toTable = this._table.db.create(table);
+    const tableFrom = this._table.db.create(fromTable);
 
-    const fromColumn = from(this._table);
+    const fromColumn = from(tableFrom as unknown as CheckThreeTypes<InputTable, TTable, TTable1, TTable2>);
     const toColumn = to(toTable);
 
     const join = new JoinWith(toTable.tableName(), toTable.mapServiceToDb())
@@ -126,17 +143,24 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
       this._orderBy,
       this._order,
       this._distinct,
+      this._partial,
+      this._joinedPartial,
+      this._joinedPartial1,
+      partial,
     );
   }
 
-  public fullJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>>(
+  public fullJoin<InputTable extends AbstractTable<InputTable>, TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
+    fromTable: { new(db: DB): InputTable ;},
     table: { new(db: DB): IToTable ;},
-    from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean, TTable>,
+    from: (table: CheckThreeTypes<InputTable, TTable, TTable1, TTable2>) => AbstractColumn<TColumn, boolean, boolean, CheckThreeTypes<InputTable, TTable, TTable1, TTable2>>,
     to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean, IToTable>,
-  ): SelectTRBWithThreeJoins<TTable, TTable1, TTable2, IToTable> {
+    partial?: IToPartial,
+  ): SelectTRBWithThreeJoins<TTable, TTable1, TTable2, IToTable, TPartial, TPartial1, TPartial2, IToPartial> {
     const toTable = this._table.db.create(table);
+    const tableFrom = this._table.db.create(fromTable);
 
-    const fromColumn = from(this._table);
+    const fromColumn = from(tableFrom as unknown as CheckThreeTypes<InputTable, TTable, TTable1, TTable2>);
     const toColumn = to(toTable);
 
     const join = new JoinWith(toTable.tableName(), toTable.mapServiceToDb())
@@ -153,6 +177,10 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
       this._orderBy,
       this._order,
       this._distinct,
+      this._partial,
+      this._joinedPartial,
+      this._joinedPartial1,
+      partial,
     );
   }
 
@@ -172,7 +200,8 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
     return new SelectResponseTwoJoins(response, objects, objectsTwo);
   }
 
-  protected joins(): Join<any>[] {
-    return [this._join1, this._join2];
+  protected joins(): Array<{join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>}}> {
+    return [{ join: this._join1, partial: this._joinedPartial },
+      { join: this._join2, partial: this._joinedPartial1 }];
   }
 }

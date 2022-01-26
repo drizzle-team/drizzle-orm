@@ -207,6 +207,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
       .orderBy(this.__orderBy, this.__order!);
 
     let query = '';
+    console.log(query);
     try {
       query = queryBuilder.build();
     } catch (e: any) {
@@ -220,7 +221,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
 
     const result = await this._session.execute(query);
     if (this.__partial) {
-      return QueryResponseMapper.partialMap(this._mappedServiceToDb, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial> | undefined>;
+      return QueryResponseMapper.partialMap(this.__partial, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial> | undefined>;
     }
     return QueryResponseMapper.map(this._mappedServiceToDb, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial> | undefined>;
   };

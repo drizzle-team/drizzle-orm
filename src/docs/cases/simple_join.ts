@@ -89,7 +89,7 @@ import UsersToUserGroupsTable from '../tables/usersToUserGroups';
       .leftJoin(UsersTable,
         (userToGroup) => userToGroup.userId,
         (users) => users.id)
-      .leftJoin(UserGroupsTable,
+      .leftJoin(UsersToUserGroupsTable, UserGroupsTable,
         (userToGroup) => userToGroup.groupId,
         (users) => users.id)
       .execute();
