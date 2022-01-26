@@ -9,7 +9,7 @@ const checkProperties = (obj: any) => Object.values(obj).every((x) => x === null
 export default class QueryResponseMapper {
   public static map = <ITable>(mappedServiceToDb: { [name in keyof ExtractModel<ITable>]
     : AbstractColumn<ColumnType>; },
-    queryResult: QueryResult<any>) => {
+    queryResult: QueryResult<any>, joinId?: number) => {
     const response: Array<ExtractModel<ITable> | undefined> = [];
 
     queryResult.rows.forEach((row) => {
@@ -17,7 +17,8 @@ export default class QueryResponseMapper {
 
       Object.keys(mappedServiceToDb).forEach((key) => {
         const column = mappedServiceToDb[key as keyof ExtractModel<ITable>];
-        const value = column.getColumnType().selectStrategy(row[column.getAlias()]) as any;
+        const alias = `${column.getAlias()}${joinId ? `_${joinId}` : ''}`;
+        const value = column.getColumnType().selectStrategy(row[alias]) as any;
         mappedRow[key as keyof ExtractModel<ITable>] = value;
       });
       if (checkProperties(mappedRow)) {
@@ -29,7 +30,7 @@ export default class QueryResponseMapper {
   };
 
   public static partialMap = <T>(partial: { [name: string]
-  : AbstractColumn<ColumnType>; }, queryResult: QueryResult<any>) => {
+  : AbstractColumn<ColumnType>; }, queryResult: QueryResult<any>, joinId?: number) => {
     const response: Array<ExtractModel<T> | undefined> = [];
 
     queryResult.rows.forEach((row) => {
@@ -37,7 +38,8 @@ export default class QueryResponseMapper {
 
       Object.keys(partial).forEach((key) => {
         const column = partial[key];
-        const value = column.getColumnType().selectStrategy(row[column.getAlias()]) as any;
+        const alias = `${column.getAlias()}${joinId ? `_${joinId}` : ''}`;
+        const value = column.getColumnType().selectStrategy(row[alias]) as any;
         mappedRow[key as keyof ExtractModel<T>] = value;
       });
       if (checkProperties(mappedRow)) {

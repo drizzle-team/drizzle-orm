@@ -213,16 +213,19 @@ export default class SelectTRBWithThreeJoins<TTable extends AbstractTable<TTable
     } = this._join3.mappedServiceToDb;
 
     const response = this.fullOrPartial(this._table.mapServiceToDb(), result, this._partial);
-    const objects = this.fullOrPartial(parent, result, this._joinedPartial);
-    const objectsTwo = this.fullOrPartial(parentTwo, result, this._joinedPartial1);
-    const objectsThree = this.fullOrPartial(parentThree, result, this._joinedPartial2);
+    const objects = this.fullOrPartial(parent, result, this._joinedPartial, 1);
+    const objectsTwo = this.fullOrPartial(parentTwo, result, this._joinedPartial1, 2);
+    const objectsThree = this.fullOrPartial(parentThree, result, this._joinedPartial2, 3);
 
     return new SelectResponseThreeJoins(response, objects, objectsTwo, objectsThree);
   }
 
-  protected joins(): Array<{join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>}}> {
-    return [{ join: this._join1, partial: this._joinedPartial },
-      { join: this._join2, partial: this._joinedPartial1 },
-      { join: this._join3, partial: this._joinedPartial2 }];
+  protected joins(): Array<{
+    join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>},
+    id?: number
+  }> {
+    return [{ join: this._join1, partial: this._joinedPartial, id: 1 },
+      { join: this._join2, partial: this._joinedPartial1, id: 2 },
+      { join: this._join3, partial: this._joinedPartial2, id: 3 }];
   }
 }

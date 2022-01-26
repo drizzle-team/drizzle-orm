@@ -1,5 +1,4 @@
 import AbstractTable from '../../tables/abstractTable';
-import UsersTable from './usersTable';
 
 interface CityMeta {
   population: number,
@@ -12,7 +11,7 @@ export default class CitiesTable extends AbstractTable<CitiesTable> {
   public foundationDate = this.timestamp('name').notNull();
   public location = this.varchar('page', { size: 256 });
 
-  public userId = this.int('user_id').foreignKey(UsersTable, (table) => table.id, { onUpdate: 'CASCADE' });
+  public userId = this.int('user_id').foreignKey(CitiesTable, (table) => table.id, { onUpdate: 'CASCADE' });
 
   public metadata = this.jsonb<CityMeta>('metadata');
 

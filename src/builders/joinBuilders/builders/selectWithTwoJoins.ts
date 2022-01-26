@@ -194,14 +194,17 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
       AbstractColumn<ColumnType>; } = this._join2.mappedServiceToDb;
 
     const response = this.fullOrPartial(this._table.mapServiceToDb(), result, this._partial);
-    const objects = this.fullOrPartial(parent, result, this._joinedPartial);
-    const objectsTwo = this.fullOrPartial(parentTwo, result, this._joinedPartial1);
+    const objects = this.fullOrPartial(parent, result, this._joinedPartial, 1);
+    const objectsTwo = this.fullOrPartial(parentTwo, result, this._joinedPartial1, 2);
 
     return new SelectResponseTwoJoins(response, objects, objectsTwo);
   }
 
-  protected joins(): Array<{join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>}}> {
-    return [{ join: this._join1, partial: this._joinedPartial },
-      { join: this._join2, partial: this._joinedPartial1 }];
+  protected joins(): Array<{
+    join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>},
+    id?: number
+  }> {
+    return [{ join: this._join1, partial: this._joinedPartial, id: 1 },
+      { join: this._join2, partial: this._joinedPartial1, id: 2 }];
   }
 }

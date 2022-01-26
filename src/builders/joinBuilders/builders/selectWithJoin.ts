@@ -78,7 +78,7 @@ export default class SelectTRBWithJoin<TTable extends AbstractTable<TTable>, TTa
     from: (table: CheckTwoTypes<InputTable, TTable, TTable1>) => AbstractColumn<TColumn, boolean, boolean, CheckTwoTypes<InputTable, TTable, TTable1>>,
     to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean, IToTable>,
     partial?: IToPartial,
-  ) {
+  ): SelectTRBWithTwoJoins<TTable, TTable1, IToTable, TPartial, TPartial1, IToPartial> {
     const toTable = this._table.db.create(table);
     const tableFrom = this._table.db.create(fromTable);
 
@@ -169,8 +169,11 @@ export default class SelectTRBWithJoin<TTable extends AbstractTable<TTable>, TTa
     );
   }
 
-  protected joins(): Array<{join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>}}> {
-    return [{ join: this._join, partial: this._joinedPartial }];
+  protected joins(): Array<{
+    join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>},
+    id?: number
+  }> {
+    return [{ join: this._join, partial: this._joinedPartial, id: 1 }];
   }
 
   protected mapResponse(result: QueryResult<any>): SelectResponseJoin<TTable, TTable1, TPartial, TPartial1> {
@@ -179,7 +182,7 @@ export default class SelectTRBWithJoin<TTable extends AbstractTable<TTable>, TTa
     } = this._join.mappedServiceToDb;
 
     const response = this.fullOrPartial(this._table.mapServiceToDb(), result, this._partial);
-    const objects = this.fullOrPartial(parent, result, this._joinedPartial);
+    const objects = this.fullOrPartial(parent, result, this._joinedPartial, 1);
 
     return new SelectResponseJoin(response, objects);
   }

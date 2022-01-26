@@ -100,15 +100,37 @@ export class Column<T extends ColumnType, TNullable extends boolean = true, TAut
     return this as Column<T, TAutoIncrement extends true ? true : false, TAutoIncrement, TParent>;
   }
 
-  public foreignKey<ITable extends AbstractTable<ITable>>(
-    table: new (db: DB) => ITable,
-    callback: (table: ITable) => Column<T, boolean, boolean>,
+  public foreignKey(
+    table: new (db: DB) => TParent,
+    callback: (table: this) => Column<T, boolean, boolean, TParent>,
     onConstraint?: {
       onDelete?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT',
       onUpdate?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT'
     },
-  ): Column<T, TNullable, TAutoIncrement, TParent> {
-    const tableInstance = this.getParent().db.create(table);
+  ): Column<T, TNullable, TAutoIncrement, TParent>;
+  public foreignKey<ITable extends AbstractTable<ITable>>(
+    table: new (db: DB) => ITable,
+    callback: (table: ITable) => Column<T, boolean, boolean, ITable>,
+    onConstraint?: {
+      onDelete?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT',
+      onUpdate?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT'
+    },
+  ): Column<T, TNullable, TAutoIncrement, TParent>;
+  public foreignKey<ITable extends AbstractTable<ITable>>(
+    table: new (db: DB) => any,
+    callback: (table: any) => Column<T, boolean, boolean, any>,
+    onConstraint?: {
+      onDelete?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT',
+      onUpdate?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT'
+    },
+  ) {
+    let tableInstance: ITable;
+    // eslint-disable-next-line new-cap
+    if (typeof this !== typeof this.getParent()) {
+      tableInstance = this.getParent().db.create(table);
+    } else {
+      tableInstance = this as unknown as ITable;
+    }
     this.referenced = callback(tableInstance);
     this.onDelete = onConstraint?.onDelete ? `ON DELETE ${onConstraint.onDelete}` : undefined;
     this.onUpdate = onConstraint?.onUpdate ? `ON UPDATE ${onConstraint.onUpdate}` : undefined;

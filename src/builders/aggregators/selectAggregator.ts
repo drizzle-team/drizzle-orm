@@ -73,8 +73,15 @@ export default class SelectAggregator extends Aggregator {
   };
 
   // Add select generator for second table also
-  public join = (joins: Array<{join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>}}>): SelectAggregator => {
-    joins.forEach((joinObject: {join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>}}) => {
+  public join = (joins: Array<{
+    join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>},
+    id?: number
+  }>): SelectAggregator => {
+    const cache: {[tableName: string]: string} = {};
+    joins.forEach((joinObject: {
+      join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>},
+      id?: number
+    }) => {
       if (joinObject) {
         const tableFrom = joinObject.join.fromColumn.getParentName();
         const tableTo = joinObject.join.toColumn.getParentName();
@@ -82,9 +89,9 @@ export default class SelectAggregator extends Aggregator {
 
         let selectString;
         if (joinObject.partial) {
-          selectString = this.generateSelectArray(tableTo, Object.values(joinObject.partial)).join('');
+          selectString = this.generateSelectArray(`${tableTo}${joinObject.id ? `_${joinObject.id}` : ''}`, Object.values(joinObject.partial), joinObject.id).join('');
         } else {
-          selectString = this.generateSelectArray(tableTo, Object.values(joinObject.join.mappedServiceToDb)).join('');
+          selectString = this.generateSelectArray(`${tableTo}${joinObject.id ? `_${joinObject.id}` : ''}`, Object.values(joinObject.join.mappedServiceToDb), joinObject.id).join('');
         }
         this._fields.push(', ');
         this._fields.push(selectString);
@@ -92,13 +99,20 @@ export default class SelectAggregator extends Aggregator {
         this._join.push(type);
         this._join.push(' ');
         this._join.push(tableTo);
+        this._join.push(' ');
+        this._join.push(`AS ${tableTo}${joinObject.id ? `_${joinObject.id}` : ''}`);
         this._join.push('\n');
         this._join.push('ON ');
-        this._join.push(tableFrom);
+        if (cache[tableFrom]) {
+          this._join.push(cache[tableFrom]);
+        } else {
+          this._join.push(tableFrom);
+          cache[tableTo] = `${tableTo}${joinObject.id ? `_${joinObject.id}` : ''}`;
+        }
         this._join.push('.');
         this._join.push(joinObject.join.fromColumn.getColumnName());
         this._join.push(' = ');
-        this._join.push(tableTo);
+        this._join.push(`${tableTo}${joinObject.id ? `_${joinObject.id}` : ''}`);
         this._join.push('.');
         this._join.push(joinObject.join.toColumn.getColumnName());
       }

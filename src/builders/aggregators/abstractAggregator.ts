@@ -20,7 +20,7 @@ export default class Aggregator {
     }
   }
 
-  protected generateSelectArray = (table: string, columns: AbstractColumn<ColumnType>[]) => {
+  protected generateSelectArray = (table: string, columns: AbstractColumn<ColumnType>[], id?: number) => {
     const selectFields: string[] = [];
 
     columns.forEach((field: any) => {
@@ -30,7 +30,7 @@ export default class Aggregator {
         selectFields.push('.');
         selectFields.push(ecranate(field.getColumnName()));
         selectFields.push(' AS ');
-        selectFields.push(ecranate(`${table.replace('.', '_')}_${field.getColumnName()}`));
+        selectFields.push(ecranate(`${field.getAlias()}${id ? `_${id}` : ''}`));
         selectFields.push(',');
       }
     });

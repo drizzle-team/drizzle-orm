@@ -16,7 +16,10 @@ export default class SelectFrom {
   }
 
   public joined = (joins:
-  Array<{join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>}}>) => new SelectJoined(this._aggregator).apply(joins);
+  Array<{
+    join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>},
+    id?: number
+  }>) => new SelectJoined(this._aggregator).apply(joins);
 
   public limit = (limit?: number): SelectFrom => {
     this._aggregator.limit(limit);

@@ -14,7 +14,10 @@ export default class SelectJoined {
     this._aggregator = aggregator;
   }
 
-  public apply = (joins: Array<{join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>}}>): SelectJoined => {
+  public apply = (joins: Array<{
+    join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>},
+    id?: number
+  }>): SelectJoined => {
     this._aggregator.join(joins);
     return this;
   };

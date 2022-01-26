@@ -218,11 +218,14 @@ export default class SelectTRBWithFourJoins<TTable extends AbstractTable<TTable>
     );
   }
 
-  protected joins(): Array<{join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>}}> {
-    return [{ join: this._join1, partial: this._joinedPartial },
-      { join: this._join2, partial: this._joinedPartial1 },
-      { join: this._join3, partial: this._joinedPartial2 },
-      { join: this._join4, partial: this._joinedPartial3 }];
+  protected joins(): Array<{
+    join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>},
+    id?: number
+  }> {
+    return [{ join: this._join1, partial: this._joinedPartial, id: 1 },
+      { join: this._join2, partial: this._joinedPartial1, id: 2 },
+      { join: this._join3, partial: this._joinedPartial2, id: 3 },
+      { join: this._join4, partial: this._joinedPartial3, id: 4 }];
   }
 
   protected mapResponse(result: QueryResult<any>)
@@ -241,10 +244,10 @@ export default class SelectTRBWithFourJoins<TTable extends AbstractTable<TTable>
     } = this._join4.mappedServiceToDb;
 
     const response = this.fullOrPartial(this._table.mapServiceToDb(), result, this._partial);
-    const objects = this.fullOrPartial(parent, result, this._joinedPartial);
-    const objectsTwo = this.fullOrPartial(parentTwo, result, this._joinedPartial1);
-    const objectsThree = this.fullOrPartial(parentThree, result, this._joinedPartial2);
-    const objectsFour = this.fullOrPartial(parentFour, result, this._joinedPartial3);
+    const objects = this.fullOrPartial(parent, result, this._joinedPartial, 1);
+    const objectsTwo = this.fullOrPartial(parentTwo, result, this._joinedPartial1, 2);
+    const objectsThree = this.fullOrPartial(parentThree, result, this._joinedPartial2, 3);
+    const objectsFour = this.fullOrPartial(parentFour, result, this._joinedPartial3, 4);
 
     return new SelectResponseFourJoins(response, objects, objectsTwo, objectsThree, objectsFour);
   }

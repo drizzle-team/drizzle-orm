@@ -67,12 +67,15 @@ export default class SelectTRBWithFiveJoins<TTable extends AbstractTable<TTable>
     this._joinedPartial4 = joinedPartial4;
   }
 
-  protected joins(): Array<{join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>}}> {
-    return [{ join: this._join1, partial: this._joinedPartial },
-      { join: this._join2, partial: this._joinedPartial1 },
-      { join: this._join3, partial: this._joinedPartial2 },
-      { join: this._join4, partial: this._joinedPartial3 },
-      { join: this._join5, partial: this._joinedPartial4 }];
+  protected joins(): Array<{
+    join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>},
+    id?: number
+  }> {
+    return [{ join: this._join1, partial: this._joinedPartial, id: 1 },
+      { join: this._join2, partial: this._joinedPartial1, id: 2 },
+      { join: this._join3, partial: this._joinedPartial2, id: 3 },
+      { join: this._join4, partial: this._joinedPartial3, id: 4 },
+      { join: this._join5, partial: this._joinedPartial4, id: 5 }];
   }
 
   protected mapResponse(result: QueryResult<any>)
@@ -93,12 +96,13 @@ export default class SelectTRBWithFiveJoins<TTable extends AbstractTable<TTable>
     { [name in keyof ExtractModel<TTable5>]: AbstractColumn<ColumnType>;
     } = this._join5.mappedServiceToDb;
 
+    // TODO map ids for join properly
     const response = this.fullOrPartial(this._table.mapServiceToDb(), result, this._partial);
-    const objects = this.fullOrPartial(parent, result, this._joinedPartial);
-    const objectsTwo = this.fullOrPartial(parentTwo, result, this._joinedPartial1);
-    const objectsThree = this.fullOrPartial(parentThree, result, this._joinedPartial2);
-    const objectsFour = this.fullOrPartial(parentFour, result, this._joinedPartial3);
-    const objectsFive = this.fullOrPartial(parentFive, result, this._joinedPartial4);
+    const objects = this.fullOrPartial(parent, result, this._joinedPartial, 1);
+    const objectsTwo = this.fullOrPartial(parentTwo, result, this._joinedPartial1, 2);
+    const objectsThree = this.fullOrPartial(parentThree, result, this._joinedPartial2, 3);
+    const objectsFour = this.fullOrPartial(parentFour, result, this._joinedPartial3, 4);
+    const objectsFive = this.fullOrPartial(parentFive, result, this._joinedPartial4, 5);
 
     return new SelectResponseFiveJoins(response, objects, objectsTwo,
       objectsThree, objectsFour, objectsFive);
