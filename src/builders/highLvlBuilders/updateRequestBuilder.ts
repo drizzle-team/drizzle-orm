@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 import { AbstractColumn } from '../../columns/column';
 import ColumnType from '../../columns/types/columnType';
 import { ISession } from '../../db/session';
@@ -12,8 +13,8 @@ import { UpdateCustomExpr, UpdateExpr } from '../requestBuilders/updates/updates
 import Expr from '../requestBuilders/where/where';
 import TableRequestBuilder from './abstractRequestBuilder';
 
-export default class UpdateTRB<TTable extends AbstractTable<TTable>>
-  extends TableRequestBuilder<TTable> {
+export default class UpdateTRB<TTable extends AbstractTable<TTable>, TPartial extends {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, TTable>} = {}>
+  extends TableRequestBuilder<TTable, TPartial> {
   private _filter: Expr;
   private _update: UpdateExpr;
   private _objToUpdate: Partial<ExtractModel<TTable>>;
@@ -52,7 +53,7 @@ export default class UpdateTRB<TTable extends AbstractTable<TTable>>
     await this._execute();
   };
 
-  protected _execute = async (): Promise<Array<ExtractModel<TTable> | undefined>> => {
+  protected _execute = async (): Promise<Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>> => {
     let query = '';
 
     try {
@@ -70,6 +71,6 @@ export default class UpdateTRB<TTable extends AbstractTable<TTable>>
       this._logger.info(`Updating ${this._table.tableName()} using query:\n ${query}`);
     }
     const result = await this._session.execute(query);
-    return QueryResponseMapper.map(this._mappedServiceToDb, result);
+    return QueryResponseMapper.map(this._mappedServiceToDb, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>;
   };
 }

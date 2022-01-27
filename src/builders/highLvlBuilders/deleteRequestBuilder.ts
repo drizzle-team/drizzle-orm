@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 import { AbstractColumn } from '../../columns/column';
 import ColumnType from '../../columns/types/columnType';
 import { ISession } from '../../db/session';
@@ -10,8 +11,8 @@ import Delete from '../lowLvlBuilders/delets/delete';
 import Expr from '../requestBuilders/where/where';
 import TableRequestBuilder from './abstractRequestBuilder';
 
-export default class DeleteTRB<TTable extends AbstractTable<TTable>>
-  extends TableRequestBuilder<TTable> {
+export default class DeleteTRB<TTable extends AbstractTable<TTable>, TPartial extends {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, TTable>} = {}>
+  extends TableRequestBuilder<TTable, TPartial> {
   private _filter: Expr;
 
   public constructor(
@@ -32,7 +33,7 @@ export default class DeleteTRB<TTable extends AbstractTable<TTable>>
     await this._execute();
   };
 
-  protected _execute = async (): Promise<Array<ExtractModel<TTable> | undefined>> => {
+  protected _execute = async (): Promise<Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>> => {
     const queryBuilder = Delete
       .from(this._table)
       .filteredBy(this._filter);
@@ -50,6 +51,6 @@ export default class DeleteTRB<TTable extends AbstractTable<TTable>>
     }
 
     const result = await this._session.execute(query);
-    return QueryResponseMapper.map(this._mappedServiceToDb, result);
+    return QueryResponseMapper.map(this._mappedServiceToDb, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>;
   };
 }

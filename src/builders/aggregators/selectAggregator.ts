@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 import { AbstractColumn } from '../../columns/column';
 import ColumnType from '../../columns/types/columnType';
 import { AbstractTable } from '../../tables';
@@ -18,8 +19,10 @@ export default class SelectAggregator extends Aggregator {
   // private _groupBy: Array<string> = [];
   private _orderBy: Array<string> = [];
 
-  public constructor(table: AbstractTable<any>) {
-    super(table);
+  // public constructor(table: AbstractTable<any>);
+  // public constructor(table: AbstractTable<any>, partial: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, AbstractTable<any>>})
+  public constructor(table: AbstractTable<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, AbstractTable<any>>}) {
+    super(table, partial);
   }
 
   public filters = (filters: Expr): SelectAggregator => {
@@ -70,29 +73,48 @@ export default class SelectAggregator extends Aggregator {
   };
 
   // Add select generator for second table also
-  public join = (joins: Array<Join<any> | undefined>): SelectAggregator => {
-    joins.forEach((join: Join<any> | undefined) => {
-      if (join) {
-        const tableFrom = join.fromColumn.getParentName();
-        const tableTo = join.toColumn.getParentName();
-        const { type } = join;
+  public join = (joins: Array<{
+    join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>},
+    id?: number
+  }>): SelectAggregator => {
+    const cache: {[tableName: string]: string} = {};
+    joins.forEach((joinObject: {
+      join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>},
+      id?: number
+    }) => {
+      if (joinObject) {
+        const tableFrom = joinObject.join.fromColumn.getParentName();
+        const tableTo = joinObject.join.toColumn.getParentName();
+        const { type } = joinObject.join;
 
-        const selectString = this.generateSelectArray(tableTo, Object.values(join.mappedServiceToDb)).join('');
+        let selectString;
+        if (joinObject.partial) {
+          selectString = this.generateSelectArray(`${tableTo}${joinObject.id ? `_${joinObject.id}` : ''}`, Object.values(joinObject.partial), joinObject.id).join('');
+        } else {
+          selectString = this.generateSelectArray(`${tableTo}${joinObject.id ? `_${joinObject.id}` : ''}`, Object.values(joinObject.join.mappedServiceToDb), joinObject.id).join('');
+        }
         this._fields.push(', ');
         this._fields.push(selectString);
         this._join.push('\n');
         this._join.push(type);
         this._join.push(' ');
         this._join.push(tableTo);
+        this._join.push(' ');
+        this._join.push(`AS ${tableTo}${joinObject.id ? `_${joinObject.id}` : ''}`);
         this._join.push('\n');
         this._join.push('ON ');
-        this._join.push(tableFrom);
+        if (cache[tableFrom]) {
+          this._join.push(cache[tableFrom]);
+        } else {
+          this._join.push(tableFrom);
+          cache[tableTo] = `${tableTo}${joinObject.id ? `_${joinObject.id}` : ''}`;
+        }
         this._join.push('.');
-        this._join.push(join.fromColumn.getColumnName());
+        this._join.push(joinObject.join.fromColumn.getColumnName());
         this._join.push(' = ');
-        this._join.push(tableTo);
+        this._join.push(`${tableTo}${joinObject.id ? `_${joinObject.id}` : ''}`);
         this._join.push('.');
-        this._join.push(join.toColumn.getColumnName());
+        this._join.push(joinObject.join.toColumn.getColumnName());
       }
     });
 

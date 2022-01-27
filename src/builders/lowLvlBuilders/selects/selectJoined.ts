@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 import { AbstractColumn } from '../../../columns/column';
 import ColumnType from '../../../columns/types/columnType';
 import SelectAggregator from '../../aggregators/selectAggregator';
@@ -13,7 +14,10 @@ export default class SelectJoined {
     this._aggregator = aggregator;
   }
 
-  public apply = (joins: Array<Join<any> | undefined>): SelectJoined => {
+  public apply = (joins: Array<{
+    join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>},
+    id?: number
+  }>): SelectJoined => {
     this._aggregator.join(joins);
     return this;
   };
