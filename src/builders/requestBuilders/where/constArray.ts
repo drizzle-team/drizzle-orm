@@ -13,6 +13,9 @@ export default class ConstArray extends Expr {
     const finalArray: string[] = [];
     for (let i = 0; i < this.values.length; i += 1) {
       const value = this.values[i];
+      if (value instanceof Date) {
+        return `'${value.toISOString()}'`;
+      }
       if (shouldEcranate(value)) {
         finalArray.push(`'${value.toString()}'`);
       } else {

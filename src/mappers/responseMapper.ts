@@ -4,25 +4,41 @@ import ColumnType from '../columns/types/columnType';
 import { ExtractModel } from '../tables/inferTypes';
 
 // eslint-disable-next-line max-len
-const checkProperties = (obj: any) => Object.values(obj).every((x) => x === null || Number.isNaN(x));
+// const checkProperties = (obj: any) => Object.values(obj).every((x) => x === null || Number.isNaN(x));
 
 export default class QueryResponseMapper {
   public static map = <ITable>(mappedServiceToDb: { [name in keyof ExtractModel<ITable>]
     : AbstractColumn<ColumnType>; },
-    queryResult: QueryResult<any>) => {
-    const response: Array<ExtractModel<ITable> | undefined> = [];
+    queryResult: QueryResult<any>, joinId?: number) => {
+    const response: Array<ExtractModel<ITable>> = [];
 
     queryResult.rows.forEach((row) => {
       const mappedRow: ExtractModel<ITable> = {} as ExtractModel<ITable>;
 
       Object.keys(mappedServiceToDb).forEach((key) => {
         const column = mappedServiceToDb[key as keyof ExtractModel<ITable>];
-        const value = column.getColumnType().selectStrategy(row[column.getAlias()]) as any;
+        const alias = `${column.getAlias()}${joinId ? `_${joinId}` : ''}`;
+        const value = column.getColumnType().selectStrategy(row[alias]) as any;
         mappedRow[key as keyof ExtractModel<ITable>] = value;
       });
-      if (checkProperties(mappedRow)) {
-        response.push(undefined);
-      }
+      response.push(mappedRow);
+    });
+    return response;
+  };
+
+  public static partialMap = <T>(partial: { [name: string]
+  : AbstractColumn<ColumnType>; }, queryResult: QueryResult<any>, joinId?: number) => {
+    const response: Array<ExtractModel<T>> = [];
+
+    queryResult.rows.forEach((row) => {
+      const mappedRow: ExtractModel<T> = {} as ExtractModel<T>;
+
+      Object.keys(partial).forEach((key) => {
+        const column = partial[key];
+        const alias = `${column.getAlias()}${joinId ? `_${joinId}` : ''}`;
+        const value = column.getColumnType().selectStrategy(row[alias]) as any;
+        mappedRow[key as keyof ExtractModel<T>] = value;
+      });
       response.push(mappedRow);
     });
     return response;

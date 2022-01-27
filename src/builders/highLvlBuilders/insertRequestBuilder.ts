@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 import { combine, set } from '..';
 import { AbstractColumn } from '../../columns/column';
 import ColumnType from '../../columns/types/columnType';
@@ -11,8 +12,8 @@ import Insert from '../lowLvlBuilders/inserts/insert';
 import { UpdateExpr } from '../requestBuilders/updates/updates';
 import TableRequestBuilder from './abstractRequestBuilder';
 
-export default class InsertTRB<TTable extends AbstractTable<TTable>>
-  extends TableRequestBuilder<TTable> {
+export default class InsertTRB<TTable extends AbstractTable<TTable>, TPartial extends {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, TTable>} = {}>
+  extends TableRequestBuilder<TTable, TPartial> {
   private _values: ExtractModel<TTable>[];
   private _onConflict: UpdateExpr;
   private _onConflictField: Indexing;
@@ -46,7 +47,7 @@ export default class InsertTRB<TTable extends AbstractTable<TTable>>
     return this;
   };
 
-  protected _execute = async (): Promise<Array<ExtractModel<TTable> | undefined>> => {
+  protected _execute = async (): Promise<Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>> => {
     if (!this._values) throw Error('Values should be provided firestly\nExample: table.values().execute()');
 
     const queryBuilder = Insert
@@ -66,6 +67,6 @@ export default class InsertTRB<TTable extends AbstractTable<TTable>>
     }
 
     const result = await this._session.execute(query);
-    return QueryResponseMapper.map(this._mappedServiceToDb, result);
+    return QueryResponseMapper.map(this._mappedServiceToDb, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>;
   };
 }

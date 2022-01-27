@@ -83,15 +83,36 @@ import UsersToUserGroupsTable from '../tables/usersToUserGroups';
     //   user = dbUser;
     // });
 
+    // const usersTable = new UsersTable(db);
+    // const citiesTable = new CitiesTable(db);
+
+    const sdf = await citiesTable.select({
+      id: citiesTable.id,
+      userId: citiesTable.userId,
+    }).where(eq(citiesTable.id, 1))
+      .leftJoin(UsersTable,
+        (city) => city.userId,
+        (users) => users.id,
+        {
+          id: usersTable.id,
+        })
+      .execute();
+
     // group case
     const usersWithUserGroups = await usersToUserGroupsTable.select()
       .where(eq(userGroupsTable.id, 1))
       .leftJoin(UsersTable,
         (userToGroup) => userToGroup.userId,
-        (users) => users.id)
-      .leftJoin(UserGroupsTable,
+        (users) => users.id,
+        {
+          id: usersTable.id,
+        })
+      .leftJoin(UsersToUserGroupsTable, UserGroupsTable,
         (userToGroup) => userToGroup.groupId,
-        (users) => users.id)
+        (userGroup) => userGroup.id,
+        {
+          id: userGroupsTable.id,
+        })
       .execute();
 
     const userGroupWithUsers = usersWithUserGroups.group({
@@ -99,10 +120,10 @@ import UsersToUserGroupsTable from '../tables/usersToUserGroups';
       many: (_, dbUser, dbUserGroup) => dbUserGroup!,
     });
 
-    const userWithGroups: ExtractModel<UsersTable> & { groups: ExtractModel<UserGroupsTable>[] } = {
-      ...userGroupWithUsers.one,
-      groups: userGroupWithUsers.many,
-    };
+    // const userWithGroups: ExtractModel<UsersTable> & { groups: ExtractModel<UserGroupsTable>[] } = {
+    //   ...userGroupWithUsers.one,
+    //   groups: userGroupWithUsers.many,
+    // };
 
     // console.log('city', city!);
     // console.log('cityUsers', cityUsers);

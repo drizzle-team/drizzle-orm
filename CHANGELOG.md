@@ -1,5 +1,109 @@
 # Changelog
 
+### 0.10.0 (January 27, 2022)
+### Breaking changes:
+ - Move limit offset to function calls
+ #### Previous limit/offset usage:
+ ```typescript
+ await usersTable.select({limit: 20, offset: 20}).all();
+ ```
+ #### Current limit/offset usage:
+ ```typescript
+ await usersTable.select().limit(20).offset(20).all();
+ ```
+ - Change join calls starting from second one
+
+ Starting from second join you need to provide table to join from. As long as PostgreSQL has a possibility to join on tables, that already were in previous joins, we need to have a possibility to clarify from which exact table we need to join
+  #### Previous join funcition call with parameters:
+  ```typescript
+  await usersToUserGroupsTable.select()
+      .where(eq(userGroupsTable.id, 1))
+      .leftJoin(UsersTable,
+        (userToGroup) => userToGroup.userId,
+        (users) => users.id)
+      .leftJoin(UserGroupsTable,
+        (userToGroup) => userToGroup.groupId,
+        (userGroup) => userGroup.id)
+      .execute()
+  ```
+  #### Current join funcition call with parameters:
+  ```typescript
+  await usersToUserGroupsTable.select()
+      .where(eq(userGroupsTable.id, 1))
+      .leftJoin(UsersTable,
+        (userToGroup) => userToGroup.userId,
+        (users) => users.id)
+      .leftJoin(UsersToUserGroupsTable, UserGroupsTable,
+        (userToGroup) => userToGroup.groupId,
+        (userGroup) => userGroup.id)
+      .execute()
+  ```
+ - Create partial select on simple select + on each join
+
+ If you want to select only specific fields from select request you could provide your own interface with columns to map to:
+ #### Example
+ ```typescript
+    const partialSelect = await usersTable.select({
+      id: usersTable.id,
+      phone: usersTable.phone,
+    }).all();
+
+    // Usage
+    const { mappedId, mappedPhone } = partialSelect;
+ ```
+
+Same could be done with specific columns selecting on joined tables
+#### Example
+```typescript
+    const usersWithUserGroups = await usersToUserGroupsTable.select()
+      .where(eq(userGroupsTable.id, 1))
+      .leftJoin(UsersTable,
+        (userToGroup) => userToGroup.userId,
+        (users) => users.id,
+        // Partial fields to be selected from UsersTable
+        {
+          id: usersTable.id,
+        })
+      .leftJoin(UsersToUserGroupsTable, UserGroupsTable,
+        (userToGroup) => userToGroup.groupId,
+        (userGroup) => userGroup.id,
+        // Partial fields to be selected from UserGroupsTable
+        {
+          id: userGroupsTable.id,
+        })
+      .execute();
+```
+
+ - Create possibility to have self FK and self joins
+ 
+ You could create FK on same table you are creating it from
+ #### Example
+ ```typescript
+ public cityId = this.int('city_id').foreignKey(CitiesTable, (table) => table.id, { onUpdate: 'CASCADE' });
+ ```
+ - Delete first() on execution and add findOne(), that will throw an error
+
+ Previously we had `.first()` function, that was just getting first element from rows returned from `pg` driver
+ Right now, invoking `.findOne()` function should check if response contains exactly 1 element in repsponse. If not, it will throw an error
+ ### Example
+ ```typescript
+const firstSelect = await usersTable.select().findOne();
+ ```
+ - Fix wrong types. Right now you won't get undefined from select query
+---
+
+### 0.9.19 (January 24, 2022)
+### Fixes and Functionality:
+- Fix all queries by `Date`
+
+---
+
+### 0.9.18 (December 28, 2021)
+### Fixes and Functionality:
+- Fix `any` type returning from `.notNull()` and `.primaryKey()` functions
+
+---
+
 ### 0.9.17 (December 27, 2021)
 ### Fixes and Functionality:
 - Add serializer `fromDb()` method to introspect selected database to drizzle-kit json shanpsot format
