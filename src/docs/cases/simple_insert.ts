@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { Create, DbConnector } from '../..';
-import { PgInteger } from '../../columns';
-import PgSerial from '../../columns/types/pgSerial';
-import { ExtractModel } from '../../tables/inferTypes';
+import Create from '../../builders/lowLvlBuilders/create';
+import DbConnector from '../../db/dbConnector';
+import ConsoleLogger from '../../logger/consoleLogger';
 import CitiesTable from '../tables/citiesTable';
 import UserGroupsTable from '../tables/userGroupsTable';
 import UsersTable from '../tables/usersTable';
@@ -18,6 +17,10 @@ import UsersTable from '../tables/usersTable';
     const userGroupsTable = new UserGroupsTable(db);
 
     await db.session().execute(Create.table(usersTable).build());
+    await db.session().execute(Create.table(citiesTable).build());
+    await db.session().execute(Create.table(userGroupsTable).build());
+
+    db.useLogger(new ConsoleLogger());
 
     await usersTable.insert({
       decimalField: 12.4,

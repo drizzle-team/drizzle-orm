@@ -37,9 +37,9 @@ TPartial extends {[name: string]: AbstractColumn<ColumnType<any>, boolean, boole
    */
   public findOne = async () => {
     const executionRes = await this._execute();
-    if (executionRes.length >= 1) {
+    if (executionRes.length > 1) {
       throw new Error('Request contains more than 1 element');
-    } else if (executionRes.length <= 1) {
+    } else if (executionRes.length < 1) {
       throw new Error('Request contains less than 1 element ');
     } else {
       return executionRes[0];
@@ -47,5 +47,5 @@ TPartial extends {[name: string]: AbstractColumn<ColumnType<any>, boolean, boole
   };
 
   // eslint-disable-next-line max-len
-  protected abstract _execute(): Promise<Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial> | undefined>>;
+  protected abstract _execute(): Promise<Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>>;
 }

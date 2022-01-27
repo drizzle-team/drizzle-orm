@@ -39,19 +39,27 @@ import UsersTable from '../tables/usersTable';
 
     const likeSelect = await usersTable.select().where(like(usersTable.phone, 'hello')).all();
 
-    const inArraySelect = usersTable.select().where(inArray(usersTable.phone, ['hello'])).all();
+    const inArraySelect = await usersTable.select().where(inArray(usersTable.phone, ['hello'])).all();
 
-    const greaterSelect = usersTable.select().where(greater(usersTable.bigIntField, 3)).all();
+    const greaterSelect = await usersTable.select().where(greater(usersTable.bigIntField, 3)).all();
 
-    const lessSelect = usersTable.select().where(less(usersTable.bigIntField, 3)).all();
+    const lessSelect = await usersTable.select().where(less(usersTable.bigIntField, 3)).all();
 
-    const greaterEqSelect = usersTable.select().where(greaterEq(usersTable.bigIntField, 3)).all();
+    const greaterEqSelect = await usersTable.select().where(greaterEq(usersTable.bigIntField, 3))
+      .all();
 
-    const lessEqSelect = usersTable.select().where(lessEq(usersTable.bigIntField, 3));
+    const lessEqSelect = await usersTable.select().where(lessEq(usersTable.bigIntField, 3));
 
-    const isNullSelect = usersTable.select().where(isNull(usersTable.phone)).all();
+    const isNullSelect = await usersTable.select().where(isNull(usersTable.phone)).all();
 
-    const notEqSelect = usersTable.select().where(notEq(usersTable.phone, 'hello')).all();
+    const notEqSelect = await usersTable.select().where(notEq(usersTable.phone, 'hello')).all();
+
+    const partialSelect = await usersTable.select({
+      mappedId: usersTable.id,
+      mappedPhone: usersTable.phone,
+    }).all();
+
+    // const { mappedId, mappedPhone } = partialSelect;
 
     // ordered select
     const ordered = await usersTable.select().orderBy((table) => table.phone, Order.ASC).all();
