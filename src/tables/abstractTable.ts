@@ -44,10 +44,8 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
     this._logger = logger;
   };
 
-  public select({ limit, offset }: {
-    limit?: number,
-    offset?: number }
-  = {}): SelectTRB<TTable> {
+  // eslint-disable-next-line max-len
+  public select<TType extends ColumnType<any>, TColumn extends AbstractColumn<TType, boolean, boolean, TTable>, T extends {[name: string]: TColumn} = {}>(partial?: T): SelectTRB<TTable, T> {
     if (!this._session) {
       throw new Error(`Db was not provided in constructor, while ${this.constructor.name} class was creating. Please make sure, that you provided Db object to ${this.constructor.name} class. Should be -> new ${this.constructor.name}(db)`);
     }
@@ -55,9 +53,10 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
     return new SelectTRB(
       this._session,
       this.mapServiceToDb(),
-      { limit, offset },
+      {},
       this,
       this._logger,
+      partial,
     );
   }
 
@@ -117,24 +116,25 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
     return new TableIndex(this.tableName(), columns instanceof Array ? columns : [columns]);
   }
 
-  protected varchar(name: string, params: {size?: number} = {}): Column<PgVarChar, true> {
+  protected varchar(name: string, params: {size?: number} = {})
+    : Column<PgVarChar, true, false, this> {
     return new Column(this, name, new PgVarChar(params.size));
   }
 
-  protected int(name: string): Column<PgInteger, true> {
+  protected int(name: string): Column<PgInteger, true, false, this> {
     return new Column(this, name, new PgInteger());
   }
 
-  protected smallInt(name: string): Column<PgInteger, true> {
+  protected smallInt(name: string): Column<PgInteger, true, false, this> {
     return new Column(this, name, new PgSmallInt());
   }
 
-  protected serial(name: string): Column<PgSerial, true, true> {
+  protected serial(name: string): Column<PgSerial, true, true, this> {
     return new Column(this, name, new PgSerial());
   }
 
-  protected bigSerial(name: string, maxBytes: 'max_bytes_53'): Column<PgBigSerial53, true, true>
-  protected bigSerial(name: string, maxBytes: 'max_bytes_64'): Column<PgBigSerial64, true, true>
+  protected bigSerial(name: string, maxBytes: 'max_bytes_53'): Column<PgBigSerial53, true, true, this>
+  protected bigSerial(name: string, maxBytes: 'max_bytes_64'): Column<PgBigSerial64, true, true, this>
   protected bigSerial(name: string, maxBytes: 'max_bytes_53' | 'max_bytes_64') {
     if (maxBytes === 'max_bytes_53') {
       return new Column(this, name, new PgBigSerial53());
@@ -142,16 +142,16 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
     return new Column(this, name, new PgBigSerial64());
   }
 
-  protected timestamp(name: string): Column<PgTimestamp, true> {
+  protected timestamp(name: string): Column<PgTimestamp, true, false, this> {
     return new Column(this, name, new PgTimestamp());
   }
 
-  protected timestamptz(name: string): Column<PgTimestamptz, true> {
+  protected timestamptz(name: string): Column<PgTimestamptz, true, false, this> {
     return new Column(this, name, new PgTimestamptz());
   }
 
-  protected bigint(name: string, maxBytes: 'max_bytes_53'): Column<PgBigInt53, true, true>
-  protected bigint(name: string, maxBytes: 'max_bytes_64'): Column<PgBigInt64, true, true>
+  protected bigint(name: string, maxBytes: 'max_bytes_53'): Column<PgBigInt53, true, true, this>
+  protected bigint(name: string, maxBytes: 'max_bytes_64'): Column<PgBigInt64, true, true, this>
   protected bigint(name: string, maxBytes: 'max_bytes_53' | 'max_bytes_64') {
     if (maxBytes === 'max_bytes_53') {
       return new Column(this, name, new PgBigInt53());
@@ -160,29 +160,29 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
   }
 
   protected type<ETtype extends string>(typeEnum: Enum<ETtype>, name: string)
-    : Column<PgEnum<ExtractEnumValues<Enum<ETtype>>>, true> {
+    : Column<PgEnum<ExtractEnumValues<Enum<ETtype>>>, true, false, this> {
     const pgEnum = new PgEnum<ExtractEnumValues<typeof typeEnum>>(typeEnum.name);
     return new Column(this, name, pgEnum);
   }
 
   protected decimal(name: string, params: { precision?: number, scale?: number}
-  = {}): Column<PgBigDecimal, true> {
+  = {}): Column<PgBigDecimal, true, false, this> {
     return new Column(this, name, new PgBigDecimal(params.precision, params.scale));
   }
 
-  protected time(name: string): Column<PgTime, true> {
+  protected time(name: string): Column<PgTime, true, false, this> {
     return new Column(this, name, new PgTime());
   }
 
-  protected bool(name: string): Column<PgBoolean, true> {
+  protected bool(name: string): Column<PgBoolean, true, false, this> {
     return new Column(this, name, new PgBoolean());
   }
 
-  protected text(name: string): Column<PgText, true> {
+  protected text(name: string): Column<PgText, true, false, this> {
     return new Column(this, name, new PgText());
   }
 
-  protected jsonb<TSubType>(name: string): Column<PgJsonb<TSubType>, true> {
+  protected jsonb<TSubType>(name: string): Column<PgJsonb<TSubType>, true, false, this> {
     return new Column(this, name, new PgJsonb<TSubType>());
   }
 }
