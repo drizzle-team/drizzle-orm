@@ -46,6 +46,7 @@ interface IndexAsObject {
   [name: string]: {
     name?: string;
     columns?: ColumnAsObject;
+    isUnique?: boolean
   };
 }
 
@@ -89,6 +90,7 @@ export default class MigrationSerializer {
           indexToReturn[name] = {
             name,
             columns: indexColumnToReturn,
+            isUnique: value.isUnique(),
           };
         }
 

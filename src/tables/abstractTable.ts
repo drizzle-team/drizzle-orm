@@ -113,7 +113,7 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
   protected uniqueIndex(columns: Array<Column<ColumnType, boolean, boolean>>): TableIndex
   protected uniqueIndex(columns: Column<ColumnType, boolean, boolean>): TableIndex
   protected uniqueIndex(columns: any) {
-    return new TableIndex(this.tableName(), columns instanceof Array ? columns : [columns]);
+    return new TableIndex(this.tableName(), columns instanceof Array ? columns : [columns], true);
   }
 
   protected varchar(name: string, params: {size?: number} = {})
