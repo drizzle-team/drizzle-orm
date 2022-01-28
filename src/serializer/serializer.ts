@@ -99,10 +99,25 @@ export default class MigrationSerializer {
             name: value.getColumnName(),
             type: (value.getColumnType() as ColumnType).getDbName(),
             primaryKey: !!value.primaryKeyName,
-            unique: !!value.uniqueKeyName,
+            // unique: !!value.uniqueKeyName,
             default: value.getDefaultValue() === null ? undefined : value.getDefaultValue(),
             notNull: !value.isNullableFlag,
           };
+
+          if (value.uniqueKeyName) {
+            const indexName = `${value.getParent().tableName()}_${value.getColumnName()}_index`;
+
+            const indexColumnToReturn: IndexColumnAsObject = {};
+            indexColumnToReturn[value.getColumnName()] = {
+              name: value.getColumnName(),
+            };
+
+            indexToReturn[indexName] = {
+              name: indexName,
+              columns: indexColumnToReturn,
+              isUnique: true,
+            };
+          }
 
           const referenced = value.getReferenced();
           if (referenced) {

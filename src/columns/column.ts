@@ -32,7 +32,7 @@ export abstract class AbstractColumn<T extends ColumnType, TNullable extends boo
   protected columnType: T;
   protected columnName: string;
   protected defaultParam: any = null;
-  protected referenced: AbstractColumn<T, boolean, boolean>;
+  protected referenced: AbstractColumn<T, boolean, boolean, TParent>;
 
   public constructor(parent: TParent, columnName: string,
     columnType: T) {
@@ -52,7 +52,7 @@ export abstract class AbstractColumn<T extends ColumnType, TNullable extends boo
   public getParentName = (): string => this.parentTableName;
 
   public abstract foreignKey <ITable extends AbstractTable<ITable>>(table: { new(db: DB): ITable ;},
-    callback: (table: ITable) => AbstractColumn<T, boolean, boolean>,
+    callback: (table: ITable) => AbstractColumn<T, boolean, boolean, TParent>,
     onConstraint: {
       onDelete?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT',
       onUpdate?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT'
@@ -64,18 +64,18 @@ export abstract class AbstractColumn<T extends ColumnType, TNullable extends boo
     return this;
   };
 
-  public abstract primaryKey(): AbstractColumn<T, boolean, boolean>;
+  public abstract primaryKey(): AbstractColumn<T, boolean, boolean, TParent>;
 
   public unique = () => {
     this.uniqueKeyName = this.columnName;
     return this;
   };
 
-  public abstract notNull(): AbstractColumn<T, boolean, boolean>;
+  public abstract notNull(): AbstractColumn<T, boolean, boolean, TParent>;
 
   public getColumnName = (): string => this.columnName;
 
-  public getReferenced = (): AbstractColumn<T, boolean, boolean> => this.referenced;
+  public getReferenced = (): AbstractColumn<T, boolean, boolean, TParent> => this.referenced;
 
   public getColumnType = (): T => this.columnType;
 
@@ -90,9 +90,9 @@ export class Column<T extends ColumnType, TNullable extends boolean = true, TAut
     super(parent, columnName, columnType);
   }
 
-  public notNull(): Column<T, TAutoIncrement extends true ? true : TNullable extends true? false : true, TAutoIncrement, TParent> {
+  public notNull(): Column<T, TAutoIncrement extends true ? true : TNullable extends true ? false : true, TAutoIncrement, TParent> {
     this.isNullableFlag = false;
-    return this as Column<T, TAutoIncrement extends true ? true : TNullable extends true? false : true, TAutoIncrement, TParent>;
+    return this as Column<T, TAutoIncrement extends true ? true : TNullable extends true ? false : true, TAutoIncrement, TParent>;
   }
 
   public primaryKey(): Column<T, TAutoIncrement extends true ? true : false, TAutoIncrement, TParent> {
