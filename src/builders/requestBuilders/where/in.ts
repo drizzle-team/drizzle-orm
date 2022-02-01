@@ -10,5 +10,5 @@ export default class In extends Expr {
     this.right = right;
   }
 
-  public toQuery = (): string => `${this.left.toQuery()} in (${this.right.toQuery()})`;
+  public toQuery = (): { query: string, values: Array<any> } => ({ query: `${this.left.toQuery()} in (${this.right.toQuery()})`, values: [] });
 }

@@ -11,5 +11,5 @@ export default class Var<T extends AbstractColumn<ColumnType<any>, boolean, bool
     this.column = column;
   }
 
-  public toQuery = (): string => `${this.column.getParentName()}.${ecranate(this.column.getColumnName())}`;
+  public toQuery = (): { query: string, values: Array<any> } => ({ query: `${this.column.getParentName()}.${ecranate(this.column.getColumnName())}`, values: [] });
 }

@@ -18,6 +18,7 @@ export default class SelectAggregator extends Aggregator {
   private _distinct: Array<string> = [];
   // private _groupBy: Array<string> = [];
   private _orderBy: Array<string> = [];
+  private _values: Array<any> = [];
 
   // public constructor(table: AbstractTable<any>);
   // public constructor(table: AbstractTable<any>, partial: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, AbstractTable<any>>})
@@ -28,7 +29,8 @@ export default class SelectAggregator extends Aggregator {
   public filters = (filters: Expr): SelectAggregator => {
     if (filters) {
       this._filters.push('WHERE ');
-      this._filters.push(filters.toQuery());
+      this._filters.push(filters.toQuery().query);
+      this._values.push(filters.toQuery().values);
     }
     return this;
   };
@@ -121,7 +123,7 @@ export default class SelectAggregator extends Aggregator {
     return this;
   };
 
-  public buildQuery = () => {
+  public buildQuery = (): { query: string, values: Array<any> } => {
     this._select.push(this._distinct.join(''));
     this._select.push(this._fields.join(''));
     this._select.push('\n');
@@ -139,6 +141,6 @@ export default class SelectAggregator extends Aggregator {
     this._select.push('\n');
     this._select.push(this._offset.join(''));
 
-    return this._select.join('');
+    return { query: this._select.join(''), values: [] };
   };
 }

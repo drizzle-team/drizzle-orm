@@ -10,5 +10,10 @@ export default class Less extends Expr {
     this.right = right;
   }
 
-  public toQuery = (): string => `${this.left.toQuery()} < ${this.right.toQuery()}`;
+  public toQuery = (position?: number): { query: string, values: Array<any> } => {
+    const rightPreparedValues = this.right.toQuery(position);
+    const leftPreparedValues = this.left.toQuery(position);
+
+    return { query: `${leftPreparedValues.query} < ${rightPreparedValues.query}`, values: [...leftPreparedValues.values, ...rightPreparedValues.values] };
+  };
 }

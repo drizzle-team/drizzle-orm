@@ -8,5 +8,5 @@ export default class IsNull extends Expr {
     this.left = left;
   }
 
-  public toQuery = (): string => `${this.left.toQuery()} is null`;
+  public toQuery = (): { query: string, values: Array<any> } => ({ query: `${this.left.toQuery()} is null`, values: [] });
 }
