@@ -7,6 +7,7 @@ export default class UpdateAggregator extends Aggregator {
   private _updates: Array<string> = [];
   private _filters: Array<string> = [];
   private _from: Array<string> = [];
+  private _values: Array<any> = [];
   private _update: Array<string> = ['UPDATE'];
 
   public constructor(table: AbstractTable<any>) {
@@ -15,8 +16,13 @@ export default class UpdateAggregator extends Aggregator {
 
   public where = (filters: Expr): UpdateAggregator => {
     if (filters) {
+      const currentPointerPosition = this._values.length > 0 ? this._values.length + 1 : undefined;
+      const filterQuery = filters.toQuery(currentPointerPosition);
+
       this._filters.push('WHERE ');
-      this._filters.push(filters.toQuery().query);
+      this._filters.push(filterQuery.query);
+
+      this._values.push(...filterQuery.values);
     }
     return this;
   };
@@ -28,11 +34,13 @@ export default class UpdateAggregator extends Aggregator {
   };
 
   public set = (updates: UpdateExpr): UpdateAggregator => {
-    this._updates.push(`\nSET ${updates.toQuery()}`);
+    const setQuery = updates.toQuery();
+    this._updates.push(`\nSET ${setQuery.query}`);
+    this._values.push(...setQuery.values);
     return this;
   };
 
-  public buildQuery = () => {
+  public buildQuery = (): { query: string, values: Array<any> } => {
     this._update.push(this._from.join(''));
     this._update.push('\n');
     this._update.push(this._updates.join(''));
@@ -43,6 +51,6 @@ export default class UpdateAggregator extends Aggregator {
     this._update.push('\n');
     this._update.push(this._fields.join(''));
 
-    return this._update.join('');
+    return { query: this._update.join(''), values: this._values };
   };
 }

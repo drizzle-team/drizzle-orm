@@ -10,7 +10,7 @@ export default class Session extends ISession {
     super();
   }
 
-  public execute(query: string, values?: Array<any>): Promise<QueryResult<any>> {
+  public async execute(query: string, values?: Array<any>): Promise<QueryResult<any>> {
     return this.pool.query(query, values || []);
   }
 }

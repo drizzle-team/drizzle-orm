@@ -27,11 +27,11 @@ import UsersToUserGroupsTable from '../tables/usersToUserGroups';
     const userRes = await usersTable.insertMany([{
       decimalField: 4.2,
       createdAt: new Date(),
-      // role: 'guest',
+      role: 'foo',
     }, {
       decimalField: 5.8,
       createdAt: new Date(),
-      // role: 'user',
+      role: 'foo',
     }]).all();
 
     const citiesRes = await citiesTable.insertMany([{

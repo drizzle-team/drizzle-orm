@@ -10,7 +10,7 @@ export default class PgTimestamp extends ColumnType<Date> {
 
   public getDbName = (): string => this.dbName;
 
-  public insertStrategy = (value: Date): string => `'${value.toISOString()}'`;
+  public insertStrategy = (value: Date): string => `${value.toISOString()}`;
 
   public selectStrategy(value: any): Date {
     return value;

@@ -25,7 +25,7 @@ import UsersTable from '../tables/usersTable';
     await usersTable.insert({
       decimalField: 12.4,
       createdAt: new Date(),
-      // role: 'guest',
+      role: 'foo',
     }).execute();
 
     const insertedCities = await citiesTable.insert({
@@ -48,11 +48,11 @@ import UsersTable from '../tables/usersTable';
     const conflictInsertedUsers = await usersTable.insertMany([{
       decimalField: 12.4,
       createdAt: new Date(),
-      // role: 'guest',
+      role: 'foo',
     }, {
       decimalField: 32.4,
       createdAt: new Date(),
-      // role: 'admin',
+      role: 'foo',
       phone: '+1808',
     }])
       .onConflict(

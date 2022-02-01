@@ -30,7 +30,7 @@ export default class SelectAggregator extends Aggregator {
     if (filters) {
       this._filters.push('WHERE ');
       this._filters.push(filters.toQuery().query);
-      this._values.push(filters.toQuery().values);
+      this._values = filters.toQuery().values;
     }
     return this;
   };
@@ -141,6 +141,6 @@ export default class SelectAggregator extends Aggregator {
     this._select.push('\n');
     this._select.push(this._offset.join(''));
 
-    return { query: this._select.join(''), values: [] };
+    return { query: this._select.join(''), values: this._values };
   };
 }
