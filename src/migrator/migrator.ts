@@ -27,7 +27,7 @@ export default class Migrator {
         const key = entry[0];
         const value = entry[1].trim().replace(/['"]+/g, '');
 
-        if (key === 'migrationFolder') {
+        if (key === 'migrationRootFolder') {
           // proceed value
           migrationFolderTo = value;
         }
@@ -60,7 +60,16 @@ export default class Migrator {
 
         const query = fs.readFileSync(`${migrationFolderTo}/${migrationFolder}/${migrationFile}`).toString();
 
-        const folderAsMillis = new Date(migrationFolder).getTime();
+        const year = Number(migrationFolder.slice(0, 4));
+        // second param for Date() is month index, that started from 0, so we need
+        // to decrement a value for month
+        const month = Number(migrationFolder.slice(4, 6)) - 1;
+        const day = Number(migrationFolder.slice(6, 8));
+        const hour = Number(migrationFolder.slice(8, 10));
+        const min = Number(migrationFolder.slice(10, 12));
+        const sec = Number(migrationFolder.slice(12, 14));
+
+        const folderAsMillis = new Date(year, month, day, hour, min, sec).getTime();
         if (!lastDbMigration || lastDbMigration.createdAt! < folderAsMillis) {
           await this.db.session().execute(query);
           await migrationTable.insert({
