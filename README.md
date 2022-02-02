@@ -427,3 +427,13 @@ await drizzle.migrator(db).migrate('src/drizzle.config.yaml');
 ```typescript
 await drizzle.migrator(db).migrate({ migrationFolder: 'drizzle' });
 ```
+
+
+## Raw query usage
+#### If you have some complex queries to execute and drizzle-orm can't handle them yet, then you could use `rawQuery` execution
+
+
+##### Execute custom raw query
+```typescript
+const res: QueryResult<any> = await db.session().execute('SELECT * FROM users');
+```
