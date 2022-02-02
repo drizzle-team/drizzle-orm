@@ -1,5 +1,9 @@
 # Changelog
 
+### 0.10.4 (Fabruary 02, 2022)
+### Fixes and Functionality:
+- Fix `int` and `smallint` mappings from pg driver
+---
 ### 0.10.0 (January 27, 2022)
 ### Breaking changes:
  - Move limit offset to function calls

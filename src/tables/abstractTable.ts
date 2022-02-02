@@ -125,7 +125,7 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
     return new Column(this, name, new PgInteger());
   }
 
-  protected smallInt(name: string): Column<PgInteger, true, false, this> {
+  protected smallInt(name: string): Column<PgSmallInt, true, false, this> {
     return new Column(this, name, new PgSmallInt());
   }
 
