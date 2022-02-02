@@ -7,21 +7,24 @@ import Order from '../../builders/highLvlBuilders/order';
 import {
   greater, greaterEq, inArray, isNull, less, lessEq, notEq,
 } from '../../builders/requestBuilders/where/static';
+import ConsoleLogger from '../../logger/consoleLogger';
 import UsersTable from '../tables/usersTable';
 
 (async () => {
   try {
     const db = await new DbConnector()
-      .connectionString('postgresql://postgres@127.0.0.1/drizzle')
+      .connectionString('postgresql://postgres@127.0.0.1/migrator')
       .connect();
 
     const usersTable = new UsersTable(db);
+
+    db.useLogger(new ConsoleLogger());
 
     // select all
     const allSelect = await usersTable.select().all();
 
     // select first
-    const firstSelect = await usersTable.select().findOne();
+    const firstSelect = await usersTable.select().all();
 
     // select using filters
     const eqSelect = await usersTable.select().where(eq(usersTable.phone, 'hello')).all();

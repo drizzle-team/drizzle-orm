@@ -217,6 +217,9 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
         this._columns, e, this._filter);
     }
 
+    console.log(query);
+    console.log(values);
+
     if (this._logger) {
       this._logger.info(`Selecting from ${this._table.tableName()} using query:\n ${query}`);
     }

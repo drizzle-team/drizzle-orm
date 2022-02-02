@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-loop-func */
 import { IndexedColumn } from '../../columns/column';
 import { AbstractTable } from '../../tables';
 import { ExtractModel, Indexing } from '../../tables/inferTypes';
@@ -39,13 +40,12 @@ export default class InsertAggregator extends Aggregator {
     // @TODO Check if values not empty
     const mapper = this._table.mapServiceToDb();
 
+    let position: number = 0;
     for (let i = 0; i < values.length; i += 1) {
       const value = values[i];
 
       this._query.push('(');
       const entries = Object.entries(mapper);
-
-      let position: number = 0;
 
       entries.forEach(([key], index) => {
         const valueToInsert = value[key as keyof ExtractModel<any>];
@@ -85,8 +85,15 @@ export default class InsertAggregator extends Aggregator {
         ? column.getColumnName() : column.getColumns().map((it) => it.getColumnName()).join(',');
       this._onConflict.push(`ON CONFLICT (${indexName})\n`);
       if (updates) {
+        const currentPointerPosition = this._values.length > 0
+          ? this._values.length + 1 : undefined;
+
+        const updatesQuery = updates.toQuery(currentPointerPosition);
+
         this._onConflict.push('DO UPDATE\n');
-        this._onConflict.push(`SET ${updates.toQuery()}`);
+        this._onConflict.push(`SET ${updatesQuery.query}`);
+
+        this._values.push(...updatesQuery.values);
       } else {
         this._onConflict.push('DO NOTHING\n');
       }

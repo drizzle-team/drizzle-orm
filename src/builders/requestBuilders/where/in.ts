@@ -10,5 +10,10 @@ export default class In extends Expr {
     this.right = right;
   }
 
-  public toQuery = (): { query: string, values: Array<any> } => ({ query: `${this.left.toQuery()} in (${this.right.toQuery()})`, values: [] });
+  public toQuery = (position?: number): { query: string, values: Array<any> } => {
+    const rightPreparedValues = this.right.toQuery(position);
+    const leftPreparedValues = this.left.toQuery(position);
+
+    return { query: `${leftPreparedValues.query} in (${rightPreparedValues.query})`, values: [...leftPreparedValues.values, ...rightPreparedValues.values] };
+  };
 }

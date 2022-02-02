@@ -9,16 +9,16 @@ import UsersTable from '../tables/usersTable';
 (async () => {
   try {
     const db = await new DbConnector()
-      .connectionString('postgresql://postgres@127.0.0.1/drizzle-docs')
+      .connectionString('postgresql://postgres@127.0.0.1/migrator')
       .connect();
 
     const usersTable = new UsersTable(db);
     const citiesTable = new CitiesTable(db);
     const userGroupsTable = new UserGroupsTable(db);
 
-    await db.session().execute(Create.table(usersTable).build());
-    await db.session().execute(Create.table(citiesTable).build());
-    await db.session().execute(Create.table(userGroupsTable).build());
+    // await db.session().execute(Create.table(usersTable).build());
+    // await db.session().execute(Create.table(citiesTable).build());
+    // await db.session().execute(Create.table(userGroupsTable).build());
 
     db.useLogger(new ConsoleLogger());
 
