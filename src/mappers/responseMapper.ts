@@ -19,7 +19,7 @@ export default class QueryResponseMapper {
         const column = mappedServiceToDb[key as keyof ExtractModel<ITable>];
         const alias = `${column.getAlias()}${joinId ? `_${joinId}` : ''}`;
         const value = column.getColumnType().selectStrategy(row[alias]) as any;
-        mappedRow[key as keyof ExtractModel<ITable>] = value;
+        mappedRow[key as keyof ExtractModel<ITable>] = value === null ? undefined : value;
       });
       response.push(mappedRow);
     });
@@ -37,7 +37,7 @@ export default class QueryResponseMapper {
         const column = partial[key];
         const alias = `${column.getAlias()}${joinId ? `_${joinId}` : ''}`;
         const value = column.getColumnType().selectStrategy(row[alias]) as any;
-        mappedRow[key as keyof ExtractModel<T>] = value;
+        mappedRow[key as keyof ExtractModel<T>] = value === null ? undefined : value;
       });
       response.push(mappedRow);
     });
