@@ -73,6 +73,9 @@ export default abstract class AbstractJoined<TTable extends AbstractTable<TTable
         this._table.tableName(), Object.values(this._table.mapServiceToDb()), e, this._filter);
     }
 
+    console.log(query);
+    console.log(values);
+
     const result = await this._session.execute(query, values);
     return this.mapResponse(result);
   };

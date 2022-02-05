@@ -28,6 +28,8 @@ import UsersTable from '../tables/usersTable';
       .set({ metadata: { population: 1, connection: 'first' } })
       .all();
 
+    console.log(updatedCities);
+
     const updatedUserGroup = await userGroupsTable.update()
       .where(eq(userGroupsTable.id, 1))
       .set({ description: 'updated description' })

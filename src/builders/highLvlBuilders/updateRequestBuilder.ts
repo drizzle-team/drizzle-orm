@@ -72,6 +72,7 @@ export default class UpdateTRB<TTable extends AbstractTable<TTable>, TPartial ex
 
     if (this._logger) {
       this._logger.info(`Updating ${this._table.tableName()} using query:\n ${query}`);
+      console.log(values);
     }
     const result = await this._session.execute(query, values);
     return QueryResponseMapper.map(this._mappedServiceToDb, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>;

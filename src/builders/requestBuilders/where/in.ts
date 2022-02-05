@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 import Expr from './where';
 
 export default class In extends Expr {
@@ -10,9 +11,9 @@ export default class In extends Expr {
     this.right = right;
   }
 
-  public toQuery = (position?: number): { query: string, values: Array<any> } => {
-    const rightPreparedValues = this.right.toQuery(position);
-    const leftPreparedValues = this.left.toQuery(position);
+  public toQuery = (position?: number, tableCache?: {[tableName: string]: string}): { query: string, values: Array<any> } => {
+    const rightPreparedValues = this.right.toQuery(position, tableCache);
+    const leftPreparedValues = this.left.toQuery(position, tableCache);
 
     return { query: `${leftPreparedValues.query} in (${rightPreparedValues.query})`, values: [...leftPreparedValues.values, ...rightPreparedValues.values] };
   };

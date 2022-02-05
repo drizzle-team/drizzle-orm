@@ -18,11 +18,11 @@ export default class ConstArray extends Expr {
       const value = this.values[i];
       if (value instanceof Date) {
         finalArray.push(`$${nextPosition}`);
-        finalValues.push(`'${value.toISOString()}'`);
+        finalValues.push(`${value.toISOString()}`);
       }
       if (shouldEcranate(value)) {
         finalArray.push(`$${nextPosition}`);
-        finalValues.push(`'${value.toString()}'`);
+        finalValues.push(`${value.toString()}`);
       } else {
         finalArray.push(`$${nextPosition}`);
         finalValues.push(value);

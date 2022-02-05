@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Create, DbConnector } from '../..';
 import { eq } from '../../builders';
+import ConsoleLogger from '../../logger/consoleLogger';
 import { ExtractModel } from '../../tables/inferTypes';
 import CitiesTable from '../tables/citiesTable';
 import UserGroupsTable from '../tables/userGroupsTable';
@@ -11,18 +12,20 @@ import UsersToUserGroupsTable from '../tables/usersToUserGroups';
 (async () => {
   try {
     const db = await new DbConnector()
-      .connectionString('postgresql://postgres@127.0.0.1/drizzle-docs')
+      .connectionString('postgresql://postgres@127.0.0.1/migrator')
       .connect();
+
+    db.useLogger(new ConsoleLogger());
 
     const usersTable = new UsersTable(db);
     const citiesTable = new CitiesTable(db);
     const usersToUserGroupsTable = new UsersToUserGroupsTable(db);
     const userGroupsTable = new UserGroupsTable(db);
 
-    await db.session().execute(Create.table(usersTable).build());
-    await db.session().execute(Create.table(citiesTable).build());
-    await db.session().execute(Create.table(userGroupsTable).build());
-    await db.session().execute(Create.table(usersToUserGroupsTable).build());
+    // await db.session().execute(Create.table(usersTable).build());
+    // await db.session().execute(Create.table(citiesTable).build());
+    // await db.session().execute(Create.table(userGroupsTable).build());
+    // await db.session().execute(Create.table(usersToUserGroupsTable).build());
 
     const userRes = await usersTable.insertMany([{
       decimalField: 4.2,

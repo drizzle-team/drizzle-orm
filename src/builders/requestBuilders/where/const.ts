@@ -13,10 +13,10 @@ export default class Const extends Expr {
   public toQuery = (position?: number): { query: string, values: Array<any>} => {
     const nextPosition = position || 1;
     if (this.value instanceof Date) {
-      return { query: `$${nextPosition}`, values: [`'${this.value.toISOString()}'`] };
+      return { query: `$${nextPosition}`, values: [`${this.value.toISOString()}`] };
     }
     if (shouldEcranate(this.value)) {
-      return { query: `$${nextPosition}`, values: [`'${this.value.toString()}'`] };
+      return { query: `$${nextPosition}`, values: [`${this.value.toString()}`] };
     }
     return { query: `$${nextPosition}`, values: [this.value] };
   };

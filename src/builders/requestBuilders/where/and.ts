@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 import Expr from './where';
 
 export default class And extends Expr {
@@ -8,7 +9,7 @@ export default class And extends Expr {
     this.expressions = expressions;
   }
 
-  public toQuery = (position?: number): { query: string, values: Array<any> } => {
+  public toQuery = (position?: number, tableCache?: {[tableName: string]: string}): { query: string, values: Array<any> } => {
     let nextPosition = position || 1;
 
     const result: string[] = ['('];
@@ -16,7 +17,7 @@ export default class And extends Expr {
     for (let i = 0; i < this.expressions.length; i += 1) {
       const expression = this.expressions[i];
 
-      const expressionResult = expression.toQuery(nextPosition);
+      const expressionResult = expression.toQuery(nextPosition, tableCache);
 
       valuesResult.push(...expressionResult.values);
       result.push(expressionResult.query);

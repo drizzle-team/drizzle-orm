@@ -20,6 +20,8 @@ export default class SelectAggregator extends Aggregator {
   private _orderBy: Array<string> = [];
   private _values: Array<any> = [];
 
+  private _joinCache: {[tableName: string]: string} = {};
+
   // public constructor(table: AbstractTable<any>);
   // public constructor(table: AbstractTable<any>, partial: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, AbstractTable<any>>})
   public constructor(table: AbstractTable<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, AbstractTable<any>>}) {
@@ -28,9 +30,10 @@ export default class SelectAggregator extends Aggregator {
 
   public filters = (filters: Expr): SelectAggregator => {
     if (filters) {
+      const queryBuilder = filters.toQuery(1, this._joinCache);
       this._filters.push('WHERE ');
-      this._filters.push(filters.toQuery().query);
-      this._values = filters.toQuery().values;
+      this._filters.push(queryBuilder.query);
+      this._values = queryBuilder.values;
     }
     return this;
   };
@@ -79,7 +82,7 @@ export default class SelectAggregator extends Aggregator {
     join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>},
     id?: number
   }>): SelectAggregator => {
-    const cache: {[tableName: string]: string} = {};
+    // const cache: {[tableName: string]: string} = {};
     joins.forEach((joinObject: {
       join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>},
       id?: number
@@ -105,11 +108,11 @@ export default class SelectAggregator extends Aggregator {
         this._join.push(`AS ${tableTo}${joinObject.id ? `_${joinObject.id}` : ''}`);
         this._join.push('\n');
         this._join.push('ON ');
-        if (cache[tableFrom]) {
-          this._join.push(cache[tableFrom]);
+        if (this._joinCache[tableFrom]) {
+          this._join.push(this._joinCache[tableFrom]);
         } else {
           this._join.push(tableFrom);
-          cache[tableTo] = `${tableTo}${joinObject.id ? `_${joinObject.id}` : ''}`;
+          this._joinCache[tableTo] = `${tableTo}${joinObject.id ? `_${joinObject.id}` : ''}`;
         }
         this._join.push('.');
         this._join.push(joinObject.join.fromColumn.getColumnName());
