@@ -104,7 +104,7 @@ export default class MigrationSerializer {
             notNull: !value.isNullableFlag,
           };
 
-          if (value.getDefaultValue !== undefined && value.getDefaultValue() !== null) {
+          if (value.getDefaultValue() !== undefined && value.getDefaultValue() !== null) {
             columnToReturn[value.getColumnName()].default = value.getDefaultValue();
           }
 
