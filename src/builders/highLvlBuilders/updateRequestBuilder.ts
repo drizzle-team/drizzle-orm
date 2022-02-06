@@ -55,13 +55,16 @@ export default class UpdateTRB<TTable extends AbstractTable<TTable>, TPartial ex
 
   protected _execute = async (): Promise<Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>> => {
     let query = '';
+    let values = [];
 
     try {
-      query = Update.in(this._table)
+      const builderResult = Update.in(this._table)
         .columns()
         .set(this._update)
         .filteredBy(this._filter)
         .build();
+      query = builderResult.query;
+      values = builderResult.values;
     } catch (e: any) {
       throw new BuilderError(BuilderType.UPDATE, this._table.tableName(),
         this._columns, e, this._filter);
@@ -69,8 +72,9 @@ export default class UpdateTRB<TTable extends AbstractTable<TTable>, TPartial ex
 
     if (this._logger) {
       this._logger.info(`Updating ${this._table.tableName()} using query:\n ${query}`);
+      console.log(values);
     }
-    const result = await this._session.execute(query);
+    const result = await this._session.execute(query, values);
     return QueryResponseMapper.map(this._mappedServiceToDb, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>;
   };
 }

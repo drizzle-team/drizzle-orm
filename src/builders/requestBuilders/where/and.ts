@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 import Expr from './where';
 
 export default class And extends Expr {
@@ -8,12 +9,20 @@ export default class And extends Expr {
     this.expressions = expressions;
   }
 
-  public toQuery = (): string => {
+  public toQuery = (position?: number, tableCache?: {[tableName: string]: string}): { query: string, values: Array<any> } => {
+    let nextPosition = position || 1;
+
     const result: string[] = ['('];
+    const valuesResult: Array<any> = [];
     for (let i = 0; i < this.expressions.length; i += 1) {
       const expression = this.expressions[i];
 
-      result.push(expression.toQuery());
+      const expressionResult = expression.toQuery(nextPosition, tableCache);
+
+      valuesResult.push(...expressionResult.values);
+      result.push(expressionResult.query);
+
+      nextPosition += expressionResult.values.length;
 
       if (i < this.expressions.length - 1) {
         result.push(' and ');
@@ -21,6 +30,6 @@ export default class And extends Expr {
     }
     result.push(')');
 
-    return result.join('');
+    return { query: result.join(''), values: valuesResult };
   };
 }

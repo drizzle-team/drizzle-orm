@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 import { AbstractColumn } from '../../../columns/column';
 import ColumnType from '../../../columns/types/columnType';
 import { ecranate } from '../../../utils/ecranate';
@@ -11,5 +12,8 @@ export default class Var<T extends AbstractColumn<ColumnType<any>, boolean, bool
     this.column = column;
   }
 
-  public toQuery = (): string => `${this.column.getParentName()}.${ecranate(this.column.getColumnName())}`;
+  public toQuery = (postition?: number, tableCache?: {[tableName: string]: string}): { query: string, values: Array<any> } => {
+    const tableName = tableCache && tableCache[this.column.getParentName()] ? tableCache[this.column.getParentName()] : this.column.getParentName();
+    return { query: `${tableName}.${ecranate(this.column.getColumnName())}`, values: [] };
+  };
 }

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-loop-func */
 import { IndexedColumn } from '../../columns/column';
 import { AbstractTable } from '../../tables';
 import { ExtractModel, Indexing } from '../../tables/inferTypes';
@@ -7,7 +8,8 @@ import Aggregator from './abstractAggregator';
 export default class InsertAggregator extends Aggregator {
   private _onConflict: Array<string> = [];
   private _columns: Array<string> = [];
-  private _values: Array<string> = [];
+  private _query: Array<string> = [];
+  private _values: Array<any> = [];
   private _from: Array<string> = [];
   private _insert: Array<string> = ['INSERT INTO'];
 
@@ -38,11 +40,13 @@ export default class InsertAggregator extends Aggregator {
     // @TODO Check if values not empty
     const mapper = this._table.mapServiceToDb();
 
+    let position: number = 0;
     for (let i = 0; i < values.length; i += 1) {
       const value = values[i];
 
-      this._values.push('(');
+      this._query.push('(');
       const entries = Object.entries(mapper);
+
       entries.forEach(([key], index) => {
         const valueToInsert = value[key as keyof ExtractModel<any>];
         const isKeyExistsInValue = key.toString() in value;
@@ -51,23 +55,25 @@ export default class InsertAggregator extends Aggregator {
 
         if (isKeyExistsInValue) {
           if (valueToInsert !== undefined && valueToInsert !== null) {
+            position += 1;
+            this._query.push(`$${position}`);
             this._values.push(column.getColumnType().insertStrategy(valueToInsert));
           } else {
-            this._values.push('null');
+            this._query.push('null');
           }
         } else {
-          this._values.push('DEFAULT');
+          this._query.push('DEFAULT');
         }
 
         if (index < entries.length - 1) {
-          this._values.push(', ');
+          this._query.push(', ');
         }
       });
 
       if (i < values.length - 1) {
-        this._values.push('),\n');
+        this._query.push('),\n');
       } else {
-        this._values.push(')\n');
+        this._query.push(')\n');
       }
     }
   };
@@ -79,8 +85,15 @@ export default class InsertAggregator extends Aggregator {
         ? column.getColumnName() : column.getColumns().map((it) => it.getColumnName()).join(',');
       this._onConflict.push(`ON CONFLICT (${indexName})\n`);
       if (updates) {
+        const currentPointerPosition = this._values.length > 0
+          ? this._values.length + 1 : undefined;
+
+        const updatesQuery = updates.toQuery(currentPointerPosition);
+
         this._onConflict.push('DO UPDATE\n');
-        this._onConflict.push(`SET ${updates.toQuery()}`);
+        this._onConflict.push(`SET ${updatesQuery.query}`);
+
+        this._values.push(...updatesQuery.values);
       } else {
         this._onConflict.push('DO NOTHING\n');
       }
@@ -88,13 +101,13 @@ export default class InsertAggregator extends Aggregator {
     return this;
   };
 
-  public buildQuery = () => {
+  public buildQuery = (): { query: string, values: Array<any> } => {
     this._insert.push(this._from.join(''));
     this._insert.push(' (');
     this._insert.push(this._columns.join(''));
     this._insert.push(') ');
     this._insert.push('VALUES\n');
-    this._insert.push(this._values.join(''));
+    this._insert.push(this._query.join(''));
     this._insert.push('\n');
     this._insert.push(this._onConflict.join(''));
     this._insert.push('\n');
@@ -102,6 +115,6 @@ export default class InsertAggregator extends Aggregator {
     this._insert.push('\n');
     this._insert.push(this._fields.join(''));
 
-    return this._insert.join('');
+    return { query: this._insert.join(''), values: this._values };
   };
 }

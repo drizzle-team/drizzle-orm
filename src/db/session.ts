@@ -2,7 +2,7 @@
 import { Pool, QueryResult } from 'pg';
 
 export abstract class ISession {
-  public abstract execute(query: string): Promise<QueryResult<any>>;
+  public abstract execute(query: string, values?: Array<any>): Promise<QueryResult<any>>;
 }
 
 export default class Session extends ISession {
@@ -10,7 +10,7 @@ export default class Session extends ISession {
     super();
   }
 
-  public execute(query: string): Promise<QueryResult<any>> {
-    return this.pool.query(query);
+  public async execute(query: string, values?: Array<any>): Promise<QueryResult<any>> {
+    return this.pool.query(query, values || []);
   }
 }

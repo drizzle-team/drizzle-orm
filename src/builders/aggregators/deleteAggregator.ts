@@ -5,6 +5,7 @@ import Aggregator from './abstractAggregator';
 export default class DeleteAggregator extends Aggregator {
   private _from: Array<string> = [];
   private _filters: Array<string> = [];
+  private _values: Array<any> = [];
   private _delete: Array<string> = ['DELETE'];
 
   public constructor(table: AbstractTable<any>) {
@@ -13,8 +14,10 @@ export default class DeleteAggregator extends Aggregator {
 
   public filters = (filters: Expr): DeleteAggregator => {
     if (filters) {
+      const filterQuery = filters.toQuery();
       this._filters.push('WHERE ');
-      this._filters.push(filters.toQuery());
+      this._filters.push(filterQuery.query);
+      this._values = filterQuery.values;
     }
     return this;
   };
@@ -25,7 +28,7 @@ export default class DeleteAggregator extends Aggregator {
     return this;
   };
 
-  public buildQuery = () => {
+  public buildQuery = (): { query: string, values: Array<any> } => {
     // this._delete.push(this._fields.join(''));
     this._delete.push('\n');
     this._delete.push(this._from.join(''));
@@ -36,6 +39,6 @@ export default class DeleteAggregator extends Aggregator {
     this._delete.push('\n');
     this._delete.push(this._fields.join(''));
 
-    return this._delete.join('');
+    return { query: this._delete.join(''), values: this._values };
   };
 }

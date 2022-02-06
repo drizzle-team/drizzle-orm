@@ -1,5 +1,3 @@
-import { Column } from '../../../columns/column';
-import ColumnType from '../../../columns/types/columnType';
 import InsertAggregator from '../../aggregators/insertAggregator';
 import ValuesInsert from './valuesInsert';
 

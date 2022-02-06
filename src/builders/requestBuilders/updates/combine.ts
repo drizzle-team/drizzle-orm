@@ -8,18 +8,27 @@ export default class Combine extends UpdateExpr {
     this._setters = setters;
   }
 
-  public toQuery = (): string => {
+  public toQuery = (position?: number): { query: string, values: Array<any>} => {
+    let nextPosition = position || 1;
+
     const response = [];
+    const valuesResult: Array<any> = [];
 
     for (let index = 0; index < this._setters.length; index += 1) {
       const setter = this._setters[index];
-      response.push(setter.toQuery());
+
+      const expressionResult = setter.toQuery(nextPosition);
+
+      valuesResult.push(...expressionResult.values);
+      response.push(expressionResult.query);
+
+      nextPosition += expressionResult.values.length;
 
       if (index !== this._setters.length - 1) {
         response.push(', ');
       }
     }
 
-    return response.join('');
+    return { query: response.join(''), values: valuesResult };
   };
 }

@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 import Expr from './where';
 
 export default class RawWhere extends Expr {
@@ -5,5 +6,5 @@ export default class RawWhere extends Expr {
     super();
   }
 
-  public toQuery = (): string => this.custom;
+  public toQuery = (): { query: string, values: Array<any> } => ({ query: this.custom, values: [] });
 }

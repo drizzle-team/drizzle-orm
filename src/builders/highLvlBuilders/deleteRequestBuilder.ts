@@ -39,8 +39,11 @@ export default class DeleteTRB<TTable extends AbstractTable<TTable>, TPartial ex
       .filteredBy(this._filter);
 
     let query = '';
+    let values = [];
     try {
-      query = queryBuilder.build();
+      const builderResult = queryBuilder.build();
+      query = builderResult.query;
+      values = builderResult.values;
     } catch (e: any) {
       throw new BuilderError(BuilderType.DELETE, this._table.tableName(),
         this._columns, e, this._filter);
@@ -50,7 +53,7 @@ export default class DeleteTRB<TTable extends AbstractTable<TTable>, TPartial ex
       this._logger.info(`Deleting from ${this._table.tableName()} using query:\n ${query}`);
     }
 
-    const result = await this._session.execute(query);
+    const result = await this._session.execute(query, values);
     return QueryResponseMapper.map(this._mappedServiceToDb, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>;
   };
 }
