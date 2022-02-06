@@ -63,15 +63,20 @@ export default abstract class AbstractJoined<TTable extends AbstractTable<TTable
       .orderBy(this._orderBy, this._order);
 
     let query = '';
+    let values = [];
     try {
-      query = queryBuilder.build();
-      console.log(query);
+      const builderResult = queryBuilder.build();
+      query = builderResult.query;
+      values = builderResult.values;
     } catch (e: any) {
       throw new BuilderError(BuilderType.JOINED_SELECT,
         this._table.tableName(), Object.values(this._table.mapServiceToDb()), e, this._filter);
     }
 
-    const result = await this._session.execute(query);
+    console.log(query);
+    console.log(values);
+
+    const result = await this._session.execute(query, values);
     return this.mapResponse(result);
   };
 

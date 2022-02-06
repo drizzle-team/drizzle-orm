@@ -16,7 +16,6 @@ export default class DbConnector {
   public connect = async (): Promise<DB> => {
     try {
       const pool = new Pool(this.__config);
-
       await pool.connect();
       // console.log('Db connected!');
 

@@ -17,5 +17,8 @@ export default class Increment<T extends AbstractColumn<ColumnType<any>, boolean
     return this;
   };
 
-  public toQuery = (): string => `${this._column.getColumnName()} = ${this._column.getColumnName()} + ${this._value}`;
+  public toQuery = (): { query: string, values: Array<any>} => {
+    const query = `${this._column.getColumnName()} = ${this._column.getColumnName()} + ${this._value}`;
+    return { query, values: [] };
+  };
 }

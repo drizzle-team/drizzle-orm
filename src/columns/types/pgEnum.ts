@@ -10,7 +10,7 @@ export default class PgEnum<TCodeType> extends ColumnType {
   }
 
   public getDbName = (): string => this.dbName;
-  public insertStrategy = (value: TCodeType): string => `'${value}'`;
+  public insertStrategy = (value: TCodeType): string => `${value}`;
   public selectStrategy(value: any): TCodeType {
     return value;
   }

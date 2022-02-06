@@ -207,18 +207,23 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
       .orderBy(this.__orderBy, this.__order!);
 
     let query = '';
+    let values = [];
     try {
-      query = queryBuilder.build();
+      const builderResult = queryBuilder.build();
+      query = builderResult.query;
+      values = builderResult.values;
     } catch (e: any) {
       throw new BuilderError(BuilderType.SELECT, this._table.tableName(),
         this._columns, e, this._filter);
     }
 
+    console.log(query);
+    console.log(values);
+
     if (this._logger) {
       this._logger.info(`Selecting from ${this._table.tableName()} using query:\n ${query}`);
     }
-
-    const result = await this._session.execute(query);
+    const result = await this._session.execute(query, values);
     if (this.__partial) {
       return QueryResponseMapper.partialMap(this.__partial, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>;
     }

@@ -56,8 +56,11 @@ export default class InsertTRB<TTable extends AbstractTable<TTable>, TPartial ex
       .onConflict(this._onConflict, this._onConflictField);
 
     let query = '';
+    let values = [];
     try {
-      query = queryBuilder.build();
+      const builderResult = queryBuilder.build();
+      query = builderResult.query;
+      values = builderResult.values;
     } catch (e: any) {
       throw new BuilderError(BuilderType.INSERT, this._table.tableName(), this._columns, e);
     }
@@ -66,7 +69,7 @@ export default class InsertTRB<TTable extends AbstractTable<TTable>, TPartial ex
       this._logger.info(`Inserting to ${this._table.tableName()} using query:\n ${query}`);
     }
 
-    const result = await this._session.execute(query);
+    const result = await this._session.execute(query, values);
     return QueryResponseMapper.map(this._mappedServiceToDb, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>;
   };
 }

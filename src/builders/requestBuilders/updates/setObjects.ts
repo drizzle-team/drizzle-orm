@@ -13,5 +13,11 @@ export default class SetObject<T extends AbstractColumn<ColumnType<any>, boolean
     this._value = value;
   }
 
-  public toQuery = (): string => `"${this._column.getColumnName()}"=${this._value === null || this._value === undefined ? 'null' : this._column.getColumnType().insertStrategy(this._value)}`;
+  public toQuery = (position?: number): { query: string, values: Array<any>} => {
+    const nextPosition = position || 1;
+
+    const query = `"${this._column.getColumnName()}"=${this._value === null || this._value === undefined ? 'null' : `$${nextPosition}`}`;
+
+    return { query, values: [this._column.getColumnType().insertStrategy(this._value)] };
+  };
 }

@@ -1,5 +1,21 @@
 # Changelog
 
+### 0.10.6 (Fabruary 06, 2022)
+### Fixes and Functionality:
+- Move from simple query execution to parameterized queries
+### Breaking changes:
+- For `raw` query execution you need to provide values together with query
+#### Previous you could run simple query
+```typescript
+const res: QueryResult<any> = await db.session().execute('SELECT * FROM users WHERE user.id = 1');
+```
+#### Currently you need to provide prepared statement with values as array
+```typescript
+const res: QueryResult<any> = await db.session().execute('SELECT * FROM users WHERE user.id = $1', [1]);
+```
+It's still possible to execute query as before, without providing any values array. But we highly recommend to separate those
+
+---
 ### 0.10.4 (Fabruary 02, 2022)
 ### Fixes and Functionality:
 - Fix `int` and `smallint` mappings from pg driver

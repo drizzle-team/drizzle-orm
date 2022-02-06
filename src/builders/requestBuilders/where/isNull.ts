@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 import Expr from './where';
 
 export default class IsNull extends Expr {
@@ -8,5 +9,9 @@ export default class IsNull extends Expr {
     this.left = left;
   }
 
-  public toQuery = (): string => `${this.left.toQuery()} is null`;
+  public toQuery = (position?: number, tableCache?: {[tableName: string]: string}): { query: string, values: Array<any> } => {
+    const leftPreparedValues = this.left.toQuery(position, tableCache);
+
+    return { query: `${leftPreparedValues.query} is null`, values: leftPreparedValues.values };
+  };
 }

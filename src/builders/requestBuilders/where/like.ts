@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 import Expr from './where';
 
 export default class Like extends Expr {
@@ -10,5 +11,10 @@ export default class Like extends Expr {
     this.right = right;
   }
 
-  public toQuery = (): string => `${this.left.toQuery()} like ${this.right.toQuery()}`;
+  public toQuery = (position?: number, tableCache?: {[tableName: string]: string}): { query: string, values: Array<any> } => {
+    const rightPreparedValues = this.right.toQuery(position, tableCache);
+    const leftPreparedValues = this.left.toQuery(position, tableCache);
+
+    return { query: `${leftPreparedValues.query} like ${rightPreparedValues.query}`, values: [...leftPreparedValues.values, ...rightPreparedValues.values] };
+  };
 }

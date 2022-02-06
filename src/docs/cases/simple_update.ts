@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { DbConnector } from '../..';
 import { eq } from '../../builders';
+import ConsoleLogger from '../../logger/consoleLogger';
 import CitiesTable from '../tables/citiesTable';
 import UserGroupsTable from '../tables/userGroupsTable';
 import UsersTable from '../tables/usersTable';
@@ -8,8 +9,10 @@ import UsersTable from '../tables/usersTable';
 (async () => {
   try {
     const db = await new DbConnector()
-      .connectionString('postgresql://postgres@127.0.0.1/drizzle')
+      .connectionString('postgresql://postgres@127.0.0.1/migrator')
       .connect();
+
+    db.useLogger(new ConsoleLogger());
 
     const usersTable = new UsersTable(db);
     const citiesTable = new CitiesTable(db);
@@ -25,10 +28,12 @@ import UsersTable from '../tables/usersTable';
       .set({ metadata: { population: 1, connection: 'first' } })
       .all();
 
+    console.log(updatedCities);
+
     const updatedUserGroup = await userGroupsTable.update()
       .where(eq(userGroupsTable.id, 1))
       .set({ description: 'updated description' })
-      .findOne();
+      .all();
   } catch (e) {
     console.log(e);
   }
