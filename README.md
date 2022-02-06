@@ -235,8 +235,8 @@ const ordered = await usersTable.select().orderBy((table) => table.phone, Order.
 #### **Partial Selecting**
  ```typescript
     const partialSelect = await usersTable.select({
-      id: usersTable.id,
-      phone: usersTable.phone,
+      mappedId: usersTable.id,
+      mappedPhone: usersTable.phone,
     }).all();
 
     // Usage
@@ -435,5 +435,5 @@ await drizzle.migrator(db).migrate({ migrationFolder: 'drizzle' });
 
 ##### Execute custom raw query
 ```typescript
-const res: QueryResult<any> = await db.session().execute('SELECT * FROM users');
+const res: QueryResult<any> = await db.session().execute('SELECT * FROM users WHERE user.id = $1', [1]);
 ```
