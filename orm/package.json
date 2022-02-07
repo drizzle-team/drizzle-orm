@@ -1,5 +1,5 @@
 {
-  "name": "drizzle-orm",
+  "name": "@drizzle/orm",
   "version": "0.10.8",
   "description": "",
   "main": "dist/index.js",
@@ -12,7 +12,8 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lambda-direct/drizzle-orm.git"
+    "url": "git+https://github.com/lambda-direct/drizzle-orm.git",
+    "directory": "orm"
   },
   "keywords": [],
   "author": "",

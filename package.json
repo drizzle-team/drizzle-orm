@@ -1,8 +1,8 @@
 {
     "private": true,
-    "name": "drizzle-orm",
+    "name": "drizzle",
     "workspaces": [
-        "orm",
-        "kit"
+        "kit",
+        "orm"
     ]
 }

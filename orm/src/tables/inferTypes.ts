@@ -1,3 +1,4 @@
+/* eslint-disable import/no-cycle */
 /* eslint-disable max-len */
 import { UpdateCustomExpr } from '../builders/requestBuilders/updates/updates';
 import { AbstractColumn, Column, IndexedColumn } from '../columns/column';
