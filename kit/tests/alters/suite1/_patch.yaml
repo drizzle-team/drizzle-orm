@@ -1,0 +1,16 @@
+## auth_otp renamed to auth_otp1
+tables:
+  removed:
+    - auth_otp
+  added:
+    - auth_otp1
+  sequence:
+    - 0-0
+columns_in_tables:
+  auth_otp1:
+    removed:
+      - phone1
+    added:
+      - phone
+    sequence:
+      - 0-0
