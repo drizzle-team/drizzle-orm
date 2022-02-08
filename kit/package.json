@@ -1,5 +1,5 @@
 {
-  "name": "@drizzle/kit",
+  "name": "drizzle-kit",
   "version": "0.9.29",
   "repository": "https://github.com/lambda-direct/drizzle-kit",
   "author": "Alex Blokh <aleksandrblokh@gmail.com>",

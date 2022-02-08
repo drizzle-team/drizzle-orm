@@ -1,12 +1,12 @@
 {
-  "name": "@drizzle/orm",
+  "name": "drizzle-orm",
   "version": "0.10.8",
   "description": "",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "ts": "tsc --project ./tsconfig.json",
+    "ts": "tsc",
     "lint": "eslint ./src --ext .ts",
     "run": "ts-node src/tables/newAbstractTable.ts"
   },

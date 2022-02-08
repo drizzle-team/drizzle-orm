@@ -21,7 +21,11 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "sourceMap": true,
-    "baseUrl": "./src",
+    "baseUrl": ".",
     "outDir": "dist",
-  }
+  },
+  "include": [
+    "src/",
+    "../orm/src/",
+  ]
 }
