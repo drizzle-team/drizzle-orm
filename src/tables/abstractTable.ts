@@ -150,8 +150,8 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
     return new Column(this, name, new PgTimestamptz());
   }
 
-  protected bigint(name: string, maxBytes: 'max_bytes_53'): Column<PgBigInt53, true, true, this>
-  protected bigint(name: string, maxBytes: 'max_bytes_64'): Column<PgBigInt64, true, true, this>
+  protected bigint(name: string, maxBytes: 'max_bytes_53'): Column<PgBigInt53, true, false, this>
+  protected bigint(name: string, maxBytes: 'max_bytes_64'): Column<PgBigInt64, true, false, this>
   protected bigint(name: string, maxBytes: 'max_bytes_53' | 'max_bytes_64') {
     if (maxBytes === 'max_bytes_53') {
       return new Column(this, name, new PgBigInt53());
