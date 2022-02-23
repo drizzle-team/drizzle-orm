@@ -23,6 +23,7 @@
   },
   "homepage": "https://github.com/lambda-direct/drizzle-orm#readme",
   "devDependencies": {
+    "@types/node": "^17.0.20",
     "@typescript-eslint/eslint-plugin": "4.10.0",
     "eslint": "7.15.0",
     "eslint-config-airbnb-typescript": "12.0.0",

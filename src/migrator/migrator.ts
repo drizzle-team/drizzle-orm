@@ -3,7 +3,7 @@
 /* eslint-disable max-classes-per-file */
 import * as fs from 'fs';
 import * as path from 'path';
-import crypto from 'crypto'
+import * as crypto from 'crypto'
 import { Create } from '../builders';
 import Transaction from '../builders/transaction/transaction';
 import Db from '../db/db';
