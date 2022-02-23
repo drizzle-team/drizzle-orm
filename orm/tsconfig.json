@@ -1,23 +1,9 @@
 {
+  "extends": "../tsconfig.json",
   "compilerOptions": {
-    "target": "es2018",
-    "module": "commonjs",
-    "lib": [
-      "es2018",
-      "es2017",
-      "es7",
-      "es6",
-      "es5"
-    ],
     "outDir": "./dist",
-    "declaration": true,
-    "strict": true,
-    "noImplicitReturns": true,
-    "strictPropertyInitialization": false,
-    "experimentalDecorators": true,
-    "skipLibCheck": true,
   },
   "include": [
-    "src/**/*"
+    "./src/**/*"
   ],
 }

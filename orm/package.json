@@ -1,9 +1,12 @@
 {
-  "name": "drizzle-orm",
+  "name": "dizzle-orm",
   "version": "0.10.8",
   "description": "",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "ts": "tsc",
@@ -29,7 +32,7 @@
     "eslint-plugin-import": "2.22.1",
     "eslint-plugin-prefer-arrow": "1.2.2",
     "ts-node": "^10.0.0",
-    "typescript": "^4.2.4"
+    "typescript": "4.2.4"
   },
   "dependencies": {
     "@types/pg": "^8.6.1",
