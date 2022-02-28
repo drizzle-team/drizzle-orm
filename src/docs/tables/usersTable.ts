@@ -1,6 +1,6 @@
 /* eslint-disable max-classes-per-file */
 // import { Defaults } from '../../columns/column';
-import { Defaults } from '../../columns/column';
+import { PsqlDefaults } from '../../columns/column';
 import AbstractTable from '../../tables/abstractTable';
 import { createEnum } from '../../types/type';
 // import { rolesEnum } from '../types/rolesType';
@@ -21,7 +21,7 @@ export default class UsersTable extends AbstractTable<UsersTable> {
 
   // public createdAtWithTimezone = this.timestamptz('created_at');
 
-  public updatedAt = this.timestamp('updated_at').defaultValue(Defaults.CURRENT_TIMESTAMP);
+  public updatedAt = this.timestamp('updated_at').defaultValue(PsqlDefaults.CURRENT_TIMESTAMP);
   public isArchived = this.bool('is_archived').defaultValue(false);
 
   public phoneFullNameIndex = this.index([this.phone, this.fullName]);

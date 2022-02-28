@@ -1,0 +1,22 @@
+# plugins:
+# - @trivago/prettier-plugin-sort-imports
+
+useTabs: true
+tabWidth: 4
+singleQuote: true
+arrowParens: always
+trailingComma: all
+semi: true
+printWidth: 100
+importOrder:
+  - '^source-map-support'
+  - <THIRD_PARTY_MODULES>
+  - '^(@/|\.\.?/)'
+importOrderSeparation: true
+overrides:
+  - files:
+      - '**/*.yml'
+      - '**/*.yaml'
+    options:
+      useTabs: false
+      tabWidth: 2

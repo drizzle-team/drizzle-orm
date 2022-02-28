@@ -36,7 +36,7 @@ export default class UpdateTRB<TTable extends AbstractTable<TTable>, TPartial ex
   public set = (expr: Partial<ExtractUpdateModel<TTable>>): UpdateTRB<TTable> => {
     const updates: Array<UpdateExpr> = [];
     Object.entries(expr).forEach(([key, value]) => {
-      const column = this._mappedServiceToDb[key as keyof ExtractModel<TTable>];
+      const column = this._mappedServiceToDb[key as keyof ExtractModel<TTable> & string];
       if (value instanceof UpdateCustomExpr) {
         value.setColumn(column);
         updates.push(value);

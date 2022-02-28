@@ -6,25 +6,25 @@ import BuilderError, { BuilderType } from '../../errors/builderError';
 import BaseLogger from '../../logger/abstractLogger';
 import QueryResponseMapper from '../../mappers/responseMapper';
 import { AbstractTable } from '../../tables';
-import { ExtractModel } from '../../tables/inferTypes';
+import { ExtractModel, PartialFor, ExtractColumns } from '../../tables/inferTypes';
 import Delete from '../lowLvlBuilders/delets/delete';
 import Expr from '../requestBuilders/where/where';
 import TableRequestBuilder from './abstractRequestBuilder';
 
-export default class DeleteTRB<TTable extends AbstractTable<TTable>, TPartial extends {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, TTable>} = {}>
-  extends TableRequestBuilder<TTable, TPartial> {
+export default class DeleteTRB<TTable extends AbstractTable<TTable>>
+  extends TableRequestBuilder<TTable> {
   private _filter: Expr;
 
   public constructor(
     table: AbstractTable<TTable>,
     session: ISession,
-    mappedServiceToDb: { [name in keyof ExtractModel<TTable>]: AbstractColumn<ColumnType>; },
+    mappedServiceToDb: ExtractColumns<TTable>,
     logger?: BaseLogger,
   ) {
     super(table, session, mappedServiceToDb, logger);
   }
 
-  public where = (expr: Expr): DeleteTRB<TTable> => {
+  public where = (expr: Expr): this => {
     this._filter = expr;
     return this;
   };
@@ -33,7 +33,7 @@ export default class DeleteTRB<TTable extends AbstractTable<TTable>, TPartial ex
     await this._execute();
   };
 
-  protected _execute = async (): Promise<Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>> => {
+  protected _execute = async (): Promise<ExtractModel<TTable>[]> => {
     const queryBuilder = Delete
       .from(this._table)
       .filteredBy(this._filter);
@@ -54,6 +54,6 @@ export default class DeleteTRB<TTable extends AbstractTable<TTable>, TPartial ex
     }
 
     const result = await this._session.execute(query, values);
-    return QueryResponseMapper.map(this._mappedServiceToDb, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>;
+    return QueryResponseMapper.map(this._mappedServiceToDb, result);
   };
 }

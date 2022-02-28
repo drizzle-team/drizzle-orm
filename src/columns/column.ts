@@ -7,16 +7,25 @@ import { AbstractTable } from '../tables';
 import ColumnType from './types/columnType';
 import PgTimestamptz from './types/pgTimestamptz';
 
-export enum Defaults {
-  CURRENT_TIMESTAMP = 'CURRENT_TIMESTAMP',
+class RawSqlValue {
+  constructor(public readonly value: string, public readonly escape: boolean) {
+  }
+
+  toJSON(): string {
+    return this.escape ? `'${this.value}'` : this.value
+  }
+}
+
+export const PsqlDefaults = {
+  CURRENT_TIMESTAMP: new RawSqlValue('CURRENT_TIMESTAMP', false),
 }
 
 type PgTimes = PgTimestamptz | PgTime | PgTimestamp;
 
 export type ExtractColumnType<T extends ColumnType> =
- T extends ColumnType<infer TCodeType> ?
-   T extends PgTimes ? TCodeType | Defaults : TCodeType
-   : never;
+  T extends ColumnType<infer TCodeType> ?
+  T extends PgTimes ? TCodeType : TCodeType
+  : never;
 
 // eslint-disable-next-line max-len
 export abstract class AbstractColumn<T extends ColumnType, TNullable extends boolean = true, TAutoIncrement extends boolean = false, TParent extends AbstractTable<any> = any> {
@@ -51,16 +60,24 @@ export abstract class AbstractColumn<T extends ColumnType, TNullable extends boo
 
   public getParentName = (): string => this.parentTableName;
 
-  public abstract foreignKey <ITable extends AbstractTable<ITable>>(table: { new(db: DB): ITable ;},
+  public abstract foreignKey<ITable extends AbstractTable<ITable>>(table: { new(db: DB): ITable; },
     callback: (table: ITable) => AbstractColumn<T, boolean, boolean, TParent>,
     onConstraint: {
       onDelete?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT',
       onUpdate?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT'
     })
-  : AbstractColumn<T, TNullable, TAutoIncrement>;
+    : AbstractColumn<T, TNullable, TAutoIncrement>;
 
-  public defaultValue = (value: ExtractColumnType<T>) => {
-    this.defaultParam = value;
+  public defaultValue = (value: ExtractColumnType<T> | RawSqlValue) => {
+    if (value instanceof RawSqlValue) {
+      this.defaultParam = value
+    } else {
+      if (typeof value === 'boolean' || typeof value === 'number' || typeof value === 'bigint') {
+        this.defaultParam = new RawSqlValue(`${value}`, false);
+      } else {
+        this.defaultParam = new RawSqlValue(`${value}`, true);
+      }
+    }
     return this;
   };
 
@@ -145,9 +162,9 @@ export class IndexedColumn<T extends ColumnType, TNullable extends boolean = tru
     super(parent, columnName, columnType);
   }
 
-  public notNull(): IndexedColumn<T, TAutoIncrement extends true ? true : TNullable extends true? false : true, TAutoIncrement, TParent> {
+  public notNull(): IndexedColumn<T, TAutoIncrement extends true ? true : TNullable extends true ? false : true, TAutoIncrement, TParent> {
     this.isNullableFlag = false;
-    return this as IndexedColumn<T, TAutoIncrement extends true ? true : TNullable extends true? false : true, TAutoIncrement, TParent>;
+    return this as IndexedColumn<T, TAutoIncrement extends true ? true : TNullable extends true ? false : true, TAutoIncrement, TParent>;
   }
 
   public primaryKey(): IndexedColumn<T, TAutoIncrement extends true ? true : false, TAutoIncrement, TParent> {

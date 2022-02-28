@@ -63,6 +63,7 @@ interface TableAsObject {
   };
 }
 
+
 export default class MigrationSerializer {
   public generate = (tables: AbstractTable<any>[], enums: Enum<any>[]) => {
     const result: TableAsObject = {};
