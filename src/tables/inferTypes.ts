@@ -42,7 +42,7 @@ export type ExtractUpdateModel<TTable> =
 
 export type ExtractCodeType<T extends AbstractColumn<ColumnType<any>, boolean, boolean>> =
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      T extends AbstractColumn<ColumnType<infer TCodeType>, infer TNullable, infer TAutoIncrement> ?
+      T extends AbstractColumn<ColumnType<infer TCodeType>, infer TNullable, infer TAutoIncrement, any> ?
         TCodeType
         : never;
 
