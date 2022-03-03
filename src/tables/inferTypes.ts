@@ -52,11 +52,11 @@ export type ExtractUpdateModel<TTable> = {
 		| UpdateCustomExpr<TTable[Key]>;
 };
 
-export type ExtractCodeType<T> =
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	T extends AbstractColumn<ColumnType<infer TCodeType>, infer TNullable, infer TAutoIncrement>
-		? TCodeType
-		: never;
+export type ExtractCodeType<T extends AbstractColumn<ColumnType<any>, boolean, boolean>> =
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      T extends AbstractColumn<ColumnType<infer TCodeType>, infer TNullable, infer TAutoIncrement, any> ?
+        TCodeType
+        : never;
 
 export type ExtractTypeEnum<T extends Type<any>> = T extends Type<infer TEnum> ? TEnum : never;
 

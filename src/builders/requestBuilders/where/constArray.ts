@@ -19,8 +19,7 @@ export default class ConstArray extends Expr {
       if (value instanceof Date) {
         finalArray.push(`$${nextPosition}`);
         finalValues.push(`${value.toISOString()}`);
-      }
-      if (shouldEcranate(value)) {
+      } else if (shouldEcranate(value)) {
         finalArray.push(`$${nextPosition}`);
         finalValues.push(`${value.toString()}`);
       } else {
@@ -33,6 +32,6 @@ export default class ConstArray extends Expr {
 
       nextPosition += 1;
     }
-    return { query: finalArray.join(','), values: finalValues };
+    return { query: finalArray.join(''), values: finalValues };
   };
 }
