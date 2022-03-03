@@ -4,6 +4,7 @@
 import { PgTime, PgTimestamp } from '.';
 import DB from '../db/db';
 import { AbstractTable } from '../tables';
+import { shouldEcranate } from '../utils/ecranate';
 import ColumnType from './types/columnType';
 import PgTimestamptz from './types/pgTimestamptz';
 
@@ -60,7 +61,13 @@ export abstract class AbstractColumn<T extends ColumnType, TNullable extends boo
   : AbstractColumn<T, TNullable, TAutoIncrement>;
 
   public defaultValue = (value: ExtractColumnType<T>) => {
-    this.defaultParam = value;
+    if (Defaults[value as Defaults] !== undefined) {
+      this.defaultParam = value;
+    } else if (typeof value === 'boolean' || typeof value === 'number' || typeof value === 'bigint') {
+      this.defaultParam = value;
+    } else {
+      this.defaultParam = `'${value}'`;
+    }
     return this;
   };
 
