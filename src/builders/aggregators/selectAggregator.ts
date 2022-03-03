@@ -58,7 +58,8 @@ export default class SelectAggregator extends Aggregator {
     order?: Order): SelectAggregator => {
     if (column !== null && column !== undefined) {
       this._orderBy.push('ORDER BY ');
-      this._orderBy.push(`${column.getColumnName()} `);
+      const columnParent = this._joinCache[column.getParent().tableName()] ? this._joinCache[column.getParent().tableName()] : column.getParent();
+      this._orderBy.push(`${columnParent}.${ecranate(column.getColumnName())} `);
       this._orderBy.push(Order[order!]);
     }
     return this;
