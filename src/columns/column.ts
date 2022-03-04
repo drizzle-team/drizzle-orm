@@ -53,7 +53,7 @@ export abstract class AbstractColumn<T extends ColumnType, TNullable extends boo
   public getParentName = (): string => this.parentTableName;
 
   public abstract foreignKey <ITable extends AbstractTable<ITable>>(table: { new(db: DB): ITable ;},
-    callback: (table: ITable) => AbstractColumn<T, boolean, boolean, TParent>,
+    callback: (table: ITable) => AbstractColumn<any, boolean, boolean, TParent>,
     onConstraint: {
       onDelete?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT',
       onUpdate?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT'
@@ -109,7 +109,7 @@ export class Column<T extends ColumnType, TNullable extends boolean = true, TAut
 
   public foreignKey(
     table: new (db: DB) => TParent,
-    callback: (table: this) => Column<T, boolean, boolean, TParent>,
+    callback: (table: this) => Column<any, boolean, boolean, TParent>,
     onConstraint?: {
       onDelete?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT',
       onUpdate?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT'
@@ -117,7 +117,7 @@ export class Column<T extends ColumnType, TNullable extends boolean = true, TAut
   ): Column<T, TNullable, TAutoIncrement, TParent>;
   public foreignKey<ITable extends AbstractTable<ITable>>(
     table: new (db: DB) => ITable,
-    callback: (table: ITable) => Column<T, boolean, boolean, ITable>,
+    callback: (table: ITable) => Column<any, boolean, boolean, ITable>,
     onConstraint?: {
       onDelete?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT',
       onUpdate?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT'
@@ -125,7 +125,7 @@ export class Column<T extends ColumnType, TNullable extends boolean = true, TAut
   ): Column<T, TNullable, TAutoIncrement, TParent>;
   public foreignKey<ITable extends AbstractTable<ITable>>(
     table: new (db: DB) => any,
-    callback: (table: any) => Column<T, boolean, boolean, any>,
+    callback: (table: any) => Column<any, boolean, boolean, any>,
     onConstraint?: {
       onDelete?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT',
       onUpdate?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT'
