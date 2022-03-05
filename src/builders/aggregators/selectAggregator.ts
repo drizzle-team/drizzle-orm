@@ -67,7 +67,7 @@ export default class SelectAggregator extends Aggregator {
 
   public distinct = (column?: AbstractColumn<ColumnType, boolean, boolean>): SelectAggregator => {
     if (column) {
-      this._distinct.push(` DISTINCT ON(${column.getParent()}.${ecranate(column.getColumnName())}) `);
+      this._distinct.push(` DISTINCT ON(${column.getParent().tableName()}.${ecranate(column.getColumnName())}) `);
     }
     return this;
   };
