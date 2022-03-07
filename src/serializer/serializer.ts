@@ -126,7 +126,7 @@ export default class MigrationSerializer {
           const referenced = value.getReferenced();
           if (referenced) {
             columnToReturn[value.getColumnName()].references = {
-              foreignKeyName: `${value.getParent().tableName()}_${value.getColumnName()}_fk`,
+              foreignKeyName: `${value.getParent().tableName()}_${value.getColumnName()}_fkey`,
               table: referenced.getParentName(),
               column: referenced.getColumnName(),
               onDelete: value.getOnDelete(),
