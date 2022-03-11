@@ -66,7 +66,7 @@ export default class InsertTRB<TTable extends AbstractTable<TTable>, TPartial ex
     }
 
     if (this._logger) {
-      this._logger.info(`Inserting to ${this._table.tableName()} using query:\n ${query}`);
+      this._logger.info(`Inserting to ${this._table.tableName()} using query:\n ${query}\n${values}`);
     }
 
     const result = await this._session.execute(query, values);

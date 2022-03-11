@@ -48,11 +48,11 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
     this._joinedPartial1 = joinedPartial1;
   }
 
-  public innerJoin<InputTable extends AbstractTable<InputTable>, TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
+  public innerJoin<InputTable extends AbstractTable<InputTable>, TColumn extends ColumnType, TToColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
     fromTable: { new(db: DB): InputTable ;},
     table: { new(db: DB): IToTable ;},
     from: (table: CheckThreeTypes<InputTable, TTable, TTable1, TTable2>) => AbstractColumn<TColumn, boolean, boolean, CheckThreeTypes<InputTable, TTable, TTable1, TTable2>>,
-    to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean, IToTable>,
+    to: (table: IToTable) => AbstractColumn<TToColumn, boolean, boolean, IToTable>,
     partial?: IToPartial,
   ): SelectTRBWithThreeJoins<TTable, TTable1, TTable2, IToTable, TPartial, TPartial1, TPartial2, IToPartial> {
     const toTable = this._table.db.create(table);
@@ -82,11 +82,11 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
     );
   }
 
-  public leftJoin<InputTable extends AbstractTable<InputTable>, TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
+  public leftJoin<InputTable extends AbstractTable<InputTable>, TColumn extends ColumnType, TToColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
     fromTable: { new(db: DB): InputTable ;},
     table: { new(db: DB): IToTable ;},
     from: (table: CheckThreeTypes<InputTable, TTable, TTable1, TTable2>) => AbstractColumn<TColumn, boolean, boolean, CheckThreeTypes<InputTable, TTable, TTable1, TTable2>>,
-    to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean, IToTable>,
+    to: (table: IToTable) => AbstractColumn<TToColumn, boolean, boolean, IToTable>,
     partial?: IToPartial,
   ): SelectTRBWithThreeJoins<TTable, TTable1, TTable2, IToTable, TPartial, TPartial1, TPartial2, IToPartial> {
     const toTable = this._table.db.create(table);
@@ -116,11 +116,11 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
     );
   }
 
-  public rightJoin<InputTable extends AbstractTable<InputTable>, TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
+  public rightJoin<InputTable extends AbstractTable<InputTable>, TColumn extends ColumnType, TToColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
     fromTable: { new(db: DB): InputTable ;},
     table: { new(db: DB): IToTable ;},
     from: (table: CheckThreeTypes<InputTable, TTable, TTable1, TTable2>) => AbstractColumn<TColumn, boolean, boolean, CheckThreeTypes<InputTable, TTable, TTable1, TTable2>>,
-    to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean, IToTable>,
+    to: (table: IToTable) => AbstractColumn<TToColumn, boolean, boolean, IToTable>,
     partial?: IToPartial,
   ): SelectTRBWithThreeJoins<TTable, TTable1, TTable2, IToTable, TPartial, TPartial1, TPartial2, IToPartial> {
     const toTable = this._table.db.create(table);
@@ -150,11 +150,11 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
     );
   }
 
-  public fullJoin<InputTable extends AbstractTable<InputTable>, TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
+  public fullJoin<InputTable extends AbstractTable<InputTable>, TColumn extends ColumnType, TToColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
     fromTable: { new(db: DB): InputTable ;},
     table: { new(db: DB): IToTable ;},
     from: (table: CheckThreeTypes<InputTable, TTable, TTable1, TTable2>) => AbstractColumn<TColumn, boolean, boolean, CheckThreeTypes<InputTable, TTable, TTable1, TTable2>>,
-    to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean, IToTable>,
+    to: (table: IToTable) => AbstractColumn<TToColumn, boolean, boolean, IToTable>,
     partial?: IToPartial,
   ): SelectTRBWithThreeJoins<TTable, TTable1, TTable2, IToTable, TPartial, TPartial1, TPartial2, IToPartial> {
     const toTable = this._table.db.create(table);

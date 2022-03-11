@@ -3,6 +3,7 @@
 /* eslint-disable max-classes-per-file */
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto'
 import { Create } from '../builders';
 import Transaction from '../builders/transaction/transaction';
 import Db from '../db/db';
@@ -49,6 +50,7 @@ export default class Migrator {
       ? dbMigrations[dbMigrations.length - 1]
       : undefined;
 
+
     const files = fs.readdirSync(migrationFolderTo);
     const transaction = new Transaction(this.db.session());
     await transaction.begin();
@@ -81,25 +83,15 @@ export default class Migrator {
 
       await transaction.commit();
     } catch (e) {
-      if (this.db.logger()) {
-        this.db.logger()!.error(e);
-      }
+      // if (this.db.logger()) {
+      //   this.db.logger()!.error(e);
+      // }
       transaction.rollback();
+      throw e
     }
   }
 
   private generateHash(value: string): string {
-    let hash = 0;
-    let i;
-    let chr;
-    if (value.length === 0) return '';
-    for (i = 0; i < value.length; i += 1) {
-      chr = value.charCodeAt(i);
-      // eslint-disable-next-line no-bitwise
-      hash = ((hash << 5) - hash) + chr;
-      // eslint-disable-next-line no-bitwise
-      hash |= 0;
-    }
-    return Buffer.from(value).toString('base64');
+    return crypto.createHash('sha256').update(value).digest('hex')
   }
 }

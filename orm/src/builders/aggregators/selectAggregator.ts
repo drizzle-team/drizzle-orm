@@ -58,7 +58,8 @@ export default class SelectAggregator extends Aggregator {
     order?: Order): SelectAggregator => {
     if (column !== null && column !== undefined) {
       this._orderBy.push('ORDER BY ');
-      this._orderBy.push(`${column.getColumnName()} `);
+      const columnParent = this._joinCache[column.getParent().tableName()] ? this._joinCache[column.getParent().tableName()] : column.getParent().tableName();
+      this._orderBy.push(`${columnParent}.${ecranate(column.getColumnName())} `);
       this._orderBy.push(Order[order!]);
     }
     return this;
@@ -66,7 +67,7 @@ export default class SelectAggregator extends Aggregator {
 
   public distinct = (column?: AbstractColumn<ColumnType, boolean, boolean>): SelectAggregator => {
     if (column) {
-      this._distinct.push(` DISTINCT ON(${column.getParent()}.${ecranate(column.getColumnName())}) `);
+      this._distinct.push(` DISTINCT ON(${column.getParent().tableName()}.${ecranate(column.getColumnName())}) `);
     }
     return this;
   };
@@ -74,6 +75,8 @@ export default class SelectAggregator extends Aggregator {
   public appendFrom = (tableName: string): SelectAggregator => {
     this._from.push('FROM ');
     this._from.push(tableName);
+    // this._from.push(`${tableName} AS ${tableName}_0`);
+    this._joinCache[tableName] = tableName;
     return this;
   };
 
@@ -92,6 +95,14 @@ export default class SelectAggregator extends Aggregator {
         const tableTo = joinObject.join.toColumn.getParentName();
         const { type } = joinObject.join;
 
+        let fromAlias = '';
+        if (this._joinCache[tableFrom]) {
+          fromAlias = this._joinCache[tableFrom];
+        } else {
+          fromAlias = `${tableFrom}${joinObject.id ? `_${joinObject.id}` : ''}`;
+          this._joinCache[tableFrom] = fromAlias;
+        }
+
         let selectString;
         if (joinObject.partial) {
           selectString = this.generateSelectArray(`${tableTo}${joinObject.id ? `_${joinObject.id}` : ''}`, Object.values(joinObject.partial), joinObject.id).join('');
@@ -106,18 +117,21 @@ export default class SelectAggregator extends Aggregator {
         this._join.push(tableTo);
         this._join.push(' ');
         this._join.push(`AS ${tableTo}${joinObject.id ? `_${joinObject.id}` : ''}`);
+        this._joinCache[tableTo] = `${tableTo}${joinObject.id ? `_${joinObject.id}` : ''}`;
         this._join.push('\n');
         this._join.push('ON ');
-        if (this._joinCache[tableFrom]) {
-          this._join.push(this._joinCache[tableFrom]);
-        } else {
-          this._join.push(tableFrom);
-          this._joinCache[tableTo] = `${tableTo}${joinObject.id ? `_${joinObject.id}` : ''}`;
-        }
+        this._join.push(fromAlias);
+        // if (this._joinCache[tableFrom]) {
+        //   this._join.push(this._joinCache[tableFrom]);
+        // } else {
+        //   this._join.push(tableFrom);
+        //   this._joinCache[tableFrom] = `${tableFrom}${joinObject.id ? `_${joinObject.id}` : ''}`;
+        // }
         this._join.push('.');
         this._join.push(joinObject.join.fromColumn.getColumnName());
         this._join.push(' = ');
         this._join.push(`${tableTo}${joinObject.id ? `_${joinObject.id}` : ''}`);
+        // this._join.push(toAlias);
         this._join.push('.');
         this._join.push(joinObject.join.toColumn.getColumnName());
       }

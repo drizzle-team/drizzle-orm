@@ -8,6 +8,7 @@ import EqWhere from './eqWhere';
 import Greater from './greater';
 import GreaterEq from './greaterEq';
 import In from './in';
+import IsNotNull from './isNotNull';
 import IsNull from './isNull';
 import Less from './less';
 import LessEq from './lessEq';
@@ -51,6 +52,9 @@ export const lessEq = <T extends AbstractColumn<ColumnType<any>, boolean, boolea
 
 export const isNull = <T extends AbstractColumn<ColumnType<any>, boolean, boolean>>(
   left: T): Expr => new IsNull(new Var<T>(left));
+
+export const isNotNull = <T extends AbstractColumn<ColumnType<any>, boolean, boolean>>(
+  left: T): Expr => new IsNotNull(new Var<T>(left));
 
 export const notEq = <T extends AbstractColumn<ColumnType<any>, boolean, boolean>>(
   left: T, value: ExtractCodeType<T>): Expr => new NotEqWhere(new Var<T>(left), new Const(value));

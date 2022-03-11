@@ -24,7 +24,8 @@ export default class BuilderError extends Error {
 Reason: ${reason.message}
 Query builder: ${BuilderType[builderType]}
 Table name: ${tableName}
-Filter query: ${filter ? filter.toQuery() : 'undefined'}
+Filter query: ${filter ? filter.toQuery().query : 'undefined'}
+Values: ${filter ? filter.toQuery().values : 'undefined'}
 Column names: ${columns.map((column) => column.getColumnName()).join(', ')}\n-----\n`;
   }
 }

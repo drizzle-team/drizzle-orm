@@ -3,7 +3,10 @@
 /* eslint-disable max-classes-per-file */
 import { PgTime, PgTimestamp } from '.';
 import DB from '../db/db';
+import CitiesTable from '../docs/tables/citiesTable';
+import UsersTable from '../docs/tables/usersTable';
 import { AbstractTable } from '../tables';
+import { shouldEcranate } from '../utils/ecranate';
 import ColumnType from './types/columnType';
 import PgTimestamptz from './types/pgTimestamptz';
 
@@ -32,7 +35,7 @@ export abstract class AbstractColumn<T extends ColumnType, TNullable extends boo
   protected columnType: T;
   protected columnName: string;
   protected defaultParam: any = null;
-  protected referenced: AbstractColumn<T, boolean, boolean, TParent>;
+  protected referenced: AbstractColumn<T, boolean, boolean>;
 
   public constructor(parent: TParent, columnName: string,
     columnType: T) {
@@ -51,16 +54,31 @@ export abstract class AbstractColumn<T extends ColumnType, TNullable extends boo
 
   public getParentName = (): string => this.parentTableName;
 
-  public abstract foreignKey <ITable extends AbstractTable<ITable>>(table: { new(db: DB): ITable ;},
-    callback: (table: ITable) => AbstractColumn<T, boolean, boolean, TParent>,
-    onConstraint: {
+  public abstract foreignKey<ITable extends AbstractTable<ITable>>(
+    table: new (db: DB) => ITable,
+    callback: (table: ITable) => Column<any, boolean, boolean, ITable>,
+    onConstraint?: {
       onDelete?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT',
       onUpdate?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT'
-    })
-  : AbstractColumn<T, TNullable, TAutoIncrement>;
+    },
+  ): AbstractColumn<T, TNullable, TAutoIncrement, TParent>;
+
+  public abstract selfForeignKey(
+    column: Column<any, boolean, boolean, TParent>,
+    onConstraint?: {
+      onDelete?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT',
+      onUpdate?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT'
+    },
+  ): AbstractColumn<T, TNullable, TAutoIncrement, TParent>;
 
   public defaultValue = (value: ExtractColumnType<T>) => {
-    this.defaultParam = value;
+    if (Defaults[value as Defaults] !== undefined) {
+      this.defaultParam = value;
+    } else if (typeof value === 'boolean' || typeof value === 'number' || typeof value === 'bigint') {
+      this.defaultParam = value;
+    } else {
+      this.defaultParam = `'${value}'`;
+    }
     return this;
   };
 
@@ -100,38 +118,29 @@ export class Column<T extends ColumnType, TNullable extends boolean = true, TAut
     return this as Column<T, TAutoIncrement extends true ? true : false, TAutoIncrement, TParent>;
   }
 
-  public foreignKey(
-    table: new (db: DB) => TParent,
-    callback: (table: this) => Column<T, boolean, boolean, TParent>,
-    onConstraint?: {
-      onDelete?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT',
-      onUpdate?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT'
-    },
-  ): Column<T, TNullable, TAutoIncrement, TParent>;
   public foreignKey<ITable extends AbstractTable<ITable>>(
     table: new (db: DB) => ITable,
-    callback: (table: ITable) => Column<T, boolean, boolean, ITable>,
+    callback: (table: ITable) => Column<any, boolean, boolean, ITable>,
     onConstraint?: {
       onDelete?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT',
       onUpdate?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT'
     },
-  ): Column<T, TNullable, TAutoIncrement, TParent>;
-  public foreignKey<ITable extends AbstractTable<ITable>>(
-    table: new (db: DB) => any,
-    callback: (table: any) => Column<T, boolean, boolean, any>,
-    onConstraint?: {
-      onDelete?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT',
-      onUpdate?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT'
-    },
-  ) {
-    let tableInstance: ITable;
-    // eslint-disable-next-line new-cap
-    if (typeof this !== typeof this.getParent()) {
-      tableInstance = this.getParent().db.create(table);
-    } else {
-      tableInstance = this as unknown as ITable;
-    }
+  ): Column<T, TNullable, TAutoIncrement, TParent> {
+    const tableInstance: ITable = this.getParent().db.create(table);
     this.referenced = callback(tableInstance);
+    this.onDelete = onConstraint?.onDelete ? `ON DELETE ${onConstraint.onDelete}` : undefined;
+    this.onUpdate = onConstraint?.onUpdate ? `ON UPDATE ${onConstraint.onUpdate}` : undefined;
+    return this;
+  }
+
+  public selfForeignKey(
+    column: Column<any, boolean, boolean, TParent>,
+    onConstraint?: {
+      onDelete?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT',
+      onUpdate?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT'
+    },
+  ): Column<T, TNullable, TAutoIncrement, TParent> {
+    this.referenced = column;
     this.onDelete = onConstraint?.onDelete ? `ON DELETE ${onConstraint.onDelete}` : undefined;
     this.onUpdate = onConstraint?.onUpdate ? `ON UPDATE ${onConstraint.onUpdate}` : undefined;
     return this;
@@ -158,7 +167,7 @@ export class IndexedColumn<T extends ColumnType, TNullable extends boolean = tru
 
   public foreignKey<ITable extends AbstractTable<ITable>>(
     table: new (db: DB) => ITable,
-    callback: (table: ITable) => IndexedColumn<T, boolean, boolean, TParent>,
+    callback: (table: ITable) => Column<any, boolean, boolean, ITable>,
     onConstraint?: {
       onDelete?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT',
       onUpdate?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT'
@@ -166,6 +175,19 @@ export class IndexedColumn<T extends ColumnType, TNullable extends boolean = tru
   ): IndexedColumn<T, TNullable, TAutoIncrement, TParent> {
     // eslint-disable-next-line new-cap
     this.referenced = callback(this.getParent().db.create(table));
+    this.onDelete = onConstraint?.onDelete ? `ON DELETE ${onConstraint.onDelete}` : undefined;
+    this.onUpdate = onConstraint?.onUpdate ? `ON UPDATE ${onConstraint.onUpdate}` : undefined;
+    return this;
+  }
+
+  public selfForeignKey<ITable extends AbstractTable<ITable>>(
+    column: Column<any, boolean, boolean, TParent>,
+    onConstraint?: {
+      onDelete?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT',
+      onUpdate?: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT'
+    },
+  ): IndexedColumn<T, TNullable, TAutoIncrement, TParent> {
+    this.referenced = column;
     this.onDelete = onConstraint?.onDelete ? `ON DELETE ${onConstraint.onDelete}` : undefined;
     this.onUpdate = onConstraint?.onUpdate ? `ON UPDATE ${onConstraint.onUpdate}` : undefined;
     return this;

@@ -79,10 +79,10 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
   //   return this;
   // }
 
-  public innerJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
+  public innerJoin<TColumn extends ColumnType, TToColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
     table: { new(db: DB): IToTable ;},
     from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean>,
-    to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean>,
+    to: (table: IToTable) => AbstractColumn<TToColumn, boolean, boolean>,
     partial?: IToPartial,
   ): SelectTRBWithJoin<TTable, IToTable, TPartial, IToPartial> {
     const toTable = this._table.db.create(table);
@@ -135,10 +135,10 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
     );
   }
 
-  public rightJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
+  public rightJoin<TColumn extends ColumnType, TToColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
     table: { new(db: DB): IToTable ;},
     from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean>,
-    to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean>,
+    to: (table: IToTable) => AbstractColumn<TToColumn, boolean, boolean>,
     partial?: IToPartial,
   ): SelectTRBWithJoin<TTable, IToTable, TPartial, IToPartial> {
     const toTable = this._table.db.create(table);
@@ -163,10 +163,10 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
     );
   }
 
-  public fullJoin<TColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
+  public fullJoin<TColumn extends ColumnType, TToColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
     table: { new(db: DB): IToTable ;},
     from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean>,
-    to: (table: IToTable) => AbstractColumn<TColumn, boolean, boolean>,
+    to: (table: IToTable) => AbstractColumn<TToColumn, boolean, boolean>,
     partial?: IToPartial,
   ): SelectTRBWithJoin<TTable, IToTable, TPartial, IToPartial> {
     const toTable = this._table.db.create(table);
@@ -216,9 +216,6 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
       throw new BuilderError(BuilderType.SELECT, this._table.tableName(),
         this._columns, e, this._filter);
     }
-
-    console.log(query);
-    console.log(values);
 
     if (this._logger) {
       this._logger.info(`Selecting from ${this._table.tableName()} using query:\n ${query}`);
