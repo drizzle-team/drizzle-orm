@@ -15,8 +15,13 @@
     "strictPropertyInitialization": false,
     "experimentalDecorators": true,
     "skipLibCheck": true,
-    "isolatedModules": true,
     "composite": true,
+    "esModuleInterop": true,
+    "paths": {
+      "drizzle-orm/*":[
+        "./orm/dist/*"
+      ]
+    }
   },
   "exclude": [
     "node_modules",

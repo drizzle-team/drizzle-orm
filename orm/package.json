@@ -1,9 +1,11 @@
 {
-  "name": "dizzle-orm",
+  "name": "drizzle-orm",
   "version": "0.10.8",
   "description": "",
   "main": "dist/index.js",
+  "module": "dist/index.js",
   "types": "dist/index.d.ts",
+  "typings": "dist/index.d.ts",
   "files": [
     "dist"
   ],

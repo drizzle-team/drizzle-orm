@@ -4,6 +4,7 @@ import yaml from 'js-yaml'
 
 import serializer from "../src/serializer/";
 import { applySnapshotsDiff, Column, ColumnsResolverInput, ColumnsResolverOutput, Table, TablesResolverInput, TablesResolverOutput } from "../src/snapshotsDiffer";
+import { to } from "orm/dist";
 
 const dry = {
     version: "1",
@@ -51,5 +52,6 @@ export const prepareTestSQL = async (path: string) => {
     }
     const initSQL = await applySnapshotsDiff(dry, fromJson, dryRunTablesResolver, dryRunColumnsResolver)
     const migrationSQL = await applySnapshotsDiff(fromJson, toJson, simulatedTablesResolver, simulatedColumnsResolver)
+    
     return { initSQL, migrationSQL }
 }
