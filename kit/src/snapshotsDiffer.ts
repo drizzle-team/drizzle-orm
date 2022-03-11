@@ -1,6 +1,6 @@
 import { fromJson } from "./sqlgenerator";
 import { applyJsonDiff, diffForRenamedTables, diffForRenamedColumn } from "./jsonDiffer";
-import { object, string, boolean } from 'yup';
+import { object, string, boolean, mixed } from 'yup';
 
 import {
   JsonRenameColumnStatement,
@@ -37,7 +37,7 @@ const columnSchema = object({
   type: string().required(),
   primaryKey: boolean().optional(),
   unique: boolean().optional(),
-  defaultValue: string().optional(),
+  defaultValue: mixed().optional(),
   notNull: boolean().optional(),
   references: object({
     table: string().required(),

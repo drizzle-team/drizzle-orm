@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command, program } from 'commander';
 import { prepareAndMigrate } from './commands/migrate';
+import 'source-map-support/register';
 import 'pretty-error/start';
 import './commands/migrate';
 

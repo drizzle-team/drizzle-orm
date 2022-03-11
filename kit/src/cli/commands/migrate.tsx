@@ -16,6 +16,8 @@ export const prepareAndMigrate = async () => {
 
   try {
     const { prev, cur } = await prepareJsonSnapshots(migrationRootFolder, dataFolder)
+    freeeeeeze(prev);
+    freeeeeeze(cur);
     const sql = await prepareSQL(prev, cur)
     // todo: save results to a new migration folder
     const folderName = prepareSnapshotFolderName()
@@ -25,6 +27,15 @@ export const prepareAndMigrate = async () => {
     fs.writeFileSync(`${migrationFolderPath}/migration.sql`, sql)
   } catch (e) {
     console.error(e)
+  }
+}
+
+const freeeeeeze = (obj: any) => {
+  Object.freeze(obj)
+  for (let key in obj) {
+    if (obj.hasOwnProperty(key) && typeof obj[key] === 'object') {
+      freeeeeeze(obj[key]);
+    }
   }
 }
 

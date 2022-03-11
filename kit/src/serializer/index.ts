@@ -5,7 +5,6 @@ const esbuild = require("esbuild");
 
 const serialize = (path: string, fileName?: string): string => {
   const decoder = new StringDecoder();
-
   const preparedFarbic = prepareFabricFile(path, fileName)
 
   fs.writeFileSync("__out.ts", preparedFarbic, "utf-8");

@@ -21,9 +21,9 @@ class CreateTableConvertor extends Convertor {
 
             const primaryKeyStatement = column.primaryKey ? "PRIMARY KEY" : ''
             const notNullStatement = column.notNull ? "NOT NULL" : "";
-            const defaultStatement = column.defaultValue ? `DEFAULT '${column.defaultValue}'` : "";
+            const defaultStatement = column.defaultValue !== undefined ? `DEFAULT ${column.defaultValue}` : "";
 
-            statement += '\t' + `${column.name} ${column.type} ${primaryKeyStatement} ${defaultStatement} ${notNullStatement}`.replace(/  +/g, ' ').trim();
+            statement += '\t' + `"${column.name}" ${column.type} ${primaryKeyStatement} ${defaultStatement} ${notNullStatement}`.replace(/  +/g, ' ').trim();
             statement += (i === columns.length - 1 ? '' : ',') + '\n'
         }
         statement += `);`
@@ -98,7 +98,7 @@ class AlterTableRenameColumnConvertor extends Convertor {
 
     convert(statement: JsonRenameColumnStatement) {
         const { tableName, oldColumnName, newColumnName } = statement
-        return `ALTER TABLE ${tableName} RENAME COLUMN ${oldColumnName} TO ${newColumnName};`
+        return `ALTER TABLE ${tableName} RENAME COLUMN "${oldColumnName}" TO "${newColumnName}";`
     }
 }
 
@@ -109,7 +109,7 @@ class AlterTableDropColumnConvertor extends Convertor {
 
     convert(statement: JsonDropColumnStatement) {
         const { tableName, columnName } = statement
-        return `ALTER TABLE ${tableName} DROP COLUMN IF EXISTS ${columnName};`
+        return `ALTER TABLE ${tableName} DROP COLUMN IF EXISTS "${columnName}";`
     }
 }
 
@@ -123,9 +123,9 @@ class AlterTableAddColumnConvertor extends Convertor {
         const { name, type, notNull } = column;
         const defaultValue = column.defaultValue
 
-        const defaultStatement = `${defaultValue ? `DEFAULT ${defaultValue}` : ''}`
+        const defaultStatement = `${defaultValue !== undefined ? `DEFAULT ${defaultValue}` : ''}`
         const notNullStatement = `${notNull ? 'NOT NULL' : ''}`
-        return `ALTER TABLE ${tableName} ADD COLUMN ${name} ${type} ${defaultStatement} ${notNullStatement}`.replace(/  +/g, ' ').trim() + ';'
+        return `ALTER TABLE ${tableName} ADD COLUMN "${name}" ${type} ${defaultStatement} ${notNullStatement}`.replace(/  +/g, ' ').trim() + ';'
     }
 }
 
@@ -136,7 +136,7 @@ class AlterTableAlterColumnSetTypeConvertor extends Convertor {
 
     convert(statement: JsonAlterColumnTypeStatement) {
         const { tableName, columnName, newDataType } = statement
-        return `ALTER TABLE ${tableName} ALTER COLUMN ${columnName} SET DATA TYPE ${newDataType};`
+        return `ALTER TABLE ${tableName} ALTER COLUMN "${columnName}" SET DATA TYPE ${newDataType};`
     }
 }
 
@@ -147,7 +147,7 @@ class AlterTableAlterColumnSetDefaultConvertor extends Convertor {
 
     convert(statement: JsonAlterColumnSetDefaultStatement) {
         const { tableName, columnName } = statement
-        return `ALTER TABLE ${tableName} ALTER COLUMN ${columnName} SET DEFAULT ${statement.newDefaultValue};`
+        return `ALTER TABLE ${tableName} ALTER COLUMN "${columnName}" SET DEFAULT ${statement.newDefaultValue};`
     }
 }
 
@@ -158,7 +158,7 @@ class AlterTableAlterColumnDropDefaultConvertor extends Convertor {
 
     convert(statement: JsonAlterColumnDropDefaultStatement) {
         const { tableName, columnName } = statement
-        return `ALTER TABLE ${tableName} ALTER COLUMN ${columnName} DROP DEFAULT;`
+        return `ALTER TABLE ${tableName} ALTER COLUMN "${columnName}" DROP DEFAULT;`
     }
 }
 
@@ -169,7 +169,7 @@ class AlterTableAlterColumnSetNotNullConvertor extends Convertor {
 
     convert(statement: JsonAlterColumnSetNotNullStatement) {
         const { tableName, columnName } = statement
-        return `ALTER TABLE ${tableName} ALTER COLUMN ${columnName} SET NOT NULL;`
+        return `ALTER TABLE ${tableName} ALTER COLUMN "${columnName}" SET NOT NULL;`
     }
 }
 
@@ -180,7 +180,7 @@ class AlterTableAlterColumnDropNotNullConvertor extends Convertor {
 
     convert(statement: JsonAlterColumnDropNotNullStatement) {
         const { tableName, columnName } = statement
-        return `ALTER TABLE ${tableName} ALTER COLUMN ${columnName} DROP NOT NULL;`
+        return `ALTER TABLE ${tableName} ALTER COLUMN "${columnName}" DROP NOT NULL;`
     }
 }
 
@@ -193,7 +193,12 @@ class CreateForeignKeyConvertor extends Convertor {
         const { fromTable, toTable, fromColumn, toColumn, foreignKeyName, onDelete, onUpdate } = statement
         const onDeleteStatement = onDelete || ""
         const onUpdateStatement = onUpdate || ""
-        return `ALTER TABLE ${fromTable} ADD CONSTRAINT ${foreignKeyName} FOREIGN KEY (${fromColumn}) REFERENCES ${toTable}(${toColumn}) ${onDeleteStatement} ${onUpdateStatement}`.replace(/  +/g, ' ').trim() + ';'
+        let sql = "DO $$ BEGIN\n"
+        sql += ` ALTER TABLE ${fromTable} ADD CONSTRAINT ${foreignKeyName} FOREIGN KEY ("${fromColumn}") REFERENCES ${toTable}(${toColumn}) ${onDeleteStatement} ${onUpdateStatement}`.replace(/  +/g, ' ').trim() + ';\n'
+        sql += "EXCEPTION\n"
+        sql += " WHEN duplicate_object THEN null;\n"
+        sql += "END $$;\n"
+        return sql
     }
 }
 

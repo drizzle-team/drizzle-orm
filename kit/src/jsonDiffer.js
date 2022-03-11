@@ -38,7 +38,7 @@ export function diffForRenamedColumn(t1, t2) {
 const renameNestedObjects = (obj, keyFrom, keyTo) => {
     Object.entries(obj).forEach(([key, value]) => {
         if ((key === keyFrom || (key.includes(keyFrom) && key !== keyFrom)) && 'object' !== typeof value) {
-            const newKey = key.replace(key, keyTo)
+            const newKey = key.replace(keyFrom, keyTo)
             obj[newKey] = value;
             delete obj[key];
         }
@@ -50,7 +50,10 @@ const renameNestedObjects = (obj, keyFrom, keyTo) => {
 }
 
 export function applyJsonDiff(json1, json2) {
-    const difference = diff(json1, json2);
+
+    //deep copy, needed because of the bug in diff library
+    const rawDiff = diff(json1, json2)
+    const difference = JSON.parse(JSON.stringify(rawDiff))
 
     difference.tables = difference.tables ? difference.tables : {}
     difference.enums = difference.enums ? difference.enums : {}

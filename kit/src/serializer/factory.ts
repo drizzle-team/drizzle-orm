@@ -3,7 +3,6 @@ import fs from "fs";
 const printer: ts.Printer = ts.createPrinter();
 
 const prepareFabricFile = (folder: string, fileName?: string) => {
-  const ormImport = 'drizzle-orm';
   const staticImports = [
     ts.createImportDeclaration(
       undefined,
@@ -12,7 +11,7 @@ const prepareFabricFile = (folder: string, fileName?: string) => {
         undefined,
         ts.createNamespaceImport(ts.createIdentifier('drizzle'))
       ),
-      ts.createStringLiteral(ormImport)
+      ts.createStringLiteral('drizzle-orm')
     ),
     ts.createImportDeclaration(
       undefined,
@@ -21,7 +20,7 @@ const prepareFabricFile = (folder: string, fileName?: string) => {
         ts.createIdentifier('Session'),
         undefined
       ),
-      ts.createStringLiteral(`${ormImport}/db/session`)
+      ts.createStringLiteral('drizzle-orm/db/session')
     ),
     ts.createImportDeclaration(
       undefined,
@@ -30,13 +29,13 @@ const prepareFabricFile = (folder: string, fileName?: string) => {
         ts.createIdentifier('MigrationSerializer'),
         undefined
       ),
-      ts.createStringLiteral(`${ormImport}/serializer/serializer`)
+      ts.createStringLiteral('drizzle-orm/serializer/serializer')
     ),
     ts.createImportDeclaration(
       undefined,
       undefined,
       ts.createImportClause(ts.createIdentifier("Enum"), undefined),
-      ts.createStringLiteral(`${ormImport}/types/type`),
+      ts.createStringLiteral("drizzle-orm/types/type"),
     ),
     ts.createImportDeclaration(
       undefined,
