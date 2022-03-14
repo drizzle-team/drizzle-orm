@@ -15,7 +15,7 @@
     "strictPropertyInitialization": false,
     "experimentalDecorators": true,
     "skipLibCheck": true,
-    "composite": true,
+    // "composite": true,
     "esModuleInterop": true,
     "paths": {
       "drizzle-orm/*":[
