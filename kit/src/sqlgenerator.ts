@@ -1,4 +1,4 @@
-import { JsonAddColumnStatement, JsonAddValueToEnumStatement, JsonAlterColumnDropDefaultStatement, JsonAlterColumnDropNotNullStatement, JsonAlterColumnSetDefaultStatement, JsonAlterColumnSetNotNullStatement, JsonAlterColumnTypeStatement, JsonCreateEnumStatement, JsonCreateIndexStatement, JsonCreateReferenceStatement, JsonCreateTableStatement, JsonDropColumnStatement, JsonDropIndexStatement, JsonDropTableStatement, JsonRenameColumnStatement, JsonRenameTableStatement, JsonStatement } from "jsonStatements";
+import { JsonAddColumnStatement, JsonAddValueToEnumStatement, JsonAlterColumnDropDefaultStatement, JsonAlterColumnDropNotNullStatement, JsonAlterColumnSetDefaultStatement, JsonAlterColumnSetNotNullStatement, JsonAlterColumnTypeStatement, JsonCreateEnumStatement, JsonCreateIndexStatement, JsonCreateReferenceStatement, JsonCreateTableStatement, JsonDropColumnStatement, JsonDropIndexStatement, JsonDropTableStatement, JsonRenameColumnStatement, JsonRenameTableStatement, JsonStatement } from "./jsonStatements";
 
 abstract class Convertor {
     abstract can(statement: JsonStatement): boolean

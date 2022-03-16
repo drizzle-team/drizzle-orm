@@ -1,4 +1,4 @@
-import { AlteredColumn, Column, Index, Table } from "snapshotsDiffer"
+import { AlteredColumn, Column, Index, Table } from "./snapshotsDiffer"
 
 export interface JsonCreateTableStatement {
     type: 'create_table',

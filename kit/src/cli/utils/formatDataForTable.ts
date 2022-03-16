@@ -1,4 +1,4 @@
-import { Named, RenamedObject } from 'cli/components-api';
+import { Named, RenamedObject } from '../components-api';
 
 const transpose = <T>(matrix: T[][]) => {
   let [row] = matrix

@@ -1,5 +1,5 @@
 import { assign, createMachine, send } from 'xstate';
-import { Named, RenamedObject } from 'cli/components-api';
+import { Named, RenamedObject } from '../components-api';
 
 type Event =
   | { type: 'CHOICE_ITEM', itemIndex: number }
