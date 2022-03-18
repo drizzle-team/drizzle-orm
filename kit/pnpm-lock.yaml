@@ -7,7 +7,7 @@ specifiers:
   '@typescript-eslint/eslint-plugin': 4.4.1
   cli-table: ^0.3.11
   commander: ^8.0.0
-  drizzle-orm: workspace:^0.10.8
+  drizzle-orm: workspace:^0.10.25
   enquirer: ^2.3.6
   esbuild: ^0.14.2
   esbuild-register: ^3.3.2
