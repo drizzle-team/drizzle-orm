@@ -1,4 +1,4 @@
-import { JsonAddColumnStatement, JsonAddValueToEnumStatement, JsonAlterColumnDropDefaultStatement, JsonAlterColumnDropNotNullStatement, JsonAlterColumnSetDefaultStatement, JsonAlterColumnSetNotNullStatement, JsonAlterColumnTypeStatement, JsonCreateEnumStatement, JsonCreateIndexStatement, JsonCreateReferenceStatement, JsonCreateTableStatement, JsonDropColumnStatement, JsonDropIndexStatement, JsonDropTableStatement, JsonRenameColumnStatement, JsonRenameTableStatement, JsonStatement } from "./jsonStatements";
+import { JsonAddColumnStatement, JsonAddValueToEnumStatement, JsonAlterColumnDropDefaultStatement, JsonAlterColumnDropNotNullStatement, JsonAlterColumnSetDefaultStatement, JsonAlterColumnSetNotNullStatement, JsonAlterColumnTypeStatement, JsonAlterReferenceStatement, JsonCreateEnumStatement, JsonCreateIndexStatement, JsonCreateReferenceStatement, JsonCreateTableStatement, JsonDeleteReferenceStatement, JsonDropColumnStatement, JsonDropIndexStatement, JsonDropTableStatement, JsonRenameColumnStatement, JsonRenameTableStatement, JsonStatement } from "./jsonStatements";
 
 abstract class Convertor {
     abstract can(statement: JsonStatement): boolean
@@ -193,12 +193,45 @@ class CreateForeignKeyConvertor extends Convertor {
         const { fromTable, toTable, fromColumn, toColumn, foreignKeyName, onDelete, onUpdate } = statement
         const onDeleteStatement = onDelete || ""
         const onUpdateStatement = onUpdate || ""
+        const alterStatement = `ALTER TABLE ${fromTable} ADD CONSTRAINT ${foreignKeyName} FOREIGN KEY ("${fromColumn}") REFERENCES ${toTable}(${toColumn}) ${onDeleteStatement} ${onUpdateStatement}`.replace(/  +/g, ' ').trim();
+
         let sql = "DO $$ BEGIN\n"
-        sql += ` ALTER TABLE ${fromTable} ADD CONSTRAINT ${foreignKeyName} FOREIGN KEY ("${fromColumn}") REFERENCES ${toTable}(${toColumn}) ${onDeleteStatement} ${onUpdateStatement}`.replace(/  +/g, ' ').trim() + ';\n'
+        sql += ' ' + alterStatement + ';\n'
         sql += "EXCEPTION\n"
         sql += " WHEN duplicate_object THEN null;\n"
         sql += "END $$;\n"
         return sql
+    }
+}
+
+class AlterForeignKeyConvertor extends Convertor {
+    can(statement: JsonStatement): boolean {
+        return statement.type === 'alter_reference'
+    }
+
+    convert(statement: JsonAlterReferenceStatement) {
+        const { fromTable, toTable, fromColumn, toColumn, foreignKeyName, onDelete, onUpdate, oldFkey } = statement
+        const onDeleteStatement = onDelete || ""
+        const onUpdateStatement = onUpdate || ""
+        const alterStatement = `ALTER TABLE ${fromTable} ADD CONSTRAINT ${foreignKeyName} FOREIGN KEY ("${fromColumn}") REFERENCES ${toTable}(${toColumn}) ${onDeleteStatement} ${onUpdateStatement}`.replace(/  +/g, ' ').trim();
+        let sql = `ALTER TABLE ${fromTable} DROP CONSTRAINT ${oldFkey};\n`
+        sql += "DO $$ BEGIN\n"
+        sql += ' ' + alterStatement + ';\n'
+        sql += "EXCEPTION\n"
+        sql += " WHEN duplicate_object THEN null;\n"
+        sql += "END $$;\n"
+        return sql
+    }
+}
+
+class DeleteForeignKeyConvertor extends Convertor {
+    can(statement: JsonStatement): boolean {
+        return statement.type === 'delete_reference'
+    }
+
+    convert(statement: JsonDeleteReferenceStatement) {
+        const { fromTable, foreignKeyName } = statement
+        return `ALTER TABLE ${fromTable} DROP CONSTRAINT ${foreignKeyName};\n`
     }
 }
 
@@ -243,6 +276,8 @@ convertors.push(new AlterTableAlterColumnDropNotNullConvertor())
 convertors.push(new AlterTableAlterColumnSetDefaultConvertor())
 convertors.push(new AlterTableAlterColumnDropDefaultConvertor())
 convertors.push(new CreateForeignKeyConvertor())
+convertors.push(new AlterForeignKeyConvertor())
+convertors.push(new DeleteForeignKeyConvertor())
 
 export const fromJson = (statements: JsonStatement[]) => {
     const result = statements.map(statement => {

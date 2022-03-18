@@ -3,8 +3,10 @@ import { applyJsonDiff, diffForRenamedTables, diffForRenamedColumn } from "./jso
 import { object, string, boolean, mixed } from 'yup';
 
 import {
+  JsonReferenceStatement,
   JsonRenameColumnStatement,
   prepareAddValuesToEnumJson,
+  prepareAlterReferencesJson,
   prepareAlterTableColumnsJson,
   prepareCreateEnumJson,
   prepareCreateIndexesJson,
@@ -23,13 +25,7 @@ export interface Column {
   unique?: boolean;
   defaultValue?: string;
   notNull?: boolean;
-  references?: {
-    table: string;
-    column: string;
-    foreignKeyName: string;
-    onDelete?: string;
-    onUpdate?: string;
-  };
+  references?: string;
 }
 
 const columnSchema = object({
@@ -39,13 +35,7 @@ const columnSchema = object({
   unique: boolean().optional(),
   defaultValue: mixed().optional(),
   notNull: boolean().optional(),
-  references: object({
-    table: string().required(),
-    column: string().required(),
-    foreignKeyName: string().required(),
-    onDelete: string().optional(),
-    onUpdate: string().optional(),
-  }).optional()
+  references: string().optional()
 }).noUnknown()
 
 export interface Added<T> {
@@ -71,6 +61,7 @@ export interface AlteredColumn {
   type?: Changed<string>
   defaultValue?: PatchedProperty<string>,
   notNull?: PatchedProperty<boolean>
+  references?: PatchedProperty<string>
 }
 
 export interface ColumnsObject {
@@ -101,7 +92,6 @@ export interface AlteredTable {
   altered: AlteredColumn[],
   addedIndexes: Index[],
   deletedIndexes: Index[],
-
 }
 
 export type DiffResult = {
@@ -143,7 +133,6 @@ export const applySnapshotsDiff = async (
   columnsResolver: (input: ColumnsResolverInput<Column>) => Promise<ColumnsResolverOutput<Column>>
 ) => {
   const diffResult = applyJsonDiff(json1, json2)
-
   const typedResult: DiffResult = diffResult
 
   typedResult.addedTables.forEach(t => {
@@ -226,15 +215,17 @@ export const applySnapshotsDiff = async (
     return prepareDropIndexesJson(it.name, it.deletedIndexes || {})
   }).flat()
 
-  const jsonCreateReferencesForCreatedTables = created.map(it => {
+  const jsonReferencesForCreatedTables: JsonReferenceStatement[] = created.map(it => {
     return prepareCreateReferencesJson(it.name, Object.values(it.columns))
   }).flat()
 
-  const jsonCreateReferencesForAllAlteredTables = allAltered.map(it => {
-    return prepareCreateReferencesJson(it.name, it.added)
+  const jsonReferencesForAllAlteredTables: JsonReferenceStatement[] = allAltered.map(it => {
+    const forAdded = prepareCreateReferencesJson(it.name, it.added)
+    const forAltered = prepareAlterReferencesJson(it.name, it.altered)
+    return [...forAdded, ...forAltered]
   }).flat()
 
-  const jsonCreateReferences = jsonCreateReferencesForCreatedTables.concat(jsonCreateReferencesForAllAlteredTables)
+  const jsonCreateReferences: JsonReferenceStatement[] = jsonReferencesForCreatedTables.concat(jsonReferencesForAllAlteredTables)
 
   // // Enums:
   // // - создание енама ✅

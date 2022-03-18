@@ -1,3 +1,7 @@
 {
-    "private": true
+    "private": true,
+    "scripts": {
+        "build:kit": "pnpm run build --filter drizzle-kit",
+        "build:orm": "pnpm run ts --filter drizzle-orm"
+    }
 }

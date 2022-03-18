@@ -49,11 +49,41 @@ const renameNestedObjects = (obj, keyFrom, keyTo) => {
     });
 }
 
+const update1to2 = (json) => {
+    Object.entries(json).forEach(([key, val]) => {
+        if ('object' !== typeof val) return
+
+        if (val.hasOwnProperty('references')) {
+            const ref = val['references']
+            const fkName = ref['foreignKeyName']
+            const table = ref['table']
+            const column = ref['column']
+            const onDelete = ref['onDelete']
+            const onUpdate = ref['onUpdate']
+            const newRef = `${fkName};${table};${column};${onDelete ?? ''};${onUpdate ?? ''}`
+            val['references'] = newRef
+        } else {
+            update1to2(val)
+        }
+    })
+}
+const migrateSchema = (json) => {
+    if (json['version'] === '1') {
+        update1to2(json)
+        json['version'] = '2'
+    }
+}
+
 export function applyJsonDiff(json1, json2) {
+    json1 = JSON.parse(JSON.stringify(json1))
+    json2 = JSON.parse(JSON.stringify(json2))
+
+    migrateSchema(json1)
+    migrateSchema(json2)
 
     //deep copy, needed because of the bug in diff library
     const rawDiff = diff(json1, json2)
-    const difference = JSON.parse(JSON.stringify(rawDiff))
+    const difference = rawDiff
 
     difference.tables = difference.tables ? difference.tables : {}
     difference.enums = difference.enums ? difference.enums : {}
@@ -90,7 +120,6 @@ export function applyJsonDiff(json1, json2) {
     const deletedEnums = enumsEntries.filter(it => it[0].includes('__deleted'))
         .map(it => it[1])
         .map(it => {
-
             // values: { val1: 'val1', val2: 'val2' } => values: ['val1', 'val2']
             const values = Object.entries(it.values).map(ve => ve[1])
             return { name: it.name, values: values }
@@ -212,7 +241,19 @@ const alternationsInColumn = (column) => {
             const { notNull__deleted, ...others } = it
             return { ...others, notNull: { type: 'deleted', value: it.notNull__deleted } }
         }
-
+        return it
+    }).map(it => {
+        if ('references' in it) {
+            return { ...it, references: { type: 'changed', old: it.references.__old, new: it.references.__new } }
+        }
+        if ('references__added' in it) {
+            const { references__added, ...others } = it
+            return { ...others, references: { type: 'added', value: it.references__added } }
+        }
+        if ('references__deleted' in it) {
+            const { references__deleted, ...others } = it
+            return { ...others, references: { type: 'deleted', value: it.references__deleted } }
+        }
         return it
     })
     return result[0]

@@ -4,9 +4,4 @@
     "outDir": "./dist",
     "allowJs": true,
   },
-  "references": [
-    {
-      "path": "../orm/tsconfig.json"
-    }
-  ]
 }

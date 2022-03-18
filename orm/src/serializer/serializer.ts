@@ -26,13 +26,7 @@ interface ColumnAsObject {
     unique?: boolean;
     default?: any;
     notNull?: boolean;
-    references?: {
-      foreignKeyName: string;
-      onDelete?: string;
-      onUpdate?: string;
-      table: string;
-      column: string;
-    };
+    references?: string;
   };
 }
 
@@ -61,6 +55,10 @@ interface TableAsObject {
       };
     };
   };
+}
+
+const serialiseForeignKey = (fkName:string, table:string, column:string, onDelete?:string, onUpdate?:string)=>{
+  return`${fkName};${table};${column};${onDelete??''};${onUpdate??''}`
 }
 
 export default class MigrationSerializer {
@@ -125,13 +123,14 @@ export default class MigrationSerializer {
 
           const referenced = value.getReferenced();
           if (referenced) {
-            columnToReturn[value.getColumnName()].references = {
-              foreignKeyName: `${value.getParent().tableName()}_${value.getColumnName()}_fkey`,
-              table: referenced.getParentName(),
-              column: referenced.getColumnName(),
-              onDelete: value.getOnDelete(),
-              onUpdate: value.getOnUpdate(),
-            };
+            const fkName=`${value.getParent().tableName()}_${value.getColumnName()}_fkey`;
+            const table = referenced.getParentName();
+            const column = referenced.getColumnName();
+            const onDelete= value.getOnDelete();
+            const onUpdate= value.getOnUpdate();
+
+            const referenceString = serialiseForeignKey(fkName,table,column,onDelete,onUpdate)
+            columnToReturn[value.getColumnName()].references = referenceString;
           }
         }
       }
@@ -154,7 +153,7 @@ export default class MigrationSerializer {
       return map;
     }, {});
 
-    return { version: '1', tables: result, enums: enumsToReturn };
+    return { version: '2', tables: result, enums: enumsToReturn };
   };
 
   public fromDatabase = async (db: DB) => {
@@ -222,13 +221,7 @@ export default class MigrationSerializer {
           ON ccu.constraint_name = rc.constraint_name 
     WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name='${tableName}';`);
 
-        const mappedRefernces: {[name: string]: {
-          foreignKeyName: string;
-          onDelete?: string;
-          onUpdate?: string;
-          table: string;
-          column: string;
-        }} = {};
+        const mappedRefernces: { [name: string]: string } = {};
 
         for (const fk of tableForeignKeys.rows) {
           // const tableFrom = fk.table_name;
@@ -238,14 +231,8 @@ export default class MigrationSerializer {
           const foreignKeyName = fk.constraint_name;
           const onUpdate = fk.update_rule;
           const onDelete = fk.delete_rule;
-
-          mappedRefernces[columnFrom] = {
-            foreignKeyName,
-            table: tableTo,
-            column: columnTo,
-            onDelete: onUpdate ? `ON UPDATE ${onUpdate}` : undefined,
-            onUpdate: onDelete ? `ON DELETE ${onDelete}` : undefined,
-          };
+          const references = serialiseForeignKey(foreignKeyName,tableTo,columnTo,onDelete,onUpdate)
+          mappedRefernces[columnFrom] = references
         }
 
         for (const columnResponse of tableResponse.rows) {
@@ -259,7 +246,7 @@ export default class MigrationSerializer {
             ? undefined : columnResponse.column_default;
 
           const isSerial = columnType === 'serial';
-
+          
           columnToReturn[columnName] = {
             name: columnName,
             type: columnType,
@@ -344,6 +331,6 @@ export default class MigrationSerializer {
       }
     }
 
-    return { version: '1', tables: result, enums: enumsToReturn };
+    return { version: '2', tables: result, enums: enumsToReturn };
   };
 }
