@@ -9,15 +9,24 @@
       "es6",
       "es5"
     ],
-    "outDir": "./dist",
     "declaration": true,
     "strict": true,
     "noImplicitReturns": true,
     "strictPropertyInitialization": false,
     "experimentalDecorators": true,
     "skipLibCheck": true,
+    // "composite": true,
+    "esModuleInterop": true,
+    "baseUrl": ".",
+    "paths": {
+      "drizzle-orm/*":[
+        "orm/dist/*"
+      ]
+    }
   },
-  "include": [
-    "src/**/*"
+  "exclude": [
+    "node_modules",
+    "**/*/lib",
+    "**/*/dist"
   ],
 }

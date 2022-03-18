@@ -1,0 +1,11 @@
+node_modules
+dist
+.idea
+.vscode
+out
+dev
+drizzle
+publi.sh
+link.sh
+drizzle.config.yml
+**/.DS_Store

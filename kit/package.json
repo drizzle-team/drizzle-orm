@@ -1,0 +1,50 @@
+{
+  "name": "drizzle-kit",
+  "version": "0.9.40",
+  "author": "Alex Blokh <aleksandrblokh@gmail.com>",
+  "license": "MIT",
+  "bin": {
+    "drizzle-kit": "./index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lambda-direct/drizzle-orm.git",
+    "directory": "kit"
+  },
+  "scripts": {
+    "start": "ts-node ./src/index.ts",
+    "watch": "esbuild ./src/cli/index.ts --bundle --platform=node --target=node10.4 --outfile=./dist/index.js --external:esbuild --watch",
+    "diff": "ts-node ./src/diff.ts",
+    "sim": "ts-node ./dev/simulate.ts",
+    "test": "uvu -r esbuild-register ./tests/",
+    "imports": "ts-node ./test.ts",
+    "build": "esbuild ./src/cli/index.ts --bundle --platform=node --target=node10.4 --outfile=./dist/index.js --external:esbuild"
+  },
+  "dependencies": {
+    "cli-table": "^0.3.11",
+    "commander": "^8.0.0",
+    "enquirer": "^2.3.6",
+    "esbuild": "^0.14.2",
+    "js-yaml": "^4.1.0",
+    "json-diff": "^0.5.4",
+    "loading-cli": "^1.1.0",
+    "pretty-error": "^3.0.4",
+    "xstate": "^4.25.0",
+    "yup": "^0.32.11"
+  },
+  "devDependencies": {
+    "@types/jest": "^27.0.3",
+    "@types/js-yaml": "^4.0.3",
+    "@types/pg": "^8.6.1",
+    "@typescript-eslint/eslint-plugin": "4.4.1",
+    "drizzle-orm": "workspace:^0.10.8",
+    "esbuild-register": "^3.3.2",
+    "eslint": "^7.2.0",
+    "eslint-config-airbnb": "18.2.1",
+    "eslint-config-airbnb-typescript": "11.0.0",
+    "eslint-plugin-import": "^2.22.1",
+    "source-map-loader": "^3.0.0",
+    "typescript": "4.2.4",
+    "uvu": "^0.5.3"
+  }
+}

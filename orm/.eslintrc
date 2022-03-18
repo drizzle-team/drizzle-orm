@@ -2,7 +2,7 @@
     "extends": ["airbnb-typescript/base"],
     "plugins": ["prefer-arrow"],
     "parserOptions": {
-        "project": "./tsconfig.json"
+        "project": "./orm/tsconfig.json"
     },
     "rules": {
         "@typescript-eslint/explicit-member-accessibility": "error",
