@@ -1,14 +1,9 @@
 {
   "name": "drizzle-orm",
-  "version": "0.10.27",
+  "version": "0.10.33",
   "description": "",
-  "main": "dist/index.js",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "typings": "dist/index.d.ts",
-  "files": [
-    "dist"
-  ],
+  "main": "index.js",
+  "types": "index.d.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "ts": "tsc",
