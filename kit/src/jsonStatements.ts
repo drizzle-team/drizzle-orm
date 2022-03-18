@@ -437,7 +437,7 @@ export const prepareAlterReferencesJson = (
       } else if (references.type === "changed") {
         const [oldFkey] = references.old.split(";");
         const [fkName, toTable, toColumn, onDelete, onUpdate] =
-          references.old.split(";");
+          references.new.split(";");
         const alterReference: JsonAlterReferenceStatement = {
           type: "alter_reference",
           fromTable: tableName,
