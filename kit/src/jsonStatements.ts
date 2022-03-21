@@ -335,33 +335,6 @@ const _prepareAlterColumns = (
         columnName,
       });
     }
-
-    if (column.notNull?.type === "added") {
-      statements.push({
-        type: "alter_table_alter_column_set_notnull",
-        tableName,
-        columnName,
-      });
-    }
-
-    if (column.notNull?.type === "changed") {
-      const type = column.notNull.new
-        ? "alter_table_alter_column_set_notnull"
-        : "alter_table_alter_column_drop_notnull";
-      statements.push({
-        type: type,
-        tableName,
-        columnName,
-      });
-    }
-
-    if (column.notNull?.type === "deleted") {
-      statements.push({
-        type: "alter_table_alter_column_drop_notnull",
-        tableName,
-        columnName,
-      });
-    }
   }
 
   return statements;
