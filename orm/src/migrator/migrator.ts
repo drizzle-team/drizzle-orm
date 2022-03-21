@@ -74,7 +74,7 @@ export default class Migrator {
         const min = Number(migrationFolder.slice(10, 12));
         const sec = Number(migrationFolder.slice(12, 14));
 
-        const folderAsMillis = new Date(year, month, day, hour, min, sec).getTime();
+        const folderAsMillis = Date.UTC(year, month, day, hour, min, sec);
         console.log(`Check if migration ${migrationFolder} should be executed.`);
         console.log(`Folder name to millis = ${folderAsMillis}`);
         if (!lastDbMigration || lastDbMigration.createdAt! < folderAsMillis) {
