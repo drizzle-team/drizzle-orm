@@ -1,6 +1,6 @@
 {
   "name": "drizzle-kit",
-  "version": "0.9.45",
+  "version": "0.9.46",
   "author": "Alex Blokh <aleksandrblokh@gmail.com>",
   "license": "MIT",
   "bin": {
