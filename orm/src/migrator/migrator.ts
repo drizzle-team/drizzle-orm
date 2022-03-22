@@ -7,7 +7,7 @@ import * as crypto from 'crypto';
 import { Create } from '../builders';
 import Transaction from '../builders/transaction/transaction';
 import Db from '../db/db';
-import { MigrationsTable } from '../tables';
+import { ExtractModel, MigrationsTable } from '../tables';
 import Order from '../builders/highLvlBuilders/order';
 
 export type InCodeConfig = { migrationFolder: string };
@@ -51,8 +51,8 @@ export default class Migrator {
       .orderBy((table) => table.createdAt, Order.DESC)
       .all();
 
-    const lastDbMigration = dbMigrations[0];
-    console.log('Last migration in database: ', lastDbMigration.hash);
+    const lastDbMigration = dbMigrations[0] ?? undefined ;
+    console.log('last migration: ', lastDbMigration?.hash);
 
     const files = fs.readdirSync(migrationFolderTo);
     const transaction = new Transaction(this.db.session());
@@ -75,10 +75,9 @@ export default class Migrator {
         const sec = Number(migrationFolder.slice(12, 14));
 
         const folderAsMillis = Date.UTC(year, month, day, hour, min, sec);
-        console.log(`Check if migration ${migrationFolder} should be executed.`);
-        console.log(`Folder name to millis = ${folderAsMillis}`);
+        console.log(`check migration ${migrationFolder} {folderAsMillis}`);
         if (!lastDbMigration || lastDbMigration.createdAt! < folderAsMillis) {
-          console.log(`Executing ${migrationFolder} migration`);
+          console.log(`executing ${migrationFolder}`);
           await this.db.session().execute(query);
           await migrationTable.insert({
             hash: this.generateHash(query),
