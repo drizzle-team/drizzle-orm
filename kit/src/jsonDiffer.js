@@ -155,7 +155,7 @@ const findAlternationsInTable = (table) => {
     // map each table to have altered, deleted or renamed columns
 
     // in case no columns were altered, but indexes were
-    const columns = table.columns;
+    const columns = table.columns ?? {};
 
     const added = Object.keys(columns).filter(it => it.includes('__added')).map(it => {
         return { ...columns[it] }
