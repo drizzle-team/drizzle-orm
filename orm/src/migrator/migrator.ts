@@ -7,7 +7,7 @@ import * as crypto from 'crypto';
 import { Create } from '../builders';
 import Transaction from '../builders/transaction/transaction';
 import Db from '../db/db';
-import { ExtractModel, MigrationsTable } from '../tables';
+import { MigrationsTable } from '../tables';
 import Order from '../builders/highLvlBuilders/order';
 
 export type InCodeConfig = { migrationFolder: string };
@@ -51,7 +51,7 @@ export default class Migrator {
       .orderBy((table) => table.createdAt, Order.DESC)
       .all();
 
-    const lastDbMigration = dbMigrations[0] ?? undefined ;
+    const lastDbMigration = dbMigrations[0] ?? undefined;
     console.log('last migration: ', lastDbMigration?.hash);
 
     const files = fs.readdirSync(migrationFolderTo);

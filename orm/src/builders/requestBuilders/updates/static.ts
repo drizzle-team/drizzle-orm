@@ -1,5 +1,6 @@
 import { AbstractColumn } from '../../../columns/column';
 import ColumnType from '../../../columns/types/columnType';
+// eslint-disable-next-line import/no-cycle
 import { ExtractCodeType } from '../../../tables/inferTypes';
 import Combine from './combine';
 import Increment from './increment';

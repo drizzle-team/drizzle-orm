@@ -3,8 +3,6 @@
 /* eslint-disable max-classes-per-file */
 import { PgTime, PgTimestamp } from '.';
 import DB from '../db/db';
-import CitiesTable from '../docs/tables/citiesTable';
-import UsersTable from '../docs/tables/usersTable';
 import { AbstractTable } from '../tables';
 import { shouldEcranate } from '../utils/ecranate';
 import ColumnType from './types/columnType';
@@ -20,6 +18,15 @@ export type ExtractColumnType<T extends ColumnType> =
  T extends ColumnType<infer TCodeType> ?
    T extends PgTimes ? TCodeType | Defaults : TCodeType
    : never;
+
+export class RawValue {
+  public value: string;
+  public constructor(value: string) {
+    this.value = value;
+  }
+}
+
+export const rawValue = (value: string): RawValue => new RawValue(value);
 
 // eslint-disable-next-line max-len
 export abstract class AbstractColumn<T extends ColumnType, TNullable extends boolean = true, TAutoIncrement extends boolean = false, TParent extends AbstractTable<any> = any> {
@@ -71,8 +78,10 @@ export abstract class AbstractColumn<T extends ColumnType, TNullable extends boo
     },
   ): AbstractColumn<T, TNullable, TAutoIncrement, TParent>;
 
-  public defaultValue = (value: ExtractColumnType<T>) => {
-    if (Defaults[value as Defaults] !== undefined) {
+  public defaultValue(value: ExtractColumnType<T> | RawValue): AbstractColumn<T, boolean, boolean, TParent> {
+    if (value instanceof RawValue) {
+      this.defaultParam = value.value;
+    } else if (Defaults[value as Defaults] !== undefined) {
       this.defaultParam = value;
     } else if (typeof value === 'boolean' || typeof value === 'number' || typeof value === 'bigint') {
       this.defaultParam = value;
@@ -80,7 +89,7 @@ export abstract class AbstractColumn<T extends ColumnType, TNullable extends boo
       this.defaultParam = `'${value}'`;
     }
     return this;
-  };
+  }
 
   public abstract primaryKey(): AbstractColumn<T, boolean, boolean, TParent>;
 
@@ -107,6 +116,11 @@ export class Column<T extends ColumnType, TNullable extends boolean = true, TAut
     columnType: T) {
     super(parent, columnName, columnType);
   }
+
+  public defaultValue = (value: ExtractColumnType<T>| RawValue): Column<T, true, TAutoIncrement, TParent> => {
+    super.defaultValue(value);
+    return this as Column<T, true, TAutoIncrement, TParent>;
+  };
 
   public notNull(): Column<T, TAutoIncrement extends true ? true : TNullable extends true ? false : true, TAutoIncrement, TParent> {
     this.isNullableFlag = false;
@@ -153,6 +167,11 @@ export class IndexedColumn<T extends ColumnType, TNullable extends boolean = tru
     columnType: T, nullable: TNullable) {
     super(parent, columnName, columnType);
   }
+
+  public defaultValue = (value: ExtractColumnType<T>| RawValue): IndexedColumn<T, true, TAutoIncrement, TParent> => {
+    super.defaultValue(value);
+    return this as IndexedColumn<T, true, TAutoIncrement, TParent>;
+  };
 
   public notNull(): IndexedColumn<T, TAutoIncrement extends true ? true : TNullable extends true? false : true, TAutoIncrement, TParent> {
     this.isNullableFlag = false;
