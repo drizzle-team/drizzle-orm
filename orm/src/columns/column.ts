@@ -1,32 +1,34 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable max-len */
 /* eslint-disable max-classes-per-file */
-import { PgTime, PgTimestamp } from '.';
+import { PgText, PgTime, PgTimestamp } from '.';
 import DB from '../db/db';
 import { AbstractTable } from '../tables';
 import { shouldEcranate } from '../utils/ecranate';
 import ColumnType from './types/columnType';
 import PgTimestamptz from './types/pgTimestamptz';
 
-export enum Defaults {
-  CURRENT_TIMESTAMP = 'CURRENT_TIMESTAMP',
-}
-
 type PgTimes = PgTimestamptz | PgTime | PgTimestamp;
 
-export type ExtractColumnType<T extends ColumnType> =
- T extends ColumnType<infer TCodeType> ?
-   T extends PgTimes ? TCodeType | Defaults : TCodeType
-   : never;
+class RawSqlValue {
+  public constructor(public readonly value: any, public readonly escape: boolean) {
+  }
 
-export class RawValue {
-  public value: string;
-  public constructor(value: string) {
-    this.value = value;
+  public toJSON(): string {
+    return this.escape ? `'${this.value}'` : this.value;
   }
 }
 
-export const rawValue = (value: string): RawValue => new RawValue(value);
+export const Defaults = {
+  CURRENT_TIMESTAMP: new RawSqlValue('CURRENT_TIMESTAMP', false),
+};
+
+export type ExtractColumnType<T extends ColumnType<any>> =
+ T extends ColumnType<infer TCodeType> ?
+   T extends PgTimes ? TCodeType : TCodeType
+   : never;
+
+export const rawValue = (value: string): RawSqlValue => new RawSqlValue(value, false);
 
 // eslint-disable-next-line max-len
 export abstract class AbstractColumn<T extends ColumnType, TNullable extends boolean = true, TAutoIncrement extends boolean = false, TParent extends AbstractTable<any> = any> {
@@ -41,7 +43,7 @@ export abstract class AbstractColumn<T extends ColumnType, TNullable extends boo
   protected parentTableName: string;
   protected columnType: T;
   protected columnName: string;
-  protected defaultParam: any = null;
+  protected defaultParam: RawSqlValue;
   protected referenced: AbstractColumn<T, boolean, boolean>;
 
   public constructor(parent: TParent, columnName: string,
@@ -78,15 +80,13 @@ export abstract class AbstractColumn<T extends ColumnType, TNullable extends boo
     },
   ): AbstractColumn<T, TNullable, TAutoIncrement, TParent>;
 
-  public defaultValue(value: ExtractColumnType<T> | RawValue): AbstractColumn<T, boolean, boolean, TParent> {
-    if (value instanceof RawValue) {
-      this.defaultParam = value.value;
-    } else if (Defaults[value as Defaults] !== undefined) {
-      this.defaultParam = value;
+  public defaultValue(value: ExtractColumnType<T> | RawSqlValue): AbstractColumn<T, boolean, boolean, TParent> {
+    if (value instanceof RawSqlValue) {
+      this.defaultParam = value as RawSqlValue;
     } else if (typeof value === 'boolean' || typeof value === 'number' || typeof value === 'bigint') {
-      this.defaultParam = value;
+      this.defaultParam = new RawSqlValue(value, false);
     } else {
-      this.defaultParam = `'${value}'`;
+      this.defaultParam = new RawSqlValue(`${value}`, true);
     }
     return this;
   }
@@ -106,7 +106,7 @@ export abstract class AbstractColumn<T extends ColumnType, TNullable extends boo
 
   public getColumnType = (): T => this.columnType;
 
-  public getDefaultValue = (): any => this.defaultParam;
+  public getDefaultValue = (): RawSqlValue => this.defaultParam;
 }
 
 // eslint-disable-next-line max-len
@@ -117,7 +117,7 @@ export class Column<T extends ColumnType, TNullable extends boolean = true, TAut
     super(parent, columnName, columnType);
   }
 
-  public defaultValue = (value: ExtractColumnType<T>| RawValue): Column<T, true, TAutoIncrement, TParent> => {
+  public defaultValue = (value: ExtractColumnType<T> | RawSqlValue): Column<T, true, TAutoIncrement, TParent> => {
     super.defaultValue(value);
     return this as Column<T, true, TAutoIncrement, TParent>;
   };
@@ -168,7 +168,7 @@ export class IndexedColumn<T extends ColumnType, TNullable extends boolean = tru
     super(parent, columnName, columnType);
   }
 
-  public defaultValue = (value: ExtractColumnType<T>| RawValue): IndexedColumn<T, true, TAutoIncrement, TParent> => {
+  public defaultValue = (value: ExtractColumnType<T> | RawSqlValue): IndexedColumn<T, true, TAutoIncrement, TParent> => {
     super.defaultValue(value);
     return this as IndexedColumn<T, true, TAutoIncrement, TParent>;
   };
