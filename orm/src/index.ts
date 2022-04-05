@@ -7,6 +7,8 @@ export * from './db';
 export * from './builders';
 export * from './columns';
 export * from './tables';
+export * from './logger/consoleLogger';
+export * from './logger/abstractLogger';
 
 export const drizzle = {
   async connect(config: ClientConfig): Promise<DB> {
