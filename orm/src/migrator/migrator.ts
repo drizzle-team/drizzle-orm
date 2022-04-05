@@ -1,3 +1,4 @@
+/* eslint-disable no-continue */
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable import/export */
 /* eslint-disable max-classes-per-file */
@@ -60,6 +61,9 @@ export default class Migrator {
 
     try {
       for await (const migrationFolder of files) {
+        if (migrationFolder === '.DS_Store') {
+          continue;
+        }
         const migrationFiles = fs.readdirSync(`${migrationFolderTo}/${migrationFolder}`);
         const migrationFile = migrationFiles.filter((file) => file === 'migration.sql')[0];
 
