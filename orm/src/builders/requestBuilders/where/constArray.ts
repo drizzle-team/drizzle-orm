@@ -1,5 +1,6 @@
 import { shouldEcranate } from '../../../utils/ecranate';
 import Expr from './where';
+import { ISession } from '../../../db/session';
 
 export default class ConstArray extends Expr {
   private values: Array<any>;
@@ -9,7 +10,13 @@ export default class ConstArray extends Expr {
     this.values = values;
   }
 
-  public toQuery = (position?: number): { query: string, values: Array<any> } => {
+  public toQuery = ({
+    position, tableCache, session,
+  }:{
+    position?: number,
+    tableCache?: {[tableName: string]: string},
+    session: ISession,
+  }): { query: string, values: Array<any> } => {
     let nextPosition = position || 1;
 
     const finalArray: string[] = [];
@@ -17,13 +24,13 @@ export default class ConstArray extends Expr {
     for (let i = 0; i < this.values.length; i += 1) {
       const value = this.values[i];
       if (value instanceof Date) {
-        finalArray.push(`$${nextPosition}`);
+        finalArray.push(session.parametrized(nextPosition));
         finalValues.push(`${value.toISOString()}`);
       } else if (shouldEcranate(value)) {
-        finalArray.push(`$${nextPosition}`);
+        finalArray.push(session.parametrized(nextPosition));
         finalValues.push(`${value.toString()}`);
       } else {
-        finalArray.push(`$${nextPosition}`);
+        finalArray.push(session.parametrized(nextPosition));
         finalValues.push(value);
       }
       if (i < this.values.length - 1) {

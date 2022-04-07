@@ -1,6 +1,7 @@
 import { AbstractColumn } from '../../../columns/column';
 import ColumnType from '../../../columns/types/columnType';
 import { UpdateCustomExpr } from './updates';
+import { ISession } from '../../../db/session';
 
 export default class Increment<T extends AbstractColumn<ColumnType<any>, boolean, boolean>>
   extends UpdateCustomExpr<T> {
@@ -17,7 +18,12 @@ export default class Increment<T extends AbstractColumn<ColumnType<any>, boolean
     return this;
   };
 
-  public toQuery = (): { query: string, values: Array<any>} => {
+  public toQuery = ({
+    position, session,
+  }:{
+    position?: number,
+    session: ISession,
+  }): { query: string, values: Array<any>} => {
     const query = `${this._column.getColumnName()} = ${this._column.getColumnName()} + ${this._value}`;
     return { query, values: [] };
   };

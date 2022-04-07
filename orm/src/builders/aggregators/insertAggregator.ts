@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-loop-func */
 import { IndexedColumn } from '../../columns/column';
 import { AbstractTable } from '../../tables';
+// eslint-disable-next-line import/no-cycle
 import { ExtractModel, Indexing } from '../../tables/inferTypes';
 import { UpdateExpr } from '../requestBuilders/updates/updates';
 import Aggregator from './abstractAggregator';
@@ -56,7 +57,7 @@ export default class InsertAggregator extends Aggregator {
         if (isKeyExistsInValue) {
           if (valueToInsert !== undefined && valueToInsert !== null) {
             position += 1;
-            this._query.push(`$${position}`);
+            this._query.push(this._table.db.session().parametrized(position));
             this._values.push(column.getColumnType().insertStrategy(valueToInsert));
           } else {
             this._query.push('null');
@@ -88,7 +89,10 @@ export default class InsertAggregator extends Aggregator {
         const currentPointerPosition = this._values.length > 0
           ? this._values.length + 1 : undefined;
 
-        const updatesQuery = updates.toQuery(currentPointerPosition);
+        const updatesQuery = updates.toQuery({
+          position: currentPointerPosition,
+          session: this._table.db.session(),
+        });
 
         this._onConflict.push('DO UPDATE\n');
         this._onConflict.push(`SET ${updatesQuery.query}`);

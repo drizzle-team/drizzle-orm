@@ -17,7 +17,10 @@ export default class UpdateAggregator extends Aggregator {
   public where = (filters: Expr): UpdateAggregator => {
     if (filters) {
       const currentPointerPosition = this._values.length > 0 ? this._values.length + 1 : undefined;
-      const filterQuery = filters.toQuery(currentPointerPosition);
+      const filterQuery = filters.toQuery({
+        position: currentPointerPosition,
+        session: this._table.db.session(),
+      });
 
       this._filters.push('WHERE ');
       this._filters.push(filterQuery.query);
@@ -34,7 +37,7 @@ export default class UpdateAggregator extends Aggregator {
   };
 
   public set = (updates: UpdateExpr): UpdateAggregator => {
-    const setQuery = updates.toQuery();
+    const setQuery = updates.toQuery({ session: this._table.db.session() });
     this._updates.push(`\nSET ${setQuery.query}`);
     this._values.push(...setQuery.values);
     return this;

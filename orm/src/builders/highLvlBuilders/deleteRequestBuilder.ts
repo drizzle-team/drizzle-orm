@@ -46,7 +46,7 @@ export default class DeleteTRB<TTable extends AbstractTable<TTable>, TPartial ex
       values = builderResult.values;
     } catch (e: any) {
       throw new BuilderError(BuilderType.DELETE, this._table.tableName(),
-        this._columns, e, this._filter);
+        this._columns, e, this._session, this._filter);
     }
 
     if (this._logger) {

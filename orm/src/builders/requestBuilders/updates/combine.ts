@@ -1,4 +1,5 @@
 import { UpdateExpr } from './updates';
+import { ISession } from '../../../db/session';
 
 export default class Combine extends UpdateExpr {
   private _setters: Array<UpdateExpr>;
@@ -8,7 +9,12 @@ export default class Combine extends UpdateExpr {
     this._setters = setters;
   }
 
-  public toQuery = (position?: number): { query: string, values: Array<any>} => {
+  public toQuery = ({
+    position, session,
+  }:{
+    position?: number,
+    session: ISession,
+  }): { query: string, values: Array<any>} => {
     let nextPosition = position || 1;
 
     const response = [];
@@ -17,7 +23,7 @@ export default class Combine extends UpdateExpr {
     for (let index = 0; index < this._setters.length; index += 1) {
       const setter = this._setters[index];
 
-      const expressionResult = setter.toQuery(nextPosition);
+      const expressionResult = setter.toQuery({ position: nextPosition, session });
 
       valuesResult.push(...expressionResult.values);
       response.push(expressionResult.query);

@@ -62,7 +62,7 @@ export default class InsertTRB<TTable extends AbstractTable<TTable>, TPartial ex
       query = builderResult.query;
       values = builderResult.values;
     } catch (e: any) {
-      throw new BuilderError(BuilderType.INSERT, this._table.tableName(), this._columns, e);
+      throw new BuilderError(BuilderType.INSERT, this._table.tableName(), this._columns, e, this._session);
     }
 
     if (this._logger) {

@@ -4,6 +4,7 @@ import ColumnType from '../../columns/types/columnType';
 import { AbstractTable } from '../../tables';
 import { ecranate } from '../../utils/ecranate';
 import Order from '../highLvlBuilders/order';
+// eslint-disable-next-line import/no-cycle
 import Join from '../joinBuilders/join';
 import Expr from '../requestBuilders/where/where';
 import Aggregator from './abstractAggregator';
@@ -30,7 +31,7 @@ export default class SelectAggregator extends Aggregator {
 
   public filters = (filters: Expr): SelectAggregator => {
     if (filters) {
-      const queryBuilder = filters.toQuery(1, this._joinCache);
+      const queryBuilder = filters.toQuery({ position: 1, tableCache: this._joinCache, session: this._table.db.session() });
       this._filters.push('WHERE ');
       this._filters.push(queryBuilder.query);
       this._values = queryBuilder.values;

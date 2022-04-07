@@ -1,5 +1,6 @@
 /* eslint-disable max-len */
 import Expr from './where';
+import { ISession } from '../../../db/session';
 
 export default class EqWhere extends Expr {
   private left: Expr;
@@ -11,9 +12,15 @@ export default class EqWhere extends Expr {
     this.right = right;
   }
 
-  public toQuery = (position?: number, tableCache?: {[tableName: string]: string}): { query: string, values: Array<any>} => {
-    const rightPreparedValues = this.right.toQuery(position, tableCache);
-    const leftPreparedValues = this.left.toQuery(position, tableCache);
+  public toQuery = ({
+    position, tableCache, session,
+  }:{
+    position?: number,
+    tableCache?: {[tableName: string]: string},
+    session: ISession,
+  }): { query: string, values: Array<any>} => {
+    const rightPreparedValues = this.right.toQuery({ position, tableCache, session });
+    const leftPreparedValues = this.left.toQuery({ position, tableCache, session });
 
     return { query: `${leftPreparedValues.query}=${rightPreparedValues.query}`, values: [...leftPreparedValues.values, ...rightPreparedValues.values] };
   };

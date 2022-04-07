@@ -70,7 +70,7 @@ export default abstract class AbstractJoined<TTable extends AbstractTable<TTable
       values = builderResult.values;
     } catch (e: any) {
       throw new BuilderError(BuilderType.JOINED_SELECT,
-        this._table.tableName(), Object.values(this._table.mapServiceToDb()), e, this._filter);
+        this._table.tableName(), Object.values(this._table.mapServiceToDb()), e, this._session, this._filter);
     }
 
     const result = await this._session.execute(query, values);

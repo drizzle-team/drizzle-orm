@@ -1,6 +1,7 @@
 import Expr from '../builders/requestBuilders/where/where';
 import { AbstractColumn } from '../columns/column';
 import ColumnType from '../columns/types/columnType';
+import { ISession } from '../db/session';
 
 export enum BuilderType{
   SELECT,
@@ -17,6 +18,7 @@ export default class BuilderError extends Error {
     tableName: string,
     columns: AbstractColumn<ColumnType>[],
     reason: Error,
+    session: ISession,
     filter?: Expr,
   ) {
     super('');
@@ -24,8 +26,8 @@ export default class BuilderError extends Error {
 Reason: ${reason.message}
 Query builder: ${BuilderType[builderType]}
 Table name: ${tableName}
-Filter query: ${filter ? filter.toQuery().query : 'undefined'}
-Values: ${filter ? filter.toQuery().values : 'undefined'}
+Filter query: ${filter ? filter.toQuery({ session }).query : 'undefined'}
+Values: ${filter ? filter.toQuery({ session }).values : 'undefined'}
 Column names: ${columns.map((column) => column.getColumnName()).join(', ')}\n-----\n`;
   }
 }
