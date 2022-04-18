@@ -16,7 +16,7 @@ export default class PgVarChar extends ColumnType<string> {
 
   public getDbName = (): string => this.dbName;
 
-  public insertStrategy = (value: string): string => `${value.replace(/'/g, "''")}`;
+  public insertStrategy = (value: string): string => `${value}`;
 
   public selectStrategy(value: string): string {
     return value;
