@@ -1,5 +1,6 @@
 /* eslint-disable max-len */
 /* eslint-disable import/no-cycle */
+import BaseLogger from 'orm/src/logger/abstractLogger';
 import { QueryResult } from 'pg';
 import { AbstractColumn } from '../../../columns/column';
 import ColumnType from '../../../columns/types/columnType';
@@ -34,8 +35,9 @@ export default class SelectTRBWithJoin<TTable extends AbstractTable<TTable>, TTa
     distinct?: AbstractColumn<ColumnType, boolean, boolean>,
     tablePartial?: TPartial,
     joinedPartial?: TPartial1,
+    logger?: BaseLogger,
   ) {
-    super(table, filter, session, props, orderBy, order, distinct, tablePartial);
+    super(table, filter, session, props, orderBy, order, distinct, tablePartial, logger);
     this._join = join;
     this._joinedPartial = joinedPartial;
   }
@@ -69,6 +71,7 @@ export default class SelectTRBWithJoin<TTable extends AbstractTable<TTable>, TTa
       this._partial,
       this._joinedPartial,
       partial,
+      this._logger,
     );
   }
 
@@ -102,6 +105,7 @@ export default class SelectTRBWithJoin<TTable extends AbstractTable<TTable>, TTa
       this._partial,
       this._joinedPartial,
       partial,
+      this._logger,
     );
   }
 
@@ -134,6 +138,7 @@ export default class SelectTRBWithJoin<TTable extends AbstractTable<TTable>, TTa
       this._partial,
       this._joinedPartial,
       partial,
+      this._logger,
     );
   }
 
@@ -166,6 +171,7 @@ export default class SelectTRBWithJoin<TTable extends AbstractTable<TTable>, TTa
       this._partial,
       this._joinedPartial,
       partial,
+      this._logger,
     );
   }
 

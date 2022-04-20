@@ -1,4 +1,5 @@
 /* eslint-disable max-len */
+import BaseLogger from 'orm/src/logger/abstractLogger';
 import { QueryResult } from 'pg';
 import { AbstractColumn } from '../../../columns/column';
 import ColumnType from '../../../columns/types/columnType';
@@ -21,6 +22,7 @@ export default abstract class AbstractJoined<TTable extends AbstractTable<TTable
   protected _orderBy?: AbstractColumn<ColumnType, boolean, boolean>;
   protected _order?: Order;
   protected _partial?: TPartial;
+  protected _logger?: BaseLogger;
 
   public constructor(
     table: TTable,
@@ -31,6 +33,7 @@ export default abstract class AbstractJoined<TTable extends AbstractTable<TTable
     order?: Order,
     distinct?: AbstractColumn<ColumnType, boolean, boolean>,
     tablePartial?: TPartial,
+    logger?: BaseLogger,
   ) {
     this._table = table;
     this._session = session;
@@ -40,6 +43,7 @@ export default abstract class AbstractJoined<TTable extends AbstractTable<TTable
     this._orderBy = orderBy;
     this._distinct = distinct;
     this._partial = tablePartial;
+    this._logger = logger;
   }
 
   public limit = (limit: number) => {
@@ -71,6 +75,11 @@ export default abstract class AbstractJoined<TTable extends AbstractTable<TTable
     } catch (e: any) {
       throw new BuilderError(BuilderType.JOINED_SELECT,
         this._table.tableName(), Object.values(this._table.mapServiceToDb()), e, this._session, this._filter);
+    }
+
+    if (this._logger) {
+      this._logger.info(`Selecting from ${this._table.tableName()} using query:\n ${query}`);
+      this._logger.info(`Values for query:\n ${values}`);
     }
 
     const result = await this._session.execute(query, values);

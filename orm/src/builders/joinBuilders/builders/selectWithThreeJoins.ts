@@ -1,5 +1,6 @@
 /* eslint-disable max-len */
 /* eslint-disable import/no-cycle */
+import BaseLogger from 'orm/src/logger/abstractLogger';
 import { QueryResult } from 'pg';
 import { AbstractColumn } from '../../../columns/column';
 import ColumnType from '../../../columns/types/columnType';
@@ -45,8 +46,9 @@ export default class SelectTRBWithThreeJoins<TTable extends AbstractTable<TTable
     joinedPartial?: TPartial1,
     joinedPartial1?: TPartial2,
     joinedPartial2?: TPartial3,
+    logger?: BaseLogger,
   ) {
-    super(table, filter, session, props, orderBy, order, distinct, tablePartial);
+    super(table, filter, session, props, orderBy, order, distinct, tablePartial, logger);
     this._join1 = join1;
     this._join2 = join2;
     this._join3 = join3;
@@ -89,6 +91,7 @@ export default class SelectTRBWithThreeJoins<TTable extends AbstractTable<TTable
       this._joinedPartial1,
       this._joinedPartial2,
       partial,
+      this._logger,
     );
   }
 
@@ -125,6 +128,7 @@ export default class SelectTRBWithThreeJoins<TTable extends AbstractTable<TTable
       this._joinedPartial1,
       this._joinedPartial2,
       partial,
+      this._logger,
     );
   }
 
@@ -161,6 +165,7 @@ export default class SelectTRBWithThreeJoins<TTable extends AbstractTable<TTable
       this._joinedPartial1,
       this._joinedPartial2,
       partial,
+      this._logger,
     );
   }
 
@@ -197,6 +202,7 @@ export default class SelectTRBWithThreeJoins<TTable extends AbstractTable<TTable
       this._joinedPartial1,
       this._joinedPartial2,
       partial,
+      this._logger,
     );
   }
 

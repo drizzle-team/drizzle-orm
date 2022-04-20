@@ -104,6 +104,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
       this.__distinct,
       this.__partial,
       partial,
+      this._logger,
     );
   }
 
@@ -132,6 +133,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
       this.__distinct,
       this.__partial,
       partial,
+      this._logger,
     );
   }
 
@@ -160,6 +162,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
       this.__distinct,
       this.__partial,
       partial,
+      this._logger,
     );
   }
 
@@ -188,6 +191,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
       this.__distinct,
       this.__partial,
       partial,
+      this._logger,
     );
   }
 

@@ -1,4 +1,5 @@
 /* eslint-disable max-len */
+import BaseLogger from 'orm/src/logger/abstractLogger';
 import { QueryResult } from 'pg';
 import { AbstractColumn } from '../../../columns/column';
 import ColumnType from '../../../columns/types/columnType';
@@ -52,8 +53,9 @@ export default class SelectTRBWithFiveJoins<TTable extends AbstractTable<TTable>
     joinedPartial2?: TPartial3,
     joinedPartial3?: TPartial4,
     joinedPartial4?: TPartial5,
+    logger?: BaseLogger,
   ) {
-    super(table, filter, session, props, orderBy, order, distinct, tablePartial);
+    super(table, filter, session, props, orderBy, order, distinct, tablePartial, logger);
     this._join1 = join1;
     this._join2 = join2;
     this._join3 = join3;
