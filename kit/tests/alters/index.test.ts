@@ -1,4 +1,4 @@
-import { prepareTestSQL } from "../../dev/testrunner";
+import { prepareTestSQL } from '../utils'
 import { DbConnector } from "drizzle-orm";
 import path from "path";
 import "pretty-error/start";
