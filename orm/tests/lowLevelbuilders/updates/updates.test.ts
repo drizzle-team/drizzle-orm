@@ -9,7 +9,7 @@ let usersTable: UsersTable;
 let testSession: TestSession;
 
 class TestSession extends ISession {
-  public execute(query: string, values?: any[]): Promise<QueryResult<any>> {
+  public _execute(query: string, values?: any[]): Promise<QueryResult<any>> {
     return { rows: [] } as any;
   }
 

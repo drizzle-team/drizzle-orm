@@ -7,9 +7,19 @@ export abstract class ISession {
   public constructor() {
   }
 
-  public abstract execute(query: string, values?: Array<any>): Promise<QueryResult<any>>;
+  public async execute(query: string, values?: Array<any>): Promise<QueryResult<any>> {
+    const error = new Error();
+    try {
+      return await this._execute(query, values);
+    } catch (e) {
+      error.message = e.message;
+      throw error;
+    }
+  }
 
   public abstract parametrized(num: number): string;
+
+  protected abstract _execute(query: string, values?: Array<any>): Promise<QueryResult<any>>;
 }
 
 export default class Session extends ISession {
@@ -17,11 +27,11 @@ export default class Session extends ISession {
     super();
   }
 
-  public async execute(query: string, values?: Array<any>): Promise<QueryResult<any>> {
-    return this.pool.query(query, values || []);
-  }
-
   public parametrized(num: number): string {
     return `$${num}`;
+  }
+
+  protected async _execute(query: string, values?: Array<any>): Promise<QueryResult<any>> {
+    return this.pool.query(query, values || []);
   }
 }
