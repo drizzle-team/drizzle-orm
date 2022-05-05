@@ -7,7 +7,7 @@
     "browser": true
   },
   "rules": {
-    "import/no-extraneous-dependencies": ["error", { "devDependencies": ["webpack.config.ts"] }],
+    "import/no-extraneous-dependencies": ["error"],
     "@typescript-eslint/no-use-before-define": ["error", { "variables": false }],
     "@typescript-eslint/naming-convention": ["off"],
     "react/prop-types": ["off"],
