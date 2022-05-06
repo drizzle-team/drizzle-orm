@@ -11,14 +11,14 @@ import TableIndex from '../indexes/tableIndex';
 import { AbstractTable } from '../tables';
 import Enum from '../types/type';
 
-interface EnumsAsObject {
+export interface EnumsAsObject {
   [name: string]: {
     name: string,
     values: string[]
   }
 }
 
-interface ColumnAsObject {
+export interface ColumnAsObject {
   [name: string]: {
     name?: string;
     type?: string;
@@ -30,13 +30,13 @@ interface ColumnAsObject {
   };
 }
 
-interface IndexColumnAsObject {
+export interface IndexColumnAsObject {
   [name: string]: {
     name?: string;
   };
 }
 
-interface IndexAsObject {
+export interface IndexAsObject {
   [name: string]: {
     name?: string;
     columns?: ColumnAsObject;
@@ -44,7 +44,7 @@ interface IndexAsObject {
   };
 }
 
-interface TableAsObject {
+export interface TableAsObject {
   [name: string]: {
     name: string;
     columns: ColumnAsObject;

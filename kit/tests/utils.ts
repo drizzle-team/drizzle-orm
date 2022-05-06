@@ -14,7 +14,7 @@ import yaml from "js-yaml";
 import { AbstractTable, DB } from "drizzle-orm/";
 import Enum from "drizzle-orm/types/type";
 import Session from "drizzle-orm/db/session";
-import { Pool } from "orm/node_modules/@types/pg";
+import { Pool } from 'pg'
 import MigrationSerializer from "drizzle-orm/serializer/serializer";
 
 const dry = {

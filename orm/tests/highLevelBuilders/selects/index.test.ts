@@ -3,7 +3,8 @@ import { test } from 'uvu';
 import * as assert from 'uvu/assert';
 import { DB, DbConnector } from '../../../src';
 import 'dotenv/config';
-// import { prepareTestSQL } from '../../../../kit/tests/utils';
+import * as schema from './tables/to';
+import { prepareTestSqlFromSchema } from '../../../../kit/tests/utils';
 
 let db: DB;
 
@@ -17,6 +18,8 @@ test.before(async () => {
       user: 'postgres',
     })
     .connect();
+
+  console.log(prepareTestSqlFromSchema(schema));
 
   await db.session().execute('CREATE TABLE IF NOT EXISTS test_users (user_id int PRIMARY KEY,username VARCHAR ( 50 ) UNIQUE NOT NULL);');
 

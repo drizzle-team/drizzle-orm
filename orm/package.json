@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "test": "uvu -r ts-node/register tests",
+    "test": "uvu -r esbuild-register tests",
     "ts": "tsc",
     "lint": "eslint ./src --ext .ts",
     "run": "ts-node src/tables/newAbstractTable.ts"
@@ -25,6 +25,8 @@
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "4.10.0",
     "dotenv": "^16.0.0",
+    "esbuild": "^0.14.2",
+    "esbuild-register": "^3.3.2",
     "eslint": "7.15.0",
     "eslint-config-airbnb-typescript": "12.0.0",
     "eslint-plugin-import": "2.22.1",
