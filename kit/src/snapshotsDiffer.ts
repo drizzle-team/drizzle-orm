@@ -18,6 +18,12 @@ import {
   prepareRenameTableJson
 } from "./jsonStatements";
 
+export const dry = {
+  version: "2",
+  tables: {},
+  enums: {}
+}
+
 export interface Column {
   name: string;
   type: string;

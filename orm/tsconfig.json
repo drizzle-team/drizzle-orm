@@ -3,10 +3,16 @@
   "compilerOptions": {
     "outDir": "dist",
     "declaration": true,
+    "baseUrl": "./",
+    "paths": {
+      "@/*": [
+        "./src/*",
+      ]
+    }
   },
   "include": [
     "src",
-    // "tests",
+    "tests",
   ],
   "exclude": [
     "dist"

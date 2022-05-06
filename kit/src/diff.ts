@@ -5,16 +5,11 @@ import {
     Column,
     ColumnsResolverInput,
     ColumnsResolverOutput,
+    dry,
     Table,
     TablesResolverInput,
     TablesResolverOutput
 } from './snapshotsDiffer'
-
-export const dry = {
-    version: "1",
-    tables: {},
-    enums: {}
-}
 
 const simulatedTablesResolver = async (input: TablesResolverInput<Table>): Promise<TablesResolverOutput<Table>> => {
     return resolveTables(input.created, input.deleted)

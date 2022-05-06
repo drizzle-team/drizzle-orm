@@ -1,13 +1,8 @@
 import fs from 'fs'
 import serialize from './serializer'
+import { dry } from './snapshotsDiffer'
 
 // TODO: export as a function w
-
-const dry = {
-    version: "1",
-    tables: {},
-    enums: {}
-}
 
 const prepareMigration = (
     migrationRootFolderName: string = 'drizzle',
@@ -34,7 +29,6 @@ const prepareMigration = (
         const lastSnapshotFolder = migrationFolders[migrationFolders.length - 1]
         prevSnapshot = JSON.parse(fs.readFileSync(`./${root}/${lastSnapshotFolder}/snapshot.json`).toString())
     }
-
 
     const result = serialize(dataFolderPath)
 

@@ -11,17 +11,11 @@ import {
 import { PatchResolver } from "./patch-resolver";
 import fs from "fs";
 import yaml from "js-yaml";
-import { AbstractTable, DB } from "drizzle-orm/";
 import Enum from "drizzle-orm/types/type";
 import Session from "drizzle-orm/db/session";
 import { Pool } from 'pg'
 import MigrationSerializer from "drizzle-orm/serializer/serializer";
-
-const dry = {
-  version: "1",
-  tables: {},
-  enums: {},
-};
+import AbstractTable from "drizzle-orm/tables/abstractTable";
 
 export interface Patch {
   tables: {
@@ -66,6 +60,7 @@ export const prepareTestSQL = async (path: string) => {
       input.deleted
     );
   };
+
   const result = await applySnapshotsDiff(
     fromJson,
     toJson,
@@ -78,30 +73,6 @@ export const prepareTestSQL = async (path: string) => {
     simulatedTablesResolver,
     simulatedColumnsResolver
   );
+
   return { initSQL: initSQL, migrationSQL: result };
-};
-
-export const prepareTestSqlFromSchema = (schema: any) => {
-  const tables: AbstractTable<any>[] = [];
-  const enums: Enum<any>[] = [];
-  const values = Object.values(schema);
-
-  const db = new DB(new Session(new Pool()));
-  
-  values.forEach(t => {
-      if (t instanceof Enum) {
-          enums.push(t);
-          return;
-      }
-      
-      if (typeof t === "function" && t.prototype && t.prototype.constructor === t) {
-          const instance = new t.prototype.constructor(db);
-          if (instance instanceof AbstractTable) {
-              tables.push(instance as unknown as AbstractTable<any>);
-          }
-      }
-  });
-  
-  const serializer = new MigrationSerializer();
-  return serializer.generate(tables, enums);
 };

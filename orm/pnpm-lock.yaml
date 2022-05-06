@@ -4,6 +4,7 @@ specifiers:
   '@types/pg': ^8.6.1
   '@typescript-eslint/eslint-plugin': 4.10.0
   dotenv: ^16.0.0
+  drizzle-kit: workspace:^0.9.47
   esbuild: ^0.14.2
   esbuild-register: ^3.3.2
   eslint: 7.15.0
@@ -22,6 +23,7 @@ dependencies:
 devDependencies:
   '@typescript-eslint/eslint-plugin': 4.10.0_eslint@7.15.0+typescript@4.2.4
   dotenv: 16.0.0
+  drizzle-kit: link:../kit
   esbuild: 0.14.38
   esbuild-register: 3.3.2_esbuild@0.14.38
   eslint: 7.15.0
