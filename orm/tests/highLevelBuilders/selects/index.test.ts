@@ -1,5 +1,5 @@
 /* eslint-disable import/no-extraneous-dependencies */
-import { test } from 'uvu';
+import { test, suite } from 'uvu';
 import * as assert from 'uvu/assert';
 
 import { DB, DbConnector } from '../../../src';
@@ -7,11 +7,18 @@ import UsersTable, * as schema from './tables/to';
 import 'dotenv/config';
 import { prepareTestSqlFromSchema } from '../../utils';
 
-let db: DB;
-let usersTable: UsersTable;
+interface Context {
+  db?: DB;
+  usersTable?: UsersTable;
+}
 
-test.before(async () => {
-  db = await new DbConnector()
+const User = suite<Context>('User', {
+  db: undefined,
+  usersTable: undefined,
+});
+
+User.before(async (context) => {
+  const db = await new DbConnector()
     .params({
       database: process.env.POSTGRES_DB,
       host: process.env.POSTGRES_HOST,
@@ -21,29 +28,27 @@ test.before(async () => {
     })
     .connect();
 
-  usersTable = new UsersTable(db);
+  context.db = db;
+  context.usersTable = new UsersTable(db);
 
   const sql = await prepareTestSqlFromSchema(schema);
 
-  console.log(sql);
   await db.session().execute(sql);
 });
 
-test('import dry json', async () => {
-  await usersTable.insert({
+User('import dry json', async (context) => {
+  await context.usersTable!.insert({
     decimalField: 1,
     createdAt: new Date(),
   }).execute();
 
-  const usersResponse = await usersTable.select().all();
-
-  console.log(usersResponse);
+  const usersResponse = await context.usersTable!.select().all();
 
   assert.is(usersResponse.length, 1);
 });
 
-test.after(async () => {
-  await db.session().execute(`DROP TABLE ${usersTable.tableName()}`);
+User.after(async (context) => {
+  await context.db!.session().execute(`DROP TABLE ${context.usersTable!.tableName()}`);
 });
 
-test.run();
+User.run();
