@@ -1,31 +1,30 @@
 /* eslint-disable import/no-extraneous-dependencies */
-import { test } from 'uvu';
+import { suite } from 'uvu';
 import * as assert from 'uvu/assert';
-import { QueryResult } from 'pg';
-import { DB, ISession } from '../../../src';
+import { TestSession } from 'tests/utils';
+import { DB } from '../../../src';
 import UsersTable from './usersTable';
 import { eq } from '../../../src/builders/requestBuilders/where/static';
 
-let usersTable: UsersTable;
-let testSession: TestSession;
-
-class TestSession extends ISession {
-  public _execute(query: string, values?: any[]): Promise<QueryResult<any>> {
-    return { rows: [] } as any;
-  }
-
-  public parametrized(num: number): string {
-    return `$${num}`;
-  }
+interface Context {
+  testSession?: TestSession;
+  usersTable?: UsersTable;
 }
 
-test.before(async () => {
-  testSession = new TestSession();
-  usersTable = new UsersTable(new DB(testSession));
+const Filters = suite<Context>('Filters', {
+  testSession: undefined,
+  usersTable: undefined,
 });
 
-test('Filter one int field by eq', async () => {
-  const { query, values } = eq(usersTable.id, 1).toQuery({ session: testSession });
+Filters.before(async (context) => {
+  context.testSession = new TestSession();
+  context.usersTable = new UsersTable(new DB(context.testSession));
+});
+
+Filters('Filter one int field by eq', async (context) => {
+  const { usersTable, testSession } = context;
+
+  const { query, values } = eq(usersTable!.id, 1).toQuery({ session: testSession! });
 
   assert.is(query, 'users."id"=$1');
   assert.is(values.length, 1);
@@ -48,4 +47,4 @@ test('Filter one int field by eq', async () => {
 // 4 filters in and for each possible type from users table + sub-or/sub-and
 // ex. and([or([]), eq(), and()])
 
-test.run();
+Filters.run();

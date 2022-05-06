@@ -44,11 +44,14 @@ User('import dry json', async (context) => {
 
   const usersResponse = await context.usersTable!.select().all();
 
+  console.log(usersResponse);
+
   assert.is(usersResponse.length, 1);
 });
 
 User.after(async (context) => {
   await context.db!.session().execute(`DROP TABLE ${context.usersTable!.tableName()}`);
+  await context.db!.session().closeConnection();
 });
 
 User.run();
