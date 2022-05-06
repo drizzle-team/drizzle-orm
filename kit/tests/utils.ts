@@ -11,6 +11,11 @@ import {
 import { PatchResolver } from "./patch-resolver";
 import fs from "fs";
 import yaml from "js-yaml";
+import { AbstractTable, DB } from "drizzle-orm/";
+import Enum from "drizzle-orm/types/type";
+import Session from "drizzle-orm/db/session";
+import { Pool } from "orm/node_modules/@types/pg";
+import MigrationSerializer from "drizzle-orm/serializer/serializer";
 
 const dry = {
   version: "1",
@@ -74,4 +79,29 @@ export const prepareTestSQL = async (path: string) => {
     simulatedColumnsResolver
   );
   return { initSQL: initSQL, migrationSQL: result };
+};
+
+export const prepareTestSqlFromSchema = (schema: any) => {
+  const tables: AbstractTable<any>[] = [];
+  const enums: Enum<any>[] = [];
+  const values = Object.values(schema);
+
+  const db = new DB(new Session(new Pool()));
+  
+  values.forEach(t => {
+      if (t instanceof Enum) {
+          enums.push(t);
+          return;
+      }
+      
+      if (typeof t === "function" && t.prototype && t.prototype.constructor === t) {
+          const instance = new t.prototype.constructor(db);
+          if (instance instanceof AbstractTable) {
+              tables.push(instance as unknown as AbstractTable<any>);
+          }
+      }
+  });
+  
+  const serializer = new MigrationSerializer();
+  return serializer.generate(tables, enums);
 };
