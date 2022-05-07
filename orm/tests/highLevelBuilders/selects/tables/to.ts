@@ -12,10 +12,10 @@ export default class UsersTable extends AbstractTable<UsersTable> {
   public createdAt = this.timestamp('created_at').notNull();
   public isArchived = this.bool('is_archived').defaultValue(false);
 
-  public phoneFullNameIndex = this.index([this.phone, this.fullName]);
-  public phoneIndex = this.uniqueIndex(this.phone);
+  // public phoneFullNameIndex = this.index([this.phone, this.fullName]);
+  // public phoneIndex = this.uniqueIndex(this.phone);
 
   public tableName(): string {
-    return 'users';
+    return 'test_users';
   }
 }

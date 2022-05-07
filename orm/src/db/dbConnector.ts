@@ -16,12 +16,12 @@ export default class DbConnector {
   public connect = async (): Promise<DB> => {
     try {
       const pool = new Pool(this.__config);
-      await pool.connect();
+      const connection = await pool.connect();
       // console.log('Db connected!');
 
       // check if table structure is the same as in code
 
-      return new DB(new Session(pool));
+      return new DB(new Session(pool, connection));
     } catch (e: any) {
       // console.log(`Connection error: ${e.message}`);
       throw new Error(`Connection error: ${e.message}`);

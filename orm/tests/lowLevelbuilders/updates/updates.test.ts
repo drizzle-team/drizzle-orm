@@ -1,30 +1,29 @@
 /* eslint-disable import/no-extraneous-dependencies */
-import { test } from 'uvu';
+import { suite } from 'uvu';
 import * as assert from 'uvu/assert';
 import { QueryResult } from 'pg';
+import { TestSession } from 'tests/utils';
 import { DB, ISession, set } from '../../../src';
 import UsersTable from './usersTable';
 
-let usersTable: UsersTable;
-let testSession: TestSession;
-
-class TestSession extends ISession {
-  public _execute(query: string, values?: any[]): Promise<QueryResult<any>> {
-    return { rows: [] } as any;
-  }
-
-  public parametrized(num: number): string {
-    return `$${num}`;
-  }
+interface Context {
+  testSession?: TestSession;
+  usersTable?: UsersTable;
 }
 
-test.before(async () => {
-  testSession = new TestSession();
-  usersTable = new UsersTable(new DB(testSession));
+const Updates = suite<Context>('Updates', {
+  testSession: undefined,
+  usersTable: undefined,
 });
 
-test('Set one int field', async () => {
-  const { query, values } = set(usersTable.id, 1).toQuery({ session: testSession });
+Updates.before(async (context) => {
+  context.testSession = new TestSession();
+  context.usersTable = new UsersTable(new DB(context.testSession));
+});
+
+Updates('Set one int field', async (context) => {
+  const { usersTable, testSession } = context;
+  const { query, values } = set(usersTable!.id, 1).toQuery({ session: testSession! });
 
   assert.is(query, '"id"=$1');
   assert.is(values.length, 1);
@@ -39,4 +38,4 @@ test('Set one int field', async () => {
 
 // 4 sets in `combine()` for different combinations of fields
 
-test.run();
+Updates.run();

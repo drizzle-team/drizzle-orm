@@ -2,6 +2,7 @@
   "extends": "../tsconfig.json",
   "compilerOptions": {
     "outDir": "dist",
+    "allowJs": true,
     "declaration": true,
     "baseUrl": "./",
     "paths": {

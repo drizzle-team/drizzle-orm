@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
 /* eslint-disable max-classes-per-file */
-import { Pool, QueryResult } from 'pg';
+import { Pool, PoolClient, QueryResult } from 'pg';
 
 export abstract class ISession {
   // eslint-disable-next-line @typescript-eslint/no-useless-constructor
@@ -18,17 +18,25 @@ export abstract class ISession {
   }
 
   public abstract parametrized(num: number): string;
+  public abstract closeConnection(): Promise<void>;
 
   protected abstract _execute(query: string, values?: Array<any>): Promise<QueryResult<any>>;
 }
 
 export default class Session extends ISession {
-  public constructor(private pool: Pool) {
+  public constructor(private pool: Pool, private connection?: PoolClient) {
     super();
   }
 
   public parametrized(num: number): string {
     return `$${num}`;
+  }
+
+  public async closeConnection(): Promise<void> {
+    if (this.connection) {
+      this.connection.release();
+    }
+    await this.pool.end();
   }
 
   protected async _execute(query: string, values?: Array<any>): Promise<QueryResult<any>> {

@@ -1,49 +1,57 @@
 /* eslint-disable import/no-extraneous-dependencies */
-import { DB, DbConnector } from "../../../src";
-import * as schema from "./tables/to";
-import "dotenv/config";
-import { test } from "uvu";
-import * as assert from "uvu/assert";
-import { prepareTestSqlFromSchema } from "../../utils";
+import { test, suite } from 'uvu';
+import * as assert from 'uvu/assert';
 
-let db: DB;
-const main = async () =>{
-  console.log("prepareTestSqlFromSchema(schema)");
-  console.log(await prepareTestSqlFromSchema(schema));
+import { DB, DbConnector } from '../../../src';
+import UsersTable, * as schema from './tables/to';
+import 'dotenv/config';
+import { prepareTestSqlFromSchema } from '../../utils';
+
+interface Context {
+  db?: DB;
+  usersTable?: UsersTable;
 }
 
-main()
+const User = suite<Context>('User', {
+  db: undefined,
+  usersTable: undefined,
+});
 
-
-test.before(async () => {
-  db = await new DbConnector()
+User.before(async (context) => {
+  const db = await new DbConnector()
     .params({
       database: process.env.POSTGRES_DB,
       host: process.env.POSTGRES_HOST,
       port: Number(process.env.POSTGRES_PORT),
       password: process.env.POSTGRES_PASSWORD,
-      user: "postgres",
+      user: 'postgres',
     })
     .connect();
 
-  // await db.session().execute('CREATE TABLE IF NOT EXISTS test_users (user_id int PRIMARY KEY,username VARCHAR ( 50 ) UNIQUE NOT NULL);');
+  context.db = db;
+  context.usersTable = new UsersTable(db);
 
-  // const { initSQL, migrationSQL } = await prepareTestSQL(
-  //   path.join(__dirname, 'tables'),
-  // );
+  const sql = await prepareTestSqlFromSchema(schema);
 
-  // console.log('initSQL: ', initSQL);
-  // console.log('migrationSQL:', migrationSQL);
+  await db.session().execute(sql);
 });
 
-test("import dry json", async () => {
-  await db.session().execute("INSERT INTO test_users VALUES (1, 'test')");
-  const res = await db.session().execute("SELECT * FROM test_users");
-  assert.is(res.rows.length, 1);
+User('import dry json', async (context) => {
+  await context.usersTable!.insert({
+    decimalField: 1,
+    createdAt: new Date(),
+  }).execute();
+
+  const usersResponse = await context.usersTable!.select().all();
+
+  console.log(usersResponse);
+
+  assert.is(usersResponse.length, 1);
 });
 
-test.after(async () => {
-  // await db.session().execute('DROP TABLE test_users');
+User.after(async (context) => {
+  await context.db!.session().execute(`DROP TABLE ${context.usersTable!.tableName()}`);
+  await context.db!.session().closeConnection();
 });
 
-test.run();
+User.run();

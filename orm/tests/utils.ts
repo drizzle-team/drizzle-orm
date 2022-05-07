@@ -1,8 +1,7 @@
-import { Pool } from "pg";
-import { AbstractTable, DB } from "../src";
-import Session from "../src/db/session";
-import Enum from "../src/types/type";
-import MigrationSerializer from "@/serializer/serializer";
+/* eslint-disable import/prefer-default-export */
+/* eslint-disable import/no-extraneous-dependencies */
+import { Pool, QueryResult } from 'pg';
+import MigrationSerializer from '@/serializer/serializer';
 import {
   dry,
   applySnapshotsDiff,
@@ -12,8 +11,24 @@ import {
   Table,
   TablesResolverInput,
   TablesResolverOutput,
-} from "drizzle-kit/src/snapshotsDiffer";
+} from 'drizzle-kit/src/snapshotsDiffer';
+import { AbstractTable, DB } from '../src';
+import Session, { ISession } from '../src/db/session';
+import Enum from '../src/types/type';
 
+export class TestSession extends ISession {
+  public _execute(query: string, values?: any[]): Promise<QueryResult<any>> {
+    return { rows: [] } as any;
+  }
+
+  public parametrized(num: number): string {
+    return `$${num}`;
+  }
+
+  public async closeConnection(): Promise<void> {
+    console.log('connection closed');
+  }
+}
 
 export const prepareTestSqlFromSchema = async (schema: any) => {
   const tables: AbstractTable<any>[] = [];
@@ -28,7 +43,7 @@ export const prepareTestSqlFromSchema = async (schema: any) => {
       return;
     }
 
-    if (typeof t === "function" && t.prototype && t.prototype.constructor) {
+    if (typeof t === 'function' && t.prototype && t.prototype.constructor) {
       const instance = new t.prototype.constructor(db);
       if (instance instanceof AbstractTable) {
         tables.push(instance as unknown as AbstractTable<any>);
@@ -40,27 +55,23 @@ export const prepareTestSqlFromSchema = async (schema: any) => {
   const jsonSchema = serializer.generate(tables, enums);
 
   const simulatedTablesResolver = async (
-    input: TablesResolverInput<Table>
-  ): Promise<TablesResolverOutput<Table>> => {
-    return { created: input.created, deleted: [], renamed: [] };
-  };
+    input: TablesResolverInput<Table>,
+  ): Promise<TablesResolverOutput<Table>> => ({ created: input.created, deleted: [], renamed: [] });
 
   const simulatedColumnsResolver = async (
-    input: ColumnsResolverInput<Column>
-  ): Promise<ColumnsResolverOutput<Column>> => {
-    return {
-      tableName: input.tableName,
-      created: input.created,
-      deleted: [],
-      renamed: [],
-    };
-  };
+    input: ColumnsResolverInput<Column>,
+  ): Promise<ColumnsResolverOutput<Column>> => ({
+    tableName: input.tableName,
+    created: input.created,
+    deleted: [],
+    renamed: [],
+  });
 
   const initSQL = await applySnapshotsDiff(
     dry,
     jsonSchema,
     simulatedTablesResolver,
-    simulatedColumnsResolver
+    simulatedColumnsResolver,
   );
 
   return initSQL;
