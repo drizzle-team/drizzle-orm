@@ -18,22 +18,27 @@ const User = suite<Context>('User', {
 });
 
 User.before(async (context) => {
-  const db = await new DbConnector()
-    .params({
-      database: process.env.POSTGRES_DB,
-      host: process.env.POSTGRES_HOST,
-      port: Number(process.env.POSTGRES_PORT),
-      password: process.env.POSTGRES_PASSWORD,
-      user: 'postgres',
-    })
-    .connect();
+  try {
+    const db = await new DbConnector()
+      .params({
+        database: process.env.POSTGRES_DB,
+        host: process.env.POSTGRES_HOST,
+        port: Number(process.env.POSTGRES_PORT),
+        password: process.env.POSTGRES_PASSWORD,
+        user: 'postgres',
+      })
+      .connect();
 
-  context.db = db;
-  context.usersTable = new UsersTable(db);
+    context.db = db;
+    context.usersTable = new UsersTable(db);
 
-  const sql = await prepareTestSqlFromSchema(schema);
+    const sql = await prepareTestSqlFromSchema(schema);
 
-  await db.session().execute(sql);
+    await db.session().execute(sql);
+  } catch (e) {
+    console.log(e);
+    throw e;
+  }
 });
 
 User('import dry json', async (context) => {
@@ -44,9 +49,11 @@ User('import dry json', async (context) => {
 
   const usersResponse = await context.usersTable!.select().all();
 
-  console.log(usersResponse);
-
   assert.is(usersResponse.length, 1);
+});
+
+User('second test', async (context) => {
+  // logic
 });
 
 User.after(async (context) => {
