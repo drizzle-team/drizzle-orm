@@ -349,7 +349,7 @@ export const prepareCreateIndexesJson = (
       type: "create_index",
       tableName,
       indexName: index.name,
-      value: index.columns.join(", "),
+      value: index.columns.map(it=>`"${it}"`).join(", "),
       isUnique: index.isUnique,
     };
   });

@@ -244,7 +244,7 @@ class CreateIndexConvertor extends Convertor {
         const { tableName, indexName, value } = statement
         // since postgresql 9.5
         const indexPart = statement.isUnique ? 'UNIQUE INDEX' : 'INDEX'
-        return `CREATE ${indexPart} IF NOT EXISTS ${indexName} ON ${tableName} ("${value}");`
+        return `CREATE ${indexPart} IF NOT EXISTS ${indexName} ON ${tableName} (${value});`
     }
 }
 
