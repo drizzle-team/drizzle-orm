@@ -42,10 +42,12 @@ User.before(async (context) => {
 });
 
 User('import dry json', async (context) => {
-  await context.usersTable!.insert({
-    decimalField: 1,
-    createdAt: new Date(),
-  }).execute();
+  await context
+    .usersTable!.insert({
+      decimalField: 1,
+      createdAt: new Date(),
+    })
+    .execute();
 
   const usersResponse = await context.usersTable!.select().all();
 
