@@ -4,22 +4,21 @@ import AllVarcharsTable from './to/allVarcharsTable';
 
 export const allPositiveFields: ExtractModel<AllVarcharsTable> = {
   primaryVarchar: 'exAmple@gmail.com',
-  simpleVarchar: 's`imple',
-  notNullVarchar: 'deer',
-  varcharWithDefault: 'undefined',
-  notNullVarcharWithDefault: 'name@',
-  uniqueVarchar: 'unique_varchar',
-  notNullUniqueVarchar: 'dsc',
-
+  simpleVarchar: 'Oleksii`s MacBook',
+  notNullVarchar: 'owner',
+  varcharWithDefault: 'EN',
+  notNullVarcharWithDefault: 'MacBook M1',
+  uniqueVarchar: 'C02FL29VQ6LR',
+  notNullUniqueVarchar: 'CNNioewqj932JOIK<O)&^%',
 };
 
 export const mixedFields: ExtractModel<AllVarcharsTable> = {
-  primaryVarchar: 'exAmple@gmail.com',
-  simpleVarchar: 's`imple',
-  notNullVarchar: 'deer',
+  primaryVarchar: 'exAmple2@gmail.com',
+  simpleVarchar: 'Copyright © 2002–2021 Apple Inc.All rights reserved',
+  notNullVarchar: 'Oleksii',
   varcharWithDefault: undefined,
-  notNullVarcharWithDefault: 'name@',
-  uniqueVarchar: 'unique_varchar',
-  notNullUniqueVarchar: 'dsc',
+  notNullVarcharWithDefault: 'undefined',
+  uniqueVarchar: 'unique_varchar2',
+  notNullUniqueVarchar: 'unique',
 
 };

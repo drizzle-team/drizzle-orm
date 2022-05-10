@@ -7,7 +7,7 @@ import { DB, DbConnector } from '../../../src';
 import 'dotenv/config';
 import { prepareTestSqlFromSchema } from '../../utils';
 import AllVarcharsTable, * as schema from './to/allVarcharsTable';
-import { allPositiveFields } from './models';
+import { allPositiveFields, mixedFields } from './models';
 
 interface Context {
   db?: DB;
@@ -97,16 +97,18 @@ AllVarcharsSuite('Insert1 -> Update1 -> Delete1', async (context) => {
 
   // assert insertedValues has all expected values
   const fullSelectResponse = await allVarcharsTable.select().all();
+  assert.equal(fullSelectResponse, [allPositiveFields, mixedFields], 'matches original');
+
   // assert table has all expected values inserted
   const partialSelectResponse = await allVarcharsTable.select({
     notNullVarchar: allVarcharsTable.notNullVarchar,
     varcharWithDefault: allVarcharsTable.varcharWithDefault,
   }).all();
 
-  assert.is(fullSelectResponse.length, 1);
-  assert.is(partialSelectResponse.length, 1);
-//   assert.is(partialSelectResponse.filter((it) => it.notNullVarchar === 0)[0].varcharWithDefault, -1);
-
+  assert.is(fullSelectResponse.length, 2);
+  assert.is(partialSelectResponse.length, 2);
+  assert.is(partialSelectResponse.filter((it) => it.notNullVarchar === 'owner')[0].varcharWithDefault, 'EN');
+  assert.is(partialSelectResponse.filter((it) => it.notNullVarchar === 'Oleksii')[0].varcharWithDefault, 'UA');
   // update by 1 strategy
   // logic
 
@@ -145,7 +147,7 @@ AllVarcharsSuite('Insert1 -> Update1 -> Delete1', async (context) => {
 // });
 
 AllVarcharsSuite.after(async (context) => {
-  await context.db!.session().execute(`DROP TABLE ${context.allVarcharsTable!.tableName()}`);
+  // await context.db!.session().execute(`DROP TABLE ${context.allVarcharsTable!.tableName()}`);
   await context.db!.session().closeConnection();
 });
 
