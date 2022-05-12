@@ -1,4 +1,3 @@
-/* eslint-disable import/prefer-default-export */
 import { ExtractModel } from '@/tables';
 import AllVarcharsTable from './to/allVarcharsTable';
 

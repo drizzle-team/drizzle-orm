@@ -1,3 +1,4 @@
+import { ExtractModel } from '@/tables';
 import AbstractTable from '../../../../src/tables/abstractTable';
 
 export default class AllVarcharsTable extends AbstractTable<AllVarcharsTable> {
@@ -14,3 +15,5 @@ export default class AllVarcharsTable extends AbstractTable<AllVarcharsTable> {
     return 'table_with_all_varchars';
   }
 }
+
+export type AllVarcharsTableModel = ExtractModel<AllVarcharsTable>;
