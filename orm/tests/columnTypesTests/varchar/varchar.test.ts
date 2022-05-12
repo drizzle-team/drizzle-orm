@@ -68,7 +68,6 @@ AllVarcharsSuite.before(async (context) => {
 // Insert cases
 // 1. Insert with same unique key - should have an excpetion
 // 2. Insert with same primary key - should have an excpetion
-// 3. OnConflict was used by unexisting index - should have an exception
 
 // Update cases
 // 1. Update with same unique key - should have an excpetion
@@ -137,12 +136,23 @@ AllVarcharsSuite('insertMany with same model for all inserted values', async (co
 
   const varcharTableObjects = AllVarcharUtils.createAllVarcharsTableModels(5);
 
-  const insertManyResult = allVarcharsTable.insertMany(varcharTableObjects);
+  const insertManyResult = allVarcharsTable
+    .insertMany(varcharTableObjects) as unknown as {_values: object[]};
 
   assert.is(insertManyResult._values.length, 5);
   assert.is(insertManyResult._values, varcharTableObjects);
 });
 
+AllVarcharsSuite('Insert with onConflict statement on each field, that has such possibility(upsert)', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+
+  const result = await allVarcharsTable.insert(allPositiveFields)
+    .onConflict((table) => table.primaryVarcharIndex, { uniqueVarchar: 'unique' }).findOne();
+
+  allPositiveFields.uniqueVarchar = 'unique';
+
+  assert.equal(result, allPositiveFields);
+});
 // Exeption cases
 
 AllVarcharsSuite('Insert with same unique key - should have an excpetion', async (context) => {
@@ -232,6 +242,18 @@ AllVarcharsSuite('Update 1 by 1 field from table', async (context) => {
   assert.is(updateResult.length, 2);
 
   await allVarcharsTable.update().set(update).execute();
+});
+
+AllVarcharsSuite('Update with same unique key - should have an excpetion', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+  try {
+    await allVarcharsTable.update().set(allPositiveFields).execute();
+  } catch (err: unknown) {
+    assert.instance(err, Error);
+    if (err instanceof Error) {
+      assert.ok(err);
+    }
+  }
 });
 
 AllVarcharsSuite.after(async (context) => {

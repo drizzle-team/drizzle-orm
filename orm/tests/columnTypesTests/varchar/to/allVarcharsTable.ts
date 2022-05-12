@@ -11,6 +11,8 @@ export default class AllVarcharsTable extends AbstractTable<AllVarcharsTable> {
   public uniqueVarchar = this.varchar('unique_varchar').unique();
   public notNullUniqueVarchar = this.varchar('not_null_unique_varchar').notNull().unique();
 
+  public primaryVarcharIndex = this.index(this.primaryVarchar);
+
   public tableName(): string {
     return 'table_with_all_varchars';
   }
