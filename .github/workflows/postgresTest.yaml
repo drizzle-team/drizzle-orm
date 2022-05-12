@@ -1,0 +1,47 @@
+name: PostgreSQL service run tests
+on:
+  pull_request:
+    branches:
+      - 'main'
+      - 'develop'
+
+env:
+  POSTGRES_HOST: 'localhost'
+  POSTGRES_PASSWORD: 'root'
+  POSTGRES_DB: 'postgres'
+  POSTGRES_PORT: 5432
+  DOCKER_PORT: 5432
+
+jobs:
+  postgres-job:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        name: ['version']
+        postgres-version: [10, 11, 12, 13, 14]
+    steps:
+      - name: Run Postgres with Docker
+        run: docker run -p $DOCKER_PORT:$POSTGRES_PORT --name postgres -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD -d postgres:${{ matrix.postgres-version }}
+
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - uses: pnpm/action-setup@v2.0.1
+        with:
+          version: 7.0.0
+
+      - name: Use Node.js 16.13.1
+        uses: actions/setup-node@v2
+        with:
+          node-version: 16.13.1
+          cache: 'pnpm'
+          cache-dependency-path: orm/
+
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Go to orm directory and install dependencies
+        run: cd orm && pnpm i
+
+      - name: Run tests
+        run: cd orm && pnpm run test
