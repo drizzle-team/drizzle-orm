@@ -3,11 +3,11 @@
 import { test, suite } from 'uvu';
 import * as assert from 'uvu/assert';
 
-import { DB, DbConnector } from '../../../src';
+import { DB, DbConnector, eq } from '../../../src';
 import 'dotenv/config';
 import { prepareTestSqlFromSchema } from '../../utils';
 import AllVarcharsTable, * as schema from './to/allVarcharsTable';
-import { allPositiveFields, mixedFields } from './models';
+import { allPositiveFields, mixedFields as requiredFields } from './models';
 
 interface Context {
   db?: DB;
@@ -42,15 +42,6 @@ AllVarcharsSuite.before(async (context) => {
   }
 });
 
-// Success cases
-// Flow
-// 1. insert by <strategy>
-//  -> 2.select and check expected values (full + several partial selects)
-//      -> 3. update by <strategy>
-//          -> 4. select and check expected values (full + several partial selects)
-//              -> 5. delete by <strategy>
-//                  -> 6. select and check expected values (full + several partial selects)
-
 // Insert strategies (each insert should have all() + execute()
 //      After using all() -> check that returned object fields are expected
 // )
@@ -76,78 +67,144 @@ AllVarcharsSuite.before(async (context) => {
 // Insert cases
 // 1. Insert with same unique key - should have an excpetion
 // 2. Insert with same primary key - should have an excpetion
-// 3. Insert float instead of int - should have an excpetion
-// 4. OnConflict was used by unexisting index - should have an exception
+// 3. OnConflict was used by unexisting index - should have an exception
 
 // Update cases
 // 1. Update with same unique key - should have an excpetion
 // 2. Update with same primary key - should have an excpetion
 // 3. Update to float instead of int - should have an excpetion
 
-// Delete cases
-
-// Select cases
-
-AllVarcharsSuite('Insert1 -> Update1 -> Delete1', async (context) => {
+AllVarcharsSuite('Insert all fields to table', async (context) => {
   const allVarcharsTable = context.allVarcharsTable!;
 
-  await allVarcharsTable.insert(allPositiveFields).execute();
+  const insertedValues = await allVarcharsTable.insert(allPositiveFields).all();
 
-  const insertedValues = await allVarcharsTable.insert(mixedFields).all();
+  assert.equal(insertedValues, [allPositiveFields], 'Insert all positive fields match');
 
-  // assert insertedValues has all expected values
   const fullSelectResponse = await allVarcharsTable.select().all();
-  assert.equal(fullSelectResponse, [allPositiveFields, mixedFields], 'matches original');
 
-  // assert table has all expected values inserted
+  assert.equal(fullSelectResponse, [allPositiveFields], 'Full select response match');
+});
+
+AllVarcharsSuite('Insert all required fields to table', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+
+  const insertedValues = await allVarcharsTable.insert(requiredFields).all();
+
+  // assert.equal(insertedValues, [{ ...requiredFields, simpleVarchar: undefined, varcharWithDefault: 'UA' }], 'matches original optional strings is undefined');
+
+  const fullSelectResponse = await allVarcharsTable.select().all();
+
+  // assert.equal(fullSelectResponse, [allPositiveFields, { ...requiredFields, simpleVarchar: undefined, varcharWithDefault: 'UA' }], 'matches original');
+});
+
+AllVarcharsSuite('Partial selects', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+
+  // 1
   const partialSelectResponse = await allVarcharsTable.select({
     notNullVarchar: allVarcharsTable.notNullVarchar,
     varcharWithDefault: allVarcharsTable.varcharWithDefault,
   }).all();
 
-  assert.is(fullSelectResponse.length, 2);
+  assert.type(partialSelectResponse[0].notNullVarchar, 'string');
   assert.is(partialSelectResponse.length, 2);
   assert.is(partialSelectResponse.filter((it) => it.notNullVarchar === 'owner')[0].varcharWithDefault, 'EN');
-  assert.is(partialSelectResponse.filter((it) => it.notNullVarchar === 'Oleksii')[0].varcharWithDefault, 'UA');
-  // update by 1 strategy
-  // logic
+  // assert.is(partialSelectResponse.filter((it) => it.notNullVarchar === 'Oleksii')[0].varcharWithDefault, 'UA'); //???
 
-  // same select
-  // assert insertedValues has all expected values
-  //   const fullSelectResponse = await allIntsTable.select().all();
-  //   // assert table has all expected values inserted
-  //   const partialSelectResponse = await allIntsTable.select({
-  //     notNullInt: allIntsTable.notNullInt,
-  //     intWithDefault: allIntsTable.intWithDefault,
-  //   }).all();
+  // 2
+  const partialSelect2Response = await allVarcharsTable.select({
+    simpleVarchar: allVarcharsTable.simpleVarchar,
+    primaryVarchar: allVarcharsTable.primaryVarchar,
+  }).all();
 
-  //   assert.is(fullSelectResponse.length, 2);
-  //   assert.is(partialSelectResponse.length, 2);
-  //   assert.is(partialSelectResponse.filter((it) => it.notNullInt === 0)[0].intWithDefault, -1);
+  assert.type(partialSelect2Response[0].simpleVarchar, 'string', 'Has property and property type match');
+  assert.type(partialSelect2Response[0].primaryVarchar, 'string', 'Has property and property type match 2');
+});
+// Exeption cases
 
-  // delete by 1 strategy
+AllVarcharsSuite('Insert with same unique key - should have an excpetion', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
 
-  // same select
-  // assert insertedValues has all expected values
-  //   const fullSelectResponse = await allIntsTable.select().all();
-  //   // assert table has all expected values inserted
-  //   const partialSelectResponse = await allIntsTable.select({
-  //     notNullInt: allIntsTable.notNullInt,
-  //     intWithDefault: allIntsTable.intWithDefault,
-  //   }).all();
-
-  //   assert.is(fullSelectResponse.length, 2);
-  //   assert.is(partialSelectResponse.length, 2);
-  //   assert.is(partialSelectResponse.filter((it) => it.notNullInt === 0)[0].intWithDefault, -1);
+  try {
+    const objWithSameUniqueKey = {
+      primaryVarchar: 'exAmple3@gmail.com',
+      simpleVarchar: 'Oleksii`s MacBook',
+      notNullVarchar: 'owner',
+      varcharWithDefault: 'EN',
+      notNullVarcharWithDefault: 'MacBook M1',
+      uniqueVarchar: 'C02FL29VQ6LR',
+      notNullUniqueVarchar: 'CNNioewqj932JOIK<O)&^%',
+    };
+    await allVarcharsTable.insert(objWithSameUniqueKey).all();
+    assert.unreachable('1. Insert with same unique key - should have an excpetion');
+  } catch (err: unknown) {
+    assert.instance(err, Error);
+    if (err instanceof Error) {
+      assert.equal(err.message, 'duplicate key value violates unique constraint "table_with_all_varchars_unique_varchar_index"', '1. Insert with same unique key - should have an excpetion');
+    }
+  }
 });
 
-// if needed
-// AllIntsSuite.after.each(async (context) => {
-//   await context.db!.session().execute(`TRUNCATE ${context.allIntsTable!.tableName()}`);
-// });
+AllVarcharsSuite('Insert with same primary key - should have an excpetion', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+
+  try {
+    const objWithSamePrimaryKey = {
+      primaryVarchar: 'exAmple@gmail.com',
+      simpleVarchar: 'Oleksii`s MacBook',
+      notNullVarchar: 'owner',
+      varcharWithDefault: 'EN',
+      notNullVarcharWithDefault: 'MacBook M1',
+      uniqueVarchar: 'C02FL29VQ6LRPM',
+      notNullUniqueVarchar: 'CNNioewqj932JOIK<O)&^%',
+    };
+    await allVarcharsTable.insert(objWithSamePrimaryKey).all();
+    assert.unreachable('should have throw an error');
+  } catch (err: unknown) {
+    assert.instance(err, Error);
+    if (err instanceof Error) {
+      assert.match(err.message, 'duplicate key value violates unique constraint "table_with_all_varchars_pkey"');
+    }
+  }
+});
+
+AllVarcharsSuite('Update all fields from table', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+
+  const updateAllFields = {
+    primaryVarchar: 'exAmpl3e@gmail.com',
+    simpleVarchar: 'Oleksii`s Mac Book',
+    notNullVarchar: 'owner ',
+    varcharWithDefault: 'UA',
+    notNullVarcharWithDefault: 'MacBook M1+',
+    uniqueVarchar: 'C02FL29VLRPM',
+    notNullUniqueVarchar: 'CNNoewqj932JOIK<O)&^%',
+  };
+
+  const updateResultAllFields = await allVarcharsTable.update()
+    .where(eq(allVarcharsTable.primaryVarchar, 'exAmple@gmail.com'))
+    .set(updateAllFields)
+    .findOne();
+
+  assert.equal(updateResultAllFields, updateAllFields);
+});
+
+AllVarcharsSuite('Update 1 by 1 field from table', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+  const update = {
+    notNullVarchar: 'Kilevoi Oleksii M',
+  };
+  const updateResult = await allVarcharsTable.update().set(update).all();
+
+  assert.is(updateResult[0].notNullVarchar, update.notNullVarchar);
+  assert.is(updateResult.length, 2);
+
+  await allVarcharsTable.update().set(update).execute();
+});
 
 AllVarcharsSuite.after(async (context) => {
-  // await context.db!.session().execute(`DROP TABLE ${context.allVarcharsTable!.tableName()}`);
+  await context.db!.session().execute(`DROP TABLE ${context.allVarcharsTable!.tableName()}`);
   await context.db!.session().closeConnection();
 });
 

@@ -14,11 +14,9 @@ export const allPositiveFields: ExtractModel<AllVarcharsTable> = {
 
 export const mixedFields: ExtractModel<AllVarcharsTable> = {
   primaryVarchar: 'exAmple2@gmail.com',
-  simpleVarchar: 'Copyright © 2002–2021 Apple Inc.All rights reserved',
   notNullVarchar: 'Oleksii',
   varcharWithDefault: undefined,
   notNullVarcharWithDefault: 'undefined',
   uniqueVarchar: 'unique_varchar2',
   notNullUniqueVarchar: 'unique',
-
 };
