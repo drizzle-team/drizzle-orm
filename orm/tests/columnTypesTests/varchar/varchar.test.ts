@@ -80,6 +80,7 @@ AllVarcharsSuite('Insert all fields to table', async (context) => {
   const insertedValues = await allVarcharsTable.insert(allPositiveFields).all();
   const fullSelectResponse = await allVarcharsTable.select().all();
 
+  assert.equal(insertedValues.length, 1, 'Length match');
   assert.equal(insertedValues, [allPositiveFields], 'Insert all positive fields match');
   assert.equal(fullSelectResponse, [allPositiveFields], 'Full select response match');
 });
@@ -88,6 +89,9 @@ AllVarcharsSuite('Insert all required fields to table', async (context) => {
   const allVarcharsTable = context.allVarcharsTable!;
 
   const insertedValues = await allVarcharsTable.insert(requiredFields).all();
+
+  assert.ok(insertedValues, 'Got response');
+  assert.is(insertedValues.length, 1, 'Length match');
   // DRI-16
   // assert.equal(insertedValues, [{ ...requiredFields, simpleVarchar: undefined,
   //  varcharWithDefault: 'UA' }],
@@ -144,12 +148,65 @@ AllVarcharsSuite('insertMany with same model for all inserted values', async (co
 AllVarcharsSuite('Insert with onConflict statement on each field, that has such possibility(upsert)', async (context) => {
   const allVarcharsTable = context.allVarcharsTable!;
 
-  const result = await allVarcharsTable.insert(allPositiveFields)
-    .onConflict((table) => table.primaryVarcharIndex, { uniqueVarchar: 'unique' }).findOne();
+  const unique = AllVarcharUtils.generateString(7);
 
-  allPositiveFields.uniqueVarchar = 'unique';
+  const result = await allVarcharsTable.insert(allPositiveFields)
+    .onConflict((table) => table.primaryVarcharIndex, { uniqueVarchar: unique }).findOne();
+
+  allPositiveFields.uniqueVarchar = unique;
 
   assert.equal(result, allPositiveFields);
+});
+
+AllVarcharsSuite('Delete rows by each field values', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+
+  const deleteResult = await allVarcharsTable
+    .delete()
+    .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
+    .all();
+
+  assert.is(deleteResult.length, 1, 'Length match');
+  assert.is(deleteResult[0].primaryVarchar, allPositiveFields.primaryVarchar, 'Deleted object is right');
+
+  await allVarcharsTable.insert(allPositiveFields).execute();
+
+  const deleteResult2 = await allVarcharsTable
+    .delete()
+    .where(eq(allVarcharsTable.notNullVarchar, allPositiveFields.notNullVarchar))
+    .all();
+
+  assert.is(deleteResult2.length, 1, 'Length match2');
+  assert.is(deleteResult2[0].notNullVarchar, allPositiveFields.notNullVarchar, 'Deleted object is right 2');
+
+  await allVarcharsTable.insert(allPositiveFields).execute();
+
+  const deleteResult3 = await allVarcharsTable
+    .delete()
+    .where(eq(allVarcharsTable.simpleVarchar, allPositiveFields.simpleVarchar!))
+    .all();
+
+  assert.is(deleteResult3.length, 1, 'Length match3');
+  assert.is(deleteResult3[0].simpleVarchar, allPositiveFields.simpleVarchar, 'Deleted object is right3');
+
+  await allVarcharsTable.insert(allPositiveFields).execute();
+
+  const deleteResult4 = await allVarcharsTable
+    .delete()
+    .where(eq(allVarcharsTable.uniqueVarchar, allPositiveFields.uniqueVarchar!))
+    .all();
+
+  assert.is(deleteResult4.length, 1, 'Length match3');
+  assert.is(deleteResult4[0].simpleVarchar, allPositiveFields.simpleVarchar, 'Deleted object is right3');
+  try {
+    await allVarcharsTable
+      .select()
+      .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
+      .findOne();
+  } catch (err) {
+    assert.ok(err, 'Fail to select deleted object');
+    assert.instance(err, Error, 'Error is type of error');
+  }
 });
 // Exeption cases
 
