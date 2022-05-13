@@ -306,6 +306,42 @@ AllVarcharsSuite('Update 1 by 1 field from table', async (context) => {
   assert.is(updateNotNullUniqueVarchar.notNullUniqueVarchar, update.notNullUniqueVarchar, 'notNullUniqueVarchar');
 });
 
+AllVarcharsSuite('Update batches of several fields from table', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+
+  const updateObject = AllVarcharUtils.createAllVarcharsTableObject();
+  const batch: Partial<schema.AllVarcharsTableModel> = {
+    simpleVarchar: updateObject.simpleVarchar,
+    notNullVarcharWithDefault: updateObject.notNullVarcharWithDefault,
+    uniqueVarchar: updateObject.uniqueVarchar,
+  };
+
+  const batch1Result = await allVarcharsTable
+    .update()
+    .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
+    .set(batch)
+    .findOne();
+
+  assert.is(batch1Result.simpleVarchar, batch.simpleVarchar, 'simpleVarchar work');
+  assert.is(batch1Result.notNullVarcharWithDefault, batch.notNullVarcharWithDefault, 'notNullVarcharWithDefault work');
+  assert.is(batch1Result.uniqueVarchar, batch.uniqueVarchar, 'uniqueVarchar');
+
+  const batch1: Partial<schema.AllVarcharsTableModel> = {
+    varcharWithDefault: updateObject.varcharWithDefault,
+    notNullVarchar: updateObject.notNullVarchar,
+  };
+
+  const batch2Result = await allVarcharsTable
+    .update()
+    .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
+    .set(batch1)
+    .findOne();
+
+  assert.is(batch2Result.simpleVarchar, batch.simpleVarchar, 'simpleVarchar work2');
+  assert.is(batch2Result.notNullVarcharWithDefault, batch.notNullVarcharWithDefault, 'notNullVarcharWithDefault work2');
+  assert.is(batch2Result.uniqueVarchar, batch.uniqueVarchar, 'uniqueVarchar2');
+});
+
 AllVarcharsSuite('Update with same unique key - should have an excpetion', async (context) => {
   const allVarcharsTable = context.allVarcharsTable!;
   try {
