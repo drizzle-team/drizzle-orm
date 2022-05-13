@@ -11,6 +11,9 @@ export default class AllIntsTable extends AbstractTable<AllIntsTable> {
   public uniqueInt = this.int('unique_int').unique();
   public notNullUniqueInt = this.int('not_null_unique_int').notNull().unique();
 
+  public simpleIntIndex = this.uniqueIndex(this.simpleInt);
+  public intWithDefaultIndex = this.index(this.intWithDefault);
+
   public tableName(): string {
     return 'table_with_all_ints';
   }
