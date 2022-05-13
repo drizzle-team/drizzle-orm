@@ -134,7 +134,7 @@ AllVarcharsSuite('Partial selects', async (context) => {
 AllVarcharsSuite('insertMany with same model for all inserted values', async (context) => {
   const allVarcharsTable = context.allVarcharsTable!;
 
-  const varcharTableObjects = AllVarcharUtils.createAllVarcharsTableModels(5);
+  const varcharTableObjects = AllVarcharUtils.createAllVarcharsTableObjects(5);
 
   const insertManyResult = allVarcharsTable
     .insertMany(varcharTableObjects) as unknown as {_values: object[]};
@@ -159,15 +159,9 @@ AllVarcharsSuite('Insert with same unique key - should have an excpetion', async
   const allVarcharsTable = context.allVarcharsTable!;
 
   try {
-    const objWithSameUniqueKey = {
-      primaryVarchar: 'exAmple3@gmail.com',
-      simpleVarchar: 'Oleksii`s MacBook',
-      notNullVarchar: 'owner',
-      varcharWithDefault: 'EN',
-      notNullVarcharWithDefault: 'MacBook M1',
-      uniqueVarchar: 'C02FL29VQ6LR',
-      notNullUniqueVarchar: 'CNNioewqj932JOIK<O)&^%',
-    };
+    const objWithSameUniqueKey = AllVarcharUtils.generateAllVarcharsTableObject();
+    objWithSameUniqueKey.notNullUniqueVarchar = allPositiveFields.notNullUniqueVarchar;
+
     await allVarcharsTable.insert(objWithSameUniqueKey).all();
     assert.unreachable('1. Insert with same unique key - should have an excpetion');
   } catch (err: unknown) {
@@ -188,15 +182,9 @@ AllVarcharsSuite('Insert with same primary key - should have an excpetion', asyn
   const allVarcharsTable = context.allVarcharsTable!;
 
   try {
-    const objWithSamePrimaryKey = {
-      primaryVarchar: 'exAmple@gmail.com',
-      simpleVarchar: 'Oleksii`s MacBook',
-      notNullVarchar: 'owner',
-      varcharWithDefault: 'EN',
-      notNullVarcharWithDefault: 'MacBook M1',
-      uniqueVarchar: 'C02FL29VQ6LRPM',
-      notNullUniqueVarchar: 'CNNioewqj932JOIK<O)&^%',
-    };
+    const objWithSamePrimaryKey = AllVarcharUtils.generateAllVarcharsTableObject();
+    objWithSamePrimaryKey.primaryVarchar = allPositiveFields.primaryVarchar;
+
     await allVarcharsTable.insert(objWithSamePrimaryKey).all();
     assert.unreachable('should have throw an error');
   } catch (err: unknown) {
@@ -233,9 +221,8 @@ AllVarcharsSuite('Update all fields from table', async (context) => {
 
 AllVarcharsSuite('Update 1 by 1 field from table', async (context) => {
   const allVarcharsTable = context.allVarcharsTable!;
-  const update = {
-    notNullVarchar: 'Kilevoi Oleksii M',
-  };
+  const update = { notNullVarchar: 'Kilevoi Oleksii M' };
+
   const updateResult = await allVarcharsTable.update().set(update).all();
 
   assert.is(updateResult[0].notNullVarchar, update.notNullVarchar);
