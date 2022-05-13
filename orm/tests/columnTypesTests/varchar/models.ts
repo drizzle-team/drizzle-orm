@@ -9,6 +9,12 @@ export const allPositiveFields: ExtractModel<AllVarcharsTable> = {
   notNullVarcharWithDefault: 'MacBook M1',
   uniqueVarchar: 'C02FL29VQ6LR',
   notNullUniqueVarchar: 'CNNioew',
+  simpleVarcharLength: 'Oleksiis MacBook',
+  notNullVarcharLength: 'owner',
+  varcharWithDefaultLength: 'EN',
+  notNullVarcharWithDefaultLength: 'MacBook M1',
+  uniqueVarcharLength: 'C02FL29VQ6LR',
+  notNullUniqueVarcharLength: 'CNNioeniow',
 };
 
 export const mixedFields: ExtractModel<AllVarcharsTable> = {
@@ -18,4 +24,10 @@ export const mixedFields: ExtractModel<AllVarcharsTable> = {
   notNullVarcharWithDefault: 'undefined',
   uniqueVarchar: 'unique_varchar',
   notNullUniqueVarchar: 'KEYFJLL',
+  simpleVarcharLength: 'Oleksii`s MacBook',
+  notNullVarcharLength: 'owner',
+  varcharWithDefaultLength: undefined,
+  notNullVarcharWithDefaultLength: 'MacBook M1',
+  uniqueVarcharLength: 'C02FL29V6LR',
+  notNullUniqueVarcharLength: 'CNiodsew',
 };

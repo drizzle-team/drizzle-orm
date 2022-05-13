@@ -22,6 +22,12 @@ class AllVarcharUtils {
       simpleVarchar: this.generateString(7),
       notNullVarcharWithDefault: this.generateString(7),
       uniqueVarchar: this.generateString(7),
+      notNullUniqueVarcharLength: this.generateString(10),
+      notNullVarcharLength: this.generateString(10),
+      varcharWithDefaultLength: this.generateString(10),
+      simpleVarcharLength: this.generateString(10),
+      notNullVarcharWithDefaultLength: this.generateString(10),
+      uniqueVarcharLength: this.generateString(10),
     };
     return object;
   };
