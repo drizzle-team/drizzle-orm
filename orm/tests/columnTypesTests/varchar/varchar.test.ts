@@ -78,11 +78,9 @@ AllVarcharsSuite('Insert all fields to table', async (context) => {
   const allVarcharsTable = context.allVarcharsTable!;
 
   const insertedValues = await allVarcharsTable.insert(allPositiveFields).all();
-
-  assert.equal(insertedValues, [allPositiveFields], 'Insert all positive fields match');
-
   const fullSelectResponse = await allVarcharsTable.select().all();
 
+  assert.equal(insertedValues, [allPositiveFields], 'Insert all positive fields match');
   assert.equal(fullSelectResponse, [allPositiveFields], 'Full select response match');
 });
 
@@ -159,7 +157,7 @@ AllVarcharsSuite('Insert with same unique key - should have an excpetion', async
   const allVarcharsTable = context.allVarcharsTable!;
 
   try {
-    const objWithSameUniqueKey = AllVarcharUtils.generateAllVarcharsTableObject();
+    const objWithSameUniqueKey = AllVarcharUtils.createAllVarcharsTableObject();
     objWithSameUniqueKey.notNullUniqueVarchar = allPositiveFields.notNullUniqueVarchar;
 
     await allVarcharsTable.insert(objWithSameUniqueKey).all();
@@ -182,7 +180,7 @@ AllVarcharsSuite('Insert with same primary key - should have an excpetion', asyn
   const allVarcharsTable = context.allVarcharsTable!;
 
   try {
-    const objWithSamePrimaryKey = AllVarcharUtils.generateAllVarcharsTableObject();
+    const objWithSamePrimaryKey = AllVarcharUtils.createAllVarcharsTableObject();
     objWithSamePrimaryKey.primaryVarchar = allPositiveFields.primaryVarchar;
 
     await allVarcharsTable.insert(objWithSamePrimaryKey).all();
@@ -202,7 +200,7 @@ AllVarcharsSuite('Update all fields from table', async (context) => {
   const allVarcharsTable = context.allVarcharsTable!;
 
   const updateAllFields = AllVarcharUtils
-    .generateAllVarcharsTableObject() as Partial<schema.AllVarcharsTableModel>;
+    .createAllVarcharsTableObject() as Partial<schema.AllVarcharsTableModel>;
   delete updateAllFields.primaryVarchar;
 
   const updateResultAllFields = await allVarcharsTable.update()
@@ -210,20 +208,45 @@ AllVarcharsSuite('Update all fields from table', async (context) => {
     .set(updateAllFields)
     .findOne();
 
+  updateAllFields.primaryVarchar = allPositiveFields.primaryVarchar;
+
   assert.equal(updateResultAllFields, updateAllFields);
 });
 
 AllVarcharsSuite('Update 1 by 1 field from table', async (context) => {
   const allVarcharsTable = context.allVarcharsTable!;
 
-  const update = { notNullVarchar: 'Kilevoi Oleksii M' };
+  const update = AllVarcharUtils.createAllVarcharsTableObject();
 
-  const updateResult = await allVarcharsTable.update().set(update).all();
+  const updateResultNotNullVarchar = await allVarcharsTable
+    .update()
+    .set({ notNullVarchar: update.notNullVarchar })
+    .all();
+  const updateResultSimpleVarchar = await allVarcharsTable
+    .update()
+    .set({ simpleVarchar: update.simpleVarchar })
+    .all();
+  const updateResultVarcharWithDefault = await allVarcharsTable
+    .update()
+    .set({ notNullVarcharWithDefault: update.notNullVarcharWithDefault })
+    .all();
+  const updateResultUniqueVarchar = await allVarcharsTable
+    .update()
+    .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
+    .set({ uniqueVarchar: update.uniqueVarchar })
+    .findOne();
+  const updateNotNullUniqueVarchar = await allVarcharsTable
+    .update()
+    .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
+    .set({ notNullUniqueVarchar: update.notNullUniqueVarchar })
+    .findOne();
 
-  assert.is(updateResult[0].notNullVarchar, update.notNullVarchar);
-  assert.is(updateResult.length, 2);
-
-  await allVarcharsTable.update().set(update).execute();
+  assert.is(updateResultNotNullVarchar[0].notNullVarchar, update.notNullVarchar, 'notNullVarchar');
+  assert.is(updateResultSimpleVarchar[0].simpleVarchar, update.simpleVarchar, 'simpleVarchar');
+  assert.is(updateResultVarcharWithDefault[0].notNullVarcharWithDefault,
+    update.notNullVarcharWithDefault, 'notNullVarcharWithDefault');
+  assert.is(updateResultUniqueVarchar.uniqueVarchar, update.uniqueVarchar, 'uniqueVarchar');
+  assert.is(updateNotNullUniqueVarchar.notNullUniqueVarchar, update.notNullUniqueVarchar, 'notNullUniqueVarchar');
 });
 
 AllVarcharsSuite('Update with same unique key - should have an excpetion', async (context) => {

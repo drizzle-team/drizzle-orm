@@ -13,7 +13,7 @@ class AllVarcharUtils {
     return result;
   };
 
-  public static generateAllVarcharsTableObject = () => {
+  public static createAllVarcharsTableObject = () => {
     const object: AllVarcharsTableModel = {
       primaryVarchar: this.generateString(6),
       notNullUniqueVarchar: this.generateString(9),
@@ -29,7 +29,7 @@ class AllVarcharUtils {
   public static createAllVarcharsTableObjects = (number: number) => {
     const result = [];
     for (let i = 0; i < number; i += 1) {
-      const object = this.generateAllVarcharsTableObject();
+      const object = this.createAllVarcharsTableObject();
       result.push(object);
     }
     return result;
