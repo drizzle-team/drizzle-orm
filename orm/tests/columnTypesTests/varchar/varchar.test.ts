@@ -201,18 +201,12 @@ AllVarcharsSuite('Insert with same primary key - should have an excpetion', asyn
 AllVarcharsSuite('Update all fields from table', async (context) => {
   const allVarcharsTable = context.allVarcharsTable!;
 
-  const updateAllFields = {
-    primaryVarchar: 'exAmpl3e@gmail.com',
-    simpleVarchar: 'Oleksii`s Mac Book',
-    notNullVarchar: 'owner ',
-    varcharWithDefault: 'UA',
-    notNullVarcharWithDefault: 'MacBook M1+',
-    uniqueVarchar: 'C02FL29VLRPM',
-    notNullUniqueVarchar: 'CNNoewqj932JOIK<O)&^%',
-  };
+  const updateAllFields = AllVarcharUtils
+    .generateAllVarcharsTableObject() as Partial<schema.AllVarcharsTableModel>;
+  delete updateAllFields.primaryVarchar;
 
   const updateResultAllFields = await allVarcharsTable.update()
-    .where(eq(allVarcharsTable.primaryVarchar, 'exAmple@gmail.com'))
+    .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
     .set(updateAllFields)
     .findOne();
 
@@ -221,6 +215,7 @@ AllVarcharsSuite('Update all fields from table', async (context) => {
 
 AllVarcharsSuite('Update 1 by 1 field from table', async (context) => {
   const allVarcharsTable = context.allVarcharsTable!;
+
   const update = { notNullVarchar: 'Kilevoi Oleksii M' };
 
   const updateResult = await allVarcharsTable.update().set(update).all();
