@@ -379,6 +379,24 @@ AllVarcharsSuite('Insert with same unique key - should have an excpetion', async
   }
 });
 
+AllVarcharsSuite('Insert with wrong type', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+
+  try {
+    const objWithSameUniqueKey = AllVarcharUtils.createAllVarcharsTableObject();
+    objWithSameUniqueKey.notNullUniqueVarchar = Math.random() as unknown as string;
+
+    await allVarcharsTable.insert(objWithSameUniqueKey).all();
+    assert.unreachable('1. Insert with wrong type should have an excpetion');
+  } catch (err: unknown) {
+    assert.instance(err, Error);
+    if (err instanceof Error) {
+      console.log(err);
+      assert.ok(err);
+    }
+  }
+});
+
 AllVarcharsSuite('Insert with same unique key - should have an excpetion (execute)', async (context) => {
   const allVarcharsTable = context.allVarcharsTable!;
 
