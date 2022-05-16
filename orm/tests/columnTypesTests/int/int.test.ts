@@ -43,8 +43,6 @@ AllIntsSuite.before(async (context) => {
 
     const sql = await prepareTestSqlFromSchema(schema);
 
-    console.log(sql);
-
     await db.session().execute(sql);
   } catch (e) {
     console.log(e);
