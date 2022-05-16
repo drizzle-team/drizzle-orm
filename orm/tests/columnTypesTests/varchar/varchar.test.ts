@@ -642,7 +642,7 @@ AllVarcharsSuite('Update batches of several fields from table (execute)', async 
     notNullVarchar: updateObject.notNullVarchar,
   };
 
-  const batch2Result = await allVarcharsTable
+  await allVarcharsTable
     .update()
     .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
     .set(batch1)
@@ -682,6 +682,22 @@ AllVarcharsSuite('Update with same unique key - should have an excpetion', async
 AllVarcharsSuite('Update with same unique key - should have an excpetion (execute)', async (context) => {
   const allVarcharsTable = context.allVarcharsTable!;
   await allVarcharsTable.insert(allPositiveFields).execute();
+
+  try {
+    await allVarcharsTable.update().set(allPositiveFields).execute();
+  } catch (err: unknown) {
+    assert.instance(err, Error);
+    if (err instanceof Error) {
+      assert.ok(err);
+    }
+  }
+});
+
+AllVarcharsSuite('Update with long string', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+  await allVarcharsTable.insert(allPositiveFields).execute();
+
+  allPositiveFields.notNullUniqueVarcharLength = AllVarcharUtils.generateString(100);
 
   try {
     await allVarcharsTable.update().set(allPositiveFields).execute();

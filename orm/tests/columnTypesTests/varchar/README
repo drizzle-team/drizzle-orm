@@ -23,3 +23,4 @@
 # Update cases
 1. Update with same unique key - should have an excpetion (all, execute);
 2. Update with same primary key - should have an excpetion (all, execute);
+3. Update long string to field with fixed length
