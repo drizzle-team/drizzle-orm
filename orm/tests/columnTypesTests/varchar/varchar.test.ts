@@ -202,56 +202,111 @@ AllVarcharsSuite('Insert with onConflict statement on each field, that has such 
   assert.equal(result, allPositiveFields);
 });
 
-// AllVarcharsSuite('Delete rows by each field values', async (context) => {
-//   const allVarcharsTable = context.allVarcharsTable!;
+AllVarcharsSuite('Delete rows by each field values', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+  await allVarcharsTable.insert(allPositiveFields).execute();
 
-//   const deleteResult = await allVarcharsTable
-//     .delete()
-//     .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
-//     .all();
+  const deleteResult = await allVarcharsTable
+    .delete()
+    .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
+    .all();
 
-//   assert.is(deleteResult.length, 1, 'Length match');
-//   assert.is(deleteResult[0].primaryVarchar, allPositiveFields.primaryVarchar, 'Deleted object is right');
+  assert.is(deleteResult.length, 1, 'Length match');
+  assert.is(deleteResult[0].primaryVarchar, allPositiveFields.primaryVarchar, 'Deleted object is right');
 
-//   await allVarcharsTable.insert(allPositiveFields).execute();
+  await allVarcharsTable.insert(allPositiveFields).execute();
 
-//   const deleteResult2 = await allVarcharsTable
-//     .delete()
-//     .where(eq(allVarcharsTable.notNullVarchar, allPositiveFields.notNullVarchar))
-//     .all();
+  const deleteResult2 = await allVarcharsTable
+    .delete()
+    .where(eq(allVarcharsTable.notNullVarchar, allPositiveFields.notNullVarchar))
+    .all();
 
-//   assert.is(deleteResult2.length, 1, 'Length match2');
-//   assert.is(deleteResult2[0].notNullVarchar, allPositiveFields.notNullVarchar, 'Deleted object is right 2');
+  assert.is(deleteResult2.length, 1, 'Length match2');
+  assert.is(deleteResult2[0].notNullVarchar, allPositiveFields.notNullVarchar, 'Deleted object is right 2');
 
-//   await allVarcharsTable.insert(allPositiveFields).execute();
+  await allVarcharsTable.insert(allPositiveFields).execute();
 
-//   const deleteResult3 = await allVarcharsTable
-//     .delete()
-//     .where(eq(allVarcharsTable.simpleVarchar, allPositiveFields.simpleVarchar!))
-//     .all();
+  const deleteResult3 = await allVarcharsTable
+    .delete()
+    .where(eq(allVarcharsTable.simpleVarchar, allPositiveFields.simpleVarchar!))
+    .all();
 
-//   assert.is(deleteResult3.length, 1, 'Length match3');
-//   assert.is(deleteResult3[0].simpleVarchar, allPositiveFields.simpleVarchar, 'Deleted object is right3');
+  assert.is(deleteResult3.length, 1, 'Length match3');
+  assert.is(deleteResult3[0].simpleVarchar, allPositiveFields.simpleVarchar, 'Deleted object is right3');
 
-//   await allVarcharsTable.insert(allPositiveFields).execute();
+  await allVarcharsTable.insert(allPositiveFields).execute();
 
-//   const deleteResult4 = await allVarcharsTable
-//     .delete()
-//     .where(eq(allVarcharsTable.uniqueVarchar, allPositiveFields.uniqueVarchar!))
-//     .all();
+  const deleteResult4 = await allVarcharsTable
+    .delete()
+    .where(eq(allVarcharsTable.uniqueVarchar, allPositiveFields.uniqueVarchar!))
+    .all();
 
-//   assert.is(deleteResult4.length, 1, 'Length match3');
-//   assert.is(deleteResult4[0].simpleVarchar, allPositiveFields.simpleVarchar, 'Deleted object is right3');
-//   try {
-//     await allVarcharsTable
-//       .select()
-//       .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
-//       .findOne();
-//   } catch (err) {
-//     assert.ok(err, 'Fail to select deleted object');
-//     assert.instance(err, Error, 'Error is type of error');
-//   }
-// });
+  assert.is(deleteResult4.length, 1, 'Length match3');
+  assert.is(deleteResult4[0].uniqueVarchar, allPositiveFields.uniqueVarchar, 'Deleted object is right3');
+  try {
+    await allVarcharsTable
+      .select()
+      .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
+      .findOne();
+  } catch (err) {
+    assert.ok(err, 'Fail to select deleted object');
+    assert.instance(err, Error, 'Error is type of error');
+  }
+});
+
+AllVarcharsSuite('Delete rows by each field values execute', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+  await allVarcharsTable.insert(allPositiveFields).execute();
+
+  await allVarcharsTable
+    .delete()
+    .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
+    .execute();
+
+  const selectResult = await allVarcharsTable.select().all()
+
+  assert.is(selectResult.length, 0, 'Length match');
+
+  await allVarcharsTable.insert(allPositiveFields).execute();
+
+  await allVarcharsTable
+    .delete()
+    .where(eq(allVarcharsTable.notNullVarchar, allPositiveFields.notNullVarchar))
+    .execute();
+
+  const selectResult1 = await allVarcharsTable.select().all()
+  assert.is(selectResult1.length, 0, 'Length match1');
+
+  await allVarcharsTable.insert(allPositiveFields).execute();
+
+  await allVarcharsTable
+    .delete()
+    .where(eq(allVarcharsTable.simpleVarchar, allPositiveFields.simpleVarchar!))
+    .execute();
+
+  const selectResult2 = await allVarcharsTable.select().all()
+  assert.is(selectResult2.length, 0, 'Length match2');
+
+  await allVarcharsTable.insert(allPositiveFields).execute();
+
+  await allVarcharsTable
+    .delete()
+    .where(eq(allVarcharsTable.uniqueVarchar, allPositiveFields.uniqueVarchar!))
+    .execute();
+
+  const selectResult3 = await allVarcharsTable.select().all()
+
+  assert.is(selectResult3.length, 0, 'Length match3');
+  try {
+    await allVarcharsTable
+      .select()
+      .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
+      .findOne();
+  } catch (err) {
+    assert.ok(err, 'Fail to select deleted object');
+    assert.instance(err, Error, 'Error is type of error');
+  }
+});
 // // Exeption cases
 
 // AllVarcharsSuite('Insert with same unique key - should have an excpetion', async (context) => {
