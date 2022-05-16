@@ -54,12 +54,12 @@ AllVarcharsSuite('Insert all fields to table', async (context) => {
   assert.equal(fullSelectResponse, [allPositiveFields], 'Full select response match');
 
   const partialSelectResponse = await allVarcharsTable
-  .select({
-    simpleVarcharLength: allVarcharsTable.simpleVarcharLength,
-    simpleVarchar: allVarcharsTable.simpleVarchar,
-    notNullVarcharLength: allVarcharsTable.notNullVarcharLength
-  })
-  .all();
+    .select({
+      simpleVarcharLength: allVarcharsTable.simpleVarcharLength,
+      simpleVarchar: allVarcharsTable.simpleVarchar,
+      notNullVarcharLength: allVarcharsTable.notNullVarcharLength,
+    })
+    .all();
 
   assert.equal(partialSelectResponse.length, 1, 'Length match1');
   assert.equal(partialSelectResponse[0].notNullVarcharLength, allPositiveFields.notNullVarcharLength, 'Partial select work');
@@ -69,7 +69,6 @@ AllVarcharsSuite('Insert all fields to table', async (context) => {
   assert.type(partialSelectResponse[0].notNullVarcharLength, 'string', 'Type match');
   assert.type(partialSelectResponse[0].simpleVarchar, 'string', 'Type match');
 });
-
 
 AllVarcharsSuite('Insert all fields to table execute', async (context) => {
   const allVarcharsTable = context.allVarcharsTable!;
@@ -82,12 +81,12 @@ AllVarcharsSuite('Insert all fields to table execute', async (context) => {
   assert.equal(fullSelectResponse, [allPositiveFields], 'Full select response match');
 
   const partialSelectResponse = await allVarcharsTable
-  .select({
-    simpleVarcharLength: allVarcharsTable.simpleVarcharLength,
-    simpleVarchar: allVarcharsTable.simpleVarchar,
-    notNullVarcharLength: allVarcharsTable.notNullVarcharLength
-  })
-  .all();
+    .select({
+      simpleVarcharLength: allVarcharsTable.simpleVarcharLength,
+      simpleVarchar: allVarcharsTable.simpleVarchar,
+      notNullVarcharLength: allVarcharsTable.notNullVarcharLength,
+    })
+    .all();
 
   assert.equal(partialSelectResponse.length, 1, 'Length match1');
   assert.equal(partialSelectResponse[0].notNullVarcharLength, allPositiveFields.notNullVarcharLength, 'Partial select work');
@@ -145,9 +144,10 @@ AllVarcharsSuite('Insert all required fields to table execute', async (context) 
   assert.type(partialSelectResponse[0].notNullVarchar, 'string', 'type match');
   assert.is(partialSelectResponse[0].notNullVarchar, requiredFields.notNullVarchar, 'field match');
   assert.is(partialSelectResponse[0].varcharWithDefaultLength, requiredFields.varcharWithDefaultLength, 'fieldMatch');
-  assert.ok(partialSelectResponse[0].simpleVarcharLength!.split('').length > 10, 'check string length')
+  assert.ok(partialSelectResponse[0].simpleVarcharLength!.split('').length > 10, 'check string length');
   // DRI-16
-  // assert.is(partialSelectResponse.filter((it) => it.notNullVarchar === 'owner')[0].varcharWithDefault, 'UA');
+  // assert.is(partialSelectResponse.filter((it) => it.notNullVarchar === 'owner')[0]
+  // .varcharWithDefault, 'UA');
   // assert.is(partialSelectResponse
   // .filter((it) => it.notNullVarchar === 'Oleksii')[0]
   // .varcharWithDefault, 'UA');
@@ -156,7 +156,7 @@ AllVarcharsSuite('Insert all required fields to table execute', async (context) 
     notNullUniqueVarcharLength: allVarcharsTable.notNullUniqueVarcharLength,
     primaryVarchar: allVarcharsTable.primaryVarchar,
   }).all();
-  
+
   assert.type(partialSelect2Response[0].notNullUniqueVarcharLength, 'string', 'Has property and property type match');
   assert.type(partialSelect2Response[0].primaryVarchar, 'string', 'Has property and property type match 2');
 });
@@ -168,7 +168,7 @@ AllVarcharsSuite('insertMany with same model for all inserted values', async (co
 
   const insertManyResult = await allVarcharsTable
     .insertMany(varcharTableObjects).all();
-      
+
   assert.is(insertManyResult.length, 5);
   assert.equal(insertManyResult, varcharTableObjects);
 });
@@ -178,7 +178,7 @@ AllVarcharsSuite('insertMany with same model for all inserted values execute', a
 
   const varcharTableObjects = AllVarcharUtils.createAllVarcharsTableObjects(5);
 
-   await allVarcharsTable
+  await allVarcharsTable
     .insertMany(varcharTableObjects).execute();
 
   const selectResult = await allVarcharsTable.select().all();
@@ -200,6 +200,22 @@ AllVarcharsSuite('Insert with onConflict statement on each field, that has such 
   allPositiveFields.uniqueVarchar = unique;
 
   assert.equal(result, allPositiveFields);
+});
+
+AllVarcharsSuite('Insert with onConflict statement on each field, that has such possibility(upsert) (execute)', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+
+  await allVarcharsTable.insert(allPositiveFields).execute();
+
+  const unique = AllVarcharUtils.generateString(7);
+
+  await allVarcharsTable.insert(allPositiveFields)
+    .onConflict((table) => table.primaryVarcharIndex, { uniqueVarchar: unique }).execute();
+  const selectResult = await allVarcharsTable.select().all();
+
+  allPositiveFields.uniqueVarchar = unique;
+
+  assert.equal(selectResult[0], allPositiveFields);
 });
 
 AllVarcharsSuite('Delete rows by each field values', async (context) => {
@@ -254,7 +270,7 @@ AllVarcharsSuite('Delete rows by each field values', async (context) => {
   }
 });
 
-AllVarcharsSuite('Delete rows by each field values execute', async (context) => {
+AllVarcharsSuite('Delete rows by each field values (execute)', async (context) => {
   const allVarcharsTable = context.allVarcharsTable!;
   await allVarcharsTable.insert(allPositiveFields).execute();
 
@@ -263,7 +279,7 @@ AllVarcharsSuite('Delete rows by each field values execute', async (context) => 
     .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
     .execute();
 
-  const selectResult = await allVarcharsTable.select().all()
+  const selectResult = await allVarcharsTable.select().all();
 
   assert.is(selectResult.length, 0, 'Length match');
 
@@ -274,7 +290,7 @@ AllVarcharsSuite('Delete rows by each field values execute', async (context) => 
     .where(eq(allVarcharsTable.notNullVarchar, allPositiveFields.notNullVarchar))
     .execute();
 
-  const selectResult1 = await allVarcharsTable.select().all()
+  const selectResult1 = await allVarcharsTable.select().all();
   assert.is(selectResult1.length, 0, 'Length match1');
 
   await allVarcharsTable.insert(allPositiveFields).execute();
@@ -284,7 +300,7 @@ AllVarcharsSuite('Delete rows by each field values execute', async (context) => 
     .where(eq(allVarcharsTable.simpleVarchar, allPositiveFields.simpleVarchar!))
     .execute();
 
-  const selectResult2 = await allVarcharsTable.select().all()
+  const selectResult2 = await allVarcharsTable.select().all();
   assert.is(selectResult2.length, 0, 'Length match2');
 
   await allVarcharsTable.insert(allPositiveFields).execute();
@@ -294,7 +310,7 @@ AllVarcharsSuite('Delete rows by each field values execute', async (context) => 
     .where(eq(allVarcharsTable.uniqueVarchar, allPositiveFields.uniqueVarchar!))
     .execute();
 
-  const selectResult3 = await allVarcharsTable.select().all()
+  const selectResult3 = await allVarcharsTable.select().all();
 
   assert.is(selectResult3.length, 0, 'Length match3');
   try {
@@ -309,149 +325,325 @@ AllVarcharsSuite('Delete rows by each field values execute', async (context) => 
 });
 // // Exeption cases
 
-// AllVarcharsSuite('Insert with same unique key - should have an excpetion', async (context) => {
-//   const allVarcharsTable = context.allVarcharsTable!;
+AllVarcharsSuite('Insert with same unique key - should have an excpetion', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
 
-//   try {
-//     const objWithSameUniqueKey = AllVarcharUtils.createAllVarcharsTableObject();
-//     objWithSameUniqueKey.notNullUniqueVarchar = allPositiveFields.notNullUniqueVarchar;
+  try {
+    const objWithSameUniqueKey = AllVarcharUtils.createAllVarcharsTableObject();
+    objWithSameUniqueKey.notNullUniqueVarchar = allPositiveFields.notNullUniqueVarchar;
 
-//     await allVarcharsTable.insert(objWithSameUniqueKey).all();
-//     assert.unreachable('1. Insert with same unique key - should have an excpetion');
-//   } catch (err: unknown) {
-//     assert.instance(err, Error);
-//     if (err instanceof Error) {
-//       // DRI-15
-//       // assert.equal(
-//       // err.message,'duplicate key value violates unique constraint
-//       // "table_with_all_varchars_unique_varchar_index"',
-//       // 'Insert with same unique key - should have an excpetion');
+    await allVarcharsTable.insert(objWithSameUniqueKey).all();
+    assert.unreachable('1. Insert with same unique key - should have an excpetion');
+  } catch (err: unknown) {
+    assert.instance(err, Error);
+    if (err instanceof Error) {
+      // DRI-15
+      // assert.equal(
+      // err.message,'duplicate key value violates unique constraint
+      // "table_with_all_varchars_unique_varchar_index"',
+      // 'Insert with same unique key - should have an excpetion');
 
-//       assert.ok(err);
-//     }
-//   }
-// });
+      assert.ok(err);
+    }
+  }
+});
 
-// AllVarcharsSuite('Insert with same primary key - should have an excpetion', async (context) => {
-//   const allVarcharsTable = context.allVarcharsTable!;
+AllVarcharsSuite('Insert with same unique key - should have an excpetion (execute)', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
 
-//   try {
-//     const objWithSamePrimaryKey = AllVarcharUtils.createAllVarcharsTableObject();
-//     objWithSamePrimaryKey.primaryVarchar = allPositiveFields.primaryVarchar;
+  try {
+    const objWithSameUniqueKey = AllVarcharUtils.createAllVarcharsTableObject();
+    objWithSameUniqueKey.notNullUniqueVarchar = allPositiveFields.notNullUniqueVarchar;
 
-//     await allVarcharsTable.insert(objWithSamePrimaryKey).all();
-//     assert.unreachable('should have throw an error');
-//   } catch (err: unknown) {
-//     assert.instance(err, Error);
-//     if (err instanceof Error) {
-//       // DRI-16
-//       // assert.match(err.message,
-//       //  'duplicate key value violates unique constraint "table_with_all_varchars_pkey"');
-//       assert.ok(err);
-//     }
-//   }
-// });
+    await allVarcharsTable.insert(objWithSameUniqueKey).execute();
+    assert.unreachable('1. Insert with same unique key - should have an excpetion (execute)');
+  } catch (err: unknown) {
+    assert.instance(err, Error);
+    if (err instanceof Error) {
+      // DRI-15
+      // assert.equal(
+      // err.message,'duplicate key value violates unique constraint
+      // "table_with_all_varchars_unique_varchar_index"',
+      // 'Insert with same unique key - should have an excpetion');
 
-// AllVarcharsSuite('Update all fields from table', async (context) => {
-//   const allVarcharsTable = context.allVarcharsTable!;
+      assert.ok(err);
+    }
+  }
+});
 
-//   const updateAllFields = AllVarcharUtils
-//     .createAllVarcharsTableObject() as Partial<schema.AllVarcharsTableModel>;
-//   delete updateAllFields.primaryVarchar;
+AllVarcharsSuite('Insert with same primary key - should have an excpetion', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
 
-//   const updateResultAllFields = await allVarcharsTable.update()
-//     .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
-//     .set(updateAllFields)
-//     .findOne();
+  try {
+    const objWithSamePrimaryKey = AllVarcharUtils.createAllVarcharsTableObject();
+    objWithSamePrimaryKey.primaryVarchar = allPositiveFields.primaryVarchar;
 
-//   updateAllFields.primaryVarchar = allPositiveFields.primaryVarchar;
+    await allVarcharsTable.insert(objWithSamePrimaryKey).all();
+    assert.unreachable('should have throw an error');
+  } catch (err: unknown) {
+    assert.instance(err, Error);
+    if (err instanceof Error) {
+      // DRI-16
+      // assert.match(err.message,
+      //  'duplicate key value violates unique constraint "table_with_all_varchars_pkey"');
+      assert.ok(err);
+    }
+  }
+});
 
-//   assert.equal(updateResultAllFields, updateAllFields);
-// });
+AllVarcharsSuite('Insert with same primary key - should have an excpetion (execute)', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
 
-// AllVarcharsSuite('Update 1 by 1 field from table', async (context) => {
-//   const allVarcharsTable = context.allVarcharsTable!;
+  try {
+    const objWithSamePrimaryKey = AllVarcharUtils.createAllVarcharsTableObject();
+    objWithSamePrimaryKey.primaryVarchar = allPositiveFields.primaryVarchar;
 
-//   const update = AllVarcharUtils.createAllVarcharsTableObject();
+    await allVarcharsTable.insert(objWithSamePrimaryKey).execute();
+    assert.unreachable('should have throw an error');
+  } catch (err: unknown) {
+    assert.instance(err, Error);
+    if (err instanceof Error) {
+      // DRI-16
+      // assert.match(err.message,
+      //  'duplicate key value violates unique constraint "table_with_all_varchars_pkey"');
+      assert.ok(err);
+    }
+  }
+});
 
-//   const updateResultNotNullVarchar = await allVarcharsTable
-//     .update()
-//     .set({ notNullVarchar: update.notNullVarchar })
-//     .all();
-//   const updateResultSimpleVarchar = await allVarcharsTable
-//     .update()
-//     .set({ simpleVarchar: update.simpleVarchar })
-//     .all();
-//   const updateResultVarcharWithDefault = await allVarcharsTable
-//     .update()
-//     .set({ notNullVarcharWithDefault: update.notNullVarcharWithDefault })
-//     .all();
-//   const updateResultUniqueVarchar = await allVarcharsTable
-//     .update()
-//     .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
-//     .set({ uniqueVarchar: update.uniqueVarchar })
-//     .findOne();
-//   const updateNotNullUniqueVarchar = await allVarcharsTable
-//     .update()
-//     .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
-//     .set({ notNullUniqueVarchar: update.notNullUniqueVarchar })
-//     .findOne();
+AllVarcharsSuite('Update all fields from table', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+  await allVarcharsTable.insert(allPositiveFields).execute();
 
-//   assert.is(updateResultNotNullVarchar[0].notNullVarchar, update.notNullVarchar, 'notNullVarchar');
-//   assert.is(updateResultSimpleVarchar[0].simpleVarchar, update.simpleVarchar, 'simpleVarchar');
-//   assert.is(updateResultVarcharWithDefault[0].notNullVarcharWithDefault,
-//     update.notNullVarcharWithDefault, 'notNullVarcharWithDefault');
-//   assert.is(updateResultUniqueVarchar.uniqueVarchar, update.uniqueVarchar, 'uniqueVarchar');
-//   assert.is(updateNotNullUniqueVarchar.notNullUniqueVarchar, update.notNullUniqueVarchar, 'notNullUniqueVarchar');
-// });
+  const updateAllFields = AllVarcharUtils
+    .createAllVarcharsTableObject() as Partial<schema.AllVarcharsTableModel>;
+  delete updateAllFields.primaryVarchar;
 
-// AllVarcharsSuite('Update batches of several fields from table', async (context) => {
-//   const allVarcharsTable = context.allVarcharsTable!;
+  const updateResultAllFields = await allVarcharsTable.update()
+    .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
+    .set(updateAllFields)
+    .findOne();
 
-//   const updateObject = AllVarcharUtils.createAllVarcharsTableObject();
-//   const batch: Partial<schema.AllVarcharsTableModel> = {
-//     simpleVarchar: updateObject.simpleVarchar,
-//     notNullVarcharWithDefault: updateObject.notNullVarcharWithDefault,
-//     uniqueVarchar: updateObject.uniqueVarchar,
-//   };
+  updateAllFields.primaryVarchar = allPositiveFields.primaryVarchar;
 
-//   const batch1Result = await allVarcharsTable
-//     .update()
-//     .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
-//     .set(batch)
-//     .findOne();
+  assert.equal(updateResultAllFields, updateAllFields);
+});
 
-//   assert.is(batch1Result.simpleVarchar, batch.simpleVarchar, 'simpleVarchar work');
-//   assert.is(batch1Result.notNullVarcharWithDefault, batch.notNullVarcharWithDefault, 'notNullVarcharWithDefault work');
-//   assert.is(batch1Result.uniqueVarchar, batch.uniqueVarchar, 'uniqueVarchar');
+AllVarcharsSuite('Update all fields from table (execute)', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+  await allVarcharsTable.insert(allPositiveFields).execute();
 
-//   const batch1: Partial<schema.AllVarcharsTableModel> = {
-//     varcharWithDefault: updateObject.varcharWithDefault,
-//     notNullVarchar: updateObject.notNullVarchar,
-//   };
+  const updateAllFields = AllVarcharUtils
+    .createAllVarcharsTableObject() as Partial<schema.AllVarcharsTableModel>;
+  delete updateAllFields.primaryVarchar;
 
-//   const batch2Result = await allVarcharsTable
-//     .update()
-//     .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
-//     .set(batch1)
-//     .findOne();
+  const updateResultAllFields = await allVarcharsTable.update()
+    .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
+    .set(updateAllFields)
+    .findOne();
 
-//   assert.is(batch2Result.simpleVarchar, batch.simpleVarchar, 'simpleVarchar work2');
-//   assert.is(batch2Result.notNullVarcharWithDefault, batch.notNullVarcharWithDefault, 'notNullVarcharWithDefault work2');
-//   assert.is(batch2Result.uniqueVarchar, batch.uniqueVarchar, 'uniqueVarchar2');
-// });
+  updateAllFields.primaryVarchar = allPositiveFields.primaryVarchar;
 
-// AllVarcharsSuite('Update with same unique key - should have an excpetion', async (context) => {
-//   const allVarcharsTable = context.allVarcharsTable!;
-//   try {
-//     await allVarcharsTable.update().set(allPositiveFields).execute();
-//   } catch (err: unknown) {
-//     assert.instance(err, Error);
-//     if (err instanceof Error) {
-//       assert.ok(err);
-//     }
-//   }
-// });
+  assert.equal(updateResultAllFields, updateAllFields);
+});
+
+AllVarcharsSuite('Update 1 by 1 field from table', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+  await allVarcharsTable.insert(allPositiveFields).execute();
+
+  const update = AllVarcharUtils.createAllVarcharsTableObject();
+
+  const updateResultNotNullVarchar = await allVarcharsTable
+    .update()
+    .set({ notNullVarchar: update.notNullVarchar })
+    .all();
+  const updateResultSimpleVarchar = await allVarcharsTable
+    .update()
+    .set({ simpleVarchar: update.simpleVarchar })
+    .all();
+  const updateResultVarcharWithDefault = await allVarcharsTable
+    .update()
+    .set({ notNullVarcharWithDefault: update.notNullVarcharWithDefault })
+    .all();
+  const updateResultUniqueVarchar = await allVarcharsTable
+    .update()
+    .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
+    .set({ uniqueVarchar: update.uniqueVarchar })
+    .findOne();
+  const updateNotNullUniqueVarchar = await allVarcharsTable
+    .update()
+    .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
+    .set({ notNullUniqueVarchar: update.notNullUniqueVarchar })
+    .findOne();
+
+  assert.is(updateResultNotNullVarchar[0].notNullVarchar, update.notNullVarchar, 'notNullVarchar');
+  assert.is(updateResultSimpleVarchar[0].simpleVarchar, update.simpleVarchar, 'simpleVarchar');
+  assert.is(updateResultVarcharWithDefault[0].notNullVarcharWithDefault,
+    update.notNullVarcharWithDefault, 'notNullVarcharWithDefault');
+  assert.is(updateResultUniqueVarchar.uniqueVarchar, update.uniqueVarchar, 'uniqueVarchar');
+  assert.is(updateNotNullUniqueVarchar.notNullUniqueVarchar, update.notNullUniqueVarchar, 'notNullUniqueVarchar');
+});
+
+AllVarcharsSuite('Update 1 by 1 field from table (execute)', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+  await allVarcharsTable.insert(allPositiveFields).execute();
+
+  const update = AllVarcharUtils.createAllVarcharsTableObject();
+
+  await allVarcharsTable
+    .update()
+    .set({ notNullVarchar: update.notNullVarchar })
+    .execute();
+  const selectResultNotNullVarchar = await allVarcharsTable.select().all();
+  await allVarcharsTable
+    .update()
+    .set({ simpleVarchar: update.simpleVarchar })
+    .execute();
+  const selectResultSimpleVarchar = await allVarcharsTable.select().all();
+  await allVarcharsTable
+    .update()
+    .set({ notNullVarcharWithDefault: update.notNullVarcharWithDefault })
+    .execute();
+  const selectResultNotNullVarcharWithDefault = await allVarcharsTable.select().all();
+
+  allVarcharsTable
+    .update()
+    .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
+    .set({ uniqueVarchar: update.uniqueVarchar })
+    .findOne();
+  const selectResultUniqueVarchar = await allVarcharsTable.select().all();
+
+  await allVarcharsTable
+    .update()
+    .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
+    .set({ notNullUniqueVarchar: update.notNullUniqueVarchar })
+    .findOne();
+  const selectResultNotNullUniqueVarchar = await allVarcharsTable.select().all();
+
+  assert.is(selectResultNotNullVarchar[0].notNullVarchar, update.notNullVarchar, 'notNullVarchar');
+  assert.is(selectResultSimpleVarchar[0].simpleVarchar, update.simpleVarchar, 'simpleVarchar');
+  assert.is(selectResultNotNullVarcharWithDefault[0].notNullVarcharWithDefault,
+    update.notNullVarcharWithDefault, 'notNullVarcharWithDefault');
+  assert.is(selectResultUniqueVarchar[0].uniqueVarchar, update.uniqueVarchar, 'uniqueVarchar');
+  assert.is(selectResultNotNullUniqueVarchar[0].notNullUniqueVarchar, update.notNullUniqueVarchar, 'notNullUniqueVarchar');
+});
+
+AllVarcharsSuite('Update batches of several fields from table', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+  await allVarcharsTable.insert(allPositiveFields).execute();
+
+  const updateObject = AllVarcharUtils.createAllVarcharsTableObject();
+  const batch: Partial<schema.AllVarcharsTableModel> = {
+    simpleVarchar: updateObject.simpleVarchar,
+    notNullVarcharWithDefault: updateObject.notNullVarcharWithDefault,
+    uniqueVarchar: updateObject.uniqueVarchar,
+  };
+
+  const batch1Result = await allVarcharsTable
+    .update()
+    .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
+    .set(batch)
+    .findOne();
+
+  assert.is(batch1Result.simpleVarchar, batch.simpleVarchar, 'simpleVarchar work');
+  assert.is(batch1Result.notNullVarcharWithDefault, batch.notNullVarcharWithDefault, 'notNullVarcharWithDefault work');
+  assert.is(batch1Result.uniqueVarchar, batch.uniqueVarchar, 'uniqueVarchar');
+
+  const batch1: Partial<schema.AllVarcharsTableModel> = {
+    varcharWithDefault: updateObject.varcharWithDefault,
+    notNullVarchar: updateObject.notNullVarchar,
+  };
+
+  const batch2Result = await allVarcharsTable
+    .update()
+    .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
+    .set(batch1)
+    .all();
+
+  assert.is(batch2Result[0].simpleVarchar, batch.simpleVarchar, 'simpleVarchar work2');
+  assert.is(batch2Result[0].notNullVarcharWithDefault, batch.notNullVarcharWithDefault, 'notNullVarcharWithDefault work2');
+  assert.is(batch2Result[0].uniqueVarchar, batch.uniqueVarchar, 'uniqueVarchar2');
+});
+
+AllVarcharsSuite('Update batches of several fields from table (execute)', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+  await allVarcharsTable.insert(allPositiveFields).execute();
+
+  const updateObject = AllVarcharUtils.createAllVarcharsTableObject();
+  const batch: Partial<schema.AllVarcharsTableModel> = {
+    simpleVarchar: updateObject.simpleVarchar,
+    notNullVarcharWithDefault: updateObject.notNullVarcharWithDefault,
+    uniqueVarchar: updateObject.uniqueVarchar,
+  };
+
+  await allVarcharsTable
+    .update()
+    .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
+    .set(batch)
+    .execute();
+
+  const selectResultBatch = await allVarcharsTable.select().all();
+
+  assert.is(selectResultBatch[0].simpleVarchar, batch.simpleVarchar, 'simpleVarchar work');
+  assert.is(selectResultBatch[0].notNullVarcharWithDefault, batch.notNullVarcharWithDefault, 'notNullVarcharWithDefault work');
+  assert.is(selectResultBatch[0].uniqueVarchar, batch.uniqueVarchar, 'uniqueVarchar');
+  assert.type(selectResultBatch[0].uniqueVarchar, 'string');
+
+  const batch1: Partial<schema.AllVarcharsTableModel> = {
+    varcharWithDefault: updateObject.varcharWithDefault,
+    notNullVarchar: updateObject.notNullVarchar,
+  };
+
+  const batch2Result = await allVarcharsTable
+    .update()
+    .where(eq(allVarcharsTable.primaryVarchar, allPositiveFields.primaryVarchar))
+    .set(batch1)
+    .execute();
+
+  const selectResultBatch1 = await allVarcharsTable.select().all();
+
+  assert.is(selectResultBatch1[0].simpleVarchar, batch.simpleVarchar, 'simpleVarchar work2');
+  assert.is(selectResultBatch1[0].notNullVarcharWithDefault, batch.notNullVarcharWithDefault, 'notNullVarcharWithDefault work2');
+  assert.is(selectResultBatch1[0].uniqueVarchar, batch.uniqueVarchar, 'uniqueVarchar2');
+  assert.type(selectResultBatch1[0].uniqueVarchar, 'string');
+});
+
+AllVarcharsSuite('Update with same unique key - should have an excpetion', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+  await allVarcharsTable.insert(allPositiveFields).execute();
+
+  try {
+    await allVarcharsTable.update().set(allPositiveFields).all();
+  } catch (err: unknown) {
+    assert.instance(err, Error);
+    if (err instanceof Error) {
+      assert.ok(err, 'Update with same unique key - should have an excpetion (all)');
+    }
+  }
+
+  try {
+    await allVarcharsTable.update().set(allPositiveFields).findOne();
+  } catch (err: unknown) {
+    assert.instance(err, Error);
+    if (err instanceof Error) {
+      assert.ok(err, 'Update with same unique key - should have an excpetion (findOne)');
+    }
+  }
+});
+
+AllVarcharsSuite('Update with same unique key - should have an excpetion (execute)', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+  await allVarcharsTable.insert(allPositiveFields).execute();
+
+  try {
+    await allVarcharsTable.update().set(allPositiveFields).execute();
+  } catch (err: unknown) {
+    assert.instance(err, Error);
+    if (err instanceof Error) {
+      assert.ok(err);
+    }
+  }
+});
 
 AllVarcharsSuite.after.each(async (context) => {
   await context.db!.session().execute(`TRUNCATE ${context.allVarcharsTable!.tableName()}`);
