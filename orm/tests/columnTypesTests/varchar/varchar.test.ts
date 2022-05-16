@@ -371,6 +371,23 @@ AllVarcharsSuite('Insert with same unique key - should have an excpetion (execut
   }
 });
 
+AllVarcharsSuite('Insert long string to field with fixed length', async (context) => {
+  const allVarcharsTable = context.allVarcharsTable!;
+
+  try {
+    const objWithSameUniqueKey = AllVarcharUtils.createAllVarcharsTableObject();
+    objWithSameUniqueKey.notNullUniqueVarcharLength = AllVarcharUtils.generateString(100);
+
+    await allVarcharsTable.insert(objWithSameUniqueKey).all();
+    assert.unreachable('1. Insert long string - should have an excpetion');
+  } catch (err: unknown) {
+    assert.instance(err, Error);
+    if (err instanceof Error) {
+      assert.ok(err);
+    }
+  }
+});
+
 AllVarcharsSuite('Insert with same primary key - should have an excpetion', async (context) => {
   const allVarcharsTable = context.allVarcharsTable!;
 
