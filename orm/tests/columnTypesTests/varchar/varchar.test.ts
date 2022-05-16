@@ -192,14 +192,45 @@ AllVarcharsSuite('Insert with onConflict statement on each field, that has such 
 
   await allVarcharsTable.insert(allPositiveFields).execute();
 
-  const unique = AllVarcharUtils.generateString(7);
+  const update = AllVarcharUtils.generateString(7);
 
   const result = await allVarcharsTable.insert(allPositiveFields)
-    .onConflict((table) => table.primaryVarcharIndex, { uniqueVarchar: unique }).findOne();
+    .onConflict((table) => table.primaryVarcharIndex, { uniqueVarchar: update }).findOne();
 
-  allPositiveFields.uniqueVarchar = unique;
+  allPositiveFields.uniqueVarchar = update;
 
   assert.equal(result, allPositiveFields);
+
+  const result1 = await allVarcharsTable.insert(allPositiveFields)
+    .onConflict((table) => table.primaryVarcharIndex, { uniqueVarcharLength: update }).findOne();
+
+  allPositiveFields.uniqueVarcharLength = update;
+
+  assert.equal(result1, allPositiveFields);
+
+  const result2 = await allVarcharsTable.insert(allPositiveFields)
+    .onConflict((table) => table.primaryVarcharIndex, { notNullUniqueVarcharLength: update })
+    .findOne();
+
+  allPositiveFields.notNullUniqueVarcharLength = update;
+
+  assert.equal(result2, allPositiveFields);
+
+  const result3 = await allVarcharsTable.insert(allPositiveFields)
+    .onConflict((table) => table.primaryVarcharIndex, { primaryVarchar: update })
+    .findOne();
+
+  allPositiveFields.primaryVarchar = update;
+
+  assert.equal(result3, allPositiveFields);
+
+  const result4 = await allVarcharsTable.insert(allPositiveFields)
+    .onConflict((table) => table.primaryVarcharIndex, { varcharWithDefaultLength: update })
+    .findOne();
+
+  allPositiveFields.varcharWithDefaultLength = update;
+
+  assert.equal(result4, allPositiveFields);
 });
 
 AllVarcharsSuite('Insert with onConflict statement on each field, that has such possibility(upsert) (execute)', async (context) => {
