@@ -17,7 +17,7 @@ export const allPositiveFields: ExtractModel<AllVarcharsTable> = {
   notNullUniqueVarcharLength: 'CNNioeniow',
 };
 
-export const mixedFields: ExtractModel<AllVarcharsTable> = {
+export const requiredFields: ExtractModel<AllVarcharsTable> = {
   primaryVarchar: 'exAmple2@gmail.com',
   notNullVarchar: 'Oleksii',
   varcharWithDefault: undefined,

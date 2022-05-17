@@ -7,7 +7,7 @@ import { DB, DbConnector, eq } from '../../../src';
 import 'dotenv/config';
 import { prepareTestSqlFromSchema } from '../../utils';
 import AllVarcharsTable, * as schema from './to/allVarcharsTable';
-import { allPositiveFields, mixedFields, mixedFields as requiredFields } from './models';
+import { allPositiveFields, requiredFields } from './models';
 import AllVarcharUtils from './utils';
 
 interface Context {
@@ -106,7 +106,7 @@ AllVarcharsSuite('Insert all required fields to table', async (context) => {
   assert.is(insertedValues.length, 1, 'Length match');
   // DRI-16
   // assert.equal(insertedValues, [{ ...requiredFields, simpleVarchar: undefined,
-  //  varcharWithDefault: 'UA' }],
+  //  varcharWithDefault: defaultVarchar }],
   //  'optional strings is undefined');
 
   const fullSelectResponse = await allVarcharsTable.select().all();
@@ -116,7 +116,7 @@ AllVarcharsSuite('Insert all required fields to table', async (context) => {
   // DRI-16
   // assert.equal(fullSelectResponse,
   //  [allPositiveFields, { ...requiredFields,
-  //  simpleVarchar: undefined, varcharWithDefault: 'UA' }],
+  //  simpleVarchar: undefined, varcharWithDefault: defaultVarchar }],
   //  'matches original');
 });
 
@@ -130,7 +130,7 @@ AllVarcharsSuite('Insert all required fields to table execute', async (context) 
   assert.is(fullSelectResponse.length, 1, 'Length match');
   // DRI-16
   // assert.equal(insertedValues, [{ ...requiredFields, simpleVarchar: undefined,
-  //  varcharWithDefault: 'UA' }],
+  //  varcharWithDefault: defaultVarchar }],
   //  'optional strings is undefined');
 
   const partialSelectResponse = await allVarcharsTable.select({
@@ -147,10 +147,10 @@ AllVarcharsSuite('Insert all required fields to table execute', async (context) 
   assert.ok(partialSelectResponse[0].simpleVarcharLength!.split('').length > 10, 'check string length');
   // DRI-16
   // assert.is(partialSelectResponse.filter((it) => it.notNullVarchar === 'owner')[0]
-  // .varcharWithDefault, 'UA');
+  // .varcharWithDefault, defaultVarchar);
   // assert.is(partialSelectResponse
   // .filter((it) => it.notNullVarchar === 'Oleksii')[0]
-  // .varcharWithDefault, 'UA');
+  // .varcharWithDefault, defaultVarchar);
 
   const partialSelect2Response = await allVarcharsTable.select({
     notNullUniqueVarcharLength: allVarcharsTable.notNullUniqueVarcharLength,
@@ -391,7 +391,6 @@ AllVarcharsSuite('Insert with wrong type', async (context) => {
   } catch (err: unknown) {
     assert.instance(err, Error);
     if (err instanceof Error) {
-      console.log(err);
       assert.ok(err);
     }
   }
