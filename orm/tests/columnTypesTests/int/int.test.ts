@@ -15,6 +15,7 @@ import {
   updatePositiveFields,
 } from './models';
 import AllIntsTable, * as schema from './to/allIntsTable';
+import { defaultInt } from './to/allIntsTable';
 
 interface Context {
   db?: DB;
@@ -156,7 +157,7 @@ AllIntsSuite('Insert all required fields to table', async (context) => {
   assert.equal(insertedValues[0], {
     ...requiredMixedFields,
     serialInt: 2,
-    intWithDefault: 1,
+    intWithDefault: defaultInt,
     uniqueInt: undefined,
     simpleInt: undefined,
   });
@@ -167,7 +168,7 @@ AllIntsSuite('Insert all required fields to table', async (context) => {
     {
       ...requiredPositiveFields,
       serialInt: 1,
-      intWithDefault: 1,
+      intWithDefault: defaultInt,
       uniqueInt: undefined,
       simpleInt: undefined,
     },
@@ -177,7 +178,7 @@ AllIntsSuite('Insert all required fields to table', async (context) => {
     {
       ...requiredMixedFields,
       serialInt: 2,
-      intWithDefault: 1,
+      intWithDefault: defaultInt,
       uniqueInt: undefined,
       simpleInt: undefined,
     },
@@ -277,7 +278,7 @@ AllIntsSuite('InsertMany with different models for all inserted values', async (
   assert.equal(insertedValues[0], mixedFields);
   assert.equal(insertedValues[1], {
     ...differentMixedFields,
-    intWithDefault: 1,
+    intWithDefault: defaultInt,
     uniqueInt: undefined,
     simpleInt: undefined,
   });
@@ -295,7 +296,7 @@ AllIntsSuite('InsertMany with different models for all inserted values', async (
     fullSelectResponse.filter((it) => it.primaryInt === differentPositiveFields.primaryInt)[0],
     {
       ...differentPositiveFields,
-      intWithDefault: 1,
+      intWithDefault: defaultInt,
       uniqueInt: undefined,
       simpleInt: undefined,
     },
@@ -304,7 +305,7 @@ AllIntsSuite('InsertMany with different models for all inserted values', async (
     fullSelectResponse.filter((it) => it.primaryInt === differentMixedFields.primaryInt)[0],
     {
       ...differentMixedFields,
-      intWithDefault: 1,
+      intWithDefault: defaultInt,
       uniqueInt: undefined,
       simpleInt: undefined,
     },
@@ -325,7 +326,7 @@ AllIntsSuite('InsertMany with different models for all inserted values', async (
     fullSelectResponse.filter((it) => it.primaryInt === differentPositiveFields.primaryInt)[0],
     {
       ...differentPositiveFields,
-      intWithDefault: 1,
+      intWithDefault: defaultInt,
       uniqueInt: undefined,
       simpleInt: undefined,
     },
@@ -334,7 +335,7 @@ AllIntsSuite('InsertMany with different models for all inserted values', async (
     fullSelectResponse.filter((it) => it.primaryInt === differentMixedFields.primaryInt)[0],
     {
       ...differentMixedFields,
-      intWithDefault: 1,
+      intWithDefault: defaultInt,
       uniqueInt: undefined,
       simpleInt: undefined,
     },
