@@ -1,3 +1,4 @@
+import { AllVarcharsFixedLengthModel } from './to/allVarcharsFixedLengthTable';
 import { AllVarcharsTableModel } from './to/allVarcharsTable';
 
 class AllVarcharUtils {
@@ -22,6 +23,13 @@ class AllVarcharUtils {
       simpleVarchar: this.generateString(7),
       notNullVarcharWithDefault: this.generateString(7),
       uniqueVarchar: this.generateString(7),
+    };
+    return object;
+  };
+
+  public static createAllVarcharsTableFixedLengthObject = () => {
+    const object: AllVarcharsFixedLengthModel = {
+      primaryVarcharLength: this.generateString(10),
       notNullUniqueVarcharLength: this.generateString(10),
       notNullVarcharLength: this.generateString(10),
       varcharWithDefaultLength: this.generateString(10),
@@ -30,6 +38,15 @@ class AllVarcharUtils {
       uniqueVarcharLength: this.generateString(10),
     };
     return object;
+  };
+
+  public static createAllVarcharsFixedLengthTableObjects = (number: number) => {
+    const result = [];
+    for (let i = 0; i < number; i += 1) {
+      const object = this.createAllVarcharsTableFixedLengthObject();
+      result.push(object);
+    }
+    return result;
   };
 
   public static createAllVarcharsTableObjects = (number: number) => {

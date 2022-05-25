@@ -7,7 +7,8 @@ import { DB, DbConnector, eq } from '../../../src';
 import 'dotenv/config';
 import { prepareTestSqlFromSchema } from '../../utils';
 import AllVarcharsTable, * as schema from './to/allVarcharsTable';
-import { allPositiveFields, requiredFields } from './models';
+import AllVarcharsFixedLengthTable, * as schema2 from './to/allVarcharsFixedLengthTable';
+import { allPositiveFields, allPositiveFieldsLength, requiredFields } from './models';
 import AllVarcharUtils from './utils';
 
 interface Context {
@@ -55,19 +56,15 @@ AllVarcharsSuite('Insert all fields to table', async (context) => {
 
   const partialSelectResponse = await allVarcharsTable
     .select({
-      simpleVarcharLength: allVarcharsTable.simpleVarcharLength,
       simpleVarchar: allVarcharsTable.simpleVarchar,
-      notNullVarcharLength: allVarcharsTable.notNullVarcharLength,
+      notNullVarchar: allVarcharsTable.notNullVarchar,
     })
     .all();
 
   assert.equal(partialSelectResponse.length, 1, 'Length match1');
-  assert.equal(partialSelectResponse[0].notNullVarcharLength, allPositiveFields.notNullVarcharLength, 'Partial select work');
   assert.equal(partialSelectResponse[0].simpleVarchar, allPositiveFields.simpleVarchar, 'Partial select work');
-  assert.equal(partialSelectResponse[0].simpleVarcharLength, allPositiveFields.simpleVarcharLength, 'Partial select work');
-  assert.type(partialSelectResponse[0].simpleVarcharLength, 'string', 'Type match');
-  assert.type(partialSelectResponse[0].notNullVarcharLength, 'string', 'Type match');
   assert.type(partialSelectResponse[0].simpleVarchar, 'string', 'Type match');
+  assert.type(partialSelectResponse[0].notNullVarchar, 'string', 'Type match');
 });
 
 AllVarcharsSuite('Insert all fields to table execute', async (context) => {
@@ -82,17 +79,15 @@ AllVarcharsSuite('Insert all fields to table execute', async (context) => {
 
   const partialSelectResponse = await allVarcharsTable
     .select({
-      simpleVarcharLength: allVarcharsTable.simpleVarcharLength,
+      // simpleVarcharLength: allVarcharsTable.simpleVarcharLength,
       simpleVarchar: allVarcharsTable.simpleVarchar,
-      notNullVarcharLength: allVarcharsTable.notNullVarcharLength,
+      notNullVarcharLength: allVarcharsTable.notNullVarchar,
     })
     .all();
 
   assert.equal(partialSelectResponse.length, 1, 'Length match1');
-  assert.equal(partialSelectResponse[0].notNullVarcharLength, allPositiveFields.notNullVarcharLength, 'Partial select work');
+  assert.equal(partialSelectResponse[0].notNullVarcharLength, allPositiveFields.notNullVarchar, 'Partial select work');
   assert.equal(partialSelectResponse[0].simpleVarchar, allPositiveFields.simpleVarchar, 'Partial select work');
-  assert.equal(partialSelectResponse[0].simpleVarcharLength, allPositiveFields.simpleVarcharLength, 'Partial select work');
-  assert.type(partialSelectResponse[0].simpleVarcharLength, 'string', 'Type match');
   assert.type(partialSelectResponse[0].notNullVarcharLength, 'string', 'Type match');
   assert.type(partialSelectResponse[0].simpleVarchar, 'string', 'Type match');
 });
@@ -136,15 +131,13 @@ AllVarcharsSuite('Insert all required fields to table execute', async (context) 
   const partialSelectResponse = await allVarcharsTable.select({
     notNullVarchar: allVarcharsTable.notNullVarchar,
     varcharWithDefault: allVarcharsTable.varcharWithDefault,
-    varcharWithDefaultLength: allVarcharsTable.varcharWithDefaultLength,
-    simpleVarcharLength: allVarcharsTable.simpleVarcharLength,
+    // varcharWithDefaultLength: allVarcharsTable.varcharWithDefaultLength,
+    // simpleVarcharLength: allVarcharsTable.simpleVarcharLength,
   }).all();
 
   assert.is(partialSelectResponse.length, 1);
   assert.type(partialSelectResponse[0].notNullVarchar, 'string', 'type match');
   assert.is(partialSelectResponse[0].notNullVarchar, requiredFields.notNullVarchar, 'field match');
-  assert.is(partialSelectResponse[0].varcharWithDefaultLength, requiredFields.varcharWithDefaultLength, 'fieldMatch');
-  assert.ok(partialSelectResponse[0].simpleVarcharLength!.split('').length > 10, 'check string length');
   // DRI-16
   // assert.is(partialSelectResponse.filter((it) => it.notNullVarchar === 'owner')[0]
   // .varcharWithDefault, defaultVarchar);
@@ -153,11 +146,11 @@ AllVarcharsSuite('Insert all required fields to table execute', async (context) 
   // .varcharWithDefault, defaultVarchar);
 
   const partialSelect2Response = await allVarcharsTable.select({
-    notNullUniqueVarcharLength: allVarcharsTable.notNullUniqueVarcharLength,
+    notNullUniqueVarchar: allVarcharsTable.notNullUniqueVarchar,
     primaryVarchar: allVarcharsTable.primaryVarchar,
   }).all();
 
-  assert.type(partialSelect2Response[0].notNullUniqueVarcharLength, 'string', 'Has property and property type match');
+  assert.type(partialSelect2Response[0].notNullUniqueVarchar, 'string', 'Has property and property type match');
   assert.type(partialSelect2Response[0].primaryVarchar, 'string', 'Has property and property type match 2');
 });
 
@@ -202,17 +195,17 @@ AllVarcharsSuite('Insert with onConflict statement on each field, that has such 
   assert.equal(result, allPositiveFields);
 
   const result1 = await allVarcharsTable.insert(allPositiveFields)
-    .onConflict((table) => table.primaryVarcharIndex, { uniqueVarcharLength: update }).findOne();
+    .onConflict((table) => table.primaryVarcharIndex, { uniqueVarchar: update }).findOne();
 
-  allPositiveFields.uniqueVarcharLength = update;
+  allPositiveFields.uniqueVarchar = update;
 
   assert.equal(result1, allPositiveFields);
 
   const result2 = await allVarcharsTable.insert(allPositiveFields)
-    .onConflict((table) => table.primaryVarcharIndex, { notNullUniqueVarcharLength: update })
+    .onConflict((table) => table.primaryVarcharIndex, { notNullUniqueVarchar: update })
     .findOne();
 
-  allPositiveFields.notNullUniqueVarcharLength = update;
+  allPositiveFields.notNullUniqueVarchar = update;
 
   assert.equal(result2, allPositiveFields);
 
@@ -225,10 +218,10 @@ AllVarcharsSuite('Insert with onConflict statement on each field, that has such 
   assert.equal(result3, allPositiveFields);
 
   const result4 = await allVarcharsTable.insert(allPositiveFields)
-    .onConflict((table) => table.primaryVarcharIndex, { varcharWithDefaultLength: update })
+    .onConflict((table) => table.primaryVarcharIndex, { varcharWithDefault: update })
     .findOne();
 
-  allPositiveFields.varcharWithDefaultLength = update;
+  allPositiveFields.varcharWithDefault = update;
 
   assert.equal(result4, allPositiveFields);
 });
@@ -414,23 +407,6 @@ AllVarcharsSuite('Insert with same unique key - should have an excpetion (execut
       // "table_with_all_varchars_unique_varchar_index"',
       // 'Insert with same unique key - should have an excpetion');
 
-      assert.ok(err);
-    }
-  }
-});
-
-AllVarcharsSuite('Insert long string to field with fixed length', async (context) => {
-  const allVarcharsTable = context.allVarcharsTable!;
-
-  try {
-    const objWithSameUniqueKey = AllVarcharUtils.createAllVarcharsTableObject();
-    objWithSameUniqueKey.notNullUniqueVarcharLength = AllVarcharUtils.generateString(100);
-
-    await allVarcharsTable.insert(objWithSameUniqueKey).all();
-    assert.unreachable('1. Insert long string - should have an excpetion');
-  } catch (err: unknown) {
-    assert.instance(err, Error);
-    if (err instanceof Error) {
       assert.ok(err);
     }
   }
@@ -699,22 +675,6 @@ AllVarcharsSuite('Update with same unique key - should have an excpetion', async
 AllVarcharsSuite('Update with same unique key - should have an excpetion (execute)', async (context) => {
   const allVarcharsTable = context.allVarcharsTable!;
   await allVarcharsTable.insert(allPositiveFields).execute();
-
-  try {
-    await allVarcharsTable.update().set(allPositiveFields).execute();
-  } catch (err: unknown) {
-    assert.instance(err, Error);
-    if (err instanceof Error) {
-      assert.ok(err);
-    }
-  }
-});
-
-AllVarcharsSuite('Update with long string', async (context) => {
-  const allVarcharsTable = context.allVarcharsTable!;
-  await allVarcharsTable.insert(allPositiveFields).execute();
-
-  allPositiveFields.notNullUniqueVarcharLength = AllVarcharUtils.generateString(100);
 
   try {
     await allVarcharsTable.update().set(allPositiveFields).execute();

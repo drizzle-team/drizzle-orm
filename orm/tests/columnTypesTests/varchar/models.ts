@@ -1,5 +1,6 @@
 import { ExtractModel } from '@/tables';
-import AllVarcharsTable from './to/allVarcharsTable';
+import AllVarcharsFixedLengthTable from './to/allVarcharsFixedLengthTable';
+import AllVarcharsTable, { AllVarcharsTableModel } from './to/allVarcharsTable';
 
 export const allPositiveFields: ExtractModel<AllVarcharsTable> = {
   primaryVarchar: 'lunaxodd@gmail.com',
@@ -9,12 +10,6 @@ export const allPositiveFields: ExtractModel<AllVarcharsTable> = {
   notNullVarcharWithDefault: 'MacBook M1',
   uniqueVarchar: 'C02FL29VQ6LR',
   notNullUniqueVarchar: 'CNNioew',
-  simpleVarcharLength: 'Oleksiis MacBook',
-  notNullVarcharLength: 'owner',
-  varcharWithDefaultLength: 'EN',
-  notNullVarcharWithDefaultLength: 'MacBook M1',
-  uniqueVarcharLength: 'C02FL29VQ6LR',
-  notNullUniqueVarcharLength: 'CNNioeniow',
 };
 
 export const requiredFields: ExtractModel<AllVarcharsTable> = {
@@ -24,6 +19,20 @@ export const requiredFields: ExtractModel<AllVarcharsTable> = {
   notNullVarcharWithDefault: 'undefined',
   uniqueVarchar: 'unique_varchar',
   notNullUniqueVarchar: 'KEYFJLL',
+};
+
+export const allPositiveFieldsLength: ExtractModel<AllVarcharsFixedLengthTable> = {
+  primaryVarcharLength: '1',
+  simpleVarcharLength: 'Oleksiis MacBook',
+  notNullVarcharLength: 'owner',
+  varcharWithDefaultLength: 'EN',
+  notNullVarcharWithDefaultLength: 'MacBook M1',
+  uniqueVarcharLength: 'C02FL29VQ6LR',
+  notNullUniqueVarcharLength: 'CNNioeniosdsdw',
+};
+
+export const requiredFieldsLength: ExtractModel<AllVarcharsFixedLengthTable> = {
+  primaryVarcharLength: '1',
   simpleVarcharLength: 'Oleksii`s MacBook',
   notNullVarcharLength: 'owner',
   varcharWithDefaultLength: undefined,
