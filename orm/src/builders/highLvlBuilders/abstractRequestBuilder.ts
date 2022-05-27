@@ -34,6 +34,7 @@ TPartial extends {[name: string]: AbstractColumn<ColumnType<any>, boolean, boole
   /**
    * Current function will return an element only if response is of length 1
    * If there are more or less than 1 element, will throw an Error
+   * @deprecated Use `.execute()` or `.all()` instead
    */
   public findOne = async () => {
     const executionRes = await this._execute();
