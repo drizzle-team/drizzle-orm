@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-empty-function */
+/* eslint-disable @typescript-eslint/explicit-member-accessibility */
+/* eslint-disable max-classes-per-file */
 /* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/member-ordering */
@@ -12,12 +15,51 @@ import BuilderError, { BuilderType } from '../../errors/builderError';
 import BaseLogger from '../../logger/abstractLogger';
 import QueryResponseMapper from '../../mappers/responseMapper';
 import { AbstractTable } from '../../tables';
-import { ExtractModel, ExtractPartialObjectFromColumns, PartialFor } from '../../tables/inferTypes';
+import {
+  ExtractFieldNames, ExtractModel, ExtractPartialObjectFromColumns, PartialFor,
+} from '../../tables/inferTypes';
 import SelectTRBWithJoin from '../joinBuilders/builders/selectWithJoin';
 import { JoinStrategy } from '../joinBuilders/join';
 import Expr from '../requestBuilders/where/where';
 import TableRequestBuilder from './abstractRequestBuilder';
 import Order from './order';
+
+// type InferParamName<T> = keyof {[Key in keyof T]: T[Key] extends Table<any, any> ? Key : never };
+export type InferTableName<T extends AbstractTable<T>> = T extends AbstractTable<T, infer TTableName> ? TTableName : never;
+
+export class JoinBuilder<TJoins extends { [k: string]: any }> {
+  // eslint-disable-next-line @typescript-eslint/no-useless-constructor
+  constructor(joins: TJoins) {}
+
+  // join<TTable extends AbstractTable<TTable, any>, TName extends string>(
+  //   value: TTable,
+  //   name: TName,
+  //   on: (joins: TJoins & { [K in TName]: InferColumns<TTable> }) => any,
+  // ): JoinBuilder<TJoins & { [K in TName]: InferColumns<TTable> }>;
+  // join<TTable extends AbstractTable<TTable, any>, TName extends InferTableName<TTable>>(
+  //   value: TTable,
+  //   on: (joins: TJoins & { [K in TName]: InferColumns<TTable> }) => any,
+  // ): JoinBuilder<TJoins & { [K in TName]: InferColumns<TTable> }>;
+  // join<TTable extends AbstractTable<TTable, any>, TName extends InferTableName<TTable>>(
+  //   value: TTable,
+  //   onOrName: TName | ((joins: TJoins & { [K in TName]: InferColumns<TTable> }) => any),
+  //   onOptional?: (
+  //     joins: TJoins & { [K in TName]: InferColumns<TTable> },
+  //   ) => any,
+  // ): JoinBuilder<TJoins & { [K in TName]: InferColumns<TTable> }> {
+  //   let name;
+  //   let on;
+  //   if (typeof onOrName === 'string') {
+  //     name = onOrName;
+  //     on = onOptional;
+  //   } else {
+  //     name = value.tableName();
+  //     on = onOrName;
+  //   }
+
+  //   return this;
+  // }
+}
 
 export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial extends {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, TTable>} = {}>
   extends TableRequestBuilder<TTable, TPartial> {
@@ -40,6 +82,27 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
     super(table, session, mappedServiceToDb, logger);
     this.props = props;
     this.__partial = partial;
+  }
+
+  join<TJoinedTable extends AbstractTable<TJoinedTable>, TName extends InferTableName<TJoinedTable>>(
+    value: TJoinedTable,
+    name: TName,
+    on: (joins: { [K in TName]: TJoinedTable }) => any,
+  ): JoinBuilder<{ [K in TName]: ExtractFieldNames<TJoinedTable> }>;
+  join<TJoinedTable extends AbstractTable<TJoinedTable>, TName extends InferTableName<TJoinedTable>>(
+    value: TJoinedTable,
+    on: (joins: { [K in TName]: TJoinedTable }) => any,
+  ): JoinBuilder<{ [K in TName]: ExtractFieldNames<TJoinedTable> }>;
+  join<TJoinedTable extends AbstractTable<TJoinedTable>, TName extends InferTableName<TJoinedTable>>(
+    value: TJoinedTable,
+    onOrName: TName | ((joins: { [K in TName]: TJoinedTable}) => any),
+    onOptional?: (
+      joins: { [K in TName]: TJoinedTable },
+    ) => any,
+  ): JoinBuilder<{ [K in TName]: AbstractColumn<ColumnType> }> {
+    return new JoinBuilder({ [value.tableName() as string]: value.mapServiceToDb() }) as JoinBuilder<{
+      [K in TName]: TJoinedTable;
+    }>;
   }
 
   public where = (expr: Expr): SelectTRB<TTable, TPartial> => {

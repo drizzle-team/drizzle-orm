@@ -25,9 +25,9 @@ export default class UsersTable extends AbstractTable<UsersTable> {
   public isArchived = this.bool('is_archived').defaultValue(false);
 
   public phoneFullNameIndex = this.index([this.phone, this.fullName]);
-  public phoneIndex = this.uniqueIndex(this.phone);
+  public phoneIndex = this.index(this.phone);
 
-  public tableName(): string {
+  public tableName() {
     return 'users';
   }
 }

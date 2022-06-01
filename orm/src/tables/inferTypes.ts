@@ -14,7 +14,7 @@ export type ExtractFieldNames<TTable> = {
       true extends TNullable ? never : Key
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       : TTable[Key] extends IndexedColumn<ColumnType, infer TNullable, infer TAutoIncrement> ?
-        true extends TNullable ? never : Key:never
+        true extends TNullable ? never : Key : never
 }[keyof TTable];
 
 export type ExtractOptionalFieldNames<TTable> = {

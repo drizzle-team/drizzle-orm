@@ -25,6 +25,8 @@ import PgSerial from '../columns/types/pgSerial';
 import PgTimestamptz from '../columns/types/pgTimestamptz';
 import PgBigSerial53, { PgBigSerial64 } from '../columns/types/pgBigSerial';
 
+type AsConst<T extends string> = string extends T ? never : T;
+
 export default abstract class AbstractTable<TTable extends AbstractTable<TTable>> {
   public db: DB;
 
