@@ -5,6 +5,9 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/member-ordering */
 /* eslint-disable import/no-cycle */
+import CitiesTable from '@/docs/tables/citiesTable';
+import UserGroupsTable from '@/docs/tables/userGroupsTable';
+import UsersTable from '@/docs/tables/usersTable';
 import { QueryResult } from 'pg';
 import { JoinWith, Select } from '..';
 import { AbstractColumn } from '../../columns/column';
@@ -24,47 +27,31 @@ import Expr from '../requestBuilders/where/where';
 import TableRequestBuilder from './abstractRequestBuilder';
 import Order from './order';
 
-// type InferParamName<T> = keyof {[Key in keyof T]: T[Key] extends Table<any, any> ? Key : never };
-export type InferTableName<T extends AbstractTable<T>> = T extends AbstractTable<T, infer TTableName> ? TTableName : never;
+type TablesFromJoins<TJoins extends { [k: string]: AbstractTable<any> }> = {
+  [Key in keyof TJoins]: TJoins[Key] extends AbstractTable<infer TTable> ? TTable : never
+}[keyof TJoins];
 
-export class JoinBuilder<TJoins extends { [k: string]: any }> {
-  // eslint-disable-next-line @typescript-eslint/no-useless-constructor
-  constructor(joins: TJoins) {}
+type UnionToArray<TType> = TType[];
 
-  // join<TTable extends AbstractTable<TTable, any>, TName extends string>(
-  //   value: TTable,
-  //   name: TName,
-  //   on: (joins: TJoins & { [K in TName]: InferColumns<TTable> }) => any,
-  // ): JoinBuilder<TJoins & { [K in TName]: InferColumns<TTable> }>;
-  // join<TTable extends AbstractTable<TTable, any>, TName extends InferTableName<TTable>>(
-  //   value: TTable,
-  //   on: (joins: TJoins & { [K in TName]: InferColumns<TTable> }) => any,
-  // ): JoinBuilder<TJoins & { [K in TName]: InferColumns<TTable> }>;
-  // join<TTable extends AbstractTable<TTable, any>, TName extends InferTableName<TTable>>(
-  //   value: TTable,
-  //   onOrName: TName | ((joins: TJoins & { [K in TName]: InferColumns<TTable> }) => any),
-  //   onOptional?: (
-  //     joins: TJoins & { [K in TName]: InferColumns<TTable> },
-  //   ) => any,
-  // ): JoinBuilder<TJoins & { [K in TName]: InferColumns<TTable> }> {
-  //   let name;
-  //   let on;
-  //   if (typeof onOrName === 'string') {
-  //     name = onOrName;
-  //     on = onOptional;
-  //   } else {
-  //     name = value.tableName();
-  //     on = onOrName;
-  //   }
+type GetJoinedTables<TJoins extends { [k: string]: AbstractTable<any> }>
+  = UnionToArray<TablesFromJoins<TJoins>>;
 
-  //   return this;
-  // }
+class JoinBuilder<TJoins extends GetJoinedTables<{ [k: string]: AbstractTable<any> }>> {
+  constructor(private joins: TJoins) {
+  }
+
+  join<TJoinedTable extends AbstractTable<TJoinedTable>>(
+    value: TJoinedTable,
+    callback: (...args: [...TJoins, TJoinedTable]) => {},
+  ): JoinBuilder<[...TJoins, TJoinedTable]> {
+    return this as unknown as JoinBuilder<[...TJoins, TJoinedTable]>;
+  }
 }
 
-export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial extends {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, TTable>} = {}>
+export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial extends { [name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, TTable> } = {}>
   extends TableRequestBuilder<TTable, TPartial> {
   protected _filter: Expr;
-  private props: { limit?: number, offset?: number};
+  private props: { limit?: number, offset?: number };
   private __orderBy?: AbstractColumn<ColumnType, boolean, boolean>;
   private __groupBy?: AbstractColumn<ColumnType, boolean, boolean>;
   private __order?: Order;
@@ -74,7 +61,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
   public constructor(
     session: ISession,
     mappedServiceToDb: { [name in keyof ExtractModel<TTable>]: AbstractColumn<ColumnType>; },
-    props: {limit?:number, offset?:number},
+    props: { limit?: number, offset?: number },
     table: AbstractTable<TTable>,
     logger?: BaseLogger,
     partial?: TPartial,
@@ -84,25 +71,11 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
     this.__partial = partial;
   }
 
-  join<TJoinedTable extends AbstractTable<TJoinedTable>, TName extends InferTableName<TJoinedTable>>(
+  join<TJoinedTable extends AbstractTable<TJoinedTable>>(
     value: TJoinedTable,
-    name: TName,
-    on: (joins: { [K in TName]: TJoinedTable }) => any,
-  ): JoinBuilder<{ [K in TName]: ExtractFieldNames<TJoinedTable> }>;
-  join<TJoinedTable extends AbstractTable<TJoinedTable>, TName extends InferTableName<TJoinedTable>>(
-    value: TJoinedTable,
-    on: (joins: { [K in TName]: TJoinedTable }) => any,
-  ): JoinBuilder<{ [K in TName]: ExtractFieldNames<TJoinedTable> }>;
-  join<TJoinedTable extends AbstractTable<TJoinedTable>, TName extends InferTableName<TJoinedTable>>(
-    value: TJoinedTable,
-    onOrName: TName | ((joins: { [K in TName]: TJoinedTable}) => any),
-    onOptional?: (
-      joins: { [K in TName]: TJoinedTable },
-    ) => any,
-  ): JoinBuilder<{ [K in TName]: AbstractColumn<ColumnType> }> {
-    return new JoinBuilder({ [value.tableName() as string]: value.mapServiceToDb() }) as JoinBuilder<{
-      [K in TName]: TJoinedTable;
-    }>;
+    callback: (...args: [TTable, TJoinedTable]) => {},
+  ): JoinBuilder<[TTable, TJoinedTable]> {
+    return new JoinBuilder([this._table, value]);
   }
 
   public where = (expr: Expr): SelectTRB<TTable, TPartial> => {
@@ -121,7 +94,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
   }
 
   public distinct = (column: AbstractColumn<ColumnType<any>, boolean, boolean>)
-  : SelectTRB<TTable, TPartial> => {
+    : SelectTRB<TTable, TPartial> => {
     this.__distinct = column;
     return this;
   };
@@ -143,7 +116,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
   // }
 
   public innerJoin<TColumn extends ColumnType, TToColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
-    table: { new(db: DB): IToTable ;},
+    table: { new(db: DB): IToTable; },
     from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean>,
     to: (table: IToTable) => AbstractColumn<TToColumn, boolean, boolean>,
     partial?: IToPartial,
@@ -172,7 +145,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
   }
 
   public leftJoin<TColumn extends ColumnType<any>, IToColumn extends ColumnType<any>, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
-    table: { new(db: DB): IToTable ;},
+    table: { new(db: DB): IToTable; },
     from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean, TTable>,
     to: (table: IToTable) => AbstractColumn<IToColumn, boolean, boolean, IToTable>,
     partial?: IToPartial,
@@ -201,7 +174,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
   }
 
   public rightJoin<TColumn extends ColumnType, TToColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
-    table: { new(db: DB): IToTable ;},
+    table: { new(db: DB): IToTable; },
     from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean>,
     to: (table: IToTable) => AbstractColumn<TToColumn, boolean, boolean>,
     partial?: IToPartial,
@@ -230,7 +203,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
   }
 
   public fullJoin<TColumn extends ColumnType, TToColumn extends ColumnType, IToTable extends AbstractTable<IToTable>, IToPartial extends PartialFor<IToTable> = {}>(
-    table: { new(db: DB): IToTable ;},
+    table: { new(db: DB): IToTable; },
     from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean>,
     to: (table: IToTable) => AbstractColumn<TToColumn, boolean, boolean>,
     partial?: IToPartial,
@@ -263,7 +236,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
     return res;
   };
 
-  protected _execute = async (): Promise<Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>> => {
+  protected _execute = async (): Promise<Array<[keyof TPartial] extends [never] ? ExtractModel<TTable> : ExtractModel<TPartial>>> => {
     // Select.from().filteredBy().limit().offset().orderBy().groupBy().build()
     const queryBuilder = Select
       .from(this._table, this.__partial)
@@ -293,8 +266,8 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
     }
     const result = await this._session.execute(query, values);
     if (this.__partial) {
-      return QueryResponseMapper.partialMap(this.__partial, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>;
+      return QueryResponseMapper.partialMap(this.__partial, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable> : ExtractModel<TPartial>>;
     }
-    return QueryResponseMapper.map(this._mappedServiceToDb, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>>;
+    return QueryResponseMapper.map(this._mappedServiceToDb, result) as Array<[keyof TPartial] extends [never] ? ExtractModel<TTable> : ExtractModel<TPartial>>;
   };
 }
