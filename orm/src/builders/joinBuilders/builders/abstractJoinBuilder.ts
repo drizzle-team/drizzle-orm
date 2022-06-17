@@ -1,3 +1,4 @@
+/* eslint-disable import/no-cycle */
 /* eslint-disable max-len */
 import BaseLogger from '@/logger/abstractLogger';
 import { QueryResult } from 'pg';

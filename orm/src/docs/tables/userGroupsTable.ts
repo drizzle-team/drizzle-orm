@@ -6,6 +6,8 @@ export default class UserGroupsTable extends AbstractTable<UserGroupsTable> {
   public name = this.varchar('name');
   public description = this.varchar('description');
 
+  public uniqueExample = this.uniqueIndex([this.name, this.description]);
+
   public tableName(): string {
     return 'user_groups';
   }

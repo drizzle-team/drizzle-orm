@@ -1,12 +1,14 @@
+/* eslint-disable import/no-cycle */
 import { AbstractColumn } from '../../columns/column';
 import ColumnType from '../../columns/types/columnType';
 import { ISession } from '../../db/session';
 import BaseLogger from '../../logger/abstractLogger';
 import { AbstractTable } from '../../tables';
 import { ExtractModel } from '../../tables/inferTypes';
+import { EmptyPartial } from './joins/selectJoinBuilder';
 
 export default abstract class TableRequestBuilder<TTable extends AbstractTable<TTable>,
-TPartial extends {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, TTable>} = {}> {
+TPartial extends EmptyPartial<TTable>> {
   protected _table: TTable;
   protected _session: ISession;
   protected _mappedServiceToDb: { [name in keyof ExtractModel<TTable>]

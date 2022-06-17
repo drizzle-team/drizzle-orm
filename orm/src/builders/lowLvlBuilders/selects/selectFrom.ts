@@ -1,4 +1,6 @@
 /* eslint-disable max-len */
+import { JoinType } from '@/builders/highLvlBuilders/joins/selectJoinBuilder';
+import AbstractTable from '@/tables/abstractTable';
 import { AbstractColumn } from '../../../columns/column';
 import ColumnType from '../../../columns/types/columnType';
 import SelectAggregator from '../../aggregators/selectAggregator';
@@ -17,9 +19,12 @@ export default class SelectFrom {
 
   public joined = (joins:
   Array<{
-    join: Join<any>, partial?: {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any>},
+    join: Join<any>, partial?: { [name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, any> },
     id?: number
   }>) => new SelectJoined(this._aggregator).apply(joins);
+
+  public joined2 = (joins:
+  Array<JoinType<AbstractTable<any>>>) => new SelectJoined(this._aggregator).apply2(joins);
 
   public limit = (limit?: number): SelectFrom => {
     this._aggregator.limit(limit);

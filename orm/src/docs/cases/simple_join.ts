@@ -61,14 +61,14 @@ import UsersToUserGroupsTable from '../tables/usersToUserGroups';
     }]).execute();
 
     // map case
-    const userWithCities = await citiesTable.select()
+    const userWithCities = await citiesTable.select({ id: citiesTable.id })
       .where(eq(citiesTable.id, 1))
-      .leftJoin(UsersTable,
+      .leftJoinV1(UsersTable,
         (city) => city.userId,
         (users) => users.id)
       .execute();
 
-    const citiesWithUserObject = userWithCities.map((city, user) => ({ ...city, user }));
+    const citiesWithUserObject = userWithCities.map((city, user) => ({ city: city.id, user }));
 
     // foreach case
     // const userWithCities1 = await citiesTable.select()
@@ -93,7 +93,7 @@ import UsersToUserGroupsTable from '../tables/usersToUserGroups';
       id: citiesTable.id,
       userId: citiesTable.userId,
     }).where(eq(citiesTable.id, 1))
-      .leftJoin(UsersTable,
+      .leftJoinV1(UsersTable,
         (city) => city.userId,
         (users) => users.id,
         {
@@ -104,7 +104,7 @@ import UsersToUserGroupsTable from '../tables/usersToUserGroups';
     // group case
     const usersWithUserGroups = await usersToUserGroupsTable.select()
       .where(eq(userGroupsTable.id, 1))
-      .leftJoin(UsersTable,
+      .leftJoinV1(UsersTable,
         (userToGroup) => userToGroup.userId,
         (users) => users.id,
         {

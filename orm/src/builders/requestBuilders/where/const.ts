@@ -12,10 +12,9 @@ export default class Const extends Expr {
   }
 
   public toQuery = ({
-    position, tableCache, session,
+    position, session,
   }:{
     position?: number,
-    tableCache?: {[tableName: string]: string},
     session: ISession,
   }): { query: string, values: Array<any>} => {
     const nextPosition = position || 1;

@@ -11,13 +11,12 @@ export default class IsNotNull extends Expr {
   }
 
   public toQuery = ({
-    position, tableCache, session,
+    position, session,
   }:{
     position?: number,
-    tableCache?: {[tableName: string]: string},
     session: ISession,
   }): { query: string, values: Array<any> } => {
-    const leftPreparedValues = this.left.toQuery({ position, tableCache, session });
+    const leftPreparedValues = this.left.toQuery({ position, session });
 
     return { query: `${leftPreparedValues.query} is not null`, values: leftPreparedValues.values };
   };

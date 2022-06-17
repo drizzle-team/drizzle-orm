@@ -26,7 +26,7 @@ export default class UsersTable extends AbstractTable<UsersTable> {
 
   public phoneFullNameIndex = this.index([this.phone, this.fullName]);
   public phoneIndex = this.index(this.phone);
-
+  
   public tableName() {
     return 'users';
   }
