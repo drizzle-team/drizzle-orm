@@ -1,8 +1,10 @@
+/* eslint-disable no-restricted-syntax */
 /* eslint-disable max-len */
 import { AbstractColumn } from '../../columns/column';
 import ColumnType from '../../columns/types/columnType';
 import { AbstractTable } from '../../tables';
 import { ecranate } from '../../utils/ecranate';
+import { JoinType } from '../highLvlBuilders/joins/selectJoinBuilder';
 import Order from '../highLvlBuilders/order';
 // eslint-disable-next-line import/no-cycle
 import Join from '../joinBuilders/join';
@@ -31,10 +33,10 @@ export default class SelectAggregator extends Aggregator {
 
   public filters = (filters: Expr): SelectAggregator => {
     if (filters) {
-      const queryBuilder = filters.toQuery({ position: 1, tableCache: this._joinCache, session: this._table.db.session() });
+      const queryBuilder = filters.toQuery({ position: this._values.length + 1, session: this._table.db.session() });
       this._filters.push('WHERE ');
       this._filters.push(queryBuilder.query);
-      this._values = queryBuilder.values;
+      this._values.push(...queryBuilder.values);
     }
     return this;
   };
@@ -77,7 +79,35 @@ export default class SelectAggregator extends Aggregator {
     this._from.push('FROM ');
     this._from.push(tableName);
     // this._from.push(`${tableName} AS ${tableName}_0`);
-    this._joinCache[tableName] = tableName;
+    // this._joinCache[tableName] = tableName;
+    return this;
+  };
+
+  public join2 = (joins: Array<JoinType<AbstractTable<any>>>): SelectAggregator => {
+    const tableFrom = this._table.tableName();
+
+    for (const [index, join] of joins.entries()) {
+      const {
+        table: tableToName, originalName, onExpression, type, columns,
+      } = join;
+
+      const selectString = this.generateSelectArray(tableToName, Object.values(columns)).join('');
+      this._fields.push(', ');
+      this._fields.push(selectString);
+      this._join.push('\n');
+      this._join.push(type);
+      this._join.push(' ');
+      this._join.push(originalName);
+      this._join.push(' ');
+      this._join.push(`AS ${tableToName}`);
+      this._join.push('\n');
+      this._join.push('ON ');
+
+      const joinExpr = onExpression.toQuery({ position: this._values.length + 1, session: this._table.db.session() });
+      this._values.push(...joinExpr.values);
+
+      this._join.push(joinExpr.query);
+    }
     return this;
   };
 

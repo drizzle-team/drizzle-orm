@@ -342,78 +342,70 @@ await usersTable.insertMany([{
 const usersTable = new UsersTable(db);
 const citiesTable = new CitiesTable(db);
 
- const userWithCities = await citiesTable.select()
-      .where(eq(citiesTable.id, 1))
-      .leftJoin(UsersTable,
-        (city) => city.userId,
-        (users) => users.id)
-      .execute();
+const userWithCities = await citiesTable.select()
+  .where(eq(citiesTable.id, 1))
+  .leftJoin(usersTable, (cities, users) => onEq(cities.userId, users.id))
+  .execute();
 
 const citiesWithUserObject = userWithCities.map((city, user) => ({ ...city, user }));
 ```
 
 ### Join Many-To-Many Tables
-##### Join User Groups with Users, using many-to-many table and map response to get user object with groups array
+##### Join User Groups with Users, using many-to-many table
 ```typescript
-    const usersWithUserGroups = await usersToUserGroupsTable.select()
+  const usersWithUserGroups = await usersToUserGroupsTable.select()
       .where(eq(userGroupsTable.id, 1))
-      .leftJoin(UsersTable,
-        (userToGroup) => userToGroup.userId,
-        (users) => users.id)
-      .leftJoin(UsersToUserGroupsTable, UserGroupsTable,
-        (userToGroup) => userToGroup.groupId,
-        (users) => users.id)
+      .leftJoin(usersTable, (usersToUserGroups, users) => onEq(usersToUserGroups.userId, users.id))
+      .leftJoin(userGroupsTable, (usersToUserGroups, _users, userGroups) => onEq(usersToUserGroups.groupId, userGroups.id))
       .execute();
-
-    const userGroupWithUsers = usersWithUserGroups.group({
-      one: (_, dbUser, dbUserGroup) => dbUser!,
-      many: (_, dbUser, dbUserGroup) => dbUserGroup!,
-    });
-
-    const userWithGroups: ExtractModel<UsersTable> & { groups: ExtractModel<UserGroupsTable>[] } = {
-      ...userGroupWithUsers.one,
-      groups: userGroupWithUsers.many,
-    };
-```
-##### Join User Groups with Users, using many-to-many table and map response to get user group object with users array
-```typescript
-    const usersWithUserGroups = await usersToUserGroupsTable.select()
-      .where(eq(userGroupsTable.id, 1))
-      .leftJoin(UsersTable,
-        (userToGroup) => userToGroup.userId,
-        (users) => users.id)
-      .leftJoin(UsersToUserGroupsTable, UserGroupsTable,
-        (userToGroup) => userToGroup.groupId,
-        (users) => users.id)
-      .execute();
-
-    const userGroupWithUsers = usersWithUserGroups.group({
-      one: (_, dbUser, dbUserGroup) => dbUserGroup!,
-      many: (_, dbUser, dbUserGroup) => dbUser!,
-    });
-
-    const userWithGroups: ExtractModel<UserGroupsTable> & { users: ExtractModel<UsersTable>[] } = {
-      ...userGroupWithUsers.one,
-      users: userGroupWithUsers.many,
-    };
 ```
 ### Join using partial field select
 ##### Join Cities with Users getting only needed fields form request
 ```typescript
-await citiesTable.select({
+    await citiesTable.select({
       id: citiesTable.id,
       userId: citiesTable.userId,
     })
-    .where(eq(citiesTable.id, 1))
-    .leftJoin(UsersTable,
-        (city) => city.userId,
-        (users) => users.id,
-        {
-          id: usersTable.id,
-        })
-    .execute();
+      .where(eq(citiesTable.id, 1))
+      .leftJoin(usersTable, (cities, users) => onEq(cities.userId, users.id))
+      .execute();
 
 const citiesWithUserObject = userWithCities.map((city, user) => ({ ...city, user }));
+```
+### Another join examples with different callback ON statements
+```typescript
+await citiesTable.select()
+  .where(eq(citiesTable.location, 'q'))
+  .leftJoin(usersTable, (cities, _users) => eq(cities.id, 13))
+  .execute();
+// Join statement generated from query
+// LEFT JOIN users AS users_1
+// ON cities."id"=$1
+// WHERE cities."page"=$2
+//
+// Values: [13, 'q']
+
+await citiesTable.select()
+  .leftJoin(usersTable, (cities, _users) => and([
+    eq(cities.id, 13), notEq(cities.id, 14),
+  ]))
+  .execute();
+// Join statement generated from query
+// LEFT JOIN users AS users_1
+// ON (cities."id"=$1 and cities."id"!=$2)
+//
+// Values: [13, 14]
+
+await citiesTable.select()
+  .where(eq(citiesTable.location, 'location'))
+  .leftJoin(usersTable, (_cities, _users) => raw('<custom expression after ON statement>'))
+  .execute();
+// Join statement generated from query
+// LEFT JOIN users AS users_1
+// ON <custom expression after ON statement>
+// WHERE cities."page"=$1
+// 
+// Values: ['location']
 ```
 
 

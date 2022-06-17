@@ -1,4 +1,97 @@
 # Changelog
+### 0.11.0 (June 17, 2022)
+### Breaking changes:
+- Joins were fully updated to new API. Old API were marked as deprecated and name was changed to V1, but all functionality inside left the same
+>Starting from now you can add any amount of joins in your query
+---
+
+#### Deprecated API functions
+##### Previous join example
+```typescript
+await citiesTable.select()
+      .leftJoin(UsersTable,
+        (city) => city.userId,
+        (users) => users.id,
+        {
+          id: usersTable.id,
+        })
+      .execute();
+```
+##### Current join examples as deprecated
+```typescript
+await citiesTable.select()
+      .leftJoinV1(UsersTable,
+        (city) => city.userId,
+        (users) => users.id,
+        {
+          id: usersTable.id,
+        })
+      .execute();
+```
+>_**Note**: Only first join calls were deprecated and renamed to v1 version. All other joins are independent blocks of call hierarchy_
+---
+Simple example of new joins
+```typescript
+// Example 1
+const joinsWithFullObjectResponse = await citiesTable.select()
+  .leftJoin(usersTable, (cities, users) => onEq(cities.userId, users.id))
+  .execute();
+
+// Example 2
+const joinsWithPartialObjectResponse = await citiesTable.select({ customUserId: citiesTable.userId })
+  .leftJoin(usersTable,
+    (cities, partialUsers) => onEq(cities.customUserId, partialUsers.customId),
+    { customId: usersTable.id })
+  .leftJoin(usersTable,
+    (_cities, partialUsers, anotherUsersJoin) => onEq(partialUsers.customId, anotherUsersJoin.anotherId),
+    { anotherId: usersTable.id })
+  .execute();
+
+const joinResponse = newJoinRes1.map((city, user) => ({ city, user }));
+```
+Each join has several params
+1. Which table you want to join - (**Required**)
+2. Callback, that has all joined tables in parameters in same order it was executed. In example 1 we have `citiesTable` as first param in callback and `usersTable` in second param in callback.
+In example 2 we have `citiesTable` as first param in callback, `usersTable` in second param in callback and `usersTable` in third param in callback - (**Required**).
+
+>Current callback need to return any expression, that should stay after `ON` -> `"JOIN table ON <expression>"`. This expression could be any filter expression from a system
+```typescript
+await citiesTable.select()
+  .where(eq(citiesTable.location, 'q'))
+  .leftJoin(usersTable, (cities, _users) => eq(cities.id, 13))
+  .execute();
+// Join statement generated from query
+// LEFT JOIN users AS users_1
+// ON cities."id"=$1
+// WHERE cities."page"=$2
+//
+// Values: [13, 'q']
+
+await citiesTable.select()
+  .leftJoin(usersTable, (cities, _users) => and([
+    eq(cities.id, 13), notEq(cities.id, 14),
+  ]))
+  .execute();
+// Join statement generated from query
+// LEFT JOIN users AS users_1
+// ON (cities."id"=$1 and cities."id"!=$2)
+//
+// Values: [13, 14]
+
+await citiesTable.select()
+  .where(eq(citiesTable.location, 'location'))
+  .leftJoin(usersTable, (_cities, _users) => raw('<custom expression after ON statement>'))
+  .execute();
+// Join statement generated from query
+// LEFT JOIN users AS users_1
+// ON <custom expression after ON statement>
+// WHERE cities."page"=$1
+// 
+// Values: ['location']
+```
+
+3. Partial select interface -  (**Optional**)
+---
 
 ### 0.10.6 (Fabruary 06, 2022)
 ### Fixes and Functionality:

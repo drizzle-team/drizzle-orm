@@ -1,5 +1,6 @@
 /* eslint-disable import/no-cycle */
 /* eslint-disable max-len */
+import { EmptyPartial } from '../builders/highLvlBuilders/joins/selectJoinBuilder';
 import { UpdateCustomExpr } from '../builders/requestBuilders/updates/updates';
 import { AbstractColumn, Column, IndexedColumn } from '../columns/column';
 import ColumnType from '../columns/types/columnType';
@@ -14,7 +15,7 @@ export type ExtractFieldNames<TTable> = {
       true extends TNullable ? never : Key
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       : TTable[Key] extends IndexedColumn<ColumnType, infer TNullable, infer TAutoIncrement> ?
-        true extends TNullable ? never : Key:never
+        true extends TNullable ? never : Key : never
 }[keyof TTable];
 
 export type ExtractOptionalFieldNames<TTable> = {
@@ -29,7 +30,7 @@ export type ExtractOptionalFieldNames<TTable> = {
 
 export type ExtractPartialObjectFromColumns<TTable> =
   {[Key in ExtractFieldNames<TTable>]: TTable[Key]} &
-  {[Key in ExtractOptionalFieldNames<TTable>]?: TTable[Key] };
+  {[Key in ExtractOptionalFieldNames<TTable>]: TTable[Key] };
 
 export type ExtractModel<TTable> =
   {[Key in ExtractFieldNames<TTable>]: ExtractCodeType<TTable[Key]>} &
@@ -59,7 +60,10 @@ export type AnyColumn = Column<ColumnType, boolean, boolean>
 export type PartialFor<TTable extends AbstractTable<TTable>>
 = {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, TTable>};
 
-export type FullOrPartial<TTable extends AbstractTable<TTable>, TPartial extends PartialFor<TTable>>
+export type TableAsColumns<TTable extends AbstractTable<TTable>>
+= {[name: string]: AbstractColumn<ColumnType<any>, boolean, boolean, TTable>};
+
+export type FullOrPartial<TTable extends AbstractTable<TTable>, TPartial extends EmptyPartial<TTable>>
 = [keyof TPartial] extends [never] ? ExtractModel<TTable>: ExtractModel<TPartial>;
 
 export type CheckTwoTypes<TInput, TTable extends AbstractTable<TTable>, TTable1 extends AbstractTable<TTable1>> = TInput extends AbstractTable<TTable> ? TTable : TInput extends AbstractTable<TTable1> ? TTable1 : never;

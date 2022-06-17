@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 import { AbstractColumn } from '../../../columns/column';
 import ColumnType from '../../../columns/types/columnType';
 import { ExtractCodeType } from '../../../tables/inferTypes';
@@ -18,6 +19,9 @@ import Or from './or';
 import RawWhere from './rawWhere';
 import Var from './var';
 import Expr from './where';
+
+export const onEq = <T extends AbstractColumn<ColumnType<any>, boolean, boolean>, T1 extends AbstractColumn<ColumnType<any>, boolean, boolean>>(left: T, right: T1)
+  : Expr => new EqWhere(new Var<T>(left), new Var<T1>(right));
 
 // eslint-disable-next-line max-len
 export const eq = <T extends AbstractColumn<ColumnType<any>, boolean, boolean>>(

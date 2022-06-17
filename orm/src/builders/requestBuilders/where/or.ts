@@ -11,10 +11,9 @@ export default class Or extends Expr {
   }
 
   public toQuery = ({
-    position, tableCache, session,
+    position, session,
   }:{
     position?: number,
-    tableCache?: {[tableName: string]: string},
     session: ISession,
   }): { query: string, values: Array<any> } => {
     let nextPosition = position || 1;
@@ -24,7 +23,7 @@ export default class Or extends Expr {
     for (let i = 0; i < this.expressions.length; i += 1) {
       const expression = this.expressions[i];
 
-      const expressionResult = expression.toQuery({ position: nextPosition, tableCache, session });
+      const expressionResult = expression.toQuery({ position: nextPosition, session });
 
       valuesResult.push(...expressionResult.values);
       result.push(expressionResult.query);

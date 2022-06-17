@@ -4,6 +4,7 @@
     "outDir": "dist",
     "allowJs": true,
     "declaration": true,
+    // "sourceMap": true,
     "baseUrl": "./",
     "paths": {
       "@/*": [

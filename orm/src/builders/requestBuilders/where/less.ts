@@ -13,14 +13,13 @@ export default class Less extends Expr {
   }
 
   public toQuery = ({
-    position, tableCache, session,
+    position, session,
   }:{
     position?: number,
-    tableCache?: {[tableName: string]: string},
     session: ISession,
   }): { query: string, values: Array<any> } => {
-    const rightPreparedValues = this.right.toQuery({ position, tableCache, session });
-    const leftPreparedValues = this.left.toQuery({ position, tableCache, session });
+    const rightPreparedValues = this.right.toQuery({ position, session });
+    const leftPreparedValues = this.left.toQuery({ position, session });
 
     return { query: `${leftPreparedValues.query} < ${rightPreparedValues.query}`, values: [...leftPreparedValues.values, ...rightPreparedValues.values] };
   };

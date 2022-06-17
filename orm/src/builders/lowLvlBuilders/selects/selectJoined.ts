@@ -1,4 +1,6 @@
 /* eslint-disable max-len */
+import { JoinType } from '@/builders/highLvlBuilders/joins/selectJoinBuilder';
+import AbstractTable from '@/tables/abstractTable';
 import { AbstractColumn } from '../../../columns/column';
 import ColumnType from '../../../columns/types/columnType';
 import SelectAggregator from '../../aggregators/selectAggregator';
@@ -19,6 +21,11 @@ export default class SelectJoined {
     id?: number
   }>): SelectJoined => {
     this._aggregator.join(joins);
+    return this;
+  };
+
+  public apply2 = (joins: Array<JoinType<AbstractTable<any>>>): SelectJoined => {
+    this._aggregator.join2(joins);
     return this;
   };
 

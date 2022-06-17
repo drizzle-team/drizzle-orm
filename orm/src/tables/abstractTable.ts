@@ -1,3 +1,4 @@
+/* eslint-disable import/no-cycle */
 import PgVarChar from '../columns/types/pgVarChar';
 import PgTimestamp from '../columns/types/pgTimestamp';
 import PgInteger from '../columns/types/pgInteger';
@@ -18,12 +19,13 @@ import PgEnum from '../columns/types/pgEnum';
 import DB from '../db/db';
 import { AbstractColumn, Column } from '../columns/column';
 import TableIndex from '../indexes/tableIndex';
-import { ExtractModel } from './inferTypes';
 import Enum, { ExtractEnumValues } from '../types/type';
 import PgSmallInt from '../columns/types/pgSmallInt';
 import PgSerial from '../columns/types/pgSerial';
 import PgTimestamptz from '../columns/types/pgTimestamptz';
 import PgBigSerial53, { PgBigSerial64 } from '../columns/types/pgBigSerial';
+import { ExtractModel } from './inferTypes';
+import { EmptyPartial } from '../builders/highLvlBuilders/joins/selectJoinBuilder';
 
 export default abstract class AbstractTable<TTable extends AbstractTable<TTable>> {
   public db: DB;
@@ -45,7 +47,7 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
   };
 
   // eslint-disable-next-line max-len
-  public select<TType extends ColumnType<any>, TColumn extends AbstractColumn<TType, boolean, boolean, TTable>, T extends {[name: string]: TColumn} = {}>(partial?: T): SelectTRB<TTable, T> {
+  public select<T extends EmptyPartial<TTable> = undefined>(partial?: T): SelectTRB<TTable, T> {
     if (!this._session) {
       throw new Error(`Db was not provided in constructor, while ${this.constructor.name} class was creating. Please make sure, that you provided Db object to ${this.constructor.name} class. Should be -> new ${this.constructor.name}(db)`);
     }

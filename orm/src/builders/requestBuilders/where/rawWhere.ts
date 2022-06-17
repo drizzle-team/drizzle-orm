@@ -8,10 +8,9 @@ export default class RawWhere extends Expr {
   }
 
   public toQuery = ({
-    position, tableCache, session,
+    position, session,
   }:{
     position?: number,
-    tableCache?: {[tableName: string]: string},
     session: ISession,
   }): { query: string, values: Array<any> } => ({ query: this.custom, values: [] });
 }

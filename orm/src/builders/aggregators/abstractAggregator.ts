@@ -30,7 +30,7 @@ export default class Aggregator {
         selectFields.push('.');
         selectFields.push(ecranate(field.getColumnName()));
         selectFields.push(' AS ');
-        selectFields.push(ecranate(`${field.getAlias()}${id ? `_${id}` : ''}`));
+        selectFields.push(ecranate(`${table}_${field.getColumnName()}`));
         selectFields.push(',');
       }
     });
