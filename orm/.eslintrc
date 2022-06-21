@@ -23,7 +23,7 @@
         "import/no-named-as-default": 0,
         "import/no-named-as-default-member": 0,
         // "prefer-arrow/prefer-arrow-functions": ["error", { "classPropertiesAllowed": true }],
-        "import/no-extraneous-dependencies": ["error", { "devDependencies": ["webpack.config.ts"] }],
+        "import/no-extraneous-dependencies": ["error", { "devDependencies": ["webpack.config.ts", "**/*.test.ts", "**/*.spec.ts"] }],
         "linebreak-style": 0
     }
 }

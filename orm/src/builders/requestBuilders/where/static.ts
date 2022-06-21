@@ -20,12 +20,19 @@ import RawWhere from './rawWhere';
 import Var from './var';
 import Expr from './where';
 
-export const onEq = <T extends AbstractColumn<ColumnType<any>, boolean, boolean>, T1 extends AbstractColumn<ColumnType<any>, boolean, boolean>>(left: T, right: T1)
-  : Expr => new EqWhere(new Var<T>(left), new Var<T1>(right));
-
 // eslint-disable-next-line max-len
-export const eq = <T extends AbstractColumn<ColumnType<any>, boolean, boolean>>(
-  left: T, value: ExtractCodeType<T>): Expr => new EqWhere(new Var<T>(left), new Const(value));
+export const eq = <
+  TLeft extends AbstractColumn<ColumnType<any>, boolean, boolean>,
+  TRight extends AbstractColumn<ColumnType<any>, boolean, boolean>,
+>(left: TLeft, right: TRight | ExtractCodeType<TLeft>): Expr => new EqWhere(new Var<TLeft>(left), right instanceof AbstractColumn ? new Var(right) : new Const(right));
+
+/**
+ @deprecated use {@link eq}
+ */
+export const onEq = <
+  T extends AbstractColumn<ColumnType<any>, boolean, boolean>,
+  T1 extends AbstractColumn<ColumnType<any>, boolean, boolean>,
+>(left: T, right: T1): Expr => eq(left, right);
 
 export const raw = (customQuery: string): Expr => new RawWhere(customQuery);
 
