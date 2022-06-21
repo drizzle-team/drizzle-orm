@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "test": "uvu -r esbuild-register tests",
+    "test": "uvu -r esbuild-register",
     "ts": "tsc",
     "lint": "eslint ./src --ext .ts",
     "run": "ts-node src/tables/newAbstractTable.ts"
