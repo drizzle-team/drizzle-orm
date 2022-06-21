@@ -13,4 +13,12 @@ export default class RawWhere extends Expr {
     position?: number,
     session: ISession,
   }): { query: string, values: Array<any> } => ({ query: this.custom, values: [] });
+
+  public toQueryV1 = ({
+    position, tableCache, session,
+  }:{
+    position?: number,
+    tableCache?: {[tableName: string]: string},
+    session: ISession,
+  }): { query: string, values: Array<any> } => ({ query: this.custom, values: [] });
 }

@@ -93,7 +93,7 @@ export default class JoinBuilder<TJoins extends {[name: string]: any}[],
     const queryBuilder = Select
       .from(this.rootTable, this._partial)
       .distinct(this._distinct)
-      .joined2(this.joinedTables)
+      .joined(this.joinedTables)
       .limit(this._props.limit)
       .offset(this._props.offset)
       .filteredBy(this._filter)

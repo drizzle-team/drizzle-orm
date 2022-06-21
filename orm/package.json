@@ -8,7 +8,7 @@
     "test": "uvu -r esbuild-register tests",
     "ts": "tsc",
     "lint": "eslint ./src --ext .ts",
-    "run": "ts-node src/tables/newAbstractTable.ts"
+    "run": "ts-node src/docs/cases/simple_join.ts"
   },
   "repository": {
     "type": "git",

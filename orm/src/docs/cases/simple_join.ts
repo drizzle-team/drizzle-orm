@@ -61,9 +61,9 @@ import UsersToUserGroupsTable from '../tables/usersToUserGroups';
     }]).execute();
 
     // map case
-    const userWithCities = await citiesTable.select({ id: citiesTable.id })
+    const userWithCities = await citiesTable.select({ id: citiesTable.userId })
       .where(eq(citiesTable.id, 1))
-      .leftJoinV1(UsersTable,
+      .innerJoinV1(UsersTable,
         (city) => city.userId,
         (users) => users.id)
       .execute();

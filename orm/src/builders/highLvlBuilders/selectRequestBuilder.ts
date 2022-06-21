@@ -169,7 +169,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
     from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean>,
     to: (table: IToTable) => AbstractColumn<TToColumn, boolean, boolean>,
     partial?: IToPartial,
-  ): SelectTRBWithJoin<TTable, IToTable, PartialFor<TTable>, IToPartial> {
+  ): SelectTRBWithJoin<TTable, IToTable, TPartial extends undefined ? {} : TPartial, IToPartial> {
     const toTable = this._table.db.create(table);
 
     const fromColumn = from(this._table);
@@ -190,7 +190,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
       this.__partial,
       partial,
       this._logger,
-    );
+    ) as SelectTRBWithJoin<TTable, IToTable, TPartial extends undefined ? {} : TPartial, IToPartial>;
   }
 
   /**
@@ -201,7 +201,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
     from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean, TTable>,
     to: (table: IToTable) => AbstractColumn<IToColumn, boolean, boolean, IToTable>,
     partial?: IToPartial,
-  ): SelectTRBWithJoin<TTable, IToTable, PartialFor<TTable>, IToPartial> {
+  ): SelectTRBWithJoin<TTable, IToTable, TPartial extends undefined ? {} : TPartial, IToPartial> {
     const toTable = this._table.db.create(table);
 
     const fromColumn = from(this._table);
@@ -222,7 +222,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
       this.__partial,
       partial,
       this._logger,
-    );
+    ) as SelectTRBWithJoin<TTable, IToTable, TPartial extends undefined ? {} : TPartial, IToPartial>;
   }
 
   /**
@@ -233,7 +233,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
     from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean>,
     to: (table: IToTable) => AbstractColumn<TToColumn, boolean, boolean>,
     partial?: IToPartial,
-  ): SelectTRBWithJoin<TTable, IToTable, PartialFor<TTable>, IToPartial> {
+  ): SelectTRBWithJoin<TTable, IToTable, TPartial extends undefined ? {} : TPartial, IToPartial> {
     const toTable = this._table.db.create(table);
 
     const fromColumn = from(this._table);
@@ -254,7 +254,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
       this.__partial,
       partial,
       this._logger,
-    );
+    ) as SelectTRBWithJoin<TTable, IToTable, TPartial extends undefined ? {} : TPartial, IToPartial>;
   }
 
   /**
@@ -265,7 +265,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
     from: (table: TTable) => AbstractColumn<TColumn, boolean, boolean>,
     to: (table: IToTable) => AbstractColumn<TToColumn, boolean, boolean>,
     partial?: IToPartial,
-  ): SelectTRBWithJoin<TTable, IToTable, PartialFor<TTable>, IToPartial> {
+  ): SelectTRBWithJoin<TTable, IToTable, TPartial extends undefined ? {} : TPartial, IToPartial> {
     const toTable = this._table.db.create(table);
 
     const fromColumn = from(this._table);
@@ -286,7 +286,7 @@ export default class SelectTRB<TTable extends AbstractTable<TTable>, TPartial ex
       this.__partial,
       partial,
       this._logger,
-    );
+    ) as SelectTRBWithJoin<TTable, IToTable, TPartial extends undefined ? {} : TPartial, IToPartial>;
   }
 
   public execute = async () => {

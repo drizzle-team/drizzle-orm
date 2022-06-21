@@ -59,7 +59,7 @@ export default abstract class AbstractJoined<TTable extends AbstractTable<TTable
 
   public execute = async (): Promise<TRes> => {
     const queryBuilder = Select
-      .from(this._table, this._partial)
+      .fromV1(this._table, this._partial)
       .distinct(this._distinct)
       .joined(this.joins())
       .limit(this._props.limit)

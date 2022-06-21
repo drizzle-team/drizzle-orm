@@ -20,4 +20,16 @@ export default class IsNotNull extends Expr {
 
     return { query: `${leftPreparedValues.query} is not null`, values: leftPreparedValues.values };
   };
+
+  public toQueryV1 = ({
+    position, tableCache, session,
+  }:{
+    position?: number,
+    tableCache?: {[tableName: string]: string},
+    session: ISession,
+  }): { query: string, values: Array<any> } => {
+    const leftPreparedValues = this.left.toQueryV1({ position, tableCache, session });
+
+    return { query: `${leftPreparedValues.query} is not null`, values: leftPreparedValues.values };
+  };
 }

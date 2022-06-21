@@ -23,4 +23,17 @@ export default class In extends Expr {
 
     return { query: `${leftPreparedValues.query} in (${rightPreparedValues.query})`, values: [...leftPreparedValues.values, ...rightPreparedValues.values] };
   };
+
+  public toQueryV1 = ({
+    position, tableCache, session,
+  }:{
+    position?: number,
+    tableCache?: {[tableName: string]: string},
+    session: ISession,
+  }): { query: string, values: Array<any> } => {
+    const rightPreparedValues = this.right.toQueryV1({ position, tableCache, session });
+    const leftPreparedValues = this.left.toQueryV1({ position, tableCache, session });
+
+    return { query: `${leftPreparedValues.query} in (${rightPreparedValues.query})`, values: [...leftPreparedValues.values, ...rightPreparedValues.values] };
+  };
 }
