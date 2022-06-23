@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "es2018",
+    "module": "commonjs",
+    "lib": [
+      "es2018",
+      "es2017",
+      "es7",
+      "es6",
+      "es5"
+    ],
+    "declaration": true,
+    "strict": true,
+    "noImplicitReturns": true,
+    "strictPropertyInitialization": false,
+    "experimentalDecorators": true,
+    "skipLibCheck": true,
+    // "composite": true,
+    "esModuleInterop": true,
+    "baseUrl": ".",
+    "paths": {
+      "drizzle-orm/*":[
+        "orm/dist/*"
+      ]
+    }
+  },
+  "exclude": [
+    "node_modules",
+    "**/*/lib",
+    "**/*/dist"
+  ],
+}

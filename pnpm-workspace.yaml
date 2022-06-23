@@ -1,0 +1,4 @@
+prefer-workspace-packages: true
+packages:
+  - kit
+  - orm
