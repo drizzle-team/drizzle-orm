@@ -1,7 +1,6 @@
 /* eslint-disable import/prefer-default-export */
 /* eslint-disable import/no-extraneous-dependencies */
 import { Pool, QueryResult } from 'pg';
-import MigrationSerializer from '@/serializer/serializer';
 import {
   dry,
   applySnapshotsDiff,
@@ -12,6 +11,7 @@ import {
   TablesResolverInput,
   TablesResolverOutput,
 } from 'drizzle-kit/src/snapshotsDiffer';
+import MigrationSerializer from '../src/serializer/serializer';
 import { AbstractTable, DB } from '../src';
 import Session, { ISession } from '../src/db/session';
 import Enum from '../src/types/type';

@@ -1,0 +1,27 @@
+{
+  "name": "drizzle-orm-sqlite",
+  "version": "0.0.1",
+  "description": "",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "ts": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lambda-direct/drizzle-orm.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/lambda-direct/drizzle-orm/issues"
+  },
+  "homepage": "https://github.com/lambda-direct/drizzle-orm#readme",
+  "dependencies": {
+    "drizzle-orm": "workspace:^0.11.2",
+    "sqlite3": "^5.0.8"
+  },
+  "devDependencies": {
+    "typescript": "4.2.4"
+  }
+}

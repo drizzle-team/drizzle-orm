@@ -8,15 +8,16 @@
     "baseUrl": "./",
     "paths": {
       "@/*": [
-        "./src/*",
+        "./*",
       ]
-    }
+    },
+    "rootDir": "src"
   },
   "include": [
-    "src",
-    "tests",
+    "src", "tests/static.spec.ts",
   ],
   "exclude": [
-    "dist"
+    "dist",
+    "node_modules"
   ]
 }

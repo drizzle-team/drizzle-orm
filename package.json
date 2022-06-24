@@ -2,6 +2,7 @@
     "private": true,
     "scripts": {
         "build:kit": "pnpm run build --filter drizzle-kit",
-        "build:orm": "pnpm run ts --filter drizzle-orm"
+        "build:orm": "pnpm run ts --filter drizzle-orm",
+        "build:sqlite": "pnpm run ts --filter drizzle-orm-sqlite"
     }
 }

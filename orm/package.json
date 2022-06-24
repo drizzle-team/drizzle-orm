@@ -25,7 +25,7 @@
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "4.10.0",
     "dotenv": "^16.0.0",
-    "drizzle-kit": "workspace:^0.9.47",
+    "drizzle-kit": "workspace:^0.9.48",
     "esbuild": "^0.14.2",
     "esbuild-register": "^3.3.2",
     "eslint": "7.15.0",
