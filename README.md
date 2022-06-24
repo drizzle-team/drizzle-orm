@@ -1,294 +1,199 @@
-# DrizzleORM
+## DrizzleORM
+DrizzleORM is a TypeScript ORM library with a [drizzle-kit](https://github.com/lambda-direct/drizzle-orm/tree/develop/kit) CLI companion for automatic SQL migrations generation. It's meant to be a library, not a framework, stay as an opt-in solution all the time at any levels. We try to follow SQL-like syntax whenever possible, be strongly typed ground top and fail in compile time, not in runtime. We implemented best in class `joins` and second to none `migrations generation`. Library has almost zero dependencies and being battle tested on production projects by multiple teams 🚀
 
-**DrizzleORM** is an ORM framework for 
-[TypeScript](https://www.typescriptlang.org/).
-It offers you several levels of Database communication:
-* Typesafe Table View approach 
-* Typesafe Query Builder
-* Simple SQL query execution
+| database    | support |
+|:--          |  :---:  |
+| PostgreSQL  | ✅      |
+| MySQL       | ⏳      |
+| DynamoDB    | ⏳      |
+| SQLite      | ⏳      |
+| MS SQL      | ⏳      |
+| CockroachDB | ⏳      |
 
-Drizzle ORM is highly influenced by [Exposed](https://github.com/JetBrains/Exposed) and Jetbrains development methodology
-
-## Supported Databases
-
-* PostgreSQL
-
-## Links
-
-In Progress
-
-## Installing
-
+### Installation
 ```bash
 npm install drizzle-orm drizzle-kit
 ```
-#### **In Progress**
-```bash
-yarn add drizzle-orm drizzle-kit
-bower install drizzle-orm drizzle-kit
-```
 
-## Connecting to database
-
-```tsx
-import { DbConnector } from "drizzle-orm";
-
-// connect via postgresql connection url
-const db = await new DbConnector()
-	.connectionString("postgres://user:password@host:port/db")
-	.connect();
-
-// or by params
-const db = await new DbConnector()
-	.params({
-		host: '0.0.0.0',
-		port: 5432,
-		user: 'user',
-		password: 'password',
-		db: 'optional_db_name'
-	}).connect();
-```
-## Project structure
-- tables folder
-- migrations folder
-
-## Create tables
-### Users Table
----
+### Quick start
 ```typescript
+import { drizzle, PgTable } from 'drizzle-orm'
 
-export const rolesEnum = createEnum({ alias: 'test-enum', values: ['user', 'guest', 'admin'] });
-
-export default class UsersTable extends AbstractTable<UsersTable> {
+export class UsersTable extends PgTable<UsersTable> {
   public id = this.serial('id').primaryKey();
   public fullName = this.text('full_name');
-
   public phone = this.varchar('phone', { size: 256 });
-  public media = this.jsonb<string[]>('media');
-  public decimalField = this.decimal('test', { precision: 100, scale: 2 }).notNull();
-  public bigIntField = this.bigint('test1', 'max_bytes_53');
-  public role = this.type(rolesEnum, 'name_in_table').notNull();
-
-  public createdAt = this.timestamp('created_at').notNull();
-
-  public createdAtWithTimezone = this.timestamptz('created_at_time_zone');
-
-  public updatedAt = this.timestamp('updated_at').defaultValue(Defaults.CURRENT_TIMESTAMP);
-  public isArchived = this.bool('is_archived').defaultValue(false);
-
-  public phoneFullNameIndex = this.index([this.phone, this.fullName]);
-  public phoneIndex = this.uniqueIndex(this.phone);
 
   public tableName(): string {
     return 'users';
   }
 }
+export type User = InferType<UsersTable>
+
+const db = await drizzle.connect("postgres://user:password@host:port/db");
+const usersTable = new UsersTable(db);
+
+const users: User[] = await usersTable.select().execute();
 ```
-### Cities Table
----
+
+### Connecting to database
 ```typescript
-interface CityMeta {
-  population: number,
-  connection: string,
+
+const db = await drizzle.connect("postgres://user:password@host:port/db");
+const db = await drizzle.connect({
+  host: "127.0.0.1",
+  port: 5432,
+  user: "postgres",
+  password: "postgres",
+  db: "db_name",
+});
+```
+
+### SQL schema declaration
+With `drizzle-orm` you declare SQL schema in typescritp. You can have either one `schema.ts` file with all declarations or you can group them logically in multiple files. We prefer to use single file schema.
+```
+📦project
+ ├ 📂src
+ │ ├ 📂data
+ │ │ └ 📜schema.ts
+ │ └ ...
+ ├ ...
+ └ 📜package.json
+ 
+## or multiple schema files
+├ 📂data
+  ├ 📜users.ts
+  ├ 📜countries.ts
+  ├ 📜cities.ts
+  ├ 📜products.ts
+  ├ 📜clients.ts
+  ├ 📜enums.ts
+  └ 📜etc.ts
+```
+This is how you declare SQL schema in `schema.ts`. You can declare tables, indexes and constraints, foreign keys and enums. Please pay attention to `export` keyword, they are mandatory if you'll be using [drizzle-kit SQL migrations generator](#migrations).
+```typescript
+// declaring enum in database
+export const popularityEnum = createEnum({ alias: 'popularity', values: ['unknown', 'known', 'popular'] });
+
+export class CountriesTable extends PgTable<CountriesTable> {
+  id = this.serial("id").primaryKey();
+  name = this.varchar("name", { size: 256 })
+	
+  // declaring index
+  nameIndex = this.uniqueIndex(this.name)
+
+  public tableName(): string {
+    return 'countries';
+  }
 }
 
-export default class CitiesTable extends AbstractTable<CitiesTable> {
-  public id = this.serial('id').primaryKey();
+export class CitiesTable extends PgTable<CitiesTable> {
+  id = this.serial("id").primaryKey();
+  name = this.varchar("name", { size: 256 })
+  countryId = this.int("country_id").foreignKey(CountriesTable, (country) => country.id)
 
-  public foundationDate = this.timestamp('name').notNull();
-  public location = this.varchar('page', { size: 256 });
-
-  public userId = this.int('user_id').foreignKey(UsersTable, (table) => table.id, { onUpdate: 'CASCADE' });
-
-  public metadata = this.jsonb<CityMeta>('metadata');
+  // declaring enum column in table
+  popularity = this.type(popularityEnum, "popularity")
 
   public tableName(): string {
     return 'cities';
   }
 }
 ```
-### User Groups Table
----
-```typescript
-export default class UserGroupsTable extends AbstractTable<UserGroupsTable> {
-  public id = this.serial('id').primaryKey();
 
-  public name = this.varchar('name');
-  public description = this.varchar('description');
+The list of all possible types. You can also create custom types - !!see here!!.
+```typescript
+export const enum = createEnum({ alias: "database-name", values: ["value1", "value2", "value3"] });
+type(enum, "...")
 
-  public tableName(): string {
-    return 'user_groups';
-  }
-}
-```
-### User to User Groups Table
----
-#### Many to many connection between Users and User Groups
-```typescript
-export default class UsersToUserGroupsTable extends AbstractTable<UsersToUserGroupsTable> {
-  public groupId = this.int('city_id').foreignKey(UserGroupsTable, (table) => table.id, { onDelete: 'CASCADE' });
-  public userId = this.int('user_id').foreignKey(UsersTable, (table) => table.id, { onDelete: 'CASCADE' });
+smallint("...")
+int("...")
+bigint("...", maxBytes: "max_bytes_53")
+bigint("...", maxBytes: "max_bytes_64")
 
-  public manyToManyIndex = this.index([this.groupId, this.userId]);
+bool("...")
+text("...");
+varchar("...");
+varchar("...", { size: 256 });
 
-  public tableName(): string {
-    return 'users_to_user_groups';
-  }
-}
-```
+serial("...");
+bigserial("...", maxBytes: "max_bytes_53");
+bigserial("...", maxBytes: "max_bytes_64");
 
-## CRUD
-### **SELECT**
----
-```typescript
-const db = await new DbConnector()
-  .connectionString('postgresql://postgres@127.0.0.1/drizzle')
-  .connect();
+decimal("...", { precision: 100, scale: 2 });
 
-const usersTable = new UsersTable(db);
+jsonb<...>("...");
+jsonb<string[]>("...");
 
-// select all
-const allSelect = await usersTable.select().all();
+time("...")
+timestamp("...")    // with timezone
+timestamptz("..."); // without timezone
+timestamp("...").defaultValue(Defaults.CURRENT_TIMESTAMP)
 
-// select first
-const firstSelect = await usersTable.select().findOne();
-```
-#### **Sorting and Filtering**
----
-##### Select all records from `Users` where phone is `"hello"`
-```typescript
-const eqSelect = await usersTable.select().where(
-  eq(usersTable.phone, 'hello')
-).all();
-```
-##### Select all records from `Users` where **both** phone is `"hello"` **and** phone is `"hello"`
-```typescript
-const andSelect = await usersTable.select().where(
-  and([
-    eq(usersTable.phone, 'hello'),
-    eq(usersTable.phone, 'hello')
-  ]),
-).all();
-```
-##### Select all records from `Users` where **either** phone is `"hello"` **or** phone is `"hello"`
-```typescript
-const orSelect = await usersTable.select().where(
-  or([eq(usersTable.phone, 'hello')]),
-).all();
-```
-##### Select all records from `Users` using **LIMIT** and **OFFSET**
-```typescript
-const limitOffsetSelect = await usersTable.select().limit(10).offset(10).all();
-```
-##### Select all records from `Users` where `phone` contains `"hello"`
-```typescript
-const likeSelect = await usersTable.select().where(
-  like(usersTable.phone, '%hello%')
-).all();
-```
-##### Select all records from `Users` where `phone` equals to some of values from array
-```typescript
-const inArraySelect = usersTable.select().where(
-  inArray(usersTable.phone, ['hello'])
-).all();
-```
-##### Select all records from `Users` where `phone` greater(**>**) than `"hello"`
-```typescript
-const greaterSelect = usersTable.select().where(
-  greater(usersTable.phone, 'hello')
-).all();
-```
-##### Select all records from `Users` where `phone` less(**<**) than `"hello"`
-```typescript
-const lessSelect = usersTable.select().where(
-  less(usersTable.phone, 'hello')
-).all();
-```
-##### Select all records from `Users` where `phone` greater or equals(**>=**) than `"hello"`
-```typescript
-const greaterEqSelect = usersTable.select().where(
-  greaterEq(usersTable.phone, 'hello')
-).all();
-```
-##### Select all records from `Users` where `phone` less or equals(**<=**) 
-```typescript
-const lessEqSelect = usersTable.select().where(
-  lessEq(usersTable.phone, 'hello')
-).all();
-```
-##### Select all records from `Users` where `phone` is **NULL**
-```typescript
-const isNullSelect = usersTable.select().where(
-  isNull(usersTable.phone)
-).all();
-```
-##### Select all records from `Users` where `phone` not equals to `"hello"`
-```typescript
-const notEqSelect = usersTable.select().where(
-  notEq(usersTable.phone, 'hello')
-).all();
-```
-##### Select all records from `Users` ordered by `phone` in ascending order
-```typescript
-const ordered = await usersTable.select().orderBy((table) => table.phone, Order.ASC).all();
-```
-#### **Partial Selecting**
- ```typescript
-    const partialSelect = await usersTable.select({
-      mappedId: usersTable.id,
-      mappedPhone: usersTable.phone,
-    }).all();
-
-    // Usage
-    const { mappedId, mappedPhone } = partialSelect;
- ```
+index(column);
+index([column1, column2, ...]);
+uniqueIndex(column);
+uniqueIndex([column1, column2, ...]);
 
 
-### **Update**
----
-##### Update `fullName` to `newName` in `Users` where phone is `"hello"`
-```typescript
-await usersTable.update()
-  .where(eq(usersTable.phone, 'hello'))
-  .set({ fullName: 'newName' })
-  .execute();
-```
-##### Update `fullName` to `newName` in `Users` where phone is `"hello"` returning updated `User` model
-```typescript
-await usersTable.update()
-  .where(eq(usersTable.phone, 'hello'))
-  .set({ fullName: 'newName' })
-  .all();
-```
-##### Update `fullName` to `newName` in `Users` where phone is `"hello"` returning updated `User` model
-```typescript
-await usersTable.update()
-  .where(eq(usersTable.phone, 'hello'))
-  .set({ fullName: 'newName' })
-  .findOne();
+column.primaryKey()
+column.notNull()
+column.defaultValue(...)
+
+// 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT'
+column.foreignKey(Table, (table) => table.column, { onDelete: "CASCADE", onUpdate: "CASCADE" });
 ```
 
-### **Delete**
-##### Delete `user` where phone is `"hello"`
+### Create Read Update Delete
+Querying, sorting and filtering. We also support partial select.
 ```typescript
-await usersTable.delete()
-      .where(eq(usersTable.phone, 'hello'))
-      .execute();
-```
-##### Delete `user` where phone is `"hello"` returning updated `User` model
-```typescript
-await usersTable.delete()
-      .where(eq(usersTable.phone, 'hello'))
-      .all();
-```
-##### Delete `user` where phone is `"hello"` returning updated `User` model
-```typescript
-await usersTable.delete()
-      .where(eq(usersTable.phone, 'hello'))
-      .findOne();
-```
+const db = await drizzle.connect("...")
+const table = new UsersTable(db);
 
-### **Insert**
+const result: User[] = await table.select().execute();
+await table.select().where(
+  eq(table.id, 42)
+).execute();
+
+// you can combine filters with eq(...) or or(...)
+await table.select().where(
+  and([eq(table.id, 42), eq(table.name, "Dan")])
+).execute();
+
+await table.select().where(
+  or([eq(table.id, 42), eq(table.id, 1)])
+).execute();
+
+// partial select
+const result = await table.select({
+     mapped1: table.id,
+     mapped2: table.name,
+}).execute();
+const { mapped1, mapped2 } = result[0];
+
+// limit offset & order by
+await table.select().limit(10).offset(10).execute()
+await table.select().orderBy((table) => table.name, Order.ASC)
+await table.select().orderBy((table) => table.name, Order.DESC)
+
+// list of all filter operators
+eq(table.column, value)
+notEq(table.column, value)
+less(table.column, value)
+lessEq(table.column, value)
+greater(table.column, value)
+greaterEq(table.column, value)
+isNull(table.column)
+isNotNull(table.column)
+
+inArray(table.column, [...values])
+like(table.column, value)
+raw("raw sql filter")
+
+and(exressions: Expr[])
+or(exressions: Expr[])
+```
+Inserting
 ##### Insert `user` with required fields
 ```typescript
 await usersTable.insert({
@@ -298,67 +203,83 @@ await usersTable.insert({
 ```
 ##### Insert `user` with required fields and get all rows as array
 ```typescript
-const user = await usersTable.insert({
-  test: 1,
+const result = await usersTable.insert({
+  name: "Andrew",
   createdAt: new Date(),
-}).all();
-```
-##### Insert `user` with required fields and get inserted entity
-```typescript
-const user = await usersTable.insert({
-  test: 1,
+}).execute();
+
+const result = await usersTable.insertMany([{
+  name: "Andrew",
   createdAt: new Date(),
-}).findOne();
-```
-##### Insert many `users` with required fields and get all inserted entities
-```typescript
-const users = await usersTable.insertMany([{
-      test: 1,
-      createdAt: new Date(),
-    }, {
-      test: 2,
-      createdAt: new Date(),
-    }]).all();
-```
-##### Insert many `users` with required fields and get all inserted entities. If such user already exists - update `phone` field
-```typescript
-await usersTable.insertMany([{
-      test: 1,
-      createdAt: new Date(),
-    }, {
-      test: 2,
-      createdAt: new Date(),
-    }])
-      .onConflict(
-        (table) => table.phoneIndex,
-        { phone: 'confilctUpdate' },
-      ).all();
+}, {
+  name: "Dan",
+  createdAt: new Date(),
+}]).execute();
+
+//await usersTable.insert({
+//  name: "Dan"
+//})
+//.onConflict(
+//	(table) => table.name,
+//	{ name: 'name value to be upserted' }
+//).execute();
 ```
 
-## Joins
-### Join One-To-Many Tables
-##### Join Cities with Users and map to city object with full user
+Update and Delete
+```typescript
+await usersTable.update()
+  .where(eq(usersTable.name, 'Dan'))
+  .set({ name: 'Mr. Dan' })
+  .execute();
+	
+await usersTable.delete()
+  .where(eq(usersTable.name, 'Dan'))
+  .execute();
+```
+
+### Joins
+Last but not least. Probably the most powerful feature in the library🚀
+Many-to-one
 ```typescript
 const usersTable = new UsersTable(db);
 const citiesTable = new CitiesTable(db);
 
-const userWithCities = await citiesTable.select()
+const result = await citiesTable.select()
   .leftJoin(usersTable, (cities, users) => eq(cities.userId, users.id))
   .where((cities, users) => eq(cities.id, 1))
   .execute();
 
-const citiesWithUserObject = userWithCities.map((city, user) => ({ ...city, user }));
+const citiesWithUsers: { city: City, user: User }[] = result.map((city, user) => ({ city, user }));
 ```
-
-### Join Many-To-Many Tables
-##### Join User Groups with Users, using many-to-many table
+Many-to-many
 ```typescript
-const usersWithUserGroups = await usersToUserGroupsTable.select()
-  .leftJoin(usersTable, (usersToUserGroups, users) => eq(usersToUserGroups.userId, users.id))
-  .leftJoin(userGroupsTable, (usersToUserGroups, _users, userGroups) => eq(usersToUserGroups.groupId, userGroups.id))
-  .where((usersToUserGroups, _users, userGroups) => eq(userGroups.id, 1))
+export class UsersTable extends PgTable<UsersTable> {
+  id = this.serial("id").primaryKey();
+	name = this.varchar("name");
+}
+
+export class ChatGroupsTable extends PgTable<ChatGroupsTable> {
+  id = this.serial("id").primaryKey();
+}
+
+export class ManyToManyTable extends PgTable<ManyToManyTable> {
+  userId = this.int('user_id').foreignKey(UsersTable, (table) => table.id, { onDelete: 'CASCADE' });
+  groupId = this.int('group_id').foreignKey(ChatGroupsTable, (table) => table.id, { onDelete: 'CASCADE' });
+}
+
+...
+const usersTable = new UsersTable(db);
+const chatGroupsTable = new ChatGroupsTable(db);
+const manyToManyTable = new ManyToManyTable(db);
+
+// querying user group with id 1 and all the participants(users)
+const usersWithUserGroups = await manyToManyTable.select()
+  .leftJoin(usersTable, (manyToMany, users) => eq(manyToManyTable.userId, users.id))
+  .leftJoin(chatGroupsTable, (manyToMany, _users, chatGroups) => eq(manyToManyTable.groupId, chatGroups.id))
+  .where((manyToMany, _users, userGroups) => eq(userGroups.id, 1))
   .execute();
 ```
+
 ### Join using partial field select
 ##### Join Cities with Users getting only needed fields form request
 ```typescript
@@ -410,6 +331,87 @@ await citiesTable.select()
 
 
 ## Migrations
+### Automatic SQL migrations generation with drizzle-kit
+DrizzleKit - is a CLI migrator tool for DrizzleORM. It is probably one and only tool that lets you completely automatically generate SQL migrations and covers ~95% of the common cases like delitions and renames by prompting user input.
+
+### How it works
+`drizzle-kit` will traverse `data folder` from configuration file, find all schema .ts files. Generate schema snapshot and compare it to the previous version(if there's one). Based on the difference it will generate all needed SQL migrations and if there're any `automatically unresolvable` cases like `renames` it will prompt user for input.
+
+For schema file:
+```typescript
+import { AbstractTable } from "drizzle-orm";
+
+export class UsersTable extends AbstractTable<UsersTable> {
+  public id = this.serial("id").primaryKey();
+  public fullName = this.varchar("full_name", { size: 256 });
+
+  public fullNameIndex = this.index(this.fullName);
+
+  public tableName(): string {
+    return "users";
+  }
+}
+
+export class AuthOtpTable extends AbstractTable<AuthOtpTable> {
+  public id = this.serial("id").primaryKey();
+  public phone = this.varchar("phone", { size: 256 });
+  public userId = this.int("user_id").foreignKey(UsersTable, (t) => t.id);
+
+  public tableName(): string {
+    return "auth_otp";
+  }
+}
+```
+It will generate:
+```SQL
+CREATE TABLE IF NOT EXISTS auth_otp (
+	"id" SERIAL PRIMARY KEY,
+	"phone" character varying(256),
+	"user_id" INT
+);
+
+CREATE TABLE IF NOT EXISTS users (
+	"id" SERIAL PRIMARY KEY,
+	"full_name" character varying(256)
+);
+
+DO $$ BEGIN
+ ALTER TABLE auth_otp ADD CONSTRAINT auth_otp_user_id_fkey FOREIGN KEY ("user_id") REFERENCES users(id);
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+
+CREATE INDEX IF NOT EXISTS users_full_name_index ON users (full_name);
+```
+
+### Installation & configuration
+```bash
+npm install -g drizzle-kit
+```
+Create a `drizzle.config.yml` configuration file:
+```yaml
+migrationRootFolder: drizzle ## all migrations will live here
+dataFolder: './src/data'     ## where are all schema .ts files
+```
+  \
+That's it, you're ready to go 🚀
+```
+> drizzle-kit migrate
+```
+  \
+You can also run migrations in project scope
+```js
+// package.json
+{
+  ...
+  scripts: {
+    ...
+    migrate: "drizzle-kit migrate"
+  }
+}
+
+> npm run migrate
+```
 #### To run migrations generated by drizzle-kit you could use `Migrator` class
 ##### Provide drizzle-kit config path
 ```typescript
