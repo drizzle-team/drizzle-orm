@@ -1,4 +1,8 @@
 # Changelog
+### 0.11.3 (June 24, 2022)
+### Documentation:
+- New version of `drizzle-orm` documentation written by [Aleksandr Blokh](https://github.com/AlexBlokh)
+
 ### 0.11.2 (June 22, 2022)
 ### Fixes
 - Move back classes for v1 joins, so mapping will work as previously
