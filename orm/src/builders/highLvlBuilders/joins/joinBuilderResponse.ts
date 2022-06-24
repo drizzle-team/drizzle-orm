@@ -1,5 +1,5 @@
-import AbstractTable from '@/tables/abstractTable';
-import { FullOrPartial } from '@/tables/inferTypes';
+import AbstractTable from '../../../tables/abstractTable';
+import { FullOrPartial } from '../../../tables/inferTypes';
 
 export default class JoinBuilderResponses<
 TResponses extends FullOrPartial<AbstractTable<any>, any>[]> {

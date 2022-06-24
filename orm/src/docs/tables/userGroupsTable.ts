@@ -1,6 +1,6 @@
-import AbstractTable from '../../tables/abstractTable';
+import AbstractTable, { PgTable } from '../../tables/abstractTable';
 
-export default class UserGroupsTable extends AbstractTable<UserGroupsTable> {
+export default class UserGroupsTable extends PgTable<UserGroupsTable> {
   public id = this.serial('id').primaryKey();
 
   public name = this.varchar('name');

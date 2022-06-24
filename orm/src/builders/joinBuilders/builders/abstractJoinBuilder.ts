@@ -1,7 +1,7 @@
 /* eslint-disable import/no-cycle */
 /* eslint-disable max-len */
-import BaseLogger from '@/logger/abstractLogger';
 import { QueryResult } from 'pg';
+import BaseLogger from '../../../logger/abstractLogger';
 import { AbstractColumn } from '../../../columns/column';
 import ColumnType from '../../../columns/types/columnType';
 import { ISession } from '../../../db/session';

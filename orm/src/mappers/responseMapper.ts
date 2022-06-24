@@ -1,8 +1,8 @@
 /* eslint-disable max-classes-per-file */
 /* eslint-disable import/no-cycle */
 /* eslint-disable max-len */
-import { EmptyPartial } from '@/builders/highLvlBuilders/joins/selectJoinBuilder';
 import { QueryResult } from 'pg';
+import { EmptyPartial } from '../builders/highLvlBuilders/joins/selectJoinBuilder';
 import { AbstractTable } from '..';
 import { AbstractColumn } from '../columns/column';
 import ColumnType from '../columns/types/columnType';

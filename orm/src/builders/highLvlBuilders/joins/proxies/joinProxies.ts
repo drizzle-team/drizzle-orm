@@ -1,7 +1,8 @@
+/* eslint-disable import/no-cycle */
 /* eslint-disable max-classes-per-file */
 
-import AbstractTable from '@/tables/abstractTable';
-import { ExtractModel } from '@/tables/inferTypes';
+import { ExtractModel } from '../../../../tables/inferTypes';
+import AbstractTable from '../../../../tables/abstractTable';
 import ColumnType from '../../../../columns/types/columnType';
 import { AbstractColumn } from '../../../../columns/column';
 

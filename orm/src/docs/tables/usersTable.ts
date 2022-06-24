@@ -1,13 +1,13 @@
 /* eslint-disable max-classes-per-file */
 // import { Defaults } from '../../columns/column';
 import { Defaults } from '../../columns/column';
-import AbstractTable from '../../tables/abstractTable';
+import AbstractTable, { PgTable } from '../../tables/abstractTable';
 import { createEnum } from '../../types/type';
 // import { rolesEnum } from '../types/rolesType';
 
 export const rolesEnum = createEnum({ alias: 'test-enum', values: ['foo', 'bar', 'baz'] });
 
-export default class UsersTable extends AbstractTable<UsersTable> {
+export default class UsersTable extends PgTable<UsersTable> {
   public id = this.serial('id').primaryKey();
   public fullName = this.text('full_name');
 
@@ -26,7 +26,7 @@ export default class UsersTable extends AbstractTable<UsersTable> {
 
   public phoneFullNameIndex = this.index([this.phone, this.fullName]);
   public phoneIndex = this.index(this.phone);
-  
+
   public tableName() {
     return 'users';
   }

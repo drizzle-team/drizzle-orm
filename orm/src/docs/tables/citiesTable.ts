@@ -1,4 +1,4 @@
-import AbstractTable from '../../tables/abstractTable';
+import AbstractTable, { PgTable } from '../../tables/abstractTable';
 import UsersTable from './usersTable';
 
 interface CityMeta {
@@ -6,7 +6,7 @@ interface CityMeta {
   connection: string,
 }
 
-export default class CitiesTable extends AbstractTable<CitiesTable> {
+export default class CitiesTable extends PgTable<CitiesTable> {
   public id = this.serial('id').primaryKey();
 
   public foundationDate = this.timestamp('name').notNull();

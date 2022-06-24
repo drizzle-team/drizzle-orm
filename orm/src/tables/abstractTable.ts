@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/member-ordering */
 /* eslint-disable max-classes-per-file */
 /* eslint-disable import/no-cycle */
 import PgVarChar from '../columns/types/pgVarChar';
@@ -31,8 +32,8 @@ import { EmptyPartial } from '../builders/highLvlBuilders/joins/selectJoinBuilde
 export default abstract class AbstractTable<TTable extends AbstractTable<TTable>> {
   public db: DB;
 
-  private _session: ISession;
-  private _logger: BaseLogger | undefined;
+  protected _session: ISession;
+  protected _logger: BaseLogger | undefined;
 
   public constructor(db: DB) {
     this._session = db.session();
@@ -118,6 +119,20 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
   protected uniqueIndex(columns: any) {
     return new TableIndex(this.tableName(), columns instanceof Array ? columns : [columns], true);
   }
+}
+
+export abstract class PgTable<TTable extends PgTable<TTable>> extends AbstractTable<TTable> {
+  protected index(columns: Array<Column<ColumnType, boolean, boolean>>): TableIndex
+  protected index(columns: Column<ColumnType, boolean, boolean>): TableIndex
+  protected index(columns: any) {
+    return new TableIndex(this.tableName(), columns instanceof Array ? columns : [columns]);
+  }
+
+  protected uniqueIndex(columns: Array<Column<ColumnType, boolean, boolean>>): TableIndex
+  protected uniqueIndex(columns: Column<ColumnType, boolean, boolean>): TableIndex
+  protected uniqueIndex(columns: any) {
+    return new TableIndex(this.tableName(), columns instanceof Array ? columns : [columns], true);
+  }
 
   protected varchar(name: string, params: {size?: number} = {})
     : Column<PgVarChar, true, false, this> {
@@ -188,7 +203,4 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
   protected jsonb<TSubType>(name: string): Column<PgJsonb<TSubType>, true, false, this> {
     return new Column(this, name, new PgJsonb<TSubType>());
   }
-}
-
-export abstract class PgTable<TTable extends PgTable<TTable>> extends AbstractTable<TTable> {
 }
