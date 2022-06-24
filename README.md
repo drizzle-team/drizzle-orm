@@ -194,14 +194,6 @@ and(exressions: Expr[])
 or(exressions: Expr[])
 ```
 Inserting
-##### Insert `user` with required fields
-```typescript
-await usersTable.insert({
-  test: 1,
-  createdAt: new Date(),
-}).execute();
-```
-##### Insert `user` with required fields and get all rows as array
 ```typescript
 const result = await usersTable.insert({
   name: "Andrew",
