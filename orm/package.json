@@ -6,7 +6,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "test": "uvu -r esbuild-register",
-    "ts": "tsc",
+    "ts": "tsc && cp package.json ./dist",
     "lint": "eslint ./src --ext .ts",
     "run": "ts-node src/docs/cases/simple_update.ts"
   },

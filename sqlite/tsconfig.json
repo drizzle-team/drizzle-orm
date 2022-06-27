@@ -4,5 +4,14 @@
     "outDir": "./dist",
     "allowJs": true,
     "sourceMap": true,
+    "rootDir": "src"
+    // "paths": {
+    //   "drizzle-orm/*":[
+    //     "node_modules/drizzle-orm/dist/*"
+    //   ]
+    // }
   },
+  "include": [
+    "src"
+  ],
 }
