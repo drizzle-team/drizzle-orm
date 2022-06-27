@@ -2,8 +2,8 @@
 import 'dotenv/config';
 import { suite } from 'uvu';
 import * as assert from 'uvu/assert';
+import * as fs from 'fs';
 import { DB, DbConnector, eq } from '../../../src';
-import { prepareTestSqlFromSchema } from '../../utils';
 import {
   allPositiveFields,
   differentMixedFields,
@@ -42,9 +42,9 @@ AllIntsSuite.before(async (context) => {
     context.db = db;
     context.allIntsTable = new AllIntsTable(db);
 
-    const sql = await prepareTestSqlFromSchema(schema);
+    const query = fs.readFileSync('tests/columnTypesTests/int/to/migration.sql').toString();
 
-    await db.session().execute(sql);
+    await db.session().execute(query);
   } catch (e) {
     console.log(e);
   }

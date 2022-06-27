@@ -14,10 +14,10 @@
     "rootDir": "src"
   },
   "include": [
-    "src", "tests/static.spec.ts",
+    "src",
   ],
   "exclude": [
-    "dist",
-    "node_modules"
+    "dist", 
+    "tests"
   ]
 }

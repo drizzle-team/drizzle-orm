@@ -1,10 +1,10 @@
 /* eslint-disable import/no-extraneous-dependencies */
 import { suite } from 'uvu';
 import * as assert from 'uvu/assert';
-import { TestSession } from 'tests/utils';
 import { DB } from '../../../src';
 import UsersTable from './usersTable';
 import { eq } from '../../../src/builders/requestBuilders/where/static';
+import { TestSession } from '../../utils';
 
 interface Context {
   testSession?: TestSession;

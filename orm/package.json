@@ -5,8 +5,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "test": "uvu -r esbuild-register",
-    "ts": "tsc && cp package.json ./dist",
+    "test": "uvu -r esbuild-register tests",
+    "ts": "tsc",
     "lint": "eslint ./src --ext .ts",
     "run": "ts-node src/docs/cases/simple_update.ts"
   },
@@ -25,7 +25,6 @@
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "4.10.0",
     "dotenv": "^16.0.0",
-    "drizzle-kit": "workspace:^0.9.48",
     "esbuild": "^0.14.2",
     "esbuild-register": "^3.3.2",
     "eslint": "7.15.0",
