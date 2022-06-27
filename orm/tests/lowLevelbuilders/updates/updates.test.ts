@@ -2,9 +2,9 @@
 import { suite } from 'uvu';
 import * as assert from 'uvu/assert';
 import { QueryResult } from 'pg';
-import { TestSession } from 'tests/utils';
 import { DB, ISession, set } from '../../../src';
 import UsersTable from './usersTable';
+import { TestSession } from '../../utils';
 
 interface Context {
   testSession?: TestSession;

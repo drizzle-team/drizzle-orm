@@ -1,7 +1,7 @@
 /* eslint-disable max-len */
 /* eslint-disable import/no-cycle */
-import BaseLogger from '@/logger/abstractLogger';
 import { QueryResult } from 'pg';
+import BaseLogger from '../../../logger/abstractLogger';
 import { AbstractColumn } from '../../../columns/column';
 import ColumnType from '../../../columns/types/columnType';
 import DB from '../../../db/db';
@@ -193,11 +193,11 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
   protected mapResponse(result: QueryResult<any>)
     : SelectResponseTwoJoins<TTable, TTable1, TTable2, TPartial, TPartial1, TPartial2> {
     const parent:
-      { [name in keyof ExtractModel<TTable1>]:
-        AbstractColumn<ColumnType>; } = this._join1.mappedServiceToDb;
+    { [name in keyof ExtractModel<TTable1>]:
+      AbstractColumn<ColumnType>; } = this._join1.mappedServiceToDb;
     const parentTwo:
-      { [name in keyof ExtractModel<TTable2>]:
-        AbstractColumn<ColumnType>; } = this._join2.mappedServiceToDb;
+    { [name in keyof ExtractModel<TTable2>]:
+      AbstractColumn<ColumnType>; } = this._join2.mappedServiceToDb;
 
     const response = this.fullOrPartial(this._table.mapServiceToDb(), result, this._partial);
     const objects = this.fullOrPartial(parent, result, this._joinedPartial, 1);
@@ -215,6 +215,6 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
     id?: number
   }> {
     return [{ join: this._join1, partial: this._joinedPartial, id: 1 },
-    { join: this._join2, partial: this._joinedPartial1, id: 2 }];
+      { join: this._join2, partial: this._joinedPartial1, id: 2 }];
   }
 }

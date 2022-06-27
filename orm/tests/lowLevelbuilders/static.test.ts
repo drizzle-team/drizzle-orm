@@ -1,10 +1,10 @@
 import { suite } from 'uvu';
 import * as assert from 'uvu/assert';
 
-import AbstractTable from '@/tables/abstractTable';
-import { TestSession } from '@/../tests/utils';
-import { DB } from '@/db';
-import { and, eq, onEq } from './static';
+import { and, eq, onEq } from '../../src/builders/requestBuilders/where/static';
+import { DB } from '../../src/db';
+import AbstractTable from '../../src/tables/abstractTable';
+import { TestSession } from '../utils';
 
 class TestTable extends AbstractTable<TestTable> {
   public id = this.serial('id').primaryKey();

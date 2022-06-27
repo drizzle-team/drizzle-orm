@@ -10,13 +10,14 @@
       "@/*": [
         "./src/*",
       ]
-    }
+    },
+    "rootDir": "src"
   },
   "include": [
     "src",
-    "tests",
   ],
   "exclude": [
-    "dist"
+    "dist", 
+    "tests"
   ]
 }
