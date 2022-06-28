@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import Create from '../../builders/lowLvlBuilders/create';
 import DbConnector from '../../db/dbConnector';
 import ConsoleLogger from '../../logger/consoleLogger';
 import CitiesTable from '../tables/citiesTable';

@@ -2,7 +2,7 @@
 import { AbstractColumn } from '../../columns/column';
 import ColumnType from '../../columns/types/columnType';
 import { AbstractTable } from '../../tables';
-import { ecranate } from '../../utils/ecranate';
+import { escape } from '../../utils/escape';
 import Order from '../highLvlBuilders/order';
 // eslint-disable-next-line import/no-cycle
 import Join from '../joinBuilders/join';
@@ -60,7 +60,7 @@ export default class SelectAggregatorV1 extends Aggregator {
     if (column !== null && column !== undefined) {
       this._orderBy.push('ORDER BY ');
       const columnParent = this._joinCache[column.getParent().tableName()] ? this._joinCache[column.getParent().tableName()] : column.getParent().tableName();
-      this._orderBy.push(`${columnParent}.${ecranate(column.getColumnName())} `);
+      this._orderBy.push(`${columnParent}.${escape(column.getColumnName(), this._table.db.session().escapeStrategy())} `);
       this._orderBy.push(Order[order!]);
     }
     return this;
@@ -68,7 +68,7 @@ export default class SelectAggregatorV1 extends Aggregator {
 
   public distinct = (column?: AbstractColumn<ColumnType, boolean, boolean>): SelectAggregatorV1 => {
     if (column) {
-      this._distinct.push(` DISTINCT ON(${column.getParent().tableName()}.${ecranate(column.getColumnName())}) `);
+      this._distinct.push(` DISTINCT ON(${column.getParent().tableName()}.${escape(column.getColumnName(), this._table.db.session().escapeStrategy())}) `);
     }
     return this;
   };

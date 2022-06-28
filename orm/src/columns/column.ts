@@ -4,7 +4,6 @@
 import { PgText, PgTime, PgTimestamp } from '.';
 import DB from '../db/db';
 import { AbstractTable } from '../tables';
-import { shouldEcranate } from '../utils/ecranate';
 import ColumnType from './types/columnType';
 import PgTimestamptz from './types/pgTimestamptz';
 

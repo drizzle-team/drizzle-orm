@@ -1,6 +1,6 @@
 /* eslint-disable no-return-assign */
 import { ISession } from '../../../db/session';
-import { shouldEcranate } from '../../../utils/ecranate';
+import { shouldEscape } from '../../../utils/escape';
 import Expr from './where';
 
 export default class Const extends Expr {
@@ -21,7 +21,7 @@ export default class Const extends Expr {
     if (this.value instanceof Date) {
       return { query: session.parametrized(nextPosition), values: [`${this.value.toISOString()}`] };
     }
-    if (shouldEcranate(this.value)) {
+    if (shouldEscape(this.value)) {
       return { query: session.parametrized(nextPosition), values: [`${this.value.toString()}`] };
     }
     return { query: session.parametrized(nextPosition), values: [this.value] };
@@ -37,7 +37,7 @@ export default class Const extends Expr {
     if (this.value instanceof Date) {
       return { query: session.parametrized(nextPosition), values: [`${this.value.toISOString()}`] };
     }
-    if (shouldEcranate(this.value)) {
+    if (shouldEscape(this.value)) {
       return { query: session.parametrized(nextPosition), values: [`${this.value.toString()}`] };
     }
     return { query: session.parametrized(nextPosition), values: [this.value] };

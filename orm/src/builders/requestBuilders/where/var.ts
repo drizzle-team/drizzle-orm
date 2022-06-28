@@ -1,7 +1,7 @@
 /* eslint-disable max-len */
 import { AbstractColumn } from '../../../columns/column';
 import ColumnType from '../../../columns/types/columnType';
-import { ecranate } from '../../../utils/ecranate';
+import { escape } from '../../../utils/escape';
 import Expr from './where';
 import { ISession } from '../../../db/session';
 
@@ -21,7 +21,7 @@ export default class Var<T extends AbstractColumn<ColumnType<any>, boolean, bool
   }): { query: string, values: Array<any> } => {
     const tableName = this.column.getParentName();
 
-    return { query: `${tableName}.${ecranate(this.column.getColumnName())}`, values: [] };
+    return { query: `${tableName}.${escape(this.column.getColumnName(), session.escapeStrategy())}`, values: [] };
   };
 
   public toQueryV1 = ({
@@ -32,6 +32,6 @@ export default class Var<T extends AbstractColumn<ColumnType<any>, boolean, bool
     session: ISession,
   }): { query: string, values: Array<any> } => {
     const tableName = tableCache && tableCache[this.column.getParentName()] ? tableCache[this.column.getParentName()] : this.column.getParentName();
-    return { query: `${tableName}.${ecranate(this.column.getColumnName())}`, values: [] };
+    return { query: `${tableName}.${escape(this.column.getColumnName(), session.escapeStrategy())}`, values: [] };
   };
 }

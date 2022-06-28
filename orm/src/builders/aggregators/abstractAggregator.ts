@@ -2,7 +2,7 @@
 import { AbstractColumn, Column } from '../../columns/column';
 import ColumnType from '../../columns/types/columnType';
 import { AbstractTable } from '../../tables';
-import { ecranate } from '../../utils/ecranate';
+import { escape } from '../../utils/escape';
 
 // eslint-disable-next-line max-len
 export default class Aggregator {
@@ -28,9 +28,9 @@ export default class Aggregator {
         selectFields.push(' ');
         selectFields.push(table);
         selectFields.push('.');
-        selectFields.push(ecranate(field.getColumnName()));
+        selectFields.push(escape(field.getColumnName(), this._table.db.session().escapeStrategy()));
         selectFields.push(' AS ');
-        selectFields.push(ecranate(`${table}_${field.getColumnName()}`));
+        selectFields.push(escape(`${table}_${field.getColumnName()}`, this._table.db.session().escapeStrategy()));
         selectFields.push(',');
       }
     });
@@ -47,9 +47,9 @@ export default class Aggregator {
         selectFields.push(' ');
         selectFields.push(table);
         selectFields.push('.');
-        selectFields.push(ecranate(field.getColumnName()));
+        selectFields.push(escape(field.getColumnName(), this._table.db.session().escapeStrategy()));
         selectFields.push(' AS ');
-        selectFields.push(ecranate(`${field.getAlias()}${id ? `_${id}` : ''}`));
+        selectFields.push(escape(`${table}_${field.getColumnName()}`, this._table.db.session().escapeStrategy()));
         selectFields.push(',');
       }
     });

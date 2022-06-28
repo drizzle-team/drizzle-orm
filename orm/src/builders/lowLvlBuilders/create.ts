@@ -1,7 +1,7 @@
 import { Column } from '../../columns/column';
 import PgEnum from '../../columns/types/pgEnum';
 import AbstractTable from '../../tables/abstractTable';
-import { ecranate } from '../../utils/ecranate';
+import { escape } from '../../utils/escape';
 
 export default class Create<TTable extends AbstractTable<TTable>> {
   private tableBuilder: Array<string> = [];
@@ -47,7 +47,8 @@ export default class Create<TTable extends AbstractTable<TTable>> {
           WHEN duplicate_object THEN null;
       END $$;`);
         }
-        this.columnsBuilder.push(ecranate(column.getColumnName()));
+        this.columnsBuilder.push(escape(column.getColumnName(),
+          this.tableClass.db.session().escapeStrategy()));
         this.columnsBuilder.push(' ');
         this.columnsBuilder.push(column.getColumnType().getDbName());
         this.columnsBuilder.push(' ');

@@ -1,4 +1,4 @@
-import { shouldEcranate } from '../../../utils/ecranate';
+import { shouldEscape } from '../../../utils/escape';
 import Expr from './where';
 import { ISession } from '../../../db/session';
 
@@ -25,7 +25,7 @@ export default class ConstArray extends Expr {
       if (value instanceof Date) {
         finalArray.push(session.parametrized(nextPosition));
         finalValues.push(`${value.toISOString()}`);
-      } else if (shouldEcranate(value)) {
+      } else if (shouldEscape(value)) {
         finalArray.push(session.parametrized(nextPosition));
         finalValues.push(`${value.toString()}`);
       } else {
@@ -56,7 +56,7 @@ export default class ConstArray extends Expr {
       if (value instanceof Date) {
         finalArray.push(session.parametrized(nextPosition));
         finalValues.push(`${value.toISOString()}`);
-      } else if (shouldEcranate(value)) {
+      } else if (shouldEscape(value)) {
         finalArray.push(session.parametrized(nextPosition));
         finalValues.push(`${value.toString()}`);
       } else {

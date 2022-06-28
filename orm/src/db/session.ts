@@ -17,6 +17,7 @@ export abstract class ISession {
     }
   }
 
+  public abstract escapeStrategy(): string;
   public abstract parametrized(num: number): string;
   public abstract closeConnection(): Promise<void>;
 
@@ -26,6 +27,10 @@ export abstract class ISession {
 export default class Session extends ISession {
   public constructor(private pool: Pool, private connection?: PoolClient) {
     super();
+  }
+
+  public escapeStrategy(): string {
+    return '"';
   }
 
   public parametrized(num: number): string {
