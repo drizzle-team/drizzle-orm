@@ -1,10 +1,10 @@
-import AbstractTable from '../../../src/tables/abstractTable';
+import AbstractTable, { PgTable } from '../../../src/tables/abstractTable';
 import { createEnum } from '../../../src/types/type';
 import { Defaults } from '../../../src/columns/column';
 
 export const rolesEnum = createEnum({ alias: 'test-enum', values: ['foo', 'bar', 'baz'] });
 
-export default class UsersTable extends AbstractTable<UsersTable> {
+export default class UsersTable extends PgTable<UsersTable> {
   public id = this.serial('id').primaryKey();
   public fullName = this.text('full_name');
 

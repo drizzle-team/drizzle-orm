@@ -1,9 +1,9 @@
-import AbstractTable from '../../../../src/tables/abstractTable';
+import AbstractTable, { PgTable } from '../../../../src/tables/abstractTable';
 
 export const defaultInt = 1;
 export const notNullWithDefault = 1;
 
-export default class AllIntsTable extends AbstractTable<AllIntsTable> {
+export default class AllIntsTable extends PgTable<AllIntsTable> {
   public primaryInt = this.int('primary_key').primaryKey();
   public serialInt = this.serial('serial_int');
 

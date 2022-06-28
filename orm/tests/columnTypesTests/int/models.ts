@@ -1,4 +1,4 @@
-import { ExtractModel } from '@/tables';
+import { ExtractModel } from '../../../src/tables/inferTypes';
 import AllIntsTable from './to/allIntsTable';
 
 export const allPositiveFields: ExtractModel<AllIntsTable> = {

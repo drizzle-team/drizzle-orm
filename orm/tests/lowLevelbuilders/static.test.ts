@@ -3,10 +3,10 @@ import * as assert from 'uvu/assert';
 
 import { and, eq, onEq } from '../../src/builders/requestBuilders/where/static';
 import { DB } from '../../src/db';
-import AbstractTable from '../../src/tables/abstractTable';
+import AbstractTable, { PgTable } from '../../src/tables/abstractTable';
 import { TestSession } from '../utils';
 
-class TestTable extends AbstractTable<TestTable> {
+class TestTable extends PgTable<TestTable> {
   public id = this.serial('id').primaryKey();
   public age = this.int('age');
 
