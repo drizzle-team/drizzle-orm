@@ -1,0 +1,17 @@
+{
+    "extends": "../tsconfig.json",
+    "compilerOptions": {
+      "outDir": "./dist",
+      "allowJs": true,
+      "sourceMap": true,
+      "rootDir": "src",
+      "paths": {
+        "@/*": [
+          "./mysql/*",
+        ]
+      },
+    },
+    "include": [
+      "src"
+    ],
+  }

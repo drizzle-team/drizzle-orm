@@ -3,3 +3,4 @@ packages:
   - kit
   - orm
   - sqlite
+  - mysql
