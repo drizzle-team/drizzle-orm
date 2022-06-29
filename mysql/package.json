@@ -1,0 +1,29 @@
+{
+  "name": "drizzle-orm-mysql",
+  "version": "0.0.1",
+  "description": "",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "ts": "tsc",
+    "run": "ts-node src/test.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lambda-direct/drizzle-orm.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/lambda-direct/drizzle-orm/issues"
+  },
+  "homepage": "https://github.com/lambda-direct/drizzle-orm#readme",
+  "dependencies": {
+    "drizzle-orm": "workspace:../orm/dist",
+    "mysql2": "^2.3.3"
+  },
+  "devDependencies": {
+    "ts-node": "^10.0.0",
+    "typescript": "4.2.4"
+  }
+}
