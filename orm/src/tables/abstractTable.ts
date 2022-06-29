@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 /* eslint-disable max-classes-per-file */
 /* eslint-disable import/no-cycle */
 import PgVarChar from '../columns/types/pgVarChar';
@@ -33,6 +34,7 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
 
   private _session: ISession;
   private _logger: BaseLogger | undefined;
+  private _indexes: TableIndex[] = [];
 
   public constructor(db: DB) {
     this._session = db.session();
@@ -46,6 +48,18 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
   public withLogger = (logger: BaseLogger) => {
     this._logger = logger;
   };
+
+  public getColumns(): AbstractColumn<ColumnType, boolean, boolean>[] {
+    return Object.values(this.mapServiceToDb());
+  }
+
+  public getIndexes(): TableIndex[] {
+    return this._indexes.slice();
+  }
+
+  public getForeignKeys(): AbstractColumn<ColumnType, boolean, boolean>[] {
+    return this.getColumns().filter((column) => !!column.getReferenced());
+  }
 
   // eslint-disable-next-line max-len
   public select<T extends EmptyPartial<TTable> = undefined>(partial?: T): SelectTRB<TTable, T> {
@@ -110,13 +124,17 @@ export default abstract class AbstractTable<TTable extends AbstractTable<TTable>
   protected index(columns: Array<Column<ColumnType, boolean, boolean>>): TableIndex
   protected index(columns: Column<ColumnType, boolean, boolean>): TableIndex
   protected index(columns: any) {
-    return new TableIndex(this.tableName(), columns instanceof Array ? columns : [columns]);
+    const index = new TableIndex(this.tableName(), columns instanceof Array ? columns : [columns]);
+    this._indexes.push(index);
+    return index;
   }
 
   protected uniqueIndex(columns: Array<Column<ColumnType, boolean, boolean>>): TableIndex
   protected uniqueIndex(columns: Column<ColumnType, boolean, boolean>): TableIndex
   protected uniqueIndex(columns: any) {
-    return new TableIndex(this.tableName(), columns instanceof Array ? columns : [columns], true);
+    const index = new TableIndex(this.tableName(), columns instanceof Array ? columns : [columns], true);
+    this._indexes.push(index);
+    return index;
   }
 
   protected varchar(name: string, params: {size?: number} = {})
