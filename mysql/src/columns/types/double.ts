@@ -1,6 +1,6 @@
 import ColumnType from "drizzle-orm/columns/types/columnType";
 
-export default class MySqlDecimal extends ColumnType<number> {
+export class MySqlDouble extends ColumnType<number> {
   public precision?: number;
   public scale?: number;
   public dbName: string;
@@ -9,21 +9,13 @@ export default class MySqlDecimal extends ColumnType<number> {
     super();
     this.precision = precision;
     this.scale = scale;
-    if (this.scale && !this.precision) {
+    if (!this.scale || !this.precision) {
       throw new Error(
         "In numeric scale should be set up together with precision"
       );
     }
 
-    if (this.precision && !this.scale) {
-      this.dbName = `FLOAT(${this.precision})`;
-    }
-
-    if (this.precision && this.scale) {
-      this.dbName = `FLOAT(${this.precision},${this.scale})`;
-    } else {
-      this.dbName = "FLOAT";
-    }
+    this.dbName = `DOUBLE(${this.precision},${this.scale})`;
   }
 
   public getDbName = (): string => this.dbName;

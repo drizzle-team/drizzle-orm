@@ -1,6 +1,6 @@
 import ColumnType from "drizzle-orm/columns/types/columnType";
 
-export default class MySqlFloat extends ColumnType<number> {
+export class MySqlFloat extends ColumnType<number> {
   public precision?: number;
   public scale?: number;
   public dbName: string;

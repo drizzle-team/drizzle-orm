@@ -1,6 +1,6 @@
 import ColumnType from "drizzle-orm/columns/types/columnType";
 
-export default class MySqlDecimal extends ColumnType<number> {
+export class MySqlDecimal extends ColumnType<number> {
   public precision?: number;
   public scale?: number;
   public dbName: string;
