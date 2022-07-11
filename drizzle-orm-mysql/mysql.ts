@@ -1,6 +1,3 @@
-import { Return } from './core';
-import { PgSession } from './pg/core';
-
 export interface MySqlReturn extends Return {
 	num: number;
 	id: number;

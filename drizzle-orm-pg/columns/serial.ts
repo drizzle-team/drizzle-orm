@@ -1,9 +1,13 @@
-import { AnyTable } from '../../core';
-import { PgColumn, PgColumnBuilder } from '../core';
+import { AnyTable } from 'drizzle-orm';
 
-export class PgSerialBuilder<
-	TNotNull extends boolean = boolean,
-> extends PgColumnBuilder<PgSerial<string, TNotNull>, TNotNull, true> {
+import { PgColumn } from '.';
+import { PgColumnBuilder } from './common';
+
+export class PgSerialBuilder<TNotNull extends boolean = boolean> extends PgColumnBuilder<
+	PgSerial<string, TNotNull>,
+	TNotNull,
+	true
+> {
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyTable<TTableName>,

@@ -1,13 +1,7 @@
-import { Table, Column, AnyTable, TableName } from './core';
-import { getTableName } from './utils';
+import { Column, AnyTable, Table } from 'drizzle-orm';
+import { getTableName } from 'drizzle-orm/utils';
 
-export type Primitive =
-	| string
-	| number
-	| boolean
-	| null
-	| Record<string, unknown>
-	| Date;
+export type Primitive = string | number | boolean | null | Record<string, unknown> | Date;
 
 export class Param {
 	constructor(public readonly value: Primitive) {}
@@ -27,10 +21,7 @@ export interface BuildQueryConfig {
 export class SQL<TTable extends string = string> {
 	constructor(public readonly queryChunks: Chunk<TTable>[]) {}
 
-	public toQuery({
-		escapeName,
-		escapeParam,
-	}: BuildQueryConfig): [string, Primitive[]] {
+	public toQuery({ escapeName, escapeParam }: BuildQueryConfig): [string, Primitive[]] {
 		const params: Primitive[] = [];
 
 		const chunks = this.queryChunks.map((chunk) => {
@@ -39,11 +30,7 @@ export class SQL<TTable extends string = string> {
 			} else if (chunk instanceof Table) {
 				return escapeName(getTableName(chunk));
 			} else if (chunk instanceof Column) {
-				return (
-					escapeName(getTableName(chunk.table)) +
-					'.' +
-					escapeName(chunk.name)
-				);
+				return escapeName(getTableName(chunk.table)) + '.' + escapeName(chunk.name);
 			} else if (chunk instanceof Param) {
 				params.push(chunk.value);
 				return escapeParam(params.length - 1, chunk.value);
@@ -123,9 +110,7 @@ export namespace sql {
 	}
 }
 
-export function raw<TTableName extends string = string>(
-	str: string,
-): SQL<TTableName> {
+export function raw<TTableName extends string = string>(str: string): SQL<TTableName> {
 	return sql.fromList([str]);
 }
 

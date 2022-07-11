@@ -1,14 +1,12 @@
-import { AnyTable, ColumnBuilder } from '../../core';
-import { PgColumn } from '../core';
+import { AnyTable } from 'drizzle-orm';
+
+import { PgColumn } from '.';
+import { PgColumnBuilder } from './common';
 
 export class PgVarcharBuilder<
 	TNotNull extends boolean = boolean,
 	TDefault extends boolean = boolean,
-> extends ColumnBuilder<
-	PgVarchar<string, TNotNull, TDefault>,
-	TNotNull,
-	TDefault
-> {
+> extends PgColumnBuilder<PgVarchar<string, TNotNull, TDefault>, TNotNull, TDefault> {
 	/** @internal */ length: number | undefined;
 
 	constructor(name: string, length?: number) {
@@ -31,18 +29,13 @@ export class PgVarchar<
 > extends PgColumn<TTableName, string, TNotNull, TDefault> {
 	length: number | undefined;
 
-	constructor(
-		table: AnyTable<TTableName>,
-		builder: PgVarcharBuilder<TNotNull, TDefault>,
-	) {
+	constructor(table: AnyTable<TTableName>, builder: PgVarcharBuilder<TNotNull, TDefault>) {
 		super(table, builder);
 		this.length = builder.length;
 	}
 
 	getSQLType(): string {
-		return typeof this.length !== 'undefined'
-			? `varchar(${this.length})`
-			: `varchar`;
+		return typeof this.length !== 'undefined' ? `varchar(${this.length})` : `varchar`;
 	}
 }
 
