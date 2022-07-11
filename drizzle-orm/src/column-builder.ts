@@ -6,7 +6,7 @@ export abstract class ColumnBuilder<
 	TColumnType extends AnyColumn = AnyColumn,
 	TNotNull extends boolean = boolean,
 	TDefault extends boolean = boolean,
-> {
+	> {
 	private columnType!: TColumnType;
 	/** @internal */ _notNull = false as TNotNull;
 	/** @internal */ _default!: InferDefaultColumnValue<
@@ -16,7 +16,7 @@ export abstract class ColumnBuilder<
 	/** @internal */ _primaryKey = false;
 	/* @internal */ _references: (() => Column<string, InferColumnType<TColumnType, 'raw'>>)[] = [];
 	/** @internal */ name: string;
-	/** @internal */ _index: IndexBuilder<TColumnType> | undefined;
+	// /** @internal */ _index: IndexBuilder<TColumnType> | undefined;
 
 	constructor(name: string) {
 		this.name = name;
@@ -63,11 +63,11 @@ export type InferColumnBuilderDefault<TConfig extends ColumnBuilder> =
 export type BuildColumnsWithTable<
 	TTableName extends string,
 	TConfigMap extends Record<string, ColumnBuilder>,
-> = {
-	[Key in keyof TConfigMap]: Column<
-		TTableName,
-		InferColumnType<InferColumnBuilderType<TConfigMap[Key]>, 'raw'>,
-		InferColumnBuilderNotNull<TConfigMap[Key]>,
-		InferColumnBuilderDefault<TConfigMap[Key]>
-	>;
-};
+	> = {
+		[Key in keyof TConfigMap]: Column<
+			TTableName,
+			InferColumnType<InferColumnBuilderType<TConfigMap[Key]>, 'raw'>,
+			InferColumnBuilderNotNull<TConfigMap[Key]>,
+			InferColumnBuilderDefault<TConfigMap[Key]>
+		>;
+	};

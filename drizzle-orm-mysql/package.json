@@ -1,0 +1,48 @@
+{
+  "name": "drizzle-orm-mysql",
+  "version": "0.13.0",
+  "description": "Drizzle ORM package for MySql database",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "scripts": {
+    "build": "ts-node src/index.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/drizzle-team/drizzle-orm.git"
+  },
+  "keywords": [
+    "orm",
+    "mysql",
+    "database",
+    "sql",
+    "typescript",
+    "drizzle",
+    "drizzle-orm",
+    "drizzle-orm-mysql"
+  ],
+  "author": "",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/drizzle-team/drizzle-orm/issues"
+  },
+  "homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
+  "peerDependencies": {
+    "drizzle-orm": ">=0.13.0 <0.14.0",
+    "mysql2": ">=2 <3"
+  },
+  "peerDependenciesMeta": {
+    "mysql2": {
+      "optional": true
+    },
+    "drizzle-orm": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "dotenv": "^16.0.0",
+    "mysql2": "^2.3.3",
+    "uvu": "^0.5.3",
+    "drizzle-orm": "link:../drizzle-orm/src"
+  }
+}

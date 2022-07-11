@@ -1,10 +1,10 @@
-import { Column, AnyTable, Table } from 'drizzle-orm';
-import { getTableName } from 'drizzle-orm/utils';
+import { getTableName } from '../utils';
+import { AnyTable, Column, Table } from '..';
 
 export type Primitive = string | number | boolean | null | Record<string, unknown> | Date;
 
 export class Param {
-	constructor(public readonly value: Primitive) {}
+	constructor(public readonly value: Primitive) { }
 }
 
 export type Chunk<TTableName extends string> =
@@ -19,7 +19,7 @@ export interface BuildQueryConfig {
 }
 
 export class SQL<TTable extends string = string> {
-	constructor(public readonly queryChunks: Chunk<TTable>[]) {}
+	constructor(public readonly queryChunks: Chunk<TTable>[]) { }
 
 	public toQuery({ escapeName, escapeParam }: BuildQueryConfig): [string, Primitive[]] {
 		const params: Primitive[] = [];

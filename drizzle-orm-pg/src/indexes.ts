@@ -30,12 +30,12 @@ export class Index<TTableName extends string, TColumnType extends Primitive> {
 	}
 }
 
-export function index<TColumns extends AnyColumn[], TRefTableName extends string>(
-	columns: TColumns,
-	table: AnyPgTable<TRefTableName>,
-	refColumns: TColumns,
-) {
-	return new IndexBuilder();
-}
+// export function index<TColumns extends AnyColumn[], TRefTableName extends string>(
+// 	columns: TColumns,
+// 	table: AnyPgTable<TRefTableName>,
+// 	refColumns: TColumns,
+// ) {
+// 	return new IndexBuilder();
+// }
 
-export function uniqueIndex() {}
+export function uniqueIndex() { }
