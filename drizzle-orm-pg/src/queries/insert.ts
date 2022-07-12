@@ -1,10 +1,7 @@
 import { InferType } from 'drizzle-orm';
-import { SQL } from 'drizzle-orm/sql';
-import { TableName } from 'drizzle-orm/utils';
-
-import { AnyPgDialect } from '~/connection';
-import { AnyPgSession } from '~/operations';
-import { AnyPgTable } from '~/table';
+import { AnyPgDialect } from 'drizzle-orm-pg/connection';
+import { AnyPgSession } from 'drizzle-orm-pg/operations';
+import { AnyPgTable } from 'drizzle-orm-pg/table';
 
 export interface PgInsertConfig<TTable extends AnyPgTable> {
 	table: TTable;
@@ -18,11 +15,13 @@ export class PgInsert<TTable extends AnyPgTable> {
 	private config: PgInsertConfig<TTable> = {} as PgInsertConfig<TTable>;
 
 	constructor(
-		private table: TTable,
+		table: TTable,
 		private session: AnyPgSession,
 		private map: (rows: any[]) => InferType<TTable>[],
 		private dialect: AnyPgDialect,
-	) {}
+	) {
+		this.config.table = table;
+	}
 
 	values(
 		values: InferType<TTable, 'insert'> | InferType<TTable, 'insert'>[],

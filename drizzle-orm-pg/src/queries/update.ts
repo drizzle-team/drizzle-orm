@@ -1,11 +1,10 @@
+import { AnyPgDialect } from 'drizzle-orm-pg/connection';
+import { AnyPgSession } from 'drizzle-orm-pg/operations';
+import { AnyPgTable } from 'drizzle-orm-pg/table';
 import { InferType } from 'drizzle-orm/operations';
 import { SQL } from 'drizzle-orm/sql';
 import { TableName } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
-
-import { AnyPgDialect } from '~/connection';
-import { AnyPgSession } from '~/operations';
-import { AnyPgTable } from '~/table';
 
 export interface PgUpdateConfig<TTable extends AnyPgTable> {
 	where: SQL<TableName<TTable>>;

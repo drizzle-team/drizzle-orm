@@ -8,7 +8,7 @@
 		"baseUrl": "./",
 		"rootDir": "src",
 		"paths": {
-			"~/*": ["src/*"]
+			"drizzle-orm-mysql/*": ["src/*"]
 		}
 	},
 	"include": ["src"],

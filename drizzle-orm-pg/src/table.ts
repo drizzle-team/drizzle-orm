@@ -1,5 +1,6 @@
 import { BuildColumns } from 'drizzle-orm/column-builder';
-import { Table, table } from 'drizzle-orm/table';
+import { Table } from 'drizzle-orm/table';
+import { tableColumns } from 'drizzle-orm/utils';
 
 import { AnyPgColumn, PgColumnBuilder } from './columns/common';
 import { AnyConstraintBuilder, Constraint, ConstraintBuilder } from './constraints';
@@ -66,24 +67,31 @@ export function pgTable<
 	columns: TColumnsMap,
 	extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => TExtraConfig,
 ) {
-	const t = table(name, columns) as PgTable<
+	const rawTable = new PgTable<
 		TTableName,
 		BuildColumns<TTableName, TColumnsMap>,
 		InferConflictConstraints<TExtraConfig>
-	> &
-		BuildColumns<TTableName, TColumnsMap>;
+	>(name);
+
+	const builtColumns = Object.fromEntries(
+		Object.entries(columns).map(([name, colConfig]) => [name, colConfig.build(rawTable)]),
+	) as BuildColumns<TTableName, TColumnsMap>;
+
+	const table = Object.assign(rawTable, builtColumns);
+
+	table[tableColumns] = builtColumns;
 
 	if (extraConfig) {
-		Object.entries(extraConfig(t)).forEach(([name, builder]) => {
+		Object.entries(extraConfig(table)).forEach(([name, builder]) => {
 			if (builder instanceof IndexBuilder) {
-				t[tableIndexes][name] = builder.build(t);
+				table[tableIndexes][name] = builder.build(table);
 			} else if (builder instanceof ConstraintBuilder) {
-				t[tableConstraints][name] = builder.build(t);
+				table[tableConstraints][name] = builder.build(table);
 			} else if (builder instanceof ForeignKeyBuilder) {
-				t[tableForeignKeys][name] = builder.build(t);
+				table[tableForeignKeys][name] = builder.build(table);
 			}
 		});
 	}
 
-	return t;
+	return table;
 }

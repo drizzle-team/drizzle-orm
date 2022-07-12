@@ -41,8 +41,10 @@
   },
   "devDependencies": {
     "dotenv": "^16.0.0",
+    "drizzle-orm": "link:../drizzle-orm/src",
     "mysql2": "^2.3.3",
-    "uvu": "^0.5.3",
-    "drizzle-orm": "link:../drizzle-orm/src"
+    "ts-node": "^10.8.2",
+    "typescript": "^4.7.4",
+    "uvu": "^0.5.3"
   }
 }

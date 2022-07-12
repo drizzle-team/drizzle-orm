@@ -2,13 +2,10 @@
 	"extends": "../tsconfig.json",
 	"compilerOptions": {
 		"outDir": "./dist",
-		"allowJs": true,
-		"declaration": true,
-		"sourceMap": true,
 		"baseUrl": "./",
 		"rootDir": "src",
 		"paths": {
-			"~/*": ["src/*"]
+			"drizzle-orm-pg/*": ["src/*"]
 		}
 	},
 	"include": ["src"],

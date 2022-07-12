@@ -1,60 +1,62 @@
 {
-  "name": "drizzle-orm",
-  "version": "0.13.0",
-  "description": "Drizzle ORM package for SQL databases",
-  "main": "index.js",
-  "types": "index.d.ts",
-  "scripts": {
-    "build": "ts-node src/index.ts"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/drizzle-team/drizzle-orm.git"
-  },
-  "keywords": [
-    "orm",
-    "pg",
-    "mysql",
-    "postgresql",
-    "postgres",
-    "database",
-    "sql",
-    "typescript"
-  ],
-  "author": "",
-  "license": "Apache-2.0",
-  "bugs": {
-    "url": "https://github.com/drizzle-team/drizzle-orm/issues"
-  },
-  "homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
-  "peerDependencies": {
-    "drizzle-orm-pg": ">=0.13.0",
-    "mysql2": ">=2 <3",
-    "pg": ">=8 <9",
-    "sqlite3": ">=5 <6"
-  },
-  "peerDependenciesMeta": {
-    "mysql2": {
-      "optional": true
-    },
-    "pg": {
-      "optional": true
-    },
-    "sqlite3": {
-      "optional": true
-    },
-    "drizzle-orm-pg": {
-      "optional": true
-    }
-  },
-  "devDependencies": {
-    "@types/pg": "^8.6.1",
-    "@types/sqlite3": "^3.1.8",
-    "drizzle-orm-mysql": "link:../drizzle-orm-mysql/src",
-    "drizzle-orm-pg": "link:../drizzle-orm-pg/src",
-    "mysql2": "^2.3.3",
-    "pg": "^8.6.0",
-    "sqlite3": "^5.0.8",
-    "uvu": "^0.5.3"
-  }
+	"name": "drizzle-orm",
+	"version": "0.13.0",
+	"description": "Drizzle ORM package for SQL databases",
+	"main": "index.js",
+	"types": "index.d.ts",
+	"scripts": {
+		"build": "tsc"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/drizzle-team/drizzle-orm.git"
+	},
+	"keywords": [
+		"orm",
+		"pg",
+		"mysql",
+		"postgresql",
+		"postgres",
+		"database",
+		"sql",
+		"typescript"
+	],
+	"author": "",
+	"license": "Apache-2.0",
+	"bugs": {
+		"url": "https://github.com/drizzle-team/drizzle-orm/issues"
+	},
+	"homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
+	"peerDependencies": {
+		"drizzle-orm-pg": ">=0.13.0",
+		"mysql2": ">=2 <3",
+		"pg": ">=8 <9",
+		"sqlite3": ">=5 <6"
+	},
+	"peerDependenciesMeta": {
+		"mysql2": {
+			"optional": true
+		},
+		"pg": {
+			"optional": true
+		},
+		"sqlite3": {
+			"optional": true
+		},
+		"drizzle-orm-pg": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"@types/pg": "^8.6.1",
+		"@types/sqlite3": "^3.1.8",
+		"drizzle-orm-mysql": "link:../drizzle-orm-mysql/src",
+		"drizzle-orm-pg": "link:../drizzle-orm-pg/src",
+		"mysql2": "^2.3.3",
+		"pg": "^8.6.0",
+		"sqlite3": "^5.0.8",
+		"ts-node": "^10.8.2",
+		"typescript": "^4.7.4",
+		"uvu": "^0.5.3"
+	}
 }

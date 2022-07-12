@@ -65,12 +65,20 @@ export type SQLSourceParam<TTableName extends string> =
 function buildChunksFromParam<TTableName extends string>(
 	param: SQLSourceParam<TTableName>,
 ): Chunk<TTableName>[] {
-	if (param instanceof SQL) {
+	if (Array.isArray(param)) {
+		const result: Chunk<TTableName>[] = ['('];
+		param.forEach((p, i) => {
+			result.push(...buildChunksFromParam(p));
+			if (i < param.length - 1) {
+				result.push(', ');
+			}
+		});
+		result.push(')');
+		return result;
+	} else if (param instanceof SQL) {
 		return param.queryChunks;
 	} else if (param instanceof Table || param instanceof Column) {
 		return [param];
-	} else if (Array.isArray(param)) {
-		return ['(', ...param.map((p) => buildChunksFromParam(p)).flat(1), ')'];
 	} else if (typeof param !== 'undefined') {
 		return [new Param(param)];
 	} else {

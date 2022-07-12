@@ -110,7 +110,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 			columnKeys.forEach((key) => {
 				const colValue = value[key];
 				if (typeof colValue === 'undefined') {
-					valueList.push(raw('DEFAULT'));
+					valueList.push(raw('default'));
 				} else {
 					valueList.push(colValue);
 				}
@@ -118,9 +118,9 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 			joinedValues.push(valueList);
 		});
 
-		return sql`insert into ${table} ${insertOrder} values${joinedValues} ${
-			returning ? raw('returning *') : undefined
-		}`;
+		return sql`insert into ${table} ${insertOrder} values ${
+			joinedValues.length === 1 ? joinedValues[0] : joinedValues
+		} ${returning ? raw('returning *') : undefined}`;
 	}
 
 	public prepareSQL(sql: SQL): [string, ParamValue[]] {

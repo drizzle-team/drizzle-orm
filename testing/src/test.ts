@@ -1,6 +1,6 @@
 // import { Pool } from 'pg';
 import { connect, sql, InferType } from 'drizzle-orm';
-import { pgTable, index, constraint, ForeignKeyBuilder, foreignKey } from 'drizzle-orm-pg';
+import { pgTable, index, constraint, foreignKey } from 'drizzle-orm-pg';
 import { int, serial, text } from 'drizzle-orm-pg/columns';
 import { tableConflictConstraints } from 'drizzle-orm-pg/utils';
 import { or, and, eq, max, gt } from 'drizzle-orm/operators';
@@ -12,7 +12,7 @@ export const users = pgTable(
 		homeCity: int('home_city').references(() => cities.id),
 		currentCity: int('current_city').references(() => cities.id),
 		serialNullable: serial('serial1'),
-		serialNotNull: serial('serial1').notNull(),
+		serialNotNull: serial('serial2').notNull(),
 		class: text<'A' | 'C'>('class').notNull(),
 		subClass: text('sub_class'),
 		age1: int('age1').notNull(),
@@ -39,14 +39,6 @@ type Constraints = keyof typeof t;
 //    ^?
 
 type InsertUser = InferType<typeof users, 'insert'>;
-
-const newUser: InsertUser = {
-	class: 'A',
-	homeCity: 1,
-	currentCity: 2,
-	subClass: 'subClass1',
-	age1: 1,
-};
 
 type SelectUser = InferType<typeof users>;
 
@@ -128,6 +120,14 @@ async function main() {
 		.set(sql`${users.id} = ${userId}, ${users.age1} = ${users.age1} + 1`)
 		.returning()
 		.execute();
+
+	const newUser: InsertUser = {
+		class: 'A',
+		homeCity: 1,
+		currentCity: 2,
+		subClass: 'subClass1',
+		age1: 1,
+	};
 
 	db.users.insert().values(newUser).execute();
 }
