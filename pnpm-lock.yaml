@@ -1,8 +1,11 @@
-lockfileVersion: 5.3
+lockfileVersion: 5.4
 
 specifiers:
   '@trivago/prettier-plugin-sort-imports': ^3.2.0
   '@types/pg': ^8.6.5
+  drizzle-orm: link:./drizzle-orm/src
+  drizzle-orm-mysql: link:./drizzle-orm-mysql/src
+  drizzle-orm-pg: link:./drizzle-orm-pg/src
   prettier: ^2.7.1
   ts-node: ^10.8.2
   typescript: ^4.7.4
@@ -10,8 +13,11 @@ specifiers:
 devDependencies:
   '@trivago/prettier-plugin-sort-imports': 3.2.0_prettier@2.7.1
   '@types/pg': 8.6.5
+  drizzle-orm: link:drizzle-orm/src
+  drizzle-orm-mysql: link:drizzle-orm-mysql/src
+  drizzle-orm-pg: link:drizzle-orm-pg/src
   prettier: 2.7.1
-  ts-node: 10.8.2_typescript@4.7.4
+  ts-node: 10.8.2_fxk5i3xm3ivo7fjwhcizcinpla
   typescript: 4.7.4
 
 packages:
@@ -173,12 +179,16 @@ packages:
     resolution: {integrity: sha512-oG0ej7efjEXxb4UgE+klVx+3j4MVo+A2vCzm7OUN4CLo6WhQ+vSOD2yJ8m7B+DghObxtLxt3EfgMWpq+AsWehQ==}
     engines: {node: '>=6.0.0'}
     hasBin: true
+    dependencies:
+      '@babel/types': 7.18.8
     dev: true
 
   /@babel/parser/7.18.8:
     resolution: {integrity: sha512-RSKRfYX20dyH+elbJK2uqAkVyucL+xXzhqlMD5/ZXx+dAAwpyB7HsvnHe/ZUGOF+xLr5Wx9/JoXVTj6BQE2/oA==}
     engines: {node: '>=6.0.0'}
     hasBin: true
+    dependencies:
+      '@babel/types': 7.18.8
     dev: true
 
   /@babel/template/7.18.6:
@@ -555,7 +565,7 @@ packages:
     engines: {node: '>=4'}
     dev: true
 
-  /ts-node/10.8.2_typescript@4.7.4:
+  /ts-node/10.8.2_fxk5i3xm3ivo7fjwhcizcinpla:
     resolution: {integrity: sha512-LYdGnoGddf1D6v8REPtIH+5iq/gTDuZqv2/UJUU7tKjuEU8xVZorBM+buCGNjj+pGEud+sOoM4CX3/YzINpENA==}
     hasBin: true
     peerDependencies:
@@ -574,6 +584,7 @@ packages:
       '@tsconfig/node12': 1.0.11
       '@tsconfig/node14': 1.0.3
       '@tsconfig/node16': 1.0.3
+      '@types/node': 18.0.3
       acorn: 8.7.1
       acorn-walk: 8.2.0
       arg: 4.1.3

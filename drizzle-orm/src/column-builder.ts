@@ -1,12 +1,10 @@
-import { IndexBuilder } from 'drizzle-orm-pg';
-
 import { AnyTable, AnyColumn, Column, InferColumnType, InferDefaultColumnValue } from '.';
 
 export abstract class ColumnBuilder<
 	TColumnType extends AnyColumn = AnyColumn,
 	TNotNull extends boolean = boolean,
 	TDefault extends boolean = boolean,
-	> {
+> {
 	private columnType!: TColumnType;
 	/** @internal */ _notNull = false as TNotNull;
 	/** @internal */ _default!: InferDefaultColumnValue<
@@ -60,14 +58,14 @@ export type InferColumnBuilderNotNull<TConfig extends ColumnBuilder> =
 export type InferColumnBuilderDefault<TConfig extends ColumnBuilder> =
 	TConfig extends ColumnBuilder<any, any, infer TDefault> ? TDefault : never;
 
-export type BuildColumnsWithTable<
+export type BuildColumns<
 	TTableName extends string,
 	TConfigMap extends Record<string, ColumnBuilder>,
-	> = {
-		[Key in keyof TConfigMap]: Column<
-			TTableName,
-			InferColumnType<InferColumnBuilderType<TConfigMap[Key]>, 'raw'>,
-			InferColumnBuilderNotNull<TConfigMap[Key]>,
-			InferColumnBuilderDefault<TConfigMap[Key]>
-		>;
-	};
+> = {
+	[Key in keyof TConfigMap]: Column<
+		TTableName,
+		InferColumnType<InferColumnBuilderType<TConfigMap[Key]>, 'raw'>,
+		InferColumnBuilderNotNull<TConfigMap[Key]>,
+		InferColumnBuilderDefault<TConfigMap[Key]>
+	>;
+};

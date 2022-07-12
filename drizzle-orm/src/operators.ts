@@ -1,11 +1,13 @@
-import { sql, Column, InferColumnType } from '.';
-import { raw, SQL } from './sql';
+import { Column, InferColumnType } from './column';
+import { raw, sql, SQL } from './sql';
 
-export function eq<TTableName extends string, TColumn extends Column<TTableName>>(
-	column: TColumn,
-	value: InferColumnType<TColumn, 'raw'>,
-): SQL<TTableName> {
-	return sql`${column} = ${value}`;
+export function eq<
+	TTableName extends string,
+	TColumn extends Column<TTableName>,
+	TRightTableName extends string = TTableName,
+	TRightColumn extends Column<TRightTableName> = Column<TRightTableName>,
+>(column: TColumn, value: InferColumnType<TColumn, 'raw'> | TRightColumn) {
+	return sql<TTableName | TRightTableName>`${column} = ${value}`;
 }
 
 export function and<TTableName extends string>(...conditions: SQL<TTableName>[]): SQL<TTableName> {

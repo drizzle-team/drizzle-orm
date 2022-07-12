@@ -1,7 +1,11 @@
 import { Connector, Driver, Dialect, sql, Column } from 'drizzle-orm';
-import { SQL, raw, Primitive } from 'drizzle-orm/sql';
+import { SQL, raw, ParamValue, Chunk, SQLSourceParam } from 'drizzle-orm/sql';
+import { getTableColumns } from 'drizzle-orm/utils';
 
-import { AnyPgSelectConfig, AnyPgTable, PgTableOperations, PgUpdateConfig } from '.';
+import { AnyPgColumn } from './columns';
+import { PgTableOperations } from './operations';
+import { PgUpdateConfig, AnyPgSelectConfig, AnyPgInsertConfig } from './queries';
+import { AnyPgTable } from './table';
 
 export interface PgDriverResponse {
 	rows: any[];
@@ -65,7 +69,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		return `$${num}`;
 	}
 
-	public buildUpdateQuery({ table, set, where, returning }: PgUpdateConfig): SQL {
+	public buildUpdateQuery({ table, set, where, returning }: PgUpdateConfig<AnyPgTable>): SQL {
 		return sql`update ${table} set ${set} ${where ? sql`where ${where}` : undefined} ${
 			returning ? raw('returning *') : undefined
 		}`;
@@ -95,7 +99,31 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		return sql`select ${sqlFields} from ${table} ${where ? sql`where ${where}` : undefined}`;
 	}
 
-	public prepareSQL(sql: SQL): [string, Primitive[]] {
+	public buildInsertQuery({ table, values, returning }: AnyPgInsertConfig): SQL {
+		const joinedValues: (ParamValue | SQL)[][] = [];
+		const columns = getTableColumns(table);
+		const columnKeys = Object.keys(columns);
+		const insertOrder = Object.values(columns);
+
+		values.forEach((value) => {
+			const valueList: (ParamValue | SQL)[] = [];
+			columnKeys.forEach((key) => {
+				const colValue = value[key];
+				if (typeof colValue === 'undefined') {
+					valueList.push(raw('DEFAULT'));
+				} else {
+					valueList.push(colValue);
+				}
+			});
+			joinedValues.push(valueList);
+		});
+
+		return sql`insert into ${table} ${insertOrder} values${joinedValues} ${
+			returning ? raw('returning *') : undefined
+		}`;
+	}
+
+	public prepareSQL(sql: SQL): [string, ParamValue[]] {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,

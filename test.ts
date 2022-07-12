@@ -1,39 +1,49 @@
 // import { Pool } from 'pg';
 import { connect, sql, InferType } from 'drizzle-orm';
-import { pgTable } from 'drizzle-orm-pg';
+import { pgTable, index, constraint, ForeignKeyBuilder, foreignKey } from 'drizzle-orm-pg';
 import { int, serial, text } from 'drizzle-orm-pg/columns';
+import { tableConflictConstraints } from 'drizzle-orm-pg/utils';
 import { or, and, eq, max, gt } from 'drizzle-orm/operators';
 
 export const users = pgTable(
 	'users',
 	{
 		id: serial('id').primaryKey(),
-		city: int('city').references(() => cities.id),
+		homeCity: int('home_city').references(() => cities.id),
+		currentCity: int('current_city').references(() => cities.id),
 		serialNullable: serial('serial1'),
 		serialNotNull: serial('serial1').notNull(),
 		class: text<'A' | 'C'>('class').notNull(),
 		subClass: text('sub_class'),
 		age1: int('age1').notNull(),
-		// age2: int('age2').notNull(),
-		// age3: int('age3').notNull(),
-		// age4: int('age4').notNull(),
-		// age5: int('age5').notNull(),
 	},
-	// (users) => ({
-	// 	usersAge1Idx: index([users.age1], { unique: true }),
-	// 	// classFK: foreignKey(() => [
-	// 	// 	[users.class, users.subClass],
-	// 	// 	classes,
-	// 	// 	[classes.class, classes.subClass],
-	// 	// ]),
-	// }),
+	(users) => ({
+		usersAge1Idx: index(users.class, { unique: true }),
+		usersAge2Idx: index(users.class),
+		uniqueClass: index([users.class, users.subClass], {
+			unique: true,
+			where: sql`${users.class} is not null`,
+		}),
+		legalAge: constraint(sql`${users.age1} > 18`),
+		usersClassFK: foreignKey(() => [users.class, classes, classes.class]),
+		usersClassComplexFK: foreignKey(() => [
+			[users.class, users.subClass],
+			classes,
+			[classes.class, classes.subClass],
+		]),
+	}),
 );
+
+const t = users[tableConflictConstraints];
+type Constraints = keyof typeof t;
+//    ^?
 
 type InsertUser = InferType<typeof users, 'insert'>;
 
 const newUser: InsertUser = {
 	class: 'A',
-	city: 1,
+	homeCity: 1,
+	currentCity: 2,
 	subClass: 'subClass1',
 	age1: 1,
 };
@@ -48,7 +58,7 @@ const cities = pgTable('cities', {
 
 const classes = pgTable('classes', {
 	id: serial('id').primaryKey(),
-	class: text('class').notNull(),
+	class: text<'A' | 'C'>('class'),
 	subClass: text('sub_class').notNull(),
 });
 
@@ -61,8 +71,6 @@ async function main() {
 	// db.users.insert().onConflictDoNothing();
 
 	// db.users.update().set();
-
-	// 'on update set age = age + 1, name = new.name'
 
 	// db.users
 	// 	.insert()
@@ -120,6 +128,8 @@ async function main() {
 		.set(sql`${users.id} = ${userId}, ${users.age1} = ${users.age1} + 1`)
 		.returning()
 		.execute();
+
+	db.users.insert().values(newUser).execute();
 }
 
 main().catch((e) => {

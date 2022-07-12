@@ -3,14 +3,6 @@
 		"target": "es2016",
 		"module": "commonjs",
 		"lib": ["es2018", "es2017", "es7", "es6", "es5"],
-		// "paths": {
-		// 	"drizzle-orm": ["./drizzle-orm"],
-		// 	"drizzle-orm/*": ["./drizzle-orm/*"],
-		// 	"drizzle-orm-pg": ["./drizzle-orm-pg"],
-		// 	"drizzle-orm-pg/*": ["./drizzle-orm-pg/*"],
-		// 	"drizzle-orm-mysql": ["./drizzle-orm-mysql"],
-		// 	"drizzle-orm-mysql/*": ["./drizzle-orm-mysql/*"]
-		// } /* Specify a set of entries that re-map imports to additional lookup locations. */,
 		"declaration": true /* Generate .d.ts files from TypeScript and JavaScript files in your project. */,
 		"stripInternal": true /* Disable emitting declarations that have '@internal' in their JSDoc comments. */,
 		"allowSyntheticDefaultImports": true /* Allow 'import x from y' when a module doesn't have a default export. */,

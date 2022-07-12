@@ -1,5 +1,6 @@
-import { AnyTable, Table, AnyColumn, Column, InferColumnType } from '.';
+import { AnyColumn, Column, InferColumnType } from './column';
 import { SQL } from './sql';
+import { AnyTable, Table } from './table';
 import { TableName } from './utils';
 
 export type RequiredKeyOnly<TKey, T extends AnyColumn> = T extends Column<
@@ -44,12 +45,6 @@ export type InferType<
 				[Key in keyof TColumns]: InferColumnType<TColumns[Key], 'query'>;
 		  }
 	: never;
-
-export interface UpdateConfig {
-	where: SQL;
-	set: SQL;
-	table: AnyTable;
-}
 
 export type SelectFields<TTableName extends string> = {
 	[Key: string]: SQL<TTableName> | Column<TTableName>;

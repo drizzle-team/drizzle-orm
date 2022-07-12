@@ -1,14 +1,16 @@
 {
-    "extends": "../tsconfig.json",
-    "compilerOptions": {
-      "outDir": "./dist",
-      "allowJs": true,
-      "declaration": true,
-      "sourceMap": true,
-      "baseUrl": "./",
-      "rootDir": "src"
-    },
-    "include": ["src"],
-    "exclude": ["dist", "tests", "node_modules"]
-  }
-  
+	"extends": "../tsconfig.json",
+	"compilerOptions": {
+		"outDir": "./dist",
+		"allowJs": true,
+		"declaration": true,
+		"sourceMap": true,
+		"baseUrl": "./",
+		"rootDir": "src",
+		"paths": {
+			"~/*": ["src/*"]
+		}
+	},
+	"include": ["src"],
+	"exclude": ["dist", "tests", "node_modules"]
+}

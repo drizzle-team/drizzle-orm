@@ -1,13 +1,13 @@
 import { ColumnBuilder } from './column-builder';
-import { Primitive } from './sql';
+import { ParamValue } from './sql';
 import { AnyTable } from './table';
 
 export abstract class Column<
 	TTableName extends string,
-	TType extends Primitive = Primitive,
+	TType extends ParamValue = ParamValue,
 	TNotNull extends boolean = boolean,
 	TDefault extends boolean = boolean,
-	> {
+> {
 	readonly name: string;
 	readonly notNull: TNotNull;
 	readonly default: InferDefaultColumnValue<TType, TNotNull>;
@@ -38,12 +38,12 @@ export type AnyColumn = Column<string>;
 export type InferColumnType<
 	TColumn extends AnyColumn,
 	TInferMode extends 'query' | 'raw',
-	> = TColumn extends Column<any, infer TType, infer TNotNull, infer TDefault>
+> = TColumn extends Column<any, infer TType, infer TNotNull, infer TDefault>
 	? TInferMode extends 'raw' // Raw mode
-	? TType // Just return the underlying type
-	: TNotNull extends true // Query mode
-	? TType // Query mode, not null
-	: TType | null // Query mode, nullable
+		? TType // Just return the underlying type
+		: TNotNull extends true // Query mode
+		? TType // Query mode, not null
+		: TType | null // Query mode, nullable
 	: never;
 
 export type InferDefaultColumnValue<TType, TNotNull extends boolean> = TNotNull extends true

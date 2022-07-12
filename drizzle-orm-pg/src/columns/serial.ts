@@ -1,7 +1,6 @@
 import { AnyTable } from 'drizzle-orm';
 
-import { PgColumn } from '.';
-import { PgColumnBuilder } from './common';
+import { PgColumn, PgColumnBuilder } from './common';
 
 export class PgSerialBuilder<TNotNull extends boolean = boolean> extends PgColumnBuilder<
 	PgSerial<string, TNotNull>,
