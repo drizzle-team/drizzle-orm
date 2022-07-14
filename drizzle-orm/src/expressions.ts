@@ -1,5 +1,5 @@
 import { AnyColumn, Column, InferColumnTable, InferColumnType } from '~/column';
-import { MappedParamValue, ParamValue, raw, SQL, sql, SQLSourceParam } from '~/sql';
+import { MappedParamValue, ParamValue, SQL, sql, SQLSourceParam } from '~/sql';
 import { TableName } from '~/utils';
 
 function mapIfParam<TTableName extends string, TType extends ParamValue>(
@@ -32,29 +32,29 @@ export function ne<
 }
 
 export function and<TTableName extends string>(...conditions: SQL<TTableName>[]) {
-	const chunks: SQLSourceParam<TTableName>[] = [raw('(')];
+	const chunks: SQLSourceParam<TTableName>[] = [sql.raw('(')];
 	conditions.forEach((condition, index) => {
 		if (index === 0) {
 			chunks.push(condition);
 		} else {
-			chunks.push(raw(' and '), condition);
+			chunks.push(sql` and `, condition);
 		}
 	});
-	chunks.push(raw(')'));
+	chunks.push(sql`)`);
 
 	return sql.fromList(chunks);
 }
 
 export function or<TTableName extends string>(...conditions: SQL<TTableName>[]) {
-	const chunks: SQLSourceParam<TTableName>[] = [raw('(')];
+	const chunks: SQLSourceParam<TTableName>[] = [sql.raw('(')];
 	conditions.forEach((condition, index) => {
 		if (index === 0) {
 			chunks.push(condition);
 		} else {
-			chunks.push(raw(' or '), condition);
+			chunks.push(sql` or `, condition);
 		}
 	});
-	chunks.push(raw(')'));
+	chunks.push(sql`)`);
 
 	return sql.fromList(chunks);
 }

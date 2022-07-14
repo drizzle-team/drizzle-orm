@@ -123,7 +123,7 @@ export function sql<TTableName extends string>(
 	...params: SQLSourceParam<TTableName>[]
 ): SQL<TTableName> {
 	const queryChunks: Chunk<TTableName>[] = [];
-	if (params.length > 0) {
+	if (params.length > 0 || (strings.length > 0 && strings[0] !== '')) {
 		queryChunks.push(strings[0]!);
 	}
 	params.forEach((param, paramIndex) => {
@@ -153,14 +153,14 @@ export namespace sql {
 			return new SQLResponseRaw(sql(strings, ...params));
 		};
 	}
-}
 
-/**
- * Convenience function to create an SQL query from a raw input.
- * @param str The raw SQL query string.
- */
-export function raw<TTableName extends string = string>(str: string): SQL<TTableName> {
-	return new SQL([str]);
+	/**
+	 * Convenience function to create an SQL query from a raw input.
+	 * @param str The raw SQL query string.
+	 */
+	export function raw<TTableName extends string = string>(str: string): SQL<TTableName> {
+		return new SQL([str]);
+	}
 }
 
 export abstract class SQLResponse<TTableName extends string, TValue = any> {

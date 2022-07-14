@@ -1,8 +1,8 @@
 // import { Pool } from 'pg';
-import { connect, sql, expr } from 'drizzle-orm';
+import { connect, sql } from 'drizzle-orm';
 import { pgTable, index, constraint, foreignKey, PgConnector, InferType } from 'drizzle-orm-pg';
 import { int, serial, text } from 'drizzle-orm-pg/columns';
-import { and, or, eq, inc } from 'drizzle-orm/expressions';
+import { eq, inc } from 'drizzle-orm/expressions';
 
 export const users = pgTable(
 	'users',
@@ -110,7 +110,7 @@ async function main() {
 	// 	.execute();
 
 	db.users
-		.select({ id: users.id, maxAge: expr<number>()`max(${users.age1})` })
+		.select({ id: users.id, maxAge: sql.response<number>()`max(${users.age1})` })
 		.where(sql`${users.age1} > 0`)
 		.execute();
 

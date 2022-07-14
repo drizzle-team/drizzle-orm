@@ -1,5 +1,5 @@
 import { Connector, Driver, Dialect, sql, Column } from 'drizzle-orm';
-import { SQL, raw, ParamValue, SQLSourceParam, ColumnWithoutTable } from 'drizzle-orm/sql';
+import { SQL, ParamValue, SQLSourceParam, ColumnWithoutTable } from 'drizzle-orm/sql';
 import { TableName } from 'drizzle-orm/utils';
 
 import { AnyPgColumn } from './columns';
@@ -88,7 +88,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 					const col = getTableColumns(table)[colName]!;
 					const res = sql`${new ColumnWithoutTable(col)} = ${value}`;
 					if (i < setSize - 1) {
-						return [res, raw(', ')];
+						return [res, sql.raw(', ')];
 					}
 					return [res];
 				})
@@ -97,7 +97,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 
 		return sql<TableName<TTable>>`update ${table} set ${setSql} ${
 			where ? sql`where ${where}` : undefined
-		} ${returning ? raw('returning *') : undefined}`;
+		} ${returning ? sql`returning *` : undefined}`;
 	}
 
 	public buildSelectQuery({ fields, where, table }: AnyPgSelectConfig): SQL {
@@ -112,13 +112,13 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 				}
 
 				if (i < Object.values(fields).length - 1) {
-					sqlFieldsList.push(raw(', '));
+					sqlFieldsList.push(sql`, `);
 				}
 			});
 
 			sqlFields = sql.fromList(sqlFieldsList);
 		} else {
-			sqlFields = raw('*');
+			sqlFields = sql.raw('*');
 		}
 
 		return sql`select ${sqlFields} from ${table} ${where ? sql`where ${where}` : undefined}`;
@@ -127,6 +127,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 	public buildInsertQuery({ table, values, returning }: AnyPgInsertConfig): SQL {
 		const joinedValues: (ParamValue | SQL)[][] = [];
 		const columns: Record<string, AnyPgColumn> = getTableColumns(table);
+
 		const columnKeys = Object.keys(columns);
 		const insertOrder = Object.values(columns).map((column) => new ColumnWithoutTable(column));
 
@@ -135,7 +136,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 			columnKeys.forEach((key) => {
 				const colValue = value[key];
 				if (typeof colValue === 'undefined') {
-					valueList.push(raw('default'));
+					valueList.push(sql`default`);
 				} else {
 					valueList.push(colValue);
 				}
@@ -145,7 +146,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 
 		return sql`insert into ${table} ${insertOrder} values ${
 			joinedValues.length === 1 ? joinedValues[0] : joinedValues
-		} ${returning ? raw('returning *') : undefined}`;
+		} ${returning ? sql`returning *` : undefined}`;
 	}
 
 	public prepareSQL(sql: SQL): [string, ParamValue[]] {
