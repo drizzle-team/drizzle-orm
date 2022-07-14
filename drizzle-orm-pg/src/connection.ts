@@ -1,5 +1,6 @@
 import { Connector, Driver, Dialect, sql, Column } from 'drizzle-orm';
 import { SQL, raw, ParamValue, SQLSourceParam, ColumnWithoutTable } from 'drizzle-orm/sql';
+import { TableName } from 'drizzle-orm/utils';
 
 import { AnyPgColumn } from './columns';
 import { PgTableOperations } from './operations';
@@ -74,10 +75,29 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		return `$${num}`;
 	}
 
-	public buildUpdateQuery({ table, set, where, returning }: PgUpdateConfig<AnyPgTable>): SQL {
-		return sql`update ${table} set ${set} ${where ? sql`where ${where}` : undefined} ${
-			returning ? raw('returning *') : undefined
-		}`;
+	public buildUpdateQuery<TTable extends AnyPgTable>({
+		table,
+		set,
+		where,
+		returning,
+	}: PgUpdateConfig<TTable>): SQL<TableName<TTable>> {
+		const setSize = Object.keys(set).length;
+		const setSql = sql.fromList(
+			Object.entries(set)
+				.map(([colName, value], i) => {
+					const col = getTableColumns(table)[colName]!;
+					const res = sql`${new ColumnWithoutTable(col)} = ${value}`;
+					if (i < setSize - 1) {
+						return [res, raw(', ')];
+					}
+					return [res];
+				})
+				.flat(1),
+		);
+
+		return sql<TableName<TTable>>`update ${table} set ${setSql} ${
+			where ? sql`where ${where}` : undefined
+		} ${returning ? raw('returning *') : undefined}`;
 	}
 
 	public buildSelectQuery({ fields, where, table }: AnyPgSelectConfig): SQL {

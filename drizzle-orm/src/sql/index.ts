@@ -144,6 +144,15 @@ export namespace sql {
 	): SQL<TTableName> {
 		return new SQL(list.map(buildChunksFromParam).flat(1));
 	}
+
+	export function response<T>() {
+		return <TTableName extends string>(
+			strings: TemplateStringsArray,
+			...params: SQLSourceParam<TTableName>[]
+		): SQLResponse<TTableName, T> => {
+			return new SQLResponseRaw(sql(strings, ...params));
+		};
+	}
 }
 
 /**
@@ -154,16 +163,18 @@ export function raw<TTableName extends string = string>(str: string): SQL<TTable
 	return new SQL([str]);
 }
 
-export class SQLExpr<TTableName extends string, TValue = any> {
-	private value!: TValue;
+export abstract class SQLResponse<TTableName extends string, TValue = any> {
+	protected value!: TValue;
 	constructor(readonly sql: SQL<TTableName>) {}
+
+	abstract mapFromDriverValue(value: any): TValue;
 }
 
-export function expr<T>() {
-	return <TTableName extends string>(
-		strings: TemplateStringsArray,
-		...params: SQLSourceParam<TTableName>[]
-	): SQLExpr<TTableName, T> => {
-		return new SQLExpr(sql(strings, ...params));
-	};
+export class SQLResponseRaw<TTableName extends string, TValue = any> extends SQLResponse<
+	TTableName,
+	TValue
+> {
+	override mapFromDriverValue(value: any): TValue {
+		return value;
+	}
 }

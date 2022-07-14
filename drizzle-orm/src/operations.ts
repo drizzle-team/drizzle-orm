@@ -1,5 +1,5 @@
 import { AnyColumn, Column } from './column';
-import { SQLExpr } from './sql';
+import { SQLResponse } from './sql';
 
 export type RequiredKeyOnly<TKey, T extends AnyColumn> = T extends Column<
 	any,
@@ -24,5 +24,5 @@ export type OptionalKeyOnly<TKey, T extends AnyColumn> = T extends Column<
 	: never;
 
 export type SelectFields<TTableName extends string> = {
-	[Key: string]: SQLExpr<TTableName> | Column<TTableName>;
+	[Key: string]: SQLResponse<TTableName> | Column<TTableName>;
 };

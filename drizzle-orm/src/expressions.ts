@@ -1,5 +1,5 @@
 import { AnyColumn, Column, InferColumnTable, InferColumnType } from '~/column';
-import { expr, MappedParamValue, ParamValue, raw, SQL, sql, SQLSourceParam } from '~/sql';
+import { MappedParamValue, ParamValue, raw, SQL, sql, SQLSourceParam } from '~/sql';
 import { TableName } from '~/utils';
 
 function mapIfParam<TTableName extends string, TType extends ParamValue>(
@@ -124,11 +124,11 @@ export function isNotNull<TColumn extends AnyColumn>(column: TColumn) {
 }
 
 export function min<TColumn extends AnyColumn>(column: TColumn) {
-	return expr<InferColumnType<TColumn, 'raw'>>()<TableName<TColumn>>`min(${column})`;
+	return sql.response<InferColumnType<TColumn, 'raw'>>()<TableName<TColumn>>`min(${column})`;
 }
 
 export function max<TColumn extends AnyColumn>(column: TColumn) {
-	return expr<InferColumnType<TColumn, 'raw'>>()<TableName<TColumn>>`max(${column})`;
+	return sql.response<InferColumnType<TColumn, 'raw'>>()<TableName<TColumn>>`max(${column})`;
 }
 
 export function inc<TColumn extends AnyColumn>(column: TColumn, value: number) {

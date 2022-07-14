@@ -1,20 +1,28 @@
-import { SQL } from 'drizzle-orm/sql';
+import { InferColumnType } from 'drizzle-orm';
+import { SQL, SQLResponse } from 'drizzle-orm/sql';
 import { TableName } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
 
 import { AnyPgDialect, PgSession } from '~/connection';
-import { AnyPgTable, InferType } from '~/table';
+import { AnyPgTable, InferType, TableColumns } from '~/table';
 
 export interface PgUpdateConfig<TTable extends AnyPgTable> {
 	where: SQL<TableName<TTable>>;
-	set: SQL<TableName<TTable>>;
+	set: PgUpdateSet<TTable>;
 	table: TTable;
 	returning?: boolean;
 }
 
+export type PgUpdateSet<TTable extends AnyPgTable> = {
+	[Key in keyof TableColumns<TTable>]?:
+		| InferColumnType<TableColumns<TTable>[Key], 'query'>
+		| SQL<TableName<TTable>>;
+};
+
 export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 	protected enforceCovariance!: {
 		table: TTable;
+		return: TReturn;
 	};
 
 	private fields: PgUpdateConfig<TTable> = {} as PgUpdateConfig<TTable>;
@@ -28,7 +36,7 @@ export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 		this.fields.table = table;
 	}
 
-	public set(values: SQL<TableName<TTable>>): Pick<this, 'where' | 'returning' | 'execute'> {
+	public set(values: PgUpdateSet<TTable>): Pick<this, 'where' | 'returning' | 'execute'> {
 		this.fields.set = values;
 		return this;
 	}

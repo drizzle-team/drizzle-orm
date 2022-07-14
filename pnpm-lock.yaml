@@ -1827,7 +1827,7 @@ packages:
     dev: true
 
   file:drizzle-orm-pg/package.tgz_drizzle-orm@0.13.0:
-    resolution: {integrity: sha512-PGLnvPQQoh8nUUZqKixJTtLKLqdCzqHJOIH0RVf10vovB76aC30Nt/h0fEQ4PFs44bqZMtmbefD21Gy0MOGDlA==, tarball: file:drizzle-orm-pg/package.tgz}
+    resolution: {integrity: sha512-2WrT3ijF4fFWe7m3mX8ZTioYBwrAMfGfDAfmKHdrKB1kj1UWSUpu6cQB4fL5K7BNF1ANYNC+Qcd5xc9KFC12Gg==, tarball: file:drizzle-orm-pg/package.tgz}
     id: file:drizzle-orm-pg/package.tgz
     name: drizzle-orm-pg
     version: 0.13.0
@@ -1844,7 +1844,7 @@ packages:
     dev: true
 
   file:drizzle-orm/package.tgz_uzvssjkar4top22uv2cxhe5bde:
-    resolution: {integrity: sha512-AHrSv/8SYrX2NBhSJuF3gUHRR58zYhNmxIgF5+3B4M6akNOtIc8FPL0QpQOZRS1A1C7IbxR4KQYZB+cnPjpl9w==, tarball: file:drizzle-orm/package.tgz}
+    resolution: {integrity: sha512-MvlRDlQgUoQl7RzlV4icG0tbDkSI1wDrlrRdp3nGh6bXJ/ZcRW7HLLww32C0wnCSV5KMN3NDzfQ9GfO2TkmO0w==, tarball: file:drizzle-orm/package.tgz}
     id: file:drizzle-orm/package.tgz
     name: drizzle-orm
     version: 0.13.0

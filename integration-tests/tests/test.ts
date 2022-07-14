@@ -2,7 +2,7 @@
 import { connect, sql, expr } from 'drizzle-orm';
 import { pgTable, index, constraint, foreignKey, PgConnector, InferType } from 'drizzle-orm-pg';
 import { int, serial, text } from 'drizzle-orm-pg/columns';
-import { and, or, eq } from 'drizzle-orm/expressions';
+import { and, or, eq, inc } from 'drizzle-orm/expressions';
 
 export const users = pgTable(
 	'users',
@@ -55,10 +55,10 @@ async function main() {
 	// const db = await connectWith(new PgConnector(pool, { users, cities }));
 	const db = await connect(new PgConnector(pool, { users, cities }));
 
-	const t = await db.users
-		.select()
-		.innerJoin(cities, (joins) => sql`${joins.cities1.name}`)
-		.execute();
+	// const t = await db.users
+	// 	.select()
+	// 	.innerJoin(cities, (joins) => sql`${joins.cities1.name}`)
+	// 	.execute();
 
 	type SelectUser = InferType<typeof users>;
 	type InsertUser = InferType<typeof users, 'insert'>;
@@ -122,73 +122,73 @@ async function main() {
 		.offset(2)
 		.execute();
 
-	db.users
-		.select({ id: users.id })
-		//.leftJoin/rightJoin/fullJoin/innerJoin
-		.innerJoin(
-			cities,
-			(joins) => sql`${joins.users.id} = ${joins.cities1.id}`,
-			(cities) => ({
-				id: cities.id,
-			}),
-		)
-		.innerJoin(cities, (joins) => sql`${joins.cities1.id} = ${joins.cities2.id}`)
-		.where(sql`${users.age1} > 0`)
-		//.where((joins) => sql`${joins.users.age1} > 0`)
-		//.where(eq(users.age1, 1))
-		//.where((joins) => eqjoins.users.age1, 1))
-		// .orderBy(asc(users.id), desc(users.name))
-		//.orderBy((joins)=> [asc(joins.users.id), desc(joins.cities1.id)])
-		//.orderBy((joins)=> sql`${joins.users.age1} ASC`)
-		.execute();
+	// db.users
+	// 	.select({ id: users.id })
+	// 	//.leftJoin/rightJoin/fullJoin/innerJoin
+	// 	.innerJoin(
+	// 		cities,
+	// 		(joins) => sql`${joins.users.id} = ${joins.cities1.id}`,
+	// 		(cities) => ({
+	// 			id: cities.id,
+	// 		}),
+	// 	)
+	// 	.innerJoin(cities, (joins) => sql`${joins.cities1.id} = ${joins.cities2.id}`)
+	// 	.where(sql`${users.age1} > 0`)
+	// 	//.where((joins) => sql`${joins.users.age1} > 0`)
+	// 	//.where(eq(users.age1, 1))
+	// 	//.where((joins) => eqjoins.users.age1, 1))
+	// 	// .orderBy(asc(users.id), desc(users.name))
+	// 	//.orderBy((joins)=> [asc(joins.users.id), desc(joins.cities1.id)])
+	// 	//.orderBy((joins)=> sql`${joins.users.age1} ASC`)
+	// 	.execute();
 
-	const megaJoin = db.users
-		.select({ id: users.id, maxAge: expr<number>()`max(${users.age1})` })
-		// .innerJoin(classes, (joins) => eq(joins.classes.id, joins.users.id))
-		.innerJoin(
-			cities,
-			(joins) => sql`${joins.users.id} = ${joins.cities1.id}`,
-			(cities) => ({
-				id: cities.id,
-			}),
-		)
-		.innerJoin(cities, (joins) => sql`${joins.cities1.id} = ${joins.cities1.id}`)
-		.innerJoin(classes, (joins) => eq(joins.cities1.id, joins.cities2.id))
-		.innerJoin(classes, (joins) => sql`${joins.classes1.id} = ${joins.classes2.id}`)
-		.innerJoin(classes, (joins) => sql`${joins.users.class} = ${joins.classes3.id}`)
-		.innerJoin(users, (joins) => sql`${joins.users.class} = ${joins.users1.id}`)
-		.innerJoin(cities, (joins) => sql`${joins.cities1.id} = ${joins.classes1.id}`)
-		.innerJoin(users, (joins) => sql`${joins.users.class} = ${joins.users2.id}`)
-		.innerJoin(cities, (joins) => sql`${joins.users.class} = ${joins.cities4.id}`)
-		.where((joins) => sql`${joins.users.age1} > 0`)
-		.execute();
-
-	db.users
-		.update()
-		.set(sql`${users.age1} = ${users.age1} + 1`)
-		.where(eq(users.id, 1))
-		.execute();
+	// const megaJoin = db.users
+	// 	.select({ id: users.id, maxAge: expr<number>()`max(${users.age1})` })
+	// 	// .innerJoin(classes, (joins) => eq(joins.classes.id, joins.users.id))
+	// 	.innerJoin(
+	// 		cities,
+	// 		(joins) => sql`${joins.users.id} = ${joins.cities1.id}`,
+	// 		(cities) => ({
+	// 			id: cities.id,
+	// 		}),
+	// 	)
+	// 	.innerJoin(cities, (joins) => sql`${joins.cities1.id} = ${joins.cities1.id}`)
+	// 	.innerJoin(classes, (joins) => eq(joins.cities1.id, joins.cities2.id))
+	// 	.innerJoin(classes, (joins) => sql`${joins.classes1.id} = ${joins.classes2.id}`)
+	// 	.innerJoin(classes, (joins) => sql`${joins.users.class} = ${joins.classes3.id}`)
+	// 	.innerJoin(users, (joins) => sql`${joins.users.class} = ${joins.users1.id}`)
+	// 	.innerJoin(cities, (joins) => sql`${joins.cities1.id} = ${joins.classes1.id}`)
+	// 	.innerJoin(users, (joins) => sql`${joins.users.class} = ${joins.users2.id}`)
+	// 	.innerJoin(cities, (joins) => sql`${joins.users.class} = ${joins.cities4.id}`)
+	// 	.where((joins) => sql`${joins.users.age1} > 0`)
+	// 	.execute();
 
 	const userId = 5;
 
 	db.users
 		.update()
-		.set(sql`${users.id} = ${userId}, ${users.age1} = ${users.age1} + 1`)
+		.set({
+			id: userId,
+			age1: inc(users.age1, 1),
+			serialNullable: null,
+			currentCity: sql`lower(${users.currentCity})`,
+		})
+		.where(eq(users.id, 1))
 		.returning()
 		.execute();
 
-	db.users.delete().where(eq(users.id, 2)).returning().execute();
-	db.users
-		.delete()
-		.where(sql`${users.id} = ${2}`)
-		.returning()
-		.execute();
-	// 2 won't be in prepared statement params
-	db.users
-		.delete()
-		.where(sql`${users.id} = 2`)
-		.returning()
-		.execute();
+	// db.users.delete().where(eq(users.id, 2)).returning().execute();
+	// db.users
+	// 	.delete()
+	// 	.where(sql`${users.id} = ${2}`)
+	// 	.returning()
+	// 	.execute();
+	// // 2 won't be in prepared statement params
+	// db.users
+	// 	.delete()
+	// 	.where(sql`${users.id} = 2`)
+	// 	.returning()
+	// 	.execute();
 }
 
 main().catch((e) => {
