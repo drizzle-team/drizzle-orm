@@ -1,3 +1,5 @@
+import { PgInteger } from 'drizzle-orm-pg';
+
 import { ColumnBuilder } from './column-builder';
 import { ParamValue } from './sql';
 import { AnyTable } from './table';
@@ -35,16 +37,22 @@ export abstract class Column<
 
 export type AnyColumn = Column<string>;
 
-export type InferColumnType<
-	TColumn extends AnyColumn,
-	TInferMode extends 'query' | 'raw',
-> = TColumn extends Column<any, infer TType, infer TNotNull, infer TDefault>
+export type InferColumnType<TColumn, TInferMode extends 'query' | 'raw'> = TColumn extends Column<
+	any,
+	infer TType,
+	infer TNotNull,
+	infer TDefault
+>
 	? TInferMode extends 'raw' // Raw mode
 		? TType // Just return the underlying type
 		: TNotNull extends true // Query mode
 		? TType // Query mode, not null
 		: TType | null // Query mode, nullable
 	: never;
+
+export type InferColumnsTypes<TColumns extends Record<string, AnyColumn>> = {
+	[Key in keyof TColumns]: InferColumnType<TColumns[Key], 'query'>;
+};
 
 export type InferDefaultColumnValue<TType, TNotNull extends boolean> = TNotNull extends true
 	? TType
