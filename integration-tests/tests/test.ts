@@ -66,7 +66,10 @@ async function main() {
 		age1: 1,
 	};
 
-	db.users.insert().values([newUser, newUser]).execute();
+	db.users.insert([newUser, newUser]).execute();
+	db.users.insert(newUser).execute();
+	db.users.insert([newUser, newUser]).returning().execute();
+	db.users.insert(newUser).returning().execute();
 
 	// db.users.insert().onConflictDoNothing();
 
@@ -98,11 +101,41 @@ async function main() {
 				// and(eq(cities.name, 'New York')),
 			),
 		)
+		.returning({ id: users.id })
 		.execute();
 
 	db.users
 		.select({ id: users.id, maxAge: expr<number>()`max(${users.age1})` })
 		.where(sql`${users.age1} > 0`)
+		.execute();
+
+	db.users
+		.select()
+		.where(sql`${users.age1} > 0`)
+		.orderBy(asc(users.id), desc(users.name))
+		.limit(1)
+		.offset(2)
+		.execute();
+
+	db.users
+		.select()
+		.select({ id: users.id })
+		//.leftJoin/rightJoin/fullJoin/innerJoin
+		.innerJoin(
+			cities,
+			(joins) => sql`${joins.users.id} = ${joins.cities1.id}`,
+			(cities) => ({
+				id: cities.id,
+			}),
+		)
+		.innerJoin(cities, (joins) => sql`${joins.cities1.id} = ${joins.cities2.id}`)
+		.where(sql`${users.age1} > 0`)
+		//.where((joins) => sql`${joins.users.age1} > 0`)
+		//.where(eq(users.age1, 1))
+		//.where((joins) => eqjoins.users.age1, 1))
+		.orderBy(asc(users.id), desc(users.name))
+		//.orderBy((joins)=> [asc(joins.users.id), desc(joins.cities1.id)])
+		//.orderBy((joins)=> sql`${joins.users.age1} ASC`)
 		.execute();
 
 	db.users
@@ -124,7 +157,6 @@ async function main() {
 		.innerJoin(users, (joins) => sql`${joins.users.class} = ${joins.users2.id}`)
 		.innerJoin(cities, (joins) => sql`${joins.users.class} = ${joins.cities.id}`)
 		.where((joins) => sql`${joins.users.age1} > 0`)
-		.where(sql`${users.age1} > 0`)
 		.execute();
 
 	db.users
@@ -138,6 +170,19 @@ async function main() {
 	db.users
 		.update()
 		.set(sql`${users.id} = ${userId}, ${users.age1} = ${users.age1} + 1`)
+		.returning()
+		.execute();
+
+	db.users.delete().where(eq(users.id, 2)).returning().execute();
+	db.users
+		.delete()
+		.where(sql`${users.id} = ${2}`)
+		.returning()
+		.execute();
+	// 2 won't be in prepared statement params
+	db.users
+		.delete()
+		.where(sql`${users.id} = 2`)
 		.returning()
 		.execute();
 }
