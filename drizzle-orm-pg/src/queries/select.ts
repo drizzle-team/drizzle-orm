@@ -1,4 +1,4 @@
-import { AnyTable, InferType, InferColumns } from 'drizzle-orm';
+import { AnyTable } from 'drizzle-orm';
 import { SelectFields } from 'drizzle-orm/operations';
 import { SQL } from 'drizzle-orm/sql';
 import { tableName, TableName } from 'drizzle-orm/utils';
@@ -6,7 +6,7 @@ import { Simplify } from 'type-fest';
 
 import { AnyPgDialect, PgSession } from '~/connection';
 import { PartialSelectResult } from '~/operations';
-import { AnyPgTable, PgTable } from '~/table';
+import { AnyPgTable, InferType, PgTable, TableColumns } from '~/table';
 import { PgColumn, AnyPgColumn } from '~/columns/common';
 
 export interface PgSelectConfig<TTable extends AnyTable> {
@@ -25,13 +25,8 @@ export type BuildAlias<
 	TAlias extends { [name: string]: number },
 > = `${TableName<TTable>}${GetAliasIndex<TableName<TTable>, TAlias>}`;
 
-export type TableAlias<TTable extends AnyPgTable, TAlias extends string> = TTable extends PgTable<
-	any,
-	infer TColumns,
-	any
->
-	? PgTable<TAlias, AliasColumns<TColumns, TAlias>, any> & AliasColumns<TColumns, TAlias>
-	: never;
+export type TableAlias<TTable extends AnyPgTable, TAlias extends string> =
+	PgTable<TAlias, undefined> & AliasColumns<TableColumns<TTable>, TAlias>
 
 export type AliasColumns<TColumns, TAlias extends string> = {
 	[Key in keyof TColumns]: TColumns[Key] extends PgColumn<
@@ -123,7 +118,7 @@ export class PgSelect<
 	TTable extends AnyPgTable,
 	TInitialSelect extends InferType<TTable> | PartialSelectResult<SelectFields<TableName<TTable>>>,
 	TReturn = undefined,
-	TJoins extends { [k: string]: any } = { [K in TableName<TTable>]: InferColumns<TTable> },
+	TJoins extends { [k: string]: any } = { [K in TableName<TTable>]: TableColumns<TTable> },
 	TAlias extends { [name: string]: number } = { [K in TableName<TTable>]: 1 },
 > {
 	protected enforceCovariance!: {
@@ -152,7 +147,7 @@ export class PgSelect<
 	}
 
 	private join<
-	TJoinedTable extends PgTable<TableName<TJoinedTable>, any, any>,
+	TJoinedTable extends PgTable<TableName<TJoinedTable>, any>,
 	TSelectedFields extends SelectFields<BuildAlias<TJoinedTable,
 	TAlias
 >>,
@@ -233,7 +228,7 @@ export class PgSelect<
 	}
 
 	public innerJoin<
-		TJoinedTable extends PgTable<TableName<TJoinedTable>, any, any>,
+		TJoinedTable extends AnyPgTable<TableName<TJoinedTable>>,
 	>(
 		value: TJoinedTable,
 		callback: (
@@ -250,7 +245,7 @@ export class PgSelect<
 	): Pick<PgSelect<
 		TTable,
 		TInitialSelect,
-		AppendToReturn<TReturn, BuildAlias<TJoinedTable, TAlias>, InferColumns<TJoinedTable>>,
+		AppendToReturn<TReturn, BuildAlias<TJoinedTable, TAlias>, TableColumns<TJoinedTable>>,
 		TJoins & {
 		[Alias in BuildAlias<
 			TJoinedTable,
@@ -260,7 +255,7 @@ export class PgSelect<
 		Increment<TableName<TJoinedTable>, TAlias>
 	>, 'offset' | 'limit' | 'execute' | 'innerJoin'| 'where'>; 
 	public innerJoin<
-		TJoinedTable extends PgTable<TableName<TJoinedTable>, any, any>,
+		TJoinedTable extends AnyPgTable<TableName<TJoinedTable>>,
 		TSelectedFields extends SelectFields<BuildAlias<TJoinedTable,
 		TAlias
 	>>,
@@ -294,7 +289,7 @@ export class PgSelect<
 		Increment<TableName<TJoinedTable>, TAlias>
 	>, 'offset' | 'limit' | 'execute' | 'innerJoin'| 'where'>;
 	public innerJoin<
-		TJoinedTable extends PgTable<TableName<TJoinedTable>, any, any>,
+		TJoinedTable extends AnyPgTable<TableName<TJoinedTable>>,
 		TSelectedFields extends SelectFields<BuildAlias<TJoinedTable,
 		TAlias
 	>>,

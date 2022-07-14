@@ -1,10 +1,9 @@
-import { InferType } from 'drizzle-orm/operations';
 import { SQL } from 'drizzle-orm/sql';
 import { TableName } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
 
 import { AnyPgDialect, PgSession } from '~/connection';
-import { AnyPgTable } from '~/table';
+import { AnyPgTable, InferType } from '~/table';
 
 export interface PgUpdateConfig<TTable extends AnyPgTable> {
 	where: SQL<TableName<TTable>>;

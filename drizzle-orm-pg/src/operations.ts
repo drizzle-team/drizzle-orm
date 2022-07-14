@@ -1,6 +1,6 @@
 // import { Pool, QueryResult } from 'pg';
 import { Column, InferColumnType } from 'drizzle-orm';
-import { InferType, SelectFields } from 'drizzle-orm/operations';
+import { SelectFields } from 'drizzle-orm/operations';
 import { SQL, ParamValue } from 'drizzle-orm/sql';
 import { TableName } from 'drizzle-orm/utils';
 import { Simplify } from 'type-fest';
@@ -8,7 +8,7 @@ import { Simplify } from 'type-fest';
 import { PgColumn } from './columns';
 import { AnyPgDialect, PgSession } from './connection';
 import { PgInsert, PgSelect, PgUpdate } from './queries';
-import { AnyPgTable } from './table';
+import { AnyPgTable, InferType } from './table';
 
 export type PartialSelectResult<TSelectedFields extends SelectFields<string>> = Simplify<{
 	[Key in keyof TSelectedFields]: TSelectedFields[Key] extends Column<string>

@@ -1,6 +1,6 @@
 // import { Pool } from 'pg';
-import { connect, sql, InferType, expr } from 'drizzle-orm';
-import { pgTable, index, constraint, foreignKey, PgConnector } from 'drizzle-orm-pg';
+import { connect, sql, expr } from 'drizzle-orm';
+import { pgTable, index, constraint, foreignKey, PgConnector, InferType } from 'drizzle-orm-pg';
 import { int, serial, text } from 'drizzle-orm-pg/columns';
 import { and, or, eq } from 'drizzle-orm/expressions';
 
@@ -142,7 +142,7 @@ async function main() {
 		//.orderBy((joins)=> sql`${joins.users.age1} ASC`)
 		.execute();
 
-	db.users
+	const megaJoin = db.users
 		.select({ id: users.id, maxAge: expr<number>()`max(${users.age1})` })
 		// .innerJoin(classes, (joins) => eq(joins.classes.id, joins.users.id))
 		.innerJoin(
@@ -159,7 +159,7 @@ async function main() {
 		.innerJoin(users, (joins) => sql`${joins.users.class} = ${joins.users1.id}`)
 		.innerJoin(cities, (joins) => sql`${joins.cities1.id} = ${joins.classes1.id}`)
 		.innerJoin(users, (joins) => sql`${joins.users.class} = ${joins.users2.id}`)
-		.innerJoin(cities, (joins) => sql`${joins.users.class} = ${joins.cities.id}`)
+		.innerJoin(cities, (joins) => sql`${joins.users.class} = ${joins.cities4.id}`)
 		.where((joins) => sql`${joins.users.age1} > 0`)
 		.execute();
 

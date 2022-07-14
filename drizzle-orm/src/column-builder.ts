@@ -13,6 +13,8 @@ export abstract class ColumnBuilder<
 		default: TDefault;
 	};
 
+	protected brand!: 'ColumnBuilder';
+
 	/** @internal */ _notNull = false as TNotNull;
 	/** @internal */ _default!: InferDefaultColumnValue<
 		InferColumnType<TColumnType, 'raw'>,

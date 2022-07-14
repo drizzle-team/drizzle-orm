@@ -1,10 +1,11 @@
 import { Connector, Driver, Dialect, sql, Column } from 'drizzle-orm';
 import { SQL, raw, ParamValue, SQLSourceParam, ColumnWithoutTable } from 'drizzle-orm/sql';
-import { getTableColumns } from 'drizzle-orm/utils';
 
+import { AnyPgColumn } from './columns';
 import { PgTableOperations } from './operations';
 import { PgUpdateConfig, AnyPgSelectConfig, AnyPgInsertConfig } from './queries';
 import { AnyPgTable } from './table';
+import { getTableColumns } from './utils';
 
 export interface PgDriverResponse {
 	rows: any[];
@@ -105,7 +106,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 
 	public buildInsertQuery({ table, values, returning }: AnyPgInsertConfig): SQL {
 		const joinedValues: (ParamValue | SQL)[][] = [];
-		const columns = getTableColumns(table);
+		const columns: Record<string, AnyPgColumn> = getTableColumns(table);
 		const columnKeys = Object.keys(columns);
 		const insertOrder = Object.values(columns).map((column) => new ColumnWithoutTable(column));
 

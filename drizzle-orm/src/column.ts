@@ -16,6 +16,8 @@ export abstract class Column<
 		default: TDefault;
 	};
 
+	protected brand!: 'Column';
+
 	readonly name: string;
 	readonly notNull: TNotNull;
 	readonly default: InferDefaultColumnValue<TType, TNotNull>;

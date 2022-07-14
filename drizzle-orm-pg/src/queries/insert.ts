@@ -1,11 +1,11 @@
-import { InferType } from 'drizzle-orm';
+import { ParamValue, SQL } from 'drizzle-orm/sql';
 
 import { AnyPgDialect, PgSession } from '~/connection';
-import { AnyPgTable } from '~/table';
+import { AnyPgTable, InferType } from '~/table';
 
 export interface PgInsertConfig<TTable extends AnyPgTable> {
 	table: TTable;
-	values: InferType<TTable, 'insert'>[];
+	values: Record<string, ParamValue | SQL>[];
 	returning?: boolean;
 }
 
