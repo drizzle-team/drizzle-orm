@@ -24,6 +24,6 @@ export class PgSerial<
 	}
 }
 
-export function serial(table: string) {
-	return new PgSerialBuilder(table);
+export function serial(name: string) {
+	return new PgSerialBuilder(name);
 }

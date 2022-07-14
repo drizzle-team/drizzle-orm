@@ -1,11 +1,14 @@
 {
 	"compilerOptions": {
+		"composite": true,
 		"target": "es2016",
 		"module": "commonjs",
 		"lib": ["es2018", "es2017", "es7", "es6", "es5"],
 		"declaration": true /* Generate .d.ts files from TypeScript and JavaScript files in your project. */,
+		"declarationMap": false,
 		"sourceMap": true,
 		"allowJs": true,
+		"incremental": true,
 		"stripInternal": true /* Disable emitting declarations that have '@internal' in their JSDoc comments. */,
 		"allowSyntheticDefaultImports": true /* Allow 'import x from y' when a module doesn't have a default export. */,
 		"esModuleInterop": true /* Emit additional JavaScript to ease support for importing CommonJS modules. This enables 'allowSyntheticDefaultImports' for type compatibility. */,
@@ -28,5 +31,6 @@
 		"allowUnusedLabels": true /* Disable error reporting for unused labels. */,
 		"allowUnreachableCode": true /* Disable error reporting for unreachable code. */,
 		"skipLibCheck": true /* Skip type checking all .d.ts files. */
-	}
+	},
+	"exclude": ["**/dist"]
 }

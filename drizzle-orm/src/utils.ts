@@ -1,3 +1,4 @@
+import { AnyColumn, Column } from './column';
 import { AnyTable, TableColumns } from './table';
 
 /** @internal */
@@ -14,4 +15,8 @@ export function getTableColumns<TTable extends AnyTable>(table: TTable): TableCo
 	return table[tableColumns];
 }
 
-export type TableName<T extends AnyTable> = T extends AnyTable<infer TName> ? TName : never;
+export type TableName<T extends AnyTable | AnyColumn> = T extends AnyTable<infer TName>
+	? TName
+	: T extends Column<infer TName>
+	? TName
+	: never;

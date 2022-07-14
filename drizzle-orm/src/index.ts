@@ -1,5 +1,5 @@
-export { sql } from './sql';
+export { sql, expr } from './sql';
 export * from './table';
 export * from './column';
 export * from './connection';
-export { InferType } from './operations';
+export { InferType, InferColumns } from './operations';

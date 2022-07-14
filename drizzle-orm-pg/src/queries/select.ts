@@ -1,8 +1,12 @@
-import { AnyColumn, AnyTable, InferColumnsTypes, InferType } from 'drizzle-orm';
-import { InferColumns, SelectConfig, SelectFields } from 'drizzle-orm/operations';
+import { AnyTable, InferType, InferColumns } from 'drizzle-orm';
+import { SelectConfig, SelectFields } from 'drizzle-orm/operations';
 import { SQL } from 'drizzle-orm/sql';
-import { tableColumns, tableName, TableName } from 'drizzle-orm/utils';
-import { AnyPgColumn, AnyPgDialect, AnyPgSession, AnyPgTable, PartialSelectResult, PgColumn, PgTable } from '..';
+import { tableName, TableName } from 'drizzle-orm/utils';
+
+import { AnyPgDialect } from '~/connection';
+import { AnyPgSession, PartialSelectResult } from '~/operations';
+import { AnyPgTable, PgTable } from '~/table';
+import { PgColumn, AnyPgColumn } from '~/columns/common';
 
 export interface PgSelectConfig<TTable extends string> extends SelectConfig<AnyPgTable> {}
 

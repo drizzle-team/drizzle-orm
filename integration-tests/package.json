@@ -1,0 +1,21 @@
+{
+	"name": "integration-tests",
+	"version": "1.0.0",
+	"description": "",
+	"main": "index.js",
+	"scripts": {
+		"test": "ts-node tests/test.ts",
+		"build:int": "pnpm i"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"private": true,
+	"devDependencies": {
+		"drizzle-orm": "file:../drizzle-orm/package.tgz",
+		"drizzle-orm-pg": "file:../drizzle-orm-pg/package.tgz",
+		"drizzle-orm-mysql": "file:../drizzle-orm-mysql/package.tgz",
+		"ts-node": "^10.8.2",
+		"typescript": "^4.7.4"
+	}
+}

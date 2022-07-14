@@ -9,7 +9,7 @@ export class PgIntegerBuilder<
 	override build<TTableName extends string>(
 		table: AnyPgTable<TTableName>,
 	): PgInteger<TTableName, TNotNull, TDefault> {
-		return new PgInteger(table, this);
+		return new PgInteger<TTableName, TNotNull, TDefault>(table, this);
 	}
 }
 
@@ -30,6 +30,6 @@ export class PgInteger<
 	}
 }
 
-export function int(table: string) {
-	return new PgIntegerBuilder(table);
+export function int(name: string) {
+	return new PgIntegerBuilder(name);
 }

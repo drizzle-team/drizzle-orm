@@ -1,7 +1,8 @@
 import { InferType } from 'drizzle-orm';
-import { AnyPgDialect } from 'drizzle-orm-pg/connection';
-import { AnyPgSession } from 'drizzle-orm-pg/operations';
-import { AnyPgTable } from 'drizzle-orm-pg/table';
+
+import { AnyPgDialect } from '~/connection';
+import { AnyPgSession } from '~/operations';
+import { AnyPgTable } from '~/table';
 
 export interface PgInsertConfig<TTable extends AnyPgTable> {
 	table: TTable;

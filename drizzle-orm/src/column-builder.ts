@@ -14,7 +14,6 @@ export abstract class ColumnBuilder<
 	/** @internal */ _primaryKey = false;
 	/* @internal */ _references: (() => Column<string, InferColumnType<TColumnType, 'raw'>>)[] = [];
 	/** @internal */ name: string;
-	// /** @internal */ _index: IndexBuilder<TColumnType> | undefined;
 
 	constructor(name: string) {
 		this.name = name;

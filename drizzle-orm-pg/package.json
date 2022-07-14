@@ -1,50 +1,53 @@
 {
-  "name": "drizzle-orm-pg",
-  "version": "0.13.0",
-  "description": "Drizzle ORM package for PostgreSQL database",
-  "main": "index.js",
-  "types": "index.d.ts",
-  "scripts": {
-    "build": "ts-node src/index.ts"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/drizzle-team/drizzle-orm.git"
-  },
-  "keywords": [
-    "orm",
-    "pg",
-    "postgres",
-    "postgresql",
-    "database",
-    "sql",
-    "typescript"
-  ],
-  "author": "",
-  "license": "Apache-2.0",
-  "bugs": {
-    "url": "https://github.com/drizzle-team/drizzle-orm/issues"
-  },
-  "homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
-  "peerDependencies": {
-    "drizzle-orm": ">=0.13.0 <0.14.0",
-    "pg": ">=8 <9"
-  },
-  "peerDependenciesMeta": {
-    "pg": {
-      "optional": true
-    },
-    "drizzle-orm": {
-      "optional": true
-    }
-  },
-  "devDependencies": {
-    "@types/pg": "^8.6.1",
-    "dotenv": "^16.0.0",
-    "drizzle-orm": "link:../drizzle-orm/src",
-    "pg": "^8.6.0",
-    "ts-node": "^10.8.2",
-    "typescript": "^4.7.4",
-    "uvu": "^0.5.3"
-  }
+	"name": "drizzle-orm-pg",
+	"version": "0.13.0",
+	"description": "Drizzle ORM package for PostgreSQL database",
+	"main": "index.js",
+	"types": "index.d.ts",
+	"scripts": {
+		"build": "tsc --build",
+		"pack": "cp package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"publish": "pnpm publish package.tgz",
+		"build:int": "pnpm build && pnpm run pack"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/drizzle-team/drizzle-orm.git"
+	},
+	"keywords": [
+		"orm",
+		"pg",
+		"postgres",
+		"postgresql",
+		"database",
+		"sql",
+		"typescript"
+	],
+	"author": "",
+	"license": "Apache-2.0",
+	"bugs": {
+		"url": "https://github.com/drizzle-team/drizzle-orm/issues"
+	},
+	"homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
+	"peerDependencies": {
+		"drizzle-orm": ">=0.13.0 <0.14.0",
+		"pg": ">=8 <9"
+	},
+	"peerDependenciesMeta": {
+		"pg": {
+			"optional": true
+		},
+		"drizzle-orm": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"@types/pg": "^8.6.1",
+		"dotenv": "^16.0.0",
+		"drizzle-orm": "link:../drizzle-orm/src",
+		"pg": "^8.6.0",
+		"ts-node": "^10.8.2",
+		"typescript": "4.8.0-beta",
+		"uvu": "^0.5.3"
+	}
 }

@@ -28,6 +28,10 @@ export class PgText<
 	getSQLType(): string {
 		return 'text';
 	}
+
+	override mapToDriverValue(value: TType) {
+		return `mapped text ${value}`;
+	}
 }
 
 export function text<T extends string = string>(name: string) {

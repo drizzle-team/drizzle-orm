@@ -1,8 +1,7 @@
 import { Connector, Driver, Dialect, sql, Column } from 'drizzle-orm';
-import { SQL, raw, ParamValue, Chunk, SQLSourceParam } from 'drizzle-orm/sql';
+import { SQL, raw, ParamValue, SQLSourceParam, ColumnWithoutTable } from 'drizzle-orm/sql';
 import { getTableColumns } from 'drizzle-orm/utils';
 
-import { AnyPgColumn } from './columns';
 import { PgTableOperations } from './operations';
 import { PgUpdateConfig, AnyPgSelectConfig, AnyPgInsertConfig } from './queries';
 import { AnyPgTable } from './table';
@@ -78,7 +77,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 	public buildSelectQuery({ fields, where, table }: AnyPgSelectConfig): SQL {
 		let sqlFields: SQL;
 		if (fields) {
-			let sqlFieldsList: SQL[] = [];
+			let sqlFieldsList: SQLSourceParam[] = [];
 			Object.values(fields).forEach((field, i) => {
 				if (field instanceof SQL) {
 					sqlFieldsList.push(field);
@@ -103,7 +102,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		const joinedValues: (ParamValue | SQL)[][] = [];
 		const columns = getTableColumns(table);
 		const columnKeys = Object.keys(columns);
-		const insertOrder = Object.values(columns);
+		const insertOrder = Object.values(columns).map((column) => new ColumnWithoutTable(column));
 
 		values.forEach((value) => {
 			const valueList: (ParamValue | SQL)[] = [];

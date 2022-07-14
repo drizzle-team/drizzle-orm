@@ -1,6 +1,6 @@
 import { BuildColumns } from 'drizzle-orm/column-builder';
 import { Table } from 'drizzle-orm/table';
-import { tableColumns } from 'drizzle-orm/utils';
+import { tableColumns, tableName } from 'drizzle-orm/utils';
 
 import { AnyPgColumn, PgColumnBuilder } from './columns/common';
 import { AnyConstraintBuilder, Constraint, ConstraintBuilder } from './constraints';
@@ -39,6 +39,12 @@ export class PgTable<
 	TColumns extends Record<string, AnyPgColumn>,
 	TConflictConstraints extends Record<string, ConflictConstraint>,
 > extends Table<TName, TColumns> {
+	/** @internal */
+	[tableName]!: TName;
+
+	/** @internal */
+	[tableColumns]!: TColumns;
+
 	/** @internal */
 	[tableIndexes]: Record<string, Index<TName>> = {};
 

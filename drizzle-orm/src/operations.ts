@@ -1,7 +1,5 @@
-import { AnyPgTable, PartialSelectResult } from 'drizzle-orm-pg';
-
 import { AnyColumn, Column, InferColumnType } from './column';
-import { SQL } from './sql';
+import { SQL, SQLExpr } from './sql';
 import { AnyTable, Table } from './table';
 import { TableName } from './utils';
 
@@ -52,11 +50,8 @@ export type InferType<
 		  }
 	: never;
 
-// export type InferSelectResult<TColumns extends Record<string, unknown>> =
-// 		  {[Key in keyof TColumns]: TColumns[Key] extends Column<infer>}
-
 export type SelectFields<TTableName extends string> = {
-	[Key: string]: SQL<TTableName> | Column<TTableName>;
+	[Key: string]: SQLExpr<TTableName> | Column<TTableName>;
 };
 
 export interface SelectConfig<TTable extends AnyTable> {

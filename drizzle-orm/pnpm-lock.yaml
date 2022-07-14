@@ -3,25 +3,25 @@ lockfileVersion: 5.4
 specifiers:
   '@types/pg': ^8.6.1
   '@types/sqlite3': ^3.1.8
-  drizzle-orm-mysql: link:../drizzle-orm-mysql/src
+  drizzle-orm-mysql: link:../drizzle-orm-pg/src
   drizzle-orm-pg: link:../drizzle-orm-pg/src
   mysql2: ^2.3.3
   pg: ^8.6.0
   sqlite3: ^5.0.8
   ts-node: ^10.8.2
-  typescript: ^4.7.4
+  typescript: 4.8.0-beta
   uvu: ^0.5.3
 
 devDependencies:
   '@types/pg': 8.6.5
   '@types/sqlite3': 3.1.8
-  drizzle-orm-mysql: link:../drizzle-orm-mysql/src
+  drizzle-orm-mysql: link:../drizzle-orm-pg/src
   drizzle-orm-pg: link:../drizzle-orm-pg/src
   mysql2: 2.3.3
   pg: 8.7.3
   sqlite3: 5.0.8
-  ts-node: 10.8.2_fxk5i3xm3ivo7fjwhcizcinpla
-  typescript: 4.7.4
+  ts-node: 10.8.2_jjnyw265sdojgo5skhpsi2mn5a
+  typescript: 4.8.0-beta
   uvu: 0.5.6
 
 packages:
@@ -1035,7 +1035,7 @@ packages:
     resolution: {integrity: sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==}
     dev: true
 
-  /ts-node/10.8.2_fxk5i3xm3ivo7fjwhcizcinpla:
+  /ts-node/10.8.2_jjnyw265sdojgo5skhpsi2mn5a:
     resolution: {integrity: sha512-LYdGnoGddf1D6v8REPtIH+5iq/gTDuZqv2/UJUU7tKjuEU8xVZorBM+buCGNjj+pGEud+sOoM4CX3/YzINpENA==}
     hasBin: true
     peerDependencies:
@@ -1061,13 +1061,13 @@ packages:
       create-require: 1.1.1
       diff: 4.0.2
       make-error: 1.3.6
-      typescript: 4.7.4
+      typescript: 4.8.0-beta
       v8-compile-cache-lib: 3.0.1
       yn: 3.1.1
     dev: true
 
-  /typescript/4.7.4:
-    resolution: {integrity: sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ==}
+  /typescript/4.8.0-beta:
+    resolution: {integrity: sha512-Almk3jQ+i+J2/6Nq68M9hr7pYemLJ29pJJ2actTEGQWHSOpfTRDowfWYRZ1cgAXQqcnvygntgD/6odChhNcKlQ==}
     engines: {node: '>=4.2.0'}
     hasBin: true
     dev: true
