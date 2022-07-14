@@ -1,19 +1,24 @@
 import { AnyTable, InferType, InferColumns } from 'drizzle-orm';
-import { SelectConfig, SelectFields } from 'drizzle-orm/operations';
+import { SelectFields } from 'drizzle-orm/operations';
 import { SQL } from 'drizzle-orm/sql';
 import { tableName, TableName } from 'drizzle-orm/utils';
+import { Simplify } from 'type-fest';
 
-import { AnyPgDialect } from '~/connection';
-import { AnyPgSession, PartialSelectResult } from '~/operations';
+import { AnyPgDialect, PgSession } from '~/connection';
+import { PartialSelectResult } from '~/operations';
 import { AnyPgTable, PgTable } from '~/table';
 import { PgColumn, AnyPgColumn } from '~/columns/common';
 
-export interface PgSelectConfig<TTable extends string> extends SelectConfig<AnyPgTable> {}
+export interface PgSelectConfig<TTable extends AnyTable> {
+	fields: SelectFields<TableName<TTable>> | undefined;
+	where: SQL<TableName<TTable>>;
+	table: TTable;
+	limit: number | undefined;
+	offset: number | undefined;
+	distinct: AnyPgColumn<TableName<TTable>> | undefined;
+}
 
-export type AnyPgSelectConfig = SelectConfig<AnyPgTable>;
-
-export type InferTableNameFrom<TJoins extends { [K in TableName<AnyTable>]: any }> =
-	TJoins extends { [K in TableName<infer TTable>]: any } ? TTable : never;
+export type AnyPgSelectConfig = PgSelectConfig<AnyPgTable>;
 
 export type BuildAlias<
 	TTable extends AnyPgTable,
@@ -109,7 +114,7 @@ export type SelectResult<
 	TInitialSelect extends InferType<TTable> | PartialSelectResult<SelectFields<TableName<TTable>>>,
 > = TReturn extends undefined
 	? TInitialSelect[]
-	: (TReturn & { [k in TableName<TTable>]: TInitialSelect })[];
+	: (Simplify<TReturn & { [k in TableName<TTable>]: TInitialSelect }>)[];
 
 export type AppendToReturn<TReturn, TAlias extends string, TSelectedFields extends SelectFields<any>> = 
 	TReturn extends undefined ? {[Key in TAlias]: PartialSelectResult<TSelectedFields>} : TReturn & {[Key in TAlias]: PartialSelectResult<TSelectedFields>};
@@ -121,6 +126,14 @@ export class PgSelect<
 	TJoins extends { [k: string]: any } = { [K in TableName<TTable>]: InferColumns<TTable> },
 	TAlias extends { [name: string]: number } = { [K in TableName<TTable>]: 1 },
 > {
+	protected enforceCovariance!: {
+		table: TTable;
+		initialSelect: TInitialSelect;
+		return: TReturn;
+		joins: TJoins;
+		alias: TAlias;
+	};
+
 	private config: AnyPgSelectConfig = {} as AnyPgSelectConfig;
 	private _alias!: TAlias;
 	private _joins!: TJoins;
@@ -129,7 +142,7 @@ export class PgSelect<
 	constructor(
 		private table: TTable,
 		private fields: SelectFields<TableName<TTable>> | undefined,
-		private session: AnyPgSession,
+		private session: PgSession,
 		private mapper: (rows: any[]) => InferType<TTable>[],
 		private dialect: AnyPgDialect,
 	) {
@@ -306,20 +319,6 @@ export class PgSelect<
 		return this.join(value, callback, 'INNER JOIN', partialCallback);
 	}
 
-	// /** @internal */
-	// private whereWithCallback(callback: (joins: TJoins) => SQL<keyof TJoins & string>): Omit<this, 'distinct'| 'where'| 'innerJoin' | 'execute'> 
-	// & {'execute': PgSelect<TTable, TJoins, TAlias>['executeWithJoin']}{
-	// 	return this.where(callback)
-	// }
-
-	// /** @internal */
-	// private whereWithSql(where: SQL<TableName<TTable>>): Omit<this, 'distinct'| 'where'|'execute'>& {'execute': PgSelect<TTable, TJoins, TAlias>['executeWithoutJoin']}{
-	// 	return this.where(where)
-	// }
-
-	// public where(where: (joins: TJoins) => SQL<keyof TJoins & string>): Omit<this, 
-	// 'distinct'| 'where'| 'innerJoin' | 'execute'> & {'execute': PgSelect<TTable, TJoins, TAlias>['executeWithJoin']};
-	// public where(where: SQL<TableName<TTable>>): Omit<this, 'distinct'| 'where'| 'execute'> & {'execute': PgSelect<TTable, TJoins, TAlias>['executeWithoutJoin']};
 	public where(where: ((joins: TJoins) => SQL<keyof TJoins & string>) | SQL<TableName<TTable>>):  Omit<this, 'distinct'| 'where'>{
 		if (where instanceof SQL<TableName<TTable>>){
 			this.config.where = where;
@@ -344,8 +343,6 @@ export class PgSelect<
 		return this;
 	}
 
-	// public async execute(): Promise<InferType<TTable, "select">>;
-	// public async execute(): Promise<JoinResponse<TJoins>>;
 	public async execute(): Promise<SelectResult<TTable, TReturn, TInitialSelect>> {
 		const query = this.dialect.buildSelectQuery(this.config);
 		const [sql, params] = this.dialect.prepareSQL(query);

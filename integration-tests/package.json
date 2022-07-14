@@ -5,7 +5,7 @@
 	"main": "index.js",
 	"scripts": {
 		"test": "ts-node tests/test.ts",
-		"build:int": "pnpm i"
+		"build:int": "pnpm add ../drizzle-orm/package.tgz ../drizzle-orm-pg/package.tgz ../drizzle-orm-mysql/package.tgz"
 	},
 	"keywords": [],
 	"author": "",

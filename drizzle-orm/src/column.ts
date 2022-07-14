@@ -9,6 +9,13 @@ export abstract class Column<
 	TDefault extends boolean = boolean,
 > implements ParamValueMapper<TType>
 {
+	protected enforceCovariance!: {
+		tableName: TTableName;
+		type: TType;
+		notNull: TNotNull;
+		default: TDefault;
+	};
+
 	readonly name: string;
 	readonly notNull: TNotNull;
 	readonly default: InferDefaultColumnValue<TType, TNotNull>;

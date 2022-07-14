@@ -1,5 +1,5 @@
 import { AnyColumn, Column } from './column';
-import { AnyTable, TableColumns } from './table';
+import { AnyTable, Table, TableColumns } from './table';
 
 /** @internal */
 export const tableName = Symbol('tableName');
@@ -11,7 +11,10 @@ export function getTableName<TTableName extends string>(table: AnyTable<TTableNa
 	return table[tableName];
 }
 
-export function getTableColumns<TTable extends AnyTable>(table: TTable): TableColumns<TTable> {
+export function getTableColumns<
+	TColumns extends Record<string, AnyColumn>,
+	TTable extends Table<string, TColumns>,
+>(table: TTable): TColumns {
 	return table[tableColumns];
 }
 

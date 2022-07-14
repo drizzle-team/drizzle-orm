@@ -1,7 +1,6 @@
 import { InferType } from 'drizzle-orm';
 
-import { AnyPgDialect } from '~/connection';
-import { AnyPgSession } from '~/operations';
+import { AnyPgDialect, PgSession } from '~/connection';
 import { AnyPgTable } from '~/table';
 
 export interface PgInsertConfig<TTable extends AnyPgTable> {
@@ -13,22 +12,21 @@ export interface PgInsertConfig<TTable extends AnyPgTable> {
 export type AnyPgInsertConfig = PgInsertConfig<AnyPgTable>;
 
 export class PgInsert<TTable extends AnyPgTable> {
+	protected enforceCovariance!: {
+		table: TTable;
+	};
+
 	private config: PgInsertConfig<TTable> = {} as PgInsertConfig<TTable>;
 
 	constructor(
 		table: TTable,
-		private session: AnyPgSession,
+		values: InferType<TTable, 'insert'>[],
+		private session: PgSession,
 		private map: (rows: any[]) => InferType<TTable>[],
 		private dialect: AnyPgDialect,
 	) {
 		this.config.table = table;
-	}
-
-	values(
-		values: InferType<TTable, 'insert'> | InferType<TTable, 'insert'>[],
-	): Pick<this, 'returning' | 'execute'> {
-		this.config.values = Array.isArray(values) ? values : [values];
-		return this;
+		this.config.values = values;
 	}
 
 	returning(): Pick<this, 'execute'> {

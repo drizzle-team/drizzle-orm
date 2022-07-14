@@ -2,7 +2,7 @@ import { AnyPgColumn, PgColumn } from './columns';
 import { AnyPgTable } from './table';
 
 export class ForeignKeyBuilder<TTableName extends string, TForeignTableName extends string> {
-	private brand!: 'PgForeignKeyBuilder';
+	protected brand!: 'PgForeignKeyBuilder';
 
 	constructor(
 		private config: () => readonly [

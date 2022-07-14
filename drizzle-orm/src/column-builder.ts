@@ -1,3 +1,5 @@
+import { Simplify } from 'type-fest';
+
 import { AnyTable, AnyColumn, Column, InferColumnType, InferDefaultColumnValue } from '.';
 
 export abstract class ColumnBuilder<
@@ -5,7 +7,12 @@ export abstract class ColumnBuilder<
 	TNotNull extends boolean = boolean,
 	TDefault extends boolean = boolean,
 > {
-	private columnType!: TColumnType;
+	protected enforceCovariance!: {
+		columnType: TColumnType;
+		notNull: TNotNull;
+		default: TDefault;
+	};
+
 	/** @internal */ _notNull = false as TNotNull;
 	/** @internal */ _default!: InferDefaultColumnValue<
 		InferColumnType<TColumnType, 'raw'>,
@@ -60,11 +67,11 @@ export type InferColumnBuilderDefault<TConfig extends ColumnBuilder> =
 export type BuildColumns<
 	TTableName extends string,
 	TConfigMap extends Record<string, ColumnBuilder>,
-> = {
+> = Simplify<{
 	[Key in keyof TConfigMap]: Column<
 		TTableName,
 		InferColumnType<InferColumnBuilderType<TConfigMap[Key]>, 'raw'>,
 		InferColumnBuilderNotNull<TConfigMap[Key]>,
 		InferColumnBuilderDefault<TConfigMap[Key]>
 	>;
-};
+}>;

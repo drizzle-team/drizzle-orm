@@ -9,9 +9,6 @@ export const tableForeignKeys = Symbol('tableForeignKeys');
 /** @internal */
 export const tableConstraints = Symbol('tableConstraints');
 
-/** @internal */
-export const tableConflictConstraints = Symbol('tableConflictConstraints');
-
 export function getTableIndexes<TTable extends AnyPgTable>(table: TTable) {
 	return table[tableIndexes];
 }

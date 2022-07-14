@@ -6,12 +6,7 @@ import { AnyPgColumn, PgColumnBuilder } from './columns/common';
 import { AnyConstraintBuilder, Constraint, ConstraintBuilder } from './constraints';
 import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
 import { AnyIndexBuilder, Index, IndexBuilder } from './indexes';
-import {
-	tableConflictConstraints,
-	tableConstraints,
-	tableForeignKeys,
-	tableIndexes,
-} from './utils';
+import { tableConstraints, tableForeignKeys, tableIndexes } from './utils';
 
 export type PgTableExtraConfig<TTableName extends string> = Record<
 	string,
@@ -39,6 +34,10 @@ export class PgTable<
 	TColumns extends Record<string, AnyPgColumn>,
 	TConflictConstraints extends Record<string, ConflictConstraint>,
 > extends Table<TName, TColumns> {
+	protected override enforceCovariance!: Table<TName, TColumns>['enforceCovariance'] & {
+		conflictConstraints: TConflictConstraints;
+	};
+
 	/** @internal */
 	[tableName]!: TName;
 
@@ -53,9 +52,6 @@ export class PgTable<
 
 	/** @internal */
 	[tableConstraints]: Record<string, Constraint<TName>> = {};
-
-	// TODO: make private after testing is done
-	[tableConflictConstraints]!: TConflictConstraints;
 }
 
 export type AnyPgTable<TName extends string = string> = PgTable<

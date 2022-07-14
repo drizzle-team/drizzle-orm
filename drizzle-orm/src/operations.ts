@@ -1,7 +1,8 @@
+import { Simplify } from 'type-fest';
+
 import { AnyColumn, Column, InferColumnType } from './column';
-import { SQL, SQLExpr } from './sql';
+import { SQLExpr } from './sql';
 import { AnyTable, Table } from './table';
-import { TableName } from './utils';
 
 export type RequiredKeyOnly<TKey, T extends AnyColumn> = T extends Column<
 	any,
@@ -34,17 +35,19 @@ export type InferType<
 	TInferMode extends 'select' | 'insert' = 'select',
 > = TTable extends Table<any, infer TColumns>
 	? TInferMode extends 'insert'
-		? {
-				[Key in keyof TColumns as RequiredKeyOnly<Key, TColumns[Key]>]: InferColumnType<
-					TColumns[Key],
-					'query'
-				>;
-		  } & {
-				[Key in keyof TColumns as OptionalKeyOnly<Key, TColumns[Key]>]?: InferColumnType<
-					TColumns[Key],
-					'query'
-				>;
-		  }
+		? Simplify<
+				{
+					[Key in keyof TColumns as RequiredKeyOnly<Key, TColumns[Key]>]: InferColumnType<
+						TColumns[Key],
+						'query'
+					>;
+				} & {
+					[Key in keyof TColumns as OptionalKeyOnly<
+						Key,
+						TColumns[Key]
+					>]?: InferColumnType<TColumns[Key], 'query'>;
+				}
+		  >
 		: {
 				[Key in keyof TColumns]: InferColumnType<TColumns[Key], 'query'>;
 		  }
@@ -53,14 +56,3 @@ export type InferType<
 export type SelectFields<TTableName extends string> = {
 	[Key: string]: SQLExpr<TTableName> | Column<TTableName>;
 };
-
-export interface SelectConfig<TTable extends AnyTable> {
-	fields: SelectFields<TableName<TTable>> | undefined;
-	where: SQL<TableName<TTable>>;
-	table: TTable;
-	limit: number | undefined;
-	offset: number | undefined;
-	distinct: AnyColumn | undefined;
-}
-
-export interface Return {}

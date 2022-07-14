@@ -55,6 +55,11 @@ async function main() {
 	// const db = await connectWith(new PgConnector(pool, { users, cities }));
 	const db = await connect(new PgConnector(pool, { users, cities }));
 
+	const t = await db.users
+		.select()
+		.innerJoin(cities, (joins) => sql`${joins.cities1.name}`)
+		.execute();
+
 	type SelectUser = InferType<typeof users>;
 	type InsertUser = InferType<typeof users, 'insert'>;
 
@@ -87,22 +92,22 @@ async function main() {
 
 	// update users set name = users.name
 
-	db.users
-		.update()
-		.set({
-			id: 1,
-			name: 'qwe',
-			name1: sql`${users.name} || 'qwe'`,
-		})
-		.where(
-			or(
-				and(eq(users.class, 'A'), eq(users.subClass, 'B')),
-				and(eq(users.class, 'C'), eq(users.subClass, 'D')),
-				// and(eq(cities.name, 'New York')),
-			),
-		)
-		.returning({ id: users.id })
-		.execute();
+	// db.users
+	// 	.update()
+	// 	.set({
+	// 		id: 1,
+	// 		name: 'qwe',
+	// 		name1: sql`${users.name} || 'qwe'`,
+	// 	})
+	// 	.where(
+	// 		or(
+	// 			and(eq(users.class, 'A'), eq(users.subClass, 'B')),
+	// 			and(eq(users.class, 'C'), eq(users.subClass, 'D')),
+	// 			// and(eq(cities.name, 'New York')),
+	// 		),
+	// 	)
+	// 	.returning({ id: users.id })
+	// 	.execute();
 
 	db.users
 		.select({ id: users.id, maxAge: expr<number>()`max(${users.age1})` })
@@ -112,13 +117,12 @@ async function main() {
 	db.users
 		.select()
 		.where(sql`${users.age1} > 0`)
-		.orderBy(asc(users.id), desc(users.name))
+		// .orderBy(asc(users.id), desc(users.name))
 		.limit(1)
 		.offset(2)
 		.execute();
 
 	db.users
-		.select()
 		.select({ id: users.id })
 		//.leftJoin/rightJoin/fullJoin/innerJoin
 		.innerJoin(
@@ -133,13 +137,13 @@ async function main() {
 		//.where((joins) => sql`${joins.users.age1} > 0`)
 		//.where(eq(users.age1, 1))
 		//.where((joins) => eqjoins.users.age1, 1))
-		.orderBy(asc(users.id), desc(users.name))
+		// .orderBy(asc(users.id), desc(users.name))
 		//.orderBy((joins)=> [asc(joins.users.id), desc(joins.cities1.id)])
 		//.orderBy((joins)=> sql`${joins.users.age1} ASC`)
 		.execute();
 
 	db.users
-		.select({ id: users.id, maxAge: sql`max(${users.age1})` })
+		.select({ id: users.id, maxAge: expr<number>()`max(${users.age1})` })
 		// .innerJoin(classes, (joins) => eq(joins.classes.id, joins.users.id))
 		.innerJoin(
 			cities,

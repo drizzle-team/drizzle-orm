@@ -3,8 +3,7 @@ import { SQL } from 'drizzle-orm/sql';
 import { AnyPgTable } from './table';
 
 export class ConstraintBuilder<TTableName extends string> {
-	private tableName!: TTableName;
-	private brand!: 'PgConstraintBuilder';
+	protected brand!: 'PgConstraintBuilder';
 
 	constructor(public value: SQL<TTableName>) {}
 

@@ -50,7 +50,7 @@ export class IndexBuilder<TTableName extends string, TUnique extends boolean> {
 	columns: PgColumn<TTableName>[];
 	unique: TUnique;
 	name: string | undefined;
-	private brand!: 'PgIndexBuilder';
+	protected brand!: 'PgIndexBuilder';
 
 	constructor(columns: PgColumn<TTableName>[], config: IndexConfig<TUnique, TTableName>) {
 		this.columns = columns;

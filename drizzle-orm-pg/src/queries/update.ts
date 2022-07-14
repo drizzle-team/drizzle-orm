@@ -3,8 +3,7 @@ import { SQL } from 'drizzle-orm/sql';
 import { TableName } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
 
-import { AnyPgDialect } from '~/connection';
-import { AnyPgSession } from '~/operations';
+import { AnyPgDialect, PgSession } from '~/connection';
 import { AnyPgTable } from '~/table';
 
 export interface PgUpdateConfig<TTable extends AnyPgTable> {
@@ -15,11 +14,15 @@ export interface PgUpdateConfig<TTable extends AnyPgTable> {
 }
 
 export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
+	protected enforceCovariance!: {
+		table: TTable;
+	};
+
 	private fields: PgUpdateConfig<TTable> = {} as PgUpdateConfig<TTable>;
 
 	constructor(
 		private table: TTable,
-		private session: AnyPgSession,
+		private session: PgSession,
 		private mapper: (rows: any[]) => InferType<TTable>[],
 		private dialect: AnyPgDialect,
 	) {

@@ -14,8 +14,12 @@ export interface PgDriverResponse {
 
 interface Pool {}
 
-export class PgSession<TDBSchema extends Record<string, AnyPgTable>> {
-	constructor(private pool: Pool, private dbSchema: TDBSchema) {}
+export interface PgSession {
+	query(query: string, params: unknown[]): Promise<PgDriverResponse>;
+}
+
+export class PgSessionDefault implements PgSession {
+	constructor(private pool: Pool) {}
 
 	public async query(query: string, params: unknown[]): Promise<PgDriverResponse> {
 		console.log({ query, params });
@@ -33,31 +37,32 @@ export class PgSession<TDBSchema extends Record<string, AnyPgTable>> {
 	}
 }
 
-export class PgDriver<TDBSchema extends Record<string, AnyPgTable>>
-	implements Driver<PgSession<TDBSchema>>
-{
-	constructor(private pool: Pool, private dbSchema: TDBSchema) {}
+export class PgDriver implements Driver<PgSession> {
+	constructor(private pool: Pool) {}
 
-	async connect(): Promise<PgSession<TDBSchema>> {
-		return new PgSession(this.pool, this.dbSchema);
+	async connect(): Promise<PgSession> {
+		return new PgSessionDefault(this.pool);
 	}
 }
 
 export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
-	implements Dialect<PgSession<TDBSchema>, PGDatabase<TDBSchema>>
+	implements Dialect<PgSession, PGDatabase<TDBSchema>>
 {
 	constructor(private schema: TDBSchema) {}
 
-	createDB(session: PgSession<TDBSchema>): PGDatabase<TDBSchema> {
+	createDB(session: PgSession): PGDatabase<TDBSchema> {
 		return this.createPGDB(this.schema, session);
 	}
 
-	createPGDB(schema: TDBSchema, session: PgSession<TDBSchema>): PGDatabase<TDBSchema> {
+	createPGDB(schema: TDBSchema, session: PgSession): PGDatabase<TDBSchema> {
 		return Object.fromEntries(
 			Object.entries(schema).map(([tableName, table]) => {
-				return [tableName, new PgTableOperations(table, session, this)];
+				return [
+					tableName,
+					new PgTableOperations(table, session, this as unknown as AnyPgDialect),
+				];
 			}),
-		) as PGDatabase<TDBSchema>;
+		) as unknown as PGDatabase<TDBSchema>;
 	}
 
 	public escapeName(name: string): string {
@@ -133,17 +138,19 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 export type AnyPgDialect = PgDialect<Record<string, AnyPgTable>>;
 
 export type PGDatabase<TSchema extends Record<string, AnyPgTable>> = {
-	[TTableName in keyof TSchema & string]: PgTableOperations<TSchema[TTableName]>;
+	[TTableName in keyof TSchema & string]: TSchema[TTableName] extends AnyPgTable<TTableName>
+		? PgTableOperations<TSchema[TTableName]>
+		: never;
 };
 
 export class PgConnector<TDBSchema extends Record<string, AnyPgTable>>
-	implements Connector<PgSession<TDBSchema>, PGDatabase<TDBSchema>>
+	implements Connector<PgSession, PGDatabase<TDBSchema>>
 {
-	dialect: Dialect<PgSession<TDBSchema>, PGDatabase<TDBSchema>>;
-	driver: Driver<PgSession<TDBSchema>>;
+	dialect: Dialect<PgSession, PGDatabase<TDBSchema>>;
+	driver: Driver<PgSession>;
 
 	constructor(pool: Pool, dbSchema: TDBSchema) {
 		this.dialect = new PgDialect(dbSchema);
-		this.driver = new PgDriver(pool, dbSchema);
+		this.driver = new PgDriver(pool);
 	}
 }

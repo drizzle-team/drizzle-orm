@@ -4,6 +4,11 @@ import { tableColumns, tableName } from './utils';
 export type TableExtraConfig = Record<string, unknown>;
 
 export class Table<TName extends string, TColumns extends Record<string, AnyColumn>> {
+	protected enforceCovariance!: {
+		name: TName;
+		columns: TColumns;
+	};
+
 	/** @internal */
 	[tableName]: TName;
 
@@ -15,6 +20,8 @@ export class Table<TName extends string, TColumns extends Record<string, AnyColu
 	}
 }
 
-export type TableColumns<TTable extends AnyTable> = TTable[typeof tableColumns];
+export type TableColumns<TTable extends AnyTable> = TTable extends Table<string, infer TColumns>
+	? TColumns
+	: never;
 
 export type AnyTable<TName extends string = string> = Table<TName, Record<string, AnyColumn>>;
