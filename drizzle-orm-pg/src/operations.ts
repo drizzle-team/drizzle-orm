@@ -7,7 +7,7 @@ import { Simplify } from 'type-fest';
 
 import { PgColumn } from './columns';
 import { AnyPgDialect, PgSession } from './connection';
-import { PgInsert, PgSelect, PgUpdate } from './queries';
+import { PgDelete, PgInsert, PgSelect, PgUpdate } from './queries';
 import { AnyPgTable, InferType } from './table';
 
 export type PartialSelectResult<TSelectedFields extends SelectFields<string>> = Simplify<{
@@ -47,6 +47,10 @@ export class PgTableOperations<TTable extends AnyPgTable> {
 			this.map,
 			this.dialect,
 		);
+	}
+
+	delete(): PgDelete<TTable> {
+		return new PgDelete(this.table, this.session, this.map, this.dialect);
 	}
 }
 

@@ -1,12 +1,13 @@
 import { Connector, Driver, Dialect, sql, Column } from 'drizzle-orm';
+import { SelectFields } from 'drizzle-orm/operations';
 import { SQL, ParamValue, SQLSourceParam, ColumnWithoutTable } from 'drizzle-orm/sql';
-import { TableName } from 'drizzle-orm/utils';
+import { tableColumns, tableName, TableName } from 'drizzle-orm/utils';
 
 import { AnyPgColumn } from './columns';
 import { PgTableOperations } from './operations';
-import { PgUpdateConfig, AnyPgSelectConfig, AnyPgInsertConfig } from './queries';
+import { PgUpdateConfig, AnyPgSelectConfig, AnyPgInsertConfig, PgDeleteConfig } from './queries';
 import { AnyPgTable } from './table';
-import { getTableColumns } from './utils';
+import { getTableColumns, tableIndexes } from './utils';
 
 export interface PgDriverResponse {
 	rows: any[];
@@ -75,6 +76,16 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		return `$${num}`;
 	}
 
+	public buildDeleteQuery<TTable extends AnyPgTable>({
+		table,
+		where,
+		returning,
+	}: PgDeleteConfig<TTable>): SQL<TableName<TTable>> {
+		return sql<TableName<TTable>>`delete from ${table} ${sql`where ${where}`} ${
+			returning ? sql`returning *` : undefined
+		}`;
+	}
+
 	public buildUpdateQuery<TTable extends AnyPgTable>({
 		table,
 		set,
@@ -100,28 +111,93 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		} ${returning ? sql`returning *` : undefined}`;
 	}
 
-	public buildSelectQuery({ fields, where, table }: AnyPgSelectConfig): SQL {
-		let sqlFields: SQL;
+	private prepareTableFieldsForQuery(
+		fields: SelectFields<TableName<AnyPgTable>> | undefined,
+	): SQLSourceParam[] {
+		let sqlFieldsList: SQLSourceParam[] = [];
 		if (fields) {
-			let sqlFieldsList: SQLSourceParam[] = [];
 			Object.values(fields).forEach((field, i) => {
 				if (field instanceof SQL) {
 					sqlFieldsList.push(field);
 				} else if (field instanceof Column) {
-					sqlFieldsList.push(sql`${field}`);
+					const columnTableName = field.table[tableName];
+					sqlFieldsList.push(
+						sql`${field} AS ${sql.raw(
+							this.escapeName(`${columnTableName}_${field.name}`),
+						)}`,
+					);
 				}
 
 				if (i < Object.values(fields).length - 1) {
 					sqlFieldsList.push(sql`, `);
 				}
 			});
+		}
+		return sqlFieldsList;
+	}
 
-			sqlFields = sql.fromList(sqlFieldsList);
-		} else {
+	public buildSelectQuery({
+		fields,
+		where,
+		table,
+		joins,
+		distinct,
+		orderBy,
+		limit,
+		offset,
+	}: AnyPgSelectConfig): SQL {
+		let sqlFields: SQL;
+
+		let sqlFieldsList: SQLSourceParam[] =
+			typeof fields === 'undefined'
+				? this.prepareTableFieldsForQuery(table[tableColumns])
+				: this.prepareTableFieldsForQuery(fields);
+
+		const joinsArray: SQL[] = [];
+		if (joins) {
+			const joinKeys = Object.keys(joins);
+
+			joinKeys.forEach((tableAlias, index) => {
+				const joinMeta = joins[tableAlias]!;
+				joinsArray.push(
+					sql`${sql.raw(joinMeta.joinType!)} ${joinMeta.table} ${joinMeta.alias} ON ${
+						joinMeta.on
+					}`,
+				);
+				if (index < joinKeys.length - 1) {
+					joinsArray.push(sql` `);
+				}
+
+				if (sqlFieldsList.length > 0) {
+					sqlFieldsList.push(sql`, `);
+				}
+
+				sqlFieldsList = sqlFieldsList.concat(
+					this.prepareTableFieldsForQuery(joinMeta.columns),
+				);
+			});
+		}
+
+		sqlFields = sql.fromList(sqlFieldsList);
+
+		if (joinsArray.length === 0 && typeof fields === 'undefined') {
 			sqlFields = sql.raw('*');
 		}
 
-		return sql`select ${sqlFields} from ${table} ${where ? sql`where ${where}` : undefined}`;
+		const orderByList: SQL<string>[] = [];
+		orderBy.forEach((orderByValue, index) => {
+			orderByList.push(orderByValue);
+
+			if (index < orderBy.length - 1) {
+				orderByList.push(sql`, `);
+			}
+		});
+
+		return sql`select ${sqlFields} from ${table} ${sql.fromList(joinsArray)} ${
+			where ? sql`where ${where}` : undefined
+		} ${orderBy.length > 0 ? sql.raw('order by') : undefined} ${sql.fromList(orderByList)} ${
+			limit ? sql.raw(`limit ${limit}`) : undefined
+		} ${offset ? sql.raw(`offset ${offset}`) : undefined}`;
 	}
 
 	public buildInsertQuery({ table, values, returning }: AnyPgInsertConfig): SQL {

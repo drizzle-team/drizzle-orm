@@ -1,7 +1,7 @@
 import { AnyTable } from 'drizzle-orm';
 import { SelectFields } from 'drizzle-orm/operations';
 import { SQL } from 'drizzle-orm/sql';
-import { tableName, TableName } from 'drizzle-orm/utils';
+import { tableColumns, tableName, TableName } from 'drizzle-orm/utils';
 import { Simplify } from 'type-fest';
 
 import { AnyPgDialect, PgSession } from '~/connection';
@@ -16,6 +16,8 @@ export interface PgSelectConfig<TTable extends AnyTable> {
 	limit: number | undefined;
 	offset: number | undefined;
 	distinct: AnyPgColumn<TableName<TTable>> | undefined;
+	joins: {[k: string]: JoinsValue<any>};
+	orderBy: SQL<TableName<TTable>>[];
 }
 
 export type AnyPgSelectConfig = PgSelectConfig<AnyPgTable>;
@@ -71,6 +73,7 @@ export class ColumnProxyHandler<TColumn extends AnyPgColumn>
 		if (prop === 'table') {
 			return this.table;
 		}
+		return columnObj[prop as keyof TColumn];
 	}
 }
 
@@ -85,6 +88,15 @@ export class TableProxyHandler<TJoinedTable extends AnyPgTable>
 		if (prop === tableName) {
 			return this.alias;
 		}
+		if (prop === tableColumns) {
+			const proxiedColumns: {[key: string]: any} = {};
+			Object.keys(tableObj[tableColumns]).map(key => {
+				proxiedColumns[key] = new Proxy(
+					tableObj[tableColumns][key] as unknown as AnyPgColumn, 
+					new ColumnProxyHandler(new Proxy(tableObj, this)))
+			});
+			return proxiedColumns
+		}
 		if (typeof prop !== 'string'){
 			return tableObj[prop as keyof TJoinedTable];
 		}
@@ -97,10 +109,10 @@ export class TableProxyHandler<TJoinedTable extends AnyPgTable>
 interface JoinsValue<TColumns extends Record<string, AnyPgColumn<string>>> {
 	columns: TColumns,
 	on: SQL,
-	originalName: string,
+	table: AnyPgTable,
 	// make union
 	joinType?: string,
-	alias: string,
+	alias: AnyPgTable,
 }
 
 export type SelectResult<
@@ -118,7 +130,7 @@ export class PgSelect<
 	TTable extends AnyPgTable,
 	TInitialSelect extends InferType<TTable> | PartialSelectResult<SelectFields<TableName<TTable>>>,
 	TReturn = undefined,
-	TJoins extends { [k: string]: any } = { [K in TableName<TTable>]: TableColumns<TTable> },
+	TJoins extends { [k: string]: any } = {},
 	TAlias extends { [name: string]: number } = { [K in TableName<TTable>]: 1 },
 > {
 	protected enforceCovariance!: {
@@ -131,8 +143,7 @@ export class PgSelect<
 
 	private config: AnyPgSelectConfig = {} as AnyPgSelectConfig;
 	private _alias!: TAlias;
-	private _joins!: TJoins;
-	private _joinsMeta!: {[k: string]: JoinsValue<any>}
+	private _joins: TJoins = {} as TJoins;
 
 	constructor(
 		private table: TTable,
@@ -144,6 +155,8 @@ export class PgSelect<
 		this.config.fields = fields;
 		this.config.table = table;
 		this._alias = {[table[tableName]]: 1} as TAlias;
+		this.config.joins = {};
+		this.config.orderBy = [];
 	}
 
 	private join<
@@ -162,6 +175,7 @@ export class PgSelect<
 		},
 	) => SQL<
 		| (keyof TJoins & string)
+		| TableName<TTable>
 		| BuildAlias<TJoinedTable, TAlias>
 	>,
 	joinType: string,
@@ -180,38 +194,31 @@ export class PgSelect<
 	>]: TableAlias<TJoinedTable, Alias>;
 },
 	Increment<TableName<TJoinedTable>, TAlias>
->, 'offset' | 'limit' | 'execute' | 'innerJoin'| 'where'>  {
-		let aliasIndex = this._alias[value[tableName]];
+>, 'offset' | 'limit' | 'execute' | 'innerJoin'| 'where' | 'orderBy'>  {
+		const originalName = value[tableName];
+		let aliasIndex = this._alias[originalName];
 		if (typeof aliasIndex === 'undefined') {
-			this._alias[value[tableName]] = aliasIndex = 1 as TAlias[TableName<TJoinedTable>];
+			this._alias[originalName] = aliasIndex = 1 as TAlias[TableName<TJoinedTable>];
 		}
 
-		const alias: keyof TJoins = `${value[tableName]}${aliasIndex}`;
-		this._alias[value[tableName]]++;
+		const alias: keyof TJoins = `${originalName}${aliasIndex}`;
+		this._alias[originalName]++;
 
 		const tableAsProxy = new Proxy(value,  new TableProxyHandler(alias));
 
-		Object.assign(this._joins, {alias: tableAsProxy})
+		Object.assign(this._joins, { [alias]: tableAsProxy })
 
 		const onExpression = callback(this._joins as any);
 
-		// const part = partialCallback!(tableAsProxy);
+		const partialFields = partialCallback ? partialCallback(tableAsProxy as any) : undefined
 
-		// this._joinsMeta[alias] = {
-		// 	columns: 
-		// }
-		// const obj: OnlyColumnsFrom<TJoinedPartial> = partial ?? (valueAsProxy as any).mapped;
-
-		// const joins = this.joinedTables.map(jt => jt.columns) as TJoins;
-
-		// this.joinedTables.push({
-		// 	aliasTableName: (valueAsProxy as any).tableName(),
-		// 	table: value,
-		// 	columns: obj,
-		// 	originalName: (value as any).tableName(),
-		// 	onExpression,
-		// 	type: joinType,
-		// });
+		this.config.joins[alias as any] = {
+			columns: partialFields ?? tableAsProxy[tableColumns],
+			on: onExpression,
+			table: value,
+			joinType,
+			alias: tableAsProxy,
+		}
 
 		return this as unknown as Pick<PgSelect<
 		TTable,
@@ -224,7 +231,7 @@ export class PgSelect<
 			>]: TableAlias<TJoinedTable, Alias>;
 		},
 		Increment<TableName<TJoinedTable>, TAlias>
-	>, 'offset' | 'limit' | 'execute' | 'innerJoin' | 'where'>
+	>, 'offset' | 'limit' | 'execute' | 'innerJoin' | 'where' | 'orderBy'>
 	}
 
 	public innerJoin<
@@ -240,6 +247,7 @@ export class PgSelect<
 			},
 		) => SQL<
 			| (keyof TJoins & string)
+			| TableName<TTable>
 			| BuildAlias<TJoinedTable, TAlias>
 		>
 	): Pick<PgSelect<
@@ -253,7 +261,7 @@ export class PgSelect<
 		>]: TableAlias<TJoinedTable, Alias>;
 	},
 		Increment<TableName<TJoinedTable>, TAlias>
-	>, 'offset' | 'limit' | 'execute' | 'innerJoin'| 'where'>; 
+	>, 'offset' | 'limit' | 'execute' | 'innerJoin'| 'where' | 'orderBy'>; 
 	public innerJoin<
 		TJoinedTable extends AnyPgTable<TableName<TJoinedTable>>,
 		TSelectedFields extends SelectFields<BuildAlias<TJoinedTable,
@@ -270,6 +278,7 @@ export class PgSelect<
 			},
 		) => SQL<
 			| (keyof TJoins & string)
+			| TableName<TTable>
 			| BuildAlias<TJoinedTable, TAlias>
 		>,
 		partialCallback: (table: TableAlias<TJoinedTable, BuildAlias<
@@ -287,7 +296,7 @@ export class PgSelect<
 		>]: TableAlias<TJoinedTable, Alias>;
 	},
 		Increment<TableName<TJoinedTable>, TAlias>
-	>, 'offset' | 'limit' | 'execute' | 'innerJoin'| 'where'>;
+	>, 'offset' | 'limit' | 'execute' | 'innerJoin'| 'where' | 'orderBy'>;
 	public innerJoin<
 		TJoinedTable extends AnyPgTable<TableName<TJoinedTable>>,
 		TSelectedFields extends SelectFields<BuildAlias<TJoinedTable,
@@ -304,6 +313,7 @@ export class PgSelect<
 			},
 		) => SQL<
 			| (keyof TJoins & string)
+			| TableName<TTable>
 			| BuildAlias<TJoinedTable, TAlias>
 		>,
 		partialCallback?: (table: TableAlias<TJoinedTable, BuildAlias<
@@ -314,7 +324,7 @@ export class PgSelect<
 		return this.join(value, callback, 'INNER JOIN', partialCallback);
 	}
 
-	public where(where: ((joins: TJoins) => SQL<keyof TJoins & string>) | SQL<TableName<TTable>>):  Omit<this, 'distinct'| 'where'>{
+	public where(where: ((joins: TJoins) => SQL<(keyof TJoins & string) | TableName<TTable>>) | SQL<TableName<TTable>>):  Omit<this, 'distinct'| 'where'>{
 		if (where instanceof SQL<TableName<TTable>>){
 			this.config.where = where;
 		} else {
@@ -325,6 +335,16 @@ export class PgSelect<
 
 	public distinct(column: PgColumn<TableName<TTable>>): Omit<this, 'distinct'> {
 		this.config.distinct = column;
+		return this;
+	}
+
+	public orderBy(orderBy: ((joins: TJoins) => (SQL<(keyof TJoins & string) | TableName<TTable>>[] | SQL<(keyof TJoins & string) | TableName<TTable>>)) | (SQL<TableName<TTable>>[] | SQL<TableName<TTable>>)): Pick<this, 'limit' |'offset' | 'execute'> {
+		if (orderBy instanceof SQL<TableName<TTable>> || Array.isArray(orderBy)){
+			this.config.orderBy = Array.isArray(orderBy) ? orderBy : [orderBy];
+		} else {
+			const orderByRes = orderBy(this._joins);
+			this.config.orderBy = Array.isArray(orderByRes) ? orderByRes : [orderByRes];
+		}
 		return this;
 	}
 

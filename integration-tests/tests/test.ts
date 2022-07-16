@@ -2,7 +2,7 @@
 import { connect, sql } from 'drizzle-orm';
 import { pgTable, index, constraint, foreignKey, PgConnector, InferType } from 'drizzle-orm-pg';
 import { int, serial, text } from 'drizzle-orm-pg/columns';
-import { eq, inc } from 'drizzle-orm/expressions';
+import { eq, inc, asc, desc } from 'drizzle-orm/expressions';
 
 export const users = pgTable(
 	'users',
@@ -115,9 +115,33 @@ async function main() {
 		.execute();
 
 	db.users
-		.select()
-		.where(sql`${users.age1} > 0`)
-		// .orderBy(asc(users.id), desc(users.name))
+		.select({ id: users.homeCity })
+		.innerJoin(
+			cities,
+			(joins) => eq(joins.cities1.id, users.id),
+			(table) => ({ id: table.id }),
+		)
+		.innerJoin(
+			cities,
+			(joins) => eq(joins.cities1.id, users.id),
+			(table) => ({ name23: table.id }),
+		)
+		// .innerJoin(
+		// 	cities,
+		// 	(joins) => eq(joins.cities2.id, users.id),
+		// 	(table) => ({ id: table.id }),
+		// )
+		// .innerJoin(
+		// 	cities,
+		// 	(joins) => eq(joins.cities4.id, users.id),
+		// 	(table) => ({ id: table.id }),
+		// )
+		.where((joins) => sql`${users.age1} > 12`)
+		.orderBy(desc(users.id))
+		// .orderBy((joins) => sql`${joins.cities1.name} asc`)
+		// .orderBy(sql`${users.age1} ASC`)
+		// .orderBy(asc(users.id))
+
 		.limit(1)
 		.offset(2)
 		.execute();
@@ -177,18 +201,22 @@ async function main() {
 		.returning()
 		.execute();
 
-	// db.users.delete().where(eq(users.id, 2)).returning().execute();
-	// db.users
-	// 	.delete()
-	// 	.where(sql`${users.id} = ${2}`)
-	// 	.returning()
-	// 	.execute();
-	// // 2 won't be in prepared statement params
-	// db.users
-	// 	.delete()
-	// 	.where(sql`${users.id} = 2`)
-	// 	.returning()
-	// 	.execute();
+	db.users.delete().where(eq(users.id, 2)).returning().execute();
+	db.users
+		.delete()
+		.where(sql`${users.id} = ${2}`)
+		.returning()
+		.execute();
+	// 2 won't be in prepared statement params
+	db.users
+		.delete()
+		.where(sql`${users.id} = 2`)
+		.returning()
+		.execute();
+
+	db.users.delete().returning().execute();
+
+	db.users.delete().execute();
 }
 
 main().catch((e) => {

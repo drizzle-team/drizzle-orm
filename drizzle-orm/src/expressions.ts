@@ -138,3 +138,11 @@ export function inc<TColumn extends AnyColumn>(column: TColumn, value: number) {
 export function dec<TColumn extends AnyColumn>(column: TColumn, value: number) {
 	return sql<TableName<TColumn>>`${column} - ${value}`;
 }
+
+export function asc<TColumn extends AnyColumn>(column: TColumn) {
+	return sql<TableName<TColumn>>`${column} asc`;
+}
+
+export function desc<TColumn extends AnyColumn>(column: TColumn) {
+	return sql<TableName<TColumn>>`${column} desc`;
+}
