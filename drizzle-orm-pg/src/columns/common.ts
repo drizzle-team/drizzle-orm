@@ -1,18 +1,27 @@
-import { Column } from 'drizzle-orm';
+import { Column, InferColumnDriverType } from 'drizzle-orm';
 import { ColumnBuilder } from 'drizzle-orm/column-builder';
-import { ParamValue } from 'drizzle-orm/sql';
 
 export abstract class PgColumnBuilder<
-	TColumnType extends AnyPgColumn = AnyPgColumn,
-	TNotNull extends boolean = boolean,
-	TDefault extends boolean = boolean,
-> extends ColumnBuilder<TColumnType, TNotNull, TDefault> {}
+	TColumnType extends AnyPgColumn,
+	TDriverType,
+	TNotNull extends boolean,
+	TDefault extends boolean,
+> extends ColumnBuilder<TColumnType, TDriverType, TNotNull, TDefault> {}
+
+export type AnyPgColumnBuilder = PgColumnBuilder<any, any, any, any>;
 
 export abstract class PgColumn<
 	TTable extends string,
-	TType extends ParamValue = ParamValue,
+	TType,
+	TDriverType,
+	TNotNull extends boolean,
+	TDefaultValue extends boolean,
+> extends Column<TTable, TType, TDriverType, TNotNull, TDefaultValue> {}
+
+export type AnyPgColumn<
+	TTableName extends string = string,
+	TType = any,
+	TDriverType = TType,
 	TNotNull extends boolean = boolean,
 	TDefaultValue extends boolean = boolean,
-> extends Column<TTable, TType, TNotNull, TDefaultValue> {}
-
-export type AnyPgColumn<TTableName extends string = string> = PgColumn<TTableName>;
+> = PgColumn<TTableName, TType, TDriverType, TNotNull, TDefaultValue>;

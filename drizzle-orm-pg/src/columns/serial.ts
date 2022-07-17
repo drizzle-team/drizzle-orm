@@ -2,8 +2,9 @@ import { AnyTable } from 'drizzle-orm';
 
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgSerialBuilder<TNotNull extends boolean = boolean> extends PgColumnBuilder<
+export class PgSerialBuilder<TNotNull extends boolean = false> extends PgColumnBuilder<
 	PgSerial<string, TNotNull>,
+	number,
 	TNotNull,
 	true
 > {
@@ -15,10 +16,13 @@ export class PgSerialBuilder<TNotNull extends boolean = boolean> extends PgColum
 	}
 }
 
-export class PgSerial<
-	TTableName extends string = string,
-	TNotNull extends boolean = boolean,
-> extends PgColumn<TTableName, number, TNotNull, true> {
+export class PgSerial<TTableName extends string, TNotNull extends boolean> extends PgColumn<
+	TTableName,
+	number,
+	number,
+	TNotNull,
+	true
+> {
 	getSQLType(): string {
 		return 'serial';
 	}

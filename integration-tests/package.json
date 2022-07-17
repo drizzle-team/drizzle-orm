@@ -12,9 +12,10 @@
 	"license": "ISC",
 	"private": true,
 	"devDependencies": {
+		"@types/node": "^18.0.5",
 		"drizzle-orm": "file:../drizzle-orm/package.tgz",
-		"drizzle-orm-pg": "file:../drizzle-orm-pg/package.tgz",
 		"drizzle-orm-mysql": "file:../drizzle-orm-mysql/package.tgz",
+		"drizzle-orm-pg": "file:../drizzle-orm-pg/package.tgz",
 		"ts-node": "^10.8.2",
 		"typescript": "^4.7.4"
 	}

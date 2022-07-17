@@ -1,20 +1,28 @@
-// import { Pool, QueryResult } from 'pg';
-import { Column, InferColumnType } from 'drizzle-orm';
+import { InferColumnType } from 'drizzle-orm';
 import { SelectFields } from 'drizzle-orm/operations';
-import { SQL, ParamValue } from 'drizzle-orm/sql';
+import { SQL, SQLResponse } from 'drizzle-orm/sql';
 import { TableName } from 'drizzle-orm/utils';
 import { Simplify } from 'type-fest';
 
-import { PgColumn } from './columns';
-import { AnyPgDialect, PgSession } from './connection';
+import { AnyPgColumn } from './columns/common';
+import { AnyPgDialect, PgDriverParam, PgSession } from './connection';
 import { PgDelete, PgInsert, PgSelect, PgUpdate } from './queries';
+import { AnyPgSQL } from './sql';
 import { AnyPgTable, InferType } from './table';
 
-export type PartialSelectResult<TSelectedFields extends SelectFields<string>> = Simplify<{
-	[Key in keyof TSelectedFields]: TSelectedFields[Key] extends Column<string>
-		? InferColumnType<TSelectedFields[Key], 'query'>
-		: any;
-}>;
+export type PgSelectFields<TTableName extends string> = SelectFields<TTableName, PgDriverParam>;
+
+export type PartialSelectResult<
+	TTableName extends string,
+	TSelectedFields extends PgSelectFields<TTableName>,
+> = Simplify<
+	{
+		[Key in keyof TSelectedFields & string]: TSelectedFields[Key] extends AnyPgColumn<TTableName>
+			? InferColumnType<TSelectedFields[Key]>
+			: TSelectedFields[Key] extends SQLResponse<string, infer TValue> ? TValue
+			: any;
+	}
+>;
 
 export class PgTableOperations<TTable extends AnyPgTable> {
 	constructor(
@@ -28,9 +36,9 @@ export class PgTableOperations<TTable extends AnyPgTable> {
 	}
 
 	select(): PgSelect<TTable, InferType<TTable>>;
-	select<TSelectedFields extends SelectFields<TableName<TTable>>>(
+	select<TSelectedFields extends PgSelectFields<TableName<TTable>>>(
 		fields: TSelectedFields,
-	): PgSelect<TTable, PartialSelectResult<TSelectedFields>>;
+	): PgSelect<TTable, PartialSelectResult<TableName<TTable>, TSelectedFields>>;
 	select(fields?: any): PgSelect<TTable, any> {
 		return new PgSelect(this.table, fields, this.session, this.map, this.dialect);
 	}
@@ -56,56 +64,58 @@ export class PgTableOperations<TTable extends AnyPgTable> {
 
 export const rawQuery = Symbol('raw');
 
-export type DB<TDBSchema extends Record<string, AnyPgTable>> = {
-	[TTable in keyof TDBSchema & string]: PgTableOperations<TDBSchema[TTable]>;
-} & {
-	[rawQuery]: (query: SQL) => Promise<unknown>;
-};
-
-export class PgJson<TTable extends string, TData extends ParamValue = ParamValue> extends PgColumn<
-	TTable,
-	TData
-> {
-	getSQLType(): string {
-		return 'json';
+export type DB<TDBSchema extends Record<string, AnyPgTable>> =
+	& {
+		[TTable in keyof TDBSchema & string]: PgTableOperations<TDBSchema[TTable]>;
 	}
-}
+	& {
+		[rawQuery]: (query: AnyPgSQL) => Promise<unknown>;
+	};
 
-export class PgJsonb<TTable extends string, TData extends ParamValue = ParamValue> extends PgColumn<
-	TTable,
-	TData
-> {
-	getSQLType(): string {
-		return 'jsonb';
-	}
-}
+// export class PgJson<TTable extends string, TData extends ParamValue = ParamValue> extends PgColumn<
+// 	TTable,
+// 	TData
+// > {
+// 	getSQLType(): string {
+// 		return 'json';
+// 	}
+// }
 
-export class PgBoolean<TTable extends string> extends PgColumn<TTable, boolean> {
-	getSQLType(): string {
-		return 'boolean';
-	}
-}
+// export class PgJsonb<TTable extends string, TData extends ParamValue = ParamValue> extends PgColumn<
+// 	TTable,
+// 	TData
+// > {
+// 	getSQLType(): string {
+// 		return 'jsonb';
+// 	}
+// }
 
-export class PgDate<TTable extends string> extends PgColumn<TTable, Date> {
-	getSQLType(): string {
-		return 'date';
-	}
-}
+// export class PgBoolean<TTable extends string> extends PgColumn<TTable, boolean> {
+// 	getSQLType(): string {
+// 		return 'boolean';
+// 	}
+// }
 
-export class PgTimestamp<TTable extends string> extends PgColumn<TTable, Date> {
-	getSQLType(): string {
-		return 'timestamp';
-	}
-}
+// export class PgDate<TTable extends string> extends PgColumn<TTable, Date> {
+// 	getSQLType(): string {
+// 		return 'date';
+// 	}
+// }
 
-export class PgTimestampTz<TTable extends string> extends PgColumn<TTable, Date> {
-	getSQLType(): string {
-		return 'timestamp with time zone';
-	}
-}
+// export class PgTimestamp<TTable extends string> extends PgColumn<TTable, Date> {
+// 	getSQLType(): string {
+// 		return 'timestamp';
+// 	}
+// }
 
-export class PgTime<TTable extends string> extends PgColumn<TTable, Date> {
-	getSQLType(): string {
-		return 'time';
-	}
-}
+// export class PgTimestampTz<TTable extends string> extends PgColumn<TTable, Date> {
+// 	getSQLType(): string {
+// 		return 'timestamp with time zone';
+// 	}
+// }
+
+// export class PgTime<TTable extends string> extends PgColumn<TTable, Date> {
+// 	getSQLType(): string {
+// 		return 'time';
+// 	}
+// }

@@ -3,9 +3,9 @@ import { AnyTable } from 'drizzle-orm';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export class PgDateBuilder<
-	TNotNull extends boolean = boolean,
-	TDefault extends boolean = boolean,
-> extends PgColumnBuilder<PgDate<string, TNotNull, TDefault>, TNotNull, TDefault> {
+	TNotNull extends boolean = false,
+	TDefault extends boolean = false,
+> extends PgColumnBuilder<PgDate<string, TNotNull, TDefault>, string, TNotNull, TDefault> {
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyTable<TTableName>,
@@ -15,10 +15,10 @@ export class PgDateBuilder<
 }
 
 export class PgDate<
-	TTableName extends string = string,
-	TNotNull extends boolean = boolean,
-	TDefault extends boolean = boolean,
-> extends PgColumn<TTableName, Date, TNotNull, TDefault> {
+	TTableName extends string,
+	TNotNull extends boolean,
+	TDefault extends boolean,
+> extends PgColumn<TTableName, Date, string, TNotNull, TDefault> {
 	constructor(table: AnyTable<TTableName>, builder: PgDateBuilder<TNotNull, TDefault>) {
 		super(table, builder);
 	}

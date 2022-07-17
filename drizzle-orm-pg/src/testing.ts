@@ -1,9 +1,12 @@
-import { PgSession, PgDriverResponse } from './connection';
+import { QueryResult } from 'pg';
+
+import { PgDialect, PgSession } from './connection';
+import { AnyPgTable } from './table';
 
 export class PgTestSession implements PgSession {
 	private queries: { query: string; params: unknown[] }[] = [];
 	private lastQuery: { query: string; params: unknown[] } | undefined;
-	private nextResponse: PgDriverResponse | undefined;
+	private nextResponse: QueryResult | undefined;
 
 	getQueries() {
 		return this.queries;
@@ -13,11 +16,13 @@ export class PgTestSession implements PgSession {
 		return this.lastQuery;
 	}
 
-	setNextResponse(response: PgDriverResponse): void {
+	setNextResponse(response: QueryResult): void {
 		this.nextResponse = response;
 	}
 
-	async query(query: string, params: unknown[]): Promise<PgDriverResponse> {
+	async query(query: string, params: unknown[]): Promise<QueryResult> {
+		console.log({ query, params });
+
 		this.queries.push({ query, params });
 		this.lastQuery = { query, params };
 
@@ -31,6 +36,8 @@ export class PgTestSession implements PgSession {
 			rows: [],
 			rowCount: 0,
 			command: '',
+			oid: 0,
+			fields: [],
 		};
 	}
 }
@@ -38,5 +45,15 @@ export class PgTestSession implements PgSession {
 export class PgTestDriver {
 	async connect(): Promise<PgTestSession> {
 		return new PgTestSession();
+	}
+}
+
+export class PgTestConnector<TDBSchema extends Record<string, AnyPgTable>> {
+	dialect: PgDialect<TDBSchema>;
+	driver: PgTestDriver;
+
+	constructor(dbSchema: TDBSchema) {
+		this.dialect = new PgDialect(dbSchema);
+		this.driver = new PgTestDriver();
 	}
 }

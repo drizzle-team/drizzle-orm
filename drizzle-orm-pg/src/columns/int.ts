@@ -2,9 +2,9 @@ import { AnyPgTable } from '../table';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export class PgIntegerBuilder<
-	TNotNull extends boolean = boolean,
-	TDefault extends boolean = boolean,
-> extends PgColumnBuilder<PgInteger<string, TNotNull, TDefault>, TNotNull, TDefault> {
+	TNotNull extends boolean = false,
+	TDefault extends boolean = false,
+> extends PgColumnBuilder<PgInteger<string, TNotNull, TDefault>, number, TNotNull, TDefault> {
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<TTableName>,
@@ -14,10 +14,10 @@ export class PgIntegerBuilder<
 }
 
 export class PgInteger<
-	TTableName extends string = string,
-	TNotNull extends boolean = boolean,
-	TDefault extends boolean = boolean,
-> extends PgColumn<TTableName, number, TNotNull, TDefault> {
+	TTableName extends string,
+	TNotNull extends boolean,
+	TDefault extends boolean,
+> extends PgColumn<TTableName, number, number, TNotNull, TDefault> {
 	getSQLType(): string {
 		return 'integer';
 	}

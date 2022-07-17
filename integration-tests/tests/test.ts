@@ -1,14 +1,27 @@
 // import { Pool } from 'pg';
 import { connect, sql } from 'drizzle-orm';
-import { pgTable, index, constraint, foreignKey, PgConnector, InferType } from 'drizzle-orm-pg';
+import {
+	AnyPgTable,
+	constraint,
+	foreignKey,
+	index,
+	InferType,
+	PgTable,
+	pgTable,
+	PgTableWithColumns,
+	TableConflictConstraints,
+} from 'drizzle-orm-pg';
 import { int, serial, text } from 'drizzle-orm-pg/columns';
-import { eq, inc, asc, desc } from 'drizzle-orm/expressions';
+import { PgTestConnector } from 'drizzle-orm-pg/testing';
+import { eq, inc, max } from 'drizzle-orm/expressions';
 
 export const users = pgTable(
 	'users',
 	{
 		id: serial('id').primaryKey(),
-		homeCity: int('home_city').references(() => cities.id),
+		homeCity: int('home_city')
+			.notNull()
+			.references(() => cities.id),
 		currentCity: int('current_city').references(() => cities.id),
 		serialNullable: serial('serial1'),
 		serialNotNull: serial('serial2').notNull(),
@@ -17,9 +30,9 @@ export const users = pgTable(
 		age1: int('age1').notNull(),
 	},
 	(users) => ({
-		usersAge1Idx: index(users.class, { unique: true }),
-		usersAge2Idx: index(users.class),
-		uniqueClass: index([users.class, users.subClass], {
+		usersAge1Idx: index('usersAge1Idx', users.class, { unique: true }),
+		usersAge2Idx: index('usersAge2Idx', users.class),
+		uniqueClass: index('uniqueClass', [users.class, users.subClass], {
 			unique: true,
 			where: sql`${users.class} is not null`,
 			order: 'desc',
@@ -27,7 +40,7 @@ export const users = pgTable(
 			concurrently: true,
 			using: sql`btree`,
 		}),
-		legalAge: constraint(sql`${users.age1} > 18`),
+		legalAge: constraint('legalAge', sql`${users.age1} > 18`),
 		usersClassFK: foreignKey(() => [users.class, classes, classes.class]),
 		usersClassComplexFK: foreignKey(() => [
 			[users.class, users.subClass],
@@ -36,6 +49,15 @@ export const users = pgTable(
 		]),
 	}),
 );
+
+type SelectUser = InferType<typeof users>;
+type InsertUser = InferType<typeof users, 'insert'>;
+
+const newUser: InsertUser = {
+	homeCity: 1,
+	class: 'A',
+	age1: 1,
+};
 
 const cities = pgTable('cities', {
 	id: serial('id').primaryKey(),
@@ -49,48 +71,24 @@ const classes = pgTable('classes', {
 	subClass: text<'B' | 'D'>('sub_class').notNull(),
 });
 
-const pool = {};
-
 async function main() {
-	// const db = await connectWith(new PgConnector(pool, { users, cities }));
-	const db = await connect(new PgConnector(pool, { users, cities }));
+	// const db = await connect(new PgConnector(pool, { users, cities }));
+	const db = await connect(new PgTestConnector({ users, cities }));
 
 	// const t = await db.users
 	// 	.select()
 	// 	.innerJoin(cities, (joins) => sql`${joins.cities1.name}`)
 	// 	.execute();
 
-	type SelectUser = InferType<typeof users>;
-	type InsertUser = InferType<typeof users, 'insert'>;
-
-	const newUser: InsertUser = {
-		class: 'A',
-		homeCity: 1,
-		currentCity: 2,
-		subClass: 'B',
-		age1: 1,
-	};
-
 	db.users.insert([newUser, newUser]).execute();
 	db.users.insert(newUser).execute();
 	db.users.insert([newUser, newUser]).returning().execute();
 	db.users.insert(newUser).returning().execute();
 
-	// db.users.insert().onConflictDoNothing();
-
-	// db.users.update().set();
-
-	// db.users
-	// 	.insert()
-	// 	.onConflict(({ usersAge1Age2UqIdx, ageMore18 }) =>
-	// 		usersAge1Age2UqIdx.doNothing(),
-	// 	);
-
-	// db.users
-	// 	.insert()
-	// 	.onConflict(({ usersAge1Age2UqIdx, ageMore18 }) => usersAge1Age2UqIdx);
-
-	// update users set name = users.name
+	db.users.insert(newUser).onConflictDoNothing().execute();
+	db.users.insert(newUser).onConflictDoNothing((c) => c.legalAge).execute();
+	db.users.insert(newUser).onConflictDoUpdate((c) => c.legalAge, { age1: 21 }).returning().execute();
+	db.users.insert(newUser).onConflictDoUpdate(sql`(name) where name is not null`, { age1: 21 }).returning().execute();
 
 	// db.users
 	// 	.update()
@@ -109,8 +107,8 @@ async function main() {
 	// 	.returning({ id: users.id })
 	// 	.execute();
 
-	db.users
-		.select({ id: users.id, maxAge: sql.response<number>()`max(${users.age1})` })
+	const join1 = await db.users
+		.select({ id: users.id, maxAge: max(users.age1) })
 		.where(sql`${users.age1} > 0`)
 		.execute();
 
@@ -137,7 +135,7 @@ async function main() {
 		// 	(table) => ({ id: table.id }),
 		// )
 		.where((joins) => sql`${users.age1} > 12`)
-		.orderBy(desc(users.id))
+		// .orderBy(desc(users.id))
 		// .orderBy((joins) => sql`${joins.cities1.name} asc`)
 		// .orderBy(sql`${users.age1} ASC`)
 		// .orderBy(asc(users.id))
@@ -166,12 +164,12 @@ async function main() {
 	// 	//.orderBy((joins)=> sql`${joins.users.age1} ASC`)
 	// 	.execute();
 
-	// const megaJoin = db.users
-	// 	.select({ id: users.id, maxAge: expr<number>()`max(${users.age1})` })
+	// const megaJoin = await db.users
+	// 	.select({ id: users.id, maxAge: sql.response<number>()`max(${users.age1})` })
 	// 	// .innerJoin(classes, (joins) => eq(joins.classes.id, joins.users.id))
 	// 	.innerJoin(
 	// 		cities,
-	// 		(joins) => sql`${joins.users.id} = ${joins.cities1.id}`,
+	// 		(joins) => sql`${users.id} = ${joins.cities1.id}`,
 	// 		(cities) => ({
 	// 			id: cities.id,
 	// 		}),
@@ -179,17 +177,19 @@ async function main() {
 	// 	.innerJoin(cities, (joins) => sql`${joins.cities1.id} = ${joins.cities1.id}`)
 	// 	.innerJoin(classes, (joins) => eq(joins.cities1.id, joins.cities2.id))
 	// 	.innerJoin(classes, (joins) => sql`${joins.classes1.id} = ${joins.classes2.id}`)
-	// 	.innerJoin(classes, (joins) => sql`${joins.users.class} = ${joins.classes3.id}`)
-	// 	.innerJoin(users, (joins) => sql`${joins.users.class} = ${joins.users1.id}`)
+	// 	.innerJoin(classes, (joins) => sql`${users.class} = ${joins.classes3.id}`)
+	// 	.innerJoin(users, (joins) => sql`${users.class} = ${joins.users1.id}`)
 	// 	.innerJoin(cities, (joins) => sql`${joins.cities1.id} = ${joins.classes1.id}`)
-	// 	.innerJoin(users, (joins) => sql`${joins.users.class} = ${joins.users2.id}`)
-	// 	.innerJoin(cities, (joins) => sql`${joins.users.class} = ${joins.cities4.id}`)
-	// 	.where((joins) => sql`${joins.users.age1} > 0`)
+	// 	.innerJoin(users, (joins) => sql`${users.class} = ${joins.users2.id}`)
+	// 	.innerJoin(cities, (joins) => sql`${users.class} = ${joins.cities4.id}`)
+	// 	.where((joins) => sql`${users.age1} > 0`)
 	// 	.execute();
 
 	const userId = 5;
 
-	db.users
+	const test = sql`lower(${users.currentCity})`;
+
+	const update = await db.users
 		.update()
 		.set({
 			id: userId,

@@ -35,12 +35,12 @@ export type AnyForeignKey = ForeignKey<string, string>;
 type ColumnsWithTable<
 	TTableName extends string,
 	TColumns extends AnyPgColumn | [AnyPgColumn, ...AnyPgColumn[]],
-> = TColumns extends PgColumn<any, infer TType>
-	? PgColumn<TTableName, TType>
+> = TColumns extends PgColumn<any, infer TType, any, any, any>
+	? PgColumn<TTableName, TType, any, any, any>
 	: TColumns extends AnyPgColumn[]
 	? {
-			[Key in keyof TColumns]: TColumns[Key] extends PgColumn<any, infer TType>
-				? PgColumn<TTableName, TType>
+			[Key in keyof TColumns]: TColumns[Key] extends PgColumn<any, infer TType, any, any, any>
+				? PgColumn<TTableName, TType, any, any, any>
 				: never;
 	  }
 	: never;
@@ -51,7 +51,7 @@ type GetColumnsTable<TColumns extends AnyPgColumn | AnyPgColumn[]> = (
 		: TColumns extends AnyPgColumn[]
 		? TColumns[number]
 		: never
-) extends PgColumn<infer TTableName>
+) extends AnyPgColumn<infer TTableName>
 	? TTableName
 	: never;
 

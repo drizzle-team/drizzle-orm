@@ -13,6 +13,6 @@ export function getTableName<TTableName extends string>(table: AnyTable<TTableNa
 
 export type TableName<T extends AnyTable | AnyColumn> = T extends AnyTable<infer TName>
 	? TName
-	: T extends Column<infer TName>
+	: T extends AnyColumn<infer TName>
 	? TName
 	: never;

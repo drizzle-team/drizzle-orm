@@ -1,13 +1,14 @@
 import { InferColumnType } from 'drizzle-orm';
-import { SQL, SQLResponse } from 'drizzle-orm/sql';
+import { SQL } from 'drizzle-orm/sql';
 import { TableName } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
 
-import { AnyPgDialect, PgSession } from '~/connection';
+import { AnyPgDialect, PgDriverParam, PgSession } from '~/connection';
+import { AnyPgSQL } from '~/sql';
 import { AnyPgTable, InferType, TableColumns } from '~/table';
 
 export interface PgUpdateConfig<TTable extends AnyPgTable> {
-	where: SQL<TableName<TTable>>;
+	where: AnyPgSQL<TableName<TTable>>;
 	set: PgUpdateSet<TTable>;
 	table: TTable;
 	returning?: boolean;
@@ -16,7 +17,7 @@ export interface PgUpdateConfig<TTable extends AnyPgTable> {
 export type PgUpdateSet<TTable extends AnyPgTable> = {
 	[Key in keyof TableColumns<TTable>]?:
 		| InferColumnType<TableColumns<TTable>[Key], 'query'>
-		| SQL<TableName<TTable>>;
+		| SQL<TableName<TTable>, PgDriverParam>;
 };
 
 export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
@@ -41,7 +42,7 @@ export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 		return this;
 	}
 
-	public where(where: SQL<TableName<TTable>>): Pick<this, 'returning' | 'execute'> {
+	public where(where: AnyPgSQL<TableName<TTable>>): Pick<this, 'returning' | 'execute'> {
 		this.fields.where = where;
 		return this;
 	}

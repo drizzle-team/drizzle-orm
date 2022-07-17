@@ -4,7 +4,7 @@ import { tableColumns, tableName } from './utils';
 export type TableExtraConfig = Record<string, unknown>;
 
 export class Table<TName extends string> {
-	protected enforceCovariance!: {
+	protected typeKeeper!: {
 		name: TName;
 	};
 

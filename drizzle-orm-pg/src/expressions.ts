@@ -1,9 +1,12 @@
-import { AnyColumn, sql } from 'drizzle-orm';
-import { SQLSourceParam } from 'drizzle-orm/sql';
+import { AnyColumn, InferColumnDriverType, sql } from 'drizzle-orm';
+import { SQL, SQLSourceParam } from 'drizzle-orm/sql';
 import { TableName } from 'drizzle-orm/utils';
 
-export function concat<TColumn extends AnyColumn>(column: TColumn, value: string) {
-	return sql<TableName<TColumn>>`${column} || ${value}`;
+export function concat<TColumn extends AnyColumn>(
+	column: TColumn,
+	value: string,
+): SQL<TableName<TColumn>, InferColumnDriverType<TColumn> | string> {
+	return sql`${column} || ${value}`;
 }
 
 export function substring<TColumn extends AnyColumn>(

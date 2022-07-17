@@ -1,3 +1,7 @@
+export interface Session<TQueryParam, TQueryResponse> {
+	query(query: string, params: TQueryParam[]): TQueryResponse;
+}
+
 export interface Driver<TSession> {
 	connect(): Promise<TSession>;
 }

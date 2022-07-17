@@ -1,12 +1,12 @@
-import { SQL } from 'drizzle-orm/sql';
-import { tableName, TableName } from 'drizzle-orm/utils';
+import { TableName } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
 
 import { AnyPgDialect, PgSession } from '~/connection';
+import { AnyPgSQL } from '~/sql';
 import { AnyPgTable, InferType } from '~/table';
 
 export interface PgDeleteConfig<TTable extends AnyPgTable> {
-	where: SQL<TableName<TTable>>;
+	where: AnyPgSQL<TableName<TTable>>;
 	table: TTable;
 	returning?: boolean;
 }
@@ -23,7 +23,7 @@ export class PgDelete<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 		this.fields.table = table;
 	}
 
-	public where(where: SQL<TableName<TTable>>): Pick<this, 'returning' | 'execute'> {
+	public where(where: AnyPgSQL<TableName<TTable>>): Pick<this, 'returning' | 'execute'> {
 		this.fields.where = where;
 		return this;
 	}

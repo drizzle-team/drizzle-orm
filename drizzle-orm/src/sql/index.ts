@@ -2,17 +2,15 @@ import { AnyColumn, Column } from '../column';
 import { AnyTable, Table } from '../table';
 import { tableName } from '../utils';
 
-export type ParamValue = string | number | boolean | null | Record<string, unknown> | Date;
-
 export class Param {
-	constructor(public readonly value: ParamValue) {}
+	constructor(public readonly value: unknown) {}
 }
 
 export type Chunk<TTableName extends string> =
 	| string
 	| AnyTable<TTableName>
-	| Column<TTableName>
-	| ColumnWithoutTable<AnyColumn>
+	| AnyColumn<TTableName>
+	| Name
 	| Param;
 
 export interface BuildQueryConfig {
@@ -20,27 +18,28 @@ export interface BuildQueryConfig {
 	escapeParam(num: number, value: unknown): string;
 }
 
-export class SQL<TTableName extends string = string> {
+export class SQL<TTableName extends string, TDriverParam> {
 	constructor(public readonly queryChunks: Chunk<TTableName>[]) {}
 
-	public toQuery({ escapeName, escapeParam }: BuildQueryConfig): [string, ParamValue[]] {
-		const params: ParamValue[] = [];
+	public toQuery({ escapeName, escapeParam }: BuildQueryConfig): [string, TDriverParam[]] {
+		const params: TDriverParam[] = [];
 
 		const chunks = this.queryChunks.map((chunk) => {
 			if (typeof chunk === 'string') {
 				return chunk;
+			} else if (chunk instanceof Name) {
+				return escapeName(chunk.value);
 			} else if (chunk instanceof Table) {
 				return escapeName(chunk[tableName]);
 			} else if (chunk instanceof Column) {
 				return escapeName(chunk.table[tableName]) + '.' + escapeName(chunk.name);
-			} else if (chunk instanceof ColumnWithoutTable) {
-				return escapeName(chunk.column.name);
 			} else if (chunk instanceof Param) {
-				params.push(chunk.value);
+				params.push(chunk.value as TDriverParam);
 				return escapeParam(params.length - 1, chunk.value);
 			} else {
-				console.log(chunk);
-				throw new Error('Unexpected chunk type');
+				const err = new Error('Unexpected chunk type!');
+				console.error(chunk);
+				throw err;
 			}
 		});
 
@@ -54,47 +53,34 @@ export class SQL<TTableName extends string = string> {
 	}
 }
 
+export type AnySQL<TTableName extends string = string> = SQL<TTableName, any>;
+
 /**
- * Column that will be represented just as "column" instead of "table"."column" in the SQL.
- * Used in columns list in INSERT queries.
+ * Any DB name (table, column, index etc.)
  */
-export class ColumnWithoutTable<TColumn extends AnyColumn> {
-	private brand!: 'ColumnWithoutTable';
-	constructor(public readonly column: TColumn) {}
+export class Name {
+	protected brand!: 'Name';
+	constructor(public readonly value: string) {}
 }
 
-export interface ParamValueMapper<TType extends ParamValue> {
-	mapFromDriverValue(value: any): TType;
-	mapToDriverValue(value: TType): any;
+export interface ParamValueMapper<TType, TDriverType> {
+	mapFromDriverValue(value: TDriverType): TType;
+	mapToDriverValue(value: TType): TDriverType;
 }
 
-export const noopParamValueMapper: ParamValueMapper<ParamValue> = {
-	mapFromDriverValue: (value) => value,
-	mapToDriverValue: (value) => value,
-};
-
-export class MappedParamValue<TType extends ParamValue> {
+export class MappedParamValue<TType, TDriverType> {
 	private brand!: 'MappedParamValue';
-	constructor(public readonly value: TType, public readonly mapper: ParamValueMapper<TType>) {}
+	constructor(
+		public readonly value: TType,
+		public readonly mapper: ParamValueMapper<TType, TDriverType>,
+	) {}
 }
 
-export type SQLSourceParam<TTableName extends string = string> =
-	| Column<TTableName>
-	| ColumnWithoutTable<Column<TTableName>>
-	| ParamValue
-	| MappedParamValue<any>
-	| SQL<any>
-	| AnyTable<TTableName>
-	| undefined
-	| SQLSourceParam<TTableName>[];
-
-function buildChunksFromParam<TTableName extends string>(
-	param: SQLSourceParam<TTableName>,
-): Chunk<TTableName>[] {
+function buildChunksFromParam<TTableName extends string>(param: unknown): Chunk<TTableName>[] {
 	if (Array.isArray(param)) {
 		const result: Chunk<TTableName>[] = ['('];
 		param.forEach((p, i) => {
-			result.push(...buildChunksFromParam(p));
+			result.push(...buildChunksFromParam<TTableName>(p));
 			if (i < param.length - 1) {
 				result.push(', ');
 			}
@@ -104,9 +90,9 @@ function buildChunksFromParam<TTableName extends string>(
 	} else if (param instanceof SQL) {
 		return param.queryChunks;
 	} else if (
-		param instanceof Table ||
-		param instanceof Column ||
-		param instanceof ColumnWithoutTable
+		param instanceof Table
+		|| param instanceof Column
+		|| param instanceof Name
 	) {
 		return [param];
 	} else if (param instanceof MappedParamValue) {
@@ -118,16 +104,32 @@ function buildChunksFromParam<TTableName extends string>(
 	}
 }
 
-export function sql<TTableName extends string>(
+export type SQLSourceParam<TTableName extends string = string> =
+	| AnyColumn<TTableName>
+	| Name
+	| MappedParamValue<any, any>
+	| AnySQL
+	| AnyTable<TTableName>
+	| undefined
+	| SQLSourceParam<TTableName>[]
+	| unknown;
+
+export type MapSQLSourceParam<TParam extends SQLSourceParam> = TParam extends any[] ? MapSQLSourceParam<TParam[number]>
+	: TParam extends Column<any, any, infer TDriverParam, any, any> ? TDriverParam
+	: TParam extends MappedParamValue<any, infer TDriverParam> ? TDriverParam
+	: TParam extends SQL<any, infer TDriverParam> ? TDriverParam
+	: never;
+
+export function sql<TTableName extends string, TQueryParams extends SQLSourceParam<TTableName>[]>(
 	strings: TemplateStringsArray,
-	...params: SQLSourceParam<TTableName>[]
-): SQL<TTableName> {
+	...params: TQueryParams
+): SQL<TTableName, MapSQLSourceParam<TQueryParams[number]>> {
 	const queryChunks: Chunk<TTableName>[] = [];
 	if (params.length > 0 || (strings.length > 0 && strings[0] !== '')) {
 		queryChunks.push(strings[0]!);
 	}
 	params.forEach((param, paramIndex) => {
-		queryChunks.push(...buildChunksFromParam(param));
+		queryChunks.push(...buildChunksFromParam<TTableName>(param));
 		queryChunks.push(strings[paramIndex + 1]!);
 	});
 
@@ -135,20 +137,21 @@ export function sql<TTableName extends string>(
 }
 
 export namespace sql {
-	export function empty(): SQL {
+	export function empty(): SQL<string, never> {
 		return new SQL([]);
 	}
 
-	export function fromList<TTableName extends string>(
-		list: SQLSourceParam<TTableName>[],
-	): SQL<TTableName> {
-		return new SQL(list.map(buildChunksFromParam).flat(1));
+	export function fromList<
+		TTableName extends string,
+		TQueryParams extends SQLSourceParam<TTableName>[],
+	>(list: TQueryParams): SQL<TTableName, MapSQLSourceParam<TQueryParams[number]>> {
+		return new SQL(list.map(buildChunksFromParam<TTableName>).flat(1));
 	}
 
 	export function response<T>() {
 		return <TTableName extends string>(
 			strings: TemplateStringsArray,
-			...params: SQLSourceParam<TTableName>[]
+			...params: unknown[]
 		): SQLResponse<TTableName, T> => {
 			return new SQLResponseRaw(sql(strings, ...params));
 		};
@@ -158,14 +161,16 @@ export namespace sql {
 	 * Convenience function to create an SQL query from a raw input.
 	 * @param str The raw SQL query string.
 	 */
-	export function raw<TTableName extends string = string>(str: string): SQL<TTableName> {
+	export function raw<TTableName extends string = string, TParams = unknown>(
+		str: string,
+	): SQL<TTableName, TParams> {
 		return new SQL([str]);
 	}
 }
 
-export abstract class SQLResponse<TTableName extends string, TValue = any> {
+export abstract class SQLResponse<TTableName extends string = string, TValue = any> {
 	protected value!: TValue;
-	constructor(readonly sql: SQL<TTableName>) {}
+	constructor(readonly sql: SQL<TTableName, TValue>) {}
 
 	abstract mapFromDriverValue(value: any): TValue;
 }

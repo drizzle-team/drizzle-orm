@@ -1,42 +1,24 @@
-import { Connector, Driver, Dialect, sql, Column } from 'drizzle-orm';
-import { SelectFields } from 'drizzle-orm/operations';
-import { SQL, ParamValue, SQLSourceParam, ColumnWithoutTable } from 'drizzle-orm/sql';
-import { tableColumns, tableName, TableName } from 'drizzle-orm/utils';
+import { Column, Connector, Dialect, Driver, Session, sql, Table } from 'drizzle-orm';
+import { Name, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
+import { tableColumns, TableName, tableName } from 'drizzle-orm/utils';
+import { Pool, QueryResult } from 'pg';
 
 import { AnyPgColumn } from './columns';
-import { PgTableOperations } from './operations';
-import { PgUpdateConfig, AnyPgSelectConfig, AnyPgInsertConfig, PgDeleteConfig } from './queries';
+import { PgSelectFields, PgTableOperations } from './operations';
+import { AnyPgInsertConfig, AnyPgSelectConfig, PgDeleteConfig, PgUpdateConfig } from './queries';
+import { AnyPgSQL } from './sql';
 import { AnyPgTable } from './table';
-import { getTableColumns, tableIndexes } from './utils';
+import { getTableColumns } from './utils';
 
-export interface PgDriverResponse {
-	rows: any[];
-	rowCount: number;
-	command: string;
-}
+export type PgDriverParam = string | number | boolean | null | Record<string, unknown> | Date;
 
-interface Pool {}
-
-export interface PgSession {
-	query(query: string, params: unknown[]): Promise<PgDriverResponse>;
-}
+export interface PgSession extends Session<PgDriverParam, Promise<QueryResult>> {}
 
 export class PgSessionDefault implements PgSession {
 	constructor(private pool: Pool) {}
 
-	public async query(query: string, params: unknown[]): Promise<PgDriverResponse> {
-		console.log({ query, params });
-		return {
-			rows: [],
-			rowCount: 0,
-			command: '',
-		};
-		// const result = await this.pool.query(query);
-		// return {
-		// 	rows: result.rows,
-		// 	rowCount: result.rowCount,
-		// 	command: result.command,
-		// };
+	public async query(query: string, params: unknown[]): Promise<QueryResult> {
+		return this.pool.query(query, params);
 	}
 }
 
@@ -80,10 +62,11 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		table,
 		where,
 		returning,
-	}: PgDeleteConfig<TTable>): SQL<TableName<TTable>> {
-		return sql<TableName<TTable>>`delete from ${table} ${sql`where ${where}`} ${
-			returning ? sql`returning *` : undefined
-		}`;
+	}: PgDeleteConfig<TTable>): AnyPgSQL<TableName<TTable>> {
+		return sql<
+			TableName<TTable>,
+			SQLSourceParam[]
+		>`delete from ${table} ${sql`where ${where}`} ${returning ? sql`returning *` : undefined}`;
 	}
 
 	public buildUpdateQuery<TTable extends AnyPgTable>({
@@ -91,13 +74,13 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		set,
 		where,
 		returning,
-	}: PgUpdateConfig<TTable>): SQL<TableName<TTable>> {
+	}: PgUpdateConfig<TTable>): SQL<TableName<TTable>, PgDriverParam> {
 		const setSize = Object.keys(set).length;
 		const setSql = sql.fromList(
 			Object.entries(set)
 				.map(([colName, value], i) => {
 					const col = getTableColumns(table)[colName]!;
-					const res = sql`${new ColumnWithoutTable(col)} = ${value}`;
+					const res = sql`${new Name(col.name)} = ${value}`;
 					if (i < setSize - 1) {
 						return [res, sql.raw(', ')];
 					}
@@ -106,25 +89,27 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 				.flat(1),
 		);
 
-		return sql<TableName<TTable>>`update ${table} set ${setSql} ${
-			where ? sql`where ${where}` : undefined
-		} ${returning ? sql`returning *` : undefined}`;
+		return sql`update ${table} set ${setSql} ${where ? sql`where ${where}` : undefined} ${
+			returning ? sql`returning *` : undefined
+		}` as SQL<TableName<TTable>, PgDriverParam>;
 	}
 
 	private prepareTableFieldsForQuery(
-		fields: SelectFields<TableName<AnyPgTable>> | undefined,
+		fields: PgSelectFields<TableName<AnyPgTable>> | undefined,
 	): SQLSourceParam[] {
 		let sqlFieldsList: SQLSourceParam[] = [];
 		if (fields) {
 			Object.values(fields).forEach((field, i) => {
-				if (field instanceof SQL) {
-					sqlFieldsList.push(field);
+				if (field instanceof SQLResponse) {
+					sqlFieldsList.push(field.sql);
 				} else if (field instanceof Column) {
 					const columnTableName = field.table[tableName];
 					sqlFieldsList.push(
-						sql`${field} AS ${sql.raw(
-							this.escapeName(`${columnTableName}_${field.name}`),
-						)}`,
+						sql`${field} AS ${
+							sql.raw(
+								this.escapeName(`${columnTableName}_${field.name}`),
+							)
+						}`,
 					);
 				}
 
@@ -145,24 +130,21 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		orderBy,
 		limit,
 		offset,
-	}: AnyPgSelectConfig): SQL {
-		let sqlFields: SQL;
+	}: AnyPgSelectConfig): AnyPgSQL {
+		let sqlFields: AnyPgSQL;
 
-		let sqlFieldsList: SQLSourceParam[] =
-			typeof fields === 'undefined'
-				? this.prepareTableFieldsForQuery(table[tableColumns])
-				: this.prepareTableFieldsForQuery(fields);
+		const sqlFieldsList: SQLSourceParam[] = typeof fields === 'undefined'
+			? this.prepareTableFieldsForQuery(table[tableColumns])
+			: this.prepareTableFieldsForQuery(fields);
 
-		const joinsArray: SQL[] = [];
+		const joinsArray: AnyPgSQL[] = [];
 		if (joins) {
 			const joinKeys = Object.keys(joins);
 
 			joinKeys.forEach((tableAlias, index) => {
 				const joinMeta = joins[tableAlias]!;
 				joinsArray.push(
-					sql`${sql.raw(joinMeta.joinType!)} ${joinMeta.table} ${joinMeta.alias} ON ${
-						joinMeta.on
-					}`,
+					sql<string, unknown[]>`${sql.raw(joinMeta.joinType!)} ${joinMeta.table} ${joinMeta.alias} ON ${joinMeta.on}`,
 				);
 				if (index < joinKeys.length - 1) {
 					joinsArray.push(sql` `);
@@ -172,9 +154,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 					sqlFieldsList.push(sql`, `);
 				}
 
-				sqlFieldsList = sqlFieldsList.concat(
-					this.prepareTableFieldsForQuery(joinMeta.columns),
-				);
+				sqlFieldsList.push(...this.prepareTableFieldsForQuery(joinMeta.columns));
 			});
 		}
 
@@ -184,7 +164,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 			sqlFields = sql.raw('*');
 		}
 
-		const orderByList: SQL<string>[] = [];
+		const orderByList: AnyPgSQL<string>[] = [];
 		orderBy.forEach((orderByValue, index) => {
 			orderByList.push(orderByValue);
 
@@ -193,22 +173,27 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 			}
 		});
 
-		return sql`select ${sqlFields} from ${table} ${sql.fromList(joinsArray)} ${
+		return sql<string, unknown[]>`select ${sqlFields} from ${table} ${sql.fromList(joinsArray)} ${
 			where ? sql`where ${where}` : undefined
 		} ${orderBy.length > 0 ? sql.raw('order by') : undefined} ${sql.fromList(orderByList)} ${
 			limit ? sql.raw(`limit ${limit}`) : undefined
 		} ${offset ? sql.raw(`offset ${offset}`) : undefined}`;
 	}
 
-	public buildInsertQuery({ table, values, returning }: AnyPgInsertConfig): SQL {
-		const joinedValues: (ParamValue | SQL)[][] = [];
+	public buildInsertQuery({
+		table,
+		values,
+		onConflict,
+		returning,
+	}: AnyPgInsertConfig): AnyPgSQL {
+		const joinedValues: (unknown | AnyPgSQL)[][] = [];
 		const columns: Record<string, AnyPgColumn> = getTableColumns(table);
 
 		const columnKeys = Object.keys(columns);
-		const insertOrder = Object.values(columns).map((column) => new ColumnWithoutTable(column));
+		const insertOrder = Object.values(columns).map((column) => new Name(column.name));
 
 		values.forEach((value) => {
-			const valueList: (ParamValue | SQL)[] = [];
+			const valueList: (unknown | AnyPgSQL)[] = [];
 			columnKeys.forEach((key) => {
 				const colValue = value[key];
 				if (typeof colValue === 'undefined') {
@@ -220,12 +205,12 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 			joinedValues.push(valueList);
 		});
 
-		return sql`insert into ${table} ${insertOrder} values ${
+		return sql<string, unknown[]>`insert into ${table} ${insertOrder} values ${
 			joinedValues.length === 1 ? joinedValues[0] : joinedValues
-		} ${returning ? sql`returning *` : undefined}`;
+		} ${onConflict ? sql`on conflict ${onConflict}` : undefined} ${returning ? sql`returning *` : undefined}`;
 	}
 
-	public prepareSQL(sql: SQL): [string, ParamValue[]] {
+	public prepareSQL(sql: SQL<string, PgDriverParam>): [string, PgDriverParam[]] {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,

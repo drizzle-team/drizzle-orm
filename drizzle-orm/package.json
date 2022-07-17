@@ -57,6 +57,7 @@
 	"devDependencies": {
 		"@types/pg": "^8.6.1",
 		"@types/sqlite3": "^3.1.8",
+		"dprint": "^0.30.3",
 		"mysql2": "^2.3.3",
 		"pg": "^8.6.0",
 		"resolve-tspaths": "^0.7.0",

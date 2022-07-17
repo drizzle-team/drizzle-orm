@@ -3,9 +3,9 @@ import { AnyTable } from 'drizzle-orm';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export class PgVarcharBuilder<
-	TNotNull extends boolean = boolean,
-	TDefault extends boolean = boolean,
-> extends PgColumnBuilder<PgVarchar<string, TNotNull, TDefault>, TNotNull, TDefault> {
+	TNotNull extends boolean = false,
+	TDefault extends boolean = false,
+> extends PgColumnBuilder<PgVarchar<string, TNotNull, TDefault>, string, TNotNull, TDefault> {
 	/** @internal */ length: number | undefined;
 
 	constructor(name: string, length?: number) {
@@ -22,10 +22,10 @@ export class PgVarcharBuilder<
 }
 
 export class PgVarchar<
-	TTableName extends string = string,
-	TNotNull extends boolean = boolean,
-	TDefault extends boolean = boolean,
-> extends PgColumn<TTableName, string, TNotNull, TDefault> {
+	TTableName extends string,
+	TNotNull extends boolean,
+	TDefault extends boolean,
+> extends PgColumn<TTableName, string, string, TNotNull, TDefault> {
 	length: number | undefined;
 
 	constructor(table: AnyTable<TTableName>, builder: PgVarcharBuilder<TNotNull, TDefault>) {
