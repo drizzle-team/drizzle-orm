@@ -105,7 +105,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 				} else if (field instanceof Column) {
 					const columnTableName = field.table[tableName];
 					sqlFieldsList.push(
-						sql`${field} AS ${
+						sql`${field} as ${
 							sql.raw(
 								this.escapeName(`${columnTableName}_${field.name}`),
 							)
@@ -144,7 +144,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 			joinKeys.forEach((tableAlias, index) => {
 				const joinMeta = joins[tableAlias]!;
 				joinsArray.push(
-					sql<string, unknown[]>`${sql.raw(joinMeta.joinType!)} ${joinMeta.table} ${joinMeta.alias} ON ${joinMeta.on}`,
+					sql<string, unknown[]>`${sql.raw(joinMeta.joinType!)} ${joinMeta.table} ${joinMeta.alias} on ${joinMeta.on}`,
 				);
 				if (index < joinKeys.length - 1) {
 					joinsArray.push(sql` `);
