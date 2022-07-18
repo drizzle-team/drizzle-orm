@@ -4,6 +4,7 @@ import { TableName } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
 
 import { AnyPgDialect, PgDriverParam, PgSession } from '~/connection';
+import { PartialSelectResult, PgSelectFields } from '~/operations';
 import { AnyPgSQL } from '~/sql';
 import { AnyPgTable, InferType, TableColumns } from '~/table';
 
@@ -11,6 +12,7 @@ export interface PgUpdateConfig<TTable extends AnyPgTable> {
 	where: AnyPgSQL<TableName<TTable>>;
 	set: PgUpdateSet<TTable>;
 	table: TTable;
+	returningFields?: PgSelectFields<TableName<TTable>> | undefined;
 	returning?: boolean;
 }
 
@@ -47,9 +49,16 @@ export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 		return this;
 	}
 
-	public returning(): Pick<PgUpdate<TTable, InferType<TTable>>, 'execute'> {
+	public returning(): Pick<PgUpdate<TTable, InferType<TTable>[]>, 'execute'>;
+	public returning<TSelectedFields extends PgSelectFields<TableName<TTable>>>(
+		fields: TSelectedFields,
+	): Pick<PgUpdate<TTable, PartialSelectResult<TableName<TTable>, TSelectedFields>[]>, 'execute'>;
+	public returning(fields?: any): Pick<PgUpdate<TTable, any>, 'execute'> {
+		if (fields) {
+			this.fields.returningFields = fields;
+		}
 		this.fields.returning = true;
-		return this as unknown as Pick<PgUpdate<TTable, InferType<TTable>>, 'execute'>;
+		return this;
 	}
 
 	public async execute(): Promise<TReturn> {

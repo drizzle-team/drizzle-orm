@@ -81,25 +81,27 @@ async function main() {
 	// 	.execute();
 
 	db.users.insert([newUser, newUser]).execute();
-	db.users.insert(newUser).execute();
-	db.users.insert([newUser, newUser]).returning().execute();
 	db.users.insert(newUser).returning().execute();
+	db.users.insert([newUser, newUser]).returning({ id: users.id }).execute();
+	// db.users.insert(newUser).returning().execute();
 
-	db.users.insert(newUser).onConflictDoNothing().execute();
-	db.users
-		.insert(newUser)
-		.onConflictDoNothing((c) => c.legalAge)
-		.execute();
-	db.users
-		.insert(newUser)
-		.onConflictDoUpdate((c) => c.legalAge, { age1: 21 })
-		.returning()
-		.execute();
-	db.users
-		.insert(newUser)
-		.onConflictDoUpdate(sql`(name) where name is not null`, { age1: 21 })
-		.returning()
-		.execute();
+	// db.users.insert(newUser).onConflictDoNothing().execute();
+	// db.users
+	// 	.insert(newUser)
+	// 	.onConflictDoNothing((c) => c.legalAge)
+	// 	.execute();
+	// db.users
+	// 	.insert(newUser)
+	// 	.onConflictDoUpdate((c) => c.legalAge, { age1: 21 })
+	// 	.returning()
+	// 	.execute();
+	// const insertExample = await db.users
+	// 	.insert(newUser)
+	// 	.onConflictDoUpdate(sql`(name) where name is not null`, { age1: 21 })
+	// 	.returning()
+	// 	.execute();
+
+	// insertExample[0]?.class;
 
 	// db.users
 	// 	.update()
@@ -123,37 +125,37 @@ async function main() {
 		.where(sql`${users.age1} > 0`)
 		.execute();
 
-	db.users
-		.select({ id: users.homeCity })
-		.innerJoin(
-			cities,
-			(joins) => eq(joins.cities1.id, users.id),
-			(table) => ({ id: table.id }),
-		)
-		.innerJoin(
-			cities,
-			(joins) => eq(joins.cities1.id, users.id),
-			(table) => ({ name23: table.id }),
-		)
-		// .innerJoin(
-		// 	cities,
-		// 	(joins) => eq(joins.cities2.id, users.id),
-		// 	(table) => ({ id: table.id }),
-		// )
-		// .innerJoin(
-		// 	cities,
-		// 	(joins) => eq(joins.cities4.id, users.id),
-		// 	(table) => ({ id: table.id }),
-		// )
-		.where((joins) => sql`${users.age1} > 12`)
-		// .orderBy(desc(users.id))
-		// .orderBy((joins) => sql`${joins.cities1.name} asc`)
-		// .orderBy(sql`${users.age1} ASC`)
-		// .orderBy(asc(users.id))
+	// db.users
+	// 	.select({ id: users.homeCity })
+	// 	.innerJoin(
+	// 		cities,
+	// 		(joins) => eq(joins.cities1.id, users.id),
+	// 		(table) => ({ id: table.id }),
+	// 	)
+	// 	.innerJoin(
+	// 		cities,
+	// 		(joins) => eq(joins.cities1.id, users.id),
+	// 		(table) => ({ name23: table.id }),
+	// 	);
+	// .innerJoin(
+	// 	cities,
+	// 	(joins) => eq(joins.cities2.id, users.id),
+	// 	(table) => ({ id: table.id }),
+	// )
+	// .innerJoin(
+	// 	cities,
+	// 	(joins) => eq(joins.cities4.id, users.id),
+	// 	(table) => ({ id: table.id }),
+	// )
+	// .where((joins) => sql`${users.age1} > 12`)
+	// .orderBy(desc(users.id))
+	// .orderBy((joins) => sql`${joins.cities1.name} asc`)
+	// .orderBy(sql`${users.age1} ASC`)
+	// .orderBy(asc(users.id))
 
-		.limit(1)
-		.offset(2)
-		.execute();
+	// .limit(1)
+	// .offset(2)
+	// .execute();
 
 	// db.users
 	// 	.select({ id: users.id })
@@ -196,36 +198,40 @@ async function main() {
 	// 	.where((joins) => sql`${users.age1} > 0`)
 	// 	.execute();
 
-	const userId = 5;
+	// const userId = 5;
 
-	const test = sql`lower(${users.currentCity})`;
+	// const test = sql`lower(${users.currentCity})`;
 
-	const update = await db.users
-		.update()
-		.set({
-			id: userId,
-			age1: inc(users.age1, 1),
-			serialNullable: null,
-			currentCity: sql`lower(${users.currentCity})`,
-		})
-		.where(eq(users.id, 1))
-		.returning()
-		.execute();
+	// const update = await db.users
+	// 	.update()
+	// 	.set({
+	// 		id: userId,
+	// 		age1: inc(users.age1, 1),
+	// 		serialNullable: null,
+	// 		currentCity: sql`lower(${users.currentCity})`,
+	// 	})
+	// 	.where(eq(users.id, 1))
+	// 	// .returning({ id: users.id })
+	// 	.execute();
 
-	db.users.delete().where(eq(users.id, 2)).returning().execute();
+	// update[0].
+
+	// db.users.delete().where(eq(users.id, 2)).returning().execute();
 	db.users
 		.delete()
 		.where(sql`${users.id} = ${2}`)
 		.returning()
 		.execute();
 	// 2 won't be in prepared statement params
-	db.users
+	const deleteRes = await db.users
 		.delete()
 		.where(sql`${users.id} = 2`)
-		.returning()
+		.returning({ id: users.id })
 		.execute();
 
-	db.users.delete().returning().execute();
+	// deleteRes.
+
+	// db.users.delete().returning().execute();
 
 	db.users.delete().execute();
 }

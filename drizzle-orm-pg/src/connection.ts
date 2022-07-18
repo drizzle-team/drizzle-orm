@@ -62,11 +62,21 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		table,
 		where,
 		returning,
+		returningFields,
 	}: PgDeleteConfig<TTable>): AnyPgSQL<TableName<TTable>> {
-		return sql<
-			TableName<TTable>,
-			SQLSourceParam[]
-		>`delete from ${table} ${sql`where ${where}`} ${returning ? sql`returning *` : undefined}`;
+		const returningStatement = returningFields
+			? sql`returning ${
+					returningFields
+						? sql.fromList(this.prepareTableFieldsForQuery(returningFields))
+						: undefined
+			  }`
+			: returning
+			? sql`returning ${sql.fromList(this.prepareTableFieldsForQuery(table[tableColumns]))}`
+			: undefined;
+
+		return sql<TableName<TTable>, SQLSourceParam[]>`delete from ${table} ${
+			where ? sql`where ${where}` : undefined
+		} ${returningStatement}`;
 	}
 
 	public buildUpdateQuery<TTable extends AnyPgTable>({
@@ -74,6 +84,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		set,
 		where,
 		returning,
+		returningFields,
 	}: PgUpdateConfig<TTable>): SQL<TableName<TTable>, PgDriverParam> {
 		const setSize = Object.keys(set).length;
 		const setSql = sql.fromList(
@@ -89,9 +100,19 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 				.flat(1),
 		);
 
-		return sql`update ${table} set ${setSql} ${where ? sql`where ${where}` : undefined} ${
-			returning ? sql`returning *` : undefined
-		}` as SQL<TableName<TTable>, PgDriverParam>;
+		const returningStatement = returningFields
+			? sql`returning ${
+					returningFields
+						? sql.fromList(this.prepareTableFieldsForQuery(returningFields))
+						: undefined
+			  }`
+			: returning
+			? sql`returning ${sql.fromList(this.prepareTableFieldsForQuery(table[tableColumns]))}`
+			: undefined;
+
+		return sql`update ${table} set ${setSql} ${
+			where ? sql`where ${where}` : undefined
+		} ${returningStatement}` as SQL<TableName<TTable>, PgDriverParam>;
 	}
 
 	private prepareTableFieldsForQuery(
@@ -105,11 +126,9 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 				} else if (field instanceof Column) {
 					const columnTableName = field.table[tableName];
 					sqlFieldsList.push(
-						sql`${field} as ${
-							sql.raw(
-								this.escapeName(`${columnTableName}_${field.name}`),
-							)
-						}`,
+						sql`${field} as ${sql.raw(
+							this.escapeName(`${columnTableName}_${field.name}`),
+						)}`,
 					);
 				}
 
@@ -133,9 +152,10 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 	}: AnyPgSelectConfig): AnyPgSQL {
 		let sqlFields: AnyPgSQL;
 
-		const sqlFieldsList: SQLSourceParam[] = typeof fields === 'undefined'
-			? this.prepareTableFieldsForQuery(table[tableColumns])
-			: this.prepareTableFieldsForQuery(fields);
+		const sqlFieldsList: SQLSourceParam[] =
+			typeof fields === 'undefined'
+				? this.prepareTableFieldsForQuery(table[tableColumns])
+				: this.prepareTableFieldsForQuery(fields);
 
 		const joinsArray: AnyPgSQL[] = [];
 		if (joins) {
@@ -144,7 +164,9 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 			joinKeys.forEach((tableAlias, index) => {
 				const joinMeta = joins[tableAlias]!;
 				joinsArray.push(
-					sql<string, unknown[]>`${sql.raw(joinMeta.joinType!)} ${joinMeta.table} ${joinMeta.alias} on ${joinMeta.on}`,
+					sql<string, unknown[]>`${sql.raw(joinMeta.joinType!)} ${joinMeta.table} ${
+						joinMeta.alias
+					} on ${joinMeta.on}`,
 				);
 				if (index < joinKeys.length - 1) {
 					joinsArray.push(sql` `);
@@ -173,11 +195,13 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 			}
 		});
 
-		return sql<string, unknown[]>`select ${sqlFields} from ${table} ${sql.fromList(joinsArray)} ${
-			where ? sql`where ${where}` : undefined
-		} ${orderBy.length > 0 ? sql.raw('order by') : undefined} ${sql.fromList(orderByList)} ${
-			limit ? sql.raw(`limit ${limit}`) : undefined
-		} ${offset ? sql.raw(`offset ${offset}`) : undefined}`;
+		return sql<string, unknown[]>`select ${sqlFields} from ${table} ${sql.fromList(
+			joinsArray,
+		)} ${where ? sql`where ${where}` : undefined} ${
+			orderBy.length > 0 ? sql.raw('order by') : undefined
+		} ${sql.fromList(orderByList)} ${limit ? sql.raw(`limit ${limit}`) : undefined} ${
+			offset ? sql.raw(`offset ${offset}`) : undefined
+		}`;
 	}
 
 	public buildInsertQuery({
@@ -185,6 +209,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		values,
 		onConflict,
 		returning,
+		returningFields,
 	}: AnyPgInsertConfig): AnyPgSQL {
 		const joinedValues: (unknown | AnyPgSQL)[][] = [];
 		const columns: Record<string, AnyPgColumn> = getTableColumns(table);
@@ -205,9 +230,19 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 			joinedValues.push(valueList);
 		});
 
+		const returningStatement = returningFields
+			? sql`returning ${
+					returningFields
+						? sql.fromList(this.prepareTableFieldsForQuery(returningFields))
+						: undefined
+			  }`
+			: returning
+			? sql`returning ${sql.fromList(this.prepareTableFieldsForQuery(table[tableColumns]))}`
+			: undefined;
+
 		return sql<string, unknown[]>`insert into ${table} ${insertOrder} values ${
 			joinedValues.length === 1 ? joinedValues[0] : joinedValues
-		} ${onConflict ? sql`on conflict ${onConflict}` : undefined} ${returning ? sql`returning *` : undefined}`;
+		} ${onConflict ? sql`on conflict ${onConflict}` : undefined} ${returningStatement}`;
 	}
 
 	public prepareSQL(sql: SQL<string, PgDriverParam>): [string, PgDriverParam[]] {

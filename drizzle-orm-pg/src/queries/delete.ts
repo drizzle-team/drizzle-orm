@@ -2,6 +2,7 @@ import { TableName } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
 
 import { AnyPgDialect, PgSession } from '~/connection';
+import { PartialSelectResult, PgSelectFields } from '~/operations';
 import { AnyPgSQL } from '~/sql';
 import { AnyPgTable, InferType } from '~/table';
 
@@ -9,6 +10,7 @@ export interface PgDeleteConfig<TTable extends AnyPgTable> {
 	where: AnyPgSQL<TableName<TTable>>;
 	table: TTable;
 	returning?: boolean;
+	returningFields?: PgSelectFields<TableName<TTable>> | undefined;
 }
 
 export class PgDelete<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
@@ -28,9 +30,16 @@ export class PgDelete<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 		return this;
 	}
 
-	public returning(): Pick<PgDelete<TTable, InferType<TTable>>, 'execute'> {
+	public returning(): Pick<PgDelete<TTable, InferType<TTable>[]>, 'execute'>;
+	public returning<TSelectedFields extends PgSelectFields<TableName<TTable>>>(
+		fields: TSelectedFields,
+	): Pick<PgDelete<TTable, PartialSelectResult<TableName<TTable>, TSelectedFields>[]>, 'execute'>;
+	public returning(fields?: any): Pick<PgDelete<TTable, any>, 'execute'> {
+		if (fields) {
+			this.fields.returningFields = fields;
+		}
 		this.fields.returning = true;
-		return this as unknown as Pick<PgDelete<TTable, InferType<TTable>>, 'execute'>;
+		return this;
 	}
 
 	public async execute(): Promise<TReturn> {
