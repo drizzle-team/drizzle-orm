@@ -9,6 +9,9 @@ import { PartialSelectResult, PgSelectFields } from '~/operations';
 import { AnyPgSQL } from '~/sql';
 import { AnyPgTable, InferType, PgTable, TableColumns } from '~/table';
 
+import { TableProxyHandler } from './proxies';
+import { AppendToReturn, BuildAlias, IncrementAlias, TableAlias } from './types';
+
 export interface PgSelectConfig<TTable extends AnyTable> {
 	fields: PgSelectFields<TableName<TTable>> | undefined;
 	where: AnyPgSQL<TableName<TTable>>;
@@ -22,85 +25,6 @@ export interface PgSelectConfig<TTable extends AnyTable> {
 
 export type AnyPgSelectConfig = PgSelectConfig<AnyPgTable>;
 
-export type BuildAlias<
-	TTable extends AnyPgTable,
-	TAlias extends { [name: string]: number },
-> = `${TableName<TTable>}${GetAliasIndex<TableName<TTable>, TAlias>}`;
-
-export type TableAlias<TTable extends AnyPgTable, TAlias extends string> = AliasColumns<TableColumns<TTable>, TAlias>;
-
-export type AliasColumns<TColumns, TAlias extends string> = {
-	[Key in keyof TColumns]: TColumns[Key] extends PgColumn<
-		any,
-		infer TType,
-		infer TDriverParam,
-		infer TNotNull,
-		infer TDefault
-	> ? PgColumn<TAlias, TType, TDriverParam, TNotNull, TDefault>
-		: never;
-};
-
-type Increment<TNumber extends number, TCounter extends any[] = []> = TCounter['length'] extends TNumber
-	? [...TCounter, 0]['length']
-	: Increment<TNumber, [...TCounter, 0]>;
-
-export type IncrementAlias<
-	TTableName extends string,
-	TAlias extends { [name: string]: number },
-> = TAlias extends { [key in TTableName]: infer N } ? N extends number ? Simplify<
-			& Omit<TAlias, TTableName>
-			& {
-				[K in TTableName]: Increment<N>;
-			}
-		>
-	: never
-	: Omit<TAlias, TTableName> & { [Key in TTableName]: 2 };
-
-export type GetAliasIndex<
-	TTableName extends string,
-	TAlias extends { [name: string]: number },
-> = TAlias extends { [name in TTableName]: infer N } ? (N extends number ? N : never) : 1;
-
-export class ColumnProxyHandler<TColumn extends AnyPgColumn> implements ProxyHandler<TColumn> {
-	public constructor(private table: AnyPgTable) {
-	}
-
-	public get(columnObj: TColumn, prop: string | symbol, receiver: any): any {
-		if (prop === 'table') {
-			return this.table;
-		}
-		return columnObj[prop as keyof TColumn];
-	}
-}
-
-export class TableProxyHandler<TJoinedTable extends AnyPgTable> implements ProxyHandler<TJoinedTable> {
-	public constructor(private alias: string) {
-	}
-
-	public get(tableObj: TJoinedTable, prop: string | symbol, receiver: any): any {
-		if (prop === tableName) {
-			return this.alias;
-		}
-		if (prop === tableColumns) {
-			const proxiedColumns: { [key: string]: any } = {};
-			Object.keys(tableObj[tableColumns]).map((key) => {
-				proxiedColumns[key] = new Proxy(
-					tableObj[tableColumns][key] as unknown as AnyPgColumn,
-					new ColumnProxyHandler(new Proxy(tableObj, this)),
-				);
-			});
-			return proxiedColumns;
-		}
-		if (typeof prop !== 'string') {
-			return tableObj[prop as keyof TJoinedTable];
-		}
-		return new Proxy(
-			tableObj[prop as keyof TJoinedTable] as unknown as AnyPgColumn,
-			new ColumnProxyHandler(new Proxy(tableObj, this)),
-		);
-	}
-}
-
 interface JoinsValue<TColumns extends Record<string, AnyPgColumn<string>>> {
 	columns: TColumns;
 	on: AnyPgSQL;
@@ -113,17 +37,33 @@ interface JoinsValue<TColumns extends Record<string, AnyPgColumn<string>>> {
 export type SelectResult<
 	TTable extends AnyPgTable,
 	TReturn,
-	TInitialSelect extends InferType<TTable> | PartialSelectResult<TableName<TTable>, PgSelectFields<TableName<TTable>>>,
-> = TReturn extends undefined ? TInitialSelect[]
-	: (Simplify<TReturn & { [k in TableName<TTable>]: TInitialSelect }>)[];
+	TInitialSelect extends
+		| InferType<TTable>
+		| PartialSelectResult<TableName<TTable>, PgSelectFields<TableName<TTable>>>,
+> = TReturn extends undefined
+	? TInitialSelect[]
+	: Simplify<TReturn & { [k in TableName<TTable>]: TInitialSelect }>[];
 
-export type AppendToReturn<TReturn, TAlias extends string, TSelectedFields extends PgSelectFields<string>> =
-	TReturn extends undefined ? { [Key in TAlias]: PartialSelectResult<string, TSelectedFields> }
-		: Simplify<TReturn & { [Key in TAlias]: PartialSelectResult<string, TSelectedFields> }>;
+type AnyPgSelect = PgSelect<AnyPgTable, InferType<AnyPgTable>, any, any, any>;
+
+export type PickJoin<TJoinReturn extends AnyPgSelect> = Omit<TJoinReturn, 'distinct'>;
+export type PickWhere<TJoinReturn extends AnyPgSelect> = Omit<
+	TJoinReturn,
+	'distinct' | 'where' | 'innerJoin' | 'rightJoin' | 'leftJoin' | 'fullJoin'
+>;
+export type PickDistinct<TJoinReturn extends AnyPgSelect> = Omit<TJoinReturn, 'distinct'>;
+export type PickOrderBy<TJoinReturn extends AnyPgSelect> = Pick<
+	TJoinReturn,
+	'limit' | 'offset' | 'execute'
+>;
+export type PickLimit<TJoinReturn extends AnyPgSelect> = Pick<TJoinReturn, 'offset' | 'execute'>;
+export type PickOffset<TJoinReturn extends AnyPgSelect> = Pick<TJoinReturn, 'execute'>;
 
 export class PgSelect<
 	TTable extends AnyPgTable,
-	TInitialSelect extends InferType<TTable> | PartialSelectResult<TableName<TTable>, PgSelectFields<TableName<TTable>>>,
+	TInitialSelect extends
+		| InferType<TTable>
+		| PartialSelectResult<TableName<TTable>, PgSelectFields<TableName<TTable>>>,
 	TReturn = undefined,
 	TJoins extends { [k: string]: any } = {},
 	TAlias extends { [name: string]: number } = { [K in TableName<TTable>]: 1 },
@@ -161,51 +101,18 @@ export class PgSelect<
 		value: TJoinedTable,
 		callback: (
 			joins: Simplify<
-				& TJoins
-				& {
-					[
-						Alias in BuildAlias<
-							TJoinedTable,
-							TAlias
-						>
-					]: TableAlias<TJoinedTable, Alias>;
+				TJoins & {
+					[Alias in BuildAlias<TJoinedTable, TAlias>]: TableAlias<TJoinedTable, Alias>;
 				}
 			>,
 		) => AnyPgSQL<
-			| (keyof TJoins & string)
-			| TableName<TTable>
-			| BuildAlias<TJoinedTable, TAlias>
+			(keyof TJoins & string) | TableName<TTable> | BuildAlias<TJoinedTable, TAlias>
 		>,
 		joinType: string,
 		partialCallback?: (
-			table: TableAlias<
-				TJoinedTable,
-				BuildAlias<
-					TJoinedTable,
-					TAlias
-				>
-			>,
+			table: TableAlias<TJoinedTable, BuildAlias<TJoinedTable, TAlias>>,
 		) => TSelectedFields,
-	): Pick<
-		PgSelect<
-			TTable,
-			TInitialSelect,
-			AppendToReturn<TReturn, BuildAlias<TJoinedTable, TAlias>, TSelectedFields>,
-			Simplify<
-				& TJoins
-				& {
-					[
-						Alias in BuildAlias<
-							TJoinedTable,
-							TAlias
-						>
-					]: TableAlias<TJoinedTable, Alias>;
-				}
-			>,
-			IncrementAlias<TableName<TJoinedTable>, TAlias>
-		>,
-		'offset' | 'limit' | 'execute' | 'innerJoin' | 'where' | 'orderBy'
-	> {
+	) {
 		const originalName = value[tableName];
 		let aliasIndex = this._alias[originalName];
 		if (typeof aliasIndex === 'undefined') {
@@ -234,48 +141,31 @@ export class PgSelect<
 		return this as any;
 	}
 
-	public innerJoin<
-		TJoinedTable extends AnyPgTable<TableName<TJoinedTable>>,
-	>(
+	public innerJoin<TJoinedTable extends AnyPgTable<TableName<TJoinedTable>>>(
 		value: TJoinedTable,
 		callback: (
 			joins: Simplify<
-				& TJoins
-				& {
-					[
-						Alias in BuildAlias<
-							TJoinedTable,
-							TAlias
-						>
-					]: TableAlias<TJoinedTable, Alias>;
+				TJoins & {
+					[Alias in BuildAlias<TJoinedTable, TAlias>]: TableAlias<TJoinedTable, Alias>;
 				},
 				{ deep: true }
 			>,
 		) => AnyPgSQL<
-			| (keyof TJoins & string)
-			| TableName<TTable>
-			| BuildAlias<TJoinedTable, TAlias>
+			(keyof TJoins & string) | TableName<TTable> | BuildAlias<TJoinedTable, TAlias>
 		>,
-	): Pick<
+	): PickJoin<
 		PgSelect<
 			TTable,
 			TInitialSelect,
 			AppendToReturn<TReturn, BuildAlias<TJoinedTable, TAlias>, TableColumns<TJoinedTable>>,
 			Simplify<
-				& TJoins
-				& {
-					[
-						Alias in BuildAlias<
-							TJoinedTable,
-							TAlias
-						>
-					]: TableAlias<TJoinedTable, Alias>;
+				TJoins & {
+					[Alias in BuildAlias<TJoinedTable, TAlias>]: TableAlias<TJoinedTable, Alias>;
 				},
 				{ deep: true }
 			>,
 			IncrementAlias<TableName<TJoinedTable>, TAlias>
-		>,
-		'offset' | 'limit' | 'execute' | 'innerJoin' | 'where' | 'orderBy'
+		>
 	>;
 	public innerJoin<
 		TJoinedTable extends AnyPgTable<TableName<TJoinedTable>>,
@@ -284,51 +174,30 @@ export class PgSelect<
 		value: TJoinedTable,
 		callback: (
 			joins: Simplify<
-				& TJoins
-				& {
-					[
-						Alias in BuildAlias<
-							TJoinedTable,
-							TAlias
-						>
-					]: TableAlias<TJoinedTable, Alias>;
+				TJoins & {
+					[Alias in BuildAlias<TJoinedTable, TAlias>]: TableAlias<TJoinedTable, Alias>;
 				},
 				{ deep: true }
 			>,
 		) => AnyPgSQL<
-			| (keyof TJoins & string)
-			| TableName<TTable>
-			| BuildAlias<TJoinedTable, TAlias>
+			(keyof TJoins & string) | TableName<TTable> | BuildAlias<TJoinedTable, TAlias>
 		>,
 		partialCallback: (
-			table: TableAlias<
-				TJoinedTable,
-				BuildAlias<
-					TJoinedTable,
-					TAlias
-				>
-			>,
+			table: TableAlias<TJoinedTable, BuildAlias<TJoinedTable, TAlias>>,
 		) => TSelectedFields,
-	): Pick<
+	): PickJoin<
 		PgSelect<
 			TTable,
 			TInitialSelect,
 			AppendToReturn<TReturn, BuildAlias<TJoinedTable, TAlias>, TSelectedFields>,
 			Simplify<
-				& TJoins
-				& {
-					[
-						Alias in BuildAlias<
-							TJoinedTable,
-							TAlias
-						>
-					]: TableAlias<TJoinedTable, Alias>;
+				TJoins & {
+					[Alias in BuildAlias<TJoinedTable, TAlias>]: TableAlias<TJoinedTable, Alias>;
 				},
 				{ deep: true }
 			>,
 			IncrementAlias<TableName<TJoinedTable>, TAlias>
-		>,
-		'offset' | 'limit' | 'execute' | 'innerJoin' | 'where' | 'orderBy'
+		>
 	>;
 	public innerJoin<
 		TJoinedTable extends AnyPgTable<TableName<TJoinedTable>>,
@@ -337,38 +206,266 @@ export class PgSelect<
 		value: TJoinedTable,
 		callback: (
 			joins: Simplify<
-				& TJoins
-				& {
-					[
-						Alias in BuildAlias<
-							TJoinedTable,
-							TAlias
-						>
-					]: TableAlias<TJoinedTable, Alias>;
+				TJoins & {
+					[Alias in BuildAlias<TJoinedTable, TAlias>]: TableAlias<TJoinedTable, Alias>;
 				},
 				{ deep: true }
 			>,
 		) => AnyPgSQL<
-			| (keyof TJoins & string)
-			| TableName<TTable>
-			| BuildAlias<TJoinedTable, TAlias>
+			(keyof TJoins & string) | TableName<TTable> | BuildAlias<TJoinedTable, TAlias>
 		>,
 		partialCallback?: (
-			table: TableAlias<
-				TJoinedTable,
-				BuildAlias<
-					TJoinedTable,
-					TAlias
-				>
-			>,
+			table: TableAlias<TJoinedTable, BuildAlias<TJoinedTable, TAlias>>,
 		) => TSelectedFields,
 	) {
-		return this.join(value, callback, 'INNER JOIN', partialCallback);
+		return this.join(value, callback, 'inner join', partialCallback);
+	}
+
+	public leftJoin<TJoinedTable extends AnyPgTable<TableName<TJoinedTable>>>(
+		value: TJoinedTable,
+		callback: (
+			joins: Simplify<
+				TJoins & {
+					[Alias in BuildAlias<TJoinedTable, TAlias>]: TableAlias<TJoinedTable, Alias>;
+				},
+				{ deep: true }
+			>,
+		) => AnyPgSQL<
+			(keyof TJoins & string) | TableName<TTable> | BuildAlias<TJoinedTable, TAlias>
+		>,
+	): PickJoin<
+		PgSelect<
+			TTable,
+			TInitialSelect,
+			AppendToReturn<TReturn, BuildAlias<TJoinedTable, TAlias>, TableColumns<TJoinedTable>>,
+			Simplify<
+				TJoins & {
+					[Alias in BuildAlias<TJoinedTable, TAlias>]: TableAlias<TJoinedTable, Alias>;
+				},
+				{ deep: true }
+			>,
+			IncrementAlias<TableName<TJoinedTable>, TAlias>
+		>
+	>;
+	public leftJoin<
+		TJoinedTable extends AnyPgTable<TableName<TJoinedTable>>,
+		TSelectedFields extends PgSelectFields<BuildAlias<TJoinedTable, TAlias>>,
+	>(
+		value: TJoinedTable,
+		callback: (
+			joins: Simplify<
+				TJoins & {
+					[Alias in BuildAlias<TJoinedTable, TAlias>]: TableAlias<TJoinedTable, Alias>;
+				},
+				{ deep: true }
+			>,
+		) => AnyPgSQL<
+			(keyof TJoins & string) | TableName<TTable> | BuildAlias<TJoinedTable, TAlias>
+		>,
+		partialCallback: (
+			table: TableAlias<TJoinedTable, BuildAlias<TJoinedTable, TAlias>>,
+		) => TSelectedFields,
+	): PickJoin<
+		PgSelect<
+			TTable,
+			TInitialSelect,
+			AppendToReturn<TReturn, BuildAlias<TJoinedTable, TAlias>, TSelectedFields>,
+			Simplify<
+				TJoins & {
+					[Alias in BuildAlias<TJoinedTable, TAlias>]: TableAlias<TJoinedTable, Alias>;
+				},
+				{ deep: true }
+			>,
+			IncrementAlias<TableName<TJoinedTable>, TAlias>
+		>
+	>;
+	public leftJoin<
+		TJoinedTable extends AnyPgTable<TableName<TJoinedTable>>,
+		TSelectedFields extends PgSelectFields<BuildAlias<TJoinedTable, TAlias>>,
+	>(
+		value: TJoinedTable,
+		callback: (
+			joins: Simplify<
+				TJoins & {
+					[Alias in BuildAlias<TJoinedTable, TAlias>]: TableAlias<TJoinedTable, Alias>;
+				},
+				{ deep: true }
+			>,
+		) => AnyPgSQL<
+			(keyof TJoins & string) | TableName<TTable> | BuildAlias<TJoinedTable, TAlias>
+		>,
+		partialCallback?: (
+			table: TableAlias<TJoinedTable, BuildAlias<TJoinedTable, TAlias>>,
+		) => TSelectedFields,
+	) {
+		return this.join(value, callback, 'left join', partialCallback);
+	}
+
+	public rightJoin<TJoinedTable extends AnyPgTable<TableName<TJoinedTable>>>(
+		value: TJoinedTable,
+		callback: (
+			joins: Simplify<
+				TJoins & {
+					[Alias in BuildAlias<TJoinedTable, TAlias>]: TableAlias<TJoinedTable, Alias>;
+				},
+				{ deep: true }
+			>,
+		) => AnyPgSQL<
+			(keyof TJoins & string) | TableName<TTable> | BuildAlias<TJoinedTable, TAlias>
+		>,
+	): PickJoin<
+		PgSelect<
+			TTable,
+			TInitialSelect,
+			AppendToReturn<TReturn, BuildAlias<TJoinedTable, TAlias>, TableColumns<TJoinedTable>>,
+			Simplify<
+				TJoins & {
+					[Alias in BuildAlias<TJoinedTable, TAlias>]: TableAlias<TJoinedTable, Alias>;
+				},
+				{ deep: true }
+			>,
+			IncrementAlias<TableName<TJoinedTable>, TAlias>
+		>
+	>;
+	public rightJoin<
+		TJoinedTable extends AnyPgTable<TableName<TJoinedTable>>,
+		TSelectedFields extends PgSelectFields<BuildAlias<TJoinedTable, TAlias>>,
+	>(
+		value: TJoinedTable,
+		callback: (
+			joins: Simplify<
+				TJoins & {
+					[Alias in BuildAlias<TJoinedTable, TAlias>]: TableAlias<TJoinedTable, Alias>;
+				},
+				{ deep: true }
+			>,
+		) => AnyPgSQL<
+			(keyof TJoins & string) | TableName<TTable> | BuildAlias<TJoinedTable, TAlias>
+		>,
+		partialCallback: (
+			table: TableAlias<TJoinedTable, BuildAlias<TJoinedTable, TAlias>>,
+		) => TSelectedFields,
+	): PickJoin<
+		PgSelect<
+			TTable,
+			TInitialSelect,
+			AppendToReturn<TReturn, BuildAlias<TJoinedTable, TAlias>, TSelectedFields>,
+			Simplify<
+				TJoins & {
+					[Alias in BuildAlias<TJoinedTable, TAlias>]: TableAlias<TJoinedTable, Alias>;
+				},
+				{ deep: true }
+			>,
+			IncrementAlias<TableName<TJoinedTable>, TAlias>
+		>
+	>;
+	public rightJoin<
+		TJoinedTable extends AnyPgTable<TableName<TJoinedTable>>,
+		TSelectedFields extends PgSelectFields<BuildAlias<TJoinedTable, TAlias>>,
+	>(
+		value: TJoinedTable,
+		callback: (
+			joins: Simplify<
+				TJoins & {
+					[Alias in BuildAlias<TJoinedTable, TAlias>]: TableAlias<TJoinedTable, Alias>;
+				},
+				{ deep: true }
+			>,
+		) => AnyPgSQL<
+			(keyof TJoins & string) | TableName<TTable> | BuildAlias<TJoinedTable, TAlias>
+		>,
+		partialCallback?: (
+			table: TableAlias<TJoinedTable, BuildAlias<TJoinedTable, TAlias>>,
+		) => TSelectedFields,
+	) {
+		return this.join(value, callback, 'right join', partialCallback);
+	}
+
+	public fullJoin<TJoinedTable extends AnyPgTable<TableName<TJoinedTable>>>(
+		value: TJoinedTable,
+		callback: (
+			joins: Simplify<
+				TJoins & {
+					[Alias in BuildAlias<TJoinedTable, TAlias>]: TableAlias<TJoinedTable, Alias>;
+				},
+				{ deep: true }
+			>,
+		) => AnyPgSQL<
+			(keyof TJoins & string) | TableName<TTable> | BuildAlias<TJoinedTable, TAlias>
+		>,
+	): PickJoin<
+		PgSelect<
+			TTable,
+			TInitialSelect,
+			AppendToReturn<TReturn, BuildAlias<TJoinedTable, TAlias>, TableColumns<TJoinedTable>>,
+			Simplify<
+				TJoins & {
+					[Alias in BuildAlias<TJoinedTable, TAlias>]: TableAlias<TJoinedTable, Alias>;
+				},
+				{ deep: true }
+			>,
+			IncrementAlias<TableName<TJoinedTable>, TAlias>
+		>
+	>;
+	public fullJoin<
+		TJoinedTable extends AnyPgTable<TableName<TJoinedTable>>,
+		TSelectedFields extends PgSelectFields<BuildAlias<TJoinedTable, TAlias>>,
+	>(
+		value: TJoinedTable,
+		callback: (
+			joins: Simplify<
+				TJoins & {
+					[Alias in BuildAlias<TJoinedTable, TAlias>]: TableAlias<TJoinedTable, Alias>;
+				},
+				{ deep: true }
+			>,
+		) => AnyPgSQL<
+			(keyof TJoins & string) | TableName<TTable> | BuildAlias<TJoinedTable, TAlias>
+		>,
+		partialCallback: (
+			table: TableAlias<TJoinedTable, BuildAlias<TJoinedTable, TAlias>>,
+		) => TSelectedFields,
+	): PickJoin<
+		PgSelect<
+			TTable,
+			TInitialSelect,
+			AppendToReturn<TReturn, BuildAlias<TJoinedTable, TAlias>, TSelectedFields>,
+			Simplify<
+				TJoins & {
+					[Alias in BuildAlias<TJoinedTable, TAlias>]: TableAlias<TJoinedTable, Alias>;
+				},
+				{ deep: true }
+			>,
+			IncrementAlias<TableName<TJoinedTable>, TAlias>
+		>
+	>;
+	public fullJoin<
+		TJoinedTable extends AnyPgTable<TableName<TJoinedTable>>,
+		TSelectedFields extends PgSelectFields<BuildAlias<TJoinedTable, TAlias>>,
+	>(
+		value: TJoinedTable,
+		callback: (
+			joins: Simplify<
+				TJoins & {
+					[Alias in BuildAlias<TJoinedTable, TAlias>]: TableAlias<TJoinedTable, Alias>;
+				},
+				{ deep: true }
+			>,
+		) => AnyPgSQL<
+			(keyof TJoins & string) | TableName<TTable> | BuildAlias<TJoinedTable, TAlias>
+		>,
+		partialCallback?: (
+			table: TableAlias<TJoinedTable, BuildAlias<TJoinedTable, TAlias>>,
+		) => TSelectedFields,
+	) {
+		return this.join(value, callback, 'full join', partialCallback);
 	}
 
 	public where(
-		where: ((joins: TJoins) => AnyPgSQL<(keyof TJoins & string) | TableName<TTable>>) | AnyPgSQL<TableName<TTable>>,
-	): Omit<this, 'distinct' | 'where'> {
+		where:
+			| ((joins: TJoins) => AnyPgSQL<(keyof TJoins & string) | TableName<TTable>>)
+			| AnyPgSQL<TableName<TTable>>,
+	): PickWhere<this> {
 		if (where instanceof SQL) {
 			this.config.where = where;
 		} else {
@@ -377,7 +474,7 @@ export class PgSelect<
 		return this;
 	}
 
-	public distinct(column: AnyPgColumn<TableName<TTable>>): Omit<this, 'distinct'> {
+	public distinct(column: AnyPgColumn<TableName<TTable>>): PickDistinct<this> {
 		this.config.distinct = column;
 		return this;
 	}
@@ -385,12 +482,12 @@ export class PgSelect<
 	public orderBy(
 		orderBy:
 			| ((
-				joins: TJoins,
-			) =>
-				| AnyPgSQL<(keyof TJoins & string) | TableName<TTable>>[]
-				| AnyPgSQL<(keyof TJoins & string) | TableName<TTable>>)
+					joins: TJoins,
+			  ) =>
+					| AnyPgSQL<(keyof TJoins & string) | TableName<TTable>>[]
+					| AnyPgSQL<(keyof TJoins & string) | TableName<TTable>>)
 			| (AnyPgSQL<TableName<TTable>>[] | AnyPgSQL<TableName<TTable>>),
-	): Pick<this, 'limit' | 'offset' | 'execute'> {
+	): PickOrderBy<this> {
 		if (orderBy instanceof SQL || Array.isArray(orderBy)) {
 			this.config.orderBy = Array.isArray(orderBy) ? orderBy : [orderBy];
 		} else {
@@ -400,12 +497,12 @@ export class PgSelect<
 		return this;
 	}
 
-	public limit(limit: number): Pick<this, 'offset' | 'execute'> {
+	public limit(limit: number): PickLimit<this> {
 		this.config.limit = limit;
 		return this;
 	}
 
-	public offset(offset: number): Pick<this, 'execute'> {
+	public offset(offset: number): PickOffset<this> {
 		this.config.offset = offset;
 		return this;
 	}

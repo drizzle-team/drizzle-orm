@@ -86,9 +86,20 @@ async function main() {
 	db.users.insert(newUser).returning().execute();
 
 	db.users.insert(newUser).onConflictDoNothing().execute();
-	db.users.insert(newUser).onConflictDoNothing((c) => c.legalAge).execute();
-	db.users.insert(newUser).onConflictDoUpdate((c) => c.legalAge, { age1: 21 }).returning().execute();
-	db.users.insert(newUser).onConflictDoUpdate(sql`(name) where name is not null`, { age1: 21 }).returning().execute();
+	db.users
+		.insert(newUser)
+		.onConflictDoNothing((c) => c.legalAge)
+		.execute();
+	db.users
+		.insert(newUser)
+		.onConflictDoUpdate((c) => c.legalAge, { age1: 21 })
+		.returning()
+		.execute();
+	db.users
+		.insert(newUser)
+		.onConflictDoUpdate(sql`(name) where name is not null`, { age1: 21 })
+		.returning()
+		.execute();
 
 	// db.users
 	// 	.update()
