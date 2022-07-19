@@ -30,7 +30,7 @@ export class PgText<
 	}
 
 	override mapToDriverValue(value: TType) {
-		return `mapped text ${value}`;
+		return value;
 	}
 }
 

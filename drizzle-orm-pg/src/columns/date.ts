@@ -24,9 +24,10 @@ export class PgDate<
 	}
 
 	getSQLType(): string {
-		return 'text';
+		return 'date';
 	}
 
+	//@TODO fix mapping from pg to js types
 	override mapToDriverValue(value: Date) {
 		return value.toISOString();
 	}
