@@ -26,7 +26,7 @@ interface IndexConfig<TTableName extends string, TUnique extends boolean> {
 	/**
 	 * If set, the index will be created as `create index ... using <method>`.
 	 */
-	using?: SQL<TTableName, PgDriverParam>;
+	using?: SQL<TTableName>;
 
 	/**
 	 * If set, the index will be created as `create index ... asc | desc`.
@@ -41,7 +41,7 @@ interface IndexConfig<TTableName extends string, TUnique extends boolean> {
 	/**
 	 * Condition for partial index.
 	 */
-	where?: SQL<TTableName, PgDriverParam>;
+	where?: SQL<TTableName>;
 }
 
 export class IndexBuilder<

@@ -1,32 +1,41 @@
-import { Column, Connector, Dialect, Driver, Session, sql, Table } from 'drizzle-orm';
-import { Name, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
+import { Column, Connector, Dialect, Driver, Session, sql } from 'drizzle-orm';
+import { Name, SQL, SQLResponse } from 'drizzle-orm/sql';
 import { tableColumns, TableName, tableName } from 'drizzle-orm/utils';
-import { Pool, QueryResult } from 'pg';
+import { Client, Pool, PoolClient, QueryResult } from 'pg';
 
 import { AnyPgColumn } from './columns';
-import { PgSelectFields, PgTableOperations } from './operations';
-import { AnyPgInsertConfig, AnyPgSelectConfig, PgDeleteConfig, PgUpdateConfig } from './queries';
+import { PgSelectFields, PgSelectFieldsOrdered, PgTableOperations } from './operations';
+import { AnyPgInsertConfig, PgDeleteConfig, PgSelectConfig, PgUpdateConfig, PgUpdateSet } from './queries';
 import { AnyPgSQL } from './sql';
 import { AnyPgTable } from './table';
 import { getTableColumns } from './utils';
 
 export type PgDriverParam = string | number | boolean | null | Record<string, unknown> | Date;
 
+export type PgClient = Pool | PoolClient | Client;
+
 export interface PgSession extends Session<PgDriverParam, Promise<QueryResult>> {}
 
 export class PgSessionDefault implements PgSession {
-	constructor(private pool: Pool) {}
+	constructor(private client: PgClient) {
+	}
 
 	public async query(query: string, params: unknown[]): Promise<QueryResult> {
-		return this.pool.query(query, params);
+		console.log({ query, params });
+		const result = await this.client.query({
+			rowMode: 'array',
+			text: query,
+			values: params,
+		});
+		return result;
 	}
 }
 
 export class PgDriver implements Driver<PgSession> {
-	constructor(private pool: Pool) {}
+	constructor(private client: PgClient) {}
 
 	async connect(): Promise<PgSession> {
-		return new PgSessionDefault(this.pool);
+		return new PgSessionDefault(this.client);
 	}
 }
 
@@ -62,35 +71,27 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		table,
 		where,
 		returning,
-		returningFields,
 	}: PgDeleteConfig<TTable>): AnyPgSQL<TableName<TTable>> {
-		const returningStatement = returningFields
-			? sql`returning ${
-					returningFields
-						? sql.fromList(this.prepareTableFieldsForQuery(returningFields))
-						: undefined
-			  }`
-			: returning
-			? sql`returning ${sql.fromList(this.prepareTableFieldsForQuery(table[tableColumns]))}`
+		const returningStatement = returning
+			? sql.fromList(this.prepareTableFieldsForQuery(returning))
 			: undefined;
 
-		return sql<TableName<TTable>, SQLSourceParam[]>`delete from ${table} ${
-			where ? sql`where ${where}` : undefined
-		} ${returningStatement}`;
+		return sql`delete from ${table} ${where ? sql`where ${where}` : undefined} ${returningStatement}` as AnyPgSQL<
+			TableName<TTable>
+		>;
 	}
 
-	public buildUpdateQuery<TTable extends AnyPgTable>({
-		table,
-		set,
-		where,
-		returning,
-		returningFields,
-	}: PgUpdateConfig<TTable>): SQL<TableName<TTable>, PgDriverParam> {
-		const setSize = Object.keys(set).length;
-		const setSql = sql.fromList(
-			Object.entries(set)
-				.map(([colName, value], i) => {
-					const col = getTableColumns(table)[colName]!;
+	buildUpdateSet(
+		table: AnyPgTable,
+		set: PgUpdateSet<AnyPgTable>,
+	): AnyPgSQL {
+		const setEntries = Object.entries(set);
+
+		const setSize = setEntries.length;
+		return sql.fromList(
+			setEntries
+				.map(([colName, value], i): AnyPgSQL[] => {
+					const col = table[tableColumns][colName]!;
 					const res = sql`${new Name(col.name)} = ${value}`;
 					if (i < setSize - 1) {
 						return [res, sql.raw(', ')];
@@ -99,45 +100,51 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 				})
 				.flat(1),
 		);
+	}
 
-		const returningStatement = returningFields
-			? sql`returning ${
-					returningFields
-						? sql.fromList(this.prepareTableFieldsForQuery(returningFields))
-						: undefined
-			  }`
-			: returning
-			? sql`returning ${sql.fromList(this.prepareTableFieldsForQuery(table[tableColumns]))}`
+	orderSelectedFields(fields: PgSelectFields<string>): PgSelectFieldsOrdered {
+		return Object.entries(fields).map(([name, column]) => ({
+			name,
+			column,
+		}));
+	}
+
+	public buildUpdateQuery<TTable extends AnyPgTable>({
+		table,
+		set,
+		where,
+		returning,
+	}: PgUpdateConfig<TTable>): SQL<TableName<TTable>> {
+		const setSql = this.buildUpdateSet(table, set);
+
+		const returningStatement = returning
+			? sql`returning ${sql.fromList(this.prepareTableFieldsForQuery(returning))}`
 			: undefined;
 
-		return sql`update ${table} set ${setSql} ${
-			where ? sql`where ${where}` : undefined
-		} ${returningStatement}` as SQL<TableName<TTable>, PgDriverParam>;
+		return sql`update ${table} set ${setSql} ${where ? sql`where ${where}` : undefined} ${returningStatement}`;
 	}
 
 	private prepareTableFieldsForQuery(
-		fields: PgSelectFields<TableName<AnyPgTable>> | undefined,
-	): SQLSourceParam[] {
-		let sqlFieldsList: SQLSourceParam[] = [];
-		if (fields) {
-			Object.values(fields).forEach((field, i) => {
-				if (field instanceof SQLResponse) {
-					sqlFieldsList.push(field.sql);
-				} else if (field instanceof Column) {
-					const columnTableName = field.table[tableName];
-					sqlFieldsList.push(
-						sql`${field} as ${sql.raw(
-							this.escapeName(`${columnTableName}_${field.name}`),
-						)}`,
-					);
-				}
+		columns: PgSelectFieldsOrdered,
+	): unknown[] {
+		const columnsLen = columns.length;
 
-				if (i < Object.values(fields).length - 1) {
-					sqlFieldsList.push(sql`, `);
-				}
-			});
-		}
-		return sqlFieldsList;
+		return columns.map(({ column }, i) => {
+			const chunk: unknown[] = [];
+
+			if (column instanceof SQLResponse) {
+				chunk.push(column.sql);
+			} else if (column instanceof Column) {
+				const columnTableName = column.table[tableName];
+				chunk.push(column);
+			}
+
+			if (i < columnsLen - 1) {
+				chunk.push(sql`, `);
+			}
+
+			return chunk;
+		}).flat(1);
 	}
 
 	public buildSelectQuery({
@@ -149,13 +156,8 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		orderBy,
 		limit,
 		offset,
-	}: AnyPgSelectConfig): AnyPgSQL {
-		let sqlFields: AnyPgSQL;
-
-		const sqlFieldsList: SQLSourceParam[] =
-			typeof fields === 'undefined'
-				? this.prepareTableFieldsForQuery(table[tableColumns])
-				: this.prepareTableFieldsForQuery(fields);
+	}: PgSelectConfig): AnyPgSQL {
+		const sqlFields = sql.fromList(this.prepareTableFieldsForQuery(fields));
 
 		const joinsArray: AnyPgSQL[] = [];
 		if (joins) {
@@ -164,26 +166,12 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 			joinKeys.forEach((tableAlias, index) => {
 				const joinMeta = joins[tableAlias]!;
 				joinsArray.push(
-					sql<string, unknown[]>`${sql.raw(joinMeta.joinType!)} ${joinMeta.table} ${
-						joinMeta.alias
-					} on ${joinMeta.on}`,
+					sql`${sql.raw(joinMeta.joinType)} join ${joinMeta.table} ${joinMeta.alias} on ${joinMeta.on}` as AnyPgSQL,
 				);
 				if (index < joinKeys.length - 1) {
 					joinsArray.push(sql` `);
 				}
-
-				if (sqlFieldsList.length > 0) {
-					sqlFieldsList.push(sql`, `);
-				}
-
-				sqlFieldsList.push(...this.prepareTableFieldsForQuery(joinMeta.columns));
 			});
-		}
-
-		sqlFields = sql.fromList(sqlFieldsList);
-
-		if (joinsArray.length === 0 && typeof fields === 'undefined') {
-			sqlFields = sql.raw('*');
 		}
 
 		const orderByList: AnyPgSQL<string>[] = [];
@@ -195,13 +183,13 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 			}
 		});
 
-		return sql<string, unknown[]>`select ${sqlFields} from ${table} ${sql.fromList(
-			joinsArray,
-		)} ${where ? sql`where ${where}` : undefined} ${
-			orderBy.length > 0 ? sql.raw('order by') : undefined
-		} ${sql.fromList(orderByList)} ${limit ? sql.raw(`limit ${limit}`) : undefined} ${
-			offset ? sql.raw(`offset ${offset}`) : undefined
-		}`;
+		return sql`select ${sqlFields} from ${table} ${
+			sql.fromList(
+				joinsArray,
+			)
+		} ${where ? sql`where ${where}` : undefined} ${orderBy.length > 0 ? sql.raw('order by') : undefined} ${
+			sql.fromList(orderByList)
+		} ${limit ? sql.raw(`limit ${limit}`) : undefined} ${offset ? sql.raw(`offset ${offset}`) : undefined}`;
 	}
 
 	public buildInsertQuery({
@@ -209,11 +197,9 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		values,
 		onConflict,
 		returning,
-		returningFields,
 	}: AnyPgInsertConfig): AnyPgSQL {
 		const joinedValues: (unknown | AnyPgSQL)[][] = [];
 		const columns: Record<string, AnyPgColumn> = getTableColumns(table);
-
 		const columnKeys = Object.keys(columns);
 		const insertOrder = Object.values(columns).map((column) => new Name(column.name));
 
@@ -230,22 +216,16 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 			joinedValues.push(valueList);
 		});
 
-		const returningStatement = returningFields
-			? sql`returning ${
-					returningFields
-						? sql.fromList(this.prepareTableFieldsForQuery(returningFields))
-						: undefined
-			  }`
-			: returning
-			? sql`returning ${sql.fromList(this.prepareTableFieldsForQuery(table[tableColumns]))}`
+		const returningStatement = returning
+			? sql`returning ${sql.fromList(this.prepareTableFieldsForQuery(returning))}`
 			: undefined;
 
-		return sql<string, unknown[]>`insert into ${table} ${insertOrder} values ${
+		return sql`insert into ${table} ${insertOrder} values ${
 			joinedValues.length === 1 ? joinedValues[0] : joinedValues
 		} ${onConflict ? sql`on conflict ${onConflict}` : undefined} ${returningStatement}`;
 	}
 
-	public prepareSQL(sql: SQL<string, PgDriverParam>): [string, PgDriverParam[]] {
+	public prepareSQL(sql: AnyPgSQL): [string, PgDriverParam[]] {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
@@ -267,8 +247,8 @@ export class PgConnector<TDBSchema extends Record<string, AnyPgTable>>
 	dialect: Dialect<PgSession, PGDatabase<TDBSchema>>;
 	driver: Driver<PgSession>;
 
-	constructor(pool: Pool, dbSchema: TDBSchema) {
+	constructor(client: PgClient, dbSchema: TDBSchema) {
 		this.dialect = new PgDialect(dbSchema);
-		this.driver = new PgDriver(pool);
+		this.driver = new PgDriver(client);
 	}
 }
