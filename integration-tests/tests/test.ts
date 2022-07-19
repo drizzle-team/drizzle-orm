@@ -1,19 +1,9 @@
-// import { Pool } from 'pg';
-import { connect, sql } from 'drizzle-orm';
-import {
-	AnyPgTable,
-	constraint,
-	foreignKey,
-	index,
-	InferType,
-	PgTable,
-	pgTable,
-	PgTableWithColumns,
-	TableConflictConstraints,
-} from 'drizzle-orm-pg';
+import { connect } from 'drizzle-orm';
+import { foreignKey, index, InferType, PgConnector, pgTable } from 'drizzle-orm-pg';
 import { int, serial, text } from 'drizzle-orm-pg/columns';
 import { PgTestConnector } from 'drizzle-orm-pg/testing';
-import { eq, inc, max } from 'drizzle-orm/expressions';
+import { eq } from 'drizzle-orm/expressions';
+import { Pool } from 'pg';
 
 export const users = pgTable(
 	'users',
@@ -23,24 +13,23 @@ export const users = pgTable(
 			.notNull()
 			.references(() => cities.id),
 		currentCity: int('current_city').references(() => cities.id),
-		serialNullable: serial('serial1'),
-		serialNotNull: serial('serial2').notNull(),
+		serial1: serial('serial1'),
+		serial2: serial('serial2').notNull(),
 		class: text<'A' | 'C'>('class').notNull(),
 		subClass: text<'B' | 'D'>('sub_class'),
 		age1: int('age1').notNull(),
 	},
 	(users) => ({
 		usersAge1Idx: index('usersAge1Idx', users.class, { unique: true }),
-		usersAge2Idx: index('usersAge2Idx', users.class),
 		uniqueClass: index('uniqueClass', [users.class, users.subClass], {
 			unique: true,
-			where: sql`${users.class} is not null`,
+			// where: sql`${users.class} is not null`,
 			order: 'desc',
 			nulls: 'last',
-			concurrently: true,
-			using: sql`btree`,
+			// concurrently: true,
+			// using: sql`btree`,
 		}),
-		legalAge: constraint('legalAge', sql`${users.age1} > 18`),
+		// legalAge: constraint('legalAge', sql`${users.age1} > 18`),
 		usersClassFK: foreignKey(() => [users.class, classes, classes.class]),
 		usersClassComplexFK: foreignKey(() => [
 			[users.class, users.subClass],
@@ -52,12 +41,6 @@ export const users = pgTable(
 
 type SelectUser = InferType<typeof users>;
 type InsertUser = InferType<typeof users, 'insert'>;
-
-const newUser: InsertUser = {
-	homeCity: 1,
-	class: 'A',
-	age1: 1,
-};
 
 const cities = pgTable('cities', {
 	id: serial('id').primaryKey(),
@@ -72,17 +55,58 @@ const classes = pgTable('classes', {
 });
 
 async function main() {
-	// const db = await connect(new PgConnector(pool, { users, cities }));
+	const pool = new Pool({
+		user: 'postgres',
+		password: 'postgres',
+		host: 'localhost',
+		port: 5433,
+		database: 'postgres',
+	});
+	const client = await pool.connect();
+	const realDb = await connect(new PgConnector(client, { users, cities }));
 	const db = await connect(new PgTestConnector({ users, cities }));
 
-	// const t = await db.users
-	// 	.select()
-	// 	.innerJoin(cities, (joins) => sql`${joins.cities1.name}`)
-	// 	.execute();
+	const result = await realDb.users
+		.select({
+			id: users.id,
+			age: users.age1,
+		})
+		.innerJoin(cities, (joins) => eq(users.homeCity, joins.cities1.id), (city) => ({
+			name: city.name,
+		}))
+		.execute()
+		.then((result) =>
+			result.map(({ users, cities1 }) => ({
+				...users,
+				city: cities1,
+			}))
+		);
 
-	db.users.insert([newUser, newUser]).execute();
-	db.users.insert(newUser).returning().execute();
-	db.users.insert([newUser, newUser]).returning({ id: users.id }).execute();
+	const newUser: InsertUser = {
+		homeCity: 1,
+		class: 'A',
+		age1: 1,
+	};
+
+	// const result = await realDb.users.insert(newUser).returning({
+	// 	id: users.id,
+	// 	id2: users.id,
+	// 	serial1: users.serial1,
+	// 	serial2: users.serial2,
+	// 	lowerClass: sql.response<string>(users.class)`lower(${users.class})`,
+	// }).execute();
+
+	// const result = await realDb.users.insert(newUser).execute();
+
+	// const result = await realDb.users.delete().where({
+	// 	id: 1,
+	// });
+
+	console.log(result);
+
+	// db.users.insert([newUser, newUser]).execute();
+	// db.users.insert(newUser).returning().execute();
+	// db.users.insert([newUser, newUser]).returning({ id: users.id }).execute();
 	// db.users.insert(newUser).returning().execute();
 
 	// db.users.insert(newUser).onConflictDoNothing().execute();
@@ -120,10 +144,10 @@ async function main() {
 	// 	.returning({ id: users.id })
 	// 	.execute();
 
-	const join1 = await db.users
-		.select({ id: users.id, maxAge: max(users.age1) })
-		.where(sql`${users.age1} > 0`)
-		.execute();
+	// const join1 = await db.users
+	// 	.select({ id: users.id, maxAge: max(users.age1) })
+	// 	.where(sql`${users.age1} > 0`)
+	// 	.execute();
 
 	// db.users
 	// 	.select({ id: users.homeCity })
@@ -216,24 +240,25 @@ async function main() {
 
 	// update[0].
 
-	// db.users.delete().where(eq(users.id, 2)).returning().execute();
-	db.users
-		.delete()
-		.where(sql`${users.id} = ${2}`)
-		.returning()
-		.execute();
+	db.users.delete().where(eq(users.id, 2)).returning().execute();
+	// db.users
+	// 	.delete()
+	// 	.where(sql`${users.id} = ${2}`)
+	// 	.returning()
+	// 	.execute();
 	// 2 won't be in prepared statement params
-	const deleteRes = await db.users
-		.delete()
-		.where(sql`${users.id} = 2`)
-		.returning({ id: users.id })
-		.execute();
-
-	// deleteRes.
+	// const deleteRes = await db.users
+	// 	.delete()
+	// 	.where(sql`${users.id} = 2`)
+	// 	.returning({ id: users.id })
+	// 	.execute();
 
 	// db.users.delete().returning().execute();
 
-	db.users.delete().execute();
+	// db.users.delete().execute();
+
+	client.release();
+	await pool.end();
 }
 
 main().catch((e) => {

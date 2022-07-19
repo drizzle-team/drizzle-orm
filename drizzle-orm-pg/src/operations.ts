@@ -1,7 +1,7 @@
 import { InferColumnType } from 'drizzle-orm';
 import { SelectFields } from 'drizzle-orm/operations';
-import { SQL, SQLResponse } from 'drizzle-orm/sql';
-import { TableName } from 'drizzle-orm/utils';
+import { AnySQLResponse, SQLResponse } from 'drizzle-orm/sql';
+import { tableColumns, TableName } from 'drizzle-orm/utils';
 import { Simplify } from 'type-fest';
 
 import { AnyPgColumn } from './columns/common';
@@ -11,6 +11,8 @@ import { AnyPgSQL } from './sql';
 import { AnyPgTable, InferType } from './table';
 
 export type PgSelectFields<TTableName extends string> = SelectFields<TTableName, PgDriverParam>;
+
+export type PgSelectFieldsOrdered = { name: string; column: AnyPgColumn | AnySQLResponse }[];
 
 export type PartialSelectResult<
 	TTableName extends string,
@@ -31,20 +33,17 @@ export class PgTableOperations<TTable extends AnyPgTable> {
 		private dialect: AnyPgDialect,
 	) {}
 
-	private map(rows: any[]): InferType<TTable>[] {
-		return rows;
-	}
-
 	select(): PgSelect<TTable, InferType<TTable>>;
 	select<TSelectedFields extends PgSelectFields<TableName<TTable>>>(
 		fields: TSelectedFields,
 	): PgSelect<TTable, PartialSelectResult<TableName<TTable>, TSelectedFields>>;
-	select(fields?: any): PgSelect<TTable, any> {
-		return new PgSelect(this.table, fields, this.session, this.map, this.dialect);
+	select(fields?: PgSelectFields<TableName<TTable>>): PgSelect<TTable, any> {
+		const fieldsOrdered = this.dialect.orderSelectedFields(fields ?? this.table[tableColumns]);
+		return new PgSelect(this.table, fieldsOrdered, this.session, this.dialect);
 	}
 
 	update(): Pick<PgUpdate<TTable>, 'set'> {
-		return new PgUpdate(this.table, this.session, this.map, this.dialect);
+		return new PgUpdate(this.table, this.session, this.dialect);
 	}
 
 	insert(values: InferType<TTable, 'insert'> | InferType<TTable, 'insert'>[]): PgInsert<TTable> {
@@ -52,13 +51,12 @@ export class PgTableOperations<TTable extends AnyPgTable> {
 			this.table,
 			Array.isArray(values) ? values : [values],
 			this.session,
-			this.map,
 			this.dialect,
 		);
 	}
 
 	delete(): PgDelete<TTable> {
-		return new PgDelete(this.table, this.session, this.map, this.dialect);
+		return new PgDelete(this.table, this.session, this.dialect);
 	}
 }
 

@@ -2,25 +2,25 @@ import { AnyTable } from 'drizzle-orm';
 
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgSerialBuilder<TNotNull extends boolean = false> extends PgColumnBuilder<
-	PgSerial<string, TNotNull>,
+export class PgSerialBuilder extends PgColumnBuilder<
+	PgSerial<string>,
 	number,
-	TNotNull,
+	true,
 	true
 > {
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyTable<TTableName>,
-	): PgSerial<TTableName, TNotNull> {
+	): PgSerial<TTableName> {
 		return new PgSerial(table, this);
 	}
 }
 
-export class PgSerial<TTableName extends string, TNotNull extends boolean> extends PgColumn<
+export class PgSerial<TTableName extends string> extends PgColumn<
 	TTableName,
 	number,
 	number,
-	TNotNull,
+	true,
 	true
 > {
 	getSQLType(): string {

@@ -2,11 +2,11 @@ import { AnyColumn, Column } from '../column';
 import { AnyTable, Table } from '../table';
 import { tableName } from '../utils';
 
-export class Param {
-	constructor(public readonly value: unknown) {}
+export class Param<TDriverParam = unknown> {
+	constructor(public readonly value: TDriverParam) {}
 }
 
-export type Chunk<TTableName extends string> =
+export type Chunk<TTableName extends string = string> =
 	| string
 	| AnyTable<TTableName>
 	| AnyColumn<TTableName>
@@ -18,10 +18,10 @@ export interface BuildQueryConfig {
 	escapeParam(num: number, value: unknown): string;
 }
 
-export class SQL<TTableName extends string, TDriverParam> {
+export class SQL<TTableName extends string> {
 	constructor(public readonly queryChunks: Chunk<TTableName>[]) {}
 
-	public toQuery({ escapeName, escapeParam }: BuildQueryConfig): [string, TDriverParam[]] {
+	public toQuery<TDriverParam = unknown>({ escapeName, escapeParam }: BuildQueryConfig): [string, TDriverParam[]] {
 		const params: TDriverParam[] = [];
 
 		const chunks = this.queryChunks.map((chunk) => {
@@ -35,7 +35,7 @@ export class SQL<TTableName extends string, TDriverParam> {
 				return escapeName(chunk.table[tableName]) + '.' + escapeName(chunk.name);
 			} else if (chunk instanceof Param) {
 				params.push(chunk.value as TDriverParam);
-				return escapeParam(params.length - 1, chunk.value);
+				return escapeParam(params.length, chunk.value);
 			} else {
 				const err = new Error('Unexpected chunk type!');
 				console.error(chunk);
@@ -53,13 +53,14 @@ export class SQL<TTableName extends string, TDriverParam> {
 	}
 }
 
-export type AnySQL<TTableName extends string = string> = SQL<TTableName, any>;
+export type AnySQL<TTableName extends string = string> = SQL<TTableName>;
 
 /**
  * Any DB name (table, column, index etc.)
  */
 export class Name {
 	protected brand!: 'Name';
+
 	constructor(public readonly value: string) {}
 }
 
@@ -68,8 +69,14 @@ export interface ParamValueMapper<TType, TDriverType> {
 	mapToDriverValue(value: TType): TDriverType;
 }
 
-export class MappedParamValue<TType, TDriverType> {
-	private brand!: 'MappedParamValue';
+/**
+ * Parameter value that is bound to a specific mapper (usually, a column of a specific type)
+ * @param value - Parameter value to bind
+ * @param mapper - Mapper to use to convert the value to/from the driver parameter
+ */
+export class BoundParamValue<TType, TDriverType> {
+	protected brand!: 'BoundParamValue';
+
 	constructor(
 		public readonly value: TType,
 		public readonly mapper: ParamValueMapper<TType, TDriverType>,
@@ -95,7 +102,7 @@ function buildChunksFromParam<TTableName extends string>(param: unknown): Chunk<
 		|| param instanceof Name
 	) {
 		return [param];
-	} else if (param instanceof MappedParamValue) {
+	} else if (param instanceof BoundParamValue) {
 		return [new Param(param.mapper.mapToDriverValue(param.value))];
 	} else if (typeof param !== 'undefined') {
 		return [new Param(param)];
@@ -104,32 +111,24 @@ function buildChunksFromParam<TTableName extends string>(param: unknown): Chunk<
 	}
 }
 
-export type SQLSourceParam<TTableName extends string = string> =
-	| AnyColumn<TTableName>
-	| Name
-	| MappedParamValue<any, any>
-	| AnySQL
-	| AnyTable<TTableName>
-	| undefined
-	| SQLSourceParam<TTableName>[]
-	| unknown;
-
-export type MapSQLSourceParam<TParam extends SQLSourceParam> = TParam extends any[] ? MapSQLSourceParam<TParam[number]>
-	: TParam extends Column<any, any, infer TDriverParam, any, any> ? TDriverParam
-	: TParam extends MappedParamValue<any, infer TDriverParam> ? TDriverParam
-	: TParam extends SQL<any, infer TDriverParam> ? TDriverParam
-	: never;
-
-export function sql<TTableName extends string, TQueryParams extends SQLSourceParam<TTableName>[]>(
+export function sql<TTableName extends string>(
 	strings: TemplateStringsArray,
-	...params: TQueryParams
-): SQL<TTableName, MapSQLSourceParam<TQueryParams[number]>> {
-	const queryChunks: Chunk<TTableName>[] = [];
+	...params: (AnyColumn<TTableName> | AnyTable<TTableName> | AnySQL)[]
+): SQL<TTableName>;
+export function sql<TTableName extends string = string>(
+	strings: TemplateStringsArray,
+	...params: unknown[]
+): SQL<TTableName>;
+export function sql(
+	strings: TemplateStringsArray,
+	...params: unknown[]
+): SQL<string> {
+	const queryChunks: Chunk[] = [];
 	if (params.length > 0 || (strings.length > 0 && strings[0] !== '')) {
 		queryChunks.push(strings[0]!);
 	}
 	params.forEach((param, paramIndex) => {
-		queryChunks.push(...buildChunksFromParam<TTableName>(param));
+		queryChunks.push(...buildChunksFromParam(param));
 		queryChunks.push(strings[paramIndex + 1]!);
 	});
 
@@ -137,49 +136,47 @@ export function sql<TTableName extends string, TQueryParams extends SQLSourcePar
 }
 
 export namespace sql {
-	export function empty(): SQL<string, never> {
+	export function empty(): AnySQL {
 		return new SQL([]);
 	}
 
 	export function fromList<
-		TTableName extends string,
-		TQueryParams extends SQLSourceParam<TTableName>[],
-	>(list: TQueryParams): SQL<TTableName, MapSQLSourceParam<TQueryParams[number]>> {
+		TTableName extends string = string,
+	>(list: unknown[]): SQL<TTableName> {
 		return new SQL(list.map(buildChunksFromParam<TTableName>).flat(1));
 	}
 
-	export function response<T>() {
+	export function response<T>(column: AnyColumn) {
 		return <TTableName extends string>(
 			strings: TemplateStringsArray,
 			...params: unknown[]
 		): SQLResponse<TTableName, T> => {
-			return new SQLResponseRaw(sql(strings, ...params));
+			return new SQLResponse(sql(strings, ...params), column);
 		};
 	}
 
 	/**
-	 * Convenience function to create an SQL query from a raw input.
+	 * Convenience function to create an SQL query from a raw string.
 	 * @param str The raw SQL query string.
 	 */
-	export function raw<TTableName extends string = string, TParams = unknown>(
+	export function raw<TTableName extends string = string>(
 		str: string,
-	): SQL<TTableName, TParams> {
+	): SQL<TTableName> {
 		return new SQL([str]);
 	}
 }
 
-export abstract class SQLResponse<TTableName extends string = string, TValue = any> {
-	protected value!: TValue;
-	constructor(readonly sql: SQL<TTableName, TValue>) {}
+export class SQLResponse<TTableName extends string, TValue> {
+	protected typeKeeper!: {
+		brand: 'SQLResponse';
+		tableName: TTableName;
+		value: TValue;
+	};
 
-	abstract mapFromDriverValue(value: any): TValue;
+	constructor(
+		readonly sql: SQL<TTableName>,
+		readonly column: AnyColumn,
+	) {}
 }
 
-export class SQLResponseRaw<TTableName extends string, TValue = any> extends SQLResponse<
-	TTableName,
-	TValue
-> {
-	override mapFromDriverValue(value: any): TValue {
-		return value;
-	}
-}
+export type AnySQLResponse<TTableName extends string = string> = SQLResponse<TTableName, any>;

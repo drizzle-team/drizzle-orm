@@ -1,12 +1,12 @@
-import { AnyColumn, Column, InferColumnDriverType, InferColumnType } from './column';
-import { AnySQL, MappedParamValue, MapSQLSourceParam, SQL, sql } from './sql';
+import { AnyColumn, Column, InferColumnType } from './column';
+import { AnySQL, BoundParamValue, SQL, sql, SQLResponse } from './sql';
 import { TableName } from './utils';
 
-function mapIfParam(value: AnyColumn | unknown, column: AnyColumn) {
+function bindIfParam(value: unknown, column: AnyColumn) {
 	if (value instanceof Column) {
 		return value;
 	} else {
-		return new MappedParamValue(value, column);
+		return new BoundParamValue(value, column);
 	}
 }
 
@@ -14,46 +14,40 @@ export function eq<TColumn extends AnyColumn>(
 	column: TColumn,
 	value: InferColumnType<TColumn> extends AnyColumn ? never : InferColumnType<TColumn>,
 ): SQL<
-	TableName<TColumn>,
-	InferColumnDriverType<TColumn>
+	TableName<TColumn>
 >;
 export function eq<
 	TLeftTableName extends string,
-	TLeftDriverType,
 	TRightTableName extends string,
-	TRightDriverType,
 >(
-	left: Column<TLeftTableName, any, TLeftDriverType, any, any>,
-	right: Column<TRightTableName, any, TRightDriverType, any, any>,
-): SQL<TLeftTableName | TRightTableName, TLeftDriverType | TRightDriverType>;
+	left: AnyColumn<TLeftTableName>,
+	right: AnyColumn<TRightTableName>,
+): SQL<TLeftTableName | TRightTableName>;
 export function eq(left: AnyColumn, right: AnyColumn | unknown) {
-	return sql`${left} = ${mapIfParam(right, left)}`;
+	return sql`${left} = ${bindIfParam(right, left)}`;
 }
 
 export function ne<TColumn extends AnyColumn>(
 	column: TColumn,
 	value: InferColumnType<TColumn> extends AnyColumn ? never : InferColumnType<TColumn>,
 ): SQL<
-	TableName<TColumn>,
-	InferColumnDriverType<TColumn>
+	TableName<TColumn>
 >;
 export function ne<
 	TLeftTableName extends string,
-	TLeftDriverType,
 	TRightTableName extends string,
-	TRightDriverType,
 >(
-	left: Column<TLeftTableName, any, TLeftDriverType, any, any>,
-	right: Column<TRightTableName, any, TRightDriverType, any, any>,
-): SQL<TLeftTableName | TRightTableName, TLeftDriverType | TRightDriverType>;
+	left: AnyColumn<TLeftTableName>,
+	right: AnyColumn<TRightTableName>,
+): SQL<TLeftTableName | TRightTableName>;
 export function ne(left: AnyColumn, right: AnyColumn | unknown) {
-	return sql`${left} <> ${mapIfParam(right, left)}`;
+	return sql`${left} <> ${bindIfParam(right, left)}`;
 }
 
-export function and<TTableName extends string, TDriverParams>(
-	...conditions: SQL<TTableName, TDriverParams>[]
-) {
-	const chunks: SQL<TTableName, TDriverParams>[] = [sql.raw('(')];
+export function and<TTableName extends string>(
+	...conditions: SQL<TTableName>[]
+): SQL<TTableName> {
+	const chunks: SQL<TTableName>[] = [sql.raw('(')];
 	conditions.forEach((condition, index) => {
 		if (index === 0) {
 			chunks.push(condition);
@@ -66,10 +60,10 @@ export function and<TTableName extends string, TDriverParams>(
 	return sql.fromList(chunks);
 }
 
-export function or<TTableName extends string, TDriverParams>(
-	...conditions: SQL<TTableName, TDriverParams>[]
-) {
-	const chunks: SQL<TTableName, TDriverParams>[] = [sql.raw('(')];
+export function or<TTableName extends string>(
+	...conditions: SQL<TTableName>[]
+): SQL<TTableName> {
+	const chunks: SQL<TTableName>[] = [sql.raw('(')];
 	conditions.forEach((condition, index) => {
 		if (index === 0) {
 			chunks.push(condition);
@@ -82,164 +76,140 @@ export function or<TTableName extends string, TDriverParams>(
 	return sql.fromList(chunks);
 }
 
-export function not<TTableName extends string, TDriverParams>(
-	condition: SQL<TTableName, TDriverParams>,
-): SQL<TTableName, TDriverParams> {
+export function not<TTableName extends string>(
+	condition: SQL<TTableName>,
+): SQL<TTableName> {
 	return sql`not ${condition}`;
 }
 
 export function gt<TColumn extends AnyColumn>(
 	column: TColumn,
 	value: InferColumnType<TColumn> extends AnyColumn ? never : InferColumnType<TColumn>,
-): SQL<
-	TableName<TColumn>,
-	InferColumnDriverType<TColumn>
->;
+): SQL<TableName<TColumn>>;
 export function gt<
 	TLeftTableName extends string,
-	TLeftDriverType,
 	TRightTableName extends string,
-	TRightDriverType,
 >(
-	left: Column<TLeftTableName, any, TLeftDriverType, any, any>,
-	right: Column<TRightTableName, any, TRightDriverType, any, any>,
-): SQL<TLeftTableName | TRightTableName, TLeftDriverType | TRightDriverType>;
+	left: AnyColumn<TLeftTableName>,
+	right: AnyColumn<TRightTableName>,
+): SQL<TLeftTableName | TRightTableName>;
 export function gt(left: AnyColumn, right: AnyColumn | unknown) {
-	return sql`${left} > ${mapIfParam(right, left)}`;
+	return sql`${left} > ${bindIfParam(right, left)}`;
 }
 
 export function gte<TColumn extends AnyColumn>(
 	column: TColumn,
 	value: InferColumnType<TColumn> extends AnyColumn ? never : InferColumnType<TColumn>,
-): SQL<
-	TableName<TColumn>,
-	InferColumnDriverType<TColumn>
->;
+): SQL<TableName<TColumn>>;
 export function gte<
 	TLeftTableName extends string,
-	TLeftDriverType,
 	TRightTableName extends string,
-	TRightDriverType,
 >(
-	left: Column<TLeftTableName, any, TLeftDriverType, any, any>,
-	right: Column<TRightTableName, any, TRightDriverType, any, any>,
-): SQL<TLeftTableName | TRightTableName, TLeftDriverType | TRightDriverType>;
+	left: AnyColumn<TLeftTableName>,
+	right: AnyColumn<TRightTableName>,
+): SQL<TLeftTableName | TRightTableName>;
 export function gte(left: AnyColumn, right: AnyColumn | unknown) {
-	return sql`${left} >= ${mapIfParam(right, left)}`;
+	return sql`${left} >= ${bindIfParam(right, left)}`;
 }
 
 export function lt<TColumn extends AnyColumn>(
 	column: TColumn,
 	value: InferColumnType<TColumn> extends AnyColumn ? never : InferColumnType<TColumn>,
-): SQL<
-	TableName<TColumn>,
-	InferColumnDriverType<TColumn>
->;
+): SQL<TableName<TColumn>>;
 export function lt<
 	TLeftTableName extends string,
-	TLeftDriverType,
 	TRightTableName extends string,
-	TRightDriverType,
 >(
-	left: Column<TLeftTableName, any, TLeftDriverType, any, any>,
-	right: Column<TRightTableName, any, TRightDriverType, any, any>,
-): SQL<TLeftTableName | TRightTableName, TLeftDriverType | TRightDriverType>;
+	left: AnyColumn<TLeftTableName>,
+	right: AnyColumn<TRightTableName>,
+): SQL<TLeftTableName | TRightTableName>;
 export function lt(left: AnyColumn, right: AnyColumn | unknown) {
-	return sql`${left} < ${mapIfParam(right, left)}`;
+	return sql`${left} < ${bindIfParam(right, left)}`;
 }
 
 export function lte<TColumn extends AnyColumn>(
 	column: TColumn,
 	value: InferColumnType<TColumn> extends AnyColumn ? never : InferColumnType<TColumn>,
-): SQL<
-	TableName<TColumn>,
-	[InferColumnDriverType<TColumn>]
->;
+): SQL<TableName<TColumn>>;
 export function lte<
 	TLeftTableName extends string,
-	TLeftDriverType,
 	TRightTableName extends string,
-	TRightDriverType,
 >(
-	left: Column<TLeftTableName, any, TLeftDriverType, any, any>,
-	right: Column<TRightTableName, any, TRightDriverType, any, any>,
-): SQL<TLeftTableName | TRightTableName, TLeftDriverType | TRightDriverType>;
+	left: AnyColumn<TLeftTableName>,
+	right: AnyColumn<TRightTableName>,
+): SQL<TLeftTableName | TRightTableName>;
 export function lte(left: AnyColumn, right: AnyColumn | unknown) {
-	return sql`${left} <= ${mapIfParam(right, left)}`;
+	return sql`${left} <= ${bindIfParam(right, left)}`;
 }
 
-export function inArray<TTableName extends string, TType, TDriverParam>(
-	column: Column<any, TType, TDriverParam, any, any>,
+export function inArray<TTableName extends string, TType>(
+	column: Column<any, TType, any, any, any>,
 	values: TType[],
-): SQL<TTableName, TDriverParam>;
+): SQL<TTableName>;
 export function inArray<
 	TTableName extends string,
 	TColumn extends AnyColumn<TTableName>,
-	TSubquery extends AnySQL,
 >(
 	column: TColumn,
-	subquery: TSubquery,
-): SQL<
-	TTableName,
-	TSubquery extends SQL<any, infer TDriverParam> ? [TDriverParam] : never
->;
+	subquery: AnySQL,
+): SQL<TTableName>;
 export function inArray(column: AnyColumn, values: AnySQL | unknown[]): AnySQL {
 	if (values instanceof SQL) {
-		return sql<string, unknown[]>`${column} in ${values}`;
+		return sql`${column} in ${values}`;
 	}
-	return sql<string, unknown[]>`${column} in ${values.map((v) => new MappedParamValue(v, column))}`;
+	return sql`${column} in ${values.map((v) => new BoundParamValue(v, column))}`;
 }
 
-export function notInArray<TTableName extends string, TType, TDriverParam>(
-	column: Column<any, TType, TDriverParam, any, any>,
+export function notInArray<TTableName extends string, TType>(
+	column: Column<any, TType, any, any, any>,
 	values: TType[],
-): SQL<TTableName, TDriverParam>;
+): SQL<TTableName>;
 export function notInArray<
 	TTableName extends string,
 	TColumn extends AnyColumn<TTableName>,
-	TSubquery extends AnySQL,
 >(
 	column: TColumn,
-	subquery: TSubquery,
-): SQL<
-	TTableName,
-	TSubquery extends SQL<any, infer TDriverParam> ? TDriverParam : never
->;
+	subquery: AnySQL,
+): SQL<TTableName>;
 export function notInArray(column: AnyColumn, values: AnySQL | unknown[]): AnySQL {
 	if (values instanceof SQL) {
-		return sql<string, unknown[]>`${column} not in ${values}`;
+		return sql`${column} not in ${values}`;
 	}
-	return sql<string, unknown[]>`${column} not in ${values.map((v) => new MappedParamValue(v, column))}`;
+	return sql`${column} not in ${values.map((v) => new BoundParamValue(v, column))}`;
 }
 
-export function isNull<TColumn extends AnyColumn>(column: TColumn) {
-	return sql<TableName<TColumn>, [TColumn]>`${column} is null`;
+export function isNull<TColumn extends AnyColumn>(column: TColumn): SQL<TableName<TColumn>> {
+	return sql<TableName<TColumn>>`${column} is null`;
 }
 
-export function isNotNull<TColumn extends AnyColumn>(column: TColumn) {
-	return sql<TableName<TColumn>, [TColumn]>`${column} is not null`;
+export function isNotNull<TColumn extends AnyColumn>(column: TColumn): SQL<TableName<TColumn>> {
+	return sql<TableName<TColumn>>`${column} is not null`;
 }
 
-export function min<TColumn extends AnyColumn>(column: TColumn) {
-	return sql.response<InferColumnType<TColumn, 'raw'>>()<TableName<TColumn>>`min(${column})`;
+export function min<TColumn extends AnyColumn>(
+	column: TColumn,
+): SQLResponse<TableName<TColumn>, InferColumnType<TColumn>> {
+	return sql.response<InferColumnType<TColumn>>(column)<TableName<TColumn>>`min(${column})`;
 }
 
-export function max<TColumn extends AnyColumn>(column: TColumn) {
-	return sql.response<InferColumnType<TColumn, 'raw'>>()<TableName<TColumn>>`max(${column})`;
+export function max<TColumn extends AnyColumn>(
+	column: TColumn,
+): SQLResponse<TableName<TColumn>, InferColumnType<TColumn>> {
+	return sql.response<InferColumnType<TColumn>>(column)<TableName<TColumn>>`max(${column})`;
 }
 
-export function inc<TColumn extends AnyColumn>(column: TColumn, value: number) {
-	return sql<TableName<TColumn>, [TColumn, number]>`${column} + ${value}`;
+export function inc<TColumn extends AnyColumn>(column: TColumn, value: number): SQL<TableName<TColumn>> {
+	return sql`${column} + ${value}`;
 }
 
-export function dec<TColumn extends AnyColumn>(column: TColumn, value: number) {
-	return sql<TableName<TColumn>, [TColumn, number]>`${column} - ${value}`;
+export function dec<TColumn extends AnyColumn>(column: TColumn, value: number): SQL<TableName<TColumn>> {
+	return sql`${column} - ${value}`;
 }
 
-export function asc<TColumn extends AnyColumn>(column: TColumn) {
-	return sql<TableName<TColumn>, [TColumn]>`${column} asc`;
+export function asc<TColumn extends AnyColumn>(column: TColumn): SQL<TableName<TColumn>> {
+	return sql<TableName<TColumn>>`${column} asc`;
 }
 
-export function desc<TColumn extends AnyColumn>(column: TColumn) {
-	return sql<TableName<TColumn>, [TColumn]>`${column} desc`;
+export function desc<TColumn extends AnyColumn>(column: TColumn): SQL<TableName<TColumn>> {
+	return sql<TableName<TColumn>>`${column} desc`;
 }

@@ -80,16 +80,21 @@ importers:
   integration-tests:
     specifiers:
       '@types/node': ^18.0.5
+      '@types/pg': ^8.6.1
       drizzle-orm: file:../drizzle-orm/package.tgz
       drizzle-orm-mysql: file:../drizzle-orm-mysql/package.tgz
       drizzle-orm-pg: file:../drizzle-orm-pg/package.tgz
+      pg: ^8.6.0
       ts-node: ^10.8.2
       typescript: ^4.7.4
+    dependencies:
+      pg: 8.7.3
     devDependencies:
       '@types/node': 18.0.5
-      drizzle-orm: file:drizzle-orm/package.tgz_uzvssjkar4top22uv2cxhe5bde
+      '@types/pg': 8.6.5
+      drizzle-orm: file:drizzle-orm/package.tgz_7hcodi3q7h43rkh7k75lwwx3zm
       drizzle-orm-mysql: file:drizzle-orm-mysql/package.tgz_drizzle-orm@0.13.0
-      drizzle-orm-pg: file:drizzle-orm-pg/package.tgz_drizzle-orm@0.13.0
+      drizzle-orm-pg: file:drizzle-orm-pg/package.tgz_62jjsl7j24ddkfqklwbsnaigdi
       ts-node: 10.8.2_47blntjhuqtdxyxfczkfdvsynq
       typescript: 4.7.4
 
@@ -478,7 +483,7 @@ packages:
   /@types/pg/8.6.5:
     resolution: {integrity: sha512-tOkGtAqRVkHa/PVZicq67zuujI4Oorfglsr2IbKofDwBSysnaqSx7W1mDqFqdkGE6Fbgh+PZAl0r/BWON/mozw==}
     dependencies:
-      '@types/node': 18.0.4
+      '@types/node': 18.0.5
       pg-protocol: 1.5.0
       pg-types: 2.2.0
     dev: true
@@ -612,7 +617,6 @@ packages:
   /buffer-writer/2.0.0:
     resolution: {integrity: sha512-a7ZpuTZU1TRtnwyCNW3I5dc0wWNC3VR9S++Ewyk2HHZdrO3CQJqSpd+95Us590V6AL7JqUAH2IwZ/398PmNFgw==}
     engines: {node: '>=4'}
-    dev: true
 
   /cacache/15.3.0:
     resolution: {integrity: sha512-VVdYzXEn+cnbXpFgWs5hTT7OScegHVmLhJIR8Ufqk3iFD6A6j5iSX1KuBTfNEv4tdJWE2PzA6IVFtcLC7fN9wQ==}
@@ -1324,7 +1328,6 @@ packages:
 
   /packet-reader/1.0.0:
     resolution: {integrity: sha512-HAKu/fG3HpHFO0AA8WE8q2g+gBJaZ9MG7fcKk+IJPLTGAD6Psw4443l+9DGRbOIh3/aXr7Phy0TjilYivJo5XQ==}
-    dev: true
 
   /path-is-absolute/1.0.1:
     resolution: {integrity: sha512-AVbw3UJ2e9bq64vSaS9Am0fje1Pa8pbGqTTsmXfaIiMpnr5DlDhfJOuLj9Sf95ZPVDAUerDfEk88MPmPe7UCQg==}
@@ -1337,12 +1340,10 @@ packages:
 
   /pg-connection-string/2.5.0:
     resolution: {integrity: sha512-r5o/V/ORTA6TmUnyWZR9nCj1klXCO2CEKNRlVuJptZe85QuhFayC7WeMic7ndayT5IRIR0S0xFxFi2ousartlQ==}
-    dev: true
 
   /pg-int8/1.0.1:
     resolution: {integrity: sha512-WCtabS6t3c8SkpDBUlb1kjOs7l66xsGdKpIPZsg4wR+B3+u9UAum2odSsF9tnvxg80h4ZxLWMy4pRjOsFIqQpw==}
     engines: {node: '>=4.0.0'}
-    dev: true
 
   /pg-pool/3.5.1_pg@8.7.3:
     resolution: {integrity: sha512-6iCR0wVrro6OOHFsyavV+i6KYL4lVNyYAB9RD18w66xSzN+d8b66HiwuP30Gp1SH5O9T82fckkzsRjlrhD0ioQ==}
@@ -1350,11 +1351,9 @@ packages:
       pg: '>=8.0'
     dependencies:
       pg: 8.7.3
-    dev: true
 
   /pg-protocol/1.5.0:
     resolution: {integrity: sha512-muRttij7H8TqRNu/DxrAJQITO4Ac7RmX3Klyr/9mJEOBeIpgnF8f9jAfRz5d3XwQZl5qBjF9gLsUtMPJE0vezQ==}
-    dev: true
 
   /pg-types/2.2.0:
     resolution: {integrity: sha512-qTAAlrEsl8s4OiEQY69wDvcMIdQN6wdz5ojQiOy6YRMuynxenON0O5oCpJI6lshc6scgAY8qvJ2On/p+CXY0GA==}
@@ -1365,7 +1364,6 @@ packages:
       postgres-bytea: 1.0.0
       postgres-date: 1.0.7
       postgres-interval: 1.2.0
-    dev: true
 
   /pg/8.7.3:
     resolution: {integrity: sha512-HPmH4GH4H3AOprDJOazoIcpI49XFsHCe8xlrjHkWiapdbHK+HLtbm/GQzXYAZwmPju/kzKhjaSfMACG+8cgJcw==}
@@ -1383,13 +1381,11 @@ packages:
       pg-protocol: 1.5.0
       pg-types: 2.2.0
       pgpass: 1.0.5
-    dev: true
 
   /pgpass/1.0.5:
     resolution: {integrity: sha512-FdW9r/jQZhSeohs1Z3sI1yxFQNFvMcnmfuj4WBMUTxOrAyLMaTcE1aAMBiTlbMNaXvBCQuVi0R7hd8udDSP7ug==}
     dependencies:
       split2: 4.1.0
-    dev: true
 
   /picocolors/1.0.0:
     resolution: {integrity: sha512-1fygroTLlHu66zi26VoTDv8yRgm0Fccecssto+MhsZ0D/DGW2sm8E8AjW7NU5VVTRt5GxbeZ5qBuJr+HyLYkjQ==}
@@ -1403,24 +1399,20 @@ packages:
   /postgres-array/2.0.0:
     resolution: {integrity: sha512-VpZrUqU5A69eQyW2c5CA1jtLecCsN2U/bD6VilrFDWq5+5UIEVO7nazS3TEcHf1zuPYO/sqGvUvW62g86RXZuA==}
     engines: {node: '>=4'}
-    dev: true
 
   /postgres-bytea/1.0.0:
     resolution: {integrity: sha512-xy3pmLuQqRBZBXDULy7KbaitYqLcmxigw14Q5sj8QBVLqEwXfeybIKVWiqAXTlcvdvb0+xkOtDbfQMOf4lST1w==}
     engines: {node: '>=0.10.0'}
-    dev: true
 
   /postgres-date/1.0.7:
     resolution: {integrity: sha512-suDmjLVQg78nMK2UZ454hAG+OAW+HQPZ6n++TNDUX+L0+uUlLywnoxJKDou51Zm+zTCjrCl0Nq6J9C5hP9vK/Q==}
     engines: {node: '>=0.10.0'}
-    dev: true
 
   /postgres-interval/1.2.0:
     resolution: {integrity: sha512-9ZhXKM/rw350N1ovuWHbGxnGh/SNJ4cnxHiM0rxE4VN41wsg8P8zWn9hv/buK00RP4WvlOyr/RBDiptyxVbkZQ==}
     engines: {node: '>=0.10.0'}
     dependencies:
       xtend: 4.0.2
-    dev: true
 
   /prettier/2.7.1:
     resolution: {integrity: sha512-ujppO+MkdPqoVINuDFDRLClm7D78qbDt0/NR+wp5FqEZOoTNAjPHWj17QRhu7geIHJfcNhRk1XVQmF8Bp3ye+g==}
@@ -1579,7 +1571,6 @@ packages:
   /split2/4.1.0:
     resolution: {integrity: sha512-VBiJxFkxiXRlUIeyMQi8s4hgvKCSjtknJv/LVYbrgALPwf5zSKmEwV9Lst25AkvMDnvxODugjdl6KZgwKM1WYQ==}
     engines: {node: '>= 10.x'}
-    dev: true
 
   /sqlite3/5.0.8:
     resolution: {integrity: sha512-f2ACsbSyb2D1qFFcqIXPfFscLtPVOWJr5GmUzYxf4W+0qelu5MWrR+FAQE1d5IUArEltBrzSDxDORG8P/IkqyQ==}
@@ -1854,7 +1845,6 @@ packages:
   /xtend/4.0.2:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
     engines: {node: '>=0.4'}
-    dev: true
 
   /yallist/2.1.2:
     resolution: {integrity: sha512-ncTzHV7NvsQZkYe1DW7cbDLm0YpzHmZF5r/iyP3ZnQtMiJ+pjzisCiMNI+Sj+xQF5pXhSHxSB3uDbsBTzY/c2A==}
@@ -1877,7 +1867,7 @@ packages:
     dev: true
 
   file:drizzle-orm-mysql/package.tgz_drizzle-orm@0.13.0:
-    resolution: {integrity: sha512-WxyZrjYlVtfyhsDqIkiUzhndDEmrxZpSOObRFh3fDO06pXdjJ8nPsE2ziRzFkXVocLKxLNTSGO4LTlrXX4tzDw==, tarball: file:drizzle-orm-mysql/package.tgz}
+    resolution: {integrity: sha512-dfU8a0BGxzSvSUaZ5jrxO/h3SLHT6JsyLuoi42dJBF4iwGVVXDu27v1UB1vbU/wc8Pqp7Xt6n2ZpewqBgL7Zuw==, tarball: file:drizzle-orm-mysql/package.tgz}
     id: file:drizzle-orm-mysql/package.tgz
     name: drizzle-orm-mysql
     version: 0.13.0
@@ -1890,11 +1880,11 @@ packages:
       mysql2:
         optional: true
     dependencies:
-      drizzle-orm: file:drizzle-orm/package.tgz_uzvssjkar4top22uv2cxhe5bde
+      drizzle-orm: file:drizzle-orm/package.tgz_7hcodi3q7h43rkh7k75lwwx3zm
     dev: true
 
-  file:drizzle-orm-pg/package.tgz_drizzle-orm@0.13.0:
-    resolution: {integrity: sha512-w77jJSS5TgEX3Xzh45iFgleJA2gDHv4i8lrx7kPGBqn8wmcp0bTiswYDs7PFuPkKEzYOMnI9tO62vpRTKZMBWA==, tarball: file:drizzle-orm-pg/package.tgz}
+  file:drizzle-orm-pg/package.tgz_62jjsl7j24ddkfqklwbsnaigdi:
+    resolution: {integrity: sha512-6GfDwjPCxr/VgV1n03WF8kHmHK9OFCP4HQ8cc2LMs57SILWIWCYhVeKjbpXpwYvcGZkpeCIkJgc/cEAK5rk2VA==, tarball: file:drizzle-orm-pg/package.tgz}
     id: file:drizzle-orm-pg/package.tgz
     name: drizzle-orm-pg
     version: 0.13.0
@@ -1907,11 +1897,12 @@ packages:
       pg:
         optional: true
     dependencies:
-      drizzle-orm: file:drizzle-orm/package.tgz_uzvssjkar4top22uv2cxhe5bde
+      drizzle-orm: file:drizzle-orm/package.tgz_7hcodi3q7h43rkh7k75lwwx3zm
+      pg: 8.7.3
     dev: true
 
-  file:drizzle-orm/package.tgz_uzvssjkar4top22uv2cxhe5bde:
-    resolution: {integrity: sha512-fUHgYUi4pKOnZ9XK+SSRvYFE9q+Akgd9N0PhAJcdx94S7Y6I3pq2aG1WDPKgnVyLXhML/1d0jvXtdyHxaYXQeQ==, tarball: file:drizzle-orm/package.tgz}
+  file:drizzle-orm/package.tgz_7hcodi3q7h43rkh7k75lwwx3zm:
+    resolution: {integrity: sha512-46VTQCLb72Qxx/dzeNYgwggQsUJsVYbmMhflLsA8JT0QuY0iSqX0Uu6U4HSWXyBN2aSz0ElFkY04Z8T7DoobcQ==, tarball: file:drizzle-orm/package.tgz}
     id: file:drizzle-orm/package.tgz
     name: drizzle-orm
     version: 0.13.0
@@ -1934,6 +1925,7 @@ packages:
         optional: true
     dependencies:
       drizzle-orm-mysql: file:drizzle-orm-mysql/package.tgz_drizzle-orm@0.13.0
-      drizzle-orm-pg: file:drizzle-orm-pg/package.tgz_drizzle-orm@0.13.0
+      drizzle-orm-pg: file:drizzle-orm-pg/package.tgz_62jjsl7j24ddkfqklwbsnaigdi
+      pg: 8.7.3
       type-fest: 2.16.0
     dev: true
