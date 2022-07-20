@@ -26,6 +26,8 @@ export class PgJson<
 	THasDefault extends ColumnHasDefault,
 	TData,
 > extends PgColumn<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+	protected brand!: 'PgJson';
+
 	constructor(table: AnyTable<TTableName>, builder: PgJsonBuilder<TData, TNotNull, THasDefault>) {
 		super(table, builder);
 	}

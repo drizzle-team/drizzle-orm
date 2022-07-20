@@ -3,23 +3,25 @@ import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableNa
 import { AnyPgTable } from '../table';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgSmallIntegerBuilder<
+export class PgSmallIntBuilder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
 	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
 > extends PgColumnBuilder<ColumnData<number>, ColumnDriverParam<number | string>, TNotNull, THasDefault> {
 	/** @internal */
 	override build<TTableName extends TableName>(
 		table: AnyPgTable<TTableName>,
-	): PgSmallInteger<TTableName, TNotNull, THasDefault> {
-		return new PgSmallInteger<TTableName, TNotNull, THasDefault>(table, this);
+	): PgSmallInt<TTableName, TNotNull, THasDefault> {
+		return new PgSmallInt<TTableName, TNotNull, THasDefault>(table, this);
 	}
 }
 
-export class PgSmallInteger<
+export class PgSmallInt<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
 > extends PgColumn<TTableName, ColumnData<number>, ColumnDriverParam<number | string>, TNotNull, THasDefault> {
+	protected brand!: 'PgSmallInt';
+
 	getSQLType(): string {
 		return 'smallint';
 	}
@@ -33,5 +35,5 @@ export class PgSmallInteger<
 }
 
 export function smallint(name: string) {
-	return new PgSmallIntegerBuilder(name);
+	return new PgSmallIntBuilder(name);
 }

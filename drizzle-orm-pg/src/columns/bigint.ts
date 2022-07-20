@@ -3,24 +3,24 @@ import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableNa
 import { AnyPgTable } from '~/table';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgBigInteger53Builder<
+export class PgBigInt53Builder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
 	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
 > extends PgColumnBuilder<ColumnData<number>, ColumnDriverParam<number | string>, TNotNull, THasDefault> {
 	/** @internal */
 	override build<TTableName extends TableName>(
 		table: AnyPgTable<TTableName>,
-	): PgBigInteger53<TTableName, TNotNull, THasDefault> {
-		return new PgBigInteger53<TTableName, TNotNull, THasDefault>(table, this);
+	): PgBigInt53<TTableName, TNotNull, THasDefault> {
+		return new PgBigInt53<TTableName, TNotNull, THasDefault>(table, this);
 	}
 }
 
-export class PgBigInteger53<
+export class PgBigInt53<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
 > extends PgColumn<TTableName, ColumnData<number>, ColumnDriverParam<number | string>, TNotNull, THasDefault> {
-	brand!: 'PgBigInteger53';
+	brand!: 'PgBigInt53';
 
 	getSQLType(): string {
 		return 'bigint';
@@ -34,24 +34,24 @@ export class PgBigInteger53<
 	}
 }
 
-export class PgBigInteger64Builder<
+export class PgBigInt64Builder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
 	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
 > extends PgColumnBuilder<ColumnData<bigint>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	/** @internal */
 	override build<TTableName extends TableName>(
 		table: AnyPgTable<TTableName>,
-	): PgBigInteger64<TTableName, TNotNull, THasDefault> {
-		return new PgBigInteger64<TTableName, TNotNull, THasDefault>(table, this);
+	): PgBigInt64<TTableName, TNotNull, THasDefault> {
+		return new PgBigInt64<TTableName, TNotNull, THasDefault>(table, this);
 	}
 }
 
-export class PgBigInteger64<
+export class PgBigInt64<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
 > extends PgColumn<TTableName, ColumnData<bigint>, ColumnDriverParam<string>, TNotNull, THasDefault> {
-	brand!: 'PgBigInteger64';
+	brand!: 'PgBigInt64';
 
 	getSQLType(): string {
 		return 'bigint';
@@ -64,7 +64,7 @@ export class PgBigInteger64<
 
 export function bigint(name: string, maxBytes: 'max_bytes_53' | 'max_bytes_64') {
 	if (maxBytes === 'max_bytes_53') {
-		return new PgBigInteger53Builder(name);
+		return new PgBigInt53Builder(name);
 	}
-	return new PgBigInteger64Builder(name);
+	return new PgBigInt64Builder(name);
 }

@@ -26,6 +26,8 @@ export class PgJsonb<
 	THasDefault extends ColumnHasDefault,
 	TData,
 > extends PgColumn<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+	protected brand!: 'PgJsonb';
+
 	constructor(table: AnyTable<TTableName>, builder: PgJsonbBuilder<TData, TNotNull, THasDefault>) {
 		super(table, builder);
 	}

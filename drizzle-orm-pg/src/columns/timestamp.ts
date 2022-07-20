@@ -1,80 +1,103 @@
 import { AnyTable } from 'drizzle-orm';
+import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
 import { PgColumn, PgColumnBuilder } from './common';
 
 export class PgTimestampBuilder<
-	TNotNull extends boolean = false,
-	TDefault extends boolean = false,
-> extends PgColumnBuilder<PgTimestamp<string, TNotNull, TDefault>, string, TNotNull, TDefault> {
+	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
+	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
+> extends PgColumnBuilder<ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+	constructor(name: string, private withTimezone: boolean) {
+		super(name);
+	}
+
 	/** @internal */
-	override build<TTableName extends string>(
+	override build<TTableName extends TableName>(
 		table: AnyTable<TTableName>,
-	): PgTimestamp<TTableName, TNotNull, TDefault> {
-		return new PgTimestamp(table, this);
+	): PgTimestamp<TTableName, TNotNull, THasDefault> {
+		return new PgTimestamp(table, this, this.withTimezone);
 	}
 }
 
 export class PgTimestamp<
-	TTableName extends string,
-	TNotNull extends boolean,
-	TDefault extends boolean,
-> extends PgColumn<TTableName, Date, string, TNotNull, TDefault> {
-	constructor(table: AnyTable<TTableName>, builder: PgTimestampBuilder<TNotNull, TDefault>) {
-		super(table, builder);
-	}
+	TTableName extends TableName,
+	TNotNull extends ColumnNotNull,
+	THasDefault extends ColumnHasDefault,
+> extends PgColumn<TTableName, ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+	protected brand!: 'PgTimestamp';
 
-	getSQLType(): string {
-		return 'timestamp without time zone';
-	}
-
-	override mapFromDriverValue(value: string) {
-		return new Date(value);
-	}
-}
-
-export class PgTimestampStringBuilder<
-	TNotNull extends boolean = false,
-	TDefault extends boolean = false,
-> extends PgColumnBuilder<
-	PgTimestampString<string, TNotNull, TDefault>,
-	string,
-	TNotNull,
-	TDefault
-> {
-	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyTable<TTableName>,
-	): PgTimestampString<TTableName, TNotNull, TDefault> {
-		return new PgTimestampString(table, this);
-	}
-}
-
-export class PgTimestampString<
-	TTableName extends string,
-	TNotNull extends boolean,
-	TDefault extends boolean,
-> extends PgColumn<TTableName, string, string, TNotNull, TDefault> {
 	constructor(
 		table: AnyTable<TTableName>,
-		builder: PgTimestampStringBuilder<TNotNull, TDefault>,
+		builder: PgTimestampBuilder<TNotNull, THasDefault>,
+		private withTimezone: boolean,
 	) {
 		super(table, builder);
 	}
 
 	getSQLType(): string {
-		return 'timestamp without time zone';
+		return `timestamp${this.withTimezone ? ' with time zone' : ''}`;
 	}
 
-	override mapFromDriverValue(value: string) {
-		return value;
+	override mapFromDriverValue(value: ColumnDriverParam<string>): ColumnData<Date> {
+		return new Date(value) as ColumnData<Date>;
 	}
 }
 
-export function timestamp(name: string, mode: 'string'): PgTimestampStringBuilder;
-export function timestamp(name: string, mode?: 'date'): PgTimestampBuilder;
-export function timestamp(name: string, mode: 'date' | 'string' = 'date') {
-	if (mode === 'date') {
-		return new PgTimestampBuilder(name);
+export class PgTimestampStringBuilder<
+	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
+	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
+> extends PgColumnBuilder<ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+	constructor(name: string, private withTimezone: boolean) {
+		super(name);
 	}
-	return new PgTimestampStringBuilder(name);
+
+	/** @internal */
+	override build<TTableName extends TableName>(
+		table: AnyTable<TTableName>,
+	): PgTimestampString<TTableName, TNotNull, THasDefault> {
+		return new PgTimestampString(table, this, this.withTimezone);
+	}
+}
+
+export class PgTimestampString<
+	TTableName extends TableName,
+	TNotNull extends ColumnNotNull,
+	THasDefault extends ColumnHasDefault,
+> extends PgColumn<TTableName, ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+	protected brand!: 'PgTimestampString';
+
+	constructor(
+		table: AnyTable<TTableName>,
+		builder: PgTimestampStringBuilder<TNotNull, THasDefault>,
+		private withTimezone: boolean,
+	) {
+		super(table, builder);
+	}
+
+	getSQLType(): string {
+		return `timestamp${this.withTimezone ? ' with time zone' : ''}`;
+	}
+}
+
+export type TimestampConfig<TMode extends 'string' | 'date' = 'string' | 'date'> = {
+	mode: TMode;
+	withTimezone?: boolean;
+} | {
+	mode?: TMode;
+	withTimezone: boolean;
+};
+
+export function timestamp<TWithTZ extends boolean>(
+	name: string,
+	config?: TimestampConfig<'date'>,
+): PgTimestampBuilder;
+export function timestamp<TWithTZ extends boolean>(
+	name: string,
+	config: TimestampConfig<'string'>,
+): PgTimestampStringBuilder;
+export function timestamp(name: string, config?: TimestampConfig) {
+	if (config?.mode === 'string') {
+		return new PgTimestampStringBuilder(name, config.withTimezone ?? false);
+	}
+	return new PgTimestampBuilder(name, config?.withTimezone ?? false);
 }

@@ -19,6 +19,8 @@ export class PgBigSerial53<
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
 > extends PgColumn<TTableName, ColumnData<number>, ColumnDriverParam<number>, TNotNull, THasDefault> {
+	protected brand!: 'PgBigSerial53';
+
 	getSQLType(): string {
 		return 'bigserial';
 	}
@@ -48,6 +50,8 @@ export class PgBigSerial64<
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
 > extends PgColumn<TTableName, ColumnData<bigint>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+	protected brand!: 'PgBigSerial64';
+
 	getSQLType(): string {
 		return 'bigserial';
 	}

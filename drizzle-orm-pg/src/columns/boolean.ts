@@ -15,16 +15,18 @@ export class PgBooleanBuilder<
 	/** @internal */
 	override build<TTableName extends TableName>(
 		table: AnyPgTable<TTableName>,
-	): PgBooleanInteger<TTableName, TNotNull, THasDefault> {
-		return new PgBooleanInteger<TTableName, TNotNull, THasDefault>(table, this);
+	): PgBoolean<TTableName, TNotNull, THasDefault> {
+		return new PgBoolean<TTableName, TNotNull, THasDefault>(table, this);
 	}
 }
 
-export class PgBooleanInteger<
+export class PgBoolean<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
 > extends PgColumn<TTableName, ColumnData<boolean>, ColumnDriverParam<boolean>, TNotNull, THasDefault> {
+	protected brand!: 'PgBoolean';
+
 	getSQLType(): string {
 		return 'boolean';
 	}

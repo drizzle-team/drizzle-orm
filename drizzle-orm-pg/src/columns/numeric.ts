@@ -29,6 +29,8 @@ export class PgNumeric<
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
 > extends PgColumn<TTableName, ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+	protected brand!: 'PgNumeric';
+
 	precision: number | undefined;
 	scale: number | undefined;
 

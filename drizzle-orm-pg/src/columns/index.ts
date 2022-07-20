@@ -15,5 +15,4 @@ export * from './smallserial';
 export * from './text';
 export * from './time';
 export * from './timestamp';
-export * from './timestampTz';
 export * from './varchar';

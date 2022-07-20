@@ -24,7 +24,7 @@ export class PgSmallSerial<TTableName extends TableName> extends PgColumn<
 	ColumnNotNull<true>,
 	ColumnHasDefault<true>
 > {
-	protected brand!: 'PgSerial';
+	protected brand!: 'PgSmallSerial';
 
 	getSQLType(): string {
 		return 'serial';

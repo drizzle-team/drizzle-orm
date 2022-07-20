@@ -32,6 +32,8 @@ export class PgDoublePrecision<
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
 > extends PgColumn<TTableName, ColumnData<number>, ColumnDriverParam<string | number>, TNotNull, THasDefault> {
+	protected brand!: 'PgDoublePrecision';
+
 	constructor(
 		table: AnyTable<TTableName>,
 		builder: PgDoublePrecisionBuilder<TNotNull, THasDefault>,
