@@ -1,4 +1,4 @@
-import { QueryResult } from 'pg';
+import { QueryResult, QueryResultRow } from 'pg';
 
 import { PgDialect, PgSession } from './connection';
 import { AnyPgTable } from './table';
@@ -39,6 +39,10 @@ export class PgTestSession implements PgSession {
 			oid: 0,
 			fields: [],
 		};
+	}
+
+	queryObjects<T extends QueryResultRow>(query: string, params: unknown[]): Promise<QueryResult<T>> {
+		return this.query(query, params);
 	}
 }
 

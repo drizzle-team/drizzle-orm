@@ -1,6 +1,6 @@
 import { tableColumns } from 'drizzle-orm/utils';
 
-import { AnyPgTable, PgTable, TableColumns } from './table';
+import { AnyPgTable, GetTableColumns } from './table';
 
 /** @internal */
 export const tableIndexes = Symbol('tableIndexes');
@@ -14,8 +14,8 @@ export const tableConstraints = Symbol('tableConstraints');
 /** @internal */
 export const tableConflictConstraints = Symbol('tableConflictConstraints');
 
-export function getTableColumns<TTable extends AnyPgTable>(table: TTable): TableColumns<TTable> {
-	return table[tableColumns] as TableColumns<TTable>;
+export function getTableColumns<TTable extends AnyPgTable>(table: TTable): GetTableColumns<TTable> {
+	return table[tableColumns] as GetTableColumns<TTable>;
 }
 
 export function getTableIndexes<TTable extends AnyPgTable>(table: TTable) {

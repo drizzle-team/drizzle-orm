@@ -1,24 +1,25 @@
 import { AnyColumn, sql } from 'drizzle-orm';
-import { SQL } from 'drizzle-orm/sql';
-import { TableName } from 'drizzle-orm/utils';
+import { ColumnData } from 'drizzle-orm/branded-types';
+import { SQL, SQLSourceParam } from 'drizzle-orm/sql';
+import { GetTableName } from 'drizzle-orm/utils';
 
 export function concat<TColumn extends AnyColumn>(
 	column: TColumn,
 	value: string,
-): SQL<TableName<TColumn>> {
-	return sql`${column} || ${value}`;
+): SQL<GetTableName<TColumn>> {
+	return sql<GetTableName<TColumn>>`${column} || ${value as ColumnData<string>}`;
 }
 
 export function substring<TColumn extends AnyColumn>(
 	column: TColumn,
 	{ from, for: _for }: { from?: number; for?: number },
-): SQL<TableName<TColumn>> {
-	const chunks: unknown[] = [sql`substring(`, column];
+): SQL<GetTableName<TColumn>> {
+	const chunks: SQLSourceParam<GetTableName<TColumn>>[] = [sql`substring(`, column];
 	if (from !== undefined) {
-		chunks.push(sql` from `, from);
+		chunks.push(sql` from `, from as ColumnData<number>);
 	}
 	if (_for !== undefined) {
-		chunks.push(sql` for `, _for);
+		chunks.push(sql` for `, _for as ColumnData<number>);
 	}
 	chunks.push(sql`)`);
 	return sql.fromList(chunks);

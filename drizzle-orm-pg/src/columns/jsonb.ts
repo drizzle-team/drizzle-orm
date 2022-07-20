@@ -1,31 +1,32 @@
 import { AnyTable } from 'drizzle-orm';
+import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
 import { PgColumn, PgColumnBuilder } from './common';
 
 export class PgJsonbBuilder<
 	TData,
-	TNotNull extends boolean = false,
-	TDefault extends boolean = false,
-> extends PgColumnBuilder<PgJsonb<string, TNotNull, TDefault, TData>, string, TNotNull, TDefault> {
+	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
+	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
+> extends PgColumnBuilder<ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	constructor(name: string) {
 		super(name);
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
+	override build<TTableName extends TableName>(
 		table: AnyTable<TTableName>,
-	): PgJsonb<TTableName, TNotNull, TDefault, TData> {
+	): PgJsonb<TTableName, TNotNull, THasDefault, TData> {
 		return new PgJsonb(table, this);
 	}
 }
 
 export class PgJsonb<
-	TTableName extends string,
-	TNotNull extends boolean,
-	TDefault extends boolean,
+	TTableName extends TableName,
+	TNotNull extends ColumnNotNull,
+	THasDefault extends ColumnHasDefault,
 	TData,
-> extends PgColumn<TTableName, TData, string, TNotNull, TDefault> {
-	constructor(table: AnyTable<TTableName>, builder: PgJsonbBuilder<TData, TNotNull, TDefault>) {
+> extends PgColumn<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+	constructor(table: AnyTable<TTableName>, builder: PgJsonbBuilder<TData, TNotNull, THasDefault>) {
 		super(table, builder);
 	}
 
@@ -33,8 +34,9 @@ export class PgJsonb<
 		return 'jsonb';
 	}
 
-	override mapFromDriverValue(value: any): TData {
-		return value;
+	// TODO: map from driver value
+	override mapFromDriverValue(value: ColumnDriverParam<string>): ColumnData<TData> {
+		return value as ColumnData<any>;
 	}
 }
 

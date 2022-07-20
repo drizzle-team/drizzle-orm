@@ -1,9 +1,11 @@
-import { SQL } from 'drizzle-orm/sql';
+import { TableName } from 'drizzle-orm/branded-types';
+import { PreparedQuery, SQL } from 'drizzle-orm/sql';
+import { PgColumnDriverParam } from '~/branded-types';
 
-import { PgDriverParam } from '../connection';
-
-export type PgSQL<TTableName extends string> = SQL<
+export type PgSQL<TTableName extends TableName> = SQL<
 	TTableName
 >;
 
-export type AnyPgSQL<TTableName extends string = string> = PgSQL<TTableName>;
+export type AnyPgSQL<TTableName extends TableName = TableName> = PgSQL<TTableName>;
+
+export interface PgPreparedQuery extends PreparedQuery<PgColumnDriverParam> {}

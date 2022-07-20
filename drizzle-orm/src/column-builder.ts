@@ -1,39 +1,30 @@
-import { Simplify } from 'type-fest';
-
-import {
-	AnyColumn,
-	Column,
-	InferColumnDriverType,
-	InferColumnType,
-	InferDefaultColumnValue,
-} from './column';
+import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName, Unwrap } from './branded-types';
+import { Column } from './column';
 import { AnyTable } from './table';
 
 export abstract class ColumnBuilder<
-	TColumnType extends AnyColumn,
-	TDriverType,
-	TNotNull extends boolean,
-	TDefault extends boolean,
+	TData extends ColumnData,
+	TDriverParam extends ColumnDriverParam,
+	TNotNull extends ColumnNotNull<boolean>,
+	THasDefault extends ColumnHasDefault<boolean>,
 > {
 	protected typeKeeper!: {
 		brand: 'ColumnBuilder';
-		columnType: TColumnType;
+		dataType: TData;
 		notNull: TNotNull;
-		default: TDefault;
+		default: THasDefault;
 	};
 
 	/** @internal */ _notNull = false as TNotNull;
-	/** @internal */ _default!: InferDefaultColumnValue<
-		InferColumnType<TColumnType, 'raw'>,
-		TNotNull
-	>;
+	/** @internal */ _default: TData | undefined;
+
 	/** @internal */ _primaryKey = false;
 	/* @internal */ _references: (() => Column<
-		string,
-		InferColumnType<TColumnType, 'raw'>,
-		any,
-		any,
-		any
+		TableName,
+		TData,
+		ColumnDriverParam,
+		ColumnNotNull,
+		ColumnHasDefault
 	>)[] = [];
 	/** @internal */ name: string;
 
@@ -41,44 +32,30 @@ export abstract class ColumnBuilder<
 		this.name = name;
 	}
 
-	notNull(): ColumnBuilder<TColumnType, TDriverType, true, TDefault> {
+	notNull(): ColumnBuilder<TData, TDriverParam, ColumnNotNull<true>, THasDefault> {
 		this._notNull = true as TNotNull;
-		return this as ColumnBuilder<TColumnType, TDriverType, true, TDefault>;
+		return this as ColumnBuilder<TData, TDriverParam, ColumnNotNull<true>, THasDefault>;
 	}
 
 	default(
-		value: InferDefaultColumnValue<InferColumnType<TColumnType, 'raw'>, TNotNull>,
-	): ColumnBuilder<TColumnType, TDriverType, TNotNull, true> {
-		this._default = value;
-		return this as ColumnBuilder<TColumnType, TDriverType, TNotNull, true>;
+		value: Unwrap<TData>,
+	): ColumnBuilder<TData, TDriverParam, TNotNull, ColumnHasDefault<true>> {
+		this._default = value as TData;
+		return this as ColumnBuilder<TData, TDriverParam, TNotNull, ColumnHasDefault<true>>;
 	}
 
-	primaryKey(): ColumnBuilder<TColumnType, TDriverType, true, TDefault> {
+	primaryKey(): ColumnBuilder<TData, TDriverParam, ColumnNotNull<true>, THasDefault> {
 		this._primaryKey = true;
-		return this as ColumnBuilder<TColumnType, TDriverType, true, TDefault>;
+		return this as ColumnBuilder<TData, TDriverParam, ColumnNotNull<true>, THasDefault>;
 	}
 
-	references(ref: () => Column<any, InferColumnType<TColumnType, 'raw'>, any, any, any>): this {
+	references(ref: () => Column<any, TData, any, any, any>): this {
 		this._references.push(ref);
 		return this;
 	}
 
 	/** @internal */
-	abstract build<TTableName extends string>(table: AnyTable<TTableName>): TColumnType;
+	abstract build<TTableName extends TableName>(
+		table: AnyTable<TTableName>,
+	): Column<TTableName, TData, TDriverParam, TNotNull, THasDefault>;
 }
-
-export type AnyColumnBuilder = ColumnBuilder<any, any, any, any>;
-
-export type BuildColumns<
-	TTableName extends string,
-	TConfigMap extends Record<string, AnyColumnBuilder>,
-> = Simplify<{
-	[Key in keyof TConfigMap]: TConfigMap[Key] extends ColumnBuilder<
-		infer TType,
-		infer TDriverType,
-		infer TNotNull,
-		infer TDefault
-	>
-		? Column<TTableName, InferColumnType<TType, 'raw'>, TDriverType, TNotNull, TDefault>
-		: never;
-}>;

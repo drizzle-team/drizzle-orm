@@ -1,28 +1,32 @@
-import { InferColumnType } from 'drizzle-orm';
+import { GetColumnData } from 'drizzle-orm';
+import { ColumnData, TableName, Unwrap } from 'drizzle-orm/branded-types';
 import { SelectFields } from 'drizzle-orm/operations';
 import { AnySQLResponse, SQLResponse } from 'drizzle-orm/sql';
-import { tableColumns, TableName } from 'drizzle-orm/utils';
+import { GetTableName, tableColumns } from 'drizzle-orm/utils';
 import { Simplify } from 'type-fest';
+import { PgColumnDriverParam } from './branded-types';
 
 import { AnyPgColumn } from './columns/common';
-import { AnyPgDialect, PgDriverParam, PgSession } from './connection';
+import { AnyPgDialect, PgSession } from './connection';
 import { PgDelete, PgInsert, PgSelect, PgUpdate } from './queries';
-import { AnyPgSQL } from './sql';
-import { AnyPgTable, InferType } from './table';
+import { AnyPgTable, InferModel } from './table';
 
-export type PgSelectFields<TTableName extends string> = SelectFields<TTableName, PgDriverParam>;
+export type PgSelectFields<TTableName extends TableName> = SelectFields<TTableName, PgColumnDriverParam>;
 
-export type PgSelectFieldsOrdered = { name: string; column: AnyPgColumn | AnySQLResponse }[];
+export type PgSelectFieldsOrdered<TTableName extends TableName = TableName> = {
+	name: string;
+	column: AnyPgColumn<TTableName> | AnySQLResponse<TTableName>;
+}[];
 
-export type PartialSelectResult<
-	TTableName extends string,
+export type SelectResultFields<
+	TTableName extends TableName,
 	TSelectedFields extends PgSelectFields<TTableName>,
 > = Simplify<
 	{
-		[Key in keyof TSelectedFields & string]: TSelectedFields[Key] extends AnyPgColumn<TTableName>
-			? InferColumnType<TSelectedFields[Key]>
-			: TSelectedFields[Key] extends SQLResponse<string, infer TValue> ? TValue
-			: any;
+		[Key in keyof TSelectedFields & string]: TSelectedFields[Key] extends AnyPgColumn
+			? GetColumnData<TSelectedFields[Key]>
+			: TSelectedFields[Key] extends SQLResponse<TableName, infer TDriverParam> ? Unwrap<TDriverParam>
+			: never;
 	}
 >;
 
@@ -33,12 +37,14 @@ export class PgTableOperations<TTable extends AnyPgTable> {
 		private dialect: AnyPgDialect,
 	) {}
 
-	select(): PgSelect<TTable, InferType<TTable>>;
-	select<TSelectedFields extends PgSelectFields<TableName<TTable>>>(
+	select(): PgSelect<TTable, InferModel<TTable>>;
+	select<TSelectedFields extends PgSelectFields<GetTableName<TTable>>>(
 		fields: TSelectedFields,
-	): PgSelect<TTable, PartialSelectResult<TableName<TTable>, TSelectedFields>>;
-	select(fields?: PgSelectFields<TableName<TTable>>): PgSelect<TTable, any> {
-		const fieldsOrdered = this.dialect.orderSelectedFields(fields ?? this.table[tableColumns]);
+	): PgSelect<TTable, SelectResultFields<GetTableName<TTable>, TSelectedFields>>;
+	select(fields?: PgSelectFields<GetTableName<TTable>>): PgSelect<TTable, any> {
+		const fieldsOrdered = this.dialect.orderSelectedFields(
+			fields ?? this.table[tableColumns] as PgSelectFields<GetTableName<TTable>>,
+		);
 		return new PgSelect(this.table, fieldsOrdered, this.session, this.dialect);
 	}
 
@@ -46,7 +52,7 @@ export class PgTableOperations<TTable extends AnyPgTable> {
 		return new PgUpdate(this.table, this.session, this.dialect);
 	}
 
-	insert(values: InferType<TTable, 'insert'> | InferType<TTable, 'insert'>[]): PgInsert<TTable> {
+	insert(values: InferModel<TTable, 'insert'> | InferModel<TTable, 'insert'>[]): PgInsert<TTable> {
 		return new PgInsert(
 			this.table,
 			Array.isArray(values) ? values : [values],
@@ -59,61 +65,3 @@ export class PgTableOperations<TTable extends AnyPgTable> {
 		return new PgDelete(this.table, this.session, this.dialect);
 	}
 }
-
-export const rawQuery = Symbol('raw');
-
-export type DB<TDBSchema extends Record<string, AnyPgTable>> =
-	& {
-		[TTable in keyof TDBSchema & string]: PgTableOperations<TDBSchema[TTable]>;
-	}
-	& {
-		[rawQuery]: (query: AnyPgSQL) => Promise<unknown>;
-	};
-
-// export class PgJson<TTable extends string, TData extends ParamValue = ParamValue> extends PgColumn<
-// 	TTable,
-// 	TData
-// > {
-// 	getSQLType(): string {
-// 		return 'json';
-// 	}
-// }
-
-// export class PgJsonb<TTable extends string, TData extends ParamValue = ParamValue> extends PgColumn<
-// 	TTable,
-// 	TData
-// > {
-// 	getSQLType(): string {
-// 		return 'jsonb';
-// 	}
-// }
-
-// export class PgBoolean<TTable extends string> extends PgColumn<TTable, boolean> {
-// 	getSQLType(): string {
-// 		return 'boolean';
-// 	}
-// }
-
-// export class PgDate<TTable extends string> extends PgColumn<TTable, Date> {
-// 	getSQLType(): string {
-// 		return 'date';
-// 	}
-// }
-
-// export class PgTimestamp<TTable extends string> extends PgColumn<TTable, Date> {
-// 	getSQLType(): string {
-// 		return 'timestamp';
-// 	}
-// }
-
-// export class PgTimestampTz<TTable extends string> extends PgColumn<TTable, Date> {
-// 	getSQLType(): string {
-// 		return 'timestamp with time zone';
-// 	}
-// }
-
-// export class PgTime<TTable extends string> extends PgColumn<TTable, Date> {
-// 	getSQLType(): string {
-// 		return 'time';
-// 	}
-// }

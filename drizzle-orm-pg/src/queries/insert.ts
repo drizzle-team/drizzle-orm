@@ -1,46 +1,49 @@
-import { AnySQLResponse, Name, SQL, sql, SQLResponse } from 'drizzle-orm/sql';
-import { tableColumns, TableName, tableRowMapper } from 'drizzle-orm/utils';
+import { ColumnData } from 'drizzle-orm/branded-types';
+import { AnySQLResponse, Name, SQL, sql, SQLSourceParam } from 'drizzle-orm/sql';
+import { GetTableName, tableColumns, tableRowMapper } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
 
 import { AnyPgColumn } from '~/columns/common';
-import { AnyPgDialect, PgDriverParam, PgSession } from '~/connection';
+import { AnyPgDialect, PgSession } from '~/connection';
 import { Constraint } from '~/constraints';
-import { PartialSelectResult, PgSelectFields } from '~/operations';
-import { AnyPgTable, InferType, TableConflictConstraints } from '~/table';
+import { PgSelectFields, SelectResultFields } from '~/operations';
+import { PgPreparedQuery } from '~/sql';
+import { AnyPgTable, GetTableConflictConstraints, InferModel } from '~/table';
 import { tableConflictConstraints } from '~/utils';
 import { PgUpdateSet } from './update';
 
 export interface PgInsertConfig<TTable extends AnyPgTable> {
 	table: TTable;
-	values: Record<string, unknown | SQL<TableName<TTable>>>[];
-	onConflict: SQL<TableName<TTable>> | undefined;
+	values: Record<string, ColumnData | SQL<GetTableName<TTable>>>[];
+	onConflict: SQL<GetTableName<TTable>> | undefined;
 	returning: { name: string; column: AnyPgColumn | AnySQLResponse }[] | undefined;
 }
 
 export type AnyPgInsertConfig = PgInsertConfig<any>;
 
 export class PgInsert<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
-	protected enforceCovariance!: {
+	protected typeKeeper!: {
 		table: TTable;
+		return: TReturn;
 	};
 
 	private config: PgInsertConfig<TTable> = {} as PgInsertConfig<TTable>;
 
 	constructor(
 		table: TTable,
-		values: InferType<TTable, 'insert'>[],
+		values: InferModel<TTable, 'insert'>[],
 		private session: PgSession,
 		private dialect: AnyPgDialect,
 	) {
 		this.config.table = table;
-		this.config.values = values;
+		this.config.values = values as PgInsertConfig<TTable>['values'];
 	}
 
-	public returning(): Pick<PgInsert<TTable, InferType<TTable>[]>, 'execute'>;
-	public returning<TSelectedFields extends PgSelectFields<TableName<TTable>>>(
+	public returning(): Pick<PgInsert<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
+	public returning<TSelectedFields extends PgSelectFields<GetTableName<TTable>>>(
 		fields: TSelectedFields,
-	): Pick<PgInsert<TTable, PartialSelectResult<TableName<TTable>, TSelectedFields>[]>, 'execute'>;
-	public returning(fields?: PgSelectFields<TableName<TTable>>): Pick<PgInsert<TTable, any>, 'execute'> {
+	): Pick<PgInsert<TTable, SelectResultFields<GetTableName<TTable>, TSelectedFields>[]>, 'getQuery' | 'execute'>;
+	public returning(fields?: PgSelectFields<GetTableName<TTable>>): PgInsert<TTable, any> {
 		const fieldsToMap: Record<string, AnyPgColumn | AnySQLResponse> = fields ?? this.config.table[tableColumns];
 
 		this.config.returning = Object.entries(fieldsToMap).map(
@@ -52,11 +55,11 @@ export class PgInsert<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 
 	onConflictDoNothing(
 		target?:
-			| SQL<TableName<TTable>>
+			| SQL<GetTableName<TTable>>
 			| ((
-				constraints: TableConflictConstraints<TTable>,
-			) => Constraint<TableName<TTable>>),
-	): Pick<this, 'returning' | 'execute'> {
+				constraints: GetTableConflictConstraints<TTable>,
+			) => Constraint<GetTableName<TTable>>),
+	): Pick<this, 'returning' | 'getQuery' | 'execute'> {
 		if (typeof target === 'undefined') {
 			this.config.onConflict = sql`do nothing`;
 		} else if (target instanceof SQL) {
@@ -70,14 +73,14 @@ export class PgInsert<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 
 	onConflictDoUpdate(
 		target:
-			| SQL<TableName<TTable>>
-			| ((constraints: TableConflictConstraints<TTable>) => Constraint<TableName<TTable>>),
+			| SQL<GetTableName<TTable>>
+			| ((constraints: GetTableConflictConstraints<TTable>) => Constraint<GetTableName<TTable>>),
 		set: PgUpdateSet<TTable>,
-	): Pick<this, 'returning' | 'execute'> {
-		const setSql = this.dialect.buildUpdateSet(this.config.table, set);
+	): Pick<this, 'returning' | 'getQuery' | 'execute'> {
+		const setSql = this.dialect.buildUpdateSet<GetTableName<TTable>>(this.config.table, set);
 
 		if (target instanceof SQL) {
-			this.config.onConflict = sql`${target} do update set ${setSql}`;
+			this.config.onConflict = sql<GetTableName<TTable>>`${target} do update set ${setSql}`;
 		} else {
 			const targetSql = new Name(target(this.config.table[tableConflictConstraints]).name);
 			this.config.onConflict = sql`on constraint ${targetSql} do update set ${setSql}`;
@@ -85,9 +88,14 @@ export class PgInsert<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 		return this;
 	}
 
+	getQuery(): PgPreparedQuery {
+		const query = this.dialect.buildInsertQuery(this.config);
+		return this.dialect.prepareSQL(query);
+	}
+
 	async execute(): Promise<TReturn> {
 		const query = this.dialect.buildInsertQuery(this.config);
-		const [sql, params] = this.dialect.prepareSQL(query);
+		const { sql, params } = this.dialect.prepareSQL(query);
 		const result = await this.session.query(sql, params);
 		// mapping from driver response to return type
 		const { returning } = this.config;

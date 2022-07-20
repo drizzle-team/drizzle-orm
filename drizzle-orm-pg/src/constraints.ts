@@ -1,9 +1,9 @@
-import { SQL } from 'drizzle-orm/sql';
+import { TableName } from 'drizzle-orm/branded-types';
 
 import { AnyPgSQL } from './sql';
 import { AnyPgTable } from './table';
 
-export class ConstraintBuilder<TTableName extends string> {
+export class ConstraintBuilder<TTableName extends TableName> {
 	protected brand!: 'PgConstraintBuilder';
 
 	constructor(public name: string, public value: AnyPgSQL<TTableName>) {}
@@ -13,9 +13,9 @@ export class ConstraintBuilder<TTableName extends string> {
 	}
 }
 
-export type AnyConstraintBuilder<TTableName extends string = string> = ConstraintBuilder<TTableName>;
+export type AnyConstraintBuilder<TTableName extends TableName = TableName> = ConstraintBuilder<TTableName>;
 
-export class Constraint<TTableName extends string> {
+export class Constraint<TTableName extends TableName> {
 	name: string;
 	value: AnyPgSQL<TTableName>;
 
@@ -30,9 +30,9 @@ export type BuildConstraint<T extends AnyConstraintBuilder> = T extends Constrai
 > ? Constraint<TTableName>
 	: never;
 
-export type AnyConstraint = Constraint<string>;
+export type AnyConstraint = Constraint<TableName>;
 
-export function constraint<TTableName extends string>(
+export function constraint<TTableName extends TableName>(
 	name: string,
 	value: AnyPgSQL<TTableName>,
 ): ConstraintBuilder<TTableName> {

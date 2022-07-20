@@ -1,35 +1,31 @@
+import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName, Unwrap } from './branded-types';
 import { ColumnBuilder } from './column-builder';
 import { BoundParamValue, ParamValueMapper } from './sql';
 import { AnyTable } from './table';
 
 export abstract class Column<
-	TTableName extends string,
-	TType,
-	TDriverType,
-	TNotNull extends boolean,
-	TDefault extends boolean,
-> implements ParamValueMapper<TType, TDriverType> {
-	protected enforceCovariance!: {
+	TTableName extends TableName<string>,
+	TData extends ColumnData,
+	TDriverParam extends ColumnDriverParam,
+	TNotNull extends ColumnNotNull<boolean>,
+	THasDefault extends ColumnHasDefault<boolean>,
+> implements ParamValueMapper<TData, TDriverParam> {
+	protected typeKeeper!: {
 		brand: 'Column';
-		tableName: TTableName;
-		type: TType;
-		driverType: TDriverType;
-		notNull: TNotNull;
-		default: TDefault;
+		tableName: Unwrap<TTableName>;
+		type: Unwrap<TData>;
+		driverType: Unwrap<TDriverParam>;
+		notNull: Unwrap<TNotNull>;
+		default: Unwrap<THasDefault>;
 	};
 
 	readonly name: string;
 	readonly notNull: TNotNull;
-	readonly default: InferDefaultColumnValue<TType, TNotNull>;
+	readonly default: TData | undefined;
 
 	constructor(
 		readonly table: AnyTable<TTableName>,
-		builder: ColumnBuilder<
-			Column<string, TType, TDriverType, boolean, boolean>,
-			TDriverType,
-			TNotNull,
-			TDefault
-		>,
+		builder: ColumnBuilder<TData, TDriverParam, TNotNull, THasDefault>,
 	) {
 		this.name = builder.name;
 		this.notNull = builder._notNull;
@@ -38,56 +34,59 @@ export abstract class Column<
 
 	abstract getSQLType(): string;
 
-	mapFromDriverValue(value: TDriverType): TType {
-		return value as unknown as TType;
+	mapFromDriverValue(value: TDriverParam): TData {
+		return value as unknown as TData;
 	}
 
-	mapToDriverValue(value: TType): TDriverType {
-		return value as unknown as TDriverType;
+	mapToDriverValue(value: TData): TDriverParam {
+		return value as unknown as TDriverParam;
 	}
 }
 
-export type AnyColumn<TTableName extends string = string> = Column<TTableName, any, any, any, any>;
+export type AnyColumn<TTableName extends TableName = TableName> = Column<
+	TTableName,
+	ColumnData,
+	ColumnDriverParam,
+	ColumnNotNull,
+	ColumnHasDefault
+>;
 
-export function param<TType, TDriverType>(
-	column: Column<string, TType, TDriverType, any, any>,
-	value: TType,
-): BoundParamValue<TType, TDriverType> {
-	return new BoundParamValue(value, column);
+export function param<TDataType extends ColumnData, TDriverType extends ColumnDriverParam>(
+	column: Column<any, TDataType, TDriverType, any, any>,
+	value: Unwrap<TDataType>,
+): BoundParamValue<TDataType, TDriverType> {
+	return new BoundParamValue(value as TDataType, column);
 }
 
-export type InferColumnType<
+export type GetColumnData<
 	TColumn,
 	TInferMode extends 'query' | 'raw' = 'query',
-> = TColumn extends Column<any, infer TType, any, infer TNotNull, any> ? TInferMode extends 'raw' // Raw mode
-		? TType // Just return the underlying type
+> = TColumn extends Column<any, infer TData, any, infer TNotNull, any> ? TInferMode extends 'raw' // Raw mode
+		? Unwrap<TData> // Just return the underlying type
 	: TNotNull extends true // Query mode
-		? TType // Query mode, not null
-	: TType | null // Query mode, nullable
+		? Unwrap<TData> // Query mode, not null
+	: Unwrap<TData> | null // Query mode, nullable
 	: never;
 
-export type InferColumnDriverType<TColumn extends AnyColumn> = TColumn extends Column<
-	string,
-	any,
+export type InferColumnDriverParam<TColumn extends AnyColumn> = TColumn extends Column<
+	TableName,
+	ColumnData,
 	infer TDriverType,
-	any,
-	any
-> ? TDriverType
+	ColumnNotNull,
+	ColumnHasDefault
+> ? Unwrap<TDriverType>
 	: never;
 
-export type InferColumnsTypes<TColumns extends Record<string, AnyColumn>> = {
-	[Key in keyof TColumns]: InferColumnType<TColumns[Key], 'query'>;
+export type InferColumnsDataTypes<TColumns extends Record<string, AnyColumn>> = {
+	[Key in keyof TColumns]: GetColumnData<TColumns[Key], 'query'>;
 };
-
-export type InferDefaultColumnValue<TType, TNotNull extends boolean> = TNotNull extends true ? TType
-	: TType | null;
 
 export type InferColumnTable<T extends AnyColumn> = T extends AnyColumn<infer TTable> ? TTable
 	: never;
 
 export type ChangeColumnTable<
 	TColumn extends AnyColumn,
-	TTableName extends string,
-> = TColumn extends Column<any, infer TType, infer TDriverType, infer TNotNull, infer TDefault>
-	? Column<TTableName, TType, TDriverType, TNotNull, TDefault>
+	TTableName extends TableName,
+> = TColumn extends Column<any, infer TType, infer TDriverType, infer TNotNull, infer THasDefault>
+	? Column<TTableName, TType, TDriverType, TNotNull, THasDefault>
 	: never;

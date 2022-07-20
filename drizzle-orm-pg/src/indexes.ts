@@ -1,13 +1,13 @@
 import { InferColumnTable } from 'drizzle-orm';
+import { TableName } from 'drizzle-orm/branded-types';
 import { SQL } from 'drizzle-orm/sql';
-import { TableName, tableName } from 'drizzle-orm/utils';
+import { GetTableName } from 'drizzle-orm/utils';
 
-import { AnyPgColumn, PgColumn } from './columns';
-import { PgDriverParam } from './connection';
+import { AnyPgColumn } from './columns';
 import { PgUpdateSet } from './queries/update';
-import { AnyPgTable, TableColumns } from './table';
+import { AnyPgTable, GetTableColumns } from './table';
 
-interface IndexConfig<TTableName extends string, TUnique extends boolean> {
+interface IndexConfig<TTableName extends TableName, TUnique extends boolean> {
 	/**
 	 * If true, the index will be created as `create unique index` instead of `create index`.
 	 */
@@ -57,8 +57,8 @@ export class IndexBuilder<
 
 	constructor(
 		public readonly name: string,
-		public readonly columns: AnyPgColumn<TableName<TTable>>[],
-		public readonly config: IndexConfig<TableName<TTable>, TUnique> = {},
+		public readonly columns: AnyPgColumn<GetTableName<TTable>>[],
+		public readonly config: IndexConfig<GetTableName<TTable>, TUnique> = {},
 	) {}
 
 	build(table: TTable): Index<TTable, TUnique> {
@@ -67,7 +67,7 @@ export class IndexBuilder<
 }
 
 export type AnyIndexBuilder<
-	TTableName extends string = string,
+	TTableName extends TableName = TableName,
 	TTable extends AnyPgTable<TTableName> = AnyPgTable<TTableName>,
 > = IndexBuilder<TTable, any>;
 
@@ -77,12 +77,12 @@ export class Index<TTable extends AnyPgTable, TUnique extends boolean> {
 		unique: TUnique;
 	};
 
-	readonly config: IndexConfig<TableName<TTable>, TUnique>;
+	readonly config: IndexConfig<GetTableName<TTable>, TUnique>;
 
 	constructor(
 		public readonly name: string,
 		public readonly table: TTable,
-		public readonly columns: AnyPgColumn<TableName<TTable>>[],
+		public readonly columns: AnyPgColumn<GetTableName<TTable>>[],
 		builder: IndexBuilder<TTable, TUnique>,
 	) {
 		this.config = builder.config;
@@ -111,14 +111,14 @@ type InferColumnsTable<TColumns> = TColumns extends AnyPgColumn ? InferColumnTab
 export function index<
 	TTable extends AnyPgTable,
 	TColumns extends
-		| TableColumns<TTable>[string]
-		| [TableColumns<TTable>[string], ...TableColumns<TTable>[string][]],
+		| GetTableColumns<TTable>[string]
+		| [GetTableColumns<TTable>[string], ...GetTableColumns<TTable>[string][]],
 >(name: string, columns: TColumns): IndexBuilder<TTable, false>;
 export function index<
 	TTable extends AnyPgTable,
 	TColumns extends
-		| TableColumns<TTable>[string]
-		| [TableColumns<TTable>[string], ...TableColumns<TTable>[string][]],
+		| GetTableColumns<TTable>[string]
+		| [GetTableColumns<TTable>[string], ...GetTableColumns<TTable>[string][]],
 >(
 	name: string,
 	columns: TColumns,
@@ -127,8 +127,8 @@ export function index<
 export function index<
 	TTable extends AnyPgTable,
 	TColumns extends
-		| TableColumns<TTable>[string]
-		| [TableColumns<TTable>[string], ...TableColumns<TTable>[string][]],
+		| GetTableColumns<TTable>[string]
+		| [GetTableColumns<TTable>[string], ...GetTableColumns<TTable>[string][]],
 >(
 	name: string,
 	columns: TColumns,

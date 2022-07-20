@@ -1,11 +1,12 @@
 import { AnyTable } from 'drizzle-orm';
+import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
 import { PgColumn, PgColumnBuilder } from './common';
 
 export class PgNumericBuilder<
-	TNotNull extends boolean = false,
-	TDefault extends boolean = false,
-> extends PgColumnBuilder<PgNumeric<string, TNotNull, TDefault>, string, TNotNull, TDefault> {
+	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
+	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
+> extends PgColumnBuilder<ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	/** @internal */ precision: number | undefined;
 	/** @internal */ scale: number | undefined;
 
@@ -16,22 +17,22 @@ export class PgNumericBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
+	override build<TTableName extends TableName>(
 		table: AnyTable<TTableName>,
-	): PgNumeric<TTableName, TNotNull, TDefault> {
+	): PgNumeric<TTableName, TNotNull, THasDefault> {
 		return new PgNumeric(table, this);
 	}
 }
 
 export class PgNumeric<
-	TTableName extends string,
-	TNotNull extends boolean,
-	TDefault extends boolean,
-> extends PgColumn<TTableName, string, string, TNotNull, TDefault> {
+	TTableName extends TableName,
+	TNotNull extends ColumnNotNull,
+	THasDefault extends ColumnHasDefault,
+> extends PgColumn<TTableName, ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	precision: number | undefined;
 	scale: number | undefined;
 
-	constructor(table: AnyTable<TTableName>, builder: PgNumericBuilder<TNotNull, TDefault>) {
+	constructor(table: AnyTable<TTableName>, builder: PgNumericBuilder<TNotNull, THasDefault>) {
 		super(table, builder);
 		this.precision = builder.precision;
 		this.scale = builder.scale;

@@ -1,61 +1,66 @@
-import { TableName } from 'drizzle-orm/utils';
-import { Simplify } from 'type-fest/source/simplify';
+import { ChangeColumnTable } from 'drizzle-orm';
+import { TableName, Unwrap } from 'drizzle-orm/branded-types';
+import { GetTableName } from 'drizzle-orm/utils';
+import { Simplify } from 'type-fest';
 
-import { PgColumn } from '~/columns';
-import { PartialSelectResult, PgSelectFields } from '~/operations';
-import { AnyPgTable, TableColumns } from '~/table';
+import { AnyPgColumn } from '~/columns';
+import { PgSelectFields, SelectResultFields } from '~/operations';
+import { AnyPgTable, GetTableColumns } from '~/table';
 
-export type BuildAlias<
+export type BuildAliasName<
 	TTable extends AnyPgTable,
 	TAlias extends { [name: string]: number },
-> = `${TableName<TTable>}${GetAliasIndex<TableName<TTable>, TAlias>}`;
+> = TableName<`${GetTableName<TTable>}${GetAliasIndex<GetTableName<TTable>, TAlias>}`>;
 
-export type TableAlias<TTable extends AnyPgTable, TAlias extends string> = AliasColumns<
-	TableColumns<TTable>,
+export type BuildAliasTable<TTable extends AnyPgTable, TAlias extends TableName> = MapColumnsToTableAlias<
+	GetTableColumns<TTable>,
 	TAlias
 >;
 
-export type AliasColumns<TColumns, TAlias extends string> = {
-	[Key in keyof TColumns]: TColumns[Key] extends PgColumn<
-		any,
-		infer TType,
-		infer TDriverParam,
-		infer TNotNull,
-		infer TDefault
-	>
-		? PgColumn<TAlias, TType, TDriverParam, TNotNull, TDefault>
-		: never;
+export type MapColumnsToTableAlias<TColumns extends Record<string, AnyPgColumn>, TAlias extends TableName> = {
+	[Key in keyof TColumns]: ChangeColumnTable<TColumns[Key], TAlias>;
 };
 
 type Increment<
 	TNumber extends number,
 	TCounter extends any[] = [],
-> = TCounter['length'] extends TNumber
-	? [...TCounter, 0]['length']
+> = TCounter['length'] extends TNumber ? [...TCounter, 0]['length']
 	: Increment<TNumber, [...TCounter, 0]>;
 
 export type IncrementAlias<
 	TTableName extends string,
 	TAlias extends { [name: string]: number },
-> = TAlias extends { [key in TTableName]: infer N }
-	? N extends number
-		? Simplify<
-				Omit<TAlias, TTableName> & {
-					[K in TTableName]: Increment<N>;
-				}
-		  >
-		: never
+> = TAlias extends { [key in TTableName]: infer N } ? N extends number ? Simplify<
+			& Omit<TAlias, TTableName>
+			& {
+				[K in TTableName]: Increment<N>;
+			}
+		>
+	: never
 	: Omit<TAlias, TTableName> & { [Key in TTableName]: 2 };
 
 export type GetAliasIndex<
-	TTableName extends string,
+	TTableName extends TableName,
 	TAlias extends { [name: string]: number },
-> = TAlias extends { [name in TTableName]: infer N } ? (N extends number ? N : never) : 1;
+> = TAlias extends { [name in Unwrap<TTableName>]: infer N } ? (N extends number ? N : never) : 1;
 
 export type AppendToReturn<
 	TReturn,
-	TAlias extends string,
-	TSelectedFields extends PgSelectFields<string>,
-> = TReturn extends undefined
-	? { [Key in TAlias]: PartialSelectResult<string, TSelectedFields> }
-	: Simplify<TReturn & { [Key in TAlias]: PartialSelectResult<string, TSelectedFields> }>;
+	TAlias extends TableName,
+	TSelectedFields extends PgSelectFields<TableName>,
+> = TReturn extends undefined ? { [Key in Unwrap<TAlias>]: SelectResultFields<TableName, TSelectedFields> }
+	: Simplify<TReturn & { [Key in Unwrap<TAlias>]: SelectResultFields<TableName, TSelectedFields> }>;
+
+export type AppendToJoins<
+	TJoins extends { [k: string]: any },
+	TJoinedTable extends AnyPgTable,
+	TAlias extends { [name: string]: number },
+> = Simplify<
+	& TJoins
+	& {
+		[Alias in Unwrap<BuildAliasName<TJoinedTable, TAlias>>]: BuildAliasTable<TJoinedTable, TableName<Alias>>;
+	},
+	{
+		deep: true;
+	}
+>;

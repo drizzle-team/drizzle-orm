@@ -1,11 +1,13 @@
+import { ColumnData, ColumnDriverParam, TableName } from './branded-types';
 import { AnyColumn, Column } from './column';
 import { SelectFieldsOrdered } from './operations';
 import { tableColumns, tableName, tableRowMapper } from './utils';
 
 export type TableExtraConfig = Record<string, unknown>;
 
-export class Table<TName extends string> {
+export class Table<TName extends TableName> {
 	protected typeKeeper!: {
+		brand: 'Table';
 		name: TName;
 	};
 
@@ -16,18 +18,18 @@ export class Table<TName extends string> {
 	[tableColumns]!: Record<string, AnyColumn<TName>>;
 
 	/** @internal */
-	[tableRowMapper] = <TResult extends Record<string, unknown>>(
+	[tableRowMapper] = <TResult extends Record<string, ColumnData>>(
 		columns: SelectFieldsOrdered,
-		row: unknown[],
+		row: ColumnDriverParam[],
 	): TResult => {
-		const result = columns.reduce<Record<string, Record<string, unknown>>>(
-			(res, { name, column: columnOrRes }, index) => {
+		const result = columns.reduce<Record<string, Record<string, ColumnData>>>(
+			(res, { column: columnOrRes }, index) => {
 				const column = columnOrRes instanceof Column ? columnOrRes : columnOrRes.column;
 				const tName = column.table[tableName];
 				if (!(tName in res)) {
 					res[tName] = {};
 				}
-				const rawValue = row[index];
+				const rawValue = row[index]!;
 				res[tName]![column.name] = rawValue === null ? rawValue : column.mapFromDriverValue(rawValue);
 				return res;
 			},
@@ -46,4 +48,4 @@ export class Table<TName extends string> {
 	}
 }
 
-export type AnyTable<TName extends string = string> = Table<TName>;
+export type AnyTable<TName extends TableName = TableName> = Table<TName>;

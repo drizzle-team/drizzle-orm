@@ -1,26 +1,26 @@
-import { InferColumnType } from 'drizzle-orm';
-import { BuildColumns } from 'drizzle-orm/column-builder';
+import { GetColumnData } from 'drizzle-orm';
+import { TableName } from 'drizzle-orm/branded-types';
 import { OptionalKeyOnly, RequiredKeyOnly } from 'drizzle-orm/operations';
 import { Table } from 'drizzle-orm/table';
-import { tableColumns, TableName } from 'drizzle-orm/utils';
+import { GetTableName, tableColumns } from 'drizzle-orm/utils';
 import { Simplify } from 'type-fest';
 
-import { AnyPgColumn, AnyPgColumnBuilder } from './columns/common';
+import { AnyPgColumn, AnyPgColumnBuilder, BuildPgColumns } from './columns/common';
 import { AnyConstraintBuilder, BuildConstraint, Constraint, ConstraintBuilder } from './constraints';
 import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
 import { AnyIndexBuilder, BuildIndex, Index, IndexBuilder } from './indexes';
 import { tableConflictConstraints, tableConstraints, tableForeignKeys, tableIndexes } from './utils';
 
-export type PgTableExtraConfig<TTableName extends string, TTable extends AnyPgTable<TTableName>> = Record<
+export type PgTableExtraConfig<TTableName extends TableName, TTable extends AnyPgTable<TTableName>> = Record<
 	string,
 	| AnyIndexBuilder<TTableName, TTable>
 	| ConstraintBuilder<TTableName>
-	| ForeignKeyBuilder<TTableName, string>
+	| ForeignKeyBuilder<TTableName, TableName>
 >;
 
 export type AnyConflictConstraintBuilder<TTable extends AnyPgTable> =
-	| AnyIndexBuilder<TableName<TTable>>
-	| AnyConstraintBuilder<TableName<TTable>>;
+	| AnyIndexBuilder<GetTableName<TTable>>
+	| AnyConstraintBuilder<GetTableName<TTable>>;
 
 export type BuildConflictConstraint<T> = T extends AnyIndexBuilder ? BuildIndex<T>
 	: T extends AnyConstraintBuilder ? BuildConstraint<T>
@@ -41,10 +41,10 @@ export type BuildConflictConstraints<TConfig extends PgTableExtraConfig<any, any
 
 export type ConflictConstraint<TTable extends AnyPgTable> =
 	| Index<TTable, true>
-	| Constraint<TableName<TTable>>;
+	| Constraint<GetTableName<TTable>>;
 
 export class PgTable<
-	TName extends string,
+	TName extends TableName,
 	TConflictConstraints extends Record<string, ConflictConstraint<AnyPgTable>>,
 > extends Table<TName> {
 	protected override typeKeeper!: Table<TName>['typeKeeper'] & {
@@ -52,10 +52,13 @@ export class PgTable<
 	};
 
 	/** @internal */
+	[tableColumns]!: Record<string, AnyPgColumn<TName>>;
+
+	/** @internal */
 	[tableIndexes]: Record<string, Index<AnyPgTable<TName>, boolean>> = {};
 
 	/** @internal */
-	[tableForeignKeys]: Record<string, ForeignKey<TName, string>> = {};
+	[tableForeignKeys]: Record<string, ForeignKey<TName, TableName>> = {};
 
 	/** @internal */
 	[tableConstraints]: Record<string, Constraint<TName>> = {};
@@ -65,53 +68,53 @@ export class PgTable<
 }
 
 export type PgTableWithColumns<
-	TName extends string,
-	TColumns extends Record<string, AnyPgColumn>,
+	TName extends TableName,
+	TColumns extends Record<string, AnyPgColumn<TName>>,
 	TConflictConstraints extends Record<string, ConflictConstraint<AnyPgTable>>,
 > = PgTable<TName, TConflictConstraints> & TColumns;
 
-export type TableColumns<TTable extends AnyPgTable> = TTable extends PgTableWithColumns<
-	string,
+export type GetTableColumns<TTable extends AnyPgTable> = TTable extends PgTableWithColumns<
+	TableName,
 	infer TColumns,
 	any
 > ? TColumns
 	: never;
 
-export type TableConflictConstraints<TTable extends AnyPgTable> = TTable extends PgTable<
+export type GetTableConflictConstraints<TTable extends AnyPgTable> = TTable extends PgTable<
 	any,
 	infer TConflictConstraints
 > ? TConflictConstraints
 	: never;
 
-export type InferType<
+export type InferModel<
 	TTable extends AnyPgTable,
 	TInferMode extends 'select' | 'insert' = 'select',
 > = TInferMode extends 'insert' ? Simplify<
 		& {
 			[
-				Key in keyof TableColumns<TTable> & string as RequiredKeyOnly<
+				Key in keyof GetTableColumns<TTable> & string as RequiredKeyOnly<
 					Key,
-					TableColumns<TTable>[Key]
+					GetTableColumns<TTable>[Key]
 				>
-			]: InferColumnType<TableColumns<TTable>[Key], 'query'>;
+			]: GetColumnData<GetTableColumns<TTable>[Key], 'query'>;
 		}
 		& {
 			[
-				Key in keyof TableColumns<TTable> & string as OptionalKeyOnly<
+				Key in keyof GetTableColumns<TTable> & string as OptionalKeyOnly<
 					Key,
-					TableColumns<TTable>[Key]
+					GetTableColumns<TTable>[Key]
 				>
-			]?: InferColumnType<TableColumns<TTable>[Key], 'query'>;
+			]?: GetColumnData<GetTableColumns<TTable>[Key], 'query'>;
 		}
 	>
 	: {
-		[Key in keyof TableColumns<TTable>]: InferColumnType<
-			TableColumns<TTable>[Key],
+		[Key in keyof GetTableColumns<TTable>]: GetColumnData<
+			GetTableColumns<TTable>[Key],
 			'query'
 		>;
 	};
 
-export type AnyPgTable<TName extends string = string> = PgTable<TName, any>;
+export type AnyPgTable<TName extends TableName = TableName> = PgTable<TName, any>;
 
 export function pgTable<
 	TTableName extends string,
@@ -119,42 +122,48 @@ export function pgTable<
 >(
 	name: TTableName,
 	columns: TColumnsMap,
-): PgTableWithColumns<TTableName, BuildColumns<TTableName, TColumnsMap>, {}>;
+): PgTableWithColumns<TableName<TTableName>, BuildPgColumns<TableName<TTableName>, TColumnsMap>, {}>;
 export function pgTable<
 	TTableName extends string,
 	TColumnsMap extends Record<string, AnyPgColumnBuilder>,
-	TExtraConfig extends PgTableExtraConfig<TTableName, any>,
+	TExtraConfig extends PgTableExtraConfig<TableName<TTableName>, any>,
 >(
 	name: TTableName,
 	columns: TColumnsMap,
-	extraConfig: (self: BuildColumns<TTableName, TColumnsMap>) => TExtraConfig,
+	extraConfig: (self: BuildPgColumns<TableName<TTableName>, TColumnsMap>) => TExtraConfig,
 ): PgTableWithColumns<
-	TTableName,
-	BuildColumns<TTableName, TColumnsMap>,
+	TableName<TTableName>,
+	BuildPgColumns<TableName<TTableName>, TColumnsMap>,
 	BuildConflictConstraints<TExtraConfig>
 >;
 export function pgTable<
 	TTableName extends string,
 	TColumnsMap extends Record<string, AnyPgColumnBuilder>,
-	TExtraConfig extends PgTableExtraConfig<TTableName, any>,
+	TExtraConfig extends PgTableExtraConfig<TableName<TTableName>, any>,
 >(
 	name: TTableName,
 	columns: TColumnsMap,
-	extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => TExtraConfig,
+	extraConfig?: (self: BuildPgColumns<TableName<TTableName>, TColumnsMap>) => TExtraConfig,
 ): PgTableWithColumns<
-	TTableName,
-	BuildColumns<TTableName, TColumnsMap>,
+	TableName<TTableName>,
+	BuildPgColumns<TableName<TTableName>, TColumnsMap>,
 	BuildConflictConstraints<TExtraConfig>
 > {
-	const rawTable = new PgTable<TTableName, BuildConflictConstraints<TExtraConfig>>(name);
+	const rawTable = new PgTable<TableName<TTableName>, BuildConflictConstraints<TExtraConfig>>(
+		name as TableName<TTableName>,
+	);
 
 	const builtColumns = Object.fromEntries(
 		Object.entries(columns).map(([name, colConfig]) => [name, colConfig.build(rawTable)]),
-	) as BuildColumns<TTableName, TColumnsMap>;
+	) as BuildPgColumns<TableName<TTableName>, TColumnsMap>;
 
 	rawTable[tableColumns] = builtColumns;
 
-	const table = Object.assign(rawTable, builtColumns);
+	const table = Object.assign(rawTable, builtColumns) as PgTableWithColumns<
+		TableName<TTableName>,
+		BuildPgColumns<TableName<TTableName>, TColumnsMap>,
+		BuildConflictConstraints<TExtraConfig>
+	>;
 
 	table[tableColumns] = builtColumns;
 

@@ -3,36 +3,43 @@ import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableNa
 
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgTextBuilder<
-	TData extends string = string,
+export class PgJsonBuilder<
+	TData,
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
 	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
 > extends PgColumnBuilder<ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+	constructor(name: string) {
+		super(name);
+	}
+
 	/** @internal */
 	override build<TTableName extends TableName>(
 		table: AnyTable<TTableName>,
-	): PgText<TTableName, TNotNull, THasDefault, TData> {
-		return new PgText(table, this);
+	): PgJson<TTableName, TNotNull, THasDefault, TData> {
+		return new PgJson(table, this);
 	}
 }
 
-export class PgText<
+export class PgJson<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-	TData extends string,
+	TData,
 > extends PgColumn<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
-	protected brand!: 'PgText';
-
-	constructor(table: AnyTable<TTableName>, builder: PgTextBuilder<TData, TNotNull, THasDefault>) {
+	constructor(table: AnyTable<TTableName>, builder: PgJsonBuilder<TData, TNotNull, THasDefault>) {
 		super(table, builder);
 	}
 
 	getSQLType(): string {
-		return 'text';
+		return 'json';
+	}
+
+	// TODO: map from driver value
+	override mapFromDriverValue(value: ColumnDriverParam<string>): ColumnData<TData> {
+		return value as ColumnData<any>;
 	}
 }
 
-export function text<T extends string = string>(name: string) {
-	return new PgTextBuilder<T>(name);
+export function json<TData>(name: string) {
+	return new PgJsonBuilder<TData>(name);
 }

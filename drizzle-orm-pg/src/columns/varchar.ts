@@ -1,11 +1,13 @@
 import { AnyTable } from 'drizzle-orm';
+import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
 import { PgColumn, PgColumnBuilder } from './common';
 
 export class PgVarcharBuilder<
-	TNotNull extends boolean = false,
-	TDefault extends boolean = false,
-> extends PgColumnBuilder<PgVarchar<string, TNotNull, TDefault>, string, TNotNull, TDefault> {
+	TData extends ColumnData<string> = ColumnData<string>,
+	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
+	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
+> extends PgColumnBuilder<ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	/** @internal */ length: number | undefined;
 
 	constructor(name: string, length?: number) {
@@ -14,21 +16,24 @@ export class PgVarcharBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
+	override build<TTableName extends TableName>(
 		table: AnyTable<TTableName>,
-	): PgVarchar<TTableName, TNotNull, TDefault> {
+	): PgVarchar<TTableName, TData, TNotNull, THasDefault> {
 		return new PgVarchar(table, this);
 	}
 }
 
 export class PgVarchar<
-	TTableName extends string,
-	TNotNull extends boolean,
-	TDefault extends boolean,
-> extends PgColumn<TTableName, string, string, TNotNull, TDefault> {
+	TTableName extends TableName,
+	TData extends ColumnData<string>,
+	TNotNull extends ColumnNotNull,
+	THasDefault extends ColumnHasDefault,
+> extends PgColumn<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+	protected brand!: 'PgVarchar';
+
 	length: number | undefined;
 
-	constructor(table: AnyTable<TTableName>, builder: PgVarcharBuilder<TNotNull, TDefault>) {
+	constructor(table: AnyTable<TTableName>, builder: PgVarcharBuilder<TData, TNotNull, THasDefault>) {
 		super(table, builder);
 		this.length = builder.length;
 	}
@@ -38,6 +43,6 @@ export class PgVarchar<
 	}
 }
 
-export function varchar(name: string, length?: number) {
-	return new PgVarcharBuilder(name, length);
+export function varchar<T extends string = string>(name: string, length?: number) {
+	return new PgVarcharBuilder<ColumnData<T>>(name, length);
 }

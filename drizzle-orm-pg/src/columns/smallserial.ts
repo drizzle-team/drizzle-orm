@@ -3,7 +3,7 @@ import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableNa
 
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgSerialBuilder extends PgColumnBuilder<
+export class PgSmallSerialBuilder extends PgColumnBuilder<
 	ColumnData<number>,
 	ColumnDriverParam<number>,
 	ColumnNotNull<true>,
@@ -12,12 +12,12 @@ export class PgSerialBuilder extends PgColumnBuilder<
 	/** @internal */
 	override build<TTableName extends TableName>(
 		table: AnyTable<TTableName>,
-	): PgSerial<TTableName> {
-		return new PgSerial(table, this);
+	): PgSmallSerial<TTableName> {
+		return new PgSmallSerial(table, this);
 	}
 }
 
-export class PgSerial<TTableName extends TableName> extends PgColumn<
+export class PgSmallSerial<TTableName extends TableName> extends PgColumn<
 	TTableName,
 	ColumnData<number>,
 	ColumnDriverParam<number>,
@@ -31,6 +31,6 @@ export class PgSerial<TTableName extends TableName> extends PgColumn<
 	}
 }
 
-export function serial(name: string) {
-	return new PgSerialBuilder(name);
+export function smallserial(name: string) {
+	return new PgSmallSerialBuilder(name);
 }
