@@ -1872,7 +1872,7 @@ packages:
     dev: true
 
   file:drizzle-orm-pg/package.tgz_62jjsl7j24ddkfqklwbsnaigdi:
-    resolution: {integrity: sha512-1SFErpCbg0JKNU2pV9I8YClnLtq1+cj1txMTmHX69KjV6olq5kN97kR0fMKaPP0JemjRFw8xfKheZRQ56VQidA==, tarball: file:drizzle-orm-pg/package.tgz}
+    resolution: {integrity: sha512-N9DHkylWNCjFGzIM7WFJ5hM0MSjhykwNLOCjJ9kS3Q/yO5P1lPas39MbAoGEsFPNLT98Bbf0q50gawq4AqqUcA==, tarball: file:drizzle-orm-pg/package.tgz}
     id: file:drizzle-orm-pg/package.tgz
     name: drizzle-orm-pg
     version: 0.13.0

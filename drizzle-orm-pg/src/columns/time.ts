@@ -29,7 +29,7 @@ export class PgTime<
 		return 'time';
 	}
 
-	override mapToDriverValue(value: TType) {
+	override mapFromDriverValue(value: TType) {
 		return value;
 	}
 }

@@ -18,7 +18,7 @@ export class PgTimestampTz<
 	TTableName extends string,
 	TNotNull extends boolean,
 	TDefault extends boolean,
-> extends PgColumn<TTableName, string, Date, TNotNull, TDefault> {
+> extends PgColumn<TTableName, Date, string, TNotNull, TDefault> {
 	constructor(table: AnyTable<TTableName>, builder: PgTimestampTzBuilder<TNotNull, TDefault>) {
 		super(table, builder);
 	}
@@ -27,7 +27,7 @@ export class PgTimestampTz<
 		return 'timestamp with time zone';
 	}
 
-	override mapToDriverValue(value: string) {
+	override mapFromDriverValue(value: string) {
 		return new Date(value);
 	}
 }
@@ -65,12 +65,12 @@ export class PgTimestampTzString<
 		return 'timestamp with time zone';
 	}
 
-	override mapToDriverValue(value: string) {
+	override mapFromDriverValue(value: string) {
 		return value;
 	}
 }
 
-export function timestamptz(name: string, mode?: 'string'): PgTimestampTzStringBuilder;
+export function timestamptz(name: string, mode: 'string'): PgTimestampTzStringBuilder;
 export function timestamptz(name: string, mode?: 'date'): PgTimestampTzBuilder;
 export function timestamptz(name: string, mode: 'date' | 'string' = 'date') {
 	if (mode === 'date') {

@@ -5,7 +5,7 @@ import { PgColumn, PgColumnBuilder } from './common';
 export class PgDateBuilder<
 	TNotNull extends boolean = false,
 	TDefault extends boolean = false,
-> extends PgColumnBuilder<PgDate<string, TNotNull, TDefault>, string, TNotNull, TDefault> {
+> extends PgColumnBuilder<PgDate<string, TNotNull, TDefault>, Date, TNotNull, TDefault> {
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyTable<TTableName>,
@@ -18,7 +18,7 @@ export class PgDate<
 	TTableName extends string,
 	TNotNull extends boolean,
 	TDefault extends boolean,
-> extends PgColumn<TTableName, string, Date, TNotNull, TDefault> {
+> extends PgColumn<TTableName, Date, string, TNotNull, TDefault> {
 	constructor(table: AnyTable<TTableName>, builder: PgDateBuilder<TNotNull, TDefault>) {
 		super(table, builder);
 	}
@@ -27,7 +27,7 @@ export class PgDate<
 		return 'date';
 	}
 
-	override mapToDriverValue(value: string) {
+	override mapFromDriverValue(value: string): Date {
 		return new Date(value);
 	}
 }
@@ -57,12 +57,12 @@ export class PgDateString<
 		return 'date';
 	}
 
-	override mapToDriverValue(value: string) {
+	override mapFromDriverValue(value: string) {
 		return value;
 	}
 }
 
-export function date(name: string, mode?: 'string'): PgDateStringBuilder;
+export function date(name: string, mode: 'string'): PgDateStringBuilder;
 export function date(name: string, mode?: 'date'): PgDateBuilder;
 export function date(name: string, mode: 'date' | 'string' = 'date') {
 	if (mode === 'date') {
