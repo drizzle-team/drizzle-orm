@@ -42,7 +42,7 @@ export class PgEnum<
 	}
 }
 
-export function cretaeEnum<T extends string = string>(alias: string, values: T[]) {
+export function createEnum<T extends string = string>(alias: string, values: T[]) {
 	return (name: string) => new PgEnumBuilder<T>(name, alias, values);
 }
 
