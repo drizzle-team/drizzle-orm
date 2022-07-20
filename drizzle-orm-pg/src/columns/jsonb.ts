@@ -1,5 +1,4 @@
 import { AnyTable } from 'drizzle-orm';
-import { MappedParamValue } from 'drizzle-orm/sql';
 
 import { PgColumn, PgColumnBuilder } from './common';
 
@@ -39,6 +38,8 @@ export class PgJsonb<
 	}
 }
 
-export function jsonb<TData>(name: string) {
+export function jsonb<TData = any>(name: string) {
 	return new PgJsonbBuilder<TData>(name);
 }
+
+// const jsonColumn = jsonb<{ id: string }>('dbName');

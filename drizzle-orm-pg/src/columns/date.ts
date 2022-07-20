@@ -18,7 +18,7 @@ export class PgDate<
 	TTableName extends string,
 	TNotNull extends boolean,
 	TDefault extends boolean,
-> extends PgColumn<TTableName, Date, string, TNotNull, TDefault> {
+> extends PgColumn<TTableName, string, Date, TNotNull, TDefault> {
 	constructor(table: AnyTable<TTableName>, builder: PgDateBuilder<TNotNull, TDefault>) {
 		super(table, builder);
 	}
@@ -27,12 +27,49 @@ export class PgDate<
 		return 'date';
 	}
 
-	//@TODO fix mapping from pg to js types
-	override mapToDriverValue(value: Date) {
-		return value.toISOString();
+	override mapToDriverValue(value: string) {
+		return new Date(value);
 	}
 }
 
-export function date(name: string) {
-	return new PgDateBuilder(name);
+export class PgDateStringBuilder<
+	TNotNull extends boolean = false,
+	TDefault extends boolean = false,
+> extends PgColumnBuilder<PgDateString<string, TNotNull, TDefault>, string, TNotNull, TDefault> {
+	/** @internal */
+	override build<TTableName extends string>(
+		table: AnyTable<TTableName>,
+	): PgDateString<TTableName, TNotNull, TDefault> {
+		return new PgDateString(table, this);
+	}
 }
+
+export class PgDateString<
+	TTableName extends string,
+	TNotNull extends boolean,
+	TDefault extends boolean,
+> extends PgColumn<TTableName, string, string, TNotNull, TDefault> {
+	constructor(table: AnyTable<TTableName>, builder: PgDateStringBuilder<TNotNull, TDefault>) {
+		super(table, builder);
+	}
+
+	getSQLType(): string {
+		return 'date';
+	}
+
+	override mapToDriverValue(value: string) {
+		return value;
+	}
+}
+
+export function date(name: string, mode?: 'string'): PgDateStringBuilder;
+export function date(name: string, mode?: 'date'): PgDateBuilder;
+export function date(name: string, mode: 'date' | 'string' = 'date') {
+	if (mode === 'date') {
+		return new PgDateBuilder(name);
+	}
+	return new PgDateStringBuilder(name);
+}
+
+// const dateS = date('name').notNull();
+// const dateD = date('name', 'date').notNull();
