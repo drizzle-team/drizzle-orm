@@ -193,19 +193,15 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
   protected mapResponse(result: QueryResult<any>)
     : SelectResponseTwoJoins<TTable, TTable1, TTable2, TPartial, TPartial1, TPartial2> {
     const parent:
-    { [name in keyof ExtractModel<TTable1>]:
-      AbstractColumn<ColumnType>; } = this._join1.mappedServiceToDb;
+      { [name in keyof ExtractModel<TTable1>]:
+        AbstractColumn<ColumnType>; } = this._join1.mappedServiceToDb;
     const parentTwo:
-    { [name in keyof ExtractModel<TTable2>]:
-      AbstractColumn<ColumnType>; } = this._join2.mappedServiceToDb;
+      { [name in keyof ExtractModel<TTable2>]:
+        AbstractColumn<ColumnType>; } = this._join2.mappedServiceToDb;
 
     const response = this.fullOrPartial(this._table.mapServiceToDb(), result, this._partial);
     const objects = this.fullOrPartial(parent, result, this._joinedPartial, 1);
     const objectsTwo = this.fullOrPartial(parentTwo, result, this._joinedPartial1, 2);
-
-    console.log(objects);
-    console.log(objectsTwo);
-    console.log(response);
 
     return new SelectResponseTwoJoins(response, objects, objectsTwo);
   }
@@ -215,6 +211,6 @@ export default class SelectTRBWithTwoJoins<TTable extends AbstractTable<TTable>,
     id?: number
   }> {
     return [{ join: this._join1, partial: this._joinedPartial, id: 1 },
-      { join: this._join2, partial: this._joinedPartial1, id: 2 }];
+    { join: this._join2, partial: this._joinedPartial1, id: 2 }];
   }
 }
