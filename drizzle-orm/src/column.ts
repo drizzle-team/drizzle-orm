@@ -1,4 +1,11 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName, Unwrap } from './branded-types';
+import {
+	ColumnData,
+	ColumnDriverParam,
+	ColumnHasDefault,
+	ColumnNotNull,
+	TableName,
+	Unwrap,
+} from './branded-types';
 import { ColumnBuilder } from './column-builder';
 import { BoundParamValue, ParamValueMapper } from './sql';
 import { AnyTable } from './table';
@@ -9,7 +16,8 @@ export abstract class Column<
 	TDriverParam extends ColumnDriverParam,
 	TNotNull extends ColumnNotNull<boolean>,
 	THasDefault extends ColumnHasDefault<boolean>,
-> implements ParamValueMapper<TData, TDriverParam> {
+> implements ParamValueMapper<TData, TDriverParam>
+{
 	protected typeKeeper!: {
 		brand: 'Column';
 		tableName: Unwrap<TTableName>;
@@ -20,6 +28,14 @@ export abstract class Column<
 	};
 
 	readonly name: string;
+	readonly primary: boolean;
+	readonly references: (() => Column<
+		TableName,
+		TData,
+		ColumnDriverParam,
+		ColumnNotNull,
+		ColumnHasDefault
+	>)[] = [];
 	readonly notNull: TNotNull;
 	readonly default: TData | undefined;
 
@@ -30,6 +46,8 @@ export abstract class Column<
 		this.name = builder.name;
 		this.notNull = builder._notNull;
 		this.default = builder._default;
+		this.primary = builder._primaryKey;
+		this.references = builder._references;
 	}
 
 	abstract getSQLType(): string;
@@ -61,11 +79,12 @@ export function param<TDataType extends ColumnData, TDriverType extends ColumnDr
 export type GetColumnData<
 	TColumn,
 	TInferMode extends 'query' | 'raw' = 'query',
-> = TColumn extends Column<any, infer TData, any, infer TNotNull, any> ? TInferMode extends 'raw' // Raw mode
+> = TColumn extends Column<any, infer TData, any, infer TNotNull, any>
+	? TInferMode extends 'raw' // Raw mode
 		? Unwrap<TData> // Just return the underlying type
-	: TNotNull extends true // Query mode
+		: TNotNull extends true // Query mode
 		? Unwrap<TData> // Query mode, not null
-	: Unwrap<TData> | null // Query mode, nullable
+		: Unwrap<TData> | null // Query mode, nullable
 	: never;
 
 export type InferColumnDriverParam<TColumn extends AnyColumn> = TColumn extends Column<
@@ -74,14 +93,16 @@ export type InferColumnDriverParam<TColumn extends AnyColumn> = TColumn extends 
 	infer TDriverType,
 	ColumnNotNull,
 	ColumnHasDefault
-> ? Unwrap<TDriverType>
+>
+	? Unwrap<TDriverType>
 	: never;
 
 export type InferColumnsDataTypes<TColumns extends Record<string, AnyColumn>> = {
 	[Key in keyof TColumns]: GetColumnData<TColumns[Key], 'query'>;
 };
 
-export type InferColumnTable<T extends AnyColumn> = T extends AnyColumn<infer TTable> ? TTable
+export type InferColumnTable<T extends AnyColumn> = T extends AnyColumn<infer TTable>
+	? TTable
 	: never;
 
 export type ChangeColumnTable<
