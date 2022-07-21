@@ -1,13 +1,18 @@
 import { AnyTable } from 'drizzle-orm';
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
-import { PgColumn, PgColumnBuilder } from './common';
+import { PgColumn } from './common';
+import { PgDateColumnBaseBuilder } from './date-common';
 
 export class PgTimestampBuilder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
 	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends PgColumnBuilder<ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
-	constructor(name: string, private withTimezone: boolean) {
+> extends PgDateColumnBaseBuilder<ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+	constructor(
+		name: string,
+		public readonly withTimezone: boolean,
+		public readonly precision: number | undefined,
+	) {
 		super(name);
 	}
 
@@ -15,7 +20,7 @@ export class PgTimestampBuilder<
 	override build<TTableName extends TableName>(
 		table: AnyTable<TTableName>,
 	): PgTimestamp<TTableName, TNotNull, THasDefault> {
-		return new PgTimestamp(table, this, this.withTimezone);
+		return new PgTimestamp(table, this);
 	}
 }
 
@@ -26,16 +31,21 @@ export class PgTimestamp<
 > extends PgColumn<TTableName, ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgTimestamp';
 
+	public readonly withTimezone: boolean;
+	public readonly precision: number | undefined;
+
 	constructor(
 		table: AnyTable<TTableName>,
 		builder: PgTimestampBuilder<TNotNull, THasDefault>,
-		private withTimezone: boolean,
 	) {
 		super(table, builder);
+		this.withTimezone = builder.withTimezone;
+		this.precision = builder.precision;
 	}
 
 	getSQLType(): string {
-		return `timestamp${this.withTimezone ? ' with time zone' : ''}`;
+		const precision = typeof this.precision !== 'undefined' ? ` (${this.precision})` : '';
+		return `timestamp${precision}${this.withTimezone ? ' with time zone' : ''}`;
 	}
 
 	override mapFromDriverValue(value: ColumnDriverParam<string>): ColumnData<Date> {
@@ -46,8 +56,12 @@ export class PgTimestamp<
 export class PgTimestampStringBuilder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
 	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends PgColumnBuilder<ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
-	constructor(name: string, private withTimezone: boolean) {
+> extends PgDateColumnBaseBuilder<ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+	constructor(
+		name: string,
+		public readonly withTimezone: boolean,
+		public readonly precision: number | undefined,
+	) {
 		super(name);
 	}
 
@@ -55,7 +69,7 @@ export class PgTimestampStringBuilder<
 	override build<TTableName extends TableName>(
 		table: AnyTable<TTableName>,
 	): PgTimestampString<TTableName, TNotNull, THasDefault> {
-		return new PgTimestampString(table, this, this.withTimezone);
+		return new PgTimestampString(table, this);
 	}
 }
 
@@ -66,26 +80,38 @@ export class PgTimestampString<
 > extends PgColumn<TTableName, ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgTimestampString';
 
+	public readonly withTimezone: boolean;
+	public readonly precision: number | undefined;
+
 	constructor(
 		table: AnyTable<TTableName>,
 		builder: PgTimestampStringBuilder<TNotNull, THasDefault>,
-		private withTimezone: boolean,
 	) {
 		super(table, builder);
+		this.withTimezone = builder.withTimezone;
+		this.precision = builder.precision;
 	}
 
 	getSQLType(): string {
-		return `timestamp${this.withTimezone ? ' with time zone' : ''}`;
+		const precision = typeof this.precision !== 'undefined' ? ` (${this.precision})` : '';
+		return `timestamp${precision}${this.withTimezone ? ' with time zone' : ''}`;
 	}
 }
 
-export type TimestampConfig<TMode extends 'string' | 'date' = 'string' | 'date'> = {
-	mode: TMode;
-	withTimezone?: boolean;
-} | {
-	mode?: TMode;
-	withTimezone: boolean;
-};
+export type TimestampConfig<TMode extends 'string' | 'date' = 'string' | 'date'> =
+	& {
+		precision?: number;
+	}
+	& (
+		| {
+			mode: TMode;
+			withTimezone?: boolean;
+		}
+		| {
+			mode?: TMode;
+			withTimezone: boolean;
+		}
+	);
 
 export function timestamp<TWithTZ extends boolean>(
 	name: string,
@@ -97,7 +123,7 @@ export function timestamp<TWithTZ extends boolean>(
 ): PgTimestampStringBuilder;
 export function timestamp(name: string, config?: TimestampConfig) {
 	if (config?.mode === 'string') {
-		return new PgTimestampStringBuilder(name, config.withTimezone ?? false);
+		return new PgTimestampStringBuilder(name, config.withTimezone ?? false, config.precision);
 	}
-	return new PgTimestampBuilder(name, config?.withTimezone ?? false);
+	return new PgTimestampBuilder(name, config?.withTimezone ?? false, config?.precision);
 }

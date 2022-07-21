@@ -1,5 +1,6 @@
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName, Unwrap } from './branded-types';
 import { Column } from './column';
+import { AnySQL } from './sql';
 import { AnyTable } from './table';
 
 export abstract class ColumnBuilder<
@@ -38,7 +39,7 @@ export abstract class ColumnBuilder<
 	}
 
 	default(
-		value: Unwrap<TData>,
+		value: Unwrap<TData> | AnySQL,
 	): ColumnBuilder<TData, TDriverParam, TNotNull, ColumnHasDefault<true>> {
 		this._default = value as TData;
 		return this as ColumnBuilder<TData, TDriverParam, TNotNull, ColumnHasDefault<true>>;

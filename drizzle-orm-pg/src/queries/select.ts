@@ -198,20 +198,34 @@ export class PgSelect<
 	}
 
 	public orderBy(
-		orderBy:
+		columns: (
+			joins: TJoins,
+		) =>
+			| AnyPgSQL<TableName<keyof TJoins & string> | GetTableName<TTable>>[]
+			| AnyPgSQL<TableName<keyof TJoins & string> | GetTableName<TTable>>,
+	): PickOrderBy<this>;
+	public orderBy(
+		...columns: AnyPgSQL<GetTableName<TTable>>[]
+	): PickOrderBy<this>;
+	public orderBy(
+		firstColumn:
 			| ((
 				joins: TJoins,
 			) =>
 				| AnyPgSQL<TableName<keyof TJoins & string> | GetTableName<TTable>>[]
 				| AnyPgSQL<TableName<keyof TJoins & string> | GetTableName<TTable>>)
-			| (AnyPgSQL<GetTableName<TTable>>[] | AnyPgSQL<GetTableName<TTable>>),
+			| AnyPgSQL<GetTableName<TTable>>,
+		...otherColumns: AnyPgSQL<GetTableName<TTable>>[]
 	): PickOrderBy<this> {
-		if (orderBy instanceof SQL || Array.isArray(orderBy)) {
-			this.config.orderBy = Array.isArray(orderBy) ? orderBy : [orderBy];
+		let columns: AnyPgSQL[];
+		if (firstColumn instanceof SQL) {
+			columns = [firstColumn, ...otherColumns];
 		} else {
-			const orderByRes = orderBy(this._joins);
-			this.config.orderBy = Array.isArray(orderByRes) ? orderByRes : [orderByRes];
+			const firstColumnResult = firstColumn(this._joins);
+			columns = [...(Array.isArray(firstColumnResult) ? firstColumnResult : [firstColumnResult]), ...otherColumns];
 		}
+		this.config.orderBy = columns;
+
 		return this;
 	}
 

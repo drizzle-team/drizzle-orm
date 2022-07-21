@@ -33,6 +33,6 @@ export class PgInteger<
 	}
 }
 
-export function int(name: string) {
+export function integer(name: string) {
 	return new PgIntegerBuilder(name);
 }
