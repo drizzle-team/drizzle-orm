@@ -30,18 +30,18 @@ export type SelectResultFields<
 	}
 >;
 
-export class PgTableOperations<TTable extends AnyPgTable> {
+export class PgTableOperations<TTable extends AnyPgTable, TTableNamesMap extends Record<string, string>> {
 	constructor(
 		protected table: TTable,
 		private session: PgSession,
 		private dialect: AnyPgDialect,
 	) {}
 
-	select(): PgSelect<TTable, InferModel<TTable>>;
+	select(): PgSelect<TTable, TTableNamesMap, InferModel<TTable>>;
 	select<TSelectedFields extends PgSelectFields<GetTableName<TTable>>>(
 		fields: TSelectedFields,
-	): PgSelect<TTable, SelectResultFields<GetTableName<TTable>, TSelectedFields>>;
-	select(fields?: PgSelectFields<GetTableName<TTable>>): PgSelect<TTable, any> {
+	): PgSelect<TTable, TTableNamesMap, SelectResultFields<GetTableName<TTable>, TSelectedFields>>;
+	select(fields?: PgSelectFields<GetTableName<TTable>>): PgSelect<TTable, TTableNamesMap, any> {
 		const fieldsOrdered = this.dialect.orderSelectedFields(
 			fields ?? this.table[tableColumns] as PgSelectFields<GetTableName<TTable>>,
 		);

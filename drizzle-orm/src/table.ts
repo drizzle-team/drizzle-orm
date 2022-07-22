@@ -23,14 +23,14 @@ export class Table<TName extends TableName> {
 		row: ColumnDriverParam[],
 	): TResult => {
 		const result = columns.reduce<Record<string, Record<string, ColumnData>>>(
-			(res, { column: columnOrRes }, index) => {
+			(res, { name, column: columnOrRes }, index) => {
 				const column = columnOrRes instanceof Column ? columnOrRes : columnOrRes.column;
 				const tName = column.table[tableName];
 				if (!(tName in res)) {
 					res[tName] = {};
 				}
 				const rawValue = row[index]!;
-				res[tName]![column.name] = rawValue === null ? rawValue : column.mapFromDriverValue(rawValue);
+				res[tName]![name] = rawValue === null ? rawValue : column.mapFromDriverValue(rawValue);
 				return res;
 			},
 			{},

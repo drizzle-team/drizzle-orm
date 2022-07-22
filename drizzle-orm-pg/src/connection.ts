@@ -1,5 +1,5 @@
 import { Column, Connector, Dialect, Driver, Session, sql } from 'drizzle-orm';
-import { ColumnData, TableName } from 'drizzle-orm/branded-types';
+import { ColumnData, TableName, Unwrap } from 'drizzle-orm/branded-types';
 import { Name, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
 import { GetTableName, tableColumns, tableName } from 'drizzle-orm/utils';
 import { Client, Pool, PoolClient, QueryResult, QueryResultRow, types } from 'pg';
@@ -175,7 +175,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 			.flat(1);
 	}
 
-	public buildSelectQuery({
+	public buildSelectQuery<TTableName extends TableName>({
 		fields,
 		where,
 		table,
@@ -183,7 +183,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		orderBy,
 		limit,
 		offset,
-	}: PgSelectConfig): AnyPgSQL {
+	}: PgSelectConfig): AnyPgSQL<TTableName> {
 		const sqlFields = sql.fromList(this.prepareTableFieldsForQuery(fields));
 
 		const joinsArray: AnyPgSQL[] = [];
@@ -260,10 +260,14 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 
 export type AnyPgDialect = PgDialect<Record<string, AnyPgTable>>;
 
+export type BuildTableNamesMap<TSchema extends Record<string, AnyPgTable>> = {
+	[Key in keyof TSchema & string as Unwrap<GetTableName<TSchema[Key]>>]: Key;
+};
+
 export type PGDatabase<TSchema extends Record<string, AnyPgTable>> = Simplify<
 	& {
-		[TTableName in keyof TSchema & string]: TSchema[TTableName] extends AnyPgTable<TableName<TTableName>>
-			? PgTableOperations<TSchema[TTableName]>
+		[TTableName in keyof TSchema & string]: TSchema[TTableName] extends AnyPgTable<TableName>
+			? PgTableOperations<TSchema[TTableName], BuildTableNamesMap<TSchema>>
 			: never;
 	}
 	& {

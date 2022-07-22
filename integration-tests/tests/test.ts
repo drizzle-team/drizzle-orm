@@ -6,7 +6,7 @@ import { and, asc, desc, eq, max, or, plus } from 'drizzle-orm/expressions';
 import { Pool } from 'pg';
 
 export const users = pgTable(
-	'users',
+	'users2',
 	{
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
@@ -68,7 +68,7 @@ async function main() {
 	});
 	const client = await pool.connect();
 	// const realDb = await connect(new PgConnector(client, { users, cities }));
-	const db = await connect(new PgTestConnector({ users, cities }));
+	const db = await connect(new PgTestConnector({ users, cities, classes }));
 
 	// const selectResult = await realDb.users
 	// 	.select({

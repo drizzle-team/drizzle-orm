@@ -61,7 +61,10 @@ export function foreignKey<
 		foreignTable: AnyPgTable<TForeignTableName>,
 		foreignColumns: ColumnsWithTable<TForeignTableName, TColumns>,
 	],
-) {
+): ForeignKeyBuilder<
+	GetColumnsTable<TColumns>,
+	TForeignTableName
+> {
 	function mappedConfig() {
 		const [columns, foreignTable, foreignColumns] = config();
 		return [
@@ -75,8 +78,5 @@ export function foreignKey<
 		] as const;
 	}
 
-	return new ForeignKeyBuilder(mappedConfig) as ForeignKeyBuilder<
-		GetColumnsTable<TColumns>,
-		TForeignTableName
-	>;
+	return new ForeignKeyBuilder(mappedConfig);
 }

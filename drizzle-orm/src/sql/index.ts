@@ -24,7 +24,17 @@ export interface PreparedQuery<TDriverParam extends ColumnDriverParam = ColumnDr
 	params: TDriverParam[];
 }
 
-export class SQL<TTableName extends TableName> {
+export interface SQLWrapper {
+	getSQL(): AnySQL;
+}
+
+export function isSQLWrapper(
+	param: unknown,
+): param is SQLWrapper {
+	return !!param && 'getSQL' in param;
+}
+
+export class SQL<TTableName extends TableName> implements SQLWrapper {
 	protected typeKeeper!: {
 		brand: 'SQL';
 		tableName: TTableName;
@@ -64,9 +74,13 @@ export class SQL<TTableName extends TableName> {
 
 		return { sql: sqlString, params: params as ColumnDriverParam<TDriverParamType>[] };
 	}
+
+	getSQL(): AnySQL<TTableName> {
+		return this;
+	}
 }
 
-export type AnySQL<TTableName extends TableName = TableName> = SQL<TTableName>;
+export type AnySQL<TTableName extends TableName = TableName<any>> = SQL<TTableName>;
 
 /**
  * Any DB name (table, column, index etc.)
@@ -101,6 +115,7 @@ export type AnyBoundParamValue = BoundParamValue<any, any>;
 export type SQLSourceParam<TTableName extends TableName> =
 	| SQLSourceParam<TTableName>[]
 	| ColumnData
+	| SQLWrapper
 	| AnySQL<TTableName>
 	| AnyTable<TTableName>
 	| AnyColumn<TTableName>
@@ -122,6 +137,8 @@ function buildChunksFromParam<TTableName extends TableName>(param: SQLSourcePara
 		return result;
 	} else if (param instanceof SQL) {
 		return param.queryChunks;
+	} else if (isSQLWrapper(param)) {
+		return buildChunksFromParam(param.getSQL());
 	} else if (
 		param instanceof Table
 		|| param instanceof Column
