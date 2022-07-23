@@ -1,6 +1,6 @@
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 import { AnyPgTable } from '../table';
-import { PgColumn, PgColumnBuilder } from './common';
+import { PgColumnBuilder, PgColumnWithMapper } from './common';
 
 export class PgIntegerBuilder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
@@ -18,19 +18,25 @@ export class PgInteger<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumn<TTableName, ColumnData<number>, ColumnDriverParam<number | string>, TNotNull, THasDefault> {
+> extends PgColumnWithMapper<
+	TTableName,
+	ColumnData<number>,
+	ColumnDriverParam<number | string>,
+	TNotNull,
+	THasDefault
+> {
 	protected brand!: 'PgInteger';
 
 	getSQLType(): string {
 		return 'integer';
 	}
 
-	override mapFromDriverValue(value: ColumnDriverParam<number | string>): ColumnData<number> {
+	override mapFromDriverValue = (value: ColumnDriverParam<number | string>): ColumnData<number> => {
 		if (typeof value === 'string') {
 			return parseInt(value) as ColumnData<number>;
 		}
 		return value as ColumnData<any>;
-	}
+	};
 }
 
 export function integer(name: string) {

@@ -1,7 +1,7 @@
 import { AnyTable } from 'drizzle-orm';
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
-import { PgColumn, PgColumnBuilder } from './common';
+import { PgColumnBuilder, PgColumnWithMapper } from './common';
 
 export class PgEnum<TValues extends string> {
 	constructor(
@@ -36,7 +36,7 @@ export class PgEnumColumn<
 	TData extends ColumnData<string>,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumn<TTableName, TData, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends PgColumnWithMapper<TTableName, TData, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgEnumColumn';
 
 	constructor(

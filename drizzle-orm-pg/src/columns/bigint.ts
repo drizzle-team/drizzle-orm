@@ -1,7 +1,7 @@
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
 import { AnyPgTable } from '~/table';
-import { PgColumn, PgColumnBuilder } from './common';
+import { PgColumnBuilder, PgColumnWithMapper } from './common';
 
 export class PgBigInt53Builder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
@@ -19,19 +19,25 @@ export class PgBigInt53<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumn<TTableName, ColumnData<number>, ColumnDriverParam<number | string>, TNotNull, THasDefault> {
+> extends PgColumnWithMapper<
+	TTableName,
+	ColumnData<number>,
+	ColumnDriverParam<number | string>,
+	TNotNull,
+	THasDefault
+> {
 	brand!: 'PgBigInt53';
 
 	getSQLType(): string {
 		return 'bigint';
 	}
 
-	override mapFromDriverValue(value: ColumnDriverParam<number | string>): ColumnData<number> {
+	override mapFromDriverValue = (value: ColumnDriverParam<number | string>): ColumnData<number> => {
 		if (typeof value === 'number') {
-			return value as ColumnData<any>;
+			return value as number as ColumnData<number>;
 		}
 		return parseInt(value) as ColumnData<number>;
-	}
+	};
 }
 
 export class PgBigInt64Builder<
@@ -50,16 +56,16 @@ export class PgBigInt64<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumn<TTableName, ColumnData<bigint>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends PgColumnWithMapper<TTableName, ColumnData<bigint>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	brand!: 'PgBigInt64';
 
 	getSQLType(): string {
 		return 'bigint';
 	}
 
-	override mapFromDriverValue(value: ColumnDriverParam<string>): ColumnData<bigint> {
+	override mapFromDriverValue = (value: ColumnDriverParam<string>): ColumnData<bigint> => {
 		return BigInt(value) as ColumnData<bigint>;
-	}
+	};
 }
 
 export function bigint(name: string, maxBytes: 'max_bytes_53' | 'max_bytes_64') {

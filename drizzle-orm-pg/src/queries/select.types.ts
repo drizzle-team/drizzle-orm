@@ -4,12 +4,12 @@ import { GetTableName } from 'drizzle-orm/utils';
 import { Simplify } from 'type-fest';
 
 import { AnyPgColumn } from '~/columns';
-import { PgSelectFields, PgSelectFieldsOrdered, SelectResultFields } from '~/operations';
+import { PgSelectFields, SelectResultFields } from '~/operations';
 import { AnyPgSQL } from '~/sql';
-import { AnyPgTable, GetTableColumns, InferModel } from '~/table';
+import { AnyPgTable, GetTableColumns } from '~/table';
 import { PgSelect } from './select';
 
-export type JoinType = 'inner' | 'left' | 'right' | 'full';
+export type JoinType = 'inner' | 'left' | 'right' | 'full' | 'full outer';
 
 export interface JoinsValue {
 	on: AnyPgSQL;
@@ -45,7 +45,7 @@ export type BuildAliasName<
 	TTable extends AnyPgTable,
 	TTableNamesMap extends Record<string, string>,
 	TAlias extends { [name: string]: number },
-> = TableName<`${TTableNamesMap[Unwrap<GetTableName<TTable>>]}${GetAliasIndex<GetTableName<TTable>, TAlias>}`>;
+> = `${TTableNamesMap[Unwrap<GetTableName<TTable>>]}${GetAliasIndex<GetTableName<TTable>, TAlias>}`;
 
 export type BuildAliasTable<TTable extends AnyPgTable, TAlias extends TableName> = MapColumnsToTableAlias<
 	GetTableColumns<TTable>,
@@ -95,7 +95,7 @@ export type AppendToJoins<
 > = Simplify<
 	& TJoins
 	& {
-		[Alias in Unwrap<BuildAliasName<TJoinedTable, TTableNamesMap, TAlias>>]: BuildAliasTable<
+		[Alias in BuildAliasName<TJoinedTable, TTableNamesMap, TAlias>]: BuildAliasTable<
 			TJoinedTable,
 			TableName<Alias>
 		>;

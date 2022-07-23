@@ -5,10 +5,12 @@ importers:
   .:
     specifiers:
       '@trivago/prettier-plugin-sort-imports': ^3.2.0
+      dprint: ^0.30.3
       prettier: ^2.7.1
       typescript: 4.8.0-beta
     devDependencies:
       '@trivago/prettier-plugin-sort-imports': 3.3.0_prettier@2.7.1
+      dprint: 0.30.3
       prettier: 2.7.1
       typescript: 4.8.0-beta
 
@@ -16,7 +18,6 @@ importers:
     specifiers:
       '@types/pg': ^8.6.1
       '@types/sqlite3': ^3.1.8
-      dprint: ^0.30.3
       mysql2: ^2.3.3
       pg: ^8.6.0
       resolve-tspaths: ^0.7.0
@@ -24,13 +25,12 @@ importers:
       ts-node: ^10.8.2
       type-fest: ^2.16.0
       typescript: 4.8.0-beta
-      uvu: ^0.5.3
+      uvu: ^0.5.6
     dependencies:
       type-fest: 2.16.0
     devDependencies:
       '@types/pg': 8.6.5
       '@types/sqlite3': 3.1.8
-      dprint: 0.30.3
       mysql2: 2.3.3
       pg: 8.7.3
       resolve-tspaths: 0.7.1_typescript@4.8.0-beta
@@ -1848,7 +1848,7 @@ packages:
     dev: true
 
   /yauzl/2.10.0:
-    resolution: {integrity: sha512-p4a9I6X6nu6IhoGmBqAcbJy1mlC4j27vEPZX9F4L4/vZT3Lyq1VkFHw/V/PUcB9Buo+DG3iHkT0x3Qya58zc3g==}
+    resolution: {integrity: sha1-x+sXyT4RLLEIb6bY5R+wZnt5pfk=}
     dependencies:
       buffer-crc32: 0.2.13
       fd-slicer: 1.1.0
@@ -1877,7 +1877,7 @@ packages:
     dev: true
 
   file:drizzle-orm-pg/package.tgz_62jjsl7j24ddkfqklwbsnaigdi:
-    resolution: {integrity: sha512-TrMT+Ojn5HoQRjkUdkbhPWhfjDSNQy6005hhp+0eAw2KcqSK7SLzp9eVANdty5lWrU11CacFc5eAZTpzb3Ry5w==, tarball: file:drizzle-orm-pg/package.tgz}
+    resolution: {integrity: sha512-BrCX2rPIz+2Z774Bwfsb9iGtDbnBs9suBvawASIPYHzLganX+UMlrAMLoo0d2kLaUVjMIu03OuVD1mAlhf3TgQ==, tarball: file:drizzle-orm-pg/package.tgz}
     id: file:drizzle-orm-pg/package.tgz
     name: drizzle-orm-pg
     version: 0.13.0
@@ -1893,7 +1893,7 @@ packages:
     dev: true
 
   file:drizzle-orm/package.tgz_7hcodi3q7h43rkh7k75lwwx3zm:
-    resolution: {integrity: sha512-GM5jToqs7m3i8n4Ggu2Z2l6VYZ9dljNs+FMz3Zo1Gfrc+HHeaUKsUd3s1pcfpL4VHvK5dRQ8i1MfilCG0ZI21A==, tarball: file:drizzle-orm/package.tgz}
+    resolution: {integrity: sha512-qnFtkYLLMsecmyd3RjKPxU1J417iuZy6DDGcKUK4SAxdQtf91gqlTTge036cW4b7LEFj6X3vFcrREzvXBH86TQ==, tarball: file:drizzle-orm/package.tgz}
     id: file:drizzle-orm/package.tgz
     name: drizzle-orm
     version: 0.13.0

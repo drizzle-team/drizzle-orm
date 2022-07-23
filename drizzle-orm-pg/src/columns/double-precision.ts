@@ -1,7 +1,7 @@
 import { AnyTable } from 'drizzle-orm';
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
-import { PgColumn, PgColumnBuilder } from './common';
+import { PgColumnBuilder, PgColumnWithMapper } from './common';
 
 export class PgDoublePrecisionBuilder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
@@ -31,7 +31,13 @@ export class PgDoublePrecision<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumn<TTableName, ColumnData<number>, ColumnDriverParam<string | number>, TNotNull, THasDefault> {
+> extends PgColumnWithMapper<
+	TTableName,
+	ColumnData<number>,
+	ColumnDriverParam<string | number>,
+	TNotNull,
+	THasDefault
+> {
 	protected brand!: 'PgDoublePrecision';
 
 	constructor(
@@ -45,12 +51,12 @@ export class PgDoublePrecision<
 		return 'double precision';
 	}
 
-	override mapFromDriverValue(value: ColumnDriverParam<string | number>): ColumnData<number> {
+	override mapFromDriverValue = (value: ColumnDriverParam<string | number>): ColumnData<number> => {
 		if (typeof value === 'string') {
 			return parseFloat(value) as ColumnData<number>;
 		}
 		return value as ColumnData<any>;
-	}
+	};
 }
 
 export function doublePrecision(name: string) {

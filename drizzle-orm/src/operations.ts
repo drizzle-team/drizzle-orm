@@ -1,4 +1,4 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from './branded-types';
+import { ColumnData, ColumnDriverParam, TableName } from './branded-types';
 import { AnyColumn, Column } from './column';
 import { AnySQLResponse, SQLResponse } from './sql';
 
@@ -23,7 +23,7 @@ export type SelectFields<
 > = {
 	[key: string]:
 		| SQLResponse<TTableName, ColumnData>
-		| Column<TTableName, ColumnData, TColumnDriverParam, ColumnNotNull, ColumnHasDefault>;
+		| AnyColumn<TTableName, any, TColumnDriverParam>;
 };
 
 export type SelectFieldsOrdered = { name: string; column: AnyColumn | AnySQLResponse }[];

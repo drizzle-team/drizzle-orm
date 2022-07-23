@@ -1,5 +1,5 @@
 import { GetColumnData } from 'drizzle-orm';
-import { ColumnData, TableName, Unwrap } from 'drizzle-orm/branded-types';
+import { TableName, Unwrap } from 'drizzle-orm/branded-types';
 import { SelectFields } from 'drizzle-orm/operations';
 import { AnySQLResponse, SQLResponse } from 'drizzle-orm/sql';
 import { GetTableName, tableColumns } from 'drizzle-orm/utils';

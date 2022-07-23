@@ -1,12 +1,15 @@
 export const brand = Symbol('brand');
 export const value = Symbol('value');
 
-export type Brand<T, TName> = T & {
+export type Brand<T, TName extends string> = T & {
 	[brand]: TName;
 	[value]: T;
 };
 
-export type AnyBrand = Brand<any, any>;
+export type AnyBrand = {
+	[brand]: any;
+	[value]: any;
+};
 
 export type Unwrap<T extends AnyBrand> = T extends { [value]: infer TValue } ? TValue : never;
 

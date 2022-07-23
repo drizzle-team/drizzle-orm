@@ -1,7 +1,7 @@
 import { AnyTable } from 'drizzle-orm';
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
-import { PgColumn, PgColumnBuilder } from './common';
+import { PgColumnBuilder, PgColumnWithMapper } from './common';
 
 export class PgJsonBuilder<
 	TData,
@@ -25,7 +25,7 @@ export class PgJson<
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
 	TData,
-> extends PgColumn<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends PgColumnWithMapper<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgJson';
 
 	constructor(table: AnyTable<TTableName>, builder: PgJsonBuilder<TData, TNotNull, THasDefault>) {
@@ -36,10 +36,9 @@ export class PgJson<
 		return 'json';
 	}
 
-	// TODO: map from driver value
-	override mapFromDriverValue(value: ColumnDriverParam<string>): ColumnData<TData> {
-		return value as ColumnData<any>;
-	}
+	override mapFromDriverValue = (value: ColumnDriverParam<string>): ColumnData<TData> => {
+		return value as TData as ColumnData<TData>;
+	};
 }
 
 export function json<TData>(name: string) {

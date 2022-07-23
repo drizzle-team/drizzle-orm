@@ -9,14 +9,14 @@ export abstract class Column<
 	TDriverParam extends ColumnDriverParam,
 	TNotNull extends ColumnNotNull<boolean>,
 	THasDefault extends ColumnHasDefault<boolean>,
-> implements ParamValueMapper<TData, TDriverParam> {
+> implements ParamValueMapper<any, any> {
 	protected typeKeeper!: {
 		brand: 'Column';
-		tableName: Unwrap<TTableName>;
-		type: Unwrap<TData>;
-		driverType: Unwrap<TDriverParam>;
-		notNull: Unwrap<TNotNull>;
-		default: Unwrap<THasDefault>;
+		tableName: TTableName;
+		type: TData;
+		driverType: TDriverParam;
+		notNull: TNotNull;
+		default: THasDefault;
 	};
 
 	readonly name: string;
@@ -42,27 +42,57 @@ export abstract class Column<
 		this.references = builder._references;
 	}
 
+	/*
+		mapFromDriverValue and mapToDriverValue are provided just as a runtime fallback - if you need to override them,
+		extend the ColumnWithMapper class instead for proper type-checking.
+	*/
+	mapFromDriverValue = (value: any): any => {
+		return value;
+	};
+
+	mapToDriverValue = (value: any): any => {
+		return value;
+	};
+
 	abstract getSQLType(): string;
-
-	mapFromDriverValue(value: TDriverParam): TData {
-		return value as unknown as TData;
-	}
-
-	mapToDriverValue(value: TData): TDriverParam {
-		return value as unknown as TDriverParam;
-	}
 }
 
-export type AnyColumn<TTableName extends TableName = TableName> = Column<
-	TTableName,
-	ColumnData,
-	ColumnDriverParam,
-	ColumnNotNull,
-	ColumnHasDefault
->;
+export abstract class ColumnWithMapper<
+	TTableName extends TableName<string>,
+	TData extends ColumnData,
+	TDriverParam extends ColumnDriverParam,
+	TNotNull extends ColumnNotNull<boolean>,
+	THasDefault extends ColumnHasDefault<boolean>,
+> extends Column<TTableName, TData, TDriverParam, TNotNull, THasDefault>
+	implements ParamValueMapper<TData, TDriverParam>
+{
+	override mapFromDriverValue = (value: Unwrap<TDriverParam>): Unwrap<TData> => {
+		return value as any;
+	};
+
+	override mapToDriverValue = (value: Unwrap<TData>): Unwrap<TDriverParam> => {
+		return value as any;
+	};
+}
+
+export type AnyColumn<
+	TTableName extends TableName = TableName,
+	TData extends ColumnData = any,
+	TDriverParam extends ColumnDriverParam = any,
+	TNotNull extends ColumnNotNull = ColumnNotNull,
+	THasDefault extends ColumnHasDefault = ColumnHasDefault,
+> = Column<TTableName, TData, TDriverParam, TNotNull, THasDefault>;
+
+export type AnyColumnWithMapper<
+	TTableName extends TableName = TableName,
+	TData extends ColumnData = any,
+	TDriverParam extends ColumnDriverParam = any,
+	TNotNull extends ColumnNotNull = ColumnNotNull,
+	THasDefault extends ColumnHasDefault = ColumnHasDefault,
+> = ColumnWithMapper<TTableName, TData, TDriverParam, TNotNull, THasDefault>;
 
 export function param<TDataType extends ColumnData, TDriverType extends ColumnDriverParam>(
-	column: Column<any, TDataType, TDriverType, any, any>,
+	column: AnyColumn<any, TDataType, TDriverType>,
 	value: Unwrap<TDataType>,
 ): BoundParamValue<TDataType, TDriverType> {
 	return new BoundParamValue(value as TDataType, column);
@@ -71,11 +101,14 @@ export function param<TDataType extends ColumnData, TDriverType extends ColumnDr
 export type GetColumnData<
 	TColumn,
 	TInferMode extends 'query' | 'raw' = 'query',
-> = TColumn extends Column<any, infer TData, any, infer TNotNull, any> ? TInferMode extends 'raw' // Raw mode
+> =
+	// dprint-ignore
+	TColumn extends Column<any, infer TData, any, infer TNotNull, any>
+	? TInferMode extends 'raw' // Raw mode
 		? Unwrap<TData> // Just return the underlying type
-	: TNotNull extends true // Query mode
-		? Unwrap<TData> // Query mode, not null
-	: Unwrap<TData> | null // Query mode, nullable
+		: TNotNull extends true // Query mode
+			? Unwrap<TData> // Query mode, not null
+			: Unwrap<TData> | null // Query mode, nullable
 	: never;
 
 export type InferColumnDriverParam<TColumn extends AnyColumn> = TColumn extends Column<
@@ -98,5 +131,5 @@ export type ChangeColumnTable<
 	TColumn extends AnyColumn,
 	TTableName extends TableName,
 > = TColumn extends Column<any, infer TType, infer TDriverType, infer TNotNull, infer THasDefault>
-	? Column<TTableName, TType, TDriverType, TNotNull, THasDefault>
+	? ColumnWithMapper<TTableName, TType, TDriverType, TNotNull, THasDefault>
 	: never;

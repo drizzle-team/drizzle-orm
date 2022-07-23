@@ -1,7 +1,7 @@
 import { AnyTable } from 'drizzle-orm';
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
-import { PgColumn } from './common';
+import { PgColumnWithMapper } from './common';
 import { PgDateColumnBaseBuilder } from './date-common';
 
 export class PgTimestampBuilder<
@@ -28,7 +28,7 @@ export class PgTimestamp<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumn<TTableName, ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends PgColumnWithMapper<TTableName, ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgTimestamp';
 
 	public readonly withTimezone: boolean;
@@ -48,9 +48,9 @@ export class PgTimestamp<
 		return `timestamp${precision}${this.withTimezone ? ' with time zone' : ''}`;
 	}
 
-	override mapFromDriverValue(value: ColumnDriverParam<string>): ColumnData<Date> {
+	override mapFromDriverValue = (value: ColumnDriverParam<string>): ColumnData<Date> => {
 		return new Date(value) as ColumnData<Date>;
-	}
+	};
 }
 
 export class PgTimestampStringBuilder<
@@ -77,7 +77,7 @@ export class PgTimestampString<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumn<TTableName, ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends PgColumnWithMapper<TTableName, ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgTimestampString';
 
 	public readonly withTimezone: boolean;

@@ -1,7 +1,7 @@
 import { AnyTable } from 'drizzle-orm';
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
-import { PgColumn, PgColumnBuilder } from './common';
+import { PgColumnBuilder, PgColumnWithMapper } from './common';
 
 export class PgVarcharBuilder<
 	TData extends ColumnData<string> = ColumnData<string>,
@@ -28,7 +28,7 @@ export class PgVarchar<
 	TData extends ColumnData<string>,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumn<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends PgColumnWithMapper<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgVarchar';
 
 	length: number | undefined;

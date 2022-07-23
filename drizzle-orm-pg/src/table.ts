@@ -74,7 +74,7 @@ export type PgTableWithColumns<
 > = PgTable<TName, TConflictConstraints> & TColumns;
 
 export type GetTableColumns<TTable extends AnyPgTable> = TTable extends PgTableWithColumns<
-	TableName,
+	any,
 	infer TColumns,
 	any
 > ? TColumns

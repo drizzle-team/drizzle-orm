@@ -8,7 +8,7 @@ import {
 	Unwrap,
 } from 'drizzle-orm/branded-types';
 
-import { PgColumn, PgColumnBuilder } from './common';
+import { PgColumnBuilder, PgColumnWithMapper } from './common';
 
 export class PgIntervalBuilder<
 	TData extends ColumnData<string> = ColumnData<string>,
@@ -32,7 +32,7 @@ export class PgInterval<
 	TData extends ColumnData<string>,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumn<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends PgColumnWithMapper<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgTime';
 
 	public readonly config: IntervalConfig;
@@ -48,9 +48,9 @@ export class PgInterval<
 		return `interval${fields}${precision}`;
 	}
 
-	override mapFromDriverValue(value: ColumnDriverParam<string>): ColumnData<TData> {
+	override mapFromDriverValue = (value: ColumnDriverParam<string>): ColumnData<TData> => {
 		return value as Unwrap<TData> as ColumnData<TData>;
-	}
+	};
 }
 
 export interface IntervalConfig {

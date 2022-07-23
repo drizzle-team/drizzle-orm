@@ -1,7 +1,7 @@
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
 import { AnyPgTable } from '~/table';
-import { PgColumn, PgColumnBuilder } from './common';
+import { PgColumnBuilder, PgColumnWithMapper } from './common';
 
 export class PgBooleanBuilder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
@@ -24,7 +24,7 @@ export class PgBoolean<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumn<TTableName, ColumnData<boolean>, ColumnDriverParam<boolean>, TNotNull, THasDefault> {
+> extends PgColumnWithMapper<TTableName, ColumnData<boolean>, ColumnDriverParam<boolean>, TNotNull, THasDefault> {
 	protected brand!: 'PgBoolean';
 
 	getSQLType(): string {

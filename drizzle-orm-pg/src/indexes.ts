@@ -104,7 +104,7 @@ export type BuildIndex<T extends AnyIndexBuilder> = T extends IndexBuilder<
 > ? Index<TTable, TUnique>
 	: never;
 
-type InferColumnsTable<TColumns> = TColumns extends AnyPgColumn ? InferColumnTable<TColumns>
+type GetColumnsTable<TColumns> = TColumns extends AnyPgColumn ? InferColumnTable<TColumns>
 	: TColumns extends AnyPgColumn[] ? InferColumnTable<TColumns[number]>
 	: never;
 
@@ -122,7 +122,7 @@ export function index<
 >(
 	name: string,
 	columns: TColumns,
-	config: IndexConfig<InferColumnsTable<TColumns>, true>,
+	config: IndexConfig<GetColumnsTable<TColumns>, true>,
 ): IndexBuilder<TTable, true>;
 export function index<
 	TTable extends AnyPgTable,
@@ -132,7 +132,7 @@ export function index<
 >(
 	name: string,
 	columns: TColumns,
-	config: IndexConfig<InferColumnsTable<TColumns>, false>,
+	config: IndexConfig<GetColumnsTable<TColumns>, false>,
 ): IndexBuilder<TTable, false>;
 export function index(
 	name: string,

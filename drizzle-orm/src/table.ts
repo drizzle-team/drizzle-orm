@@ -22,15 +22,21 @@ export class Table<TName extends TableName> {
 		columns: SelectFieldsOrdered,
 		row: ColumnDriverParam[],
 	): TResult => {
-		const result = columns.reduce<Record<string, Record<string, ColumnData>>>(
-			(res, { name, column: columnOrRes }, index) => {
-				const column = columnOrRes instanceof Column ? columnOrRes : columnOrRes.column;
-				const tName = column.table[tableName];
+		const result = columns.reduce<Record<string, Record<string, ColumnData | null>>>(
+			(res, { name, column: columnOrResponse }, index) => {
+				let decoder, tName;
+				if (columnOrResponse instanceof Column) {
+					decoder = columnOrResponse.mapFromDriverValue;
+					tName = columnOrResponse.table[tableName];
+				} else {
+					decoder = columnOrResponse.decoder;
+					tName = columnOrResponse.tableName;
+				}
 				if (!(tName in res)) {
 					res[tName] = {};
 				}
 				const rawValue = row[index]!;
-				res[tName]![name] = rawValue === null ? rawValue : column.mapFromDriverValue(rawValue);
+				res[tName]![name] = rawValue === null ? null : decoder(rawValue) as ColumnData;
 				return res;
 			},
 			{},

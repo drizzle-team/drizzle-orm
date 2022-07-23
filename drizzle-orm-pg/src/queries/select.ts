@@ -1,5 +1,5 @@
-import { TableName } from 'drizzle-orm/branded-types';
-import { SQL, SQLWrapper } from 'drizzle-orm/sql';
+import { TableName, Unwrap } from 'drizzle-orm/branded-types';
+import { SQL, SQLResponse, SQLWrapper } from 'drizzle-orm/sql';
 import { GetTableName, tableColumns, tableName, tableRowMapper } from 'drizzle-orm/utils';
 import { Simplify } from 'type-fest';
 
@@ -27,7 +27,7 @@ import {
 
 export interface PgSelectConfig {
 	fields: PgSelectFieldsOrdered;
-	where?: AnyPgSQL;
+	where?: AnyPgSQL | undefined;
 	table: AnyPgTable;
 	limit?: number;
 	offset?: number;
@@ -62,13 +62,19 @@ export class PgSelect<
 		private session: PgSession,
 		private dialect: AnyPgDialect,
 	) {
+		Object.values(fields).forEach((field) => {
+			if (field instanceof SQLResponse) {
+				field.tableName = table[tableName];
+			}
+		});
+
 		this.config = {
 			table,
 			fields,
 			joins: {},
 			orderBy: [],
 		};
-		this._alias = { [table[tableName]]: 1 } as TAlias;
+		this._alias = { [table[tableName] as string]: 1 } as TAlias;
 	}
 
 	private createJoin(joinType: JoinType) {
@@ -76,7 +82,7 @@ export class PgSelect<
 
 		function join<
 			TJoinedTable extends AnyPgTable<TableName<keyof TTableNamesMap & string>>,
-			TAliasName extends BuildAliasName<TJoinedTable, TTableNamesMap, TAlias>,
+			TAliasName extends TableName<BuildAliasName<TJoinedTable, TTableNamesMap, TAlias>>,
 		>(
 			value: TJoinedTable,
 			on: (
@@ -96,7 +102,7 @@ export class PgSelect<
 		>;
 		function join<
 			TJoinedTable extends AnyPgTable<TableName<keyof TTableNamesMap & string>>,
-			TAliasName extends BuildAliasName<TJoinedTable, TTableNamesMap, TAlias>,
+			TAliasName extends TableName<BuildAliasName<TJoinedTable, TTableNamesMap, TAlias>>,
 			TSelectedFields extends PgSelectFields<TAliasName>,
 		>(
 			value: TJoinedTable,
@@ -120,7 +126,7 @@ export class PgSelect<
 		>;
 		function join<
 			TJoinedTable extends AnyPgTable,
-			TAliasName extends BuildAliasName<TJoinedTable, TTableNamesMap, TAlias>,
+			TAliasName extends TableName<BuildAliasName<TJoinedTable, TTableNamesMap, TAlias>>,
 			TSelectedFields extends PgSelectFields<TAliasName>,
 		>(
 			joinedTable: TJoinedTable,
@@ -136,7 +142,7 @@ export class PgSelect<
 			const joinedTableName = joinedTable[tableName] as keyof TAlias & string;
 			let aliasIndex = self._alias[joinedTableName];
 			if (typeof aliasIndex === 'undefined') {
-				self._alias[joinedTableName] = aliasIndex = 1 as TAlias[GetTableName<TJoinedTable>];
+				self._alias[joinedTableName] = aliasIndex = 1 as TAlias[Unwrap<GetTableName<TJoinedTable>>];
 			}
 
 			const alias = `${joinedTableName}${aliasIndex}`;
@@ -151,6 +157,14 @@ export class PgSelect<
 			const partialFields = select?.(
 				tableAliasProxy as BuildAliasTable<TJoinedTable, TAliasName>,
 			);
+
+			if (partialFields) {
+				Object.values(partialFields).forEach((field) => {
+					if (field instanceof SQLResponse) {
+						field.tableName = alias as TableName;
+					}
+				});
+			}
 
 			self.fields.push(...self.dialect.orderSelectedFields(partialFields ?? tableAliasProxy[tableColumns]));
 
@@ -178,12 +192,13 @@ export class PgSelect<
 	public where(
 		where:
 			| ((joins: TJoins) => AnyPgSQL<TableName<keyof TJoins & string> | GetTableName<TTable>>)
-			| AnyPgSQL<GetTableName<TTable>>,
+			| AnyPgSQL<GetTableName<TTable>>
+			| undefined,
 	): PickWhere<this> {
 		if (where instanceof SQL) {
 			this.config.where = where;
 		} else {
-			this.config.where = where(this._joins);
+			this.config.where = where?.(this._joins);
 		}
 		return this;
 	}

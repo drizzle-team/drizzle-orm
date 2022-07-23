@@ -1,16 +1,17 @@
-import { connect, sql } from 'drizzle-orm';
+import { connect, param, sql } from 'drizzle-orm';
 import { constraint, foreignKey, index, InferModel, PgConnector, pgTable } from 'drizzle-orm-pg';
-import { integer, interval, serial, text, timestamp } from 'drizzle-orm-pg/columns';
+import { integer, interval, numeric, serial, text, timestamp } from 'drizzle-orm-pg/columns';
 import { PgTestConnector } from 'drizzle-orm-pg/testing';
-import { and, asc, desc, eq, max, or, plus } from 'drizzle-orm/expressions';
+import { and, asc, desc, eq, or } from 'drizzle-orm/expressions';
 import { Pool } from 'pg';
 
 export const users = pgTable(
-	'users2',
+	'users',
 	{
 		id: serial('id').primaryKey(),
+		testNumeric: numeric('test_numeric').notNull(),
 		name: text('name').notNull(),
-		name1: text('name').notNull(),
+		name1: text('name1').notNull(),
 		homeCity: integer('home_city')
 			.notNull()
 			.references(() => cities.id),
@@ -67,24 +68,27 @@ async function main() {
 		database: 'postgres',
 	});
 	const client = await pool.connect();
-	// const realDb = await connect(new PgConnector(client, { users, cities }));
+	const realDb = await connect(new PgConnector(client, { users, cities }));
 	const db = await connect(new PgTestConnector({ users, cities, classes }));
 
-	// const selectResult = await realDb.users
-	// 	.select({
-	// 		id: users.id,
-	// 		age: users.age1,
-	// 	})
-	// 	.innerJoin(cities, (joins) => eq(users.homeCity, joins.cities1.id), (city) => ({
-	// 		name: city.name,
-	// 	}))
-	// 	.execute()
-	// 	.then((result) =>
-	// 		result.map(({ users, cities1 }) => ({
-	// 			...users,
-	// 			city: cities1,
-	// 		}))
-	// 	);
+	const numericTest = await realDb.users.select({ num: users.testNumeric }).execute();
+	console.log(numericTest);
+
+	const selectResult = await realDb.users
+		.select({
+			id: users.id,
+			age: users.age1,
+		})
+		.innerJoin(cities, (joins) => eq(users.homeCity, joins.cities1.id), (city) => ({
+			name: city.name,
+		}))
+		.execute()
+		.then((result) =>
+			result.map(({ users, cities1 }) => ({
+				...users,
+				city: cities1,
+			}))
+		);
 
 	const selectResult1 = await db.users
 		.select()
@@ -92,6 +96,9 @@ async function main() {
 		.execute();
 
 	const newUser: InsertUser = {
+		testNumeric: '1.23',
+		name: 'John',
+		name1: 'John1',
 		homeCity: 1,
 		class: 'A',
 		age1: 1,
@@ -102,7 +109,7 @@ async function main() {
 		id2: users.id,
 		serial1: users.serial1,
 		serial2: users.serial2,
-		lowerClass: sql.response<string>(users.class)`lower(${users.class})`,
+		lowerClass: sql.response`lower(${users.class})`,
 	}).execute();
 
 	const result1 = await db.users.insert(newUser).execute();
@@ -150,7 +157,7 @@ async function main() {
 		.execute();
 
 	const join1 = await db.users
-		.select({ id: users.id, maxAge: max(users.age1) })
+		.select({ id: users.id, maxAge: sql.response`max(${users.age1})` })
 		.where(sql`${users.age1} > 0`)
 		.execute();
 
@@ -182,10 +189,13 @@ async function main() {
 			(table) => ({ id: table.id }),
 		)
 		.where((joins) => sql`${users.age1} > 12`)
-		// .orderBy(desc(users.id))
+		.orderBy(desc(users.id))
 		.limit(1)
 		.offset(2)
 		.execute();
+
+	const t = desc(users.id);
+	const t1 = eq(users.class, 'A');
 
 	db.users
 		.select({ id: users.id })
@@ -209,7 +219,7 @@ async function main() {
 		.execute();
 
 	const megaJoin = await db.users
-		.select({ id: users.id, maxAge: sql.response<number>(users.age1)`max(${users.age1})` })
+		.select({ id: users.id, maxAge: sql.response`max(${users.age1})` })
 		.innerJoin(
 			cities,
 			(joins) => sql`${users.id} = ${joins.cities1.id}`,
@@ -236,7 +246,7 @@ async function main() {
 		.update()
 		.set({
 			id: userId,
-			age1: plus(users.age1, 1),
+			age1: sql`${users.age1} + ${param(users.age1, 1)}`,
 			currentCity: sql`lower(${users.currentCity})`,
 		})
 		.where(eq(users.id, 1))

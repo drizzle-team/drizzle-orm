@@ -5,7 +5,7 @@ import { GetTableName, tableColumns, tableName } from 'drizzle-orm/utils';
 import { Client, Pool, PoolClient, QueryResult, QueryResultRow, types } from 'pg';
 import { Simplify } from 'type-fest';
 
-import { AnyPgColumn } from './columns';
+import { AnyPgColumn, PgColumn } from './columns';
 import { PgSelectFields, PgSelectFieldsOrdered, PgTableOperations } from './operations';
 import { AnyPgInsertConfig, PgDeleteConfig, PgSelectConfig, PgUpdateConfig, PgUpdateSet } from './queries';
 import { AnyPgSQL, PgPreparedQuery } from './sql';
@@ -156,13 +156,12 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 	): SQLSourceParam<TTableName>[] {
 		const columnsLen = columns.length;
 
-		return columns.map(({ column }, i) => {
+		const result = columns.map(({ column }, i) => {
 			const chunk: SQLSourceParam<TTableName>[] = [];
 
 			if (column instanceof SQLResponse) {
 				chunk.push(column.sql);
-			} else if (column instanceof Column) {
-				const columnTableName = column.table[tableName];
+			} else if (column instanceof PgColumn) {
 				chunk.push(column);
 			}
 
@@ -173,6 +172,8 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 			return chunk;
 		})
 			.flat(1);
+
+		return result;
 	}
 
 	public buildSelectQuery<TTableName extends TableName>({
@@ -210,7 +211,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 			}
 		});
 
-		return sql`select ${sqlFields} from ${table} ${sql.fromList(joinsArray)} ${
+		return sql<TTableName>`select ${sqlFields} from ${table as AnyPgTable<TTableName>} ${sql.fromList(joinsArray)} ${
 			where ? sql`where ${where}` : undefined
 		} ${orderBy.length > 0 ? sql.raw('order by') : undefined} ${sql.fromList(orderByList)} ${
 			limit ? sql.raw(`limit ${limit}`) : undefined

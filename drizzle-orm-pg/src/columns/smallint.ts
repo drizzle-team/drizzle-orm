@@ -1,7 +1,7 @@
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
 import { AnyPgTable } from '../table';
-import { PgColumn, PgColumnBuilder } from './common';
+import { PgColumnBuilder, PgColumnWithMapper } from './common';
 
 export class PgSmallIntBuilder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
@@ -19,19 +19,25 @@ export class PgSmallInt<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumn<TTableName, ColumnData<number>, ColumnDriverParam<number | string>, TNotNull, THasDefault> {
+> extends PgColumnWithMapper<
+	TTableName,
+	ColumnData<number>,
+	ColumnDriverParam<number | string>,
+	TNotNull,
+	THasDefault
+> {
 	protected brand!: 'PgSmallInt';
 
 	getSQLType(): string {
 		return 'smallint';
 	}
 
-	override mapFromDriverValue(value: ColumnDriverParam<number | string>): ColumnData<number> {
+	override mapFromDriverValue = (value: ColumnDriverParam<number | string>): ColumnData<number> => {
 		if (typeof value === 'string') {
 			return parseInt(value) as ColumnData<number>;
 		}
 		return value as ColumnData<any>;
-	}
+	};
 }
 
 export function smallint(name: string) {

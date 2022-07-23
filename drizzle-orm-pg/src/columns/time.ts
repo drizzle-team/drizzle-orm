@@ -8,7 +8,7 @@ import {
 	Unwrap,
 } from 'drizzle-orm/branded-types';
 
-import { PgColumn } from './common';
+import { PgColumnWithMapper } from './common';
 import { PgDateColumnBaseBuilder } from './date-common';
 
 export class PgTimeBuilder<
@@ -37,7 +37,7 @@ export class PgTime<
 	TData extends ColumnData<string>,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumn<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends PgColumnWithMapper<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgTime';
 
 	public readonly withTimezone: boolean;
@@ -54,9 +54,9 @@ export class PgTime<
 		return `time${precision}${this.withTimezone ? ' with time zone' : ''}`;
 	}
 
-	override mapFromDriverValue(value: ColumnDriverParam<string>): ColumnData<TData> {
+	override mapFromDriverValue = (value: ColumnDriverParam<string>): ColumnData<TData> => {
 		return value as Unwrap<TData> as ColumnData<TData>;
-	}
+	};
 }
 
 export interface TimeConfig {

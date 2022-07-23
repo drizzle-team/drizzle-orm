@@ -1,6 +1,6 @@
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 import { AnyPgTable } from '../table';
-import { PgColumn, PgColumnBuilder } from './common';
+import { PgColumnBuilder, PgColumnWithMapper } from './common';
 
 export class PgBigSerial53Builder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
@@ -18,19 +18,19 @@ export class PgBigSerial53<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumn<TTableName, ColumnData<number>, ColumnDriverParam<number>, TNotNull, THasDefault> {
+> extends PgColumnWithMapper<TTableName, ColumnData<number>, ColumnDriverParam<number>, TNotNull, THasDefault> {
 	protected brand!: 'PgBigSerial53';
 
 	getSQLType(): string {
 		return 'bigserial';
 	}
 
-	override mapFromDriverValue(value: ColumnDriverParam<number>): ColumnData<number> {
+	override mapFromDriverValue = (value: ColumnDriverParam<number>): ColumnData<number> => {
 		if (typeof value === 'number') {
 			return value as ColumnData<any>;
 		}
 		return parseInt(value) as ColumnData<number>;
-	}
+	};
 }
 
 export class PgBigSerial64Builder<
@@ -49,16 +49,16 @@ export class PgBigSerial64<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumn<TTableName, ColumnData<bigint>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends PgColumnWithMapper<TTableName, ColumnData<bigint>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgBigSerial64';
 
 	getSQLType(): string {
 		return 'bigserial';
 	}
 
-	override mapFromDriverValue(value: ColumnDriverParam<string>): ColumnData<bigint> {
+	override mapFromDriverValue = (value: ColumnDriverParam<string>): ColumnData<bigint> => {
 		return BigInt(value) as ColumnData<bigint>;
-	}
+	};
 }
 
 export function bigserial(name: string, maxBytes: 'max_bytes_53' | 'max_bytes_64') {

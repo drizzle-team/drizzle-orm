@@ -1,7 +1,7 @@
 import { AnyTable } from 'drizzle-orm';
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
-import { PgColumn, PgColumnBuilder } from './common';
+import { PgColumnBuilder, PgColumnWithMapper } from './common';
 
 export class PgNumericBuilder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
@@ -28,7 +28,13 @@ export class PgNumeric<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumn<TTableName, ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends PgColumnWithMapper<
+	TTableName,
+	ColumnData<string>,
+	ColumnDriverParam<string>,
+	TNotNull,
+	THasDefault
+> {
 	protected brand!: 'PgNumeric';
 
 	precision: number | undefined;
@@ -41,8 +47,8 @@ export class PgNumeric<
 	}
 
 	getSQLType(): string {
-		if (this.precision && this.scale) {
-			return `numeric(${this.precision},${this.scale})`;
+		if (typeof this.precision !== 'undefined' && typeof this.scale !== 'undefined') {
+			return `numeric(${this.precision}, ${this.scale})`;
 		} else if (typeof this.precision === 'undefined') {
 			return 'numeric';
 		} else {
@@ -51,6 +57,6 @@ export class PgNumeric<
 	}
 }
 
-export function numeric(name: string, length?: number) {
-	return new PgNumericBuilder(name, length);
+export function numeric(name: string, precision?: number, scale?: number) {
+	return new PgNumericBuilder(name, precision, scale);
 }
