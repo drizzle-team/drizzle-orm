@@ -18,6 +18,8 @@ importers:
     specifiers:
       '@types/pg': ^8.6.1
       '@types/sqlite3': ^3.1.8
+      drizzle-orm-mysql: '>=0.13.0'
+      drizzle-orm-pg: '>=0.13.0'
       mysql2: ^2.3.3
       pg: ^8.6.0
       resolve-tspaths: ^0.7.0
@@ -27,6 +29,8 @@ importers:
       typescript: 4.8.0-beta
       uvu: ^0.5.6
     dependencies:
+      drizzle-orm-mysql: link:../drizzle-orm-mysql
+      drizzle-orm-pg: link:../drizzle-orm-pg
       type-fest: 2.16.0
     devDependencies:
       '@types/pg': 8.6.5
@@ -1877,7 +1881,7 @@ packages:
     dev: true
 
   file:drizzle-orm-pg/package.tgz_62jjsl7j24ddkfqklwbsnaigdi:
-    resolution: {integrity: sha512-BrCX2rPIz+2Z774Bwfsb9iGtDbnBs9suBvawASIPYHzLganX+UMlrAMLoo0d2kLaUVjMIu03OuVD1mAlhf3TgQ==, tarball: file:drizzle-orm-pg/package.tgz}
+    resolution: {integrity: sha512-68VUjaPQGhqb54dv7v744QEzd1Id4/FWUReJ+sJnAu/43NGY2NRTCmaXbjwV2Cqozx33duMNtp3pO8GAcPoCoQ==, tarball: file:drizzle-orm-pg/package.tgz}
     id: file:drizzle-orm-pg/package.tgz
     name: drizzle-orm-pg
     version: 0.13.0
@@ -1893,7 +1897,7 @@ packages:
     dev: true
 
   file:drizzle-orm/package.tgz_7hcodi3q7h43rkh7k75lwwx3zm:
-    resolution: {integrity: sha512-qnFtkYLLMsecmyd3RjKPxU1J417iuZy6DDGcKUK4SAxdQtf91gqlTTge036cW4b7LEFj6X3vFcrREzvXBH86TQ==, tarball: file:drizzle-orm/package.tgz}
+    resolution: {integrity: sha512-5IZoM9XNnn548jEEDM9+1zLA7mUqHR9YOLIBYII0xhs8MC1sietRlJMAFnciF7OK+tUNtbANT3zbafVHXQzytw==, tarball: file:drizzle-orm/package.tgz}
     id: file:drizzle-orm/package.tgz
     name: drizzle-orm
     version: 0.13.0

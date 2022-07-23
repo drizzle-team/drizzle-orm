@@ -1,4 +1,4 @@
-import { connect, param, sql } from 'drizzle-orm';
+import { connect, migrate, param, sql } from 'drizzle-orm';
 import { constraint, foreignKey, index, InferModel, PgConnector, pgTable } from 'drizzle-orm-pg';
 import { integer, interval, numeric, serial, text, timestamp } from 'drizzle-orm-pg/columns';
 import { PgTestConnector } from 'drizzle-orm-pg/testing';
@@ -68,7 +68,16 @@ async function main() {
 		database: 'postgres',
 	});
 	const client = await pool.connect();
-	const realDb = await connect(new PgConnector(client, { users, cities }));
+	const connector = new PgConnector(client, { users, cities });
+	const realDb = await connect(connector);
+
+	// const db = await connect(new PgTestConnector(client, { users, cities }));
+	// await migrate(connector, { migrationsFolder: 'drizzle' });
+	// drizzle.migrate(db, './');
+
+	// const pgConnector = new PgTestConnector(client);
+	// drizzle.migrate(pgConnector, './');
+
 	const db = await connect(new PgTestConnector({ users, cities, classes }));
 
 	const numericTest = await realDb.users.select({ num: users.testNumeric }).execute();
@@ -90,10 +99,10 @@ async function main() {
 			}))
 		);
 
-	const selectResult1 = await db.users
-		.select()
-		.leftJoin(cities, (joins) => eq(users.homeCity, joins.cities1.id))
-		.execute();
+	// const selectResult1 = await db.users
+	// 	.select()
+	// 	.leftJoin(cities, (joins) => eq(users.homeCity, joins.cities1.id))
+	// 	.execute();
 
 	const newUser: InsertUser = {
 		testNumeric: '1.23',
@@ -240,7 +249,7 @@ async function main() {
 
 	const userId = 5;
 
-	const test = sql`lower(${users.currentCity})`;
+	// const test = sql`lower(${users.currentCity})`;
 
 	const update = await db.users
 		.update()
