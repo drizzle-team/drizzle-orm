@@ -1,12 +1,12 @@
 import { ColumnData } from 'drizzle-orm/branded-types';
 import { AnySQLResponse, Name, SQL, sql, SQLSourceParam } from 'drizzle-orm/sql';
-import { GetTableName, tableColumns, tableRowMapper } from 'drizzle-orm/utils';
+import { GetTableName, tableColumns, tableName, tableRowMapper } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
 
 import { AnyPgColumn } from '~/columns/common';
 import { AnyPgDialect, PgSession } from '~/connection';
 import { Constraint } from '~/constraints';
-import { PgSelectFields, SelectResultFields } from '~/operations';
+import { PgSelectFields, PgSelectFieldsOrdered, SelectResultFields } from '~/operations';
 import { PgPreparedQuery } from '~/sql';
 import { AnyPgTable, GetTableConflictConstraints, InferModel } from '~/table';
 import { tableConflictConstraints } from '~/utils';
@@ -16,7 +16,7 @@ export interface PgInsertConfig<TTable extends AnyPgTable> {
 	table: TTable;
 	values: Record<string, ColumnData | SQL<GetTableName<TTable>>>[];
 	onConflict: SQL<GetTableName<TTable>> | undefined;
-	returning: { name: string; column: AnyPgColumn | AnySQLResponse }[] | undefined;
+	returning: PgSelectFieldsOrdered<GetTableName<TTable>> | undefined;
 }
 
 export type AnyPgInsertConfig = PgInsertConfig<any>;
@@ -44,10 +44,11 @@ export class PgInsert<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 		fields: TSelectedFields,
 	): Pick<PgInsert<TTable, SelectResultFields<GetTableName<TTable>, TSelectedFields>[]>, 'getQuery' | 'execute'>;
 	public returning(fields?: PgSelectFields<GetTableName<TTable>>): PgInsert<TTable, any> {
-		const fieldsToMap: Record<string, AnyPgColumn | AnySQLResponse> = fields ?? this.config.table[tableColumns];
+		const fieldsToMap: Record<string, AnyPgColumn<GetTableName<TTable>> | AnySQLResponse<GetTableName<TTable>>> = fields
+			?? this.config.table[tableColumns] as Record<string, AnyPgColumn<GetTableName<TTable>>>;
 
 		this.config.returning = Object.entries(fieldsToMap).map(
-			([name, column]) => ({ name, column }),
+			([name, column]) => ({ name, column, resultTableName: this.config.table[tableName] }),
 		);
 
 		return this;

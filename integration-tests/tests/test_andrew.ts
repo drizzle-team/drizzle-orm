@@ -84,18 +84,13 @@ async function main() {
 	console.log(numericTest);
 
 	const selectResult = await realDb.users
-		.select({
-			id: users.id,
-			age: users.age1,
-		})
-		.innerJoin(cities, (joins) => eq(users.homeCity, joins.cities1.id), (city) => ({
-			name: city.name,
-		}))
+		.select({ id: users.id, age: users.age1 })
+		.innerJoin(cities, eq(users.homeCity, cities.id), { name: cities.name })
 		.execute()
 		.then((result) =>
-			result.map(({ users, cities1 }) => ({
+			result.map(({ users, cities }) => ({
 				...users,
-				city: cities1,
+				city: cities,
 			}))
 		);
 
@@ -177,26 +172,10 @@ async function main() {
 
 	db.users
 		.select({ id: users.homeCity })
-		.innerJoin(
-			cities,
-			(joins) => eq(joins.cities1.id, users.id),
-			(table) => ({ id: table.id }),
-		)
-		.innerJoin(
-			cities,
-			(joins) => eq(joins.cities1.id, users.id),
-			(table) => ({ name23: table.id }),
-		)
-		.innerJoin(
-			cities,
-			(joins) => eq(joins.cities2.id, users.id),
-			(table) => ({ id: table.id }),
-		)
-		.innerJoin(
-			cities,
-			(joins) => eq(joins.cities4.id, users.id),
-			(table) => ({ id: table.id }),
-		)
+		.innerJoin({ cities1: cities }, (aliases) => eq(aliases.cities1.id, users.id), (table) => ({ id: table.id }))
+		.innerJoin({ cities2: cities }, (joins) => eq(joins.cities1.id, users.id), (table) => ({ name23: table.id }))
+		.innerJoin({ cities3: cities }, (joins) => eq(joins.cities2.id, users.id), (table) => ({ id: table.id }))
+		.innerJoin({ cities4: cities }, (joins) => eq(joins.cities4.id, users.id), (table) => ({ id: table.id }))
 		.where((joins) => sql`${users.age1} > 12`)
 		.orderBy(desc(users.id))
 		.limit(1)
@@ -209,18 +188,14 @@ async function main() {
 	db.users
 		.select({ id: users.id })
 		// .leftJoin/rightJoin/fullJoin/innerJoin
-		.innerJoin(
-			cities,
-			(joins) => sql`${users.id} = ${joins.cities1.id}`,
-			(cities) => ({
-				id: cities.id,
-			}),
-		)
-		.innerJoin(cities, (joins) => sql`${joins.cities1.id} = ${joins.cities2.id}`)
+		.innerJoin({ cities1: cities }, (joins) => sql`${users.id} = ${joins.cities1.id}`, (cities) => ({
+			id: cities.id,
+		}))
+		.innerJoin({ cities2: cities }, (joins) => sql`${joins.cities1.id} = ${joins.cities2.id}`)
 		.where(sql`${users.age1} > 0`)
 		// .where((joins) => sql`${joins.users.age1} > 0`)
 		// .where(eq(users.age1, 1))
-		// .where((joins) => eqjoins.users.age1, 1))
+		// .where((joins) => eq(joins.users.age1, 1))
 		.orderBy(asc(users.id), desc(users.name))
 		// .orderBy((joins) => [asc(users.id), desc(joins.cities1.id)])
 		// .orderBy((joins) => sql`${users.age1} ASC`)
@@ -229,22 +204,16 @@ async function main() {
 
 	const megaJoin = await db.users
 		.select({ id: users.id, maxAge: sql.response`max(${users.age1})` })
-		.innerJoin(
-			cities,
-			(joins) => sql`${users.id} = ${joins.cities1.id}`,
-			(cities) => ({
-				id: cities.id,
-			}),
-		)
-		.innerJoin(cities, (joins) => sql`${joins.cities1.id} = ${joins.cities1.id}`)
-		.innerJoin(classes, (joins) => eq(joins.cities1.id, joins.cities2.id))
-		.innerJoin(classes, (joins) => sql`${joins.classes1.id} = ${joins.classes2.id}`)
-		.innerJoin(classes, (joins) => sql`${users.class} = ${joins.classes3.id}`)
-		.innerJoin(users, (joins) => sql`${users.class} = ${joins.users1.id}`)
-		.innerJoin(cities, (joins) => sql`${joins.cities1.id} = ${joins.classes1.id}`)
-		.innerJoin(users, (joins) => sql`${users.class} = ${joins.users2.id}`)
-		.innerJoin(cities, (joins) => sql`${users.class} = ${joins.cities4.id}`)
-		.where((joins) => sql`${users.age1} > 0`)
+		.innerJoin(cities, sql`${users.id} = ${cities.id}`, { id: cities.id })
+		.innerJoin({ homeCity: cities }, (aliases) => sql`${users.homeCity} = ${aliases.homeCity.id}`)
+		.innerJoin({ class: classes }, (aliases) => eq(aliases.class.id, users.class))
+		.innerJoin({ otherClass: classes }, (aliases) => sql`${aliases.class.id} = ${aliases.otherClass.id}`)
+		.innerJoin({ anotherClass: classes }, (aliases) => sql`${users.class} = ${aliases.anotherClass.id}`)
+		.innerJoin({ friend: users }, (aliases) => sql`${users.id} = ${aliases.friend.id}`)
+		.innerJoin({ currentCity: cities }, (aliases) => sql`${aliases.homeCity.id} = ${aliases.currentCity.id}`)
+		.innerJoin({ subscriber: users }, (aliases) => sql`${users.class} = ${aliases.subscriber.id}`)
+		.innerJoin({ closestCity: cities }, (aliases) => sql`${users.currentCity} = ${aliases.closestCity.id}`)
+		.where(sql`${users.age1} > 0`)
 		.execute();
 
 	const userId = 5;

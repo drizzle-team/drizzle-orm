@@ -1,4 +1,4 @@
-import { GetTableName, tableColumns, tableRowMapper } from 'drizzle-orm/utils';
+import { GetTableName, tableColumns, tableName, tableRowMapper } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
 
 import { AnyPgDialect, PgSession } from '~/connection';
@@ -33,7 +33,10 @@ export class PgDelete<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 		fields: TSelectedFields,
 	): Pick<PgDelete<TTable, SelectResultFields<GetTableName<TTable>, TSelectedFields>[]>, 'getQuery' | 'execute'>;
 	public returning(fields?: PgSelectFields<GetTableName<TTable>>): PgDelete<TTable, any> {
-		const orderedFields = this.dialect.orderSelectedFields(fields ?? this.table[tableColumns]);
+		const orderedFields = this.dialect.orderSelectedFields(
+			fields ?? this.table[tableColumns],
+			this.table[tableName],
+		);
 		this.config.returning = orderedFields;
 		return this;
 	}

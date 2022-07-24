@@ -26,4 +26,8 @@ export type SelectFields<
 		| AnyColumn<TTableName, any, TColumnDriverParam>;
 };
 
-export type SelectFieldsOrdered = { name: string; column: AnyColumn | AnySQLResponse }[];
+export type SelectFieldsOrdered = {
+	name: string;
+	resultTableName: string;
+	column: AnyColumn | AnySQLResponse;
+}[];

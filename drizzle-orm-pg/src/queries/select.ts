@@ -1,20 +1,19 @@
 import { TableName, Unwrap } from 'drizzle-orm/branded-types';
 import { SQL, SQLResponse, SQLWrapper } from 'drizzle-orm/sql';
 import { GetTableName, tableColumns, tableName, tableRowMapper } from 'drizzle-orm/utils';
-import { Simplify } from 'type-fest';
 
-import { AnyPgDialect, BuildTableNamesMap, PgSession } from '~/connection';
+import { AnyPgColumn } from '~/columns/common';
+import { AnyPgDialect, PgSession } from '~/connection';
 import { PgSelectFields, PgSelectFieldsOrdered } from '~/operations';
 import { AnyPgSQL, PgPreparedQuery } from '~/sql';
-import { AnyPgTable, GetTableColumns } from '~/table';
-
+import { AnyPgTable, GetTableColumns, PgTable } from '~/table';
 import { TableProxyHandler } from './proxies';
+
 import {
-	AppendToJoins,
-	AppendToReturn,
-	BuildAliasName,
-	BuildAliasTable,
-	IncrementAlias,
+	AppendToAliases,
+	AppendToResult,
+	JoinOn,
+	JoinSelect,
 	JoinsValue,
 	JoinType,
 	PickJoin,
@@ -39,42 +38,34 @@ export class PgSelect<
 	TTable extends AnyPgTable,
 	TTableNamesMap extends Record<string, string>,
 	TInitialSelectResultFields extends Record<string, unknown>,
-	TReturn = undefined,
-	// TJoins is really a map of table name => joined table, but I failed to prove that to TS
-	TJoins extends { [tableName: string]: any } = {},
-	TAlias extends { [name: string]: number } = {},
+	TResult = undefined,
+	// TAliases is really a map of table name => joined table, but I failed to prove that to TS
+	TAliases extends { [tableName: string]: any } = {},
+	TJoinedTableNames extends string = Unwrap<GetTableName<TTable>>,
 > implements SQLWrapper {
 	protected typeKeeper!: {
 		table: TTable;
 		initialSelect: TInitialSelectResultFields;
-		return: TReturn;
-		joins: TJoins;
-		alias: TAlias;
+		result: TResult;
+		aliases: TAliases;
 	};
 
 	private config: PgSelectConfig;
-	private _alias!: TAlias;
-	private _joins: TJoins = {} as TJoins;
+	private aliases: TAliases = {} as TAliases;
 
 	constructor(
 		private table: PgSelectConfig['table'],
 		private fields: PgSelectConfig['fields'],
 		private session: PgSession,
 		private dialect: AnyPgDialect,
+		private tableNamesMap: TTableNamesMap,
 	) {
-		Object.values(fields).forEach((field) => {
-			if (field instanceof SQLResponse) {
-				field.tableName = table[tableName];
-			}
-		});
-
 		this.config = {
 			table,
 			fields,
 			joins: {},
 			orderBy: [],
 		};
-		this._alias = { [table[tableName] as string]: 1 } as TAlias;
 	}
 
 	private createJoin(joinType: JoinType) {
@@ -82,97 +73,112 @@ export class PgSelect<
 
 		function join<
 			TJoinedTable extends AnyPgTable<TableName<keyof TTableNamesMap & string>>,
-			TAliasName extends TableName<BuildAliasName<TJoinedTable, TTableNamesMap, TAlias>>,
+			TAliasName extends Unwrap<GetTableName<TJoinedTable>>,
+			TJoinName extends TTableNamesMap[TAliasName],
 		>(
-			value: TJoinedTable,
-			on: (
-				joins: AppendToJoins<TJoins, TJoinedTable, TAlias, TTableNamesMap>,
-			) => AnyPgSQL<
-				TableName<keyof TJoins & string> | GetTableName<TTable> | TAliasName
-			>,
+			table: TJoinedTable,
+			on: JoinOn<TTableNamesMap, TJoinedTableNames, TAliases, TJoinedTable, TJoinName, TAliasName>,
 		): PickJoin<
 			PgSelect<
 				TTable,
 				TTableNamesMap,
 				TInitialSelectResultFields,
-				AppendToReturn<TReturn, TAliasName, GetTableColumns<TJoinedTable>>,
-				AppendToJoins<TJoins, TJoinedTable, TAlias, TTableNamesMap>,
-				IncrementAlias<TJoinedTable, TAlias>
+				AppendToResult<TResult, TJoinName, GetTableColumns<TJoinedTable>>,
+				TAliases,
+				TJoinedTableNames | TAliasName
+			>
+		>;
+
+		function join<
+			TJoinedTable extends AnyPgTable<TableName<keyof TTableNamesMap & string>>,
+			TAliasName extends Unwrap<GetTableName<TJoinedTable>>,
+			TJoinName extends TTableNamesMap[TAliasName],
+			TSelectedFields extends PgSelectFields<GetTableName<TJoinedTable>>,
+		>(
+			table: TJoinedTable,
+			on: JoinOn<TTableNamesMap, TJoinedTableNames, TAliases, TJoinedTable, TJoinName, TAliasName>,
+			select: JoinSelect<TJoinedTable, TAliasName, TSelectedFields>,
+		): PickJoin<
+			PgSelect<
+				TTable,
+				TTableNamesMap,
+				TInitialSelectResultFields,
+				AppendToResult<TResult, TJoinName, TSelectedFields>,
+				TAliases,
+				TJoinedTableNames | TAliasName
 			>
 		>;
 		function join<
 			TJoinedTable extends AnyPgTable<TableName<keyof TTableNamesMap & string>>,
-			TAliasName extends TableName<BuildAliasName<TJoinedTable, TTableNamesMap, TAlias>>,
-			TSelectedFields extends PgSelectFields<TAliasName>,
+			TJoinName extends string,
 		>(
-			value: TJoinedTable,
-			on: (
-				joins: AppendToJoins<TJoins, TJoinedTable, TAlias, TTableNamesMap>,
-			) => AnyPgSQL<
-				TableName<keyof TJoins & string> | GetTableName<TTable> | TAliasName
-			>,
-			select: (
-				table: BuildAliasTable<TJoinedTable, TAliasName>,
-			) => TSelectedFields,
+			alias: { [Key in TJoinName]: TJoinedTable },
+			on: JoinOn<TTableNamesMap, TJoinedTableNames, TAliases, TJoinedTable, TJoinName>,
 		): PickJoin<
 			PgSelect<
 				TTable,
 				TTableNamesMap,
 				TInitialSelectResultFields,
-				AppendToReturn<TReturn, TAliasName, TSelectedFields>,
-				AppendToJoins<TJoins, TJoinedTable, TAlias, TTableNamesMap>,
-				IncrementAlias<TJoinedTable, TAlias>
+				AppendToResult<TResult, TJoinName, GetTableColumns<TJoinedTable>>,
+				AppendToAliases<TAliases, TJoinedTable, TJoinName>,
+				TJoinedTableNames | TJoinName
 			>
 		>;
 		function join<
-			TJoinedTable extends AnyPgTable,
-			TAliasName extends TableName<BuildAliasName<TJoinedTable, TTableNamesMap, TAlias>>,
-			TSelectedFields extends PgSelectFields<TAliasName>,
+			TJoinedTable extends AnyPgTable<TableName<keyof TTableNamesMap & string>>,
+			TJoinName extends string,
+			TSelectedFields extends PgSelectFields<TableName<TJoinName>>,
 		>(
-			joinedTable: TJoinedTable,
-			on: (
-				joins: AppendToJoins<TJoins, TJoinedTable, TAlias, TTableNamesMap>,
-			) => AnyPgSQL<
-				TableName<keyof TJoins & string> | GetTableName<TTable> | TAliasName
-			>,
-			select?: (
-				table: BuildAliasTable<TJoinedTable, TAliasName>,
-			) => TSelectedFields,
+			alias: { [Key in TJoinName]: TJoinedTable },
+			on: JoinOn<TTableNamesMap, TJoinedTableNames, TAliases, TJoinedTable, TJoinName>,
+			select: JoinSelect<TJoinedTable, TJoinName, TSelectedFields>,
+		): PickJoin<
+			PgSelect<
+				TTable,
+				TTableNamesMap,
+				TInitialSelectResultFields,
+				AppendToResult<TResult, TJoinName, TSelectedFields>,
+				AppendToAliases<TAliases, TJoinedTable, TJoinName>,
+				TJoinedTableNames | TJoinName
+			>
+		>;
+		function join(
+			aliasConfig: AnyPgTable | Record<string, AnyPgTable>,
+			on: JoinOn<TTableNamesMap, TJoinedTableNames, TAliases, AnyPgTable, string>,
+			select?: ((table: AnyPgTable) => Record<string, AnyPgColumn>) | Record<string, AnyPgColumn>,
 		) {
-			const joinedTableName = joinedTable[tableName] as keyof TAlias & string;
-			let aliasIndex = self._alias[joinedTableName];
-			if (typeof aliasIndex === 'undefined') {
-				self._alias[joinedTableName] = aliasIndex = 1 as TAlias[Unwrap<GetTableName<TJoinedTable>>];
+			let aliasName: string, joinedTable: AnyPgTable;
+			if (aliasConfig instanceof PgTable) {
+				aliasName = aliasConfig[tableName];
+				joinedTable = aliasConfig;
+			} else {
+				const config = Object.entries(aliasConfig)[0];
+				if (!config) {
+					throw new Error('Join alias is an empty object');
+				}
+				[aliasName, joinedTable] = config;
+			}
+			const joinName = self.tableNamesMap[joinedTable[tableName]]!;
+
+			const tableAliasProxy = new Proxy(joinedTable, new TableProxyHandler(aliasName));
+
+			if (!(aliasConfig instanceof PgTable)) {
+				Object.assign(self.aliases, { [aliasName]: tableAliasProxy });
 			}
 
-			const alias = `${joinedTableName}${aliasIndex}`;
-			self._alias[joinedTableName]++;
+			const onExpression = on instanceof Function ? on(self.aliases as any) : on;
 
-			const tableAliasProxy = new Proxy(joinedTable, new TableProxyHandler(alias));
+			const partialFields = select instanceof Function
+				? select(tableAliasProxy)
+				: select;
 
-			Object.assign(self._joins, { [alias]: tableAliasProxy });
+			self.fields.push(...self.dialect.orderSelectedFields(partialFields ?? tableAliasProxy[tableColumns], joinName));
 
-			const onExpression = on(self._joins as any);
-
-			const partialFields = select?.(
-				tableAliasProxy as BuildAliasTable<TJoinedTable, TAliasName>,
-			);
-
-			if (partialFields) {
-				Object.values(partialFields).forEach((field) => {
-					if (field instanceof SQLResponse) {
-						field.tableName = alias as TableName;
-					}
-				});
-			}
-
-			self.fields.push(...self.dialect.orderSelectedFields(partialFields ?? tableAliasProxy[tableColumns]));
-
-			self.config.joins[alias] = {
+			self.config.joins[joinName] = {
 				on: onExpression,
 				table: joinedTable,
 				joinType,
-				alias: tableAliasProxy,
+				aliasTable: tableAliasProxy,
 			};
 
 			return self as any;
@@ -191,36 +197,38 @@ export class PgSelect<
 
 	public where(
 		where:
-			| ((joins: TJoins) => AnyPgSQL<TableName<keyof TJoins & string> | GetTableName<TTable>>)
+			| ((aliases: TAliases) => AnyPgSQL<TableName<keyof TAliases & string> | GetTableName<TTable>>)
 			| AnyPgSQL<GetTableName<TTable>>
 			| undefined,
 	): PickWhere<this> {
 		if (where instanceof SQL) {
 			this.config.where = where;
 		} else {
-			this.config.where = where?.(this._joins);
+			this.config.where = where?.(this.aliases);
 		}
 		return this;
 	}
 
 	public whereUnsafe(
 		where:
-			| ((joins: TJoins) => AnyPgSQL)
-			| AnyPgSQL,
+			| ((aliases: TAliases) => AnyPgSQL)
+			| AnyPgSQL
+			| undefined,
 	): PickWhere<this> {
 		return this.where(
 			where as
-				| ((joins: TJoins) => AnyPgSQL<TableName<keyof TJoins & string> | GetTableName<TTable>>)
-				| AnyPgSQL<GetTableName<TTable>>,
+				| ((aliases: TAliases) => AnyPgSQL<TableName<keyof TAliases & string> | GetTableName<TTable>>)
+				| AnyPgSQL<GetTableName<TTable>>
+				| undefined,
 		);
 	}
 
 	public orderBy(
 		columns: (
-			joins: TJoins,
+			joins: TAliases,
 		) =>
-			| AnyPgSQL<TableName<keyof TJoins & string> | GetTableName<TTable>>[]
-			| AnyPgSQL<TableName<keyof TJoins & string> | GetTableName<TTable>>,
+			| AnyPgSQL<TableName<keyof TAliases & string> | GetTableName<TTable>>[]
+			| AnyPgSQL<TableName<keyof TAliases & string> | GetTableName<TTable>>,
 	): PickOrderBy<this>;
 	public orderBy(
 		...columns: AnyPgSQL<GetTableName<TTable>>[]
@@ -228,10 +236,10 @@ export class PgSelect<
 	public orderBy(
 		firstColumn:
 			| ((
-				joins: TJoins,
+				joins: TAliases,
 			) =>
-				| AnyPgSQL<TableName<keyof TJoins & string> | GetTableName<TTable>>[]
-				| AnyPgSQL<TableName<keyof TJoins & string> | GetTableName<TTable>>)
+				| AnyPgSQL<TableName<keyof TAliases & string> | GetTableName<TTable>>[]
+				| AnyPgSQL<TableName<keyof TAliases & string> | GetTableName<TTable>>)
 			| AnyPgSQL<GetTableName<TTable>>,
 		...otherColumns: AnyPgSQL<GetTableName<TTable>>[]
 	): PickOrderBy<this> {
@@ -239,7 +247,7 @@ export class PgSelect<
 		if (firstColumn instanceof SQL) {
 			columns = [firstColumn, ...otherColumns];
 		} else {
-			const firstColumnResult = firstColumn(this._joins);
+			const firstColumnResult = firstColumn(this.aliases);
 			columns = [...(Array.isArray(firstColumnResult) ? firstColumnResult : [firstColumnResult]), ...otherColumns];
 		}
 		this.config.orderBy = columns;
@@ -266,14 +274,15 @@ export class PgSelect<
 		return this.dialect.prepareSQL(query);
 	}
 
-	public async execute(): Promise<SelectResult<TTable, TReturn, TInitialSelectResultFields>> {
+	public async execute(): Promise<SelectResult<TTable, TResult, TInitialSelectResultFields, TTableNamesMap>> {
 		const query = this.dialect.buildSelectQuery(this.config);
 		const { sql, params } = this.dialect.prepareSQL(query);
 		const result = await this.session.query(sql, params);
 		return result.rows.map((row) => this.table[tableRowMapper](this.fields, row)) as SelectResult<
 			TTable,
-			TReturn,
-			TInitialSelectResultFields
+			TResult,
+			TInitialSelectResultFields,
+			TTableNamesMap
 		>;
 	}
 }

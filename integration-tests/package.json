@@ -4,7 +4,9 @@
 	"description": "",
 	"main": "index.js",
 	"scripts": {
-		"test": "ts-node tests/test.ts",
+		"test": "pnpm test:andrew && pnpm test:dan",
+		"test:andrew": "ts-node tests/test_andrew.ts",
+		"test:dan": "ts-node tests/test_dan.ts",
 		"build:int": "pnpm add ../drizzle-orm/package.tgz ../drizzle-orm-pg/package.tgz ../drizzle-orm-mysql/package.tgz"
 	},
 	"keywords": [],

@@ -1,8 +1,8 @@
 import { GetColumnData } from 'drizzle-orm';
 import { TableName, Unwrap } from 'drizzle-orm/branded-types';
-import { SelectFields } from 'drizzle-orm/operations';
+import { SelectFields, SelectFieldsOrdered } from 'drizzle-orm/operations';
 import { AnySQLResponse, SQLResponse } from 'drizzle-orm/sql';
-import { GetTableName, tableColumns } from 'drizzle-orm/utils';
+import { GetTableName, tableColumns, tableName } from 'drizzle-orm/utils';
 import { Simplify } from 'type-fest';
 import { PgColumnDriverParam } from './branded-types';
 
@@ -13,10 +13,12 @@ import { AnyPgTable, InferModel } from './table';
 
 export type PgSelectFields<TTableName extends TableName> = SelectFields<TTableName, PgColumnDriverParam>;
 
-export type PgSelectFieldsOrdered<TTableName extends TableName = TableName> = {
-	name: string;
-	column: AnyPgColumn<TTableName> | AnySQLResponse<TTableName>;
-}[];
+export type PgSelectFieldsOrdered<TTableName extends TableName = TableName> = (
+	& Omit<SelectFieldsOrdered[number], 'column'>
+	& {
+		column: AnyPgColumn<TTableName> | AnySQLResponse<TTableName>;
+	}
+)[];
 
 export type SelectResultFields<
 	TTableName extends TableName,
@@ -35,6 +37,7 @@ export class PgTableOperations<TTable extends AnyPgTable, TTableNamesMap extends
 		protected table: TTable,
 		private session: PgSession,
 		private dialect: AnyPgDialect,
+		private tableNamesMap: TTableNamesMap,
 	) {}
 
 	select(): PgSelect<TTable, TTableNamesMap, InferModel<TTable>>;
@@ -44,8 +47,9 @@ export class PgTableOperations<TTable extends AnyPgTable, TTableNamesMap extends
 	select(fields?: PgSelectFields<GetTableName<TTable>>): PgSelect<TTable, TTableNamesMap, any> {
 		const fieldsOrdered = this.dialect.orderSelectedFields(
 			fields ?? this.table[tableColumns] as PgSelectFields<GetTableName<TTable>>,
+			this.tableNamesMap[this.table[tableName]]!,
 		);
-		return new PgSelect(this.table, fieldsOrdered, this.session, this.dialect);
+		return new PgSelect(this.table, fieldsOrdered, this.session, this.dialect, this.tableNamesMap);
 	}
 
 	update(): Pick<PgUpdate<TTable>, 'set'> {

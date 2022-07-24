@@ -1,6 +1,6 @@
 import { GetColumnData } from 'drizzle-orm';
 import { SQL } from 'drizzle-orm/sql';
-import { GetTableName, tableColumns, tableRowMapper } from 'drizzle-orm/utils';
+import { GetTableName, tableColumns, tableName, tableRowMapper } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
 import { AnyPgColumn } from '~/columns/common';
 
@@ -56,7 +56,9 @@ export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 	): Pick<PgUpdate<TTable, SelectResultFields<GetTableName<TTable>, TSelectedFields>[]>, 'getQuery' | 'execute'>;
 	public returning(fields?: PgSelectFields<GetTableName<TTable>>): PgUpdate<TTable, any> {
 		const orderedFields = this.dialect.orderSelectedFields<GetTableName<TTable>>(
-			fields ?? (this.config.table[tableColumns] as Record<string, AnyPgColumn<GetTableName<TTable>>>),
+			fields
+				?? (this.config.table[tableColumns] as Record<string, AnyPgColumn<GetTableName<TTable>>>),
+			this.table[tableName],
 		);
 		this.config.returning = orderedFields;
 		return this;

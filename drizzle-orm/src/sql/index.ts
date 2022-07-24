@@ -69,7 +69,7 @@ export class SQL<TTableName extends TableName> implements SQLWrapper {
 		const sqlString = chunks
 			.join('')
 			.trim()
-			.replace(/\s{2,}/, ' ')
+			.replace(/\s{2,}/g, ' ')
 			.replace(/\n+/g, '');
 
 		return { sql: sqlString, params: params as ColumnDriverParam<TDriverParamType>[] };
@@ -282,8 +282,6 @@ export class SQLResponse<TTableName extends TableName, TValue extends ColumnData
 		tableName: TTableName;
 		value: TValue;
 	};
-
-	tableName!: TableName;
 
 	constructor(
 		readonly sql: SQL<TTableName>,
