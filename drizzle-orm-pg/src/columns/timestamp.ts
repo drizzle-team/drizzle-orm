@@ -1,6 +1,6 @@
-import { AnyTable } from 'drizzle-orm';
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
+import { AnyPgTable } from '~/table';
 import { PgColumnWithMapper } from './common';
 import { PgDateColumnBaseBuilder } from './date-common';
 
@@ -18,7 +18,7 @@ export class PgTimestampBuilder<
 
 	/** @internal */
 	override build<TTableName extends TableName>(
-		table: AnyTable<TTableName>,
+		table: AnyPgTable<TTableName>,
 	): PgTimestamp<TTableName, TNotNull, THasDefault> {
 		return new PgTimestamp(table, this);
 	}
@@ -35,7 +35,7 @@ export class PgTimestamp<
 	public readonly precision: number | undefined;
 
 	constructor(
-		table: AnyTable<TTableName>,
+		table: AnyPgTable<TTableName>,
 		builder: PgTimestampBuilder<TNotNull, THasDefault>,
 	) {
 		super(table, builder);
@@ -67,7 +67,7 @@ export class PgTimestampStringBuilder<
 
 	/** @internal */
 	override build<TTableName extends TableName>(
-		table: AnyTable<TTableName>,
+		table: AnyPgTable<TTableName>,
 	): PgTimestampString<TTableName, TNotNull, THasDefault> {
 		return new PgTimestampString(table, this);
 	}
@@ -84,7 +84,7 @@ export class PgTimestampString<
 	public readonly precision: number | undefined;
 
 	constructor(
-		table: AnyTable<TTableName>,
+		table: AnyPgTable<TTableName>,
 		builder: PgTimestampStringBuilder<TNotNull, THasDefault>,
 	) {
 		super(table, builder);

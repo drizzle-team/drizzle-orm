@@ -1,5 +1,5 @@
-import { AnyTable } from 'drizzle-orm';
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
+import { AnyPgTable } from '~/table';
 
 import { PgColumnBuilder, PgColumnWithMapper } from './common';
 
@@ -10,7 +10,7 @@ export class PgTextBuilder<
 > extends PgColumnBuilder<ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	/** @internal */
 	override build<TTableName extends TableName>(
-		table: AnyTable<TTableName>,
+		table: AnyPgTable<TTableName>,
 	): PgText<TTableName, TNotNull, THasDefault, TData> {
 		return new PgText(table, this);
 	}
@@ -24,7 +24,7 @@ export class PgText<
 > extends PgColumnWithMapper<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgText';
 
-	constructor(table: AnyTable<TTableName>, builder: PgTextBuilder<TData, TNotNull, THasDefault>) {
+	constructor(table: AnyPgTable<TTableName>, builder: PgTextBuilder<TData, TNotNull, THasDefault>) {
 		super(table, builder);
 	}
 

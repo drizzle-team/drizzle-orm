@@ -1,6 +1,6 @@
-import { AnyTable } from 'drizzle-orm';
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
+import { AnyPgTable } from '~/table';
 import { PgColumnBuilder, PgColumnWithMapper } from './common';
 
 export class PgVarcharBuilder<
@@ -17,7 +17,7 @@ export class PgVarcharBuilder<
 
 	/** @internal */
 	override build<TTableName extends TableName>(
-		table: AnyTable<TTableName>,
+		table: AnyPgTable<TTableName>,
 	): PgVarchar<TTableName, TData, TNotNull, THasDefault> {
 		return new PgVarchar(table, this);
 	}
@@ -33,7 +33,7 @@ export class PgVarchar<
 
 	length: number | undefined;
 
-	constructor(table: AnyTable<TTableName>, builder: PgVarcharBuilder<TData, TNotNull, THasDefault>) {
+	constructor(table: AnyPgTable<TTableName>, builder: PgVarcharBuilder<TData, TNotNull, THasDefault>) {
 		super(table, builder);
 		this.length = builder.length;
 	}

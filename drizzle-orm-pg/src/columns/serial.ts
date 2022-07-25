@@ -1,5 +1,5 @@
-import { AnyTable } from 'drizzle-orm';
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
+import { AnyPgTable } from '~/table';
 
 import { PgColumnBuilder, PgColumnWithMapper } from './common';
 
@@ -11,7 +11,7 @@ export class PgSerialBuilder extends PgColumnBuilder<
 > {
 	/** @internal */
 	override build<TTableName extends TableName>(
-		table: AnyTable<TTableName>,
+		table: AnyPgTable<TTableName>,
 	): PgSerial<TTableName> {
 		return new PgSerial(table, this);
 	}

@@ -68,8 +68,12 @@ export class PgBigInt64<
 	};
 }
 
-export function bigint(name: string, maxBytes: 'max_bytes_53' | 'max_bytes_64') {
-	if (maxBytes === 'max_bytes_53') {
+interface PgBigIntConfig {
+	mode: 'number' | 'bigint';
+}
+
+export function bigint(name: string, config: PgBigIntConfig) {
+	if (config.mode === 'number') {
 		return new PgBigInt53Builder(name);
 	}
 	return new PgBigInt64Builder(name);

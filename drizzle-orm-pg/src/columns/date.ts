@@ -1,6 +1,6 @@
-import { AnyTable } from 'drizzle-orm';
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
+import { AnyPgTable } from '~/table';
 import { PgColumnWithMapper } from './common';
 import { PgDateColumnBaseBuilder } from './date-common';
 
@@ -10,7 +10,7 @@ export class PgDateBuilder<
 > extends PgDateColumnBaseBuilder<ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	/** @internal */
 	override build<TTableName extends TableName>(
-		table: AnyTable<TTableName>,
+		table: AnyPgTable<TTableName>,
 	): PgDate<TTableName, TNotNull, THasDefault> {
 		return new PgDate(table, this);
 	}
@@ -23,7 +23,7 @@ export class PgDate<
 > extends PgColumnWithMapper<TTableName, ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgDate';
 
-	constructor(table: AnyTable<TTableName>, builder: PgDateBuilder<TNotNull, THasDefault>) {
+	constructor(table: AnyPgTable<TTableName>, builder: PgDateBuilder<TNotNull, THasDefault>) {
 		super(table, builder);
 	}
 
@@ -46,7 +46,7 @@ export class PgDateStringBuilder<
 > extends PgDateColumnBaseBuilder<ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	/** @internal */
 	override build<TTableName extends TableName>(
-		table: AnyTable<TTableName>,
+		table: AnyPgTable<TTableName>,
 	): PgDateString<TTableName, TNotNull, THasDefault> {
 		return new PgDateString(table, this);
 	}
@@ -59,7 +59,7 @@ export class PgDateString<
 > extends PgColumnWithMapper<TTableName, ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	brand!: 'PgDateString';
 
-	constructor(table: AnyTable<TTableName>, builder: PgDateStringBuilder<TNotNull, THasDefault>) {
+	constructor(table: AnyPgTable<TTableName>, builder: PgDateStringBuilder<TNotNull, THasDefault>) {
 		super(table, builder);
 	}
 

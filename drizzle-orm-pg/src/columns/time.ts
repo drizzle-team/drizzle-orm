@@ -1,4 +1,3 @@
-import { AnyTable } from 'drizzle-orm';
 import {
 	ColumnData,
 	ColumnDriverParam,
@@ -8,6 +7,7 @@ import {
 	Unwrap,
 } from 'drizzle-orm/branded-types';
 
+import { AnyPgTable } from '~/table';
 import { PgColumnWithMapper } from './common';
 import { PgDateColumnBaseBuilder } from './date-common';
 
@@ -26,7 +26,7 @@ export class PgTimeBuilder<
 
 	/** @internal */
 	override build<TTableName extends TableName>(
-		table: AnyTable<TTableName>,
+		table: AnyPgTable<TTableName>,
 	): PgTime<TTableName, TData, TNotNull, THasDefault> {
 		return new PgTime(table, this);
 	}
@@ -43,7 +43,7 @@ export class PgTime<
 	public readonly withTimezone: boolean;
 	public readonly precision: number | undefined;
 
-	constructor(table: AnyTable<TTableName>, builder: PgTimeBuilder<TData, TNotNull, THasDefault>) {
+	constructor(table: AnyPgTable<TTableName>, builder: PgTimeBuilder<TData, TNotNull, THasDefault>) {
 		super(table, builder);
 		this.withTimezone = builder.withTimezone;
 		this.precision = builder.precision;

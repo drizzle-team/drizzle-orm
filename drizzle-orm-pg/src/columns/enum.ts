@@ -1,6 +1,6 @@
-import { AnyTable } from 'drizzle-orm';
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
+import { AnyPgTable } from '~/table';
 import { PgColumnBuilder, PgColumnWithMapper } from './common';
 
 export class PgEnum<TValues extends string> {
@@ -25,7 +25,7 @@ export class PgEnumBuilder<
 	}
 	/** @internal */
 	override build<TTableName extends TableName>(
-		table: AnyTable<TTableName>,
+		table: AnyPgTable<TTableName>,
 	): PgEnumColumn<TTableName, TData, TNotNull, THasDefault> {
 		return new PgEnumColumn(table, this, this.enumName);
 	}
@@ -40,7 +40,7 @@ export class PgEnumColumn<
 	protected brand!: 'PgEnumColumn';
 
 	constructor(
-		table: AnyTable<TTableName>,
+		table: AnyPgTable<TTableName>,
 		builder: PgEnumBuilder<TData, TNotNull, THasDefault>,
 		public readonly enumName: string,
 	) {

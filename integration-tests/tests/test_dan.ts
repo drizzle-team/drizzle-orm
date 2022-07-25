@@ -1,5 +1,6 @@
 import { connect, sql } from 'drizzle-orm';
 import { constraint, foreignKey, index, integer, PgConnector, pgTable, serial, text, timestamp } from 'drizzle-orm-pg';
+import { getTableForeignKeys } from 'drizzle-orm-pg/utils';
 import { eq, exists } from 'drizzle-orm/expressions';
 import { Pool } from 'pg';
 
@@ -10,7 +11,7 @@ const usersTable = pgTable(
 		homeCity: integer('home_city')
 			.notNull()
 			.references(() => citiesTable.id),
-		currentCity: integer('current_city').references(() => citiesTable.id),
+		currentCity: integer('current_city').references(() => citiesTable.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
 		serialNullable: serial('serial1'),
 		serialNotNull: serial('serial2').notNull(),
 		class: text<'A' | 'C'>('class').notNull(),
@@ -30,14 +31,16 @@ const usersTable = pgTable(
 			using: sql`btree`,
 		}),
 		legalAge: constraint('legalAge', sql`${users.age1} > 18`),
-		usersClassFK: foreignKey(() => [users.class, classesTable, classesTable.class]),
+		ageSelfFK: foreignKey(() => [users.age1, users.id]).onUpdate('no action'),
+		usersClassFK: foreignKey(() => [users.class, classesTable.class]).onDelete('set default'),
 		usersClassComplexFK: foreignKey(() => [
 			[users.class, users.subClass],
-			classesTable,
 			[classesTable.class, classesTable.subClass],
-		]),
+		]).onUpdate('set null').onDelete('no action'),
 	}),
 );
+
+console.log(getTableForeignKeys(usersTable));
 
 const citiesTable = pgTable('cities', {
 	id: serial('id').primaryKey(),

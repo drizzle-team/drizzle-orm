@@ -58,7 +58,7 @@ export class PgTable<
 	[tableIndexes]: Record<string, Index<AnyPgTable<TName>, boolean>> = {};
 
 	/** @internal */
-	[tableForeignKeys]: Record<string, ForeignKey<TName, TableName>> = {};
+	[tableForeignKeys]: Record<string | symbol, ForeignKey<TName, TableName>> = {};
 
 	/** @internal */
 	[tableConstraints]: Record<string, Constraint<TName>> = {};
@@ -154,7 +154,13 @@ export function pgTable<
 	);
 
 	const builtColumns = Object.fromEntries(
-		Object.entries(columns).map(([name, colConfig]) => [name, colConfig.build(rawTable)]),
+		Object.entries(columns).map(([name, colBuilder]) => {
+			const column = colBuilder.build(rawTable);
+			colBuilder.buildForeignKeys(column, rawTable).forEach((fk, fkIndex) => {
+				rawTable[tableForeignKeys][Symbol(`${name}_${fkIndex}`)] = fk;
+			});
+			return [name, column];
+		}),
 	) as BuildPgColumns<TableName<TTableName>, TColumnsMap>;
 
 	rawTable[tableColumns] = builtColumns;

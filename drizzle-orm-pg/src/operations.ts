@@ -1,6 +1,6 @@
 import { GetColumnData } from 'drizzle-orm';
-import { TableName, Unwrap } from 'drizzle-orm/branded-types';
-import { SelectFields, SelectFieldsOrdered } from 'drizzle-orm/operations';
+import { ColumnData, TableName, Unwrap } from 'drizzle-orm/branded-types';
+import { SelectFieldsOrdered } from 'drizzle-orm/operations';
 import { AnySQLResponse, SQLResponse } from 'drizzle-orm/sql';
 import { GetTableName, tableColumns, tableName } from 'drizzle-orm/utils';
 import { Simplify } from 'type-fest';
@@ -11,7 +11,14 @@ import { AnyPgDialect, PgSession } from './connection';
 import { PgDelete, PgInsert, PgSelect, PgUpdate } from './queries';
 import { AnyPgTable, InferModel } from './table';
 
-export type PgSelectFields<TTableName extends TableName> = SelectFields<TTableName, PgColumnDriverParam>;
+export type PgSelectFields<
+	TTableName extends TableName,
+	TColumnDriverParam extends PgColumnDriverParam = PgColumnDriverParam,
+> = {
+	[key: string]:
+		| SQLResponse<TTableName, ColumnData>
+		| AnyPgColumn<TTableName, any, TColumnDriverParam>;
+};
 
 export type PgSelectFieldsOrdered<TTableName extends TableName = TableName> = (
 	& Omit<SelectFieldsOrdered[number], 'column'>
@@ -46,7 +53,7 @@ export class PgTableOperations<TTable extends AnyPgTable, TTableNamesMap extends
 	): PgSelect<TTable, TTableNamesMap, SelectResultFields<GetTableName<TTable>, TSelectedFields>>;
 	select(fields?: PgSelectFields<GetTableName<TTable>>): PgSelect<TTable, TTableNamesMap, any> {
 		const fieldsOrdered = this.dialect.orderSelectedFields(
-			fields ?? this.table[tableColumns] as PgSelectFields<GetTableName<TTable>>,
+			fields ?? this.table[tableColumns] as Record<string, AnyPgColumn>,
 			this.tableNamesMap[this.table[tableName]]!,
 		);
 		return new PgSelect(this.table, fieldsOrdered, this.session, this.dialect, this.tableNamesMap);

@@ -1,6 +1,7 @@
 import { TableName } from 'drizzle-orm/branded-types';
+import { tableName } from 'drizzle-orm/utils';
 
-import { AnyPgColumn, PgColumn } from './columns';
+import { AnyPgColumn } from './columns';
 import { AnyPgTable } from './table';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
@@ -15,7 +16,7 @@ export class ForeignKeyBuilder<TTableName extends TableName, TForeignTableName e
 	protected brand!: 'PgForeignKeyBuilder';
 
 	/** @internal */
-	_reference: Reference<TTableName, TForeignTableName>;
+	reference: Reference<TTableName, TForeignTableName>;
 
 	/** @internal */
 	_onUpdate: UpdateDeleteAction | undefined;
@@ -24,24 +25,31 @@ export class ForeignKeyBuilder<TTableName extends TableName, TForeignTableName e
 	_onDelete: UpdateDeleteAction | undefined;
 
 	constructor(
-		reference: () => readonly [
-			columns: AnyPgColumn<TTableName>[],
-			foreignTable: AnyPgTable<TForeignTableName>,
-			foreignColumns: AnyPgColumn<TForeignTableName>[],
-		],
+		config: () => {
+			columns: AnyPgColumn<TTableName>[];
+			foreignColumns: AnyPgColumn<TForeignTableName>[];
+		},
+		actions?: {
+			onUpdate?: UpdateDeleteAction;
+			onDelete?: UpdateDeleteAction;
+		} | undefined,
 	) {
-		this._reference = () => {
-			const [columns, foreignTable, foreignColumns] = reference();
-			return { columns, foreignTable, foreignColumns };
+		this.reference = () => {
+			const { columns, foreignColumns } = config();
+			return { columns, foreignTable: foreignColumns[0]!.table, foreignColumns };
 		};
+		if (actions) {
+			this._onUpdate = actions.onUpdate;
+			this._onDelete = actions.onDelete;
+		}
 	}
 
-	onUpdate(action: UpdateDeleteAction): Omit<this, 'onUpdate'> {
+	onUpdate(action: UpdateDeleteAction): this {
 		this._onUpdate = action;
 		return this;
 	}
 
-	onDelete(action: UpdateDeleteAction): Omit<this, 'onDelete'> {
+	onDelete(action: UpdateDeleteAction): this {
 		this._onDelete = action;
 		return this;
 	}
@@ -62,26 +70,38 @@ export class ForeignKey<TTableName extends TableName, TForeignTableName extends 
 		readonly table: AnyPgTable<TTableName>,
 		builder: ForeignKeyBuilder<TTableName, TForeignTableName>,
 	) {
-		this.reference = builder._reference;
+		this.reference = builder.reference;
 		this.onUpdate = builder._onUpdate;
 		this.onDelete = builder._onDelete;
 	}
+
+	getName(): string {
+		const { columns, foreignColumns } = this.reference();
+		const columnNames = columns.map((column) => column.name);
+		const foreignColumnNames = foreignColumns.map((column) => column.name);
+		const chunks = [
+			this.table[tableName],
+			...columnNames,
+			foreignColumns[0]!.table[tableName],
+			...foreignColumnNames,
+		];
+		return `${chunks.join('_')}_fk`;
+	}
 }
 
-export type AnyForeignKey = ForeignKey<TableName, TableName>;
+export type AnyForeignKey = ForeignKey<any, any>;
 
 type ColumnsWithTable<
 	TTableName extends TableName,
 	TColumns extends AnyPgColumn | [AnyPgColumn, ...AnyPgColumn[]],
-> = TColumns extends PgColumn<any, infer TType, any, any, any> ? PgColumn<TTableName, TType, any, any, any>
+> = TColumns extends AnyPgColumn<any, infer TType> ? AnyPgColumn<TTableName, TType>
 	: TColumns extends AnyPgColumn[] ? {
-			[Key in keyof TColumns]: TColumns[Key] extends PgColumn<any, infer TType, any, any, any>
-				? PgColumn<TTableName, TType, any, any, any>
+			[Key in keyof TColumns]: TColumns[Key] extends AnyPgColumn<any, infer TType> ? AnyPgColumn<TTableName, TType>
 				: never;
 		}
 	: never;
 
-type GetColumnsTable<TColumns extends AnyPgColumn | AnyPgColumn[]> = (
+export type GetColumnsTable<TColumns extends AnyPgColumn | AnyPgColumn[]> = (
 	TColumns extends AnyPgColumn ? TColumns
 		: TColumns extends AnyPgColumn[] ? TColumns[number]
 		: never
@@ -90,28 +110,19 @@ type GetColumnsTable<TColumns extends AnyPgColumn | AnyPgColumn[]> = (
 
 export function foreignKey<
 	TColumns extends AnyPgColumn | [AnyPgColumn, ...AnyPgColumn[]],
-	TForeignTableName extends TableName,
+	TForeignColumns extends ColumnsWithTable<TableName, TColumns>,
 >(
 	config: () => [
 		columns: TColumns,
-		foreignTable: AnyPgTable<TForeignTableName>,
-		foreignColumns: ColumnsWithTable<TForeignTableName, TColumns>,
+		foreignColumns: TForeignColumns,
 	],
-): ForeignKeyBuilder<
-	GetColumnsTable<TColumns>,
-	TForeignTableName
-> {
+): ForeignKeyBuilder<GetColumnsTable<TColumns>, GetColumnsTable<TForeignColumns>> {
 	function mappedConfig() {
-		const [columns, foreignTable, foreignColumns] = config();
-		return [
-			(columns instanceof PgColumn ? [columns] : columns) as AnyPgColumn<
-				GetColumnsTable<TColumns>
-			>[],
-			foreignTable,
-			(foreignColumns instanceof PgColumn
-				? [foreignColumns]
-				: foreignColumns) as AnyPgColumn<TForeignTableName>[],
-		] as const;
+		const [columns, foreignColumns] = config();
+		return {
+			columns: Array.isArray(columns) ? columns : [columns] as AnyPgColumn[],
+			foreignColumns: Array.isArray(foreignColumns) ? foreignColumns : [foreignColumns] as AnyPgColumn[],
+		};
 	}
 
 	return new ForeignKeyBuilder(mappedConfig);

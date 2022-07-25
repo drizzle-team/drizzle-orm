@@ -1,6 +1,6 @@
-import { AnyTable } from 'drizzle-orm';
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
+import { AnyPgTable } from '~/table';
 import { PgColumnBuilder, PgColumnWithMapper } from './common';
 
 export class PgJsonBuilder<
@@ -14,7 +14,7 @@ export class PgJsonBuilder<
 
 	/** @internal */
 	override build<TTableName extends TableName>(
-		table: AnyTable<TTableName>,
+		table: AnyPgTable<TTableName>,
 	): PgJson<TTableName, TNotNull, THasDefault, TData> {
 		return new PgJson(table, this);
 	}
@@ -28,7 +28,7 @@ export class PgJson<
 > extends PgColumnWithMapper<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgJson';
 
-	constructor(table: AnyTable<TTableName>, builder: PgJsonBuilder<TData, TNotNull, THasDefault>) {
+	constructor(table: AnyPgTable<TTableName>, builder: PgJsonBuilder<TData, TNotNull, THasDefault>) {
 		super(table, builder);
 	}
 

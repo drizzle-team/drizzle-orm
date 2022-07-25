@@ -1,6 +1,6 @@
-import { AnyTable } from 'drizzle-orm';
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
+import { AnyPgTable } from '~/table';
 import { PgColumnBuilder, PgColumnWithMapper } from './common';
 
 export class PgNumericBuilder<
@@ -18,7 +18,7 @@ export class PgNumericBuilder<
 
 	/** @internal */
 	override build<TTableName extends TableName>(
-		table: AnyTable<TTableName>,
+		table: AnyPgTable<TTableName>,
 	): PgNumeric<TTableName, TNotNull, THasDefault> {
 		return new PgNumeric(table, this);
 	}
@@ -40,7 +40,7 @@ export class PgNumeric<
 	precision: number | undefined;
 	scale: number | undefined;
 
-	constructor(table: AnyTable<TTableName>, builder: PgNumericBuilder<TNotNull, THasDefault>) {
+	constructor(table: AnyPgTable<TTableName>, builder: PgNumericBuilder<TNotNull, THasDefault>) {
 		super(table, builder);
 		this.precision = builder.precision;
 		this.scale = builder.scale;
