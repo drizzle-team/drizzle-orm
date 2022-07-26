@@ -24,6 +24,7 @@
 		"typescript": "^4.7.4"
 	},
 	"dependencies": {
+		"mysql2": "^2.3.3",
 		"pg": "^8.6.0"
 	}
 }

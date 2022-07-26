@@ -1,17 +1,16 @@
 {
-	"extends": "../tsconfig.json",
-	"compilerOptions": {
-		"outDir": "./dist",
-		"allowJs": true,
-		"declaration": true,
-		"sourceMap": true,
-		"baseUrl": "./",
-		"rootDir": "src",
-		"paths": {
-			"drizzle-orm-mysql/*": ["src/*"]
-		}
-	},
-	"include": ["src"],
-	"exclude": ["dist", "tests", "node_modules"],
-	"references": [{ "path": "../drizzle-orm-pg" }, { "path": "../drizzle-orm" }]
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "allowJs": true,
+    "declaration": true,
+    "sourceMap": true,
+    "baseUrl": "./",
+    "rootDir": "src",
+    "paths": {
+      "~/*": ["src/*"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["dist", "tests", "node_modules"]
 }
