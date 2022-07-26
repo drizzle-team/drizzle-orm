@@ -169,6 +169,9 @@ export function inArray(column: AnyColumn, values: SQLWrapper | Unwrap<ColumnDat
 	if (isSQLWrapper(values)) {
 		return sql`${column} in (${values})`;
 	}
+	if (values.length === 0) {
+		throw new Error('inArray requires at least one value');
+	}
 	return sql`${column} in ${values.map((v) => new BoundParamValue(v as ColumnData, column))}`;
 }
 
@@ -186,6 +189,9 @@ export function notInArray<
 export function notInArray(column: AnyColumn, values: SQLWrapper | Unwrap<ColumnData>[]): AnySQL {
 	if (isSQLWrapper(values)) {
 		return sql`${column} not in (${values})`;
+	}
+	if (values.length === 0) {
+		throw new Error('notInArray requires at least one value');
 	}
 	return sql`${column} not in ${values.map((v) => new BoundParamValue(v as ColumnData, column))}`;
 }
