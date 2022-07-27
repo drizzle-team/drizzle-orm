@@ -6,7 +6,7 @@ import { MySqlColumnBuilder, MySqlColumnWithMapper } from './common';
 export class MySqlFloatBuilder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
 	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends MySqlColumnBuilder<ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends MySqlColumnBuilder<ColumnData<number>, ColumnDriverParam<number>, TNotNull, THasDefault> {
 	/** @internal */ precision: number | undefined;
 	/** @internal */ scale: number | undefined;
 
@@ -30,8 +30,8 @@ export class MySqlFloat<
 	THasDefault extends ColumnHasDefault,
 > extends MySqlColumnWithMapper<
 	TTableName,
-	ColumnData<string>,
-	ColumnDriverParam<string>,
+	ColumnData<number>,
+	ColumnDriverParam<number>,
 	TNotNull,
 	THasDefault
 > {

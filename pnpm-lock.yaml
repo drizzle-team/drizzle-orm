@@ -20,6 +20,8 @@ importers:
     specifiers:
       '@types/pg': ^8.6.1
       '@types/sqlite3': ^3.1.8
+      drizzle-orm-mysql: '>=0.13.0'
+      drizzle-orm-pg: '>=0.13.0'
       mysql2: ^2.3.3
       pg: ^8.6.0
       resolve-tspaths: ^0.7.0
@@ -29,6 +31,8 @@ importers:
       typescript: 4.8.0-beta
       uvu: ^0.5.6
     dependencies:
+      drizzle-orm-mysql: link:../drizzle-orm-mysql
+      drizzle-orm-pg: link:../drizzle-orm-pg
       type-fest: 2.16.0
     devDependencies:
       '@types/pg': 8.6.5
@@ -37,7 +41,7 @@ importers:
       pg: 8.7.3
       resolve-tspaths: 0.7.1_typescript@4.8.0-beta
       sqlite3: 5.0.9
-      ts-node: 10.9.1_typescript@4.8.0-beta
+      ts-node: 10.9.1_4xxg3lka7dbc5wz2frbviv3qdu
       typescript: 4.8.0-beta
       uvu: 0.5.6
 
@@ -56,7 +60,7 @@ importers:
       drizzle-orm: link:../drizzle-orm/src
       mysql2: 2.3.3
       resolve-tspaths: 0.7.1_typescript@4.8.0-beta
-      ts-node: 10.9.1_typescript@4.8.0-beta
+      ts-node: 10.9.1_4xxg3lka7dbc5wz2frbviv3qdu
       type-fest: 2.16.0
       typescript: 4.8.0-beta
       uvu: 0.5.6
@@ -78,7 +82,7 @@ importers:
       drizzle-orm: link:../drizzle-orm/src
       pg: 8.7.3
       resolve-tspaths: 0.7.1_typescript@4.8.0-beta
-      ts-node: 10.9.1_typescript@4.8.0-beta
+      ts-node: 10.9.1_4xxg3lka7dbc5wz2frbviv3qdu
       type-fest: 2.16.0
       typescript: 4.8.0-beta
       uvu: 0.5.6
@@ -1676,6 +1680,37 @@ packages:
     resolution: {integrity: sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==}
     dev: true
 
+  /ts-node/10.9.1_4xxg3lka7dbc5wz2frbviv3qdu:
+    resolution: {integrity: sha512-NtVysVPkxxrwFGUUxGYhfux8k78pQB3JqYBXlLRZgdGUqTO5wU/UyHop5p70iEbGhB7q5KmiZiU0Y3KlJrScEw==}
+    hasBin: true
+    peerDependencies:
+      '@swc/core': '>=1.2.50'
+      '@swc/wasm': '>=1.2.50'
+      '@types/node': '*'
+      typescript: '>=2.7'
+    peerDependenciesMeta:
+      '@swc/core':
+        optional: true
+      '@swc/wasm':
+        optional: true
+    dependencies:
+      '@cspotcode/source-map-support': 0.8.1
+      '@tsconfig/node10': 1.0.9
+      '@tsconfig/node12': 1.0.11
+      '@tsconfig/node14': 1.0.3
+      '@tsconfig/node16': 1.0.3
+      '@types/node': 18.0.6
+      acorn: 8.7.1
+      acorn-walk: 8.2.0
+      arg: 4.1.3
+      create-require: 1.1.1
+      diff: 4.0.2
+      make-error: 1.3.6
+      typescript: 4.8.0-beta
+      v8-compile-cache-lib: 3.0.1
+      yn: 3.1.1
+    dev: true
+
   /ts-node/10.9.1_tdn3ypgnfy6bmey2q4hu5jonwi:
     resolution: {integrity: sha512-NtVysVPkxxrwFGUUxGYhfux8k78pQB3JqYBXlLRZgdGUqTO5wU/UyHop5p70iEbGhB7q5KmiZiU0Y3KlJrScEw==}
     hasBin: true
@@ -1703,36 +1738,6 @@ packages:
       diff: 4.0.2
       make-error: 1.3.6
       typescript: 4.7.4
-      v8-compile-cache-lib: 3.0.1
-      yn: 3.1.1
-    dev: true
-
-  /ts-node/10.9.1_typescript@4.8.0-beta:
-    resolution: {integrity: sha512-NtVysVPkxxrwFGUUxGYhfux8k78pQB3JqYBXlLRZgdGUqTO5wU/UyHop5p70iEbGhB7q5KmiZiU0Y3KlJrScEw==}
-    hasBin: true
-    peerDependencies:
-      '@swc/core': '>=1.2.50'
-      '@swc/wasm': '>=1.2.50'
-      '@types/node': '*'
-      typescript: '>=2.7'
-    peerDependenciesMeta:
-      '@swc/core':
-        optional: true
-      '@swc/wasm':
-        optional: true
-    dependencies:
-      '@cspotcode/source-map-support': 0.8.1
-      '@tsconfig/node10': 1.0.9
-      '@tsconfig/node12': 1.0.11
-      '@tsconfig/node14': 1.0.3
-      '@tsconfig/node16': 1.0.3
-      acorn: 8.7.1
-      acorn-walk: 8.2.0
-      arg: 4.1.3
-      create-require: 1.1.1
-      diff: 4.0.2
-      make-error: 1.3.6
-      typescript: 4.8.0-beta
       v8-compile-cache-lib: 3.0.1
       yn: 3.1.1
     dev: true
@@ -1850,7 +1855,7 @@ packages:
     dev: true
 
   file:drizzle-orm-mysql/package.tgz_2ukceqmcii4xvknwjlwe2ql4iq:
-    resolution: {integrity: sha512-OCelI7usfvMIWGilYASarXPZ1OzHEVWsSsvH7RUarCUy+qu+6si7A4+aOwNPBSnF986KvUDH8RNJ0xZVDT+cuQ==, tarball: file:drizzle-orm-mysql/package.tgz}
+    resolution: {integrity: sha512-c9zGtl7vMn0hwhouuM8PtK8YFCAcXZwSreRn/Zu5polBS8bgW6iuPx2QAm46W/K6BC1T3USf8UitDXxecwF61w==, tarball: file:drizzle-orm-mysql/package.tgz}
     id: file:drizzle-orm-mysql/package.tgz
     name: drizzle-orm-mysql
     version: 0.13.0
@@ -1868,7 +1873,7 @@ packages:
     dev: true
 
   file:drizzle-orm-pg/package.tgz_62jjsl7j24ddkfqklwbsnaigdi:
-    resolution: {integrity: sha512-P+6dmxtwncof17xaWcw/cNS6ylIbx1fq2vPFIK9OBPdAiJlT9LSCyAI7cH7CQhA1ZqmhOPnBbPt3LGbwFC0h4g==, tarball: file:drizzle-orm-pg/package.tgz}
+    resolution: {integrity: sha512-n78o1PuszBBDF17pDCRw7rsfSy+x6crsx3oltYwCImsl/HNuE9JHO2865gvJgPI59sZx0qdwMja7MT7uw0CoRw==, tarball: file:drizzle-orm-pg/package.tgz}
     id: file:drizzle-orm-pg/package.tgz
     name: drizzle-orm-pg
     version: 0.13.0
@@ -1884,7 +1889,7 @@ packages:
     dev: true
 
   file:drizzle-orm/package.tgz_mfmlu2n7v4wqmdgr6hyyapjyba:
-    resolution: {integrity: sha512-xPile0np4TILLADHkDWtnn22nBeK8DMMdzHC65xHCWNaRRgev7njtTVAqTtoReT/so08YdFzFxFCHI8MoaK5xA==, tarball: file:drizzle-orm/package.tgz}
+    resolution: {integrity: sha512-dhnFsEnUbSYec3VI8S4DDE50yQSQIUgc2+GOtwq0sSey5aZciM1MS8UKR64wT+zsQamJ5jyc3m9oFyp7hEOSZA==, tarball: file:drizzle-orm/package.tgz}
     id: file:drizzle-orm/package.tgz
     name: drizzle-orm
     version: 0.13.0

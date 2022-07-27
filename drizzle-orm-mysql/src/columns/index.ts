@@ -9,6 +9,7 @@ export * from './float';
 export * from './int';
 export * from './mediumint';
 export * from './real';
+export * from './serial';
 export * from './smallint';
 export * from './text';
 export * from './tinyint';
