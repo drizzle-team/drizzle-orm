@@ -12,6 +12,7 @@ export * from './real';
 export * from './serial';
 export * from './smallint';
 export * from './text';
+export * from './timestamp';
 export * from './tinyint';
 export * from './varbinary';
 export * from './varchar';

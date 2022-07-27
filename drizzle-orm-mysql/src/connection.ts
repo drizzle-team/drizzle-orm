@@ -37,7 +37,13 @@ export class MySqlSessionDefault implements MySqlSession {
 
 	public async query(query: string, params: unknown[]): Promise<MySqlQueryResult> {
 		console.log({ query, params });
-		const result = await this.client.query({ sql: query, values: params, rowsAsArray: true });
+		const result = await this.client.query({ sql: query, values: params, rowsAsArray: true, 
+			typeCast: function(field: any, next: any) {
+			if (field.type === 'TIMESTAMP') {
+				return field.string();
+			}
+			return next();
+		}, });
 		return result;
 	}
 

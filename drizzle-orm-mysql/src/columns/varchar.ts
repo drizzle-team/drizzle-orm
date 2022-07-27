@@ -43,7 +43,7 @@ export class MySqlVarChar<
 	}
 
 	getSQLType(): string {
-		return typeof this.length !== 'undefined' ? `char(${this.length})` : `char`;
+		return typeof this.length !== 'undefined' ? `varchar(${this.length})` : `varchar`;
 	}
 }
 

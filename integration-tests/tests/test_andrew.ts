@@ -1,5 +1,5 @@
 import { connect, sql } from 'drizzle-orm';
-import { int, mediumint, mediumtext, text, tinyint } from 'drizzle-orm-mysql/columns';
+import { int, mediumint, mediumtext, real, text, timestamp, tinyint } from 'drizzle-orm-mysql/columns';
 import { MySqlConnector } from 'drizzle-orm-mysql/connection';
 import { mySqlTable } from 'drizzle-orm-mysql/table';
 import { eq } from 'drizzle-orm/expressions';
@@ -31,6 +31,10 @@ const citiesTable = mySqlTable(
 	},
 );
 
+const datesTable = mySqlTable('dates', {
+	timestamp: timestamp('TIMESTAMP'),
+});
+
 // console.log(getTableForeignKeys(usersTable));
 
 // const citiesTable = pgTable('cities', {
@@ -57,8 +61,14 @@ async function main() {
 		connectionLimit: 10,
 	});
 
-	const connector = new MySqlConnector(pool, { usersTable, citiesTable });
+	const connector = new MySqlConnector(pool, { usersTable, citiesTable, datesTable });
 	const realDb = await connect(connector);
+
+	// await pool.query('INSERT INTO dates (`TIMESTAMP`) VALUES (?)', [new Date()]);
+	// const res = await pool.query({ sql: 'SELECT * FROM dates' });
+	// const res = await realDb.datesTable.select().execute();
+
+	await realDb.datesTable.insert({ timestamp: new Date() }).execute();
 
 	// RETURNING always what mysql respond
 	// add autoincrement instead of serial
@@ -76,11 +86,12 @@ async function main() {
 
 	// console.log(updateRes);
 
-	const res = await realDb.citiesTable.select()
-		.innerJoin(usersTable, eq(usersTable.id, citiesTable.userId), { id: usersTable.id })
-		.execute();
+	// const res = await realDb.citiesTable.select()
+	// 	.innerJoin(usersTable, eq(usersTable.id, citiesTable.userId), { id: usersTable.id })
+	// 	.execute();
 
-	console.log(res);
+	// console.log(res[0]);
+	// console.log(new Date((res[0] as any)[0]['TIMESTAMP']));
 }
 
 main().catch((e) => {
