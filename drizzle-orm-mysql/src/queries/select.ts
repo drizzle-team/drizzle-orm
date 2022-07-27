@@ -133,7 +133,7 @@ export class MySqlSelect<
 			on: JoinOn<TTableNamesMap, TJoinedTableNames, TAliases, TJoinedTable, TJoinName>,
 			select: JoinSelect<TJoinedTable, TJoinName, TSelectedFields>,
 		): PickJoin<
-		MySqlSelect<
+			MySqlSelect<
 				TTable,
 				TTableNamesMap,
 				TInitialSelectResultFields,
@@ -227,21 +227,15 @@ export class MySqlSelect<
 		columns: (
 			joins: TAliases,
 		) =>
-			| AnyMySQL<TableName<keyof TAliases & string> | GetTableName<TTable>>[]
-			| AnyMySQL<TableName<keyof TAliases & string> | GetTableName<TTable>>,
+			| AnyMySQL<TableName<TJoinedTableNames> | GetTableName<TTable>>[]
+			| AnyMySQL<TableName<TJoinedTableNames> | GetTableName<TTable>>,
 	): PickOrderBy<this>;
 	public orderBy(
-		...columns: AnyMySQL<GetTableName<TTable>>[]
+		...columns: AnyMySQL<TableName<TJoinedTableNames> | GetTableName<TTable>>[]
 	): PickOrderBy<this>;
 	public orderBy(
-		firstColumn:
-			| ((
-				joins: TAliases,
-			) =>
-				| AnyMySQL<TableName<keyof TAliases & string> | GetTableName<TTable>>[]
-				| AnyMySQL<TableName<keyof TAliases & string> | GetTableName<TTable>>)
-			| AnyMySQL<GetTableName<TTable>>,
-		...otherColumns: AnyMySQL<GetTableName<TTable>>[]
+		firstColumn: ((joins: TAliases) => AnyMySQL[] | AnyMySQL) | AnyMySQL,
+		...otherColumns: AnyMySQL[]
 	): PickOrderBy<this> {
 		let columns: AnyMySQL[];
 		if (firstColumn instanceof SQL) {

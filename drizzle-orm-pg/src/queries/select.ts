@@ -227,21 +227,15 @@ export class PgSelect<
 		columns: (
 			joins: TAliases,
 		) =>
-			| AnyPgSQL<TableName<keyof TAliases & string> | GetTableName<TTable>>[]
-			| AnyPgSQL<TableName<keyof TAliases & string> | GetTableName<TTable>>,
+			| AnyPgSQL<TableName<TJoinedTableNames> | GetTableName<TTable>>[]
+			| AnyPgSQL<TableName<TJoinedTableNames> | GetTableName<TTable>>,
 	): PickOrderBy<this>;
 	public orderBy(
-		...columns: AnyPgSQL<GetTableName<TTable>>[]
+		...columns: AnyPgSQL<TableName<TJoinedTableNames> | GetTableName<TTable>>[]
 	): PickOrderBy<this>;
 	public orderBy(
-		firstColumn:
-			| ((
-				joins: TAliases,
-			) =>
-				| AnyPgSQL<TableName<keyof TAliases & string> | GetTableName<TTable>>[]
-				| AnyPgSQL<TableName<keyof TAliases & string> | GetTableName<TTable>>)
-			| AnyPgSQL<GetTableName<TTable>>,
-		...otherColumns: AnyPgSQL<GetTableName<TTable>>[]
+		firstColumn: ((joins: TAliases) => AnyPgSQL[] | AnyPgSQL) | AnyPgSQL,
+		...otherColumns: AnyPgSQL[]
 	): PickOrderBy<this> {
 		let columns: AnyPgSQL[];
 		if (firstColumn instanceof SQL) {
