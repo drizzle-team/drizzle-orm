@@ -6,13 +6,19 @@ import { Connection, FieldPacket, Pool } from 'mysql2/promise';
 import { Simplify } from 'type-fest';
 import { AnyMySqlColumn, MySqlColumn } from './columns/common';
 import { MySqlSelectFields, MySqlSelectFieldsOrdered, MySqlTableOperations } from './operations';
-import { AnyMySqlInsertConfig, MySqlDeleteConfig, MySqlSelectConfig, MySqlUpdateConfig, MySqlUpdateSet } from './queries';
+import {
+	AnyMySqlInsertConfig,
+	MySqlDeleteConfig,
+	MySqlSelectConfig,
+	MySqlUpdateConfig,
+	MySqlUpdateSet,
+} from './queries';
 import { AnyMySQL, MySqlPreparedQuery } from './sql';
 import { AnyMySqlTable } from './table';
 
 import { getTableColumns } from './utils';
 
-export type MySqlQueryResult = [any, FieldPacket[]]
+export type MySqlQueryResult = [any, FieldPacket[]];
 
 export type MySqlColumnDriverDataType =
 	| string
@@ -37,13 +43,17 @@ export class MySqlSessionDefault implements MySqlSession {
 
 	public async query(query: string, params: unknown[]): Promise<MySqlQueryResult> {
 		console.log({ query, params });
-		const result = await this.client.query({ sql: query, values: params, rowsAsArray: true, 
+		const result = await this.client.query({
+			sql: query,
+			values: params,
+			rowsAsArray: true,
 			typeCast: function(field: any, next: any) {
-			if (field.type === 'TIMESTAMP') {
-				return field.string();
-			}
-			return next();
-		}, });
+				if (field.type === 'TIMESTAMP') {
+					return field.string();
+				}
+				return next();
+			},
+		});
 		return result;
 	}
 
@@ -318,12 +328,12 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 	}
 
 	public buildInsertQuery({ table, values, onConflict, returning }: AnyMySqlInsertConfig): AnyMySQL {
-		const joinedValues: (SQLSourceParam<TableName> | AnyMySQL)[][] = [];
+		const valuesSqlList: ((SQLSourceParam<TableName> | AnyMySQL)[] | AnyMySQL)[] = [];
 		const columns: Record<string, AnyMySqlColumn> = getTableColumns(table);
 		const columnKeys = Object.keys(columns);
 		const insertOrder = Object.values(columns).map((column) => new Name(column.name));
 
-		values.forEach((value) => {
+		values.forEach((value, valueIndex) => {
 			const valueList: (SQLSourceParam<TableName> | AnyMySQL)[] = [];
 			columnKeys.forEach((key) => {
 				const colValue = value[key];
@@ -333,14 +343,17 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 					valueList.push(colValue);
 				}
 			});
-			joinedValues.push(valueList);
+			valuesSqlList.push(valueList);
+			if (valueIndex < values.length - 1) {
+				valuesSqlList.push(sql`, `);
+			}
 		});
+
+		const valuesSql = sql.fromList(valuesSqlList);
 
 		const returningSql = returning
 			? sql` returning ${sql.fromList(this.prepareTableFieldsForQuery(returning, { isSingleTable: true }))}`
 			: undefined;
-
-		const valuesSql = joinedValues.length === 1 ? joinedValues[0] : joinedValues;
 
 		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
 

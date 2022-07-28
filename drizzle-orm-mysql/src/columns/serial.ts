@@ -2,28 +2,28 @@ import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableNa
 import { AnyMySqlTable } from '~/table';
 import { MySqlColumnBuilder, MySqlColumnWithMapper } from './common';
 
-export class MySqlSerialBuilder<
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends MySqlColumnBuilder<ColumnData<number>, ColumnDriverParam<number | string>, TNotNull, THasDefault> {
+export class MySqlSerialBuilder extends MySqlColumnBuilder<
+	ColumnData<number>,
+	ColumnDriverParam<number | string>,
+	ColumnNotNull<true>,
+	ColumnHasDefault<true>
+> {
 	/** @internal */
 	override build<TTableName extends TableName>(
 		table: AnyMySqlTable<TTableName>,
-	): MySqlSerial<TTableName, TNotNull, THasDefault> {
-		return new MySqlSerial<TTableName, TNotNull, THasDefault>(table, this);
+	): MySqlSerial<TTableName> {
+		return new MySqlSerial<TTableName>(table, this);
 	}
 }
 
 export class MySqlSerial<
 	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
 > extends MySqlColumnWithMapper<
 	TTableName,
 	ColumnData<number>,
 	ColumnDriverParam<number | string>,
-	TNotNull,
-	THasDefault
+	ColumnNotNull<true>,
+	ColumnHasDefault<true>
 > {
 	protected brand!: 'MySqlSerial';
 
