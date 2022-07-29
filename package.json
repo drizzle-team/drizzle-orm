@@ -8,7 +8,8 @@
 		"build:int": "pnpm --filter '!integration-tests' build:int && pnpm --filter integration-tests build:int",
 		"test": "pnpm --filter integration-tests test",
 		"test:andrew": "pnpm --filter integration-tests test:andrew",
-		"test:dan": "pnpm --filter integration-tests test:dan"
+		"test:dan": "pnpm --filter integration-tests test:dan",
+		"test:dan:mysql": "pnpm --filter integration-tests test:dan:mysql"
 	},
 	"devDependencies": {
 		"@trivago/prettier-plugin-sort-imports": "^3.2.0",

@@ -40,7 +40,7 @@ const usersTable = pgTable(
 	}),
 );
 
-// console.log(getTableForeignKeys(usersTable));
+console.log(getTableForeignKeys(usersTable));
 
 const citiesTable = pgTable('cities', {
 	id: serial('id').primaryKey(),
@@ -66,45 +66,45 @@ async function main() {
 	const connector = new PgConnector(client, { usersTable, citiesTable, classesTable });
 	const realDb = await connect(connector);
 
-	await // const selectResult1 = await realDb.usersTable
-	// 	.select({
-	// 		id: usersTable.id,
-	// 		age: usersTable.age1,
-	// 	})
-	// 	.innerJoin(citiesTable, eq(usersTable.homeCity, citiesTable.id), {
-	// 		name: citiesTable.name,
-	// 	})
-	// 	.execute()
-	// 	.then((result) =>
-	// 		result.map(({ usersTable, citiesTable }) => ({
-	// 			...usersTable,
-	// 			city: citiesTable,
-	// 		}))
-	// 	);
+	const selectResult1 = await realDb.usersTable
+		.select({
+			id: usersTable.id,
+			age: usersTable.age1,
+		})
+		.innerJoin(citiesTable, eq(usersTable.homeCity, citiesTable.id), {
+			name: citiesTable.name,
+		})
+		.execute()
+		.then((result) =>
+			result.map(({ usersTable, citiesTable }) => ({
+				...usersTable,
+				city: citiesTable,
+			}))
+		);
 
-	// const selectResult2 = await realDb.citiesTable.select({ id: citiesTable.id, name: citiesTable.name })
-	// 	.leftJoin(usersTable, eq(usersTable.homeCity, citiesTable.id), { id: usersTable.id })
-	// 	.execute()
-	// 	.then((result) => {
-	// 		type ResultRow = typeof result[number]['citiesTable'] & {
-	// 			users: typeof result[number]['usersTable'][];
-	// 		};
-	// 		return Object.values(result.reduce<Record<string, ResultRow>>(
-	// 			(acc, { citiesTable, usersTable }) => {
-	// 				if (!(citiesTable.id in acc)) {
-	// 					acc[citiesTable.id] = { ...citiesTable, users: [usersTable] };
-	// 				} else {
-	// 					acc[citiesTable.id]!.users.push(usersTable);
-	// 				}
-	// 				return acc;
-	// 			},
-	// 			{},
-	// 		));
-	// 	});
+	const selectResult2 = await realDb.citiesTable.select({ id: citiesTable.id, name: citiesTable.name })
+		.leftJoin(usersTable, eq(usersTable.homeCity, citiesTable.id), { id: usersTable.id })
+		.execute()
+		.then((result) => {
+			type ResultRow = typeof result[number]['citiesTable'] & {
+				users: typeof result[number]['usersTable'][];
+			};
+			return Object.values(result.reduce<Record<string, ResultRow>>(
+				(acc, { citiesTable, usersTable }) => {
+					if (!(citiesTable.id in acc)) {
+						acc[citiesTable.id] = { ...citiesTable, users: [usersTable] };
+					} else {
+						acc[citiesTable.id]!.users.push(usersTable);
+					}
+					return acc;
+				},
+				{},
+			));
+		});
 
-	// const selectResult3 = await realDb.usersTable.select({ id: usersTable.id }).where(exists(
-	// 	realDb.citiesTable.select({ id: citiesTable.id }).whereUnsafe(eq(citiesTable.id, usersTable.homeCity)),
-	// )).execute();
+	const selectResult3 = await realDb.usersTable.select({ id: usersTable.id }).where(exists(
+		realDb.citiesTable.select({ id: citiesTable.id }).whereUnsafe(eq(citiesTable.id, usersTable.homeCity)),
+	)).execute();
 
 	client.release();
 	await pool.end();
