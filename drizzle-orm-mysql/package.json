@@ -1,14 +1,14 @@
 {
 	"name": "drizzle-orm-mysql",
-	"version": "0.12.0-beta.1",
+	"version": "0.12.0-beta.2",
 	"description": "Drizzle ORM package for MySQL database",
 	"main": "index.js",
 	"types": "index.d.ts",
 	"scripts": {
 		"build": "tsc && resolve-tspaths",
 		"pack": "cp package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
-		"publish": "pnpm publish package.tgz --git-checks false",
-		"publish:beta": "pnpm publish package.tgz --tag beta --git-checks false",
+		"publish": "npm publish package.tgz --git-checks false",
+		"publish:beta": "npm publish package.tgz --tag beta --git-checks false",
 		"build:int": "pnpm build && pnpm run pack"
 	},
 	"publishConfig": {
