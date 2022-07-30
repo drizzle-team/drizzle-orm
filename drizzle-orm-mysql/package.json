@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm-mysql",
-	"version": "0.13.0",
+	"version": "0.12.0-beta.0",
 	"description": "Drizzle ORM package for MySQL database",
 	"main": "index.js",
 	"types": "index.d.ts",
