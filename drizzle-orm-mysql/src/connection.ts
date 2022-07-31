@@ -4,6 +4,7 @@ import { Name, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
 import { GetTableName, tableColumns, tableName } from 'drizzle-orm/utils';
 import { Connection, FieldPacket, Pool } from 'mysql2/promise';
 import { Simplify } from 'type-fest';
+
 import { AnyMySqlColumn, MySqlColumn } from './columns/common';
 import { MySqlSelectFields, MySqlSelectFieldsOrdered, MySqlTableOperations } from './operations';
 import {
@@ -14,8 +15,7 @@ import {
 	MySqlUpdateSet,
 } from './queries';
 import { AnyMySQL, MySqlPreparedQuery } from './sql';
-import { AnyMySqlTable } from './table';
-
+import { AnyMySqlTable, MySqlTable } from './table';
 import { getTableColumns } from './utils';
 
 export type MySqlQueryResult = [any, FieldPacket[]];
@@ -31,23 +31,21 @@ export type MySqlColumnDriverDataType =
 
 export type MySqlClient = Pool | Connection;
 
-export interface MySqlSession extends Session<MySqlColumnDriverDataType, Promise<MySqlQueryResult>> {
-	queryObjects(
-		query: string,
-		params: unknown[],
-	): Promise<MySqlQueryResult>;
+export interface MySqlSession
+	extends Session<MySqlColumnDriverDataType, Promise<MySqlQueryResult>> {
+	queryObjects(query: string, params: unknown[]): Promise<MySqlQueryResult>;
 }
 
 export class MySqlSessionDefault implements MySqlSession {
 	constructor(private client: MySqlClient) {}
 
 	public async query(query: string, params: unknown[]): Promise<MySqlQueryResult> {
-		console.log({ query, params });
+		// console.log({ query, params });
 		const result = await this.client.query({
 			sql: query,
 			values: params,
 			rowsAsArray: true,
-			typeCast: function(field: any, next: any) {
+			typeCast: function (field: any, next: any) {
 				if (field.type === 'TIMESTAMP') {
 					return field.string();
 				}
@@ -109,7 +107,10 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 
 		try {
 			for await (const migration of migrations) {
-				if (!lastDbMigration || parseInt(lastDbMigration[2], 10)! < migration.folderMillis) {
+				if (
+					!lastDbMigration ||
+					parseInt(lastDbMigration[2], 10)! < migration.folderMillis
+				) {
 					await session.query(migration.sql, []);
 					await session.query(
 						`INSERT INTO "drizzle"."__drizzle_migrations" ("hash", "created_at") VALUES('${migration.hash}', ${migration.folderMillis})`,
@@ -142,7 +143,12 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 				Object.entries(this.schema).map(([tableName, table]) => {
 					return [
 						tableName,
-						new MySqlTableOperations(table, session, this as unknown as AnyMySqlDialect, this.buildTableNamesMap()),
+						new MySqlTableOperations(
+							table,
+							session,
+							this as unknown as AnyMySqlDialect,
+							this.buildTableNamesMap(),
+						),
 					];
 				}),
 			),
@@ -169,7 +175,10 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		returning,
 	}: MySqlDeleteConfig<TTable>): AnyMySQL<GetTableName<TTable>> {
 		const returningSql = returning
-			? sql.fromList([sql` returning `, ...this.prepareTableFieldsForQuery(returning, { isSingleTable: true })])
+			? sql.fromList([
+					sql` returning `,
+					...this.prepareTableFieldsForQuery(returning, { isSingleTable: true }),
+			  ])
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -220,16 +229,16 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		const setSql = this.buildUpdateSet<GetTableName<TTable>>(table, set);
 
 		const returningSql = returning
-			? sql<GetTableName<TTable>>` returning ${
-				sql.fromList(
+			? sql<GetTableName<TTable>>` returning ${sql.fromList(
 					this.prepareTableFieldsForQuery(returning, { isSingleTable: true }),
-				)
-			}`
+			  )}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql<GetTableName<TTable>>`update ${table} set ${setSql}${whereSql}${returningSql}`;
+		return sql<GetTableName<TTable>>`update ${
+			table as AnyMySqlTable<any>
+		} set ${setSql}${whereSql}${returningSql}`;
 	}
 
 	private prepareTableFieldsForQuery<TTableName extends TableName>(
@@ -245,12 +254,14 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 				if (column instanceof SQLResponse) {
 					if (isSingleTable) {
 						chunk.push(
-							new SQL(column.sql.queryChunks.map((c) => {
-								if (c instanceof MySqlColumn) {
-									return new Name(c.name);
-								}
-								return c;
-							})),
+							new SQL(
+								column.sql.queryChunks.map((c) => {
+									if (c instanceof MySqlColumn) {
+										return new Name(c.name);
+									}
+									return c;
+								}),
+							),
 						);
 					} else {
 						chunk.push(column.sql);
@@ -296,9 +307,14 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 				joinsArray.push(sql` `);
 			}
 			const joinMeta = joins[tableAlias]!;
-			const alias = joinMeta.aliasTable[tableName] === joinMeta.table[tableName] ? undefined : joinMeta.aliasTable;
+			const alias =
+				joinMeta.aliasTable[tableName] === joinMeta.table[tableName]
+					? undefined
+					: joinMeta.aliasTable;
 			joinsArray.push(
-				sql`${sql.raw(joinMeta.joinType)} join ${joinMeta.table} ${alias} on ${joinMeta.on}` as AnyMySQL,
+				sql`${sql.raw(joinMeta.joinType)} join ${joinMeta.table} ${alias} on ${
+					joinMeta.on
+				}` as AnyMySQL,
 			);
 			if (index < joinKeys.length - 1) {
 				joinsArray.push(sql` `);
@@ -318,7 +334,8 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 			}
 		});
 
-		const orderBySql = orderByList.length > 0 ? sql` order by ${sql.fromList(orderByList)}` : undefined;
+		const orderBySql =
+			orderByList.length > 0 ? sql` order by ${sql.fromList(orderByList)}` : undefined;
 
 		const limitSql = limit ? sql` limit ${limit}` : undefined;
 
@@ -327,7 +344,12 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		return sql<TTableName>`select ${fieldsSql} from ${table}${joinsSql}${whereSql}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	public buildInsertQuery({ table, values, onConflict, returning }: AnyMySqlInsertConfig): AnyMySQL {
+	public buildInsertQuery({
+		table,
+		values,
+		onConflict,
+		returning,
+	}: AnyMySqlInsertConfig): AnyMySQL {
 		const valuesSqlList: ((SQLSourceParam<TableName> | AnyMySQL)[] | AnyMySQL)[] = [];
 		const columns: Record<string, AnyMySqlColumn> = getTableColumns(table);
 		const columnKeys = Object.keys(columns);
@@ -352,7 +374,9 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		const valuesSql = sql.fromList(valuesSqlList);
 
 		const returningSql = returning
-			? sql` returning ${sql.fromList(this.prepareTableFieldsForQuery(returning, { isSingleTable: true }))}`
+			? sql` returning ${sql.fromList(
+					this.prepareTableFieldsForQuery(returning, { isSingleTable: true }),
+			  )}`
 			: undefined;
 
 		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
