@@ -14,8 +14,9 @@ export const tableConstraints = Symbol('tableConstraints');
 /** @internal */
 export const tableConflictConstraints = Symbol('tableConflictConstraints');
 
-export function getTableColumns<TTable extends AnyPgTable>(table: TTable): GetTableColumns<TTable> {
-	return table[tableColumns] as GetTableColumns<TTable>;
+export function getTableColumns<TTable extends AnyPgTable>(table: TTable) {
+	const keys = Reflect.ownKeys(table[tableColumns]);
+	return keys.map(key => table[tableColumns][key]!);
 }
 
 export function getTableIndexes<TTable extends AnyPgTable>(table: TTable) {

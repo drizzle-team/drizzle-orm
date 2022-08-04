@@ -1,6 +1,6 @@
 import { Column, Connector, Dialect, Driver, MigrationMeta, Session, sql } from 'drizzle-orm';
 import { ColumnData, TableName, Unwrap } from 'drizzle-orm/branded-types';
-import { Name, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
+import { AnySQL, Name, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
 import { GetTableName, tableColumns, tableName } from 'drizzle-orm/utils';
 import { Client, Pool, PoolClient, QueryResult, QueryResultRow, types } from 'pg';
 import { Simplify } from 'type-fest';
@@ -202,7 +202,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		set,
 		where,
 		returning,
-	}: PgUpdateConfig<TTable>): SQL<GetTableName<TTable>> {
+	}: PgUpdateConfig<TTable>): AnySQL {
 		const setSql = this.buildUpdateSet<GetTableName<TTable>>(table, set);
 
 		const returningSql = returning
@@ -215,7 +215,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql<GetTableName<TTable>>`update ${table} set ${setSql}${whereSql}${returningSql}`;
+		return sql`update ${table} set ${setSql}${whereSql}${returningSql}`;
 	}
 
 	private prepareTableFieldsForQuery<TTableName extends TableName>(
@@ -315,7 +315,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 
 	public buildInsertQuery({ table, values, onConflict, returning }: AnyPgInsertConfig): AnyPgSQL {
 		const joinedValues: (SQLSourceParam<TableName> | AnyPgSQL)[][] = [];
-		const columns: Record<string, AnyPgColumn> = getTableColumns(table);
+		const columns: Record<string, AnyPgColumn> = table[tableColumns];
 		const columnKeys = Object.keys(columns);
 		const insertOrder = Object.values(columns).map((column) => new Name(column.name));
 

@@ -19,7 +19,7 @@ export interface PgInsertConfig<TTable extends AnyPgTable> {
 	returning: PgSelectFieldsOrdered<GetTableName<TTable>> | undefined;
 }
 
-export type AnyPgInsertConfig = PgInsertConfig<any>;
+export type AnyPgInsertConfig = PgInsertConfig<AnyPgTable>;
 
 export class PgInsert<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 	protected typeKeeper!: {
