@@ -15,6 +15,10 @@ export type Reference<TTableName extends TableName, TForeignTableName extends Ta
 export class ForeignKeyBuilder<TTableName extends TableName, TForeignTableName extends TableName> {
 	protected brand!: 'PgForeignKeyBuilder';
 
+	protected typeKeeper!: {
+		foreignTableName: TForeignTableName;
+	};
+
 	/** @internal */
 	reference: Reference<TTableName, TForeignTableName>;
 
@@ -93,13 +97,11 @@ export type AnyForeignKey = ForeignKey<any, any>;
 
 type ColumnsWithTable<
 	TTableName extends TableName,
-	TColumns extends AnyPgColumn | [AnyPgColumn, ...AnyPgColumn[]],
-> = TColumns extends AnyPgColumn<any, infer TType> ? AnyPgColumn<TTableName, TType>
-	: TColumns extends AnyPgColumn[] ? {
-			[Key in keyof TColumns]: TColumns[Key] extends AnyPgColumn<any, infer TType> ? AnyPgColumn<TTableName, TType>
-				: never;
-		}
-	: never;
+	TColumns extends AnyPgColumn[],
+> = {
+	[Key in keyof TColumns]: TColumns[Key] extends AnyPgColumn<any, infer TType> ? AnyPgColumn<TTableName, TType>
+		: never;
+};
 
 export type GetColumnsTable<TColumns extends AnyPgColumn | AnyPgColumn[]> = (
 	TColumns extends AnyPgColumn ? TColumns
@@ -108,22 +110,33 @@ export type GetColumnsTable<TColumns extends AnyPgColumn | AnyPgColumn[]> = (
 ) extends AnyPgColumn<infer TTableName> ? TTableName
 	: never;
 
+export type NotUnion<T, T1 = T> = T extends T ? [T1] extends [T] ? T1 : never : never;
+export type NotFKBuilderWithUnion<T> = T extends ForeignKeyBuilder<any, infer TForeignTableName>
+	? [NotUnion<TForeignTableName>] extends [never] ? 'Only columns from the same table are allowed in foreignColumns' : T
+	: never;
+
+type test = NotUnion<TableName<'a'> | TableName<'b'>>;
+type test1 = NotUnion<'a'>;
+
 export function foreignKey<
-	TColumns extends AnyPgColumn | [AnyPgColumn, ...AnyPgColumn[]],
-	TForeignColumns extends ColumnsWithTable<TableName, TColumns>,
+	TColumns extends [AnyPgColumn, ...AnyPgColumn[]],
+	TForeignTableName extends TableName,
+	TForeignColumns extends ColumnsWithTable<TForeignTableName, TColumns>,
 >(
-	config: () => [
-		columns: TColumns,
-		foreignColumns: TForeignColumns,
-	],
-): ForeignKeyBuilder<GetColumnsTable<TColumns>, GetColumnsTable<TForeignColumns>> {
+	config: () => {
+		columns: TColumns;
+		foreignColumns: TForeignColumns;
+	},
+): NotFKBuilderWithUnion<ForeignKeyBuilder<GetColumnsTable<TColumns>, GetColumnsTable<TForeignColumns>>> {
 	function mappedConfig() {
-		const [columns, foreignColumns] = config();
+		const { columns, foreignColumns } = config();
 		return {
 			columns: Array.isArray(columns) ? columns : [columns] as AnyPgColumn[],
 			foreignColumns: Array.isArray(foreignColumns) ? foreignColumns : [foreignColumns] as AnyPgColumn[],
 		};
 	}
 
-	return new ForeignKeyBuilder(mappedConfig);
+	return new ForeignKeyBuilder(mappedConfig) as NotFKBuilderWithUnion<
+		ForeignKeyBuilder<GetColumnsTable<TColumns>, GetColumnsTable<TForeignColumns>>
+	>;
 }
