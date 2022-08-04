@@ -75,6 +75,7 @@ importers:
       pg: ^8.6.0
       resolve-tspaths: ^0.7.0
       ts-node: ^10.8.2
+      tsconfig-paths: ^4.0.0
       type-fest: ^2.16.0
       typescript: 4.8.0-beta
       uvu: ^0.5.3
@@ -85,6 +86,7 @@ importers:
       pg: 8.7.3
       resolve-tspaths: 0.7.1_typescript@4.8.0-beta
       ts-node: 10.9.1_4xxg3lka7dbc5wz2frbviv3qdu
+      tsconfig-paths: 4.0.0
       type-fest: 2.16.0
       typescript: 4.8.0-beta
       uvu: 0.5.6
@@ -3405,6 +3407,11 @@ packages:
       ansi-regex: 5.0.1
     dev: true
 
+  /strip-bom/3.0.0:
+    resolution: {integrity: sha512-vavAMRXOgBVNF6nyEEmL3DBK19iRpDcoIwW+swQ+CbGiu7lju6t+JklA1MHweoWtadgt4ISVUsXLyDq34ddcwA==}
+    engines: {node: '>=4'}
+    dev: true
+
   /strip-final-newline/2.0.0:
     resolution: {integrity: sha512-BrpvfNAE3dcvq7ll3xVumzjKjZQ5tI1sEUIKr3Uoks0XUl45St3FlatVqef9prk4jRDzhW6WZg+3bk93y6pLjA==}
     engines: {node: '>=6'}
@@ -3586,6 +3593,14 @@ packages:
       typescript: 4.7.4
       v8-compile-cache-lib: 3.0.1
       yn: 3.1.1
+    dev: true
+
+  /tsconfig-paths/4.0.0:
+    resolution: {integrity: sha512-SLBg2GBKlR6bVtMgJJlud/o3waplKtL7skmLkExomIiaAtLGtVsoXIqP3SYdjbcH9lq/KVv7pMZeCBpLYOit6Q==}
+    dependencies:
+      json5: 2.2.1
+      minimist: 1.2.6
+      strip-bom: 3.0.0
     dev: true
 
   /tslib/1.14.1:

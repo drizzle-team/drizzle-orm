@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm-pg",
-	"version": "0.13.0",
+	"version": "0.12.0-beta.0",
 	"description": "Drizzle ORM package for PostgreSQL database",
 	"main": "index.js",
 	"types": "index.d.ts",
@@ -49,6 +49,7 @@
 		"pg": "^8.6.0",
 		"resolve-tspaths": "^0.7.0",
 		"ts-node": "^10.8.2",
+		"tsconfig-paths": "^4.0.0",
 		"type-fest": "^2.16.0",
 		"typescript": "4.8.0-beta",
 		"uvu": "^0.5.3"

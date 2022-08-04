@@ -9,5 +9,8 @@
 		}
 	},
 	"include": ["src"],
-	"exclude": ["dist", "tests", "node_modules"]
+	"exclude": ["dist", "tests", "node_modules"],
+	"ts-node": {
+		"require": ["tsconfig-paths/register"]
+	}
 }

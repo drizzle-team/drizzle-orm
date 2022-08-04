@@ -45,23 +45,23 @@ export type ConflictConstraint<TTable extends AnyPgTable> =
 
 export class PgTable<
 	TName extends TableName,
-	TConflictConstraints extends Record<string, ConflictConstraint<AnyPgTable>>,
+	TConflictConstraints extends Record<string | symbol, ConflictConstraint<AnyPgTable>>,
 > extends Table<TName> {
 	protected override typeKeeper!: Table<TName>['typeKeeper'] & {
 		conflictConstraints: TConflictConstraints;
 	};
 
 	/** @internal */
-	[tableColumns]!: Record<string, AnyPgColumn<TName>>;
+	[tableColumns]!: Record<string | symbol, AnyPgColumn<TName>>;
 
 	/** @internal */
-	[tableIndexes]: Record<string, Index<AnyPgTable<TName>, boolean>> = {};
+	[tableIndexes]: Record<string | symbol, Index<AnyPgTable<TName>, boolean>> = {};
 
 	/** @internal */
 	[tableForeignKeys]: Record<string | symbol, ForeignKey<TName, TableName>> = {};
 
 	/** @internal */
-	[tableConstraints]: Record<string, Constraint<TName>> = {};
+	[tableConstraints]: Record<string | symbol, Constraint<TName>> = {};
 
 	/** @internal */
 	[tableConflictConstraints] = {} as TConflictConstraints;

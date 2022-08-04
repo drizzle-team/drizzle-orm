@@ -16,8 +16,8 @@ export class ConstraintBuilder<TTableName extends TableName> {
 export type AnyConstraintBuilder<TTableName extends TableName = TableName> = ConstraintBuilder<TTableName>;
 
 export class Constraint<TTableName extends TableName> {
-	name: string;
-	value: AnyPgSQL<TTableName>;
+	readonly name: string;
+	readonly value: AnyPgSQL<TTableName>;
 
 	constructor(public table: AnyPgTable<TTableName>, builder: ConstraintBuilder<TTableName>) {
 		this.name = builder.name;
