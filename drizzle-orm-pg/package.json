@@ -5,7 +5,7 @@
 	"main": "index.js",
 	"types": "index.d.ts",
 	"scripts": {
-		"build": "tsc -p tsconfig.build.json && resolve-tspaths",
+		"build": "concurrently -n build,test \"tsc -p tsconfig.build.json && resolve-tspaths\" pnpm:test",
 		"test": "cd tests && tsc",
 		"pack": "cp package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"publish": "pnpm publish package.tgz",
@@ -45,6 +45,7 @@
 	},
 	"devDependencies": {
 		"@types/pg": "^8.6.1",
+		"concurrently": "^7.3.0",
 		"dotenv": "^16.0.0",
 		"drizzle-orm": "link:../drizzle-orm/src",
 		"pg": "^8.6.0",
