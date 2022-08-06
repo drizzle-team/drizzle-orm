@@ -1,4 +1,5 @@
 import { tableColumns } from 'drizzle-orm/utils';
+import { AnyPgColumn } from './columns/common';
 
 import { AnyPgTable, GetTableColumns, GetTableConflictConstraints } from './table';
 
@@ -9,14 +10,14 @@ export const tableIndexes = Symbol('tableIndexes');
 export const tableForeignKeys = Symbol('tableForeignKeys');
 
 /** @internal */
-export const tableConstraints = Symbol('tableConstraints');
+export const tableChecks = Symbol('tableChecks');
 
 /** @internal */
 export const tableConflictConstraints = Symbol('tableConflictConstraints');
 
 export function getTableColumns<TTable extends AnyPgTable>(table: TTable) {
 	const keys = Reflect.ownKeys(table[tableColumns]);
-	return keys.map(key => table[tableColumns][key]!);
+	return keys.map((key) => table[tableColumns][key]!);
 }
 
 export function getTableIndexes<TTable extends AnyPgTable>(table: TTable) {
@@ -29,9 +30,9 @@ export function getTableForeignKeys<TTable extends AnyPgTable>(table: TTable) {
 	return keys.map((key) => table[tableForeignKeys][key]!);
 }
 
-export function getTableConstraints<TTable extends AnyPgTable>(table: TTable) {
-	const keys = Reflect.ownKeys(table[tableConstraints]);
-	return keys.map((key) => table[tableConstraints][key]!);
+export function getTableChecks<TTable extends AnyPgTable>(table: TTable) {
+	const keys = Reflect.ownKeys(table[tableChecks]);
+	return keys.map((key) => table[tableChecks][key]!);
 }
 
 export function getTableConflictConstraints<TTable extends AnyPgTable>(

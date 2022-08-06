@@ -84,8 +84,8 @@ export type AnyColumnWithMapper<
 > = ColumnWithMapper<TTableName, TData, TDriverParam, TNotNull, THasDefault>;
 
 export function param<TDataType extends ColumnData, TDriverType extends ColumnDriverParam>(
-	column: AnyColumn<any, TDataType, TDriverType>,
 	value: Unwrap<TDataType>,
+	column: AnyColumn<any, TDataType, TDriverType>,
 ): BoundParamValue<TDataType, TDriverType> {
 	return new BoundParamValue(value as TDataType, column);
 }
@@ -117,11 +117,4 @@ export type InferColumnsDataTypes<TColumns extends Record<string, AnyColumn>> = 
 };
 
 export type InferColumnTable<T extends AnyColumn> = T extends AnyColumn<infer TTable> ? TTable
-	: never;
-
-export type ChangeColumnTable<
-	TColumn extends AnyColumn,
-	TTableName extends TableName,
-> = TColumn extends Column<any, infer TType, infer TDriverType, infer TNotNull, infer THasDefault>
-	? ColumnWithMapper<TTableName, TType, TDriverType, TNotNull, THasDefault>
 	: never;

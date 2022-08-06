@@ -140,3 +140,13 @@ export type BuildMySqlColumns<
 		[Key in keyof TConfigMap]: BuildMySqlColumn<TTableName, TConfigMap[Key]>;
 	}
 >;
+
+export type ChangeColumnTable<TColumn extends AnyMySqlColumn, TAlias extends TableName> = TColumn extends
+	MySqlColumn<any, infer TData, infer TDriverParam, infer TNotNull, infer THasDefault> ? MySqlColumn<
+		TAlias,
+		TData,
+		TDriverParam,
+		TNotNull,
+		THasDefault
+	>
+	: never;

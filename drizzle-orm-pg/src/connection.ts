@@ -10,7 +10,6 @@ import { PgSelectFields, PgSelectFieldsOrdered, PgTableOperations } from './oper
 import { AnyPgInsertConfig, PgDeleteConfig, PgSelectConfig, PgUpdateConfig, PgUpdateSet } from './queries';
 import { AnyPgSQL, PgPreparedQuery } from './sql';
 import { AnyPgTable } from './table';
-import { getTableColumns } from './utils';
 
 export type PgColumnDriverDataType =
 	| string
@@ -363,9 +362,9 @@ export type PGDatabase<TSchema extends Record<string, AnyPgTable>> = Simplify<
 			? PgTableOperations<TSchema[TTableName], BuildTableNamesMap<TSchema>>
 			: never;
 	} & {
-		execute: <T extends QueryResultRow = QueryResultRow>(
+		execute<T extends QueryResultRow = QueryResultRow>(
 			query: PgPreparedQuery | AnyPgSQL,
-		) => Promise<T>;
+		): Promise<T>;
 	},
 	{ deep: true }
 >;

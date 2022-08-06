@@ -3,9 +3,9 @@ import { AnySQLResponse, Name, SQL, sql, SQLSourceParam } from 'drizzle-orm/sql'
 import { GetTableName, tableColumns, tableName, tableRowMapper } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
 
+import { Check } from '~/checks';
 import { AnyPgColumn } from '~/columns/common';
 import { AnyPgDialect, PgSession } from '~/connection';
-import { Constraint } from '~/constraints';
 import { PgSelectFields, PgSelectFieldsOrdered, SelectResultFields } from '~/operations';
 import { PgPreparedQuery } from '~/sql';
 import { AnyPgTable, GetTableConflictConstraints, InferModel } from '~/table';
@@ -42,7 +42,7 @@ export class PgInsert<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 	public returning(): Pick<PgInsert<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
 	public returning<TSelectedFields extends PgSelectFields<GetTableName<TTable>>>(
 		fields: TSelectedFields,
-	): Pick<PgInsert<TTable, SelectResultFields<GetTableName<TTable>, TSelectedFields>[]>, 'getQuery' | 'execute'>;
+	): Pick<PgInsert<TTable, SelectResultFields<TSelectedFields>[]>, 'getQuery' | 'execute'>;
 	public returning(fields?: PgSelectFields<GetTableName<TTable>>): PgInsert<TTable, any> {
 		const fieldsToMap: Record<string, AnyPgColumn<GetTableName<TTable>> | AnySQLResponse<GetTableName<TTable>>> = fields
 			?? this.config.table[tableColumns] as Record<string, AnyPgColumn<GetTableName<TTable>>>;
@@ -59,7 +59,7 @@ export class PgInsert<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 			| SQL<GetTableName<TTable>>
 			| ((
 				constraints: GetTableConflictConstraints<TTable>,
-			) => Constraint<GetTableName<TTable>>),
+			) => Check<GetTableName<TTable>>),
 	): Pick<this, 'returning' | 'getQuery' | 'execute'> {
 		if (typeof target === 'undefined') {
 			this.config.onConflict = sql`do nothing`;
@@ -75,7 +75,7 @@ export class PgInsert<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 	onConflictDoUpdate(
 		target:
 			| SQL<GetTableName<TTable>>
-			| ((constraints: GetTableConflictConstraints<TTable>) => Constraint<GetTableName<TTable>>),
+			| ((constraints: GetTableConflictConstraints<TTable>) => Check<GetTableName<TTable>>),
 		set: PgUpdateSet<TTable>,
 	): Pick<this, 'returning' | 'getQuery' | 'execute'> {
 		const setSql = this.dialect.buildUpdateSet<GetTableName<TTable>>(this.config.table, set);

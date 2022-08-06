@@ -9,7 +9,7 @@ import {
 
 import { AnyPgTable } from '~/table';
 import { PgColumnWithMapper } from './common';
-import { PgDateColumnBaseBuilder } from './date-common';
+import { PgDateColumnBaseBuilder } from './date.common';
 
 export class PgTimeBuilder<
 	TData extends ColumnData<string> = ColumnData<string>,

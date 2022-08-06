@@ -31,7 +31,7 @@ export class PgDelete<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 	public returning(): Pick<PgDelete<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
 	public returning<TSelectedFields extends PgSelectFields<GetTableName<TTable>>>(
 		fields: TSelectedFields,
-	): Pick<PgDelete<TTable, SelectResultFields<GetTableName<TTable>, TSelectedFields>[]>, 'getQuery' | 'execute'>;
+	): Pick<PgDelete<TTable, SelectResultFields<TSelectedFields>[]>, 'getQuery' | 'execute'>;
 	public returning(fields?: PgSelectFields<GetTableName<TTable>>): PgDelete<TTable, any> {
 		const orderedFields = this.dialect.orderSelectedFields(
 			fields ?? this.table[tableColumns],

@@ -5,7 +5,8 @@
 	"main": "index.js",
 	"types": "index.d.ts",
 	"scripts": {
-		"build": "tsc && resolve-tspaths",
+		"build": "tsc -p tsconfig.build.json && resolve-tspaths",
+		"test": "cd tests && tsc",
 		"pack": "cp package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"publish": "pnpm publish package.tgz",
 		"publish:beta": "pnpm publish package.tgz --tag beta --git-checks false",

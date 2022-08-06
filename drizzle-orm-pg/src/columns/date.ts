@@ -2,7 +2,7 @@ import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableNa
 
 import { AnyPgTable } from '~/table';
 import { PgColumnWithMapper } from './common';
-import { PgDateColumnBaseBuilder } from './date-common';
+import { PgDateColumnBaseBuilder } from './date.common';
 
 export class PgDateBuilder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,

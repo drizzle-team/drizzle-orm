@@ -23,7 +23,7 @@ export interface Connector<TSession, TOperations> {
 	driver: Driver<TSession>;
 }
 
-export async function connect<TSession, TDatabase>(connector: Connector<TSession, TDatabase>) {
+export async function connect<TSession, TDatabase>(connector: Connector<TSession, TDatabase>): Promise<TDatabase> {
 	const session = await connector.driver.connect();
 	return connector.dialect.createDB(session);
 }

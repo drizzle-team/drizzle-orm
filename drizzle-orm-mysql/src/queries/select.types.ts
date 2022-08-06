@@ -1,8 +1,9 @@
-import { AnyColumn, ChangeColumnTable } from 'drizzle-orm';
+import { AnyColumn } from 'drizzle-orm';
 import { TableName, Unwrap } from 'drizzle-orm/branded-types';
 import { GetTableName } from 'drizzle-orm/utils';
 import { Simplify } from 'type-fest';
-import { AnyMySqlColumn } from '~/columns/common';
+
+import { AnyMySqlColumn, ChangeColumnTable } from '~/columns/common';
 import { MySqlSelectFields, SelectResultFields } from '~/operations';
 import { AnyMySQL } from '~/sql';
 import { AnyMySqlTable, GetTableColumns } from '~/table';

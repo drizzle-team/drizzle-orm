@@ -53,7 +53,7 @@ export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 	public returning(): Pick<PgUpdate<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
 	public returning<TSelectedFields extends PgSelectFields<GetTableName<TTable>>>(
 		fields: TSelectedFields,
-	): Pick<PgUpdate<TTable, SelectResultFields<GetTableName<TTable>, TSelectedFields>[]>, 'getQuery' | 'execute'>;
+	): Pick<PgUpdate<TTable, SelectResultFields<TSelectedFields>[]>, 'getQuery' | 'execute'>;
 	public returning(fields?: PgSelectFields<GetTableName<TTable>>): PgUpdate<TTable, any> {
 		const orderedFields = this.dialect.orderSelectedFields<GetTableName<TTable>>(
 			fields

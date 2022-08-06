@@ -13,11 +13,10 @@ import { AnyPgTable, InferModel } from './table';
 
 export type PgSelectFields<
 	TTableName extends TableName,
-	TColumnDriverParam extends PgColumnDriverParam = PgColumnDriverParam,
 > = {
 	[key: string]:
 		| SQLResponse<TTableName, ColumnData>
-		| AnyPgColumn<TTableName, any, TColumnDriverParam>;
+		| AnyPgColumn<TTableName>;
 };
 
 export type PgSelectFieldsOrdered<TTableName extends TableName = TableName> = (
@@ -28,8 +27,7 @@ export type PgSelectFieldsOrdered<TTableName extends TableName = TableName> = (
 )[];
 
 export type SelectResultFields<
-	TTableName extends TableName,
-	TSelectedFields extends PgSelectFields<TTableName>,
+	TSelectedFields extends PgSelectFields<TableName>,
 > = Simplify<
 	{
 		[Key in keyof TSelectedFields & string]: TSelectedFields[Key] extends AnyPgColumn
@@ -50,7 +48,7 @@ export class PgTableOperations<TTable extends AnyPgTable, TTableNamesMap extends
 	select(): PgSelect<TTable, TTableNamesMap, InferModel<TTable>>;
 	select<TSelectedFields extends PgSelectFields<GetTableName<TTable>>>(
 		fields: TSelectedFields,
-	): PgSelect<TTable, TTableNamesMap, SelectResultFields<GetTableName<TTable>, TSelectedFields>>;
+	): PgSelect<TTable, TTableNamesMap, SelectResultFields<TSelectedFields>>;
 	select(fields?: PgSelectFields<GetTableName<TTable>>): PgSelect<TTable, TTableNamesMap, any> {
 		const fieldsOrdered = this.dialect.orderSelectedFields(
 			fields ?? this.table[tableColumns] as Record<string, AnyPgColumn>,

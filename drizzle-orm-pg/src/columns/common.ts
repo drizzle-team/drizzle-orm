@@ -42,6 +42,18 @@ export abstract class PgColumnBuilder<
 		return super.primaryKey() as any;
 	}
 
+	// references(
+	// 	arg: () => any,
+	// ): PgColumnBuilder<
+	// 	TData,
+	// 	TDriverParam,
+	// 	TNotNull,
+	// 	THasDefault
+	// > {
+	// 	this.foreignKeyConfigs.push({ ref, actions });
+	// 	return this;
+	// }
+
 	references(
 		ref: ReferenceConfig<TData>['ref'],
 		actions: ReferenceConfig<TData>['actions'] = {},
@@ -82,13 +94,15 @@ export abstract class PgColumn<
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
 > extends Column<TTableName, TDataType, TDriverData, TNotNull, THasDefault> {
-	override readonly table!: AnyPgTable<TTableName>;
-
 	constructor(
-		table: AnyPgTable<TTableName>,
+		override readonly table: AnyPgTable<TTableName>,
 		builder: PgColumnBuilder<TDataType, TDriverData, TNotNull, THasDefault>,
 	) {
 		super(table, builder);
+	}
+
+	unsafe(): AnyPgColumn {
+		return this;
 	}
 }
 
@@ -141,3 +155,13 @@ export type BuildPgColumns<
 		[Key in keyof TConfigMap]: BuildPgColumn<TTableName, TConfigMap[Key]>;
 	}
 >;
+
+export type ChangeColumnTable<TColumn extends AnyPgColumn, TAlias extends TableName> = TColumn extends
+	PgColumn<any, infer TData, infer TDriverParam, infer TNotNull, infer THasDefault> ? PgColumn<
+		TAlias,
+		TData,
+		TDriverParam,
+		TNotNull,
+		THasDefault
+	>
+	: never;

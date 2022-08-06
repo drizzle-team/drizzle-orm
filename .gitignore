@@ -4,3 +4,4 @@ dist
 *.tsbuildinfo
 *.tgz
 /*.sql
+.cache

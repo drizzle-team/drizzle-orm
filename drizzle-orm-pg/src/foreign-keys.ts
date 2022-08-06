@@ -3,6 +3,7 @@ import { tableName } from 'drizzle-orm/utils';
 
 import { AnyPgColumn } from './columns';
 import { AnyPgTable } from './table';
+import { tableForeignKeys } from './utils';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
@@ -115,8 +116,26 @@ export type NotFKBuilderWithUnion<T> = T extends ForeignKeyBuilder<any, infer TF
 	? [NotUnion<TForeignTableName>] extends [never] ? 'Only columns from the same table are allowed in foreignColumns' : T
 	: never;
 
-type test = NotUnion<TableName<'a'> | TableName<'b'>>;
-type test1 = NotUnion<'a'>;
+function _foreignKey<
+	TColumns extends [AnyPgColumn, ...AnyPgColumn[]],
+	TForeignTableName extends TableName,
+	TForeignColumns extends ColumnsWithTable<TForeignTableName, TColumns>,
+>(
+	config: () => {
+		columns: TColumns;
+		foreignColumns: TForeignColumns;
+	},
+): ForeignKeyBuilder<GetColumnsTable<TColumns>, GetColumnsTable<TForeignColumns>> {
+	function mappedConfig() {
+		const { columns, foreignColumns } = config();
+		return {
+			columns: Array.isArray(columns) ? columns : [columns] as AnyPgColumn[],
+			foreignColumns: Array.isArray(foreignColumns) ? foreignColumns : [foreignColumns] as AnyPgColumn[],
+		};
+	}
+
+	return new ForeignKeyBuilder(mappedConfig);
+}
 
 export function foreignKey<
 	TColumns extends [AnyPgColumn, ...AnyPgColumn[]],
@@ -128,15 +147,24 @@ export function foreignKey<
 		foreignColumns: TForeignColumns;
 	},
 ): NotFKBuilderWithUnion<ForeignKeyBuilder<GetColumnsTable<TColumns>, GetColumnsTable<TForeignColumns>>> {
-	function mappedConfig() {
-		const { columns, foreignColumns } = config();
-		return {
-			columns: Array.isArray(columns) ? columns : [columns] as AnyPgColumn[],
-			foreignColumns: Array.isArray(foreignColumns) ? foreignColumns : [foreignColumns] as AnyPgColumn[],
-		};
-	}
-
-	return new ForeignKeyBuilder(mappedConfig) as NotFKBuilderWithUnion<
+	return _foreignKey(config) as NotFKBuilderWithUnion<
 		ForeignKeyBuilder<GetColumnsTable<TColumns>, GetColumnsTable<TForeignColumns>>
 	>;
+}
+
+type NotGenericTableName<T extends TableName> = T extends TableName<infer TTableName>
+	? string extends TTableName ? never : TTableName
+	: never;
+
+export function addForeignKey<
+	TTableName extends TableName,
+	TColumns extends [AnyPgColumn<NotUnion<TTableName>>, ...AnyPgColumn<NotUnion<TTableName>>[]],
+	TForeignTableName extends TableName,
+	TForeignColumns extends ColumnsWithTable<NotGenericTableName<TForeignTableName>, TColumns>,
+>(config: {
+	table: AnyPgTable<TTableName>;
+	columns: TColumns;
+	foreignColumns: TForeignColumns;
+}) {
+	config.table[tableForeignKeys][Symbol()] = (_foreignKey(() => config)).build(config.table as any) as any;
 }
