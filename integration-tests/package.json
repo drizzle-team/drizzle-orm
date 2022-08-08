@@ -20,6 +20,7 @@
 		"drizzle-orm": "file:../drizzle-orm/package.tgz",
 		"drizzle-orm-mysql": "file:../drizzle-orm-mysql/package.tgz",
 		"drizzle-orm-pg": "file:../drizzle-orm-pg/package.tgz",
+		"esbuild-register": "^3.3.3",
 		"ts-node": "^10.8.2",
 		"type-fest": "^2.16.0",
 		"typescript": "^4.7.4"

@@ -1,4 +1,4 @@
-import { ColumnDriverParam, TableName } from './branded-types';
+import { ColumnData, ColumnDriverParam, TableName } from './branded-types';
 import { AnyColumn, Column } from './column';
 import { SelectFieldsOrdered } from './operations';
 import { AnyTable, Table } from './table';
@@ -9,17 +9,52 @@ export const tableName = Symbol('tableName');
 /** @internal */
 export const tableColumns = Symbol('tableColumns');
 
-/** @internal */
-export const tableRowMapper = Symbol('tableRowMapper');
-
 export function getTableName<TTableName extends TableName>(table: AnyTable<TTableName>): TTableName {
 	return table[tableName];
 }
 
-export function getTableRowMapper<TTableName extends TableName>(
-	table: AnyTable<TTableName>,
-): <TResult>(columns: SelectFieldsOrdered, row: ColumnDriverParam[]) => TResult {
-	return table[tableRowMapper] as <TResult>(columns: SelectFieldsOrdered, row: ColumnDriverParam[]) => TResult;
+export function mapResultRow<TResult extends Record<string, ColumnData | null>>(
+	columns: SelectFieldsOrdered,
+	row: ColumnDriverParam[],
+	joinsNotNullable?: Record<string, boolean>,
+): TResult {
+	const result = columns.reduce<Record<string, Record<string, ColumnData | null>>>(
+		(res, { name, resultTableName, column: columnOrResponse }, index) => {
+			let decoder;
+			if (columnOrResponse instanceof Column) {
+				decoder = columnOrResponse.mapFromDriverValue;
+			} else {
+				decoder = columnOrResponse.decoder;
+			}
+			if (!(resultTableName in res)) {
+				res[resultTableName] = {};
+			}
+			const rawValue = row[index]!;
+			res[resultTableName]![name] = rawValue === null ? null : decoder(rawValue) as ColumnData;
+			return res;
+		},
+		{},
+	);
+
+	if (Object.keys(result).length === 1) {
+		return Object.values(result)[0] as TResult;
+	}
+
+	if (!joinsNotNullable) {
+		return result as TResult;
+	}
+
+	return Object.fromEntries(
+		Object.entries(result).map(([tableName, tableResult]) => {
+			if (!joinsNotNullable[tableName]) {
+				const hasNotNull = Object.values(tableResult).some((value) => value !== null);
+				if (!hasNotNull) {
+					return [tableName, null];
+				}
+			}
+			return [tableName, tableResult];
+		}),
+	) as TResult;
 }
 
 export type GetTableName<T extends AnyTable | AnyColumn> = T extends AnyTable<infer TName> ? TName

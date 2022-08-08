@@ -1,4 +1,4 @@
-import { GetTableName, tableColumns, tableName, tableRowMapper } from 'drizzle-orm/utils';
+import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
 
 import { AnyPgDialect, PgSession } from '~/connection';
@@ -52,7 +52,7 @@ export class PgDelete<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 		const result = await this.session.query(sql, params);
 		const { returning } = this.config;
 		if (returning) {
-			return result.rows.map((row) => this.table[tableRowMapper](returning, row)) as TReturn;
+			return result.rows.map((row) => mapResultRow(returning, row)) as TReturn;
 		}
 		return result as TReturn;
 	}

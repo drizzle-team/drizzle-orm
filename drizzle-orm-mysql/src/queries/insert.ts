@@ -1,6 +1,6 @@
 import { ColumnData } from 'drizzle-orm/branded-types';
-import { AnySQLResponse, Name, SQL, sql, SQLSourceParam } from 'drizzle-orm/sql';
-import { GetTableName, tableColumns, tableName, tableRowMapper } from 'drizzle-orm/utils';
+import { AnySQLResponse, Name, SQL, sql } from 'drizzle-orm/sql';
+import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm/utils';
 import { AnyMySqlColumn } from '~/columns/common';
 import { AnyMySqlDialect, MySqlQueryResult, MySqlSession } from '~/connection';
 import { Constraint } from '~/constraints';
@@ -99,7 +99,7 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 		// mapping from driver response to return type
 		const { returning } = this.config;
 		if (returning) {
-			return result[0].map((row: any) => this.config.table[tableRowMapper](returning, row)) as TReturn;
+			return result[0].map((row: any) => mapResultRow(returning, row)) as TReturn;
 		} else {
 			return result as TReturn;
 		}

@@ -1,6 +1,6 @@
 import { ColumnData } from 'drizzle-orm/branded-types';
-import { AnySQLResponse, Name, SQL, sql, SQLSourceParam } from 'drizzle-orm/sql';
-import { GetTableName, tableColumns, tableName, tableRowMapper } from 'drizzle-orm/utils';
+import { AnySQLResponse, Name, SQL, sql } from 'drizzle-orm/sql';
+import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
 
 import { Check } from '~/checks';
@@ -101,7 +101,7 @@ export class PgInsert<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 		// mapping from driver response to return type
 		const { returning } = this.config;
 		if (returning) {
-			return result.rows.map((row) => this.config.table[tableRowMapper](returning, row)) as TReturn;
+			return result.rows.map((row) => mapResultRow(returning, row)) as TReturn;
 		} else {
 			return result as TReturn;
 		}

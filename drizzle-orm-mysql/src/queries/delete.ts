@@ -1,4 +1,4 @@
-import { GetTableName, tableColumns, tableName, tableRowMapper } from 'drizzle-orm/utils';
+import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm/utils';
 import { AnyMySqlDialect, MySqlQueryResult, MySqlSession } from '~/connection';
 import { MySqlSelectFields, MySqlSelectFieldsOrdered, SelectResultFields } from '~/operations';
 import { AnyMySQL, MySqlPreparedQuery } from '~/sql';
@@ -50,7 +50,7 @@ export class MySqlDelete<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 		const result = await this.session.query(sql, params);
 		const { returning } = this.config;
 		if (returning) {
-			return result[0].map((row: any) => this.table[tableRowMapper](returning, row)) as TReturn;
+			return result[0].map((row: any) => mapResultRow(returning, row)) as TReturn;
 		}
 		return result as TReturn;
 	}

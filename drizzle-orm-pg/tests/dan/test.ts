@@ -23,9 +23,9 @@ import {
 	or,
 } from 'drizzle-orm/expressions';
 import { QueryResultRow } from 'pg';
+import { Simplify } from 'type-fest';
 
-import { integer, serial } from '~/columns';
-import { pgTable } from '~/table';
+// import { RemoveDuplicates } from '~/queries/select.types';
 import { Equal, Expect } from '../utils';
 import { db } from './db';
 import { cities, classes, users } from './tables';
@@ -146,38 +146,3 @@ db.users
 	// .orderBy((joins)=> [asc(joins.users.id), desc(joins.cities1.id)])
 	// .orderBy((joins)=> sql`${joins.users.age1} ASC`)
 	.execute();
-
-const join2 = await db.users.select()
-	.leftJoin(cities, eq(users.id, cities.id))
-	.rightJoin({ city: cities }, (aliases) => eq(aliases.city.id, users.id))
-	.rightJoin({ city1: cities }, (aliases) => eq(aliases.city1.id, users.id), (city) => ({ id: city.id }))
-	.execute();
-
-Expect<
-	Equal<{
-		users?: {
-			id: number;
-			homeCity: number;
-			currentCity: number | null;
-			serialNullable: number;
-			serialNotNull: number;
-			class: 'A' | 'C';
-			subClass: 'B' | 'D' | null;
-			age1: number;
-			createdAt: Date;
-		};
-		cities?: {
-			id: number;
-			name: string;
-			population: number | null;
-		};
-		city?: {
-			id: number;
-			name: string;
-			population: number | null;
-		};
-		city1: {
-			id: number;
-		};
-	}[], typeof join2>
->;

@@ -1,6 +1,6 @@
 import { TableName, Unwrap } from 'drizzle-orm/branded-types';
-import { SQL, SQLResponse, SQLWrapper } from 'drizzle-orm/sql';
-import { GetTableName, tableColumns, tableName, tableRowMapper } from 'drizzle-orm/utils';
+import { SQL, SQLWrapper } from 'drizzle-orm/sql';
+import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm/utils';
 
 import { AnyPgColumn } from '~/columns/common';
 import { AnyPgDialect, PgSession } from '~/connection';
@@ -16,6 +16,7 @@ import {
 	AppendToJoinsNotNull as AppendToJoinsNotNullable,
 	AppendToResult,
 	GetSelectedFields,
+	JoinNullability,
 	JoinOn,
 	JoinSelect,
 	JoinsValue,
@@ -45,7 +46,9 @@ export class PgSelect<
 	// TAliases is really a map of table name => joined table, but I failed to prove that to TS
 	TAliases extends { [tableName: string]: any } = {},
 	TJoinedDBTableNames extends string = Unwrap<GetTableName<TTable>>,
-	TJoinsNotNullable extends Record<string, boolean> = { [Key in TTableNamesMap[TJoinedDBTableNames]]: true },
+	TJoinsNotNullable extends Record<string, JoinNullability> = {
+		[Key in TTableNamesMap[TJoinedDBTableNames]]: 'not-null';
+	},
 > implements SQLWrapper {
 	protected typeKeeper!: {
 		table: TTable;
@@ -56,6 +59,7 @@ export class PgSelect<
 
 	private config: PgSelectConfig;
 	private aliases: TAliases = {} as TAliases;
+	private joinsNotNullable: Record<string, boolean>;
 
 	constructor(
 		private table: PgSelectConfig['table'],
@@ -70,6 +74,7 @@ export class PgSelect<
 			joins: {},
 			orderBy: [],
 		};
+		this.joinsNotNullable = { [table[tableName]]: true };
 	}
 
 	private createJoin<TJoinType extends JoinType>(joinType: TJoinType) {
@@ -155,6 +160,30 @@ export class PgSelect<
 				aliasTable: tableAliasProxy,
 			};
 
+			switch (joinType) {
+				case 'left':
+					self.joinsNotNullable[joinName] = false;
+					break;
+				case 'right':
+					self.joinsNotNullable = Object.fromEntries(
+						Object.entries(self.joinsNotNullable).map(([key]) => [key, false]),
+					);
+					self.joinsNotNullable[joinName] = true;
+					break;
+				case 'inner':
+					self.joinsNotNullable = Object.fromEntries(
+						Object.entries(self.joinsNotNullable).map(([key]) => [key, true]),
+					);
+					self.joinsNotNullable[joinName] = true;
+					break;
+				case 'full':
+					self.joinsNotNullable = Object.fromEntries(
+						Object.entries(self.joinsNotNullable).map(([key]) => [key, false]),
+					);
+					self.joinsNotNullable[joinName] = false;
+					break;
+			}
+
 			return self;
 		}
 
@@ -234,7 +263,7 @@ export class PgSelect<
 		const query = this.dialect.buildSelectQuery(this.config);
 		const { sql, params } = this.dialect.prepareSQL(query);
 		const result = await this.session.query(sql, params);
-		return result.rows.map((row) => this.table[tableRowMapper](this.fields, row)) as SelectResult<
+		return result.rows.map((row) => mapResultRow(this.fields, row, this.joinsNotNullable)) as SelectResult<
 			TTable,
 			TResult,
 			TInitialSelectResultFields,

@@ -1,10 +1,10 @@
 import { GetColumnData } from 'drizzle-orm';
 import { SQL } from 'drizzle-orm/sql';
-import { GetTableName, tableColumns, tableName, tableRowMapper } from 'drizzle-orm/utils';
+import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
 import { AnyPgColumn } from '~/columns/common';
 
-import { AnyPgDialect, PgColumnDriverDataType, PgSession } from '~/connection';
+import { AnyPgDialect, PgSession } from '~/connection';
 import { PgSelectFields, PgSelectFieldsOrdered, SelectResultFields } from '~/operations';
 import { AnyPgSQL, PgPreparedQuery } from '~/sql';
 import { AnyPgTable, GetTableColumns, InferModel } from '~/table';
@@ -75,7 +75,7 @@ export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 		const result = await this.session.query(sql, params);
 
 		if (this.config.returning) {
-			return this.table[tableRowMapper](this.config.returning, result.rows) as unknown as TReturn;
+			return mapResultRow(this.config.returning, result.rows) as unknown as TReturn;
 		}
 		return result as TReturn;
 	}

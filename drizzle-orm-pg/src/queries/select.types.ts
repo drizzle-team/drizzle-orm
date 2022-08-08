@@ -20,46 +20,34 @@ export interface JoinsValue {
 	aliasTable: AnyPgTable;
 }
 
-type NotNullableTablesOnly<Key extends string, TJoinsNotNullable extends Record<string, boolean>> =
-	[TJoinsNotNullable[Key]] extends [true] ? Key : never;
-type NullableTablesOnly<Key extends string, TJoinsNotNull extends Record<string, boolean>> = Key extends
-	NotNullableTablesOnly<Key, TJoinsNotNull> ? never : Key;
+export type JoinNullability = 'nullable' | 'null' | 'not-null';
 
-type T = string extends never ? true : false;
-
-type ApplyNotNullMapToJoins<
+export type ApplyNotNullMapToJoins<
 	TResult extends Record<string, Record<string, unknown>>,
-	TJoinsNotNullable extends Record<string, boolean>,
-> =
-	& {
-		[
-			TTableName in (keyof TResult & keyof TJoinsNotNullable & string) as NotNullableTablesOnly<
-				TTableName,
-				TJoinsNotNullable
-			>
-		]: TResult[TTableName];
+	TJoinsNotNullable extends Record<string, JoinNullability>,
+> = TJoinsNotNullable extends TJoinsNotNullable ? {
+		[TTableName in keyof TResult & keyof TJoinsNotNullable & string]: TJoinsNotNullable[TTableName] extends 'nullable'
+			? TResult[TTableName] | null
+			: TJoinsNotNullable[TTableName] extends 'null' ? null
+			: TJoinsNotNullable[TTableName] extends 'not-null' ? TResult[TTableName]
+			: never;
 	}
-	& {
-		[
-			TTableName in (keyof TResult & keyof TJoinsNotNullable & string) as NullableTablesOnly<
-				TTableName,
-				TJoinsNotNullable
-			>
-		]?: TResult[TTableName];
-	};
+	: never;
 
 export type SelectResult<
 	TTable extends AnyPgTable,
 	TReturn,
 	TInitialSelectResultFields extends Record<string, unknown>,
 	TTableNamesMap extends Record<string, string>,
-	TJoinsNotNullable extends Record<string, boolean>,
+	TJoinsNotNullable extends Record<string, JoinNullability>,
 > = TReturn extends undefined ? TInitialSelectResultFields[]
-	: Simplify<
-		ApplyNotNullMapToJoins<
-			& TReturn
-			& { [Key in TTableNamesMap[Unwrap<GetTableName<TTable>>]]: TInitialSelectResultFields },
-			TJoinsNotNullable
+	: RemoveDuplicates<
+		Simplify<
+			ApplyNotNullMapToJoins<
+				& TReturn
+				& { [Key in TTableNamesMap[Unwrap<GetTableName<TTable>>]]: TInitialSelectResultFields },
+				TJoinsNotNullable
+			>
 		>
 	>[];
 
@@ -129,18 +117,31 @@ export type JoinSelect<
 export type GetSelectedFields<T extends JoinSelect<any, any, any>> = T extends
 	JoinSelect<any, any, infer TSelectedFields> ? TSelectedFields : never;
 
-type SetJoinsNotNull<TJoinsNotNull extends Record<string, boolean>, TValue extends boolean> = {
+type SetJoinsNotNull<TJoinsNotNull extends Record<string, JoinNullability>, TValue extends JoinNullability> = {
 	[Key in keyof TJoinsNotNull]: TValue;
 };
 
+// https://stackoverflow.com/a/70061272/9929789
+type UnionToParm<U> = U extends any ? (k: U) => void : never;
+type UnionToSect<U> = UnionToParm<U> extends ((k: infer I) => void) ? I : never;
+type ExtractParm<F> = F extends { (a: infer A): void } ? A : never;
+type SpliceOne<Union> = Exclude<Union, ExtractOne<Union>>;
+type ExtractOne<Union> = ExtractParm<UnionToSect<UnionToParm<Union>>>;
+type ToTupleRec<Union, Result extends any[] = []> = SpliceOne<Union> extends never ? [ExtractOne<Union>, ...Result]
+	: ToTupleRec<SpliceOne<Union>, [ExtractOne<Union>, ...Result]>;
+export type RemoveDuplicates<T> = ToTupleRec<T> extends any[] ? ToTupleRec<T>[number] : never;
+
 export type AppendToJoinsNotNull<
-	TJoinsNotNull extends Record<string, boolean>,
+	TJoinsNotNull extends Record<string, JoinNullability>,
 	TJoinedName extends string,
 	TJoinType extends JoinType,
 > = Simplify<
-	'left' extends TJoinType ? TJoinsNotNull & { [name in TJoinedName]: false }
-		: 'right' extends TJoinType ? SetJoinsNotNull<TJoinsNotNull, false> & { [name in TJoinedName]: true }
-		: 'inner' extends TJoinType ? SetJoinsNotNull<TJoinsNotNull, true> & { [name in TJoinedName]: true }
-		: 'full' extends TJoinType ? SetJoinsNotNull<TJoinsNotNull, true> & { [name in TJoinedName]: true }
+	'left' extends TJoinType ? TJoinsNotNull & { [name in TJoinedName]: 'nullable' }
+		: 'right' extends TJoinType ? SetJoinsNotNull<TJoinsNotNull, 'nullable'> & { [name in TJoinedName]: 'not-null' }
+		: 'inner' extends TJoinType ? SetJoinsNotNull<TJoinsNotNull, 'not-null'> & { [name in TJoinedName]: 'not-null' }
+		: 'full' extends TJoinType ? 
+				| (TJoinsNotNull & { [name in TJoinedName]: 'null' })
+				| (SetJoinsNotNull<TJoinsNotNull, 'null'> & { [name in TJoinedName]: 'not-null' })
+				| (TJoinsNotNull & { [name in TJoinedName]: 'not-null' })
 		: never
 >;

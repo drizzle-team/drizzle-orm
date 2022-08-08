@@ -1,13 +1,14 @@
 {
 	"extends": "../tsconfig.json",
 	"compilerOptions": {
-		"outDir": "./dist",
-		"baseUrl": "./",
+		"module": "esnext",
+		"target": "esnext",
+		"noEmit": true,
+		"rootDir": "..",
 		"rootDir": "tests",
 		"paths": {
-			"~/*": ["tests/*"]
+			"~/*": ["./tests/*"]
 		}
 	},
-	"include": ["tests"],
-	"exclude": ["dist", "node_modules"]
+	"include": ["tests"]
 }

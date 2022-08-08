@@ -1,6 +1,6 @@
 import { GetColumnData } from 'drizzle-orm';
 import { SQL } from 'drizzle-orm/sql';
-import { GetTableName, tableColumns, tableName, tableRowMapper } from 'drizzle-orm/utils';
+import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm/utils';
 import { AnyMySqlColumn } from '~/columns/common';
 import { AnyMySqlDialect, MySqlQueryResult, MySqlSession } from '~/connection';
 import { MySqlSelectFields, MySqlSelectFieldsOrdered, SelectResultFields } from '~/operations';
@@ -73,7 +73,7 @@ export class MySqlUpdate<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 		const result = await this.session.query(sql, params);
 
 		if (this.config.returning) {
-			return this.table[tableRowMapper](this.config.returning, result[0]) as unknown as TReturn;
+			return mapResultRow(this.config.returning, result[0]) as unknown as TReturn;
 		}
 		return result as TReturn;
 	}

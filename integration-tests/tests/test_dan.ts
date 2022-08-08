@@ -1,5 +1,5 @@
 import { connect, sql } from 'drizzle-orm';
-import { constraint, foreignKey, index, integer, PgConnector, pgTable, serial, text, timestamp } from 'drizzle-orm-pg';
+import { check, foreignKey, index, integer, PgConnector, pgTable, serial, text, timestamp } from 'drizzle-orm-pg';
 import { getTableForeignKeys } from 'drizzle-orm-pg/utils';
 import { eq, exists } from 'drizzle-orm/expressions';
 import { Pool } from 'pg';
@@ -30,17 +30,23 @@ const usersTable = pgTable(
 			concurrently: true,
 			using: sql`btree`,
 		}),
-		legalAge: constraint('legalAge', sql`${users.age1} > 18`),
-		ageSelfFK: foreignKey(() => [users.age1, users.id]).onUpdate('no action'),
-		usersClassFK: foreignKey(() => [users.class, classesTable.class]).onDelete('set default'),
-		usersClassComplexFK: foreignKey(() => [
-			[users.class, users.subClass],
-			[classesTable.class, classesTable.subClass],
-		]).onUpdate('set null').onDelete('no action'),
+		legalAge: check('legalAge', sql`${users.age1} > 18`),
+		ageSelfFK: foreignKey(() => ({
+			columns: [users.age1],
+			foreignColumns: [users.id],
+		})).onUpdate('no action'),
+		usersClassFK: foreignKey(() => ({
+			columns: [users.class],
+			foreignColumns: [classesTable.class],
+		})).onDelete(
+			'set default',
+		),
+		usersClassComplexFK: foreignKey(() => ({
+			columns: [users.class, users.subClass],
+			foreignColumns: [classesTable.class, classesTable.subClass],
+		})).onUpdate('set null').onDelete('no action'),
 	}),
 );
-
-console.log(getTableForeignKeys(usersTable));
 
 const citiesTable = pgTable('cities', {
 	id: serial('id').primaryKey(),
@@ -82,29 +88,29 @@ async function main() {
 			}))
 		);
 
-	const selectResult2 = await realDb.citiesTable.select({ id: citiesTable.id, name: citiesTable.name })
-		.leftJoin(usersTable, eq(usersTable.homeCity, citiesTable.id), { id: usersTable.id })
-		.execute()
-		.then((result) => {
-			type ResultRow = typeof result[number]['citiesTable'] & {
-				users: typeof result[number]['usersTable'][];
-			};
-			return Object.values(result.reduce<Record<string, ResultRow>>(
-				(acc, { citiesTable, usersTable }) => {
-					if (!(citiesTable.id in acc)) {
-						acc[citiesTable.id] = { ...citiesTable, users: [usersTable] };
-					} else {
-						acc[citiesTable.id]!.users.push(usersTable);
-					}
-					return acc;
-				},
-				{},
-			));
-		});
+	// const selectResult2 = await realDb.citiesTable.select({ id: citiesTable.id, name: citiesTable.name })
+	// 	.leftJoin(usersTable, eq(usersTable.homeCity, citiesTable.id), { id: usersTable.id })
+	// 	.execute()
+	// 	.then((result) => {
+	// 		type ResultRow = typeof result[number]['citiesTable'] & {
+	// 			users: typeof result[number]['usersTable'][];
+	// 		};
+	// 		return Object.values(result.reduce<Record<string, ResultRow>>(
+	// 			(acc, { citiesTable, usersTable }) => {
+	// 				if (!(citiesTable.id in acc)) {
+	// 					acc[citiesTable.id] = { ...citiesTable, users: [usersTable] };
+	// 				} else {
+	// 					acc[citiesTable.id]!.users.push(usersTable);
+	// 				}
+	// 				return acc;
+	// 			},
+	// 			{},
+	// 		));
+	// 	});
 
-	const selectResult3 = await realDb.usersTable.select({ id: usersTable.id }).where(exists(
-		realDb.citiesTable.select({ id: citiesTable.id }).whereUnsafe(eq(citiesTable.id, usersTable.homeCity)),
-	)).execute();
+	// const selectResult3 = await realDb.usersTable.select({ id: usersTable.id }).where(exists(
+	// 	realDb.citiesTable.select({ id: citiesTable.id }).where(eq(citiesTable.id.unsafe(), usersTable.homeCity)),
+	// )).execute();
 
 	client.release();
 	await pool.end();

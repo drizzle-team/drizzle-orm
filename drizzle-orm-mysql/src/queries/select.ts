@@ -1,6 +1,6 @@
 import { TableName, Unwrap } from 'drizzle-orm/branded-types';
 import { SQL, SQLWrapper } from 'drizzle-orm/sql';
-import { GetTableName, tableColumns, tableName, tableRowMapper } from 'drizzle-orm/utils';
+import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm/utils';
 import { AnyMySqlColumn } from '~/columns/common';
 import { AnyMySqlDialect, MySqlSession } from '~/connection';
 import { MySqlSelectFields, MySqlSelectFieldsOrdered } from '~/operations';
@@ -272,7 +272,7 @@ export class MySqlSelect<
 		const query = this.dialect.buildSelectQuery(this.config);
 		const { sql, params } = this.dialect.prepareSQL(query);
 		const result = await this.session.query(sql, params);
-		return result[0].map((row: any) => this.table[tableRowMapper](this.fields, row)) as SelectResult<
+		return result[0].map((row: any) => mapResultRow(this.fields, row)) as SelectResult<
 			TTable,
 			TResult,
 			TInitialSelectResultFields,
