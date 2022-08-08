@@ -26,7 +26,10 @@ const pool = new Pool({
 async function main() {
 	const db = await drizzle.connect(new PgConnector(pool, { test1, test2, test3 }));
 
-	const result = await db.test1.select().fullJoin(test2, eq(test1.value, test2.value)).execute();
+	const result = await db.test1
+		.select()
+		.fullJoin(test2, eq(test1.value, test2.value))
+		.execute();
 	console.log(result);
 
 	await pool.end();

@@ -4,7 +4,8 @@
 		"module": "esnext",
 		"target": "esnext",
 		"noEmit": true,
-		"rootDir": ".."
+		"rootDir": "..",
+		"outDir": "./.cache"
 	},
 	"include": [".", "../src"]
 }
