@@ -351,7 +351,7 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		returning,
 	}: AnyMySqlInsertConfig): AnyMySQL {
 		const valuesSqlList: ((SQLSourceParam<TableName> | AnyMySQL)[] | AnyMySQL)[] = [];
-		const columns: Record<string, AnyMySqlColumn> = getTableColumns(table);
+		const columns: Record<string, AnyMySqlColumn> = table[tableColumns];
 		const columnKeys = Object.keys(columns);
 		const insertOrder = Object.values(columns).map((column) => new Name(column.name));
 

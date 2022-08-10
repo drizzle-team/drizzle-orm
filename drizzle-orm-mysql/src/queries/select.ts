@@ -10,13 +10,16 @@ import { AnyMySqlTable, GetTableColumns, MySqlTable } from '~/table';
 import { TableProxyHandler } from './proxies';
 
 import {
+	AnyMySqlSelect,
 	AppendToAliases,
+	AppendToJoinsNotNull as AppendToJoinsNotNullable,
 	AppendToResult,
+	GetSelectedFields,
+	JoinNullability,
 	JoinOn,
 	JoinSelect,
 	JoinsValue,
 	JoinType,
-	PickJoin,
 	PickLimit,
 	PickOffset,
 	PickOrderBy,
@@ -41,7 +44,10 @@ export class MySqlSelect<
 	TResult = undefined,
 	// TAliases is really a map of table name => joined table, but I failed to prove that to TS
 	TAliases extends { [tableName: string]: any } = {},
-	TJoinedTableNames extends string = Unwrap<GetTableName<TTable>>,
+	TJoinedDBTableNames extends string = Unwrap<GetTableName<TTable>>,
+	TJoinsNotNullable extends Record<string, JoinNullability> = {
+		[Key in TTableNamesMap[TJoinedDBTableNames]]: 'not-null';
+	},
 > implements SQLWrapper {
 	protected typeKeeper!: {
 		table: TTable;
@@ -52,6 +58,7 @@ export class MySqlSelect<
 
 	private config: MySqlSelectConfig;
 	private aliases: TAliases = {} as TAliases;
+	private joinsNotNullable: Record<string, boolean>;
 
 	constructor(
 		private table: MySqlSelectConfig['table'],
@@ -66,87 +73,60 @@ export class MySqlSelect<
 			joins: {},
 			orderBy: [],
 		};
+		this.joinsNotNullable = { [table[tableName]]: true };
 	}
 
-	private createJoin(joinType: JoinType) {
+	private createJoin<TJoinType extends JoinType>(joinType: TJoinType) {
 		const self = this;
 
 		function join<
 			TJoinedTable extends AnyMySqlTable<TableName<keyof TTableNamesMap & string>>,
-			TAliasName extends Unwrap<GetTableName<TJoinedTable>>,
-			TJoinName extends TTableNamesMap[TAliasName],
+			TDBName extends Unwrap<GetTableName<TJoinedTable>>,
+			TJoinedName extends TTableNamesMap[TDBName],
+			TSelect extends JoinSelect<TJoinedTable, TJoinedName, MySqlSelectFields<TableName>> = JoinSelect<
+				TJoinedTable,
+				TJoinedName,
+				GetTableColumns<TJoinedTable>
+			>,
 		>(
 			table: TJoinedTable,
-			on: JoinOn<TTableNamesMap, TJoinedTableNames, TAliases, TJoinedTable, TJoinName, TAliasName>,
-		): PickJoin<
-			MySqlSelect<
-				TTable,
-				TTableNamesMap,
-				TInitialSelectResultFields,
-				AppendToResult<TResult, TJoinName, GetTableColumns<TJoinedTable>>,
-				TAliases,
-				TJoinedTableNames | TAliasName
-			>
-		>;
-
-		function join<
-			TJoinedTable extends AnyMySqlTable<TableName<keyof TTableNamesMap & string>>,
-			TAliasName extends Unwrap<GetTableName<TJoinedTable>>,
-			TJoinName extends TTableNamesMap[TAliasName],
-			TSelectedFields extends MySqlSelectFields<GetTableName<TJoinedTable>>,
-		>(
-			table: TJoinedTable,
-			on: JoinOn<TTableNamesMap, TJoinedTableNames, TAliases, TJoinedTable, TJoinName, TAliasName>,
-			select: JoinSelect<TJoinedTable, TAliasName, TSelectedFields>,
-		): PickJoin<
-			MySqlSelect<
-				TTable,
-				TTableNamesMap,
-				TInitialSelectResultFields,
-				AppendToResult<TResult, TJoinName, TSelectedFields>,
-				TAliases,
-				TJoinedTableNames | TAliasName
-			>
+			on: JoinOn<TTableNamesMap, TJoinedDBTableNames, TAliases, TJoinedTable, TJoinedName, TDBName>,
+			select?: TSelect,
+		): MySqlSelect<
+			TTable,
+			TTableNamesMap,
+			TInitialSelectResultFields,
+			AppendToResult<TResult, TJoinedName, GetSelectedFields<TSelect>>,
+			TAliases,
+			TJoinedDBTableNames | TDBName,
+			AppendToJoinsNotNullable<TJoinsNotNullable, TJoinedName, TJoinType>
 		>;
 		function join<
 			TJoinedTable extends AnyMySqlTable<TableName<keyof TTableNamesMap & string>>,
-			TJoinName extends string,
+			TJoinedName extends string,
+			TSelect extends JoinSelect<TJoinedTable, TJoinedName, MySqlSelectFields<TableName>> = JoinSelect<
+				TJoinedTable,
+				TJoinedName,
+				GetTableColumns<TJoinedTable>
+			>,
 		>(
-			alias: { [Key in TJoinName]: TJoinedTable },
-			on: JoinOn<TTableNamesMap, TJoinedTableNames, TAliases, TJoinedTable, TJoinName>,
-		): PickJoin<
-			MySqlSelect<
-				TTable,
-				TTableNamesMap,
-				TInitialSelectResultFields,
-				AppendToResult<TResult, TJoinName, GetTableColumns<TJoinedTable>>,
-				AppendToAliases<TAliases, TJoinedTable, TJoinName>,
-				TJoinedTableNames | TJoinName
-			>
-		>;
-		function join<
-			TJoinedTable extends AnyMySqlTable<TableName<keyof TTableNamesMap & string>>,
-			TJoinName extends string,
-			TSelectedFields extends MySqlSelectFields<TableName<TJoinName>>,
-		>(
-			alias: { [Key in TJoinName]: TJoinedTable },
-			on: JoinOn<TTableNamesMap, TJoinedTableNames, TAliases, TJoinedTable, TJoinName>,
-			select: JoinSelect<TJoinedTable, TJoinName, TSelectedFields>,
-		): PickJoin<
-			MySqlSelect<
-				TTable,
-				TTableNamesMap,
-				TInitialSelectResultFields,
-				AppendToResult<TResult, TJoinName, TSelectedFields>,
-				AppendToAliases<TAliases, TJoinedTable, TJoinName>,
-				TJoinedTableNames | TJoinName
-			>
+			alias: { [Key in TJoinedName]: TJoinedTable },
+			on: JoinOn<TTableNamesMap, TJoinedDBTableNames, TAliases, TJoinedTable, TJoinedName>,
+			select?: TSelect,
+		): MySqlSelect<
+			TTable,
+			TTableNamesMap,
+			TInitialSelectResultFields,
+			AppendToResult<TResult, TJoinedName, GetSelectedFields<TSelect>>,
+			AppendToAliases<TAliases, TJoinedTable, TJoinedName>,
+			TJoinedDBTableNames | TJoinedName,
+			AppendToJoinsNotNullable<TJoinsNotNullable, TJoinedName, TJoinType>
 		>;
 		function join(
 			aliasConfig: AnyMySqlTable | Record<string, AnyMySqlTable>,
-			on: JoinOn<TTableNamesMap, TJoinedTableNames, TAliases, AnyMySqlTable, string>,
+			on: JoinOn<TTableNamesMap, TJoinedDBTableNames, TAliases, AnyMySqlTable, string>,
 			select?: ((table: AnyMySqlTable) => Record<string, AnyMySqlColumn>) | Record<string, AnyMySqlColumn>,
-		) {
+		): AnyMySqlSelect {
 			let aliasName: string, joinedTable: AnyMySqlTable;
 			if (aliasConfig instanceof MySqlTable) {
 				aliasName = aliasConfig[tableName];
@@ -168,9 +148,7 @@ export class MySqlSelect<
 
 			const onExpression = on instanceof Function ? on(self.aliases as any) : on;
 
-			const partialFields = select instanceof Function
-				? select(tableAliasProxy)
-				: select;
+			const partialFields = select instanceof Function ? select(tableAliasProxy) : select;
 
 			self.fields.push(...self.dialect.orderSelectedFields(partialFields ?? tableAliasProxy[tableColumns], joinName));
 
@@ -181,7 +159,31 @@ export class MySqlSelect<
 				aliasTable: tableAliasProxy,
 			};
 
-			return self as any;
+			switch (joinType) {
+				case 'left':
+					self.joinsNotNullable[joinName] = false;
+					break;
+				case 'right':
+					self.joinsNotNullable = Object.fromEntries(
+						Object.entries(self.joinsNotNullable).map(([key]) => [key, false]),
+					);
+					self.joinsNotNullable[joinName] = true;
+					break;
+				case 'inner':
+					self.joinsNotNullable = Object.fromEntries(
+						Object.entries(self.joinsNotNullable).map(([key]) => [key, true]),
+					);
+					self.joinsNotNullable[joinName] = true;
+					break;
+				case 'full':
+					self.joinsNotNullable = Object.fromEntries(
+						Object.entries(self.joinsNotNullable).map(([key]) => [key, false]),
+					);
+					self.joinsNotNullable[joinName] = false;
+					break;
+			}
+
+			return self;
 		}
 
 		return join;
@@ -209,29 +211,15 @@ export class MySqlSelect<
 		return this;
 	}
 
-	public whereUnsafe(
-		where:
-			| ((aliases: TAliases) => AnyMySQL)
-			| AnyMySQL
-			| undefined,
-	): PickWhere<this> {
-		return this.where(
-			where as
-				| ((aliases: TAliases) => AnyMySQL<TableName<keyof TAliases & string> | GetTableName<TTable>>)
-				| AnyMySQL<GetTableName<TTable>>
-				| undefined,
-		);
-	}
-
 	public orderBy(
 		columns: (
 			joins: TAliases,
 		) =>
-			| AnyMySQL<TableName<TJoinedTableNames> | GetTableName<TTable>>[]
-			| AnyMySQL<TableName<TJoinedTableNames> | GetTableName<TTable>>,
+			| AnyMySQL<TableName<TJoinedDBTableNames> | GetTableName<TTable>>[]
+			| AnyMySQL<TableName<TJoinedDBTableNames> | GetTableName<TTable>>,
 	): PickOrderBy<this>;
 	public orderBy(
-		...columns: AnyMySQL<TableName<TJoinedTableNames> | GetTableName<TTable>>[]
+		...columns: AnyMySQL<TableName<TJoinedDBTableNames> | GetTableName<TTable>>[]
 	): PickOrderBy<this>;
 	public orderBy(
 		firstColumn: ((joins: TAliases) => AnyMySQL[] | AnyMySQL) | AnyMySQL,
@@ -268,15 +256,18 @@ export class MySqlSelect<
 		return this.dialect.prepareSQL(query);
 	}
 
-	public async execute(): Promise<SelectResult<TTable, TResult, TInitialSelectResultFields, TTableNamesMap>> {
+	public async execute(): Promise<
+		SelectResult<TTable, TResult, TInitialSelectResultFields, TTableNamesMap, TJoinsNotNullable>
+	> {
 		const query = this.dialect.buildSelectQuery(this.config);
 		const { sql, params } = this.dialect.prepareSQL(query);
 		const result = await this.session.query(sql, params);
-		return result[0].map((row: any) => mapResultRow(this.fields, row)) as SelectResult<
+		return result[0].map((row: any) => mapResultRow(this.fields, row, this.joinsNotNullable)) as SelectResult<
 			TTable,
 			TResult,
 			TInitialSelectResultFields,
-			TTableNamesMap
+			TTableNamesMap,
+			TJoinsNotNullable
 		>;
 	}
 }

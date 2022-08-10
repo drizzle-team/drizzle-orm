@@ -4,19 +4,17 @@ import { SelectFieldsOrdered } from 'drizzle-orm/operations';
 import { AnySQLResponse, SQLResponse } from 'drizzle-orm/sql';
 import { GetTableName, tableColumns, tableName } from 'drizzle-orm/utils';
 import { Simplify } from 'type-fest';
-import { MySqlColumnDriverParam } from './branded-types';
-import { AnyMySqlColumn } from './columns/common';
+import { AnyMySqlColumn } from './columns';
 import { AnyMySqlDialect, MySqlSession } from './connection';
 import { MySqlDelete, MySqlInsert, MySqlSelect, MySqlUpdate } from './queries';
 import { AnyMySqlTable, InferModel } from './table';
 
 export type MySqlSelectFields<
 	TTableName extends TableName,
-	TColumnDriverParam extends MySqlColumnDriverParam = MySqlColumnDriverParam,
 > = {
 	[key: string]:
 		| SQLResponse<TTableName, ColumnData>
-		| AnyMySqlColumn<TTableName, any, TColumnDriverParam>;
+		| AnyMySqlColumn<TTableName>;
 };
 
 export type MySqlSelectFieldsOrdered<TTableName extends TableName = TableName> = (
@@ -27,8 +25,7 @@ export type MySqlSelectFieldsOrdered<TTableName extends TableName = TableName> =
 )[];
 
 export type SelectResultFields<
-	TTableName extends TableName,
-	TSelectedFields extends MySqlSelectFields<TTableName>,
+	TSelectedFields extends MySqlSelectFields<TableName>,
 > = Simplify<
 	{
 		[Key in keyof TSelectedFields & string]: TSelectedFields[Key] extends AnyMySqlColumn
@@ -49,7 +46,7 @@ export class MySqlTableOperations<TTable extends AnyMySqlTable, TTableNamesMap e
 	select(): MySqlSelect<TTable, TTableNamesMap, InferModel<TTable>>;
 	select<TSelectedFields extends MySqlSelectFields<GetTableName<TTable>>>(
 		fields: TSelectedFields,
-	): MySqlSelect<TTable, TTableNamesMap, SelectResultFields<GetTableName<TTable>, TSelectedFields>>;
+	): MySqlSelect<TTable, TTableNamesMap, SelectResultFields<TSelectedFields>>;
 	select(fields?: MySqlSelectFields<GetTableName<TTable>>): MySqlSelect<TTable, TTableNamesMap, any> {
 		const fieldsOrdered = this.dialect.orderSelectedFields(
 			fields ?? this.table[tableColumns] as Record<string, AnyMySqlColumn>,

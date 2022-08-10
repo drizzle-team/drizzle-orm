@@ -29,7 +29,7 @@ export class MySqlDelete<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 	public returning(): Pick<MySqlDelete<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
 	public returning<TSelectedFields extends MySqlSelectFields<GetTableName<TTable>>>(
 		fields: TSelectedFields,
-	): Pick<MySqlDelete<TTable, SelectResultFields<GetTableName<TTable>, TSelectedFields>[]>, 'getQuery' | 'execute'>;
+	): Pick<MySqlDelete<TTable, SelectResultFields<TSelectedFields>[]>, 'getQuery' | 'execute'>;
 	public returning(fields?: MySqlSelectFields<GetTableName<TTable>>): MySqlDelete<TTable, any> {
 		const orderedFields = this.dialect.orderSelectedFields(
 			fields ?? this.table[tableColumns],

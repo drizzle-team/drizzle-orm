@@ -3,6 +3,8 @@ import { tableName } from 'drizzle-orm/utils';
 import { AnyMySqlColumn } from './columns/common';
 import { AnyMySqlTable } from './table';
 
+import { tableForeignKeys } from './utils';
+
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
 export type Reference<TTableName extends TableName, TForeignTableName extends TableName> = () => {
@@ -12,7 +14,11 @@ export type Reference<TTableName extends TableName, TForeignTableName extends Ta
 };
 
 export class ForeignKeyBuilder<TTableName extends TableName, TForeignTableName extends TableName> {
-	protected brand!: 'MySqlForeignKeyBuilder';
+	protected brand!: 'PgForeignKeyBuilder';
+
+	protected typeKeeper!: {
+		foreignTableName: TForeignTableName;
+	};
 
 	/** @internal */
 	reference: Reference<TTableName, TForeignTableName>;
@@ -92,14 +98,11 @@ export type AnyForeignKey = ForeignKey<any, any>;
 
 type ColumnsWithTable<
 	TTableName extends TableName,
-	TColumns extends AnyMySqlColumn | [AnyMySqlColumn, ...AnyMySqlColumn[]],
-> = TColumns extends AnyMySqlColumn<any, infer TType> ? AnyMySqlColumn<TTableName, TType>
-	: TColumns extends AnyMySqlColumn[] ? {
-			[Key in keyof TColumns]: TColumns[Key] extends AnyMySqlColumn<any, infer TType>
-				? AnyMySqlColumn<TTableName, TType>
-				: never;
-		}
-	: never;
+	TColumns extends AnyMySqlColumn[],
+> = {
+	[Key in keyof TColumns]: TColumns[Key] extends AnyMySqlColumn<any, infer TType> ? AnyMySqlColumn<TTableName, TType>
+		: never;
+};
 
 export type GetColumnsTable<TColumns extends AnyMySqlColumn | AnyMySqlColumn[]> = (
 	TColumns extends AnyMySqlColumn ? TColumns
@@ -108,17 +111,23 @@ export type GetColumnsTable<TColumns extends AnyMySqlColumn | AnyMySqlColumn[]> 
 ) extends AnyMySqlColumn<infer TTableName> ? TTableName
 	: never;
 
-export function foreignKey<
-	TColumns extends AnyMySqlColumn | [AnyMySqlColumn, ...AnyMySqlColumn[]],
-	TForeignColumns extends ColumnsWithTable<TableName, TColumns>,
+export type NotUnion<T, T1 = T> = T extends T ? [T1] extends [T] ? T1 : never : never;
+export type NotFKBuilderWithUnion<T> = T extends ForeignKeyBuilder<any, infer TForeignTableName>
+	? [NotUnion<TForeignTableName>] extends [never] ? 'Only columns from the same table are allowed in foreignColumns' : T
+	: never;
+
+function _foreignKey<
+	TColumns extends [AnyMySqlColumn, ...AnyMySqlColumn[]],
+	TForeignTableName extends TableName,
+	TForeignColumns extends ColumnsWithTable<TForeignTableName, TColumns>,
 >(
-	config: () => [
-		columns: TColumns,
-		foreignColumns: TForeignColumns,
-	],
+	config: () => {
+		columns: TColumns;
+		foreignColumns: TForeignColumns;
+	},
 ): ForeignKeyBuilder<GetColumnsTable<TColumns>, GetColumnsTable<TForeignColumns>> {
 	function mappedConfig() {
-		const [columns, foreignColumns] = config();
+		const { columns, foreignColumns } = config();
 		return {
 			columns: Array.isArray(columns) ? columns : [columns] as AnyMySqlColumn[],
 			foreignColumns: Array.isArray(foreignColumns) ? foreignColumns : [foreignColumns] as AnyMySqlColumn[],
@@ -126,4 +135,36 @@ export function foreignKey<
 	}
 
 	return new ForeignKeyBuilder(mappedConfig);
+}
+
+export function foreignKey<
+	TColumns extends [AnyMySqlColumn, ...AnyMySqlColumn[]],
+	TForeignTableName extends TableName,
+	TForeignColumns extends ColumnsWithTable<TForeignTableName, TColumns>,
+>(
+	config: () => {
+		columns: TColumns;
+		foreignColumns: TForeignColumns;
+	},
+): NotFKBuilderWithUnion<ForeignKeyBuilder<GetColumnsTable<TColumns>, GetColumnsTable<TForeignColumns>>> {
+	return _foreignKey(config) as NotFKBuilderWithUnion<
+		ForeignKeyBuilder<GetColumnsTable<TColumns>, GetColumnsTable<TForeignColumns>>
+	>;
+}
+
+type NotGenericTableName<T extends TableName> = T extends TableName<infer TTableName>
+	? string extends TTableName ? never : TTableName
+	: never;
+
+export function addForeignKey<
+	TTableName extends TableName,
+	TColumns extends [AnyMySqlColumn<NotUnion<TTableName>>, ...AnyMySqlColumn<NotUnion<TTableName>>[]],
+	TForeignTableName extends TableName,
+	TForeignColumns extends ColumnsWithTable<NotGenericTableName<TForeignTableName>, TColumns>,
+>(config: {
+	table: AnyMySqlTable<TTableName>;
+	columns: TColumns;
+	foreignColumns: TForeignColumns;
+}) {
+	config.table[tableForeignKeys][Symbol()] = (_foreignKey(() => config)).build(config.table as any) as any;
 }

@@ -51,7 +51,7 @@ export class MySqlUpdate<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 	public returning(): Pick<MySqlUpdate<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
 	public returning<TSelectedFields extends MySqlSelectFields<GetTableName<TTable>>>(
 		fields: TSelectedFields,
-	): Pick<MySqlUpdate<TTable, SelectResultFields<GetTableName<TTable>, TSelectedFields>[]>, 'getQuery' | 'execute'>;
+	): Pick<MySqlUpdate<TTable, SelectResultFields<TSelectedFields>[]>, 'getQuery' | 'execute'>;
 	public returning(fields?: MySqlSelectFields<GetTableName<TTable>>): MySqlUpdate<TTable, any> {
 		const orderedFields = this.dialect.orderSelectedFields<GetTableName<TTable>>(
 			fields

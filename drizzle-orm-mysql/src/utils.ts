@@ -1,6 +1,5 @@
 import { tableColumns } from 'drizzle-orm/utils';
-
-import { AnyMySqlTable, GetTableColumns } from './table';
+import { AnyMySqlTable, GetTableConflictConstraints } from './table';
 
 /** @internal */
 export const tableIndexes = Symbol('tableIndexes');
@@ -9,27 +8,33 @@ export const tableIndexes = Symbol('tableIndexes');
 export const tableForeignKeys = Symbol('tableForeignKeys');
 
 /** @internal */
-export const tableConstraints = Symbol('tableConstraints');
+export const tableChecks = Symbol('tableChecks');
 
 /** @internal */
 export const tableConflictConstraints = Symbol('tableConflictConstraints');
 
-export function getTableColumns<TTable extends AnyMySqlTable>(table: TTable): GetTableColumns<TTable> {
-	return table[tableColumns] as GetTableColumns<TTable>;
+export function getTableColumns<TTable extends AnyMySqlTable>(table: TTable) {
+	const keys = Reflect.ownKeys(table[tableColumns]);
+	return keys.map((key) => table[tableColumns][key]!);
 }
 
 export function getTableIndexes<TTable extends AnyMySqlTable>(table: TTable) {
-	return table[tableIndexes];
+	const keys = Reflect.ownKeys(table[tableIndexes]);
+	return keys.map((key) => table[tableIndexes][key]!);
 }
 
 export function getTableForeignKeys<TTable extends AnyMySqlTable>(table: TTable) {
-	return table[tableForeignKeys];
+	const keys = Reflect.ownKeys(table[tableForeignKeys]);
+	return keys.map((key) => table[tableForeignKeys][key]!);
 }
 
-export function getTableConstraints<TTable extends AnyMySqlTable>(table: TTable) {
-	return table[tableConstraints];
+export function getTableChecks<TTable extends AnyMySqlTable>(table: TTable) {
+	const keys = Reflect.ownKeys(table[tableChecks]);
+	return keys.map((key) => table[tableChecks][key]!);
 }
 
-export function getTableConflictConstraints<TTable extends AnyMySqlTable>(table: TTable) {
+export function getTableConflictConstraints<TTable extends AnyMySqlTable>(
+	table: TTable,
+): GetTableConflictConstraints<TTable> {
 	return table[tableConflictConstraints];
 }

@@ -1,9 +1,9 @@
 import { ColumnData } from 'drizzle-orm/branded-types';
 import { AnySQLResponse, Name, SQL, sql } from 'drizzle-orm/sql';
 import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm/utils';
+import { Check } from '~/checks';
 import { AnyMySqlColumn } from '~/columns/common';
 import { AnyMySqlDialect, MySqlQueryResult, MySqlSession } from '~/connection';
-import { Constraint } from '~/constraints';
 import { MySqlSelectFields, MySqlSelectFieldsOrdered, SelectResultFields } from '~/operations';
 import { MySqlPreparedQuery } from '~/sql';
 import { AnyMySqlTable, GetTableConflictConstraints, InferModel } from '~/table';
@@ -16,7 +16,7 @@ export interface MySqlInsertConfig<TTable extends AnyMySqlTable> {
 	returning: MySqlSelectFieldsOrdered<GetTableName<TTable>> | undefined;
 }
 
-export type AnyMySqlInsertConfig = MySqlInsertConfig<any>;
+export type AnyMySqlInsertConfig = MySqlInsertConfig<AnyMySqlTable>;
 
 export class MySqlInsert<TTable extends AnyMySqlTable, TReturn = MySqlQueryResult> {
 	protected typeKeeper!: {
@@ -39,7 +39,7 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 	public returning(): Pick<MySqlInsert<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
 	public returning<TSelectedFields extends MySqlSelectFields<GetTableName<TTable>>>(
 		fields: TSelectedFields,
-	): Pick<MySqlInsert<TTable, SelectResultFields<GetTableName<TTable>, TSelectedFields>[]>, 'getQuery' | 'execute'>;
+	): Pick<MySqlInsert<TTable, SelectResultFields<TSelectedFields>[]>, 'getQuery' | 'execute'>;
 	public returning(fields?: MySqlSelectFields<GetTableName<TTable>>): MySqlInsert<TTable, any> {
 		const fieldsToMap: Record<string, AnyMySqlColumn<GetTableName<TTable>> | AnySQLResponse<GetTableName<TTable>>> =
 			fields
@@ -57,7 +57,7 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 			| SQL<GetTableName<TTable>>
 			| ((
 				constraints: GetTableConflictConstraints<TTable>,
-			) => Constraint<GetTableName<TTable>>),
+			) => Check<GetTableName<TTable>>),
 	): Pick<this, 'returning' | 'getQuery' | 'execute'> {
 		if (typeof target === 'undefined') {
 			this.config.onConflict = sql`do nothing`;
@@ -73,7 +73,7 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 	onDuplicateDoUpdate(
 		target:
 			| SQL<GetTableName<TTable>>
-			| ((constraints: GetTableConflictConstraints<TTable>) => Constraint<GetTableName<TTable>>),
+			| ((constraints: GetTableConflictConstraints<TTable>) => Check<GetTableName<TTable>>),
 		set: MySqlUpdateSet<TTable>,
 	): Pick<this, 'returning' | 'getQuery' | 'execute'> {
 		const setSql = this.dialect.buildUpdateSet<GetTableName<TTable>>(this.config.table, set);
