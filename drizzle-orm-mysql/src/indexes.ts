@@ -12,34 +12,19 @@ interface IndexConfig<TTableName extends TableName, TUnique extends boolean> {
 	unique?: TUnique;
 
 	/**
-	 * If true, the index will be created as `create index concurrently` instead of `create index`.
+	 * If set, the index will be created as `create index ... using { 'btree' | 'hash' }`.
 	 */
-	concurrently?: boolean;
+	using?: 'btree' | 'hash';
 
 	/**
-	 * If true, the index will be created as `create index ... on only <table>` instead of `create index ... on <table>`.
+	 * If set, the index will be created as `create index ... algorythm { 'default' | 'inplace' | 'copy' }`.
 	 */
-	only?: boolean;
+	algorythm?: 'default' | 'inplace' | 'copy';
 
 	/**
-	 * If set, the index will be created as `create index ... using <method>`.
+	 * If set, adds locks to the index creation.
 	 */
-	using?: SQL<TTableName>;
-
-	/**
-	 * If set, the index will be created as `create index ... asc | desc`.
-	 */
-	order?: 'asc' | 'desc';
-
-	/**
-	 * If set, adds `nulls first` or `nulls last` to the index.
-	 */
-	nulls?: 'first' | 'last';
-
-	/**
-	 * Condition for partial index.
-	 */
-	where?: SQL<TTableName>;
+	lock?: 'default' | 'none' | 'shared' | 'exclusive';
 }
 
 type GetIndexConfigUnique<TIndexConfig extends IndexConfig<any, any>> = TIndexConfig extends
@@ -54,7 +39,7 @@ export class IndexBuilder<
 		unique: TUnique;
 	};
 
-	protected brand!: 'PgIndexBuilder';
+	protected brand!: 'MySqlIndexBuilder';
 
 	constructor(
 		public readonly name: string,
@@ -85,14 +70,6 @@ export class Index<TTableName extends TableName, TUnique extends boolean> {
 	) {
 		this.config = builder.config;
 	}
-
-	// TODO: move to .onConflict()
-	// set(values: PgUpdateSet<TTable>): { constraintName: string; set: PgUpdateSet<TTable> } {
-	// 	return {
-	// 		constraintName: this.name,
-	// 		set: values,
-	// 	};
-	// }
 }
 
 export type AnyIndex = Index<any, any>;

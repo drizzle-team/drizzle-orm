@@ -1,17 +1,17 @@
 import { connect, sql } from 'drizzle-orm';
 import { int, mediumint, mediumtext, real, text, timestamp, tinyint } from 'drizzle-orm-mysql/columns';
 import { MySqlConnector } from 'drizzle-orm-mysql/connection';
-import { mySqlTable } from 'drizzle-orm-mysql/table';
+import { foreignKey } from 'drizzle-orm-mysql/foreign-keys';
+import { mysqlTable } from 'drizzle-orm-mysql/table';
 import { eq } from 'drizzle-orm/expressions';
 import mysql from 'mysql2/promise';
 
-const usersTable = mySqlTable(
+const usersTable = mysqlTable(
 	'users',
 	{
 		id: int('id').primaryKey(),
 		homeCity: int('home_city')
 			.notNull(),
-		// .references(() => citiesTable.id),
 		currentCity: mediumint('current_city'),
 		serialNullable: tinyint('serial1'),
 		serialNotNull: int('serial2').notNull(),
@@ -22,16 +22,22 @@ const usersTable = mySqlTable(
 	},
 );
 
-const citiesTable = mySqlTable(
+const citiesTable = mysqlTable(
 	'cities',
 	{
 		id: int('id').primaryKey(),
 		userId: int('user_id'),
 		name: text('name'),
 	},
+	(cities) => ({
+		ageSelfFK: foreignKey(() => ({
+			columns: [cities.id],
+			foreignColumns: [usersTable.id],
+		})).onUpdate('no action'),
+	}),
 );
 
-const datesTable = mySqlTable('dates', {
+const datesTable = mysqlTable('dates', {
 	timestamp: timestamp('TIMESTAMP'),
 });
 

@@ -14,7 +14,7 @@ export type Reference<TTableName extends TableName, TForeignTableName extends Ta
 };
 
 export class ForeignKeyBuilder<TTableName extends TableName, TForeignTableName extends TableName> {
-	protected brand!: 'PgForeignKeyBuilder';
+	protected brand!: 'MySqlForeignKeyBuilder';
 
 	protected typeKeeper!: {
 		foreignTableName: TForeignTableName;

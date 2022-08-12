@@ -3,7 +3,7 @@ import { AnyMySQL } from './sql';
 import { AnyMySqlTable } from './table';
 
 export class CheckBuilder<TTableName extends TableName> {
-	protected brand!: 'PgConstraintBuilder';
+	protected brand!: 'MySqlConstraintBuilder';
 
 	constructor(public name: string, public value: AnyMySQL<TTableName>) {}
 

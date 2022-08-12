@@ -108,9 +108,9 @@ importers:
     devDependencies:
       '@types/node': 18.0.6
       '@types/pg': 8.6.5
-      drizzle-orm: file:drizzle-orm/package.tgz_hoo35toxut52pj4bk54qkrp6qu
-      drizzle-orm-mysql: file:drizzle-orm-mysql/package.tgz_2ukceqmcii4xvknwjlwe2ql4iq
-      drizzle-orm-pg: file:drizzle-orm-pg/package.tgz_62jjsl7j24ddkfqklwbsnaigdi
+      drizzle-orm: file:drizzle-orm/package.tgz_qehyqpzxiqbdepiioawcupyrqi
+      drizzle-orm-mysql: file:drizzle-orm-mysql/package.tgz_2tj2ba5j37xjqdzyoqgi44kemm
+      drizzle-orm-pg: file:drizzle-orm-pg/package.tgz_qutdtvhhybxzynypgkafnrlkji
       esbuild-register: 3.3.3
       ts-node: 10.9.1_tdn3ypgnfy6bmey2q4hu5jonwi
       type-fest: 2.16.0
@@ -3961,13 +3961,13 @@ packages:
     engines: {node: '>=10'}
     dev: true
 
-  file:drizzle-orm-mysql/package.tgz_2ukceqmcii4xvknwjlwe2ql4iq:
-    resolution: {integrity: sha512-2S8zkwrM95bZm/I/EI38nUxwEpMHe9zoEuXHa3C+zUqbtDjLClVw5KuewoVhzZOI6ttLDqTkfRIzj7hOZf/bIA==, tarball: file:drizzle-orm-mysql/package.tgz}
+  file:drizzle-orm-mysql/package.tgz_2tj2ba5j37xjqdzyoqgi44kemm:
+    resolution: {integrity: sha512-CvY/dTfxpihIG4rZ6jbTm0vWnQoXA0TLbMQOlG12niIjSx8wvCqEC5muolIV7G/GyRzj8Wp55Yn+G92UA4beuw==, tarball: file:drizzle-orm-mysql/package.tgz}
     id: file:drizzle-orm-mysql/package.tgz
     name: drizzle-orm-mysql
-    version: 0.12.0-beta.1
+    version: 0.12.0-beta.3
     peerDependencies:
-      drizzle-orm: '>=0.13.0 <0.14.0'
+      drizzle-orm: '>=0.12.0 <0.13.0'
       mysql2: '>=2 <3'
     peerDependenciesMeta:
       drizzle-orm:
@@ -3975,34 +3975,34 @@ packages:
       mysql2:
         optional: true
     dependencies:
-      drizzle-orm: file:drizzle-orm/package.tgz_hoo35toxut52pj4bk54qkrp6qu
+      drizzle-orm: file:drizzle-orm/package.tgz_qehyqpzxiqbdepiioawcupyrqi
       mysql2: 2.3.3
     dev: true
 
-  file:drizzle-orm-pg/package.tgz_62jjsl7j24ddkfqklwbsnaigdi:
-    resolution: {integrity: sha512-P+6dmxtwncof17xaWcw/cNS6ylIbx1fq2vPFIK9OBPdAiJlT9LSCyAI7cH7CQhA1ZqmhOPnBbPt3LGbwFC0h4g==, tarball: file:drizzle-orm-pg/package.tgz}
+  file:drizzle-orm-pg/package.tgz_qutdtvhhybxzynypgkafnrlkji:
+    resolution: {integrity: sha512-NdpSdyIG/td5Pn7Ur/agxZ/vDp4YFcTnc4PWUBZstQzpcMNbp2Bpst8kDNinKfr76XPggPeLY5v6utiYH9ORCg==, tarball: file:drizzle-orm-pg/package.tgz}
     id: file:drizzle-orm-pg/package.tgz
     name: drizzle-orm-pg
-    version: 0.13.0
+    version: 0.12.0-beta.5
     peerDependencies:
-      drizzle-orm: '>=0.13.0 <0.14.0'
+      drizzle-orm: '>=0.12.0 <0.13.0'
       pg: '>=8 <9'
     peerDependenciesMeta:
       pg:
         optional: true
     dependencies:
-      drizzle-orm: file:drizzle-orm/package.tgz_hoo35toxut52pj4bk54qkrp6qu
+      drizzle-orm: file:drizzle-orm/package.tgz_qehyqpzxiqbdepiioawcupyrqi
       pg: 8.7.3
     dev: true
 
-  file:drizzle-orm/package.tgz_hoo35toxut52pj4bk54qkrp6qu:
-    resolution: {integrity: sha512-/2IZQUcqHLq6U0RYtKqw5OiJ4smRVIcRKjlimYBNtpeJlNWS3Fa+QI9rhndzU1SrzrQskWBwRM+YfLIGBtoggw==, tarball: file:drizzle-orm/package.tgz}
+  file:drizzle-orm/package.tgz_qehyqpzxiqbdepiioawcupyrqi:
+    resolution: {integrity: sha512-KUCqIB0/FJhwgnTM42CsaZcIFvPNKnoCOJWiP8JXWRBTKKOnTsJZ1JntTqj1Il8em6YPXDq5EEKrqJiv6VbxYA==, tarball: file:drizzle-orm/package.tgz}
     id: file:drizzle-orm/package.tgz
     name: drizzle-orm
-    version: 0.13.0
+    version: 0.12.0-beta.2
     peerDependencies:
-      drizzle-orm-mysql: '>=0.13.0'
-      drizzle-orm-pg: '>=0.13.0'
+      drizzle-orm-mysql: '>=0.12.0-beta.0'
+      drizzle-orm-pg: '>=0.12.0'
       mysql2: '>=2 <3'
       pg: '>=8 <9'
       sqlite3: '>=5 <6'
@@ -4018,8 +4018,8 @@ packages:
       sqlite3:
         optional: true
     dependencies:
-      drizzle-orm-mysql: file:drizzle-orm-mysql/package.tgz_2ukceqmcii4xvknwjlwe2ql4iq
-      drizzle-orm-pg: file:drizzle-orm-pg/package.tgz_62jjsl7j24ddkfqklwbsnaigdi
+      drizzle-orm-mysql: file:drizzle-orm-mysql/package.tgz_2tj2ba5j37xjqdzyoqgi44kemm
+      drizzle-orm-pg: file:drizzle-orm-pg/package.tgz_qutdtvhhybxzynypgkafnrlkji
       mysql2: 2.3.3
       pg: 8.7.3
       type-fest: 2.16.0
