@@ -3962,7 +3962,7 @@ packages:
     dev: true
 
   file:drizzle-orm-mysql/package.tgz_2tj2ba5j37xjqdzyoqgi44kemm:
-    resolution: {integrity: sha512-CvY/dTfxpihIG4rZ6jbTm0vWnQoXA0TLbMQOlG12niIjSx8wvCqEC5muolIV7G/GyRzj8Wp55Yn+G92UA4beuw==, tarball: file:drizzle-orm-mysql/package.tgz}
+    resolution: {integrity: sha512-QIM3g+r1LS+jJB4pB+9MLdXGR7P5Fh0R0fdPMKQ2dwBOHrqZPoaDkoAfrNzkNnd43Ff8YUv/+dUYlsVEhW6Hww==, tarball: file:drizzle-orm-mysql/package.tgz}
     id: file:drizzle-orm-mysql/package.tgz
     name: drizzle-orm-mysql
     version: 0.12.0-beta.3

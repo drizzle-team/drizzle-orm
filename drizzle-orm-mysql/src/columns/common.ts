@@ -72,6 +72,25 @@ export abstract class MySqlColumnBuilder<
 	): MySqlColumn<TTableName, TData, TDriverParam, TNotNull, THasDefault>;
 }
 
+export abstract class MySqlColumnBuilderWithAutoincrement<
+	TData extends ColumnData,
+	TDriverParam extends MySqlColumnDriverParam,
+	TNotNull extends ColumnNotNull,
+	THasDefault extends ColumnHasDefault,
+> extends MySqlColumnBuilder<TData, TDriverParam, TNotNull, THasDefault> {
+	private _autoincrement = false;
+
+	public autoincrement(): MySqlColumnBuilderWithAutoincrement<TData, TDriverParam, ColumnNotNull<false>, THasDefault> {
+		this._autoincrement = true;
+		return this as any;
+	}
+
+	/** @internal */
+	public getAutoincrement() {
+		return this._autoincrement;
+	}
+}
+
 export type AnyMySqlColumnBuilder = MySqlColumnBuilder<any, any, any, any>;
 
 export abstract class MySqlColumn<
