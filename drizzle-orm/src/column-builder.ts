@@ -20,6 +20,7 @@ export abstract class ColumnBuilder<
 	/** @internal */ _default: TData | undefined;
 
 	/** @internal */ _primaryKey = false;
+	/** @internal */ _autoincrement = false;
 	/** @internal */ name: string;
 
 	constructor(name: string) {
@@ -40,6 +41,11 @@ export abstract class ColumnBuilder<
 
 	primaryKey(): ColumnBuilder<TData, TDriverParam, ColumnNotNull<true>, THasDefault> {
 		this._primaryKey = true;
+		return this as any;
+	}
+
+	autoincrement(): ColumnBuilder<TData, TDriverParam, ColumnNotNull<false>, THasDefault> {
+		this._autoincrement = true;
 		return this as any;
 	}
 

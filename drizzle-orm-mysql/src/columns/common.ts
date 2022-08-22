@@ -41,6 +41,10 @@ export abstract class MySqlColumnBuilder<
 		return super.primaryKey() as any;
 	}
 
+	override autoincrement(): MySqlColumnBuilder<TData, TDriverParam, ColumnNotNull<false>, THasDefault> {
+		return super.autoincrement() as any;
+	}
+
 	references(
 		ref: ReferenceConfig<TData>['ref'],
 		actions: ReferenceConfig<TData>['actions'] = {},
@@ -78,16 +82,13 @@ export abstract class MySqlColumnBuilderWithAutoincrement<
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
 > extends MySqlColumnBuilder<TData, TDriverParam, TNotNull, THasDefault> {
-	private _autoincrement = false;
-
-	public autoincrement(): MySqlColumnBuilderWithAutoincrement<TData, TDriverParam, ColumnNotNull<false>, THasDefault> {
-		this._autoincrement = true;
-		return this as any;
-	}
-
-	/** @internal */
-	public getAutoincrement() {
-		return this._autoincrement;
+	override autoincrement(): MySqlColumnBuilderWithAutoincrement<
+		TData,
+		TDriverParam,
+		ColumnNotNull<false>,
+		THasDefault
+	> {
+		return super.autoincrement() as any;
 	}
 }
 

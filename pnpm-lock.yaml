@@ -108,7 +108,7 @@ importers:
     devDependencies:
       '@types/node': 18.0.6
       '@types/pg': 8.6.5
-      drizzle-orm: file:drizzle-orm/package.tgz_qehyqpzxiqbdepiioawcupyrqi
+      drizzle-orm: file:drizzle-orm/package.tgz_67ezuhn2iuy2iz6sitk3zvpgwu
       drizzle-orm-mysql: file:drizzle-orm-mysql/package.tgz_2tj2ba5j37xjqdzyoqgi44kemm
       drizzle-orm-pg: file:drizzle-orm-pg/package.tgz_qutdtvhhybxzynypgkafnrlkji
       esbuild-register: 3.3.3
@@ -3962,10 +3962,10 @@ packages:
     dev: true
 
   file:drizzle-orm-mysql/package.tgz_2tj2ba5j37xjqdzyoqgi44kemm:
-    resolution: {integrity: sha512-QIM3g+r1LS+jJB4pB+9MLdXGR7P5Fh0R0fdPMKQ2dwBOHrqZPoaDkoAfrNzkNnd43Ff8YUv/+dUYlsVEhW6Hww==, tarball: file:drizzle-orm-mysql/package.tgz}
+    resolution: {integrity: sha512-T51D6GGgT5uC4eSXox5Q2aBmR9axhGY3FhVyYqiJAvBtNDa2By8sFMfxnNWzrAcdZVfCx+Lhlf+mpR9ovTy9RA==, tarball: file:drizzle-orm-mysql/package.tgz}
     id: file:drizzle-orm-mysql/package.tgz
     name: drizzle-orm-mysql
-    version: 0.12.0-beta.3
+    version: 0.12.0-beta.4
     peerDependencies:
       drizzle-orm: '>=0.12.0 <0.13.0'
       mysql2: '>=2 <3'
@@ -3975,7 +3975,7 @@ packages:
       mysql2:
         optional: true
     dependencies:
-      drizzle-orm: file:drizzle-orm/package.tgz_qehyqpzxiqbdepiioawcupyrqi
+      drizzle-orm: file:drizzle-orm/package.tgz_67ezuhn2iuy2iz6sitk3zvpgwu
       mysql2: 2.3.3
     dev: true
 
@@ -3991,12 +3991,12 @@ packages:
       pg:
         optional: true
     dependencies:
-      drizzle-orm: file:drizzle-orm/package.tgz_qehyqpzxiqbdepiioawcupyrqi
+      drizzle-orm: file:drizzle-orm/package.tgz_67ezuhn2iuy2iz6sitk3zvpgwu
       pg: 8.7.3
     dev: true
 
-  file:drizzle-orm/package.tgz_qehyqpzxiqbdepiioawcupyrqi:
-    resolution: {integrity: sha512-KUCqIB0/FJhwgnTM42CsaZcIFvPNKnoCOJWiP8JXWRBTKKOnTsJZ1JntTqj1Il8em6YPXDq5EEKrqJiv6VbxYA==, tarball: file:drizzle-orm/package.tgz}
+  file:drizzle-orm/package.tgz_67ezuhn2iuy2iz6sitk3zvpgwu:
+    resolution: {integrity: sha512-AsCnooSUV5Lag+N23FKWutpUS5aNcSdQAKfVhOpIBAH3VnC+SazFuTjgZBhOveguhwIzCaXhgSstE1kLzcou6g==, tarball: file:drizzle-orm/package.tgz}
     id: file:drizzle-orm/package.tgz
     name: drizzle-orm
     version: 0.12.0-beta.2
