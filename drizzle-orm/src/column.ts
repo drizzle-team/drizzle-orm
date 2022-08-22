@@ -22,7 +22,6 @@ export abstract class Column<
 	readonly name: string;
 	readonly primary: boolean;
 	readonly notNull: TNotNull;
-	readonly autoincrement: boolean;
 	readonly default: TData | undefined;
 
 	constructor(
@@ -33,7 +32,6 @@ export abstract class Column<
 		this.notNull = builder._notNull;
 		this.default = builder._default;
 		this.primary = builder._primaryKey;
-		this.autoincrement = builder._autoincrement;
 	}
 
 	/*

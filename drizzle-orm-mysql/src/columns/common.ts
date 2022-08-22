@@ -102,12 +102,14 @@ export abstract class MySqlColumn<
 	THasDefault extends ColumnHasDefault,
 > extends Column<TTableName, TDataType, TDriverData, TNotNull, THasDefault> {
 	override readonly table!: AnyMySqlTable<TTableName>;
+	readonly autoincrement: boolean;
 
 	constructor(
 		table: AnyMySqlTable<TTableName>,
 		builder: MySqlColumnBuilder<TDataType, TDriverData, TNotNull, THasDefault>,
 	) {
 		super(table, builder);
+		this.autoincrement = builder._autoincrement;
 	}
 }
 
