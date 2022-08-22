@@ -41,8 +41,9 @@ export abstract class MySqlColumnBuilder<
 		return super.primaryKey() as any;
 	}
 
-	override autoincrement(): MySqlColumnBuilder<TData, TDriverParam, ColumnNotNull<false>, THasDefault> {
-		return super.autoincrement() as any;
+	autoincrement(): ColumnBuilder<TData, TDriverParam, ColumnNotNull<false>, THasDefault> {
+		this._autoincrement = true;
+		return this as any;
 	}
 
 	references(

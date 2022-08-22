@@ -44,11 +44,6 @@ export abstract class ColumnBuilder<
 		return this as any;
 	}
 
-	autoincrement(): ColumnBuilder<TData, TDriverParam, ColumnNotNull<false>, THasDefault> {
-		this._autoincrement = true;
-		return this as any;
-	}
-
 	/** @internal */
 	abstract build<TTableName extends TableName>(
 		table: AnyTable<TTableName>,
