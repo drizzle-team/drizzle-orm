@@ -1,5 +1,5 @@
 import { connect, sql } from 'drizzle-orm';
-import { int, mediumint, mediumtext, real, text, timestamp, tinyint, varchar } from 'drizzle-orm-mysql/columns';
+import { bigint, int, mediumint, mediumtext, real, text, timestamp, tinyint, varchar } from 'drizzle-orm-mysql/columns';
 import { MySqlConnector } from 'drizzle-orm-mysql/connection';
 import { foreignKey } from 'drizzle-orm-mysql/foreign-keys';
 import { mysqlTable } from 'drizzle-orm-mysql/table';
@@ -42,6 +42,7 @@ const citiesTable = mysqlTable(
 
 export const datesTable = mysqlTable('dates', {
 	id: int('id').autoincrement().notNull(),
+	big: bigint('big', { mode: 'number' }).default(12),
 	timestamp: timestamp('TIMESTAMP'),
 });
 

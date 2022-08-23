@@ -68,12 +68,14 @@ export class PgBigInt64<
 	};
 }
 
-interface PgBigIntConfig {
-	mode: 'number' | 'bigint';
+interface PgBigIntConfig<T extends 'number' | 'bigint'> {
+	mode: T;
 }
 
-export function bigint(name: string, config: PgBigIntConfig) {
-	if (config.mode === 'number') {
+export function bigint(name: string, mode: PgBigIntConfig<'number'>): PgBigInt53Builder;
+export function bigint(name: string, mode: PgBigIntConfig<'bigint'>): PgBigInt64Builder;
+export function bigint(name: string, mode: any) {
+	if (mode === 'number') {
 		return new PgBigInt53Builder(name);
 	}
 	return new PgBigInt64Builder(name);

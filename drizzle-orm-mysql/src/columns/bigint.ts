@@ -77,8 +77,14 @@ export class MySqlBigInt64<
 	};
 }
 
-export function bigint(name: string, maxBytes: 'max_bytes_53' | 'max_bytes_64') {
-	if (maxBytes === 'max_bytes_53') {
+interface MySqlBigIntConfig<T extends 'number' | 'bigint'> {
+	mode: T;
+}
+
+export function bigint(name: string, mode: MySqlBigIntConfig<'number'>): MySqlBigInt53Builder;
+export function bigint(name: string, mode: MySqlBigIntConfig<'bigint'>): MySqlBigInt64Builder;
+export function bigint(name: string, mode: any) {
+	if (mode === 'number') {
 		return new MySqlBigInt53Builder(name);
 	}
 	return new MySqlBigInt64Builder(name);
