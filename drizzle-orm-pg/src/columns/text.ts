@@ -4,10 +4,10 @@ import { AnyPgTable } from '~/table';
 import { PgColumnBuilder, PgColumnWithMapper } from './common';
 
 export class PgTextBuilder<
-	TData extends string = string,
+	TData extends ColumnData<string> = ColumnData<string>,
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
 	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends PgColumnBuilder<ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends PgColumnBuilder<TData, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	/** @internal */
 	override build<TTableName extends TableName>(
 		table: AnyPgTable<TTableName>,
@@ -20,8 +20,8 @@ export class PgText<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-	TData extends string,
-> extends PgColumnWithMapper<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+	TData extends ColumnData<string>,
+> extends PgColumnWithMapper<TTableName, TData, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgText';
 
 	constructor(table: AnyPgTable<TTableName>, builder: PgTextBuilder<TData, TNotNull, THasDefault>) {
@@ -33,6 +33,8 @@ export class PgText<
 	}
 }
 
-export function text<T extends string = string>(name: string) {
-	return new PgTextBuilder<T>(name);
+export function text(name: string): PgTextBuilder;
+export function text<T extends string = string>(name: string): PgTextBuilder<ColumnData<T>>;
+export function text(name: string) {
+	return new PgTextBuilder(name);
 }

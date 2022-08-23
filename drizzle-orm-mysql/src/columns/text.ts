@@ -3,10 +3,10 @@ import { AnyMySqlTable } from '~/table';
 import { MySqlColumnBuilder, MySqlColumnWithMapper } from './common';
 
 export class MySqlTextBuilder<
-	TData extends string = string,
+	TData extends ColumnData<string> = ColumnData<string>,
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
 	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends MySqlColumnBuilder<ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends MySqlColumnBuilder<TData, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	/** @internal */
 	override build<TTableName extends TableName>(
 		table: AnyMySqlTable<TTableName>,
@@ -19,10 +19,10 @@ export class MySqlText<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-	TData extends string,
+	TData extends ColumnData<string>,
 > extends MySqlColumnWithMapper<
 	TTableName,
-	ColumnData<TData>,
+	TData,
 	ColumnDriverParam<string>,
 	TNotNull,
 	THasDefault
@@ -35,10 +35,10 @@ export class MySqlText<
 }
 
 export class MySqlTinyTextBuilder<
-	TData extends string = string,
+	TData extends ColumnData<string> = ColumnData<string>,
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
 	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends MySqlColumnBuilder<ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends MySqlColumnBuilder<TData, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	/** @internal */
 	override build<TTableName extends TableName>(
 		table: AnyMySqlTable<TTableName>,
@@ -51,10 +51,10 @@ export class MySqlTinyText<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-	TData extends string,
+	TData extends ColumnData<string>,
 > extends MySqlColumnWithMapper<
 	TTableName,
-	ColumnData<TData>,
+	TData,
 	ColumnDriverParam<string>,
 	TNotNull,
 	THasDefault
@@ -67,10 +67,10 @@ export class MySqlTinyText<
 }
 
 export class MySqlMediumTextBuilder<
-	TData extends string = string,
+	TData extends ColumnData<string> = ColumnData<string>,
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
 	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends MySqlColumnBuilder<ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends MySqlColumnBuilder<TData, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	/** @internal */
 	override build<TTableName extends TableName>(
 		table: AnyMySqlTable<TTableName>,
@@ -83,10 +83,10 @@ export class MySqlMediumText<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-	TData extends string,
+	TData extends ColumnData<string>,
 > extends MySqlColumnWithMapper<
 	TTableName,
-	ColumnData<TData>,
+	TData,
 	ColumnDriverParam<string>,
 	TNotNull,
 	THasDefault
@@ -99,10 +99,10 @@ export class MySqlMediumText<
 }
 
 export class MySqlLongTextBuilder<
-	TData extends string = string,
+	TData extends ColumnData<string> = ColumnData<string>,
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
 	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends MySqlColumnBuilder<ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends MySqlColumnBuilder<TData, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	/** @internal */
 	override build<TTableName extends TableName>(
 		table: AnyMySqlTable<TTableName>,
@@ -115,10 +115,10 @@ export class MySqlLongText<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-	TData extends string,
+	TData extends ColumnData<string>,
 > extends MySqlColumnWithMapper<
 	TTableName,
-	ColumnData<TData>,
+	TData,
 	ColumnDriverParam<string>,
 	TNotNull,
 	THasDefault
@@ -130,18 +130,26 @@ export class MySqlLongText<
 	}
 }
 
-export function text<T extends string = string>(name: string) {
-	return new MySqlTextBuilder<T>(name);
+export function text(name: string): MySqlTextBuilder;
+export function text<T extends string = string>(name: string): MySqlTextBuilder<ColumnData<T>>;
+export function text(name: string) {
+	return new MySqlTextBuilder(name);
 }
 
-export function tinytext<T extends string = string>(name: string) {
-	return new MySqlTinyTextBuilder<T>(name);
+export function tinytext(name: string): MySqlTinyTextBuilder;
+export function tinytext<T extends string = string>(name: string): MySqlTinyTextBuilder<ColumnData<T>>;
+export function tinytext(name: string) {
+	return new MySqlTinyTextBuilder(name);
 }
 
-export function mediumtext<T extends string = string>(name: string) {
-	return new MySqlMediumTextBuilder<T>(name);
+export function mediumtext(name: string): MySqlMediumTextBuilder;
+export function mediumtext<T extends string = string>(name: string): MySqlMediumTextBuilder<ColumnData<T>>;
+export function mediumtext(name: string) {
+	return new MySqlMediumTextBuilder(name);
 }
 
-export function longtext<T extends string = string>(name: string) {
-	return new MySqlLongTextBuilder<T>(name);
+export function longtext(name: string): MySqlLongTextBuilder;
+export function longtext<T extends string = string>(name: string): MySqlLongTextBuilder<ColumnData<T>>;
+export function longtext(name: string) {
+	return new MySqlLongTextBuilder(name);
 }

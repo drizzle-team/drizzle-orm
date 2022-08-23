@@ -18,9 +18,7 @@ export abstract class ColumnBuilder<
 
 	/** @internal */ _notNull = false as TNotNull;
 	/** @internal */ _default: TData | undefined;
-
 	/** @internal */ _primaryKey = false;
-	/** @internal */ _autoincrement = false;
 	/** @internal */ name: string;
 
 	constructor(name: string) {

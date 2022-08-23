@@ -41,11 +41,6 @@ export abstract class MySqlColumnBuilder<
 		return super.primaryKey() as any;
 	}
 
-	autoincrement(): ColumnBuilder<TData, TDriverParam, ColumnNotNull<false>, THasDefault> {
-		this._autoincrement = true;
-		return this as any;
-	}
-
 	references(
 		ref: ReferenceConfig<TData>['ref'],
 		actions: ReferenceConfig<TData>['actions'] = {},
@@ -83,13 +78,16 @@ export abstract class MySqlColumnBuilderWithAutoincrement<
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
 > extends MySqlColumnBuilder<TData, TDriverParam, TNotNull, THasDefault> {
-	override autoincrement(): MySqlColumnBuilderWithAutoincrement<
+	/** @internal */ _autoincrement = false;
+
+	autoincrement(): MySqlColumnBuilderWithAutoincrement<
 		TData,
 		TDriverParam,
-		ColumnNotNull<false>,
-		THasDefault
+		TNotNull,
+		ColumnHasDefault<true>
 	> {
-		return super.autoincrement() as any;
+		this._autoincrement = true;
+		return this as any;
 	}
 }
 
@@ -103,14 +101,13 @@ export abstract class MySqlColumn<
 	THasDefault extends ColumnHasDefault,
 > extends Column<TTableName, TDataType, TDriverData, TNotNull, THasDefault> {
 	override readonly table!: AnyMySqlTable<TTableName>;
-	readonly autoincrement: boolean;
+	readonly autoincrement!: boolean;
 
 	constructor(
 		table: AnyMySqlTable<TTableName>,
 		builder: MySqlColumnBuilder<TDataType, TDriverData, TNotNull, THasDefault>,
 	) {
 		super(table, builder);
-		this.autoincrement = builder._autoincrement;
 	}
 }
 
@@ -128,6 +125,25 @@ export abstract class MySqlColumnWithMapper<
 	override mapToDriverValue = (value: TData): TDriverParam => {
 		return value as unknown as TDriverParam;
 	};
+}
+
+export abstract class MySqlColumnWithAutoincrement<
+	TTableName extends TableName<string>,
+	TDataType extends ColumnData,
+	TDriverData extends MySqlColumnDriverParam,
+	TNotNull extends ColumnNotNull,
+	THasDefault extends ColumnHasDefault,
+> extends MySqlColumnWithMapper<TTableName, TDataType, TDriverData, TNotNull, THasDefault> {
+	override readonly table!: AnyMySqlTable<TTableName>;
+	override readonly autoincrement: boolean;
+
+	constructor(
+		table: AnyMySqlTable<TTableName>,
+		builder: MySqlColumnBuilderWithAutoincrement<TDataType, TDriverData, TNotNull, THasDefault>,
+	) {
+		super(table, builder);
+		this.autoincrement = builder._autoincrement;
+	}
 }
 
 export type AnyMySqlColumn<
