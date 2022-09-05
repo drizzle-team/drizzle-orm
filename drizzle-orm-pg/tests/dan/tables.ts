@@ -5,7 +5,7 @@ import { Check, check } from '~/checks';
 import { integer, serial, text, timestamp } from '~/columns';
 import { foreignKey } from '~/foreign-keys';
 import { Index, index } from '~/indexes';
-import { pgTable } from '~/table';
+import { GetTableColumns, pgTable } from '~/table';
 import { getTableConflictConstraints } from '~/utils';
 import { Equal, Expect } from '../utils';
 
@@ -49,11 +49,11 @@ export const users = pgTable(
 const usersConflictConstraints = getTableConflictConstraints(users);
 Expect<
 	Equal<{
-		usersAge1Idx: Index<TableName<'users_table'>, true>;
-		uniqueClass: Index<TableName<'users_table'>, true>;
+		usersAge1Idx: Index<TableName<'users_table'>, GetTableColumns<typeof users>, true>;
+		uniqueClass: Index<TableName<'users_table'>, GetTableColumns<typeof users>, true>;
 		legalAge: Check<TableName<'users_table'>>;
 	}, typeof usersConflictConstraints>
->();
+>;
 
 export const cities = pgTable('cities_table', {
 	id: serial('id').primaryKey(),
@@ -64,7 +64,7 @@ export const cities = pgTable('cities_table', {
 }));
 
 const citiesConflictConstraints = getTableConflictConstraints(cities);
-Expect<Equal<{}, typeof citiesConflictConstraints>>();
+Expect<Equal<{}, typeof citiesConflictConstraints>>;
 
 export const classes = pgTable('classes_table', {
 	id: serial('id').primaryKey(),
@@ -73,4 +73,4 @@ export const classes = pgTable('classes_table', {
 });
 
 const classesConflictConstraints = getTableConflictConstraints(classes);
-Expect<Equal<{}, typeof classesConflictConstraints>>();
+Expect<Equal<{}, typeof classesConflictConstraints>>;

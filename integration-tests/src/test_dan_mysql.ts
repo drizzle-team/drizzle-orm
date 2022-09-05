@@ -1,8 +1,8 @@
 import { connect, sql } from 'drizzle-orm';
-import { float, mySqlTable, serial, text, timestamp, varchar } from 'drizzle-orm-mysql';
+import { float, mysqlTable, serial, text, timestamp, varchar } from 'drizzle-orm-mysql';
 import { MySqlTestConnector } from 'drizzle-orm-mysql/testing';
 
-const places = mySqlTable('places', {
+const places = mysqlTable('places', {
 	slug: varchar('slug', 100).notNull().primaryKey(),
 	name: text('name').notNull(),
 	address: text('address').notNull(),
@@ -14,7 +14,7 @@ const places = mySqlTable('places', {
 		.default(sql`now()`),
 });
 
-const placesImages = mySqlTable('places_images', {
+const placesImages = mysqlTable('places_images', {
 	id: varchar('id').primaryKey(),
 	placeSlug: varchar('place_slug', 100).notNull(),
 	url: text('url').notNull(),

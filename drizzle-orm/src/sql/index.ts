@@ -222,12 +222,12 @@ export namespace sql {
 		strings: TemplateStringsArray,
 		...params: (TColumn | BoundParamValue<any, any> | ColumnData | SQLWrapper | PrimitiveDriverParam)[]
 	): SQLResponse<GetTableName<TColumn>, ColumnData<GetColumnData<TColumn>>>;
-	export function response<TColumn extends AnyColumn>(
+	export function response(
 		strings: TemplateStringsArray,
-		...params: SQLSourceParam<GetTableName<TColumn>>[]
-	): SQLResponse<GetTableName<TColumn>, ColumnData<GetColumnData<TColumn>>> {
-		const column = params.find((p): p is TColumn => p instanceof Column)?.mapFromDriverValue ?? noopDecoder;
-		return new SQLResponse(sql<GetTableName<TColumn>>(strings, ...params), column);
+		...params: SQLSourceParam<any>[]
+	): AnySQLResponse {
+		const column = params.find((p): p is AnyColumn => p instanceof Column)?.mapFromDriverValue ?? noopDecoder;
+		return new SQLResponse(sql(strings, ...params), column);
 	}
 
 	export namespace response {
