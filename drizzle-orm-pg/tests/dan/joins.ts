@@ -22,6 +22,7 @@ Expect<
 			subClass: 'B' | 'D' | null;
 			age1: number;
 			createdAt: Date;
+			enumCol: 'a' | 'b' | 'c';
 		} | null;
 		cities: {
 			id: number;

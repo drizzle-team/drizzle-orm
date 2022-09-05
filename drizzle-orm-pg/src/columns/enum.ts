@@ -3,14 +3,19 @@ import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableNa
 import { AnyPgTable } from '~/table';
 import { PgColumnBuilder, PgColumnWithMapper } from './common';
 
-export class PgEnum<TValues extends string> {
-	constructor(
-		public readonly enumName: string,
-		public readonly enumValues: TValues[],
-	) {}
+const isPgEnumSym = Symbol('isPgEnum');
+export interface PgEnum<TValues extends string> {
+	readonly enumName: string;
+	readonly enumValues: TValues[];
+	/** @internal */
+	[isPgEnumSym]: true;
 }
 
-export class PgEnumBuilder<
+export function isPgEnum(obj: unknown): obj is PgEnum<string> {
+	return !!obj && typeof obj === 'object' && isPgEnumSym in obj;
+}
+
+export class PgEnumColumnBuilder<
 	TData extends ColumnData<string> = ColumnData<string>,
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
 	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
@@ -41,7 +46,7 @@ export class PgEnumColumn<
 
 	constructor(
 		table: AnyPgTable<TTableName>,
-		builder: PgEnumBuilder<TData, TNotNull, THasDefault>,
+		builder: PgEnumColumnBuilder<TData, TNotNull, THasDefault>,
 		public readonly enumName: string,
 	) {
 		super(table, builder);
@@ -53,8 +58,12 @@ export class PgEnumColumn<
 }
 
 export function pgEnum<T extends string = string>(enumName: string, values: T[]) {
-	const result = new PgEnum(enumName, values);
-	const columnFactory = (name: string) => new PgEnumBuilder<ColumnData<T>>(name, enumName, values);
+	const enumValue: PgEnum<T> = {
+		enumName,
+		enumValues: values,
+		[isPgEnumSym]: true,
+	};
+	const columnFactory = (name: string) => new PgEnumColumnBuilder<ColumnData<T>>(name, enumName, values);
 
-	return Object.assign(result, columnFactory);
+	return Object.assign(columnFactory, enumValue);
 }

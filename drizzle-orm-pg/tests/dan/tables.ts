@@ -2,12 +2,14 @@ import { sql } from 'drizzle-orm';
 import { TableName } from 'drizzle-orm/branded-types';
 
 import { Check, check } from '~/checks';
-import { integer, serial, text, timestamp } from '~/columns';
+import { integer, pgEnum, serial, text, timestamp } from '~/columns';
 import { foreignKey } from '~/foreign-keys';
 import { Index, index } from '~/indexes';
 import { GetTableColumns, pgTable } from '~/table';
 import { getTableConflictConstraints } from '~/utils';
 import { Equal, Expect } from '../utils';
+
+const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
 
 export const users = pgTable(
 	'users_table',
@@ -23,6 +25,7 @@ export const users = pgTable(
 		subClass: text<'B' | 'D'>('sub_class'),
 		age1: integer('age1').notNull(),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+		enumCol: myEnum('enum_col').notNull(),
 	},
 	(users) => ({
 		usersAge1Idx: index('usersAge1Idx', users.class, {
