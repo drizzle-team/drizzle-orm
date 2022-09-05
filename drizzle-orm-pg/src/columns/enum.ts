@@ -12,7 +12,7 @@ export interface PgEnum<TValues extends string> {
 }
 
 export function isPgEnum(obj: unknown): obj is PgEnum<string> {
-	return !!obj && typeof obj === 'object' && isPgEnumSym in obj;
+	return !!obj && typeof obj === 'function' && isPgEnumSym in obj;
 }
 
 export class PgEnumColumnBuilder<
