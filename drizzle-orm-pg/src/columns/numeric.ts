@@ -57,6 +57,16 @@ export class PgNumeric<
 	}
 }
 
-export function numeric(name: string, precision?: number, scale?: number) {
-	return new PgNumericBuilder(name, precision, scale);
+export function numeric(name: string, config: { precision: number, scale?: number }): PgNumericBuilder;
+export function numeric(name: string, config: { precision: number, scale: number }): PgNumericBuilder;
+export function numeric(name: string, config?: { precision: number, scale: number }): PgNumericBuilder;
+export function numeric(name: string, config?: { precision?: number, scale?: number }): PgNumericBuilder  {
+	return new PgNumericBuilder(name, config?.precision, config?.scale);
+}
+
+export function decimal(name: string, config: { precision: number, scale?: number }): PgNumericBuilder;
+export function decimal(name: string, config: { precision: number, scale: number }): PgNumericBuilder;
+export function decimal(name: string, config?: { precision: number, scale: number }): PgNumericBuilder;
+export function decimal(name: string, config?: { precision?: number, scale?: number }): PgNumericBuilder  {
+	return new PgNumericBuilder(name, config?.precision, config?.scale);
 }

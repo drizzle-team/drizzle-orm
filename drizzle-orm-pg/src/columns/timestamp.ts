@@ -98,9 +98,11 @@ export class PgTimestampString<
 	}
 }
 
+export type PrecisionLimit = 0 | 1 | 2 | 3 | 4 | 5 | 6
+
 export type TimestampConfig<TMode extends 'string' | 'date' = 'string' | 'date'> =
 	& {
-		precision?: number;
+		precision?: PrecisionLimit;
 	}
 	& (
 		| {

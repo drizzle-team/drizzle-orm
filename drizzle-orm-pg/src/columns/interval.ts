@@ -9,6 +9,7 @@ import {
 
 import { AnyPgTable } from '~/table';
 import { PgColumnBuilder, PgColumnWithMapper } from './common';
+import { PrecisionLimit } from './timestamp';
 
 export class PgIntervalBuilder<
 	TData extends ColumnData<string> = ColumnData<string>,
@@ -68,7 +69,7 @@ export interface IntervalConfig {
 		| 'hour to minute'
 		| 'hour to second'
 		| 'minute to second';
-	precision?: number;
+	precision?: PrecisionLimit;
 }
 
 export function interval<T extends string = string>(

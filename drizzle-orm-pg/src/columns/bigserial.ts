@@ -61,8 +61,14 @@ export class PgBigSerial64<
 	};
 }
 
-export function bigserial(name: string, maxBytes: 'max_bytes_53' | 'max_bytes_64') {
-	if (maxBytes === 'max_bytes_53') {
+interface PgBigSerialConfig<T extends 'number' | 'bigint'> {
+	mode: T;
+}
+
+export function bigserial(name: string, mode: PgBigSerialConfig<'number'>): PgBigSerial53Builder;
+export function bigserial(name: string, mode: PgBigSerialConfig<'bigint'>): PgBigSerial64Builder;
+export function bigserial(name: string, mode: any) {
+	if (mode === 'number') {
 		return new PgBigSerial53Builder(name);
 	}
 	return new PgBigSerial64Builder(name);
