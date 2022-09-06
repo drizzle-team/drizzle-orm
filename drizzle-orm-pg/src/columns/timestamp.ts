@@ -1,6 +1,7 @@
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
 import { AnyPgTable } from '~/table';
+import { IndexBuilder } from '..';
 import { PgColumnWithMapper } from './common';
 import { PgDateColumnBaseBuilder } from './date.common';
 
@@ -98,34 +99,23 @@ export class PgTimestampString<
 	}
 }
 
-export type PrecisionLimit = 0 | 1 | 2 | 3 | 4 | 5 | 6
+export type PrecisionLimit = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
-export type TimestampConfig<TMode extends 'string' | 'date' = 'string' | 'date'> =
-	& {
-		precision?: PrecisionLimit;
-	}
-	& (
-		| {
-			mode: TMode;
-			withTimezone?: boolean;
-		}
-		| {
-			mode?: TMode;
-			withTimezone: boolean;
-		}
-	);
+export interface TimestampConfig<TMode extends 'string' | 'date' = 'string' | 'date'> {
+	precision?: PrecisionLimit;
+	mode?: TMode;
+	withTimezone?: boolean;
+}
 
-export function timestamp<TWithTZ extends boolean>(
+export type InferBuilder<TMode extends 'string' | 'date'> = TMode extends 'string' ? PgTimestampStringBuilder
+	: PgTimestampBuilder;
+
+export function timestamp<TMode extends 'string' | 'date'>(
 	name: string,
-	config?: TimestampConfig<'date'>,
-): PgTimestampBuilder;
-export function timestamp<TWithTZ extends boolean>(
-	name: string,
-	config: TimestampConfig<'string'>,
-): PgTimestampStringBuilder;
-export function timestamp(name: string, config?: TimestampConfig) {
+	config?: TimestampConfig<TMode>,
+): InferBuilder<TMode> {
 	if (config?.mode === 'string') {
-		return new PgTimestampStringBuilder(name, config.withTimezone ?? false, config.precision);
+		return new PgTimestampStringBuilder(name, config.withTimezone ?? false, config.precision) as InferBuilder<TMode>;
 	}
-	return new PgTimestampBuilder(name, config?.withTimezone ?? false, config?.precision);
+	return new PgTimestampBuilder(name, config?.withTimezone ?? false, config?.precision) as InferBuilder<TMode>;
 }
