@@ -68,8 +68,8 @@ export class PgDateString<
 	}
 }
 
-export function date(name: string, config?: { mode: 'string', precision: number }): PgDateStringBuilder;
-export function date(name: string, config?: { mode: 'date',  precision: number }): PgDateBuilder;
+export function date(name: string, config?: { mode: 'string' }): PgDateStringBuilder;
+export function date(name: string, config?: { mode: 'date' }): PgDateBuilder;
 export function date(name: string, config?: { mode: 'date' | 'string' }) {
 	if (config?.mode === 'date') {
 		return new PgDateBuilder(name);
