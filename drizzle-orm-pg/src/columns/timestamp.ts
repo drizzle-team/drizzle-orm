@@ -101,21 +101,12 @@ export class PgTimestampString<
 
 export type PrecisionLimit = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
-export interface TimestampConfig<TMode extends 'string' | 'date' = 'string' | 'date'> {
-	precision?: PrecisionLimit;
-	mode?: TMode;
-	withTimezone?: boolean;
-}
-
-export type InferBuilder<TMode extends 'string' | 'date'> = TMode extends 'string' ? PgTimestampStringBuilder
-	: PgTimestampBuilder;
-
-export function timestamp<TMode extends 'string' | 'date'>(
-	name: string,
-	config?: TimestampConfig<TMode>,
-): InferBuilder<TMode> {
+export function timestamp(name: string): PgTimestampBuilder;
+export function timestamp(name: string, config: { mode: 'string', precision?: PrecisionLimit, withTimezone?: boolean }): PgTimestampStringBuilder;
+export function timestamp(name: string, config: { mode?: 'date',   precision?: PrecisionLimit, withTimezone?: boolean }): PgTimestampBuilder;
+export function timestamp(name: string, config?: { mode?: 'date' | 'string',  precision?: PrecisionLimit, withTimezone?: boolean }) {
 	if (config?.mode === 'string') {
-		return new PgTimestampStringBuilder(name, config.withTimezone ?? false, config.precision) as InferBuilder<TMode>;
+		return new PgTimestampStringBuilder(name, config.withTimezone ?? false, config.precision);
 	}
-	return new PgTimestampBuilder(name, config?.withTimezone ?? false, config?.precision) as InferBuilder<TMode>;
+	return new PgTimestampBuilder(name, config?.withTimezone ?? false, config?.precision);;
 }
