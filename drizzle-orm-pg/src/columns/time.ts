@@ -10,6 +10,7 @@ import {
 import { AnyPgTable } from '~/table';
 import { PgColumnWithMapper } from './common';
 import { PgDateColumnBaseBuilder } from './date.common';
+import { PrecisionLimit } from './timestamp';
 
 export class PgTimeBuilder<
 	TData extends ColumnData<string> = ColumnData<string>,
@@ -60,7 +61,7 @@ export class PgTime<
 }
 
 export interface TimeConfig {
-	precision?: number;
+	precision?: PrecisionLimit;
 	withTimezone?: boolean;
 }
 

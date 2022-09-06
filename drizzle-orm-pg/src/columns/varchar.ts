@@ -43,8 +43,8 @@ export class PgVarchar<
 	}
 }
 
-export function varchar(name: string, length?: number): PgVarcharBuilder;
-export function varchar<T extends string = string>(name: string, length?: number): PgVarcharBuilder<ColumnData<T>>;
-export function varchar(name: string, length?: number) {
-	return new PgVarcharBuilder(name, length);
+export function varchar(name: string, config?: { length?: number }): PgVarcharBuilder;
+export function varchar<T extends string = string>(name: string, config?: {length?: number}): PgVarcharBuilder<ColumnData<T>>;
+export function varchar(name: string, config?: {length?: number}) {
+	return new PgVarcharBuilder(name, config?.length);
 }

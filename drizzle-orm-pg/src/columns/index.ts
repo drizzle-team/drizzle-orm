@@ -17,3 +17,4 @@ export * from './text';
 export * from './time';
 export * from './timestamp';
 export * from './varchar';
+export * from './real';
