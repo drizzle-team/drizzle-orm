@@ -460,5 +460,6 @@ await drizzle.migrator(db).migrate({ migrationFolder: 'drizzle' });
 
 ##### Execute custom raw query
 ```typescript
-const res: QueryResult<any> = await db.session().execute('SELECT * FROM users WHERE user.id = $1', [1]);
+const res: QueryResult<any> = await db.execute(sql`SELECT * FROM users WHERE user.id = ${userId}`)
+// it will automatically run a parametrized query!
 ```
