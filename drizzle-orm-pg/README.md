@@ -72,25 +72,8 @@ const db = await connect(connector);
 This is how you declare SQL schema in `schema.ts`. You can declare tables, indexes and constraints, foreign keys and enums. Please pay attention to `export` keyword, they are mandatory if you'll be using [drizzle-kit SQL migrations generator](#migrations).
 ```typescript
 // declaring enum in database
-// was
-export const popularityEnum = createEnum({ alias: 'popularity', values: ['unknown', 'known', 'popular'] });
-// now
 export const popularityEnum = pgEnum("popularity", ["unknown", "known", "popular"]);
 
-// was 
-export class CountriesTable extends PgTable<CountriesTable> {
-  id = this.serial("id").primaryKey();
-  name = this.varchar("name", { size: 256 })
-	
-  // declaring index
-  nameIndex = this.uniqueIndex(this.name)
-
-  public tableName(): string {
-    return 'countries';
-  }
-}
-
-// now
 export const countries = pgTable("countries", {
     id: serial("id").primaryKey(),
     name: varchar("name", 256),
@@ -99,21 +82,6 @@ export const countries = pgTable("countries", {
   })
 );
 
-// was 
-export class CitiesTable extends PgTable<CitiesTable> {
-  id = this.serial("id").primaryKey();
-  name = this.varchar("name", { size: 256 })
-  countryId = this.int("country_id").foreignKey(CountriesTable, (country) => country.id)
-
-  // declaring enum column in table
-  popularity = this.type(popularityEnum, "popularity")
-
-  public tableName(): string {
-    return 'cities';
-  }
-}
-
-// now 
 export const cities = pgTable("cities", {
   id: serial("id").primaryKey(),
   name: varchar("name", 256),
