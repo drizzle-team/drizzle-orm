@@ -10,7 +10,7 @@ npm install -D drizzle-kit
 ```
 
 ### SQL schema declaration
-With `drizzle-orm` you declare SQL schema in typescritp. You can have either one `schema.ts` file with all declarations or you can group them logically in multiple files. We prefer to use single file schema.
+With `drizzle-orm` you declare SQL schema in TypeScript. You can have either one `schema.ts` file with all declarations or you can group them logically in multiple files. We prefer to use single file schema.
 ```
 📦project
  ├ 📂src
@@ -101,7 +101,9 @@ bigint("...", { mode: "number" | "bigint" })
 
 boolean("...")
 text("...");
+text<"one" | "two" | "three">("...");
 varchar("...");
+varchar<"one" | "two" | "three">("...");
 varchar("...", { length: 256 }); // with length limit
 
 serial("...");
@@ -122,7 +124,7 @@ time("...")
 time("...", { precision: 6, withTimezone: true })
 timestamp("...")
 timestamp("...", { mode: "date" | "string", precision: 0..6, withTimezone: true })
-timestamp("...").defaultValue(Defaults.CURRENT_TIMESTAMP)
+timestamp("...").defaultNow()
 date("...")
 date("...", { mode: "string" | "date" })
 interval("...")
@@ -219,6 +221,8 @@ const { mapped1, mapped2 } = result[0];
 await db.users.select().limit(10).offset(10).execute()
 await db.users.select().orderBy(asc(users.name)).execute();
 await db.users.select().orderBy(desc(users.name)).execute();
+// you can pass multiple order args
+await db.users.select().orderBy(asc(users.name), desc(users.name)).execute();
 
 // list of all filter operators
 eq(column, value)
