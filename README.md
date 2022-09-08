@@ -5,14 +5,14 @@ We try to follow SQL-like syntax whenever possible, be strongly typed ground top
 We implemented best in class `joins` and second to none `migrations generation`. 
 Library has almost zero dependencies and being battle tested on production projects by multiple teams 🚀
 
-| database    | support |
-|:--          |  :---:  |
-| PostgreSQL  | ✅      |
-| MySQL       | ✅      |
-| SQLite      | ⏳      |
-| DynamoDB    | ⏳      |
-| MS SQL      | ⏳      |
-| CockroachDB | ⏳      |
+| database    | support |            |
+|:--          |  :---:  | :--        |
+| PostgreSQL  | ✅      |[Docs](https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-orm-pg)|
+| MySQL       | ✅      |[Docs](https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-orm-mysql)|            |
+| SQLite      | ⏳      |            |  
+| DynamoDB    | ⏳      |            |
+| MS SQL      | ⏳      |            |
+| CockroachDB | ⏳      |            |
 
 ### Installation
 ```bash
