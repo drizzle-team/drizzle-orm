@@ -1,15 +1,16 @@
 {
 	"name": "drizzle-orm-pg",
-	"version": "0.12.0-beta.13",
+	"version": "0.12.0-beta.18",
 	"description": "Drizzle ORM package for PostgreSQL database",
 	"main": "index.js",
 	"types": "index.d.ts",
 	"scripts": {
 		"build": "concurrently -n build,test \"tsc -p tsconfig.build.json && resolve-tspaths\" pnpm:test",
 		"test": "cd tests && tsc",
-		"pack": "cp package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"pack": "cp README.md package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"publish": "pnpm publish package.tgz",
 		"publish:beta": "pnpm publish package.tgz --tag beta --git-checks false",
+		"release:beta": "pnpm version prerelease && pnpm build && pnpm run pack && pnpm publish:beta",
 		"build:int": "pnpm build && pnpm run pack"
 	},
 	"publishConfig": {
@@ -35,7 +36,7 @@
 	},
 	"homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
 	"peerDependencies": {
-		"drizzle-orm": ">=0.12.0 <0.13.0",
+		"drizzle-orm": ">=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0",
 		"pg": ">=8 <9"
 	},
 	"peerDependenciesMeta": {

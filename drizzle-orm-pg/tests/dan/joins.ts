@@ -20,6 +20,7 @@ Expect<
 			serialNotNull: number;
 			class: 'A' | 'C';
 			subClass: 'B' | 'D' | null;
+			text: string | null;
 			age1: number;
 			createdAt: Date;
 			enumCol: 'a' | 'b' | 'c';

@@ -7,6 +7,7 @@ export * from './double';
 export * from './enum';
 export * from './float';
 export * from './int';
+export * from './json';
 export * from './mediumint';
 export * from './real';
 export * from './serial';

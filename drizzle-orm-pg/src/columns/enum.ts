@@ -1,7 +1,7 @@
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
 import { AnyPgTable } from '~/table';
-import { PgColumnBuilder, PgColumnWithMapper } from './common';
+import { PgColumn, PgColumnBuilder } from './common';
 
 const isPgEnumSym = Symbol('isPgEnum');
 export interface PgEnum<TValues extends string> {
@@ -41,7 +41,7 @@ export class PgEnumColumn<
 	TData extends ColumnData<string>,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumnWithMapper<TTableName, TData, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends PgColumn<TTableName, TData, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgEnumColumn';
 
 	constructor(

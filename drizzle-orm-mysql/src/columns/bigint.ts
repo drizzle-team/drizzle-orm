@@ -1,16 +1,16 @@
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 import { AnyMySqlTable } from '~/table';
 import {
+	MySqlColumn,
 	MySqlColumnBuilder,
-	MySqlColumnBuilderWithAutoincrement,
-	MySqlColumnWithAutoincrement,
-	MySqlColumnWithMapper,
+	MySqlColumnBuilderWithAutoIncrement,
+	MySqlColumnWithAutoIncrement,
 } from './common';
 
 export class MySqlBigInt53Builder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
 	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends MySqlColumnBuilderWithAutoincrement<
+> extends MySqlColumnBuilderWithAutoIncrement<
 	ColumnData<number>,
 	ColumnDriverParam<number | string>,
 	TNotNull,
@@ -28,7 +28,7 @@ export class MySqlBigInt53<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends MySqlColumnWithAutoincrement<
+> extends MySqlColumnWithAutoIncrement<
 	TTableName,
 	ColumnData<number>,
 	ColumnDriverParam<number | string>,
@@ -41,12 +41,12 @@ export class MySqlBigInt53<
 		return 'bigint';
 	}
 
-	override mapFromDriverValue = (value: ColumnDriverParam<number | string>): ColumnData<number> => {
+	override mapFromDriverValue(value: number | string): number {
 		if (typeof value === 'number') {
-			return value as number as ColumnData<number>;
+			return value;
 		}
-		return parseInt(value) as ColumnData<number>;
-	};
+		return parseInt(value);
+	}
 }
 
 export class MySqlBigInt64Builder<
@@ -65,25 +65,25 @@ export class MySqlBigInt64<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends MySqlColumnWithMapper<TTableName, ColumnData<bigint>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends MySqlColumn<TTableName, ColumnData<bigint>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	brand!: 'MySqlBigInt64';
 
 	getSQLType(): string {
 		return 'bigint';
 	}
 
-	override mapFromDriverValue = (value: ColumnDriverParam<string>): ColumnData<bigint> => {
-		return BigInt(value) as ColumnData<bigint>;
-	};
+	override mapFromDriverValue(value: string): bigint {
+		return BigInt(value);
+	}
 }
 
-interface MySqlBigIntConfig<T extends 'number' | 'bigint'> {
+interface MySqlBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
 	mode: T;
 }
 
-export function bigint(name: string, mode: MySqlBigIntConfig<'number'>): MySqlBigInt53Builder;
-export function bigint(name: string, mode: MySqlBigIntConfig<'bigint'>): MySqlBigInt64Builder;
-export function bigint(name: string, mode: any) {
+export function bigint(name: string, config: MySqlBigIntConfig<'number'>): MySqlBigInt53Builder;
+export function bigint(name: string, config: MySqlBigIntConfig<'bigint'>): MySqlBigInt64Builder;
+export function bigint(name: string, { mode }: MySqlBigIntConfig) {
 	if (mode === 'number') {
 		return new MySqlBigInt53Builder(name);
 	}

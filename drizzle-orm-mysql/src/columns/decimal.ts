@@ -1,7 +1,6 @@
-import { AnyTable } from 'drizzle-orm';
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 import { AnyMySqlTable } from '~/table';
-import { MySqlColumnBuilder, MySqlColumnWithMapper } from './common';
+import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export class MySqlDecimalBuilder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
@@ -28,7 +27,7 @@ export class MySqlDecimal<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends MySqlColumnWithMapper<
+> extends MySqlColumn<
 	TTableName,
 	ColumnData<string>,
 	ColumnDriverParam<string>,
@@ -57,6 +56,11 @@ export class MySqlDecimal<
 	}
 }
 
-export function decimal(name: string, precision?: number, scale?: number) {
-	return new MySqlDecimalBuilder(name, precision, scale);
+export interface MySqlDecimalConfig {
+	precision?: number;
+	scale?: number;
+}
+
+export function decimal(name: string, config: MySqlDecimalConfig = {}): MySqlDecimalBuilder {
+	return new MySqlDecimalBuilder(name, config.precision, config.scale);
 }

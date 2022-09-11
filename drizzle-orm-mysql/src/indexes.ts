@@ -1,42 +1,34 @@
 import { InferColumnTable } from 'drizzle-orm';
 import { TableName } from 'drizzle-orm/branded-types';
-import { SQL } from 'drizzle-orm/sql';
-import { GetTableName } from 'drizzle-orm/utils';
 import { AnyMySqlColumn } from './columns';
+import { MySQL } from './sql';
 import { AnyMySqlTable } from './table';
 
-interface IndexConfig<TTableName extends TableName, TUnique extends boolean> {
+interface IndexConfig<TTableName extends TableName> {
 	/**
 	 * If true, the index will be created as `create unique index` instead of `create index`.
 	 */
-	unique?: TUnique;
+	unique?: boolean;
 
 	/**
 	 * If set, the index will be created as `create index ... using { 'btree' | 'hash' }`.
 	 */
-	using?: 'btree' | 'hash';
+	using?: 'btree' | 'hash' | MySQL<TTableName | TableName>;
 
 	/**
 	 * If set, the index will be created as `create index ... algorythm { 'default' | 'inplace' | 'copy' }`.
 	 */
-	algorythm?: 'default' | 'inplace' | 'copy';
+	algorythm?: 'default' | 'inplace' | 'copy' | MySQL<TTableName | TableName>;
 
 	/**
 	 * If set, adds locks to the index creation.
 	 */
-	lock?: 'default' | 'none' | 'shared' | 'exclusive';
+	lock?: 'default' | 'none' | 'shared' | 'exclusive' | MySQL<TTableName | TableName>;
 }
 
-type GetIndexConfigUnique<TIndexConfig extends IndexConfig<any, any>> = TIndexConfig extends
-	IndexConfig<any, infer TUnique> ? TUnique : never;
-
-export class IndexBuilder<
-	TTableName extends TableName,
-	TUnique extends boolean,
-> {
+export class IndexBuilder<TTableName extends TableName> {
 	protected typeKeeper!: {
 		tableName: TTableName;
-		unique: TUnique;
 	};
 
 	protected brand!: 'MySqlIndexBuilder';
@@ -44,38 +36,36 @@ export class IndexBuilder<
 	constructor(
 		public readonly name: string,
 		public readonly columns: AnyMySqlColumn<TTableName>[],
-		public readonly config: IndexConfig<TTableName, TUnique> = {},
+		public readonly config: IndexConfig<TTableName> = {},
 	) {}
 
-	build(table: AnyMySqlTable<TTableName>): Index<TTableName, TUnique> {
+	build(table: AnyMySqlTable<TTableName>): Index<TTableName> {
 		return new Index(this.name, table, this.columns, this);
 	}
 }
 
-export type AnyIndexBuilder<TTableName extends TableName = TableName> = IndexBuilder<TTableName, any>;
+export type AnyIndexBuilder<TTableName extends TableName = TableName> = IndexBuilder<TTableName>;
 
-export class Index<TTableName extends TableName, TUnique extends boolean> {
+export class Index<TTableName extends TableName> {
 	protected typeKeeper!: {
 		tableName: TTableName;
-		unique: TUnique;
 	};
 
-	readonly config: IndexConfig<TTableName, TUnique>;
+	readonly config: IndexConfig<TTableName>;
 
 	constructor(
 		public readonly name: string,
 		public readonly table: AnyMySqlTable<TTableName>,
 		public readonly columns: AnyMySqlColumn<TTableName>[],
-		builder: IndexBuilder<TTableName, TUnique>,
+		builder: IndexBuilder<TTableName>,
 	) {
 		this.config = builder.config;
 	}
 }
 
-export type AnyIndex = Index<any, any>;
+export type AnyIndex = Index<any>;
 
-export type BuildIndex<T extends AnyIndexBuilder> = T extends IndexBuilder<infer TTableName, infer TUnique>
-	? Index<TTableName, TUnique>
+export type BuildIndex<T extends AnyIndexBuilder> = T extends IndexBuilder<infer TTableName> ? Index<TTableName>
 	: never;
 
 type GetColumnsTable<TColumns> = TColumns extends AnyMySqlColumn ? InferColumnTable<TColumns>
@@ -86,17 +76,11 @@ export function index<
 	TColumns extends
 		| AnyMySqlColumn
 		| [AnyMySqlColumn, ...AnyMySqlColumn[]],
-	TConfig extends IndexConfig<GetColumnsTable<TColumns>, boolean> = IndexConfig<GetColumnsTable<TColumns>, false>,
 >(
 	name: string,
 	columns: TColumns,
-	config?: TConfig,
-): IndexBuilder<GetColumnsTable<TColumns>, GetIndexConfigUnique<TConfig>>;
-export function index(
-	name: string,
-	columns: AnyMySqlColumn | AnyMySqlColumn[],
-	config?: IndexConfig<any, any>,
-) {
+	config?: IndexConfig<GetColumnsTable<TColumns>>,
+): IndexBuilder<GetColumnsTable<TColumns>> {
 	return new IndexBuilder(name, Array.isArray(columns) ? columns : [columns], config);
 }
 

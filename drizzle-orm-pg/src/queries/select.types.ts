@@ -51,7 +51,15 @@ export type SelectResult<
 		>
 	>[];
 
-export type AnyPgSelect = PgSelect<AnyPgTable, any, any, any, any, any, any>;
+export type AnyPgSelect = PgSelect<
+	AnyPgTable,
+	Record<string, string>,
+	SelectResultFields<PgSelectFields<TableName>>,
+	unknown,
+	{ [tableName: string]: any },
+	string,
+	any
+>;
 
 export type QueryFinisherMethods = 'getQuery' | 'getSQL' | 'execute';
 

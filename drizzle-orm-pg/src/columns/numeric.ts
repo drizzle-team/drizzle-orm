@@ -1,7 +1,7 @@
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
 import { AnyPgTable } from '~/table';
-import { PgColumnBuilder, PgColumnWithMapper } from './common';
+import { PgColumn, PgColumnBuilder } from './common';
 
 export class PgNumericBuilder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
@@ -28,7 +28,7 @@ export class PgNumeric<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumnWithMapper<
+> extends PgColumn<
 	TTableName,
 	ColumnData<string>,
 	ColumnDriverParam<string>,
@@ -57,16 +57,16 @@ export class PgNumeric<
 	}
 }
 
-export function numeric(name: string, config: { precision: number, scale?: number }): PgNumericBuilder;
-export function numeric(name: string, config: { precision: number, scale: number }): PgNumericBuilder;
-export function numeric(name: string, config?: { precision: number, scale: number }): PgNumericBuilder;
-export function numeric(name: string, config?: { precision?: number, scale?: number }): PgNumericBuilder  {
+export function numeric(name: string, config: { precision: number; scale?: number }): PgNumericBuilder;
+export function numeric(name: string, config: { precision: number; scale: number }): PgNumericBuilder;
+export function numeric(name: string, config?: { precision: number; scale: number }): PgNumericBuilder;
+export function numeric(name: string, config?: { precision?: number; scale?: number }): PgNumericBuilder {
 	return new PgNumericBuilder(name, config?.precision, config?.scale);
 }
 
-export function decimal(name: string, config: { precision: number, scale?: number }): PgNumericBuilder;
-export function decimal(name: string, config: { precision: number, scale: number }): PgNumericBuilder;
-export function decimal(name: string, config?: { precision: number, scale: number }): PgNumericBuilder;
-export function decimal(name: string, config?: { precision?: number, scale?: number }): PgNumericBuilder  {
+export function decimal(name: string, config: { precision: number; scale?: number }): PgNumericBuilder;
+export function decimal(name: string, config: { precision: number; scale: number }): PgNumericBuilder;
+export function decimal(name: string, config?: { precision: number; scale: number }): PgNumericBuilder;
+export function decimal(name: string, config?: { precision?: number; scale?: number }): PgNumericBuilder {
 	return new PgNumericBuilder(name, config?.precision, config?.scale);
 }

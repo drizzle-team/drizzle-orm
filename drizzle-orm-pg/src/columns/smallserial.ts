@@ -1,7 +1,7 @@
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
 import { AnyPgTable } from '~/table';
-import { PgColumnBuilder, PgColumnWithMapper } from './common';
+import { PgColumn, PgColumnBuilder } from './common';
 
 export class PgSmallSerialBuilder extends PgColumnBuilder<
 	ColumnData<number>,
@@ -17,7 +17,7 @@ export class PgSmallSerialBuilder extends PgColumnBuilder<
 	}
 }
 
-export class PgSmallSerial<TTableName extends TableName> extends PgColumnWithMapper<
+export class PgSmallSerial<TTableName extends TableName> extends PgColumn<
 	TTableName,
 	ColumnData<number>,
 	ColumnDriverParam<number>,

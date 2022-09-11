@@ -1,6 +1,6 @@
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 import { AnyMySqlTable } from '~/table';
-import { MySqlColumnBuilder, MySqlColumnWithMapper } from './common';
+import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export class MySqlSerialBuilder extends MySqlColumnBuilder<
 	ColumnData<number>,
@@ -18,7 +18,7 @@ export class MySqlSerialBuilder extends MySqlColumnBuilder<
 
 export class MySqlSerial<
 	TTableName extends TableName,
-> extends MySqlColumnWithMapper<
+> extends MySqlColumn<
 	TTableName,
 	ColumnData<number>,
 	ColumnDriverParam<number | string>,
@@ -31,12 +31,12 @@ export class MySqlSerial<
 		return 'serial';
 	}
 
-	override mapFromDriverValue = (value: ColumnDriverParam<number | string>): ColumnData<number> => {
+	override mapFromDriverValue(value: number | string): number {
 		if (typeof value === 'string') {
-			return parseInt(value) as ColumnData<number>;
+			return parseInt(value);
 		}
-		return value as ColumnData<any>;
-	};
+		return value;
+	}
 }
 
 export function serial(name: string) {

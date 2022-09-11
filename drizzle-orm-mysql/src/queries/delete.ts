@@ -4,21 +4,21 @@ import { MySqlSelectFields, MySqlSelectFieldsOrdered, SelectResultFields } from 
 import { AnyMySQL, MySqlPreparedQuery } from '~/sql';
 import { AnyMySqlTable, InferModel } from '~/table';
 
-export interface MySqlDeleteConfig<TTable extends AnyMySqlTable> {
-	where?: AnyMySQL<GetTableName<TTable>> | undefined;
-	table: TTable;
+export interface MySqlDeleteConfig {
+	where?: AnyMySQL | undefined;
+	table: AnyMySqlTable;
 	returning?: MySqlSelectFieldsOrdered;
 }
 
 export class MySqlDelete<TTable extends AnyMySqlTable, TReturn = MySqlQueryResult> {
-	private config: MySqlDeleteConfig<TTable> = {} as MySqlDeleteConfig<TTable>;
+	private config: MySqlDeleteConfig;
 
 	constructor(
 		private table: TTable,
 		private session: MySqlSession,
 		private dialect: AnyMySqlDialect,
 	) {
-		this.config.table = table;
+		this.config = { table };
 	}
 
 	public where(where: AnyMySQL<GetTableName<TTable>> | undefined): Pick<this, 'returning' | 'getQuery' | 'execute'> {

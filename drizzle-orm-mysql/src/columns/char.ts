@@ -1,7 +1,6 @@
-import { AnyTable } from 'drizzle-orm';
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 import { AnyMySqlTable } from '~/table';
-import { MySqlColumnBuilder, MySqlColumnWithMapper } from './common';
+import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export class MySqlCharBuilder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
@@ -26,7 +25,7 @@ export class MySqlChar<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends MySqlColumnWithMapper<
+> extends MySqlColumn<
 	TTableName,
 	ColumnData<string>,
 	ColumnDriverParam<string>,
@@ -47,6 +46,10 @@ export class MySqlChar<
 	}
 }
 
-export function char(name: string, length?: number) {
-	return new MySqlCharBuilder(name, length);
+export interface MySqlCharConfig {
+	length?: number;
+}
+
+export function char(name: string, config: MySqlCharConfig = {}): MySqlCharBuilder {
+	return new MySqlCharBuilder(name, config.length);
 }

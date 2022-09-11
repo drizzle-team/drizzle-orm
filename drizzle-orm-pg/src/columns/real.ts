@@ -1,7 +1,7 @@
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
 import { AnyPgTable } from '~/table';
-import { PgColumnBuilder, PgColumnWithMapper } from './common';
+import { PgColumn, PgColumnBuilder } from './common';
 
 export class PgRealBuilder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
@@ -31,7 +31,7 @@ export class PgReal<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumnWithMapper<
+> extends PgColumn<
 	TTableName,
 	ColumnData<number>,
 	ColumnDriverParam<string | number>,

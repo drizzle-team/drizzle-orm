@@ -45,14 +45,17 @@ export function ne(left: AnyColumn, right: AnyColumn | Unwrap<ColumnData>) {
 	return sql`${left} <> ${bindIfParam(right as AnyColumn | ColumnData, left)}`;
 }
 
-export function and<TTableName extends TableName>(
-	...conditions: (SQL<TTableName> | undefined)[]
-): SQL<TTableName> | undefined {
+type GetSQLListTableNames<T extends (AnySQL | undefined)[]> = T[number] extends SQL<infer TTableName> ? TTableName
+	: never;
+
+export function and<TSQL extends (AnySQL | undefined)[]>(
+	...conditions: TSQL
+): SQL<GetSQLListTableNames<TSQL>> | undefined {
 	if (conditions.length === 0) {
 		return undefined;
 	}
 
-	const chunks: SQL<TTableName>[] = [sql.raw('(')];
+	const chunks: AnySQL[] = [sql.raw('(')];
 	conditions
 		.filter((c): c is Exclude<typeof c, undefined> => typeof c !== 'undefined')
 		.forEach((condition, index) => {
@@ -64,7 +67,7 @@ export function and<TTableName extends TableName>(
 		});
 	chunks.push(sql`)`);
 
-	return sql.fromList(chunks);
+	return sql.fromList(chunks) as SQL<GetSQLListTableNames<TSQL>>;
 }
 
 export function or<TTableName extends TableName>(

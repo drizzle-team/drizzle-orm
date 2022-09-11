@@ -1,6 +1,7 @@
 import { ColumnData, ColumnDriverParam, TableName } from './branded-types';
 import { AnyColumn, Column } from './column';
 import { SelectFieldsOrdered } from './operations';
+import { noopDecoder, SQL } from './sql';
 import { AnyTable, Table } from './table';
 
 /** @internal */
@@ -22,7 +23,9 @@ export function mapResultRow<TResult extends Record<string, ColumnData | null>>(
 		(res, { name, resultTableName, column: columnOrResponse }, index) => {
 			let decoder;
 			if (columnOrResponse instanceof Column) {
-				decoder = columnOrResponse.mapFromDriverValue;
+				decoder = columnOrResponse;
+			} else if (columnOrResponse instanceof SQL) {
+				decoder = noopDecoder;
 			} else {
 				decoder = columnOrResponse.decoder;
 			}
@@ -30,7 +33,7 @@ export function mapResultRow<TResult extends Record<string, ColumnData | null>>(
 				res[resultTableName] = {};
 			}
 			const rawValue = row[index]!;
-			res[resultTableName]![name] = rawValue === null ? null : decoder(rawValue) as ColumnData;
+			res[resultTableName]![name] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
 			return res;
 		},
 		{},

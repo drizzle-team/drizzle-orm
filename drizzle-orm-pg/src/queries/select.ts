@@ -4,7 +4,7 @@ import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm
 
 import { AnyPgColumn } from '~/columns/common';
 import { AnyPgDialect, PgSession } from '~/connection';
-import { PgSelectFields, PgSelectFieldsOrdered } from '~/operations';
+import { PgSelectFields, PgSelectFieldsOrdered, SelectResultFields } from '~/operations';
 import { AnyPgSQL, PgPreparedQuery } from '~/sql';
 import { AnyPgTable, GetTableColumns, PgTable } from '~/table';
 
@@ -41,7 +41,7 @@ export interface PgSelectConfig {
 export class PgSelect<
 	TTable extends AnyPgTable,
 	TTableNamesMap extends Record<string, string>,
-	TInitialSelectResultFields extends Record<string, unknown>,
+	TInitialSelectResultFields extends SelectResultFields<PgSelectFields<GetTableName<TTable>>>,
 	TResult = undefined,
 	// TAliases is really a map of table name => joined table, but I failed to prove that to TS
 	TAliases extends { [tableName: string]: any } = {},
@@ -147,9 +147,9 @@ export class PgSelect<
 				Object.assign(self.aliases, { [aliasName]: tableAliasProxy });
 			}
 
-			const onExpression = on instanceof Function ? on(self.aliases as any) : on;
+			const onExpression = typeof on === 'function' ? on(self.aliases) : on;
 
-			const partialFields = select instanceof Function ? select(tableAliasProxy) : select;
+			const partialFields = typeof select === 'function' ? select(tableAliasProxy) : select;
 
 			self.fields.push(...self.dialect.orderSelectedFields(partialFields ?? tableAliasProxy[tableColumns], joinName));
 
@@ -200,8 +200,12 @@ export class PgSelect<
 
 	public where(
 		where:
-			| ((aliases: TAliases) => AnyPgSQL<TableName<keyof TAliases & string> | GetTableName<TTable>>)
-			| AnyPgSQL<GetTableName<TTable>>
+			| ((
+				aliases: TAliases,
+			) => AnyPgSQL<
+				TableName<TJoinedDBTableNames> | TableName<keyof TAliases & string> | GetTableName<TTable> | TableName
+			>)
+			| AnyPgSQL<TableName<TJoinedDBTableNames> | GetTableName<TTable> | TableName>
 			| undefined,
 	): PickWhere<this> {
 		if (where instanceof SQL) {
@@ -248,7 +252,7 @@ export class PgSelect<
 		return this;
 	}
 
-	public getSQL(): AnyPgSQL<GetTableName<TTable>> {
+	public getSQL(): AnyPgSQL {
 		return this.dialect.buildSelectQuery(this.config);
 	}
 

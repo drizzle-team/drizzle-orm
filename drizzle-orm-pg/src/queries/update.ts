@@ -13,7 +13,7 @@ export interface PgUpdateConfig<TTable extends AnyPgTable> {
 	where?: AnyPgSQL<GetTableName<TTable>> | undefined;
 	set: PgUpdateSet<TTable>;
 	table: TTable;
-	returning?: PgSelectFieldsOrdered<GetTableName<TTable>>;
+	returning?: PgSelectFieldsOrdered;
 }
 
 export type PgUpdateSet<TTable extends AnyPgTable> = {
@@ -55,9 +55,8 @@ export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 		fields: TSelectedFields,
 	): Pick<PgUpdate<TTable, SelectResultFields<TSelectedFields>[]>, 'getQuery' | 'execute'>;
 	public returning(fields?: PgSelectFields<GetTableName<TTable>>): PgUpdate<TTable, any> {
-		const orderedFields = this.dialect.orderSelectedFields<GetTableName<TTable>>(
-			fields
-				?? (this.config.table[tableColumns] as Record<string, AnyPgColumn<GetTableName<TTable>>>),
+		const orderedFields = this.dialect.orderSelectedFields(
+			fields ?? this.config.table[tableColumns],
 			this.table[tableName],
 		);
 		this.config.returning = orderedFields;

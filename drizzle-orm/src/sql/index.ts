@@ -78,7 +78,24 @@ export class SQL<TTableName extends TableName> implements SQLWrapper {
 	getSQL(): AnySQL<TTableName> {
 		return this;
 	}
+
+	as<TDecoder extends DriverValueDecoder<any, any> | DriverValueDecoder<any, any>['mapFromDriverValue']>(
+		decoder: TDecoder,
+	): SQLResponse<TTableName, GetDecoderColumnData<TDecoder>>;
+	as<TData>(): SQLResponse<TTableName, ColumnData<TData>>;
+	as(
+		decoder: ((value: any) => any) | DriverValueDecoder<any, any> = noopDecoder,
+	): SQLResponse<TTableName, ColumnData> {
+		return new SQLResponse(
+			this,
+			typeof decoder === 'function' ? { mapFromDriverValue: decoder } : decoder,
+		);
+	}
 }
+
+export type GetDecoderColumnData<T> = T extends DriverValueDecoder<infer TData, any> ? ColumnData<TData>
+	: T extends DriverValueDecoder<infer TData, any>['mapFromDriverValue'] ? ColumnData<TData>
+	: never;
 
 export type AnySQL<TTableName extends TableName = TableName> = SQL<TTableName>;
 
@@ -91,28 +108,29 @@ export class Name {
 	constructor(public readonly value: string) {}
 }
 
-export type ParamValueDecoder<
-	TData extends ColumnData,
-	TDriverParam extends ColumnDriverParam,
-> = (value: Unwrap<TDriverParam>) => Unwrap<TData>;
-
-export const noopDecoder: ParamValueDecoder<any, any> = (value) => value;
-
-export type ParamValueEncoder<
-	TData extends ColumnData,
-	TDriverParam extends ColumnDriverParam,
-> = (value: Unwrap<TData>) => Unwrap<TDriverParam>;
-
-export const noopEncoder: ParamValueEncoder<any, any> = (value) => value;
-
-export interface ParamValueMapper<TData extends ColumnData, TDriverParam extends ColumnDriverParam> {
-	mapFromDriverValue: ParamValueDecoder<TData, TDriverParam>;
-	mapToDriverValue: ParamValueEncoder<TData, TDriverParam>;
+export interface DriverValueDecoder<TData, TDriverParam> {
+	mapFromDriverValue(value: TDriverParam): TData;
 }
 
-export const noopMapper: ParamValueMapper<any, any> = {
-	mapFromDriverValue: noopDecoder,
-	mapToDriverValue: noopEncoder,
+export interface DriverValueEncoder<TData, TDriverParam> {
+	mapToDriverValue(value: TData): TDriverParam;
+}
+
+export const noopDecoder: DriverValueDecoder<any, any> = {
+	mapFromDriverValue: (value) => value,
+};
+
+export const noopEncoder: DriverValueEncoder<any, any> = {
+	mapToDriverValue: (value) => value,
+};
+
+export interface DriverValueMapper<TData, TDriverParam>
+	extends DriverValueDecoder<TData, TDriverParam>, DriverValueEncoder<TData, TDriverParam>
+{}
+
+export const noopMapper: DriverValueMapper<any, any> = {
+	...noopDecoder,
+	...noopEncoder,
 };
 
 /**
@@ -125,7 +143,7 @@ export class BoundParamValue<TDataType extends ColumnData, TDriverParamType exte
 
 	constructor(
 		public readonly value: TDataType,
-		public readonly mapper: ParamValueMapper<TDataType, TDriverParamType>,
+		public readonly mapper: DriverValueMapper<Unwrap<TDataType>, Unwrap<TDriverParamType>>,
 	) {}
 }
 
@@ -214,57 +232,6 @@ export namespace sql {
 		return new SQL(list.map(buildChunksFromParam).flat(1));
 	}
 
-	export function response<TTableName extends TableName>(
-		strings: TemplateStringsArray,
-		...params: (BoundParamValue<any, any> | ColumnData | SQLWrapper | PrimitiveDriverParam)[]
-	): SQLResponse<TTableName, ColumnData>;
-	export function response<TColumn extends AnyColumn>(
-		strings: TemplateStringsArray,
-		...params: (TColumn | BoundParamValue<any, any> | ColumnData | SQLWrapper | PrimitiveDriverParam)[]
-	): SQLResponse<GetTableName<TColumn>, ColumnData<GetColumnData<TColumn>>>;
-	export function response(
-		strings: TemplateStringsArray,
-		...params: SQLSourceParam<any>[]
-	): AnySQLResponse {
-		const column = params.find((p): p is AnyColumn => p instanceof Column)?.mapFromDriverValue ?? noopDecoder;
-		return new SQLResponse(sql(strings, ...params), column);
-	}
-
-	export namespace response {
-		interface SQLResponseFunc<TData extends ColumnData> {
-			<TTableName extends string>(
-				strings: TemplateStringsArray,
-				...params: (SQLSourceParam<TableName<TTableName>> | ColumnData | PrimitiveDriverParam)[]
-			): SQLResponse<TableName<TTableName>, TData>;
-		}
-
-		export function as<TData extends ColumnData>(): SQLResponseFunc<TData>;
-		export function as<TData>(): SQLResponseFunc<ColumnData<TData>>;
-		export function as<TData extends ColumnData>(
-			decoder: AnyColumn<TableName, TData> | ParamValueDecoder<TData, ColumnDriverParam>,
-		): SQLResponseFunc<TData>;
-		export function as<TData>(
-			decoder:
-				| AnyColumn<TableName, ColumnData<TData>>
-				| ParamValueDecoder<ColumnData<TData>, ColumnDriverParam>,
-		): SQLResponseFunc<ColumnData<TData>>;
-		export function as(
-			decoder: AnyColumn | ParamValueDecoder<any, any> = noopDecoder,
-		): SQLResponseFunc<ColumnData> {
-			const responseSql: SQLResponseFunc<ColumnData> = <TTableName extends string>(
-				strings: TemplateStringsArray,
-				...params: (SQLSourceParam<TableName<TTableName>> | ColumnData | PrimitiveDriverParam)[]
-			) => {
-				return new SQLResponse(
-					sql(strings, ...params),
-					decoder instanceof Column ? decoder.mapFromDriverValue : decoder,
-				);
-			};
-
-			return responseSql;
-		}
-	}
-
 	/**
 	 * Convenience function to create an SQL query from a raw string.
 	 * @param str The raw SQL query string.
@@ -285,7 +252,7 @@ export class SQLResponse<TTableName extends TableName, TValue extends ColumnData
 
 	constructor(
 		readonly sql: SQL<TTableName>,
-		readonly decoder: ParamValueDecoder<TValue, any>,
+		readonly decoder: DriverValueDecoder<TValue, any>,
 	) {}
 }
 

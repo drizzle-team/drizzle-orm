@@ -1,7 +1,7 @@
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
 import { AnyPgTable } from '~/table';
-import { PgColumnWithMapper } from './common';
+import { PgColumn } from './common';
 import { PgDateColumnBaseBuilder } from './date.common';
 
 export class PgDateBuilder<
@@ -20,7 +20,7 @@ export class PgDate<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumnWithMapper<TTableName, ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends PgColumn<TTableName, ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgDate';
 
 	constructor(table: AnyPgTable<TTableName>, builder: PgDateBuilder<TNotNull, THasDefault>) {
@@ -56,7 +56,7 @@ export class PgDateString<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumnWithMapper<TTableName, ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends PgColumn<TTableName, ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	brand!: 'PgDateString';
 
 	constructor(table: AnyPgTable<TTableName>, builder: PgDateStringBuilder<TNotNull, THasDefault>) {

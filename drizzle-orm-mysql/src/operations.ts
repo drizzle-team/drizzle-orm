@@ -7,20 +7,22 @@ import { Simplify } from 'type-fest';
 import { AnyMySqlColumn } from './columns';
 import { AnyMySqlDialect, MySqlSession } from './connection';
 import { MySqlDelete, MySqlInsert, MySqlSelect, MySqlUpdate } from './queries';
+import { AnyMySQL, MySQL } from './sql';
 import { AnyMySqlTable, InferModel } from './table';
 
 export type MySqlSelectFields<
 	TTableName extends TableName,
 > = {
 	[key: string]:
-		| SQLResponse<TTableName, ColumnData>
+		| SQLResponse<TTableName | TableName, ColumnData>
+		| MySQL<TTableName | TableName>
 		| AnyMySqlColumn<TTableName>;
 };
 
 export type MySqlSelectFieldsOrdered<TTableName extends TableName = TableName> = (
 	& Omit<SelectFieldsOrdered[number], 'column'>
 	& {
-		column: AnyMySqlColumn<TTableName> | AnySQLResponse<TTableName>;
+		column: AnyMySqlColumn<TTableName> | AnyMySQL<TTableName | TableName> | AnySQLResponse<TTableName | TableName>;
 	}
 )[];
 
@@ -31,6 +33,7 @@ export type SelectResultFields<
 		[Key in keyof TSelectedFields & string]: TSelectedFields[Key] extends AnyMySqlColumn
 			? GetColumnData<TSelectedFields[Key]>
 			: TSelectedFields[Key] extends SQLResponse<TableName, infer TDriverParam> ? Unwrap<TDriverParam>
+			: TSelectedFields[Key] extends AnyMySQL ? unknown
 			: never;
 	}
 >;

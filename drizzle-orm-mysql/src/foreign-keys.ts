@@ -151,20 +151,3 @@ export function foreignKey<
 		ForeignKeyBuilder<GetColumnsTable<TColumns>, GetColumnsTable<TForeignColumns>>
 	>;
 }
-
-type NotGenericTableName<T extends TableName> = T extends TableName<infer TTableName>
-	? string extends TTableName ? never : TTableName
-	: never;
-
-export function addForeignKey<
-	TTableName extends TableName,
-	TColumns extends [AnyMySqlColumn<NotUnion<TTableName>>, ...AnyMySqlColumn<NotUnion<TTableName>>[]],
-	TForeignTableName extends TableName,
-	TForeignColumns extends ColumnsWithTable<NotGenericTableName<TForeignTableName>, TColumns>,
->(config: {
-	table: AnyMySqlTable<TTableName>;
-	columns: TColumns;
-	foreignColumns: TForeignColumns;
-}) {
-	config.table[tableForeignKeys][Symbol()] = (_foreignKey(() => config)).build(config.table as any) as any;
-}

@@ -2,7 +2,7 @@ import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableNa
 
 import { AnyPgTable } from '~/table';
 import { IndexBuilder } from '..';
-import { PgColumnWithMapper } from './common';
+import { PgColumn } from './common';
 import { PgDateColumnBaseBuilder } from './date.common';
 
 export class PgTimestampBuilder<
@@ -29,7 +29,7 @@ export class PgTimestamp<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumnWithMapper<TTableName, ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends PgColumn<TTableName, ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgTimestamp';
 
 	public readonly withTimezone: boolean;
@@ -78,7 +78,7 @@ export class PgTimestampString<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumnWithMapper<TTableName, ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends PgColumn<TTableName, ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgTimestampString';
 
 	public readonly withTimezone: boolean;
@@ -102,11 +102,20 @@ export class PgTimestampString<
 export type PrecisionLimit = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 export function timestamp(name: string): PgTimestampBuilder;
-export function timestamp(name: string, config: { mode: 'string', precision?: PrecisionLimit, withTimezone?: boolean }): PgTimestampStringBuilder;
-export function timestamp(name: string, config: { mode?: 'date',   precision?: PrecisionLimit, withTimezone?: boolean }): PgTimestampBuilder;
-export function timestamp(name: string, config?: { mode?: 'date' | 'string',  precision?: PrecisionLimit, withTimezone?: boolean }) {
+export function timestamp(
+	name: string,
+	config: { mode: 'string'; precision?: PrecisionLimit; withTimezone?: boolean },
+): PgTimestampStringBuilder;
+export function timestamp(
+	name: string,
+	config: { mode?: 'date'; precision?: PrecisionLimit; withTimezone?: boolean },
+): PgTimestampBuilder;
+export function timestamp(
+	name: string,
+	config?: { mode?: 'date' | 'string'; precision?: PrecisionLimit; withTimezone?: boolean },
+) {
 	if (config?.mode === 'string') {
 		return new PgTimestampStringBuilder(name, config.withTimezone ?? false, config.precision);
 	}
-	return new PgTimestampBuilder(name, config?.withTimezone ?? false, config?.precision);;
+	return new PgTimestampBuilder(name, config?.withTimezone ?? false, config?.precision);
 }

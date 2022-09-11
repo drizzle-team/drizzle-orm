@@ -4,35 +4,36 @@ import { SelectFieldsOrdered } from 'drizzle-orm/operations';
 import { AnySQLResponse, SQLResponse } from 'drizzle-orm/sql';
 import { GetTableName, tableColumns, tableName } from 'drizzle-orm/utils';
 import { Simplify } from 'type-fest';
-import { PgColumnDriverParam } from './branded-types';
 
 import { AnyPgColumn } from './columns/common';
 import { AnyPgDialect, PgSession } from './connection';
 import { PgDelete, PgInsert, PgSelect, PgUpdate } from './queries';
+import { AnyPgSQL, PgSQL } from './sql';
 import { AnyPgTable, InferModel } from './table';
 
 export type PgSelectFields<
 	TTableName extends TableName,
-> = {
-	[key: string]:
-		| SQLResponse<TTableName, ColumnData>
-		| AnyPgColumn<TTableName>;
-};
+> = Record<
+	string,
+	| PgSQL<TTableName | TableName>
+	| SQLResponse<TTableName | TableName, ColumnData>
+	| AnyPgColumn<TTableName>
+>;
 
-export type PgSelectFieldsOrdered<TTableName extends TableName = TableName> = (
+export type PgSelectFieldsOrdered = (
 	& Omit<SelectFieldsOrdered[number], 'column'>
-	& {
-		column: AnyPgColumn<TTableName> | AnySQLResponse<TTableName>;
-	}
+	& { column: AnyPgColumn | AnyPgSQL | AnySQLResponse }
 )[];
 
 export type SelectResultFields<
 	TSelectedFields extends PgSelectFields<TableName>,
 > = Simplify<
 	{
-		[Key in keyof TSelectedFields & string]: TSelectedFields[Key] extends AnyPgColumn
-			? GetColumnData<TSelectedFields[Key]>
-			: TSelectedFields[Key] extends SQLResponse<TableName, infer TDriverParam> ? Unwrap<TDriverParam>
+		[Key in keyof TSelectedFields & string]: TSelectedFields[Key] extends infer TField
+			? TField extends AnyPgColumn ? GetColumnData<TField>
+			: TField extends SQLResponse<TableName, infer TDriverParam> ? Unwrap<TDriverParam>
+			: TField extends PgSQL<TableName> ? unknown
+			: never
 			: never;
 	}
 >;

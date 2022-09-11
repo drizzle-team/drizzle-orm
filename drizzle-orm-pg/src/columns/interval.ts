@@ -1,14 +1,7 @@
-import {
-	ColumnData,
-	ColumnDriverParam,
-	ColumnHasDefault,
-	ColumnNotNull,
-	TableName,
-	Unwrap,
-} from 'drizzle-orm/branded-types';
+import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
 import { AnyPgTable } from '~/table';
-import { PgColumnBuilder, PgColumnWithMapper } from './common';
+import { PgColumn, PgColumnBuilder } from './common';
 import { PrecisionLimit } from './timestamp';
 
 export class PgIntervalBuilder<
@@ -33,7 +26,7 @@ export class PgInterval<
 	TData extends ColumnData<string>,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumnWithMapper<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends PgColumn<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgTime';
 
 	public readonly config: IntervalConfig;
@@ -48,10 +41,6 @@ export class PgInterval<
 		const precision = this.config.precision ? ` (${this.config.precision})` : '';
 		return `interval${fields}${precision}`;
 	}
-
-	override mapFromDriverValue = (value: ColumnDriverParam<string>): ColumnData<TData> => {
-		return value as Unwrap<TData> as ColumnData<TData>;
-	};
 }
 
 export interface IntervalConfig {

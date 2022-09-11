@@ -11,7 +11,8 @@ export abstract class ColumnBuilder<
 > {
 	protected typeKeeper!: {
 		brand: 'ColumnBuilder';
-		dataType: TData;
+		data: TData;
+		driverParam: TDriverParam;
 		notNull: TNotNull;
 		default: THasDefault;
 	};
@@ -27,19 +28,19 @@ export abstract class ColumnBuilder<
 
 	notNull(): ColumnBuilder<TData, TDriverParam, ColumnNotNull<true>, THasDefault> {
 		this._notNull = true as TNotNull;
-		return this as any;
+		return this as ReturnType<this['notNull']>;
 	}
 
 	default(
 		value: Unwrap<TData> | AnySQL,
 	): ColumnBuilder<TData, TDriverParam, TNotNull, ColumnHasDefault<true>> {
 		this._default = value as TData;
-		return this as any;
+		return this as ReturnType<this['default']>;
 	}
 
 	primaryKey(): ColumnBuilder<TData, TDriverParam, ColumnNotNull<true>, THasDefault> {
 		this._primaryKey = true;
-		return this as any;
+		return this as ReturnType<this['primaryKey']>;
 	}
 
 	/** @internal */

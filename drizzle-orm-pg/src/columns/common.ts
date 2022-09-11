@@ -29,30 +29,18 @@ export abstract class PgColumnBuilder<
 	}
 
 	override notNull(): PgColumnBuilder<TData, TDriverParam, ColumnNotNull<true>, THasDefault> {
-		return super.notNull() as any;
+		return super.notNull() as ReturnType<this['notNull']>;
 	}
 
 	override default(
 		value: Unwrap<TData> | AnyPgSQL,
 	): PgColumnBuilder<TData, TDriverParam, TNotNull, ColumnHasDefault<true>> {
-		return super.default(value) as any;
+		return super.default(value) as ReturnType<this['default']>;
 	}
 
 	override primaryKey(): PgColumnBuilder<TData, TDriverParam, ColumnNotNull<true>, THasDefault> {
-		return super.primaryKey() as any;
+		return super.primaryKey() as ReturnType<this['primaryKey']>;
 	}
-
-	// references(
-	// 	arg: () => any,
-	// ): PgColumnBuilder<
-	// 	TData,
-	// 	TDriverParam,
-	// 	TNotNull,
-	// 	THasDefault
-	// > {
-	// 	this.foreignKeyConfigs.push({ ref, actions });
-	// 	return this;
-	// }
 
 	references(
 		ref: ReferenceConfig<TData>['ref'],
@@ -85,18 +73,18 @@ export abstract class PgColumnBuilder<
 	): PgColumn<TTableName, TData, TDriverParam, TNotNull, THasDefault>;
 }
 
-export type AnyPgColumnBuilder = PgColumnBuilder<any, any, any, any>;
+export type AnyPgColumnBuilder = PgColumnBuilder<ColumnData, PgColumnDriverParam, ColumnNotNull, ColumnHasDefault>;
 
 export abstract class PgColumn<
 	TTableName extends TableName<string>,
-	TDataType extends ColumnData,
-	TDriverData extends PgColumnDriverParam,
+	TData extends ColumnData,
+	TDriverParam extends PgColumnDriverParam,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends Column<TTableName, TDataType, TDriverData, TNotNull, THasDefault> {
+> extends Column<TTableName, TData, TDriverParam, TNotNull, THasDefault> {
 	constructor(
 		override readonly table: AnyPgTable<TTableName>,
-		builder: PgColumnBuilder<TDataType, TDriverData, TNotNull, THasDefault>,
+		builder: PgColumnBuilder<TData, TDriverParam, TNotNull, THasDefault>,
 	) {
 		super(table, builder);
 	}
@@ -104,22 +92,6 @@ export abstract class PgColumn<
 	unsafe(): AnyPgColumn {
 		return this;
 	}
-}
-
-export abstract class PgColumnWithMapper<
-	TTableName extends TableName,
-	TData extends ColumnData,
-	TDriverParam extends PgColumnDriverParam,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
-> extends PgColumn<TTableName, TData, TDriverParam, TNotNull, THasDefault> {
-	override mapFromDriverValue = (value: TDriverParam): TData => {
-		return value as unknown as TData;
-	};
-
-	override mapToDriverValue = (value: TData): TDriverParam => {
-		return value as unknown as TDriverParam;
-	};
 }
 
 export type AnyPgColumn<
@@ -130,21 +102,13 @@ export type AnyPgColumn<
 	THasDefault extends ColumnHasDefault = any,
 > = PgColumn<TTableName, TData, TDriverParam, TNotNull, THasDefault>;
 
-export type AnyPgColumnWithMapper<
-	TTableName extends TableName = TableName,
-	TData extends ColumnData = any,
-	TDriverParam extends PgColumnDriverParam = PgColumnDriverParam,
-	TNotNull extends ColumnNotNull = ColumnNotNull,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault,
-> = PgColumnWithMapper<TTableName, TData, TDriverParam, TNotNull, THasDefault>;
-
 export type BuildPgColumn<TTableName extends TableName, TBuilder extends AnyPgColumnBuilder> = TBuilder extends
 	PgColumnBuilder<
 		infer TData,
 		infer TDriverParam,
 		infer TNotNull,
 		infer THasDefault
-	> ? PgColumnWithMapper<TTableName, TData, TDriverParam, TNotNull, THasDefault>
+	> ? PgColumn<TTableName, TData, TDriverParam, TNotNull, THasDefault>
 	: never;
 
 export type BuildPgColumns<

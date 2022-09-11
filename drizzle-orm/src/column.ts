@@ -1,6 +1,6 @@
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName, Unwrap } from './branded-types';
 import { ColumnBuilder } from './column-builder';
-import { BoundParamValue, ParamValueMapper } from './sql';
+import { BoundParamValue, DriverValueMapper } from './sql';
 import { AnyTable } from './table';
 
 export abstract class Column<
@@ -9,7 +9,7 @@ export abstract class Column<
 	TDriverParam extends ColumnDriverParam,
 	TNotNull extends ColumnNotNull<boolean>,
 	THasDefault extends ColumnHasDefault<boolean>,
-> implements ParamValueMapper<any, any> {
+> implements DriverValueMapper<Unwrap<TData>, Unwrap<TDriverParam>> {
 	protected typeKeeper!: {
 		brand: 'Column';
 		tableName: TTableName;
@@ -34,60 +34,30 @@ export abstract class Column<
 		this.primary = builder._primaryKey;
 	}
 
-	/*
-		mapFromDriverValue and mapToDriverValue are provided just as a runtime fallback - if you need to override them,
-		extend the ColumnWithMapper class instead for proper type-checking.
-	*/
-	mapFromDriverValue = (value: any): any => {
-		return value;
-	};
-
-	mapToDriverValue = (value: any): any => {
-		return value;
-	};
-
 	abstract getSQLType(): string;
-}
 
-export abstract class ColumnWithMapper<
-	TTableName extends TableName<string>,
-	TData extends ColumnData,
-	TDriverParam extends ColumnDriverParam,
-	TNotNull extends ColumnNotNull<boolean>,
-	THasDefault extends ColumnHasDefault<boolean>,
-> extends Column<TTableName, TData, TDriverParam, TNotNull, THasDefault>
-	implements ParamValueMapper<TData, TDriverParam>
-{
-	override mapFromDriverValue = (value: Unwrap<TDriverParam>): Unwrap<TData> => {
+	mapFromDriverValue(value: Unwrap<TDriverParam>): Unwrap<TData> {
 		return value as any;
-	};
+	}
 
-	override mapToDriverValue = (value: Unwrap<TData>): Unwrap<TDriverParam> => {
+	mapToDriverValue(value: Unwrap<TData>): Unwrap<TDriverParam> {
 		return value as any;
-	};
+	}
 }
 
 export type AnyColumn<
 	TTableName extends TableName = TableName,
-	TData extends ColumnData = any,
-	TDriverParam extends ColumnDriverParam = any,
+	TData extends ColumnData = ColumnData,
+	TDriverParam extends ColumnDriverParam = ColumnDriverParam,
 	TNotNull extends ColumnNotNull = ColumnNotNull,
 	THasDefault extends ColumnHasDefault = ColumnHasDefault,
 > = Column<TTableName, TData, TDriverParam, TNotNull, THasDefault>;
 
-export type AnyColumnWithMapper<
-	TTableName extends TableName = TableName,
-	TData extends ColumnData = any,
-	TDriverParam extends ColumnDriverParam = any,
-	TNotNull extends ColumnNotNull = ColumnNotNull,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault,
-> = ColumnWithMapper<TTableName, TData, TDriverParam, TNotNull, THasDefault>;
-
-export function param<TDataType extends ColumnData, TDriverType extends ColumnDriverParam>(
-	value: Unwrap<TDataType>,
-	column: AnyColumn<any, TDataType, TDriverType>,
-): BoundParamValue<TDataType, TDriverType> {
-	return new BoundParamValue(value as TDataType, column);
+export function param<TData extends ColumnData, TDriver extends ColumnDriverParam>(
+	value: Unwrap<TData>,
+	mapper: DriverValueMapper<Unwrap<TData>, Unwrap<TDriver>>,
+): BoundParamValue<TData, TDriver> {
+	return new BoundParamValue(value as TData, mapper);
 }
 
 export type GetColumnData<

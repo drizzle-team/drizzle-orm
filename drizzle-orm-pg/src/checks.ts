@@ -30,7 +30,7 @@ export type BuildCheck<T extends AnyCheckBuilder> = T extends CheckBuilder<
 > ? Check<TTableName>
 	: never;
 
-export type AnyConstraint = Check<TableName>;
+export type AnyCheck = Check<TableName>;
 
 export function check<TTableName extends TableName>(
 	name: string,

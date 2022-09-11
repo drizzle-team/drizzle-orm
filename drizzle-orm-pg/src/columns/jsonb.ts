@@ -1,7 +1,7 @@
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
 import { AnyPgTable } from '~/table';
-import { PgColumnBuilder, PgColumnWithMapper } from './common';
+import { PgColumn, PgColumnBuilder } from './common';
 
 export class PgJsonbBuilder<
 	TData,
@@ -25,7 +25,7 @@ export class PgJsonb<
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
 	TData,
-> extends PgColumnWithMapper<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends PgColumn<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgJsonb';
 
 	constructor(table: AnyPgTable<TTableName>, builder: PgJsonbBuilder<TData, TNotNull, THasDefault>) {
@@ -36,9 +36,9 @@ export class PgJsonb<
 		return 'jsonb';
 	}
 
-	override mapFromDriverValue = (value: ColumnDriverParam<string>): ColumnData<TData> => {
-		return value as TData as ColumnData<TData>;
-	};
+	override mapToDriverValue(value: TData): string {
+		return JSON.stringify(value);
+	}
 }
 
 export function jsonb<TData = any>(name: string) {

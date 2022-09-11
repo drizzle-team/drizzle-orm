@@ -1,8 +1,8 @@
 import { sql } from 'drizzle-orm';
-import { TableName } from 'drizzle-orm/branded-types';
+import { ColumnData, TableName } from 'drizzle-orm/branded-types';
 
 import { Check, check } from '~/checks';
-import { integer, pgEnum, serial, text, timestamp } from '~/columns';
+import { integer, pgEnum, PgTextBuilder, serial, text, timestamp } from '~/columns';
 import { foreignKey } from '~/foreign-keys';
 import { Index, index } from '~/indexes';
 import { GetTableColumns, pgTable } from '~/table';
@@ -23,6 +23,7 @@ export const users = pgTable(
 		serialNotNull: serial('serial2').notNull(),
 		class: text<'A' | 'C'>('class').notNull(),
 		subClass: text<'B' | 'D'>('sub_class'),
+		text: text('text'),
 		age1: integer('age1').notNull(),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 		enumCol: myEnum('enum_col').notNull(),

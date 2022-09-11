@@ -1,11 +1,12 @@
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 import { AnyMySqlTable } from '~/table';
-import { MySqlColumnBuilder, MySqlColumnWithMapper } from './common';
+import { MySqlColumn, MySqlColumnBuilder } from './common';
+import { MySqlDateBaseColumn, MySqlDateColumnBaseBuilder } from './date.common';
 
 export class MySqlTimestampBuilder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
 	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends MySqlColumnBuilder<ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends MySqlDateColumnBaseBuilder<ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	constructor(
 		name: string,
 		public readonly fsp: number | undefined,
@@ -25,8 +26,8 @@ export class MySqlTimestamp<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends MySqlColumnWithMapper<TTableName, ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
-	protected brand!: 'PgTimestamp';
+> extends MySqlDateBaseColumn<TTableName, ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+	protected brand!: 'MySqlTimestamp';
 
 	public readonly fsp: number | undefined;
 
@@ -43,15 +44,15 @@ export class MySqlTimestamp<
 		return `timestamp${precision}`;
 	}
 
-	override mapFromDriverValue = (value: ColumnDriverParam<string>): ColumnData<Date> => {
-		return new Date(value) as ColumnData<Date>;
-	};
+	override mapFromDriverValue(value: string): Date {
+		return new Date(value);
+	}
 }
 
 export class MySqlTimestampStringBuilder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
 	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends MySqlColumnBuilder<ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends MySqlDateColumnBaseBuilder<ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	constructor(
 		name: string,
 		public readonly fsp: number | undefined,
@@ -71,7 +72,7 @@ export class MySqlTimestampString<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends MySqlColumnWithMapper<TTableName, ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends MySqlDateBaseColumn<TTableName, ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgTimestampString';
 
 	public readonly fsp: number | undefined;
@@ -90,24 +91,16 @@ export class MySqlTimestampString<
 	}
 }
 
-export type TimestampConfig<TMode extends 'string' | 'date' = 'string' | 'date'> =
-	& {
-		fsp?: number;
-	}
-	& (
-		| {
-			mode: TMode;
-		}
-		| {
-			mode?: TMode;
-		}
-	);
+export type TimestampConfig<TMode extends 'string' | 'date' = 'string' | 'date'> = {
+	fsp?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
+	mode?: TMode;
+};
 
-export function timestamp<TWithTZ extends boolean>(
+export function timestamp(
 	name: string,
 	config?: TimestampConfig<'date'>,
 ): MySqlTimestampBuilder;
-export function timestamp<TWithTZ extends boolean>(
+export function timestamp(
 	name: string,
 	config: TimestampConfig<'string'>,
 ): MySqlTimestampStringBuilder;

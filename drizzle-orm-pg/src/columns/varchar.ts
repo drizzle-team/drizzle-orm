@@ -1,7 +1,7 @@
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
 import { AnyPgTable } from '~/table';
-import { PgColumnBuilder, PgColumnWithMapper } from './common';
+import { PgColumn, PgColumnBuilder } from './common';
 
 export class PgVarcharBuilder<
 	TData extends ColumnData<string> = ColumnData<string>,
@@ -28,7 +28,7 @@ export class PgVarchar<
 	TData extends ColumnData<string>,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumnWithMapper<TTableName, TData, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends PgColumn<TTableName, TData, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgVarchar';
 
 	length: number | undefined;
@@ -43,8 +43,9 @@ export class PgVarchar<
 	}
 }
 
-export function varchar(name: string, config?: { length?: number }): PgVarcharBuilder;
-export function varchar<T extends string = string>(name: string, config?: {length?: number}): PgVarcharBuilder<ColumnData<T>>;
-export function varchar(name: string, config?: {length?: number}) {
-	return new PgVarcharBuilder(name, config?.length);
+export function varchar<T extends string = string>(
+	name: string,
+	config: { length?: number } = {},
+): PgVarcharBuilder<ColumnData<T>> {
+	return new PgVarcharBuilder(name, config.length);
 }

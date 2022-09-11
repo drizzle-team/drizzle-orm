@@ -1,7 +1,7 @@
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
-import { connect, sql } from 'drizzle-orm';
-import { PgConnector, PGDatabase, pgTable, serial, text } from 'drizzle-orm-pg';
+import { connect, DefaultLogger, sql } from 'drizzle-orm';
+import { jsonb, PgConnector, PGDatabase, pgTable, serial, text } from 'drizzle-orm-pg';
 import getPort from 'get-port';
 import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
@@ -9,6 +9,7 @@ import { v4 as uuid } from 'uuid';
 const usersTable = pgTable('users', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
+	jsonb: jsonb<string[]>('jsonb'),
 });
 
 const schema = { usersTable };
@@ -70,14 +71,14 @@ test.before(async (t) => {
 		console.error('Cannot connect to Postgres');
 		throw lastError;
 	}
-	ctx.db = await connect(new PgConnector(ctx.client, schema));
+	ctx.db = await connect(new PgConnector(ctx.client, schema, { logger: new DefaultLogger() }));
 });
 
 test.beforeEach(async (t) => {
 	const ctx = t.context;
 	await ctx.db.execute(sql`drop schema public cascade`);
 	await ctx.db.execute(sql`create schema public`);
-	await ctx.db.execute(sql`create table users (id serial primary key, name text not null)`);
+	await ctx.db.execute(sql`create table users (id serial primary key, name text not null, jsonb jsonb)`);
 });
 
 test.serial('insert + select', async (t) => {
@@ -90,6 +91,15 @@ test.serial('insert + select', async (t) => {
 	await db.usersTable.insert({ name: 'Jane' }).execute();
 	const result2 = await db.usersTable.select({ id: usersTable.id, name: usersTable.name }).execute();
 	t.deepEqual(result2, [{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+});
+
+test.serial('json insert', async (t) => {
+	const { db } = t.context;
+
+	await db.usersTable.insert({ name: 'John', jsonb: ['foo', 'bar'] }).execute();
+	const result = await db.usersTable.select({ id: usersTable.id, name: usersTable.name, jsonb: usersTable.jsonb })
+		.execute();
+	t.deepEqual(result, [{ id: 1, name: 'John', jsonb: ['foo', 'bar'] }]);
 });
 
 test.after.always(async (t) => {

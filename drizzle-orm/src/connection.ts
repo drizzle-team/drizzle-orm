@@ -8,6 +8,20 @@ export interface Session<TQueryParam, TQueryResponse> {
 	query(query: string, params: TQueryParam[]): TQueryResponse;
 }
 
+export interface Logger {
+	logQuery(query: string, params: unknown[]): void;
+}
+
+export class DefaultLogger implements Logger {
+	logQuery(query: string, params: unknown[]): void {
+		console.log(`Executing query:\n${query}\nParams:\n${JSON.stringify(params, null, 2)}\n`);
+	}
+}
+
+export class NoopLogger implements Logger {
+	logQuery(): void {}
+}
+
 export interface Driver<TSession> {
 	connect(): Promise<TSession>;
 }

@@ -1,4 +1,15 @@
-import { Column, Connector, Dialect, Driver, MigrationMeta, Session, sql } from 'drizzle-orm';
+import {
+	Column,
+	Connector,
+	DefaultLogger,
+	Dialect,
+	Driver,
+	Logger,
+	MigrationMeta,
+	NoopLogger,
+	Session,
+	sql,
+} from 'drizzle-orm';
 import { ColumnData, TableName, Unwrap } from 'drizzle-orm/branded-types';
 import { AnySQL, Name, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
 import { GetTableName, tableColumns, tableName } from 'drizzle-orm/utils';
@@ -29,11 +40,19 @@ export interface PgSession extends Session<PgColumnDriverDataType, Promise<Query
 	): Promise<QueryResult<T>>;
 }
 
-export class PgSessionDefault implements PgSession {
-	constructor(private client: PgClient) {}
+export interface PgDefaultSessionOptions {
+	logger?: Logger;
+}
+
+export class PgDefaultSession implements PgSession {
+	private logger: Logger;
+
+	constructor(private client: PgClient, options: PgDefaultSessionOptions = {}) {
+		this.logger = options.logger ?? new NoopLogger();
+	}
 
 	public async query(query: string, params: unknown[]): Promise<QueryResult> {
-		console.log({ query, params });
+		this.logger.logQuery(query, params);
 		const result = await this.client.query({
 			rowMode: 'array',
 			text: query,
@@ -50,13 +69,17 @@ export class PgSessionDefault implements PgSession {
 	}
 }
 
+export interface PgDriverOptions {
+	logger?: Logger;
+}
+
 export class PgDriver implements Driver<PgSession> {
-	constructor(private client: PgClient) {
+	constructor(private client: PgClient, private options: PgDriverOptions = {}) {
 		this.initMappers();
 	}
 
 	async connect(): Promise<PgSession> {
-		return new PgSessionDefault(this.client);
+		return new PgDefaultSession(this.client, { logger: this.options.logger });
 	}
 
 	public initMappers() {
@@ -185,10 +208,10 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		);
 	}
 
-	orderSelectedFields<TTableName extends TableName>(
-		fields: PgSelectFields<TTableName>,
+	orderSelectedFields(
+		fields: PgSelectFields<TableName>,
 		resultTableName: string,
-	): PgSelectFieldsOrdered<TTableName> {
+	): PgSelectFieldsOrdered {
 		return Object.entries(fields).map(([name, column]) => ({
 			name,
 			resultTableName,
@@ -217,15 +240,15 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		return sql`update ${table} set ${setSql}${whereSql}${returningSql}`;
 	}
 
-	private prepareTableFieldsForQuery<TTableName extends TableName>(
-		columns: PgSelectFieldsOrdered<TTableName>,
+	private prepareTableFieldsForQuery(
+		columns: PgSelectFieldsOrdered,
 		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
-	): SQLSourceParam<TTableName>[] {
+	): SQLSourceParam<TableName>[] {
 		const columnsLen = columns.length;
 
 		return columns
 			.map(({ column }, i) => {
-				const chunk: SQLSourceParam<TTableName>[] = [];
+				const chunk: SQLSourceParam<TableName>[] = [];
 
 				if (column instanceof SQLResponse) {
 					if (isSingleTable) {
@@ -257,17 +280,15 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 			.flat(1);
 	}
 
-	public buildSelectQuery<TTableName extends TableName>({
+	public buildSelectQuery({
 		fields,
 		where,
-		table: _table,
+		table,
 		joins,
 		orderBy,
 		limit,
 		offset,
-	}: PgSelectConfig): AnyPgSQL<TTableName> {
-		const table = _table as AnyPgTable<TTableName>;
-
+	}: PgSelectConfig): AnyPgSQL {
 		const joinKeys = Object.keys(joins);
 
 		const fieldsSql = sql.fromList(
@@ -282,9 +303,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 			}
 			const joinMeta = joins[tableAlias]!;
 			const alias = joinMeta.aliasTable[tableName] === joinMeta.table[tableName] ? undefined : joinMeta.aliasTable;
-			joinsArray.push(
-				sql`${sql.raw(joinMeta.joinType)} join ${joinMeta.table} ${alias} on ${joinMeta.on}` as AnyPgSQL,
-			);
+			joinsArray.push(sql`${sql.raw(joinMeta.joinType)} join ${joinMeta.table} ${alias} on ${joinMeta.on}`);
 			if (index < joinKeys.length - 1) {
 				joinsArray.push(sql` `);
 			}
@@ -309,7 +328,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		return sql<TTableName>`select ${fieldsSql} from ${table}${joinsSql}${whereSql}${orderBySql}${limitSql}${offsetSql}`;
+		return sql`select ${fieldsSql} from ${table}${joinsSql}${whereSql}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	public buildInsertQuery({ table, values, onConflict, returning }: AnyPgInsertConfig): AnyPgSQL {
@@ -320,12 +339,13 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 
 		values.forEach((value) => {
 			const valueList: (SQLSourceParam<TableName> | AnyPgSQL)[] = [];
-			columnKeys.forEach((key) => {
-				const colValue = value[key];
+			columnKeys.forEach((colKey) => {
+				const colValue = value[colKey];
+				const column = columns[colKey]!;
 				if (typeof colValue === 'undefined') {
 					valueList.push(sql`default`);
 				} else {
-					valueList.push(colValue);
+					valueList.push(column.mapToDriverValue(colValue) as SQLSourceParam<TableName>);
 				}
 			});
 			joinedValues.push(valueList);
@@ -369,14 +389,18 @@ export type PGDatabase<TSchema extends Record<string, AnyPgTable>> = Simplify<
 	{ deep: true }
 >;
 
+export interface PgConnectorOptions {
+	logger?: Logger;
+}
+
 export class PgConnector<TDBSchema extends Record<string, AnyPgTable>>
 	implements Connector<PgSession, PGDatabase<TDBSchema>>
 {
 	dialect: Dialect<PgSession, PGDatabase<TDBSchema>>;
 	driver: Driver<PgSession>;
 
-	constructor(client: PgClient, dbSchema: TDBSchema) {
+	constructor(client: PgClient, dbSchema: TDBSchema, options: PgConnectorOptions = {}) {
 		this.dialect = new PgDialect(dbSchema);
-		this.driver = new PgDriver(client);
+		this.driver = new PgDriver(client, { logger: options.logger });
 	}
 }

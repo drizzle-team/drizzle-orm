@@ -1,14 +1,7 @@
-import {
-	ColumnData,
-	ColumnDriverParam,
-	ColumnHasDefault,
-	ColumnNotNull,
-	TableName,
-	Unwrap,
-} from 'drizzle-orm/branded-types';
+import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 
 import { AnyPgTable } from '~/table';
-import { PgColumnWithMapper } from './common';
+import { PgColumn } from './common';
 import { PgDateColumnBaseBuilder } from './date.common';
 import { PrecisionLimit } from './timestamp';
 
@@ -38,7 +31,7 @@ export class PgTime<
 	TData extends ColumnData<string>,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends PgColumnWithMapper<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends PgColumn<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgTime';
 
 	public readonly withTimezone: boolean;
@@ -54,10 +47,6 @@ export class PgTime<
 		const precision = typeof this.precision !== 'undefined' ? ` (${this.precision})` : '';
 		return `time${precision}${this.withTimezone ? ' with time zone' : ''}`;
 	}
-
-	override mapFromDriverValue = (value: ColumnDriverParam<string>): ColumnData<TData> => {
-		return value as Unwrap<TData> as ColumnData<TData>;
-	};
 }
 
 export interface TimeConfig {
@@ -65,6 +54,6 @@ export interface TimeConfig {
 	withTimezone?: boolean;
 }
 
-export function time(name: string, config?: TimeConfig) {
-	return new PgTimeBuilder(name, config?.withTimezone ?? false, config?.precision);
+export function time(name: string, config: TimeConfig = {}) {
+	return new PgTimeBuilder(name, config.withTimezone ?? false, config.precision);
 }

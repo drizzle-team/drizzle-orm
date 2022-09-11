@@ -7,11 +7,11 @@ import { MySqlSelectFields, MySqlSelectFieldsOrdered, SelectResultFields } from 
 import { AnyMySQL, MySqlPreparedQuery } from '~/sql';
 import { AnyMySqlTable, GetTableColumns, InferModel } from '~/table';
 
-export interface MySqlUpdateConfig<TTable extends AnyMySqlTable> {
-	where?: AnyMySQL<GetTableName<TTable>> | undefined;
-	set: MySqlUpdateSet<TTable>;
-	table: TTable;
-	returning?: MySqlSelectFieldsOrdered<GetTableName<TTable>>;
+export interface MySqlUpdateConfig {
+	where?: AnyMySQL | undefined;
+	set: MySqlUpdateSet<AnyMySqlTable>;
+	table: AnyMySqlTable;
+	returning?: MySqlSelectFieldsOrdered;
 }
 
 export type MySqlUpdateSet<TTable extends AnyMySqlTable> = {
@@ -26,7 +26,7 @@ export class MySqlUpdate<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 		return: TReturn;
 	};
 
-	private config: MySqlUpdateConfig<TTable>;
+	private config: MySqlUpdateConfig;
 
 	constructor(
 		private table: TTable,
@@ -34,8 +34,9 @@ export class MySqlUpdate<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 		private dialect: AnyMySqlDialect,
 	) {
 		this.config = {
+			set: {},
 			table,
-		} as MySqlUpdateConfig<TTable>;
+		};
 	}
 
 	public set(values: MySqlUpdateSet<TTable>): Pick<this, 'where' | 'returning' | 'getQuery' | 'execute'> {

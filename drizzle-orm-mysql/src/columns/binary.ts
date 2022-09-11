@@ -1,7 +1,6 @@
-import { AnyTable } from 'drizzle-orm';
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 import { AnyMySqlTable } from '~/table';
-import { MySqlColumnBuilder, MySqlColumnWithMapper } from './common';
+import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export class MySqlBinaryBuilder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
@@ -26,7 +25,7 @@ export class MySqlBinary<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends MySqlColumnWithMapper<
+> extends MySqlColumn<
 	TTableName,
 	ColumnData<string>,
 	ColumnDriverParam<string>,
@@ -47,6 +46,10 @@ export class MySqlBinary<
 	}
 }
 
-export function binary(name: string, length?: number) {
-	return new MySqlBinaryBuilder(name, length);
+export interface MySqlBinaryConfig {
+	length?: number;
+}
+
+export function binary(name: string, config: MySqlBinaryConfig = {}): MySqlBinaryBuilder {
+	return new MySqlBinaryBuilder(name, config.length);
 }

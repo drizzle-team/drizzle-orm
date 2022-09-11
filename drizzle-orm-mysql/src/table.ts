@@ -2,14 +2,14 @@ import { GetColumnData } from 'drizzle-orm';
 import { TableName } from 'drizzle-orm/branded-types';
 import { OptionalKeyOnly, RequiredKeyOnly } from 'drizzle-orm/operations';
 import { Table } from 'drizzle-orm/table';
-import { GetTableName, tableColumns } from 'drizzle-orm/utils';
+import { tableColumns } from 'drizzle-orm/utils';
 import { Simplify } from 'type-fest';
 
-import { AnyCheckBuilder, BuildCheck, Check, CheckBuilder } from './checks';
+import { Check, CheckBuilder } from './checks';
 import { AnyMySqlColumn, AnyMySqlColumnBuilder, BuildMySqlColumns } from './columns/common';
 import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
-import { AnyIndexBuilder, BuildIndex, Index, IndexBuilder } from './indexes';
-import { tableChecks, tableConflictConstraints, tableForeignKeys, tableIndexes } from './utils';
+import { AnyIndexBuilder, Index, IndexBuilder } from './indexes';
+import { tableChecks, tableForeignKeys, tableIndexes } from './utils';
 
 export type MySqlTableExtraConfig<TTableName extends TableName> = Record<
 	string,
@@ -18,70 +18,31 @@ export type MySqlTableExtraConfig<TTableName extends TableName> = Record<
 	| ForeignKeyBuilder<TTableName, TableName>
 >;
 
-export type AnyConflictConstraintBuilder<TTable extends AnyMySqlTable> =
-	| AnyIndexBuilder<GetTableName<TTable>>
-	| AnyCheckBuilder<GetTableName<TTable>>;
-
-export type BuildConflictConstraint<T> = T extends IndexBuilder<any, true> ? BuildIndex<T>
-	: T extends AnyCheckBuilder ? BuildCheck<T>
-	: never;
-
-export type ConflictConstraintKeyOnly<Key, TType> = TType extends AnyCheckBuilder ? Key
-	: TType extends IndexBuilder<any, infer TUnique> ? TUnique extends true ? Key
-		: never
-	: never;
-
-export type BuildConflictConstraints<TConfig extends MySqlTableExtraConfig<any>> = Simplify<
-	{
-		[Key in keyof TConfig as ConflictConstraintKeyOnly<Key, TConfig[Key]>]: BuildConflictConstraint<TConfig[Key]>;
-	}
->;
-
-export type ConflictConstraint<TTableName extends TableName> =
-	| Index<TTableName, true>
-	| Check<TTableName>;
-
-export class MySqlTable<
-	TName extends TableName,
-	TConflictConstraints extends Record<string | symbol, ConflictConstraint<TableName>>,
-> extends Table<TName> {
-	declare protected typeKeeper: Table<TName>['typeKeeper'] & {
-		conflictConstraints: TConflictConstraints;
-	};
-
+export class MySqlTable<TName extends TableName> extends Table<TName> {
 	/** @internal */
 	[tableColumns]!: Record<string | symbol, AnyMySqlColumn<TName>>;
 
 	/** @internal */
-	[tableIndexes]: Record<string | symbol, Index<TName, boolean>> = {};
+	[tableIndexes]: Record<string | symbol, Index<TName>> = {};
 
 	/** @internal */
 	[tableForeignKeys]: Record<string | symbol, ForeignKey<TName, TableName>> = {};
 
 	/** @internal */
 	[tableChecks]: Record<string | symbol, Check<TName>> = {};
-
-	/** @internal */
-	[tableConflictConstraints] = {} as TConflictConstraints;
 }
 
 export type MySqlTableWithColumns<
 	TName extends TableName,
 	TColumns extends Record<string, AnyMySqlColumn<TName>>,
-	TConflictConstraints extends Record<string, ConflictConstraint<TableName>>,
-> = MySqlTable<TName, TConflictConstraints> & TColumns;
+> =
+	& MySqlTable<TName>
+	& TColumns;
 
 export type GetTableColumns<TTable extends AnyMySqlTable> = TTable extends MySqlTableWithColumns<
 	any,
-	infer TColumns,
-	any
+	infer TColumns
 > ? TColumns
-	: never;
-
-export type GetTableConflictConstraints<TTable extends AnyMySqlTable> = TTable extends MySqlTable<
-	any,
-	infer TConflictConstraints
-> ? TConflictConstraints
 	: never;
 
 export type InferModel<
@@ -112,7 +73,7 @@ export type InferModel<
 		>;
 	};
 
-export type AnyMySqlTable<TName extends TableName = TableName> = MySqlTable<TName, any>;
+export type AnyMySqlTable<TName extends TableName = TableName> = MySqlTable<TName>;
 
 export function mysqlTable<
 	TTableName extends string,
@@ -128,8 +89,7 @@ export function mysqlTable<
 	extraConfig?: TExtraConfigCallback,
 ): MySqlTableWithColumns<
 	TableName<TTableName>,
-	BuildMySqlColumns<TableName<TTableName>, TColumnsMap>,
-	BuildConflictConstraints<ReturnType<TExtraConfigCallback>>
+	BuildMySqlColumns<TableName<TTableName>, TColumnsMap>
 >;
 export function mysqlTable<
 	TTableName extends string,
@@ -141,10 +101,9 @@ export function mysqlTable<
 	extraConfig?: (self: BuildMySqlColumns<TableName<TTableName>, TColumnsMap>) => TExtraConfig,
 ): MySqlTableWithColumns<
 	TableName<TTableName>,
-	BuildMySqlColumns<TableName<TTableName>, TColumnsMap>,
-	BuildConflictConstraints<TExtraConfig>
+	BuildMySqlColumns<TableName<TTableName>, TColumnsMap>
 > {
-	const rawTable = new MySqlTable<TableName<TTableName>, BuildConflictConstraints<TExtraConfig>>(
+	const rawTable = new MySqlTable<TableName<TTableName>>(
 		name as TableName<TTableName>,
 	);
 
@@ -162,16 +121,13 @@ export function mysqlTable<
 
 	const table = Object.assign(rawTable, builtColumns) as MySqlTableWithColumns<
 		TableName<TTableName>,
-		BuildMySqlColumns<TableName<TTableName>, TColumnsMap>,
-		BuildConflictConstraints<TExtraConfig>
+		BuildMySqlColumns<TableName<TTableName>, TColumnsMap>
 	>;
 
 	table[tableColumns] = builtColumns;
 
 	if (extraConfig) {
 		const builtConfig = extraConfig(table);
-		table[tableConflictConstraints] = builtConfig as unknown as BuildConflictConstraints<TExtraConfig>;
-
 		Object.entries(builtConfig).forEach(([name, builder]) => {
 			if (builder instanceof IndexBuilder) {
 				table[tableIndexes][name] = builder.build(table);

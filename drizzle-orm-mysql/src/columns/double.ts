@@ -1,7 +1,6 @@
-import { AnyTable } from 'drizzle-orm';
 import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 import { AnyMySqlTable } from '~/table';
-import { MySqlColumnBuilder, MySqlColumnWithMapper } from './common';
+import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export class MySqlDoubleBuilder<
 	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
@@ -28,7 +27,7 @@ export class MySqlDouble<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends MySqlColumnWithMapper<
+> extends MySqlColumn<
 	TTableName,
 	ColumnData<number>,
 	ColumnDriverParam<number>,
@@ -58,6 +57,11 @@ export class MySqlDouble<
 	}
 }
 
-export function double(name: string, precision?: number, scale?: number) {
-	return new MySqlDoubleBuilder(name, precision, scale);
+export interface MySqlDoubleConfig {
+	precision?: number;
+	scale?: number;
+}
+
+export function double(name: string, config?: MySqlDoubleConfig): MySqlDoubleBuilder {
+	return new MySqlDoubleBuilder(name, config?.precision, config?.scale);
 }

@@ -1,4 +1,5 @@
 import { param, sql } from 'drizzle-orm';
+import { TableName } from 'drizzle-orm/branded-types';
 import {
 	and,
 	between,
@@ -23,9 +24,7 @@ import {
 	or,
 } from 'drizzle-orm/expressions';
 import { QueryResultRow } from 'pg';
-import { Simplify } from 'type-fest';
 
-// import { RemoveDuplicates } from '~/queries/select.types';
 import { Equal, Expect } from '../utils';
 import { db } from './db';
 import { cities, classes, users } from './tables';
@@ -45,20 +44,22 @@ function mapFunkyFuncResult(valueFromDriver: unknown) {
 const age = 1;
 
 const allOperators = await db.users.select({
-	col2: sql.response`5 - ${users.id} + 1`, // number (from users.id)
-	col3: sql.response.as<number>()`${users.id} + 1`, // number
-	col4: sql.response.as<string | number>()`one_or_another(${users.id}, ${users.class})`, // string | number
-	col5: sql.response`true`, // unknown
-	col6: sql.response.as<boolean>()`true`, // boolean
-	col7: sql.response.as<number>()`random()`, // number
-	col8: sql.response.as<{ foo: string }>(mapFunkyFuncResult)`some_funky_func(${users.id})`, // { foo: string }
-	col9: sql.response`greatest(${users.createdAt}, ${param(new Date(), users.createdAt)})`, // Date, "new Date()" is mapped using users.createdAt
-	col10: sql.response.as<Date | boolean>()`date_or_false(${users.createdAt}, ${param(new Date(), users.createdAt)})`, // Date | boolean
-	col11: sql.response`${users.age1} + ${age}`, // number, age is not mapped
-	col12: sql.response`${users.age1} + ${param(age, users.age1)}`, // number, age is mapped using users.age1
-	col13: sql.response`lower(${users.class})`, // string
-	col14: sql.response.as<number>()`length(${users.class})`, // number
-	count: sql.response.as<number>()`count(*)`, // number
+	col2: sql`5 - ${users.id} + 1`, // unknown
+	col3: sql`${users.id} + 1`.as<number>(), // number
+	col33: sql`${users.id} + 1`.as(users.id), // number
+	col34: sql`${users.id} + 1`.as(mapFunkyFuncResult), // number
+	col4: sql`one_or_another(${users.id}, ${users.class})`.as<string | number>(), // string | number
+	col5: sql`true`, // unknown
+	col6: sql`true`.as<boolean>(), // boolean
+	col7: sql`random()`.as<number>(), // number
+	col8: sql`some_funky_func(${users.id})`.as(mapFunkyFuncResult), // { foo: string }
+	col9: sql`greatest(${users.createdAt}, ${param(new Date(), users.createdAt)})`, // Date, "new Date()" is mapped using users.createdAt
+	col10: sql`date_or_false(${users.createdAt}, ${param(new Date(), users.createdAt)})`.as<Date | boolean>(), // Date | boolean
+	col11: sql`${users.age1} + ${age}`, // number, age is not mapped
+	col12: sql`${users.age1} + ${param(age, users.age1)}`, // number, age is mapped using users.age1
+	col13: sql`lower(${users.class})`, // string
+	col14: sql`length(${users.class})`.as<number>(), // number
+	count: sql`count(*)`.as<number>(), // number
 }).where(and(
 	eq(users.id, 1),
 	ne(users.id, 1),
@@ -90,20 +91,22 @@ const allOperators = await db.users.select({
 
 Expect<
 	Equal<{
-		col2: number;
+		col2: unknown;
 		col3: number;
+		col33: number;
+		col34: { foo: any };
 		col4: string | number;
 		col5: unknown;
 		col6: boolean;
 		col7: number;
 		col8: {
-			foo: string;
+			foo: any;
 		};
-		col9: Date;
+		col9: unknown;
 		col10: boolean | Date;
-		col11: number;
-		col12: number;
-		col13: 'A' | 'C';
+		col11: unknown;
+		col12: unknown;
+		col13: unknown;
 		col14: number;
 		count: number;
 	}[], typeof allOperators>
@@ -117,8 +120,14 @@ const rawQuery = await db.execute(
 
 Expect<Equal<QueryResultRow, typeof rawQuery>>;
 
+const textSelect = await db.users.select({
+	t: users.text,
+}).execute();
+
+Expect<Equal<{ t: string | null }[], typeof textSelect>>;
+
 const megaJoin = await db.users
-	.select({ id: users.id, maxAge: sql.response`max(${users.age1})` })
+	.select({ id: users.id, maxAge: sql`max(${users.age1})` })
 	.innerJoin(cities, sql`${users.id} = ${cities.id}`, { id: cities.id })
 	.innerJoin({ homeCity: cities }, (aliases) => sql`${users.homeCity} = ${aliases.homeCity.id}`)
 	.innerJoin({ class: classes }, (aliases) => eq(aliases.class.id, users.class))
@@ -128,7 +137,8 @@ const megaJoin = await db.users
 	.innerJoin({ currentCity: cities }, (aliases) => sql`${aliases.homeCity.id} = ${aliases.currentCity.id}`)
 	.innerJoin({ subscriber: users }, (aliases) => sql`${users.class} = ${aliases.subscriber.id}`)
 	.innerJoin({ closestCity: cities }, (aliases) => sql`${users.currentCity} = ${aliases.closestCity.id}`)
-	.where(sql`${users.age1} > 0`)
+	// .where(and(sql`${users.age1} > 0`, eq(cities.id, 1)))
+	.where(sql`true`)
 	.execute();
 
 db.users
