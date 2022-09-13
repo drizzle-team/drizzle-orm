@@ -72,9 +72,10 @@ export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 		const query = this.dialect.buildUpdateQuery(this.config);
 		const { sql, params } = this.dialect.prepareSQL(query);
 		const result = await this.session.query(sql, params);
+		const { returning } = this.config;
 
-		if (this.config.returning) {
-			return mapResultRow(this.config.returning, result.rows) as unknown as TReturn;
+		if (returning) {
+			return result.rows.map((row) => mapResultRow(returning, row)) as unknown as TReturn;
 		}
 		return result as TReturn;
 	}

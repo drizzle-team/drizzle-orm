@@ -50,7 +50,7 @@ export class MySqlDelete<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 		const result = await this.session.query(sql, params);
 		const { returning } = this.config;
 		if (returning) {
-			return result[0].map((row: any) => mapResultRow(returning, row)) as TReturn;
+			return result[0].map((row: any[]) => mapResultRow(returning, row)) as TReturn;
 		}
 		return result as TReturn;
 	}

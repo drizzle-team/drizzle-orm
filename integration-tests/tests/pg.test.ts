@@ -2,6 +2,7 @@ import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { connect, DefaultLogger, sql } from 'drizzle-orm';
 import { jsonb, PgConnector, PGDatabase, pgTable, serial, text } from 'drizzle-orm-pg';
+import { eq } from 'drizzle-orm/expressions';
 import getPort from 'get-port';
 import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
@@ -79,6 +80,25 @@ test.beforeEach(async (t) => {
 	await ctx.db.execute(sql`drop schema public cascade`);
 	await ctx.db.execute(sql`create schema public`);
 	await ctx.db.execute(sql`create table users (id serial primary key, name text not null, jsonb jsonb)`);
+});
+
+test.serial('update with returning', async (t) => {
+	const ctx = t.context;
+	const { db } = ctx;
+
+	await db.usersTable.insert({ name: 'John' }).execute();
+	const users = await db.usersTable.update().set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning()
+		.execute();
+	t.deepEqual(users, [{ id: 1, name: 'Jane', jsonb: null }]);
+});
+
+test.serial('delete with returning', async (t) => {
+	const ctx = t.context;
+	const { db } = ctx;
+
+	await db.usersTable.insert({ name: 'John' }).execute();
+	const users = await db.usersTable.delete().where(eq(usersTable.name, 'John')).returning().execute();
+	t.deepEqual(users, [{ id: 1, name: 'John', jsonb: null }]);
 });
 
 test.serial('insert + select', async (t) => {

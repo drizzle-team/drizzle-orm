@@ -72,9 +72,10 @@ export class MySqlUpdate<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 		const query = this.dialect.buildUpdateQuery(this.config);
 		const { sql, params } = this.dialect.prepareSQL(query);
 		const result = await this.session.query(sql, params);
+		const { returning } = this.config;
 
-		if (this.config.returning) {
-			return mapResultRow(this.config.returning, result[0]) as unknown as TReturn;
+		if (returning) {
+			return result[0].map((row: any[]) => mapResultRow(returning, row)) as unknown as TReturn;
 		}
 		return result as TReturn;
 	}

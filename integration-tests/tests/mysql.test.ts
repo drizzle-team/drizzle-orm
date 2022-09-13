@@ -8,7 +8,7 @@ import { v4 as uuid } from 'uuid';
 
 const usersTable = mysqlTable('users', {
 	id: serial('id').primaryKey(),
-	name: varchar('name').notNull(),
+	name: varchar('name', { length: 255 }).notNull(),
 	json: json<string[]>('json'),
 });
 
