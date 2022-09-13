@@ -20,8 +20,8 @@ importers:
     specifiers:
       '@types/pg': ^8.6.1
       '@types/sqlite3': ^3.1.8
-      drizzle-orm-mysql: '>=0.12.0-beta.0'
-      drizzle-orm-pg: '>=0.12.0-beta.0'
+      drizzle-orm-mysql: '>=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0'
+      drizzle-orm-pg: '>=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0'
       mysql2: ^2.3.3
       pg: ^8.6.0
       resolve-tspaths: ^0.7.0
@@ -108,7 +108,7 @@ importers:
       uuid: ^8.3.2
     dependencies:
       dockerode: 3.3.3
-      drizzle-orm: file:drizzle-orm/package.tgz_nthucffr4qaz7rqkfve2euauxa
+      drizzle-orm: file:drizzle-orm/package.tgz_d6js7vokwv25ha7uhqnskikwli
       drizzle-orm-mysql: file:drizzle-orm-mysql/package.tgz_hulcb5femedevdsoopqngyxw4m
       drizzle-orm-pg: file:drizzle-orm-pg/package.tgz_l7iim2c6x4a5tavainvls65ibe
       get-port: 6.1.2
@@ -4923,10 +4923,10 @@ packages:
     dev: true
 
   file:drizzle-orm-mysql/package.tgz_hulcb5femedevdsoopqngyxw4m:
-    resolution: {integrity: sha512-zT8DVUOOyaX41u8o4oKVETMYImfDOc7PVIYmKoHAkj14PRClv86ngc5set30pfjd7hPl4NdvAuUSojFdWETV4w==, tarball: file:drizzle-orm-mysql/package.tgz}
+    resolution: {integrity: sha512-Fh+a59wIMnPsoxGUmZRX+v9EhbrpPMCFA4ZTG+li7d5B97yhmceWg+MMrBeZ3XML0V4uEd4d2o6dH2ivVUN3tw==, tarball: file:drizzle-orm-mysql/package.tgz}
     id: file:drizzle-orm-mysql/package.tgz
     name: drizzle-orm-mysql
-    version: 0.12.0-beta.12
+    version: 0.12.0-beta.13
     peerDependencies:
       drizzle-orm: '>=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0'
       mysql2: '>=2 <3'
@@ -4936,15 +4936,15 @@ packages:
       mysql2:
         optional: true
     dependencies:
-      drizzle-orm: file:drizzle-orm/package.tgz_nthucffr4qaz7rqkfve2euauxa
+      drizzle-orm: file:drizzle-orm/package.tgz_d6js7vokwv25ha7uhqnskikwli
       mysql2: 2.3.3
     dev: false
 
   file:drizzle-orm-pg/package.tgz_l7iim2c6x4a5tavainvls65ibe:
-    resolution: {integrity: sha512-PmvoxMyyxrp2R4XJ7xYdNLKFgUfVli+oLnR2lHw+bAe6wtlJXMamEY2o+V7awjZWI79qRIg3PbksdMFYnoMrFQ==, tarball: file:drizzle-orm-pg/package.tgz}
+    resolution: {integrity: sha512-vLao6cR5YheF1wbSnj8wKD3Op+lsNxG2vIvd+wWVDLiGozRvsbnsCzvbTbj9lr76XoWEtHer4Zl4vDrYiNF7Vg==, tarball: file:drizzle-orm-pg/package.tgz}
     id: file:drizzle-orm-pg/package.tgz
     name: drizzle-orm-pg
-    version: 0.12.0-beta.18
+    version: 0.12.0-beta.19
     peerDependencies:
       drizzle-orm: '>=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0'
       pg: '>=8 <9'
@@ -4952,11 +4952,11 @@ packages:
       pg:
         optional: true
     dependencies:
-      drizzle-orm: file:drizzle-orm/package.tgz_nthucffr4qaz7rqkfve2euauxa
+      drizzle-orm: file:drizzle-orm/package.tgz_d6js7vokwv25ha7uhqnskikwli
       pg: 8.7.3
     dev: false
 
-  file:drizzle-orm/package.tgz_nthucffr4qaz7rqkfve2euauxa:
+  file:drizzle-orm/package.tgz_d6js7vokwv25ha7uhqnskikwli:
     resolution: {integrity: sha512-MjKWkoYKMAmDA6SoS/xOAQig7qK/axQa9U3QyZNde5ah1eZ+GQxevFfGca/SMQr+sZbeL0litPYpCci4wQ8unw==, tarball: file:drizzle-orm/package.tgz}
     id: file:drizzle-orm/package.tgz
     name: drizzle-orm

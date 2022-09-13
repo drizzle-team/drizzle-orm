@@ -345,12 +345,13 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 
 		values.forEach((value, valueIndex) => {
 			const valueList: (SQLSourceParam<TableName> | AnyMySQL)[] = [];
-			columnKeys.forEach((key) => {
-				const colValue = value[key];
+			columnKeys.forEach((colKey) => {
+				const colValue = value[colKey];
+				const column = columns[colKey]!;
 				if (typeof colValue === 'undefined') {
 					valueList.push(sql`default`);
 				} else {
-					valueList.push(colValue);
+					valueList.push(column.mapToDriverValue(colValue) as SQLSourceParam<TableName>);
 				}
 			});
 			valuesSqlList.push(valueList);

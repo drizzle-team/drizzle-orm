@@ -122,6 +122,14 @@ test.serial('json insert', async (t) => {
 	t.deepEqual(result, [{ id: 1, name: 'John', jsonb: ['foo', 'bar'] }]);
 });
 
+test.serial('insert many', async (t) => {
+	const { db } = t.context;
+
+	await db.usersTable.insert([{ name: 'John' }, { name: 'Jane' }]).execute();
+	const result = await db.usersTable.select({ id: usersTable.id, name: usersTable.name }).execute();
+	t.deepEqual(result, [{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+});
+
 test.after.always(async (t) => {
 	const ctx = t.context;
 	await ctx.client?.end().catch(console.error);

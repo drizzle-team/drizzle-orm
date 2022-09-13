@@ -332,12 +332,12 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 	}
 
 	public buildInsertQuery({ table, values, onConflict, returning }: AnyPgInsertConfig): AnyPgSQL {
-		const joinedValues: (SQLSourceParam<TableName> | AnyPgSQL)[][] = [];
+		const valuesSqlList: ((SQLSourceParam<TableName> | AnyPgSQL)[] | AnyPgSQL)[] = [];
 		const columns: Record<string, AnyPgColumn> = table[tableColumns];
 		const columnKeys = Object.keys(columns);
 		const insertOrder = Object.values(columns).map((column) => new Name(column.name));
 
-		values.forEach((value) => {
+		values.forEach((value, valueIndex) => {
 			const valueList: (SQLSourceParam<TableName> | AnyPgSQL)[] = [];
 			columnKeys.forEach((colKey) => {
 				const colValue = value[colKey];
@@ -348,14 +348,17 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 					valueList.push(column.mapToDriverValue(colValue) as SQLSourceParam<TableName>);
 				}
 			});
-			joinedValues.push(valueList);
+			valuesSqlList.push(valueList);
+			if (valueIndex < values.length - 1) {
+				valuesSqlList.push(sql`, `);
+			}
 		});
+
+		const valuesSql = sql.fromList(valuesSqlList);
 
 		const returningSql = returning
 			? sql` returning ${sql.fromList(this.prepareTableFieldsForQuery(returning, { isSingleTable: true }))}`
 			: undefined;
-
-		const valuesSql = joinedValues.length === 1 ? joinedValues[0] : joinedValues;
 
 		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
 
