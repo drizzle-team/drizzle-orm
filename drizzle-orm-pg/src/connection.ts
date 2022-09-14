@@ -1,12 +1,12 @@
 import {
 	Column,
 	Connector,
-	DefaultLogger,
 	Dialect,
 	Driver,
 	Logger,
 	MigrationMeta,
 	NoopLogger,
+	param,
 	Session,
 	sql,
 } from 'drizzle-orm';
@@ -177,7 +177,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		returning,
 	}: PgDeleteConfig<TTable>): AnyPgSQL<GetTableName<TTable>> {
 		const returningSql = returning
-			? sql.fromList([sql` returning `, ...this.prepareTableFieldsForQuery(returning, { isSingleTable: true })])
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -187,18 +187,19 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		>;
 	}
 
-	buildUpdateSet<TTableName extends TableName>(
+	buildUpdateSet(
 		table: AnyPgTable,
 		set: PgUpdateSet<AnyPgTable>,
-	): AnyPgSQL<TTableName> {
-		const setEntries = Object.entries<ColumnData | AnyPgSQL<TTableName>>(set);
+	): AnyPgSQL {
+		const setEntries = Object.entries<ColumnData | AnyPgSQL>(set);
 
 		const setSize = setEntries.length;
 		return sql.fromList(
 			setEntries
-				.map(([colName, value], i): AnyPgSQL<TTableName>[] => {
-					const col = table[tableColumns][colName]!;
-					const res = sql<TTableName>`${new Name(col.name)} = ${value}`;
+				.map(([colName, value], i): AnyPgSQL[] => {
+					const col: AnyPgColumn = table[tableColumns][colName]!;
+					const mappedValue = (value instanceof SQL || value === null) ? value : param(value, col);
+					const res = sql`${new Name(col.name)} = ${mappedValue}`;
 					if (i < setSize - 1) {
 						return [res, sql.raw(', ')];
 					}
@@ -225,14 +226,10 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		where,
 		returning,
 	}: PgUpdateConfig<TTable>): AnySQL {
-		const setSql = this.buildUpdateSet<GetTableName<TTable>>(table, set);
+		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
-			? sql<GetTableName<TTable>>` returning ${
-				sql.fromList(
-					this.prepareTableFieldsForQuery(returning, { isSingleTable: true }),
-				)
-			}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -240,13 +237,24 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		return sql`update ${table} set ${setSql}${whereSql}${returningSql}`;
 	}
 
-	private prepareTableFieldsForQuery(
+	/**
+	 * Builds selection SQL with provided fields/expressions
+	 *
+	 * Examples:
+	 *
+	 * `select <selection> from`
+	 *
+	 * `insert ... returning <selection>`
+	 *
+	 * If `isSingleTable` is true, then columns won't be prefixed with table name
+	 */
+	private buildSelection(
 		columns: PgSelectFieldsOrdered,
 		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
-	): SQLSourceParam<TableName>[] {
+	): AnyPgSQL {
 		const columnsLen = columns.length;
 
-		return columns
+		const chunks = columns
 			.map(({ column }, i) => {
 				const chunk: SQLSourceParam<TableName>[] = [];
 
@@ -278,6 +286,8 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 				return chunk;
 			})
 			.flat(1);
+
+		return sql.fromList(chunks);
 	}
 
 	public buildSelectQuery({
@@ -291,9 +301,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 	}: PgSelectConfig): AnyPgSQL {
 		const joinKeys = Object.keys(joins);
 
-		const fieldsSql = sql.fromList(
-			this.prepareTableFieldsForQuery(fields, { isSingleTable: joinKeys.length === 0 }),
-		);
+		const selection = this.buildSelection(fields, { isSingleTable: joinKeys.length === 0 });
 
 		const joinsArray: AnyPgSQL[] = [];
 
@@ -328,7 +336,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		return sql`select ${fieldsSql} from ${table}${joinsSql}${whereSql}${orderBySql}${limitSql}${offsetSql}`;
+		return sql`select ${selection} from ${table}${joinsSql}${whereSql}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	public buildInsertQuery({ table, values, onConflict, returning }: AnyPgInsertConfig): AnyPgSQL {
@@ -344,8 +352,10 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 				const column = columns[colKey]!;
 				if (typeof colValue === 'undefined') {
 					valueList.push(sql`default`);
+				} else if (colValue instanceof SQL || colValue === null) {
+					valueList.push(colValue);
 				} else {
-					valueList.push(column.mapToDriverValue(colValue) as SQLSourceParam<TableName>);
+					valueList.push(param(colValue, column));
 				}
 			});
 			valuesSqlList.push(valueList);
@@ -357,7 +367,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		const valuesSql = sql.fromList(valuesSqlList);
 
 		const returningSql = returning
-			? sql` returning ${sql.fromList(this.prepareTableFieldsForQuery(returning, { isSingleTable: true }))}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
 		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;

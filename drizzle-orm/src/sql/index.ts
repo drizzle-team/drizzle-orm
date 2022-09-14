@@ -75,7 +75,7 @@ export class SQL<TTableName extends TableName> implements SQLWrapper {
 		return { sql: sqlString, params: params as ColumnDriverParam<TDriverParamType>[] };
 	}
 
-	getSQL(): AnySQL<TTableName> {
+	getSQL(): AnySQL {
 		return this;
 	}
 
@@ -97,7 +97,7 @@ export type GetDecoderColumnData<T> = T extends DriverValueDecoder<infer TData, 
 	: T extends DriverValueDecoder<infer TData, any>['mapFromDriverValue'] ? ColumnData<TData>
 	: never;
 
-export type AnySQL<TTableName extends TableName = TableName> = SQL<TTableName>;
+export type AnySQL = SQL<TableName>;
 
 /**
  * Any DB name (table, column, index etc.)
@@ -153,7 +153,7 @@ export type SQLSourceParam<TTableName extends TableName> =
 	| SQLSourceParam<TTableName>[]
 	| ColumnData
 	| SQLWrapper
-	| AnySQL<TTableName>
+	| AnySQL
 	| AnyTable<TTableName>
 	| AnyColumn<TTableName>
 	| AnyBoundParamValue
@@ -161,11 +161,11 @@ export type SQLSourceParam<TTableName extends TableName> =
 	| PrimitiveDriverParam
 	| undefined;
 
-function buildChunksFromParam<TTableName extends TableName>(param: SQLSourceParam<TTableName>): Chunk<TTableName>[] {
+function buildChunksFromParam(param: SQLSourceParam<TableName>): Chunk<TableName>[] {
 	if (Array.isArray(param)) {
-		const result: Chunk<TTableName>[] = ['('];
+		const result: Chunk<TableName>[] = ['('];
 		param.forEach((p, i) => {
-			result.push(...buildChunksFromParam<TTableName>(p));
+			result.push(...buildChunksFromParam(p));
 			if (i < param.length - 1) {
 				result.push(', ');
 			}
@@ -175,7 +175,7 @@ function buildChunksFromParam<TTableName extends TableName>(param: SQLSourcePara
 	} else if (param instanceof SQL) {
 		return param.queryChunks;
 	} else if (isSQLWrapper(param)) {
-		return buildChunksFromParam<TTableName>(param.getSQL());
+		return buildChunksFromParam(param.getSQL());
 	} else if (
 		param instanceof Table
 		|| param instanceof Column
@@ -193,22 +193,15 @@ function buildChunksFromParam<TTableName extends TableName>(param: SQLSourcePara
 
 export type PrimitiveDriverParam = string | number | boolean | null;
 
-export function sql<
-	TTableName extends TableName,
->(
+export function sql<TTableName extends TableName>(
 	strings: TemplateStringsArray,
-	...params: (SQLSourceParam<TTableName> | PrimitiveDriverParam)[]
+	...params: SQLSourceParam<TTableName>[]
 ): SQL<TTableName>;
-export function sql<
-	TTableName extends string,
->(
+export function sql<TTableName extends string>(
 	strings: TemplateStringsArray,
-	...params: (SQLSourceParam<TableName<TTableName>> | PrimitiveDriverParam)[]
+	...params: SQLSourceParam<TableName<TTableName>>[]
 ): SQL<TableName<TTableName>>;
-export function sql(
-	strings: TemplateStringsArray,
-	...params: (SQLSourceParam<TableName> | PrimitiveDriverParam)[]
-): AnySQL {
+export function sql(strings: TemplateStringsArray, ...params: SQLSourceParam<TableName>[]): AnySQL {
 	const queryChunks: Chunk[] = [];
 	if (params.length > 0 || (strings.length > 0 && strings[0] !== '')) {
 		queryChunks.push(strings[0]!);
@@ -229,7 +222,7 @@ export namespace sql {
 	export function fromList<
 		TTableName extends TableName = TableName,
 	>(list: SQLSourceParam<TTableName>[]): SQL<TTableName> {
-		return new SQL(list.map(buildChunksFromParam).flat(1));
+		return new SQL(list.map(buildChunksFromParam).flat(1) as Chunk<TTableName>[]);
 	}
 
 	/**

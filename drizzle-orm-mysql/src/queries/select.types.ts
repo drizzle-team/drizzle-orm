@@ -5,7 +5,7 @@ import { Simplify } from 'type-fest';
 
 import { AnyMySqlColumn, ChangeColumnTable } from '~/columns/common';
 import { MySqlSelectFields, SelectResultFields } from '~/operations';
-import { AnyMySQL } from '~/sql';
+import { AnyMySQL, MySQL } from '~/sql';
 import { AnyMySqlTable, GetTableColumns } from '~/table';
 import { MySqlSelect } from './select';
 
@@ -101,8 +101,8 @@ export type JoinOn<
 > =
 	| ((
 		aliases: AppendToAliases<TAliases, TJoinedTable, TJoinedName, TDBName>,
-	) => AnyMySQL<TableName<TJoinedDBTableNames | TDBName>>)
-	| AnyMySQL<TableName<TJoinedDBTableNames | TDBName>>;
+	) => MySQL<TableName<TJoinedDBTableNames | TDBName>>)
+	| MySQL<TableName<TJoinedDBTableNames | TDBName>>;
 
 export type JoinSelect<
 	TJoinedTable extends AnyMySqlTable,

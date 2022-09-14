@@ -81,7 +81,7 @@ export class PgInsert<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 			| ((constraints: GetTableConflictConstraints<TTable>) => ConflictConstraint<GetTableName<TTable>>),
 		set: PgUpdateSet<TTable>,
 	): Pick<this, 'returning' | 'getQuery' | 'execute'> {
-		const setSql = this.dialect.buildUpdateSet<GetTableName<TTable>>(this.config.table, set);
+		const setSql = this.dialect.buildUpdateSet(this.config.table, set);
 
 		if (target instanceof SQL) {
 			this.config.onConflict = sql<GetTableName<TTable>>`${target} do update set ${setSql}`;

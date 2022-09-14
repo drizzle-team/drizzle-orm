@@ -1,4 +1,4 @@
-import { Column, Connector, Dialect, Driver, MigrationMeta, Session, sql } from 'drizzle-orm';
+import { Column, Connector, Dialect, Driver, MigrationMeta, param, Session, sql } from 'drizzle-orm';
 import { ColumnData, TableName, Unwrap } from 'drizzle-orm/branded-types';
 import { Name, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
 import { GetTableName, tableColumns, tableName } from 'drizzle-orm/utils';
@@ -173,10 +173,7 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		returning,
 	}: MySqlDeleteConfig): AnyMySQL {
 		const returningSql = returning
-			? sql.fromList([
-				sql` returning `,
-				...this.prepareTableFieldsForQuery(returning, { isSingleTable: true }),
-			])
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -184,18 +181,19 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		return sql`delete from ${table}${whereSql}${returningSql}`;
 	}
 
-	buildUpdateSet<TTableName extends TableName>(
+	buildUpdateSet(
 		table: AnyMySqlTable,
 		set: MySqlUpdateSet<AnyMySqlTable>,
-	): AnyMySQL<TTableName> {
-		const setEntries = Object.entries<ColumnData | AnyMySQL<TTableName>>(set);
+	): AnyMySQL {
+		const setEntries = Object.entries<ColumnData | AnyMySQL>(set);
 
 		const setSize = setEntries.length;
 		return sql.fromList(
 			setEntries
-				.map(([colName, value], i): AnyMySQL<TTableName>[] => {
+				.map(([colName, value], i): AnyMySQL[] => {
 					const col = table[tableColumns][colName]!;
-					const res = sql<TTableName>`${new Name(col.name)} = ${value}`;
+					const mappedValue = (value instanceof SQL || value === null) ? value : param(value, col);
+					const res = sql`${new Name(col.name)} = ${mappedValue}`;
 					if (i < setSize - 1) {
 						return [res, sql.raw(', ')];
 					}
@@ -225,11 +223,7 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
-			? sql` returning ${
-				sql.fromList(
-					this.prepareTableFieldsForQuery(returning, { isSingleTable: true }),
-				)
-			}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -237,13 +231,24 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		return sql`update ${table} set ${setSql}${whereSql}${returningSql}`;
 	}
 
-	private prepareTableFieldsForQuery(
+	/**
+	 * Builds selection SQL with provided fields/expressions
+	 *
+	 * Examples:
+	 *
+	 * `select <selection> from`
+	 *
+	 * `insert ... returning <selection>`
+	 *
+	 * If `isSingleTable` is true, then columns won't be prefixed with table name
+	 */
+	private buildSelection(
 		columns: MySqlSelectFieldsOrdered,
 		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
-	): SQLSourceParam<TableName>[] {
+	): AnyMySQL {
 		const columnsLen = columns.length;
 
-		return columns
+		const chunks = columns
 			.map(({ column }, i) => {
 				const chunk: SQLSourceParam<TableName>[] = [];
 
@@ -277,6 +282,8 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 				return chunk;
 			})
 			.flat(1);
+
+		return sql.fromList(chunks);
 	}
 
 	public buildSelectQuery({
@@ -290,9 +297,7 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 	}: MySqlSelectConfig): AnyMySQL {
 		const joinKeys = Object.keys(joins);
 
-		const fieldsSql = sql.fromList(
-			this.prepareTableFieldsForQuery(fields, { isSingleTable: joinKeys.length === 0 }),
-		);
+		const fieldsSql = this.buildSelection(fields, { isSingleTable: joinKeys.length === 0 });
 
 		const joinsArray: AnyMySQL[] = [];
 
@@ -350,8 +355,10 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 				const column = columns[colKey]!;
 				if (typeof colValue === 'undefined') {
 					valueList.push(sql`default`);
+				} else if (colValue instanceof SQL || colValue === null) {
+					valueList.push(colValue);
 				} else {
-					valueList.push(column.mapToDriverValue(colValue) as SQLSourceParam<TableName>);
+					valueList.push(param(colValue, column));
 				}
 			});
 			valuesSqlList.push(valueList);
@@ -363,11 +370,7 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		const valuesSql = sql.fromList(valuesSqlList);
 
 		const returningSql = returning
-			? sql` returning ${
-				sql.fromList(
-					this.prepareTableFieldsForQuery(returning, { isSingleTable: true }),
-				)
-			}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
 		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;

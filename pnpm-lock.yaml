@@ -4923,7 +4923,7 @@ packages:
     dev: true
 
   file:drizzle-orm-mysql/package.tgz_hulcb5femedevdsoopqngyxw4m:
-    resolution: {integrity: sha512-Fh+a59wIMnPsoxGUmZRX+v9EhbrpPMCFA4ZTG+li7d5B97yhmceWg+MMrBeZ3XML0V4uEd4d2o6dH2ivVUN3tw==, tarball: file:drizzle-orm-mysql/package.tgz}
+    resolution: {integrity: sha512-855LJrdcTvB6W8XkX3VvvAehDjTw6RvC90Bb1fTfLpW4P0LYvQc4uy78WihWHY5Ug0yeVK9v4MN2nXi+3U1ggw==, tarball: file:drizzle-orm-mysql/package.tgz}
     id: file:drizzle-orm-mysql/package.tgz
     name: drizzle-orm-mysql
     version: 0.12.0-beta.13
@@ -4941,7 +4941,7 @@ packages:
     dev: false
 
   file:drizzle-orm-pg/package.tgz_l7iim2c6x4a5tavainvls65ibe:
-    resolution: {integrity: sha512-vLao6cR5YheF1wbSnj8wKD3Op+lsNxG2vIvd+wWVDLiGozRvsbnsCzvbTbj9lr76XoWEtHer4Zl4vDrYiNF7Vg==, tarball: file:drizzle-orm-pg/package.tgz}
+    resolution: {integrity: sha512-LSRC2xZLcdEyGJVaZ97l6U2WwqRUkf3mN5/82VXE2y9Ra4BtUWFl8XK8nu9HFiSAQhV32GSlvc6wLHXs7cZsVA==, tarball: file:drizzle-orm-pg/package.tgz}
     id: file:drizzle-orm-pg/package.tgz
     name: drizzle-orm-pg
     version: 0.12.0-beta.19
@@ -4957,7 +4957,7 @@ packages:
     dev: false
 
   file:drizzle-orm/package.tgz_d6js7vokwv25ha7uhqnskikwli:
-    resolution: {integrity: sha512-MjKWkoYKMAmDA6SoS/xOAQig7qK/axQa9U3QyZNde5ah1eZ+GQxevFfGca/SMQr+sZbeL0litPYpCci4wQ8unw==, tarball: file:drizzle-orm/package.tgz}
+    resolution: {integrity: sha512-iZY++1wNWI0mFxnvN2v8c8dNxz9KJWinIXTFPY3TgtmW2Izq/c3OqReX2OMuilxgSbyIDkv3yt16dk0fQnnz3Q==, tarball: file:drizzle-orm/package.tgz}
     id: file:drizzle-orm/package.tgz
     name: drizzle-orm
     version: 0.12.0-beta.5
