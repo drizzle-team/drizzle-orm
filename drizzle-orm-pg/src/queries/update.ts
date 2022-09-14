@@ -2,8 +2,8 @@ import { GetColumnData } from 'drizzle-orm';
 import { SQL } from 'drizzle-orm/sql';
 import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
-import { AnyPgColumn } from '~/columns/common';
 
+import { AnyPgColumn } from '~/columns/common';
 import { AnyPgDialect, PgSession } from '~/connection';
 import { PgSelectFields, PgSelectFieldsOrdered, SelectResultFields } from '~/operations';
 import { AnyPgSQL, PgPreparedQuery } from '~/sql';
@@ -30,22 +30,22 @@ export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 
 	private config: PgUpdateConfig<TTable>;
 
-	constructor(
-		private table: TTable,
-		private session: PgSession,
-		private dialect: AnyPgDialect,
-	) {
+	constructor(private table: TTable, private session: PgSession, private dialect: AnyPgDialect) {
 		this.config = {
 			table,
 		} as PgUpdateConfig<TTable>;
 	}
 
-	public set(values: PgUpdateSet<TTable>): Pick<this, 'where' | 'returning' | 'getQuery' | 'execute'> {
+	public set(
+		values: PgUpdateSet<TTable>,
+	): Pick<this, 'where' | 'returning' | 'getQuery' | 'execute'> {
 		this.config.set = values;
 		return this;
 	}
 
-	public where(where: AnyPgSQL<GetTableName<TTable>> | undefined): Pick<this, 'returning' | 'getQuery' | 'execute'> {
+	public where(
+		where: AnyPgSQL<GetTableName<TTable>> | undefined,
+	): Pick<this, 'returning' | 'getQuery' | 'execute'> {
 		this.config.where = where;
 		return this;
 	}
@@ -75,7 +75,7 @@ export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 		const { returning } = this.config;
 
 		if (returning) {
-			return result.rows.map((row) => mapResultRow(returning, row)) as unknown as TReturn;
+			return result.rows.map((row) => mapResultRow(returning, row)) as TReturn;
 		}
 		return result as TReturn;
 	}

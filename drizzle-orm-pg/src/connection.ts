@@ -1,13 +1,12 @@
 import {
+	AsyncDriver,
 	Column,
 	Connector,
-	DefaultLogger,
 	Dialect,
 	Driver,
 	Logger,
 	MigrationMeta,
 	NoopLogger,
-	Session,
 	sql,
 } from 'drizzle-orm';
 import { ColumnData, TableName, Unwrap } from 'drizzle-orm/branded-types';
@@ -18,7 +17,13 @@ import { Simplify } from 'type-fest';
 
 import { AnyPgColumn, PgColumn } from './columns';
 import { PgSelectFields, PgSelectFieldsOrdered, PgTableOperations } from './operations';
-import { AnyPgInsertConfig, PgDeleteConfig, PgSelectConfig, PgUpdateConfig, PgUpdateSet } from './queries';
+import {
+	AnyPgInsertConfig,
+	PgDeleteConfig,
+	PgSelectConfig,
+	PgUpdateConfig,
+	PgUpdateSet,
+} from './queries';
 import { AnyPgSQL, PgPreparedQuery } from './sql';
 import { AnyPgTable } from './table';
 
@@ -33,7 +38,8 @@ export type PgColumnDriverDataType =
 
 export type PgClient = Pool | PoolClient | Client;
 
-export interface PgSession extends Session<PgColumnDriverDataType, Promise<QueryResult>> {
+export interface PgSession {
+	query(query: string, params: unknown[]): Promise<QueryResult<any[]>>;
 	queryObjects<T extends QueryResultRow>(
 		query: string,
 		params: unknown[],
@@ -73,7 +79,7 @@ export interface PgDriverOptions {
 	logger?: Logger;
 }
 
-export class PgDriver implements Driver<PgSession> {
+export class PgDriver implements AsyncDriver<PgSession> {
 	constructor(private client: PgClient, private options: PgDriverOptions = {}) {
 		this.initMappers();
 	}
@@ -117,7 +123,10 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 
 		try {
 			for await (const migration of migrations) {
-				if (!lastDbMigration || parseInt(lastDbMigration[2], 10)! < migration.folderMillis) {
+				if (
+					!lastDbMigration ||
+					parseInt(lastDbMigration[2], 10)! < migration.folderMillis
+				) {
 					await session.query(migration.sql, []);
 					await session.query(
 						`INSERT INTO "drizzle"."__drizzle_migrations" ("hash", "created_at") VALUES('${migration.hash}', ${migration.folderMillis})`,
@@ -150,7 +159,12 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 				Object.entries(this.schema).map(([tableName, table]) => {
 					return [
 						tableName,
-						new PgTableOperations(table, session, this as unknown as AnyPgDialect, this.buildTableNamesMap()),
+						new PgTableOperations(
+							table,
+							session,
+							this as unknown as AnyPgDialect,
+							this.buildTableNamesMap(),
+						),
 					];
 				}),
 			),
@@ -177,7 +191,10 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		returning,
 	}: PgDeleteConfig<TTable>): AnyPgSQL<GetTableName<TTable>> {
 		const returningSql = returning
-			? sql.fromList([sql` returning `, ...this.prepareTableFieldsForQuery(returning, { isSingleTable: true })])
+			? sql.fromList([
+					sql` returning `,
+					...this.prepareTableFieldsForQuery(returning, { isSingleTable: true }),
+			  ])
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -228,11 +245,9 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		const setSql = this.buildUpdateSet<GetTableName<TTable>>(table, set);
 
 		const returningSql = returning
-			? sql<GetTableName<TTable>>` returning ${
-				sql.fromList(
+			? sql<GetTableName<TTable>>` returning ${sql.fromList(
 					this.prepareTableFieldsForQuery(returning, { isSingleTable: true }),
-				)
-			}`
+			  )}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -253,12 +268,14 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 				if (column instanceof SQLResponse) {
 					if (isSingleTable) {
 						chunk.push(
-							new SQL(column.sql.queryChunks.map((c) => {
-								if (c instanceof PgColumn) {
-									return new Name(c.name);
-								}
-								return c;
-							})),
+							new SQL(
+								column.sql.queryChunks.map((c) => {
+									if (c instanceof PgColumn) {
+										return new Name(c.name);
+									}
+									return c;
+								}),
+							),
 						);
 					} else {
 						chunk.push(column.sql);
@@ -302,8 +319,15 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 				joinsArray.push(sql` `);
 			}
 			const joinMeta = joins[tableAlias]!;
-			const alias = joinMeta.aliasTable[tableName] === joinMeta.table[tableName] ? undefined : joinMeta.aliasTable;
-			joinsArray.push(sql`${sql.raw(joinMeta.joinType)} join ${joinMeta.table} ${alias} on ${joinMeta.on}`);
+			const alias =
+				joinMeta.aliasTable[tableName] === joinMeta.table[tableName]
+					? undefined
+					: joinMeta.aliasTable;
+			joinsArray.push(
+				sql`${sql.raw(joinMeta.joinType)} join ${joinMeta.table} ${alias} on ${
+					joinMeta.on
+				}`,
+			);
 			if (index < joinKeys.length - 1) {
 				joinsArray.push(sql` `);
 			}
@@ -322,7 +346,8 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 			}
 		});
 
-		const orderBySql = orderByList.length > 0 ? sql` order by ${sql.fromList(orderByList)}` : undefined;
+		const orderBySql =
+			orderByList.length > 0 ? sql` order by ${sql.fromList(orderByList)}` : undefined;
 
 		const limitSql = limit ? sql` limit ${limit}` : undefined;
 
@@ -352,7 +377,9 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		});
 
 		const returningSql = returning
-			? sql` returning ${sql.fromList(this.prepareTableFieldsForQuery(returning, { isSingleTable: true }))}`
+			? sql` returning ${sql.fromList(
+					this.prepareTableFieldsForQuery(returning, { isSingleTable: true }),
+			  )}`
 			: undefined;
 
 		const valuesSql = joinedValues.length === 1 ? joinedValues[0] : joinedValues;

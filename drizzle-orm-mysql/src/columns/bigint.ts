@@ -1,5 +1,13 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
+import {
+	ColumnData,
+	ColumnDriverParam,
+	ColumnHasDefault,
+	ColumnNotNull,
+	TableName,
+} from 'drizzle-orm/branded-types';
+
 import { AnyMySqlTable } from '~/table';
+
 import {
 	MySqlColumn,
 	MySqlColumnBuilder,
@@ -65,7 +73,13 @@ export class MySqlBigInt64<
 	TTableName extends TableName,
 	TNotNull extends ColumnNotNull,
 	THasDefault extends ColumnHasDefault,
-> extends MySqlColumn<TTableName, ColumnData<bigint>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends MySqlColumn<
+	TTableName,
+	ColumnData<bigint>,
+	ColumnDriverParam<string>,
+	TNotNull,
+	THasDefault
+> {
 	brand!: 'MySqlBigInt64';
 
 	getSQLType(): string {

@@ -4,6 +4,14 @@ import * as path from 'path';
 
 export type MigrationMeta = { sql: string; folderMillis: number; hash: string };
 
+export abstract class SyncDriver<TSession> {
+	abstract connect(): TSession;
+}
+
+export abstract class AsyncDriver<TSession> {
+	abstract connect(): Promise<TSession>;
+}
+
 export interface Session<TQueryParam, TQueryResponse> {
 	query(query: string, params: TQueryParam[]): TQueryResponse;
 }
@@ -22,13 +30,10 @@ export class NoopLogger implements Logger {
 	logQuery(): void {}
 }
 
-export interface Driver<TSession> {
-	connect(): Promise<TSession>;
-}
+export type Driver<TSession> = SyncDriver<TSession> | AsyncDriver<TSession>;
 
 export interface Dialect<TSession, TDatabase> {
 	createDB(session: TSession): TDatabase;
-
 	migrate(migrations: MigrationMeta[], session: TSession): Promise<void>;
 }
 
@@ -37,8 +42,13 @@ export interface Connector<TSession, TOperations> {
 	driver: Driver<TSession>;
 }
 
-export async function connect<TSession, TDatabase>(connector: Connector<TSession, TDatabase>): Promise<TDatabase> {
-	const session = await connector.driver.connect();
+export async function connect<TSession, TDatabase>(
+	connector: Connector<TSession, TDatabase>,
+): Promise<TDatabase> {
+	const session =
+		connector.driver instanceof SyncDriver
+			? connector.driver.connect()
+			: await connector.driver.connect();
 	return connector.dialect.createDB(session);
 }
 
@@ -52,14 +62,6 @@ export interface MigrationConfig {
 }
 
 export async function migrate<TSession, TDatabase>(
-	connector: Connector<TSession, TDatabase>,
-	config: string,
-): Promise<void>;
-export async function migrate<TSession, TDatabase>(
-	connector: Connector<TSession, TDatabase>,
-	config: MigrationConfig,
-): Promise<void>;
-export async function migrate<TSession extends Session<any, any>, TDatabase>(
 	connector: Connector<TSession, TDatabase>,
 	config: string | MigrationConfig,
 ) {

@@ -1,4 +1,13 @@
-import { Column, Connector, Dialect, Driver, MigrationMeta, Session, sql } from 'drizzle-orm';
+import {
+	AsyncDriver,
+	Column,
+	Connector,
+	Dialect,
+	Driver,
+	MigrationMeta,
+	Session,
+	sql,
+} from 'drizzle-orm';
 import { ColumnData, TableName, Unwrap } from 'drizzle-orm/branded-types';
 import { Name, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
 import { GetTableName, tableColumns, tableName } from 'drizzle-orm/utils';
@@ -31,7 +40,9 @@ export type MySqlColumnDriverDataType =
 
 export type MySqlClient = Pool | Connection;
 
-export interface MySqlSession extends Session<MySqlColumnDriverDataType, Promise<MySqlQueryResult>> {
+export interface MySqlSession
+	extends Session<MySqlColumnDriverDataType, Promise<MySqlQueryResult>> {
+	query(query: string, params: unknown[]): Promise<MySqlQueryResult>;
 	queryObjects(query: string, params: unknown[]): Promise<MySqlQueryResult>;
 }
 
@@ -43,7 +54,7 @@ export class MySqlSessionDefault implements MySqlSession {
 			sql: query,
 			values: params,
 			rowsAsArray: true,
-			typeCast: function(field: any, next: any) {
+			typeCast: function (field: any, next: any) {
 				if (field.type === 'TIMESTAMP') {
 					return field.string();
 				}
@@ -61,7 +72,7 @@ export class MySqlSessionDefault implements MySqlSession {
 	}
 }
 
-export class MySqlQueryResultDriver implements Driver<MySqlSession> {
+export class MySqlQueryResultDriver implements AsyncDriver<MySqlSession> {
 	constructor(private client: MySqlClient) {
 		// this.initMappers();
 	}
@@ -106,8 +117,8 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		try {
 			for await (const migration of migrations) {
 				if (
-					!lastDbMigration
-					|| parseInt(lastDbMigration[2], 10)! < migration.folderMillis
+					!lastDbMigration ||
+					parseInt(lastDbMigration[2], 10)! < migration.folderMillis
 				) {
 					await session.query(migration.sql, []);
 					await session.query(
@@ -167,16 +178,12 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		return `?`;
 	}
 
-	public buildDeleteQuery({
-		table,
-		where,
-		returning,
-	}: MySqlDeleteConfig): AnyMySQL {
+	public buildDeleteQuery({ table, where, returning }: MySqlDeleteConfig): AnyMySQL {
 		const returningSql = returning
 			? sql.fromList([
-				sql` returning `,
-				...this.prepareTableFieldsForQuery(returning, { isSingleTable: true }),
-			])
+					sql` returning `,
+					...this.prepareTableFieldsForQuery(returning, { isSingleTable: true }),
+			  ])
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -216,20 +223,13 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		}));
 	}
 
-	public buildUpdateQuery({
-		table,
-		set,
-		where,
-		returning,
-	}: MySqlUpdateConfig): AnyMySQL {
+	public buildUpdateQuery({ table, set, where, returning }: MySqlUpdateConfig): AnyMySQL {
 		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
-			? sql` returning ${
-				sql.fromList(
+			? sql` returning ${sql.fromList(
 					this.prepareTableFieldsForQuery(returning, { isSingleTable: true }),
-				)
-			}`
+			  )}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -301,10 +301,15 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 				joinsArray.push(sql` `);
 			}
 			const joinMeta = joins[tableAlias]!;
-			const alias = joinMeta.aliasTable[tableName] === joinMeta.table[tableName]
-				? undefined
-				: joinMeta.aliasTable;
-			joinsArray.push(sql`${sql.raw(joinMeta.joinType)} join ${joinMeta.table} ${alias} on ${joinMeta.on}`);
+			const alias =
+				joinMeta.aliasTable[tableName] === joinMeta.table[tableName]
+					? undefined
+					: joinMeta.aliasTable;
+			joinsArray.push(
+				sql`${sql.raw(joinMeta.joinType)} join ${joinMeta.table} ${alias} on ${
+					joinMeta.on
+				}`,
+			);
 			if (index < joinKeys.length - 1) {
 				joinsArray.push(sql` `);
 			}
@@ -323,7 +328,8 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 			}
 		});
 
-		const orderBySql = orderByList.length > 0 ? sql` order by ${sql.fromList(orderByList)}` : undefined;
+		const orderBySql =
+			orderByList.length > 0 ? sql` order by ${sql.fromList(orderByList)}` : undefined;
 
 		const limitSql = limit ? sql` limit ${limit}` : undefined;
 
@@ -362,11 +368,9 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		const valuesSql = sql.fromList(valuesSqlList);
 
 		const returningSql = returning
-			? sql` returning ${
-				sql.fromList(
+			? sql` returning ${sql.fromList(
 					this.prepareTableFieldsForQuery(returning, { isSingleTable: true }),
-				)
-			}`
+			  )}`
 			: undefined;
 
 		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
