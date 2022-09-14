@@ -4,7 +4,7 @@ import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm
 import { AnyMySqlColumn } from '~/columns/common';
 import { AnyMySqlDialect, MySqlQueryResult, MySqlSession } from '~/connection';
 import { MySqlSelectFields, MySqlSelectFieldsOrdered, SelectResultFields } from '~/operations';
-import { AnyMySQL, MySqlPreparedQuery } from '~/sql';
+import { AnyMySQL, MySQL, MySqlPreparedQuery } from '~/sql';
 import { AnyMySqlTable, GetTableColumns, InferModel } from '~/table';
 
 export interface MySqlUpdateConfig {
@@ -44,7 +44,7 @@ export class MySqlUpdate<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 		return this;
 	}
 
-	public where(where: AnyMySQL<GetTableName<TTable>> | undefined): Pick<this, 'returning' | 'getQuery' | 'execute'> {
+	public where(where: MySQL<GetTableName<TTable>> | undefined): Pick<this, 'returning' | 'getQuery' | 'execute'> {
 		this.config.where = where;
 		return this;
 	}

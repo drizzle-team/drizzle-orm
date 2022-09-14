@@ -1,7 +1,7 @@
 import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm/utils';
 import { AnyMySqlDialect, MySqlQueryResult, MySqlSession } from '~/connection';
 import { MySqlSelectFields, MySqlSelectFieldsOrdered, SelectResultFields } from '~/operations';
-import { AnyMySQL, MySqlPreparedQuery } from '~/sql';
+import { AnyMySQL, MySQL, MySqlPreparedQuery } from '~/sql';
 import { AnyMySqlTable, InferModel } from '~/table';
 
 export interface MySqlDeleteConfig {
@@ -21,7 +21,7 @@ export class MySqlDelete<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 		this.config = { table };
 	}
 
-	public where(where: AnyMySQL<GetTableName<TTable>> | undefined): Pick<this, 'returning' | 'getQuery' | 'execute'> {
+	public where(where: MySQL<GetTableName<TTable>> | undefined): Pick<this, 'returning' | 'getQuery' | 'execute'> {
 		this.config.where = where;
 		return this;
 	}

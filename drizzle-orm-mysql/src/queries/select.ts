@@ -4,7 +4,7 @@ import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm
 import { AnyMySqlColumn } from '~/columns/common';
 import { AnyMySqlDialect, MySqlSession } from '~/connection';
 import { MySqlSelectFields, MySqlSelectFieldsOrdered } from '~/operations';
-import { AnyMySQL, MySqlPreparedQuery } from '~/sql';
+import { AnyMySQL, MySQL, MySqlPreparedQuery } from '~/sql';
 import { AnyMySqlTable, GetTableColumns, MySqlTable } from '~/table';
 
 import { TableProxyHandler } from './proxies';
@@ -201,10 +201,10 @@ export class MySqlSelect<
 		where:
 			| ((
 				aliases: TAliases,
-			) => AnyMySQL<
+			) => MySQL<
 				TableName<TJoinedDBTableNames> | TableName<keyof TAliases & string> | GetTableName<TTable> | TableName
 			>)
-			| AnyMySQL<TableName<TJoinedDBTableNames> | GetTableName<TTable> | TableName>
+			| MySQL<TableName<TJoinedDBTableNames> | GetTableName<TTable> | TableName>
 			| undefined,
 	): PickWhere<this> {
 		if (where instanceof SQL) {
@@ -219,11 +219,11 @@ export class MySqlSelect<
 		columns: (
 			joins: TAliases,
 		) =>
-			| AnyMySQL<TableName<TJoinedDBTableNames> | GetTableName<TTable>>[]
-			| AnyMySQL<TableName<TJoinedDBTableNames> | GetTableName<TTable>>,
+			| MySQL<TableName<TJoinedDBTableNames> | GetTableName<TTable>>[]
+			| MySQL<TableName<TJoinedDBTableNames> | GetTableName<TTable>>,
 	): PickOrderBy<this>;
 	public orderBy(
-		...columns: AnyMySQL<TableName<TJoinedDBTableNames> | GetTableName<TTable>>[]
+		...columns: MySQL<TableName<TJoinedDBTableNames> | GetTableName<TTable>>[]
 	): PickOrderBy<this>;
 	public orderBy(
 		firstColumn: ((joins: TAliases) => AnyMySQL[] | AnyMySQL) | AnyMySQL,

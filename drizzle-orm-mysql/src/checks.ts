@@ -1,11 +1,11 @@
 import { TableName } from 'drizzle-orm/branded-types';
-import { AnyMySQL } from './sql';
+import { MySQL } from './sql';
 import { AnyMySqlTable } from './table';
 
 export class CheckBuilder<TTableName extends TableName> {
 	protected brand!: 'MySqlConstraintBuilder';
 
-	constructor(public name: string, public value: AnyMySQL<TTableName>) {}
+	constructor(public name: string, public value: MySQL<TTableName>) {}
 
 	build(table: AnyMySqlTable<TTableName>): Check<TTableName> {
 		return new Check(table, this);
@@ -16,7 +16,7 @@ export type AnyCheckBuilder<TTableName extends TableName = TableName> = CheckBui
 
 export class Check<TTableName extends TableName> {
 	readonly name: string;
-	readonly value: AnyMySQL<TTableName>;
+	readonly value: MySQL<TTableName>;
 
 	constructor(public table: AnyMySqlTable<TTableName>, builder: CheckBuilder<TTableName>) {
 		this.name = builder.name;
@@ -33,7 +33,7 @@ export type AnyConstraint = Check<TableName>;
 
 export function check<TTableName extends TableName>(
 	name: string,
-	value: AnyMySQL<TTableName>,
+	value: MySQL<TTableName>,
 ): CheckBuilder<TTableName> {
 	return new CheckBuilder(name, value);
 }
