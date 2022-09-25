@@ -14,6 +14,7 @@ Expect<
 	Equal<{
 		users: {
 			id: number;
+			uuid: string;
 			homeCity: number;
 			currentCity: number | null;
 			serialNullable: number;

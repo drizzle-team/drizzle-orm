@@ -16,5 +16,6 @@ export * from './smallserial';
 export * from './text';
 export * from './time';
 export * from './timestamp';
+export * from './uuid';
 export * from './varchar';
 export * from './real';

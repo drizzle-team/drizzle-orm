@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { ColumnData, TableName } from 'drizzle-orm/branded-types';
 
 import { Check, check } from '~/checks';
-import { integer, pgEnum, PgTextBuilder, serial, text, timestamp } from '~/columns';
+import { integer, pgEnum, PgTextBuilder, serial, text, timestamp, uuid } from '~/columns';
 import { foreignKey } from '~/foreign-keys';
 import { Index, index } from '~/indexes';
 import { GetTableColumns, pgTable } from '~/table';
@@ -15,6 +15,7 @@ export const users = pgTable(
 	'users_table',
 	{
 		id: serial('id').primaryKey(),
+		uuid: uuid('uuid').defaultRandom().notNull(),
 		homeCity: integer('home_city')
 			.notNull()
 			.references(() => cities.id),

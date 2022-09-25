@@ -25,8 +25,6 @@ importers:
     specifiers:
       '@types/pg': ^8.6.1
       '@types/sqlite3': ^3.1.8
-      drizzle-orm-mysql: '>=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0'
-      drizzle-orm-pg: '>=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0'
       mysql2: ^2.3.3
       pg: ^8.6.0
       resolve-tspaths: ^0.7.0
@@ -35,17 +33,15 @@ importers:
       type-fest: ^2.16.0
       uvu: ^0.5.6
     dependencies:
-      drizzle-orm-mysql: link:../drizzle-orm-mysql
-      drizzle-orm-pg: link:../drizzle-orm-pg
       type-fest: 2.16.0
     devDependencies:
       '@types/pg': 8.6.5
       '@types/sqlite3': 3.1.8
       mysql2: 2.3.3
       pg: 8.7.3
-      resolve-tspaths: 0.7.1_typescript@4.8.2
+      resolve-tspaths: 0.7.1
       sqlite3: 5.0.9
-      ts-node: 10.9.1_htvp52amwj7iu7wywr242ckkhq
+      ts-node: 10.9.1
       uvu: 0.5.6
 
   drizzle-orm-mysql:
@@ -65,8 +61,8 @@ importers:
       drizzle-orm: link:../drizzle-orm/src
       mysql2: 2.3.3
       np: 7.6.2
-      resolve-tspaths: 0.7.1_typescript@4.8.2
-      ts-node: 10.9.1_htvp52amwj7iu7wywr242ckkhq
+      resolve-tspaths: 0.7.1
+      ts-node: 10.9.1
       type-fest: 2.16.0
       uvu: 0.5.6
 
@@ -88,8 +84,8 @@ importers:
       dotenv: 16.0.1
       drizzle-orm: link:../drizzle-orm/src
       pg: 8.7.3
-      resolve-tspaths: 0.7.1_typescript@4.8.2
-      ts-node: 10.9.1_htvp52amwj7iu7wywr242ckkhq
+      resolve-tspaths: 0.7.1
+      ts-node: 10.9.1
       tsconfig-paths: 4.0.0
       type-fest: 2.16.0
       uvu: 0.5.6
@@ -3984,7 +3980,7 @@ packages:
     engines: {node: '>=8'}
     dev: true
 
-  /resolve-tspaths/0.7.1_typescript@4.8.2:
+  /resolve-tspaths/0.7.1:
     resolution: {integrity: sha512-clbzO4S/t827kA528ds2j0CJ26UZfRAIYl0hGzuCwlWywgSX3z966dp+nq0Tg2VT9Ws2WgNFDGEycUSqJitfgA==}
     hasBin: true
     peerDependencies:
@@ -3993,7 +3989,6 @@ packages:
       ansi-colors: 4.1.3
       commander: 9.4.0
       fast-glob: 3.2.11
-      typescript: 4.8.2
     dev: true
 
   /resolve/1.22.1:
@@ -4569,7 +4564,7 @@ packages:
     engines: {node: '>=8'}
     dev: true
 
-  /ts-node/10.9.1_htvp52amwj7iu7wywr242ckkhq:
+  /ts-node/10.9.1:
     resolution: {integrity: sha512-NtVysVPkxxrwFGUUxGYhfux8k78pQB3JqYBXlLRZgdGUqTO5wU/UyHop5p70iEbGhB7q5KmiZiU0Y3KlJrScEw==}
     hasBin: true
     peerDependencies:
@@ -4588,14 +4583,12 @@ packages:
       '@tsconfig/node12': 1.0.11
       '@tsconfig/node14': 1.0.3
       '@tsconfig/node16': 1.0.3
-      '@types/node': 18.0.6
       acorn: 8.7.1
       acorn-walk: 8.2.0
       arg: 4.1.3
       create-require: 1.1.1
       diff: 4.0.2
       make-error: 1.3.6
-      typescript: 4.8.2
       v8-compile-cache-lib: 3.0.1
       yn: 3.1.1
     dev: true
@@ -4679,12 +4672,6 @@ packages:
     resolution: {integrity: sha512-zdu8XMNEDepKKR+XYOXAVPtWui0ly0NtohUscw+UmaHiAWT8hrV1rr//H6V+0DvJ3OQ19S979M0laLfX8rm82Q==}
     dependencies:
       is-typedarray: 1.0.0
-    dev: true
-
-  /typescript/4.8.2:
-    resolution: {integrity: sha512-C0I1UsrrDHo2fYI5oaCGbSejwX4ch+9Y5jTQELvovfmFkK3HHSZJB8MSJcWLmCUBzQBchCrZ9rMRV6GuNrvGtw==}
-    engines: {node: '>=4.2.0'}
-    hasBin: true
     dev: true
 
   /typescript/4.8.3_achdlluudlsnwd26pncn2aaogm:
