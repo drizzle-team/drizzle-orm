@@ -118,7 +118,7 @@ const rawQuery = await db.execute(
 	}`,
 );
 
-Expect<Equal<QueryResultRow, typeof rawQuery>>;
+Expect<Equal<QueryResultRow[], typeof rawQuery>>;
 
 const textSelect = await db.users.select({
 	t: users.text,

@@ -397,7 +397,7 @@ export type PGDatabase<TSchema extends Record<string, AnyPgTable>> = Simplify<
 	} & {
 		execute<T extends QueryResultRow = QueryResultRow>(
 			query: PgPreparedQuery | AnyPgSQL,
-		): Promise<T>;
+		): Promise<T[]>;
 	},
 	{ deep: true }
 >;
