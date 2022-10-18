@@ -9,7 +9,7 @@ export class MySqlSerialBuilder extends MySqlColumnBuilder<
 	ColumnHasDefault<true>
 > {
 	/** @internal */
-	override build<TTableName extends TableName>(
+	override build<TTableName extends string>(
 		table: AnyMySqlTable<TTableName>,
 	): MySqlSerial<TTableName> {
 		return new MySqlSerial<TTableName>(table, this);
@@ -17,7 +17,7 @@ export class MySqlSerialBuilder extends MySqlColumnBuilder<
 }
 
 export class MySqlSerial<
-	TTableName extends TableName,
+	TTableName extends string,
 > extends MySqlColumn<
 	TTableName,
 	ColumnData<number>,

@@ -1,24 +1,28 @@
-import { TableName } from './branded-types';
 import { AnyColumn } from './column';
-import { tableColumns, tableName } from './utils';
+import { tableColumns, tableNameSym, tableOriginalNameSym } from './utils';
 
 export type TableExtraConfig = Record<string, unknown>;
 
-export class Table<TName extends TableName> {
-	protected typeKeeper!: {
-		brand: 'Table';
-		name: TName;
-	};
+export class Table<TName extends string = string> {
+	declare protected $brand: 'Table';
+	declare protected $name: TName;
+
+	/**
+	 *  @internal
+	 *  Can be changed if the table is aliased.
+	 */
+	[tableNameSym]: TName;
+
+	/**
+	 * @internal
+	 * Used to store the original name of the table, before any aliasing.
+	 */
+	[tableOriginalNameSym]: TName;
 
 	/** @internal */
-	[tableName]: TName;
-
-	/** @internal */
-	[tableColumns]!: Record<string, AnyColumn<TName>>;
+	declare [tableColumns]: Record<string | symbol, AnyColumn<{ tableName: TName }>>;
 
 	constructor(name: TName) {
-		this[tableName] = name;
+		this[tableNameSym] = this[tableOriginalNameSym] = name;
 	}
 }
-
-export type AnyTable<TName extends TableName = TableName> = Table<TName>;

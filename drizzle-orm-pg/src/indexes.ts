@@ -1,14 +1,11 @@
-import { InferColumnTable } from 'drizzle-orm';
-import { TableName } from 'drizzle-orm/branded-types';
 import { SQL } from 'drizzle-orm/sql';
-import { GetTableName, tableColumns } from 'drizzle-orm/utils';
+import { tableColumns } from 'drizzle-orm/utils';
 
 import { AnyPgColumn } from './columns';
 import { PgUpdateSet } from './queries/update';
-import { AnyPgTable, GetTableColumns, PgTable, PgTableWithColumns } from './table';
-import { getTableColumns } from './utils';
+import { AnyPgTable } from './table';
 
-interface IndexConfig<TTableName extends TableName, TUnique extends boolean> {
+interface IndexConfig<TTableName extends string, TUnique extends boolean> {
 	/**
 	 * If true, the index will be created as `create unique index` instead of `create index`.
 	 */
@@ -27,7 +24,7 @@ interface IndexConfig<TTableName extends TableName, TUnique extends boolean> {
 	/**
 	 * If set, the index will be created as `create index ... using <method>`.
 	 */
-	using?: SQL<TTableName>;
+	using?: SQL;
 
 	/**
 	 * If set, the index will be created as `create index ... asc | desc`.
@@ -42,16 +39,13 @@ interface IndexConfig<TTableName extends TableName, TUnique extends boolean> {
 	/**
 	 * Condition for partial index.
 	 */
-	where?: SQL<TTableName>;
+	where?: SQL;
 }
 
 type GetIndexConfigUnique<TIndexConfig extends IndexConfig<any, any>> = TIndexConfig extends
 	IndexConfig<any, infer TUnique> ? TUnique : never;
 
-export class IndexBuilder<
-	TTableName extends TableName,
-	TUnique extends boolean,
-> {
+export class IndexBuilder<TTableName extends string, TUnique extends boolean> {
 	protected typeKeeper!: {
 		tableName: TTableName;
 		unique: TUnique;
@@ -61,27 +55,34 @@ export class IndexBuilder<
 
 	constructor(
 		public readonly name: string,
-		public readonly columns: AnyPgColumn<TTableName>[],
+		public readonly columns: AnyPgColumn<{ tableName: TTableName }>[],
 		public readonly config: IndexConfig<TTableName, TUnique> = {},
 	) {}
 
-	build<TTableColumns extends Record<string, AnyPgColumn<TTableName>>>(
-		table: PgTableWithColumns<TTableName, TTableColumns, any>,
+	build<TTableColumns extends Record<string, AnyPgColumn<{ tableName: TTableName }>>>(
+		table: AnyPgTable<{ name: TTableName; columns: TTableColumns }>,
 	): Index<TTableName, TTableColumns, TUnique> {
-		return new Index(this.name, table, table[tableColumns] as TTableColumns, this.columns, this);
+		return new Index(
+			this.name,
+			table,
+			table[tableColumns] as TTableColumns,
+			this.columns,
+			this,
+		);
 	}
 }
 
-export type AnyIndexBuilder<TTableName extends TableName = TableName> = IndexBuilder<TTableName, any>;
+export type AnyIndexBuilder<TTableName extends string = string> = IndexBuilder<
+	TTableName,
+	any
+>;
 
 export class Index<
-	TTableName extends TableName,
-	TTableColumns extends Record<string, AnyPgColumn<TTableName>>,
+	TTableName extends string,
+	TTableColumns extends Record<string, AnyPgColumn<{ tableName: TTableName }>>,
 	TUnique extends boolean,
 > {
 	protected typeKeeper!: {
-		tableName: TTableName;
-		tableColumns: TTableColumns;
 		unique: TUnique;
 	};
 
@@ -89,18 +90,19 @@ export class Index<
 
 	constructor(
 		public readonly name: string,
-		public readonly table: AnyPgTable<TTableName>,
-		private tableColumns: TTableColumns,
-		public readonly columns: AnyPgColumn<TTableName>[],
+		public readonly table: AnyPgTable<{ name: TTableName }>,
+		public readonly tableColumns: TTableColumns,
+		public readonly columns: AnyPgColumn<{ tableName: TTableName }>[],
 		builder: IndexBuilder<TTableName, TUnique>,
 	) {
 		this.config = builder.config;
 	}
 
 	// ON CONFLICT ... SET
-	set(
-		values: PgUpdateSet<PgTableWithColumns<TTableName, TTableColumns, {}>>,
-	): { constraintName: string; set: PgUpdateSet<PgTableWithColumns<TTableName, TTableColumns, {}>> } {
+	set(values: PgUpdateSet<AnyPgTable<{ name: TTableName; columns: TTableColumns }>>): {
+		constraintName: string;
+		set: PgUpdateSet<AnyPgTable<{ name: TTableName; columns: TTableColumns }>>;
+	} {
 		return {
 			constraintName: this.name,
 			set: values,
@@ -110,24 +112,32 @@ export class Index<
 
 export type AnyIndex = Index<any, any, any>;
 
-export type BuildIndex<T extends AnyIndexBuilder, TTableColumns extends Record<string, AnyPgColumn>> = T extends
-	IndexBuilder<infer TTable, infer TUnique> ? Index<TTable, TTableColumns, TUnique>
+export type BuildIndex<
+	T extends AnyIndexBuilder,
+	TTableColumns extends Record<string, AnyPgColumn>,
+> = T extends IndexBuilder<infer TTableName, infer TUnique>
+	? TTableColumns extends Record<string, AnyPgColumn<{ tableName: TTableName }>>
+		? Index<TTableName, TTableColumns, TUnique>
+	: never
 	: never;
 
-type GetColumnsTable<TColumns> = TColumns extends AnyPgColumn ? InferColumnTable<TColumns>
-	: TColumns extends AnyPgColumn[] ? InferColumnTable<TColumns[number]>
+export type GetColumnsTableName<TColumns> = TColumns extends
+	AnyPgColumn<{ tableName: infer TTableName extends string }> | AnyPgColumn<
+		{ tableName: infer TTableName extends string }
+	>[] ? TTableName
 	: never;
 
 export function index<
-	TColumns extends
-		| AnyPgColumn
-		| [AnyPgColumn, ...AnyPgColumn[]],
-	TConfig extends IndexConfig<GetColumnsTable<TColumns>, boolean> = IndexConfig<GetColumnsTable<TColumns>, false>,
+	TColumns extends AnyPgColumn | [AnyPgColumn, ...AnyPgColumn[]],
+	TConfig extends IndexConfig<GetColumnsTableName<TColumns>, boolean> = IndexConfig<
+		GetColumnsTableName<TColumns>,
+		false
+	>,
 >(
 	name: string,
 	columns: TColumns,
 	config?: TConfig,
-): IndexBuilder<GetColumnsTable<TColumns>, GetIndexConfigUnique<TConfig>>;
+): IndexBuilder<GetColumnsTableName<TColumns>, GetIndexConfigUnique<TConfig>>;
 export function index(
 	name: string,
 	columns: AnyPgColumn | AnyPgColumn[],

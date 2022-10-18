@@ -1,27 +1,21 @@
 import { sql } from 'drizzle-orm';
-import { ColumnData, ColumnHasDefault, ColumnNotNull, Unwrap } from 'drizzle-orm/branded-types';
+import { ColumnBuilderConfig, UpdateColumnBuilderConfig } from 'drizzle-orm/column-builder';
+import { SQL } from 'drizzle-orm/sql';
 
-import { PgColumnDriverParam } from '~/branded-types';
-import { AnyPgSQL } from '~/sql';
 import { PgColumnBuilder } from './common';
 
-export abstract class PgDateColumnBaseBuilder<
-	TData extends ColumnData,
-	TDriverParam extends PgColumnDriverParam,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
-> extends PgColumnBuilder<TData, TDriverParam, TNotNull, THasDefault> {
-	override notNull(): PgDateColumnBaseBuilder<TData, TDriverParam, ColumnNotNull<true>, THasDefault> {
+export abstract class PgDateColumnBaseBuilder<T extends ColumnBuilderConfig> extends PgColumnBuilder<T> {
+	override notNull(): PgDateColumnBaseBuilder<UpdateColumnBuilderConfig<T, { notNull: true }>> {
 		return super.notNull() as ReturnType<this['notNull']>;
 	}
 
 	override default(
-		value: Unwrap<TData> | AnyPgSQL,
-	): PgDateColumnBaseBuilder<TData, TDriverParam, TNotNull, ColumnHasDefault<true>> {
+		value: T['data'] | SQL,
+	): PgDateColumnBaseBuilder<UpdateColumnBuilderConfig<T, { hasDefault: true }>> {
 		return super.default(value) as ReturnType<this['default']>;
 	}
 
-	override primaryKey(): PgDateColumnBaseBuilder<TData, TDriverParam, ColumnNotNull<true>, THasDefault> {
+	override primaryKey(): PgDateColumnBaseBuilder<UpdateColumnBuilderConfig<T, { notNull: true }>> {
 		return super.primaryKey() as ReturnType<this['primaryKey']>;
 	}
 

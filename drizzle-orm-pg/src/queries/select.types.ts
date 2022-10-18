@@ -1,23 +1,20 @@
 import { AnyColumn } from 'drizzle-orm';
-import { TableName, Unwrap } from 'drizzle-orm/branded-types';
-import { GetTableName } from 'drizzle-orm/utils';
+import { SQL } from 'drizzle-orm/sql';
 import { Simplify } from 'type-fest';
 
 import { AnyPgColumn } from '~/columns';
-import { ChangeColumnTable } from '~/columns/common';
+import { ChangeColumnTableName } from '~/columns/common';
 import { PgSelectFields, SelectResultFields } from '~/operations';
-import { AnyPgSQL } from '~/sql';
-import { AnyPgTable, GetTableColumns } from '~/table';
+import { AnyPgTable, GetTableConfig, PgTable, PgTableWithColumns, TableConfig, UpdateTableConfig } from '~/table';
 
 import { PgSelect } from './select';
 
 export type JoinType = 'inner' | 'left' | 'right' | 'full';
 
 export interface JoinsValue {
-	on: AnyPgSQL;
+	on: SQL;
 	table: AnyPgTable;
 	joinType: JoinType;
-	aliasTable: AnyPgTable;
 }
 
 export type JoinNullability = 'nullable' | 'null' | 'not-null';
@@ -38,55 +35,46 @@ export type SelectResult<
 	TTable extends AnyPgTable,
 	TReturn,
 	TInitialSelectResultFields extends Record<string, unknown>,
-	TTableNamesMap extends Record<string, string>,
 	TJoinsNotNullable extends Record<string, JoinNullability>,
 > = TReturn extends undefined ? TInitialSelectResultFields[]
 	: RemoveDuplicates<
 		Simplify<
 			ApplyNotNullMapToJoins<
 				& TReturn
-				& { [Key in TTableNamesMap[Unwrap<GetTableName<TTable>>]]: TInitialSelectResultFields },
+				& { [Key in GetTableConfig<TTable, 'name'>]: TInitialSelectResultFields },
 				TJoinsNotNullable
 			>
 		>
 	>[];
 
-export type AnyPgSelect = PgSelect<
-	AnyPgTable,
-	Record<string, string>,
-	SelectResultFields<PgSelectFields<TableName>>,
-	unknown,
-	{ [tableName: string]: any },
-	string,
-	any
->;
+export type AnyPgSelect = PgSelect<AnyPgTable, any, any, any>;
 
 export type QueryFinisherMethods = 'getQuery' | 'getSQL' | 'execute';
 
-export type PickWhere<TJoinReturn extends AnyPgSelect> = Omit<
-	TJoinReturn,
-	'where' | `${JoinType}Join`
->;
-export type PickOrderBy<TJoinReturn extends AnyPgSelect> = Pick<
-	TJoinReturn,
-	'limit' | 'offset' | QueryFinisherMethods
->;
+export type PickWhere<TJoinReturn extends AnyPgSelect> = Omit<TJoinReturn, 'where' | `${JoinType}Join`>;
+export type PickOrderBy<TJoinReturn extends AnyPgSelect> = Pick<TJoinReturn, 'limit' | 'offset' | QueryFinisherMethods>;
 export type PickLimit<TJoinReturn extends AnyPgSelect> = Pick<TJoinReturn, 'offset' | QueryFinisherMethods>;
 export type PickOffset<TJoinReturn extends AnyPgSelect> = Pick<TJoinReturn, QueryFinisherMethods>;
 
-export type BuildAliasTable<TTable extends AnyPgTable, TAlias extends TableName> = MapColumnsToTableAlias<
-	GetTableColumns<TTable>,
-	TAlias
->;
+export type BuildAliasTable<TTable extends AnyPgTable, TAlias extends string> = GetTableConfig<TTable> extends
+	infer TConfig extends TableConfig ? PgTableWithColumns<
+		Simplify<
+			UpdateTableConfig<TConfig, {
+				name: TAlias;
+				columns: Simplify<MapColumnsToTableAlias<TConfig['columns'], TAlias>>;
+			}>
+		>
+	>
+	: never;
 
-export type MapColumnsToTableAlias<TColumns extends Record<string, AnyPgColumn>, TAlias extends TableName> = {
-	[Key in keyof TColumns]: ChangeColumnTable<TColumns[Key], TAlias>;
+export type MapColumnsToTableAlias<TColumns extends Record<string, AnyPgColumn>, TAlias extends string> = {
+	[Key in keyof TColumns]: ChangeColumnTableName<TColumns[Key], TAlias>;
 };
 
 export type AppendToResult<
 	TReturn,
 	TJoinedName extends string,
-	TSelectedFields extends PgSelectFields<TableName>,
+	TSelectedFields extends PgSelectFields<string>,
 > = TReturn extends undefined ? { [Key in TJoinedName]: SelectResultFields<TSelectedFields> }
 	: Simplify<TReturn & { [Key in TJoinedName]: SelectResultFields<TSelectedFields> }>;
 
@@ -97,7 +85,7 @@ export type AppendToAliases<
 	TDBName extends string = TJoinedName,
 > = Simplify<
 	& TJoins
-	& { [Alias in TJoinedName]: BuildAliasTable<TJoinedTable, TableName<TDBName>> },
+	& { [Alias in TJoinedName]: BuildAliasTable<TJoinedTable, TDBName> },
 	{ deep: true }
 >;
 
@@ -105,25 +93,21 @@ export type JoinOn<
 	TTableNamesMap extends Record<string, string>,
 	TJoinedDBTableNames extends string,
 	TAliases extends { [tableName: string]: any },
-	TJoinedTable extends AnyPgTable<TableName<keyof TTableNamesMap & string>>,
+	TJoinedTable extends AnyPgTable<{ name: keyof TTableNamesMap & string }>,
 	TJoinedName extends string,
 	TDBName extends string = TJoinedName,
 > =
 	| ((
 		aliases: AppendToAliases<TAliases, TJoinedTable, TJoinedName, TDBName>,
-	) => AnyPgSQL<TableName<TJoinedDBTableNames | TDBName>>)
-	| AnyPgSQL<TableName<TJoinedDBTableNames | TDBName>>;
+	) => SQL)
+	| SQL;
 
 export type JoinSelect<
 	TJoinedTable extends AnyPgTable,
-	TDBName extends string,
-	TSelectedFields extends PgSelectFields<TableName>,
+	TSelectedFields extends PgSelectFields<string>,
 > =
-	| ((table: BuildAliasTable<TJoinedTable, TableName<TDBName>>) => TSelectedFields)
+	| ((table: TJoinedTable) => TSelectedFields)
 	| TSelectedFields;
-
-export type GetSelectedFields<T extends JoinSelect<any, any, any>> = T extends
-	JoinSelect<any, any, infer TSelectedFields> ? TSelectedFields : never;
 
 type SetJoinsNotNull<TJoinsNotNull extends Record<string, JoinNullability>, TValue extends JoinNullability> = {
 	[Key in keyof TJoinsNotNull]: TValue;

@@ -1,42 +1,36 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
+import { ColumnConfig } from 'drizzle-orm';
+import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyPgTable } from '../table';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgIntegerBuilder<
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends PgColumnBuilder<ColumnData<number>, ColumnDriverParam<number | string>, TNotNull, THasDefault> {
+export class PgIntegerBuilder
+	extends PgColumnBuilder<ColumnBuilderConfig<{ data: number; driverParam: number | string }>>
+{
 	/** @internal */
-	override build<TTableName extends TableName>(
-		table: AnyPgTable<TTableName>,
-	): PgInteger<TTableName, TNotNull, THasDefault> {
-		return new PgInteger<TTableName, TNotNull, THasDefault>(table, this);
+	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgInteger<TTableName> {
+		return new PgInteger(table, this);
 	}
 }
 
-export class PgInteger<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
-> extends PgColumn<
-	TTableName,
-	ColumnData<number>,
-	ColumnDriverParam<number | string>,
-	TNotNull,
-	THasDefault
+export class PgInteger<TTableName extends string> extends PgColumn<
+	ColumnConfig<{
+		tableName: TTableName;
+		data: number;
+		driverParam: number | string;
+	}>
 > {
-	protected brand!: 'PgInteger';
+	protected override $pgColumnBrand!: 'PgInteger';
 
 	getSQLType(): string {
 		return 'integer';
 	}
 
-	override mapFromDriverValue = (value: ColumnDriverParam<number | string>): ColumnData<number> => {
+	override mapFromDriverValue(value: number | string): number {
 		if (typeof value === 'string') {
-			return parseInt(value) as ColumnData<number>;
+			return parseInt(value);
 		}
-		return value as ColumnData<any>;
-	};
+		return value;
+	}
 }
 
 export function integer(name: string) {

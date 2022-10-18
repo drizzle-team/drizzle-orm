@@ -1,26 +1,22 @@
 import {
 	Column,
-	Connector,
-	Dialect,
-	Driver,
 	Logger,
+	MigrationConfig,
 	MigrationMeta,
 	NoopLogger,
 	param,
-	Session,
+	readMigrationFiles,
 	sql,
 } from 'drizzle-orm';
-import { ColumnData, TableName, Unwrap } from 'drizzle-orm/branded-types';
-import { AnySQL, Name, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
-import { GetTableName, tableColumns, tableName } from 'drizzle-orm/utils';
+import { Name, PreparedQuery, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
+import { GetTableName, tableColumns, tableNameSym, tableOriginalNameSym } from 'drizzle-orm/utils';
 import { Client, Pool, PoolClient, QueryResult, QueryResultRow, types } from 'pg';
-import { Simplify } from 'type-fest';
 
 import { AnyPgColumn, PgColumn } from './columns';
-import { PgSelectFields, PgSelectFieldsOrdered, PgTableOperations } from './operations';
-import { AnyPgInsertConfig, PgDeleteConfig, PgSelectConfig, PgUpdateConfig, PgUpdateSet } from './queries';
-import { AnyPgSQL, PgPreparedQuery } from './sql';
-import { AnyPgTable } from './table';
+import { PGDatabase } from './db';
+import { PgSelectFields, PgSelectFieldsOrdered } from './operations';
+import { PgDeleteConfig, PgInsertConfig, PgSelectConfig, PgUpdateConfig, PgUpdateSet } from './queries';
+import { PgTable } from './table';
 
 export type PgColumnDriverDataType =
 	| string
@@ -33,7 +29,8 @@ export type PgColumnDriverDataType =
 
 export type PgClient = Pool | PoolClient | Client;
 
-export interface PgSession extends Session<PgColumnDriverDataType, Promise<QueryResult>> {
+export interface PgSession {
+	query(query: string, params: unknown[]): Promise<QueryResult>;
 	queryObjects<T extends QueryResultRow>(
 		query: string,
 		params: unknown[],
@@ -44,7 +41,7 @@ export interface PgDefaultSessionOptions {
 	logger?: Logger;
 }
 
-export class PgDefaultSession implements PgSession {
+export class PgDefaultSession {
 	private logger: Logger;
 
 	constructor(private client: PgClient, options: PgDefaultSessionOptions = {}) {
@@ -73,7 +70,7 @@ export interface PgDriverOptions {
 	logger?: Logger;
 }
 
-export class PgDriver implements Driver<PgSession> {
+export class PgDriver {
 	constructor(private client: PgClient, private options: PgDriverOptions = {}) {
 		this.initMappers();
 	}
@@ -89,11 +86,7 @@ export class PgDriver implements Driver<PgSession> {
 	}
 }
 
-export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
-	implements Dialect<PgSession, PGDatabase<TDBSchema>>
-{
-	constructor(private schema: TDBSchema) {}
-
+export class PgDialect {
 	async migrate(migrations: MigrationMeta[], session: PgSession): Promise<void> {
 		const migrationTableCreate = `CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (
 			id SERIAL PRIMARY KEY,
@@ -117,7 +110,10 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 
 		try {
 			for await (const migration of migrations) {
-				if (!lastDbMigration || parseInt(lastDbMigration[2], 10)! < migration.folderMillis) {
+				if (
+					!lastDbMigration
+					|| parseInt(lastDbMigration[2], 10)! < migration.folderMillis
+				) {
 					await session.query(migration.sql, []);
 					await session.query(
 						`INSERT INTO "drizzle"."__drizzle_migrations" ("hash", "created_at") VALUES('${migration.hash}', ${migration.folderMillis})`,
@@ -133,34 +129,33 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		}
 	}
 
-	private buildTableNamesMap(): Record<string, string> {
-		return Object.entries(this.schema).reduce<Record<string, string>>((acc, [tName, table]) => {
-			acc[table[tableName]] = tName;
-			return acc;
-		}, {});
-	}
-
-	createDB(session: PgSession): PGDatabase<TDBSchema> {
+	createDB(session: PgSession): PGDatabase {
 		return this.createPGDB(session);
 	}
 
-	createPGDB(session: PgSession): PGDatabase<TDBSchema> {
-		return Object.assign(
-			Object.fromEntries(
-				Object.entries(this.schema).map(([tableName, table]) => {
-					return [
-						tableName,
-						new PgTableOperations(table, session, this as unknown as AnyPgDialect, this.buildTableNamesMap()),
-					];
-				}),
-			),
-			{
-				execute: (query: PgPreparedQuery | AnyPgSQL): Promise<QueryResult> => {
-					const preparedQuery = query instanceof SQL ? this.prepareSQL(query) : query;
-					return session.queryObjects(preparedQuery.sql, preparedQuery.params);
-				},
-			},
-		) as unknown as PGDatabase<TDBSchema>;
+	createPGDB(session: PgSession): PGDatabase {
+		return new PGDatabase(this, session);
+		// return Object.assign(
+		// 	Object.fromEntries(
+		// 		Object.entries(this.schema).map(([tableName, table]) => {
+		// 			return [
+		// 				tableName,
+		// 				new PgTableOperations(
+		// 					table,
+		// 					session,
+		// 					this as unknown as AnyPgDialect,
+		// 					this.buildTableNamesMap(),
+		// 				),
+		// 			];
+		// 		}),
+		// 	),
+		// 	{
+		// 		execute: (query: PgPreparedQuery | AnyPgSQL): Promise<QueryResult> => {
+		// 			const preparedQuery = query instanceof SQL ? this.prepareSQL(query) : query;
+		// 			return session.queryObjects(preparedQuery.sql, preparedQuery.params);
+		// 		},
+		// 	},
+		// ) as unknown as PGDatabase<TDBSchema>;
 	}
 
 	public escapeName(name: string): string {
@@ -171,34 +166,25 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		return `$${num}`;
 	}
 
-	public buildDeleteQuery<TTable extends AnyPgTable>({
-		table,
-		where,
-		returning,
-	}: PgDeleteConfig<TTable>): AnyPgSQL<GetTableName<TTable>> {
+	public buildDeleteQuery({ table, where, returning }: PgDeleteConfig): SQL {
 		const returningSql = returning
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`delete from ${table}${whereSql}${returningSql}` as AnyPgSQL<
-			GetTableName<TTable>
-		>;
+		return sql`delete from ${table}${whereSql}${returningSql}`;
 	}
 
-	buildUpdateSet(
-		table: AnyPgTable,
-		set: PgUpdateSet<AnyPgTable>,
-	): AnyPgSQL {
-		const setEntries = Object.entries<ColumnData | AnyPgSQL>(set);
+	buildUpdateSet(table: PgTable, set: PgUpdateSet<PgTable>): SQL {
+		const setEntries = Object.entries<unknown | SQL>(set);
 
 		const setSize = setEntries.length;
 		return sql.fromList(
 			setEntries
-				.map(([colName, value], i): AnyPgSQL[] => {
+				.map(([colName, value], i): SQL[] => {
 					const col: AnyPgColumn = table[tableColumns][colName]!;
-					const mappedValue = (value instanceof SQL || value === null) ? value : param(value, col);
+					const mappedValue = value instanceof SQL || value === null ? value : param(value, col);
 					const res = sql`${new Name(col.name)} = ${mappedValue}`;
 					if (i < setSize - 1) {
 						return [res, sql.raw(', ')];
@@ -210,22 +196,13 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 	}
 
 	orderSelectedFields(
-		fields: PgSelectFields<TableName>,
+		fields: PgSelectFields<string>,
 		resultTableName: string,
 	): PgSelectFieldsOrdered {
-		return Object.entries(fields).map(([name, column]) => ({
-			name,
-			resultTableName,
-			column,
-		}));
+		return Object.entries(fields).map(([name, field]) => ({ name, resultTableName, field }));
 	}
 
-	public buildUpdateQuery<TTable extends AnyPgTable>({
-		table,
-		set,
-		where,
-		returning,
-	}: PgUpdateConfig<TTable>): AnySQL {
+	public buildUpdateQuery<TTable extends PgTable>({ table, set, where, returning }: PgUpdateConfig<TTable>): SQL {
 		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
@@ -249,33 +226,35 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 	 * If `isSingleTable` is true, then columns won't be prefixed with table name
 	 */
 	private buildSelection(
-		columns: PgSelectFieldsOrdered,
+		fields: PgSelectFieldsOrdered,
 		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
-	): AnyPgSQL {
-		const columnsLen = columns.length;
+	): SQL {
+		const columnsLen = fields.length;
 
-		const chunks = columns
-			.map(({ column }, i) => {
-				const chunk: SQLSourceParam<TableName>[] = [];
+		const chunks = fields
+			.map(({ field }, i) => {
+				const chunk: SQLSourceParam[] = [];
 
-				if (column instanceof SQLResponse) {
+				if (field instanceof SQLResponse) {
 					if (isSingleTable) {
 						chunk.push(
-							new SQL(column.sql.queryChunks.map((c) => {
-								if (c instanceof PgColumn) {
-									return new Name(c.name);
-								}
-								return c;
-							})),
+							new SQL(
+								field.sql.queryChunks.map((c) => {
+									if (c instanceof PgColumn) {
+										return new Name(c.name);
+									}
+									return c;
+								}),
+							),
 						);
 					} else {
-						chunk.push(column.sql);
+						chunk.push(field.sql);
 					}
-				} else if (column instanceof Column) {
+				} else if (field instanceof Column) {
 					if (isSingleTable) {
-						chunk.push(new Name(column.name));
+						chunk.push(new Name(field.name));
 					} else {
-						chunk.push(column);
+						chunk.push(field);
 					}
 				}
 
@@ -298,20 +277,23 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		orderBy,
 		limit,
 		offset,
-	}: PgSelectConfig): AnyPgSQL {
+	}: PgSelectConfig): SQL {
 		const joinKeys = Object.keys(joins);
 
 		const selection = this.buildSelection(fields, { isSingleTable: joinKeys.length === 0 });
 
-		const joinsArray: AnyPgSQL[] = [];
+		const joinsArray: SQL[] = [];
 
 		joinKeys.forEach((tableAlias, index) => {
 			if (index === 0) {
 				joinsArray.push(sql` `);
 			}
 			const joinMeta = joins[tableAlias]!;
-			const alias = joinMeta.aliasTable[tableName] === joinMeta.table[tableName] ? undefined : joinMeta.aliasTable;
-			joinsArray.push(sql`${sql.raw(joinMeta.joinType)} join ${joinMeta.table} ${alias} on ${joinMeta.on}`);
+			const table = joinMeta.table;
+			const alias = table[tableNameSym] === table[tableOriginalNameSym] ? undefined : tableAlias;
+			joinsArray.push(
+				sql`${sql.raw(joinMeta.joinType)} join ${joinMeta.table} ${alias} on ${joinMeta.on}`,
+			);
 			if (index < joinKeys.length - 1) {
 				joinsArray.push(sql` `);
 			}
@@ -321,7 +303,7 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		const orderByList: AnyPgSQL[] = [];
+		const orderByList: SQL[] = [];
 		orderBy.forEach((orderByValue, index) => {
 			orderByList.push(orderByValue);
 
@@ -339,14 +321,14 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		return sql`select ${selection} from ${table}${joinsSql}${whereSql}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	public buildInsertQuery({ table, values, onConflict, returning }: AnyPgInsertConfig): AnyPgSQL {
-		const valuesSqlList: ((SQLSourceParam<TableName> | AnyPgSQL)[] | AnyPgSQL)[] = [];
+	public buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {
+		const valuesSqlList: ((SQLSourceParam | SQL)[] | SQL)[] = [];
 		const columns: Record<string, AnyPgColumn> = table[tableColumns];
 		const columnKeys = Object.keys(columns);
 		const insertOrder = Object.values(columns).map((column) => new Name(column.name));
 
 		values.forEach((value, valueIndex) => {
-			const valueList: (SQLSourceParam<TableName> | AnyPgSQL)[] = [];
+			const valueList: (SQLSourceParam | SQL)[] = [];
 			columnKeys.forEach((colKey) => {
 				const colValue = value[colKey];
 				const column = columns[colKey]!;
@@ -375,45 +357,42 @@ export class PgDialect<TDBSchema extends Record<string, AnyPgTable>>
 		return sql`insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
-	public prepareSQL(sql: AnyPgSQL): PgPreparedQuery {
-		return sql.toQuery<PgColumnDriverDataType>({
+	public prepareSQL(sql: SQL): PreparedQuery {
+		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 		});
 	}
 }
 
-export type AnyPgDialect = PgDialect<Record<string, AnyPgTable>>;
-
-export type BuildTableNamesMap<TSchema extends Record<string, AnyPgTable>> = {
-	[Key in keyof TSchema & string as Unwrap<GetTableName<TSchema[Key]>>]: Key;
-};
-
-export type PGDatabase<TSchema extends Record<string, AnyPgTable>> = Simplify<
-	{
-		[TTableName in keyof TSchema & string]: TSchema[TTableName] extends AnyPgTable<TableName>
-			? PgTableOperations<TSchema[TTableName], BuildTableNamesMap<TSchema>>
-			: never;
-	} & {
-		execute<T extends QueryResultRow = QueryResultRow>(
-			query: PgPreparedQuery | AnyPgSQL,
-		): Promise<T[]>;
-	},
-	{ deep: true }
->;
-
 export interface PgConnectorOptions {
 	logger?: Logger;
+	dialect?: PgDialect;
+	driver?: PgDriver;
 }
 
-export class PgConnector<TDBSchema extends Record<string, AnyPgTable>>
-	implements Connector<PgSession, PGDatabase<TDBSchema>>
-{
-	dialect: Dialect<PgSession, PGDatabase<TDBSchema>>;
-	driver: Driver<PgSession>;
+export class PgConnector {
+	dialect: PgDialect;
+	driver: PgDriver;
+	private session: PgSession | undefined;
 
-	constructor(client: PgClient, dbSchema: TDBSchema, options: PgConnectorOptions = {}) {
-		this.dialect = new PgDialect(dbSchema);
+	constructor(client: PgClient, options: PgConnectorOptions = {}) {
+		this.dialect = new PgDialect();
 		this.driver = new PgDriver(client, { logger: options.logger });
+	}
+
+	private async getSession() {
+		return this.session ?? (this.session = await this.driver.connect());
+	}
+
+	async connect() {
+		const session = await this.getSession();
+		return this.dialect.createDB(session);
+	}
+
+	async migrate(config: string | MigrationConfig) {
+		const migrations = readMigrationFiles(config);
+		const session = await this.getSession();
+		await this.dialect.migrate(migrations, session);
 	}
 }

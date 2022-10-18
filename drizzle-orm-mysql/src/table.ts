@@ -11,14 +11,14 @@ import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
 import { AnyIndexBuilder, Index, IndexBuilder } from './indexes';
 import { tableChecks, tableForeignKeys, tableIndexes } from './utils';
 
-export type MySqlTableExtraConfig<TTableName extends TableName> = Record<
+export type MySqlTableExtraConfig<TTableName extends string> = Record<
 	string,
 	| AnyIndexBuilder<TTableName>
 	| CheckBuilder<TTableName>
 	| ForeignKeyBuilder<TTableName, TableName>
 >;
 
-export class MySqlTable<TName extends TableName> extends Table<TName> {
+export class MySqlTable<TName extends string> extends Table<TName> {
 	/** @internal */
 	[tableColumns]!: Record<string | symbol, AnyMySqlColumn<TName>>;
 
@@ -33,7 +33,7 @@ export class MySqlTable<TName extends TableName> extends Table<TName> {
 }
 
 export type MySqlTableWithColumns<
-	TName extends TableName,
+	TName extends string,
 	TColumns extends Record<string, AnyMySqlColumn<TName>>,
 > =
 	& MySqlTable<TName>
@@ -73,7 +73,7 @@ export type InferModel<
 		>;
 	};
 
-export type AnyMySqlTable<TName extends TableName = TableName> = MySqlTable<TName>;
+export type AnyMySqlTable<TName extends string = TableName> = MySqlTable<TName>;
 
 export function mysqlTable<
 	TTableName extends string,

@@ -4,10 +4,6 @@ import * as path from 'path';
 
 export type MigrationMeta = { sql: string; folderMillis: number; hash: string };
 
-export interface Session<TQueryParam, TQueryResponse> {
-	query(query: string, params: TQueryParam[]): TQueryResponse;
-}
-
 export interface Logger {
 	logQuery(query: string, params: unknown[]): void;
 }
@@ -22,26 +18,6 @@ export class NoopLogger implements Logger {
 	logQuery(): void {}
 }
 
-export interface Driver<TSession> {
-	connect(): Promise<TSession>;
-}
-
-export interface Dialect<TSession, TDatabase> {
-	createDB(session: TSession): TDatabase;
-
-	migrate(migrations: MigrationMeta[], session: TSession): Promise<void>;
-}
-
-export interface Connector<TSession, TOperations> {
-	dialect: Dialect<TSession, TOperations>;
-	driver: Driver<TSession>;
-}
-
-export async function connect<TSession, TDatabase>(connector: Connector<TSession, TDatabase>): Promise<TDatabase> {
-	const session = await connector.driver.connect();
-	return connector.dialect.createDB(session);
-}
-
 export interface KitConfig {
 	out: string;
 	schema: string;
@@ -51,18 +27,7 @@ export interface MigrationConfig {
 	migrationsFolder: string;
 }
 
-export async function migrate<TSession, TDatabase>(
-	connector: Connector<TSession, TDatabase>,
-	config: string,
-): Promise<void>;
-export async function migrate<TSession, TDatabase>(
-	connector: Connector<TSession, TDatabase>,
-	config: MigrationConfig,
-): Promise<void>;
-export async function migrate<TSession extends Session<any, any>, TDatabase>(
-	connector: Connector<TSession, TDatabase>,
-	config: string | MigrationConfig,
-) {
+export function readMigrationFiles(config: string | MigrationConfig): MigrationMeta[] {
 	let migrationFolderTo: string | undefined;
 	if (typeof config === 'string') {
 		const configAsString = fs.readFileSync(path.resolve('.', config), 'utf8');
@@ -106,6 +71,5 @@ export async function migrate<TSession extends Session<any, any>, TDatabase>(
 		});
 	}
 
-	const session = await connector.driver.connect();
-	await connector.dialect.migrate(migrationQueries, session);
+	return migrationQueries;
 }

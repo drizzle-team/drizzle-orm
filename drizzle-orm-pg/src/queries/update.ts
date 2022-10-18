@@ -1,25 +1,23 @@
 import { GetColumnData } from 'drizzle-orm';
-import { SQL } from 'drizzle-orm/sql';
-import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm/utils';
+import { PreparedQuery, SQL } from 'drizzle-orm/sql';
+import { mapResultRow, tableColumns, tableNameSym } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
-import { AnyPgColumn } from '~/columns/common';
 
-import { AnyPgDialect, PgSession } from '~/connection';
+import { PgDialect, PgSession } from '~/connection';
 import { PgSelectFields, PgSelectFieldsOrdered, SelectResultFields } from '~/operations';
-import { AnyPgSQL, PgPreparedQuery } from '~/sql';
-import { AnyPgTable, GetTableColumns, InferModel } from '~/table';
+import { AnyPgTable, GetTableConfig, InferModel } from '~/table';
 
-export interface PgUpdateConfig<TTable extends AnyPgTable> {
-	where?: AnyPgSQL<GetTableName<TTable>> | undefined;
-	set: PgUpdateSet<TTable>;
-	table: TTable;
+export interface PgUpdateConfig {
+	where?: SQL | undefined;
+	set: PgUpdateSet<AnyPgTable>;
+	table: AnyPgTable;
 	returning?: PgSelectFieldsOrdered;
 }
 
 export type PgUpdateSet<TTable extends AnyPgTable> = {
-	[Key in keyof GetTableColumns<TTable>]?:
-		| GetColumnData<GetTableColumns<TTable>[Key], 'query'>
-		| SQL<GetTableName<TTable>>;
+	[Key in keyof GetTableConfig<TTable, 'columns'>]?:
+		| GetColumnData<GetTableConfig<TTable, 'columns'>[Key], 'query'>
+		| SQL;
 };
 
 export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
@@ -28,16 +26,17 @@ export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 		return: TReturn;
 	};
 
-	private config: PgUpdateConfig<TTable>;
+	private config: PgUpdateConfig;
 
 	constructor(
 		private table: TTable,
 		private session: PgSession,
-		private dialect: AnyPgDialect,
+		private dialect: PgDialect,
 	) {
 		this.config = {
+			set: undefined!,
 			table,
-		} as PgUpdateConfig<TTable>;
+		};
 	}
 
 	public set(values: PgUpdateSet<TTable>): Pick<this, 'where' | 'returning' | 'getQuery' | 'execute'> {
@@ -45,25 +44,25 @@ export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
 		return this;
 	}
 
-	public where(where: AnyPgSQL<GetTableName<TTable>> | undefined): Pick<this, 'returning' | 'getQuery' | 'execute'> {
+	public where(where: SQL | undefined): Pick<this, 'returning' | 'getQuery' | 'execute'> {
 		this.config.where = where;
 		return this;
 	}
 
 	public returning(): Pick<PgUpdate<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
-	public returning<TSelectedFields extends PgSelectFields<GetTableName<TTable>>>(
+	public returning<TSelectedFields extends PgSelectFields<GetTableConfig<TTable, 'name'>>>(
 		fields: TSelectedFields,
 	): Pick<PgUpdate<TTable, SelectResultFields<TSelectedFields>[]>, 'getQuery' | 'execute'>;
-	public returning(fields?: PgSelectFields<GetTableName<TTable>>): PgUpdate<TTable, any> {
+	public returning(fields?: PgSelectFields<GetTableConfig<TTable, 'name'>>): PgUpdate<TTable, any> {
 		const orderedFields = this.dialect.orderSelectedFields(
 			fields ?? this.config.table[tableColumns],
-			this.table[tableName],
+			this.table[tableNameSym],
 		);
 		this.config.returning = orderedFields;
 		return this;
 	}
 
-	public getQuery(): PgPreparedQuery {
+	public getQuery(): PreparedQuery {
 		const query = this.dialect.buildUpdateQuery(this.config);
 		return this.dialect.prepareSQL(query);
 	}

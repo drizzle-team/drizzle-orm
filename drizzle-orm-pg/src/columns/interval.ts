@@ -1,39 +1,35 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
-
+import { ColumnConfig } from 'drizzle-orm';
+import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyPgTable } from '~/table';
 import { PgColumn, PgColumnBuilder } from './common';
-import { PrecisionLimit } from './timestamp';
+import { Precision } from './timestamp';
 
-export class PgIntervalBuilder<
-	TData extends ColumnData<string> = ColumnData<string>,
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends PgColumnBuilder<ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
-	constructor(name: string, public readonly config: IntervalConfig) {
+export class PgIntervalBuilder<TData extends string = string>
+	extends PgColumnBuilder<ColumnBuilderConfig<{ data: TData; driverParam: string }>>
+{
+	constructor(
+		name: string,
+		/** @internal */ public readonly intervalConfig: IntervalConfig,
+	) {
 		super(name);
 	}
 
 	/** @internal */
-	override build<TTableName extends TableName>(
-		table: AnyPgTable<TTableName>,
-	): PgInterval<TTableName, TData, TNotNull, THasDefault> {
+	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgInterval<TTableName, TData> {
 		return new PgInterval(table, this);
 	}
 }
 
-export class PgInterval<
-	TTableName extends TableName,
-	TData extends ColumnData<string>,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
-> extends PgColumn<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
-	protected brand!: 'PgTime';
+export class PgInterval<TTableName extends string, TData extends string>
+	extends PgColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>>
+{
+	protected override $pgColumnBrand!: 'PgTime';
 
 	public readonly config: IntervalConfig;
 
-	constructor(table: AnyPgTable<TTableName>, builder: PgIntervalBuilder<TData, TNotNull, THasDefault>) {
+	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgIntervalBuilder<TData>) {
 		super(table, builder);
-		this.config = builder.config;
+		this.config = builder.intervalConfig;
 	}
 
 	getSQLType(): string {
@@ -58,12 +54,12 @@ export interface IntervalConfig {
 		| 'hour to minute'
 		| 'hour to second'
 		| 'minute to second';
-	precision?: PrecisionLimit;
+	precision?: Precision;
 }
 
 export function interval<T extends string = string>(
 	name: string,
 	config: IntervalConfig = {},
 ) {
-	return new PgIntervalBuilder<ColumnData<T>>(name, config);
+	return new PgIntervalBuilder<T>(name, config);
 }

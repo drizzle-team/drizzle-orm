@@ -1,50 +1,48 @@
-import { Column } from 'drizzle-orm';
-import { ColumnData, ColumnHasDefault, ColumnNotNull, TableName, Unwrap } from 'drizzle-orm/branded-types';
-import { ColumnBuilder } from 'drizzle-orm/column-builder';
+import { Column, ColumnBaseConfig, UpdateColumnConfig } from 'drizzle-orm';
+import { ColumnBuilder, ColumnBuilderBaseConfig, UpdateColumnBuilderConfig } from 'drizzle-orm/column-builder';
+import { SQL } from 'drizzle-orm/sql';
 import { Simplify } from 'type-fest';
 
-import { PgColumnDriverParam } from '~/branded-types';
 import { AnyForeignKey, ForeignKeyBuilder, UpdateDeleteAction } from '~/foreign-keys';
-import { AnyPgSQL } from '~/sql';
-import { AnyPgTable } from '~/table';
 
-export interface ReferenceConfig<TData extends ColumnData> {
-	ref: () => AnyPgColumn<any, TData>;
+import { AnyPgTable } from '..';
+
+export interface ReferenceConfig<TData> {
+	ref: () => AnyPgColumn<{ data: TData }>;
 	actions: {
 		onUpdate?: UpdateDeleteAction;
 		onDelete?: UpdateDeleteAction;
 	};
 }
 
-export abstract class PgColumnBuilder<
-	TData extends ColumnData,
-	TDriverParam extends PgColumnDriverParam,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
-> extends ColumnBuilder<TData, TDriverParam, TNotNull, THasDefault> {
-	private foreignKeyConfigs: ReferenceConfig<TData>[] = [];
+export abstract class PgColumnBuilder<T extends ColumnBuilderBaseConfig> extends ColumnBuilder<T>
+	implements ColumnBuilder<T>
+{
+	declare protected pgFoo: 'bar';
+
+	private foreignKeyConfigs: ReferenceConfig<T['data']>[] = [];
 
 	constructor(name: string) {
 		super(name);
 	}
 
-	override notNull(): PgColumnBuilder<TData, TDriverParam, ColumnNotNull<true>, THasDefault> {
-		return super.notNull() as ReturnType<this['notNull']>;
+	override notNull(): PgColumnBuilder<UpdateColumnBuilderConfig<T, { notNull: true }>> {
+		return super.notNull() as any;
 	}
 
 	override default(
-		value: Unwrap<TData> | AnyPgSQL,
-	): PgColumnBuilder<TData, TDriverParam, TNotNull, ColumnHasDefault<true>> {
-		return super.default(value) as ReturnType<this['default']>;
+		value: T['data'] | SQL,
+	): PgColumnBuilder<UpdateColumnBuilderConfig<T, { hasDefault: true }>> {
+		return super.default(value) as any;
 	}
 
-	override primaryKey(): PgColumnBuilder<TData, TDriverParam, ColumnNotNull<true>, THasDefault> {
-		return super.primaryKey() as ReturnType<this['primaryKey']>;
+	override primaryKey(): PgColumnBuilder<UpdateColumnBuilderConfig<T, { notNull: true }>> {
+		return super.primaryKey() as any;
 	}
 
 	references(
-		ref: ReferenceConfig<TData>['ref'],
-		actions: ReferenceConfig<TData>['actions'] = {},
+		ref: ReferenceConfig<T['data']>['ref'],
+		actions: ReferenceConfig<T['data']>['actions'] = {},
 	): this {
 		this.foreignKeyConfigs.push({ ref, actions });
 		return this;
@@ -53,38 +51,43 @@ export abstract class PgColumnBuilder<
 	/** @internal */
 	buildForeignKeys(column: AnyPgColumn, table: AnyPgTable): AnyForeignKey[] {
 		return this.foreignKeyConfigs.map(({ ref, actions }) => {
-			const builder = new ForeignKeyBuilder(() => {
-				const foreignColumn = ref();
-				return { columns: [column], foreignColumns: [foreignColumn] };
-			});
-			if (actions.onUpdate) {
-				builder.onUpdate(actions.onUpdate);
-			}
-			if (actions.onDelete) {
-				builder.onDelete(actions.onDelete);
-			}
-			return builder.build(table);
+			return ((ref, actions) => {
+				const builder = new ForeignKeyBuilder(() => {
+					const foreignColumn = ref();
+					return { columns: [column], foreignColumns: [foreignColumn] };
+				});
+				if (actions.onUpdate) {
+					builder.onUpdate(actions.onUpdate);
+				}
+				if (actions.onDelete) {
+					builder.onDelete(actions.onDelete);
+				}
+				return builder.build(table);
+			})(ref, actions);
 		});
 	}
 
 	/** @internal */
-	abstract override build<TTableName extends TableName>(
-		table: AnyPgTable<TTableName>,
-	): PgColumn<TTableName, TData, TDriverParam, TNotNull, THasDefault>;
+	abstract build<TTableName extends string>(
+		table: AnyPgTable<{ name: TTableName }>,
+	): PgColumn<T & { tableName: TTableName }>;
 }
 
-export type AnyPgColumnBuilder = PgColumnBuilder<ColumnData, PgColumnDriverParam, ColumnNotNull, ColumnHasDefault>;
+export type AnyPgColumnBuilder<TPartial extends Partial<ColumnBuilderBaseConfig> = {}> = Omit<
+	PgColumnBuilder<
+		UpdateColumnBuilderConfig<ColumnBuilderBaseConfig, TPartial>
+	>,
+	'notNull' | 'default' | 'primaryKey' | 'references'
+>;
 
-export abstract class PgColumn<
-	TTableName extends TableName<string>,
-	TData extends ColumnData,
-	TDriverParam extends PgColumnDriverParam,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
-> extends Column<TTableName, TData, TDriverParam, TNotNull, THasDefault> {
+// To understand how to use `PgColumn` and `AnyPgColumn`, see `Column` and `AnyColumn` documentation.
+export abstract class PgColumn<T extends ColumnBaseConfig> extends Column<T> {
+	declare protected $pgBrand: 'PgColumn';
+	protected abstract $pgColumnBrand: string;
+
 	constructor(
-		override readonly table: AnyPgTable<TTableName>,
-		builder: PgColumnBuilder<TData, TDriverParam, TNotNull, THasDefault>,
+		override readonly table: AnyPgTable<{ name: T['tableName'] }>,
+		builder: PgColumnBuilder<Omit<T, 'tableName'>>,
 	) {
 		super(table, builder);
 	}
@@ -94,25 +97,17 @@ export abstract class PgColumn<
 	}
 }
 
-export type AnyPgColumn<
-	TTableName extends TableName = any,
-	TData extends ColumnData = any,
-	TDriverParam extends PgColumnDriverParam = PgColumnDriverParam,
-	TNotNull extends ColumnNotNull = any,
-	THasDefault extends ColumnHasDefault = any,
-> = PgColumn<TTableName, TData, TDriverParam, TNotNull, THasDefault>;
+export type AnyPgColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = PgColumn<
+	UpdateColumnConfig<ColumnBaseConfig, TPartial>
+>;
 
-export type BuildPgColumn<TTableName extends TableName, TBuilder extends AnyPgColumnBuilder> = TBuilder extends
-	PgColumnBuilder<
-		infer TData,
-		infer TDriverParam,
-		infer TNotNull,
-		infer THasDefault
-	> ? PgColumn<TTableName, TData, TDriverParam, TNotNull, THasDefault>
-	: never;
+export type BuildPgColumn<
+	TTableName extends string,
+	TBuilder extends AnyPgColumnBuilder,
+> = TBuilder extends PgColumnBuilder<infer T> ? PgColumn<Simplify<T & { tableName: TTableName }>> : never;
 
 export type BuildPgColumns<
-	TTableName extends TableName,
+	TTableName extends string,
 	TConfigMap extends Record<string, AnyPgColumnBuilder>,
 > = Simplify<
 	{
@@ -120,12 +115,6 @@ export type BuildPgColumns<
 	}
 >;
 
-export type ChangeColumnTable<TColumn extends AnyPgColumn, TAlias extends TableName> = TColumn extends
-	PgColumn<any, infer TData, infer TDriverParam, infer TNotNull, infer THasDefault> ? PgColumn<
-		TAlias,
-		TData,
-		TDriverParam,
-		TNotNull,
-		THasDefault
-	>
+export type ChangeColumnTableName<TColumn extends AnyPgColumn, TAlias extends string> = TColumn extends
+	PgColumn<infer T> ? PgColumn<Simplify<UpdateColumnConfig<T, { tableName: TAlias }>>>
 	: never;

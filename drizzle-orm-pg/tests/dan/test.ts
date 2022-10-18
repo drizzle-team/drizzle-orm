@@ -1,5 +1,4 @@
 import { param, sql } from 'drizzle-orm';
-import { TableName } from 'drizzle-orm/branded-types';
 import {
 	and,
 	between,
@@ -23,15 +22,16 @@ import {
 	notLike,
 	or,
 } from 'drizzle-orm/expressions';
-import { QueryResultRow } from 'pg';
+import { QueryResult, QueryResultRow } from 'pg';
+import { alias } from '~/alias';
 
 import { Equal, Expect } from '../utils';
 import { db } from './db';
 import { cities, classes, users } from './tables';
 
-db.users.select()
+db.select(users)
 	.where(exists(
-		db.cities.select().where(eq(users.homeCity.unsafe(), cities.id)),
+		db.select(cities).where(eq(users.homeCity.unsafe(), cities.id)),
 	))
 	.execute();
 
@@ -43,7 +43,7 @@ function mapFunkyFuncResult(valueFromDriver: unknown) {
 
 const age = 1;
 
-const allOperators = await db.users.select({
+const allOperators = await db.select(users).fields({
 	col2: sql`5 - ${users.id} + 1`, // unknown
 	col3: sql`${users.id} + 1`.as<number>(), // number
 	col33: sql`${users.id} + 1`.as(users.id), // number
@@ -70,16 +70,16 @@ const allOperators = await db.users.select({
 	lt(users.id, 1),
 	lte(users.id, 1),
 	inArray(users.id, [1, 2, 3]),
-	inArray(users.id, db.users.select({ id: users.id })),
+	inArray(users.id, db.select(users).fields({ id: users.id })),
 	inArray(users.id, sql`select id from ${users}`),
 	notInArray(users.id, [1, 2, 3]),
-	notInArray(users.id, db.users.select({ id: users.id })),
+	notInArray(users.id, db.select(users).fields({ id: users.id })),
 	notInArray(users.id, sql`select id from ${users}`),
 	isNull(users.subClass),
 	isNotNull(users.id),
-	exists(db.users.select({ id: users.id })),
+	exists(db.select(users).fields({ id: users.id })),
 	exists(sql`select id from ${users}`),
-	notExists(db.users.select({ id: users.id })),
+	notExists(db.select(users).fields({ id: users.id })),
 	notExists(sql`select id from ${users}`),
 	between(users.id, 1, 2),
 	notBetween(users.id, 1, 2),
@@ -118,41 +118,146 @@ const rawQuery = await db.execute(
 	}`,
 );
 
-Expect<Equal<QueryResultRow[], typeof rawQuery>>;
+Expect<Equal<QueryResult<QueryResultRow>, typeof rawQuery>>;
 
-const textSelect = await db.users.select({
+const textSelect = await db.select(users).fields({
 	t: users.text,
 }).execute();
 
 Expect<Equal<{ t: string | null }[], typeof textSelect>>;
 
-const megaJoin = await db.users
-	.select({ id: users.id, maxAge: sql`max(${users.age1})` })
+const homeCity = alias(cities, 'homeCity');
+const c = alias(classes, 'c');
+const otherClass = alias(classes, 'otherClass');
+const anotherClass = alias(classes, 'anotherClass');
+const friend = alias(users, 'friend');
+const currentCity = alias(cities, 'currentCity');
+const subscriber = alias(users, 'subscriber');
+const closestCity = alias(cities, 'closestCity');
+
+const megaJoin = await db.select(users)
+	.fields({ id: users.id, maxAge: sql`max(${users.age1})` })
 	.innerJoin(cities, sql`${users.id} = ${cities.id}`, { id: cities.id })
-	.innerJoin({ homeCity: cities }, (aliases) => sql`${users.homeCity} = ${aliases.homeCity.id}`)
-	.innerJoin({ class: classes }, (aliases) => eq(aliases.class.id, users.class))
-	.innerJoin({ otherClass: classes }, (aliases) => sql`${aliases.class.id} = ${aliases.otherClass.id}`)
-	.innerJoin({ anotherClass: classes }, (aliases) => sql`${users.class} = ${aliases.anotherClass.id}`)
-	.innerJoin({ friend: users }, (aliases) => sql`${users.id} = ${aliases.friend.id}`)
-	.innerJoin({ currentCity: cities }, (aliases) => sql`${aliases.homeCity.id} = ${aliases.currentCity.id}`)
-	.innerJoin({ subscriber: users }, (aliases) => sql`${users.class} = ${aliases.subscriber.id}`)
-	.innerJoin({ closestCity: cities }, (aliases) => sql`${users.currentCity} = ${aliases.closestCity.id}`)
-	// .where(and(sql`${users.age1} > 0`, eq(cities.id, 1)))
-	.where(sql`true`)
+	.innerJoin(homeCity, sql`${users.homeCity} = ${homeCity.id}`)
+	.innerJoin(c, eq(c.id, users.class))
+	.innerJoin(otherClass, sql`${c.id} = ${otherClass.id}`)
+	.innerJoin(anotherClass, sql`${users.class} = ${anotherClass.id}`)
+	.innerJoin(friend, sql`${users.id} = ${friend.id}`)
+	.innerJoin(currentCity, sql`${homeCity.id} = ${currentCity.id}`)
+	.innerJoin(subscriber, sql`${users.class} = ${subscriber.id}`)
+	.innerJoin(closestCity, sql`${users.currentCity} = ${closestCity.id}`)
+	.where(and(sql`${users.age1} > 0`, eq(cities.id, 1)))
 	.execute();
 
-db.users
-	.select({ id: users.id })
+Expect<
+	Equal<
+		{
+			users_table: {
+				id: number;
+				maxAge: unknown;
+			};
+			cities_table: {
+				id: number;
+			};
+			homeCity: {
+				id: number;
+				name: string;
+				population: number | null;
+			};
+			currentCity: {
+				id: number;
+				name: string;
+				population: number | null;
+			};
+			c: {
+				id: number;
+				class: 'A' | 'C' | null;
+				subClass: 'B' | 'D';
+			};
+			otherClass: {
+				id: number;
+				class: 'A' | 'C' | null;
+				subClass: 'B' | 'D';
+			};
+			anotherClass: {
+				id: number;
+				class: 'A' | 'C' | null;
+				subClass: 'B' | 'D';
+			};
+			friend: {
+				id: number;
+				uuid: string;
+				homeCity: number;
+				currentCity: number | null;
+				serialNullable: number;
+				serialNotNull: number;
+				class: 'A' | 'C';
+				subClass: 'B' | 'D' | null;
+				text: string | null;
+				age1: number;
+				createdAt: Date;
+				enumCol: 'a' | 'b' | 'c';
+			};
+			subscriber: {
+				id: number;
+				uuid: string;
+				homeCity: number;
+				currentCity: number | null;
+				serialNullable: number;
+				serialNotNull: number;
+				class: 'A' | 'C';
+				subClass: 'B' | 'D' | null;
+				text: string | null;
+				age1: number;
+				createdAt: Date;
+				enumCol: 'a' | 'b' | 'c';
+			};
+			closestCity: {
+				id: number;
+				name: string;
+				population: number | null;
+			};
+		}[],
+		typeof megaJoin
+	>
+>;
+
+const friends = alias(users, 'friends');
+
+const join2 = await db.select(users)
+	.fields({ id: users.id })
 	.innerJoin(cities, sql`${users.id} = ${cities.id}`, { id: cities.id })
 	.innerJoin(classes, sql`${cities.id} = ${classes.id}`)
-	.innerJoin({ friends: users }, (aliases) => sql`${aliases.friends.id} = ${users.id}`)
-	// .innerJoin(cities, (joins) => sql`${joins.cities1.id} = ${joins.cities2.id}`)
-	// .innerJoin(classes, (joins) => eq(joins.cities1.id, joins.cities2.id))
+	.innerJoin(friends, sql`${friends.id} = ${users.id}`)
 	.where(sql`${users.age1} > 0`)
-	// .where((joins) => sql`${joins.users.age1} > 0`)
-	// .where(eq(users.age1, 1))
-	// .where((joins) => eqjoins.users.age1, 1))
-	// .orderBy(asc(users.id), desc(users.name))
-	// .orderBy((joins)=> [asc(joins.users.id), desc(joins.cities1.id)])
-	// .orderBy((joins)=> sql`${joins.users.age1} ASC`)
 	.execute();
+
+Expect<
+	Equal<{
+		users_table: {
+			id: number;
+		};
+		cities_table: {
+			id: number;
+		};
+		classes_table: {
+			id: number;
+			class: 'A' | 'C' | null;
+			subClass: 'B' | 'D';
+		};
+		friends: {
+			id: number;
+			uuid: string;
+			homeCity: number;
+			currentCity: number | null;
+			serialNullable: number;
+			serialNotNull: number;
+			class: 'A' | 'C';
+			subClass: 'B' | 'D' | null;
+			text: string | null;
+			age1: number;
+			createdAt: Date;
+			enumCol: 'a' | 'b' | 'c';
+		};
+	}[], typeof join2>
+>;

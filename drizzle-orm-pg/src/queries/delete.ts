@@ -1,48 +1,48 @@
-import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm/utils';
+import { PreparedQuery, SQL } from 'drizzle-orm/sql';
+import { GetTableName, mapResultRow, tableColumns, tableNameSym } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
 
-import { AnyPgDialect, PgSession } from '~/connection';
+import { PgDialect, PgSession } from '~/connection';
 import { PgSelectFields, PgSelectFieldsOrdered, SelectResultFields } from '~/operations';
-import { AnyPgSQL, PgPreparedQuery } from '~/sql';
-import { AnyPgTable, InferModel } from '~/table';
+import { InferModel, PgTable } from '~/table';
 
-export interface PgDeleteConfig<TTable extends AnyPgTable> {
-	where?: AnyPgSQL<GetTableName<TTable>> | undefined;
-	table: TTable;
+export interface PgDeleteConfig {
+	where?: SQL | undefined;
+	table: PgTable;
 	returning?: PgSelectFieldsOrdered;
 }
 
-export class PgDelete<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
-	private config: PgDeleteConfig<TTable> = {} as PgDeleteConfig<TTable>;
+export class PgDelete<TTable extends PgTable, TReturn = QueryResult<any>> {
+	private config: PgDeleteConfig;
 
 	constructor(
 		private table: TTable,
 		private session: PgSession,
-		private dialect: AnyPgDialect,
+		private dialect: PgDialect,
 	) {
-		this.config.table = table;
+		this.config = { table };
 	}
 
-	public where(where: AnyPgSQL<GetTableName<TTable>> | undefined): Pick<this, 'returning' | 'getQuery' | 'execute'> {
+	public where(where: SQL | undefined): Pick<this, 'returning' | 'getQuery' | 'execute'> {
 		this.config.where = where;
 		return this;
 	}
 
 	public returning(): Pick<PgDelete<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
-	public returning<TSelectedFields extends PgSelectFields<GetTableName<TTable>>>(
+	public returning<TSelectedFields extends PgSelectFields<GetTableConfig<TTable, 'name'>>>(
 		fields: TSelectedFields,
 	): Pick<PgDelete<TTable, SelectResultFields<TSelectedFields>[]>, 'getQuery' | 'execute'>;
-	public returning(fields?: PgSelectFields<GetTableName<TTable>>): PgDelete<TTable, any> {
+	public returning(fields?: PgSelectFields<GetTableConfig<TTable, 'name'>>): PgDelete<TTable, any> {
 		const a = this.table[tableColumns];
 		const orderedFields = this.dialect.orderSelectedFields(
 			fields ?? this.table[tableColumns],
-			this.table[tableName],
+			this.table[tableNameSym],
 		);
 		this.config.returning = orderedFields;
 		return this;
 	}
 
-	public getQuery(): PgPreparedQuery {
+	public getQuery(): PreparedQuery {
 		const query = this.dialect.buildDeleteQuery(this.config);
 		return this.dialect.prepareSQL(query);
 	}

@@ -1,16 +1,18 @@
-import { ColumnData, ColumnDriverParam, TableName, Unwrap } from '../branded-types';
-import { AnyColumn, Column, GetColumnData } from '../column';
-import { AnyTable, Table } from '../table';
-import { GetTableName, tableName } from '../utils';
+import { AnyColumn, Column } from '../column';
+import { Table } from '../table';
+import { tableNameSym } from '../utils';
 
-export class Param<TData = ColumnData | PrimitiveDriverParam> {
-	constructor(public readonly value: TData) {}
-}
+/**
+ * This class is used to indicate a primitive param value that is used in `sql` tag.
+ * It is only used on type level and is never instantiated at runtime.
+ * If you see a value of this type in the code, its runtime value is actually the primitive param value.
+ */
+export class FakePrimitiveParam {}
 
-export type Chunk<TTableName extends TableName = TableName> =
+export type Chunk =
 	| string
-	| AnyTable<TTableName>
-	| AnyColumn<TTableName>
+	| Table
+	| AnyColumn
 	| Name
 	| Param;
 
@@ -19,33 +21,26 @@ export interface BuildQueryConfig {
 	escapeParam(num: number, value: unknown): string;
 }
 
-export interface PreparedQuery<TDriverParam extends ColumnDriverParam = ColumnDriverParam> {
+export interface PreparedQuery {
 	sql: string;
-	params: TDriverParam[];
+	params: unknown[];
 }
 
 export interface SQLWrapper {
-	getSQL(): AnySQL;
+	getSQL(): SQL;
 }
 
-export function isSQLWrapper(
-	param: unknown,
-): param is SQLWrapper {
+export function isSQLWrapper(param: unknown): param is SQLWrapper {
 	return !!param && typeof param === 'object' && 'getSQL' in param;
 }
 
-export class SQL<TTableName extends TableName> implements SQLWrapper {
-	protected typeKeeper!: {
-		brand: 'SQL';
-		tableName: TTableName;
-	};
+export class SQL implements SQLWrapper {
+	declare protected $brand: 'SQL';
 
-	constructor(public readonly queryChunks: Chunk<TTableName>[]) {}
+	constructor(public readonly queryChunks: Chunk[]) {}
 
-	public toQuery<TDriverParamType = unknown>(
-		{ escapeName, escapeParam }: BuildQueryConfig,
-	): PreparedQuery<ColumnDriverParam<TDriverParamType>> {
-		const params: TDriverParamType[] = [];
+	public toQuery({ escapeName, escapeParam }: BuildQueryConfig): PreparedQuery {
+		const params: unknown[] = [];
 
 		const chunks = this.queryChunks.map((chunk) => {
 			if (typeof chunk === 'string') {
@@ -53,11 +48,11 @@ export class SQL<TTableName extends TableName> implements SQLWrapper {
 			} else if (chunk instanceof Name) {
 				return escapeName(chunk.value);
 			} else if (chunk instanceof Table) {
-				return escapeName(chunk[tableName]);
+				return escapeName(chunk[tableNameSym]);
 			} else if (chunk instanceof Column) {
-				return escapeName(chunk.table[tableName]) + '.' + escapeName(chunk.name);
+				return escapeName(chunk.table[tableNameSym]) + '.' + escapeName(chunk.name);
 			} else if (chunk instanceof Param) {
-				params.push(chunk.value as TDriverParamType);
+				params.push(chunk.value);
 				return escapeParam(params.length, chunk.value);
 			} else {
 				const err = new Error('Unexpected chunk type!');
@@ -72,20 +67,22 @@ export class SQL<TTableName extends TableName> implements SQLWrapper {
 			.replace(/\s{2,}/g, ' ')
 			.replace(/\n+/g, '');
 
-		return { sql: sqlString, params: params as ColumnDriverParam<TDriverParamType>[] };
+		return { sql: sqlString, params };
 	}
 
-	getSQL(): AnySQL {
+	getSQL(): SQL {
 		return this;
 	}
 
-	as<TDecoder extends DriverValueDecoder<any, any> | DriverValueDecoder<any, any>['mapFromDriverValue']>(
-		decoder: TDecoder,
-	): SQLResponse<TTableName, GetDecoderColumnData<TDecoder>>;
-	as<TData>(): SQLResponse<TTableName, ColumnData<TData>>;
+	as<
+		TDecoder extends
+			| DriverValueDecoder<any, any>
+			| DriverValueDecoder<any, any>['mapFromDriverValue'],
+	>(decoder: TDecoder): SQLResponse<GetDecoderColumnData<TDecoder>>;
+	as<TData>(): SQLResponse<TData>;
 	as(
 		decoder: ((value: any) => any) | DriverValueDecoder<any, any> = noopDecoder,
-	): SQLResponse<TTableName, ColumnData> {
+	): SQLResponse<unknown> {
 		return new SQLResponse(
 			this,
 			typeof decoder === 'function' ? { mapFromDriverValue: decoder } : decoder,
@@ -93,11 +90,10 @@ export class SQL<TTableName extends TableName> implements SQLWrapper {
 	}
 }
 
-export type GetDecoderColumnData<T> = T extends DriverValueDecoder<infer TData, any> ? ColumnData<TData>
-	: T extends DriverValueDecoder<infer TData, any>['mapFromDriverValue'] ? ColumnData<TData>
+export type GetDecoderColumnData<T> = T extends
+	| DriverValueDecoder<infer TData, any>
+	| DriverValueDecoder<infer TData, any>['mapFromDriverValue'] ? TData
 	: never;
-
-export type AnySQL = SQL<TableName>;
 
 /**
  * Any DB name (table, column, index etc.)
@@ -133,37 +129,41 @@ export const noopMapper: DriverValueMapper<any, any> = {
 	...noopEncoder,
 };
 
-/**
- * Parameter value that is bound to a specific mapper (usually, a column of a specific type)
- * @param value - Parameter value to bind
- * @param mapper - Mapper to use to convert the value to/from the driver parameter
- */
-export class BoundParamValue<TDataType extends ColumnData, TDriverParamType extends ColumnDriverParam> {
+/** Parameter value that is optionally bound to an encoder (for example, a column). */
+export class Param<TDataType = unknown, TDriverParamType = TDataType> {
 	protected brand!: 'BoundParamValue';
 
+	/**
+	 * @param value - Parameter value
+	 * @param encoder - Encoder to convert the value to a driver parameter
+	 */
 	constructor(
-		public readonly value: TDataType,
-		public readonly mapper: DriverValueMapper<Unwrap<TDataType>, Unwrap<TDriverParamType>>,
+		readonly value: TDataType,
+		readonly encoder: DriverValueEncoder<TDataType, TDriverParamType> = noopEncoder,
 	) {}
 }
 
-export type AnyBoundParamValue = BoundParamValue<any, any>;
+export function param<TData, TDriver>(
+	value: TData,
+	encoder?: DriverValueEncoder<TData, TDriver>,
+): Param<TData, TDriver> {
+	return new Param(value, encoder);
+}
 
-export type SQLSourceParam<TTableName extends TableName> =
-	| SQLSourceParam<TTableName>[]
-	| ColumnData
+export type SQLSourceParam =
+	| SQLSourceParam[]
 	| SQLWrapper
-	| AnySQL
-	| AnyTable<TTableName>
-	| AnyColumn<TTableName>
-	| AnyBoundParamValue
+	| SQL
+	| Table
+	| AnyColumn
+	| Param
 	| Name
-	| PrimitiveDriverParam
-	| undefined;
+	| undefined
+	| FakePrimitiveParam;
 
-function buildChunksFromParam(param: SQLSourceParam<TableName>): Chunk<TableName>[] {
+function buildChunksFromParam(param: SQLSourceParam): Chunk[] {
 	if (Array.isArray(param)) {
-		const result: Chunk<TableName>[] = ['('];
+		const result: Chunk[] = ['('];
 		param.forEach((p, i) => {
 			result.push(...buildChunksFromParam(p));
 			if (i < param.length - 1) {
@@ -176,32 +176,24 @@ function buildChunksFromParam(param: SQLSourceParam<TableName>): Chunk<TableName
 		return param.queryChunks;
 	} else if (isSQLWrapper(param)) {
 		return buildChunksFromParam(param.getSQL());
-	} else if (
-		param instanceof Table
-		|| param instanceof Column
-		|| param instanceof Name
-	) {
+	} else if (param instanceof Table || param instanceof Column || param instanceof Name || param instanceof Param) {
 		return [param];
-	} else if (param instanceof BoundParamValue) {
-		return [new Param(param.mapper.mapToDriverValue(param.value) as PrimitiveDriverParam)];
 	} else if (typeof param !== 'undefined') {
-		return [new Param(param)];
+		return [new Param(param as unknown)];
 	} else {
-		return [];
+		throw new Error('Unexpected param type: ' + param);
 	}
 }
 
-export type PrimitiveDriverParam = string | number | boolean | null;
-
-export function sql<TTableName extends TableName>(
-	strings: TemplateStringsArray,
-	...params: SQLSourceParam<TTableName>[]
-): SQL<TTableName>;
-export function sql<TTableName extends string>(
-	strings: TemplateStringsArray,
-	...params: SQLSourceParam<TableName<TTableName>>[]
-): SQL<TableName<TTableName>>;
-export function sql(strings: TemplateStringsArray, ...params: SQLSourceParam<TableName>[]): AnySQL {
+export function sql(strings: TemplateStringsArray, ...params: any[]): SQL;
+/*
+	The type of `params` is specified as `SQLSourceParam[]`, but that's slightly incorrect -
+	in runtime, users won't pass `FakePrimitiveParam` instances as `params` - they will pass primitive values
+	which will be wrapped in `Param` using `buildChunksFromParam(...)`. That's why the overload
+	specify `params` as `any[]` and not as `SQLSourceParam[]`. This type is used to make our lives easier and
+	the type checker happy.
+*/
+export function sql(strings: TemplateStringsArray, ...params: SQLSourceParam[]): SQL {
 	const queryChunks: Chunk[] = [];
 	if (params.length > 0 || (strings.length > 0 && strings[0] !== '')) {
 		queryChunks.push(strings[0]!);
@@ -215,38 +207,25 @@ export function sql(strings: TemplateStringsArray, ...params: SQLSourceParam<Tab
 }
 
 export namespace sql {
-	export function empty(): AnySQL {
+	export function empty(): SQL {
 		return new SQL([]);
 	}
 
-	export function fromList<
-		TTableName extends TableName = TableName,
-	>(list: SQLSourceParam<TTableName>[]): SQL<TTableName> {
-		return new SQL(list.map(buildChunksFromParam).flat(1) as Chunk<TTableName>[]);
+	export function fromList(list: SQLSourceParam[]): SQL {
+		return new SQL(list.map(buildChunksFromParam).flat(1));
 	}
 
 	/**
 	 * Convenience function to create an SQL query from a raw string.
 	 * @param str The raw SQL query string.
 	 */
-	export function raw<TTableName extends TableName = TableName>(
-		str: string,
-	): SQL<TTableName> {
+	export function raw(str: string): SQL {
 		return new SQL([str]);
 	}
 }
 
-export class SQLResponse<TTableName extends TableName, TValue extends ColumnData> {
-	protected typeKeeper!: {
-		brand: 'SQLResponse';
-		tableName: TTableName;
-		value: TValue;
-	};
+export class SQLResponse<TValue = unknown> {
+	declare protected $brand: 'SQLResponse';
 
-	constructor(
-		readonly sql: SQL<TTableName>,
-		readonly decoder: DriverValueDecoder<TValue, any>,
-	) {}
+	constructor(readonly sql: SQL, readonly decoder: DriverValueDecoder<TValue, any>) {}
 }
-
-export type AnySQLResponse<TTableName extends TableName = TableName> = SQLResponse<TTableName, any>;
