@@ -1,28 +1,24 @@
 import { SQL } from 'drizzle-orm/sql';
-import { tableColumns, tableNameSym } from 'drizzle-orm/utils';
 import { QueryResult, QueryResultRow } from 'pg';
 
-import { AnyPgTable, InferModel, PgDialect, PgSession } from '.';
-import { PgDelete, PgInsert, PgSelect, PgUpdate } from './queries';
+import { AnyPgTable, InferModel, PgDialect, PgSession, PgTable } from '.';
+import { PgDelete, PgInsertBuilder, PgSelect, PgUpdateBuilder } from './queries';
 
 export class PGDatabase {
 	constructor(private dialect: PgDialect, private session: PgSession) {}
 
 	select<TTable extends AnyPgTable>(from: TTable): PgSelect<TTable, InferModel<TTable>> {
 		const table = from;
-		const fieldsOrdered = this.dialect.orderSelectedFields(
-			table[tableColumns],
-			table[tableNameSym],
-		);
+		const fieldsOrdered = this.dialect.orderSelectedFields(table[PgTable.Symbol.Columns], table[PgTable.Symbol.Name]);
 		return new PgSelect(table, fieldsOrdered, this.session, this.dialect);
 	}
 
-	update<TTable extends AnyPgTable>(table: TTable): Pick<PgUpdate<TTable>, 'set'> {
-		return new PgUpdate(table, this.session, this.dialect);
+	update<TTable extends AnyPgTable>(table: TTable): PgUpdateBuilder<TTable> {
+		return new PgUpdateBuilder(table, this.session, this.dialect);
 	}
 
-	insert<TTable extends AnyPgTable>(table: TTable): PgInsert<TTable> {
-		return new PgInsert(
+	insert<TTable extends AnyPgTable>(table: TTable): PgInsertBuilder<TTable> {
+		return new PgInsertBuilder(
 			table,
 			this.session,
 			this.dialect,

@@ -1,9 +1,10 @@
 import { PreparedQuery, SQL, SQLWrapper } from 'drizzle-orm/sql';
-import { mapResultRow, tableColumns, tableNameSym } from 'drizzle-orm/utils';
+import { mapResultRow } from 'drizzle-orm/utils';
 
 import { PgDialect, PgSession } from '~/connection';
 import { PgSelectFields, PgSelectFieldsOrdered, SelectResultFields } from '~/operations';
 import { AnyPgTable, GetTableConfig, PgTable } from '~/table';
+import { QueryPromise } from './common';
 
 import {
 	AnyPgSelect,
@@ -12,10 +13,6 @@ import {
 	JoinNullability,
 	JoinsValue,
 	JoinType,
-	PickLimit,
-	PickOffset,
-	PickOrderBy,
-	PickWhere,
 	SelectResult,
 } from './select.types';
 
@@ -25,7 +22,7 @@ export interface PgSelectConfig {
 	table: AnyPgTable;
 	limit?: number;
 	offset?: number;
-	joins: { [k: string]: JoinsValue };
+	joins: Record<string, JoinsValue>;
 	orderBy: SQL[];
 }
 
@@ -33,8 +30,10 @@ export class PgSelect<
 	TTable extends AnyPgTable,
 	TInitialSelectResultFields extends SelectResultFields<PgSelectFields<GetTableConfig<TTable, 'name'>>>,
 	TResult = undefined,
-	TJoinsNotNullable extends Record<string, JoinNullability> = { [Key in GetTableConfig<TTable, 'name'>]: 'not-null' },
-> implements SQLWrapper {
+	TJoinsNotNullable extends Record<string, JoinNullability> = Record<GetTableConfig<TTable, 'name'>, 'not-null'>,
+> extends QueryPromise<SelectResult<TTable, TResult, TInitialSelectResultFields, TJoinsNotNullable>>
+	implements SQLWrapper
+{
 	protected typeKeeper!: {
 		table: TTable;
 		initialSelect: TInitialSelectResultFields;
@@ -50,13 +49,14 @@ export class PgSelect<
 		private session: PgSession,
 		private dialect: PgDialect,
 	) {
+		super();
 		this.config = {
 			table,
 			fields,
 			joins: {},
 			orderBy: [],
 		};
-		this.joinsNotNullable = { [table[tableNameSym]]: true };
+		this.joinsNotNullable = { [table[PgTable.Symbol.Name]]: true };
 	}
 
 	private createJoin<TJoinType extends JoinType>(joinType: TJoinType) {
@@ -73,8 +73,10 @@ export class PgSelect<
 			AppendToJoinsNotNull<TJoinsNotNullable, TJoinedName, TJoinType>
 		>;
 		function join(table: AnyPgTable, on: SQL, selection?: PgSelectFields<string>): AnyPgSelect {
-			const tableName = table[tableNameSym];
-			self.config.fields.push(...self.dialect.orderSelectedFields(selection ?? table[tableColumns], tableName));
+			const tableName = table[PgTable.Symbol.Name];
+			self.config.fields.push(
+				...self.dialect.orderSelectedFields(selection ?? table[PgTable.Symbol.Columns], tableName),
+			);
 
 			self.config.joins[tableName] = {
 				on,
@@ -123,26 +125,26 @@ export class PgSelect<
 	fields<TSelect extends PgSelectFields<GetTableConfig<TTable, 'name'>>>(
 		fields: TSelect,
 	): Omit<PgSelect<TTable, SelectResultFields<TSelect>, TResult, TJoinsNotNullable>, 'fields'> {
-		this.config.fields = this.dialect.orderSelectedFields(fields, this.config.table[tableNameSym]);
+		this.config.fields = this.dialect.orderSelectedFields(fields, this.config.table[PgTable.Symbol.Name]);
 		return this as any;
 	}
 
-	where(where: SQL | undefined): PickWhere<this> {
+	where(where: SQL | undefined): Omit<this, 'where' | `${JoinType}Join`> {
 		this.config.where = where;
 		return this;
 	}
 
-	orderBy(...columns: SQL[]): PickOrderBy<this> {
+	orderBy(...columns: SQL[]): Omit<this, 'where' | `${JoinType}Join` | 'orderBy'> {
 		this.config.orderBy = columns;
 		return this;
 	}
 
-	limit(limit: number): PickLimit<this> {
+	limit(limit: number): Omit<this, 'where' | `${JoinType}Join` | 'limit'> {
 		this.config.limit = limit;
 		return this;
 	}
 
-	offset(offset: number): PickOffset<this> {
+	offset(offset: number): Omit<this, 'where' | `${JoinType}Join` | 'offset'> {
 		this.config.offset = offset;
 		return this;
 	}
@@ -156,7 +158,7 @@ export class PgSelect<
 		return this.dialect.prepareSQL(query);
 	}
 
-	async execute(): Promise<
+	protected override async execute(): Promise<
 		SelectResult<TTable, TResult, TInitialSelectResultFields, TJoinsNotNullable>
 	> {
 		const query = this.dialect.buildSelectQuery(this.config);

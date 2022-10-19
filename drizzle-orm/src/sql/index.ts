@@ -1,6 +1,5 @@
 import { AnyColumn, Column } from '../column';
 import { Table } from '../table';
-import { tableNameSym } from '../utils';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.
@@ -48,9 +47,9 @@ export class SQL implements SQLWrapper {
 			} else if (chunk instanceof Name) {
 				return escapeName(chunk.value);
 			} else if (chunk instanceof Table) {
-				return escapeName(chunk[tableNameSym]);
+				return escapeName(chunk[Table.Symbol.Name]);
 			} else if (chunk instanceof Column) {
-				return escapeName(chunk.table[tableNameSym]) + '.' + escapeName(chunk.name);
+				return escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(chunk.name);
 			} else if (chunk instanceof Param) {
 				params.push(chunk.value);
 				return escapeParam(params.length, chunk.value);

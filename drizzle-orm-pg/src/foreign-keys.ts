@@ -1,7 +1,6 @@
 import { UpdateColumnConfig } from 'drizzle-orm';
-import { tableNameSym } from 'drizzle-orm/utils';
 
-import { AnyPgColumn, PgColumn } from './columns';
+import { AnyPgColumn } from './columns';
 import { AnyPgTable, PgTable } from './table';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
@@ -84,9 +83,9 @@ export class ForeignKey<TTableName extends string, TForeignTableName extends str
 		const columnNames = columns.map((column) => column.name);
 		const foreignColumnNames = foreignColumns.map((column) => column.name);
 		const chunks = [
-			this.table[tableNameSym],
+			this.table[PgTable.Symbol.Name],
 			...columnNames,
-			foreignColumns[0]!.table[tableNameSym],
+			foreignColumns[0]!.table[PgTable.Symbol.Name],
 			...foreignColumnNames,
 		];
 		return `${chunks.join('_')}_fk`;

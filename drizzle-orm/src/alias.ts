@@ -1,8 +1,7 @@
-import { Column } from './column';
+import { AnyColumn, Column } from './column';
 import { Table } from './table';
-import { tableColumns, tableNameSym } from './utils';
 
-export class ColumnAliasProxyHandler<TColumn extends Column> implements ProxyHandler<TColumn> {
+export class ColumnAliasProxyHandler<TColumn extends AnyColumn> implements ProxyHandler<TColumn> {
 	public constructor(private table: Table) {}
 
 	public get(columnObj: TColumn, prop: string | symbol, receiver: any): any {
@@ -17,14 +16,14 @@ export class TableAliasProxyHandler implements ProxyHandler<Table> {
 	public constructor(private alias: string) {}
 
 	public get(tableObj: Table, prop: string | symbol, receiver: any): any {
-		if (prop === tableNameSym) {
+		if (prop === Table.Symbol.Name) {
 			return this.alias;
 		}
-		if (prop === tableColumns) {
+		if (prop === Table.Symbol.Columns) {
 			const proxiedColumns: { [key: string]: any } = {};
-			Object.keys(tableObj[tableColumns]).map((key) => {
+			Object.keys(tableObj[Table.Symbol.Columns]).map((key) => {
 				proxiedColumns[key] = new Proxy(
-					tableObj[tableColumns][key] as unknown as Column,
+					tableObj[Table.Symbol.Columns][key]!,
 					new ColumnAliasProxyHandler(new Proxy(tableObj, this)),
 				);
 			});
@@ -33,7 +32,7 @@ export class TableAliasProxyHandler implements ProxyHandler<Table> {
 
 		const value = tableObj[prop as keyof Table];
 		if (value instanceof Column) {
-			return new Proxy(value as Column, new ColumnAliasProxyHandler(new Proxy(tableObj, this)));
+			return new Proxy(value, new ColumnAliasProxyHandler(new Proxy(tableObj, this)));
 		}
 
 		return value;

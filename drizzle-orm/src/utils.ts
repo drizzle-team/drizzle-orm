@@ -1,20 +1,7 @@
-import { AnyColumn, Column } from './column';
+import { Column } from './column';
 import { SelectFieldsOrdered } from './operations';
 import { noopDecoder, SQL } from './sql';
 import { Table } from './table';
-
-/** @internal */
-export const tableNameSym = Symbol('tableName');
-
-/** @internal */
-export const tableColumns = Symbol('tableColumns');
-
-/** @internal */
-export const tableOriginalNameSym = Symbol('tableOriginalName');
-
-export function getTableName<TTableName extends string>(table: Table<TTableName>): TTableName {
-	return table[tableNameSym];
-}
 
 export function mapResultRow<TResult extends Record<string, unknown>>(
 	columns: SelectFieldsOrdered,

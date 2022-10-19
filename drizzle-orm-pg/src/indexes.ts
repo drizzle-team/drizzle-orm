@@ -1,9 +1,8 @@
 import { SQL } from 'drizzle-orm/sql';
-import { tableColumns } from 'drizzle-orm/utils';
 
 import { AnyPgColumn } from './columns';
 import { PgUpdateSet } from './queries/update';
-import { AnyPgTable } from './table';
+import { AnyPgTable, PgTable } from './table';
 
 interface IndexConfig<TTableName extends string, TUnique extends boolean> {
 	/**
@@ -62,13 +61,7 @@ export class IndexBuilder<TTableName extends string, TUnique extends boolean> {
 	build<TTableColumns extends Record<string, AnyPgColumn<{ tableName: TTableName }>>>(
 		table: AnyPgTable<{ name: TTableName; columns: TTableColumns }>,
 	): Index<TTableName, TTableColumns, TUnique> {
-		return new Index(
-			this.name,
-			table,
-			table[tableColumns] as TTableColumns,
-			this.columns,
-			this,
-		);
+		return new Index(this.name, table, table[PgTable.Symbol.Columns], this.columns, this);
 	}
 }
 

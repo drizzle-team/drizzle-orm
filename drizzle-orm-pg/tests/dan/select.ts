@@ -29,11 +29,84 @@ import { Equal, Expect } from '../utils';
 import { db } from './db';
 import { cities, classes, users } from './tables';
 
+const city = alias(cities, 'city');
+const city1 = alias(cities, 'city1');
+
+const join = await db.select(users)
+	.leftJoin(cities, eq(users.id, cities.id))
+	.rightJoin(city, eq(city.id, users.id))
+	.rightJoin(city1, eq(city1.id, users.id), { id: city.id });
+
+Expect<
+	Equal<{
+		users_table: {
+			id: number;
+			uuid: string;
+			homeCity: number;
+			currentCity: number | null;
+			serialNullable: number;
+			serialNotNull: number;
+			class: 'A' | 'C';
+			subClass: 'B' | 'D' | null;
+			text: string | null;
+			age1: number;
+			createdAt: Date;
+			enumCol: 'a' | 'b' | 'c';
+		} | null;
+		cities_table: {
+			id: number;
+			name: string;
+			population: number | null;
+		} | null;
+		city: {
+			id: number;
+			name: string;
+			population: number | null;
+		} | null;
+		city1: {
+			id: number;
+		};
+	}[], typeof join>
+>;
+
+const join2 = await db.select(users).fields({ id: users.id })
+	.fullJoin(cities, eq(users.id, cities.id), { id: cities.id });
+
+Expect<
+	Equal<
+		({
+			users_table: { id: number };
+			cities_table: null;
+		} | {
+			users_table: null;
+			cities_table: { id: number };
+		} | {
+			users_table: { id: number };
+			cities_table: { id: number };
+		})[],
+		typeof join2
+	>
+>;
+
+const join3 = await db.select(users).fields({ id: users.id })
+	.fullJoin(cities, eq(users.id, cities.id), { id: cities.id })
+	.rightJoin(classes, eq(users.id, classes.id), { id: classes.id });
+
+Expect<
+	Equal<
+		{
+			users_table: { id: number } | null;
+			cities_table: { id: number } | null;
+			classes_table: { id: number };
+		}[],
+		typeof join3
+	>
+>;
+
 db.select(users)
 	.where(exists(
 		db.select(cities).where(eq(users.homeCity.unsafe(), cities.id)),
-	))
-	.execute();
+	));
 
 function mapFunkyFuncResult(valueFromDriver: unknown) {
 	return {
@@ -53,11 +126,11 @@ const allOperators = await db.select(users).fields({
 	col6: sql`true`.as<boolean>(), // boolean
 	col7: sql`random()`.as<number>(), // number
 	col8: sql`some_funky_func(${users.id})`.as(mapFunkyFuncResult), // { foo: string }
-	col9: sql`greatest(${users.createdAt}, ${param(new Date(), users.createdAt)})`, // Date, "new Date()" is mapped using users.createdAt
+	col9: sql`greatest(${users.createdAt}, ${param(new Date(), users.createdAt)})`, // unknown
 	col10: sql`date_or_false(${users.createdAt}, ${param(new Date(), users.createdAt)})`.as<Date | boolean>(), // Date | boolean
-	col11: sql`${users.age1} + ${age}`, // number, age is not mapped
-	col12: sql`${users.age1} + ${param(age, users.age1)}`, // number, age is mapped using users.age1
-	col13: sql`lower(${users.class})`, // string
+	col11: sql`${users.age1} + ${age}`, // unknown
+	col12: sql`${users.age1} + ${param(age, users.age1)}`, // unknown
+	col13: sql`lower(${users.class})`, // unknown
 	col14: sql`length(${users.class})`.as<number>(), // number
 	count: sql`count(*)`.as<number>(), // number
 }).where(and(
@@ -87,7 +160,7 @@ const allOperators = await db.select(users).fields({
 	notLike(users.id, '%1%'),
 	ilike(users.id, '%1%'),
 	notIlike(users.id, '%1%'),
-)).execute();
+));
 
 Expect<
 	Equal<{
@@ -112,17 +185,9 @@ Expect<
 	}[], typeof allOperators>
 >;
 
-const rawQuery = await db.execute(
-	sql`select ${users.id}, ${users.class} from ${users} where ${inArray(users.id, [1, 2, 3])} and ${
-		eq(users.class, 'A')
-	}`,
-);
-
-Expect<Equal<QueryResult<QueryResultRow>, typeof rawQuery>>;
-
 const textSelect = await db.select(users).fields({
 	t: users.text,
-}).execute();
+});
 
 Expect<Equal<{ t: string | null }[], typeof textSelect>>;
 
@@ -147,7 +212,8 @@ const megaJoin = await db.select(users)
 	.innerJoin(subscriber, sql`${users.class} = ${subscriber.id}`)
 	.innerJoin(closestCity, sql`${users.currentCity} = ${closestCity.id}`)
 	.where(and(sql`${users.age1} > 0`, eq(cities.id, 1)))
-	.execute();
+	.limit(1)
+	.offset(1);
 
 Expect<
 	Equal<
@@ -224,13 +290,12 @@ Expect<
 
 const friends = alias(users, 'friends');
 
-const join2 = await db.select(users)
+const join4 = await db.select(users)
 	.fields({ id: users.id })
 	.innerJoin(cities, sql`${users.id} = ${cities.id}`, { id: cities.id })
 	.innerJoin(classes, sql`${cities.id} = ${classes.id}`)
 	.innerJoin(friends, sql`${friends.id} = ${users.id}`)
-	.where(sql`${users.age1} > 0`)
-	.execute();
+	.where(sql`${users.age1} > 0`);
 
 Expect<
 	Equal<{
@@ -259,5 +324,5 @@ Expect<
 			createdAt: Date;
 			enumCol: 'a' | 'b' | 'c';
 		};
-	}[], typeof join2>
+	}[], typeof join4>
 >;

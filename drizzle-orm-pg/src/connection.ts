@@ -9,14 +9,13 @@ import {
 	sql,
 } from 'drizzle-orm';
 import { Name, PreparedQuery, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
-import { GetTableName, tableColumns, tableNameSym, tableOriginalNameSym } from 'drizzle-orm/utils';
 import { Client, Pool, PoolClient, QueryResult, QueryResultRow, types } from 'pg';
 
 import { AnyPgColumn, PgColumn } from './columns';
 import { PGDatabase } from './db';
 import { PgSelectFields, PgSelectFieldsOrdered } from './operations';
 import { PgDeleteConfig, PgInsertConfig, PgSelectConfig, PgUpdateConfig, PgUpdateSet } from './queries';
-import { PgTable } from './table';
+import { AnyPgTable, PgTable } from './table';
 
 export type PgColumnDriverDataType =
 	| string
@@ -176,14 +175,14 @@ export class PgDialect {
 		return sql`delete from ${table}${whereSql}${returningSql}`;
 	}
 
-	buildUpdateSet(table: PgTable, set: PgUpdateSet<PgTable>): SQL {
+	buildUpdateSet(table: AnyPgTable, set: PgUpdateSet<AnyPgTable>): SQL {
 		const setEntries = Object.entries<unknown | SQL>(set);
 
 		const setSize = setEntries.length;
 		return sql.fromList(
 			setEntries
 				.map(([colName, value], i): SQL[] => {
-					const col: AnyPgColumn = table[tableColumns][colName]!;
+					const col: AnyPgColumn = table[PgTable.Symbol.Columns][colName]!;
 					const mappedValue = value instanceof SQL || value === null ? value : param(value, col);
 					const res = sql`${new Name(col.name)} = ${mappedValue}`;
 					if (i < setSize - 1) {
@@ -202,7 +201,7 @@ export class PgDialect {
 		return Object.entries(fields).map(([name, field]) => ({ name, resultTableName, field }));
 	}
 
-	public buildUpdateQuery<TTable extends PgTable>({ table, set, where, returning }: PgUpdateConfig<TTable>): SQL {
+	public buildUpdateQuery({ table, set, where, returning }: PgUpdateConfig): SQL {
 		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
@@ -290,7 +289,7 @@ export class PgDialect {
 			}
 			const joinMeta = joins[tableAlias]!;
 			const table = joinMeta.table;
-			const alias = table[tableNameSym] === table[tableOriginalNameSym] ? undefined : tableAlias;
+			const alias = table[PgTable.Symbol.Name] === table[PgTable.Symbol.OriginalName] ? undefined : tableAlias;
 			joinsArray.push(
 				sql`${sql.raw(joinMeta.joinType)} join ${joinMeta.table} ${alias} on ${joinMeta.on}`,
 			);
@@ -323,7 +322,7 @@ export class PgDialect {
 
 	public buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {
 		const valuesSqlList: ((SQLSourceParam | SQL)[] | SQL)[] = [];
-		const columns: Record<string, AnyPgColumn> = table[tableColumns];
+		const columns: Record<string, AnyPgColumn> = table[PgTable.Symbol.Columns];
 		const columnKeys = Object.keys(columns);
 		const insertOrder = Object.values(columns).map((column) => new Name(column.name));
 

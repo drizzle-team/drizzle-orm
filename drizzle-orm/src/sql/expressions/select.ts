@@ -1,14 +1,10 @@
-import { Column } from '../../column';
+import { AnyColumn } from '../../column';
 import { SQL, sql } from '..';
 
-export function asc<TTableName extends string>(
-	column: Column<{ tableName: TTableName }>,
-): SQL<TTableName> {
+export function asc(column: AnyColumn): SQL {
 	return sql`${column} asc`;
 }
 
-export function desc<TTableName extends string>(
-	column: Column<{ tableName: TTableName }>,
-): SQL<TTableName> {
+export function desc(column: AnyColumn): SQL {
 	return sql`${column} desc`;
 }

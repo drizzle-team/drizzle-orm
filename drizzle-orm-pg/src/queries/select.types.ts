@@ -49,13 +49,6 @@ export type SelectResult<
 
 export type AnyPgSelect = PgSelect<AnyPgTable, any, any, any>;
 
-export type QueryFinisherMethods = 'getQuery' | 'getSQL' | 'execute';
-
-export type PickWhere<TJoinReturn extends AnyPgSelect> = Omit<TJoinReturn, 'where' | `${JoinType}Join`>;
-export type PickOrderBy<TJoinReturn extends AnyPgSelect> = Pick<TJoinReturn, 'limit' | 'offset' | QueryFinisherMethods>;
-export type PickLimit<TJoinReturn extends AnyPgSelect> = Pick<TJoinReturn, 'offset' | QueryFinisherMethods>;
-export type PickOffset<TJoinReturn extends AnyPgSelect> = Pick<TJoinReturn, QueryFinisherMethods>;
-
 export type BuildAliasTable<TTable extends AnyPgTable, TAlias extends string> = GetTableConfig<TTable> extends
 	infer TConfig extends TableConfig ? PgTableWithColumns<
 		Simplify<

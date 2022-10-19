@@ -1,11 +1,13 @@
 import { GetColumnData } from 'drizzle-orm';
-import { PreparedQuery, SQL } from 'drizzle-orm/sql';
-import { mapResultRow, tableColumns, tableNameSym } from 'drizzle-orm/utils';
+import { PreparedQuery, SQL, SQLWrapper } from 'drizzle-orm/sql';
+import { mapResultRow } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
+import { Simplify } from 'type-fest';
 
 import { PgDialect, PgSession } from '~/connection';
 import { PgSelectFields, PgSelectFieldsOrdered, SelectResultFields } from '~/operations';
-import { AnyPgTable, GetTableConfig, InferModel } from '~/table';
+import { AnyPgTable, GetTableConfig, InferModel, PgTable } from '~/table';
+import { QueryPromise } from './common';
 
 export interface PgUpdateConfig {
 	where?: SQL | undefined;
@@ -14,60 +16,73 @@ export interface PgUpdateConfig {
 	returning?: PgSelectFieldsOrdered;
 }
 
-export type PgUpdateSet<TTable extends AnyPgTable> = {
-	[Key in keyof GetTableConfig<TTable, 'columns'>]?:
-		| GetColumnData<GetTableConfig<TTable, 'columns'>[Key], 'query'>
-		| SQL;
-};
+export type PgUpdateSet<TTable extends AnyPgTable> = Simplify<
+	{
+		[Key in keyof GetTableConfig<TTable, 'columns'>]?:
+			| GetColumnData<GetTableConfig<TTable, 'columns'>[Key], 'query'>
+			| SQL;
+	}
+>;
 
-export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> {
-	protected typeKeeper!: {
-		table: TTable;
-		return: TReturn;
-	};
-
-	private config: PgUpdateConfig;
+export class PgUpdateBuilder<TTable extends AnyPgTable> {
+	declare protected $table: TTable;
 
 	constructor(
 		private table: TTable,
 		private session: PgSession,
 		private dialect: PgDialect,
+	) {}
+
+	set(values: PgUpdateSet<TTable>): PgUpdate<TTable> {
+		return new PgUpdate(this.table, values, this.session, this.dialect);
+	}
+}
+
+export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> extends QueryPromise<TReturn>
+	implements SQLWrapper
+{
+	declare protected $table: TTable;
+	declare protected $return: TReturn;
+
+	private config: PgUpdateConfig;
+
+	constructor(
+		table: TTable,
+		set: PgUpdateSet<TTable>,
+		private session: PgSession,
+		private dialect: PgDialect,
 	) {
-		this.config = {
-			set: undefined!,
-			table,
-		};
+		super();
+		this.config = { set, table };
 	}
 
-	public set(values: PgUpdateSet<TTable>): Pick<this, 'where' | 'returning' | 'getQuery' | 'execute'> {
-		this.config.set = values;
-		return this;
-	}
-
-	public where(where: SQL | undefined): Pick<this, 'returning' | 'getQuery' | 'execute'> {
+	public where(where: SQL | undefined): Omit<this, 'where'> {
 		this.config.where = where;
 		return this;
 	}
 
-	public returning(): Pick<PgUpdate<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
+	public returning(): Omit<PgUpdate<TTable, InferModel<TTable>[]>, 'where' | 'returning'>;
 	public returning<TSelectedFields extends PgSelectFields<GetTableConfig<TTable, 'name'>>>(
 		fields: TSelectedFields,
-	): Pick<PgUpdate<TTable, SelectResultFields<TSelectedFields>[]>, 'getQuery' | 'execute'>;
+	): Omit<PgUpdate<TTable, SelectResultFields<TSelectedFields>[]>, 'where' | 'returning'>;
 	public returning(fields?: PgSelectFields<GetTableConfig<TTable, 'name'>>): PgUpdate<TTable, any> {
 		const orderedFields = this.dialect.orderSelectedFields(
-			fields ?? this.config.table[tableColumns],
-			this.table[tableNameSym],
+			fields ?? this.config.table[PgTable.Symbol.Columns],
+			this.config.table[PgTable.Symbol.Name],
 		);
 		this.config.returning = orderedFields;
 		return this;
 	}
 
-	public getQuery(): PreparedQuery {
-		const query = this.dialect.buildUpdateQuery(this.config);
-		return this.dialect.prepareSQL(query);
+	getSQL(): SQL {
+		return this.dialect.buildUpdateQuery(this.config);
 	}
 
-	public async execute(): Promise<TReturn> {
+	public getQuery(): PreparedQuery {
+		return this.dialect.prepareSQL(this.getSQL());
+	}
+
+	protected override async execute(): Promise<TReturn> {
 		const query = this.dialect.buildUpdateQuery(this.config);
 		const { sql, params } = this.dialect.prepareSQL(query);
 		const result = await this.session.query(sql, params);

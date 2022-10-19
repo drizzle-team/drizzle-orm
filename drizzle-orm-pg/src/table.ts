@@ -1,14 +1,13 @@
 import { GetColumnData } from 'drizzle-orm';
 import { OptionalKeyOnly, RequiredKeyOnly } from 'drizzle-orm/operations';
 import { Table } from 'drizzle-orm/table';
-import { RequiredKeys, tableColumns } from 'drizzle-orm/utils';
+import { RequiredKeys } from 'drizzle-orm/utils';
 import { Simplify } from 'type-fest';
 
 import { AnyCheckBuilder, BuildCheck, Check, CheckBuilder } from './checks';
 import { AnyPgColumn, AnyPgColumnBuilder, BuildPgColumns, PgColumn } from './columns/common';
 import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
 import { AnyIndexBuilder, BuildIndex, Index, IndexBuilder } from './indexes';
-import { tableChecks, tableConflictConstraints, tableForeignKeys, tableIndexes } from './utils';
 
 export type PgTableExtraConfig<TTableName extends string> = Record<
 	string,
@@ -58,24 +57,44 @@ export interface TableConfig<TName extends string = string> {
 export type UpdateTableConfig<T extends TableConfig, TUpdate extends Partial<TableConfig>> = {} extends TUpdate ? T
 	: RequiredKeys<Omit<T, keyof TUpdate> & Pick<TUpdate, keyof TableConfig>>;
 
+/** @internal */
+export const indexesSym = Symbol('tableIndexes');
+
+/** @internal */
+export const foreignKeysSym = Symbol('tableForeignKeys');
+
+/** @internal */
+export const checksSym = Symbol('tableChecks');
+
+/** @internal */
+export const conflictConstraintsSym = Symbol('tableConflictConstraints');
+
 export class PgTable<T extends TableConfig> extends Table<T['name']> {
 	declare protected $columns: T['columns'];
 	declare protected $conflictConstraints: T['conflictConstraints'];
 
 	/** @internal */
-	[tableColumns]!: T['columns'];
+	static override readonly Symbol = Object.assign(Table.Symbol, {
+		Indexes: indexesSym as typeof indexesSym,
+		ForeignKeys: foreignKeysSym as typeof foreignKeysSym,
+		Checks: checksSym as typeof checksSym,
+		ConflictConstraints: conflictConstraintsSym as typeof conflictConstraintsSym,
+	});
 
 	/** @internal */
-	[tableIndexes]: Record<string | symbol, Index<T['name'], any, boolean>> = {};
+	[Table.Symbol.Columns]!: T['columns'];
 
 	/** @internal */
-	[tableForeignKeys]: Record<string | symbol, ForeignKey<T['name'], string>> = {};
+	[indexesSym]: Record<string | symbol, Index<T['name'], any, boolean>> = {};
 
 	/** @internal */
-	[tableChecks]: Record<string | symbol, Check<T['name']>> = {};
+	[foreignKeysSym]: Record<string | symbol, ForeignKey<T['name'], string>> = {};
 
 	/** @internal */
-	[tableConflictConstraints] = {} as T['conflictConstraints'];
+	[checksSym]: Record<string | symbol, Check<T['name']>> = {};
+
+	/** @internal */
+	[conflictConstraintsSym]: T['conflictConstraints'] = {};
 }
 
 export type AnyPgTable<TPartial extends Partial<TableConfig> = {}> = PgTable<
@@ -146,32 +165,32 @@ export function pgTable<
 		Object.entries(columns).map(([name, colBuilder]) => {
 			const column = colBuilder.build(rawTable);
 			colBuilder.buildForeignKeys(column, rawTable).forEach((fk, fkIndex) => {
-				rawTable[tableForeignKeys][Symbol(`${name}_${fkIndex}`)] = fk;
+				rawTable[foreignKeysSym][Symbol(`${name}_${fkIndex}`)] = fk;
 			});
 			return [name, column];
 		}),
 	) as BuildPgColumns<TTableName, TColumnsMap>;
 
-	rawTable[tableColumns] = builtColumns;
+	rawTable[PgTable.Symbol.Columns] = builtColumns;
 
 	const table = Object.assign(rawTable, builtColumns);
 
-	table[tableColumns] = builtColumns;
+	table[PgTable.Symbol.Columns] = builtColumns;
 
 	if (extraConfig) {
-		const builtConfig = extraConfig(table[tableColumns]);
-		table[tableConflictConstraints] = builtConfig as unknown as BuildConflictConstraints<
+		const builtConfig = extraConfig(table[PgTable.Symbol.Columns]);
+		table[conflictConstraintsSym] = builtConfig as unknown as BuildConflictConstraints<
 			TExtraConfig,
 			BuildPgColumns<TTableName, TColumnsMap>
 		>;
 
 		Object.entries(builtConfig).forEach(([name, builder]) => {
 			if (builder instanceof IndexBuilder) {
-				table[tableIndexes][name] = builder.build(table);
+				table[indexesSym][name] = builder.build(table);
 			} else if (builder instanceof CheckBuilder) {
-				table[tableChecks][name] = builder.build(table);
+				table[checksSym][name] = builder.build(table);
 			} else if (builder instanceof ForeignKeyBuilder) {
-				table[tableForeignKeys][name] = builder.build(table);
+				table[foreignKeysSym][name] = builder.build(table);
 			}
 		});
 	}

@@ -1,5 +1,5 @@
 import { SQL } from 'drizzle-orm/sql';
-import { PgTable } from './table';
+import { AnyPgTable } from './table';
 
 export class CheckBuilder<TTableName extends string> {
 	protected brand!: 'PgConstraintBuilder';

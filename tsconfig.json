@@ -1,5 +1,6 @@
 {
 	"compilerOptions": {
+		"isolatedModules": true,
 		"composite": true,
 		"target": "es2016",
 		"module": "commonjs",
