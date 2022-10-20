@@ -1,40 +1,33 @@
-import { TableName } from 'drizzle-orm/branded-types';
-
-import { AnyPgSQL } from './sql';
+import { SQL } from 'drizzle-orm/sql';
 import { AnyPgTable } from './table';
 
-export class CheckBuilder<TTableName extends TableName> {
+export class CheckBuilder<TTableName extends string> {
 	protected brand!: 'PgConstraintBuilder';
 
-	constructor(public name: string, public value: AnyPgSQL<TTableName>) {}
+	constructor(public name: string, public value: SQL) {}
 
-	build(table: AnyPgTable<TTableName>): Check<TTableName> {
+	build(table: AnyPgTable<{ name: TTableName }>): Check<TTableName> {
 		return new Check(table, this);
 	}
 }
 
-export type AnyCheckBuilder<TTableName extends TableName = TableName> = CheckBuilder<TTableName>;
+export type AnyCheckBuilder<TTableName extends string = string> = CheckBuilder<TTableName>;
 
-export class Check<TTableName extends TableName> {
+export class Check<TTableName extends string> {
 	readonly name: string;
-	readonly value: AnyPgSQL<TTableName>;
+	readonly value: SQL;
 
-	constructor(public table: AnyPgTable<TTableName>, builder: CheckBuilder<TTableName>) {
+	constructor(public table: AnyPgTable<{ name: TTableName }>, builder: CheckBuilder<TTableName>) {
 		this.name = builder.name;
 		this.value = builder.value;
 	}
 }
 
-export type BuildCheck<T extends AnyCheckBuilder> = T extends CheckBuilder<
-	infer TTableName
-> ? Check<TTableName>
+export type BuildCheck<T extends AnyCheckBuilder> = T extends CheckBuilder<infer TTableName> ? Check<TTableName>
 	: never;
 
-export type AnyCheck = Check<TableName>;
+export type AnyCheck = Check<string>;
 
-export function check<TTableName extends TableName>(
-	name: string,
-	value: AnyPgSQL<TTableName>,
-): CheckBuilder<TTableName> {
+export function check<TTableName extends string>(name: string, value: SQL): CheckBuilder<TTableName> {
 	return new CheckBuilder(name, value);
 }

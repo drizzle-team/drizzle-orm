@@ -9,7 +9,7 @@
 		"pack": "cp package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"publish": "pnpm publish package.tgz",
 		"publish:beta": "pnpm publish package.tgz --tag beta --git-checks false",
-		"release:beta": "pnpm version prerelease && pnpm build && pnpm run pack && pnpm publish:beta",
+		"release:beta": "pnpm build && pnpm version prerelease && pnpm run pack && pnpm publish:beta",
 		"build:int": "pnpm build && pnpm run pack"
 	},
 	"publishConfig": {

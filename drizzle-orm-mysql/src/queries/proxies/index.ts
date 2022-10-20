@@ -1,4 +1,4 @@
-import { tableColumns, tableName } from 'drizzle-orm/utils';
+import { tableColumns, tableNameSym } from 'drizzle-orm/utils';
 import { AnyMySqlColumn } from '~/columns/common';
 import { AnyMySqlTable } from '~/table';
 
@@ -17,7 +17,7 @@ export class TableProxyHandler<TJoinedTable extends AnyMySqlTable> implements Pr
 	public constructor(private alias: string) {}
 
 	public get(tableObj: TJoinedTable, prop: string | symbol, receiver: any): any {
-		if (prop === tableName) {
+		if (prop === tableNameSym) {
 			return this.alias;
 		}
 		if (prop === tableColumns) {

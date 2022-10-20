@@ -5,15 +5,15 @@ import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export class MySqlJsonBuilder<
 	TData,
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
+	TNotNull extends boolean = false,
+	THasDefault extends boolean = false,
 > extends MySqlColumnBuilder<ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	constructor(name: string) {
 		super(name);
 	}
 
 	/** @internal */
-	override build<TTableName extends TableName>(
+	override build<TTableName extends string>(
 		table: AnyMySqlTable<TTableName>,
 	): MySqlJson<TTableName, TNotNull, THasDefault, TData> {
 		return new MySqlJson(table, this);
@@ -21,9 +21,9 @@ export class MySqlJsonBuilder<
 }
 
 export class MySqlJson<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
+	TTableName extends string,
+	TNotNull extends boolean,
+	THasDefault extends boolean,
 	TData,
 > extends MySqlColumn<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'MySqlJson';

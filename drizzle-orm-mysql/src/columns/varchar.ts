@@ -4,8 +4,8 @@ import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export class MySqlVarCharBuilder<
 	TData extends ColumnData<string> = ColumnData<string>,
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
+	TNotNull extends boolean = false,
+	THasDefault extends boolean = false,
 > extends MySqlColumnBuilder<TData, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	/** @internal */ length: number | undefined;
 
@@ -15,7 +15,7 @@ export class MySqlVarCharBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends TableName>(
+	override build<TTableName extends string>(
 		table: AnyMySqlTable<TTableName>,
 	): MySqlVarChar<TTableName, TNotNull, THasDefault, TData> {
 		return new MySqlVarChar<TTableName, TNotNull, THasDefault, TData>(table, this);
@@ -23,9 +23,9 @@ export class MySqlVarCharBuilder<
 }
 
 export class MySqlVarChar<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
+	TTableName extends string,
+	TNotNull extends boolean,
+	THasDefault extends boolean,
 	TData extends ColumnData<string>,
 > extends MySqlColumn<
 	TTableName,

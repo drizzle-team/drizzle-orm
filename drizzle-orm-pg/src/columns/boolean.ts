@@ -1,31 +1,25 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
+import { ColumnConfig } from 'drizzle-orm';
+import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 
 import { AnyPgTable } from '~/table';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgBooleanBuilder<
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends PgColumnBuilder<
-	ColumnData<boolean>,
-	ColumnDriverParam<boolean>,
-	TNotNull,
-	THasDefault
+export class PgBooleanBuilder extends PgColumnBuilder<
+	ColumnBuilderConfig<{
+		data: boolean;
+		driverParam: boolean;
+	}>
 > {
 	/** @internal */
-	override build<TTableName extends TableName>(
-		table: AnyPgTable<TTableName>,
-	): PgBoolean<TTableName, TNotNull, THasDefault> {
-		return new PgBoolean<TTableName, TNotNull, THasDefault>(table, this);
+	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgBoolean<TTableName> {
+		return new PgBoolean(table, this);
 	}
 }
 
-export class PgBoolean<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
-> extends PgColumn<TTableName, ColumnData<boolean>, ColumnDriverParam<boolean>, TNotNull, THasDefault> {
-	protected brand!: 'PgBoolean';
+export class PgBoolean<TTableName extends string>
+	extends PgColumn<ColumnConfig<{ tableName: TTableName; data: boolean; driverParam: boolean }>>
+{
+	protected override $pgColumnBrand!: 'PgBoolean';
 
 	getSQLType(): string {
 		return 'boolean';

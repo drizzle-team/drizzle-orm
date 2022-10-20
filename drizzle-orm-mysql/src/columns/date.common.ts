@@ -9,8 +9,8 @@ import { MySqlColumn, MySqlColumnBuilder } from './common';
 export abstract class MySqlDateColumnBaseBuilder<
 	TData extends ColumnData,
 	TDriverParam extends MySqlColumnDriverParam,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
+	TNotNull extends boolean,
+	THasDefault extends boolean,
 > extends MySqlColumnBuilder<TData, TDriverParam, TNotNull, THasDefault> {
 	hasOnUpdateNow: boolean = false;
 
@@ -39,11 +39,11 @@ export abstract class MySqlDateColumnBaseBuilder<
 }
 
 export abstract class MySqlDateBaseColumn<
-	TTableName extends TableName,
+	TTableName extends string,
 	TData extends ColumnData,
 	TDriverParam extends MySqlColumnDriverParam,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
+	TNotNull extends boolean,
+	THasDefault extends boolean,
 > extends MySqlColumn<TTableName, TData, TDriverParam, TNotNull, THasDefault> {
 	public readonly hasOnUpdateNow: boolean;
 

@@ -1,34 +1,25 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
-
+import { ColumnConfig } from 'drizzle-orm';
+import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyPgTable } from '~/table';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgJsonbBuilder<
-	TData,
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends PgColumnBuilder<ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+export class PgJsonbBuilder<TData> extends PgColumnBuilder<ColumnBuilderConfig<{ data: TData; driverParam: string }>> {
 	constructor(name: string) {
 		super(name);
 	}
 
 	/** @internal */
-	override build<TTableName extends TableName>(
-		table: AnyPgTable<TTableName>,
-	): PgJsonb<TTableName, TNotNull, THasDefault, TData> {
+	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgJsonb<TTableName, TData> {
 		return new PgJsonb(table, this);
 	}
 }
 
-export class PgJsonb<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
-	TData,
-> extends PgColumn<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
-	protected brand!: 'PgJsonb';
+export class PgJsonb<TTableName extends string, TData>
+	extends PgColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>>
+{
+	protected override $pgColumnBrand!: 'PgJsonb';
 
-	constructor(table: AnyPgTable<TTableName>, builder: PgJsonbBuilder<TData, TNotNull, THasDefault>) {
+	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgJsonbBuilder<TData>) {
 		super(table, builder);
 	}
 
@@ -41,8 +32,6 @@ export class PgJsonb<
 	}
 }
 
-export function jsonb<TData = any>(name: string) {
-	return new PgJsonbBuilder<TData>(name);
+export function jsonb<TData = any>(name: string): PgJsonbBuilder<TData> {
+	return new PgJsonbBuilder(name);
 }
-
-// const jsonColumn = jsonb<{ id: string }>('dbName');

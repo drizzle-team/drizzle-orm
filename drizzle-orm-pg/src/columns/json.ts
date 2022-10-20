@@ -1,34 +1,25 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
-
+import { ColumnConfig } from 'drizzle-orm';
+import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyPgTable } from '~/table';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgJsonBuilder<
-	TData,
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends PgColumnBuilder<ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+export class PgJsonBuilder<TData> extends PgColumnBuilder<ColumnBuilderConfig<{ data: TData; driverParam: string }>> {
 	constructor(name: string) {
 		super(name);
 	}
 
 	/** @internal */
-	override build<TTableName extends TableName>(
-		table: AnyPgTable<TTableName>,
-	): PgJson<TTableName, TNotNull, THasDefault, TData> {
+	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgJson<TTableName, TData> {
 		return new PgJson(table, this);
 	}
 }
 
-export class PgJson<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
-	TData,
-> extends PgColumn<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
-	protected brand!: 'PgJson';
+export class PgJson<TTableName extends string, TData>
+	extends PgColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>>
+{
+	protected override $pgColumnBrand!: 'PgJson';
 
-	constructor(table: AnyPgTable<TTableName>, builder: PgJsonBuilder<TData, TNotNull, THasDefault>) {
+	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgJsonBuilder<TData>) {
 		super(table, builder);
 	}
 
@@ -41,6 +32,6 @@ export class PgJson<
 	}
 }
 
-export function json<TData>(name: string) {
-	return new PgJsonBuilder<TData>(name);
+export function json<TData = any>(name: string): PgJsonBuilder<TData> {
+	return new PgJsonBuilder(name);
 }

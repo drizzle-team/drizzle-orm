@@ -1,7 +1,7 @@
 import { AsyncDriver, Column, Connector, Dialect, Driver, MigrationMeta, param, Session, sql } from 'drizzle-orm';
 import { ColumnData, TableName, Unwrap } from 'drizzle-orm/branded-types';
 import { Name, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
-import { GetTableName, tableColumns, tableName } from 'drizzle-orm/utils';
+import { GetTableName, tableColumns, tableNameSym } from 'drizzle-orm/utils';
 import { Connection, FieldPacket, Pool } from 'mysql2/promise';
 import { Simplify } from 'type-fest';
 
@@ -127,7 +127,7 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 
 	private buildTableNamesMap(): Record<string, string> {
 		return Object.entries(this.schema).reduce<Record<string, string>>((acc, [tName, table]) => {
-			acc[table[tableName]] = tName;
+			acc[table[tableNameSym]] = tName;
 			return acc;
 		}, {});
 	}
@@ -200,7 +200,7 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		);
 	}
 
-	orderSelectedFields<TTableName extends TableName>(
+	orderSelectedFields<TTableName extends string>(
 		fields: MySqlSelectFields<TTableName>,
 		resultTableName: string,
 	): MySqlSelectFieldsOrdered<TTableName> {
@@ -298,7 +298,7 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 				joinsArray.push(sql` `);
 			}
 			const joinMeta = joins[tableAlias]!;
-			const alias = joinMeta.aliasTable[tableName] === joinMeta.table[tableName]
+			const alias = joinMeta.aliasTable[tableNameSym] === joinMeta.table[tableNameSym]
 				? undefined
 				: joinMeta.aliasTable;
 			joinsArray.push(
@@ -383,7 +383,7 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 export type AnyMySqlDialect = MySqlDialect<Record<string, AnyMySqlTable>>;
 
 export type BuildTableNamesMap<TSchema extends Record<string, AnyMySqlTable>> = {
-	[Key in keyof TSchema & string as Unwrap<GetTableName<TSchema[Key]>>]: Key;
+	[Key in keyof TSchema & string as Unwrap<GetTableConfig<TSchema[Key], 'name'>>]: Key;
 };
 
 export type MySqlDatabase<TSchema extends Record<string, AnyMySqlTable>> = Simplify<

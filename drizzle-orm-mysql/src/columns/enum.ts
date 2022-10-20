@@ -4,8 +4,8 @@ import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export class MySqlEnumBuilder<
 	TData extends ColumnData<string> = ColumnData<string>,
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
+	TNotNull extends boolean = false,
+	THasDefault extends boolean = false,
 > extends MySqlColumnBuilder<TData, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	/** @internal */ values: string[];
 
@@ -14,7 +14,7 @@ export class MySqlEnumBuilder<
 		this.values = values;
 	}
 	/** @internal */
-	override build<TTableName extends TableName>(
+	override build<TTableName extends string>(
 		table: AnyMySqlTable<TTableName>,
 	): MySqlEnumColumn<TTableName, TData, TNotNull, THasDefault> {
 		return new MySqlEnumColumn(table, this, this.values);
@@ -22,10 +22,10 @@ export class MySqlEnumBuilder<
 }
 
 export class MySqlEnumColumn<
-	TTableName extends TableName,
+	TTableName extends string,
 	TData extends ColumnData<string>,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
+	TNotNull extends boolean,
+	THasDefault extends boolean,
 > extends MySqlColumn<TTableName, TData, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'MySqlEnumColumn';
 

@@ -4,7 +4,7 @@ import { AnyMySqlColumn } from './columns';
 import { MySQL } from './sql';
 import { AnyMySqlTable } from './table';
 
-interface IndexConfig<TTableName extends TableName> {
+interface IndexConfig<TTableName extends string> {
 	/**
 	 * If true, the index will be created as `create unique index` instead of `create index`.
 	 */
@@ -26,7 +26,7 @@ interface IndexConfig<TTableName extends TableName> {
 	lock?: 'default' | 'none' | 'shared' | 'exclusive' | MySQL<TTableName | TableName>;
 }
 
-export class IndexBuilder<TTableName extends TableName> {
+export class IndexBuilder<TTableName extends string> {
 	protected typeKeeper!: {
 		tableName: TTableName;
 	};
@@ -44,9 +44,9 @@ export class IndexBuilder<TTableName extends TableName> {
 	}
 }
 
-export type AnyIndexBuilder<TTableName extends TableName = TableName> = IndexBuilder<TTableName>;
+export type AnyIndexBuilder<TTableName extends string = TableName> = IndexBuilder<TTableName>;
 
-export class Index<TTableName extends TableName> {
+export class Index<TTableName extends string> {
 	protected typeKeeper!: {
 		tableName: TTableName;
 	};

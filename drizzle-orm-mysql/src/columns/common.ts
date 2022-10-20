@@ -18,8 +18,8 @@ export interface ReferenceConfig<TData extends ColumnData> {
 export abstract class MySqlColumnBuilder<
 	TData extends ColumnData,
 	TDriverParam extends MySqlColumnDriverParam,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
+	TNotNull extends boolean,
+	THasDefault extends boolean,
 > extends ColumnBuilder<TData, TDriverParam, TNotNull, THasDefault> {
 	private foreignKeyConfigs: ReferenceConfig<TData>[] = [];
 
@@ -67,7 +67,7 @@ export abstract class MySqlColumnBuilder<
 	}
 
 	/** @internal */
-	abstract override build<TTableName extends TableName>(
+	abstract override build<TTableName extends string>(
 		table: AnyMySqlTable<TTableName>,
 	): MySqlColumn<TTableName, TData, TDriverParam, TNotNull, THasDefault>;
 }
@@ -75,8 +75,8 @@ export abstract class MySqlColumnBuilder<
 export abstract class MySqlColumnBuilderWithAutoIncrement<
 	TData extends ColumnData,
 	TDriverParam extends MySqlColumnDriverParam,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
+	TNotNull extends boolean,
+	THasDefault extends boolean,
 > extends MySqlColumnBuilder<TData, TDriverParam, TNotNull, THasDefault> {
 	/** @internal */ _autoIncrement = false;
 
@@ -94,11 +94,11 @@ export abstract class MySqlColumnBuilderWithAutoIncrement<
 export type AnyMySqlColumnBuilder = MySqlColumnBuilder<any, any, any, any>;
 
 export abstract class MySqlColumn<
-	TTableName extends TableName,
+	TTableName extends string,
 	TDataType extends ColumnData,
 	TDriverData extends MySqlColumnDriverParam,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
+	TNotNull extends boolean,
+	THasDefault extends boolean,
 > extends Column<TTableName, TDataType, TDriverData, TNotNull, THasDefault> {
 	readonly autoIncrement!: boolean;
 
@@ -115,11 +115,11 @@ export abstract class MySqlColumn<
 }
 
 export abstract class MySqlColumnWithAutoIncrement<
-	TTableName extends TableName<string>,
+	TTableName extends string<string>,
 	TDataType extends ColumnData,
 	TDriverData extends MySqlColumnDriverParam,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
+	TNotNull extends boolean,
+	THasDefault extends boolean,
 > extends MySqlColumn<TTableName, TDataType, TDriverData, TNotNull, THasDefault> {
 	override readonly autoIncrement: boolean;
 
@@ -133,14 +133,14 @@ export abstract class MySqlColumnWithAutoIncrement<
 }
 
 export type AnyMySqlColumn<
-	TTableName extends TableName = any,
+	TTableName extends string = any,
 	TData extends ColumnData = any,
 	TDriverParam extends MySqlColumnDriverParam = MySqlColumnDriverParam,
-	TNotNull extends ColumnNotNull = any,
-	THasDefault extends ColumnHasDefault = any,
+	TNotNull extends boolean = any,
+	THasDefault extends boolean = any,
 > = MySqlColumn<TTableName, TData, TDriverParam, TNotNull, THasDefault>;
 
-export type BuildMySqlColumn<TTableName extends TableName, TBuilder extends AnyMySqlColumnBuilder> = TBuilder extends
+export type BuildMySqlColumn<TTableName extends string, TBuilder extends AnyMySqlColumnBuilder> = TBuilder extends
 	MySqlColumnBuilder<
 		infer TData,
 		infer TDriverParam,
@@ -150,7 +150,7 @@ export type BuildMySqlColumn<TTableName extends TableName, TBuilder extends AnyM
 	: never;
 
 export type BuildMySqlColumns<
-	TTableName extends TableName,
+	TTableName extends string,
 	TConfigMap extends Record<string, AnyMySqlColumnBuilder>,
 > = Simplify<
 	{
@@ -158,7 +158,7 @@ export type BuildMySqlColumns<
 	}
 >;
 
-export type ChangeColumnTable<TColumn extends AnyMySqlColumn, TAlias extends TableName> = TColumn extends
+export type ChangeColumnTable<TColumn extends AnyMySqlColumn, TAlias extends string> = TColumn extends
 	MySqlColumn<any, infer TData, infer TDriverParam, infer TNotNull, infer THasDefault> ? MySqlColumn<
 		TAlias,
 		TData,

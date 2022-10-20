@@ -1,12 +1,9 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
-
+import { ColumnConfig } from 'drizzle-orm';
+import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyPgTable } from '~/table';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgNumericBuilder<
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends PgColumnBuilder<ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+export class PgNumericBuilder extends PgColumnBuilder<ColumnBuilderConfig<{ data: string; driverParam: string }>> {
 	/** @internal */ precision: number | undefined;
 	/** @internal */ scale: number | undefined;
 
@@ -17,30 +14,20 @@ export class PgNumericBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends TableName>(
-		table: AnyPgTable<TTableName>,
-	): PgNumeric<TTableName, TNotNull, THasDefault> {
+	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgNumeric<TTableName> {
 		return new PgNumeric(table, this);
 	}
 }
 
-export class PgNumeric<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
-> extends PgColumn<
-	TTableName,
-	ColumnData<string>,
-	ColumnDriverParam<string>,
-	TNotNull,
-	THasDefault
+export class PgNumeric<TTableName extends string> extends PgColumn<
+	ColumnConfig<{ tableName: TTableName; data: string; driverParam: string }>
 > {
-	protected brand!: 'PgNumeric';
+	protected override $pgColumnBrand!: 'PgNumeric';
 
-	precision: number | undefined;
-	scale: number | undefined;
+	readonly precision: number | undefined;
+	readonly scale: number | undefined;
 
-	constructor(table: AnyPgTable<TTableName>, builder: PgNumericBuilder<TNotNull, THasDefault>) {
+	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgNumericBuilder) {
 		super(table, builder);
 		this.precision = builder.precision;
 		this.scale = builder.scale;
@@ -57,16 +44,14 @@ export class PgNumeric<
 	}
 }
 
-export function numeric(name: string, config: { precision: number; scale?: number }): PgNumericBuilder;
-export function numeric(name: string, config: { precision: number; scale: number }): PgNumericBuilder;
-export function numeric(name: string, config?: { precision: number; scale: number }): PgNumericBuilder;
-export function numeric(name: string, config?: { precision?: number; scale?: number }): PgNumericBuilder {
+export function numeric(
+	name: string,
+	config?:
+		| { precision: number; scale?: number }
+		| { precision?: number; scale: number }
+		| { precision: number; scale: number },
+): PgNumericBuilder {
 	return new PgNumericBuilder(name, config?.precision, config?.scale);
 }
 
-export function decimal(name: string, config: { precision: number; scale?: number }): PgNumericBuilder;
-export function decimal(name: string, config: { precision: number; scale: number }): PgNumericBuilder;
-export function decimal(name: string, config?: { precision: number; scale: number }): PgNumericBuilder;
-export function decimal(name: string, config?: { precision?: number; scale?: number }): PgNumericBuilder {
-	return new PgNumericBuilder(name, config?.precision, config?.scale);
-}
+export const decimal = numeric;

@@ -2,7 +2,7 @@ import { GetColumnData } from 'drizzle-orm';
 import { ColumnData, TableName, Unwrap } from 'drizzle-orm/branded-types';
 import { SelectFieldsOrdered } from 'drizzle-orm/operations';
 import { AnySQLResponse, SQLResponse } from 'drizzle-orm/sql';
-import { GetTableName, tableColumns, tableName } from 'drizzle-orm/utils';
+import { GetTableName, tableColumns, tableNameSym } from 'drizzle-orm/utils';
 import { Simplify } from 'type-fest';
 import { AnyMySqlColumn } from './columns';
 import { AnyMySqlDialect, MySqlSession } from './connection';
@@ -11,7 +11,7 @@ import { AnyMySQL, MySQL } from './sql';
 import { AnyMySqlTable, InferModel } from './table';
 
 export type MySqlSelectFields<
-	TTableName extends TableName,
+	TTableName extends string,
 > = {
 	[key: string]:
 		| SQLResponse<TTableName | TableName, ColumnData>
@@ -19,7 +19,7 @@ export type MySqlSelectFields<
 		| AnyMySqlColumn<TTableName>;
 };
 
-export type MySqlSelectFieldsOrdered<TTableName extends TableName = TableName> = (
+export type MySqlSelectFieldsOrdered<TTableName extends string = TableName> = (
 	& Omit<SelectFieldsOrdered[number], 'column'>
 	& {
 		column: AnyMySqlColumn<TTableName> | MySQL<TTableName | TableName> | AnySQLResponse<TTableName | TableName>;
@@ -47,13 +47,13 @@ export class MySqlTableOperations<TTable extends AnyMySqlTable, TTableNamesMap e
 	) {}
 
 	select(): MySqlSelect<TTable, TTableNamesMap, InferModel<TTable>>;
-	select<TSelectedFields extends MySqlSelectFields<GetTableName<TTable>>>(
+	select<TSelectedFields extends MySqlSelectFields<GetTableConfig<TTable, 'name'>>>(
 		fields: TSelectedFields,
 	): MySqlSelect<TTable, TTableNamesMap, SelectResultFields<TSelectedFields>>;
-	select(fields?: MySqlSelectFields<GetTableName<TTable>>): MySqlSelect<TTable, TTableNamesMap, any> {
+	select(fields?: MySqlSelectFields<GetTableConfig<TTable, 'name'>>): MySqlSelect<TTable, TTableNamesMap, any> {
 		const fieldsOrdered = this.dialect.orderSelectedFields(
 			fields ?? this.table[tableColumns] as Record<string, AnyMySqlColumn>,
-			this.tableNamesMap[this.table[tableName]]!,
+			this.tableNamesMap[this.table[tableNameSym]]!,
 		);
 		return new MySqlSelect(this.table, fieldsOrdered, this.session, this.dialect, this.tableNamesMap);
 	}

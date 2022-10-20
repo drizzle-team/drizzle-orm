@@ -1,6 +1,6 @@
 import { ColumnData, ColumnDriverParam } from 'drizzle-orm/branded-types';
 import { AnySQLResponse, SQL } from 'drizzle-orm/sql';
-import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm/utils';
+import { GetTableName, mapResultRow, tableColumns, tableNameSym } from 'drizzle-orm/utils';
 import { AnyMySqlColumn } from '~/columns/common';
 import { AnyMySqlDialect, MySqlQueryResult, MySqlSession } from '~/connection';
 import { MySqlSelectFields, MySqlSelectFieldsOrdered, SelectResultFields } from '~/operations';
@@ -8,9 +8,9 @@ import { MySqlPreparedQuery } from '~/sql';
 import { AnyMySqlTable, InferModel } from '~/table';
 export interface MySqlInsertConfig<TTable extends AnyMySqlTable> {
 	table: TTable;
-	values: Record<string, ColumnData | SQL<GetTableName<TTable>>>[];
-	onConflict: SQL<GetTableName<TTable>> | undefined;
-	returning: MySqlSelectFieldsOrdered<GetTableName<TTable>> | undefined;
+	values: Record<string, ColumnData | SQL<GetTableConfig<TTable, 'name'>>>[];
+	onConflict: SQL<GetTableConfig<TTable, 'name'>> | undefined;
+	returning: MySqlSelectFieldsOrdered<GetTableConfig<TTable, 'name'>> | undefined;
 }
 
 export type AnyMySqlInsertConfig = MySqlInsertConfig<AnyMySqlTable>;
@@ -34,15 +34,15 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 	}
 
 	public returning(): Pick<MySqlInsert<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
-	public returning<TSelectedFields extends MySqlSelectFields<GetTableName<TTable>>>(
+	public returning<TSelectedFields extends MySqlSelectFields<GetTableConfig<TTable, 'name'>>>(
 		fields: TSelectedFields,
 	): Pick<MySqlInsert<TTable, SelectResultFields<TSelectedFields>[]>, 'getQuery' | 'execute'>;
-	public returning(fields?: MySqlSelectFields<GetTableName<TTable>>): MySqlInsert<TTable, any> {
-		const fieldsToMap: MySqlSelectFields<GetTableName<TTable>> = fields
-			?? this.config.table[tableColumns] as Record<string, AnyMySqlColumn<GetTableName<TTable>>>;
+	public returning(fields?: MySqlSelectFields<GetTableConfig<TTable, 'name'>>): MySqlInsert<TTable, any> {
+		const fieldsToMap: MySqlSelectFields<GetTableConfig<TTable, 'name'>> = fields
+			?? this.config.table[tableColumns] as Record<string, AnyMySqlColumn<GetTableConfig<TTable, 'name'>>>;
 
 		this.config.returning = Object.entries(fieldsToMap).map(
-			([name, column]) => ({ name, column, resultTableName: this.config.table[tableName] }),
+			([name, column]) => ({ name, column, resultTableName: this.config.table[tableNameSym] }),
 		);
 
 		return this;
@@ -50,10 +50,10 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 
 	// onDuplicateDoNothing(
 	// 	target?:
-	// 		| SQL<GetTableName<TTable>>
+	// 		| SQL<GetTableConfig<TTable, 'name'>>
 	// 		| ((
 	// 			constraints: GetTableConflictConstraints<TTable>,
-	// 		) => Check<GetTableName<TTable>>),
+	// 		) => Check<GetTableConfig<TTable, 'name'>>),
 	// ): Pick<this, 'returning' | 'getQuery' | 'execute'> {
 	// 	if (typeof target === 'undefined') {
 	// 		this.config.onConflict = sql`do nothing`;
@@ -68,14 +68,14 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 
 	// onDuplicateDoUpdate(
 	// 	target:
-	// 		| SQL<GetTableName<TTable>>
-	// 		| ((constraints: GetTableConflictConstraints<TTable>) => Check<GetTableName<TTable>>),
+	// 		| SQL<GetTableConfig<TTable, 'name'>>
+	// 		| ((constraints: GetTableConflictConstraints<TTable>) => Check<GetTableConfig<TTable, 'name'>>),
 	// 	set: MySqlUpdateSet<TTable>,
 	// ): Pick<this, 'returning' | 'getQuery' | 'execute'> {
-	// 	const setSql = this.dialect.buildUpdateSet<GetTableName<TTable>>(this.config.table, set);
+	// 	const setSql = this.dialect.buildUpdateSet<GetTableConfig<TTable, 'name'>>(this.config.table, set);
 
 	// 	if (target instanceof SQL) {
-	// 		this.config.onConflict = sql<GetTableName<TTable>>`${target} do update set ${setSql}`;
+	// 		this.config.onConflict = sql<GetTableConfig<TTable, 'name'>>`${target} do update set ${setSql}`;
 	// 	} else {
 	// 		const targetSql = new Name(target(this.config.table[tableConflictConstraints]).name);
 	// 		this.config.onConflict = sql`on constraint ${targetSql} do update set ${setSql}`;

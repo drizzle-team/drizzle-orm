@@ -1,4 +1,4 @@
-import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm/utils';
+import { GetTableName, mapResultRow, tableColumns, tableNameSym } from 'drizzle-orm/utils';
 import { AnyMySqlDialect, MySqlQueryResult, MySqlSession } from '~/connection';
 import { MySqlSelectFields, MySqlSelectFieldsOrdered, SelectResultFields } from '~/operations';
 import { AnyMySQL, MySQL, MySqlPreparedQuery } from '~/sql';
@@ -21,19 +21,21 @@ export class MySqlDelete<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 		this.config = { table };
 	}
 
-	public where(where: MySQL<GetTableName<TTable>> | undefined): Pick<this, 'returning' | 'getQuery' | 'execute'> {
+	public where(
+		where: MySQL<GetTableConfig<TTable, 'name'>> | undefined,
+	): Pick<this, 'returning' | 'getQuery' | 'execute'> {
 		this.config.where = where;
 		return this;
 	}
 
 	public returning(): Pick<MySqlDelete<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
-	public returning<TSelectedFields extends MySqlSelectFields<GetTableName<TTable>>>(
+	public returning<TSelectedFields extends MySqlSelectFields<GetTableConfig<TTable, 'name'>>>(
 		fields: TSelectedFields,
 	): Pick<MySqlDelete<TTable, SelectResultFields<TSelectedFields>[]>, 'getQuery' | 'execute'>;
-	public returning(fields?: MySqlSelectFields<GetTableName<TTable>>): MySqlDelete<TTable, any> {
+	public returning(fields?: MySqlSelectFields<GetTableConfig<TTable, 'name'>>): MySqlDelete<TTable, any> {
 		const orderedFields = this.dialect.orderSelectedFields(
 			fields ?? this.table[tableColumns],
-			this.table[tableName],
+			this.table[tableNameSym],
 		);
 		this.config.returning = orderedFields;
 		return this;

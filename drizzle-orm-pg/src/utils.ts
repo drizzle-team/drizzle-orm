@@ -1,42 +1,46 @@
-import { tableColumns } from 'drizzle-orm/utils';
-import { AnyPgColumn } from './columns/common';
-
-import { AnyPgTable, GetTableColumns, GetTableConflictConstraints } from './table';
-
-/** @internal */
-export const tableIndexes = Symbol('tableIndexes');
-
-/** @internal */
-export const tableForeignKeys = Symbol('tableForeignKeys');
-
-/** @internal */
-export const tableChecks = Symbol('tableChecks');
-
-/** @internal */
-export const tableConflictConstraints = Symbol('tableConflictConstraints');
+import { Param, SQL } from 'drizzle-orm/sql';
+import { PgUpdateSet } from './queries';
+import { AnyPgTable, GetTableConfig, PgTable } from './table';
 
 export function getTableColumns<TTable extends AnyPgTable>(table: TTable) {
-	const keys = Reflect.ownKeys(table[tableColumns]);
-	return keys.map((key) => table[tableColumns][key]!);
+	const columns = table[PgTable.Symbol.Columns];
+	const keys = Reflect.ownKeys(columns);
+	return keys.map((key) => columns[key]!);
 }
 
 export function getTableIndexes<TTable extends AnyPgTable>(table: TTable) {
-	const keys = Reflect.ownKeys(table[tableIndexes]);
-	return keys.map((key) => table[tableIndexes][key]!);
+	const indexes = table[PgTable.Symbol.Indexes];
+	const keys = Reflect.ownKeys(indexes);
+	return keys.map((key) => indexes[key]!);
 }
 
 export function getTableForeignKeys<TTable extends AnyPgTable>(table: TTable) {
-	const keys = Reflect.ownKeys(table[tableForeignKeys]);
-	return keys.map((key) => table[tableForeignKeys][key]!);
+	const foreignKeys = table[PgTable.Symbol.ForeignKeys];
+	const keys = Reflect.ownKeys(foreignKeys);
+	return keys.map((key) => foreignKeys[key]!);
 }
 
 export function getTableChecks<TTable extends AnyPgTable>(table: TTable) {
-	const keys = Reflect.ownKeys(table[tableChecks]);
-	return keys.map((key) => table[tableChecks][key]!);
+	const checks = table[PgTable.Symbol.Checks];
+	const keys = Reflect.ownKeys(checks);
+	return keys.map((key) => checks[key]!);
 }
 
 export function getTableConflictConstraints<TTable extends AnyPgTable>(
 	table: TTable,
-): GetTableConflictConstraints<TTable> {
-	return table[tableConflictConstraints];
+): GetTableConfig<TTable, 'conflictConstraints'> {
+	return table[PgTable.Symbol.ConflictConstraints] as GetTableConfig<TTable, 'conflictConstraints'>;
+}
+
+/** @internal */
+export function mapUpdateSet(table: AnyPgTable, values: Record<string, unknown>): PgUpdateSet {
+	return Object.fromEntries<PgUpdateSet[string]>(
+		Object.entries(values).map(([key, value]) => {
+			if (value instanceof SQL || value === null || value === undefined) {
+				return [key, value];
+			} else {
+				return [key, new Param(value, table[PgTable.Symbol.Columns][key])];
+			}
+		}),
+	);
 }

@@ -3,8 +3,8 @@ import { AnyMySqlTable } from '~/table';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
 export class MySqlSmallIntBuilder<
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
+	TNotNull extends boolean = false,
+	THasDefault extends boolean = false,
 > extends MySqlColumnBuilderWithAutoIncrement<
 	ColumnData<number>,
 	ColumnDriverParam<number | string>,
@@ -12,7 +12,7 @@ export class MySqlSmallIntBuilder<
 	THasDefault
 > {
 	/** @internal */
-	override build<TTableName extends TableName>(
+	override build<TTableName extends string>(
 		table: AnyMySqlTable<TTableName>,
 	): MySqlSmallInt<TTableName, TNotNull, THasDefault> {
 		return new MySqlSmallInt<TTableName, TNotNull, THasDefault>(table, this);
@@ -20,9 +20,9 @@ export class MySqlSmallIntBuilder<
 }
 
 export class MySqlSmallInt<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
+	TTableName extends string,
+	TNotNull extends boolean,
+	THasDefault extends boolean,
 > extends MySqlColumnWithAutoIncrement<
 	TTableName,
 	ColumnData<number>,

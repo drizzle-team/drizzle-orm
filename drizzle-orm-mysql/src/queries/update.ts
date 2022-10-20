@@ -1,6 +1,6 @@
 import { GetColumnData } from 'drizzle-orm';
 import { SQL } from 'drizzle-orm/sql';
-import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm/utils';
+import { GetTableName, mapResultRow, tableColumns, tableNameSym } from 'drizzle-orm/utils';
 import { AnyMySqlColumn } from '~/columns/common';
 import { AnyMySqlDialect, MySqlQueryResult, MySqlSession } from '~/connection';
 import { MySqlSelectFields, MySqlSelectFieldsOrdered, SelectResultFields } from '~/operations';
@@ -17,7 +17,7 @@ export interface MySqlUpdateConfig {
 export type MySqlUpdateSet<TTable extends AnyMySqlTable> = {
 	[Key in keyof GetTableColumns<TTable>]?:
 		| GetColumnData<GetTableColumns<TTable>[Key], 'query'>
-		| SQL<GetTableName<TTable>>;
+		| SQL<GetTableConfig<TTable, 'name'>>;
 };
 
 export class MySqlUpdate<TTable extends AnyMySqlTable, TReturn = MySqlQueryResult> {
@@ -44,20 +44,22 @@ export class MySqlUpdate<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 		return this;
 	}
 
-	public where(where: MySQL<GetTableName<TTable>> | undefined): Pick<this, 'returning' | 'getQuery' | 'execute'> {
+	public where(
+		where: MySQL<GetTableConfig<TTable, 'name'>> | undefined,
+	): Pick<this, 'returning' | 'getQuery' | 'execute'> {
 		this.config.where = where;
 		return this;
 	}
 
 	public returning(): Pick<MySqlUpdate<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
-	public returning<TSelectedFields extends MySqlSelectFields<GetTableName<TTable>>>(
+	public returning<TSelectedFields extends MySqlSelectFields<GetTableConfig<TTable, 'name'>>>(
 		fields: TSelectedFields,
 	): Pick<MySqlUpdate<TTable, SelectResultFields<TSelectedFields>[]>, 'getQuery' | 'execute'>;
-	public returning(fields?: MySqlSelectFields<GetTableName<TTable>>): MySqlUpdate<TTable, any> {
-		const orderedFields = this.dialect.orderSelectedFields<GetTableName<TTable>>(
+	public returning(fields?: MySqlSelectFields<GetTableConfig<TTable, 'name'>>): MySqlUpdate<TTable, any> {
+		const orderedFields = this.dialect.orderSelectedFields<GetTableConfig<TTable, 'name'>>(
 			fields
-				?? (this.config.table[tableColumns] as Record<string, AnyMySqlColumn<GetTableName<TTable>>>),
-			this.table[tableName],
+				?? (this.config.table[tableColumns] as Record<string, AnyMySqlColumn<GetTableConfig<TTable, 'name'>>>),
+			this.table[tableNameSym],
 		);
 		this.config.returning = orderedFields;
 		return this;

@@ -1,24 +1,45 @@
-import { TableName } from './branded-types';
 import { AnyColumn } from './column';
-import { tableColumns, tableName } from './utils';
 
-export type TableExtraConfig = Record<string, unknown>;
+/** @internal */
+export const Name = Symbol('Name');
 
-export class Table<TName extends TableName> {
-	protected typeKeeper!: {
-		brand: 'Table';
-		name: TName;
+/** @internal */
+export const Columns = Symbol('Columns');
+
+/** @internal */
+export const OriginalName = Symbol('OriginalName');
+
+export class Table<TName extends string = string> {
+	declare protected $brand: 'Table';
+	declare protected $name: TName;
+
+	/** @internal */
+	static readonly Symbol = {
+		Name: Name as typeof Name,
+		OriginalName: OriginalName as typeof OriginalName,
+		Columns: Columns as typeof Columns,
 	};
 
-	/** @internal */
-	[tableName]: TName;
+	/**
+	 *  @internal
+	 *  Can be changed if the table is aliased.
+	 */
+	[Name]: TName;
+
+	/**
+	 * @internal
+	 * Used to store the original name of the table, before any aliasing.
+	 */
+	[OriginalName]: TName;
 
 	/** @internal */
-	[tableColumns]!: Record<string, AnyColumn<TName>>;
+	declare [Columns]: Record<string | symbol, AnyColumn<{ tableName: TName }>>;
 
 	constructor(name: TName) {
-		this[tableName] = name;
+		this[Name] = this[OriginalName] = name;
 	}
 }
 
-export type AnyTable<TName extends TableName = TableName> = Table<TName>;
+export function getTableName<TTableName extends string>(table: Table<TTableName>): TTableName {
+	return table[Table.Symbol.Name];
+}

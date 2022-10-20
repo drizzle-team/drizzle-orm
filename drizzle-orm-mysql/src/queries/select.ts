@@ -1,6 +1,6 @@
 import { TableName, Unwrap } from 'drizzle-orm/branded-types';
 import { SQL, SQLWrapper } from 'drizzle-orm/sql';
-import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm/utils';
+import { GetTableName, mapResultRow, tableColumns, tableNameSym } from 'drizzle-orm/utils';
 import { AnyMySqlColumn } from '~/columns/common';
 import { AnyMySqlDialect, MySqlSession } from '~/connection';
 import { MySqlSelectFields, MySqlSelectFieldsOrdered } from '~/operations';
@@ -44,7 +44,7 @@ export class MySqlSelect<
 	TResult = undefined,
 	// TAliases is really a map of table name => joined table, but I failed to prove that to TS
 	TAliases extends { [tableName: string]: any } = {},
-	TJoinedDBTableNames extends string = Unwrap<GetTableName<TTable>>,
+	TJoinedDBTableNames extends string = Unwrap<GetTableConfig<TTable, 'name'>>,
 	TJoinsNotNullable extends Record<string, JoinNullability> = {
 		[Key in TTableNamesMap[TJoinedDBTableNames]]: 'not-null';
 	},
@@ -73,7 +73,7 @@ export class MySqlSelect<
 			joins: {},
 			orderBy: [],
 		};
-		this.joinsNotNullable = { [table[tableName]]: true };
+		this.joinsNotNullable = { [table[tableNameSym]]: true };
 	}
 
 	private createJoin<TJoinType extends JoinType>(joinType: TJoinType) {
@@ -81,7 +81,7 @@ export class MySqlSelect<
 
 		function join<
 			TJoinedTable extends AnyMySqlTable<TableName<keyof TTableNamesMap & string>>,
-			TDBName extends Unwrap<GetTableName<TJoinedTable>>,
+			TDBName extends Unwrap<GetTableConfig<TJoinedTable, 'name'>>,
 			TJoinedName extends TTableNamesMap[TDBName],
 			TSelect extends JoinSelect<TJoinedTable, TJoinedName, MySqlSelectFields<TableName>> = JoinSelect<
 				TJoinedTable,
@@ -129,7 +129,7 @@ export class MySqlSelect<
 		): AnyMySqlSelect {
 			let aliasName: string, joinedTable: AnyMySqlTable;
 			if (aliasConfig instanceof MySqlTable) {
-				aliasName = aliasConfig[tableName];
+				aliasName = aliasConfig[tableNameSym];
 				joinedTable = aliasConfig;
 			} else {
 				const config = Object.entries(aliasConfig)[0];
@@ -138,7 +138,7 @@ export class MySqlSelect<
 				}
 				[aliasName, joinedTable] = config;
 			}
-			const joinName = self.tableNamesMap[joinedTable[tableName]]!;
+			const joinName = self.tableNamesMap[joinedTable[tableNameSym]]!;
 
 			const tableAliasProxy = new Proxy(joinedTable, new TableProxyHandler(aliasName));
 
@@ -202,9 +202,9 @@ export class MySqlSelect<
 			| ((
 				aliases: TAliases,
 			) => MySQL<
-				TableName<TJoinedDBTableNames> | TableName<keyof TAliases & string> | GetTableName<TTable> | TableName
+				TableName<TJoinedDBTableNames> | TableName<keyof TAliases & string> | GetTableConfig<TTable, 'name'> | TableName
 			>)
-			| MySQL<TableName<TJoinedDBTableNames> | GetTableName<TTable> | TableName>
+			| MySQL<TableName<TJoinedDBTableNames> | GetTableConfig<TTable, 'name'> | TableName>
 			| undefined,
 	): PickWhere<this> {
 		if (where instanceof SQL) {
@@ -219,11 +219,11 @@ export class MySqlSelect<
 		columns: (
 			joins: TAliases,
 		) =>
-			| MySQL<TableName<TJoinedDBTableNames> | GetTableName<TTable>>[]
-			| MySQL<TableName<TJoinedDBTableNames> | GetTableName<TTable>>,
+			| MySQL<TableName<TJoinedDBTableNames> | GetTableConfig<TTable, 'name'>>[]
+			| MySQL<TableName<TJoinedDBTableNames> | GetTableConfig<TTable, 'name'>>,
 	): PickOrderBy<this>;
 	public orderBy(
-		...columns: MySQL<TableName<TJoinedDBTableNames> | GetTableName<TTable>>[]
+		...columns: MySQL<TableName<TJoinedDBTableNames> | GetTableConfig<TTable, 'name'>>[]
 	): PickOrderBy<this>;
 	public orderBy(
 		firstColumn: ((joins: TAliases) => AnyMySQL[] | AnyMySQL) | AnyMySQL,

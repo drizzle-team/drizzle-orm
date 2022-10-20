@@ -1,27 +1,22 @@
-import { ColumnData, ColumnDriverParam, TableName } from './branded-types';
-import { AnyColumn, Column } from './column';
-import { AnySQL, AnySQLResponse, SQL, SQLResponse } from './sql';
+import { AnyColumn } from './column';
+import { SQL, SQLResponse } from './sql';
 
 export type RequiredKeyOnly<TKey extends string, T extends AnyColumn> = T extends
-	Column<any, any, any, infer TNotNull, infer THasDefault> ? [TNotNull, THasDefault] extends [true, false] | [] ? TKey
-	: never
+	AnyColumn<{ notNull: true; hasDefault: false }> ? TKey
 	: never;
 
 export type OptionalKeyOnly<TKey extends string, T extends AnyColumn> = TKey extends RequiredKeyOnly<TKey, T> ? never
 	: TKey;
 
-export type SelectFields<
-	TTableName extends TableName,
-	TColumnDriverParam extends ColumnDriverParam = ColumnDriverParam,
-> = {
+export type SelectFields<TTableName extends string, TColumnDriverParam> = {
 	[key: string]:
-		| SQL<TTableName>
-		| SQLResponse<TTableName, ColumnData>
-		| AnyColumn<TTableName, any, TColumnDriverParam>;
+		| SQL
+		| SQLResponse
+		| AnyColumn<{ tableName: TTableName; driverParam: TColumnDriverParam }>;
 };
 
 export type SelectFieldsOrdered = {
 	name: string;
 	resultTableName: string;
-	column: AnyColumn | AnySQL | AnySQLResponse;
+	field: AnyColumn | SQL | SQLResponse;
 }[];

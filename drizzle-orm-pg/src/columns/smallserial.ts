@@ -1,30 +1,26 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
-
 import { AnyPgTable } from '~/table';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgSmallSerialBuilder extends PgColumnBuilder<
-	ColumnData<number>,
-	ColumnDriverParam<number>,
-	ColumnNotNull<true>,
-	ColumnHasDefault<true>
-> {
+export class PgSmallSerialBuilder extends PgColumnBuilder<{
+	data: number;
+	driverParam: number;
+	notNull: true;
+	hasDefault: true;
+}> {
 	/** @internal */
-	override build<TTableName extends TableName>(
-		table: AnyPgTable<TTableName>,
-	): PgSmallSerial<TTableName> {
+	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgSmallSerial<TTableName> {
 		return new PgSmallSerial(table, this);
 	}
 }
 
-export class PgSmallSerial<TTableName extends TableName> extends PgColumn<
-	TTableName,
-	ColumnData<number>,
-	ColumnDriverParam<number>,
-	ColumnNotNull<true>,
-	ColumnHasDefault<true>
-> {
-	protected brand!: 'PgSmallSerial';
+export class PgSmallSerial<TTableName extends string> extends PgColumn<{
+	tableName: TTableName;
+	data: number;
+	driverParam: number;
+	notNull: true;
+	hasDefault: true;
+}> {
+	protected override $pgColumnBrand!: 'PgSmallSerial';
 
 	getSQLType(): string {
 		return 'serial';

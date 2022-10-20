@@ -1,5 +1,5 @@
 import { TableName } from 'drizzle-orm/branded-types';
-import { tableName } from 'drizzle-orm/utils';
+import { tableNameSym } from 'drizzle-orm/utils';
 import { AnyMySqlColumn } from './columns/common';
 import { AnyMySqlTable } from './table';
 
@@ -7,13 +7,13 @@ import { tableForeignKeys } from './utils';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
-export type Reference<TTableName extends TableName, TForeignTableName extends TableName> = () => {
+export type Reference<TTableName extends string, TForeignTableName extends string> = () => {
 	readonly columns: AnyMySqlColumn<TTableName>[];
 	readonly foreignTable: AnyMySqlTable<TForeignTableName>;
 	readonly foreignColumns: AnyMySqlColumn<TForeignTableName>[];
 };
 
-export class ForeignKeyBuilder<TTableName extends TableName, TForeignTableName extends TableName> {
+export class ForeignKeyBuilder<TTableName extends string, TForeignTableName extends string> {
 	protected brand!: 'MySqlForeignKeyBuilder';
 
 	protected typeKeeper!: {
@@ -66,7 +66,7 @@ export class ForeignKeyBuilder<TTableName extends TableName, TForeignTableName e
 
 export type AnyForeignKeyBuilder = ForeignKeyBuilder<TableName, TableName>;
 
-export class ForeignKey<TTableName extends TableName, TForeignTableName extends TableName> {
+export class ForeignKey<TTableName extends string, TForeignTableName extends string> {
 	readonly reference: Reference<TTableName, TForeignTableName>;
 	readonly onUpdate: UpdateDeleteAction | undefined;
 	readonly onDelete: UpdateDeleteAction | undefined;
@@ -85,9 +85,9 @@ export class ForeignKey<TTableName extends TableName, TForeignTableName extends 
 		const columnNames = columns.map((column) => column.name);
 		const foreignColumnNames = foreignColumns.map((column) => column.name);
 		const chunks = [
-			this.table[tableName],
+			this.table[tableNameSym],
 			...columnNames,
-			foreignColumns[0]!.table[tableName],
+			foreignColumns[0]!.table[tableNameSym],
 			...foreignColumnNames,
 		];
 		return `${chunks.join('_')}_fk`;
@@ -97,7 +97,7 @@ export class ForeignKey<TTableName extends TableName, TForeignTableName extends 
 export type AnyForeignKey = ForeignKey<any, any>;
 
 type ColumnsWithTable<
-	TTableName extends TableName,
+	TTableName extends string,
 	TColumns extends AnyMySqlColumn[],
 > = {
 	[Key in keyof TColumns]: TColumns[Key] extends AnyMySqlColumn<any, infer TType> ? AnyMySqlColumn<TTableName, TType>
@@ -118,7 +118,7 @@ export type NotFKBuilderWithUnion<T> = T extends ForeignKeyBuilder<any, infer TF
 
 function _foreignKey<
 	TColumns extends [AnyMySqlColumn, ...AnyMySqlColumn[]],
-	TForeignTableName extends TableName,
+	TForeignTableName extends string,
 	TForeignColumns extends ColumnsWithTable<TForeignTableName, TColumns>,
 >(
 	config: () => {
@@ -139,7 +139,7 @@ function _foreignKey<
 
 export function foreignKey<
 	TColumns extends [AnyMySqlColumn, ...AnyMySqlColumn[]],
-	TForeignTableName extends TableName,
+	TForeignTableName extends string,
 	TForeignColumns extends ColumnsWithTable<TForeignTableName, TColumns>,
 >(
 	config: () => {

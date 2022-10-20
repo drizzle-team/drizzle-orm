@@ -1,29 +1,22 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
-
+import { ColumnConfig } from 'drizzle-orm';
+import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyPgTable } from '~/table';
 import { PgColumn } from './common';
 import { PgDateColumnBaseBuilder } from './date.common';
 
-export class PgDateBuilder<
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends PgDateColumnBaseBuilder<ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+export class PgDateBuilder extends PgDateColumnBaseBuilder<ColumnBuilderConfig<{ data: Date; driverParam: string }>> {
 	/** @internal */
-	override build<TTableName extends TableName>(
-		table: AnyPgTable<TTableName>,
-	): PgDate<TTableName, TNotNull, THasDefault> {
+	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgDate<TTableName> {
 		return new PgDate(table, this);
 	}
 }
 
-export class PgDate<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
-> extends PgColumn<TTableName, ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
-	protected brand!: 'PgDate';
+export class PgDate<TTableName extends string>
+	extends PgColumn<ColumnConfig<{ tableName: TTableName; data: Date; driverParam: string }>>
+{
+	protected override $pgColumnBrand!: 'PgDate';
 
-	constructor(table: AnyPgTable<TTableName>, builder: PgDateBuilder<TNotNull, THasDefault>) {
+	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgDateBuilder) {
 		super(table, builder);
 	}
 
@@ -31,35 +24,30 @@ export class PgDate<
 		return 'date';
 	}
 
-	override mapFromDriverValue = (value: ColumnDriverParam<string>): ColumnData<Date> => {
-		return new Date(value) as ColumnData<Date>;
-	};
+	override mapFromDriverValue(value: string): Date {
+		return new Date(value);
+	}
 
-	override mapToDriverValue = (value: ColumnData<Date>): ColumnDriverParam<string> => {
-		return value.toISOString() as ColumnDriverParam<string>;
-	};
+	override mapToDriverValue(value: Date): string {
+		return value.toISOString();
+	}
 }
 
-export class PgDateStringBuilder<
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends PgDateColumnBaseBuilder<ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+export class PgDateStringBuilder
+	extends PgDateColumnBaseBuilder<ColumnBuilderConfig<{ data: string; driverParam: string }>>
+{
 	/** @internal */
-	override build<TTableName extends TableName>(
-		table: AnyPgTable<TTableName>,
-	): PgDateString<TTableName, TNotNull, THasDefault> {
+	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgDateString<TTableName> {
 		return new PgDateString(table, this);
 	}
 }
 
 export class PgDateString<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
-> extends PgColumn<TTableName, ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
-	brand!: 'PgDateString';
+	TTableName extends string,
+> extends PgColumn<ColumnConfig<{ tableName: TTableName; data: string; driverParam: string }>> {
+	protected override $pgColumnBrand!: 'PgDateString';
 
-	constructor(table: AnyPgTable<TTableName>, builder: PgDateStringBuilder<TNotNull, THasDefault>) {
+	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgDateStringBuilder) {
 		super(table, builder);
 	}
 
@@ -76,6 +64,3 @@ export function date(name: string, config?: { mode: 'date' | 'string' }) {
 	}
 	return new PgDateStringBuilder(name);
 }
-
-// const dateS = date('name').notNull();
-// const dateD = date('name', 'date').notNull();

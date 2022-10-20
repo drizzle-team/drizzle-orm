@@ -43,7 +43,7 @@ export type SelectResult<
 		Simplify<
 			ApplyNotNullMapToJoins<
 				& TReturn
-				& { [Key in TTableNamesMap[Unwrap<GetTableName<TTable>>]]: TInitialSelectResultFields },
+				& { [Key in TTableNamesMap[Unwrap<GetTableConfig<TTable, 'name'>>]]: TInitialSelectResultFields },
 				TJoinsNotNullable
 			>
 		>
@@ -64,12 +64,12 @@ export type PickOrderBy<TJoinReturn extends AnyMySqlSelect> = Pick<
 export type PickLimit<TJoinReturn extends AnyMySqlSelect> = Pick<TJoinReturn, 'offset' | QueryFinisherMethods>;
 export type PickOffset<TJoinReturn extends AnyMySqlSelect> = Pick<TJoinReturn, QueryFinisherMethods>;
 
-export type BuildAliasTable<TTable extends AnyMySqlTable, TAlias extends TableName> = MapColumnsToTableAlias<
+export type BuildAliasTable<TTable extends AnyMySqlTable, TAlias extends string> = MapColumnsToTableAlias<
 	GetTableColumns<TTable>,
 	TAlias
 >;
 
-export type MapColumnsToTableAlias<TColumns extends Record<string, AnyMySqlColumn>, TAlias extends TableName> = {
+export type MapColumnsToTableAlias<TColumns extends Record<string, AnyMySqlColumn>, TAlias extends string> = {
 	[Key in keyof TColumns]: ChangeColumnTable<TColumns[Key], TAlias>;
 };
 

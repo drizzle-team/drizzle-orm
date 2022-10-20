@@ -1,42 +1,31 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
-
+import { ColumnConfig } from 'drizzle-orm';
+import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyPgTable } from '~/table';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgSmallIntBuilder<
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends PgColumnBuilder<ColumnData<number>, ColumnDriverParam<number | string>, TNotNull, THasDefault> {
+export class PgSmallIntBuilder extends PgColumnBuilder<
+	ColumnBuilderConfig<{ data: number; driverParam: number | string }>
+> {
 	/** @internal */
-	override build<TTableName extends TableName>(
-		table: AnyPgTable<TTableName>,
-	): PgSmallInt<TTableName, TNotNull, THasDefault> {
-		return new PgSmallInt<TTableName, TNotNull, THasDefault>(table, this);
+	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgSmallInt<TTableName> {
+		return new PgSmallInt(table, this);
 	}
 }
 
-export class PgSmallInt<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
-> extends PgColumn<
-	TTableName,
-	ColumnData<number>,
-	ColumnDriverParam<number | string>,
-	TNotNull,
-	THasDefault
+export class PgSmallInt<TTableName extends string> extends PgColumn<
+	ColumnConfig<{ tableName: TTableName; data: number; driverParam: number | string }>
 > {
-	protected brand!: 'PgSmallInt';
+	protected override $pgColumnBrand!: 'PgSmallInt';
 
 	getSQLType(): string {
 		return 'smallint';
 	}
 
-	override mapFromDriverValue = (value: ColumnDriverParam<number | string>): ColumnData<number> => {
+	override mapFromDriverValue = (value: number | string): number => {
 		if (typeof value === 'string') {
-			return parseInt(value) as ColumnData<number>;
+			return parseInt(value);
 		}
-		return value as ColumnData<any>;
+		return value;
 	};
 }
 
