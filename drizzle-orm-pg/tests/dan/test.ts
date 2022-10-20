@@ -137,8 +137,7 @@ const megaJoin = await db.users
 	.innerJoin({ currentCity: cities }, (aliases) => sql`${aliases.homeCity.id} = ${aliases.currentCity.id}`)
 	.innerJoin({ subscriber: users }, (aliases) => sql`${users.class} = ${aliases.subscriber.id}`)
 	.innerJoin({ closestCity: cities }, (aliases) => sql`${users.currentCity} = ${aliases.closestCity.id}`)
-	// .where(and(sql`${users.age1} > 0`, eq(cities.id, 1)))
-	.where(sql`true`)
+	.where(and(sql`${users.age1} > 0`, eq(cities.id, 1)))
 	.execute();
 
 db.users
