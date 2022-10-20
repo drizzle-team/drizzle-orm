@@ -1,5 +1,5 @@
 import { GetColumnData } from 'drizzle-orm';
-import { PreparedQuery, SQL, SQLWrapper } from 'drizzle-orm/sql';
+import { Param, PreparedQuery, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
 import { Simplify } from 'type-fest';
@@ -7,22 +7,25 @@ import { Simplify } from 'type-fest';
 import { PgDialect, PgSession } from '~/connection';
 import { PgSelectFields, PgSelectFieldsOrdered, SelectResultFields } from '~/operations';
 import { AnyPgTable, GetTableConfig, InferModel, PgTable } from '~/table';
+import { mapUpdateSet } from '~/utils';
 import { QueryPromise } from './common';
 
 export interface PgUpdateConfig {
 	where?: SQL | undefined;
-	set: PgUpdateSet<AnyPgTable>;
+	set: PgUpdateSet;
 	table: AnyPgTable;
 	returning?: PgSelectFieldsOrdered;
 }
 
-export type PgUpdateSet<TTable extends AnyPgTable> = Simplify<
+export type PgUpdateSetSource<TTable extends AnyPgTable> = Simplify<
 	{
 		[Key in keyof GetTableConfig<TTable, 'columns'>]?:
 			| GetColumnData<GetTableConfig<TTable, 'columns'>[Key], 'query'>
 			| SQL;
 	}
 >;
+
+export type PgUpdateSet = Record<string, SQL | Param | null | undefined>;
 
 export class PgUpdateBuilder<TTable extends AnyPgTable> {
 	declare protected $table: TTable;
@@ -33,8 +36,8 @@ export class PgUpdateBuilder<TTable extends AnyPgTable> {
 		private dialect: PgDialect,
 	) {}
 
-	set(values: PgUpdateSet<TTable>): PgUpdate<TTable> {
-		return new PgUpdate(this.table, values, this.session, this.dialect);
+	set(values: PgUpdateSetSource<TTable>): PgUpdate<TTable> {
+		return new PgUpdate(this.table, mapUpdateSet(this.table, values), this.session, this.dialect);
 	}
 }
 
@@ -48,7 +51,7 @@ export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> ext
 
 	constructor(
 		table: TTable,
-		set: PgUpdateSet<TTable>,
+		set: PgUpdateSet,
 		private session: PgSession,
 		private dialect: PgDialect,
 	) {

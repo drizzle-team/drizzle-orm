@@ -1,13 +1,13 @@
 import { AnyColumn } from './column';
 
 /** @internal */
-export const nameSym = Symbol();
+export const Name = Symbol('Name');
 
 /** @internal */
-export const columnsSym = Symbol();
+export const Columns = Symbol('Columns');
 
 /** @internal */
-export const originalNameSym = Symbol();
+export const OriginalName = Symbol('OriginalName');
 
 export class Table<TName extends string = string> {
 	declare protected $brand: 'Table';
@@ -15,28 +15,28 @@ export class Table<TName extends string = string> {
 
 	/** @internal */
 	static readonly Symbol = {
-		Name: nameSym as typeof nameSym,
-		OriginalName: originalNameSym as typeof originalNameSym,
-		Columns: columnsSym as typeof columnsSym,
+		Name: Name as typeof Name,
+		OriginalName: OriginalName as typeof OriginalName,
+		Columns: Columns as typeof Columns,
 	};
 
 	/**
 	 *  @internal
 	 *  Can be changed if the table is aliased.
 	 */
-	[nameSym]: TName;
+	[Name]: TName;
 
 	/**
 	 * @internal
 	 * Used to store the original name of the table, before any aliasing.
 	 */
-	[originalNameSym]: TName;
+	[OriginalName]: TName;
 
 	/** @internal */
-	declare [columnsSym]: Record<string | symbol, AnyColumn<{ tableName: TName }>>;
+	declare [Columns]: Record<string | symbol, AnyColumn<{ tableName: TName }>>;
 
 	constructor(name: TName) {
-		this[nameSym] = this[originalNameSym] = name;
+		this[Name] = this[OriginalName] = name;
 	}
 }
 

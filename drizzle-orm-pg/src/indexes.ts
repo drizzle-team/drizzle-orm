@@ -1,10 +1,10 @@
 import { SQL } from 'drizzle-orm/sql';
 
 import { AnyPgColumn } from './columns';
-import { PgUpdateSet } from './queries/update';
+import { PgUpdateSetSource } from './queries/update';
 import { AnyPgTable, PgTable } from './table';
 
-interface IndexConfig<TTableName extends string, TUnique extends boolean> {
+interface IndexConfig<TUnique extends boolean> {
 	/**
 	 * If true, the index will be created as `create unique index` instead of `create index`.
 	 */
@@ -41,8 +41,9 @@ interface IndexConfig<TTableName extends string, TUnique extends boolean> {
 	where?: SQL;
 }
 
-type GetIndexConfigUnique<TIndexConfig extends IndexConfig<any, any>> = TIndexConfig extends
-	IndexConfig<any, infer TUnique> ? TUnique : never;
+type GetIndexConfigUnique<TIndexConfig extends IndexConfig<any>> = TIndexConfig extends IndexConfig<infer TUnique>
+	? TUnique
+	: never;
 
 export class IndexBuilder<TTableName extends string, TUnique extends boolean> {
 	protected typeKeeper!: {
@@ -55,7 +56,7 @@ export class IndexBuilder<TTableName extends string, TUnique extends boolean> {
 	constructor(
 		public readonly name: string,
 		public readonly columns: AnyPgColumn<{ tableName: TTableName }>[],
-		public readonly config: IndexConfig<TTableName, TUnique> = {},
+		public readonly config: IndexConfig<TUnique> = {},
 	) {}
 
 	build<TTableColumns extends Record<string, AnyPgColumn<{ tableName: TTableName }>>>(
@@ -79,7 +80,7 @@ export class Index<
 		unique: TUnique;
 	};
 
-	readonly config: IndexConfig<TTableName, TUnique>;
+	readonly config: IndexConfig<TUnique>;
 
 	constructor(
 		public readonly name: string,
@@ -92,9 +93,9 @@ export class Index<
 	}
 
 	// ON CONFLICT ... SET
-	set(values: PgUpdateSet<AnyPgTable<{ name: TTableName; columns: TTableColumns }>>): {
+	set(values: PgUpdateSetSource<AnyPgTable<{ name: TTableName; columns: TTableColumns }>>): {
 		constraintName: string;
-		set: PgUpdateSet<AnyPgTable<{ name: TTableName; columns: TTableColumns }>>;
+		set: PgUpdateSetSource<AnyPgTable<{ name: TTableName; columns: TTableColumns }>>;
 	} {
 		return {
 			constraintName: this.name,
@@ -122,10 +123,7 @@ export type GetColumnsTableName<TColumns> = TColumns extends
 
 export function index<
 	TColumns extends AnyPgColumn | [AnyPgColumn, ...AnyPgColumn[]],
-	TConfig extends IndexConfig<GetColumnsTableName<TColumns>, boolean> = IndexConfig<
-		GetColumnsTableName<TColumns>,
-		false
-	>,
+	TConfig extends IndexConfig<boolean> = IndexConfig<false>,
 >(
 	name: string,
 	columns: TColumns,
@@ -134,7 +132,7 @@ export function index<
 export function index(
 	name: string,
 	columns: AnyPgColumn | AnyPgColumn[],
-	config?: IndexConfig<any, any>,
+	config?: IndexConfig<any>,
 ) {
 	return new IndexBuilder(name, Array.isArray(columns) ? columns : [columns], config);
 }

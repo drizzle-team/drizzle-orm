@@ -7,9 +7,10 @@ import { AnyPgColumn } from '~/columns/common';
 import { PgDialect, PgSession } from '~/connection';
 import { PgSelectFields, PgSelectFieldsOrdered, SelectResultFields } from '~/operations';
 import { InferModel } from '~/table';
+import { mapUpdateSet } from '~/utils';
 import { AnyPgTable, GetTableConfig, Index, PgTable } from '..';
 import { QueryPromise } from './common';
-import { PgUpdateSet } from './update';
+import { PgUpdateSetSource } from './update';
 
 type ConflictConstraint<TTableName extends string> = Index<TTableName, any, true> | Check<TTableName>;
 
@@ -116,9 +117,9 @@ export class PgInsert<
 			| ((
 				constraints: GetTableConfig<TTable, 'conflictConstraints'>,
 			) => ConflictConstraint<GetTableConfig<TTable, 'name'>>),
-		set: PgUpdateSet<TTable>,
+		set: PgUpdateSetSource<TTable>,
 	): Omit<this, `onConflict${string}`> {
-		const setSql = this.dialect.buildUpdateSet(this.config.table, set);
+		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, set));
 
 		if (target instanceof SQL) {
 			this.config.onConflict = sql`${target} do update set ${setSql}`;

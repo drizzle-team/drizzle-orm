@@ -4,7 +4,7 @@ import { QueryResult, QueryResultRow } from 'pg';
 import { AnyPgTable, InferModel, PgDialect, PgSession, PgTable } from '.';
 import { PgDelete, PgInsertBuilder, PgSelect, PgUpdateBuilder } from './queries';
 
-export class PGDatabase {
+export class PgDatabase {
 	constructor(private dialect: PgDialect, private session: PgSession) {}
 
 	select<TTable extends AnyPgTable>(from: TTable): PgSelect<TTable, InferModel<TTable>> {

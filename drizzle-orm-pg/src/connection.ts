@@ -12,7 +12,7 @@ import { Name, PreparedQuery, SQL, SQLResponse, SQLSourceParam } from 'drizzle-o
 import { Client, Pool, PoolClient, QueryResult, QueryResultRow, types } from 'pg';
 
 import { AnyPgColumn, PgColumn } from './columns';
-import { PGDatabase } from './db';
+import { PgDatabase } from './db';
 import { PgSelectFields, PgSelectFieldsOrdered } from './operations';
 import { PgDeleteConfig, PgInsertConfig, PgSelectConfig, PgUpdateConfig, PgUpdateSet } from './queries';
 import { AnyPgTable, PgTable } from './table';
@@ -128,33 +128,12 @@ export class PgDialect {
 		}
 	}
 
-	createDB(session: PgSession): PGDatabase {
+	createDB(session: PgSession): PgDatabase {
 		return this.createPGDB(session);
 	}
 
-	createPGDB(session: PgSession): PGDatabase {
-		return new PGDatabase(this, session);
-		// return Object.assign(
-		// 	Object.fromEntries(
-		// 		Object.entries(this.schema).map(([tableName, table]) => {
-		// 			return [
-		// 				tableName,
-		// 				new PgTableOperations(
-		// 					table,
-		// 					session,
-		// 					this as unknown as AnyPgDialect,
-		// 					this.buildTableNamesMap(),
-		// 				),
-		// 			];
-		// 		}),
-		// 	),
-		// 	{
-		// 		execute: (query: PgPreparedQuery | AnyPgSQL): Promise<QueryResult> => {
-		// 			const preparedQuery = query instanceof SQL ? this.prepareSQL(query) : query;
-		// 			return session.queryObjects(preparedQuery.sql, preparedQuery.params);
-		// 		},
-		// 	},
-		// ) as unknown as PGDatabase<TDBSchema>;
+	createPGDB(session: PgSession): PgDatabase {
+		return new PgDatabase(this, session);
 	}
 
 	public escapeName(name: string): string {
@@ -162,7 +141,7 @@ export class PgDialect {
 	}
 
 	public escapeParam(num: number): string {
-		return `$${num}`;
+		return `$${num + 1}`;
 	}
 
 	public buildDeleteQuery({ table, where, returning }: PgDeleteConfig): SQL {
@@ -175,16 +154,15 @@ export class PgDialect {
 		return sql`delete from ${table}${whereSql}${returningSql}`;
 	}
 
-	buildUpdateSet(table: AnyPgTable, set: PgUpdateSet<AnyPgTable>): SQL {
-		const setEntries = Object.entries<unknown | SQL>(set);
+	buildUpdateSet(table: AnyPgTable, set: PgUpdateSet): SQL {
+		const setEntries = Object.entries(set);
 
 		const setSize = setEntries.length;
 		return sql.fromList(
 			setEntries
 				.map(([colName, value], i): SQL[] => {
 					const col: AnyPgColumn = table[PgTable.Symbol.Columns][colName]!;
-					const mappedValue = value instanceof SQL || value === null ? value : param(value, col);
-					const res = sql`${new Name(col.name)} = ${mappedValue}`;
+					const res = sql`${new Name(col.name)} = ${value}`;
 					if (i < setSize - 1) {
 						return [res, sql.raw(', ')];
 					}
@@ -330,13 +308,10 @@ export class PgDialect {
 			const valueList: (SQLSourceParam | SQL)[] = [];
 			columnKeys.forEach((colKey) => {
 				const colValue = value[colKey];
-				const column = columns[colKey]!;
 				if (typeof colValue === 'undefined') {
 					valueList.push(sql`default`);
-				} else if (colValue instanceof SQL || colValue === null) {
-					valueList.push(colValue);
 				} else {
-					valueList.push(param(colValue, column));
+					valueList.push(colValue);
 				}
 			});
 			valuesSqlList.push(valueList);

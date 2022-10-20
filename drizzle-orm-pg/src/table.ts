@@ -5,7 +5,7 @@ import { RequiredKeys } from 'drizzle-orm/utils';
 import { Simplify } from 'type-fest';
 
 import { AnyCheckBuilder, BuildCheck, Check, CheckBuilder } from './checks';
-import { AnyPgColumn, AnyPgColumnBuilder, BuildPgColumns, PgColumn } from './columns/common';
+import { AnyPgColumn, AnyPgColumnBuilder, BuildPgColumns } from './columns/common';
 import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
 import { AnyIndexBuilder, BuildIndex, Index, IndexBuilder } from './indexes';
 
@@ -58,16 +58,16 @@ export type UpdateTableConfig<T extends TableConfig, TUpdate extends Partial<Tab
 	: RequiredKeys<Omit<T, keyof TUpdate> & Pick<TUpdate, keyof TableConfig>>;
 
 /** @internal */
-export const indexesSym = Symbol('tableIndexes');
+export const Indexes = Symbol('Indexes');
 
 /** @internal */
-export const foreignKeysSym = Symbol('tableForeignKeys');
+export const ForeignKeys = Symbol('ForeignKeys');
 
 /** @internal */
-export const checksSym = Symbol('tableChecks');
+export const Checks = Symbol('Checks');
 
 /** @internal */
-export const conflictConstraintsSym = Symbol('tableConflictConstraints');
+export const ConflictConstraints = Symbol('ConflictConstraints');
 
 export class PgTable<T extends TableConfig> extends Table<T['name']> {
 	declare protected $columns: T['columns'];
@@ -75,26 +75,26 @@ export class PgTable<T extends TableConfig> extends Table<T['name']> {
 
 	/** @internal */
 	static override readonly Symbol = Object.assign(Table.Symbol, {
-		Indexes: indexesSym as typeof indexesSym,
-		ForeignKeys: foreignKeysSym as typeof foreignKeysSym,
-		Checks: checksSym as typeof checksSym,
-		ConflictConstraints: conflictConstraintsSym as typeof conflictConstraintsSym,
+		Indexes: Indexes as typeof Indexes,
+		ForeignKeys: ForeignKeys as typeof ForeignKeys,
+		Checks: Checks as typeof Checks,
+		ConflictConstraints: ConflictConstraints as typeof ConflictConstraints,
 	});
 
 	/** @internal */
-	[Table.Symbol.Columns]!: T['columns'];
+	override [Table.Symbol.Columns]!: T['columns'];
 
 	/** @internal */
-	[indexesSym]: Record<string | symbol, Index<T['name'], any, boolean>> = {};
+	[Indexes]: Record<string | symbol, Index<T['name'], any, boolean>> = {};
 
 	/** @internal */
-	[foreignKeysSym]: Record<string | symbol, ForeignKey<T['name'], string>> = {};
+	[ForeignKeys]: Record<string | symbol, ForeignKey<T['name'], string>> = {};
 
 	/** @internal */
-	[checksSym]: Record<string | symbol, Check<T['name']>> = {};
+	[Checks]: Record<string | symbol, Check<T['name']>> = {};
 
 	/** @internal */
-	[conflictConstraintsSym]: T['conflictConstraints'] = {};
+	[ConflictConstraints]: T['conflictConstraints'] = {};
 }
 
 export type AnyPgTable<TPartial extends Partial<TableConfig> = {}> = PgTable<
@@ -165,7 +165,7 @@ export function pgTable<
 		Object.entries(columns).map(([name, colBuilder]) => {
 			const column = colBuilder.build(rawTable);
 			colBuilder.buildForeignKeys(column, rawTable).forEach((fk, fkIndex) => {
-				rawTable[foreignKeysSym][Symbol(`${name}_${fkIndex}`)] = fk;
+				rawTable[ForeignKeys][Symbol(`${name}_${fkIndex}`)] = fk;
 			});
 			return [name, column];
 		}),
@@ -179,18 +179,18 @@ export function pgTable<
 
 	if (extraConfig) {
 		const builtConfig = extraConfig(table[PgTable.Symbol.Columns]);
-		table[conflictConstraintsSym] = builtConfig as unknown as BuildConflictConstraints<
+		table[ConflictConstraints] = builtConfig as unknown as BuildConflictConstraints<
 			TExtraConfig,
 			BuildPgColumns<TTableName, TColumnsMap>
 		>;
 
 		Object.entries(builtConfig).forEach(([name, builder]) => {
 			if (builder instanceof IndexBuilder) {
-				table[indexesSym][name] = builder.build(table);
+				table[Indexes][name] = builder.build(table);
 			} else if (builder instanceof CheckBuilder) {
-				table[checksSym][name] = builder.build(table);
+				table[Checks][name] = builder.build(table);
 			} else if (builder instanceof ForeignKeyBuilder) {
-				table[foreignKeysSym][name] = builder.build(table);
+				table[ForeignKeys][name] = builder.build(table);
 			}
 		});
 	}

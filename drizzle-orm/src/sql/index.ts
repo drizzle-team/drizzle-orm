@@ -51,8 +51,8 @@ export class SQL implements SQLWrapper {
 			} else if (chunk instanceof Column) {
 				return escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(chunk.name);
 			} else if (chunk instanceof Param) {
-				params.push(chunk.value);
-				return escapeParam(params.length, chunk.value);
+				params.push(chunk.encoder.mapToDriverValue(chunk.value));
+				return escapeParam(params.length - 1, chunk.value);
 			} else {
 				const err = new Error('Unexpected chunk type!');
 				console.error(chunk);
@@ -177,10 +177,10 @@ function buildChunksFromParam(param: SQLSourceParam): Chunk[] {
 		return buildChunksFromParam(param.getSQL());
 	} else if (param instanceof Table || param instanceof Column || param instanceof Name || param instanceof Param) {
 		return [param];
-	} else if (typeof param !== 'undefined') {
-		return [new Param(param as unknown)];
+	} else if (param !== undefined) {
+		return [new Param(param)];
 	} else {
-		throw new Error('Unexpected param type: ' + param);
+		return [];
 	}
 }
 

@@ -1,3 +1,5 @@
+import { Param, SQL } from 'drizzle-orm/sql';
+import { PgUpdateSet } from './queries';
 import { AnyPgTable, GetTableConfig, PgTable } from './table';
 
 export function getTableColumns<TTable extends AnyPgTable>(table: TTable) {
@@ -28,4 +30,17 @@ export function getTableConflictConstraints<TTable extends AnyPgTable>(
 	table: TTable,
 ): GetTableConfig<TTable, 'conflictConstraints'> {
 	return table[PgTable.Symbol.ConflictConstraints] as GetTableConfig<TTable, 'conflictConstraints'>;
+}
+
+/** @internal */
+export function mapUpdateSet(table: AnyPgTable, values: Record<string, unknown>): PgUpdateSet {
+	return Object.fromEntries<PgUpdateSet[string]>(
+		Object.entries(values).map(([key, value]) => {
+			if (value instanceof SQL || value === null || value === undefined) {
+				return [key, value];
+			} else {
+				return [key, new Param(value, table[PgTable.Symbol.Columns][key])];
+			}
+		}),
+	);
 }

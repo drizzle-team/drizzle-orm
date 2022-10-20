@@ -24,7 +24,6 @@ export abstract class QueryPromise<T> implements Promise<T> {
 		onFulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null,
 		onRejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null,
 	): Promise<TResult1 | TResult2> {
-		console.log('then() called');
 		return this.execute().then(onFulfilled, onRejected);
 	}
 
