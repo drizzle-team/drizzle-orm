@@ -258,9 +258,13 @@ export class PgDialect {
 			}
 			const joinMeta = joins[tableAlias]!;
 			const table = joinMeta.table;
-			const alias = table[PgTable.Symbol.Name] === table[PgTable.Symbol.OriginalName] ? undefined : tableAlias;
+			const tableName = table[PgTable.Symbol.Name];
+			const origTableName = table[PgTable.Symbol.OriginalName];
+			const alias = tableName === origTableName ? undefined : tableAlias;
 			joinsArray.push(
-				sql`${sql.raw(joinMeta.joinType)} join ${joinMeta.table} ${alias} on ${joinMeta.on}`,
+				sql`${sql.raw(joinMeta.joinType)} join ${new Name(origTableName)} ${
+					alias && new Name(alias)
+				} on ${joinMeta.on}`,
 			);
 			if (index < joinKeys.length - 1) {
 				joinsArray.push(sql` `);

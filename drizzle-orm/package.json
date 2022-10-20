@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.12.0-beta.6",
+	"version": "0.12.0-beta.7",
 	"description": "Drizzle ORM package for SQL databases",
 	"main": "index.js",
 	"types": "index.d.ts",
