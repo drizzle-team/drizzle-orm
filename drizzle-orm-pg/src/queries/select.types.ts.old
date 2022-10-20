@@ -3,19 +3,21 @@ import { TableName, Unwrap } from 'drizzle-orm/branded-types';
 import { GetTableName } from 'drizzle-orm/utils';
 import { Simplify } from 'type-fest';
 
-import { AnyMySqlColumn, ChangeColumnTable } from '~/columns/common';
-import { MySqlSelectFields, SelectResultFields } from '~/operations';
-import { AnyMySQL, MySQL } from '~/sql';
-import { AnyMySqlTable, GetTableColumns } from '~/table';
-import { MySqlSelect } from './select';
+import { AnyPgColumn } from '~/columns';
+import { ChangeColumnTable } from '~/columns/common';
+import { PgSelectFields, SelectResultFields } from '~/operations';
+import { AnyPgSQL } from '~/sql';
+import { GetTableColumns, PgTable } from '~/table';
+
+import { PgSelect } from './select';
 
 export type JoinType = 'inner' | 'left' | 'right' | 'full';
 
 export interface JoinsValue {
-	on: AnyMySQL;
-	table: AnyMySqlTable;
+	on: AnyPgSQL;
+	table: PgTable;
 	joinType: JoinType;
-	aliasTable: AnyMySqlTable;
+	aliasTable: PgTable;
 }
 
 export type JoinNullability = 'nullable' | 'null' | 'not-null';
@@ -33,7 +35,7 @@ export type ApplyNotNullMapToJoins<
 	: never;
 
 export type SelectResult<
-	TTable extends AnyMySqlTable,
+	TTable extends PgTable,
 	TReturn,
 	TInitialSelectResultFields extends Record<string, unknown>,
 	TTableNamesMap extends Record<string, string>,
@@ -49,40 +51,48 @@ export type SelectResult<
 		>
 	>[];
 
-export type AnyMySqlSelect = MySqlSelect<AnyMySqlTable, any, any, any, any, any, any>;
+export type AnyPgSelect = PgSelect<
+	PgTable,
+	Record<string, string>,
+	SelectResultFields<PgSelectFields<TableName>>,
+	unknown,
+	{ [tableName: string]: any },
+	string,
+	any
+>;
 
 export type QueryFinisherMethods = 'getQuery' | 'getSQL' | 'execute';
 
-export type PickWhere<TJoinReturn extends AnyMySqlSelect> = Omit<
+export type PickWhere<TJoinReturn extends AnyPgSelect> = Omit<
 	TJoinReturn,
 	'where' | `${JoinType}Join`
 >;
-export type PickOrderBy<TJoinReturn extends AnyMySqlSelect> = Pick<
+export type PickOrderBy<TJoinReturn extends AnyPgSelect> = Pick<
 	TJoinReturn,
 	'limit' | 'offset' | QueryFinisherMethods
 >;
-export type PickLimit<TJoinReturn extends AnyMySqlSelect> = Pick<TJoinReturn, 'offset' | QueryFinisherMethods>;
-export type PickOffset<TJoinReturn extends AnyMySqlSelect> = Pick<TJoinReturn, QueryFinisherMethods>;
+export type PickLimit<TJoinReturn extends AnyPgSelect> = Pick<TJoinReturn, 'offset' | QueryFinisherMethods>;
+export type PickOffset<TJoinReturn extends AnyPgSelect> = Pick<TJoinReturn, QueryFinisherMethods>;
 
-export type BuildAliasTable<TTable extends AnyMySqlTable, TAlias extends string> = MapColumnsToTableAlias<
+export type BuildAliasTable<TTable extends PgTable, TAlias extends string> = MapColumnsToTableAlias<
 	GetTableColumns<TTable>,
 	TAlias
 >;
 
-export type MapColumnsToTableAlias<TColumns extends Record<string, AnyMySqlColumn>, TAlias extends string> = {
+export type MapColumnsToTableAlias<TColumns extends Record<string, AnyPgColumn>, TAlias extends string> = {
 	[Key in keyof TColumns]: ChangeColumnTable<TColumns[Key], TAlias>;
 };
 
 export type AppendToResult<
 	TReturn,
 	TJoinedName extends string,
-	TSelectedFields extends MySqlSelectFields<TableName>,
+	TSelectedFields extends PgSelectFields<TableName>,
 > = TReturn extends undefined ? { [Key in TJoinedName]: SelectResultFields<TSelectedFields> }
 	: Simplify<TReturn & { [Key in TJoinedName]: SelectResultFields<TSelectedFields> }>;
 
 export type AppendToAliases<
-	TJoins extends { [k: string]: AnyMySqlTable | Record<string, AnyColumn> },
-	TJoinedTable extends AnyMySqlTable,
+	TJoins extends { [k: string]: PgTable | Record<string, AnyColumn> },
+	TJoinedTable extends PgTable,
 	TJoinedName extends string,
 	TDBName extends string = TJoinedName,
 > = Simplify<
@@ -95,19 +105,19 @@ export type JoinOn<
 	TTableNamesMap extends Record<string, string>,
 	TJoinedDBTableNames extends string,
 	TAliases extends { [tableName: string]: any },
-	TJoinedTable extends AnyMySqlTable<TableName<keyof TTableNamesMap & string>>,
+	TJoinedTable extends PgTable<TableName<keyof TTableNamesMap & string>>,
 	TJoinedName extends string,
 	TDBName extends string = TJoinedName,
 > =
 	| ((
 		aliases: AppendToAliases<TAliases, TJoinedTable, TJoinedName, TDBName>,
-	) => MySQL<TableName<TJoinedDBTableNames | TDBName>>)
-	| MySQL<TableName<TJoinedDBTableNames | TDBName>>;
+	) => AnyPgSQL<TableName<TJoinedDBTableNames | TDBName>>)
+	| AnyPgSQL<TableName<TJoinedDBTableNames | TDBName>>;
 
 export type JoinSelect<
-	TJoinedTable extends AnyMySqlTable,
+	TJoinedTable extends PgTable,
 	TDBName extends string,
-	TSelectedFields extends MySqlSelectFields<TableName>,
+	TSelectedFields extends PgSelectFields<TableName>,
 > =
 	| ((table: BuildAliasTable<TJoinedTable, TableName<TDBName>>) => TSelectedFields)
 	| TSelectedFields;

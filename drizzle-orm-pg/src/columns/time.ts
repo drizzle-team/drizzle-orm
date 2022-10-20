@@ -1,15 +1,13 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
-
+import { ColumnConfig } from 'drizzle-orm';
+import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyPgTable } from '~/table';
 import { PgColumn } from './common';
 import { PgDateColumnBaseBuilder } from './date.common';
-import { PrecisionLimit } from './timestamp';
+import { Precision } from './timestamp';
 
-export class PgTimeBuilder<
-	TData extends ColumnData<string> = ColumnData<string>,
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends PgDateColumnBaseBuilder<ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+export class PgTimeBuilder<TData extends string = string>
+	extends PgDateColumnBaseBuilder<ColumnBuilderConfig<{ data: TData; driverParam: string }>>
+{
 	constructor(
 		name: string,
 		public readonly withTimezone: boolean,
@@ -19,25 +17,20 @@ export class PgTimeBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends TableName>(
-		table: AnyPgTable<TTableName>,
-	): PgTime<TTableName, TData, TNotNull, THasDefault> {
+	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgTime<TTableName, TData> {
 		return new PgTime(table, this);
 	}
 }
 
-export class PgTime<
-	TTableName extends TableName,
-	TData extends ColumnData<string>,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
-> extends PgColumn<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
-	protected brand!: 'PgTime';
+export class PgTime<TTableName extends string, TData extends string>
+	extends PgColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>>
+{
+	protected override $pgColumnBrand!: 'PgTime';
 
 	public readonly withTimezone: boolean;
 	public readonly precision: number | undefined;
 
-	constructor(table: AnyPgTable<TTableName>, builder: PgTimeBuilder<TData, TNotNull, THasDefault>) {
+	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgTimeBuilder<TData>) {
 		super(table, builder);
 		this.withTimezone = builder.withTimezone;
 		this.precision = builder.precision;
@@ -50,7 +43,7 @@ export class PgTime<
 }
 
 export interface TimeConfig {
-	precision?: PrecisionLimit;
+	precision?: Precision;
 	withTimezone?: boolean;
 }
 

@@ -1,7 +1,6 @@
 import { QueryResult, QueryResultRow } from 'pg';
 
 import { PgDialect, PgSession } from './connection';
-import { AnyPgTable } from './table';
 
 export class PgTestSession implements PgSession {
 	private queries: { query: string; params: unknown[] }[] = [];
@@ -52,12 +51,11 @@ export class PgTestDriver {
 	}
 }
 
-export class PgTestConnector<TDBSchema extends Record<string, AnyPgTable>> {
-	dialect: PgDialect<TDBSchema>;
-	driver: PgTestDriver;
+export class PgTestConnector {
+	dialect = new PgDialect();
+	driver = new PgTestDriver();
 
-	constructor(dbSchema: TDBSchema) {
-		this.dialect = new PgDialect(dbSchema);
-		this.driver = new PgTestDriver();
+	connect() {
+		return this.dialect.createDB(new PgTestSession());
 	}
 }

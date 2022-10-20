@@ -3,8 +3,8 @@ import { AnyMySqlTable } from '~/table';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export class MySqlCharBuilder<
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
+	TNotNull extends boolean = false,
+	THasDefault extends boolean = false,
 > extends MySqlColumnBuilder<ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	/** @internal */ length: number | undefined;
 
@@ -14,7 +14,7 @@ export class MySqlCharBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends TableName>(
+	override build<TTableName extends string>(
 		table: AnyMySqlTable<TTableName>,
 	): MySqlChar<TTableName, TNotNull, THasDefault> {
 		return new MySqlChar<TTableName, TNotNull, THasDefault>(table, this);
@@ -22,9 +22,9 @@ export class MySqlCharBuilder<
 }
 
 export class MySqlChar<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
+	TTableName extends string,
+	TNotNull extends boolean,
+	THasDefault extends boolean,
 > extends MySqlColumn<
 	TTableName,
 	ColumnData<string>,

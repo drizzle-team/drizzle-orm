@@ -1,19 +1,17 @@
-import { TableName } from 'drizzle-orm/branded-types';
-import { tableName } from 'drizzle-orm/utils';
+import { UpdateColumnConfig } from 'drizzle-orm';
 
 import { AnyPgColumn } from './columns';
-import { AnyPgTable } from './table';
-import { tableForeignKeys } from './utils';
+import { AnyPgTable, PgTable } from './table';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
-export type Reference<TTableName extends TableName, TForeignTableName extends TableName> = () => {
-	readonly columns: AnyPgColumn<TTableName>[];
-	readonly foreignTable: AnyPgTable<TForeignTableName>;
-	readonly foreignColumns: AnyPgColumn<TForeignTableName>[];
+export type Reference<TTableName extends string, TForeignTableName extends string> = () => {
+	readonly columns: AnyPgColumn<{ tableName: TTableName }>[];
+	readonly foreignTable: AnyPgTable<{ name: TForeignTableName }>;
+	readonly foreignColumns: AnyPgColumn<{ tableName: TForeignTableName }>[];
 };
 
-export class ForeignKeyBuilder<TTableName extends TableName, TForeignTableName extends TableName> {
+export class ForeignKeyBuilder<TTableName extends string, TForeignTableName extends string> {
 	protected brand!: 'PgForeignKeyBuilder';
 
 	protected typeKeeper!: {
@@ -31,8 +29,8 @@ export class ForeignKeyBuilder<TTableName extends TableName, TForeignTableName e
 
 	constructor(
 		config: () => {
-			columns: AnyPgColumn<TTableName>[];
-			foreignColumns: AnyPgColumn<TForeignTableName>[];
+			columns: AnyPgColumn<{ tableName: TTableName }>[];
+			foreignColumns: AnyPgColumn<{ tableName: TForeignTableName }>[];
 		},
 		actions?: {
 			onUpdate?: UpdateDeleteAction;
@@ -59,20 +57,20 @@ export class ForeignKeyBuilder<TTableName extends TableName, TForeignTableName e
 		return this;
 	}
 
-	build(table: AnyPgTable<TTableName>): ForeignKey<TTableName, TForeignTableName> {
+	build(table: AnyPgTable<{ name: TTableName }>): ForeignKey<TTableName, TForeignTableName> {
 		return new ForeignKey(table, this);
 	}
 }
 
-export type AnyForeignKeyBuilder = ForeignKeyBuilder<TableName, TableName>;
+export type AnyForeignKeyBuilder = ForeignKeyBuilder<string, string>;
 
-export class ForeignKey<TTableName extends TableName, TForeignTableName extends TableName> {
+export class ForeignKey<TTableName extends string, TForeignTableName extends string> {
 	readonly reference: Reference<TTableName, TForeignTableName>;
 	readonly onUpdate: UpdateDeleteAction | undefined;
 	readonly onDelete: UpdateDeleteAction | undefined;
 
 	constructor(
-		readonly table: AnyPgTable<TTableName>,
+		readonly table: AnyPgTable<{ name: TTableName }>,
 		builder: ForeignKeyBuilder<TTableName, TForeignTableName>,
 	) {
 		this.reference = builder.reference;
@@ -85,9 +83,9 @@ export class ForeignKey<TTableName extends TableName, TForeignTableName extends 
 		const columnNames = columns.map((column) => column.name);
 		const foreignColumnNames = foreignColumns.map((column) => column.name);
 		const chunks = [
-			this.table[tableName],
+			this.table[PgTable.Symbol.Name],
 			...columnNames,
-			foreignColumns[0]!.table[tableName],
+			foreignColumns[0]!.table[PgTable.Symbol.Name],
 			...foreignColumnNames,
 		];
 		return `${chunks.join('_')}_fk`;
@@ -97,18 +95,15 @@ export class ForeignKey<TTableName extends TableName, TForeignTableName extends 
 export type AnyForeignKey = ForeignKey<any, any>;
 
 type ColumnsWithTable<
-	TTableName extends TableName,
+	TTableName extends string,
 	TColumns extends AnyPgColumn[],
-> = {
-	[Key in keyof TColumns]: TColumns[Key] extends AnyPgColumn<any, infer TType> ? AnyPgColumn<TTableName, TType>
-		: never;
-};
+> = { [Key in keyof TColumns]: AnyPgColumn<{ tableName: TTableName }> };
 
 export type GetColumnsTable<TColumns extends AnyPgColumn | AnyPgColumn[]> = (
 	TColumns extends AnyPgColumn ? TColumns
 		: TColumns extends AnyPgColumn[] ? TColumns[number]
 		: never
-) extends AnyPgColumn<infer TTableName> ? TTableName
+) extends AnyPgColumn<{ tableName: infer TTableName extends string }> ? TTableName
 	: never;
 
 export type NotUnion<T, T1 = T> = T extends T ? [T1] extends [T] ? T1 : never : never;
@@ -116,38 +111,26 @@ export type NotFKBuilderWithUnion<T> = T extends ForeignKeyBuilder<any, infer TF
 	? [NotUnion<TForeignTableName>] extends [never] ? 'Only columns from the same table are allowed in foreignColumns' : T
 	: never;
 
-function _foreignKey<
-	TColumns extends [AnyPgColumn, ...AnyPgColumn[]],
-	TForeignTableName extends TableName,
+export function foreignKey<
+	TTableName extends string,
+	TForeignTableName extends string,
+	TColumns extends [AnyPgColumn<{ tableName: TTableName }>, ...AnyPgColumn<{ tableName: TTableName }>[]],
 	TForeignColumns extends ColumnsWithTable<TForeignTableName, TColumns>,
 >(
 	config: () => {
 		columns: TColumns;
 		foreignColumns: TForeignColumns;
 	},
-): ForeignKeyBuilder<GetColumnsTable<TColumns>, GetColumnsTable<TForeignColumns>> {
+): NotFKBuilderWithUnion<ForeignKeyBuilder<TTableName, TForeignTableName>> {
 	function mappedConfig() {
 		const { columns, foreignColumns } = config();
 		return {
-			columns: Array.isArray(columns) ? columns : [columns] as AnyPgColumn[],
-			foreignColumns: Array.isArray(foreignColumns) ? foreignColumns : [foreignColumns] as AnyPgColumn[],
+			columns,
+			foreignColumns,
 		};
 	}
 
-	return new ForeignKeyBuilder(mappedConfig);
-}
-
-export function foreignKey<
-	TColumns extends [AnyPgColumn, ...AnyPgColumn[]],
-	TForeignTableName extends TableName,
-	TForeignColumns extends ColumnsWithTable<TForeignTableName, TColumns>,
->(
-	config: () => {
-		columns: TColumns;
-		foreignColumns: TForeignColumns;
-	},
-): NotFKBuilderWithUnion<ForeignKeyBuilder<GetColumnsTable<TColumns>, GetColumnsTable<TForeignColumns>>> {
-	return _foreignKey(config) as NotFKBuilderWithUnion<
-		ForeignKeyBuilder<GetColumnsTable<TColumns>, GetColumnsTable<TForeignColumns>>
+	return new ForeignKeyBuilder<TTableName, TForeignTableName>(mappedConfig) as NotFKBuilderWithUnion<
+		ForeignKeyBuilder<TTableName, TForeignTableName>
 	>;
 }

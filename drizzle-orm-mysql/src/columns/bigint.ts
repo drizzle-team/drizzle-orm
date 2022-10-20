@@ -8,8 +8,8 @@ import {
 } from './common';
 
 export class MySqlBigInt53Builder<
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
+	TNotNull extends boolean = false,
+	THasDefault extends boolean = false,
 > extends MySqlColumnBuilderWithAutoIncrement<
 	ColumnData<number>,
 	ColumnDriverParam<number | string>,
@@ -17,7 +17,7 @@ export class MySqlBigInt53Builder<
 	THasDefault
 > {
 	/** @internal */
-	override build<TTableName extends TableName>(
+	override build<TTableName extends string>(
 		table: AnyMySqlTable<TTableName>,
 	): MySqlBigInt53<TTableName, TNotNull, THasDefault> {
 		return new MySqlBigInt53<TTableName, TNotNull, THasDefault>(table, this);
@@ -25,9 +25,9 @@ export class MySqlBigInt53Builder<
 }
 
 export class MySqlBigInt53<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
+	TTableName extends string,
+	TNotNull extends boolean,
+	THasDefault extends boolean,
 > extends MySqlColumnWithAutoIncrement<
 	TTableName,
 	ColumnData<number>,
@@ -50,11 +50,11 @@ export class MySqlBigInt53<
 }
 
 export class MySqlBigInt64Builder<
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
+	TNotNull extends boolean = false,
+	THasDefault extends boolean = false,
 > extends MySqlColumnBuilder<ColumnData<bigint>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	/** @internal */
-	override build<TTableName extends TableName>(
+	override build<TTableName extends string>(
 		table: AnyMySqlTable<TTableName>,
 	): MySqlBigInt64<TTableName, TNotNull, THasDefault> {
 		return new MySqlBigInt64<TTableName, TNotNull, THasDefault>(table, this);
@@ -62,9 +62,9 @@ export class MySqlBigInt64Builder<
 }
 
 export class MySqlBigInt64<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
+	TTableName extends string,
+	TNotNull extends boolean,
+	THasDefault extends boolean,
 > extends MySqlColumn<TTableName, ColumnData<bigint>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	brand!: 'MySqlBigInt64';
 

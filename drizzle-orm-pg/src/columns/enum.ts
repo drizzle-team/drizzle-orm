@@ -1,5 +1,5 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
-
+import { ColumnConfig } from 'drizzle-orm';
+import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyPgTable } from '~/table';
 import { PgColumn, PgColumnBuilder } from './common';
 
@@ -15,11 +15,9 @@ export function isPgEnum(obj: unknown): obj is PgEnum<string> {
 	return !!obj && typeof obj === 'function' && isPgEnumSym in obj;
 }
 
-export class PgEnumColumnBuilder<
-	TData extends ColumnData<string> = ColumnData<string>,
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends PgColumnBuilder<TData, ColumnDriverParam<string>, TNotNull, THasDefault> {
+export class PgEnumColumnBuilder<TData extends string = string>
+	extends PgColumnBuilder<ColumnBuilderConfig<{ data: TData; driverParam: string }>>
+{
 	/** @internal */ values: string[];
 	/** @internal */ enumName: string;
 
@@ -29,24 +27,19 @@ export class PgEnumColumnBuilder<
 		this.values = values;
 	}
 	/** @internal */
-	override build<TTableName extends TableName>(
-		table: AnyPgTable<TTableName>,
-	): PgEnumColumn<TTableName, TData, TNotNull, THasDefault> {
+	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgEnumColumn<TTableName, TData> {
 		return new PgEnumColumn(table, this, this.enumName);
 	}
 }
 
-export class PgEnumColumn<
-	TTableName extends TableName,
-	TData extends ColumnData<string>,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
-> extends PgColumn<TTableName, TData, ColumnDriverParam<string>, TNotNull, THasDefault> {
-	protected brand!: 'PgEnumColumn';
+export class PgEnumColumn<TTableName extends string, TData extends string>
+	extends PgColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>>
+{
+	protected override $pgColumnBrand!: 'PgEnumColumn';
 
 	constructor(
-		table: AnyPgTable<TTableName>,
-		builder: PgEnumColumnBuilder<TData, TNotNull, THasDefault>,
+		table: AnyPgTable<{ name: TTableName }>,
+		builder: PgEnumColumnBuilder<TData>,
 		public readonly enumName: string,
 	) {
 		super(table, builder);
@@ -63,7 +56,7 @@ export function pgEnum<T extends string = string>(enumName: string, values: T[])
 		enumValues: values,
 		[isPgEnumSym]: true,
 	};
-	const columnFactory = (name: string) => new PgEnumColumnBuilder<ColumnData<T>>(name, enumName, values);
+	const columnFactory = (name: string) => new PgEnumColumnBuilder<T>(name, enumName, values);
 
 	return Object.assign(columnFactory, enumValue);
 }

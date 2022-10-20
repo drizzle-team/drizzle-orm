@@ -1,11 +1,10 @@
 import { sql } from 'drizzle-orm';
-import { ColumnData, TableName } from 'drizzle-orm/branded-types';
 
 import { Check, check } from '~/checks';
-import { integer, pgEnum, PgTextBuilder, serial, text, timestamp, uuid } from '~/columns';
+import { integer, pgEnum, serial, text, timestamp, uuid } from '~/columns';
 import { foreignKey } from '~/foreign-keys';
 import { Index, index } from '~/indexes';
-import { GetTableColumns, pgTable } from '~/table';
+import { GetTableConfig, pgTable } from '~/table';
 import { getTableConflictConstraints } from '~/utils';
 import { Equal, Expect } from '../utils';
 
@@ -54,9 +53,9 @@ export const users = pgTable(
 const usersConflictConstraints = getTableConflictConstraints(users);
 Expect<
 	Equal<{
-		usersAge1Idx: Index<TableName<'users_table'>, GetTableColumns<typeof users>, true>;
-		uniqueClass: Index<TableName<'users_table'>, GetTableColumns<typeof users>, true>;
-		legalAge: Check<TableName<'users_table'>>;
+		usersAge1Idx: Index<'users_table', GetTableConfig<typeof users, 'columns'>, true>;
+		uniqueClass: Index<'users_table', GetTableConfig<typeof users, 'columns'>, true>;
+		legalAge: Check<'users_table'>;
 	}, typeof usersConflictConstraints>
 >;
 

@@ -1,90 +1,83 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName, Unwrap } from './branded-types';
-import { ColumnBuilder } from './column-builder';
-import { BoundParamValue, DriverValueMapper } from './sql';
-import { AnyTable } from './table';
+import { ColumnBuilder, ColumnBuilderBaseConfig, ColumnBuilderConfig } from './column-builder';
+import { DriverValueMapper, SQL } from './sql';
+import { Table } from './table';
+import { RequiredKeys } from './utils';
 
-export abstract class Column<
-	TTableName extends TableName<string>,
-	TData extends ColumnData,
-	TDriverParam extends ColumnDriverParam,
-	TNotNull extends ColumnNotNull<boolean>,
-	THasDefault extends ColumnHasDefault<boolean>,
-> implements DriverValueMapper<Unwrap<TData>, Unwrap<TDriverParam>> {
-	protected typeKeeper!: {
-		brand: 'Column';
-		tableName: TTableName;
-		type: TData;
-		driverType: TDriverParam;
-		notNull: TNotNull;
-		default: THasDefault;
-	};
+export interface ColumnBaseConfig extends ColumnBuilderBaseConfig {
+	tableName: string;
+}
+
+export type ColumnConfig<TPartial extends Partial<ColumnBaseConfig> = {}> = UpdateColumnConfig<
+	ColumnBuilderConfig & {
+		tableName: string;
+	},
+	TPartial
+>;
+
+export type UpdateColumnConfig<
+	T extends ColumnBaseConfig,
+	TUpdate extends Partial<ColumnBaseConfig>,
+> = {} extends TUpdate ? T : RequiredKeys<Omit<T, keyof TUpdate> & Pick<TUpdate, keyof ColumnBaseConfig>>;
+
+/*
+	`Column` only accepts a full `ColumnConfig` as its generic.
+	To infer parts of the config, use `AnyColumn` that accepts a partial config.
+	See `GetColumnData` for example usage of inferring.
+*/
+export abstract class Column<T extends ColumnBaseConfig> implements DriverValueMapper<T['data'], T['driverParam']> {
+	declare protected $brand: 'Column';
+	declare protected $config: T;
+	declare protected $data: T['data'];
+	declare protected $driverParam: T['driverParam'];
+	declare protected $notNull: T['notNull'];
+	declare protected $hasDefault: T['hasDefault'];
 
 	readonly name: string;
 	readonly primary: boolean;
-	readonly notNull: TNotNull;
-	readonly default: TData | undefined;
+	readonly notNull: boolean;
+	readonly default: T['data'] | SQL | undefined;
 
-	constructor(
-		readonly table: AnyTable<TTableName>,
-		builder: ColumnBuilder<TData, TDriverParam, TNotNull, THasDefault>,
-	) {
-		this.name = builder.name;
-		this.notNull = builder._notNull;
-		this.default = builder._default;
-		this.primary = builder._primaryKey;
+	constructor(readonly table: Table<T['tableName']>, builder: ColumnBuilder<Omit<T, 'tableName'>>) {
+		this.name = builder.config.name;
+		this.notNull = builder.config.notNull;
+		this.default = builder.config.default;
+		this.primary = builder.config.primaryKey;
 	}
 
 	abstract getSQLType(): string;
 
-	mapFromDriverValue(value: Unwrap<TDriverParam>): Unwrap<TData> {
+	mapFromDriverValue(value: T['driverParam']): T['data'] {
 		return value as any;
 	}
 
-	mapToDriverValue(value: Unwrap<TData>): Unwrap<TDriverParam> {
+	mapToDriverValue(value: T['data']): T['driverParam'] {
 		return value as any;
 	}
 }
 
-export type AnyColumn<
-	TTableName extends TableName = TableName,
-	TData extends ColumnData = ColumnData,
-	TDriverParam extends ColumnDriverParam = ColumnDriverParam,
-	TNotNull extends ColumnNotNull = ColumnNotNull,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault,
-> = Column<TTableName, TData, TDriverParam, TNotNull, THasDefault>;
+export type AnyColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = Column<
+	UpdateColumnConfig<ColumnBaseConfig, TPartial>
+>;
 
-export function param<TData extends ColumnData, TDriver extends ColumnDriverParam>(
-	value: Unwrap<TData>,
-	mapper: DriverValueMapper<Unwrap<TData>, Unwrap<TDriver>>,
-): BoundParamValue<TData, TDriver> {
-	return new BoundParamValue(value as TData, mapper);
-}
-
-export type GetColumnData<
-	TColumn,
-	TInferMode extends 'query' | 'raw' = 'query',
-> =
+export type GetColumnData<TColumn extends AnyColumn, TInferMode extends 'query' | 'raw' = 'query'> =
 	// dprint-ignore
-	TColumn extends Column<any, infer TData, any, infer TNotNull, any>
-	? TInferMode extends 'raw' // Raw mode
-		? Unwrap<TData> // Just return the underlying type
-		: TNotNull extends true // Query mode
-			? Unwrap<TData> // Query mode, not null
-			: Unwrap<TData> | null // Query mode, nullable
-	: never;
+	TColumn extends AnyColumn<{ data: infer TData; notNull: infer TNotNull extends boolean }>
+		? TInferMode extends 'raw' // Raw mode
+			? TData // Just return the underlying type
+			: TNotNull extends true // Query mode
+			? TData // Query mode, not null
+			: TData | null // Query mode, nullable
+		: never;
 
-export type InferColumnDriverParam<TColumn extends AnyColumn> = TColumn extends Column<
-	TableName,
-	ColumnData,
-	infer TDriverType,
-	ColumnNotNull,
-	ColumnHasDefault
-> ? Unwrap<TDriverType>
-	: never;
+/**
+	`GetColumnConfig` can be used to infer either the full config of the column or a single parameter.
+	@example
+	type TConfig = GetColumnConfig<typeof column>;
+	type TNotNull = GetColumnConfig<typeof column, 'notNull'>;
+*/
+export type GetColumnConfig<TColumn extends AnyColumn, TParam extends keyof ColumnBaseConfig | undefined = undefined> =
+	TColumn extends Column<infer TConfig> ? TParam extends keyof ColumnBaseConfig ? TConfig[TParam] : TConfig : never;
 
 export type InferColumnsDataTypes<TColumns extends Record<string, AnyColumn>> = {
 	[Key in keyof TColumns]: GetColumnData<TColumns[Key], 'query'>;
 };
-
-export type InferColumnTable<T extends AnyColumn> = T extends AnyColumn<infer TTable> ? TTable
-	: never;

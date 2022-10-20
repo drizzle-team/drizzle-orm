@@ -1,50 +1,69 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName, Unwrap } from './branded-types';
-import { Column } from './column';
-import { AnySQL } from './sql';
-import { AnyTable } from './table';
+import { SQL } from './sql';
+import { RequiredKeys } from './utils';
 
-export abstract class ColumnBuilder<
-	TData extends ColumnData,
-	TDriverParam extends ColumnDriverParam,
-	TNotNull extends ColumnNotNull<boolean>,
-	THasDefault extends ColumnHasDefault<boolean>,
-> {
-	protected typeKeeper!: {
-		brand: 'ColumnBuilder';
-		data: TData;
-		driverParam: TDriverParam;
-		notNull: TNotNull;
-		default: THasDefault;
+export interface ColumnBuilderBaseConfig {
+	data: unknown;
+	driverParam: unknown;
+	notNull: boolean;
+	hasDefault: boolean;
+}
+
+export type ColumnBuilderConfig<TPartial extends Partial<ColumnBuilderBaseConfig> = {}> = UpdateColumnBuilderConfig<
+	ColumnBuilderBaseConfig & {
+		notNull: false;
+		hasDefault: false;
+	},
+	TPartial
+>;
+
+export type UpdateColumnBuilderConfig<
+	T extends ColumnBuilderBaseConfig,
+	TUpdate extends Partial<ColumnBuilderBaseConfig>,
+> = {} extends TUpdate ? T : RequiredKeys<Omit<T, keyof TUpdate> & Pick<TUpdate, keyof ColumnBuilderBaseConfig>>;
+
+// To understand how to use `ColumnBuilder` and `AnyColumnBuilder`, see `Column` and `AnyColumn` documentation.
+export abstract class ColumnBuilder<T extends ColumnBuilderBaseConfig> {
+	declare protected $config: T;
+	declare protected $brand: {
+		type: 'ColumnBuilder';
+		subtype: string;
 	};
 
-	/** @internal */ _notNull = false as TNotNull;
-	/** @internal */ _default: TData | undefined;
-	/** @internal */ _primaryKey = false;
-	/** @internal */ name: string;
+	/** @internal */
+	config: {
+		name: string;
+		notNull: T['notNull'];
+		default: T['data'] | SQL | undefined;
+		primaryKey: boolean;
+	};
 
 	constructor(name: string) {
-		this.name = name;
+		this.config = {
+			name,
+			notNull: false as T['notNull'],
+			default: undefined,
+			primaryKey: false,
+		};
 	}
 
-	notNull(): ColumnBuilder<TData, TDriverParam, ColumnNotNull<true>, THasDefault> {
-		this._notNull = true as TNotNull;
+	notNull(): ColumnBuilder<UpdateColumnBuilderConfig<T, { notNull: true }>> {
+		this.config.notNull = true as T['notNull'];
 		return this as ReturnType<this['notNull']>;
 	}
 
 	default(
-		value: Unwrap<TData> | AnySQL,
-	): ColumnBuilder<TData, TDriverParam, TNotNull, ColumnHasDefault<true>> {
-		this._default = value as TData;
+		value: T['data'] | SQL,
+	): ColumnBuilder<UpdateColumnBuilderConfig<T, { hasDefault: true }>> {
+		this.config.default = value;
 		return this as ReturnType<this['default']>;
 	}
 
-	primaryKey(): ColumnBuilder<TData, TDriverParam, ColumnNotNull<true>, THasDefault> {
-		this._primaryKey = true;
+	primaryKey(): ColumnBuilder<UpdateColumnBuilderConfig<T, { notNull: true }>> {
+		this.config.primaryKey = true;
 		return this as ReturnType<this['primaryKey']>;
 	}
-
-	/** @internal */
-	abstract build<TTableName extends TableName>(
-		table: AnyTable<TTableName>,
-	): Column<TTableName, TData, TDriverParam, TNotNull, THasDefault>;
 }
+
+export type AnyColumnBuilder<TPartial extends Partial<ColumnBuilderBaseConfig> = {}> = ColumnBuilder<
+	UpdateColumnBuilderConfig<ColumnBuilderBaseConfig, TPartial>
+>;

@@ -1,21 +1,13 @@
-import { sql } from 'drizzle-orm';
-import {
-	ColumnData,
-	ColumnDriverParam,
-	ColumnHasDefault,
-	ColumnNotNull,
-	TableName,
-} from 'drizzle-orm/branded-types';
+import { ColumnConfig, sql } from 'drizzle-orm';
+import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 
 import { AnyPgTable } from '~/table';
 
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgUUIDBuilder<
-	TData extends ColumnData<string> = ColumnData<string>,
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends PgColumnBuilder<TData, ColumnDriverParam<string>, TNotNull, THasDefault> {
+export class PgUUIDBuilder<TData extends string = string>
+	extends PgColumnBuilder<ColumnBuilderConfig<{ data: TData; driverParam: string }>>
+{
 	/**
 	 * Adds `default gen_random_uuid()` to the column definition.
 	 */
@@ -24,25 +16,17 @@ export class PgUUIDBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends TableName>(
-		table: AnyPgTable<TTableName>,
-	): PgUUID<TTableName, TNotNull, THasDefault, TData> {
+	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgUUID<TTableName, TData> {
 		return new PgUUID(table, this);
 	}
 }
 
-export class PgUUID<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
-	TData extends ColumnData<string>,
-> extends PgColumn<TTableName, TData, ColumnDriverParam<string>, TNotNull, THasDefault> {
-	protected brand!: 'PgUUID';
+export class PgUUID<TTableName extends string, TData extends string>
+	extends PgColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>>
+{
+	protected override $pgColumnBrand!: 'PgUUID';
 
-	constructor(
-		table: AnyPgTable<TTableName>,
-		builder: PgUUIDBuilder<TData, TNotNull, THasDefault>,
-	) {
+	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgUUIDBuilder<TData>) {
 		super(table, builder);
 	}
 
@@ -51,6 +35,6 @@ export class PgUUID<
 	}
 }
 
-export function uuid<T extends string = string>(name: string): PgUUIDBuilder<ColumnData<T>> {
-	return new PgUUIDBuilder<ColumnData<T>>(name);
+export function uuid<T extends string = string>(name: string): PgUUIDBuilder<T> {
+	return new PgUUIDBuilder(name);
 }

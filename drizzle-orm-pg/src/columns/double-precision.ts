@@ -1,16 +1,13 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
-
+import { ColumnConfig } from 'drizzle-orm';
+import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyPgTable } from '~/table';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgDoublePrecisionBuilder<
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends PgColumnBuilder<
-	ColumnData<number>,
-	ColumnDriverParam<string | number>,
-	TNotNull,
-	THasDefault
+export class PgDoublePrecisionBuilder extends PgColumnBuilder<
+	ColumnBuilderConfig<{
+		data: number;
+		driverParam: string | number;
+	}>
 > {
 	/** @internal */ length: number | undefined;
 
@@ -20,29 +17,23 @@ export class PgDoublePrecisionBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends TableName>(
-		table: AnyPgTable<TTableName>,
-	): PgDoublePrecision<TTableName, TNotNull, THasDefault> {
+	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgDoublePrecision<TTableName> {
 		return new PgDoublePrecision(table, this);
 	}
 }
 
-export class PgDoublePrecision<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
-> extends PgColumn<
-	TTableName,
-	ColumnData<number>,
-	ColumnDriverParam<string | number>,
-	TNotNull,
-	THasDefault
+export class PgDoublePrecision<TTableName extends string> extends PgColumn<
+	ColumnConfig<{
+		tableName: TTableName;
+		data: number;
+		driverParam: string | number;
+	}>
 > {
-	protected brand!: 'PgDoublePrecision';
+	protected override $pgColumnBrand!: 'PgDoublePrecision';
 
 	constructor(
-		table: AnyPgTable<TTableName>,
-		builder: PgDoublePrecisionBuilder<TNotNull, THasDefault>,
+		table: AnyPgTable<{ name: TTableName }>,
+		builder: PgDoublePrecisionBuilder,
 	) {
 		super(table, builder);
 	}
@@ -51,12 +42,12 @@ export class PgDoublePrecision<
 		return 'double precision';
 	}
 
-	override mapFromDriverValue = (value: ColumnDriverParam<string | number>): ColumnData<number> => {
+	override mapFromDriverValue(value: string | number): number {
 		if (typeof value === 'string') {
-			return parseFloat(value) as ColumnData<number>;
+			return parseFloat(value);
 		}
-		return value as ColumnData<any>;
-	};
+		return value;
+	}
 }
 
 export function doublePrecision(name: string) {

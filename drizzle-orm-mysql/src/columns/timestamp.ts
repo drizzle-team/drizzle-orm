@@ -4,8 +4,8 @@ import { MySqlColumn, MySqlColumnBuilder } from './common';
 import { MySqlDateBaseColumn, MySqlDateColumnBaseBuilder } from './date.common';
 
 export class MySqlTimestampBuilder<
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
+	TNotNull extends boolean = false,
+	THasDefault extends boolean = false,
 > extends MySqlDateColumnBaseBuilder<ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	constructor(
 		name: string,
@@ -15,7 +15,7 @@ export class MySqlTimestampBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends TableName>(
+	override build<TTableName extends string>(
 		table: AnyMySqlTable<TTableName>,
 	): MySqlTimestamp<TTableName, TNotNull, THasDefault> {
 		return new MySqlTimestamp(table, this);
@@ -23,9 +23,9 @@ export class MySqlTimestampBuilder<
 }
 
 export class MySqlTimestamp<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
+	TTableName extends string,
+	TNotNull extends boolean,
+	THasDefault extends boolean,
 > extends MySqlDateBaseColumn<TTableName, ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'MySqlTimestamp';
 
@@ -50,8 +50,8 @@ export class MySqlTimestamp<
 }
 
 export class MySqlTimestampStringBuilder<
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
+	TNotNull extends boolean = false,
+	THasDefault extends boolean = false,
 > extends MySqlDateColumnBaseBuilder<ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	constructor(
 		name: string,
@@ -61,7 +61,7 @@ export class MySqlTimestampStringBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends TableName>(
+	override build<TTableName extends string>(
 		table: AnyMySqlTable<TTableName>,
 	): MySqlTimestampString<TTableName, TNotNull, THasDefault> {
 		return new MySqlTimestampString(table, this);
@@ -69,9 +69,9 @@ export class MySqlTimestampStringBuilder<
 }
 
 export class MySqlTimestampString<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
+	TTableName extends string,
+	TNotNull extends boolean,
+	THasDefault extends boolean,
 > extends MySqlDateBaseColumn<TTableName, ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgTimestampString';
 

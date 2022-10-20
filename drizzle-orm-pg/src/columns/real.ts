@@ -1,16 +1,10 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
-
+import { ColumnConfig } from 'drizzle-orm';
+import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyPgTable } from '~/table';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgRealBuilder<
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends PgColumnBuilder<
-	ColumnData<number>,
-	ColumnDriverParam<string | number>,
-	TNotNull,
-	THasDefault
+export class PgRealBuilder extends PgColumnBuilder<
+	ColumnBuilderConfig<{ data: number; driverParam: string | number }>
 > {
 	/** @internal */ length: number | undefined;
 
@@ -20,30 +14,17 @@ export class PgRealBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends TableName>(
-		table: AnyPgTable<TTableName>,
-	): PgReal<TTableName, TNotNull, THasDefault> {
+	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgReal<TTableName> {
 		return new PgReal(table, this);
 	}
 }
 
-export class PgReal<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
-> extends PgColumn<
-	TTableName,
-	ColumnData<number>,
-	ColumnDriverParam<string | number>,
-	TNotNull,
-	THasDefault
+export class PgReal<TTableName extends string> extends PgColumn<
+	ColumnConfig<{ tableName: TTableName; data: number; driverParam: string | number }>
 > {
-	protected brand!: 'PgReal';
+	protected override $pgColumnBrand!: 'PgReal';
 
-	constructor(
-		table: AnyPgTable<TTableName>,
-		builder: PgRealBuilder<TNotNull, THasDefault>,
-	) {
+	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgRealBuilder) {
 		super(table, builder);
 	}
 
@@ -51,11 +32,11 @@ export class PgReal<
 		return 'real';
 	}
 
-	override mapFromDriverValue = (value: ColumnDriverParam<string | number>): ColumnData<number> => {
+	override mapFromDriverValue = (value: string | number): number => {
 		if (typeof value === 'string') {
-			return parseFloat(value) as ColumnData<number>;
+			return parseFloat(value);
 		}
-		return value as ColumnData<any>;
+		return value;
 	};
 }
 

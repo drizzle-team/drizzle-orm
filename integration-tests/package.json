@@ -9,7 +9,8 @@
 		"test:andrew": "tsx tests/test_andrew.ts",
 		"test:dan": "tsx tests/test_dan.ts",
 		"test:dan:mysql": "tsx tests/test_dan_mysql.ts",
-		"build:int": "pnpm add ../drizzle-orm/package.tgz ../drizzle-orm-pg/package.tgz ../drizzle-orm-mysql/package.tgz"
+		"build:int:full": "pnpm add ../drizzle-orm/package.tgz ../drizzle-orm-pg/package.tgz ../drizzle-orm-mysql/package.tgz",
+		"build:int": "pnpm add ../drizzle-orm/package.tgz ../drizzle-orm-pg/package.tgz"
 	},
 	"ava": {
 		"extensions": {
@@ -35,7 +36,6 @@
 	"dependencies": {
 		"dockerode": "^3.3.3",
 		"drizzle-orm": "file:../drizzle-orm/package.tgz",
-		"drizzle-orm-mysql": "file:../drizzle-orm-mysql/package.tgz",
 		"drizzle-orm-pg": "file:../drizzle-orm-pg/package.tgz",
 		"get-port": "^6.1.2",
 		"mysql2": "^2.3.3",

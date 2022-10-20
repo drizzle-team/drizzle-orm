@@ -7,8 +7,8 @@ export type MySqlTextColumnType = 'tinytext' | 'text' | 'mediumtext' | 'longtext
 export class MySqlTextBuilder<
 	TTextType extends MySqlTextColumnType = 'text',
 	TData extends ColumnData<string> = ColumnData<string>,
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
+	TNotNull extends boolean = false,
+	THasDefault extends boolean = false,
 > extends MySqlColumnBuilder<TData, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	constructor(
 		name: string,
@@ -18,7 +18,7 @@ export class MySqlTextBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends TableName>(
+	override build<TTableName extends string>(
 		table: AnyMySqlTable<TTableName>,
 	): MySqlText<TTextType, TTableName, TNotNull, THasDefault, TData> {
 		return new MySqlText<TTextType, TTableName, TNotNull, THasDefault, TData>(table, this);
@@ -27,9 +27,9 @@ export class MySqlTextBuilder<
 
 export class MySqlText<
 	TTextType extends MySqlTextColumnType,
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
+	TTableName extends string,
+	TNotNull extends boolean,
+	THasDefault extends boolean,
 	TData extends ColumnData<string>,
 > extends MySqlColumn<
 	TTableName,

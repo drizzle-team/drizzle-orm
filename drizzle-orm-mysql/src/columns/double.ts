@@ -3,8 +3,8 @@ import { AnyMySqlTable } from '~/table';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export class MySqlDoubleBuilder<
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
+	TNotNull extends boolean = false,
+	THasDefault extends boolean = false,
 > extends MySqlColumnBuilder<ColumnData<number>, ColumnDriverParam<number>, TNotNull, THasDefault> {
 	/** @internal */ precision: number | undefined;
 	/** @internal */ scale: number | undefined;
@@ -16,7 +16,7 @@ export class MySqlDoubleBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends TableName>(
+	override build<TTableName extends string>(
 		table: AnyMySqlTable<TTableName>,
 	): MySqlDouble<TTableName, TNotNull, THasDefault> {
 		return new MySqlDouble<TTableName, TNotNull, THasDefault>(table, this);
@@ -24,9 +24,9 @@ export class MySqlDoubleBuilder<
 }
 
 export class MySqlDouble<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
+	TTableName extends string,
+	TNotNull extends boolean,
+	THasDefault extends boolean,
 > extends MySqlColumn<
 	TTableName,
 	ColumnData<number>,

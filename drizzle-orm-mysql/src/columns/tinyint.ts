@@ -3,11 +3,11 @@ import { AnyMySqlTable } from '~/table';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export class MySqlTinyIntBuilder<
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
+	TNotNull extends boolean = false,
+	THasDefault extends boolean = false,
 > extends MySqlColumnBuilder<ColumnData<number>, ColumnDriverParam<number | string>, TNotNull, THasDefault> {
 	/** @internal */
-	override build<TTableName extends TableName>(
+	override build<TTableName extends string>(
 		table: AnyMySqlTable<TTableName>,
 	): MySqlTinyInt<TTableName, TNotNull, THasDefault> {
 		return new MySqlTinyInt<TTableName, TNotNull, THasDefault>(table, this);
@@ -15,9 +15,9 @@ export class MySqlTinyIntBuilder<
 }
 
 export class MySqlTinyInt<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
+	TTableName extends string,
+	TNotNull extends boolean,
+	THasDefault extends boolean,
 > extends MySqlColumn<
 	TTableName,
 	ColumnData<number>,
