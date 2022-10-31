@@ -20,13 +20,20 @@ export class TableAliasProxyHandler implements ProxyHandler<Table> {
 			return this.alias;
 		}
 		if (prop === Table.Symbol.Columns) {
+			const columns = tableObj[Table.Symbol.Columns];
+			if (!columns) {
+				return columns;
+			}
+
 			const proxiedColumns: { [key: string]: any } = {};
-			Object.keys(tableObj[Table.Symbol.Columns]).map((key) => {
+
+			Object.keys(columns).map((key) => {
 				proxiedColumns[key] = new Proxy(
-					tableObj[Table.Symbol.Columns][key]!,
+					columns[key]!,
 					new ColumnAliasProxyHandler(new Proxy(tableObj, this)),
 				);
 			});
+
 			return proxiedColumns;
 		}
 

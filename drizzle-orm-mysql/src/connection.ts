@@ -1,4 +1,4 @@
-import { Column, Connector, Dialect, Driver, MigrationMeta, param, Session, sql } from 'drizzle-orm';
+import { AsyncDriver, Column, Connector, Dialect, Driver, MigrationMeta, param, Session, sql } from 'drizzle-orm';
 import { ColumnData, TableName, Unwrap } from 'drizzle-orm/branded-types';
 import { Name, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
 import { GetTableName, tableColumns, tableNameSym } from 'drizzle-orm/utils';
@@ -32,6 +32,7 @@ export type MySqlColumnDriverDataType =
 export type MySqlClient = Pool | Connection;
 
 export interface MySqlSession extends Session<MySqlColumnDriverDataType, Promise<MySqlQueryResult>> {
+	query(query: string, params: unknown[]): Promise<MySqlQueryResult>;
 	queryObjects(query: string, params: unknown[]): Promise<MySqlQueryResult>;
 }
 
@@ -61,7 +62,7 @@ export class MySqlSessionDefault implements MySqlSession {
 	}
 }
 
-export class MySqlQueryResultDriver implements Driver<MySqlSession> {
+export class MySqlQueryResultDriver implements AsyncDriver<MySqlSession> {
 	constructor(private client: MySqlClient) {
 		// this.initMappers();
 	}
@@ -167,11 +168,7 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		return `?`;
 	}
 
-	public buildDeleteQuery({
-		table,
-		where,
-		returning,
-	}: MySqlDeleteConfig): AnyMySQL {
+	public buildDeleteQuery({ table, where, returning }: MySqlDeleteConfig): AnyMySQL {
 		const returningSql = returning
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
@@ -214,12 +211,7 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		}));
 	}
 
-	public buildUpdateQuery({
-		table,
-		set,
-		where,
-		returning,
-	}: MySqlUpdateConfig): AnyMySQL {
+	public buildUpdateQuery({ table, set, where, returning }: MySqlUpdateConfig): AnyMySQL {
 		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
@@ -250,7 +242,7 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 
 		const chunks = columns
 			.map(({ column }, i) => {
-				const chunk: SQLSourceParam<TableName>[] = [];
+				const chunk: SQLSourceParam<string>[] = [];
 
 				if (column instanceof SQLResponse) {
 					if (isSingleTable) {
@@ -309,7 +301,9 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 			const alias = joinMeta.aliasTable[tableNameSym] === joinMeta.table[tableNameSym]
 				? undefined
 				: joinMeta.aliasTable;
-			joinsArray.push(sql`${sql.raw(joinMeta.joinType)} join ${joinMeta.table} ${alias} on ${joinMeta.on}`);
+			joinsArray.push(
+				sql`${sql.raw(joinMeta.joinType)} join ${joinMeta.table} ${alias} on ${joinMeta.on}`,
+			);
 			if (index < joinKeys.length - 1) {
 				joinsArray.push(sql` `);
 			}
@@ -343,13 +337,13 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		onConflict,
 		returning,
 	}: AnyMySqlInsertConfig): AnyMySQL {
-		const valuesSqlList: ((SQLSourceParam<TableName> | AnyMySQL)[] | AnyMySQL)[] = [];
+		const valuesSqlList: ((SQLSourceParam<string> | AnyMySQL)[] | AnyMySQL)[] = [];
 		const columns: Record<string, AnyMySqlColumn> = table[tableColumns];
 		const columnKeys = Object.keys(columns);
 		const insertOrder = Object.values(columns).map((column) => new Name(column.name));
 
 		values.forEach((value, valueIndex) => {
-			const valueList: (SQLSourceParam<TableName> | AnyMySQL)[] = [];
+			const valueList: (SQLSourceParam<string> | AnyMySQL)[] = [];
 			columnKeys.forEach((colKey) => {
 				const colValue = value[colKey];
 				const column = columns[colKey]!;
@@ -394,7 +388,7 @@ export type BuildTableNamesMap<TSchema extends Record<string, AnyMySqlTable>> = 
 
 export type MySqlDatabase<TSchema extends Record<string, AnyMySqlTable>> = Simplify<
 	{
-		[TTableName in keyof TSchema & string]: TSchema[TTableName] extends AnyMySqlTable<TableName>
+		[TTableName in keyof TSchema & string]: TSchema[TTableName] extends AnyMySqlTable<string>
 			? MySqlTableOperations<TSchema[TTableName], BuildTableNamesMap<TSchema>>
 			: never;
 	} & {

@@ -15,8 +15,8 @@ export interface MySqlUpdateConfig {
 }
 
 export type MySqlUpdateSet<TTable extends AnyMySqlTable> = {
-	[Key in keyof GetTableColumns<TTable>]?:
-		| GetColumnData<GetTableColumns<TTable>[Key], 'query'>
+	[Key in keyof GetTableConfig<TTable, 'columns'>]?:
+		| GetColumnData<GetTableConfig<TTable, 'columns'>[Key], 'query'>
 		| SQL<GetTableConfig<TTable, 'name'>>;
 };
 

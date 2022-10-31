@@ -13,17 +13,17 @@ interface IndexConfig<TTableName extends string> {
 	/**
 	 * If set, the index will be created as `create index ... using { 'btree' | 'hash' }`.
 	 */
-	using?: 'btree' | 'hash' | MySQL<TTableName | TableName>;
+	using?: 'btree' | 'hash' | MySQL<TTableName | string>;
 
 	/**
 	 * If set, the index will be created as `create index ... algorythm { 'default' | 'inplace' | 'copy' }`.
 	 */
-	algorythm?: 'default' | 'inplace' | 'copy' | MySQL<TTableName | TableName>;
+	algorythm?: 'default' | 'inplace' | 'copy' | MySQL<TTableName | string>;
 
 	/**
 	 * If set, adds locks to the index creation.
 	 */
-	lock?: 'default' | 'none' | 'shared' | 'exclusive' | MySQL<TTableName | TableName>;
+	lock?: 'default' | 'none' | 'shared' | 'exclusive' | MySQL<TTableName | string>;
 }
 
 export class IndexBuilder<TTableName extends string> {
@@ -44,7 +44,7 @@ export class IndexBuilder<TTableName extends string> {
 	}
 }
 
-export type AnyIndexBuilder<TTableName extends string = TableName> = IndexBuilder<TTableName>;
+export type AnyIndexBuilder<TTableName extends string = string> = IndexBuilder<TTableName>;
 
 export class Index<TTableName extends string> {
 	protected typeKeeper!: {

@@ -54,7 +54,7 @@ export type SelectResult<
 export type AnyPgSelect = PgSelect<
 	PgTable,
 	Record<string, string>,
-	SelectResultFields<PgSelectFields<TableName>>,
+	SelectResultFields<PgSelectFields<string>>,
 	unknown,
 	{ [tableName: string]: any },
 	string,
@@ -75,7 +75,7 @@ export type PickLimit<TJoinReturn extends AnyPgSelect> = Pick<TJoinReturn, 'offs
 export type PickOffset<TJoinReturn extends AnyPgSelect> = Pick<TJoinReturn, QueryFinisherMethods>;
 
 export type BuildAliasTable<TTable extends PgTable, TAlias extends string> = MapColumnsToTableAlias<
-	GetTableColumns<TTable>,
+	GetTableConfig<TTable, 'columns'>,
 	TAlias
 >;
 
@@ -86,7 +86,7 @@ export type MapColumnsToTableAlias<TColumns extends Record<string, AnyPgColumn>,
 export type AppendToResult<
 	TReturn,
 	TJoinedName extends string,
-	TSelectedFields extends PgSelectFields<TableName>,
+	TSelectedFields extends PgSelectFields<string>,
 > = TReturn extends undefined ? { [Key in TJoinedName]: SelectResultFields<TSelectedFields> }
 	: Simplify<TReturn & { [Key in TJoinedName]: SelectResultFields<TSelectedFields> }>;
 
@@ -97,7 +97,7 @@ export type AppendToAliases<
 	TDBName extends string = TJoinedName,
 > = Simplify<
 	& TJoins
-	& { [Alias in TJoinedName]: BuildAliasTable<TJoinedTable, TableName<TDBName>> },
+	& { [Alias in TJoinedName]: BuildAliasTable<TJoinedTable, TDBName> },
 	{ deep: true }
 >;
 
@@ -117,9 +117,9 @@ export type JoinOn<
 export type JoinSelect<
 	TJoinedTable extends PgTable,
 	TDBName extends string,
-	TSelectedFields extends PgSelectFields<TableName>,
+	TSelectedFields extends PgSelectFields<string>,
 > =
-	| ((table: BuildAliasTable<TJoinedTable, TableName<TDBName>>) => TSelectedFields)
+	| ((table: BuildAliasTable<TJoinedTable, TDBName>) => TSelectedFields)
 	| TSelectedFields;
 
 export type GetSelectedFields<T extends JoinSelect<any, any, any>> = T extends

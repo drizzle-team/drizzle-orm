@@ -1,12 +1,10 @@
 import { sql } from 'drizzle-orm';
 
-import { Check, check } from '~/checks';
+import { check } from '~/checks';
 import { integer, pgEnum, serial, text, timestamp, uuid } from '~/columns';
 import { foreignKey } from '~/foreign-keys';
-import { Index, index } from '~/indexes';
-import { GetTableConfig, pgTable } from '~/table';
-import { getTableConflictConstraints } from '~/utils';
-import { Equal, Expect } from '../utils';
+import { index } from '~/indexes';
+import { pgTable } from '~/table';
 
 const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
 
@@ -50,15 +48,6 @@ export const users = pgTable(
 	}),
 );
 
-const usersConflictConstraints = getTableConflictConstraints(users);
-Expect<
-	Equal<{
-		usersAge1Idx: Index<'users_table', GetTableConfig<typeof users, 'columns'>, true>;
-		uniqueClass: Index<'users_table', GetTableConfig<typeof users, 'columns'>, true>;
-		legalAge: Check<'users_table'>;
-	}, typeof usersConflictConstraints>
->;
-
 export const cities = pgTable('cities_table', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
@@ -67,14 +56,8 @@ export const cities = pgTable('cities_table', {
 	citiesNameIdx: index('citiesNameIdx', cities.id),
 }));
 
-const citiesConflictConstraints = getTableConflictConstraints(cities);
-Expect<Equal<{}, typeof citiesConflictConstraints>>;
-
 export const classes = pgTable('classes_table', {
 	id: serial('id').primaryKey(),
 	class: text<'A' | 'C'>('class'),
 	subClass: text<'B' | 'D'>('sub_class').notNull(),
 });
-
-const classesConflictConstraints = getTableConflictConstraints(classes);
-Expect<Equal<{}, typeof classesConflictConstraints>>;

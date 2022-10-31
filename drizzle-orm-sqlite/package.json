@@ -1,0 +1,53 @@
+{
+	"name": "drizzle-orm-sqlite",
+	"version": "0.12.0-beta.0",
+	"description": "Drizzle ORM package for SQLite database",
+	"main": "index.js",
+	"types": "index.d.ts",
+	"scripts": {
+		"build": "concurrently -n build,test \"tsc -p tsconfig.build.json && resolve-tspaths\" pnpm:test",
+		"test": "cd tests && tsc",
+		"pack": "cp README.md package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"publish": "pnpm publish package.tgz",
+		"publish:beta": "pnpm publish package.tgz --tag beta --git-checks false",
+		"release:beta": "pnpm build && pnpm version prerelease && pnpm run pack && pnpm publish:beta",
+		"build:int": "pnpm build && pnpm run pack"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/drizzle-team/drizzle-orm.git"
+	},
+	"keywords": [
+		"orm",
+		"sqlite",
+		"database",
+		"sql",
+		"typescript"
+	],
+	"author": "",
+	"license": "Apache-2.0",
+	"bugs": {
+		"url": "https://github.com/drizzle-team/drizzle-orm/issues"
+	},
+	"homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
+	"peerDependencies": {
+		"better-sqlite3": ">=7 <8",
+		"drizzle-orm": ">=0.12.0 <0.13.0"
+	},
+	"devDependencies": {
+		"@types/better-sqlite3": "^7.6.0",
+		"better-sqlite3": "^7.6.2",
+		"concurrently": "^7.3.0",
+		"dotenv": "^16.0.0",
+		"drizzle-orm": "link:../drizzle-orm/src",
+		"esbuild-register": "^3.3.3",
+		"resolve-tspaths": "^0.7.0",
+		"ts-node": "^10.8.2",
+		"tsconfig-paths": "^4.0.0",
+		"type-fest": "^2.16.0",
+		"uvu": "^0.5.3"
+	}
+}

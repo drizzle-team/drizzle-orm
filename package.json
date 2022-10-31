@@ -16,11 +16,11 @@
 		"@types/node": "^18.7.18",
 		"dprint": "^0.32.1",
 		"prettier": "^2.7.1",
-		"typescript": "4.8.3"
+		"typescript": "4.8.4"
 	},
 	"pnpm": {
 		"patchedDependencies": {
-			"typescript@4.8.3": "patches/typescript@4.8.3.patch"
+			"typescript@4.8.4": "patches/typescript@4.8.4.patch"
 		}
 	}
 }

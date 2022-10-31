@@ -92,7 +92,7 @@ export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> ext
 		const { returning } = this.config;
 
 		if (returning) {
-			return result.rows.map((row) => mapResultRow(returning, row)) as unknown as TReturn;
+			return result.rows.map((row) => mapResultRow(returning, row)) as TReturn;
 		}
 		return result as TReturn;
 	}
