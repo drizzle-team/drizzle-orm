@@ -13,8 +13,6 @@ const usersTable = pgTable('users', {
 	jsonb: jsonb<string[]>('jsonb'),
 });
 
-const schema = { usersTable };
-
 interface Context {
 	docker: Docker;
 	pgContainer: Docker.Container;

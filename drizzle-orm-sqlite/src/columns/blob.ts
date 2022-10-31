@@ -1,44 +1,26 @@
-import {
-	ColumnData,
-	ColumnDriverParam,
-	ColumnHasDefault,
-	ColumnNotNull,
-	TableName,
-	Unwrap,
-} from 'drizzle-orm/branded-types';
-
+import { ColumnConfig } from 'drizzle-orm';
+import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnySQLiteTable } from '~/table';
 
-import { SQLiteColumnBuilder, SQLiteColumn } from './common';
+import { SQLiteColumn, SQLiteColumnBuilder } from './common';
 
 type BlobMode = 'buffer' | 'json';
 
-export class SQLiteBlobJsonBuilder<
-	TData,
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends SQLiteColumnBuilder<ColumnData<TData>, ColumnDriverParam<Buffer>, TNotNull, THasDefault> {
+export class SQLiteBlobJsonBuilder<TData>
+	extends SQLiteColumnBuilder<ColumnBuilderConfig & { data: TData; driverParam: Buffer }>
+{
 	/** @internal */
-	override build<TTableName extends TableName>(
-		table: AnySQLiteTable<TTableName>,
-	): SQLiteBlobJson<TTableName, TData, TNotNull, THasDefault> {
+	override build<TTableName extends string>(
+		table: AnySQLiteTable<{ name: TTableName }>,
+	): SQLiteBlobJson<TTableName, TData> {
 		return new SQLiteBlobJson(table, this);
 	}
 }
 
-export class SQLiteBlobJson<
-	TTableName extends TableName,
-	TData,
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends SQLiteColumn<
-	TTableName,
-	ColumnData<TData>,
-	ColumnDriverParam<Buffer>,
-	TNotNull,
-	THasDefault
-> {
-	protected brand!: 'SQLiteBlobJson';
+export class SQLiteBlobJson<TTableName extends string, TData>
+	extends SQLiteColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: Buffer }>>
+{
+	protected override $sqliteColumnBrand!: 'SQLiteBlobJson';
 
 	getSQLType(): string {
 		return 'blob';
@@ -53,49 +35,36 @@ export class SQLiteBlobJson<
 	}
 }
 
-export class SQLiteBlobBufferBuilder<
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends SQLiteColumnBuilder<
-	ColumnData<Buffer>,
-	ColumnDriverParam<Buffer>,
-	TNotNull,
-	THasDefault
-> {
+export class SQLiteBlobBufferBuilder
+	extends SQLiteColumnBuilder<ColumnBuilderConfig<{ data: Buffer; driverParam: Buffer }>>
+{
 	/** @internal */
-	override build<TTableName extends TableName>(
-		table: AnySQLiteTable<TTableName>,
-	): SQLiteBlobBuffer<TTableName, TNotNull, THasDefault> {
+	override build<TTableName extends string>(
+		table: AnySQLiteTable<{ name: TTableName }>,
+	): SQLiteBlobBuffer<TTableName> {
 		return new SQLiteBlobBuffer(table, this);
 	}
 }
 
-export class SQLiteBlobBuffer<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends SQLiteColumn<
-	TTableName,
-	ColumnData<Buffer>,
-	ColumnDriverParam<Buffer>,
-	TNotNull,
-	THasDefault
-> {
-	protected brand!: 'SQLiteBlob';
+export class SQLiteBlobBuffer<TTableName extends string>
+	extends SQLiteColumn<ColumnConfig<{ tableName: TTableName; data: Buffer; driverParam: Buffer }>>
+{
+	protected override $sqliteColumnBrand!: 'SQLiteBlobBuffer';
 
 	getSQLType(): string {
 		return 'blob';
 	}
 }
 
-export function blob(name: string, mode: 'buffer'): SQLiteBlobBufferBuilder;
-export function blob<T>(name: string, mode: 'json'): SQLiteBlobJsonBuilder<T>;
-export function blob<T>(
-	name: string,
-	mode: BlobMode,
-): SQLiteBlobBufferBuilder | SQLiteBlobJsonBuilder<T> {
-	if (mode === 'buffer') {
-		return new SQLiteBlobBufferBuilder(name);
+export interface BlobConfig<TMode extends 'buffer' | 'json' = 'buffer' | 'json'> {
+	mode: TMode;
+}
+
+export function blob(name: string, config?: BlobConfig<'buffer'>): SQLiteBlobBufferBuilder;
+export function blob<T>(name: string, config: BlobConfig<'json'>): SQLiteBlobJsonBuilder<T>;
+export function blob<T>(name: string, config?: BlobConfig): SQLiteBlobBufferBuilder | SQLiteBlobJsonBuilder<T> {
+	if (config?.mode === 'json') {
+		return new SQLiteBlobJsonBuilder<T>(name);
 	}
-	return new SQLiteBlobJsonBuilder<T>(name);
+	return new SQLiteBlobBufferBuilder(name);
 }

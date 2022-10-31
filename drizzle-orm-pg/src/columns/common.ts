@@ -1,55 +1,49 @@
-import { Column, ColumnBaseConfig, UpdateColumnConfig } from 'drizzle-orm';
-import { ColumnBuilder, ColumnBuilderBaseConfig, UpdateColumnBuilderConfig } from 'drizzle-orm/column-builder';
+import { Column, ColumnBaseConfig } from 'drizzle-orm';
+import { ColumnBuilder, ColumnBuilderBaseConfig, UpdateCBConfig } from 'drizzle-orm/column-builder';
 import { SQL } from 'drizzle-orm/sql';
+import { Update } from 'drizzle-orm/utils';
 import { Simplify } from 'type-fest';
 
-import { AnyForeignKey, ForeignKeyBuilder, UpdateDeleteAction } from '~/foreign-keys';
+import { ForeignKey, ForeignKeyBuilder, UpdateDeleteAction } from '~/foreign-keys';
+import { AnyPgTable } from '~/table';
 
-import { AnyPgTable } from '..';
-
-export interface ReferenceConfig<TData> {
-	ref: () => AnyPgColumn<{ data: TData }>;
+export interface ReferenceConfig {
+	ref: () => AnyPgColumn;
 	actions: {
 		onUpdate?: UpdateDeleteAction;
 		onDelete?: UpdateDeleteAction;
 	};
 }
 
-export abstract class PgColumnBuilder<T extends ColumnBuilderBaseConfig> extends ColumnBuilder<T>
-	implements ColumnBuilder<T>
-{
-	declare protected pgFoo: 'bar';
-
-	private foreignKeyConfigs: ReferenceConfig<T['data']>[] = [];
+export abstract class PgColumnBuilder<T extends Partial<ColumnBuilderBaseConfig>> extends ColumnBuilder<T> {
+	private foreignKeyConfigs: ReferenceConfig[] = [];
 
 	constructor(name: string) {
 		super(name);
 	}
 
-	override notNull(): PgColumnBuilder<UpdateColumnBuilderConfig<T, { notNull: true }>> {
+	override notNull(): PgColumnBuilder<UpdateCBConfig<T, { notNull: true }>> {
 		return super.notNull() as any;
 	}
 
-	override default(
-		value: T['data'] | SQL,
-	): PgColumnBuilder<UpdateColumnBuilderConfig<T, { hasDefault: true }>> {
+	override default(value: T['data'] | SQL): PgColumnBuilder<UpdateCBConfig<T, { hasDefault: true }>> {
 		return super.default(value) as any;
 	}
 
-	override primaryKey(): PgColumnBuilder<UpdateColumnBuilderConfig<T, { notNull: true }>> {
+	override primaryKey(): PgColumnBuilder<UpdateCBConfig<T, { notNull: true }>> {
 		return super.primaryKey() as any;
 	}
 
 	references(
-		ref: ReferenceConfig<T['data']>['ref'],
-		actions: ReferenceConfig<T['data']>['actions'] = {},
+		ref: ReferenceConfig['ref'],
+		actions: ReferenceConfig['actions'] = {},
 	): this {
 		this.foreignKeyConfigs.push({ ref, actions });
 		return this;
 	}
 
 	/** @internal */
-	buildForeignKeys(column: AnyPgColumn, table: AnyPgTable): AnyForeignKey[] {
+	buildForeignKeys(column: AnyPgColumn, table: AnyPgTable): ForeignKey[] {
 		return this.foreignKeyConfigs.map(({ ref, actions }) => {
 			return ((ref, actions) => {
 				const builder = new ForeignKeyBuilder(() => {
@@ -73,15 +67,12 @@ export abstract class PgColumnBuilder<T extends ColumnBuilderBaseConfig> extends
 	): PgColumn<T & { tableName: TTableName }>;
 }
 
-export type AnyPgColumnBuilder<TPartial extends Partial<ColumnBuilderBaseConfig> = {}> = Omit<
-	PgColumnBuilder<
-		UpdateColumnBuilderConfig<ColumnBuilderBaseConfig, TPartial>
-	>,
-	'notNull' | 'default' | 'primaryKey' | 'references'
+export type AnyPgColumnBuilder<TPartial extends Partial<ColumnBuilderBaseConfig> = {}> = PgColumnBuilder<
+	Update<ColumnBuilderBaseConfig, TPartial>
 >;
 
 // To understand how to use `PgColumn` and `AnyPgColumn`, see `Column` and `AnyColumn` documentation.
-export abstract class PgColumn<T extends ColumnBaseConfig> extends Column<T> {
+export abstract class PgColumn<T extends Partial<ColumnBaseConfig>> extends Column<T> {
 	declare protected $pgBrand: 'PgColumn';
 	protected abstract $pgColumnBrand: string;
 
@@ -93,28 +84,28 @@ export abstract class PgColumn<T extends ColumnBaseConfig> extends Column<T> {
 	}
 
 	unsafe(): AnyPgColumn {
-		return this;
+		return this as AnyPgColumn;
 	}
 }
 
 export type AnyPgColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = PgColumn<
-	UpdateColumnConfig<ColumnBaseConfig, TPartial>
+	Update<ColumnBaseConfig, TPartial>
 >;
 
-export type BuildPgColumn<
+export type BuildColumn<
 	TTableName extends string,
 	TBuilder extends AnyPgColumnBuilder,
 > = TBuilder extends PgColumnBuilder<infer T> ? PgColumn<Simplify<T & { tableName: TTableName }>> : never;
 
-export type BuildPgColumns<
+export type BuildColumns<
 	TTableName extends string,
 	TConfigMap extends Record<string, AnyPgColumnBuilder>,
 > = Simplify<
 	{
-		[Key in keyof TConfigMap]: BuildPgColumn<TTableName, TConfigMap[Key]>;
+		[Key in keyof TConfigMap]: BuildColumn<TTableName, TConfigMap[Key]>;
 	}
 >;
 
 export type ChangeColumnTableName<TColumn extends AnyPgColumn, TAlias extends string> = TColumn extends
-	PgColumn<infer T> ? PgColumn<Simplify<UpdateColumnConfig<T, { tableName: TAlias }>>>
+	PgColumn<infer T> ? PgColumn<Simplify<Omit<T, 'tableName'> & { tableName: TAlias }>>
 	: never;

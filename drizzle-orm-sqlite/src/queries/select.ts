@@ -1,72 +1,48 @@
-import { TableName, Unwrap } from 'drizzle-orm/branded-types';
-import { SQL, SQLWrapper } from 'drizzle-orm/sql';
-import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm/utils';
+import { PreparedQuery, SQL, SQLWrapper } from 'drizzle-orm/sql';
+import { mapResultRow } from 'drizzle-orm/utils';
 
-import { AnySQLiteColumn } from '~/columns/common';
-import { AnySQLiteDialect, SQLiteSession } from '~/connection';
-import { SQLiteSelectFields, SQLiteSelectFieldsOrdered } from '~/operations';
-import { AnySQLiteSQL, SQLitePreparedQuery } from '~/sql';
-import { AnySQLiteTable, GetTableColumns, SQLiteTable } from '~/table';
-
-import { TableProxyHandler } from './proxies';
+import { SQLiteDialect, SQLiteSession } from '~/connection';
+import { SelectResultFields, SQLiteSelectFields, SQLiteSelectFieldsOrdered } from '~/operations';
+import { AnySQLiteTable, GetTableConfig, SQLiteTable } from '~/table';
 
 import {
 	AnySQLiteSelect,
-	AppendToAliases,
-	AppendToJoinsNotNull as AppendToJoinsNotNullable,
+	AppendToJoinsNotNull,
 	AppendToResult,
-	GetSelectedFields,
 	JoinNullability,
-	JoinOn,
-	JoinSelect,
 	JoinsValue,
 	JoinType,
-	PickLimit,
-	PickOffset,
-	PickOrderBy,
-	PickWhere,
 	SelectResult,
 } from './select.types';
 
 export interface SQLiteSelectConfig {
 	fields: SQLiteSelectFieldsOrdered;
-	where?: AnySQLiteSQL | undefined;
+	where?: SQL | undefined;
 	table: AnySQLiteTable;
 	limit?: number;
 	offset?: number;
-	joins: { [k: string]: JoinsValue };
-	orderBy: AnySQLiteSQL[];
+	joins: Record<string, JoinsValue>;
+	orderBy: SQL[];
 }
 
 export class SQLiteSelect<
 	TTable extends AnySQLiteTable,
-	TTableNamesMap extends Record<string, string>,
-	TInitialSelectResultFields extends Record<string, unknown>,
+	TInitialSelectResultFields extends SelectResultFields<SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>,
 	TResult = undefined,
-	// TAliases is really a map of table name => joined table, but I failed to prove that to TS
-	TAliases extends { [tableName: string]: any } = {},
-	TJoinedDBTableNames extends string = Unwrap<GetTableName<TTable>>,
-	TJoinsNotNullable extends Record<string, JoinNullability> = {
-		[Key in TTableNamesMap[TJoinedDBTableNames]]: 'not-null';
-	},
+	TJoinsNotNullable extends Record<string, JoinNullability> = Record<GetTableConfig<TTable, 'name'>, 'not-null'>,
 > implements SQLWrapper {
-	protected typeKeeper!: {
-		table: TTable;
-		initialSelect: TInitialSelectResultFields;
-		result: TResult;
-		aliases: TAliases;
-	};
+	declare protected $table: TTable;
+	declare protected $initialSelect: TInitialSelectResultFields;
+	declare protected $result: TResult;
 
 	private config: SQLiteSelectConfig;
-	private aliases: TAliases = {} as TAliases;
 	private joinsNotNullable: Record<string, boolean>;
 
 	constructor(
-		private table: SQLiteSelectConfig['table'],
-		private fields: SQLiteSelectConfig['fields'],
+		table: SQLiteSelectConfig['table'],
+		fields: SQLiteSelectConfig['fields'],
 		private session: SQLiteSession,
-		private dialect: AnySQLiteDialect,
-		private tableNamesMap: TTableNamesMap,
+		private dialect: SQLiteDialect,
 	) {
 		this.config = {
 			table,
@@ -74,113 +50,55 @@ export class SQLiteSelect<
 			joins: {},
 			orderBy: [],
 		};
-		this.joinsNotNullable = { [table[tableName]]: true };
+		this.joinsNotNullable = { [table[SQLiteTable.Symbol.Name]]: true };
 	}
 
 	private createJoin<TJoinType extends JoinType>(joinType: TJoinType) {
 		const self = this;
 
 		function join<
-			TJoinedTable extends AnySQLiteTable<TableName<keyof TTableNamesMap & string>>,
-			TDBName extends Unwrap<GetTableName<TJoinedTable>>,
-			TJoinedName extends TTableNamesMap[TDBName],
-			TSelect extends JoinSelect<TJoinedTable, TJoinedName, SQLiteSelectFields<TableName>> = JoinSelect<
-				TJoinedTable,
-				TJoinedName,
-				GetTableColumns<TJoinedTable>
-			>,
-		>(
-			table: TJoinedTable,
-			on: JoinOn<TTableNamesMap, TJoinedDBTableNames, TAliases, TJoinedTable, TJoinedName, TDBName>,
-			select?: TSelect,
-		): SQLiteSelect<
+			TJoinedTable extends AnySQLiteTable,
+			TSelect extends SQLiteSelectFields<string> = GetTableConfig<TJoinedTable, 'columns'>,
+			TJoinedName extends GetTableConfig<TJoinedTable, 'name'> = GetTableConfig<TJoinedTable, 'name'>,
+		>(table: TJoinedTable, on: SQL, select?: TSelect): SQLiteSelect<
 			TTable,
-			TTableNamesMap,
 			TInitialSelectResultFields,
-			AppendToResult<TResult, TJoinedName, GetSelectedFields<TSelect>>,
-			TAliases,
-			TJoinedDBTableNames | TDBName,
-			AppendToJoinsNotNullable<TJoinsNotNullable, TJoinedName, TJoinType>
+			AppendToResult<TResult, TJoinedName, TSelect>,
+			AppendToJoinsNotNull<TJoinsNotNullable, TJoinedName, TJoinType>
 		>;
-		function join<
-			TJoinedTable extends AnySQLiteTable<TableName<keyof TTableNamesMap & string>>,
-			TJoinedName extends string,
-			TSelect extends JoinSelect<TJoinedTable, TJoinedName, SQLiteSelectFields<TableName>> = JoinSelect<
-				TJoinedTable,
-				TJoinedName,
-				GetTableColumns<TJoinedTable>
-			>,
-		>(
-			alias: { [Key in TJoinedName]: TJoinedTable },
-			on: JoinOn<TTableNamesMap, TJoinedDBTableNames, TAliases, TJoinedTable, TJoinedName>,
-			select?: TSelect,
-		): SQLiteSelect<
-			TTable,
-			TTableNamesMap,
-			TInitialSelectResultFields,
-			AppendToResult<TResult, TJoinedName, GetSelectedFields<TSelect>>,
-			AppendToAliases<TAliases, TJoinedTable, TJoinedName>,
-			TJoinedDBTableNames | TJoinedName,
-			AppendToJoinsNotNullable<TJoinsNotNullable, TJoinedName, TJoinType>
-		>;
-		function join(
-			aliasConfig: AnySQLiteTable | Record<string, AnySQLiteTable>,
-			on: JoinOn<TTableNamesMap, TJoinedDBTableNames, TAliases, AnySQLiteTable, string>,
-			select?: ((table: AnySQLiteTable) => Record<string, AnySQLiteColumn>) | Record<string, AnySQLiteColumn>,
-		): AnySQLiteSelect {
-			let aliasName: string, joinedTable: AnySQLiteTable;
-			if (aliasConfig instanceof SQLiteTable) {
-				aliasName = aliasConfig[tableName];
-				joinedTable = aliasConfig;
-			} else {
-				const config = Object.entries(aliasConfig)[0];
-				if (!config) {
-					throw new Error('Join alias is an empty object');
-				}
-				[aliasName, joinedTable] = config;
-			}
-			const joinName = self.tableNamesMap[joinedTable[tableName]]!;
+		function join(table: AnySQLiteTable, on: SQL, selection?: SQLiteSelectFields<string>): AnySQLiteSelect {
+			const tableName = table[SQLiteTable.Symbol.Name];
+			self.config.fields.push(
+				...self.dialect.orderSelectedFields(selection ?? table[SQLiteTable.Symbol.Columns], tableName),
+			);
 
-			const tableAliasProxy = new Proxy(joinedTable, new TableProxyHandler(aliasName));
-
-			if (!(aliasConfig instanceof SQLiteTable)) {
-				Object.assign(self.aliases, { [aliasName]: tableAliasProxy });
-			}
-
-			const onExpression = on instanceof Function ? on(self.aliases as any) : on;
-
-			const partialFields = select instanceof Function ? select(tableAliasProxy) : select;
-
-			self.fields.push(...self.dialect.orderSelectedFields(partialFields ?? tableAliasProxy[tableColumns], joinName));
-
-			self.config.joins[joinName] = {
-				on: onExpression,
-				table: joinedTable,
+			self.config.joins[tableName] = {
+				on,
+				table,
 				joinType,
-				aliasTable: tableAliasProxy,
 			};
 
 			switch (joinType) {
 				case 'left':
-					self.joinsNotNullable[joinName] = false;
+					self.joinsNotNullable[tableName] = false;
 					break;
 				case 'right':
 					self.joinsNotNullable = Object.fromEntries(
 						Object.entries(self.joinsNotNullable).map(([key]) => [key, false]),
 					);
-					self.joinsNotNullable[joinName] = true;
+					self.joinsNotNullable[tableName] = true;
 					break;
 				case 'inner':
 					self.joinsNotNullable = Object.fromEntries(
 						Object.entries(self.joinsNotNullable).map(([key]) => [key, true]),
 					);
-					self.joinsNotNullable[joinName] = true;
+					self.joinsNotNullable[tableName] = true;
 					break;
 				case 'full':
 					self.joinsNotNullable = Object.fromEntries(
 						Object.entries(self.joinsNotNullable).map(([key]) => [key, false]),
 					);
-					self.joinsNotNullable[joinName] = false;
+					self.joinsNotNullable[tableName] = false;
 					break;
 			}
 
@@ -198,73 +116,49 @@ export class SQLiteSelect<
 
 	fullJoin = this.createJoin('full');
 
-	public where(
-		where:
-			| ((aliases: TAliases) => AnySQLiteSQL<TableName<keyof TAliases & string> | GetTableName<TTable>>)
-			| AnySQLiteSQL<GetTableName<TTable>>
-			| undefined,
-	): PickWhere<this> {
-		if (where instanceof SQL) {
-			this.config.where = where;
-		} else {
-			this.config.where = where?.(this.aliases);
-		}
+	fields<TSelect extends SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>(
+		fields: TSelect,
+	): Omit<SQLiteSelect<TTable, SelectResultFields<TSelect>, TResult, TJoinsNotNullable>, 'fields'> {
+		this.config.fields = this.dialect.orderSelectedFields(fields, this.config.table[SQLiteTable.Symbol.Name]);
+		return this as any;
+	}
+
+	where(where: SQL | undefined): Omit<this, 'where' | `${JoinType}Join`> {
+		this.config.where = where;
 		return this;
 	}
 
-	public orderBy(
-		columns: (
-			joins: TAliases,
-		) =>
-			| AnySQLiteSQL<TableName<TJoinedDBTableNames> | GetTableName<TTable>>[]
-			| AnySQLiteSQL<TableName<TJoinedDBTableNames> | GetTableName<TTable>>,
-	): PickOrderBy<this>;
-	public orderBy(
-		...columns: AnySQLiteSQL<TableName<TJoinedDBTableNames> | GetTableName<TTable>>[]
-	): PickOrderBy<this>;
-	public orderBy(
-		firstColumn: ((joins: TAliases) => AnySQLiteSQL[] | AnySQLiteSQL) | AnySQLiteSQL,
-		...otherColumns: AnySQLiteSQL[]
-	): PickOrderBy<this> {
-		let columns: AnySQLiteSQL[];
-		if (firstColumn instanceof SQL) {
-			columns = [firstColumn, ...otherColumns];
-		} else {
-			const firstColumnResult = firstColumn(this.aliases);
-			columns = [...(Array.isArray(firstColumnResult) ? firstColumnResult : [firstColumnResult]), ...otherColumns];
-		}
+	orderBy(...columns: SQL[]): Omit<this, 'where' | `${JoinType}Join` | 'orderBy'> {
 		this.config.orderBy = columns;
-
 		return this;
 	}
 
-	public limit(limit: number): PickLimit<this> {
+	limit(limit: number): Omit<this, 'where' | `${JoinType}Join` | 'limit'> {
 		this.config.limit = limit;
 		return this;
 	}
 
-	public offset(offset: number): PickOffset<this> {
+	offset(offset: number): Omit<this, 'where' | `${JoinType}Join` | 'offset'> {
 		this.config.offset = offset;
 		return this;
 	}
 
-	public getSQL(): AnySQLiteSQL<GetTableName<TTable>> {
+	getSQL(): SQL {
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	public getQuery(): SQLitePreparedQuery {
+	getQuery(): PreparedQuery {
 		const query = this.dialect.buildSelectQuery(this.config);
 		return this.dialect.prepareSQL(query);
 	}
 
-	public execute(): SelectResult<TTable, TResult, TInitialSelectResultFields, TTableNamesMap, TJoinsNotNullable> {
+	execute(): SelectResult<TTable, TResult, TInitialSelectResultFields, TJoinsNotNullable> {
 		const query = this.dialect.buildSelectQuery(this.config);
-		const rows = this.session.all(query);
-		return rows.map((row) => mapResultRow(this.fields, row, this.joinsNotNullable)) as SelectResult<
+		const result = this.session.all(query);
+		return result.map((row) => mapResultRow(this.config.fields, row, this.joinsNotNullable)) as SelectResult<
 			TTable,
 			TResult,
 			TInitialSelectResultFields,
-			TTableNamesMap,
 			TJoinsNotNullable
 		>;
 	}

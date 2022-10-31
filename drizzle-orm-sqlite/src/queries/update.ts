@@ -1,84 +1,95 @@
+import { RunResult } from 'better-sqlite3';
 import { GetColumnData } from 'drizzle-orm';
-import { SQL } from 'drizzle-orm/sql';
-import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm/utils';
-import { AnySQLiteColumn } from '~/columns/common';
+import { Param, PreparedQuery, SQL, SQLWrapper } from 'drizzle-orm/sql';
+import { mapResultRow } from 'drizzle-orm/utils';
+import { Simplify } from 'type-fest';
 
-import { AnySQLiteDialect, SQLiteSession } from '~/connection';
+import { SQLiteDialect, SQLiteSession } from '~/connection';
 import { SelectResultFields, SQLiteSelectFields, SQLiteSelectFieldsOrdered } from '~/operations';
-import { AnySQLiteSQL, SQLitePreparedQuery } from '~/sql';
-import { AnySQLiteTable, GetTableColumns, InferModel } from '~/table';
+import { AnySQLiteTable, GetTableConfig, InferModel, SQLiteTable } from '~/table';
+import { mapUpdateSet } from '~/utils';
 
-export interface SQLiteUpdateConfig<TTable extends AnySQLiteTable> {
-	where?: AnySQLiteSQL<GetTableName<TTable>> | undefined;
-	set: SQLiteUpdateSet<TTable>;
-	table: TTable;
-	returning?: SQLiteSelectFieldsOrdered<GetTableName<TTable>>;
+export interface SQLiteUpdateConfig {
+	where?: SQL | undefined;
+	set: SQLiteUpdateSet;
+	table: AnySQLiteTable;
+	returning?: SQLiteSelectFieldsOrdered;
 }
 
-export type SQLiteUpdateSet<TTable extends AnySQLiteTable> = {
-	[Key in keyof GetTableColumns<TTable>]?:
-		| GetColumnData<GetTableColumns<TTable>[Key], 'query'>
-		| SQL<GetTableName<TTable>>;
-};
+export type SQLiteUpdateSetSource<TTable extends AnySQLiteTable> = Simplify<
+	{
+		[Key in keyof GetTableConfig<TTable, 'columns'>]?:
+			| GetColumnData<GetTableConfig<TTable, 'columns'>[Key], 'query'>
+			| SQL;
+	}
+>;
 
-export class SQLiteUpdate<TTable extends AnySQLiteTable, TReturn = void> {
-	protected typeKeeper!: {
-		table: TTable;
-		return: TReturn;
-	};
+export type SQLiteUpdateSet = Record<string, SQL | Param | null | undefined>;
 
-	private config: SQLiteUpdateConfig<TTable>;
+export class SQLiteUpdateBuilder<TTable extends AnySQLiteTable> {
+	declare protected $table: TTable;
 
 	constructor(
 		private table: TTable,
 		private session: SQLiteSession,
-		private dialect: AnySQLiteDialect,
+		private dialect: SQLiteDialect,
+	) {}
+
+	set(values: SQLiteUpdateSetSource<TTable>): SQLiteUpdate<TTable> {
+		return new SQLiteUpdate(this.table, mapUpdateSet(this.table, values), this.session, this.dialect);
+	}
+}
+
+export class SQLiteUpdate<TTable extends AnySQLiteTable, TReturn = RunResult> implements SQLWrapper {
+	declare protected $table: TTable;
+	declare protected $return: TReturn;
+
+	private config: SQLiteUpdateConfig;
+
+	constructor(
+		table: TTable,
+		set: SQLiteUpdateSet,
+		private session: SQLiteSession,
+		private dialect: SQLiteDialect,
 	) {
-		this.config = {
-			table,
-		} as SQLiteUpdateConfig<TTable>;
+		this.config = { set, table };
 	}
 
-	public set(values: SQLiteUpdateSet<TTable>): Pick<this, 'where' | 'returning' | 'getQuery' | 'execute'> {
-		this.config.set = values;
-		return this;
-	}
-
-	public where(
-		where: AnySQLiteSQL<GetTableName<TTable>> | undefined,
-	): Pick<this, 'returning' | 'getQuery' | 'execute'> {
+	public where(where: SQL | undefined): Omit<this, 'where'> {
 		this.config.where = where;
 		return this;
 	}
 
-	public returning(): Pick<SQLiteUpdate<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
-	public returning<TSelectedFields extends SQLiteSelectFields<GetTableName<TTable>>>(
+	public returning(): Omit<SQLiteUpdate<TTable, InferModel<TTable>[]>, 'where' | 'returning'>;
+	public returning<TSelectedFields extends SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>(
 		fields: TSelectedFields,
-	): Pick<SQLiteUpdate<TTable, SelectResultFields<TSelectedFields>[]>, 'getQuery' | 'execute'>;
-	public returning(fields?: SQLiteSelectFields<GetTableName<TTable>>): SQLiteUpdate<TTable, any> {
-		const orderedFields = this.dialect.orderSelectedFields<GetTableName<TTable>>(
-			fields
-				?? (this.config.table[tableColumns] as Record<string, AnySQLiteColumn<GetTableName<TTable>>>),
-			this.table[tableName],
+	): Omit<SQLiteUpdate<TTable, SelectResultFields<TSelectedFields>[]>, 'where' | 'returning'>;
+	public returning(fields?: SQLiteSelectFields<GetTableConfig<TTable, 'name'>>): SQLiteUpdate<TTable, any> {
+		const orderedFields = this.dialect.orderSelectedFields(
+			fields ?? this.config.table[SQLiteTable.Symbol.Columns],
+			this.config.table[SQLiteTable.Symbol.Name],
 		);
 		this.config.returning = orderedFields;
 		return this;
 	}
 
-	public getQuery(): SQLitePreparedQuery {
-		const query = this.dialect.buildUpdateQuery(this.config);
-		return this.dialect.prepareSQL(query);
+	getSQL(): SQL {
+		return this.dialect.buildUpdateQuery(this.config);
 	}
 
-	public execute(): TReturn {
+	public getQuery(): PreparedQuery {
+		return this.dialect.prepareSQL(this.getSQL());
+	}
+
+	execute(): TReturn {
 		const query = this.dialect.buildUpdateQuery(this.config);
 		const { returning } = this.config;
+
 		if (returning) {
-			const rows = this.session.all(query);
-			return rows.map((row) => mapResultRow(returning, row)) as TReturn;
+			const result = this.session.all(query);
+			return result.map((row) => mapResultRow(returning, row)) as TReturn;
 		}
 
-		this.session.run(query);
-		return undefined as TReturn;
+		return this.session.run(query) as TReturn;
 	}
 }

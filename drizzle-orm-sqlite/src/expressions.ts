@@ -1,26 +1,25 @@
-import { AnyColumn, sql } from 'drizzle-orm';
-import { ColumnData } from 'drizzle-orm/branded-types';
-import { SQL, SQLSourceParam } from 'drizzle-orm/sql';
-import { GetTableName } from 'drizzle-orm/utils';
+import { sql } from 'drizzle-orm';
+import { param, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
+import { AnySQLiteColumn } from '.';
 
-export function concat<TColumn extends AnyColumn>(
-	column: TColumn,
-	value: string,
-): SQL<GetTableName<TColumn>> {
-	return sql<GetTableName<TColumn>>`${column} || ${value as ColumnData<string>}`;
+export * from 'drizzle-orm/expressions';
+
+export function concat(column: AnySQLiteColumn, value: string): SQL {
+	return sql`${column} || ${param(value, column)}`;
 }
 
-export function substring<TColumn extends AnyColumn>(
-	column: TColumn,
-	{ from, for: _for }: { from?: number; for?: number },
-): SQL<GetTableName<TColumn>> {
-	const chunks: SQLSourceParam<GetTableName<TColumn>>[] = [sql`substring(`, column];
+export function substring(column: AnySQLiteColumn, { from, for: _for }: { from?: number; for?: number }): SQL {
+	const chunks: SQLSourceParam[] = [sql`substring(`, column];
 	if (from !== undefined) {
-		chunks.push(sql` from `, from as ColumnData<number>);
+		chunks.push(sql` from `, param(from, column));
 	}
 	if (_for !== undefined) {
-		chunks.push(sql` for `, _for as ColumnData<number>);
+		chunks.push(sql` for `, param(_for, column));
 	}
 	chunks.push(sql`)`);
 	return sql.fromList(chunks);
+}
+
+export function rowId(): SQLResponse<number> {
+	return sql`rowid`.as<number>();
 }

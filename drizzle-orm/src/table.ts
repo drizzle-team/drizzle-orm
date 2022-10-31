@@ -9,7 +9,7 @@ export const Columns = Symbol('Columns');
 /** @internal */
 export const OriginalName = Symbol('OriginalName');
 
-export class Table<TName extends string = string> {
+export class Table<TName extends string | undefined = string> {
 	declare protected $brand: 'Table';
 	declare protected $name: TName;
 
@@ -33,7 +33,7 @@ export class Table<TName extends string = string> {
 	[OriginalName]: TName;
 
 	/** @internal */
-	declare [Columns]: Record<string | symbol, AnyColumn<{ tableName: TName }>>;
+	declare [Columns]: Record<string | symbol, AnyColumn> | undefined;
 
 	constructor(name: TName) {
 		this[Name] = this[OriginalName] = name;

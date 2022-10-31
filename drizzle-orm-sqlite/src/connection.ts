@@ -1,66 +1,104 @@
-import { Database } from 'better-sqlite3';
-import { Column, Connector, Dialect, MigrationMeta, sql, SyncDriver } from 'drizzle-orm';
-import { ColumnData, TableName, Unwrap } from 'drizzle-orm/branded-types';
-import { AnySQL, Name, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
-import { GetTableName, tableColumns, tableName } from 'drizzle-orm/utils';
-import { Simplify } from 'type-fest';
+import { Database, RunResult } from 'better-sqlite3';
+import {
+	Column,
+	Logger,
+	MigrationConfig,
+	MigrationMeta,
+	NoopLogger,
+	readMigrationFiles,
+	sql,
+	Table,
+} from 'drizzle-orm';
+import { Name, Param, PreparedQuery, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
 
 import { AnySQLiteColumn, SQLiteColumn } from './columns';
-import { SQLiteSelectFields, SQLiteSelectFieldsOrdered, SQLiteTableOperations } from './operations';
+import { SQLiteDatabase } from './db';
+import { SQLiteSelectFields, SQLiteSelectFieldsOrdered } from './operations';
 import {
-	AnySQLiteInsertConfig,
 	SQLiteDeleteConfig,
+	SQLiteInsertConfig,
 	SQLiteSelectConfig,
 	SQLiteUpdateConfig,
 	SQLiteUpdateSet,
 } from './queries';
-import { AnySQLiteSQL, SQLitePreparedQuery } from './sql';
-import { AnySQLiteTable } from './table';
+import { AnySQLiteTable, SQLiteTable } from './table';
 
 export type SQLiteColumnDriverDataType = null | number | bigint | string | Buffer;
 
 export interface SQLiteSession {
-	run(query: AnySQLiteSQL): void;
-	all(query: AnySQLiteSQL): any[][];
-	allObjects(query: AnySQLiteSQL): any[];
+	run(query: SQL): RunResult;
+	get<T extends any[] = unknown[]>(query: SQL): T;
+	getObject<T = unknown>(query: SQL): T;
+	all<T extends any[] = unknown[]>(query: SQL): T[];
+	allObjects<T = unknown>(query: SQL): T[];
 }
 
-export class SQLiteSessionDefault implements SQLiteSession {
-	constructor(private client: Database, private dialect: SQLiteDialect<any>) {}
+export interface SQLiteDefaultSessionOptions {
+	logger?: Logger;
+}
 
-	run(query: AnySQLiteSQL): void {
-		const preparedQuery = this.dialect.prepareSQL(query);
-		const stmt = this.client.prepare(preparedQuery.sql).bind(...preparedQuery.params);
-		stmt.run();
+export class SQLiteDefaultSession implements SQLiteSession {
+	private logger: Logger;
+
+	constructor(
+		private client: Database,
+		private dialect: SQLiteDialect,
+		options: SQLiteDefaultSessionOptions = {},
+	) {
+		this.logger = options.logger ?? new NoopLogger();
 	}
 
-	all(query: AnySQLiteSQL): any[][] {
+	run(query: SQL): RunResult {
 		const preparedQuery = this.dialect.prepareSQL(query);
+		this.logger.logQuery(preparedQuery.sql, preparedQuery.params);
+		const stmt = this.client.prepare(preparedQuery.sql).bind(...preparedQuery.params);
+		return stmt.run();
+	}
+
+	get<T extends any[] = unknown[]>(query: SQL): T {
+		const preparedQuery = this.dialect.prepareSQL(query);
+		this.logger.logQuery(preparedQuery.sql, preparedQuery.params);
+		const stmt = this.client.prepare(preparedQuery.sql).bind(...preparedQuery.params);
+		stmt.raw();
+		return stmt.get();
+	}
+
+	getObject<T = unknown>(query: SQL): T {
+		const preparedQuery = this.dialect.prepareSQL(query);
+		this.logger.logQuery(preparedQuery.sql, preparedQuery.params);
+		const stmt = this.client.prepare(preparedQuery.sql).bind(...preparedQuery.params);
+		return stmt.get();
+	}
+
+	all<T extends any[] = unknown[]>(query: SQL): T[] {
+		const preparedQuery = this.dialect.prepareSQL(query);
+		this.logger.logQuery(preparedQuery.sql, preparedQuery.params);
 		const stmt = this.client.prepare(preparedQuery.sql).bind(...preparedQuery.params);
 		stmt.raw();
 		return stmt.all();
 	}
 
-	allObjects(query: AnySQLiteSQL): any[] {
+	allObjects<T = unknown>(query: SQL): T[] {
 		const preparedQuery = this.dialect.prepareSQL(query);
+		this.logger.logQuery(preparedQuery.sql, preparedQuery.params);
 		const stmt = this.client.prepare(preparedQuery.sql).bind(...preparedQuery.params);
 		return stmt.all();
 	}
 }
 
-export class SQLiteDriver implements SyncDriver<SQLiteSession> {
-	constructor(private client: Database, private dialect: SQLiteDialect<any>) {}
+export interface SQLiteDriverOptions {
+	logger?: Logger;
+}
+
+export class SQLiteDriver {
+	constructor(private client: Database, private dialect: SQLiteDialect, private options: SQLiteDriverOptions = {}) {}
 
 	connect(): SQLiteSession {
-		return new SQLiteSessionDefault(this.client, this.dialect);
+		return new SQLiteDefaultSession(this.client, this.dialect, { logger: this.options.logger });
 	}
 }
 
-export class SQLiteDialect<TDBSchema extends Record<string, AnySQLiteTable>>
-	implements Dialect<SQLiteSession, SQLiteDatabase<TDBSchema>>
-{
-	constructor(private schema: TDBSchema) {}
-
+export class SQLiteDialect {
 	async migrate(migrations: MigrationMeta[], session: SQLiteSession): Promise<void> {
 		// const migrations = sqliteTable('drizzle_migrations', {
 		// 	id:
@@ -69,12 +107,12 @@ export class SQLiteDialect<TDBSchema extends Record<string, AnySQLiteTable>>
 		const migrationTableCreate = sql`CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
 			id SERIAL PRIMARY KEY,
 			hash text NOT NULL,
-			created_at bigint
+			created_at numeric
 		)`;
 		session.run(sql`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
 		session.run(migrationTableCreate);
 
-		const dbMigrations = session.all(
+		const dbMigrations = session.all<[number, string, string]>(
 			sql`SELECT id, hash, created_at FROM "__drizzle_migrations" ORDER BY created_at DESC LIMIT 1`,
 		);
 
@@ -98,71 +136,37 @@ export class SQLiteDialect<TDBSchema extends Record<string, AnySQLiteTable>>
 		}
 	}
 
-	private buildTableNamesMap(): Record<string, string> {
-		return Object.entries(this.schema).reduce<Record<string, string>>((acc, [tName, table]) => {
-			acc[table[tableName]] = tName;
-			return acc;
-		}, {});
+	createDB(session: SQLiteSession): SQLiteDatabase {
+		return new SQLiteDatabase(this, session);
 	}
 
-	createDB(session: SQLiteSession): SQLiteDatabase<TDBSchema> {
-		return this.createPGDB(session);
-	}
-
-	createPGDB(session: SQLiteSession): SQLiteDatabase<TDBSchema> {
-		return Object.assign(
-			Object.fromEntries(
-				Object.entries(this.schema).map(([tableName, table]) => {
-					return [
-						tableName,
-						new SQLiteTableOperations(table, session, this as unknown as AnySQLiteDialect, this.buildTableNamesMap()),
-					];
-				}),
-			),
-			{
-				execute: (query: AnySQLiteSQL): any[] => {
-					return session.allObjects(query);
-				},
-			},
-		) as unknown as SQLiteDatabase<TDBSchema>;
-	}
-
-	public escapeName(name: string): string {
+	escapeName(name: string): string {
 		return `"${name}"`;
 	}
 
-	public escapeParam(num: number): string {
-		return `$${num}`;
+	escapeParam(num: number): string {
+		return '?';
 	}
 
-	public buildDeleteQuery<TTable extends AnySQLiteTable>({
-		table,
-		where,
-		returning,
-	}: SQLiteDeleteConfig<TTable>): AnySQLiteSQL<GetTableName<TTable>> {
+	buildDeleteQuery({ table, where, returning }: SQLiteDeleteConfig): SQL {
 		const returningSql = returning
-			? sql.fromList([sql` returning `, ...this.prepareTableFieldsForQuery(returning, { isSingleTable: true })])
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`delete from ${table}${whereSql}${returningSql}` as AnySQLiteSQL<
-			GetTableName<TTable>
-		>;
+		return sql`delete from ${table}${whereSql}${returningSql}`;
 	}
 
-	buildUpdateSet<TTableName extends TableName>(
-		table: AnySQLiteTable,
-		set: SQLiteUpdateSet<AnySQLiteTable>,
-	): AnySQLiteSQL<TTableName> {
-		const setEntries = Object.entries<ColumnData | AnySQLiteSQL<TTableName>>(set);
+	buildUpdateSet(table: AnySQLiteTable, set: SQLiteUpdateSet): SQL {
+		const setEntries = Object.entries(set);
 
 		const setSize = setEntries.length;
 		return sql.fromList(
 			setEntries
-				.map(([colName, value], i): AnySQLiteSQL<TTableName>[] => {
-					const col = table[tableColumns][colName]!;
-					const res = sql<TTableName>`${new Name(col.name)} = ${value}`;
+				.map(([colName, value], i): SQL[] => {
+					const col: AnySQLiteColumn = table[Table.Symbol.Columns][colName]!;
+					const res = sql`${new Name(col.name)} = ${value}`;
 					if (i < setSize - 1) {
 						return [res, sql.raw(', ')];
 					}
@@ -172,31 +176,15 @@ export class SQLiteDialect<TDBSchema extends Record<string, AnySQLiteTable>>
 		);
 	}
 
-	orderSelectedFields<TTableName extends TableName>(
-		fields: SQLiteSelectFields<TTableName>,
-		resultTableName: string,
-	): SQLiteSelectFieldsOrdered<TTableName> {
-		return Object.entries(fields).map(([name, column]) => ({
-			name,
-			resultTableName,
-			column,
-		}));
+	orderSelectedFields(fields: SQLiteSelectFields<string>, resultTableName: string): SQLiteSelectFieldsOrdered {
+		return Object.entries(fields).map(([name, field]) => ({ name, resultTableName, field }));
 	}
 
-	public buildUpdateQuery<TTable extends AnySQLiteTable>({
-		table,
-		set,
-		where,
-		returning,
-	}: SQLiteUpdateConfig<TTable>): AnySQL {
-		const setSql = this.buildUpdateSet<GetTableName<TTable>>(table, set);
+	buildUpdateQuery({ table, set, where, returning }: SQLiteUpdateConfig): SQL {
+		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
-			? sql<GetTableName<TTable>>` returning ${
-				sql.fromList(
-					this.prepareTableFieldsForQuery(returning, { isSingleTable: true }),
-				)
-			}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -204,34 +192,47 @@ export class SQLiteDialect<TDBSchema extends Record<string, AnySQLiteTable>>
 		return sql`update ${table} set ${setSql}${whereSql}${returningSql}`;
 	}
 
-	private prepareTableFieldsForQuery<TTableName extends TableName>(
-		columns: SQLiteSelectFieldsOrdered<TTableName>,
+	/**
+	 * Builds selection SQL with provided fields/expressions
+	 *
+	 * Examples:
+	 *
+	 * `select <selection> from`
+	 *
+	 * `insert ... returning <selection>`
+	 *
+	 * If `isSingleTable` is true, then columns won't be prefixed with table name
+	 */
+	private buildSelection(
+		fields: SQLiteSelectFieldsOrdered,
 		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
-	): SQLSourceParam<TTableName>[] {
-		const columnsLen = columns.length;
+	): SQL {
+		const columnsLen = fields.length;
 
-		return columns
-			.map(({ column }, i) => {
-				const chunk: SQLSourceParam<TTableName>[] = [];
+		const chunks = fields
+			.map(({ field }, i) => {
+				const chunk: SQLSourceParam[] = [];
 
-				if (column instanceof SQLResponse) {
+				if (field instanceof SQLResponse) {
 					if (isSingleTable) {
 						chunk.push(
-							new SQL(column.sql.queryChunks.map((c) => {
-								if (c instanceof SQLiteColumn) {
-									return new Name(c.name);
-								}
-								return c;
-							})),
+							new SQL(
+								field.sql.queryChunks.map((c) => {
+									if (c instanceof SQLiteColumn) {
+										return new Name(c.name);
+									}
+									return c;
+								}),
+							),
 						);
 					} else {
-						chunk.push(column.sql);
+						chunk.push(field.sql);
 					}
-				} else if (column instanceof Column) {
+				} else if (field instanceof Column) {
 					if (isSingleTable) {
-						chunk.push(new Name(column.name));
+						chunk.push(new Name(field.name));
 					} else {
-						chunk.push(column);
+						chunk.push(field);
 					}
 				}
 
@@ -242,35 +243,30 @@ export class SQLiteDialect<TDBSchema extends Record<string, AnySQLiteTable>>
 				return chunk;
 			})
 			.flat(1);
+
+		return sql.fromList(chunks);
 	}
 
-	public buildSelectQuery<TTableName extends TableName>({
-		fields,
-		where,
-		table: _table,
-		joins,
-		orderBy,
-		limit,
-		offset,
-	}: SQLiteSelectConfig): AnySQLiteSQL<TTableName> {
-		const table = _table as AnySQLiteTable<TTableName>;
-
+	buildSelectQuery({ fields, where, table, joins, orderBy, limit, offset }: SQLiteSelectConfig): SQL {
 		const joinKeys = Object.keys(joins);
 
-		const fieldsSql = sql.fromList(
-			this.prepareTableFieldsForQuery(fields, { isSingleTable: joinKeys.length === 0 }),
-		);
+		const selection = this.buildSelection(fields, { isSingleTable: joinKeys.length === 0 });
 
-		const joinsArray: AnySQLiteSQL[] = [];
+		const joinsArray: SQL[] = [];
 
 		joinKeys.forEach((tableAlias, index) => {
 			if (index === 0) {
 				joinsArray.push(sql` `);
 			}
 			const joinMeta = joins[tableAlias]!;
-			const alias = joinMeta.aliasTable[tableName] === joinMeta.table[tableName] ? undefined : joinMeta.aliasTable;
+			const table = joinMeta.table;
+			const tableName = table[Table.Symbol.Name];
+			const origTableName = table[SQLiteTable.Symbol.OriginalName];
+			const alias = tableName === origTableName ? undefined : tableAlias;
 			joinsArray.push(
-				sql`${sql.raw(joinMeta.joinType)} join ${joinMeta.table} ${alias} on ${joinMeta.on}` as AnySQLiteSQL,
+				sql`${sql.raw(joinMeta.joinType)} join ${new Name(origTableName)} ${
+					alias && new Name(alias)
+				} on ${joinMeta.on}`,
 			);
 			if (index < joinKeys.length - 1) {
 				joinsArray.push(sql` `);
@@ -281,7 +277,7 @@ export class SQLiteDialect<TDBSchema extends Record<string, AnySQLiteTable>>
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		const orderByList: AnySQLiteSQL[] = [];
+		const orderByList: SQL[] = [];
 		orderBy.forEach((orderByValue, index) => {
 			orderByList.push(orderByValue);
 
@@ -296,74 +292,74 @@ export class SQLiteDialect<TDBSchema extends Record<string, AnySQLiteTable>>
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		return sql<TTableName>`select ${fieldsSql} from ${table}${joinsSql}${whereSql}${orderBySql}${limitSql}${offsetSql}`;
+		return sql`select ${selection} from ${table}${joinsSql}${whereSql}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	public buildInsertQuery({ table, values, onConflict, returning }: AnySQLiteInsertConfig): AnySQLiteSQL {
-		const joinedValues: (SQLSourceParam<TableName> | AnySQLiteSQL)[][] = [];
-		const columns: Record<string, AnySQLiteColumn> = table[tableColumns];
-		const columnKeys = Object.keys(columns);
-		const insertOrder = Object.values(columns).map((column) => new Name(column.name));
+	buildInsertQuery({ table, value, onConflict, returning }: SQLiteInsertConfig): SQL {
+		const columns = table[SQLiteTable.Symbol.Columns];
 
-		values.forEach((value) => {
-			const valueList: (SQLSourceParam<TableName> | AnySQLiteSQL)[] = [];
-			columnKeys.forEach((key) => {
-				const colValue = value[key];
-				if (typeof colValue === 'undefined') {
-					valueList.push(sql`default`);
-				} else {
-					valueList.push(colValue);
-				}
-			});
-			joinedValues.push(valueList);
+		const insertOrder: Name[] = [];
+		const valuesSqlList: (Param | SQL)[] = [];
+		const entries = Object.entries(value);
+		const colsCount = entries.length;
+		entries.forEach(([key, val], i) => {
+			const column = columns[key]!;
+
+			insertOrder.push(new Name(column.name));
+			valuesSqlList.push(val);
+
+			if (i < colsCount - 1) {
+				valuesSqlList.push(sql`, `);
+			}
 		});
 
-		const returningSql = returning
-			? sql` returning ${sql.fromList(this.prepareTableFieldsForQuery(returning, { isSingleTable: true }))}`
-			: undefined;
+		const valuesSql = sql.fromList(valuesSqlList);
 
-		const valuesSql = joinedValues.length === 1 ? joinedValues[0] : joinedValues;
+		const returningSql = returning
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			: undefined;
 
 		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
 
-		return sql`insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
+		return sql`insert into ${table} ${insertOrder} values (${valuesSql}${onConflictSql}${returningSql})`;
 	}
 
-	public prepareSQL(sql: AnySQLiteSQL): SQLitePreparedQuery {
-		return sql.toQuery<SQLiteColumnDriverDataType>({
+	prepareSQL(sql: SQL): PreparedQuery {
+		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 		});
 	}
 }
 
-export type AnySQLiteDialect = SQLiteDialect<Record<string, AnySQLiteTable>>;
+export interface SQLiteConnectorOptions {
+	logger?: Logger;
+	dialect?: SQLiteDialect;
+	driver?: SQLiteDriver;
+}
 
-export type BuildTableNamesMap<TSchema extends Record<string, AnySQLiteTable>> = {
-	[Key in keyof TSchema & string as Unwrap<GetTableName<TSchema[Key]>>]: Key;
-};
+export class SQLiteConnector {
+	dialect: SQLiteDialect;
+	driver: SQLiteDriver;
+	private session: SQLiteSession | undefined;
 
-export type SQLiteDatabase<TSchema extends Record<string, AnySQLiteTable>> = Simplify<
-	{
-		[TTableName in keyof TSchema & string]: TSchema[TTableName] extends AnySQLiteTable<TableName>
-			? SQLiteTableOperations<TSchema[TTableName], BuildTableNamesMap<TSchema>>
-			: never;
-	} & {
-		execute<T>(query: AnySQLiteSQL): Promise<T>;
-		executeRaw(query: AnySQLiteSQL): Promise<any[][]>;
-	},
-	{ deep: true }
->;
+	constructor(client: Database, options: SQLiteConnectorOptions = {}) {
+		this.dialect = new SQLiteDialect();
+		this.driver = new SQLiteDriver(client, this.dialect, { logger: options.logger });
+	}
 
-export class SQLiteConnector<TDBSchema extends Record<string, AnySQLiteTable>>
-	implements Connector<SQLiteSession, SQLiteDatabase<TDBSchema>>
-{
-	dialect: Dialect<SQLiteSession, SQLiteDatabase<TDBSchema>>;
-	driver: SyncDriver<SQLiteSession>;
+	private getSession() {
+		return this.session ?? (this.session = this.driver.connect());
+	}
 
-	constructor(client: Database, dbSchema: TDBSchema) {
-		const dialect = new SQLiteDialect(dbSchema);
-		this.dialect = dialect;
-		this.driver = new SQLiteDriver(client, dialect);
+	connect() {
+		const session = this.getSession();
+		return this.dialect.createDB(session);
+	}
+
+	migrate(config: string | MigrationConfig) {
+		const migrations = readMigrationFiles(config);
+		const session = this.getSession();
+		this.dialect.migrate(migrations, session);
 	}
 }

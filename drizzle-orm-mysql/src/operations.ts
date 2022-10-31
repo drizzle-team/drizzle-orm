@@ -15,19 +15,19 @@ export type MySqlSelectFields<
 > = {
 	[key: string]:
 		| SQLResponse<TTableName | TableName, ColumnData>
-		| MySQL<TTableName | TableName>
+		| MySQL<TTableName | string>
 		| AnyMySqlColumn<TTableName>;
 };
 
-export type MySqlSelectFieldsOrdered<TTableName extends string = TableName> = (
+export type MySqlSelectFieldsOrdered<TTableName extends string = string> = (
 	& Omit<SelectFieldsOrdered[number], 'column'>
 	& {
-		column: AnyMySqlColumn<TTableName> | MySQL<TTableName | TableName> | AnySQLResponse<TTableName | TableName>;
+		column: AnyMySqlColumn<TTableName> | MySQL<TTableName | string> | AnySQLResponse<TTableName | string>;
 	}
 )[];
 
 export type SelectResultFields<
-	TSelectedFields extends MySqlSelectFields<TableName>,
+	TSelectedFields extends MySqlSelectFields<string>,
 > = Simplify<
 	{
 		[Key in keyof TSelectedFields & string]: TSelectedFields[Key] extends AnyMySqlColumn

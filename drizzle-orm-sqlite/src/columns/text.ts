@@ -1,35 +1,24 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
-
+import { ColumnConfig } from 'drizzle-orm';
+import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnySQLiteTable } from '~/table';
 
 import { SQLiteColumn, SQLiteColumnBuilder } from './common';
 
-export class SQLiteTextBuilder<
-	TData extends string = string,
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends SQLiteColumnBuilder<ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+export class SQLiteTextBuilder<TData extends string = string>
+	extends SQLiteColumnBuilder<ColumnBuilderConfig<{ data: TData; driverParam: string }>>
+{
 	/** @internal */
-	override build<TTableName extends TableName>(
-		table: AnySQLiteTable<TTableName>,
-	): SQLiteText<TTableName, TNotNull, THasDefault, TData> {
+	override build<TTableName extends string>(
+		table: AnySQLiteTable<{ name: TTableName }>,
+	): SQLiteText<TTableName, TData> {
 		return new SQLiteText(table, this);
 	}
 }
 
-export class SQLiteText<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
-	TData extends string,
-> extends SQLiteColumn<
-	TTableName,
-	ColumnData<TData>,
-	ColumnDriverParam<string>,
-	TNotNull,
-	THasDefault
-> {
-	protected brand!: 'SQLiteText';
+export class SQLiteText<TTableName extends string, TData extends string>
+	extends SQLiteColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>>
+{
+	protected override $sqliteColumnBrand!: 'SQLiteText';
 
 	getSQLType(): string {
 		return 'text';

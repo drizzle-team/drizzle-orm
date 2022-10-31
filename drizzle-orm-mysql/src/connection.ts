@@ -242,7 +242,7 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 
 		const chunks = columns
 			.map(({ column }, i) => {
-				const chunk: SQLSourceParam<TableName>[] = [];
+				const chunk: SQLSourceParam<string>[] = [];
 
 				if (column instanceof SQLResponse) {
 					if (isSingleTable) {
@@ -337,13 +337,13 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		onConflict,
 		returning,
 	}: AnyMySqlInsertConfig): AnyMySQL {
-		const valuesSqlList: ((SQLSourceParam<TableName> | AnyMySQL)[] | AnyMySQL)[] = [];
+		const valuesSqlList: ((SQLSourceParam<string> | AnyMySQL)[] | AnyMySQL)[] = [];
 		const columns: Record<string, AnyMySqlColumn> = table[tableColumns];
 		const columnKeys = Object.keys(columns);
 		const insertOrder = Object.values(columns).map((column) => new Name(column.name));
 
 		values.forEach((value, valueIndex) => {
-			const valueList: (SQLSourceParam<TableName> | AnyMySQL)[] = [];
+			const valueList: (SQLSourceParam<string> | AnyMySQL)[] = [];
 			columnKeys.forEach((colKey) => {
 				const colValue = value[colKey];
 				const column = columns[colKey]!;
@@ -388,7 +388,7 @@ export type BuildTableNamesMap<TSchema extends Record<string, AnyMySqlTable>> = 
 
 export type MySqlDatabase<TSchema extends Record<string, AnyMySqlTable>> = Simplify<
 	{
-		[TTableName in keyof TSchema & string]: TSchema[TTableName] extends AnyMySqlTable<TableName>
+		[TTableName in keyof TSchema & string]: TSchema[TTableName] extends AnyMySqlTable<string>
 			? MySqlTableOperations<TSchema[TTableName], BuildTableNamesMap<TSchema>>
 			: never;
 	} & {

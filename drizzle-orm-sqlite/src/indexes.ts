@@ -1,92 +1,57 @@
-import { InferColumnTable } from 'drizzle-orm';
-import { TableName } from 'drizzle-orm/branded-types';
 import { SQL } from 'drizzle-orm/sql';
-import { GetTableName } from 'drizzle-orm/utils';
 
 import { AnySQLiteColumn } from './columns';
-import { SQLiteUpdateSet } from './queries/update';
-import { AnySQLiteTable, GetTableColumns } from './table';
+import { AnySQLiteTable } from './table';
 
-interface IndexConfig<TTableName extends TableName, TUnique extends boolean> {
+interface IndexConfig {
 	/**
 	 * If true, the index will be created as `create unique index` instead of `create index`.
 	 */
-	unique?: TUnique;
-
-	/**
-	 * If true, the index will be created as `create index concurrently` instead of `create index`.
-	 */
-	concurrently?: boolean;
-
-	/**
-	 * If true, the index will be created as `create index ... on only <table>` instead of `create index ... on <table>`.
-	 */
-	only?: boolean;
-
-	/**
-	 * If set, the index will be created as `create index ... using <method>`.
-	 */
-	using?: SQL<TTableName>;
-
-	/**
-	 * If set, the index will be created as `create index ... asc | desc`.
-	 */
-	order?: 'asc' | 'desc';
-
-	/**
-	 * If set, adds `nulls first` or `nulls last` to the index.
-	 */
-	nulls?: 'first' | 'last';
+	unique: boolean;
 
 	/**
 	 * Condition for partial index.
 	 */
-	where?: SQL<TTableName>;
+	where: SQL | undefined;
 }
 
-type GetIndexConfigUnique<TIndexConfig extends IndexConfig<any, any>> = TIndexConfig extends
-	IndexConfig<any, infer TUnique> ? TUnique : never;
+export type IndexColumn = AnySQLiteColumn | SQL;
 
-export class IndexBuilder<
-	TTableName extends TableName,
-	TUnique extends boolean,
-> {
-	protected typeKeeper!: {
-		tableName: TTableName;
-		unique: TUnique;
-	};
+export class IndexBuilderOn {
+	constructor(private name: string, private unique: boolean) {}
 
-	protected brand!: 'SQLiteIndexBuilder';
-
-	constructor(
-		public readonly name: string,
-		public readonly columns: AnySQLiteColumn<TTableName>[],
-		public readonly config: IndexConfig<TTableName, TUnique> = {},
-	) {}
-
-	build(table: AnySQLiteTable<TTableName>): Index<TTableName, TUnique> {
-		return new Index(this.name, table, this.columns, this);
+	on(...columns: [IndexColumn, ...IndexColumn[]]): IndexBuilder {
+		return new IndexBuilder(this.name, columns, this.unique);
 	}
 }
 
-export type AnyIndexBuilder<TTableName extends TableName = TableName> = IndexBuilder<TTableName, any>;
+export class IndexBuilder {
+	declare protected $brand: 'SQLiteIndexBuilder';
 
-export class Index<TTableName extends TableName, TUnique extends boolean> {
-	protected typeKeeper!: {
-		tableName: TTableName;
-		unique: TUnique;
-	};
+	/** @internal */
+	config: IndexConfig;
 
-	readonly config: IndexConfig<TTableName, TUnique>;
-
-	constructor(
-		public readonly name: string,
-		public readonly table: AnySQLiteTable<TTableName>,
-		public readonly columns: AnySQLiteColumn<TTableName>[],
-		builder: IndexBuilder<TTableName, TUnique>,
-	) {
-		this.config = builder.config;
+	constructor(name: string, columns: IndexColumn[], unique: boolean) {
+		this.config = {
+			unique,
+			where: undefined,
+		};
 	}
+
+	where(condition: SQL): this {
+		this.config.where = condition;
+		return this;
+	}
+
+	build(table: AnySQLiteTable): Index {
+		return new Index(this.config);
+	}
+}
+
+export class Index {
+	declare protected $brand: 'SQLiteIndex';
+
+	constructor(public readonly config: IndexConfig) {}
 
 	// TODO: move to .onConflict()
 	// set(values: SQLiteUpdateSet<TTable>): { constraintName: string; set: SQLiteUpdateSet<TTable> } {
@@ -97,32 +62,16 @@ export class Index<TTableName extends TableName, TUnique extends boolean> {
 	// }
 }
 
-export type AnyIndex = Index<any, any>;
-
-export type BuildIndex<T extends AnyIndexBuilder> = T extends IndexBuilder<infer TTableName, infer TUnique>
-	? Index<TTableName, TUnique>
+export type GetColumnsTableName<TColumns> = TColumns extends
+	AnySQLiteColumn<{ tableName: infer TTableName extends string }> | AnySQLiteColumn<
+		{ tableName: infer TTableName extends string }
+	>[] ? TTableName
 	: never;
 
-type GetColumnsTable<TColumns> = TColumns extends AnySQLiteColumn ? InferColumnTable<TColumns>
-	: TColumns extends AnySQLiteColumn[] ? InferColumnTable<TColumns[number]>
-	: never;
-
-export function index<
-	TColumns extends
-		| AnySQLiteColumn
-		| [AnySQLiteColumn, ...AnySQLiteColumn[]],
-	TConfig extends IndexConfig<GetColumnsTable<TColumns>, boolean> = IndexConfig<GetColumnsTable<TColumns>, false>,
->(
-	name: string,
-	columns: TColumns,
-	config?: TConfig,
-): IndexBuilder<GetColumnsTable<TColumns>, GetIndexConfigUnique<TConfig>>;
-export function index(
-	name: string,
-	columns: AnySQLiteColumn | AnySQLiteColumn[],
-	config?: IndexConfig<any, any>,
-) {
-	return new IndexBuilder(name, Array.isArray(columns) ? columns : [columns], config);
+export function index(name: string): IndexBuilderOn {
+	return new IndexBuilderOn(name, false);
 }
 
-export function uniqueIndex() {}
+export function uniqueIndex(name: string): IndexBuilderOn {
+	return new IndexBuilderOn(name, true);
+}

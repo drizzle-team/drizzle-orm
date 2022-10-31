@@ -1,7 +1,7 @@
+import { Simplify } from 'type-fest';
 import { Column } from './column';
 import { SelectFieldsOrdered } from './operations';
 import { noopDecoder, SQL } from './sql';
-import { Table } from './table';
 
 export function mapResultRow<TResult extends Record<string, unknown>>(
 	columns: SelectFieldsOrdered,
@@ -49,6 +49,9 @@ export function mapResultRow<TResult extends Record<string, unknown>>(
 	) as TResult;
 }
 
-export type RequiredKeys<T> = { [K in keyof T]-?: T[K] };
-
 export type OneOrMany<T> = T | T[];
+
+export type Update<T, TUpdate> = Simplify<
+	& Omit<T, keyof TUpdate>
+	& TUpdate
+>;

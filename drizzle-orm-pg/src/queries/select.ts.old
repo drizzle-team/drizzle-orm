@@ -84,7 +84,7 @@ export class PgSelect<
 			TJoinedTable extends PgTable<TableName<keyof TTableNamesMap & string>>,
 			TDBName extends Unwrap<GetTableConfig<TJoinedTable, 'name'>>,
 			TJoinedName extends TTableNamesMap[TDBName],
-			TSelect extends JoinSelect<TJoinedTable, TJoinedName, PgSelectFields<TableName>> = JoinSelect<
+			TSelect extends JoinSelect<TJoinedTable, TJoinedName, PgSelectFields<string>> = JoinSelect<
 				TJoinedTable,
 				TJoinedName,
 				GetTableColumns<TJoinedTable>
@@ -105,7 +105,7 @@ export class PgSelect<
 		function join<
 			TJoinedTable extends PgTable<TableName<keyof TTableNamesMap & string>>,
 			TJoinedName extends string,
-			TSelect extends JoinSelect<TJoinedTable, TJoinedName, PgSelectFields<TableName>> = JoinSelect<
+			TSelect extends JoinSelect<TJoinedTable, TJoinedName, PgSelectFields<string>> = JoinSelect<
 				TJoinedTable,
 				TJoinedName,
 				GetTableColumns<TJoinedTable>
@@ -203,9 +203,9 @@ export class PgSelect<
 			| ((
 				aliases: TAliases,
 			) => AnyPgSQL<
-				TableName<TJoinedDBTableNames> | TableName<keyof TAliases & string> | GetTableConfig<TTable, 'name'> | TableName
+				TJoinedDBTableNames | TableName<keyof TAliases & string> | GetTableConfig<TTable, 'name'> | TableName
 			>)
-			| AnyPgSQL<TableName<TJoinedDBTableNames> | GetTableConfig<TTable, 'name'> | TableName>
+			| AnyPgSQL<TJoinedDBTableNames | GetTableConfig<TTable, 'name'> | string>
 			| undefined,
 	): PickWhere<this> {
 		if (where instanceof SQL) {
@@ -220,11 +220,11 @@ export class PgSelect<
 		columns: (
 			joins: TAliases,
 		) =>
-			| AnyPgSQL<TableName<TJoinedDBTableNames> | GetTableConfig<TTable, 'name'>>[]
-			| AnyPgSQL<TableName<TJoinedDBTableNames> | GetTableConfig<TTable, 'name'>>,
+			| AnyPgSQL<TJoinedDBTableNames | GetTableConfig<TTable, 'name'>>[]
+			| AnyPgSQL<TJoinedDBTableNames | GetTableConfig<TTable, 'name'>>,
 	): PickOrderBy<this>;
 	public orderBy(
-		...columns: AnyPgSQL<TableName<TJoinedDBTableNames> | GetTableConfig<TTable, 'name'>>[]
+		...columns: AnyPgSQL<TJoinedDBTableNames | GetTableConfig<TTable, 'name'>>[]
 	): PickOrderBy<this>;
 	public orderBy(
 		firstColumn: ((joins: TAliases) => AnyPgSQL[] | AnyPgSQL) | AnyPgSQL,

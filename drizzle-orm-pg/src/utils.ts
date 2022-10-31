@@ -26,12 +26,6 @@ export function getTableChecks<TTable extends AnyPgTable>(table: TTable) {
 	return keys.map((key) => checks[key]!);
 }
 
-export function getTableConflictConstraints<TTable extends AnyPgTable>(
-	table: TTable,
-): GetTableConfig<TTable, 'conflictConstraints'> {
-	return table[PgTable.Symbol.ConflictConstraints] as GetTableConfig<TTable, 'conflictConstraints'>;
-}
-
 /** @internal */
 export function mapUpdateSet(table: AnyPgTable, values: Record<string, unknown>): PgUpdateSet {
 	return Object.fromEntries<PgUpdateSet[string]>(

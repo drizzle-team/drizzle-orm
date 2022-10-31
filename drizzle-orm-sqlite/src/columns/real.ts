@@ -1,37 +1,19 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
-
+import { ColumnConfig } from 'drizzle-orm';
+import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnySQLiteTable } from '../table';
-import { SQLiteColumnBuilderWithAutoIncrement, SQLiteColumnWithAutoIncrement } from './autoIncrement.common';
+import { SQLiteColumn, SQLiteColumnBuilder } from './common';
 
-export class SQLiteRealBuilder<
-	TNotNull extends ColumnNotNull = ColumnNotNull<false>,
-	THasDefault extends ColumnHasDefault = ColumnHasDefault<false>,
-> extends SQLiteColumnBuilderWithAutoIncrement<
-	ColumnData<number>,
-	ColumnDriverParam<number>,
-	TNotNull,
-	THasDefault
-> {
+export class SQLiteRealBuilder extends SQLiteColumnBuilder<ColumnBuilderConfig<{ data: number; driverParam: number }>> {
 	/** @internal */
-	override build<TTableName extends TableName>(
-		table: AnySQLiteTable<TTableName>,
-	): SQLiteReal<TTableName, TNotNull, THasDefault> {
-		return new SQLiteReal<TTableName, TNotNull, THasDefault>(table, this);
+	override build<TTableName extends string>(table: AnySQLiteTable<{ name: TTableName }>): SQLiteReal<TTableName> {
+		return new SQLiteReal(table, this);
 	}
 }
 
-export class SQLiteReal<
-	TTableName extends TableName,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
-> extends SQLiteColumnWithAutoIncrement<
-	TTableName,
-	ColumnData<number>,
-	ColumnDriverParam<number>,
-	TNotNull,
-	THasDefault
-> {
-	protected brand!: 'SQLiteInteger';
+export class SQLiteReal<TTableName extends string>
+	extends SQLiteColumn<ColumnConfig<{ tableName: TTableName; data: number; driverParam: number }>>
+{
+	protected override $sqliteColumnBrand!: 'SQLiteInteger';
 
 	getSQLType(): string {
 		return 'real';

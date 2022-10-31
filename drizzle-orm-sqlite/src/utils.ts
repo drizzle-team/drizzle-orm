@@ -1,42 +1,42 @@
-import { tableColumns } from 'drizzle-orm/utils';
-import { AnySQLiteColumn } from './columns/common';
-
-import { AnySQLiteTable, GetTableColumns, GetTableConflictConstraints } from './table';
-
-/** @internal */
-export const tableIndexes = Symbol('tableIndexes');
-
-/** @internal */
-export const tableForeignKeys = Symbol('tableForeignKeys');
-
-/** @internal */
-export const tableChecks = Symbol('tableChecks');
-
-/** @internal */
-export const tableConflictConstraints = Symbol('tableConflictConstraints');
+import { Param, SQL } from 'drizzle-orm/sql';
+import { SQLiteUpdateSet } from './queries';
+import { AnySQLiteTable, GetTableConfig, SQLiteTable } from './table';
 
 export function getTableColumns<TTable extends AnySQLiteTable>(table: TTable) {
-	const keys = Reflect.ownKeys(table[tableColumns]);
-	return keys.map((key) => table[tableColumns][key]!);
+	const columns = table[SQLiteTable.Symbol.Columns];
+	const keys = Reflect.ownKeys(columns);
+	return keys.map((key) => columns[key]!);
 }
 
 export function getTableIndexes<TTable extends AnySQLiteTable>(table: TTable) {
-	const keys = Reflect.ownKeys(table[tableIndexes]);
-	return keys.map((key) => table[tableIndexes][key]!);
+	const indexes = table[SQLiteTable.Symbol.Indexes];
+	const keys = Reflect.ownKeys(indexes);
+	return keys.map((key) => indexes[key]!);
 }
 
 export function getTableForeignKeys<TTable extends AnySQLiteTable>(table: TTable) {
-	const keys = Reflect.ownKeys(table[tableForeignKeys]);
-	return keys.map((key) => table[tableForeignKeys][key]!);
+	const foreignKeys = table[SQLiteTable.Symbol.ForeignKeys];
+	const keys = Reflect.ownKeys(foreignKeys);
+	return keys.map((key) => foreignKeys[key]!);
 }
 
 export function getTableChecks<TTable extends AnySQLiteTable>(table: TTable) {
-	const keys = Reflect.ownKeys(table[tableChecks]);
-	return keys.map((key) => table[tableChecks][key]!);
+	const checks = table[SQLiteTable.Symbol.Checks];
+	const keys = Reflect.ownKeys(checks);
+	return keys.map((key) => checks[key]!);
 }
 
-export function getTableConflictConstraints<TTable extends AnySQLiteTable>(
-	table: TTable,
-): GetTableConflictConstraints<TTable> {
-	return table[tableConflictConstraints];
+/** @internal */
+export function mapUpdateSet(table: AnySQLiteTable, values: Record<string, unknown>): SQLiteUpdateSet {
+	return Object.fromEntries<SQLiteUpdateSet[string]>(
+		Object.entries(values).map(([key, value]) => {
+			if (value instanceof SQL || value === null || value === undefined) {
+				return [key, value];
+			} else {
+				return [key, new Param(value, table[SQLiteTable.Symbol.Columns][key])];
+			}
+		}),
+	);
 }
+
+export type OnConflict = 'rollback' | 'abort' | 'fail' | 'ignore' | 'replace';

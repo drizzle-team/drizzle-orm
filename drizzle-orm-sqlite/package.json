@@ -7,9 +7,10 @@
 	"scripts": {
 		"build": "concurrently -n build,test \"tsc -p tsconfig.build.json && resolve-tspaths\" pnpm:test",
 		"test": "cd tests && tsc",
-		"pack": "cp package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"pack": "cp README.md package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"publish": "pnpm publish package.tgz",
 		"publish:beta": "pnpm publish package.tgz --tag beta --git-checks false",
+		"release:beta": "pnpm build && pnpm version prerelease && pnpm run pack && pnpm publish:beta",
 		"build:int": "pnpm build && pnpm run pack"
 	},
 	"publishConfig": {
@@ -33,12 +34,8 @@
 	},
 	"homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
 	"peerDependencies": {
+		"better-sqlite3": ">=7 <8",
 		"drizzle-orm": ">=0.12.0 <0.13.0"
-	},
-	"peerDependenciesMeta": {
-		"sqlite3": {
-			"optional": true
-		}
 	},
 	"devDependencies": {
 		"@types/better-sqlite3": "^7.6.0",
@@ -51,7 +48,6 @@
 		"ts-node": "^10.8.2",
 		"tsconfig-paths": "^4.0.0",
 		"type-fest": "^2.16.0",
-		"typescript": "4.8.0-beta",
 		"uvu": "^0.5.3"
 	}
 }

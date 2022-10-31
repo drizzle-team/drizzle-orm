@@ -1,61 +1,62 @@
-import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm/utils';
+import { RunResult } from 'better-sqlite3';
+import { PreparedQuery, SQL, SQLWrapper } from 'drizzle-orm/sql';
+import { mapResultRow } from 'drizzle-orm/utils';
 
-import { AnySQLiteDialect, SQLiteSession } from '~/connection';
+import { SQLiteDialect, SQLiteSession } from '~/connection';
 import { SelectResultFields, SQLiteSelectFields, SQLiteSelectFieldsOrdered } from '~/operations';
-import { AnySQLiteSQL, SQLitePreparedQuery } from '~/sql';
-import { AnySQLiteTable, InferModel } from '~/table';
+import { AnySQLiteTable, GetTableConfig, InferModel, SQLiteTable } from '~/table';
 
-export interface SQLiteDeleteConfig<TTable extends AnySQLiteTable> {
-	where?: AnySQLiteSQL<GetTableName<TTable>> | undefined;
-	table: TTable;
+export interface SQLiteDeleteConfig {
+	where?: SQL | undefined;
+	table: AnySQLiteTable;
 	returning?: SQLiteSelectFieldsOrdered;
 }
 
-export class SQLiteDelete<TTable extends AnySQLiteTable, TReturn = void> {
-	private config: SQLiteDeleteConfig<TTable> = {} as SQLiteDeleteConfig<TTable>;
+export class SQLiteDelete<TTable extends AnySQLiteTable, TReturn = RunResult> implements SQLWrapper {
+	private config: SQLiteDeleteConfig;
 
 	constructor(
 		private table: TTable,
 		private session: SQLiteSession,
-		private dialect: AnySQLiteDialect,
+		private dialect: SQLiteDialect,
 	) {
-		this.config.table = table;
+		this.config = { table };
 	}
 
-	public where(
-		where: AnySQLiteSQL<GetTableName<TTable>> | undefined,
-	): Pick<this, 'returning' | 'getQuery' | 'execute'> {
+	public where(where: SQL | undefined): Omit<this, 'where'> {
 		this.config.where = where;
 		return this;
 	}
 
-	public returning(): Pick<SQLiteDelete<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
-	public returning<TSelectedFields extends SQLiteSelectFields<GetTableName<TTable>>>(
+	public returning(): Omit<SQLiteDelete<TTable, InferModel<TTable>[]>, 'where' | 'returning'>;
+	public returning<TSelectedFields extends SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>(
 		fields: TSelectedFields,
-	): Pick<SQLiteDelete<TTable, SelectResultFields<TSelectedFields>[]>, 'getQuery' | 'execute'>;
-	public returning(fields?: SQLiteSelectFields<GetTableName<TTable>>): SQLiteDelete<TTable, any> {
+	): Omit<SQLiteDelete<TTable, SelectResultFields<TSelectedFields>[]>, 'where' | 'returning'>;
+	public returning(fields?: SQLiteSelectFields<GetTableConfig<TTable, 'name'>>): SQLiteDelete<TTable, any> {
 		const orderedFields = this.dialect.orderSelectedFields(
-			fields ?? this.table[tableColumns],
-			this.table[tableName],
+			fields ?? this.table[SQLiteTable.Symbol.Columns],
+			this.table[SQLiteTable.Symbol.Name],
 		);
 		this.config.returning = orderedFields;
 		return this;
 	}
 
-	public getQuery(): SQLitePreparedQuery {
-		const query = this.dialect.buildDeleteQuery(this.config);
-		return this.dialect.prepareSQL(query);
+	getSQL(): SQL {
+		return this.dialect.buildDeleteQuery(this.config);
 	}
 
-	public execute(): TReturn {
+	public getQuery(): PreparedQuery {
+		return this.dialect.prepareSQL(this.getSQL());
+	}
+
+	execute(): TReturn {
 		const query = this.dialect.buildDeleteQuery(this.config);
 		const { returning } = this.config;
 		if (returning) {
-			const rows = this.session.all(query);
-			return rows.map((row) => mapResultRow(returning, row)) as TReturn;
+			const result = this.session.all(query);
+			return result.map((row) => mapResultRow(returning, row)) as TReturn;
 		}
 
-		this.session.run(query);
-		return undefined as TReturn;
+		return this.session.run(query) as TReturn;
 	}
 }

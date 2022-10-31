@@ -1,9 +1,9 @@
 import { TableAliasProxyHandler } from 'drizzle-orm/alias';
 import { BuildAliasTable } from './queries/select.types';
 
-import { AnyPgTable } from './table';
+import { AnySQLiteTable } from './table';
 
-export function alias<TTable extends AnyPgTable, TAlias extends string>(
+export function alias<TTable extends AnySQLiteTable, TAlias extends string>(
 	table: TTable,
 	alias: TAlias,
 ): BuildAliasTable<TTable, TAlias> {

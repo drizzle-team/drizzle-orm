@@ -1,108 +1,122 @@
-import { ColumnData } from 'drizzle-orm/branded-types';
-import { AnySQLResponse, Name, SQL, sql } from 'drizzle-orm/sql';
-import { GetTableName, mapResultRow, tableColumns, tableName } from 'drizzle-orm/utils';
+import { RunResult } from 'better-sqlite3';
+import { Name, Param, PreparedQuery, SQL, sql, SQLWrapper } from 'drizzle-orm/sql';
+import { mapResultRow } from 'drizzle-orm/utils';
+import { Simplify } from 'type-fest';
 
-import { Check } from '~/checks';
 import { AnySQLiteColumn } from '~/columns/common';
-import { AnySQLiteDialect, SQLiteSession } from '~/connection';
+import { SQLiteDialect, SQLiteSession } from '~/connection';
+import { IndexColumn } from '~/indexes';
 import { SelectResultFields, SQLiteSelectFields, SQLiteSelectFieldsOrdered } from '~/operations';
-import { SQLitePreparedQuery } from '~/sql';
-import { AnySQLiteTable, GetTableConflictConstraints, InferModel } from '~/table';
-import { tableConflictConstraints } from '~/utils';
-import { SQLiteUpdateSet } from './update';
+import { AnySQLiteTable, GetTableConfig, InferModel, SQLiteTable } from '~/table';
+import { mapUpdateSet } from '~/utils';
+import { SQLiteUpdateSetSource } from './update';
 
-export interface SQLiteInsertConfig<TTable extends AnySQLiteTable> {
+export interface SQLiteInsertConfig<TTable extends AnySQLiteTable = AnySQLiteTable> {
 	table: TTable;
-	values: Record<string, ColumnData | SQL<GetTableName<TTable>>>[];
-	onConflict: SQL<GetTableName<TTable>> | undefined;
-	returning: SQLiteSelectFieldsOrdered<GetTableName<TTable>> | undefined;
+	value: Record<string, Param | SQL>;
+	onConflict?: SQL;
+	returning?: SQLiteSelectFieldsOrdered;
 }
 
-export type AnySQLiteInsertConfig = SQLiteInsertConfig<AnySQLiteTable>;
+export type SQLiteInsertValue<TTable extends AnySQLiteTable> = Simplify<
+	{
+		[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL;
+	}
+>;
 
-export class SQLiteInsert<TTable extends AnySQLiteTable, TReturn = void> {
-	protected typeKeeper!: {
-		table: TTable;
-		return: TReturn;
-	};
+export class SQLiteInsertBuilder<TTable extends AnySQLiteTable> {
+	constructor(
+		private table: TTable,
+		private session: SQLiteSession,
+		private dialect: SQLiteDialect,
+	) {}
 
-	private config: SQLiteInsertConfig<TTable> = {} as SQLiteInsertConfig<TTable>;
+	values(value: SQLiteInsertValue<TTable>): SQLiteInsert<TTable> {
+		const mappedValue: Record<string, Param | SQL> = {};
+		const cols = this.table[SQLiteTable.Symbol.Columns];
+		for (const colKey of Object.keys(value)) {
+			const colValue = value[colKey as keyof typeof value];
+			if (colValue instanceof SQL) {
+				mappedValue[colKey] = colValue;
+			} else {
+				mappedValue[colKey] = new Param(colValue, cols[colKey]);
+			}
+		}
+
+		return new SQLiteInsert(this.table, mappedValue, this.session, this.dialect);
+	}
+}
+
+export class SQLiteInsert<TTable extends AnySQLiteTable, TReturn = RunResult> implements SQLWrapper {
+	declare protected $table: TTable;
+	declare protected $return: TReturn;
+
+	private config: SQLiteInsertConfig<TTable>;
 
 	constructor(
 		table: TTable,
-		values: InferModel<TTable, 'insert'>[],
+		value: SQLiteInsertConfig['value'],
 		private session: SQLiteSession,
-		private dialect: AnySQLiteDialect,
+		private dialect: SQLiteDialect,
 	) {
-		this.config.table = table;
-		this.config.values = values as SQLiteInsertConfig<TTable>['values'];
+		this.config = { table, value };
 	}
 
-	public returning(): Pick<SQLiteInsert<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
-	public returning<TSelectedFields extends SQLiteSelectFields<GetTableName<TTable>>>(
+	public returning(): Omit<SQLiteInsert<TTable, InferModel<TTable>>, 'returning' | `onConflict${string}`>;
+	public returning<TSelectedFields extends SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>(
 		fields: TSelectedFields,
-	): Pick<SQLiteInsert<TTable, SelectResultFields<TSelectedFields>[]>, 'getQuery' | 'execute'>;
-	public returning(fields?: SQLiteSelectFields<GetTableName<TTable>>): SQLiteInsert<TTable, any> {
-		const fieldsToMap: Record<string, AnySQLiteColumn<GetTableName<TTable>> | AnySQLResponse<GetTableName<TTable>>> =
-			fields
-				?? this.config.table[tableColumns] as Record<string, AnySQLiteColumn<GetTableName<TTable>>>;
+	): Omit<SQLiteInsert<TTable, SelectResultFields<TSelectedFields>>, 'returning' | `onConflict${string}`>;
+	public returning(fields?: SQLiteSelectFields<GetTableConfig<TTable, 'name'>>): SQLiteInsert<TTable, any> {
+		const fieldsToMap: SQLiteSelectFields<GetTableConfig<TTable, 'name'>> = fields
+			?? this.config.table[SQLiteTable.Symbol.Columns] as Record<
+				string,
+				AnySQLiteColumn<{ tableName: GetTableConfig<TTable, 'name'> }>
+			>;
 
 		this.config.returning = Object.entries(fieldsToMap).map(
-			([name, column]) => ({ name, column, resultTableName: this.config.table[tableName] }),
+			([name, column]) => ({ name, field: column, resultTableName: this.config.table[SQLiteTable.Symbol.Name] }),
 		);
 
 		return this;
 	}
 
-	onConflictDoNothing(
-		target?:
-			| SQL<GetTableName<TTable>>
-			| ((
-				constraints: GetTableConflictConstraints<TTable>,
-			) => Check<GetTableName<TTable>>),
-	): Pick<this, 'returning' | 'getQuery' | 'execute'> {
-		if (typeof target === 'undefined') {
+	onConflictDoNothing(config: { target?: IndexColumn | IndexColumn[]; where?: SQL } = {}): this {
+		if (config.target === undefined) {
 			this.config.onConflict = sql`do nothing`;
-		} else if (target instanceof SQL) {
-			this.config.onConflict = sql`${target} do nothing`;
 		} else {
-			const targetSql = new Name(target(this.config.table[tableConflictConstraints]).name);
-			this.config.onConflict = sql`on constraint ${targetSql} do nothing`;
+			const whereSql = config.where ? sql` where ${config.where}` : sql``;
+			this.config.onConflict = sql`${config.target}${whereSql} do nothing`;
 		}
 		return this;
 	}
 
-	onConflictDoUpdate(
-		target:
-			| SQL<GetTableName<TTable>>
-			| ((constraints: GetTableConflictConstraints<TTable>) => Check<GetTableName<TTable>>),
-		set: SQLiteUpdateSet<TTable>,
-	): Pick<this, 'returning' | 'getQuery' | 'execute'> {
-		const setSql = this.dialect.buildUpdateSet<GetTableName<TTable>>(this.config.table, set);
-
-		if (target instanceof SQL) {
-			this.config.onConflict = sql<GetTableName<TTable>>`${target} do update set ${setSql}`;
-		} else {
-			const targetSql = new Name(target(this.config.table[tableConflictConstraints]).name);
-			this.config.onConflict = sql`on constraint ${targetSql} do update set ${setSql}`;
-		}
+	onConflictDoUpdate(config: {
+		target?: IndexColumn | IndexColumn[];
+		where?: SQL;
+		set: SQLiteUpdateSetSource<TTable>;
+	}): this {
+		const whereSql = config.where ? sql` where ${config.where}` : sql``;
+		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
+		this.config.onConflict = sql`${config.target}${whereSql} do update set ${setSql}`;
 		return this;
 	}
 
-	getQuery(): SQLitePreparedQuery {
-		const query = this.dialect.buildInsertQuery(this.config);
-		return this.dialect.prepareSQL(query);
+	getSQL(): SQL {
+		return this.dialect.buildInsertQuery(this.config);
+	}
+
+	getQuery(): PreparedQuery {
+		return this.dialect.prepareSQL(this.getSQL());
 	}
 
 	execute(): TReturn {
 		const query = this.dialect.buildInsertQuery(this.config);
 		const { returning } = this.config;
 		if (returning) {
-			const rows = this.session.all(query);
-			return rows.map((row) => mapResultRow(returning, row)) as TReturn;
+			const result = this.session.get(query);
+			return mapResultRow(returning, result) as TReturn;
 		}
 
-		this.session.run(query);
-		return undefined as TReturn;
+		return this.session.run(query) as TReturn;
 	}
 }

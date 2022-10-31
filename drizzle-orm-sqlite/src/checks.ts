@@ -1,40 +1,28 @@
-import { TableName } from 'drizzle-orm/branded-types';
-
-import { AnySQLiteSQL } from './sql';
+import { SQL } from 'drizzle-orm/sql';
 import { AnySQLiteTable } from './table';
 
-export class CheckBuilder<TTableName extends TableName> {
+export class CheckBuilder {
 	protected brand!: 'SQLiteConstraintBuilder';
 
-	constructor(public name: string, public value: AnySQLiteSQL<TTableName>) {}
+	constructor(public name: string, public value: SQL) {}
 
-	build(table: AnySQLiteTable<TTableName>): Check<TTableName> {
+	build(table: AnySQLiteTable): Check {
 		return new Check(table, this);
 	}
 }
 
-export type AnyCheckBuilder<TTableName extends TableName = TableName> = CheckBuilder<TTableName>;
+export class Check {
+	declare protected $brand: 'SQLiteCheck';
 
-export class Check<TTableName extends TableName> {
 	readonly name: string;
-	readonly value: AnySQLiteSQL<TTableName>;
+	readonly value: SQL;
 
-	constructor(public table: AnySQLiteTable<TTableName>, builder: CheckBuilder<TTableName>) {
+	constructor(public table: AnySQLiteTable, builder: CheckBuilder) {
 		this.name = builder.name;
 		this.value = builder.value;
 	}
 }
 
-export type BuildCheck<T extends AnyCheckBuilder> = T extends CheckBuilder<
-	infer TTableName
-> ? Check<TTableName>
-	: never;
-
-export type AnyConstraint = Check<TableName>;
-
-export function check<TTableName extends TableName>(
-	name: string,
-	value: AnySQLiteSQL<TTableName>,
-): CheckBuilder<TTableName> {
+export function check<TTableName extends string>(name: string, value: SQL): CheckBuilder {
 	return new CheckBuilder(name, value);
 }

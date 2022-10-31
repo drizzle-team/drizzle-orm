@@ -1,30 +1,31 @@
+import { Simplify } from 'type-fest';
 import { ColumnBuilder, ColumnBuilderBaseConfig, ColumnBuilderConfig } from './column-builder';
 import { DriverValueMapper, SQL } from './sql';
 import { Table } from './table';
-import { RequiredKeys } from './utils';
+import { Update } from './utils';
 
 export interface ColumnBaseConfig extends ColumnBuilderBaseConfig {
 	tableName: string;
 }
 
-export type ColumnConfig<TPartial extends Partial<ColumnBaseConfig> = {}> = UpdateColumnConfig<
-	ColumnBuilderConfig & {
-		tableName: string;
-	},
+export type ColumnConfig<TPartial extends Partial<ColumnBaseConfig> = {}> = Update<
+	ColumnBuilderConfig & { tableName: string },
 	TPartial
 >;
 
-export type UpdateColumnConfig<
-	T extends ColumnBaseConfig,
-	TUpdate extends Partial<ColumnBaseConfig>,
-> = {} extends TUpdate ? T : RequiredKeys<Omit<T, keyof TUpdate> & Pick<TUpdate, keyof ColumnBaseConfig>>;
+// export type UpdateColumnConfig<
+// 	T extends ColumnBaseConfig,
+// 	TUpdate extends Partial<ColumnBaseConfig>,
+// > = Update<T, TUpdate, keyof ColumnBaseConfig>;
 
 /*
 	`Column` only accepts a full `ColumnConfig` as its generic.
 	To infer parts of the config, use `AnyColumn` that accepts a partial config.
 	See `GetColumnData` for example usage of inferring.
 */
-export abstract class Column<T extends ColumnBaseConfig> implements DriverValueMapper<T['data'], T['driverParam']> {
+export abstract class Column<T extends Partial<ColumnBaseConfig>>
+	implements DriverValueMapper<T['data'], T['driverParam']>
+{
 	declare protected $brand: 'Column';
 	declare protected $config: T;
 	declare protected $data: T['data'];
@@ -55,9 +56,12 @@ export abstract class Column<T extends ColumnBaseConfig> implements DriverValueM
 	}
 }
 
-export type AnyColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = Column<
-	UpdateColumnConfig<ColumnBaseConfig, TPartial>
+export type UpdateColConfig<T extends Partial<ColumnBaseConfig>, TUpdate extends Partial<ColumnBaseConfig>> = Update<
+	T,
+	TUpdate
 >;
+
+export type AnyColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = Column<Update<ColumnBaseConfig, TPartial>>;
 
 export type GetColumnData<TColumn extends AnyColumn, TInferMode extends 'query' | 'raw' = 'query'> =
 	// dprint-ignore

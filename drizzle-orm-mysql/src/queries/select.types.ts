@@ -65,7 +65,7 @@ export type PickLimit<TJoinReturn extends AnyMySqlSelect> = Pick<TJoinReturn, 'o
 export type PickOffset<TJoinReturn extends AnyMySqlSelect> = Pick<TJoinReturn, QueryFinisherMethods>;
 
 export type BuildAliasTable<TTable extends AnyMySqlTable, TAlias extends string> = MapColumnsToTableAlias<
-	GetTableColumns<TTable>,
+	GetTableConfig<TTable, 'columns'>,
 	TAlias
 >;
 
@@ -76,7 +76,7 @@ export type MapColumnsToTableAlias<TColumns extends Record<string, AnyMySqlColum
 export type AppendToResult<
 	TReturn,
 	TJoinedName extends string,
-	TSelectedFields extends MySqlSelectFields<TableName>,
+	TSelectedFields extends MySqlSelectFields<string>,
 > = TReturn extends undefined ? { [Key in TJoinedName]: SelectResultFields<TSelectedFields> }
 	: Simplify<TReturn & { [Key in TJoinedName]: SelectResultFields<TSelectedFields> }>;
 
@@ -87,7 +87,7 @@ export type AppendToAliases<
 	TDBName extends string = TJoinedName,
 > = Simplify<
 	& TJoins
-	& { [Alias in TJoinedName]: BuildAliasTable<TJoinedTable, TableName<TDBName>> },
+	& { [Alias in TJoinedName]: BuildAliasTable<TJoinedTable, TDBName> },
 	{ deep: true }
 >;
 
@@ -107,9 +107,9 @@ export type JoinOn<
 export type JoinSelect<
 	TJoinedTable extends AnyMySqlTable,
 	TDBName extends string,
-	TSelectedFields extends MySqlSelectFields<TableName>,
+	TSelectedFields extends MySqlSelectFields<string>,
 > =
-	| ((table: BuildAliasTable<TJoinedTable, TableName<TDBName>>) => TSelectedFields)
+	| ((table: BuildAliasTable<TJoinedTable, TDBName>) => TSelectedFields)
 	| TSelectedFields;
 
 export type GetSelectedFields<T extends JoinSelect<any, any, any>> = T extends

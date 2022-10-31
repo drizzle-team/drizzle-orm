@@ -1,54 +1,42 @@
 import { sql } from 'drizzle-orm';
-import { TableName } from 'drizzle-orm/branded-types';
+import { Equal, Expect } from 'tests/utils';
 
-import { Check, check } from '~/checks';
-import { integer, text } from '~/columns';
+import { check } from '~/checks';
 import { foreignKey } from '~/foreign-keys';
-import { Index, index } from '~/indexes';
-import { sqliteTable } from '~/table';
-import { getTableConflictConstraints } from '~/utils';
-import { Equal, Expect } from '../utils';
-
-// const test = sqliteTable({
-// 	name: 'test',
-// 	noRowId: true,
-// 	strict: true,
-// }, {
-// 	id: integer('id').autoIncrement().primaryKey(),
-// });
-
-const test1 = sqliteTable('test1', {
-	id: integer('id').autoIncrement().primaryKey(),
-});
+import { integer, text } from '~/index';
+import { index, uniqueIndex } from '~/indexes';
+import { InferModel, sqliteTable } from '~/table';
 
 export const users = sqliteTable(
 	'users_table',
 	{
-		id: integer('id').primaryKey(),
+		id: integer('id').primaryKey({ autoIncrement: true }),
 		homeCity: integer('home_city')
 			.notNull()
 			.references(() => cities.id),
 		currentCity: integer('current_city').references(() => cities.id),
-		serialNullable: integer('serial1').autoIncrement(),
-		serialNotNull: integer('serial2').autoIncrement().notNull(),
+		serialNullable: integer('serial1'),
+		serialNotNull: integer('serial2').notNull(),
 		class: text<'A' | 'C'>('class').notNull(),
 		subClass: text<'B' | 'D'>('sub_class'),
+		text: text('text'),
 		age1: integer('age1').notNull(),
-		createdAt: integer('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+		createdAt: integer('created_at', { mode: 'timestamp' }).notNull().defaultNow(),
+		enumCol: text<'a' | 'b' | 'c'>('enum_col').notNull(),
 	},
 	(users) => ({
-		usersAge1Idx: index('usersAge1Idx', users.class, {
-			unique: true,
-		}),
-		usersAge2Idx: index('usersAge2Idx', users.class),
-		uniqueClass: index('uniqueClass', [users.class, users.subClass], {
-			unique: true,
-			where: sql`${users.class} is not null`,
-			order: 'desc',
-			nulls: 'last',
-			concurrently: true,
-			using: sql`btree`,
-		}),
+		usersAge1Idx: uniqueIndex('usersAge1Idx').on(users.class),
+		usersAge2Idx: index('usersAge2Idx').on(users.class),
+		uniqueClass: uniqueIndex('uniqueClass')
+			.on(users.class, users.subClass)
+			.where(
+				sql`${users.class} is not null`,
+			),
+		uniqueClassEvenBetterThanPrisma: uniqueIndex('uniqueClass')
+			.on(users.class, users.subClass)
+			.where(
+				sql`${users.class} is not null`,
+			),
 		legalAge: check('legalAge', sql`${users.age1} > 18`),
 		usersClassFK: foreignKey(() => ({ columns: [users.subClass], foreignColumns: [classes.subClass] })),
 		usersClassComplexFK: foreignKey(() => ({
@@ -58,25 +46,63 @@ export const users = sqliteTable(
 	}),
 );
 
-const usersConflictConstraints = getTableConflictConstraints(users);
+export type User = InferModel<typeof users>;
 Expect<
-	Equal<{
-		usersAge1Idx: Index<TableName<'users_table'>, true>;
-		uniqueClass: Index<TableName<'users_table'>, true>;
-		legalAge: Check<TableName<'users_table'>>;
-	}, typeof usersConflictConstraints>
->();
+	Equal<User, {
+		id: number;
+		homeCity: number;
+		currentCity: number | null;
+		serialNullable: number | null;
+		serialNotNull: number;
+		class: 'A' | 'C';
+		subClass: 'B' | 'D' | null;
+		text: string | null;
+		age1: number;
+		createdAt: Date;
+		enumCol: 'a' | 'b' | 'c';
+	}>
+>;
+
+export type NewUser = InferModel<typeof users, 'insert'>;
+Expect<
+	Equal<NewUser, {
+		id?: number;
+		homeCity: number;
+		currentCity?: number | null;
+		serialNullable?: number | null;
+		serialNotNull: number;
+		class: 'A' | 'C';
+		subClass?: 'B' | 'D' | null;
+		text?: string | null;
+		age1: number;
+		createdAt?: Date;
+		enumCol: 'a' | 'b' | 'c';
+	}>
+>;
 
 export const cities = sqliteTable('cities_table', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
 	population: integer('population').default(0),
-}, (cities) => ({
-	citiesNameIdx: index('citiesNameIdx', cities.id),
-}));
+});
 
-const citiesConflictConstraints = getTableConflictConstraints(cities);
-Expect<Equal<{}, typeof citiesConflictConstraints>>();
+export type City = InferModel<typeof cities>;
+Expect<
+	Equal<City, {
+		id: number;
+		name: string;
+		population: number | null;
+	}>
+>;
+
+export type NewCity = InferModel<typeof cities, 'insert'>;
+Expect<
+	Equal<NewCity, {
+		id?: number;
+		name: string;
+		population?: number | null;
+	}>
+>;
 
 export const classes = sqliteTable('classes_table', {
 	id: integer('id').primaryKey(),
@@ -84,5 +110,20 @@ export const classes = sqliteTable('classes_table', {
 	subClass: text<'B' | 'D'>('sub_class').notNull(),
 });
 
-const classesConflictConstraints = getTableConflictConstraints(classes);
-Expect<Equal<{}, typeof classesConflictConstraints>>();
+export type Class = InferModel<typeof classes>;
+Expect<
+	Equal<Class, {
+		id: number;
+		class: 'A' | 'C' | null;
+		subClass: 'B' | 'D';
+	}>
+>;
+
+export type NewClass = InferModel<typeof classes, 'insert'>;
+Expect<
+	Equal<NewClass, {
+		id?: number;
+		class?: 'A' | 'C' | null;
+		subClass: 'B' | 'D';
+	}>
+>;

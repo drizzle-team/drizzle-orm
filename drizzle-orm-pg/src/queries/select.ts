@@ -34,11 +34,9 @@ export class PgSelect<
 > extends QueryPromise<SelectResult<TTable, TResult, TInitialSelectResultFields, TJoinsNotNullable>>
 	implements SQLWrapper
 {
-	protected typeKeeper!: {
-		table: TTable;
-		initialSelect: TInitialSelectResultFields;
-		result: TResult;
-	};
+	declare protected $table: TTable;
+	declare protected $initialSelect: TInitialSelectResultFields;
+	declare protected $result: TResult;
 
 	private config: PgSelectConfig;
 	private joinsNotNullable: Record<string, boolean>;

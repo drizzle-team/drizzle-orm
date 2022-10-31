@@ -1,25 +1,19 @@
-import { UpdateColumnConfig } from 'drizzle-orm';
-
 import { AnyPgColumn } from './columns';
 import { AnyPgTable, PgTable } from './table';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
-export type Reference<TTableName extends string, TForeignTableName extends string> = () => {
-	readonly columns: AnyPgColumn<{ tableName: TTableName }>[];
-	readonly foreignTable: AnyPgTable<{ name: TForeignTableName }>;
-	readonly foreignColumns: AnyPgColumn<{ tableName: TForeignTableName }>[];
+export type Reference = () => {
+	readonly columns: AnyPgColumn[];
+	readonly foreignTable: AnyPgTable;
+	readonly foreignColumns: AnyPgColumn[];
 };
 
-export class ForeignKeyBuilder<TTableName extends string, TForeignTableName extends string> {
-	protected brand!: 'PgForeignKeyBuilder';
-
-	protected typeKeeper!: {
-		foreignTableName: TForeignTableName;
-	};
+export class ForeignKeyBuilder {
+	declare protected $brand: 'PgForeignKeyBuilder';
 
 	/** @internal */
-	reference: Reference<TTableName, TForeignTableName>;
+	reference: Reference;
 
 	/** @internal */
 	_onUpdate: UpdateDeleteAction | undefined;
@@ -29,8 +23,8 @@ export class ForeignKeyBuilder<TTableName extends string, TForeignTableName exte
 
 	constructor(
 		config: () => {
-			columns: AnyPgColumn<{ tableName: TTableName }>[];
-			foreignColumns: AnyPgColumn<{ tableName: TForeignTableName }>[];
+			columns: AnyPgColumn[];
+			foreignColumns: AnyPgColumn[];
 		},
 		actions?: {
 			onUpdate?: UpdateDeleteAction;
@@ -57,22 +51,19 @@ export class ForeignKeyBuilder<TTableName extends string, TForeignTableName exte
 		return this;
 	}
 
-	build(table: AnyPgTable<{ name: TTableName }>): ForeignKey<TTableName, TForeignTableName> {
+	build(table: AnyPgTable): ForeignKey {
 		return new ForeignKey(table, this);
 	}
 }
 
-export type AnyForeignKeyBuilder = ForeignKeyBuilder<string, string>;
+export type AnyForeignKeyBuilder = ForeignKeyBuilder;
 
-export class ForeignKey<TTableName extends string, TForeignTableName extends string> {
-	readonly reference: Reference<TTableName, TForeignTableName>;
+export class ForeignKey {
+	readonly reference: Reference;
 	readonly onUpdate: UpdateDeleteAction | undefined;
 	readonly onDelete: UpdateDeleteAction | undefined;
 
-	constructor(
-		readonly table: AnyPgTable<{ name: TTableName }>,
-		builder: ForeignKeyBuilder<TTableName, TForeignTableName>,
-	) {
+	constructor(readonly table: AnyPgTable, builder: ForeignKeyBuilder) {
 		this.reference = builder.reference;
 		this.onUpdate = builder._onUpdate;
 		this.onDelete = builder._onDelete;
@@ -92,8 +83,6 @@ export class ForeignKey<TTableName extends string, TForeignTableName extends str
 	}
 }
 
-export type AnyForeignKey = ForeignKey<any, any>;
-
 type ColumnsWithTable<
 	TTableName extends string,
 	TColumns extends AnyPgColumn[],
@@ -106,22 +95,16 @@ export type GetColumnsTable<TColumns extends AnyPgColumn | AnyPgColumn[]> = (
 ) extends AnyPgColumn<{ tableName: infer TTableName extends string }> ? TTableName
 	: never;
 
-export type NotUnion<T, T1 = T> = T extends T ? [T1] extends [T] ? T1 : never : never;
-export type NotFKBuilderWithUnion<T> = T extends ForeignKeyBuilder<any, infer TForeignTableName>
-	? [NotUnion<TForeignTableName>] extends [never] ? 'Only columns from the same table are allowed in foreignColumns' : T
-	: never;
-
 export function foreignKey<
 	TTableName extends string,
 	TForeignTableName extends string,
 	TColumns extends [AnyPgColumn<{ tableName: TTableName }>, ...AnyPgColumn<{ tableName: TTableName }>[]],
-	TForeignColumns extends ColumnsWithTable<TForeignTableName, TColumns>,
 >(
 	config: () => {
 		columns: TColumns;
-		foreignColumns: TForeignColumns;
+		foreignColumns: ColumnsWithTable<TForeignTableName, TColumns>;
 	},
-): NotFKBuilderWithUnion<ForeignKeyBuilder<TTableName, TForeignTableName>> {
+): ForeignKeyBuilder {
 	function mappedConfig() {
 		const { columns, foreignColumns } = config();
 		return {
@@ -130,7 +113,5 @@ export function foreignKey<
 		};
 	}
 
-	return new ForeignKeyBuilder<TTableName, TForeignTableName>(mappedConfig) as NotFKBuilderWithUnion<
-		ForeignKeyBuilder<TTableName, TForeignTableName>
-	>;
+	return new ForeignKeyBuilder(mappedConfig);
 }

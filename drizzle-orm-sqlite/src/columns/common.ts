@@ -1,133 +1,116 @@
-import { Column } from 'drizzle-orm';
-import { ColumnData, ColumnHasDefault, ColumnNotNull, TableName, Unwrap } from 'drizzle-orm/branded-types';
-import { ColumnBuilder } from 'drizzle-orm/column-builder';
+import { AnyColumn, Column, ColumnBaseConfig, ColumnConfig } from 'drizzle-orm';
+import {
+	ColumnBuilder,
+	ColumnBuilderBaseConfig,
+	ColumnBuilderConfig,
+	UpdateCBConfig,
+} from 'drizzle-orm/column-builder';
+import { SQL } from 'drizzle-orm/sql';
+import { Update } from 'drizzle-orm/utils';
 import { Simplify } from 'type-fest';
 
-import { SQLiteColumnDriverParam } from '~/branded-types';
-import { AnyForeignKey, AnyForeignKeyBuilder, ForeignKeyBuilder, UpdateDeleteAction } from '~/foreign-keys';
-import { AnySQLiteSQL } from '~/sql';
+import { ForeignKey, ForeignKeyBuilder, UpdateDeleteAction } from '~/foreign-keys';
 import { AnySQLiteTable } from '~/table';
 
-export interface ReferenceConfig<TData extends ColumnData> {
-	ref: () => AnySQLiteColumn<any, TData>;
+export interface ReferenceConfig {
+	ref: () => AnySQLiteColumn;
 	actions: {
 		onUpdate?: UpdateDeleteAction;
 		onDelete?: UpdateDeleteAction;
 	};
 }
 
-export abstract class SQLiteColumnBuilder<
-	TData extends ColumnData,
-	TDriverParam extends SQLiteColumnDriverParam,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
-> extends ColumnBuilder<TData, TDriverParam, TNotNull, THasDefault> {
-	private foreignKeyConfigs: ReferenceConfig<TData>[] = [];
+export abstract class SQLiteColumnBuilder<T extends Partial<ColumnBuilderBaseConfig>> extends ColumnBuilder<T> {
+	private foreignKeyConfigs: ReferenceConfig[] = [];
 
 	constructor(name: string) {
 		super(name);
 	}
 
-	override notNull(): SQLiteColumnBuilder<TData, TDriverParam, ColumnNotNull<true>, THasDefault> {
-		return super.notNull() as AnySQLiteColumnBuilder;
+	override notNull(): SQLiteColumnBuilder<UpdateCBConfig<T, { notNull: true }>> {
+		return super.notNull() as ReturnType<this['notNull']>;
 	}
 
-	override default(
-		value: Unwrap<TData> | AnySQLiteSQL,
-	): SQLiteColumnBuilder<TData, TDriverParam, TNotNull, ColumnHasDefault<true>> {
-		return super.default(value) as AnySQLiteColumnBuilder;
+	override default(value: T['data'] | SQL): SQLiteColumnBuilder<UpdateCBConfig<T, { hasDefault: true }>> {
+		return super.default(value) as ReturnType<this['default']>;
 	}
 
-	override primaryKey(): SQLiteColumnBuilder<
-		TData,
-		TDriverParam,
-		ColumnNotNull<true>,
-		THasDefault
-	> {
-		return super.primaryKey() as AnySQLiteColumnBuilder;
+	override primaryKey(): SQLiteColumnBuilder<UpdateCBConfig<T, { notNull: true }>> {
+		return super.primaryKey() as ReturnType<this['primaryKey']>;
 	}
 
 	references(
-		ref: ReferenceConfig<TData>['ref'],
-		actions: ReferenceConfig<TData>['actions'] = {},
+		ref: ReferenceConfig['ref'],
+		actions: ReferenceConfig['actions'] = {},
 	): this {
 		this.foreignKeyConfigs.push({ ref, actions });
 		return this;
 	}
 
 	/** @internal */
-	buildForeignKeys(column: AnySQLiteColumn, table: AnySQLiteTable): AnyForeignKey[] {
+	buildForeignKeys(column: AnySQLiteColumn, table: AnySQLiteTable): ForeignKey[] {
 		return this.foreignKeyConfigs.map(({ ref, actions }) => {
-			const builder: AnyForeignKeyBuilder = new ForeignKeyBuilder(() => {
-				const foreignColumn = ref();
-				return { columns: [column], foreignColumns: [foreignColumn] };
-			});
-			if (actions.onUpdate) {
-				builder.onUpdate(actions.onUpdate);
-			}
-			if (actions.onDelete) {
-				builder.onDelete(actions.onDelete);
-			}
-			return builder.build(table);
+			return ((ref, actions) => {
+				const builder = new ForeignKeyBuilder(() => {
+					const foreignColumn = ref();
+					return { columns: [column], foreignColumns: [foreignColumn] };
+				});
+				if (actions.onUpdate) {
+					builder.onUpdate(actions.onUpdate);
+				}
+				if (actions.onDelete) {
+					builder.onDelete(actions.onDelete);
+				}
+				return builder.build(table);
+			})(ref, actions);
 		});
 	}
 
 	/** @internal */
-	abstract override build<TTableName extends TableName>(
-		table: AnySQLiteTable<TTableName>,
-	): SQLiteColumn<TTableName, TData, TDriverParam, TNotNull, THasDefault>;
+	abstract build<TTableName extends string>(
+		table: AnySQLiteTable<{ name: TTableName }>,
+	): SQLiteColumn<Pick<T, keyof ColumnBuilderBaseConfig> & { tableName: TTableName }>;
 }
 
-export type AnySQLiteColumnBuilder = SQLiteColumnBuilder<any, any, any, any>;
+export type AnySQLiteColumnBuilder<TPartial extends Partial<ColumnBuilderBaseConfig> = {}> = SQLiteColumnBuilder<
+	Update<ColumnBuilderBaseConfig, TPartial>
+>;
 
-export abstract class SQLiteColumn<
-	TTableName extends TableName<string>,
-	TDataType extends ColumnData,
-	TDriverData extends SQLiteColumnDriverParam,
-	TNotNull extends ColumnNotNull,
-	THasDefault extends ColumnHasDefault,
-> extends Column<TTableName, TDataType, TDriverData, TNotNull, THasDefault> {
+// To understand how to use `SQLiteColumn` and `AnySQLiteColumn`, see `Column` and `AnyColumn` documentation.
+export abstract class SQLiteColumn<T extends Partial<ColumnBaseConfig>> extends Column<T> {
+	declare protected $pgBrand: 'SQLiteColumn';
+	protected abstract $sqliteColumnBrand: string;
+
+	constructor(
+		override readonly table: AnySQLiteTable<{ name: T['tableName'] }>,
+		builder: SQLiteColumnBuilder<Omit<T, 'tableName'>>,
+	) {
+		super(table, builder);
+	}
+
 	unsafe(): AnySQLiteColumn {
-		return this;
+		return this as AnySQLiteColumn;
 	}
 }
 
-export type AnySQLiteColumn<
-	TTableName extends TableName = any,
-	TData extends ColumnData = any,
-	TDriverParam extends SQLiteColumnDriverParam = SQLiteColumnDriverParam,
-	TNotNull extends ColumnNotNull = any,
-	THasDefault extends ColumnHasDefault = any,
-> = SQLiteColumn<TTableName, TData, TDriverParam, TNotNull, THasDefault>;
+export type AnySQLiteColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = SQLiteColumn<
+	Update<ColumnBaseConfig, TPartial>
+>;
 
-export type BuildSQLiteColumn<
-	TTableName extends TableName,
+export type BuildColumn<
+	TTableName extends string,
 	TBuilder extends AnySQLiteColumnBuilder,
-> = TBuilder extends SQLiteColumnBuilder<
-	infer TData,
-	infer TDriverParam,
-	infer TNotNull,
-	infer THasDefault
-> ? SQLiteColumn<TTableName, TData, TDriverParam, TNotNull, THasDefault>
-	: never;
+> = TBuilder extends SQLiteColumnBuilder<infer T> ? SQLiteColumn<Simplify<T & { tableName: TTableName }>> : never;
 
 export type BuildColumns<
-	TTableName extends TableName,
+	TTableName extends string,
 	TConfigMap extends Record<string, AnySQLiteColumnBuilder>,
 > = Simplify<
 	{
-		[Key in keyof TConfigMap]: BuildSQLiteColumn<TTableName, TConfigMap[Key]>;
+		[Key in keyof TConfigMap]: BuildColumn<TTableName, TConfigMap[Key]>;
 	}
 >;
 
-export type ChangeColumnTable<
-	TColumn extends AnySQLiteColumn,
-	TAlias extends TableName,
-> = TColumn extends SQLiteColumn<
-	any,
-	infer TData,
-	infer TDriverParam,
-	infer TNotNull,
-	infer THasDefault
-> ? SQLiteColumn<TAlias, TData, TDriverParam, TNotNull, THasDefault>
+export type ChangeColumnTableName<TColumn extends AnySQLiteColumn, TAlias extends string> = TColumn extends
+	SQLiteColumn<infer T> ? SQLiteColumn<Simplify<Omit<T, 'tableName'> & { tableName: TAlias }>>
 	: never;
