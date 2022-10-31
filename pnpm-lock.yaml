@@ -25,7 +25,6 @@ importers:
     specifiers:
       '@types/pg': ^8.6.1
       '@types/sqlite3': ^3.1.8
-      drizzle-orm: ''
       drizzle-orm-mysql: '>=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0'
       drizzle-orm-pg: '>=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0'
       mysql2: ^2.3.3
@@ -37,7 +36,7 @@ importers:
       uvu: ^0.5.6
     dependencies:
       drizzle-orm-mysql: link:../drizzle-orm-mysql
-      drizzle-orm-pg: 0.12.0-beta.25_whyoc7be7jxzyumzw2maevuwlm
+      drizzle-orm-pg: link:../drizzle-orm-pg
       type-fest: 2.19.0
     devDependencies:
       '@types/pg': 8.6.5
@@ -1660,19 +1659,6 @@ packages:
     dependencies:
       yauzl: 2.10.0
     dev: true
-
-  /drizzle-orm-pg/0.12.0-beta.25_whyoc7be7jxzyumzw2maevuwlm:
-    resolution: {integrity: sha512-62ga1HAobJdnk3E3bfQ9l1rwiVNgDXQZ1rFEUVsr3CVddDlRUdeFwwXOM4v9eXmRA9XqsnUMFFn9hYjYndLAYg==}
-    peerDependencies:
-      drizzle-orm: '>=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0'
-      pg: '>=8 <9'
-    peerDependenciesMeta:
-      pg:
-        optional: true
-    dependencies:
-      drizzle-orm: link:drizzle-orm
-      pg: 8.8.0
-    dev: false
 
   /duplexer3/0.1.5:
     resolution: {integrity: sha512-1A8za6ws41LQgv9HrE/66jyC5yuSjQ3L/KOpFtoBilsAK2iA2wuS5rTt1OCzIvtS2V7nVmedsUU+DGRcjBmOYA==}
