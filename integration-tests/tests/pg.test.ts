@@ -1,8 +1,8 @@
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
-import { DefaultLogger, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { alias, jsonb, PgConnector, PgDatabase, pgTable, serial, text } from 'drizzle-orm-pg';
-import { eq } from 'drizzle-orm/expressions';
+import { asc, eq } from 'drizzle-orm/expressions';
 import getPort from 'get-port';
 import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
@@ -131,6 +131,16 @@ test.serial('insert many', async (t) => {
 	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' });
 	const result = await db.select(usersTable).fields({ id: usersTable.id, name: usersTable.name });
 	t.deepEqual(result, [{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+});
+
+test.serial('select with group by', async (t) => {
+	const { db } = t.context;
+
+	const query = db.select(usersTable)
+		.fields({ id: usersTable.id, name: usersTable.name })
+		.groupBy(usersTable.id, usersTable.name);
+
+	const prepared = db.buildQuery(query);
 });
 
 test.serial('join with alias', async (t) => {

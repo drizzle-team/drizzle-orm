@@ -1,4 +1,5 @@
-import { PreparedQuery, SQL, SQLWrapper } from 'drizzle-orm/sql';
+import { AnyColumn } from 'drizzle-orm';
+import { PreparedQuery, sql, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
 
 import { PgDialect, PgSession } from '~/connection';
@@ -24,6 +25,7 @@ export interface PgSelectConfig {
 	offset?: number;
 	joins: Record<string, JoinsValue>;
 	orderBy: SQL[];
+	groupBy: SQL[];
 }
 
 export class PgSelect<
@@ -55,6 +57,7 @@ export class PgSelect<
 			fields,
 			joins: {},
 			orderBy: [],
+			groupBy: [],
 		};
 		this.joinsNotNullable = { [table[PgTable.Symbol.Name]]: true };
 	}
@@ -131,6 +134,11 @@ export class PgSelect<
 
 	where(where: SQL | undefined): Omit<this, 'where' | `${JoinType}Join`> {
 		this.config.where = where;
+		return this;
+	}
+
+	groupBy(...columns: AnyColumn[]): Omit<this, 'where' | `${JoinType}Join`> {
+		this.config.groupBy = columns.map(column => sql`${column}`)
 		return this;
 	}
 

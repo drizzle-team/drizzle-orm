@@ -252,6 +252,7 @@ export class PgDialect {
 		table,
 		joins,
 		orderBy,
+		groupBy,
 		limit,
 		offset,
 	}: PgSelectConfig): SQL {
@@ -295,11 +296,22 @@ export class PgDialect {
 
 		const orderBySql = orderByList.length > 0 ? sql` order by ${sql.fromList(orderByList)}` : undefined;
 
+		const groupByList: SQL[] = [];
+		groupBy.forEach((groupByValue, index) => {
+			groupByList.push(groupByValue);
+
+			if (index < groupBy.length - 1) {
+				groupByList.push(sql`, `);
+			}
+		});
+
+		const groupBySql = groupByList.length > 0 ? sql` group by ${sql.fromList(groupByList)}` : undefined;
+
 		const limitSql = limit ? sql` limit ${limit}` : undefined;
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		return sql`select ${selection} from ${table}${joinsSql}${whereSql}${orderBySql}${limitSql}${offsetSql}`;
+		return sql`select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	public buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {

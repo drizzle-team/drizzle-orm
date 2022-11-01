@@ -1,4 +1,4 @@
-import { SQL } from 'drizzle-orm/sql';
+import { SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { QueryResult, QueryResultRow } from 'pg';
 
 import { AnyPgTable, InferModel, PgDialect, PgSession, PgTable } from '.';
@@ -27,6 +27,10 @@ export class PgDatabase {
 
 	delete<TTable extends AnyPgTable>(table: TTable): PgDelete<TTable> {
 		return new PgDelete(table, this.session, this.dialect);
+	}
+
+	buildQuery(sqlWrapper: SQLWrapper) {
+		return sqlWrapper.getSQL().toQuery({ escapeName: this.dialect.escapeName, escapeParam: this.dialect.escapeParam });
 	}
 
 	execute<T extends QueryResultRow = QueryResultRow>(query: SQL): Promise<QueryResult<T>> {

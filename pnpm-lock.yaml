@@ -25,9 +25,6 @@ importers:
     specifiers:
       '@types/pg': ^8.6.1
       '@types/sqlite3': ^3.1.8
-      drizzle-orm: ''
-      drizzle-orm-mysql: '>=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0'
-      drizzle-orm-pg: '>=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0'
       mysql2: ^2.3.3
       pg: ^8.6.0
       resolve-tspaths: ^0.7.0
@@ -36,17 +33,15 @@ importers:
       type-fest: ^2.16.0
       uvu: ^0.5.6
     dependencies:
-      drizzle-orm-mysql: link:../drizzle-orm-mysql
-      drizzle-orm-pg: 0.12.0-beta.25_whyoc7be7jxzyumzw2maevuwlm
       type-fest: 2.19.0
     devDependencies:
       '@types/pg': 8.6.5
       '@types/sqlite3': 3.1.8
       mysql2: 2.3.3
       pg: 8.8.0
-      resolve-tspaths: 0.7.5_typescript@4.8.4
+      resolve-tspaths: 0.7.5
       sqlite3: 5.1.2
-      ts-node: 10.9.1_id5sxmpllzol2kp2zgqrnepaum
+      ts-node: 10.9.1
       uvu: 0.5.6
 
   drizzle-orm-mysql:
@@ -66,8 +61,8 @@ importers:
       drizzle-orm: link:../drizzle-orm/src
       mysql2: 2.3.3
       np: 7.6.2
-      resolve-tspaths: 0.7.5_typescript@4.8.4
-      ts-node: 10.9.1_id5sxmpllzol2kp2zgqrnepaum
+      resolve-tspaths: 0.7.5
+      ts-node: 10.9.1
       type-fest: 2.19.0
       uvu: 0.5.6
 
@@ -89,8 +84,8 @@ importers:
       dotenv: 16.0.3
       drizzle-orm: link:../drizzle-orm/src
       pg: 8.8.0
-      resolve-tspaths: 0.7.5_typescript@4.8.4
-      ts-node: 10.9.1_id5sxmpllzol2kp2zgqrnepaum
+      resolve-tspaths: 0.7.5
+      ts-node: 10.9.1
       tsconfig-paths: 4.1.0
       type-fest: 2.19.0
       uvu: 0.5.6
@@ -125,7 +120,7 @@ importers:
       '@types/pg': 8.6.5
       '@types/uuid': 8.3.4
       ava: 4.3.3
-      esbuild-register: 3.3.3_esbuild@0.15.11
+      esbuild-register: 3.3.3
       tsx: 3.10.3
 
 packages:
@@ -1661,19 +1656,6 @@ packages:
       yauzl: 2.10.0
     dev: true
 
-  /drizzle-orm-pg/0.12.0-beta.25_whyoc7be7jxzyumzw2maevuwlm:
-    resolution: {integrity: sha512-62ga1HAobJdnk3E3bfQ9l1rwiVNgDXQZ1rFEUVsr3CVddDlRUdeFwwXOM4v9eXmRA9XqsnUMFFn9hYjYndLAYg==}
-    peerDependencies:
-      drizzle-orm: '>=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0'
-      pg: '>=8 <9'
-    peerDependenciesMeta:
-      pg:
-        optional: true
-    dependencies:
-      drizzle-orm: link:drizzle-orm
-      pg: 8.8.0
-    dev: false
-
   /duplexer3/0.1.5:
     resolution: {integrity: sha512-1A8za6ws41LQgv9HrE/66jyC5yuSjQ3L/KOpFtoBilsAK2iA2wuS5rTt1OCzIvtS2V7nVmedsUU+DGRcjBmOYA==}
     dev: true
@@ -1878,12 +1860,10 @@ packages:
     dev: true
     optional: true
 
-  /esbuild-register/3.3.3_esbuild@0.15.11:
+  /esbuild-register/3.3.3:
     resolution: {integrity: sha512-eFHOkutgIMJY5gc8LUp/7c+LLlDqzNi9T6AwCZ2WKKl3HmT+5ef3ZRyPPxDOynInML0fgaC50yszPKfPnjC0NQ==}
     peerDependencies:
       esbuild: '>=0.12 <1'
-    dependencies:
-      esbuild: 0.15.11
     dev: true
 
   /esbuild-sunos-64/0.15.11:
@@ -4010,7 +3990,7 @@ packages:
     engines: {node: '>=8'}
     dev: true
 
-  /resolve-tspaths/0.7.5_typescript@4.8.4:
+  /resolve-tspaths/0.7.5:
     resolution: {integrity: sha512-PetVD+M+pxZAyNOxIS4xSCnGh3yhZcD3TU2xlHJsauzkB1bRROZPSk02+2QXPk6dTwRoRecvv9/uE/0EIGvBVQ==}
     hasBin: true
     peerDependencies:
@@ -4019,7 +3999,6 @@ packages:
       ansi-colors: 4.1.3
       commander: 9.4.0
       fast-glob: 3.2.11
-      typescript: 4.8.4
     dev: true
 
   /resolve/1.22.1:
@@ -4591,7 +4570,7 @@ packages:
     engines: {node: '>=8'}
     dev: true
 
-  /ts-node/10.9.1_id5sxmpllzol2kp2zgqrnepaum:
+  /ts-node/10.9.1:
     resolution: {integrity: sha512-NtVysVPkxxrwFGUUxGYhfux8k78pQB3JqYBXlLRZgdGUqTO5wU/UyHop5p70iEbGhB7q5KmiZiU0Y3KlJrScEw==}
     hasBin: true
     peerDependencies:
@@ -4610,14 +4589,12 @@ packages:
       '@tsconfig/node12': 1.0.11
       '@tsconfig/node14': 1.0.3
       '@tsconfig/node16': 1.0.3
-      '@types/node': 18.11.2
       acorn: 8.8.0
       acorn-walk: 8.2.0
       arg: 4.1.3
       create-require: 1.1.1
       diff: 4.0.2
       make-error: 1.3.6
-      typescript: 4.8.4
       v8-compile-cache-lib: 3.0.1
       yn: 3.1.1
     dev: true
@@ -4710,12 +4687,6 @@ packages:
     hasBin: true
     dev: true
     patched: true
-
-  /typescript/4.8.4:
-    resolution: {integrity: sha512-QCh+85mCy+h0IGff8r5XWzOVSbBO+KfeYrMQh7NJ58QujwcE22u+NUSmUxqF+un70P9GXKxa2HCNiTTMJknyjQ==}
-    engines: {node: '>=4.2.0'}
-    hasBin: true
-    dev: true
 
   /unique-filename/1.1.1:
     resolution: {integrity: sha512-Vmp0jIp2ln35UTXuryvjzkjGdRyf9b2lTXuSYUiPmzRcl3FDtYqAwOnTJkAngD9SWhnoJzDbTKwaOrZ+STtxNQ==}
@@ -4962,7 +4933,7 @@ packages:
     dev: true
 
   file:drizzle-orm-pg/package.tgz_f5t4vrivp3srmxhv3w4gmumb3i:
-    resolution: {integrity: sha512-djlZJe3mCfCk1NBVJdMOTJJ6bwJtQkGKt/VFXQvEZdZeqQvhLn8+rtmSgVB9pCeeKbfdO7mOA8eZ1UNPC81T3A==, tarball: file:drizzle-orm-pg/package.tgz}
+    resolution: {integrity: sha512-BxIHAxsEr+DLITak7N6ck3d+bBkE4FPx3DI+XIG701fRQhBQP1mA9jPI/X7hBZY0gIyV1qLDCNDro+ulDVI4eg==, tarball: file:drizzle-orm-pg/package.tgz}
     id: file:drizzle-orm-pg/package.tgz
     name: drizzle-orm-pg
     version: 0.12.0-beta.27
@@ -4978,7 +4949,7 @@ packages:
     dev: false
 
   file:drizzle-orm/package.tgz_rgzruoegez5t5kt6mvucnklrge:
-    resolution: {integrity: sha512-+TWCrT1MDkz2/pJt5q3+SOukX4xTU08aXsdAFO8O5lXbuUdgTk969xPxPVgX0EQOXKcy6HUOeWRKDM2U8OI1ZQ==, tarball: file:drizzle-orm/package.tgz}
+    resolution: {integrity: sha512-7AL+lNkA/yNpPXg07X88fOvh/eDzb/jcAVDt0rnvSDtrCi0PoGAhHsM6e56Np0QpQREACcKc8UVBCke7EMs5aQ==, tarball: file:drizzle-orm/package.tgz}
     id: file:drizzle-orm/package.tgz
     name: drizzle-orm
     version: 0.12.0-beta.7
