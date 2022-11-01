@@ -39,15 +39,18 @@
 	},
 	"devDependencies": {
 		"@types/better-sqlite3": "^7.6.0",
+		"@types/node": "*",
 		"better-sqlite3": "^7.6.2",
 		"concurrently": "^7.3.0",
 		"dotenv": "^16.0.0",
 		"drizzle-orm": "link:../drizzle-orm/src",
+		"esbuild": "^0.15.12",
 		"esbuild-register": "^3.3.3",
 		"resolve-tspaths": "^0.7.0",
 		"ts-node": "^10.8.2",
 		"tsconfig-paths": "^4.0.0",
 		"type-fest": "^2.16.0",
+		"typescript": "^4.8.4",
 		"uvu": "^0.5.3"
 	}
 }
