@@ -51,38 +51,38 @@ export class SQLiteDefaultSession implements SQLiteSession {
 	run(query: SQL): RunResult {
 		const preparedQuery = this.dialect.prepareSQL(query);
 		this.logger.logQuery(preparedQuery.sql, preparedQuery.params);
-		const stmt = this.client.prepare(preparedQuery.sql).bind(...preparedQuery.params);
-		return stmt.run();
+		const stmt = this.client.prepare(preparedQuery.sql);
+		return stmt.run(...preparedQuery.params);
 	}
 
 	get<T extends any[] = unknown[]>(query: SQL): T {
 		const preparedQuery = this.dialect.prepareSQL(query);
 		this.logger.logQuery(preparedQuery.sql, preparedQuery.params);
-		const stmt = this.client.prepare(preparedQuery.sql).bind(...preparedQuery.params);
+		const stmt = this.client.prepare(preparedQuery.sql);
 		stmt.raw();
-		return stmt.get();
+		return stmt.get(...preparedQuery.params);
 	}
 
 	getObject<T = unknown>(query: SQL): T {
 		const preparedQuery = this.dialect.prepareSQL(query);
 		this.logger.logQuery(preparedQuery.sql, preparedQuery.params);
-		const stmt = this.client.prepare(preparedQuery.sql).bind(...preparedQuery.params);
-		return stmt.get();
+		const stmt = this.client.prepare(preparedQuery.sql);
+		return stmt.get(...preparedQuery.params);
 	}
 
 	all<T extends any[] = unknown[]>(query: SQL): T[] {
 		const preparedQuery = this.dialect.prepareSQL(query);
 		this.logger.logQuery(preparedQuery.sql, preparedQuery.params);
-		const stmt = this.client.prepare(preparedQuery.sql).bind(...preparedQuery.params);
+		const stmt = this.client.prepare(preparedQuery.sql);
 		stmt.raw();
-		return stmt.all();
+		return stmt.all(...preparedQuery.params);
 	}
 
 	allObjects<T = unknown>(query: SQL): T[] {
 		const preparedQuery = this.dialect.prepareSQL(query);
 		this.logger.logQuery(preparedQuery.sql, preparedQuery.params);
-		const stmt = this.client.prepare(preparedQuery.sql).bind(...preparedQuery.params);
-		return stmt.all();
+		const stmt = this.client.prepare(preparedQuery.sql);
+		return stmt.all(...preparedQuery.params);
 	}
 }
 
