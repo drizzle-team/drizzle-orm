@@ -6,7 +6,7 @@
 	"types": "index.d.ts",
 	"scripts": {
 		"build": "tsc",
-		"pack": "cp package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"pack": "cp ../package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"publish": "pnpm publish package.tgz",
 		"publish:beta": "pnpm publish package.tgz --tag beta --git-checks false",
 		"release:beta": "pnpm build && pnpm version prerelease && pnpm run pack && pnpm publish:beta",
@@ -17,7 +17,7 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/lambda-direct/drizzle-orm.git"
+		"url": "git+https://github.com/drizzle-team/drizzle-orm.git"
 	},
 	"keywords": [
 		"orm",
