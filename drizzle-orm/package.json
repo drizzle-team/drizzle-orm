@@ -1,15 +1,15 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.12.0-beta.11",
+	"version": "0.12.0-beta.13",
 	"description": "Drizzle ORM package for SQL databases",
 	"main": "index.js",
 	"types": "index.d.ts",
 	"scripts": {
 		"build": "concurrently -n build,test \"tsc -p tsconfig.build.json\" pnpm:test",
 		"test": "echo WARN: No tests defined!",
-		"pack": "cp README.md package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"pack": "cp ../README.md package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"publish": "npm publish package.tgz",
-		"publish:beta": "npm publish package.tgz --tag beta --git-checks false",
+		"publish:beta": "npm publish package.tgz --tag beta",
 		"release:beta": "pnpm build && pnpm version prerelease && pnpm run pack && pnpm publish:beta",
 		"build:int": "pnpm build && pnpm run pack"
 	},
