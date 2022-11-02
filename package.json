@@ -5,6 +5,7 @@
 		"build:pg": "pnpm --filter drizzle-orm-pg build",
 		"build:mysql": "pnpm --filter drizzle-orm-mysql build",
 		"build": "pnpm --filter '*' build",
+		"better-install3": "pnpm i --filter '!integration-tests'",
 		"build:int": "pnpm --filter '!integration-tests' --filter '!drizzle-orm-mysql' build:int && pnpm --filter integration-tests build:int",
 		"test": "pnpm --filter integration-tests test",
 		"test:andrew": "pnpm --filter integration-tests test:andrew",
