@@ -2,8 +2,8 @@ import { AsyncDriver, Column, Connector, Dialect, Driver, MigrationMeta, param, 
 import { ColumnData, TableName, Unwrap } from 'drizzle-orm/branded-types';
 import { Name, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
 import { GetTableName, tableColumns, tableNameSym } from 'drizzle-orm/utils';
+import { Simplify } from 'drizzle-orm/utils';
 import { Connection, FieldPacket, Pool } from 'mysql2/promise';
-import { Simplify } from 'type-fest';
 
 import { AnyMySqlColumn, MySqlColumn } from './columns/common';
 import { MySqlSelectFields, MySqlSelectFieldsOrdered, MySqlTableOperations } from './operations';

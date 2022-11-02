@@ -2,7 +2,7 @@ import { AnyColumn, ColumnConfig, GetColumnData } from 'drizzle-orm';
 import { OptionalKeyOnly, RequiredKeyOnly } from 'drizzle-orm/operations';
 import { Table } from 'drizzle-orm/table';
 import { Update } from 'drizzle-orm/utils';
-import { Simplify } from 'type-fest';
+import { Simplify } from 'drizzle-orm/utils';
 
 import { Check, CheckBuilder } from './checks';
 import { AnySQLiteColumn, AnySQLiteColumnBuilder, BuildColumns } from './columns/common';

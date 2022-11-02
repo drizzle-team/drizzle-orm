@@ -2,7 +2,7 @@ import { Column, ColumnBaseConfig } from 'drizzle-orm';
 import { ColumnBuilder, ColumnBuilderBaseConfig, UpdateCBConfig } from 'drizzle-orm/column-builder';
 import { SQL } from 'drizzle-orm/sql';
 import { Update } from 'drizzle-orm/utils';
-import { Simplify } from 'type-fest';
+import { Simplify } from 'drizzle-orm/utils';
 
 import { ForeignKey, ForeignKeyBuilder, UpdateDeleteAction } from '~/foreign-keys';
 import { AnyPgTable } from '~/table';

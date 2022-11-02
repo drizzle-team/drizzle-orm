@@ -3,7 +3,7 @@ import { TableName } from 'drizzle-orm/branded-types';
 import { OptionalKeyOnly, RequiredKeyOnly } from 'drizzle-orm/operations';
 import { Table } from 'drizzle-orm/table';
 import { tableColumns } from 'drizzle-orm/utils';
-import { Simplify } from 'type-fest';
+import { Simplify } from 'drizzle-orm/utils';
 
 import { Check, CheckBuilder } from './checks';
 import { AnyMySqlColumn, AnyMySqlColumnBuilder, BuildMySqlColumns } from './columns/common';

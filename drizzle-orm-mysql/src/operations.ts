@@ -3,7 +3,7 @@ import { ColumnData, TableName, Unwrap } from 'drizzle-orm/branded-types';
 import { SelectFieldsOrdered } from 'drizzle-orm/operations';
 import { AnySQLResponse, SQLResponse } from 'drizzle-orm/sql';
 import { GetTableName, tableColumns, tableNameSym } from 'drizzle-orm/utils';
-import { Simplify } from 'type-fest';
+import { Simplify } from 'drizzle-orm/utils';
 import { AnyMySqlColumn } from './columns';
 import { AnyMySqlDialect, MySqlSession } from './connection';
 import { MySqlDelete, MySqlInsert, MySqlSelect, MySqlUpdate } from './queries';

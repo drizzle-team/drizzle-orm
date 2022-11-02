@@ -1,8 +1,8 @@
 import { GetColumnData } from 'drizzle-orm';
 import { Param, PreparedQuery, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
+import { Simplify } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
-import { Simplify } from 'type-fest';
 
 import { PgDialect, PgSession } from '~/connection';
 import { PgSelectFields, PgSelectFieldsOrdered, SelectResultFields } from '~/operations';

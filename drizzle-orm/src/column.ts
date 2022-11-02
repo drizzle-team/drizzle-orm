@@ -1,4 +1,3 @@
-import { Simplify } from 'type-fest';
 import { ColumnBuilder, ColumnBuilderBaseConfig, ColumnBuilderConfig } from './column-builder';
 import { DriverValueMapper, SQL } from './sql';
 import { Table } from './table';

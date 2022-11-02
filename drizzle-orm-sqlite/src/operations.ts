@@ -1,7 +1,7 @@
 import { GetColumnData } from 'drizzle-orm';
 import { SelectFieldsOrdered } from 'drizzle-orm/operations';
 import { SQL, SQLResponse } from 'drizzle-orm/sql';
-import { Simplify } from 'type-fest';
+import { Simplify } from 'drizzle-orm/utils';
 
 import { AnySQLiteColumn } from './columns/common';
 

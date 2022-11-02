@@ -1,7 +1,7 @@
 import { AnyColumn } from 'drizzle-orm';
 import { TableName, Unwrap } from 'drizzle-orm/branded-types';
 import { GetTableName } from 'drizzle-orm/utils';
-import { Simplify } from 'type-fest';
+import { Simplify } from 'drizzle-orm/utils';
 
 import { AnyPgColumn } from '~/columns';
 import { ChangeColumnTable } from '~/columns/common';

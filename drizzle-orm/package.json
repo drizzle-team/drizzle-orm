@@ -1,14 +1,15 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.12.0-beta.10",
+	"version": "0.12.0-beta.11",
 	"description": "Drizzle ORM package for SQL databases",
 	"main": "index.js",
 	"types": "index.d.ts",
 	"scripts": {
-		"build": "tsc",
-		"pack": "cp ../readme.md dist/ && cp package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
-		"publish": "pnpm publish package.tgz",
-		"publish:beta": "pnpm publish package.tgz --tag beta --git-checks false",
+		"build": "concurrently -n build,test \"tsc -p tsconfig.build.json\" pnpm:test",
+		"test": "echo WARN: No tests defined!",
+		"pack": "cp README.md package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"publish": "npm publish package.tgz",
+		"publish:beta": "npm publish package.tgz --tag beta --git-checks false",
 		"release:beta": "pnpm build && pnpm version prerelease && pnpm run pack && pnpm publish:beta",
 		"build:int": "pnpm build && pnpm run pack"
 	},
@@ -37,10 +38,7 @@
 	"homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
 	"peerDependencies": {
 		"drizzle-orm-mysql": ">=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0",
-		"drizzle-orm-pg": ">=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0",
-		"mysql2": ">=2 <3",
-		"pg": ">=8 <9",
-		"sqlite3": ">=5 <6"
+		"drizzle-orm-pg": ">=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0"
 	},
 	"peerDependenciesMeta": {
 		"mysql2": {
@@ -58,20 +56,5 @@
 		"drizzle-orm-mysql": {
 			"optional": true
 		}
-	},
-	"devDependencies": {
-		"@types/node": "*",
-		"@types/pg": "^8.6.1",
-		"@types/sqlite3": "^3.1.8",
-		"mysql2": "^2.3.3",
-		"pg": "^8.6.0",
-		"resolve-tspaths": "^0.7.0",
-		"sqlite3": "^5.0.8",
-		"ts-node": "^10.8.2",
-		"typescript": "^4.8.4",
-		"uvu": "^0.5.6"
-	},
-	"dependencies": {
-		"type-fest": "^2.16.0"
 	}
 }

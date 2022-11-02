@@ -2,7 +2,7 @@ import { RunResult } from 'better-sqlite3';
 import { GetColumnData } from 'drizzle-orm';
 import { Param, PreparedQuery, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
-import { Simplify } from 'type-fest';
+import { Simplify } from 'drizzle-orm/utils';
 
 import { SQLiteDialect, SQLiteSession } from '~/connection';
 import { SelectResultFields, SQLiteSelectFields, SQLiteSelectFieldsOrdered } from '~/operations';
