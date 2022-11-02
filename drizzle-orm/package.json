@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.12.0-beta.13",
+	"version": "0.12.0-beta.14",
 	"description": "Drizzle ORM package for SQL databases",
 	"main": "index.js",
 	"types": "index.d.ts",
@@ -38,22 +38,17 @@
 	"homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
 	"peerDependencies": {
 		"drizzle-orm-mysql": ">=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0",
-		"drizzle-orm-pg": ">=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0"
+		"drizzle-orm-pg": ">=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0",
+		"drizzle-orm-sqlite": ">=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0"
 	},
 	"peerDependenciesMeta": {
-		"mysql2": {
-			"optional": true
-		},
-		"pg": {
-			"optional": true
-		},
-		"sqlite3": {
+		"drizzle-orm-mysql": {
 			"optional": true
 		},
 		"drizzle-orm-pg": {
 			"optional": true
 		},
-		"drizzle-orm-mysql": {
+		"drizzle-orm-sqlite": {
 			"optional": true
 		}
 	}
