@@ -108,10 +108,10 @@ export class SQLiteTimestampBuilder<
 	}
 
 	/**
-	 * Adds `DEFAULT strftime('%s', 'now')` to the column.
+	 * Adds `DEFAULT (floor((julianday('now') - 2440587.5)*86400000))` to the column, which is the current epoch timestamp in milliseconds.
 	 */
 	defaultNow(): SQLiteTimestampBuilder<UpdateCBConfig<T, { hasDefault: true }>> {
-		return this.default(sql`strftime('%s', 'now')`);
+		return this.default(sql`floor((julianday('now') - 2440587.5)*86400000)`);
 	}
 
 	build<TTableName extends string>(table: AnySQLiteTable<{ name: TTableName }>): SQLiteTimestamp<

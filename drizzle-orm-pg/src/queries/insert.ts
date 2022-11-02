@@ -1,8 +1,8 @@
-import { Name, Param, PreparedQuery, SQL, sql, SQLWrapper } from 'drizzle-orm/sql';
+import { Table } from 'drizzle-orm';
+import { Param, PreparedQuery, SQL, sql, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
 
-import { Check } from '~/checks';
 import { AnyPgColumn } from '~/columns/common';
 import { PgDialect, PgSession } from '~/connection';
 import { IndexColumn } from '~/indexes';
@@ -33,7 +33,7 @@ export class PgInsertBuilder<TTable extends AnyPgTable> {
 	values(...values: PgInsertValue<TTable>[]): PgInsert<TTable> {
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
-			const cols = this.table[PgTable.Symbol.Columns];
+			const cols = this.table[Table.Symbol.Columns];
 			for (const colKey of Object.keys(entry)) {
 				const colValue = entry[colKey as keyof typeof entry];
 				if (colValue instanceof SQL) {

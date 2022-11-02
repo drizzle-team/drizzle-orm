@@ -62,9 +62,7 @@ export class SQL implements SQLWrapper {
 
 		const sqlString = chunks
 			.join('')
-			.trim()
-			.replace(/\s{2,}/g, ' ')
-			.replace(/\n+/g, '');
+			.trim();
 
 		return { sql: sqlString, params };
 	}

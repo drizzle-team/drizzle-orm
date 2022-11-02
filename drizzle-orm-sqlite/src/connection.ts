@@ -9,7 +9,7 @@ import {
 	sql,
 	Table,
 } from 'drizzle-orm';
-import { Name, Param, PreparedQuery, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
+import { Name, Param, param, PreparedQuery, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
 
 import { AnySQLiteColumn, SQLiteColumn } from './columns';
 import { SQLiteDatabase } from './db';
@@ -295,20 +295,34 @@ export class SQLiteDialect {
 		return sql`select ${selection} from ${table}${joinsSql}${whereSql}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	buildInsertQuery({ table, value, onConflict, returning }: SQLiteInsertConfig): SQL {
-		const columns = table[SQLiteTable.Symbol.Columns];
+	buildInsertQuery({ table, values, onConflict, returning }: SQLiteInsertConfig): SQL {
+		const valuesSqlList: ((SQLSourceParam | SQL)[] | SQL)[] = [];
+		const columns: Record<string, AnySQLiteColumn> = table[Table.Symbol.Columns];
+		const colEntries = Object.entries(columns);
+		const insertOrder = colEntries.map(([, column]) => new Name(column.name));
 
-		const insertOrder: Name[] = [];
-		const valuesSqlList: (Param | SQL)[] = [];
-		const entries = Object.entries(value);
-		const colsCount = entries.length;
-		entries.forEach(([key, val], i) => {
-			const column = columns[key]!;
-
-			insertOrder.push(new Name(column.name));
-			valuesSqlList.push(val);
-
-			if (i < colsCount - 1) {
+		values.forEach((value, valueIndex) => {
+			const valueList: (SQLSourceParam | SQL)[] = [];
+			colEntries.forEach(([colKey, col]) => {
+				const colValue = value[colKey];
+				if (typeof colValue === 'undefined') {
+					let defaultValue;
+					if (col.default !== null && col.default !== undefined) {
+						if (col.default instanceof SQL) {
+							defaultValue = col.default;
+						} else {
+							defaultValue = param(col.default, col);
+						}
+					} else {
+						defaultValue = sql`null`;
+					}
+					valueList.push(defaultValue);
+				} else {
+					valueList.push(colValue);
+				}
+			});
+			valuesSqlList.push(valueList);
+			if (valueIndex < values.length - 1) {
 				valuesSqlList.push(sql`, `);
 			}
 		});
@@ -321,7 +335,7 @@ export class SQLiteDialect {
 
 		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
 
-		return sql`insert into ${table} ${insertOrder} values (${valuesSql}${onConflictSql}${returningSql})`;
+		return sql`insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
 	prepareSQL(sql: SQL): PreparedQuery {

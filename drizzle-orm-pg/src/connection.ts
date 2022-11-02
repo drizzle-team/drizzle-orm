@@ -289,7 +289,7 @@ export class PgDialect {
 
 	buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {
 		const valuesSqlList: ((SQLSourceParam | SQL)[] | SQL)[] = [];
-		const columns: Record<string, AnyPgColumn> = table[PgTable.Symbol.Columns];
+		const columns: Record<string, AnyPgColumn> = table[Table.Symbol.Columns];
 		const columnKeys = Object.keys(columns);
 		const insertOrder = Object.values(columns).map((column) => new Name(column.name));
 

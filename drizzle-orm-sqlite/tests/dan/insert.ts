@@ -23,7 +23,7 @@ Expect<Equal<RunResult, typeof insertSql>>;
 
 const insertReturning = db.insert(users).values(newUser).returning().execute();
 
-Expect<Equal<InferModel<typeof users>, typeof insertReturning>>;
+Expect<Equal<InferModel<typeof users>[], typeof insertReturning>>;
 
 const insertReturningPartial = db.insert(users).values(newUser).returning({
 	id: users.id,
@@ -36,7 +36,7 @@ Expect<
 		id: number;
 		homeCity: number;
 		mySubclass: 'B' | 'D' | null;
-	}, typeof insertReturningPartial>
+	}[], typeof insertReturningPartial>
 >;
 
 const insertReturningSql = db.insert(users).values(newUser).returning({
@@ -52,7 +52,7 @@ Expect<
 		homeCity: number;
 		subclassLower: unknown;
 		classLower: string;
-	}, typeof insertReturningSql>
+	}[], typeof insertReturningSql>
 >;
 
 const upsertDoNothing1 = db.insert(users).values(newUser).onConflictDoNothing().execute();

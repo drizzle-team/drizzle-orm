@@ -142,9 +142,9 @@ importers:
     dependencies:
       better-sqlite3: 7.6.2
       dockerode: 3.3.4
-      drizzle-orm: file:drizzle-orm/package.tgz_zvrsyafkshc2sv3qvtjp5eulxy
-      drizzle-orm-pg: file:drizzle-orm-pg/package.tgz_f5t4vrivp3srmxhv3w4gmumb3i
-      drizzle-orm-sqlite: file:drizzle-orm-sqlite/package.tgz_tdg53gsiob3gdkvriiwb6vs63m
+      drizzle-orm: file:drizzle-orm/package.tgz_jvdjinsq4tdpzpha42qdi4lcbe
+      drizzle-orm-pg: file:drizzle-orm-pg/package.tgz_6bmqyqxhthx52tz4ujxlhzmrca
+      drizzle-orm-sqlite: file:drizzle-orm-sqlite/package.tgz_5up5ici3zedy5xtkd5ipnbqw6q
       get-port: 6.1.2
       mysql2: 2.3.3
       pg: 8.8.0
@@ -5133,11 +5133,11 @@ packages:
     engines: {node: '>=12.20'}
     dev: true
 
-  file:drizzle-orm-pg/package.tgz_f5t4vrivp3srmxhv3w4gmumb3i:
-    resolution: {integrity: sha512-NzM9z8ex1fPy85q6s/yBIu9i5tXt/ZllMu/F+91tL4qdZTH0JhQVdRPFknhMK2UMFwqnxVdEE6yHJ2mhK6GnFQ==, tarball: file:drizzle-orm-pg/package.tgz}
+  file:drizzle-orm-pg/package.tgz_6bmqyqxhthx52tz4ujxlhzmrca:
+    resolution: {integrity: sha512-Z15pAz7EMKpq2Lb0HANTTVKXNpiuSqknp4xL72Y+c93rcr/66qJ2nLBEZ0NtfQHOkDBzwTwihTeNfxmM5wxlqA==, tarball: file:drizzle-orm-pg/package.tgz}
     id: file:drizzle-orm-pg/package.tgz
     name: drizzle-orm-pg
-    version: 0.12.0-beta.28
+    version: 0.12.0-beta.29
     peerDependencies:
       drizzle-orm: '>=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0'
       pg: '>=8 <9'
@@ -5145,28 +5145,28 @@ packages:
       pg:
         optional: true
     dependencies:
-      drizzle-orm: file:drizzle-orm/package.tgz_zvrsyafkshc2sv3qvtjp5eulxy
+      drizzle-orm: file:drizzle-orm/package.tgz_jvdjinsq4tdpzpha42qdi4lcbe
       pg: 8.8.0
     dev: false
 
-  file:drizzle-orm-sqlite/package.tgz_tdg53gsiob3gdkvriiwb6vs63m:
-    resolution: {integrity: sha512-kUOjE6I4eoL1wOw8uiRpKjfcIR6q4HAB5pv+v8LsZXICzY1Yx8iy5i/E1zgDu11/tkYV+pUnSuYqziV874/+7A==, tarball: file:drizzle-orm-sqlite/package.tgz}
+  file:drizzle-orm-sqlite/package.tgz_5up5ici3zedy5xtkd5ipnbqw6q:
+    resolution: {integrity: sha512-riVFoIwiSbEhC3oM0om0YPBngq2Rq5hX0RhBqQiQu8wF1mXB18M/qbZdJ2CyPEYSGIqrgpKwtk3PNd+3+WO+SA==, tarball: file:drizzle-orm-sqlite/package.tgz}
     id: file:drizzle-orm-sqlite/package.tgz
     name: drizzle-orm-sqlite
-    version: 0.12.0-beta.0
+    version: 0.12.0-beta.1
     peerDependencies:
       better-sqlite3: '>=7 <8'
       drizzle-orm: '>=0.12.0 <0.13.0'
     dependencies:
       better-sqlite3: 7.6.2
-      drizzle-orm: file:drizzle-orm/package.tgz_zvrsyafkshc2sv3qvtjp5eulxy
+      drizzle-orm: file:drizzle-orm/package.tgz_jvdjinsq4tdpzpha42qdi4lcbe
     dev: false
 
-  file:drizzle-orm/package.tgz_zvrsyafkshc2sv3qvtjp5eulxy:
-    resolution: {integrity: sha512-3asbkHos4jzWwSSLQTfM5qrFrV0k1zeEuB/Ne8807Owv7dnj0V2Ej2HvqT4sdQb3cnhOUkmjHTcsh6MH+X6fvw==, tarball: file:drizzle-orm/package.tgz}
+  file:drizzle-orm/package.tgz_jvdjinsq4tdpzpha42qdi4lcbe:
+    resolution: {integrity: sha512-LVy/blquoxldISB57FRxZqNBCkgJncDPQKaSId6Zv2jloBugUxy/Jy4ZD/AYWMlyKMjRshxqn3iSmnlnkOqCgg==, tarball: file:drizzle-orm/package.tgz}
     id: file:drizzle-orm/package.tgz
     name: drizzle-orm
-    version: 0.12.0-beta.7
+    version: 0.12.0-beta.8
     peerDependencies:
       drizzle-orm-mysql: '>=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0'
       drizzle-orm-pg: '>=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0'
@@ -5185,7 +5185,7 @@ packages:
       sqlite3:
         optional: true
     dependencies:
-      drizzle-orm-pg: file:drizzle-orm-pg/package.tgz_f5t4vrivp3srmxhv3w4gmumb3i
+      drizzle-orm-pg: file:drizzle-orm-pg/package.tgz_6bmqyqxhthx52tz4ujxlhzmrca
       mysql2: 2.3.3
       pg: 8.8.0
       type-fest: 2.19.0
