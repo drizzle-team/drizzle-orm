@@ -69,7 +69,8 @@ export type PgTableWithColumns<T extends TableConfig> =
  * See `GetColumnConfig`.
  */
 export type GetTableConfig<T extends AnyPgTable, TParam extends keyof TableConfig | undefined = undefined> = T extends
-	PgTableWithColumns<infer TConfig> ? TParam extends keyof TConfig ? TConfig[TParam] : TConfig
+	PgTableWithColumns<infer TConfig>
+	? TParam extends undefined ? TConfig : TParam extends keyof TConfig ? TConfig[TParam] : TConfig
 	: never;
 
 export type InferModel<
