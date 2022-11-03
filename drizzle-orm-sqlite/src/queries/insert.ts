@@ -5,9 +5,10 @@ import { mapResultRow } from 'drizzle-orm/utils';
 import { Simplify } from 'drizzle-orm/utils';
 
 import { AnySQLiteColumn } from '~/columns/common';
-import { SQLiteDialect, SQLiteSession } from '~/connection';
+import { SQLiteDialect } from '~/dialect';
 import { IndexColumn } from '~/indexes';
 import { SelectResultFields, SQLiteSelectFields, SQLiteSelectFieldsOrdered } from '~/operations';
+import { SQLiteSession } from '~/session';
 import { AnySQLiteTable, GetTableConfig, InferModel, SQLiteTable } from '~/table';
 import { mapUpdateSet } from '~/utils';
 import { SQLiteUpdateSetSource } from './update';

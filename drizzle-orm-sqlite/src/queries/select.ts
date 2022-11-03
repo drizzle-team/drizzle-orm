@@ -1,8 +1,9 @@
 import { PreparedQuery, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
+import { SQLiteDialect } from '~/dialect';
 
-import { SQLiteDialect, SQLiteSession } from '~/connection';
 import { SelectResultFields, SQLiteSelectFields, SQLiteSelectFieldsOrdered } from '~/operations';
+import { SQLiteSession } from '~/session';
 import { AnySQLiteTable, GetTableConfig, SQLiteTable } from '~/table';
 
 import {

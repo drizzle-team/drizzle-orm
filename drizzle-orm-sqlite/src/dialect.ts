@@ -1,102 +1,17 @@
-import { Database, RunResult } from 'better-sqlite3';
-import {
-	Column,
-	Logger,
-	MigrationConfig,
-	MigrationMeta,
-	NoopLogger,
-	readMigrationFiles,
-	sql,
-	Table,
-} from 'drizzle-orm';
-import { Name, Param, param, PreparedQuery, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
-
-import { AnySQLiteColumn, SQLiteColumn } from './columns';
-import { SQLiteDatabase } from './db';
-import { SQLiteSelectFields, SQLiteSelectFieldsOrdered } from './operations';
+import { Column, MigrationMeta, param, sql, Table } from 'drizzle-orm';
+import { Name, PreparedQuery, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
+import { AnySQLiteColumn, SQLiteColumn } from '~/columns';
+import { SQLiteDatabase } from '~/db';
+import { SQLiteSelectFields, SQLiteSelectFieldsOrdered } from '~/operations';
 import {
 	SQLiteDeleteConfig,
 	SQLiteInsertConfig,
 	SQLiteSelectConfig,
 	SQLiteUpdateConfig,
 	SQLiteUpdateSet,
-} from './queries';
-import { AnySQLiteTable, SQLiteTable } from './table';
-
-export type SQLiteColumnDriverDataType = null | number | bigint | string | Buffer;
-
-export interface SQLiteSession {
-	run(query: SQL): RunResult;
-	get<T extends any[] = unknown[]>(query: SQL): T;
-	getObject<T = unknown>(query: SQL): T;
-	all<T extends any[] = unknown[]>(query: SQL): T[];
-	allObjects<T = unknown>(query: SQL): T[];
-}
-
-export interface SQLiteDefaultSessionOptions {
-	logger?: Logger;
-}
-
-export class SQLiteDefaultSession implements SQLiteSession {
-	private logger: Logger;
-
-	constructor(
-		private client: Database,
-		private dialect: SQLiteDialect,
-		options: SQLiteDefaultSessionOptions = {},
-	) {
-		this.logger = options.logger ?? new NoopLogger();
-	}
-
-	run(query: SQL): RunResult {
-		const preparedQuery = this.dialect.prepareSQL(query);
-		this.logger.logQuery(preparedQuery.sql, preparedQuery.params);
-		const stmt = this.client.prepare(preparedQuery.sql);
-		return stmt.run(...preparedQuery.params);
-	}
-
-	get<T extends any[] = unknown[]>(query: SQL): T {
-		const preparedQuery = this.dialect.prepareSQL(query);
-		this.logger.logQuery(preparedQuery.sql, preparedQuery.params);
-		const stmt = this.client.prepare(preparedQuery.sql);
-		stmt.raw();
-		return stmt.get(...preparedQuery.params);
-	}
-
-	getObject<T = unknown>(query: SQL): T {
-		const preparedQuery = this.dialect.prepareSQL(query);
-		this.logger.logQuery(preparedQuery.sql, preparedQuery.params);
-		const stmt = this.client.prepare(preparedQuery.sql);
-		return stmt.get(...preparedQuery.params);
-	}
-
-	all<T extends any[] = unknown[]>(query: SQL): T[] {
-		const preparedQuery = this.dialect.prepareSQL(query);
-		this.logger.logQuery(preparedQuery.sql, preparedQuery.params);
-		const stmt = this.client.prepare(preparedQuery.sql);
-		stmt.raw();
-		return stmt.all(...preparedQuery.params);
-	}
-
-	allObjects<T = unknown>(query: SQL): T[] {
-		const preparedQuery = this.dialect.prepareSQL(query);
-		this.logger.logQuery(preparedQuery.sql, preparedQuery.params);
-		const stmt = this.client.prepare(preparedQuery.sql);
-		return stmt.all(...preparedQuery.params);
-	}
-}
-
-export interface SQLiteDriverOptions {
-	logger?: Logger;
-}
-
-export class SQLiteDriver {
-	constructor(private client: Database, private dialect: SQLiteDialect, private options: SQLiteDriverOptions = {}) {}
-
-	connect(): SQLiteSession {
-		return new SQLiteDefaultSession(this.client, this.dialect, { logger: this.options.logger });
-	}
-}
+} from '~/queries';
+import { SQLiteSession } from '~/session';
+import { AnySQLiteTable, SQLiteTable } from '~/table';
 
 export class SQLiteDialect {
 	migrate(migrations: MigrationMeta[], session: SQLiteSession): void {
@@ -343,37 +258,5 @@ export class SQLiteDialect {
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 		});
-	}
-}
-
-export interface SQLiteConnectorOptions {
-	logger?: Logger;
-	dialect?: SQLiteDialect;
-	driver?: SQLiteDriver;
-}
-
-export class SQLiteConnector {
-	dialect: SQLiteDialect;
-	driver: SQLiteDriver;
-	private session: SQLiteSession | undefined;
-
-	constructor(client: Database, options: SQLiteConnectorOptions = {}) {
-		this.dialect = new SQLiteDialect();
-		this.driver = new SQLiteDriver(client, this.dialect, { logger: options.logger });
-	}
-
-	private getSession() {
-		return this.session ?? (this.session = this.driver.connect());
-	}
-
-	connect() {
-		const session = this.getSession();
-		return this.dialect.createDB(session);
-	}
-
-	migrate(config: string | MigrationConfig) {
-		const migrations = readMigrationFiles(config);
-		const session = this.getSession();
-		this.dialect.migrate(migrations, session);
 	}
 }

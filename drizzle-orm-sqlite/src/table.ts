@@ -70,7 +70,8 @@ export type SQLiteTableWithColumns<T extends TableConfig> =
  * See `GetColumnConfig`.
  */
 export type GetTableConfig<T extends AnySQLiteTable, TParam extends keyof TableConfig | undefined = undefined> =
-	T extends SQLiteTableWithColumns<infer TConfig> ? TParam extends keyof TConfig ? TConfig[TParam] : TConfig
+	T extends SQLiteTableWithColumns<infer TConfig>
+		? TParam extends undefined ? TConfig : TParam extends keyof TConfig ? TConfig[TParam] : TConfig
 		: never;
 
 export type InferModel<

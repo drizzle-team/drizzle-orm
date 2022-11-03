@@ -5,6 +5,7 @@
 		"baseUrl": ".",
 		"paths": {
 			"~/*": ["src/*"]
-		}
+		},
+		"types": ["bun-types"]
 	}
 }

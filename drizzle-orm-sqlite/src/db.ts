@@ -1,8 +1,10 @@
 import { RunResult } from 'better-sqlite3';
 import { SQL } from 'drizzle-orm/sql';
 
-import { AnySQLiteTable, InferModel, SQLiteDialect, SQLiteSession, SQLiteTable } from '.';
-import { SQLiteDelete, SQLiteInsertBuilder, SQLiteSelect, SQLiteUpdateBuilder } from './queries';
+import { SQLiteDialect } from '~/dialect';
+import { SQLiteDelete, SQLiteInsertBuilder, SQLiteSelect, SQLiteUpdateBuilder } from '~/queries';
+import { SQLiteSession } from '~/session';
+import { AnySQLiteTable, InferModel, SQLiteTable } from '~/table';
 
 export class SQLiteDatabase {
 	constructor(private dialect: SQLiteDialect, private session: SQLiteSession) {}

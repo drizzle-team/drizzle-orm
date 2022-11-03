@@ -108,10 +108,10 @@ export class SQLiteTimestampBuilder<
 	}
 
 	/**
-	 * Adds `DEFAULT (floor((julianday('now') - 2440587.5)*86400000))` to the column, which is the current epoch timestamp in milliseconds.
+	 * Adds `DEFAULT (cast((julianday('now') - 2440587.5)*86400000 as integer))` to the column, which is the current epoch timestamp in milliseconds.
 	 */
 	defaultNow(): SQLiteTimestampBuilder<UpdateCBConfig<T, { hasDefault: true }>> {
-		return this.default(sql`floor((julianday('now') - 2440587.5)*86400000)`);
+		return this.default(sql`cast((julianday('now') - 2440587.5)*86400000 as integer)`);
 	}
 
 	build<TTableName extends string>(table: AnySQLiteTable<{ name: TTableName }>): SQLiteTimestamp<

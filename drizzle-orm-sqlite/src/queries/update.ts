@@ -3,9 +3,10 @@ import { GetColumnData } from 'drizzle-orm';
 import { Param, PreparedQuery, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
 import { Simplify } from 'drizzle-orm/utils';
+import { SQLiteDialect } from '~/dialect';
 
-import { SQLiteDialect, SQLiteSession } from '~/connection';
 import { SelectResultFields, SQLiteSelectFields, SQLiteSelectFieldsOrdered } from '~/operations';
+import { SQLiteSession } from '~/session';
 import { AnySQLiteTable, GetTableConfig, InferModel, SQLiteTable } from '~/table';
 import { mapUpdateSet } from '~/utils';
 

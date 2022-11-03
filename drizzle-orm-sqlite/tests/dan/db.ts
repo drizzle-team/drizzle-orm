@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 
-import { SQLiteConnector } from '~/connection';
+import { SQLiteConnector } from '~/index';
 
 const client = new Database(':memory:');
 

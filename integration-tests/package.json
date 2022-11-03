@@ -13,6 +13,10 @@
 		"build:int": "pnpm add ../drizzle-orm/package.tgz ../drizzle-orm-pg/package.tgz ../drizzle-orm-sqlite/package.tgz"
 	},
 	"ava": {
+		"files": [
+			"tests/**/*.ts",
+			"!tests/bun/**/*"
+		],
 		"extensions": {
 			"ts": "module"
 		},
@@ -42,6 +46,7 @@
 		"get-port": "^6.1.2",
 		"mysql2": "^2.3.3",
 		"pg": "^8.6.0",
-		"uuid": "^9.0.0"
+		"uuid": "^9.0.0",
+		"uvu": "^0.5.6"
 	}
 }
