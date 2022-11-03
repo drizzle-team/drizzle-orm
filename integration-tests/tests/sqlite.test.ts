@@ -251,13 +251,23 @@ test.serial('join with alias', (t) => {
 	}]);
 });
 
-test('insert with spaces', (t) => {
+test.serial('insert with spaces', (t) => {
 	const { db } = t.context;
 
 	db.insert(usersTable).values({ name: sql`'Jo   h     n'` }).execute();
 	const result = db.select(usersTable).fields({ id: usersTable.id, name: usersTable.name }).execute();
 
 	t.deepEqual(result, [{ id: 1, name: 'Jo   h     n' }]);
+});
+
+test.serial('prepared statement', (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ name: 'John' }).execute();
+	const statement = db.select(usersTable).fields({ id: usersTable.id, name: usersTable.name }).prepare();
+	const result = statement.execute();
+
+	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 });
 
 test.after.always((t) => {

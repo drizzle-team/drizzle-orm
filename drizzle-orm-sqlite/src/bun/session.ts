@@ -2,7 +2,7 @@ import { Database } from 'bun:sqlite';
 import { Logger, NoopLogger } from 'drizzle-orm';
 import { SQL } from 'drizzle-orm/sql';
 import { SQLiteDialect } from '~/dialect';
-import { RunResult, SQLiteSession } from '~/session';
+import { RunResult, SQLiteSession, SQLiteStatement } from '~/session';
 
 export interface SQLiteBunSessionOptions {
 	logger?: Logger;
@@ -36,5 +36,11 @@ export class SQLiteBunSession implements SQLiteSession {
 		const preparedQuery = this.dialect.prepareSQL(query);
 		this.logger.logQuery(preparedQuery.sql, preparedQuery.params);
 		return this.client.prepare(preparedQuery.sql, ...preparedQuery.params).all();
+	}
+
+	prepare<T>(query: SQL): SQLiteStatement<T> {
+		const preparedQuery = this.dialect.prepareSQL(query);
+		this.logger.logQuery(preparedQuery.sql, preparedQuery.params);
+		return new SQLiteStatement(this.client.prepare(preparedQuery.sql, ...preparedQuery.params));
 	}
 }

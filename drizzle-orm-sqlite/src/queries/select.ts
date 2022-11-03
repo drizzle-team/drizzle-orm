@@ -3,7 +3,7 @@ import { mapResultRow } from 'drizzle-orm/utils';
 import { SQLiteDialect } from '~/dialect';
 
 import { SelectResultFields, SQLiteSelectFields, SQLiteSelectFieldsOrdered } from '~/operations';
-import { SQLiteSession } from '~/session';
+import { SQLiteSession, SQLiteStatement } from '~/session';
 import { AnySQLiteTable, GetTableConfig, SQLiteTable } from '~/table';
 
 import {
@@ -151,6 +151,10 @@ export class SQLiteSelect<
 	getQuery(): PreparedQuery {
 		const query = this.dialect.buildSelectQuery(this.config);
 		return this.dialect.prepareSQL(query);
+	}
+
+	prepare(): SQLiteStatement<SelectResult<TTable, TResult, TInitialSelectResultFields, TJoinsNotNullable>> {
+		return this.session.prepare(this.getSQL());
 	}
 
 	execute(): SelectResult<TTable, TResult, TInitialSelectResultFields, TJoinsNotNullable> {

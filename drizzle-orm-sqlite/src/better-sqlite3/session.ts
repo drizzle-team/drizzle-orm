@@ -2,7 +2,7 @@ import { Database, RunResult } from 'better-sqlite3';
 import { Logger, NoopLogger } from 'drizzle-orm';
 import { SQL } from 'drizzle-orm/sql';
 import { SQLiteDialect } from '~/dialect';
-import { SQLiteSession } from '~/session';
+import { SQLiteSession, SQLiteStatement } from '~/session';
 
 export interface SQLiteDefaultSessionOptions {
 	logger?: Logger;
@@ -39,5 +39,11 @@ export class SQLiteDefaultSession implements SQLiteSession {
 		this.logger.logQuery(preparedQuery.sql, preparedQuery.params);
 		const stmt = this.client.prepare(preparedQuery.sql);
 		return stmt.all(...preparedQuery.params);
+	}
+
+	prepare<T>(query: SQL): SQLiteStatement<T> {
+		const preparedQuery = this.dialect.prepareSQL(query);
+		this.logger.logQuery(preparedQuery.sql, preparedQuery.params);
+		return new SQLiteStatement(this.client.prepare(preparedQuery.sql).bind(preparedQuery.params));
 	}
 }
