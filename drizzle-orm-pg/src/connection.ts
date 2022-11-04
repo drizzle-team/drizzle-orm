@@ -9,6 +9,7 @@ import {
 	Table,
 } from 'drizzle-orm';
 import { Name, PreparedQuery, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
+import { isIP } from 'net';
 import { Client, Pool, PoolClient, QueryResult, QueryResultRow, types } from 'pg';
 
 import { AnyPgColumn, PgColumn } from './columns';
@@ -205,11 +206,13 @@ export class PgDialect {
 			.map(({ field }, i) => {
 				const chunk: SQLSourceParam[] = [];
 
-				if (field instanceof SQLResponse) {
+				if (field instanceof SQLResponse || field instanceof SQL) {
+					const query = field instanceof SQLResponse ? field.sql : field;
+
 					if (isSingleTable) {
 						chunk.push(
 							new SQL(
-								field.sql.queryChunks.map((c) => {
+								query.queryChunks.map((c) => {
 									if (c instanceof PgColumn) {
 										return new Name(c.name);
 									}
@@ -218,7 +221,7 @@ export class PgDialect {
 							),
 						);
 					} else {
-						chunk.push(field.sql);
+						chunk.push(query);
 					}
 				} else if (field instanceof Column) {
 					if (isSingleTable) {
