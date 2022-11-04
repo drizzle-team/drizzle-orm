@@ -128,11 +128,13 @@ export class SQLiteDialect {
 			.map(({ field }, i) => {
 				const chunk: SQLSourceParam[] = [];
 
-				if (field instanceof SQLResponse) {
+				if (field instanceof SQLResponse || field instanceof SQL) {
+					const query = field instanceof SQLResponse ? field.sql : field;
+
 					if (isSingleTable) {
 						chunk.push(
 							new SQL(
-								field.sql.queryChunks.map((c) => {
+								query.queryChunks.map((c) => {
 									if (c instanceof SQLiteColumn) {
 										return new Name(c.name);
 									}
@@ -141,7 +143,7 @@ export class SQLiteDialect {
 							),
 						);
 					} else {
-						chunk.push(field.sql);
+						chunk.push(query);
 					}
 				} else if (field instanceof Column) {
 					if (isSingleTable) {

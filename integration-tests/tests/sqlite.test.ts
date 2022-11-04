@@ -62,6 +62,60 @@ test.serial('select partial', (t) => {
 	t.deepEqual(result, [{ name: 'John' }]);
 });
 
+test.serial('select sql', async (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ name: 'John' }).execute();
+	const users = db.select(usersTable).fields({
+		name: sql`upper(${usersTable.name})`,
+	}).execute();
+
+	t.deepEqual(users, [{ name: 'JOHN' }]);
+});
+
+test.serial('select typed sql', async (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ name: 'John' }).execute();
+	const users = db.select(usersTable).fields({
+		name: sql`upper(${usersTable.name})`.as<string>(),
+	}).execute();
+
+	t.deepEqual(users, [{ name: 'JOHN' }]);
+});
+
+test.serial('insert returning sql', async (t) => {
+	const { db } = t.context;
+
+	const users = db.insert(usersTable).values({ name: 'John' }).returning({
+		name: sql`upper(${usersTable.name})`,
+	}).execute();
+
+	t.deepEqual(users, [{ name: 'JOHN' }]);
+});
+
+test.serial('delete returning sql', async (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ name: 'John' }).execute();
+	const users = db.delete(usersTable).where(eq(usersTable.name, 'John')).returning({
+		name: sql`upper(${usersTable.name})`,
+	}).execute();
+
+	t.deepEqual(users, [{ name: 'JOHN' }]);
+});
+
+test.serial('update returning sql', async (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ name: 'John' }).execute();
+	const users = db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning({
+		name: sql`upper(${usersTable.name})`,
+	}).execute();
+
+	t.deepEqual(users, [{ name: 'JANE' }]);
+});
+
 test.serial('insert with auto increment', (t) => {
 	const { db } = t.context;
 

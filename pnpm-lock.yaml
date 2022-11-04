@@ -3147,7 +3147,7 @@ packages:
     dev: false
 
   file:drizzle-orm-sqlite/package.tgz_sm7vzkx2vpbjotwkfvyqdiil6y:
-    resolution: {integrity: sha512-DjeT2UlfEpk3qBdr5aGT1tk5rTIhkNe7B2LDoCBEUSkJc4TwR7+1VoGhJvhiHlN5nVuVlHgYrSZd7vka6HyZfQ==, tarball: file:drizzle-orm-sqlite/package.tgz}
+    resolution: {integrity: sha512-oO1G9N0fU9a//qfvdzkSKjFZIzCi7WES3m2GS07QKUy+oalo7tlr/Kpb3q26JY37VLvIL11yo7ZRLsRPXvSQCQ==, tarball: file:drizzle-orm-sqlite/package.tgz}
     id: file:drizzle-orm-sqlite/package.tgz
     name: drizzle-orm-sqlite
     version: 0.12.0-beta.7
