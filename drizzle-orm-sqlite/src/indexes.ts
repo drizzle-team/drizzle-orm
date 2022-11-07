@@ -51,7 +51,7 @@ export class IndexBuilder {
 export class Index {
 	declare protected $brand: 'SQLiteIndex';
 
-	constructor(public readonly config: IndexConfig) {}
+	constructor(readonly config: IndexConfig) {}
 
 	// TODO: move to .onConflict()
 	// set(values: SQLiteUpdateSet<TTable>): { constraintName: string; set: SQLiteUpdateSet<TTable> } {

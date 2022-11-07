@@ -1,5 +1,5 @@
 import { Table } from 'drizzle-orm';
-import { Param, PreparedQuery, SQL, sql, SQLWrapper } from 'drizzle-orm/sql';
+import { Param, Query, SQL, sql, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
 
@@ -67,11 +67,11 @@ export class PgInsert<TTable extends AnyPgTable, TReturn = QueryResult<any>> ext
 		this.config = { table, values };
 	}
 
-	public returning(): Omit<PgInsert<TTable, InferModel<TTable>[]>, 'returning' | `onConflict${string}`>;
-	public returning<TSelectedFields extends PgSelectFields<GetTableConfig<TTable, 'name'>>>(
+	returning(): Omit<PgInsert<TTable, InferModel<TTable>[]>, 'returning' | `onConflict${string}`>;
+	returning<TSelectedFields extends PgSelectFields<GetTableConfig<TTable, 'name'>>>(
 		fields: TSelectedFields,
 	): Omit<PgInsert<TTable, SelectResultFields<TSelectedFields>[]>, 'returning' | `onConflict${string}`>;
-	public returning(fields?: PgSelectFields<GetTableConfig<TTable, 'name'>>): PgInsert<TTable, any> {
+	returning(fields?: PgSelectFields<GetTableConfig<TTable, 'name'>>): PgInsert<TTable, any> {
 		const fieldsToMap: PgSelectFields<GetTableConfig<TTable, 'name'>> = fields
 			?? this.config.table[PgTable.Symbol.Columns] as Record<
 				string,
@@ -110,7 +110,7 @@ export class PgInsert<TTable extends AnyPgTable, TReturn = QueryResult<any>> ext
 		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	getQuery(): PreparedQuery {
+	getQuery(): Query {
 		return this.dialect.prepareSQL(this.getSQL());
 	}
 

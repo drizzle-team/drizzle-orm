@@ -39,7 +39,7 @@ export interface MySqlSession extends Session<MySqlColumnDriverDataType, Promise
 export class MySqlSessionDefault implements MySqlSession {
 	constructor(private client: MySqlClient) {}
 
-	public async query(query: string, params: unknown[]): Promise<MySqlQueryResult> {
+	async query(query: string, params: unknown[]): Promise<MySqlQueryResult> {
 		const result = await this.client.query({
 			sql: query,
 			values: params,
@@ -54,7 +54,7 @@ export class MySqlSessionDefault implements MySqlSession {
 		return result;
 	}
 
-	public async queryObjects<T extends MySqlQueryResult = MySqlQueryResult>(
+	async queryObjects<T extends MySqlQueryResult = MySqlQueryResult>(
 		query: string,
 		params: unknown[],
 	): Promise<MySqlQueryResult> {
@@ -71,7 +71,7 @@ export class MySqlQueryResultDriver implements AsyncDriver<MySqlSession> {
 		return new MySqlSessionDefault(this.client);
 	}
 
-	// public initMappers() {
+	// initMappers() {
 	// 	types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
 	// 	types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
 	// 	types.setTypeParser(types.builtins.DATE, (val) => val);
@@ -160,15 +160,15 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		) as unknown as MySqlDatabase<TDBSchema>;
 	}
 
-	public escapeName(name: string): string {
+	escapeName(name: string): string {
 		return `\`${name}\``;
 	}
 
-	public escapeParam(num: number): string {
+	escapeParam(num: number): string {
 		return `?`;
 	}
 
-	public buildDeleteQuery({ table, where, returning }: MySqlDeleteConfig): AnyMySQL {
+	buildDeleteQuery({ table, where, returning }: MySqlDeleteConfig): AnyMySQL {
 		const returningSql = returning
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
@@ -211,7 +211,7 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		}));
 	}
 
-	public buildUpdateQuery({ table, set, where, returning }: MySqlUpdateConfig): AnyMySQL {
+	buildUpdateQuery({ table, set, where, returning }: MySqlUpdateConfig): AnyMySQL {
 		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
@@ -278,7 +278,7 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		return sql.fromList(chunks);
 	}
 
-	public buildSelectQuery({
+	buildSelectQuery({
 		fields,
 		where,
 		table,
@@ -331,7 +331,7 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		return sql`select ${fieldsSql} from ${table}${joinsSql}${whereSql}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	public buildInsertQuery({
+	buildInsertQuery({
 		table,
 		values,
 		onConflict,
@@ -372,7 +372,7 @@ export class MySqlDialect<TDBSchema extends Record<string, AnyMySqlTable>>
 		return sql`insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
-	public prepareSQL(sql: AnyMySQL): MySqlPreparedQuery {
+	prepareSQL(sql: AnyMySQL): MySqlPreparedQuery {
 		return sql.toQuery<MySqlColumnDriverDataType>({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,

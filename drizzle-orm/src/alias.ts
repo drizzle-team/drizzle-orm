@@ -2,9 +2,9 @@ import { AnyColumn, Column } from './column';
 import { Table } from './table';
 
 export class ColumnAliasProxyHandler<TColumn extends AnyColumn> implements ProxyHandler<TColumn> {
-	public constructor(private table: Table) {}
+	constructor(private table: Table) {}
 
-	public get(columnObj: TColumn, prop: string | symbol, receiver: any): any {
+	get(columnObj: TColumn, prop: string | symbol, receiver: any): any {
 		if (prop === 'table') {
 			return this.table;
 		}
@@ -13,9 +13,9 @@ export class ColumnAliasProxyHandler<TColumn extends AnyColumn> implements Proxy
 }
 
 export class TableAliasProxyHandler implements ProxyHandler<Table> {
-	public constructor(private alias: string) {}
+	constructor(private alias: string) {}
 
-	public get(tableObj: Table, prop: string | symbol, receiver: any): any {
+	get(tableObj: Table, prop: string | symbol, receiver: any): any {
 		if (prop === Table.Symbol.Name) {
 			return this.alias;
 		}

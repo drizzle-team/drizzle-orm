@@ -45,7 +45,7 @@ export abstract class MySqlDateBaseColumn<
 	TNotNull extends boolean,
 	THasDefault extends boolean,
 > extends MySqlColumn<TTableName, TData, TDriverParam, TNotNull, THasDefault> {
-	public readonly hasOnUpdateNow: boolean;
+	readonly hasOnUpdateNow: boolean;
 
 	constructor(
 		table: AnyMySqlTable<TTableName>,

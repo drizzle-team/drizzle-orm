@@ -197,7 +197,7 @@ export class MySqlSelect<
 
 	fullJoin = this.createJoin('full');
 
-	public where(
+	where(
 		where:
 			| ((
 				aliases: TAliases,
@@ -215,17 +215,17 @@ export class MySqlSelect<
 		return this;
 	}
 
-	public orderBy(
+	orderBy(
 		columns: (
 			joins: TAliases,
 		) =>
 			| MySQL<TJoinedDBTableNames | GetTableConfig<TTable, 'name'>>[]
 			| MySQL<TJoinedDBTableNames | GetTableConfig<TTable, 'name'>>,
 	): PickOrderBy<this>;
-	public orderBy(
+	orderBy(
 		...columns: MySQL<TJoinedDBTableNames | GetTableConfig<TTable, 'name'>>[]
 	): PickOrderBy<this>;
-	public orderBy(
+	orderBy(
 		firstColumn: ((joins: TAliases) => AnyMySQL[] | AnyMySQL) | AnyMySQL,
 		...otherColumns: AnyMySQL[]
 	): PickOrderBy<this> {
@@ -241,26 +241,26 @@ export class MySqlSelect<
 		return this;
 	}
 
-	public limit(limit: number): PickLimit<this> {
+	limit(limit: number): PickLimit<this> {
 		this.config.limit = limit;
 		return this;
 	}
 
-	public offset(offset: number): PickOffset<this> {
+	offset(offset: number): PickOffset<this> {
 		this.config.offset = offset;
 		return this;
 	}
 
-	public getSQL(): AnyMySQL {
+	getSQL(): AnyMySQL {
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	public getQuery(): MySqlPreparedQuery {
+	getQuery(): MySqlPreparedQuery {
 		const query = this.dialect.buildSelectQuery(this.config);
 		return this.dialect.prepareSQL(query);
 	}
 
-	public async execute(): Promise<
+	async execute(): Promise<
 		SelectResult<TTable, TResult, TInitialSelectResultFields, TTableNamesMap, TJoinsNotNullable>
 	> {
 		const query = this.dialect.buildSelectQuery(this.config);

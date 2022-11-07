@@ -3,6 +3,7 @@ import Database from 'better-sqlite3';
 import { DefaultLogger, sql } from 'drizzle-orm';
 import { alias, blob, integer, SQLiteConnector, SQLiteDatabase, sqliteTable, text } from 'drizzle-orm-sqlite';
 import { eq } from 'drizzle-orm/expressions';
+import { placeholder } from 'drizzle-orm/sql';
 
 const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey(),
@@ -320,6 +321,54 @@ test.serial('prepared statement', (t) => {
 	db.insert(usersTable).values({ name: 'John' }).execute();
 	const statement = db.select(usersTable).fields({ id: usersTable.id, name: usersTable.name }).prepare();
 	const result = statement.execute();
+
+	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('prepared statement reuse', (t) => {
+	const { db } = t.context;
+
+	const stmt = db.insert(usersTable).values({
+		verified: 1,
+		name: placeholder('name'),
+	}).prepare();
+
+	for (let i = 0; i < 10; i++) {
+		stmt.execute({ name: `John ${i}` });
+	}
+
+	const result = db.select(usersTable).fields({
+		id: usersTable.id,
+		name: usersTable.name,
+		verified: usersTable.verified,
+	}).execute();
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'John 0', verified: 1 },
+		{ id: 2, name: 'John 1', verified: 1 },
+		{ id: 3, name: 'John 2', verified: 1 },
+		{ id: 4, name: 'John 3', verified: 1 },
+		{ id: 5, name: 'John 4', verified: 1 },
+		{ id: 6, name: 'John 5', verified: 1 },
+		{ id: 7, name: 'John 6', verified: 1 },
+		{ id: 8, name: 'John 7', verified: 1 },
+		{ id: 9, name: 'John 8', verified: 1 },
+		{ id: 10, name: 'John 9', verified: 1 },
+	]);
+});
+
+test.serial('prepared statement with placeholder in .where', (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ name: 'John' }).execute();
+	const stmt = db.select(usersTable)
+		.fields({
+			id: usersTable.id,
+			name: usersTable.name,
+		})
+		.where(eq(usersTable.id, placeholder('id')))
+		.prepare();
+	const result = stmt.execute({ id: 1 });
 
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 });

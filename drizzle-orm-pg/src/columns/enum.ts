@@ -40,7 +40,7 @@ export class PgEnumColumn<TTableName extends string, TData extends string>
 	constructor(
 		table: AnyPgTable<{ name: TTableName }>,
 		builder: PgEnumColumnBuilder<TData>,
-		public readonly enumName: string,
+		readonly enumName: string,
 	) {
 		super(table, builder);
 	}

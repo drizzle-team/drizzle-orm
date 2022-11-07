@@ -1,12 +1,12 @@
 import { RunResult } from 'better-sqlite3';
 import { GetColumnData } from 'drizzle-orm';
-import { Param, PreparedQuery, SQL, SQLWrapper } from 'drizzle-orm/sql';
+import { fillPlaceholders, Param, Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
 import { Simplify } from 'drizzle-orm/utils';
 import { SQLiteDialect } from '~/dialect';
 
 import { SelectResultFields, SQLiteSelectFields, SQLiteSelectFieldsOrdered } from '~/operations';
-import { SQLiteSession } from '~/session';
+import { PreparedQuery, SQLiteSession } from '~/session';
 import { AnySQLiteTable, GetTableConfig, InferModel, SQLiteTable } from '~/table';
 import { mapUpdateSet } from '~/utils';
 
@@ -46,6 +46,7 @@ export class SQLiteUpdate<TTable extends AnySQLiteTable, TReturn = RunResult> im
 	declare protected $return: TReturn;
 
 	private config: SQLiteUpdateConfig;
+	private preparedQuery: PreparedQuery | undefined;
 
 	constructor(
 		table: TTable,
@@ -56,16 +57,16 @@ export class SQLiteUpdate<TTable extends AnySQLiteTable, TReturn = RunResult> im
 		this.config = { set, table };
 	}
 
-	public where(where: SQL | undefined): Omit<this, 'where'> {
+	where(where: SQL | undefined): Omit<this, 'where'> {
 		this.config.where = where;
 		return this;
 	}
 
-	public returning(): Omit<SQLiteUpdate<TTable, InferModel<TTable>[]>, 'where' | 'returning'>;
-	public returning<TSelectedFields extends SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>(
+	returning(): Omit<SQLiteUpdate<TTable, InferModel<TTable>[]>, 'where' | 'returning'>;
+	returning<TSelectedFields extends SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>(
 		fields: TSelectedFields,
 	): Omit<SQLiteUpdate<TTable, SelectResultFields<TSelectedFields>[]>, 'where' | 'returning'>;
-	public returning(fields?: SQLiteSelectFields<GetTableConfig<TTable, 'name'>>): SQLiteUpdate<TTable, any> {
+	returning(fields?: SQLiteSelectFields<GetTableConfig<TTable, 'name'>>): SQLiteUpdate<TTable, any> {
 		const orderedFields = this.dialect.orderSelectedFields(
 			fields ?? this.config.table[SQLiteTable.Symbol.Columns],
 			this.config.table[SQLiteTable.Symbol.Name],
@@ -78,12 +79,23 @@ export class SQLiteUpdate<TTable extends AnySQLiteTable, TReturn = RunResult> im
 		return this.dialect.buildUpdateQuery(this.config);
 	}
 
-	public getQuery(): PreparedQuery {
-		return this.dialect.prepareSQL(this.getSQL());
+	getQuery(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
-	execute(): TReturn {
-		const query = this.dialect.buildUpdateQuery(this.config);
+	prepare(): Omit<this, 'prepare'> {
+		if (!this.preparedQuery) {
+			this.preparedQuery = this.session.prepareQuery(this.getQuery());
+		}
+		return this;
+	}
+
+	execute(placeholderValues?: Record<string, unknown>): TReturn {
+		this.prepare();
+		let query = this.preparedQuery!;
+		const params = fillPlaceholders(query.params, placeholderValues ?? {});
+		query = { ...query, params };
+
 		const { returning } = this.config;
 
 		if (returning) {

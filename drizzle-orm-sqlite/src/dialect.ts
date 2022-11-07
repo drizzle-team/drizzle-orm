@@ -1,5 +1,5 @@
 import { Column, MigrationMeta, param, sql, Table } from 'drizzle-orm';
-import { Name, PreparedQuery, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
+import { Name, Query, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
 import { AnySQLiteColumn, SQLiteColumn } from '~/columns';
 import { SQLiteDatabase } from '~/db';
 import { SQLiteSelectFields, SQLiteSelectFieldsOrdered } from '~/operations';
@@ -255,7 +255,7 @@ export class SQLiteDialect {
 		return sql`insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
-	prepareSQL(sql: SQL): PreparedQuery {
+	sqlToQuery(sql: SQL): Query {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,

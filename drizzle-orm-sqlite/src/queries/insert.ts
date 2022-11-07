@@ -1,6 +1,6 @@
 import { RunResult } from 'better-sqlite3';
 import { Table } from 'drizzle-orm';
-import { Name, Param, PreparedQuery, SQL, sql, SQLWrapper } from 'drizzle-orm/sql';
+import { fillPlaceholders, Name, Param, Placeholder, Query, SQL, sql, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
 import { Simplify } from 'drizzle-orm/utils';
 
@@ -8,7 +8,7 @@ import { AnySQLiteColumn } from '~/columns/common';
 import { SQLiteDialect } from '~/dialect';
 import { IndexColumn } from '~/indexes';
 import { SelectResultFields, SQLiteSelectFields, SQLiteSelectFieldsOrdered } from '~/operations';
-import { SQLiteSession } from '~/session';
+import { PreparedQuery, SQLiteSession } from '~/session';
 import { AnySQLiteTable, GetTableConfig, InferModel, SQLiteTable } from '~/table';
 import { mapUpdateSet } from '~/utils';
 import { SQLiteUpdateSetSource } from './update';
@@ -22,7 +22,7 @@ export interface SQLiteInsertConfig<TTable extends AnySQLiteTable = AnySQLiteTab
 
 export type SQLiteInsertValue<TTable extends AnySQLiteTable> = Simplify<
 	{
-		[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL;
+		[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
 	}
 >;
 
@@ -57,6 +57,7 @@ export class SQLiteInsert<TTable extends AnySQLiteTable, TReturn = RunResult> im
 	declare protected $return: TReturn;
 
 	private config: SQLiteInsertConfig<TTable>;
+	private preparedQuery: PreparedQuery | undefined;
 
 	constructor(
 		table: TTable,
@@ -67,11 +68,11 @@ export class SQLiteInsert<TTable extends AnySQLiteTable, TReturn = RunResult> im
 		this.config = { table, values };
 	}
 
-	public returning(): Omit<SQLiteInsert<TTable, InferModel<TTable>[]>, 'returning' | `onConflict${string}`>;
-	public returning<TSelectedFields extends SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>(
+	returning(): Omit<SQLiteInsert<TTable, InferModel<TTable>[]>, 'returning' | `onConflict${string}`>;
+	returning<TSelectedFields extends SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>(
 		fields: TSelectedFields,
 	): Omit<SQLiteInsert<TTable, SelectResultFields<TSelectedFields>[]>, 'returning' | `onConflict${string}`>;
-	public returning(fields?: SQLiteSelectFields<GetTableConfig<TTable, 'name'>>): SQLiteInsert<TTable, any> {
+	returning(fields?: SQLiteSelectFields<GetTableConfig<TTable, 'name'>>): SQLiteInsert<TTable, any> {
 		const fieldsToMap: SQLiteSelectFields<GetTableConfig<TTable, 'name'>> = fields
 			?? this.config.table[SQLiteTable.Symbol.Columns] as Record<
 				string,
@@ -110,12 +111,23 @@ export class SQLiteInsert<TTable extends AnySQLiteTable, TReturn = RunResult> im
 		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	getQuery(): PreparedQuery {
-		return this.dialect.prepareSQL(this.getSQL());
+	getQuery(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
-	execute(): TReturn {
-		const query = this.getSQL();
+	prepare(): Omit<this, 'prepare'> {
+		if (!this.preparedQuery) {
+			this.preparedQuery = this.session.prepareQuery(this.getQuery());
+		}
+		return this;
+	}
+
+	execute(placeholderValues?: Record<string, unknown>): TReturn {
+		this.prepare();
+		let query = this.preparedQuery!;
+		const params = fillPlaceholders(query.params, placeholderValues ?? {});
+		query = { ...query, params };
+
 		const { returning } = this.config;
 		if (returning) {
 			const result = this.session.all(query);

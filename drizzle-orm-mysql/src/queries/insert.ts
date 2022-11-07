@@ -33,11 +33,11 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 		this.config.values = values as MySqlInsertConfig<TTable>['values'];
 	}
 
-	public returning(): Pick<MySqlInsert<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
-	public returning<TSelectedFields extends MySqlSelectFields<GetTableConfig<TTable, 'name'>>>(
+	returning(): Pick<MySqlInsert<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
+	returning<TSelectedFields extends MySqlSelectFields<GetTableConfig<TTable, 'name'>>>(
 		fields: TSelectedFields,
 	): Pick<MySqlInsert<TTable, SelectResultFields<TSelectedFields>[]>, 'getQuery' | 'execute'>;
-	public returning(fields?: MySqlSelectFields<GetTableConfig<TTable, 'name'>>): MySqlInsert<TTable, any> {
+	returning(fields?: MySqlSelectFields<GetTableConfig<TTable, 'name'>>): MySqlInsert<TTable, any> {
 		const fieldsToMap: MySqlSelectFields<GetTableConfig<TTable, 'name'>> = fields
 			?? this.config.table[tableColumns] as Record<string, AnyMySqlColumn<GetTableConfig<TTable, 'name'>>>;
 

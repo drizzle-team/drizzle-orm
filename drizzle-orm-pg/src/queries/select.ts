@@ -1,4 +1,4 @@
-import { PreparedQuery, SQL, SQLWrapper } from 'drizzle-orm/sql';
+import { Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
 
 import { PgDialect, PgSession } from '~/connection';
@@ -151,7 +151,7 @@ export class PgSelect<
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	getQuery(): PreparedQuery {
+	getQuery(): Query {
 		const query = this.dialect.buildSelectQuery(this.config);
 		return this.dialect.prepareSQL(query);
 	}

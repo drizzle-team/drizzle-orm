@@ -1,9 +1,11 @@
 import { RunResult } from 'better-sqlite3';
 import { sql } from 'drizzle-orm';
-import { InferModel } from '~/index';
+import { and, desc, eq, gte } from 'drizzle-orm/expressions';
+import { Placeholder, placeholder } from 'drizzle-orm/sql';
+import { AnySQLiteTable, InferModel } from '~/index';
 import { Equal, Expect } from '../utils';
 import { db } from './db';
-import { NewUser, users } from './tables';
+import { NewUser, User, users } from './tables';
 
 const newUser: NewUser = {
 	homeCity: 1,
@@ -79,3 +81,31 @@ const upsertAll = db.insert(users).values(newUser)
 	})
 	.onConflictDoNothing()
 	.execute();
+
+// type GetPlaceholderName<T> = T extends Placeholder<infer TName, any> ? TName : never;
+
+// type InferPlaceholders<T, TTable extends AnySQLiteTable> = {
+// 	[K in keyof T & keyof InferModel<TTable, 'insert'> as GetPlaceholderName<T[K]>]: T[K] extends Placeholder
+// 		? InferModel<TTable, 'insert'>[K]
+// 		: never;
+// };
+
+// const nUser = {
+// 	homeCity: 1,
+// 	class: 'A',
+// 	age1: placeholder('age'),
+// 	enumCol: 'a',
+// 	serialNotNull: 1,
+// } as const;
+
+// type t = InferPlaceholders<typeof nUser, typeof users>;
+
+// eq(users.id, placeholder('id')): SQL<{id: number}>;
+// and(eq(users.id, placeholder('id'), gte(users.age1, placeholder('age')))): SQL<{id: number, age: number}>;
+
+const stmt = db.select(users)
+	.where(and(eq(users.id, placeholder('id'))))
+	.offset(placeholder('offset'))
+	.limit(placeholder('limit'))
+	.prepare();
+stmt.execute({ limit: 10, offset: 20 });

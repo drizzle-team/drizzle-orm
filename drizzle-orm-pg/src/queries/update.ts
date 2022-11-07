@@ -1,5 +1,5 @@
 import { GetColumnData } from 'drizzle-orm';
-import { Param, PreparedQuery, SQL, SQLWrapper } from 'drizzle-orm/sql';
+import { Param, Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
 import { Simplify } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
@@ -59,16 +59,16 @@ export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> ext
 		this.config = { set, table };
 	}
 
-	public where(where: SQL | undefined): Omit<this, 'where'> {
+	where(where: SQL | undefined): Omit<this, 'where'> {
 		this.config.where = where;
 		return this;
 	}
 
-	public returning(): Omit<PgUpdate<TTable, InferModel<TTable>[]>, 'where' | 'returning'>;
-	public returning<TSelectedFields extends PgSelectFields<GetTableConfig<TTable, 'name'>>>(
+	returning(): Omit<PgUpdate<TTable, InferModel<TTable>[]>, 'where' | 'returning'>;
+	returning<TSelectedFields extends PgSelectFields<GetTableConfig<TTable, 'name'>>>(
 		fields: TSelectedFields,
 	): Omit<PgUpdate<TTable, SelectResultFields<TSelectedFields>[]>, 'where' | 'returning'>;
-	public returning(fields?: PgSelectFields<GetTableConfig<TTable, 'name'>>): PgUpdate<TTable, any> {
+	returning(fields?: PgSelectFields<GetTableConfig<TTable, 'name'>>): PgUpdate<TTable, any> {
 		const orderedFields = this.dialect.orderSelectedFields(
 			fields ?? this.config.table[PgTable.Symbol.Columns],
 			this.config.table[PgTable.Symbol.Name],
@@ -81,7 +81,7 @@ export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> ext
 		return this.dialect.buildUpdateQuery(this.config);
 	}
 
-	public getQuery(): PreparedQuery {
+	getQuery(): Query {
 		return this.dialect.prepareSQL(this.getSQL());
 	}
 

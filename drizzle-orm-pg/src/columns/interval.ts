@@ -9,7 +9,7 @@ export class PgIntervalBuilder<TData extends string = string>
 {
 	constructor(
 		name: string,
-		/** @internal */ public readonly intervalConfig: IntervalConfig,
+		/** @internal */ readonly intervalConfig: IntervalConfig,
 	) {
 		super(name);
 	}
@@ -25,7 +25,7 @@ export class PgInterval<TTableName extends string, TData extends string>
 {
 	protected override $pgColumnBrand!: 'PgTime';
 
-	public readonly config: IntervalConfig;
+	readonly config: IntervalConfig;
 
 	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgIntervalBuilder<TData>) {
 		super(table, builder);

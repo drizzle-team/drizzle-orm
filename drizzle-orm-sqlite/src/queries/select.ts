@@ -1,9 +1,9 @@
-import { PreparedQuery, SQL, SQLWrapper } from 'drizzle-orm/sql';
+import { fillPlaceholders, Placeholder, Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
 import { SQLiteDialect } from '~/dialect';
 
 import { SelectResultFields, SQLiteSelectFields, SQLiteSelectFieldsOrdered } from '~/operations';
-import { SQLiteSession, SQLiteStatement } from '~/session';
+import { PreparedQuery, SQLiteSession } from '~/session';
 import { AnySQLiteTable, GetTableConfig, SQLiteTable } from '~/table';
 
 import {
@@ -20,8 +20,8 @@ export interface SQLiteSelectConfig {
 	fields: SQLiteSelectFieldsOrdered;
 	where?: SQL | undefined;
 	table: AnySQLiteTable;
-	limit?: number;
-	offset?: number;
+	limit?: number | Placeholder;
+	offset?: number | Placeholder;
 	joins: Record<string, JoinsValue>;
 	orderBy: SQL[];
 }
@@ -38,6 +38,7 @@ export class SQLiteSelect<
 
 	private config: SQLiteSelectConfig;
 	private joinsNotNullable: Record<string, boolean>;
+	private preparedQuery: PreparedQuery | undefined;
 
 	constructor(
 		table: SQLiteSelectConfig['table'],
@@ -134,12 +135,12 @@ export class SQLiteSelect<
 		return this;
 	}
 
-	limit(limit: number): Omit<this, 'where' | `${JoinType}Join` | 'limit'> {
+	limit(limit: number | Placeholder): Omit<this, 'where' | `${JoinType}Join` | 'limit'> {
 		this.config.limit = limit;
 		return this;
 	}
 
-	offset(offset: number): Omit<this, 'where' | `${JoinType}Join` | 'offset'> {
+	offset(offset: number | Placeholder): Omit<this, 'where' | `${JoinType}Join` | 'offset'> {
 		this.config.offset = offset;
 		return this;
 	}
@@ -148,18 +149,25 @@ export class SQLiteSelect<
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	getQuery(): PreparedQuery {
+	getQuery(): Query {
 		const query = this.dialect.buildSelectQuery(this.config);
-		return this.dialect.prepareSQL(query);
+		return this.dialect.sqlToQuery(query);
 	}
 
-	prepare(): SQLiteStatement<SelectResult<TTable, TResult, TInitialSelectResultFields, TJoinsNotNullable>> {
-		return this.session.prepare(this.getSQL());
+	prepare(): Omit<this, 'prepare'> {
+		if (!this.preparedQuery) {
+			this.preparedQuery = this.session.prepareQuery(this.getQuery());
+		}
+		return this;
 	}
 
-	execute(): SelectResult<TTable, TResult, TInitialSelectResultFields, TJoinsNotNullable> {
-		const query = this.dialect.buildSelectQuery(this.config);
-		const result = this.session.all(query);
+	execute(
+		placeholderValues?: Record<string, unknown>,
+	): SelectResult<TTable, TResult, TInitialSelectResultFields, TJoinsNotNullable> {
+		this.prepare();
+		const query = this.preparedQuery!;
+		const params = fillPlaceholders(query.params, placeholderValues ?? {});
+		const result = this.session.all({ ...query, params });
 		return result.map((row) => mapResultRow(this.config.fields, row, this.joinsNotNullable)) as SelectResult<
 			TTable,
 			TResult,

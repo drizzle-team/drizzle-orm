@@ -34,9 +34,9 @@ export class IndexBuilder<TTableName extends string> {
 	protected brand!: 'MySqlIndexBuilder';
 
 	constructor(
-		public readonly name: string,
-		public readonly columns: AnyMySqlColumn<TTableName>[],
-		public readonly config: IndexConfig<TTableName> = {},
+		readonly name: string,
+		readonly columns: AnyMySqlColumn<TTableName>[],
+		readonly config: IndexConfig<TTableName> = {},
 	) {}
 
 	build(table: AnyMySqlTable<TTableName>): Index<TTableName> {
@@ -54,9 +54,9 @@ export class Index<TTableName extends string> {
 	readonly config: IndexConfig<TTableName>;
 
 	constructor(
-		public readonly name: string,
-		public readonly table: AnyMySqlTable<TTableName>,
-		public readonly columns: AnyMySqlColumn<TTableName>[],
+		readonly name: string,
+		readonly table: AnyMySqlTable<TTableName>,
+		readonly columns: AnyMySqlColumn<TTableName>[],
 		builder: IndexBuilder<TTableName>,
 	) {
 		this.config = builder.config;

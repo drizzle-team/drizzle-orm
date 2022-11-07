@@ -47,9 +47,9 @@ export class IndexBuilder {
 	declare protected $brand: 'PgIndexBuilder';
 
 	constructor(
-		public readonly name: string,
-		public readonly columns: AnyPgColumn[],
-		public readonly config: IndexConfig = {},
+		readonly name: string,
+		readonly columns: AnyPgColumn[],
+		readonly config: IndexConfig = {},
 	) {}
 
 	build(table: AnyPgTable): Index {
@@ -63,9 +63,9 @@ export class Index {
 	readonly config: IndexConfig;
 
 	constructor(
-		public readonly name: string,
-		public readonly table: AnyPgTable,
-		public readonly columns: AnyPgColumn[],
+		readonly name: string,
+		readonly table: AnyPgTable,
+		readonly columns: AnyPgColumn[],
 		builder: IndexBuilder,
 	) {
 		this.config = builder.config;

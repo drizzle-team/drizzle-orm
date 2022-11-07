@@ -8,7 +8,7 @@ import {
 	sql,
 	Table,
 } from 'drizzle-orm';
-import { Name, PreparedQuery, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
+import { Name, Query, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
 import { isIP } from 'net';
 import { Client, Pool, PoolClient, QueryResult, QueryResultRow, types } from 'pg';
 
@@ -323,7 +323,7 @@ export class PgDialect {
 		return sql`insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
-	prepareSQL(sql: SQL): PreparedQuery {
+	prepareSQL(sql: SQL): Query {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
