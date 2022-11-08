@@ -33,7 +33,7 @@ export class SQLiteBunSession implements SQLiteSession {
 		this.logger.logQuery(preparedQuery.queryString, preparedQuery.params);
 
 		const stmt = preparedQuery.stmt as Statement<unknown>;
-		return stmt.values() as T[];
+		return stmt.values(...preparedQuery.params) as T[];
 	}
 
 	allObjects<T = unknown>(query: SQL | PreparedQuery): T[] {
@@ -41,7 +41,7 @@ export class SQLiteBunSession implements SQLiteSession {
 		this.logger.logQuery(preparedQuery.queryString, preparedQuery.params);
 
 		const stmt = preparedQuery.stmt as Statement<unknown>;
-		return stmt.all();
+		return stmt.all(...preparedQuery.params);
 	}
 
 	prepareQuery(query: Query): PreparedQuery {
