@@ -1,4 +1,4 @@
-import { PreparedQuery, SQL, SQLWrapper } from 'drizzle-orm/sql';
+import { Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
 
@@ -27,16 +27,16 @@ export class PgDelete<TTable extends AnyPgTable, TReturn = QueryResult<any>> ext
 		this.config = { table };
 	}
 
-	public where(where: SQL | undefined): Omit<this, 'where'> {
+	where(where: SQL | undefined): Omit<this, 'where'> {
 		this.config.where = where;
 		return this;
 	}
 
-	public returning(): Omit<PgDelete<TTable, InferModel<TTable>[]>, 'where' | 'returning'>;
-	public returning<TSelectedFields extends PgSelectFields<GetTableConfig<TTable, 'name'>>>(
+	returning(): Omit<PgDelete<TTable, InferModel<TTable>[]>, 'where' | 'returning'>;
+	returning<TSelectedFields extends PgSelectFields<GetTableConfig<TTable, 'name'>>>(
 		fields: TSelectedFields,
 	): Omit<PgDelete<TTable, SelectResultFields<TSelectedFields>[]>, 'where' | 'returning'>;
-	public returning(fields?: PgSelectFields<GetTableConfig<TTable, 'name'>>): PgDelete<TTable, any> {
+	returning(fields?: PgSelectFields<GetTableConfig<TTable, 'name'>>): PgDelete<TTable, any> {
 		const orderedFields = this.dialect.orderSelectedFields(
 			fields ?? this.table[PgTable.Symbol.Columns],
 			this.table[PgTable.Symbol.Name],
@@ -49,7 +49,7 @@ export class PgDelete<TTable extends AnyPgTable, TReturn = QueryResult<any>> ext
 		return this.dialect.buildDeleteQuery(this.config);
 	}
 
-	public getQuery(): PreparedQuery {
+	getQuery(): Query {
 		return this.dialect.prepareSQL(this.getSQL());
 	}
 

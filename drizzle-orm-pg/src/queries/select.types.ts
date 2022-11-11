@@ -1,6 +1,6 @@
 import { AnyColumn } from 'drizzle-orm';
 import { SQL } from 'drizzle-orm/sql';
-import { Simplify } from 'type-fest';
+import { Simplify } from 'drizzle-orm/utils';
 
 import { AnyPgColumn } from '~/columns';
 import { ChangeColumnTableName } from '~/columns/common';

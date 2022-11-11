@@ -3,4 +3,4 @@ packages:
   - drizzle-orm
   - drizzle-orm-pg
   - drizzle-orm-mysql
-  - integration-tests
+  - drizzle-orm-sqlite

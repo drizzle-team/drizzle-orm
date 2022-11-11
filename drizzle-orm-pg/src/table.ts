@@ -1,61 +1,27 @@
 import { GetColumnData } from 'drizzle-orm';
 import { OptionalKeyOnly, RequiredKeyOnly } from 'drizzle-orm/operations';
 import { Table } from 'drizzle-orm/table';
-import { RequiredKeys } from 'drizzle-orm/utils';
-import { Simplify } from 'type-fest';
+import { Update } from 'drizzle-orm/utils';
+import { Simplify } from 'drizzle-orm/utils';
 
-import { AnyCheckBuilder, BuildCheck, Check, CheckBuilder } from './checks';
-import { AnyPgColumn, AnyPgColumnBuilder, BuildPgColumns } from './columns/common';
+import { Check, CheckBuilder } from './checks';
+import { AnyPgColumn, AnyPgColumnBuilder, BuildColumns } from './columns/common';
 import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
-import { AnyIndexBuilder, BuildIndex, Index, IndexBuilder } from './indexes';
+import { Index, IndexBuilder } from './indexes';
 
-export type PgTableExtraConfig<TTableName extends string> = Record<
+export type PgTableExtraConfig = Record<
 	string,
-	AnyIndexBuilder<TTableName> | CheckBuilder<TTableName> | ForeignKeyBuilder<TTableName, string>
+	| IndexBuilder
+	| CheckBuilder
+	| ForeignKeyBuilder
 >;
-
-export type AnyConflictConstraintBuilder<TTableName extends string> =
-	| AnyIndexBuilder<TTableName>
-	| AnyCheckBuilder<TTableName>;
-
-export type BuildConflictConstraint<
-	TConstraint,
-	TTableColumns extends Record<string, AnyPgColumn>,
-> = TConstraint extends IndexBuilder<any, true> ? BuildIndex<TConstraint, TTableColumns>
-	: TConstraint extends AnyCheckBuilder ? BuildCheck<TConstraint>
-	: never;
-
-export type ConflictConstraintKeyOnly<Key, TType> = TType extends AnyCheckBuilder ? Key
-	: TType extends IndexBuilder<any, infer TUnique> ? TUnique extends true ? Key
-		: never
-	: never;
-
-export type BuildConflictConstraints<
-	TConfig extends PgTableExtraConfig<any>,
-	TTableColumns extends Record<string, AnyPgColumn>,
-> = Simplify<
-	{
-		[Key in keyof TConfig as ConflictConstraintKeyOnly<Key, TConfig[Key]>]: BuildConflictConstraint<
-			TConfig[Key],
-			TTableColumns
-		>;
-	}
->;
-
-export type ConflictConstraint<TTableName extends string> =
-	| Index<TTableName, any, true>
-	| Check<TTableName>;
-
-export type ConflictConstraints = Record<string | symbol, ConflictConstraint<string>>;
 
 export interface TableConfig<TName extends string = string> {
 	name: TName;
 	columns: Record<string | symbol, AnyPgColumn<{ tableName: TName }>>;
-	conflictConstraints: ConflictConstraints;
 }
 
-export type UpdateTableConfig<T extends TableConfig, TUpdate extends Partial<TableConfig>> = {} extends TUpdate ? T
-	: RequiredKeys<Omit<T, keyof TUpdate> & Pick<TUpdate, keyof TableConfig>>;
+export type UpdateTableConfig<T extends TableConfig, TUpdate extends Partial<TableConfig>> = Update<T, TUpdate>;
 
 /** @internal */
 export const Indexes = Symbol('Indexes');
@@ -66,35 +32,27 @@ export const ForeignKeys = Symbol('ForeignKeys');
 /** @internal */
 export const Checks = Symbol('Checks');
 
-/** @internal */
-export const ConflictConstraints = Symbol('ConflictConstraints');
-
-export class PgTable<T extends TableConfig> extends Table<T['name']> {
+export class PgTable<T extends Partial<TableConfig>> extends Table<T['name']> {
 	declare protected $columns: T['columns'];
-	declare protected $conflictConstraints: T['conflictConstraints'];
 
 	/** @internal */
 	static override readonly Symbol = Object.assign(Table.Symbol, {
 		Indexes: Indexes as typeof Indexes,
 		ForeignKeys: ForeignKeys as typeof ForeignKeys,
 		Checks: Checks as typeof Checks,
-		ConflictConstraints: ConflictConstraints as typeof ConflictConstraints,
 	});
 
 	/** @internal */
 	override [Table.Symbol.Columns]!: T['columns'];
 
 	/** @internal */
-	[Indexes]: Record<string | symbol, Index<T['name'], any, boolean>> = {};
+	[Indexes]: Record<string | symbol, Index> = {};
 
 	/** @internal */
-	[ForeignKeys]: Record<string | symbol, ForeignKey<T['name'], string>> = {};
+	[ForeignKeys]: Record<string | symbol, ForeignKey> = {};
 
 	/** @internal */
-	[Checks]: Record<string | symbol, Check<T['name']>> = {};
-
-	/** @internal */
-	[ConflictConstraints]: T['conflictConstraints'] = {};
+	[Checks]: Record<string | symbol, Check> = {};
 }
 
 export type AnyPgTable<TPartial extends Partial<TableConfig> = {}> = PgTable<
@@ -111,7 +69,8 @@ export type PgTableWithColumns<T extends TableConfig> =
  * See `GetColumnConfig`.
  */
 export type GetTableConfig<T extends AnyPgTable, TParam extends keyof TableConfig | undefined = undefined> = T extends
-	PgTableWithColumns<infer TConfig> ? TParam extends keyof TConfig ? TConfig[TParam] : TConfig
+	PgTableWithColumns<infer TConfig>
+	? TParam extends undefined ? TConfig : TParam extends keyof TConfig ? TConfig[TParam] : TConfig
 	: never;
 
 export type InferModel<
@@ -145,20 +104,17 @@ export type InferModel<
 export function pgTable<
 	TTableName extends string,
 	TColumnsMap extends Record<string, AnyPgColumnBuilder>,
-	TExtraConfig extends PgTableExtraConfig<TTableName> = {},
 >(
 	name: TTableName,
 	columns: TColumnsMap,
-	extraConfig?: (self: BuildPgColumns<TTableName, TColumnsMap>) => TExtraConfig,
+	extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => PgTableExtraConfig,
 ): PgTableWithColumns<{
 	name: TTableName;
-	columns: BuildPgColumns<TTableName, TColumnsMap>;
-	conflictConstraints: BuildConflictConstraints<TExtraConfig, BuildPgColumns<TTableName, TColumnsMap>>;
+	columns: BuildColumns<TTableName, TColumnsMap>;
 }> {
 	const rawTable = new PgTable<{
 		name: TTableName;
-		columns: BuildPgColumns<TTableName, TColumnsMap>;
-		conflictConstraints: BuildConflictConstraints<TExtraConfig, BuildPgColumns<TTableName, TColumnsMap>>;
+		columns: BuildColumns<TTableName, TColumnsMap>;
 	}>(name);
 
 	const builtColumns = Object.fromEntries(
@@ -169,7 +125,7 @@ export function pgTable<
 			});
 			return [name, column];
 		}),
-	) as BuildPgColumns<TTableName, TColumnsMap>;
+	) as BuildColumns<TTableName, TColumnsMap>;
 
 	rawTable[PgTable.Symbol.Columns] = builtColumns;
 
@@ -179,10 +135,6 @@ export function pgTable<
 
 	if (extraConfig) {
 		const builtConfig = extraConfig(table[PgTable.Symbol.Columns]);
-		table[ConflictConstraints] = builtConfig as unknown as BuildConflictConstraints<
-			TExtraConfig,
-			BuildPgColumns<TTableName, TColumnsMap>
-		>;
 
 		Object.entries(builtConfig).forEach(([name, builder]) => {
 			if (builder instanceof IndexBuilder) {

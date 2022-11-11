@@ -1,33 +1,26 @@
 import { SQL } from 'drizzle-orm/sql';
 import { AnyPgTable } from './table';
 
-export class CheckBuilder<TTableName extends string> {
+export class CheckBuilder {
 	protected brand!: 'PgConstraintBuilder';
 
 	constructor(public name: string, public value: SQL) {}
 
-	build(table: AnyPgTable<{ name: TTableName }>): Check<TTableName> {
+	build(table: AnyPgTable): Check {
 		return new Check(table, this);
 	}
 }
 
-export type AnyCheckBuilder<TTableName extends string = string> = CheckBuilder<TTableName>;
-
-export class Check<TTableName extends string> {
+export class Check {
 	readonly name: string;
 	readonly value: SQL;
 
-	constructor(public table: AnyPgTable<{ name: TTableName }>, builder: CheckBuilder<TTableName>) {
+	constructor(public table: AnyPgTable, builder: CheckBuilder) {
 		this.name = builder.name;
 		this.value = builder.value;
 	}
 }
 
-export type BuildCheck<T extends AnyCheckBuilder> = T extends CheckBuilder<infer TTableName> ? Check<TTableName>
-	: never;
-
-export type AnyCheck = Check<string>;
-
-export function check<TTableName extends string>(name: string, value: SQL): CheckBuilder<TTableName> {
+export function check(name: string, value: SQL): CheckBuilder {
 	return new CheckBuilder(name, value);
 }

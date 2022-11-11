@@ -1,7 +1,7 @@
 import { TableAliasProxyHandler } from 'drizzle-orm/alias';
 import { BuildAliasTable } from './queries/select.types';
 
-import { AnyPgTable, GetTableConfig } from './table';
+import { AnyPgTable } from './table';
 
 export function alias<TTable extends AnyPgTable, TAlias extends string>(
 	table: TTable,

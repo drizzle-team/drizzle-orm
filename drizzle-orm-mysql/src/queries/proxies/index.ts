@@ -3,9 +3,9 @@ import { AnyMySqlColumn } from '~/columns/common';
 import { AnyMySqlTable } from '~/table';
 
 export class ColumnProxyHandler<TColumn extends AnyMySqlColumn> implements ProxyHandler<TColumn> {
-	public constructor(private table: AnyMySqlTable) {}
+	constructor(private table: AnyMySqlTable) {}
 
-	public get(columnObj: TColumn, prop: string | symbol, receiver: any): any {
+	get(columnObj: TColumn, prop: string | symbol, receiver: any): any {
 		if (prop === 'table') {
 			return this.table;
 		}
@@ -14,9 +14,9 @@ export class ColumnProxyHandler<TColumn extends AnyMySqlColumn> implements Proxy
 }
 
 export class TableProxyHandler<TJoinedTable extends AnyMySqlTable> implements ProxyHandler<TJoinedTable> {
-	public constructor(private alias: string) {}
+	constructor(private alias: string) {}
 
-	public get(tableObj: TJoinedTable, prop: string | symbol, receiver: any): any {
+	get(tableObj: TJoinedTable, prop: string | symbol, receiver: any): any {
 		if (prop === tableNameSym) {
 			return this.alias;
 		}

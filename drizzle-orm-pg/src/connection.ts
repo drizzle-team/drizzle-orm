@@ -4,11 +4,12 @@ import {
 	MigrationConfig,
 	MigrationMeta,
 	NoopLogger,
-	param,
 	readMigrationFiles,
 	sql,
+	Table,
 } from 'drizzle-orm';
-import { Name, PreparedQuery, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
+import { Name, Query, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
+import { isIP } from 'net';
 import { Client, Pool, PoolClient, QueryResult, QueryResultRow, types } from 'pg';
 
 import { AnyPgColumn, PgColumn } from './columns';
@@ -40,14 +41,14 @@ export interface PgDefaultSessionOptions {
 	logger?: Logger;
 }
 
-export class PgDefaultSession {
+export class PgDefaultSession implements PgSession {
 	private logger: Logger;
 
 	constructor(private client: PgClient, options: PgDefaultSessionOptions = {}) {
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
-	public async query(query: string, params: unknown[]): Promise<QueryResult> {
+	async query(query: string, params: unknown[]): Promise<QueryResult> {
 		this.logger.logQuery(query, params);
 		const result = await this.client.query({
 			rowMode: 'array',
@@ -57,7 +58,7 @@ export class PgDefaultSession {
 		return result;
 	}
 
-	public async queryObjects<T extends QueryResultRow>(
+	async queryObjects<T extends QueryResultRow>(
 		query: string,
 		params: unknown[],
 	): Promise<QueryResult<T>> {
@@ -78,7 +79,7 @@ export class PgDriver {
 		return new PgDefaultSession(this.client, { logger: this.options.logger });
 	}
 
-	public initMappers() {
+	initMappers() {
 		types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
 		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
 		types.setTypeParser(types.builtins.DATE, (val) => val);
@@ -129,22 +130,18 @@ export class PgDialect {
 	}
 
 	createDB(session: PgSession): PgDatabase {
-		return this.createPGDB(session);
-	}
-
-	createPGDB(session: PgSession): PgDatabase {
 		return new PgDatabase(this, session);
 	}
 
-	public escapeName(name: string): string {
+	escapeName(name: string): string {
 		return `"${name}"`;
 	}
 
-	public escapeParam(num: number): string {
+	escapeParam(num: number): string {
 		return `$${num + 1}`;
 	}
 
-	public buildDeleteQuery({ table, where, returning }: PgDeleteConfig): SQL {
+	buildDeleteQuery({ table, where, returning }: PgDeleteConfig): SQL {
 		const returningSql = returning
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
@@ -161,7 +158,7 @@ export class PgDialect {
 		return sql.fromList(
 			setEntries
 				.map(([colName, value], i): SQL[] => {
-					const col: AnyPgColumn = table[PgTable.Symbol.Columns][colName]!;
+					const col: AnyPgColumn = table[Table.Symbol.Columns][colName]!;
 					const res = sql`${new Name(col.name)} = ${value}`;
 					if (i < setSize - 1) {
 						return [res, sql.raw(', ')];
@@ -172,14 +169,11 @@ export class PgDialect {
 		);
 	}
 
-	orderSelectedFields(
-		fields: PgSelectFields<string>,
-		resultTableName: string,
-	): PgSelectFieldsOrdered {
+	orderSelectedFields(fields: PgSelectFields<string>, resultTableName: string): PgSelectFieldsOrdered {
 		return Object.entries(fields).map(([name, field]) => ({ name, resultTableName, field }));
 	}
 
-	public buildUpdateQuery({ table, set, where, returning }: PgUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, returning }: PgUpdateConfig): SQL {
 		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
@@ -212,11 +206,13 @@ export class PgDialect {
 			.map(({ field }, i) => {
 				const chunk: SQLSourceParam[] = [];
 
-				if (field instanceof SQLResponse) {
+				if (field instanceof SQLResponse || field instanceof SQL) {
+					const query = field instanceof SQLResponse ? field.sql : field;
+
 					if (isSingleTable) {
 						chunk.push(
 							new SQL(
-								field.sql.queryChunks.map((c) => {
+								query.queryChunks.map((c) => {
 									if (c instanceof PgColumn) {
 										return new Name(c.name);
 									}
@@ -225,7 +221,7 @@ export class PgDialect {
 							),
 						);
 					} else {
-						chunk.push(field.sql);
+						chunk.push(query);
 					}
 				} else if (field instanceof Column) {
 					if (isSingleTable) {
@@ -246,16 +242,7 @@ export class PgDialect {
 		return sql.fromList(chunks);
 	}
 
-	public buildSelectQuery({
-		fields,
-		where,
-		table,
-		joins,
-		orderBy,
-		groupBy,
-		limit,
-		offset,
-	}: PgSelectConfig): SQL {
+	buildSelectQuery({ fields, where, table, joins, orderBy, limit, offset }: PgSelectConfig): SQL {
 		const joinKeys = Object.keys(joins);
 
 		const selection = this.buildSelection(fields, { isSingleTable: joinKeys.length === 0 });
@@ -314,9 +301,9 @@ export class PgDialect {
 		return sql`select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	public buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {
+	buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {
 		const valuesSqlList: ((SQLSourceParam | SQL)[] | SQL)[] = [];
-		const columns: Record<string, AnyPgColumn> = table[PgTable.Symbol.Columns];
+		const columns: Record<string, AnyPgColumn> = table[Table.Symbol.Columns];
 		const columnKeys = Object.keys(columns);
 		const insertOrder = Object.values(columns).map((column) => new Name(column.name));
 
@@ -347,7 +334,7 @@ export class PgDialect {
 		return sql`insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
-	public prepareSQL(sql: SQL): PreparedQuery {
+	prepareSQL(sql: SQL): Query {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,

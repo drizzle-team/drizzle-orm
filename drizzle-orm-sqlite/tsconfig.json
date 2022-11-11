@@ -1,0 +1,11 @@
+{
+	"extends": "../tsconfig.json",
+	"compilerOptions": {
+		"outDir": "./dist",
+		"baseUrl": ".",
+		"paths": {
+			"~/*": ["src/*"]
+		},
+		"types": ["bun-types"]
+	}
+}

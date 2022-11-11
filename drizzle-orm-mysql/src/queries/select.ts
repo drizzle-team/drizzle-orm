@@ -83,7 +83,7 @@ export class MySqlSelect<
 			TJoinedTable extends AnyMySqlTable<TableName<keyof TTableNamesMap & string>>,
 			TDBName extends Unwrap<GetTableConfig<TJoinedTable, 'name'>>,
 			TJoinedName extends TTableNamesMap[TDBName],
-			TSelect extends JoinSelect<TJoinedTable, TJoinedName, MySqlSelectFields<TableName>> = JoinSelect<
+			TSelect extends JoinSelect<TJoinedTable, TJoinedName, MySqlSelectFields<string>> = JoinSelect<
 				TJoinedTable,
 				TJoinedName,
 				GetTableColumns<TJoinedTable>
@@ -104,7 +104,7 @@ export class MySqlSelect<
 		function join<
 			TJoinedTable extends AnyMySqlTable<TableName<keyof TTableNamesMap & string>>,
 			TJoinedName extends string,
-			TSelect extends JoinSelect<TJoinedTable, TJoinedName, MySqlSelectFields<TableName>> = JoinSelect<
+			TSelect extends JoinSelect<TJoinedTable, TJoinedName, MySqlSelectFields<string>> = JoinSelect<
 				TJoinedTable,
 				TJoinedName,
 				GetTableColumns<TJoinedTable>
@@ -197,14 +197,14 @@ export class MySqlSelect<
 
 	fullJoin = this.createJoin('full');
 
-	public where(
+	where(
 		where:
 			| ((
 				aliases: TAliases,
 			) => MySQL<
-				TableName<TJoinedDBTableNames> | TableName<keyof TAliases & string> | GetTableConfig<TTable, 'name'> | TableName
+				TJoinedDBTableNames | TableName<keyof TAliases & string> | GetTableConfig<TTable, 'name'> | TableName
 			>)
-			| MySQL<TableName<TJoinedDBTableNames> | GetTableConfig<TTable, 'name'> | TableName>
+			| MySQL<TJoinedDBTableNames | GetTableConfig<TTable, 'name'> | string>
 			| undefined,
 	): PickWhere<this> {
 		if (where instanceof SQL) {
@@ -215,17 +215,17 @@ export class MySqlSelect<
 		return this;
 	}
 
-	public orderBy(
+	orderBy(
 		columns: (
 			joins: TAliases,
 		) =>
-			| MySQL<TableName<TJoinedDBTableNames> | GetTableConfig<TTable, 'name'>>[]
-			| MySQL<TableName<TJoinedDBTableNames> | GetTableConfig<TTable, 'name'>>,
+			| MySQL<TJoinedDBTableNames | GetTableConfig<TTable, 'name'>>[]
+			| MySQL<TJoinedDBTableNames | GetTableConfig<TTable, 'name'>>,
 	): PickOrderBy<this>;
-	public orderBy(
-		...columns: MySQL<TableName<TJoinedDBTableNames> | GetTableConfig<TTable, 'name'>>[]
+	orderBy(
+		...columns: MySQL<TJoinedDBTableNames | GetTableConfig<TTable, 'name'>>[]
 	): PickOrderBy<this>;
-	public orderBy(
+	orderBy(
 		firstColumn: ((joins: TAliases) => AnyMySQL[] | AnyMySQL) | AnyMySQL,
 		...otherColumns: AnyMySQL[]
 	): PickOrderBy<this> {
@@ -241,26 +241,26 @@ export class MySqlSelect<
 		return this;
 	}
 
-	public limit(limit: number): PickLimit<this> {
+	limit(limit: number): PickLimit<this> {
 		this.config.limit = limit;
 		return this;
 	}
 
-	public offset(offset: number): PickOffset<this> {
+	offset(offset: number): PickOffset<this> {
 		this.config.offset = offset;
 		return this;
 	}
 
-	public getSQL(): AnyMySQL {
+	getSQL(): AnyMySQL {
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	public getQuery(): MySqlPreparedQuery {
+	getQuery(): MySqlPreparedQuery {
 		const query = this.dialect.buildSelectQuery(this.config);
 		return this.dialect.prepareSQL(query);
 	}
 
-	public async execute(): Promise<
+	async execute(): Promise<
 		SelectResult<TTable, TResult, TInitialSelectResultFields, TTableNamesMap, TJoinsNotNullable>
 	> {
 		const query = this.dialect.buildSelectQuery(this.config);

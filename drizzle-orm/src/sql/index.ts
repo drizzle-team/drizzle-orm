@@ -13,14 +13,15 @@ export type Chunk =
 	| Table
 	| AnyColumn
 	| Name
-	| Param;
+	| Param
+	| Placeholder;
 
 export interface BuildQueryConfig {
 	escapeName(name: string): string;
 	escapeParam(num: number, value: unknown): string;
 }
 
-export interface PreparedQuery {
+export interface Query {
 	sql: string;
 	params: unknown[];
 }
@@ -36,9 +37,9 @@ export function isSQLWrapper(param: unknown): param is SQLWrapper {
 export class SQL implements SQLWrapper {
 	declare protected $brand: 'SQL';
 
-	constructor(public readonly queryChunks: Chunk[]) {}
+	constructor(readonly queryChunks: Chunk[]) {}
 
-	public toQuery({ escapeName, escapeParam }: BuildQueryConfig): PreparedQuery {
+	toQuery({ escapeName, escapeParam }: BuildQueryConfig): Query {
 		const params: unknown[] = [];
 
 		const chunks = this.queryChunks.map((chunk) => {
@@ -62,9 +63,7 @@ export class SQL implements SQLWrapper {
 
 		const sqlString = chunks
 			.join('')
-			.trim()
-			.replace(/\s{2,}/g, ' ')
-			.replace(/\n+/g, '');
+			.trim();
 
 		return { sql: sqlString, params };
 	}
@@ -100,7 +99,7 @@ export type GetDecoderColumnData<T> = T extends
 export class Name {
 	protected brand!: 'Name';
 
-	constructor(public readonly value: string) {}
+	constructor(readonly value: string) {}
 }
 
 export interface DriverValueDecoder<TData, TDriverParam> {
@@ -158,7 +157,8 @@ export type SQLSourceParam =
 	| Param
 	| Name
 	| undefined
-	| FakePrimitiveParam;
+	| FakePrimitiveParam
+	| Placeholder;
 
 function buildChunksFromParam(param: SQLSourceParam): Chunk[] {
 	if (Array.isArray(param)) {
@@ -227,4 +227,28 @@ export class SQLResponse<TValue = unknown> {
 	declare protected $brand: 'SQLResponse';
 
 	constructor(readonly sql: SQL, readonly decoder: DriverValueDecoder<TValue, any>) {}
+}
+
+export class Placeholder<TName extends string = string, TValue = any> {
+	declare protected $brand: 'Placeholder';
+	declare protected $type: TValue;
+
+	constructor(readonly name: TName) {}
+}
+
+export function placeholder<TName extends string>(name: TName): Placeholder<TName> {
+	return new Placeholder(name);
+}
+
+export function fillPlaceholders(params: unknown[], values: Record<string, unknown>): unknown[] {
+	return params.map((p) => {
+		if (p instanceof Placeholder) {
+			if (!(p.name in values)) {
+				throw new Error(`No value for placeholder "${p.name}" was provided`);
+			}
+			return values[p.name];
+		} else {
+			return p;
+		}
+	});
 }

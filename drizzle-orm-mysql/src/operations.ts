@@ -3,7 +3,7 @@ import { ColumnData, TableName, Unwrap } from 'drizzle-orm/branded-types';
 import { SelectFieldsOrdered } from 'drizzle-orm/operations';
 import { AnySQLResponse, SQLResponse } from 'drizzle-orm/sql';
 import { GetTableName, tableColumns, tableNameSym } from 'drizzle-orm/utils';
-import { Simplify } from 'type-fest';
+import { Simplify } from 'drizzle-orm/utils';
 import { AnyMySqlColumn } from './columns';
 import { AnyMySqlDialect, MySqlSession } from './connection';
 import { MySqlDelete, MySqlInsert, MySqlSelect, MySqlUpdate } from './queries';
@@ -15,19 +15,19 @@ export type MySqlSelectFields<
 > = {
 	[key: string]:
 		| SQLResponse<TTableName | TableName, ColumnData>
-		| MySQL<TTableName | TableName>
+		| MySQL<TTableName | string>
 		| AnyMySqlColumn<TTableName>;
 };
 
-export type MySqlSelectFieldsOrdered<TTableName extends string = TableName> = (
+export type MySqlSelectFieldsOrdered<TTableName extends string = string> = (
 	& Omit<SelectFieldsOrdered[number], 'column'>
 	& {
-		column: AnyMySqlColumn<TTableName> | MySQL<TTableName | TableName> | AnySQLResponse<TTableName | TableName>;
+		column: AnyMySqlColumn<TTableName> | MySQL<TTableName | string> | AnySQLResponse<TTableName | string>;
 	}
 )[];
 
 export type SelectResultFields<
-	TSelectedFields extends MySqlSelectFields<TableName>,
+	TSelectedFields extends MySqlSelectFields<string>,
 > = Simplify<
 	{
 		[Key in keyof TSelectedFields & string]: TSelectedFields[Key] extends AnyMySqlColumn

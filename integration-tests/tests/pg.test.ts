@@ -13,8 +13,6 @@ const usersTable = pgTable('users', {
 	jsonb: jsonb<string[]>('jsonb'),
 });
 
-const schema = { usersTable };
-
 interface Context {
 	docker: Docker;
 	pgContainer: Docker.Container;
@@ -82,6 +80,60 @@ test.beforeEach(async (t) => {
 	await ctx.db.execute(sql`create table users (id serial primary key, name text not null, jsonb jsonb)`);
 });
 
+test.serial('select sql', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ name: 'John' });
+	const users = await db.select(usersTable).fields({
+		name: sql`upper(${usersTable.name})`,
+	});
+
+	t.deepEqual(users, [{ name: 'JOHN' }]);
+});
+
+test.serial('select typed sql', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ name: 'John' });
+	const users = await db.select(usersTable).fields({
+		name: sql`upper(${usersTable.name})`.as<string>(),
+	});
+
+	t.deepEqual(users, [{ name: 'JOHN' }]);
+});
+
+test.serial('insert returning sql', async (t) => {
+	const { db } = t.context;
+
+	const users = await db.insert(usersTable).values({ name: 'John' }).returning({
+		name: sql`upper(${usersTable.name})`,
+	});
+
+	t.deepEqual(users, [{ name: 'JOHN' }]);
+});
+
+test.serial('delete returning sql', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ name: 'John' });
+	const users = await db.delete(usersTable).where(eq(usersTable.name, 'John')).returning({
+		name: sql`upper(${usersTable.name})`,
+	});
+
+	t.deepEqual(users, [{ name: 'JOHN' }]);
+});
+
+test.serial('update returning sql', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ name: 'John' });
+	const users = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning({
+		name: sql`upper(${usersTable.name})`,
+	});
+
+	t.deepEqual(users, [{ name: 'JANE' }]);
+});
+
 test.serial('update with returning', async (t) => {
 	const ctx = t.context;
 	const { db } = ctx;
@@ -141,6 +193,14 @@ test.serial('select with group by', async (t) => {
 		.groupBy(usersTable.id, usersTable.name);
 
 	const prepared = db.buildQuery(query);
+});
+
+test.serial('insert sql', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ name: sql`${'John'}` });
+	const result = await db.select(usersTable).fields({ id: usersTable.id, name: usersTable.name });
+	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 });
 
 test.serial('join with alias', async (t) => {

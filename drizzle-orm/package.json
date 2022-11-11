@@ -1,14 +1,15 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.12.0-beta.7",
+	"version": "0.12.0-beta.16",
 	"description": "Drizzle ORM package for SQL databases",
 	"main": "index.js",
 	"types": "index.d.ts",
 	"scripts": {
-		"build": "tsc",
-		"pack": "cp package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
-		"publish": "pnpm publish package.tgz",
-		"publish:beta": "pnpm publish package.tgz --tag beta --git-checks false",
+		"build": "concurrently -n build,test \"tsc -p tsconfig.build.json\" pnpm:test",
+		"test": "echo WARN: No tests defined!",
+		"pack": "cp ../README.md package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"publish": "npm publish package.tgz",
+		"publish:beta": "npm publish package.tgz --tag beta",
 		"release:beta": "pnpm build && pnpm version prerelease && pnpm run pack && pnpm publish:beta",
 		"build:int": "pnpm build && pnpm run pack"
 	},
@@ -17,7 +18,7 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/lambda-direct/drizzle-orm.git"
+		"url": "git+https://github.com/drizzle-team/drizzle-orm.git"
 	},
 	"keywords": [
 		"orm",
@@ -32,44 +33,23 @@
 	"author": "",
 	"license": "Apache-2.0",
 	"bugs": {
-		"url": "https://github.com/lambda-direct/drizzle-orm/issues"
+		"url": "https://github.com/drizzle-team/drizzle-orm/issues"
 	},
-	"homepage": "https://github.com/lambda-direct/drizzle-orm#readme",
+	"homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
 	"peerDependencies": {
 		"drizzle-orm-mysql": ">=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0",
 		"drizzle-orm-pg": ">=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0",
-		"mysql2": ">=2 <3",
-		"pg": ">=8 <9",
-		"sqlite3": ">=5 <6"
+		"drizzle-orm-sqlite": ">=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0"
 	},
 	"peerDependenciesMeta": {
-		"mysql2": {
-			"optional": true
-		},
-		"pg": {
-			"optional": true
-		},
-		"sqlite3": {
+		"drizzle-orm-mysql": {
 			"optional": true
 		},
 		"drizzle-orm-pg": {
 			"optional": true
 		},
-		"drizzle-orm-mysql": {
+		"drizzle-orm-sqlite": {
 			"optional": true
 		}
-	},
-	"devDependencies": {
-		"@types/pg": "^8.6.1",
-		"@types/sqlite3": "^3.1.8",
-		"mysql2": "^2.3.3",
-		"pg": "^8.6.0",
-		"resolve-tspaths": "^0.7.0",
-		"sqlite3": "^5.0.8",
-		"ts-node": "^10.8.2",
-		"uvu": "^0.5.6"
-	},
-	"dependencies": {
-		"type-fest": "^2.16.0"
 	}
 }

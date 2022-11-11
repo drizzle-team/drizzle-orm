@@ -9,8 +9,8 @@ export class PgTimestampBuilder
 {
 	constructor(
 		name: string,
-		public readonly withTimezone: boolean,
-		public readonly precision: number | undefined,
+		readonly withTimezone: boolean,
+		readonly precision: number | undefined,
 	) {
 		super(name);
 	}
@@ -26,8 +26,8 @@ export class PgTimestamp<TTableName extends string>
 {
 	protected override $pgColumnBrand!: 'PgTimestamp';
 
-	public readonly withTimezone: boolean;
-	public readonly precision: number | undefined;
+	readonly withTimezone: boolean;
+	readonly precision: number | undefined;
 
 	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgTimestampBuilder) {
 		super(table, builder);
@@ -50,8 +50,8 @@ export class PgTimestampStringBuilder
 {
 	constructor(
 		name: string,
-		public readonly withTimezone: boolean,
-		public readonly precision: number | undefined,
+		readonly withTimezone: boolean,
+		readonly precision: number | undefined,
 	) {
 		super(name);
 	}
@@ -67,8 +67,8 @@ export class PgTimestampString<TTableName extends string>
 {
 	protected override $pgColumnBrand!: 'PgTimestampString';
 
-	public readonly withTimezone: boolean;
-	public readonly precision: number | undefined;
+	readonly withTimezone: boolean;
+	readonly precision: number | undefined;
 
 	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgTimestampStringBuilder) {
 		super(table, builder);

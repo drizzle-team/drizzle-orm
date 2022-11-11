@@ -9,10 +9,14 @@
 		"test:andrew": "tsx tests/test_andrew.ts",
 		"test:dan": "tsx tests/test_dan.ts",
 		"test:dan:mysql": "tsx tests/test_dan_mysql.ts",
-		"build:int:full": "pnpm add ../drizzle-orm/package.tgz ../drizzle-orm-pg/package.tgz ../drizzle-orm-mysql/package.tgz",
-		"build:int": "pnpm add ../drizzle-orm/package.tgz ../drizzle-orm-pg/package.tgz"
+		"build:int:full": "pnpm add ../drizzle-orm/package.tgz ../drizzle-orm-pg/package.tgz ../drizzle-orm-mysql/package.tgz ../drizzle-orm-sqlite/package.tgz",
+		"build:int": "pnpm add ../drizzle-orm/package.tgz ../drizzle-orm-pg/package.tgz ../drizzle-orm-sqlite/package.tgz"
 	},
 	"ava": {
+		"files": [
+			"tests/**/*.ts",
+			"!tests/bun/**/*"
+		],
 		"extensions": {
 			"ts": "module"
 		},
@@ -25,21 +29,24 @@
 	"license": "ISC",
 	"private": true,
 	"devDependencies": {
+		"@types/better-sqlite3": "^7.6.0",
 		"@types/dockerode": "^3.3.9",
 		"@types/node": "^18.0.5",
 		"@types/pg": "^8.6.1",
 		"@types/uuid": "^8.3.4",
-		"ava": "^4.3.3",
-		"esbuild-register": "^3.3.3",
+		"ava": "^5.0.1",
 		"tsx": "^3.8.2"
 	},
 	"dependencies": {
+		"better-sqlite3": "^7.6.2",
 		"dockerode": "^3.3.3",
 		"drizzle-orm": "file:../drizzle-orm/package.tgz",
 		"drizzle-orm-pg": "file:../drizzle-orm-pg/package.tgz",
+		"drizzle-orm-sqlite": "file:../drizzle-orm-sqlite/package.tgz",
 		"get-port": "^6.1.2",
 		"mysql2": "^2.3.3",
 		"pg": "^8.6.0",
-		"uuid": "^8.3.2"
+		"uuid": "^9.0.0",
+		"uvu": "^0.5.6"
 	}
 }

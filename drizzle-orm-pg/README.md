@@ -33,7 +33,6 @@ With `drizzle-orm` you declare SQL schema in TypeScript. You can have either one
 
 ### Quick start
 ```typescript
-import { connect } from "drizzle-orm";
 import { PgConnector, pgTable, serial, text, varchar } from "drizzle-orm-pg";
 import { Pool } from "pg";
 
@@ -44,15 +43,14 @@ const users = pgTable("users", {
 })
 
 const pool = new Pool({ connectionString: "postgres://user:password@host:port/db" });
-const connector = new PgConnector(pool, { users });
-const db = await connect(connector);
+const connector = new PgConnector(pool);
+const db = await connector.connect();
 
-const users = await db.users.select().execute();
+const users = await db.select(users);
 ```
 
 ### Connecting to database
 ```typescript
-import { connect } from "drizzle-orm";
 import { PgConnector } from "drizzle-orm-pg";
 import { Pool } from "pg";
 
@@ -65,8 +63,8 @@ const pool = new Pool({
   database: "db_name",
 });
 
-const connector = new PgConnector(pool, { ...tables });
-const db = await connect(connector);
+const connector = new PgConnector(pool);
+const db = await connector.connect();
 ```
 
 This is how you declare SQL schema in `schema.ts`. You can declare tables, indexes and constraints, foreign keys and enums. Please pay attention to `export` keyword, they are mandatory if you'll be using [drizzle-kit SQL migrations generator](#migrations).
@@ -182,7 +180,6 @@ where?: sql``; // sql expression
 Querying, sorting and filtering. We also support partial select.
 ```typescript
 ...
-import { connect } from "drizzle-orm";
 import { PgConnector, pgTable, serial, text, varchar } from "drizzle-orm-pg";
 import { and, asc, desc, eq, or } from "drizzle-orm/expressions";
 
@@ -191,38 +188,32 @@ const users = pgTable("users", {
   name: text("full_name"),
 });
 
-const connector = new PgConnector(..., { users });
-const db = await connect(connector);
+const connector = new PgConnector(...);
+const db = await connector.connect();
 
-await db.users.select().execute();
-await db.users.select().where(eq(users.id, 42)).execute();
+await db.select(users);
+await db.select(users).where(eq(users.id, 42));
 
 // you can combine filters with eq(...) or or(...)
-await db.users
-  .select()
-  .where(and(eq(users.id, 42), eq(users.name, "Dan")))
-  .execute();
+await db.select(users)
+  .where(and(eq(users.id, 42), eq(users.name, "Dan")));
 
-await db.users
-  .select()
-  .where(or(eq(users.id, 42), eq(users.id, 1)))
-  .execute();
+await db.select(users)
+  .where(or(eq(users.id, 42), eq(users.id, 1)));
 
 // partial select
-const result = await db.users
-  .select({
+const result = await db.select(users).fields({
     mapped1: users.id,
     mapped2: users.name,
-  })
-  .execute();
+  });
 const { mapped1, mapped2 } = result[0];
 
 // limit offset & order by
-await db.users.select().limit(10).offset(10).execute()
-await db.users.select().orderBy(asc(users.name)).execute();
-await db.users.select().orderBy(desc(users.name)).execute();
+await db.select(users).limit(10).offset(10);
+await db.select(users).orderBy(asc(users.name));
+await db.select(users).orderBy(desc(users.name));
 // you can pass multiple order args
-await db.users.select().orderBy(asc(users.name), desc(users.name)).execute();
+await db.select(users).orderBy(asc(users.name), desc(users.name));
 
 // list of all filter operators
 eq(column, value)
@@ -270,7 +261,6 @@ or(exressions: Expr[])
 
 Inserting
 ```typescript
-import { connect } from "drizzle-orm";
 import { PgConnector, pgTable, serial, text, timestamp } from "drizzle-orm-pg";
 
 const users = pgTable("users", {
@@ -279,15 +269,18 @@ const users = pgTable("users", {
   createdAt: timestamp("created_at"),
 });
 
-const connector = new PgConnector(..., { users });
-const db = await connect(connector);
+const connector = new PgConnector(...);
+const db = await connector.connect();
 
-await db.users.insert({
+await db.insert(users
+  .values({
     name: "Andrew",
     createdAt: new Date(),
-  }).execute();
+  });
 
-await db.users.insert([
+// accepts vararg of items
+await db.insert(users)
+  .values(
     {
       name: "Andrew",
       createdAt: new Date(),
@@ -296,26 +289,35 @@ await db.users.insert([
       name: "Dan",
       createdAt: new Date(),
     },
-  ]).execute();
+  ));
+
+await db.insert(users)
+  .values(...[
+    {
+      name: "Andrew",
+      createdAt: new Date(),
+    },
+    {
+      name: "Dan",
+      createdAt: new Date(),
+    },
+  ]);
 ```
 
 Update and Delete
 ```typescript
-await db.users.update()
-  .where(eq(usersTable.name, 'Dan'))
+await db.update(users)
   .set({ name: 'Mr. Dan' })
-  .execute();
+  .where(eq(usersTable.name, 'Dan'));
 	
-await db.users.delete()
-  .where(eq(usersTable.name, 'Dan'))
-  .execute();
+await db.delete(users)
+  .where(eq(usersTable.name, 'Dan'));
 ```
 
 ### Joins
 Last but not least. Probably the most powerful feature in the library🚀
 Many-to-one
 ```typescript
-import { connect } from "drizzle-orm";
 import { PgConnector, pgTable, serial, text, timestamp } from "drizzle-orm-pg";
 
 const cities = pgTable("cities", {
@@ -329,10 +331,10 @@ const users = pgTable("users", {
   cityId: integer("city_id").references(() => cities.id)
 });
 
-const connector = new PgConnector(..., { users, cities });
-const db = await connect(connector);
+const connector = new PgConnector(...);
+const db = await connector.connect();
 
-const result = db.cities.select().leftJoin(users, eq(cities2.id, users2.cityId)).execute()
+const result = db.select(cities).leftJoin(users, eq(cities2.id, users2.cityId))
 ```
 
 Many-to-many
@@ -353,25 +355,22 @@ const usersToChatGroups = pgTable("usersToChatGroups", {
 });
 
 ...
-const connector = new PgConnector(..., { users, chatGroups, usersToChatGroups });
-const db = await connect(connector);
+const connector = new PgConnector(...);
+const db = await connector.connect();
 
 // querying user group with id 1 and all the participants(users)
-db.usersToChatGroups
-    .select()
-    .leftJoin(users, eq(usersToChatGroups.userId, users.id))
-    .leftJoin(chatGroups, eq(usersToChatGroups.groupId, chatGroups.id))
-    .execute();
+db.select(usersToChatGroups)
+  .leftJoin(users, eq(usersToChatGroups.userId, users.id))
+  .leftJoin(chatGroups, eq(usersToChatGroups.groupId, chatGroups.id));
 ```
 
 ### Join using partial field select
 ##### Join Cities with Users getting only needed fields form request
 ```typescript
-await db.cities.select({
+await db.select(cities).fields({
   id: cities.id,
   cityName: cities.name
-}).leftJoin(users, eq(users.cityId, cities.id))
-  .execute();
+}).leftJoin(users, eq(users.cityId, cities.id));
 ```
 
 ## Migrations

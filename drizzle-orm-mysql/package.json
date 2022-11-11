@@ -7,9 +7,9 @@
 	"scripts": {
 		"build": "concurrently -n build,test \"tsc -p tsconfig.build.json && resolve-tspaths\" pnpm:test",
 		"test": "cd tests && tsc",
-		"pack": "cp package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
-		"publish": "pnpm publish package.tgz",
-		"publish:beta": "pnpm publish package.tgz --tag beta --git-checks false",
+		"pack": "cp README.md package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"publish": "npm publish package.tgz",
+		"publish:beta": "npm publish package.tgz --tag beta",
 		"release:beta": "pnpm build && pnpm version prerelease && pnpm run pack && pnpm publish:beta",
 		"build:int": "pnpm build && pnpm run pack"
 	},
@@ -49,14 +49,7 @@
 		}
 	},
 	"devDependencies": {
-		"concurrently": "^7.3.0",
-		"dotenv": "^16.0.0",
 		"drizzle-orm": "link:../drizzle-orm/src",
-		"mysql2": "^2.3.3",
-		"np": "^7.6.2",
-		"resolve-tspaths": "^0.7.0",
-		"ts-node": "^10.8.2",
-		"type-fest": "^2.16.0",
-		"uvu": "^0.5.3"
+		"mysql2": "^2.3.3"
 	}
 }

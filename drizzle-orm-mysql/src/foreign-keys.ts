@@ -14,11 +14,8 @@ export type Reference<TTableName extends string, TForeignTableName extends strin
 };
 
 export class ForeignKeyBuilder<TTableName extends string, TForeignTableName extends string> {
-	protected brand!: 'MySqlForeignKeyBuilder';
-
-	protected typeKeeper!: {
-		foreignTableName: TForeignTableName;
-	};
+	declare protected $brand: 'MySqlForeignKeyBuilder';
+	declare protected $foreignTableName: TForeignTableName;
 
 	/** @internal */
 	reference: Reference<TTableName, TForeignTableName>;
@@ -64,7 +61,7 @@ export class ForeignKeyBuilder<TTableName extends string, TForeignTableName exte
 	}
 }
 
-export type AnyForeignKeyBuilder = ForeignKeyBuilder<TableName, TableName>;
+export type AnyForeignKeyBuilder = ForeignKeyBuilder<TableName, string>;
 
 export class ForeignKey<TTableName extends string, TForeignTableName extends string> {
 	readonly reference: Reference<TTableName, TForeignTableName>;

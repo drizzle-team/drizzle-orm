@@ -1,5 +1,5 @@
 import { AnyColumn } from 'drizzle-orm';
-import { PreparedQuery, sql, SQL, SQLWrapper } from 'drizzle-orm/sql';
+import { Query, sql, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
 
 import { PgDialect, PgSession } from '~/connection';
@@ -36,11 +36,9 @@ export class PgSelect<
 > extends QueryPromise<SelectResult<TTable, TResult, TInitialSelectResultFields, TJoinsNotNullable>>
 	implements SQLWrapper
 {
-	protected typeKeeper!: {
-		table: TTable;
-		initialSelect: TInitialSelectResultFields;
-		result: TResult;
-	};
+	declare protected $table: TTable;
+	declare protected $initialSelect: TInitialSelectResultFields;
+	declare protected $result: TResult;
 
 	private config: PgSelectConfig;
 	private joinsNotNullable: Record<string, boolean>;
@@ -161,7 +159,7 @@ export class PgSelect<
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	getQuery(): PreparedQuery {
+	getQuery(): Query {
 		const query = this.dialect.buildSelectQuery(this.config);
 		return this.dialect.prepareSQL(query);
 	}

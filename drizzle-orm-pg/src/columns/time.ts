@@ -10,8 +10,8 @@ export class PgTimeBuilder<TData extends string = string>
 {
 	constructor(
 		name: string,
-		public readonly withTimezone: boolean,
-		public readonly precision: number | undefined,
+		readonly withTimezone: boolean,
+		readonly precision: number | undefined,
 	) {
 		super(name);
 	}
@@ -27,8 +27,8 @@ export class PgTime<TTableName extends string, TData extends string>
 {
 	protected override $pgColumnBrand!: 'PgTime';
 
-	public readonly withTimezone: boolean;
-	public readonly precision: number | undefined;
+	readonly withTimezone: boolean;
+	readonly precision: number | undefined;
 
 	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgTimeBuilder<TData>) {
 		super(table, builder);

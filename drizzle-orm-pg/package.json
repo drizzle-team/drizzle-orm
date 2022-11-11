@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm-pg",
-	"version": "0.12.0-beta.27",
+	"version": "0.12.0-beta.35",
 	"description": "Drizzle ORM package for PostgreSQL database",
 	"main": "index.js",
 	"types": "index.d.ts",
@@ -8,8 +8,8 @@
 		"build": "concurrently -n build,test \"tsc -p tsconfig.build.json && resolve-tspaths\" pnpm:test",
 		"test": "cd tests && tsc",
 		"pack": "cp README.md package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
-		"publish": "pnpm publish package.tgz",
-		"publish:beta": "pnpm publish package.tgz --tag beta --git-checks false",
+		"publish": "npm publish package.tgz",
+		"publish:beta": "npm publish package.tgz --tag beta",
 		"release:beta": "pnpm build && pnpm version prerelease && pnpm run pack && pnpm publish:beta",
 		"build:int": "pnpm build && pnpm run pack"
 	},
@@ -36,24 +36,21 @@
 	},
 	"homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
 	"peerDependencies": {
+		"@types/pg": ">=8 <9",
 		"drizzle-orm": ">=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0",
 		"pg": ">=8 <9"
 	},
 	"peerDependenciesMeta": {
 		"pg": {
 			"optional": true
+		},
+		"@types/pg": {
+			"optional": true
 		}
 	},
 	"devDependencies": {
-		"@types/pg": "^8.6.1",
-		"concurrently": "^7.3.0",
-		"dotenv": "^16.0.0",
+		"@types/pg": "^8.6.5",
 		"drizzle-orm": "link:../drizzle-orm/src",
-		"pg": "^8.6.0",
-		"resolve-tspaths": "^0.7.0",
-		"ts-node": "^10.8.2",
-		"tsconfig-paths": "^4.0.0",
-		"type-fest": "^2.16.0",
-		"uvu": "^0.5.3"
+		"pg": "^8.8.0"
 	}
 }

@@ -1,7 +1,7 @@
 import { Column } from 'drizzle-orm';
 import { ColumnData, ColumnHasDefault, ColumnNotNull, TableName, Unwrap } from 'drizzle-orm/branded-types';
 import { ColumnBuilder } from 'drizzle-orm/column-builder';
-import { Simplify } from 'type-fest';
+import { Simplify } from 'drizzle-orm/utils';
 import { MySqlColumnDriverParam } from '~/branded-types';
 import { AnyForeignKey, ForeignKeyBuilder, UpdateDeleteAction } from '~/foreign-keys';
 import { AnyMySQL } from '~/sql';

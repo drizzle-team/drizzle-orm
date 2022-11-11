@@ -4,23 +4,26 @@
 		"build:core": "pnpm --filter drizzle-orm run build",
 		"build:pg": "pnpm --filter drizzle-orm-pg build",
 		"build:mysql": "pnpm --filter drizzle-orm-mysql build",
-		"build": "pnpm --filter '*' build",
-		"build:int": "pnpm --filter '!integration-tests' --filter '!drizzle-orm-mysql' build:int && pnpm --filter integration-tests build:int",
-		"test": "pnpm --filter integration-tests test",
-		"test:andrew": "pnpm --filter integration-tests test:andrew",
-		"test:dan": "pnpm --filter integration-tests test:dan",
-		"test:dan:mysql": "pnpm --filter integration-tests test:dan:mysql"
+		"build": "pnpm --filter '!drizzle-orm-mysql' build",
+		"build:int": "pnpm --filter '!drizzle-orm-mysql' build:int && cd integration-tests && pnpm build:int",
+		"test": "cd integration-tests && pnpm test",
+		"test:andrew": "cd integration-tests && pnpm test:andrew",
+		"test:dan": "cd integration-tests && pnpm test:dan",
+		"test:dan:mysql": "cd integration-tests && pnpm test:dan:mysql"
 	},
 	"devDependencies": {
 		"@trivago/prettier-plugin-sort-imports": "^3.2.0",
-		"@types/node": "^18.7.18",
-		"dprint": "^0.32.1",
+		"@types/node": "^18.11.9",
+		"bun-types": "^0.2.2",
+		"concurrently": "^7.5.0",
+		"dprint": "^0.32.2",
 		"prettier": "^2.7.1",
-		"typescript": "4.8.3"
+		"resolve-tspaths": "^0.8.3",
+		"typescript": "4.8.4"
 	},
 	"pnpm": {
 		"patchedDependencies": {
-			"typescript@4.8.3": "patches/typescript@4.8.3.patch"
+			"typescript@4.8.4": "patches/typescript@4.8.4.patch"
 		}
 	}
 }

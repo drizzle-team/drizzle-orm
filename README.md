@@ -19,4 +19,12 @@ Library has almost zero dependencies and being battle tested on production proje
 // postgresql
 npm install drizzle-orm drizzle-orm-pg
 npm install -D drizzle-kit
+
+// mysql
+npm install drizzle-orm drizzle-orm-mysql
+npm install -D drizzle-kit
+
+// sqlite
+npm install drizzle-orm drizzle-orm-sqlite
+npm install -D drizzle-kit
 ```

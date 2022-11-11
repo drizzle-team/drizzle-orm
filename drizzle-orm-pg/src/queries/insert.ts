@@ -1,18 +1,16 @@
-import { Name, Param, PreparedQuery, SQL, sql, SQLWrapper } from 'drizzle-orm/sql';
+import { Table } from 'drizzle-orm';
+import { Param, Query, SQL, sql, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
 
-import { Check } from '~/checks';
 import { AnyPgColumn } from '~/columns/common';
 import { PgDialect, PgSession } from '~/connection';
+import { IndexColumn } from '~/indexes';
 import { PgSelectFields, PgSelectFieldsOrdered, SelectResultFields } from '~/operations';
-import { InferModel } from '~/table';
+import { AnyPgTable, GetTableConfig, InferModel, PgTable } from '~/table';
 import { mapUpdateSet } from '~/utils';
-import { AnyPgTable, GetTableConfig, Index, PgTable } from '..';
 import { QueryPromise } from './common';
 import { PgUpdateSetSource } from './update';
-
-type ConflictConstraint<TTableName extends string> = Index<TTableName, any, true> | Check<TTableName>;
 
 export interface PgInsertConfig<TTable extends AnyPgTable = AnyPgTable> {
 	table: TTable;
@@ -35,7 +33,7 @@ export class PgInsertBuilder<TTable extends AnyPgTable> {
 	values(...values: PgInsertValue<TTable>[]): PgInsert<TTable> {
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
-			const cols = this.table[PgTable.Symbol.Columns];
+			const cols = this.table[Table.Symbol.Columns];
 			for (const colKey of Object.keys(entry)) {
 				const colValue = entry[colKey as keyof typeof entry];
 				if (colValue instanceof SQL) {
@@ -51,14 +49,11 @@ export class PgInsertBuilder<TTable extends AnyPgTable> {
 	}
 }
 
-export class PgInsert<
-	TTable extends AnyPgTable,
-	TReturn = QueryResult<any>,
-> extends QueryPromise<TReturn> implements SQLWrapper {
-	protected typeKeeper!: {
-		table: TTable;
-		return: TReturn;
-	};
+export class PgInsert<TTable extends AnyPgTable, TReturn = QueryResult<any>> extends QueryPromise<TReturn>
+	implements SQLWrapper
+{
+	declare protected $table: TTable;
+	declare protected $return: TReturn;
 
 	private config: PgInsertConfig<TTable>;
 
@@ -72,11 +67,11 @@ export class PgInsert<
 		this.config = { table, values };
 	}
 
-	public returning(): Omit<PgInsert<TTable, InferModel<TTable>[]>, 'returning' | `onConflict${string}`>;
-	public returning<TSelectedFields extends PgSelectFields<GetTableConfig<TTable, 'name'>>>(
+	returning(): Omit<PgInsert<TTable, InferModel<TTable>[]>, 'returning' | `onConflict${string}`>;
+	returning<TSelectedFields extends PgSelectFields<GetTableConfig<TTable, 'name'>>>(
 		fields: TSelectedFields,
 	): Omit<PgInsert<TTable, SelectResultFields<TSelectedFields>[]>, 'returning' | `onConflict${string}`>;
-	public returning(fields?: PgSelectFields<GetTableConfig<TTable, 'name'>>): PgInsert<TTable, any> {
+	returning(fields?: PgSelectFields<GetTableConfig<TTable, 'name'>>): PgInsert<TTable, any> {
 		const fieldsToMap: PgSelectFields<GetTableConfig<TTable, 'name'>> = fields
 			?? this.config.table[PgTable.Symbol.Columns] as Record<
 				string,
@@ -90,46 +85,24 @@ export class PgInsert<
 		return this;
 	}
 
-	onConflictDoNothing(
-		target?:
-			| SQL
-			| ((
-				constraints: GetTableConfig<TTable, 'conflictConstraints'>,
-			) => ConflictConstraint<GetTableConfig<TTable, 'name'>>),
-	): Omit<this, `onConflict${string}`> {
-		if (typeof target === 'undefined') {
+	onConflictDoNothing(config: { target?: IndexColumn | IndexColumn[]; where?: SQL } = {}): this {
+		if (config.target === undefined) {
 			this.config.onConflict = sql`do nothing`;
-		} else if (target instanceof SQL) {
-			this.config.onConflict = sql`${target} do nothing`;
 		} else {
-			const targetSql = new Name(
-				target(this.config.table[PgTable.Symbol.ConflictConstraints] as GetTableConfig<TTable, 'conflictConstraints'>)
-					.name,
-			);
-			this.config.onConflict = sql`on constraint ${targetSql} do nothing`;
+			const whereSql = config.where ? sql` where ${config.where}` : sql``;
+			this.config.onConflict = sql`${config.target}${whereSql} do nothing`;
 		}
 		return this;
 	}
 
-	onConflictDoUpdate(
-		target:
-			| SQL
-			| ((
-				constraints: GetTableConfig<TTable, 'conflictConstraints'>,
-			) => ConflictConstraint<GetTableConfig<TTable, 'name'>>),
-		set: PgUpdateSetSource<TTable>,
-	): Omit<this, `onConflict${string}`> {
-		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, set));
-
-		if (target instanceof SQL) {
-			this.config.onConflict = sql`${target} do update set ${setSql}`;
-		} else {
-			const targetSql = new Name(
-				target(this.config.table[PgTable.Symbol.ConflictConstraints] as GetTableConfig<TTable, 'conflictConstraints'>)
-					.name,
-			);
-			this.config.onConflict = sql`on constraint ${targetSql} do update set ${setSql}`;
-		}
+	onConflictDoUpdate(config: {
+		target?: IndexColumn | IndexColumn[];
+		where?: SQL;
+		set: PgUpdateSetSource<TTable>;
+	}): this {
+		const whereSql = config.where ? sql` where ${config.where}` : sql``;
+		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
+		this.config.onConflict = sql`${config.target}${whereSql} do update set ${setSql}`;
 		return this;
 	}
 
@@ -137,7 +110,7 @@ export class PgInsert<
 		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	getQuery(): PreparedQuery {
+	getQuery(): Query {
 		return this.dialect.prepareSQL(this.getSQL());
 	}
 

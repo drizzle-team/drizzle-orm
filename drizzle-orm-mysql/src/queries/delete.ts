@@ -21,18 +21,18 @@ export class MySqlDelete<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 		this.config = { table };
 	}
 
-	public where(
+	where(
 		where: MySQL<GetTableConfig<TTable, 'name'>> | undefined,
 	): Pick<this, 'returning' | 'getQuery' | 'execute'> {
 		this.config.where = where;
 		return this;
 	}
 
-	public returning(): Pick<MySqlDelete<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
-	public returning<TSelectedFields extends MySqlSelectFields<GetTableConfig<TTable, 'name'>>>(
+	returning(): Pick<MySqlDelete<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
+	returning<TSelectedFields extends MySqlSelectFields<GetTableConfig<TTable, 'name'>>>(
 		fields: TSelectedFields,
 	): Pick<MySqlDelete<TTable, SelectResultFields<TSelectedFields>[]>, 'getQuery' | 'execute'>;
-	public returning(fields?: MySqlSelectFields<GetTableConfig<TTable, 'name'>>): MySqlDelete<TTable, any> {
+	returning(fields?: MySqlSelectFields<GetTableConfig<TTable, 'name'>>): MySqlDelete<TTable, any> {
 		const orderedFields = this.dialect.orderSelectedFields(
 			fields ?? this.table[tableColumns],
 			this.table[tableNameSym],
@@ -41,12 +41,12 @@ export class MySqlDelete<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 		return this;
 	}
 
-	public getQuery(): MySqlPreparedQuery {
+	getQuery(): MySqlPreparedQuery {
 		const query = this.dialect.buildDeleteQuery(this.config);
 		return this.dialect.prepareSQL(query);
 	}
 
-	public async execute(): Promise<TReturn> {
+	async execute(): Promise<TReturn> {
 		const query = this.dialect.buildDeleteQuery(this.config);
 		const { sql, params } = this.dialect.prepareSQL(query);
 		const result = await this.session.query(sql, params);

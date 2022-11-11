@@ -9,7 +9,7 @@ export class MySqlTimestampBuilder<
 > extends MySqlDateColumnBaseBuilder<ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	constructor(
 		name: string,
-		public readonly fsp: number | undefined,
+		readonly fsp: number | undefined,
 	) {
 		super(name);
 	}
@@ -29,7 +29,7 @@ export class MySqlTimestamp<
 > extends MySqlDateBaseColumn<TTableName, ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'MySqlTimestamp';
 
-	public readonly fsp: number | undefined;
+	readonly fsp: number | undefined;
 
 	constructor(
 		table: AnyMySqlTable<TTableName>,
@@ -55,7 +55,7 @@ export class MySqlTimestampStringBuilder<
 > extends MySqlDateColumnBaseBuilder<ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	constructor(
 		name: string,
-		public readonly fsp: number | undefined,
+		readonly fsp: number | undefined,
 	) {
 		super(name);
 	}
@@ -75,7 +75,7 @@ export class MySqlTimestampString<
 > extends MySqlDateBaseColumn<TTableName, ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
 	protected brand!: 'PgTimestampString';
 
-	public readonly fsp: number | undefined;
+	readonly fsp: number | undefined;
 
 	constructor(
 		table: AnyMySqlTable<TTableName>,

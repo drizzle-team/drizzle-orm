@@ -1,5 +1,5 @@
 import { SQL } from './sql';
-import { RequiredKeys } from './utils';
+import { Update } from './utils';
 
 export interface ColumnBuilderBaseConfig {
 	data: unknown;
@@ -8,7 +8,7 @@ export interface ColumnBuilderBaseConfig {
 	hasDefault: boolean;
 }
 
-export type ColumnBuilderConfig<TPartial extends Partial<ColumnBuilderBaseConfig> = {}> = UpdateColumnBuilderConfig<
+export type ColumnBuilderConfig<TPartial extends Partial<ColumnBuilderBaseConfig> = {}> = Update<
 	ColumnBuilderBaseConfig & {
 		notNull: false;
 		hasDefault: false;
@@ -16,23 +16,22 @@ export type ColumnBuilderConfig<TPartial extends Partial<ColumnBuilderBaseConfig
 	TPartial
 >;
 
-export type UpdateColumnBuilderConfig<
-	T extends ColumnBuilderBaseConfig,
-	TUpdate extends Partial<ColumnBuilderBaseConfig>,
-> = {} extends TUpdate ? T : RequiredKeys<Omit<T, keyof TUpdate> & Pick<TUpdate, keyof ColumnBuilderBaseConfig>>;
-
 // To understand how to use `ColumnBuilder` and `AnyColumnBuilder`, see `Column` and `AnyColumn` documentation.
-export abstract class ColumnBuilder<T extends ColumnBuilderBaseConfig> {
-	declare protected $config: T;
+export abstract class ColumnBuilder<T extends Partial<ColumnBuilderBaseConfig>> {
 	declare protected $brand: {
 		type: 'ColumnBuilder';
 		subtype: string;
 	};
+	declare protected $config: T;
+	declare protected $data: T['data'];
+	declare protected $driverParam: T['driverParam'];
+	declare protected $notNull: T['notNull'];
+	declare protected $hasDefault: T['hasDefault'];
 
 	/** @internal */
 	config: {
 		name: string;
-		notNull: T['notNull'];
+		notNull: boolean;
 		default: T['data'] | SQL | undefined;
 		primaryKey: boolean;
 	};
@@ -40,30 +39,31 @@ export abstract class ColumnBuilder<T extends ColumnBuilderBaseConfig> {
 	constructor(name: string) {
 		this.config = {
 			name,
-			notNull: false as T['notNull'],
+			notNull: false,
 			default: undefined,
 			primaryKey: false,
 		};
 	}
 
-	notNull(): ColumnBuilder<UpdateColumnBuilderConfig<T, { notNull: true }>> {
-		this.config.notNull = true as T['notNull'];
+	notNull(): ColumnBuilder<UpdateCBConfig<T, { notNull: true }>> {
+		this.config.notNull = true;
 		return this as ReturnType<this['notNull']>;
 	}
 
 	default(
 		value: T['data'] | SQL,
-	): ColumnBuilder<UpdateColumnBuilderConfig<T, { hasDefault: true }>> {
+	): ColumnBuilder<UpdateCBConfig<T, { hasDefault: true }>> {
 		this.config.default = value;
 		return this as ReturnType<this['default']>;
 	}
 
-	primaryKey(): ColumnBuilder<UpdateColumnBuilderConfig<T, { notNull: true }>> {
+	primaryKey(): ColumnBuilder<UpdateCBConfig<T, { notNull: true }>> {
 		this.config.primaryKey = true;
 		return this as ReturnType<this['primaryKey']>;
 	}
 }
 
-export type AnyColumnBuilder<TPartial extends Partial<ColumnBuilderBaseConfig> = {}> = ColumnBuilder<
-	UpdateColumnBuilderConfig<ColumnBuilderBaseConfig, TPartial>
->;
+export type UpdateCBConfig<
+	T extends Partial<ColumnBuilderBaseConfig>,
+	TUpdate extends Partial<ColumnBuilderBaseConfig>,
+> = Update<T, TUpdate>;

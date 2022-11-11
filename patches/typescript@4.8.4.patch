@@ -1,5 +1,5 @@
 diff --git a/lib/tsserver.js b/lib/tsserver.js
-index b696263504d6854ad0f889b21eeed22d00500cd1..0cfcce355f501e02c5bd74f2eba2a915df92d051 100644
+index 33a0f2908cad36bccb1117d4494ca57a8ec14d5b..723e948f5dd57c350c4c1573bc7c92e34a1f078f 100644
 --- a/lib/tsserver.js
 +++ b/lib/tsserver.js
 @@ -14335,7 +14335,7 @@ var ts;

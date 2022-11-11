@@ -3,7 +3,7 @@ import { TableName } from 'drizzle-orm/branded-types';
 import { OptionalKeyOnly, RequiredKeyOnly } from 'drizzle-orm/operations';
 import { Table } from 'drizzle-orm/table';
 import { tableColumns } from 'drizzle-orm/utils';
-import { Simplify } from 'type-fest';
+import { Simplify } from 'drizzle-orm/utils';
 
 import { Check, CheckBuilder } from './checks';
 import { AnyMySqlColumn, AnyMySqlColumnBuilder, BuildMySqlColumns } from './columns/common';
@@ -15,7 +15,7 @@ export type MySqlTableExtraConfig<TTableName extends string> = Record<
 	string,
 	| AnyIndexBuilder<TTableName>
 	| CheckBuilder<TTableName>
-	| ForeignKeyBuilder<TTableName, TableName>
+	| ForeignKeyBuilder<TTableName, string>
 >;
 
 export class MySqlTable<TName extends string> extends Table<TName> {
@@ -26,7 +26,7 @@ export class MySqlTable<TName extends string> extends Table<TName> {
 	[tableIndexes]: Record<string | symbol, Index<TName>> = {};
 
 	/** @internal */
-	[tableForeignKeys]: Record<string | symbol, ForeignKey<TName, TableName>> = {};
+	[tableForeignKeys]: Record<string | symbol, ForeignKey<TName, string>> = {};
 
 	/** @internal */
 	[tableChecks]: Record<string | symbol, Check<TName>> = {};
@@ -51,60 +51,60 @@ export type InferModel<
 > = TInferMode extends 'insert' ? Simplify<
 		& {
 			[
-				Key in keyof GetTableColumns<TTable> & string as RequiredKeyOnly<
+				Key in keyof GetTableConfig<TTable, 'columns'> & string as RequiredKeyOnly<
 					Key,
-					GetTableColumns<TTable>[Key]
+					GetTableConfig<TTable, 'columns'>[Key]
 				>
-			]: GetColumnData<GetTableColumns<TTable>[Key], 'query'>;
+			]: GetColumnData<GetTableConfig<TTable, 'columns'>[Key], 'query'>;
 		}
 		& {
 			[
-				Key in keyof GetTableColumns<TTable> & string as OptionalKeyOnly<
+				Key in keyof GetTableConfig<TTable, 'columns'> & string as OptionalKeyOnly<
 					Key,
-					GetTableColumns<TTable>[Key]
+					GetTableConfig<TTable, 'columns'>[Key]
 				>
-			]?: GetColumnData<GetTableColumns<TTable>[Key], 'query'>;
+			]?: GetColumnData<GetTableConfig<TTable, 'columns'>[Key], 'query'>;
 		}
 	>
 	: {
-		[Key in keyof GetTableColumns<TTable>]: GetColumnData<
-			GetTableColumns<TTable>[Key],
+		[Key in keyof GetTableConfig<TTable, 'columns'>]: GetColumnData<
+			GetTableConfig<TTable, 'columns'>[Key],
 			'query'
 		>;
 	};
 
-export type AnyMySqlTable<TName extends string = TableName> = MySqlTable<TName>;
+export type AnyMySqlTable<TName extends string = string> = MySqlTable<TName>;
 
 export function mysqlTable<
 	TTableName extends string,
 	TColumnsMap extends Record<string, AnyMySqlColumnBuilder>,
 	TExtraConfigCallback extends (
-		self: BuildMySqlColumns<TableName<TTableName>, TColumnsMap>,
-	) => MySqlTableExtraConfig<TableName<TTableName>> = (
-		self: BuildMySqlColumns<TableName<TTableName>, TColumnsMap>,
+		self: BuildMySqlColumns<TTableName, TColumnsMap>,
+	) => MySqlTableExtraConfig<TTableName> = (
+		self: BuildMySqlColumns<TTableName, TColumnsMap>,
 	) => {},
 >(
 	name: TTableName,
 	columns: TColumnsMap,
 	extraConfig?: TExtraConfigCallback,
 ): MySqlTableWithColumns<
-	TableName<TTableName>,
-	BuildMySqlColumns<TableName<TTableName>, TColumnsMap>
+	TTableName,
+	BuildMySqlColumns<TTableName, TColumnsMap>
 >;
 export function mysqlTable<
 	TTableName extends string,
 	TColumnsMap extends Record<string, AnyMySqlColumnBuilder>,
-	TExtraConfig extends MySqlTableExtraConfig<TableName<TTableName>>,
+	TExtraConfig extends MySqlTableExtraConfig<TTableName>,
 >(
 	name: TTableName,
 	columns: TColumnsMap,
-	extraConfig?: (self: BuildMySqlColumns<TableName<TTableName>, TColumnsMap>) => TExtraConfig,
+	extraConfig?: (self: BuildMySqlColumns<TTableName, TColumnsMap>) => TExtraConfig,
 ): MySqlTableWithColumns<
-	TableName<TTableName>,
-	BuildMySqlColumns<TableName<TTableName>, TColumnsMap>
+	TTableName,
+	BuildMySqlColumns<TTableName, TColumnsMap>
 > {
-	const rawTable = new MySqlTable<TableName<TTableName>>(
-		name as TableName<TTableName>,
+	const rawTable = new MySqlTable<TTableName>(
+		name as TTableName,
 	);
 
 	const builtColumns = Object.fromEntries(
@@ -115,13 +115,13 @@ export function mysqlTable<
 			});
 			return [name, column];
 		}),
-	) as BuildMySqlColumns<TableName<TTableName>, TColumnsMap>;
+	) as BuildMySqlColumns<TTableName, TColumnsMap>;
 
 	rawTable[tableColumns] = builtColumns;
 
 	const table = Object.assign(rawTable, builtColumns) as MySqlTableWithColumns<
-		TableName<TTableName>,
-		BuildMySqlColumns<TableName<TTableName>, TColumnsMap>
+		TTableName,
+		BuildMySqlColumns<TTableName, TColumnsMap>
 	>;
 
 	table[tableColumns] = builtColumns;

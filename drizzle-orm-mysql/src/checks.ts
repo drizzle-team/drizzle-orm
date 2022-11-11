@@ -12,7 +12,7 @@ export class CheckBuilder<TTableName extends string> {
 	}
 }
 
-export type AnyCheckBuilder<TTableName extends string = TableName> = CheckBuilder<TTableName>;
+export type AnyCheckBuilder<TTableName extends string = string> = CheckBuilder<TTableName>;
 
 export class Check<TTableName extends string> {
 	readonly name: string;
@@ -29,7 +29,7 @@ export type BuildCheck<T extends AnyCheckBuilder> = T extends CheckBuilder<
 > ? Check<TTableName>
 	: never;
 
-export type AnyConstraint = Check<TableName>;
+export type AnyConstraint = Check<string>;
 
 export function check<TTableName extends string>(
 	name: string,
