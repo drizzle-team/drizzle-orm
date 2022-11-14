@@ -373,6 +373,46 @@ test.serial('prepared statement with placeholder in .where', (t) => {
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 });
 
+test.serial('select with group by as field', async (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).execute();
+
+	const result = db.select(usersTable)
+		.fields({ name: usersTable.name })
+		.groupBy(usersTable.name)
+		.execute();
+
+	t.deepEqual(result, [{ name: 'Jane' }, { name: 'John' }]);
+});
+
+test.serial('select with group by as sql', async (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).execute();
+
+	const result = db.select(usersTable)
+		.fields({ name: usersTable.name })
+		.groupBy(sql`${usersTable.name}`)
+		.execute();
+
+	t.deepEqual(result, [{ name: 'Jane' }, { name: 'John' }]);
+});
+
+test.serial('build query', async (t) => {
+	const { db } = t.context;
+
+	const query = db.select(usersTable)
+		.fields({ id: usersTable.id, name: usersTable.name })
+		.groupBy(usersTable.id, usersTable.name);
+
+	const prepared = db.buildQuery(query);
+	t.deepEqual(prepared, {
+		sql: 'select "id", "name" from "users" group by "users"."id", "users"."name"',
+		params: [],
+	});
+});
+
 test.after.always((t) => {
 	const ctx = t.context;
 	ctx.client?.close();

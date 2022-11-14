@@ -1,5 +1,5 @@
 import { RunResult } from 'better-sqlite3';
-import { SQL } from 'drizzle-orm/sql';
+import { SQL, SQLWrapper } from 'drizzle-orm/sql';
 
 import { SQLiteDialect } from '~/dialect';
 import { SQLiteDelete, SQLiteInsertBuilder, SQLiteSelect, SQLiteUpdateBuilder } from '~/queries';
@@ -32,6 +32,10 @@ export class SQLiteDatabase {
 
 	delete<TTable extends AnySQLiteTable>(table: TTable): SQLiteDelete<TTable> {
 		return new SQLiteDelete(table, this.session, this.dialect);
+	}
+
+	buildQuery(sqlWrapper: SQLWrapper) {
+		return sqlWrapper.getSQL().toQuery({ escapeName: this.dialect.escapeName, escapeParam: this.dialect.escapeParam });
 	}
 
 	run(query: SQL): RunResult {
