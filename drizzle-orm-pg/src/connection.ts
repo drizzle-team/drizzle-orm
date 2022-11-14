@@ -242,7 +242,7 @@ export class PgDialect {
 		return sql.fromList(chunks);
 	}
 
-	buildSelectQuery({ fields, where, table, joins, orderBy, limit, offset }: PgSelectConfig): SQL {
+	buildSelectQuery({ fields, where, table, joins, orderBy, groupBy, limit, offset }: PgSelectConfig): SQL {
 		const joinKeys = Object.keys(joins);
 
 		const selection = this.buildSelection(fields, { isSingleTable: joinKeys.length === 0 });

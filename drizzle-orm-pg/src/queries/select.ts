@@ -1,5 +1,5 @@
 import { AnyColumn } from 'drizzle-orm';
-import { Query, sql, SQL, SQLWrapper } from 'drizzle-orm/sql';
+import { Query, SQL, sql, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
 
 import { PgDialect, PgSession } from '~/connection';
@@ -135,8 +135,12 @@ export class PgSelect<
 		return this;
 	}
 
-	groupBy(...columns: AnyColumn[]): Omit<this, 'where' | `${JoinType}Join`> {
-		this.config.groupBy = columns.map(column => sql`${column}`)
+	groupBy(...columns: AnyColumn[] | SQL[]): Omit<this, 'where' | `${JoinType}Join`> {
+		if (columns[0] instanceof SQL) {
+			this.config.groupBy = columns as SQL[];
+		} else {
+			this.config.groupBy = columns.map((column) => sql`${column}`);
+		}
 		return this;
 	}
 

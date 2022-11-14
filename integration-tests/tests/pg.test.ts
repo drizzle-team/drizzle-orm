@@ -185,7 +185,31 @@ test.serial('insert many', async (t) => {
 	t.deepEqual(result, [{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
 });
 
-test.serial('select with group by', async (t) => {
+test.serial('select with group by as field', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+
+	const result = await db.select(usersTable)
+		.fields({ name: usersTable.name })
+		.groupBy(usersTable.name);
+
+	t.deepEqual(result, [{ name: 'Jane' }, { name: 'John' }]);
+});
+
+test.serial('select with group by as sql', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+
+	const result = await db.select(usersTable)
+		.fields({ name: usersTable.name })
+		.groupBy(sql`${usersTable.name}`);
+
+	t.deepEqual(result, [{ name: 'Jane' }, { name: 'John' }]);
+});
+
+test.serial('build query', async (t) => {
 	const { db } = t.context;
 
 	const query = db.select(usersTable)
@@ -193,6 +217,10 @@ test.serial('select with group by', async (t) => {
 		.groupBy(usersTable.id, usersTable.name);
 
 	const prepared = db.buildQuery(query);
+	t.deepEqual(prepared, {
+		sql: 'select "id", "name" from "users" group by "users"."id", "users"."name"',
+		params: [],
+	});
 });
 
 test.serial('insert sql', async (t) => {
