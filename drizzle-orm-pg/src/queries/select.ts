@@ -25,7 +25,7 @@ export interface PgSelectConfig {
 	offset?: number;
 	joins: Record<string, JoinsValue>;
 	orderBy: SQL[];
-	groupBy: SQL[];
+	groupBy: (AnyColumn | SQL)[];
 }
 
 export class PgSelect<
@@ -135,12 +135,8 @@ export class PgSelect<
 		return this;
 	}
 
-	groupBy(...columns: AnyColumn[] | SQL[]): Omit<this, 'where' | `${JoinType}Join`> {
-		if (columns[0] instanceof SQL) {
-			this.config.groupBy = columns as SQL[];
-		} else {
-			this.config.groupBy = columns.map((column) => sql`${column}`);
-		}
+	groupBy(...columns: (AnyColumn | SQL)[]): Omit<this, 'where' | `${JoinType}Join`> {
+		this.config.groupBy = columns as SQL[];
 		return this;
 	}
 

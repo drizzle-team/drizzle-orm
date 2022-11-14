@@ -1,4 +1,4 @@
-import { Column, MigrationMeta, param, sql, Table } from 'drizzle-orm';
+import { Column, MigrationMeta, param, sql, Table, AnyColumn } from 'drizzle-orm';
 import { Name, Query, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
 import { AnySQLiteColumn, SQLiteColumn } from '~/columns';
 import { SQLiteDatabase } from '~/db';
@@ -203,7 +203,7 @@ export class SQLiteDialect {
 			}
 		});
 
-		const groupByList: SQL[] = [];
+		const groupByList: (SQL | AnyColumn)[] = [];
 		groupBy.forEach((groupByValue, index) => {
 			groupByList.push(groupByValue);
 

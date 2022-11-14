@@ -7,6 +7,7 @@ import {
 	readMigrationFiles,
 	sql,
 	Table,
+	AnyColumn
 } from 'drizzle-orm';
 import { Name, Query, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
 import { isIP } from 'net';
@@ -283,7 +284,7 @@ export class PgDialect {
 
 		const orderBySql = orderByList.length > 0 ? sql` order by ${sql.fromList(orderByList)}` : undefined;
 
-		const groupByList: SQL[] = [];
+		const groupByList: (SQL | AnyColumn)[] = [];
 		groupBy.forEach((groupByValue, index) => {
 			groupByList.push(groupByValue);
 
