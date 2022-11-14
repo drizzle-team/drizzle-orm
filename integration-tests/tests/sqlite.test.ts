@@ -2,7 +2,7 @@ import anyTest, { TestFn } from 'ava';
 import Database from 'better-sqlite3';
 import { DefaultLogger, sql } from 'drizzle-orm';
 import { alias, blob, integer, SQLiteConnector, SQLiteDatabase, sqliteTable, text } from 'drizzle-orm-sqlite';
-import { eq } from 'drizzle-orm/expressions';
+import { asc, eq } from 'drizzle-orm/expressions';
 import { placeholder } from 'drizzle-orm/sql';
 
 const usersTable = sqliteTable('users', {
@@ -423,6 +423,21 @@ test.serial('select with group by as column + sql', async (t) => {
 		.execute();
 
 	t.deepEqual(result, [{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+});
+
+test.serial('select with group by complex query', async (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).execute();
+
+	const result = db.select(usersTable)
+		.fields({ name: usersTable.name })
+		.groupBy(usersTable.id, sql`${usersTable.name}`)
+		.orderBy(asc(usersTable.name))
+		.limit(1)
+		.execute();
+
+	t.deepEqual(result, [{ name: 'Jane' }]);
 });
 
 test.serial('build query', async (t) => {
