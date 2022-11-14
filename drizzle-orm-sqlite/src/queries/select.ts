@@ -1,4 +1,5 @@
-import { fillPlaceholders, Placeholder, Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
+import { AnyColumn } from 'drizzle-orm';
+import { fillPlaceholders, Placeholder, Query, SQL, sql, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
 import { SQLiteDialect } from '~/dialect';
 
@@ -24,6 +25,7 @@ export interface SQLiteSelectConfig {
 	offset?: number | Placeholder;
 	joins: Record<string, JoinsValue>;
 	orderBy: SQL[];
+	groupBy: (AnyColumn | SQL)[];
 }
 
 export class SQLiteSelect<
@@ -51,6 +53,7 @@ export class SQLiteSelect<
 			fields,
 			joins: {},
 			orderBy: [],
+			groupBy: [],
 		};
 		this.joinsNotNullable = { [table[SQLiteTable.Symbol.Name]]: true };
 	}
@@ -132,6 +135,11 @@ export class SQLiteSelect<
 
 	orderBy(...columns: SQL[]): Omit<this, 'where' | `${JoinType}Join` | 'orderBy'> {
 		this.config.orderBy = columns;
+		return this;
+	}
+
+	groupBy(...columns: (AnyColumn | SQL)[]): Omit<this, 'where' | `${JoinType}Join`> {
+		this.config.groupBy = columns;
 		return this;
 	}
 

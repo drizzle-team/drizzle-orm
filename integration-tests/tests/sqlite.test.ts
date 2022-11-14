@@ -2,7 +2,7 @@ import anyTest, { TestFn } from 'ava';
 import Database from 'better-sqlite3';
 import { DefaultLogger, sql } from 'drizzle-orm';
 import { alias, blob, integer, SQLiteConnector, SQLiteDatabase, sqliteTable, text } from 'drizzle-orm-sqlite';
-import { eq } from 'drizzle-orm/expressions';
+import { asc, eq } from 'drizzle-orm/expressions';
 import { placeholder } from 'drizzle-orm/sql';
 
 const usersTable = sqliteTable('users', {
@@ -371,6 +371,87 @@ test.serial('prepared statement with placeholder in .where', (t) => {
 	const result = stmt.execute({ id: 1 });
 
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('select with group by as field', async (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).execute();
+
+	const result = db.select(usersTable)
+		.fields({ name: usersTable.name })
+		.groupBy(usersTable.name)
+		.execute();
+
+	t.deepEqual(result, [{ name: 'Jane' }, { name: 'John' }]);
+});
+
+test.serial('select with group by as sql', async (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).execute();
+
+	const result = db.select(usersTable)
+		.fields({ name: usersTable.name })
+		.groupBy(sql`${usersTable.name}`)
+		.execute();
+
+	t.deepEqual(result, [{ name: 'Jane' }, { name: 'John' }]);
+});
+
+test.serial('select with group by as sql + column', async (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).execute();
+
+	const result = db.select(usersTable)
+		.fields({ name: usersTable.name })
+		.groupBy(sql`${usersTable.name}`, usersTable.id)
+		.execute();
+
+	t.deepEqual(result, [{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+});
+
+test.serial('select with group by as column + sql', async (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).execute();
+
+	const result = db.select(usersTable)
+		.fields({ name: usersTable.name })
+		.groupBy(usersTable.id, sql`${usersTable.name}`)
+		.execute();
+
+	t.deepEqual(result, [{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+});
+
+test.serial('select with group by complex query', async (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).execute();
+
+	const result = db.select(usersTable)
+		.fields({ name: usersTable.name })
+		.groupBy(usersTable.id, sql`${usersTable.name}`)
+		.orderBy(asc(usersTable.name))
+		.limit(1)
+		.execute();
+
+	t.deepEqual(result, [{ name: 'Jane' }]);
+});
+
+test.serial('build query', async (t) => {
+	const { db } = t.context;
+
+	const query = db.select(usersTable)
+		.fields({ id: usersTable.id, name: usersTable.name })
+		.groupBy(usersTable.id, usersTable.name);
+
+	const prepared = db.buildQuery(query);
+	t.deepEqual(prepared, {
+		sql: 'select "id", "name" from "users" group by "users"."id", "users"."name"',
+		params: [],
+	});
 });
 
 test.after.always((t) => {

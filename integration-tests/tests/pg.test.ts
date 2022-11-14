@@ -1,8 +1,8 @@
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
-import { DefaultLogger, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { alias, jsonb, PgConnector, PgDatabase, pgTable, serial, text } from 'drizzle-orm-pg';
-import { eq } from 'drizzle-orm/expressions';
+import { asc, eq } from 'drizzle-orm/expressions';
 import getPort from 'get-port';
 import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
@@ -183,6 +183,68 @@ test.serial('insert many', async (t) => {
 	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' });
 	const result = await db.select(usersTable).fields({ id: usersTable.id, name: usersTable.name });
 	t.deepEqual(result, [{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+});
+
+test.serial('select with group by as field', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+
+	const result = await db.select(usersTable)
+		.fields({ name: usersTable.name })
+		.groupBy(usersTable.name);
+
+	t.deepEqual(result, [{ name: 'Jane' }, { name: 'John' }]);
+});
+
+test.serial('select with group by as sql', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+
+	const result = await db.select(usersTable)
+		.fields({ name: usersTable.name })
+		.groupBy(sql`${usersTable.name}`);
+
+	t.deepEqual(result, [{ name: 'Jane' }, { name: 'John' }]);
+});
+
+test.serial('select with group by as sql + column', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+
+	const result = await db.select(usersTable)
+		.fields({ name: usersTable.name })
+		.groupBy(sql`${usersTable.name}`, usersTable.id);
+
+	t.deepEqual(result, [{ name: 'Jane' }, { name: 'Jane' }, { name: 'John' }]);
+});
+
+test.serial('select with group by as column + sql', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+
+	const result = await db.select(usersTable)
+		.fields({ name: usersTable.name })
+		.groupBy(usersTable.id, sql`${usersTable.name}`);
+
+	t.deepEqual(result, [{ name: 'Jane' }, { name: 'Jane' }, { name: 'John' }]);
+});
+
+test.serial('build query', async (t) => {
+	const { db } = t.context;
+
+	const query = db.select(usersTable)
+		.fields({ id: usersTable.id, name: usersTable.name })
+		.groupBy(usersTable.id, usersTable.name);
+
+	const prepared = db.buildQuery(query);
+	t.deepEqual(prepared, {
+		sql: 'select "id", "name" from "users" group by "users"."id", "users"."name"',
+		params: [],
+	});
 });
 
 test.serial('insert sql', async (t) => {
