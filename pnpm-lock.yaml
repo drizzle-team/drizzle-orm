@@ -3701,7 +3701,7 @@ packages:
     dev: true
 
   file:drizzle-orm-pg/package.tgz_al2ce4tklaf7hxuxcecnedmn64:
-    resolution: {integrity: sha512-ms6bHYEH94AA12tgQZsGmGYjH9K+mmz5Avim08jkpksSGA7sf/mVIzTQ3ZLNQkaBOLVRPBVazF8ZZLApoRKZ4Q==, tarball: file:drizzle-orm-pg/package.tgz}
+    resolution: {integrity: sha512-RU48ijhM1yntMQA1n1b6hbVM5H303iE5ed9FoipK75XJqOxaAJ5Ej9ATdThoNhpMXqmfRgfyzti6h+hKEMViYQ==, tarball: file:drizzle-orm-pg/package.tgz}
     id: file:drizzle-orm-pg/package.tgz
     name: drizzle-orm-pg
     version: 0.12.0-beta.37
@@ -3746,7 +3746,7 @@ packages:
     dev: false
 
   file:drizzle-orm-sqlite/package.tgz_uveeilm675nbqtlew6bkufjir4:
-    resolution: {integrity: sha512-uxrja/cOgsIZH0tFp1l8QixiDs2mwgR6Tn1F4dcnm+e46DdivAW7BRCCTzHCNrzP6mvBnIqXtD3ygsL+FAnZzw==, tarball: file:drizzle-orm-sqlite/package.tgz}
+    resolution: {integrity: sha512-Go3kAyDf03RTdXme7f5KKPWr7Reaq3z/XV0X5rpOpLaHeQVtFN+CEFAbDC4YHrsJWU8H0UcEGm82mMFPQ5Ds+g==, tarball: file:drizzle-orm-sqlite/package.tgz}
     id: file:drizzle-orm-sqlite/package.tgz
     name: drizzle-orm-sqlite
     version: 0.12.0-beta.13

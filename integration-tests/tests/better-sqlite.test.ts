@@ -443,11 +443,11 @@ test.serial('select with group by complex query', async (t) => {
 test.serial('build query', async (t) => {
 	const { db } = t.context;
 
-	const query = db.select(usersTable)
+	const prepared = db.select(usersTable)
 		.fields({ id: usersTable.id, name: usersTable.name })
-		.groupBy(usersTable.id, usersTable.name);
+		.groupBy(usersTable.id, usersTable.name)
+		.getQuery();
 
-	const prepared = db.buildQuery(query);
 	t.deepEqual(prepared, {
 		sql: 'select "id", "name" from "users" group by "users"."id", "users"."name"',
 		params: [],
