@@ -1,14 +1,16 @@
 import { Database, RunResult, Statement } from 'better-sqlite3';
 import { Logger, NoopLogger } from 'drizzle-orm';
-import { Placeholder, Query, SQL } from 'drizzle-orm/sql';
+import { Query, SQL } from 'drizzle-orm/sql';
 import { SQLiteDialect } from '~/dialect';
-import { PreparedQuery, SQLiteSession } from '~/session';
+import { PreparedQuery as PreparedQueryBase, SQLiteSyncSession } from '~/session';
 
 export interface SQLiteDefaultSessionOptions {
 	logger?: Logger;
 }
 
-export class SQLiteDefaultSession implements SQLiteSession {
+type PreparedQuery = PreparedQueryBase<Statement>;
+
+export class BetterSQLiteSession implements SQLiteSyncSession<Statement, RunResult> {
 	private logger: Logger;
 
 	constructor(
@@ -20,28 +22,31 @@ export class SQLiteDefaultSession implements SQLiteSession {
 	}
 
 	run(query: SQL | PreparedQuery): RunResult {
-		const preparedQuery = query instanceof SQL ? this.prepareQuery(this.dialect.sqlToQuery(query)) : query;
-		this.logger.logQuery(preparedQuery.queryString, preparedQuery.params);
+		const { stmt, queryString, params } = query instanceof SQL
+			? this.prepareQuery(this.dialect.sqlToQuery(query))
+			: query;
+		this.logger.logQuery(queryString, params);
 
-		const stmt = preparedQuery.stmt as Statement;
-		return stmt.run(...preparedQuery.params);
+		return stmt.run(...params);
 	}
 
 	all<T extends any[] = unknown[]>(query: SQL | PreparedQuery): T[] {
-		const preparedQuery = query instanceof SQL ? this.prepareQuery(this.dialect.sqlToQuery(query)) : query;
-		this.logger.logQuery(preparedQuery.queryString, preparedQuery.params);
+		const { stmt, queryString, params } = query instanceof SQL
+			? this.prepareQuery(this.dialect.sqlToQuery(query))
+			: query;
+		this.logger.logQuery(queryString, params);
 
-		const stmt = preparedQuery.stmt as Statement;
 		stmt.raw();
-		return stmt.all(...preparedQuery.params);
+		return stmt.all(...params);
 	}
 
 	allObjects<T = unknown>(query: SQL | PreparedQuery): T[] {
-		const preparedQuery = query instanceof SQL ? this.prepareQuery(this.dialect.sqlToQuery(query)) : query;
-		this.logger.logQuery(preparedQuery.queryString, preparedQuery.params);
+		const { stmt, queryString, params } = query instanceof SQL
+			? this.prepareQuery(this.dialect.sqlToQuery(query))
+			: query;
+		this.logger.logQuery(queryString, params);
 
-		const stmt = preparedQuery.stmt as Statement;
-		return stmt.all(...preparedQuery.params);
+		return stmt.all(...params);
 	}
 
 	prepareQuery(query: Query): PreparedQuery {

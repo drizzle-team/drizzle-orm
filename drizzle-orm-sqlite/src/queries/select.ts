@@ -1,36 +1,29 @@
-import { AnyColumn } from 'drizzle-orm';
-import { fillPlaceholders, Placeholder, Query, SQL, sql, SQLWrapper } from 'drizzle-orm/sql';
+import { Table } from 'drizzle-orm';
+import { fillPlaceholders, Placeholder, Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
+import { AnySQLiteColumn } from '~/columns';
 import { SQLiteDialect } from '~/dialect';
 
-import { SelectResultFields, SQLiteSelectFields, SQLiteSelectFieldsOrdered } from '~/operations';
-import { PreparedQuery, SQLiteSession } from '~/session';
-import { AnySQLiteTable, GetTableConfig, SQLiteTable } from '~/table';
+import { SelectResultFields, SQLiteSelectFields } from '~/operations';
+import { PreparedQuery, SQLiteAsyncSession, SQLiteSession, SQLiteSyncSession } from '~/session';
+import { AnySQLiteTable, GetTableConfig } from '~/table';
+import { Statement } from './common';
 
 import {
 	AnySQLiteSelect,
-	AppendToJoinsNotNull,
-	AppendToResult,
+	AsyncJoinFn,
+	JoinFn,
 	JoinNullability,
-	JoinsValue,
 	JoinType,
 	SelectResult,
+	SQLiteSelectConfig,
+	SyncJoinFn,
 } from './select.types';
 
-export interface SQLiteSelectConfig {
-	fields: SQLiteSelectFieldsOrdered;
-	where?: SQL | undefined;
-	table: AnySQLiteTable;
-	limit?: number | Placeholder;
-	offset?: number | Placeholder;
-	joins: Record<string, JoinsValue>;
-	orderBy: SQL[];
-	groupBy: (AnyColumn | SQL)[];
-}
-
-export class SQLiteSelect<
+export abstract class SQLiteSelect<
 	TTable extends AnySQLiteTable,
 	TInitialSelectResultFields extends SelectResultFields<SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>,
+	TStatement,
 	TResult = undefined,
 	TJoinsNotNullable extends Record<string, JoinNullability> = Record<GetTableConfig<TTable, 'name'>, 'not-null'>,
 > implements SQLWrapper {
@@ -38,15 +31,14 @@ export class SQLiteSelect<
 	declare protected $initialSelect: TInitialSelectResultFields;
 	declare protected $result: TResult;
 
-	private config: SQLiteSelectConfig;
-	private joinsNotNullable: Record<string, boolean>;
-	private preparedQuery: PreparedQuery | undefined;
+	protected config: SQLiteSelectConfig;
+	protected joinsNotNullable: Record<string, boolean>;
 
 	constructor(
 		table: SQLiteSelectConfig['table'],
 		fields: SQLiteSelectConfig['fields'],
-		private session: SQLiteSession,
-		private dialect: SQLiteDialect,
+		protected session: SQLiteSession<TStatement>,
+		protected dialect: SQLiteDialect,
 	) {
 		this.config = {
 			table,
@@ -55,26 +47,18 @@ export class SQLiteSelect<
 			orderBy: [],
 			groupBy: [],
 		};
-		this.joinsNotNullable = { [table[SQLiteTable.Symbol.Name]]: true };
+		this.joinsNotNullable = { [table[Table.Symbol.Name]]: true };
 	}
 
-	private createJoin<TJoinType extends JoinType>(joinType: TJoinType) {
+	protected createJoin<TJoinType extends JoinType>(
+		joinType: TJoinType,
+	): JoinFn<TTable, TInitialSelectResultFields, TStatement, TJoinType, TResult, TJoinsNotNullable> {
 		const self = this;
 
-		function join<
-			TJoinedTable extends AnySQLiteTable,
-			TSelect extends SQLiteSelectFields<string> = GetTableConfig<TJoinedTable, 'columns'>,
-			TJoinedName extends GetTableConfig<TJoinedTable, 'name'> = GetTableConfig<TJoinedTable, 'name'>,
-		>(table: TJoinedTable, on: SQL, select?: TSelect): SQLiteSelect<
-			TTable,
-			TInitialSelectResultFields,
-			AppendToResult<TResult, TJoinedName, TSelect>,
-			AppendToJoinsNotNull<TJoinsNotNullable, TJoinedName, TJoinType>
-		>;
 		function join(table: AnySQLiteTable, on: SQL, selection?: SQLiteSelectFields<string>): AnySQLiteSelect {
-			const tableName = table[SQLiteTable.Symbol.Name];
+			const tableName = table[Table.Symbol.Name];
 			self.config.fields.push(
-				...self.dialect.orderSelectedFields(selection ?? table[SQLiteTable.Symbol.Columns], tableName),
+				...self.dialect.orderSelectedFields(selection ?? table[Table.Symbol.Columns], tableName),
 			);
 
 			self.config.joins[tableName] = {
@@ -123,8 +107,8 @@ export class SQLiteSelect<
 
 	fields<TSelect extends SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>(
 		fields: TSelect,
-	): Omit<SQLiteSelect<TTable, SelectResultFields<TSelect>, TResult, TJoinsNotNullable>, 'fields'> {
-		this.config.fields = this.dialect.orderSelectedFields(fields, this.config.table[SQLiteTable.Symbol.Name]);
+	): Omit<SQLiteSelect<TTable, SelectResultFields<TSelect>, TStatement, TResult, TJoinsNotNullable>, 'fields'> {
+		this.config.fields = this.dialect.orderSelectedFields(fields, this.config.table[Table.Symbol.Name]);
 		return this as any;
 	}
 
@@ -138,7 +122,7 @@ export class SQLiteSelect<
 		return this;
 	}
 
-	groupBy(...columns: (AnyColumn | SQL)[]): Omit<this, 'where' | `${JoinType}Join`> {
+	groupBy(...columns: (AnySQLiteColumn | SQL)[]): Omit<this, 'where' | `${JoinType}Join`> {
 		this.config.groupBy = columns;
 		return this;
 	}
@@ -162,21 +146,154 @@ export class SQLiteSelect<
 		return this.dialect.sqlToQuery(query);
 	}
 
-	prepare(): Omit<this, 'prepare'> {
-		if (!this.preparedQuery) {
-			this.preparedQuery = this.session.prepareQuery(this.getQuery());
-		}
-		return this;
+	prepare(): Statement<unknown> {
+		const query = this.session.prepareQuery(this.getQuery());
+		return new Statement(query, (params) => this.executePreparedQuery(query, params));
 	}
 
-	execute(
+	protected abstract executePreparedQuery(query: PreparedQuery, placeholderValues?: Record<string, unknown>): unknown;
+
+	execute(placeholderValues?: Record<string, unknown>): unknown {
+		const stmt = this.prepare();
+		const result = stmt.execute(placeholderValues);
+		stmt.finalize();
+		return result;
+	}
+}
+
+export class SQLiteAsyncSelect<
+	TTable extends AnySQLiteTable,
+	TInitialSelectResultFields extends SelectResultFields<SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>,
+	TStatement,
+	TRunResult,
+	TResult = undefined,
+	TJoinsNotNullable extends Record<string, JoinNullability> = Record<GetTableConfig<TTable, 'name'>, 'not-null'>,
+> extends SQLiteSelect<TTable, TInitialSelectResultFields, TStatement, TResult, TJoinsNotNullable> {
+	constructor(
+		table: SQLiteSelectConfig['table'],
+		fields: SQLiteSelectConfig['fields'],
+		protected override session: SQLiteAsyncSession<TStatement, TRunResult>,
+		dialect: SQLiteDialect,
+	) {
+		super(table, fields, session, dialect);
+	}
+
+	protected override createJoin<TJoinType extends JoinType>(
+		joinType: TJoinType,
+	): AsyncJoinFn<TTable, TInitialSelectResultFields, TStatement, TRunResult, TJoinType, TResult, TJoinsNotNullable> {
+		return super.createJoin(joinType) as AsyncJoinFn<
+			TTable,
+			TInitialSelectResultFields,
+			TStatement,
+			TRunResult,
+			TJoinType,
+			TResult,
+			TJoinsNotNullable
+		>;
+	}
+
+	override leftJoin = this.createJoin('left');
+
+	override rightJoin = this.createJoin('right');
+
+	override innerJoin = this.createJoin('inner');
+
+	override fullJoin = this.createJoin('full');
+
+	override fields<TSelect extends SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>(
+		fields: TSelect,
+	): Omit<
+		SQLiteAsyncSelect<TTable, SelectResultFields<TSelect>, TStatement, TRunResult, TResult, TJoinsNotNullable>,
+		'fields'
+	> {
+		return super.fields(fields) as Omit<
+			SQLiteAsyncSelect<TTable, SelectResultFields<TSelect>, TStatement, TRunResult, TResult, TJoinsNotNullable>,
+			'fields'
+		>;
+	}
+
+	protected async executePreparedQuery(
+		query: PreparedQuery<TStatement>,
 		placeholderValues?: Record<string, unknown>,
-	): SelectResult<TTable, TResult, TInitialSelectResultFields, TJoinsNotNullable> {
-		this.prepare();
-		const query = this.preparedQuery!;
+	): Promise<unknown> {
+		const params = fillPlaceholders(query.params, placeholderValues ?? {});
+		const result = await this.session.all({ ...query, params });
+		return result.map((row) => mapResultRow(this.config.fields, row, this.joinsNotNullable));
+	}
+
+	override execute(
+		placeholderValues?: Record<string, unknown>,
+	): Promise<SelectResult<TTable, TResult, TInitialSelectResultFields, TJoinsNotNullable>> {
+		return super.execute(placeholderValues) as Promise<
+			SelectResult<TTable, TResult, TInitialSelectResultFields, TJoinsNotNullable>
+		>;
+	}
+}
+
+export class SQLiteSyncSelect<
+	TTable extends AnySQLiteTable,
+	TInitialSelectResultFields extends SelectResultFields<SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>,
+	TStatement,
+	TRunResult,
+	TResult = undefined,
+	TJoinsNotNullable extends Record<string, JoinNullability> = Record<GetTableConfig<TTable, 'name'>, 'not-null'>,
+> extends SQLiteSelect<TTable, TInitialSelectResultFields, TStatement, TResult, TJoinsNotNullable> {
+	constructor(
+		table: SQLiteSelectConfig['table'],
+		fields: SQLiteSelectConfig['fields'],
+		protected override session: SQLiteSyncSession<TStatement, TRunResult>,
+		dialect: SQLiteDialect,
+	) {
+		super(table, fields, session, dialect);
+	}
+
+	protected override createJoin<TJoinType extends JoinType>(
+		joinType: TJoinType,
+	): SyncJoinFn<TTable, TInitialSelectResultFields, TStatement, TRunResult, TJoinType, TResult, TJoinsNotNullable> {
+		return super.createJoin(joinType) as SyncJoinFn<
+			TTable,
+			TInitialSelectResultFields,
+			TStatement,
+			TRunResult,
+			TJoinType,
+			TResult,
+			TJoinsNotNullable
+		>;
+	}
+
+	override leftJoin = this.createJoin('left');
+
+	override rightJoin = this.createJoin('right');
+
+	override innerJoin = this.createJoin('inner');
+
+	override fullJoin = this.createJoin('full');
+
+	override fields<TSelect extends SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>(
+		fields: TSelect,
+	): Omit<
+		SQLiteSyncSelect<TTable, SelectResultFields<TSelect>, TStatement, TRunResult, TResult, TJoinsNotNullable>,
+		'fields'
+	> {
+		return super.fields(fields) as Omit<
+			SQLiteSyncSelect<TTable, SelectResultFields<TSelect>, TStatement, TRunResult, TResult, TJoinsNotNullable>,
+			'fields'
+		>;
+	}
+
+	protected executePreparedQuery(
+		query: PreparedQuery<TStatement>,
+		placeholderValues?: Record<string, unknown>,
+	): unknown {
 		const params = fillPlaceholders(query.params, placeholderValues ?? {});
 		const result = this.session.all({ ...query, params });
-		return result.map((row) => mapResultRow(this.config.fields, row, this.joinsNotNullable)) as SelectResult<
+		return result.map((row) => mapResultRow(this.config.fields, row, this.joinsNotNullable));
+	}
+
+	override execute(
+		placeholderValues?: Record<string, unknown>,
+	): SelectResult<TTable, TResult, TInitialSelectResultFields, TJoinsNotNullable> {
+		return super.execute(placeholderValues) as SelectResult<
 			TTable,
 			TResult,
 			TInitialSelectResultFields,

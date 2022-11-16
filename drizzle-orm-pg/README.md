@@ -70,7 +70,8 @@ const db = await connector.connect();
 This is how you declare SQL schema in `schema.ts`. You can declare tables, indexes and constraints, foreign keys and enums. Please pay attention to `export` keyword, they are mandatory if you'll be using [drizzle-kit SQL migrations generator](#migrations).
 ```typescript
 // declaring enum in database
-export const popularityEnum = pgEnum("popularity", ["unknown", "known", "popular"]);
+export const popularityEnum = pgEnum("popularity", ["unknown", "known", 
+"popular"]);
 
 export const countries = pgTable("countries", {
     id: serial("id").primaryKey(),
@@ -87,6 +88,31 @@ export const cities = pgTable("cities", {
   popularity: popularityEnum("popularity"),
 })
 ```
+
+Database and table entity types
+```typescript
+import { PgConnector, PgDatabase, pgTable, InferModel, serial, text, varchar } from "drizzle-orm-pg";
+
+const users = pgTable("users", {
+  id: serial('id').primaryKey(),
+  fullName: text('full_name'),
+  phone: varchar('phone', { length: 256 }),
+})
+
+export type User = InferModel<typeof users> // return type when queried
+export type InsertUser = InferModel<typeof users, "insert"> // insert type
+...
+
+const connector = new PgConnector(pool);
+const db: PgDatabase = await connector.connect();
+
+const result: User[] = await db.select(users)
+
+const insertUser = (user: InsertUser) => {
+  return db.insert(users).values(user)
+}
+```
+
 
 The list of all column types. You can also create custom types - !!see here!!.
 ```typescript
@@ -316,7 +342,7 @@ await db.delete(users)
 
 ### Joins
 Last but not least. Probably the most powerful feature in the library🚀
-Many-to-one
+### Many-to-one
 ```typescript
 import { PgConnector, pgTable, serial, text, timestamp } from "drizzle-orm-pg";
 
@@ -337,7 +363,7 @@ const db = await connector.connect();
 const result = db.select(cities).leftJoin(users, eq(cities2.id, users2.cityId))
 ```
 
-Many-to-many
+### Many-to-many
 ```typescript
 const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -361,11 +387,33 @@ const db = await connector.connect();
 // querying user group with id 1 and all the participants(users)
 db.select(usersToChatGroups)
   .leftJoin(users, eq(usersToChatGroups.userId, users.id))
-  .leftJoin(chatGroups, eq(usersToChatGroups.groupId, chatGroups.id));
+  .leftJoin(chatGroups, eq(usersToChatGroups.groupId, chatGroups.id))
+  .where(eq(chatGroups.id, 1));
+```
+
+### Join aliases and selfjoins
+```typescript
+import { ..., alias } from "drizzle-orm-pg";
+
+export const files = pgTable("folders", {
+  name: text("name").notNull(),
+  parent: text("parent_folder")
+})
+
+...
+const connector = new PgConnector(...);
+const db = await connector.connect();
+
+const nestedFiles = alias(files, "nested_files");
+
+await db.select(files)
+  .leftJoin(nestedFiles, eq(files.name, nestedFiles.name))
+  .where(eq(files.parent, "/"));
+// will return files and folers and nested files for each folder at root dir
 ```
 
 ### Join using partial field select
-##### Join Cities with Users getting only needed fields form request
+Join Cities with Users getting only needed fields form request
 ```typescript
 await db.select(cities).fields({
   id: cities.id,
@@ -380,7 +428,7 @@ Check out the [docs for DrizzleKit](https://github.com/drizzle-team/drizzle-kit-
 
 For schema file:
 ```typescript
-import { AbstractTable } from "drizzle-orm";
+import { index, integer, pgTable, serial, varchar } from "drizzle-orm-pg";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -392,7 +440,7 @@ export const users = pgTable("users", {
 export const authOtps = pgTable("auth_otp", {
   id: serial("id").primaryKey(),
   phone: varchar("phone", { length: 256 }),
-  userId: integer("user_id").foreignKey(() => users.id),
+  userId: integer("user_id").references(() => users.id),
 }
 ```
 It will generate:
@@ -417,11 +465,24 @@ END $$;
 CREATE INDEX IF NOT EXISTS users_full_name_index ON users (full_name);
 ```
 
+And you can run migrations manually or using our embedded migrations module
+```typescript
+import { PgConnector } from "drizzle-orm-pg";
+import { Pool } from "pg";
+
+const pool = new Pool({ connectionString: "postgres://user:password@host:port/db" });
+const connector = new PgConnector(pool);
+const db = await connector.connect();
+
+// this will automatically run needed migrations on the database
+await connector.migrate({ migrationsFolder: "./drizzle" })
+```
+
 ## Raw query usage
 #### If you have some complex queries to execute and drizzle-orm can't handle them yet, then you could use `rawQuery` execution
 
 ##### Execute custom raw query
 ```typescript
-const res: QueryResult<any> = await db.execute(sql`SELECT * FROM users WHERE user.id = ${userId}`)
 // it will automatically run a parametrized query!
+const res: QueryResult<any> = await db.execute(sql`SELECT * FROM users WHERE user.id = ${userId}`)
 ```

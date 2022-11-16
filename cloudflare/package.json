@@ -1,0 +1,24 @@
+{
+	"name": "cloudflare",
+	"version": "1.0.0",
+	"description": "",
+	"scripts": {
+		"build:int": "pnpm add ../drizzle-orm/package.tgz ../drizzle-orm-sqlite/package.tgz",
+		"i": "pnpm i"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"devDependencies": {
+		"@cloudflare/workers-types": "^3.18.0",
+		"@types/itty-router-extras": "^0.4.0",
+		"typescript": "^4.8.4",
+		"wrangler": "^2.1.15"
+	},
+	"dependencies": {
+		"drizzle-orm": "file:../drizzle-orm/package.tgz",
+		"drizzle-orm-sqlite": "file:../drizzle-orm-sqlite/package.tgz",
+		"itty-router": "^2.6.6",
+		"itty-router-extras": "^0.4.2"
+	}
+}

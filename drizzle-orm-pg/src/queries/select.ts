@@ -1,11 +1,11 @@
-import { AnyColumn } from 'drizzle-orm';
-import { Query, SQL, sql, SQLWrapper } from 'drizzle-orm/sql';
+import { QueryPromise } from 'drizzle-orm/query-promise';
+import { Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
 
+import { AnyPgColumn } from '~/columns';
 import { PgDialect, PgSession } from '~/connection';
 import { PgSelectFields, PgSelectFieldsOrdered, SelectResultFields } from '~/operations';
 import { AnyPgTable, GetTableConfig, PgTable } from '~/table';
-import { QueryPromise } from './common';
 
 import {
 	AnyPgSelect,
@@ -25,7 +25,7 @@ export interface PgSelectConfig {
 	offset?: number;
 	joins: Record<string, JoinsValue>;
 	orderBy: SQL[];
-	groupBy: (AnyColumn | SQL)[];
+	groupBy: (AnyPgColumn | SQL)[];
 }
 
 export class PgSelect<
@@ -135,7 +135,7 @@ export class PgSelect<
 		return this;
 	}
 
-	groupBy(...columns: (AnyColumn | SQL)[]): Omit<this, 'where' | `${JoinType}Join`> {
+	groupBy(...columns: (AnyPgColumn | SQL)[]): Omit<this, 'where' | `${JoinType}Join`> {
 		this.config.groupBy = columns as SQL[];
 		return this;
 	}

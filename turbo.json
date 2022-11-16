@@ -1,0 +1,29 @@
+{
+	"$schema": "https://turbo.build/schema.json",
+	"pipeline": {
+		"test:types": {
+			"inputs": ["src/**/*.ts", "tests/**/*.ts", "tsconfig.json", "../tsconfig.json"],
+			"outputs": [],
+			"outputMode": "new-only"
+		},
+		"build:int": {
+			"dependsOn": ["^build:int", "test:types"],
+			"inputs": [
+				"src/**/*.ts",
+				"package.json",
+				"README.md",
+				"../README.md",
+				"tsconfig.json",
+				"../tsconfig.json"
+			],
+			"outputs": ["dist/**"],
+			"outputMode": "new-only"
+		},
+		"test": {
+			"dependsOn": ["build:int"],
+			"outputs": [],
+			"inputs": ["tests/**/*.test.ts"]
+		},
+		"i": {}
+	}
+}

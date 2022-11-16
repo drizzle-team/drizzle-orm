@@ -63,7 +63,7 @@ test.serial('select partial', (t) => {
 	t.deepEqual(result, [{ name: 'John' }]);
 });
 
-test.serial('select sql', async (t) => {
+test.serial('select sql', (t) => {
 	const { db } = t.context;
 
 	db.insert(usersTable).values({ name: 'John' }).execute();
@@ -74,7 +74,7 @@ test.serial('select sql', async (t) => {
 	t.deepEqual(users, [{ name: 'JOHN' }]);
 });
 
-test.serial('select typed sql', async (t) => {
+test.serial('select typed sql', (t) => {
 	const { db } = t.context;
 
 	db.insert(usersTable).values({ name: 'John' }).execute();
@@ -85,7 +85,7 @@ test.serial('select typed sql', async (t) => {
 	t.deepEqual(users, [{ name: 'JOHN' }]);
 });
 
-test.serial('insert returning sql', async (t) => {
+test.serial('insert returning sql', (t) => {
 	const { db } = t.context;
 
 	const users = db.insert(usersTable).values({ name: 'John' }).returning({
@@ -95,7 +95,7 @@ test.serial('insert returning sql', async (t) => {
 	t.deepEqual(users, [{ name: 'JOHN' }]);
 });
 
-test.serial('delete returning sql', async (t) => {
+test.serial('delete returning sql', (t) => {
 	const { db } = t.context;
 
 	db.insert(usersTable).values({ name: 'John' }).execute();
@@ -106,7 +106,7 @@ test.serial('delete returning sql', async (t) => {
 	t.deepEqual(users, [{ name: 'JOHN' }]);
 });
 
-test.serial('update returning sql', async (t) => {
+test.serial('update returning sql', (t) => {
 	const { db } = t.context;
 
 	db.insert(usersTable).values({ name: 'John' }).execute();

@@ -1,32 +1,35 @@
-import { Database } from 'bun:sqlite';
+import { Database, Statement } from 'bun:sqlite';
 import { Logger, MigrationConfig, readMigrationFiles } from 'drizzle-orm';
-import { SQLiteDialect } from '~/dialect';
-import { SQLiteSession } from '~/session';
-import { SQLiteDriver } from './driver';
+import { SQLiteSyncDatabase } from '~/db';
+import { SQLiteSyncDialect } from '~/dialect';
+import { SQLiteBunDriver } from './driver';
+import { SQLiteBunSession } from './session';
 
 export interface SQLiteBunConnectorOptions {
 	logger?: Logger;
-	dialect?: SQLiteDialect;
-	driver?: SQLiteDriver;
+	dialect?: SQLiteSyncDialect;
+	driver?: SQLiteBunDriver;
 }
 
+export type SQLiteBunDatabase = SQLiteSyncDatabase<Statement<any, any>, void>;
+
 export class SQLiteBunConnector {
-	dialect: SQLiteDialect;
-	driver: SQLiteDriver;
-	private session: SQLiteSession | undefined;
+	dialect: SQLiteSyncDialect;
+	driver: SQLiteBunDriver;
+	private session: SQLiteBunSession | undefined;
 
 	constructor(client: Database, options: SQLiteBunConnectorOptions = {}) {
-		this.dialect = new SQLiteDialect();
-		this.driver = new SQLiteDriver(client, this.dialect, { logger: options.logger });
+		this.dialect = new SQLiteSyncDialect();
+		this.driver = new SQLiteBunDriver(client, this.dialect, { logger: options.logger });
 	}
 
 	private getSession() {
 		return this.session ?? (this.session = this.driver.connect());
 	}
 
-	connect() {
+	connect(): SQLiteBunDatabase {
 		const session = this.getSession();
-		return this.dialect.createDB(session);
+		return new SQLiteSyncDatabase(this.dialect, session);
 	}
 
 	migrate(config: string | MigrationConfig) {

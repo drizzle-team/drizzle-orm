@@ -1,7 +1,3 @@
-import * as crypto from 'crypto';
-import * as fs from 'fs';
-import * as path from 'path';
-
 export type MigrationMeta = { sql: string; folderMillis: number; hash: string };
 
 export interface Logger {
@@ -52,6 +48,10 @@ export interface MigrationConfig {
 }
 
 export function readMigrationFiles(config: string | MigrationConfig): MigrationMeta[] {
+	const fs = require('fs') as typeof import('fs');
+	const crypto = require('crypto') as typeof import('crypto');
+	const path = require('path') as typeof import('path');
+
 	let migrationFolderTo: string | undefined;
 	if (typeof config === 'string') {
 		const configAsString = fs.readFileSync(path.resolve('.', config), 'utf8');
@@ -65,9 +65,9 @@ export function readMigrationFiles(config: string | MigrationConfig): MigrationM
 		throw Error('no migration folder defined');
 	}
 
-	const files1 = fs.readdirSync(migrationFolderTo);
+	const files = fs.readdirSync(migrationFolderTo);
 	const migrationQueries: MigrationMeta[] = [];
-	for (const migrationFolder of files1) {
+	for (const migrationFolder of files) {
 		if (migrationFolder === '.DS_Store') {
 			continue;
 		}

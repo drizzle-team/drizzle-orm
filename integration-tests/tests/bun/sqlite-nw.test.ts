@@ -1,16 +1,25 @@
 import { Database } from 'bun:sqlite';
 import { DefaultLogger, sql } from 'drizzle-orm';
-import { blob, integer, SQLiteDatabase, sqliteTable, text } from 'drizzle-orm-sqlite';
+import { integer, real, SQLiteDatabase, sqliteTable, text } from 'drizzle-orm-sqlite';
 import { SQLiteBunConnector } from 'drizzle-orm-sqlite/bun';
 import { suite } from 'uvu';
 import * as assert from 'uvu/assert';
 
-const usersTable = sqliteTable('users', {
-	id: integer('id').primaryKey(),
-	name: text('name').notNull(),
-	verified: integer('verified').notNull().default(0),
-	json: blob<string[]>('json', { mode: 'json' }),
-	createdAt: integer('created_at', { mode: 'timestamp' }).notNull().defaultNow(),
+const order = sqliteTable('Order', {
+	id: integer('Id'),
+	customerId: text('CustomerId'),
+	employeeId: integer('EmployeeId'),
+	orderDate: text('OrderDate'),
+	requiredDate: text('RequiredDate'),
+	shippedDate: text('ShippedDate'),
+	shipVia: integer('ShipVia'),
+	freight: real('Freight'),
+	shipName: text('ShipName'),
+	shipAddress: text('ShipAddress'),
+	shipCity: text('ShipCity'),
+	shipRegion: text('ShipRegion'),
+	shipPostalCode: text('ShipPostalCode'),
+	shipCountry: text('ShipCountry'),
 });
 
 interface Context {
@@ -31,50 +40,30 @@ test.before((ctx) => {
 	}
 });
 
-test.before.each((ctx) => {
-	try {
-		const { db } = ctx;
+// test.before.each((ctx) => {
+// 	try {
+// 		const { db } = ctx;
 
-		db.run(sql`drop table if exists ${usersTable}`);
-		db.run(sql`
-		create table ${usersTable} (
-			id integer primary key,
-			name text not null,
-			verified integer not null default 0,
-			json blob,
-			created_at text not null default (strftime('%s', 'now'))
-		)`);
-	} catch (e) {
-		console.error(e);
-	}
-});
+// 		db.run(sql`drop table if exists ${usersTable}`);
+// 		db.run(sql`
+// 		create table ${usersTable} (
+// 			id integer primary key,
+// 			name text not null,
+// 			verified integer not null default 0,
+// 			json blob,
+// 			created_at text not null default (strftime('%s', 'now'))
+// 		)`);
+// 	} catch (e) {
+// 		console.error(e);
+// 	}
+// });
 
-test.skip('select large integer', async (ctx) => {
-	const a = 1667476703000;
-	const result = ctx.db.allObjects<{ a: number }>(sql`select ${sql.raw(String(a))} as a`)[0]!;
-	assert.equal(result.a, a);
-});
-
-test('select all fields', (ctx) => {
+test('select', (ctx) => {
 	const { db } = ctx;
 
-	const now = Date.now();
-
-	db.insert(usersTable).values({ name: 'John' }).execute();
-	const result = db.select(usersTable).execute()[0]!;
-
-	console.log(result);
-
-	assert.ok(result.createdAt instanceof Date, 'createdAt is a Date');
-	assert.ok(
-		Math.abs(result.createdAt.getTime() - now) < 100,
-		`${result.createdAt.getTime()} is within 100ms of ${now}`,
-	);
-	assert.equal(
-		result,
-		{ id: 1, name: 'John', verified: 0, json: null, createdAt: result.createdAt },
-		'result is correct',
-	);
+	// TODO: convert to normalniy test
+	console.log(db.select(order).where(sql`"Order"."ShipCountry" = "Germany"`).execute()[0]);
+	console.log(db.select(order).where(sql`"Order"."ShipCountry" = ${'Germany'}`).prepare().execute()[0]);
 });
 
 test.run();
