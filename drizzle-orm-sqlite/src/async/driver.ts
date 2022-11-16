@@ -1,14 +1,14 @@
-import { Database } from 'better-sqlite3';
 import { Logger } from 'drizzle-orm';
+import { Database } from 'sqlite3';
 import { SQLiteDialect } from '~/dialect';
-import { BetterSQLiteSession } from './session';
+import { SQLite3Session } from './session';
 
 export interface SQLiteDriverOptions {
 	logger?: Logger;
 }
 
 export class SQLiteDriver {
-	private session!: BetterSQLiteSession;
+	private session!: SQLite3Session;
 
 	constructor(
 		private client: Database,
@@ -16,8 +16,7 @@ export class SQLiteDriver {
 		private options: SQLiteDriverOptions = {},
 	) {}
 
-	connect(): BetterSQLiteSession {
-		this.session = new BetterSQLiteSession(this.client, this.dialect, { logger: this.options.logger });
-		return this.session;
+	connect() {
+		return this.session = new SQLite3Session(this.client, this.dialect, { logger: this.options.logger });
 	}
 }

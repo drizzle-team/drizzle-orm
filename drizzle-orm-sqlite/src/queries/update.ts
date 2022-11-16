@@ -1,4 +1,3 @@
-import { RunResult } from 'better-sqlite3';
 import { GetColumnData } from 'drizzle-orm';
 import { fillPlaceholders, Param, Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
@@ -6,7 +5,7 @@ import { Simplify } from 'drizzle-orm/utils';
 import { SQLiteDialect } from '~/dialect';
 
 import { SelectResultFields, SQLiteSelectFields, SQLiteSelectFieldsOrdered } from '~/operations';
-import { PreparedQuery, SQLiteSession } from '~/session';
+import { PreparedQuery, SQLiteAsyncSession, SQLiteSession, SQLiteSyncSession } from '~/session';
 import { AnySQLiteTable, GetTableConfig, InferModel, SQLiteTable } from '~/table';
 import { mapUpdateSet } from '~/utils';
 
@@ -27,32 +26,61 @@ export type SQLiteUpdateSetSource<TTable extends AnySQLiteTable> = Simplify<
 
 export type SQLiteUpdateSet = Record<string, SQL | Param | null | undefined>;
 
-export class SQLiteUpdateBuilder<TTable extends AnySQLiteTable> {
+export abstract class SQLiteUpdateBuilder<TTable extends AnySQLiteTable, TStatement> {
 	declare protected $table: TTable;
 
 	constructor(
-		private table: TTable,
-		private session: SQLiteSession,
-		private dialect: SQLiteDialect,
+		protected table: TTable,
+		protected session: SQLiteSession<TStatement>,
+		protected dialect: SQLiteDialect,
 	) {}
 
-	set(values: SQLiteUpdateSetSource<TTable>): SQLiteUpdate<TTable> {
-		return new SQLiteUpdate(this.table, mapUpdateSet(this.table, values), this.session, this.dialect);
+	abstract set(values: SQLiteUpdateSetSource<TTable>): SQLiteUpdate<TTable, TStatement>;
+}
+
+export class SQLiteAsyncUpdateBuilder<TTable extends AnySQLiteTable, TStatement, TRunResult>
+	extends SQLiteUpdateBuilder<TTable, TStatement>
+{
+	constructor(
+		table: TTable,
+		protected override session: SQLiteAsyncSession<TStatement, TRunResult>,
+		dialect: SQLiteDialect,
+	) {
+		super(table, session, dialect);
+	}
+
+	set(values: SQLiteUpdateSetSource<TTable>): SQLiteAsyncUpdate<TTable, TStatement, TRunResult> {
+		return new SQLiteAsyncUpdate(this.table, mapUpdateSet(this.table, values), this.session, this.dialect);
 	}
 }
 
-export class SQLiteUpdate<TTable extends AnySQLiteTable, TReturn = RunResult> implements SQLWrapper {
-	declare protected $table: TTable;
-	declare protected $return: TReturn;
+export class SQLiteSyncUpdateBuilder<TTable extends AnySQLiteTable, TStatement, TRunResult>
+	extends SQLiteUpdateBuilder<TTable, TStatement>
+{
+	constructor(
+		table: TTable,
+		protected override session: SQLiteSyncSession<TStatement, TRunResult>,
+		dialect: SQLiteDialect,
+	) {
+		super(table, session, dialect);
+	}
 
-	private config: SQLiteUpdateConfig;
-	private preparedQuery: PreparedQuery | undefined;
+	set(values: SQLiteUpdateSetSource<TTable>): SQLiteSyncUpdate<TTable, TStatement, TRunResult> {
+		return new SQLiteSyncUpdate(this.table, mapUpdateSet(this.table, values), this.session, this.dialect);
+	}
+}
+
+export abstract class SQLiteUpdate<TTable extends AnySQLiteTable, TStatement> implements SQLWrapper {
+	declare protected $table: TTable;
+
+	protected config: SQLiteUpdateConfig;
+	protected preparedQuery: PreparedQuery<TStatement> | undefined;
 
 	constructor(
 		table: TTable,
 		set: SQLiteUpdateSet,
-		private session: SQLiteSession,
-		private dialect: SQLiteDialect,
+		protected session: SQLiteSession<TStatement>,
+		protected dialect: SQLiteDialect,
 	) {
 		this.config = { set, table };
 	}
@@ -62,11 +90,13 @@ export class SQLiteUpdate<TTable extends AnySQLiteTable, TReturn = RunResult> im
 		return this;
 	}
 
-	returning(): Omit<SQLiteUpdate<TTable, InferModel<TTable>[]>, 'where' | 'returning'>;
+	returning(): Omit<SQLiteUpdate<TTable, TStatement>, 'where' | 'returning'>;
 	returning<TSelectedFields extends SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>(
 		fields: TSelectedFields,
-	): Omit<SQLiteUpdate<TTable, SelectResultFields<TSelectedFields>[]>, 'where' | 'returning'>;
-	returning(fields?: SQLiteSelectFields<GetTableConfig<TTable, 'name'>>): SQLiteUpdate<TTable, any> {
+	): Omit<SQLiteUpdate<TTable, TStatement>, 'where' | 'returning'>;
+	returning(
+		fields?: SQLiteSelectFields<GetTableConfig<TTable, 'name'>>,
+	): SQLiteUpdate<TTable, TStatement> {
 		const orderedFields = this.dialect.orderSelectedFields(
 			fields ?? this.config.table[SQLiteTable.Symbol.Columns],
 			this.config.table[SQLiteTable.Symbol.Name],
@@ -89,6 +119,90 @@ export class SQLiteUpdate<TTable extends AnySQLiteTable, TReturn = RunResult> im
 		}
 		return this;
 	}
+}
+
+export class SQLiteAsyncUpdate<TTable extends AnySQLiteTable, TStatement, TRunResult, TReturn = TRunResult>
+	extends SQLiteUpdate<TTable, TStatement>
+{
+	constructor(
+		table: TTable,
+		set: SQLiteUpdateSet,
+		protected override session: SQLiteAsyncSession<TStatement, TRunResult>,
+		protected override dialect: SQLiteDialect,
+	) {
+		super(table, set, session, dialect);
+	}
+
+	override returning(): Omit<
+		SQLiteAsyncUpdate<TTable, TStatement, TRunResult, InferModel<TTable>[]>,
+		'where' | 'returning'
+	>;
+	override returning<TSelectedFields extends SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>(
+		fields: TSelectedFields,
+	): Omit<
+		SQLiteAsyncUpdate<TTable, TStatement, TRunResult, SelectResultFields<TSelectedFields>[]>,
+		'where' | 'returning'
+	>;
+	override returning(
+		fields?: SQLiteSelectFields<GetTableConfig<TTable, 'name'>>,
+	): SQLiteAsyncUpdate<TTable, TStatement, TRunResult, any> {
+		return (fields ? super.returning(fields) : super.returning()) as SQLiteAsyncUpdate<
+			TTable,
+			TStatement,
+			TRunResult,
+			any
+		>;
+	}
+
+	async execute(placeholderValues?: Record<string, unknown>): Promise<TReturn> {
+		this.prepare();
+		let query = this.preparedQuery!;
+		const params = fillPlaceholders(query.params, placeholderValues ?? {});
+		query = { ...query, params };
+
+		const { returning } = this.config;
+
+		if (returning) {
+			const result = await this.session.all(query);
+			return result.map((row) => mapResultRow(returning, row)) as TReturn;
+		}
+
+		return this.session.run(query) as TReturn;
+	}
+}
+
+export class SQLiteSyncUpdate<TTable extends AnySQLiteTable, TStatement, TRunResult, TReturn = TRunResult>
+	extends SQLiteUpdate<TTable, TStatement>
+{
+	constructor(
+		table: TTable,
+		set: SQLiteUpdateSet,
+		protected override session: SQLiteSyncSession<TStatement, TRunResult>,
+		protected override dialect: SQLiteDialect,
+	) {
+		super(table, set, session, dialect);
+	}
+
+	override returning(): Omit<
+		SQLiteSyncUpdate<TTable, TStatement, TRunResult, InferModel<TTable>[]>,
+		'where' | 'returning'
+	>;
+	override returning<TSelectedFields extends SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>(
+		fields: TSelectedFields,
+	): Omit<
+		SQLiteSyncUpdate<TTable, TStatement, TRunResult, SelectResultFields<TSelectedFields>[]>,
+		'where' | 'returning'
+	>;
+	override returning(
+		fields?: SQLiteSelectFields<GetTableConfig<TTable, 'name'>>,
+	): SQLiteSyncUpdate<TTable, TStatement, TRunResult, any> {
+		return (fields ? super.returning(fields) : super.returning()) as SQLiteSyncUpdate<
+			TTable,
+			TStatement,
+			TRunResult,
+			any
+		>;
+	}
 
 	execute(placeholderValues?: Record<string, unknown>): TReturn {
 		this.prepare();
@@ -103,6 +217,6 @@ export class SQLiteUpdate<TTable extends AnySQLiteTable, TReturn = RunResult> im
 			return result.map((row) => mapResultRow(returning, row)) as TReturn;
 		}
 
-		return this.session.run(query) as TReturn;
+		return this.session.run(query) as unknown as TReturn;
 	}
 }

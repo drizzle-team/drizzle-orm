@@ -1,15 +1,14 @@
 import { Database } from 'bun:sqlite';
 import { Logger } from 'drizzle-orm';
 import { SQLiteDialect } from '~/dialect';
-import { SQLiteSession } from '~/session';
 import { SQLiteBunSession } from './session';
 
 export interface SQLiteDriverOptions {
 	logger?: Logger;
 }
 
-export class SQLiteDriver {
-	private session!: SQLiteSession;
+export class SQLiteBunDriver {
+	private session!: SQLiteBunSession;
 
 	constructor(
 		private client: Database,
@@ -17,7 +16,7 @@ export class SQLiteDriver {
 		private options: SQLiteDriverOptions = {},
 	) {}
 
-	connect(): SQLiteSession {
+	connect(): SQLiteBunSession {
 		this.session = new SQLiteBunSession(this.client, this.dialect, { logger: this.options.logger });
 		return this.session;
 	}

@@ -1,24 +1,22 @@
 {
 	"private": true,
 	"scripts": {
-		"build:core": "pnpm --filter drizzle-orm run build",
-		"build:pg": "pnpm --filter drizzle-orm-pg build",
-		"build:mysql": "pnpm --filter drizzle-orm-mysql build",
-		"build": "pnpm --filter '!drizzle-orm-mysql' build",
-		"build:int": "pnpm --filter '!drizzle-orm-mysql' build:int && cd integration-tests && pnpm build:int",
-		"test": "cd integration-tests && pnpm test",
-		"test:andrew": "cd integration-tests && pnpm test:andrew",
-		"test:dan": "cd integration-tests && pnpm test:dan",
-		"test:dan:mysql": "cd integration-tests && pnpm test:dan:mysql"
+		"build:core": "turbo run build --filter drizzle-orm",
+		"build:pg": "turbo run build --filter drizzle-orm-pg",
+		"build:mysql": "turbo run build --filter drizzle-orm-mysql",
+		"build": "turbo run build --filter '!drizzle-orm-mysql' --color",
+		"build:int": "turbo run build:int --filter '!drizzle-orm-mysql' --color",
+		"test": "turbo run test --filter '!drizzle-orm-mysql' --color",
+		"postinstall": "pnpm i --filter '!integration-tests' --filter '!cloudflare' --filter '!.'"
 	},
 	"devDependencies": {
 		"@trivago/prettier-plugin-sort-imports": "^3.2.0",
-		"@types/node": "^18.11.9",
 		"bun-types": "^0.2.2",
 		"concurrently": "^7.5.0",
 		"dprint": "^0.32.2",
 		"prettier": "^2.7.1",
 		"resolve-tspaths": "^0.8.3",
+		"turbo": "^1.6.3",
 		"typescript": "4.8.4"
 	},
 	"pnpm": {

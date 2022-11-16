@@ -6,6 +6,6 @@
 		"paths": {
 			"~/*": ["src/*"]
 		},
-		"types": ["bun-types"]
+		"types": ["bun-types", "@cloudflare/workers-types"]
 	}
 }

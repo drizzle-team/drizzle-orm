@@ -1,4 +1,5 @@
 import { GetColumnData } from 'drizzle-orm';
+import { QueryPromise } from 'drizzle-orm/query-promise';
 import { Param, Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
 import { Simplify } from 'drizzle-orm/utils';
@@ -8,7 +9,6 @@ import { PgDialect, PgSession } from '~/connection';
 import { PgSelectFields, PgSelectFieldsOrdered, SelectResultFields } from '~/operations';
 import { AnyPgTable, GetTableConfig, InferModel, PgTable } from '~/table';
 import { mapUpdateSet } from '~/utils';
-import { QueryPromise } from './common';
 
 export interface PgUpdateConfig {
 	where?: SQL | undefined;

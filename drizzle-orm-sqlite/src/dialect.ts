@@ -1,60 +1,13 @@
 import { Column, MigrationMeta, param, sql, Table } from 'drizzle-orm';
 import { Name, Query, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
 import { AnySQLiteColumn, SQLiteColumn } from '~/columns';
-import { SQLiteDatabase } from '~/db';
 import { SQLiteSelectFields, SQLiteSelectFieldsOrdered } from '~/operations';
-import {
-	SQLiteDeleteConfig,
-	SQLiteInsertConfig,
-	SQLiteSelectConfig,
-	SQLiteUpdateConfig,
-	SQLiteUpdateSet,
-} from '~/queries';
-import { SQLiteSession } from '~/session';
+import { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig, SQLiteUpdateSet } from '~/queries';
+import { SQLiteAsyncSession, SQLiteSyncSession } from '~/session';
 import { AnySQLiteTable, SQLiteTable } from '~/table';
+import { SQLiteSelectConfig } from './queries/select.types';
 
-export class SQLiteDialect {
-	migrate(migrations: MigrationMeta[], session: SQLiteSession): void {
-		// const migrations = sqliteTable('drizzle_migrations', {
-		// 	id:
-		// });
-
-		const migrationTableCreate = sql`CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
-			id SERIAL PRIMARY KEY,
-			hash text NOT NULL,
-			created_at numeric
-		)`;
-		session.run(sql`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
-		session.run(migrationTableCreate);
-
-		const dbMigrations = session.all<[number, string, string]>(
-			sql`SELECT id, hash, created_at FROM "__drizzle_migrations" ORDER BY created_at DESC LIMIT 1`,
-		);
-
-		const lastDbMigration = dbMigrations[0] ?? undefined;
-		session.run(sql`BEGIN`);
-
-		try {
-			for (const migration of migrations) {
-				if (!lastDbMigration || parseInt(lastDbMigration[2], 10)! < migration.folderMillis) {
-					session.run(sql.raw(migration.sql));
-					session.run(
-						sql`INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
-					);
-				}
-			}
-
-			session.run(sql`COMMIT`);
-		} catch (e) {
-			session.run(sql`ROLLBACK`);
-			throw e;
-		}
-	}
-
-	createDB(session: SQLiteSession): SQLiteDatabase {
-		return new SQLiteDatabase(this, session);
-	}
-
+export abstract class SQLiteDialect {
 	escapeName(name: string): string {
 		return `"${name}"`;
 	}
@@ -260,5 +213,75 @@ export class SQLiteDialect {
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 		});
+	}
+}
+
+export class SQLiteSyncDialect extends SQLiteDialect {
+	migrate(migrations: MigrationMeta[], session: SQLiteSyncSession<unknown, unknown>): void {
+		const migrationTableCreate = sql`CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
+			id SERIAL PRIMARY KEY,
+			hash text NOT NULL,
+			created_at numeric
+		)`;
+		session.run(sql`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
+		session.run(migrationTableCreate);
+
+		const dbMigrations = session.all<[number, string, string]>(
+			sql`SELECT id, hash, created_at FROM "__drizzle_migrations" ORDER BY created_at DESC LIMIT 1`,
+		);
+
+		const lastDbMigration = dbMigrations[0] ?? undefined;
+		session.run(sql`BEGIN`);
+
+		try {
+			for (const migration of migrations) {
+				if (!lastDbMigration || parseInt(lastDbMigration[2], 10)! < migration.folderMillis) {
+					session.run(sql.raw(migration.sql));
+					session.run(
+						sql`INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
+					);
+				}
+			}
+
+			session.run(sql`COMMIT`);
+		} catch (e) {
+			session.run(sql`ROLLBACK`);
+			throw e;
+		}
+	}
+}
+
+export class SQLiteAsyncDialect extends SQLiteDialect {
+	async migrate(migrations: MigrationMeta[], session: SQLiteAsyncSession<unknown, unknown>): Promise<void> {
+		const migrationTableCreate = sql`CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
+			id SERIAL PRIMARY KEY,
+			hash text NOT NULL,
+			created_at numeric
+		)`;
+		await session.run(sql`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
+		await session.run(migrationTableCreate);
+
+		const dbMigrations = await session.all<[number, string, string]>(
+			sql`SELECT id, hash, created_at FROM "__drizzle_migrations" ORDER BY created_at DESC LIMIT 1`,
+		);
+
+		const lastDbMigration = dbMigrations[0] ?? undefined;
+		await session.run(sql`BEGIN`);
+
+		try {
+			for (const migration of migrations) {
+				if (!lastDbMigration || parseInt(lastDbMigration[2], 10)! < migration.folderMillis) {
+					await session.run(sql.raw(migration.sql));
+					await session.run(
+						sql`INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
+					);
+				}
+			}
+
+			await session.run(sql`COMMIT`);
+		} catch (e) {
+			await session.run(sql`ROLLBACK`);
+			throw e;
+		}
 	}
 }

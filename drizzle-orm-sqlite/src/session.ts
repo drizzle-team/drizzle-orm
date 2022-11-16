@@ -1,26 +1,25 @@
-import type { Statement as BetterSQLiteStatement } from 'better-sqlite3';
-import type { Statement as BunStatement } from 'bun:sqlite';
 import { Query, SQL } from 'drizzle-orm/sql';
 
-export interface RunResult {
-	changes: number;
-	lastInsertRowid: number | bigint;
-}
-
-export interface PreparedQuery {
-	stmt: BunStatement<unknown> | BetterSQLiteStatement;
+export interface PreparedQuery<TStatement = unknown> {
+	stmt: TStatement;
 	queryString: string;
 	params: unknown[];
+
+	finalize?(): void;
 }
 
-export interface PreparedQueryExecuteConfig {
-	stmt: PreparedQuery;
-	placeholderValues: Record<string, unknown>;
+export interface SQLiteSession<TStatement> {
+	prepareQuery(query: Query): PreparedQuery<TStatement>;
 }
 
-export interface SQLiteSession {
-	run(query: SQL | PreparedQuery): RunResult;
-	all<T extends any[] = unknown[]>(query: SQL | PreparedQuery): T[];
-	allObjects<T = unknown>(query: SQL | PreparedQuery): T[];
-	prepareQuery(query: Query): PreparedQuery;
+export interface SQLiteSyncSession<TStatement, TRunResult> extends SQLiteSession<TStatement> {
+	run(query: SQL | PreparedQuery<TStatement>): TRunResult;
+	all<T extends any[] = unknown[]>(query: SQL | PreparedQuery<TStatement>): T[];
+	allObjects<T = unknown>(query: SQL | PreparedQuery<TStatement>): T[];
+}
+
+export interface SQLiteAsyncSession<TStatement, TRunResult> extends SQLiteSession<TStatement> {
+	run(query: SQL | PreparedQuery<TStatement>): Promise<TRunResult>;
+	all<T extends any[] = unknown[]>(query: SQL | PreparedQuery<TStatement>): Promise<T[]>;
+	allObjects<T = unknown>(query: SQL | PreparedQuery<TStatement>): Promise<T[]>;
 }
