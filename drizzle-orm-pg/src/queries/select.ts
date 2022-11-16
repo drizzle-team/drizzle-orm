@@ -1,10 +1,10 @@
+import { QueryPromise } from 'drizzle-orm/query-promise';
 import { Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
 
 import { PgDialect, PgSession } from '~/connection';
 import { PgSelectFields, PgSelectFieldsOrdered, SelectResultFields } from '~/operations';
 import { AnyPgTable, GetTableConfig, PgTable } from '~/table';
-import { QueryPromise } from './common';
 
 import {
 	AnyPgSelect,

@@ -1,13 +1,13 @@
 import { AnyColumn } from 'drizzle-orm';
-import { SQL } from 'drizzle-orm/sql';
+import { Placeholder, SQL } from 'drizzle-orm/sql';
 import { Simplify } from 'drizzle-orm/utils';
 
 import { AnySQLiteColumn } from '~/columns';
 import { ChangeColumnTableName } from '~/columns/common';
-import { SelectResultFields, SQLiteSelectFields } from '~/operations';
+import { SelectResultFields, SQLiteSelectFields, SQLiteSelectFieldsOrdered } from '~/operations';
 import { AnySQLiteTable, GetTableConfig, SQLiteTableWithColumns, TableConfig, UpdateTableConfig } from '~/table';
 
-import { SQLiteSelect } from './select';
+import { SQLiteAsyncSelect, SQLiteSelect, SQLiteSyncSelect } from './select';
 
 export type JoinType = 'inner' | 'left' | 'right' | 'full';
 
@@ -47,7 +47,7 @@ export type SelectResult<
 		>
 	>[];
 
-export type AnySQLiteSelect = SQLiteSelect<AnySQLiteTable, any, any, any>;
+export type AnySQLiteSelect = SQLiteSelect<any, any, any, any>;
 
 export type BuildAliasTable<TTable extends AnySQLiteTable, TAlias extends string> = GetTableConfig<TTable> extends
 	infer TConfig extends TableConfig ? SQLiteTableWithColumns<
@@ -127,4 +127,75 @@ export type AppendToJoinsNotNull<
 				| (SetJoinsNotNull<TJoinsNotNull, 'null'> & { [name in TJoinedName]: 'not-null' })
 				| (TJoinsNotNull & { [name in TJoinedName]: 'not-null' })
 		: never
+>;
+
+export interface SQLiteSelectConfig {
+	fields: SQLiteSelectFieldsOrdered;
+	where?: SQL | undefined;
+	table: AnySQLiteTable;
+	limit?: number | Placeholder;
+	offset?: number | Placeholder;
+	joins: Record<string, JoinsValue>;
+	orderBy: SQL[];
+}
+
+export type JoinFn<
+	TTable extends AnySQLiteTable,
+	TInitialSelectResultFields extends SelectResultFields<SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>,
+	TStatement,
+	TJoinType extends JoinType,
+	TResult = undefined,
+	TJoinsNotNullable extends Record<string, JoinNullability> = Record<GetTableConfig<TTable, 'name'>, 'not-null'>,
+> = <
+	TJoinedTable extends AnySQLiteTable,
+	TSelect extends SQLiteSelectFields<string> = GetTableConfig<TJoinedTable, 'columns'>,
+	TJoinedName extends GetTableConfig<TJoinedTable, 'name'> = GetTableConfig<TJoinedTable, 'name'>,
+>(table: TJoinedTable, on: SQL, select?: TSelect) => SQLiteSelect<
+	TTable,
+	TInitialSelectResultFields,
+	TStatement,
+	AppendToResult<TResult, TJoinedName, TSelect>,
+	AppendToJoinsNotNull<TJoinsNotNullable, TJoinedName, TJoinType>
+>;
+
+export type AsyncJoinFn<
+	TTable extends AnySQLiteTable,
+	TInitialSelectResultFields extends SelectResultFields<SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>,
+	TStatement,
+	TRunResult,
+	TJoinType extends JoinType,
+	TResult = undefined,
+	TJoinsNotNullable extends Record<string, JoinNullability> = Record<GetTableConfig<TTable, 'name'>, 'not-null'>,
+> = <
+	TJoinedTable extends AnySQLiteTable,
+	TSelect extends SQLiteSelectFields<string> = GetTableConfig<TJoinedTable, 'columns'>,
+	TJoinedName extends GetTableConfig<TJoinedTable, 'name'> = GetTableConfig<TJoinedTable, 'name'>,
+>(table: TJoinedTable, on: SQL, select?: TSelect) => SQLiteAsyncSelect<
+	TTable,
+	TInitialSelectResultFields,
+	TStatement,
+	TRunResult,
+	AppendToResult<TResult, TJoinedName, TSelect>,
+	AppendToJoinsNotNull<TJoinsNotNullable, TJoinedName, TJoinType>
+>;
+
+export type SyncJoinFn<
+	TTable extends AnySQLiteTable,
+	TInitialSelectResultFields extends SelectResultFields<SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>,
+	TStatement,
+	TRunResult,
+	TJoinType extends JoinType,
+	TResult = undefined,
+	TJoinsNotNullable extends Record<string, JoinNullability> = Record<GetTableConfig<TTable, 'name'>, 'not-null'>,
+> = <
+	TJoinedTable extends AnySQLiteTable,
+	TSelect extends SQLiteSelectFields<string> = GetTableConfig<TJoinedTable, 'columns'>,
+	TJoinedName extends GetTableConfig<TJoinedTable, 'name'> = GetTableConfig<TJoinedTable, 'name'>,
+>(table: TJoinedTable, on: SQL, select?: TSelect) => SQLiteSyncSelect<
+	TTable,
+	TInitialSelectResultFields,
+	TStatement,
+	TRunResult,
+	AppendToResult<TResult, TJoinedName, TSelect>,
+	AppendToJoinsNotNull<TJoinsNotNullable, TJoinedName, TJoinType>
 >;

@@ -5,8 +5,8 @@
 	"main": "index.js",
 	"types": "index.d.ts",
 	"scripts": {
-		"build": "concurrently -n build,test \"tsc -p tsconfig.build.json\" pnpm:test",
-		"test": "echo WARN: No tests defined!",
+		"build": "tsc -p tsconfig.build.json",
+		"test:types": "echo WARN: No tests defined!",
 		"pack": "cp ../README.md package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"publish": "npm publish package.tgz",
 		"publish:beta": "npm publish package.tgz --tag beta",
@@ -51,5 +51,8 @@
 		"drizzle-orm-sqlite": {
 			"optional": true
 		}
+	},
+	"devDependencies": {
+		"@types/node": "^18.11.9"
 	}
 }

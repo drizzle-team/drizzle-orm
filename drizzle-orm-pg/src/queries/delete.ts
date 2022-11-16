@@ -1,3 +1,4 @@
+import { QueryPromise } from 'drizzle-orm/query-promise';
 import { Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
 import { QueryResult } from 'pg';
@@ -5,7 +6,6 @@ import { QueryResult } from 'pg';
 import { PgDialect, PgSession } from '~/connection';
 import { PgSelectFields, PgSelectFieldsOrdered, SelectResultFields } from '~/operations';
 import { AnyPgTable, GetTableConfig, InferModel, PgTable } from '~/table';
-import { QueryPromise } from './common';
 
 export interface PgDeleteConfig {
 	where?: SQL | undefined;

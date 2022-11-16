@@ -1,9 +1,9 @@
-import { Database, RunResult, Statement } from 'better-sqlite3';
 import { Logger, MigrationConfig, readMigrationFiles } from 'drizzle-orm';
-import { SQLiteSyncDatabase } from '~/db';
-import { SQLiteDialect, SQLiteSyncDialect } from '~/dialect';
+import { Database, RunResult, Statement } from 'sqlite3';
+import { SQLiteAsyncDatabase } from '~/db';
+import { SQLiteAsyncDialect, SQLiteDialect } from '~/dialect';
 import { SQLiteDriver } from './driver';
-import { BetterSQLiteSession } from './session';
+import { SQLite3Session } from './session';
 
 export interface SQLiteConnectorOptions {
 	logger?: Logger;
@@ -11,15 +11,15 @@ export interface SQLiteConnectorOptions {
 	driver?: SQLiteDriver;
 }
 
-export type SQLiteDatabase = SQLiteSyncDatabase<Statement, RunResult>;
+export type SQLite3Database = SQLiteAsyncDatabase<Statement, RunResult>;
 
-export class SQLiteConnector {
-	dialect: SQLiteSyncDialect;
+export class SQLite3Connector {
+	dialect: SQLiteAsyncDialect;
 	driver: SQLiteDriver;
-	private session: BetterSQLiteSession | undefined;
+	private session: SQLite3Session | undefined;
 
 	constructor(client: Database, options: SQLiteConnectorOptions = {}) {
-		this.dialect = new SQLiteSyncDialect();
+		this.dialect = new SQLiteAsyncDialect();
 		this.driver = new SQLiteDriver(client, this.dialect, { logger: options.logger });
 	}
 
@@ -27,9 +27,9 @@ export class SQLiteConnector {
 		return this.session ?? (this.session = this.driver.connect());
 	}
 
-	connect(): SQLiteDatabase {
+	connect(): SQLite3Database {
 		const session = this.getSession();
-		return new SQLiteSyncDatabase(this.dialect, session);
+		return new SQLiteAsyncDatabase(this.dialect, session);
 	}
 
 	migrate(config: string | MigrationConfig) {

@@ -1,0 +1,9 @@
+name = "drizzle"
+main = "index.ts"
+compatibility_date = "2022-11-07"
+node_compat = true
+
+[[ d1_databases ]]
+binding = "DB"
+database_name = "drizzle"
+database_id = "045ad17a-a158-4f44-8bd0-abd657fd37fa"

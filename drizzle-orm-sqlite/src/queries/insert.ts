@@ -1,6 +1,5 @@
-import { RunResult } from 'better-sqlite3';
 import { Table } from 'drizzle-orm';
-import { fillPlaceholders, Name, Param, Placeholder, Query, SQL, sql, SQLWrapper } from 'drizzle-orm/sql';
+import { fillPlaceholders, Param, Placeholder, Query, SQL, sql, SQLWrapper } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
 import { Simplify } from 'drizzle-orm/utils';
 
@@ -8,7 +7,7 @@ import { AnySQLiteColumn } from '~/columns/common';
 import { SQLiteDialect } from '~/dialect';
 import { IndexColumn } from '~/indexes';
 import { SelectResultFields, SQLiteSelectFields, SQLiteSelectFieldsOrdered } from '~/operations';
-import { PreparedQuery, SQLiteSession } from '~/session';
+import { PreparedQuery, SQLiteAsyncSession, SQLiteSession, SQLiteSyncSession } from '~/session';
 import { AnySQLiteTable, GetTableConfig, InferModel, SQLiteTable } from '~/table';
 import { mapUpdateSet } from '~/utils';
 import { SQLiteUpdateSetSource } from './update';
@@ -26,15 +25,15 @@ export type SQLiteInsertValue<TTable extends AnySQLiteTable> = Simplify<
 	}
 >;
 
-export class SQLiteInsertBuilder<TTable extends AnySQLiteTable> {
+export abstract class SQLiteInsertBuilder<TTable extends AnySQLiteTable, TStatement> {
 	constructor(
-		private table: TTable,
-		private session: SQLiteSession,
-		private dialect: SQLiteDialect,
+		protected table: TTable,
+		protected session: SQLiteSession<TStatement>,
+		protected dialect: SQLiteDialect,
 	) {}
 
-	values(...values: SQLiteInsertValue<TTable>[]): SQLiteInsert<TTable> {
-		const mappedValues = values.map((entry) => {
+	protected mapValues(values: SQLiteInsertValue<TTable>[]): Record<string, Param<unknown, unknown> | SQL>[] {
+		return values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
 			const cols = this.table[Table.Symbol.Columns];
 			for (const colKey of Object.keys(entry)) {
@@ -47,32 +46,63 @@ export class SQLiteInsertBuilder<TTable extends AnySQLiteTable> {
 			}
 			return result;
 		});
+	}
 
-		return new SQLiteInsert(this.table, mappedValues, this.session, this.dialect);
+	abstract values(...values: SQLiteInsertValue<TTable>[]): SQLiteInsert<TTable, TStatement>;
+}
+
+export class SQLiteAsyncInsertBuilder<TTable extends AnySQLiteTable, TStatement, TRunResult>
+	extends SQLiteInsertBuilder<TTable, TStatement>
+{
+	constructor(
+		table: TTable,
+		protected override session: SQLiteAsyncSession<TStatement, TRunResult>,
+		dialect: SQLiteDialect,
+	) {
+		super(table, session, dialect);
+	}
+
+	override values(...values: SQLiteInsertValue<TTable>[]): SQLiteAsyncInsert<TTable, TStatement, TRunResult> {
+		return new SQLiteAsyncInsert(this.table, this.mapValues(values), this.session, this.dialect);
 	}
 }
 
-export class SQLiteInsert<TTable extends AnySQLiteTable, TReturn = RunResult> implements SQLWrapper {
-	declare protected $table: TTable;
-	declare protected $return: TReturn;
+export class SQLiteSyncInsertBuilder<TTable extends AnySQLiteTable, TStatement, TRunResult>
+	extends SQLiteInsertBuilder<TTable, TStatement>
+{
+	constructor(
+		table: TTable,
+		protected override session: SQLiteSyncSession<TStatement, TRunResult>,
+		dialect: SQLiteDialect,
+	) {
+		super(table, session, dialect);
+	}
 
-	private config: SQLiteInsertConfig<TTable>;
-	private preparedQuery: PreparedQuery | undefined;
+	override values(...values: SQLiteInsertValue<TTable>[]): SQLiteSyncInsert<TTable, TStatement, TRunResult> {
+		return new SQLiteSyncInsert(this.table, this.mapValues(values), this.session, this.dialect);
+	}
+}
+
+export abstract class SQLiteInsert<TTable extends AnySQLiteTable, TStatement> implements SQLWrapper {
+	declare protected $table: TTable;
+
+	protected config: SQLiteInsertConfig<TTable>;
+	protected preparedQuery: PreparedQuery<TStatement> | undefined;
 
 	constructor(
 		table: TTable,
 		values: SQLiteInsertConfig['values'],
-		private session: SQLiteSession,
-		private dialect: SQLiteDialect,
+		protected session: SQLiteSession<TStatement>,
+		protected dialect: SQLiteDialect,
 	) {
 		this.config = { table, values };
 	}
 
-	returning(): Omit<SQLiteInsert<TTable, InferModel<TTable>[]>, 'returning' | `onConflict${string}`>;
+	returning(): Omit<SQLiteInsert<TTable, TStatement>, 'returning' | `onConflict${string}`>;
 	returning<TSelectedFields extends SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>(
 		fields: TSelectedFields,
-	): Omit<SQLiteInsert<TTable, SelectResultFields<TSelectedFields>[]>, 'returning' | `onConflict${string}`>;
-	returning(fields?: SQLiteSelectFields<GetTableConfig<TTable, 'name'>>): SQLiteInsert<TTable, any> {
+	): Omit<SQLiteInsert<TTable, TStatement>, 'returning' | `onConflict${string}`>;
+	returning(fields?: SQLiteSelectFields<GetTableConfig<TTable, 'name'>>): SQLiteInsert<TTable, TStatement> {
 		const fieldsToMap: SQLiteSelectFields<GetTableConfig<TTable, 'name'>> = fields
 			?? this.config.table[SQLiteTable.Symbol.Columns] as Record<
 				string,
@@ -121,6 +151,89 @@ export class SQLiteInsert<TTable extends AnySQLiteTable, TReturn = RunResult> im
 		}
 		return this;
 	}
+}
+
+export class SQLiteAsyncInsert<TTable extends AnySQLiteTable, TStatement, TRunResult, TReturn = TRunResult>
+	extends SQLiteInsert<TTable, TStatement>
+{
+	constructor(
+		table: TTable,
+		values: SQLiteInsertConfig['values'],
+		protected override session: SQLiteAsyncSession<TStatement, TRunResult>,
+		dialect: SQLiteDialect,
+	) {
+		super(table, values, session, dialect);
+	}
+
+	override returning(): Omit<
+		SQLiteAsyncInsert<TTable, TStatement, TRunResult, InferModel<TTable>[]>,
+		'returning' | `onConflict${string}`
+	>;
+	override returning<TSelectedFields extends SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>(
+		fields: TSelectedFields,
+	): Omit<
+		SQLiteAsyncInsert<TTable, TStatement, TRunResult, SelectResultFields<TSelectedFields>[]>,
+		'returning' | `onConflict${string}`
+	>;
+	override returning(
+		fields?: SQLiteSelectFields<GetTableConfig<TTable, 'name'>>,
+	): SQLiteAsyncInsert<TTable, TStatement, TRunResult, any> {
+		return (fields ? super.returning(fields) : super.returning()) as SQLiteAsyncInsert<
+			TTable,
+			TStatement,
+			TRunResult,
+			any
+		>;
+	}
+
+	async execute(placeholderValues?: Record<string, unknown>): Promise<TReturn> {
+		this.prepare();
+		let query = this.preparedQuery!;
+		const params = fillPlaceholders(query.params, placeholderValues ?? {});
+		query = { ...query, params };
+
+		const { returning } = this.config;
+		if (returning) {
+			const result = await this.session.all(query);
+			return result.map((row) => mapResultRow(returning, row)) as TReturn;
+		}
+
+		return this.session.run(query) as unknown as Promise<TReturn>;
+	}
+}
+
+export class SQLiteSyncInsert<TTable extends AnySQLiteTable, TStatement, TRunResult, TReturn = TRunResult>
+	extends SQLiteInsert<TTable, TStatement>
+{
+	constructor(
+		table: TTable,
+		values: SQLiteInsertConfig['values'],
+		protected override session: SQLiteSyncSession<TStatement, TRunResult>,
+		dialect: SQLiteDialect,
+	) {
+		super(table, values, session, dialect);
+	}
+
+	override returning(): Omit<
+		SQLiteSyncInsert<TTable, TStatement, TRunResult, InferModel<TTable>[]>,
+		'returning' | `onConflict${string}`
+	>;
+	override returning<TSelectedFields extends SQLiteSelectFields<GetTableConfig<TTable, 'name'>>>(
+		fields: TSelectedFields,
+	): Omit<
+		SQLiteSyncInsert<TTable, TStatement, TRunResult, SelectResultFields<TSelectedFields>[]>,
+		'returning' | `onConflict${string}`
+	>;
+	override returning(
+		fields?: SQLiteSelectFields<GetTableConfig<TTable, 'name'>>,
+	): SQLiteSyncInsert<TTable, TStatement, TRunResult, any> {
+		return (fields ? super.returning(fields) : super.returning()) as SQLiteSyncInsert<
+			TTable,
+			TStatement,
+			TRunResult,
+			any
+		>;
+	}
 
 	execute(placeholderValues?: Record<string, unknown>): TReturn {
 		this.prepare();
@@ -134,6 +247,6 @@ export class SQLiteInsert<TTable extends AnySQLiteTable, TReturn = RunResult> im
 			return result.map((row) => mapResultRow(returning, row)) as TReturn;
 		}
 
-		return this.session.run(query) as TReturn;
+		return this.session.run(query) as unknown as TReturn;
 	}
 }
