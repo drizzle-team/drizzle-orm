@@ -1,37 +1,15 @@
-## Drizzle ORM | SQLite
-DrizzleORM is a TypeScript ORM library with a [drizzle-kit](#migrations) CLI companion for automatic SQL migrations generation. 
+# Drizzle ORM | SQLite
+DrizzleORM is a [tiny](https://twitter.com/_alexblokh/status/1594735880417472512), [blazingly fast](#performance-and-prepared-statements) TypeScript ORM library with a [drizzle-kit](#migrations) CLI companion for automatic SQL migrations generation. 
 Here you can find extensive docs for SQLite module. We support `better-sqlite3`, `node-sqlite`, `bun:sqlite`, `Cloudflare D1`, `Fly.io LiteFS` drivers.
 
-### Installation
+## 💾 Installation
 ```bash
 npm install drizzle-orm drizzle-orm-sqlite better-sqlite3
 ## opt-in automatic migrations generator
 npm install -D drizzle-kit 
 ```
 
-### SQL schema declaration
-With `drizzle-orm` you declare SQL schema in TypeScript. You can have either one `schema.ts` file with all declarations or you can group them logically in multiple files. We prefer to use single file schema.
-```
-📦project
- ├ 📂src
- │ ├ 📂data
- │ │ └ 📜schema.ts
- │ └ ...
- ├ ...
- └ 📜package.json
- 
-## or multiple schema files
-├ 📂data
-  ├ 📜users.ts
-  ├ 📜countries.ts
-  ├ 📜cities.ts
-  ├ 📜products.ts
-  ├ 📜clients.ts
-  ├ 📜enums.ts
-  └ 📜etc.ts
-```
-
-### Quick start
+## 🚀 Quick start
 Default SQLite connector is using `better-sqlite3` database driver
 ```typescript
 import { SQLiteConnector, sqliteTable, text, integer } from "drizzle-orm-sqlite";
@@ -49,7 +27,7 @@ const db = connector.connect();
 const users = db.select(users);
 ```
 
-### Connecting to databases
+## Connecting to databases
 ```typescript
 // better-sqlite3 or fly.io LiteFS
 import { SQLiteConnector, SQLiteDatabase } from "drizzle-orm-sqlite";
@@ -74,6 +52,28 @@ import { SQLiteD1Connector, SQLiteD1Database } from 'drizzle-orm-sqlite/d1';
 // env.DB from cloudflare worker environment
 const db: SQLiteD1Database = new SQLiteD1Connector(env.DB).connect();
 const result = await db.select(users).all() // pay attention this one is async
+```
+
+## SQL schema declaration
+With `drizzle-orm` you declare SQL schema in TypeScript. You can have either one `schema.ts` file with all declarations or you can group them logically in multiple files. We prefer to use single file schema.
+```
+📦project
+ ├ 📂src
+ │ ├ 📂data
+ │ │ └ 📜schema.ts
+ │ └ ...
+ ├ ...
+ └ 📜package.json
+ 
+## or multiple schema files
+├ 📂data
+  ├ 📜users.ts
+  ├ 📜countries.ts
+  ├ 📜cities.ts
+  ├ 📜products.ts
+  ├ 📜clients.ts
+  ├ 📜enums.ts
+  └ 📜etc.ts
 ```
 
 This is how you declare SQL schema in `schema.ts`. You can declare tables, indexes and constraints, foreign keys and enums. Please pay attention to `export` keyword, they are mandatory if you'll be using [drizzle-kit SQL migrations generator](#migrations).
@@ -401,7 +401,29 @@ db.select(cities).fields({
 }).leftJoin(users, eq(users.cityId, cities.id));
 ```
 
-## Migrations
+## ⚡️ Performance and prepared statements
+With Drizzle ORM you can go [**faster than better-sqlite3 driver**](https://twitter.com/_alexblokh/status/1593593415907909634) by utilizing our `prepared statements` and `placeholder` APIs
+```typescript
+import { placeholder } from "drizzle-orm/sql";
+
+const db = new SQLiteConnector(...).connect();
+
+const q = db.select(customers).prepare();
+q.all() // SELECT * FROM customers
+
+const q = db.select(customers).where(eq(customers.id, placeholder("id"))).prepare()
+
+q.get({ id: 10 }) // SELECT * FROM customers WHERE id = 10
+q.get({ id: 12 }) // SELECT * FROM customers WHERE id = 12
+
+const q = db.select(customers)
+  .where(sql`lower(${customers.name}) like ${placeholder("name")}`)
+  .prepare();
+
+q.all({ name: "%an%" }) // SELECT * FROM customers WHERE name ilike '%an%'
+```
+
+## 🗄 Migrations
 ### Automatic SQL migrations generation with drizzle-kit
 [DrizzleKit](https://www.npmjs.com/package/drizzle-kit) - is a CLI migrator tool for DrizzleORM. It is probably one and only tool that lets you completely automatically generate SQL migrations and covers ~95% of the common cases like delitions and renames by prompting user input.\
 Check out the [docs for DrizzleKit](https://github.com/drizzle-team/drizzle-kit-mirror)
@@ -458,10 +480,21 @@ const db = connector.connect();
 connector.migrate({ migrationsFolder: "./drizzle" })
 ```
 
-## Raw query usage
-#### If you have some complex queries to execute and drizzle-orm can't handle them yet, then you could use `rawQuery` execution
+## Utility stuff
+### Printing SQL query
+```typescript
+const query = db.select(users)
+		.fields({ id: users.id, name: users.name })
+		.groupBy(users.id)
+		.toSQL();
 
-##### Execute custom raw query
+	t.deepEqual(query, {
+		sql: 'select "id", "name" from "users" group by "users"."id"',
+		params: [],
+	});
+``` 
+
+### Raw query usage
 ```typescript
 // it will automatically run a parametrized query!
 const res: QueryResult<any> = await db.run(sql`SELECT * FROM users WHERE user.id = ${userId}`)
