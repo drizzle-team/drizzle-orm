@@ -6,6 +6,7 @@ export class CheckBuilder {
 
 	constructor(public name: string, public value: SQL) {}
 
+	/** @internal */
 	build(table: AnyPgTable): Check {
 		return new Check(table, this);
 	}

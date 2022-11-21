@@ -29,10 +29,6 @@ export class PgDatabase {
 		return new PgDelete(table, this.session, this.dialect);
 	}
 
-	buildQuery(sqlWrapper: SQLWrapper) {
-		return sqlWrapper.getSQL().toQuery({ escapeName: this.dialect.escapeName, escapeParam: this.dialect.escapeParam });
-	}
-
 	execute<T extends QueryResultRow = QueryResultRow>(query: SQL): Promise<QueryResult<T>> {
 		const { sql, params } = this.dialect.prepareSQL(query);
 		return this.session.query(sql, params);

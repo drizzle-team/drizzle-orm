@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm-pg",
-	"version": "0.12.0-beta.37",
+	"version": "0.12.0-beta.39",
 	"description": "Drizzle ORM package for PostgreSQL database",
 	"main": "index.js",
 	"types": "index.d.ts",

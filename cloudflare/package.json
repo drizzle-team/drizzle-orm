@@ -9,6 +9,7 @@
 	"keywords": [],
 	"author": "",
 	"license": "ISC",
+	"private": true,
 	"devDependencies": {
 		"@cloudflare/workers-types": "^3.18.0",
 		"@types/itty-router-extras": "^0.4.0",

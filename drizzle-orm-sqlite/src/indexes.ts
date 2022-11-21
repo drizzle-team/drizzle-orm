@@ -43,6 +43,7 @@ export class IndexBuilder {
 		return this;
 	}
 
+	/** @internal */
 	build(table: AnySQLiteTable): Index {
 		return new Index(this.config);
 	}
@@ -52,14 +53,6 @@ export class Index {
 	declare protected $brand: 'SQLiteIndex';
 
 	constructor(readonly config: IndexConfig) {}
-
-	// TODO: move to .onConflict()
-	// set(values: SQLiteUpdateSet<TTable>): { constraintName: string; set: SQLiteUpdateSet<TTable> } {
-	// 	return {
-	// 		constraintName: this.name,
-	// 		set: values,
-	// 	};
-	// }
 }
 
 export type GetColumnsTableName<TColumns> = TColumns extends

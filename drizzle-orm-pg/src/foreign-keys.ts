@@ -51,6 +51,7 @@ export class ForeignKeyBuilder {
 		return this;
 	}
 
+	/** @internal */
 	build(table: AnyPgTable): ForeignKey {
 		return new ForeignKey(table, this);
 	}

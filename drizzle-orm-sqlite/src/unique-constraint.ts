@@ -7,6 +7,7 @@ export class UniqueBuilder<TTableName extends string> {
 
 	constructor(public name: string, public column: AnySQLiteColumn) {}
 
+	/** @internal */
 	build(table: AnySQLiteTable<{ name: TTableName }>): Unique<TTableName> {
 		return new Unique(table, this);
 	}

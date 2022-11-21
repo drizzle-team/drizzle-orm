@@ -52,6 +52,7 @@ export class IndexBuilder {
 		readonly config: IndexConfig = {},
 	) {}
 
+	/** @internal */
 	build(table: AnyPgTable): Index {
 		return new Index(this.name, table, this.columns, this);
 	}
