@@ -106,11 +106,12 @@ export class PgInsert<TTable extends AnyPgTable, TReturn = QueryResult<any>> ext
 		return this;
 	}
 
+	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	getQuery(): Query {
+	toSQL(): Query {
 		return this.dialect.prepareSQL(this.getSQL());
 	}
 

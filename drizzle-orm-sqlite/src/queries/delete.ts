@@ -42,17 +42,18 @@ export abstract class SQLiteDelete<TTable extends AnySQLiteTable, TStatement> im
 		return this;
 	}
 
+	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildDeleteQuery(this.config);
 	}
 
-	getQuery(): Query {
+	toSQL(): Query {
 		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	prepare(): Omit<this, 'prepare'> {
 		if (!this.preparedQuery) {
-			this.preparedQuery = this.session.prepareQuery(this.getQuery());
+			this.preparedQuery = this.session.prepareQuery(this.toSQL());
 		}
 		return this;
 	}

@@ -137,17 +137,18 @@ export abstract class SQLiteSelect<
 		return this;
 	}
 
+	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	getQuery(): Query {
+	toSQL(): Query {
 		const query = this.dialect.buildSelectQuery(this.config);
 		return this.dialect.sqlToQuery(query);
 	}
 
 	prepare(): Statement<unknown> {
-		const query = this.session.prepareQuery(this.getQuery());
+		const query = this.session.prepareQuery(this.toSQL());
 		return new Statement(query, (params) => this.executePreparedQuery(query, params));
 	}
 

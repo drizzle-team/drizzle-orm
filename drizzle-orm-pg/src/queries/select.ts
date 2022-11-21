@@ -155,11 +155,12 @@ export class PgSelect<
 		return this;
 	}
 
+	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	getQuery(): Query {
+	toSQL(): Query {
 		const query = this.dialect.buildSelectQuery(this.config);
 		return this.dialect.prepareSQL(query);
 	}

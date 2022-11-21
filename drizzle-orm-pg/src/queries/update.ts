@@ -77,11 +77,12 @@ export class PgUpdate<TTable extends AnyPgTable, TReturn = QueryResult<any>> ext
 		return this;
 	}
 
+	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildUpdateQuery(this.config);
 	}
 
-	getQuery(): Query {
+	toSQL(): Query {
 		return this.dialect.prepareSQL(this.getSQL());
 	}
 

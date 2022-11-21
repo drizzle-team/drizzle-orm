@@ -238,10 +238,10 @@ test.serial('build query', async (t) => {
 
 	const query = db.select(usersTable)
 		.fields({ id: usersTable.id, name: usersTable.name })
-		.groupBy(usersTable.id, usersTable.name);
+		.groupBy(usersTable.id, usersTable.name)
+		.toSQL();
 
-	const prepared = db.buildQuery(query);
-	t.deepEqual(prepared, {
+	t.deepEqual(query, {
 		sql: 'select "id", "name" from "users" group by "users"."id", "users"."name"',
 		params: [],
 	});
