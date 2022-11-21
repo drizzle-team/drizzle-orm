@@ -56,6 +56,7 @@ export class ForeignKeyBuilder<TTableName extends string, TForeignTableName exte
 		return this;
 	}
 
+	/** @internal */
 	build(table: AnyMySqlTable<TTableName>): ForeignKey<TTableName, TForeignTableName> {
 		return new ForeignKey(table, this);
 	}

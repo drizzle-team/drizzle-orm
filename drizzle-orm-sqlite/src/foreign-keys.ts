@@ -52,6 +52,7 @@ export class ForeignKeyBuilder {
 		return this;
 	}
 
+	/** @internal */
 	build(table: AnySQLiteTable): ForeignKey {
 		return new ForeignKey(table, this);
 	}

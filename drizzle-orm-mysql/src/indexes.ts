@@ -39,6 +39,7 @@ export class IndexBuilder<TTableName extends string> {
 		readonly config: IndexConfig<TTableName> = {},
 	) {}
 
+	/** @internal */
 	build(table: AnyMySqlTable<TTableName>): Index<TTableName> {
 		return new Index(this.name, table, this.columns, this);
 	}
