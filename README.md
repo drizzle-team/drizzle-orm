@@ -8,8 +8,8 @@ Library has almost zero dependencies and being battle tested on production proje
 | database    | support |            |
 |:--          |  :---:  | :--        |
 | PostgreSQL  | ✅      |[Docs](https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-orm-pg)|
-| MySQL       | ✅      |[Docs](https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-orm-mysql)|            |
-| SQLite      | ⏳      |            |  
+| MySQL       | ✅      |[Docs](https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-orm-mysql)|            
+| SQLite      | ⏳      |[Dosc](https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-orm-sqlite)|  
 | DynamoDB    | ⏳      |            |
 | MS SQL      | ⏳      |            |
 | CockroachDB | ⏳      |            |
