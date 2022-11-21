@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm-sqlite",
-	"version": "0.12.0-beta.13",
+	"version": "0.12.0-beta.14",
 	"description": "Drizzle ORM package for SQLite database",
 	"main": "index.js",
 	"types": "index.d.ts",
