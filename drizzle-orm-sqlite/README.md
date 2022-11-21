@@ -1,11 +1,10 @@
-## DrizzleORM [SQLite]
+## Drizzle ORM | SQLite
 DrizzleORM is a TypeScript ORM library with a [drizzle-kit](#migrations) CLI companion for automatic SQL migrations generation. 
 Here you can find extensive docs for SQLite module. We support `better-sqlite3`, `node-sqlite`, `bun:sqlite`, `Cloudflare D1`, `Fly.io LiteFS` drivers.
 
 ### Installation
 ```bash
-npm install drizzle-orm drizzle-orm-sqlite
-
+npm install drizzle-orm drizzle-orm-sqlite better-sqlite3
 ## opt-in automatic migrations generator
 npm install -D drizzle-kit 
 ```
@@ -33,6 +32,7 @@ With `drizzle-orm` you declare SQL schema in TypeScript. You can have either one
 ```
 
 ### Quick start
+Default SQLite connector is using `better-sqlite3` database driver
 ```typescript
 import { SQLiteConnector, sqliteTable, text, integer } from "drizzle-orm-sqlite";
 import Database from "better-sqlite3";
@@ -49,14 +49,31 @@ const db = connector.connect();
 const users = db.select(users);
 ```
 
-### Connecting to database
+### Connecting to databases
 ```typescript
-import { SQLiteConnector } from "drizzle-orm-sqlite";
+// better-sqlite3 or fly.io LiteFS
+import { SQLiteConnector, SQLiteDatabase } from "drizzle-orm-sqlite";
 import Database from "better-sqlite3";
 
 const sqlite = new Database("sqlite.db");
 const connector = new SQLiteConnector(sqlite);
-const db = connector.connect();
+const db: SQLiteDatabase = connector.connect();
+const result = db.select(users).all()
+
+// bun js embedded sqlite connector
+import { SQLiteBunConnector, SQLiteBunDatabase } from "drizzle-orm-sqlite/bun";
+import { Database } from "bun:sqlite";
+
+const sqlite = new Database("nw.sqlite");
+const db: SQLiteBunDatabase = new SQLiteBunConnector(sqlite).connect();
+const result = db.select(users).all()
+
+// Cloudflare D1 connector
+import { SQLiteD1Connector, SQLiteD1Database } from 'drizzle-orm-sqlite/d1';
+
+// env.DB from cloudflare worker environment
+const db: SQLiteD1Database = new SQLiteD1Connector(env.DB).connect();
+const result = await db.select(users).all() // pay attention this one is async
 ```
 
 This is how you declare SQL schema in `schema.ts`. You can declare tables, indexes and constraints, foreign keys and enums. Please pay attention to `export` keyword, they are mandatory if you'll be using [drizzle-kit SQL migrations generator](#migrations).

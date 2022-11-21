@@ -1,4 +1,4 @@
-## DrizzleORM
+## Drizzle ORM
 DrizzleORM is a TypeScript ORM library with a [drizzle-kit](#migrations) CLI companion for automatic SQL migrations generation. 
 It's meant to be a library, not a framework, stay as an opt-in solution all the time at any levels. 
 We try to follow SQL-like syntax whenever possible, be strongly typed ground top and fail in compile time, not in runtime. 
