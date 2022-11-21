@@ -515,11 +515,11 @@ const query = db.select(users)
 		.fields({ id: users.id, name: users.name })
 		.groupBy(users.id)
 		.toSQL();
-
-	t.deepEqual(query, {
-		sql: 'select "id", "name" from "users" group by "users"."id"',
-		params: [],
-	});
+// query:
+{
+  sql: 'select "id", "name" from "users" group by "users"."id"',
+  params: [],
+}
 ``` 
 
 ### Raw query usage
