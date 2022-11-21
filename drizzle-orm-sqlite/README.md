@@ -333,8 +333,7 @@ const details = sqliteTable("order_detail", {
 });
 
 
-drizzle.select(orders)
-  .fields({
+db.select(orders).fields({
     id: orders.id,
     shippedDate: orders.shippedDate,
     shipName: orders.shipName,
