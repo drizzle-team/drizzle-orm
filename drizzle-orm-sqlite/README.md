@@ -280,36 +280,19 @@ const users = sqliteTable("users", {
   createdAt: integer("created_at", { mode: "timestamp" }),
 });
 
-await db.insert(users
-  .values({
-    name: "Andrew",
-    createdAt: +new Date(),
-  });
+db.insert(users).values({ name: "Andrew", createdAt: +new Date() }).run();
 
-// accepts vararg of items
-await db.insert(users)
-  .values(
-    {
+// insert multiple users
+db.insert(users).values({
       name: "Andrew",
       createdAt: +new Date(),
-    },
-    {
+    },{
       name: "Dan",
       createdAt: +new Date(),
-    },
-  ));
+    }).run();
 
-await db.insert(users)
-  .values(...[
-    {
-      name: "Andrew",
-      createdAt: +new Date(),
-    },
-    {
-      name: "Dan",
-      createdAt: +new Date(),
-    },
-  ]);
+// insert with returning
+const insertedUser = db.insert(users).values({ name: "Dan", createdAt: +new Date() }).returning().get()
 ```
 
 Update and Delete
@@ -321,6 +304,52 @@ await db.update(users)
 await db.delete(users)
   .where(eq(usersTable.name, 'Dan'));
 ```
+
+### Aggregations
+They work just like they do in SQL, but you have them fully type safe
+```typescript
+const orders = sqliteTable("order", {
+  id: integer("id").primaryKey(),
+  orderDate: integer("order_date", { mode: "timestamp" }).notNull(),
+  requiredDate: integer("required_date", { mode: "timestamp" }).notNull(),
+  shippedDate: integer("shipped_date", { mode: "timestamp" }),
+  shipVia: integer("ship_via").notNull(),
+  freight: numeric("freight").notNull(),
+  shipName: text("ship_name").notNull(),
+  shipCity: text("ship_city").notNull(),
+  shipRegion: text("ship_region"),
+  shipPostalCode: text("ship_postal_code"),
+  shipCountry: text("ship_country").notNull(),
+  customerId: text("customer_id").notNull(),
+  employeeId: integer("employee_id").notNull(),
+});
+
+const details = sqliteTable("order_detail", {
+  unitPrice: numeric("unit_price").notNull(),
+  quantity: integer("quantity").notNull(),
+  discount: numeric("discount").notNull(),
+  orderId: integer("order_id").notNull(),
+  productId: integer("product_id").notNull(),
+});
+
+
+drizzle.select(orders)
+  .fields({
+    id: orders.id,
+    shippedDate: orders.shippedDate,
+    shipName: orders.shipName,
+    shipCity: orders.shipCity,
+    shipCountry: orders.shipCountry,
+    productsCount: sql`count(${details.productId})`.as<number>(),
+    quantitySum: sql`sum(${details.quantity})`.as<number>(),
+    totalPrice: sql`sum(${details.quantity} * ${details.unitPrice})`.as<number>(),
+  })
+  .leftJoin(details, eq(orders.id, details.orderId))
+  .groupBy(orders.id)
+  .orderBy(asc(orders.id))
+  .prepare();
+```
+
 
 ### Joins
 Last but not least. Probably the most powerful feature in the library🚀
