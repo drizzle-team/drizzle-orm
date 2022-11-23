@@ -31,7 +31,7 @@ jobs:
         with:
           version: latest
           run_install: |
-            args: [ --frozen-lockfile ]
+            recursive: false
 
       - run: cd ${{ matrix.package }}
 
