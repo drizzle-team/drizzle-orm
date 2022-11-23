@@ -27,14 +27,12 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - uses: pnpm/action-setup@v2
-        id: pnpm-install
         with:
           version: latest
           run_install: |
             recursive: false
 
-      - run: cd ${{ matrix.package }}
-
       - run: pnpm release:beta || true
+        working-directory: ${{ matrix.package }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
