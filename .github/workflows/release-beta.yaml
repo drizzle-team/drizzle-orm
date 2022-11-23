@@ -4,6 +4,7 @@ on:
       - main
     paths:
       - '**/package.json'
+  workflow_dispatch: {}
 
 jobs:
   release:
@@ -32,6 +33,6 @@ jobs:
 
       - run: cd ${{ matrix.package }}
 
-      - run: pnpm release:beta
+      - run: pnpm release:beta || true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
