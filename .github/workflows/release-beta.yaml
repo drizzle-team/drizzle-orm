@@ -1,3 +1,5 @@
+name: Release (beta)
+
 on:
   push:
     branches:
