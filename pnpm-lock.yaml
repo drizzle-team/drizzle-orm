@@ -35,18 +35,18 @@ importers:
       drizzle-orm-sqlite: file:../drizzle-orm-sqlite/package.tgz
       itty-router: ^2.6.6
       itty-router-extras: ^0.4.2
-      typescript: ^4.8.4
-      wrangler: ^2.1.15
+      typescript: ^4.9.3
+      wrangler: ^2.4.2
     dependencies:
-      drizzle-orm: file:drizzle-orm/package.tgz_jjt4euhliswrz2jolgh3thssum
-      drizzle-orm-sqlite: file:drizzle-orm-sqlite/package.tgz_37jivu27hvmlzr2rzbz4nxevjm
+      drizzle-orm: file:drizzle-orm/package.tgz_g665ij246xvj3nz7xugpgdpvoy
+      drizzle-orm-sqlite: file:drizzle-orm-sqlite/package.tgz_pkyzsin2nmbmlfkczdjg73pxwi
       itty-router: 2.6.6
       itty-router-extras: 0.4.2
     devDependencies:
       '@cloudflare/workers-types': 3.18.0
       '@types/itty-router-extras': 0.4.0
-      typescript: 4.8.4_cooyevkj4js3zgkcwfb6v3qsqu
-      wrangler: 2.1.15
+      typescript: 4.9.3
+      wrangler: 2.4.4
 
   drizzle-orm:
     specifiers:
@@ -3666,6 +3666,12 @@ packages:
     dev: true
     patched: true
 
+  /typescript/4.9.3:
+    resolution: {integrity: sha512-CIfGzTelbKNEnLpLdGFgdyKhG23CKdKgQPOBc+OUNrkJ2vr+KSzsSV5kq5iWhEQbok+quxgGzrAtGWCyU7tHnA==}
+    engines: {node: '>=4.2.0'}
+    hasBin: true
+    dev: true
+
   /undici/5.9.1:
     resolution: {integrity: sha512-6fB3a+SNnWEm4CJbgo0/CWR8RGcOCQP68SF4X0mxtYTq2VNN8T88NYrWVBAeSX+zb7bny2dx2iYhP3XHi00omg==}
     engines: {node: '>=12.18'}
@@ -3750,8 +3756,8 @@ packages:
     dependencies:
       string-width: 4.2.3
 
-  /wrangler/2.1.15:
-    resolution: {integrity: sha512-5iqtFNo+zbu1FTnQQU/1Y+WWxIEuPIy71fe0uvqqFl0pSlkAtZJ+ufw8UYVxf2Mprw4ia4mSDdhV+hHpZO1sLQ==}
+  /wrangler/2.4.4:
+    resolution: {integrity: sha512-Of3O/7RzIcGWGmt7dd5JevvP419De55smr4Hi07REKt9oXYhMNeaFy4wX35fHlv5e0pVCyGB3Fna8mI4Ib2pew==}
     engines: {node: '>=16.13.0'}
     hasBin: true
     dependencies:
@@ -3891,11 +3897,11 @@ packages:
       pg: 8.8.0
     dev: false
 
-  file:drizzle-orm-sqlite/package.tgz_37jivu27hvmlzr2rzbz4nxevjm:
-    resolution: {integrity: sha512-Go3kAyDf03RTdXme7f5KKPWr7Reaq3z/XV0X5rpOpLaHeQVtFN+CEFAbDC4YHrsJWU8H0UcEGm82mMFPQ5Ds+g==, tarball: file:drizzle-orm-sqlite/package.tgz}
+  file:drizzle-orm-sqlite/package.tgz_pkyzsin2nmbmlfkczdjg73pxwi:
+    resolution: {integrity: sha512-XTO+6CPsPkZc6Iaz0zuLfGFAnvZAcN6v5yKKWvxJ+ryLGQV7DMMK6msZqh/TtR0YAiwN9L/VBe0pes10HvvkXA==, tarball: file:drizzle-orm-sqlite/package.tgz}
     id: file:drizzle-orm-sqlite/package.tgz
     name: drizzle-orm-sqlite
-    version: 0.12.0-beta.13
+    version: 0.12.0-beta.15
     peerDependencies:
       '@cloudflare/workers-types': '>=3 <4'
       '@types/better-sqlite3': '>=7 <8'
@@ -3913,7 +3919,7 @@ packages:
         optional: true
     dependencies:
       '@cloudflare/workers-types': 3.18.0
-      drizzle-orm: file:drizzle-orm/package.tgz_jjt4euhliswrz2jolgh3thssum
+      drizzle-orm: file:drizzle-orm/package.tgz_g665ij246xvj3nz7xugpgdpvoy
     dev: false
 
   file:drizzle-orm-sqlite/package.tgz_uveeilm675nbqtlew6bkufjir4:
@@ -3964,11 +3970,11 @@ packages:
       drizzle-orm-sqlite: file:drizzle-orm-sqlite/package.tgz_uveeilm675nbqtlew6bkufjir4
     dev: false
 
-  file:drizzle-orm/package.tgz_jjt4euhliswrz2jolgh3thssum:
-    resolution: {integrity: sha512-mKvy0QaKPrRnej/jX0FxoqSXu7djeGgAsvn6C8kIQJyyK67h61QxIGpRtkG/7Kua/tl+eA8okRofq1tXInUGvw==, tarball: file:drizzle-orm/package.tgz}
+  file:drizzle-orm/package.tgz_g665ij246xvj3nz7xugpgdpvoy:
+    resolution: {integrity: sha512-ngcgIdVBUWrH/x2eCcfHgEg/PXhV9qxyEAEUjwCnAOshVJKtdlJoSEc7COw1mKOf/Q7sEn068GTOxfVRG6SecQ==, tarball: file:drizzle-orm/package.tgz}
     id: file:drizzle-orm/package.tgz
     name: drizzle-orm
-    version: 0.12.0-beta.17
+    version: 0.12.0-beta.22
     peerDependencies:
       drizzle-orm-mysql: '>=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0'
       drizzle-orm-pg: '>=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0'
@@ -3981,5 +3987,5 @@ packages:
       drizzle-orm-sqlite:
         optional: true
     dependencies:
-      drizzle-orm-sqlite: file:drizzle-orm-sqlite/package.tgz_37jivu27hvmlzr2rzbz4nxevjm
+      drizzle-orm-sqlite: file:drizzle-orm-sqlite/package.tgz_pkyzsin2nmbmlfkczdjg73pxwi
     dev: false
