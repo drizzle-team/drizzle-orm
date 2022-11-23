@@ -3,15 +3,10 @@ import { SQL } from 'drizzle-orm/sql';
 import { AnySQLiteColumn } from './columns';
 import { AnySQLiteTable } from './table';
 
-interface IndexConfig {
-	/**
-	 * If true, the index will be created as `create unique index` instead of `create index`.
-	 */
+export interface IndexConfig {
+	name: string;
+	columns: IndexColumn[];
 	unique: boolean;
-
-	/**
-	 * Condition for partial index.
-	 */
 	where: SQL | undefined;
 }
 
@@ -33,11 +28,16 @@ export class IndexBuilder {
 
 	constructor(name: string, columns: IndexColumn[], unique: boolean) {
 		this.config = {
+			name,
+			columns,
 			unique,
 			where: undefined,
 		};
 	}
 
+	/**
+	* Condition for partial index.
+	*/
 	where(condition: SQL): this {
 		this.config.where = condition;
 		return this;
