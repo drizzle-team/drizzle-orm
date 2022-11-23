@@ -10,7 +10,7 @@
 		"pack": "cp README.md package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"publish": "npm publish package.tgz",
 		"publish:beta": "npm publish package.tgz --tag beta",
-		"release:beta": "pnpm build && pnpm version prerelease && pnpm run pack && pnpm publish:beta",
+		"release:beta": "pnpm build && pnpm run pack && pnpm publish:beta",
 		"build:int": "pnpm build && pnpm run pack"
 	},
 	"publishConfig": {
