@@ -24,7 +24,7 @@ const sqlite = new Database("sqlite.db");
 const connector = new SQLiteConnector(sqlite);
 const db = connector.connect();
 
-const users = db.select(users);
+const users = db.select(users).all();
 ```
 
 ## Connecting to databases
@@ -116,10 +116,10 @@ const sqlite = new Database("sqlite.db");
 const connector = new SQLiteConnector(sqlite);
 const db: SQLiteDatabase = connector.connect();
 
-const result: User[] = await db.select(users)
+const result: User[] = await db.select(users).all()
 
 const insertUser = (user: InsertUser) => {
-  return db.insert(users).values(user)
+  return db.insert(users).values(user).run()
 }
 ```
 
@@ -196,29 +196,27 @@ const sqlite = new Database("sqlite.db");
 const connector = new SQLiteConnector(sqlite);
 const db = connector.connect();
 
-await db.select(users);
-await db.select(users).where(eq(users.id, 42));
+db.select(users).all();
+db.select(users).where(eq(users.id, 42)).get();
 
 // you can combine filters with and(...) or or(...)
-await db.select(users)
-  .where(and(eq(users.id, 42), eq(users.name, "Dan")));
+db.select(users).where(and(eq(users.id, 42), eq(users.name, "Dan"))).get();
 
-await db.select(users)
-  .where(or(eq(users.id, 42), eq(users.id, 1)));
+db.select(users).where(or(eq(users.id, 42), eq(users.id, 1))).all();
 
 // partial select
-const result = await db.select(users).fields({
+const result = db.select(users).fields({
     field1: users.id,
     field2: users.name,
-  });
+  }).all();
 const { field1, field2 } = result[0];
 
 // limit offset & order by
-await db.select(users).limit(10).offset(10);
-await db.select(users).orderBy(asc(users.name));
-await db.select(users).orderBy(desc(users.name));
+db.select(users).limit(10).offset(10).all();
+db.select(users).orderBy(asc(users.name)).all();
+db.select(users).orderBy(desc(users.name)).all();
 // you can pass multiple order args
-await db.select(users).orderBy(asc(users.name), desc(users.name));
+db.select(users).orderBy(asc(users.name), desc(users.name)).all();
 
 // list of all filter operators
 eq(column, value)
@@ -297,12 +295,14 @@ const insertedUser = db.insert(users).values({ name: "Dan", createdAt: +new Date
 
 Update and Delete
 ```typescript
-await db.update(users)
+db.update(users)
   .set({ name: 'Mr. Dan' })
-  .where(eq(usersTable.name, 'Dan'));
+  .where(eq(usersTable.name, 'Dan'))
+  .run();
 	
-await db.delete(users)
-  .where(eq(usersTable.name, 'Dan'));
+db.delete(users)
+  .where(eq(usersTable.name, 'Dan'))
+  .run();
 ```
 
 ### Aggregations
@@ -346,7 +346,7 @@ db.select(orders).fields({
   .leftJoin(details, eq(orders.id, details.orderId))
   .groupBy(orders.id)
   .orderBy(asc(orders.id))
-  .prepare();
+  .all();
 ```
 
 
@@ -370,7 +370,7 @@ const users = sqliteTable("users", {
 
 const db = new SQLiteConnector(sqlite).connect();
 
-const result = db.select(cities).leftJoin(users, eq(cities2.id, users2.cityId))
+const result = db.select(cities).leftJoin(users, eq(cities2.id, users2.cityId)).all()
 ```
 
 ### Many-to-many
@@ -397,7 +397,8 @@ const db = new SQLiteConnector(...).connect();
 db.select(usersToChatGroups)
   .leftJoin(users, eq(usersToChatGroups.userId, users.id))
   .leftJoin(chatGroups, eq(usersToChatGroups.groupId, chatGroups.id))
-  .where(eq(chatGroups.id, 1));
+  .where(eq(chatGroups.id, 1))
+  .all();
 ```
 
 ### Join aliases and selfjoins
@@ -415,7 +416,8 @@ const db = new SQLiteConnector(...).connect();
 const nestedFiles = alias(files, "nested_files");
 db.select(files)
   .leftJoin(nestedFiles, eq(files.name, nestedFiles.name))
-  .where(eq(files.parent, "/"));
+  .where(eq(files.parent, "/"))
+  .all();
 // will return files and folers and nested files for each folder at root dir
 ```
 
@@ -426,7 +428,8 @@ db.select(cities).fields({
   id: cities.id,
   cityName: cities.name
   userId: users.id
-}).leftJoin(users, eq(users.cityId, cities.id));
+}).leftJoin(users, eq(users.cityId, cities.id))
+  .all();
 ```
 
 ## ⚡️ Performance and prepared statements
