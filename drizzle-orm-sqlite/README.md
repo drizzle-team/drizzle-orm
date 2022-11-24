@@ -5,7 +5,6 @@ Here you can find extensive docs for SQLite module. We support `better-sqlite3`,
 ## 💾 Installation
 ```bash
 npm install drizzle-orm drizzle-orm-sqlite better-sqlite3
-
 ## opt-in automatic migrations generator
 npm install -D drizzle-kit 
 ```
