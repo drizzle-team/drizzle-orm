@@ -7,7 +7,7 @@
 		"build": "turbo run build --filter '!drizzle-orm-mysql' --color",
 		"build:int": "turbo run build:int --filter '!drizzle-orm-mysql' --color",
 		"test": "turbo run test --filter '!drizzle-orm-mysql' --color",
-		"postinstall": "pnpm i --filter '!integration-tests' --filter '!cloudflare' --filter '!.' --no-frozen-lockfile"
+		"postinstall": "pnpm i --filter '!integration-tests' --filter '!.' --no-frozen-lockfile"
 	},
 	"devDependencies": {
 		"@trivago/prettier-plugin-sort-imports": "^3.2.0",
