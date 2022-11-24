@@ -9,7 +9,7 @@ jobs:
       matrix:
         package:
           - drizzle-orm
-          - drizzle-orm-mysql
+          # - drizzle-orm-mysql
           - drizzle-orm-pg
           - drizzle-orm-sqlite
     runs-on: ubuntu-20.04
@@ -27,7 +27,18 @@ jobs:
           run_install: |
             recursive: false
 
-      - run: pnpm release || true
+      - run: |
+          latest=$(pnpm info --json ${{ matrix.package }} dist-tags.latest | jq -r)
+          current=$(jq -r .version package.json)
+          if [[ $latest != $current ]]; then
+            echo "Latest: $latest"
+            echo "Current: $current"
+
+            pnpm run release
+            pnpm dist-tag add ${{ matrix.package }}@${current} latest
+          else
+            echo "Already up to date: $current"
+          fi
         working-directory: ${{ matrix.package }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
