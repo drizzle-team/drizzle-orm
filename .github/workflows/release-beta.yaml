@@ -32,9 +32,9 @@ jobs:
         run: |
           beta=$(npm view --json ${{ matrix.package }} dist-tags.beta | jq -r)
           current=$(jq -r .version package.json)
-          if [[ $latest != $current ]]; then
-            echo "Beta:\t$beta"
-            echo "Current:\t$current"
+          if [[ $beta != $current ]]; then
+            echo "Beta:    $beta"
+            echo "Current: $current"
 
             (cd .. && pnpm i)
             pnpm run release:beta
