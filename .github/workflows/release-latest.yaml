@@ -27,7 +27,8 @@ jobs:
           run_install: |
             recursive: false
 
-      - run: |
+      - name: Publish
+        run: |
           latest=$(pnpm info --json ${{ matrix.package }} dist-tags.latest | jq -r)
           current=$(jq -r .version package.json)
           if [[ $latest != $current ]]; then

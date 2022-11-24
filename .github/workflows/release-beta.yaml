@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - '**/package.json'
   workflow_dispatch: {}
 
 jobs:
@@ -32,8 +30,9 @@ jobs:
           run_install: |
             recursive: false
 
-      - run: |
-          latest=$(pnpm info --json ${{ matrix.package }} dist-tags.latest | jq -r)
+      - name: Publish
+        run: |
+          latest=$(pnpm info --json ${{ matrix.package }} dist-tags.beta | jq -r)
           current=$(jq -r .version package.json)
           if [[ $latest != $current ]]; then
             echo "Latest: $latest"
