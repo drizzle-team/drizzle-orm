@@ -21,22 +21,23 @@ jobs:
           node-version: 16
           registry-url: 'https://registry.npmjs.org'
 
-      - uses: pnpm/action-setup@v2
-        with:
-          version: latest
-          run_install: |
-            recursive: false
-
       - name: Publish
         run: |
-          latest=$(pnpm info --json ${{ matrix.package }} dist-tags.latest | jq -r)
+          latest=$(npm view --json ${{ matrix.package }} dist-tags.latest | jq -r)
+          beta=$(npm view --json ${{ matrix.package }} dist-tags.beta | jq -r)
           current=$(jq -r .version package.json)
-          if [[ $latest != $current ]]; then
-            echo "Latest: $latest"
-            echo "Current: $current"
 
-            pnpm run release
-            pnpm dist-tag add ${{ matrix.package }}@${current} latest
+          if [[ $latest != $current ]]; then
+            echo "Latest:\t$latest"
+            echo "Current:\t$current"
+
+            if [[ $beta != $current ]]; then
+              echo "Beta is not up to date: $beta vs $current"
+              echo "Please wait for the beta release to complete or run it manually."
+              exit 1
+            fi
+
+            npm dist-tag add ${{ matrix.package }}@${current} latest
           else
             echo "Already up to date: $current"
           fi

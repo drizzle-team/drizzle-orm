@@ -27,19 +27,17 @@ jobs:
       - uses: pnpm/action-setup@v2
         with:
           version: latest
-          run_install: |
-            recursive: false
 
       - name: Publish
         run: |
-          latest=$(pnpm info --json ${{ matrix.package }} dist-tags.beta | jq -r)
+          beta=$(npm view --json ${{ matrix.package }} dist-tags.beta | jq -r)
           current=$(jq -r .version package.json)
           if [[ $latest != $current ]]; then
-            echo "Latest: $latest"
-            echo "Current: $current"
+            echo "Beta:\t$beta"
+            echo "Current:\t$current"
 
+            (cd .. && pnpm i)
             pnpm run release:beta
-            pnpm dist-tag add ${{ matrix.package }}@${current} latest
           else
             echo "Already up to date: $current"
           fi
