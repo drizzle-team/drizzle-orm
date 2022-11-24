@@ -2,13 +2,9 @@
 	"name": "integration-tests",
 	"version": "1.0.0",
 	"description": "",
-	"main": "index.js",
 	"scripts": {
 		"typecheck": "tsc",
 		"test": "ava tests",
-		"test:andrew": "tsx tests/test_andrew.ts",
-		"test:dan": "tsx tests/test_dan.ts",
-		"test:dan:mysql": "tsx tests/test_dan_mysql.ts",
 		"build:int:full": "pnpm add ../drizzle-orm/package.tgz ../drizzle-orm-pg/package.tgz ../drizzle-orm-mysql/package.tgz ../drizzle-orm-sqlite/package.tgz",
 		"build:int": "pnpm add ../drizzle-orm/package.tgz ../drizzle-orm-pg/package.tgz ../drizzle-orm-sqlite/package.tgz"
 	},
@@ -26,7 +22,7 @@
 	},
 	"keywords": [],
 	"author": "",
-	"license": "ISC",
+	"license": "Apache-2.0",
 	"private": true,
 	"devDependencies": {
 		"@types/better-sqlite3": "^7.6.0",
