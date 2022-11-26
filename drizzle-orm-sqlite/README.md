@@ -24,7 +24,7 @@ const sqlite = new Database("sqlite.db");
 const connector = new SQLiteConnector(sqlite);
 const db = connector.connect();
 
-const users = db.select(users).all();
+const users = db.select(users).execute();
 ```
 
 ## Connecting to databases
@@ -36,7 +36,7 @@ import Database from "better-sqlite3";
 const sqlite = new Database("sqlite.db");
 const connector = new SQLiteConnector(sqlite);
 const db: SQLiteDatabase = connector.connect();
-const result = db.select(users).all()
+const result = db.select(users).execute()
 
 // bun js embedded sqlite connector
 import { SQLiteBunConnector, SQLiteBunDatabase } from "drizzle-orm-sqlite/bun";
@@ -44,14 +44,14 @@ import { Database } from "bun:sqlite";
 
 const sqlite = new Database("nw.sqlite");
 const db: SQLiteBunDatabase = new SQLiteBunConnector(sqlite).connect();
-const result = db.select(users).all()
+const result = db.select(users).execute()
 
 // Cloudflare D1 connector
 import { SQLiteD1Connector, SQLiteD1Database } from 'drizzle-orm-sqlite/d1';
 
 // env.DB from cloudflare worker environment
 const db: SQLiteD1Database = new SQLiteD1Connector(env.DB).connect();
-const result = await db.select(users).all() // pay attention this one is async
+const result = await db.select(users).execute() // pay attention this one is async
 ```
 
 ## SQL schema declaration
@@ -116,10 +116,10 @@ const sqlite = new Database("sqlite.db");
 const connector = new SQLiteConnector(sqlite);
 const db: SQLiteDatabase = connector.connect();
 
-const result: User[] = await db.select(users).all()
+const result: User[] = await db.select(users).execute()
 
 const insertUser = (user: InsertUser) => {
-  return db.insert(users).values(user).run()
+  return db.insert(users).values(user).execute()
 }
 ```
 
@@ -196,27 +196,27 @@ const sqlite = new Database("sqlite.db");
 const connector = new SQLiteConnector(sqlite);
 const db = connector.connect();
 
-db.select(users).all();
-db.select(users).where(eq(users.id, 42)).get();
+db.select(users).execute();
+db.select(users).where(eq(users.id, 42)).execute();
 
 // you can combine filters with and(...) or or(...)
-db.select(users).where(and(eq(users.id, 42), eq(users.name, "Dan"))).get();
+db.select(users).where(and(eq(users.id, 42), eq(users.name, "Dan"))).execute();
 
-db.select(users).where(or(eq(users.id, 42), eq(users.id, 1))).all();
+db.select(users).where(or(eq(users.id, 42), eq(users.id, 1))).execute();
 
 // partial select
 const result = db.select(users).fields({
     field1: users.id,
     field2: users.name,
-  }).all();
+  }).execute();
 const { field1, field2 } = result[0];
 
 // limit offset & order by
-db.select(users).limit(10).offset(10).all();
-db.select(users).orderBy(asc(users.name)).all();
-db.select(users).orderBy(desc(users.name)).all();
+db.select(users).limit(10).offset(10).execute();
+db.select(users).orderBy(asc(users.name)).execute();
+db.select(users).orderBy(desc(users.name)).execute();
 // you can pass multiple order args
-db.select(users).orderBy(asc(users.name), desc(users.name)).all();
+db.select(users).orderBy(asc(users.name), desc(users.name)).execute();
 
 // list of all filter operators
 eq(column, value)
@@ -278,7 +278,7 @@ const users = sqliteTable("users", {
   createdAt: integer("created_at", { mode: "timestamp" }),
 });
 
-db.insert(users).values({ name: "Andrew", createdAt: +new Date() }).run();
+db.insert(users).values({ name: "Andrew", createdAt: +new Date() }).execute();
 
 // insert multiple users
 db.insert(users).values({
@@ -287,10 +287,10 @@ db.insert(users).values({
     },{
       name: "Dan",
       createdAt: +new Date(),
-    }).run();
+    }).execute();
 
 // insert with returning
-const insertedUser = db.insert(users).values({ name: "Dan", createdAt: +new Date() }).returning().get()
+const insertedUser = db.insert(users).values({ name: "Dan", createdAt: +new Date() }).returning().execute()
 ```
 
 Update and Delete
@@ -298,11 +298,11 @@ Update and Delete
 db.update(users)
   .set({ name: 'Mr. Dan' })
   .where(eq(usersTable.name, 'Dan'))
-  .run();
+  .execute();
 	
 db.delete(users)
   .where(eq(usersTable.name, 'Dan'))
-  .run();
+  .execute();
 ```
 
 ### Aggregations
@@ -346,7 +346,7 @@ db.select(orders).fields({
   .leftJoin(details, eq(orders.id, details.orderId))
   .groupBy(orders.id)
   .orderBy(asc(orders.id))
-  .all();
+  .execute();
 ```
 
 
@@ -370,7 +370,7 @@ const users = sqliteTable("users", {
 
 const db = new SQLiteConnector(sqlite).connect();
 
-const result = db.select(cities).leftJoin(users, eq(cities2.id, users2.cityId)).all()
+const result = db.select(cities).leftJoin(users, eq(cities2.id, users2.cityId)).execute()
 ```
 
 ### Many-to-many
@@ -398,7 +398,7 @@ db.select(usersToChatGroups)
   .leftJoin(users, eq(usersToChatGroups.userId, users.id))
   .leftJoin(chatGroups, eq(usersToChatGroups.groupId, chatGroups.id))
   .where(eq(chatGroups.id, 1))
-  .all();
+  .execute();
 ```
 
 ### Join aliases and selfjoins
@@ -417,7 +417,7 @@ const nestedFiles = alias(files, "nested_files");
 db.select(files)
   .leftJoin(nestedFiles, eq(files.name, nestedFiles.name))
   .where(eq(files.parent, "/"))
-  .all();
+  .execute();
 // will return files and folers and nested files for each folder at root dir
 ```
 
@@ -429,7 +429,7 @@ db.select(cities).fields({
   cityName: cities.name
   userId: users.id
 }).leftJoin(users, eq(users.cityId, cities.id))
-  .all();
+  .execute();
 ```
 
 ## ⚡️ Performance and prepared statements
@@ -440,18 +440,18 @@ import { placeholder } from "drizzle-orm/sql";
 const db = new SQLiteConnector(...).connect();
 
 const q = db.select(customers).prepare();
-q.all() // SELECT * FROM customers
+q.execute() // SELECT * FROM customers
 
 const q = db.select(customers).where(eq(customers.id, placeholder("id"))).prepare()
 
-q.get({ id: 10 }) // SELECT * FROM customers WHERE id = 10
-q.get({ id: 12 }) // SELECT * FROM customers WHERE id = 12
+q.execute({ id: 10 }) // SELECT * FROM customers WHERE id = 10
+q.execute({ id: 12 }) // SELECT * FROM customers WHERE id = 12
 
 const q = db.select(customers)
   .where(sql`lower(${customers.name}) like ${placeholder("name")}`)
   .prepare();
 
-q.all({ name: "%an%" }) // SELECT * FROM customers WHERE name ilike '%an%'
+q.execute({ name: "%an%" }) // SELECT * FROM customers WHERE name ilike '%an%'
 ```
 
 ## 🗄 Migrations
@@ -529,10 +529,4 @@ const query = db.select(users)
 ```typescript
 // it will automatically run a parametrized query!
 const res: QueryResult<any> = await db.run(sql`SELECT * FROM users WHERE user.id = ${userId}`)
-
-// you can use
-db.run()
-db.get()
-db.all()
-db.values()
 ```
