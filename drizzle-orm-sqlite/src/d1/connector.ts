@@ -1,5 +1,5 @@
 import { Logger, MigrationConfig, readMigrationFiles } from 'drizzle-orm';
-import { SQLiteAsyncDatabase } from '~/db';
+import { BaseSQLiteDatabase } from '~/db';
 import { SQLiteAsyncDialect, SQLiteDialect } from '~/dialect';
 import { SQLiteD1Driver } from './driver';
 import { SQLiteD1Session } from './session';
@@ -10,9 +10,9 @@ export interface SQLiteConnectorOptions {
 	driver?: SQLiteD1Driver;
 }
 
-export type SQLiteD1Database = SQLiteAsyncDatabase<D1PreparedStatement, D1Result>;
+export type DrizzleD1Database = BaseSQLiteDatabase<'async', D1Result>;
 
-export class SQLiteD1Connector {
+export class D1Connector {
 	dialect: SQLiteAsyncDialect;
 	driver: SQLiteD1Driver;
 	private session: SQLiteD1Session | undefined;
@@ -26,9 +26,9 @@ export class SQLiteD1Connector {
 		return this.session ?? (this.session = this.driver.connect());
 	}
 
-	connect(): SQLiteD1Database {
+	connect(): DrizzleD1Database {
 		const session = this.getSession();
-		return new SQLiteAsyncDatabase(this.dialect, session);
+		return new BaseSQLiteDatabase(this.dialect, session);
 	}
 
 	migrate(config: string | MigrationConfig) {

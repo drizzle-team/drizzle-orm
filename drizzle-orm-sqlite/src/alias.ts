@@ -1,5 +1,5 @@
 import { TableAliasProxyHandler } from 'drizzle-orm/alias';
-import { BuildAliasTable } from './queries/select.types';
+import { BuildAliasTable } from './query-builders/select.types';
 
 import { AnySQLiteTable } from './table';
 

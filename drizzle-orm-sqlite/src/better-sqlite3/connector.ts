@@ -1,6 +1,6 @@
-import { Database, RunResult, Statement } from 'better-sqlite3';
+import { Database, RunResult } from 'better-sqlite3';
 import { Logger, MigrationConfig, readMigrationFiles } from 'drizzle-orm';
-import { SQLiteSyncDatabase } from '~/db';
+import { BaseSQLiteDatabase } from '~/db';
 import { SQLiteDialect, SQLiteSyncDialect } from '~/dialect';
 import { SQLiteDriver } from './driver';
 import { BetterSQLiteSession } from './session';
@@ -11,7 +11,7 @@ export interface SQLiteConnectorOptions {
 	driver?: SQLiteDriver;
 }
 
-export type SQLiteDatabase = SQLiteSyncDatabase<Statement, RunResult>;
+export type SQLiteDatabase = BaseSQLiteDatabase<'sync', RunResult>;
 
 export class SQLiteConnector {
 	dialect: SQLiteSyncDialect;
@@ -29,7 +29,7 @@ export class SQLiteConnector {
 
 	connect(): SQLiteDatabase {
 		const session = this.getSession();
-		return new SQLiteSyncDatabase(this.dialect, session);
+		return new BaseSQLiteDatabase(this.dialect, session);
 	}
 
 	migrate(config: string | MigrationConfig) {

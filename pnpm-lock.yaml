@@ -95,7 +95,7 @@ importers:
     dependencies:
       better-sqlite3: 7.6.2
       dockerode: 3.3.4
-      drizzle-orm: file:drizzle-orm/package.tgz_6jehzpj5tkq2o26e55tjfj2qfe
+      drizzle-orm: file:drizzle-orm/package.tgz_7r34w2aighf3hh5dvfm6t7jxdm
       drizzle-orm-pg: file:drizzle-orm-pg/package.tgz_y7khuaviteef2rhco363wzgtgu
       drizzle-orm-sqlite: file:drizzle-orm-sqlite/package.tgz_rjzg3x5xttj4fcpmdprxxmpww4
       get-port: 6.1.2
@@ -3120,7 +3120,7 @@ packages:
     dev: true
 
   file:drizzle-orm-pg/package.tgz_y7khuaviteef2rhco363wzgtgu:
-    resolution: {integrity: sha512-OTge+5glotmpD6KHrw3t/Avi0S6VnvDYOdzPTOx2wgk+ioqfW1b7D5k8bd6cKifna07u61AM0n1uYJQmUQLHkA==, tarball: file:drizzle-orm-pg/package.tgz}
+    resolution: {integrity: sha512-2gjMDCsipfD47Qg1IdYnOQRDgVNMZ+M3tJyq64nMEbkzC24fCH81dMLmfWcEKJ/7htlF33gX2TX93dBUvZoWdw==, tarball: file:drizzle-orm-pg/package.tgz}
     id: file:drizzle-orm-pg/package.tgz
     name: drizzle-orm-pg
     version: 0.12.0-beta.39
@@ -3135,15 +3135,15 @@ packages:
         optional: true
     dependencies:
       '@types/pg': 8.6.5
-      drizzle-orm: file:drizzle-orm/package.tgz_6jehzpj5tkq2o26e55tjfj2qfe
+      drizzle-orm: file:drizzle-orm/package.tgz_7r34w2aighf3hh5dvfm6t7jxdm
       pg: 8.8.0
     dev: false
 
   file:drizzle-orm-sqlite/package.tgz_rjzg3x5xttj4fcpmdprxxmpww4:
-    resolution: {integrity: sha512-dFiHWcnXQubw/XgjesR7teDrYHylM8vnZ0crtBcttKWbmOQl7QRbvYkBfaAmzzyeqN/T2b6/yxbhLAP6QAKz+Q==, tarball: file:drizzle-orm-sqlite/package.tgz}
+    resolution: {integrity: sha512-U/EqL1PoSinEExC0N/GjyqzNpgJEexmae6uH5TPKzjbkrGlF6eeAIiguh7j4PA/YAx1NKu1tFQ30EFAJsc9E0w==, tarball: file:drizzle-orm-sqlite/package.tgz}
     id: file:drizzle-orm-sqlite/package.tgz
     name: drizzle-orm-sqlite
-    version: 0.12.0-beta.16
+    version: 0.12.0-beta.17
     peerDependencies:
       '@cloudflare/workers-types': '>=3 <4'
       '@types/better-sqlite3': '>=7 <8'
@@ -3162,12 +3162,12 @@ packages:
     dependencies:
       '@types/better-sqlite3': 7.6.2
       better-sqlite3: 7.6.2
-      drizzle-orm: file:drizzle-orm/package.tgz_6jehzpj5tkq2o26e55tjfj2qfe
+      drizzle-orm: file:drizzle-orm/package.tgz_7r34w2aighf3hh5dvfm6t7jxdm
       sqlite3: 5.1.2
     dev: false
 
-  file:drizzle-orm/package.tgz_6jehzpj5tkq2o26e55tjfj2qfe:
-    resolution: {integrity: sha512-/M+1RLOq4aFuq1SiJzvwiS3MDUKBenR6cGFhfOiLtmYe1gPh1CdyYspjNLWNsFfTu4s/Agk/exyeyk5ABgVeKw==, tarball: file:drizzle-orm/package.tgz}
+  file:drizzle-orm/package.tgz_7r34w2aighf3hh5dvfm6t7jxdm:
+    resolution: {integrity: sha512-kFekIazGdPpAYAT9yWbslFYes8ANcVrtm+6wvSv68b5mjxIsUoMcx+fcxAvFrD6txD2CbmOZX1A5/vY7BfB7vg==, tarball: file:drizzle-orm/package.tgz}
     id: file:drizzle-orm/package.tgz
     name: drizzle-orm
     version: 0.12.0-beta.22

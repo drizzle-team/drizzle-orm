@@ -1,54 +1,83 @@
 import { Logger, NoopLogger } from 'drizzle-orm';
-import { Query, SQL } from 'drizzle-orm/sql';
-import { SQLiteDialect } from '~/dialect';
-import { PreparedQuery as PreparedQueryBase, SQLiteAsyncSession } from '~/session';
+import { fillPlaceholders, Query } from 'drizzle-orm/sql';
+import { mapResultRowV2 } from 'drizzle-orm/utils';
+import { SQLiteAsyncDialect } from '~/dialect';
+import { SelectFieldsOrdered } from '~/operations';
+import {
+	PreparedQuery as PreparedQueryBase,
+	PreparedQueryConfig as PreparedQueryConfigBase,
+	SQLiteSession,
+} from '~/session';
 
 export interface SQLiteD1SessionOptions {
 	logger?: Logger;
 }
 
-export type PreparedQuery = PreparedQueryBase<D1PreparedStatement>;
+type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
-export class SQLiteD1Session implements SQLiteAsyncSession<D1PreparedStatement, D1Result> {
+export class SQLiteD1Session extends SQLiteSession<'async', D1Result> {
 	private logger: Logger;
 
 	constructor(
 		private client: D1Database,
-		private dialect: SQLiteDialect,
+		dialect: SQLiteAsyncDialect,
 		options: SQLiteD1SessionOptions = {},
 	) {
+		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
-	run(query: SQL | PreparedQuery): Promise<D1Result> {
-		const { stmt, queryString, params } = query instanceof SQL
-			? this.prepareQuery(this.dialect.sqlToQuery(query))
-			: query;
-		this.logger.logQuery(queryString, params);
-
-		return stmt.bind(...params).run();
-	}
-
-	all<T extends any[] = unknown[]>(query: SQL | PreparedQuery): Promise<T[]> {
-		const { stmt, queryString, params } = query instanceof SQL
-			? this.prepareQuery(this.dialect.sqlToQuery(query))
-			: query;
-		this.logger.logQuery(queryString, params);
-
-		return stmt.bind(...params).raw() as Promise<T[]>;
-	}
-
-	allObjects<T = unknown>(query: SQL | PreparedQuery): Promise<T[]> {
-		const { stmt, queryString, params } = query instanceof SQL
-			? this.prepareQuery(this.dialect.sqlToQuery(query))
-			: query;
-		this.logger.logQuery(queryString, params);
-
-		return stmt.bind(...params).all().then(({ results }) => results) as Promise<T[]>;
-	}
-
-	prepareQuery(query: Query): PreparedQuery {
+	prepareQuery(query: Query, fields?: SelectFieldsOrdered): PreparedQuery {
 		const stmt = this.client.prepare(query.sql);
-		return { stmt, queryString: query.sql, params: query.params };
+		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields);
+	}
+}
+
+export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
+	{ type: 'async'; run: D1Result; all: T['all']; get: T['get']; values: T['values'] }
+> {
+	constructor(
+		private stmt: D1PreparedStatement,
+		private queryString: string,
+		private params: unknown[],
+		private logger: Logger,
+		private fields: SelectFieldsOrdered | undefined,
+	) {
+		super();
+	}
+
+	run(placeholderValues?: Record<string, unknown>): Promise<D1Result> {
+		const params = fillPlaceholders(this.params, placeholderValues ?? {});
+		this.logger.logQuery(this.queryString, params);
+
+		return this.stmt.bind(...params).run();
+	}
+
+	all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
+		const { fields } = this;
+		if (!fields) {
+			throw new Error('Statement does not return any data - use run()');
+		}
+
+		const params = fillPlaceholders(this.params, placeholderValues ?? {});
+		this.logger.logQuery(this.queryString, params);
+		return this.values(placeholderValues)
+			.then((values) => values.map((row) => mapResultRowV2(fields, row)));
+	}
+
+	get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
+		// TODO: implement using stmt.get()
+		return this.all(placeholderValues).then((rows) => rows[0]);
+	}
+
+	values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {
+		if (!this.fields) {
+			throw new Error('Statement does not return any data - use run()');
+		}
+
+		const params = fillPlaceholders(this.params, placeholderValues ?? {});
+		this.logger.logQuery(this.queryString, params);
+
+		return this.stmt.bind(...params).raw();
 	}
 }
