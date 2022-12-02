@@ -20,3 +20,8 @@ export type SelectFieldsOrdered = {
 	resultTableName: string;
 	field: AnyColumn | SQL | SQLResponse;
 }[];
+
+export type SelectFieldsOrderedV2 = {
+	path: string[];
+	field: AnyColumn | SQL | SQLResponse;
+}[];

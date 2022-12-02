@@ -1,11 +1,11 @@
-import { Column, MigrationMeta, param, sql, Table, AnyColumn } from 'drizzle-orm';
+import { AnyColumn, Column, MigrationMeta, param, sql, Table } from 'drizzle-orm';
 import { Name, Query, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
 import { AnySQLiteColumn, SQLiteColumn } from '~/columns';
-import { SQLiteSelectFields, SQLiteSelectFieldsOrdered } from '~/operations';
-import { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig, SQLiteUpdateSet } from '~/queries';
-import { SQLiteAsyncSession, SQLiteSyncSession } from '~/session';
+import { SelectFieldsOrdered, SQLiteSelectFields } from '~/operations';
+import { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig, SQLiteUpdateSet } from '~/query-builders';
 import { AnySQLiteTable, SQLiteTable } from '~/table';
-import { SQLiteSelectConfig } from './queries/select.types';
+import { SQLiteSelectConfig } from './query-builders/select.types';
+import { SQLiteSession } from './session';
 
 export abstract class SQLiteDialect {
 	escapeName(name: string): string {
@@ -44,10 +44,6 @@ export abstract class SQLiteDialect {
 		);
 	}
 
-	orderSelectedFields(fields: SQLiteSelectFields<string>, resultTableName: string): SQLiteSelectFieldsOrdered {
-		return Object.entries(fields).map(([name, field]) => ({ name, resultTableName, field }));
-	}
-
 	buildUpdateQuery({ table, set, where, returning }: SQLiteUpdateConfig): SQL {
 		const setSql = this.buildUpdateSet(table, set);
 
@@ -72,7 +68,7 @@ export abstract class SQLiteDialect {
 	 * If `isSingleTable` is true, then columns won't be prefixed with table name
 	 */
 	private buildSelection(
-		fields: SQLiteSelectFieldsOrdered,
+		fields: SelectFieldsOrdered,
 		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
 	): SQL {
 		const columnsLen = fields.length;
@@ -228,7 +224,7 @@ export abstract class SQLiteDialect {
 }
 
 export class SQLiteSyncDialect extends SQLiteDialect {
-	migrate(migrations: MigrationMeta[], session: SQLiteSyncSession<unknown, unknown>): void {
+	migrate(migrations: MigrationMeta[], session: SQLiteSession<'sync'>): void {
 		const migrationTableCreate = sql`CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
 			id SERIAL PRIMARY KEY,
 			hash text NOT NULL,
@@ -237,7 +233,7 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 		session.run(sql`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
 		session.run(migrationTableCreate);
 
-		const dbMigrations = session.all<[number, string, string]>(
+		const dbMigrations = session.values<[number, string, string]>(
 			sql`SELECT id, hash, created_at FROM "__drizzle_migrations" ORDER BY created_at DESC LIMIT 1`,
 		);
 
@@ -263,7 +259,7 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 }
 
 export class SQLiteAsyncDialect extends SQLiteDialect {
-	async migrate(migrations: MigrationMeta[], session: SQLiteAsyncSession<unknown, unknown>): Promise<void> {
+	async migrate(migrations: MigrationMeta[], session: SQLiteSession<'async'>): Promise<void> {
 		const migrationTableCreate = sql`CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
 			id SERIAL PRIMARY KEY,
 			hash text NOT NULL,
@@ -272,7 +268,7 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 		await session.run(sql`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
 		await session.run(migrationTableCreate);
 
-		const dbMigrations = await session.all<[number, string, string]>(
+		const dbMigrations = await session.values<[number, string, string]>(
 			sql`SELECT id, hash, created_at FROM "__drizzle_migrations" ORDER BY created_at DESC LIMIT 1`,
 		);
 

@@ -1,5 +1,5 @@
 import { Logger } from 'drizzle-orm';
-import { SQLiteDialect } from '~/dialect';
+import { SQLiteAsyncDialect } from '~/dialect';
 import { SQLiteD1Session } from './session';
 
 export interface SQLiteD1DriverOptions {
@@ -11,7 +11,7 @@ export class SQLiteD1Driver {
 
 	constructor(
 		private client: D1Database,
-		private dialect: SQLiteDialect,
+		private dialect: SQLiteAsyncDialect,
 		private options: SQLiteD1DriverOptions = {},
 	) {}
 

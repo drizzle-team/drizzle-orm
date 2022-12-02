@@ -1,6 +1,6 @@
 import { Database } from 'better-sqlite3';
 import { Logger } from 'drizzle-orm';
-import { SQLiteDialect } from '~/dialect';
+import { SQLiteSyncDialect } from '~/dialect';
 import { BetterSQLiteSession } from './session';
 
 export interface SQLiteDriverOptions {
@@ -12,7 +12,7 @@ export class SQLiteDriver {
 
 	constructor(
 		private client: Database,
-		private dialect: SQLiteDialect,
+		private dialect: SQLiteSyncDialect,
 		private options: SQLiteDriverOptions = {},
 	) {}
 

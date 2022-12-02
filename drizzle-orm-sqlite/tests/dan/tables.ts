@@ -19,7 +19,7 @@ export const users = sqliteTable(
 		serialNotNull: integer('serial2').notNull(),
 		class: text<'A' | 'C'>('class').notNull(),
 		subClass: text<'B' | 'D'>('sub_class'),
-		text: text('text'),
+		name: text('name'),
 		age1: integer('age1').notNull(),
 		createdAt: integer('created_at', { mode: 'timestamp' }).notNull().defaultNow(),
 		enumCol: text<'a' | 'b' | 'c'>('enum_col').notNull(),
@@ -56,7 +56,7 @@ Expect<
 		serialNotNull: number;
 		class: 'A' | 'C';
 		subClass: 'B' | 'D' | null;
-		text: string | null;
+		name: string | null;
 		age1: number;
 		createdAt: Date;
 		enumCol: 'a' | 'b' | 'c';
@@ -73,7 +73,7 @@ Expect<
 		serialNotNull: number;
 		class: 'A' | 'C';
 		subClass?: 'B' | 'D' | null;
-		text?: string | null;
+		name?: string | null;
 		age1: number;
 		createdAt?: Date;
 		enumCol: 'a' | 'b' | 'c';

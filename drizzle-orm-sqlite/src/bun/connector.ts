@@ -1,6 +1,6 @@
-import { Database, Statement } from 'bun:sqlite';
+import { Database } from 'bun:sqlite';
 import { Logger, MigrationConfig, readMigrationFiles } from 'drizzle-orm';
-import { SQLiteSyncDatabase } from '~/db';
+import { BaseSQLiteDatabase } from '~/db';
 import { SQLiteSyncDialect } from '~/dialect';
 import { SQLiteBunDriver } from './driver';
 import { SQLiteBunSession } from './session';
@@ -11,7 +11,7 @@ export interface SQLiteBunConnectorOptions {
 	driver?: SQLiteBunDriver;
 }
 
-export type SQLiteBunDatabase = SQLiteSyncDatabase<Statement<any, any>, void>;
+export type SQLiteBunDatabase = BaseSQLiteDatabase<'sync', void>;
 
 export class SQLiteBunConnector {
 	dialect: SQLiteSyncDialect;
@@ -29,7 +29,7 @@ export class SQLiteBunConnector {
 
 	connect(): SQLiteBunDatabase {
 		const session = this.getSession();
-		return new SQLiteSyncDatabase(this.dialect, session);
+		return new BaseSQLiteDatabase(this.dialect, session);
 	}
 
 	migrate(config: string | MigrationConfig) {

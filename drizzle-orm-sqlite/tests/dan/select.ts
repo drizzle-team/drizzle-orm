@@ -23,6 +23,7 @@ import {
 	or,
 } from 'drizzle-orm/expressions';
 import { alias } from '~/alias';
+import { InferModel } from '~/table';
 
 import { Equal, Expect } from '../utils';
 import { db } from './db';
@@ -31,74 +32,117 @@ import { cities, classes, users } from './tables';
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
 
-const join = db.select(users)
+const joinAll = db.select(users)
 	.leftJoin(cities, eq(users.id, cities.id))
 	.rightJoin(city, eq(city.id, users.id))
-	.rightJoin(city1, eq(city1.id, users.id), { id: city.id }).execute();
-
+	.rightJoin(city1, eq(city1.id, users.id))
+	.all();
 Expect<
 	Equal<{
-		users_table: {
+		users_table: InferModel<typeof users> | null;
+		cities_table: InferModel<typeof cities> | null;
+		city: InferModel<typeof city> | null;
+		city1: InferModel<typeof city1>;
+	}[], typeof joinAll>
+>;
+
+const joinGet = db.select(users)
+	.leftJoin(cities, eq(users.id, cities.id))
+	.rightJoin(city, eq(city.id, users.id))
+	.rightJoin(city1, eq(city1.id, users.id))
+	.get();
+Expect<
+	Equal<{
+		users_table: InferModel<typeof users> | null;
+		cities_table: InferModel<typeof cities> | null;
+		city: InferModel<typeof city> | null;
+		city1: InferModel<typeof city1>;
+	}, typeof joinGet>
+>;
+
+const joinValues = db.select(users)
+	.leftJoin(cities, eq(users.id, cities.id))
+	.rightJoin(city, eq(city.id, users.id))
+	.rightJoin(city1, eq(city1.id, users.id))
+	.values();
+Expect<Equal<any[][], typeof joinValues>>;
+
+const joinPartial = db.select(users)
+	.fields({
+		user: {
+			id: users.id,
+			age: users.age1,
+			name: users.name,
+		},
+		city: {
+			id: cities.id,
+			name: cities.name,
+		},
+	})
+	.fullJoin(cities, eq(users.id, cities.id))
+	.all();
+
+Expect<
+	Equal<({
+		user: {
 			id: number;
-			homeCity: number;
-			currentCity: number | null;
-			serialNullable: number | null;
-			serialNotNull: number;
-			class: 'A' | 'C';
-			subClass: 'B' | 'D' | null;
-			text: string | null;
-			age1: number;
-			createdAt: Date;
-			enumCol: 'a' | 'b' | 'c';
-		} | null;
-		cities_table: {
-			id: number;
-			name: string;
-			population: number | null;
-		} | null;
+			age: number;
+			name: string | null;
+		};
 		city: {
 			id: number;
 			name: string;
-			population: number | null;
-		} | null;
-		city1: {
-			id: number;
 		};
-	}[], typeof join>
+	} | {
+		user: {
+			id: number;
+			age: number;
+			name: string | null;
+		};
+		city: {
+			id: null;
+			name: null;
+		};
+	} | {
+		user: {
+			id: null;
+			age: null;
+			name: null;
+		};
+		city: {
+			id: number;
+			name: string;
+		};
+	})[], typeof joinPartial>
 >;
 
-const join2 = db.select(users).fields({ id: users.id })
-	.fullJoin(cities, eq(users.id, cities.id), { id: cities.id }).execute();
+const join3 = db.select(users)
+	.fields({
+		userId: users.id,
+		cityId: cities.id,
+		classId: classes.id,
+	})
+	.fullJoin(cities, eq(users.id, cities.id))
+	.rightJoin(classes, eq(users.id, classes.id)).all();
 
 Expect<
-	Equal<
-		({
-			users_table: { id: number };
-			cities_table: null;
-		} | {
-			users_table: null;
-			cities_table: { id: number };
-		} | {
-			users_table: { id: number };
-			cities_table: { id: number };
-		})[],
-		typeof join2
-	>
->;
-
-const join3 = db.select(users).fields({ id: users.id })
-	.fullJoin(cities, eq(users.id, cities.id), { id: cities.id })
-	.rightJoin(classes, eq(users.id, classes.id), { id: classes.id }).execute();
-
-Expect<
-	Equal<
-		{
-			users_table: { id: number } | null;
-			cities_table: { id: number } | null;
-			classes_table: { id: number };
-		}[],
-		typeof join3
-	>
+	Equal<({
+		userId: number;
+		cityId: number;
+		classId: number;
+	} | {
+		userId: null;
+		cityId: number;
+		classId: number;
+	} | {
+		userId: number;
+		cityId: null;
+		classId: number;
+	} | {
+		userId: null;
+		cityId: null;
+		classId: number;
+	})[], typeof join3>
 >;
 
 db.select(users)
@@ -158,7 +202,7 @@ const allOperators = db.select(users).fields({
 	notLike(users.id, '%1%'),
 	ilike(users.id, '%1%'),
 	notIlike(users.id, '%1%'),
-)).execute();
+)).all();
 
 Expect<
 	Equal<{
@@ -184,8 +228,8 @@ Expect<
 >;
 
 const textSelect = db.select(users).fields({
-	t: users.text,
-}).execute();
+	t: users.name,
+}).all();
 
 Expect<Equal<{ t: string | null }[], typeof textSelect>>;
 
@@ -199,8 +243,24 @@ const subscriber = alias(users, 'subscriber');
 const closestCity = alias(cities, 'closestCity');
 
 const megaJoin = db.select(users)
-	.fields({ id: users.id, maxAge: sql`max(${users.age1})` })
-	.innerJoin(cities, sql`${users.id} = ${cities.id}`, { id: cities.id })
+	.fields({
+		user: {
+			id: users.id,
+			maxAge: sql`max(${users.age1})`,
+		},
+		city: {
+			id: cities.id,
+		},
+		homeCity,
+		c,
+		otherClass,
+		anotherClass,
+		friend,
+		currentCity,
+		subscriber,
+		closestCity,
+	})
+	.innerJoin(cities, sql`${users.id} = ${cities.id}`)
 	.innerJoin(homeCity, sql`${users.homeCity} = ${homeCity.id}`)
 	.innerJoin(c, eq(c.id, users.class))
 	.innerJoin(otherClass, sql`${c.id} = ${otherClass.id}`)
@@ -211,16 +271,16 @@ const megaJoin = db.select(users)
 	.innerJoin(closestCity, sql`${users.currentCity} = ${closestCity.id}`)
 	.where(and(sql`${users.age1} > 0`, eq(cities.id, 1)))
 	.limit(1)
-	.offset(1).execute();
+	.offset(1).all();
 
 Expect<
 	Equal<
 		{
-			users_table: {
+			user: {
 				id: number;
 				maxAge: unknown;
 			};
-			cities_table: {
+			city: {
 				id: number;
 			};
 			homeCity: {
@@ -256,7 +316,7 @@ Expect<
 				serialNotNull: number;
 				class: 'A' | 'C';
 				subClass: 'B' | 'D' | null;
-				text: string | null;
+				name: string | null;
 				age1: number;
 				createdAt: Date;
 				enumCol: 'a' | 'b' | 'c';
@@ -269,7 +329,7 @@ Expect<
 				serialNotNull: number;
 				class: 'A' | 'C';
 				subClass: 'B' | 'D' | null;
-				text: string | null;
+				name: string | null;
 				age1: number;
 				createdAt: Date;
 				enumCol: 'a' | 'b' | 'c';
@@ -287,26 +347,39 @@ Expect<
 const friends = alias(users, 'friends');
 
 const join4 = db.select(users)
-	.fields({ id: users.id })
-	.innerJoin(cities, sql`${users.id} = ${cities.id}`, { id: cities.id })
+	.fields({
+		userId: users.id,
+		users123: {
+			id: users.id,
+		},
+		city: {
+			name: cities.name,
+			population: cities.population,
+		},
+		class: classes,
+		friend: friends,
+	})
+	.innerJoin(cities, sql`${users.id} = ${cities.id}`)
 	.innerJoin(classes, sql`${cities.id} = ${classes.id}`)
 	.innerJoin(friends, sql`${friends.id} = ${users.id}`)
-	.where(sql`${users.age1} > 0`).execute();
+	.where(sql`${users.age1} > 0`).all();
 
 Expect<
 	Equal<{
-		users_table: {
+		userId: number;
+		users123: {
 			id: number;
 		};
-		cities_table: {
-			id: number;
+		city: {
+			name: string;
+			population: number | null;
 		};
-		classes_table: {
+		class: {
 			id: number;
 			class: 'A' | 'C' | null;
 			subClass: 'B' | 'D';
 		};
-		friends: {
+		friend: {
 			id: number;
 			homeCity: number;
 			currentCity: number | null;
@@ -314,7 +387,7 @@ Expect<
 			serialNotNull: number;
 			class: 'A' | 'C';
 			subClass: 'B' | 'D' | null;
-			text: string | null;
+			name: string | null;
 			age1: number;
 			createdAt: Date;
 			enumCol: 'a' | 'b' | 'c';

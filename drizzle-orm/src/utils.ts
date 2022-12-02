@@ -1,6 +1,6 @@
 import { Column } from './column';
-import { SelectFieldsOrdered } from './operations';
-import { noopDecoder, SQL } from './sql';
+import { SelectFieldsOrdered, SelectFieldsOrderedV2 } from './operations';
+import { DriverValueDecoder, noopDecoder, SQL } from './sql';
 
 export function mapResultRow<TResult extends Record<string, unknown>>(
 	columns: SelectFieldsOrdered,
@@ -35,6 +35,56 @@ export function mapResultRow<TResult extends Record<string, unknown>>(
 		return result as TResult;
 	}
 
+	return Object.fromEntries(
+		Object.entries(result).map(([tableName, tableResult]) => {
+			if (!joinsNotNullable[tableName]) {
+				const hasNotNull = Object.values(tableResult).some((value) => value !== null);
+				if (!hasNotNull) {
+					return [tableName, null];
+				}
+			}
+			return [tableName, tableResult];
+		}),
+	) as TResult;
+}
+
+export function mapResultRowV2<TResult extends Record<string, unknown>>(
+	columns: SelectFieldsOrderedV2,
+	row: unknown[],
+	joinsNotNullable?: Record<string, boolean>,
+): TResult {
+	const result = columns.reduce<Record<string, any>>(
+		(result, { path, field }, columnIndex) => {
+			let decoder: DriverValueDecoder<unknown, unknown>;
+			if (field instanceof Column) {
+				decoder = field;
+			} else if (field instanceof SQL) {
+				decoder = noopDecoder;
+			} else {
+				decoder = field.decoder;
+			}
+			let node = result;
+			path.forEach((pathChunk, pathChunkIndex) => {
+				if (pathChunkIndex < path.length - 1) {
+					if (!(pathChunk in node)) {
+						node[pathChunk] = {};
+					}
+					node = node[pathChunk];
+				} else {
+					const rawValue = row[columnIndex]!;
+					node[pathChunk] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
+				}
+			});
+			return result;
+		},
+		{},
+	);
+
+	if (!joinsNotNullable) {
+		return result as TResult;
+	}
+
+	// If all fields in a table are null, return null for the table
 	return Object.fromEntries(
 		Object.entries(result).map(([tableName, tableResult]) => {
 			if (!joinsNotNullable[tableName]) {

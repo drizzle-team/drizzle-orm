@@ -247,8 +247,8 @@ export function fillPlaceholders(params: unknown[], values: Record<string, unkno
 				throw new Error(`No value for placeholder "${p.name}" was provided`);
 			}
 			return values[p.name];
-		} else {
-			return p;
 		}
+
+		return p;
 	});
 }
