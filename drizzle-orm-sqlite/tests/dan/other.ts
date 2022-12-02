@@ -11,15 +11,15 @@ const query = sql`select ${users.id}, ${users.class} from ${users} where ${inArr
 }`;
 
 const all = db.all(query);
-Expect<Equal<unknown[][], typeof all>>;
+Expect<Equal<unknown[], typeof all>>;
 
-const allTyped = db.all<[number, 'A' | 'B' | 'C']>(query);
-Expect<Equal<[number, 'A' | 'B' | 'C'][], typeof allTyped>>;
+const allValuesTyped = db.values<[number, 'A' | 'B' | 'C']>(query);
+Expect<Equal<[number, 'A' | 'B' | 'C'][], typeof allValuesTyped>>;
 
-const allObjects = db.allObjects(query);
+const allObjects = db.all(query);
 Expect<Equal<unknown[], typeof allObjects>>;
 
-const allObjectsTyped = db.allObjects<{ id: number; class: 'A' | 'B' | 'C' }>(query);
+const allObjectsTyped = db.all<{ id: number; class: 'A' | 'B' | 'C' }>(query);
 Expect<Equal<{ id: number; class: 'A' | 'B' | 'C' }[], typeof allObjectsTyped>>;
 
 const run = db.run(query);

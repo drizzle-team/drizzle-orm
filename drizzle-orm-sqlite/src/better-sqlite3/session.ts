@@ -1,56 +1,92 @@
 import { Database, RunResult, Statement } from 'better-sqlite3';
 import { Logger, NoopLogger } from 'drizzle-orm';
-import { Query, SQL } from 'drizzle-orm/sql';
-import { SQLiteDialect } from '~/dialect';
-import { PreparedQuery as PreparedQueryBase, SQLiteSyncSession } from '~/session';
+import { fillPlaceholders, Query } from 'drizzle-orm/sql';
+import { mapResultRowV2 } from 'drizzle-orm/utils';
+import { SQLiteSyncDialect } from '~/dialect';
+import { SelectFieldsOrdered } from '~/operations';
+import {
+	PreparedQuery as PreparedQueryBase,
+	PreparedQueryConfig as PreparedQueryConfigBase,
+	SQLiteSession,
+} from '~/session';
 
-export interface SQLiteDefaultSessionOptions {
+export interface BetterSQLiteSessionOptions {
 	logger?: Logger;
 }
 
-type PreparedQuery = PreparedQueryBase<Statement>;
+type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
-export class BetterSQLiteSession implements SQLiteSyncSession<Statement, RunResult> {
+export class BetterSQLiteSession extends SQLiteSession<'sync', RunResult> {
 	private logger: Logger;
 
 	constructor(
 		private client: Database,
-		private dialect: SQLiteDialect,
-		options: SQLiteDefaultSessionOptions = {},
+		dialect: SQLiteSyncDialect,
+		options: BetterSQLiteSessionOptions = {},
 	) {
+		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
-	run(query: SQL | PreparedQuery): RunResult {
-		const { stmt, queryString, params } = query instanceof SQL
-			? this.prepareQuery(this.dialect.sqlToQuery(query))
-			: query;
-		this.logger.logQuery(queryString, params);
-
-		return stmt.run(...params);
-	}
-
-	all<T extends any[] = unknown[]>(query: SQL | PreparedQuery): T[] {
-		const { stmt, queryString, params } = query instanceof SQL
-			? this.prepareQuery(this.dialect.sqlToQuery(query))
-			: query;
-		this.logger.logQuery(queryString, params);
-
-		stmt.raw();
-		return stmt.all(...params);
-	}
-
-	allObjects<T = unknown>(query: SQL | PreparedQuery): T[] {
-		const { stmt, queryString, params } = query instanceof SQL
-			? this.prepareQuery(this.dialect.sqlToQuery(query))
-			: query;
-		this.logger.logQuery(queryString, params);
-
-		return stmt.all(...params);
-	}
-
-	prepareQuery(query: Query): PreparedQuery {
+	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
+		query: Query,
+		fields?: SelectFieldsOrdered,
+	): PreparedQuery<T> {
 		const stmt = this.client.prepare(query.sql);
-		return { stmt, queryString: query.sql, params: query.params };
+		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields);
+	}
+}
+
+export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
+	{ type: 'sync'; run: RunResult; all: T['all']; get: T['get']; values: T['values'] }
+> {
+	constructor(
+		private stmt: Statement,
+		private queryString: string,
+		private params: unknown[],
+		private logger: Logger,
+		private fields: SelectFieldsOrdered | undefined,
+	) {
+		super();
+	}
+
+	run(placeholderValues?: Record<string, unknown>): RunResult {
+		const params = fillPlaceholders(this.params, placeholderValues ?? {});
+		this.logger.logQuery(this.queryString, params);
+		return this.stmt.run(...params);
+	}
+
+	all(placeholderValues?: Record<string, unknown>): T['all'] {
+		const { fields } = this;
+		if (!fields) {
+			throw new Error('Statement does not return any data - use run()');
+		}
+
+		const values = this.values(placeholderValues);
+
+		return values.map((row) => mapResultRowV2(fields, row));
+	}
+
+	get(placeholderValues?: Record<string, unknown>): T['get'] {
+		const { fields } = this;
+		if (!fields) {
+			throw new Error('Statement does not return any data - use run()');
+		}
+
+		const params = fillPlaceholders(this.params, placeholderValues ?? {});
+		this.logger.logQuery(this.queryString, params);
+		const value = this.stmt.raw().get(...params);
+
+		return mapResultRowV2(fields, value);
+	}
+
+	values(placeholderValues?: Record<string, unknown>): T['values'] {
+		if (!this.fields) {
+			throw new Error('Statement does not return any data - use run()');
+		}
+
+		const params = fillPlaceholders(this.params, placeholderValues ?? {});
+		this.logger.logQuery(this.queryString, params);
+		return this.stmt.raw().all(...params);
 	}
 }

@@ -1,55 +1,93 @@
-import { Database, Statement } from 'bun:sqlite';
+import { Database, Statement as BunStatement } from 'bun:sqlite';
 import { Logger, NoopLogger } from 'drizzle-orm';
-import { Query, SQL } from 'drizzle-orm/sql';
-import { SQLiteDialect } from '~/dialect';
-import { PreparedQuery as PreparedQueryBase, SQLiteSyncSession } from '~/session';
+import { fillPlaceholders, Query } from 'drizzle-orm/sql';
+import { mapResultRowV2 } from 'drizzle-orm/utils';
+import { SQLiteSyncDialect } from '~/dialect';
+import { SelectFieldsOrdered } from '~/operations';
+import {
+	PreparedQuery as PreparedQueryBase,
+	PreparedQueryConfig as PreparedQueryConfigBase,
+	SQLiteSession,
+} from '~/session';
 
 export interface SQLiteBunSessionOptions {
 	logger?: Logger;
 }
 
-type PreparedQuery = PreparedQueryBase<Statement<any>>;
+type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
+type Statement = BunStatement<any>;
 
-export class SQLiteBunSession implements SQLiteSyncSession<Statement<any>, void> {
+export class SQLiteBunSession extends SQLiteSession<'sync', void> {
 	private logger: Logger;
 
 	constructor(
 		private client: Database,
-		private dialect: SQLiteDialect,
+		dialect: SQLiteSyncDialect,
 		options: SQLiteBunSessionOptions = {},
 	) {
+		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
-	run(query: SQL | PreparedQuery): void {
-		const { stmt, queryString, params } = query instanceof SQL
-			? this.prepareQuery(this.dialect.sqlToQuery(query))
-			: query;
-		this.logger.logQuery(queryString, params);
-
-		return stmt.run(...params);
-	}
-
-	all<T extends any[] = unknown[]>(query: SQL | PreparedQuery): T[] {
-		const { stmt, queryString, params } = query instanceof SQL
-			? this.prepareQuery(this.dialect.sqlToQuery(query))
-			: query;
-		this.logger.logQuery(queryString, params);
-
-		return stmt.values(...params) as T[];
-	}
-
-	allObjects<T = unknown>(query: SQL | PreparedQuery): T[] {
-		const { stmt, queryString, params } = query instanceof SQL
-			? this.prepareQuery(this.dialect.sqlToQuery(query))
-			: query;
-		this.logger.logQuery(queryString, params);
-
-		return stmt.all(...params);
-	}
-
-	prepareQuery(query: Query): PreparedQuery {
+	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
+		query: Query,
+		fields?: SelectFieldsOrdered,
+	): PreparedQuery<T> {
 		const stmt = this.client.prepare(query.sql);
-		return { stmt, queryString: query.sql, params: query.params };
+		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields);
+	}
+}
+
+export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
+	{ type: 'sync'; run: void; all: T['all']; get: T['get']; values: T['values'] }
+> {
+	constructor(
+		private stmt: Statement,
+		private queryString: string,
+		private params: unknown[],
+		private logger: Logger,
+		private fields: SelectFieldsOrdered | undefined,
+	) {
+		super();
+	}
+
+	run(placeholderValues?: Record<string, unknown>): void {
+		const params = fillPlaceholders(this.params, placeholderValues ?? {});
+		this.logger.logQuery(this.queryString, params);
+		return this.stmt.run(...params);
+	}
+
+	all(placeholderValues?: Record<string, unknown>): T['all'] {
+		const { fields } = this;
+		if (!fields) {
+			throw new Error('Statement does not return any data - use run()');
+		}
+
+		const values = this.values(placeholderValues);
+
+		return values.map((row) => mapResultRowV2(fields, row));
+	}
+
+	get(placeholderValues?: Record<string, unknown>): T['get'] {
+		const { fields } = this;
+		if (!fields) {
+			throw new Error('Statement does not return any data - use run()');
+		}
+
+		const params = fillPlaceholders(this.params, placeholderValues ?? {});
+		this.logger.logQuery(this.queryString, params);
+		const value = this.stmt.get(...params);
+
+		return mapResultRowV2(fields, value);
+	}
+
+	values(placeholderValues?: Record<string, unknown>): T['values'] {
+		if (!this.fields) {
+			throw new Error('Statement does not return any data - use run()');
+		}
+
+		const params = fillPlaceholders(this.params, placeholderValues ?? {});
+		this.logger.logQuery(this.queryString, params);
+		return this.stmt.values(...params);
 	}
 }

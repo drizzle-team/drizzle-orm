@@ -56,6 +56,10 @@ export class SQLiteTable<T extends Partial<TableConfig>> extends Table<T['name']
 
 	/** @internal */
 	[Checks]: Record<string | symbol, Check> = {};
+
+	override toString(): T['name'] {
+		return this[Table.Symbol.Name]!;
+	}
 }
 
 export type AnySQLiteTable<TPartial extends Partial<TableConfig> = {}> = SQLiteTable<Update<TableConfig, TPartial>>;

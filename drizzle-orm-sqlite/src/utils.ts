@@ -1,6 +1,9 @@
-import { Param, SQL } from 'drizzle-orm/sql';
-import { SQLiteUpdateSet } from './queries';
-import { AnySQLiteTable, GetTableConfig, SQLiteTable } from './table';
+import { Table } from 'drizzle-orm';
+import { Param, SQL, SQLResponse } from 'drizzle-orm/sql';
+import { SQLiteColumn } from '~/columns';
+import { SelectFieldsOrdered, SQLiteSelectFields } from '~/operations';
+import { SQLiteUpdateSet } from '~/query-builders';
+import { AnySQLiteTable, SQLiteTable } from '~/table';
 
 export function getTableColumns<TTable extends AnySQLiteTable>(table: TTable) {
 	const columns = table[SQLiteTable.Symbol.Columns];
@@ -40,3 +43,31 @@ export function mapUpdateSet(table: AnySQLiteTable, values: Record<string, unkno
 }
 
 export type OnConflict = 'rollback' | 'abort' | 'fail' | 'ignore' | 'replace';
+
+export type Assume<T, U> = T extends U ? T : U;
+
+export function orderSelectedFields(fields: SQLiteSelectFields, pathPrefix?: string[]): SelectFieldsOrdered {
+	return Object.entries(fields).reduce<SelectFieldsOrdered>((result, [name, field]) => {
+		if (typeof name !== 'string') {
+			return result;
+		}
+
+		const newPath = pathPrefix ? [...pathPrefix, name] : [name];
+		if (
+			field instanceof SQLiteColumn
+			|| field instanceof SQL
+			|| field instanceof SQLResponse
+		) {
+			result.push({ path: newPath, field });
+		} else if (field instanceof SQLiteTable) {
+			result.push(
+				...orderSelectedFields(field[Table.Symbol.Columns], newPath),
+			);
+		} else {
+			result.push(
+				...orderSelectedFields(field, newPath),
+			);
+		}
+		return result;
+	}, []);
+}
