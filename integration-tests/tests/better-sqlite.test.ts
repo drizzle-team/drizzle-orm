@@ -13,9 +13,17 @@ const usersTable = sqliteTable('users', {
 	createdAt: integer('created_at', { mode: 'timestamp' }).notNull().defaultNow(),
 });
 
+const usersMigratorTable = sqliteTable('users12', {
+	id: integer('id').primaryKey(),
+	name: text('name').notNull(),
+	email: text('email').notNull(),
+});
+
+
 interface Context {
 	db: SQLiteDatabase;
 	client: Database.Database;
+	connector: SQLiteConnector;
 }
 
 const test = anyTest as TestFn<Context>;
@@ -25,7 +33,9 @@ test.before((t) => {
 	const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
 
 	ctx.client = new Database(dbPath);
-	ctx.db = new SQLiteConnector(ctx.client /* , { logger: new DefaultLogger() } */).connect();
+	const connector = new SQLiteConnector(ctx.client /* , { logger: new DefaultLogger() } */);
+	ctx.db = connector.connect();
+	ctx.connector = connector;
 });
 
 test.beforeEach((t) => {
@@ -490,6 +500,17 @@ test.serial('build query', async (t) => {
 		sql: 'select "id", "name" from "users" group by "users"."id", "users"."name"',
 		params: [],
 	});
+});
+
+test.serial('migrator', async (t) => {
+	const { connector, db } = t.context;
+	connector.migrate({ migrationsFolder: './drizzle' });
+
+	db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).run();
+
+	const result = db.select(usersMigratorTable).all();
+
+	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
 });
 
 test.after.always((t) => {
