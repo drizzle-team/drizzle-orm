@@ -230,7 +230,6 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 			hash text NOT NULL,
 			created_at numeric
 		)`;
-		session.run(sql`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
 		session.run(migrationTableCreate);
 
 		const dbMigrations = session.values<[number, string, string]>(
