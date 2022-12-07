@@ -264,7 +264,6 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 			hash text NOT NULL,
 			created_at numeric
 		)`;
-		await session.run(sql`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
 		await session.run(migrationTableCreate);
 
 		const dbMigrations = await session.values<[number, string, string]>(

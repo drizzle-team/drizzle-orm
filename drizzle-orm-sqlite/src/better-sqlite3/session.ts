@@ -59,7 +59,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	all(placeholderValues?: Record<string, unknown>): T['all'] {
 		const { fields } = this;
 		if (!fields) {
-			throw new Error('Statement does not return any data - use run()');
+			return this.stmt.all(...this.params)
 		}
 
 		const values = this.values(placeholderValues);
@@ -69,22 +69,19 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 
 	get(placeholderValues?: Record<string, unknown>): T['get'] {
 		const { fields } = this;
-		if (!fields) {
-			throw new Error('Statement does not return any data - use run()');
-		}
 
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
 		const value = this.stmt.raw().get(...params);
 
+		if (!fields) {
+			return value
+		}
+
 		return mapResultRowV2(fields, value);
 	}
 
 	values(placeholderValues?: Record<string, unknown>): T['values'] {
-		if (!this.fields) {
-			throw new Error('Statement does not return any data - use run()');
-		}
-
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
 		return this.stmt.raw().all(...params);
