@@ -10,7 +10,7 @@ const update = await db.update(users).set({
 })
 	.where(eq(users.id, 1));
 
-Expect<Equal<QueryResult<any>, typeof update>>;
+Expect<Equal<QueryResult<never>, typeof update>>;
 
 const updateReturning = await db.update(users).set({
 	text: 'John',

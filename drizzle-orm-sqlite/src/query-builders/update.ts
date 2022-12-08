@@ -43,6 +43,13 @@ export class SQLiteUpdateBuilder<
 	}
 }
 
+export interface SQLiteUpdate<
+	TTable extends AnySQLiteTable,
+	TResultType extends 'sync' | 'async',
+	TRunResult,
+	TReturning = undefined,
+> extends SQLWrapper {}
+
 export class SQLiteUpdate<
 	TTable extends AnySQLiteTable,
 	TResultType extends 'sync' | 'async',

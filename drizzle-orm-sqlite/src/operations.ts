@@ -1,10 +1,10 @@
 import { GetColumnData } from 'drizzle-orm';
-import { SelectFieldsOrderedV2 as SelectFieldsOrderedBase } from 'drizzle-orm/operations';
+import { SelectFieldsOrdered as SelectFieldsOrderedBase } from 'drizzle-orm/operations';
 import { SQL, SQLResponse } from 'drizzle-orm/sql';
 import { Simplify } from 'drizzle-orm/utils';
 
-import { AnySQLiteColumn } from './columns/common';
-import { AnySQLiteTable, GetTableConfig } from './table';
+import { AnySQLiteColumn } from '~/columns/common';
+import { AnySQLiteTable, GetTableConfig } from '~/table';
 
 export type SQLiteSelectFields = {
 	[Key: string]: SQL | SQLResponse | AnySQLiteColumn | SQLiteSelectFields | AnySQLiteTable;

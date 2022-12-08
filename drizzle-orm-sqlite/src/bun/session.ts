@@ -1,7 +1,7 @@
 import { Database, Statement as BunStatement } from 'bun:sqlite';
 import { Logger, NoopLogger } from 'drizzle-orm';
 import { fillPlaceholders, Query } from 'drizzle-orm/sql';
-import { mapResultRowV2 } from 'drizzle-orm/utils';
+import { mapResultRow } from 'drizzle-orm/utils';
 import { SQLiteSyncDialect } from '~/dialect';
 import { SelectFieldsOrdered } from '~/operations';
 import {
@@ -59,33 +59,29 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 
 	all(placeholderValues?: Record<string, unknown>): T['all'] {
 		const { fields } = this;
-		if (!fields) {
-			throw new Error('Statement does not return any data - use run()');
-		}
-
-		const values = this.values(placeholderValues);
-
-		return values.map((row) => mapResultRowV2(fields, row));
-	}
-
-	get(placeholderValues?: Record<string, unknown>): T['get'] {
-		const { fields } = this;
-		if (!fields) {
-			throw new Error('Statement does not return any data - use run()');
+		if (fields) {
+			return this.values(placeholderValues).map((row) => mapResultRow(fields, row));
 		}
 
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
+		return this.stmt.all(...params);
+	}
+
+	get(placeholderValues?: Record<string, unknown>): T['get'] {
+		const params = fillPlaceholders(this.params, placeholderValues ?? {});
+		this.logger.logQuery(this.queryString, params);
 		const value = this.stmt.get(...params);
 
-		return mapResultRowV2(fields, value);
+		const { fields } = this;
+		if (!fields) {
+			return value;
+		}
+
+		return mapResultRow(fields, value);
 	}
 
 	values(placeholderValues?: Record<string, unknown>): T['values'] {
-		if (!this.fields) {
-			throw new Error('Statement does not return any data - use run()');
-		}
-
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
 		return this.stmt.values(...params);

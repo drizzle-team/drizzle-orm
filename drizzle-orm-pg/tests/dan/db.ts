@@ -1,3 +1,4 @@
-import { PgTestConnector } from '~/testing';
+import { Client } from 'pg';
+import { PgConnector } from '~/connector';
 
-export const db = new PgTestConnector().connect();
+export const db = await new PgConnector(new Client()).connect();

@@ -1,14 +1,17 @@
 import { SQL } from 'drizzle-orm/sql';
 
 import { AnyPgColumn } from './columns';
-import { PgUpdateSetSource } from './queries/update';
-import { AnyPgTable, PgTable } from './table';
+import { AnyPgTable } from './table';
 
 interface IndexConfig {
+	name: string;
+
+	columns: IndexColumn[];
+
 	/**
 	 * If true, the index will be created as `create unique index` instead of `create index`.
 	 */
-	unique?: boolean;
+	unique: boolean;
 
 	/**
 	 * If true, the index will be created as `create index concurrently` instead of `create index`.
@@ -18,7 +21,7 @@ interface IndexConfig {
 	/**
 	 * If true, the index will be created as `create index ... on only <table>` instead of `create index ... on <table>`.
 	 */
-	only?: boolean;
+	only: boolean;
 
 	/**
 	 * If set, the index will be created as `create index ... using <method>`.
@@ -43,33 +46,85 @@ interface IndexConfig {
 
 export type IndexColumn = AnyPgColumn | SQL;
 
-export class IndexBuilder {
+export class IndexBuilderOn {
+	constructor(private name: string, private unique: boolean) {}
+
+	on(...columns: [IndexColumn, ...IndexColumn[]]): IndexBuilder {
+		return new IndexBuilder(this.name, columns, this.unique, false);
+	}
+
+	onOnly(...columns: [IndexColumn, ...IndexColumn[]]): IndexBuilder {
+		return new IndexBuilder(this.name, columns, this.unique, true);
+	}
+}
+
+export interface AnyIndexBuilder {
+	build(table: AnyPgTable): Index;
+}
+
+export class IndexBuilder implements AnyIndexBuilder {
 	declare protected $brand: 'PgIndexBuilder';
 
-	constructor(
-		readonly name: string,
-		readonly columns: AnyPgColumn[],
-		readonly config: IndexConfig = {},
-	) {}
+	/** @internal */
+	config: IndexConfig;
+
+	constructor(name: string, columns: IndexColumn[], unique: boolean, only: boolean) {
+		this.config = {
+			name,
+			columns,
+			unique,
+			only,
+		};
+	}
+
+	concurrently(): Omit<this, 'concurrently'> {
+		this.config.concurrently = true;
+		return this;
+	}
+
+	using(method: SQL): Omit<this, 'using'> {
+		this.config.using = method;
+		return this;
+	}
+
+	asc(): Omit<this, 'asc' | 'desc'> {
+		this.config.order = 'asc';
+		return this;
+	}
+
+	desc(): Omit<this, 'asc' | 'desc'> {
+		this.config.order = 'desc';
+		return this;
+	}
+
+	nullsFirst(): Omit<this, 'nullsFirst' | 'nullsLast'> {
+		this.config.nulls = 'first';
+		return this;
+	}
+
+	nullsLast(): Omit<this, 'nullsFirst' | 'nullsLast'> {
+		this.config.nulls = 'last';
+		return this;
+	}
+
+	where(condition: SQL): Omit<this, 'where'> {
+		this.config.where = condition;
+		return this;
+	}
 
 	/** @internal */
 	build(table: AnyPgTable): Index {
-		return new Index(this.name, table, this.columns, this);
+		return new Index(this.config, table);
 	}
 }
 
 export class Index {
 	declare protected $brand: 'PgIndex';
 
-	readonly config: IndexConfig;
+	readonly config: IndexConfig & { table: AnyPgTable };
 
-	constructor(
-		readonly name: string,
-		readonly table: AnyPgTable,
-		readonly columns: AnyPgColumn[],
-		builder: IndexBuilder,
-	) {
-		this.config = builder.config;
+	constructor(config: IndexConfig, table: AnyPgTable) {
+		this.config = { ...config, table };
 	}
 }
 
@@ -79,13 +134,10 @@ export type GetColumnsTableName<TColumns> = TColumns extends
 	>[] ? TTableName
 	: never;
 
-export function index(
-	name: string,
-	columns: AnyPgColumn | [AnyPgColumn, ...AnyPgColumn[]],
-	config?: IndexConfig,
-): IndexBuilder;
-export function index(name: string, columns: AnyPgColumn | AnyPgColumn[], config?: IndexConfig) {
-	return new IndexBuilder(name, Array.isArray(columns) ? columns : [columns], config);
+export function index(name: string): IndexBuilderOn {
+	return new IndexBuilderOn(name, false);
 }
 
-export function uniqueIndex() {}
+export function uniqueIndex(name: string): IndexBuilderOn {
+	return new IndexBuilderOn(name, true);
+}

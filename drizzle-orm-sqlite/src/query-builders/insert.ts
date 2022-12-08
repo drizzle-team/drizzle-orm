@@ -2,12 +2,11 @@ import { Table } from 'drizzle-orm';
 import { Param, Placeholder, Query, SQL, sql, SQLWrapper } from 'drizzle-orm/sql';
 import { Simplify } from 'drizzle-orm/utils';
 
-import { AnySQLiteColumn } from '~/columns/common';
 import { SQLiteDialect } from '~/dialect';
 import { IndexColumn } from '~/indexes';
 import { SelectFieldsOrdered, SelectResultFields, SQLiteSelectFields } from '~/operations';
 import { PreparedQuery, SQLiteSession } from '~/session';
-import { AnySQLiteTable, GetTableConfig, InferModel, SQLiteTable } from '~/table';
+import { AnySQLiteTable, InferModel, SQLiteTable } from '~/table';
 import { mapUpdateSet, orderSelectedFields } from '~/utils';
 import { SQLiteUpdateSetSource } from './update';
 
@@ -18,11 +17,9 @@ export interface SQLiteInsertConfig<TTable extends AnySQLiteTable = AnySQLiteTab
 	returning?: SelectFieldsOrdered;
 }
 
-export type SQLiteInsertValue<TTable extends AnySQLiteTable> = Simplify<
-	{
-		[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
-	}
->;
+export type SQLiteInsertValue<TTable extends AnySQLiteTable> = {
+	[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
+};
 
 export class SQLiteInsertBuilder<
 	TTable extends AnySQLiteTable,
@@ -55,6 +52,13 @@ export class SQLiteInsertBuilder<
 		return new SQLiteInsert(this.table, this.mapValues(values), this.session, this.dialect);
 	}
 }
+
+export interface SQLiteInsert<
+	TTable extends AnySQLiteTable,
+	TResultType extends 'sync' | 'async',
+	TRunResult,
+	TReturning = undefined,
+> extends SQLWrapper {}
 
 export class SQLiteInsert<
 	TTable extends AnySQLiteTable,

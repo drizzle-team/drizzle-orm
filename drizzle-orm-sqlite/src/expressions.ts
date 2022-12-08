@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { param, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
-import { AnySQLiteColumn } from '.';
+import { AnySQLiteColumn } from '~/columns';
 
 export * from 'drizzle-orm/expressions';
 
