@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm-pg",
-	"version": "0.12.0-beta.40",
+	"version": "0.13.0",
 	"description": "Drizzle ORM package for PostgreSQL database",
 	"main": "index.js",
 	"types": "index.d.ts",
@@ -37,7 +37,7 @@
 	"homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
 	"peerDependencies": {
 		"@types/pg": ">=8 <9",
-		"drizzle-orm": ">=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0",
+		"drizzle-orm": ">=0.13.0 <0.14.0 || >=0.13.0-beta.0 <0.14.0-beta.0",
 		"pg": ">=8 <9"
 	},
 	"peerDependenciesMeta": {
