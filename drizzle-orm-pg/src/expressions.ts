@@ -1,6 +1,8 @@
 import { sql } from 'drizzle-orm';
 import { param, SQL, SQLSourceParam } from 'drizzle-orm/sql';
-import { AnyPgColumn } from '.';
+import { AnyPgColumn } from '~/columns';
+
+export * from 'drizzle-orm/expressions';
 
 export function concat(column: AnyPgColumn, value: string): SQL {
 	return sql`${column} || ${param(value, column)}`;

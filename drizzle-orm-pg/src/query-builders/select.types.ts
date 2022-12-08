@@ -2,12 +2,12 @@ import { GetColumnConfig } from 'drizzle-orm';
 import { Placeholder, SQL, SQLResponse } from 'drizzle-orm/sql';
 import { Simplify } from 'drizzle-orm/utils';
 
-import { AnySQLiteColumn } from '~/columns';
+import { AnyPgColumn } from '~/columns';
 import { ChangeColumnTableName } from '~/columns/common';
-import { SelectFieldsOrdered, SelectResultField, SelectResultFields, SQLiteSelectFields } from '~/operations';
-import { AnySQLiteTable, GetTableConfig, SQLiteTableWithColumns, TableConfig, UpdateTableConfig } from '~/table';
+import { SelectFields, SelectFieldsOrdered, SelectResultField, SelectResultFields } from '~/operations';
+import { AnyPgTable, GetTableConfig, PgTableWithColumns, TableConfig, UpdateTableConfig } from '~/table';
 
-import { SQLiteSelect } from './select';
+import { PgSelect } from './select';
 
 export type JoinType = 'inner' | 'left' | 'right' | 'full';
 
@@ -15,7 +15,7 @@ export type SelectMode = 'partial' | 'single' | 'multiple';
 
 export interface JoinsValue {
 	on: SQL;
-	table: AnySQLiteTable;
+	table: AnyPgTable;
 	joinType: JoinType;
 }
 
@@ -70,8 +70,8 @@ type SelectPartialResult<
 > = SplitNullability<TNullability> extends infer TNullability extends Record<string, JoinNullability>
 	? TNullability extends TNullability ? {
 			[Key in keyof TFields as Key extends string ? Key : never]: TFields[Key] extends infer TField
-				? TField extends AnySQLiteTable ? SelectPartialResult<GetTableConfig<TField, 'columns'>, TNullability>
-				: TField extends AnySQLiteColumn
+				? TField extends AnyPgTable ? SelectPartialResult<GetTableConfig<TField, 'columns'>, TNullability>
+				: TField extends AnyPgColumn
 					? GetColumnConfig<TField, 'tableName'> extends infer TTableName extends keyof TNullability
 						? ApplyNullability<SelectResultField<TField>, TNullability[TTableName]>
 					: never
@@ -83,10 +83,10 @@ type SelectPartialResult<
 	: never
 	: never;
 
-export type AnySQLiteSelect = SQLiteSelect<any, any, any, any, any, any>;
+export type AnyPgSelect = PgSelect<any, any, any, any>;
 
-export type BuildAliasTable<TTable extends AnySQLiteTable, TAlias extends string> = GetTableConfig<TTable> extends
-	infer TConfig extends TableConfig ? SQLiteTableWithColumns<
+export type BuildAliasTable<TTable extends AnyPgTable, TAlias extends string> = GetTableConfig<TTable> extends
+	infer TConfig extends TableConfig ? PgTableWithColumns<
 		UpdateTableConfig<TConfig, {
 			name: TAlias;
 			columns: Simplify<MapColumnsToTableAlias<TConfig['columns'], TAlias>>;
@@ -94,15 +94,15 @@ export type BuildAliasTable<TTable extends AnySQLiteTable, TAlias extends string
 	>
 	: never;
 
-export type MapColumnsToTableAlias<TColumns extends Record<string, AnySQLiteColumn>, TAlias extends string> = {
+export type MapColumnsToTableAlias<TColumns extends Record<string, AnyPgColumn>, TAlias extends string> = {
 	[Key in keyof TColumns]: ChangeColumnTableName<TColumns[Key], TAlias>;
 };
 
 export type AppendToResult<
-	TTableName extends AnySQLiteTable,
+	TTableName extends AnyPgTable,
 	TResult,
 	TJoinedName extends string,
-	TSelectedFields extends SQLiteSelectFields,
+	TSelectedFields extends SelectFields,
 	TOldSelectMode extends SelectMode,
 > = TOldSelectMode extends 'partial' ? TResult
 	: TOldSelectMode extends 'single'
@@ -138,32 +138,28 @@ export type AppendToJoinsNotNull<
 		: never
 >;
 
-export interface SQLiteSelectConfig {
+export interface PgSelectConfig {
 	fields: SelectFieldsOrdered;
 	where?: SQL | undefined;
-	table: AnySQLiteTable;
+	table: AnyPgTable;
 	limit?: number | Placeholder;
 	offset?: number | Placeholder;
 	joins: Record<string, JoinsValue>;
 	orderBy: SQL[];
-	groupBy: (AnySQLiteColumn | SQL)[];
+	groupBy: (AnyPgColumn | SQL)[];
 }
 
 export type JoinFn<
-	TTable extends AnySQLiteTable,
-	TRunResult,
-	TResultType extends 'sync' | 'async',
+	TTable extends AnyPgTable,
 	TSelectMode extends SelectMode,
 	TJoinType extends JoinType,
 	TResult,
 	TJoinsNotNullable extends Record<string, JoinNullability> = Record<GetTableConfig<TTable, 'name'>, 'not-null'>,
 > = <
-	TJoinedTable extends AnySQLiteTable,
+	TJoinedTable extends AnyPgTable,
 	TJoinedName extends GetTableConfig<TJoinedTable, 'name'> = GetTableConfig<TJoinedTable, 'name'>,
->(table: TJoinedTable, on: SQL) => SQLiteSelect<
+>(table: TJoinedTable, on: SQL) => PgSelect<
 	TTable,
-	TResultType,
-	TRunResult,
 	AppendToResult<TTable, TResult, TJoinedName, GetTableConfig<TJoinedTable, 'columns'>, TSelectMode>,
 	TSelectMode extends 'partial' ? TSelectMode : 'multiple',
 	AppendToJoinsNotNull<TJoinsNotNullable, TJoinedName, TJoinType>

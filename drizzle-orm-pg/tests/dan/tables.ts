@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm';
 import { check } from '~/checks';
 import { integer, pgEnum, serial, text, timestamp, uuid } from '~/columns';
 import { foreignKey } from '~/foreign-keys';
-import { index } from '~/indexes';
+import { index, uniqueIndex } from '~/indexes';
 import { pgTable } from '~/table';
 
 const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
@@ -27,18 +27,15 @@ export const users = pgTable(
 		enumCol: myEnum('enum_col').notNull(),
 	},
 	(users) => ({
-		usersAge1Idx: index('usersAge1Idx', users.class, {
-			unique: true,
-		}),
-		usersAge2Idx: index('usersAge2Idx', users.class),
-		uniqueClass: index('uniqueClass', [users.class, users.subClass], {
-			unique: true,
-			where: sql`${users.class} is not null`,
-			order: 'desc',
-			nulls: 'last',
-			concurrently: true,
-			using: sql`btree`,
-		}),
+		usersAge1Idx: uniqueIndex('usersAge1Idx').on(users.class),
+		usersAge2Idx: index('usersAge2Idx').on(users.class),
+		uniqueClass: uniqueIndex('uniqueClass')
+			.on(users.class, users.subClass)
+			.where(sql`${users.class} is not null`)
+			.desc()
+			.nullsLast()
+			.concurrently()
+			.using(sql`btree`),
 		legalAge: check('legalAge', sql`${users.age1} > 18`),
 		usersClassFK: foreignKey(() => ({ columns: [users.subClass], foreignColumns: [classes.subClass] })),
 		usersClassComplexFK: foreignKey(() => ({
@@ -53,7 +50,7 @@ export const cities = pgTable('cities_table', {
 	name: text('name').notNull(),
 	population: integer('population').default(0),
 }, (cities) => ({
-	citiesNameIdx: index('citiesNameIdx', cities.id),
+	citiesNameIdx: index('citiesNameIdx').on(cities.id),
 }));
 
 export const classes = pgTable('classes_table', {

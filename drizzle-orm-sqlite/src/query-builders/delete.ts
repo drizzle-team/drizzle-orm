@@ -12,6 +12,13 @@ export interface SQLiteDeleteConfig {
 	returning?: SelectFieldsOrdered;
 }
 
+export interface SQLiteDelete<
+	TTable extends AnySQLiteTable,
+	TResultType extends 'sync' | 'async',
+	TRunResult,
+	TReturning = undefined,
+> extends SQLWrapper {}
+
 export class SQLiteDelete<
 	TTable extends AnySQLiteTable,
 	TResultType extends 'sync' | 'async',
@@ -60,7 +67,7 @@ export class SQLiteDelete<
 		get: TReturning extends undefined ? never : TReturning | undefined;
 		values: TReturning extends undefined ? never : any[][];
 	}> {
-		return this.session.prepareQuery(this.toSQL(), this.config.returning) as any;
+		return this.session.prepareQuery(this.toSQL(), this.config.returning);
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {

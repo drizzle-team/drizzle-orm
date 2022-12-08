@@ -1,55 +1,53 @@
 import { Table } from 'drizzle-orm';
-import { Placeholder, Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
-import { AnySQLiteColumn } from '~/columns';
-import { SQLiteDialect } from '~/dialect';
+import { QueryPromise } from 'drizzle-orm/query-promise';
+import { Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
 
-import { SQLiteSelectFields } from '~/operations';
-import { PreparedQuery, SQLiteSession } from '~/session';
-import { AnySQLiteTable, GetTableConfig, InferModel } from '~/table';
+import { AnyPgColumn } from '~/columns';
+import { PgDialect } from '~/dialect';
+import { SelectFields } from '~/operations';
+import { PgSession, PreparedQuery } from '~/session';
+import { AnyPgTable, GetTableConfig, InferModel } from '~/table';
 import { orderSelectedFields } from '~/utils';
 
 import {
-	AnySQLiteSelect,
+	AnyPgSelect,
 	JoinFn,
 	JoinNullability,
 	JoinType,
+	PgSelectConfig,
 	SelectMode,
 	SelectResult,
-	SQLiteSelectConfig,
 } from './select.types';
 
-export interface SQLiteSelect<
-	TTable extends AnySQLiteTable,
-	TResultType extends 'sync' | 'async',
-	TRunResult,
+export interface PgSelect<
+	TTable extends AnyPgTable,
 	TResult = InferModel<TTable>,
 	TSelectMode extends SelectMode = 'single',
 	TJoinsNotNullable extends Record<string, JoinNullability> = Record<GetTableConfig<TTable, 'name'>, 'not-null'>,
-> extends SQLWrapper {}
+> extends QueryPromise<SelectResult<TResult, TSelectMode, TJoinsNotNullable>[]>, SQLWrapper {}
 
-export class SQLiteSelect<
-	TTable extends AnySQLiteTable,
-	TResultType extends 'sync' | 'async',
-	TRunResult,
+export class PgSelect<
+	TTable extends AnyPgTable,
 	// TResult is either a map of columns (partial select) or a map of inferred field types (full select)
 	TResult = InferModel<TTable>,
 	TSelectMode extends SelectMode = 'single',
 	TJoinsNotNullable extends Record<string, JoinNullability> = Record<GetTableConfig<TTable, 'name'>, 'not-null'>,
-> implements SQLWrapper {
+> extends QueryPromise<SelectResult<TResult, TSelectMode, TJoinsNotNullable>[]> implements SQLWrapper {
 	declare protected $table: TTable;
 	declare protected $selectMode: TSelectMode;
 	declare protected $result: TResult;
 
-	private config: SQLiteSelectConfig;
+	private config: PgSelectConfig;
 	private isPartialSelect = false;
 	private joinsNotNullable: Record<string, boolean>;
 
 	constructor(
-		table: SQLiteSelectConfig['table'],
-		fields: SQLiteSelectConfig['fields'],
-		private session: SQLiteSession,
-		private dialect: SQLiteDialect,
+		table: PgSelectConfig['table'],
+		fields: PgSelectConfig['fields'],
+		private session: PgSession,
+		private dialect: PgDialect,
 	) {
+		super();
 		this.config = {
 			table,
 			fields,
@@ -62,8 +60,8 @@ export class SQLiteSelect<
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): JoinFn<TTable, TRunResult, TResultType, TSelectMode, TJoinType, TResult, TJoinsNotNullable> {
-		return (table: AnySQLiteTable, on: SQL): AnySQLiteSelect => {
+	): JoinFn<TTable, TSelectMode, TJoinType, TResult, TJoinsNotNullable> {
+		return (table: AnyPgTable, on: SQL): AnyPgSelect => {
 			const tableName = table[Table.Symbol.Name];
 
 			if (!this.isPartialSelect) {
@@ -115,19 +113,21 @@ export class SQLiteSelect<
 
 	fullJoin = this.createJoin('full');
 
-	fields<TSelect extends SQLiteSelectFields>(
+	fields<TSelect extends SelectFields>(
 		fields: TSelect,
-	): Omit<
-		SQLiteSelect<TTable, TResultType, TRunResult, TSelect, 'partial', TJoinsNotNullable>,
-		'fields'
-	> {
+	): Omit<PgSelect<TTable, TSelect, 'partial', TJoinsNotNullable>, 'fields'> {
 		this.config.fields = orderSelectedFields(fields);
 		this.isPartialSelect = true;
-		return this;
+		return this as AnyPgSelect;
 	}
 
 	where(where: SQL | undefined): Omit<this, 'where' | `${JoinType}Join`> {
 		this.config.where = where;
+		return this;
+	}
+
+	groupBy(...columns: (AnyPgColumn | SQL)[]): Omit<this, 'where' | `${JoinType}Join`> {
+		this.config.groupBy = columns as SQL[];
 		return this;
 	}
 
@@ -136,17 +136,12 @@ export class SQLiteSelect<
 		return this;
 	}
 
-	groupBy(...columns: (AnySQLiteColumn | SQL)[]): Omit<this, 'where' | `${JoinType}Join`> {
-		this.config.groupBy = columns;
-		return this;
-	}
-
-	limit(limit: number | Placeholder): Omit<this, 'where' | `${JoinType}Join` | 'limit'> {
+	limit(limit: number): Omit<this, 'where' | `${JoinType}Join` | 'limit'> {
 		this.config.limit = limit;
 		return this;
 	}
 
-	offset(offset: number | Placeholder): Omit<this, 'where' | `${JoinType}Join` | 'offset'> {
+	offset(offset: number): Omit<this, 'where' | `${JoinType}Join` | 'offset'> {
 		this.config.offset = offset;
 		return this;
 	}
@@ -157,35 +152,16 @@ export class SQLiteSelect<
 	}
 
 	toSQL(): Query {
-		const query = this.dialect.buildSelectQuery(this.config);
-		return this.dialect.sqlToQuery(query);
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
-	prepare(): PreparedQuery<
-		{
-			type: TResultType;
-			run: TRunResult;
-			all: SelectResult<TResult, TSelectMode, TJoinsNotNullable>[];
-			get: SelectResult<TResult, TSelectMode, TJoinsNotNullable>;
-			values: any[][];
-		}
-	> {
+	prepare(): PreparedQuery<{
+		execute: SelectResult<TResult, TSelectMode, TJoinsNotNullable>[];
+	}> {
 		return this.session.prepareQuery(this.toSQL(), this.config.fields);
 	}
 
-	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
-		return this.prepare().run(placeholderValues);
-	};
-
-	all: ReturnType<this['prepare']>['all'] = (placeholderValues) => {
-		return this.prepare().all(placeholderValues);
-	};
-
-	get: ReturnType<this['prepare']>['get'] = (placeholderValues) => {
-		return this.prepare().get(placeholderValues);
-	};
-
-	values: ReturnType<this['prepare']>['values'] = (placeholderValues) => {
-		return this.prepare().values(placeholderValues);
+	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
+		return this.prepare().execute(placeholderValues);
 	};
 }

@@ -1,131 +1,46 @@
-import {
-	Column,
-	Logger,
-	MigrationConfig,
-	MigrationMeta,
-	NoopLogger,
-	readMigrationFiles,
-	sql,
-	Table,
-	AnyColumn
-} from 'drizzle-orm';
-import { Name, Query, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
-import { isIP } from 'net';
-import { Client, Pool, PoolClient, QueryResult, QueryResultRow, types } from 'pg';
-
-import { AnyPgColumn, PgColumn } from './columns';
-import { PgDatabase } from './db';
-import { PgSelectFields, PgSelectFieldsOrdered } from './operations';
-import { PgDeleteConfig, PgInsertConfig, PgSelectConfig, PgUpdateConfig, PgUpdateSet } from './queries';
-import { AnyPgTable, PgTable } from './table';
-
-export type PgColumnDriverDataType =
-	| string
-	| number
-	| bigint
-	| boolean
-	| null
-	| Record<string, unknown>
-	| Date;
-
-export type PgClient = Pool | PoolClient | Client;
-
-export interface PgSession {
-	query(query: string, params: unknown[]): Promise<QueryResult>;
-	queryObjects<T extends QueryResultRow>(
-		query: string,
-		params: unknown[],
-	): Promise<QueryResult<T>>;
-}
-
-export interface PgDefaultSessionOptions {
-	logger?: Logger;
-}
-
-export class PgDefaultSession implements PgSession {
-	private logger: Logger;
-
-	constructor(private client: PgClient, options: PgDefaultSessionOptions = {}) {
-		this.logger = options.logger ?? new NoopLogger();
-	}
-
-	async query(query: string, params: unknown[]): Promise<QueryResult> {
-		this.logger.logQuery(query, params);
-		const result = await this.client.query({
-			rowMode: 'array',
-			text: query,
-			values: params,
-		});
-		return result;
-	}
-
-	async queryObjects<T extends QueryResultRow>(
-		query: string,
-		params: unknown[],
-	): Promise<QueryResult<T>> {
-		return this.client.query<T>(query, params);
-	}
-}
-
-export interface PgDriverOptions {
-	logger?: Logger;
-}
-
-export class PgDriver {
-	constructor(private client: PgClient, private options: PgDriverOptions = {}) {
-		this.initMappers();
-	}
-
-	async connect(): Promise<PgSession> {
-		return new PgDefaultSession(this.client, { logger: this.options.logger });
-	}
-
-	initMappers() {
-		types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
-		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
-		types.setTypeParser(types.builtins.DATE, (val) => val);
-	}
-}
+import { AnyColumn, Column, MigrationMeta, Table } from 'drizzle-orm';
+import { Name, Query, SQL, sql, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
+import { AnyPgColumn, PgColumn } from '~/columns';
+import { PgDatabase } from '~/db';
+import { SelectFieldsOrdered } from '~/operations';
+import { PgDeleteConfig, PgInsertConfig, PgUpdateConfig, PgUpdateSet } from '~/query-builders';
+import { PgSelectConfig } from '~/query-builders/select.types';
+import { AnyPgTable, PgTable } from '~/table';
+import { PgSession } from './session';
 
 export class PgDialect {
 	async migrate(migrations: MigrationMeta[], session: PgSession): Promise<void> {
-		const migrationTableCreate = `CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (
+		const migrationTableCreate = sql`CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (
 			id SERIAL PRIMARY KEY,
 			hash text NOT NULL,
 			created_at bigint
-		)`
-			.trim()
-			.replace(/\s{2,}/, ' ')
-			.replace(/\n+/g, '')
-			.replace(/ +/g, ' ');
-		await session.query('CREATE SCHEMA IF NOT EXISTS "drizzle"', []);
-		await session.query(migrationTableCreate, []);
+		)`;
+		await session.execute(sql`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
+		await session.execute(migrationTableCreate);
 
-		const dbMigrations = await session.query(
-			`SELECT id, hash, created_at FROM "drizzle"."__drizzle_migrations" ORDER BY created_at DESC LIMIT 1`,
-			[],
+		const dbMigrations = await session.execute<{ id: number; hash: string; created_at: string }>(
+			sql`SELECT id, hash, created_at FROM "drizzle"."__drizzle_migrations" ORDER BY created_at DESC LIMIT 1`,
 		);
 
-		const lastDbMigration = dbMigrations.rows[0] ?? undefined;
-		await session.query('BEGIN;', []);
+		const lastDbMigration = dbMigrations.rows[0];
+		await session.execute(sql`BEGIN`);
 
 		try {
 			for await (const migration of migrations) {
 				if (
 					!lastDbMigration
-					|| parseInt(lastDbMigration[2], 10)! < migration.folderMillis
+					|| parseInt(lastDbMigration.created_at, 10) < migration.folderMillis
 				) {
-					await session.query(migration.sql, []);
-					await session.query(
-						`INSERT INTO "drizzle"."__drizzle_migrations" ("hash", "created_at") VALUES('${migration.hash}', ${migration.folderMillis})`,
-						[],
+					await session.execute(sql.raw(migration.sql));
+					await session.execute(
+						sql`INSERT INTO "drizzle"."__drizzle_migrations" ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
 					);
 				}
 			}
 
-			await session.query('COMMIT;', []);
+			await session.execute(sql`COMMIT`);
 		} catch (e) {
-			await session.query('ROLLBACK;', []);
+			await session.execute(sql`ROLLBACK`);
 			throw e;
 		}
 	}
@@ -170,10 +85,6 @@ export class PgDialect {
 		);
 	}
 
-	orderSelectedFields(fields: PgSelectFields<string>, resultTableName: string): PgSelectFieldsOrdered {
-		return Object.entries(fields).map(([name, field]) => ({ name, resultTableName, field }));
-	}
-
 	buildUpdateQuery({ table, set, where, returning }: PgUpdateConfig): SQL {
 		const setSql = this.buildUpdateSet(table, set);
 
@@ -198,7 +109,7 @@ export class PgDialect {
 	 * If `isSingleTable` is true, then columns won't be prefixed with table name
 	 */
 	private buildSelection(
-		fields: PgSelectFieldsOrdered,
+		fields: SelectFieldsOrdered,
 		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
 	): SQL {
 		const columnsLen = fields.length;
@@ -303,15 +214,18 @@ export class PgDialect {
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {
+		const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLSourceParam | SQL)[] | SQL)[] = [];
 		const columns: Record<string, AnyPgColumn> = table[Table.Symbol.Columns];
-		const columnKeys = Object.keys(columns);
-		const insertOrder = Object.values(columns).map((column) => new Name(column.name));
+		const colEntries: [string, AnyPgColumn][] = isSingleValue
+			? Object.keys(values[0]!).map((fieldName) => [fieldName, columns[fieldName]!])
+			: Object.entries(columns);
+		const insertOrder = colEntries.map(([, column]) => new Name(column.name));
 
 		values.forEach((value, valueIndex) => {
 			const valueList: (SQLSourceParam | SQL)[] = [];
-			columnKeys.forEach((colKey) => {
-				const colValue = value[colKey];
+			colEntries.forEach(([fieldName]) => {
+				const colValue = value[fieldName];
 				if (typeof colValue === 'undefined') {
 					valueList.push(sql`default`);
 				} else {
@@ -335,42 +249,10 @@ export class PgDialect {
 		return sql`insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
-	prepareSQL(sql: SQL): Query {
+	sqlToQuery(sql: SQL): Query {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 		});
-	}
-}
-
-export interface PgConnectorOptions {
-	logger?: Logger;
-	dialect?: PgDialect;
-	driver?: PgDriver;
-}
-
-export class PgConnector {
-	dialect: PgDialect;
-	driver: PgDriver;
-	private session: PgSession | undefined;
-
-	constructor(client: PgClient, options: PgConnectorOptions = {}) {
-		this.dialect = new PgDialect();
-		this.driver = new PgDriver(client, { logger: options.logger });
-	}
-
-	private async getSession() {
-		return this.session ?? (this.session = await this.driver.connect());
-	}
-
-	async connect() {
-		const session = await this.getSession();
-		return this.dialect.createDB(session);
-	}
-
-	async migrate(config: string | MigrationConfig) {
-		const migrations = readMigrationFiles(config);
-		const session = await this.getSession();
-		await this.dialect.migrate(migrations, session);
 	}
 }

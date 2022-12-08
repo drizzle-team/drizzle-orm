@@ -36,8 +36,8 @@ export class IndexBuilder {
 	}
 
 	/**
-	* Condition for partial index.
-	*/
+	 * Condition for partial index.
+	 */
 	where(condition: SQL): this {
 		this.config.where = condition;
 		return this;
@@ -45,14 +45,18 @@ export class IndexBuilder {
 
 	/** @internal */
 	build(table: AnySQLiteTable): Index {
-		return new Index(this.config);
+		return new Index(this.config, table);
 	}
 }
 
 export class Index {
 	declare protected $brand: 'SQLiteIndex';
 
-	constructor(readonly config: IndexConfig) {}
+	readonly config: IndexConfig & { table: AnySQLiteTable };
+
+	constructor(config: IndexConfig, table: AnySQLiteTable) {
+		this.config = { ...config, table };
+	}
 }
 
 export type GetColumnsTableName<TColumns> = TColumns extends

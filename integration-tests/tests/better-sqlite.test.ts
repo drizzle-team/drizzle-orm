@@ -1,9 +1,18 @@
 import anyTest, { TestFn } from 'ava';
 import Database from 'better-sqlite3';
 import { DefaultLogger, sql } from 'drizzle-orm';
-import { alias, blob, integer, SQLiteConnector, SQLiteDatabase, sqliteTable, text } from 'drizzle-orm-sqlite';
+import {
+	alias,
+	blob,
+	InferModel,
+	integer,
+	SQLiteConnector,
+	SQLiteDatabase,
+	sqliteTable,
+	text,
+} from 'drizzle-orm-sqlite';
 import { asc, eq } from 'drizzle-orm/expressions';
-import { placeholder } from 'drizzle-orm/sql';
+import { name, placeholder } from 'drizzle-orm/sql';
 
 const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey(),
@@ -18,7 +27,6 @@ const usersMigratorTable = sqliteTable('users12', {
 	name: text('name').notNull(),
 	email: text('email').notNull(),
 });
-
 
 interface Context {
 	db: SQLiteDatabase;
@@ -150,26 +158,18 @@ test.serial('insert with default values', (t) => {
 	const { db } = t.context;
 
 	db.insert(usersTable).values({ name: 'John' }).run();
-	const result = db.select(usersTable).fields({
-		id: usersTable.id,
-		name: usersTable.name,
-		verified: usersTable.verified,
-	}).all();
+	const result = db.select(usersTable).all();
 
-	t.deepEqual(result, [{ id: 1, name: 'John', verified: 0 }]);
+	t.deepEqual(result, [{ id: 1, name: 'John', verified: 0, json: null, createdAt: result[0]!.createdAt }]);
 });
 
 test.serial('insert with overridden default values', (t) => {
 	const { db } = t.context;
 
 	db.insert(usersTable).values({ name: 'John', verified: 1 }).run();
-	const result = db.select(usersTable).fields({
-		id: usersTable.id,
-		name: usersTable.name,
-		verified: usersTable.verified,
-	}).all();
+	const result = db.select(usersTable).all();
 
-	t.deepEqual(result, [{ id: 1, name: 'John', verified: 1 }]);
+	t.deepEqual(result, [{ id: 1, name: 'John', verified: 1, json: null, createdAt: result[0]!.createdAt }]);
 });
 
 test.serial('update with returning all fields', (t) => {
@@ -421,7 +421,7 @@ test.serial('prepared statement with placeholder in .where', (t) => {
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 });
 
-test.serial('select with group by as field', async (t) => {
+test.serial('select with group by as field', (t) => {
 	const { db } = t.context;
 
 	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).run();
@@ -434,7 +434,7 @@ test.serial('select with group by as field', async (t) => {
 	t.deepEqual(result, [{ name: 'Jane' }, { name: 'John' }]);
 });
 
-test.serial('select with group by as sql', async (t) => {
+test.serial('select with group by as sql', (t) => {
 	const { db } = t.context;
 
 	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).run();
@@ -447,7 +447,7 @@ test.serial('select with group by as sql', async (t) => {
 	t.deepEqual(result, [{ name: 'Jane' }, { name: 'John' }]);
 });
 
-test.serial('select with group by as sql + column', async (t) => {
+test.serial('select with group by as sql + column', (t) => {
 	const { db } = t.context;
 
 	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).run();
@@ -460,7 +460,7 @@ test.serial('select with group by as sql + column', async (t) => {
 	t.deepEqual(result, [{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 });
 
-test.serial('select with group by as column + sql', async (t) => {
+test.serial('select with group by as column + sql', (t) => {
 	const { db } = t.context;
 
 	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).run();
@@ -473,7 +473,7 @@ test.serial('select with group by as column + sql', async (t) => {
 	t.deepEqual(result, [{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 });
 
-test.serial('select with group by complex query', async (t) => {
+test.serial('select with group by complex query', (t) => {
 	const { db } = t.context;
 
 	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).run();
@@ -488,7 +488,7 @@ test.serial('select with group by complex query', async (t) => {
 	t.deepEqual(result, [{ name: 'Jane' }]);
 });
 
-test.serial('build query', async (t) => {
+test.serial('build query', (t) => {
 	const { db } = t.context;
 
 	const query = db.select(usersTable)
@@ -504,13 +504,53 @@ test.serial('build query', async (t) => {
 
 test.serial('migrator', async (t) => {
 	const { connector, db } = t.context;
-	connector.migrate({ migrationsFolder: './drizzle' });
+	connector.migrate({ migrationsFolder: './drizzle/sqlite' });
 
 	db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).run();
 
 	const result = db.select(usersMigratorTable).all();
 
 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+});
+
+test.serial('insert via db.run + select via db.all', (t) => {
+	const { db } = t.context;
+
+	db.run(sql`insert into ${usersTable} (${name(usersTable.name.name)}) values (${'John'})`);
+
+	const result = db.all<{ id: number; name: string }>(sql`select id, name from "users"`);
+	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('insert via db.get', (t) => {
+	const { db } = t.context;
+
+	const inserted = db.get<{ id: number; name: string }>(
+		sql`insert into ${usersTable} (${
+			name(usersTable.name.name)
+		}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
+	);
+	t.deepEqual(inserted, { id: 1, name: 'John' });
+});
+
+test.serial('insert via db.run + select via db.get', (t) => {
+	const { db } = t.context;
+
+	db.run(sql`insert into ${usersTable} (${name(usersTable.name.name)}) values (${'John'})`);
+
+	const result = db.get<{ id: number; name: string }>(
+		sql`select ${usersTable.id}, ${usersTable.name} from ${usersTable}`,
+	);
+	t.deepEqual(result, { id: 1, name: 'John' });
+});
+
+test.serial('insert via db.get w/ query builder', (t) => {
+	const { db } = t.context;
+
+	const inserted = db.get<Pick<InferModel<typeof usersTable>, 'id' | 'name'>>(
+		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
+	);
+	t.deepEqual(inserted, { id: 1, name: 'John' });
 });
 
 test.after.always((t) => {

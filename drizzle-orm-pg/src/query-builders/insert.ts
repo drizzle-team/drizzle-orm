@@ -1,26 +1,25 @@
 import { Table } from 'drizzle-orm';
 import { QueryPromise } from 'drizzle-orm/query-promise';
-import { Param, Query, SQL, sql, SQLWrapper } from 'drizzle-orm/sql';
-import { mapResultRow } from 'drizzle-orm/utils';
-import { QueryResult } from 'pg';
+import { Param, Placeholder, Query, SQL, sql, SQLWrapper } from 'drizzle-orm/sql';
+import { QueryResult, QueryResultRow } from 'pg';
 
-import { AnyPgColumn } from '~/columns/common';
-import { PgDialect, PgSession } from '~/connection';
+import { PgDialect } from '~/dialect';
 import { IndexColumn } from '~/indexes';
-import { PgSelectFields, PgSelectFieldsOrdered, SelectResultFields } from '~/operations';
-import { AnyPgTable, GetTableConfig, InferModel, PgTable } from '~/table';
-import { mapUpdateSet } from '~/utils';
+import { SelectFields, SelectFieldsOrdered, SelectResultFields } from '~/operations';
+import { PgSession, PreparedQuery } from '~/session';
+import { AnyPgTable, InferModel, PgTable } from '~/table';
+import { mapUpdateSet, orderSelectedFields } from '~/utils';
 import { PgUpdateSetSource } from './update';
 
 export interface PgInsertConfig<TTable extends AnyPgTable = AnyPgTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[];
 	onConflict?: SQL;
-	returning?: PgSelectFieldsOrdered;
+	returning?: SelectFieldsOrdered;
 }
 
 export type PgInsertValue<TTable extends AnyPgTable> = {
-	[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL;
+	[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
 };
 
 export class PgInsertBuilder<TTable extends AnyPgTable> {
@@ -49,11 +48,16 @@ export class PgInsertBuilder<TTable extends AnyPgTable> {
 	}
 }
 
-export class PgInsert<TTable extends AnyPgTable, TReturn = QueryResult<any>> extends QueryPromise<TReturn>
+export interface PgInsert<TTable extends AnyPgTable, TReturning extends QueryResultRow | undefined = undefined>
+	extends QueryPromise<TReturning extends undefined ? QueryResult<never> : TReturning[]>, SQLWrapper
+{}
+
+export class PgInsert<TTable extends AnyPgTable, TReturning extends QueryResultRow | undefined = undefined>
+	extends QueryPromise<TReturning extends undefined ? QueryResult<never> : TReturning[]>
 	implements SQLWrapper
 {
 	declare protected $table: TTable;
-	declare protected $return: TReturn;
+	declare protected $return: TReturning;
 
 	private config: PgInsertConfig<TTable>;
 
@@ -67,21 +71,14 @@ export class PgInsert<TTable extends AnyPgTable, TReturn = QueryResult<any>> ext
 		this.config = { table, values };
 	}
 
-	returning(): Omit<PgInsert<TTable, InferModel<TTable>[]>, 'returning' | `onConflict${string}`>;
-	returning<TSelectedFields extends PgSelectFields<GetTableConfig<TTable, 'name'>>>(
+	returning(): Omit<PgInsert<TTable, InferModel<TTable>>, 'returning' | `onConflict${string}`>;
+	returning<TSelectedFields extends SelectFields>(
 		fields: TSelectedFields,
-	): Omit<PgInsert<TTable, SelectResultFields<TSelectedFields>[]>, 'returning' | `onConflict${string}`>;
-	returning(fields?: PgSelectFields<GetTableConfig<TTable, 'name'>>): PgInsert<TTable, any> {
-		const fieldsToMap: PgSelectFields<GetTableConfig<TTable, 'name'>> = fields
-			?? this.config.table[PgTable.Symbol.Columns] as Record<
-				string,
-				AnyPgColumn<{ tableName: GetTableConfig<TTable, 'name'> }>
-			>;
-
-		this.config.returning = Object.entries(fieldsToMap).map(
-			([name, column]) => ({ name, field: column, resultTableName: this.config.table[PgTable.Symbol.Name] }),
-		);
-
+	): Omit<PgInsert<TTable, SelectResultFields<TSelectedFields>>, 'returning' | `onConflict${string}`>;
+	returning(
+		fields: SelectFields = this.config.table[PgTable.Symbol.Columns],
+	): Omit<PgInsert<TTable, any>, 'returning' | `onConflict${string}`> {
+		this.config.returning = orderSelectedFields(fields);
 		return this;
 	}
 
@@ -112,19 +109,16 @@ export class PgInsert<TTable extends AnyPgTable, TReturn = QueryResult<any>> ext
 	}
 
 	toSQL(): Query {
-		return this.dialect.prepareSQL(this.getSQL());
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
-	protected override async execute(): Promise<TReturn> {
-		const query = this.dialect.buildInsertQuery(this.config);
-		const { sql, params } = this.dialect.prepareSQL(query);
-		const result = await this.session.query(sql, params);
-		// mapping from driver response to return type
-		const { returning } = this.config;
-		if (returning) {
-			return result.rows.map((row) => mapResultRow(returning, row)) as TReturn;
-		} else {
-			return result as TReturn;
-		}
+	prepare(): PreparedQuery<{
+		execute: TReturning extends undefined ? QueryResult<never> : TReturning[];
+	}> {
+		return this.session.prepareQuery(this.toSQL(), this.config.returning);
 	}
+
+	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
+		return this.prepare().execute(placeholderValues);
+	};
 }

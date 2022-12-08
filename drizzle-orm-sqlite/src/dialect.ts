@@ -173,15 +173,18 @@ export abstract class SQLiteDialect {
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: SQLiteInsertConfig): SQL {
+		const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLSourceParam | SQL)[] | SQL)[] = [];
 		const columns: Record<string, AnySQLiteColumn> = table[Table.Symbol.Columns];
-		const colEntries = Object.entries(columns);
+		const colEntries: [string, AnySQLiteColumn][] = isSingleValue
+			? Object.keys(values[0]!).map((fieldName) => [fieldName, columns[fieldName]!])
+			: Object.entries(columns);
 		const insertOrder = colEntries.map(([, column]) => new Name(column.name));
 
 		values.forEach((value, valueIndex) => {
 			const valueList: (SQLSourceParam | SQL)[] = [];
-			colEntries.forEach(([colKey, col]) => {
-				const colValue = value[colKey];
+			colEntries.forEach(([fieldName, col]) => {
+				const colValue = value[fieldName];
 				if (typeof colValue === 'undefined') {
 					let defaultValue;
 					if (col.default !== null && col.default !== undefined) {
