@@ -1,22 +1,23 @@
 import { Logger, MigrationConfig, readMigrationFiles } from 'drizzle-orm';
 import { PgDialect } from '~/dialect';
-import { PgDriver } from './driver';
-import { PgClient, PgSession } from './session';
+import { PgSession } from '~/session';
+import { NodePgDriver } from './driver';
+import { NodePgClient } from './session';
 
 export interface PgConnectorOptions {
 	logger?: Logger;
 	dialect?: PgDialect;
-	driver?: PgDriver;
+	driver?: NodePgDriver;
 }
 
 export class PgConnector {
 	dialect: PgDialect;
-	driver: PgDriver;
+	driver: NodePgDriver;
 	private session: PgSession | undefined;
 
-	constructor(client: PgClient, options: PgConnectorOptions = {}) {
+	constructor(client: NodePgClient, options: PgConnectorOptions = {}) {
 		this.dialect = new PgDialect();
-		this.driver = new PgDriver(client, this.dialect, { logger: options.logger });
+		this.driver = new NodePgDriver(client, this.dialect, { logger: options.logger });
 	}
 
 	private async getSession() {

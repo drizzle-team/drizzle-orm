@@ -18,11 +18,11 @@ export class PgDialect {
 		await session.execute(sql`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
 		await session.execute(migrationTableCreate);
 
-		const dbMigrations = await session.execute<{ id: number; hash: string; created_at: string }>(
+		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
 			sql`SELECT id, hash, created_at FROM "drizzle"."__drizzle_migrations" ORDER BY created_at DESC LIMIT 1`,
 		);
 
-		const lastDbMigration = dbMigrations.rows[0];
+		const lastDbMigration = dbMigrations[0];
 		await session.execute(sql`BEGIN`);
 
 		try {

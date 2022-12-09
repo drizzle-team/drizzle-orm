@@ -4,7 +4,7 @@ import { QueryResult, QueryResultRow } from 'pg';
 
 import { PgDialect } from '~/dialect';
 import { SelectFields, SelectFieldsOrdered, SelectResultFields } from '~/operations';
-import { PgSession, PreparedQuery } from '~/session';
+import { PgSession, PreparedQuery, PreparedQueryConfig } from '~/session';
 import { AnyPgTable, InferModel, PgTable } from '~/table';
 import { orderSelectedFields } from '~/utils';
 
@@ -59,15 +59,19 @@ export class PgDelete<
 		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
-	private _prepare(name?: string): PreparedQuery<{
-		execute: TReturning extends undefined ? QueryResult<never> : TReturning[];
-	}> {
+	private _prepare(name?: string): PreparedQuery<
+		PreparedQueryConfig & {
+			execute: TReturning extends undefined ? QueryResult<never> : TReturning[];
+		}
+	> {
 		return this.session.prepareQuery(this.toSQL(), this.config.returning, name);
 	}
 
-	prepare(name: string): PreparedQuery<{
-		execute: TReturning extends undefined ? QueryResult<never> : TReturning[];
-	}> {
+	prepare(name: string): PreparedQuery<
+		PreparedQueryConfig & {
+			execute: TReturning extends undefined ? QueryResult<never> : TReturning[];
+		}
+	> {
 		return this._prepare(name);
 	}
 
