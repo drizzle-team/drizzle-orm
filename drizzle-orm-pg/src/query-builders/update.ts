@@ -90,13 +90,19 @@ export class PgUpdate<
 		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
-	prepare(): PreparedQuery<{
+	private _prepare(name?: string): PreparedQuery<{
 		execute: TReturning extends undefined ? QueryResult<never> : TReturning[];
 	}> {
-		return this.session.prepareQuery(this.toSQL(), this.config.returning);
+		return this.session.prepareQuery(this.toSQL(), this.config.returning, name);
+	}
+
+	prepare(name: string): PreparedQuery<{
+		execute: TReturning extends undefined ? QueryResult<never> : TReturning[];
+	}> {
+		return this._prepare(name);
 	}
 
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this.prepare().execute(placeholderValues);
+		return this._prepare().execute(placeholderValues);
 	};
 }

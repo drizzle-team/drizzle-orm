@@ -455,7 +455,12 @@ test.serial('prepared statement', async (t) => {
 	const { db } = t.context;
 
 	await db.insert(usersTable).values({ name: 'John' });
-	const statement = db.select(usersTable).fields({ id: usersTable.id, name: usersTable.name }).prepare();
+	const statement = db.select(usersTable)
+		.fields({
+			id: usersTable.id,
+			name: usersTable.name,
+		})
+		.prepare('statement');
 	const result = await statement.execute();
 
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
@@ -467,7 +472,7 @@ test.serial('prepared statement reuse', async (t) => {
 	const stmt = db.insert(usersTable).values({
 		verified: true,
 		name: placeholder('name'),
-	}).prepare();
+	}).prepare('stmt');
 
 	for (let i = 0; i < 10; i++) {
 		await stmt.execute({ name: `John ${i}` });
@@ -503,7 +508,7 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 			name: usersTable.name,
 		})
 		.where(eq(usersTable.id, placeholder('id')))
-		.prepare();
+		.prepare('stmt');
 	const result = await stmt.execute({ id: 1 });
 
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);

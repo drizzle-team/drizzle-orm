@@ -155,13 +155,19 @@ export class PgSelect<
 		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
-	prepare(): PreparedQuery<{
+	private _prepare(name?: string): PreparedQuery<{
 		execute: SelectResult<TResult, TSelectMode, TJoinsNotNullable>[];
 	}> {
-		return this.session.prepareQuery(this.toSQL(), this.config.fields);
+		return this.session.prepareQuery(this.toSQL(), this.config.fields, name);
+	}
+
+	prepare(name: string): PreparedQuery<{
+		execute: SelectResult<TResult, TSelectMode, TJoinsNotNullable>[];
+	}> {
+		return this._prepare(name);
 	}
 
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this.prepare().execute(placeholderValues);
+		return this._prepare().execute(placeholderValues);
 	};
 }
