@@ -1,6 +1,6 @@
 import { Logger, MigrationConfig, readMigrationFiles } from 'drizzle-orm';
+import { PgDatabase } from '~/db';
 import { PgDialect } from '~/dialect';
-import { PgSession } from '~/session';
 import { NeonDriver } from './driver';
 import { NeonClient, NeonSession } from './session';
 
@@ -9,6 +9,8 @@ export interface PgConnectorOptions {
 	dialect?: PgDialect;
 	driver?: NeonDriver;
 }
+
+export type NeonDatabase = PgDatabase;
 
 export class NeonConnector {
 	dialect: PgDialect;
@@ -24,7 +26,7 @@ export class NeonConnector {
 		return this.session ?? (this.session = await this.driver.connect());
 	}
 
-	async connect() {
+	async connect(): Promise<NeonDatabase> {
 		const session = await this.getSession();
 		return this.dialect.createDB(session);
 	}

@@ -1,4 +1,4 @@
-import { SQL, SQLWrapper } from 'drizzle-orm/sql';
+import { SQLWrapper } from 'drizzle-orm/sql';
 import { QueryResult, QueryResultRow } from 'pg';
 
 import { PgDialect } from '~/dialect';
