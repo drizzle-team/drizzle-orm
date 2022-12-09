@@ -22,6 +22,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectFieldsOrdered | undefined,
+		private name: string | undefined,
 	) {
 		super();
 	}
@@ -37,6 +38,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 		}
 
 		const result = this.client.query({
+			name: this.name,
 			rowMode: 'array',
 			text: this.queryString,
 			values: params,
@@ -44,18 +46,6 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 
 		return result.then((result) => result.rows.map((row) => mapResultRow<T['execute']>(fields, row)));
 	}
-
-	// values(placeholderValues?: Record<string, unknown> | undefined): Promise<QueryResult<T['values']>> {
-	// 	const params = fillPlaceholders(this.params, placeholderValues ?? {});
-
-	// 	this.logger.logQuery(this.queryString, params);
-
-	// 	return this.client.query({
-	// 		rowMode: 'array',
-	// 		text: this.queryString,
-	// 		values: params,
-	// 	});
-	// }
 }
 
 export abstract class PgSession {
@@ -64,11 +54,16 @@ export abstract class PgSession {
 
 	abstract prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		fields?: SelectFieldsOrdered,
+		fields: SelectFieldsOrdered | undefined,
+		name: string | undefined,
 	): PreparedQuery<T>;
 
 	execute<T extends QueryResultRow = QueryResultRow>(query: SQL): Promise<QueryResult<T>> {
-		return this.prepareQuery<PreparedQueryConfig & { execute: QueryResult<T> }>(this.dialect.sqlToQuery(query))
+		return this.prepareQuery<PreparedQueryConfig & { execute: QueryResult<T> }>(
+			this.dialect.sqlToQuery(query),
+			undefined,
+			undefined,
+		)
 			.execute();
 	}
 }
@@ -80,9 +75,10 @@ export interface NodePgSessionOptions {
 export class NodePgSession extends PgSession {
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		fields?: SelectFieldsOrdered | undefined,
+		fields: SelectFieldsOrdered | undefined,
+		name: string | undefined,
 	): PreparedQuery<T> {
-		return new NodePgPreparedQuery(this.client, query.sql, query.params, this.logger, fields);
+		return new NodePgPreparedQuery(this.client, query.sql, query.params, this.logger, fields, name);
 	}
 
 	private logger: Logger;

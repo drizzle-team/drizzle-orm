@@ -18,7 +18,7 @@ const insertStmt = db.insert(users).values({
 	class: 'A',
 	age1: 1,
 	enumCol: 'a',
-}).prepare();
+}).prepare('insertStmt');
 const insertPrepared = await insertStmt.execute();
 Expect<Equal<QueryResult<never>, typeof insertPrepared>>;
 
@@ -35,7 +35,7 @@ const insertSqlStmt = db.insert(users).values({
 	class: 'A',
 	age1: 1,
 	enumCol: sql`foobar`,
-}).prepare();
+}).prepare('insertSqlStmt');
 const insertSqlPrepared = await insertSqlStmt.execute();
 Expect<Equal<QueryResult<never>, typeof insertSqlPrepared>>;
 
@@ -52,7 +52,7 @@ const insertReturningStmt = db.insert(users).values({
 	class: 'A',
 	age1: 1,
 	enumCol: 'a',
-}).returning().prepare();
+}).returning().prepare('insertReturningStmt');
 const insertReturningPrepared = await insertReturningStmt.execute();
 Expect<Equal<InferModel<typeof users>[], typeof insertReturningPrepared>>;
 
@@ -83,7 +83,7 @@ const insertReturningPartialStmt = db.insert(users).values({
 	id: users.id,
 	homeCity: users.homeCity,
 	mySubclass: users.subClass,
-}).prepare();
+}).prepare('insertReturningPartialStmt');
 const insertReturningPartialPrepared = await insertReturningPartialStmt.execute();
 Expect<
 	Equal<{
@@ -123,7 +123,7 @@ const insertReturningSqlStmt = db.insert(users).values({
 	homeCity: users.homeCity,
 	subclassLower: sql`lower(${users.subClass})`,
 	classLower: sql`lower(${users.class})`.as<string>(),
-}).prepare();
+}).prepare('insertReturningSqlStmt');
 const insertReturningSqlPrepared = await insertReturningSqlStmt.execute();
 Expect<
 	Equal<{
