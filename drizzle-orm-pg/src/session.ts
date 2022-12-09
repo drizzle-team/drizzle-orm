@@ -1,7 +1,16 @@
 import { Logger, NoopLogger } from 'drizzle-orm';
 import { fillPlaceholders, Query, SQL } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
-import { Client, Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
+import {
+	Client,
+	Pool,
+	PoolClient,
+	QueryArrayConfig,
+	QueryConfig,
+	QueryResult,
+	QueryResultRow,
+} from 'pg';
+
 import { PgDialect } from './dialect';
 import { SelectFieldsOrdered } from './operations';
 
@@ -16,41 +25,48 @@ export abstract class PreparedQuery<T extends PreparedQueryConfig> {
 }
 
 export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
+	private rawQuery: QueryConfig;
+	private query: QueryArrayConfig;
+
 	constructor(
 		private client: PgClient,
-		private queryString: string,
+		queryString: string,
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectFieldsOrdered | undefined,
-		private name: string | undefined,
+		name: string | undefined,
 	) {
 		super();
+		this.rawQuery = {
+			name,
+			text: queryString,
+		};
+		this.query = {
+			...this.rawQuery,
+			rowMode: 'array',
+		};
 	}
 
 	execute(placeholderValues?: Record<string, unknown> | undefined): Promise<T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 
-		this.logger.logQuery(this.queryString, params);
+		this.logger.logQuery(this.rawQuery.text, params);
 
 		const { fields } = this;
 		if (!fields) {
-			return this.client.query(this.queryString, params);
+			return this.client.query(this.rawQuery, params);
 		}
 
-		const result = this.client.query({
-			name: this.name,
-			rowMode: 'array',
-			text: this.queryString,
-			values: params,
-		});
+		const result = this.client.query(this.query, params);
 
-		return result.then((result) => result.rows.map((row) => mapResultRow<T['execute']>(fields, row)));
+		return result.then((result) =>
+			result.rows.map((row) => mapResultRow<T['execute']>(fields, row)),
+		);
 	}
 }
 
 export abstract class PgSession {
-	constructor(protected dialect: PgDialect) {
-	}
+	constructor(protected dialect: PgDialect) {}
 
 	abstract prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
@@ -63,8 +79,7 @@ export abstract class PgSession {
 			this.dialect.sqlToQuery(query),
 			undefined,
 			undefined,
-		)
-			.execute();
+		).execute();
 	}
 }
 
@@ -78,16 +93,19 @@ export class NodePgSession extends PgSession {
 		fields: SelectFieldsOrdered | undefined,
 		name: string | undefined,
 	): PreparedQuery<T> {
-		return new NodePgPreparedQuery(this.client, query.sql, query.params, this.logger, fields, name);
+		return new NodePgPreparedQuery(
+			this.client,
+			query.sql,
+			query.params,
+			this.logger,
+			fields,
+			name,
+		);
 	}
 
 	private logger: Logger;
 
-	constructor(
-		private client: PgClient,
-		dialect: PgDialect,
-		options: NodePgSessionOptions = {},
-	) {
+	constructor(private client: PgClient, dialect: PgDialect, options: NodePgSessionOptions = {}) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 	}
