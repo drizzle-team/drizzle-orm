@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm-pg",
-	"version": "0.13.2",
+	"version": "0.13.3-beta.1",
 	"description": "Drizzle ORM package for PostgreSQL database",
 	"main": "index.js",
 	"types": "index.d.ts",
@@ -49,6 +49,7 @@
 		}
 	},
 	"devDependencies": {
+		"@neondatabase/serverless": "^0.1.13",
 		"@types/pg": "^8.6.5",
 		"drizzle-orm": "link:../drizzle-orm/src",
 		"pg": "^8.8.0"

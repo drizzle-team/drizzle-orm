@@ -5,7 +5,7 @@ import { Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { AnyPgColumn } from '~/columns';
 import { PgDialect } from '~/dialect';
 import { SelectFields } from '~/operations';
-import { PgSession, PreparedQuery } from '~/session';
+import { PgSession, PreparedQuery, PreparedQueryConfig } from '~/session';
 import { AnyPgTable, GetTableConfig, InferModel } from '~/table';
 import { orderSelectedFields } from '~/utils';
 
@@ -155,15 +155,19 @@ export class PgSelect<
 		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
-	private _prepare(name?: string): PreparedQuery<{
-		execute: SelectResult<TResult, TSelectMode, TJoinsNotNullable>[];
-	}> {
+	private _prepare(name?: string): PreparedQuery<
+		PreparedQueryConfig & {
+			execute: SelectResult<TResult, TSelectMode, TJoinsNotNullable>[];
+		}
+	> {
 		return this.session.prepareQuery(this.toSQL(), this.config.fields, name);
 	}
 
-	prepare(name: string): PreparedQuery<{
-		execute: SelectResult<TResult, TSelectMode, TJoinsNotNullable>[];
-	}> {
+	prepare(name: string): PreparedQuery<
+		PreparedQueryConfig & {
+			execute: SelectResult<TResult, TSelectMode, TJoinsNotNullable>[];
+		}
+	> {
 		return this._prepare(name);
 	}
 
