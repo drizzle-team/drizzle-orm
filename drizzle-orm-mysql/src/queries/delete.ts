@@ -1,59 +1,81 @@
-import { GetTableName, mapResultRow, tableColumns, tableNameSym } from 'drizzle-orm/utils';
-import { AnyMySqlDialect, MySqlQueryResult, MySqlSession } from '~/connection';
-import { MySqlSelectFields, MySqlSelectFieldsOrdered, SelectResultFields } from '~/operations';
-import { AnyMySQL, MySQL, MySqlPreparedQuery } from '~/sql';
-import { AnyMySqlTable, InferModel } from '~/table';
+import { QueryPromise } from 'drizzle-orm/query-promise';
+import { Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
+import { MySqlDialect } from '~/dialect';
+import { SelectFields, SelectFieldsOrdered, SelectResultFields } from '~/operations';
+import { MySqlQueryResult, MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/session';
+import { AnyMySqlTable, InferModel, MySqlTable } from '~/table';
+import { orderSelectedFields } from '~/utils';
 
 export interface MySqlDeleteConfig {
-	where?: AnyMySQL | undefined;
+	where?: SQL | undefined;
 	table: AnyMySqlTable;
-	returning?: MySqlSelectFieldsOrdered;
+	returning?: SelectFieldsOrdered;
 }
 
-export class MySqlDelete<TTable extends AnyMySqlTable, TReturn = MySqlQueryResult> {
+export interface MySqlDelete<
+	TTable extends AnyMySqlTable,
+	TReturning = undefined,
+> extends QueryPromise<TReturning extends undefined ? MySqlQueryResult : TReturning[]> {}
+
+export class MySqlDelete<
+	TTable extends AnyMySqlTable,
+	TReturning = undefined,
+> extends QueryPromise<TReturning extends undefined ? MySqlQueryResult : TReturning[]> implements SQLWrapper {
 	private config: MySqlDeleteConfig;
 
 	constructor(
 		private table: TTable,
 		private session: MySqlSession,
-		private dialect: AnyMySqlDialect,
+		private dialect: MySqlDialect,
 	) {
+		super();
 		this.config = { table };
 	}
 
 	where(
-		where: MySQL<GetTableConfig<TTable, 'name'>> | undefined,
-	): Pick<this, 'returning' | 'getQuery' | 'execute'> {
+		where: SQL | undefined,
+	): Omit<this, 'where'> {
 		this.config.where = where;
 		return this;
 	}
 
-	returning(): Pick<MySqlDelete<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
-	returning<TSelectedFields extends MySqlSelectFields<GetTableConfig<TTable, 'name'>>>(
+	returning(): Omit<MySqlDelete<TTable, InferModel<TTable>>, 'where' | 'returning'>;
+	returning<TSelectedFields extends SelectFields>(
 		fields: TSelectedFields,
-	): Pick<MySqlDelete<TTable, SelectResultFields<TSelectedFields>[]>, 'getQuery' | 'execute'>;
-	returning(fields?: MySqlSelectFields<GetTableConfig<TTable, 'name'>>): MySqlDelete<TTable, any> {
-		const orderedFields = this.dialect.orderSelectedFields(
-			fields ?? this.table[tableColumns],
-			this.table[tableNameSym],
-		);
-		this.config.returning = orderedFields;
+	): Omit<MySqlDelete<TTable, SelectResultFields<TSelectedFields>>, 'where' | 'returning'>;
+	returning(
+		fields: SelectFields = this.config.table[MySqlTable.Symbol.Columns],
+	): Omit<MySqlDelete<TTable, any>, 'where' | 'returning'> {
+		this.config.returning = orderSelectedFields(fields);
 		return this;
 	}
 
-	getQuery(): MySqlPreparedQuery {
-		const query = this.dialect.buildDeleteQuery(this.config);
-		return this.dialect.prepareSQL(query);
+	/** @internal */
+	getSQL(): SQL {
+		return this.dialect.buildDeleteQuery(this.config);
 	}
 
-	async execute(): Promise<TReturn> {
-		const query = this.dialect.buildDeleteQuery(this.config);
-		const { sql, params } = this.dialect.prepareSQL(query);
-		const result = await this.session.query(sql, params);
-		const { returning } = this.config;
-		if (returning) {
-			return result[0].map((row: any[]) => mapResultRow(returning, row)) as TReturn;
-		}
-		return result as TReturn;
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
+
+	private _prepare(name?: string): PreparedQuery<
+		PreparedQueryConfig & {
+			execute: TReturning extends undefined ? MySqlQueryResult : TReturning[];
+		}
+	> {
+		return this.session.prepareQuery(this.toSQL(), this.config.returning, name);
+	}
+
+	prepare(name: string): PreparedQuery<
+		PreparedQueryConfig & {
+			execute: TReturning extends undefined ? MySqlQueryResult : TReturning[];
+		}
+	> {
+		return this._prepare(name);
+	}
+
+	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
+		return this._prepare().execute(placeholderValues);
+	};
 }

@@ -30,21 +30,16 @@ importers:
   drizzle-orm:
     specifiers:
       '@types/node': ^18.11.9
-      drizzle-orm-mysql: '>=0.12.0 <0.13.0 || >=0.12.0-beta.0 <0.13.0-beta.0'
-      drizzle-orm-pg: '>=0.13.0 <0.14.0 || >=0.13.0-beta.0 <0.14.0-beta.0'
-      drizzle-orm-sqlite: '>=0.13.0 <0.14.0 || >=0.13.0-beta.0 <0.14.0-beta.0'
-    dependencies:
-      drizzle-orm-mysql: link:../drizzle-orm-mysql
-      drizzle-orm-pg: link:../drizzle-orm-pg
-      drizzle-orm-sqlite: link:../drizzle-orm-sqlite
     devDependencies:
       '@types/node': 18.11.9
 
   drizzle-orm-mysql:
     specifiers:
+      '@types/node': ^18.11.12
       drizzle-orm: link:../drizzle-orm/src
       mysql2: ^2.3.3
     devDependencies:
+      '@types/node': 18.11.12
       drizzle-orm: link:../drizzle-orm/src
       mysql2: 2.3.3
 
@@ -548,6 +543,10 @@ packages:
     dependencies:
       '@types/docker-modem': 3.0.2
       '@types/node': 18.11.9
+    dev: true
+
+  /@types/node/18.11.12:
+    resolution: {integrity: sha512-FgD3NtTAKvyMmD44T07zz2fEf+OKwutgBCEVM8GcvMGVGaDktiLNTDvPwC/LUe3PinMW+X6CuLOF2Ui1mAlSXg==}
     dev: true
 
   /@types/node/18.11.9:

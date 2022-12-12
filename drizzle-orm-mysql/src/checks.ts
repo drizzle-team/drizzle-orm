@@ -1,39 +1,27 @@
-import { TableName } from 'drizzle-orm/branded-types';
-import { MySQL } from './sql';
+import { SQL } from 'drizzle-orm/sql';
 import { AnyMySqlTable } from './table';
 
-export class CheckBuilder<TTableName extends string> {
-	protected brand!: 'MySqlConstraintBuilder';
+export class CheckBuilder {
+	protected brand!: 'PgConstraintBuilder';
 
-	constructor(public name: string, public value: MySQL<TTableName>) {}
+	constructor(public name: string, public value: SQL) {}
 
-	build(table: AnyMySqlTable<TTableName>): Check<TTableName> {
+	/** @internal */
+	build(table: AnyMySqlTable): Check {
 		return new Check(table, this);
 	}
 }
 
-export type AnyCheckBuilder<TTableName extends string = string> = CheckBuilder<TTableName>;
-
-export class Check<TTableName extends string> {
+export class Check {
 	readonly name: string;
-	readonly value: MySQL<TTableName>;
+	readonly value: SQL;
 
-	constructor(public table: AnyMySqlTable<TTableName>, builder: CheckBuilder<TTableName>) {
+	constructor(public table: AnyMySqlTable, builder: CheckBuilder) {
 		this.name = builder.name;
 		this.value = builder.value;
 	}
 }
 
-export type BuildCheck<T extends AnyCheckBuilder> = T extends CheckBuilder<
-	infer TTableName
-> ? Check<TTableName>
-	: never;
-
-export type AnyConstraint = Check<string>;
-
-export function check<TTableName extends string>(
-	name: string,
-	value: MySQL<TTableName>,
-): CheckBuilder<TTableName> {
+export function check(name: string, value: SQL): CheckBuilder {
 	return new CheckBuilder(name, value);
 }

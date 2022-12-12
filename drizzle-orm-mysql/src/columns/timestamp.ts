@@ -1,12 +1,11 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
+import { ColumnConfig } from 'drizzle-orm';
+import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyMySqlTable } from '~/table';
-import { MySqlColumn, MySqlColumnBuilder } from './common';
-import { MySqlDateBaseColumn, MySqlDateColumnBaseBuilder } from './date.common';
-
-export class MySqlTimestampBuilder<
-	TNotNull extends boolean = false,
-	THasDefault extends boolean = false,
-> extends MySqlDateColumnBaseBuilder<ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+import { MySqlColumn } from './common';
+import { MySqlDateColumnBaseBuilder } from './date.common';
+export class MySqlTimestampBuilder
+	extends MySqlDateColumnBaseBuilder<ColumnBuilderConfig<{ data: Date; driverParam: string | number }>>
+{
 	constructor(
 		name: string,
 		readonly fsp: number | undefined,
@@ -16,24 +15,28 @@ export class MySqlTimestampBuilder<
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<TTableName>,
-	): MySqlTimestamp<TTableName, TNotNull, THasDefault> {
+		table: AnyMySqlTable<{ name: TTableName }>,
+	): MySqlTimestamp<TTableName> {
 		return new MySqlTimestamp(table, this);
 	}
 }
 
 export class MySqlTimestamp<
 	TTableName extends string,
-	TNotNull extends boolean,
-	THasDefault extends boolean,
-> extends MySqlDateBaseColumn<TTableName, ColumnData<Date>, ColumnDriverParam<string>, TNotNull, THasDefault> {
-	protected brand!: 'MySqlTimestamp';
+> extends MySqlColumn<
+	ColumnConfig<{
+		tableName: TTableName;
+		data: Date;
+		driverParam: number | string;
+	}>
+> {
+	protected override $mySqlColumnBrand!: 'MySqlTimestamp';
 
 	readonly fsp: number | undefined;
 
 	constructor(
-		table: AnyMySqlTable<TTableName>,
-		builder: MySqlTimestampBuilder<TNotNull, THasDefault>,
+		table: AnyMySqlTable<{ name: TTableName }>,
+		builder: MySqlTimestampBuilder,
 	) {
 		super(table, builder);
 		this.fsp = builder.fsp;
@@ -49,10 +52,9 @@ export class MySqlTimestamp<
 	}
 }
 
-export class MySqlTimestampStringBuilder<
-	TNotNull extends boolean = false,
-	THasDefault extends boolean = false,
-> extends MySqlDateColumnBaseBuilder<ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+export class MySqlTimestampStringBuilder
+	extends MySqlDateColumnBaseBuilder<ColumnBuilderConfig<{ data: Date; driverParam: string | number }>>
+{
 	constructor(
 		name: string,
 		readonly fsp: number | undefined,
@@ -62,24 +64,28 @@ export class MySqlTimestampStringBuilder<
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<TTableName>,
-	): MySqlTimestampString<TTableName, TNotNull, THasDefault> {
+		table: AnyMySqlTable<{ name: TTableName }>,
+	): MySqlTimestampString<TTableName> {
 		return new MySqlTimestampString(table, this);
 	}
 }
 
 export class MySqlTimestampString<
 	TTableName extends string,
-	TNotNull extends boolean,
-	THasDefault extends boolean,
-> extends MySqlDateBaseColumn<TTableName, ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
-	protected brand!: 'PgTimestampString';
+> extends MySqlColumn<
+	ColumnConfig<{
+		tableName: TTableName;
+		data: Date;
+		driverParam: number | string;
+	}>
+> {
+	protected override $mySqlColumnBrand!: 'MySqlTimestampString';
 
 	readonly fsp: number | undefined;
 
 	constructor(
-		table: AnyMySqlTable<TTableName>,
-		builder: MySqlTimestampStringBuilder<TNotNull, THasDefault>,
+		table: AnyMySqlTable<{ name: TTableName }>,
+		builder: MySqlTimestampStringBuilder,
 	) {
 		super(table, builder);
 		this.fsp = builder.fsp;

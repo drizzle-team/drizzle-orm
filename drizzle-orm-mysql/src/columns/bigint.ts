@@ -1,43 +1,29 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
-
+import { ColumnConfig } from 'drizzle-orm';
+import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyMySqlTable } from '~/table';
 
-import {
-	MySqlColumn,
-	MySqlColumnBuilder,
-	MySqlColumnBuilderWithAutoIncrement,
-	MySqlColumnWithAutoIncrement,
-} from './common';
+import { MySqlColumn, MySqlColumnBuilder, MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
-export class MySqlBigInt53Builder<
-	TNotNull extends boolean = false,
-	THasDefault extends boolean = false,
-> extends MySqlColumnBuilderWithAutoIncrement<
-	ColumnData<number>,
-	ColumnDriverParam<number | string>,
-	TNotNull,
-	THasDefault
+export class MySqlBigInt53Builder extends MySqlColumnBuilderWithAutoIncrement<
+	ColumnBuilderConfig<{
+		data: number;
+		driverParam: number | string;
+	}>
 > {
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<TTableName>,
-	): MySqlBigInt53<TTableName, TNotNull, THasDefault> {
-		return new MySqlBigInt53<TTableName, TNotNull, THasDefault>(table, this);
+	override build<TTableName extends string>(table: AnyMySqlTable<{ name: TTableName }>): MySqlBigInt53<TTableName> {
+		return new MySqlBigInt53(table, this);
 	}
 }
 
-export class MySqlBigInt53<
-	TTableName extends string,
-	TNotNull extends boolean,
-	THasDefault extends boolean,
-> extends MySqlColumnWithAutoIncrement<
-	TTableName,
-	ColumnData<number>,
-	ColumnDriverParam<number | string>,
-	TNotNull,
-	THasDefault
+export class MySqlBigInt53<TTableName extends string> extends MySqlColumnWithAutoIncrement<
+	ColumnConfig<{
+		tableName: TTableName;
+		data: number;
+		driverParam: number | string;
+	}>
 > {
-	brand!: 'MySqlBigInt53';
+	declare protected $mySqlColumnBrand: 'MySqlBigInt53';
 
 	getSQLType(): string {
 		return 'bigint';
@@ -51,24 +37,23 @@ export class MySqlBigInt53<
 	}
 }
 
-export class MySqlBigInt64Builder<
-	TNotNull extends boolean = false,
-	THasDefault extends boolean = false,
-> extends MySqlColumnBuilder<ColumnData<bigint>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+export class MySqlBigInt64Builder
+	extends MySqlColumnBuilderWithAutoIncrement<ColumnBuilderConfig<{ data: bigint; driverParam: string }>>
+{
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<TTableName>,
-	): MySqlBigInt64<TTableName, TNotNull, THasDefault> {
-		return new MySqlBigInt64<TTableName, TNotNull, THasDefault>(table, this);
+	override build<TTableName extends string>(table: AnyMySqlTable<{ name: TTableName }>): MySqlBigInt64<TTableName> {
+		return new MySqlBigInt64(table, this);
 	}
 }
 
-export class MySqlBigInt64<
-	TTableName extends string,
-	TNotNull extends boolean,
-	THasDefault extends boolean,
-> extends MySqlColumn<TTableName, ColumnData<bigint>, ColumnDriverParam<string>, TNotNull, THasDefault> {
-	brand!: 'MySqlBigInt64';
+export class MySqlBigInt64<TTableName extends string> extends MySqlColumnWithAutoIncrement<
+	ColumnConfig<{
+		tableName: TTableName;
+		data: bigint;
+		driverParam: string;
+	}>
+> {
+	protected override $mySqlColumnBrand!: 'MySqlBigInt64';
 
 	getSQLType(): string {
 		return 'bigint';
@@ -85,8 +70,8 @@ interface MySqlBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'>
 
 export function bigint(name: string, config: MySqlBigIntConfig<'number'>): MySqlBigInt53Builder;
 export function bigint(name: string, config: MySqlBigIntConfig<'bigint'>): MySqlBigInt64Builder;
-export function bigint(name: string, { mode }: MySqlBigIntConfig) {
-	if (mode === 'number') {
+export function bigint(name: string, config: MySqlBigIntConfig) {
+	if (config.mode === 'number') {
 		return new MySqlBigInt53Builder(name);
 	}
 	return new MySqlBigInt64Builder(name);

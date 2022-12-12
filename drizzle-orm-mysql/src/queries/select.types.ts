@@ -1,119 +1,114 @@
 import { AnyColumn } from 'drizzle-orm';
 import { TableName, Unwrap } from 'drizzle-orm/branded-types';
+import { SQL } from 'drizzle-orm/sql';
 import { GetTableName } from 'drizzle-orm/utils';
 import { Simplify } from 'drizzle-orm/utils';
 
 import { AnyMySqlColumn, ChangeColumnTable } from '~/columns/common';
-import { MySqlSelectFields, SelectResultFields } from '~/operations';
+import { MySqlSelectFields, SelectResultFields, SelectFieldsOrdered } from '~/operations';
 import { AnyMySQL, MySQL } from '~/sql';
 import { AnyMySqlTable, GetTableColumns } from '~/table';
 import { MySqlSelect } from './select';
 
 export type JoinType = 'inner' | 'left' | 'right' | 'full';
 
+export type SelectMode = 'partial' | 'single' | 'multiple';
+
 export interface JoinsValue {
-	on: AnyMySQL;
+	on: SQL;
 	table: AnyMySqlTable;
 	joinType: JoinType;
-	aliasTable: AnyMySqlTable;
 }
 
 export type JoinNullability = 'nullable' | 'null' | 'not-null';
 
-export type ApplyNotNullMapToJoins<
-	TResult extends Record<string, Record<string, unknown>>,
-	TJoinsNotNullable extends Record<string, JoinNullability>,
-> = TJoinsNotNullable extends TJoinsNotNullable ? {
-		[TTableName in keyof TResult & keyof TJoinsNotNullable & string]: TJoinsNotNullable[TTableName] extends 'nullable'
-			? TResult[TTableName] | null
-			: TJoinsNotNullable[TTableName] extends 'null' ? null
-			: TJoinsNotNullable[TTableName] extends 'not-null' ? TResult[TTableName]
-			: never;
+export type ApplyNullability<T, TNullability extends JoinNullability> = TNullability extends 'nullable' ? T | null
+	: TNullability extends 'null' ? null
+	: T;
+
+export type ApplyNullabilityNested<T, TNullability extends JoinNullability> = T extends Record<string, any> ? {
+		[Key in keyof T]: ApplyNullabilityNested<T[Key], TNullability>;
 	}
-	: never;
+	: ApplyNullability<T, TNullability>;
+
+export type ApplyNotNullMapToJoins<TResult, TJoinsNotNullable extends Record<string, JoinNullability>> =
+	TJoinsNotNullable extends TJoinsNotNullable ? {
+			[TTableName in keyof TResult & keyof TJoinsNotNullable & string]: ApplyNullability<
+				TResult[TTableName],
+				TJoinsNotNullable[TTableName]
+			>;
+		}
+		: never;
 
 export type SelectResult<
-	TTable extends AnyMySqlTable,
-	TReturn,
-	TInitialSelectResultFields extends Record<string, unknown>,
-	TTableNamesMap extends Record<string, string>,
+	TResult,
+	TSelectMode extends SelectMode,
 	TJoinsNotNullable extends Record<string, JoinNullability>,
-> = TReturn extends undefined ? TInitialSelectResultFields[]
-	: RemoveDuplicates<
-		Simplify<
-			ApplyNotNullMapToJoins<
-				& TReturn
-				& { [Key in TTableNamesMap[Unwrap<GetTableConfig<TTable, 'name'>>]]: TInitialSelectResultFields },
-				TJoinsNotNullable
-			>
-		>
-	>[];
+> = TSelectMode extends 'partial' ? SelectPartialResult<TResult, TJoinsNotNullable>
+	: TSelectMode extends 'single' ? TResult
+	: RemoveDuplicates<Simplify<ApplyNotNullMapToJoins<TResult, TJoinsNotNullable>>>;
 
-export type AnyMySqlSelect = MySqlSelect<AnyMySqlTable, any, any, any, any, any, any>;
+type GetNullableKeys<T extends Record<string, JoinNullability>> = {
+	[Key in keyof T]: T[Key] extends 'nullable' ? Key : never;
+}[keyof T];
 
-export type QueryFinisherMethods = 'getQuery' | 'getSQL' | 'execute';
-
-export type PickWhere<TJoinReturn extends AnyMySqlSelect> = Omit<
-	TJoinReturn,
-	'where' | `${JoinType}Join`
+// Splits a single variant with 'nullable' into two variants with 'null' and 'not-null'
+type SplitNullability<T extends Record<string, JoinNullability>> = RemoveDuplicates<
+	'nullable' extends T[keyof T]
+		? T extends T ? GetNullableKeys<T> extends infer TKey extends string ? [TKey] extends [TKey] ? TKey extends TKey ? 
+							| Simplify<SplitNullability<Omit<T, TKey>> & { [Key in TKey]: 'not-null' }>
+							| Simplify<SplitNullability<Omit<T, TKey>> & { [Key in TKey]: 'null' }>
+					: never
+				: never
+			: T
+		: never
+		: T
 >;
-export type PickOrderBy<TJoinReturn extends AnyMySqlSelect> = Pick<
-	TJoinReturn,
-	'limit' | 'offset' | QueryFinisherMethods
->;
-export type PickLimit<TJoinReturn extends AnyMySqlSelect> = Pick<TJoinReturn, 'offset' | QueryFinisherMethods>;
-export type PickOffset<TJoinReturn extends AnyMySqlSelect> = Pick<TJoinReturn, QueryFinisherMethods>;
 
-export type BuildAliasTable<TTable extends AnyMySqlTable, TAlias extends string> = MapColumnsToTableAlias<
-	GetTableConfig<TTable, 'columns'>,
-	TAlias
->;
+type SelectPartialResult<
+	TFields,
+	TNullability extends Record<string, JoinNullability>,
+> = SplitNullability<TNullability> extends infer TNullability extends Record<string, JoinNullability>
+	? TNullability extends TNullability ? {
+			[Key in keyof TFields as Key extends string ? Key : never]: TFields[Key] extends infer TField
+				? TField extends AnyMySqlTable ? SelectPartialResult<GetTableConfig<TField, 'columns'>, TNullability>
+				: TField extends AnyMySqlColumn
+					? GetColumnConfig<TField, 'tableName'> extends infer TTableName extends keyof TNullability
+						? ApplyNullability<SelectResultField<TField>, TNullability[TTableName]>
+					: never
+				: TField extends SQL | SQLResponse ? SelectResultField<TField>
+				: TField extends Record<string, any> ? SelectPartialResult<TField, TNullability>
+				: SelectResultField<TField>
+				: never;
+		}
+	: never
+	: never;
+
+export type AnyMySqlSelect = MySqlSelect<any, any, any, any>;
+
+export type BuildAliasTable<TTable extends AnyMySqlTable, TAlias extends string> = GetTableConfig<TTable> extends
+	infer TConfig extends TableConfig ? MySqlTableWithColumns<
+		UpdateTableConfig<TConfig, {
+			name: TAlias;
+			columns: Simplify<MapColumnsToTableAlias<TConfig['columns'], TAlias>>;
+		}>
+	>
+	: never;
 
 export type MapColumnsToTableAlias<TColumns extends Record<string, AnyMySqlColumn>, TAlias extends string> = {
-	[Key in keyof TColumns]: ChangeColumnTable<TColumns[Key], TAlias>;
+	[Key in keyof TColumns]: ChangeColumnTableName<TColumns[Key], TAlias>;
 };
 
 export type AppendToResult<
-	TReturn,
+	TTableName extends AnyMySqlTable,
+	TResult,
 	TJoinedName extends string,
-	TSelectedFields extends MySqlSelectFields<string>,
-> = TReturn extends undefined ? { [Key in TJoinedName]: SelectResultFields<TSelectedFields> }
-	: Simplify<TReturn & { [Key in TJoinedName]: SelectResultFields<TSelectedFields> }>;
-
-export type AppendToAliases<
-	TJoins extends { [k: string]: AnyMySqlTable | Record<string, AnyColumn> },
-	TJoinedTable extends AnyMySqlTable,
-	TJoinedName extends string,
-	TDBName extends string = TJoinedName,
-> = Simplify<
-	& TJoins
-	& { [Alias in TJoinedName]: BuildAliasTable<TJoinedTable, TDBName> },
-	{ deep: true }
->;
-
-export type JoinOn<
-	TTableNamesMap extends Record<string, string>,
-	TJoinedDBTableNames extends string,
-	TAliases extends { [tableName: string]: any },
-	TJoinedTable extends AnyMySqlTable<TableName<keyof TTableNamesMap & string>>,
-	TJoinedName extends string,
-	TDBName extends string = TJoinedName,
-> =
-	| ((
-		aliases: AppendToAliases<TAliases, TJoinedTable, TJoinedName, TDBName>,
-	) => MySQL<TableName<TJoinedDBTableNames | TDBName>>)
-	| MySQL<TableName<TJoinedDBTableNames | TDBName>>;
-
-export type JoinSelect<
-	TJoinedTable extends AnyMySqlTable,
-	TDBName extends string,
-	TSelectedFields extends MySqlSelectFields<string>,
-> =
-	| ((table: BuildAliasTable<TJoinedTable, TDBName>) => TSelectedFields)
-	| TSelectedFields;
-
-export type GetSelectedFields<T extends JoinSelect<any, any, any>> = T extends
-	JoinSelect<any, any, infer TSelectedFields> ? TSelectedFields : never;
+	TSelectedFields extends SelectFields,
+	TOldSelectMode extends SelectMode,
+> = TOldSelectMode extends 'partial' ? TResult
+	: TOldSelectMode extends 'single'
+		? Record<GetTableConfig<TTableName, 'name'>, TResult> & Record<TJoinedName, SelectResultFields<TSelectedFields>>
+	: Simplify<TResult & Record<TJoinedName, SelectResultFields<TSelectedFields>>>;
 
 type SetJoinsNotNull<TJoinsNotNull extends Record<string, JoinNullability>, TValue extends JoinNullability> = {
 	[Key in keyof TJoinsNotNull]: TValue;
@@ -138,8 +133,35 @@ export type AppendToJoinsNotNull<
 		: 'right' extends TJoinType ? SetJoinsNotNull<TJoinsNotNull, 'nullable'> & { [name in TJoinedName]: 'not-null' }
 		: 'inner' extends TJoinType ? SetJoinsNotNull<TJoinsNotNull, 'not-null'> & { [name in TJoinedName]: 'not-null' }
 		: 'full' extends TJoinType ? 
+				| (TJoinsNotNull & { [name in TJoinedName]: 'not-null' })
 				| (TJoinsNotNull & { [name in TJoinedName]: 'null' })
 				| (SetJoinsNotNull<TJoinsNotNull, 'null'> & { [name in TJoinedName]: 'not-null' })
-				| (TJoinsNotNull & { [name in TJoinedName]: 'not-null' })
 		: never
+>;
+
+export interface MySqlSelectConfig {
+	fields: SelectFieldsOrdered;
+	where?: SQL | undefined;
+	table: AnyMySqlTable;
+	limit?: number | Placeholder;
+	offset?: number | Placeholder;
+	joins: Record<string, JoinsValue>;
+	orderBy: SQL[];
+	groupBy: (AnyMySqlColumn | SQL)[];
+}
+
+export type JoinFn<
+	TTable extends AnyMySqlTable,
+	TSelectMode extends SelectMode,
+	TJoinType extends JoinType,
+	TResult,
+	TJoinsNotNullable extends Record<string, JoinNullability> = Record<GetTableConfig<TTable, 'name'>, 'not-null'>,
+> = <
+	TJoinedTable extends AnyMySqlTable,
+	TJoinedName extends GetTableConfig<TJoinedTable, 'name'> = GetTableConfig<TJoinedTable, 'name'>,
+>(table: TJoinedTable, on: SQL) => MySqlSelect<
+	TTable,
+	AppendToResult<TTable, TResult, TJoinedName, GetTableConfig<TJoinedTable, 'columns'>, TSelectMode>,
+	TSelectMode extends 'partial' ? TSelectMode : 'multiple',
+	AppendToJoinsNotNull<TJoinsNotNullable, TJoinedName, TJoinType>
 >;

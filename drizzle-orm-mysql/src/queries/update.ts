@@ -1,84 +1,109 @@
 import { GetColumnData } from 'drizzle-orm';
-import { SQL } from 'drizzle-orm/sql';
-import { GetTableName, mapResultRow, tableColumns, tableNameSym } from 'drizzle-orm/utils';
-import { AnyMySqlColumn } from '~/columns/common';
-import { AnyMySqlDialect, MySqlQueryResult, MySqlSession } from '~/connection';
-import { MySqlSelectFields, MySqlSelectFieldsOrdered, SelectResultFields } from '~/operations';
-import { AnyMySQL, MySQL, MySqlPreparedQuery } from '~/sql';
-import { AnyMySqlTable, GetTableColumns, InferModel } from '~/table';
+import { QueryPromise } from 'drizzle-orm/query-promise';
+import { Param, Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
+import { Simplify } from 'drizzle-orm/utils';
+import { MySqlDialect } from '~/dialect';
+import { SelectFields, SelectFieldsOrdered, SelectResultFields } from '~/operations';
+import { MySqlQueryResult, MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/session';
+import { AnyMySqlTable, GetTableConfig, InferModel, MySqlTable } from '~/table';
+import { mapUpdateSet, orderSelectedFields } from '~/utils';
 
 export interface MySqlUpdateConfig {
-	where?: AnyMySQL | undefined;
-	set: MySqlUpdateSet<AnyMySqlTable>;
+	where?: SQL | undefined;
+	set: MySqlUpdateSet;
 	table: AnyMySqlTable;
-	returning?: MySqlSelectFieldsOrdered;
+	returning?: SelectFieldsOrdered;
 }
 
-export type MySqlUpdateSet<TTable extends AnyMySqlTable> = {
-	[Key in keyof GetTableConfig<TTable, 'columns'>]?:
-		| GetColumnData<GetTableConfig<TTable, 'columns'>[Key], 'query'>
-		| SQL<GetTableConfig<TTable, 'name'>>;
-};
+export type PgUpdateSetSource<TTable extends AnyMySqlTable> = Simplify<
+	{
+		[Key in keyof GetTableConfig<TTable, 'columns'>]?:
+			| GetColumnData<GetTableConfig<TTable, 'columns'>[Key], 'query'>
+			| SQL;
+	}
+>;
 
-export class MySqlUpdate<TTable extends AnyMySqlTable, TReturn = MySqlQueryResult> {
-	protected typeKeeper!: {
-		table: TTable;
-		return: TReturn;
-	};
+export type MySqlUpdateSet = Record<string, SQL | Param | null | undefined>;
 
-	private config: MySqlUpdateConfig;
+export class MySqlUpdateBuilder<TTable extends AnyMySqlTable> {
+	declare protected $table: TTable;
 
 	constructor(
 		private table: TTable,
 		private session: MySqlSession,
-		private dialect: AnyMySqlDialect,
+		private dialect: MySqlDialect,
+	) {}
+
+	set(values: PgUpdateSetSource<TTable>): MySqlUpdate<TTable> {
+		return new MySqlUpdate(this.table, mapUpdateSet(this.table, values), this.session, this.dialect);
+	}
+}
+
+export interface MySqlUpdate<
+	TTable extends AnyMySqlTable,
+	TReturning = undefined,
+> extends QueryPromise<TReturning extends undefined ? MySqlQueryResult : TReturning[]>, SQLWrapper {}
+export class MySqlUpdate<
+	TTable extends AnyMySqlTable,
+	TReturning = undefined,
+> extends QueryPromise<TReturning extends undefined ? MySqlQueryResult : TReturning[]> implements SQLWrapper {
+	declare protected $table: TTable;
+	declare protected $return: TReturning;
+
+	private config: MySqlUpdateConfig;
+
+	constructor(
+		table: TTable,
+		set: MySqlUpdateSet,
+		private session: MySqlSession,
+		private dialect: MySqlDialect,
 	) {
-		this.config = {
-			set: {},
-			table,
-		};
+		super();
+		this.config = { set, table };
 	}
 
-	set(values: MySqlUpdateSet<TTable>): Pick<this, 'where' | 'returning' | 'getQuery' | 'execute'> {
-		this.config.set = values;
-		return this;
-	}
-
-	where(
-		where: MySQL<GetTableConfig<TTable, 'name'>> | undefined,
-	): Pick<this, 'returning' | 'getQuery' | 'execute'> {
+	where(where: SQL | undefined): Omit<this, 'where'> {
 		this.config.where = where;
 		return this;
 	}
 
-	returning(): Pick<MySqlUpdate<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
-	returning<TSelectedFields extends MySqlSelectFields<GetTableConfig<TTable, 'name'>>>(
+	returning(): Omit<MySqlUpdate<TTable, InferModel<TTable>>, 'where' | 'returning'>;
+	returning<TSelectedFields extends SelectFields>(
 		fields: TSelectedFields,
-	): Pick<MySqlUpdate<TTable, SelectResultFields<TSelectedFields>[]>, 'getQuery' | 'execute'>;
-	returning(fields?: MySqlSelectFields<GetTableConfig<TTable, 'name'>>): MySqlUpdate<TTable, any> {
-		const orderedFields = this.dialect.orderSelectedFields<GetTableConfig<TTable, 'name'>>(
-			fields
-				?? (this.config.table[tableColumns] as Record<string, AnyMySqlColumn<GetTableConfig<TTable, 'name'>>>),
-			this.table[tableNameSym],
-		);
-		this.config.returning = orderedFields;
+	): Omit<MySqlUpdate<TTable, SelectResultFields<TSelectedFields>>, 'where' | 'returning'>;
+	returning(
+		fields: SelectFields = this.config.table[MySqlTable.Symbol.Columns],
+	): Omit<MySqlUpdate<TTable, any>, 'where' | 'returning'> {
+		this.config.returning = orderSelectedFields(fields);
 		return this;
 	}
 
-	getQuery(): MySqlPreparedQuery {
-		const query = this.dialect.buildUpdateQuery(this.config);
-		return this.dialect.prepareSQL(query);
+	/** @internal */
+	getSQL(): SQL {
+		return this.dialect.buildUpdateQuery(this.config);
 	}
 
-	async execute(): Promise<TReturn> {
-		const query = this.dialect.buildUpdateQuery(this.config);
-		const { sql, params } = this.dialect.prepareSQL(query);
-		const result = await this.session.query(sql, params);
-		const { returning } = this.config;
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
+	}
 
-		if (returning) {
-			return result[0].map((row: any[]) => mapResultRow(returning, row)) as unknown as TReturn;
+	private _prepare(name?: string): PreparedQuery<
+		PreparedQueryConfig & {
+			execute: TReturning extends undefined ? MySqlQueryResult : TReturning[];
 		}
-		return result as TReturn;
+	> {
+		return this.session.prepareQuery(this.toSQL(), this.config.returning, name);
 	}
+
+	prepare(name: string): PreparedQuery<
+		PreparedQueryConfig & {
+			execute: TReturning extends undefined ? MySqlQueryResult : TReturning[];
+		}
+	> {
+		return this._prepare(name);
+	}
+
+	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
+		return this._prepare().execute(placeholderValues);
+	};
 }

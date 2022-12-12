@@ -1,49 +1,78 @@
 import { GetColumnData } from 'drizzle-orm';
-import { TableName } from 'drizzle-orm/branded-types';
 import { OptionalKeyOnly, RequiredKeyOnly } from 'drizzle-orm/operations';
 import { Table } from 'drizzle-orm/table';
-import { tableColumns } from 'drizzle-orm/utils';
+import { Update } from 'drizzle-orm/utils';
 import { Simplify } from 'drizzle-orm/utils';
 
 import { Check, CheckBuilder } from './checks';
-import { AnyMySqlColumn, AnyMySqlColumnBuilder, BuildMySqlColumns } from './columns/common';
+import { AnyMySqlColumn, AnyMySqlColumnBuilder, BuildColumns } from './columns/common';
 import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
 import { AnyIndexBuilder, Index, IndexBuilder } from './indexes';
 import { tableChecks, tableForeignKeys, tableIndexes } from './utils';
 
-export type MySqlTableExtraConfig<TTableName extends string> = Record<
+export type MySqlTableExtraConfig = Record<
 	string,
-	| AnyIndexBuilder<TTableName>
-	| CheckBuilder<TTableName>
-	| ForeignKeyBuilder<TTableName, string>
+	| AnyIndexBuilder
+	| CheckBuilder
+	| ForeignKeyBuilder
 >;
 
-export class MySqlTable<TName extends string> extends Table<TName> {
-	/** @internal */
-	[tableColumns]!: Record<string | symbol, AnyMySqlColumn<TName>>;
-
-	/** @internal */
-	[tableIndexes]: Record<string | symbol, Index<TName>> = {};
-
-	/** @internal */
-	[tableForeignKeys]: Record<string | symbol, ForeignKey<TName, string>> = {};
-
-	/** @internal */
-	[tableChecks]: Record<string | symbol, Check<TName>> = {};
+export interface TableConfig<TName extends string = string> {
+	name: TName;
+	columns: Record<string | symbol, AnyMySqlColumn<{ tableName: TName }>>;
 }
 
-export type MySqlTableWithColumns<
-	TName extends string,
-	TColumns extends Record<string, AnyMySqlColumn<TName>>,
-> =
-	& MySqlTable<TName>
-	& TColumns;
+/** @internal */
+export const Indexes = Symbol('Indexes');
 
-export type GetTableColumns<TTable extends AnyMySqlTable> = TTable extends MySqlTableWithColumns<
-	any,
-	infer TColumns
-> ? TColumns
-	: never;
+/** @internal */
+export const ForeignKeys = Symbol('ForeignKeys');
+
+/** @internal */
+export const Checks = Symbol('Checks');
+
+export type UpdateTableConfig<T extends TableConfig, TUpdate extends Partial<TableConfig>> = Update<T, TUpdate>;
+
+export class MySqlTable<T extends Partial<TableConfig>> extends Table<T['name']> {
+	declare protected $columns: T['columns'];
+
+	/** @internal */
+	static override readonly Symbol = Object.assign(Table.Symbol, {
+		Indexes: Indexes as typeof Indexes,
+		ForeignKeys: ForeignKeys as typeof ForeignKeys,
+		Checks: Checks as typeof Checks,
+	});
+
+	/** @internal */
+	override [Table.Symbol.Columns]!: T['columns'];
+
+	/** @internal */
+	[Indexes]: Record<string | symbol, Index> = {};
+
+	/** @internal */
+	[ForeignKeys]: Record<string | symbol, ForeignKey> = {};
+
+	/** @internal */
+	[Checks]: Record<string | symbol, Check> = {};
+}
+
+export type AnyMySqlTable<TPartial extends Partial<TableConfig> = {}> = MySqlTable<
+	UpdateTableConfig<TableConfig, TPartial>
+>;
+
+export type MySqlTableWithColumns<T extends TableConfig> =
+	& MySqlTable<T>
+	& {
+		[Key in keyof T['columns']]: T['columns'][Key];
+	};
+
+/**
+ * See `GetColumnConfig`.
+ */
+export type GetTableConfig<T extends AnyMySqlTable, TParam extends keyof TableConfig | undefined = undefined> =
+	T extends MySqlTableWithColumns<infer TConfig>
+		? TParam extends undefined ? TConfig : TParam extends keyof TConfig ? TConfig[TParam] : TConfig
+		: never;
 
 export type InferModel<
 	TTable extends AnyMySqlTable,
@@ -73,68 +102,47 @@ export type InferModel<
 		>;
 	};
 
-export type AnyMySqlTable<TName extends string = string> = MySqlTable<TName>;
-
 export function mysqlTable<
 	TTableName extends string,
 	TColumnsMap extends Record<string, AnyMySqlColumnBuilder>,
-	TExtraConfigCallback extends (
-		self: BuildMySqlColumns<TTableName, TColumnsMap>,
-	) => MySqlTableExtraConfig<TTableName> = (
-		self: BuildMySqlColumns<TTableName, TColumnsMap>,
-	) => {},
 >(
 	name: TTableName,
 	columns: TColumnsMap,
-	extraConfig?: TExtraConfigCallback,
-): MySqlTableWithColumns<
-	TTableName,
-	BuildMySqlColumns<TTableName, TColumnsMap>
->;
-export function mysqlTable<
-	TTableName extends string,
-	TColumnsMap extends Record<string, AnyMySqlColumnBuilder>,
-	TExtraConfig extends MySqlTableExtraConfig<TTableName>,
->(
-	name: TTableName,
-	columns: TColumnsMap,
-	extraConfig?: (self: BuildMySqlColumns<TTableName, TColumnsMap>) => TExtraConfig,
-): MySqlTableWithColumns<
-	TTableName,
-	BuildMySqlColumns<TTableName, TColumnsMap>
-> {
-	const rawTable = new MySqlTable<TTableName>(
-		name as TTableName,
-	);
+	extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => MySqlTableExtraConfig,
+): MySqlTableWithColumns<{
+	name: TTableName;
+	columns: BuildColumns<TTableName, TColumnsMap>;
+}> {
+	const rawTable = new MySqlTable<{
+		name: TTableName;
+		columns: BuildColumns<TTableName, TColumnsMap>;
+	}>(name);
 
 	const builtColumns = Object.fromEntries(
 		Object.entries(columns).map(([name, colBuilder]) => {
 			const column = colBuilder.build(rawTable);
 			colBuilder.buildForeignKeys(column, rawTable).forEach((fk, fkIndex) => {
-				rawTable[tableForeignKeys][Symbol(`${name}_${fkIndex}`)] = fk;
+				rawTable[ForeignKeys][Symbol(`${name}_${fkIndex}`)] = fk;
 			});
 			return [name, column];
 		}),
-	) as BuildMySqlColumns<TTableName, TColumnsMap>;
+	) as BuildColumns<TTableName, TColumnsMap>;
 
-	rawTable[tableColumns] = builtColumns;
+	rawTable[MySqlTable.Symbol.Columns] = builtColumns;
 
-	const table = Object.assign(rawTable, builtColumns) as MySqlTableWithColumns<
-		TTableName,
-		BuildMySqlColumns<TTableName, TColumnsMap>
-	>;
+	const table = Object.assign(rawTable, builtColumns);
 
-	table[tableColumns] = builtColumns;
+	table[MySqlTable.Symbol.Columns] = builtColumns;
 
 	if (extraConfig) {
 		const builtConfig = extraConfig(table);
 		Object.entries(builtConfig).forEach(([name, builder]) => {
 			if (builder instanceof IndexBuilder) {
-				table[tableIndexes][name] = builder.build(table);
+				table[Indexes][name] = builder.build(table);
 			} else if (builder instanceof CheckBuilder) {
-				table[tableChecks][name] = builder.build(table);
+				table[Checks][name] = builder.build(table);
 			} else if (builder instanceof ForeignKeyBuilder) {
-				table[tableForeignKeys][name] = builder.build(table);
+				table[ForeignKeys][name] = builder.build(table);
 			}
 		});
 	}

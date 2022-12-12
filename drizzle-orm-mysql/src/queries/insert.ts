@@ -1,50 +1,80 @@
-import { ColumnData, ColumnDriverParam } from 'drizzle-orm/branded-types';
-import { AnySQLResponse, SQL } from 'drizzle-orm/sql';
-import { GetTableName, mapResultRow, tableColumns, tableNameSym } from 'drizzle-orm/utils';
-import { AnyMySqlColumn } from '~/columns/common';
-import { AnyMySqlDialect, MySqlQueryResult, MySqlSession } from '~/connection';
-import { MySqlSelectFields, MySqlSelectFieldsOrdered, SelectResultFields } from '~/operations';
-import { MySqlPreparedQuery } from '~/sql';
-import { AnyMySqlTable, InferModel } from '~/table';
-export interface MySqlInsertConfig<TTable extends AnyMySqlTable> {
+import { Table } from 'drizzle-orm';
+import { QueryPromise } from 'drizzle-orm/query-promise';
+import { Param, Placeholder, Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
+import { MySqlDialect } from '~/dialect';
+import { SelectFields, SelectFieldsOrdered, SelectResultFields } from '~/operations';
+import { MySqlQueryResult, MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/session';
+import { AnyMySqlTable, InferModel, MySqlTable } from '~/table';
+import { orderSelectedFields } from '~/utils';
+export interface MySqlInsertConfig<TTable extends AnyMySqlTable = AnyMySqlTable> {
 	table: TTable;
-	values: Record<string, ColumnData | SQL<GetTableConfig<TTable, 'name'>>>[];
-	onConflict: SQL<GetTableConfig<TTable, 'name'>> | undefined;
-	returning: MySqlSelectFieldsOrdered<GetTableConfig<TTable, 'name'>> | undefined;
+	values: Record<string, Param | SQL>[];
+	onConflict?: SQL;
+	returning?: SelectFieldsOrdered;
 }
 
 export type AnyMySqlInsertConfig = MySqlInsertConfig<AnyMySqlTable>;
 
-export class MySqlInsert<TTable extends AnyMySqlTable, TReturn = MySqlQueryResult> {
-	protected typeKeeper!: {
-		table: TTable;
-		return: TReturn;
-	};
+export type MySqlInsertValue<TTable extends AnyMySqlTable> = {
+	[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
+};
 
-	private config: MySqlInsertConfig<TTable> = {} as MySqlInsertConfig<TTable>;
+export class MySqlInsertBuilder<TTable extends AnyMySqlTable> {
+	constructor(
+		private table: TTable,
+		private session: MySqlSession,
+		private dialect: MySqlDialect,
+	) {}
+
+	values(...values: MySqlInsertValue<TTable>[]): MySqlInsert<TTable> {
+		const mappedValues = values.map((entry) => {
+			const result: Record<string, Param | SQL> = {};
+			const cols = this.table[Table.Symbol.Columns];
+			for (const colKey of Object.keys(entry)) {
+				const colValue = entry[colKey as keyof typeof entry];
+				if (colValue instanceof SQL) {
+					result[colKey] = colValue;
+				} else {
+					result[colKey] = new Param(colValue, cols[colKey]);
+				}
+			}
+			return result;
+		});
+
+		return new MySqlInsert(this.table, mappedValues, this.session, this.dialect);
+	}
+}
+
+export interface MySqlInsert<TTable extends AnyMySqlTable, TReturning = undefined>
+	extends QueryPromise<TReturning extends undefined ? MySqlQueryResult : TReturning[]>, SQLWrapper
+{}
+export class MySqlInsert<TTable extends AnyMySqlTable, TReturning = undefined>
+	extends QueryPromise<TReturning extends undefined ? MySqlQueryResult : TReturning[]>
+	implements SQLWrapper
+{
+	declare protected $table: TTable;
+	declare protected $return: TReturning;
+
+	private config: MySqlInsertConfig<TTable>;
 
 	constructor(
 		table: TTable,
-		values: InferModel<TTable, 'insert'>[],
+		values: MySqlInsertConfig['values'],
 		private session: MySqlSession,
-		private dialect: AnyMySqlDialect,
+		private dialect: MySqlDialect,
 	) {
-		this.config.table = table;
-		this.config.values = values as MySqlInsertConfig<TTable>['values'];
+		super();
+		this.config = { table, values };
 	}
 
-	returning(): Pick<MySqlInsert<TTable, InferModel<TTable>[]>, 'getQuery' | 'execute'>;
-	returning<TSelectedFields extends MySqlSelectFields<GetTableConfig<TTable, 'name'>>>(
+	returning(): Omit<MySqlInsert<TTable, InferModel<TTable>>, 'returning' | `onConflict${string}`>;
+	returning<TSelectedFields extends SelectFields>(
 		fields: TSelectedFields,
-	): Pick<MySqlInsert<TTable, SelectResultFields<TSelectedFields>[]>, 'getQuery' | 'execute'>;
-	returning(fields?: MySqlSelectFields<GetTableConfig<TTable, 'name'>>): MySqlInsert<TTable, any> {
-		const fieldsToMap: MySqlSelectFields<GetTableConfig<TTable, 'name'>> = fields
-			?? this.config.table[tableColumns] as Record<string, AnyMySqlColumn<GetTableConfig<TTable, 'name'>>>;
-
-		this.config.returning = Object.entries(fieldsToMap).map(
-			([name, column]) => ({ name, column, resultTableName: this.config.table[tableNameSym] }),
-		);
-
+	): Omit<MySqlInsert<TTable, SelectResultFields<TSelectedFields>>, 'returning' | `onConflict${string}`>;
+	returning(
+		fields: SelectFields = this.config.table[MySqlTable.Symbol.Columns],
+	): Omit<MySqlInsert<TTable, any>, 'returning' | `onConflict${string}`> {
+		this.config.returning = orderSelectedFields(fields);
 		return this;
 	}
 
@@ -83,21 +113,32 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TReturn = MySqlQueryResul
 	// 	return this;
 	// }
 
-	getQuery(): MySqlPreparedQuery {
-		const query = this.dialect.buildInsertQuery(this.config);
-		return this.dialect.prepareSQL(query);
+	/** @internal */
+	getSQL(): SQL {
+		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	async execute(): Promise<TReturn> {
-		const query = this.dialect.buildInsertQuery(this.config);
-		const { sql, params } = this.dialect.prepareSQL(query);
-		const result = await this.session.query(sql, params);
-		// mapping from driver response to return type
-		const { returning } = this.config;
-		if (returning) {
-			return result[0].map((row: ColumnDriverParam[]) => mapResultRow(returning, row)) as TReturn;
-		} else {
-			return result as TReturn;
-		}
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
+
+	private _prepare(name?: string): PreparedQuery<
+		PreparedQueryConfig & {
+			execute: TReturning extends undefined ? MySqlQueryResult : TReturning[];
+		}
+	> {
+		return this.session.prepareQuery(this.toSQL(), this.config.returning, name);
+	}
+
+	prepare(name: string): PreparedQuery<
+		PreparedQueryConfig & {
+			execute: TReturning extends undefined ? MySqlQueryResult : TReturning[];
+		}
+	> {
+		return this._prepare(name);
+	}
+
+	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
+		return this._prepare().execute(placeholderValues);
+	};
 }
