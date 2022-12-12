@@ -3,10 +3,10 @@ import { Name, Query, SQL, sql, SQLResponse, SQLSourceParam } from 'drizzle-orm/
 import { SelectFieldsOrdered } from '~/operations';
 import { AnyMySqlColumn, MySqlColumn } from './columns/common';
 import { MySqlDatabase } from './db';
-import { MySqlDeleteConfig } from './queries/delete';
-import { MySqlInsertConfig } from './queries/insert';
-import { MySqlSelectConfig } from './queries/select.types';
-import { MySqlUpdateConfig, MySqlUpdateSet } from './queries/update';
+import { MySqlDeleteConfig } from './query-builders/delete';
+import { MySqlInsertConfig } from './query-builders/insert';
+import { MySqlSelectConfig } from './query-builders/select.types';
+import { MySqlUpdateConfig, MySqlUpdateSet } from './query-builders/update';
 import { MySqlSession } from './session';
 import { AnyMySqlTable, MySqlTable } from './table';
 

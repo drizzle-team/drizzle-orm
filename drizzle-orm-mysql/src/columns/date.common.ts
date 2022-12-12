@@ -2,10 +2,7 @@ import { sql } from 'drizzle-orm';
 import { ColumnBuilderBaseConfig, UpdateCBConfig } from 'drizzle-orm/column-builder';
 import { SQL } from 'drizzle-orm/sql';
 
-import { MySqlColumnDriverParam } from '~/branded-types';
-import { AnyMySQL } from '~/sql';
-import { AnyMySqlTable } from '..';
-import { MySqlColumn, MySqlColumnBuilder } from './common';
+import { MySqlColumnBuilder } from './common';
 
 export abstract class MySqlDateColumnBaseBuilder<T extends ColumnBuilderBaseConfig> extends MySqlColumnBuilder<T> {
 	hasOnUpdateNow: boolean = false;

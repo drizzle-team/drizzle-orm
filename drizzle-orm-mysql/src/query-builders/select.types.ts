@@ -1,4 +1,5 @@
 import { AnyColumn } from 'drizzle-orm';
+import { GetColumnConfig } from 'drizzle-orm';
 import { TableName, Unwrap } from 'drizzle-orm/branded-types';
 import { SQL } from 'drizzle-orm/sql';
 import { GetTableName } from 'drizzle-orm/utils';

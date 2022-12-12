@@ -1,7 +1,7 @@
 import { AnyMySqlTable, MySqlTable } from './table';
 import { SelectFields, SelectFieldsOrdered } from '~/operations';
 import { Param, SQL, SQLResponse } from 'drizzle-orm/sql';
-import { MySqlUpdateSet } from './queries/update';
+import { MySqlUpdateSet } from './query-builders/update';
 import { MySqlColumn } from './columns/common';
 import { Table } from 'drizzle-orm/table';
 

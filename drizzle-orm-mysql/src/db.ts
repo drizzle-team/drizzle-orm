@@ -1,6 +1,6 @@
 import { SQLWrapper } from 'drizzle-orm/sql';
 import { MySqlDialect } from './dialect';
-import { MySqlDelete, MySqlInsertBuilder, MySqlSelect, MySqlUpdateBuilder } from './queries';
+import { MySqlDelete, MySqlInsertBuilder, MySqlSelect, MySqlUpdateBuilder } from './query-builders';
 import { MySqlQueryResult, MySqlSession } from './session';
 import { AnyMySqlTable, MySqlTable } from './table';
 import { orderSelectedFields } from './utils';
