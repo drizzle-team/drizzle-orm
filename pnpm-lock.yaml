@@ -97,7 +97,7 @@ importers:
     dependencies:
       better-sqlite3: 7.6.2
       dockerode: 3.3.4
-      drizzle-orm: file:drizzle-orm/package.tgz_fa46nzpunvoquqxhugzea2mbey
+      drizzle-orm: file:drizzle-orm/package.tgz_aa5puey7ri3phpsof5obp7ulei
       drizzle-orm-pg: file:drizzle-orm-pg/package.tgz_7uaqoqlqwntcydaaydjwuvx4re
       drizzle-orm-sqlite: file:drizzle-orm-sqlite/package.tgz_xrn2ihivq2crdlwls673trjs6q
       get-port: 6.1.2
@@ -3126,10 +3126,10 @@ packages:
     dev: true
 
   file:drizzle-orm-pg/package.tgz_7uaqoqlqwntcydaaydjwuvx4re:
-    resolution: {integrity: sha512-+9wz5PKbm3aLSrURKeDBvQio5PppIGNq7TQ9k8u7WdkJC3o397gSWeHxVDVGtfHljAyZXQOhovoUIjV1DOqifg==, tarball: file:drizzle-orm-pg/package.tgz}
+    resolution: {integrity: sha512-c2ohvNQOIKqn5ematZkHlkhCc+ndaUVF+3+UxDcQ25jcggkIbnd4mXklJEzCXSblStv3LGjeKwlY9F7gxZ7NTg==, tarball: file:drizzle-orm-pg/package.tgz}
     id: file:drizzle-orm-pg/package.tgz
     name: drizzle-orm-pg
-    version: 0.13.3-beta.1
+    version: 0.13.4
     peerDependencies:
       '@types/pg': '>=8 <9'
       drizzle-orm: '>=0.13.0 <0.14.0 || >=0.13.0-beta.0 <0.14.0-beta.0'
@@ -3141,7 +3141,7 @@ packages:
         optional: true
     dependencies:
       '@types/pg': 8.6.5
-      drizzle-orm: file:drizzle-orm/package.tgz_fa46nzpunvoquqxhugzea2mbey
+      drizzle-orm: file:drizzle-orm/package.tgz_aa5puey7ri3phpsof5obp7ulei
       pg: 8.8.0
     dev: false
 
@@ -3168,11 +3168,11 @@ packages:
     dependencies:
       '@types/better-sqlite3': 7.6.2
       better-sqlite3: 7.6.2
-      drizzle-orm: file:drizzle-orm/package.tgz_fa46nzpunvoquqxhugzea2mbey
+      drizzle-orm: file:drizzle-orm/package.tgz_aa5puey7ri3phpsof5obp7ulei
       sqlite3: 5.1.2
     dev: false
 
-  file:drizzle-orm/package.tgz_fa46nzpunvoquqxhugzea2mbey:
+  file:drizzle-orm/package.tgz_aa5puey7ri3phpsof5obp7ulei:
     resolution: {integrity: sha512-6jEkpF36JX6DOu/iecXapA3DFibVTa+WmV0EbXFXah4Qz7JDNnoLNilDa1EcgLPWR/lisMDm7T5aMFsLz4eVQA==, tarball: file:drizzle-orm/package.tgz}
     id: file:drizzle-orm/package.tgz
     name: drizzle-orm
