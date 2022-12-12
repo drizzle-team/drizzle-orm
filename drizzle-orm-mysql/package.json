@@ -37,7 +37,7 @@
 	},
 	"homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
 	"peerDependencies": {
-		"drizzle-orm": ">=0.13.0 <0.14.0 || >=0.13.0-beta.0 <0.14.0-beta.0",
+		"drizzle-orm": ">=0.13 <0.14",
 		"mysql2": ">=2 <3"
 	},
 	"peerDependenciesMeta": {

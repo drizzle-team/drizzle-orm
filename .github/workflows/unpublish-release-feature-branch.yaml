@@ -1,9 +1,10 @@
-name: Release (latest)
+name: Unpublish release (feature branch)
 
-on: workflow_dispatch
+on: delete
 
 jobs:
-  release:
+  unpublish-release:
+    if: github.event.ref_type == 'branch' && github.ref_name != 'main' && github.ref_name != 'beta'
     strategy:
       matrix:
         package:
@@ -20,20 +21,15 @@ jobs:
           node-version: 16
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Publish
+      - uses: pnpm/action-setup@v2
+        with:
+          version: latest
+
+      - name: Unpublish
         run: |
-          latest=$(npm view --json ${{ matrix.package }} dist-tags.latest | jq -r)
-          current=$(jq -r .version package.json)
-
-          if [[ $latest != $current ]]; then
-            echo "Latest:  $latest"
-            echo "Current: $current"
-
-            (cd .. && pnpm i)
-            pnpm run release
-          else
-            echo "Already up to date: $current"
-          fi
+          tag="${{ github.ref_name }}"
+          echo "Unpublishing ${{ matrix.package }}@$tag"
+          npm unpublish ${{ matrix.package }}@$tag
         working-directory: ${{ matrix.package }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
