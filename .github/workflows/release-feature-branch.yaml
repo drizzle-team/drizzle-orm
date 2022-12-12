@@ -1,6 +1,10 @@
-name: Release (latest)
+name: Release (feature branch)
 
-on: workflow_dispatch
+on:
+  push:
+    branches-ignore:
+      - main
+      - beta
 
 jobs:
   release:
@@ -20,20 +24,22 @@ jobs:
           node-version: 16
           registry-url: 'https://registry.npmjs.org'
 
+      - uses: pnpm/action-setup@v2
+        with:
+          version: latest
+
       - name: Publish
         run: |
-          latest=$(npm view --json ${{ matrix.package }} dist-tags.latest | jq -r)
-          current=$(jq -r .version package.json)
+          tag="${{ github.ref_name }}"
+          old_version="$(jq -r .version package.json)"
+          version="$old_version-$(git rev-parse --short HEAD)"
+          npm version $version
+          echo "Publishing ${{ matrix.package }}@$tag using version $version"
 
-          if [[ $latest != $current ]]; then
-            echo "Latest:  $latest"
-            echo "Current: $current"
+          (cd .. && pnpm i)
 
-            (cd .. && pnpm i)
-            pnpm run release
-          else
-            echo "Already up to date: $current"
-          fi
+          pnpm run release --tag $tag
+
         working-directory: ${{ matrix.package }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}

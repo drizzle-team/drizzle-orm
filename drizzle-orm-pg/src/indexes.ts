@@ -62,6 +62,8 @@ export interface AnyIndexBuilder {
 	build(table: AnyPgTable): Index;
 }
 
+export interface IndexBuilder extends AnyIndexBuilder {}
+
 export class IndexBuilder implements AnyIndexBuilder {
 	declare protected $brand: 'PgIndexBuilder';
 

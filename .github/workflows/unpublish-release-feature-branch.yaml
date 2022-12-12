@@ -1,13 +1,10 @@
-name: Release (beta)
+name: Unpublish release (feature branch)
 
-on:
-  push:
-    branches:
-      - beta
-  workflow_dispatch: {}
+on: delete
 
 jobs:
-  release:
+  unpublish-release:
+    if: github.event.ref_type == 'branch' && github.event.ref != 'refs/heads/main' && github.event.ref != 'refs/heads/beta'
     strategy:
       matrix:
         package:
@@ -28,19 +25,12 @@ jobs:
         with:
           version: latest
 
-      - name: Publish
+      - name: Unpublish
         run: |
-          beta=$(npm view --json ${{ matrix.package }} dist-tags.beta | jq -r)
-          current=$(jq -r .version package.json)
-          if [[ $beta != $current ]]; then
-            echo "Beta:    $beta"
-            echo "Current: $current"
-
-            (cd .. && pnpm i)
-            pnpm run release:beta
-          else
-            echo "Already up to date: $current"
-          fi
+          tag="${{ github.event.ref }}"
+          tag="${tag#refs/heads/}"
+          echo "Unpublishing ${{ matrix.package }}@$tag"
+          npm dist-tag rm ${{ matrix.package }} $tag
         working-directory: ${{ matrix.package }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
