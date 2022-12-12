@@ -30,9 +30,9 @@ jobs:
 
       - name: Publish
         run: |
-          tag=$GITHUB_REF
+          tag="${{ github.ref_name }}"
           old_version="$(jq -r .version package.json)"
-          version="$old_version-$GITHUB_SHA"
+          version="$old_version-$(git rev-parse --short HEAD)"
           npm version $version
           echo "Publishing ${{ matrix.package }}@$tag using version $version"
 
