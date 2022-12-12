@@ -1,4 +1,4 @@
 import { Client } from 'pg';
-import { PgConnector } from '~/index';
+import { connect } from '~/node';
 
-export const db = await new PgConnector(new Client()).connect();
+export const db = await connect(new Client());
