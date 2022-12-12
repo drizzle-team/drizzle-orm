@@ -4,7 +4,7 @@ on: delete
 
 jobs:
   unpublish-release:
-    if: github.event.ref_type == 'branch' && github.ref_name != 'main' && github.ref_name != 'beta'
+    if: github.event.ref_type == 'branch' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/beta'
     strategy:
       matrix:
         package:
@@ -27,7 +27,8 @@ jobs:
 
       - name: Unpublish
         run: |
-          tag="${{ github.ref_name }}"
+          tag="${{ github.ref }}"
+          tag="${tag#refs/heads/}"
           echo "Unpublishing ${{ matrix.package }}@$tag"
           npm dist-tag rm ${{ matrix.package }} $tag
         working-directory: ${{ matrix.package }}
