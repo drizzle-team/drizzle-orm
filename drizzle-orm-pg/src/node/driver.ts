@@ -1,5 +1,6 @@
 import { Logger } from 'drizzle-orm';
 import { types } from 'pg';
+import { PgDatabase } from '~/db';
 import { PgDialect } from '~/dialect';
 import { NodePgClient, NodePgSession } from './session';
 
@@ -16,7 +17,7 @@ export class NodePgDriver {
 		this.initMappers();
 	}
 
-	async connect(): Promise<NodePgSession> {
+	createSession(): NodePgSession {
 		return new NodePgSession(this.client, this.dialect, { logger: this.options.logger });
 	}
 
@@ -27,6 +28,15 @@ export class NodePgDriver {
 	}
 }
 
-export function pg(client: NodePgClient, options: PgDriverOptions = {}) {
-	return new NodePgDriver(client, new PgDialect(), options);
+export interface DrizzleConfig {
+	logger?: Logger;
+}
+
+export { PgDatabase } from '~/db';
+
+export function drizzle(client: NodePgClient, config: DrizzleConfig = {}): PgDatabase {
+	const dialect = new PgDialect();
+	const driver = new NodePgDriver(client, dialect, { logger: config.logger });
+	const session = driver.createSession();
+	return dialect.createDB(session);
 }

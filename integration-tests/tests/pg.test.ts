@@ -2,7 +2,7 @@ import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { DefaultLogger, sql } from 'drizzle-orm';
 import { alias, boolean, InferModel, jsonb, PgDatabase, pgTable, serial, text, timestamp } from 'drizzle-orm-pg';
-import { connect } from 'drizzle-orm-pg/node';
+import { drizzle } from 'drizzle-orm-pg/node';
 import { migrate } from 'drizzle-orm-pg/node/migrator';
 import { asc, eq } from 'drizzle-orm/expressions';
 import { name, placeholder } from 'drizzle-orm/sql';
@@ -81,7 +81,7 @@ test.before(async (t) => {
 		console.error('Cannot connect to Postgres');
 		throw lastError;
 	}
-	ctx.db = await connect(ctx.client /* , { logger: new DefaultLogger() } */);
+	ctx.db = drizzle(ctx.client /* , { logger: new DefaultLogger() } */);
 });
 
 test.beforeEach(async (t) => {
