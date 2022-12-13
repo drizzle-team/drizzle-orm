@@ -1,5 +1,6 @@
 import { Database } from 'bun:sqlite';
-import { Logger, MigrationConfig, readMigrationFiles } from 'drizzle-orm';
+import { Logger } from 'drizzle-orm';
+import { MigrationConfig, readMigrationFiles } from 'drizzle-orm/migrator';
 import { BaseSQLiteDatabase } from '~/db';
 import { SQLiteSyncDialect } from '~/dialect';
 import { SQLiteBunDriver } from './driver';

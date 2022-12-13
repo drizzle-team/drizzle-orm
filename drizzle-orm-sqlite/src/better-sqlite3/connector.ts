@@ -1,5 +1,6 @@
 import { Database, RunResult } from 'better-sqlite3';
-import { Logger, MigrationConfig, readMigrationFiles } from 'drizzle-orm';
+import { Logger } from 'drizzle-orm';
+import { MigrationConfig, readMigrationFiles } from 'drizzle-orm/migrator';
 import { BaseSQLiteDatabase } from '~/db';
 import { SQLiteDialect, SQLiteSyncDialect } from '~/dialect';
 import { SQLiteDriver } from './driver';

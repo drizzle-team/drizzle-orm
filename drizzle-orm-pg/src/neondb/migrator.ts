@@ -1,4 +1,4 @@
-import { MigrationConfig, readMigrationFiles } from 'drizzle-orm';
+import { MigrationConfig, readMigrationFiles } from 'drizzle-orm/migrator';
 import { PgDatabase } from './connector';
 
 export async function migrate(db: PgDatabase, config: string | MigrationConfig) {
