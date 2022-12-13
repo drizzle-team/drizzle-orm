@@ -37,7 +37,7 @@
 	"homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
 	"peerDependencies": {
 		"@types/pg": ">=8 <9",
-		"drizzle-orm": ">=0.13 <0.14",
+		"drizzle-orm": ">=0.14 <0.15",
 		"pg": ">=8 <9"
 	},
 	"peerDependenciesMeta": {

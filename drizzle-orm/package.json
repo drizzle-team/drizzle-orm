@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.13.1",
+	"version": "0.14.0",
 	"description": "Drizzle ORM package for SQL databases",
 	"main": "index.js",
 	"types": "index.d.ts",
@@ -37,9 +37,9 @@
 	},
 	"homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
 	"peerDependencies": {
-		"drizzle-orm-mysql": ">=0.12 <0.13",
-		"drizzle-orm-pg": ">=0.13 <0.14",
-		"drizzle-orm-sqlite": ">=0.13 <0.14"
+		"drizzle-orm-mysql": ">=0.14 <0.15",
+		"drizzle-orm-pg": ">=0.14 <0.15",
+		"drizzle-orm-sqlite": ">=0.14 <0.15"
 	},
 	"peerDependenciesMeta": {
 		"drizzle-orm-mysql": {
