@@ -1,4 +1,5 @@
 import { SQLWrapper } from 'drizzle-orm/sql';
+import { ResultSetHeader } from 'mysql2/promise';
 import { MySqlDialect } from './dialect';
 import { MySqlDelete, MySqlInsertBuilder, MySqlSelect, MySqlUpdateBuilder } from './query-builders';
 import { MySqlQueryResult, MySqlSession } from './session';
@@ -25,7 +26,7 @@ export class MySqlDatabase {
 		return new MySqlDelete(table, this.session, this.dialect);
 	}
 
-	execute<T extends MySqlQueryResult = MySqlQueryResult>(query: SQLWrapper): Promise<T> {
+	execute<T extends { [column: string]: any } = ResultSetHeader>(query: SQLWrapper): Promise<MySqlQueryResult<T>> {
 		return this.session.execute(query.getSQL());
 	}
 }

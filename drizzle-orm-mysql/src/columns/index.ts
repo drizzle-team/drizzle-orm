@@ -1,6 +1,7 @@
 export * from './bigint';
 export * from './binary';
 export * from './char';
+export * from './boolean';
 export { MySqlColumn } from './common';
 export type { AnyMySqlColumn } from './common';
 export * from './decimal';

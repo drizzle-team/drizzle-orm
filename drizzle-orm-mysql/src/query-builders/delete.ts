@@ -2,7 +2,7 @@ import { QueryPromise } from 'drizzle-orm/query-promise';
 import { Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { MySqlDialect } from '~/dialect';
 import { SelectFields, SelectFieldsOrdered, SelectResultFields } from '~/operations';
-import { MySqlQueryResult, MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/session';
+import { MySqlQueryResult, MySqlRawQueryResult, MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/session';
 import { AnyMySqlTable, InferModel, MySqlTable } from '~/table';
 import { orderSelectedFields } from '~/utils';
 
@@ -15,12 +15,12 @@ export interface MySqlDeleteConfig {
 export interface MySqlDelete<
 	TTable extends AnyMySqlTable,
 	TReturning = undefined,
-> extends QueryPromise<TReturning extends undefined ? MySqlQueryResult : TReturning[]> {}
+> extends QueryPromise<MySqlRawQueryResult> {}
 
 export class MySqlDelete<
 	TTable extends AnyMySqlTable,
 	TReturning = undefined,
-> extends QueryPromise<TReturning extends undefined ? MySqlQueryResult : TReturning[]> implements SQLWrapper {
+> extends QueryPromise<MySqlRawQueryResult> implements SQLWrapper {
 	private config: MySqlDeleteConfig;
 
 	constructor(
@@ -39,16 +39,16 @@ export class MySqlDelete<
 		return this;
 	}
 
-	returning(): Omit<MySqlDelete<TTable, InferModel<TTable>>, 'where' | 'returning'>;
-	returning<TSelectedFields extends SelectFields>(
-		fields: TSelectedFields,
-	): Omit<MySqlDelete<TTable, SelectResultFields<TSelectedFields>>, 'where' | 'returning'>;
-	returning(
-		fields: SelectFields = this.config.table[MySqlTable.Symbol.Columns],
-	): Omit<MySqlDelete<TTable, any>, 'where' | 'returning'> {
-		this.config.returning = orderSelectedFields(fields);
-		return this;
-	}
+	// returning(): Omit<MySqlDelete<TTable, InferModel<TTable>>, 'where' | 'returning'>;
+	// returning<TSelectedFields extends SelectFields>(
+	// 	fields: TSelectedFields,
+	// ): Omit<MySqlDelete<TTable, SelectResultFields<TSelectedFields>>, 'where' | 'returning'>;
+	// returning(
+	// 	fields: SelectFields = this.config.table[MySqlTable.Symbol.Columns],
+	// ): Omit<MySqlDelete<TTable, any>, 'where' | 'returning'> {
+	// 	this.config.returning = orderSelectedFields(fields);
+	// 	return this;
+	// }
 
 	/** @internal */
 	getSQL(): SQL {
@@ -61,7 +61,7 @@ export class MySqlDelete<
 
 	private _prepare(name?: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: TReturning extends undefined ? MySqlQueryResult : TReturning[];
+			execute: MySqlRawQueryResult;
 		}
 	> {
 		return this.session.prepareQuery(this.toSQL(), this.config.returning, name);
@@ -69,7 +69,7 @@ export class MySqlDelete<
 
 	prepare(name: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: TReturning extends undefined ? MySqlQueryResult : TReturning[];
+			execute: MySqlRawQueryResult;
 		}
 	> {
 		return this._prepare(name);

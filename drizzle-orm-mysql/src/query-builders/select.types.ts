@@ -1,14 +1,12 @@
-import { AnyColumn } from 'drizzle-orm';
 import { GetColumnConfig } from 'drizzle-orm';
-import { TableName, Unwrap } from 'drizzle-orm/branded-types';
-import { SQL } from 'drizzle-orm/sql';
-import { GetTableName } from 'drizzle-orm/utils';
+import { Placeholder, SQL, SQLResponse } from 'drizzle-orm/sql';
 import { Simplify } from 'drizzle-orm/utils';
 
-import { AnyMySqlColumn, ChangeColumnTable } from '~/columns/common';
-import { MySqlSelectFields, SelectResultFields, SelectFieldsOrdered } from '~/operations';
-import { AnyMySQL, MySQL } from '~/sql';
-import { AnyMySqlTable, GetTableColumns } from '~/table';
+import { AnyMySqlColumn } from '~/columns';
+import { ChangeColumnTableName } from '~/columns/common';
+import { SelectFields, SelectFieldsOrdered, SelectResultField, SelectResultFields } from '~/operations';
+import { AnyMySqlTable, GetTableConfig, MySqlTableWithColumns, TableConfig, UpdateTableConfig } from '~/table';
+
 import { MySqlSelect } from './select';
 
 export type JoinType = 'inner' | 'left' | 'right' | 'full';

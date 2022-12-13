@@ -4,7 +4,7 @@ import { Param, Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { Simplify } from 'drizzle-orm/utils';
 import { MySqlDialect } from '~/dialect';
 import { SelectFields, SelectFieldsOrdered, SelectResultFields } from '~/operations';
-import { MySqlQueryResult, MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/session';
+import { MySqlQueryResult, MySqlRawQueryResult, MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/session';
 import { AnyMySqlTable, GetTableConfig, InferModel, MySqlTable } from '~/table';
 import { mapUpdateSet, orderSelectedFields } from '~/utils';
 
@@ -42,11 +42,11 @@ export class MySqlUpdateBuilder<TTable extends AnyMySqlTable> {
 export interface MySqlUpdate<
 	TTable extends AnyMySqlTable,
 	TReturning = undefined,
-> extends QueryPromise<TReturning extends undefined ? MySqlQueryResult : TReturning[]>, SQLWrapper {}
+> extends QueryPromise<MySqlRawQueryResult>, SQLWrapper {}
 export class MySqlUpdate<
 	TTable extends AnyMySqlTable,
 	TReturning = undefined,
-> extends QueryPromise<TReturning extends undefined ? MySqlQueryResult : TReturning[]> implements SQLWrapper {
+> extends QueryPromise<MySqlRawQueryResult> implements SQLWrapper {
 	declare protected $table: TTable;
 	declare protected $return: TReturning;
 
@@ -67,16 +67,16 @@ export class MySqlUpdate<
 		return this;
 	}
 
-	returning(): Omit<MySqlUpdate<TTable, InferModel<TTable>>, 'where' | 'returning'>;
-	returning<TSelectedFields extends SelectFields>(
-		fields: TSelectedFields,
-	): Omit<MySqlUpdate<TTable, SelectResultFields<TSelectedFields>>, 'where' | 'returning'>;
-	returning(
-		fields: SelectFields = this.config.table[MySqlTable.Symbol.Columns],
-	): Omit<MySqlUpdate<TTable, any>, 'where' | 'returning'> {
-		this.config.returning = orderSelectedFields(fields);
-		return this;
-	}
+	// returning(): Omit<MySqlUpdate<TTable, InferModel<TTable>>, 'where' | 'returning'>;
+	// returning<TSelectedFields extends SelectFields>(
+	// 	fields: TSelectedFields,
+	// ): Omit<MySqlUpdate<TTable, SelectResultFields<TSelectedFields>>, 'where' | 'returning'>;
+	// returning(
+	// 	fields: SelectFields = this.config.table[MySqlTable.Symbol.Columns],
+	// ): Omit<MySqlUpdate<TTable, any>, 'where' | 'returning'> {
+	// 	this.config.returning = orderSelectedFields(fields);
+	// 	return this;
+	// }
 
 	/** @internal */
 	getSQL(): SQL {
@@ -89,7 +89,7 @@ export class MySqlUpdate<
 
 	private _prepare(name?: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: TReturning extends undefined ? MySqlQueryResult : TReturning[];
+			execute: MySqlRawQueryResult;
 		}
 	> {
 		return this.session.prepareQuery(this.toSQL(), this.config.returning, name);
@@ -97,7 +97,7 @@ export class MySqlUpdate<
 
 	prepare(name: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: TReturning extends undefined ? MySqlQueryResult : TReturning[];
+			execute: MySqlRawQueryResult;
 		}
 	> {
 		return this._prepare(name);

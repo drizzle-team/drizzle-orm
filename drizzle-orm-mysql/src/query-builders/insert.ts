@@ -3,7 +3,7 @@ import { QueryPromise } from 'drizzle-orm/query-promise';
 import { Param, Placeholder, Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { MySqlDialect } from '~/dialect';
 import { SelectFields, SelectFieldsOrdered, SelectResultFields } from '~/operations';
-import { MySqlQueryResult, MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/session';
+import { MySqlQueryResult, MySqlRawQueryResult, MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/session';
 import { AnyMySqlTable, InferModel, MySqlTable } from '~/table';
 import { orderSelectedFields } from '~/utils';
 export interface MySqlInsertConfig<TTable extends AnyMySqlTable = AnyMySqlTable> {
@@ -46,10 +46,10 @@ export class MySqlInsertBuilder<TTable extends AnyMySqlTable> {
 }
 
 export interface MySqlInsert<TTable extends AnyMySqlTable, TReturning = undefined>
-	extends QueryPromise<TReturning extends undefined ? MySqlQueryResult : TReturning[]>, SQLWrapper
+	extends QueryPromise<MySqlRawQueryResult>, SQLWrapper
 {}
 export class MySqlInsert<TTable extends AnyMySqlTable, TReturning = undefined>
-	extends QueryPromise<TReturning extends undefined ? MySqlQueryResult : TReturning[]>
+	extends QueryPromise<MySqlRawQueryResult>
 	implements SQLWrapper
 {
 	declare protected $table: TTable;
@@ -67,16 +67,16 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TReturning = undefined>
 		this.config = { table, values };
 	}
 
-	returning(): Omit<MySqlInsert<TTable, InferModel<TTable>>, 'returning' | `onConflict${string}`>;
-	returning<TSelectedFields extends SelectFields>(
-		fields: TSelectedFields,
-	): Omit<MySqlInsert<TTable, SelectResultFields<TSelectedFields>>, 'returning' | `onConflict${string}`>;
-	returning(
-		fields: SelectFields = this.config.table[MySqlTable.Symbol.Columns],
-	): Omit<MySqlInsert<TTable, any>, 'returning' | `onConflict${string}`> {
-		this.config.returning = orderSelectedFields(fields);
-		return this;
-	}
+	// returning(): Omit<MySqlInsert<TTable, InferModel<TTable>>, 'returning' | `onConflict${string}`>;
+	// returning<TSelectedFields extends SelectFields>(
+	// 	fields: TSelectedFields,
+	// ): Omit<MySqlInsert<TTable, SelectResultFields<TSelectedFields>>, 'returning' | `onConflict${string}`>;
+	// returning(
+	// 	fields: SelectFields = this.config.table[MySqlTable.Symbol.Columns],
+	// ): Omit<MySqlInsert<TTable, any>, 'returning' | `onConflict${string}`> {
+	// 	this.config.returning = orderSelectedFields(fields);
+	// 	return this;
+	// }
 
 	// onDuplicateDoNothing(
 	// 	target?:
@@ -124,7 +124,7 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TReturning = undefined>
 
 	private _prepare(name?: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: TReturning extends undefined ? MySqlQueryResult : TReturning[];
+			execute: MySqlRawQueryResult;
 		}
 	> {
 		return this.session.prepareQuery(this.toSQL(), this.config.returning, name);
@@ -132,7 +132,7 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TReturning = undefined>
 
 	prepare(name: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: TReturning extends undefined ? MySqlQueryResult : TReturning[];
+			execute: MySqlRawQueryResult;
 		}
 	> {
 		return this._prepare(name);

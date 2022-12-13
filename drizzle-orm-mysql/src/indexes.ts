@@ -42,6 +42,8 @@ export interface AnyIndexBuilder {
 	build(table: AnyMySqlTable): Index;
 }
 
+export interface IndexBuilder extends AnyIndexBuilder {}
+
 export class IndexBuilder implements AnyIndexBuilder {
 	declare protected $brand: 'MySqlIndexBuilder';
 

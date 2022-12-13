@@ -4,7 +4,7 @@ import { mapResultRow } from 'drizzle-orm/utils';
 import { Connection, Pool, QueryOptions } from 'mysql2/promise';
 import { MySqlDialect } from '~/dialect';
 import { SelectFieldsOrdered } from '~/operations';
-import { MySqlQueryResult, MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/session';
+import { MySqlQueryResult, MySqlQueryResultType, MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/session';
 
 export type MySql2Client = Pool | Connection;
 
@@ -23,7 +23,7 @@ export class MySql2PreparedQuery<T extends PreparedQueryConfig> extends Prepared
 		super();
 		this.rawQuery = {
 			sql: queryString,
-			rowsAsArray: true,
+			// rowsAsArray: true,
 		};
 		this.query = {
 			sql: queryString,
@@ -93,7 +93,7 @@ export class MySql2Session extends MySqlSession {
 		return result;
 	}
 
-	async queryObjects<T extends MySqlQueryResult = MySqlQueryResult>(
+	async queryObjects<T extends MySqlQueryResultType = MySqlQueryResultType>(
 		query: string,
 		params: unknown[],
 	): Promise<MySqlQueryResult> {

@@ -1,39 +1,33 @@
 import { eq } from 'drizzle-orm/expressions';
 import { Equal, Expect } from 'tests/utils';
-import { InferModel, MySqlQueryResult } from '~/index';
+import { InferModel, MySqlQueryResult, MySqlRawQueryResult } from '~/index';
 import { db } from './db';
 import { users } from './tables';
 
 const deleteAll = await db.delete(users);
-Expect<Equal<MySqlQueryResult, typeof deleteAll>>;
+Expect<Equal<MySqlRawQueryResult, typeof deleteAll>>;
 
 const deleteAllStmt = db.delete(users).prepare('deleteAllStmt');
 const deleteAllPrepared = await deleteAllStmt.execute();
-Expect<Equal<MySqlQueryResult, typeof deleteAllPrepared>>;
+Expect<Equal<MySqlRawQueryResult, typeof deleteAllPrepared>>;
 
 const deleteWhere = await db.delete(users).where(eq(users.id, 1));
-Expect<Equal<MySqlQueryResult, typeof deleteWhere>>;
+Expect<Equal<MySqlRawQueryResult, typeof deleteWhere>>;
 
 const deleteWhereStmt = db.delete(users).where(eq(users.id, 1)).prepare('deleteWhereStmt');
 const deleteWherePrepared = await deleteWhereStmt.execute();
-Expect<Equal<MySqlQueryResult, typeof deleteWherePrepared>>;
+Expect<Equal<MySqlRawQueryResult, typeof deleteWherePrepared>>;
 
-const deleteReturningAll = await db.delete(users).returning();
-Expect<Equal<InferModel<typeof users>[], typeof deleteReturningAll>>;
+const deleteReturningAll = await db.delete(users);
+Expect<Equal<MySqlRawQueryResult, typeof deleteReturningAll>>;
 
-const deleteReturningAllStmt = db.delete(users).returning().prepare('deleteReturningAllStmt');
+const deleteReturningAllStmt = db.delete(users).prepare('deleteReturningAllStmt');
 const deleteReturningAllPrepared = await deleteReturningAllStmt.execute();
-Expect<Equal<InferModel<typeof users>[], typeof deleteReturningAllPrepared>>;
+Expect<Equal<MySqlRawQueryResult, typeof deleteReturningAllPrepared>>;
 
-const deleteReturningPartial = await db.delete(users).returning({
-	myId: users.id,
-	myHomeCity: users.homeCity,
-});
-Expect<Equal<{ myId: number; myHomeCity: number }[], typeof deleteReturningPartial>>;
+const deleteReturningPartial = await db.delete(users);
+Expect<Equal<MySqlRawQueryResult, typeof deleteReturningPartial>>;
 
-const deleteReturningPartialStmt = db.delete(users).returning({
-	myId: users.id,
-	myHomeCity: users.homeCity,
-}).prepare('deleteReturningPartialStmt');
+const deleteReturningPartialStmt = db.delete(users).prepare('deleteReturningPartialStmt');
 const deleteReturningPartialPrepared = await deleteReturningPartialStmt.execute();
-Expect<Equal<{ myId: number; myHomeCity: number }[], typeof deleteReturningPartialPrepared>>;
+Expect<Equal<MySqlRawQueryResult, typeof deleteReturningPartialPrepared>>;

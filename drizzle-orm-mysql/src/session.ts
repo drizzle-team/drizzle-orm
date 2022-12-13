@@ -1,10 +1,14 @@
 import { Query, SQL } from 'drizzle-orm/sql';
-import { FieldPacket } from 'mysql2/promise';
+import { FieldPacket, OkPacket, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { MySqlDialect } from './dialect';
 import { SelectFieldsOrdered } from './operations';
 
 // TODO: improve type
-export type MySqlQueryResult = [any, FieldPacket[]];
+export type MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]];
+export type MySqlQueryResultType = RowDataPacket[][] | RowDataPacket[] | OkPacket | OkPacket[] | ResultSetHeader;
+export type MySqlQueryResult<
+	T = any,
+> = [T extends ResultSetHeader ? T : T[], FieldPacket[]];
 
 export interface PreparedQueryConfig {
 	execute: unknown;
