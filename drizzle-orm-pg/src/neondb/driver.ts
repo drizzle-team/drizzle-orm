@@ -34,7 +34,7 @@ export interface DrizzleConfig {
 
 export { PgDatabase } from '~/db';
 
-export async function drizzle(client: NeonClient, config: DrizzleConfig = {}): Promise<PgDatabase> {
+export function drizzle(client: NeonClient, config: DrizzleConfig = {}): PgDatabase {
 	const dialect = new PgDialect();
 	const driver = new NeonDriver(client, dialect, { logger: config.logger });
 	const session = driver.createSession();
