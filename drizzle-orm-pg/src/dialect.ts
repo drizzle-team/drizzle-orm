@@ -1,4 +1,5 @@
-import { AnyColumn, Column, MigrationMeta, Table } from 'drizzle-orm';
+import { AnyColumn, Column, Table } from 'drizzle-orm';
+import { MigrationMeta } from 'drizzle-orm/migrator';
 import { Name, Query, SQL, sql, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
 import { AnyPgColumn, PgColumn } from '~/columns';
 import { PgDatabase } from '~/db';

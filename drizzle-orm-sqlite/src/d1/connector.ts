@@ -1,4 +1,5 @@
-import { Logger, MigrationConfig, readMigrationFiles } from 'drizzle-orm';
+import { Logger } from 'drizzle-orm';
+import { MigrationConfig, readMigrationFiles } from 'drizzle-orm/migrator';
 import { BaseSQLiteDatabase } from '~/db';
 import { SQLiteAsyncDialect, SQLiteDialect } from '~/dialect';
 import { SQLiteD1Driver } from './driver';

@@ -1,7 +1,8 @@
-import { AnyColumn, Column, MigrationMeta, param, sql, Table } from 'drizzle-orm';
+import { AnyColumn, Column, param, sql, Table } from 'drizzle-orm';
+import { MigrationMeta } from 'drizzle-orm/migrator';
 import { Name, Query, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
 import { AnySQLiteColumn, SQLiteColumn } from '~/columns';
-import { SelectFieldsOrdered, SQLiteSelectFields } from '~/operations';
+import { SelectFieldsOrdered } from '~/operations';
 import { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig, SQLiteUpdateSet } from '~/query-builders';
 import { AnySQLiteTable, SQLiteTable } from '~/table';
 import { SQLiteSelectConfig } from './query-builders/select.types';
