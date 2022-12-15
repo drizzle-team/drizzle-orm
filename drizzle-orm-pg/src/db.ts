@@ -8,7 +8,12 @@ import { AnyPgTable, PgTable } from '~/table';
 import { orderSelectedFields } from '~/utils';
 
 export class PgDatabase {
-	constructor(private dialect: PgDialect, private session: PgSession) {}
+	constructor(
+		/** @internal */
+		readonly dialect: PgDialect,
+		/** @internal */
+		readonly session: PgSession,
+	) {}
 
 	select<TTable extends AnyPgTable>(from: TTable): PgSelect<TTable> {
 		const fields = orderSelectedFields(from[PgTable.Symbol.Columns]);

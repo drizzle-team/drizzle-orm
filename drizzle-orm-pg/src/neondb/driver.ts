@@ -1,5 +1,6 @@
 import { types } from '@neondatabase/serverless';
 import { Logger } from 'drizzle-orm';
+import { PgDatabase } from '~/db';
 import { PgDialect } from '~/dialect';
 import { NeonClient, NeonSession } from './session';
 
@@ -16,7 +17,7 @@ export class NeonDriver {
 		this.initMappers();
 	}
 
-	async connect(): Promise<NeonSession> {
+	createSession(): NeonSession {
 		return new NeonSession(this.client, this.dialect, { logger: this.options.logger });
 	}
 
@@ -27,6 +28,15 @@ export class NeonDriver {
 	}
 }
 
-export function pg(client: NeonClient, options: NeonDriverOptions = {}) {
-	return new NeonDriver(client, new PgDialect(), options);
+export interface DrizzleConfig {
+	logger?: Logger;
+}
+
+export { PgDatabase } from '~/db';
+
+export function drizzle(client: NeonClient, config: DrizzleConfig = {}): PgDatabase {
+	const dialect = new PgDialect();
+	const driver = new NeonDriver(client, dialect, { logger: config.logger });
+	const session = driver.createSession();
+	return dialect.createDB(session);
 }

@@ -1,18 +1,9 @@
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { DefaultLogger, sql } from 'drizzle-orm';
-import {
-	alias,
-	boolean,
-	InferModel,
-	jsonb,
-	PgConnector,
-	PgDatabase,
-	pgTable,
-	serial,
-	text,
-	timestamp,
-} from 'drizzle-orm-pg';
+import { alias, boolean, InferModel, jsonb, PgDatabase, pgTable, serial, text, timestamp } from 'drizzle-orm-pg';
+import { drizzle } from 'drizzle-orm-pg/node';
+import { migrate } from 'drizzle-orm-pg/node/migrator';
 import { asc, eq } from 'drizzle-orm/expressions';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
@@ -25,6 +16,12 @@ const usersTable = pgTable('users', {
 	verified: boolean('verified').notNull().default(false),
 	jsonb: jsonb<string[]>('jsonb'),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+const usersMigratorTable = pgTable('users12', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	email: text('email').notNull(),
 });
 
 interface Context {
@@ -84,7 +81,7 @@ test.before(async (t) => {
 		console.error('Cannot connect to Postgres');
 		throw lastError;
 	}
-	ctx.db = await new PgConnector(ctx.client /* , { logger: new DefaultLogger() } */).connect();
+	ctx.db = drizzle(ctx.client /* , { logger: new DefaultLogger() } */);
 });
 
 test.beforeEach(async (t) => {
@@ -514,16 +511,16 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 });
 
-// test.serial('migrator', async (t) => {
-// 	const { connector, db } = t.context;
-// 	connector.migrate({ migrationsFolder: './drizzle/sqlite' });
+test.serial('migrator', async (t) => {
+	const { db } = t.context;
+	await migrate(db, { migrationsFolder: './drizzle/pg' });
 
-// 	db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).run();
+	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 
-// 	const result = db.select(usersMigratorTable).all();
+	const result = await db.select(usersMigratorTable);
 
-// 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
-// });
+	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+});
 
 test.serial('insert via db.execute + select via db.execute', async (t) => {
 	const { db } = t.context;

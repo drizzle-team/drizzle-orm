@@ -1,4 +1,4 @@
 import { Client } from 'pg';
-import { PgConnector } from '~/index';
+import { drizzle } from '~/node';
 
-export const db = await new PgConnector(new Client()).connect();
+export const db = drizzle(new Client());

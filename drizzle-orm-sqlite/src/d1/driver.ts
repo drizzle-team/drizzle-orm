@@ -1,21 +1,16 @@
 import { Logger } from 'drizzle-orm';
+import { BaseSQLiteDatabase } from '~/db';
 import { SQLiteAsyncDialect } from '~/dialect';
 import { SQLiteD1Session } from './session';
 
-export interface SQLiteD1DriverOptions {
+export interface DrizzleConfig {
 	logger?: Logger;
 }
 
-export class SQLiteD1Driver {
-	private session!: SQLiteD1Session;
+export type DrizzleD1Database = BaseSQLiteDatabase<'async', D1Result>;
 
-	constructor(
-		private client: D1Database,
-		private dialect: SQLiteAsyncDialect,
-		private options: SQLiteD1DriverOptions = {},
-	) {}
-
-	connect() {
-		return this.session = new SQLiteD1Session(this.client, this.dialect, { logger: this.options.logger });
-	}
+export function drizzle(client: D1Database, config: DrizzleConfig = {}): DrizzleD1Database {
+	const dialect = new SQLiteAsyncDialect();
+	const session = new SQLiteD1Session(client, dialect, { logger: config.logger });
+	return new BaseSQLiteDatabase(dialect, session);
 }
