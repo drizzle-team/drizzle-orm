@@ -20,6 +20,10 @@ jobs:
           node-version: 16
           registry-url: 'https://registry.npmjs.org'
 
+      - uses: pnpm/action-setup@v2
+        with:
+          version: latest
+
       - name: Publish
         run: |
           latest=$(npm view --json ${{ matrix.package }} dist-tags.latest | jq -r)
