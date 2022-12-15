@@ -1,4 +1,4 @@
 import { createPool } from 'mysql2/promise';
-import { MySqlConnector } from '~/mysql2/connector';
+import { drizzle } from '~/mysql2/driver';
 
-export const db = await new MySqlConnector(createPool({})).connect();
+export const db = drizzle(createPool({}));

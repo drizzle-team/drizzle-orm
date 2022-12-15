@@ -15,7 +15,7 @@ export interface MySqlUpdateConfig {
 	returning?: SelectFieldsOrdered;
 }
 
-export type PgUpdateSetSource<TTable extends AnyMySqlTable> = Simplify<
+export type MySqlUpdateSetSource<TTable extends AnyMySqlTable> = Simplify<
 	{
 		[Key in keyof GetTableConfig<TTable, 'columns'>]?:
 			| GetColumnData<GetTableConfig<TTable, 'columns'>[Key], 'query'>
@@ -34,7 +34,7 @@ export class MySqlUpdateBuilder<TTable extends AnyMySqlTable> {
 		private dialect: MySqlDialect,
 	) {}
 
-	set(values: PgUpdateSetSource<TTable>): MySqlUpdate<TTable> {
+	set(values: MySqlUpdateSetSource<TTable>): MySqlUpdate<TTable> {
 		return new MySqlUpdate(this.table, mapUpdateSet(this.table, values), this.session, this.dialect);
 	}
 }

@@ -3,7 +3,8 @@ import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
 import { boolean, int, json, MySqlDatabase, mysqlTable } from 'drizzle-orm-mysql';
 import { alias, InferModel, serial, text, timestamp } from 'drizzle-orm-mysql';
-import { MySqlConnector } from 'drizzle-orm-mysql/mysql2';
+import { drizzle } from 'drizzle-orm-mysql/mysql2';
+import { migrate } from 'drizzle-orm-mysql/mysql2/migrator';
 import { asc, eq, inArray } from 'drizzle-orm/expressions';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
@@ -30,7 +31,6 @@ interface Context {
 	mysqlContainer: Docker.Container;
 	db: MySqlDatabase;
 	client: mysql.Connection;
-	connector: MySqlConnector;
 }
 
 const test = anyTest as TestFn<Context>;
@@ -83,8 +83,7 @@ test.before(async (t) => {
 		console.error('Cannot connect to MySql');
 		throw lastError;
 	}
-	ctx.connector = new MySqlConnector(ctx.client);
-	ctx.db = await ctx.connector.connect();
+	ctx.db = drizzle(ctx.client /* , { logger: new DefaultLogger() } */);
 });
 
 test.beforeEach(async (t) => {
@@ -367,6 +366,37 @@ test.serial('build query', async (t) => {
 	});
 });
 
+test.serial('build query insert with onDuplicate', async (t) => {
+	const { db } = t.context;
+
+	const query = db.insert(usersTable)
+		.values({ name: 'John', jsonb: ['foo', 'bar'] })
+		.onDuplicateKeyUpdate({ set: { name: 'John1' } })
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: 'insert into `userstest` (`name`, `jsonb`) values (?, ?) on duplicate key update `name` = ?',
+		params: ['John', '["foo","bar"]', 'John1'],
+	});
+});
+
+test.serial('insert with onDuplicate', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable)
+		.values({ name: 'John' });
+
+	await db.insert(usersTable)
+		.values({ id: 1, name: 'John' })
+		.onDuplicateKeyUpdate({ set: { name: 'John1' } });
+
+	const res = await db.select(usersTable).fields({ id: usersTable.id, name: usersTable.name }).where(
+		eq(usersTable.id, 1),
+	);
+
+	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
+});
+
 test.serial('insert sql', async (t) => {
 	const { db } = t.context;
 
@@ -502,8 +532,8 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 });
 
 test.serial('migrator', async (t) => {
-	const { connector, db } = t.context;
-	await connector.migrate({ migrationsFolder: './drizzle/mysql' });
+	const { db } = t.context;
+	await migrate(db, { migrationsFolder: './drizzle/mysql' });
 
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 

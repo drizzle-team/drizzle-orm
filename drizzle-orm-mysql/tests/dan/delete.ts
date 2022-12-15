@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm/expressions';
 import { Equal, Expect } from 'tests/utils';
-import { InferModel, MySqlQueryResult, MySqlRawQueryResult } from '~/index';
+import { MySqlRawQueryResult } from '~/index';
 import { db } from './db';
 import { users } from './tables';
 

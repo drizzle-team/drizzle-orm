@@ -1,4 +1,5 @@
-import { AnyColumn, Column, MigrationMeta, Table } from 'drizzle-orm';
+import { AnyColumn, Column, Table } from 'drizzle-orm';
+import { MigrationMeta } from 'drizzle-orm/migrator';
 import { Name, Query, SQL, sql, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
 import { SelectFieldsOrdered } from '~/operations';
 import { AnyMySqlColumn, MySqlColumn } from './columns/common';
@@ -253,9 +254,9 @@ export class MySqlDialect {
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
-		// const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
+		const onConflictSql = onConflict ? sql` on duplicate key ${onConflict}` : undefined;
 
-		return sql`insert into ${table} ${insertOrder} values ${valuesSql}${returningSql}`;
+		return sql`insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}`;
 	}
 
 	sqlToQuery(sql: SQL): Query {

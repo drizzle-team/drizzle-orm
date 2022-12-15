@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm-mysql",
-	"version": "0.12.0-beta.14",
+	"version": "0.14.1",
 	"description": "Drizzle ORM package for MySQL database",
 	"main": "index.js",
 	"types": "index.d.ts",
@@ -37,7 +37,7 @@
 	},
 	"homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
 	"peerDependencies": {
-		"drizzle-orm": ">=0.13 <0.14",
+		"drizzle-orm": ">=0.14 <0.15",
 		"mysql2": ">=2 <3"
 	},
 	"peerDependenciesMeta": {

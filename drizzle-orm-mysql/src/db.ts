@@ -7,7 +7,11 @@ import { AnyMySqlTable, MySqlTable } from './table';
 import { orderSelectedFields } from './utils';
 
 export class MySqlDatabase {
-	constructor(private dialect: MySqlDialect, private session: MySqlSession) {}
+	constructor(
+		/** @internal */
+		readonly dialect: MySqlDialect, 
+		/** @internal */
+		readonly session: MySqlSession) {}
 
 	select<TTable extends AnyMySqlTable>(from: TTable): MySqlSelect<TTable> {
 		const fields = orderSelectedFields(from[MySqlTable.Symbol.Columns]);

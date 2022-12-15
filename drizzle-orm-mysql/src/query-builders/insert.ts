@@ -1,11 +1,13 @@
 import { Table } from 'drizzle-orm';
 import { QueryPromise } from 'drizzle-orm/query-promise';
-import { Param, Placeholder, Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
+import { Param, Placeholder, Query, sql, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { MySqlDialect } from '~/dialect';
+import { IndexColumn } from '~/indexes';
 import { SelectFields, SelectFieldsOrdered, SelectResultFields } from '~/operations';
 import { MySqlQueryResult, MySqlRawQueryResult, MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/session';
 import { AnyMySqlTable, InferModel, MySqlTable } from '~/table';
-import { orderSelectedFields } from '~/utils';
+import { mapUpdateSet, orderSelectedFields } from '~/utils';
+import { MySqlUpdateSetSource } from './update';
 export interface MySqlInsertConfig<TTable extends AnyMySqlTable = AnyMySqlTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[];
@@ -67,35 +69,6 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TReturning = undefined>
 		this.config = { table, values };
 	}
 
-	// returning(): Omit<MySqlInsert<TTable, InferModel<TTable>>, 'returning' | `onConflict${string}`>;
-	// returning<TSelectedFields extends SelectFields>(
-	// 	fields: TSelectedFields,
-	// ): Omit<MySqlInsert<TTable, SelectResultFields<TSelectedFields>>, 'returning' | `onConflict${string}`>;
-	// returning(
-	// 	fields: SelectFields = this.config.table[MySqlTable.Symbol.Columns],
-	// ): Omit<MySqlInsert<TTable, any>, 'returning' | `onConflict${string}`> {
-	// 	this.config.returning = orderSelectedFields(fields);
-	// 	return this;
-	// }
-
-	// onDuplicateDoNothing(
-	// 	target?:
-	// 		| SQL<GetTableConfig<TTable, 'name'>>
-	// 		| ((
-	// 			constraints: GetTableConflictConstraints<TTable>,
-	// 		) => Check<GetTableConfig<TTable, 'name'>>),
-	// ): Pick<this, 'returning' | 'getQuery' | 'execute'> {
-	// 	if (typeof target === 'undefined') {
-	// 		this.config.onConflict = sql`do nothing`;
-	// 	} else if (target instanceof SQL) {
-	// 		this.config.onConflict = sql`${target} do nothing`;
-	// 	} else {
-	// 		const targetSql = new Name(target(this.config.table[tableConflictConstraints]).name);
-	// 		this.config.onConflict = sql`on constraint ${targetSql} do nothing`;
-	// 	}
-	// 	return this;
-	// }
-
 	// onDuplicateDoUpdate(
 	// 	target:
 	// 		| SQL<GetTableConfig<TTable, 'name'>>
@@ -112,6 +85,15 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TReturning = undefined>
 	// 	}
 	// 	return this;
 	// }
+
+	onDuplicateKeyUpdate(config: {
+		// target?: IndexColumn | IndexColumn[];
+		set: MySqlUpdateSetSource<TTable>;
+	}): this {
+		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
+		this.config.onConflict = sql`update ${setSql}`;
+		return this;
+	}
 
 	/** @internal */
 	getSQL(): SQL {
