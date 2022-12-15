@@ -20,17 +20,29 @@ jobs:
           node-version: 16
           registry-url: 'https://registry.npmjs.org'
 
+      - uses: pnpm/action-setup@v2
+        with:
+          version: latest
+
       - name: Publish
         run: |
           latest=$(npm view --json ${{ matrix.package }} dist-tags.latest | jq -r)
+          beta=$(npm view --json ${{ matrix.package }} dist-tags.beta | jq -r)
           version=$(jq -r .version package.json)
 
           if [[ $latest != $version ]]; then
             echo "Latest:  $latest"
             echo "Current: $version"
 
-            (cd .. && pnpm i)
-            pnpm run release
+            if [[ $beta != $version ]]; then
+              echo "Beta:    $beta"
+              echo "Current: $version"
+
+              (cd .. && pnpm i)
+              pnpm run release
+            else
+              npm dist-tag add ${{ matrix.package }}@$version latest
+            fi
 
             # Post release message to Discord
             curl -X POST -H "Content-Type: application/json" -d "{\"embeds\": [{\"title\": \"New \`${{ matrix.package }}\` release! 🎉\", \"url\": \"https://www.npmjs.com/package/${{ matrix.package }}\", \"color\": \"12907856\", \"fields\": [{\"name\": \"Tag\", \"value\": \"\`$tag\`\"}]}]}" ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}

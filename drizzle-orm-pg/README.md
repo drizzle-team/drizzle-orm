@@ -566,6 +566,7 @@ export const authOtps = pgTable('auth_otp', {
 ```
 
 It will generate:
+
 ```SQL
 CREATE TABLE IF NOT EXISTS auth_otp (
 	'id' SERIAL PRIMARY KEY,
