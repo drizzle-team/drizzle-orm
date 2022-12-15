@@ -542,7 +542,8 @@ const res: QueryResult<{ id: number, name: string }> = await db.execute<{ id: nu
 
 ### Automatic SQL migrations generation with drizzle-kit
 
-[DrizzleKit](https://www.npmjs.com/package/drizzle-kit) - is a CLI migrator tool for DrizzleORM. It is probably one and only tool that lets you completely automatically generate SQL migrations and covers ~95% of the common cases like delitions and renames by prompting user input.\
+[DrizzleKit](https://www.npmjs.com/package/drizzle-kit) - is a CLI migrator tool for DrizzleORM. It is probably one and only tool that lets you completely automatically generate SQL migrations and covers ~95% of the common cases like deletions and renames by prompting user input.
+
 Check out the [docs for DrizzleKit](https://github.com/drizzle-team/drizzle-kit-mirror)
 
 For schema file:
