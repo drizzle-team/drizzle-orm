@@ -1,16 +1,9 @@
 import anyTest, { TestFn } from 'ava';
 import Database from 'better-sqlite3';
 import { DefaultLogger, sql } from 'drizzle-orm';
-import {
-	alias,
-	blob,
-	InferModel,
-	integer,
-	SQLiteConnector,
-	SQLiteDatabase,
-	sqliteTable,
-	text,
-} from 'drizzle-orm-sqlite';
+import { alias, blob, InferModel, integer, sqliteTable, text } from 'drizzle-orm-sqlite';
+import { BetterSQLite3Database, drizzle } from 'drizzle-orm-sqlite/better-sqlite3';
+import { migrate } from 'drizzle-orm-sqlite/better-sqlite3/migrator';
 import { asc, eq } from 'drizzle-orm/expressions';
 import { name, placeholder } from 'drizzle-orm/sql';
 
@@ -29,9 +22,8 @@ const usersMigratorTable = sqliteTable('users12', {
 });
 
 interface Context {
-	db: SQLiteDatabase;
+	db: BetterSQLite3Database;
 	client: Database.Database;
-	connector: SQLiteConnector;
 }
 
 const test = anyTest as TestFn<Context>;
@@ -41,9 +33,7 @@ test.before((t) => {
 	const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
 
 	ctx.client = new Database(dbPath);
-	const connector = new SQLiteConnector(ctx.client /* , { logger: new DefaultLogger() } */);
-	ctx.db = connector.connect();
-	ctx.connector = connector;
+	ctx.db = drizzle(ctx.client /* , { logger: new DefaultLogger() } */);
 });
 
 test.beforeEach((t) => {
@@ -503,8 +493,8 @@ test.serial('build query', (t) => {
 });
 
 test.serial('migrator', async (t) => {
-	const { connector, db } = t.context;
-	connector.migrate({ migrationsFolder: './drizzle/sqlite' });
+	const { db } = t.context;
+	migrate(db, { migrationsFolder: './drizzle/sqlite' });
 
 	db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).run();
 
