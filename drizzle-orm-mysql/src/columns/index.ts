@@ -19,3 +19,7 @@ export * from './timestamp';
 export * from './tinyint';
 export * from './varbinary';
 export * from './varchar';
+export * from './date';
+export * from './datetime';
+export * from './time';
+export * from './year';

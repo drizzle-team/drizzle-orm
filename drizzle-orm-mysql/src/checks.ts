@@ -2,7 +2,7 @@ import { SQL } from 'drizzle-orm/sql';
 import { AnyMySqlTable } from './table';
 
 export class CheckBuilder {
-	protected brand!: 'PgConstraintBuilder';
+	protected brand!: 'MySqlConstraintBuilder';
 
 	constructor(public name: string, public value: SQL) {}
 

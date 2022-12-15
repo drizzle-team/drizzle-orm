@@ -8,7 +8,6 @@ import { Check, CheckBuilder } from './checks';
 import { AnyMySqlColumn, AnyMySqlColumnBuilder, BuildColumns } from './columns/common';
 import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
 import { AnyIndexBuilder, Index, IndexBuilder } from './indexes';
-import { tableChecks, tableForeignKeys, tableIndexes } from './utils';
 
 export type MySqlTableExtraConfig = Record<
 	string,

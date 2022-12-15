@@ -1,7 +1,7 @@
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
-import { boolean, int, json, MySqlDatabase, mysqlTable } from 'drizzle-orm-mysql';
+import { boolean, date, datetime, int, json, MySqlDatabase, mysqlTable, time, varchar, year } from 'drizzle-orm-mysql';
 import { alias, InferModel, serial, text, timestamp } from 'drizzle-orm-mysql';
 import { drizzle } from 'drizzle-orm-mysql/mysql2';
 import { migrate } from 'drizzle-orm-mysql/mysql2/migrator';
@@ -18,6 +18,15 @@ const usersTable = mysqlTable('userstest', {
 	verified: boolean('verified').notNull().default(false),
 	jsonb: json<string[]>('jsonb'),
 	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+});
+
+const datesTable = mysqlTable('datestable', {
+	date: date('date'),
+	dateAsString: date('date_as_string', { mode: 'string' }),
+	time: time('time', { fsp: 1 }),
+	datetime: datetime('datetime', { fsp: 2 }),
+	datetimeAsString: datetime('datetime_as_string', { fsp: 2, mode: 'string' }),
+	year: year('year'),
 });
 
 const usersMigratorTable = mysqlTable('users12', {
@@ -89,6 +98,7 @@ test.before(async (t) => {
 test.beforeEach(async (t) => {
 	const ctx = t.context;
 	await ctx.db.execute(sql`drop table if exists \`userstest\``);
+	await ctx.db.execute(sql`drop table if exists \`datestable\``);
 	// await ctx.db.execute(sql`create schema public`);
 	await ctx.db.execute(
 		sql`create table \`userstest\` (
@@ -97,6 +107,17 @@ test.beforeEach(async (t) => {
 			\`verified\` boolean not null default false, 
 			\`jsonb\` json,
 			\`created_at\` timestamp not null default now()
+		)`,
+	);
+
+	await ctx.db.execute(
+		sql`create table \`datestable\` (
+			\`date\` date,
+			\`date_as_string\` date,
+			\`time\` time,
+			\`datetime\` datetime, 
+			\`datetime_as_string\` datetime,
+			\`year\` year
 		)`,
 	);
 });
@@ -558,6 +579,37 @@ test.serial('insert via db.execute w/ query builder', async (t) => {
 		db.insert(usersTable).values({ name: 'John' }),
 	);
 	t.is(inserted[0].affectedRows, 1);
+});
+
+test.serial('insert + select all possible dates', async (t) => {
+	const { db } = t.context;
+
+	const date = new Date('2022-11-11');
+
+	await db.insert(datesTable).values({
+		date: date,
+		dateAsString: '2022-11-11',
+		time: '12:12:12',
+		datetime: date,
+		year: 22,
+		datetimeAsString: '2022-11-11 12:12:12',
+	});
+
+	const res = await db.select(datesTable);
+
+	t.assert(res[0]?.date instanceof Date)
+	t.assert(res[0]?.datetime instanceof Date)
+	t.assert(typeof res[0]?.dateAsString === 'string')
+	t.assert(typeof res[0]?.datetimeAsString === 'string')
+
+	t.deepEqual(res, [{
+		date: new Date('2022-11-11'),
+		dateAsString: '2022-11-11',
+		time: '12:12:12',
+		datetime: new Date('2022-11-11'),
+		year: 2022,
+		datetimeAsString: '2022-11-11 12:12:12',
+	}])
 });
 
 test.after.always(async (t) => {

@@ -24,10 +24,22 @@ export class MySql2PreparedQuery<T extends PreparedQueryConfig> extends Prepared
 		this.rawQuery = {
 			sql: queryString,
 			// rowsAsArray: true,
+			typeCast: function(field: any, next: any) {
+				if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
+					return field.string();
+				}
+				return next();
+			},
 		};
 		this.query = {
 			sql: queryString,
-			rowsAsArray: true
+			rowsAsArray: true,
+			typeCast: function(field: any, next: any) {
+				if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
+					return field.string();
+				}
+				return next();
+			},
 		};
 	}
 
@@ -84,7 +96,8 @@ export class MySql2Session extends MySqlSession {
 			values: params,
 			rowsAsArray: true,
 			typeCast: function(field: any, next: any) {
-				if (field.type === 'TIMESTAMP') {
+				if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
+					console.log('fields', field);
 					return field.string();
 				}
 				return next();
