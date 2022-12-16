@@ -562,7 +562,7 @@ It will generate:
 
 ```SQL
 CREATE TABLE `users` (
- `id` serial PRIMARY KEY,
+ `id` int PRIMARY KEY,
  `full_name` varchar(256)
 );
 
