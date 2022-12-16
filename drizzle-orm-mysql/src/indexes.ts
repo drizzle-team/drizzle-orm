@@ -15,17 +15,17 @@ interface IndexConfig {
 	/**
 	 * If set, the index will be created as `create index ... using { 'btree' | 'hash' }`.
 	 */
-	using?: 'btree' | 'hash' | SQL;
+	using?: 'btree' | 'hash';
 
 	/**
 	 * If set, the index will be created as `create index ... algorythm { 'default' | 'inplace' | 'copy' }`.
 	 */
-	algorythm?: 'default' | 'inplace' | 'copy' | SQL;
+	algorythm?: 'default' | 'inplace' | 'copy';
 
 	/**
 	 * If set, adds locks to the index creation.
 	 */
-	lock?: 'default' | 'none' | 'shared' | 'exclusive' | SQL;
+	lock?: 'default' | 'none' | 'shared' | 'exclusive';
 }
 
 export type IndexColumn = AnyMySqlColumn | SQL;
