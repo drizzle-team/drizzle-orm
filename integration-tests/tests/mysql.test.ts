@@ -1,7 +1,19 @@
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
-import { boolean, date, datetime, int, json, MySqlDatabase, mysqlTable, time, varchar, year } from 'drizzle-orm-mysql';
+import {
+	boolean,
+	date,
+	datetime,
+	int,
+	json,
+	MySqlDatabase,
+	mysqlTable,
+	time,
+	uniqueIndex,
+	varchar,
+	year,
+} from 'drizzle-orm-mysql';
 import { alias, InferModel, serial, text, timestamp } from 'drizzle-orm-mysql';
 import { drizzle } from 'drizzle-orm-mysql/mysql2';
 import { migrate } from 'drizzle-orm-mysql/mysql2/migrator';
@@ -33,6 +45,10 @@ const usersMigratorTable = mysqlTable('users12', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
+}, (table) => {
+	return {
+		name: uniqueIndex('').on(table.name).using('btree'),
+	};
 });
 
 interface Context {
@@ -597,10 +613,10 @@ test.serial('insert + select all possible dates', async (t) => {
 
 	const res = await db.select(datesTable);
 
-	t.assert(res[0]?.date instanceof Date)
-	t.assert(res[0]?.datetime instanceof Date)
-	t.assert(typeof res[0]?.dateAsString === 'string')
-	t.assert(typeof res[0]?.datetimeAsString === 'string')
+	t.assert(res[0]?.date instanceof Date);
+	t.assert(res[0]?.datetime instanceof Date);
+	t.assert(typeof res[0]?.dateAsString === 'string');
+	t.assert(typeof res[0]?.datetimeAsString === 'string');
 
 	t.deepEqual(res, [{
 		date: new Date('2022-11-11'),
@@ -609,7 +625,7 @@ test.serial('insert + select all possible dates', async (t) => {
 		datetime: new Date('2022-11-11'),
 		year: 2022,
 		datetimeAsString: '2022-11-11 12:12:12',
-	}])
+	}]);
 });
 
 test.after.always(async (t) => {

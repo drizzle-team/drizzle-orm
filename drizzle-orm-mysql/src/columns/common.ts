@@ -115,9 +115,9 @@ export abstract class MySqlColumnBuilderWithAutoIncrement<T extends Partial<Colu
 {
 	/** @internal */ _autoIncrement = false;
 
-	autoIncrement(): MySqlColumnBuilderWithAutoIncrement<T> {
+	autoincrement(): MySqlColumnBuilderWithAutoIncrement<T> {
 		this._autoIncrement = true;
-		return this as ReturnType<this['autoIncrement']>;
+		return this as ReturnType<this['autoincrement']>;
 	}
 }
 
