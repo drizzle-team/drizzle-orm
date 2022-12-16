@@ -561,7 +561,21 @@ export const authOtps = mysqlTable('auth_otp', {
 It will generate:
 
 ```SQL
+CREATE TABLE `users` (
+ `id` serial PRIMARY KEY,
+ `full_name` varchar(256)
+);
 
+
+CREATE TABLE `auth_otp` (
+ `id` serial PRIMARY KEY,
+ `phone` varchar(256),
+ `user_id` int
+);
+
+
+ALTER TABLE auth_otp ADD CONSTRAINT auth_otp_user_id_users_id_fk FOREIGN KEY (`user_id`) REFERENCES users(`id`) ;
+CREATE INDEX name_idx ON users (`full_name`);
 ```
 
 And you can run migrations manually or using our embedded migrations module

@@ -28,7 +28,7 @@ Drizzle ORM is being battle-tested on production projects by multiple teams 🚀
 | Database    | Support | 📄 |
 |:------------|:-------:|:---|
 | PostgreSQL  | ✅      |[Docs](https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-orm-pg)|
-| MySQL       | ⏳      |            |
+| MySQL       | ✅      |[Docs](https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-orm-mysql)            |
 | SQLite      | ✅      |[Docs](https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-orm-sqlite)|
 | DynamoDB    | ⏳      |            |
 | MS SQL      | ⏳      |            |
