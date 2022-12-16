@@ -1,12 +1,12 @@
 {
 	"name": "drizzle-orm-mysql",
-	"version": "0.12.0-beta.14",
+	"version": "0.14.2",
 	"description": "Drizzle ORM package for MySQL database",
 	"main": "index.js",
 	"types": "index.d.ts",
 	"scripts": {
-		"build": "concurrently -n build,test \"tsc -p tsconfig.build.json && resolve-tspaths\" pnpm:test",
-		"test": "cd tests && tsc",
+		"build": "tsc -p tsconfig.build.json && resolve-tspaths",
+		"test:types": "cd tests && tsc",
 		"pack": "cp README.md package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"publish": "npm publish package.tgz",
 		"release": "pnpm build && pnpm run pack && pnpm run publish",
@@ -37,18 +37,16 @@
 	},
 	"homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
 	"peerDependencies": {
-		"drizzle-orm": ">=0.13 <0.14",
+		"drizzle-orm": ">=0.14 <0.15",
 		"mysql2": ">=2 <3"
 	},
 	"peerDependenciesMeta": {
 		"mysql2": {
 			"optional": true
-		},
-		"drizzle-orm": {
-			"optional": true
 		}
 	},
 	"devDependencies": {
+		"@types/node": "^18.11.12",
 		"drizzle-orm": "link:../drizzle-orm/src",
 		"mysql2": "^2.3.3"
 	}

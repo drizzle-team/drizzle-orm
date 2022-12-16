@@ -1,31 +1,30 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
 import { AnyMySqlTable } from '~/table';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
-export class MySqlSerialBuilder extends MySqlColumnBuilder<
-	ColumnData<number>,
-	ColumnDriverParam<number | string>,
-	ColumnNotNull<true>,
-	ColumnHasDefault<true>
-> {
+export class MySqlSerialBuilder extends MySqlColumnBuilder<{
+	data: number;
+	driverParam: number;
+	notNull: true;
+	hasDefault: true;
+}> {
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<TTableName>,
+		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlSerial<TTableName> {
-		return new MySqlSerial<TTableName>(table, this);
+		return new MySqlSerial(table, this);
 	}
 }
 
 export class MySqlSerial<
 	TTableName extends string,
-> extends MySqlColumn<
-	TTableName,
-	ColumnData<number>,
-	ColumnDriverParam<number | string>,
-	ColumnNotNull<true>,
-	ColumnHasDefault<true>
-> {
-	protected brand!: 'MySqlSerial';
+> extends MySqlColumn<{
+	tableName: TTableName;
+	data: number;
+	driverParam: number;
+	notNull: true;
+	hasDefault: true;
+}> {
+	protected override $mySqlColumnBrand!: 'MySqlSerial';
 
 	getSQLType(): string {
 		return 'serial';

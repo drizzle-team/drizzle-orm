@@ -1,11 +1,14 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
+import { ColumnConfig } from 'drizzle-orm';
+import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyMySqlTable } from '~/table';
-import { MySqlColumn, MySqlColumnBuilder } from './common';
+import { MySqlColumn, MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
-export class MySqlDecimalBuilder<
-	TNotNull extends boolean = false,
-	THasDefault extends boolean = false,
-> extends MySqlColumnBuilder<ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+export class MySqlDecimalBuilder extends MySqlColumnBuilderWithAutoIncrement<
+	ColumnBuilderConfig<{
+		data: number;
+		driverParam: number | string;
+	}>
+> {
 	/** @internal */ precision: number | undefined;
 	/** @internal */ scale: number | undefined;
 
@@ -17,29 +20,25 @@ export class MySqlDecimalBuilder<
 
 	/** @internal */
 	override build<TTableName extends string>(
-		table: AnyMySqlTable<TTableName>,
-	): MySqlDecimal<TTableName, TNotNull, THasDefault> {
-		return new MySqlDecimal<TTableName, TNotNull, THasDefault>(table, this);
+		table: AnyMySqlTable<{ name: TTableName }>,
+	): MySqlDecimal<TTableName> {
+		return new MySqlDecimal(table, this);
 	}
 }
 
-export class MySqlDecimal<
-	TTableName extends string,
-	TNotNull extends boolean,
-	THasDefault extends boolean,
-> extends MySqlColumn<
-	TTableName,
-	ColumnData<string>,
-	ColumnDriverParam<string>,
-	TNotNull,
-	THasDefault
+export class MySqlDecimal<TTableName extends string> extends MySqlColumnWithAutoIncrement<
+	ColumnConfig<{
+		tableName: TTableName;
+		data: number;
+		driverParam: number | string;
+	}>
 > {
-	protected brand!: 'MySqlDecimal';
+	protected override $mySqlColumnBrand!: 'MySqlDecimal';
 
 	precision: number | undefined;
 	scale: number | undefined;
 
-	constructor(table: AnyMySqlTable<TTableName>, builder: MySqlDecimalBuilder<TNotNull, THasDefault>) {
+	constructor(table: AnyMySqlTable<{ name: TTableName }>, builder: MySqlDecimalBuilder) {
 		super(table, builder);
 		this.precision = builder.precision;
 		this.scale = builder.scale;

@@ -1,11 +1,14 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
+import { ColumnConfig } from 'drizzle-orm';
+import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyMySqlTable } from '~/table';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
-export class MySqlBinaryBuilder<
-	TNotNull extends boolean = false,
-	THasDefault extends boolean = false,
-> extends MySqlColumnBuilder<ColumnData<string>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+export class MySqlBinaryBuilder<TData extends string = string> extends MySqlColumnBuilder<
+	ColumnBuilderConfig<{
+		data: TData;
+		driverParam: number | string;
+	}>
+> {
 	/** @internal */ length: number | undefined;
 
 	constructor(name: string, length?: number) {
@@ -14,29 +17,26 @@ export class MySqlBinaryBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<TTableName>,
-	): MySqlBinary<TTableName, TNotNull, THasDefault> {
-		return new MySqlBinary<TTableName, TNotNull, THasDefault>(table, this);
+	override build<TTableName extends string>(table: AnyMySqlTable<{ name: TTableName }>): MySqlBinary<TTableName, TData> {
+		return new MySqlBinary(table, this);
 	}
 }
 
 export class MySqlBinary<
 	TTableName extends string,
-	TNotNull extends boolean,
-	THasDefault extends boolean,
+	TData extends string = string,
 > extends MySqlColumn<
-	TTableName,
-	ColumnData<string>,
-	ColumnDriverParam<string>,
-	TNotNull,
-	THasDefault
+	ColumnConfig<{
+		tableName: TTableName;
+		data: TData;
+		driverParam: number | string;
+	}>
 > {
-	protected brand!: 'MySqlBinary';
+	declare protected $mySqlColumnBrand: 'MySqlBinary';
 
 	length: number | undefined;
 
-	constructor(table: AnyMySqlTable<TTableName>, builder: MySqlBinaryBuilder<TNotNull, THasDefault>) {
+	constructor(table: AnyMySqlTable<{ name: TTableName }>, builder: MySqlBinaryBuilder<TData>) {
 		super(table, builder);
 		this.length = builder.length;
 	}

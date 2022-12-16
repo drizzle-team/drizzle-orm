@@ -1,34 +1,35 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
+import { ColumnConfig } from 'drizzle-orm';
+import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 
 import { AnyMySqlTable } from '~/table';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export class MySqlJsonBuilder<
 	TData,
-	TNotNull extends boolean = false,
-	THasDefault extends boolean = false,
-> extends MySqlColumnBuilder<ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
+> extends MySqlColumnBuilder<ColumnBuilderConfig<{ data: TData; driverParam: number | string }>> {
 	constructor(name: string) {
 		super(name);
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<TTableName>,
-	): MySqlJson<TTableName, TNotNull, THasDefault, TData> {
+	override build<TTableName extends string>(table: AnyMySqlTable<{ name: TTableName }>): MySqlJson<TTableName, TData> {
 		return new MySqlJson(table, this);
 	}
 }
 
 export class MySqlJson<
 	TTableName extends string,
-	TNotNull extends boolean,
-	THasDefault extends boolean,
 	TData,
-> extends MySqlColumn<TTableName, ColumnData<TData>, ColumnDriverParam<string>, TNotNull, THasDefault> {
-	protected brand!: 'MySqlJson';
+> extends MySqlColumn<
+	ColumnConfig<{
+		tableName: TTableName;
+		data: TData;
+		driverParam: number | string;
+	}>
+> {
+	protected override $mySqlColumnBrand!: 'MySqlJson';
 
-	constructor(table: AnyMySqlTable<TTableName>, builder: MySqlJsonBuilder<TData, TNotNull, THasDefault>) {
+	constructor(table: AnyMySqlTable<{ name: TTableName }>, builder: MySqlJsonBuilder<TData>) {
 		super(table, builder);
 	}
 

@@ -1,30 +1,23 @@
 import { sql } from 'drizzle-orm';
-import { ColumnData, ColumnHasDefault, ColumnNotNull, TableName, Unwrap } from 'drizzle-orm/branded-types';
+import { ColumnBuilderBaseConfig, UpdateCBConfig } from 'drizzle-orm/column-builder';
+import { SQL } from 'drizzle-orm/sql';
 
-import { MySqlColumnDriverParam } from '~/branded-types';
-import { AnyMySQL } from '~/sql';
-import { AnyMySqlTable } from '..';
-import { MySqlColumn, MySqlColumnBuilder } from './common';
+import { MySqlColumnBuilder } from './common';
 
-export abstract class MySqlDateColumnBaseBuilder<
-	TData extends ColumnData,
-	TDriverParam extends MySqlColumnDriverParam,
-	TNotNull extends boolean,
-	THasDefault extends boolean,
-> extends MySqlColumnBuilder<TData, TDriverParam, TNotNull, THasDefault> {
+export abstract class MySqlDateColumnBaseBuilder<T extends ColumnBuilderBaseConfig> extends MySqlColumnBuilder<T> {
 	hasOnUpdateNow: boolean = false;
 
-	override notNull(): MySqlDateColumnBaseBuilder<TData, TDriverParam, ColumnNotNull<true>, THasDefault> {
+	override notNull(): MySqlDateColumnBaseBuilder<UpdateCBConfig<T, { notNull: true }>> {
 		return super.notNull() as ReturnType<this['notNull']>;
 	}
 
 	override default(
-		value: Unwrap<TData> | AnyMySQL,
-	): MySqlDateColumnBaseBuilder<TData, TDriverParam, TNotNull, ColumnHasDefault<true>> {
+		value: T['data'] | SQL,
+	): MySqlDateColumnBaseBuilder<UpdateCBConfig<T, { hasDefault: true }>> {
 		return super.default(value) as ReturnType<this['default']>;
 	}
 
-	override primaryKey(): MySqlDateColumnBaseBuilder<TData, TDriverParam, ColumnNotNull<true>, THasDefault> {
+	override primaryKey(): MySqlDateColumnBaseBuilder<UpdateCBConfig<T, { notNull: true }>> {
 		return super.primaryKey() as ReturnType<this['primaryKey']>;
 	}
 
@@ -32,26 +25,26 @@ export abstract class MySqlDateColumnBaseBuilder<
 		return this.default(sql`now()`);
 	}
 
-	onUpdateNow(): MySqlDateColumnBaseBuilder<TData, TDriverParam, TNotNull, ColumnHasDefault<true>> {
+	onUpdateNow(): MySqlDateColumnBaseBuilder<UpdateCBConfig<T, { hasDefault: true }>> {
 		this.hasOnUpdateNow = true;
 		return this as ReturnType<this['onUpdateNow']>;
 	}
 }
 
-export abstract class MySqlDateBaseColumn<
-	TTableName extends string,
-	TData extends ColumnData,
-	TDriverParam extends MySqlColumnDriverParam,
-	TNotNull extends boolean,
-	THasDefault extends boolean,
-> extends MySqlColumn<TTableName, TData, TDriverParam, TNotNull, THasDefault> {
-	readonly hasOnUpdateNow: boolean;
+// export abstract class MySqlDateBaseColumn<
+// 	TTableName extends string,
+// 	TData extends ColumnData,
+// 	TDriverParam extends MySqlColumnDriverParam,
+// 	TNotNull extends boolean,
+// 	THasDefault extends boolean,
+// > extends MySqlColumn<TTableName, TData, TDriverParam, TNotNull, THasDefault> {
+// 	readonly hasOnUpdateNow: boolean;
 
-	constructor(
-		table: AnyMySqlTable<TTableName>,
-		builder: MySqlDateColumnBaseBuilder<TData, TDriverParam, TNotNull, THasDefault>,
-	) {
-		super(table, builder);
-		this.hasOnUpdateNow = builder.hasOnUpdateNow;
-	}
-}
+// 	constructor(
+// 		table: AnyMySqlTable<TTableName>,
+// 		builder: MySqlDateColumnBaseBuilder<TData, TDriverParam, TNotNull, THasDefault>,
+// 	) {
+// 		super(table, builder);
+// 		this.hasOnUpdateNow = builder.hasOnUpdateNow;
+// 	}
+// }

@@ -1,10 +1,12 @@
-import { InferColumnTable } from 'drizzle-orm';
-import { TableName } from 'drizzle-orm/branded-types';
+import { SQL } from 'drizzle-orm/sql';
 import { AnyMySqlColumn } from './columns';
-import { MySQL } from './sql';
 import { AnyMySqlTable } from './table';
 
-interface IndexConfig<TTableName extends string> {
+interface IndexConfig {
+	name: string;
+
+	columns: IndexColumn[];
+
 	/**
 	 * If true, the index will be created as `create unique index` instead of `create index`.
 	 */
@@ -13,76 +15,90 @@ interface IndexConfig<TTableName extends string> {
 	/**
 	 * If set, the index will be created as `create index ... using { 'btree' | 'hash' }`.
 	 */
-	using?: 'btree' | 'hash' | MySQL<TTableName | string>;
+	using?: 'btree' | 'hash';
 
 	/**
 	 * If set, the index will be created as `create index ... algorythm { 'default' | 'inplace' | 'copy' }`.
 	 */
-	algorythm?: 'default' | 'inplace' | 'copy' | MySQL<TTableName | string>;
+	algorythm?: 'default' | 'inplace' | 'copy';
 
 	/**
 	 * If set, adds locks to the index creation.
 	 */
-	lock?: 'default' | 'none' | 'shared' | 'exclusive' | MySQL<TTableName | string>;
+	lock?: 'default' | 'none' | 'shared' | 'exclusive';
 }
 
-export class IndexBuilder<TTableName extends string> {
-	protected typeKeeper!: {
-		tableName: TTableName;
-	};
+export type IndexColumn = AnyMySqlColumn | SQL;
 
-	protected brand!: 'MySqlIndexBuilder';
+export class IndexBuilderOn {
+	constructor(private name: string, private unique: boolean) {}
 
-	constructor(
-		readonly name: string,
-		readonly columns: AnyMySqlColumn<TTableName>[],
-		readonly config: IndexConfig<TTableName> = {},
-	) {}
+	on(...columns: [IndexColumn, ...IndexColumn[]]): IndexBuilder {
+		return new IndexBuilder(this.name, columns, this.unique);
+	}
+}
+
+export interface AnyIndexBuilder {
+	build(table: AnyMySqlTable): Index;
+}
+
+export interface IndexBuilder extends AnyIndexBuilder {}
+
+export class IndexBuilder implements AnyIndexBuilder {
+	declare protected $brand: 'MySqlIndexBuilder';
 
 	/** @internal */
-	build(table: AnyMySqlTable<TTableName>): Index<TTableName> {
-		return new Index(this.name, table, this.columns, this);
+	config: IndexConfig;
+
+	constructor(name: string, columns: IndexColumn[], unique: boolean) {
+		this.config = {
+			name,
+			columns,
+			unique,
+		};
+	}
+
+	using(using: IndexConfig['using']): Omit<this, 'using'> {
+		this.config.using = using;
+		return this;
+	}
+
+	algorythm(algorythm: IndexConfig['algorythm']): Omit<this, 'algorythm'> {
+		this.config.algorythm = algorythm;
+		return this;
+	}
+
+	lock(lock: IndexConfig['lock']): Omit<this, 'lock'> {
+		this.config.lock = lock;
+		return this;
+	}
+
+	/** @internal */
+	build(table: AnyMySqlTable): Index {
+		return new Index(this.config, table);
 	}
 }
 
-export type AnyIndexBuilder<TTableName extends string = string> = IndexBuilder<TTableName>;
+export class Index {
+	declare protected $brand: 'MySqlIndex';
 
-export class Index<TTableName extends string> {
-	protected typeKeeper!: {
-		tableName: TTableName;
-	};
+	readonly config: IndexConfig & { table: AnyMySqlTable };
 
-	readonly config: IndexConfig<TTableName>;
-
-	constructor(
-		readonly name: string,
-		readonly table: AnyMySqlTable<TTableName>,
-		readonly columns: AnyMySqlColumn<TTableName>[],
-		builder: IndexBuilder<TTableName>,
-	) {
-		this.config = builder.config;
+	constructor(config: IndexConfig, table: AnyMySqlTable) {
+		this.config = { ...config, table };
 	}
 }
 
-export type AnyIndex = Index<any>;
-
-export type BuildIndex<T extends AnyIndexBuilder> = T extends IndexBuilder<infer TTableName> ? Index<TTableName>
+export type GetColumnsTableName<TColumns> = TColumns extends
+	AnyMySqlColumn<{ tableName: infer TTableName extends string }> | AnyMySqlColumn<
+		{ tableName: infer TTableName extends string }
+	>[] ? TTableName
 	: never;
 
-type GetColumnsTable<TColumns> = TColumns extends AnyMySqlColumn ? InferColumnTable<TColumns>
-	: TColumns extends AnyMySqlColumn[] ? InferColumnTable<TColumns[number]>
-	: never;
-
-export function index<
-	TColumns extends
-		| AnyMySqlColumn
-		| [AnyMySqlColumn, ...AnyMySqlColumn[]],
->(
-	name: string,
-	columns: TColumns,
-	config?: IndexConfig<GetColumnsTable<TColumns>>,
-): IndexBuilder<GetColumnsTable<TColumns>> {
-	return new IndexBuilder(name, Array.isArray(columns) ? columns : [columns], config);
+export function index(name: string): IndexBuilderOn {
+	return new IndexBuilderOn(name, false);
 }
 
-export function uniqueIndex() {}
+export function uniqueIndex(name: string): IndexBuilderOn {
+	return new IndexBuilderOn(name, true);
+}

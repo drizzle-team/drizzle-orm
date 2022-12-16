@@ -1,36 +1,30 @@
-import { ColumnData, ColumnDriverParam, ColumnHasDefault, ColumnNotNull, TableName } from 'drizzle-orm/branded-types';
+import { ColumnConfig } from 'drizzle-orm';
+import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyMySqlTable } from '~/table';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
-export class MySqlSmallIntBuilder<
-	TNotNull extends boolean = false,
-	THasDefault extends boolean = false,
-> extends MySqlColumnBuilderWithAutoIncrement<
-	ColumnData<number>,
-	ColumnDriverParam<number | string>,
-	TNotNull,
-	THasDefault
+export class MySqlSmallIntBuilder extends MySqlColumnBuilderWithAutoIncrement<
+	ColumnBuilderConfig<{
+		data: number;
+		driverParam: number | string;
+	}>
 > {
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<TTableName>,
-	): MySqlSmallInt<TTableName, TNotNull, THasDefault> {
-		return new MySqlSmallInt<TTableName, TNotNull, THasDefault>(table, this);
+	override build<TTableName extends string>(table: AnyMySqlTable<{ name: TTableName }>): MySqlSmallInt<TTableName> {
+		return new MySqlSmallInt(table, this);
 	}
 }
 
 export class MySqlSmallInt<
 	TTableName extends string,
-	TNotNull extends boolean,
-	THasDefault extends boolean,
 > extends MySqlColumnWithAutoIncrement<
-	TTableName,
-	ColumnData<number>,
-	ColumnDriverParam<number | string>,
-	TNotNull,
-	THasDefault
+	ColumnConfig<{
+		tableName: TTableName;
+		data: number;
+		driverParam: number | string;
+	}>
 > {
-	protected brand!: 'MySqlSmallInt';
+	protected override $mySqlColumnBrand!: 'MySqlSmallInt';
 
 	getSQLType(): string {
 		return 'smallint';

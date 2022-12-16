@@ -5,7 +5,7 @@
 		"target": "es2016",
 		"module": "commonjs",
 		"moduleResolution": "node",
-		"lib": ["es2018", "es2017", "es7", "es6", "es5"],
+		"lib": ["es2020","es2018", "es2017", "es7", "es6", "es5"],
 		"declaration": true /* Generate .d.ts files from TypeScript and JavaScript files in your project. */,
 		"declarationMap": false,
 		"sourceMap": true,
