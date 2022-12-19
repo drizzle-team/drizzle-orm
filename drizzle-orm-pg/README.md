@@ -1,6 +1,6 @@
 <div align='center'>
 <h1>Drizzle ORM | PostgreSQL <a href=''><img alt='npm' src='https://img.shields.io/npm/v/drizzle-orm-pg?label='></a></h1>
-<img alt='npm' src='https://img.shields.io/npm/dw/drizzle-orm-pg'>
+<img alt='npm' src='https://img.shields.io/npm/dm/drizzle-orm-pg'>
 <img alt='pg version' src='https://img.shields.io/npm/dependency-version/drizzle-orm-pg/peer/pg'>
 <img alt='npm bundle size' src='https://img.shields.io/bundlephobia/min/drizzle-orm-pg'>
 <a href='https://discord.gg/yfjTbVXMW4'><img alt='Discord' src='https://img.shields.io/discord/1043890932593987624'></a>
