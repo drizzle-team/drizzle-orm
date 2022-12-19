@@ -10,9 +10,9 @@ npm install -D drizzle-kit
 ```
 
 ## 🚀 Quick start
-Default SQLite connector is using `better-sqlite3` database driver
 ```typescript
-import { SQLiteConnector, sqliteTable, text, integer } from "drizzle-orm-sqlite";
+import { sqliteTable, text, integer } from "drizzle-orm-sqlite";
+import { drizzle } from 'drizzle-orm-sqlite/better-sqlite3';
 import Database from "better-sqlite3";
 
 const users = sqliteTable("users", {
@@ -21,8 +21,7 @@ const users = sqliteTable("users", {
 })
 
 const sqlite = new Database("sqlite.db");
-const connector = new SQLiteConnector(sqlite);
-const db = connector.connect();
+const db = drizzle(sqlite);
 
 const users = db.select(users).all();
 ```
@@ -30,27 +29,26 @@ const users = db.select(users).all();
 ## Connecting to databases
 ```typescript
 // better-sqlite3 or fly.io LiteFS
-import { SQLiteConnector, SQLiteDatabase } from "drizzle-orm-sqlite";
+import { drizzle, BetterSQLite3Database } from 'drizzle-orm-sqlite/better-sqlite3';
 import Database from "better-sqlite3";
 
 const sqlite = new Database("sqlite.db");
-const connector = new SQLiteConnector(sqlite);
-const db: SQLiteDatabase = connector.connect();
+const db: BetterSQLite3Database = drizzle(sqlite);
 const result = db.select(users).all()
 
 // bun js embedded sqlite connector
-import { SQLiteBunConnector, SQLiteBunDatabase } from "drizzle-orm-sqlite/bun";
+import { drizzle, BunSQLiteDatabase } from "drizzle-orm-sqlite/bun";
 import { Database } from "bun:sqlite";
 
 const sqlite = new Database("nw.sqlite");
-const db: SQLiteBunDatabase = new SQLiteBunConnector(sqlite).connect();
+const db: BunSQLiteDatabase = drizzle(sqlite);
 const result = db.select(users).all()
 
 // Cloudflare D1 connector
-import { SQLiteD1Connector, SQLiteD1Database } from 'drizzle-orm-sqlite/d1';
+import { drizzle, DrizzleD1Database } from 'drizzle-orm-sqlite/d1';
 
 // env.DB from cloudflare worker environment
-const db: SQLiteD1Database = new SQLiteD1Connector(env.DB).connect();
+const db: DrizzleD1Database = drizzle(env.DB);
 const result = await db.select(users).all() // pay attention this one is async
 ```
 
@@ -97,7 +95,7 @@ export const cities = sqliteTable("cities", {
 
 Database and table entity types
 ```typescript
-import { SQLiteConnector, InferModel, text, integer, sqliteTable } from "drizzle-orm-sqlite";
+import { InferModel, text, integer, sqliteTable } from "drizzle-orm-sqlite";
 
 const users = sqliteTable("users", {
   id: integer('id').primaryKey(),
@@ -108,13 +106,11 @@ const users = sqliteTable("users", {
 export type User = InferModel<typeof users> // return type when queried
 export type InsertUser = InferModel<typeof users, "insert"> // insert type
 ...
-
-import { SQLiteConnector } from "drizzle-orm-sqlite";
+import { drizzle, BetterSQLite3Database } from 'drizzle-orm-sqlite/better-sqlite3';
 import Database from "better-sqlite3";
 
 const sqlite = new Database("sqlite.db");
-const connector = new SQLiteConnector(sqlite);
-const db: SQLiteDatabase = connector.connect();
+const db: BetterSQLite3Database = drizzle(sqlite);
 
 const result: User[] = await db.select(users).all()
 
@@ -184,7 +180,7 @@ Querying, sorting and filtering. We also support partial select.
 ...
 import { sqliteTable, text, integer } from "drizzle-orm-sqlite";
 import { and, asc, desc, eq, or } from "drizzle-orm/expressions"
-import { SQLiteConnector } from "drizzle-orm-sqlite";
+import { drizzle } from 'drizzle-orm-sqlite/better-sqlite3';
 import Database from "better-sqlite3";
 
 const users = sqliteTable("users", {
@@ -193,8 +189,7 @@ const users = sqliteTable("users", {
 });
 
 const sqlite = new Database("sqlite.db");
-const connector = new SQLiteConnector(sqlite);
-const db = connector.connect();
+const db = drizzle(sqlite);
 
 db.select(users).all();
 db.select(users).where(eq(users.id, 42)).get();
@@ -265,12 +260,11 @@ or(exressions: Expr[])
 Inserting
 ```typescript
 import { sqliteTable, text, integer } from "drizzle-orm-sqlite";
-import { SQLiteConnector } from "drizzle-orm-sqlite";
+import { drizzle } from 'drizzle-orm-sqlite/better-sqlite3';
 import Database from "better-sqlite3";
 
 const sqlite = new Database("sqlite.db");
-const connector = new SQLiteConnector(sqlite);
-const db = connector.connect();
+const db = drizzle(sqlite);
 
 const users = sqliteTable("users", {
   id: integer("id").primaryKey(),
@@ -355,7 +349,7 @@ Last but not least. Probably the most powerful feature in the library🚀
 ### Many-to-one
 ```typescript
 import { sqliteTable, text, integer } from "drizzle-orm-sqlite";
-import { SQLiteConnector } from "drizzle-orm-sqlite";
+import { drizzle } from 'drizzle-orm-sqlite/better-sqlite3';
 
 const cities = sqliteTable("cities", {
   id: integer("id").primaryKey(),
@@ -368,7 +362,7 @@ const users = sqliteTable("users", {
   cityId: integer("city_id").references(() => cities.id)
 });
 
-const db = new SQLiteConnector(sqlite).connect();
+const db = drizzle(sqlite);
 
 const result = db.select(cities).leftJoin(users, eq(cities2.id, users2.cityId)).all()
 ```
@@ -391,7 +385,7 @@ const usersToChatGroups = sqliteTable("usersToChatGroups", {
 });
 
 ...
-const db = new SQLiteConnector(...).connect();
+const db = drizzle(...);
 
 // querying user group with id 1 and all the participants(users)
 db.select(usersToChatGroups)
@@ -411,7 +405,7 @@ export const files = sqliteTable("folders", {
 })
 
 ...
-const db = new SQLiteConnector(...).connect();
+const db = drizzle(...);
 
 const nestedFiles = alias(files, "nested_files");
 db.select(files)
@@ -437,7 +431,7 @@ With Drizzle ORM you can go [**faster than better-sqlite3 driver**](https://twit
 ```typescript
 import { placeholder } from "drizzle-orm/sql";
 
-const db = new SQLiteConnector(...).connect();
+const db = drizzle(...);
 
 const q = db.select(customers).prepare();
 q.all() // SELECT * FROM customers
@@ -500,15 +494,15 @@ CREATE INDEX IF NOT EXISTS users_full_name_index ON users (full_name);
 
 And you can run migrations manually or using our embedded migrations module
 ```typescript
-import { SQLiteConnector } from "drizzle-orm-sqlite";
+import { drizzle } from 'drizzle-orm-sqlite/better-sqlite3';
+import { migrate } from 'drizzle-orm-sqlite/better-sqlite3/migrator';
 import Database from "better-sqlite3";
 
 const sqlite = new Database("sqlite.db");
-const connector = new SQLiteConnector(sqlite);
-const db = connector.connect();
+const db = drizzle(sqlite);
 
 // this will automatically run needed migrations on the database
-connector.migrate({ migrationsFolder: "./drizzle" })
+migrate(db, { migrationsFolder: "./drizzle" })
 ```
 
 ## Utility stuff
