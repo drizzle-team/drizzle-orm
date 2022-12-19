@@ -1,6 +1,6 @@
 <div align="center">
 <h1>Drizzle ORM <a href=""><img alt="npm" src="https://img.shields.io/npm/v/drizzle-orm?label="></a></h1>
-<img alt="npm" src="https://img.shields.io/npm/dw/drizzle-orm">
+<img alt="npm" src="https://img.shields.io/npm/dm/drizzle-orm">
 <img alt="npm bundle size" src="https://img.shields.io/bundlephobia/min/drizzle-orm">
 <a href="https://discord.gg/yfjTbVXMW4"><img alt="Discord" src="https://img.shields.io/discord/1043890932593987624"></a>
 <img alt="NPM" src="https://img.shields.io/npm/l/drizzle-orm">
