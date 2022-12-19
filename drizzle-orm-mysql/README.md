@@ -1,6 +1,6 @@
 <div align='center'>
 <h1>Drizzle ORM | MySQL <a href=''><img alt='npm' src='https://img.shields.io/npm/v/drizzle-orm-mysql?label='></a></h1>
-<img alt='npm' src='https://img.shields.io/npm/dw/drizzle-orm-mysql'>
+<img alt='npm' src='https://img.shields.io/npm/dm/drizzle-orm-mysql'>
 <img alt='pg version' src='https://img.shields.io/npm/dependency-version/drizzle-orm-mysql/peer/mysql2'>
 <img alt='npm bundle size' src='https://img.shields.io/bundlephobia/min/drizzle-orm-mysql'>
 <a href='https://discord.gg/yfjTbVXMW4'><img alt='Discord' src='https://img.shields.io/discord/1043890932593987624'></a>
