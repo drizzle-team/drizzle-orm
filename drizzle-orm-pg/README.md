@@ -64,9 +64,9 @@ With `drizzle-orm` you declare SQL schema in TypeScript. You can have either one
 ```typescript
 // schema.ts
 export const users = pgTable('users', {
-  id: serial('id').primaryKey(),
-  fullName: text('full_name'),
-  phone: varchar('phone', { length: 256 }),
+	id: serial('id').primaryKey(),
+	fullName: text('full_name'),
+	phone: varchar('phone', { length: 256 }),
 });
 ```
 
@@ -80,14 +80,16 @@ import { Pool } from 'pg';
 
 import { users } from './schema';
 
-const pool = new Pool({ connectionString: 'postgres://user:password@host:port/db' });
+const pool = new Pool({
+	connectionString: 'postgres://user:password@host:port/db',
+});
 // or
 const pool = new Pool({
-  host: '127.0.0.1',
-  port: 5432,
-  user: 'postgres',
-  password: 'password',
-  database: 'db_name',
+	host: '127.0.0.1',
+	port: 5432,
+	user: 'postgres',
+	password: 'password',
+	database: 'db_name',
 });
 
 const db = drizzle(pool);
@@ -105,14 +107,16 @@ import { Client } from 'pg';
 
 import { users } from './schema';
 
-const client = new Client({ connectionString: 'postgres://user:password@host:port/db' });
+const client = new Client({
+	connectionString: 'postgres://user:password@host:port/db',
+});
 // or
 const client = new Client({
-  host: '127.0.0.1',
-  port: 5432,
-  user: 'postgres',
-  password: 'password',
-  database: 'db_name',
+	host: '127.0.0.1',
+	port: 5432,
+	user: 'postgres',
+	password: 'password',
+	database: 'db_name',
 });
 
 await client.connect();
@@ -127,26 +131,28 @@ const allUsers = await db.select(users);
 This is how you declare SQL schema in `schema.ts`. You can declare tables, indexes and constraints, foreign keys and enums. Please pay attention to `export` keyword, they are mandatory if you'll be using [drizzle-kit SQL migrations generator](#migrations).
 
 ```typescript
-import { pgEnum, pgTable, serial, varchar, uniqueIndex } from 'drizzle-orm-pg';
+import { pgEnum, pgTable, serial, uniqueIndex, varchar } from 'drizzle-orm-pg';
 
 // declaring enum in database
-export const popularityEnum = pgEnum('popularity', ['unknown', 'known', 
-'popular']);
+export const popularityEnum = pgEnum('popularity', [
+	'unknown',
+	'known',
+	'popular',
+]);
 
 export const countries = pgTable('countries', {
-    id: serial('id').primaryKey(),
-    name: varchar('name', 256),
-  }, (countries) => ({
-    nameIndex: uniqueIndex('name_idx').on(countries.name),
-  }),
-);
+	id: serial('id').primaryKey(),
+	name: varchar('name', 256),
+}, (countries) => ({
+	nameIndex: uniqueIndex('name_idx').on(countries.name),
+}));
 
 export const cities = pgTable('cities', {
-  id: serial('id').primaryKey(),
-  name: varchar('name', 256),
-  countryId: integer('country_id').references(() => countries.id),
-  popularity: popularityEnum('popularity'),
-})
+	id: serial('id').primaryKey(),
+	name: varchar('name', 256),
+	countryId: integer('country_id').references(() => countries.id),
+	popularity: popularityEnum('popularity'),
+});
 ```
 
 ### Database and table entity types
@@ -225,7 +231,6 @@ index('name')
 ```
 
 ## Column types
-
 
 ```typescript
 export const popularityEnum = pgEnum('popularity', ['unknown', 'known', 'popular']); // declare enum type
@@ -407,17 +412,65 @@ const newUsers: NewUser[] = [
 ];
 
 await db.insert(users).values(...newUsers);
+
+const insertedUsers: NewUser[] = await db.insert(users).values(...newUsers).returning();
+
+const insertedUsersIds: { insertedId: number }[] = await db.insert(users)
+    .values(...newUsers)
+    .returning({ insertedId: users.id });
+```
+
+### Upsert (Insert with on conflict statement)
+
+```typescript
+await db.insert(users)
+	.values({ id: 1, name: 'Dan' })
+	.onConflictDoUpdate({ target: users.id, set: { name: 'John' } });
+
+await db.insert(users)
+	.values({ id: 1, name: 'John' })
+	.onConflictDoNothing();
+
+await db.insert(users)
+	.values({ id: 1, name: 'John' })
+	.onConflictDoNothing({ target: users.id });
+
+await db.insert(users)
+	.values({ id: 1, name: 'John' })
+	.onConflictDoUpdate({
+		target: users.id,
+		set: { name: 'John1' },
+		where: sql`${users.createdAt} > '2023-01-01'::date`,
+	});
 ```
 
 ### Update and Delete
 
 ```typescript
 await db.update(users)
-  .set({ name: 'Mr. Dan' })
-  .where(eq(users.name, 'Dan'));
-	
+	.set({ name: 'Mr. Dan' })
+	.where(eq(users.name, 'Dan'));
+
+const updatedUser: InferModel<typeof users> = await db.delete(users)
+	.set({ name: 'Mr. Dan' })
+	.where(eq(users.name, 'Dan'))
+	.returning();
+
+const updatedUserId: { updatedId: number }[] = await db.update(users)
+	.set({ name: 'Mr. Dan' })
+	.where(eq(users.name, 'Dan'))
+	.returning({ updatedId: users.id });
+
 await db.delete(users)
-  .where(eq(users.name, 'Dan'));
+	.where(eq(users.name, 'Dan'));
+
+const deletedUser: InferModel<typeof users> = await db.delete(users)
+	.where(eq(users.name, 'Dan'))
+	.returning();
+
+const deletedUserId: { deletedId: number }[] = await db.delete(users)
+	.where(eq(users.name, 'Dan'))
+	.returning({ deletedId: users.id });
 ```
 
 ### Joins
@@ -428,43 +481,43 @@ Last but not least. Probably the most powerful feature in the library🚀
 
 ```typescript
 const cities = pgTable('cities', {
-  id: serial('id').primaryKey(),
-  name: text('name'),
+	id: serial('id').primaryKey(),
+	name: text('name'),
 });
 
 const users = pgTable('users', {
-  id: serial('id').primaryKey(),
-  name: text('name'),
-  cityId: integer('city_id').references(() => cities.id)
+	id: serial('id').primaryKey(),
+	name: text('name'),
+	cityId: integer('city_id').references(() => cities.id),
 });
 
 const result = db.select(cities)
-  .leftJoin(users, eq(cities2.id, users2.cityId));
+	.leftJoin(users, eq(cities2.id, users2.cityId));
 ```
 
 #### Many-to-many
 
 ```typescript
 const users = pgTable('users', {
-  id: serial('id').primaryKey(),
-  name: text('name'),
+	id: serial('id').primaryKey(),
+	name: text('name'),
 });
 
 const chatGroups = pgTable('chat_groups', {
-  id: serial('id').primaryKey(),
-  name: text('name'),
+	id: serial('id').primaryKey(),
+	name: text('name'),
 });
 
 const usersToChatGroups = pgTable('usersToChatGroups', {
-  userId: integer('user_id').notNull().references(() => users.id),
-  groupId: integer('group_id').notNull().references(() => chatGroups.id),
+	userId: integer('user_id').notNull().references(() => users.id),
+	groupId: integer('group_id').notNull().references(() => chatGroups.id),
 });
 
 // querying user group with id 1 and all the participants(users)
 const result = await db.select(usersToChatGroups)
-  .leftJoin(users, eq(usersToChatGroups.userId, users.id))
-  .leftJoin(chatGroups, eq(usersToChatGroups.groupId, chatGroups.id))
-  .where(eq(chatGroups.id, 1));
+	.leftJoin(users, eq(usersToChatGroups.userId, users.id))
+	.leftJoin(chatGroups, eq(usersToChatGroups.groupId, chatGroups.id))
+	.where(eq(chatGroups.id, 1));
 ```
 
 #### Join aliases and self-joins
@@ -490,29 +543,28 @@ const result = await db.select(files)
 ```typescript
 // Select user ID and city ID and name
 const result1 = await db.select(cities).fields({
-  userId: users.id,
-  cityId: cities.id,
-  cityName: cities.name
+	userId: users.id,
+	cityId: cities.id,
+	cityName: cities.name,
 }).leftJoin(users, eq(users.cityId, cities.id));
 
 // Select all fields from users and only id and name from cities
 const result2 = await db.select(cities).fields({
-  // Supports any level of nesting!
-  user: users,
-  city: {
-    id: cities.id,
-    name: cities.name
-  },
+	// Supports any level of nesting!
+	user: users,
+	city: {
+		id: cities.id,
+		name: cities.name,
+	},
 }).leftJoin(users, eq(users.cityId, cities.id));
 ```
-
 
 ## Prepared statements
 
 ```typescript
 const query = db.select(users)
-  .where(eq(users.name, 'Dan'))
-  .prepare();
+	.where(eq(users.name, 'Dan'))
+	.prepare();
 
 const result = await query.execute();
 ```
@@ -523,8 +575,8 @@ const result = await query.execute();
 import { placeholder } from 'drizzle-orm-pg';
 
 const query = db.select(users)
-  .where(eq(users.name, placeholder('name')))
-  .prepare();
+	.where(eq(users.name, placeholder('name')))
+	.prepare();
 
 const result = await query.execute({ name: 'Dan' });
 ```
@@ -535,7 +587,9 @@ If you have some complex queries to execute and drizzle-orm can't handle them ye
 
 ```typescript
 // it will automatically run a parametrized query!
-const res: QueryResult<{ id: number, name: string }> = await db.execute<{ id: number, name: string }>(sql`select * from ${users} where ${users.id} = ${userId}`);
+const res: QueryResult<{ id: number; name: string }> = await db.execute<
+	{ id: number; name: string }
+>(sql`select * from ${users} where ${users.id} = ${userId}`);
 ```
 
 ## Migrations
@@ -595,9 +649,11 @@ import { drizzle } from 'drizzle-orm-pg/node';
 import { migrate } from 'drizzle-orm-pg/node/migrator';
 import { Pool } from 'pg';
 
-const pool = new Pool({ connectionString: 'postgres://user:password@host:port/db' });
+const pool = new Pool({
+	connectionString: 'postgres://user:password@host:port/db',
+});
 const db = drizzle(pool);
 
 // this will automatically run needed migrations on the database
-await migrate(db, { migrationsFolder: './drizzle' })
+await migrate(db, { migrationsFolder: './drizzle' });
 ```
