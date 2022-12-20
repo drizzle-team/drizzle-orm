@@ -86,20 +86,33 @@ export class PgInsert<TTable extends AnyPgTable, TReturning extends QueryResultR
 		if (config.target === undefined) {
 			this.config.onConflict = sql`do nothing`;
 		} else {
+			let targetColumn = '';
+			if (Array.isArray(config.target)) {
+				targetColumn = config.target.map((it) => this.dialect.escapeName(it.name)).join(',');
+			} else {
+				targetColumn = this.dialect.escapeName(config.target.name);
+			}
+
 			const whereSql = config.where ? sql` where ${config.where}` : sql``;
-			this.config.onConflict = sql`${config.target}${whereSql} do nothing`;
+			this.config.onConflict = sql`(${sql.raw(targetColumn)})${whereSql} do nothing`;
 		}
 		return this;
 	}
 
 	onConflictDoUpdate(config: {
-		target?: IndexColumn | IndexColumn[];
+		target: IndexColumn | IndexColumn[];
 		where?: SQL;
 		set: PgUpdateSetSource<TTable>;
 	}): this {
 		const whereSql = config.where ? sql` where ${config.where}` : sql``;
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
-		this.config.onConflict = sql`${config.target}${whereSql} do update set ${setSql}`;
+		let targetColumn = '';
+		if (Array.isArray(config.target)) {
+			targetColumn = config.target.map((it) => this.dialect.escapeName(it.name)).join(',');
+		} else {
+			targetColumn = this.dialect.escapeName(config.target.name);
+		}
+		this.config.onConflict = sql`(${sql.raw(targetColumn)})${whereSql} do update set ${setSql}`;
 		return this;
 	}
 

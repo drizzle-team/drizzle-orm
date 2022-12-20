@@ -1,7 +1,18 @@
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
-import { DefaultLogger, sql } from 'drizzle-orm';
-import { alias, boolean, InferModel, jsonb, PgDatabase, pgTable, serial, text, timestamp } from 'drizzle-orm-pg';
+import { sql } from 'drizzle-orm';
+import {
+	alias,
+	boolean,
+	IndexColumn,
+	InferModel,
+	jsonb,
+	PgDatabase,
+	pgTable,
+	serial,
+	text,
+	timestamp,
+} from 'drizzle-orm-pg';
 import { drizzle } from 'drizzle-orm-pg/node';
 import { migrate } from 'drizzle-orm-pg/node/migrator';
 import { asc, eq } from 'drizzle-orm/expressions';
@@ -549,6 +560,113 @@ test.serial('insert via db.execute w/ query builder', async (t) => {
 		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 	);
 	t.deepEqual(inserted.rows, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('build query insert with onConflict do update', async (t) => {
+	const { db } = t.context;
+
+	const query = db.insert(usersTable)
+		.values({ name: 'John', jsonb: ['foo', 'bar'] })
+		.onConflictDoUpdate({ target: usersTable.id, set: { name: 'John1' } })
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id") do update set "name" = $3',
+		params: ['John', '["foo","bar"]', 'John1'],
+	});
+});
+
+test.serial('build query insert with onConflict do update / multiple columns', async (t) => {
+	const { db } = t.context;
+
+	const query = db.insert(usersTable)
+		.values({ name: 'John', jsonb: ['foo', 'bar'] })
+		.onConflictDoUpdate({ target: [usersTable.id, usersTable.name], set: { name: 'John1' } })
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id","name") do update set "name" = $3',
+		params: ['John', '["foo","bar"]', 'John1'],
+	});
+});
+
+test.serial('build query insert with onConflict do nothing', async (t) => {
+	const { db } = t.context;
+
+	const query = db.insert(usersTable)
+		.values({ name: 'John', jsonb: ['foo', 'bar'] })
+		.onConflictDoNothing()
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict do nothing',
+		params: ['John', '["foo","bar"]'],
+	});
+});
+
+test.serial('build query insert with onConflict do nothing + target', async (t) => {
+	const { db } = t.context;
+
+	const query = db.insert(usersTable)
+		.values({ name: 'John', jsonb: ['foo', 'bar'] })
+		.onConflictDoNothing({ target: usersTable.id })
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id") do nothing',
+		params: ['John', '["foo","bar"]'],
+	});
+});
+
+test.serial('insert with onConflict do update', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable)
+		.values({ name: 'John' });
+
+	await db.insert(usersTable)
+		.values({ id: 1, name: 'John' })
+		.onConflictDoUpdate({ target: usersTable.id, set: { name: 'John1' } });
+
+	const res = await db.select(usersTable).fields({ id: usersTable.id, name: usersTable.name }).where(
+		eq(usersTable.id, 1),
+	);
+
+	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
+});
+
+test.serial('insert with onConflict do nothing', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable)
+		.values({ name: 'John' });
+
+	await db.insert(usersTable)
+		.values({ id: 1, name: 'John' })
+		.onConflictDoNothing();
+
+	const res = await db.select(usersTable).fields({ id: usersTable.id, name: usersTable.name }).where(
+		eq(usersTable.id, 1),
+	);
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('insert with onConflict do nothing + target', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable)
+		.values({ name: 'John' });
+
+	await db.insert(usersTable)
+		.values({ id: 1, name: 'John' })
+		.onConflictDoNothing({ target: usersTable.id });
+
+	const res = await db.select(usersTable).fields({ id: usersTable.id, name: usersTable.name }).where(
+		eq(usersTable.id, 1),
+	);
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
 });
 
 test.after.always(async (t) => {

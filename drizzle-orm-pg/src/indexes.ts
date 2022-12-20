@@ -44,7 +44,7 @@ interface IndexConfig {
 	where?: SQL;
 }
 
-export type IndexColumn = AnyPgColumn | SQL;
+export type IndexColumn = AnyPgColumn;
 
 export class IndexBuilderOn {
 	constructor(private name: string, private unique: boolean) {}
