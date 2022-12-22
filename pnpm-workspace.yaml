@@ -5,3 +5,4 @@ packages:
   - drizzle-orm-mysql
   - drizzle-orm-sqlite
   - integration-tests
+  - examples/cloudflare-d1

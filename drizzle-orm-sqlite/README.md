@@ -1,6 +1,14 @@
 # Drizzle ORM | SQLite
 DrizzleORM is a [tiny](https://twitter.com/_alexblokh/status/1594735880417472512), [blazingly fast](#performance-and-prepared-statements) TypeScript ORM library with a [drizzle-kit](#migrations) CLI companion for automatic SQL migrations generation. 
-Here you can find extensive docs for SQLite module. We support `better-sqlite3`, `node-sqlite`, `bun:sqlite`, `Cloudflare D1`, `Fly.io LiteFS` drivers.
+Here you can find extensive docs for SQLite module.
+
+| Driver         | Support |            |
+|:--             |  :---:  | :--        |
+| better-sqlite3 | ✅      |            |
+| node-sqlite    | ⏳      |            |            
+| bun:sqlite     | ✅      |            |  
+| Cloudflare D1  | ✅      |[example project](https://github.com/drizzle-team/drizzle-orm/tree/main/examples/cloudflare-d1)|
+| Fly.io LiteFS  | ✅      |            |
 
 ## 💾 Installation
 ```bash
