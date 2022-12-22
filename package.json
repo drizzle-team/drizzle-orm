@@ -1,32 +1,27 @@
 {
-  "private": true,
-  "scripts": {
-    "build:core": "turbo run build --filter drizzle-orm",
-    "build:pg": "turbo run build --filter drizzle-orm-pg",
-    "build:mysql": "turbo run build --filter drizzle-orm-mysql",
-    "build": "turbo run build --filter '!drizzle-orm-mysql' --color",
-    "build:int": "turbo run build:int --filter '!drizzle-orm-mysql' --color",
-    "test": "turbo run test --filter '!drizzle-orm-mysql' --color",
-    "postinstall": "pnpm i --filter '!integration-tests' --filter '!.' --no-frozen-lockfile"
-  },
-  "devDependencies": {
-    "@trivago/prettier-plugin-sort-imports": "^3.2.0",
-    "bun-types": "^0.2.2",
-    "concurrently": "^7.5.0",
-    "dprint": "^0.32.2",
-    "prettier": "^2.7.1",
-    "resolve-tspaths": "^0.8.3",
-    "turbo": "^1.6.3",
-    "typescript": "4.8.4"
-  },
-  "pnpm": {
-    "patchedDependencies": {
-      "typescript@4.8.4": "patches/typescript@4.8.4.patch"
-    }
-  },
-  "dependencies": {
-    "drizzle-orm": "latest",
-    "drizzle-orm-sqlite": "latest",
-    "mitata": "^0.1.6"
-  }
+	"private": true,
+	"scripts": {
+		"build:core": "turbo run build --filter drizzle-orm",
+		"build:pg": "turbo run build --filter drizzle-orm-pg",
+		"build:mysql": "turbo run build --filter drizzle-orm-mysql",
+		"build": "turbo run build --filter '!drizzle-orm-mysql' --color",
+		"build:int": "turbo run build:int --filter '!drizzle-orm-mysql' --color",
+		"test": "turbo run test --filter '!drizzle-orm-mysql' --color",
+		"postinstall": "pnpm i --filter '!integration-tests' --filter '!.' --no-frozen-lockfile"
+	},
+	"devDependencies": {
+		"@trivago/prettier-plugin-sort-imports": "^3.2.0",
+		"bun-types": "^0.2.2",
+		"concurrently": "^7.5.0",
+		"dprint": "^0.32.2",
+		"prettier": "^2.7.1",
+		"resolve-tspaths": "^0.8.3",
+		"turbo": "^1.6.3",
+		"typescript": "4.8.4"
+	},
+	"pnpm": {
+		"patchedDependencies": {
+			"typescript@4.8.4": "patches/typescript@4.8.4.patch"
+		}
+	}
 }

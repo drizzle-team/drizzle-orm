@@ -6,7 +6,7 @@ Here you can find extensive docs for SQLite module.
 |:--             |  :---:  | :--        |
 | better-sqlite3 | ✅      |            |
 | node-sqlite    | ⏳      |            |            
-| bun:sqlite     | ✅      |[example project](https://github.com/drizzle-team/drizzle-orm/tree/main/examples/bun-sqlite)|  
+| bun:sqlite     | ✅      |            |  
 | Cloudflare D1  | ✅      |[example project](https://github.com/drizzle-team/drizzle-orm/tree/main/examples/cloudflare-d1)|
 | Fly.io LiteFS  | ✅      |            |
 
