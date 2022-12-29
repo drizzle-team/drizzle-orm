@@ -21,6 +21,12 @@ const usersMigratorTable = sqliteTable('users12', {
 	email: text('email').notNull(),
 });
 
+const anotherUsersMigratorTable = sqliteTable('another_users', {
+	id: integer('id').primaryKey(),
+	name: text('name').notNull(),
+	email: text('email').notNull(),
+});
+
 interface Context {
 	db: BetterSQLite3Database;
 	client: Database.Database;
@@ -45,7 +51,7 @@ test.beforeEach((t) => {
 			name text not null,
 			verified integer not null default 0,
 			json blob,
-			created_at integer not null default (floor((julianday('now') - 2440587.5)*86400000))
+			created_at integer not null default (cast((julianday('now') - 2440587.5)*86400000 as integer))
 		)`);
 });
 
@@ -497,10 +503,13 @@ test.serial('migrator', async (t) => {
 	migrate(db, { migrationsFolder: './drizzle/sqlite' });
 
 	db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).run();
-
 	const result = db.select(usersMigratorTable).all();
 
+	db.insert(anotherUsersMigratorTable).values({ name: 'John', email: 'email' }).run();
+	const result2 = db.select(usersMigratorTable).all();
+
 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+	t.deepEqual(result2, [{ id: 1, name: 'John', email: 'email' }]);
 });
 
 test.serial('insert via db.run + select via db.all', (t) => {

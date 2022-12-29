@@ -29,6 +29,10 @@ export class SQLiteBunSession extends SQLiteSession<'sync', void> {
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
+	exec(query: string): void {
+		this.client.exec(query);
+	}
+
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
 		fields?: SelectFieldsOrdered,

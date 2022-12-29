@@ -31,6 +31,10 @@ export abstract class SQLiteSession<TResultKind extends 'sync' | 'async' = 'sync
 		fields?: SelectFieldsOrdered,
 	): PreparedQuery<PreparedQueryConfig & { type: TResultKind }>;
 
+	abstract exec(
+		query: string,
+	): void;
+
 	run(query: SQL): ResultKind<TResultKind, TRunResult> {
 		return this.prepareQuery(this.dialect.sqlToQuery(query)).run();
 	}
