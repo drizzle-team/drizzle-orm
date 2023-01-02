@@ -59,6 +59,7 @@ export abstract class ColumnBuilder<T extends Partial<ColumnBuilderBaseConfig>> 
 
 	primaryKey(): ColumnBuilder<UpdateCBConfig<T, { notNull: true }>> {
 		this.config.primaryKey = true;
+		this.config.notNull = true;
 		return this as ReturnType<this['primaryKey']>;
 	}
 }

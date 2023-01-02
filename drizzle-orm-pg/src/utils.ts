@@ -29,6 +29,8 @@ export function getTableChecks<TTable extends AnyPgTable>(table: TTable) {
 	return keys.map((key) => checks[key]!);
 }
 
+export const apiVersion: number = 1;
+
 /** @internal */
 export function mapUpdateSet(table: AnyPgTable, values: Record<string, unknown>): PgUpdateSet {
 	return Object.fromEntries<PgUpdateSet[string]>(
