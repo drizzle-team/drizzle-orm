@@ -1,11 +1,13 @@
 import anyTest, { TestFn } from 'ava';
 import Database from 'better-sqlite3';
 import { DefaultLogger, sql } from 'drizzle-orm';
-import { alias, blob, InferModel, integer, sqliteTable, text } from 'drizzle-orm-sqlite';
+import { alias, blob, InferModel, integer, primaryKey, sqliteTable, text } from 'drizzle-orm-sqlite';
 import { BetterSQLite3Database, drizzle } from 'drizzle-orm-sqlite/better-sqlite3';
 import { migrate } from 'drizzle-orm-sqlite/better-sqlite3/migrator';
+import { getTableCompositePrimaryKeys } from 'drizzle-orm-sqlite/utils';
 import { asc, eq } from 'drizzle-orm/expressions';
 import { name, placeholder } from 'drizzle-orm/sql';
+import { getTableName } from 'drizzle-orm/table';
 
 const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey(),
@@ -26,6 +28,21 @@ const anotherUsersMigratorTable = sqliteTable('another_users', {
 	name: text('name').notNull(),
 	email: text('email').notNull(),
 });
+
+const compositePrimaryKeyTable = sqliteTable(
+	'users_table',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		subClass: text<'B' | 'D'>('sub_class'),
+		name: text('name'),
+		age1: integer('age1').notNull(),
+		createdAt: integer('created_at', { mode: 'timestamp' }).notNull().defaultNow(),
+		enumCol: text<'a' | 'b' | 'c'>('enum_col').notNull(),
+	},
+	(users) => ({
+		usersAge1Idx: primaryKey([users.id, users.name]),
+	}),
+);
 
 interface Context {
 	db: BetterSQLite3Database;
@@ -53,6 +70,17 @@ test.beforeEach((t) => {
 			json blob,
 			created_at integer not null default (cast((julianday('now') - 2440587.5)*86400000 as integer))
 		)`);
+});
+
+test.serial('get compound primary keys config', (t) => {
+	const { db } = t.context;
+	const pks = getTableCompositePrimaryKeys(compositePrimaryKeyTable);
+	pks.forEach((it) => {
+		console.log('pk_name: ', it.getName());
+		console.log('table name: ', getTableName(it.table));
+		console.log('columns: ', it.columns.map((t) => t.name));
+	});
+	// console.log(pks);
 });
 
 test.serial('select all fields', (t) => {

@@ -3,7 +3,7 @@ import { Equal, Expect } from 'tests/utils';
 
 import { check } from '~/checks';
 import { foreignKey } from '~/foreign-keys';
-import { integer, text } from '~/index';
+import { integer, primaryKey, text } from '~/index';
 import { index, uniqueIndex } from '~/indexes';
 import { InferModel, sqliteTable } from '~/table';
 
