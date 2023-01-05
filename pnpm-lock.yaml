@@ -3143,7 +3143,7 @@ packages:
     dev: false
 
   file:drizzle-orm-pg/package.tgz_nqoxchnrkeunsibygor7odn3ui:
-    resolution: {integrity: sha512-6Uvn7qac5eVsvjOOHoZh/53r4mU2xfAiXt/E2D8HTjU3Cj1IrVN2g1ncJIz29ZJAzoivl5Q3CYtQV0JBMQZAdQ==, tarball: file:drizzle-orm-pg/package.tgz}
+    resolution: {integrity: sha512-O6ZtLijTSbB4MVtUCCPrr6Wm4pW9SbsUz2EfWroPpbftk26k108e426jrXVjbEtqxbd5bVxQOyt3O3m2uSKkGw==, tarball: file:drizzle-orm-pg/package.tgz}
     id: file:drizzle-orm-pg/package.tgz
     name: drizzle-orm-pg
     version: 0.15.0

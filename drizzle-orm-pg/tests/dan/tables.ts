@@ -50,7 +50,7 @@ export const cities = pgTable('cities_table', {
 	name: text('name').notNull(),
 	population: integer('population').default(0),
 }, (cities) => ({
-	citiesNameIdx: index('citiesNameIdx').on(cities.id),
+	citiesNameIdx: index().on(cities.id),
 }));
 
 export const classes = pgTable('classes_table', {
