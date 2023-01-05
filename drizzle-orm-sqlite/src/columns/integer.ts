@@ -36,7 +36,7 @@ export abstract class SQLiteIntegerBaseBuilder<T extends ColumnBuilderBaseConfig
 	override primaryKey(
 		config?: PrimaryKeyConfig,
 	): SQLiteColumnBuilder<Pick<T, 'data' | 'driverParam'> & { notNull: true; hasDefault: boolean }> {
-		if (this.config?.autoIncrement) {
+		if (config?.autoIncrement) {
 			this.config.autoIncrement = true;
 		}
 		return super.primaryKey() as ReturnType<this['primaryKey']>;
