@@ -4,7 +4,7 @@ import { AnyPgColumn } from './columns';
 import { AnyPgTable } from './table';
 
 interface IndexConfig {
-	name: string;
+	name?: string;
 
 	columns: IndexColumn[];
 
@@ -47,14 +47,14 @@ interface IndexConfig {
 export type IndexColumn = AnyPgColumn;
 
 export class IndexBuilderOn {
-	constructor(private name: string, private unique: boolean) {}
+	constructor(private unique: boolean, private name?: string) {}
 
 	on(...columns: [IndexColumn, ...IndexColumn[]]): IndexBuilder {
-		return new IndexBuilder(this.name, columns, this.unique, false);
+		return new IndexBuilder(columns, this.unique, false, this.name);
 	}
 
 	onOnly(...columns: [IndexColumn, ...IndexColumn[]]): IndexBuilder {
-		return new IndexBuilder(this.name, columns, this.unique, true);
+		return new IndexBuilder(columns, this.unique, true, this.name);
 	}
 }
 
@@ -70,7 +70,7 @@ export class IndexBuilder implements AnyIndexBuilder {
 	/** @internal */
 	config: IndexConfig;
 
-	constructor(name: string, columns: IndexColumn[], unique: boolean, only: boolean) {
+	constructor(columns: IndexColumn[], unique: boolean, only: boolean, name?: string) {
 		this.config = {
 			name,
 			columns,
@@ -136,10 +136,10 @@ export type GetColumnsTableName<TColumns> = TColumns extends
 	>[] ? TTableName
 	: never;
 
-export function index(name: string): IndexBuilderOn {
-	return new IndexBuilderOn(name, false);
+export function index(name?: string): IndexBuilderOn {
+	return new IndexBuilderOn(false, name);
 }
 
-export function uniqueIndex(name: string): IndexBuilderOn {
-	return new IndexBuilderOn(name, true);
+export function uniqueIndex(name?: string): IndexBuilderOn {
+	return new IndexBuilderOn(true, name);
 }
