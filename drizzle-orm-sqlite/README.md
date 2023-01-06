@@ -145,7 +145,7 @@ column.notNull()
 column.default(...)
 ```
 
-Declaring indexes and foreign keys
+Declaring indexes, foreign keys and composite primary keys
 ```typescript
 import { sqliteTable, foreignKey, text, integer, index, uniqueIndex } from "drizzle-orm-sqlite";
 
@@ -176,6 +176,15 @@ export const cities = sqliteTable("cities", {
     columns: [table.countryId, table.countryName],
     foreignColumns: [countries.id, countries.name],
   })),
+}));
+
+const pkExample = sqliteTable('pk_example', {
+	id: integer('id'),
+	name: text('name').notNull(),
+	email: text('email').notNull(),
+}, (table) => ({
+  // composite primary key on multiple columns
+	compositePk: primaryKey(table.id, table.name)
 }));
 
 // you can have .where() on indexes

@@ -2,6 +2,9 @@ import { Column } from './column';
 import { SelectFieldsOrdered } from './operations';
 import { DriverValueDecoder, noopDecoder, SQL } from './sql';
 
+export const apiVersion: number = 1;
+export const npmVersion: string = '0.15.0';
+
 export function mapResultRow<TResult>(
 	columns: SelectFieldsOrdered,
 	row: unknown[],

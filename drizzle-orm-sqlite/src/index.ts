@@ -4,6 +4,7 @@ export * from './columns';
 export * from './db';
 export * from './dialect';
 export * from './foreign-keys';
+export * from './primary-keys';
 export * from './indexes';
 export * from './operations';
 export * from './table';
