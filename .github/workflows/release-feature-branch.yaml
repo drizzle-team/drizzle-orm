@@ -26,7 +26,7 @@ jobs:
 
       - uses: pnpm/action-setup@v2
         with:
-          version: latest
+          version: 7.22.0
 
       - name: Publish
         run: |
