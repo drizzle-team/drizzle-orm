@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm-sqlite",
-	"version": "0.14.4",
+	"version": "0.14.5",
 	"description": "Drizzle ORM package for SQLite database",
 	"main": "index.js",
 	"types": "index.d.ts",
@@ -27,7 +27,7 @@
 		"sql",
 		"typescript"
 	],
-	"author": "",
+	"author": "Drizzle Team",
 	"license": "Apache-2.0",
 	"bugs": {
 		"url": "https://github.com/drizzle-team/drizzle-orm/issues"
@@ -38,7 +38,7 @@
 		"better-sqlite3": ">=7 <9",
 		"drizzle-orm": ">=0.14 <0.15",
 		"sqlite3": ">=5 <6",
-		"@cloudflare/workers-types": ">=3 <4"
+		"@cloudflare/workers-types": ">=3"
 	},
 	"peerDependenciesMeta": {
 		"better-sqlite3": {
