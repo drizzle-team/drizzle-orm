@@ -37,11 +37,11 @@ export const users = pgTable(
 			.concurrently()
 			.using(sql`btree`),
 		legalAge: check('legalAge', sql`${users.age1} > 18`),
-		usersClassFK: foreignKey(() => ({ columns: [users.subClass], foreignColumns: [classes.subClass] })),
-		usersClassComplexFK: foreignKey(() => ({
+		usersClassFK: foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] }),
+		usersClassComplexFK: foreignKey({
 			columns: [users.class, users.subClass],
 			foreignColumns: [classes.class, classes.subClass],
-		})),
+		}),
 	}),
 );
 
@@ -50,7 +50,7 @@ export const cities = pgTable('cities_table', {
 	name: text('name').notNull(),
 	population: integer('population').default(0),
 }, (cities) => ({
-	citiesNameIdx: index('citiesNameIdx').on(cities.id),
+	citiesNameIdx: index().on(cities.id),
 }));
 
 export const classes = pgTable('classes_table', {

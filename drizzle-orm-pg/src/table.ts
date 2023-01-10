@@ -30,6 +30,9 @@ export const Indexes = Symbol('Indexes');
 export const ForeignKeys = Symbol('ForeignKeys');
 
 /** @internal */
+export const ExtraConfig = Symbol('ExtraConfig');
+
+/** @internal */
 export const Checks = Symbol('Checks');
 
 export class PgTable<T extends Partial<TableConfig>> extends Table<T['name']> {
@@ -40,6 +43,7 @@ export class PgTable<T extends Partial<TableConfig>> extends Table<T['name']> {
 		Indexes: Indexes as typeof Indexes,
 		ForeignKeys: ForeignKeys as typeof ForeignKeys,
 		Checks: Checks as typeof Checks,
+		ExtraConfig: ExtraConfig as typeof ExtraConfig,
 	});
 
 	/** @internal */
@@ -53,6 +57,9 @@ export class PgTable<T extends Partial<TableConfig>> extends Table<T['name']> {
 
 	/** @internal */
 	[Checks]: Record<string | symbol, Check> = {};
+
+	/** @internal */
+	[ExtraConfig]: ((self: Record<string, AnyPgColumn>) => PgTableExtraConfig) | undefined = undefined;
 }
 
 export type AnyPgTable<TPartial extends Partial<TableConfig> = {}> = PgTable<
@@ -134,17 +141,7 @@ export function pgTable<
 	table[PgTable.Symbol.Columns] = builtColumns;
 
 	if (extraConfig) {
-		const builtConfig = extraConfig(table[PgTable.Symbol.Columns]);
-
-		Object.entries(builtConfig).forEach(([name, builder]) => {
-			if (builder instanceof IndexBuilder) {
-				table[Indexes][name] = builder.build(table);
-			} else if (builder instanceof CheckBuilder) {
-				table[Checks][name] = builder.build(table);
-			} else if (builder instanceof ForeignKeyBuilder) {
-				table[ForeignKeys][name] = builder.build(table);
-			}
-		});
+		table[PgTable.Symbol.ExtraConfig] = extraConfig as (self: Record<string, AnyPgColumn>) => PgTableExtraConfig;
 	}
 
 	return table;

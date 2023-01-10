@@ -1,9 +1,47 @@
 import { Table } from 'drizzle-orm';
 import { Param, SQL, SQLResponse } from 'drizzle-orm/sql';
+import { getTableName } from 'drizzle-orm/table';
 import { PgColumn } from '~/columns';
 import { SelectFields, SelectFieldsOrdered } from '~/operations';
 import { PgUpdateSet } from '~/query-builders';
 import { AnyPgTable, PgTable } from '~/table';
+import { Check, CheckBuilder } from './checks';
+import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
+import { Index, IndexBuilder } from './indexes';
+
+export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
+	const columns = getTableColumns(table);
+	const indexes: Index[] = [];
+	const checks: Check[] = [];
+	const foreignKeys: ForeignKey[] = getTableForeignKeys(table);
+
+	const extraConfig = table[PgTable.Symbol.ExtraConfig];
+
+	if (typeof extraConfig === 'undefined') return {
+		columns,
+		indexes,
+		foreignKeys,
+		checks,
+	};
+
+	const builtConfig = extraConfig(table[PgTable.Symbol.Columns]);
+	Object.entries(builtConfig).forEach(([_, builder]) => {
+		if (builder instanceof IndexBuilder) {
+			indexes.push(builder.build(table));
+		} else if (builder instanceof CheckBuilder) {
+			checks.push(builder.build(table));
+		} else if (builder instanceof ForeignKeyBuilder) {
+			foreignKeys.push(builder.build(table));
+		}
+	});
+
+	return {
+		columns: getTableColumns(table),
+		indexes,
+		foreignKeys,
+		checks,
+	};
+}
 
 export function getTableColumns<TTable extends AnyPgTable>(table: TTable) {
 	const columns = table[PgTable.Symbol.Columns];

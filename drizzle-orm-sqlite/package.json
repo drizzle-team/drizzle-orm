@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm-sqlite",
-	"version": "0.14.5",
+	"version": "0.15.0",
 	"description": "Drizzle ORM package for SQLite database",
 	"main": "index.js",
 	"types": "index.d.ts",
@@ -36,7 +36,7 @@
 	"peerDependencies": {
 		"@types/better-sqlite3": ">=7 <9",
 		"better-sqlite3": ">=7 <9",
-		"drizzle-orm": ">=0.14 <0.15",
+		"drizzle-orm": ">=0.15 <0.16",
 		"sqlite3": ">=5 <6",
 		"@cloudflare/workers-types": ">=3"
 	},

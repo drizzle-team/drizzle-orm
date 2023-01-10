@@ -16,10 +16,10 @@ export class ForeignKeyBuilder {
 	reference: Reference;
 
 	/** @internal */
-	_onUpdate: UpdateDeleteAction | undefined;
+	_onUpdate: UpdateDeleteAction | undefined = 'no action';
 
 	/** @internal */
-	_onDelete: UpdateDeleteAction | undefined;
+	_onDelete: UpdateDeleteAction | undefined = 'no action';
 
 	constructor(
 		config: () => {
@@ -42,12 +42,12 @@ export class ForeignKeyBuilder {
 	}
 
 	onUpdate(action: UpdateDeleteAction): this {
-		this._onUpdate = action;
+		this._onUpdate = typeof action === 'undefined' ? 'no action' : action;
 		return this;
 	}
 
 	onDelete(action: UpdateDeleteAction): this {
-		this._onDelete = action;
+		this._onDelete = typeof action === 'undefined' ? 'no action' : action;
 		return this;
 	}
 
@@ -101,13 +101,13 @@ export function foreignKey<
 	TForeignTableName extends string,
 	TColumns extends [AnyPgColumn<{ tableName: TTableName }>, ...AnyPgColumn<{ tableName: TTableName }>[]],
 >(
-	config: () => {
+	config: {
 		columns: TColumns;
 		foreignColumns: ColumnsWithTable<TForeignTableName, TColumns>;
 	},
 ): ForeignKeyBuilder {
 	function mappedConfig() {
-		const { columns, foreignColumns } = config();
+		const { columns, foreignColumns } = config;
 		return {
 			columns,
 			foreignColumns,

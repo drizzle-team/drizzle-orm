@@ -25,25 +25,25 @@
 	"license": "Apache-2.0",
 	"private": true,
 	"devDependencies": {
-		"@types/better-sqlite3": "^7.6.0",
-		"@types/dockerode": "^3.3.9",
-		"@types/node": "^18.0.5",
-		"@types/pg": "^8.6.1",
+		"@types/better-sqlite3": "^7.6.3",
+		"@types/dockerode": "^3.3.14",
+		"@types/node": "^18.11.18",
+		"@types/pg": "^8.6.6",
 		"@types/uuid": "^8.3.4",
-		"ava": "^5.0.1",
-		"tsx": "^3.8.2"
+		"ava": "^5.1.0",
+		"tsx": "^3.12.2"
 	},
 	"dependencies": {
 		"better-sqlite3": "^7.6.2",
-		"dockerode": "^3.3.3",
+		"dockerode": "^3.3.4",
 		"drizzle-orm": "file:../drizzle-orm/package.tgz",
+		"drizzle-orm-mysql": "file:../drizzle-orm-mysql/package.tgz",
 		"drizzle-orm-pg": "file:../drizzle-orm-pg/package.tgz",
 		"drizzle-orm-sqlite": "file:../drizzle-orm-sqlite/package.tgz",
-		"drizzle-orm-mysql": "file:../drizzle-orm-mysql/package.tgz",
 		"get-port": "^6.1.2",
 		"mysql2": "^2.3.3",
-		"pg": "^8.6.0",
-		"sqlite3": "^5.1.2",
+		"pg": "^8.8.0",
+		"sqlite3": "^5.1.4",
 		"uuid": "^9.0.0",
 		"uvu": "^0.5.6"
 	}

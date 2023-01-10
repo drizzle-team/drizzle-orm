@@ -8,12 +8,14 @@ import { Check, CheckBuilder } from './checks';
 import { AnySQLiteColumn, AnySQLiteColumnBuilder, BuildColumns } from './columns/common';
 import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
 import { Index, IndexBuilder } from './indexes';
+import { PrimaryKey, PrimaryKeyBuilder } from './primary-keys';
 
 export type SQLiteTableExtraConfig = Record<
 	string,
 	| IndexBuilder
 	| CheckBuilder
 	| ForeignKeyBuilder
+	| PrimaryKeyBuilder
 >;
 export interface TableConfig {
 	name: string;
@@ -29,6 +31,9 @@ export const Indexes = Symbol('Indexes');
 export const ForeignKeys = Symbol('ForeignKeys');
 
 /** @internal */
+export const PrimaryKeys = Symbol('PrimaryKeys');
+
+/** @internal */
 export const Checks = Symbol('Checks');
 
 /** @internal */
@@ -42,6 +47,7 @@ export class SQLiteTable<T extends Partial<TableConfig>> extends Table<T['name']
 		Indexes: Indexes as typeof Indexes,
 		ForeignKeys: ForeignKeys as typeof ForeignKeys,
 		Checks: Checks as typeof Checks,
+		PrimaryKeys: PrimaryKeys as typeof PrimaryKeys,
 		ConflictConstraints: ConflictConstraints as typeof ConflictConstraints,
 	});
 
@@ -53,6 +59,9 @@ export class SQLiteTable<T extends Partial<TableConfig>> extends Table<T['name']
 
 	/** @internal */
 	[ForeignKeys]: Record<string | symbol, ForeignKey> = {};
+
+	/** @internal */
+	[PrimaryKeys]: Record<string | symbol, PrimaryKey> = {};
 
 	/** @internal */
 	[Checks]: Record<string | symbol, Check> = {};
@@ -150,6 +159,8 @@ export function sqliteTable<TTableName extends string, TColumnsMap extends Recor
 				table[Checks][name] = builder.build(table);
 			} else if (builder instanceof ForeignKeyBuilder) {
 				table[ForeignKeys][name] = builder.build(table);
+			} else if (builder instanceof PrimaryKeyBuilder) {
+				table[PrimaryKeys][name] = builder.build(table);
 			}
 		});
 	}

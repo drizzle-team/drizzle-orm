@@ -4,17 +4,20 @@ import { sql } from 'drizzle-orm';
 import {
 	alias,
 	boolean,
-	IndexColumn,
+	foreignKey,
 	InferModel,
+	integer,
 	jsonb,
 	PgDatabase,
 	pgTable,
 	serial,
 	text,
 	timestamp,
+	uniqueIndex,
 } from 'drizzle-orm-pg';
 import { drizzle } from 'drizzle-orm-pg/node';
 import { migrate } from 'drizzle-orm-pg/node/migrator';
+import { getTableConfig } from 'drizzle-orm-pg/utils';
 import { asc, eq } from 'drizzle-orm/expressions';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
