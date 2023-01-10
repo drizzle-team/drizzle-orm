@@ -16,12 +16,6 @@ export type SelectFields<TTableName extends string, TColumnDriverParam> = {
 };
 
 export type SelectFieldsOrdered = {
-	name: string;
-	resultTableName: string;
-	field: AnyColumn | SQL | SQLResponse;
-}[];
-
-export type SelectFieldsOrderedV2 = {
 	path: string[];
 	field: AnyColumn | SQL | SQLResponse;
 }[];

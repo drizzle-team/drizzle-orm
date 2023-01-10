@@ -27,5 +27,5 @@ export abstract class QueryPromise<T> implements Promise<T> {
 		return this.execute().then(onFulfilled, onRejected);
 	}
 
-	protected abstract execute(): Promise<T>;
+	abstract execute(): Promise<T>;
 }

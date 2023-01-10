@@ -1,7 +1,8 @@
-import { AnyColumn, Column, MigrationMeta, param, sql, Table } from 'drizzle-orm';
+import { AnyColumn, Column, param, sql, Table } from 'drizzle-orm';
+import { MigrationMeta } from 'drizzle-orm/migrator';
 import { Name, Query, SQL, SQLResponse, SQLSourceParam } from 'drizzle-orm/sql';
 import { AnySQLiteColumn, SQLiteColumn } from '~/columns';
-import { SelectFieldsOrdered, SQLiteSelectFields } from '~/operations';
+import { SelectFieldsOrdered } from '~/operations';
 import { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig, SQLiteUpdateSet } from '~/query-builders';
 import { AnySQLiteTable, SQLiteTable } from '~/table';
 import { SQLiteSelectConfig } from './query-builders/select.types';
@@ -173,15 +174,18 @@ export abstract class SQLiteDialect {
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: SQLiteInsertConfig): SQL {
+		const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLSourceParam | SQL)[] | SQL)[] = [];
 		const columns: Record<string, AnySQLiteColumn> = table[Table.Symbol.Columns];
-		const colEntries = Object.entries(columns);
+		const colEntries: [string, AnySQLiteColumn][] = isSingleValue
+			? Object.keys(values[0]!).map((fieldName) => [fieldName, columns[fieldName]!])
+			: Object.entries(columns);
 		const insertOrder = colEntries.map(([, column]) => new Name(column.name));
 
 		values.forEach((value, valueIndex) => {
 			const valueList: (SQLSourceParam | SQL)[] = [];
-			colEntries.forEach(([colKey, col]) => {
-				const colValue = value[colKey];
+			colEntries.forEach(([fieldName, col]) => {
+				const colValue = value[fieldName];
 				if (typeof colValue === 'undefined') {
 					let defaultValue;
 					if (col.default !== null && col.default !== undefined) {
@@ -230,7 +234,6 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 			hash text NOT NULL,
 			created_at numeric
 		)`;
-		session.run(sql`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
 		session.run(migrationTableCreate);
 
 		const dbMigrations = session.values<[number, string, string]>(
@@ -243,7 +246,7 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 		try {
 			for (const migration of migrations) {
 				if (!lastDbMigration || parseInt(lastDbMigration[2], 10)! < migration.folderMillis) {
-					session.run(sql.raw(migration.sql));
+					session.exec(migration.sql);
 					session.run(
 						sql`INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
 					);
@@ -265,7 +268,6 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 			hash text NOT NULL,
 			created_at numeric
 		)`;
-		await session.run(sql`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
 		await session.run(migrationTableCreate);
 
 		const dbMigrations = await session.values<[number, string, string]>(

@@ -4,7 +4,7 @@
 	"description": "",
 	"scripts": {
 		"typecheck": "tsc",
-		"test": "ava tests",
+		"test": "ava tests --timeout=30s",
 		"build:int:full": "pnpm add ../drizzle-orm/package.tgz ../drizzle-orm-pg/package.tgz ../drizzle-orm-mysql/package.tgz ../drizzle-orm-sqlite/package.tgz",
 		"build:int": "pnpm add ../drizzle-orm/package.tgz ../drizzle-orm-pg/package.tgz ../drizzle-orm-sqlite/package.tgz"
 	},
@@ -21,7 +21,7 @@
 		]
 	},
 	"keywords": [],
-	"author": "",
+	"author": "Drizzle Team",
 	"license": "Apache-2.0",
 	"private": true,
 	"devDependencies": {
@@ -39,6 +39,7 @@
 		"drizzle-orm": "file:../drizzle-orm/package.tgz",
 		"drizzle-orm-pg": "file:../drizzle-orm-pg/package.tgz",
 		"drizzle-orm-sqlite": "file:../drizzle-orm-sqlite/package.tgz",
+		"drizzle-orm-mysql": "file:../drizzle-orm-mysql/package.tgz",
 		"get-port": "^6.1.2",
 		"mysql2": "^2.3.3",
 		"pg": "^8.6.0",

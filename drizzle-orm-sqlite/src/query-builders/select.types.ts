@@ -47,6 +47,10 @@ export type SelectResult<
 	: TSelectMode extends 'single' ? TResult
 	: RemoveDuplicates<Simplify<ApplyNotNullMapToJoins<TResult, TJoinsNotNullable>>>;
 
+type GetNullableKeys<T extends Record<string, JoinNullability>> = {
+	[Key in keyof T]: T[Key] extends 'nullable' ? Key : never;
+}[keyof T];
+
 // Splits a single variant with 'nullable' into two variants with 'null' and 'not-null'
 type SplitNullability<T extends Record<string, JoinNullability>> = RemoveDuplicates<
 	'nullable' extends T[keyof T]
@@ -164,7 +168,3 @@ export type JoinFn<
 	TSelectMode extends 'partial' ? TSelectMode : 'multiple',
 	AppendToJoinsNotNull<TJoinsNotNullable, TJoinedName, TJoinType>
 >;
-
-type GetNullableKeys<T extends Record<string, JoinNullability>> = {
-	[Key in keyof T]: T[Key] extends 'nullable' ? Key : never;
-}[keyof T];

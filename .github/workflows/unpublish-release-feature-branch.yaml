@@ -1,0 +1,36 @@
+name: Unpublish release (feature branch)
+
+on: delete
+
+jobs:
+  unpublish-release:
+    if: github.event.ref_type == 'branch' && github.event.ref != 'refs/heads/main' && github.event.ref != 'refs/heads/beta'
+    strategy:
+      matrix:
+        package:
+          - drizzle-orm
+          - drizzle-orm-mysql
+          - drizzle-orm-pg
+          - drizzle-orm-sqlite
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 7.22.0
+
+      - name: Unpublish
+        run: |
+          tag="${{ github.event.ref }}"
+          tag="${tag#refs/heads/}"
+          echo "Unpublishing ${{ matrix.package }}@$tag"
+          npm dist-tag rm ${{ matrix.package }} $tag
+        working-directory: ${{ matrix.package }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}

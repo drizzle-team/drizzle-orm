@@ -1,5 +1,4 @@
 export * from './alias';
-export * from './better-sqlite3';
 export * from './checks';
 export * from './columns';
 export * from './db';

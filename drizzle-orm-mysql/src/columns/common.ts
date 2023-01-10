@@ -1,169 +1,138 @@
-import { Column } from 'drizzle-orm';
-import { ColumnData, ColumnHasDefault, ColumnNotNull, TableName, Unwrap } from 'drizzle-orm/branded-types';
-import { ColumnBuilder } from 'drizzle-orm/column-builder';
+import { Column, ColumnBaseConfig } from 'drizzle-orm';
+import { ColumnBuilder, ColumnBuilderBaseConfig, UpdateCBConfig } from 'drizzle-orm/column-builder';
+import { SQL } from 'drizzle-orm/sql';
+import { Update } from 'drizzle-orm/utils';
 import { Simplify } from 'drizzle-orm/utils';
-import { MySqlColumnDriverParam } from '~/branded-types';
-import { AnyForeignKey, ForeignKeyBuilder, UpdateDeleteAction } from '~/foreign-keys';
-import { AnyMySQL } from '~/sql';
+
+import { ForeignKey, ForeignKeyBuilder, UpdateDeleteAction } from '~/foreign-keys';
 import { AnyMySqlTable } from '~/table';
 
-export interface ReferenceConfig<TData extends ColumnData> {
-	ref: () => AnyMySqlColumn<any, TData>;
+export interface ReferenceConfig {
+	ref: () => AnyMySqlColumn;
 	actions: {
 		onUpdate?: UpdateDeleteAction;
 		onDelete?: UpdateDeleteAction;
 	};
 }
 
-export abstract class MySqlColumnBuilder<
-	TData extends ColumnData,
-	TDriverParam extends MySqlColumnDriverParam,
-	TNotNull extends boolean,
-	THasDefault extends boolean,
-> extends ColumnBuilder<TData, TDriverParam, TNotNull, THasDefault> {
-	private foreignKeyConfigs: ReferenceConfig<TData>[] = [];
+export abstract class MySqlColumnBuilder<T extends Partial<ColumnBuilderBaseConfig>> extends ColumnBuilder<T> {
+	private foreignKeyConfigs: ReferenceConfig[] = [];
 
 	constructor(name: string) {
 		super(name);
 	}
 
-	override notNull(): MySqlColumnBuilder<TData, TDriverParam, ColumnNotNull<true>, THasDefault> {
-		return super.notNull() as ReturnType<this['notNull']>;
+	override notNull(): MySqlColumnBuilder<UpdateCBConfig<T, { notNull: true }>> {
+		return super.notNull() as any;
 	}
 
-	override default(
-		value: Unwrap<TData> | AnyMySQL,
-	): MySqlColumnBuilder<TData, TDriverParam, TNotNull, ColumnHasDefault<true>> {
-		return super.default(value) as ReturnType<this['default']>;
+	override default(value: T['data'] | SQL): MySqlColumnBuilder<UpdateCBConfig<T, { hasDefault: true }>> {
+		return super.default(value) as any;
 	}
 
-	override primaryKey(): MySqlColumnBuilder<TData, TDriverParam, ColumnNotNull<true>, THasDefault> {
-		return super.primaryKey() as ReturnType<this['primaryKey']>;
+	override primaryKey(): MySqlColumnBuilder<UpdateCBConfig<T, { notNull: true }>> {
+		return super.primaryKey() as any;
 	}
 
 	references(
-		ref: ReferenceConfig<TData>['ref'],
-		actions: ReferenceConfig<TData>['actions'] = {},
+		ref: ReferenceConfig['ref'],
+		actions: ReferenceConfig['actions'] = {},
 	): this {
 		this.foreignKeyConfigs.push({ ref, actions });
 		return this;
 	}
 
 	/** @internal */
-	buildForeignKeys(column: AnyMySqlColumn, table: AnyMySqlTable): AnyForeignKey[] {
+	buildForeignKeys(column: AnyMySqlColumn, table: AnyMySqlTable): ForeignKey[] {
 		return this.foreignKeyConfigs.map(({ ref, actions }) => {
-			const builder = new ForeignKeyBuilder(() => {
-				const foreignColumn = ref();
-				return { columns: [column], foreignColumns: [foreignColumn] };
-			});
-			if (actions.onUpdate) {
-				builder.onUpdate(actions.onUpdate);
-			}
-			if (actions.onDelete) {
-				builder.onDelete(actions.onDelete);
-			}
-			return builder.build(table);
+			return ((ref, actions) => {
+				const builder = new ForeignKeyBuilder(() => {
+					const foreignColumn = ref();
+					return { columns: [column], foreignColumns: [foreignColumn] };
+				});
+				if (actions.onUpdate) {
+					builder.onUpdate(actions.onUpdate);
+				}
+				if (actions.onDelete) {
+					builder.onDelete(actions.onDelete);
+				}
+				return builder.build(table);
+			})(ref, actions);
 		});
 	}
 
 	/** @internal */
-	abstract override build<TTableName extends string>(
-		table: AnyMySqlTable<TTableName>,
-	): MySqlColumn<TTableName, TData, TDriverParam, TNotNull, THasDefault>;
+	abstract build<TTableName extends string>(
+		table: AnyMySqlTable<{ name: TTableName }>,
+	): MySqlColumn<T & { tableName: TTableName }>;
 }
 
-export abstract class MySqlColumnBuilderWithAutoIncrement<
-	TData extends ColumnData,
-	TDriverParam extends MySqlColumnDriverParam,
-	TNotNull extends boolean,
-	THasDefault extends boolean,
-> extends MySqlColumnBuilder<TData, TDriverParam, TNotNull, THasDefault> {
-	/** @internal */ _autoIncrement = false;
+export type AnyMySqlColumnBuilder<TPartial extends Partial<ColumnBuilderBaseConfig> = {}> = MySqlColumnBuilder<
+	Update<ColumnBuilderBaseConfig, TPartial>
+>;
 
-	autoIncrement(): MySqlColumnBuilderWithAutoIncrement<
-		TData,
-		TDriverParam,
-		TNotNull,
-		ColumnHasDefault<true>
-	> {
-		this._autoIncrement = true;
-		return this as ReturnType<this['autoIncrement']>;
-	}
-}
-
-export type AnyMySqlColumnBuilder = MySqlColumnBuilder<any, any, any, any>;
-
-export abstract class MySqlColumn<
-	TTableName extends string,
-	TDataType extends ColumnData,
-	TDriverData extends MySqlColumnDriverParam,
-	TNotNull extends boolean,
-	THasDefault extends boolean,
-> extends Column<TTableName, TDataType, TDriverData, TNotNull, THasDefault> {
-	readonly autoIncrement!: boolean;
+// To understand how to use `MySqlColumn` and `AnyMySqlColumn`, see `Column` and `AnyColumn` documentation.
+export abstract class MySqlColumn<T extends Partial<ColumnBaseConfig>> extends Column<T> {
+	declare protected $mySqlBrand: 'MySqlColumn';
+	protected abstract $mySqlColumnBrand: string;
 
 	constructor(
-		override readonly table: AnyMySqlTable<TTableName>,
-		builder: MySqlColumnBuilder<TDataType, TDriverData, TNotNull, THasDefault>,
+		override readonly table: AnyMySqlTable<{ name: T['tableName'] }>,
+		builder: MySqlColumnBuilder<Omit<T, 'tableName'>>,
 	) {
 		super(table, builder);
 	}
 
 	unsafe(): AnyMySqlColumn {
-		return this;
+		return this as AnyMySqlColumn;
 	}
 }
 
-export abstract class MySqlColumnWithAutoIncrement<
-	TTableName extends string<string>,
-	TDataType extends ColumnData,
-	TDriverData extends MySqlColumnDriverParam,
-	TNotNull extends boolean,
-	THasDefault extends boolean,
-> extends MySqlColumn<TTableName, TDataType, TDriverData, TNotNull, THasDefault> {
-	override readonly autoIncrement: boolean;
+export type AnyMySqlColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = MySqlColumn<
+	Update<ColumnBaseConfig, TPartial>
+>;
+
+export type BuildColumn<
+	TTableName extends string,
+	TBuilder extends AnyMySqlColumnBuilder,
+> = TBuilder extends MySqlColumnBuilder<infer T> ? MySqlColumn<Simplify<T & { tableName: TTableName }>> : never;
+
+export type BuildColumns<
+	TTableName extends string,
+	TConfigMap extends Record<string, AnyMySqlColumnBuilder>,
+> = Simplify<
+	{
+		[Key in keyof TConfigMap]: BuildColumn<TTableName, TConfigMap[Key]>;
+	}
+>;
+
+export type ChangeColumnTableName<TColumn extends AnyMySqlColumn, TAlias extends string> = TColumn extends
+	MySqlColumn<infer T> ? MySqlColumn<Simplify<Omit<T, 'tableName'> & { tableName: TAlias }>>
+	: never;
+
+export abstract class MySqlColumnBuilderWithAutoIncrement<T extends Partial<ColumnBuilderBaseConfig>>
+	extends MySqlColumnBuilder<T>
+{
+	/** @internal */ _autoIncrement = false;
+
+	autoincrement(): MySqlColumnBuilderWithAutoIncrement<T> {
+		this._autoIncrement = true;
+		return this as ReturnType<this['autoincrement']>;
+	}
+}
+
+export abstract class MySqlColumnWithAutoIncrement<T extends Partial<ColumnBaseConfig & { autoIncrement: boolean }>>
+	extends MySqlColumn<T>
+{
+	declare protected $autoIncrement: T['autoIncrement'];
+
+	readonly autoIncrement: boolean;
 
 	constructor(
-		override readonly table: AnyMySqlTable<TTableName>,
-		builder: MySqlColumnBuilderWithAutoIncrement<TDataType, TDriverData, TNotNull, THasDefault>,
+		override readonly table: AnyMySqlTable<{ name: T['tableName'] }>,
+		builder: MySqlColumnBuilderWithAutoIncrement<Omit<T, 'tableName'>>,
 	) {
 		super(table, builder);
 		this.autoIncrement = builder._autoIncrement;
 	}
 }
-
-export type AnyMySqlColumn<
-	TTableName extends string = any,
-	TData extends ColumnData = any,
-	TDriverParam extends MySqlColumnDriverParam = MySqlColumnDriverParam,
-	TNotNull extends boolean = any,
-	THasDefault extends boolean = any,
-> = MySqlColumn<TTableName, TData, TDriverParam, TNotNull, THasDefault>;
-
-export type BuildMySqlColumn<TTableName extends string, TBuilder extends AnyMySqlColumnBuilder> = TBuilder extends
-	MySqlColumnBuilder<
-		infer TData,
-		infer TDriverParam,
-		infer TNotNull,
-		infer THasDefault
-	> ? MySqlColumn<TTableName, TData, TDriverParam, TNotNull, THasDefault>
-	: never;
-
-export type BuildMySqlColumns<
-	TTableName extends string,
-	TConfigMap extends Record<string, AnyMySqlColumnBuilder>,
-> = Simplify<
-	{
-		[Key in keyof TConfigMap]: BuildMySqlColumn<TTableName, TConfigMap[Key]>;
-	}
->;
-
-export type ChangeColumnTable<TColumn extends AnyMySqlColumn, TAlias extends string> = TColumn extends
-	MySqlColumn<any, infer TData, infer TDriverParam, infer TNotNull, infer THasDefault> ? MySqlColumn<
-		TAlias,
-		TData,
-		TDriverParam,
-		TNotNull,
-		THasDefault
-	>
-	: never;

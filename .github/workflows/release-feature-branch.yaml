@@ -1,0 +1,48 @@
+name: Release (feature branch)
+
+on:
+  push:
+    branches-ignore:
+      - main
+      - beta
+
+jobs:
+  release:
+    strategy:
+      matrix:
+        package:
+          - drizzle-orm
+          - drizzle-orm-mysql
+          - drizzle-orm-pg
+          - drizzle-orm-sqlite
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 7.22.0
+
+      - name: Publish
+        run: |
+          tag="${{ github.ref_name }}"
+          old_version="$(jq -r .version package.json)"
+          version="$old_version-$(git rev-parse --short HEAD)"
+          npm version $version
+          echo "Publishing ${{ matrix.package }}@$tag using version $version"
+
+          (cd .. && pnpm i)
+
+          pnpm run release --tag $tag
+
+          # Post release message to Discord
+          curl -X POST -H "Content-Type: application/json" -d "{\"embeds\": [{\"title\": \"New \`${{ matrix.package }}\` release! 🎉\", \"url\": \"https://www.npmjs.com/package/${{ matrix.package }}/v/$version\", \"color\": \"12907856\", \"fields\": [{\"name\": \"Version\", \"value\": \"\`$version\`\"}, {\"name\": \"Tag\", \"value\": \"\`$tag\`\"}]}]}" ${{ secrets.DISCORD_DEV_RELEASE_WEBHOOK_URL }}
+
+        working-directory: ${{ matrix.package }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}

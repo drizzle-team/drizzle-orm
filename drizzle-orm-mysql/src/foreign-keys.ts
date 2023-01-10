@@ -1,24 +1,19 @@
-import { TableName } from 'drizzle-orm/branded-types';
-import { tableNameSym } from 'drizzle-orm/utils';
-import { AnyMySqlColumn } from './columns/common';
-import { AnyMySqlTable } from './table';
-
-import { tableForeignKeys } from './utils';
+import { AnyMySqlColumn } from './columns';
+import { AnyMySqlTable, MySqlTable } from './table';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
-export type Reference<TTableName extends string, TForeignTableName extends string> = () => {
-	readonly columns: AnyMySqlColumn<TTableName>[];
-	readonly foreignTable: AnyMySqlTable<TForeignTableName>;
-	readonly foreignColumns: AnyMySqlColumn<TForeignTableName>[];
+export type Reference = () => {
+	readonly columns: AnyMySqlColumn[];
+	readonly foreignTable: AnyMySqlTable;
+	readonly foreignColumns: AnyMySqlColumn[];
 };
 
-export class ForeignKeyBuilder<TTableName extends string, TForeignTableName extends string> {
+export class ForeignKeyBuilder {
 	declare protected $brand: 'MySqlForeignKeyBuilder';
-	declare protected $foreignTableName: TForeignTableName;
 
 	/** @internal */
-	reference: Reference<TTableName, TForeignTableName>;
+	reference: Reference;
 
 	/** @internal */
 	_onUpdate: UpdateDeleteAction | undefined;
@@ -28,8 +23,8 @@ export class ForeignKeyBuilder<TTableName extends string, TForeignTableName exte
 
 	constructor(
 		config: () => {
-			columns: AnyMySqlColumn<TTableName>[];
-			foreignColumns: AnyMySqlColumn<TForeignTableName>[];
+			columns: AnyMySqlColumn[];
+			foreignColumns: AnyMySqlColumn[];
 		},
 		actions?: {
 			onUpdate?: UpdateDeleteAction;
@@ -57,22 +52,19 @@ export class ForeignKeyBuilder<TTableName extends string, TForeignTableName exte
 	}
 
 	/** @internal */
-	build(table: AnyMySqlTable<TTableName>): ForeignKey<TTableName, TForeignTableName> {
+	build(table: AnyMySqlTable): ForeignKey {
 		return new ForeignKey(table, this);
 	}
 }
 
-export type AnyForeignKeyBuilder = ForeignKeyBuilder<TableName, string>;
+export type AnyForeignKeyBuilder = ForeignKeyBuilder;
 
-export class ForeignKey<TTableName extends string, TForeignTableName extends string> {
-	readonly reference: Reference<TTableName, TForeignTableName>;
+export class ForeignKey {
+	readonly reference: Reference;
 	readonly onUpdate: UpdateDeleteAction | undefined;
 	readonly onDelete: UpdateDeleteAction | undefined;
 
-	constructor(
-		readonly table: AnyMySqlTable<TTableName>,
-		builder: ForeignKeyBuilder<TTableName, TForeignTableName>,
-	) {
+	constructor(readonly table: AnyMySqlTable, builder: ForeignKeyBuilder) {
 		this.reference = builder.reference;
 		this.onUpdate = builder._onUpdate;
 		this.onDelete = builder._onDelete;
@@ -83,69 +75,44 @@ export class ForeignKey<TTableName extends string, TForeignTableName extends str
 		const columnNames = columns.map((column) => column.name);
 		const foreignColumnNames = foreignColumns.map((column) => column.name);
 		const chunks = [
-			this.table[tableNameSym],
+			this.table[MySqlTable.Symbol.Name],
 			...columnNames,
-			foreignColumns[0]!.table[tableNameSym],
+			foreignColumns[0]!.table[MySqlTable.Symbol.Name],
 			...foreignColumnNames,
 		];
 		return `${chunks.join('_')}_fk`;
 	}
 }
 
-export type AnyForeignKey = ForeignKey<any, any>;
-
 type ColumnsWithTable<
 	TTableName extends string,
 	TColumns extends AnyMySqlColumn[],
-> = {
-	[Key in keyof TColumns]: TColumns[Key] extends AnyMySqlColumn<any, infer TType> ? AnyMySqlColumn<TTableName, TType>
-		: never;
-};
+> = { [Key in keyof TColumns]: AnyMySqlColumn<{ tableName: TTableName }> };
 
 export type GetColumnsTable<TColumns extends AnyMySqlColumn | AnyMySqlColumn[]> = (
 	TColumns extends AnyMySqlColumn ? TColumns
 		: TColumns extends AnyMySqlColumn[] ? TColumns[number]
 		: never
-) extends AnyMySqlColumn<infer TTableName> ? TTableName
+) extends AnyMySqlColumn<{ tableName: infer TTableName extends string }> ? TTableName
 	: never;
 
-export type NotUnion<T, T1 = T> = T extends T ? [T1] extends [T] ? T1 : never : never;
-export type NotFKBuilderWithUnion<T> = T extends ForeignKeyBuilder<any, infer TForeignTableName>
-	? [NotUnion<TForeignTableName>] extends [never] ? 'Only columns from the same table are allowed in foreignColumns' : T
-	: never;
-
-function _foreignKey<
-	TColumns extends [AnyMySqlColumn, ...AnyMySqlColumn[]],
+export function foreignKey<
+	TTableName extends string,
 	TForeignTableName extends string,
-	TForeignColumns extends ColumnsWithTable<TForeignTableName, TColumns>,
+	TColumns extends [AnyMySqlColumn<{ tableName: TTableName }>, ...AnyMySqlColumn<{ tableName: TTableName }>[]],
 >(
 	config: () => {
 		columns: TColumns;
-		foreignColumns: TForeignColumns;
+		foreignColumns: ColumnsWithTable<TForeignTableName, TColumns>;
 	},
-): ForeignKeyBuilder<GetColumnsTable<TColumns>, GetColumnsTable<TForeignColumns>> {
+): ForeignKeyBuilder {
 	function mappedConfig() {
 		const { columns, foreignColumns } = config();
 		return {
-			columns: Array.isArray(columns) ? columns : [columns] as AnyMySqlColumn[],
-			foreignColumns: Array.isArray(foreignColumns) ? foreignColumns : [foreignColumns] as AnyMySqlColumn[],
+			columns,
+			foreignColumns,
 		};
 	}
 
 	return new ForeignKeyBuilder(mappedConfig);
-}
-
-export function foreignKey<
-	TColumns extends [AnyMySqlColumn, ...AnyMySqlColumn[]],
-	TForeignTableName extends string,
-	TForeignColumns extends ColumnsWithTable<TForeignTableName, TColumns>,
->(
-	config: () => {
-		columns: TColumns;
-		foreignColumns: TForeignColumns;
-	},
-): NotFKBuilderWithUnion<ForeignKeyBuilder<GetColumnsTable<TColumns>, GetColumnsTable<TForeignColumns>>> {
-	return _foreignKey(config) as NotFKBuilderWithUnion<
-		ForeignKeyBuilder<GetColumnsTable<TColumns>, GetColumnsTable<TForeignColumns>>
-	>;
 }

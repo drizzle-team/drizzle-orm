@@ -1,14 +1,19 @@
 import { Table } from 'drizzle-orm';
-import { SQL } from 'drizzle-orm/sql';
+import { SQLWrapper } from 'drizzle-orm/sql';
 
-import { SQLiteDialect } from '~/dialect';
+import { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/dialect';
 import { SQLiteDelete, SQLiteInsertBuilder, SQLiteSelect, SQLiteUpdateBuilder } from '~/query-builders';
 import { ResultKind, SQLiteSession } from '~/session';
 import { AnySQLiteTable } from '~/table';
 import { orderSelectedFields } from './utils';
 
 export class BaseSQLiteDatabase<TResultType extends 'sync' | 'async', TRunResult> {
-	constructor(protected dialect: SQLiteDialect, protected session: SQLiteSession<TResultType, TRunResult>) {}
+	constructor(
+		/** @internal */
+		readonly dialect: { sync: SQLiteSyncDialect; async: SQLiteAsyncDialect }[TResultType],
+		/** @internal */
+		readonly session: SQLiteSession<TResultType, TRunResult>,
+	) {}
 
 	select<TTable extends AnySQLiteTable>(from: TTable): SQLiteSelect<TTable, TResultType, TRunResult> {
 		const fields = orderSelectedFields(from[Table.Symbol.Columns]);
@@ -27,19 +32,19 @@ export class BaseSQLiteDatabase<TResultType extends 'sync' | 'async', TRunResult
 		return new SQLiteDelete(from, this.session, this.dialect);
 	}
 
-	run(query: SQL): ResultKind<TResultType, TRunResult> {
-		return this.session.run(query);
+	run(query: SQLWrapper): ResultKind<TResultType, TRunResult> {
+		return this.session.run(query.getSQL());
 	}
 
-	all<T extends any = unknown>(query: SQL): ResultKind<TResultType, T[]> {
-		return this.session.all(query);
+	all<T extends any = unknown>(query: SQLWrapper): ResultKind<TResultType, T[]> {
+		return this.session.all(query.getSQL());
 	}
 
-	get<T extends any = unknown>(query: SQL): ResultKind<TResultType, T> {
-		return this.session.get(query);
+	get<T extends any = unknown>(query: SQLWrapper): ResultKind<TResultType, T> {
+		return this.session.get(query.getSQL());
 	}
 
-	values<T extends any[] = unknown[]>(query: SQL): ResultKind<TResultType, T[]> {
-		return this.session.values(query);
+	values<T extends any[] = unknown[]>(query: SQLWrapper): ResultKind<TResultType, T[]> {
+		return this.session.values(query.getSQL());
 	}
 }

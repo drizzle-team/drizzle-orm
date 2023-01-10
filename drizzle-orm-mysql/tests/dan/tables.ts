@@ -1,10 +1,11 @@
 import { sql } from 'drizzle-orm';
 
 import { check } from '~/checks';
-import { int, mysqlEnum, serial, text, timestamp, varchar } from '~/columns';
 import { foreignKey } from '~/foreign-keys';
-import { index } from '~/indexes';
-import { mysqlTable } from '~/table';
+import { int, mysqlEnum, mysqlTable, serial, text, timestamp } from '~/index';
+import { index, uniqueIndex } from '~/indexes';
+
+const myEnum = mysqlEnum('my_enum', ['a', 'b', 'c']);
 
 export const users = mysqlTable(
 	'users_table',
@@ -18,25 +19,19 @@ export const users = mysqlTable(
 		serialNotNull: serial('serial2').notNull(),
 		class: text<'A' | 'C'>('class').notNull(),
 		subClass: text<'B' | 'D'>('sub_class'),
-		varchar: varchar('varchar', { length: 255 }).notNull(),
+		text: text('text'),
 		age1: int('age1').notNull(),
-		createdAt: timestamp('created_at').notNull().defaultNow(),
-		updatedAt: timestamp('updated_at').notNull().onUpdateNow(),
-		createdAtString: timestamp('created_at_string', { mode: 'string' }).notNull().defaultNow(),
-		updatedAtString: timestamp('created_at_string', { mode: 'string' }).notNull().onUpdateNow(),
-		enumCol: mysqlEnum('enum_col', { values: ['a', 'b', 'c'] }).notNull(),
+		createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+		enumCol: myEnum('enum_col').notNull(),
 	},
 	(users) => ({
-		usersAge1Idx: index('usersAge1Idx', users.class, {
-			using: sql`custom`,
-		}),
-		usersAge2Idx: index('usersAge2Idx', users.class),
-		uniqueClass: index('uniqueClass', [users.class, users.subClass], {
-			unique: true,
-			using: 'btree',
-			lock: 'exclusive',
-			algorythm: 'default',
-		}),
+		usersAge1Idx: uniqueIndex('usersAge1Idx').on(users.class),
+		usersAge2Idx: index('usersAge2Idx').on(users.class),
+		uniqueClass: uniqueIndex('uniqueClass')
+			.on(users.class, users.subClass)
+            .lock('default')
+            .algorythm('copy')
+			.using(`btree`),
 		legalAge: check('legalAge', sql`${users.age1} > 18`),
 		usersClassFK: foreignKey(() => ({ columns: [users.subClass], foreignColumns: [classes.subClass] })),
 		usersClassComplexFK: foreignKey(() => ({
@@ -51,7 +46,7 @@ export const cities = mysqlTable('cities_table', {
 	name: text('name').notNull(),
 	population: int('population').default(0),
 }, (cities) => ({
-	citiesNameIdx: index('citiesNameIdx', cities.id),
+	citiesNameIdx: index('citiesNameIdx').on(cities.id),
 }));
 
 export const classes = mysqlTable('classes_table', {

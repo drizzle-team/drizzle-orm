@@ -30,8 +30,9 @@ export interface SQLWrapper {
 	getSQL(): SQL;
 }
 
-export function isSQLWrapper(param: unknown): param is SQLWrapper {
-	return !!param && typeof param === 'object' && 'getSQL' in param;
+export function isSQLWrapper(value: unknown): value is SQLWrapper {
+	return typeof value === 'object' && value !== null && 'getSQL' in value
+		&& typeof (value as any).getSQL === 'function';
 }
 
 export class SQL implements SQLWrapper {
@@ -100,6 +101,13 @@ export class Name {
 	protected brand!: 'Name';
 
 	constructor(readonly value: string) {}
+}
+
+/**
+ * Any DB name (table, column, index etc.)
+ */
+export function name(value: string): Name {
+	return new Name(value);
 }
 
 export interface DriverValueDecoder<TData, TDriverParam> {

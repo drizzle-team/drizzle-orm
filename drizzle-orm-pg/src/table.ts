@@ -7,11 +7,11 @@ import { Simplify } from 'drizzle-orm/utils';
 import { Check, CheckBuilder } from './checks';
 import { AnyPgColumn, AnyPgColumnBuilder, BuildColumns } from './columns/common';
 import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
-import { Index, IndexBuilder } from './indexes';
+import { AnyIndexBuilder, Index, IndexBuilder } from './indexes';
 
 export type PgTableExtraConfig = Record<
 	string,
-	| IndexBuilder
+	| AnyIndexBuilder
 	| CheckBuilder
 	| ForeignKeyBuilder
 >;

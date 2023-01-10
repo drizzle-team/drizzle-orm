@@ -36,7 +36,7 @@ export abstract class SQLiteIntegerBaseBuilder<T extends ColumnBuilderBaseConfig
 	override primaryKey(
 		config?: PrimaryKeyConfig,
 	): SQLiteColumnBuilder<Pick<T, 'data' | 'driverParam'> & { notNull: true; hasDefault: boolean }> {
-		if (this.config?.autoIncrement) {
+		if (config?.autoIncrement) {
 			this.config.autoIncrement = true;
 		}
 		return super.primaryKey() as ReturnType<this['primaryKey']>;
@@ -111,7 +111,7 @@ export class SQLiteTimestampBuilder<
 	 * Adds `DEFAULT (cast((julianday('now') - 2440587.5)*86400000 as integer))` to the column, which is the current epoch timestamp in milliseconds.
 	 */
 	defaultNow(): SQLiteTimestampBuilder<UpdateCBConfig<T, { hasDefault: true }>> {
-		return this.default(sql`cast((julianday('now') - 2440587.5)*86400000 as integer)`);
+		return this.default(sql`(cast((julianday('now') - 2440587.5)*86400000 as integer))`);
 	}
 
 	build<TTableName extends string>(table: AnySQLiteTable<{ name: TTableName }>): SQLiteTimestamp<

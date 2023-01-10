@@ -1,6 +1,4 @@
-import { connect } from 'drizzle-orm';
+import { createPool } from 'mysql2/promise';
+import { drizzle } from '~/mysql2/driver';
 
-import { MySqlTestConnector } from '~/testing';
-import { cities, classes, users } from './tables';
-
-export const db = await connect(new MySqlTestConnector({ users, cities, classes }));
+export const db = drizzle(createPool({}));

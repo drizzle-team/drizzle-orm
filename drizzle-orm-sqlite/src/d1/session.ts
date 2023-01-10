@@ -1,6 +1,6 @@
 import { Logger, NoopLogger } from 'drizzle-orm';
 import { fillPlaceholders, Query } from 'drizzle-orm/sql';
-import { mapResultRowV2 } from 'drizzle-orm/utils';
+import { mapResultRow } from 'drizzle-orm/utils';
 import { SQLiteAsyncDialect } from '~/dialect';
 import { SelectFieldsOrdered } from '~/operations';
 import {
@@ -27,6 +27,11 @@ export class SQLiteD1Session extends SQLiteSession<'async', D1Result> {
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
+	exec(query: string): void {
+		throw Error('To implement: D1 migrator')
+		// await this.client.exec(query.sql);
+	}
+
 	prepareQuery(query: Query, fields?: SelectFieldsOrdered): PreparedQuery {
 		const stmt = this.client.prepare(query.sql);
 		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields);
@@ -49,20 +54,18 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	run(placeholderValues?: Record<string, unknown>): Promise<D1Result> {
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
-
 		return this.stmt.bind(...params).run();
 	}
 
 	all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
 		const { fields } = this;
-		if (!fields) {
-			throw new Error('Statement does not return any data - use run()');
+		if (fields) {
+			return this.values(placeholderValues).then((values) => values.map((row) => mapResultRow(fields, row)));
 		}
 
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
-		return this.values(placeholderValues)
-			.then((values) => values.map((row) => mapResultRowV2(fields, row)));
+		return this.stmt.bind(...params).all().then(({ results }) => results!);
 	}
 
 	get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
@@ -71,13 +74,8 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	}
 
 	values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {
-		if (!this.fields) {
-			throw new Error('Statement does not return any data - use run()');
-		}
-
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
-
 		return this.stmt.bind(...params).raw();
 	}
 }

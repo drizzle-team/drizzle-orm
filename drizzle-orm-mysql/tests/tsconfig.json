@@ -7,5 +7,7 @@
 		"rootDir": "..",
 		"outDir": "./.cache"
 	},
-	"include": [".", "../src"]
+	"include": [".", "../src"],
+
+	"exclude": ["dan/experiments/**/*"]
 }

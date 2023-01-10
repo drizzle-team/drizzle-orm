@@ -18,6 +18,15 @@ import {
 	SQLiteSelectConfig,
 } from './select.types';
 
+export interface SQLiteSelect<
+	TTable extends AnySQLiteTable,
+	TResultType extends 'sync' | 'async',
+	TRunResult,
+	TResult = InferModel<TTable>,
+	TSelectMode extends SelectMode = 'single',
+	TJoinsNotNullable extends Record<string, JoinNullability> = Record<GetTableConfig<TTable, 'name'>, 'not-null'>,
+> extends SQLWrapper {}
+
 export class SQLiteSelect<
 	TTable extends AnySQLiteTable,
 	TResultType extends 'sync' | 'async',
@@ -28,7 +37,7 @@ export class SQLiteSelect<
 	TJoinsNotNullable extends Record<string, JoinNullability> = Record<GetTableConfig<TTable, 'name'>, 'not-null'>,
 > implements SQLWrapper {
 	declare protected $table: TTable;
-	declare protected $hasPartialSelect: TSelectMode;
+	declare protected $selectMode: TSelectMode;
 	declare protected $result: TResult;
 
 	private config: SQLiteSelectConfig;
