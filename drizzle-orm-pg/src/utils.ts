@@ -13,7 +13,7 @@ export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
 	const columns = getTableColumns(table);
 	const indexes: Index[] = [];
 	const checks: Check[] = [];
-	const foreignKeys: ForeignKey[] = [];
+	const foreignKeys: ForeignKey[] = getTableForeignKeys(table);
 
 	const extraConfig = table[PgTable.Symbol.ExtraConfig];
 
