@@ -223,7 +223,7 @@ index('name_idx')
     .lock('default' | 'none' | 'shared' | 'exclusive')
     .algorythm('default' | 'inplace' | 'copy')
 ```
----here I left---
+
 ## Column types
 
 
@@ -264,6 +264,38 @@ timestamp('...').defaultNow()
 
 json('name');
 json<string[]>('name');
+```
+
+## Table schemas
+> **Warning**
+> If you will have tables with same names in different schemas then drizzle will respond with `never[]` error in result types and error from database
+> 
+> In this case you may use [alias syntax](https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-orm-mysql#join-aliases-and-self-joins)
+
+---
+
+Usage example
+```typescript
+// Table in default schema
+const publicUsersTable = mysqlTable('users', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	jsonb: json<string[]>('jsonb'),
+	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+});
+
+
+// Table in custom schema
+const mySchema = mysqlSchema('mySchema');
+
+const mySchemaUsersTable = mySchema('users', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	jsonb: json<string[]>('jsonb'),
+	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+});
 ```
 
 ## Select, Insert, Update, Delete
