@@ -101,12 +101,35 @@ export type InferModel<
 		>;
 	};
 
-export function mysqlTable<
+const isMySqlSchemaSym = Symbol('isMySqlSchema');
+export interface MySqlSchema {
+	/** @internal */
+	[isMySqlSchemaSym]: true;
+}
+
+export function isMySqlSchema(obj: unknown): obj is MySqlSchema {
+	return !!obj && typeof obj === 'function' && isMySqlSchemaSym in obj;
+}
+
+export function mysqlSchema<T extends string = string>(schemaName: T) {
+	const columnFactory = <
+		TTableName extends string,
+		TColumnsMap extends Record<string, AnyMySqlColumnBuilder>,
+	>(
+		name: TTableName,
+		columns: TColumnsMap,
+		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => MySqlTableExtraConfig,
+	) => mysqlTableWithSchema(name, columns, schemaName, extraConfig);
+	return Object.assign(columnFactory, { [isMySqlSchemaSym]: true });
+}
+
+export function mysqlTableWithSchema<
 	TTableName extends string,
 	TColumnsMap extends Record<string, AnyMySqlColumnBuilder>,
 >(
 	name: TTableName,
 	columns: TColumnsMap,
+	schema?: string,
 	extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => MySqlTableExtraConfig,
 ): MySqlTableWithColumns<{
 	name: TTableName;
@@ -115,7 +138,7 @@ export function mysqlTable<
 	const rawTable = new MySqlTable<{
 		name: TTableName;
 		columns: BuildColumns<TTableName, TColumnsMap>;
-	}>(name);
+	}>(name, schema);
 
 	const builtColumns = Object.fromEntries(
 		Object.entries(columns).map(([name, colBuilder]) => {
@@ -147,4 +170,18 @@ export function mysqlTable<
 	}
 
 	return table;
+}
+
+export function mysqlTable<
+	TTableName extends string,
+	TColumnsMap extends Record<string, AnyMySqlColumnBuilder>,
+>(
+	name: TTableName,
+	columns: TColumnsMap,
+	extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => MySqlTableExtraConfig,
+): MySqlTableWithColumns<{
+	name: TTableName;
+	columns: BuildColumns<TTableName, TColumnsMap>;
+}> {
+	return mysqlTableWithSchema(name, columns, undefined, extraConfig);
 }
