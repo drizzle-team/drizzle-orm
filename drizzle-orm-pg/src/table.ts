@@ -110,6 +110,7 @@ export type InferModel<
 
 const isPgSchemaSym = Symbol('isPgSchema');
 export interface PgSchema {
+	schemaName: string;
 	/** @internal */
 	[isPgSchemaSym]: true;
 }
@@ -127,7 +128,7 @@ export function pgSchema<T extends string = string>(schemaName: T) {
 		columns: TColumnsMap,
 		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => PgTableExtraConfig,
 	) => pgTableWithSchema(name, columns, schemaName, extraConfig);
-	return Object.assign(columnFactory, { [isPgSchemaSym]: true });
+	return Object.assign(columnFactory, { [isPgSchemaSym]: true, schemaName });
 }
 
 function pgTableWithSchema<

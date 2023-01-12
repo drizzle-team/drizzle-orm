@@ -103,6 +103,7 @@ export type InferModel<
 
 const isMySqlSchemaSym = Symbol('isMySqlSchema');
 export interface MySqlSchema {
+	schemaName: string;
 	/** @internal */
 	[isMySqlSchemaSym]: true;
 }
@@ -120,7 +121,7 @@ export function mysqlSchema<T extends string = string>(schemaName: T) {
 		columns: TColumnsMap,
 		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => MySqlTableExtraConfig,
 	) => mysqlTableWithSchema(name, columns, schemaName, extraConfig);
-	return Object.assign(columnFactory, { [isMySqlSchemaSym]: true });
+	return Object.assign(columnFactory, { [isMySqlSchemaSym]: true, schemaName });
 }
 
 export function mysqlTableWithSchema<
