@@ -4133,7 +4133,7 @@ packages:
     dev: true
 
   file:drizzle-orm-mysql/package.tgz_eboykk5lcrckrejoen2foqofoi:
-    resolution: {integrity: sha512-IU4FkjEhtjc1ApEW0M+L2cWLbZPgLBZsM06EpFvAAo6YRZuudZNZFQCZIXTHeyQoSLquS9MGGDZodNICFkGwEg==, tarball: file:drizzle-orm-mysql/package.tgz}
+    resolution: {integrity: sha512-rO7+S+CuwnyYZS46PZuq3lwFguuUkcOeWzIva67YkWs27Vt2Mnijm+H6fa5p+5ACPtH03GhcbI/2mqZ9oUDuuw==, tarball: file:drizzle-orm-mysql/package.tgz}
     id: file:drizzle-orm-mysql/package.tgz
     name: drizzle-orm-mysql
     version: 0.15.1
