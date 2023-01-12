@@ -120,6 +120,11 @@ export function isPgSchema(obj: unknown): obj is PgSchema {
 }
 
 export function pgSchema<T extends string = string>(schemaName: T) {
+	const schemaValue: PgSchema = {
+		schemaName,
+		[isPgSchemaSym]: true,
+	};
+
 	const columnFactory = <
 		TTableName extends string,
 		TColumnsMap extends Record<string, AnyPgColumnBuilder>,
@@ -128,7 +133,7 @@ export function pgSchema<T extends string = string>(schemaName: T) {
 		columns: TColumnsMap,
 		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => PgTableExtraConfig,
 	) => pgTableWithSchema(name, columns, schemaName, extraConfig);
-	return Object.assign(columnFactory, { [isPgSchemaSym]: true, schemaName });
+	return Object.assign(columnFactory, schemaValue);
 }
 
 function pgTableWithSchema<
