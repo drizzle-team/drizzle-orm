@@ -14,15 +14,21 @@ export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
 	const indexes: Index[] = [];
 	const checks: Check[] = [];
 	const foreignKeys: ForeignKey[] = getTableForeignKeys(table);
+	const name = table[Table.Symbol.Name];
+	const schema = table[Table.Symbol.Schema];
 
 	const extraConfig = table[PgTable.Symbol.ExtraConfig];
 
-	if (typeof extraConfig === 'undefined') return {
-		columns,
-		indexes,
-		foreignKeys,
-		checks,
-	};
+	if (typeof extraConfig === 'undefined') {
+		return {
+			columns,
+			indexes,
+			foreignKeys,
+			checks,
+			name,
+			schema
+		};
+	}
 
 	const builtConfig = extraConfig(table[PgTable.Symbol.Columns]);
 	Object.entries(builtConfig).forEach(([_, builder]) => {
@@ -40,6 +46,8 @@ export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
 		indexes,
 		foreignKeys,
 		checks,
+		name,
+		schema
 	};
 }
 
