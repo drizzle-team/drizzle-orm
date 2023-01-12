@@ -33,8 +33,8 @@ export const users = mysqlTable(
             .algorythm('copy')
 			.using(`btree`),
 		legalAge: check('legalAge', sql`${users.age1} > 18`),
-		usersClassFK: foreignKey(() => ({ columns: [users.subClass], foreignColumns: [classes.subClass] })),
-		usersClassComplexFK: foreignKey(() => ({
+		usersClassFK: foreignKey(({ columns: [users.subClass], foreignColumns: [classes.subClass] })),
+		usersClassComplexFK: foreignKey(({
 			columns: [users.class, users.subClass],
 			foreignColumns: [classes.class, classes.subClass],
 		})),

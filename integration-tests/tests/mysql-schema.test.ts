@@ -5,6 +5,7 @@ import {
 	boolean,
 	date,
 	datetime,
+	foreignKey,
 	int,
 	json,
 	MySqlDatabase,
@@ -18,6 +19,7 @@ import {
 import { alias, InferModel, serial, text, timestamp } from 'drizzle-orm-mysql';
 import { drizzle } from 'drizzle-orm-mysql/mysql2';
 import { migrate } from 'drizzle-orm-mysql/mysql2/migrator';
+import { getTableConfig } from 'drizzle-orm-mysql/utils';
 import { asc, eq, inArray } from 'drizzle-orm/expressions';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
@@ -618,7 +620,7 @@ test.serial('insert + select all possible dates', async (t) => {
 	}]);
 });
 test.serial('select from tables with same name from different schema using alias', async (t) => {
-    const { db } = t.context;
+	const { db } = t.context;
 	await db.execute(
 		sql`create table \`userstest\` (
 			\`id\` serial primary key,
@@ -632,7 +634,7 @@ test.serial('select from tables with same name from different schema using alias
 	await db.insert(usersTable).values({ id: 10, name: 'Ivan' });
 	await db.insert(publicUsersTable).values({ id: 11, name: 'Hans' });
 
-    const customerAlias = alias(publicUsersTable, 'customer');
+	const customerAlias = alias(publicUsersTable, 'customer');
 
 	const result = await db
 		.select(usersTable)

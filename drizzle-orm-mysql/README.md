@@ -205,12 +205,12 @@ export const cities = mysqlTable('cities', {
   countryName: varchar('country_id', { length: 256 }),
 }, (cities) => ({
   // explicit foreign key with 1 column
-  countryFk: foreignKey(() => ({
+  countryFk: foreignKey(({
     columns: [cities.countryId],
     foreignColumns: [countries.id],
   })),
   // explicit foreign key with multiple columns
-  countryIdNameFk: foreignKey(() => ({
+  countryIdNameFk: foreignKey(({
     columns: [cities.countryId, cities.countryName],
     foreignColumns: [countries.id, countries.name],
   })),

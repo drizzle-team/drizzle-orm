@@ -30,6 +30,9 @@ export const ForeignKeys = Symbol('ForeignKeys');
 /** @internal */
 export const Checks = Symbol('Checks');
 
+/** @internal */
+export const ExtraConfig = Symbol('ExtraConfig');
+
 export type UpdateTableConfig<T extends TableConfig, TUpdate extends Partial<TableConfig>> = Update<T, TUpdate>;
 
 export class MySqlTable<T extends Partial<TableConfig>> extends Table<T['name']> {
@@ -40,6 +43,7 @@ export class MySqlTable<T extends Partial<TableConfig>> extends Table<T['name']>
 		Indexes: Indexes as typeof Indexes,
 		ForeignKeys: ForeignKeys as typeof ForeignKeys,
 		Checks: Checks as typeof Checks,
+		ExtraConfig: ExtraConfig as typeof ExtraConfig,
 	});
 
 	/** @internal */
@@ -53,6 +57,9 @@ export class MySqlTable<T extends Partial<TableConfig>> extends Table<T['name']>
 
 	/** @internal */
 	[Checks]: Record<string | symbol, Check> = {};
+
+	/** @internal */
+	[ExtraConfig]: ((self: Record<string, AnyMySqlColumn>) => MySqlTableExtraConfig) | undefined = undefined;
 }
 
 export type AnyMySqlTable<TPartial extends Partial<TableConfig> = {}> = MySqlTable<
@@ -113,6 +120,11 @@ export function isMySqlSchema(obj: unknown): obj is MySqlSchema {
 }
 
 export function mysqlSchema<T extends string = string>(schemaName: T) {
+	const schemaValue: MySqlSchema = {
+		schemaName,
+		[isMySqlSchemaSym]: true,
+	};
+
 	const columnFactory = <
 		TTableName extends string,
 		TColumnsMap extends Record<string, AnyMySqlColumnBuilder>,
@@ -121,7 +133,7 @@ export function mysqlSchema<T extends string = string>(schemaName: T) {
 		columns: TColumnsMap,
 		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => MySqlTableExtraConfig,
 	) => mysqlTableWithSchema(name, columns, schemaName, extraConfig);
-	return Object.assign(columnFactory, { [isMySqlSchemaSym]: true, schemaName });
+	return Object.assign(columnFactory, schemaValue);
 }
 
 export function mysqlTableWithSchema<
@@ -158,16 +170,7 @@ export function mysqlTableWithSchema<
 	table[MySqlTable.Symbol.Columns] = builtColumns;
 
 	if (extraConfig) {
-		const builtConfig = extraConfig(table);
-		Object.entries(builtConfig).forEach(([name, builder]) => {
-			if (builder instanceof IndexBuilder) {
-				table[Indexes][name] = builder.build(table);
-			} else if (builder instanceof CheckBuilder) {
-				table[Checks][name] = builder.build(table);
-			} else if (builder instanceof ForeignKeyBuilder) {
-				table[ForeignKeys][name] = builder.build(table);
-			}
-		});
+		table[MySqlTable.Symbol.ExtraConfig] = extraConfig as (self: Record<string, AnyMySqlColumn>) => MySqlTableExtraConfig;
 	}
 
 	return table;

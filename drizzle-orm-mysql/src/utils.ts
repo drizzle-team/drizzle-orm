@@ -4,6 +4,9 @@ import { Param, SQL, SQLResponse } from 'drizzle-orm/sql';
 import { MySqlUpdateSet } from './query-builders/update';
 import { MySqlColumn } from './columns/common';
 import { Table } from 'drizzle-orm/table';
+import { Index, IndexBuilder } from './indexes';
+import { Check, CheckBuilder } from './checks';
+import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
 
 /** @internal */
 export const tableIndexes = Symbol('tableIndexes');
@@ -13,6 +16,48 @@ export const tableForeignKeys = Symbol('tableForeignKeys');
 
 /** @internal */
 export const tableChecks = Symbol('tableChecks');
+
+export function getTableConfig<TTable extends AnyMySqlTable>(table: TTable) {
+	const columns = getTableColumns(table);
+	const indexes: Index[] = [];
+	const checks: Check[] = [];
+	const foreignKeys: ForeignKey[] = getTableForeignKeys(table);
+	const name = table[Table.Symbol.Name];
+	const schema = table[Table.Symbol.Schema];
+
+	const extraConfig = table[MySqlTable.Symbol.ExtraConfig];
+
+	if (typeof extraConfig === 'undefined') {
+		return {
+			columns,
+			indexes,
+			foreignKeys,
+			checks,
+			name,
+			schema
+		};
+	}
+
+	const builtConfig = extraConfig(table[MySqlTable.Symbol.Columns]);
+	Object.entries(builtConfig).forEach(([_, builder]) => {
+		if (builder instanceof IndexBuilder) {
+			indexes.push(builder.build(table));
+		} else if (builder instanceof CheckBuilder) {
+			checks.push(builder.build(table));
+		} else if (builder instanceof ForeignKeyBuilder) {
+			foreignKeys.push(builder.build(table));
+		}
+	});
+
+	return {
+		columns: getTableColumns(table),
+		indexes,
+		foreignKeys,
+		checks,
+		name,
+		schema
+	};
+}
 
 export function getTableColumns<TTable extends AnyMySqlTable>(table: TTable) {
 	const columns = table[MySqlTable.Symbol.Columns];
