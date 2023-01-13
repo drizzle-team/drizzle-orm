@@ -119,6 +119,26 @@ export function isMySqlSchema(obj: unknown): obj is MySqlSchema {
 	return !!obj && typeof obj === 'function' && isMySqlSchemaSym in obj;
 }
 
+/**
+ * mysqlDatabase is same as {@link mysqlSchema} function
+ * 
+ * https://dev.mysql.com/doc/refman/8.0/en/create-database.html
+ * 
+ * @param databaseName - mysql use database name 
+ * @returns 
+ */
+export function mysqlDatabase<T extends string = string>(databaseName: T) {
+	return mysqlSchema(databaseName)
+}
+
+/**
+ * mysqlSchema is same as {@link mysqlDatabase} function
+ * 
+ * https://dev.mysql.com/doc/refman/8.0/en/create-database.html
+ * 
+ * @param schemaName - mysql use schema name 
+ * @returns 
+ */
 export function mysqlSchema<T extends string = string>(schemaName: T) {
 	const schemaValue: MySqlSchema = {
 		schemaName,

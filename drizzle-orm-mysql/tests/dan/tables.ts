@@ -5,8 +5,6 @@ import { foreignKey } from '~/foreign-keys';
 import { int, mysqlEnum, mysqlTable, serial, text, timestamp } from '~/index';
 import { index, uniqueIndex } from '~/indexes';
 
-const myEnum = mysqlEnum('my_enum', ['a', 'b', 'c']);
-
 export const users = mysqlTable(
 	'users_table',
 	{
@@ -22,7 +20,7 @@ export const users = mysqlTable(
 		text: text('text'),
 		age1: int('age1').notNull(),
 		createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
-		enumCol: myEnum('enum_col').notNull(),
+		enumCol: mysqlEnum('enum_col', ['a', 'b', 'c']).notNull(),
 	},
 	(users) => ({
 		usersAge1Idx: uniqueIndex('usersAge1Idx').on(users.class),

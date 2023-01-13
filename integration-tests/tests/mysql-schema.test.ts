@@ -9,6 +9,7 @@ import {
 	int,
 	json,
 	MySqlDatabase,
+	mysqlEnum,
 	mysqlSchema,
 	mysqlTable,
 	time,
@@ -657,6 +658,40 @@ test.serial('select from tables with same name from different schema using alias
 			createdAt: result[0]!.customer!.createdAt,
 		},
 	}]);
+});
+
+const tableWithEnums = mySchema('enums_test_case', {
+	id: serial('id').primaryKey(),
+	enum1: mysqlEnum('enum1', ['a', 'b', 'c']).notNull(),
+	enum2: mysqlEnum('enum2', ['a', 'b', 'c']).default('a'),
+	enum3: mysqlEnum('enum3', ['a', 'b', 'c']).notNull().default('b'),
+});
+
+test.serial('Mysql enum test case #1', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`create table \`mySchema\`.\`enums_test_case\` (
+		\`id\` serial primary key,
+		\`enum1\` ENUM('a', 'b', 'c') not null,
+		\`enum2\` ENUM('a', 'b', 'c') default 'a',
+		\`enum3\` ENUM('a', 'b', 'c') not null default 'b'
+	)`);
+
+	await db.insert(tableWithEnums).values(
+		{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },
+		{ id: 2, enum1: 'a', enum3: 'c' },
+		{ id: 3, enum1: 'a' },
+	);
+
+	const res = await db.select(tableWithEnums);
+
+	await db.execute(sql`drop table \`mySchema\`.\`enums_test_case\``);
+
+	t.deepEqual(res, [
+		{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },
+		{ id: 2, enum1: 'a', enum2: 'a', enum3: 'c' },
+		{ id: 3, enum1: 'a', enum2: 'a', enum3: 'b' },
+	]);
 });
 
 test.after.always(async (t) => {

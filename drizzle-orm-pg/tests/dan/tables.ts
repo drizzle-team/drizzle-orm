@@ -4,11 +4,9 @@ import { check } from '~/checks';
 import { integer, pgEnum, serial, text, timestamp, uuid } from '~/columns';
 import { foreignKey } from '~/foreign-keys';
 import { index, uniqueIndex } from '~/indexes';
-import {  pgTable} from '~/table';
+import {  pgSchema, pgTable} from '~/table';
 
 const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
-
-
 
 export const users = pgTable(
 	'users_table',

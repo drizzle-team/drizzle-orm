@@ -119,7 +119,15 @@ export function isPgSchema(obj: unknown): obj is PgSchema {
 	return !!obj && typeof obj === 'function' && isPgSchemaSym in obj;
 }
 
-export function pgSchema<T extends string = string>(schemaName: T) {
+export function pgSchema<T extends string = string>(
+	schemaName: T extends 'public'
+		? "You can't specify 'public' as schema name. Postgres is using public schema by default. If you want to use 'public' schema, just type pgTable() instead of creating own schema"
+		: T,
+) {
+	if (schemaName === 'public') {
+		throw Error(`You can't specify 'public' as schema name. Postgres is using public schema by default`);
+	}
+
 	const schemaValue: PgSchema = {
 		schemaName,
 		[isPgSchemaSym]: true,
