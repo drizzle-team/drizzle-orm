@@ -118,8 +118,6 @@ This is how you declare SQL schema in `schema.ts`. You can declare tables, index
 import { int, mysqlEnum, mysqlTable, serial, uniqueIndex, varchar } from 'drizzle-orm-mysql';
 
 // declaring enum in database
-export const popularityEnum = mysqlEnum('popularity', ['unknown', 'known', 'popular']);
-
 export const countries = mysqlTable('countries', {
 	id: serial('id').primaryKey(),
 	name: varchar('name', { length: 256 }),
@@ -131,7 +129,7 @@ export const cities = mysqlTable('cities', {
 	id: serial('id').primaryKey(),
 	name: varchar('name', { length: 256 }),
 	countryId: int('country_id').references(() => countries.id),
-	popularity: popularityEnum('popularity'),
+	popularity: mysqlEnum('popularity', ['unknown', 'known', 'popular']),
 });
 ```
 
@@ -228,8 +226,7 @@ index('name_idx')
 
 
 ```typescript
-export const popularityEnum = mysqlEnum('popularity', ['unknown', 'known', 'popular']);
-popularityEnum('column_name');
+mysqlEnum('popularity', ['unknown', 'known', 'popular'])
 
 int('...');
 tinyint('name');
