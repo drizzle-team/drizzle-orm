@@ -118,8 +118,6 @@ This is how you declare SQL schema in `schema.ts`. You can declare tables, index
 import { int, mysqlEnum, mysqlTable, serial, uniqueIndex, varchar } from 'drizzle-orm-mysql';
 
 // declaring enum in database
-export const popularityEnum = mysqlEnum('popularity', ['unknown', 'known', 'popular']);
-
 export const countries = mysqlTable('countries', {
 	id: serial('id').primaryKey(),
 	name: varchar('name', { length: 256 }),
@@ -131,7 +129,7 @@ export const cities = mysqlTable('cities', {
 	id: serial('id').primaryKey(),
 	name: varchar('name', { length: 256 }),
 	countryId: int('country_id').references(() => countries.id),
-	popularity: popularityEnum('popularity'),
+	popularity: mysqlEnum('popularity', ['unknown', 'known', 'popular']),
 });
 ```
 
@@ -205,12 +203,12 @@ export const cities = mysqlTable('cities', {
   countryName: varchar('country_id', { length: 256 }),
 }, (cities) => ({
   // explicit foreign key with 1 column
-  countryFk: foreignKey(() => ({
+  countryFk: foreignKey(({
     columns: [cities.countryId],
     foreignColumns: [countries.id],
   })),
   // explicit foreign key with multiple columns
-  countryIdNameFk: foreignKey(() => ({
+  countryIdNameFk: foreignKey(({
     columns: [cities.countryId, cities.countryName],
     foreignColumns: [countries.id, countries.name],
   })),
@@ -223,13 +221,12 @@ index('name_idx')
     .lock('default' | 'none' | 'shared' | 'exclusive')
     .algorythm('default' | 'inplace' | 'copy')
 ```
----here I left---
+
 ## Column types
 
 
 ```typescript
-export const popularityEnum = mysqlEnum('popularity', ['unknown', 'known', 'popular']);
-popularityEnum('column_name');
+mysqlEnum('popularity', ['unknown', 'known', 'popular'])
 
 int('...');
 tinyint('name');
@@ -264,6 +261,38 @@ timestamp('...').defaultNow()
 
 json('name');
 json<string[]>('name');
+```
+
+## Table schemas
+> **Warning**
+> If you will have tables with same names in different schemas then drizzle will respond with `never[]` error in result types and error from database
+> 
+> In this case you may use [alias syntax](https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-orm-mysql#join-aliases-and-self-joins)
+
+---
+
+Usage example
+```typescript
+// Table in default schema
+const publicUsersTable = mysqlTable('users', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	jsonb: json<string[]>('jsonb'),
+	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+});
+
+
+// Table in custom schema
+const mySchema = mysqlSchema('mySchema');
+
+const mySchemaUsersTable = mySchema('users', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	jsonb: json<string[]>('jsonb'),
+	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+});
 ```
 
 ## Select, Insert, Update, Delete

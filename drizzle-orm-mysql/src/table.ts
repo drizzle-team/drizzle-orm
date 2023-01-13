@@ -30,6 +30,9 @@ export const ForeignKeys = Symbol('ForeignKeys');
 /** @internal */
 export const Checks = Symbol('Checks');
 
+/** @internal */
+export const ExtraConfig = Symbol('ExtraConfig');
+
 export type UpdateTableConfig<T extends TableConfig, TUpdate extends Partial<TableConfig>> = Update<T, TUpdate>;
 
 export class MySqlTable<T extends Partial<TableConfig>> extends Table<T['name']> {
@@ -40,6 +43,7 @@ export class MySqlTable<T extends Partial<TableConfig>> extends Table<T['name']>
 		Indexes: Indexes as typeof Indexes,
 		ForeignKeys: ForeignKeys as typeof ForeignKeys,
 		Checks: Checks as typeof Checks,
+		ExtraConfig: ExtraConfig as typeof ExtraConfig,
 	});
 
 	/** @internal */
@@ -53,6 +57,9 @@ export class MySqlTable<T extends Partial<TableConfig>> extends Table<T['name']>
 
 	/** @internal */
 	[Checks]: Record<string | symbol, Check> = {};
+
+	/** @internal */
+	[ExtraConfig]: ((self: Record<string, AnyMySqlColumn>) => MySqlTableExtraConfig) | undefined = undefined;
 }
 
 export type AnyMySqlTable<TPartial extends Partial<TableConfig> = {}> = MySqlTable<
@@ -101,12 +108,61 @@ export type InferModel<
 		>;
 	};
 
-export function mysqlTable<
+const isMySqlSchemaSym = Symbol('isMySqlSchema');
+export interface MySqlSchema {
+	schemaName: string;
+	/** @internal */
+	[isMySqlSchemaSym]: true;
+}
+
+export function isMySqlSchema(obj: unknown): obj is MySqlSchema {
+	return !!obj && typeof obj === 'function' && isMySqlSchemaSym in obj;
+}
+
+/**
+ * mysqlDatabase is same as {@link mysqlSchema} function
+ * 
+ * https://dev.mysql.com/doc/refman/8.0/en/create-database.html
+ * 
+ * @param databaseName - mysql use database name 
+ * @returns 
+ */
+export function mysqlDatabase<T extends string = string>(databaseName: T) {
+	return mysqlSchema(databaseName)
+}
+
+/**
+ * mysqlSchema is same as {@link mysqlDatabase} function
+ * 
+ * https://dev.mysql.com/doc/refman/8.0/en/create-database.html
+ * 
+ * @param schemaName - mysql use schema name 
+ * @returns 
+ */
+export function mysqlSchema<T extends string = string>(schemaName: T) {
+	const schemaValue: MySqlSchema = {
+		schemaName,
+		[isMySqlSchemaSym]: true,
+	};
+
+	const columnFactory = <
+		TTableName extends string,
+		TColumnsMap extends Record<string, AnyMySqlColumnBuilder>,
+	>(
+		name: TTableName,
+		columns: TColumnsMap,
+		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => MySqlTableExtraConfig,
+	) => mysqlTableWithSchema(name, columns, schemaName, extraConfig);
+	return Object.assign(columnFactory, schemaValue);
+}
+
+export function mysqlTableWithSchema<
 	TTableName extends string,
 	TColumnsMap extends Record<string, AnyMySqlColumnBuilder>,
 >(
 	name: TTableName,
 	columns: TColumnsMap,
+	schema?: string,
 	extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => MySqlTableExtraConfig,
 ): MySqlTableWithColumns<{
 	name: TTableName;
@@ -115,7 +171,7 @@ export function mysqlTable<
 	const rawTable = new MySqlTable<{
 		name: TTableName;
 		columns: BuildColumns<TTableName, TColumnsMap>;
-	}>(name);
+	}>(name, schema);
 
 	const builtColumns = Object.fromEntries(
 		Object.entries(columns).map(([name, colBuilder]) => {
@@ -134,17 +190,22 @@ export function mysqlTable<
 	table[MySqlTable.Symbol.Columns] = builtColumns;
 
 	if (extraConfig) {
-		const builtConfig = extraConfig(table);
-		Object.entries(builtConfig).forEach(([name, builder]) => {
-			if (builder instanceof IndexBuilder) {
-				table[Indexes][name] = builder.build(table);
-			} else if (builder instanceof CheckBuilder) {
-				table[Checks][name] = builder.build(table);
-			} else if (builder instanceof ForeignKeyBuilder) {
-				table[ForeignKeys][name] = builder.build(table);
-			}
-		});
+		table[MySqlTable.Symbol.ExtraConfig] = extraConfig as (self: Record<string, AnyMySqlColumn>) => MySqlTableExtraConfig;
 	}
 
 	return table;
+}
+
+export function mysqlTable<
+	TTableName extends string,
+	TColumnsMap extends Record<string, AnyMySqlColumnBuilder>,
+>(
+	name: TTableName,
+	columns: TColumnsMap,
+	extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => MySqlTableExtraConfig,
+): MySqlTableWithColumns<{
+	name: TTableName;
+	columns: BuildColumns<TTableName, TColumnsMap>;
+}> {
+	return mysqlTableWithSchema(name, columns, undefined, extraConfig);
 }

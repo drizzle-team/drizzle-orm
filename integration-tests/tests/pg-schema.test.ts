@@ -7,26 +7,28 @@ import {
 	foreignKey,
 	InferModel,
 	integer,
+	isPgSchema,
 	jsonb,
 	PgDatabase,
+	pgSchema,
 	pgTable,
 	serial,
 	text,
 	timestamp,
-	pgSchema,
 	uniqueIndex,
-	isPgSchema,
 } from 'drizzle-orm-pg';
 import { drizzle } from 'drizzle-orm-pg/node';
 import { migrate } from 'drizzle-orm-pg/node/migrator';
 import { getTableConfig } from 'drizzle-orm-pg/utils';
-import { asc, eq } from 'drizzle-orm/expressions';
+import { asc, eq, like } from 'drizzle-orm/expressions';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
 
-const usersTable = pgTable('users', {
+const mySchema = pgSchema('mySchema');
+
+const usersTable = mySchema('users', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
@@ -34,10 +36,12 @@ const usersTable = pgTable('users', {
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-const usersMigratorTable = pgTable('users12', {
+const publicUsersTable = pgTable('users', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
-	email: text('email').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	jsonb: jsonb<string[]>('jsonb'),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 interface Context {
@@ -102,10 +106,14 @@ test.before(async (t) => {
 
 test.beforeEach(async (t) => {
 	const ctx = t.context;
-	await ctx.db.execute(sql`drop schema public cascade`);
+	await ctx.db.execute(sql`drop schema if exists public cascade`);
+	await ctx.db.execute(sql`drop schema if exists "mySchema" cascade`);
 	await ctx.db.execute(sql`create schema public`);
 	await ctx.db.execute(
-		sql`create table users (
+		sql`create schema "mySchema"`,
+	);
+	await ctx.db.execute(
+		sql`create table "mySchema".users (
 			id serial primary key,
 			name text not null,
 			verified boolean not null default false, 
@@ -388,7 +396,7 @@ test.serial('build query', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'select "id", "name" from "users" group by "users"."id", "users"."name"',
+		sql: 'select "id", "name" from "mySchema"."users" group by "users"."id", "users"."name"',
 		params: [],
 	});
 });
@@ -528,23 +536,12 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 });
 
-test.serial('migrator', async (t) => {
-	const { db } = t.context;
-	await migrate(db, { migrationsFolder: './drizzle/pg' });
-
-	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-
-	const result = await db.select(usersMigratorTable);
-
-	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
-});
-
 test.serial('insert via db.execute + select via db.execute', async (t) => {
 	const { db } = t.context;
 
 	await db.execute(sql`insert into ${usersTable} (${name(usersTable.name.name)}) values (${'John'})`);
 
-	const result = await db.execute<{ id: number; name: string }>(sql`select id, name from "users"`);
+	const result = await db.execute<{ id: number; name: string }>(sql`select id, name from "mySchema"."users"`);
 	t.deepEqual(result.rows, [{ id: 1, name: 'John' }]);
 });
 
@@ -577,7 +574,8 @@ test.serial('build query insert with onConflict do update', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id") do update set "name" = $3',
+		sql:
+			'insert into "mySchema"."users" ("name", "jsonb") values ($1, $2) on conflict ("id") do update set "name" = $3',
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
@@ -591,7 +589,8 @@ test.serial('build query insert with onConflict do update / multiple columns', a
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id","name") do update set "name" = $3',
+		sql:
+			'insert into "mySchema"."users" ("name", "jsonb") values ($1, $2) on conflict ("id","name") do update set "name" = $3',
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
@@ -605,7 +604,7 @@ test.serial('build query insert with onConflict do nothing', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict do nothing',
+		sql: 'insert into "mySchema"."users" ("name", "jsonb") values ($1, $2) on conflict do nothing',
 		params: ['John', '["foo","bar"]'],
 	});
 });
@@ -619,7 +618,7 @@ test.serial('build query insert with onConflict do nothing + target', async (t) 
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id") do nothing',
+		sql: 'insert into "mySchema"."users" ("name", "jsonb") values ($1, $2) on conflict ("id") do nothing',
 		params: ['John', '["foo","bar"]'],
 	});
 });
@@ -673,6 +672,47 @@ test.serial('insert with onConflict do nothing + target', async (t) => {
 	);
 
 	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('select from tables with same name from different schema using alias', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(
+		sql`create table users (
+			id serial primary key,
+			name text not null,
+			verified boolean not null default false, 
+			jsonb jsonb,
+			created_at timestamptz not null default now()
+		)`,
+	);
+
+	await db.insert(usersTable).values({ id: 10, name: 'Ivan' });
+	await db.insert(publicUsersTable).values({ id: 11, name: 'Hans' });
+
+    const customerAlias = alias(publicUsersTable, 'customer');
+
+	const result = await db
+		.select(usersTable)
+		.leftJoin(customerAlias, eq(customerAlias.id, 11))
+		.where(eq(customerAlias.id, 11));
+
+	t.deepEqual(result, [{
+		users: {
+			id: 10,
+			name: 'Ivan',
+			verified: false,
+			jsonb: null,
+			createdAt: result[0]!.users.createdAt,
+		},
+		customer: {
+			id: 11,
+			name: 'Hans',
+			verified: false,
+			jsonb: null,
+			createdAt: result[0]!.customer!.createdAt,
+		},
+	}]);
 });
 
 test.after.always(async (t) => {

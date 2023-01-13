@@ -101,13 +101,13 @@ export function foreignKey<
 	TForeignTableName extends string,
 	TColumns extends [AnyMySqlColumn<{ tableName: TTableName }>, ...AnyMySqlColumn<{ tableName: TTableName }>[]],
 >(
-	config: () => {
+	config: {
 		columns: TColumns;
 		foreignColumns: ColumnsWithTable<TForeignTableName, TColumns>;
 	},
 ): ForeignKeyBuilder {
 	function mappedConfig() {
-		const { columns, foreignColumns } = config();
+		const { columns, foreignColumns } = config;
 		return {
 			columns,
 			foreignColumns,

@@ -178,12 +178,13 @@ export class MySqlDialect {
 			const joinMeta = joins[tableAlias]!;
 			const table = joinMeta.table;
 			const tableName = table[MySqlTable.Symbol.Name];
+			const tableSchema = table[MySqlTable.Symbol.Schema];
 			const origTableName = table[MySqlTable.Symbol.OriginalName];
 			const alias = tableName === origTableName ? undefined : tableAlias;
 			joinsArray.push(
-				sql`${sql.raw(joinMeta.joinType)} join ${new Name(origTableName)} ${
-					alias && new Name(alias)
-				} on ${joinMeta.on}`,
+				sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? new Name(tableSchema) : sql.raw('')}${
+					sql.raw(tableSchema ? '.' : '')
+				}${new Name(origTableName)} ${alias && new Name(alias)} on ${joinMeta.on}`,
 			);
 			if (index < joinKeys.length - 1) {
 				joinsArray.push(sql` `);
