@@ -38,7 +38,8 @@
 	"peerDependencies": {
 		"@types/pg": ">=8 <9",
 		"drizzle-orm": ">=0.15 <0.16",
-		"pg": ">=8 <9"
+		"pg": ">=8 <9",
+		"@aws-sdk/client-rds-data": ">=3"
 	},
 	"peerDependenciesMeta": {
 		"pg": {
@@ -46,15 +47,16 @@
 		},
 		"@types/pg": {
 			"optional": true
+		},
+		"@aws-sdk/client-rds-data": {
+			"optional": true
 		}
 	},
 	"devDependencies": {
+		"@aws-sdk/client-rds-data": "^3.245.0",
 		"@neondatabase/serverless": "^0.1.13",
 		"@types/pg": "^8.6.5",
 		"drizzle-orm": "link:../drizzle-orm/src",
 		"pg": "^8.8.0"
-	},
-	"dependencies": {
-		"@aws-sdk/client-rds-data": "^3.245.0"
 	}
 }
