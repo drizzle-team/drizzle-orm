@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm-pg",
-	"version": "0.15.1",
+	"version": "0.15.2",
 	"description": "Drizzle ORM package for PostgreSQL database",
 	"main": "index.js",
 	"types": "index.d.ts",
@@ -53,5 +53,8 @@
 		"@types/pg": "^8.6.5",
 		"drizzle-orm": "link:../drizzle-orm/src",
 		"pg": "^8.8.0"
+	},
+	"dependencies": {
+		"@aws-sdk/client-rds-data": "^3.245.0"
 	}
 }
