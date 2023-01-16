@@ -203,6 +203,14 @@ export function citext<T extends string = string>(name: string): PgCITextBuilder
 }
 ```
 
+#### Usage example
+```typescript
+const table = pgTable('table', {
+	id: integer('id').primaryKey(),
+	ciname: citext('ciname')
+})
+```
+
 # Contributing by adding new custom types in Drizzle ORM
 
 You could add your created custom data types to Drizzle ORM, so everyone can use it.
