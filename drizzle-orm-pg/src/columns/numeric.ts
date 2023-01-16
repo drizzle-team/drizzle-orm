@@ -3,19 +3,24 @@ import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyPgTable } from '~/table';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgNumericBuilder extends PgColumnBuilder<ColumnBuilderConfig<{ data: string; driverParam: string }>> {
-	/** @internal */ precision: number | undefined;
-	/** @internal */ scale: number | undefined;
+export class PgNumericBuilder extends PgColumnBuilder<
+	ColumnBuilderConfig<{ data: string; driverParam: string }>,
+	{
+		precision: number | undefined;
+		scale: number | undefined;
+	}
+> {
+	protected override $pgColumnBuilderBrand!: 'PgNumericBuilder';
 
 	constructor(name: string, precision?: number, scale?: number) {
 		super(name);
-		this.precision = precision;
-		this.scale = scale;
+		this.config.precision = precision;
+		this.config.scale = scale;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgNumeric<TTableName> {
-		return new PgNumeric(table, this);
+		return new PgNumeric(table, this.config);
 	}
 }
 
@@ -27,10 +32,10 @@ export class PgNumeric<TTableName extends string> extends PgColumn<
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;
 
-	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgNumericBuilder) {
-		super(table, builder);
-		this.precision = builder.precision;
-		this.scale = builder.scale;
+	constructor(table: AnyPgTable<{ name: TTableName }>, config: PgNumericBuilder['config']) {
+		super(table, config);
+		this.precision = config.precision;
+		this.scale = config.scale;
 	}
 
 	getSQLType(): string {

@@ -47,7 +47,7 @@ export class MySqlTable<T extends Partial<TableConfig>> extends Table<T['name']>
 	});
 
 	/** @internal */
-	override [Table.Symbol.Columns]!: T['columns'];
+	override [Table.Symbol.Columns]!: NonNullable<T['columns']>;
 
 	/** @internal */
 	[Indexes]: Record<string | symbol, Index> = {};

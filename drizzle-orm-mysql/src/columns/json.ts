@@ -13,7 +13,7 @@ export class MySqlJsonBuilder<
 
 	/** @internal */
 	override build<TTableName extends string>(table: AnyMySqlTable<{ name: TTableName }>): MySqlJson<TTableName, TData> {
-		return new MySqlJson(table, this);
+		return new MySqlJson(table, this.config);
 	}
 }
 
@@ -28,10 +28,6 @@ export class MySqlJson<
 	}>
 > {
 	protected override $mySqlColumnBrand!: 'MySqlJson';
-
-	constructor(table: AnyMySqlTable<{ name: TTableName }>, builder: MySqlJsonBuilder<TData>) {
-		super(table, builder);
-	}
 
 	getSQLType(): string {
 		return 'json';

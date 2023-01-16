@@ -16,7 +16,7 @@ export class MySqlDateBuilder
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlDate<TTableName> {
-		return new MySqlDate(table, this);
+		return new MySqlDate(table, this.config);
 	}
 }
 
@@ -33,9 +33,9 @@ export class MySqlDate<
 
 	constructor(
 		table: AnyMySqlTable<{ name: TTableName }>,
-		builder: MySqlDateBuilder,
+		config: MySqlDateBuilder['config'],
 	) {
-		super(table, builder);
+		super(table, config);
 	}
 
 	getSQLType(): string {
@@ -60,7 +60,7 @@ export class MySqlDateStringBuilder
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlStringDate<TTableName> {
-		return new MySqlStringDate(table, this);
+		return new MySqlStringDate(table, this.config);
 	}
 }
 
@@ -77,9 +77,9 @@ export class MySqlStringDate<
 
 	constructor(
 		table: AnyMySqlTable<{ name: TTableName }>,
-		builder: MySqlDateStringBuilder,
+		config: MySqlDateStringBuilder['config'],
 	) {
-		super(table, builder);
+		super(table, config);
 	}
 
 	getSQLType(): string {

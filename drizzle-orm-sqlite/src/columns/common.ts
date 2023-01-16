@@ -1,8 +1,8 @@
-import { AnyColumn, Column, ColumnBaseConfig, ColumnConfig } from 'drizzle-orm';
+import { Column, ColumnBaseConfig } from 'drizzle-orm';
 import {
 	ColumnBuilder,
 	ColumnBuilderBaseConfig,
-	ColumnBuilderConfig,
+	ColumnBuilderWithConfig,
 	UpdateCBConfig,
 } from 'drizzle-orm/column-builder';
 import { SQL } from 'drizzle-orm/sql';
@@ -20,7 +20,10 @@ export interface ReferenceConfig {
 	};
 }
 
-export abstract class SQLiteColumnBuilder<T extends Partial<ColumnBuilderBaseConfig>> extends ColumnBuilder<T> {
+export abstract class SQLiteColumnBuilder<
+	T extends Partial<ColumnBuilderBaseConfig>,
+	TConfig extends Record<string, unknown> = {},
+> extends ColumnBuilder<T, TConfig> {
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
 	constructor(name: string) {
@@ -83,9 +86,9 @@ export abstract class SQLiteColumn<T extends Partial<ColumnBaseConfig>> extends 
 
 	constructor(
 		override readonly table: AnySQLiteTable<{ name: T['tableName'] }>,
-		builder: SQLiteColumnBuilder<Omit<T, 'tableName'>>,
+		config: SQLiteColumnBuilder<Omit<T, 'tableName'>>['config'],
 	) {
-		super(table, builder);
+		super(table, config);
 	}
 
 	unsafe(): AnySQLiteColumn {
@@ -100,7 +103,7 @@ export type AnySQLiteColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = S
 export type BuildColumn<
 	TTableName extends string,
 	TBuilder extends AnySQLiteColumnBuilder,
-> = TBuilder extends SQLiteColumnBuilder<infer T> ? SQLiteColumn<Simplify<T & { tableName: TTableName }>> : never;
+> = TBuilder extends ColumnBuilderWithConfig<infer T> ? SQLiteColumn<Simplify<T & { tableName: TTableName }>> : never;
 
 export type BuildColumns<
 	TTableName extends string,

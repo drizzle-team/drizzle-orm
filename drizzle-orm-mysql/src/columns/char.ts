@@ -7,24 +7,23 @@ export class MySqlCharBuilder<TData extends string = string> extends MySqlColumn
 	ColumnBuilderConfig<{
 		data: TData;
 		driverParam: number | string;
-	}>
+	}>,
+	{ length: number | undefined }
 > {
-	/** @internal */ length: number | undefined;
-
 	constructor(name: string, length?: number) {
 		super(name);
-		this.length = length;
+		this.config.length = length;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(table: AnyMySqlTable<{ name: TTableName }>): MySqlChar<TTableName, TData> {
-		return new MySqlChar(table, this);
+		return new MySqlChar(table, this.config);
 	}
 }
 
 export class MySqlChar<
 	TTableName extends string,
-	TData extends string
+	TData extends string,
 > extends MySqlColumn<
 	ColumnConfig<{
 		tableName: TTableName;
@@ -36,9 +35,9 @@ export class MySqlChar<
 
 	length: number | undefined;
 
-	constructor(table: AnyMySqlTable<{ name: TTableName }>, builder: MySqlCharBuilder<TData>) {
-		super(table, builder);
-		this.length = builder.length;
+	constructor(table: AnyMySqlTable<{ name: TTableName }>, config: MySqlCharBuilder<TData>['config']) {
+		super(table, config);
+		this.length = config.length;
 	}
 
 	getSQLType(): string {

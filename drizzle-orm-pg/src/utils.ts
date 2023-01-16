@@ -1,10 +1,9 @@
 import { Table } from 'drizzle-orm';
 import { Param, SQL, SQLResponse } from 'drizzle-orm/sql';
-import { getTableName } from 'drizzle-orm/table';
-import { PgColumn } from '~/columns';
+import { AnyPgColumn, PgColumn } from '~/columns';
 import { SelectFields, SelectFieldsOrdered } from '~/operations';
 import { PgUpdateSet } from '~/query-builders';
-import { AnyPgTable, PgTable } from '~/table';
+import { AnyPgTable, GetTableConfig, PgTable } from '~/table';
 import { Check, CheckBuilder } from './checks';
 import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
 import { Index, IndexBuilder } from './indexes';
@@ -26,7 +25,7 @@ export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
 			foreignKeys,
 			checks,
 			name,
-			schema
+			schema,
 		};
 	}
 
@@ -47,12 +46,30 @@ export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
 		foreignKeys,
 		checks,
 		name,
-		schema
+		schema,
 	};
 }
 
-export function getTableColumns<TTable extends AnyPgTable>(table: TTable) {
+export interface GetTableColumnsConfig<TFormat extends 'object' | 'array' = 'object' | 'array'> {
+	format: TFormat;
+}
+
+export function getTableColumns<TTable extends AnyPgTable>(
+	table: TTable,
+	config: GetTableColumnsConfig<'object'>,
+): Record<string, AnyPgColumn<{ tableName: GetTableConfig<TTable, 'name'> }>>;
+export function getTableColumns<TTable extends AnyPgTable>(
+	table: TTable,
+	config?: GetTableColumnsConfig<'array'>,
+): AnyPgColumn<{ tableName: GetTableConfig<TTable, 'name'> }>[];
+export function getTableColumns<TTable extends AnyPgTable>(
+	table: TTable,
+	config?: GetTableColumnsConfig,
+): Record<string, AnyPgColumn> | AnyPgColumn[] {
 	const columns = table[PgTable.Symbol.Columns];
+	if (config?.format === 'object') {
+		return columns;
+	}
 	const keys = Reflect.ownKeys(columns);
 	return keys.map((key) => columns[key]!);
 }

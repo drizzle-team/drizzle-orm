@@ -1,0 +1,61 @@
+{
+	"name": "drizzle-zod",
+	"version": "0.1.0",
+	"description": "Generate Zod schemas from Drizzle ORM schemas",
+	"scripts": {
+		"build": "tsc && resolve-tspaths && cp README.md package.json dist/",
+		"test:types": "cd tests && tsc",
+		"pack": "cp package.json dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"publish": "npm publish package.tgz",
+		"test": "ava tests"
+	},
+	"ava": {
+		"files": [
+			"tests/**/*.ts",
+			"!tests/bun/**/*"
+		],
+		"extensions": {
+			"ts": "module"
+		},
+		"nodeArguments": [
+			"--loader=tsx"
+		]
+	},
+	"keywords": [
+		"zod",
+		"validate",
+		"validation",
+		"schema",
+		"drizzle",
+		"orm",
+		"pg",
+		"mysql",
+		"postgresql",
+		"postgres",
+		"sqlite",
+		"database",
+		"sql",
+		"typescript",
+		"ts"
+	],
+	"author": "Drizzle Team",
+	"license": "Apache-2.0",
+	"peerDependencies": {
+		"drizzle-orm-pg": ">=0.15 <0.16",
+		"zod": ">=3 <4"
+	},
+	"peerDependenciesMeta": {
+		"drizzle-orm-pg": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"ava": "^5.1.0",
+		"drizzle-orm": "link:../drizzle-orm/dist",
+		"drizzle-orm-mysql": "link:../drizzle-orm-mysql/dist",
+		"drizzle-orm-pg": "link:../drizzle-orm-pg/dist",
+		"drizzle-orm-sqlite": "link:../drizzle-orm-sqlite/dist",
+		"tsx": "^3.12.2",
+		"zod": "^3.20.2"
+	}
+}

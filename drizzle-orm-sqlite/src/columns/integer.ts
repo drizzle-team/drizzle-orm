@@ -11,11 +11,8 @@ export interface PrimaryKeyConfig {
 }
 
 export abstract class SQLiteIntegerBaseBuilder<T extends ColumnBuilderBaseConfig = ColumnBuilderConfig>
-	extends SQLiteColumnBuilder<Pick<T, keyof ColumnBuilderBaseConfig>>
+	extends SQLiteColumnBuilder<Pick<T, keyof ColumnBuilderBaseConfig>, { autoIncrement: boolean }>
 {
-	/** @internal */
-	declare config: SQLiteColumnBuilder<Pick<T, keyof ColumnBuilderBaseConfig>>['config'] & { autoIncrement: boolean };
-
 	constructor(name: string) {
 		super(name);
 		this.config.autoIncrement = false;
@@ -31,14 +28,11 @@ export abstract class SQLiteIntegerBaseBuilder<T extends ColumnBuilderBaseConfig
 
 	override primaryKey(
 		config?: PrimaryKeyConfig,
-	): SQLiteIntegerBaseBuilder<Pick<T, 'data' | 'driverParam'> & { notNull: true; hasDefault: true }>;
-	override primaryKey(): SQLiteColumnBuilder<Pick<T, 'data' | 'driverParam' | 'hasDefault'> & { notNull: true }>;
-	override primaryKey(
-		config?: PrimaryKeyConfig,
-	): SQLiteColumnBuilder<Pick<T, 'data' | 'driverParam'> & { notNull: true; hasDefault: boolean }> {
+	): SQLiteIntegerBaseBuilder<UpdateCBConfig<T, { notNull: true; hasDefault: true }>> {
 		if (config?.autoIncrement) {
 			this.config.autoIncrement = true;
 		}
+		this.config.hasDefault = true;
 		return super.primaryKey() as ReturnType<this['primaryKey']>;
 	}
 
@@ -57,10 +51,10 @@ export abstract class SQLiteBaseInteger<T extends ColumnBaseConfig>
 
 	constructor(
 		override readonly table: AnySQLiteTable<{ name: T['tableName'] }>,
-		builder: SQLiteIntegerBaseBuilder<Omit<T, 'tableName'>>,
+		config: SQLiteIntegerBaseBuilder<Omit<T, 'tableName'>>['config'],
 	) {
-		super(table, builder);
-		this.autoIncrement = builder.config.autoIncrement;
+		super(table, config);
+		this.autoIncrement = config.autoIncrement;
 	}
 
 	getSQLType(): string {
@@ -79,7 +73,7 @@ export class SQLiteIntegerBuilder<
 	build<TTableName extends string>(table: AnySQLiteTable<{ name: TTableName }>): SQLiteInteger<
 		Pick<T, 'notNull' | 'hasDefault'> & { tableName: TTableName }
 	> {
-		return new SQLiteInteger<Pick<T, 'notNull' | 'hasDefault'> & { tableName: TTableName }>(table, this);
+		return new SQLiteInteger<Pick<T, 'notNull' | 'hasDefault'> & { tableName: TTableName }>(table, this.config);
 	}
 }
 
@@ -104,7 +98,7 @@ export class SQLiteTimestampBuilder<
 	}
 
 	override primaryKey(config?: PrimaryKeyConfig): SQLiteTimestampBuilder<{ notNull: true; hasDefault: true }> {
-		return super.primaryKey() as ReturnType<this['primaryKey']>;
+		return super.primaryKey(config) as ReturnType<this['primaryKey']>;
 	}
 
 	/**
@@ -117,7 +111,7 @@ export class SQLiteTimestampBuilder<
 	build<TTableName extends string>(table: AnySQLiteTable<{ name: TTableName }>): SQLiteTimestamp<
 		Pick<T, 'notNull' | 'hasDefault'> & { tableName: TTableName }
 	> {
-		return new SQLiteTimestamp<Pick<T, 'notNull' | 'hasDefault'> & { tableName: TTableName }>(table, this);
+		return new SQLiteTimestamp<Pick<T, 'notNull' | 'hasDefault'> & { tableName: TTableName }>(table, this.config);
 	}
 }
 

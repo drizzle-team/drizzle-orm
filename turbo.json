@@ -2,12 +2,19 @@
 	"$schema": "https://turbo.build/schema.json",
 	"pipeline": {
 		"test:types": {
-			"inputs": ["src/**/*.ts", "tests/**/*.ts", "tsconfig.json", "../tsconfig.json"],
+			"dependsOn": ["^test:types", "^build"],
+			"inputs": [
+				"src/**/*.ts",
+				"tests/**/*.ts",
+				"tsconfig.json",
+				"tests/tsconfig.json",
+				"../tsconfig.json"
+			],
 			"outputs": [],
 			"outputMode": "new-only"
 		},
-		"build:int": {
-			"dependsOn": ["^build:int", "test:types"],
+		"build": {
+			"dependsOn": ["^build", "test:types"],
 			"inputs": [
 				"src/**/*.ts",
 				"package.json",
@@ -19,11 +26,15 @@
 			"outputs": ["dist/**"],
 			"outputMode": "new-only"
 		},
+		"pack": {
+			"dependsOn": ["build"],
+			"inputs": ["dist/**"],
+			"outputs": ["package.tgz"]
+		},
 		"test": {
-			"dependsOn": ["build:int"],
+			"dependsOn": ["build"],
 			"outputs": [],
 			"inputs": ["tests/**/*.test.ts"]
-		},
-		"i": {}
+		}
 	}
 }

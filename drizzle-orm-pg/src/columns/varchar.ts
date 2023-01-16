@@ -4,20 +4,20 @@ import { AnyPgTable } from '~/table';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export class PgVarcharBuilder<TData extends string = string>
-	extends PgColumnBuilder<ColumnBuilderConfig<{ data: TData; driverParam: string }>>
+	extends PgColumnBuilder<ColumnBuilderConfig<{ data: TData; driverParam: string }>, { length: number | undefined }>
 {
-	/** @internal */ length: number | undefined;
+	protected override $pgColumnBuilderBrand!: 'PgVarcharBuilder';
 
 	constructor(name: string, length?: number) {
 		super(name);
-		this.length = length;
+		this.config.length = length;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgVarchar<TTableName, TData> {
-		return new PgVarchar(table, this);
+		return new PgVarchar(table, this.config);
 	}
 }
 
@@ -28,9 +28,9 @@ export class PgVarchar<TTableName extends string, TData extends string>
 
 	length: number | undefined;
 
-	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgVarcharBuilder<TData>) {
-		super(table, builder);
-		this.length = builder.length;
+	constructor(table: AnyPgTable<{ name: TTableName }>, config: PgVarcharBuilder<TData>['config']) {
+		super(table, config);
+		this.length = config.length;
 	}
 
 	getSQLType(): string {

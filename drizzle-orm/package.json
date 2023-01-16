@@ -1,34 +1,29 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.15.1",
+	"version": "0.15.2",
 	"description": "Drizzle ORM package for SQL databases",
-	"main": "index.js",
-	"types": "index.d.ts",
 	"scripts": {
-		"build": "tsc -p tsconfig.build.json",
+		"build": "tsc && cp ../README.md package.json dist/",
 		"test:types": "echo WARN: No tests defined!",
-		"pack": "cp ../README.md package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
-		"publish": "npm publish package.tgz",
-		"release": "pnpm build && pnpm run pack && pnpm run publish",
-		"release:beta": "pnpm build && pnpm run pack && pnpm run publish --tag beta",
-		"build:int": "pnpm build && pnpm run pack"
-	},
-	"publishConfig": {
-		"access": "public"
+		"pack": "cp package.json dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"publish": "npm publish package.tgz"
 	},
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/drizzle-team/drizzle-orm.git"
 	},
 	"keywords": [
+		"drizzle",
 		"orm",
 		"pg",
 		"mysql",
 		"postgresql",
 		"postgres",
+		"sqlite",
 		"database",
 		"sql",
-		"typescript"
+		"typescript",
+		"ts"
 	],
 	"author": "Drizzle Team",
 	"license": "Apache-2.0",

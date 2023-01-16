@@ -10,9 +10,11 @@ export class PgBooleanBuilder extends PgColumnBuilder<
 		driverParam: boolean;
 	}>
 > {
+	protected override $pgColumnBuilderBrand!: 'PgBooleanBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgBoolean<TTableName> {
-		return new PgBoolean(table, this);
+		return new PgBoolean(table, this.config);
 	}
 }
 

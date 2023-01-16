@@ -5,18 +5,21 @@ import { PgColumn, PgColumnBuilder } from './common';
 import { Precision } from './timestamp';
 
 export class PgIntervalBuilder<TData extends string = string>
-	extends PgColumnBuilder<ColumnBuilderConfig<{ data: TData; driverParam: string }>>
+	extends PgColumnBuilder<ColumnBuilderConfig<{ data: TData; driverParam: string }>, { intervalConfig: IntervalConfig }>
 {
+	protected override $pgColumnBuilderBrand!: 'PgIntervalBuilder';
+
 	constructor(
 		name: string,
-		/** @internal */ readonly intervalConfig: IntervalConfig,
+		intervalConfig: IntervalConfig,
 	) {
 		super(name);
+		this.config.intervalConfig = intervalConfig;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgInterval<TTableName, TData> {
-		return new PgInterval(table, this);
+		return new PgInterval(table, this.config);
 	}
 }
 
@@ -27,9 +30,9 @@ export class PgInterval<TTableName extends string, TData extends string>
 
 	readonly config: IntervalConfig;
 
-	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgIntervalBuilder<TData>) {
-		super(table, builder);
-		this.config = builder.intervalConfig;
+	constructor(table: AnyPgTable<{ name: TTableName }>, config: PgIntervalBuilder<TData>['config']) {
+		super(table, config);
+		this.config = config.intervalConfig;
 	}
 
 	getSQLType(): string {

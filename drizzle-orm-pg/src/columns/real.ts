@@ -4,18 +4,19 @@ import { AnyPgTable } from '~/table';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export class PgRealBuilder extends PgColumnBuilder<
-	ColumnBuilderConfig<{ data: number; driverParam: string | number }>
+	ColumnBuilderConfig<{ data: number; driverParam: string | number }>,
+	{ length: number | undefined }
 > {
-	/** @internal */ length: number | undefined;
+	protected override $pgColumnBuilderBrand!: 'PgRealBuilder';
 
 	constructor(name: string, length?: number) {
 		super(name);
-		this.length = length;
+		this.config.length = length;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgReal<TTableName> {
-		return new PgReal(table, this);
+		return new PgReal(table, this.config);
 	}
 }
 
@@ -24,8 +25,8 @@ export class PgReal<TTableName extends string> extends PgColumn<
 > {
 	protected override $pgColumnBrand!: 'PgReal';
 
-	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgRealBuilder) {
-		super(table, builder);
+	constructor(table: AnyPgTable<{ name: TTableName }>, config: PgRealBuilder['config']) {
+		super(table, config);
 	}
 
 	getSQLType(): string {

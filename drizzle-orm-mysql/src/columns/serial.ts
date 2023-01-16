@@ -7,11 +7,16 @@ export class MySqlSerialBuilder extends MySqlColumnBuilder<{
 	notNull: true;
 	hasDefault: true;
 }> {
+	constructor(name: string) {
+		super(name);
+		this.config.hasDefault = true;
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlSerial<TTableName> {
-		return new MySqlSerial(table, this);
+		return new MySqlSerial(table, this.config);
 	}
 }
 

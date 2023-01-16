@@ -11,7 +11,7 @@ export class MySqlMediumIntBuilder extends MySqlColumnBuilderWithAutoIncrement<
 > {
 	/** @internal */
 	override build<TTableName extends string>(table: AnyMySqlTable<{ name: TTableName }>): MySqlMediumInt<TTableName> {
-		return new MySqlMediumInt(table, this);
+		return new MySqlMediumInt(table, this.config);
 	}
 }
 
