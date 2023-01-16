@@ -128,7 +128,8 @@ const insertUser = (user: InsertUser) => {
 ```
 
 
-The list of all column types. You can also create custom types - !!see here!!.
+The list of all column types. You can also create custom types - [see here](https://github.com/drizzle-team/drizzle-orm/blob/main/docs/custom-types.md).
+
 ```typescript
 integer("...")
 integer("...", { mode: "number" | "timestamp" | "bigint" })
