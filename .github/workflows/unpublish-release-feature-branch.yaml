@@ -22,10 +22,6 @@ jobs:
           node-version: 16
           registry-url: 'https://registry.npmjs.org'
 
-      - uses: pnpm/action-setup@v2
-        with:
-          version: 7.22.0
-
       - name: Unpublish
         run: |
           tag="${{ github.event.ref }}"

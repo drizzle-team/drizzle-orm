@@ -25,6 +25,11 @@
 			"outputs": ["dist/**"],
 			"outputMode": "new-only"
 		},
+		"pack": {
+			"dependsOn": ["build"],
+			"inputs": ["dist/**"],
+			"outputs": ["package.tgz"]
+		},
 		"test": {
 			"dependsOn": ["build"],
 			"outputs": [],
