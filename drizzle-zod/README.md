@@ -1,10 +1,10 @@
 <div align='center'>
 <h1>drizzle-zod <a href=''><img alt='npm' src='https://img.shields.io/npm/v/drizzle-zod?label='></a></h1>
 <img alt='npm' src='https://img.shields.io/npm/dm/drizzle-zod'>
-<img alt='pg version' src='https://img.shields.io/npm/dependency-version/drizzle-zod/peer/pg'>
+<img alt='zod version' src='https://img.shields.io/npm/dependency-version/drizzle-zod/peer/zod'>
 <img alt='npm bundle size' src='https://img.shields.io/bundlephobia/min/drizzle-zod'>
 <a href='https://discord.gg/yfjTbVXMW4'><img alt='Discord' src='https://img.shields.io/discord/1043890932593987624'></a>
-<img alt='NPM' src='https://img.shields.io/npm/l/drizzle-zod'>
+<img alt='License' src='https://img.shields.io/npm/l/drizzle-zod'>
 <h6><i>If you know SQL, you know Drizzle ORM</i></h6>
 <hr />
 </div>

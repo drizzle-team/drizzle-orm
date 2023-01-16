@@ -4,7 +4,7 @@
 <img alt='pg version' src='https://img.shields.io/npm/dependency-version/drizzle-orm-pg/peer/pg'>
 <img alt='npm bundle size' src='https://img.shields.io/bundlephobia/min/drizzle-orm-pg'>
 <a href='https://discord.gg/yfjTbVXMW4'><img alt='Discord' src='https://img.shields.io/discord/1043890932593987624'></a>
-<img alt='NPM' src='https://img.shields.io/npm/l/drizzle-orm-pg'>
+<img alt='License' src='https://img.shields.io/npm/l/drizzle-orm-pg'>
 <h6><i>If you know SQL, you know Drizzle ORM</i></h6>
 <hr />
 </div>

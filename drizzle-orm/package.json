@@ -5,7 +5,7 @@
 	"scripts": {
 		"build": "tsc && cp ../README.md package.json dist/",
 		"test:types": "echo WARN: No tests defined!",
-		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"pack": "cp package.json dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"publish": "npm publish package.tgz"
 	},
 	"repository": {

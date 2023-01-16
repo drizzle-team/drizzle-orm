@@ -3,7 +3,7 @@
 <img alt="npm" src="https://img.shields.io/npm/dm/drizzle-orm">
 <img alt="npm bundle size" src="https://img.shields.io/bundlephobia/min/drizzle-orm">
 <a href="https://discord.gg/yfjTbVXMW4"><img alt="Discord" src="https://img.shields.io/discord/1043890932593987624"></a>
-<img alt="NPM" src="https://img.shields.io/npm/l/drizzle-orm">
+<img alt="License" src="https://img.shields.io/npm/l/drizzle-orm">
 <h6><i>If you know SQL, you know Drizzle ORM</i></h6>
 <hr />
 </div>

@@ -5,7 +5,7 @@
 	"scripts": {
 		"build": "tsc --build && resolve-tspaths && cp README.md package.json dist/",
 		"test:types": "cd tests && tsc",
-		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"pack": "cp package.json dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"publish": "npm publish package.tgz"
 	},
 	"repository": {
