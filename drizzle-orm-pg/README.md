@@ -233,6 +233,7 @@ index('name')
 ```
 
 ## Column types
+The list of all column types. You can also create custom types - [see here](https://github.com/drizzle-team/drizzle-orm/blob/main/docs/custom-types.md).
 
 ```typescript
 export const popularityEnum = pgEnum('popularity', ['unknown', 'known', 'popular']); // declare enum type

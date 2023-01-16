@@ -224,6 +224,7 @@ index('name_idx')
 
 ## Column types
 
+The list of all column types. You can also create custom types - [see here](https://github.com/drizzle-team/drizzle-orm/blob/main/docs/custom-types.md).
 
 ```typescript
 mysqlEnum('popularity', ['unknown', 'known', 'popular'])
