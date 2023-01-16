@@ -36,12 +36,14 @@ export abstract class Column<T extends Partial<ColumnBaseConfig>>
 	readonly primary: boolean;
 	readonly notNull: boolean;
 	readonly default: T['data'] | SQL | undefined;
+	readonly hasDefault: boolean;
 
-	constructor(readonly table: Table<T['tableName']>, builder: ColumnBuilder<Omit<T, 'tableName'>>) {
-		this.name = builder.config.name;
-		this.notNull = builder.config.notNull;
-		this.default = builder.config.default;
-		this.primary = builder.config.primaryKey;
+	constructor(readonly table: Table<T['tableName']>, config: ColumnBuilder<Omit<T, 'tableName'>>['config']) {
+		this.name = config.name;
+		this.notNull = config.notNull;
+		this.default = config.default;
+		this.hasDefault = config.hasDefault;
+		this.primary = config.primaryKey;
 	}
 
 	abstract getSQLType(): string;

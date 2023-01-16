@@ -6,8 +6,13 @@ import { PgDateColumnBaseBuilder } from './date.common';
 import { Precision } from './timestamp';
 
 export class PgTimeBuilder<TData extends string = string>
-	extends PgDateColumnBaseBuilder<ColumnBuilderConfig<{ data: TData; driverParam: string }>>
+	extends PgDateColumnBaseBuilder<
+		ColumnBuilderConfig<{ data: TData; driverParam: string }>,
+		{ withTimezone: boolean; precision: number | undefined }
+	>
 {
+	protected override $pgColumnBuilderBrand!: 'PgTimeBuilder';
+
 	constructor(
 		name: string,
 		readonly withTimezone: boolean,
@@ -18,7 +23,7 @@ export class PgTimeBuilder<TData extends string = string>
 
 	/** @internal */
 	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgTime<TTableName, TData> {
-		return new PgTime(table, this);
+		return new PgTime(table, this.config);
 	}
 }
 
@@ -30,10 +35,10 @@ export class PgTime<TTableName extends string, TData extends string>
 	readonly withTimezone: boolean;
 	readonly precision: number | undefined;
 
-	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgTimeBuilder<TData>) {
-		super(table, builder);
-		this.withTimezone = builder.withTimezone;
-		this.precision = builder.precision;
+	constructor(table: AnyPgTable<{ name: TTableName }>, config: PgTimeBuilder<TData>['config']) {
+		super(table, config);
+		this.withTimezone = config.withTimezone;
+		this.precision = config.precision;
 	}
 
 	getSQLType(): string {

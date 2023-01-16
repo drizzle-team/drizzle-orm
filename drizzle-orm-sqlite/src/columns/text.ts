@@ -11,7 +11,7 @@ export class SQLiteTextBuilder<TData extends string = string>
 	override build<TTableName extends string>(
 		table: AnySQLiteTable<{ name: TTableName }>,
 	): SQLiteText<TTableName, TData> {
-		return new SQLiteText(table, this);
+		return new SQLiteText(table, this.config);
 	}
 }
 

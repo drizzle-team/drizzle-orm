@@ -7,22 +7,20 @@ export class MySqlDoubleBuilder extends MySqlColumnBuilderWithAutoIncrement<
 	ColumnBuilderConfig<{
 		data: number;
 		driverParam: number | string;
-	}>
+	}>,
+	{ precision: number | undefined; scale: number | undefined }
 > {
-	/** @internal */ precision: number | undefined;
-	/** @internal */ scale: number | undefined;
-
 	constructor(name: string, precision?: number, scale?: number) {
 		super(name);
-		this.precision = precision;
-		this.scale = scale;
+		this.config.precision = precision;
+		this.config.scale = scale;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlDouble<TTableName> {
-		return new MySqlDouble(table, this);
+		return new MySqlDouble(table, this.config);
 	}
 }
 
@@ -40,10 +38,10 @@ export class MySqlDouble<
 	precision: number | undefined;
 	scale: number | undefined;
 
-	constructor(table: AnyMySqlTable<{name: TTableName}>, builder: MySqlDoubleBuilder) {
-		super(table, builder);
-		this.precision = builder.precision;
-		this.scale = builder.scale;
+	constructor(table: AnyMySqlTable<{ name: TTableName }>, config: MySqlDoubleBuilder['config']) {
+		super(table, config);
+		this.precision = config.precision;
+		this.scale = config.scale;
 	}
 
 	getSQLType(): string {

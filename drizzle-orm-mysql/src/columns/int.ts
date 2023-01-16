@@ -11,18 +11,18 @@ export class MySqlIntegerBuilder extends MySqlColumnBuilderWithAutoIncrement<
 > {
 	/** @internal */
 	override build<TTableName extends string>(table: AnyMySqlTable<{ name: TTableName }>): MySqlInteger<TTableName> {
-		return new MySqlInteger(table, this);
+		return new MySqlInteger(table, this.config);
 	}
 }
 
 export class MySqlInteger<
 	TTableName extends string,
 > extends MySqlColumnWithAutoIncrement<
-ColumnConfig<{
-	tableName: TTableName;
-	data: number;
-	driverParam: number | string;
-}>
+	ColumnConfig<{
+		tableName: TTableName;
+		data: number;
+		driverParam: number | string;
+	}>
 > {
 	protected override $mySqlColumnBrand!: 'MySqlInteger';
 

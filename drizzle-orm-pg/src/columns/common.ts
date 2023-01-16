@@ -1,11 +1,18 @@
 import { Column, ColumnBaseConfig } from 'drizzle-orm';
-import { ColumnBuilder, ColumnBuilderBaseConfig, UpdateCBConfig } from 'drizzle-orm/column-builder';
+import {
+	ColumnBuilder,
+	ColumnBuilderBaseConfig,
+	ColumnBuilderWithConfig,
+	UpdateCBConfig,
+} from 'drizzle-orm/column-builder';
 import { SQL } from 'drizzle-orm/sql';
 import { Update } from 'drizzle-orm/utils';
 import { Simplify } from 'drizzle-orm/utils';
 
 import { ForeignKey, ForeignKeyBuilder, UpdateDeleteAction } from '~/foreign-keys';
 import { AnyPgTable } from '~/table';
+import { PgEnumColumn, PgEnumColumnBuilder } from './enum';
+import { PgText, PgTextBuilder } from './text';
 
 export interface ReferenceConfig {
 	ref: () => AnyPgColumn;
@@ -15,7 +22,12 @@ export interface ReferenceConfig {
 	};
 }
 
-export abstract class PgColumnBuilder<T extends Partial<ColumnBuilderBaseConfig>> extends ColumnBuilder<T> {
+export abstract class PgColumnBuilder<
+	T extends Partial<ColumnBuilderBaseConfig>,
+	TConfig extends Record<string, unknown> = {},
+> extends ColumnBuilder<T, TConfig> {
+	protected abstract $pgColumnBuilderBrand: string;
+
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
 	constructor(name: string) {
@@ -78,9 +90,9 @@ export abstract class PgColumn<T extends Partial<ColumnBaseConfig>> extends Colu
 
 	constructor(
 		override readonly table: AnyPgTable<{ name: T['tableName'] }>,
-		builder: PgColumnBuilder<Omit<T, 'tableName'>>,
+		config: PgColumnBuilder<Omit<T, 'tableName'>>['config'],
 	) {
-		super(table, builder);
+		super(table, config);
 	}
 
 	unsafe(): AnyPgColumn {
@@ -95,7 +107,10 @@ export type AnyPgColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = PgCol
 export type BuildColumn<
 	TTableName extends string,
 	TBuilder extends AnyPgColumnBuilder,
-> = TBuilder extends PgColumnBuilder<infer T> ? PgColumn<Simplify<T & { tableName: TTableName }>> : never;
+> = TBuilder extends PgTextBuilder<infer T> ? PgText<Simplify<T & { tableName: TTableName }>>
+	: TBuilder extends PgEnumColumnBuilder<infer T> ? PgEnumColumn<Simplify<T & { tableName: TTableName }>>
+	: TBuilder extends ColumnBuilderWithConfig<infer T> ? PgColumn<Simplify<T & { tableName: TTableName }>>
+	: never;
 
 export type BuildColumns<
 	TTableName extends string,

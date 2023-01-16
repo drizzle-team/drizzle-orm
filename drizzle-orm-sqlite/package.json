@@ -1,20 +1,14 @@
 {
 	"name": "drizzle-orm-sqlite",
-	"version": "0.15.0",
+	"version": "0.15.1",
 	"description": "Drizzle ORM package for SQLite database",
-	"main": "index.js",
-	"types": "index.d.ts",
 	"scripts": {
-		"build": "tsc -p tsconfig.build.json && resolve-tspaths",
+		"build": "tsc -p tsconfig.build.json && resolve-tspaths && cp README.md package.json dist/",
 		"test:types": "cd tests && tsc",
-		"pack": "cp README.md package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"pack": "(cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"publish": "npm publish package.tgz",
 		"release": "pnpm build && pnpm run pack && pnpm run publish",
-		"release:beta": "pnpm build && pnpm run pack && pnpm run publish --tag beta",
-		"build:int": "pnpm build && pnpm run pack"
-	},
-	"publishConfig": {
-		"access": "public"
+		"release:beta": "pnpm build && pnpm run pack && pnpm run publish --tag beta"
 	},
 	"repository": {
 		"type": "git",
@@ -58,7 +52,7 @@
 		"@cloudflare/workers-types": "^3.18.0",
 		"@types/better-sqlite3": "^7.6.2",
 		"better-sqlite3": "^7.6.2",
-		"drizzle-orm": "link:../drizzle-orm/src",
+		"drizzle-orm": "link:../drizzle-orm/dist",
 		"sqlite3": "^5.1.2"
 	}
 }

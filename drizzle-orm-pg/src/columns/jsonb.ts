@@ -4,13 +4,15 @@ import { AnyPgTable } from '~/table';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export class PgJsonbBuilder<TData> extends PgColumnBuilder<ColumnBuilderConfig<{ data: TData; driverParam: string }>> {
+	protected override $pgColumnBuilderBrand!: 'PgJsonbBuilder';
+
 	constructor(name: string) {
 		super(name);
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgJsonb<TTableName, TData> {
-		return new PgJsonb(table, this);
+		return new PgJsonb(table, this.config);
 	}
 }
 
@@ -19,8 +21,8 @@ export class PgJsonb<TTableName extends string, TData>
 {
 	protected override $pgColumnBrand!: 'PgJsonb';
 
-	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgJsonbBuilder<TData>) {
-		super(table, builder);
+	constructor(table: AnyPgTable<{ name: TTableName }>, config: PgJsonbBuilder<TData>['config']) {
+		super(table, config);
 	}
 
 	getSQLType(): string {

@@ -2,7 +2,7 @@ import { ColumnConfig } from 'drizzle-orm';
 import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyMySqlTable } from '~/table';
 
-import { MySqlColumn, MySqlColumnBuilder, MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
+import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
 export class MySqlBigInt53Builder extends MySqlColumnBuilderWithAutoIncrement<
 	ColumnBuilderConfig<{
@@ -12,7 +12,7 @@ export class MySqlBigInt53Builder extends MySqlColumnBuilderWithAutoIncrement<
 > {
 	/** @internal */
 	override build<TTableName extends string>(table: AnyMySqlTable<{ name: TTableName }>): MySqlBigInt53<TTableName> {
-		return new MySqlBigInt53(table, this);
+		return new MySqlBigInt53(table, this.config);
 	}
 }
 
@@ -42,7 +42,7 @@ export class MySqlBigInt64Builder
 {
 	/** @internal */
 	override build<TTableName extends string>(table: AnyMySqlTable<{ name: TTableName }>): MySqlBigInt64<TTableName> {
-		return new MySqlBigInt64(table, this);
+		return new MySqlBigInt64(table, this.config);
 	}
 }
 

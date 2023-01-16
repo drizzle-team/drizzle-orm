@@ -7,7 +7,7 @@ import { Simplify } from 'drizzle-orm/utils';
 import { Check, CheckBuilder } from './checks';
 import { AnyPgColumn, AnyPgColumnBuilder, BuildColumns } from './columns/common';
 import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
-import { AnyIndexBuilder, Index, IndexBuilder } from './indexes';
+import { AnyIndexBuilder, Index } from './indexes';
 
 export type PgTableExtraConfig = Record<
 	string,
@@ -47,7 +47,7 @@ export class PgTable<T extends Partial<TableConfig>> extends Table<T['name']> {
 	});
 
 	/** @internal */
-	override [Table.Symbol.Columns]!: T['columns'];
+	override [Table.Symbol.Columns]!: NonNullable<T['columns']>;
 
 	/** @internal */
 	[Indexes]: Record<string | symbol, Index> = {};
@@ -134,11 +134,11 @@ export function pgTable<
 		}),
 	) as BuildColumns<TTableName, TColumnsMap>;
 
-	rawTable[PgTable.Symbol.Columns] = builtColumns;
+	rawTable[Table.Symbol.Columns] = builtColumns;
 
 	const table = Object.assign(rawTable, builtColumns);
 
-	table[PgTable.Symbol.Columns] = builtColumns;
+	table[Table.Symbol.Columns] = builtColumns;
 
 	if (extraConfig) {
 		table[PgTable.Symbol.ExtraConfig] = extraConfig as (self: Record<string, AnyPgColumn>) => PgTableExtraConfig;

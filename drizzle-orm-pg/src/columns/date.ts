@@ -5,9 +5,11 @@ import { PgColumn } from './common';
 import { PgDateColumnBaseBuilder } from './date.common';
 
 export class PgDateBuilder extends PgDateColumnBaseBuilder<ColumnBuilderConfig<{ data: Date; driverParam: string }>> {
+	protected override $pgColumnBuilderBrand!: 'PgDateBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgDate<TTableName> {
-		return new PgDate(table, this);
+		return new PgDate(table, this.config);
 	}
 }
 
@@ -16,8 +18,8 @@ export class PgDate<TTableName extends string>
 {
 	protected override $pgColumnBrand!: 'PgDate';
 
-	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgDateBuilder) {
-		super(table, builder);
+	constructor(table: AnyPgTable<{ name: TTableName }>, config: PgDateBuilder['config']) {
+		super(table, config);
 	}
 
 	getSQLType(): string {
@@ -36,9 +38,11 @@ export class PgDate<TTableName extends string>
 export class PgDateStringBuilder
 	extends PgDateColumnBaseBuilder<ColumnBuilderConfig<{ data: string; driverParam: string }>>
 {
+	protected override $pgColumnBuilderBrand!: 'PgDateStringBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgDateString<TTableName> {
-		return new PgDateString(table, this);
+		return new PgDateString(table, this.config);
 	}
 }
 
@@ -47,8 +51,8 @@ export class PgDateString<
 > extends PgColumn<ColumnConfig<{ tableName: TTableName; data: string; driverParam: string }>> {
 	protected override $pgColumnBrand!: 'PgDateString';
 
-	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgDateStringBuilder) {
-		super(table, builder);
+	constructor(table: AnyPgTable<{ name: TTableName }>, config: PgDateStringBuilder['config']) {
+		super(table, config);
 	}
 
 	getSQLType(): string {

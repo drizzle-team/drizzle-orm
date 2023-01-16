@@ -12,6 +12,7 @@ jobs:
           - drizzle-orm-mysql
           - drizzle-orm-pg
           - drizzle-orm-sqlite
+          - drizzle-zod
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3

@@ -3,21 +3,23 @@ import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyMySqlTable } from '~/table';
 import { MySqlColumn } from './common';
 import { MySqlDateColumnBaseBuilder } from './date.common';
-export class MySqlTimestampBuilder
-	extends MySqlDateColumnBaseBuilder<ColumnBuilderConfig<{ data: Date; driverParam: string | number }>>
-{
+export class MySqlTimestampBuilder extends MySqlDateColumnBaseBuilder<
+	ColumnBuilderConfig<{ data: Date; driverParam: string | number }>,
+	{ fsp: number | undefined }
+> {
 	constructor(
 		name: string,
-		readonly fsp: number | undefined,
+		fsp: number | undefined,
 	) {
 		super(name);
+		this.config.fsp = fsp;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlTimestamp<TTableName> {
-		return new MySqlTimestamp(table, this);
+		return new MySqlTimestamp(table, this.config);
 	}
 }
 
@@ -36,10 +38,10 @@ export class MySqlTimestamp<
 
 	constructor(
 		table: AnyMySqlTable<{ name: TTableName }>,
-		builder: MySqlTimestampBuilder,
+		config: MySqlTimestampBuilder['config'],
 	) {
-		super(table, builder);
-		this.fsp = builder.fsp;
+		super(table, config);
+		this.fsp = config.fsp;
 	}
 
 	getSQLType(): string {
@@ -52,21 +54,23 @@ export class MySqlTimestamp<
 	}
 }
 
-export class MySqlTimestampStringBuilder
-	extends MySqlDateColumnBaseBuilder<ColumnBuilderConfig<{ data: string; driverParam: string | number }>>
-{
+export class MySqlTimestampStringBuilder extends MySqlDateColumnBaseBuilder<
+	ColumnBuilderConfig<{ data: string; driverParam: string | number }>,
+	{ fsp: number | undefined }
+> {
 	constructor(
 		name: string,
-		readonly fsp: number | undefined,
+		fsp: number | undefined,
 	) {
 		super(name);
+		this.config.fsp = fsp;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlTimestampString<TTableName> {
-		return new MySqlTimestampString(table, this);
+		return new MySqlTimestampString(table, this.config);
 	}
 }
 
@@ -85,10 +89,10 @@ export class MySqlTimestampString<
 
 	constructor(
 		table: AnyMySqlTable<{ name: TTableName }>,
-		builder: MySqlTimestampStringBuilder,
+		config: MySqlTimestampStringBuilder['config'],
 	) {
-		super(table, builder);
-		this.fsp = builder.fsp;
+		super(table, config);
+		this.fsp = config.fsp;
 	}
 
 	getSQLType(): string {
@@ -102,7 +106,7 @@ export type TimestampFsp = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 export function timestamp(name: string): MySqlTimestampBuilder;
 export function timestamp(
 	name: string,
-	config: { mode: 'string'; fsp?: TimestampFsp},
+	config: { mode: 'string'; fsp?: TimestampFsp },
 ): MySqlTimestampStringBuilder;
 export function timestamp(
 	name: string,

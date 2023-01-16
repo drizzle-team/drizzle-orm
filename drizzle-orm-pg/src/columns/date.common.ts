@@ -4,7 +4,10 @@ import { SQL } from 'drizzle-orm/sql';
 
 import { PgColumnBuilder } from './common';
 
-export abstract class PgDateColumnBaseBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<T> {
+export abstract class PgDateColumnBaseBuilder<
+	T extends ColumnBuilderBaseConfig,
+	TConfig extends Record<string, unknown> = {},
+> extends PgColumnBuilder<T, TConfig> {
 	override notNull(): PgDateColumnBaseBuilder<UpdateCBConfig<T, { notNull: true }>> {
 		return super.notNull() as ReturnType<this['notNull']>;
 	}

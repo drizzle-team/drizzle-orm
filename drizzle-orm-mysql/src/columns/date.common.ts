@@ -4,7 +4,10 @@ import { SQL } from 'drizzle-orm/sql';
 
 import { MySqlColumnBuilder } from './common';
 
-export abstract class MySqlDateColumnBaseBuilder<T extends ColumnBuilderBaseConfig> extends MySqlColumnBuilder<T> {
+export abstract class MySqlDateColumnBaseBuilder<
+	T extends ColumnBuilderBaseConfig,
+	TConfig extends Record<string, unknown> = {},
+> extends MySqlColumnBuilder<T, TConfig> {
 	hasOnUpdateNow: boolean = false;
 
 	override notNull(): MySqlDateColumnBaseBuilder<UpdateCBConfig<T, { notNull: true }>> {
@@ -27,6 +30,7 @@ export abstract class MySqlDateColumnBaseBuilder<T extends ColumnBuilderBaseConf
 
 	onUpdateNow(): MySqlDateColumnBaseBuilder<UpdateCBConfig<T, { hasDefault: true }>> {
 		this.hasOnUpdateNow = true;
+		this.config.hasDefault = true;
 		return this as ReturnType<this['onUpdateNow']>;
 	}
 }

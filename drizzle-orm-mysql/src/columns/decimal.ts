@@ -7,22 +7,20 @@ export class MySqlDecimalBuilder extends MySqlColumnBuilderWithAutoIncrement<
 	ColumnBuilderConfig<{
 		data: number;
 		driverParam: number | string;
-	}>
+	}>,
+	{ precision: number | undefined; scale: number | undefined }
 > {
-	/** @internal */ precision: number | undefined;
-	/** @internal */ scale: number | undefined;
-
 	constructor(name: string, precision?: number, scale?: number) {
 		super(name);
-		this.precision = precision;
-		this.scale = scale;
+		this.config.precision = precision;
+		this.config.scale = scale;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlDecimal<TTableName> {
-		return new MySqlDecimal(table, this);
+		return new MySqlDecimal(table, this.config);
 	}
 }
 
@@ -35,13 +33,13 @@ export class MySqlDecimal<TTableName extends string> extends MySqlColumnWithAuto
 > {
 	protected override $mySqlColumnBrand!: 'MySqlDecimal';
 
-	precision: number | undefined;
-	scale: number | undefined;
+	readonly precision: number | undefined;
+	readonly scale: number | undefined;
 
-	constructor(table: AnyMySqlTable<{ name: TTableName }>, builder: MySqlDecimalBuilder) {
-		super(table, builder);
-		this.precision = builder.precision;
-		this.scale = builder.scale;
+	constructor(table: AnyMySqlTable<{ name: TTableName }>, config: MySqlDecimalBuilder['config']) {
+		super(table, config);
+		this.precision = config.precision;
+		this.scale = config.scale;
 	}
 
 	getSQLType(): string {

@@ -10,9 +10,11 @@ export class PgBigInt53Builder extends PgColumnBuilder<
 		driverParam: number | string;
 	}>
 > {
+	protected override $pgColumnBuilderBrand!: 'PgBigInt53Builder';
+
 	/** @internal */
 	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgBigInt53<TTableName> {
-		return new PgBigInt53(table, this);
+		return new PgBigInt53(table, this.config);
 	}
 }
 
@@ -38,9 +40,11 @@ export class PgBigInt53<TTableName extends string> extends PgColumn<
 }
 
 export class PgBigInt64Builder extends PgColumnBuilder<ColumnBuilderConfig<{ data: bigint; driverParam: string }>> {
+	protected override $pgColumnBuilderBrand!: 'PgBigInt64Builder';
+
 	/** @internal */
 	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgBigInt64<TTableName> {
-		return new PgBigInt64(table, this);
+		return new PgBigInt64(table, this.config);
 	}
 }
 

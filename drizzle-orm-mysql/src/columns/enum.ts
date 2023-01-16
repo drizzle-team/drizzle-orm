@@ -15,20 +15,20 @@ export function isMySqlEnum(obj: unknown): obj is MySqlEnum<string> {
 	return !!obj && typeof obj === 'function' && isMySqlEnumSym in obj;
 }
 
-export class MySqlEnumColumnBuilder<TData extends string = string>
-	extends MySqlColumnBuilder<ColumnBuilderConfig<{ data: TData; driverParam: string }>>
-{
-	/** @internal */ values: string[];
-	/** @internal */ enumName: string;
-
-	constructor(name: string, enumName: string, values: string[]) {
+export class MySqlEnumColumnBuilder<TData extends string = string> extends MySqlColumnBuilder<
+	ColumnBuilderConfig<{ data: TData; driverParam: string }>,
+	{ enum: MySqlEnum<TData> }
+> {
+	constructor(name: string, enumInstance: MySqlEnum<TData>) {
 		super(name);
-		this.enumName = enumName;
-		this.values = values;
+		this.config.enum = enumInstance;
 	}
+
 	/** @internal */
-	override build<TTableName extends string>(table: AnyMySqlTable<{ name: TTableName }>): MySqlEnumColumn<TTableName, TData> {
-		return new MySqlEnumColumn(table, this, this.enumName);
+	override build<TTableName extends string>(
+		table: AnyMySqlTable<{ name: TTableName }>,
+	): MySqlEnumColumn<TTableName, TData> {
+		return new MySqlEnumColumn(table, this.config);
 	}
 }
 
@@ -37,26 +37,28 @@ export class MySqlEnumColumn<TTableName extends string, TData extends string>
 {
 	protected override $mySqlColumnBrand!: 'MySqlEnumColumn';
 
+	readonly enum: MySqlEnum<TData>;
+
 	constructor(
 		table: AnyMySqlTable<{ name: TTableName }>,
-		builder: MySqlEnumColumnBuilder<TData>,
-		readonly enumName: string,
+		config: MySqlEnumColumnBuilder<TData>['config'],
 	) {
-		super(table, builder);
+		super(table, config);
+		this.enum = config.enum;
 	}
 
 	getSQLType(): string {
-		return this.enumName;
+		return this.enum.enumName;
 	}
 }
 
 export function mysqlEnum<T extends string = string>(enumName: string, values: T[]) {
-	const enumValue: MySqlEnum<T> = {
+	const enumInstance: MySqlEnum<T> = {
 		enumName,
 		enumValues: values,
 		[isMySqlEnumSym]: true,
 	};
-	const columnFactory = (name: string) => new MySqlEnumColumnBuilder<T>(name, enumName, values);
+	const columnFactory = (name: string) => new MySqlEnumColumnBuilder<T>(name, enumInstance);
 
-	return Object.assign(columnFactory, enumValue);
+	return Object.assign(columnFactory, enumInstance);
 }

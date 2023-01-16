@@ -1,27 +1,14 @@
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
-import {
-	boolean,
-	date,
-	datetime,
-	int,
-	json,
-	MySqlDatabase,
-	mysqlTable,
-	time,
-	uniqueIndex,
-	varchar,
-	year,
-} from 'drizzle-orm-mysql';
-import { alias, InferModel, serial, text, timestamp } from 'drizzle-orm-mysql';
+import { boolean, date, datetime, json, MySqlDatabase, mysqlTable, time, uniqueIndex, year } from 'drizzle-orm-mysql';
+import { alias, serial, text, timestamp } from 'drizzle-orm-mysql';
 import { drizzle } from 'drizzle-orm-mysql/mysql2';
 import { migrate } from 'drizzle-orm-mysql/mysql2/migrator';
-import { asc, eq, inArray } from 'drizzle-orm/expressions';
+import { asc, eq } from 'drizzle-orm/expressions';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
-import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
 
 const usersTable = mysqlTable('userstest', {
@@ -65,11 +52,14 @@ async function createDockerDB(ctx: Context): Promise<string> {
 	const port = await getPort({ port: 3306 });
 	const image = 'mysql:8';
 
-	await docker.pull(image);
+	const pullStream = await docker.pull(image);
+	await new Promise((resolve, reject) =>
+		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
+	);
 
 	const mysqlContainer = (ctx.mysqlContainer = await docker.createContainer({
 		Image: image,
-		Env: ['MYSQL_ROOT_PASSWORD=mysql', 'MYSQL_DATABASE=mysqltests'],
+		Env: ['MYSQL_ROOT_PASSWORD=mysql', 'MYSQL_DATABASE=drizzle'],
 		name: `drizzle-integration-tests-${uuid()}`,
 		HostConfig: {
 			AutoRemove: true,
@@ -81,7 +71,7 @@ async function createDockerDB(ctx: Context): Promise<string> {
 
 	await mysqlContainer.start();
 
-	return `mysql://root:mysql@127.0.0.1:${port}/mysql`;
+	return `mysql://root:mysql@127.0.0.1:${port}/drizzle`;
 }
 
 test.before(async (t) => {
@@ -105,7 +95,7 @@ test.before(async (t) => {
 		}
 	} while (timeLeft > 0);
 	if (!connected) {
-		console.error('Cannot connect to MySql');
+		console.error('Cannot connect to MySQL');
 		throw lastError;
 	}
 	ctx.db = drizzle(ctx.client /* , { logger: new DefaultLogger() } */);

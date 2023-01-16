@@ -9,20 +9,20 @@ export class MySqlVarCharBuilder<
 	ColumnBuilderConfig<{
 		data: TData;
 		driverParam: number | string;
-	}>
+	}>,
+	{ length: number | undefined }
 > {
-	/** @internal */ length: number | undefined;
-
+	/** @internal */
 	constructor(name: string, length?: number) {
 		super(name);
-		this.length = length;
+		this.config.length = length;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlVarChar<TTableName, TData> {
-		return new MySqlVarChar(table, this);
+		return new MySqlVarChar(table, this.config);
 	}
 }
 
@@ -40,9 +40,9 @@ export class MySqlVarChar<
 
 	length: number | undefined;
 
-	constructor(table: AnyMySqlTable<{ name: TTableName }>, builder: MySqlVarCharBuilder<TData>) {
-		super(table, builder);
-		this.length = builder.length;
+	constructor(table: AnyMySqlTable<{ name: TTableName }>, config: MySqlVarCharBuilder<TData>['config']) {
+		super(table, config);
+		this.length = config.length;
 	}
 
 	getSQLType(): string {

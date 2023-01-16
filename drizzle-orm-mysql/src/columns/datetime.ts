@@ -3,21 +3,23 @@ import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyMySqlTable } from '~/table';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
-export class MySqlDateTimeBuilder
-	extends MySqlColumnBuilder<ColumnBuilderConfig<{ data: Date; driverParam: string | number }>>
-{
+export class MySqlDateTimeBuilder extends MySqlColumnBuilder<
+	ColumnBuilderConfig<{ data: Date; driverParam: string | number }>,
+	{ fsp: number | undefined }
+> {
 	constructor(
 		name: string,
-		readonly fsp: number | undefined,
+		fsp: number | undefined,
 	) {
 		super(name);
+		this.config.fsp = fsp;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlDateTime<TTableName> {
-		return new MySqlDateTime(table, this);
+		return new MySqlDateTime(table, this.config);
 	}
 }
 
@@ -36,10 +38,10 @@ export class MySqlDateTime<
 
 	constructor(
 		table: AnyMySqlTable<{ name: TTableName }>,
-		builder: MySqlDateTimeBuilder,
+		config: MySqlDateTimeBuilder['config'],
 	) {
-		super(table, builder);
-		this.fsp = builder.fsp;
+		super(table, config);
+		this.fsp = config.fsp;
 	}
 
 	getSQLType(): string {
@@ -53,20 +55,24 @@ export class MySqlDateTime<
 }
 
 export class MySqlDateTimeStringBuilder
-	extends MySqlColumnBuilder<ColumnBuilderConfig<{ data: string; driverParam: string | number }>>
+	extends MySqlColumnBuilder<
+		ColumnBuilderConfig<{ data: string; driverParam: string | number }>,
+		{ fsp: number | undefined }
+	>
 {
 	constructor(
 		name: string,
-		readonly fsp: number | undefined,
+		fsp: number | undefined,
 	) {
 		super(name);
+		this.config.fsp = fsp;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlDateTimeString<TTableName> {
-		return new MySqlDateTimeString(table, this);
+		return new MySqlDateTimeString(table, this.config);
 	}
 }
 
@@ -85,10 +91,10 @@ export class MySqlDateTimeString<
 
 	constructor(
 		table: AnyMySqlTable<{ name: TTableName }>,
-		builder: MySqlDateTimeStringBuilder,
+		config: MySqlDateTimeStringBuilder['config'],
 	) {
-		super(table, builder);
-		this.fsp = builder.fsp;
+		super(table, config);
+		this.fsp = config.fsp;
 	}
 
 	getSQLType(): string {
@@ -102,7 +108,7 @@ export type DatetimeFsp = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 export function datetime(name: string): MySqlDateTimeBuilder;
 export function datetime(
 	name: string,
-	config: { mode: 'string'; fsp?: DatetimeFsp},
+	config: { mode: 'string'; fsp?: DatetimeFsp },
 ): MySqlDateTimeStringBuilder;
 export function datetime(
 	name: string,

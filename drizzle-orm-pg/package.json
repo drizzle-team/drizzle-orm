@@ -1,20 +1,14 @@
 {
 	"name": "drizzle-orm-pg",
-	"version": "0.15.0",
+	"version": "0.15.1",
 	"description": "Drizzle ORM package for PostgreSQL database",
-	"main": "index.js",
-	"types": "index.d.ts",
 	"scripts": {
-		"build": "tsc -p tsconfig.build.json && resolve-tspaths",
+		"build": "tsc --build && resolve-tspaths && cp README.md package.json dist/",
 		"test:types": "cd tests && tsc",
-		"pack": "cp README.md package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"pack": "(cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"publish": "npm publish package.tgz",
 		"release": "pnpm build && pnpm run pack && pnpm run publish",
-		"release:beta": "pnpm build && pnpm run pack && pnpm run publish --tag beta",
-		"build:int": "pnpm build && pnpm run pack"
-	},
-	"publishConfig": {
-		"access": "public"
+		"release:beta": "pnpm build && pnpm run pack && pnpm run publish --tag beta"
 	},
 	"repository": {
 		"type": "git",
@@ -51,7 +45,7 @@
 	"devDependencies": {
 		"@neondatabase/serverless": "^0.1.13",
 		"@types/pg": "^8.6.5",
-		"drizzle-orm": "link:../drizzle-orm/src",
+		"drizzle-orm": "workspace:../drizzle-orm/dist",
 		"pg": "^8.8.0"
 	}
 }

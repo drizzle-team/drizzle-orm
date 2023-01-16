@@ -7,18 +7,19 @@ export class MySqlBinaryBuilder<TData extends string = string> extends MySqlColu
 	ColumnBuilderConfig<{
 		data: TData;
 		driverParam: number | string;
-	}>
+	}>,
+	{ length: number | undefined }
 > {
-	/** @internal */ length: number | undefined;
-
 	constructor(name: string, length?: number) {
 		super(name);
-		this.length = length;
+		this.config.length = length;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(table: AnyMySqlTable<{ name: TTableName }>): MySqlBinary<TTableName, TData> {
-		return new MySqlBinary(table, this);
+	override build<TTableName extends string>(
+		table: AnyMySqlTable<{ name: TTableName }>,
+	): MySqlBinary<TTableName, TData> {
+		return new MySqlBinary(table, this.config);
 	}
 }
 
@@ -36,9 +37,9 @@ export class MySqlBinary<
 
 	length: number | undefined;
 
-	constructor(table: AnyMySqlTable<{ name: TTableName }>, builder: MySqlBinaryBuilder<TData>) {
-		super(table, builder);
-		this.length = builder.length;
+	constructor(table: AnyMySqlTable<{ name: TTableName }>, config: MySqlBinaryBuilder<TData>['config']) {
+		super(table, config);
+		this.length = config.length;
 	}
 
 	getSQLType(): string {
