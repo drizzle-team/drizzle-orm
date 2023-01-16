@@ -5,10 +5,8 @@
 	"scripts": {
 		"build": "tsc && cp ../README.md package.json dist/",
 		"test:types": "echo WARN: No tests defined!",
-		"pack": "(cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
-		"publish": "npm publish package.tgz",
-		"release": "pnpm run pack && pnpm run publish",
-		"release:beta": "pnpm build && pnpm run pack && pnpm run publish --tag beta"
+		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"publish": "npm publish package.tgz"
 	},
 	"repository": {
 		"type": "git",

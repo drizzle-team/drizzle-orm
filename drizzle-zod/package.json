@@ -4,11 +4,9 @@
 	"description": "Generate Zod schemas from Drizzle ORM schemas",
 	"scripts": {
 		"build": "tsc && resolve-tspaths && cp README.md package.json dist/",
-		"pack": "(cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
-		"publish": "npm publish package.tgz",
-		"release": "pnpm build && pnpm run pack && pnpm run publish",
-		"release:beta": "pnpm build && pnpm run pack && pnpm run publish --tag beta",
 		"test:types": "cd tests && tsc",
+		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"publish": "npm publish package.tgz",
 		"test": "ava tests"
 	},
 	"ava": {
