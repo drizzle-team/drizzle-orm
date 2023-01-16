@@ -6,9 +6,11 @@ import { PgColumn, PgColumnBuilder } from './common';
 export class PgIntegerBuilder
 	extends PgColumnBuilder<ColumnBuilderConfig<{ data: number; driverParam: number | string }>>
 {
+	protected override $pgColumnBuilderBrand!: 'PgIntegerBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgInteger<TTableName> {
-		return new PgInteger(table, this);
+		return new PgInteger(table, this.config);
 	}
 }
 

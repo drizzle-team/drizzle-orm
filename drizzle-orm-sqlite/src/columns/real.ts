@@ -6,7 +6,7 @@ import { SQLiteColumn, SQLiteColumnBuilder } from './common';
 export class SQLiteRealBuilder extends SQLiteColumnBuilder<ColumnBuilderConfig<{ data: number; driverParam: number }>> {
 	/** @internal */
 	override build<TTableName extends string>(table: AnySQLiteTable<{ name: TTableName }>): SQLiteReal<TTableName> {
-		return new SQLiteReal(table, this);
+		return new SQLiteReal(table, this.config);
 	}
 }
 

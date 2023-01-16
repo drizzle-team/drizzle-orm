@@ -7,22 +7,20 @@ export class MySqlFloatBuilder extends MySqlColumnBuilderWithAutoIncrement<
 	ColumnBuilderConfig<{
 		data: number;
 		driverParam: number | string;
-	}>
+	}>,
+	{ precision: number | undefined; scale: number | undefined }
 > {
-	/** @internal */ precision: number | undefined;
-	/** @internal */ scale: number | undefined;
-
 	constructor(name: string, precision?: number, scale?: number) {
 		super(name);
-		this.precision = precision;
-		this.scale = scale;
+		this.config.precision = precision;
+		this.config.scale = scale;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlFloat<TTableName> {
-		return new MySqlFloat(table, this);
+		return new MySqlFloat(table, this.config);
 	}
 }
 
@@ -40,10 +38,10 @@ export class MySqlFloat<
 	precision: number | undefined;
 	scale: number | undefined;
 
-	constructor(table: AnyMySqlTable<{ name: TTableName }>, builder: MySqlFloatBuilder) {
-		super(table, builder);
-		this.precision = builder.precision;
-		this.scale = builder.scale;
+	constructor(table: AnyMySqlTable<{ name: TTableName }>, config: MySqlFloatBuilder['config']) {
+		super(table, config);
+		this.precision = config.precision;
+		this.scale = config.scale;
 	}
 
 	getSQLType(): string {

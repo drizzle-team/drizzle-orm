@@ -4,20 +4,25 @@ import { AnyPgTable } from '~/table';
 import { PgColumn } from './common';
 import { PgDateColumnBaseBuilder } from './date.common';
 
-export class PgTimestampBuilder
-	extends PgDateColumnBaseBuilder<ColumnBuilderConfig<{ data: Date; driverParam: string }>>
-{
+export class PgTimestampBuilder extends PgDateColumnBaseBuilder<
+	ColumnBuilderConfig<{ data: Date; driverParam: string }>,
+	{ withTimezone: boolean; precision: number | undefined }
+> {
+	protected override $pgColumnBuilderBrand!: 'PgTimestampBuilder';
+
 	constructor(
 		name: string,
-		readonly withTimezone: boolean,
-		readonly precision: number | undefined,
+		withTimezone: boolean,
+		precision: number | undefined,
 	) {
 		super(name);
+		this.config.withTimezone = withTimezone;
+		this.config.precision = precision;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgTimestamp<TTableName> {
-		return new PgTimestamp(table, this);
+		return new PgTimestamp(table, this.config);
 	}
 }
 
@@ -29,10 +34,10 @@ export class PgTimestamp<TTableName extends string>
 	readonly withTimezone: boolean;
 	readonly precision: number | undefined;
 
-	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgTimestampBuilder) {
-		super(table, builder);
-		this.withTimezone = builder.withTimezone;
-		this.precision = builder.precision;
+	constructor(table: AnyPgTable<{ name: TTableName }>, config: PgTimestampBuilder['config']) {
+		super(table, config);
+		this.withTimezone = config.withTimezone;
+		this.precision = config.precision;
 	}
 
 	getSQLType(): string {
@@ -45,20 +50,25 @@ export class PgTimestamp<TTableName extends string>
 	};
 }
 
-export class PgTimestampStringBuilder
-	extends PgDateColumnBaseBuilder<ColumnBuilderConfig<{ data: string; driverParam: string }>>
-{
+export class PgTimestampStringBuilder extends PgDateColumnBaseBuilder<
+	ColumnBuilderConfig<{ data: string; driverParam: string }>,
+	{ withTimezone: boolean; precision: number | undefined }
+> {
+	protected override $pgColumnBuilderBrand!: 'PgTimestampStringBuilder';
+
 	constructor(
 		name: string,
-		readonly withTimezone: boolean,
-		readonly precision: number | undefined,
+		withTimezone: boolean,
+		precision: number | undefined,
 	) {
 		super(name);
+		this.config.withTimezone = withTimezone;
+		this.config.precision = precision;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgTimestampString<TTableName> {
-		return new PgTimestampString(table, this);
+		return new PgTimestampString(table, this.config);
 	}
 }
 
@@ -70,10 +80,10 @@ export class PgTimestampString<TTableName extends string>
 	readonly withTimezone: boolean;
 	readonly precision: number | undefined;
 
-	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgTimestampStringBuilder) {
-		super(table, builder);
-		this.withTimezone = builder.withTimezone;
-		this.precision = builder.precision;
+	constructor(table: AnyPgTable<{ name: TTableName }>, config: PgTimestampStringBuilder['config']) {
+		super(table, config);
+		this.withTimezone = config.withTimezone;
+		this.precision = config.precision;
 	}
 
 	getSQLType(): string {

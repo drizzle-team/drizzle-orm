@@ -12,22 +12,20 @@ export class MySqlRealBuilder extends MySqlColumnBuilderWithAutoIncrement<
 	ColumnBuilderConfig<{
 		data: number;
 		driverParam: number | string;
-	}>
+	}>,
+	{ precision: number | undefined; scale: number | undefined }
 > {
-	/** @internal */ precision: number | undefined;
-	/** @internal */ scale: number | undefined;
-
 	constructor(name: string, precision?: number, scale?: number) {
 		super(name);
-		this.precision = precision;
-		this.scale = scale;
+		this.config.precision = precision;
+		this.config.scale = scale;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlReal<TTableName> {
-		return new MySqlReal(table, this);
+		return new MySqlReal(table, this.config);
 	}
 }
 
@@ -45,10 +43,10 @@ export class MySqlReal<
 	precision: number | undefined;
 	scale: number | undefined;
 
-	constructor(table: AnyMySqlTable<{ name: TTableName }>, builder: MySqlRealBuilder) {
-		super(table, builder);
-		this.precision = builder.precision;
-		this.scale = builder.scale;
+	constructor(table: AnyMySqlTable<{ name: TTableName }>, config: MySqlRealBuilder['config']) {
+		super(table, config);
+		this.precision = config.precision;
+		this.scale = config.scale;
 	}
 
 	getSQLType(): string {

@@ -7,14 +7,7 @@ on:
       - beta
 
 jobs:
-  release:
-    strategy:
-      matrix:
-        package:
-          - drizzle-orm
-          - drizzle-orm-mysql
-          - drizzle-orm-pg
-          - drizzle-orm-sqlite
+  build:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3
@@ -26,7 +19,43 @@ jobs:
 
       - uses: pnpm/action-setup@v2
         with:
-          version: 7.22.0
+          version: latest
+          run_install: true
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v2
+        with:
+          name: dist
+          path: |
+            */dist
+
+  release:
+    needs:
+      - build
+    strategy:
+      matrix:
+        package:
+          - drizzle-orm
+          - drizzle-orm-mysql
+          - drizzle-orm-pg
+          - drizzle-orm-sqlite
+          - drizzle-zod
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Download dist
+        uses: actions/download-artifact@v3
+        with:
+          name: dist
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Publish
         run: |
@@ -36,9 +65,8 @@ jobs:
           npm version $version
           echo "Publishing ${{ matrix.package }}@$tag using version $version"
 
-          (cd .. && pnpm i)
-
-          pnpm run release --tag $tag
+          npm run pack
+          npm run publish -- --tag $tag
 
           # Post release message to Discord
           curl -X POST -H "Content-Type: application/json" -d "{\"embeds\": [{\"title\": \"New \`${{ matrix.package }}\` release! 🎉\", \"url\": \"https://www.npmjs.com/package/${{ matrix.package }}/v/$version\", \"color\": \"12907856\", \"fields\": [{\"name\": \"Version\", \"value\": \"\`$version\`\"}, {\"name\": \"Tag\", \"value\": \"\`$tag\`\"}]}]}" ${{ secrets.DISCORD_DEV_RELEASE_WEBHOOK_URL }}

@@ -16,7 +16,7 @@ export class MySqlYearBuilder
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlYear<TTableName> {
-		return new MySqlYear(table, this);
+		return new MySqlYear(table, this.config);
 	}
 }
 
@@ -31,18 +31,10 @@ export class MySqlYear<
 > {
 	protected override $mySqlColumnBrand!: 'MySqlYear';
 
-	constructor(
-		table: AnyMySqlTable<{ name: TTableName }>,
-		builder: MySqlYearBuilder,
-	) {
-		super(table, builder);
-	}
-
 	getSQLType(): string {
 		return `year`;
 	}
 }
-
 
 export function year(name: string) {
 	return new MySqlYearBuilder(name);

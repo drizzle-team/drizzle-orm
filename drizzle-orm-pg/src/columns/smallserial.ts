@@ -7,9 +7,16 @@ export class PgSmallSerialBuilder extends PgColumnBuilder<{
 	notNull: true;
 	hasDefault: true;
 }> {
+	protected override $pgColumnBuilderBrand!: 'PgSmallSerialBuilder';
+
+	constructor(name: string) {
+		super(name);
+		this.config.hasDefault = true;
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgSmallSerial<TTableName> {
-		return new PgSmallSerial(table, this);
+		return new PgSmallSerial(table, this.config);
 	}
 }
 

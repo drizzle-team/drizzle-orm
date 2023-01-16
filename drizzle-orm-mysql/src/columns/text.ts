@@ -12,20 +12,22 @@ export class MySqlTextBuilder<
 	ColumnBuilderConfig<{
 		data: TData;
 		driverParam: number | string;
-	}>
+	}>,
+	{ textType: TTextType }
 > {
 	constructor(
 		name: string,
-		/** @internal */ readonly textType: TTextType,
+		textType: TTextType,
 	) {
 		super(name);
+		this.config.textType = textType;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlText<TTableName, TTextType, TData> {
-		return new MySqlText(table, this);
+		return new MySqlText(table, this.config);
 	}
 }
 
@@ -43,9 +45,9 @@ export class MySqlText<
 	protected override $mySqlColumnBrand!: 'MySqlText';
 	private textType: TTextType;
 
-	constructor(table: AnyMySqlTable<{name: TTableName}>, builder: MySqlTextBuilder<TTextType, TData>) {
-		super(table, builder);
-		this.textType = builder.textType;
+	constructor(table: AnyMySqlTable<{ name: TTableName }>, config: MySqlTextBuilder<TTextType, TData>['config']) {
+		super(table, config);
+		this.textType = config.textType;
 	}
 
 	getSQLType(): string {

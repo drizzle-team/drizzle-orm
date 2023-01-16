@@ -11,7 +11,7 @@ export class MySqlSmallIntBuilder extends MySqlColumnBuilderWithAutoIncrement<
 > {
 	/** @internal */
 	override build<TTableName extends string>(table: AnyMySqlTable<{ name: TTableName }>): MySqlSmallInt<TTableName> {
-		return new MySqlSmallInt(table, this);
+		return new MySqlSmallInt(table, this.config);
 	}
 }
 

@@ -54,7 +54,10 @@ async function createDockerDB(ctx: Context): Promise<string> {
 	const port = await getPort({ port: 5432 });
 	const image = 'postgres:14';
 
-	await docker.pull(image);
+	const pullStream = await docker.pull(image);
+	await new Promise((resolve, reject) =>
+		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
+	);
 
 	const pgContainer = (ctx.pgContainer = await docker.createContainer({
 		Image: image,

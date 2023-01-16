@@ -1,7 +1,7 @@
 import { ColumnConfig } from 'drizzle-orm';
 import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyMySqlTable } from '~/table';
-import {  MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
+import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
 export class MySqlTinyIntBuilder extends MySqlColumnBuilderWithAutoIncrement<
 	ColumnBuilderConfig<{
@@ -11,7 +11,7 @@ export class MySqlTinyIntBuilder extends MySqlColumnBuilderWithAutoIncrement<
 > {
 	/** @internal */
 	override build<TTableName extends string>(table: AnyMySqlTable<{ name: TTableName }>): MySqlTinyInt<TTableName> {
-		return new MySqlTinyInt(table, this);
+		return new MySqlTinyInt(table, this.config);
 	}
 }
 

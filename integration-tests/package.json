@@ -4,9 +4,7 @@
 	"description": "",
 	"scripts": {
 		"typecheck": "tsc",
-		"test": "ava tests --timeout=30s",
-		"build:int:full": "pnpm add ../drizzle-orm/package.tgz ../drizzle-orm-pg/package.tgz ../drizzle-orm-mysql/package.tgz ../drizzle-orm-sqlite/package.tgz",
-		"build:int": "pnpm add ../drizzle-orm/package.tgz ../drizzle-orm-pg/package.tgz ../drizzle-orm-sqlite/package.tgz"
+		"test": "ava tests --timeout=30s"
 	},
 	"ava": {
 		"files": [
@@ -36,10 +34,10 @@
 	"dependencies": {
 		"better-sqlite3": "^7.6.2",
 		"dockerode": "^3.3.4",
-		"drizzle-orm": "file:../drizzle-orm/package.tgz",
-		"drizzle-orm-mysql": "file:../drizzle-orm-mysql/package.tgz",
-		"drizzle-orm-pg": "file:../drizzle-orm-pg/package.tgz",
-		"drizzle-orm-sqlite": "file:../drizzle-orm-sqlite/package.tgz",
+		"drizzle-orm": "workspace:../drizzle-orm/dist",
+		"drizzle-orm-mysql": "workspace:../drizzle-orm-mysql/dist",
+		"drizzle-orm-pg": "workspace:../drizzle-orm-pg/dist",
+		"drizzle-orm-sqlite": "workspace:../drizzle-orm-sqlite/dist",
 		"get-port": "^6.1.2",
 		"mysql2": "^2.3.3",
 		"pg": "^8.8.0",

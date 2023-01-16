@@ -3,21 +3,23 @@ import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyMySqlTable } from '~/table';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
-export class MySqlTimeBuilder
-	extends MySqlColumnBuilder<ColumnBuilderConfig<{ data: string; driverParam: string | number }>>
-{
+export class MySqlTimeBuilder extends MySqlColumnBuilder<
+	ColumnBuilderConfig<{ data: string; driverParam: string | number }>,
+	{ fsp: number | undefined }
+> {
 	constructor(
 		name: string,
-		readonly fsp: number | undefined,
+		fsp: number | undefined,
 	) {
 		super(name);
+		this.config.fsp = fsp;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlTime<TTableName> {
-		return new MySqlTime(table, this);
+		return new MySqlTime(table, this.config);
 	}
 }
 
@@ -36,10 +38,10 @@ export class MySqlTime<
 
 	constructor(
 		table: AnyMySqlTable<{ name: TTableName }>,
-		builder: MySqlTimeBuilder,
+		config: MySqlTimeBuilder['config'],
 	) {
-		super(table, builder);
-		this.fsp = builder.fsp;
+		super(table, config);
+		this.fsp = config.fsp;
 	}
 
 	getSQLType(): string {

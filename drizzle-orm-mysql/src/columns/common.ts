@@ -1,5 +1,10 @@
 import { Column, ColumnBaseConfig } from 'drizzle-orm';
-import { ColumnBuilder, ColumnBuilderBaseConfig, UpdateCBConfig } from 'drizzle-orm/column-builder';
+import {
+	ColumnBuilder,
+	ColumnBuilderBaseConfig,
+	ColumnBuilderWithConfig,
+	UpdateCBConfig,
+} from 'drizzle-orm/column-builder';
 import { SQL } from 'drizzle-orm/sql';
 import { Update } from 'drizzle-orm/utils';
 import { Simplify } from 'drizzle-orm/utils';
@@ -15,7 +20,10 @@ export interface ReferenceConfig {
 	};
 }
 
-export abstract class MySqlColumnBuilder<T extends Partial<ColumnBuilderBaseConfig>> extends ColumnBuilder<T> {
+export abstract class MySqlColumnBuilder<
+	T extends Partial<ColumnBuilderBaseConfig>,
+	TConfig extends Record<string, unknown> = {},
+> extends ColumnBuilder<T, TConfig> {
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
 	constructor(name: string) {
@@ -78,9 +86,9 @@ export abstract class MySqlColumn<T extends Partial<ColumnBaseConfig>> extends C
 
 	constructor(
 		override readonly table: AnyMySqlTable<{ name: T['tableName'] }>,
-		builder: MySqlColumnBuilder<Omit<T, 'tableName'>>,
+		config: MySqlColumnBuilder<Omit<T, 'tableName'>>['config'],
 	) {
-		super(table, builder);
+		super(table, config);
 	}
 
 	unsafe(): AnyMySqlColumn {
@@ -95,7 +103,7 @@ export type AnyMySqlColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = My
 export type BuildColumn<
 	TTableName extends string,
 	TBuilder extends AnyMySqlColumnBuilder,
-> = TBuilder extends MySqlColumnBuilder<infer T> ? MySqlColumn<Simplify<T & { tableName: TTableName }>> : never;
+> = TBuilder extends ColumnBuilderWithConfig<infer T> ? MySqlColumn<Simplify<T & { tableName: TTableName }>> : never;
 
 export type BuildColumns<
 	TTableName extends string,
@@ -110,13 +118,17 @@ export type ChangeColumnTableName<TColumn extends AnyMySqlColumn, TAlias extends
 	MySqlColumn<infer T> ? MySqlColumn<Simplify<Omit<T, 'tableName'> & { tableName: TAlias }>>
 	: never;
 
-export abstract class MySqlColumnBuilderWithAutoIncrement<T extends Partial<ColumnBuilderBaseConfig>>
-	extends MySqlColumnBuilder<T>
-{
-	/** @internal */ _autoIncrement = false;
+export abstract class MySqlColumnBuilderWithAutoIncrement<
+	T extends Partial<ColumnBuilderBaseConfig>,
+	TConfig extends Record<string, unknown> = {},
+> extends MySqlColumnBuilder<T, TConfig & { autoIncrement: boolean }> {
+	constructor(name: string) {
+		super(name);
+		this.config.autoIncrement = false;
+	}
 
 	autoincrement(): MySqlColumnBuilderWithAutoIncrement<T> {
-		this._autoIncrement = true;
+		this.config.autoIncrement = true;
 		return this as ReturnType<this['autoincrement']>;
 	}
 }
@@ -130,9 +142,9 @@ export abstract class MySqlColumnWithAutoIncrement<T extends Partial<ColumnBaseC
 
 	constructor(
 		override readonly table: AnyMySqlTable<{ name: T['tableName'] }>,
-		builder: MySqlColumnBuilderWithAutoIncrement<Omit<T, 'tableName'>>,
+		config: MySqlColumnBuilderWithAutoIncrement<Omit<T, 'tableName'>>['config'],
 	) {
-		super(table, builder);
-		this.autoIncrement = builder._autoIncrement;
+		super(table, config);
+		this.autoIncrement = config.autoIncrement;
 	}
 }

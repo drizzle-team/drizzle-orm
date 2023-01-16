@@ -8,6 +8,8 @@ import { PgColumn, PgColumnBuilder } from './common';
 export class PgUUIDBuilder<TData extends string = string>
 	extends PgColumnBuilder<ColumnBuilderConfig<{ data: TData; driverParam: string }>>
 {
+	protected override $pgColumnBuilderBrand!: 'PgUUIDBuilder';
+
 	/**
 	 * Adds `default gen_random_uuid()` to the column definition.
 	 */
@@ -17,7 +19,7 @@ export class PgUUIDBuilder<TData extends string = string>
 
 	/** @internal */
 	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgUUID<TTableName, TData> {
-		return new PgUUID(table, this);
+		return new PgUUID(table, this.config);
 	}
 }
 
@@ -25,10 +27,6 @@ export class PgUUID<TTableName extends string, TData extends string>
 	extends PgColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>>
 {
 	protected override $pgColumnBrand!: 'PgUUID';
-
-	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgUUIDBuilder<TData>) {
-		super(table, builder);
-	}
 
 	getSQLType(): string {
 		return 'uuid';

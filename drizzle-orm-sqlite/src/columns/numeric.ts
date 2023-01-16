@@ -12,7 +12,7 @@ export class SQLiteNumericBuilder
 
 	/** @internal */
 	override build<TTableName extends string>(table: AnySQLiteTable<{ name: TTableName }>): SQLiteNumeric<TTableName> {
-		return new SQLiteNumeric(table, this);
+		return new SQLiteNumeric(table, this.config);
 	}
 }
 

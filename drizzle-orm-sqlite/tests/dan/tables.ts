@@ -43,7 +43,7 @@ export const users = sqliteTable(
 			columns: [users.class, users.subClass],
 			foreignColumns: [classes.class, classes.subClass],
 		})),
-		pk: primaryKey(users.age1, users.class)
+		pk: primaryKey(users.age1, users.class),
 	}),
 );
 

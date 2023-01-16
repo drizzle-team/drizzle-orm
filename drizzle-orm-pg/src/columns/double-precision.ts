@@ -9,6 +9,8 @@ export class PgDoublePrecisionBuilder extends PgColumnBuilder<
 		driverParam: string | number;
 	}>
 > {
+	protected override $pgColumnBuilderBrand!: 'PgDoublePrecisionBuilder';
+
 	/** @internal */ length: number | undefined;
 
 	constructor(name: string, length?: number) {
@@ -18,7 +20,7 @@ export class PgDoublePrecisionBuilder extends PgColumnBuilder<
 
 	/** @internal */
 	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgDoublePrecision<TTableName> {
-		return new PgDoublePrecision(table, this);
+		return new PgDoublePrecision(table, this.config);
 	}
 }
 
@@ -33,9 +35,9 @@ export class PgDoublePrecision<TTableName extends string> extends PgColumn<
 
 	constructor(
 		table: AnyPgTable<{ name: TTableName }>,
-		builder: PgDoublePrecisionBuilder,
+		config: PgDoublePrecisionBuilder['config'],
 	) {
-		super(table, builder);
+		super(table, config);
 	}
 
 	getSQLType(): string {

@@ -7,9 +7,16 @@ export class PgBigSerial53Builder extends PgColumnBuilder<{
 	notNull: true;
 	hasDefault: true;
 }> {
+	constructor(name: string) {
+		super(name);
+		this.config.hasDefault = true;
+	}
+
+	protected override $pgColumnBuilderBrand!: 'PgBigSerial53Builder';
+
 	/** @internal */
 	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgBigSerial53<TTableName> {
-		return new PgBigSerial53(table, this);
+		return new PgBigSerial53(table, this.config);
 	}
 }
 
@@ -40,9 +47,16 @@ export class PgBigSerial64Builder extends PgColumnBuilder<{
 	notNull: true;
 	hasDefault: true;
 }> {
+	constructor(name: string) {
+		super(name);
+		this.config.hasDefault = true;
+	}
+
+	protected override $pgColumnBuilderBrand!: 'PgBigSerial64Builder';
+
 	/** @internal */
 	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgBigSerial64<TTableName> {
-		return new PgBigSerial64(table, this);
+		return new PgBigSerial64(table, this.config);
 	}
 }
 

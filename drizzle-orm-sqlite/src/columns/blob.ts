@@ -13,7 +13,7 @@ export class SQLiteBlobJsonBuilder<TData>
 	override build<TTableName extends string>(
 		table: AnySQLiteTable<{ name: TTableName }>,
 	): SQLiteBlobJson<TTableName, TData> {
-		return new SQLiteBlobJson(table, this);
+		return new SQLiteBlobJson(table, this.config);
 	}
 }
 
@@ -42,7 +42,7 @@ export class SQLiteBlobBufferBuilder
 	override build<TTableName extends string>(
 		table: AnySQLiteTable<{ name: TTableName }>,
 	): SQLiteBlobBuffer<TTableName> {
-		return new SQLiteBlobBuffer(table, this);
+		return new SQLiteBlobBuffer(table, this.config);
 	}
 }
 
@@ -56,7 +56,7 @@ export class SQLiteBlobBuffer<TTableName extends string>
 	}
 }
 
-export interface BlobConfig<TMode extends 'buffer' | 'json' = 'buffer' | 'json'> {
+export interface BlobConfig<TMode extends BlobMode = BlobMode> {
 	mode: TMode;
 }
 
