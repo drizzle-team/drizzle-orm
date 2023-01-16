@@ -49,7 +49,10 @@ export class SQL implements SQLWrapper {
 			} else if (chunk instanceof Name) {
 				return escapeName(chunk.value);
 			} else if (chunk instanceof Table) {
-				return escapeName(chunk[Table.Symbol.Name]);
+				const schemaName = chunk[Table.Symbol.Schema];
+				return typeof schemaName !== 'undefined'
+					? escapeName(schemaName) + '.' + escapeName(chunk[Table.Symbol.Name])
+					: escapeName(chunk[Table.Symbol.Name]);
 			} else if (chunk instanceof Column) {
 				return escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(chunk.name);
 			} else if (chunk instanceof Param) {

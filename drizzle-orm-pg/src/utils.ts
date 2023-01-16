@@ -13,6 +13,8 @@ export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
 	const indexes: Index[] = [];
 	const checks: Check[] = [];
 	const foreignKeys: ForeignKey[] = getTableForeignKeys(table);
+	const name = table[Table.Symbol.Name];
+	const schema = table[Table.Symbol.Schema];
 
 	const extraConfig = table[PgTable.Symbol.ExtraConfig];
 
@@ -22,6 +24,8 @@ export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
 			indexes,
 			foreignKeys,
 			checks,
+			name,
+			schema,
 		};
 	}
 
@@ -41,6 +45,8 @@ export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
 		indexes,
 		foreignKeys,
 		checks,
+		name,
+		schema,
 	};
 }
 

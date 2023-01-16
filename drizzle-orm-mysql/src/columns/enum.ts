@@ -1,64 +1,78 @@
-import { ColumnConfig } from 'drizzle-orm';
-import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
+import { Update } from 'drizzle-orm/utils';
 import { AnyMySqlTable } from '~/table';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
-const isMySqlEnumSym = Symbol('isMySqlEnum');
-export interface MySqlEnum<TValues extends string> {
-	readonly enumName: string;
-	readonly enumValues: TValues[];
-	/** @internal */
-	[isMySqlEnumSym]: true;
+export interface MySqlEnumColumnBuilderConfig {
+	notNull: boolean;
+	hasDefault: boolean;
+	values: [string, ...string[]];
 }
 
-export function isMySqlEnum(obj: unknown): obj is MySqlEnum<string> {
-	return !!obj && typeof obj === 'function' && isMySqlEnumSym in obj;
+export interface MySqlEnumColumnConfig extends MySqlEnumColumnBuilderConfig {
+	tableName: string;
 }
 
-export class MySqlEnumColumnBuilder<TData extends string = string> extends MySqlColumnBuilder<
-	ColumnBuilderConfig<{ data: TData; driverParam: string }>,
-	{ enum: MySqlEnum<TData> }
-> {
-	constructor(name: string, enumInstance: MySqlEnum<TData>) {
+export class MySqlEnumColumnBuilder<T extends MySqlEnumColumnBuilderConfig = MySqlEnumColumnBuilderConfig>
+	extends MySqlColumnBuilder<
+		{ data: T['values'][number]; driverParam: string; notNull: T['notNull']; hasDefault: T['hasDefault'] },
+		{ values: T['values'] }
+	>
+{
+	constructor(name: string, values: T['values']) {
 		super(name);
-		this.config.enum = enumInstance;
+		this.config.values = values;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlEnumColumn<TTableName, TData> {
-		return new MySqlEnumColumn(table, this.config);
+	): MySqlEnumColumn<Pick<T, keyof MySqlEnumColumnBuilderConfig> & { tableName: TTableName }> {
+		return new MySqlEnumColumn<Pick<T, keyof MySqlEnumColumnBuilderConfig> & { tableName: TTableName }>(
+			table,
+			this.config,
+		);
 	}
 }
 
-export class MySqlEnumColumn<TTableName extends string, TData extends string>
-	extends MySqlColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>>
-{
+export class MySqlEnumColumn<T extends MySqlEnumColumnConfig> extends MySqlColumn<{
+	tableName: T['tableName'];
+	data: T['values'][number];
+	driverParam: string;
+	notNull: T['notNull'];
+	hasDefault: T['hasDefault'];
+}> {
 	protected override $mySqlColumnBrand!: 'MySqlEnumColumn';
 
-	readonly enum: MySqlEnum<TData>;
+	readonly values: T['values'];
 
 	constructor(
-		table: AnyMySqlTable<{ name: TTableName }>,
-		config: MySqlEnumColumnBuilder<TData>['config'],
+		table: AnyMySqlTable<{ name: T['tableName'] }>,
+		config: MySqlEnumColumnBuilder<Pick<T, keyof MySqlEnumColumnBuilderConfig>>['config'],
 	) {
 		super(table, config);
-		this.enum = config.enum;
+		this.values = config.values;
 	}
 
 	getSQLType(): string {
-		return this.enum.enumName;
+		return `ENUM(${this.values.map((value) => `'${value}'`).join(',')})`;
 	}
 }
 
-export function mysqlEnum<T extends string = string>(enumName: string, values: T[]) {
-	const enumInstance: MySqlEnum<T> = {
-		enumName,
-		enumValues: values,
-		[isMySqlEnumSym]: true,
-	};
-	const columnFactory = (name: string) => new MySqlEnumColumnBuilder<T>(name, enumInstance);
+export function mysqlEnum<U extends string, T extends Readonly<[U, ...U[]]>>(
+	name: string,
+	values: T,
+): MySqlEnumColumnBuilder<
+	Update<MySqlEnumColumnBuilderConfig, {
+		notNull: false;
+		hasDefault: false;
+		values: Writeable<T>;
+	}>
+> {
+	if (values.length === 0) throw Error(`You have an empty array for "${name}" enum values`);
 
-	return Object.assign(columnFactory, enumInstance);
+	return new MySqlEnumColumnBuilder(name, values);
 }
+
+export type Writeable<T> = {
+	-readonly [P in keyof T]: T[P];
+};

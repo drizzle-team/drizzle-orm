@@ -64,9 +64,9 @@ With `drizzle-orm` you declare SQL schema in TypeScript. You can have either one
 ```typescript
 // schema.ts
 export const users = pgTable('users', {
-	id: serial('id').primaryKey(),
-	fullName: text('full_name'),
-	phone: varchar('phone', { length: 256 }),
+  id: serial('id').primaryKey(),
+  fullName: text('full_name'),
+  phone: varchar('phone', { length: 256 }),
 });
 ```
 
@@ -81,15 +81,15 @@ import { Pool } from 'pg';
 import { users } from './schema';
 
 const pool = new Pool({
-	connectionString: 'postgres://user:password@host:port/db',
+  connectionString: 'postgres://user:password@host:port/db',
 });
 // or
 const pool = new Pool({
-	host: '127.0.0.1',
-	port: 5432,
-	user: 'postgres',
-	password: 'password',
-	database: 'db_name',
+  host: '127.0.0.1',
+  port: 5432,
+  user: 'postgres',
+  password: 'password',
+  database: 'db_name',
 });
 
 const db = drizzle(pool);
@@ -108,15 +108,15 @@ import { Client } from 'pg';
 import { users } from './schema';
 
 const client = new Client({
-	connectionString: 'postgres://user:password@host:port/db',
+  connectionString: 'postgres://user:password@host:port/db',
 });
 // or
 const client = new Client({
-	host: '127.0.0.1',
-	port: 5432,
-	user: 'postgres',
-	password: 'password',
-	database: 'db_name',
+  host: '127.0.0.1',
+  port: 5432,
+  user: 'postgres',
+  password: 'password',
+  database: 'db_name',
 });
 
 await client.connect();
@@ -134,24 +134,22 @@ This is how you declare SQL schema in `schema.ts`. You can declare tables, index
 import { pgEnum, pgTable, serial, uniqueIndex, varchar } from 'drizzle-orm-pg';
 
 // declaring enum in database
-export const popularityEnum = pgEnum('popularity', [
-	'unknown',
-	'known',
-	'popular',
-]);
+export const popularityEnum = pgEnum('popularity', ['unknown', 'known', 'popular']);
 
 export const countries = pgTable('countries', {
-	id: serial('id').primaryKey(),
-	name: varchar('name', 256),
-}, (countries) => ({
-	nameIndex: uniqueIndex('name_idx').on(countries.name),
-}));
+  id: serial('id').primaryKey(),
+  name: varchar('name', 256),
+}, (countries) => {
+  return {
+    nameIndex: uniqueIndex('name_idx').on(countries.name),
+  }
+});
 
 export const cities = pgTable('cities', {
-	id: serial('id').primaryKey(),
-	name: varchar('name', 256),
-	countryId: integer('country_id').references(() => countries.id),
-	popularity: popularityEnum('popularity'),
+  id: serial('id').primaryKey(),
+  name: varchar('name', 256),
+  countryId: integer('country_id').references(() => countries.id),
+  popularity: popularityEnum('popularity'),
 });
 ```
 
@@ -192,10 +190,12 @@ export const countries = pgTable('countries', {
     id: serial('id').primaryKey(),
     name: varchar('name', { length: 256 }),
     population: integer('population'),
-  }, (table) => ({
-    nameIdx: index('name_idx').on(table.name), // one column
-    namePopulationIdx: index('name_population_idx').on(table.name, table.population), // multiple columns
-    uniqueIdx: uniqueIndex('unique_idx').on(table.name), // unique index
+  }, (table) => {
+    return {
+      nameIdx: index('name_idx').on(table.name), // one column
+      namePopulationIdx: index('name_population_idx').on(table.name, table.population), // multiple columns
+      uniqueIdx: uniqueIndex('unique_idx').on(table.name), // unique index
+    }
   })
 );
 
@@ -204,17 +204,19 @@ export const cities = pgTable('cities', {
   name: varchar('name', { length: 256 }),
   countryId: integer('country_id').references(() => countries.id), // inline foreign key
   countryName: varchar('country_id'),
-}, (cities) => ({
-  // explicit foreign key with 1 column
-  countryFk: foreignKey({
-    columns: [cities.countryId],
-    foreignColumns: [countries.id],
-  }),
-  // explicit foreign key with multiple columns
-  countryIdNameFk: foreignKey({
-    columns: [cities.countryId, cities.countryName],
-    foreignColumns: [countries.id, countries.name],
-  }),
+}, (cities) => {
+  return {
+    // explicit foreign key with 1 column
+    countryFk: foreignKey({
+      columns: [cities.countryId],
+      foreignColumns: [countries.id],
+    }),
+    // explicit foreign key with multiple columns
+    countryIdNameFk: foreignKey({
+      columns: [cities.countryId, cities.countryName],
+      foreignColumns: [countries.id, countries.name],
+    },
+  }
 }));
 
 // Index declaration reference
@@ -276,6 +278,41 @@ column.notNull()
 column.defaultValue(...)
 timeColumn.defaultNow()
 uuidColumn.defaultRandom()
+```
+
+## Table schemas
+Drizzle won't append any schema before table definition by default. So if your tables are in `public` schema drizzle generate -> `select * from "users"`
+
+But if you will specify any custom schema you want, then drizzle will generate -> `select * from "custom_schema"."users"`
+
+> **Warning**
+> If you will have tables with same names in different schemas then drizzle will respond with `never[]` error in result types and error from database
+> 
+> In this case you may use [alias syntax](https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-orm-pg#join-aliases-and-self-joins)
+
+
+#### Usage example
+```typescript
+// Table in default schema
+const publicUsersTable = pgTable('users', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  verified: boolean('verified').notNull().default(false),
+  jsonb: jsonb<string[]>('jsonb'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+
+// Table in custom schema
+const mySchema = pgSchema('mySchema');
+
+const usersTable = mySchema('users', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	jsonb: jsonb<string[]>('jsonb'),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
 ```
 
 ## Select, Insert, Update, Delete

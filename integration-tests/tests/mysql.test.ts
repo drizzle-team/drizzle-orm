@@ -1,8 +1,21 @@
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
-import { boolean, date, datetime, json, MySqlDatabase, mysqlTable, time, uniqueIndex, year } from 'drizzle-orm-mysql';
-import { alias, serial, text, timestamp } from 'drizzle-orm-mysql';
+import {
+	boolean,
+	date,
+	datetime,
+	int,
+	json,
+	MySqlDatabase,
+	mysqlEnum,
+	mysqlTable,
+	time,
+	uniqueIndex,
+	varchar,
+	year,
+} from 'drizzle-orm-mysql';
+import { alias, InferModel, serial, text, timestamp } from 'drizzle-orm-mysql';
 import { drizzle } from 'drizzle-orm-mysql/mysql2';
 import { migrate } from 'drizzle-orm-mysql/mysql2/migrator';
 import { asc, eq } from 'drizzle-orm/expressions';
@@ -616,6 +629,40 @@ test.serial('insert + select all possible dates', async (t) => {
 		year: 2022,
 		datetimeAsString: '2022-11-11 12:12:12',
 	}]);
+});
+
+const tableWithEnums = mysqlTable('enums_test_case', {
+	id: serial('id').primaryKey(),
+	enum1: mysqlEnum('enum1', ['a', 'b', 'c']).notNull(),
+	enum2: mysqlEnum('enum2', ['a', 'b', 'c']).default('a'),
+	enum3: mysqlEnum('enum3', ['a', 'b', 'c']).notNull().default('b'),
+});
+
+test.serial('Mysql enum test case #1', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`create table \`enums_test_case\` (
+		\`id\` serial primary key,
+		\`enum1\` ENUM('a', 'b', 'c') not null,
+		\`enum2\` ENUM('a', 'b', 'c') default 'a',
+		\`enum3\` ENUM('a', 'b', 'c') not null default 'b'
+	)`);
+
+	await db.insert(tableWithEnums).values(
+		{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },
+		{ id: 2, enum1: 'a', enum3: 'c' },
+		{ id: 3, enum1: 'a' },
+	);
+
+	const res = await db.select(tableWithEnums);
+
+	await db.execute(sql`drop table \`enums_test_case\``);
+
+	t.deepEqual(res, [
+		{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },
+		{ id: 2, enum1: 'a', enum2: 'a', enum3: 'c' },
+		{ id: 3, enum1: 'a', enum2: 'a', enum3: 'b' },
+	]);
 });
 
 test.after.always(async (t) => {

@@ -108,12 +108,49 @@ export type InferModel<
 		>;
 	};
 
-export function pgTable<
+const isPgSchemaSym = Symbol('isPgSchema');
+export interface PgSchema {
+	schemaName: string;
+	/** @internal */
+	[isPgSchemaSym]: true;
+}
+
+export function isPgSchema(obj: unknown): obj is PgSchema {
+	return !!obj && typeof obj === 'function' && isPgSchemaSym in obj;
+}
+
+export function pgSchema<T extends string = string>(
+	schemaName: T extends 'public'
+		? "You can't specify 'public' as schema name. Postgres is using public schema by default. If you want to use 'public' schema, just type pgTable() instead of creating own schema"
+		: T,
+) {
+	if (schemaName === 'public') {
+		throw Error(`You can't specify 'public' as schema name. Postgres is using public schema by default`);
+	}
+
+	const schemaValue: PgSchema = {
+		schemaName,
+		[isPgSchemaSym]: true,
+	};
+
+	const columnFactory = <
+		TTableName extends string,
+		TColumnsMap extends Record<string, AnyPgColumnBuilder>,
+	>(
+		name: TTableName,
+		columns: TColumnsMap,
+		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => PgTableExtraConfig,
+	) => pgTableWithSchema(name, columns, schemaName, extraConfig);
+	return Object.assign(columnFactory, schemaValue);
+}
+
+function pgTableWithSchema<
 	TTableName extends string,
 	TColumnsMap extends Record<string, AnyPgColumnBuilder>,
 >(
 	name: TTableName,
 	columns: TColumnsMap,
+	schema?: string,
 	extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => PgTableExtraConfig,
 ): PgTableWithColumns<{
 	name: TTableName;
@@ -122,7 +159,7 @@ export function pgTable<
 	const rawTable = new PgTable<{
 		name: TTableName;
 		columns: BuildColumns<TTableName, TColumnsMap>;
-	}>(name);
+	}>(name, schema);
 
 	const builtColumns = Object.fromEntries(
 		Object.entries(columns).map(([name, colBuilder]) => {
@@ -145,4 +182,18 @@ export function pgTable<
 	}
 
 	return table;
+}
+
+export function pgTable<
+	TTableName extends string,
+	TColumnsMap extends Record<string, AnyPgColumnBuilder>,
+>(
+	name: TTableName,
+	columns: TColumnsMap,
+	extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => PgTableExtraConfig,
+): PgTableWithColumns<{
+	name: TTableName;
+	columns: BuildColumns<TTableName, TColumnsMap>;
+}> {
+	return pgTableWithSchema(name, columns, undefined, extraConfig);
 }
