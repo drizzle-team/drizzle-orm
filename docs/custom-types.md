@@ -96,7 +96,8 @@ export class PgText<TTableName extends string, TData extends string>
 }
 ```
 
->Warning: `$pgColumnBrand` should be changed and be equal to class name for new data type
+> **Warning**
+> `$pgColumnBrand` should be changed and be equal to class name for new data type
 ---
 
 </br>
@@ -155,13 +156,15 @@ export function text<T extends string = string>(
 
 ---
 
-> Note: We will check example on pg module, but current pattern applies to all dialects, that are currently supported by Drizzle ORM
+> **Note**
+> We will check example on pg module, but current pattern applies to all dialects, that are currently supported by Drizzle ORM
 
 </br>
 
 ### Setting up CITEXT datatype
 ---
->Note: this type is available only with extensions and used for example, just to show how you could setup any data type you want. Extension support will come soon 
+> **Note**
+ This type is available only with extensions and used for example, just to show how you could setup any data type you want. Extension support will come soon 
 </br>
 
 ### CITEXT data type example
