@@ -23,18 +23,14 @@ jobs:
           run_install: true
 
       - name: Build
-        run: pnpm build
-
-      - name: Pack
-        run: pnpm run pack
+        run: pnpm run build
 
       - name: Upload dist
         uses: actions/upload-artifact@v2
         with:
           name: dist
           path: |
-            */package.tgz
-            */package.json
+            */dist
 
   release:
     needs:
@@ -69,6 +65,7 @@ jobs:
           npm version $version
           echo "Publishing ${{ matrix.package }}@$tag using version $version"
 
+          npm run pack
           npm run publish -- --tag $tag
 
           # Post release message to Discord

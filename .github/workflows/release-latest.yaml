@@ -18,10 +18,7 @@ jobs:
           version: latest
           run_install: true
 
-      - name: Build
-        run: pnpm build
-
-      - name: Pack
+      - name: Build & pack
         run: pnpm run pack
 
       - name: Upload dist
@@ -30,7 +27,6 @@ jobs:
           name: dist
           path: |
             */package.tgz
-            */package.json
 
   release:
     needs:

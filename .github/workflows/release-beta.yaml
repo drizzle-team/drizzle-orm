@@ -22,10 +22,7 @@ jobs:
           version: latest
           run_install: true
 
-      - name: Build
-        run: pnpm build
-
-      - name: Pack
+      - name: Build & pack
         run: pnpm run pack
 
       - name: Upload dist
@@ -34,7 +31,6 @@ jobs:
           name: dist
           path: |
             */package.tgz
-            */package.json
 
   release:
     needs:
@@ -50,7 +46,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3
-      
+
       - uses: actions/setup-node@v3
         with:
           node-version: 16
@@ -69,7 +65,6 @@ jobs:
             echo "Beta:    $beta"
             echo "Current: $version"
 
-            (cd .. && pnpm i)
             npm run publish -- --tag beta
 
             # Post release message to Discord
