@@ -33,24 +33,28 @@ export class PgTextBuilder<TData extends string = string>
 		ColumnBuilderConfig<{ data: TData; driverParam: string }>
 	>
 {
-	/** @internal */
-	override build<TTableName extends string>(
+	protected override $pgColumnBuilderBrand!: 'PgTextBuilder';
+
+	build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgText<TTableName, TData> {
-		return new PgText(table, this);
+		return new PgText(table, this.config);
 	}
 }
 ```
+
+> **Warning**
+> `$pgColumnBuilderBrand` should be changed and be equal to class name for new data type builder
 
 ### Column class explanation - (postgresql text data type example)
 ---
 Column class has set of types/functions, that could be overridden to get needed behavior for custom type
 
-- TData - extends return type for column. Current example will infer string type for current datatype used in schema definition
+- `TData` - extends return type for column. Current example will infer string type for current datatype used in schema definition
 
-- getSQLType - function, that shows datatype name in database and will be used in migration generation 
+- `getSQLType()` - function, that shows datatype name in database and will be used in migration generation 
 
-- mapFromDriverValue - interceptor between database and select query execution. If you want to modify/map/change value for specific data type, it could be done here
+- `mapFromDriverValue` - interceptor between database and select query execution. If you want to modify/map/change value for specific data type, it could be done here
 
 #### Usage example for jsonb type:
 ```typescript
@@ -59,7 +63,7 @@ override mapToDriverValue(value: TData): string {
 }
 ```
 
-- mapToDriverValue - interceptor between user input for insert/update queries and database query. If you want to modify/map/change value for specific data type, it could be done here
+- `mapToDriverValue` - interceptor between user input for insert/update queries and database query. If you want to modify/map/change value for specific data type, it could be done here
 
 #### Usage example for int type:
 ```typescript
@@ -78,7 +82,7 @@ export class PgText<TTableName extends string, TData extends string>
 {
 	protected override $pgColumnBrand!: 'PgText';
 
-	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgTextBuilder<TData>) {
+	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgTextBuilder<TData>['config']) {
 		super(table, builder);
 	}
 
@@ -118,11 +122,12 @@ export class PgTextBuilder<TData extends string = string>
 		ColumnBuilderConfig<{ data: TData; driverParam: string }>
 	>
 {
-	/** @internal */
-	override build<TTableName extends string>(
+	protected override $pgColumnBuilderBrand!: 'PgTextBuilder';
+
+	build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgText<TTableName, TData> {
-		return new PgText(table, this);
+		return new PgText(table, this.config);
 	}
 }
 
@@ -135,7 +140,7 @@ export class PgText<TTableName extends string, TData extends string>
 
 	constructor(
 		table: AnyPgTable<{ name: TTableName }>,
-		builder: PgTextBuilder<TData>,
+		builder: PgTextBuilder<TData>['config'],
 	) {
 		super(table, builder);
 	}
@@ -172,9 +177,10 @@ export function text<T extends string = string>(
 export class PgCITextBuilder<TData extends string = string> extends PgColumnBuilder<
 	ColumnBuilderConfig<{ data: TData; driverParam: string }>
 > {
-	/** @internal */
-	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgCIText<TTableName, TData> {
-		return new PgCIText(table, this);
+  protected $pgColumnBuilderBrand: string = 'PgCITextBuilder';
+  
+	build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgCIText<TTableName, TData> {
+		return new PgCIText(table, this.config);
 	}
 }
 
@@ -183,7 +189,7 @@ export class PgCIText<TTableName extends string, TData extends string>
 {
 	protected override $pgColumnBrand!: 'PgCIText';
 
-	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgCITextBuilder<TData>) {
+	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgCITextBuilder<TData>['config']) {
 		super(table, builder);
 	}
 
@@ -196,3 +202,11 @@ export function citext<T extends string = string>(name: string): PgCITextBuilder
 	return new PgCITextBuilder(name);
 }
 ```
+
+# Contributing by adding new custom types in Drizzle ORM
+
+You could add your created custom data types to Drizzle ORM, so everyone can use it.
+
+Each data type should be placed in separate file in `columns` folder and PR open with tag `new-data-type:pg` | `new-data-type:sqlite` | `new-data-type:mysql`
+
+For more Contribution information - please check [CONTRIBUTING.md](https://github.com/drizzle-team/drizzle-orm/blob/main/CONTRIBUTING.md)
