@@ -33,6 +33,8 @@ jobs:
             */package.json
 
   release:
+    needs:
+      - build
     strategy:
       matrix:
         package:
