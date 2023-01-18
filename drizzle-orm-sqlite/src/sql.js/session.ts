@@ -137,8 +137,17 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 }
 
 function normalizeFieldValue(value: unknown) {
-	if (value instanceof Uint8Array && !(value instanceof Buffer)) {
-		return Buffer.from(value);
+	if (value instanceof Uint8Array) {
+		if (typeof Buffer !== 'undefined') {
+			if (!(value instanceof Buffer)) {
+				return Buffer.from(value);
+			}
+			return value;
+		}
+		if (typeof TextDecoder !== 'undefined') {
+			return new TextDecoder().decode(value);
+		}
+		throw new Error('TextDecoder is not available. Please provide either Buffer or TextDecoder polyfill.');
 	}
 	return value;
 }
