@@ -4,7 +4,7 @@
 	"description": "",
 	"scripts": {
 		"typecheck": "tsc",
-		"test": "ava tests --timeout=30s"
+		"test": "ava tests --timeout=30s --serial"
 	},
 	"ava": {
 		"files": [
@@ -27,6 +27,7 @@
 		"@types/dockerode": "^3.3.14",
 		"@types/node": "^18.11.18",
 		"@types/pg": "^8.6.6",
+		"@types/sql.js": "^1.4.4",
 		"@types/uuid": "^8.3.4",
 		"ava": "^5.1.0",
 		"tsx": "^3.12.2"
@@ -41,6 +42,7 @@
 		"get-port": "^6.1.2",
 		"mysql2": "^2.3.3",
 		"pg": "^8.8.0",
+		"sql.js": "^1.8.0",
 		"sqlite3": "^5.1.4",
 		"uuid": "^9.0.0",
 		"uvu": "^0.5.6"
