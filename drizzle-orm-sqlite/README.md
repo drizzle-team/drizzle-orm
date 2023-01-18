@@ -5,6 +5,7 @@ Here you can find extensive docs for SQLite module.
 | Driver         | Support |            |
 |:--             |  :---:  | :--        |
 | better-sqlite3 | ✅      |            |
+| sql.js         | ✅      |            |
 | node-sqlite    | ⏳      |            |            
 | bun:sqlite     | ✅      |[example project](https://github.com/drizzle-team/drizzle-orm/tree/main/examples/bun-sqlite)|  
 | Cloudflare D1  | ✅      |[example project](https://github.com/drizzle-team/drizzle-orm/tree/main/examples/cloudflare-d1)|

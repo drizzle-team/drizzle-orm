@@ -1,25 +1,9 @@
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
-import {
-	alias,
-	boolean,
-	foreignKey,
-	InferModel,
-	integer,
-	jsonb,
-	PgDatabase,
-	pgTable,
-	serial,
-	text,
-	timestamp,
-	pgSchema,
-	uniqueIndex,
-	isPgSchema,
-} from 'drizzle-orm-pg';
+import { alias, boolean, InferModel, jsonb, PgDatabase, pgTable, serial, text, timestamp } from 'drizzle-orm-pg';
 import { drizzle } from 'drizzle-orm-pg/node';
 import { migrate } from 'drizzle-orm-pg/node/migrator';
-import { getTableConfig } from 'drizzle-orm-pg/utils';
 import { asc, eq } from 'drizzle-orm/expressions';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
