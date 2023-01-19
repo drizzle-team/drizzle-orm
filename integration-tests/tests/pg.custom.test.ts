@@ -18,7 +18,7 @@ import {
 	timestamp,
 	uniqueIndex,
 } from 'drizzle-orm-pg';
-import { drizzle } from 'drizzle-orm-pg/node';
+import { drizzle, NodePgDatabase } from 'drizzle-orm-pg/node';
 import { migrate } from 'drizzle-orm-pg/node/migrator';
 import { getTableConfig } from 'drizzle-orm-pg/utils';
 import { asc, eq } from 'drizzle-orm/expressions';
@@ -85,7 +85,7 @@ const usersMigratorTable = pgTable('users12', {
 interface Context {
 	docker: Docker;
 	pgContainer: Docker.Container;
-	db: PgDatabase;
+	db: NodePgDatabase;
 	client: Client;
 }
 
