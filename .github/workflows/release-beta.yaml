@@ -65,7 +65,7 @@ jobs:
             echo "Beta:    $beta"
             echo "Current: $version"
 
-            npm run publish -- --tag beta
+            npm run publish -- --tag beta || npm dist-tag add ${{ matrix.package }}@$version beta
 
             # Post release message to Discord
             curl -X POST -H "Content-Type: application/json" -d "{\"embeds\": [{\"title\": \"New \`${{ matrix.package }}\` release! 🎉\", \"url\": \"https://www.npmjs.com/package/${{ matrix.package }}/v/$version\", \"color\": \"12907856\", \"fields\": [{\"name\": \"Version\", \"value\": \"\`$version\`\"}, {\"name\": \"Tag\", \"value\": \"\`beta\`\"}]}]}" ${{ secrets.DISCORD_DEV_RELEASE_WEBHOOK_URL }}
