@@ -61,7 +61,7 @@ jobs:
           tag="${{ github.ref_name }}"
           old_version="$(jq -r .version package.json)"
           version="$old_version-$(git rev-parse --short HEAD)"
-          is_version_published=$(npm view ${{ matrix.package }} versions --json | jq -r ".[] | select(. == \"$version\"") | . == \"$version\"")
+          is_version_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
 
           if [[ "$is_version_published" == "true" ]]; then
             echo "Version $version already published, adding tag $tag"
@@ -77,5 +77,6 @@ jobs:
           # Post release message to Discord
           curl -X POST -H "Content-Type: application/json" -d "{\"embeds\": [{\"title\": \"New \`${{ matrix.package }}\` release! 🎉\", \"url\": \"https://www.npmjs.com/package/${{ matrix.package }}/v/$version\", \"color\": \"12907856\", \"fields\": [{\"name\": \"Version\", \"value\": \"\`$version\`\"}, {\"name\": \"Tag\", \"value\": \"\`$tag\`\"}]}]}" ${{ secrets.DISCORD_DEV_RELEASE_WEBHOOK_URL }}
         working-directory: ${{ matrix.package }}
+        shell: bash
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}

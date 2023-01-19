@@ -55,15 +55,15 @@ jobs:
 
       - name: Publish
         run: |
-          latest=$(npm view --json ${{ matrix.package }} dist-tags.latest | jq -r)
-          version=$(jq -r .version package.json)
+          latest="$(npm view --json ${{ matrix.package }} dist-tags.latest | jq -r)"
+          version="$(jq -r .version package.json)"
 
-          if [[ $latest != $version ]]; then
+          if [[ "$latest" != "$version" ]]; then
             echo "Latest:  $latest"
             echo "Current: $version"
 
-            is_version_published=$(npm view ${{ matrix.package }} versions --json | jq -r ".[] | select(. == \"$version\"") | . == \"$version\"")
-            if [[ $is_version_published == "true" ]]; then
+            is_version_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
+            if [[ "$is_version_published" == "true" ]]; then
               echo "Version $version already published, adding tag $tag"
               npm dist-tag add ${{ matrix.package }}@$version latest
             else
@@ -77,5 +77,6 @@ jobs:
             echo "Already up to date: $version"
           fi
         working-directory: ${{ matrix.package }}
+        shell: bash
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
