@@ -4,7 +4,6 @@ on:
   push:
     branches-ignore:
       - main
-      - beta
 
 jobs:
   build:
@@ -22,15 +21,23 @@ jobs:
           version: latest
           run_install: true
 
+      - name: Add commit hash to version
+        run: |
+          tag="${{ github.ref_name }}"
+          old_version="$(jq -r .version package.json)"
+          version="$old_version-$(git rev-parse --short HEAD)"
+          npm version $version
+
       - name: Build
-        run: pnpm run build
+        run: pnpm run pack
 
       - name: Upload dist
         uses: actions/upload-artifact@v2
         with:
           name: dist
           path: |
-            */dist
+            */package.tgz
+            */package.json
 
   release:
     needs:
@@ -59,18 +66,21 @@ jobs:
 
       - name: Publish
         run: |
-          tag="${{ github.ref_name }}"
-          old_version="$(jq -r .version package.json)"
-          version="$old_version-$(git rev-parse --short HEAD)"
-          npm version $version
-          echo "Publishing ${{ matrix.package }}@$tag using version $version"
+          version=$(jq -r .version package.json)
+          is_version_published=$(npm view ${{ matrix.package }} versions --json | jq -r ".[] | select(. == \"$version\"") | . == \"$version\"")
+          if [[ "$is_version_published" == "true" ]]; then
+            echo "Version $version already published, adding tag $tag"
+            npm dist-tag add ${{ matrix.package }}@$version $tag
+          else
+            echo "Publishing ${{ matrix.package }}@$tag using version $version"
+            npm version $version
 
-          npm run pack
-          npm run publish -- --tag $tag
+            npm run pack
+            npm run publish -- --tag $tag
+          fi
 
           # Post release message to Discord
           curl -X POST -H "Content-Type: application/json" -d "{\"embeds\": [{\"title\": \"New \`${{ matrix.package }}\` release! 🎉\", \"url\": \"https://www.npmjs.com/package/${{ matrix.package }}/v/$version\", \"color\": \"12907856\", \"fields\": [{\"name\": \"Version\", \"value\": \"\`$version\`\"}, {\"name\": \"Tag\", \"value\": \"\`$tag\`\"}]}]}" ${{ secrets.DISCORD_DEV_RELEASE_WEBHOOK_URL }}
-
         working-directory: ${{ matrix.package }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}

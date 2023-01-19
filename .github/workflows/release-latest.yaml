@@ -56,20 +56,19 @@ jobs:
       - name: Publish
         run: |
           latest=$(npm view --json ${{ matrix.package }} dist-tags.latest | jq -r)
-          beta=$(npm view --json ${{ matrix.package }} dist-tags.beta | jq -r)
           version=$(jq -r .version package.json)
 
           if [[ $latest != $version ]]; then
             echo "Latest:  $latest"
             echo "Current: $version"
 
-            if [[ $beta != $version ]]; then
-              echo "Beta:    $beta"
-              echo "Current: $version"
-
-              npm run publish
-            else
+            is_version_published=$(npm view ${{ matrix.package }} versions --json | jq -r ".[] | select(. == \"$version\"") | . == \"$version\"")
+            if [[ $is_version_published == "true" ]]; then
+              echo "Version $version already published, adding tag $tag"
               npm dist-tag add ${{ matrix.package }}@$version latest
+            else
+              echo echo "Publishing ${{ matrix.package }}@$version"
+              npm run publish
             fi
 
             # Post release message to Discord
