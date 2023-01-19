@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm-pg",
-	"version": "0.16.0",
+	"version": "0.16.1",
 	"description": "Drizzle ORM package for PostgreSQL database",
 	"scripts": {
 		"build": "tsc --build && resolve-tspaths && cp README.md package.json dist/",
