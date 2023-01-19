@@ -5,17 +5,15 @@ import {
 	boolean,
 	date,
 	datetime,
-	int,
 	json,
 	MySqlDatabase,
 	mysqlEnum,
 	mysqlTable,
 	time,
 	uniqueIndex,
-	varchar,
 	year,
 } from 'drizzle-orm-mysql';
-import { alias, InferModel, serial, text, timestamp } from 'drizzle-orm-mysql';
+import { alias, serial, text, timestamp } from 'drizzle-orm-mysql';
 import { drizzle } from 'drizzle-orm-mysql/mysql2';
 import { migrate } from 'drizzle-orm-mysql/mysql2/migrator';
 import { asc, eq } from 'drizzle-orm/expressions';

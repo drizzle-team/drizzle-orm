@@ -4,10 +4,7 @@ import { sql } from 'drizzle-orm';
 import {
 	alias,
 	boolean,
-	foreignKey,
 	InferModel,
-	integer,
-	isPgSchema,
 	jsonb,
 	PgDatabase,
 	pgSchema,
@@ -15,12 +12,9 @@ import {
 	serial,
 	text,
 	timestamp,
-	uniqueIndex,
 } from 'drizzle-orm-pg';
 import { drizzle } from 'drizzle-orm-pg/node';
-import { migrate } from 'drizzle-orm-pg/node/migrator';
-import { getTableConfig } from 'drizzle-orm-pg/utils';
-import { asc, eq, like } from 'drizzle-orm/expressions';
+import { asc, eq } from 'drizzle-orm/expressions';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import { Client } from 'pg';
@@ -690,7 +684,7 @@ test.serial('select from tables with same name from different schema using alias
 	await db.insert(usersTable).values({ id: 10, name: 'Ivan' });
 	await db.insert(publicUsersTable).values({ id: 11, name: 'Hans' });
 
-    const customerAlias = alias(publicUsersTable, 'customer');
+	const customerAlias = alias(publicUsersTable, 'customer');
 
 	const result = await db
 		.select(usersTable)

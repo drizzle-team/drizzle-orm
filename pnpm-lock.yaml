@@ -59,14 +59,18 @@ importers:
     specifiers:
       '@cloudflare/workers-types': ^3.18.0
       '@types/better-sqlite3': ^7.6.2
+      '@types/sql.js': ^1.4.4
       better-sqlite3: ^7.6.2
       drizzle-orm: link:../drizzle-orm/dist
+      sql.js: ^1.8.0
       sqlite3: ^5.1.2
     devDependencies:
       '@cloudflare/workers-types': 3.18.0
       '@types/better-sqlite3': 7.6.3
+      '@types/sql.js': 1.4.4
       better-sqlite3: 7.6.2
       drizzle-orm: link:../drizzle-orm/dist
+      sql.js: 1.8.0
       sqlite3: 5.1.4
 
   drizzle-zod:
@@ -118,6 +122,7 @@ importers:
       '@types/dockerode': ^3.3.14
       '@types/node': ^18.11.18
       '@types/pg': ^8.6.6
+      '@types/sql.js': ^1.4.4
       '@types/uuid': ^8.3.4
       ava: ^5.1.0
       better-sqlite3: ^7.6.2
@@ -129,6 +134,7 @@ importers:
       get-port: ^6.1.2
       mysql2: ^2.3.3
       pg: ^8.8.0
+      sql.js: ^1.8.0
       sqlite3: ^5.1.4
       tsx: ^3.12.2
       uuid: ^9.0.0
@@ -143,6 +149,7 @@ importers:
       get-port: 6.1.2
       mysql2: 2.3.3
       pg: 8.8.0
+      sql.js: 1.8.0
       sqlite3: 5.1.4
       uuid: 9.0.0
       uvu: 0.5.6
@@ -151,6 +158,7 @@ importers:
       '@types/dockerode': 3.3.14
       '@types/node': 18.11.18
       '@types/pg': 8.6.6
+      '@types/sql.js': 1.4.4
       '@types/uuid': 8.3.4
       ava: 5.1.0
       tsx: 3.12.2
@@ -790,6 +798,10 @@ packages:
       '@types/node': 18.11.18
     dev: true
 
+  /@types/emscripten/1.39.6:
+    resolution: {integrity: sha512-H90aoynNhhkQP6DRweEjJp5vfUVdIj7tdPLsu7pq89vODD/lcugKfZOsfgwpvM6XUewEp2N5dCg1Uf3Qe55Dcg==}
+    dev: true
+
   /@types/itty-router-extras/0.4.0:
     resolution: {integrity: sha512-IcXmXB8vVbjWy4McZjKzo+3sdQyzMpyHi5mQ4iViu6yX9cS/SVlGR+6H/AgzfG32svaQJeOhl2gfXYwf1AKEgg==}
     dependencies:
@@ -806,6 +818,13 @@ packages:
       '@types/node': 18.11.18
       pg-protocol: 1.5.0
       pg-types: 2.2.0
+    dev: true
+
+  /@types/sql.js/1.4.4:
+    resolution: {integrity: sha512-6EWU2wfiBtzgTy18WQoXZAGTreBjhZcBCfD8CDvyI1Nj0a4KNDDt41IYeAZ40cRUdfqWHb7VGx7t6nK0yBOI5A==}
+    dependencies:
+      '@types/emscripten': 1.39.6
+      '@types/node': 18.11.18
     dev: true
 
   /@types/ssh2/1.11.6:
@@ -3618,6 +3637,9 @@ packages:
   /sprintf-js/1.0.3:
     resolution: {integrity: sha512-D9cPgkvLlV3t3IzL0D0YLvGA9Ahk4PcvVwUbN0dSGr1aP0Nrt4AEnTUbuGvquEC0mA64Gqt1fzirlRs5ibXx8g==}
     dev: true
+
+  /sql.js/1.8.0:
+    resolution: {integrity: sha512-3HD8pSkZL+5YvYUI8nlvNILs61ALqq34xgmF+BHpqxe68yZIJ1H+sIVIODvni25+CcxHUxDyrTJUL0lE/m7afw==}
 
   /sqlite3/5.1.4:
     resolution: {integrity: sha512-i0UlWAzPlzX3B5XP2cYuhWQJsTtlMD6obOa1PgeEQ4DHEXUuyJkgv50I3isqZAP5oFc2T8OFvakmDh2W6I+YpA==}
