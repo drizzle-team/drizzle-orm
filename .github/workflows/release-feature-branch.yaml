@@ -21,23 +21,15 @@ jobs:
           version: latest
           run_install: true
 
-      - name: Add commit hash to version
-        run: |
-          tag="${{ github.ref_name }}"
-          old_version="$(jq -r .version package.json)"
-          version="$old_version-$(git rev-parse --short HEAD)"
-          npm version $version
-
       - name: Build
-        run: pnpm run pack
+        run: pnpm run build
 
       - name: Upload dist
         uses: actions/upload-artifact@v2
         with:
           name: dist
           path: |
-            */package.tgz
-            */package.json
+            */dist
 
   release:
     needs:
@@ -66,8 +58,11 @@ jobs:
 
       - name: Publish
         run: |
-          version=$(jq -r .version package.json)
+          tag="${{ github.ref_name }}"
+          old_version="$(jq -r .version package.json)"
+          version="$old_version-$(git rev-parse --short HEAD)"
           is_version_published=$(npm view ${{ matrix.package }} versions --json | jq -r ".[] | select(. == \"$version\"") | . == \"$version\"")
+
           if [[ "$is_version_published" == "true" ]]; then
             echo "Version $version already published, adding tag $tag"
             npm dist-tag add ${{ matrix.package }}@$version $tag
