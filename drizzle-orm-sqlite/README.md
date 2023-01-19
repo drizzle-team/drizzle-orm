@@ -1,16 +1,27 @@
-# Drizzle ORM | SQLite
-DrizzleORM is a [tiny](https://twitter.com/_alexblokh/status/1594735880417472512), [blazingly fast](#performance-and-prepared-statements) TypeScript ORM library with a [drizzle-kit](#migrations) CLI companion for automatic SQL migrations generation. 
+<div align='center'>
+<h1>Drizzle ORM | SQLite <a href=''><img alt='npm' src='https://img.shields.io/npm/v/drizzle-orm-sqlite?label='></a></h1>
+<img alt='npm' src='https://img.shields.io/npm/dm/drizzle-orm-sqlite'>
+<img alt='npm bundle size' src='https://img.shields.io/bundlephobia/min/drizzle-orm-sqlite'>
+<a href='https://discord.gg/yfjTbVXMW4'><img alt='Discord' src='https://img.shields.io/discord/1043890932593987624'></a>
+<img alt='License' src='https://img.shields.io/npm/l/drizzle-orm-pg'>
+<h6><i>If you know SQL, you know Drizzle ORM</i></h6>
+<hr />
+</div>
+
+DrizzleORM is a [tiny](https://twitter.com/_alexblokh/status/1594735880417472512), [blazingly fast](#️-performance-and-prepared-statements) TypeScript ORM library with a [drizzle-kit](#-migrations) CLI companion for automatic SQL migrations generation.
 Here you can find extensive docs for SQLite module.
 
-| Driver         | Support |            |
-|:--             |  :---:  | :--        |
-| better-sqlite3 | ✅      |            |
-| node-sqlite    | ⏳      |            |            
-| bun:sqlite     | ✅      |[example project](https://github.com/drizzle-team/drizzle-orm/tree/main/examples/bun-sqlite)|  
-| Cloudflare D1  | ✅      |[example project](https://github.com/drizzle-team/drizzle-orm/tree/main/examples/cloudflare-d1)|
-| Fly.io LiteFS  | ✅      |            |
+| Driver | Support | | Driver version |
+|:- | :-: | :-: | :-: |
+| [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm-sqlite/peer/better-sqlite3'> |
+| [sql.js](https://github.com/sql-js/sql.js/) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm-sqlite/peer/sql.js'> |
+| [node-sqlite3](https://github.com/TryGhost/node-sqlite3) | ⏳ | | |
+| [bun:sqlite](https://github.com/oven-sh/bun#bunsqlite-sqlite3-module) | ✅ | [Example](https://github.com/drizzle-team/drizzle-orm/tree/main/examples/bun-sqlite)| |
+| [Cloudflare D1](https://developers.cloudflare.com/d1/) | ✅ | [Example](https://github.com/drizzle-team/drizzle-orm/tree/main/examples/cloudflare-d1)| |
+| [Fly.io LiteFS](https://fly.io/docs/litefs/getting-started/) | ✅ | | |
 
 ## 💾 Installation
+
 ```bash
 npm install drizzle-orm drizzle-orm-sqlite better-sqlite3
 ## opt-in automatic migrations generator
@@ -18,6 +29,7 @@ npm install -D drizzle-kit
 ```
 
 ## 🚀 Quick start
+
 ```typescript
 import { sqliteTable, text, integer } from "drizzle-orm-sqlite";
 import { drizzle } from 'drizzle-orm-sqlite/better-sqlite3';
@@ -35,6 +47,7 @@ const users = db.select(users).all();
 ```
 
 ## Connecting to databases
+
 ```typescript
 // better-sqlite3 or fly.io LiteFS
 import { drizzle, BetterSQLite3Database } from 'drizzle-orm-sqlite/better-sqlite3';
@@ -61,36 +74,44 @@ const result = await db.select(users).all() // pay attention this one is async
 ```
 
 ## SQL schema declaration
+
 With `drizzle-orm` you declare SQL schema in TypeScript. You can have either one `schema.ts` file with all declarations or you can group them logically in multiple files. We prefer to use single file schema.
-```
-📦project
- ├ 📂src
- │ ├ 📂data
- │ │ └ 📜schema.ts
- │ └ ...
- ├ ...
- └ 📜package.json
- 
-## or multiple schema files
-├ 📂data
-  ├ 📜users.ts
-  ├ 📜countries.ts
-  ├ 📜cities.ts
-  ├ 📜products.ts
-  ├ 📜clients.ts
-  ├ 📜enums.ts
-  └ 📜etc.ts
+
+### Single schema file example
+
+```plaintext
+📦 <project root>
+ └ 📂 src
+    └ 📂 db
+       └ 📜schema.ts
 ```
 
-This is how you declare SQL schema in `schema.ts`. You can declare tables, indexes and constraints, foreign keys and enums. Please pay attention to `export` keyword, they are mandatory if you'll be using [drizzle-kit SQL migrations generator](#migrations).
+### Multiple schema files example
+
+```plaintext
+📦 <project root>
+ └ 📂 src
+    └ 📂 db
+       └ 📂 schema
+          ├ 📜users.ts
+          ├ 📜countries.ts
+          ├ 📜cities.ts
+          ├ 📜products.ts
+          ├ 📜clients.ts
+          ├ 📜enums.ts
+          └ 📜etc.ts
+```
+
+This is how you declare SQL schema in `schema.ts`. You can declare tables, indexes and constraints, foreign keys and enums. Please pay attention to `export` keyword, they are mandatory if you'll be using [drizzle-kit SQL migrations generator](#-migrations).
+
 ```typescript
 import { sqliteTable, text, integer, uniqueIndex } from "drizzle-orm-sqlite";
 
 export const countries = sqliteTable("countries", {
     id: integer("id").primaryKey(),
     name: text("name"),
-  }, (table) => ({
-    nameIdx: uniqueIndex("nameIdx").on(table.name),
+  }, (countries) => ({
+    nameIdx: uniqueIndex("nameIdx").on(countries.name),
   })
 );
 
@@ -102,6 +123,7 @@ export const cities = sqliteTable("cities", {
 ```
 
 Database and table entity types
+
 ```typescript
 import { InferModel, text, integer, sqliteTable } from "drizzle-orm-sqlite";
 
@@ -127,7 +149,6 @@ const insertUser = (user: InsertUser) => {
 }
 ```
 
-
 The list of all column types. You can also create custom types - [see here](https://github.com/drizzle-team/drizzle-orm/blob/main/docs/custom-types.md).
 
 ```typescript
@@ -147,6 +168,7 @@ column.default(...)
 ```
 
 Declaring indexes, foreign keys and composite primary keys
+
 ```typescript
 import { sqliteTable, foreignKey, text, integer, index, uniqueIndex } from "drizzle-orm-sqlite";
 
@@ -154,10 +176,10 @@ export const countries = sqliteTable("countries", {
     id: integer("id").primaryKey(),
     name: text("name", { length: 256 }),
     population: integer("population"),
-  }, (table) => ({
-    nameIdx: index("name_idx").on(table.name), // one column
-    namePopulationIdx: index("name_population_idx").on(table.name, table.population), // multiple columns
-    uniqueIdx: uniqueIndex("unique_idx").on(table.name), // unique index
+  }, (countries) => ({
+    nameIdx: index("name_idx").on(countries.name), // one column
+    namePopulationIdx: index("name_population_idx").on(countries.name, countries.population), // multiple columns
+    uniqueIdx: uniqueIndex("unique_idx").on(countries.name), // unique index
   })
 );
 
@@ -166,34 +188,36 @@ export const cities = sqliteTable("cities", {
   name: text("name", { length: 256 }),
   countryId: integer("country_id").references(() => countries.id), // inline foreign key
   countryName: text("country_id"),
-}, (table) => ({
+}, (cities) => ({
   // explicit foreign key with 1 column
   countryFk: foreignKey(() => ({
-    columns: [table.countryId],
+    columns: [cities.countryId],
     foreignColumns: [countries.id],
   })),
   // explicit foreign key with multiple columns
   countryIdNameFk: foreignKey(() => ({
-    columns: [table.countryId, table.countryName],
+    columns: [cities.countryId, cities.countryName],
     foreignColumns: [countries.id, countries.name],
   })),
 }));
 
 const pkExample = sqliteTable('pk_example', {
-	id: integer('id'),
-	name: text('name').notNull(),
-	email: text('email').notNull(),
-}, (table) => ({
+  id: integer('id'),
+  name: text('name').notNull(),
+  email: text('email').notNull(),
+}, (pkExample) => ({
   // composite primary key on multiple columns
-	compositePk: primaryKey(table.id, table.name)
+  compositePk: primaryKey(pkExample.id, pkExample.name)
 }));
 
 // you can have .where() on indexes
-index("name_idx").on(table.name).where(sql``)
+index("name_idx").on(table.column).where(sql``)
 ```
 
 ### Create Read Update Delete
+
 Querying, sorting and filtering. We also support partial select.
+
 ```typescript
 ...
 import { sqliteTable, text, integer } from "drizzle-orm-sqlite";
@@ -276,6 +300,7 @@ or(exressions: Expr[])
 ```
 
 Inserting
+
 ```typescript
 import { sqliteTable, text, integer } from "drizzle-orm-sqlite";
 import { drizzle } from 'drizzle-orm-sqlite/better-sqlite3';
@@ -306,19 +331,22 @@ const insertedUser = db.insert(users).values({ name: "Dan", createdAt: +new Date
 ```
 
 Update and Delete
+
 ```typescript
 db.update(users)
   .set({ name: 'Mr. Dan' })
   .where(eq(usersTable.name, 'Dan'))
   .run();
-	
+  
 db.delete(users)
   .where(eq(usersTable.name, 'Dan'))
   .run();
 ```
 
 ### Aggregations
+
 They work just like they do in SQL, but you have them fully type safe
+
 ```typescript
 const orders = sqliteTable("order", {
   id: integer("id").primaryKey(),
@@ -361,10 +389,12 @@ db.select(orders).fields({
   .all();
 ```
 
-
 ### Joins
+
 Last but not least. Probably the most powerful feature in the library🚀
+
 ### Many-to-one
+
 ```typescript
 import { sqliteTable, text, integer } from "drizzle-orm-sqlite";
 import { drizzle } from 'drizzle-orm-sqlite/better-sqlite3';
@@ -386,6 +416,7 @@ const result = db.select(cities).leftJoin(users, eq(cities2.id, users2.cityId)).
 ```
 
 ### Many-to-many
+
 ```typescript
 const users = sqliteTable("users", {
   id: integer("id").primaryKey(),
@@ -414,6 +445,7 @@ db.select(usersToChatGroups)
 ```
 
 ### Join aliases and selfjoins
+
 ```typescript
 import { ..., alias } from "drizzle-orm-sqlite";
 
@@ -434,7 +466,9 @@ db.select(files)
 ```
 
 ### Join using partial field select
+
 Join Cities with Users getting only needed fields form request
+
 ```typescript
 db.select(cities).fields({
   id: cities.id,
@@ -445,7 +479,9 @@ db.select(cities).fields({
 ```
 
 ## ⚡️ Performance and prepared statements
+
 With Drizzle ORM you can go [**faster than better-sqlite3 driver**](https://twitter.com/_alexblokh/status/1593593415907909634) by utilizing our `prepared statements` and `placeholder` APIs
+
 ```typescript
 import { placeholder } from "drizzle-orm/sql";
 
@@ -467,19 +503,22 @@ q.all({ name: "%an%" }) // SELECT * FROM customers WHERE name ilike '%an%'
 ```
 
 ## 🗄 Migrations
+
 ### Automatic SQL migrations generation with drizzle-kit
+
 [DrizzleKit](https://www.npmjs.com/package/drizzle-kit) - is a CLI migrator tool for DrizzleORM. It is probably one and only tool that lets you completely automatically generate SQL migrations and covers ~95% of the common cases like delitions and renames by prompting user input.\
 Check out the [docs for DrizzleKit](https://github.com/drizzle-team/drizzle-kit-mirror)
 
 For schema file:
+
 ```typescript
 import { index, integer, sqliteTable, text } from "drizzle-orm-sqlite";
 
 export const users = sqliteTable("users", {
   id: serial("id").primaryKey(),
   fullName: text("full_name"),
-}, (table)=>({
-  nameIdx: index("name_idx", table.fullName),
+}, (users) => ({
+  nameIdx: index("name_idx", users.fullName),
 }));
 
 export const authOtps = sqliteTable("auth_otp", {
@@ -488,17 +527,19 @@ export const authOtps = sqliteTable("auth_otp", {
   userId: integer("user_id").references(() => users.id),
 }
 ```
+
 It will generate:
+
 ```SQL
 CREATE TABLE IF NOT EXISTS auth_otp (
-	"id" INTEGER PRIMARY KEY,
-	"phone" TEXT,
-	"user_id" INTEGER
+  "id" INTEGER PRIMARY KEY,
+  "phone" TEXT,
+  "user_id" INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS users (
-	"id" INTEGER PRIMARY KEY,
-	"full_name" TEXT
+  "id" INTEGER PRIMARY KEY,
+  "full_name" TEXT
 );
 
 DO $$ BEGIN
@@ -511,6 +552,7 @@ CREATE INDEX IF NOT EXISTS users_full_name_index ON users (full_name);
 ```
 
 And you can run migrations manually or using our embedded migrations module
+
 ```typescript
 import { drizzle } from 'drizzle-orm-sqlite/better-sqlite3';
 import { migrate } from 'drizzle-orm-sqlite/better-sqlite3/migrator';
@@ -524,20 +566,23 @@ migrate(db, { migrationsFolder: "./drizzle" })
 ```
 
 ## Utility stuff
+
 ### Printing SQL query
+
 ```typescript
 const query = db.select(users)
-		.fields({ id: users.id, name: users.name })
-		.groupBy(users.id)
-		.toSQL();
+    .fields({ id: users.id, name: users.name })
+    .groupBy(users.id)
+    .toSQL();
 // query:
 {
   sql: 'select "id", "name" from "users" group by "users"."id"',
   params: [],
 }
-``` 
+```
 
 ### Raw query usage
+
 ```typescript
 // it will automatically run a parametrized query!
 const res: QueryResult<any> = await db.run(sql`SELECT * FROM users WHERE user.id = ${userId}`)

@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm-pg",
-	"version": "0.15.3",
+	"version": "0.16.0",
 	"description": "Drizzle ORM package for PostgreSQL database",
 	"scripts": {
 		"build": "tsc --build && resolve-tspaths && cp README.md package.json dist/",
@@ -30,7 +30,9 @@
 	"peerDependencies": {
 		"@types/pg": ">=8 <9",
 		"drizzle-orm": ">=0.15 <0.16",
-		"pg": ">=8 <9"
+		"pg": ">=8 <9",
+		"postgres": ">=3 <4",
+		"@neondatabase/serverless": ">=0.1 <0.2"
 	},
 	"peerDependenciesMeta": {
 		"pg": {
@@ -38,12 +40,19 @@
 		},
 		"@types/pg": {
 			"optional": true
+		},
+		"postgres": {
+			"optional": true
+		},
+		"@neondatabase/serverless": {
+			"optional": true
 		}
 	},
 	"devDependencies": {
 		"@neondatabase/serverless": "^0.1.13",
 		"@types/pg": "^8.6.5",
 		"drizzle-orm": "link:../drizzle-orm/dist",
-		"pg": "^8.8.0"
+		"pg": "^8.8.0",
+		"postgres": "^3.3.3"
 	}
 }

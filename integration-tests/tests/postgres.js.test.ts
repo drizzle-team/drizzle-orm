@@ -2,12 +2,12 @@ import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
 import { alias, boolean, InferModel, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm-pg';
-import { drizzle, NodePgDatabase } from 'drizzle-orm-pg/node';
-import { migrate } from 'drizzle-orm-pg/node/migrator';
+import { drizzle, PostgresJsDatabase } from 'drizzle-orm-pg/postgres.js';
+import { migrate } from 'drizzle-orm-pg/postgres.js/migrator';
 import { asc, eq } from 'drizzle-orm/expressions';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
-import { Client } from 'pg';
+import postgres, { Sql } from 'postgres';
 import { v4 as uuid } from 'uuid';
 
 const usersTable = pgTable('users', {
@@ -27,8 +27,8 @@ const usersMigratorTable = pgTable('users12', {
 interface Context {
 	docker: Docker;
 	pgContainer: Docker.Container;
-	db: NodePgDatabase;
-	client: Client;
+	db: PostgresJsDatabase;
+	client: Sql;
 }
 
 const test = anyTest as TestFn<Context>;
@@ -70,8 +70,11 @@ test.before(async (t) => {
 	let lastError: unknown | undefined;
 	do {
 		try {
-			ctx.client = new Client(connectionString);
-			await ctx.client.connect();
+			ctx.client = postgres(connectionString, {
+				max: 1,
+				onnotice: () => {},
+			});
+			await ctx.client`select 1`;
 			connected = true;
 			break;
 		} catch (e) {
@@ -532,27 +535,27 @@ test.serial('insert via db.execute + select via db.execute', async (t) => {
 	await db.execute(sql`insert into ${usersTable} (${name(usersTable.name.name)}) values (${'John'})`);
 
 	const result = await db.execute<{ id: number; name: string }>(sql`select id, name from "users"`);
-	t.deepEqual(result.rows, [{ id: 1, name: 'John' }]);
+	t.deepEqual(Array.prototype.slice.call(result), [{ id: 1, name: 'John' }]);
 });
 
 test.serial('insert via db.execute + returning', async (t) => {
 	const { db } = t.context;
 
-	const inserted = await db.execute<{ id: number; name: string }>(
+	const result = await db.execute<{ id: number; name: string }>(
 		sql`insert into ${usersTable} (${
 			name(usersTable.name.name)
 		}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
 	);
-	t.deepEqual(inserted.rows, [{ id: 1, name: 'John' }]);
+	t.deepEqual(Array.prototype.slice.call(result), [{ id: 1, name: 'John' }]);
 });
 
 test.serial('insert via db.execute w/ query builder', async (t) => {
 	const { db } = t.context;
 
-	const inserted = await db.execute<Pick<InferModel<typeof usersTable>, 'id' | 'name'>>(
+	const result = await db.execute<Pick<InferModel<typeof usersTable>, 'id' | 'name'>>(
 		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 	);
-	t.deepEqual(inserted.rows, [{ id: 1, name: 'John' }]);
+	t.deepEqual(Array.prototype.slice.call(result), [{ id: 1, name: 'John' }]);
 });
 
 test.serial('build query insert with onConflict do update', async (t) => {
