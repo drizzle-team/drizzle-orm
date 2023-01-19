@@ -49,11 +49,13 @@ importers:
       '@types/pg': ^8.6.5
       drizzle-orm: link:../drizzle-orm/dist
       pg: ^8.8.0
+      postgres: ^3.3.3
     devDependencies:
       '@neondatabase/serverless': 0.1.13
       '@types/pg': 8.6.6
       drizzle-orm: link:../drizzle-orm/dist
       pg: 8.8.0
+      postgres: 3.3.3
 
   drizzle-orm-sqlite:
     specifiers:
@@ -134,6 +136,7 @@ importers:
       get-port: ^6.1.2
       mysql2: ^2.3.3
       pg: ^8.8.0
+      postgres: ^3.3.3
       sql.js: ^1.8.0
       sqlite3: ^5.1.4
       tsx: ^3.12.2
@@ -149,6 +152,7 @@ importers:
       get-port: 6.1.2
       mysql2: 2.3.3
       pg: 8.8.0
+      postgres: 3.3.3
       sql.js: 1.8.0
       sqlite3: 5.1.4
       uuid: 9.0.0
@@ -3298,6 +3302,9 @@ packages:
     engines: {node: '>=0.10.0'}
     dependencies:
       xtend: 4.0.2
+
+  /postgres/3.3.3:
+    resolution: {integrity: sha512-FGLZOpZSXePRIQu6LJpJUDikzuhplWI80uyyfmKBiljpfO+Z4nuClwpq3/dsRnitxVDsgFN5duJ7eUTaC0meQQ==}
 
   /prebuild-install/7.1.1:
     resolution: {integrity: sha512-jAXscXWMcCK8GgCoHOfIr0ODh5ai8mj63L2nWrjuAgXE6tDyYGnx4/8o/rCgU+B4JSyZBKbeZqzhtwtC3ovxjw==}

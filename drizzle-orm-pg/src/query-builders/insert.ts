@@ -1,12 +1,11 @@
 import { Table } from 'drizzle-orm';
 import { QueryPromise } from 'drizzle-orm/query-promise';
 import { Param, Placeholder, Query, SQL, sql, SQLWrapper } from 'drizzle-orm/sql';
-import { QueryResult, QueryResultRow } from 'pg';
 
 import { PgDialect } from '~/dialect';
 import { IndexColumn } from '~/indexes';
 import { SelectFields, SelectFieldsOrdered, SelectResultFields } from '~/operations';
-import { PgSession, PreparedQuery, PreparedQueryConfig } from '~/session';
+import { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/session';
 import { AnyPgTable, InferModel, PgTable } from '~/table';
 import { mapUpdateSet, orderSelectedFields } from '~/utils';
 import { PgUpdateSetSource } from './update';
@@ -22,14 +21,14 @@ export type PgInsertValue<TTable extends AnyPgTable> = {
 	[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
 };
 
-export class PgInsertBuilder<TTable extends AnyPgTable> {
+export class PgInsertBuilder<TTable extends AnyPgTable, TQueryResult extends QueryResultHKT> {
 	constructor(
 		private table: TTable,
 		private session: PgSession,
 		private dialect: PgDialect,
 	) {}
 
-	values(...values: PgInsertValue<TTable>[]): PgInsert<TTable> {
+	values(...values: PgInsertValue<TTable>[]): PgInsert<TTable, TQueryResult> {
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
 			const cols = this.table[Table.Symbol.Columns];
@@ -48,12 +47,20 @@ export class PgInsertBuilder<TTable extends AnyPgTable> {
 	}
 }
 
-export interface PgInsert<TTable extends AnyPgTable, TReturning extends QueryResultRow | undefined = undefined>
-	extends QueryPromise<TReturning extends undefined ? QueryResult<never> : TReturning[]>, SQLWrapper
+export interface PgInsert<
+	TTable extends AnyPgTable,
+	TQueryResult extends QueryResultHKT,
+	TReturning extends Record<string, unknown> | undefined = undefined,
+> extends
+	QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>,
+	SQLWrapper
 {}
 
-export class PgInsert<TTable extends AnyPgTable, TReturning extends QueryResultRow | undefined = undefined>
-	extends QueryPromise<TReturning extends undefined ? QueryResult<never> : TReturning[]>
+export class PgInsert<
+	TTable extends AnyPgTable,
+	TQueryResult extends QueryResultHKT,
+	TReturning extends Record<string, unknown> | undefined = undefined,
+> extends QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>
 	implements SQLWrapper
 {
 	declare protected $table: TTable;
@@ -71,10 +78,10 @@ export class PgInsert<TTable extends AnyPgTable, TReturning extends QueryResultR
 		this.config = { table, values };
 	}
 
-	returning(): Omit<PgInsert<TTable, InferModel<TTable>>, 'returning' | `onConflict${string}`>;
+	returning(): Omit<PgInsert<TTable, TQueryResult, InferModel<TTable>>, 'returning' | `onConflict${string}`>;
 	returning<TSelectedFields extends SelectFields>(
 		fields: TSelectedFields,
-	): Omit<PgInsert<TTable, SelectResultFields<TSelectedFields>>, 'returning' | `onConflict${string}`>;
+	): Omit<PgInsert<TTable, TQueryResult, SelectResultFields<TSelectedFields>>, 'returning' | `onConflict${string}`>;
 	returning(
 		fields: SelectFields = this.config.table[PgTable.Symbol.Columns],
 	): Omit<PgInsert<TTable, any>, 'returning' | `onConflict${string}`> {
@@ -127,7 +134,7 @@ export class PgInsert<TTable extends AnyPgTable, TReturning extends QueryResultR
 
 	private _prepare(name?: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: TReturning extends undefined ? QueryResult<never> : TReturning[];
+			execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
 		}
 	> {
 		return this.session.prepareQuery(this.toSQL(), this.config.returning, name);
@@ -135,7 +142,7 @@ export class PgInsert<TTable extends AnyPgTable, TReturning extends QueryResultR
 
 	prepare(name: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: TReturning extends undefined ? QueryResult<never> : TReturning[];
+			execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
 		}
 	> {
 		return this._prepare(name);

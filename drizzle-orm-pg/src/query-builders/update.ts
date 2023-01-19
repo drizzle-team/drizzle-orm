@@ -2,11 +2,10 @@ import { GetColumnData } from 'drizzle-orm';
 import { QueryPromise } from 'drizzle-orm/query-promise';
 import { Param, Query, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import { Simplify } from 'drizzle-orm/utils';
-import { QueryResult, QueryResultRow } from 'pg';
 import { PgDialect } from '~/dialect';
 
 import { SelectFields, SelectFieldsOrdered, SelectResultFields } from '~/operations';
-import { PgSession, PreparedQuery, PreparedQueryConfig } from '~/session';
+import { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/session';
 import { AnyPgTable, GetTableConfig, InferModel, PgTable } from '~/table';
 import { mapUpdateSet, orderSelectedFields } from '~/utils';
 
@@ -27,7 +26,7 @@ export type PgUpdateSetSource<TTable extends AnyPgTable> = Simplify<
 
 export type PgUpdateSet = Record<string, SQL | Param | null | undefined>;
 
-export class PgUpdateBuilder<TTable extends AnyPgTable> {
+export class PgUpdateBuilder<TTable extends AnyPgTable, TQueryResult extends QueryResultHKT> {
 	declare protected $table: TTable;
 
 	constructor(
@@ -36,20 +35,27 @@ export class PgUpdateBuilder<TTable extends AnyPgTable> {
 		private dialect: PgDialect,
 	) {}
 
-	set(values: PgUpdateSetSource<TTable>): PgUpdate<TTable> {
+	set(values: PgUpdateSetSource<TTable>): PgUpdate<TTable, TQueryResult> {
 		return new PgUpdate(this.table, mapUpdateSet(this.table, values), this.session, this.dialect);
 	}
 }
 
 export interface PgUpdate<
 	TTable extends AnyPgTable,
-	TReturning extends QueryResultRow | undefined = undefined,
-> extends QueryPromise<TReturning extends undefined ? QueryResult<never> : TReturning[]>, SQLWrapper {}
+	TQueryResult extends QueryResultHKT,
+	TReturning extends Record<string, unknown> | undefined = undefined,
+> extends
+	QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>,
+	SQLWrapper
+{}
 
 export class PgUpdate<
 	TTable extends AnyPgTable,
-	TReturning extends QueryResultRow | undefined = undefined,
-> extends QueryPromise<TReturning extends undefined ? QueryResult<never> : TReturning[]> implements SQLWrapper {
+	TQueryResult extends QueryResultHKT,
+	TReturning extends Record<string, unknown> | undefined = undefined,
+> extends QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>
+	implements SQLWrapper
+{
 	declare protected $table: TTable;
 	declare protected $return: TReturning;
 
@@ -70,10 +76,10 @@ export class PgUpdate<
 		return this;
 	}
 
-	returning(): Omit<PgUpdate<TTable, InferModel<TTable>>, 'where' | 'returning'>;
+	returning(): Omit<PgUpdate<TTable, TQueryResult, InferModel<TTable>>, 'where' | 'returning'>;
 	returning<TSelectedFields extends SelectFields>(
 		fields: TSelectedFields,
-	): Omit<PgUpdate<TTable, SelectResultFields<TSelectedFields>>, 'where' | 'returning'>;
+	): Omit<PgUpdate<TTable, TQueryResult, SelectResultFields<TSelectedFields>>, 'where' | 'returning'>;
 	returning(
 		fields: SelectFields = this.config.table[PgTable.Symbol.Columns],
 	): Omit<PgUpdate<TTable, any>, 'where' | 'returning'> {
@@ -92,7 +98,7 @@ export class PgUpdate<
 
 	private _prepare(name?: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: TReturning extends undefined ? QueryResult<never> : TReturning[];
+			execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
 		}
 	> {
 		return this.session.prepareQuery(this.toSQL(), this.config.returning, name);
@@ -100,7 +106,7 @@ export class PgUpdate<
 
 	prepare(name: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: TReturning extends undefined ? QueryResult<never> : TReturning[];
+			execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
 		}
 	> {
 		return this._prepare(name);

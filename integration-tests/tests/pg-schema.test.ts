@@ -1,19 +1,8 @@
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
-import {
-	alias,
-	boolean,
-	InferModel,
-	jsonb,
-	PgDatabase,
-	pgSchema,
-	pgTable,
-	serial,
-	text,
-	timestamp,
-} from 'drizzle-orm-pg';
-import { drizzle } from 'drizzle-orm-pg/node';
+import { alias, boolean, InferModel, jsonb, pgSchema, pgTable, serial, text, timestamp } from 'drizzle-orm-pg';
+import { drizzle, NodePgDatabase } from 'drizzle-orm-pg/node';
 import { asc, eq } from 'drizzle-orm/expressions';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
@@ -41,7 +30,7 @@ const publicUsersTable = pgTable('users', {
 interface Context {
 	docker: Docker;
 	pgContainer: Docker.Container;
-	db: PgDatabase;
+	db: NodePgDatabase;
 	client: Client;
 }
 
