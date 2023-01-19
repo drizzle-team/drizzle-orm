@@ -33,7 +33,7 @@
 			"outputMode": "new-only"
 		},
 		"test": {
-			"dependsOn": ["build"],
+			"dependsOn": ["build", "test:types"],
 			"outputs": [],
 			"inputs": ["tests/**/*.test.ts"],
 			"outputMode": "new-only"

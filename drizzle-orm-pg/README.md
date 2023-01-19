@@ -1,7 +1,6 @@
 <div align='center'>
 <h1>Drizzle ORM | PostgreSQL <a href=''><img alt='npm' src='https://img.shields.io/npm/v/drizzle-orm-pg?label='></a></h1>
 <img alt='npm' src='https://img.shields.io/npm/dm/drizzle-orm-pg'>
-<img alt='pg version' src='https://img.shields.io/npm/dependency-version/drizzle-orm-pg/peer/pg'>
 <img alt='npm bundle size' src='https://img.shields.io/bundlephobia/min/drizzle-orm-pg'>
 <a href='https://discord.gg/yfjTbVXMW4'><img alt='Discord' src='https://img.shields.io/discord/1043890932593987624'></a>
 <img alt='License' src='https://img.shields.io/npm/l/drizzle-orm-pg'>
@@ -10,6 +9,12 @@
 </div>
 
 Drizzle ORM is a TypeScript ORM for SQL databases designed with maximum type safety in mind. It comes with a [drizzle-kit](https://github.com/drizzle-team/drizzle-kit-mirror) CLI companion for automatic SQL migrations generation. This is the documentation for Drizzle ORM version for PostgreSQL.
+
+| Driver | Support | 📖 | Driver version |
+| :- | :-: | :-: | :-: |
+| [node-postgres](https://github.com/brianc/node-postgres) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm-pg/peer/pg'> |
+| [postgres.js](https://github.com/porsager/postgres) | ✅ | [Docs](./src/postgres.js/README.md) | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm-pg/peer/postgres'> |
+| [NeonDB Serverless](https://github.com/neondatabase/serverless) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm-pg/peer/@neondatabase/serverless'> |
 
 ## Installation
 
@@ -36,7 +41,7 @@ With `drizzle-orm` you declare SQL schema in TypeScript. You can have either one
 
 ### Single schema file example
 
-```
+```plaintext
 📦 <project root>
  └ 📂 src
     └ 📂 db
@@ -45,7 +50,7 @@ With `drizzle-orm` you declare SQL schema in TypeScript. You can have either one
 
 ### Multiple schema files example
 
-```
+```plaintext
 📦 <project root>
  └ 📂 src
     └ 📂 db
@@ -156,8 +161,8 @@ export const cities = pgTable('cities', {
 ### Database and table entity types
 
 ```typescript
-import { PgDatabase, pgTable, InferModel, serial, text, varchar } from 'drizzle-orm-pg';
-import { drizzle } from 'drizzle-orm-pg';
+import { pgTable, InferModel, serial, text, varchar } from 'drizzle-orm-pg';
+import { drizzle, NodePgDatabase } from 'drizzle-orm-pg/node';
 
 const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -172,7 +177,7 @@ export type NewUser = InferModel<typeof users, 'insert'>; // insert type
 // init node-postgres Pool or Client
 const pool = new Pool(...);
 
-export const db: PgDatabase = drizzle(pool);
+export const db: NodePgDatabase = drizzle(pool);
 
 const result: User[] = await db.select(users);
 
@@ -190,11 +195,11 @@ export const countries = pgTable('countries', {
     id: serial('id').primaryKey(),
     name: varchar('name', { length: 256 }),
     population: integer('population'),
-  }, (table) => {
+  }, (countries) => {
     return {
-      nameIdx: index('name_idx').on(table.name), // one column
-      namePopulationIdx: index('name_population_idx').on(table.name, table.population), // multiple columns
-      uniqueIdx: uniqueIndex('unique_idx').on(table.name), // unique index
+      nameIdx: index('name_idx').on(countries.name), // one column
+      namePopulationIdx: index('name_population_idx').on(countries.name, countries.population), // multiple columns
+      uniqueIdx: uniqueIndex('unique_idx').on(countries.name), // unique index
     }
   })
 );
@@ -233,6 +238,7 @@ index('name')
 ```
 
 ## Column types
+
 The list of all column types. You can also create custom types - [see here](https://github.com/drizzle-team/drizzle-orm/blob/main/docs/custom-types.md).
 
 ```typescript
@@ -282,17 +288,18 @@ uuidColumn.defaultRandom()
 ```
 
 ## Table schemas
+
 Drizzle won't append any schema before table definition by default. So if your tables are in `public` schema drizzle generate -> `select * from "users"`
 
 But if you will specify any custom schema you want, then drizzle will generate -> `select * from "custom_schema"."users"`
 
 > **Warning**
 > If you will have tables with same names in different schemas then drizzle will respond with `never[]` error in result types and error from database
-> 
+>
 > In this case you may use [alias syntax](https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-orm-pg#join-aliases-and-self-joins)
 
+### Usage example
 
-#### Usage example
 ```typescript
 // Table in default schema
 const publicUsersTable = pgTable('users', {
@@ -308,11 +315,11 @@ const publicUsersTable = pgTable('users', {
 const mySchema = pgSchema('mySchema');
 
 const usersTable = mySchema('users', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	verified: boolean('verified').notNull().default(false),
-	jsonb: jsonb<string[]>('jsonb'),
-	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  verified: boolean('verified').notNull().default(false),
+  jsonb: jsonb<string[]>('jsonb'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 ```
 
@@ -462,53 +469,53 @@ const insertedUsersIds: { insertedId: number }[] = await db.insert(users)
 
 ```typescript
 await db.insert(users)
-	.values({ id: 1, name: 'Dan' })
-	.onConflictDoUpdate({ target: users.id, set: { name: 'John' } });
+  .values({ id: 1, name: 'Dan' })
+  .onConflictDoUpdate({ target: users.id, set: { name: 'John' } });
 
 await db.insert(users)
-	.values({ id: 1, name: 'John' })
-	.onConflictDoNothing();
+  .values({ id: 1, name: 'John' })
+  .onConflictDoNothing();
 
 await db.insert(users)
-	.values({ id: 1, name: 'John' })
-	.onConflictDoNothing({ target: users.id });
+  .values({ id: 1, name: 'John' })
+  .onConflictDoNothing({ target: users.id });
 
 await db.insert(users)
-	.values({ id: 1, name: 'John' })
-	.onConflictDoUpdate({
-		target: users.id,
-		set: { name: 'John1' },
-		where: sql`${users.createdAt} > '2023-01-01'::date`,
-	});
+  .values({ id: 1, name: 'John' })
+  .onConflictDoUpdate({
+    target: users.id,
+    set: { name: 'John1' },
+    where: sql`${users.createdAt} > '2023-01-01'::date`,
+  });
 ```
 
 ### Update and Delete
 
 ```typescript
 await db.update(users)
-	.set({ name: 'Mr. Dan' })
-	.where(eq(users.name, 'Dan'));
+  .set({ name: 'Mr. Dan' })
+  .where(eq(users.name, 'Dan'));
 
 const updatedUser: InferModel<typeof users> = await db.delete(users)
-	.set({ name: 'Mr. Dan' })
-	.where(eq(users.name, 'Dan'))
-	.returning();
+  .set({ name: 'Mr. Dan' })
+  .where(eq(users.name, 'Dan'))
+  .returning();
 
 const updatedUserId: { updatedId: number }[] = await db.update(users)
-	.set({ name: 'Mr. Dan' })
-	.where(eq(users.name, 'Dan'))
-	.returning({ updatedId: users.id });
+  .set({ name: 'Mr. Dan' })
+  .where(eq(users.name, 'Dan'))
+  .returning({ updatedId: users.id });
 
 await db.delete(users)
-	.where(eq(users.name, 'Dan'));
+  .where(eq(users.name, 'Dan'));
 
 const deletedUser: InferModel<typeof users> = await db.delete(users)
-	.where(eq(users.name, 'Dan'))
-	.returning();
+  .where(eq(users.name, 'Dan'))
+  .returning();
 
 const deletedUserId: { deletedId: number }[] = await db.delete(users)
-	.where(eq(users.name, 'Dan'))
-	.returning({ deletedId: users.id });
+  .where(eq(users.name, 'Dan'))
+  .returning({ deletedId: users.id });
 ```
 
 ### Joins
@@ -519,43 +526,43 @@ Last but not least. Probably the most powerful feature in the library🚀
 
 ```typescript
 const cities = pgTable('cities', {
-	id: serial('id').primaryKey(),
-	name: text('name'),
+  id: serial('id').primaryKey(),
+  name: text('name'),
 });
 
 const users = pgTable('users', {
-	id: serial('id').primaryKey(),
-	name: text('name'),
-	cityId: integer('city_id').references(() => cities.id),
+  id: serial('id').primaryKey(),
+  name: text('name'),
+  cityId: integer('city_id').references(() => cities.id),
 });
 
 const result = db.select(cities)
-	.leftJoin(users, eq(cities2.id, users2.cityId));
+  .leftJoin(users, eq(cities2.id, users2.cityId));
 ```
 
 #### Many-to-many
 
 ```typescript
 const users = pgTable('users', {
-	id: serial('id').primaryKey(),
-	name: text('name'),
+  id: serial('id').primaryKey(),
+  name: text('name'),
 });
 
 const chatGroups = pgTable('chat_groups', {
-	id: serial('id').primaryKey(),
-	name: text('name'),
+  id: serial('id').primaryKey(),
+  name: text('name'),
 });
 
 const usersToChatGroups = pgTable('usersToChatGroups', {
-	userId: integer('user_id').notNull().references(() => users.id),
-	groupId: integer('group_id').notNull().references(() => chatGroups.id),
+  userId: integer('user_id').notNull().references(() => users.id),
+  groupId: integer('group_id').notNull().references(() => chatGroups.id),
 });
 
 // querying user group with id 1 and all the participants(users)
 const result = await db.select(usersToChatGroups)
-	.leftJoin(users, eq(usersToChatGroups.userId, users.id))
-	.leftJoin(chatGroups, eq(usersToChatGroups.groupId, chatGroups.id))
-	.where(eq(chatGroups.id, 1));
+  .leftJoin(users, eq(usersToChatGroups.userId, users.id))
+  .leftJoin(chatGroups, eq(usersToChatGroups.groupId, chatGroups.id))
+  .where(eq(chatGroups.id, 1));
 ```
 
 #### Join aliases and self-joins
@@ -581,19 +588,19 @@ const result = await db.select(files)
 ```typescript
 // Select user ID and city ID and name
 const result1 = await db.select(cities).fields({
-	userId: users.id,
-	cityId: cities.id,
-	cityName: cities.name,
+  userId: users.id,
+  cityId: cities.id,
+  cityName: cities.name,
 }).leftJoin(users, eq(users.cityId, cities.id));
 
 // Select all fields from users and only id and name from cities
 const result2 = await db.select(cities).fields({
-	// Supports any level of nesting!
-	user: users,
-	city: {
-		id: cities.id,
-		name: cities.name,
-	},
+  // Supports any level of nesting!
+  user: users,
+  city: {
+    id: cities.id,
+    name: cities.name,
+  },
 }).leftJoin(users, eq(users.cityId, cities.id));
 ```
 
@@ -601,8 +608,8 @@ const result2 = await db.select(cities).fields({
 
 ```typescript
 const query = db.select(users)
-	.where(eq(users.name, 'Dan'))
-	.prepare();
+  .where(eq(users.name, 'Dan'))
+  .prepare();
 
 const result = await query.execute();
 ```
@@ -613,8 +620,8 @@ const result = await query.execute();
 import { placeholder } from 'drizzle-orm-pg';
 
 const query = db.select(users)
-	.where(eq(users.name, placeholder('name')))
-	.prepare();
+  .where(eq(users.name, placeholder('name')))
+  .prepare();
 
 const result = await query.execute({ name: 'Dan' });
 ```
@@ -626,7 +633,7 @@ If you have some complex queries to execute and drizzle-orm can't handle them ye
 ```typescript
 // it will automatically run a parametrized query!
 const res: QueryResult<{ id: number; name: string }> = await db.execute<
-	{ id: number; name: string }
+  { id: number; name: string }
 >(sql`select * from ${users} where ${users.id} = ${userId}`);
 ```
 
@@ -661,14 +668,14 @@ It will generate:
 
 ```SQL
 CREATE TABLE IF NOT EXISTS auth_otp (
-	'id' SERIAL PRIMARY KEY,
-	'phone' character varying(256),
-	'user_id' INT
+  'id' SERIAL PRIMARY KEY,
+  'phone' character varying(256),
+  'user_id' INT
 );
 
 CREATE TABLE IF NOT EXISTS users (
-	'id' SERIAL PRIMARY KEY,
-	'full_name' character varying(256)
+  'id' SERIAL PRIMARY KEY,
+  'full_name' character varying(256)
 );
 
 DO $$ BEGIN
@@ -688,7 +695,7 @@ import { migrate } from 'drizzle-orm-pg/node/migrator';
 import { Pool } from 'pg';
 
 const pool = new Pool({
-	connectionString: 'postgres://user:password@host:port/db',
+  connectionString: 'postgres://user:password@host:port/db',
 });
 const db = drizzle(pool);
 

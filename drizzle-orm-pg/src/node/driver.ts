@@ -2,7 +2,7 @@ import { Logger } from 'drizzle-orm';
 import { types } from 'pg';
 import { PgDatabase } from '~/db';
 import { PgDialect } from '~/dialect';
-import { NodePgClient, NodePgSession } from './session';
+import { NodePgClient, NodePgQueryResultHKT, NodePgSession } from './session';
 
 export interface PgDriverOptions {
 	logger?: Logger;
@@ -32,11 +32,11 @@ export interface DrizzleConfig {
 	logger?: Logger;
 }
 
-export { PgDatabase } from '~/db';
+export type NodePgDatabase = PgDatabase<NodePgQueryResultHKT, NodePgSession>;
 
-export function drizzle(client: NodePgClient, config: DrizzleConfig = {}): PgDatabase {
+export function drizzle(client: NodePgClient, config: DrizzleConfig = {}): NodePgDatabase {
 	const dialect = new PgDialect();
 	const driver = new NodePgDriver(client, dialect, { logger: config.logger });
 	const session = driver.createSession();
-	return dialect.createDB(session);
+	return new PgDatabase(dialect, session);
 }

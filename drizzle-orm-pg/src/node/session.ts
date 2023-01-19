@@ -4,7 +4,8 @@ import { mapResultRow } from 'drizzle-orm/utils';
 import { Client, Pool, PoolClient, QueryArrayConfig, QueryConfig, QueryResult, QueryResultRow } from 'pg';
 import { PgDialect } from '~/dialect';
 import { SelectFieldsOrdered } from '~/operations';
-import { PgSession, PreparedQuery, PreparedQueryConfig } from '~/session';
+import { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT } from '~/session';
+import { Assume } from '~/utils';
 
 export type NodePgClient = Pool | PoolClient | Client;
 
@@ -100,4 +101,8 @@ export class NodePgSession extends PgSession {
 	): Promise<QueryResult<T>> {
 		return this.client.query<T>(query, params);
 	}
+}
+
+export interface NodePgQueryResultHKT extends QueryResultHKT {
+	type: QueryResult<Assume<this['row'], QueryResultRow>>;
 }
