@@ -12,7 +12,8 @@ import { fillPlaceholders, Query } from 'drizzle-orm/sql';
 import { mapResultRow } from 'drizzle-orm/utils';
 import { PgDialect } from '~/dialect';
 import { SelectFieldsOrdered } from '~/operations';
-import { PgSession, PreparedQuery, PreparedQueryConfig } from '~/session';
+import { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT } from '~/session';
+import { Assume } from '~/utils';
 
 export type NeonClient = Pool | PoolClient | Client;
 
@@ -108,4 +109,8 @@ export class NeonSession extends PgSession {
 	): Promise<QueryResult<T>> {
 		return this.client.query<T>(query, params);
 	}
+}
+
+export interface NeonQueryResultHKT extends QueryResultHKT {
+	type: QueryResult<Assume<this['row'], QueryResultRow>>;
 }

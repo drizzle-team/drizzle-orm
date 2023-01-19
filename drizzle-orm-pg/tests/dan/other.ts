@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { eq, inArray } from 'drizzle-orm/expressions';
-import { QueryResult, QueryResultRow } from 'pg';
+import { QueryResult } from 'pg';
 
 import { Equal, Expect } from '../utils';
 import { db } from './db';
@@ -12,4 +12,4 @@ const rawQuery = await db.execute(
 	}`,
 );
 
-Expect<Equal<QueryResult<QueryResultRow>, typeof rawQuery>>;
+Expect<Equal<QueryResult<Record<string, unknown>>, typeof rawQuery>>;

@@ -46,10 +46,6 @@ export class PgDialect {
 		}
 	}
 
-	createDB(session: PgSession): PgDatabase {
-		return new PgDatabase(this, session);
-	}
-
 	escapeName(name: string): string {
 		return `"${name}"`;
 	}

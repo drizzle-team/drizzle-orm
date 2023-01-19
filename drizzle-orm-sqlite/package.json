@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm-sqlite",
-	"version": "0.15.3",
+	"version": "0.16.0",
 	"description": "Drizzle ORM package for SQLite database",
 	"scripts": {
 		"build": "tsc -p tsconfig.build.json && resolve-tspaths && cp README.md package.json dist/",
@@ -26,11 +26,13 @@
 	},
 	"homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
 	"peerDependencies": {
-		"@types/better-sqlite3": ">=7 <9",
+		"@cloudflare/workers-types": ">=3",
+		"@types/better-sqlite3": "*",
 		"better-sqlite3": ">=7 <9",
 		"drizzle-orm": ">=0.15 <0.16",
 		"sqlite3": ">=5 <6",
-		"@cloudflare/workers-types": ">=3"
+		"sql.js": ">=1 <2",
+		"@types/sql.js": "*"
 	},
 	"peerDependenciesMeta": {
 		"better-sqlite3": {
@@ -42,6 +44,12 @@
 		"sqlite3": {
 			"optional": true
 		},
+		"sql.js": {
+			"optional": true
+		},
+		"@types/sql.js": {
+			"optional": true
+		},
 		"@cloudflare/workers-types": {
 			"optional": true
 		}
@@ -49,8 +57,10 @@
 	"devDependencies": {
 		"@cloudflare/workers-types": "^3.18.0",
 		"@types/better-sqlite3": "^7.6.2",
+		"@types/sql.js": "^1.4.4",
 		"better-sqlite3": "^7.6.2",
 		"drizzle-orm": "link:../drizzle-orm/dist",
+		"sql.js": "^1.8.0",
 		"sqlite3": "^5.1.2"
 	}
 }

@@ -25,10 +25,10 @@ Drizzle ORM is being battle-tested on production projects by multiple teams 🚀
 - Auto-inferring of TS types for DB models for selections and insertions separately
 - Zero dependencies
 
-| Database    | Support |  |
+| Database    | Support | 📖 |
 |:------------|:-------:|:---|
 | PostgreSQL  | ✅      |[Docs](https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-orm-pg)|
-| MySQL       | ✅      |[Docs](https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-orm-mysql)            |
+| MySQL       | ✅      |[Docs](https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-orm-mysql)|
 | SQLite      | ✅      |[Docs](https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-orm-sqlite)|
 | DynamoDB    | ⏳      |            |
 | MS SQL      | ⏳      |            |

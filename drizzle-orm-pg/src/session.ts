@@ -51,3 +51,13 @@ export abstract class PgSession {
 		).values();
 	}
 }
+
+export interface QueryResultHKT {
+	readonly $brand: 'QueryRowHKT';
+	readonly row: unknown;
+	readonly type: unknown;
+}
+
+export type QueryResultKind<TKind extends QueryResultHKT, TRow> = (TKind & {
+	readonly row: TRow;
+})['type'];

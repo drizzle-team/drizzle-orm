@@ -3,7 +3,9 @@ import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
 import { AnyPgTable } from '~/table';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgJsonBuilder<TData> extends PgColumnBuilder<ColumnBuilderConfig<{ data: TData; driverParam: string }>> {
+export class PgJsonBuilder<TData>
+	extends PgColumnBuilder<ColumnBuilderConfig<{ data: TData; driverParam: TData | string }>>
+{
 	protected override $pgColumnBuilderBrand!: 'PgJsonBuilder';
 
 	constructor(name: string) {
@@ -17,7 +19,7 @@ export class PgJsonBuilder<TData> extends PgColumnBuilder<ColumnBuilderConfig<{ 
 }
 
 export class PgJson<TTableName extends string, TData>
-	extends PgColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>>
+	extends PgColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: TData | string }>>
 {
 	protected override $pgColumnBrand!: 'PgJson';
 
@@ -31,6 +33,17 @@ export class PgJson<TTableName extends string, TData>
 
 	override mapToDriverValue(value: TData): string {
 		return JSON.stringify(value);
+	}
+
+	override mapFromDriverValue(value: TData | string): TData {
+		if (typeof value === 'string') {
+			try {
+				return JSON.parse(value);
+			} catch (e) {
+				return value as TData;
+			}
+		}
+		return value;
 	}
 }
 
