@@ -1,7 +1,7 @@
 import { ColumnConfig } from 'drizzle-orm';
 import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
-import { AnyPgTable } from '~/table';
-import { PgColumn, PgColumnBuilder } from './common';
+import { AnyMySqlTable } from '~/table';
+import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export type CustomColumnBuildeConfig<T extends CustomTypeValues> = {
 	data: T['data'];
@@ -16,14 +16,14 @@ function returnColumn<
 	TNotNull extends boolean = false,
 	TDefault extends boolean = false,
 >(
-	table: AnyPgTable<{ name: TTableName }>,
-	config: PgColumnBuilder<
+	table: AnyMySqlTable<{ name: TTableName }>,
+	config: MySqlColumnBuilder<
 		ColumnConfig<{ data: TData; driverParam: string; notNull: TNotNull; hasDefault: TDefault }>
 	>['config'],
 	sqlName: string,
 	mapTo?: (value: TData) => any,
 	mapFrom?: (value: any) => TData,
-): PgColumn<
+): MySqlColumn<
 	ColumnConfig<
 		{
 			tableName: TTableName;
@@ -34,7 +34,7 @@ function returnColumn<
 		}
 	>
 > {
-	return new class extends PgColumn<
+	return new class extends MySqlColumn<
 		ColumnConfig<
 			{
 				tableName: TTableName;
@@ -45,7 +45,7 @@ function returnColumn<
 			}
 		>
 	> {
-		protected override $pgColumnBrand!: 'CustomColumnBrand';
+		protected override $mySqlColumnBrand!: 'MysqlCustomColumnBrand';
 
 		getSQLType(): string {
 			return sqlName;
@@ -174,7 +174,7 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 }
 
 /**
- * Custom postgresql database data type generator
+ * Custom mysql database data type generator
  */
 export function customType<
 	T extends CustomTypeValues,
@@ -183,12 +183,12 @@ export function customType<
 ): (
 	dbName: string,
 	fieldConfig?: T['config'],
-) => PgColumnBuilder<
+) => MySqlColumnBuilder<
 	ColumnBuilderConfig<CustomColumnBuildeConfig<T>>,
 	Record<string, unknown>
 > {
 	return (dbName: string, fieldConfig?: T['config']) =>
-		new class extends PgColumnBuilder<
+		new class extends MySqlColumnBuilder<
 			ColumnBuilderConfig<CustomColumnBuildeConfig<T>>,
 			Record<string, unknown>
 		> {
@@ -196,8 +196,8 @@ export function customType<
 
 			/** @internal */
 			build<TTableName extends string>(
-				table: AnyPgTable<{ name: TTableName }>,
-			): PgColumn<
+				table: AnyMySqlTable<{ name: TTableName }>,
+			): MySqlColumn<
 				ColumnConfig<CustomColumnBuildeConfig<T> & { tableName: TTableName }>
 			> {
 				return returnColumn(
