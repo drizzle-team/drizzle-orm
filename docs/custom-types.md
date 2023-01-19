@@ -68,18 +68,17 @@ override mapToDriverValue(value: TData): string {
 #### Usage example for int type:
 ```typescript
 override mapFromDriverValue(value: number | string): number {
-		if (typeof value === 'string') {
-			return parseInt(value);
-		}
-		return value;
+	if (typeof value === 'string') {
+		return parseInt(value);
+	}
+	return value;
 }
 ```
 
 #### Column class example
 ```typescript
 export class PgText<TTableName extends string, TData extends string>
-	extends PgColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>>
-{
+	extends PgColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>> {
 	protected override $pgColumnBrand!: 'PgText';
 
 	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgTextBuilder<TData>['config']) {
