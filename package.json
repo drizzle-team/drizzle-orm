@@ -4,7 +4,8 @@
 		"build:core": "turbo run build --filter drizzle-orm",
 		"build:pg": "turbo run build --filter drizzle-orm-pg",
 		"build:mysql": "turbo run build --filter drizzle-orm-mysql",
-		"build": "turbo run build --color",
+		"build:sqlite": "turbo run build --filter drizzle-orm-sqlite",
+		"build": "turbo run build test:types --color",
 		"pack": "turbo run pack --color",
 		"test": "turbo run test --color"
 	},

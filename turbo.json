@@ -14,7 +14,7 @@
 			"outputMode": "new-only"
 		},
 		"build": {
-			"dependsOn": ["^build", "test:types"],
+			"dependsOn": ["^build"],
 			"inputs": [
 				"src/**/*.ts",
 				"package.json",
@@ -29,12 +29,14 @@
 		"pack": {
 			"dependsOn": ["build"],
 			"inputs": ["dist/**"],
-			"outputs": ["package.tgz"]
+			"outputs": ["package.tgz"],
+			"outputMode": "new-only"
 		},
 		"test": {
 			"dependsOn": ["build"],
 			"outputs": [],
-			"inputs": ["tests/**/*.test.ts"]
+			"inputs": ["tests/**/*.test.ts"],
+			"outputMode": "new-only"
 		}
 	}
 }
