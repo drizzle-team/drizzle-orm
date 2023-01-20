@@ -26,7 +26,7 @@ const client = postgres(connectionString);
 const db: PostgresJsDatabase = drizzle(client);
 ```
 
-See [main docs](../../README.md) for further usage.
+See [main docs](/README.md) for further usage.
 
 ## Running migrations
 
@@ -43,4 +43,4 @@ const db = drizzle(migrationsClient);
 await migrate(db, { migrationsFolder: '...' });
 ```
 
-See [main migrations docs](../../README.md#migrations) for further info.
+See [main migrations docs](/drizzle-orm-pg/README.md#migrations) for further info.
