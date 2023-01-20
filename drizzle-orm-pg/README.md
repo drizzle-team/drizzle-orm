@@ -10,10 +10,10 @@
 
 Drizzle ORM is a TypeScript ORM for SQL databases designed with maximum type safety in mind. It comes with a [drizzle-kit](https://github.com/drizzle-team/drizzle-kit-mirror) CLI companion for automatic SQL migrations generation. This is the documentation for Drizzle ORM version for PostgreSQL.
 
-| Driver | Support | 📖 | Driver version |
+| Driver | Support | | Driver version |
 | :- | :-: | :-: | :-: |
 | [node-postgres](https://github.com/brianc/node-postgres) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm-pg/peer/pg'> |
-| [postgres.js](https://github.com/porsager/postgres) | ✅ | [Docs](./src/postgres.js/README.md) | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm-pg/peer/postgres'> |
+| [postgres.js](https://github.com/porsager/postgres) | ✅ | [Docs](/drizzle-orm-pg/src/postgres.js/README.md) | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm-pg/peer/postgres'> |
 | [NeonDB Serverless](https://github.com/neondatabase/serverless) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm-pg/peer/@neondatabase/serverless'> |
 
 ## Installation
@@ -143,7 +143,7 @@ export const popularityEnum = pgEnum('popularity', ['unknown', 'known', 'popular
 
 export const countries = pgTable('countries', {
   id: serial('id').primaryKey(),
-  name: varchar('name', 256),
+  name: varchar('name', { length: 256 }),
 }, (countries) => {
   return {
     nameIndex: uniqueIndex('name_idx').on(countries.name),
@@ -152,7 +152,7 @@ export const countries = pgTable('countries', {
 
 export const cities = pgTable('cities', {
   id: serial('id').primaryKey(),
-  name: varchar('name', 256),
+  name: varchar('name', { length: 256 }),
   countryId: integer('country_id').references(() => countries.id),
   popularity: popularityEnum('popularity'),
 });

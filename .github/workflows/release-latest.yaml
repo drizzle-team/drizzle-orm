@@ -3,34 +3,7 @@ name: Release (latest)
 on: workflow_dispatch
 
 jobs:
-  build:
-    runs-on: ubuntu-20.04
-    steps:
-      - uses: actions/checkout@v3
-
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 16
-          registry-url: 'https://registry.npmjs.org'
-
-      - uses: pnpm/action-setup@v2
-        with:
-          version: latest
-          run_install: true
-
-      - name: Build & pack
-        run: pnpm run pack
-
-      - name: Upload dist
-        uses: actions/upload-artifact@v2
-        with:
-          name: dist
-          path: |
-            */package.tgz
-
   release:
-    needs:
-      - build
     strategy:
       matrix:
         package:
@@ -48,10 +21,10 @@ jobs:
           node-version: 16
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Download dist
-        uses: actions/download-artifact@v3
+      - uses: pnpm/action-setup@v2
         with:
-          name: dist
+          version: latest
+          run_install: true
 
       - name: Publish
         run: |
@@ -68,6 +41,7 @@ jobs:
               npm dist-tag add ${{ matrix.package }}@$version latest
             else
               echo echo "Publishing ${{ matrix.package }}@$version"
+              (cd .. && npm run pack -- --filter ${{ matrix.package }})
               npm run publish
             fi
 
