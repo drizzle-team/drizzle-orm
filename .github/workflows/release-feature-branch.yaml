@@ -6,31 +6,6 @@ on:
       - main
 
 jobs:
-  build:
-    runs-on: ubuntu-20.04
-    steps:
-      - uses: actions/checkout@v3
-
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 16
-          registry-url: 'https://registry.npmjs.org'
-
-      - uses: pnpm/action-setup@v2
-        with:
-          version: latest
-          run_install: true
-
-      - name: Build
-        run: pnpm run build
-
-      - name: Upload dist
-        uses: actions/upload-artifact@v2
-        with:
-          name: dist
-          path: |
-            */dist
-
   release:
     needs:
       - build
@@ -46,17 +21,17 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Download dist
-        uses: actions/download-artifact@v3
-        with:
-          name: dist
-
       - uses: actions/setup-node@v3
         with:
           node-version: 16
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Publish
+      - uses: pnpm/action-setup@v2
+        with:
+          version: latest
+          run_install: true
+
+      - name: Build & publish
         run: |
           tag="${{ github.ref_name }}"
           old_version="$(jq -r .version package.json)"
@@ -69,7 +44,6 @@ jobs:
           else
             echo "Publishing ${{ matrix.package }}@$tag using version $version"
             npm version $version
-
             npm run pack
             npm run publish -- --tag $tag
           fi
