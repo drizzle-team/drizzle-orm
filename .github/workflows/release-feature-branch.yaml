@@ -42,7 +42,7 @@ jobs:
           else
             echo "Publishing ${{ matrix.package }}@$tag using version $version"
             npm version $version
-            npm run pack
+            (cd .. && npm run pack -- --filter ${{ matrix.package }})
             npm run publish -- --tag $tag
           fi
 
