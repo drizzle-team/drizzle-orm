@@ -4,8 +4,6 @@ on: workflow_dispatch
 
 jobs:
   release:
-    needs:
-      - build
     strategy:
       matrix:
         package:

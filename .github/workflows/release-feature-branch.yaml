@@ -7,8 +7,6 @@ on:
 
 jobs:
   release:
-    needs:
-      - build
     strategy:
       matrix:
         package:
