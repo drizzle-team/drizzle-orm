@@ -16,7 +16,7 @@ pnpm add drizzle-orm drizzle-orm-pg postgres
 pnpm add -D drizzle-kit
 ```
 
-## Usage
+## Connection
 
 ```typescript
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm-pg/postgres.js';
@@ -26,7 +26,7 @@ const client = postgres(connectionString);
 const db: PostgresJsDatabase = drizzle(client);
 ```
 
-See [main docs](/README.md) for further usage.
+See [main docs](/drizzle-orm-pg/README.md#sql-schema-declaration) for further usage.
 
 ## Running migrations
 

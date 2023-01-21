@@ -37,7 +37,7 @@ pnpm add -D drizzle-kit
 
 ## SQL schema declaration
 
-With `drizzle-orm` you declare SQL schema in TypeScript. You can have either one `schema.ts` file with all declarations or you can group them logically in multiple files. We prefer to use single file schema.
+In Drizzle ORM, you declare SQL schema with TypeScript. You can either have a single `schema.ts` file with all declarations or you can group them logically in multiple files. We prefer to use single file schema.
 
 ### Single schema file example
 
