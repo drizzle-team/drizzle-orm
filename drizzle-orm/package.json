@@ -3,8 +3,8 @@
 	"version": "0.16.0",
 	"description": "Drizzle ORM package for SQL databases",
 	"scripts": {
-		"build": "tsc && cp ../README.md package.json dist/",
-		"test:types": "echo WARN: No tests defined!",
+		"build": "tsc && resolve-tspaths && cp ../README.md package.json dist/",
+		"test:types": "cd tests && tsc",
 		"pack": "cp package.json dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"publish": "npm publish package.tgz"
 	},
@@ -23,7 +23,8 @@
 		"database",
 		"sql",
 		"typescript",
-		"ts"
+		"ts",
+		"drizzle-orm"
 	],
 	"author": "Drizzle Team",
 	"license": "Apache-2.0",
@@ -32,22 +33,65 @@
 	},
 	"homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
 	"peerDependencies": {
-		"drizzle-orm-mysql": ">=0.15 <0.16",
-		"drizzle-orm-pg": ">=0.15 <0.16",
-		"drizzle-orm-sqlite": ">=0.15 <0.16"
+		"mysql2": ">=2 <3",
+		"@cloudflare/workers-types": ">=3",
+		"@types/better-sqlite3": "*",
+		"better-sqlite3": ">=7 <9",
+		"sqlite3": ">=5 <6",
+		"sql.js": ">=1 <2",
+		"@types/sql.js": "*",
+		"@types/pg": "*",
+		"pg": ">=8 <9",
+		"postgres": ">=3 <4",
+		"@neondatabase/serverless": ">=0.1 <0.2"
 	},
 	"peerDependenciesMeta": {
-		"drizzle-orm-mysql": {
+		"mysql2": {
 			"optional": true
 		},
-		"drizzle-orm-pg": {
+		"better-sqlite3": {
 			"optional": true
 		},
-		"drizzle-orm-sqlite": {
+		"@types/better-sqlite3": {
+			"optional": true
+		},
+		"sqlite3": {
+			"optional": true
+		},
+		"sql.js": {
+			"optional": true
+		},
+		"@types/sql.js": {
+			"optional": true
+		},
+		"@cloudflare/workers-types": {
+			"optional": true
+		},
+		"pg": {
+			"optional": true
+		},
+		"@types/pg": {
+			"optional": true
+		},
+		"postgres": {
+			"optional": true
+		},
+		"@neondatabase/serverless": {
 			"optional": true
 		}
 	},
 	"devDependencies": {
-		"@types/node": "^18.11.9"
+		"@types/node": "^18.11.9",
+		"mysql2": "^2.3.3",
+		"@cloudflare/workers-types": "^3.18.0",
+		"@types/better-sqlite3": "^7.6.2",
+		"@types/sql.js": "^1.4.4",
+		"better-sqlite3": "^7.6.2",
+		"sql.js": "^1.8.0",
+		"sqlite3": "^5.1.2",
+		"@neondatabase/serverless": "^0.1.13",
+		"@types/pg": "^8.6.5",
+		"pg": "^8.8.0",
+		"postgres": "^3.3.3"
 	}
 }

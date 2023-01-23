@@ -52,9 +52,6 @@
 	"devDependencies": {
 		"ava": "^5.1.0",
 		"drizzle-orm": "link:../drizzle-orm/dist",
-		"drizzle-orm-mysql": "link:../drizzle-orm-mysql/dist",
-		"drizzle-orm-pg": "link:../drizzle-orm-pg/dist",
-		"drizzle-orm-sqlite": "link:../drizzle-orm-sqlite/dist",
 		"tsx": "^3.12.2",
 		"zod": "^3.20.2"
 	}
