@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm-pg",
-	"version": "0.16.2",
+	"version": "0.16.3",
 	"description": "Drizzle ORM package for PostgreSQL database",
 	"scripts": {
 		"build": "tsc --build && resolve-tspaths && cp README.md package.json dist/",
@@ -29,7 +29,7 @@
 	"homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
 	"peerDependencies": {
 		"@types/pg": ">=8 <9",
-		"drizzle-orm": ">=0.15 <0.16",
+		"drizzle-orm": ">=0.16 <0.17",
 		"pg": ">=8 <9",
 		"postgres": ">=3 <4",
 		"@neondatabase/serverless": ">=0.1 <0.2"

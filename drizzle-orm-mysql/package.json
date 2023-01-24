@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm-mysql",
-	"version": "0.16.1",
+	"version": "0.16.2",
 	"description": "Drizzle ORM package for MySQL database",
 	"scripts": {
 		"build": "tsc -p tsconfig.build.json && resolve-tspaths && cp README.md package.json dist/",
@@ -29,7 +29,7 @@
 	},
 	"homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
 	"peerDependencies": {
-		"drizzle-orm": ">=0.15 <0.16",
+		"drizzle-orm": ">=0.16 <0.17",
 		"mysql2": ">=2 <3"
 	},
 	"peerDependenciesMeta": {

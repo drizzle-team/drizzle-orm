@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm-sqlite",
-	"version": "0.16.0",
+	"version": "0.16.1",
 	"description": "Drizzle ORM package for SQLite database",
 	"scripts": {
 		"build": "tsc -p tsconfig.build.json && resolve-tspaths && cp README.md package.json dist/",
@@ -29,7 +29,7 @@
 		"@cloudflare/workers-types": ">=3",
 		"@types/better-sqlite3": "*",
 		"better-sqlite3": ">=7 <9",
-		"drizzle-orm": ">=0.15 <0.16",
+		"drizzle-orm": ">=0.16 <0.17",
 		"sqlite3": ">=5 <6",
 		"sql.js": ">=1 <2",
 		"@types/sql.js": "*"
