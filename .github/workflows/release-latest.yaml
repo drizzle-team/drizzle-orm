@@ -8,9 +8,6 @@ jobs:
       matrix:
         package:
           - drizzle-orm
-          - drizzle-orm-mysql
-          - drizzle-orm-pg
-          - drizzle-orm-sqlite
           - drizzle-zod
     runs-on: ubuntu-20.04
     steps:
@@ -47,6 +44,10 @@ jobs:
 
             # Post release message to Discord
             curl -X POST -H "Content-Type: application/json" -d "{\"embeds\": [{\"title\": \"New \`${{ matrix.package }}\` release! 🎉\", \"url\": \"https://www.npmjs.com/package/${{ matrix.package }}\", \"color\": \"12907856\", \"fields\": [{\"name\": \"Tag\", \"value\": \"\`$tag\`\"}]}]}" ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
+
+            # Put version to outputs
+            echo "::set-output name=version::$version"
+            echo "::set-output name=has_new_release::true"
           else
             echo "Already up to date: $version"
           fi
@@ -54,3 +55,35 @@ jobs:
         shell: bash
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
+
+      - name: Create GitHub release
+        uses: actions/github-script@v6
+        if: ${{ steps.release.outputs.has_new_release == 'true' }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            try {
+              const fs = require("fs");
+              const path = require("path");
+
+              const changelog = fs.readFileSync(path.join(__dirname, "changelogs", "${{ matrix.package }}", "${{ steps.release.outputs.version }}.md"), "utf8");
+              const version = "${{ steps.release.outputs.version }}";
+              const tag = "latest";
+              const release = await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: tag,
+                name: `${{ matrix.package }} v${version}`,
+                body: changelog,
+                draft: true,
+              });
+              await github.rest.repos.uploadReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: release.data.id,
+                name: `${{ matrix.package }}-${version}.tgz`,
+                data: fs.readFileSync(path.join(__dirname, "${{ matrix.package }}", "package.tgz")),
+              });
+            } catch (e) {
+              core.setFailed(error.message);
+            }

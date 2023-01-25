@@ -1,11 +1,11 @@
-import { Logger, NoopLogger } from 'drizzle-orm';
-import { fillPlaceholders, Query } from 'drizzle-orm/sql';
-import { mapResultRow } from 'drizzle-orm/utils';
 import { Row, RowList, Sql } from 'postgres';
-import { PgDialect } from '~/dialect';
-import { SelectFieldsOrdered } from '~/operations';
-import { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT } from '~/session';
+import { Logger, NoopLogger } from '~/logger';
+import { PgDialect } from '~/pg-core/dialect';
+import { SelectFieldsOrdered } from '~/pg-core/operations';
+import { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
+import { fillPlaceholders, Query } from '~/sql';
 import { Assume } from '~/utils';
+import { mapResultRow } from '~/utils';
 
 export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
 	private query: string;

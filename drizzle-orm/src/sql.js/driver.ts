@@ -1,7 +1,7 @@
-import { Logger } from 'drizzle-orm';
 import { Database } from 'sql.js';
-import { BaseSQLiteDatabase } from '~/db';
-import { SQLiteSyncDialect } from '~/dialect';
+import { Logger } from '~/logger';
+import { BaseSQLiteDatabase } from '~/sqlite-core/db';
+import { SQLiteSyncDialect } from '~/sqlite-core/dialect';
 import { SQLJsSession } from './session';
 
 export interface DrizzleConfig {

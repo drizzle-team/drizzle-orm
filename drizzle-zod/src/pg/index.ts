@@ -25,8 +25,8 @@ import {
 	PgTimestamp,
 	PgUUID,
 	PgVarchar,
-} from 'drizzle-orm-pg';
-import { getTableColumns } from 'drizzle-orm-pg/utils';
+} from 'drizzle-orm/pg-common';
+import { getTableColumns } from 'drizzle-orm/pg-common/utils';
 import { Simplify } from 'drizzle-orm/utils';
 import { z } from 'zod';
 

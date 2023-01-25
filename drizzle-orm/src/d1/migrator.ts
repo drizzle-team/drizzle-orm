@@ -1,4 +1,4 @@
-import { MigrationConfig, readMigrationFiles } from 'drizzle-orm/migrator';
+import { MigrationConfig, readMigrationFiles } from '~/migrator';
 import { DrizzleD1Database } from './driver';
 
 export async function migrate(db: DrizzleD1Database, config: string | MigrationConfig) {

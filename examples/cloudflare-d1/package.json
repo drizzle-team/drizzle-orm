@@ -19,7 +19,6 @@
 	},
 	"dependencies": {
 		"drizzle-orm": "0.14.2",
-		"drizzle-orm-sqlite": "0.14.2",
 		"itty-router": "^2.6.6",
 		"itty-router-extras": "^0.4.2"
 	}

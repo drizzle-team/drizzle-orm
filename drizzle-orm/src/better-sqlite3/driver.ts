@@ -1,7 +1,7 @@
 import { Database, RunResult } from 'better-sqlite3';
-import { Logger } from 'drizzle-orm';
-import { BaseSQLiteDatabase } from '~/db';
-import { SQLiteSyncDialect } from '~/dialect';
+import { Logger } from '~/logger';
+import { BaseSQLiteDatabase } from '~/sqlite-core/db';
+import { SQLiteSyncDialect } from '~/sqlite-core/dialect';
 import { BetterSQLiteSession } from './session';
 
 export interface DrizzleConfig {

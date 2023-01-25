@@ -1,6 +1,8 @@
-import { Logger } from 'drizzle-orm';
-import { BaseSQLiteDatabase } from '~/db';
-import { SQLiteAsyncDialect } from '~/dialect';
+/// <reference types="@cloudflare/workers-types" />
+
+import { Logger } from '~/logger';
+import { BaseSQLiteDatabase } from '~/sqlite-core/db';
+import { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
 import { SQLiteD1Session } from './session';
 
 export interface DrizzleConfig {

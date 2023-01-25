@@ -1,5 +1,5 @@
-import { Logger } from 'drizzle-orm';
-import { MySqlDialect } from '~/dialect';
+import { Logger } from '~/logger';
+import { MySqlDialect } from '~/mysql-core/dialect';
 import { MySqlDatabase } from '.';
 import { MySql2Client, MySql2Session } from './session';
 
@@ -24,7 +24,7 @@ export interface DrizzleConfig {
 	logger?: Logger;
 }
 
-export { MySqlDatabase } from '~/db';
+export { MySqlDatabase } from '~/mysql-core/db';
 
 export function drizzle(client: MySql2Client, config: DrizzleConfig = {}): MySqlDatabase {
 	const dialect = new MySqlDialect();

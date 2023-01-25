@@ -41,13 +41,8 @@
 	"author": "Drizzle Team",
 	"license": "Apache-2.0",
 	"peerDependencies": {
-		"drizzle-orm-pg": ">=0.15 <0.16",
+		"drizzle-orm": ">=0.17",
 		"zod": ">=3 <4"
-	},
-	"peerDependenciesMeta": {
-		"drizzle-orm-pg": {
-			"optional": true
-		}
 	},
 	"devDependencies": {
 		"ava": "^5.1.0",

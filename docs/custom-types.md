@@ -27,6 +27,7 @@ Each type creation should use 2 classes:
 - Builder class is responsible for storing TS return type for specific database datatype and override build function to return ready to use column in table
 
 - `TData` - extends return type for column. Current example will infer string type for current datatype used in schema definition
+
 ```typescript
 export class PgTextBuilder<TData extends string = string>
 	extends PgColumnBuilder<
@@ -47,16 +48,18 @@ export class PgTextBuilder<TData extends string = string>
 > `$pgColumnBuilderBrand` should be changed and be equal to class name for new data type builder
 
 ### Column class explanation - (postgresql text data type example)
+
 ---
 Column class has set of types/functions, that could be overridden to get needed behavior for custom type
 
 - `TData` - extends return type for column. Current example will infer string type for current datatype used in schema definition
 
-- `getSQLType()` - function, that shows datatype name in database and will be used in migration generation 
+- `getSQLType()` - function, that shows datatype name in database and will be used in migration generation
 
-- `mapFromDriverValue` - interceptor between database and select query execution. If you want to modify/map/change value for specific data type, it could be done here
+- `mapFromDriverValue()` - interceptor between database and select query execution. If you want to modify/map/change value for specific data type, it could be done here
 
-#### Usage example for jsonb type:
+#### Usage example for jsonb type
+
 ```typescript
 override mapToDriverValue(value: TData): string {
 	return JSON.stringify(value);
@@ -65,7 +68,8 @@ override mapToDriverValue(value: TData): string {
 
 - `mapToDriverValue` - interceptor between user input for insert/update queries and database query. If you want to modify/map/change value for specific data type, it could be done here
 
-#### Usage example for int type:
+#### Usage example for int type
+
 ```typescript
 override mapFromDriverValue(value: number | string): number {
 	if (typeof value === 'string') {
@@ -76,6 +80,7 @@ override mapFromDriverValue(value: number | string): number {
 ```
 
 #### Column class example
+
 ```typescript
 export class PgText<TTableName extends string, TData extends string>
 	extends PgColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>> {
@@ -105,9 +110,9 @@ export class PgText<TTableName extends string, TData extends string>
 
 </br>
 
-### Full text data type for postgresql looks like:
+### Full text data type for PostgreSQL example
 
-For more postgres data type examples you could check [here](https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-orm-pg/src/columns)
+For more postgres data type examples you could check [here](/drizzle-orm/src/pg-core/columns)
 
 ```typescript
 import { ColumnConfig } from 'drizzle-orm';
@@ -166,12 +171,14 @@ export function text<T extends string = string>(
 </br>
 
 ### Setting up CITEXT datatype
+
 ---
 > **Note**
- This type is available only with extensions and used for example, just to show how you could setup any data type you want. Extension support will come soon 
+ This type is available only with extensions and used for example, just to show how you could setup any data type you want. Extension support will come soon
 </br>
 
 ### CITEXT data type example
+
 ```typescript
 export class PgCITextBuilder<TData extends string = string> extends PgColumnBuilder<
 	ColumnBuilderConfig<{ data: TData; driverParam: string }>
@@ -203,6 +210,7 @@ export function citext<T extends string = string>(name: string): PgCITextBuilder
 ```
 
 #### Usage example
+
 ```typescript
 const table = pgTable('table', {
 	id: integer('id').primaryKey(),
@@ -210,7 +218,7 @@ const table = pgTable('table', {
 })
 ```
 
-# Contributing by adding new custom types in Drizzle ORM
+## Contributing by adding new custom types in Drizzle ORM
 
 You could add your created custom data types to Drizzle ORM, so everyone can use it.
 

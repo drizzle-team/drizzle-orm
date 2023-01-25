@@ -1,13 +1,13 @@
 import { Database } from 'bun:sqlite';
 import { sql } from 'drizzle-orm';
-import { alias } from 'drizzle-orm-sqlite';
-import { drizzle } from 'drizzle-orm-sqlite/bun';
+import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { asc, eq } from 'drizzle-orm/expressions';
 import { placeholder } from 'drizzle-orm/sql';
+import { alias } from 'drizzle-orm/sqlite-core';
 import { bench, group, run } from 'mitata';
 
 import { customerIds, customerSearches, employeeIds, orderIds, productSearches } from './meta';
-import { employees, customers, suppliers, products, orders, details } from './schema';
+import { customers, details, employees, orders, products, suppliers } from './schema';
 
 const sqlite = new Database('northwind.db');
 const db = drizzle(sqlite);
@@ -83,7 +83,7 @@ group({ name: 'drizzle', summary: false }, () => {
 
 	bench('SELECT * FROM employee WHERE id = ? LEFT JOIN reportee', () => {
 		employeeIds.forEach((id) => {
-      // due to a known bug https://github.com/oven-sh/bun/issues/1646
+			// due to a known bug https://github.com/oven-sh/bun/issues/1646
 			// d5.all({ employeeId: id });
 		});
 	});
@@ -104,7 +104,7 @@ group({ name: 'drizzle', summary: false }, () => {
 
 	bench('SELECT * FROM order WHERE order_id = ? LEFT JOIN details + products', () => {
 		orderIds.forEach((id) => {
-      // due to a known bug https://github.com/oven-sh/bun/issues/1646 
+			// due to a known bug https://github.com/oven-sh/bun/issues/1646
 			// d9.all({ orderId: id });
 		});
 	});

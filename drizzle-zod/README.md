@@ -20,7 +20,7 @@
 # Usage
 
 ```ts
-import { pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm-pg';
+import { pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { createInsertSchema } from 'drizzle-zod';
 

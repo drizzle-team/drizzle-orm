@@ -9,9 +9,6 @@ jobs:
       matrix:
         package:
           - drizzle-orm
-          - drizzle-orm-mysql
-          - drizzle-orm-pg
-          - drizzle-orm-sqlite
           - drizzle-zod
     runs-on: ubuntu-20.04
     steps:

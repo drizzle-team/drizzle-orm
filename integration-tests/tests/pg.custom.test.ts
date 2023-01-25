@@ -1,33 +1,16 @@
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
-import {
-	alias,
-	boolean,
-	customType,
-	foreignKey,
-	InferModel,
-	integer,
-	isPgSchema,
-	jsonb,
-	PgDatabase,
-	pgSchema,
-	pgTable,
-	serial,
-	text,
-	timestamp,
-	uniqueIndex,
-} from 'drizzle-orm-pg';
-import { drizzle, NodePgDatabase } from 'drizzle-orm-pg/node';
-import { migrate } from 'drizzle-orm-pg/node/migrator';
-import { getTableConfig } from 'drizzle-orm-pg/utils';
 import { asc, eq } from 'drizzle-orm/expressions';
+import { drizzle, NodePgDatabase } from 'drizzle-orm/node-pg';
+import { migrate } from 'drizzle-orm/node-pg/migrator';
+import { alias, customType, InferModel, pgTable, serial, text } from 'drizzle-orm/pg-core';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
 
-const customSerial = customType<{ data: number, notNull: true, default: true }>({
+const customSerial = customType<{ data: number; notNull: true; default: true }>({
 	dataType() {
 		return 'serial';
 	},
@@ -55,7 +38,6 @@ const customJsonb = <TData>(name: string) =>
 		},
 	})(name);
 
-    
 const customTimestamp = customType<
 	{ data: Date; driverData: string; config: { withTimezone: boolean; precision?: number } }
 >({

@@ -8,6 +8,5 @@
 			"~/*": ["src/*"]
 		}
 	},
-	"include": ["src"],
-	"types": ["bun-types", "@cloudflare/workers-types"]
+	"include": ["src"]
 }

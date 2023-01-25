@@ -1,14 +1,14 @@
-import { Logger, NoopLogger } from 'drizzle-orm';
-import { fillPlaceholders, Query } from 'drizzle-orm/sql';
-import { mapResultRow } from 'drizzle-orm/utils';
 import { BindParams, Database, Statement } from 'sql.js';
-import { SQLiteSyncDialect } from '~/dialect';
-import { SelectFieldsOrdered } from '~/operations';
+import { Logger, NoopLogger } from '~/logger';
+import { fillPlaceholders, Query } from '~/sql';
+import { SQLiteSyncDialect } from '~/sqlite-core/dialect';
+import { SelectFieldsOrdered } from '~/sqlite-core/operations';
 import {
 	PreparedQuery as PreparedQueryBase,
 	PreparedQueryConfig as PreparedQueryConfigBase,
 	SQLiteSession,
-} from '~/session';
+} from '~/sqlite-core/session';
+import { mapResultRow } from '~/utils';
 
 export interface SQLJsSessionOptions {
 	logger?: Logger;

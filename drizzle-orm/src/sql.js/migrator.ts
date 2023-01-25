@@ -1,4 +1,4 @@
-import { MigrationConfig, readMigrationFiles } from 'drizzle-orm/migrator';
+import { MigrationConfig, readMigrationFiles } from '~/migrator';
 import { SQLJsDatabase } from './driver';
 
 export function migrate(db: SQLJsDatabase, config: string | MigrationConfig) {

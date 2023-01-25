@@ -1,7 +1,7 @@
-import { Logger } from 'drizzle-orm';
 import { Sql } from 'postgres';
-import { PgDatabase } from '~/db';
-import { PgDialect } from '~/dialect';
+import { Logger } from '~/logger';
+import { PgDatabase } from '~/pg-core/db';
+import { PgDialect } from '~/pg-core/dialect';
 import { PostgresJsQueryResultHKT, PostgresJsSession } from './session';
 
 export interface DrizzleConfig {

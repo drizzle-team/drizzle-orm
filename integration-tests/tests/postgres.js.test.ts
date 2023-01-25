@@ -1,10 +1,10 @@
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
-import { alias, boolean, InferModel, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm-pg';
-import { drizzle, PostgresJsDatabase } from 'drizzle-orm-pg/postgres.js';
-import { migrate } from 'drizzle-orm-pg/postgres.js/migrator';
 import { asc, eq } from 'drizzle-orm/expressions';
+import { alias, boolean, InferModel, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres.js';
+import { migrate } from 'drizzle-orm/postgres.js/migrator';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import postgres, { Sql } from 'postgres';

@@ -4,29 +4,29 @@
 
 ```bash
 # npm
-npm i drizzle-orm drizzle-orm-pg postgres
+npm i drizzle-orm postgres
 npm i -D drizzle-kit
 
 # yarn
-yarn add drizzle-orm drizzle-orm-pg postgres
+yarn add drizzle-orm postgres
 yarn add -D drizzle-kit
 
 # pnpm
-pnpm add drizzle-orm drizzle-orm-pg postgres
+pnpm add drizzle-orm postgres
 pnpm add -D drizzle-kit
 ```
 
 ## Connection
 
 ```typescript
-import { drizzle, PostgresJsDatabase } from 'drizzle-orm-pg/postgres.js';
+import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres.js';
 import postgres from 'postgres';
 
 const client = postgres(connectionString);
 const db: PostgresJsDatabase = drizzle(client);
 ```
 
-See [main docs](/drizzle-orm-pg/README.md#sql-schema-declaration) for further usage.
+See [main docs](/drizzle-orm/src/pg-core/README.md#sql-schema-declaration) for further usage.
 
 ## Running migrations
 
@@ -34,7 +34,7 @@ In order to run the migrations, [you need to use `max: 1` in the postgres.js con
 
 ```typescript
 import postgres from 'postgres';
-import { migrate } from 'drizzle-orm-pg/postgres.js/migrator';
+import { migrate } from 'drizzle-orm/postgres.js/migrator';
 
 const migrationsClient = postgres(connectionString, {
   max: 1,
@@ -43,4 +43,4 @@ const db = drizzle(migrationsClient);
 await migrate(db, { migrationsFolder: '...' });
 ```
 
-See [main migrations docs](/drizzle-orm-pg/README.md#migrations) for further info.
+See [main migrations docs](/drizzle-orm/src/pg-core/README.md#migrations) for further info.

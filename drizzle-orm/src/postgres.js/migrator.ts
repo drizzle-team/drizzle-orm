@@ -1,4 +1,4 @@
-import { MigrationConfig, readMigrationFiles } from 'drizzle-orm/migrator';
+import { MigrationConfig, readMigrationFiles } from '~/migrator';
 import { PostgresJsDatabase } from './driver';
 
 export async function migrate(db: PostgresJsDatabase, config: string | MigrationConfig) {

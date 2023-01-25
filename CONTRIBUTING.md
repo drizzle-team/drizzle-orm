@@ -32,18 +32,23 @@ There are several ways how you can provide a feedback
 
 ## <a name="contributing"></a> Contribution guidelines
 ---
-1. [General setup](#general-setup)
-    - [Install node](#installing-node)
-    - [Install pnpm](#installing-pnpm)
-    - [Install docker](#installing-docker)
-2. [Local project setup](#local-project-setup)
-    - [Clone project](#clone-project)
-3. [Building project](#building-project)
-    - [Build project](#build-project)
-    - [Run tests](#run-tests)
-4. [Commits and PRs](#commits-pr)
-    - [Commit guideline](#commit-guideline)
-    - [PR guideline](#pr-guideline)
+- [Contributing](#contributing)
+  - [ Submitting bug report](#-submitting-bug-report)
+  - [ Submitting feature request](#-submitting-feature-request)
+  - [ Providing feedback](#-providing-feedback)
+  - [ Contribution guidelines](#-contribution-guidelines)
+  - [ General setup](#-general-setup)
+    - [ Installing node](#-installing-node)
+    - [ Install pnpm](#-install-pnpm)
+    - [ Install docker](#-install-docker)
+  - [ Local project setup](#-local-project-setup)
+    - [ Clone project](#-clone-project)
+  - [ Building project](#-building-project)
+    - [ Build project](#-build-project)
+    - [ Run tests](#-run-tests)
+  - [ Commits and PRs](#-commits-and-prs)
+    - [ Commit guideline](#-commit-guideline)
+    - [ PR guideline](#-pr-guideline)
 
 ## <a name="general-setup"></a> General setup
 ### <a name="installing-node"></a> Installing node
@@ -84,11 +89,11 @@ Project sctructure
 
 📂 changelogs/ - all changelogs by modules
 
-📂 drizzle-orm-pg/ - package with all resources for PostgreSQL database support
+📂 drizzle-orm/src/pg-core/ - package with all resources for PostgreSQL database support
 
-📂 drizzle-orm-sqlite/ - package with all resources for SQLite database support
+📂 drizzle-orm/src/sqlite-core/ - package with all resources for SQLite database support
 
-📂 drizzle-orm-mysql/ - package with all resources for MySQL database support
+📂 drizzle-orm/src/mysql-core/ - package with all resources for MySQL database support
 
 📂 examples/ - package with Drizzle ORM usage examples
 
@@ -118,7 +123,7 @@ Commit message patten
 ```
 Example
 ```
-drizzle-orm-pg: Add groupBy error message
+drizzle-orm: [Pg] Add groupBy error message
 
 In specific case, groupBy was responding with unreadable error
 ...

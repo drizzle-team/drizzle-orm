@@ -29,9 +29,33 @@ importers:
 
   drizzle-orm:
     specifiers:
+      '@cloudflare/workers-types': ^3.18.0
+      '@neondatabase/serverless': ^0.1.13
+      '@types/better-sqlite3': ^7.6.2
       '@types/node': ^18.11.9
+      '@types/pg': ^8.6.5
+      '@types/sql.js': ^1.4.4
+      better-sqlite3: ^7.6.2
+      bun-types: ^0.5.0
+      mysql2: ^2.3.3
+      pg: ^8.8.0
+      postgres: ^3.3.3
+      sql.js: ^1.8.0
+      sqlite3: ^5.1.2
     devDependencies:
+      '@cloudflare/workers-types': 3.18.0
+      '@neondatabase/serverless': 0.1.13
+      '@types/better-sqlite3': 7.6.3
       '@types/node': 18.11.18
+      '@types/pg': 8.6.6
+      '@types/sql.js': 1.4.4
+      better-sqlite3: 7.6.2
+      bun-types: 0.5.0
+      mysql2: 2.3.3
+      pg: 8.8.0
+      postgres: 3.3.3
+      sql.js: 1.8.0
+      sqlite3: 5.1.4
 
   drizzle-orm-mysql:
     specifiers:
@@ -1198,6 +1222,10 @@ packages:
 
   /bun-types/0.2.2:
     resolution: {integrity: sha512-/1IPC/PPWvV39I7uulBcWHL0Xpi1BqvwF34R/2gRwt0/l5MJB1gt15GLwLP33d59EnkOdRYibImuCg0l/9BRng==}
+    dev: true
+
+  /bun-types/0.5.0:
+    resolution: {integrity: sha512-W74XkTKdOP2HV1PbzL7k6+8TZlcJyj1IuD7y9wX2SiHIaVjlqVwM9fXgsCvTlQQqkkkyZxSPSDFF10J6qml2eA==}
     dev: true
 
   /busboy/1.6.0:

@@ -1,10 +1,16 @@
-import { Logger, NoopLogger } from 'drizzle-orm';
-import { fillPlaceholders, Query } from 'drizzle-orm/sql';
-import { mapResultRow } from 'drizzle-orm/utils';
 import { Connection, Pool, QueryOptions } from 'mysql2/promise';
-import { MySqlDialect } from '~/dialect';
-import { SelectFieldsOrdered } from '~/operations';
-import { MySqlQueryResult, MySqlQueryResultType, MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/session';
+import { Logger, NoopLogger } from '~/logger';
+import { MySqlDialect } from '~/mysql-core/dialect';
+import { SelectFieldsOrdered } from '~/mysql-core/operations';
+import {
+	MySqlQueryResult,
+	MySqlQueryResultType,
+	MySqlSession,
+	PreparedQuery,
+	PreparedQueryConfig,
+} from '~/mysql-core/session';
+import { fillPlaceholders, Query } from '~/sql';
+import { mapResultRow } from '~/utils';
 
 export type MySql2Client = Pool | Connection;
 

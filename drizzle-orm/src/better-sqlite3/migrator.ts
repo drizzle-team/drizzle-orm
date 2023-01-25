@@ -1,4 +1,4 @@
-import { MigrationConfig, readMigrationFiles } from 'drizzle-orm/migrator';
+import { MigrationConfig, readMigrationFiles } from '~/migrator';
 import { BetterSQLite3Database } from './driver';
 
 export function migrate(db: BetterSQLite3Database, config: string | MigrationConfig) {

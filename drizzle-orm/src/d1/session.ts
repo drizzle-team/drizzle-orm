@@ -1,13 +1,15 @@
-import { Logger, NoopLogger } from 'drizzle-orm';
-import { fillPlaceholders, Query } from 'drizzle-orm/sql';
-import { mapResultRow } from 'drizzle-orm/utils';
-import { SQLiteAsyncDialect } from '~/dialect';
-import { SelectFieldsOrdered } from '~/operations';
+/// <reference types="@cloudflare/workers-types" />
+
+import { Logger, NoopLogger } from '~/logger';
+import { fillPlaceholders, Query } from '~/sql';
+import { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
+import { SelectFieldsOrdered } from '~/sqlite-core/operations';
 import {
 	PreparedQuery as PreparedQueryBase,
 	PreparedQueryConfig as PreparedQueryConfigBase,
 	SQLiteSession,
-} from '~/session';
+} from '~/sqlite-core/session';
+import { mapResultRow } from '~/utils';
 
 export interface SQLiteD1SessionOptions {
 	logger?: Logger;
@@ -28,7 +30,7 @@ export class SQLiteD1Session extends SQLiteSession<'async', D1Result> {
 	}
 
 	exec(query: string): void {
-		throw Error('To implement: D1 migrator')
+		throw Error('To implement: D1 migrator');
 		// await this.client.exec(query.sql);
 	}
 
