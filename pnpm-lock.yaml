@@ -57,63 +57,15 @@ importers:
       sql.js: 1.8.0
       sqlite3: 5.1.4
 
-  drizzle-orm-mysql:
-    specifiers:
-      '@types/node': ^18.11.12
-      drizzle-orm: link:../drizzle-orm/dist
-      mysql2: ^2.3.3
-    devDependencies:
-      '@types/node': 18.11.18
-      drizzle-orm: link:../drizzle-orm/dist
-      mysql2: 2.3.3
-
-  drizzle-orm-pg:
-    specifiers:
-      '@neondatabase/serverless': ^0.1.13
-      '@types/pg': ^8.6.5
-      drizzle-orm: link:../drizzle-orm/dist
-      pg: ^8.8.0
-      postgres: ^3.3.3
-    devDependencies:
-      '@neondatabase/serverless': 0.1.13
-      '@types/pg': 8.6.6
-      drizzle-orm: link:../drizzle-orm/dist
-      pg: 8.8.0
-      postgres: 3.3.3
-
-  drizzle-orm-sqlite:
-    specifiers:
-      '@cloudflare/workers-types': ^3.18.0
-      '@types/better-sqlite3': ^7.6.2
-      '@types/sql.js': ^1.4.4
-      better-sqlite3: ^7.6.2
-      drizzle-orm: link:../drizzle-orm/dist
-      sql.js: ^1.8.0
-      sqlite3: ^5.1.2
-    devDependencies:
-      '@cloudflare/workers-types': 3.18.0
-      '@types/better-sqlite3': 7.6.3
-      '@types/sql.js': 1.4.4
-      better-sqlite3: 7.6.2
-      drizzle-orm: link:../drizzle-orm/dist
-      sql.js: 1.8.0
-      sqlite3: 5.1.4
-
   drizzle-zod:
     specifiers:
       ava: ^5.1.0
       drizzle-orm: link:../drizzle-orm/dist
-      drizzle-orm-mysql: link:../drizzle-orm-mysql/dist
-      drizzle-orm-pg: link:../drizzle-orm-pg/dist
-      drizzle-orm-sqlite: link:../drizzle-orm-sqlite/dist
       tsx: ^3.12.2
       zod: ^3.20.2
     devDependencies:
       ava: 5.1.1
       drizzle-orm: link:../drizzle-orm/dist
-      drizzle-orm-mysql: link:../drizzle-orm-mysql/dist
-      drizzle-orm-pg: link:../drizzle-orm-pg/dist
-      drizzle-orm-sqlite: link:../drizzle-orm-sqlite/dist
       tsx: 3.12.2
       zod: 3.20.2
 
@@ -124,14 +76,12 @@ importers:
       better-sqlite3: ^8.0.0
       drizzle-kit: ^0.12.18
       drizzle-orm: 0.14.2
-      drizzle-orm-sqlite: 0.14.2
       itty-router: ^2.6.6
       itty-router-extras: ^0.4.2
       typescript: ^4.9.3
       wrangler: ^2.4.2
     dependencies:
-      drizzle-orm: 0.14.2_drizzle-orm-sqlite@0.14.2
-      drizzle-orm-sqlite: 0.14.2_zlc2hznpyo77b3lwadvfeyduza
+      drizzle-orm: 0.14.2
       itty-router: 2.6.6
       itty-router-extras: 0.4.2
     devDependencies:
@@ -154,9 +104,6 @@ importers:
       better-sqlite3: ^7.6.2
       dockerode: ^3.3.4
       drizzle-orm: workspace:../drizzle-orm/dist
-      drizzle-orm-mysql: workspace:../drizzle-orm-mysql/dist
-      drizzle-orm-pg: workspace:../drizzle-orm-pg/dist
-      drizzle-orm-sqlite: workspace:../drizzle-orm-sqlite/dist
       get-port: ^6.1.2
       mysql2: ^2.3.3
       pg: ^8.8.0
@@ -170,9 +117,6 @@ importers:
       better-sqlite3: 7.6.2
       dockerode: 3.3.4
       drizzle-orm: link:../drizzle-orm/dist
-      drizzle-orm-mysql: link:../drizzle-orm-mysql/dist
-      drizzle-orm-pg: link:../drizzle-orm-pg/dist
-      drizzle-orm-sqlite: link:../drizzle-orm-sqlite/dist
       get-port: 6.1.2
       mysql2: 2.3.3
       pg: 8.8.0
@@ -450,6 +394,7 @@ packages:
 
   /@cloudflare/workers-types/3.18.0:
     resolution: {integrity: sha512-ehKOJVLMeR+tZkYhWEaLYQxl0TaIZu/kE86HF3/RidR8Xv5LuQxpbh+XXAoKVqsaphWLhIgBhgnlN5HGdheXSQ==}
+    dev: true
 
   /@esbuild-kit/cjs-loader/2.4.1:
     resolution: {integrity: sha512-lhc/XLith28QdW0HpHZvZKkorWgmCNT7sVelMHDj3HFdTfdqkwEKvT+aXVQtNAmCC39VJhunDkWhONWB7335mg==}
@@ -1140,6 +1085,7 @@ packages:
     dependencies:
       bindings: 1.5.0
       prebuild-install: 7.1.1
+    dev: true
 
   /binary-extensions/2.2.0:
     resolution: {integrity: sha512-jDctJ/IVQbZoJykoeHbhXpOlNBqGNcwXJKJog42E5HDPUwQTSdjCHdihjj0DlnheQ7blbT6dHOafNAiS8ooQKA==}
@@ -1656,30 +1602,7 @@ packages:
       - supports-color
     dev: true
 
-  /drizzle-orm-sqlite/0.14.2_zlc2hznpyo77b3lwadvfeyduza:
-    resolution: {integrity: sha512-q5lB0A2rHLNEkBK5ROj/y9hB1e7cCB7aPQ8borFdl4oBwDkWtEpy90FCa/nWv/dUx5SQ0gaoT1hEL4G30FWQnA==}
-    peerDependencies:
-      '@cloudflare/workers-types': '>=3 <4'
-      '@types/better-sqlite3': '>=7 <9'
-      better-sqlite3: '>=7 <9'
-      drizzle-orm: '>=0.14 <0.15'
-      sqlite3: '>=5 <6'
-    peerDependenciesMeta:
-      '@cloudflare/workers-types':
-        optional: true
-      '@types/better-sqlite3':
-        optional: true
-      better-sqlite3:
-        optional: true
-      sqlite3:
-        optional: true
-    dependencies:
-      '@cloudflare/workers-types': 3.18.0
-      better-sqlite3: 8.0.1
-      drizzle-orm: 0.14.2_drizzle-orm-sqlite@0.14.2
-    dev: false
-
-  /drizzle-orm/0.14.2_drizzle-orm-sqlite@0.14.2:
+  /drizzle-orm/0.14.2:
     resolution: {integrity: sha512-5eUH81oXQ1GCpsEDPlX3LqX5RzDuO3uWp50yEKMb5GYyWkA0t5gBbMxpIdjYoxeP3xv4g+IkhlTuxXkK/70/5g==}
     peerDependencies:
       drizzle-orm-mysql: '>=0.14 <0.15'
@@ -1692,8 +1615,6 @@ packages:
         optional: true
       drizzle-orm-sqlite:
         optional: true
-    dependencies:
-      drizzle-orm-sqlite: 0.14.2_zlc2hznpyo77b3lwadvfeyduza
     dev: false
 
   /eastasianwidth/0.2.0:
