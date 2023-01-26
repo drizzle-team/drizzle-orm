@@ -1,5 +1,5 @@
 import test, { ExecutionContext } from 'ava';
-import { pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-common';
+import { pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { createInsertSchema } from '../src/pg';
 
