@@ -1,7 +1,9 @@
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm/expressions';
 import {
+	alias,
 	boolean,
 	date,
 	datetime,
@@ -9,14 +11,15 @@ import {
 	MySqlDatabase,
 	mysqlEnum,
 	mysqlTable,
+	serial,
+	text,
 	time,
+	timestamp,
 	uniqueIndex,
 	year,
-} from 'drizzle-orm-mysql';
-import { alias, serial, text, timestamp } from 'drizzle-orm-mysql';
-import { drizzle } from 'drizzle-orm-mysql/mysql2';
-import { migrate } from 'drizzle-orm-mysql/mysql2/migrator';
-import { asc, eq } from 'drizzle-orm/expressions';
+} from 'drizzle-orm/mysql-core';
+import { drizzle } from 'drizzle-orm/mysql2';
+import { migrate } from 'drizzle-orm/mysql2/migrator';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';

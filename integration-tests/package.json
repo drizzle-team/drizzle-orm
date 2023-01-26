@@ -36,9 +36,6 @@
 		"better-sqlite3": "^7.6.2",
 		"dockerode": "^3.3.4",
 		"drizzle-orm": "workspace:../drizzle-orm/dist",
-		"drizzle-orm-mysql": "workspace:../drizzle-orm-mysql/dist",
-		"drizzle-orm-pg": "workspace:../drizzle-orm-pg/dist",
-		"drizzle-orm-sqlite": "workspace:../drizzle-orm-sqlite/dist",
 		"get-port": "^6.1.2",
 		"mysql2": "^2.3.3",
 		"pg": "^8.8.0",
@@ -46,6 +43,7 @@
 		"sql.js": "^1.8.0",
 		"sqlite3": "^5.1.4",
 		"uuid": "^9.0.0",
-		"uvu": "^0.5.6"
+		"uvu": "^0.5.6",
+		"zod": "^3.20.2"
 	}
 }

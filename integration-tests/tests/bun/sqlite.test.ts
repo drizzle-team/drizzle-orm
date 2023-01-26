@@ -1,7 +1,7 @@
 import { Database } from 'bun:sqlite';
 import { DefaultLogger, sql } from 'drizzle-orm';
-import { blob, integer, SQLiteDatabase, sqliteTable, text } from 'drizzle-orm-sqlite';
-import { SQLiteBunConnector } from 'drizzle-orm-sqlite/bun';
+import { BunSQLiteDatabase, drizzle } from 'drizzle-orm/bun-sqlite';
+import { blob, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { suite } from 'uvu';
 import * as assert from 'uvu/assert';
 
@@ -14,8 +14,7 @@ const usersTable = sqliteTable('users', {
 });
 
 interface Context {
-	db: SQLiteDatabase;
-	client: Database;
+	db: BunSQLiteDatabase;
 }
 
 const test = suite<Context>('sqlite-bun');
@@ -24,8 +23,8 @@ test.before((ctx) => {
 	try {
 		const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
 
-		ctx.client = new Database(dbPath);
-		ctx.db = new SQLiteBunConnector(ctx.client, { logger: new DefaultLogger() }).connect();
+		const client = new Database(dbPath);
+		ctx.db = drizzle(client, { logger: new DefaultLogger() });
 	} catch (e) {
 		console.error(e);
 	}

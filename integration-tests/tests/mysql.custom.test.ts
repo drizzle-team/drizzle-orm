@@ -1,31 +1,29 @@
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm/expressions';
 import {
-	boolean,
+	alias,
+	customType,
 	date,
 	datetime,
-	int,
-	json,
 	MySqlDatabase,
 	mysqlEnum,
 	mysqlTable,
+	serial,
+	text,
 	time,
 	uniqueIndex,
-	varchar,
 	year,
-    customType
-} from 'drizzle-orm-mysql';
-import { alias, InferModel, serial, text, timestamp } from 'drizzle-orm-mysql';
-import { drizzle } from 'drizzle-orm-mysql/mysql2';
-import { migrate } from 'drizzle-orm-mysql/mysql2/migrator';
-import { asc, eq } from 'drizzle-orm/expressions';
+} from 'drizzle-orm/mysql-core';
+import { drizzle } from 'drizzle-orm/mysql2';
+import { migrate } from 'drizzle-orm/mysql2/migrator';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
 
-const customSerial = customType<{ data: number, notNull: true, default: true }>({
+const customSerial = customType<{ data: number; notNull: true; default: true }>({
 	dataType() {
 		return 'serial';
 	},
@@ -41,12 +39,12 @@ const customBoolean = customType<{ data: boolean }>({
 	dataType() {
 		return 'boolean';
 	},
-    fromDriver(value) {
-        if (typeof value === 'boolean') {
+	fromDriver(value) {
+		if (typeof value === 'boolean') {
 			return value;
 		}
 		return value === 1;
-    },
+	},
 });
 
 const customJson = <TData>(name: string) =>
@@ -59,9 +57,8 @@ const customJson = <TData>(name: string) =>
 		},
 	})(name);
 
-    
 const customTimestamp = customType<
-	{ data: Date; driverData: string; config: { fsp: number; } }
+	{ data: Date; driverData: string; config: { fsp: number } }
 >({
 	dataType(config) {
 		const precision = typeof config.fsp !== 'undefined' ? ` (${config.fsp})` : '';

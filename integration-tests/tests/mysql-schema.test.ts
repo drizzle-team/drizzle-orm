@@ -1,31 +1,27 @@
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm/expressions';
 import {
+	alias,
 	boolean,
 	date,
 	datetime,
-	foreignKey,
-	int,
 	json,
 	MySqlDatabase,
 	mysqlEnum,
 	mysqlSchema,
 	mysqlTable,
+	serial,
+	text,
 	time,
-	uniqueIndex,
-	varchar,
+	timestamp,
 	year,
-} from 'drizzle-orm-mysql';
-import { alias, InferModel, serial, text, timestamp } from 'drizzle-orm-mysql';
-import { drizzle } from 'drizzle-orm-mysql/mysql2';
-import { migrate } from 'drizzle-orm-mysql/mysql2/migrator';
-import { getTableConfig } from 'drizzle-orm-mysql/utils';
-import { asc, eq, inArray } from 'drizzle-orm/expressions';
+} from 'drizzle-orm/mysql-core';
+import { drizzle } from 'drizzle-orm/mysql2';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
-import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
 
 const mySchema = mysqlSchema('mySchema');
