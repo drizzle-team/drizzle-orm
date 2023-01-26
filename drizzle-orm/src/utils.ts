@@ -8,6 +8,10 @@ import { DriverValueDecoder, noopDecoder, SQL } from './sql';
  */
 export const apiVersion = 2;
 export const compatibilityVersion = 2;
+/**
+ * @deprecated
+ * Use version from `package.json` instead.
+ */
 export const npmVersion = '0.15.0';
 
 export function mapResultRow<TResult>(
