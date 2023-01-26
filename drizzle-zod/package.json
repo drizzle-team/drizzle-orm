@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-zod",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "Generate Zod schemas from Drizzle ORM schemas",
 	"scripts": {
 		"build": "tsc && resolve-tspaths && cp README.md package.json dist/",
@@ -41,20 +41,12 @@
 	"author": "Drizzle Team",
 	"license": "Apache-2.0",
 	"peerDependencies": {
-		"drizzle-orm-pg": ">=0.15 <0.16",
+		"drizzle-orm": ">=0.17",
 		"zod": ">=3 <4"
-	},
-	"peerDependenciesMeta": {
-		"drizzle-orm-pg": {
-			"optional": true
-		}
 	},
 	"devDependencies": {
 		"ava": "^5.1.0",
 		"drizzle-orm": "link:../drizzle-orm/dist",
-		"drizzle-orm-mysql": "link:../drizzle-orm-mysql/dist",
-		"drizzle-orm-pg": "link:../drizzle-orm-pg/dist",
-		"drizzle-orm-sqlite": "link:../drizzle-orm-sqlite/dist",
 		"tsx": "^3.12.2",
 		"zod": "^3.20.2"
 	}

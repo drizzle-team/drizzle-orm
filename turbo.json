@@ -27,7 +27,7 @@
 			"outputMode": "new-only"
 		},
 		"pack": {
-			"dependsOn": ["build"],
+			"dependsOn": ["build", "test:types"],
 			"inputs": ["dist/**"],
 			"outputs": ["package.tgz"],
 			"outputMode": "new-only"

@@ -3,7 +3,14 @@ name: Release (latest)
 on: workflow_dispatch
 
 jobs:
-  build:
+  release:
+    permissions: write-all
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - drizzle-orm
+          - drizzle-zod
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3
@@ -18,42 +25,10 @@ jobs:
           version: latest
           run_install: true
 
-      - name: Build & pack
-        run: pnpm run pack
-
-      - name: Upload dist
-        uses: actions/upload-artifact@v2
-        with:
-          name: dist
-          path: |
-            */package.tgz
-
-  release:
-    needs:
-      - build
-    strategy:
-      matrix:
-        package:
-          - drizzle-orm
-          - drizzle-orm-mysql
-          - drizzle-orm-pg
-          - drizzle-orm-sqlite
-          - drizzle-zod
-    runs-on: ubuntu-20.04
-    steps:
-      - uses: actions/checkout@v3
-
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 16
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Download dist
-        uses: actions/download-artifact@v3
-        with:
-          name: dist
-
-      - name: Publish
+      - name: Check preconditions
+        id: checks
+        shell: bash
+        working-directory: ${{ matrix.package }}
         run: |
           latest="$(npm view --json ${{ matrix.package }} dist-tags.latest | jq -r)"
           version="$(jq -r .version package.json)"
@@ -62,21 +37,74 @@ jobs:
             echo "Latest:  $latest"
             echo "Current: $version"
 
-            is_version_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
-            if [[ "$is_version_published" == "true" ]]; then
-              echo "Version $version already published, adding tag $tag"
-              npm dist-tag add ${{ matrix.package }}@$version latest
-            else
-              echo echo "Publishing ${{ matrix.package }}@$version"
-              npm run publish
+            changelogPath=$(node -e "console.log(require('path').resolve('..', 'changelogs', '${{ matrix.package }}', '$version.md'))")
+            if [[ ! -f "$changelogPath" ]]; then
+              echo "::error::Changelog for version $version not found: $changelogPath"
+              exit 1
             fi
 
-            # Post release message to Discord
-            curl -X POST -H "Content-Type: application/json" -d "{\"embeds\": [{\"title\": \"New \`${{ matrix.package }}\` release! 🎉\", \"url\": \"https://www.npmjs.com/package/${{ matrix.package }}\", \"color\": \"12907856\", \"fields\": [{\"name\": \"Tag\", \"value\": \"\`$tag\`\"}]}]}" ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
+            {
+              echo "version=$version"
+              echo "has_new_release=true"
+              echo "changelog_path=$changelogPath"
+            } >> $GITHUB_OUTPUT
           else
             echo "Already up to date: $version"
+            echo "\`$version\` is already latest on NPM" >> $GITHUB_STEP_SUMMARY
           fi
+
+      - name: Publish
+        if: steps.checks.outputs.has_new_release == 'true'
         working-directory: ${{ matrix.package }}
         shell: bash
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
+        run: |
+          version="${{ steps.checks.outputs.version }}"
+          is_version_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
+
+          if [[ "$is_version_published" == "true" ]]; then
+            echo "Version $version already published, adding tag $tag"
+            npm dist-tag add ${{ matrix.package }}@$version latest
+          else
+            echo echo "Publishing ${{ matrix.package }}@$version"
+            (cd .. && npm run pack -- --filter ${{ matrix.package }})
+            npm run publish
+          fi
+
+          echo "npm: \`+ ${{ matrix.package }}@$version\`" >> $GITHUB_STEP_SUMMARY
+
+          # Post release message to Discord
+          curl -X POST -H "Content-Type: application/json" -d "{\"embeds\": [{\"title\": \"New \`${{ matrix.package }}\` release! 🎉\", \"url\": \"https://www.npmjs.com/package/${{ matrix.package }}\", \"color\": \"12907856\", \"fields\": [{\"name\": \"Tag\", \"value\": \"\`$tag\`\"}]}]}" ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
+
+      - name: Create GitHub release for ORM package
+        uses: actions/github-script@v6
+        if: matrix.package == 'drizzle-orm' && steps.checks.outputs.has_new_release == 'true'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            try {
+              const fs = require("fs");
+              const path = require("path");
+
+              const version = "${{ steps.checks.outputs.version }}";
+              const changelog = fs.readFileSync("${{ steps.checks.outputs.changelog_path }}", "utf8");
+
+              const release = await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: `${version}`,
+                name: `${version}`,
+                body: changelog,
+              });
+
+              await github.rest.repos.uploadReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: release.data.id,
+                name: `${{ matrix.package }}-${version}-dist.tgz`,
+                data: fs.readFileSync(path.resolve("${{ matrix.package }}", "package.tgz")),
+              });
+            } catch (e) {
+              core.setFailed(e.message);
+            }

@@ -6,7 +6,12 @@ on:
       - main
 
 jobs:
-  build:
+  release:
+    strategy:
+      matrix:
+        package:
+          - drizzle-orm
+          - drizzle-zod
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3
@@ -21,42 +26,7 @@ jobs:
           version: latest
           run_install: true
 
-      - name: Build
-        run: pnpm run build
-
-      - name: Upload dist
-        uses: actions/upload-artifact@v2
-        with:
-          name: dist
-          path: |
-            */dist
-
-  release:
-    needs:
-      - build
-    strategy:
-      matrix:
-        package:
-          - drizzle-orm
-          - drizzle-orm-mysql
-          - drizzle-orm-pg
-          - drizzle-orm-sqlite
-          - drizzle-zod
-    runs-on: ubuntu-20.04
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Download dist
-        uses: actions/download-artifact@v3
-        with:
-          name: dist
-
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 16
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Publish
+      - name: Build & publish
         run: |
           tag="${{ github.ref_name }}"
           old_version="$(jq -r .version package.json)"
@@ -69,8 +39,7 @@ jobs:
           else
             echo "Publishing ${{ matrix.package }}@$tag using version $version"
             npm version $version
-
-            npm run pack
+            (cd .. && npm run pack -- --filter ${{ matrix.package }})
             npm run publish -- --tag $tag
           fi
 

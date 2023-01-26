@@ -1,10 +1,10 @@
 import anyTest, { TestFn } from 'ava';
 import { sql } from 'drizzle-orm';
-import { alias, blob, InferModel, integer, primaryKey, sqliteTable, text } from 'drizzle-orm-sqlite';
-import { drizzle, SQLJsDatabase } from 'drizzle-orm-sqlite/sql.js';
-import { migrate } from 'drizzle-orm-sqlite/sql.js/migrator';
 import { asc, eq } from 'drizzle-orm/expressions';
 import { name, placeholder } from 'drizzle-orm/sql';
+import { drizzle, SQLJsDatabase } from 'drizzle-orm/sql.js';
+import { migrate } from 'drizzle-orm/sql.js/migrator';
+import { alias, blob, InferModel, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import initSqlJs, { Database } from 'sql.js';
 
 const usersTable = sqliteTable('users', {

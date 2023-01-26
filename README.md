@@ -14,7 +14,7 @@ The ORM main philosophy is "If you know SQL, you know Drizzle ORM". We follow th
 
 Drizzle ORM is being battle-tested on production projects by multiple teams 🚀 Give it a try and let us know if you have any questions or feedback on [Discord](https://discord.gg/yfjTbVXMW4).
 
-### Feature list
+## Feature list
 
 - Full type safety
 - [Smart automated migrations generation](https://github.com/drizzle-team/drizzle-kit-mirror)
@@ -25,27 +25,22 @@ Drizzle ORM is being battle-tested on production projects by multiple teams 🚀
 - Auto-inferring of TS types for DB models for selections and insertions separately
 - Zero dependencies
 
-| Database    | Support | 📖 |
+## Database support status
+
+| Database    | Support | |
 |:------------|:-------:|:---|
-| PostgreSQL  | ✅      |[Docs](https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-orm-pg)|
-| MySQL       | ✅      |[Docs](https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-orm-mysql)|
-| SQLite      | ✅      |[Docs](https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-orm-sqlite)|
+| PostgreSQL  | ✅ | [Docs](./drizzle-orm/src/pg-core/README.md)|
+| MySQL       | ✅      |[Docs](./drizzle-orm/src/mysql-core/README.md)|
+| SQLite      | ✅      |[Docs](./drizzle-orm/src/sqlite-core/README.md)|
 | DynamoDB    | ⏳      |            |
 | MS SQL      | ⏳      |            |
 | CockroachDB | ⏳      |            |
 
-### Installation
+## Installation
 
 ```bash
-# postgresql
-npm install drizzle-orm drizzle-orm-pg
-npm install -D drizzle-kit
-
-# mysql
-npm install drizzle-orm drizzle-orm-mysql
-npm install -D drizzle-kit
-
-# sqlite
-npm install drizzle-orm drizzle-orm-sqlite
+npm install drizzle-orm
 npm install -D drizzle-kit
 ```
+
+See [dialect-specific docs](#database-support-status) for more details.
