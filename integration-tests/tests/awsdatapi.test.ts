@@ -1,4 +1,5 @@
 import { RDSDataClient } from '@aws-sdk/client-rds-data';
+import { fromIni } from '@aws-sdk/credential-providers';
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
@@ -88,7 +89,7 @@ test.before(async (t) => {
 	const secretArn = process.env['AWS_DATA_API_SECRET_ARN']!;
 	const resourceArn = process.env['AWS_DATA_API_RESOURCE_ARN']!;
 
-	const rdsClient = new RDSDataClient({});
+	const rdsClient = new RDSDataClient({ credentials: fromIni({ profile: process.env['AWS_TEST_PROFILE'] }) });
 
 	ctx.db = drizzle(rdsClient, {
 		database,
