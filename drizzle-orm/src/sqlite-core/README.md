@@ -170,7 +170,7 @@ column.default(...)
 Declaring indexes, foreign keys and composite primary keys
 
 ```typescript
-import { sqliteTable, foreignKey, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, foreignKey, primaryKey, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const countries = sqliteTable('countries', {
     id: integer('id').primaryKey(),
