@@ -22,7 +22,7 @@
 ```ts
 import { pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
-import { createInsertSchema } from 'drizzle-zod';
+import { createInsertSchema } from 'drizzle-zod/pg';
 
 const users = pgTable('users', {
   id: serial('id').primaryKey(),

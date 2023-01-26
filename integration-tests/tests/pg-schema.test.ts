@@ -2,7 +2,7 @@ import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
 import { asc, eq } from 'drizzle-orm/expressions';
-import { drizzle, NodePgDatabase } from 'drizzle-orm/node-pg';
+import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { alias, boolean, InferModel, jsonb, pgSchema, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
