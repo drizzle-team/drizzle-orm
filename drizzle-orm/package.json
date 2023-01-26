@@ -39,12 +39,13 @@
 		"@types/pg": "*",
 		"@types/sql.js": "*",
 		"better-sqlite3": ">=7 <9",
+		"bun-types": "*",
 		"mysql2": ">=2 <3",
 		"pg": ">=8 <9",
 		"postgres": ">=3 <4",
 		"sql.js": ">=1 <2",
 		"sqlite3": ">=5 <6",
-		"bun-types": "*"
+		"@aws-sdk/client-rds-data": ">=3 <4"
 	},
 	"peerDependenciesMeta": {
 		"mysql2": {
@@ -82,9 +83,13 @@
 		},
 		"bun-types": {
 			"optional": true
+		},
+		"@aws-sdk/client-rds-data": {
+			"optional": true
 		}
 	},
 	"devDependencies": {
+		"@aws-sdk/client-rds-data": "^3.257.0",
 		"@cloudflare/workers-types": "^3.18.0",
 		"@neondatabase/serverless": "^0.1.13",
 		"@types/better-sqlite3": "^7.6.2",
