@@ -1,14 +1,13 @@
+import { RDSDataClient } from '@aws-sdk/client-rds-data';
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
+import { AwsDataApiPgDatabase, drizzle } from 'drizzle-orm/aws-dataapi';
+import { migrate } from 'drizzle-orm/aws-dataapi/migrator';
 import { asc, eq } from 'drizzle-orm/expressions';
-import { drizzle, NodePgDatabase } from 'drizzle-orm/node-pg';
-import { migrate } from 'drizzle-orm/node-pg/migrator';
 import { alias, boolean, InferModel, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { name, placeholder } from 'drizzle-orm/sql';
-import getPort from 'get-port';
 import { Client } from 'pg';
-import { v4 as uuid } from 'uuid';
 
 const usersTable = pgTable('users', {
 	id: serial('id').primaryKey(),
@@ -25,66 +24,77 @@ const usersMigratorTable = pgTable('users12', {
 });
 
 interface Context {
-	docker: Docker;
-	pgContainer: Docker.Container;
-	db: NodePgDatabase;
-	client: Client;
+	// docker: Docker;
+	// pgContainer: Docker.Container;
+	db: AwsDataApiPgDatabase;
+	// client: Client;
 }
 
 const test = anyTest as TestFn<Context>;
 
-async function createDockerDB(ctx: Context): Promise<string> {
-	const docker = (ctx.docker = new Docker());
-	const port = await getPort({ port: 5432 });
-	const image = 'postgres:14';
+// async function createDockerDB(ctx: Context): Promise<string> {
+// 	const docker = (ctx.docker = new Docker());
+// 	const port = await getPort({ port: 5432 });
+// 	const image = 'postgres:14';
 
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
+// 	const pullStream = await docker.pull(image);
+// 	await new Promise((resolve, reject) =>
+// 		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
+// 	);
 
-	const pgContainer = (ctx.pgContainer = await docker.createContainer({
-		Image: image,
-		Env: ['POSTGRES_PASSWORD=postgres', 'POSTGRES_USER=postgres', 'POSTGRES_DB=postgres'],
-		name: `drizzle-integration-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'5432/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	}));
+// 	const pgContainer = (ctx.pgContainer = await docker.createContainer({
+// 		Image: image,
+// 		Env: ['POSTGRES_PASSWORD=postgres', 'POSTGRES_USER=postgres', 'POSTGRES_DB=postgres'],
+// 		name: `drizzle-integration-tests-${uuid()}`,
+// 		HostConfig: {
+// 			AutoRemove: true,
+// 			PortBindings: {
+// 				'5432/tcp': [{ HostPort: `${port}` }],
+// 			},
+// 		},
+// 	}));
 
-	await pgContainer.start();
+// 	await pgContainer.start();
 
-	return `postgres://postgres:postgres@localhost:${port}/postgres`;
-}
+// 	return `postgres://postgres:postgres@localhost:${port}/postgres`;
+// }
 
 test.before(async (t) => {
 	const ctx = t.context;
-	const connectionString = process.env['PG_CONNECTION_STRING'] ?? await createDockerDB(ctx);
+	// const connectionString = process.env['PG_CONNECTION_STRING'] ?? await createDockerDB(ctx);
 
-	let sleep = 250;
-	let timeLeft = 5000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			ctx.client = new Client(connectionString);
-			await ctx.client.connect();
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to Postgres');
-		throw lastError;
-	}
-	ctx.db = drizzle(ctx.client /* , { logger: new DefaultLogger() } */);
+	// let sleep = 250;
+	// let timeLeft = 5000;
+	// let connected = false;
+	// let lastError: unknown | undefined;
+	// do {
+	// 	try {
+	// 		ctx.client = new Client(connectionString);
+	// 		await ctx.client.connect();
+	// 		connected = true;
+	// 		break;
+	// 	} catch (e) {
+	// 		lastError = e;
+	// 		await new Promise((resolve) => setTimeout(resolve, sleep));
+	// 		timeLeft -= sleep;
+	// 	}
+	// } while (timeLeft > 0);
+	// if (!connected) {
+	// 	console.error('Cannot connect to Postgres');
+	// 	throw lastError;
+	// }
+
+	const database = process.env['AWS_DATA_API_DB']!;
+	const secretArn = process.env['AWS_DATA_API_SECRET_ARN']!;
+	const resourceArn = process.env['AWS_DATA_API_RESOURCE_ARN']!;
+
+	const rdsClient = new RDSDataClient({});
+
+	ctx.db = drizzle(rdsClient, {
+		database,
+		secretArn,
+		resourceArn,
+	});
 });
 
 test.beforeEach(async (t) => {
@@ -664,6 +674,6 @@ test.serial('insert with onConflict do nothing + target', async (t) => {
 
 test.after.always(async (t) => {
 	const ctx = t.context;
-	await ctx.client?.end().catch(console.error);
-	await ctx.pgContainer?.stop().catch(console.error);
+	// await ctx.client?.end().catch(console.error);
+	// await ctx.pgContainer?.stop().catch(console.error);
 });

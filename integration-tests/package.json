@@ -33,6 +33,7 @@
 		"tsx": "^3.12.2"
 	},
 	"dependencies": {
+		"@aws-sdk/client-rds-data": "^3.257.0",
 		"better-sqlite3": "^7.6.2",
 		"dockerode": "^3.3.4",
 		"drizzle-orm": "workspace:../drizzle-orm/dist",
