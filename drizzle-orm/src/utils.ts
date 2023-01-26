@@ -4,15 +4,14 @@ import { DriverValueDecoder, noopDecoder, SQL } from './sql';
 
 /**
  * @deprecated
- * Use `compatibilityVersion` instead.
+ * Use `compatibilityVersion` from `drizzle-orm/version` instead.
  */
 export const apiVersion = 2;
-export const compatibilityVersion = 2;
 /**
  * @deprecated
- * Use version from `package.json` instead.
+ * Use `npmVersion` from `drizzle-orm/version` instead.
  */
-export const npmVersion = '0.15.0';
+export const npmVersion = '0.17.0';
 
 export function mapResultRow<TResult>(
 	columns: SelectFieldsOrdered,
