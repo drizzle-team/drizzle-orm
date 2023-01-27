@@ -130,4 +130,7 @@ const deletedNames /* : { name: string }[] */ = await db.delete(users)
   .returning({ name: users.fullName });
 ```
 
-See [PostgreSQL docs](./drizzle-orm/src/pg-core/README.md) for full API reference.
+**See full docs for further reference:**
+- [PostgreSQL](./drizzle-orm/src/pg-core/README.md)
+- [MySQL](./drizzle-orm/src/mysql-core/README.md)
+- [SQLite](./drizzle-orm/src/sqlite-core/README.md)
