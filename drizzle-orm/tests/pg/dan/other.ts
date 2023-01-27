@@ -1,8 +1,8 @@
-import { sql } from 'drizzle-orm';
-import { eq, inArray } from 'drizzle-orm/expressions';
 import { QueryResult } from 'pg';
+import { eq, inArray } from '~/expressions';
+import { sql } from '~/sql';
 
-import { Equal, Expect } from '../utils';
+import { Equal, Expect } from 'tests/utils';
 import { db } from './db';
 import { users } from './tables';
 

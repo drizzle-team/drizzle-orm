@@ -1,5 +1,5 @@
-import { integer, serial } from '~/columns';
-import { pgTable } from '~/table';
+import { integer, serial } from '~/pg-core/columns';
+import { pgTable } from '~/pg-core/table';
 
 const test1 = pgTable('test1_table', {
 	id: serial('id').primaryKey(),

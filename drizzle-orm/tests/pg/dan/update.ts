@@ -1,6 +1,6 @@
-import { eq } from 'drizzle-orm/expressions';
 import { QueryResult } from 'pg';
 import { Equal, Expect } from 'tests/utils';
+import { eq } from '~/expressions';
 import { db } from './db';
 import { users } from './tables';
 
