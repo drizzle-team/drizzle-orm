@@ -1,5 +1,5 @@
 import { Equal, Expect } from 'tests/utils';
-import { InferModel, MySqlQueryResult, MySqlRawQueryResult } from '~/mysql-core/index';
+import { InferModel, MySqlQueryResult, MySqlRawQueryResult } from '~/mysql-core';
 import { sql } from '~/sql';
 import { db } from './db';
 import { users } from './tables';
