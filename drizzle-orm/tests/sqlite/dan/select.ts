@@ -1,4 +1,3 @@
-import { param, sql } from 'drizzle-orm';
 import {
 	and,
 	between,
@@ -21,11 +20,12 @@ import {
 	notInArray,
 	notLike,
 	or,
-} from 'drizzle-orm/expressions';
-import { alias } from '~/alias';
-import { InferModel } from '~/table';
+} from '~/expressions';
+import { param, sql } from '~/sql';
+import { InferModel } from '~/sqlite-core';
+import { alias } from '~/sqlite-core/alias';
 
-import { Equal, Expect } from '../utils';
+import { Equal, Expect } from 'tests/utils';
 import { db } from './db';
 import { cities, classes, users } from './tables';
 
