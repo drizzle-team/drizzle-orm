@@ -1,10 +1,10 @@
-import { sql } from 'drizzle-orm';
+import { sql } from '~/sql';
 
-import { check } from '~/checks';
-import { integer, pgEnum, serial, text, timestamp, uuid } from '~/columns';
-import { foreignKey } from '~/foreign-keys';
-import { index, uniqueIndex } from '~/indexes';
-import {  pgSchema, pgTable} from '~/table';
+import { check } from '~/pg-core/checks';
+import { integer, pgEnum, serial, text, timestamp, uuid } from '~/pg-core/columns';
+import { foreignKey } from '~/pg-core/foreign-keys';
+import { index, uniqueIndex } from '~/pg-core/indexes';
+import { pgSchema, pgTable } from '~/pg-core/table';
 
 const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
 

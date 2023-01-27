@@ -1,11 +1,11 @@
-import { sql } from 'drizzle-orm';
 import { Equal, Expect } from 'tests/utils';
+import { sql } from '~/sql';
 
-import { check } from '~/checks';
-import { foreignKey } from '~/foreign-keys';
-import { integer, primaryKey, text } from '~/index';
-import { index, uniqueIndex } from '~/indexes';
-import { InferModel, sqliteTable } from '~/table';
+import { check } from '~/sqlite-core/checks';
+import { foreignKey } from '~/sqlite-core/foreign-keys';
+import { integer, primaryKey, text } from '~/sqlite-core/index';
+import { index, uniqueIndex } from '~/sqlite-core/indexes';
+import { InferModel, sqliteTable } from '~/sqlite-core/table';
 
 export const users = sqliteTable(
 	'users_table',

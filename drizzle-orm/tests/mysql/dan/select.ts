@@ -1,4 +1,3 @@
-import { param, sql } from 'drizzle-orm';
 import {
 	and,
 	between,
@@ -21,10 +20,11 @@ import {
 	notInArray,
 	notLike,
 	or,
-} from 'drizzle-orm/expressions';
-import { alias } from '~/alias';
+} from '~/expressions';
+import { alias } from '~/mysql-core/alias';
+import { param, sql } from '~/sql';
 
-import { Equal, Expect } from '../utils';
+import { Equal, Expect } from 'tests/utils';
 import { db } from './db';
 import { cities, classes, users } from './tables';
 

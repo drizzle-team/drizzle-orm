@@ -1,9 +1,9 @@
-import { sql } from 'drizzle-orm';
+import { sql } from '~/sql';
 
-import { check } from '~/checks';
-import { foreignKey } from '~/foreign-keys';
-import { int, mysqlEnum, mysqlTable, serial, text, timestamp } from '~/index';
-import { index, uniqueIndex } from '~/indexes';
+import { check } from '~/mysql-core/checks';
+import { foreignKey } from '~/mysql-core/foreign-keys';
+import { int, mysqlEnum, mysqlTable, serial, text, timestamp } from '~/mysql-core/index';
+import { index, uniqueIndex } from '~/mysql-core/indexes';
 
 export const users = mysqlTable(
 	'users_table',
@@ -27,15 +27,15 @@ export const users = mysqlTable(
 		usersAge2Idx: index('usersAge2Idx').on(users.class),
 		uniqueClass: uniqueIndex('uniqueClass')
 			.on(users.class, users.subClass)
-            .lock('default')
-            .algorythm('copy')
+			.lock('default')
+			.algorythm('copy')
 			.using(`btree`),
 		legalAge: check('legalAge', sql`${users.age1} > 18`),
-		usersClassFK: foreignKey(({ columns: [users.subClass], foreignColumns: [classes.subClass] })),
-		usersClassComplexFK: foreignKey(({
+		usersClassFK: foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] }),
+		usersClassComplexFK: foreignKey({
 			columns: [users.class, users.subClass],
 			foreignColumns: [classes.class, classes.subClass],
-		})),
+		}),
 	}),
 );
 
