@@ -45,8 +45,7 @@ npm install -D drizzle-kit
 
 ## Feature showcase (PostgreSQL)
 
-> **Note**
-> Don't forget to install `pg` and `@types/pg` packages for this example to work.
+> **Note**: don't forget to install `pg` and `@types/pg` packages for this example to work.
 
 ```typescript
 import { eq } from 'drizzle-orm/expressions';
