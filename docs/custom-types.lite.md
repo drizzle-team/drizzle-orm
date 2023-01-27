@@ -2,11 +2,11 @@
 
 > **Info**: For more advanced documentation about defining custom data types in PostgreSQL and MySQL please check [custom-types.md](https://github.com/drizzle-team/drizzle-orm/blob/main/docs/custom-types.md)
 
-# Examples
+## Examples
 
 Best way to see, how customType definition is working - is to check how existing data types in postgres and mysql could be defined using `customType` function from Drizzle ORM
 
-### Postgres Data Types using `node-pg` driver
+### Postgres Data Types using `node-postgres` driver
 
 ---
 
