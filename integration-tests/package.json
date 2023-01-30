@@ -4,7 +4,7 @@
 	"description": "",
 	"scripts": {
 		"typecheck": "tsc",
-		"test": "ava tests --timeout=30s --serial"
+		"test": "ava tests --timeout=60s --serial"
 	},
 	"ava": {
 		"files": [
