@@ -1,7 +1,7 @@
-import { eq } from 'drizzle-orm/expressions';
 import { QueryResult } from 'pg';
 import { Equal, Expect } from 'tests/utils';
-import { InferModel } from '~/index';
+import { eq } from '~/expressions';
+import { InferModel } from '~/pg-core/index';
 import { db } from './db';
 import { users } from './tables';
 

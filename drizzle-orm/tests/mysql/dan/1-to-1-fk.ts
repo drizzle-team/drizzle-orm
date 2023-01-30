@@ -1,5 +1,5 @@
-import { int, serial } from '~/columns';
-import { mysqlTable } from '~/table';
+import { int, serial } from '~/mysql-core/columns';
+import { mysqlTable } from '~/mysql-core/table';
 
 const test1 = mysqlTable('test1_table', {
 	id: serial('id').primaryKey(),

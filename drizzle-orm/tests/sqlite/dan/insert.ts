@@ -1,9 +1,9 @@
 import { RunResult } from 'better-sqlite3';
-import { sql } from 'drizzle-orm';
-import { and, eq } from 'drizzle-orm/expressions';
-import { placeholder } from 'drizzle-orm/sql';
-import { InferModel } from '~/index';
-import { Equal, Expect } from '../utils';
+import { Equal, Expect } from 'tests/utils';
+import { and, eq } from '~/expressions';
+import { sql } from '~/sql';
+import { placeholder } from '~/sql';
+import { InferModel } from '~/sqlite-core/index';
 import { bunDb, db } from './db';
 import { NewUser, users } from './tables';
 

@@ -80,7 +80,7 @@ export const users = pgTable('users', {
 ```typescript
 // db.ts
 import { pgTable, serial, text, varchar } from 'drizzle-orm/pg-core';
-import { drizzle } from 'drizzle-orm/node-pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 
 import { users } from './schema';
@@ -107,7 +107,7 @@ const allUsers = await db.select(users);
 ```typescript
 // db.ts
 import { pgTable, serial, text, varchar } from 'drizzle-orm/pg-core';
-import { drizzle } from 'drizzle-orm/node-pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import { Client } from 'pg';
 
 import { users } from './schema';
@@ -162,7 +162,7 @@ export const cities = pgTable('cities', {
 
 ```typescript
 import { pgTable, InferModel, serial, text, varchar } from 'drizzle-orm/pg-core';
-import { drizzle, NodePgDatabase } from 'drizzle-orm/node-pg';
+import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -332,7 +332,7 @@ Querying, sorting and filtering. We also support partial select.
 ```typescript
 ...
 import { pgTable, serial, text, varchar } from 'drizzle-orm/pg-core';
-import { drizzle } from 'drizzle-orm/node-pg';;
+import { drizzle } from 'drizzle-orm/node-postgres';;
 import { and, asc, desc, eq, or } from 'drizzle-orm/expressions';
 
 const users = pgTable('users', {
@@ -414,7 +414,7 @@ or(expressions: SQL[])
 
 ```typescript
 import { pgTable, serial, text, timestamp, InferModel } from 'drizzle-orm/pg-core';
-import { drizzle } from 'drizzle-orm/node-pg';;
+import { drizzle } from 'drizzle-orm/node-postgres';;
 
 const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -690,8 +690,8 @@ CREATE INDEX IF NOT EXISTS users_full_name_index ON users (full_name);
 And you can run migrations manually or using our embedded migrations module
 
 ```typescript
-import { drizzle } from 'drizzle-orm/node-pg';;
-import { migrate } from 'drizzle-orm/node-pg/migrator';
+import { drizzle } from 'drizzle-orm/node-postgres';;
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { Pool } from 'pg';
 
 const pool = new Pool({
