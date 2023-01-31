@@ -1,34 +1,30 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.14.2",
+	"version": "0.17.2",
 	"description": "Drizzle ORM package for SQL databases",
-	"main": "index.js",
-	"types": "index.d.ts",
 	"scripts": {
-		"build": "tsc -p tsconfig.build.json",
-		"test:types": "echo WARN: No tests defined!",
-		"pack": "cp ../README.md package.json dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
-		"publish": "npm publish package.tgz",
-		"release": "pnpm build && pnpm run pack && pnpm run publish",
-		"release:beta": "pnpm build && pnpm run pack && pnpm run publish --tag beta",
-		"build:int": "pnpm build && pnpm run pack"
-	},
-	"publishConfig": {
-		"access": "public"
+		"build": "tsc && resolve-tspaths && cp ../README.md package.json dist/",
+		"test:types": "cd tests && tsc",
+		"pack": "cp package.json dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"publish": "npm publish package.tgz"
 	},
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/drizzle-team/drizzle-orm.git"
 	},
 	"keywords": [
+		"drizzle",
 		"orm",
 		"pg",
 		"mysql",
 		"postgresql",
 		"postgres",
+		"sqlite",
 		"database",
 		"sql",
-		"typescript"
+		"typescript",
+		"ts",
+		"drizzle-orm"
 	],
 	"author": "Drizzle Team",
 	"license": "Apache-2.0",
@@ -37,22 +33,70 @@
 	},
 	"homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
 	"peerDependencies": {
-		"drizzle-orm-mysql": ">=0.14 <0.15",
-		"drizzle-orm-pg": ">=0.14 <0.15",
-		"drizzle-orm-sqlite": ">=0.14 <0.15"
+		"@cloudflare/workers-types": ">=3",
+		"@neondatabase/serverless": ">=0.1 <0.2",
+		"@types/better-sqlite3": "*",
+		"@types/pg": "*",
+		"@types/sql.js": "*",
+		"better-sqlite3": ">=7 <9",
+		"mysql2": ">=2 <3",
+		"pg": ">=8 <9",
+		"postgres": ">=3 <4",
+		"sql.js": ">=1 <2",
+		"sqlite3": ">=5 <6",
+		"bun-types": "*"
 	},
 	"peerDependenciesMeta": {
-		"drizzle-orm-mysql": {
+		"mysql2": {
 			"optional": true
 		},
-		"drizzle-orm-pg": {
+		"better-sqlite3": {
 			"optional": true
 		},
-		"drizzle-orm-sqlite": {
+		"@types/better-sqlite3": {
+			"optional": true
+		},
+		"sqlite3": {
+			"optional": true
+		},
+		"sql.js": {
+			"optional": true
+		},
+		"@types/sql.js": {
+			"optional": true
+		},
+		"@cloudflare/workers-types": {
+			"optional": true
+		},
+		"pg": {
+			"optional": true
+		},
+		"@types/pg": {
+			"optional": true
+		},
+		"postgres": {
+			"optional": true
+		},
+		"@neondatabase/serverless": {
+			"optional": true
+		},
+		"bun-types": {
 			"optional": true
 		}
 	},
 	"devDependencies": {
-		"@types/node": "^18.11.9"
+		"@cloudflare/workers-types": "^3.18.0",
+		"@neondatabase/serverless": "^0.1.13",
+		"@types/better-sqlite3": "^7.6.2",
+		"@types/node": "^18.11.9",
+		"@types/pg": "^8.6.5",
+		"@types/sql.js": "^1.4.4",
+		"better-sqlite3": "^7.6.2",
+		"bun-types": "^0.5.0",
+		"mysql2": "^2.3.3",
+		"pg": "^8.8.0",
+		"postgres": "^3.3.3",
+		"sql.js": "^1.8.0",
+		"sqlite3": "^5.1.2"
 	}
 }

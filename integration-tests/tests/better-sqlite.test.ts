@@ -1,11 +1,11 @@
 import anyTest, { TestFn } from 'ava';
 import Database from 'better-sqlite3';
-import { DefaultLogger, sql } from 'drizzle-orm';
-import { alias, blob, InferModel, integer, sqliteTable, text } from 'drizzle-orm-sqlite';
-import { BetterSQLite3Database, drizzle } from 'drizzle-orm-sqlite/better-sqlite3';
-import { migrate } from 'drizzle-orm-sqlite/better-sqlite3/migrator';
+import { sql } from 'drizzle-orm';
+import { BetterSQLite3Database, drizzle } from 'drizzle-orm/better-sqlite3';
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { asc, eq } from 'drizzle-orm/expressions';
 import { name, placeholder } from 'drizzle-orm/sql';
+import { alias, blob, InferModel, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey(),
@@ -26,6 +26,14 @@ const anotherUsersMigratorTable = sqliteTable('another_users', {
 	name: text('name').notNull(),
 	email: text('email').notNull(),
 });
+
+const pkExample = sqliteTable('pk_example', {
+	id: integer('id').primaryKey(),
+	name: text('name').notNull(),
+	email: text('email').notNull(),
+}, (table) => ({
+	compositePk: primaryKey(table.id, table.name),
+}));
 
 interface Context {
 	db: BetterSQLite3Database;

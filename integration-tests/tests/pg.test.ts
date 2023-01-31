@@ -1,21 +1,10 @@
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
-import {
-	alias,
-	boolean,
-	IndexColumn,
-	InferModel,
-	jsonb,
-	PgDatabase,
-	pgTable,
-	serial,
-	text,
-	timestamp,
-} from 'drizzle-orm-pg';
-import { drizzle } from 'drizzle-orm-pg/node';
-import { migrate } from 'drizzle-orm-pg/node/migrator';
 import { asc, eq } from 'drizzle-orm/expressions';
+import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import { alias, boolean, InferModel, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import { Client } from 'pg';
@@ -38,7 +27,7 @@ const usersMigratorTable = pgTable('users12', {
 interface Context {
 	docker: Docker;
 	pgContainer: Docker.Container;
-	db: PgDatabase;
+	db: NodePgDatabase;
 	client: Client;
 }
 
@@ -49,7 +38,10 @@ async function createDockerDB(ctx: Context): Promise<string> {
 	const port = await getPort({ port: 5432 });
 	const image = 'postgres:14';
 
-	await docker.pull(image);
+	const pullStream = await docker.pull(image);
+	await new Promise((resolve, reject) =>
+		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
+	);
 
 	const pgContainer = (ctx.pgContainer = await docker.createContainer({
 		Image: image,
@@ -427,6 +419,7 @@ test.serial('full join with alias', async (t) => {
 	const customerAlias = alias(usersTable, 'customer');
 
 	await db.insert(usersTable).values({ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' });
+
 	const result = await db
 		.select(usersTable)
 		.leftJoin(customerAlias, eq(customerAlias.id, 11))

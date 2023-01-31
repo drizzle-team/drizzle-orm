@@ -1,27 +1,28 @@
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm/expressions';
 import {
+	alias,
 	boolean,
 	date,
 	datetime,
-	int,
 	json,
 	MySqlDatabase,
+	mysqlEnum,
 	mysqlTable,
+	serial,
+	text,
 	time,
+	timestamp,
 	uniqueIndex,
-	varchar,
 	year,
-} from 'drizzle-orm-mysql';
-import { alias, InferModel, serial, text, timestamp } from 'drizzle-orm-mysql';
-import { drizzle } from 'drizzle-orm-mysql/mysql2';
-import { migrate } from 'drizzle-orm-mysql/mysql2/migrator';
-import { asc, eq, inArray } from 'drizzle-orm/expressions';
+} from 'drizzle-orm/mysql-core';
+import { drizzle } from 'drizzle-orm/mysql2';
+import { migrate } from 'drizzle-orm/mysql2/migrator';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
-import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
 
 const usersTable = mysqlTable('userstest', {
@@ -65,11 +66,14 @@ async function createDockerDB(ctx: Context): Promise<string> {
 	const port = await getPort({ port: 3306 });
 	const image = 'mysql:8';
 
-	await docker.pull(image);
+	const pullStream = await docker.pull(image);
+	await new Promise((resolve, reject) =>
+		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
+	);
 
 	const mysqlContainer = (ctx.mysqlContainer = await docker.createContainer({
 		Image: image,
-		Env: ['MYSQL_ROOT_PASSWORD=mysql', 'MYSQL_DATABASE=mysqltests'],
+		Env: ['MYSQL_ROOT_PASSWORD=mysql', 'MYSQL_DATABASE=drizzle'],
 		name: `drizzle-integration-tests-${uuid()}`,
 		HostConfig: {
 			AutoRemove: true,
@@ -81,7 +85,7 @@ async function createDockerDB(ctx: Context): Promise<string> {
 
 	await mysqlContainer.start();
 
-	return `mysql://root:mysql@127.0.0.1:${port}/mysql`;
+	return `mysql://root:mysql@127.0.0.1:${port}/drizzle`;
 }
 
 test.before(async (t) => {
@@ -105,7 +109,7 @@ test.before(async (t) => {
 		}
 	} while (timeLeft > 0);
 	if (!connected) {
-		console.error('Cannot connect to MySql');
+		console.error('Cannot connect to MySQL');
 		throw lastError;
 	}
 	ctx.db = drizzle(ctx.client /* , { logger: new DefaultLogger() } */);
@@ -626,6 +630,40 @@ test.serial('insert + select all possible dates', async (t) => {
 		year: 2022,
 		datetimeAsString: '2022-11-11 12:12:12',
 	}]);
+});
+
+const tableWithEnums = mysqlTable('enums_test_case', {
+	id: serial('id').primaryKey(),
+	enum1: mysqlEnum('enum1', ['a', 'b', 'c']).notNull(),
+	enum2: mysqlEnum('enum2', ['a', 'b', 'c']).default('a'),
+	enum3: mysqlEnum('enum3', ['a', 'b', 'c']).notNull().default('b'),
+});
+
+test.serial('Mysql enum test case #1', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`create table \`enums_test_case\` (
+		\`id\` serial primary key,
+		\`enum1\` ENUM('a', 'b', 'c') not null,
+		\`enum2\` ENUM('a', 'b', 'c') default 'a',
+		\`enum3\` ENUM('a', 'b', 'c') not null default 'b'
+	)`);
+
+	await db.insert(tableWithEnums).values(
+		{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },
+		{ id: 2, enum1: 'a', enum3: 'c' },
+		{ id: 3, enum1: 'a' },
+	);
+
+	const res = await db.select(tableWithEnums);
+
+	await db.execute(sql`drop table \`enums_test_case\``);
+
+	t.deepEqual(res, [
+		{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },
+		{ id: 2, enum1: 'a', enum2: 'a', enum3: 'c' },
+		{ id: 3, enum1: 'a', enum2: 'a', enum3: 'b' },
+	]);
 });
 
 test.after.always(async (t) => {

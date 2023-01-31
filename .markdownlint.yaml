@@ -1,0 +1,5 @@
+no-inline-html: false
+first-line-h1: false
+line-length: false
+MD010:
+  spaces_per_tab: 2

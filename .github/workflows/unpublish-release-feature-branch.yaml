@@ -9,9 +9,7 @@ jobs:
       matrix:
         package:
           - drizzle-orm
-          - drizzle-orm-mysql
-          - drizzle-orm-pg
-          - drizzle-orm-sqlite
+          - drizzle-zod
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3
@@ -20,10 +18,6 @@ jobs:
         with:
           node-version: 16
           registry-url: 'https://registry.npmjs.org'
-
-      - uses: pnpm/action-setup@v2
-        with:
-          version: 7.22.0
 
       - name: Unpublish
         run: |

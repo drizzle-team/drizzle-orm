@@ -1,13 +1,11 @@
 {
 	"private": true,
 	"scripts": {
-		"build:core": "turbo run build --filter drizzle-orm",
-		"build:pg": "turbo run build --filter drizzle-orm-pg",
-		"build:mysql": "turbo run build --filter drizzle-orm-mysql",
-		"build": "turbo run build --color",
-		"build:int": "turbo run build:int --color",
+		"build:orm": "turbo run build --filter drizzle-orm --color",
+		"build": "turbo run build test:types --color",
+		"pack": "turbo run pack --color",
 		"test": "turbo run test --color",
-		"postinstall": "pnpm i --filter '!integration-tests' --filter '!.' --no-frozen-lockfile"
+		"test:types": "turbo run test:types --color"
 	},
 	"devDependencies": {
 		"@trivago/prettier-plugin-sort-imports": "^3.2.0",

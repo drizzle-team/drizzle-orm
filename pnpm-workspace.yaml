@@ -1,8 +1,6 @@
 prefer-workspace-packages: true
 packages:
   - drizzle-orm
-  - drizzle-orm-pg
-  - drizzle-orm-mysql
-  - drizzle-orm-sqlite
+  - drizzle-zod
   - integration-tests
   - examples/cloudflare-d1

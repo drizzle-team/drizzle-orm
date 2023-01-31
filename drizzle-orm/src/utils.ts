@@ -2,6 +2,17 @@ import { Column } from './column';
 import { SelectFieldsOrdered } from './operations';
 import { DriverValueDecoder, noopDecoder, SQL } from './sql';
 
+/**
+ * @deprecated
+ * Use `compatibilityVersion` from `drizzle-orm/version` instead.
+ */
+export const apiVersion = 2;
+/**
+ * @deprecated
+ * Use `npmVersion` from `drizzle-orm/version` instead.
+ */
+export const npmVersion = '0.17.0';
+
 export function mapResultRow<TResult>(
 	columns: SelectFieldsOrdered,
 	row: unknown[],
@@ -142,3 +153,5 @@ export type Simplify<
 	Options extends SimplifyOptions = {},
 > = Flatten<AnyType> extends AnyType ? Flatten<AnyType, Options>
 	: AnyType;
+
+export type Assume<T, U> = T extends U ? T : U;
