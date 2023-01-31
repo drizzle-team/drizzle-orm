@@ -54,8 +54,9 @@ export class MySqlDelete<
 		return this.dialect.buildDeleteQuery(this.config);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(): Omit<Query, 'typings'> {
+		const { typings, ...rest} = this.dialect.sqlToQuery(this.getSQL());
+		return rest
 	}
 
 	private _prepare(name?: string): PreparedQuery<
@@ -63,7 +64,7 @@ export class MySqlDelete<
 			execute: MySqlRawQueryResult;
 		}
 	> {
-		return this.session.prepareQuery(this.toSQL(), this.config.returning, name);
+		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
 	}
 
 	prepare(name: string): PreparedQuery<

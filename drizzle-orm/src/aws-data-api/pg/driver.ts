@@ -5,9 +5,9 @@ import { AwsDataApiClient, AwsDataApiPgQueryResultHKT, AwsDataApiSession } from 
 
 export interface PgDriverOptions {
 	logger?: Logger;
-	database: string,
-	resourceArn: string,
-	secretArn: string,
+	database: string;
+	resourceArn: string;
+	secretArn: string;
 }
 
 export class AwsDataApiDriver {
@@ -16,31 +16,34 @@ export class AwsDataApiDriver {
 		private dialect: PgDialect,
 		private options: PgDriverOptions,
 	) {
-		this.initMappers();
 	}
 
 	createSession(): AwsDataApiSession {
 		return new AwsDataApiSession(this.client, this.dialect, this.options);
 	}
-
-	initMappers() {
-		// types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
-		// types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
-		// types.setTypeParser(types.builtins.DATE, (val) => val);
-	}
 }
 
 export interface DrizzleConfig {
 	logger?: Logger;
-	database: string,
-	resourceArn: string,
-	secretArn: string,
+	database: string;
+	resourceArn: string;
+	secretArn: string;
 }
 
 export type AwsDataApiPgDatabase = PgDatabase<AwsDataApiPgQueryResultHKT, AwsDataApiSession>;
 
+export class AwsPgDialect extends PgDialect {
+	override escapeName(name: string): string {
+		return `"${name}"`;
+	}
+
+	override escapeParam(num: number): string {
+		return `:${num + 1}`;
+	}
+}
+
 export function drizzle(client: AwsDataApiClient, config: DrizzleConfig): AwsDataApiPgDatabase {
-	const dialect = new PgDialect();
+	const dialect = new AwsPgDialect();
 	const driver = new AwsDataApiDriver(client, dialect, config);
 	const session = driver.createSession();
 	return new PgDatabase(dialect, session);

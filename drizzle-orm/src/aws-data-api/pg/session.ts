@@ -4,8 +4,7 @@ import {
 	CommitTransactionCommand,
 	CommitTransactionCommandInput,
 	ExecuteStatementCommand,
-	ExecuteStatementRequest,
-	Field,
+	ExecuteStatementCommandOutput,
 	RDSDataClient,
 	RollbackTransactionCommand,
 	RollbackTransactionCommandInput,
@@ -13,8 +12,9 @@ import {
 import { Logger } from '~/logger';
 import { SelectFieldsOrdered } from '~/operations';
 import { PgDialect, PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT } from '~/pg-core';
-import { fillPlaceholders, Query, SQL } from '~/sql';
+import { fillPlaceholders, Query, QueryTypingsValue, SQL } from '~/sql';
 import { mapResultRow } from '~/utils';
+import { getValueFromDataApi, toValueParam } from '../common';
 
 export type AwsDataApiClient = RDSDataClient;
 
@@ -25,6 +25,7 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 		private client: AwsDataApiClient,
 		queryString: string,
 		private params: unknown[],
+		private typings: QueryTypingsValue[],
 		private options: AwsDataApiSessionOptions,
 		private fields: SelectFieldsOrdered | undefined,
 		name: string | undefined,
@@ -41,59 +42,25 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 		});
 	}
 
-	private getValueFromDataApi(row: Field) {
-		if (typeof row.stringValue !== 'undefined') {
-			return row.stringValue;
-		} else if (typeof row.booleanValue !== 'undefined') {
-			return row.booleanValue;
-		} else if (typeof row.doubleValue !== 'undefined') {
-			return row.doubleValue;
-		} else if (typeof row.isNull !== 'undefined') {
-			return null;
-		} else if (typeof row.longValue !== 'undefined') {
-			return row.longValue;
-		} else if (typeof row.blobValue !== 'undefined') {
-			return row.blobValue;
-		} else if (typeof row.arrayValue !== 'undefined') {
-			if (typeof row.arrayValue.stringValues !== 'undefined') {
-				return row.arrayValue.stringValues;
-			}
-			throw Error('Unknown array type');
-		} else {
-			throw Error('Unknown type');
-		}
-	}
-
-	private toValueParam(row: any): Field {
-		if (typeof row === 'string') {
-			return { stringValue: row };
-		} else if (typeof row === 'number' && Number.isInteger(row)) {
-			return { longValue: row };
-		} else if (typeof row === 'number' && !Number.isInteger(row)) {
-			return { doubleValue: row };
-		} else if (typeof row === 'boolean') {
-			return { booleanValue: row };
-		} else {
-			throw Error('Unknown type');
-		}
-	}
-
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 
-		this.options.logger?.logQuery(this.rawQuery.input.sql!, params);
+		this.rawQuery.input.parameters = params.map((param, index) => ({
+			name: `${index + 1}`,
+			...toValueParam(param, this.typings[index]),
+		}));
 
-		this.rawQuery.input.parameters = params.map((param, _) => ({ name: `${_ + 1}`, value: this.toValueParam(param) }));
+		this.options.logger?.logQuery(this.rawQuery.input.sql!, this.rawQuery.input.parameters);
 
 		const { fields } = this;
 		if (!fields) {
-			return (await this.client.send(this.rawQuery)).records;
+			return await this.client.send(this.rawQuery);
 		}
 
 		const result = await this.client.send(this.rawQuery);
 
 		return result.records?.map((result) => {
-			const mappedResult = result.map((res) => this.getValueFromDataApi(res));
+			const mappedResult = result.map((res) => getValueFromDataApi(res));
 			return mapResultRow<T['execute']>(fields, mappedResult);
 		});
 	}
@@ -135,7 +102,16 @@ export class AwsDataApiSession extends PgSession {
 		fields: SelectFieldsOrdered | undefined,
 		name: string | undefined,
 	): PreparedQuery<T> {
-		return new AwsDataApiPreparedQuery(this.client, query.sql, query.params, this.options, fields, name, undefined);
+		return new AwsDataApiPreparedQuery(
+			this.client,
+			query.sql,
+			query.params,
+			query.typings ?? [],
+			this.options,
+			fields,
+			name,
+			undefined,
+		);
 	}
 
 	prepareQueryWithTransaction<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -144,19 +120,21 @@ export class AwsDataApiSession extends PgSession {
 		name: string | undefined,
 		transactionId: string | undefined,
 	): PreparedQuery<T> {
-		return new AwsDataApiPreparedQuery(this.client, query.sql, query.params, this.options, fields, name, transactionId);
+		return new AwsDataApiPreparedQuery(
+			this.client,
+			query.sql,
+			query.params,
+			query.typings ?? [],
+			this.options,
+			fields,
+			name,
+			transactionId,
+		);
 	}
 
 	executeWithTransaction<T>(query: SQL, transactionId: string | undefined): Promise<T> {
 		return this.prepareQueryWithTransaction<PreparedQueryConfig & { execute: T }>(
-			query.toQuery({
-				escapeName: (num) => {
-					return `"${num}"`;
-				},
-				escapeParam: (num) => {
-					return `:${num + 1}`;
-				},
-			}),
+			this.dialect.sqlToQuery(query),
 			undefined,
 			undefined,
 			transactionId,
@@ -165,14 +143,7 @@ export class AwsDataApiSession extends PgSession {
 
 	override execute<T>(query: SQL): Promise<T> {
 		return this.prepareQuery<PreparedQueryConfig & { execute: T }>(
-			query.toQuery({
-				escapeName: (num) => {
-					return `"${num}"`;
-				},
-				escapeParam: (num) => {
-					return `:${num + 1}`;
-				},
-			}),
+			this.dialect.sqlToQuery(query),
 			undefined,
 			undefined,
 		).execute();
@@ -193,6 +164,5 @@ export class AwsDataApiSession extends PgSession {
 }
 
 export interface AwsDataApiPgQueryResultHKT extends QueryResultHKT {
-	// check types and get from aws dataapi
-	type: any;
+	type: ExecuteStatementCommandOutput;
 }

@@ -107,6 +107,7 @@ importers:
       ava: ^5.1.0
       better-sqlite3: ^7.6.2
       dockerode: ^3.3.4
+      dotenv: ^16.0.3
       drizzle-orm: workspace:../drizzle-orm/dist
       get-port: ^6.1.2
       mysql2: ^2.3.3
@@ -123,6 +124,7 @@ importers:
       '@aws-sdk/credential-providers': 3.258.0
       better-sqlite3: 7.6.2
       dockerode: 3.3.4
+      dotenv: 16.0.3
       drizzle-orm: link:../drizzle-orm/dist
       get-port: 6.1.2
       mysql2: 2.3.3
@@ -2508,6 +2510,11 @@ packages:
     resolution: {integrity: sha512-rlBi9d8jpv9Sf1klPjNfFAuWDjKLwTIJJ/VxtoTwIR6hnZxcEOQCZg2oIL3MWBYw5GpUDKOEnND7LXTbIpQ03Q==}
     engines: {node: '>=10'}
     dev: true
+
+  /dotenv/16.0.3:
+    resolution: {integrity: sha512-7GO6HghkA5fYG9TYnNxi14/7K9f5occMlp3zXAuSxn7CKCxt9xbNWG7yF8hTCSUchlfWSe3uLmlPfigevRItzQ==}
+    engines: {node: '>=12'}
+    dev: false
 
   /dprint/0.32.2:
     resolution: {integrity: sha512-cGKnZonCFQkcNbptAtJXlzUOqyiyYoD9pINepJ9PvkFi8iwMLChQDSjhMeqT3DDQf5Rof3pYA5LI/bafPpPknQ==}

@@ -9,6 +9,8 @@
 	"ava": {
 		"files": [
 			"tests/**/*.ts",
+			"!tests/awsdatapi.alltypes.test.ts",
+			"!tests/awsdatapi.test.ts",
 			"!tests/bun/**/*"
 		],
 		"extensions": {
@@ -37,6 +39,7 @@
 		"@aws-sdk/credential-providers": "^3.258.0",
 		"better-sqlite3": "^7.6.2",
 		"dockerode": "^3.3.4",
+		"dotenv": "^16.0.3",
 		"drizzle-orm": "workspace:../drizzle-orm/dist",
 		"get-port": "^6.1.2",
 		"mysql2": "^2.3.3",

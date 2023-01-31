@@ -33,7 +33,7 @@ export async function migrate(db: AwsDataApiPgDatabase, config: string | Migrati
 				await session.executeWithTransaction(sql.raw(migration.sql), transactionId);
 				await session.executeWithTransaction(
 					sql`INSERT INTO "drizzle"."__drizzle_migrations" ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
-					transactionId
+					transactionId,
 				);
 			}
 		}
