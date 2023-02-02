@@ -65,7 +65,7 @@ We have 3 params, that will be sent to server. It's your decision which of them 
 
 ---
 
-In current SQLite Proxy version - drizzle don't handle transactions for migrations. As for now we are sending an array of queries, that should be executed by user and user should do `comitt` or `rollback` logic
+In current SQLite Proxy version - drizzle don't handle transactions for migrations. As for now we are sending an array of queries, that should be executed by user and user should do `comit` or `rollback` logic
 
 </br>
 
@@ -138,10 +138,11 @@ app.post('/migrate', (req, res) => {
     for (const query of queries) {
       db.exec(query);
     }
+
+    db.exec('COMMIT');
   } catch (e: any) {
     db.exec('ROLLBACK');
   }
-  db.exec('COMMIT');
 
   res.send({});
 });

@@ -37,11 +37,11 @@ app.post('/migrate', (req, res) => {
 		for (const query of queries) {
 			db.exec(query);
 		}
+		db.exec('COMMIT');
 	} catch (e: any) {
 		db.exec('ROLLBACK');
 	}
-	db.exec('COMMIT');
-
+	
 	res.send({});
 });
 
