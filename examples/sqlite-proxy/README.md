@@ -65,7 +65,7 @@ We have 3 params, that will be sent to server. It's your decision which of them 
 
 ---
 
-In current SQLite Proxy version - drizzle don't handle transactions for migrations. As for now we are sending an array of queries, that should be executed by user and user should do `comit` or `rollback` logic
+In current SQLite Proxy version - drizzle don't handle transactions for migrations. As for now we are sending an array of queries, that should be executed by user and user should do `commit` or `rollback` logic
 
 </br>
 
