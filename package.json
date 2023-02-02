@@ -2,7 +2,8 @@
 	"private": true,
 	"scripts": {
 		"build:orm": "turbo run build --filter drizzle-orm --color",
-		"build": "turbo run build test:types --color",
+		"check:examples": "cd examples/sqlite-proxy && npm i && npm run lnk && npm run check:types",
+		"build": "turbo run build test:types --color && pnpm run check:examples",
 		"pack": "turbo run pack --color",
 		"test": "turbo run test --color",
 		"test:types": "turbo run test:types --color"

@@ -1,0 +1,36 @@
+{
+  "version": "4",
+  "dialect": "sqlite",
+  "id": "88e641f7-006e-45f2-8d76-d2477c5cc084",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "tables": {
+    "users12": {
+      "name": "users12",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {}
+    }
+  },
+  "enums": {}
+}
