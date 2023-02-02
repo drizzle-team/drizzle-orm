@@ -19,6 +19,7 @@ Here you can find extensive docs for SQLite module.
 | [bun:sqlite](https://github.com/oven-sh/bun#bunsqlite-sqlite3-module) | ✅ | [Example](https://github.com/drizzle-team/drizzle-orm/tree/main/examples/bun-sqlite)| |
 | [Cloudflare D1](https://developers.cloudflare.com/d1/) | ✅ | [Example](https://github.com/drizzle-team/drizzle-orm/tree/main/examples/cloudflare-d1)| |
 | [Fly.io LiteFS](https://fly.io/docs/litefs/getting-started/) | ✅ | | |
+| [Custom proxy driver](https://github.com/drizzle-team/drizzle-orm/tree/main/examples/sqlite-proxy) | ✅ | | |
 
 ## 💾 Installation
 
@@ -71,6 +72,19 @@ import { drizzle, DrizzleD1Database } from 'drizzle-orm/d1';
 // env.DB from cloudflare worker environment
 const db: DrizzleD1Database = drizzle(env.DB);
 const result = await db.select(users).all() // pay attention this one is async
+
+// Custom Proxy HTTP driver
+  const db = drizzle(async (sql, params, method) => {
+    try {
+      const rows = await axios.post('http://localhost:3000/query', { sql, params, method });
+
+      return { rows: rows.data };
+    } catch (e: any) {
+      console.error('Error from sqlite proxy server: ', e.response.data)
+      return { rows: [] };
+    }
+  });
+// More example for proxy: https://github.com/drizzle-team/drizzle-orm/tree/main/examples/sqlite-proxy
 ```
 
 ## SQL schema declaration
