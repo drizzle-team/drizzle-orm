@@ -151,8 +151,9 @@ export class PgSelect<
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(): Omit<Query, 'typings'> {
+		const { typings, ...rest} = this.dialect.sqlToQuery(this.getSQL());
+		return rest
 	}
 
 	private _prepare(name?: string): PreparedQuery<
@@ -160,7 +161,7 @@ export class PgSelect<
 			execute: SelectResult<TResult, TSelectMode, TJoinsNotNullable>[];
 		}
 	> {
-		return this.session.prepareQuery(this.toSQL(), this.config.fields, name);
+		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.fields, name);
 	}
 
 	prepare(name: string): PreparedQuery<
