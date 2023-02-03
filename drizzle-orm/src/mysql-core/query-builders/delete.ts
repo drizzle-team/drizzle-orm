@@ -1,9 +1,9 @@
 import { MySqlDialect } from '~/mysql-core/dialect';
-import { SelectFieldsOrdered } from '~/mysql-core/operations';
 import { MySqlRawQueryResult, MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/mysql-core/session';
 import { AnyMySqlTable } from '~/mysql-core/table';
 import { QueryPromise } from '~/query-promise';
 import { Query, SQL, SQLWrapper } from '~/sql';
+import { SelectFieldsOrdered } from './select.types';
 
 export interface MySqlDeleteConfig {
 	where?: SQL | undefined;

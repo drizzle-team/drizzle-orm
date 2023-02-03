@@ -1,11 +1,10 @@
 import { GetColumnData } from '~/column';
 import { Param, Query, SQL, SQLWrapper } from '~/sql';
 import { SQLiteDialect } from '~/sqlite-core/dialect';
-import { SelectFieldsOrdered, SelectResultFields, SQLiteSelectFields } from '~/sqlite-core/operations';
 import { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
 import { AnySQLiteTable, GetTableConfig, InferModel, SQLiteTable } from '~/sqlite-core/table';
-import { mapUpdateSet, orderSelectedFields } from '~/sqlite-core/utils';
-import { Simplify } from '~/utils';
+import { mapUpdateSet, orderSelectedFields, Simplify } from '~/utils';
+import { SelectFieldsOrdered, SelectResultFields, SQLiteSelectFields } from './select.types';
 
 export interface SQLiteUpdateConfig {
 	where?: SQL | undefined;

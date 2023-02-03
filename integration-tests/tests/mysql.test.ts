@@ -7,6 +7,7 @@ import {
 	boolean,
 	date,
 	datetime,
+	int,
 	json,
 	MySqlDatabase,
 	mysqlEnum,
@@ -31,6 +32,17 @@ const usersTable = mysqlTable('userstest', {
 	verified: boolean('verified').notNull().default(false),
 	jsonb: json<string[]>('jsonb'),
 	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+});
+
+const users2Table = mysqlTable('users2', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	cityId: int('city_id').references(() => citiesTable.id),
+});
+
+const citiesTable = mysqlTable('cities', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
 });
 
 const datesTable = mysqlTable('datestable', {
@@ -663,6 +675,100 @@ test.serial('Mysql enum test case #1', async (t) => {
 		{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },
 		{ id: 2, enum1: 'a', enum2: 'a', enum3: 'c' },
 		{ id: 3, enum1: 'a', enum2: 'a', enum3: 'b' },
+	]);
+});
+
+test.serial('left join (flat object fields)', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(citiesTable)
+		.values({ name: 'Paris' }, { name: 'London' });
+
+	await db.insert(users2Table).values({ name: 'John', cityId: 1 }, { name: 'Jane' });
+
+	const res = await db.select(users2Table)
+		.fields({
+			userId: users2Table.id,
+			userName: users2Table.name,
+			cityId: citiesTable.id,
+			cityName: citiesTable.name,
+		})
+		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id));
+
+	t.deepEqual(res, [
+		{ userId: 1, userName: 'John', cityId: 1, cityName: 'Paris' },
+		{ userId: 2, userName: 'Jane', cityId: null, cityName: null },
+	]);
+});
+
+test.serial('left join (grouped fields)', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(citiesTable)
+		.values({ name: 'Paris' }, { name: 'London' });
+
+	await db.insert(users2Table).values({ name: 'John', cityId: 1 }, { name: 'Jane' });
+
+	const res = await db.select(users2Table)
+		.fields({
+			id: users2Table.id,
+			user: {
+				name: users2Table.name,
+				nameUpper: sql`upper(${users2Table.name})`.as<string>(),
+			},
+			city: {
+				id: citiesTable.id,
+				name: citiesTable.name,
+				nameUpper: sql`upper(${citiesTable.name})`.as<string>(),
+			},
+		})
+		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id));
+
+	t.deepEqual(res, [
+		{
+			id: 1,
+			user: { name: 'John', nameUpper: 'JOHN' },
+			city: { id: 1, name: 'Paris', nameUpper: 'PARIS' },
+		},
+		{
+			id: 2,
+			user: { name: 'Jane', nameUpper: 'JANE' },
+			city: null,
+		},
+	]);
+});
+
+test.serial('left join (all fields)', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(citiesTable)
+		.values({ name: 'Paris' }, { name: 'London' });
+
+	await db.insert(users2Table).values({ name: 'John', cityId: 1 }, { name: 'Jane' });
+
+	const res = await db.select(users2Table)
+		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id));
+
+	t.deepEqual(res, [
+		{
+			users2: {
+				id: 1,
+				name: 'John',
+				cityId: 1,
+			},
+			cities: {
+				id: 1,
+				name: 'Paris',
+			},
+		},
+		{
+			users2: {
+				id: 2,
+				name: 'Jane',
+				cityId: null,
+			},
+			cities: null,
+		},
 	]);
 });
 

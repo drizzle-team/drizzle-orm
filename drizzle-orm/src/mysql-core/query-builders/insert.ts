@@ -1,11 +1,11 @@
 import { MySqlDialect } from '~/mysql-core/dialect';
-import { SelectFieldsOrdered } from '~/mysql-core/operations';
 import { MySqlRawQueryResult, MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/mysql-core/session';
 import { AnyMySqlTable, InferModel } from '~/mysql-core/table';
 import { mapUpdateSet } from '~/mysql-core/utils';
 import { QueryPromise } from '~/query-promise';
 import { Param, Placeholder, Query, SQL, sql, SQLWrapper } from '~/sql';
 import { Table } from '~/table';
+import { SelectFieldsOrdered } from './select.types';
 import { MySqlUpdateSetSource } from './update';
 export interface MySqlInsertConfig<TTable extends AnyMySqlTable = AnyMySqlTable> {
 	table: TTable;

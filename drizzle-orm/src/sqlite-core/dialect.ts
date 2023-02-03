@@ -2,7 +2,6 @@ import { AnyColumn, Column } from '~/column';
 import { MigrationMeta } from '~/migrator';
 import { Name, param, Query, SQL, sql, SQLResponse, SQLSourceParam } from '~/sql';
 import { AnySQLiteColumn, SQLiteColumn } from '~/sqlite-core/columns';
-import { SelectFieldsOrdered } from '~/sqlite-core/operations';
 import {
 	SQLiteDeleteConfig,
 	SQLiteInsertConfig,
@@ -11,7 +10,7 @@ import {
 } from '~/sqlite-core/query-builders';
 import { AnySQLiteTable, SQLiteTable } from '~/sqlite-core/table';
 import { Table } from '~/table';
-import { SQLiteSelectConfig } from './query-builders/select.types';
+import { SelectFieldsOrdered, SQLiteSelectConfig } from './query-builders/select.types';
 import { SQLiteSession } from './session';
 
 export abstract class SQLiteDialect {

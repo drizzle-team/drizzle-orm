@@ -1,7 +1,7 @@
 import { Row, RowList, Sql } from 'postgres';
 import { Logger, NoopLogger } from '~/logger';
 import { PgDialect } from '~/pg-core/dialect';
-import { SelectFieldsOrdered } from '~/pg-core/operations';
+import { SelectFieldsOrdered } from '~/pg-core/query-builders/select.types';
 import { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
 import { fillPlaceholders, Query } from '~/sql';
 import { Assume } from '~/utils';

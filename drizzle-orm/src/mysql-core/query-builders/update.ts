@@ -1,12 +1,12 @@
 import { GetColumnData } from '~/column';
 import { MySqlDialect } from '~/mysql-core/dialect';
-import { SelectFieldsOrdered } from '~/mysql-core/operations';
 import { MySqlRawQueryResult, MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/mysql-core/session';
 import { AnyMySqlTable, GetTableConfig } from '~/mysql-core/table';
 import { mapUpdateSet } from '~/mysql-core/utils';
 import { QueryPromise } from '~/query-promise';
 import { Param, Query, SQL, SQLWrapper } from '~/sql';
 import { Simplify } from '~/utils';
+import { SelectFieldsOrdered } from './select.types';
 
 export interface MySqlUpdateConfig {
 	where?: SQL | undefined;

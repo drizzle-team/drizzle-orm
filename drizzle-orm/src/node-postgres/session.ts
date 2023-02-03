@@ -1,7 +1,7 @@
 import { Client, Pool, PoolClient, QueryArrayConfig, QueryConfig, QueryResult, QueryResultRow } from 'pg';
 import { Logger, NoopLogger } from '~/logger';
-import { SelectFieldsOrdered } from '~/operations';
 import { PgDialect } from '~/pg-core/dialect';
+import { SelectFieldsOrdered } from '~/pg-core/query-builders/select.types';
 import { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
 import { fillPlaceholders, Query } from '~/sql';
 import { mapResultRow } from '~/utils';
@@ -20,8 +20,9 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 		private logger: Logger,
 		private fields: SelectFieldsOrdered | undefined,
 		name: string | undefined,
+		joinsNotNullable?: Record<string, boolean>,
 	) {
-		super();
+		super(joinsNotNullable);
 		this.rawQuery = {
 			name,
 			text: queryString,
@@ -45,7 +46,9 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 
 		const result = this.client.query(this.query, params);
 
-		return result.then((result) => result.rows.map((row) => mapResultRow<T['execute']>(fields, row)));
+		return result.then((result) =>
+			result.rows.map((row) => mapResultRow<T['execute']>(fields, row, this.joinsNotNullable))
+		);
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
@@ -81,8 +84,9 @@ export class NodePgSession extends PgSession {
 		query: Query,
 		fields: SelectFieldsOrdered | undefined,
 		name: string | undefined,
+		joinsNotNullable?: Record<string, boolean>,
 	): PreparedQuery<T> {
-		return new NodePgPreparedQuery(this.client, query.sql, query.params, this.logger, fields, name);
+		return new NodePgPreparedQuery(this.client, query.sql, query.params, this.logger, fields, name, joinsNotNullable);
 	}
 
 	async query(query: string, params: unknown[]): Promise<QueryResult> {

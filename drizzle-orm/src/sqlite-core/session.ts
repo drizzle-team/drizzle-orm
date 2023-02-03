@@ -1,6 +1,6 @@
 import { Query, SQL } from '~/sql';
 import { SQLiteDialect } from '~/sqlite-core/dialect';
-import { SelectFieldsOrdered } from './operations';
+import { SelectFieldsOrdered } from './query-builders/select.types';
 
 export interface PreparedQueryConfig {
 	type: 'sync' | 'async';

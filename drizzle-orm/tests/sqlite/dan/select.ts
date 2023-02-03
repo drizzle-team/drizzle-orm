@@ -83,37 +83,33 @@ const joinPartial = db.select(users)
 	.all();
 
 Expect<
-	Equal<({
-		user: {
-			id: number;
-			age: number;
-			name: string | null;
-		};
-		city: {
-			id: number;
-			name: string;
-		};
-	} | {
-		user: {
-			id: number;
-			age: number;
-			name: string | null;
-		};
-		city: {
-			id: null;
-			name: null;
-		};
-	} | {
-		user: {
-			id: null;
-			age: null;
-			name: null;
-		};
-		city: {
-			id: number;
-			name: string;
-		};
-	})[], typeof joinPartial>
+	Equal<
+		({
+			user: {
+				id: number;
+				name: string | null;
+				age: number;
+			};
+			city: {
+				id: number;
+				name: string;
+			};
+		} | {
+			user: {
+				id: number;
+				name: string | null;
+				age: number;
+			};
+			city: null;
+		} | {
+			user: null;
+			city: {
+				id: number;
+				name: string;
+			};
+		})[],
+		typeof joinPartial
+	>
 >;
 
 const join3 = db.select(users)
@@ -348,7 +344,9 @@ const friends = alias(users, 'friends');
 
 const join4 = db.select(users)
 	.fields({
-		userId: users.id,
+		user: {
+			id: users.id,
+		},
 		users123: {
 			id: users.id,
 		},
@@ -365,32 +363,37 @@ const join4 = db.select(users)
 	.where(sql`${users.age1} > 0`).all();
 
 Expect<
-	Equal<{
-		userId: number;
-		users123: {
-			id: number;
-		};
-		city: {
-			name: string;
-			population: number | null;
-		};
-		class: {
-			id: number;
-			class: 'A' | 'C' | null;
-			subClass: 'B' | 'D';
-		};
-		friend: {
-			id: number;
-			homeCity: number;
-			currentCity: number | null;
-			serialNullable: number | null;
-			serialNotNull: number;
-			class: 'A' | 'C';
-			subClass: 'B' | 'D' | null;
-			name: string | null;
-			age1: number;
-			createdAt: Date;
-			enumCol: 'a' | 'b' | 'c';
-		};
-	}[], typeof join4>
+	Equal<
+		{
+			user: {
+				id: number;
+			};
+			users123: {
+				id: number;
+			};
+			city: {
+				name: string;
+				population: number | null;
+			};
+			class: {
+				id: number;
+				class: 'A' | 'C' | null;
+				subClass: 'B' | 'D';
+			};
+			friend: {
+				id: number;
+				name: string | null;
+				homeCity: number;
+				currentCity: number | null;
+				serialNullable: number | null;
+				serialNotNull: number;
+				class: 'A' | 'C';
+				subClass: 'B' | 'D' | null;
+				age1: number;
+				createdAt: Date;
+				enumCol: 'a' | 'b' | 'c';
+			};
+		}[],
+		typeof join4
+	>
 >;

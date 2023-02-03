@@ -3,7 +3,7 @@ import { ColumnBuilderConfig } from '~/column-builder';
 import { AnyMySqlTable } from '~/mysql-core/table';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
-export type CustomColumnBuildeConfig<T extends CustomTypeValues> = {
+export type CustomColumnBuilderConfig<T extends CustomTypeValues> = {
 	data: T['data'];
 	driverParam: T['driverData'];
 	notNull: T['notNull'] extends undefined ? false : T['notNull'] extends true ? true : false;
@@ -184,12 +184,12 @@ export function customType<
 	dbName: string,
 	fieldConfig?: T['config'],
 ) => MySqlColumnBuilder<
-	ColumnBuilderConfig<CustomColumnBuildeConfig<T>>,
+	ColumnBuilderConfig<CustomColumnBuilderConfig<T>>,
 	Record<string, unknown>
 > {
 	return (dbName: string, fieldConfig?: T['config']) =>
 		new class extends MySqlColumnBuilder<
-			ColumnBuilderConfig<CustomColumnBuildeConfig<T>>,
+			ColumnBuilderConfig<CustomColumnBuilderConfig<T>>,
 			Record<string, unknown>
 		> {
 			protected $pgColumnBuilderBrand!: 'CustomColumnBuilderBrand';
@@ -198,7 +198,7 @@ export function customType<
 			build<TTableName extends string>(
 				table: AnyMySqlTable<{ name: TTableName }>,
 			): MySqlColumn<
-				ColumnConfig<CustomColumnBuildeConfig<T> & { tableName: TTableName }>
+				ColumnConfig<CustomColumnBuilderConfig<T> & { tableName: TTableName }>
 			> {
 				return returnColumn(
 					table,

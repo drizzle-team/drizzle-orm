@@ -3,11 +3,10 @@ import { AnySQLiteColumn } from '~/sqlite-core/columns';
 import { SQLiteDialect } from '~/sqlite-core/dialect';
 import { Table } from '~/table';
 
-import { SQLiteSelectFields } from '~/sqlite-core/operations';
 import { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
 import { AnySQLiteTable, GetTableConfig, InferModel } from '~/sqlite-core/table';
-import { orderSelectedFields } from '~/sqlite-core/utils';
 
+import { orderSelectedFields } from '~/utils';
 import {
 	AnySQLiteSelect,
 	JoinFn,
@@ -16,6 +15,7 @@ import {
 	SelectMode,
 	SelectResult,
 	SQLiteSelectConfig,
+	SQLiteSelectFields,
 } from './select.types';
 
 export interface SQLiteSelect<
@@ -90,9 +90,6 @@ export class SQLiteSelect<
 					this.joinsNotNullable[tableName] = true;
 					break;
 				case 'inner':
-					this.joinsNotNullable = Object.fromEntries(
-						Object.entries(this.joinsNotNullable).map(([key]) => [key, true]),
-					);
 					this.joinsNotNullable[tableName] = true;
 					break;
 				case 'full':

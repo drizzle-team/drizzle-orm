@@ -1,13 +1,12 @@
 import { AnyColumn, Column } from '~/column';
 import { MigrationMeta } from '~/migrator';
-import { SelectFieldsOrdered } from '~/operations';
 import { Name, Query, SQL, sql, SQLResponse, SQLSourceParam } from '~/sql';
 import { Table } from '~/table';
 import { AnyMySqlColumn, MySqlColumn } from './columns/common';
 import { MySqlDatabase } from './db';
 import { MySqlDeleteConfig } from './query-builders/delete';
 import { MySqlInsertConfig } from './query-builders/insert';
-import { MySqlSelectConfig } from './query-builders/select.types';
+import { MySqlSelectConfig, SelectFieldsOrdered } from './query-builders/select.types';
 import { MySqlUpdateConfig, MySqlUpdateSet } from './query-builders/update';
 import { MySqlSession } from './session';
 import { AnyMySqlTable, MySqlTable } from './table';

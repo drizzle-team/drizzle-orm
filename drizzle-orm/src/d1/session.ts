@@ -3,7 +3,7 @@
 import { Logger, NoopLogger } from '~/logger';
 import { fillPlaceholders, Query } from '~/sql';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
-import { SelectFieldsOrdered } from '~/sqlite-core/operations';
+import { SelectFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
 import {
 	PreparedQuery as PreparedQueryBase,
 	PreparedQueryConfig as PreparedQueryConfigBase,

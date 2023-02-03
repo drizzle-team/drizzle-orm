@@ -1,7 +1,7 @@
 import { Connection, Pool, QueryOptions } from 'mysql2/promise';
 import { Logger, NoopLogger } from '~/logger';
 import { MySqlDialect } from '~/mysql-core/dialect';
-import { SelectFieldsOrdered } from '~/mysql-core/operations';
+import { SelectFieldsOrdered } from '~/mysql-core/query-builders/select.types';
 import {
 	MySqlQueryResult,
 	MySqlQueryResultType,

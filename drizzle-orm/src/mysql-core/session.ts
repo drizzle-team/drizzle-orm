@@ -1,7 +1,7 @@
 import { FieldPacket, OkPacket, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { Query, SQL } from '~/sql';
 import { MySqlDialect } from './dialect';
-import { SelectFieldsOrdered } from './operations';
+import { SelectFieldsOrdered } from './query-builders/select.types';
 
 // TODO: improve type
 export type MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]];

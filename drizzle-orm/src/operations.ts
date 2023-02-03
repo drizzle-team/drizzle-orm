@@ -1,5 +1,6 @@
 import { AnyColumn } from './column';
 import { SQL, SQLResponse } from './sql';
+import { Table } from './table';
 
 export type RequiredKeyOnly<TKey extends string, T extends AnyColumn> = T extends
 	AnyColumn<{ notNull: true; hasDefault: false }> ? TKey
@@ -8,14 +9,13 @@ export type RequiredKeyOnly<TKey extends string, T extends AnyColumn> = T extend
 export type OptionalKeyOnly<TKey extends string, T extends AnyColumn> = TKey extends RequiredKeyOnly<TKey, T> ? never
 	: TKey;
 
-export type SelectFields<TTableName extends string, TColumnDriverParam> = {
-	[key: string]:
-		| SQL
-		| SQLResponse
-		| AnyColumn<{ tableName: TTableName; driverParam: TColumnDriverParam }>;
+export type SelectFields<TColumn extends AnyColumn, TTable extends Table> = {
+	[Key: string]: TColumn | SQL | SQLResponse | TTable | {
+		[Subkey: string]: TColumn | SQL | SQLResponse;
+	};
 };
 
-export type SelectFieldsOrdered = {
+export type SelectFieldsOrdered<TColumn extends AnyColumn> = {
 	path: string[];
-	field: AnyColumn | SQL | SQLResponse;
+	field: TColumn | SQL | SQLResponse;
 }[];

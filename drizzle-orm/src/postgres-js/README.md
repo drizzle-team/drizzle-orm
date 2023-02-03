@@ -19,7 +19,7 @@ pnpm add -D drizzle-kit
 ## Connection
 
 ```typescript
-import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres.js';
+import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 
 const client = postgres(connectionString);
@@ -34,7 +34,7 @@ In order to run the migrations, [you need to use `max: 1` in the postgres.js con
 
 ```typescript
 import postgres from 'postgres';
-import { migrate } from 'drizzle-orm/postgres.js/migrator';
+import { migrate } from 'drizzle-orm/postgres-js/migrator';
 
 const migrationsClient = postgres(connectionString, {
   max: 1,

@@ -1,13 +1,12 @@
 import { Param, Placeholder, Query, SQL, sql, SQLWrapper } from '~/sql';
 import { Table } from '~/table';
-import { Simplify } from '~/utils';
+import { mapUpdateSet, orderSelectedFields, Simplify } from '~/utils';
 
 import { SQLiteDialect } from '~/sqlite-core/dialect';
 import { IndexColumn } from '~/sqlite-core/indexes';
-import { SelectFieldsOrdered, SelectResultFields, SQLiteSelectFields } from '~/sqlite-core/operations';
 import { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
 import { AnySQLiteTable, InferModel, SQLiteTable } from '~/sqlite-core/table';
-import { mapUpdateSet, orderSelectedFields } from '~/sqlite-core/utils';
+import { SelectFieldsOrdered, SelectResultFields, SQLiteSelectFields } from './select.types';
 import { SQLiteUpdateSetSource } from './update';
 
 export interface SQLiteInsertConfig<TTable extends AnySQLiteTable = AnySQLiteTable> {

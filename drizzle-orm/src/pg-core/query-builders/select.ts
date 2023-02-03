@@ -4,17 +4,17 @@ import { Table } from '~/table';
 
 import { AnyPgColumn } from '~/pg-core/columns';
 import { PgDialect } from '~/pg-core/dialect';
-import { SelectFields } from '~/pg-core/operations';
 import { PgSession, PreparedQuery, PreparedQueryConfig } from '~/pg-core/session';
 import { AnyPgTable, GetTableConfig, InferModel } from '~/pg-core/table';
-import { orderSelectedFields } from '~/pg-core/utils';
 
+import { orderSelectedFields } from '~/utils';
 import {
 	AnyPgSelect,
 	JoinFn,
 	JoinNullability,
 	JoinType,
 	PgSelectConfig,
+	SelectFields,
 	SelectMode,
 	SelectResult,
 } from './select.types';
@@ -88,9 +88,6 @@ export class PgSelect<
 					this.joinsNotNullable[tableName] = true;
 					break;
 				case 'inner':
-					this.joinsNotNullable = Object.fromEntries(
-						Object.entries(this.joinsNotNullable).map(([key]) => [key, true]),
-					);
 					this.joinsNotNullable[tableName] = true;
 					break;
 				case 'full':
@@ -160,7 +157,7 @@ export class PgSelect<
 			execute: SelectResult<TResult, TSelectMode, TJoinsNotNullable>[];
 		}
 	> {
-		return this.session.prepareQuery(this.toSQL(), this.config.fields, name);
+		return this.session.prepareQuery(this.toSQL(), this.config.fields, name, this.joinsNotNullable);
 	}
 
 	prepare(name: string): PreparedQuery<

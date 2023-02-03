@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm';
 import { asc, eq } from 'drizzle-orm/expressions';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { alias, boolean, InferModel, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { alias, boolean, InferModel, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import { Client } from 'pg';
@@ -16,6 +16,17 @@ const usersTable = pgTable('users', {
 	verified: boolean('verified').notNull().default(false),
 	jsonb: jsonb<string[]>('jsonb'),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+const users2Table = pgTable('users2', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	cityId: integer('city_id').references(() => citiesTable.id),
+});
+
+const citiesTable = pgTable('cities', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
 });
 
 const usersMigratorTable = pgTable('users12', {
@@ -98,6 +109,19 @@ test.beforeEach(async (t) => {
 			verified boolean not null default false, 
 			jsonb jsonb,
 			created_at timestamptz not null default now()
+		)`,
+	);
+	await ctx.db.execute(
+		sql`create table cities (
+			id serial primary key,
+			name text not null
+		)`,
+	);
+	await ctx.db.execute(
+		sql`create table users2 (
+			id serial primary key,
+			name text not null,
+			city_id integer references cities(id)
 		)`,
 	);
 });
@@ -660,6 +684,103 @@ test.serial('insert with onConflict do nothing + target', async (t) => {
 	);
 
 	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('left join (flat object fields)', async (t) => {
+	const { db } = t.context;
+
+	const { id: cityId } = await db.insert(citiesTable)
+		.values({ name: 'Paris' }, { name: 'London' })
+		.returning({ id: citiesTable.id }).then((rows) => rows[0]!);
+
+	await db.insert(users2Table).values({ name: 'John', cityId }, { name: 'Jane' });
+
+	const res = await db.select(users2Table)
+		.fields({
+			userId: users2Table.id,
+			userName: users2Table.name,
+			cityId: citiesTable.id,
+			cityName: citiesTable.name,
+		})
+		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id));
+
+	t.deepEqual(res, [
+		{ userId: 1, userName: 'John', cityId, cityName: 'Paris' },
+		{ userId: 2, userName: 'Jane', cityId: null, cityName: null },
+	]);
+});
+
+test.serial('left join (grouped fields)', async (t) => {
+	const { db } = t.context;
+
+	const { id: cityId } = await db.insert(citiesTable)
+		.values({ name: 'Paris' }, { name: 'London' })
+		.returning({ id: citiesTable.id }).then((rows) => rows[0]!);
+
+	await db.insert(users2Table).values({ name: 'John', cityId }, { name: 'Jane' });
+
+	const res = await db.select(users2Table)
+		.fields({
+			id: users2Table.id,
+			user: {
+				name: users2Table.name,
+				nameUpper: sql`upper(${users2Table.name})`.as<string>(),
+			},
+			city: {
+				id: citiesTable.id,
+				name: citiesTable.name,
+				nameUpper: sql`upper(${citiesTable.name})`.as<string>(),
+			},
+		})
+		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id));
+
+	t.deepEqual(res, [
+		{
+			id: 1,
+			user: { name: 'John', nameUpper: 'JOHN' },
+			city: { id: cityId, name: 'Paris', nameUpper: 'PARIS' },
+		},
+		{
+			id: 2,
+			user: { name: 'Jane', nameUpper: 'JANE' },
+			city: null,
+		},
+	]);
+});
+
+test.serial('left join (all fields)', async (t) => {
+	const { db } = t.context;
+
+	const { id: cityId } = await db.insert(citiesTable)
+		.values({ name: 'Paris' }, { name: 'London' })
+		.returning({ id: citiesTable.id }).then((rows) => rows[0]!);
+
+	await db.insert(users2Table).values({ name: 'John', cityId }, { name: 'Jane' });
+
+	const res = await db.select(users2Table)
+		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id));
+
+	t.deepEqual(res, [
+		{
+			users2: {
+				id: 1,
+				name: 'John',
+				cityId,
+			},
+			cities: {
+				id: cityId,
+				name: 'Paris',
+			},
+		},
+		{
+			users2: {
+				id: 2,
+				name: 'Jane',
+				cityId: null,
+			},
+			cities: null,
+		},
+	]);
 });
 
 test.after.always(async (t) => {

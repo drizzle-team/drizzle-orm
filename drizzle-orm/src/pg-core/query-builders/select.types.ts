@@ -1,10 +1,10 @@
-import { GetColumnConfig } from '~/column';
+import { GetColumnConfig, GetColumnData } from '~/column';
 import { Placeholder, SQL, SQLResponse } from '~/sql';
 import { Simplify } from '~/utils';
 
+import { SelectFields as SelectFieldsBase, SelectFieldsOrdered as SelectFieldsOrderedBase } from '~/operations';
 import { AnyPgColumn } from '~/pg-core/columns';
 import { ChangeColumnTableName } from '~/pg-core/columns/common';
-import { SelectFields, SelectFieldsOrdered, SelectResultField, SelectResultFields } from '~/pg-core/operations';
 import { AnyPgTable, GetTableConfig, PgTableWithColumns, TableConfig, UpdateTableConfig } from '~/pg-core/table';
 
 import { PgSelect } from './select';
@@ -25,19 +25,12 @@ export type ApplyNullability<T, TNullability extends JoinNullability> = TNullabi
 	: TNullability extends 'null' ? null
 	: T;
 
-export type ApplyNullabilityNested<T, TNullability extends JoinNullability> = T extends Record<string, any> ? {
-		[Key in keyof T]: ApplyNullabilityNested<T[Key], TNullability>;
-	}
-	: ApplyNullability<T, TNullability>;
-
-export type ApplyNotNullMapToJoins<TResult, TJoinsNotNullable extends Record<string, JoinNullability>> =
-	TJoinsNotNullable extends TJoinsNotNullable ? {
-			[TTableName in keyof TResult & keyof TJoinsNotNullable & string]: ApplyNullability<
-				TResult[TTableName],
-				TJoinsNotNullable[TTableName]
-			>;
-		}
-		: never;
+export type ApplyNotNullMapToJoins<TResult, TNullabilityMap extends Record<string, JoinNullability>> = {
+	[TTableName in keyof TResult & keyof TNullabilityMap & string]: ApplyNullability<
+		TResult[TTableName],
+		TNullabilityMap[TTableName]
+	>;
+};
 
 export type SelectResult<
 	TResult,
@@ -45,42 +38,35 @@ export type SelectResult<
 	TJoinsNotNullable extends Record<string, JoinNullability>,
 > = TSelectMode extends 'partial' ? SelectPartialResult<TResult, TJoinsNotNullable>
 	: TSelectMode extends 'single' ? TResult
-	: RemoveDuplicates<Simplify<ApplyNotNullMapToJoins<TResult, TJoinsNotNullable>>>;
+	: Simplify<ApplyNotNullMapToJoins<TResult, TJoinsNotNullable>>;
 
-type GetNullableKeys<T extends Record<string, JoinNullability>> = {
-	[Key in keyof T]: T[Key] extends 'nullable' ? Key : never;
-}[keyof T];
+type IsUnion<T, U extends T = T> = (T extends any ? (U extends T ? false : true)
+	: never) extends false ? false : true;
 
-// Splits a single variant with 'nullable' into two variants with 'null' and 'not-null'
-type SplitNullability<T extends Record<string, JoinNullability>> = RemoveDuplicates<
-	'nullable' extends T[keyof T]
-		? T extends T ? GetNullableKeys<T> extends infer TKey extends string ? [TKey] extends [TKey] ? TKey extends TKey ? 
-							| Simplify<SplitNullability<Omit<T, TKey>> & { [Key in TKey]: 'not-null' }>
-							| Simplify<SplitNullability<Omit<T, TKey>> & { [Key in TKey]: 'null' }>
-					: never
+type Not<T extends boolean> = T extends true ? false : true;
+
+type SelectPartialResult<TFields, TNullability extends Record<string, JoinNullability>> = TNullability extends
+	TNullability ? {
+		[Key in keyof TFields]: TFields[Key] extends infer TField
+			? TField extends AnyPgTable ? GetTableConfig<TField, 'name'> extends keyof TNullability ? ApplyNullability<
+						SelectResultFields<GetTableConfig<TField, 'columns'>>,
+						TNullability[GetTableConfig<TField, 'name'>]
+					>
 				: never
-			: T
-		: never
-		: T
->;
-
-type SelectPartialResult<
-	TFields,
-	TNullability extends Record<string, JoinNullability>,
-> = SplitNullability<TNullability> extends infer TNullability extends Record<string, JoinNullability>
-	? TNullability extends TNullability ? {
-			[Key in keyof TFields as Key extends string ? Key : never]: TFields[Key] extends infer TField
-				? TField extends AnyPgTable ? SelectPartialResult<GetTableConfig<TField, 'columns'>, TNullability>
-				: TField extends AnyPgColumn
-					? GetColumnConfig<TField, 'tableName'> extends infer TTableName extends keyof TNullability
-						? ApplyNullability<SelectResultField<TField>, TNullability[TTableName]>
-					: never
-				: TField extends SQL | SQLResponse ? SelectResultField<TField>
-				: TField extends Record<string, any> ? SelectPartialResult<TField, TNullability>
-				: SelectResultField<TField>
-				: never;
-		}
-	: never
+			: TField extends AnyPgColumn
+				? GetColumnConfig<TField, 'tableName'> extends infer TTableName extends keyof TNullability
+					? ApplyNullability<SelectResultField<TField>, TNullability[TTableName]>
+				: never
+			: TField extends SQL | SQLResponse ? SelectResultField<TField>
+			: TField extends Record<string, any>
+				? TField[keyof TField] extends AnyPgColumn<{ tableName: infer TTableName extends string }> | SQL | SQLResponse
+					? Not<IsUnion<TTableName>> extends true
+						? ApplyNullability<SelectResultFields<TField>, TNullability[TTableName]>
+					: SelectPartialResult<TField, TNullability>
+				: never
+			: never
+			: never;
+	}
 	: never;
 
 export type AnyPgSelect = PgSelect<any, any, any, any>;
@@ -109,8 +95,8 @@ export type AppendToResult<
 		? Record<GetTableConfig<TTableName, 'name'>, TResult> & Record<TJoinedName, SelectResultFields<TSelectedFields>>
 	: Simplify<TResult & Record<TJoinedName, SelectResultFields<TSelectedFields>>>;
 
-type SetJoinsNotNull<TJoinsNotNull extends Record<string, JoinNullability>, TValue extends JoinNullability> = {
-	[Key in keyof TJoinsNotNull]: TValue;
+type SetJoinsNullability<TNullabilityMap extends Record<string, JoinNullability>, TValue extends JoinNullability> = {
+	[Key in keyof TNullabilityMap]: TValue;
 };
 
 // https://stackoverflow.com/a/70061272/9929789
@@ -127,16 +113,11 @@ export type AppendToJoinsNotNull<
 	TJoinsNotNull extends Record<string, JoinNullability>,
 	TJoinedName extends string,
 	TJoinType extends JoinType,
-> = Simplify<
-	'left' extends TJoinType ? TJoinsNotNull & { [name in TJoinedName]: 'nullable' }
-		: 'right' extends TJoinType ? SetJoinsNotNull<TJoinsNotNull, 'nullable'> & { [name in TJoinedName]: 'not-null' }
-		: 'inner' extends TJoinType ? SetJoinsNotNull<TJoinsNotNull, 'not-null'> & { [name in TJoinedName]: 'not-null' }
-		: 'full' extends TJoinType ? 
-				| (TJoinsNotNull & { [name in TJoinedName]: 'not-null' })
-				| (TJoinsNotNull & { [name in TJoinedName]: 'null' })
-				| (SetJoinsNotNull<TJoinsNotNull, 'null'> & { [name in TJoinedName]: 'not-null' })
-		: never
->;
+> = 'left' extends TJoinType ? TJoinsNotNull & { [name in TJoinedName]: 'nullable' }
+	: 'right' extends TJoinType ? SetJoinsNullability<TJoinsNotNull, 'nullable'> & { [name in TJoinedName]: 'not-null' }
+	: 'inner' extends TJoinType ? TJoinsNotNull & { [name in TJoinedName]: 'not-null' }
+	: 'full' extends TJoinType ? SetJoinsNullability<TJoinsNotNull, 'nullable'> & { [name in TJoinedName]: 'nullable' }
+	: never;
 
 export interface PgSelectConfig {
 	fields: SelectFieldsOrdered;
@@ -163,4 +144,21 @@ export type JoinFn<
 	AppendToResult<TTable, TResult, TJoinedName, GetTableConfig<TJoinedTable, 'columns'>, TSelectMode>,
 	TSelectMode extends 'partial' ? TSelectMode : 'multiple',
 	AppendToJoinsNotNull<TJoinsNotNullable, TJoinedName, TJoinType>
+>;
+
+export type SelectFields = SelectFieldsBase<AnyPgColumn, AnyPgTable>;
+
+export type SelectFieldsOrdered = SelectFieldsOrderedBase<AnyPgColumn>;
+
+export type SelectResultField<T> = T extends AnyPgTable ? SelectResultField<GetTableConfig<T, 'columns'>>
+	: T extends AnyPgColumn ? GetColumnData<T>
+	: T extends SQLResponse<infer TDriverParam> ? TDriverParam
+	: T extends SQL ? unknown
+	: T extends Record<string, any> ? { [Key in keyof T]: SelectResultField<T[Key]> }
+	: never;
+
+export type SelectResultFields<TSelectedFields extends SelectFields> = Simplify<
+	{
+		[Key in keyof TSelectedFields & string]: SelectResultField<TSelectedFields[Key]>;
+	}
 >;

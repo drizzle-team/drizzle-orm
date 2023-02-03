@@ -49,13 +49,13 @@ Expect<
 		({
 			users: {
 				id: number;
+				text: string | null;
 				homeCity: number;
 				currentCity: number | null;
 				serialNullable: number;
 				serialNotNull: number;
 				class: 'A' | 'C';
 				subClass: 'B' | 'D' | null;
-				text: string | null;
 				age1: number;
 				createdAt: Date;
 				enumCol: 'a' | 'b' | 'c';
@@ -64,7 +64,7 @@ Expect<
 				id: number;
 				name: string;
 				population: number | null;
-			};
+			} | null;
 			city: {
 				id: number;
 				name: string;
@@ -74,24 +74,8 @@ Expect<
 				id: number;
 			};
 		} | {
-			users: {
-				id: null;
-				homeCity: null;
-				currentCity: null;
-				serialNullable: null;
-				serialNotNull: null;
-				class: null;
-				subClass: null;
-				text: null;
-				age1: null;
-				createdAt: null;
-				enumCol: null;
-			};
-			cities: {
-				id: number;
-				name: string;
-				population: number | null;
-			};
+			users: null;
+			cities: null;
 			city: {
 				id: number;
 				name: string;
@@ -101,164 +85,9 @@ Expect<
 				id: number;
 			};
 		} | {
-			users: {
-				id: number;
-				homeCity: number;
-				currentCity: number | null;
-				serialNullable: number;
-				serialNotNull: number;
-				class: 'A' | 'C';
-				subClass: 'B' | 'D' | null;
-				text: string | null;
-				age1: number;
-				createdAt: Date;
-				enumCol: 'a' | 'b' | 'c';
-			};
-			cities: {
-				id: number;
-				name: string;
-				population: number | null;
-			};
-			city: {
-				id: null;
-				name: null;
-				population: null;
-			};
-			city1: {
-				id: number;
-			};
-		} | {
-			users: {
-				id: null;
-				homeCity: null;
-				currentCity: null;
-				serialNullable: null;
-				serialNotNull: null;
-				class: null;
-				subClass: null;
-				text: null;
-				age1: null;
-				createdAt: null;
-				enumCol: null;
-			};
-			cities: {
-				id: number;
-				name: string;
-				population: number | null;
-			};
-			city: {
-				id: null;
-				name: null;
-				population: null;
-			};
-			city1: {
-				id: number;
-			};
-		} | {
-			users: {
-				id: number;
-				homeCity: number;
-				currentCity: number | null;
-				serialNullable: number;
-				serialNotNull: number;
-				class: 'A' | 'C';
-				subClass: 'B' | 'D' | null;
-				text: string | null;
-				age1: number;
-				createdAt: Date;
-				enumCol: 'a' | 'b' | 'c';
-			};
-			cities: {
-				id: null;
-				name: null;
-				population: null;
-			};
-			city: {
-				id: number;
-				name: string;
-				population: number | null;
-			};
-			city1: {
-				id: number;
-			};
-		} | {
-			users: {
-				id: null;
-				homeCity: null;
-				currentCity: null;
-				serialNullable: null;
-				serialNotNull: null;
-				class: null;
-				subClass: null;
-				text: null;
-				age1: null;
-				createdAt: null;
-				enumCol: null;
-			};
-			cities: {
-				id: null;
-				name: null;
-				population: null;
-			};
-			city: {
-				id: number;
-				name: string;
-				population: number | null;
-			};
-			city1: {
-				id: number;
-			};
-		} | {
-			users: {
-				id: number;
-				homeCity: number;
-				currentCity: number | null;
-				serialNullable: number;
-				serialNotNull: number;
-				class: 'A' | 'C';
-				subClass: 'B' | 'D' | null;
-				text: string | null;
-				age1: number;
-				createdAt: Date;
-				enumCol: 'a' | 'b' | 'c';
-			};
-			cities: {
-				id: null;
-				name: null;
-				population: null;
-			};
-			city: {
-				id: null;
-				name: null;
-				population: null;
-			};
-			city1: {
-				id: number;
-			};
-		} | {
-			users: {
-				id: null;
-				homeCity: null;
-				currentCity: null;
-				serialNullable: null;
-				serialNotNull: null;
-				class: null;
-				subClass: null;
-				text: null;
-				age1: null;
-				createdAt: null;
-				enumCol: null;
-			};
-			cities: {
-				id: null;
-				name: null;
-				population: null;
-			};
-			city: {
-				id: null;
-				name: null;
-				population: null;
-			};
+			users: null;
+			cities: null;
+			city: null;
 			city1: {
 				id: number;
 			};
@@ -425,7 +254,9 @@ const megaJoin = await db.select(users)
 			id: users.id,
 			maxAge: sql`max(${users.age1})`,
 		},
-		cityId: cities.id,
+		city: {
+			id: cities.id,
+		},
 		homeCity,
 		c,
 		otherClass,
@@ -455,7 +286,9 @@ Expect<
 				id: number;
 				maxAge: unknown;
 			};
-			cityId: number;
+			city: {
+				id: number;
+			};
 			homeCity: {
 				id: number;
 				name: string;
@@ -521,8 +354,12 @@ const friends = alias(users, 'friends');
 
 const join4 = await db.select(users)
 	.fields({
-		userId: users.id,
-		cityId: cities.id,
+		user: {
+			id: users.id,
+		},
+		city: {
+			id: cities.id,
+		},
 		class: classes,
 		friend: friends,
 	})
@@ -533,8 +370,12 @@ const join4 = await db.select(users)
 
 Expect<
 	Equal<{
-		userId: number;
-		cityId: number;
+		user: {
+			id: number;
+		};
+		city: {
+			id: number;
+		};
 		class: {
 			id: number;
 			class: 'A' | 'C' | null;

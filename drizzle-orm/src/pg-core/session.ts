@@ -1,6 +1,6 @@
 import { Query, SQL } from '~/sql';
 import { PgDialect } from './dialect';
-import { SelectFieldsOrdered } from './operations';
+import { SelectFieldsOrdered } from './query-builders/select.types';
 
 export interface PreparedQueryConfig {
 	execute: unknown;
@@ -9,6 +9,10 @@ export interface PreparedQueryConfig {
 }
 
 export abstract class PreparedQuery<T extends PreparedQueryConfig> {
+	constructor(
+		protected joinsNotNullable?: Record<string, boolean>,
+	) {}
+
 	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
 
 	/** @internal */
@@ -25,6 +29,7 @@ export abstract class PgSession {
 		query: Query,
 		fields: SelectFieldsOrdered | undefined,
 		name: string | undefined,
+		joinsNotNullable?: Record<string, boolean>,
 	): PreparedQuery<T>;
 
 	execute<T>(query: SQL): Promise<T> {

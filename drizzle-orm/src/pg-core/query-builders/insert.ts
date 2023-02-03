@@ -4,10 +4,10 @@ import { Table } from '~/table';
 
 import { PgDialect } from '~/pg-core/dialect';
 import { IndexColumn } from '~/pg-core/indexes';
-import { SelectFields, SelectFieldsOrdered, SelectResultFields } from '~/pg-core/operations';
 import { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
 import { AnyPgTable, InferModel, PgTable } from '~/pg-core/table';
-import { mapUpdateSet, orderSelectedFields } from '~/pg-core/utils';
+import { mapUpdateSet, orderSelectedFields } from '~/utils';
+import { SelectFields, SelectFieldsOrdered, SelectResultFields } from './select.types';
 import { PgUpdateSetSource } from './update';
 
 export interface PgInsertConfig<TTable extends AnyPgTable = AnyPgTable> {

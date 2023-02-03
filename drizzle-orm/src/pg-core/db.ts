@@ -2,8 +2,8 @@ import { PgDialect } from '~/pg-core/dialect';
 import { PgDelete, PgInsertBuilder, PgSelect, PgUpdateBuilder } from '~/pg-core/query-builders';
 import { PgSession, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
 import { AnyPgTable, PgTable } from '~/pg-core/table';
-import { orderSelectedFields } from '~/pg-core/utils';
 import { SQLWrapper } from '~/sql';
+import { orderSelectedFields } from '~/utils';
 
 export class PgDatabase<TQueryResult extends QueryResultHKT, TSession extends PgSession> {
 	constructor(

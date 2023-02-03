@@ -1,8 +1,6 @@
-import { SelectFields, SelectFieldsOrdered } from '~/mysql-core/operations';
-import { Param, SQL, SQLResponse } from '~/sql';
+import { Param, SQL } from '~/sql';
 import { Table } from '~/table';
 import { Check, CheckBuilder } from './checks';
-import { MySqlColumn } from './columns/common';
 import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
 import { Index, IndexBuilder } from './indexes';
 import { MySqlUpdateSet } from './query-builders/update';
@@ -94,32 +92,4 @@ export function mapUpdateSet(table: AnyMySqlTable, values: Record<string, unknow
 			}
 		}),
 	);
-}
-
-export type Assume<T, U> = T extends U ? T : U;
-
-export function orderSelectedFields(fields: SelectFields, pathPrefix?: string[]): SelectFieldsOrdered {
-	return Object.entries(fields).reduce<SelectFieldsOrdered>((result, [name, field]) => {
-		if (typeof name !== 'string') {
-			return result;
-		}
-
-		const newPath = pathPrefix ? [...pathPrefix, name] : [name];
-		if (
-			field instanceof MySqlColumn
-			|| field instanceof SQL
-			|| field instanceof SQLResponse
-		) {
-			result.push({ path: newPath, field });
-		} else if (field instanceof MySqlTable) {
-			result.push(
-				...orderSelectedFields(field[Table.Symbol.Columns], newPath),
-			);
-		} else {
-			result.push(
-				...orderSelectedFields(field, newPath),
-			);
-		}
-		return result;
-	}, []);
 }
