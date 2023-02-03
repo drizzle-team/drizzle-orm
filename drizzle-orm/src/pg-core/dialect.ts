@@ -1,12 +1,12 @@
 import { AnyColumn, Column } from '~/column';
 import { MigrationMeta } from '~/migrator';
 import { SelectFieldsOrdered } from '~/operations';
-import { AnyPgColumn, PgColumn } from '~/pg-core/columns';
+import { AnyPgColumn, PgColumn, PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core/columns';
 import { PgDatabase } from '~/pg-core/db';
 import { PgDeleteConfig, PgInsertConfig, PgUpdateConfig, PgUpdateSet } from '~/pg-core/query-builders';
 import { PgSelectConfig } from '~/pg-core/query-builders/select.types';
 import { AnyPgTable, PgTable } from '~/pg-core/table';
-import { Name, Query, SQL, sql, SQLResponse, SQLSourceParam } from '~/sql';
+import { DriverValueEncoder, Name, Query, QueryTypingsValue, SQL, sql, SQLResponse, SQLSourceParam } from '~/sql';
 import { Table } from '~/table';
 import { PgSession } from './session';
 
@@ -248,10 +248,30 @@ export class PgDialect {
 		return sql`insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
+	prepareTyping(encoder: DriverValueEncoder<unknown, unknown>): QueryTypingsValue {
+		if (
+			encoder instanceof PgJsonb || encoder instanceof PgJson
+		) {
+			return 'json';
+		} else if (encoder instanceof PgNumeric) {
+			return 'decimal';
+		} else if (encoder instanceof PgTime) {
+			return 'time';
+		} else if (encoder instanceof PgTimestamp) {
+			return 'timestamp';
+		} else if (encoder instanceof PgDate) {
+			return 'date';
+		} else if (encoder instanceof PgUUID) {
+			return 'uuid';
+		} else {
+			return 'none';
+		}
+	}
+
 	sqlToQuery(sql: SQL): Query {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
-		});
+		}, this.prepareTyping);
 	}
 }
