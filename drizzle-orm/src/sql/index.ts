@@ -1,3 +1,5 @@
+import { MySqlDate, MySqlDecimal, MySqlJson, MySqlTime, MySqlTimestamp } from '~/mysql-core';
+import { PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core';
 import { AnyColumn, Column } from '../column';
 import { Table } from '../table';
 
@@ -21,9 +23,12 @@ export interface BuildQueryConfig {
 	escapeParam(num: number, value: unknown): string;
 }
 
+export type QueryTypingsValue = 'json' | 'decimal' | 'time' | 'timestamp' | 'uuid' | 'date' | 'none';
+
 export interface Query {
 	sql: string;
 	params: unknown[];
+	typings?: QueryTypingsValue[];
 }
 
 export interface SQLWrapper {
@@ -35,6 +40,27 @@ export function isSQLWrapper(value: unknown): value is SQLWrapper {
 		&& typeof (value as any).getSQL === 'function';
 }
 
+function prepareTyping(encoder: DriverValueEncoder<unknown, unknown>): QueryTypingsValue {
+	if (
+		encoder instanceof PgJsonb || encoder instanceof PgJson
+		|| encoder instanceof MySqlJson
+	) {
+		return 'json';
+	} else if (encoder instanceof MySqlDecimal || encoder instanceof PgNumeric) {
+		return 'decimal';
+	} else if (encoder instanceof PgTime || encoder instanceof MySqlTime) {
+		return 'time';
+	} else if (encoder instanceof PgTimestamp || encoder instanceof MySqlTimestamp) {
+		return 'timestamp';
+	} else if (encoder instanceof PgDate || encoder instanceof MySqlDate) {
+		return 'date';
+	} else if (encoder instanceof PgUUID) {
+		return 'uuid';
+	} else {
+		return 'none';
+	}
+}
+
 export class SQL implements SQLWrapper {
 	declare protected $brand: 'SQL';
 
@@ -42,6 +68,7 @@ export class SQL implements SQLWrapper {
 
 	toQuery({ escapeName, escapeParam }: BuildQueryConfig): Query {
 		const params: unknown[] = [];
+		const typings: QueryTypingsValue[] = [];
 
 		const chunks = this.queryChunks.map((chunk) => {
 			if (typeof chunk === 'string') {
@@ -57,6 +84,7 @@ export class SQL implements SQLWrapper {
 				return escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(chunk.name);
 			} else if (chunk instanceof Param) {
 				params.push(chunk.encoder.mapToDriverValue(chunk.value));
+				typings.push(prepareTyping(chunk.encoder));
 				return escapeParam(params.length - 1, chunk.value);
 			} else {
 				const err = new Error('Unexpected chunk type!');
@@ -69,7 +97,7 @@ export class SQL implements SQLWrapper {
 			.join('')
 			.trim();
 
-		return { sql: sqlString, params };
+		return { sql: sqlString, params, typings };
 	}
 
 	getSQL(): SQL {

@@ -55,10 +55,6 @@ export class MySqlDialect {
 		}
 	}
 
-	createDB(session: MySqlSession): MySqlDatabase {
-		return new MySqlDatabase(this, session);
-	}
-
 	escapeName(name: string): string {
 		return `\`${name}\``;
 	}

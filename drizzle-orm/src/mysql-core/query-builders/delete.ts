@@ -1,5 +1,11 @@
 import { MySqlDialect } from '~/mysql-core/dialect';
-import { MySqlRawQueryResult, MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/mysql-core/session';
+import {
+	MySqlSession,
+	PreparedQuery,
+	PreparedQueryConfig,
+	QueryResultHKT,
+	QueryResultKind,
+} from '~/mysql-core/session';
 import { AnyMySqlTable } from '~/mysql-core/table';
 import { QueryPromise } from '~/query-promise';
 import { Query, SQL, SQLWrapper } from '~/sql';
@@ -13,13 +19,15 @@ export interface MySqlDeleteConfig {
 
 export interface MySqlDelete<
 	TTable extends AnyMySqlTable,
+	TQueryResult extends QueryResultHKT,
 	TReturning = undefined,
-> extends QueryPromise<MySqlRawQueryResult> {}
+> extends QueryPromise<QueryResultKind<TQueryResult, never>> {}
 
 export class MySqlDelete<
 	TTable extends AnyMySqlTable,
+	TQueryResult extends QueryResultHKT,
 	TReturning = undefined,
-> extends QueryPromise<MySqlRawQueryResult> implements SQLWrapper {
+> extends QueryPromise<QueryResultKind<TQueryResult, never>> implements SQLWrapper {
 	private config: MySqlDeleteConfig;
 
 	constructor(
@@ -54,21 +62,22 @@ export class MySqlDelete<
 		return this.dialect.buildDeleteQuery(this.config);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(): Omit<Query, 'typings'> {
+		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		return rest;
 	}
 
 	private _prepare(name?: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: MySqlRawQueryResult;
+			execute: TQueryResult;
 		}
 	> {
-		return this.session.prepareQuery(this.toSQL(), this.config.returning, name);
+		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
 	}
 
 	prepare(name: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: MySqlRawQueryResult;
+			execute: QueryResultKind<TQueryResult, never>;
 		}
 	> {
 		return this._prepare(name);

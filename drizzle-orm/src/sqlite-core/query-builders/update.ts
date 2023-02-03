@@ -94,8 +94,9 @@ export class SQLiteUpdate<
 		return this.dialect.buildUpdateQuery(this.config);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(): Omit<Query, 'typings'> {
+		const { typings, ...rest} = this.dialect.sqlToQuery(this.getSQL());
+		return rest
 	}
 
 	prepare(): PreparedQuery<
@@ -107,7 +108,7 @@ export class SQLiteUpdate<
 			values: TReturning extends undefined ? never : any[][];
 		}
 	> {
-		return this.session.prepareQuery(this.toSQL(), this.config.returning);
+		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning);
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {

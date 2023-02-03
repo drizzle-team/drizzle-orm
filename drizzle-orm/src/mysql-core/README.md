@@ -11,6 +11,11 @@
 
 Drizzle ORM is a TypeScript ORM for SQL databases designed with maximum type safety in mind. It comes with a [drizzle-kit](https://github.com/drizzle-team/drizzle-kit-mirror) CLI companion for automatic SQL migrations generation. This is the documentation for Drizzle ORM version for PostgreSQL.
 
+| Driver | Support |
+| :- | :-: |
+| [mysql2](https://github.com/sidorares/node-mysql2) | ✅ |
+| [Planetscale Serverless](https://github.com/planetscale/database-js) | ✅ |
+
 ## Installation
 
 ```bash
@@ -78,9 +83,9 @@ import { users } from './schema';
 
 // create the connection
 const poolConnection = mysql.createPool({
-    host:'localhost', 
-    user: 'root',
-    database: 'test'
+  host: 'localhost',
+  user: 'root',
+  database: 'test',
 });
 
 const db = drizzle(poolConnection);
@@ -99,9 +104,30 @@ import { users } from './schema';
 
 // create the connection
 const connection = await mysql.createConnection({
-    host:'localhost', 
-    user: 'root', 
-    database: 'test'
+  host: 'localhost',
+  user: 'root',
+  database: 'test',
+});
+
+const db = drizzle(connection);
+
+const allUsers = await db.select(users);
+```
+
+### Connect using PlanetScale Serverless client
+
+```typescript
+// db.ts
+import { drizzle } from 'drizzle-orm/planetscale-serverless';
+
+import { connect } from '@planetscale/database';
+import { users } from './schema';
+
+// create the connection
+const connection = connect({
+  host: process.env['DATABASE_HOST'],
+  username: process.env['DATABASE_USERNAME'],
+  password: process.env['DATABASE_PASSWORD'],
 });
 
 const db = drizzle(connection);
@@ -115,21 +141,28 @@ This is how you declare SQL schema in `schema.ts`. You can declare tables, index
 
 ```typescript
 // db.ts
-import { int, mysqlEnum, mysqlTable, serial, uniqueIndex, varchar } from 'drizzle-orm/mysql-core';
+import {
+  int,
+  mysqlEnum,
+  mysqlTable,
+  serial,
+  uniqueIndex,
+  varchar,
+} from 'drizzle-orm/mysql-core';
 
 // declaring enum in database
 export const countries = mysqlTable('countries', {
-	id: serial('id').primaryKey(),
-	name: varchar('name', { length: 256 }),
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 256 }),
 }, (countries) => ({
-	nameIndex: uniqueIndex('name_idx').on(countries.name),
+  nameIndex: uniqueIndex('name_idx').on(countries.name),
 }));
 
 export const cities = mysqlTable('cities', {
-	id: serial('id').primaryKey(),
-	name: varchar('name', { length: 256 }),
-	countryId: int('country_id').references(() => countries.id),
-	popularity: mysqlEnum('popularity', ['unknown', 'known', 'popular']),
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 256 }),
+  countryId: int('country_id').references(() => countries.id),
+  popularity: mysqlEnum('popularity', ['unknown', 'known', 'popular']),
 });
 ```
 
@@ -278,23 +311,22 @@ Usage example
 ```typescript
 // Table in default schema
 const publicUsersTable = mysqlTable('users', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	verified: boolean('verified').notNull().default(false),
-	jsonb: json<string[]>('jsonb'),
-	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  verified: boolean('verified').notNull().default(false),
+  jsonb: json<string[]>('jsonb'),
+  createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
 });
-
 
 // Table in custom schema
 const mySchema = mysqlSchema('mySchema');
 
 const mySchemaUsersTable = mySchema('users', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	verified: boolean('verified').notNull().default(false),
-	jsonb: json<string[]>('jsonb'),
-	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  verified: boolean('verified').notNull().default(false),
+  jsonb: json<string[]>('jsonb'),
+  createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
 });
 ```
 
@@ -440,7 +472,7 @@ await db.insert(users).values(...newUsers);
 await db.update(users)
   .set({ name: 'Mr. Dan' })
   .where(eq(users.name, 'Dan'));
-	
+
 await db.delete(users)
   .where(eq(users.name, 'Dan'));
 ```
@@ -460,7 +492,7 @@ const cities = mysqlTable('cities', {
 const users = mysqlTable('users', {
   id: serial('id').primaryKey(),
   name: text('name'),
-  cityId: int('city_id').references(() => cities.id)
+  cityId: int('city_id').references(() => cities.id),
 });
 
 const result = db.select(cities)
@@ -517,7 +549,7 @@ const result = await db.select(files)
 const result1 = await db.select(cities).fields({
   userId: users.id,
   cityId: cities.id,
-  cityName: cities.name
+  cityName: cities.name,
 }).leftJoin(users, eq(users.cityId, cities.id));
 
 // Select all fields from users and only id and name from cities
@@ -526,11 +558,10 @@ const result2 = await db.select(cities).fields({
   user: users,
   city: {
     id: cities.id,
-    name: cities.name
+    name: cities.name,
   },
 }).leftJoin(users, eq(users.cityId, cities.id));
 ```
-
 
 ## Prepared statements
 
@@ -560,7 +591,9 @@ If you have some complex queries to execute and drizzle-orm can't handle them ye
 
 ```typescript
 // it will automatically run a parametrized query!
-const res: MySqlQueryResult<{ id: number; name: string; }> = await db.execute<{ id: number, name: string }>(sql`select * from ${users} where ${users.id} = ${userId}`);
+const res: MySqlQueryResult<{ id: number; name: string }> = await db.execute<
+  { id: number; name: string }
+>(sql`select * from ${users} where ${users.id} = ${userId}`);
 ```
 
 ## Migrations
@@ -619,13 +652,13 @@ import mysql from 'mysql2/promise';
 
 // create the connection
 const poolConnection = mysql.createPool({
-    host:'localhost', 
-    user: 'root',
-    database: 'test'
+  host: 'localhost',
+  user: 'root',
+  database: 'test',
 });
 
 const db = drizzle(poolConnection);
 
 // this will automatically run needed migrations on the database
-await migrate(db, { migrationsFolder: './drizzle' })
+await migrate(db, { migrationsFolder: './drizzle' });
 ```

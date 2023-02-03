@@ -19,7 +19,7 @@ import {
 	uniqueIndex,
 	year,
 } from 'drizzle-orm/mysql-core';
-import { drizzle } from 'drizzle-orm/mysql2';
+import { drizzle, MySql2Database } from 'drizzle-orm/mysql2';
 import { migrate } from 'drizzle-orm/mysql2/migrator';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
@@ -67,7 +67,7 @@ const usersMigratorTable = mysqlTable('users12', {
 interface Context {
 	docker: Docker;
 	mysqlContainer: Docker.Container;
-	db: MySqlDatabase;
+	db: MySql2Database;
 	client: mysql.Connection;
 }
 

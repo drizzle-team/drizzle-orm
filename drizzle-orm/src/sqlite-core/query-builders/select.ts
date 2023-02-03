@@ -153,9 +153,9 @@ export class SQLiteSelect<
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	toSQL(): Query {
-		const query = this.dialect.buildSelectQuery(this.config);
-		return this.dialect.sqlToQuery(query);
+	toSQL(): Omit<Query, 'typings'> {
+		const { typings, ...rest} = this.dialect.sqlToQuery(this.getSQL());
+		return rest
 	}
 
 	prepare(): PreparedQuery<
@@ -167,7 +167,7 @@ export class SQLiteSelect<
 			values: any[][];
 		}
 	> {
-		return this.session.prepareQuery(this.toSQL(), this.config.fields);
+		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.fields);
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
