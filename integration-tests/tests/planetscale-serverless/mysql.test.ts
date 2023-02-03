@@ -1,6 +1,7 @@
+import { connect } from '@planetscale/database';
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
-import { sql } from 'drizzle-orm';
+import { DefaultLogger, sql } from 'drizzle-orm';
 import { asc, eq } from 'drizzle-orm/expressions';
 import {
 	alias,
@@ -18,12 +19,11 @@ import {
 	uniqueIndex,
 	year,
 } from 'drizzle-orm/mysql-core';
-import { drizzle, MySql2Database } from 'drizzle-orm/mysql2';
-import { migrate } from 'drizzle-orm/mysql2/migrator';
+import { migrate } from 'drizzle-orm/planetscale-serverless/migrator';
+import { drizzle, PlanetScaleDatabase } from 'drizzle-orm/planetscale-serverless';
 import { name, placeholder } from 'drizzle-orm/sql';
-import getPort from 'get-port';
-import * as mysql from 'mysql2/promise';
-import { v4 as uuid } from 'uuid';
+
+import 'dotenv/config';
 
 const usersTable = mysqlTable('userstest', {
 	id: serial('id').primaryKey(),
@@ -55,64 +55,22 @@ const usersMigratorTable = mysqlTable('users12', {
 interface Context {
 	docker: Docker;
 	mysqlContainer: Docker.Container;
-	db: MySql2Database;
-	client: mysql.Connection;
+	db: PlanetScaleDatabase;
 }
 
 const test = anyTest as TestFn<Context>;
 
-async function createDockerDB(ctx: Context): Promise<string> {
-	const docker = (ctx.docker = new Docker());
-	const port = await getPort({ port: 3306 });
-	const image = 'mysql:8';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
-
-	const mysqlContainer = (ctx.mysqlContainer = await docker.createContainer({
-		Image: image,
-		Env: ['MYSQL_ROOT_PASSWORD=mysql', 'MYSQL_DATABASE=drizzle'],
-		name: `drizzle-integration-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'3306/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	}));
-
-	await mysqlContainer.start();
-
-	return `mysql://root:mysql@127.0.0.1:${port}/drizzle`;
-}
-
 test.before(async (t) => {
 	const ctx = t.context;
-	const connectionString = process.env['MYSQL_CONNECTION_STRING'] ?? await createDockerDB(ctx);
 
-	let sleep = 1000;
-	let timeLeft = 20000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			ctx.client = await mysql.createConnection(connectionString);
-			await ctx.client.connect();
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to MySQL');
-		throw lastError;
-	}
-	ctx.db = drizzle(ctx.client /* , { logger: new DefaultLogger() } */);
+	ctx.db = drizzle(
+		connect({
+			host: process.env['DATABASE_HOST'],
+			username: process.env['DATABASE_USERNAME'],
+			password: process.env['DATABASE_PASSWORD'],
+		}),
+		{ logger: new DefaultLogger() },
+	);
 });
 
 test.beforeEach(async (t) => {
@@ -181,9 +139,9 @@ test.serial('select typed sql', async (t) => {
 test.serial('insert returning sql', async (t) => {
 	const { db } = t.context;
 
-	const [result, _] = await db.insert(usersTable).values({ name: 'John' });
+	const result = await db.insert(usersTable).values({ name: 'John' });
 
-	t.deepEqual(result.insertId, 1);
+	t.deepEqual(result.insertId, '1');
 });
 
 test.serial('delete returning sql', async (t) => {
@@ -192,7 +150,7 @@ test.serial('delete returning sql', async (t) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.delete(usersTable).where(eq(usersTable.name, 'John'));
 
-	t.is(users[0].affectedRows, 1);
+	t.is(users.rowsAffected, 1);
 });
 
 test.serial('update returning sql', async (t) => {
@@ -201,7 +159,7 @@ test.serial('update returning sql', async (t) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John'));
 
-	t.is(users[0].changedRows, 1);
+	t.is(users.rowsAffected, 1);
 });
 
 test.serial('update with returning all fields', async (t) => {
@@ -214,7 +172,7 @@ test.serial('update with returning all fields', async (t) => {
 
 	const users = await db.select(usersTable).where(eq(usersTable.id, 1));
 
-	t.is(updatedUsers[0].changedRows, 1);
+	t.is(updatedUsers.rowsAffected, 1);
 
 	t.assert(users[0]!.createdAt instanceof Date);
 	// not timezone based timestamp, thats why it should not work here
@@ -232,7 +190,7 @@ test.serial('update with returning partial', async (t) => {
 		eq(usersTable.id, 1),
 	);
 
-	t.deepEqual(updatedUsers[0].changedRows, 1);
+	t.deepEqual(updatedUsers.rowsAffected, 1);
 
 	t.deepEqual(users, [{ id: 1, name: 'Jane' }]);
 });
@@ -245,7 +203,7 @@ test.serial('delete with returning all fields', async (t) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const deletedUser = await db.delete(usersTable).where(eq(usersTable.name, 'John'));
 
-	t.is(deletedUser[0].affectedRows, 1);
+	t.is(deletedUser.rowsAffected, 1);
 });
 
 test.serial('delete with returning partial', async (t) => {
@@ -254,7 +212,7 @@ test.serial('delete with returning partial', async (t) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const deletedUser = await db.delete(usersTable).where(eq(usersTable.name, 'John'));
 
-	t.is(deletedUser[0].affectedRows, 1);
+	t.is(deletedUser.rowsAffected, 1);
 });
 
 test.serial('insert + select', async (t) => {
@@ -328,7 +286,7 @@ test.serial('insert many with returning', async (t) => {
 		{ name: 'Austin', verified: true },
 	);
 
-	t.is(result[0].affectedRows, 4);
+	t.is(result.rowsAffected, 4);
 });
 
 test.serial('select with group by as field', async (t) => {
@@ -589,7 +547,7 @@ test.serial('insert via db.execute + select via db.execute', async (t) => {
 	await db.execute(sql`insert into ${usersTable} (${name(usersTable.name.name)}) values (${'John'})`);
 
 	const result = await db.execute<{ id: number; name: string }>(sql`select id, name from ${usersTable}`);
-	t.deepEqual(result[0], [{ id: 1, name: 'John' }]);
+	t.deepEqual(result.rows, [{ id: '1', name: 'John' }]);
 });
 
 test.serial('insert via db.execute w/ query builder', async (t) => {
@@ -598,7 +556,7 @@ test.serial('insert via db.execute w/ query builder', async (t) => {
 	const inserted = await db.execute(
 		db.insert(usersTable).values({ name: 'John' }),
 	);
-	t.is(inserted[0].affectedRows, 1);
+	t.is(inserted.rowsAffected, 1);
 });
 
 test.serial('insert + select all possible dates', async (t) => {
@@ -622,14 +580,11 @@ test.serial('insert + select all possible dates', async (t) => {
 	t.assert(typeof res[0]?.dateAsString === 'string');
 	t.assert(typeof res[0]?.datetimeAsString === 'string');
 
-	t.deepEqual(res, [{
-		date: new Date('2022-11-11'),
-		dateAsString: '2022-11-11',
-		time: '12:12:12',
-		datetime: new Date('2022-11-11'),
-		year: 2022,
-		datetimeAsString: '2022-11-11 12:12:12',
-	}]);
+	t.deepEqual(res[0]!.date, new Date('2022-11-11'))
+	t.is(res[0]!.dateAsString, '2022-11-11')
+	t.is(res[0]!.time, '12:12:12')
+	t.is(res[0]!.year, 2022)
+	t.is(res[0]!.datetimeAsString, '2022-11-11 12:12:12')
 });
 
 const tableWithEnums = mysqlTable('enums_test_case', {
@@ -668,6 +623,6 @@ test.serial('Mysql enum test case #1', async (t) => {
 
 test.after.always(async (t) => {
 	const ctx = t.context;
-	await ctx.client?.end().catch(console.error);
-	await ctx.mysqlContainer?.stop().catch(console.error);
+	await ctx.db.execute(sql`drop table if exists \`userstest\``);
+	await ctx.db.execute(sql`drop table if exists \`datestable\``);
 });

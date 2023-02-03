@@ -1,6 +1,6 @@
 import { MySqlDialect } from '~/mysql-core/dialect';
 import { SelectFieldsOrdered } from '~/mysql-core/operations';
-import { MySqlRawQueryResult, MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/mysql-core/session';
+import { MySqlSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/mysql-core/session';
 import { AnyMySqlTable, InferModel } from '~/mysql-core/table';
 import { mapUpdateSet } from '~/mysql-core/utils';
 import { QueryPromise } from '~/query-promise';
@@ -20,14 +20,14 @@ export type MySqlInsertValue<TTable extends AnyMySqlTable> = {
 	[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
 };
 
-export class MySqlInsertBuilder<TTable extends AnyMySqlTable> {
+export class MySqlInsertBuilder<TTable extends AnyMySqlTable, TQueryResult extends QueryResultHKT> {
 	constructor(
 		private table: TTable,
 		private session: MySqlSession,
 		private dialect: MySqlDialect,
 	) {}
 
-	values(...values: MySqlInsertValue<TTable>[]): MySqlInsert<TTable> {
+	values(...values: MySqlInsertValue<TTable>[]): MySqlInsert<TTable, TQueryResult> {
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
 			const cols = this.table[Table.Symbol.Columns];
@@ -46,10 +46,10 @@ export class MySqlInsertBuilder<TTable extends AnyMySqlTable> {
 	}
 }
 
-export interface MySqlInsert<TTable extends AnyMySqlTable, TReturning = undefined>
-	extends QueryPromise<MySqlRawQueryResult>, SQLWrapper
+export interface MySqlInsert<TTable extends AnyMySqlTable,TQueryResult extends QueryResultHKT, TReturning = undefined>
+	extends QueryPromise<QueryResultKind<TQueryResult, never>>, SQLWrapper
 {}
-export class MySqlInsert<TTable extends AnyMySqlTable, TReturning = undefined> extends QueryPromise<MySqlRawQueryResult>
+export class MySqlInsert<TTable extends AnyMySqlTable, TQueryResult extends QueryResultHKT,TReturning = undefined> extends QueryPromise<QueryResultKind<TQueryResult, never>>
 	implements SQLWrapper
 {
 	declare protected $table: TTable;
@@ -105,7 +105,7 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TReturning = undefined> e
 
 	private _prepare(name?: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: MySqlRawQueryResult;
+			execute: QueryResultKind<TQueryResult, never>;
 		}
 	> {
 		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
@@ -113,7 +113,7 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TReturning = undefined> e
 
 	prepare(name: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: MySqlRawQueryResult;
+			execute: QueryResultKind<TQueryResult, never>;
 		}
 	> {
 		return this._prepare(name);
