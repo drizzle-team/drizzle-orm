@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.1.13",
-    "drizzle-orm": "0.17.6-424dea5",
+    "drizzle-orm": "0.17.6",
     "itty-router": "^2.6.6",
     "itty-router-extras": "^0.4.2",
     "tsx": "^3.12.1"
