@@ -10,8 +10,8 @@ import {
 	RollbackTransactionCommandInput,
 } from '@aws-sdk/client-rds-data';
 import { Logger } from '~/logger';
-import { SelectFieldsOrdered } from '~/operations';
 import { PgDialect, PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT } from '~/pg-core';
+import { SelectFieldsOrdered } from '~/pg-core/query-builders/select.types';
 import { fillPlaceholders, Query, QueryTypingsValue, SQL } from '~/sql';
 import { mapResultRow } from '~/utils';
 import { getValueFromDataApi, toValueParam } from '../common';

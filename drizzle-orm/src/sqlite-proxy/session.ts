@@ -1,7 +1,7 @@
 import { Logger, NoopLogger } from '~/logger';
 import { fillPlaceholders, Query } from '~/sql';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
-import { SelectFieldsOrdered } from '~/sqlite-core/operations';
+import { SelectFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
 import {
 	PreparedQuery as PreparedQueryBase,
 	PreparedQueryConfig as PreparedQueryConfigBase,
@@ -34,7 +34,10 @@ export class SQLiteRemoteSession extends SQLiteSession<'async', SqliteRemoteResu
 		// return this.client(this.queryString, params).then(({ rows }) => rows!)
 	}
 
-	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(query: Query, fields?: SelectFieldsOrdered): PreparedQuery<T> {
+	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
+		query: Query,
+		fields?: SelectFieldsOrdered,
+	): PreparedQuery<T> {
 		return new PreparedQuery(this.client, query.sql, query.params, this.logger, fields);
 	}
 }

@@ -1,13 +1,8 @@
 import { connect, Connection, ExecutedQuery } from '@planetscale/database';
 import { Logger, NoopLogger } from '~/logger';
 import { MySqlDialect } from '~/mysql-core/dialect';
-import { SelectFieldsOrdered } from '~/mysql-core/operations';
-import {
-	MySqlSession,
-	PreparedQuery,
-	PreparedQueryConfig,
-	QueryResultHKT,
-} from '~/mysql-core/session';
+import { SelectFieldsOrdered } from '~/mysql-core/query-builders/select.types';
+import { MySqlSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT } from '~/mysql-core/session';
 import { fillPlaceholders, Query } from '~/sql';
 import { mapResultRow } from '~/utils';
 
@@ -88,9 +83,9 @@ export class PlanetscaleSession extends MySqlSession {
 	async transaction(queries: { sql: string; params?: any[] }[]) {
 		await this.client.transaction(async (tx) => {
 			for (const query of queries) {
-				await tx.execute(query.sql, query.params)
+				await tx.execute(query.sql, query.params);
 			}
-		})
+		});
 	}
 
 	async queryObjects(
