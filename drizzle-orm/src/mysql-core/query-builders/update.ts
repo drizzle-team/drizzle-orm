@@ -1,7 +1,13 @@
 import { GetColumnData } from '~/column';
 import { MySqlDialect } from '~/mysql-core/dialect';
 import { SelectFieldsOrdered } from '~/mysql-core/operations';
-import { MySqlRawQueryResult, MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/mysql-core/session';
+import {
+	MySqlSession,
+	PreparedQuery,
+	PreparedQueryConfig,
+	QueryResultHKT,
+	QueryResultKind,
+} from '~/mysql-core/session';
 import { AnyMySqlTable, GetTableConfig } from '~/mysql-core/table';
 import { mapUpdateSet } from '~/mysql-core/utils';
 import { QueryPromise } from '~/query-promise';
@@ -25,7 +31,7 @@ export type MySqlUpdateSetSource<TTable extends AnyMySqlTable> = Simplify<
 
 export type MySqlUpdateSet = Record<string, SQL | Param | null | undefined>;
 
-export class MySqlUpdateBuilder<TTable extends AnyMySqlTable> {
+export class MySqlUpdateBuilder<TTable extends AnyMySqlTable, TQueryResult extends QueryResultHKT> {
 	declare protected $table: TTable;
 
 	constructor(
@@ -34,19 +40,26 @@ export class MySqlUpdateBuilder<TTable extends AnyMySqlTable> {
 		private dialect: MySqlDialect,
 	) {}
 
-	set(values: MySqlUpdateSetSource<TTable>): MySqlUpdate<TTable> {
+	set(values: MySqlUpdateSetSource<TTable>): MySqlUpdate<TTable, TQueryResult> {
 		return new MySqlUpdate(this.table, mapUpdateSet(this.table, values), this.session, this.dialect);
 	}
 }
 
 export interface MySqlUpdate<
 	TTable extends AnyMySqlTable,
+	TQueryResult extends QueryResultHKT,
 	TReturning = undefined,
-> extends QueryPromise<MySqlRawQueryResult>, SQLWrapper {}
+> extends
+	QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>,
+	SQLWrapper
+{}
 export class MySqlUpdate<
 	TTable extends AnyMySqlTable,
+	TQueryResult extends QueryResultHKT,
 	TReturning = undefined,
-> extends QueryPromise<MySqlRawQueryResult> implements SQLWrapper {
+> extends QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>
+	implements SQLWrapper
+{
 	declare protected $table: TTable;
 	declare protected $return: TReturning;
 
@@ -84,13 +97,13 @@ export class MySqlUpdate<
 	}
 
 	toSQL(): Omit<Query, 'typings'> {
-		const { typings, ...rest} = this.dialect.sqlToQuery(this.getSQL());
-		return rest
+		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		return rest;
 	}
 
 	private _prepare(name?: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: MySqlRawQueryResult;
+			execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
 		}
 	> {
 		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
@@ -98,7 +111,7 @@ export class MySqlUpdate<
 
 	prepare(name: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: MySqlRawQueryResult;
+			execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
 		}
 	> {
 		return this._prepare(name);

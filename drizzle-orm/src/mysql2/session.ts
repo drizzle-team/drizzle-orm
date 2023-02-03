@@ -1,18 +1,23 @@
-import { Connection, Pool, QueryOptions } from 'mysql2/promise';
+import { Connection, FieldPacket, OkPacket, Pool, QueryOptions, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { Logger, NoopLogger } from '~/logger';
 import { MySqlDialect } from '~/mysql-core/dialect';
 import { SelectFieldsOrdered } from '~/mysql-core/operations';
 import {
-	MySqlQueryResult,
-	MySqlQueryResultType,
 	MySqlSession,
 	PreparedQuery,
 	PreparedQueryConfig,
+	QueryResultHKT,
 } from '~/mysql-core/session';
 import { fillPlaceholders, Query } from '~/sql';
 import { mapResultRow } from '~/utils';
 
 export type MySql2Client = Pool | Connection;
+
+export type MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]];
+export type MySqlQueryResultType = RowDataPacket[][] | RowDataPacket[] | OkPacket | OkPacket[] | ResultSetHeader;
+export type MySqlQueryResult<
+	T = any,
+> = [T extends ResultSetHeader ? T : T[], FieldPacket[]];
 
 export class MySql2PreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
 	private rawQuery: QueryOptions;
@@ -118,4 +123,8 @@ export class MySql2Session extends MySqlSession {
 	): Promise<MySqlQueryResult> {
 		return this.client.query<T>(query, params);
 	}
+}
+
+export interface MySql2QueryResultHKT extends QueryResultHKT {
+	type: MySqlRawQueryResult;
 }

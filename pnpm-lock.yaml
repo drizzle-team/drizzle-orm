@@ -32,6 +32,7 @@ importers:
       '@aws-sdk/client-rds-data': ^3.257.0
       '@cloudflare/workers-types': ^3.18.0
       '@neondatabase/serverless': ^0.1.13
+      '@planetscale/database': ^1.5.0
       '@types/better-sqlite3': ^7.6.2
       '@types/node': ^18.11.9
       '@types/pg': ^8.6.5
@@ -47,6 +48,7 @@ importers:
       '@aws-sdk/client-rds-data': 3.262.0
       '@cloudflare/workers-types': 3.19.0
       '@neondatabase/serverless': 0.1.13
+      '@planetscale/database': 1.5.0
       '@types/better-sqlite3': 7.6.3
       '@types/node': 18.11.18
       '@types/pg': 8.6.6
@@ -98,6 +100,7 @@ importers:
     specifiers:
       '@aws-sdk/client-rds-data': ^3.257.0
       '@aws-sdk/credential-providers': ^3.258.0
+      '@planetscale/database': ^1.5.0
       '@types/axios': ^0.14.0
       '@types/better-sqlite3': ^7.6.3
       '@types/dockerode': ^3.3.14
@@ -126,6 +129,7 @@ importers:
     dependencies:
       '@aws-sdk/client-rds-data': 3.262.0
       '@aws-sdk/credential-providers': 3.263.0
+      '@planetscale/database': 1.5.0
       better-sqlite3: 7.6.2
       dockerode: 3.3.4
       dotenv: 16.0.3
@@ -1474,6 +1478,10 @@ packages:
       mkdirp: 1.0.4
       rimraf: 3.0.2
     optional: true
+
+  /@planetscale/database/1.5.0:
+    resolution: {integrity: sha512-Qwh7Or1W5dB5mZ9EQqDkgvkDKhBBmQe58KIVUy0SGocNtr5fP4JAWtvZ6EdLAV6C6hVpzNlCA2xIg9lKTswm1Q==}
+    engines: {node: '>=16'}
 
   /@tootallnate/once/1.1.2:
     resolution: {integrity: sha512-RbzJvlNzmRq5c3O09UipeuXno4tA1FE6ikOjxZK0tuxVv3412l64l5t1W5pj4+rJq9vpkm/kwiR07aZXnsKPxw==}

@@ -3,12 +3,15 @@ import { Query, SQL } from '~/sql';
 import { MySqlDialect } from './dialect';
 import { SelectFieldsOrdered } from './operations';
 
-// TODO: improve type
-export type MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]];
-export type MySqlQueryResultType = RowDataPacket[][] | RowDataPacket[] | OkPacket | OkPacket[] | ResultSetHeader;
-export type MySqlQueryResult<
-	T = any,
-> = [T extends ResultSetHeader ? T : T[], FieldPacket[]];
+export interface QueryResultHKT {
+	readonly $brand: 'MySqlQueryRowHKT';
+	readonly row: unknown;
+	readonly type: unknown;
+}
+
+export type QueryResultKind<TKind extends QueryResultHKT, TRow> = (TKind & {
+	readonly row: TRow;
+})['type'];
 
 export interface PreparedQueryConfig {
 	execute: unknown;
