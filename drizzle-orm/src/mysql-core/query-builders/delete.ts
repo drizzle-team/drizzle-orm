@@ -1,6 +1,6 @@
 import { MySqlDialect } from '~/mysql-core/dialect';
 import { SelectFieldsOrdered } from '~/mysql-core/operations';
-import { MySqlRawQueryResult, MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/mysql-core/session';
+import { MySqlSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/mysql-core/session';
 import { AnyMySqlTable } from '~/mysql-core/table';
 import { QueryPromise } from '~/query-promise';
 import { Query, SQL, SQLWrapper } from '~/sql';
@@ -13,13 +13,15 @@ export interface MySqlDeleteConfig {
 
 export interface MySqlDelete<
 	TTable extends AnyMySqlTable,
+	TQueryResult extends QueryResultHKT,
 	TReturning = undefined,
-> extends QueryPromise<MySqlRawQueryResult> {}
+> extends QueryPromise<QueryResultKind<TQueryResult, never> > {}
 
 export class MySqlDelete<
 	TTable extends AnyMySqlTable,
+	TQueryResult extends QueryResultHKT,
 	TReturning = undefined,
-> extends QueryPromise<MySqlRawQueryResult> implements SQLWrapper {
+> extends QueryPromise<QueryResultKind<TQueryResult, never> > implements SQLWrapper {
 	private config: MySqlDeleteConfig;
 
 	constructor(
@@ -61,7 +63,7 @@ export class MySqlDelete<
 
 	private _prepare(name?: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: MySqlRawQueryResult;
+			execute: TQueryResult;
 		}
 	> {
 		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
@@ -69,7 +71,7 @@ export class MySqlDelete<
 
 	prepare(name: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: MySqlRawQueryResult;
+			execute: QueryResultKind<TQueryResult, never>;
 		}
 	> {
 		return this._prepare(name);
