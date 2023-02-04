@@ -2,14 +2,10 @@ import { AnyColumn, Column } from '~/column';
 import { MigrationMeta } from '~/migrator';
 import { Name, param, Query, SQL, sql, SQLResponse, SQLSourceParam } from '~/sql';
 import { AnySQLiteColumn, SQLiteColumn } from '~/sqlite-core/columns';
-import {
-	SQLiteDeleteConfig,
-	SQLiteInsertConfig,
-	SQLiteUpdateConfig,
-	SQLiteUpdateSet,
-} from '~/sqlite-core/query-builders';
+import { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders';
 import { AnySQLiteTable, SQLiteTable } from '~/sqlite-core/table';
-import { Table } from '~/table';
+import { getTableName, Table } from '~/table';
+import { UpdateSet } from '~/utils';
 import { SelectFieldsOrdered, SQLiteSelectConfig } from './query-builders/select.types';
 import { SQLiteSession } from './session';
 
@@ -32,7 +28,7 @@ export abstract class SQLiteDialect {
 		return sql`delete from ${table}${whereSql}${returningSql}`;
 	}
 
-	buildUpdateSet(table: AnySQLiteTable, set: SQLiteUpdateSet): SQL {
+	buildUpdateSet(table: AnySQLiteTable, set: UpdateSet): SQL {
 		const setEntries = Object.entries(set);
 
 		const setSize = setEntries.length;
@@ -120,6 +116,17 @@ export abstract class SQLiteDialect {
 	}
 
 	buildSelectQuery({ fields, where, table, joins, orderBy, groupBy, limit, offset }: SQLiteSelectConfig): SQL {
+		fields.forEach((f) => {
+			let tableName: string;
+			if (
+				f.field instanceof Column && f.field.table !== table && !((tableName = getTableName(f.field.table)) in joins)
+			) {
+				throw new Error(
+					`Column "${f.path.join('.')}" was selected, but its table "${tableName}" was not joined`,
+				);
+			}
+		});
+
 		const joinKeys = Object.keys(joins);
 
 		const selection = this.buildSelection(fields, { isSingleTable: joinKeys.length === 0 });

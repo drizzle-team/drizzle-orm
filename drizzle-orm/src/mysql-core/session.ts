@@ -20,6 +20,9 @@ export interface PreparedQueryConfig {
 }
 
 export abstract class PreparedQuery<T extends PreparedQueryConfig> {
+	/** @internal */
+	joinsNotNullableMap?: Record<string, boolean>;
+
 	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
 
 	/** @internal */

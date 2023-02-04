@@ -17,7 +17,7 @@ export const npmVersion = '0.17.0';
 export function mapResultRow<TResult>(
 	columns: SelectFieldsOrdered<AnyColumn>,
 	row: unknown[],
-	joinsNotNullableMap?: Record<string, boolean>,
+	joinsNotNullableMap: Record<string, boolean> | undefined,
 ): TResult {
 	// Key -> nested object key, value -> table name if all fields in the nested object are from the same table, false otherwise
 	const nullifyMap: Record<string, string | false> = {};

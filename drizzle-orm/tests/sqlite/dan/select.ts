@@ -84,30 +84,17 @@ const joinPartial = db.select(users)
 
 Expect<
 	Equal<
-		({
+		{
 			user: {
 				id: number;
 				name: string | null;
 				age: number;
-			};
+			} | null;
 			city: {
 				id: number;
 				name: string;
-			};
-		} | {
-			user: {
-				id: number;
-				name: string | null;
-				age: number;
-			};
-			city: null;
-		} | {
-			user: null;
-			city: {
-				id: number;
-				name: string;
-			};
-		})[],
+			} | null;
+		}[],
 		typeof joinPartial
 	>
 >;
@@ -122,23 +109,11 @@ const join3 = db.select(users)
 	.rightJoin(classes, eq(users.id, classes.id)).all();
 
 Expect<
-	Equal<({
-		userId: number;
-		cityId: number;
+	Equal<{
+		userId: number | null;
+		cityId: number | null;
 		classId: number;
-	} | {
-		userId: null;
-		cityId: number;
-		classId: number;
-	} | {
-		userId: number;
-		cityId: null;
-		classId: number;
-	} | {
-		userId: null;
-		cityId: null;
-		classId: number;
-	})[], typeof join3>
+	}[], typeof join3>
 >;
 
 db.select(users)

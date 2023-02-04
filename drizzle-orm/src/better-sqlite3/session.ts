@@ -34,7 +34,7 @@ export class BetterSQLiteSession extends SQLiteSession<'sync', RunResult> {
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
-		fields?: SelectFieldsOrdered,
+		fields: SelectFieldsOrdered | undefined,
 	): PreparedQuery<T> {
 		const stmt = this.client.prepare(query.sql);
 		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields);
@@ -63,7 +63,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	all(placeholderValues?: Record<string, unknown>): T['all'] {
 		const { fields } = this;
 		if (fields) {
-			return this.values(placeholderValues).map((row) => mapResultRow(fields, row));
+			return this.values(placeholderValues).map((row) => mapResultRow(fields, row, this.joinsNotNullableMap));
 		}
 
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
@@ -81,7 +81,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 			return value;
 		}
 
-		return mapResultRow(fields, value);
+		return mapResultRow(fields, value, this.joinsNotNullableMap);
 	}
 
 	values(placeholderValues?: Record<string, unknown>): T['values'] {

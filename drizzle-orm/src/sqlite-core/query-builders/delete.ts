@@ -4,7 +4,7 @@ import { SQLiteDialect } from '~/sqlite-core/dialect';
 import { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
 import { AnySQLiteTable, InferModel, SQLiteTable } from '~/sqlite-core/table';
 import { orderSelectedFields } from '~/utils';
-import { SelectFieldsOrdered, SelectResultFields, SQLiteSelectFields } from './select.types';
+import { SelectFields, SelectFieldsOrdered, SelectResultFields } from './select.types';
 
 export interface SQLiteDeleteConfig {
 	where?: SQL | undefined;
@@ -41,11 +41,11 @@ export class SQLiteDelete<
 	}
 
 	returning(): Omit<SQLiteDelete<TTable, TResultType, TRunResult, InferModel<TTable>>, 'where' | 'returning'>;
-	returning<TSelectedFields extends SQLiteSelectFields>(
+	returning<TSelectedFields extends SelectFields>(
 		fields: TSelectedFields,
 	): Omit<SQLiteDelete<TTable, TResultType, TRunResult, SelectResultFields<TSelectedFields>>, 'where' | 'returning'>;
 	returning(
-		fields: SQLiteSelectFields = this.table[SQLiteTable.Symbol.Columns],
+		fields: SelectFields = this.table[SQLiteTable.Symbol.Columns],
 	): SQLiteDelete<TTable, TResultType, TRunResult, any> {
 		this.config.returning = orderSelectedFields(fields);
 		return this;
@@ -57,8 +57,8 @@ export class SQLiteDelete<
 	}
 
 	toSQL(): Omit<Query, 'typings'> {
-		const { typings, ...rest} = this.dialect.sqlToQuery(this.getSQL());
-		return rest
+		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		return rest;
 	}
 
 	prepare(): PreparedQuery<{

@@ -9,7 +9,6 @@ import {
 	datetime,
 	int,
 	json,
-	MySqlDatabase,
 	mysqlEnum,
 	mysqlTable,
 	serial,
@@ -131,6 +130,8 @@ test.beforeEach(async (t) => {
 	const ctx = t.context;
 	await ctx.db.execute(sql`drop table if exists \`userstest\``);
 	await ctx.db.execute(sql`drop table if exists \`datestable\``);
+	await ctx.db.execute(sql`drop table if exists \`users2\``);
+	await ctx.db.execute(sql`drop table if exists \`cities\``);
 	// await ctx.db.execute(sql`create schema public`);
 	await ctx.db.execute(
 		sql`create table \`userstest\` (
@@ -150,6 +151,21 @@ test.beforeEach(async (t) => {
 			\`datetime\` datetime, 
 			\`datetime_as_string\` datetime,
 			\`year\` year
+		)`,
+	);
+
+	await ctx.db.execute(
+		sql`create table \`users2\` (
+			\`id\` serial primary key,
+			\`name\` text not null,
+			\`city_id\` int references \`cities\`(\`id\`)
+		)`,
+	);
+
+	await ctx.db.execute(
+		sql`create table \`cities\` (
+			\`id\` serial primary key,
+			\`name\` text not null
 		)`,
 	);
 });

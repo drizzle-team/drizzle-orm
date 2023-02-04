@@ -148,8 +148,8 @@ export class MySqlSelect<
 	}
 
 	toSQL(): Omit<Query, 'typings'> {
-		const { typings, ...rest} = this.dialect.sqlToQuery(this.getSQL());
-		return rest
+		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		return rest;
 	}
 
 	private _prepare(name?: string): PreparedQuery<
@@ -157,7 +157,11 @@ export class MySqlSelect<
 			execute: SelectResult<TResult, TSelectMode, TJoinsNotNullable>[];
 		}
 	> {
-		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.fields, name);
+		const query = this.session.prepareQuery<
+			PreparedQueryConfig & { execute: SelectResult<TResult, TSelectMode, TJoinsNotNullable>[] }
+		>(this.dialect.sqlToQuery(this.getSQL()), this.config.fields, name);
+		query.joinsNotNullableMap = this.joinsNotNullable;
+		return query;
 	}
 
 	prepare(name: string): PreparedQuery<

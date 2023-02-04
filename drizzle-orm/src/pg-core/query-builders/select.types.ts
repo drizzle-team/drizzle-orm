@@ -99,16 +99,6 @@ type SetJoinsNullability<TNullabilityMap extends Record<string, JoinNullability>
 	[Key in keyof TNullabilityMap]: TValue;
 };
 
-// https://stackoverflow.com/a/70061272/9929789
-type UnionToParm<U> = U extends any ? (k: U) => void : never;
-type UnionToSect<U> = UnionToParm<U> extends ((k: infer I) => void) ? I : never;
-type ExtractParm<F> = F extends { (a: infer A): void } ? A : never;
-type SpliceOne<Union> = Exclude<Union, ExtractOne<Union>>;
-type ExtractOne<Union> = ExtractParm<UnionToSect<UnionToParm<Union>>>;
-type ToTupleRec<Union, Result extends any[] = []> = SpliceOne<Union> extends never ? [ExtractOne<Union>, ...Result]
-	: ToTupleRec<SpliceOne<Union>, [ExtractOne<Union>, ...Result]>;
-export type RemoveDuplicates<T> = ToTupleRec<T> extends any[] ? ToTupleRec<T>[number] : never;
-
 export type AppendToJoinsNotNull<
 	TJoinsNotNull extends Record<string, JoinNullability>,
 	TJoinedName extends string,

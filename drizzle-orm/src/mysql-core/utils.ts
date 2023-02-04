@@ -1,9 +1,7 @@
-import { Param, SQL } from '~/sql';
 import { Table } from '~/table';
 import { Check, CheckBuilder } from './checks';
 import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
 import { Index, IndexBuilder } from './indexes';
-import { MySqlUpdateSet } from './query-builders/update';
 import { AnyMySqlTable, MySqlTable } from './table';
 
 /** @internal */
@@ -79,17 +77,4 @@ export function getTableChecks<TTable extends AnyMySqlTable>(table: TTable) {
 	const checks = table[MySqlTable.Symbol.Checks];
 	const keys = Reflect.ownKeys(checks);
 	return keys.map((key) => checks[key]!);
-}
-
-/** @internal */
-export function mapUpdateSet(table: AnyMySqlTable, values: Record<string, unknown>): MySqlUpdateSet {
-	return Object.fromEntries<MySqlUpdateSet[string]>(
-		Object.entries(values).map(([key, value]) => {
-			if (value instanceof SQL || value === null || value === undefined) {
-				return [key, value];
-			} else {
-				return [key, new Param(value, table[MySqlTable.Symbol.Columns][key])];
-			}
-		}),
-	);
 }

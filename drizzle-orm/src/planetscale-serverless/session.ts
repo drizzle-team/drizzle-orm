@@ -40,7 +40,9 @@ export class PlanetScalePreparedQuery<T extends PreparedQueryConfig> extends Pre
 
 		const result = this.client.execute(this.queryString, params, this.query);
 
-		return result.then((eQuery) => eQuery.rows.map((row) => mapResultRow<T['execute']>(fields, row as unknown[])));
+		return result.then((eQuery) =>
+			eQuery.rows.map((row) => mapResultRow<T['execute']>(fields, row as unknown[], this.joinsNotNullableMap))
+		);
 	}
 
 	async all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {

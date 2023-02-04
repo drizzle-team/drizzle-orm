@@ -153,9 +153,12 @@ export class PgDialect {
 
 	buildSelectQuery({ fields, where, table, joins, orderBy, groupBy, limit, offset }: PgSelectConfig): SQL {
 		fields.forEach((f) => {
-			if (f.field instanceof Column && f.field.table !== table && !(getTableName(f.field.table) in joins)) {
+			let tableName: string;
+			if (
+				f.field instanceof Column && f.field.table !== table && !((tableName = getTableName(f.field.table)) in joins)
+			) {
 				throw new Error(
-					`Column "${f.path.join('.')}" was selected, but its table "${getTableName(f.field.table)}" was not joined`,
+					`Column "${f.path.join('.')}" was selected, but its table "${tableName}" was not joined`,
 				);
 			}
 		});

@@ -12,10 +12,10 @@ import {
 	JoinFn,
 	JoinNullability,
 	JoinType,
+	SelectFields,
 	SelectMode,
 	SelectResult,
 	SQLiteSelectConfig,
-	SQLiteSelectFields,
 } from './select.types';
 
 export interface SQLiteSelect<
@@ -62,7 +62,7 @@ export class SQLiteSelect<
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): JoinFn<TTable, TRunResult, TResultType, TSelectMode, TJoinType, TResult, TJoinsNotNullable> {
+	): JoinFn<TTable, TResultType, TRunResult, TSelectMode, TJoinType, TResult, TJoinsNotNullable> {
 		return (table: AnySQLiteTable, on: SQL): AnySQLiteSelect => {
 			const tableName = table[Table.Symbol.Name];
 
@@ -112,7 +112,7 @@ export class SQLiteSelect<
 
 	fullJoin = this.createJoin('full');
 
-	fields<TSelect extends SQLiteSelectFields>(
+	fields<TSelect extends SelectFields>(
 		fields: TSelect,
 	): Omit<
 		SQLiteSelect<TTable, TResultType, TRunResult, TSelect, 'partial', TJoinsNotNullable>,
@@ -154,8 +154,8 @@ export class SQLiteSelect<
 	}
 
 	toSQL(): Omit<Query, 'typings'> {
-		const { typings, ...rest} = this.dialect.sqlToQuery(this.getSQL());
-		return rest
+		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		return rest;
 	}
 
 	prepare(): PreparedQuery<
@@ -167,7 +167,9 @@ export class SQLiteSelect<
 			values: any[][];
 		}
 	> {
-		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.fields);
+		const query = this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.fields);
+		query.joinsNotNullableMap = this.joinsNotNullable;
+		return query;
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {

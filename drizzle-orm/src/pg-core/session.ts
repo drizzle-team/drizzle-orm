@@ -9,9 +9,8 @@ export interface PreparedQueryConfig {
 }
 
 export abstract class PreparedQuery<T extends PreparedQueryConfig> {
-	constructor(
-		protected joinsNotNullable?: Record<string, boolean>,
-	) {}
+	/** @internal */
+	joinsNotNullableMap?: Record<string, boolean>;
 
 	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
 
@@ -29,7 +28,6 @@ export abstract class PgSession {
 		query: Query,
 		fields: SelectFieldsOrdered | undefined,
 		name: string | undefined,
-		joinsNotNullable?: Record<string, boolean>,
 	): PreparedQuery<T>;
 
 	execute<T>(query: SQL): Promise<T> {

@@ -158,12 +158,11 @@ export class PgSelect<
 			execute: SelectResult<TResult, TSelectMode, TJoinsNotNullable>[];
 		}
 	> {
-		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
-			this.config.fields,
-			name,
-			this.joinsNotNullable,
-		);
+		const query = this.session.prepareQuery<
+			PreparedQueryConfig & { execute: SelectResult<TResult, TSelectMode, TJoinsNotNullable>[] }
+		>(this.dialect.sqlToQuery(this.getSQL()), this.config.fields, name);
+		query.joinsNotNullableMap = this.joinsNotNullable;
+		return query;
 	}
 
 	prepare(name: string): PreparedQuery<

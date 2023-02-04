@@ -53,7 +53,9 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PreparedQu
 
 		const result = this.client.query(this.query, params);
 
-		return result.then((result) => result.rows.map((row) => mapResultRow<T['execute']>(fields, row)));
+		return result.then((result) =>
+			result.rows.map((row) => mapResultRow<T['execute']>(fields, row, this.joinsNotNullableMap))
+		);
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {

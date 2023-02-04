@@ -3,12 +3,12 @@ import { Param, Query, SQL, SQLWrapper } from '~/sql';
 import { SQLiteDialect } from '~/sqlite-core/dialect';
 import { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
 import { AnySQLiteTable, GetTableConfig, InferModel, SQLiteTable } from '~/sqlite-core/table';
-import { mapUpdateSet, orderSelectedFields, Simplify } from '~/utils';
-import { SelectFieldsOrdered, SelectResultFields, SQLiteSelectFields } from './select.types';
+import { mapUpdateSet, orderSelectedFields, Simplify, UpdateSet } from '~/utils';
+import { SelectFields, SelectFieldsOrdered, SelectResultFields } from './select.types';
 
 export interface SQLiteUpdateConfig {
 	where?: SQL | undefined;
-	set: SQLiteUpdateSet;
+	set: UpdateSet;
 	table: AnySQLiteTable;
 	returning?: SelectFieldsOrdered;
 }
@@ -20,8 +20,6 @@ export type SQLiteUpdateSetSource<TTable extends AnySQLiteTable> = Simplify<
 			| SQL;
 	}
 >;
-
-export type SQLiteUpdateSet = Record<string, SQL | Param | null | undefined>;
 
 export class SQLiteUpdateBuilder<
 	TTable extends AnySQLiteTable,
@@ -60,7 +58,7 @@ export class SQLiteUpdate<
 
 	constructor(
 		table: TTable,
-		set: SQLiteUpdateSet,
+		set: UpdateSet,
 		private session: SQLiteSession,
 		private dialect: SQLiteDialect,
 	) {
@@ -76,14 +74,14 @@ export class SQLiteUpdate<
 		SQLiteUpdate<TTable, TResultType, TRunResult, InferModel<TTable>>,
 		'where' | 'returning'
 	>;
-	returning<TSelectedFields extends SQLiteSelectFields>(
+	returning<TSelectedFields extends SelectFields>(
 		fields: TSelectedFields,
 	): Omit<
 		SQLiteUpdate<TTable, TResultType, TRunResult, SelectResultFields<TSelectedFields>>,
 		'where' | 'returning'
 	>;
 	returning(
-		fields: SQLiteSelectFields = this.config.table[SQLiteTable.Symbol.Columns],
+		fields: SelectFields = this.config.table[SQLiteTable.Symbol.Columns],
 	): Omit<SQLiteUpdate<TTable, TResultType, TRunResult>, 'where' | 'returning'> {
 		this.config.returning = orderSelectedFields(fields);
 		return this;
@@ -95,8 +93,8 @@ export class SQLiteUpdate<
 	}
 
 	toSQL(): Omit<Query, 'typings'> {
-		const { typings, ...rest} = this.dialect.sqlToQuery(this.getSQL());
-		return rest
+		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		return rest;
 	}
 
 	prepare(): PreparedQuery<

@@ -34,7 +34,9 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends Prep
 
 		const result = this.client.unsafe(this.query, params as any[]).values();
 
-		return result.then((result) => result.map((row) => mapResultRow<T['execute']>(fields, row)));
+		return result.then((result) =>
+			result.map((row) => mapResultRow<T['execute']>(fields, row, this.joinsNotNullableMap))
+		);
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {

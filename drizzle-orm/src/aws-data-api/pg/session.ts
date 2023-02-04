@@ -61,7 +61,7 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 
 		return result.records?.map((result) => {
 			const mappedResult = result.map((res) => getValueFromDataApi(res));
-			return mapResultRow<T['execute']>(fields, mappedResult);
+			return mapResultRow<T['execute']>(fields, mappedResult, this.joinsNotNullableMap);
 		});
 	}
 

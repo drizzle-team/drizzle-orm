@@ -11,6 +11,7 @@
 			"tests/**/*.ts",
 			"!tests/awsdatapi.alltypes.test.ts",
 			"!tests/awsdatapi.test.ts",
+			"!tests/planetscale-serverless/**/*.ts",
 			"!tests/bun/**/*"
 		],
 		"extensions": {

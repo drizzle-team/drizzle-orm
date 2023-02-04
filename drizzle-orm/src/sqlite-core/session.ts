@@ -11,6 +11,9 @@ export interface PreparedQueryConfig {
 }
 
 export abstract class PreparedQuery<T extends PreparedQueryConfig> {
+	/** @internal */
+	joinsNotNullableMap?: Record<string, boolean>;
+
 	abstract run(placeholderValues?: Record<string, unknown>): ResultKind<T['type'], T['run']>;
 
 	abstract all(placeholderValues?: Record<string, unknown>): ResultKind<T['type'], T['all']>;
@@ -26,12 +29,12 @@ export abstract class SQLiteSession<TResultKind extends 'sync' | 'async' = 'sync
 
 	abstract prepareQuery(
 		query: Query,
-		fields?: SelectFieldsOrdered,
+		fields: SelectFieldsOrdered | undefined,
 	): PreparedQuery<PreparedQueryConfig & { type: TResultKind }>;
 
 	prepareOneTimeQuery(
 		query: Query,
-		fields?: SelectFieldsOrdered,
+		fields: SelectFieldsOrdered | undefined,
 	): PreparedQuery<PreparedQueryConfig & { type: TResultKind }> {
 		return this.prepareQuery(query, fields);
 	}
@@ -41,19 +44,19 @@ export abstract class SQLiteSession<TResultKind extends 'sync' | 'async' = 'sync
 	): void;
 
 	run(query: SQL): ResultKind<TResultKind, TRunResult> {
-		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query)).run();
+		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined).run();
 	}
 
 	all<T = unknown>(query: SQL): ResultKind<TResultKind, T[]> {
-		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query)).all();
+		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined).all();
 	}
 
 	get<T = unknown>(query: SQL): ResultKind<TResultKind, T> {
-		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query)).get();
+		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined).get();
 	}
 
 	values<T extends any[] = unknown[]>(query: SQL): ResultKind<TResultKind, T[]> {
-		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query)).values();
+		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined).values();
 	}
 }
 

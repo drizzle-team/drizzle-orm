@@ -62,7 +62,9 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
 		const { fields } = this;
 		if (fields) {
-			return this.values(placeholderValues).then((values) => values.map((row) => mapResultRow(fields, row)));
+			return this.values(placeholderValues).then((values) =>
+				values.map((row) => mapResultRow(fields, row, this.joinsNotNullableMap))
+			);
 		}
 
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});

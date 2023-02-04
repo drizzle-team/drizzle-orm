@@ -114,6 +114,19 @@ test.beforeEach(async (t) => {
 			created_at timestamptz not null default now()
 		)`,
 	);
+	await ctx.db.execute(
+		sql`create table cities (
+			id serial primary key,
+			name text not null
+		)`,
+	);
+	await ctx.db.execute(
+		sql`create table users2 (
+			id serial primary key,
+			name text not null,
+			city_id integer references cities(id)
+		)`,
+	);
 });
 
 test.serial('select all fields', async (t) => {

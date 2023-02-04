@@ -46,7 +46,7 @@ const join = await db.select(users)
 
 Expect<
 	Equal<
-		({
+		{
 			users: {
 				id: number;
 				text: string | null;
@@ -59,7 +59,7 @@ Expect<
 				age1: number;
 				createdAt: Date;
 				enumCol: 'a' | 'b' | 'c';
-			};
+			} | null;
 			cities: {
 				id: number;
 				name: string;
@@ -69,29 +69,11 @@ Expect<
 				id: number;
 				name: string;
 				population: number | null;
-			};
+			} | null;
 			city1: {
 				id: number;
 			};
-		} | {
-			users: null;
-			cities: null;
-			city: {
-				id: number;
-				name: string;
-				population: number | null;
-			};
-			city1: {
-				id: number;
-			};
-		} | {
-			users: null;
-			cities: null;
-			city: null;
-			city1: {
-				id: number;
-			};
-		})[],
+		}[],
 		typeof join
 	>
 >;
@@ -105,16 +87,10 @@ const join2 = await db.select(users)
 
 Expect<
 	Equal<
-		({
-			userId: number;
-			cityId: number;
-		} | {
-			userId: number;
-			cityId: null;
-		} | {
-			userId: null;
-			cityId: number;
-		})[],
+		{
+			userId: number | null;
+			cityId: number | null;
+		}[],
 		typeof join2
 	>
 >;
@@ -130,23 +106,11 @@ const join3 = await db.select(users)
 
 Expect<
 	Equal<
-		({
-			userId: number;
-			cityId: number;
+		{
+			userId: number | null;
+			cityId: number | null;
 			classId: number;
-		} | {
-			userId: number;
-			cityId: null;
-			classId: number;
-		} | {
-			userId: null;
-			cityId: number;
-			classId: number;
-		} | {
-			userId: null;
-			cityId: null;
-			classId: number;
-		})[],
+		}[],
 		typeof join3
 	>
 >;
