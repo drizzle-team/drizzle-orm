@@ -5,6 +5,7 @@
   "scripts": {
     "start": "wrangler dev",
     "deploy": "wrangler publish",
+    "migrate": "tsx migrate.ts",
     "generate": "drizzle-kit generate:pg"
   },
   "dependencies": {
