@@ -16,7 +16,7 @@ node_compat = true
 ```
 
 Setup Neon Serverless database - [official docs](https://neon.tech/docs/get-started-with-neon/signing-up), grab database url with project tag, put them in `.dev.vars`. You will need project name for `postgres.js` driver to run migrations - [read here](https://neon.tech/docs/guides/node)
-```toml
+```env
 DATABASE_URL=postgres://user:password@localhost:5432/dbname
 PROJECT_NAME=shiny-fire-338756
 ```
