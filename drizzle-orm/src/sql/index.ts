@@ -1,5 +1,3 @@
-import { MySqlDate, MySqlDecimal, MySqlJson, MySqlTime, MySqlTimestamp } from '~/mysql-core';
-import { PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core';
 import { AnyColumn, Column } from '../column';
 import { Table } from '../table';
 
@@ -40,33 +38,15 @@ export function isSQLWrapper(value: unknown): value is SQLWrapper {
 		&& typeof (value as any).getSQL === 'function';
 }
 
-function prepareTyping(encoder: DriverValueEncoder<unknown, unknown>): QueryTypingsValue {
-	if (
-		encoder instanceof PgJsonb || encoder instanceof PgJson
-		|| encoder instanceof MySqlJson
-	) {
-		return 'json';
-	} else if (encoder instanceof MySqlDecimal || encoder instanceof PgNumeric) {
-		return 'decimal';
-	} else if (encoder instanceof PgTime || encoder instanceof MySqlTime) {
-		return 'time';
-	} else if (encoder instanceof PgTimestamp || encoder instanceof MySqlTimestamp) {
-		return 'timestamp';
-	} else if (encoder instanceof PgDate || encoder instanceof MySqlDate) {
-		return 'date';
-	} else if (encoder instanceof PgUUID) {
-		return 'uuid';
-	} else {
-		return 'none';
-	}
-}
-
 export class SQL implements SQLWrapper {
 	declare protected $brand: 'SQL';
 
 	constructor(readonly queryChunks: Chunk[]) {}
 
-	toQuery({ escapeName, escapeParam }: BuildQueryConfig): Query {
+	toQuery(
+		{ escapeName, escapeParam }: BuildQueryConfig,
+		prepareTyping?: (encoder: DriverValueEncoder<unknown, unknown>) => QueryTypingsValue,
+	): Query {
 		const params: unknown[] = [];
 		const typings: QueryTypingsValue[] = [];
 
@@ -84,7 +64,7 @@ export class SQL implements SQLWrapper {
 				return escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(chunk.name);
 			} else if (chunk instanceof Param) {
 				params.push(chunk.encoder.mapToDriverValue(chunk.value));
-				typings.push(prepareTyping(chunk.encoder));
+				if (typeof prepareTyping !== 'undefined') typings.push(prepareTyping(chunk.encoder));
 				return escapeParam(params.length - 1, chunk.value);
 			} else {
 				const err = new Error('Unexpected chunk type!');
