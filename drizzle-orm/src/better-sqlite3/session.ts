@@ -74,12 +74,13 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	get(placeholderValues?: Record<string, unknown>): T['get'] {
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
-		const value = this.stmt.get(...params);
 
 		const { fields } = this;
 		if (!fields) {
-			return value;
+			return this.stmt.get(...params);
 		}
+
+		const value = this.stmt.raw().get(...params);
 
 		return mapResultRow(fields, value);
 	}
