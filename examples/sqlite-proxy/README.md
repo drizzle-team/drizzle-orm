@@ -128,10 +128,10 @@ app.post('/query', (req, res) => {
     }
   } else if (method === 'get') {
     try {
-      const row = this.db.prepare(sql).raw().get(params);
-      return { data: row };
+      const row = db.prepare(sqlBody).raw().get(params);
+      res.send(row);
     } catch (e: any) {
-      return { error: e.message };
+      res.status(500).json({ error: e.message });
     }
   } else {
     res.status(500).json({ error: 'Unkown method value' });
