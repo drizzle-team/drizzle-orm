@@ -34,7 +34,10 @@ export class SQLiteRemoteSession extends SQLiteSession<'async', SqliteRemoteResu
 		// return this.client(this.queryString, params).then(({ rows }) => rows!)
 	}
 
-	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(query: Query, fields?: SelectFieldsOrdered): PreparedQuery<T> {
+	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
+		query: Query,
+		fields?: SelectFieldsOrdered,
+	): PreparedQuery<T> {
 		return new PreparedQuery(this.client, query.sql, query.params, this.logger, fields);
 	}
 }
@@ -60,17 +63,35 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 
 	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
 		const { fields } = this;
-		if (fields) {
-			return this.values(placeholderValues).then((values) => values.map((row) => mapResultRow(fields, row)));
-		}
 
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
+
+		const clientResult = this.client(this.queryString, params, 'all');
+
+		if (fields) {
+			return clientResult.then((values) => values.rows.map((row) => mapResultRow(fields, row)));
+		}
+
 		return this.client(this.queryString, params, 'all').then(({ rows }) => rows!);
 	}
 
 	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
-		return await this.all(placeholderValues).then((rows) => rows[0]);
+		const { fields } = this;
+
+		const params = fillPlaceholders(this.params, placeholderValues ?? {});
+		this.logger.logQuery(this.queryString, params);
+
+		const clientResult = await this.client(this.queryString, params, 'get');
+
+		if (fields) {
+			if (typeof clientResult.rows === 'undefined') {
+				return mapResultRow(fields, []);
+			}
+			return mapResultRow(fields, clientResult.rows);
+		}
+
+		return clientResult.rows;
 	}
 
 	async values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {

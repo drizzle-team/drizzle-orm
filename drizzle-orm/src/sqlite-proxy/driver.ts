@@ -13,11 +13,13 @@ export interface SqliteRemoteResult<T = unknown> {
 
 export type SqliteRemoteDatabase = BaseSQLiteDatabase<'async', SqliteRemoteResult>;
 
-export type RemoteCallback = (
+export type AsyncRemoteCallback = (
 	sql: string,
 	params: any[],
-	method: 'run' | 'all' | 'values',
-) => Promise<{ rows: any[][] }>;
+	method: 'run' | 'all' | 'values' | 'get',
+) => Promise<{ rows: any[] }>;
+
+export type RemoteCallback = AsyncRemoteCallback;
 
 export function drizzle(callback: RemoteCallback, config: DrizzleConfig = {}): SqliteRemoteDatabase {
 	const dialect = new SQLiteAsyncDialect();
