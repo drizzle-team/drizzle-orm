@@ -537,6 +537,8 @@ const deletedUserId: { deletedId: number }[] = await db.delete(users)
 
 Last but not least. Probably the most powerful feature in the library🚀
 
+> **Note**: for in-depth partial select joins documentation, refer to [this page](/docs/joins.md).
+
 #### Many-to-one
 
 ```typescript
@@ -610,7 +612,6 @@ const result1 = await db.select(cities).fields({
 
 // Select all fields from users and only id and name from cities
 const result2 = await db.select(cities).fields({
-  // Supports any level of nesting!
   user: users,
   city: {
     id: cities.id,

@@ -115,12 +115,12 @@ const upperCaseNames /* : { id: number; name: string }[] */ = await db.select(us
 // You wouldn't BELIEVE how SMART the result type is! 😱
 const allUsersWithCities = await db.select(users)
   .fields({
-    user: {
-      id: users.id,
-      name: users.fullName,
+    id: users.id,
+    name: users.fullName,
+    city: {
+      id: cities.id,
+      name: cities.name,
     },
-    cityId: cities.id,
-    cityName: cities.name,
   })
   .leftJoin(cities, eq(users.cityId, cities.id));
 
@@ -131,6 +131,7 @@ const deletedNames /* : { name: string }[] */ = await db.delete(users)
 ```
 
 **See full docs for further reference:**
+
 - [PostgreSQL](./drizzle-orm/src/pg-core/README.md)
 - [MySQL](./drizzle-orm/src/mysql-core/README.md)
 - [SQLite](./drizzle-orm/src/sqlite-core/README.md)
