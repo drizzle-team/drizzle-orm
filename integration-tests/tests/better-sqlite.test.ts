@@ -141,6 +141,16 @@ test.serial('insert returning sql', (t) => {
 	t.deepEqual(users, [{ name: 'JOHN' }]);
 });
 
+test.serial('insert returning sql + get()', (t) => {
+	const { db } = t.context;
+
+	const users = db.insert(usersTable).values({ name: 'John' }).returning({
+		name: sql`upper(${usersTable.name})`,
+	}).get();
+
+	t.deepEqual(users, { name: 'JOHN' });
+});
+
 test.serial('delete returning sql', (t) => {
 	const { db } = t.context;
 
@@ -161,6 +171,17 @@ test.serial('update returning sql', (t) => {
 	}).all();
 
 	t.deepEqual(users, [{ name: 'JANE' }]);
+});
+
+test.serial('update returning sql + get()', (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ name: 'John' }).run();
+	const users = db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning({
+		name: sql`upper(${usersTable.name})`,
+	}).get();
+
+	t.deepEqual(users, { name: 'JANE' });
 });
 
 test.serial('insert with auto increment', (t) => {
@@ -213,6 +234,19 @@ test.serial('update with returning all fields', (t) => {
 	t.deepEqual(users, [{ id: 1, name: 'Jane', verified: 0, json: null, createdAt: users[0]!.createdAt }]);
 });
 
+test.serial('update with returning all fields + get()', (t) => {
+	const { db } = t.context;
+
+	const now = Date.now();
+
+	db.insert(usersTable).values({ name: 'John' }).run();
+	const users = db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning().get();
+
+	t.assert(users.createdAt instanceof Date);
+	t.assert(Math.abs(users.createdAt.getTime() - now) < 100);
+	t.deepEqual(users, { id: 1, name: 'Jane', verified: 0, json: null, createdAt: users.createdAt });
+});
+
 test.serial('update with returning partial', (t) => {
 	const { db } = t.context;
 
@@ -238,6 +272,19 @@ test.serial('delete with returning all fields', (t) => {
 	t.deepEqual(users, [{ id: 1, name: 'John', verified: 0, json: null, createdAt: users[0]!.createdAt }]);
 });
 
+test.serial('delete with returning all fields + get()', (t) => {
+	const { db } = t.context;
+
+	const now = Date.now();
+
+	db.insert(usersTable).values({ name: 'John' }).run();
+	const users = db.delete(usersTable).where(eq(usersTable.name, 'John')).returning().get();
+
+	t.assert(users!.createdAt instanceof Date);
+	t.assert(Math.abs(users!.createdAt.getTime() - now) < 100);
+	t.deepEqual(users, { id: 1, name: 'John', verified: 0, json: null, createdAt: users!.createdAt });
+});
+
 test.serial('delete with returning partial', (t) => {
 	const { db } = t.context;
 
@@ -248,6 +295,18 @@ test.serial('delete with returning partial', (t) => {
 	}).all();
 
 	t.deepEqual(users, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('delete with returning partial + get()', (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ name: 'John' }).run();
+	const users = db.delete(usersTable).where(eq(usersTable.name, 'John')).returning({
+		id: usersTable.id,
+		name: usersTable.name,
+	}).get();
+
+	t.deepEqual(users, { id: 1, name: 'John' });
 });
 
 test.serial('insert + select', (t) => {

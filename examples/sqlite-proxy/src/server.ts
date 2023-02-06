@@ -24,6 +24,13 @@ app.post('/query', (req, res) => {
 		} catch (e: any) {
 			res.status(500).json({ error: e.message });
 		}
+	} else if (method === 'get') {
+		try {
+			const row = db.prepare(sqlBody).raw().get(params);
+			res.send(row);
+		} catch (e: any) {
+			res.status(500).json({ error: e.message });
+		}
 	} else {
 		res.status(500).json({ error: 'Unkown method value' });
 	}
@@ -41,7 +48,7 @@ app.post('/migrate', (req, res) => {
 	} catch (e: any) {
 		db.exec('ROLLBACK');
 	}
-	
+
 	res.send({});
 });
 

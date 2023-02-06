@@ -9,7 +9,7 @@ Subscribe to our updates on [Twitter](https://twitter.com/DrizzleOrm) and [Disco
 SQLite Proxy driver will do all the work except of 2 things, that you will be responsible for:
 
 1. Calls to database, http servers or any other way to communicate with database
-2. Mapping data from database to `{rows: string[][], ...additional db response params}` format. Only `row` field is required
+2. Mapping data from database to `{rows: any[], ...additional db response params}` format. Only `rows` field is required. Rows should be a row array from database
 
 </br>
 This project has simple example of defining http proxy server, that will proxy all calls from drizzle orm to database and back. This example could perfectly fit for serverless applications
@@ -32,6 +32,8 @@ This project has simple example of defining http proxy server, that will proxy a
 
 > **Warning**:
 > You will be responsible for proper error handling in this part. Drizzle always waits for `{rows: string[][]}` so if any error was on http call(or any other call) - be sure, that you return at least empty array back
+>
+> For `get` method you should return `{rows: string[]}`
 
 </br>
 
@@ -59,7 +61,7 @@ We have 3 params, that will be sent to server. It's your decision which of them 
 
 1. `sql` - SQL query (`SELECT * FROM users WHERE id = ?`)
 2. `params` - params, that should be sent on database call (For query above it could be: `[1]`)
-3. `method` - Method, that was executed (`run` | `all` | `values`). Hint for proxy server on which sqlite method to invoke
+3. `method` - Method, that was executed (`run` | `all` | `values` | `get`). Hint for proxy server on which sqlite method to invoke
 
 ### Migrations using SQLite Proxy
 
@@ -78,15 +80,14 @@ In current SQLite Proxy version - drizzle don't handle transactions for migratio
 import axios from 'axios';
 import { migrate } from 'drizzle-orm/sqlite-proxy/migrator';
 
-
 await migrate(db, async (queries) => {
-    try {
-      await axios.post('http://localhost:3000/migrate', { queries });
-    } catch (e) {
-      console.log(e)
-      throw Error('Proxy server cannot run migrations')
-    }
-  }, { migrationsFolder: 'drizzle' });
+  try {
+    await axios.post('http://localhost:3000/migrate', { queries });
+  } catch (e) {
+    console.log(e);
+    throw Error('Proxy server cannot run migrations');
+  }
+}, { migrationsFolder: 'drizzle' });
 ```
 
 1. `queries` - array of sql statements, that should be run on migration
@@ -116,14 +117,21 @@ app.post('/query', (req, res) => {
       const result = db.prepare(sqlBody).run(params);
       res.send(result);
     } catch (e: any) {
-            res.status(500).json({ error: e.message });
+      res.status(500).json({ error: e.message });
     }
   } else if (method === 'all' || method === 'values') {
-        try {
+    try {
       const rows = db.prepare(sqlBody).raw().all(params);
-            res.send(rows);
+      res.send(rows);
     } catch (e: any) {
-            res.status(500).json({ error: e.message });
+      res.status(500).json({ error: e.message });
+    }
+  } else if (method === 'get') {
+    try {
+      const row = db.prepare(sqlBody).raw().get(params);
+      res.send(row);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
     }
   } else {
     res.status(500).json({ error: 'Unkown method value' });

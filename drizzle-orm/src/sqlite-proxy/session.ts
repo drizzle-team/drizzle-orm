@@ -63,19 +63,37 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 
 	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
 		const { fields } = this;
-		if (fields) {
-			return this.values(placeholderValues).then((values) =>
-				values.map((row) => mapResultRow(fields, row, this.joinsNotNullableMap))
-			);
-		}
 
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
+
+		const clientResult = this.client(this.queryString, params, 'all');
+
+		if (fields) {
+			return clientResult.then((values) =>
+				values.rows.map((row) => mapResultRow(fields, row, this.joinsNotNullableMap))
+			);
+		}
+
 		return this.client(this.queryString, params, 'all').then(({ rows }) => rows!);
 	}
 
 	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
-		return await this.all(placeholderValues).then((rows) => rows[0]);
+		const { fields } = this;
+
+		const params = fillPlaceholders(this.params, placeholderValues ?? {});
+		this.logger.logQuery(this.queryString, params);
+
+		const clientResult = await this.client(this.queryString, params, 'get');
+
+		if (fields) {
+			if (typeof clientResult.rows === 'undefined') {
+				return mapResultRow(fields, [], this.joinsNotNullableMap);
+			}
+			return mapResultRow(fields, clientResult.rows, this.joinsNotNullableMap);
+		}
+
+		return clientResult.rows;
 	}
 
 	async values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {
