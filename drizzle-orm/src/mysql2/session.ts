@@ -1,13 +1,8 @@
 import { Connection, FieldPacket, OkPacket, Pool, QueryOptions, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { Logger, NoopLogger } from '~/logger';
 import { MySqlDialect } from '~/mysql-core/dialect';
-import { SelectFieldsOrdered } from '~/mysql-core/operations';
-import {
-	MySqlSession,
-	PreparedQuery,
-	PreparedQueryConfig,
-	QueryResultHKT,
-} from '~/mysql-core/session';
+import { SelectFieldsOrdered } from '~/mysql-core/query-builders/select.types';
+import { MySqlSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT } from '~/mysql-core/session';
 import { fillPlaceholders, Query } from '~/sql';
 import { mapResultRow } from '~/utils';
 
@@ -66,7 +61,9 @@ export class MySql2PreparedQuery<T extends PreparedQueryConfig> extends Prepared
 
 		const result = this.client.query<any[]>(this.query, params);
 
-		return result.then((result) => result[0].map((row) => mapResultRow<T['execute']>(fields, row)));
+		return result.then((result) =>
+			result[0].map((row) => mapResultRow<T['execute']>(fields, row, this.joinsNotNullableMap))
+		);
 	}
 
 	async all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {

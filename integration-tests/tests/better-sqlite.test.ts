@@ -1,10 +1,10 @@
 import anyTest, { TestFn } from 'ava';
 import Database from 'better-sqlite3';
-import { sql } from 'drizzle-orm';
+import { DefaultLogger, sql } from 'drizzle-orm';
 import { BetterSQLite3Database, drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { asc, eq } from 'drizzle-orm/expressions';
-import { name, placeholder } from 'drizzle-orm/sql';
+import { Name, name, placeholder } from 'drizzle-orm/sql';
 import { alias, blob, InferModel, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 const usersTable = sqliteTable('users', {
@@ -13,6 +13,17 @@ const usersTable = sqliteTable('users', {
 	verified: integer('verified').notNull().default(0),
 	json: blob<string[]>('json', { mode: 'json' }),
 	createdAt: integer('created_at', { mode: 'timestamp' }).notNull().defaultNow(),
+});
+
+const users2Table = sqliteTable('users2', {
+	id: integer('id').primaryKey(),
+	name: text('name').notNull(),
+	cityId: integer('city_id').references(() => citiesTable.id),
+});
+
+const citiesTable = sqliteTable('cities', {
+	id: integer('id').primaryKey(),
+	name: text('name').notNull(),
 });
 
 const usersMigratorTable = sqliteTable('users12', {
@@ -60,6 +71,19 @@ test.beforeEach((t) => {
 			verified integer not null default 0,
 			json blob,
 			created_at integer not null default (cast((julianday('now') - 2440587.5)*86400000 as integer))
+		)`);
+	ctx.db.run(sql`drop table if exists ${users2Table}`);
+	ctx.db.run(sql`
+		create table ${users2Table} (
+			id integer primary key,
+			name text not null,
+			city_id integer references ${citiesTable}(${new Name(citiesTable.id.name)})
+		)`);
+	ctx.db.run(sql`drop table if exists ${citiesTable}`);
+	ctx.db.run(sql`
+		create table ${citiesTable} (
+			id integer primary key,
+			name text not null
 		)`);
 });
 
@@ -617,6 +641,105 @@ test.serial('insert via db.get w/ query builder', (t) => {
 		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 	);
 	t.deepEqual(inserted, { id: 1, name: 'John' });
+});
+
+test.serial('left join (flat object fields)', (t) => {
+	const { db } = t.context;
+
+	const { id: cityId } = db.insert(citiesTable)
+		.values({ name: 'Paris' }, { name: 'London' })
+		.returning({ id: citiesTable.id }).all()[0]!;
+
+	db.insert(users2Table).values({ name: 'John', cityId }, { name: 'Jane' }).run();
+
+	const res = db.select(users2Table)
+		.fields({
+			userId: users2Table.id,
+			userName: users2Table.name,
+			cityId: citiesTable.id,
+			cityName: citiesTable.name,
+		})
+		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+		.all();
+
+	t.deepEqual(res, [
+		{ userId: 1, userName: 'John', cityId, cityName: 'Paris' },
+		{ userId: 2, userName: 'Jane', cityId: null, cityName: null },
+	]);
+});
+
+test.serial('left join (grouped fields)', (t) => {
+	const { db } = t.context;
+
+	const { id: cityId } = db.insert(citiesTable)
+		.values({ name: 'Paris' }, { name: 'London' })
+		.returning({ id: citiesTable.id }).all()[0]!;
+
+	db.insert(users2Table).values({ name: 'John', cityId }, { name: 'Jane' }).run();
+
+	const res = db.select(users2Table)
+		.fields({
+			id: users2Table.id,
+			user: {
+				name: users2Table.name,
+				nameUpper: sql`upper(${users2Table.name})`.as<string>(),
+			},
+			city: {
+				id: citiesTable.id,
+				name: citiesTable.name,
+				nameUpper: sql`upper(${citiesTable.name})`.as<string>(),
+			},
+		})
+		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+		.all();
+
+	t.deepEqual(res, [
+		{
+			id: 1,
+			user: { name: 'John', nameUpper: 'JOHN' },
+			city: { id: cityId, name: 'Paris', nameUpper: 'PARIS' },
+		},
+		{
+			id: 2,
+			user: { name: 'Jane', nameUpper: 'JANE' },
+			city: null,
+		},
+	]);
+});
+
+test.serial('left join (all fields)', (t) => {
+	const { db } = t.context;
+
+	const { id: cityId } = db.insert(citiesTable)
+		.values({ name: 'Paris' }, { name: 'London' })
+		.returning({ id: citiesTable.id }).all()[0]!;
+
+	db.insert(users2Table).values({ name: 'John', cityId }, { name: 'Jane' }).run();
+
+	const res = db.select(users2Table)
+		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id)).all();
+
+	t.deepEqual(res, [
+		{
+			users2: {
+				id: 1,
+				name: 'John',
+				cityId,
+			},
+			cities: {
+				id: cityId,
+				name: 'Paris',
+			},
+		},
+		{
+			users2: {
+				id: 2,
+				name: 'Jane',
+				cityId: null,
+			},
+			cities: null,
+		},
+	]);
 });
 
 test.after.always((t) => {

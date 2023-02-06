@@ -1,6 +1,5 @@
 import { GetColumnData } from '~/column';
 import { MySqlDialect } from '~/mysql-core/dialect';
-import { SelectFieldsOrdered } from '~/mysql-core/operations';
 import {
 	MySqlSession,
 	PreparedQuery,
@@ -9,14 +8,14 @@ import {
 	QueryResultKind,
 } from '~/mysql-core/session';
 import { AnyMySqlTable, GetTableConfig } from '~/mysql-core/table';
-import { mapUpdateSet } from '~/mysql-core/utils';
 import { QueryPromise } from '~/query-promise';
-import { Param, Query, SQL, SQLWrapper } from '~/sql';
-import { Simplify } from '~/utils';
+import { Query, SQL, SQLWrapper } from '~/sql';
+import { mapUpdateSet, Simplify, UpdateSet } from '~/utils';
+import { SelectFieldsOrdered } from './select.types';
 
 export interface MySqlUpdateConfig {
 	where?: SQL | undefined;
-	set: MySqlUpdateSet;
+	set: UpdateSet;
 	table: AnyMySqlTable;
 	returning?: SelectFieldsOrdered;
 }
@@ -28,8 +27,6 @@ export type MySqlUpdateSetSource<TTable extends AnyMySqlTable> = Simplify<
 			| SQL;
 	}
 >;
-
-export type MySqlUpdateSet = Record<string, SQL | Param | null | undefined>;
 
 export class MySqlUpdateBuilder<TTable extends AnyMySqlTable, TQueryResult extends QueryResultHKT> {
 	declare protected $table: TTable;
@@ -67,7 +64,7 @@ export class MySqlUpdate<
 
 	constructor(
 		table: TTable,
-		set: MySqlUpdateSet,
+		set: UpdateSet,
 		private session: MySqlSession,
 		private dialect: MySqlDialect,
 	) {

@@ -2,16 +2,15 @@ import { GetColumnData } from '~/column';
 import { PgDialect } from '~/pg-core/dialect';
 import { QueryPromise } from '~/query-promise';
 import { Param, Query, SQL, SQLWrapper } from '~/sql';
-import { Simplify } from '~/utils';
+import { mapUpdateSet, orderSelectedFields, Simplify, UpdateSet } from '~/utils';
 
-import { SelectFields, SelectFieldsOrdered, SelectResultFields } from '~/pg-core/operations';
 import { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
 import { AnyPgTable, GetTableConfig, InferModel, PgTable } from '~/pg-core/table';
-import { mapUpdateSet, orderSelectedFields } from '~/pg-core/utils';
+import { SelectFields, SelectFieldsOrdered, SelectResultFields } from './select.types';
 
 export interface PgUpdateConfig {
 	where?: SQL | undefined;
-	set: PgUpdateSet;
+	set: UpdateSet;
 	table: AnyPgTable;
 	returning?: SelectFieldsOrdered;
 }
@@ -23,8 +22,6 @@ export type PgUpdateSetSource<TTable extends AnyPgTable> = Simplify<
 			| SQL;
 	}
 >;
-
-export type PgUpdateSet = Record<string, SQL | Param | null | undefined>;
 
 export class PgUpdateBuilder<TTable extends AnyPgTable, TQueryResult extends QueryResultHKT> {
 	declare protected $table: TTable;
@@ -63,7 +60,7 @@ export class PgUpdate<
 
 	constructor(
 		table: TTable,
-		set: PgUpdateSet,
+		set: UpdateSet,
 		private session: PgSession,
 		private dialect: PgDialect,
 	) {

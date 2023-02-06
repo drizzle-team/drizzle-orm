@@ -4,17 +4,17 @@ import { Table } from '~/table';
 
 import { AnyPgColumn } from '~/pg-core/columns';
 import { PgDialect } from '~/pg-core/dialect';
-import { SelectFields } from '~/pg-core/operations';
 import { PgSession, PreparedQuery, PreparedQueryConfig } from '~/pg-core/session';
 import { AnyPgTable, GetTableConfig, InferModel } from '~/pg-core/table';
-import { orderSelectedFields } from '~/pg-core/utils';
 
+import { orderSelectedFields } from '~/utils';
 import {
 	AnyPgSelect,
 	JoinFn,
 	JoinNullability,
 	JoinType,
 	PgSelectConfig,
+	SelectFields,
 	SelectMode,
 	SelectResult,
 } from './select.types';
@@ -88,9 +88,6 @@ export class PgSelect<
 					this.joinsNotNullable[tableName] = true;
 					break;
 				case 'inner':
-					this.joinsNotNullable = Object.fromEntries(
-						Object.entries(this.joinsNotNullable).map(([key]) => [key, true]),
-					);
 					this.joinsNotNullable[tableName] = true;
 					break;
 				case 'full':
@@ -152,8 +149,8 @@ export class PgSelect<
 	}
 
 	toSQL(): Omit<Query, 'typings'> {
-		const { typings, ...rest} = this.dialect.sqlToQuery(this.getSQL());
-		return rest
+		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		return rest;
 	}
 
 	private _prepare(name?: string): PreparedQuery<
@@ -161,7 +158,11 @@ export class PgSelect<
 			execute: SelectResult<TResult, TSelectMode, TJoinsNotNullable>[];
 		}
 	> {
-		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.fields, name);
+		const query = this.session.prepareQuery<
+			PreparedQueryConfig & { execute: SelectResult<TResult, TSelectMode, TJoinsNotNullable>[] }
+		>(this.dialect.sqlToQuery(this.getSQL()), this.config.fields, name);
+		query.joinsNotNullableMap = this.joinsNotNullable;
+		return query;
 	}
 
 	prepare(name: string): PreparedQuery<

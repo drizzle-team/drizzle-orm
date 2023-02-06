@@ -1,9 +1,15 @@
 import { MySqlDialect } from '~/mysql-core/dialect';
-import { SelectFieldsOrdered } from '~/mysql-core/operations';
-import { MySqlSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/mysql-core/session';
+import {
+	MySqlSession,
+	PreparedQuery,
+	PreparedQueryConfig,
+	QueryResultHKT,
+	QueryResultKind,
+} from '~/mysql-core/session';
 import { AnyMySqlTable } from '~/mysql-core/table';
 import { QueryPromise } from '~/query-promise';
 import { Query, SQL, SQLWrapper } from '~/sql';
+import { SelectFieldsOrdered } from './select.types';
 
 export interface MySqlDeleteConfig {
 	where?: SQL | undefined;
@@ -15,13 +21,13 @@ export interface MySqlDelete<
 	TTable extends AnyMySqlTable,
 	TQueryResult extends QueryResultHKT,
 	TReturning = undefined,
-> extends QueryPromise<QueryResultKind<TQueryResult, never> > {}
+> extends QueryPromise<QueryResultKind<TQueryResult, never>> {}
 
 export class MySqlDelete<
 	TTable extends AnyMySqlTable,
 	TQueryResult extends QueryResultHKT,
 	TReturning = undefined,
-> extends QueryPromise<QueryResultKind<TQueryResult, never> > implements SQLWrapper {
+> extends QueryPromise<QueryResultKind<TQueryResult, never>> implements SQLWrapper {
 	private config: MySqlDeleteConfig;
 
 	constructor(
@@ -57,8 +63,8 @@ export class MySqlDelete<
 	}
 
 	toSQL(): Omit<Query, 'typings'> {
-		const { typings, ...rest} = this.dialect.sqlToQuery(this.getSQL());
-		return rest
+		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		return rest;
 	}
 
 	private _prepare(name?: string): PreparedQuery<

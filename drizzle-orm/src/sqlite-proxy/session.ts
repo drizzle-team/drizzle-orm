@@ -1,7 +1,7 @@
 import { Logger, NoopLogger } from '~/logger';
 import { fillPlaceholders, Query } from '~/sql';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
-import { SelectFieldsOrdered } from '~/sqlite-core/operations';
+import { SelectFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
 import {
 	PreparedQuery as PreparedQueryBase,
 	PreparedQueryConfig as PreparedQueryConfigBase,
@@ -70,7 +70,9 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		const clientResult = this.client(this.queryString, params, 'all');
 
 		if (fields) {
-			return clientResult.then((values) => values.rows.map((row) => mapResultRow(fields, row)));
+			return clientResult.then((values) =>
+				values.rows.map((row) => mapResultRow(fields, row, this.joinsNotNullableMap))
+			);
 		}
 
 		return this.client(this.queryString, params, 'all').then(({ rows }) => rows!);
@@ -86,9 +88,9 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 
 		if (fields) {
 			if (typeof clientResult.rows === 'undefined') {
-				return mapResultRow(fields, []);
+				return mapResultRow(fields, [], this.joinsNotNullableMap);
 			}
-			return mapResultRow(fields, clientResult.rows);
+			return mapResultRow(fields, clientResult.rows, this.joinsNotNullableMap);
 		}
 
 		return clientResult.rows;

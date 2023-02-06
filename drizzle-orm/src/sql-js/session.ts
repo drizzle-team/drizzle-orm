@@ -2,7 +2,7 @@ import { BindParams, Database, Statement } from 'sql.js';
 import { Logger, NoopLogger } from '~/logger';
 import { fillPlaceholders, Query } from '~/sql';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect';
-import { SelectFieldsOrdered } from '~/sqlite-core/operations';
+import { SelectFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
 import {
 	PreparedQuery as PreparedQueryBase,
 	PreparedQueryConfig as PreparedQueryConfigBase,
@@ -78,7 +78,9 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	all(placeholderValues?: Record<string, unknown>): T['all'] {
 		const { fields } = this;
 		if (fields) {
-			return this.values(placeholderValues).map((row) => mapResultRow(fields, row.map(normalizeFieldValue)));
+			return this.values(placeholderValues).map((row) =>
+				mapResultRow(fields, row.map(normalizeFieldValue), this.joinsNotNullableMap)
+			);
 		}
 
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
@@ -117,7 +119,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 			this.free();
 		}
 
-		return mapResultRow(fields, row.map(normalizeFieldValue));
+		return mapResultRow(fields, row.map(normalizeFieldValue), this.joinsNotNullableMap);
 	}
 
 	values(placeholderValues?: Record<string, unknown>): T['values'] {

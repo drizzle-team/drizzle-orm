@@ -1,7 +1,7 @@
 import { FieldPacket, OkPacket, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { Query, SQL } from '~/sql';
 import { MySqlDialect } from './dialect';
-import { SelectFieldsOrdered } from './operations';
+import { SelectFieldsOrdered } from './query-builders/select.types';
 
 export interface QueryResultHKT {
 	readonly $brand: 'MySqlQueryRowHKT';
@@ -20,6 +20,9 @@ export interface PreparedQueryConfig {
 }
 
 export abstract class PreparedQuery<T extends PreparedQueryConfig> {
+	/** @internal */
+	joinsNotNullableMap?: Record<string, boolean>;
+
 	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
 
 	/** @internal */

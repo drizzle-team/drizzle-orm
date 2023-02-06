@@ -1,11 +1,17 @@
 import { MySqlDialect } from '~/mysql-core/dialect';
-import { SelectFieldsOrdered } from '~/mysql-core/operations';
-import { MySqlSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/mysql-core/session';
+import {
+	MySqlSession,
+	PreparedQuery,
+	PreparedQueryConfig,
+	QueryResultHKT,
+	QueryResultKind,
+} from '~/mysql-core/session';
 import { AnyMySqlTable, InferModel } from '~/mysql-core/table';
-import { mapUpdateSet } from '~/mysql-core/utils';
 import { QueryPromise } from '~/query-promise';
 import { Param, Placeholder, Query, SQL, sql, SQLWrapper } from '~/sql';
 import { Table } from '~/table';
+import { mapUpdateSet } from '~/utils';
+import { SelectFieldsOrdered } from './select.types';
 import { MySqlUpdateSetSource } from './update';
 export interface MySqlInsertConfig<TTable extends AnyMySqlTable = AnyMySqlTable> {
 	table: TTable;
@@ -46,10 +52,11 @@ export class MySqlInsertBuilder<TTable extends AnyMySqlTable, TQueryResult exten
 	}
 }
 
-export interface MySqlInsert<TTable extends AnyMySqlTable,TQueryResult extends QueryResultHKT, TReturning = undefined>
+export interface MySqlInsert<TTable extends AnyMySqlTable, TQueryResult extends QueryResultHKT, TReturning = undefined>
 	extends QueryPromise<QueryResultKind<TQueryResult, never>>, SQLWrapper
 {}
-export class MySqlInsert<TTable extends AnyMySqlTable, TQueryResult extends QueryResultHKT,TReturning = undefined> extends QueryPromise<QueryResultKind<TQueryResult, never>>
+export class MySqlInsert<TTable extends AnyMySqlTable, TQueryResult extends QueryResultHKT, TReturning = undefined>
+	extends QueryPromise<QueryResultKind<TQueryResult, never>>
 	implements SQLWrapper
 {
 	declare protected $table: TTable;
@@ -99,8 +106,8 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TQueryResult extends Quer
 	}
 
 	toSQL(): Omit<Query, 'typings'> {
-		const { typings, ...rest} = this.dialect.sqlToQuery(this.getSQL());
-		return rest
+		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		return rest;
 	}
 
 	private _prepare(name?: string): PreparedQuery<

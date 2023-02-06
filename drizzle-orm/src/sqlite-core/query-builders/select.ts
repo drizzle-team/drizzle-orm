@@ -3,16 +3,16 @@ import { AnySQLiteColumn } from '~/sqlite-core/columns';
 import { SQLiteDialect } from '~/sqlite-core/dialect';
 import { Table } from '~/table';
 
-import { SQLiteSelectFields } from '~/sqlite-core/operations';
 import { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
 import { AnySQLiteTable, GetTableConfig, InferModel } from '~/sqlite-core/table';
-import { orderSelectedFields } from '~/sqlite-core/utils';
 
+import { orderSelectedFields } from '~/utils';
 import {
 	AnySQLiteSelect,
 	JoinFn,
 	JoinNullability,
 	JoinType,
+	SelectFields,
 	SelectMode,
 	SelectResult,
 	SQLiteSelectConfig,
@@ -62,7 +62,7 @@ export class SQLiteSelect<
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): JoinFn<TTable, TRunResult, TResultType, TSelectMode, TJoinType, TResult, TJoinsNotNullable> {
+	): JoinFn<TTable, TResultType, TRunResult, TSelectMode, TJoinType, TResult, TJoinsNotNullable> {
 		return (table: AnySQLiteTable, on: SQL): AnySQLiteSelect => {
 			const tableName = table[Table.Symbol.Name];
 
@@ -90,9 +90,6 @@ export class SQLiteSelect<
 					this.joinsNotNullable[tableName] = true;
 					break;
 				case 'inner':
-					this.joinsNotNullable = Object.fromEntries(
-						Object.entries(this.joinsNotNullable).map(([key]) => [key, true]),
-					);
 					this.joinsNotNullable[tableName] = true;
 					break;
 				case 'full':
@@ -115,7 +112,7 @@ export class SQLiteSelect<
 
 	fullJoin = this.createJoin('full');
 
-	fields<TSelect extends SQLiteSelectFields>(
+	fields<TSelect extends SelectFields>(
 		fields: TSelect,
 	): Omit<
 		SQLiteSelect<TTable, TResultType, TRunResult, TSelect, 'partial', TJoinsNotNullable>,
@@ -157,8 +154,8 @@ export class SQLiteSelect<
 	}
 
 	toSQL(): Omit<Query, 'typings'> {
-		const { typings, ...rest} = this.dialect.sqlToQuery(this.getSQL());
-		return rest
+		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		return rest;
 	}
 
 	prepare(): PreparedQuery<
@@ -170,7 +167,9 @@ export class SQLiteSelect<
 			values: any[][];
 		}
 	> {
-		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.fields);
+		const query = this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.fields);
+		query.joinsNotNullableMap = this.joinsNotNullable;
+		return query;
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {

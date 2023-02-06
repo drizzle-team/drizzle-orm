@@ -481,6 +481,8 @@ await db.delete(users)
 
 Last but not least. Probably the most powerful feature in the library🚀
 
+> **Note**: for in-depth partial select joins documentation, refer to [this page](/docs/joins.md).
+
 #### Many-to-one
 
 ```typescript

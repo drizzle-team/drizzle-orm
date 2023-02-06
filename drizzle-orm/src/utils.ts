@@ -1,6 +1,7 @@
-import { Column } from './column';
-import { SelectFieldsOrdered } from './operations';
-import { DriverValueDecoder, noopDecoder, SQL } from './sql';
+import { AnyColumn, Column } from './column';
+import { SelectFields, SelectFieldsOrdered } from './operations';
+import { DriverValueDecoder, noopDecoder, Param, SQL, SQLResponse } from './sql';
+import { getTableName, Table } from './table';
 
 /**
  * @deprecated
@@ -14,10 +15,13 @@ export const apiVersion = 2;
 export const npmVersion = '0.17.0';
 
 export function mapResultRow<TResult>(
-	columns: SelectFieldsOrdered,
+	columns: SelectFieldsOrdered<AnyColumn>,
 	row: unknown[],
-	joinsNotNullable?: Record<string, boolean>,
+	joinsNotNullableMap: Record<string, boolean> | undefined,
 ): TResult {
+	// Key -> nested object key, value -> table name if all fields in the nested object are from the same table, false otherwise
+	const nullifyMap: Record<string, string | false> = {};
+
 	const result = columns.reduce<Record<string, any>>(
 		(result, { path, field }, columnIndex) => {
 			let decoder: DriverValueDecoder<unknown, unknown>;
@@ -37,7 +41,22 @@ export function mapResultRow<TResult>(
 					node = node[pathChunk];
 				} else {
 					const rawValue = row[columnIndex]!;
-					node[pathChunk] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
+					const value = node[pathChunk] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
+
+					if (joinsNotNullableMap && field instanceof Column && path.length === 2) {
+						const objectName = path[0]!;
+						if (!(objectName in nullifyMap)) {
+							if (value === null) {
+								nullifyMap[objectName] = getTableName(field.table);
+							} else {
+								nullifyMap[objectName] = false;
+							}
+						} else if (
+							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
+						) {
+							nullifyMap[objectName] = false;
+						}
+					}
 				}
 			});
 			return result;
@@ -45,23 +64,57 @@ export function mapResultRow<TResult>(
 		{},
 	);
 
-	if (!joinsNotNullable) {
-		return result as TResult;
+	// Nullify all nested objects from nullifyMap that are nullable
+	if (joinsNotNullableMap && Object.keys(nullifyMap).length > 0) {
+		Object.entries(nullifyMap).forEach(([objectName, tableName]) => {
+			if (typeof tableName === 'string' && !joinsNotNullableMap[tableName]) {
+				result[objectName] = null;
+			}
+		});
 	}
 
-	// If all fields in a table are null, return null for the table
-	return Object.fromEntries(
-		Object.entries(result).map(([tableName, tableResult]) => {
-			if (!joinsNotNullable[tableName]) {
-				const hasNotNull = Object.values(tableResult).some((value) => value !== null);
-				if (!hasNotNull) {
-					return [tableName, null];
-				}
-			}
-			return [tableName, tableResult];
-		}),
-	) as TResult;
+	return result as TResult;
 }
+
+export function orderSelectedFields<TColumn extends AnyColumn, TTable extends Table>(
+	fields: SelectFields<TColumn, TTable>,
+	pathPrefix?: string[],
+): SelectFieldsOrdered<TColumn> {
+	return Object.entries(fields).reduce<SelectFieldsOrdered<AnyColumn>>((result, [name, field]) => {
+		if (typeof name !== 'string') {
+			return result;
+		}
+
+		const newPath = pathPrefix ? [...pathPrefix, name] : [name];
+		if (
+			field instanceof Column
+			|| field instanceof SQL
+			|| field instanceof SQLResponse
+		) {
+			result.push({ path: newPath, field });
+		} else if (field instanceof Table) {
+			result.push(...orderSelectedFields(field[Table.Symbol.Columns], newPath));
+		} else {
+			result.push(...orderSelectedFields(field, newPath));
+		}
+		return result;
+	}, []) as SelectFieldsOrdered<TColumn>;
+}
+
+/** @internal */
+export function mapUpdateSet(table: Table, values: Record<string, unknown>): UpdateSet {
+	return Object.fromEntries<UpdateSet[string]>(
+		Object.entries(values).map(([key, value]) => {
+			if (value instanceof SQL || value === null || value === undefined) {
+				return [key, value];
+			} else {
+				return [key, new Param(value, table[Table.Symbol.Columns][key])];
+			}
+		}),
+	);
+}
+
+export type UpdateSet = Record<string, SQL | Param | null | undefined>;
 
 export type OneOrMany<T> = T | T[];
 
@@ -155,3 +208,5 @@ export type Simplify<
 	: AnyType;
 
 export type Assume<T, U> = T extends U ? T : U;
+
+export type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends (<T>() => T extends Y ? 1 : 2) ? true : false;

@@ -5,7 +5,7 @@ import { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect';
 import { SQLiteDelete, SQLiteInsertBuilder, SQLiteSelect, SQLiteUpdateBuilder } from '~/sqlite-core/query-builders';
 import { ResultKind, SQLiteSession } from '~/sqlite-core/session';
 import { AnySQLiteTable } from '~/sqlite-core/table';
-import { orderSelectedFields } from './utils';
+import { orderSelectedFields } from '~/utils';
 
 export class BaseSQLiteDatabase<TResultType extends 'sync' | 'async', TRunResult> {
 	constructor(

@@ -2,10 +2,10 @@ import { QueryPromise } from '~/query-promise';
 import { Query, SQL, SQLWrapper } from '~/sql';
 
 import { PgDialect } from '~/pg-core/dialect';
-import { SelectFields, SelectFieldsOrdered, SelectResultFields } from '~/pg-core/operations';
 import { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
 import { AnyPgTable, InferModel, PgTable } from '~/pg-core/table';
-import { orderSelectedFields } from '~/pg-core/utils';
+import { orderSelectedFields } from '~/utils';
+import { SelectFields, SelectFieldsOrdered, SelectResultFields } from './select.types';
 
 export interface PgDeleteConfig {
 	where?: SQL | undefined;

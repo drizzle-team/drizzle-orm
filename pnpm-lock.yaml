@@ -15,7 +15,7 @@ importers:
       dprint: ^0.32.2
       prettier: ^2.7.1
       resolve-tspaths: ^0.8.3
-      turbo: ^1.6.3
+      turbo: ^1.7.2
       typescript: 4.8.4
     devDependencies:
       '@trivago/prettier-plugin-sort-imports': 3.4.0_prettier@2.8.3

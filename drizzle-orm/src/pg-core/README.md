@@ -13,7 +13,7 @@ Drizzle ORM is a TypeScript ORM for SQL databases designed with maximum type saf
 | Driver | Support | | Driver version |
 | :- | :-: | :-: | :-: |
 | [node-postgres](https://github.com/brianc/node-postgres) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/pg'> |
-| [postgres.js](https://github.com/porsager/postgres) | ✅ | [Docs](/drizzle-orm/src/postgres.js/README.md) | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/postgres'> |
+| [postgres.js](https://github.com/porsager/postgres) | ✅ | [Docs](/drizzle-orm/src/postgres-js/README.md) | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/postgres'> |
 | [NeonDB Serverless](https://github.com/neondatabase/serverless) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/@neondatabase/serverless'> |
 | [AWS Data API](https://github.com/aws/aws-sdk-js-v3/blob/main/clients/client-rds-data/README.md) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/@aws-sdk/client-rds-data'>
 
@@ -537,6 +537,8 @@ const deletedUserId: { deletedId: number }[] = await db.delete(users)
 
 Last but not least. Probably the most powerful feature in the library🚀
 
+> **Note**: for in-depth partial select joins documentation, refer to [this page](/docs/joins.md).
+
 #### Many-to-one
 
 ```typescript
@@ -610,7 +612,6 @@ const result1 = await db.select(cities).fields({
 
 // Select all fields from users and only id and name from cities
 const result2 = await db.select(cities).fields({
-  // Supports any level of nesting!
   user: users,
   city: {
     id: cities.id,

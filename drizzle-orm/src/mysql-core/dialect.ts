@@ -1,14 +1,14 @@
 import { AnyColumn, Column } from '~/column';
 import { MigrationMeta } from '~/migrator';
-import { SelectFieldsOrdered } from '~/operations';
 import { Name, Query, SQL, sql, SQLResponse, SQLSourceParam } from '~/sql';
-import { Table } from '~/table';
+import { getTableName, Table } from '~/table';
+import { UpdateSet } from '~/utils';
 import { AnyMySqlColumn, MySqlColumn } from './columns/common';
 import { MySqlDatabase } from './db';
 import { MySqlDeleteConfig } from './query-builders/delete';
 import { MySqlInsertConfig } from './query-builders/insert';
-import { MySqlSelectConfig } from './query-builders/select.types';
-import { MySqlUpdateConfig, MySqlUpdateSet } from './query-builders/update';
+import { MySqlSelectConfig, SelectFieldsOrdered } from './query-builders/select.types';
+import { MySqlUpdateConfig } from './query-builders/update';
 import { MySqlSession } from './session';
 import { AnyMySqlTable, MySqlTable } from './table';
 
@@ -74,7 +74,7 @@ export class MySqlDialect {
 		return sql`delete from ${table}${whereSql}${returningSql}`;
 	}
 
-	buildUpdateSet(table: AnyMySqlTable, set: MySqlUpdateSet): SQL {
+	buildUpdateSet(table: AnyMySqlTable, set: UpdateSet): SQL {
 		const setEntries = Object.entries(set);
 
 		const setSize = setEntries.length;
@@ -162,6 +162,17 @@ export class MySqlDialect {
 	}
 
 	buildSelectQuery({ fields, where, table, joins, orderBy, groupBy, limit, offset }: MySqlSelectConfig): SQL {
+		fields.forEach((f) => {
+			let tableName: string;
+			if (
+				f.field instanceof Column && f.field.table !== table && !((tableName = getTableName(f.field.table)) in joins)
+			) {
+				throw new Error(
+					`Column "${f.path.join('.')}" was selected, but its table "${tableName}" was not joined`,
+				);
+			}
+		});
+
 		const joinKeys = Object.keys(joins);
 
 		const selection = this.buildSelection(fields, { isSingleTable: joinKeys.length === 0 });

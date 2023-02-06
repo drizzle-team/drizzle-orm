@@ -1,12 +1,11 @@
 import { AnyMySqlColumn } from '~/mysql-core/columns/common';
 import { MySqlDialect } from '~/mysql-core/dialect';
-import { SelectFields } from '~/mysql-core/operations';
 import { MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/mysql-core/session';
 import { AnyMySqlTable, GetTableConfig, InferModel } from '~/mysql-core/table';
-import { orderSelectedFields } from '~/mysql-core/utils';
 import { QueryPromise } from '~/query-promise';
 import { Query, SQL, SQLWrapper } from '~/sql';
 import { Table } from '~/table';
+import { orderSelectedFields } from '~/utils';
 
 import {
 	AnyMySqlSelect,
@@ -14,6 +13,7 @@ import {
 	JoinNullability,
 	JoinType,
 	MySqlSelectConfig,
+	SelectFields,
 	SelectMode,
 	SelectResult,
 } from './select.types';
@@ -56,6 +56,7 @@ export class MySqlSelect<
 		};
 		this.joinsNotNullable = { [table[Table.Symbol.Name]]: true };
 	}
+
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
 	): JoinFn<TTable, TSelectMode, TJoinType, TResult, TJoinsNotNullable> {
@@ -86,9 +87,6 @@ export class MySqlSelect<
 					this.joinsNotNullable[tableName] = true;
 					break;
 				case 'inner':
-					this.joinsNotNullable = Object.fromEntries(
-						Object.entries(this.joinsNotNullable).map(([key]) => [key, true]),
-					);
 					this.joinsNotNullable[tableName] = true;
 					break;
 				case 'full':
@@ -150,8 +148,8 @@ export class MySqlSelect<
 	}
 
 	toSQL(): Omit<Query, 'typings'> {
-		const { typings, ...rest} = this.dialect.sqlToQuery(this.getSQL());
-		return rest
+		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		return rest;
 	}
 
 	private _prepare(name?: string): PreparedQuery<
@@ -159,7 +157,11 @@ export class MySqlSelect<
 			execute: SelectResult<TResult, TSelectMode, TJoinsNotNullable>[];
 		}
 	> {
-		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.fields, name);
+		const query = this.session.prepareQuery<
+			PreparedQueryConfig & { execute: SelectResult<TResult, TSelectMode, TJoinsNotNullable>[] }
+		>(this.dialect.sqlToQuery(this.getSQL()), this.config.fields, name);
+		query.joinsNotNullableMap = this.joinsNotNullable;
+		return query;
 	}
 
 	prepare(name: string): PreparedQuery<

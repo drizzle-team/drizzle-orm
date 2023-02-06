@@ -1,13 +1,22 @@
 import { AnyColumn, Column } from '~/column';
 import { MigrationMeta } from '~/migrator';
-import { SelectFieldsOrdered } from '~/operations';
-import { AnyPgColumn, PgColumn, PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core/columns';
-import { PgDatabase } from '~/pg-core/db';
-import { PgDeleteConfig, PgInsertConfig, PgUpdateConfig, PgUpdateSet } from '~/pg-core/query-builders';
-import { PgSelectConfig } from '~/pg-core/query-builders/select.types';
+import {
+	AnyPgColumn,
+	PgColumn,
+	PgDate,
+	PgJson,
+	PgJsonb,
+	PgNumeric,
+	PgTime,
+	PgTimestamp,
+	PgUUID,
+} from '~/pg-core/columns';
+import { PgDeleteConfig, PgInsertConfig, PgUpdateConfig } from '~/pg-core/query-builders';
+import { PgSelectConfig, SelectFieldsOrdered } from '~/pg-core/query-builders/select.types';
 import { AnyPgTable, PgTable } from '~/pg-core/table';
 import { DriverValueEncoder, Name, Query, QueryTypingsValue, SQL, sql, SQLResponse, SQLSourceParam } from '~/sql';
-import { Table } from '~/table';
+import { getTableName, Table } from '~/table';
+import { UpdateSet } from '~/utils';
 import { PgSession } from './session';
 
 export class PgDialect {
@@ -65,7 +74,7 @@ export class PgDialect {
 		return sql`delete from ${table}${whereSql}${returningSql}`;
 	}
 
-	buildUpdateSet(table: AnyPgTable, set: PgUpdateSet): SQL {
+	buildUpdateSet(table: AnyPgTable, set: UpdateSet): SQL {
 		const setEntries = Object.entries(set);
 
 		const setSize = setEntries.length;
@@ -153,6 +162,17 @@ export class PgDialect {
 	}
 
 	buildSelectQuery({ fields, where, table, joins, orderBy, groupBy, limit, offset }: PgSelectConfig): SQL {
+		fields.forEach((f) => {
+			let tableName: string;
+			if (
+				f.field instanceof Column && f.field.table !== table && !((tableName = getTableName(f.field.table)) in joins)
+			) {
+				throw new Error(
+					`Column "${f.path.join('.')}" was selected, but its table "${tableName}" was not joined`,
+				);
+			}
+		});
+
 		const joinKeys = Object.keys(joins);
 
 		const selection = this.buildSelection(fields, { isSingleTable: joinKeys.length === 0 });

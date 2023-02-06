@@ -1,10 +1,10 @@
 import { ResultSetHeader } from 'mysql2/promise';
 import { SQLWrapper } from '~/sql';
+import { orderSelectedFields } from '~/utils';
 import { MySqlDialect } from './dialect';
 import { MySqlDelete, MySqlInsertBuilder, MySqlSelect, MySqlUpdateBuilder } from './query-builders';
 import { MySqlSession, QueryResultHKT, QueryResultKind } from './session';
 import { AnyMySqlTable, MySqlTable } from './table';
-import { orderSelectedFields } from './utils';
 
 export class MySqlDatabase<TQueryResult extends QueryResultHKT, TSession extends MySqlSession> {
 	constructor(
