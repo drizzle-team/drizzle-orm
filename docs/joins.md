@@ -209,7 +209,7 @@ But what happens if you group columns from multiple tables in the same nested ob
 
 ## Aggregating results
 
-OK, so you have obtained all the cities and the users for every city. But what you **really** wanted is a **list** of users for every city, and what you currently have is a `city-user?` combinations. So, how do you transform it?
+OK, so you have obtained all the cities and the users for every city. But what you **really** wanted is a **list** of users for every city, and what you currently have is an array of `city-user?` combinations. So, how do you transform it?
 That's the neat part - you can do that however you'd like! No hand-holding here.
 
 For example, one of the ways to do that would be `Array.reduce()`:
