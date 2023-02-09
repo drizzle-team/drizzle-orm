@@ -373,8 +373,24 @@ await db.select().from(users).orderBy(users.name);
 await db.select().from(users).orderBy(desc(users.name));
 // you can pass multiple order args
 await db.select().from(users).orderBy(asc(users.name), desc(users.name));
+```
 
-// list of all filter operators
+#### Select from subquery
+
+```typescript
+const sq = db.select().from(users).where(eq(users.id, 42)).subquery('sq');
+await db.select().from(sq);
+```
+
+Subqueries in joins are supported, too:
+
+```typescript
+await db.select().from(users).leftJoin(sq, eq(users.id, sq.id));
+```
+
+#### List of all filter operators
+
+```typescript
 eq(column, value)
 eq(column1, column2)
 ne(column, value)
@@ -416,6 +432,7 @@ not(sqlExpression)
 
 and(expressions: SQL[])
 or(expressions: SQL[])
+
 ```
 
 ### Insert

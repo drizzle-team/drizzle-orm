@@ -271,8 +271,24 @@ db.select().from(users).orderBy(users.name).all();
 db.select().from(users).orderBy(desc(users.name)).all();
 // you can pass multiple order args
 db.select().from(users).orderBy(asc(users.name), desc(users.name)).all();
+```
 
-// list of all filter operators
+#### Select from subquery
+
+```typescript
+const sq = db.select().from(users).where(eq(users.id, 42)).subquery('sq');
+db.select().from(sq).all();
+```
+
+Subqueries in joins are supported, too:
+
+```typescript
+db.select().from(users).leftJoin(sq, eq(users.id, sq.id)).all();
+```
+
+#### List of all filter operators
+
+```typescript
 eq(column, value)
 eq(column1, column2)
 ne(column, value)
