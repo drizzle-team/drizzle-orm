@@ -35,14 +35,15 @@ left join users on users.city_id = cities.id
 And here's how to do the same with Drizzle ORM:
 
 ```typescript
-const rows = await db.select(cities)
-  .fields({
-    cityId: cities.id,
-    cityName: cities.name,
-    userId: users.id,
-    firstName: users.firstName,
-    lastName: users.lastName,
-  })
+const rows = await db
+  .select({
+      cityId: cities.id,
+      cityName: cities.name,
+      userId: users.id,
+      firstName: users.firstName,
+      lastName: users.lastName,
+    })
+  .from(cities)
   .leftJoin(users, eq(users.cityId, cities.id));
 ```
 
@@ -65,8 +66,8 @@ to verify that the user was joined and all of its fields are available.
 **To achieve that, you can group the fields of a certain table in a nested object inside the `.fields()`:**
 
 ```typescript
-const rows = await db.select(cities)
-  .fields({
+const rows = await db
+  .select({
     cityId: cities.id,
     cityName: cities.name,
     user: {
@@ -75,6 +76,7 @@ const rows = await db.select(cities)
       lastName: users.lastName,
     },
   })
+  .from(cities)
   .leftJoin(users, eq(users.cityId, cities.id));
 ```
 
@@ -134,7 +136,7 @@ And the result type will look like this:
 If you just need all the fields from all the tables you're selecting and joining, you can skip the `.fields()` method altogether:
 
 ```typescript
-const rows = await db.select(cities).leftJoin(users, eq(users.cityId, cities.id));
+const rows = await db.select().from(cities).leftJoin(users, eq(users.cityId, cities.id));
 ```
 
 > **Note**: in this case, the DB table names will be used as the keys in the result object.
@@ -220,11 +222,12 @@ import { InferModel } from 'drizzle-orm';
 type User = InferModel<typeof users>;
 type City = InferModel<typeof cities>;
 
-const rows = await db.select(cities)
-  .fields({
+const rows = await db
+  .select({
     city: cities,
     user: users,
   })
+  .from(cities)
   .leftJoin(users, eq(users.cityId, cities.id));
 
 const result = rows.reduce<Record<number, { city: City; users: User[] }>>(

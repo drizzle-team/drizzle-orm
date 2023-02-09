@@ -76,8 +76,8 @@ export function mapResultRow<TResult>(
 	return result as TResult;
 }
 
-export function orderSelectedFields<TColumn extends AnyColumn, TTable extends Table>(
-	fields: SelectFields<TColumn, TTable>,
+export function orderSelectedFields<TColumn extends AnyColumn>(
+	fields: SelectFields<AnyColumn, Table>,
 	pathPrefix?: string[],
 ): SelectFieldsOrdered<TColumn> {
 	return Object.entries(fields).reduce<SelectFieldsOrdered<AnyColumn>>((result, [name, field]) => {

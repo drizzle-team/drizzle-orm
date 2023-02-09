@@ -71,7 +71,7 @@ export const allColumns = pgTable('all_columns', {
 
 interface Context {
 	db: AwsDataApiPgDatabase;
-    row: InferModel<typeof allColumns, 'select'>
+	row: InferModel<typeof allColumns, 'select'>;
 }
 
 const test = anyTest as TestFn<Context>;
@@ -94,7 +94,7 @@ test.before(async (t) => {
 		// logger: new DefaultLogger(),
 	});
 
-    await ctx.db.execute(sql`CREATE TABLE IF NOT EXISTS "all_columns" (
+	await ctx.db.execute(sql`CREATE TABLE IF NOT EXISTS "all_columns" (
 		"smallint" smallint,
 		"smallint_def" smallint DEFAULT 10,
 		"integer" integer,
@@ -136,12 +136,12 @@ test.before(async (t) => {
 		"datedef" date DEFAULT now()
 	)`);
 
-    const now = new Date();
+	const now = new Date();
 
-    await ctx.db.insert(allColumns).values({
+	await ctx.db.insert(allColumns).values({
 		sm: 12,
 		int: 22,
-		numeric: "1.1",
+		numeric: '1.1',
 		numeric2: '123.45',
 		numeric3: '123.45',
 		numeric4: '123.45',
@@ -166,244 +166,243 @@ test.before(async (t) => {
 		// interval: '10 days'
 	});
 
-    const resultRows = await ctx.db.select(allColumns);
-	t.is(resultRows.length, 1)
+	const resultRows = await ctx.db.select().from(allColumns);
+	t.is(resultRows.length, 1);
 
 	const row = resultRows[0]!;
-    ctx.row = row;
+	ctx.row = row;
 });
-
 
 test.serial('[small] serial type', async (t) => {
 	const { row } = t.context;
 
-    t.assert(typeof row.sm === 'number')
-	t.is(row.sm, 12)
+	t.assert(typeof row.sm === 'number');
+	t.is(row.sm, 12);
 });
 
 test.serial('[small serial] type with default', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.sm === 'number')
-	t.is(row.smdef, 10)
+	t.assert(typeof row.sm === 'number');
+	t.is(row.smdef, 10);
 });
 
 test.serial('[int] type', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.int === 'number')
-	t.is(row.int, 22)
+	t.assert(typeof row.int === 'number');
+	t.is(row.int, 22);
 });
 
 test.serial('[int] type with default', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.intdef === 'number')
-	t.is(row.intdef, 10)
+	t.assert(typeof row.intdef === 'number');
+	t.is(row.intdef, 10);
 });
 
 test.serial('[numeric] type', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.int === 'number')
-	t.is(row.int, 22)
+	t.assert(typeof row.int === 'number');
+	t.is(row.int, 22);
 });
 
 test.serial('[numeric(precision)] type', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.int === 'number')
-	t.is(row.int, 22)
+	t.assert(typeof row.int === 'number');
+	t.is(row.int, 22);
 });
 
 test.serial('[numeric(scale)] type', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.int === 'number')
-	t.is(row.int, 22)
+	t.assert(typeof row.int === 'number');
+	t.is(row.int, 22);
 });
 
 test.serial('[numeric(precision, scale)] type', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.int === 'number')
-	t.is(row.int, 22)
+	t.assert(typeof row.int === 'number');
+	t.is(row.int, 22);
 });
 
 test.serial('[numeric] type with default', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.int === 'number')
-	t.is(row.int, 22)
+	t.assert(typeof row.int === 'number');
+	t.is(row.int, 22);
 });
 
 test.serial('[bigint] type', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.bigint === 'number')
-	t.is(row.bigint, 1578)
+	t.assert(typeof row.bigint === 'number');
+	t.is(row.bigint, 1578);
 });
 
 test.serial('[bigint] type with default', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.bigintdef === 'number')
-	t.is(row.bigintdef, 100)
+	t.assert(typeof row.bigintdef === 'number');
+	t.is(row.bigintdef, 100);
 });
 
 test.serial('[boolean] type', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.bool === 'boolean')
-	t.is(row.bool, true)
+	t.assert(typeof row.bool === 'boolean');
+	t.is(row.bool, true);
 });
 
 test.serial('[boolean] type with default', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.booldef === 'boolean')
-	t.is(row.booldef, true)
+	t.assert(typeof row.booldef === 'boolean');
+	t.is(row.booldef, true);
 });
 
 test.serial('[text] type', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.text === 'string')
-	t.is(row.text, 'inserted_text')
+	t.assert(typeof row.text === 'string');
+	t.is(row.text, 'inserted_text');
 });
 
 test.serial('[text] type with default', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.textdef === 'string')
-	t.is(row.textdef, 'text')
+	t.assert(typeof row.textdef === 'string');
+	t.is(row.textdef, 'text');
 });
 
 test.serial('[varchar] type', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.varchar === 'string')
-	t.is(row.varchar, 'inserted_varchar')
+	t.assert(typeof row.varchar === 'string');
+	t.is(row.varchar, 'inserted_varchar');
 });
 
 test.serial('[varchar] type with default', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.varchardef === 'string')
-	t.is(row.varchardef, 'text')
+	t.assert(typeof row.varchardef === 'string');
+	t.is(row.varchardef, 'text');
 });
 
 test.serial('[serial] type', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.serial === 'number')
-	t.is(row.serial, 44)
+	t.assert(typeof row.serial === 'number');
+	t.is(row.serial, 44);
 });
 
 test.serial('[bigserial] type', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.bigserial === 'number')
-	t.is(row.bigserial, 63473487)
+	t.assert(typeof row.bigserial === 'number');
+	t.is(row.bigserial, 63473487);
 });
 
 test.serial('[decimal] type', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.decimal === 'string')
-	t.is(row.decimal, '100.10')
+	t.assert(typeof row.decimal === 'string');
+	t.is(row.decimal, '100.10');
 });
 
 test.serial('[decimal] type with default', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.decimaldef === 'string')
-	t.is(row.decimaldef, '100.00')
+	t.assert(typeof row.decimaldef === 'string');
+	t.is(row.decimaldef, '100.00');
 });
 
 test.serial('[double precision] type', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.doublePrecision === 'number')
-	t.is(row.doublePrecision, 7384.34)
+	t.assert(typeof row.doublePrecision === 'number');
+	t.is(row.doublePrecision, 7384.34);
 });
 
 test.serial('[double precision] type with default', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.doublePrecisiondef === 'number')
-	t.is(row.doublePrecisiondef, 100.0)
+	t.assert(typeof row.doublePrecisiondef === 'number');
+	t.is(row.doublePrecisiondef, 100.0);
 });
 
 test.serial('[real] type', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.real === 'number')
-	t.is(row.real, 73849.11)
+	t.assert(typeof row.real === 'number');
+	t.is(row.real, 73849.11);
 });
 
 test.serial('[real] type with default', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.realdef === 'number')
-	t.is(row.realdef, 100.0)
+	t.assert(typeof row.realdef === 'number');
+	t.is(row.realdef, 100.0);
 });
 
 test.serial('[json] type', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.json?.attr === 'string')
-	t.deepEqual(row.json, { attr: 'hellohello' })
+	t.assert(typeof row.json?.attr === 'string');
+	t.deepEqual(row.json, { attr: 'hellohello' });
 });
 
 test.serial('[json] type with default', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.jsondef?.attr === 'string')
-	t.deepEqual(row.jsondef, { attr: 'value' })
+	t.assert(typeof row.jsondef?.attr === 'string');
+	t.deepEqual(row.jsondef, { attr: 'value' });
 });
 
 test.serial('[jsonb] type', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.jsonb?.attr === 'string')
-	t.deepEqual(row.jsonb, { attr: 'hellohello' })
+	t.assert(typeof row.jsonb?.attr === 'string');
+	t.deepEqual(row.jsonb, { attr: 'hellohello' });
 });
 
 test.serial('[jsonb] type with default', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.jsonbdef?.attr === 'string')
-	t.deepEqual(row.jsonbdef, { attr: 'value' })
+	t.assert(typeof row.jsonbdef?.attr === 'string');
+	t.deepEqual(row.jsonbdef, { attr: 'value' });
 });
 
 test.serial('[time] type', async (t) => {
 	const { row } = t.context;
 
-	t.assert(typeof row.time === 'string')	
-	t.assert(typeof row.time2 === 'string')
-	t.assert(typeof row.timedefnow === 'string')
+	t.assert(typeof row.time === 'string');
+	t.assert(typeof row.time2 === 'string');
+	t.assert(typeof row.timedefnow === 'string');
 });
 
 test.serial('[timestamp] type with default', async (t) => {
 	const { row } = t.context;
 
-	t.assert(row.timestamp instanceof Date)
-	t.assert(row.timestamp2 instanceof Date)
-	t.assert(row.timestamp3 instanceof Date)
-	t.assert(row.timestamp4 instanceof Date)
-	t.assert(row.timestampdef instanceof Date)
+	t.assert(row.timestamp instanceof Date);
+	t.assert(row.timestamp2 instanceof Date);
+	t.assert(row.timestamp3 instanceof Date);
+	t.assert(row.timestamp4 instanceof Date);
+	t.assert(row.timestampdef instanceof Date);
 });
 
 test.serial('[date] type with default', async (t) => {
 	const { row } = t.context;
 
-	t.assert(row.date instanceof Date)
-	t.assert(typeof row.datedef === 'string')
+	t.assert(row.date instanceof Date);
+	t.assert(typeof row.datedef === 'string');
 });
 
 test.after.always(async (t) => {
 	const ctx = t.context;
 
-    await ctx.db.execute(sql`drop table "all_columns"`);
+	await ctx.db.execute(sql`drop table "all_columns"`);
 });

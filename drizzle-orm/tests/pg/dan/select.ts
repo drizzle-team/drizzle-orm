@@ -25,19 +25,69 @@ import { alias } from '~/pg-core/alias';
 import { param, sql } from '~/sql';
 
 import { Equal, Expect } from 'tests/utils';
+import { InferModel, integer, pgTable, serial, text } from '~/pg-core';
 import { db } from './db';
 import { cities, classes, users } from './tables';
 
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
 
-const leftJoinFlat = await db.select(users)
-	.fields({
+const leftJoinFull = await db.select().from(users).leftJoin(city, eq(users.id, city.id));
+
+Expect<
+	Equal<
+		{
+			users_table: InferModel<typeof users>;
+			city: InferModel<typeof city> | null;
+		}[],
+		typeof leftJoinFull
+	>
+>;
+
+const rightJoinFull = await db.select().from(users).rightJoin(city, eq(users.id, city.id));
+
+Expect<
+	Equal<
+		{
+			users_table: InferModel<typeof users> | null;
+			city: InferModel<typeof city>;
+		}[],
+		typeof rightJoinFull
+	>
+>;
+
+const innerJoinFull = await db.select().from(users).innerJoin(city, eq(users.id, city.id));
+
+Expect<
+	Equal<
+		{
+			users_table: InferModel<typeof users>;
+			city: InferModel<typeof city>;
+		}[],
+		typeof innerJoinFull
+	>
+>;
+
+const fullJoinFull = await db.select().from(users).fullJoin(city, eq(users.id, city.id));
+
+Expect<
+	Equal<
+		{
+			users_table: InferModel<typeof users> | null;
+			city: InferModel<typeof city> | null;
+		}[],
+		typeof fullJoinFull
+	>
+>;
+
+const leftJoinFlat = await db
+	.select({
 		userId: users.id,
 		userText: users.text,
 		cityId: city.id,
 		cityName: city.name,
 	})
+	.from(users)
 	.leftJoin(city, eq(users.id, city.id));
 
 Expect<
@@ -49,13 +99,14 @@ Expect<
 	}[], typeof leftJoinFlat>
 >;
 
-const rightJoinFlat = await db.select(users)
-	.fields({
+const rightJoinFlat = await db
+	.select({
 		userId: users.id,
 		userText: users.text,
 		cityId: city.id,
 		cityName: city.name,
 	})
+	.from(users)
 	.rightJoin(city, eq(users.id, city.id));
 
 Expect<
@@ -67,13 +118,14 @@ Expect<
 	}[], typeof rightJoinFlat>
 >;
 
-const innerJoinFlat = await db.select(users)
-	.fields({
+const innerJoinFlat = await db
+	.select({
 		userId: users.id,
 		userText: users.text,
 		cityId: city.id,
 		cityName: city.name,
 	})
+	.from(users)
 	.innerJoin(city, eq(users.id, city.id));
 
 Expect<
@@ -85,13 +137,14 @@ Expect<
 	}[], typeof innerJoinFlat>
 >;
 
-const fullJoinFlat = await db.select(users)
-	.fields({
+const fullJoinFlat = await db
+	.select({
 		userId: users.id,
 		userText: users.text,
 		cityId: city.id,
 		cityName: city.name,
 	})
+	.from(users)
 	.fullJoin(city, eq(users.id, city.id));
 
 Expect<
@@ -103,8 +156,8 @@ Expect<
 	}[], typeof fullJoinFlat>
 >;
 
-const leftJoinMixed = await db.select(users)
-	.fields({
+const leftJoinMixed = await db
+	.select({
 		id: users.id,
 		text: users.text,
 		textUpper: sql`upper(${users.text})`.as<string | null>(),
@@ -114,6 +167,7 @@ const leftJoinMixed = await db.select(users)
 			name: city.name,
 		},
 	})
+	.from(users)
 	.leftJoin(city, eq(users.id, city.id));
 
 Expect<
@@ -132,8 +186,8 @@ Expect<
 	>
 >;
 
-const leftJoinMixed2 = await db.select(users)
-	.fields({
+const leftJoinMixed2 = await db
+	.select({
 		id: users.id,
 		text: users.text,
 		foo: {
@@ -141,6 +195,7 @@ const leftJoinMixed2 = await db.select(users)
 			baz: cities.id,
 		},
 	})
+	.from(users)
 	.leftJoin(cities, eq(users.id, cities.id));
 
 Expect<
@@ -157,8 +212,8 @@ Expect<
 	>
 >;
 
-const join1 = await db.select(users)
-	.fields({
+const join1 = await db
+	.select({
 		user: {
 			id: users.id,
 			text: users.text,
@@ -168,7 +223,9 @@ const join1 = await db.select(users)
 			name: city.name,
 			nameUpper: sql`upper(${city.name})`.as<string>(),
 		},
-	}).leftJoin(city, eq(users.id, city.id));
+	})
+	.from(users)
+	.leftJoin(city, eq(users.id, city.id));
 
 Expect<
 	Equal<{
@@ -184,8 +241,8 @@ Expect<
 	}[], typeof join1>
 >;
 
-const join = await db.select(users)
-	.fields({
+const join = await db
+	.select({
 		users,
 		cities,
 		city,
@@ -193,6 +250,7 @@ const join = await db.select(users)
 			id: city1.id,
 		},
 	})
+	.from(users)
 	.leftJoin(cities, eq(users.id, cities.id))
 	.rightJoin(city, eq(city.id, users.id))
 	.rightJoin(city1, eq(city1.id, users.id));
@@ -232,8 +290,8 @@ Expect<
 	>
 >;
 
-const join2 = await db.select(users)
-	.fields({
+const join2 = await db
+	.select({
 		user: {
 			id: users.id,
 		},
@@ -241,6 +299,7 @@ const join2 = await db.select(users)
 			id: cities.id,
 		},
 	})
+	.from(users)
 	.fullJoin(cities, eq(users.id, cities.id));
 
 Expect<
@@ -257,8 +316,8 @@ Expect<
 	>
 >;
 
-const join3 = await db.select(users)
-	.fields({
+const join3 = await db
+	.select({
 		user: {
 			id: users.id,
 		},
@@ -269,6 +328,7 @@ const join3 = await db.select(users)
 			id: classes.id,
 		},
 	})
+	.from(users)
 	.fullJoin(cities, eq(users.id, cities.id))
 	.rightJoin(classes, eq(users.id, classes.id));
 
@@ -289,10 +349,10 @@ Expect<
 	>
 >;
 
-db.select(users)
-	.where(exists(
-		db.select(cities).where(eq(users.homeCity.unsafe(), cities.id)),
-	));
+db
+	.select()
+	.from(users)
+	.where(exists(db.select().from(cities).where(eq(users.homeCity, cities.id))));
 
 function mapFunkyFuncResult(valueFromDriver: unknown) {
 	return {
@@ -302,51 +362,53 @@ function mapFunkyFuncResult(valueFromDriver: unknown) {
 
 const age = 1;
 
-const allOperators = await db.select(users).fields({
-	col2: sql`5 - ${users.id} + 1`, // unknown
-	col3: sql`${users.id} + 1`.as<number>(), // number
-	col33: sql`${users.id} + 1`.as(users.id), // number
-	col34: sql`${users.id} + 1`.as(mapFunkyFuncResult), // number
-	col4: sql`one_or_another(${users.id}, ${users.class})`.as<string | number>(), // string | number
-	col5: sql`true`, // unknown
-	col6: sql`true`.as<boolean>(), // boolean
-	col7: sql`random()`.as<number>(), // number
-	col8: sql`some_funky_func(${users.id})`.as(mapFunkyFuncResult), // { foo: string }
-	col9: sql`greatest(${users.createdAt}, ${param(new Date(), users.createdAt)})`, // unknown
-	col10: sql`date_or_false(${users.createdAt}, ${param(new Date(), users.createdAt)})`.as<Date | boolean>(), // Date | boolean
-	col11: sql`${users.age1} + ${age}`, // unknown
-	col12: sql`${users.age1} + ${param(age, users.age1)}`, // unknown
-	col13: sql`lower(${users.class})`, // unknown
-	col14: sql`length(${users.class})`.as<number>(), // number
-	count: sql`count(*)`.as<number>(), // number
-}).where(and(
-	eq(users.id, 1),
-	ne(users.id, 1),
-	or(eq(users.id, 1), ne(users.id, 1)),
-	not(eq(users.id, 1)),
-	gt(users.id, 1),
-	gte(users.id, 1),
-	lt(users.id, 1),
-	lte(users.id, 1),
-	inArray(users.id, [1, 2, 3]),
-	inArray(users.id, db.select(users).fields({ id: users.id })),
-	inArray(users.id, sql`select id from ${users}`),
-	notInArray(users.id, [1, 2, 3]),
-	notInArray(users.id, db.select(users).fields({ id: users.id })),
-	notInArray(users.id, sql`select id from ${users}`),
-	isNull(users.subClass),
-	isNotNull(users.id),
-	exists(db.select(users).fields({ id: users.id })),
-	exists(sql`select id from ${users}`),
-	notExists(db.select(users).fields({ id: users.id })),
-	notExists(sql`select id from ${users}`),
-	between(users.id, 1, 2),
-	notBetween(users.id, 1, 2),
-	like(users.id, '%1%'),
-	notLike(users.id, '%1%'),
-	ilike(users.id, '%1%'),
-	notIlike(users.id, '%1%'),
-));
+const allOperators = await db
+	.select({
+		col2: sql`5 - ${users.id} + 1`, // unknown
+		col3: sql`${users.id} + 1`.as<number>(), // number
+		col33: sql`${users.id} + 1`.as(users.id), // number
+		col34: sql`${users.id} + 1`.as(mapFunkyFuncResult), // number
+		col4: sql`one_or_another(${users.id}, ${users.class})`.as<string | number>(), // string | number
+		col5: sql`true`, // unknown
+		col6: sql`true`.as<boolean>(), // boolean
+		col7: sql`random()`.as<number>(), // number
+		col8: sql`some_funky_func(${users.id})`.as(mapFunkyFuncResult), // { foo: string }
+		col9: sql`greatest(${users.createdAt}, ${param(new Date(), users.createdAt)})`, // unknown
+		col10: sql`date_or_false(${users.createdAt}, ${param(new Date(), users.createdAt)})`.as<Date | boolean>(), // Date | boolean
+		col11: sql`${users.age1} + ${age}`, // unknown
+		col12: sql`${users.age1} + ${param(age, users.age1)}`, // unknown
+		col13: sql`lower(${users.class})`, // unknown
+		col14: sql`length(${users.class})`.as<number>(), // number
+		count: sql`count(*)`.as<number>(), // number
+	})
+	.from(users).where(and(
+		eq(users.id, 1),
+		ne(users.id, 1),
+		or(eq(users.id, 1), ne(users.id, 1)),
+		not(eq(users.id, 1)),
+		gt(users.id, 1),
+		gte(users.id, 1),
+		lt(users.id, 1),
+		lte(users.id, 1),
+		inArray(users.id, [1, 2, 3]),
+		inArray(users.id, db.select({ id: users.id }).from(users)),
+		inArray(users.id, sql`select id from ${users}`),
+		notInArray(users.id, [1, 2, 3]),
+		notInArray(users.id, db.select({ id: users.id }).from(users)),
+		notInArray(users.id, sql`select id from ${users}`),
+		isNull(users.subClass),
+		isNotNull(users.id),
+		exists(db.select({ id: users.id }).from(users)),
+		exists(sql`select id from ${users}`),
+		notExists(db.select({ id: users.id }).from(users)),
+		notExists(sql`select id from ${users}`),
+		between(users.id, 1, 2),
+		notBetween(users.id, 1, 2),
+		like(users.id, '%1%'),
+		notLike(users.id, '%1%'),
+		ilike(users.id, '%1%'),
+		notIlike(users.id, '%1%'),
+	));
 
 Expect<
 	Equal<{
@@ -371,9 +433,11 @@ Expect<
 	}[], typeof allOperators>
 >;
 
-const textSelect = await db.select(users).fields({
-	t: users.text,
-});
+const textSelect = await db
+	.select({
+		t: users.text,
+	})
+	.from(users);
 
 Expect<Equal<{ t: string | null }[], typeof textSelect>>;
 
@@ -392,8 +456,8 @@ const closestCity5 = alias(cities, 'closestCity5');
 const closestCity6 = alias(cities, 'closestCity6');
 const closestCity7 = alias(cities, 'closestCity7');
 
-const megaJoin = await db.select(users)
-	.fields({
+const megaJoin = await db
+	.select({
 		user: {
 			id: users.id,
 			maxAge: sql`max(${users.age1})`,
@@ -410,6 +474,7 @@ const megaJoin = await db.select(users)
 		subscriber,
 		closestCity,
 	})
+	.from(users)
 	.innerJoin(cities, sql`${users.id} = ${cities.id}`)
 	.innerJoin(homeCity, sql`${users.homeCity} = ${homeCity.id}`)
 	.innerJoin(c, eq(c.id, users.class))
@@ -496,8 +561,8 @@ Expect<
 	>
 >;
 
-const megaLeftJoin = await db.select(users)
-	.fields({
+const megaLeftJoin = await db
+	.select({
 		user: {
 			id: users.id,
 			maxAge: sql`max(${users.age1})`,
@@ -520,6 +585,7 @@ const megaLeftJoin = await db.select(users)
 		closestCity6,
 		closestCity7,
 	})
+	.from(users)
 	.leftJoin(cities, sql`${users.id} = ${cities.id}`)
 	.leftJoin(homeCity, sql`${users.homeCity} = ${homeCity.id}`)
 	.leftJoin(c, eq(c.id, users.class))
@@ -642,8 +708,8 @@ Expect<
 	>
 >;
 
-const megaFullJoin = await db.select(users)
-	.fields({
+const megaFullJoin = await db
+	.select({
 		user: {
 			id: users.id,
 			maxAge: sql`max(${users.age1})`,
@@ -666,6 +732,7 @@ const megaFullJoin = await db.select(users)
 		closestCity6,
 		closestCity7,
 	})
+	.from(users)
 	.fullJoin(cities, sql`${users.id} = ${cities.id}`)
 	.fullJoin(homeCity, sql`${users.homeCity} = ${homeCity.id}`)
 	.fullJoin(c, eq(c.id, users.class))
@@ -687,8 +754,8 @@ const megaFullJoin = await db.select(users)
 
 const friends = alias(users, 'friends');
 
-const join4 = await db.select(users)
-	.fields({
+const join4 = await db
+	.select({
 		user: {
 			id: users.id,
 		},
@@ -698,6 +765,7 @@ const join4 = await db.select(users)
 		class: classes,
 		friend: friends,
 	})
+	.from(users)
 	.innerJoin(cities, sql`${users.id} = ${cities.id}`)
 	.innerJoin(classes, sql`${cities.id} = ${classes.id}`)
 	.innerJoin(friends, sql`${friends.id} = ${users.id}`)

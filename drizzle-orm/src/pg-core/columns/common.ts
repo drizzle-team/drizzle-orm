@@ -89,10 +89,6 @@ export abstract class PgColumn<T extends Partial<ColumnBaseConfig>> extends Colu
 	) {
 		super(table, config);
 	}
-
-	unsafe(): AnyPgColumn {
-		return this as AnyPgColumn;
-	}
 }
 
 export type AnyPgColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = PgColumn<

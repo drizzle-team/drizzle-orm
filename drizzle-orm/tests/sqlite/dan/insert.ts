@@ -164,7 +164,7 @@ const upsertAll = db.insert(users).values(newUser)
 	.onConflictDoNothing()
 	.run();
 
-const stmt = db.select(users)
+const stmt = db.select().from(users)
 	.where(and(eq(users.id, placeholder('id'))))
 	.offset(placeholder('offset'))
 	.limit(placeholder('limit'))

@@ -102,19 +102,20 @@ const updateResult /* : { updated: Date }[] */ = await db.update(users)
   .returning({ updated: users.updatedAt });
 
 // Select
-const allUsers /* : User[] */ = await db.select(users);
+const allUsers /* : User[] */ = await db.select().from(users);
 
 // Select custom fields
-const upperCaseNames /* : { id: number; name: string }[] */ = await db.select(users)
-  .fields({
+const upperCaseNames /* : { id: number; name: string }[] */ = await db
+  .select({
     id: users.id,
     name: sql`upper(${users.fullName})`.as<string>(),
-  });
+  })
+  .from(users);
 
 // Joins
 // You wouldn't BELIEVE how SMART the result type is! 😱
-const allUsersWithCities = await db.select(users)
-  .fields({
+const allUsersWithCities = await db
+  .select({
     id: users.id,
     name: users.fullName,
     city: {
@@ -122,6 +123,7 @@ const allUsersWithCities = await db.select(users)
       name: cities.name,
     },
   })
+  .from(users)
   .leftJoin(cities, eq(users.cityId, cities.id));
 
 // Delete

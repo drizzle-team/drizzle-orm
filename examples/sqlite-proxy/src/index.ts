@@ -31,7 +31,7 @@ async function main() {
 	const insertedUser = await db.insert(users).values({ id: 1, name: 'name', email: 'email', cityId: 1 }).run();
 	console.log('insertedUser: ', insertedUser);
 
-	const usersToCityResponse = await db.select(users).leftJoin(cities, eq(users.cityId, cities.id)).get();
+	const usersToCityResponse = await db.select().from(users).leftJoin(cities, eq(users.cityId, cities.id)).get();
 	console.log('usersToCityResponse: ', usersToCityResponse);
 }
 

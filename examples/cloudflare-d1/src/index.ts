@@ -31,7 +31,7 @@ async function injectDB(request: Request, env: Env) {
 	// GROUP BY 1;
 	// `);
 
-	// const result = await db.select(statItemAggregation)
+	// const result = await db.select().from(statItemAggregation)
 	//   .fields({
 	//     userId: statItemAggregation.userId,
 	//     medianRevenue: sql`PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY ${statItemAggregation.revenue})`.as<number>(),
@@ -45,7 +45,7 @@ async function injectDB(request: Request, env: Env) {
 const router = Router<Request, Methods>({ base: '/' });
 
 router.get('/users', injectDB, async (req: Request, env: Env) => {
-	const query = req.db.select(users);
+	const query = req.db.select().from(users);
 	console.log(query.toSQL());
 	const result = await query.all();
 	return json(result);
@@ -53,7 +53,7 @@ router.get('/users', injectDB, async (req: Request, env: Env) => {
 
 router.get('/users/:id', injectDB, async (req: Request, env: Env) => {
 	const result = await req.db
-		.select(users)
+		.select().from(users)
 		.where(eq(users.id, Number(req.params!['id'])))
 		.get();
 	return json(result);

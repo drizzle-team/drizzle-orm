@@ -1,9 +1,9 @@
-import { GetColumnConfig, GetColumnData } from '~/column';
+import { GetColumnConfig, GetColumnData, UpdateColConfig } from '~/column';
 import { Placeholder, SQL, SQLResponse } from '~/sql';
-import { Equal, Simplify } from '~/utils';
+import { Assume, Simplify } from '~/utils';
 
 import { AnySQLiteColumn } from '~/sqlite-core/columns';
-import { ChangeColumnTableName } from '~/sqlite-core/columns/common';
+import { ChangeColumnTableName, SQLiteColumn } from '~/sqlite-core/columns/common';
 import {
 	AnySQLiteTable,
 	GetTableConfig,
@@ -13,6 +13,7 @@ import {
 } from '~/sqlite-core/table';
 
 import { SelectFields as SelectFieldsBase, SelectFieldsOrdered as SelectFieldsOrderedBase } from '~/operations';
+import { GetSubqueryAlias, GetSubquerySelection, Subquery } from '~/subquery';
 import { SQLiteSelect } from './select';
 
 export type JoinType = 'inner' | 'left' | 'right' | 'full';
@@ -20,8 +21,8 @@ export type JoinType = 'inner' | 'left' | 'right' | 'full';
 export type SelectMode = 'partial' | 'single' | 'multiple';
 
 export interface JoinsValue {
-	on: SQL;
-	table: AnySQLiteTable;
+	on: SQL | undefined;
+	table: AnySQLiteTable | Subquery;
 	joinType: JoinType;
 }
 
@@ -30,6 +31,15 @@ export type JoinNullability = 'nullable' | 'null' | 'not-null';
 export type ApplyNullability<T, TNullability extends JoinNullability> = TNullability extends 'nullable' ? T | null
 	: TNullability extends 'null' ? null
 	: T;
+
+export type ApplyNullabilityToColumn<TColumn extends AnySQLiteColumn, TNullability extends JoinNullability> =
+	TNullability extends 'not-null' ? TColumn
+		: TColumn extends SQLiteColumn<infer TConfig> ? SQLiteColumn<
+				UpdateColConfig<TConfig, {
+					notNull: TNullability extends 'nullable' ? false : TConfig['notNull'];
+				}>
+			>
+		: never;
 
 export type ApplyNotNullMapToJoins<TResult, TNullabilityMap extends Record<string, JoinNullability>> = {
 	[TTableName in keyof TResult & keyof TNullabilityMap & string]: ApplyNullability<
@@ -43,8 +53,8 @@ export type SelectResult<
 	TSelectMode extends SelectMode,
 	TJoinsNotNullable extends Record<string, JoinNullability>,
 > = TSelectMode extends 'partial' ? SelectPartialResult<TResult, TJoinsNotNullable>
-	: TSelectMode extends 'single' ? TResult
-	: Simplify<ApplyNotNullMapToJoins<TResult, TJoinsNotNullable>>;
+	: TSelectMode extends 'single' ? Simplify<SelectResultFields<TResult>>
+	: Simplify<ApplyNotNullMapToJoins<SelectResultFields<TResult>, TJoinsNotNullable>>;
 
 type IsUnion<T, U extends T = T> = (T extends any ? (U extends T ? false : true)
 	: never) extends false ? false : true;
@@ -91,16 +101,30 @@ export type MapColumnsToTableAlias<TColumns extends Record<string, AnySQLiteColu
 	[Key in keyof TColumns]: ChangeColumnTableName<TColumns[Key], TAlias>;
 };
 
+export type BuildSubquerySelection<
+	TSelection,
+	TAlias extends string,
+	TNullability extends Record<string, JoinNullability>,
+> = {
+	[Key in keyof TSelection]: TSelection[Key] extends SQL | SQLResponse ? TSelection[Key]
+		: TSelection[Key] extends AnySQLiteColumn ? ChangeColumnTableName<
+				ApplyNullabilityToColumn<TSelection[Key], TNullability[GetColumnConfig<TSelection[Key], 'tableName'>]>,
+				TAlias
+			>
+		: TSelection[Key] extends Record<string, any>
+			? Simplify<BuildSubquerySelection<TSelection[Key], TAlias, TNullability>>
+		: never;
+};
+
 export type AppendToResult<
-	TTableName extends AnySQLiteTable,
+	TTableName extends string,
 	TResult,
 	TJoinedName extends string,
 	TSelectedFields extends SelectFields,
 	TOldSelectMode extends SelectMode,
 > = TOldSelectMode extends 'partial' ? TResult
-	: TOldSelectMode extends 'single'
-		? Record<GetTableConfig<TTableName, 'name'>, TResult> & Record<TJoinedName, SelectResultFields<TSelectedFields>>
-	: Simplify<TResult & Record<TJoinedName, SelectResultFields<TSelectedFields>>>;
+	: TOldSelectMode extends 'single' ? Record<TTableName, TResult> & Record<TJoinedName, TSelectedFields>
+	: TResult & Record<TJoinedName, TSelectedFields>;
 
 type SetJoinsNullability<TNullabilityMap extends Record<string, JoinNullability>, TValue extends JoinNullability> = {
 	[Key in keyof TNullabilityMap]: TValue;
@@ -117,35 +141,49 @@ export type AppendToJoinsNotNull<
 	: never;
 
 export interface SQLiteSelectConfig {
-	fields: SelectFieldsOrdered;
+	fields: SelectFields;
+	fieldsList: SelectFieldsOrdered;
 	where?: SQL | undefined;
-	table: AnySQLiteTable;
+	table: AnySQLiteTable | Subquery;
 	limit?: number | Placeholder;
 	offset?: number | Placeholder;
 	joins: Record<string, JoinsValue>;
-	orderBy: SQL[];
+	orderBy: (AnySQLiteColumn | SQL)[];
 	groupBy: (AnySQLiteColumn | SQL)[];
 }
 
 export type JoinFn<
-	TTable extends AnySQLiteTable,
+	TTable extends AnySQLiteTable | Subquery,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TSelectMode extends SelectMode,
 	TJoinType extends JoinType,
 	TResult,
-	TJoinsNotNullable extends Record<string, JoinNullability> = Record<GetTableConfig<TTable, 'name'>, 'not-null'>,
+	TJoinsNotNullable extends Record<string, JoinNullability> = Record<GetSelectTableName<TTable>, 'not-null'>,
 > = <
-	TJoinedTable extends AnySQLiteTable,
-	TJoinedName extends GetTableConfig<TJoinedTable, 'name'> = GetTableConfig<TJoinedTable, 'name'>,
->(table: TJoinedTable, on: SQL) => SQLiteSelect<
+	TJoinedTable extends AnySQLiteTable | Subquery,
+	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
+>(table: TJoinedTable, on: SQL | undefined) => SQLiteSelect<
 	TTable,
 	TResultType,
 	TRunResult,
-	AppendToResult<TTable, TResult, TJoinedName, GetTableConfig<TJoinedTable, 'columns'>, TSelectMode>,
+	AppendToResult<
+		GetSelectTableName<TTable>,
+		TResult,
+		TJoinedName,
+		TJoinedTable extends AnySQLiteTable ? GetTableConfig<TJoinedTable, 'columns'>
+			: TJoinedName extends Subquery ? Assume<GetSubquerySelection<TJoinedName>, SelectFields>
+			: never,
+		TSelectMode
+	>,
 	TSelectMode extends 'partial' ? TSelectMode : 'multiple',
 	AppendToJoinsNotNull<TJoinsNotNullable, TJoinedName, TJoinType>
 >;
+
+export type GetSelectTableName<TTable extends AnySQLiteTable | Subquery> = TTable extends AnySQLiteTable
+	? GetTableConfig<TTable, 'name'>
+	: TTable extends Subquery ? GetSubqueryAlias<TTable>
+	: never;
 
 export type SelectFields = SelectFieldsBase<AnySQLiteColumn, AnySQLiteTable>;
 
@@ -155,11 +193,9 @@ export type SelectResultField<T> = T extends AnySQLiteTable ? SelectResultField<
 	: T extends AnySQLiteColumn ? GetColumnData<T>
 	: T extends SQLResponse<infer TDriverParam> ? TDriverParam
 	: T extends SQL ? unknown
-	: T extends Record<string, any> ? { [Key in keyof T]: SelectResultField<T[Key]> }
+	: T extends Record<string, any> ? Simplify<SelectResultFields<T>>
 	: never;
 
-export type SelectResultFields<TSelectedFields extends SelectFields> = Simplify<
-	{
-		[Key in keyof TSelectedFields & string]: SelectResultField<TSelectedFields[Key]>;
-	}
->;
+export type SelectResultFields<TSelectedFields> = {
+	[Key in keyof TSelectedFields & string]: SelectResultField<TSelectedFields[Key]>;
+};

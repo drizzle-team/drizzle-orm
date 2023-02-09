@@ -85,10 +85,6 @@ export abstract class SQLiteColumn<T extends Partial<ColumnBaseConfig>> extends 
 	) {
 		super(table, config);
 	}
-
-	unsafe(): AnySQLiteColumn {
-		return this as AnySQLiteColumn;
-	}
 }
 
 export type AnySQLiteColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = SQLiteColumn<

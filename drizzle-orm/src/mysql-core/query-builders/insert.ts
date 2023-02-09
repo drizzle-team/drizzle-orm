@@ -10,7 +10,7 @@ import { AnyMySqlTable, InferModel } from '~/mysql-core/table';
 import { QueryPromise } from '~/query-promise';
 import { Param, Placeholder, Query, SQL, sql, SQLWrapper } from '~/sql';
 import { Table } from '~/table';
-import { mapUpdateSet } from '~/utils';
+import { mapUpdateSet, Simplify } from '~/utils';
 import { SelectFieldsOrdered } from './select.types';
 import { MySqlUpdateSetSource } from './update';
 export interface MySqlInsertConfig<TTable extends AnyMySqlTable = AnyMySqlTable> {
@@ -105,7 +105,7 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TQueryResult extends Quer
 		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	toSQL(): Omit<Query, 'typings'> {
+	toSQL(): Simplify<Omit<Query, 'typings'>> {
 		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}

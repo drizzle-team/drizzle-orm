@@ -85,10 +85,6 @@ export abstract class MySqlColumn<T extends Partial<ColumnBaseConfig>> extends C
 	) {
 		super(table, config);
 	}
-
-	unsafe(): AnyMySqlColumn {
-		return this as AnyMySqlColumn;
-	}
 }
 
 export type AnyMySqlColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = MySqlColumn<

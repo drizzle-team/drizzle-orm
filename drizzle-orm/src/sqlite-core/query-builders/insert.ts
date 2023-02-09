@@ -121,7 +121,7 @@ export class SQLiteInsert<
 		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	toSQL(): Omit<Query, 'typings'> {
+	toSQL(): Simplify<Omit<Query, 'typings'>> {
 		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
