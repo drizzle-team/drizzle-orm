@@ -33,13 +33,13 @@ router.get('/health', async (req: Request, env: Env, ctx: ExecutionContext) => {
 
 router.get('/users', injectDB, async (req: Request, env: Env, ctx: ExecutionContext) => {
 	req.client.connect();
-	const result = await req.db.select(users);
+	const result = await req.db.select().from(users);
 	ctx.waitUntil(req.client.end());
 	return json({ status: 'ok', result });
 });
 
 router.get('/users/:id', injectDB, async (req: Request, env: Env) => {
-	const result = await req.db.select(users).where(eq(users.id, req.params!['id'])).execute();
+	const result = await req.db.select().from(users).where(eq(users.id, req.params!['id'])).execute();
 	return json(result);
 });
 

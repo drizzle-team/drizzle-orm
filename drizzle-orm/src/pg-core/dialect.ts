@@ -15,6 +15,7 @@ import { PgDeleteConfig, PgInsertConfig, PgUpdateConfig } from '~/pg-core/query-
 import { PgSelectConfig, SelectFieldsOrdered } from '~/pg-core/query-builders/select.types';
 import { AnyPgTable, PgTable } from '~/pg-core/table';
 import { DriverValueEncoder, Name, Query, QueryTypingsValue, SQL, sql, SQLResponse, SQLSourceParam } from '~/sql';
+import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
 import { UpdateSet } from '~/utils';
 import { PgSession } from './session';
@@ -161,21 +162,26 @@ export class PgDialect {
 		return sql.fromList(chunks);
 	}
 
-	buildSelectQuery({ fields, where, table, joins, orderBy, groupBy, limit, offset }: PgSelectConfig): SQL {
+	buildSelectQuery({ fieldsList: fields, where, table, joins, orderBy, groupBy, limit, offset }: PgSelectConfig): SQL {
 		fields.forEach((f) => {
 			let tableName: string;
 			if (
 				f.field instanceof Column && f.field.table !== table && !((tableName = getTableName(f.field.table)) in joins)
 			) {
 				throw new Error(
-					`Column "${f.path.join('.')}" was selected, but its table "${tableName}" was not joined`,
+					`Column "${f.field.name}" was selected, but its table "${tableName}" was not joined`,
 				);
 			}
 		});
 
 		const joinKeys = Object.keys(joins);
+		const isSingleTable = joinKeys.length === 0;
 
-		const selection = this.buildSelection(fields, { isSingleTable: joinKeys.length === 0 });
+		const tableSql = table instanceof Subquery
+			? sql`(${table})${isSingleTable ? undefined : new Name(table[SubqueryConfig].alias)}`
+			: table;
+
+		const selection = this.buildSelection(fields, { isSingleTable });
 
 		const joinsArray: SQL[] = [];
 
@@ -185,15 +191,24 @@ export class PgDialect {
 			}
 			const joinMeta = joins[tableAlias]!;
 			const table = joinMeta.table;
-			const tableName = table[PgTable.Symbol.Name];
-			const tableSchema = table[PgTable.Symbol.Schema];
-			const origTableName = table[PgTable.Symbol.OriginalName];
-			const alias = tableName === origTableName ? undefined : tableAlias;
-			joinsArray.push(
-				sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? new Name(tableSchema) : sql.raw('')}${
-					sql.raw(tableSchema ? '.' : '')
-				}${new Name(origTableName)} ${alias && new Name(alias)} on ${joinMeta.on}`,
-			);
+
+			if (table instanceof PgTable) {
+				const tableName = table[PgTable.Symbol.Name];
+				const tableSchema = table[PgTable.Symbol.Schema];
+				const origTableName = table[PgTable.Symbol.OriginalName];
+				const alias = tableName === origTableName ? undefined : tableAlias;
+				joinsArray.push(
+					sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${new Name(tableSchema)}.` : undefined}${new Name(
+						origTableName,
+					)} ${alias && new Name(alias)} on ${joinMeta.on}`,
+				);
+			} else {
+				joinsArray.push(
+					sql`${sql.raw(joinMeta.joinType)} join (${table[SubqueryConfig].sql}) ${new Name(
+						tableAlias,
+					)} on ${joinMeta.on}`,
+				);
+			}
 			if (index < joinKeys.length - 1) {
 				joinsArray.push(sql` `);
 			}
@@ -203,7 +218,7 @@ export class PgDialect {
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		const orderByList: SQL[] = [];
+		const orderByList: (AnyPgColumn | SQL)[] = [];
 		orderBy.forEach((orderByValue, index) => {
 			orderByList.push(orderByValue);
 
@@ -229,7 +244,7 @@ export class PgDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		return sql`select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${orderBySql}${limitSql}${offsetSql}`;
+		return sql`select ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {

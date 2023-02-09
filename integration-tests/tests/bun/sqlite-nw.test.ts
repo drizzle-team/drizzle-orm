@@ -60,8 +60,8 @@ test('select', (ctx) => {
 	const { db } = ctx;
 
 	// TODO: convert to normalniy test
-	console.log(db.select(order).where(sql`"Order"."ShipCountry" = "Germany"`).execute()[0]);
-	console.log(db.select(order).where(sql`"Order"."ShipCountry" = ${'Germany'}`).prepare().execute()[0]);
+	console.log(db.select().from(order).where(sql`"Order"."ShipCountry" = "Germany"`).execute()[0]);
+	console.log(db.select().from(order).where(sql`"Order"."ShipCountry" = ${'Germany'}`).prepare().execute()[0]);
 });
 
 test.run();
@@ -70,7 +70,7 @@ test.run();
 // 	const { db } = t.context;
 
 // 	db.insert(usersTable).values({ name: 'John' }).execute();
-// 	const result = db.select(usersTable).fields({ name: usersTable.name }).execute();
+// 	const result = db.select({ name: usersTable.name }).from(usersTable).execute();
 
 // 	t.deepEqual(result, [{ name: 'John' }]);
 // });
@@ -84,7 +84,7 @@ test.run();
 // 		{ name: 'George' },
 // 		{ name: 'Austin' },
 // 	).execute();
-// 	const result = db.select(usersTable).fields({ id: usersTable.id, name: usersTable.name }).execute();
+// 	const result = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).execute();
 
 // 	t.deepEqual(result, [
 // 		{ id: 1, name: 'John' },
@@ -98,11 +98,11 @@ test.run();
 // 	const { db } = t.context;
 
 // 	db.insert(usersTable).values({ name: 'John' }).execute();
-// 	const result = db.select(usersTable).fields({
+// 	const result = db.select({
 // 		id: usersTable.id,
 // 		name: usersTable.name,
 // 		verified: usersTable.verified,
-// 	}).execute();
+// 	}).from(usersTable).execute();
 
 // 	t.deepEqual(result, [{ id: 1, name: 'John', verified: 0 }]);
 // });
@@ -111,11 +111,11 @@ test.run();
 // 	const { db } = t.context;
 
 // 	db.insert(usersTable).values({ name: 'John', verified: 1 }).execute();
-// 	const result = db.select(usersTable).fields({
+// 	const result = db.select({
 // 		id: usersTable.id,
 // 		name: usersTable.name,
 // 		verified: usersTable.verified,
-// 	}).execute();
+// 	}).from(usersTable).execute();
 
 // 	t.deepEqual(result, [{ id: 1, name: 'John', verified: 1 }]);
 // });
@@ -174,12 +174,12 @@ test.run();
 // 	const { db } = t.context;
 
 // 	db.insert(usersTable).values({ name: 'John' }).execute();
-// 	const result = db.select(usersTable).fields({ id: usersTable.id, name: usersTable.name }).execute();
+// 	const result = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).execute();
 
 // 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 
 // 	db.insert(usersTable).values({ name: 'Jane' }).execute();
-// 	const result2 = db.select(usersTable).fields({ id: usersTable.id, name: usersTable.name }).execute();
+// 	const result2 = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).execute();
 
 // 	t.deepEqual(result2, [{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
 // });
@@ -188,11 +188,11 @@ test.run();
 // 	const { db } = t.context;
 
 // 	db.insert(usersTable).values({ name: 'John', json: ['foo', 'bar'] }).execute();
-// 	const result = db.select(usersTable).fields({
+// 	const result = db.select({
 // 		id: usersTable.id,
 // 		name: usersTable.name,
 // 		json: usersTable.json,
-// 	}).execute();
+// 	}).from(usersTable).execute();
 
 // 	t.deepEqual(result, [{ id: 1, name: 'John', json: ['foo', 'bar'] }]);
 // });
@@ -206,12 +206,12 @@ test.run();
 // 		{ name: 'Jane' },
 // 		{ name: 'Austin', verified: 1 },
 // 	).execute();
-// 	const result = db.select(usersTable).fields({
+// 	const result = db.select({
 // 		id: usersTable.id,
 // 		name: usersTable.name,
 // 		json: usersTable.json,
 // 		verified: usersTable.verified,
-// 	}).execute();
+// 	}).from(usersTable).execute();
 
 // 	t.deepEqual(result, [
 // 		{ id: 1, name: 'John', json: null, verified: 0 },
@@ -252,7 +252,7 @@ test.run();
 
 // 	db.insert(usersTable).values({ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }).execute();
 // 	const result = db
-// 		.select(usersTable)
+// 		.select().from(usersTable)
 // 		.fields({ id: usersTable.id, name: usersTable.name })
 // 		.leftJoin(customerAlias, eq(customerAlias.id, 11), { id: customerAlias.id, name: customerAlias.name })
 // 		.where(eq(usersTable.id, 10))
@@ -268,7 +268,7 @@ test.run();
 // 	const { db } = t.context;
 
 // 	db.insert(usersTable).values({ name: sql`'Jo   h     n'` }).execute();
-// 	const result = db.select(usersTable).fields({ id: usersTable.id, name: usersTable.name }).execute();
+// 	const result = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).execute();
 
 // 	t.deepEqual(result, [{ id: 1, name: 'Jo   h     n' }]);
 // });

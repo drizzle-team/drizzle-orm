@@ -7,7 +7,7 @@ import { Simplify } from '~/utils';
 import { Check, CheckBuilder } from './checks';
 import { AnyMySqlColumn, AnyMySqlColumnBuilder, BuildColumns } from './columns/common';
 import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
-import { AnyIndexBuilder, Index, IndexBuilder } from './indexes';
+import { AnyIndexBuilder, Index } from './indexes';
 
 export type MySqlTableExtraConfig = Record<
 	string,
@@ -18,7 +18,7 @@ export type MySqlTableExtraConfig = Record<
 
 export interface TableConfig<TName extends string = string> {
 	name: TName;
-	columns: Record<string | symbol, AnyMySqlColumn<{ tableName: TName }>>;
+	columns: Record<string, AnyMySqlColumn<{ tableName: TName }>>;
 }
 
 /** @internal */

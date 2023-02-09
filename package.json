@@ -13,9 +13,9 @@
 		"bun-types": "^0.2.2",
 		"concurrently": "^7.5.0",
 		"dprint": "^0.32.2",
-		"prettier": "^2.7.1",
+		"prettier": "^2.8.4",
 		"resolve-tspaths": "^0.8.3",
-		"turbo": "^1.7.2",
+		"turbo": "^1.7.4",
 		"typescript": "4.8.4"
 	},
 	"pnpm": {

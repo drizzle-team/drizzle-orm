@@ -1,11 +1,15 @@
 import { SQLWrapper } from '~/sql';
-import { Table } from '~/table';
 
 import { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect';
-import { SQLiteDelete, SQLiteInsertBuilder, SQLiteSelect, SQLiteUpdateBuilder } from '~/sqlite-core/query-builders';
+import {
+	SQLiteDelete,
+	SQLiteInsertBuilder,
+	SQLiteSelectBuilder,
+	SQLiteUpdateBuilder,
+} from '~/sqlite-core/query-builders';
 import { ResultKind, SQLiteSession } from '~/sqlite-core/session';
 import { AnySQLiteTable } from '~/sqlite-core/table';
-import { orderSelectedFields } from '~/utils';
+import { SelectFields } from './query-builders/select.types';
 
 export class BaseSQLiteDatabase<TResultType extends 'sync' | 'async', TRunResult> {
 	constructor(
@@ -15,9 +19,10 @@ export class BaseSQLiteDatabase<TResultType extends 'sync' | 'async', TRunResult
 		readonly session: SQLiteSession<TResultType, TRunResult>,
 	) {}
 
-	select<TTable extends AnySQLiteTable>(from: TTable): SQLiteSelect<TTable, TResultType, TRunResult> {
-		const fields = orderSelectedFields(from[Table.Symbol.Columns]);
-		return new SQLiteSelect(from, fields, this.session, this.dialect);
+	select(): SQLiteSelectBuilder<undefined, TResultType, TRunResult>;
+	select<TSelection extends SelectFields>(fields: TSelection): SQLiteSelectBuilder<TSelection, TResultType, TRunResult>;
+	select(fields?: SelectFields): SQLiteSelectBuilder<SelectFields | undefined, TResultType, TRunResult> {
+		return new SQLiteSelectBuilder(fields ?? undefined, this.session, this.dialect);
 	}
 
 	update<TTable extends AnySQLiteTable>(table: TTable): SQLiteUpdateBuilder<TTable, TResultType, TRunResult> {
