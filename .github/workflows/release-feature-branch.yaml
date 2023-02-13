@@ -8,6 +8,8 @@ on:
 
 jobs:
   release:
+    # only run on all pushes or pull requests from forks
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     strategy:
       matrix:
         package:
@@ -29,7 +31,11 @@ jobs:
 
       - name: Build & publish
         run: |
-          tag="${{ github.ref_name }}"
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            tag="pr-${{ github.event.number }}"
+          else
+            tag="${{ github.ref_name }}"
+          fi
           old_version="$(jq -r .version package.json)"
           version="$old_version-$(git rev-parse --short HEAD)"
           is_version_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
