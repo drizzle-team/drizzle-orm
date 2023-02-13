@@ -157,7 +157,7 @@ In specific case, groupBy was responding with unreadable error
 ...
 ```
 
-> Warning:
+> **Warning**:
 > All commits should be signed, before submitting PR. Please check detailed info on [how to sign commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification)
 
 ### <a name="pr-guideline"></a> PR guideline
