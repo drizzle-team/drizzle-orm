@@ -1,10 +1,14 @@
 name: Unpublish release (feature branch)
 
-on: delete
+on:
+  delete: {}
+  pull_request:
+    types:
+      - closed
 
 jobs:
   unpublish-release:
-    if: github.event.ref_type == 'branch' && github.event.ref != 'refs/heads/main' && github.event.ref != 'refs/heads/beta'
+    if: (github.event_name == 'delete' && github.event.ref_type == 'branch' && github.event.ref != 'refs/heads/main' && github.event.ref != 'refs/heads/beta') || github.event_name == 'pull_request'
     strategy:
       matrix:
         package:
@@ -21,10 +25,16 @@ jobs:
 
       - name: Unpublish
         run: |
-          tag="${{ github.event.ref }}"
-          tag="${tag#refs/heads/}"
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            tag="pr-${{ github.event.number }}"
+          else
+            tag="${{ github.event.ref }}"
+            tag="${tag#refs/heads/}"
+          fi
           echo "Unpublishing ${{ matrix.package }}@$tag"
           npm dist-tag rm ${{ matrix.package }} $tag
+
+          echo "npm: \`- ${{ matrix.package }}@$tag\`" >> $GITHUB_STEP_SUMMARY
         working-directory: ${{ matrix.package }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
