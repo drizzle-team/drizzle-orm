@@ -29,9 +29,9 @@ Drizzle ORM is being battle-tested on production projects by multiple teams 🚀
 
 | Database    | Status | |
 |:------------|:-------:|:---|
-| PostgreSQL  | ✅ | [Docs](./drizzle-orm/src/pg-core/README.md)|
-| MySQL       | ✅      |[Docs](./drizzle-orm/src/mysql-core/README.md)|
-| SQLite      | ✅      |[Docs](./drizzle-orm/src/sqlite-core/README.md)|
+| PostgreSQL  | ✅ | [Docs](./drizzle-orm/src/pg-core/README.md) |
+| MySQL       | ✅      | [Docs](./drizzle-orm/src/mysql-core/README.md) |
+| SQLite      | ✅      | [Docs](./drizzle-orm/src/sqlite-core/README.md) |
 | DynamoDB    | ⏳      |            |
 | MS SQL      | ⏳      |            |
 | CockroachDB | ⏳      |            |
