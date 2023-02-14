@@ -50,6 +50,8 @@ jobs:
             npm run publish -- --tag $tag
           fi
 
+          echo "npm: \`${{ matrix.package }}@$tag | ${{ matrix.package }}@$version\`" >> $GITHUB_STEP_SUMMARY
+
           # Post release message to Discord
           curl -X POST -H "Content-Type: application/json" -d "{\"embeds\": [{\"title\": \"New \`${{ matrix.package }}\` release! 🎉\", \"url\": \"https://www.npmjs.com/package/${{ matrix.package }}/v/$version\", \"color\": \"12907856\", \"fields\": [{\"name\": \"Version\", \"value\": \"\`$version\`\"}, {\"name\": \"Tag\", \"value\": \"\`$tag\`\"}]}]}" ${{ secrets.DISCORD_DEV_RELEASE_WEBHOOK_URL }}
         working-directory: ${{ matrix.package }}
