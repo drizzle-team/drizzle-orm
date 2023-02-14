@@ -29,13 +29,16 @@ jobs:
           version: latest
           run_install: true
 
-      - name: Build & publish
+      - name: Build (for fork PRs only)
+        if: github.event_name == 'pull_request'
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            tag="pr-${{ github.event.number }}"
-          else
-            tag="${{ github.ref_name }}"
-          fi
+          # TODO: replace with a single pnpm script (move check:examples to turbo)
+          pnpm turbo run build test:types --color --filter ${{ matrix.package }} && pnpm check:examples
+
+      - name: Build & publish
+        if: github.event_name == 'push'
+        run: |
+          tag="${{ github.ref_name }}"
           old_version="$(jq -r .version package.json)"
           version="$old_version-$(git rev-parse --short HEAD)"
           is_version_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
