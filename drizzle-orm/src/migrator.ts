@@ -31,34 +31,33 @@ export function readMigrationFiles(config: string | MigrationConfig): MigrationM
 		throw Error('no migration folder defined');
 	}
 
-	const files = fs.readdirSync(migrationFolderTo);
 	const migrationQueries: MigrationMeta[] = [];
-	for (const migrationFolder of files) {
-		if (migrationFolder === '.DS_Store') {
-			continue;
+
+	let journalAsString = '';
+	try {
+		journalAsString = fs.readFileSync(`${migrationFolderTo}/meta/_journal.json`).toString();
+	} catch (e) {
+		throw Error(`Can't find journal meta file`);
+	}
+
+	const journal = JSON.parse(journalAsString) as {
+		entries: { idx: number; when: number; tag: string }[];
+	};
+
+	for (const journalEntry of journal.entries) {
+		const migrationPath = `${migrationFolderTo}/${journalEntry.tag}.sql`;
+
+		try {
+			const query = fs.readFileSync(`${migrationFolderTo}/${journalEntry.tag}.sql`).toString();
+
+			migrationQueries.push({
+				sql: query,
+				folderMillis: journalEntry.when,
+				hash: crypto.createHash('sha256').update(query).digest('hex'),
+			});
+		} catch (e) {
+			throw Error(`No file ${migrationPath} found in ${migrationFolderTo} folder`)
 		}
-		const migrationFiles = fs.readdirSync(`${migrationFolderTo}/${migrationFolder}`);
-		const migrationFile = migrationFiles.filter((file) => file === 'migration.sql')[0];
-
-		const query = fs
-			.readFileSync(`${migrationFolderTo}/${migrationFolder}/${migrationFile}`)
-			.toString();
-
-		const year = Number(migrationFolder.slice(0, 4));
-		// second param for Date() is month index, that started from 0, so we need
-		// to decrement a value for month
-		const month = Number(migrationFolder.slice(4, 6)) - 1;
-		const day = Number(migrationFolder.slice(6, 8));
-		const hour = Number(migrationFolder.slice(8, 10));
-		const min = Number(migrationFolder.slice(10, 12));
-		const sec = Number(migrationFolder.slice(12, 14));
-
-		const folderAsMillis = Date.UTC(year, month, day, hour, min, sec);
-		migrationQueries.push({
-			sql: query,
-			folderMillis: folderAsMillis,
-			hash: crypto.createHash('sha256').update(query).digest('hex'),
-		});
 	}
 
 	return migrationQueries;
