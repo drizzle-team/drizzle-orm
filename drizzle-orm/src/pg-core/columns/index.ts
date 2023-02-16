@@ -20,4 +20,5 @@ export * from './time';
 export * from './timestamp';
 export * from './uuid';
 export * from './varchar';
-export * from './custom'
+export * from './custom';
+export * from './char';
