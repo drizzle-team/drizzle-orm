@@ -15,6 +15,7 @@ export interface MigrationMeta {
 	sql: string;
 	folderMillis: number;
 	hash: string;
+	bps: number[];
 }
 
 export function readMigrationFiles(config: string | MigrationConfig): MigrationMeta[] {
@@ -41,7 +42,7 @@ export function readMigrationFiles(config: string | MigrationConfig): MigrationM
 	}
 
 	const journal = JSON.parse(journalAsString) as {
-		entries: { idx: number; when: number; tag: string }[];
+		entries: { idx: number; when: number; tag: string, breakpoints: number[] }[];
 	};
 
 	for (const journalEntry of journal.entries) {
@@ -52,6 +53,7 @@ export function readMigrationFiles(config: string | MigrationConfig): MigrationM
 
 			migrationQueries.push({
 				sql: query,
+				bps: journalEntry.breakpoints,
 				folderMillis: journalEntry.when,
 				hash: crypto.createHash('sha256').update(query).digest('hex'),
 			});

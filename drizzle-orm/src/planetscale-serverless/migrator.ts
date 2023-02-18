@@ -3,6 +3,8 @@ import { sql } from '~/sql';
 import { PlanetScaleDatabase } from './driver';
 import { PlanetscaleSession } from './session';
 
+type BPS = { prev: number; acc: { sql: string; params?: any[] }[] };
+
 export async function migrate(db: PlanetScaleDatabase, config: string | MigrationConfig) {
 	const migrations = readMigrationFiles(config);
 	const migrationTableCreate = sql`CREATE TABLE IF NOT EXISTS \`__drizzle_migrations\` (
@@ -25,7 +27,13 @@ export async function migrate(db: PlanetScaleDatabase, config: string | Migratio
 			!lastDbMigration
 			|| parseInt(lastDbMigration.created_at, 10) < migration.folderMillis
 		) {
-			queries.push({ sql: migration.sql });
+			const result = migration.bps.reduce<BPS>((res, it) => {
+				res.acc.push({ sql: migration.sql.slice(res.prev, it) });
+				res.prev = it;
+				return res;
+			}, { prev: 0, acc: [] });
+
+			queries.push(...result.acc);
 			queries.push({
 				sql: `INSERT INTO \`__drizzle_migrations\` (\`hash\`, \`created_at\`) VALUES(?, ?)`,
 				params: [migration.hash, migration.folderMillis],
