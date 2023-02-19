@@ -4,7 +4,7 @@ import { SQLiteDialect } from '~/sqlite-core/dialect';
 import { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
 import { AnySQLiteTable, InferModel, SQLiteTable } from '~/sqlite-core/table';
 import { orderSelectedFields } from '~/utils';
-import { SelectFields, SelectFieldsOrdered, SelectResultFields } from './select.types';
+import { SelectFieldsFlat, SelectFieldsOrdered, SelectResultFields } from './select.types';
 
 export interface SQLiteDeleteConfig {
 	where?: SQL | undefined;
@@ -41,11 +41,11 @@ export class SQLiteDelete<
 	}
 
 	returning(): Omit<SQLiteDelete<TTable, TResultType, TRunResult, InferModel<TTable>>, 'where' | 'returning'>;
-	returning<TSelectedFields extends SelectFields>(
+	returning<TSelectedFields extends SelectFieldsFlat>(
 		fields: TSelectedFields,
 	): Omit<SQLiteDelete<TTable, TResultType, TRunResult, SelectResultFields<TSelectedFields>>, 'where' | 'returning'>;
 	returning(
-		fields: SelectFields = this.table[SQLiteTable.Symbol.Columns],
+		fields: SelectFieldsFlat = this.table[SQLiteTable.Symbol.Columns],
 	): SQLiteDelete<TTable, TResultType, TRunResult, any> {
 		this.config.returning = orderSelectedFields(fields);
 		return this;
