@@ -725,3 +725,45 @@ const db = drizzle(poolConnection);
 // this will automatically run needed migrations on the database
 await migrate(db, { migrationsFolder: './drizzle' });
 ```
+
+## Logging
+
+To enable default query logging, just pass `{ logger: true }` to the `drizzle` function:
+
+```typescript
+import { drizzle } from 'drizzle-orm/mysql2';
+
+const db = drizzle(pool, { logger: true });
+```
+
+You can change the logs destination by creating a `DefaultLogger` instance and providing a custom `writer` to it:
+
+```typescript
+import { DefaultLogger, LogWriter } from 'drizzle-orm/logger';
+import { drizzle } from 'drizzle-orm/mysql2';
+
+class MyLogWriter implements LogWriter {
+  write(message: string) {
+    // Write to file, console, etc.
+  }
+}
+
+const logger = new DefaultLogger({ writer: new MyLogWriter() });
+
+const db = drizzle(pool, { logger });
+```
+
+You can also create a custom logger:
+
+```typescript
+import { Logger } from 'drizzle-orm/logger';
+import { drizzle } from 'drizzle-orm/mysql2';
+
+class MyLogger implements Logger {
+  logQuery(query: string, params: unknown[]): void {
+    console.log({ query, params });
+  }
+}
+
+const db = drizzle(pool, { logger: new MyLogger() });
+```

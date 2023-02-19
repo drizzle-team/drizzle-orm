@@ -22,8 +22,6 @@ import getPort from 'get-port';
 import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
 
-const ENABLE_LOGGING = false;
-
 const usersTable = pgTable('users', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
@@ -129,7 +127,7 @@ test.before(async (t) => {
 		console.error('Cannot connect to Postgres');
 		throw lastError;
 	}
-	ctx.db = drizzle(ctx.client, { logger: ENABLE_LOGGING ? new DefaultLogger() : undefined });
+	ctx.db = drizzle(ctx.client, { logger: false });
 });
 
 test.beforeEach(async (t) => {

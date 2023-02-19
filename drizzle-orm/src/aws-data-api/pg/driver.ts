@@ -1,4 +1,4 @@
-import { Logger } from '~/logger';
+import { DefaultLogger, Logger } from '~/logger';
 import { PgDatabase } from '~/pg-core/db';
 import { PgDialect } from '~/pg-core/dialect';
 import { AwsDataApiClient, AwsDataApiPgQueryResultHKT, AwsDataApiSession } from './session';
@@ -24,7 +24,7 @@ export class AwsDataApiDriver {
 }
 
 export interface DrizzleConfig {
-	logger?: Logger;
+	logger?: boolean | Logger;
 	database: string;
 	resourceArn: string;
 	secretArn: string;
@@ -44,7 +44,13 @@ export class AwsPgDialect extends PgDialect {
 
 export function drizzle(client: AwsDataApiClient, config: DrizzleConfig): AwsDataApiPgDatabase {
 	const dialect = new AwsPgDialect();
-	const driver = new AwsDataApiDriver(client, dialect, config);
+	let logger;
+	if (config.logger === true) {
+		logger = new DefaultLogger();
+	} else if (config.logger !== false) {
+		logger = config.logger;
+	}
+	const driver = new AwsDataApiDriver(client, dialect, { ...config, logger });
 	const session = driver.createSession();
 	return new PgDatabase(dialect, session);
 }

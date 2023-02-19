@@ -1,5 +1,5 @@
 import { Connection } from '@planetscale/database';
-import { Logger } from '~/logger';
+import { DefaultLogger, Logger } from '~/logger';
 import { MySqlDatabase } from '~/mysql-core/db';
 import { MySqlDialect } from '~/mysql-core/dialect';
 import { PlanetscaleQueryResultHKT, PlanetscaleSession } from './session';
@@ -22,7 +22,7 @@ export class PlanetscaleDriver {
 }
 
 export interface DrizzleConfig {
-	logger?: Logger;
+	logger?: boolean | Logger;
 }
 
 export type PlanetScaleDatabase = MySqlDatabase<PlanetscaleQueryResultHKT, PlanetscaleSession>;
@@ -32,7 +32,13 @@ export function drizzle(
 	config: DrizzleConfig = {},
 ): PlanetScaleDatabase {
 	const dialect = new MySqlDialect();
-	const driver = new PlanetscaleDriver(client, dialect, { logger: config.logger });
+	let logger;
+	if (config.logger === true) {
+		logger = new DefaultLogger();
+	} else if (config.logger !== false) {
+		logger = config.logger;
+	}
+	const driver = new PlanetscaleDriver(client, dialect, { logger });
 	const session = driver.createSession();
 	return new MySqlDatabase(dialect, session);
 }
