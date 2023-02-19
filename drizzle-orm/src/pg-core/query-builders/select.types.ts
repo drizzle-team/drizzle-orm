@@ -1,13 +1,15 @@
 import { GetColumnConfig, GetColumnData, UpdateColConfig } from '~/column';
-import { Placeholder, SQL, SQLResponse } from '~/sql';
-import { Assume, Simplify } from '~/utils';
-
-import { SelectFields as SelectFieldsBase, SelectFieldsOrdered as SelectFieldsOrderedBase } from '~/operations';
+import {
+	SelectFields as SelectFieldsBase,
+	SelectFieldsFlat as SelectFieldsFlatBase,
+	SelectFieldsOrdered as SelectFieldsOrderedBase,
+} from '~/operations';
 import { AnyPgColumn } from '~/pg-core/columns';
 import { ChangeColumnTableName, PgColumn } from '~/pg-core/columns/common';
 import { AnyPgTable, GetTableConfig, PgTableWithColumns, TableConfig, UpdateTableConfig } from '~/pg-core/table';
-
+import { Placeholder, SQL } from '~/sql';
 import { GetSubqueryAlias, GetSubquerySelection, Subquery } from '~/subquery';
+import { Assume, DrizzleTypeError, Simplify } from '~/utils';
 import { PgSelect } from './select';
 
 export type JoinType = 'inner' | 'left' | 'right' | 'full';
@@ -47,11 +49,10 @@ export type SelectResult<
 	TSelectMode extends SelectMode,
 	TJoinsNotNullable extends Record<string, JoinNullability>,
 > = TSelectMode extends 'partial' ? SelectPartialResult<TResult, TJoinsNotNullable>
-	: TSelectMode extends 'single' ? Simplify<SelectResultFields<TResult>>
-	: Simplify<ApplyNotNullMapToJoins<SelectResultFields<TResult>, TJoinsNotNullable>>;
+	: TSelectMode extends 'single' ? SelectResultFields<TResult>
+	: ApplyNotNullMapToJoins<SelectResultFields<TResult>, TJoinsNotNullable>;
 
-type IsUnion<T, U extends T = T> = (T extends any ? (U extends T ? false : true)
-	: never) extends false ? false : true;
+type IsUnion<T, U extends T = T> = (T extends any ? (U extends T ? false : true) : never) extends false ? false : true;
 
 type Not<T extends boolean> = T extends true ? false : true;
 
@@ -67,9 +68,9 @@ type SelectPartialResult<TFields, TNullability extends Record<string, JoinNullab
 				? GetColumnConfig<TField, 'tableName'> extends infer TTableName extends keyof TNullability
 					? ApplyNullability<SelectResultField<TField>, TNullability[TTableName]>
 				: never
-			: TField extends SQL | SQLResponse ? SelectResultField<TField>
+			: TField extends SQL | SQL.Aliased ? SelectResultField<TField>
 			: TField extends Record<string, any>
-				? TField[keyof TField] extends AnyPgColumn<{ tableName: infer TTableName extends string }> | SQL | SQLResponse
+				? TField[keyof TField] extends AnyPgColumn<{ tableName: infer TTableName extends string }> | SQL | SQL.Aliased
 					? Not<IsUnion<TTableName>> extends true
 						? ApplyNullability<SelectResultFields<TField>, TNullability[TTableName]>
 					: SelectPartialResult<TField, TNullability>
@@ -99,7 +100,9 @@ export type BuildSubquerySelection<
 	TAlias extends string,
 	TNullability extends Record<string, JoinNullability>,
 > = {
-	[Key in keyof TSelection]: TSelection[Key] extends SQL | SQLResponse ? TSelection[Key]
+	[Key in keyof TSelection]: TSelection[Key] extends SQL
+		? DrizzleTypeError<'You cannot reference this field without assigning it an alias first - use `.as(<alias>)`'>
+		: TSelection[Key] extends SQL.Aliased ? TSelection[Key]
 		: TSelection[Key] extends AnyPgColumn ? ChangeColumnTableName<
 				ApplyNullabilityToColumn<TSelection[Key], TNullability[GetColumnConfig<TSelection[Key], 'tableName'>]>,
 				TAlias
@@ -134,6 +137,7 @@ export type AppendToJoinsNotNull<
 	: never;
 
 export interface PgSelectConfig {
+	withList: Subquery[];
 	fields: SelectFields;
 	fieldsList: SelectFieldsOrdered;
 	where?: SQL | undefined;
@@ -174,17 +178,21 @@ export type GetSelectTableName<TTable extends AnyPgTable | Subquery> = TTable ex
 	: TTable extends Subquery ? GetSubqueryAlias<TTable>
 	: never;
 
+export type SelectFieldsFlat = SelectFieldsFlatBase<AnyPgColumn>;
+
 export type SelectFields = SelectFieldsBase<AnyPgColumn, AnyPgTable>;
 
 export type SelectFieldsOrdered = SelectFieldsOrderedBase<AnyPgColumn>;
 
-export type SelectResultField<T> = T extends AnyPgTable ? SelectResultField<GetTableConfig<T, 'columns'>>
+export type SelectResultField<T> = T extends DrizzleTypeError<any> ? T
+	: T extends AnyPgTable ? SelectResultField<GetTableConfig<T, 'columns'>>
 	: T extends AnyPgColumn ? GetColumnData<T>
-	: T extends SQLResponse<infer TDriverParam> ? TDriverParam
-	: T extends SQL ? unknown
-	: T extends Record<string, any> ? Simplify<SelectResultFields<T>>
+	: T extends SQL<infer T> | SQL.Aliased<infer T> ? T
+	: T extends Record<string, any> ? SelectResultFields<T>
 	: never;
 
-export type SelectResultFields<TSelectedFields> = {
-	[Key in keyof TSelectedFields & string]: SelectResultField<TSelectedFields[Key]>;
-};
+export type SelectResultFields<TSelectedFields> = Simplify<
+	{
+		[Key in keyof TSelectedFields & string]: SelectResultField<TSelectedFields[Key]>;
+	}
+>;

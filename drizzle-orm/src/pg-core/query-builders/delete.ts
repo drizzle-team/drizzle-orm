@@ -1,11 +1,10 @@
-import { QueryPromise } from '~/query-promise';
-import { Query, SQL, SQLWrapper } from '~/sql';
-
 import { PgDialect } from '~/pg-core/dialect';
 import { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
 import { AnyPgTable, InferModel, PgTable } from '~/pg-core/table';
+import { QueryPromise } from '~/query-promise';
+import { Query, SQL, SQLWrapper } from '~/sql';
 import { orderSelectedFields } from '~/utils';
-import { SelectFields, SelectFieldsOrdered, SelectResultFields } from './select.types';
+import { SelectFieldsFlat, SelectFieldsOrdered, SelectResultFields } from './select.types';
 
 export interface PgDeleteConfig {
 	where?: SQL | undefined;
@@ -43,11 +42,11 @@ export class PgDelete<
 	}
 
 	returning(): Omit<PgDelete<TTable, TQueryResult, InferModel<TTable>>, 'where' | 'returning'>;
-	returning<TSelectedFields extends SelectFields>(
+	returning<TSelectedFields extends SelectFieldsFlat>(
 		fields: TSelectedFields,
 	): Omit<PgDelete<TTable, TQueryResult, SelectResultFields<TSelectedFields>>, 'where' | 'returning'>;
 	returning(
-		fields: SelectFields = this.config.table[PgTable.Symbol.Columns],
+		fields: SelectFieldsFlat = this.config.table[PgTable.Symbol.Columns],
 	): Omit<PgDelete<TTable, any>, 'where' | 'returning'> {
 		this.config.returning = orderSelectedFields(fields);
 		return this;
@@ -59,8 +58,8 @@ export class PgDelete<
 	}
 
 	toSQL(): Omit<Query, 'typings'> {
-		const { typings, ...rest} = this.dialect.sqlToQuery(this.getSQL());
-		return rest
+		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		return rest;
 	}
 
 	private _prepare(name?: string): PreparedQuery<

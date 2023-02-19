@@ -51,9 +51,9 @@ const d10 = db
 		shipName: orders.shipName,
 		shipCity: orders.shipCity,
 		shipCountry: orders.shipCountry,
-		productsCount: sql`count(${details.productId})`.as<number>(),
-		quantitySum: sql`sum(${details.quantity})`.as<number>(),
-		totalPrice: sql`sum(${details.quantity} * ${details.unitPrice})`.as<number>(),
+		productsCount: sql<number>`count(${details.productId})`,
+		quantitySum: sql<number>`sum(${details.quantity})`,
+		totalPrice: sql<number>`sum(${details.quantity} * ${details.unitPrice})`,
 	}).from(orders)
 	.leftJoin(details, eq(orders.id, details.orderId))
 	.groupBy(orders.id)

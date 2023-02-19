@@ -108,7 +108,7 @@ const allUsers /* : User[] */ = await db.select().from(users);
 const upperCaseNames /* : { id: number; name: string }[] */ = await db
   .select({
     id: users.id,
-    name: sql`upper(${users.fullName})`.as<string>(),
+    name: sql<string>`upper(${users.fullName})`,
   })
   .from(users);
 

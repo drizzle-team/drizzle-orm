@@ -1,3 +1,5 @@
+import { Equal, Expect } from 'tests/utils';
+
 import {
 	and,
 	between,
@@ -21,11 +23,10 @@ import {
 	notLike,
 	or,
 } from '~/expressions';
+import { InferModel } from '~/pg-core';
 import { alias } from '~/pg-core/alias';
 import { param, sql } from '~/sql';
 
-import { Equal, Expect } from 'tests/utils';
-import { InferModel, integer, pgTable, serial, text } from '~/pg-core';
 import { db } from './db';
 import { cities, classes, users } from './tables';
 
@@ -160,8 +161,8 @@ const leftJoinMixed = await db
 	.select({
 		id: users.id,
 		text: users.text,
-		textUpper: sql`upper(${users.text})`.as<string | null>(),
-		idComplex: sql`${users.id}::text || ${city.id}::text`.as<string | null>(),
+		textUpper: sql<string | null>`upper(${users.text})`,
+		idComplex: sql<string | null>`${users.id}::text || ${city.id}::text`,
 		city: {
 			id: city.id,
 			name: city.name,
@@ -221,7 +222,7 @@ const join1 = await db
 		city: {
 			id: city.id,
 			name: city.name,
-			nameUpper: sql`upper(${city.name})`.as<string>(),
+			nameUpper: sql<string>`upper(${city.name})`,
 		},
 	})
 	.from(users)
@@ -349,8 +350,7 @@ Expect<
 	>
 >;
 
-db
-	.select()
+db.select()
 	.from(users)
 	.where(exists(db.select().from(cities).where(eq(users.homeCity, cities.id))));
 
@@ -365,50 +365,58 @@ const age = 1;
 const allOperators = await db
 	.select({
 		col2: sql`5 - ${users.id} + 1`, // unknown
-		col3: sql`${users.id} + 1`.as<number>(), // number
-		col33: sql`${users.id} + 1`.as(users.id), // number
-		col34: sql`${users.id} + 1`.as(mapFunkyFuncResult), // number
-		col4: sql`one_or_another(${users.id}, ${users.class})`.as<string | number>(), // string | number
+		col3: sql<number>`${users.id} + 1`, // number
+		col33: sql`${users.id} + 1`.mapWith(users.id), // number
+		col34: sql`${users.id} + 1`.mapWith(mapFunkyFuncResult), // number
+		col4: sql<string | number>`one_or_another(${users.id}, ${users.class})`, // string | number
 		col5: sql`true`, // unknown
-		col6: sql`true`.as<boolean>(), // boolean
-		col7: sql`random()`.as<number>(), // number
-		col8: sql`some_funky_func(${users.id})`.as(mapFunkyFuncResult), // { foo: string }
+		col6: sql<boolean>`true`, // boolean
+		col7: sql<number>`random()`, // number
+		col8: sql`some_funky_func(${users.id})`.mapWith(mapFunkyFuncResult), // { foo: string }
 		col9: sql`greatest(${users.createdAt}, ${param(new Date(), users.createdAt)})`, // unknown
-		col10: sql`date_or_false(${users.createdAt}, ${param(new Date(), users.createdAt)})`.as<Date | boolean>(), // Date | boolean
+		col10: sql<Date | boolean>`date_or_false(${users.createdAt}, ${
+			param(
+				new Date(),
+				users.createdAt,
+			)
+		})`, // Date | boolean
 		col11: sql`${users.age1} + ${age}`, // unknown
 		col12: sql`${users.age1} + ${param(age, users.age1)}`, // unknown
 		col13: sql`lower(${users.class})`, // unknown
-		col14: sql`length(${users.class})`.as<number>(), // number
-		count: sql`count(*)`.as<number>(), // number
+		col14: sql<number>`length(${users.class})`, // number
+		count: sql<number>`count(*)::int`, // number
 	})
-	.from(users).where(and(
-		eq(users.id, 1),
-		ne(users.id, 1),
-		or(eq(users.id, 1), ne(users.id, 1)),
-		not(eq(users.id, 1)),
-		gt(users.id, 1),
-		gte(users.id, 1),
-		lt(users.id, 1),
-		lte(users.id, 1),
-		inArray(users.id, [1, 2, 3]),
-		inArray(users.id, db.select({ id: users.id }).from(users)),
-		inArray(users.id, sql`select id from ${users}`),
-		notInArray(users.id, [1, 2, 3]),
-		notInArray(users.id, db.select({ id: users.id }).from(users)),
-		notInArray(users.id, sql`select id from ${users}`),
-		isNull(users.subClass),
-		isNotNull(users.id),
-		exists(db.select({ id: users.id }).from(users)),
-		exists(sql`select id from ${users}`),
-		notExists(db.select({ id: users.id }).from(users)),
-		notExists(sql`select id from ${users}`),
-		between(users.id, 1, 2),
-		notBetween(users.id, 1, 2),
-		like(users.id, '%1%'),
-		notLike(users.id, '%1%'),
-		ilike(users.id, '%1%'),
-		notIlike(users.id, '%1%'),
-	));
+	.from(users)
+	.where(
+		and(
+			eq(users.id, 1),
+			ne(users.id, 1),
+			or(eq(users.id, 1), ne(users.id, 1)),
+			not(eq(users.id, 1)),
+			gt(users.id, 1),
+			gte(users.id, 1),
+			lt(users.id, 1),
+			lte(users.id, 1),
+			inArray(users.id, [1, 2, 3]),
+			inArray(users.id, db.select({ id: users.id }).from(users)),
+			inArray(users.id, sql`select id from ${users}`),
+			notInArray(users.id, [1, 2, 3]),
+			notInArray(users.id, db.select({ id: users.id }).from(users)),
+			notInArray(users.id, sql`select id from ${users}`),
+			isNull(users.subClass),
+			isNotNull(users.id),
+			exists(db.select({ id: users.id }).from(users)),
+			exists(sql`select id from ${users}`),
+			notExists(db.select({ id: users.id }).from(users)),
+			notExists(sql`select id from ${users}`),
+			between(users.id, 1, 2),
+			notBetween(users.id, 1, 2),
+			like(users.id, '%1%'),
+			notLike(users.id, '%1%'),
+			ilike(users.id, '%1%'),
+			notIlike(users.id, '%1%'),
+		),
+	);
 
 Expect<
 	Equal<{
@@ -800,3 +808,24 @@ Expect<
 		};
 	}[], typeof join4>
 >;
+
+{
+	let authenticated = false;
+
+	const result = await db
+		.select({
+			id: users.id,
+			...(authenticated ? { city: users.homeCity } : {}),
+		})
+		.from(users);
+
+	Expect<
+		Equal<
+			{
+				id: number;
+				city?: number;
+			}[],
+			typeof result
+		>
+	>;
+}

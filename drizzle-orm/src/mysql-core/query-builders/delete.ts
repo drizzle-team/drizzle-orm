@@ -20,13 +20,11 @@ export interface MySqlDeleteConfig {
 export interface MySqlDelete<
 	TTable extends AnyMySqlTable,
 	TQueryResult extends QueryResultHKT,
-	TReturning = undefined,
 > extends QueryPromise<QueryResultKind<TQueryResult, never>> {}
 
 export class MySqlDelete<
 	TTable extends AnyMySqlTable,
 	TQueryResult extends QueryResultHKT,
-	TReturning = undefined,
 > extends QueryPromise<QueryResultKind<TQueryResult, never>> implements SQLWrapper {
 	private config: MySqlDeleteConfig;
 
@@ -45,17 +43,6 @@ export class MySqlDelete<
 		this.config.where = where;
 		return this;
 	}
-
-	// returning(): Omit<MySqlDelete<TTable, InferModel<TTable>>, 'where' | 'returning'>;
-	// returning<TSelectedFields extends SelectFields>(
-	// 	fields: TSelectedFields,
-	// ): Omit<MySqlDelete<TTable, SelectResultFields<TSelectedFields>>, 'where' | 'returning'>;
-	// returning(
-	// 	fields: SelectFields = this.config.table[MySqlTable.Symbol.Columns],
-	// ): Omit<MySqlDelete<TTable, any>, 'where' | 'returning'> {
-	// 	this.config.returning = orderSelectedFields(fields);
-	// 	return this;
-	// }
 
 	/** @internal */
 	getSQL(): SQL {

@@ -140,21 +140,21 @@ const age = 1;
 const allOperators = db
 	.select({
 		col2: sql`5 - ${users.id} + 1`, // unknown
-		col3: sql`${users.id} + 1`.as<number>(), // number
-		col33: sql`${users.id} + 1`.as(users.id), // number
-		col34: sql`${users.id} + 1`.as(mapFunkyFuncResult), // number
-		col4: sql`one_or_another(${users.id}, ${users.class})`.as<string | number>(), // string | number
+		col3: sql<number>`${users.id} + 1`, // number
+		col33: sql`${users.id} + 1`.mapWith(users.id), // number
+		col34: sql`${users.id} + 1`.mapWith(mapFunkyFuncResult), // number
+		col4: sql<string | number>`one_or_another(${users.id}, ${users.class})`, // string | number
 		col5: sql`true`, // unknown
-		col6: sql`true`.as<boolean>(), // boolean
-		col7: sql`random()`.as<number>(), // number
-		col8: sql`some_funky_func(${users.id})`.as(mapFunkyFuncResult), // { foo: string }
+		col6: sql<boolean>`true`, // boolean
+		col7: sql<number>`random()`, // number
+		col8: sql`some_funky_func(${users.id})`.mapWith(mapFunkyFuncResult), // { foo: string }
 		col9: sql`greatest(${users.createdAt}, ${param(new Date(), users.createdAt)})`, // unknown
-		col10: sql`date_or_false(${users.createdAt}, ${param(new Date(), users.createdAt)})`.as<Date | boolean>(), // Date | boolean
+		col10: sql<Date | boolean>`date_or_false(${users.createdAt}, ${param(new Date(), users.createdAt)})`, // Date | boolean
 		col11: sql`${users.age1} + ${age}`, // unknown
 		col12: sql`${users.age1} + ${param(age, users.age1)}`, // unknown
 		col13: sql`lower(${users.class})`, // unknown
-		col14: sql`length(${users.class})`.as<number>(), // number
-		count: sql`count(*)`.as<number>(), // number
+		col14: sql<number>`length(${users.class})`, // number
+		count: sql<number>`count(*)`, // number
 	})
 	.from(users)
 	.where(and(
@@ -388,3 +388,25 @@ Expect<
 		typeof join4
 	>
 >;
+
+{
+	let authenticated = false;
+
+	const result = db
+		.select({
+			id: users.id,
+			...(authenticated ? { city: users.homeCity } : {}),
+		})
+		.from(users)
+		.all();
+
+	Expect<
+		Equal<
+			{
+				id: number;
+				city?: number;
+			}[],
+			typeof result
+		>
+	>;
+}

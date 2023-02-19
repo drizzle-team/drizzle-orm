@@ -1,5 +1,6 @@
 import { ResultSetHeader } from 'mysql2/promise';
 import { SQLWrapper } from '~/sql';
+import { WithSubquery } from '~/subquery';
 import { MySqlDialect } from './dialect';
 import { MySqlDelete, MySqlInsertBuilder, MySqlSelectBuilder, MySqlUpdateBuilder } from './query-builders';
 import { SelectFields } from './query-builders/select.types';
@@ -13,6 +14,18 @@ export class MySqlDatabase<TQueryResult extends QueryResultHKT, TSession extends
 		/** @internal */
 		readonly session: TSession,
 	) {}
+
+	with(...queries: WithSubquery[]) {
+		const self = this;
+
+		function select(): MySqlSelectBuilder<undefined>;
+		function select<TSelection extends SelectFields>(fields: TSelection): MySqlSelectBuilder<TSelection>;
+		function select(fields?: SelectFields): MySqlSelectBuilder<SelectFields | undefined> {
+			return new MySqlSelectBuilder(fields ?? undefined, self.session, self.dialect, queries);
+		}
+
+		return { select };
+	}
 
 	select(): MySqlSelectBuilder<undefined>;
 	select<TSelection extends SelectFields>(fields: TSelection): MySqlSelectBuilder<TSelection>;

@@ -3,7 +3,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import Database from 'better-sqlite3';
 import { sql } from 'drizzle-orm';
 import { asc, eq } from 'drizzle-orm/expressions';
-import { name, placeholder } from 'drizzle-orm/sql';
+import { Name, placeholder } from 'drizzle-orm/sql';
 import { alias, blob, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { drizzle as proxyDrizzle, SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 
@@ -165,7 +165,7 @@ test.serial('select typed sql', async (t) => {
 
 	await db.insert(usersTable).values({ name: 'John' }).run();
 	const users = await db.select({
-		name: sql`upper(${usersTable.name})`.as<string>(),
+		name: sql<string>`upper(${usersTable.name})`,
 	}).from(usersTable).all();
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
@@ -638,7 +638,7 @@ test.serial('build query', async (t) => {
 test.serial('insert via db.run + select via db.all', async (t) => {
 	const { db } = t.context;
 
-	await db.run(sql`insert into ${usersTable} (${name(usersTable.name.name)}) values (${'John'})`);
+	await db.run(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
 
 	const result = await db.all(sql`select id, name from "users"`);
 	t.deepEqual(result, [[1, 'John']]);
@@ -648,9 +648,9 @@ test.serial('insert via db.get', async (t) => {
 	const { db } = t.context;
 
 	const inserted = await db.get(
-		sql`insert into ${usersTable} (${
-			name(usersTable.name.name)
-		}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
+		sql`insert into ${usersTable} (${new Name(
+			usersTable.name.name,
+		)}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
 	);
 	t.deepEqual(inserted, [1, 'John']);
 });
@@ -658,7 +658,7 @@ test.serial('insert via db.get', async (t) => {
 test.serial('insert via db.run + select via db.get', async (t) => {
 	const { db } = t.context;
 
-	await db.run(sql`insert into ${usersTable} (${name(usersTable.name.name)}) values (${'John'})`);
+	await db.run(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
 
 	const result = await db.get(
 		sql`select ${usersTable.id}, ${usersTable.name} from ${usersTable}`,

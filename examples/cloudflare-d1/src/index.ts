@@ -34,8 +34,8 @@ async function injectDB(request: Request, env: Env) {
 	// const result = await db.select().from(statItemAggregation)
 	//   .fields({
 	//     userId: statItemAggregation.userId,
-	//     medianRevenue: sql`PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY ${statItemAggregation.revenue})`.as<number>(),
-	//     medianTalkTime: sql`PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY ${statItemAggregation.connectTalkbackTime})`.as<number>(),
+	//     medianRevenue: sql<number>`PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY ${statItemAggregation.revenue})`,
+	//     medianTalkTime: sql<number>`PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY ${statItemAggregation.connectTalkbackTime})`,
 	//   })
 	//   .where(gt(statItemAggregation.revenue, 0))
 	//   .groupBy(sql`1`)

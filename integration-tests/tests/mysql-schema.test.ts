@@ -18,7 +18,7 @@ import {
 	year,
 } from 'drizzle-orm/mysql-core';
 import { drizzle, MySql2Database } from 'drizzle-orm/mysql2';
-import { name, placeholder } from 'drizzle-orm/sql';
+import { Name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
@@ -167,7 +167,7 @@ test.serial('select typed sql', async (t) => {
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.select({
-		name: sql`upper(${usersTable.name})`.as<string>(),
+		name: sql<string>`upper(${usersTable.name})`,
 	}).from(usersTable);
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
@@ -561,7 +561,7 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 test.serial('insert via db.execute + select via db.execute', async (t) => {
 	const { db } = t.context;
 
-	await db.execute(sql`insert into ${usersTable} (${name(usersTable.name.name)}) values (${'John'})`);
+	await db.execute(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
 
 	const result = await db.execute<{ id: number; name: string }>(sql`select id, name from ${usersTable}`);
 	t.deepEqual(result[0], [{ id: 1, name: 'John' }]);

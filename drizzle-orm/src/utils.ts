@@ -1,6 +1,6 @@
 import { AnyColumn, Column } from './column';
 import { SelectFields, SelectFieldsOrdered } from './operations';
-import { DriverValueDecoder, noopDecoder, Param, SQL, SQLResponse } from './sql';
+import { DriverValueDecoder, noopDecoder, Param, SQL } from './sql';
 import { getTableName, Table } from './table';
 
 /**
@@ -28,9 +28,9 @@ export function mapResultRow<TResult>(
 			if (field instanceof Column) {
 				decoder = field;
 			} else if (field instanceof SQL) {
-				decoder = noopDecoder;
-			} else {
 				decoder = field.decoder;
+			} else {
+				decoder = field.sql.decoder;
 			}
 			let node = result;
 			path.forEach((pathChunk, pathChunkIndex) => {
@@ -89,7 +89,7 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 		if (
 			field instanceof Column
 			|| field instanceof SQL
-			|| field instanceof SQLResponse
+			|| field instanceof SQL.Aliased
 		) {
 			result.push({ path: newPath, field });
 		} else if (field instanceof Table) {
@@ -210,3 +210,8 @@ export type Simplify<
 export type Assume<T, U> = T extends U ? T : U;
 
 export type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends (<T>() => T extends Y ? 1 : 2) ? true : false;
+
+export interface DrizzleTypeError<T extends string> {
+	$brand: 'DrizzleTypeError';
+	message: T;
+}

@@ -273,6 +273,49 @@ db.select().from(users).orderBy(desc(users.name)).all();
 db.select().from(users).orderBy(asc(users.name), desc(users.name)).all();
 ```
 
+#### Conditionally select fields
+
+```typescript
+function selectUsers(withName: boolean) {
+  return db
+    .select({
+      id: users.id,
+      ...(withName ? { name: users.name } : {}),
+    })
+    .from(users)
+    .all();
+}
+
+const users = selectUsers(true);
+```
+
+#### WITH clause
+
+```typescript
+const sq = db.select().from(users).where(eq(users.id, 42)).prepareWithSubquery('sq');
+const result = db.with(sq).select().from(sq).all();
+```
+
+> **Note**: Keep in mind, that if you need to select raw `sql` in a WITH subquery and reference that field in other queries, you must add an alias to it:
+
+```typescript
+const sq = db
+  .select({
+    name: sql<string>`upper(${users.name})`.as('name'),
+  })
+  .from(users)
+  .prepareWithSubquery('sq');
+
+const result = db
+  .select({
+    name: sq.name,
+  })
+  .from(sq)
+  .all();
+```
+
+Otherwise, the field type will become `DrizzleTypeError` and you won't be able to reference it in other queries. If you ignore the type error and still try to reference the field, you will get a runtime error, because we cannot reference that field without an alias.
+
 #### Select from subquery
 
 ```typescript
@@ -328,8 +371,8 @@ notIlike(column, value)
 
 not(sqlExpression)
 
-and(expressions: Expr[])
-or(expressions: Expr[])
+and(...expressions: Expr[])
+or(...expressions: Expr[])
 ```
 
 Inserting
@@ -413,9 +456,9 @@ db
     shipName: orders.shipName,
     shipCity: orders.shipCity,
     shipCountry: orders.shipCountry,
-    productsCount: sql`count(${details.productId})`.as<number>(),
-    quantitySum: sql`sum(${details.quantity})`.as<number>(),
-    totalPrice: sql`sum(${details.quantity} * ${details.unitPrice})`.as<number>(),
+    productsCount: sql<number>`count(${details.productId})`,
+    quantitySum: sql<number>`sum(${details.quantity})`,
+    totalPrice: sql<number>`sum(${details.quantity} * ${details.unitPrice})`,
   })
   .from(orders)
   .leftJoin(details, eq(orders.id, details.orderId))

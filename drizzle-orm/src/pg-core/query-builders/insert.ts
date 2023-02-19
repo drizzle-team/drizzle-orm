@@ -1,13 +1,12 @@
-import { QueryPromise } from '~/query-promise';
-import { Param, Placeholder, Query, SQL, sql, SQLWrapper } from '~/sql';
-import { Table } from '~/table';
-
 import { PgDialect } from '~/pg-core/dialect';
 import { IndexColumn } from '~/pg-core/indexes';
 import { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
 import { AnyPgTable, InferModel, PgTable } from '~/pg-core/table';
+import { QueryPromise } from '~/query-promise';
+import { Param, Placeholder, Query, SQL, sql, SQLWrapper } from '~/sql';
+import { Table } from '~/table';
 import { mapUpdateSet, orderSelectedFields, Simplify } from '~/utils';
-import { SelectFields, SelectFieldsOrdered, SelectResultFields } from './select.types';
+import { SelectFieldsFlat, SelectFieldsOrdered, SelectResultFields } from './select.types';
 import { PgUpdateSetSource } from './update';
 
 export interface PgInsertConfig<TTable extends AnyPgTable = AnyPgTable> {
@@ -79,11 +78,12 @@ export class PgInsert<
 	}
 
 	returning(): Omit<PgInsert<TTable, TQueryResult, InferModel<TTable>>, 'returning' | `onConflict${string}`>;
-	returning<TSelectedFields extends SelectFields>(
-		fields: TSelectedFields,
-	): Omit<PgInsert<TTable, TQueryResult, SelectResultFields<TSelectedFields>>, 'returning' | `onConflict${string}`>;
+	returning<TSelectedFields extends SelectFieldsFlat>(fields: TSelectedFields): Omit<
+		PgInsert<TTable, TQueryResult, SelectResultFields<TSelectedFields>>,
+		'returning' | `onConflict${string}`
+	>;
 	returning(
-		fields: SelectFields = this.config.table[PgTable.Symbol.Columns],
+		fields: SelectFieldsFlat = this.config.table[PgTable.Symbol.Columns],
 	): Omit<PgInsert<TTable, any>, 'returning' | `onConflict${string}`> {
 		this.config.returning = orderSelectedFields(fields);
 		return this;
