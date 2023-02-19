@@ -25,6 +25,8 @@ jobs:
           tag="${tag#refs/heads/}"
           echo "Unpublishing ${{ matrix.package }}@$tag"
           npm dist-tag rm ${{ matrix.package }} $tag
+
+          echo "npm: \`- ${{ matrix.package }}@$tag\`" >> $GITHUB_STEP_SUMMARY
         working-directory: ${{ matrix.package }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}

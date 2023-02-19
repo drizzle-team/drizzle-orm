@@ -8,6 +8,7 @@ import {
 	alias,
 	AnyPgColumn,
 	boolean,
+	char,
 	InferModel,
 	integer,
 	jsonb,
@@ -16,7 +17,7 @@ import {
 	text,
 	timestamp,
 } from 'drizzle-orm/pg-core';
-import { Name, name, placeholder, SQL, SQLWrapper } from 'drizzle-orm/sql';
+import { name, placeholder, SQL, SQLWrapper } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
@@ -40,6 +41,7 @@ const users2Table = pgTable('users2', {
 const citiesTable = pgTable('cities', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
+	state: char('state', { length: 2 }),
 });
 
 const coursesTable = pgTable('courses', {
@@ -105,7 +107,7 @@ async function createDockerDB(ctx: Context): Promise<string> {
 
 test.before(async (t) => {
 	const ctx = t.context;
-	const connectionString = process.env['PG_CONNECTION_STRING'] ?? await createDockerDB(ctx);
+	const connectionString = process.env['PG_CONNECTION_STRING'] ?? (await createDockerDB(ctx));
 
 	let sleep = 250;
 	let timeLeft = 5000;
@@ -146,7 +148,8 @@ test.beforeEach(async (t) => {
 	await ctx.db.execute(
 		sql`create table cities (
 			id serial primary key,
-			name text not null
+			name text not null,
+			state char(2)
 		)`,
 	);
 	await ctx.db.execute(
@@ -190,16 +193,20 @@ test.serial('select all fields', async (t) => {
 
 	t.assert(result[0]!.createdAt instanceof Date);
 	t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 100);
-	t.deepEqual(result, [{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+	t.deepEqual(result, [
+		{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt },
+	]);
 });
 
 test.serial('select sql', async (t) => {
 	const { db } = t.context;
 
 	await db.insert(usersTable).values({ name: 'John' });
-	const users = await db.select({
-		name: sql`upper(${usersTable.name})`,
-	}).from(usersTable);
+	const users = await db
+		.select({
+			name: sql`upper(${usersTable.name})`,
+		})
+		.from(usersTable);
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
 });
@@ -208,6 +215,7 @@ test.serial('select typed sql', async (t) => {
 	const { db } = t.context;
 
 	await db.insert(usersTable).values({ name: 'John' });
+
 	const users = await db.select({
 		name: sql<string>`upper(${usersTable.name})`,
 	}).from(usersTable);
@@ -218,9 +226,12 @@ test.serial('select typed sql', async (t) => {
 test.serial('insert returning sql', async (t) => {
 	const { db } = t.context;
 
-	const users = await db.insert(usersTable).values({ name: 'John' }).returning({
-		name: sql`upper(${usersTable.name})`,
-	});
+	const users = await db
+		.insert(usersTable)
+		.values({ name: 'John' })
+		.returning({
+			name: sql`upper(${usersTable.name})`,
+		});
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
 });
@@ -229,9 +240,12 @@ test.serial('delete returning sql', async (t) => {
 	const { db } = t.context;
 
 	await db.insert(usersTable).values({ name: 'John' });
-	const users = await db.delete(usersTable).where(eq(usersTable.name, 'John')).returning({
-		name: sql`upper(${usersTable.name})`,
-	});
+	const users = await db
+		.delete(usersTable)
+		.where(eq(usersTable.name, 'John'))
+		.returning({
+			name: sql`upper(${usersTable.name})`,
+		});
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
 });
@@ -240,9 +254,13 @@ test.serial('update returning sql', async (t) => {
 	const { db } = t.context;
 
 	await db.insert(usersTable).values({ name: 'John' });
-	const users = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning({
-		name: sql`upper(${usersTable.name})`,
-	});
+	const users = await db
+		.update(usersTable)
+		.set({ name: 'Jane' })
+		.where(eq(usersTable.name, 'John'))
+		.returning({
+			name: sql`upper(${usersTable.name})`,
+		});
 
 	t.deepEqual(users, [{ name: 'JANE' }]);
 });
@@ -253,21 +271,31 @@ test.serial('update with returning all fields', async (t) => {
 	const now = Date.now();
 
 	await db.insert(usersTable).values({ name: 'John' });
-	const users = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning();
+	const users = await db
+		.update(usersTable)
+		.set({ name: 'Jane' })
+		.where(eq(usersTable.name, 'John'))
+		.returning();
 
 	t.assert(users[0]!.createdAt instanceof Date);
 	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 100);
-	t.deepEqual(users, [{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
+	t.deepEqual(users, [
+		{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt },
+	]);
 });
 
 test.serial('update with returning partial', async (t) => {
 	const { db } = t.context;
 
 	await db.insert(usersTable).values({ name: 'John' });
-	const users = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning({
-		id: usersTable.id,
-		name: usersTable.name,
-	});
+	const users = await db
+		.update(usersTable)
+		.set({ name: 'Jane' })
+		.where(eq(usersTable.name, 'John'))
+		.returning({
+			id: usersTable.id,
+			name: usersTable.name,
+		});
 
 	t.deepEqual(users, [{ id: 1, name: 'Jane' }]);
 });
@@ -282,7 +310,9 @@ test.serial('delete with returning all fields', async (t) => {
 
 	t.assert(users[0]!.createdAt instanceof Date);
 	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 100);
-	t.deepEqual(users, [{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
+	t.deepEqual(users, [
+		{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: users[0]!.createdAt },
+	]);
 });
 
 test.serial('delete with returning partial', async (t) => {
@@ -302,7 +332,9 @@ test.serial('insert + select', async (t) => {
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const result = await db.select().from(usersTable);
-	t.deepEqual(result, [{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+	t.deepEqual(result, [
+		{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt },
+	]);
 
 	await db.insert(usersTable).values({ name: 'Jane' });
 	const result2 = await db.select().from(usersTable);
@@ -316,13 +348,50 @@ test.serial('json insert', async (t) => {
 	const { db } = t.context;
 
 	await db.insert(usersTable).values({ name: 'John', jsonb: ['foo', 'bar'] });
-	const result = await db.select({
-		id: usersTable.id,
-		name: usersTable.name,
-		jsonb: usersTable.jsonb,
-	}).from(usersTable);
+	const result = await db
+		.select({
+			id: usersTable.id,
+			name: usersTable.name,
+			jsonb: usersTable.jsonb,
+		})
+		.from(usersTable);
 
 	t.deepEqual(result, [{ id: 1, name: 'John', jsonb: ['foo', 'bar'] }]);
+});
+
+test.serial('char insert', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(citiesTable).values({ name: 'Austin', state: 'TX' });
+	const result = await db
+		.select({ id: citiesTable.id, name: citiesTable.name, state: citiesTable.state })
+		.from(citiesTable);
+
+	t.deepEqual(result, [{ id: 1, name: 'Austin', state: 'TX' }]);
+});
+
+test.serial('char update', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(citiesTable).values({ name: 'Austin', state: 'TX' });
+	await db.update(citiesTable).set({ name: 'Atlanta', state: 'GA' }).where(eq(citiesTable.id, 1));
+	const result = await db
+		.select({ id: citiesTable.id, name: citiesTable.name, state: citiesTable.state })
+		.from(citiesTable);
+
+	t.deepEqual(result, [{ id: 1, name: 'Atlanta', state: 'GA' }]);
+});
+
+test.serial('char delete', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(citiesTable).values({ name: 'Austin', state: 'TX' });
+	await db.delete(citiesTable).where(eq(citiesTable.state, 'TX'));
+	const result = await db
+		.select({ id: citiesTable.id, name: citiesTable.name, state: citiesTable.state })
+		.from(citiesTable);
+
+	t.deepEqual(result, []);
 });
 
 test.serial('insert with overridden default values', async (t) => {
@@ -331,24 +400,30 @@ test.serial('insert with overridden default values', async (t) => {
 	await db.insert(usersTable).values({ name: 'John', verified: true });
 	const result = await db.select().from(usersTable);
 
-	t.deepEqual(result, [{ id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt }]);
+	t.deepEqual(result, [
+		{ id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt },
+	]);
 });
 
 test.serial('insert many', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values(
-		{ name: 'John' },
-		{ name: 'Bruce', jsonb: ['foo', 'bar'] },
-		{ name: 'Jane' },
-		{ name: 'Austin', verified: true },
-	);
-	const result = await db.select({
-		id: usersTable.id,
-		name: usersTable.name,
-		jsonb: usersTable.jsonb,
-		verified: usersTable.verified,
-	}).from(usersTable);
+	await db
+		.insert(usersTable)
+		.values(
+			{ name: 'John' },
+			{ name: 'Bruce', jsonb: ['foo', 'bar'] },
+			{ name: 'Jane' },
+			{ name: 'Austin', verified: true },
+		);
+	const result = await db
+		.select({
+			id: usersTable.id,
+			name: usersTable.name,
+			jsonb: usersTable.jsonb,
+			verified: usersTable.verified,
+		})
+		.from(usersTable);
 
 	t.deepEqual(result, [
 		{ id: 1, name: 'John', jsonb: null, verified: false },
@@ -361,12 +436,14 @@ test.serial('insert many', async (t) => {
 test.serial('insert many with returning', async (t) => {
 	const { db } = t.context;
 
-	const result = await db.insert(usersTable).values(
-		{ name: 'John' },
-		{ name: 'Bruce', jsonb: ['foo', 'bar'] },
-		{ name: 'Jane' },
-		{ name: 'Austin', verified: true },
-	)
+	const result = await db
+		.insert(usersTable)
+		.values(
+			{ name: 'John' },
+			{ name: 'Bruce', jsonb: ['foo', 'bar'] },
+			{ name: 'Jane' },
+			{ name: 'Austin', verified: true },
+		)
 		.returning({
 			id: usersTable.id,
 			name: usersTable.name,
@@ -492,10 +569,12 @@ test.serial('partial join with alias', async (t) => {
 		.leftJoin(customerAlias, eq(customerAlias.id, 11))
 		.where(eq(usersTable.id, 10));
 
-	t.deepEqual(result, [{
-		user: { id: 10, name: 'Ivan' },
-		customer: { id: 11, name: 'Hans' },
-	}]);
+	t.deepEqual(result, [
+		{
+			user: { id: 10, name: 'Ivan' },
+			customer: { id: 11, name: 'Hans' },
+		},
+	]);
 });
 
 test.serial('full join with alias', async (t) => {
@@ -510,22 +589,24 @@ test.serial('full join with alias', async (t) => {
 		.leftJoin(customerAlias, eq(customerAlias.id, 11))
 		.where(eq(usersTable.id, 10));
 
-	t.deepEqual(result, [{
-		users: {
-			id: 10,
-			name: 'Ivan',
-			verified: false,
-			jsonb: null,
-			createdAt: result[0]!.users.createdAt,
+	t.deepEqual(result, [
+		{
+			users: {
+				id: 10,
+				name: 'Ivan',
+				verified: false,
+				jsonb: null,
+				createdAt: result[0]!.users.createdAt,
+			},
+			customer: {
+				id: 11,
+				name: 'Hans',
+				verified: false,
+				jsonb: null,
+				createdAt: result[0]!.customer!.createdAt,
+			},
 		},
-		customer: {
-			id: 11,
-			name: 'Hans',
-			verified: false,
-			jsonb: null,
-			createdAt: result[0]!.customer!.createdAt,
-		},
-	}]);
+	]);
 });
 
 test.serial('insert with spaces', async (t) => {
@@ -556,10 +637,13 @@ test.serial('prepared statement', async (t) => {
 test.serial('prepared statement reuse', async (t) => {
 	const { db } = t.context;
 
-	const stmt = db.insert(usersTable).values({
-		verified: true,
-		name: placeholder('name'),
-	}).prepare('stmt2');
+	const stmt = db
+		.insert(usersTable)
+		.values({
+			verified: true,
+			name: placeholder('name'),
+		})
+		.prepare('stmt2');
 
 	for (let i = 0; i < 10; i++) {
 		await stmt.execute({ name: `John ${i}` });
@@ -618,9 +702,13 @@ test.serial('migrator', async (t) => {
 test.serial('insert via db.execute + select via db.execute', async (t) => {
 	const { db } = t.context;
 
-	await db.execute(sql`insert into ${usersTable} (${name(usersTable.name.name)}) values (${'John'})`);
+	await db.execute(
+		sql`insert into ${usersTable} (${name(usersTable.name.name)}) values (${'John'})`,
+	);
 
-	const result = await db.execute<{ id: number; name: string }>(sql`select id, name from "users"`);
+	const result = await db.execute<{ id: number; name: string }>(
+		sql`select id, name from "users"`,
+	);
 	t.deepEqual(result.rows, [{ id: 1, name: 'John' }]);
 });
 
@@ -629,7 +717,9 @@ test.serial('insert via db.execute + returning', async (t) => {
 
 	const inserted = await db.execute<{ id: number; name: string }>(
 		sql`insert into ${usersTable} (${
-			name(usersTable.name.name)
+			name(
+				usersTable.name.name,
+			)
 		}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
 	);
 	t.deepEqual(inserted.rows, [{ id: 1, name: 'John' }]);
@@ -639,7 +729,10 @@ test.serial('insert via db.execute w/ query builder', async (t) => {
 	const { db } = t.context;
 
 	const inserted = await db.execute<Pick<InferModel<typeof usersTable>, 'id' | 'name'>>(
-		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
+		db
+			.insert(usersTable)
+			.values({ name: 'John' })
+			.returning({ id: usersTable.id, name: usersTable.name }),
 	);
 	t.deepEqual(inserted.rows, [{ id: 1, name: 'John' }]);
 });
@@ -647,7 +740,8 @@ test.serial('insert via db.execute w/ query builder', async (t) => {
 test.serial('build query insert with onConflict do update', async (t) => {
 	const { db } = t.context;
 
-	const query = db.insert(usersTable)
+	const query = db
+		.insert(usersTable)
 		.values({ name: 'John', jsonb: ['foo', 'bar'] })
 		.onConflictDoUpdate({ target: usersTable.id, set: { name: 'John1' } })
 		.toSQL();
@@ -661,7 +755,8 @@ test.serial('build query insert with onConflict do update', async (t) => {
 test.serial('build query insert with onConflict do update / multiple columns', async (t) => {
 	const { db } = t.context;
 
-	const query = db.insert(usersTable)
+	const query = db
+		.insert(usersTable)
 		.values({ name: 'John', jsonb: ['foo', 'bar'] })
 		.onConflictDoUpdate({ target: [usersTable.id, usersTable.name], set: { name: 'John1' } })
 		.toSQL();
@@ -675,7 +770,8 @@ test.serial('build query insert with onConflict do update / multiple columns', a
 test.serial('build query insert with onConflict do nothing', async (t) => {
 	const { db } = t.context;
 
-	const query = db.insert(usersTable)
+	const query = db
+		.insert(usersTable)
 		.values({ name: 'John', jsonb: ['foo', 'bar'] })
 		.onConflictDoNothing()
 		.toSQL();
@@ -704,9 +800,7 @@ test.serial('build query insert with onConflict do nothing + target', async (t) 
 test.serial('insert with onConflict do update', async (t) => {
 	const { db } = t.context;
 
-	await db
-		.insert(usersTable)
-		.values({ name: 'John' });
+	await db.insert(usersTable).values({ name: 'John' });
 
 	await db
 		.insert(usersTable)
@@ -716,9 +810,7 @@ test.serial('insert with onConflict do update', async (t) => {
 	const res = await db
 		.select({ id: usersTable.id, name: usersTable.name })
 		.from(usersTable)
-		.where(
-			eq(usersTable.id, 1),
-		);
+		.where(eq(usersTable.id, 1));
 
 	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
 });
@@ -726,21 +818,14 @@ test.serial('insert with onConflict do update', async (t) => {
 test.serial('insert with onConflict do nothing', async (t) => {
 	const { db } = t.context;
 
-	await db
-		.insert(usersTable)
-		.values({ name: 'John' });
+	await db.insert(usersTable).values({ name: 'John' });
 
-	await db
-		.insert(usersTable)
-		.values({ id: 1, name: 'John' })
-		.onConflictDoNothing();
+	await db.insert(usersTable).values({ id: 1, name: 'John' }).onConflictDoNothing();
 
 	const res = await db
 		.select({ id: usersTable.id, name: usersTable.name })
 		.from(usersTable)
-		.where(
-			eq(usersTable.id, 1),
-		);
+		.where(eq(usersTable.id, 1));
 
 	t.deepEqual(res, [{ id: 1, name: 'John' }]);
 });
@@ -748,9 +833,7 @@ test.serial('insert with onConflict do nothing', async (t) => {
 test.serial('insert with onConflict do nothing + target', async (t) => {
 	const { db } = t.context;
 
-	await db
-		.insert(usersTable)
-		.values({ name: 'John' });
+	await db.insert(usersTable).values({ name: 'John' });
 
 	await db
 		.insert(usersTable)
@@ -760,9 +843,7 @@ test.serial('insert with onConflict do nothing + target', async (t) => {
 	const res = await db
 		.select({ id: usersTable.id, name: usersTable.name })
 		.from(usersTable)
-		.where(
-			eq(usersTable.id, 1),
-		);
+		.where(eq(usersTable.id, 1));
 
 	t.deepEqual(res, [{ id: 1, name: 'John' }]);
 });
@@ -770,9 +851,11 @@ test.serial('insert with onConflict do nothing + target', async (t) => {
 test.serial('left join (flat object fields)', async (t) => {
 	const { db } = t.context;
 
-	const { id: cityId } = await db.insert(citiesTable)
+	const { id: cityId } = await db
+		.insert(citiesTable)
 		.values({ name: 'Paris' }, { name: 'London' })
-		.returning({ id: citiesTable.id }).then((rows) => rows[0]!);
+		.returning({ id: citiesTable.id })
+		.then((rows) => rows[0]!);
 
 	await db.insert(users2Table).values({ name: 'John', cityId }, { name: 'Jane' });
 
@@ -795,9 +878,11 @@ test.serial('left join (flat object fields)', async (t) => {
 test.serial('left join (grouped fields)', async (t) => {
 	const { db } = t.context;
 
-	const { id: cityId } = await db.insert(citiesTable)
+	const { id: cityId } = await db
+		.insert(citiesTable)
 		.values({ name: 'Paris' }, { name: 'London' })
-		.returning({ id: citiesTable.id }).then((rows) => rows[0]!);
+		.returning({ id: citiesTable.id })
+		.then((rows) => rows[0]!);
 
 	await db.insert(users2Table).values({ name: 'John', cityId }, { name: 'Jane' });
 
@@ -834,9 +919,11 @@ test.serial('left join (grouped fields)', async (t) => {
 test.serial('left join (all fields)', async (t) => {
 	const { db } = t.context;
 
-	const { id: cityId } = await db.insert(citiesTable)
+	const { id: cityId } = await db
+		.insert(citiesTable)
 		.values({ name: 'Paris' }, { name: 'London' })
-		.returning({ id: citiesTable.id }).then((rows) => rows[0]!);
+		.returning({ id: citiesTable.id })
+		.then((rows) => rows[0]!);
 
 	await db.insert(users2Table).values({ name: 'John', cityId }, { name: 'Jane' });
 
@@ -855,6 +942,7 @@ test.serial('left join (all fields)', async (t) => {
 			cities: {
 				id: cityId,
 				name: 'Paris',
+				state: null,
 			},
 		},
 		{
@@ -871,19 +959,23 @@ test.serial('left join (all fields)', async (t) => {
 test.serial('join subquery', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(courseCategoriesTable).values(
-		{ name: 'Category 1' },
-		{ name: 'Category 2' },
-		{ name: 'Category 3' },
-		{ name: 'Category 4' },
-	);
+	await db
+		.insert(courseCategoriesTable)
+		.values(
+			{ name: 'Category 1' },
+			{ name: 'Category 2' },
+			{ name: 'Category 3' },
+			{ name: 'Category 4' },
+		);
 
-	await db.insert(coursesTable).values(
-		{ name: 'Development', categoryId: 2 },
-		{ name: 'IT & Software', categoryId: 3 },
-		{ name: 'Marketing', categoryId: 4 },
-		{ name: 'Design', categoryId: 1 },
-	);
+	await db
+		.insert(coursesTable)
+		.values(
+			{ name: 'Development', categoryId: 2 },
+			{ name: 'IT & Software', categoryId: 3 },
+			{ name: 'Marketing', categoryId: 4 },
+			{ name: 'Design', categoryId: 1 },
+		);
 
 	const sq2 = db
 		.select({
