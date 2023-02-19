@@ -675,3 +675,45 @@ const query = db
 // it will automatically run a parametrized query!
 const res: QueryResult<any> = db.run(sql`SELECT * FROM users WHERE user.id = ${userId}`);
 ```
+
+## Logging
+
+To enable default query logging, just pass `{ logger: true }` to the `drizzle` function:
+
+```typescript
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+
+const db = drizzle(sqlite, { logger: true });
+```
+
+You can change the logs destination by creating a `DefaultLogger` instance and providing a custom `writer` to it:
+
+```typescript
+import { DefaultLogger, LogWriter } from 'drizzle-orm/logger';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+
+class MyLogWriter implements LogWriter {
+  write(message: string) {
+    // Write to file, console, etc.
+  }
+}
+
+const logger = new DefaultLogger({ writer: new MyLogWriter() });
+
+const db = drizzle(sqlite, { logger });
+```
+
+You can also create a custom logger:
+
+```typescript
+import { Logger } from 'drizzle-orm/logger';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+
+class MyLogger implements Logger {
+  logQuery(query: string, params: unknown[]): void {
+    console.log({ query, params });
+  }
+}
+
+const db = drizzle(sqlite, { logger: new MyLogger() });
+```
