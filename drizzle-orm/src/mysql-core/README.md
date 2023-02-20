@@ -718,6 +718,7 @@ const poolConnection = mysql.createPool({
   host: 'localhost',
   user: 'root',
   database: 'test',
+  multipleStatements: true,
 });
 
 const db = drizzle(poolConnection);
