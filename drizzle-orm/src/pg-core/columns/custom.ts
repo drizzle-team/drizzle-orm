@@ -3,7 +3,7 @@ import { ColumnBuilderConfig } from '~/column-builder';
 import { AnyPgTable } from '~/pg-core/table';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export type CustomColumnBuildeConfig<T extends CustomTypeValues> = {
+export type CustomColumnBuilderConfig<T extends CustomTypeValues> = {
 	data: T['data'];
 	driverParam: T['driverData'];
 	notNull: T['notNull'] extends undefined ? false : T['notNull'] extends true ? true : false;
@@ -118,7 +118,7 @@ export type CustomTypeValues = {
 
 export interface CustomTypeParams<T extends CustomTypeValues> {
 	/**
-	 * Database data type string represenation, that is used for migrations
+	 * Database data type string representation, that is used for migrations
 	 * @example
 	 * ```
 	 * `jsonb`, `text`
@@ -184,12 +184,12 @@ export function customType<
 	dbName: string,
 	fieldConfig?: T['config'],
 ) => PgColumnBuilder<
-	ColumnBuilderConfig<CustomColumnBuildeConfig<T>>,
+	ColumnBuilderConfig<CustomColumnBuilderConfig<T>>,
 	Record<string, unknown>
 > {
 	return (dbName: string, fieldConfig?: T['config']) =>
 		new class extends PgColumnBuilder<
-			ColumnBuilderConfig<CustomColumnBuildeConfig<T>>,
+			ColumnBuilderConfig<CustomColumnBuilderConfig<T>>,
 			Record<string, unknown>
 		> {
 			protected $pgColumnBuilderBrand!: 'CustomColumnBuilderBrand';
@@ -198,7 +198,7 @@ export function customType<
 			build<TTableName extends string>(
 				table: AnyPgTable<{ name: TTableName }>,
 			): PgColumn<
-				ColumnConfig<CustomColumnBuildeConfig<T> & { tableName: TTableName }>
+				ColumnConfig<CustomColumnBuilderConfig<T> & { tableName: TTableName }>
 			> {
 				return returnColumn(
 					table,
