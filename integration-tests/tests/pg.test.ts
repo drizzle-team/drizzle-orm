@@ -1,6 +1,6 @@
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
-import { DefaultLogger, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -9,9 +9,13 @@ import {
 	AnyPgColumn,
 	boolean,
 	char,
+	cidr,
+	inet,
 	InferModel,
 	integer,
 	jsonb,
+	macaddr,
+	macaddr8,
 	pgTable,
 	serial,
 	text,
@@ -59,6 +63,13 @@ const orders = pgTable('orders', {
 	product: text('product').notNull(),
 	amount: integer('amount').notNull(),
 	quantity: integer('quantity').notNull(),
+});
+
+const network = pgTable('network_table', {
+	inet: inet('inet').notNull(),
+	cidr: cidr('cidr').notNull(),
+	macaddr: macaddr('macaddr').notNull(),
+	macaddr8: macaddr8('macaddr8').notNull(),
 });
 
 const usersMigratorTable = pgTable('users12', {
@@ -177,6 +188,14 @@ test.beforeEach(async (t) => {
 			product text not null,
 			amount integer not null,
 			quantity integer not null
+		)`,
+	);
+	await ctx.db.execute(
+		sql`create table network_table (
+			inet inet not null,
+			cidr cidr not null,
+			macaddr macaddr not null,
+			macaddr8 macaddr8 not null
 		)`,
 	);
 });
@@ -1133,6 +1152,23 @@ test.serial('select count w/ custom mapper', async (t) => {
 	const res = await db.select({ count: count(sql`*`) }).from(usersTable);
 
 	t.deepEqual(res, [{ count: 2 }]);
+});
+
+test.serial('network types', async (t) => {
+	const { db } = t.context;
+
+	const value: InferModel<typeof network> = {
+		inet: '127.0.0.1',
+		cidr: '192.168.100.128/25',
+		macaddr: '08:00:2b:01:02:03',
+		macaddr8: '08:00:2b:01:02:03:04:05',
+	};
+
+	await db.insert(network).values(value);
+
+	const res = await db.select().from(network);
+
+	t.deepEqual(res, [value]);
 });
 
 test.after.always(async (t) => {
