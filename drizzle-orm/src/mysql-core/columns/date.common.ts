@@ -26,7 +26,7 @@ export abstract class MySqlDateColumnBaseBuilder<
 	}
 
 	defaultNow() {
-		return this.default(sql`now()`);
+		return this.default(sql`(now())`);
 	}
 
 	onUpdateNow(): MySqlDateColumnBaseBuilder<UpdateCBConfig<T, { hasDefault: true }>> {
