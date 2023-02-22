@@ -113,7 +113,7 @@ const insertReturningSql = db.insert(users).values(newUser).returning({
 	id: users.id,
 	homeCity: users.homeCity,
 	subclassLower: sql`lower(${users.subClass})`,
-	classLower: sql`lower(${users.class})`.as<string>(),
+	classLower: sql<string>`lower(${users.class})`,
 }).all();
 Expect<
 	Equal<{
@@ -128,7 +128,7 @@ const insertReturningSqlBun = bunDb.insert(users).values(newUser).returning({
 	id: users.id,
 	homeCity: users.homeCity,
 	subclassLower: sql`lower(${users.subClass})`,
-	classLower: sql`lower(${users.class})`.as<string>(),
+	classLower: sql<string>`lower(${users.class})`,
 }).all();
 Expect<
 	Equal<{

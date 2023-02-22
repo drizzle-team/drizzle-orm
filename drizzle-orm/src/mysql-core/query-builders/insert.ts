@@ -74,23 +74,6 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TQueryResult extends Quer
 		this.config = { table, values };
 	}
 
-	// onDuplicateDoUpdate(
-	// 	target:
-	// 		| SQL<GetTableConfig<TTable, 'name'>>
-	// 		| ((constraints: GetTableConflictConstraints<TTable>) => Check<GetTableConfig<TTable, 'name'>>),
-	// 	set: MySqlUpdateSet<TTable>,
-	// ): Pick<this, 'returning' | 'getQuery' | 'execute'> {
-	// 	const setSql = this.dialect.buildUpdateSet<GetTableConfig<TTable, 'name'>>(this.config.table, set);
-
-	// 	if (target instanceof SQL) {
-	// 		this.config.onConflict = sql<GetTableConfig<TTable, 'name'>>`${target} do update set ${setSql}`;
-	// 	} else {
-	// 		const targetSql = new Name(target(this.config.table[tableConflictConstraints]).name);
-	// 		this.config.onConflict = sql`on constraint ${targetSql} do update set ${setSql}`;
-	// 	}
-	// 	return this;
-	// }
-
 	onDuplicateKeyUpdate(config: {
 		// target?: IndexColumn | IndexColumn[];
 		set: MySqlUpdateSetSource<TTable>;

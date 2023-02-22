@@ -1,12 +1,12 @@
 import { Expect } from 'tests/utils';
 import { and, eq } from '~/expressions';
-import { alias, integer, pgTable, serial, text } from '~/pg-core';
 import { sql } from '~/sql';
+import { alias, integer, sqliteTable, text } from '~/sqlite-core';
 import { DrizzleTypeError, Equal } from '~/utils';
 import { db } from './db';
 
-const names = pgTable('names', {
-	id: serial('id').primaryKey(),
+const names = sqliteTable('names', {
+	id: integer('id').primaryKey(),
 	name: text('name'),
 	authorId: integer('author_id'),
 });
@@ -32,7 +32,7 @@ const n2 = db
 	.groupBy(names.id, names.authorId)
 	.as('n2');
 
-const result = await db
+const result = db
 	.select({
 		name: n1.name,
 		authorId: n1.authorId,
@@ -40,7 +40,8 @@ const result = await db
 		totalCount: n2.totalCount,
 	})
 	.from(n1)
-	.innerJoin(n2, and(eq(n2.id, n1.id), eq(n2.authorId, n1.authorId)));
+	.innerJoin(n2, and(eq(n2.id, n1.id), eq(n2.authorId, n1.authorId)))
+	.all();
 
 Expect<
 	Equal<
@@ -66,7 +67,7 @@ const sq1 = db
 	.leftJoin(names2, eq(names.name, names2.name))
 	.as('sq1');
 
-const res = await db.select().from(sq1);
+const res = db.select().from(sq1).all();
 
 Expect<
 	Equal<

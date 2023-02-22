@@ -1,7 +1,7 @@
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
-import { sql } from 'drizzle-orm';
-import { asc, eq } from 'drizzle-orm/expressions';
+import { DefaultLogger, sql } from 'drizzle-orm';
+import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
 import {
 	alias,
 	boolean,
@@ -20,10 +20,12 @@ import {
 } from 'drizzle-orm/mysql-core';
 import { drizzle, MySql2Database } from 'drizzle-orm/mysql2';
 import { migrate } from 'drizzle-orm/mysql2/migrator';
-import { name, placeholder } from 'drizzle-orm/sql';
+import { Name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
+
+const ENABLE_LOGGING = false;
 
 const usersTable = mysqlTable('userstest', {
 	id: serial('id').primaryKey(),
@@ -62,6 +64,14 @@ const coursesTable = mysqlTable('courses', {
 const courseCategoriesTable = mysqlTable('course_categories', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
+});
+
+const orders = mysqlTable('orders', {
+	id: serial('id').primaryKey(),
+	region: text('region').notNull(),
+	product: text('product').notNull(),
+	amount: int('amount').notNull(),
+	quantity: int('quantity').notNull(),
 });
 
 const usersMigratorTable = mysqlTable('users12', {
@@ -134,7 +144,7 @@ test.before(async (t) => {
 		console.error('Cannot connect to MySQL');
 		throw lastError;
 	}
-	ctx.db = drizzle(ctx.client /* , { logger: new DefaultLogger() } */);
+	ctx.db = drizzle(ctx.client, { logger: ENABLE_LOGGING ? new DefaultLogger() : undefined });
 });
 
 test.beforeEach(async (t) => {
@@ -145,7 +155,8 @@ test.beforeEach(async (t) => {
 	await ctx.db.execute(sql`drop table if exists \`cities\``);
 	await ctx.db.execute(sql`drop table if exists \`courses\``);
 	await ctx.db.execute(sql`drop table if exists \`course_categories\``);
-	// await ctx.db.execute(sql`create schema public`);
+	await ctx.db.execute(sql`drop table if exists \`orders\``);
+
 	await ctx.db.execute(
 		sql`create table \`userstest\` (
 			\`id\` serial primary key,
@@ -196,6 +207,16 @@ test.beforeEach(async (t) => {
 			\`category_id\` int references \`course_categories\`(\`id\`)
 		)`,
 	);
+
+	await ctx.db.execute(
+		sql`create table \`orders\` (
+			\`id\` serial primary key,
+			\`region\` text not null,
+			\`product\` text not null,
+			\`amount\` int not null,
+			\`quantity\` int not null
+		)`,
+	);
 });
 
 test.serial('select all fields', async (t) => {
@@ -228,7 +249,7 @@ test.serial('select typed sql', async (t) => {
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.select({
-		name: sql`upper(${usersTable.name})`.as<string>(),
+		name: sql<string>`upper(${usersTable.name})`,
 	}).from(usersTable);
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
@@ -634,7 +655,7 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 test.serial('insert via db.execute + select via db.execute', async (t) => {
 	const { db } = t.context;
 
-	await db.execute(sql`insert into ${usersTable} (${name(usersTable.name.name)}) values (${'John'})`);
+	await db.execute(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
 
 	const result = await db.execute<{ id: number; name: string }>(sql`select id, name from ${usersTable}`);
 	t.deepEqual(result[0], [{ id: 1, name: 'John' }]);
@@ -748,12 +769,12 @@ test.serial('left join (grouped fields)', async (t) => {
 		id: users2Table.id,
 		user: {
 			name: users2Table.name,
-			nameUpper: sql`upper(${users2Table.name})`.as<string>(),
+			nameUpper: sql<string>`upper(${users2Table.name})`,
 		},
 		city: {
 			id: citiesTable.id,
 			name: citiesTable.name,
-			nameUpper: sql`upper(${citiesTable.name})`.as<string>(),
+			nameUpper: sql<string>`upper(${citiesTable.name})`,
 		},
 	}).from(users2Table)
 		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id));
@@ -827,11 +848,11 @@ test.serial('join subquery', async (t) => {
 		.select({
 			categoryId: courseCategoriesTable.id,
 			category: courseCategoriesTable.name,
-			total: sql`count(${courseCategoriesTable.id})`.as<number>(),
+			total: sql<number>`count(${courseCategoriesTable.id})`,
 		})
 		.from(courseCategoriesTable)
 		.groupBy(courseCategoriesTable.id, courseCategoriesTable.name)
-		.subquery('sq2');
+		.as('sq2');
 
 	const res = await db
 		.select({
@@ -848,6 +869,119 @@ test.serial('join subquery', async (t) => {
 		{ courseName: 'IT & Software', categoryId: 3 },
 		{ courseName: 'Marketing', categoryId: 4 },
 	]);
+});
+
+test.serial('with ... select', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(orders).values(
+		{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
+		{ region: 'Europe', product: 'A', amount: 20, quantity: 2 },
+		{ region: 'Europe', product: 'B', amount: 20, quantity: 2 },
+		{ region: 'Europe', product: 'B', amount: 30, quantity: 3 },
+		{ region: 'US', product: 'A', amount: 30, quantity: 3 },
+		{ region: 'US', product: 'A', amount: 40, quantity: 4 },
+		{ region: 'US', product: 'B', amount: 40, quantity: 4 },
+		{ region: 'US', product: 'B', amount: 50, quantity: 5 },
+	);
+
+	const regionalSales = db
+		.select({
+			region: orders.region,
+			totalSales: sql`sum(${orders.amount})`.as<number>('total_sales'),
+		})
+		.from(orders)
+		.groupBy(orders.region)
+		.prepareWithSubquery('regional_sales');
+
+	const topRegions = db
+		.select({
+			region: regionalSales.region,
+		})
+		.from(regionalSales)
+		.where(
+			gt(regionalSales.totalSales, db.select({ sales: sql`sum(${regionalSales.totalSales})/10` }).from(regionalSales)),
+		)
+		.prepareWithSubquery('top_regions');
+
+	const result = await db
+		.with(regionalSales, topRegions)
+		.select({
+			region: orders.region,
+			product: orders.product,
+			productUnits: sql<number>`cast(sum(${orders.quantity}) as unsigned)`,
+			productSales: sql<number>`cast(sum(${orders.amount}) as unsigned)`,
+		})
+		.from(orders)
+		.where(inArray(orders.region, db.select({ region: topRegions.region }).from(topRegions)))
+		.groupBy(orders.region, orders.product)
+		.orderBy(orders.region, orders.product);
+
+	t.deepEqual(result, [
+		{
+			region: 'Europe',
+			product: 'A',
+			productUnits: 3,
+			productSales: 30,
+		},
+		{
+			region: 'Europe',
+			product: 'B',
+			productUnits: 5,
+			productSales: 50,
+		},
+		{
+			region: 'US',
+			product: 'A',
+			productUnits: 7,
+			productSales: 70,
+		},
+		{
+			region: 'US',
+			product: 'B',
+			productUnits: 9,
+			productSales: 90,
+		},
+	]);
+});
+
+test.serial('select from subquery sql', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(users2Table).values({ name: 'John' }, { name: 'Jane' });
+
+	const sq = db
+		.select({ name: sql<string>`concat(${users2Table.name}, " modified")`.as('name') })
+		.from(users2Table)
+		.as('sq');
+
+	const res = await db.select({ name: sq.name }).from(sq);
+
+	t.deepEqual(res, [{ name: 'John modified' }, { name: 'Jane modified' }]);
+});
+
+test.serial('select a field without joining its table', (t) => {
+	const { db } = t.context;
+
+	t.throws(() => db.select({ name: users2Table.name }).from(usersTable).prepare('query'));
+});
+
+test.serial('select all fields from subquery without alias', (t) => {
+	const { db } = t.context;
+
+	const sq = db.select({ name: sql<string>`upper(${users2Table.name})` }).from(users2Table).prepareWithSubquery('sq');
+
+	t.throws(() => db.select().from(sq).prepare('query'));
+});
+
+test.serial('select count()', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' });
+
+	const res = await db.select({ count: sql`count(*)` }).from(usersTable);
+
+	t.deepEqual(res, [{ count: 2 }]);
 });
 
 test.after.always(async (t) => {

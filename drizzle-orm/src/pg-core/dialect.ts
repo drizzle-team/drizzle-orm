@@ -14,7 +14,7 @@ import {
 import { PgDeleteConfig, PgInsertConfig, PgUpdateConfig } from '~/pg-core/query-builders';
 import { PgSelectConfig, SelectFieldsOrdered } from '~/pg-core/query-builders/select.types';
 import { AnyPgTable, PgTable } from '~/pg-core/table';
-import { DriverValueEncoder, Name, Query, QueryTypingsValue, SQL, sql, SQLResponse, SQLSourceParam } from '~/sql';
+import { DriverValueEncoder, Name, Query, QueryTypingsValue, SQL, sql, SQLSourceParam } from '~/sql';
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
 import { UpdateSet } from '~/utils';
@@ -126,8 +126,10 @@ export class PgDialect {
 			.map(({ field }, i) => {
 				const chunk: SQLSourceParam[] = [];
 
-				if (field instanceof SQLResponse || field instanceof SQL) {
-					const query = field instanceof SQLResponse ? field.sql : field;
+				if (field instanceof SQL.Aliased && field.isSubquerySelectionField) {
+					chunk.push(new Name(field.fieldAlias));
+				} else if (field instanceof SQL.Aliased || field instanceof SQL) {
+					const query = field instanceof SQL.Aliased ? field.sql : field;
 
 					if (isSingleTable) {
 						chunk.push(
@@ -142,6 +144,10 @@ export class PgDialect {
 						);
 					} else {
 						chunk.push(query);
+					}
+
+					if (field instanceof SQL.Aliased) {
+						chunk.push(sql` as ${new Name(field.fieldAlias)}`);
 					}
 				} else if (field instanceof Column) {
 					if (isSingleTable) {
@@ -162,14 +168,21 @@ export class PgDialect {
 		return sql.fromList(chunks);
 	}
 
-	buildSelectQuery({ fieldsList: fields, where, table, joins, orderBy, groupBy, limit, offset }: PgSelectConfig): SQL {
+	buildSelectQuery(
+		{ withList, fieldsList: fields, where, table, joins, orderBy, groupBy, limit, offset }: PgSelectConfig,
+	): SQL {
 		fields.forEach((f) => {
 			let tableName: string;
 			if (
-				f.field instanceof Column && f.field.table !== table && !((tableName = getTableName(f.field.table)) in joins)
+				f.field instanceof Column
+				&& getTableName(f.field.table)
+					!== (table instanceof Subquery ? table[SubqueryConfig].alias : getTableName(table))
+				&& !((tableName = getTableName(f.field.table)) in joins)
 			) {
 				throw new Error(
-					`Column "${f.field.name}" was selected, but its table "${tableName}" was not joined`,
+					`Your "${
+						f.path.join('->')
+					}" field references a column "${tableName}"."${f.field.name}", but the table "${tableName}" is not part of the query! Did you forget to join it?`,
 				);
 			}
 		});
@@ -177,9 +190,18 @@ export class PgDialect {
 		const joinKeys = Object.keys(joins);
 		const isSingleTable = joinKeys.length === 0;
 
-		const tableSql = table instanceof Subquery
-			? sql`(${table})${isSingleTable ? undefined : new Name(table[SubqueryConfig].alias)}`
-			: table;
+		let withSql: SQL | undefined;
+		if (withList.length) {
+			const withSqlChunks = [sql`with `];
+			withList.forEach((w, i) => {
+				withSqlChunks.push(sql`${new Name(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
+				if (i < withList.length - 1) {
+					withSqlChunks.push(sql`, `);
+				}
+			});
+			withSqlChunks.push(sql` `);
+			withSql = sql.fromList(withSqlChunks);
+		}
 
 		const selection = this.buildSelection(fields, { isSingleTable });
 
@@ -204,9 +226,7 @@ export class PgDialect {
 				);
 			} else {
 				joinsArray.push(
-					sql`${sql.raw(joinMeta.joinType)} join (${table[SubqueryConfig].sql}) ${new Name(
-						tableAlias,
-					)} on ${joinMeta.on}`,
+					sql`${sql.raw(joinMeta.joinType)} join ${table} on ${joinMeta.on}`,
 				);
 			}
 			if (index < joinKeys.length - 1) {
@@ -244,7 +264,7 @@ export class PgDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		return sql`select ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${orderBySql}${limitSql}${offsetSql}`;
+		return sql`${withSql}select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {

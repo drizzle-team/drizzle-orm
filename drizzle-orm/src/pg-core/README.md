@@ -380,6 +380,47 @@ await db.select().from(users).orderBy(desc(users.name));
 await db.select().from(users).orderBy(asc(users.name), desc(users.name));
 ```
 
+#### Conditionally select fields
+
+```typescript
+async function selectUsers(withName: boolean) {
+  return db
+    .select({
+      id: users.id,
+      ...(withName ? { name: users.name } : {}),
+    })
+    .from(users);
+}
+
+const users = await selectUsers(true);
+```
+
+#### WITH clause
+
+```typescript
+const sq = db.select().from(users).where(eq(users.id, 42)).prepareWithSubquery('sq');
+const result = await db.with(sq).select().from(sq);
+```
+
+> **Note**: Keep in mind, that if you need to select raw `sql` in a WITH subquery and reference that field in other queries, you must add an alias to it:
+
+```typescript
+const sq = db
+  .select({
+    name: sql<string>`upper(${users.name})`.as('name'),
+  })
+  .from(users)
+  .prepareWithSubquery('sq');
+
+const result = await db
+  .select({
+    name: sq.name,
+  })
+  .from(sq);
+```
+
+Otherwise, the field type will become `DrizzleTypeError` and you won't be able to reference it in other queries. If you ignore the type error and still try to reference the field, you will get a runtime error, because we cannot reference that field without an alias.
+
 #### Select from subquery
 
 ```typescript
@@ -435,8 +476,8 @@ notIlike(column, value)
 
 not(sqlExpression)
 
-and(expressions: SQL[])
-or(expressions: SQL[])
+and(...expressions: SQL[])
+or(...expressions: SQL[])
 ```
 
 ### Insert
@@ -733,4 +774,46 @@ const db = drizzle(pool);
 
 // this will automatically run needed migrations on the database
 await migrate(db, { migrationsFolder: './drizzle' });
+```
+
+## Logging
+
+To enable default query logging, just pass `{ logger: true }` to the `drizzle` function:
+
+```typescript
+import { drizzle } from 'drizzle-orm/node-postgres';
+
+const db = drizzle(pool, { logger: true });
+```
+
+You can change the logs destination by creating a `DefaultLogger` instance and providing a custom `writer` to it:
+
+```typescript
+import { DefaultLogger, LogWriter } from 'drizzle-orm/logger';
+import { drizzle } from 'drizzle-orm/node-postgres';
+
+class MyLogWriter implements LogWriter {
+  write(message: string) {
+    // Write to file, console, etc.
+  }
+}
+
+const logger = new DefaultLogger({ writer: new MyLogWriter() });
+
+const db = drizzle(pool, { logger });
+```
+
+You can also create a custom logger:
+
+```typescript
+import { Logger } from 'drizzle-orm/logger';
+import { drizzle } from 'drizzle-orm/node-postgres';
+
+class MyLogger implements Logger {
+  logQuery(query: string, params: unknown[]): void {
+    console.log({ query, params });
+  }
+}
+
+const db = drizzle(pool, { logger: new MyLogger() });
 ```

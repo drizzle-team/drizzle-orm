@@ -1,4 +1,4 @@
-import { Logger } from '~/logger';
+import { DefaultLogger, Logger } from '~/logger';
 import { MySqlDialect } from '~/mysql-core/dialect';
 import { MySqlDatabase } from '.';
 import { MySql2Client, MySql2QueryResultHKT, MySql2Session } from './session';
@@ -21,7 +21,7 @@ export class MySql2Driver {
 }
 
 export interface DrizzleConfig {
-	logger?: Logger;
+	logger?: boolean | Logger;
 }
 
 export { MySqlDatabase } from '~/mysql-core/db';
@@ -33,7 +33,13 @@ export function drizzle(
 	config: DrizzleConfig = {},
 ): MySql2Database {
 	const dialect = new MySqlDialect();
-	const driver = new MySql2Driver(client, dialect, { logger: config.logger });
+	let logger;
+	if (config.logger === true) {
+		logger = new DefaultLogger();
+	} else if (config.logger !== false) {
+		logger = config.logger;
+	}
+	const driver = new MySql2Driver(client, dialect, { logger });
 	const session = driver.createSession();
-	return new MySqlDatabase(dialect, session)
+	return new MySqlDatabase(dialect, session);
 }

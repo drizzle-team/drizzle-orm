@@ -1,5 +1,5 @@
 import { types } from 'pg';
-import { Logger } from '~/logger';
+import { DefaultLogger, Logger } from '~/logger';
 import { PgDatabase } from '~/pg-core/db';
 import { PgDialect } from '~/pg-core/dialect';
 import { NodePgClient, NodePgQueryResultHKT, NodePgSession } from './session';
@@ -29,14 +29,20 @@ export class NodePgDriver {
 }
 
 export interface DrizzleConfig {
-	logger?: Logger;
+	logger?: boolean | Logger;
 }
 
 export type NodePgDatabase = PgDatabase<NodePgQueryResultHKT, NodePgSession>;
 
 export function drizzle(client: NodePgClient, config: DrizzleConfig = {}): NodePgDatabase {
 	const dialect = new PgDialect();
-	const driver = new NodePgDriver(client, dialect, { logger: config.logger });
+	let logger;
+	if (config.logger === true) {
+		logger = new DefaultLogger();
+	} else if (config.logger !== false) {
+		logger = config.logger;
+	}
+	const driver = new NodePgDriver(client, dialect, { logger });
 	const session = driver.createSession();
 	return new PgDatabase(dialect, session);
 }

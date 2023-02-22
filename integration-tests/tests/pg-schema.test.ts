@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm';
 import { asc, eq } from 'drizzle-orm/expressions';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { alias, boolean, InferModel, jsonb, pgSchema, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import { name, placeholder } from 'drizzle-orm/sql';
+import { Name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
@@ -135,7 +135,7 @@ test.serial('select typed sql', async (t) => {
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.select({
-		name: sql`upper(${usersTable.name})`.as<string>(),
+		name: sql<string>`upper(${usersTable.name})`,
 	}).from(usersTable);
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
@@ -513,7 +513,7 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 test.serial('insert via db.execute + select via db.execute', async (t) => {
 	const { db } = t.context;
 
-	await db.execute(sql`insert into ${usersTable} (${name(usersTable.name.name)}) values (${'John'})`);
+	await db.execute(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
 
 	const result = await db.execute<{ id: number; name: string }>(sql`select id, name from "mySchema"."users"`);
 	t.deepEqual(result.rows, [{ id: 1, name: 'John' }]);
@@ -523,9 +523,9 @@ test.serial('insert via db.execute + returning', async (t) => {
 	const { db } = t.context;
 
 	const inserted = await db.execute<{ id: number; name: string }>(
-		sql`insert into ${usersTable} (${
-			name(usersTable.name.name)
-		}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
+		sql`insert into ${usersTable} (${new Name(
+			usersTable.name.name,
+		)}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
 	);
 	t.deepEqual(inserted.rows, [{ id: 1, name: 'John' }]);
 });

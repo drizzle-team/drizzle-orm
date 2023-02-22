@@ -1,13 +1,12 @@
 import { MigrationConfig, readMigrationFiles } from '~/migrator';
 import { sql } from '~/sql';
 import { AwsDataApiPgDatabase } from './driver';
-import { AwsDataApiSession } from './session';
 
 export async function migrate(db: AwsDataApiPgDatabase, config: string | MigrationConfig) {
 	const migrations = readMigrationFiles(config);
 
-	// Write own aws datapi migrator
-	const session = db.session as AwsDataApiSession;
+	// TODO: Write own aws datapi migrator
+	const { session } = db;
 
 	const migrationTableCreate = sql`CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (
 		id SERIAL PRIMARY KEY,

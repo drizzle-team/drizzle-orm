@@ -9,6 +9,7 @@ import {
 } from '~/sqlite-core/query-builders';
 import { ResultKind, SQLiteSession } from '~/sqlite-core/session';
 import { AnySQLiteTable } from '~/sqlite-core/table';
+import { WithSubquery } from '~/subquery';
 import { SelectFields } from './query-builders/select.types';
 
 export class BaseSQLiteDatabase<TResultType extends 'sync' | 'async', TRunResult> {
@@ -18,6 +19,20 @@ export class BaseSQLiteDatabase<TResultType extends 'sync' | 'async', TRunResult
 		/** @internal */
 		readonly session: SQLiteSession<TResultType, TRunResult>,
 	) {}
+
+	with(...queries: WithSubquery[]) {
+		const self = this;
+
+		function select(): SQLiteSelectBuilder<undefined, TResultType, TRunResult>;
+		function select<TSelection extends SelectFields>(
+			fields: TSelection,
+		): SQLiteSelectBuilder<TSelection, TResultType, TRunResult>;
+		function select(fields?: SelectFields): SQLiteSelectBuilder<SelectFields | undefined, TResultType, TRunResult> {
+			return new SQLiteSelectBuilder(fields ?? undefined, self.session, self.dialect, queries);
+		}
+
+		return { select };
+	}
 
 	select(): SQLiteSelectBuilder<undefined, TResultType, TRunResult>;
 	select<TSelection extends SelectFields>(fields: TSelection): SQLiteSelectBuilder<TSelection, TResultType, TRunResult>;

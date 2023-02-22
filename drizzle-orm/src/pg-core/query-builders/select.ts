@@ -13,6 +13,8 @@ import {
 	SubqueryConfig,
 	SubquerySelectionProxyHandler,
 	SubqueryWithSelection,
+	WithSubquery,
+	WithSubqueryWithSelection,
 } from '~/subquery';
 import { orderSelectedFields, Simplify } from '~/utils';
 import { getTableColumns } from '../utils';
@@ -34,6 +36,7 @@ export class PgSelectBuilder<TSelection extends SelectFields | undefined> {
 		private fields: TSelection,
 		private session: PgSession,
 		private dialect: PgDialect,
+		private withList: Subquery[] = [],
 	) {}
 
 	from<TSubquery extends Subquery>(
@@ -52,11 +55,23 @@ export class PgSelectBuilder<TSelection extends SelectFields | undefined> {
 	>;
 	from(table: AnyPgTable | Subquery): AnyPgSelect {
 		const isPartialSelect = !!this.fields;
-		const fields = this.fields ?? (table instanceof Subquery
-			? table[SubqueryConfig].selection as SelectFields
-			: getTableColumns(table, { format: 'object' }));
+
+		let fields: SelectFields;
+		if (this.fields) {
+			fields = this.fields;
+		} else if (table instanceof Subquery) {
+			// This is required to use the proxy handler to get the correct field values from the subquery
+			fields = Object.fromEntries(
+				Object.keys(table[SubqueryConfig].selection).map((
+					key,
+				) => [key, table[key as unknown as keyof typeof table] as unknown as SelectFields[string]]),
+			);
+		} else {
+			fields = getTableColumns(table, { format: 'object' });
+		}
+
 		const fieldsList = orderSelectedFields<AnyPgColumn>(fields);
-		return new PgSelect(table, fields, fieldsList, isPartialSelect, this.session, this.dialect);
+		return new PgSelect(table, fields, fieldsList, isPartialSelect, this.session, this.dialect, this.withList);
 	}
 }
 
@@ -88,9 +103,11 @@ export class PgSelect<
 		private isPartialSelect: boolean,
 		private session: PgSession,
 		private dialect: PgDialect,
+		withList: Subquery[],
 	) {
 		super();
 		this.config = {
+			withList,
 			table,
 			fields,
 			fieldsList,
@@ -222,12 +239,21 @@ export class PgSelect<
 		return this._prepare().execute(placeholderValues);
 	};
 
-	subquery<TAlias extends string>(
+	as<TAlias extends string>(
 		alias: TAlias,
 	): SubqueryWithSelection<Simplify<BuildSubquerySelection<TSelection, TAlias, TNullability>>, TAlias> {
 		return new Proxy(
 			new Subquery(this.getSQL(), this.config.fields, alias),
 			new SubquerySelectionProxyHandler(alias),
 		) as SubqueryWithSelection<Simplify<BuildSubquerySelection<TSelection, TAlias, TNullability>>, TAlias>;
+	}
+
+	prepareWithSubquery<TAlias extends string>(
+		alias: TAlias,
+	): WithSubqueryWithSelection<Simplify<BuildSubquerySelection<TSelection, TAlias, TNullability>>, TAlias> {
+		return new Proxy(
+			new WithSubquery(this.getSQL(), this.config.fields, alias, true),
+			new SubquerySelectionProxyHandler(alias),
+		) as WithSubqueryWithSelection<Simplify<BuildSubquerySelection<TSelection, TAlias, TNullability>>, TAlias>;
 	}
 }

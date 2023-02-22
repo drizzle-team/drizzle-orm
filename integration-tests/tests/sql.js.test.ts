@@ -1,6 +1,6 @@
 import anyTest, { TestFn } from 'ava';
 import { sql } from 'drizzle-orm';
-import { asc, eq } from 'drizzle-orm/expressions';
+import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
 import { Name, name, placeholder } from 'drizzle-orm/sql';
 import { drizzle, SQLJsDatabase } from 'drizzle-orm/sql-js';
 import { migrate } from 'drizzle-orm/sql-js/migrator';
@@ -35,6 +35,14 @@ const coursesTable = sqliteTable('courses', {
 const courseCategoriesTable = sqliteTable('course_categories', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
+});
+
+const orders = sqliteTable('orders', {
+	id: integer('id').primaryKey(),
+	region: text('region').notNull(),
+	product: text('product').notNull(),
+	amount: integer('amount').notNull(),
+	quantity: integer('quantity').notNull(),
 });
 
 const usersMigratorTable = sqliteTable('users12', {
@@ -74,7 +82,14 @@ test.before(async (t) => {
 
 test.beforeEach((t) => {
 	const ctx = t.context;
+
 	ctx.db.run(sql`drop table if exists ${usersTable}`);
+	ctx.db.run(sql`drop table if exists ${users2Table}`);
+	ctx.db.run(sql`drop table if exists ${citiesTable}`);
+	ctx.db.run(sql`drop table if exists ${coursesTable}`);
+	ctx.db.run(sql`drop table if exists ${courseCategoriesTable}`);
+	ctx.db.run(sql`drop table if exists ${orders}`);
+
 	ctx.db.run(sql`
 		create table ${usersTable} (
 			id integer primary key,
@@ -83,32 +98,36 @@ test.beforeEach((t) => {
 			json blob,
 			created_at integer not null default (cast((julianday('now') - 2440587.5)*86400000 as integer))
 		)`);
-	ctx.db.run(sql`drop table if exists ${users2Table}`);
 	ctx.db.run(sql`
 		create table ${users2Table} (
 			id integer primary key,
 			name text not null,
-			city_id integer references ${citiesTable}(${new Name(citiesTable.id.name)})
+			city_id integer references ${citiesTable}(${name(citiesTable.id.name)})
 		)`);
-	ctx.db.run(sql`drop table if exists ${citiesTable}`);
 	ctx.db.run(sql`
-			create table ${citiesTable} (
+		create table ${citiesTable} (
+			id integer primary key,
+			name text not null
+		)`);
+	ctx.db.run(sql`
+			create table ${courseCategoriesTable} (
 				id integer primary key,
 				name text not null
 			)`);
-	ctx.db.run(sql`drop table if exists ${courseCategoriesTable}`);
 	ctx.db.run(sql`
-					create table ${courseCategoriesTable} (
-						id integer primary key,
-						name text not null
-					)`);
-	ctx.db.run(sql`drop table if exists ${coursesTable}`);
+		create table ${coursesTable} (
+			id integer primary key,
+			name text not null,
+			category_id integer references ${courseCategoriesTable}(${name(courseCategoriesTable.id.name)})
+		)`);
 	ctx.db.run(sql`
-				create table ${coursesTable} (
-					id integer primary key,
-					name text not null,
-					category_id integer references ${courseCategoriesTable}(${new Name(courseCategoriesTable.id.name)})
-				)`);
+		create table ${orders} (
+			id integer primary key,
+			region text not null,
+			product text not null,
+			amount integer not null,
+			quantity integer not null
+		)`);
 });
 
 test.serial('select all fields', (t) => {
@@ -149,7 +168,7 @@ test.serial('select typed sql', (t) => {
 
 	db.insert(usersTable).values({ name: 'John' }).run();
 	const users = db.select({
-		name: sql`upper(${usersTable.name})`.as<string>(),
+		name: sql<string>`upper(${usersTable.name})`,
 	}).from(usersTable).all();
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
@@ -563,7 +582,7 @@ test.serial('build query', (t) => {
 test.serial('insert via db.run + select via db.all', (t) => {
 	const { db } = t.context;
 
-	db.run(sql`insert into ${usersTable} (${name(usersTable.name.name)}) values (${'John'})`);
+	db.run(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
 
 	const result = db.all<{ id: number; name: string }>(sql`select id, name from "users"`);
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
@@ -573,9 +592,9 @@ test.serial('insert via db.get', (t) => {
 	const { db } = t.context;
 
 	const inserted = db.get<{ id: number; name: string }>(
-		sql`insert into ${usersTable} (${
-			name(usersTable.name.name)
-		}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
+		sql`insert into ${usersTable} (${new Name(
+			usersTable.name.name,
+		)}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
 	);
 	t.deepEqual(inserted, { id: 1, name: 'John' });
 });
@@ -583,7 +602,7 @@ test.serial('insert via db.get', (t) => {
 test.serial('insert via db.run + select via db.get', (t) => {
 	const { db } = t.context;
 
-	db.run(sql`insert into ${usersTable} (${name(usersTable.name.name)}) values (${'John'})`);
+	db.run(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
 
 	const result = db.get<{ id: number; name: string }>(
 		sql`select ${usersTable.id}, ${usersTable.name} from ${usersTable}`,
@@ -637,12 +656,12 @@ test.serial('left join (grouped fields)', (t) => {
 		id: users2Table.id,
 		user: {
 			name: users2Table.name,
-			nameUpper: sql`upper(${users2Table.name})`.as<string>(),
+			nameUpper: sql<string>`upper(${users2Table.name})`,
 		},
 		city: {
 			id: citiesTable.id,
 			name: citiesTable.name,
-			nameUpper: sql`upper(${citiesTable.name})`.as<string>(),
+			nameUpper: sql<string>`upper(${citiesTable.name})`,
 		},
 	}).from(users2Table)
 		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
@@ -718,11 +737,11 @@ test.serial('join subquery', (t) => {
 		.select({
 			categoryId: courseCategoriesTable.id,
 			category: courseCategoriesTable.name,
-			total: sql`count(${courseCategoriesTable.id})`.as<number>(),
+			total: sql<number>`count(${courseCategoriesTable.id})`,
 		})
 		.from(courseCategoriesTable)
 		.groupBy(courseCategoriesTable.id, courseCategoriesTable.name)
-		.subquery('sq2');
+		.as('sq2');
 
 	const res = db
 		.select({
@@ -740,6 +759,120 @@ test.serial('join subquery', (t) => {
 		{ courseName: 'IT & Software', categoryId: 3 },
 		{ courseName: 'Marketing', categoryId: 4 },
 	]);
+});
+
+test.serial('with ... select', (t) => {
+	const { db } = t.context;
+
+	db.insert(orders).values(
+		{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
+		{ region: 'Europe', product: 'A', amount: 20, quantity: 2 },
+		{ region: 'Europe', product: 'B', amount: 20, quantity: 2 },
+		{ region: 'Europe', product: 'B', amount: 30, quantity: 3 },
+		{ region: 'US', product: 'A', amount: 30, quantity: 3 },
+		{ region: 'US', product: 'A', amount: 40, quantity: 4 },
+		{ region: 'US', product: 'B', amount: 40, quantity: 4 },
+		{ region: 'US', product: 'B', amount: 50, quantity: 5 },
+	).run();
+
+	const regionalSales = db
+		.select({
+			region: orders.region,
+			totalSales: sql`sum(${orders.amount})`.as<number>('total_sales'),
+		})
+		.from(orders)
+		.groupBy(orders.region)
+		.prepareWithSubquery('regional_sales');
+
+	const topRegions = db
+		.select({
+			region: regionalSales.region,
+		})
+		.from(regionalSales)
+		.where(
+			gt(regionalSales.totalSales, db.select({ sales: sql`sum(${regionalSales.totalSales})/10` }).from(regionalSales)),
+		)
+		.prepareWithSubquery('top_regions');
+
+	const result = db
+		.with(regionalSales, topRegions)
+		.select({
+			region: orders.region,
+			product: orders.product,
+			productUnits: sql<number>`cast(sum(${orders.quantity}) as int)`,
+			productSales: sql<number>`cast(sum(${orders.amount}) as int)`,
+		})
+		.from(orders)
+		.where(inArray(orders.region, db.select({ region: topRegions.region }).from(topRegions)))
+		.groupBy(orders.region, orders.product)
+		.orderBy(orders.region, orders.product)
+		.all();
+
+	t.deepEqual(result, [
+		{
+			region: 'Europe',
+			product: 'A',
+			productUnits: 3,
+			productSales: 30,
+		},
+		{
+			region: 'Europe',
+			product: 'B',
+			productUnits: 5,
+			productSales: 50,
+		},
+		{
+			region: 'US',
+			product: 'A',
+			productUnits: 7,
+			productSales: 70,
+		},
+		{
+			region: 'US',
+			product: 'B',
+			productUnits: 9,
+			productSales: 90,
+		},
+	]);
+});
+
+test.serial('select from subquery sql', (t) => {
+	const { db } = t.context;
+
+	db.insert(users2Table).values({ name: 'John' }, { name: 'Jane' }).run();
+
+	const sq = db
+		.select({ name: sql<string>`${users2Table.name} || ' modified'`.as('name') })
+		.from(users2Table)
+		.as('sq');
+
+	const res = db.select({ name: sq.name }).from(sq).all();
+
+	t.deepEqual(res, [{ name: 'John modified' }, { name: 'Jane modified' }]);
+});
+
+test.serial('select a field without joining its table', (t) => {
+	const { db } = t.context;
+
+	t.throws(() => db.select({ name: users2Table.name }).from(usersTable).prepare());
+});
+
+test.serial('select all fields from subquery without alias', (t) => {
+	const { db } = t.context;
+
+	const sq = db.select({ name: sql<string>`upper(${users2Table.name})` }).from(users2Table).prepareWithSubquery('sq');
+
+	t.throws(() => db.select().from(sq).prepare());
+});
+
+test.serial('select count()', (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }).run();
+
+	const res = db.select({ count: sql`count(*)` }).from(usersTable).all();
+
+	t.deepEqual(res, [{ count: 2 }]);
 });
 
 test.after.always((t) => {
