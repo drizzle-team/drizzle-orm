@@ -15,7 +15,7 @@ export interface MigrationMeta {
 	sql: string;
 	folderMillis: number;
 	hash: string;
-	bps: number[];
+	bps: boolean;
 }
 
 export function readMigrationFiles(config: string | MigrationConfig): MigrationMeta[] {
@@ -38,11 +38,11 @@ export function readMigrationFiles(config: string | MigrationConfig): MigrationM
 	try {
 		journalAsString = fs.readFileSync(`${migrationFolderTo}/meta/_journal.json`).toString();
 	} catch (e) {
-		throw Error(`Can't find journal meta file`);
+		throw Error(`Can't find meta/_journal.json file`);
 	}
 
 	const journal = JSON.parse(journalAsString) as {
-		entries: { idx: number; when: number; tag: string, breakpoints: number[] }[];
+		entries: { idx: number; when: number; tag: string, breakpoints: boolean }[];
 	};
 
 	for (const journalEntry of journal.entries) {
