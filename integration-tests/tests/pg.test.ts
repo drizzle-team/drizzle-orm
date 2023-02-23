@@ -72,6 +72,16 @@ const network = pgTable('network_table', {
 	macaddr8: macaddr8('macaddr8').notNull(),
 });
 
+const salEmp = pgTable('sal_emp', {
+	name: text('name'),
+	payByQuarter: integer('pay_by_quarter').array(),
+	schedule: text('schedule').array().array(),
+});
+
+const tictactoe = pgTable('tictactoe', {
+	squares: integer('squares').array(3).array(3),
+});
+
 const usersMigratorTable = pgTable('users12', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
@@ -196,6 +206,18 @@ test.beforeEach(async (t) => {
 			cidr cidr not null,
 			macaddr macaddr not null,
 			macaddr8 macaddr8 not null
+		)`,
+	);
+	await ctx.db.execute(
+		sql`create table sal_emp (
+			name text not null,
+			pay_by_quarter integer[] not null,
+			schedule text[][] not null
+		)`,
+	);
+	await ctx.db.execute(
+		sql`create table tictactoe (
+			squares integer[3][3] not null
 		)`,
 	);
 });
@@ -1169,6 +1191,29 @@ test.serial('network types', async (t) => {
 	const res = await db.select().from(network);
 
 	t.deepEqual(res, [value]);
+});
+
+test.serial('array types', async (t) => {
+	const { db } = t.context;
+
+	const values: InferModel<typeof salEmp>[] = [
+		{
+			name: 'John',
+			payByQuarter: [10000, 10000, 10000, 10000],
+			schedule: [['meeting', 'lunch'], ['training', 'presentation']],
+		},
+		{
+			name: 'Carol',
+			payByQuarter: [20000, 25000, 25000, 25000],
+			schedule: [['breakfast', 'consulting'], ['meeting', 'lunch']],
+		},
+	];
+
+	await db.insert(salEmp).values(...values);
+
+	const res = await db.select().from(salEmp);
+
+	t.deepEqual(res, values);
 });
 
 test.after.always(async (t) => {
