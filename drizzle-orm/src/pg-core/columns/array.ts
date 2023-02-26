@@ -1,7 +1,7 @@
-import { ColumnBaseConfig, ColumnConfig } from '~/column';
+import { ColumnBaseConfig } from '~/column';
 import { UpdateCBConfig } from '~/column-builder';
 import { AnyPgTable } from '~/pg-core/table';
-import { SQL, SQLWrapper } from '~/sql';
+import { SQL } from '~/sql';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export interface PgArrayBuilderConfig {

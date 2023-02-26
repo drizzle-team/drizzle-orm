@@ -717,3 +717,7 @@ class MyLogger implements Logger {
 
 const db = drizzle(sqlite, { logger: new MyLogger() });
 ```
+
+## Table introspect API
+
+See [dedicated docs](/docs/table-introspect-api.md).

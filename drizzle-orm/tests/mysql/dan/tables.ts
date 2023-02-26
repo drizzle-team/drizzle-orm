@@ -1,9 +1,17 @@
+import {
+	check,
+	foreignKey,
+	index,
+	int,
+	mysqlEnum,
+	mysqlTable,
+	primaryKey,
+	serial,
+	text,
+	timestamp,
+	uniqueIndex,
+} from '~/mysql-core';
 import { sql } from '~/sql';
-
-import { check } from '~/mysql-core/checks';
-import { foreignKey } from '~/mysql-core/foreign-keys';
-import { int, mysqlEnum, mysqlTable, serial, text, timestamp } from '~/mysql-core/index';
-import { index, uniqueIndex } from '~/mysql-core/indexes';
 
 export const users = mysqlTable(
 	'users_table',
@@ -36,6 +44,7 @@ export const users = mysqlTable(
 			columns: [users.class, users.subClass],
 			foreignColumns: [classes.class, classes.subClass],
 		}),
+		pk: primaryKey(users.age1, users.class),
 	}),
 );
 

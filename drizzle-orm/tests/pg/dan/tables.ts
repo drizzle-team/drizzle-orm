@@ -1,9 +1,23 @@
 import { Equal, Expect } from 'tests/utils';
-import { check } from '~/pg-core/checks';
-import { cidr, inet, integer, macaddr, macaddr8, pgEnum, serial, text, timestamp, uuid } from '~/pg-core/columns';
-import { foreignKey } from '~/pg-core/foreign-keys';
-import { index, uniqueIndex } from '~/pg-core/indexes';
-import { InferModel, pgTable } from '~/pg-core/table';
+import {
+	check,
+	cidr,
+	foreignKey,
+	index,
+	inet,
+	InferModel,
+	integer,
+	macaddr,
+	macaddr8,
+	pgEnum,
+	pgTable,
+	primaryKey,
+	serial,
+	text,
+	timestamp,
+	uniqueIndex,
+	uuid,
+} from '~/pg-core';
 import { sql } from '~/sql';
 
 const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
@@ -42,6 +56,7 @@ export const users = pgTable(
 			columns: [users.class, users.subClass],
 			foreignColumns: [classes.class, classes.subClass],
 		}),
+		pk: primaryKey(users.age1, users.class),
 	}),
 );
 

@@ -38,7 +38,7 @@ With `drizzle-orm` you declare SQL schema in TypeScript. You can have either one
 
 ### Single schema file example
 
-```
+```plaintext
 📦 <project root>
  └ 📂 src
     └ 📂 db
@@ -47,7 +47,7 @@ With `drizzle-orm` you declare SQL schema in TypeScript. You can have either one
 
 ### Multiple schema files example
 
-```
+```plaintext
 📦 <project root>
  └ 📂 src
     └ 📂 db
@@ -768,3 +768,7 @@ class MyLogger implements Logger {
 
 const db = drizzle(pool, { logger: new MyLogger() });
 ```
+
+## Table introspect API
+
+See [dedicated docs](/docs/table-introspect-api.md).

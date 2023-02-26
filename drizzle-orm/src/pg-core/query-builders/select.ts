@@ -67,7 +67,7 @@ export class PgSelectBuilder<TSelection extends SelectFields | undefined> {
 				) => [key, table[key as unknown as keyof typeof table] as unknown as SelectFields[string]]),
 			);
 		} else {
-			fields = getTableColumns(table, { format: 'object' });
+			fields = getTableColumns(table);
 		}
 
 		const fieldsList = orderSelectedFields<AnyPgColumn>(fields);
