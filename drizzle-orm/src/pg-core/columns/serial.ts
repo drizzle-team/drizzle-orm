@@ -13,6 +13,7 @@ export class PgSerialBuilder extends PgColumnBuilder<{
 	constructor(name: string) {
 		super(name);
 		this.config.hasDefault = true;
+		this.config.notNull = true;
 	}
 
 	/** @internal */
