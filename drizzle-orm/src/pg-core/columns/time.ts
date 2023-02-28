@@ -40,7 +40,7 @@ export class PgTime<TTableName extends string, TData extends string>
 	}
 
 	getSQLType(): string {
-		const precision = typeof this.precision !== 'undefined' ? ` (${this.precision})` : '';
+		const precision = typeof this.precision !== 'undefined' ? `(${this.precision})` : '';
 		return `time${precision}${this.withTimezone ? ' with time zone' : ''}`;
 	}
 }
