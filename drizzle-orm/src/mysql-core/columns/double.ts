@@ -45,14 +45,14 @@ export class MySqlDouble<
 	}
 
 	getSQLType(): string {
-		return 'double';
-		// if (typeof this.precision !== 'undefined' && typeof this.scale !== 'undefined') {
-		// 	return `double(${this.precision}, ${this.scale})`;
-		// } else if (typeof this.precision === 'undefined') {
-		// 	return 'double';
-		// } else {
-		// 	return `double(${this.precision})`;
-		// }
+		// return 'double';
+		if (typeof this.precision !== 'undefined' && typeof this.scale !== 'undefined') {
+			return `double(${this.precision},${this.scale})`;
+		} else if (typeof this.precision === 'undefined') {
+			return 'double';
+		} else {
+			return `double(${this.precision})`;
+		}
 	}
 }
 
