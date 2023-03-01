@@ -17,6 +17,8 @@ export class PgTimeBuilder<TData extends string = string> extends PgDateColumnBa
 		readonly precision: number | undefined,
 	) {
 		super(name);
+		this.config.withTimezone = withTimezone;
+		this.config.precision = precision;
 	}
 
 	/** @internal */
