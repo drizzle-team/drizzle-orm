@@ -4,75 +4,145 @@ import { Table } from '~/table';
 
 import { AnyPgColumn } from '~/pg-core/columns';
 import { PgDialect } from '~/pg-core/dialect';
-import { SelectFields } from '~/pg-core/operations';
 import { PgSession, PreparedQuery, PreparedQueryConfig } from '~/pg-core/session';
-import { AnyPgTable, GetTableConfig, InferModel } from '~/pg-core/table';
-import { orderSelectedFields } from '~/pg-core/utils';
+import { AnyPgTable, GetTableConfig } from '~/pg-core/table';
 
 import {
+	GetSubquerySelection,
+	Subquery,
+	SubqueryConfig,
+	SubquerySelectionProxyHandler,
+	SubqueryWithSelection,
+	WithSubquery,
+	WithSubqueryWithSelection,
+} from '~/subquery';
+import { orderSelectedFields, Simplify } from '~/utils';
+import { getTableColumns } from '../utils';
+import {
 	AnyPgSelect,
+	BuildSubquerySelection,
+	GetSelectTableName,
 	JoinFn,
 	JoinNullability,
 	JoinType,
 	PgSelectConfig,
+	SelectFields,
 	SelectMode,
 	SelectResult,
 } from './select.types';
 
+export class PgSelectBuilder<TSelection extends SelectFields | undefined> {
+	constructor(
+		private fields: TSelection,
+		private session: PgSession,
+		private dialect: PgDialect,
+		private withList: Subquery[] = [],
+	) {}
+
+	from<TSubquery extends Subquery>(
+		subquery: TSubquery,
+	): PgSelect<
+		TSubquery,
+		TSelection extends undefined ? GetSubquerySelection<TSubquery> : TSelection,
+		TSelection extends undefined ? 'single' : 'partial'
+	>;
+	from<TTable extends AnyPgTable>(
+		table: TTable,
+	): PgSelect<
+		TTable,
+		TSelection extends undefined ? GetTableConfig<TTable, 'columns'> : TSelection,
+		TSelection extends undefined ? 'single' : 'partial'
+	>;
+	from(table: AnyPgTable | Subquery): AnyPgSelect {
+		const isPartialSelect = !!this.fields;
+
+		let fields: SelectFields;
+		if (this.fields) {
+			fields = this.fields;
+		} else if (table instanceof Subquery) {
+			// This is required to use the proxy handler to get the correct field values from the subquery
+			fields = Object.fromEntries(
+				Object.keys(table[SubqueryConfig].selection).map((
+					key,
+				) => [key, table[key as unknown as keyof typeof table] as unknown as SelectFields[string]]),
+			);
+		} else {
+			fields = getTableColumns(table, { format: 'object' });
+		}
+
+		const fieldsList = orderSelectedFields<AnyPgColumn>(fields);
+		return new PgSelect(table, fields, fieldsList, isPartialSelect, this.session, this.dialect, this.withList);
+	}
+}
+
 export interface PgSelect<
-	TTable extends AnyPgTable,
-	TResult = InferModel<TTable>,
+	TTable extends AnyPgTable | Subquery,
+	TSelection,
 	TSelectMode extends SelectMode = 'single',
-	TJoinsNotNullable extends Record<string, JoinNullability> = Record<GetTableConfig<TTable, 'name'>, 'not-null'>,
-> extends QueryPromise<SelectResult<TResult, TSelectMode, TJoinsNotNullable>[]>, SQLWrapper {}
+	TNullability extends Record<string, JoinNullability> = Record<GetSelectTableName<TTable>, 'not-null'>,
+> extends QueryPromise<SelectResult<TSelection, TSelectMode, TNullability>[]>, SQLWrapper {}
 
 export class PgSelect<
-	TTable extends AnyPgTable,
-	// TResult is either a map of columns (partial select) or a map of inferred field types (full select)
-	TResult = InferModel<TTable>,
+	TTable extends AnyPgTable | Subquery,
+	TSelection,
 	TSelectMode extends SelectMode = 'single',
-	TJoinsNotNullable extends Record<string, JoinNullability> = Record<GetTableConfig<TTable, 'name'>, 'not-null'>,
-> extends QueryPromise<SelectResult<TResult, TSelectMode, TJoinsNotNullable>[]> implements SQLWrapper {
+	TNullability extends Record<string, JoinNullability> = Record<GetSelectTableName<TTable>, 'not-null'>,
+> extends QueryPromise<SelectResult<TSelection, TSelectMode, TNullability>[]> implements SQLWrapper {
 	declare protected $table: TTable;
 	declare protected $selectMode: TSelectMode;
-	declare protected $result: TResult;
+	declare protected $selection: TSelection;
 
 	private config: PgSelectConfig;
-	private isPartialSelect = false;
 	private joinsNotNullable: Record<string, boolean>;
+	private tableName: string;
 
 	constructor(
 		table: PgSelectConfig['table'],
 		fields: PgSelectConfig['fields'],
+		fieldsList: PgSelectConfig['fieldsList'],
+		private isPartialSelect: boolean,
 		private session: PgSession,
 		private dialect: PgDialect,
+		withList: Subquery[],
 	) {
 		super();
 		this.config = {
+			withList,
 			table,
 			fields,
+			fieldsList,
 			joins: {},
 			orderBy: [],
 			groupBy: [],
 		};
-		this.joinsNotNullable = { [table[Table.Symbol.Name]]: true };
+		this.tableName = table instanceof Subquery ? table[SubqueryConfig].alias : table[Table.Symbol.Name];
+		this.joinsNotNullable = { [this.tableName]: true };
 	}
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): JoinFn<TTable, TSelectMode, TJoinType, TResult, TJoinsNotNullable> {
-		return (table: AnyPgTable, on: SQL): AnyPgSelect => {
-			const tableName = table[Table.Symbol.Name];
+	): JoinFn<TTable, TSelectMode, TJoinType, TSelection, TNullability> {
+		return (table: AnyPgTable | Subquery, on: SQL | undefined): AnyPgSelect => {
+			const tableName = table instanceof Subquery ? table[SubqueryConfig].alias : table[Table.Symbol.Name];
+
+			if (this.config.joins[tableName]) {
+				throw new Error(`Alias "${tableName}" is already used in this query`);
+			}
 
 			if (!this.isPartialSelect) {
 				// If this is the first join and this is not a partial select, "move" the fields from the main table to the nested object
 				if (Object.keys(this.joinsNotNullable).length === 1) {
-					this.config.fields = this.config.fields.map((field) => ({
+					this.config.fieldsList = this.config.fieldsList.map((field) => ({
 						...field,
-						path: [this.config.table[Table.Symbol.Name], ...field.path],
+						path: [this.tableName, ...field.path],
 					}));
 				}
-				this.config.fields.push(...orderSelectedFields(table[Table.Symbol.Columns], [tableName]));
+				this.config.fieldsList.push(
+					...orderSelectedFields<AnyPgColumn>(
+						table instanceof Subquery ? table[SubqueryConfig].selection : table[Table.Symbol.Columns],
+						[tableName],
+					),
+				);
 			}
 
 			this.config.joins[tableName] = { on, table, joinType };
@@ -88,9 +158,6 @@ export class PgSelect<
 					this.joinsNotNullable[tableName] = true;
 					break;
 				case 'inner':
-					this.joinsNotNullable = Object.fromEntries(
-						Object.entries(this.joinsNotNullable).map(([key]) => [key, true]),
-					);
 					this.joinsNotNullable[tableName] = true;
 					break;
 				case 'full':
@@ -113,14 +180,6 @@ export class PgSelect<
 
 	fullJoin = this.createJoin('full');
 
-	fields<TSelect extends SelectFields>(
-		fields: TSelect,
-	): Omit<PgSelect<TTable, TSelect, 'partial', TJoinsNotNullable>, 'fields'> {
-		this.config.fields = orderSelectedFields(fields);
-		this.isPartialSelect = true;
-		return this as AnyPgSelect;
-	}
-
 	where(where: SQL | undefined): Omit<this, 'where' | `${JoinType}Join`> {
 		this.config.where = where;
 		return this;
@@ -131,7 +190,7 @@ export class PgSelect<
 		return this;
 	}
 
-	orderBy(...columns: SQL[]): Omit<this, 'where' | `${JoinType}Join` | 'orderBy'> {
+	orderBy(...columns: (AnyPgColumn | SQL)[]): Omit<this, 'where' | `${JoinType}Join` | 'orderBy'> {
 		this.config.orderBy = columns;
 		return this;
 	}
@@ -151,21 +210,26 @@ export class PgSelect<
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(): Omit<Query, 'typings'> {
+		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		return rest;
 	}
 
 	private _prepare(name?: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: SelectResult<TResult, TSelectMode, TJoinsNotNullable>[];
+			execute: SelectResult<TSelection, TSelectMode, TNullability>[];
 		}
 	> {
-		return this.session.prepareQuery(this.toSQL(), this.config.fields, name);
+		const query = this.session.prepareQuery<
+			PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullability>[] }
+		>(this.dialect.sqlToQuery(this.getSQL()), this.config.fieldsList, name);
+		query.joinsNotNullableMap = this.joinsNotNullable;
+		return query;
 	}
 
 	prepare(name: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: SelectResult<TResult, TSelectMode, TJoinsNotNullable>[];
+			execute: SelectResult<TSelection, TSelectMode, TNullability>[];
 		}
 	> {
 		return this._prepare(name);
@@ -174,4 +238,22 @@ export class PgSelect<
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return this._prepare().execute(placeholderValues);
 	};
+
+	as<TAlias extends string>(
+		alias: TAlias,
+	): SubqueryWithSelection<Simplify<BuildSubquerySelection<TSelection, TAlias, TNullability>>, TAlias> {
+		return new Proxy(
+			new Subquery(this.getSQL(), this.config.fields, alias),
+			new SubquerySelectionProxyHandler(alias),
+		) as SubqueryWithSelection<Simplify<BuildSubquerySelection<TSelection, TAlias, TNullability>>, TAlias>;
+	}
+
+	prepareWithSubquery<TAlias extends string>(
+		alias: TAlias,
+	): WithSubqueryWithSelection<Simplify<BuildSubquerySelection<TSelection, TAlias, TNullability>>, TAlias> {
+		return new Proxy(
+			new WithSubquery(this.getSQL(), this.config.fields, alias, true),
+			new SubquerySelectionProxyHandler(alias),
+		) as WithSubqueryWithSelection<Simplify<BuildSubquerySelection<TSelection, TAlias, TNullability>>, TAlias>;
+	}
 }

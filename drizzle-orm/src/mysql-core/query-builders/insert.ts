@@ -1,11 +1,17 @@
 import { MySqlDialect } from '~/mysql-core/dialect';
-import { SelectFieldsOrdered } from '~/mysql-core/operations';
-import { MySqlRawQueryResult, MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/mysql-core/session';
+import {
+	MySqlSession,
+	PreparedQuery,
+	PreparedQueryConfig,
+	QueryResultHKT,
+	QueryResultKind,
+} from '~/mysql-core/session';
 import { AnyMySqlTable, InferModel } from '~/mysql-core/table';
-import { mapUpdateSet } from '~/mysql-core/utils';
 import { QueryPromise } from '~/query-promise';
 import { Param, Placeholder, Query, SQL, sql, SQLWrapper } from '~/sql';
 import { Table } from '~/table';
+import { mapUpdateSet, Simplify } from '~/utils';
+import { SelectFieldsOrdered } from './select.types';
 import { MySqlUpdateSetSource } from './update';
 export interface MySqlInsertConfig<TTable extends AnyMySqlTable = AnyMySqlTable> {
 	table: TTable;
@@ -20,14 +26,14 @@ export type MySqlInsertValue<TTable extends AnyMySqlTable> = {
 	[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
 };
 
-export class MySqlInsertBuilder<TTable extends AnyMySqlTable> {
+export class MySqlInsertBuilder<TTable extends AnyMySqlTable, TQueryResult extends QueryResultHKT> {
 	constructor(
 		private table: TTable,
 		private session: MySqlSession,
 		private dialect: MySqlDialect,
 	) {}
 
-	values(...values: MySqlInsertValue<TTable>[]): MySqlInsert<TTable> {
+	values(...values: MySqlInsertValue<TTable>[]): MySqlInsert<TTable, TQueryResult> {
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
 			const cols = this.table[Table.Symbol.Columns];
@@ -46,10 +52,11 @@ export class MySqlInsertBuilder<TTable extends AnyMySqlTable> {
 	}
 }
 
-export interface MySqlInsert<TTable extends AnyMySqlTable, TReturning = undefined>
-	extends QueryPromise<MySqlRawQueryResult>, SQLWrapper
+export interface MySqlInsert<TTable extends AnyMySqlTable, TQueryResult extends QueryResultHKT, TReturning = undefined>
+	extends QueryPromise<QueryResultKind<TQueryResult, never>>, SQLWrapper
 {}
-export class MySqlInsert<TTable extends AnyMySqlTable, TReturning = undefined> extends QueryPromise<MySqlRawQueryResult>
+export class MySqlInsert<TTable extends AnyMySqlTable, TQueryResult extends QueryResultHKT, TReturning = undefined>
+	extends QueryPromise<QueryResultKind<TQueryResult, never>>
 	implements SQLWrapper
 {
 	declare protected $table: TTable;
@@ -67,23 +74,6 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TReturning = undefined> e
 		this.config = { table, values };
 	}
 
-	// onDuplicateDoUpdate(
-	// 	target:
-	// 		| SQL<GetTableConfig<TTable, 'name'>>
-	// 		| ((constraints: GetTableConflictConstraints<TTable>) => Check<GetTableConfig<TTable, 'name'>>),
-	// 	set: MySqlUpdateSet<TTable>,
-	// ): Pick<this, 'returning' | 'getQuery' | 'execute'> {
-	// 	const setSql = this.dialect.buildUpdateSet<GetTableConfig<TTable, 'name'>>(this.config.table, set);
-
-	// 	if (target instanceof SQL) {
-	// 		this.config.onConflict = sql<GetTableConfig<TTable, 'name'>>`${target} do update set ${setSql}`;
-	// 	} else {
-	// 		const targetSql = new Name(target(this.config.table[tableConflictConstraints]).name);
-	// 		this.config.onConflict = sql`on constraint ${targetSql} do update set ${setSql}`;
-	// 	}
-	// 	return this;
-	// }
-
 	onDuplicateKeyUpdate(config: {
 		// target?: IndexColumn | IndexColumn[];
 		set: MySqlUpdateSetSource<TTable>;
@@ -98,21 +88,22 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TReturning = undefined> e
 		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(): Simplify<Omit<Query, 'typings'>> {
+		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		return rest;
 	}
 
 	private _prepare(name?: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: MySqlRawQueryResult;
+			execute: QueryResultKind<TQueryResult, never>;
 		}
 	> {
-		return this.session.prepareQuery(this.toSQL(), this.config.returning, name);
+		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
 	}
 
 	prepare(name: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: MySqlRawQueryResult;
+			execute: QueryResultKind<TQueryResult, never>;
 		}
 	> {
 		return this._prepare(name);

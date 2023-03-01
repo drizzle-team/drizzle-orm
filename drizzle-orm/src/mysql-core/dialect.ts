@@ -1,14 +1,14 @@
 import { AnyColumn, Column } from '~/column';
 import { MigrationMeta } from '~/migrator';
-import { SelectFieldsOrdered } from '~/operations';
-import { Name, Query, SQL, sql, SQLResponse, SQLSourceParam } from '~/sql';
-import { Table } from '~/table';
+import { Name, Query, SQL, sql, SQLSourceParam } from '~/sql';
+import { Subquery, SubqueryConfig } from '~/subquery';
+import { getTableName, Table } from '~/table';
+import { UpdateSet } from '~/utils';
 import { AnyMySqlColumn, MySqlColumn } from './columns/common';
-import { MySqlDatabase } from './db';
 import { MySqlDeleteConfig } from './query-builders/delete';
 import { MySqlInsertConfig } from './query-builders/insert';
-import { MySqlSelectConfig } from './query-builders/select.types';
-import { MySqlUpdateConfig, MySqlUpdateSet } from './query-builders/update';
+import { MySqlSelectConfig, SelectFieldsOrdered } from './query-builders/select.types';
+import { MySqlUpdateConfig } from './query-builders/update';
 import { MySqlSession } from './session';
 import { AnyMySqlTable, MySqlTable } from './table';
 
@@ -56,10 +56,6 @@ export class MySqlDialect {
 		}
 	}
 
-	createDB(session: MySqlSession): MySqlDatabase {
-		return new MySqlDatabase(this, session);
-	}
-
 	escapeName(name: string): string {
 		return `\`${name}\``;
 	}
@@ -78,7 +74,7 @@ export class MySqlDialect {
 		return sql`delete from ${table}${whereSql}${returningSql}`;
 	}
 
-	buildUpdateSet(table: AnyMySqlTable, set: MySqlUpdateSet): SQL {
+	buildUpdateSet(table: AnyMySqlTable, set: UpdateSet): SQL {
 		const setEntries = Object.entries(set);
 
 		const setSize = setEntries.length;
@@ -129,8 +125,10 @@ export class MySqlDialect {
 			.map(({ field }, i) => {
 				const chunk: SQLSourceParam[] = [];
 
-				if (field instanceof SQLResponse || field instanceof SQL) {
-					const query = field instanceof SQLResponse ? field.sql : field;
+				if (field instanceof SQL.Aliased && field.isSubquerySelectionField) {
+					chunk.push(new Name(field.fieldAlias));
+				} else if (field instanceof SQL.Aliased || field instanceof SQL) {
+					const query = field instanceof SQL.Aliased ? field.sql : field;
 
 					if (isSingleTable) {
 						chunk.push(
@@ -145,6 +143,10 @@ export class MySqlDialect {
 						);
 					} else {
 						chunk.push(query);
+					}
+
+					if (field instanceof SQL.Aliased) {
+						chunk.push(sql` as ${new Name(field.fieldAlias)}`);
 					}
 				} else if (field instanceof Column) {
 					if (isSingleTable) {
@@ -165,10 +167,42 @@ export class MySqlDialect {
 		return sql.fromList(chunks);
 	}
 
-	buildSelectQuery({ fields, where, table, joins, orderBy, groupBy, limit, offset }: MySqlSelectConfig): SQL {
-		const joinKeys = Object.keys(joins);
+	buildSelectQuery(
+		{ withList, fieldsList: fields, where, table, joins, orderBy, groupBy, limit, offset }: MySqlSelectConfig,
+	): SQL {
+		fields.forEach((f) => {
+			let tableName: string;
+			if (
+				f.field instanceof Column
+				&& getTableName(f.field.table)
+					!== (table instanceof Subquery ? table[SubqueryConfig].alias : getTableName(table))
+				&& !((tableName = getTableName(f.field.table)) in joins)
+			) {
+				throw new Error(
+					`Your "${
+						f.path.join('->')
+					}" field references a column "${tableName}"."${f.field.name}", but the table "${tableName}" is not part of the query! Did you forget to join it?`,
+				);
+			}
+		});
 
-		const selection = this.buildSelection(fields, { isSingleTable: joinKeys.length === 0 });
+		const joinKeys = Object.keys(joins);
+		const isSingleTable = joinKeys.length === 0;
+
+		let withSql: SQL | undefined;
+		if (withList.length) {
+			const withSqlChunks = [sql`with `];
+			withList.forEach((w, i) => {
+				withSqlChunks.push(sql`${new Name(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
+				if (i < withList.length - 1) {
+					withSqlChunks.push(sql`, `);
+				}
+			});
+			withSqlChunks.push(sql` `);
+			withSql = sql.fromList(withSqlChunks);
+		}
+
+		const selection = this.buildSelection(fields, { isSingleTable });
 
 		const joinsArray: SQL[] = [];
 
@@ -178,15 +212,22 @@ export class MySqlDialect {
 			}
 			const joinMeta = joins[tableAlias]!;
 			const table = joinMeta.table;
-			const tableName = table[MySqlTable.Symbol.Name];
-			const tableSchema = table[MySqlTable.Symbol.Schema];
-			const origTableName = table[MySqlTable.Symbol.OriginalName];
-			const alias = tableName === origTableName ? undefined : tableAlias;
-			joinsArray.push(
-				sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? new Name(tableSchema) : sql.raw('')}${
-					sql.raw(tableSchema ? '.' : '')
-				}${new Name(origTableName)} ${alias && new Name(alias)} on ${joinMeta.on}`,
-			);
+
+			if (table instanceof MySqlTable) {
+				const tableName = table[MySqlTable.Symbol.Name];
+				const tableSchema = table[MySqlTable.Symbol.Schema];
+				const origTableName = table[MySqlTable.Symbol.OriginalName];
+				const alias = tableName === origTableName ? undefined : tableAlias;
+				joinsArray.push(
+					sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${new Name(tableSchema)}.` : undefined}${new Name(
+						origTableName,
+					)} ${alias && new Name(alias)} on ${joinMeta.on}`,
+				);
+			} else {
+				joinsArray.push(
+					sql`${sql.raw(joinMeta.joinType)} join ${table} on ${joinMeta.on}`,
+				);
+			}
 			if (index < joinKeys.length - 1) {
 				joinsArray.push(sql` `);
 			}
@@ -196,7 +237,7 @@ export class MySqlDialect {
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		const orderByList: SQL[] = [];
+		const orderByList: (AnyMySqlColumn | SQL)[] = [];
 		orderBy.forEach((orderByValue, index) => {
 			orderByList.push(orderByValue);
 
@@ -222,7 +263,7 @@ export class MySqlDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		return sql`select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${orderBySql}${limitSql}${offsetSql}`;
+		return sql`${withSql}select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: MySqlInsertConfig): SQL {

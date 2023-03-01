@@ -1,4 +1,4 @@
-import { AnyColumn, ColumnConfig, GetColumnData } from '~/column';
+import { GetColumnData } from '~/column';
 import { OptionalKeyOnly, RequiredKeyOnly } from '~/operations';
 import { Table } from '~/table';
 import { Update } from '~/utils';
@@ -19,7 +19,7 @@ export type SQLiteTableExtraConfig = Record<
 >;
 export interface TableConfig {
 	name: string;
-	columns: Record<string | symbol, AnySQLiteColumn>;
+	columns: Record<string, AnySQLiteColumn>;
 }
 
 export type UpdateTableConfig<T extends TableConfig, TUpdate extends Partial<TableConfig>> = Update<T, TUpdate>;

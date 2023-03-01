@@ -12,50 +12,49 @@ import { customers, details, employees, orders, products, suppliers } from './sc
 const sqlite = new Database('northwind.db');
 const db = drizzle(sqlite);
 
-const d1 = db.select(customers).prepare();
+const d1 = db.select().from(customers).prepare();
 const d2 = db
-	.select(customers)
+	.select().from(customers)
 	.where(eq(customers.id, placeholder('userId')))
 	.prepare();
 const d3 = db
-	.select(customers)
+	.select().from(customers)
 	.where(sql`${customers.companyName} like ${placeholder('name')}`)
 	.prepare();
-const d4 = db.select(employees).prepare();
+const d4 = db.select().from(employees).prepare();
 
 const e2 = alias(employees, 'recipient');
 const d5 = db
-	.select(employees)
+	.select().from(employees)
 	.leftJoin(e2, eq(e2.id, employees.reportsTo))
 	.where(eq(employees.id, placeholder('employeeId')))
 	.prepare();
 
-const d6 = db.select(suppliers).prepare();
-const d7 = db.select(products).prepare();
+const d6 = db.select().from(suppliers).prepare();
+const d7 = db.select().from(products).prepare();
 const d8 = db
-	.select(products)
+	.select().from(products)
 	.where(sql`${products.name} like ${placeholder('name')}`)
 	.prepare();
 
 const d9 = db
-	.select(orders)
+	.select().from(orders)
 	.leftJoin(details, eq(orders.id, details.orderId))
 	.leftJoin(products, eq(details.productId, products.id))
 	.where(eq(orders.id, placeholder('orderId')))
 	.prepare();
 
 const d10 = db
-	.select(orders)
-	.fields({
+	.select({
 		id: orders.id,
 		shippedDate: orders.shippedDate,
 		shipName: orders.shipName,
 		shipCity: orders.shipCity,
 		shipCountry: orders.shipCountry,
-		productsCount: sql`count(${details.productId})`.as<number>(),
-		quantitySum: sql`sum(${details.quantity})`.as<number>(),
-		totalPrice: sql`sum(${details.quantity} * ${details.unitPrice})`.as<number>(),
-	})
+		productsCount: sql<number>`count(${details.productId})`,
+		quantitySum: sql<number>`sum(${details.quantity})`,
+		totalPrice: sql<number>`sum(${details.quantity} * ${details.unitPrice})`,
+	}).from(orders)
 	.leftJoin(details, eq(orders.id, details.orderId))
 	.groupBy(orders.id)
 	.orderBy(asc(orders.id))

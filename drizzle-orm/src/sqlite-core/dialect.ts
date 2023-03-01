@@ -1,17 +1,13 @@
 import { AnyColumn, Column } from '~/column';
 import { MigrationMeta } from '~/migrator';
-import { Name, param, Query, SQL, sql, SQLResponse, SQLSourceParam } from '~/sql';
+import { Name, param, Query, SQL, sql, SQLSourceParam } from '~/sql';
 import { AnySQLiteColumn, SQLiteColumn } from '~/sqlite-core/columns';
-import { SelectFieldsOrdered } from '~/sqlite-core/operations';
-import {
-	SQLiteDeleteConfig,
-	SQLiteInsertConfig,
-	SQLiteUpdateConfig,
-	SQLiteUpdateSet,
-} from '~/sqlite-core/query-builders';
+import { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders';
 import { AnySQLiteTable, SQLiteTable } from '~/sqlite-core/table';
-import { Table } from '~/table';
-import { SQLiteSelectConfig } from './query-builders/select.types';
+import { Subquery, SubqueryConfig } from '~/subquery';
+import { getTableName, Table } from '~/table';
+import { UpdateSet } from '~/utils';
+import { SelectFieldsOrdered, SQLiteSelectConfig } from './query-builders/select.types';
 import { SQLiteSession } from './session';
 
 export abstract class SQLiteDialect {
@@ -33,7 +29,7 @@ export abstract class SQLiteDialect {
 		return sql`delete from ${table}${whereSql}${returningSql}`;
 	}
 
-	buildUpdateSet(table: AnySQLiteTable, set: SQLiteUpdateSet): SQL {
+	buildUpdateSet(table: AnySQLiteTable, set: UpdateSet): SQL {
 		const setEntries = Object.entries(set);
 
 		const setSize = setEntries.length;
@@ -84,8 +80,10 @@ export abstract class SQLiteDialect {
 			.map(({ field }, i) => {
 				const chunk: SQLSourceParam[] = [];
 
-				if (field instanceof SQLResponse || field instanceof SQL) {
-					const query = field instanceof SQLResponse ? field.sql : field;
+				if (field instanceof SQL.Aliased && field.isSubquerySelectionField) {
+					chunk.push(new Name(field.fieldAlias));
+				} else if (field instanceof SQL.Aliased || field instanceof SQL) {
+					const query = field instanceof SQL.Aliased ? field.sql : field;
 
 					if (isSingleTable) {
 						chunk.push(
@@ -100,6 +98,10 @@ export abstract class SQLiteDialect {
 						);
 					} else {
 						chunk.push(query);
+					}
+
+					if (field instanceof SQL.Aliased) {
+						chunk.push(sql` as ${new Name(field.fieldAlias)}`);
 					}
 				} else if (field instanceof Column) {
 					if (isSingleTable) {
@@ -120,10 +122,42 @@ export abstract class SQLiteDialect {
 		return sql.fromList(chunks);
 	}
 
-	buildSelectQuery({ fields, where, table, joins, orderBy, groupBy, limit, offset }: SQLiteSelectConfig): SQL {
-		const joinKeys = Object.keys(joins);
+	buildSelectQuery(
+		{ withList, fieldsList: fields, where, table, joins, orderBy, groupBy, limit, offset }: SQLiteSelectConfig,
+	): SQL {
+		fields.forEach((f) => {
+			let tableName: string;
+			if (
+				f.field instanceof Column
+				&& getTableName(f.field.table)
+					!== (table instanceof Subquery ? table[SubqueryConfig].alias : getTableName(table))
+				&& !((tableName = getTableName(f.field.table)) in joins)
+			) {
+				throw new Error(
+					`Your "${
+						f.path.join('->')
+					}" field references a column "${tableName}"."${f.field.name}", but the table "${tableName}" is not part of the query! Did you forget to join it?`,
+				);
+			}
+		});
 
-		const selection = this.buildSelection(fields, { isSingleTable: joinKeys.length === 0 });
+		const joinKeys = Object.keys(joins);
+		const isSingleTable = joinKeys.length === 0;
+
+		let withSql: SQL | undefined;
+		if (withList.length) {
+			const withSqlChunks = [sql`with `];
+			withList.forEach((w, i) => {
+				withSqlChunks.push(sql`${new Name(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
+				if (i < withList.length - 1) {
+					withSqlChunks.push(sql`, `);
+				}
+			});
+			withSqlChunks.push(sql` `);
+			withSql = sql.fromList(withSqlChunks);
+		}
+
+		const selection = this.buildSelection(fields, { isSingleTable });
 
 		const joinsArray: SQL[] = [];
 
@@ -133,14 +167,22 @@ export abstract class SQLiteDialect {
 			}
 			const joinMeta = joins[tableAlias]!;
 			const table = joinMeta.table;
-			const tableName = table[Table.Symbol.Name];
-			const origTableName = table[SQLiteTable.Symbol.OriginalName];
-			const alias = tableName === origTableName ? undefined : tableAlias;
-			joinsArray.push(
-				sql`${sql.raw(joinMeta.joinType)} join ${new Name(origTableName)} ${
-					alias && new Name(alias)
-				} on ${joinMeta.on}`,
-			);
+
+			if (table instanceof SQLiteTable) {
+				const tableName = table[SQLiteTable.Symbol.Name];
+				const tableSchema = table[SQLiteTable.Symbol.Schema];
+				const origTableName = table[SQLiteTable.Symbol.OriginalName];
+				const alias = tableName === origTableName ? undefined : tableAlias;
+				joinsArray.push(
+					sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${new Name(tableSchema)}.` : undefined}${new Name(
+						origTableName,
+					)} ${alias && new Name(alias)} on ${joinMeta.on}`,
+				);
+			} else {
+				joinsArray.push(
+					sql`${sql.raw(joinMeta.joinType)} join ${table} on ${joinMeta.on}`,
+				);
+			}
 			if (index < joinKeys.length - 1) {
 				joinsArray.push(sql` `);
 			}
@@ -150,7 +192,7 @@ export abstract class SQLiteDialect {
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		const orderByList: SQL[] = [];
+		const orderByList: (AnySQLiteColumn | SQL)[] = [];
 		orderBy.forEach((orderByValue, index) => {
 			orderByList.push(orderByValue);
 
@@ -176,7 +218,7 @@ export abstract class SQLiteDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		return sql`select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${orderBySql}${limitSql}${offsetSql}`;
+		return sql`${withSql}select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: SQLiteInsertConfig): SQL {

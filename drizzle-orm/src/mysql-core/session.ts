@@ -1,14 +1,17 @@
 import { FieldPacket, OkPacket, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { Query, SQL } from '~/sql';
 import { MySqlDialect } from './dialect';
-import { SelectFieldsOrdered } from './operations';
+import { SelectFieldsOrdered } from './query-builders/select.types';
 
-// TODO: improve type
-export type MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]];
-export type MySqlQueryResultType = RowDataPacket[][] | RowDataPacket[] | OkPacket | OkPacket[] | ResultSetHeader;
-export type MySqlQueryResult<
-	T = any,
-> = [T extends ResultSetHeader ? T : T[], FieldPacket[]];
+export interface QueryResultHKT {
+	readonly $brand: 'MySqlQueryRowHKT';
+	readonly row: unknown;
+	readonly type: unknown;
+}
+
+export type QueryResultKind<TKind extends QueryResultHKT, TRow> = (TKind & {
+	readonly row: TRow;
+})['type'];
 
 export interface PreparedQueryConfig {
 	execute: unknown;
@@ -17,6 +20,9 @@ export interface PreparedQueryConfig {
 }
 
 export abstract class PreparedQuery<T extends PreparedQueryConfig> {
+	/** @internal */
+	joinsNotNullableMap?: Record<string, boolean>;
+
 	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
 
 	/** @internal */

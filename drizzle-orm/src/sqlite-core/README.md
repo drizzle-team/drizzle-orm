@@ -19,6 +19,7 @@ Here you can find extensive docs for SQLite module.
 | [bun:sqlite](https://github.com/oven-sh/bun#bunsqlite-sqlite3-module) | ✅ | [Example](https://github.com/drizzle-team/drizzle-orm/tree/main/examples/bun-sqlite)| |
 | [Cloudflare D1](https://developers.cloudflare.com/d1/) | ✅ | [Example](https://github.com/drizzle-team/drizzle-orm/tree/main/examples/cloudflare-d1)| |
 | [Fly.io LiteFS](https://fly.io/docs/litefs/getting-started/) | ✅ | | |
+| [Custom proxy driver](https://github.com/drizzle-team/drizzle-orm/tree/main/examples/sqlite-proxy) | ✅ | | |
 
 ## 💾 Installation
 
@@ -43,7 +44,7 @@ const users = sqliteTable('users', {
 const sqlite = new Database('sqlite.db');
 const db = drizzle(sqlite);
 
-const users = db.select(users).all();
+const users = db.select().from(users).all();
 ```
 
 ## Connecting to databases
@@ -55,7 +56,7 @@ import Database from 'better-sqlite3';
 
 const sqlite = new Database('sqlite.db');
 const db: BetterSQLite3Database = drizzle(sqlite);
-const result = db.select(users).all()
+const result = db.select().from(users).all()
 
 // bun js embedded sqlite connector
 import { drizzle, BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
@@ -63,14 +64,27 @@ import { Database } from 'bun:sqlite';
 
 const sqlite = new Database('nw.sqlite');
 const db: BunSQLiteDatabase = drizzle(sqlite);
-const result = db.select(users).all()
+const result = db.select().from(users).all()
 
 // Cloudflare D1 connector
 import { drizzle, DrizzleD1Database } from 'drizzle-orm/d1';
 
 // env.DB from cloudflare worker environment
 const db: DrizzleD1Database = drizzle(env.DB);
-const result = await db.select(users).all() // pay attention this one is async
+const result = await db.select().from(users).all(); // pay attention this one is async
+
+// Custom Proxy HTTP driver
+  const db = drizzle(async (sql, params, method) => {
+    try {
+      const rows = await axios.post('http://localhost:3000/query', { sql, params, method });
+
+      return { rows: rows.data };
+    } catch (e: any) {
+      console.error('Error from sqlite proxy server: ', e.response.data)
+      return { rows: [] };
+    }
+  });
+// More example for proxy: https://github.com/drizzle-team/drizzle-orm/tree/main/examples/sqlite-proxy
 ```
 
 ## SQL schema declaration
@@ -142,7 +156,7 @@ import Database from 'better-sqlite3';
 const sqlite = new Database('sqlite.db');
 const db: BetterSQLite3Database = drizzle(sqlite);
 
-const result: User[] = await db.select(users).all()
+const result: User[] = db.select().from(users).all();
 
 const insertUser = (user: InsertUser) => {
   return db.insert(users).values(user).run()
@@ -233,29 +247,91 @@ const users = sqliteTable('users', {
 const sqlite = new Database('sqlite.db');
 const db = drizzle(sqlite);
 
-db.select(users).all();
-db.select(users).where(eq(users.id, 42)).get();
+db.select().from(users).all();
+db.select().from(users).where(eq(users.id, 42)).get();
 
 // you can combine filters with and(...) or or(...)
-db.select(users).where(and(eq(users.id, 42), eq(users.name, 'Dan'))).all();
+db.select().from(users).where(and(eq(users.id, 42), eq(users.name, 'Dan'))).all();
 
-db.select(users).where(or(eq(users.id, 42), eq(users.id, 1))).all();
+db.select().from(users).where(or(eq(users.id, 42), eq(users.id, 1))).all();
 
 // partial select
-const result = db.select(users).fields({
+const result = db
+  .select({
     field1: users.id,
     field2: users.name,
-  }).all();
+  })
+  .from(users)
+  .all();
 const { field1, field2 } = result[0];
 
 // limit offset & order by
-db.select(users).limit(10).offset(10).all();
-db.select(users).orderBy(asc(users.name)).all();
-db.select(users).orderBy(desc(users.name)).all();
+db.select().from(users).limit(10).offset(10).all();
+db.select().from(users).orderBy(users.name).all();
+db.select().from(users).orderBy(desc(users.name)).all();
 // you can pass multiple order args
-db.select(users).orderBy(asc(users.name), desc(users.name)).all();
+db.select().from(users).orderBy(asc(users.name), desc(users.name)).all();
+```
 
-// list of all filter operators
+#### Conditionally select fields
+
+```typescript
+function selectUsers(withName: boolean) {
+  return db
+    .select({
+      id: users.id,
+      ...(withName ? { name: users.name } : {}),
+    })
+    .from(users)
+    .all();
+}
+
+const users = selectUsers(true);
+```
+
+#### WITH clause
+
+```typescript
+const sq = db.select().from(users).where(eq(users.id, 42)).prepareWithSubquery('sq');
+const result = db.with(sq).select().from(sq).all();
+```
+
+> **Note**: Keep in mind, that if you need to select raw `sql` in a WITH subquery and reference that field in other queries, you must add an alias to it:
+
+```typescript
+const sq = db
+  .select({
+    name: sql<string>`upper(${users.name})`.as('name'),
+  })
+  .from(users)
+  .prepareWithSubquery('sq');
+
+const result = db
+  .select({
+    name: sq.name,
+  })
+  .from(sq)
+  .all();
+```
+
+Otherwise, the field type will become `DrizzleTypeError` and you won't be able to reference it in other queries. If you ignore the type error and still try to reference the field, you will get a runtime error, because we cannot reference that field without an alias.
+
+#### Select from subquery
+
+```typescript
+const sq = db.select().from(users).where(eq(users.id, 42)).subquery('sq');
+db.select().from(sq).all();
+```
+
+Subqueries in joins are supported, too:
+
+```typescript
+db.select().from(users).leftJoin(sq, eq(users.id, sq.id)).all();
+```
+
+#### List of all filter operators
+
+```typescript
 eq(column, value)
 eq(column1, column2)
 ne(column, value)
@@ -295,8 +371,8 @@ notIlike(column, value)
 
 not(sqlExpression)
 
-and(expressions: Expr[])
-or(expressions: Expr[])
+and(...expressions: Expr[])
+or(...expressions: Expr[])
 ```
 
 Inserting
@@ -373,16 +449,18 @@ const details = sqliteTable('order_detail', {
 });
 
 
-db.select(orders).fields({
+db
+  .select({
     id: orders.id,
     shippedDate: orders.shippedDate,
     shipName: orders.shipName,
     shipCity: orders.shipCity,
     shipCountry: orders.shipCountry,
-    productsCount: sql`count(${details.productId})`.as<number>(),
-    quantitySum: sql`sum(${details.quantity})`.as<number>(),
-    totalPrice: sql`sum(${details.quantity} * ${details.unitPrice})`.as<number>(),
+    productsCount: sql<number>`count(${details.productId})`,
+    quantitySum: sql<number>`sum(${details.quantity})`,
+    totalPrice: sql<number>`sum(${details.quantity} * ${details.unitPrice})`,
   })
+  .from(orders)
   .leftJoin(details, eq(orders.id, details.orderId))
   .groupBy(orders.id)
   .orderBy(asc(orders.id))
@@ -392,6 +470,8 @@ db.select(orders).fields({
 ### Joins
 
 Last but not least. Probably the most powerful feature in the library🚀
+
+> **Note**: for in-depth partial select joins documentation, refer to [this page](/docs/joins.md).
 
 ### Many-to-one
 
@@ -412,7 +492,7 @@ const users = sqliteTable('users', {
 
 const db = drizzle(sqlite);
 
-const result = db.select(cities).leftJoin(users, eq(cities2.id, users2.cityId)).all()
+const result = db.select().from(cities).leftJoin(users, eq(cities2.id, users2.cityId)).all();
 ```
 
 ### Many-to-many
@@ -437,7 +517,9 @@ const usersToChatGroups = sqliteTable('usersToChatGroups', {
 const db = drizzle(...);
 
 // querying user group with id 1 and all the participants(users)
-db.select(usersToChatGroups)
+db
+  .select()
+  .from(usersToChatGroups)
   .leftJoin(users, eq(usersToChatGroups.userId, users.id))
   .leftJoin(chatGroups, eq(usersToChatGroups.groupId, chatGroups.id))
   .where(eq(chatGroups.id, 1))
@@ -458,7 +540,7 @@ export const files = sqliteTable('folders', {
 const db = drizzle(...);
 
 const nestedFiles = alias(files, 'nested_files');
-db.select(files)
+db.select().from(files)
   .leftJoin(nestedFiles, eq(files.name, nestedFiles.name))
   .where(eq(files.parent, '/'))
   .all();
@@ -470,11 +552,14 @@ db.select(files)
 Join Cities with Users getting only needed fields form request
 
 ```typescript
-db.select(cities).fields({
-  id: cities.id,
-  cityName: cities.name
-  userId: users.id
-}).leftJoin(users, eq(users.cityId, cities.id))
+db
+  .select({
+    id: cities.id,
+    cityName: cities.name
+    userId: users.id
+  })
+  .from(cities)
+  .leftJoin(users, eq(users.cityId, cities.id))
   .all();
 ```
 
@@ -487,15 +572,17 @@ import { placeholder } from 'drizzle-orm/sql';
 
 const db = drizzle(...);
 
-const q = db.select(customers).prepare();
+const q = db.select().from(customers).prepare();
 q.all() // SELECT * FROM customers
 
-const q = db.select(customers).where(eq(customers.id, placeholder('id'))).prepare()
+const q = db.select().from(customers).where(eq(customers.id, placeholder('id'))).prepare()
 
 q.get({ id: 10 }) // SELECT * FROM customers WHERE id = 10
 q.get({ id: 12 }) // SELECT * FROM customers WHERE id = 12
 
-const q = db.select(customers)
+const q = db
+  .select()
+  .from(customers)
   .where(sql`lower(${customers.name}) like ${placeholder('name')}`)
   .prepare();
 
@@ -525,7 +612,7 @@ export const authOtps = sqliteTable('auth_otp', {
   id: integer('id').primaryKey(),
   phone: text('phone'),
   userId: integer('user_id').references(() => users.id),
-}
+});
 ```
 
 It will generate:
@@ -562,7 +649,7 @@ const sqlite = new Database('sqlite.db');
 const db = drizzle(sqlite);
 
 // this will automatically run needed migrations on the database
-migrate(db, { migrationsFolder: './drizzle' })
+migrate(db, { migrationsFolder: './drizzle' });
 ```
 
 ## Utility stuff
@@ -570,10 +657,11 @@ migrate(db, { migrationsFolder: './drizzle' })
 ### Printing SQL query
 
 ```typescript
-const query = db.select(users)
-    .fields({ id: users.id, name: users.name })
-    .groupBy(users.id)
-    .toSQL();
+const query = db
+  .select({ id: users.id, name: users.name })
+  .from(users)
+  .groupBy(users.id)
+  .toSQL();
 // query:
 {
   sql: 'select 'id', 'name' from 'users' group by 'users'.'id'',
@@ -585,5 +673,47 @@ const query = db.select(users)
 
 ```typescript
 // it will automatically run a parametrized query!
-const res: QueryResult<any> = await db.run(sql`SELECT * FROM users WHERE user.id = ${userId}`)
+const res: QueryResult<any> = db.run(sql`SELECT * FROM users WHERE user.id = ${userId}`);
+```
+
+## Logging
+
+To enable default query logging, just pass `{ logger: true }` to the `drizzle` function:
+
+```typescript
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+
+const db = drizzle(sqlite, { logger: true });
+```
+
+You can change the logs destination by creating a `DefaultLogger` instance and providing a custom `writer` to it:
+
+```typescript
+import { DefaultLogger, LogWriter } from 'drizzle-orm/logger';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+
+class MyLogWriter implements LogWriter {
+  write(message: string) {
+    // Write to file, console, etc.
+  }
+}
+
+const logger = new DefaultLogger({ writer: new MyLogWriter() });
+
+const db = drizzle(sqlite, { logger });
+```
+
+You can also create a custom logger:
+
+```typescript
+import { Logger } from 'drizzle-orm/logger';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+
+class MyLogger implements Logger {
+  logQuery(query: string, params: unknown[]): void {
+    console.log({ query, params });
+  }
+}
+
+const db = drizzle(sqlite, { logger: new MyLogger() });
 ```

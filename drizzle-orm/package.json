@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.17.2",
+	"version": "0.20.3",
 	"description": "Drizzle ORM package for SQL databases",
 	"scripts": {
 		"build": "tsc && resolve-tspaths && cp ../README.md package.json dist/",
@@ -33,18 +33,20 @@
 	},
 	"homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
 	"peerDependencies": {
+		"@aws-sdk/client-rds-data": ">=3 <4",
 		"@cloudflare/workers-types": ">=3",
 		"@neondatabase/serverless": ">=0.1 <0.2",
 		"@types/better-sqlite3": "*",
 		"@types/pg": "*",
 		"@types/sql.js": "*",
 		"better-sqlite3": ">=7 <9",
+		"bun-types": "*",
 		"mysql2": ">=2 <3",
 		"pg": ">=8 <9",
 		"postgres": ">=3 <4",
 		"sql.js": ">=1 <2",
 		"sqlite3": ">=5 <6",
-		"bun-types": "*"
+		"@planetscale/database": ">=1 <2"
 	},
 	"peerDependenciesMeta": {
 		"mysql2": {
@@ -82,11 +84,19 @@
 		},
 		"bun-types": {
 			"optional": true
+		},
+		"@aws-sdk/client-rds-data": {
+			"optional": true
+		},
+		"@planetscale/database": {
+			"optional": true
 		}
 	},
 	"devDependencies": {
+		"@aws-sdk/client-rds-data": "^3.257.0",
 		"@cloudflare/workers-types": "^3.18.0",
 		"@neondatabase/serverless": "^0.1.13",
+		"@planetscale/database": "^1.5.0",
 		"@types/better-sqlite3": "^7.6.2",
 		"@types/node": "^18.11.9",
 		"@types/pg": "^8.6.5",

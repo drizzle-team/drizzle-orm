@@ -11,6 +11,11 @@
 
 Drizzle ORM is a TypeScript ORM for SQL databases designed with maximum type safety in mind. It comes with a [drizzle-kit](https://github.com/drizzle-team/drizzle-kit-mirror) CLI companion for automatic SQL migrations generation. This is the documentation for Drizzle ORM version for PostgreSQL.
 
+| Driver | Support |
+| :- | :-: |
+| [mysql2](https://github.com/sidorares/node-mysql2) | ✅ |
+| [Planetscale Serverless](https://github.com/planetscale/database-js) | ✅ |
+
 ## Installation
 
 ```bash
@@ -78,14 +83,14 @@ import { users } from './schema';
 
 // create the connection
 const poolConnection = mysql.createPool({
-    host:'localhost', 
-    user: 'root',
-    database: 'test'
+  host: 'localhost',
+  user: 'root',
+  database: 'test',
 });
 
 const db = drizzle(poolConnection);
 
-const allUsers = await db.select(users);
+const allUsers = await db.select().from(users);
 ```
 
 ### Connect using mysql2 Client
@@ -99,14 +104,35 @@ import { users } from './schema';
 
 // create the connection
 const connection = await mysql.createConnection({
-    host:'localhost', 
-    user: 'root', 
-    database: 'test'
+  host: 'localhost',
+  user: 'root',
+  database: 'test',
 });
 
 const db = drizzle(connection);
 
-const allUsers = await db.select(users);
+const allUsers = await db.select().from(users);
+```
+
+### Connect using PlanetScale Serverless client
+
+```typescript
+// db.ts
+import { drizzle } from 'drizzle-orm/planetscale-serverless';
+
+import { connect } from '@planetscale/database';
+import { users } from './schema';
+
+// create the connection
+const connection = connect({
+  host: process.env['DATABASE_HOST'],
+  username: process.env['DATABASE_USERNAME'],
+  password: process.env['DATABASE_PASSWORD'],
+});
+
+const db = drizzle(connection);
+
+const allUsers = await db.select().from(users);
 ```
 
 ## Schema declaration
@@ -115,21 +141,28 @@ This is how you declare SQL schema in `schema.ts`. You can declare tables, index
 
 ```typescript
 // db.ts
-import { int, mysqlEnum, mysqlTable, serial, uniqueIndex, varchar } from 'drizzle-orm/mysql-core';
+import {
+  int,
+  mysqlEnum,
+  mysqlTable,
+  serial,
+  uniqueIndex,
+  varchar,
+} from 'drizzle-orm/mysql-core';
 
 // declaring enum in database
 export const countries = mysqlTable('countries', {
-	id: serial('id').primaryKey(),
-	name: varchar('name', { length: 256 }),
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 256 }),
 }, (countries) => ({
-	nameIndex: uniqueIndex('name_idx').on(countries.name),
+  nameIndex: uniqueIndex('name_idx').on(countries.name),
 }));
 
 export const cities = mysqlTable('cities', {
-	id: serial('id').primaryKey(),
-	name: varchar('name', { length: 256 }),
-	countryId: int('country_id').references(() => countries.id),
-	popularity: mysqlEnum('popularity', ['unknown', 'known', 'popular']),
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 256 }),
+  countryId: int('country_id').references(() => countries.id),
+  popularity: mysqlEnum('popularity', ['unknown', 'known', 'popular']),
 });
 ```
 
@@ -160,7 +193,7 @@ const poolConnection = mysql.createPool({
 
 export const db: MySqlDatabase = drizzle(poolConnection);
 
-const result: User[] = await db.select(users);
+const result: User[] = await db.select().from(users);
 
 /* type MySqlRawQueryExample is a response from mysql2 driver
    type MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]];
@@ -278,23 +311,22 @@ Usage example
 ```typescript
 // Table in default schema
 const publicUsersTable = mysqlTable('users', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	verified: boolean('verified').notNull().default(false),
-	jsonb: json<string[]>('jsonb'),
-	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  verified: boolean('verified').notNull().default(false),
+  jsonb: json<string[]>('jsonb'),
+  createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
 });
-
 
 // Table in custom schema
 const mySchema = mysqlSchema('mySchema');
 
 const mySchemaUsersTable = mySchema('users', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	verified: boolean('verified').notNull().default(false),
-	jsonb: json<string[]>('jsonb'),
-	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  verified: boolean('verified').notNull().default(false),
+  jsonb: json<string[]>('jsonb'),
+  createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
 });
 ```
 
@@ -317,31 +349,89 @@ const users = mysqlTable('users', {
 
 const db = drizzle(...);
 
-await db.select(users);
-await db.select(users).where(eq(users.id, 42));
+await db.select().from(users);
+await db.select().from(users).where(eq(users.id, 42));
 
-// you can combine filters with eq(...) or or(...)
-await db.select(users)
-  .where(and(eq(users.id, 42), eq(users.name, 'Dan')));
+// you can combine filters with and(...) / or(...)
+await db.select().from(users).where(and(eq(users.id, 42), eq(users.name, 'Dan')));
 
-await db.select(users)
+await db.select().from(users)
   .where(or(eq(users.id, 42), eq(users.id, 1)));
 
 // partial select
-const result = await db.select(users).fields({
+const result = await db
+  .select({
     mapped1: users.id,
     mapped2: users.name,
-  });
+  })
+  .from(users);
 const { mapped1, mapped2 } = result[0];
 
 // limit, offset & order by
-await db.select(users).limit(10).offset(10);
-await db.select(users).orderBy(asc(users.name));
-await db.select(users).orderBy(desc(users.name));
+await db.select().from(users).limit(10).offset(10);
+await db.select().from(users).orderBy(users.name);
+await db.select().from(users).orderBy(desc(users.name));
 // you can pass multiple order args
-await db.select(users).orderBy(asc(users.name), desc(users.name));
+await db.select().from(users).orderBy(asc(users.name), desc(users.name));
+```
 
-// list of all filter operators
+#### Conditionally select fields
+
+```typescript
+async function selectUsers(withName: boolean) {
+  return db
+    .select({
+      id: users.id,
+      ...(withName ? { name: users.name } : {}),
+    })
+    .from(users);
+}
+
+const users = await selectUsers(true);
+```
+
+#### WITH clause
+
+```typescript
+const sq = db.select().from(users).where(eq(users.id, 42)).prepareWithSubquery('sq');
+const result = await db.with(sq).select().from(sq);
+```
+
+> **Note**: Keep in mind, that if you need to select raw `sql` in a WITH subquery and reference that field in other queries, you must add an alias to it:
+
+```typescript
+const sq = db
+  .select({
+    name: sql<string>`upper(${users.name})`.as('name'),
+  })
+  .from(users)
+  .prepareWithSubquery('sq');
+
+const result = await db
+  .select({
+    name: sq.name,
+  })
+  .from(sq);
+```
+
+Otherwise, the field type will become `DrizzleTypeError` and you won't be able to reference it in other queries. If you ignore the type error and still try to reference the field, you will get a runtime error, because we cannot reference that field without an alias.
+
+#### Select from subquery
+
+```typescript
+const sq = db.select().from(users).where(eq(users.id, 42)).subquery('sq');
+await db.select().from(sq);
+```
+
+Subqueries in joins are supported, too:
+
+```typescript
+await db.select().from(users).leftJoin(sq, eq(users.id, sq.id));
+```
+
+#### List of all filter operators
+
+```typescript
 eq(column, value)
 eq(column1, column2)
 ne(column, value)
@@ -381,8 +471,9 @@ notIlike(column, value)
 
 not(sqlExpression)
 
-and(expressions: SQL[])
-or(expressions: SQL[])
+and(...expressions: SQL[])
+or(...expressions: SQL[])
+
 ```
 
 ### Insert
@@ -440,7 +531,7 @@ await db.insert(users).values(...newUsers);
 await db.update(users)
   .set({ name: 'Mr. Dan' })
   .where(eq(users.name, 'Dan'));
-	
+
 await db.delete(users)
   .where(eq(users.name, 'Dan'));
 ```
@@ -448,6 +539,8 @@ await db.delete(users)
 ### Joins
 
 Last but not least. Probably the most powerful feature in the library🚀
+
+> **Note**: for in-depth partial select joins documentation, refer to [this page](/docs/joins.md).
 
 #### Many-to-one
 
@@ -460,11 +553,10 @@ const cities = mysqlTable('cities', {
 const users = mysqlTable('users', {
   id: serial('id').primaryKey(),
   name: text('name'),
-  cityId: int('city_id').references(() => cities.id)
+  cityId: int('city_id').references(() => cities.id),
 });
 
-const result = db.select(cities)
-  .leftJoin(users, eq(cities2.id, users2.cityId));
+const result = db.select().from(cities).leftJoin(users, eq(cities2.id, users2.cityId));
 ```
 
 #### Many-to-many
@@ -486,7 +578,9 @@ const usersToChatGroups = mysqlTable('usersToChatGroups', {
 });
 
 // querying user group with id 1 and all the participants(users)
-const result = await db.select(usersToChatGroups)
+const result = await db
+  .select()
+  .from(usersToChatGroups)
   .leftJoin(users, eq(usersToChatGroups.userId, users.id))
   .leftJoin(chatGroups, eq(usersToChatGroups.groupId, chatGroups.id))
   .where(eq(chatGroups.id, 1));
@@ -505,7 +599,9 @@ export const files = mysqlTable('folders', {
 const nestedFiles = alias(files, 'nested_files');
 
 // will return files and folders and nested files for each folder at root dir
-const result = await db.select(files)
+const result = await db
+  .select()
+  .from(files)
   .leftJoin(nestedFiles, eq(files.name, nestedFiles.name))
   .where(eq(files.parent, '/'));
 ```
@@ -514,30 +610,30 @@ const result = await db.select(files)
 
 ```typescript
 // Select user ID and city ID and name
-const result1 = await db.select(cities).fields({
-  userId: users.id,
-  cityId: cities.id,
-  cityName: cities.name
-}).leftJoin(users, eq(users.cityId, cities.id));
+const result1 = await db
+  .select({
+    userId: users.id,
+    cityId: cities.id,
+    cityName: cities.name,
+  })
+  .from(cities).leftJoin(users, eq(users.cityId, cities.id));
 
 // Select all fields from users and only id and name from cities
-const result2 = await db.select(cities).fields({
-  // Supports any level of nesting!
-  user: users,
-  city: {
-    id: cities.id,
-    name: cities.name
-  },
-}).leftJoin(users, eq(users.cityId, cities.id));
+const result2 = await db
+  .select({
+    user: users,
+    city: {
+      id: cities.id,
+      name: cities.name,
+    },
+  })
+  .from(cities).leftJoin(users, eq(users.cityId, cities.id));
 ```
-
 
 ## Prepared statements
 
 ```typescript
-const query = db.select(users)
-  .where(eq(users.name, 'Dan'))
-  .prepare();
+const query = db.select().from(users).where(eq(users.name, 'Dan')).prepare();
 
 const result = await query.execute();
 ```
@@ -547,9 +643,7 @@ const result = await query.execute();
 ```typescript
 import { placeholder } from 'drizzle-orm/mysql-core';
 
-const query = db.select(users)
-  .where(eq(users.name, placeholder('name')))
-  .prepare();
+const query = db.select().from(users).where(eq(users.name, placeholder('name'))).prepare();
 
 const result = await query.execute({ name: 'Dan' });
 ```
@@ -560,7 +654,9 @@ If you have some complex queries to execute and drizzle-orm can't handle them ye
 
 ```typescript
 // it will automatically run a parametrized query!
-const res: MySqlQueryResult<{ id: number; name: string; }> = await db.execute<{ id: number, name: string }>(sql`select * from ${users} where ${users.id} = ${userId}`);
+const res: MySqlQueryResult<{ id: number; name: string }> = await db.execute<
+  { id: number; name: string }
+>(sql`select * from ${users} where ${users.id} = ${userId}`);
 ```
 
 ## Migrations
@@ -587,7 +683,7 @@ export const authOtps = mysqlTable('auth_otp', {
   id: serial('id').primaryKey(),
   phone: varchar('phone', { length: 256 }),
   userId: int('user_id').references(() => users.id),
-}
+});
 ```
 
 It will generate:
@@ -619,13 +715,56 @@ import mysql from 'mysql2/promise';
 
 // create the connection
 const poolConnection = mysql.createPool({
-    host:'localhost', 
-    user: 'root',
-    database: 'test'
+  host: 'localhost',
+  user: 'root',
+  database: 'test',
+  multipleStatements: true,
 });
 
 const db = drizzle(poolConnection);
 
 // this will automatically run needed migrations on the database
-await migrate(db, { migrationsFolder: './drizzle' })
+await migrate(db, { migrationsFolder: './drizzle' });
+```
+
+## Logging
+
+To enable default query logging, just pass `{ logger: true }` to the `drizzle` function:
+
+```typescript
+import { drizzle } from 'drizzle-orm/mysql2';
+
+const db = drizzle(pool, { logger: true });
+```
+
+You can change the logs destination by creating a `DefaultLogger` instance and providing a custom `writer` to it:
+
+```typescript
+import { DefaultLogger, LogWriter } from 'drizzle-orm/logger';
+import { drizzle } from 'drizzle-orm/mysql2';
+
+class MyLogWriter implements LogWriter {
+  write(message: string) {
+    // Write to file, console, etc.
+  }
+}
+
+const logger = new DefaultLogger({ writer: new MyLogWriter() });
+
+const db = drizzle(pool, { logger });
+```
+
+You can also create a custom logger:
+
+```typescript
+import { Logger } from 'drizzle-orm/logger';
+import { drizzle } from 'drizzle-orm/mysql2';
+
+class MyLogger implements Logger {
+  logQuery(query: string, params: unknown[]): void {
+    console.log({ query, params });
+  }
+}
+
+const db = drizzle(pool, { logger: new MyLogger() });
 ```

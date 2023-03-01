@@ -1,8 +1,5 @@
-import { AnyPgColumn, PgColumn } from '~/pg-core/columns';
-import { SelectFields, SelectFieldsOrdered } from '~/pg-core/operations';
-import { PgUpdateSet } from '~/pg-core/query-builders';
+import { AnyPgColumn } from '~/pg-core/columns';
 import { AnyPgTable, GetTableConfig, PgTable } from '~/pg-core/table';
-import { Param, SQL, SQLResponse } from '~/sql';
 import { Table } from '~/table';
 import { Check, CheckBuilder } from './checks';
 import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
@@ -68,65 +65,25 @@ export function getTableColumns<TTable extends AnyPgTable>(
 ): Record<string, AnyPgColumn> | AnyPgColumn[] {
 	const columns = table[PgTable.Symbol.Columns];
 	if (config?.format === 'object') {
-		return columns;
+		return Object.assign({}, columns);
 	}
-	const keys = Reflect.ownKeys(columns);
-	return keys.map((key) => columns[key]!);
+	return Object.values(columns);
 }
 
-export function getTableIndexes<TTable extends AnyPgTable>(table: TTable) {
+export function getTableIndexes<TTable extends AnyPgTable>(table: TTable): Index[] {
 	const indexes = table[PgTable.Symbol.Indexes];
 	const keys = Reflect.ownKeys(indexes);
 	return keys.map((key) => indexes[key]!);
 }
 
-export function getTableForeignKeys<TTable extends AnyPgTable>(table: TTable) {
+export function getTableForeignKeys<TTable extends AnyPgTable>(table: TTable): ForeignKey[] {
 	const foreignKeys = table[PgTable.Symbol.ForeignKeys];
 	const keys = Reflect.ownKeys(foreignKeys);
 	return keys.map((key) => foreignKeys[key]!);
 }
 
-export function getTableChecks<TTable extends AnyPgTable>(table: TTable) {
+export function getTableChecks<TTable extends AnyPgTable>(table: TTable): Check[] {
 	const checks = table[PgTable.Symbol.Checks];
 	const keys = Reflect.ownKeys(checks);
 	return keys.map((key) => checks[key]!);
-}
-
-/** @internal */
-export function mapUpdateSet(table: AnyPgTable, values: Record<string, unknown>): PgUpdateSet {
-	return Object.fromEntries<PgUpdateSet[string]>(
-		Object.entries(values).map(([key, value]) => {
-			if (value instanceof SQL || value === null || value === undefined) {
-				return [key, value];
-			} else {
-				return [key, new Param(value, table[PgTable.Symbol.Columns][key])];
-			}
-		}),
-	);
-}
-
-export function orderSelectedFields(fields: SelectFields, pathPrefix?: string[]): SelectFieldsOrdered {
-	return Object.entries(fields).reduce<SelectFieldsOrdered>((result, [name, field]) => {
-		if (typeof name !== 'string') {
-			return result;
-		}
-
-		const newPath = pathPrefix ? [...pathPrefix, name] : [name];
-		if (
-			field instanceof PgColumn
-			|| field instanceof SQL
-			|| field instanceof SQLResponse
-		) {
-			result.push({ path: newPath, field });
-		} else if (field instanceof PgTable) {
-			result.push(
-				...orderSelectedFields(field[Table.Symbol.Columns], newPath),
-			);
-		} else {
-			result.push(
-				...orderSelectedFields(field, newPath),
-			);
-		}
-		return result;
-	}, []);
 }

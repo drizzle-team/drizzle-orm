@@ -1,13 +1,11 @@
 import { Param, Placeholder, Query, SQL, sql, SQLWrapper } from '~/sql';
-import { Table } from '~/table';
-import { Simplify } from '~/utils';
-
 import { SQLiteDialect } from '~/sqlite-core/dialect';
 import { IndexColumn } from '~/sqlite-core/indexes';
-import { SelectFieldsOrdered, SelectResultFields, SQLiteSelectFields } from '~/sqlite-core/operations';
 import { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
 import { AnySQLiteTable, InferModel, SQLiteTable } from '~/sqlite-core/table';
-import { mapUpdateSet, orderSelectedFields } from '~/sqlite-core/utils';
+import { Table } from '~/table';
+import { mapUpdateSet, orderSelectedFields, Simplify } from '~/utils';
+import { SelectFieldsFlat, SelectFieldsOrdered, SelectResultFields } from './select.types';
 import { SQLiteUpdateSetSource } from './update';
 
 export interface SQLiteInsertConfig<TTable extends AnySQLiteTable = AnySQLiteTable> {
@@ -83,14 +81,14 @@ export class SQLiteInsert<
 		SQLiteInsert<TTable, TResultType, TRunResult, InferModel<TTable>>,
 		'returning' | `onConflict${string}`
 	>;
-	returning<TSelectedFields extends SQLiteSelectFields>(
+	returning<TSelectedFields extends SelectFieldsFlat>(
 		fields: TSelectedFields,
 	): Omit<
 		SQLiteInsert<TTable, TResultType, TRunResult, SelectResultFields<TSelectedFields>>,
 		'returning' | `onConflict${string}`
 	>;
 	returning(
-		fields: SQLiteSelectFields = this.config.table[SQLiteTable.Symbol.Columns],
+		fields: SelectFieldsFlat = this.config.table[SQLiteTable.Symbol.Columns],
 	): SQLiteInsert<TTable, TResultType, TRunResult, any> {
 		this.config.returning = orderSelectedFields(fields);
 		return this;
@@ -122,8 +120,9 @@ export class SQLiteInsert<
 		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(): Simplify<Omit<Query, 'typings'>> {
+		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		return rest;
 	}
 
 	prepare(): PreparedQuery<
@@ -135,7 +134,7 @@ export class SQLiteInsert<
 			values: TReturning extends undefined ? never : any[][];
 		}
 	> {
-		return this.session.prepareQuery(this.toSQL(), this.config.returning);
+		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning);
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {

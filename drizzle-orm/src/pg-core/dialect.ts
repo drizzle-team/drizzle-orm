@@ -1,13 +1,23 @@
 import { AnyColumn, Column } from '~/column';
 import { MigrationMeta } from '~/migrator';
-import { SelectFieldsOrdered } from '~/operations';
-import { AnyPgColumn, PgColumn } from '~/pg-core/columns';
-import { PgDatabase } from '~/pg-core/db';
-import { PgDeleteConfig, PgInsertConfig, PgUpdateConfig, PgUpdateSet } from '~/pg-core/query-builders';
-import { PgSelectConfig } from '~/pg-core/query-builders/select.types';
+import {
+	AnyPgColumn,
+	PgColumn,
+	PgDate,
+	PgJson,
+	PgJsonb,
+	PgNumeric,
+	PgTime,
+	PgTimestamp,
+	PgUUID,
+} from '~/pg-core/columns';
+import { PgDeleteConfig, PgInsertConfig, PgUpdateConfig } from '~/pg-core/query-builders';
+import { PgSelectConfig, SelectFieldsOrdered } from '~/pg-core/query-builders/select.types';
 import { AnyPgTable, PgTable } from '~/pg-core/table';
-import { Name, Query, SQL, sql, SQLResponse, SQLSourceParam } from '~/sql';
-import { Table } from '~/table';
+import { DriverValueEncoder, Name, Query, QueryTypingsValue, SQL, sql, SQLSourceParam } from '~/sql';
+import { Subquery, SubqueryConfig } from '~/subquery';
+import { getTableName, Table } from '~/table';
+import { UpdateSet } from '~/utils';
 import { PgSession } from './session';
 
 export class PgDialect {
@@ -65,7 +75,7 @@ export class PgDialect {
 		return sql`delete from ${table}${whereSql}${returningSql}`;
 	}
 
-	buildUpdateSet(table: AnyPgTable, set: PgUpdateSet): SQL {
+	buildUpdateSet(table: AnyPgTable, set: UpdateSet): SQL {
 		const setEntries = Object.entries(set);
 
 		const setSize = setEntries.length;
@@ -116,8 +126,10 @@ export class PgDialect {
 			.map(({ field }, i) => {
 				const chunk: SQLSourceParam[] = [];
 
-				if (field instanceof SQLResponse || field instanceof SQL) {
-					const query = field instanceof SQLResponse ? field.sql : field;
+				if (field instanceof SQL.Aliased && field.isSubquerySelectionField) {
+					chunk.push(new Name(field.fieldAlias));
+				} else if (field instanceof SQL.Aliased || field instanceof SQL) {
+					const query = field instanceof SQL.Aliased ? field.sql : field;
 
 					if (isSingleTable) {
 						chunk.push(
@@ -132,6 +144,10 @@ export class PgDialect {
 						);
 					} else {
 						chunk.push(query);
+					}
+
+					if (field instanceof SQL.Aliased) {
+						chunk.push(sql` as ${new Name(field.fieldAlias)}`);
 					}
 				} else if (field instanceof Column) {
 					if (isSingleTable) {
@@ -152,10 +168,42 @@ export class PgDialect {
 		return sql.fromList(chunks);
 	}
 
-	buildSelectQuery({ fields, where, table, joins, orderBy, groupBy, limit, offset }: PgSelectConfig): SQL {
-		const joinKeys = Object.keys(joins);
+	buildSelectQuery(
+		{ withList, fieldsList: fields, where, table, joins, orderBy, groupBy, limit, offset }: PgSelectConfig,
+	): SQL {
+		fields.forEach((f) => {
+			let tableName: string;
+			if (
+				f.field instanceof Column
+				&& getTableName(f.field.table)
+					!== (table instanceof Subquery ? table[SubqueryConfig].alias : getTableName(table))
+				&& !((tableName = getTableName(f.field.table)) in joins)
+			) {
+				throw new Error(
+					`Your "${
+						f.path.join('->')
+					}" field references a column "${tableName}"."${f.field.name}", but the table "${tableName}" is not part of the query! Did you forget to join it?`,
+				);
+			}
+		});
 
-		const selection = this.buildSelection(fields, { isSingleTable: joinKeys.length === 0 });
+		const joinKeys = Object.keys(joins);
+		const isSingleTable = joinKeys.length === 0;
+
+		let withSql: SQL | undefined;
+		if (withList.length) {
+			const withSqlChunks = [sql`with `];
+			withList.forEach((w, i) => {
+				withSqlChunks.push(sql`${new Name(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
+				if (i < withList.length - 1) {
+					withSqlChunks.push(sql`, `);
+				}
+			});
+			withSqlChunks.push(sql` `);
+			withSql = sql.fromList(withSqlChunks);
+		}
+
+		const selection = this.buildSelection(fields, { isSingleTable });
 
 		const joinsArray: SQL[] = [];
 
@@ -165,15 +213,22 @@ export class PgDialect {
 			}
 			const joinMeta = joins[tableAlias]!;
 			const table = joinMeta.table;
-			const tableName = table[PgTable.Symbol.Name];
-			const tableSchema = table[PgTable.Symbol.Schema];
-			const origTableName = table[PgTable.Symbol.OriginalName];
-			const alias = tableName === origTableName ? undefined : tableAlias;
-			joinsArray.push(
-				sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? new Name(tableSchema) : sql.raw('')}${
-					sql.raw(tableSchema ? '.' : '')
-				}${new Name(origTableName)} ${alias && new Name(alias)} on ${joinMeta.on}`,
-			);
+
+			if (table instanceof PgTable) {
+				const tableName = table[PgTable.Symbol.Name];
+				const tableSchema = table[PgTable.Symbol.Schema];
+				const origTableName = table[PgTable.Symbol.OriginalName];
+				const alias = tableName === origTableName ? undefined : tableAlias;
+				joinsArray.push(
+					sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${new Name(tableSchema)}.` : undefined}${new Name(
+						origTableName,
+					)} ${alias && new Name(alias)} on ${joinMeta.on}`,
+				);
+			} else {
+				joinsArray.push(
+					sql`${sql.raw(joinMeta.joinType)} join ${table} on ${joinMeta.on}`,
+				);
+			}
 			if (index < joinKeys.length - 1) {
 				joinsArray.push(sql` `);
 			}
@@ -183,7 +238,7 @@ export class PgDialect {
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		const orderByList: SQL[] = [];
+		const orderByList: (AnyPgColumn | SQL)[] = [];
 		orderBy.forEach((orderByValue, index) => {
 			orderByList.push(orderByValue);
 
@@ -209,7 +264,7 @@ export class PgDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		return sql`select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${orderBySql}${limitSql}${offsetSql}`;
+		return sql`${withSql}select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {
@@ -248,10 +303,30 @@ export class PgDialect {
 		return sql`insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
+	prepareTyping(encoder: DriverValueEncoder<unknown, unknown>): QueryTypingsValue {
+		if (
+			encoder instanceof PgJsonb || encoder instanceof PgJson
+		) {
+			return 'json';
+		} else if (encoder instanceof PgNumeric) {
+			return 'decimal';
+		} else if (encoder instanceof PgTime) {
+			return 'time';
+		} else if (encoder instanceof PgTimestamp) {
+			return 'timestamp';
+		} else if (encoder instanceof PgDate) {
+			return 'date';
+		} else if (encoder instanceof PgUUID) {
+			return 'uuid';
+		} else {
+			return 'none';
+		}
+	}
+
 	sqlToQuery(sql: SQL): Query {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
-		});
+		}, this.prepareTyping);
 	}
 }

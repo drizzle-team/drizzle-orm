@@ -3,78 +3,156 @@ import { AnySQLiteColumn } from '~/sqlite-core/columns';
 import { SQLiteDialect } from '~/sqlite-core/dialect';
 import { Table } from '~/table';
 
-import { SQLiteSelectFields } from '~/sqlite-core/operations';
 import { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
-import { AnySQLiteTable, GetTableConfig, InferModel } from '~/sqlite-core/table';
-import { orderSelectedFields } from '~/sqlite-core/utils';
+import { AnySQLiteTable, GetTableConfig } from '~/sqlite-core/table';
 
 import {
+	GetSubquerySelection,
+	Subquery,
+	SubqueryConfig,
+	SubquerySelectionProxyHandler,
+	SubqueryWithSelection,
+	WithSubquery,
+	WithSubqueryWithSelection,
+} from '~/subquery';
+import { orderSelectedFields, Simplify } from '~/utils';
+import { getTableColumns } from '../utils';
+import {
 	AnySQLiteSelect,
+	BuildSubquerySelection,
+	GetSelectTableName,
 	JoinFn,
 	JoinNullability,
 	JoinType,
+	SelectFields,
 	SelectMode,
 	SelectResult,
 	SQLiteSelectConfig,
 } from './select.types';
 
-export interface SQLiteSelect<
-	TTable extends AnySQLiteTable,
+export class SQLiteSelectBuilder<
+	TSelection extends SelectFields | undefined,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
-	TResult = InferModel<TTable>,
+> {
+	constructor(
+		private fields: TSelection,
+		private session: SQLiteSession,
+		private dialect: SQLiteDialect,
+		private withList: Subquery[] = [],
+	) {}
+
+	from<TSubquery extends Subquery>(
+		subquery: TSubquery,
+	): SQLiteSelect<
+		TSubquery,
+		TResultType,
+		TRunResult,
+		TSelection extends undefined ? GetSubquerySelection<TSubquery> : TSelection,
+		TSelection extends undefined ? 'single' : 'partial'
+	>;
+	from<TTable extends AnySQLiteTable>(
+		table: TTable,
+	): SQLiteSelect<
+		TTable,
+		TResultType,
+		TRunResult,
+		TSelection extends undefined ? GetTableConfig<TTable, 'columns'> : TSelection,
+		TSelection extends undefined ? 'single' : 'partial'
+	>;
+	from(table: AnySQLiteTable | Subquery): AnySQLiteSelect {
+		const isPartialSelect = !!this.fields;
+
+		let fields: SelectFields;
+		if (this.fields) {
+			fields = this.fields;
+		} else if (table instanceof Subquery) {
+			// This is required to use the proxy handler to get the correct field values from the subquery
+			fields = Object.fromEntries(
+				Object.keys(table[SubqueryConfig].selection).map((
+					key,
+				) => [key, table[key as unknown as keyof typeof table] as unknown as SelectFields[string]]),
+			);
+		} else {
+			fields = getTableColumns(table, { format: 'object' });
+		}
+
+		const fieldsList = orderSelectedFields<AnySQLiteColumn>(fields);
+		return new SQLiteSelect(table, fields, fieldsList, isPartialSelect, this.session, this.dialect, this.withList);
+	}
+}
+
+export interface SQLiteSelect<
+	TTable extends AnySQLiteTable | Subquery,
+	TResultType extends 'sync' | 'async',
+	TRunResult,
+	TSelection,
 	TSelectMode extends SelectMode = 'single',
-	TJoinsNotNullable extends Record<string, JoinNullability> = Record<GetTableConfig<TTable, 'name'>, 'not-null'>,
+	TNullability extends Record<string, JoinNullability> = Record<GetSelectTableName<TTable>, 'not-null'>,
 > extends SQLWrapper {}
 
 export class SQLiteSelect<
-	TTable extends AnySQLiteTable,
+	TTable extends AnySQLiteTable | Subquery,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
-	// TResult is either a map of columns (partial select) or a map of inferred field types (full select)
-	TResult = InferModel<TTable>,
+	TSelection,
 	TSelectMode extends SelectMode = 'single',
-	TJoinsNotNullable extends Record<string, JoinNullability> = Record<GetTableConfig<TTable, 'name'>, 'not-null'>,
+	TNullability extends Record<string, JoinNullability> = Record<GetSelectTableName<TTable>, 'not-null'>,
 > implements SQLWrapper {
 	declare protected $table: TTable;
 	declare protected $selectMode: TSelectMode;
-	declare protected $result: TResult;
+	declare protected $result: TSelection;
 
 	private config: SQLiteSelectConfig;
-	private isPartialSelect = false;
 	private joinsNotNullable: Record<string, boolean>;
+	private tableName: string;
 
 	constructor(
 		table: SQLiteSelectConfig['table'],
 		fields: SQLiteSelectConfig['fields'],
+		fieldsList: SQLiteSelectConfig['fieldsList'],
+		private isPartialSelect: boolean,
 		private session: SQLiteSession,
 		private dialect: SQLiteDialect,
+		private withList: Subquery[],
 	) {
 		this.config = {
+			withList,
 			table,
 			fields,
+			fieldsList,
 			joins: {},
 			orderBy: [],
 			groupBy: [],
 		};
-		this.joinsNotNullable = { [table[Table.Symbol.Name]]: true };
+		this.tableName = table instanceof Subquery ? table[SubqueryConfig].alias : table[Table.Symbol.Name];
+		this.joinsNotNullable = { [this.tableName]: true };
 	}
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): JoinFn<TTable, TRunResult, TResultType, TSelectMode, TJoinType, TResult, TJoinsNotNullable> {
-		return (table: AnySQLiteTable, on: SQL): AnySQLiteSelect => {
-			const tableName = table[Table.Symbol.Name];
+	): JoinFn<TTable, TResultType, TRunResult, TSelectMode, TJoinType, TSelection, TNullability> {
+		return (table: AnySQLiteTable | Subquery, on: SQL | undefined): AnySQLiteSelect => {
+			const tableName = table instanceof Subquery ? table[SubqueryConfig].alias : table[Table.Symbol.Name];
+
+			if (this.config.joins[tableName]) {
+				throw new Error(`Alias "${tableName}" is already used in this query`);
+			}
 
 			if (!this.isPartialSelect) {
 				// If this is the first join and this is not a partial select, "move" the fields from the main table to the nested object
 				if (Object.keys(this.joinsNotNullable).length === 1) {
-					this.config.fields = this.config.fields.map((field) => ({
+					this.config.fieldsList = this.config.fieldsList.map((field) => ({
 						...field,
-						path: [this.config.table[Table.Symbol.Name], ...field.path],
+						path: [this.tableName, ...field.path],
 					}));
 				}
-				this.config.fields.push(...orderSelectedFields(table[Table.Symbol.Columns], [tableName]));
+				this.config.fieldsList.push(
+					...orderSelectedFields<AnySQLiteColumn>(
+						table instanceof Subquery ? table[SubqueryConfig].selection : table[Table.Symbol.Columns],
+						[tableName],
+					),
+				);
 			}
 
 			this.config.joins[tableName] = { on, table, joinType };
@@ -90,9 +168,6 @@ export class SQLiteSelect<
 					this.joinsNotNullable[tableName] = true;
 					break;
 				case 'inner':
-					this.joinsNotNullable = Object.fromEntries(
-						Object.entries(this.joinsNotNullable).map(([key]) => [key, true]),
-					);
 					this.joinsNotNullable[tableName] = true;
 					break;
 				case 'full':
@@ -115,23 +190,12 @@ export class SQLiteSelect<
 
 	fullJoin = this.createJoin('full');
 
-	fields<TSelect extends SQLiteSelectFields>(
-		fields: TSelect,
-	): Omit<
-		SQLiteSelect<TTable, TResultType, TRunResult, TSelect, 'partial', TJoinsNotNullable>,
-		'fields'
-	> {
-		this.config.fields = orderSelectedFields(fields);
-		this.isPartialSelect = true;
-		return this;
-	}
-
 	where(where: SQL | undefined): Omit<this, 'where' | `${JoinType}Join`> {
 		this.config.where = where;
 		return this;
 	}
 
-	orderBy(...columns: SQL[]): Omit<this, 'where' | `${JoinType}Join` | 'orderBy'> {
+	orderBy(...columns: (AnySQLiteColumn | SQL)[]): Omit<this, 'where' | `${JoinType}Join` | 'orderBy'> {
 		this.config.orderBy = columns;
 		return this;
 	}
@@ -156,21 +220,23 @@ export class SQLiteSelect<
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	toSQL(): Query {
-		const query = this.dialect.buildSelectQuery(this.config);
-		return this.dialect.sqlToQuery(query);
+	toSQL(): Omit<Query, 'typings'> {
+		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		return rest;
 	}
 
 	prepare(): PreparedQuery<
 		{
 			type: TResultType;
 			run: TRunResult;
-			all: SelectResult<TResult, TSelectMode, TJoinsNotNullable>[];
-			get: SelectResult<TResult, TSelectMode, TJoinsNotNullable>;
+			all: SelectResult<TSelection, TSelectMode, TNullability>[];
+			get: SelectResult<TSelection, TSelectMode, TNullability>;
 			values: any[][];
 		}
 	> {
-		return this.session.prepareQuery(this.toSQL(), this.config.fields);
+		const query = this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.fieldsList);
+		query.joinsNotNullableMap = this.joinsNotNullable;
+		return query;
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
@@ -188,4 +254,22 @@ export class SQLiteSelect<
 	values: ReturnType<this['prepare']>['values'] = (placeholderValues) => {
 		return this.prepare().values(placeholderValues);
 	};
+
+	as<TAlias extends string>(
+		alias: TAlias,
+	): SubqueryWithSelection<Simplify<BuildSubquerySelection<TSelection, TAlias, TNullability>>, TAlias> {
+		return new Proxy(
+			new Subquery(this.getSQL(), this.config.fields, alias),
+			new SubquerySelectionProxyHandler(alias),
+		) as SubqueryWithSelection<Simplify<BuildSubquerySelection<TSelection, TAlias, TNullability>>, TAlias>;
+	}
+
+	prepareWithSubquery<TAlias extends string>(
+		alias: TAlias,
+	): WithSubqueryWithSelection<Simplify<BuildSubquerySelection<TSelection, TAlias, TNullability>>, TAlias> {
+		return new Proxy(
+			new WithSubquery(this.getSQL(), this.config.fields, alias, true),
+			new SubquerySelectionProxyHandler(alias),
+		) as WithSubqueryWithSelection<Simplify<BuildSubquerySelection<TSelection, TAlias, TNullability>>, TAlias>;
+	}
 }

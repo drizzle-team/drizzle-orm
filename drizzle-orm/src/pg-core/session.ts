@@ -1,6 +1,6 @@
 import { Query, SQL } from '~/sql';
 import { PgDialect } from './dialect';
-import { SelectFieldsOrdered } from './operations';
+import { SelectFieldsOrdered } from './query-builders/select.types';
 
 export interface PreparedQueryConfig {
 	execute: unknown;
@@ -9,6 +9,9 @@ export interface PreparedQueryConfig {
 }
 
 export abstract class PreparedQuery<T extends PreparedQueryConfig> {
+	/** @internal */
+	joinsNotNullableMap?: Record<string, boolean>;
+
 	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
 
 	/** @internal */

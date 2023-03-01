@@ -102,26 +102,28 @@ const updateResult /* : { updated: Date }[] */ = await db.update(users)
   .returning({ updated: users.updatedAt });
 
 // Select
-const allUsers /* : User[] */ = await db.select(users);
+const allUsers /* : User[] */ = await db.select().from(users);
 
 // Select custom fields
-const upperCaseNames /* : { id: number; name: string }[] */ = await db.select(users)
-  .fields({
+const upperCaseNames /* : { id: number; name: string }[] */ = await db
+  .select({
     id: users.id,
-    name: sql`upper(${users.fullName})`.as<string>(),
-  });
+    name: sql<string>`upper(${users.fullName})`,
+  })
+  .from(users);
 
 // Joins
 // You wouldn't BELIEVE how SMART the result type is! 😱
-const allUsersWithCities = await db.select(users)
-  .fields({
-    user: {
-      id: users.id,
-      name: users.fullName,
+const allUsersWithCities = await db
+  .select({
+    id: users.id,
+    name: users.fullName,
+    city: {
+      id: cities.id,
+      name: cities.name,
     },
-    cityId: cities.id,
-    cityName: cities.name,
   })
+  .from(users)
   .leftJoin(cities, eq(users.cityId, cities.id));
 
 // Delete
@@ -131,6 +133,7 @@ const deletedNames /* : { name: string }[] */ = await db.delete(users)
 ```
 
 **See full docs for further reference:**
+
 - [PostgreSQL](./drizzle-orm/src/pg-core/README.md)
 - [MySQL](./drizzle-orm/src/mysql-core/README.md)
 - [SQLite](./drizzle-orm/src/sqlite-core/README.md)

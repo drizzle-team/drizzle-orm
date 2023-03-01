@@ -1,3 +1,4 @@
+import { Subquery, SubqueryConfig } from '~/subquery';
 import { AnyColumn, Column } from '../column';
 import { Table } from '../table';
 
@@ -19,11 +20,15 @@ export type Chunk =
 export interface BuildQueryConfig {
 	escapeName(name: string): string;
 	escapeParam(num: number, value: unknown): string;
+	paramStartIndex?: number;
 }
+
+export type QueryTypingsValue = 'json' | 'decimal' | 'time' | 'timestamp' | 'uuid' | 'date' | 'none';
 
 export interface Query {
 	sql: string;
 	params: unknown[];
+	typings?: QueryTypingsValue[];
 }
 
 export interface SQLWrapper {
@@ -35,64 +40,107 @@ export function isSQLWrapper(value: unknown): value is SQLWrapper {
 		&& typeof (value as any).getSQL === 'function';
 }
 
-export class SQL implements SQLWrapper {
+export class SQL<T = unknown> implements SQLWrapper {
 	declare protected $brand: 'SQL';
+
+	/** @internal */
+	decoder: DriverValueDecoder<T, any> = noopDecoder;
 
 	constructor(readonly queryChunks: Chunk[]) {}
 
-	toQuery({ escapeName, escapeParam }: BuildQueryConfig): Query {
+	toQuery(
+		{ escapeName, escapeParam, paramStartIndex = 0 }: BuildQueryConfig,
+		prepareTyping?: (encoder: DriverValueEncoder<unknown, unknown>) => QueryTypingsValue,
+	): Query {
 		const params: unknown[] = [];
+		const typings: QueryTypingsValue[] = [];
 
 		const chunks = this.queryChunks.map((chunk) => {
 			if (typeof chunk === 'string') {
 				return chunk;
-			} else if (chunk instanceof Name) {
+			}
+
+			if (chunk instanceof Name) {
 				return escapeName(chunk.value);
-			} else if (chunk instanceof Table) {
+			}
+
+			if (chunk instanceof Table) {
 				const schemaName = chunk[Table.Symbol.Schema];
 				return typeof schemaName !== 'undefined'
 					? escapeName(schemaName) + '.' + escapeName(chunk[Table.Symbol.Name])
 					: escapeName(chunk[Table.Symbol.Name]);
-			} else if (chunk instanceof Column) {
-				return escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(chunk.name);
-			} else if (chunk instanceof Param) {
-				params.push(chunk.encoder.mapToDriverValue(chunk.value));
-				return escapeParam(params.length - 1, chunk.value);
-			} else {
-				const err = new Error('Unexpected chunk type!');
-				console.error(chunk);
-				throw err;
 			}
+
+			if (chunk instanceof Column) {
+				return escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(chunk.name);
+			}
+
+			if (chunk instanceof Param) {
+				const mappedValue = chunk.encoder.mapToDriverValue(chunk.value);
+
+				if (mappedValue instanceof SQL) {
+					const mappedValueQuery = mappedValue.toQuery({ escapeName, escapeParam, paramStartIndex }, prepareTyping);
+					params.push(...mappedValueQuery.params);
+					if (prepareTyping && mappedValueQuery.typings) typings.push(...mappedValueQuery.typings);
+					return mappedValueQuery.sql;
+				}
+
+				params.push(chunk.encoder.mapToDriverValue(chunk.value));
+				if (typeof prepareTyping !== 'undefined') typings.push(prepareTyping(chunk.encoder));
+				return escapeParam(paramStartIndex + params.length - 1, chunk.value);
+			}
+
+			const err = new Error('Unexpected chunk type!');
+			console.error(chunk);
+			throw err;
 		});
 
 		const sqlString = chunks
 			.join('')
 			.trim();
 
-		return { sql: sqlString, params };
+		return { sql: sqlString, params, typings };
 	}
 
 	getSQL(): SQL {
 		return this;
 	}
 
-	as<
+	as(alias: string): SQL.Aliased<T>;
+	/**
+	 * @deprecated
+	 * Use ``sql<DataType>`query`.as(alias)`` instead.
+	 */
+	as<TData>(): SQL<TData>;
+	/**
+	 * @deprecated
+	 * Use ``sql<DataType>`query`.as(alias)`` instead.
+	 */
+	as<TData>(alias: string): SQL.Aliased<TData>;
+	as(alias?: string): SQL<T> | SQL.Aliased<T> {
+		// TODO: remove with deprecated overloads
+		if (typeof alias === 'undefined') {
+			return this;
+		}
+
+		return new SQL.Aliased(this, alias);
+	}
+
+	mapWith<
 		TDecoder extends
 			| DriverValueDecoder<any, any>
 			| DriverValueDecoder<any, any>['mapFromDriverValue'],
-	>(decoder: TDecoder): SQLResponse<GetDecoderColumnData<TDecoder>>;
-	as<TData>(): SQLResponse<TData>;
-	as(
-		decoder: ((value: any) => any) | DriverValueDecoder<any, any> = noopDecoder,
-	): SQLResponse<unknown> {
-		return new SQLResponse(
-			this,
-			typeof decoder === 'function' ? { mapFromDriverValue: decoder } : decoder,
-		);
+	>(decoder: TDecoder): SQL<GetDecoderResult<TDecoder>> {
+		if (typeof decoder === 'function') {
+			this.decoder = { mapFromDriverValue: decoder };
+		} else {
+			this.decoder = decoder;
+		}
+		return this as SQL<GetDecoderResult<TDecoder>>;
 	}
 }
 
-export type GetDecoderColumnData<T> = T extends
+export type GetDecoderResult<T> = T extends
 	| DriverValueDecoder<infer TData, any>
 	| DriverValueDecoder<infer TData, any>['mapFromDriverValue'] ? TData
 	: never;
@@ -118,7 +166,7 @@ export interface DriverValueDecoder<TData, TDriverParam> {
 }
 
 export interface DriverValueEncoder<TData, TDriverParam> {
-	mapToDriverValue(value: TData): TDriverParam;
+	mapToDriverValue(value: TData): TDriverParam | SQL;
 }
 
 export const noopDecoder: DriverValueDecoder<any, any> = {
@@ -164,6 +212,7 @@ export type SQLSourceParam =
 	| SQLWrapper
 	| SQL
 	| Table
+	| Subquery
 	| AnyColumn
 	| Param
 	| Name
@@ -182,20 +231,39 @@ function buildChunksFromParam(param: SQLSourceParam): Chunk[] {
 		});
 		result.push(')');
 		return result;
-	} else if (param instanceof SQL) {
-		return param.queryChunks;
-	} else if (isSQLWrapper(param)) {
-		return buildChunksFromParam(param.getSQL());
-	} else if (param instanceof Table || param instanceof Column || param instanceof Name || param instanceof Param) {
-		return [param];
-	} else if (param !== undefined) {
-		return [new Param(param)];
-	} else {
-		return [];
 	}
+
+	if (param instanceof SQL) {
+		return param.queryChunks;
+	}
+
+	if (param instanceof SQL.Aliased && typeof param.fieldAlias !== 'undefined') {
+		return [new Name(param.fieldAlias)];
+	}
+
+	if (param instanceof Table || param instanceof Column || param instanceof Name || param instanceof Param) {
+		return [param];
+	}
+
+	if (param instanceof Subquery) {
+		if (param[SubqueryConfig].isWith) {
+			return [new Name(param[SubqueryConfig].alias)];
+		}
+		return ['(', ...param[SubqueryConfig].sql.queryChunks, ') ', new Name(param[SubqueryConfig].alias)];
+	}
+
+	if (isSQLWrapper(param)) {
+		return ['(', ...param.getSQL().queryChunks, ')'];
+	}
+
+	if (param !== undefined) {
+		return [new Param(param)];
+	}
+
+	return [];
 }
 
-export function sql(strings: TemplateStringsArray, ...params: any[]): SQL;
+export function sql<T>(strings: TemplateStringsArray, ...params: any[]): SQL<T>;
 /*
 	The type of `params` is specified as `SQLSourceParam[]`, but that's slightly incorrect -
 	in runtime, users won't pass `FakePrimitiveParam` instances as `params` - they will pass primitive values
@@ -234,10 +302,28 @@ export namespace sql {
 	}
 }
 
-export class SQLResponse<TValue = unknown> {
-	declare protected $brand: 'SQLResponse';
+export namespace SQL {
+	export class Aliased<T = unknown> implements SQLWrapper {
+		declare protected $brand: 'SQL.Aliased';
+		declare protected $type: T;
 
-	constructor(readonly sql: SQL, readonly decoder: DriverValueDecoder<TValue, any>) {}
+		/** @internal */
+		isSubquerySelectionField = false;
+
+		constructor(
+			readonly sql: SQL,
+			readonly fieldAlias: string,
+		) {}
+
+		getSQL(): SQL {
+			return this.sql;
+		}
+
+		/** @internal */
+		clone() {
+			return new Aliased(this.sql, this.fieldAlias);
+		}
+	}
 }
 
 export class Placeholder<TName extends string = string, TValue = any> {

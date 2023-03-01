@@ -5,6 +5,5 @@ export * from './db';
 export * from './dialect';
 export * from './foreign-keys';
 export * from './indexes';
-export * from './operations';
 export * from './session';
 export * from './table';

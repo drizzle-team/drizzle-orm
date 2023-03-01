@@ -1,10 +1,10 @@
-import { sql } from '~/sql';
-
+import { Equal, Expect } from 'tests/utils';
 import { check } from '~/pg-core/checks';
-import { integer, pgEnum, serial, text, timestamp, uuid } from '~/pg-core/columns';
+import { cidr, inet, integer, macaddr, macaddr8, pgEnum, serial, text, timestamp, uuid } from '~/pg-core/columns';
 import { foreignKey } from '~/pg-core/foreign-keys';
 import { index, uniqueIndex } from '~/pg-core/indexes';
-import { pgSchema, pgTable } from '~/pg-core/table';
+import { InferModel, pgTable } from '~/pg-core/table';
+import { sql } from '~/sql';
 
 const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
 
@@ -58,3 +58,19 @@ export const classes = pgTable('classes_table', {
 	class: text<'A' | 'C'>('class'),
 	subClass: text<'B' | 'D'>('sub_class').notNull(),
 });
+
+export const network = pgTable('network_table', {
+	inet: inet('inet').notNull(),
+	cidr: cidr('cidr').notNull(),
+	macaddr: macaddr('macaddr').notNull(),
+	macaddr8: macaddr8('macaddr8').notNull(),
+});
+
+Expect<
+	Equal<{
+		inet: string;
+		cidr: string;
+		macaddr: string;
+		macaddr8: string;
+	}, InferModel<typeof network>>
+>;

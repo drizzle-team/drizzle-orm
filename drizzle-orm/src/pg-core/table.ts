@@ -18,7 +18,7 @@ export type PgTableExtraConfig = Record<
 
 export interface TableConfig<TName extends string = string> {
 	name: TName;
-	columns: Record<string | symbol, AnyPgColumn<{ tableName: TName }>>;
+	columns: Record<string, AnyPgColumn<{ tableName: TName }>>;
 }
 
 export type UpdateTableConfig<T extends TableConfig, TUpdate extends Partial<TableConfig>> = Update<T, TUpdate>;

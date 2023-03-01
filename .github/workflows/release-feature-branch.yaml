@@ -4,9 +4,12 @@ on:
   push:
     branches-ignore:
       - main
+  pull_request: {}
 
 jobs:
   release:
+    # only run on all pushes or pull requests from forks
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     strategy:
       matrix:
         package:
@@ -26,7 +29,14 @@ jobs:
           version: latest
           run_install: true
 
+      - name: Build (for fork PRs only)
+        if: github.event_name == 'pull_request'
+        run: |
+          # TODO: replace with a single pnpm script (move check:examples to turbo)
+          pnpm turbo run build test:types --color --filter ${{ matrix.package }} && pnpm check:examples
+
       - name: Build & publish
+        if: github.event_name == 'push'
         run: |
           tag="${{ github.ref_name }}"
           old_version="$(jq -r .version package.json)"
@@ -42,6 +52,8 @@ jobs:
             (cd .. && npm run pack -- --filter ${{ matrix.package }})
             npm run publish -- --tag $tag
           fi
+
+          echo "npm: \`${{ matrix.package }}@$tag | ${{ matrix.package }}@$version\`" >> $GITHUB_STEP_SUMMARY
 
           # Post release message to Discord
           curl -X POST -H "Content-Type: application/json" -d "{\"embeds\": [{\"title\": \"New \`${{ matrix.package }}\` release! 🎉\", \"url\": \"https://www.npmjs.com/package/${{ matrix.package }}/v/$version\", \"color\": \"12907856\", \"fields\": [{\"name\": \"Version\", \"value\": \"\`$version\`\"}, {\"name\": \"Tag\", \"value\": \"\`$tag\`\"}]}]}" ${{ secrets.DISCORD_DEV_RELEASE_WEBHOOK_URL }}

@@ -1,9 +1,15 @@
 import { MySqlDialect } from '~/mysql-core/dialect';
-import { SelectFieldsOrdered } from '~/mysql-core/operations';
-import { MySqlRawQueryResult, MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/mysql-core/session';
+import {
+	MySqlSession,
+	PreparedQuery,
+	PreparedQueryConfig,
+	QueryResultHKT,
+	QueryResultKind,
+} from '~/mysql-core/session';
 import { AnyMySqlTable } from '~/mysql-core/table';
 import { QueryPromise } from '~/query-promise';
 import { Query, SQL, SQLWrapper } from '~/sql';
+import { SelectFieldsOrdered } from './select.types';
 
 export interface MySqlDeleteConfig {
 	where?: SQL | undefined;
@@ -13,13 +19,13 @@ export interface MySqlDeleteConfig {
 
 export interface MySqlDelete<
 	TTable extends AnyMySqlTable,
-	TReturning = undefined,
-> extends QueryPromise<MySqlRawQueryResult> {}
+	TQueryResult extends QueryResultHKT,
+> extends QueryPromise<QueryResultKind<TQueryResult, never>> {}
 
 export class MySqlDelete<
 	TTable extends AnyMySqlTable,
-	TReturning = undefined,
-> extends QueryPromise<MySqlRawQueryResult> implements SQLWrapper {
+	TQueryResult extends QueryResultHKT,
+> extends QueryPromise<QueryResultKind<TQueryResult, never>> implements SQLWrapper {
 	private config: MySqlDeleteConfig;
 
 	constructor(
@@ -38,37 +44,27 @@ export class MySqlDelete<
 		return this;
 	}
 
-	// returning(): Omit<MySqlDelete<TTable, InferModel<TTable>>, 'where' | 'returning'>;
-	// returning<TSelectedFields extends SelectFields>(
-	// 	fields: TSelectedFields,
-	// ): Omit<MySqlDelete<TTable, SelectResultFields<TSelectedFields>>, 'where' | 'returning'>;
-	// returning(
-	// 	fields: SelectFields = this.config.table[MySqlTable.Symbol.Columns],
-	// ): Omit<MySqlDelete<TTable, any>, 'where' | 'returning'> {
-	// 	this.config.returning = orderSelectedFields(fields);
-	// 	return this;
-	// }
-
 	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildDeleteQuery(this.config);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(): Omit<Query, 'typings'> {
+		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		return rest;
 	}
 
 	private _prepare(name?: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: MySqlRawQueryResult;
+			execute: TQueryResult;
 		}
 	> {
-		return this.session.prepareQuery(this.toSQL(), this.config.returning, name);
+		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
 	}
 
 	prepare(name: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: MySqlRawQueryResult;
+			execute: QueryResultKind<TQueryResult, never>;
 		}
 	> {
 		return this._prepare(name);
