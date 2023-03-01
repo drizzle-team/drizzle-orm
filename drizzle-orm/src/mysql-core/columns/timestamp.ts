@@ -96,7 +96,7 @@ export class MySqlTimestampString<
 	}
 
 	getSQLType(): string {
-		const precision = typeof this.fsp !== 'undefined' ? ` (${this.fsp})` : '';
+		const precision = typeof this.fsp !== 'undefined' ? `(${this.fsp})` : '';
 		return `timestamp${precision}`;
 	}
 }
