@@ -20,6 +20,7 @@ export type Chunk =
 export interface BuildQueryConfig {
 	escapeName(name: string): string;
 	escapeParam(num: number, value: unknown): string;
+	paramStartIndex?: number;
 }
 
 export type QueryTypingsValue = 'json' | 'decimal' | 'time' | 'timestamp' | 'uuid' | 'date' | 'none';
@@ -47,8 +48,13 @@ export class SQL<T = unknown> implements SQLWrapper {
 
 	constructor(readonly queryChunks: Chunk[]) {}
 
+	append(chunk: SQL): this {
+		this.queryChunks.push(...chunk.queryChunks);
+		return this;
+	}
+
 	toQuery(
-		{ escapeName, escapeParam }: BuildQueryConfig,
+		{ escapeName, escapeParam, paramStartIndex = 0 }: BuildQueryConfig,
 		prepareTyping?: (encoder: DriverValueEncoder<unknown, unknown>) => QueryTypingsValue,
 	): Query {
 		const params: unknown[] = [];
@@ -75,9 +81,18 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (chunk instanceof Param) {
+				const mappedValue = chunk.encoder.mapToDriverValue(chunk.value);
+
+				if (mappedValue instanceof SQL) {
+					const mappedValueQuery = mappedValue.toQuery({ escapeName, escapeParam, paramStartIndex }, prepareTyping);
+					params.push(...mappedValueQuery.params);
+					if (prepareTyping && mappedValueQuery.typings) typings.push(...mappedValueQuery.typings);
+					return mappedValueQuery.sql;
+				}
+
 				params.push(chunk.encoder.mapToDriverValue(chunk.value));
 				if (typeof prepareTyping !== 'undefined') typings.push(prepareTyping(chunk.encoder));
-				return escapeParam(params.length - 1, chunk.value);
+				return escapeParam(paramStartIndex + params.length - 1, chunk.value);
 			}
 
 			const err = new Error('Unexpected chunk type!');
@@ -156,7 +171,7 @@ export interface DriverValueDecoder<TData, TDriverParam> {
 }
 
 export interface DriverValueEncoder<TData, TDriverParam> {
-	mapToDriverValue(value: TData): TDriverParam;
+	mapToDriverValue(value: TData): TDriverParam | SQL;
 }
 
 export const noopDecoder: DriverValueDecoder<any, any> = {

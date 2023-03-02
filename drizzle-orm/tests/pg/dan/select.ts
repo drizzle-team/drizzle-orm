@@ -829,3 +829,13 @@ Expect<
 		>
 	>;
 }
+
+await db
+	.select()
+	.from(users)
+	.for('update')
+	.for('no key update', { of: users })
+	.for('no key update', { of: users, skipLocked: true })
+	.for('share', { of: users, noWait: true })
+	// @ts-expect-error
+	.for('share', { of: users, noWait: true, skipLocked: true });

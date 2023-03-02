@@ -145,13 +145,17 @@ export interface MySqlSelectConfig {
 	withList: Subquery[];
 	fields: SelectFields;
 	fieldsList: SelectFieldsOrdered;
-	where?: SQL | undefined;
+	where?: SQL;
 	table: AnyMySqlTable | Subquery;
 	limit?: number | Placeholder;
 	offset?: number | Placeholder;
 	joins: Record<string, JoinsValue>;
 	orderBy: (AnyMySqlColumn | SQL)[];
 	groupBy: (AnyMySqlColumn | SQL)[];
+	lockingClause?: {
+		strength: LockStrength;
+		config: LockConfig;
+	};
 }
 
 export type JoinFn<
@@ -199,3 +203,16 @@ export type SelectResultFields<TSelectedFields> = Simplify<
 		[Key in keyof TSelectedFields & string]: SelectResultField<TSelectedFields[Key]>;
 	}
 >;
+
+export type LockStrength = 'update' | 'share';
+
+export type LockConfig = {
+	noWait: true;
+	skipLocked?: undefined;
+} | {
+	noWait?: undefined;
+	skipLocked: true;
+} | {
+	noWait?: undefined;
+	skipLocked?: undefined;
+};

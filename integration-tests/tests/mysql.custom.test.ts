@@ -1,9 +1,12 @@
+import 'dotenv/config';
+
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
 import { asc, eq } from 'drizzle-orm/expressions';
 import {
 	alias,
+	binary,
 	customType,
 	date,
 	datetime,
@@ -13,6 +16,7 @@ import {
 	text,
 	time,
 	uniqueIndex,
+	varchar,
 	year,
 } from 'drizzle-orm/mysql-core';
 import { drizzle, MySql2Database } from 'drizzle-orm/mysql2';
@@ -68,6 +72,22 @@ const customTimestamp = customType<
 	},
 });
 
+const customBinary = customType<{ data: string; driverData: Buffer; config: { length: number } }>({
+	dataType(config) {
+		return typeof config.length !== 'undefined'
+			? `binary(${config.length})`
+			: `binary`;
+	},
+
+	toDriver(value) {
+		return sql`UNHEX(${value})`;
+	},
+
+	fromDriver(value) {
+		return value.toString('hex');
+	},
+});
+
 const usersTable = mysqlTable('userstest', {
 	id: customSerial('id').primaryKey(),
 	name: customText('name').notNull(),
@@ -83,6 +103,12 @@ const datesTable = mysqlTable('datestable', {
 	datetime: datetime('datetime', { fsp: 2 }),
 	datetimeAsString: datetime('datetime_as_string', { fsp: 2, mode: 'string' }),
 	year: year('year'),
+});
+
+export const testTable = mysqlTable('test_table', {
+	id: customBinary('id', { length: 16 }).primaryKey(),
+	sqlId: binary('sql_id', { length: 16 }),
+	rawId: varchar('raw_id', { length: 64 }),
 });
 
 const usersMigratorTable = mysqlTable('users12', {
@@ -114,7 +140,7 @@ async function createDockerDB(ctx: Context): Promise<string> {
 		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
 	);
 
-	const mysqlContainer = (ctx.mysqlContainer = await docker.createContainer({
+	ctx.mysqlContainer = await docker.createContainer({
 		Image: image,
 		Env: ['MYSQL_ROOT_PASSWORD=mysql', 'MYSQL_DATABASE=drizzle'],
 		name: `drizzle-integration-tests-${uuid()}`,
@@ -124,9 +150,9 @@ async function createDockerDB(ctx: Context): Promise<string> {
 				'3306/tcp': [{ HostPort: `${port}` }],
 			},
 		},
-	}));
+	});
 
-	await mysqlContainer.start();
+	await ctx.mysqlContainer.start();
 
 	return `mysql://root:mysql@127.0.0.1:${port}/drizzle`;
 }
@@ -153,15 +179,18 @@ test.before(async (t) => {
 	} while (timeLeft > 0);
 	if (!connected) {
 		console.error('Cannot connect to MySQL');
+		await ctx.client?.end().catch(console.error);
+		await ctx.mysqlContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	ctx.db = drizzle(ctx.client /* , { logger: new DefaultLogger() } */);
+	ctx.db = drizzle(ctx.client, { logger: false });
 });
 
 test.beforeEach(async (t) => {
 	const ctx = t.context;
 	await ctx.db.execute(sql`drop table if exists \`userstest\``);
 	await ctx.db.execute(sql`drop table if exists \`datestable\``);
+	await ctx.db.execute(sql`drop table if exists \`test_table\``);
 	// await ctx.db.execute(sql`create schema public`);
 	await ctx.db.execute(
 		sql`create table \`userstest\` (
@@ -181,6 +210,14 @@ test.beforeEach(async (t) => {
 			\`datetime\` datetime, 
 			\`datetime_as_string\` datetime,
 			\`year\` year
+		)`,
+	);
+
+	await ctx.db.execute(
+		sql`create table \`test_table\` (
+			\`id\` binary(16) primary key,
+			\`sql_id\` binary(16),
+			\`raw_id\` varchar(64)
 		)`,
 	);
 });
@@ -608,6 +645,9 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 
 test.serial('migrator', async (t) => {
 	const { db } = t.context;
+	await db.execute(sql`drop table if exists __drizzle_migrations`);
+	await db.execute(sql`drop table if exists ${usersMigratorTable}`);
+
 	await migrate(db, { migrationsFolder: './drizzle/mysql' });
 
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
@@ -615,6 +655,9 @@ test.serial('migrator', async (t) => {
 	const result = await db.select().from(usersMigratorTable);
 
 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+
+	await db.execute(sql`drop table if exists __drizzle_migrations`);
+	await db.execute(sql`drop table if exists ${usersMigratorTable}`);
 });
 
 test.serial('insert via db.execute + select via db.execute', async (t) => {
@@ -698,6 +741,25 @@ test.serial('Mysql enum test case #1', async (t) => {
 		{ id: 2, enum1: 'a', enum2: 'a', enum3: 'c' },
 		{ id: 3, enum1: 'a', enum2: 'a', enum3: 'b' },
 	]);
+});
+
+test.serial('custom binary', async (t) => {
+	const { db } = t.context;
+
+	const id = uuid().replace(/-/g, '');
+	await db.insert(testTable).values({
+		id,
+		sqlId: sql`UNHEX(${id})`,
+		rawId: id,
+	});
+
+	const res = await db.select().from(testTable);
+
+	t.deepEqual(res, [{
+		id,
+		sqlId: Buffer.from(id, 'hex'),
+		rawId: id,
+	}]);
 });
 
 test.after.always(async (t) => {

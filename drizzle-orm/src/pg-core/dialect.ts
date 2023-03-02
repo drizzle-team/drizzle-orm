@@ -169,7 +169,8 @@ export class PgDialect {
 	}
 
 	buildSelectQuery(
-		{ withList, fieldsList: fields, where, table, joins, orderBy, groupBy, limit, offset }: PgSelectConfig,
+		{ withList, fieldsList: fields, where, table, joins, orderBy, groupBy, limit, offset, lockingClauses }:
+			PgSelectConfig,
 	): SQL {
 		fields.forEach((f) => {
 			let tableName: string;
@@ -264,7 +265,21 @@ export class PgDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		return sql`${withSql}select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${orderBySql}${limitSql}${offsetSql}`;
+		let lockingClausesSql = sql.empty();
+		lockingClauses.forEach(({ strength, config }) => {
+			let clauseSql = sql` for ${sql.raw(strength)}`;
+			if (config.of) {
+				clauseSql.append(sql` of ${config.of}`);
+			}
+			if (config.noWait) {
+				clauseSql.append(sql` no wait`);
+			} else if (config.skipLocked) {
+				clauseSql.append(sql` skip locked`);
+			}
+			lockingClausesSql.append(clauseSql);
+		});
+
+		return sql`${withSql}select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {

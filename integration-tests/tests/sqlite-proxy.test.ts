@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 import anyTest, { TestFn } from 'ava';
 import BetterSqlite3 from 'better-sqlite3';
 import Database from 'better-sqlite3';
