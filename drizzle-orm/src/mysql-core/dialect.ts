@@ -169,7 +169,8 @@ export class MySqlDialect {
 	}
 
 	buildSelectQuery(
-		{ withList, fieldsList: fields, where, table, joins, orderBy, groupBy, limit, offset }: MySqlSelectConfig,
+		{ withList, fieldsList: fields, where, table, joins, orderBy, groupBy, limit, offset, lockingClause }:
+			MySqlSelectConfig,
 	): SQL {
 		fields.forEach((f) => {
 			let tableName: string;
@@ -264,7 +265,18 @@ export class MySqlDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		return sql`${withSql}select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${orderBySql}${limitSql}${offsetSql}`;
+		let lockingClausesSql;
+		if (lockingClause) {
+			const { config, strength } = lockingClause;
+			lockingClausesSql = sql` for ${sql.raw(strength)}`;
+			if (config.noWait) {
+				lockingClausesSql.append(sql` no wait`);
+			} else if (config.skipLocked) {
+				lockingClausesSql.append(sql` skip locked`);
+			}
+		}
+
+		return sql`${withSql}select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: MySqlInsertConfig): SQL {

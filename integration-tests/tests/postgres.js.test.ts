@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
@@ -1002,6 +1004,24 @@ test.serial('select count w/ custom mapper', async (t) => {
 	const res = await db.select({ count: count(sql`*`) }).from(usersTable);
 
 	t.deepEqual(res, [{ count: 2 }]);
+});
+
+test.serial.only('select for ...', (t) => {
+	const { db } = t.context;
+
+	const query = db
+		.select()
+		.from(users2Table)
+		.for('update')
+		.for('no key update', { of: users2Table })
+		.for('no key update', { of: users2Table, skipLocked: true })
+		.for('share', { of: users2Table, noWait: true })
+		.toSQL();
+
+	t.regex(
+		query.sql,
+		/select ("(id|name|city_id)"(, )?){3} from "users2" for update for no key update of "users2" for no key update of "users2" skip locked for share of "users2" no wait/,
+	);
 });
 
 test.after.always(async (t) => {

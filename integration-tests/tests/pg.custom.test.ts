@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
@@ -83,7 +85,7 @@ async function createDockerDB(ctx: Context): Promise<string> {
 		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
 	);
 
-	const pgContainer = (ctx.pgContainer = await docker.createContainer({
+	ctx.pgContainer = await docker.createContainer({
 		Image: image,
 		Env: ['POSTGRES_PASSWORD=postgres', 'POSTGRES_USER=postgres', 'POSTGRES_DB=postgres'],
 		name: `drizzle-integration-tests-${uuid()}`,
@@ -93,9 +95,9 @@ async function createDockerDB(ctx: Context): Promise<string> {
 				'5432/tcp': [{ HostPort: `${port}` }],
 			},
 		},
-	}));
+	});
 
-	await pgContainer.start();
+	await ctx.pgContainer.start();
 
 	return `postgres://postgres:postgres@localhost:${port}/postgres`;
 }
@@ -122,9 +124,17 @@ test.before(async (t) => {
 	} while (timeLeft > 0);
 	if (!connected) {
 		console.error('Cannot connect to Postgres');
+		await ctx.client?.end().catch(console.error);
+		await ctx.pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	ctx.db = drizzle(ctx.client /* , { logger: new DefaultLogger() } */);
+	ctx.db = drizzle(ctx.client, { logger: false });
+});
+
+test.after.always(async (t) => {
+	const ctx = t.context;
+	await ctx.client?.end().catch(console.error);
+	await ctx.pgContainer?.stop().catch(console.error);
 });
 
 test.beforeEach(async (t) => {
@@ -548,6 +558,10 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 
 test.serial('migrator', async (t) => {
 	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists drizzle.__drizzle_migrations`);
+	await db.execute(sql`drop table if exists ${usersMigratorTable}`);
+
 	await migrate(db, { migrationsFolder: './drizzle/pg' });
 
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
@@ -555,6 +569,9 @@ test.serial('migrator', async (t) => {
 	const result = await db.select().from(usersMigratorTable);
 
 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+
+	await db.execute(sql`drop table if exists drizzle.__drizzle_migrations`);
+	await db.execute(sql`drop table if exists ${usersMigratorTable}`);
 });
 
 test.serial('insert via db.execute + select via db.execute', async (t) => {
@@ -691,10 +708,4 @@ test.serial('insert with onConflict do nothing + target', async (t) => {
 	);
 
 	t.deepEqual(res, [{ id: 1, name: 'John' }]);
-});
-
-test.after.always(async (t) => {
-	const ctx = t.context;
-	await ctx.client?.end().catch(console.error);
-	await ctx.pgContainer?.stop().catch(console.error);
 });

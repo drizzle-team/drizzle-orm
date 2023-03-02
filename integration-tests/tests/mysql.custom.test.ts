@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
@@ -114,7 +116,7 @@ async function createDockerDB(ctx: Context): Promise<string> {
 		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
 	);
 
-	const mysqlContainer = (ctx.mysqlContainer = await docker.createContainer({
+	ctx.mysqlContainer = await docker.createContainer({
 		Image: image,
 		Env: ['MYSQL_ROOT_PASSWORD=mysql', 'MYSQL_DATABASE=drizzle'],
 		name: `drizzle-integration-tests-${uuid()}`,
@@ -124,9 +126,9 @@ async function createDockerDB(ctx: Context): Promise<string> {
 				'3306/tcp': [{ HostPort: `${port}` }],
 			},
 		},
-	}));
+	});
 
-	await mysqlContainer.start();
+	await ctx.mysqlContainer.start();
 
 	return `mysql://root:mysql@127.0.0.1:${port}/drizzle`;
 }
@@ -153,6 +155,8 @@ test.before(async (t) => {
 	} while (timeLeft > 0);
 	if (!connected) {
 		console.error('Cannot connect to MySQL');
+		await ctx.client?.end().catch(console.error);
+		await ctx.mysqlContainer?.stop().catch(console.error);
 		throw lastError;
 	}
 	ctx.db = drizzle(ctx.client /* , { logger: new DefaultLogger() } */);
@@ -608,6 +612,9 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 
 test.serial('migrator', async (t) => {
 	const { db } = t.context;
+	await db.execute(sql`drop table if exists __drizzle_migrations`);
+	await db.execute(sql`drop table if exists ${usersMigratorTable}`);
+
 	await migrate(db, { migrationsFolder: './drizzle/mysql' });
 
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
@@ -615,6 +622,9 @@ test.serial('migrator', async (t) => {
 	const result = await db.select().from(usersMigratorTable);
 
 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+
+	await db.execute(sql`drop table if exists __drizzle_migrations`);
+	await db.execute(sql`drop table if exists ${usersMigratorTable}`);
 });
 
 test.serial('insert via db.execute + select via db.execute', async (t) => {

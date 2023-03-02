@@ -47,6 +47,11 @@ export class SQL<T = unknown> implements SQLWrapper {
 
 	constructor(readonly queryChunks: Chunk[]) {}
 
+	append(chunk: SQL): this {
+		this.queryChunks.push(...chunk.queryChunks);
+		return this;
+	}
+
 	toQuery(
 		{ escapeName, escapeParam }: BuildQueryConfig,
 		prepareTyping?: (encoder: DriverValueEncoder<unknown, unknown>) => QueryTypingsValue,

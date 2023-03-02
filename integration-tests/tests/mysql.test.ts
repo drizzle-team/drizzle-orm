@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { DefaultLogger, sql } from 'drizzle-orm';
@@ -103,7 +105,7 @@ async function createDockerDB(ctx: Context): Promise<string> {
 		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
 	);
 
-	const mysqlContainer = (ctx.mysqlContainer = await docker.createContainer({
+	ctx.mysqlContainer = await docker.createContainer({
 		Image: image,
 		Env: ['MYSQL_ROOT_PASSWORD=mysql', 'MYSQL_DATABASE=drizzle'],
 		name: `drizzle-integration-tests-${uuid()}`,
@@ -113,9 +115,9 @@ async function createDockerDB(ctx: Context): Promise<string> {
 				'3306/tcp': [{ HostPort: `${port}` }],
 			},
 		},
-	}));
+	});
 
-	await mysqlContainer.start();
+	await ctx.mysqlContainer.start();
 
 	return `mysql://root:mysql@127.0.0.1:${port}/drizzle`;
 }
@@ -142,20 +144,24 @@ test.before(async (t) => {
 	} while (timeLeft > 0);
 	if (!connected) {
 		console.error('Cannot connect to MySQL');
+		await ctx.client?.end().catch(console.error);
+		await ctx.mysqlContainer?.stop().catch(console.error);
 		throw lastError;
 	}
 	ctx.db = drizzle(ctx.client, { logger: ENABLE_LOGGING ? new DefaultLogger() : undefined });
 });
 
+test.after.always(async (t) => {
+	const ctx = t.context;
+	await ctx.client?.end().catch(console.error);
+	await ctx.mysqlContainer?.stop().catch(console.error);
+});
+
 test.beforeEach(async (t) => {
 	const ctx = t.context;
 	await ctx.db.execute(sql`drop table if exists \`userstest\``);
-	await ctx.db.execute(sql`drop table if exists \`datestable\``);
 	await ctx.db.execute(sql`drop table if exists \`users2\``);
 	await ctx.db.execute(sql`drop table if exists \`cities\``);
-	await ctx.db.execute(sql`drop table if exists \`courses\``);
-	await ctx.db.execute(sql`drop table if exists \`course_categories\``);
-	await ctx.db.execute(sql`drop table if exists \`orders\``);
 
 	await ctx.db.execute(
 		sql`create table \`userstest\` (
@@ -164,17 +170,6 @@ test.beforeEach(async (t) => {
 			\`verified\` boolean not null default false, 
 			\`jsonb\` json,
 			\`created_at\` timestamp not null default now()
-		)`,
-	);
-
-	await ctx.db.execute(
-		sql`create table \`datestable\` (
-			\`date\` date,
-			\`date_as_string\` date,
-			\`time\` time,
-			\`datetime\` datetime, 
-			\`datetime_as_string\` datetime,
-			\`year\` year
 		)`,
 	);
 
@@ -190,31 +185,6 @@ test.beforeEach(async (t) => {
 		sql`create table \`cities\` (
 			\`id\` serial primary key,
 			\`name\` text not null
-		)`,
-	);
-
-	await ctx.db.execute(
-		sql`create table \`course_categories\` (
-			\`id\` serial primary key,
-			\`name\` text not null
-		)`,
-	);
-
-	await ctx.db.execute(
-		sql`create table \`courses\` (
-			\`id\` serial primary key,
-			\`name\` text not null,
-			\`category_id\` int references \`course_categories\`(\`id\`)
-		)`,
-	);
-
-	await ctx.db.execute(
-		sql`create table \`orders\` (
-			\`id\` serial primary key,
-			\`region\` text not null,
-			\`product\` text not null,
-			\`amount\` int not null,
-			\`quantity\` int not null
 		)`,
 	);
 });
@@ -642,6 +612,10 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 
 test.serial('migrator', async (t) => {
 	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists __drizzle_migrations`);
+	await db.execute(sql`drop table if exists ${usersMigratorTable}`);
+
 	await migrate(db, { migrationsFolder: './drizzle/mysql' });
 
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
@@ -649,6 +623,9 @@ test.serial('migrator', async (t) => {
 	const result = await db.select().from(usersMigratorTable);
 
 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+
+	await db.execute(sql`drop table if exists __drizzle_migrations`);
+	await db.execute(sql`drop table if exists ${usersMigratorTable}`);
 });
 
 test.serial('insert via db.execute + select via db.execute', async (t) => {
@@ -671,6 +648,18 @@ test.serial('insert via db.execute w/ query builder', async (t) => {
 
 test.serial('insert + select all possible dates', async (t) => {
 	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists \`datestable\``);
+	await db.execute(
+		sql`create table \`datestable\` (
+			\`date\` date,
+			\`date_as_string\` date,
+			\`time\` time,
+			\`datetime\` datetime,
+			\`datetime_as_string\` datetime,
+			\`year\` year
+		)`,
+	);
 
 	const date = new Date('2022-11-11');
 
@@ -698,6 +687,8 @@ test.serial('insert + select all possible dates', async (t) => {
 		year: 2022,
 		datetimeAsString: '2022-11-11 12:12:12',
 	}]);
+
+	await db.execute(sql`drop table if exists \`datestable\``);
 });
 
 const tableWithEnums = mysqlTable('enums_test_case', {
@@ -829,6 +820,24 @@ test.serial('left join (all fields)', async (t) => {
 test.serial('join subquery', async (t) => {
 	const { db } = t.context;
 
+	await db.execute(sql`drop table if exists \`courses\``);
+	await db.execute(sql`drop table if exists \`course_categories\``);
+
+	await db.execute(
+		sql`create table \`course_categories\` (
+			\`id\` serial primary key,
+			\`name\` text not null
+		)`,
+	);
+
+	await db.execute(
+		sql`create table \`courses\` (
+			\`id\` serial primary key,
+			\`name\` text not null,
+			\`category_id\` int references \`course_categories\`(\`id\`)
+		)`,
+	);
+
 	await db.insert(courseCategoriesTable).values(
 		{ name: 'Category 1' },
 		{ name: 'Category 2' },
@@ -868,10 +877,24 @@ test.serial('join subquery', async (t) => {
 		{ courseName: 'IT & Software', categoryId: 3 },
 		{ courseName: 'Marketing', categoryId: 4 },
 	]);
+
+	await db.execute(sql`drop table if exists \`courses\``);
+	await db.execute(sql`drop table if exists \`course_categories\``);
 });
 
 test.serial('with ... select', async (t) => {
 	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists \`orders\``);
+	await db.execute(
+		sql`create table \`orders\` (
+			\`id\` serial primary key,
+			\`region\` text not null,
+			\`product\` text not null,
+			\`amount\` int not null,
+			\`quantity\` int not null
+		)`,
+	);
 
 	await db.insert(orders).values(
 		{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
@@ -983,8 +1006,19 @@ test.serial('select count()', async (t) => {
 	t.deepEqual(res, [{ count: 2 }]);
 });
 
-test.after.always(async (t) => {
-	const ctx = t.context;
-	await ctx.client?.end().catch(console.error);
-	await ctx.mysqlContainer?.stop().catch(console.error);
+test.serial('select for ...', (t) => {
+	const { db } = t.context;
+
+	{
+		const query = db.select().from(users2Table).for('update').toSQL();
+		t.regex(query.sql, / for update$/);
+	}
+	{
+		const query = db.select().from(users2Table).for('share', { skipLocked: true }).toSQL();
+		t.regex(query.sql, / for share skip locked$/);
+	}
+	{
+		const query = db.select().from(users2Table).for('update', { noWait: true }).toSQL();
+		t.regex(query.sql, / for update no wait$/);
+	}
 });
