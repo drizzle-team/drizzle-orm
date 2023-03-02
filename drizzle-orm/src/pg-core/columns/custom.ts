@@ -1,6 +1,7 @@
 import { ColumnConfig } from '~/column';
 import { ColumnBuilderConfig } from '~/column-builder';
 import { AnyPgTable } from '~/pg-core/table';
+import { SQL } from '~/sql';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export type CustomColumnBuilderConfig<T extends CustomTypeValues> = {
@@ -158,7 +159,7 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * }
 	 * ```
 	 */
-	toDriver?: (value: T['data']) => T['driverData'];
+	toDriver?: (value: T['data']) => T['driverData'] | SQL;
 
 	/**
 	 * Optional mapping function, that is responsible for data mapping from database to JS/TS code
