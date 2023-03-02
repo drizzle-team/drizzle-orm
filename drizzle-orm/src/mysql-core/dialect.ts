@@ -5,7 +5,6 @@ import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
 import { UpdateSet } from '~/utils';
 import { AnyMySqlColumn, MySqlColumn } from './columns/common';
-import { MySqlDatabase } from './db';
 import { MySqlDeleteConfig } from './query-builders/delete';
 import { MySqlInsertConfig } from './query-builders/insert';
 import { MySqlSelectConfig, SelectFieldsOrdered } from './query-builders/select.types';
