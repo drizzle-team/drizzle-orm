@@ -817,3 +817,7 @@ class MyLogger implements Logger {
 
 const db = drizzle(pool, { logger: new MyLogger() });
 ```
+
+## Table introspect API
+
+See [dedicated docs](/docs/table-introspect-api.md).

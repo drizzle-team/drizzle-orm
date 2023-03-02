@@ -25,46 +25,28 @@ export interface TableConfig {
 export type UpdateTableConfig<T extends TableConfig, TUpdate extends Partial<TableConfig>> = Update<T, TUpdate>;
 
 /** @internal */
-export const Indexes = Symbol('Indexes');
+export const InlineForeignKeys = Symbol('InlineForeignKeys');
 
 /** @internal */
-export const ForeignKeys = Symbol('ForeignKeys');
-
-/** @internal */
-export const PrimaryKeys = Symbol('PrimaryKeys');
-
-/** @internal */
-export const Checks = Symbol('Checks');
-
-/** @internal */
-export const ConflictConstraints = Symbol('ConflictConstraints');
+export const ExtraConfigBuilder = Symbol('ExtraConfigBuilder');
 
 export class SQLiteTable<T extends Partial<TableConfig>> extends Table<T['name']> {
 	declare protected $columns: T['columns'];
 
 	/** @internal */
 	static override readonly Symbol = Object.assign(Table.Symbol, {
-		Indexes: Indexes as typeof Indexes,
-		ForeignKeys: ForeignKeys as typeof ForeignKeys,
-		Checks: Checks as typeof Checks,
-		PrimaryKeys: PrimaryKeys as typeof PrimaryKeys,
-		ConflictConstraints: ConflictConstraints as typeof ConflictConstraints,
+		InlineForeignKeys: InlineForeignKeys as typeof InlineForeignKeys,
+		ExtraConfigBuilder: ExtraConfigBuilder as typeof ExtraConfigBuilder,
 	});
 
 	/** @internal */
 	override [Table.Symbol.Columns]!: NonNullable<T['columns']>;
 
 	/** @internal */
-	[Indexes]: Record<string | symbol, Index> = {};
+	[InlineForeignKeys]: ForeignKey[] = [];
 
 	/** @internal */
-	[ForeignKeys]: Record<string | symbol, ForeignKey> = {};
-
-	/** @internal */
-	[PrimaryKeys]: Record<string | symbol, PrimaryKey> = {};
-
-	/** @internal */
-	[Checks]: Record<string | symbol, Check> = {};
+	[ExtraConfigBuilder]: ((self: Record<string, AnySQLiteColumn>) => SQLiteTableExtraConfig) | undefined = undefined;
 
 	override toString(): T['name'] {
 		return this[Table.Symbol.Name]!;
@@ -136,33 +118,19 @@ export function sqliteTable<TTableName extends string, TColumnsMap extends Recor
 	const builtColumns = Object.fromEntries(
 		Object.entries(columns).map(([name, colBuilder]) => {
 			const column = colBuilder.build(rawTable);
-			colBuilder.buildForeignKeys(column, rawTable).forEach((fk, fkIndex) => {
-				rawTable[ForeignKeys][Symbol(`${name}_${fkIndex}`)] = fk;
-			});
+			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
 		}),
 	) as BuildColumns<TTableName, TColumnsMap>;
-
-	rawTable[Table.Symbol.Columns] = builtColumns;
 
 	const table = Object.assign(rawTable, builtColumns);
 
 	table[Table.Symbol.Columns] = builtColumns;
 
 	if (extraConfig) {
-		const builtConfig = extraConfig(table);
-
-		Object.entries(builtConfig).forEach(([name, builder]) => {
-			if (builder instanceof IndexBuilder) {
-				table[Indexes][name] = builder.build(table);
-			} else if (builder instanceof CheckBuilder) {
-				table[Checks][name] = builder.build(table);
-			} else if (builder instanceof ForeignKeyBuilder) {
-				table[ForeignKeys][name] = builder.build(table);
-			} else if (builder instanceof PrimaryKeyBuilder) {
-				table[PrimaryKeys][name] = builder.build(table);
-			}
-		});
+		table[SQLiteTable.Symbol.ExtraConfigBuilder] = extraConfig as (
+			self: Record<string, AnySQLiteColumn>,
+		) => SQLiteTableExtraConfig;
 	}
 
 	return table;

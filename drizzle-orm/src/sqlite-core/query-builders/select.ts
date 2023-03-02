@@ -74,7 +74,7 @@ export class SQLiteSelectBuilder<
 				) => [key, table[key as unknown as keyof typeof table] as unknown as SelectFields[string]]),
 			);
 		} else {
-			fields = getTableColumns(table, { format: 'object' });
+			fields = getTableColumns(table);
 		}
 
 		const fieldsList = orderSelectedFields<AnySQLiteColumn>(fields);

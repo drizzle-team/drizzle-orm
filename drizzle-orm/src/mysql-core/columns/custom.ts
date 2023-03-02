@@ -1,6 +1,7 @@
 import { ColumnConfig } from '~/column';
 import { ColumnBuilderConfig } from '~/column-builder';
 import { AnyMySqlTable } from '~/mysql-core/table';
+import { SQL } from '~/sql';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export type CustomColumnBuilderConfig<T extends CustomTypeValues> = {
@@ -118,7 +119,7 @@ export type CustomTypeValues = {
 
 export interface CustomTypeParams<T extends CustomTypeValues> {
 	/**
-	 * Database data type string represenation, that is used for migrations
+	 * Database data type string representation, that is used for migrations
 	 * @example
 	 * ```
 	 * `jsonb`, `text`
@@ -158,7 +159,7 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * }
 	 * ```
 	 */
-	toDriver?: (value: T['data']) => T['driverData'];
+	toDriver?: (value: T['data']) => T['driverData'] | SQL;
 
 	/**
 	 * Optional mapping function, that is responsible for data mapping from database to JS/TS code

@@ -1,7 +1,7 @@
 import { GetColumnData } from '~/column';
 import { PgDialect } from '~/pg-core/dialect';
 import { QueryPromise } from '~/query-promise';
-import { Param, Query, SQL, SQLWrapper } from '~/sql';
+import { Query, SQL, SQLWrapper } from '~/sql';
 import { mapUpdateSet, orderSelectedFields, Simplify, UpdateSet } from '~/utils';
 
 import { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
@@ -18,7 +18,7 @@ export interface PgUpdateConfig {
 export type PgUpdateSetSource<TTable extends AnyPgTable> = Simplify<
 	{
 		[Key in keyof GetTableConfig<TTable, 'columns'>]?:
-			| GetColumnData<GetTableConfig<TTable, 'columns'>[Key], 'query'>
+			| GetColumnData<GetTableConfig<TTable, 'columns'>[Key]>
 			| SQL;
 	}
 >;
@@ -90,8 +90,8 @@ export class PgUpdate<
 	}
 
 	toSQL(): Omit<Query, 'typings'> {
-		const { typings, ...rest} = this.dialect.sqlToQuery(this.getSQL());
-		return rest
+		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		return rest;
 	}
 
 	private _prepare(name?: string): PreparedQuery<
