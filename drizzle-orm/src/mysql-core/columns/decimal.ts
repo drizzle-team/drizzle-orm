@@ -44,7 +44,7 @@ export class MySqlDecimal<TTableName extends string> extends MySqlColumnWithAuto
 
 	getSQLType(): string {
 		if (typeof this.precision !== 'undefined' && typeof this.scale !== 'undefined') {
-			return `decimal(${this.precision}, ${this.scale})`;
+			return `decimal(${this.precision},${this.scale})`;
 		} else if (typeof this.precision === 'undefined') {
 			return 'decimal';
 		} else {

@@ -10,6 +10,7 @@ export class PgBigSerial53Builder extends PgColumnBuilder<{
 	constructor(name: string) {
 		super(name);
 		this.config.hasDefault = true;
+		this.config.notNull = true;
 	}
 
 	protected override $pgColumnBuilderBrand!: 'PgBigSerial53Builder';

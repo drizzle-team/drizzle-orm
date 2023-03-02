@@ -1,7 +1,7 @@
 import { AnyMySqlTable } from '~/mysql-core/table';
-import { MySqlColumn, MySqlColumnBuilder } from './common';
+import { MySqlColumn, MySqlColumnBuilder, MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
-export class MySqlSerialBuilder extends MySqlColumnBuilder<{
+export class MySqlSerialBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	data: number;
 	driverParam: number;
 	notNull: true;
@@ -10,6 +10,7 @@ export class MySqlSerialBuilder extends MySqlColumnBuilder<{
 	constructor(name: string) {
 		super(name);
 		this.config.hasDefault = true;
+		this.config.autoIncrement = true;
 	}
 
 	/** @internal */
@@ -22,7 +23,7 @@ export class MySqlSerialBuilder extends MySqlColumnBuilder<{
 
 export class MySqlSerial<
 	TTableName extends string,
-> extends MySqlColumn<{
+> extends MySqlColumnWithAutoIncrement<{
 	tableName: TTableName;
 	data: number;
 	driverParam: number;

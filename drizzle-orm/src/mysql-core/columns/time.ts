@@ -45,7 +45,7 @@ export class MySqlTime<
 	}
 
 	getSQLType(): string {
-		const precision = typeof this.fsp !== 'undefined' ? ` (${this.fsp})` : '';
+		const precision = typeof this.fsp !== 'undefined' ? `(${this.fsp})` : '';
 		return `time${precision}`;
 	}
 }
