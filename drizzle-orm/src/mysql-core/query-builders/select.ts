@@ -2,6 +2,7 @@ import { AnyMySqlColumn } from '~/mysql-core/columns/common';
 import { MySqlDialect } from '~/mysql-core/dialect';
 import { MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/mysql-core/session';
 import { AnyMySqlTable, GetTableConfig } from '~/mysql-core/table';
+import { getTableColumns } from '~/mysql-core/utils';
 import { QueryPromise } from '~/query-promise';
 import { Query, SQL, SQLWrapper } from '~/sql';
 import {
@@ -15,7 +16,6 @@ import {
 } from '~/subquery';
 import { Table } from '~/table';
 import { orderSelectedFields, Simplify } from '~/utils';
-import { getTableColumns } from '../utils';
 
 import {
 	AnyMySqlSelect,
@@ -66,7 +66,7 @@ export class MySqlSelectBuilder<TSelection extends SelectFields | undefined> {
 				) => [key, table[key as unknown as keyof typeof table] as unknown as SelectFields[string]]),
 			);
 		} else {
-			fields = getTableColumns(table, { format: 'object' });
+			fields = getTableColumns(table);
 		}
 
 		const fieldsList = orderSelectedFields<AnyMySqlColumn>(fields);

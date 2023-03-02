@@ -1,11 +1,6 @@
 import { Equal, Expect } from 'tests/utils';
 import { sql } from '~/sql';
-
-import { check } from '~/sqlite-core/checks';
-import { foreignKey } from '~/sqlite-core/foreign-keys';
-import { integer, primaryKey, text } from '~/sqlite-core/index';
-import { index, uniqueIndex } from '~/sqlite-core/indexes';
-import { InferModel, sqliteTable } from '~/sqlite-core/table';
+import { check, foreignKey, index, InferModel, integer, primaryKey, sqliteTable, text, uniqueIndex } from '~/sqlite-core';
 
 export const users = sqliteTable(
 	'users_table',
