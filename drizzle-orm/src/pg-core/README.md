@@ -201,7 +201,7 @@ export async function insertUser(user: NewUser): Promise<User> {
 }
 ```
 
-### Declaring indexes and foreign keys
+### Declaring indexes, foreign keys and composite primary keys
 
 ```typescript
 import { foreignKey, index, uniqueIndex, integer, pgTable, serial, varchar } from 'drizzle-orm/pg-core';
@@ -237,6 +237,14 @@ export const cities = pgTable('cities', {
       foreignColumns: [countries.id, countries.name],
     },
   }
+});
+
+export const cpkTable = pgTable('table', {
+  column1: integer('column1').default(10).notNull(),
+  column2: integer('column2'),
+  column3: integer('column3'),
+}, (table) => ({
+  cpk: primaryKey(table.column1, table.column2),
 }));
 
 // Index declaration reference
@@ -817,3 +825,7 @@ class MyLogger implements Logger {
 
 const db = drizzle(pool, { logger: new MyLogger() });
 ```
+
+## Table introspect API
+
+See [dedicated docs](/docs/table-introspect-api.md).

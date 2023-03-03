@@ -1,3 +1,4 @@
+export * from './array';
 export * from './bigint';
 export * from './bigserial';
 export * from './boolean';

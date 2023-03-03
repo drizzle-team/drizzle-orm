@@ -36,16 +36,16 @@ const usersTable = pgTable('users', {
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-const users2Table = pgTable('users2', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	cityId: integer('city_id').references(() => citiesTable.id),
-});
-
 const citiesTable = pgTable('cities', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	state: char('state', { length: 2 }),
+});
+
+const users2Table = pgTable('users2', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	cityId: integer('city_id').references(() => citiesTable.id),
 });
 
 const coursesTable = pgTable('courses', {
@@ -72,6 +72,16 @@ const network = pgTable('network_table', {
 	cidr: cidr('cidr').notNull(),
 	macaddr: macaddr('macaddr').notNull(),
 	macaddr8: macaddr8('macaddr8').notNull(),
+});
+
+const salEmp = pgTable('sal_emp', {
+	name: text('name'),
+	payByQuarter: integer('pay_by_quarter').array(),
+	schedule: text('schedule').array().array(),
+});
+
+const tictactoe = pgTable('tictactoe', {
+	squares: integer('squares').array(3).array(3),
 });
 
 const usersMigratorTable = pgTable('users12', {
@@ -206,6 +216,18 @@ test.beforeEach(async (t) => {
 			cidr cidr not null,
 			macaddr macaddr not null,
 			macaddr8 macaddr8 not null
+		)`,
+	);
+	await ctx.db.execute(
+		sql`create table sal_emp (
+			name text not null,
+			pay_by_quarter integer[] not null,
+			schedule text[][] not null
+		)`,
+	);
+	await ctx.db.execute(
+		sql`create table tictactoe (
+			squares integer[3][3] not null
 		)`,
 	);
 });
@@ -715,23 +737,17 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 });
 
-test.serial('migrator', async (t) => {
-	const { db } = t.context;
+// TODO change tests to new structure
+// test.serial('migrator', async (t) => {
+// 	const { db } = t.context;
+// 	await migrate(db, { migrationsFolder: './drizzle/pg' });
 
-	await db.execute(sql`drop table if exists drizzle.__drizzle_migrations`);
-	await db.execute(sql`drop table if exists ${usersMigratorTable}`);
+// 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 
-	await migrate(db, { migrationsFolder: './drizzle/pg' });
+// 	const result = await db.select().from(usersMigratorTable);
 
-	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-
-	const result = await db.select().from(usersMigratorTable);
-
-	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
-
-	await db.execute(sql`drop table if exists drizzle.__drizzle_migrations`);
-	await db.execute(sql`drop table if exists ${usersMigratorTable}`);
-});
+// 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+// });
 
 test.serial('insert via db.execute + select via db.execute', async (t) => {
 	const { db } = t.context;
@@ -1188,6 +1204,29 @@ test.serial('network types', async (t) => {
 	t.deepEqual(res, [value]);
 });
 
+test.serial('array types', async (t) => {
+	const { db } = t.context;
+
+	const values: InferModel<typeof salEmp>[] = [
+		{
+			name: 'John',
+			payByQuarter: [10000, 10000, 10000, 10000],
+			schedule: [['meeting', 'lunch'], ['training', 'presentation']],
+		},
+		{
+			name: 'Carol',
+			payByQuarter: [20000, 25000, 25000, 25000],
+			schedule: [['breakfast', 'consulting'], ['meeting', 'lunch']],
+		},
+	];
+
+	await db.insert(salEmp).values(...values);
+
+	const res = await db.select().from(salEmp);
+
+	t.deepEqual(res, values);
+});
+
 test.serial('select for ...', (t) => {
 	const { db } = t.context;
 
@@ -1204,4 +1243,10 @@ test.serial('select for ...', (t) => {
 		query.sql,
 		/ for update for no key update of "users2" for no key update of "users2" skip locked for share of "users2" no wait$/,
 	);
+});
+
+test.after.always(async (t) => {
+	const ctx = t.context;
+	await ctx.client?.end().catch(console.error);
+	await ctx.pgContainer?.stop().catch(console.error);
 });

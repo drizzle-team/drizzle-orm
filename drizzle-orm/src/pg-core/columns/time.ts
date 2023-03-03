@@ -17,6 +17,8 @@ export class PgTimeBuilder<TData extends string = string> extends PgDateColumnBa
 		readonly precision: number | undefined,
 	) {
 		super(name);
+		this.config.withTimezone = withTimezone;
+		this.config.precision = precision;
 	}
 
 	/** @internal */
@@ -40,7 +42,7 @@ export class PgTime<TTableName extends string, TData extends string>
 	}
 
 	getSQLType(): string {
-		const precision = typeof this.precision !== 'undefined' ? ` (${this.precision})` : '';
+		const precision = typeof this.precision !== 'undefined' ? `(${this.precision})` : '';
 		return `time${precision}${this.withTimezone ? ' with time zone' : ''}`;
 	}
 }

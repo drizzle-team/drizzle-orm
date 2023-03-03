@@ -1,55 +1,49 @@
-import { Check } from './checks';
-import { AnySQLiteColumn } from './columns';
-import { ForeignKey } from './foreign-keys';
-import { Index } from './indexes';
-import { PrimaryKey } from './primary-keys';
-import { AnySQLiteTable, GetTableConfig, SQLiteTable } from './table';
+import { Table } from '~/table';
+import { Check, CheckBuilder } from './checks';
+import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
+import { Index, IndexBuilder } from './indexes';
+import { PrimaryKey, PrimaryKeyBuilder } from './primary-keys';
+import { AnySQLiteTable, SQLiteTable } from './table';
 
-export interface GetTableColumnsConfig<TFormat extends 'object' | 'array' = 'object' | 'array'> {
-	format: TFormat;
-}
+export function getTableConfig<TTable extends AnySQLiteTable>(table: TTable) {
+	const columns = Object.values(table[SQLiteTable.Symbol.Columns]);
+	const indexes: Index[] = [];
+	const checks: Check[] = [];
+	const primaryKeys: PrimaryKey[] = [];
+	const foreignKeys: ForeignKey[] = Object.values(table[SQLiteTable.Symbol.InlineForeignKeys]);
+	const name = table[Table.Symbol.Name];
+	const schema = table[Table.Symbol.Schema];
 
-export function getTableColumns<TTable extends AnySQLiteTable>(
-	table: TTable,
-	config: GetTableColumnsConfig<'object'>,
-): Record<string, AnySQLiteColumn<{ tableName: GetTableConfig<TTable, 'name'> }>>;
-export function getTableColumns<TTable extends AnySQLiteTable>(
-	table: TTable,
-	config?: GetTableColumnsConfig<'array'>,
-): AnySQLiteColumn<{ tableName: GetTableConfig<TTable, 'name'> }>[];
-export function getTableColumns<TTable extends AnySQLiteTable>(
-	table: TTable,
-	config?: GetTableColumnsConfig,
-): Record<string, AnySQLiteColumn> | AnySQLiteColumn[] {
-	const columns = table[SQLiteTable.Symbol.Columns];
-	if (config?.format === 'object') {
-		return Object.assign({}, columns);
+	const extraConfigBuilder = table[SQLiteTable.Symbol.ExtraConfigBuilder];
+
+	if (typeof extraConfigBuilder !== 'undefined') {
+		const extraConfig = extraConfigBuilder(table[SQLiteTable.Symbol.Columns]);
+		Object.values(extraConfig).forEach((builder) => {
+			if (builder instanceof IndexBuilder) {
+				indexes.push(builder.build(table));
+			} else if (builder instanceof CheckBuilder) {
+				checks.push(builder.build(table));
+			} else if (builder instanceof PrimaryKeyBuilder) {
+				primaryKeys.push(builder.build(table));
+			} else if (builder instanceof ForeignKeyBuilder) {
+				foreignKeys.push(builder.build(table));
+			}
+		});
 	}
-	return Object.values(columns);
+
+	return {
+		columns,
+		indexes,
+		foreignKeys,
+		checks,
+		primaryKeys,
+		name,
+		schema,
+	};
 }
 
-export function getTableIndexes<TTable extends AnySQLiteTable>(table: TTable): Index[] {
-	const indexes = table[SQLiteTable.Symbol.Indexes];
-	const keys = Reflect.ownKeys(indexes);
-	return keys.map((key) => indexes[key]!);
-}
-
-export function getTableForeignKeys<TTable extends AnySQLiteTable>(table: TTable): ForeignKey[] {
-	const foreignKeys = table[SQLiteTable.Symbol.ForeignKeys];
-	const keys = Reflect.ownKeys(foreignKeys);
-	return keys.map((key) => foreignKeys[key]!);
-}
-
-export function getTableCompositePrimaryKeys<TTable extends AnySQLiteTable>(table: TTable): PrimaryKey[] {
-	const primaryKeys = table[SQLiteTable.Symbol.PrimaryKeys];
-	const keys = Reflect.ownKeys(primaryKeys);
-	return keys.map((key) => primaryKeys[key]!);
-}
-
-export function getTableChecks<TTable extends AnySQLiteTable>(table: TTable): Check[] {
-	const checks = table[SQLiteTable.Symbol.Checks];
-	const keys = Reflect.ownKeys(checks);
-	return keys.map((key) => checks[key]!);
+export function getTableColumns(table: AnySQLiteTable) {
+	return Object.assign({}, table[SQLiteTable.Symbol.Columns]);
 }
 
 export type OnConflict = 'rollback' | 'abort' | 'fail' | 'ignore' | 'replace';

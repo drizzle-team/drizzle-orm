@@ -37,7 +37,7 @@ export class PgInterval<TTableName extends string, TData extends string>
 
 	getSQLType(): string {
 		const fields = this.config.fields ? ` ${this.config.fields}` : '';
-		const precision = this.config.precision ? ` (${this.config.precision})` : '';
+		const precision = this.config.precision ? `(${this.config.precision})` : '';
 		return `interval${fields}${precision}`;
 	}
 }

@@ -180,7 +180,7 @@ export function createInsertSchema<
 		return { convertToCase: rest[0], refine: rest[1] };
 	})();
 
-	const columns = getTableColumns(table, { format: 'object' });
+	const columns = getTableColumns(table);
 	const columnEntries = Object.entries(columns);
 	const fieldNamesMap: Record<string, string> = {};
 

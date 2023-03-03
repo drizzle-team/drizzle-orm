@@ -2,7 +2,7 @@ import { ColumnConfig } from '~/column';
 import { ColumnBuilderConfig } from '~/column-builder';
 import { AnyMySqlTable } from '~/mysql-core/table';
 import { MySqlColumn } from './common';
-import { MySqlDateColumnBaseBuilder } from './date.common';
+import { MySqlDateBaseColumn, MySqlDateColumnBaseBuilder } from './date.common';
 export class MySqlTimestampBuilder extends MySqlDateColumnBaseBuilder<
 	ColumnBuilderConfig<{ data: Date; driverParam: string | number }>,
 	{ fsp: number | undefined }
@@ -25,7 +25,7 @@ export class MySqlTimestampBuilder extends MySqlDateColumnBaseBuilder<
 
 export class MySqlTimestamp<
 	TTableName extends string,
-> extends MySqlColumn<
+> extends MySqlDateBaseColumn<
 	ColumnConfig<{
 		tableName: TTableName;
 		data: Date;
@@ -45,7 +45,7 @@ export class MySqlTimestamp<
 	}
 
 	getSQLType(): string {
-		const precision = typeof this.fsp !== 'undefined' ? ` (${this.fsp})` : '';
+		const precision = typeof this.fsp !== 'undefined' ? `(${this.fsp})` : '';
 		return `timestamp${precision}`;
 	}
 
@@ -76,7 +76,7 @@ export class MySqlTimestampStringBuilder extends MySqlDateColumnBaseBuilder<
 
 export class MySqlTimestampString<
 	TTableName extends string,
-> extends MySqlColumn<
+> extends MySqlDateBaseColumn<
 	ColumnConfig<{
 		tableName: TTableName;
 		data: string;
@@ -96,7 +96,7 @@ export class MySqlTimestampString<
 	}
 
 	getSQLType(): string {
-		const precision = typeof this.fsp !== 'undefined' ? ` (${this.fsp})` : '';
+		const precision = typeof this.fsp !== 'undefined' ? `(${this.fsp})` : '';
 		return `timestamp${precision}`;
 	}
 }

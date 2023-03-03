@@ -54,7 +54,7 @@ export class MySqlEnumColumn<T extends MySqlEnumColumnConfig> extends MySqlColum
 	}
 
 	getSQLType(): string {
-		return `ENUM(${this.values.map((value) => `'${value}'`).join(',')})`;
+		return `enum(${this.values.map((value) => `'${value}'`).join(',')})`;
 	}
 }
 

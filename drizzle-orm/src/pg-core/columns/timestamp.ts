@@ -87,7 +87,7 @@ export class PgTimestampString<TTableName extends string>
 	}
 
 	getSQLType(): string {
-		const precision = typeof this.precision !== 'undefined' ? ` (${this.precision})` : '';
+		const precision = typeof this.precision !== 'undefined' ? `(${this.precision})` : '';
 		return `timestamp${precision}${this.withTimezone ? ' with time zone' : ''}`;
 	}
 }

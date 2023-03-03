@@ -1,11 +1,12 @@
 import { Column, ColumnBaseConfig } from '~/column';
 import { ColumnBuilder, ColumnBuilderBaseConfig, ColumnBuilderWithConfig, UpdateCBConfig } from '~/column-builder';
 import { SQL } from '~/sql';
-import { Update } from '~/utils';
+import { Assume, Update } from '~/utils';
 import { Simplify } from '~/utils';
 
 import { ForeignKey, ForeignKeyBuilder, UpdateDeleteAction } from '~/pg-core/foreign-keys';
 import { AnyPgTable } from '~/pg-core/table';
+import { PgArray, PgArrayBuilder } from './array';
 import { PgEnumColumn, PgEnumColumnBuilder } from './enum';
 import { PgText, PgTextBuilder } from './text';
 
@@ -39,6 +40,17 @@ export abstract class PgColumnBuilder<
 
 	override primaryKey(): PgColumnBuilder<UpdateCBConfig<T, { notNull: true }>> {
 		return super.primaryKey() as any;
+	}
+
+	array(size?: number): PgArrayBuilder<
+		{
+			notNull: T['notNull'] & boolean;
+			hasDefault: T['hasDefault'] & boolean;
+			data: T['data'][];
+			driverParam: T['driverParam'][];
+		}
+	> {
+		return new PgArrayBuilder(this.config.name, this as PgColumnBuilder<any>, size);
 	}
 
 	references(
@@ -98,7 +110,8 @@ export type AnyPgColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = PgCol
 export type BuildColumn<
 	TTableName extends string,
 	TBuilder extends AnyPgColumnBuilder,
-> = TBuilder extends PgTextBuilder<infer T> ? PgText<Simplify<T & { tableName: TTableName }>>
+> = TBuilder extends PgArrayBuilder<infer T> ? PgArray<Simplify<T & { tableName: TTableName }>>
+	: TBuilder extends PgTextBuilder<infer T> ? PgText<Simplify<T & { tableName: TTableName }>>
 	: TBuilder extends PgEnumColumnBuilder<infer T> ? PgEnumColumn<Simplify<T & { tableName: TTableName }>>
 	: TBuilder extends ColumnBuilderWithConfig<infer T> ? PgColumn<Simplify<T & { tableName: TTableName }>>
 	: never;
