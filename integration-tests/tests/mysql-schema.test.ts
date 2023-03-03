@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 import anyTest, { TestFn } from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
@@ -66,7 +68,7 @@ async function createDockerDB(ctx: Context): Promise<string> {
 
 	await docker.pull(image);
 
-	const mysqlContainer = (ctx.mysqlContainer = await docker.createContainer({
+	ctx.mysqlContainer = await docker.createContainer({
 		Image: image,
 		Env: ['MYSQL_ROOT_PASSWORD=mysql', 'MYSQL_DATABASE=mysqltests'],
 		name: `drizzle-integration-tests-${uuid()}`,
@@ -76,9 +78,9 @@ async function createDockerDB(ctx: Context): Promise<string> {
 				'3306/tcp': [{ HostPort: `${port}` }],
 			},
 		},
-	}));
+	});
 
-	await mysqlContainer.start();
+	await ctx.mysqlContainer.start();
 
 	return `mysql://root:mysql@127.0.0.1:${port}/mysql`;
 }
@@ -105,6 +107,8 @@ test.before(async (t) => {
 	} while (timeLeft > 0);
 	if (!connected) {
 		console.error('Cannot connect to MySql');
+		await ctx.client?.end().catch(console.error);
+		await ctx.mysqlContainer?.stop().catch(console.error);
 		throw lastError;
 	}
 	ctx.db = drizzle(ctx.client /* , { logger: new DefaultLogger() } */);
@@ -608,6 +612,7 @@ test.serial('insert + select all possible dates', async (t) => {
 });
 test.serial('select from tables with same name from different schema using alias', async (t) => {
 	const { db } = t.context;
+	await db.execute(sql`drop table if exists \`userstest\``);
 	await db.execute(
 		sql`create table \`userstest\` (
 			\`id\` serial primary key,

@@ -24,6 +24,8 @@ import {
 	JoinFn,
 	JoinNullability,
 	JoinType,
+	LockConfig,
+	LockStrength,
 	MySqlSelectConfig,
 	SelectFields,
 	SelectMode,
@@ -202,6 +204,11 @@ export class MySqlSelect<
 
 	offset(offset: number): Omit<this, 'where' | `${JoinType}Join` | 'offset'> {
 		this.config.offset = offset;
+		return this;
+	}
+
+	for(strength: LockStrength, config: LockConfig = {}): Omit<this, 'for'> {
+		this.config.lockingClause = { strength, config };
 		return this;
 	}
 

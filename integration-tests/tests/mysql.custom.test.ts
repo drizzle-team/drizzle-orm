@@ -140,7 +140,7 @@ async function createDockerDB(ctx: Context): Promise<string> {
 		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
 	);
 
-	const mysqlContainer = (ctx.mysqlContainer = await docker.createContainer({
+	ctx.mysqlContainer = await docker.createContainer({
 		Image: image,
 		Env: ['MYSQL_ROOT_PASSWORD=mysql', 'MYSQL_DATABASE=drizzle'],
 		name: `drizzle-integration-tests-${uuid()}`,
@@ -150,9 +150,9 @@ async function createDockerDB(ctx: Context): Promise<string> {
 				'3306/tcp': [{ HostPort: `${port}` }],
 			},
 		},
-	}));
+	});
 
-	await mysqlContainer.start();
+	await ctx.mysqlContainer.start();
 
 	return `mysql://root:mysql@127.0.0.1:${port}/drizzle`;
 }
@@ -179,6 +179,8 @@ test.before(async (t) => {
 	} while (timeLeft > 0);
 	if (!connected) {
 		console.error('Cannot connect to MySQL');
+		await ctx.client?.end().catch(console.error);
+		await ctx.mysqlContainer?.stop().catch(console.error);
 		throw lastError;
 	}
 	ctx.db = drizzle(ctx.client, { logger: false });

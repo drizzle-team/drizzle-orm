@@ -1,7 +1,8 @@
+import 'dotenv/config';
+
 import { connect } from '@planetscale/database';
 import anyTest, { TestFn } from 'ava';
-import Docker from 'dockerode';
-import { DefaultLogger, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { asc, eq } from 'drizzle-orm/expressions';
 import {
 	alias,
@@ -9,7 +10,6 @@ import {
 	date,
 	datetime,
 	json,
-	MySqlDatabase,
 	mysqlEnum,
 	mysqlTable,
 	serial,
@@ -53,8 +53,6 @@ const usersMigratorTable = mysqlTable('users12', {
 });
 
 interface Context {
-	docker: Docker;
-	mysqlContainer: Docker.Container;
 	db: PlanetScaleDatabase;
 }
 
@@ -69,8 +67,14 @@ test.before(async (t) => {
 			username: process.env['DATABASE_USERNAME'],
 			password: process.env['DATABASE_PASSWORD'],
 		}),
-		{ logger: new DefaultLogger() },
+		{ logger: true },
 	);
+});
+
+test.after.always(async (t) => {
+	const ctx = t.context;
+	await ctx.db.execute(sql`drop table if exists \`userstest\``);
+	await ctx.db.execute(sql`drop table if exists \`datestable\``);
 });
 
 test.beforeEach(async (t) => {
@@ -617,10 +621,4 @@ test.serial('Mysql enum test case #1', async (t) => {
 		{ id: 2, enum1: 'a', enum2: 'a', enum3: 'c' },
 		{ id: 3, enum1: 'a', enum2: 'a', enum3: 'b' },
 	]);
-});
-
-test.after.always(async (t) => {
-	const ctx = t.context;
-	await ctx.db.execute(sql`drop table if exists \`userstest\``);
-	await ctx.db.execute(sql`drop table if exists \`datestable\``);
 });

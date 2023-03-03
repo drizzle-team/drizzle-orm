@@ -391,3 +391,12 @@ Expect<
 		>
 	>;
 }
+
+await db.select().from(users).for('update');
+await db.select().from(users).for('share', { skipLocked: true });
+await db.select().from(users).for('update', { noWait: true });
+await db
+	.select()
+	.from(users)
+	// @ts-expect-error
+	.for('share', { noWait: true, skipLocked: true });

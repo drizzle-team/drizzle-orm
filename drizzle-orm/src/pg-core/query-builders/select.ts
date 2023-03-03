@@ -1,5 +1,5 @@
 import { QueryPromise } from '~/query-promise';
-import { Query, SQL, SQLWrapper } from '~/sql';
+import { Query, SQL, sql, SQLWrapper } from '~/sql';
 import { Table } from '~/table';
 
 import { AnyPgColumn } from '~/pg-core/columns';
@@ -25,6 +25,8 @@ import {
 	JoinFn,
 	JoinNullability,
 	JoinType,
+	LockConfig,
+	LockStrength,
 	PgSelectConfig,
 	SelectFields,
 	SelectMode,
@@ -114,6 +116,7 @@ export class PgSelect<
 			joins: {},
 			orderBy: [],
 			groupBy: [],
+			lockingClauses: [],
 		};
 		this.tableName = table instanceof Subquery ? table[SubqueryConfig].alias : table[Table.Symbol.Name];
 		this.joinsNotNullable = { [this.tableName]: true };
@@ -205,12 +208,17 @@ export class PgSelect<
 		return this;
 	}
 
+	for(strength: LockStrength, config: LockConfig = {}): this {
+		this.config.lockingClauses.push({ strength, config });
+		return this;
+	}
+
 	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	toSQL(): Omit<Query, 'typings'> {
+	toSQL(): Simplify<Omit<Query, 'typings'>> {
 		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
