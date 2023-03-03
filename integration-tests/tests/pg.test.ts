@@ -36,16 +36,16 @@ const usersTable = pgTable('users', {
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-const users2Table = pgTable('users2', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	cityId: integer('city_id').references(() => citiesTable.id),
-});
-
 const citiesTable = pgTable('cities', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	state: char('state', { length: 2 }),
+});
+
+const users2Table = pgTable('users2', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	cityId: integer('city_id').references(() => citiesTable.id),
 });
 
 const coursesTable = pgTable('courses', {
