@@ -319,7 +319,7 @@ Otherwise, the field type will become `DrizzleTypeError` and you won't be able t
 #### Select from subquery
 
 ```typescript
-const sq = db.select().from(users).where(eq(users.id, 42)).subquery('sq');
+const sq = db.select().from(users).where(eq(users.id, 42)).as('sq');
 db.select().from(sq).all();
 ```
 
