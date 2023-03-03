@@ -212,7 +212,7 @@ export async function insertUser(user: NewUser): Promise<MySqlRawQueryResult> {
 }
 ```
 
-### Declaring indexes and foreign keys
+### Declaring indexes, foreign keys and composite primary keys
 
 ```typescript
 // db.ts
@@ -245,6 +245,14 @@ export const cities = mysqlTable('cities', {
     columns: [cities.countryId, cities.countryName],
     foreignColumns: [countries.id, countries.name],
   })),
+}));
+
+export const cpkTable = mysqlTable('table', {
+  simple: int('simple'),
+  columnNotNull: int('column_not_null').notNull(),
+  columnDefault: int('column_default').default(100),
+}, (table) => ({
+  cpk: primaryKey(table.simple, table.columnDefault),
 }));
 
 // Index declaration reference
@@ -295,6 +303,8 @@ timestamp('...').defaultNow()
 
 json('name');
 json<string[]>('name');
+
+int('...').array(3).array(4)
 ```
 
 ## Table schemas
