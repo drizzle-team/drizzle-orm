@@ -149,13 +149,14 @@ export interface SQLiteSelectConfig {
 	withList: Subquery[];
 	fields: SelectFields;
 	fieldsList: SelectFieldsOrdered;
-	where?: SQL | undefined;
+	where?: SQL;
+	having?: SQL;
 	table: AnySQLiteTable | Subquery;
 	limit?: number | Placeholder;
 	offset?: number | Placeholder;
 	joins: Record<string, JoinsValue>;
-	orderBy: (AnySQLiteColumn | SQL)[];
-	groupBy: (AnySQLiteColumn | SQL)[];
+	orderBy: (AnySQLiteColumn | SQL | SQL.Aliased)[];
+	groupBy: (AnySQLiteColumn | SQL | SQL.Aliased)[];
 }
 
 export type JoinFn<

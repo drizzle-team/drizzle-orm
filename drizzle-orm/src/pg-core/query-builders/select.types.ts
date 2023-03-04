@@ -141,12 +141,13 @@ export interface PgSelectConfig {
 	fields: SelectFields;
 	fieldsList: SelectFieldsOrdered;
 	where?: SQL;
+	having?: SQL;
 	table: AnyPgTable | Subquery;
 	limit?: number | Placeholder;
 	offset?: number | Placeholder;
 	joins: Record<string, JoinsValue>;
-	orderBy: (AnyPgColumn | SQL)[];
-	groupBy: (AnyPgColumn | SQL)[];
+	orderBy: (AnyPgColumn | SQL | SQL.Aliased)[];
+	groupBy: (AnyPgColumn | SQL | SQL.Aliased)[];
 	lockingClauses: {
 		strength: LockStrength;
 		config: LockConfig;

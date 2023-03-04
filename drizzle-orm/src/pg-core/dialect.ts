@@ -126,7 +126,7 @@ export class PgDialect {
 			.map(({ field }, i) => {
 				const chunk: SQLSourceParam[] = [];
 
-				if (field instanceof SQL.Aliased && field.isSubquerySelectionField) {
+				if (field instanceof SQL.Aliased && field.isSelectionField) {
 					chunk.push(new Name(field.fieldAlias));
 				} else if (field instanceof SQL.Aliased || field instanceof SQL) {
 					const query = field instanceof SQL.Aliased ? field.sql : field;
@@ -169,7 +169,7 @@ export class PgDialect {
 	}
 
 	buildSelectQuery(
-		{ withList, fieldsList: fields, where, table, joins, orderBy, groupBy, limit, offset, lockingClauses }:
+		{ withList, fieldsList: fields, where, having, table, joins, orderBy, groupBy, limit, offset, lockingClauses }:
 			PgSelectConfig,
 	): SQL {
 		fields.forEach((f) => {
@@ -239,7 +239,9 @@ export class PgDialect {
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		const orderByList: (AnyPgColumn | SQL)[] = [];
+		const havingSql = having ? sql` having ${having}` : undefined;
+
+		const orderByList: (AnyPgColumn | SQL | SQL.Aliased)[] = [];
 		orderBy.forEach((orderByValue, index) => {
 			orderByList.push(orderByValue);
 
@@ -250,7 +252,7 @@ export class PgDialect {
 
 		const orderBySql = orderByList.length > 0 ? sql` order by ${sql.fromList(orderByList)}` : undefined;
 
-		const groupByList: (SQL | AnyColumn)[] = [];
+		const groupByList: (SQL | AnyColumn | SQL.Aliased)[] = [];
 		groupBy.forEach((groupByValue, index) => {
 			groupByList.push(groupByValue);
 
@@ -279,7 +281,7 @@ export class PgDialect {
 			lockingClausesSql.append(clauseSql);
 		});
 
-		return sql`${withSql}select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+		return sql`${withSql}select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {

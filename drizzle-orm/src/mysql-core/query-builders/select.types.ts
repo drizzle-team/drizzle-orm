@@ -146,12 +146,13 @@ export interface MySqlSelectConfig {
 	fields: SelectFields;
 	fieldsList: SelectFieldsOrdered;
 	where?: SQL;
+	having?: SQL;
 	table: AnyMySqlTable | Subquery;
 	limit?: number | Placeholder;
 	offset?: number | Placeholder;
 	joins: Record<string, JoinsValue>;
-	orderBy: (AnyMySqlColumn | SQL)[];
-	groupBy: (AnyMySqlColumn | SQL)[];
+	orderBy: (AnyMySqlColumn | SQL | SQL.Aliased)[];
+	groupBy: (AnyMySqlColumn | SQL | SQL.Aliased)[];
 	lockingClause?: {
 		strength: LockStrength;
 		config: LockConfig;

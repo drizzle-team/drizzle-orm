@@ -313,7 +313,7 @@ export namespace SQL {
 		declare protected $type: T;
 
 		/** @internal */
-		isSubquerySelectionField = false;
+		isSelectionField = false;
 
 		constructor(
 			readonly sql: SQL,

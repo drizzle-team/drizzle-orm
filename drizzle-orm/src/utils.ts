@@ -215,3 +215,5 @@ export interface DrizzleTypeError<T extends string> {
 	$brand: 'DrizzleTypeError';
 	message: T;
 }
+
+export type ValueOrArray<T> = T | T[];

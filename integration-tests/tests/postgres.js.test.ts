@@ -133,6 +133,12 @@ test.before(async (t) => {
 	ctx.db = drizzle(ctx.client /* , { logger: new DefaultLogger() } */);
 });
 
+test.after.always(async (t) => {
+	const ctx = t.context;
+	await ctx.client?.end().catch(console.error);
+	await ctx.pgContainer?.stop().catch(console.error);
+});
+
 test.beforeEach(async (t) => {
 	const ctx = t.context;
 	await ctx.db.execute(sql`drop schema public cascade`);
@@ -948,7 +954,7 @@ test.serial('with ... select', async (t) => {
 	]);
 });
 
-test.serial.only('select from subquery sql', async (t) => {
+test.serial('select from subquery sql', async (t) => {
 	const { db } = t.context;
 
 	await db.insert(users2Table).values({ name: 'John' }, { name: 'Jane' });
@@ -1007,7 +1013,7 @@ test.serial('select count w/ custom mapper', async (t) => {
 	t.deepEqual(res, [{ count: 2 }]);
 });
 
-test.serial.only('select for ...', (t) => {
+test.serial('select for ...', (t) => {
 	const { db } = t.context;
 
 	const query = db
@@ -1025,8 +1031,39 @@ test.serial.only('select for ...', (t) => {
 	);
 });
 
-test.after.always(async (t) => {
-	const ctx = t.context;
-	await ctx.client?.end().catch(console.error);
-	await ctx.pgContainer?.stop().catch(console.error);
+test.serial('having', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(citiesTable).values({ name: 'London' }, { name: 'Paris' }, { name: 'New York' });
+
+	await db.insert(users2Table).values({ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 1 }, {
+		name: 'Jack',
+		cityId: 2,
+	});
+
+	const result = await db
+		.select({
+			id: citiesTable.id,
+			name: sql<string>`upper(${citiesTable.name})`.as('upper_name'),
+			usersCount: sql<number>`count(${users2Table.id})::int`.as('users_count'),
+		})
+		.from(citiesTable)
+		.leftJoin(users2Table, eq(users2Table.cityId, citiesTable.id))
+		.where(({ name }) => sql`length(${name}) >= 3`)
+		.groupBy(citiesTable.id)
+		.having(({ usersCount }) => sql`${usersCount} > 0`)
+		.orderBy(({ name }) => name);
+
+	t.deepEqual(result, [
+		{
+			id: 1,
+			name: 'LONDON',
+			usersCount: 2,
+		},
+		{
+			id: 2,
+			name: 'PARIS',
+			usersCount: 1,
+		},
+	]);
 });

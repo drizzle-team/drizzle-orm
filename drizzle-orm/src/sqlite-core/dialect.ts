@@ -80,7 +80,7 @@ export abstract class SQLiteDialect {
 			.map(({ field }, i) => {
 				const chunk: SQLSourceParam[] = [];
 
-				if (field instanceof SQL.Aliased && field.isSubquerySelectionField) {
+				if (field instanceof SQL.Aliased && field.isSelectionField) {
 					chunk.push(new Name(field.fieldAlias));
 				} else if (field instanceof SQL.Aliased || field instanceof SQL) {
 					const query = field instanceof SQL.Aliased ? field.sql : field;
@@ -123,7 +123,7 @@ export abstract class SQLiteDialect {
 	}
 
 	buildSelectQuery(
-		{ withList, fieldsList: fields, where, table, joins, orderBy, groupBy, limit, offset }: SQLiteSelectConfig,
+		{ withList, fieldsList: fields, where, having, table, joins, orderBy, groupBy, limit, offset }: SQLiteSelectConfig,
 	): SQL {
 		fields.forEach((f) => {
 			let tableName: string;
@@ -192,7 +192,9 @@ export abstract class SQLiteDialect {
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		const orderByList: (AnySQLiteColumn | SQL)[] = [];
+		const havingSql = having ? sql` having ${having}` : undefined;
+
+		const orderByList: (AnySQLiteColumn | SQL | SQL.Aliased)[] = [];
 		orderBy.forEach((orderByValue, index) => {
 			orderByList.push(orderByValue);
 
@@ -201,7 +203,7 @@ export abstract class SQLiteDialect {
 			}
 		});
 
-		const groupByList: (SQL | AnyColumn)[] = [];
+		const groupByList: (SQL | AnyColumn | SQL.Aliased)[] = [];
 		groupBy.forEach((groupByValue, index) => {
 			groupByList.push(groupByValue);
 
@@ -218,7 +220,7 @@ export abstract class SQLiteDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		return sql`${withSql}select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${orderBySql}${limitSql}${offsetSql}`;
+		return sql`${withSql}select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: SQLiteInsertConfig): SQL {
