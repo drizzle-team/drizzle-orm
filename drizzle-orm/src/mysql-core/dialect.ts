@@ -125,7 +125,7 @@ export class MySqlDialect {
 			.map(({ field }, i) => {
 				const chunk: SQLSourceParam[] = [];
 
-				if (field instanceof SQL.Aliased && field.isSubquerySelectionField) {
+				if (field instanceof SQL.Aliased && field.isSelectionField) {
 					chunk.push(new Name(field.fieldAlias));
 				} else if (field instanceof SQL.Aliased || field instanceof SQL) {
 					const query = field instanceof SQL.Aliased ? field.sql : field;
@@ -168,7 +168,7 @@ export class MySqlDialect {
 	}
 
 	buildSelectQuery(
-		{ withList, fieldsList: fields, where, table, joins, orderBy, groupBy, limit, offset, lockingClause }:
+		{ withList, fieldsList: fields, where, having, table, joins, orderBy, groupBy, limit, offset, lockingClause }:
 			MySqlSelectConfig,
 	): SQL {
 		fields.forEach((f) => {
@@ -238,7 +238,9 @@ export class MySqlDialect {
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		const orderByList: (AnyMySqlColumn | SQL)[] = [];
+		const havingSql = having ? sql` having ${having}` : undefined;
+
+		const orderByList: (AnyMySqlColumn | SQL | SQL.Aliased)[] = [];
 		orderBy.forEach((orderByValue, index) => {
 			orderByList.push(orderByValue);
 
@@ -249,7 +251,7 @@ export class MySqlDialect {
 
 		const orderBySql = orderByList.length > 0 ? sql` order by ${sql.fromList(orderByList)}` : undefined;
 
-		const groupByList: (SQL | AnyColumn)[] = [];
+		const groupByList: (SQL | AnyColumn | SQL.Aliased)[] = [];
 		groupBy.forEach((groupByValue, index) => {
 			groupByList.push(groupByValue);
 
@@ -275,7 +277,7 @@ export class MySqlDialect {
 			}
 		}
 
-		return sql`${withSql}select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+		return sql`${withSql}select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: MySqlInsertConfig): SQL {

@@ -938,6 +938,44 @@ test.serial('select count()', (t) => {
 	t.deepEqual(res, [{ count: 2 }]);
 });
 
+test.serial('having', (t) => {
+	const { db } = t.context;
+
+	db.insert(citiesTable).values({ name: 'London' }, { name: 'Paris' }, { name: 'New York' }).run();
+
+	db.insert(users2Table).values({ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 1 }, {
+		name: 'Jack',
+		cityId: 2,
+	}).run();
+
+	const result = db
+		.select({
+			id: citiesTable.id,
+			name: sql<string>`upper(${citiesTable.name})`.as('upper_name'),
+			usersCount: sql<number>`count(${users2Table.id})`.as('users_count'),
+		})
+		.from(citiesTable)
+		.leftJoin(users2Table, eq(users2Table.cityId, citiesTable.id))
+		.where(({ name }) => sql`length(${name}) >= 3`)
+		.groupBy(citiesTable.id)
+		.having(({ usersCount }) => sql`${usersCount} > 0`)
+		.orderBy(({ name }) => name)
+		.all();
+
+	t.deepEqual(result, [
+		{
+			id: 1,
+			name: 'LONDON',
+			usersCount: 2,
+		},
+		{
+			id: 2,
+			name: 'PARIS',
+			usersCount: 1,
+		},
+	]);
+});
+
 test.after.always((t) => {
 	const ctx = t.context;
 	ctx.client?.close();

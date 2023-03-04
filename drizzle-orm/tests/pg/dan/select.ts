@@ -839,3 +839,15 @@ await db
 	.for('share', { of: users, noWait: true })
 	// @ts-expect-error
 	.for('share', { of: users, noWait: true, skipLocked: true });
+
+await db
+	.select({
+		id: cities.id,
+		name: sql<string>`upper(${cities.name})`.as('name'),
+		usersCount: sql<number>`count(${users.id})`.as('users'),
+	})
+	.from(cities)
+	.leftJoin(users, eq(users.homeCity, cities.id))
+	.where(({ name }) => sql`length(${name}) >= 3`)
+	.groupBy(cities.id)
+	.having(({ usersCount }) => sql`${usersCount} > 0`);

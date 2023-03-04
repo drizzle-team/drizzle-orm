@@ -7,15 +7,15 @@ import { QueryPromise } from '~/query-promise';
 import { Query, SQL, SQLWrapper } from '~/sql';
 import {
 	GetSubquerySelection,
+	SelectionProxyHandler,
 	Subquery,
 	SubqueryConfig,
-	SubquerySelectionProxyHandler,
 	SubqueryWithSelection,
 	WithSubquery,
 	WithSubqueryWithSelection,
 } from '~/subquery';
 import { Table } from '~/table';
-import { orderSelectedFields, Simplify } from '~/utils';
+import { orderSelectedFields, Simplify, ValueOrArray } from '~/utils';
 
 import {
 	AnyMySqlSelect,
@@ -124,7 +124,10 @@ export class MySqlSelect<
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
 	): JoinFn<TTable, TSelectMode, TJoinType, TSelection, TNullability> {
-		return (table: AnyMySqlTable | Subquery, on: SQL | undefined): AnyMySqlSelect => {
+		return (
+			table: AnyMySqlTable | Subquery,
+			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
+		): AnyMySqlSelect => {
 			const tableName = table instanceof Subquery ? table[SubqueryConfig].alias : table[Table.Symbol.Name];
 
 			if (this.config.joins[tableName]) {
@@ -144,6 +147,15 @@ export class MySqlSelect<
 						table instanceof Subquery ? table[SubqueryConfig].selection : table[Table.Symbol.Columns],
 						[tableName],
 					),
+				);
+			}
+
+			if (typeof on === 'function') {
+				on = on(
+					new Proxy(
+						this.config.fields,
+						new SelectionProxyHandler({ sqlAliasedBehavior: 'alias', sqlBehavior: 'sql' }),
+					) as TSelection,
 				);
 			}
 
@@ -182,18 +194,79 @@ export class MySqlSelect<
 
 	fullJoin = this.createJoin('full');
 
-	where(where: SQL | undefined): Omit<this, 'where' | `${JoinType}Join`> {
+	where(
+		where: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
+	): Omit<this, 'where' | `${JoinType}Join`> {
+		if (typeof where === 'function') {
+			where = where(
+				new Proxy(
+					this.config.fields,
+					new SelectionProxyHandler({ sqlAliasedBehavior: 'sql', sqlBehavior: 'sql' }),
+				) as TSelection,
+			);
+		}
 		this.config.where = where;
 		return this;
 	}
 
-	groupBy(...columns: (AnyMySqlColumn | SQL)[]): Omit<this, 'where' | `${JoinType}Join`> {
-		this.config.groupBy = columns as SQL[];
+	having(
+		having: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
+	): Omit<this, 'where' | `${JoinType}Join`> {
+		if (typeof having === 'function') {
+			having = having(
+				new Proxy(
+					this.config.fields,
+					new SelectionProxyHandler({ sqlAliasedBehavior: 'sql', sqlBehavior: 'sql' }),
+				) as TSelection,
+			);
+		}
+		this.config.having = having;
 		return this;
 	}
 
-	orderBy(...columns: (AnyMySqlColumn | SQL)[]): Omit<this, 'where' | `${JoinType}Join` | 'orderBy'> {
-		this.config.orderBy = columns;
+	groupBy(
+		builder: (aliases: TSelection) => ValueOrArray<AnyMySqlColumn | SQL | SQL.Aliased>,
+	): Omit<this, 'where' | `${JoinType}Join` | 'groupBy'>;
+	groupBy(...columns: (AnyMySqlColumn | SQL)[]): Omit<this, 'where' | `${JoinType}Join` | 'groupBy'>;
+	groupBy(
+		...columns:
+			| [(aliases: TSelection) => ValueOrArray<AnyMySqlColumn | SQL | SQL.Aliased>]
+			| (AnyMySqlColumn | SQL)[]
+	): this {
+		if (typeof columns[0] === 'function') {
+			const groupBy = columns[0](
+				new Proxy(
+					this.config.fields,
+					new SelectionProxyHandler({ sqlAliasedBehavior: 'alias', sqlBehavior: 'sql' }),
+				) as TSelection,
+			);
+			this.config.groupBy = Array.isArray(groupBy) ? groupBy : [groupBy];
+		} else {
+			this.config.groupBy = columns as (AnyMySqlColumn | SQL)[];
+		}
+		return this;
+	}
+
+	orderBy(
+		builder: (aliases: TSelection) => ValueOrArray<AnyMySqlColumn | SQL | SQL.Aliased>,
+	): Omit<this, 'where' | `${JoinType}Join` | 'orderBy'>;
+	orderBy(...columns: (AnyMySqlColumn | SQL)[]): Omit<this, 'where' | `${JoinType}Join` | 'orderBy'>;
+	orderBy(
+		...columns:
+			| [(aliases: TSelection) => ValueOrArray<AnyMySqlColumn | SQL | SQL.Aliased>]
+			| (AnyMySqlColumn | SQL)[]
+	): this {
+		if (typeof columns[0] === 'function') {
+			const orderBy = columns[0](
+				new Proxy(
+					this.config.fields,
+					new SelectionProxyHandler({ sqlAliasedBehavior: 'alias', sqlBehavior: 'sql' }),
+				) as TSelection,
+			);
+			this.config.orderBy = Array.isArray(orderBy) ? orderBy : [orderBy];
+		} else {
+			this.config.orderBy = columns as (AnyMySqlColumn | SQL)[];
+		}
 		return this;
 	}
 
@@ -251,7 +324,7 @@ export class MySqlSelect<
 	): SubqueryWithSelection<Simplify<BuildSubquerySelection<TSelection, TAlias, TNullability>>, TAlias> {
 		return new Proxy(
 			new Subquery(this.getSQL(), this.config.fields, alias),
-			new SubquerySelectionProxyHandler(alias),
+			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'throw' }),
 		) as SubqueryWithSelection<Simplify<BuildSubquerySelection<TSelection, TAlias, TNullability>>, TAlias>;
 	}
 
@@ -260,7 +333,7 @@ export class MySqlSelect<
 	): WithSubqueryWithSelection<Simplify<BuildSubquerySelection<TSelection, TAlias, TNullability>>, TAlias> {
 		return new Proxy(
 			new WithSubquery(this.getSQL(), this.config.fields, alias, true),
-			new SubquerySelectionProxyHandler(alias),
+			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'throw' }),
 		) as WithSubqueryWithSelection<Simplify<BuildSubquerySelection<TSelection, TAlias, TNullability>>, TAlias>;
 	}
 }

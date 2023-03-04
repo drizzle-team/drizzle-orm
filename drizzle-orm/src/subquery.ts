@@ -42,10 +42,18 @@ export type WithSubqueryWithSelection<TSelection, TAlias extends string> =
 export type GetSubquerySelection<T extends Subquery> = T extends Subquery<infer TSelection> ? TSelection : never;
 export type GetSubqueryAlias<T extends Subquery> = T extends Subquery<any, infer TAlias> ? TAlias : never;
 
-export class SubquerySelectionProxyHandler<T extends Subquery | SelectFields<AnyColumn, Table>>
+export class SelectionProxyHandler<T extends Subquery | SelectFields<AnyColumn, Table>>
 	implements ProxyHandler<Subquery | SelectFields<AnyColumn, Table>>
 {
-	constructor(private alias: string) {}
+	private config: {
+		alias?: string;
+		sqlAliasedBehavior: 'sql' | 'alias';
+		sqlBehavior: 'sql' | 'throw';
+	};
+
+	constructor(config: SelectionProxyHandler<T>['config']) {
+		this.config = { ...config };
+	}
 
 	get(subquery: T, prop: string | symbol, receiver: any): any {
 		if (typeof prop === 'symbol') {
@@ -56,28 +64,39 @@ export class SubquerySelectionProxyHandler<T extends Subquery | SelectFields<Any
 		const value: unknown = columns[prop as keyof typeof columns];
 
 		if (value instanceof SQL.Aliased) {
+			if (this.config.sqlAliasedBehavior === 'sql') {
+				return value.sql;
+			}
+
 			const newValue = value.clone();
-			newValue.isSubquerySelectionField = true;
+			newValue.isSelectionField = true;
 			return newValue;
 		}
 
 		if (value instanceof SQL) {
+			if (this.config.sqlBehavior === 'sql') {
+				return value;
+			}
+
 			throw new Error(
 				`You tried to reference "${prop}" field from a subquery, which is a raw SQL field, but it doesn't have an alias. Please add an alias to the field using ".as('alias')" method.`,
 			);
 		}
 
 		if (value instanceof Column) {
-			return new Proxy(
-				value,
-				new ColumnAliasProxyHandler(new Proxy(value.table, new TableAliasProxyHandler(this.alias))),
-			);
+			if (this.config.alias) {
+				return new Proxy(
+					value,
+					new ColumnAliasProxyHandler(new Proxy(value.table, new TableAliasProxyHandler(this.config.alias))),
+				);
+			}
+			return value;
 		}
 
 		if (typeof value !== 'object' || value === null) {
 			return value;
 		}
 
-		return new Proxy(value, new SubquerySelectionProxyHandler(this.alias));
+		return new Proxy(value, new SelectionProxyHandler(this.config));
 	}
 }
