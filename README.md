@@ -23,6 +23,7 @@ Drizzle ORM is being battle-tested on production projects by multiple teams 🚀
 - Best in class fully typed joins
 - Fully typed partial and non-partial selects of any complexity
 - Auto-inferring of TS types for DB models for selections and insertions separately
+- [Zod schema generation](/drizzle-zod/README.md)
 - Zero dependencies
 
 ## Supported databases
