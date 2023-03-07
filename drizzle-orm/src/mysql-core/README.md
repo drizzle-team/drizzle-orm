@@ -184,7 +184,7 @@ export type User = InferModel<typeof users>; // return type when queried
 export type NewUser = InferModel<typeof users, 'insert'>; // insert type
 ...
 
-// init node-postgres Pool or Client
+// init mysql2 Pool or Client
 const poolConnection = mysql.createPool({
     host:'localhost', 
     user: 'root',
