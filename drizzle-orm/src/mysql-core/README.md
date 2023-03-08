@@ -9,7 +9,7 @@
 <hr />
 </div>
 
-Drizzle ORM is a TypeScript ORM for SQL databases designed with maximum type safety in mind. It comes with a [drizzle-kit](https://github.com/drizzle-team/drizzle-kit-mirror) CLI companion for automatic SQL migrations generation. This is the documentation for Drizzle ORM version for PostgreSQL.
+Drizzle ORM is a TypeScript ORM for SQL databases designed with maximum type safety in mind. It comes with a [drizzle-kit](https://github.com/drizzle-team/drizzle-kit-mirror) CLI companion for automatic SQL migrations generation. This is the documentation for Drizzle ORM version for MySQL.
 
 | Driver | Support |
 | :- | :-: |
@@ -184,7 +184,7 @@ export type User = InferModel<typeof users>; // return type when queried
 export type NewUser = InferModel<typeof users, 'insert'>; // insert type
 ...
 
-// init node-postgres Pool or Client
+// init mysql2 Pool or Client
 const poolConnection = mysql.createPool({
     host:'localhost', 
     user: 'root',
