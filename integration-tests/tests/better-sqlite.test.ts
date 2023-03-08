@@ -80,7 +80,12 @@ test.before((t) => {
 	const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
 
 	ctx.client = new Database(dbPath);
-	ctx.db = drizzle(ctx.client /* , { logger: new DefaultLogger() } */);
+	ctx.db = drizzle(ctx.client, { logger: false });
+});
+
+test.after.always((t) => {
+	const ctx = t.context;
+	ctx.client?.close();
 });
 
 test.beforeEach((t) => {
@@ -976,7 +981,18 @@ test.serial('having', (t) => {
 	]);
 });
 
-test.after.always((t) => {
-	const ctx = t.context;
-	ctx.client?.close();
+test.serial('insert null timestamp', (t) => {
+	const { db } = t.context;
+
+	const test = sqliteTable('test', {
+		t: integer('t', { mode: 'timestamp' }),
+	});
+
+	db.run(sql`create table ${test} (t timestamp)`);
+
+	db.insert(test).values({ t: null }).run();
+	const res = db.select().from(test).all();
+	t.deepEqual(res, [{ t: null }]);
+
+	db.run(sql`drop table ${test}`);
 });

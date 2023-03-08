@@ -115,7 +115,7 @@ export class PgArray<T extends PgArrayConfig> extends PgColumn<
 	}
 
 	override mapToDriverValue(value: T['data']): T['driverParam'] {
-		return value.map((v) => this.baseColumn.mapToDriverValue(v));
+		return value.map((v) => v === null ? null : this.baseColumn.mapToDriverValue(v));
 	}
 }
 
