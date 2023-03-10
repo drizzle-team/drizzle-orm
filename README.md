@@ -87,13 +87,13 @@ const newUser: NewUser = {
   fullName: 'John Doe',
   phone: '+123456789',
 };
-const insertedUsers /* : User */ = await db.insert(users).values(newUser).returning();
+const insertedUsers /* : User[] */ = await db.insert(users).values(newUser).returning();
 const insertedUser = insertedUsers[0]!;
 
 const newCity: NewCity = {
   name: 'New York',
 };
-const insertedCities /* : City */ = await db.insert(cities).values(newCity).returning();
+const insertedCities /* : City[] */ = await db.insert(cities).values(newCity).returning();
 const insertedCity = insertedCities[0]!;
 
 // Update
