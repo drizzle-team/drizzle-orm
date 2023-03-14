@@ -78,21 +78,21 @@ importers:
       '@cloudflare/workers-types': ^3.18.0
       '@types/itty-router-extras': ^0.4.0
       better-sqlite3: ^8.0.0
-      drizzle-kit: ^0.12.18
-      drizzle-orm: 0.14.2
+      drizzle-kit: ^0.17.0
+      drizzle-orm: ^0.21.1
       itty-router: ^2.6.6
       itty-router-extras: ^0.4.2
       typescript: ^4.9.3
       wrangler: ^2.4.2
     dependencies:
-      drizzle-orm: 0.14.2
+      drizzle-orm: link:../../drizzle-orm
       itty-router: 2.6.6
       itty-router-extras: 0.4.2
     devDependencies:
       '@cloudflare/workers-types': 3.19.0
       '@types/itty-router-extras': 0.4.0
       better-sqlite3: 8.0.1
-      drizzle-kit: 0.12.18
+      drizzle-kit: 0.17.0
       typescript: 4.9.5
       wrangler: 2.9.0
 
@@ -1980,6 +1980,12 @@ packages:
       balanced-match: 1.0.2
       concat-map: 0.0.1
 
+  /brace-expansion/2.0.1:
+    resolution: {integrity: sha512-XnAIvQ8eM+kC6aULx6wuQiwVsnzsi9d3WxzV3FpWTGA19F621kwdbsAcFKXgKUHZWsy+mY6iL1sHTxWEFCytDA==}
+    dependencies:
+      balanced-match: 1.0.2
+    dev: true
+
   /braces/3.0.2:
     resolution: {integrity: sha512-b8um+L1RzM3WDSzvhm6gIz1yfTbBt6YTlcEKAvsmqCZZFw46z626lVj9j1yEPW33H5H+lBQpZMP1k8l+78Ha0A==}
     engines: {node: '>=8'}
@@ -2084,6 +2090,11 @@ packages:
   /callsites/4.0.0:
     resolution: {integrity: sha512-y3jRROutgpKdz5vzEhWM34TidDU8vkJppF8dszITeb1PQmSqV3DTxyV8G/lyO/DNvtE1YTedehmw9MPZsCBHxQ==}
     engines: {node: '>=12.20'}
+    dev: true
+
+  /camelcase/7.0.1:
+    resolution: {integrity: sha512-xlx1yCK2Oc1APsPXDL2LdlNP6+uu8OCDdhOBSVT279M/S+y75O30C2VuD8T2ogdePBBl7PfPF4504tnLgX3zfw==}
+    engines: {node: '>=14.16'}
     dev: true
 
   /caniuse-lite/1.0.30001450:
@@ -2520,35 +2531,22 @@ packages:
       wordwrap: 1.0.0
     dev: true
 
-  /drizzle-kit/0.12.18:
-    resolution: {integrity: sha512-Oe66wBa6d7gLa9tQzTK5Fiyz3f7UOkpLq6Rs6b9l476g4PDtK04o7NnFJ00T+GjDJmriLvF63XM4qP5PMJz0+w==}
+  /drizzle-kit/0.17.0:
+    resolution: {integrity: sha512-b9Yr+oHz0BtBc4zhhZQ+K83w8AiVEG5qfBzjiaqzjhMnlK0cxbLlZIdq95aaUqokKc8rfxpNmmzrm67SERSzYA==}
     hasBin: true
     dependencies:
+      camelcase: 7.0.1
       chalk: 5.2.0
       commander: 9.5.0
       esbuild: 0.15.18
       esbuild-register: 3.4.2_esbuild@0.15.18
-      hanji: 0.0.3
+      glob: 8.1.0
+      hanji: 0.0.5
       json-diff: 0.9.0
       zod: 3.20.2
     transitivePeerDependencies:
       - supports-color
     dev: true
-
-  /drizzle-orm/0.14.2:
-    resolution: {integrity: sha512-5eUH81oXQ1GCpsEDPlX3LqX5RzDuO3uWp50yEKMb5GYyWkA0t5gBbMxpIdjYoxeP3xv4g+IkhlTuxXkK/70/5g==}
-    peerDependencies:
-      drizzle-orm-mysql: '>=0.14 <0.15'
-      drizzle-orm-pg: '>=0.14 <0.15'
-      drizzle-orm-sqlite: '>=0.14 <0.15'
-    peerDependenciesMeta:
-      drizzle-orm-mysql:
-        optional: true
-      drizzle-orm-pg:
-        optional: true
-      drizzle-orm-sqlite:
-        optional: true
-    dev: false
 
   /eastasianwidth/0.2.0:
     resolution: {integrity: sha512-I88TYZWc9XiYHRQ4/3c5rjjfgkjhLyW2luGIheGERbNQ6OY7yTybanSpDXZa8y7VUP9YmDcYa+eyq4ca7iLqWA==}
@@ -3399,6 +3397,17 @@ packages:
       once: 1.4.0
       path-is-absolute: 1.0.1
 
+  /glob/8.1.0:
+    resolution: {integrity: sha512-r8hpEjiQEYlF2QU0df3dS+nxxSIreXQS1qRhMJM0Q5NDdR386C7jb7Hwwod8Fgiuex+k0GFjgft18yvxm5XoCQ==}
+    engines: {node: '>=12'}
+    dependencies:
+      fs.realpath: 1.0.0
+      inflight: 1.0.6
+      inherits: 2.0.4
+      minimatch: 5.1.6
+      once: 1.4.0
+    dev: true
+
   /globals/11.12.0:
     resolution: {integrity: sha512-WOBp/EEGUiIsJSp7wcv/y6MO+lV9UoncWqxuFfm8eBwzWNgyfBd6Gz+IeKQ9jCmyhoH99g15M3T+QaVHFjizVA==}
     engines: {node: '>=4'}
@@ -3418,8 +3427,8 @@ packages:
   /graceful-fs/4.2.10:
     resolution: {integrity: sha512-9ByhssR2fPVsNZj478qUUbKfmL0+t5BDVyjShtyZZLiK7ZDAArFFfopyOTj0M05wE2tJPisA4iTnnXl2YoPvOA==}
 
-  /hanji/0.0.3:
-    resolution: {integrity: sha512-bo0TEFtnBU9FLgQqRWlKBjzWntHcJ7GNQUEXgnV//YKhX9rLWrP8FNxwrRDR44n4I6rFC+UmMhRIRGbHVl/Z3w==}
+  /hanji/0.0.5:
+    resolution: {integrity: sha512-Abxw1Lq+TnYiL4BueXqMau222fPSPMFtya8HdpWsz/xVAhifXou71mPh/kY2+08RgFcVccjG3uZHs6K5HAe3zw==}
     dependencies:
       lodash.throttle: 4.1.1
       sisteransi: 1.0.5
@@ -3938,6 +3947,13 @@ packages:
     resolution: {integrity: sha512-J7p63hRiAjw1NDEww1W7i37+ByIrOWO5XQQAzZ3VOcL0PNybwpfmV/N05zFAzwQ9USyEcX6t3UO+K5aqBQOIHw==}
     dependencies:
       brace-expansion: 1.1.11
+
+  /minimatch/5.1.6:
+    resolution: {integrity: sha512-lKwV/1brpG6mBUFHtb7NUmtABCb2WZZmm2wNiOA5hAb8VdCS4B3dtMWyvcoViccwAW/COERjXLt0zP1zXUN26g==}
+    engines: {node: '>=10'}
+    dependencies:
+      brace-expansion: 2.0.1
+    dev: true
 
   /minimist/1.2.7:
     resolution: {integrity: sha512-bzfL1YUZsP41gmu/qjrEk0Q6i2ix/cVeAhbCbqH9u3zYutS1cLg00qhrD0M2MVdCcx4Sc0UpP2eBWo9rotpq6g==}

@@ -20,9 +20,8 @@ database_id = "YOUR DB ID"
 ```
 
 To init local database and run server locally
-
 ```bash
-wrangler d1 execute <DATABASE_NAME> --local --file=./drizzle/20221126113135/migration.sql
+wrangler d1 execute <DATABASE_NAME> --local --file=./drizzle/0000_short_lockheed.sql
 wrangler dev --local --persist
 ```
 
