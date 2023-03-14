@@ -33,9 +33,11 @@ Drizzle ORM is being battle-tested on production projects by multiple teams 🚀
 | PostgreSQL  | ✅ | [Docs](./drizzle-orm/src/pg-core/README.md)|
 | MySQL       | ✅      |[Docs](./drizzle-orm/src/mysql-core/README.md)|
 | SQLite      | ✅      |[Docs](./drizzle-orm/src/sqlite-core/README.md)|
+| [Cloudflare D1](https://developers.cloudflare.com/d1) | ✅      |            | [Docs](./examples/cloudflare-d1/README.md)
 | DynamoDB    | ⏳      |            |
 | MS SQL      | ⏳      |            |
 | CockroachDB | ⏳      |            |
+
 
 ## Installation
 
