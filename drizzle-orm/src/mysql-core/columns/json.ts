@@ -1,7 +1,7 @@
-import { ColumnConfig } from '~/column';
-import { ColumnBuilderConfig } from '~/column-builder';
+import type { ColumnConfig } from '~/column';
+import type { ColumnBuilderConfig } from '~/column-builder';
 
-import { AnyMySqlTable } from '~/mysql-core/table';
+import type { AnyMySqlTable } from '~/mysql-core/table';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export class MySqlJsonBuilder<

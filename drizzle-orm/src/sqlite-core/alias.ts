@@ -1,7 +1,7 @@
 import { TableAliasProxyHandler } from '~/alias';
-import { BuildAliasTable } from './query-builders/select.types';
+import type { BuildAliasTable } from './query-builders/select.types';
 
-import { AnySQLiteTable } from './table';
+import type { AnySQLiteTable } from './table';
 
 export function alias<TTable extends AnySQLiteTable, TAlias extends string>(
 	table: TTable,

@@ -1,6 +1,7 @@
 import { Database } from 'bun:sqlite';
 import { DefaultLogger, sql } from 'drizzle-orm';
-import { BunSQLiteDatabase, drizzle } from 'drizzle-orm/bun-sqlite';
+import type { BunSQLiteDatabase} from 'drizzle-orm/bun-sqlite';
+import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { blob, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { suite } from 'uvu';
 import * as assert from 'uvu/assert';

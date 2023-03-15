@@ -1,8 +1,10 @@
-import { Connection } from '@planetscale/database';
-import { DefaultLogger, Logger } from '~/logger';
+import type { Connection } from '@planetscale/database';
+import type { Logger } from '~/logger';
+import { DefaultLogger } from '~/logger';
 import { MySqlDatabase } from '~/mysql-core/db';
 import { MySqlDialect } from '~/mysql-core/dialect';
-import { PlanetscaleQueryResultHKT, PlanetscaleSession } from './session';
+import type { PlanetscaleQueryResultHKT} from './session';
+import { PlanetscaleSession } from './session';
 
 export interface PlanetscaleSDriverOptions {
 	logger?: Logger;

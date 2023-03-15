@@ -1,7 +1,7 @@
 import { TableAliasProxyHandler } from '~/alias';
-import { BuildAliasTable } from './query-builders/select.types';
+import type { BuildAliasTable } from './query-builders/select.types';
 
-import { AnyPgTable } from './table';
+import type { AnyPgTable } from './table';
 
 export function alias<TTable extends AnyPgTable, TAlias extends string>(
 	table: TTable,

@@ -1,7 +1,7 @@
-import { AnyColumn } from './column';
-import { SQL } from './sql';
+import type { AnyColumn } from './column';
+import type { SQL } from './sql';
 import { SelectionProxyHandler } from './subquery';
-import { Table } from './table';
+import type { Table } from './table';
 import { Simplify } from './utils';
 
 export type RequiredKeyOnly<TKey extends string, T extends AnyColumn> = T extends AnyColumn<{

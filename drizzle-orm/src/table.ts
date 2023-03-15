@@ -1,4 +1,4 @@
-import { AnyColumn } from './column';
+import type { AnyColumn } from './column';
 
 export const Name = Symbol('Name');
 
@@ -32,7 +32,7 @@ export class Table<TName extends string | undefined = string, TSchema extends st
 
 	[Schema]: TSchema | undefined;
 
-	declare [Columns]: Record<string, AnyColumn>;
+	[Columns]!: Record<string, AnyColumn>;
 
 	constructor(name: TName, schema?: TSchema) {
 		this[Name] = this[OriginalName] = name;

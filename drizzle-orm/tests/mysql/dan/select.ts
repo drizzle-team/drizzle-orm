@@ -24,9 +24,10 @@ import {
 import { alias } from '~/mysql-core/alias';
 import { param, sql } from '~/sql';
 
-import { Equal, Expect } from 'tests/utils';
+import type { Equal } from 'tests/utils';
+import { Expect } from 'tests/utils';
 import { db } from './db';
-import { cities, classes, users } from './tables';
+import { cities, classes, newYorkers, users } from './tables';
 
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
@@ -400,3 +401,28 @@ await db
 	.from(users)
 	// @ts-expect-error
 	.for('share', { noWait: true, skipLocked: true });
+
+{
+	const result = await db.select().from(newYorkers);
+	Expect<
+		Equal<
+			{
+				userId: number;
+				cityId: number | null;
+			}[],
+			typeof result
+		>
+	>;
+}
+
+{
+	const result = await db.select({ userId: newYorkers.userId }).from(newYorkers);
+	Expect<
+		Equal<
+			{
+				userId: number;
+			}[],
+			typeof result
+		>
+	>;
+}

@@ -1,10 +1,11 @@
-import { PgDialect } from '~/pg-core/dialect';
-import { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
-import { AnyPgTable, InferModel, PgTable } from '~/pg-core/table';
+import type { PgDialect } from '~/pg-core/dialect';
+import type { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
+import type { AnyPgTable, InferModel } from '~/pg-core/table';
+import { PgTable } from '~/pg-core/table';
 import { QueryPromise } from '~/query-promise';
-import { Query, SQL, SQLWrapper } from '~/sql';
-import { orderSelectedFields } from '~/utils';
-import { SelectFieldsFlat, SelectFieldsOrdered, SelectResultFields } from './select.types';
+import type { Query, SQL, SQLWrapper } from '~/sql';
+import { orderSelectedFields, type Simplify } from '~/utils';
+import type { SelectFieldsFlat, SelectFieldsOrdered, SelectResultFields } from './select.types';
 
 export interface PgDeleteConfig {
 	where?: SQL | undefined;
@@ -57,7 +58,7 @@ export class PgDelete<
 		return this.dialect.buildDeleteQuery(this.config);
 	}
 
-	toSQL(): Omit<Query, 'typings'> {
+	toSQL(): Simplify<Omit<Query, 'typings'>> {
 		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}

@@ -1,4 +1,5 @@
-import { foreignKey, InferModel, integer, numeric, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import type { InferModel} from 'drizzle-orm/sqlite-core';
+import { foreignKey, integer, numeric, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 export const customers = sqliteTable('customer', {
 	id: text('id').primaryKey(),

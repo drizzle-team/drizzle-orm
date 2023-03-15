@@ -7,3 +7,4 @@ export * from './foreign-keys';
 export * from './indexes';
 export * from './primary-keys';
 export * from './table';
+export * from './view';

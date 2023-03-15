@@ -1,7 +1,7 @@
-import { UpdateCBConfig } from '~/column-builder';
-import { AnyPgTable } from '~/pg-core/table';
-import { SQL } from '~/sql';
-import { Update } from '~/utils';
+import type { UpdateCBConfig } from '~/column-builder';
+import type { AnyPgTable } from '~/pg-core/table';
+import type { SQL } from '~/sql';
+import type { Update } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 
 const isPgEnumSym = Symbol('isPgEnum');

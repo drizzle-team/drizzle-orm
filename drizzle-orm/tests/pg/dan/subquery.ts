@@ -2,7 +2,7 @@ import { Expect } from 'tests/utils';
 import { and, eq } from '~/expressions';
 import { alias, integer, pgTable, serial, text } from '~/pg-core';
 import { sql } from '~/sql';
-import { DrizzleTypeError, Equal } from '~/utils';
+import type { DrizzleTypeError, Equal } from '~/utils';
 import { db } from './db';
 
 const names = pgTable('names', {

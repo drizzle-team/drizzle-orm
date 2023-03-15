@@ -403,25 +403,15 @@ const users = await selectUsers(true);
 #### WITH clause
 
 ```typescript
-const sq = db.select().from(users).where(eq(users.id, 42)).prepareWithSubquery('sq');
+const sq = db.$with('sq').as(db.select().from(users).where(eq(users.id, 42)));
 const result = await db.with(sq).select().from(sq);
 ```
 
-> **Note**: Keep in mind, that if you need to select raw `sql` in a WITH subquery and reference that field in other queries, you must add an alias to it:
+> **Note**: Keep in mind that if you need to select raw `sql` in a WITH subquery and reference that field in other queries, you must add an alias to it:
 
 ```typescript
-const sq = db
-  .select({
-    name: sql<string>`upper(${users.name})`.as('name'),
-  })
-  .from(users)
-  .prepareWithSubquery('sq');
-
-const result = await db
-  .select({
-    name: sq.name,
-  })
-  .from(sq);
+const sq = db.$with('sq').as(db.select({ name: sql<string>`upper(${users.name})`.as('name') }).from(users));
+const result = await db.with(sq).select({ name: sq.name }).from(sq);
 ```
 
 Otherwise, the field type will become `DrizzleTypeError` and you won't be able to reference it in other queries. If you ignore the type error and still try to reference the field, you will get a runtime error, because we cannot reference that field without an alias.
@@ -430,13 +420,13 @@ Otherwise, the field type will become `DrizzleTypeError` and you won't be able t
 
 ```typescript
 const sq = db.select().from(users).where(eq(users.id, 42)).as('sq');
-await db.select().from(sq);
+const result = await db.select().from(sq);
 ```
 
 Subqueries in joins are supported, too:
 
 ```typescript
-await db.select().from(users).leftJoin(sq, eq(users.id, sq.id));
+const result = await db.select().from(users).leftJoin(sq, eq(users.id, sq.id));
 ```
 
 #### List of all filter operators
@@ -502,13 +492,17 @@ type NewUser = InferModel<typeof users>;
 
 const db = drizzle(...);
 
-await db.insert(users)
-  .values({
-    name: 'Andrew',
-    createdAt: new Date(),
-  });
+const newUser: NewUser = {
+  name: 'Andrew',
+  createdAt: new Date(),
+};
 
-// accepts vararg of items
+await db.insert(users).values(newUser);
+```
+
+#### Insert several items
+
+```ts
 await db.insert(users)
   .values(
     {
@@ -520,7 +514,11 @@ await db.insert(users)
       createdAt: new Date(),
     },
   );
+```
 
+#### Insert array of items
+
+```ts
 const newUsers: NewUser[] = [
   {
       name: 'Andrew',
@@ -547,8 +545,6 @@ await db.delete(users)
 ```
 
 ### Joins
-
-Last but not least. Probably the most powerful feature in the library🚀
 
 > **Note**: for in-depth partial select joins documentation, refer to [this page](/docs/joins.md).
 
@@ -640,6 +636,82 @@ const result2 = await db
   .from(cities).leftJoin(users, eq(users.cityId, cities.id));
 ```
 
+## Query builder
+
+Drizzle ORM provides a standalone query builder that allows you to build queries without creating a database instance.
+
+```ts
+import { queryBuilder as qb } from 'drizzle-orm/mysql-core';
+
+const query = qb.select().from(users).where(eq(users.name, 'Dan'));
+const { sql, params } = query.toSQL();
+```
+
+## Views (WIP)
+
+> **Warning**: views are currently only implemented on the ORM side. That means you can query the views that already exist in the database, but they won't be added to drizzle-kit migrations or `db push` yet.
+
+### Creating a view
+
+```ts
+import { mysqlView } from 'drizzle-orm/mysql-core';
+
+const newYorkers = mysqlView('new_yorkers').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
+```
+
+#### Full view definition syntax
+
+```ts
+const newYorkers = mysqlView('new_yorkers')
+  .algorithm('merge')
+  .definer('root@localhost')
+  .sqlSecurity('definer')
+  .as((qb) => {
+    const sq = qb
+      .$with('sq')
+      .as(
+        qb.select({ userId: users.id, cityId: cities.id })
+          .from(users)
+          .leftJoin(cities, eq(cities.id, users.homeCity))
+          .where(sql`${users.age1} > 18`),
+      );
+    return qb.with(sq).select().from(sq).where(sql`${users.homeCity} = 1`);
+  });
+```
+
+> **Warning**: All the parameters inside the query will be inlined, instead of replaced by `$1`, `$2`, etc.
+
+You can also use the [`queryBuilder` instance](#query-builder) directly instead of passing a callback, if you already have it imported.
+
+```ts
+import { queryBuilder as qb } from 'drizzle-orm/mysql-core';
+
+const newYorkers = mysqlView('new_yorkers').as(qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
+```
+
+### Using raw SQL in a view query
+
+In case you need to specify the view query using a syntax that is not supported by the query builder, you can directly use SQL. In that case, you also need to specify the view shape.
+
+```ts
+const newYorkers = mysqlView('new_yorkers', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  cityId: integer('city_id').notNull(),
+}).as(sql`select * from ${users} where ${eq(users.cityId, 1)}`);
+```
+
+### Describing existing views
+
+There are cases when you are given readonly access to an existing view. In such cases you can just describe the view shape without specifying the query itself or using it in the migrations.
+
+```ts
+const newYorkers = mysqlView('new_yorkers', {
+  userId: integer('user_id').notNull(),
+  cityId: integer('city_id'),
+}).existing();
+```
+
 ## Prepared statements
 
 ```typescript
@@ -673,9 +745,9 @@ const res: MySqlQueryResult<{ id: number; name: string }> = await db.execute<
 
 ### Automatic SQL migrations generation with drizzle-kit
 
-[DrizzleKit](https://www.npmjs.com/package/drizzle-kit) - is a CLI migrator tool for DrizzleORM. It is probably one and only tool that lets you completely automatically generate SQL migrations and covers ~95% of the common cases like deletions and renames by prompting user input.
+[Drizzle Kit](https://www.npmjs.com/package/drizzle-kit) is a CLI migrator tool for Drizzle ORM. It is probably one and only tool that lets you completely automatically generate SQL migrations and covers ~95% of the common cases like deletions and renames by prompting user input.
 
-Check out the [docs for DrizzleKit](https://github.com/drizzle-team/drizzle-kit-mirror)
+Check out the [docs for Drizzle Kit](https://github.com/drizzle-team/drizzle-kit-mirror)
 
 For schema file:
 

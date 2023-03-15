@@ -1,6 +1,6 @@
-import { AnySQLiteColumn } from './columns';
+import type { AnySQLiteColumn } from './columns';
 
-import { AnySQLiteTable } from './table';
+import type { AnySQLiteTable } from './table';
 
 export class UniqueBuilder<TTableName extends string> {
 	protected brand!: 'SQLiteConstraintBuilder';

@@ -1,7 +1,7 @@
-import { UpdateCBConfig } from '~/column-builder';
-import { AnyPgTable } from '~/pg-core/table';
+import type { UpdateCBConfig } from '~/column-builder';
+import type { AnyPgTable } from '~/pg-core/table';
 
-import { SQL } from '~/sql';
+import type { SQL } from '~/sql';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export interface PgTextBuilderConfig {

@@ -1,16 +1,21 @@
-import { AnyColumn, Column } from '~/column';
-import { MigrationMeta } from '~/migrator';
-import { Name, Query, SQL, sql, SQLSourceParam } from '~/sql';
+import type { AnyColumn } from '~/column';
+import { Column } from '~/column';
+import type { MigrationMeta } from '~/migrator';
+import type { Query, SQLSourceParam } from '~/sql';
+import { Name, SQL, sql } from '~/sql';
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
-import { UpdateSet } from '~/utils';
-import { AnyMySqlColumn, MySqlColumn } from './columns/common';
-import { MySqlDeleteConfig } from './query-builders/delete';
-import { MySqlInsertConfig } from './query-builders/insert';
-import { MySqlSelectConfig, SelectFieldsOrdered } from './query-builders/select.types';
-import { MySqlUpdateConfig } from './query-builders/update';
-import { MySqlSession } from './session';
-import { AnyMySqlTable, MySqlTable } from './table';
+import type { UpdateSet } from '~/utils';
+import { View, ViewBaseConfig } from '~/view';
+import type { AnyMySqlColumn } from './columns/common';
+import { MySqlColumn } from './columns/common';
+import type { MySqlDeleteConfig } from './query-builders/delete';
+import type { MySqlInsertConfig } from './query-builders/insert';
+import type { MySqlSelectConfig, SelectFieldsOrdered } from './query-builders/select.types';
+import type { MySqlUpdateConfig } from './query-builders/update';
+import type { MySqlSession } from './session';
+import type { AnyMySqlTable } from './table';
+import { MySqlTable } from './table';
 
 // TODO find out how to use all/values. Seems like I need those functions
 // Build project
@@ -62,6 +67,10 @@ export class MySqlDialect {
 
 	escapeParam(num: number): string {
 		return `?`;
+	}
+
+	escapeString(str: string): string {
+		return `'${str.replace(/'/g, "''")}'`;
 	}
 
 	buildDeleteQuery({ table, where, returning }: MySqlDeleteConfig): SQL {
@@ -176,7 +185,11 @@ export class MySqlDialect {
 			if (
 				f.field instanceof Column
 				&& getTableName(f.field.table)
-					!== (table instanceof Subquery ? table[SubqueryConfig].alias : getTableName(table))
+					!== (table instanceof Subquery
+						? table[SubqueryConfig].alias
+						: table instanceof View
+						? table[ViewBaseConfig].name
+						: getTableName(table))
 				&& !((tableName = getTableName(f.field.table)) in joins)
 			) {
 				throw new Error(
@@ -320,6 +333,7 @@ export class MySqlDialect {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
+			escapeString: this.escapeString,
 		});
 	}
 }

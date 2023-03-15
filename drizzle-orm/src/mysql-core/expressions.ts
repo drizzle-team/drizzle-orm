@@ -1,6 +1,7 @@
 import { bindIfParam } from '~/expressions';
-import { Placeholder, SQL, sql, SQLSourceParam, SQLWrapper } from '~/sql';
-import { AnyMySqlColumn } from './columns/common';
+import type { Placeholder, SQL, SQLSourceParam, SQLWrapper } from '~/sql';
+import { sql } from '~/sql';
+import type { AnyMySqlColumn } from './columns/common';
 
 export * from '~/expressions';
 

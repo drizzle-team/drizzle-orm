@@ -1,5 +1,6 @@
-import { AnySQLiteColumn } from './columns';
-import { AnySQLiteTable, SQLiteTable } from './table';
+import type { AnySQLiteColumn } from './columns';
+import type { AnySQLiteTable} from './table';
+import { SQLiteTable } from './table';
 
 export function primaryKey<
 	TTableName extends string,

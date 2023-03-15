@@ -1,14 +1,20 @@
-import { AnyColumn, Column } from '~/column';
-import { MigrationMeta } from '~/migrator';
-import { Name, param, Query, SQL, sql, SQLSourceParam } from '~/sql';
-import { AnySQLiteColumn, SQLiteColumn } from '~/sqlite-core/columns';
-import { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders';
-import { AnySQLiteTable, SQLiteTable } from '~/sqlite-core/table';
+import type { AnyColumn } from '~/column';
+import { Column } from '~/column';
+import type { MigrationMeta } from '~/migrator';
+import type { Query, SQLSourceParam } from '~/sql';
+import { Name, param, SQL, sql } from '~/sql';
+import type { AnySQLiteColumn } from '~/sqlite-core/columns';
+import { SQLiteColumn } from '~/sqlite-core/columns';
+import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders';
+import type { AnySQLiteTable } from '~/sqlite-core/table';
+import { SQLiteTable } from '~/sqlite-core/table';
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
-import { UpdateSet } from '~/utils';
-import { SelectFieldsOrdered, SQLiteSelectConfig } from './query-builders/select.types';
-import { SQLiteSession } from './session';
+import type { UpdateSet } from '~/utils';
+import { ViewBaseConfig } from '~/view';
+import type { SelectFieldsOrdered, SQLiteSelectConfig } from './query-builders/select.types';
+import type { SQLiteSession } from './session';
+import { SQLiteViewBase } from './view';
 
 export abstract class SQLiteDialect {
 	escapeName(name: string): string {
@@ -17,6 +23,10 @@ export abstract class SQLiteDialect {
 
 	escapeParam(num: number): string {
 		return '?';
+	}
+
+	escapeString(str: string): string {
+		return `'${str.replace(/'/g, "''")}'`;
 	}
 
 	buildDeleteQuery({ table, where, returning }: SQLiteDeleteConfig): SQL {
@@ -130,7 +140,11 @@ export abstract class SQLiteDialect {
 			if (
 				f.field instanceof Column
 				&& getTableName(f.field.table)
-					!== (table instanceof Subquery ? table[SubqueryConfig].alias : getTableName(table))
+					!== (table instanceof Subquery
+						? table[SubqueryConfig].alias
+						: table instanceof SQLiteViewBase
+						? table[ViewBaseConfig].name
+						: getTableName(table))
 				&& !((tableName = getTableName(f.field.table)) in joins)
 			) {
 				throw new Error(
@@ -273,6 +287,7 @@ export abstract class SQLiteDialect {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
+			escapeString: this.escapeString,
 		});
 	}
 }

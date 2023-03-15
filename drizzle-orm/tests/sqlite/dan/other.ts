@@ -1,8 +1,9 @@
-import { RunResult } from 'better-sqlite3';
+import type { RunResult } from 'better-sqlite3';
 import { eq, inArray } from '~/expressions';
 import { sql } from '~/sql';
 
-import { Equal, Expect } from 'tests/utils';
+import type { Equal} from 'tests/utils';
+import { Expect } from 'tests/utils';
 import { db } from './db';
 import { users } from './tables';
 

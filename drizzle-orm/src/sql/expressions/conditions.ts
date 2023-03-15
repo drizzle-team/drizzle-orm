@@ -1,5 +1,7 @@
-import { AnyColumn, Column, GetColumnData } from '../../column';
-import { isSQLWrapper, Param, Placeholder, SQL, sql, SQLSourceParam, SQLWrapper } from '..';
+import type { AnyColumn, GetColumnData } from '../../column';
+import { Column } from '../../column';
+import type { SQLSourceParam, SQLWrapper } from '..';
+import { isSQLWrapper, Param, Placeholder, SQL, sql } from '..';
 
 export function bindIfParam(value: unknown, column: AnyColumn | SQL.Aliased): SQLSourceParam {
 	if (value instanceof Column || value instanceof Placeholder || column instanceof SQL.Aliased) {

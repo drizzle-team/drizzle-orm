@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 
-import { DefaultLogger, Logger } from '~/logger';
+import type { Logger } from '~/logger';
+import { DefaultLogger } from '~/logger';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
 import { SQLiteD1Session } from './session';

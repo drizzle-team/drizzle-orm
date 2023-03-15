@@ -2,7 +2,7 @@ import { Expect } from 'tests/utils';
 import { and, eq } from '~/expressions';
 import { sql } from '~/sql';
 import { alias, integer, sqliteTable, text } from '~/sqlite-core';
-import { DrizzleTypeError, Equal } from '~/utils';
+import type { DrizzleTypeError, Equal } from '~/utils';
 import { db } from './db';
 
 const names = sqliteTable('names', {

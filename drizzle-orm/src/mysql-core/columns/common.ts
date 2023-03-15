@@ -1,11 +1,14 @@
-import { Column, ColumnBaseConfig } from '~/column';
-import { ColumnBuilder, ColumnBuilderBaseConfig, ColumnBuilderWithConfig, UpdateCBConfig } from '~/column-builder';
-import { SQL } from '~/sql';
-import { Update } from '~/utils';
-import { Simplify } from '~/utils';
+import type { ColumnBaseConfig } from '~/column';
+import { Column } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderWithConfig, UpdateCBConfig } from '~/column-builder';
+import { ColumnBuilder } from '~/column-builder';
+import type { SQL } from '~/sql';
+import type { Update } from '~/utils';
+import type { Simplify } from '~/utils';
 
-import { ForeignKey, ForeignKeyBuilder, UpdateDeleteAction } from '~/mysql-core/foreign-keys';
-import { AnyMySqlTable } from '~/mysql-core/table';
+import type { ForeignKey, UpdateDeleteAction } from '~/mysql-core/foreign-keys';
+import { ForeignKeyBuilder } from '~/mysql-core/foreign-keys';
+import type { AnyMySqlTable } from '~/mysql-core/table';
 
 export interface ReferenceConfig {
 	ref: () => AnyMySqlColumn;

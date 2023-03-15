@@ -1,11 +1,14 @@
-import { Client, Pool, PoolClient, QueryArrayConfig, QueryConfig, QueryResult, QueryResultRow } from 'pg';
-import { Logger, NoopLogger } from '~/logger';
-import { PgDialect } from '~/pg-core/dialect';
-import { SelectFieldsOrdered } from '~/pg-core/query-builders/select.types';
-import { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
-import { fillPlaceholders, Query } from '~/sql';
+import type { Client, Pool, PoolClient, QueryArrayConfig, QueryConfig, QueryResult, QueryResultRow } from 'pg';
+import type { Logger} from '~/logger';
+import { NoopLogger } from '~/logger';
+import type { PgDialect } from '~/pg-core/dialect';
+import type { SelectFieldsOrdered } from '~/pg-core/query-builders/select.types';
+import type { PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
+import { PgSession, PreparedQuery } from '~/pg-core/session';
+import type { Query } from '~/sql';
+import { fillPlaceholders } from '~/sql';
 import { mapResultRow } from '~/utils';
-import { Assume } from '~/utils';
+import type { Assume } from '~/utils';
 
 export type NodePgClient = Pool | PoolClient | Client;
 

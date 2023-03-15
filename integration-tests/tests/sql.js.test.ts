@@ -1,13 +1,18 @@
 import 'dotenv/config';
 
-import anyTest, { TestFn } from 'ava';
+import type { TestFn } from 'ava';
+import anyTest from 'ava';
 import { sql } from 'drizzle-orm';
 import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
 import { Name, name, placeholder } from 'drizzle-orm/sql';
-import { drizzle, SQLJsDatabase } from 'drizzle-orm/sql-js';
+import type { SQLJsDatabase } from 'drizzle-orm/sql-js';
+import { drizzle } from 'drizzle-orm/sql-js';
 import { migrate } from 'drizzle-orm/sql-js/migrator';
-import { alias, blob, InferModel, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import initSqlJs, { Database } from 'sql.js';
+import { type InferModel, sqliteView } from 'drizzle-orm/sqlite-core';
+import { alias, blob, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { getViewConfig } from 'drizzle-orm/sqlite-core/utils';
+import type { Database } from 'sql.js';
+import initSqlJs from 'sql.js';
 
 const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey(),
@@ -572,19 +577,19 @@ test.serial('build query', (t) => {
 	});
 });
 
-// test.serial('migrator', async (t) => {
-// 	const { db } = t.context;
-// 	migrate(db, { migrationsFolder: './drizzle/sqlite' });
+test.serial.skip('migrator', async (t) => {
+	const { db } = t.context;
+	migrate(db, { migrationsFolder: './drizzle/sqlite' });
 
-// 	db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).run();
-// 	const result = db.select().from(usersMigratorTable).all();
+	db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).run();
+	const result = db.select().from(usersMigratorTable).all();
 
-// 	db.insert(anotherUsersMigratorTable).values({ name: 'John', email: 'email' }).run();
-// 	const result2 = db.select().from(usersMigratorTable).all();
+	db.insert(anotherUsersMigratorTable).values({ name: 'John', email: 'email' }).run();
+	const result2 = db.select().from(usersMigratorTable).all();
 
-// 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
-// 	t.deepEqual(result2, [{ id: 1, name: 'John', email: 'email' }]);
-// });
+	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+	t.deepEqual(result2, [{ id: 1, name: 'John', email: 'email' }]);
+});
 
 test.serial('insert via db.run + select via db.all', (t) => {
 	const { db } = t.context;
@@ -783,23 +788,32 @@ test.serial('with ... select', (t) => {
 	).run();
 
 	const regionalSales = db
-		.select({
-			region: orders.region,
-			totalSales: sql`sum(${orders.amount})`.as<number>('total_sales'),
-		})
-		.from(orders)
-		.groupBy(orders.region)
-		.prepareWithSubquery('regional_sales');
+		.$with('regional_sales')
+		.as(
+			db
+				.select({
+					region: orders.region,
+					totalSales: sql<number>`sum(${orders.amount})`.as('total_sales'),
+				})
+				.from(orders)
+				.groupBy(orders.region),
+		);
 
 	const topRegions = db
-		.select({
-			region: regionalSales.region,
-		})
-		.from(regionalSales)
-		.where(
-			gt(regionalSales.totalSales, db.select({ sales: sql`sum(${regionalSales.totalSales})/10` }).from(regionalSales)),
-		)
-		.prepareWithSubquery('top_regions');
+		.$with('top_regions')
+		.as(
+			db
+				.select({
+					region: regionalSales.region,
+				})
+				.from(regionalSales)
+				.where(
+					gt(
+						regionalSales.totalSales,
+						db.select({ sales: sql`sum(${regionalSales.totalSales})/10` }).from(regionalSales),
+					),
+				),
+		);
 
 	const result = db
 		.with(regionalSales, topRegions)
@@ -867,7 +881,7 @@ test.serial('select a field without joining its table', (t) => {
 test.serial('select all fields from subquery without alias', (t) => {
 	const { db } = t.context;
 
-	const sq = db.select({ name: sql<string>`upper(${users2Table.name})` }).from(users2Table).prepareWithSubquery('sq');
+	const sq = db.$with('sq').as(db.select({ name: sql<string>`upper(${users2Table.name})` }).from(users2Table));
 
 	t.throws(() => db.select().from(sq).prepare());
 });
@@ -918,4 +932,67 @@ test.serial('having', (t) => {
 			usersCount: 1,
 		},
 	]);
+});
+
+test.serial('view', (t) => {
+	const { db } = t.context;
+
+	const newYorkers1 = sqliteView('new_yorkers')
+		.as((qb) => qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
+
+	const newYorkers2 = sqliteView('new_yorkers', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: integer('city_id').notNull(),
+	}).as(sql`select * from ${users2Table} where ${eq(users2Table.cityId, 1)}`);
+
+	const newYorkers3 = sqliteView('new_yorkers', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: integer('city_id').notNull(),
+	}).existing();
+
+	db.run(sql`create view new_yorkers as ${getViewConfig(newYorkers1).query}`);
+
+	db.insert(citiesTable).values({ name: 'New York' }, { name: 'Paris' }).run();
+
+	db.insert(users2Table).values(
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 1 },
+		{ name: 'Jack', cityId: 2 },
+	).run();
+
+	{
+		const result = db.select().from(newYorkers1).all();
+		t.deepEqual(result, [
+			{ id: 1, name: 'John', cityId: 1 },
+			{ id: 2, name: 'Jane', cityId: 1 },
+		]);
+	}
+
+	{
+		const result = db.select().from(newYorkers2).all();
+		t.deepEqual(result, [
+			{ id: 1, name: 'John', cityId: 1 },
+			{ id: 2, name: 'Jane', cityId: 1 },
+		]);
+	}
+
+	{
+		const result = db.select().from(newYorkers3).all();
+		t.deepEqual(result, [
+			{ id: 1, name: 'John', cityId: 1 },
+			{ id: 2, name: 'Jane', cityId: 1 },
+		]);
+	}
+
+	{
+		const result = db.select({ name: newYorkers1.name }).from(newYorkers1).all();
+		t.deepEqual(result, [
+			{ name: 'John' },
+			{ name: 'Jane' },
+		]);
+	}
+
+	db.run(sql`drop view ${newYorkers1}`);
 });

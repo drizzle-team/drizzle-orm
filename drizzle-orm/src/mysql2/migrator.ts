@@ -1,5 +1,6 @@
-import { MigrationConfig, readMigrationFiles } from '~/migrator';
-import { MySql2Database } from './driver';
+import type { MigrationConfig} from '~/migrator';
+import { readMigrationFiles } from '~/migrator';
+import type { MySql2Database } from './driver';
 
 export async function migrate(db: MySql2Database, config: string | MigrationConfig) {
 	const migrations = readMigrationFiles(config);

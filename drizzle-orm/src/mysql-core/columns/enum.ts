@@ -1,5 +1,5 @@
-import { AnyMySqlTable } from '~/mysql-core/table';
-import { Update } from '~/utils';
+import type { AnyMySqlTable } from '~/mysql-core/table';
+import type { Update } from '~/utils';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export interface MySqlEnumColumnBuilderConfig {

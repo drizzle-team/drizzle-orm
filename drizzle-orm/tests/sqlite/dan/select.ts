@@ -22,12 +22,13 @@ import {
 	or,
 } from '~/expressions';
 import { param, sql } from '~/sql';
-import { InferModel } from '~/sqlite-core';
+import type { InferModel } from '~/sqlite-core';
 import { alias } from '~/sqlite-core/alias';
 
-import { Equal, Expect } from 'tests/utils';
+import type { Equal } from 'tests/utils';
+import { Expect } from 'tests/utils';
 import { db } from './db';
-import { cities, classes, users } from './tables';
+import { cities, classes, newYorkers, users } from './tables';
 
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
@@ -405,6 +406,31 @@ Expect<
 			{
 				id: number;
 				city?: number;
+			}[],
+			typeof result
+		>
+	>;
+}
+
+{
+	const result = db.select().from(newYorkers).all();
+	Expect<
+		Equal<
+			{
+				userId: number;
+				cityId: number | null;
+			}[],
+			typeof result
+		>
+	>;
+}
+
+{
+	const result = db.select({ userId: newYorkers.userId }).from(newYorkers).all();
+	Expect<
+		Equal<
+			{
+				userId: number;
 			}[],
 			typeof result
 		>

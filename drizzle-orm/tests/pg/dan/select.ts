@@ -1,4 +1,5 @@
-import { Equal, Expect } from 'tests/utils';
+import type { Equal } from 'tests/utils';
+import { Expect } from 'tests/utils';
 
 import {
 	and,
@@ -23,17 +24,21 @@ import {
 	notLike,
 	or,
 } from '~/expressions';
-import { InferModel } from '~/pg-core';
+import type { InferModel } from '~/pg-core';
 import { alias } from '~/pg-core/alias';
 import { param, sql } from '~/sql';
 
 import { db } from './db';
-import { cities, classes, users } from './tables';
+import { cities, classes, newYorkers, newYorkers2, users } from './tables';
 
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
 
 const leftJoinFull = await db.select().from(users).leftJoin(city, eq(users.id, city.id));
+
+{
+	const result = await db.select().from(users).leftJoin(city, eq(users.id, city.id));
+}
 
 Expect<
 	Equal<
@@ -851,3 +856,53 @@ await db
 	.where(({ name }) => sql`length(${name}) >= 3`)
 	.groupBy(cities.id)
 	.having(({ usersCount }) => sql`${usersCount} > 0`);
+
+{
+	const result = await db.select().from(newYorkers);
+	Expect<
+		Equal<
+			{
+				userId: number;
+				cityId: number | null;
+			}[],
+			typeof result
+		>
+	>;
+}
+
+{
+	const result = await db.select({ userId: newYorkers.userId }).from(newYorkers);
+	Expect<
+		Equal<
+			{
+				userId: number;
+			}[],
+			typeof result
+		>
+	>;
+}
+
+{
+	const result = await db.select().from(newYorkers2);
+	Expect<
+		Equal<
+			{
+				userId: number;
+				cityId: number | null;
+			}[],
+			typeof result
+		>
+	>;
+}
+
+{
+	const result = await db.select({ userId: newYorkers.userId }).from(newYorkers2);
+	Expect<
+		Equal<
+			{
+				userId: number;
+			}[],
+			typeof result
+		>
+	>;
+}

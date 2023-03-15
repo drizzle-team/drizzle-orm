@@ -2,7 +2,7 @@ import { Expect } from 'tests/utils';
 import { and, eq } from '~/expressions';
 import { alias, int, mysqlTable, serial, text } from '~/mysql-core';
 import { sql } from '~/sql';
-import { DrizzleTypeError, Equal } from '~/utils';
+import type { DrizzleTypeError, Equal } from '~/utils';
 import { db } from './db';
 
 const names = mysqlTable('names', {

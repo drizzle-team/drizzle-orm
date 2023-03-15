@@ -1,6 +1,7 @@
-import { Equal, Expect } from 'tests/utils';
+import type { Equal} from 'tests/utils';
+import { Expect } from 'tests/utils';
 import { eq } from '~/expressions';
-import { MySqlRawQueryResult } from '~/mysql2';
+import type { MySqlRawQueryResult } from '~/mysql2';
 import { db } from './db';
 import { users } from './tables';
 

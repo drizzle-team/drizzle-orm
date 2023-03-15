@@ -1,4 +1,4 @@
-import { AnyMySqlTable } from '~/mysql-core/table';
+import type { AnyMySqlTable } from '~/mysql-core/table';
 import { MySqlColumn, MySqlColumnBuilder, MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
 export class MySqlSerialBuilder extends MySqlColumnBuilderWithAutoIncrement<{

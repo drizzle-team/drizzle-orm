@@ -1,5 +1,6 @@
-import { Database, RunResult } from 'better-sqlite3';
-import { DefaultLogger, Logger } from '~/logger';
+import type { Database, RunResult } from 'better-sqlite3';
+import type { Logger } from '~/logger';
+import { DefaultLogger } from '~/logger';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect';
 import { BetterSQLiteSession } from './session';

@@ -1,6 +1,6 @@
-import { ColumnConfig } from '~/column';
-import { ColumnBuilderConfig } from '~/column-builder';
-import { AnySQLiteTable } from '~/sqlite-core/table';
+import type { ColumnConfig } from '~/column';
+import type { ColumnBuilderConfig } from '~/column-builder';
+import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common';
 
 export class SQLiteNumericBuilder
