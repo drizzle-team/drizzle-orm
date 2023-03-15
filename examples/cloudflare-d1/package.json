@@ -3,7 +3,8 @@
 	"version": "1.0.0",
 	"description": "",
 	"scripts": {
-		"generate": "drizzle-kit generate --dialect=sqlite --schema=src/schema.ts"
+		"generate": "drizzle-kit generate:sqlite --schema=src/schema.ts",
+		"up": "drizzle-kit up:sqlite --schema=src/schema.ts"
 	},
 	"keywords": [],
 	"author": "",
@@ -13,12 +14,12 @@
 		"@cloudflare/workers-types": "^3.18.0",
 		"@types/itty-router-extras": "^0.4.0",
 		"better-sqlite3": "^8.0.0",
-		"drizzle-kit": "^0.12.18",
+		"drizzle-kit": "^0.17.0",
 		"typescript": "^4.9.3",
 		"wrangler": "^2.4.2"
 	},
 	"dependencies": {
-		"drizzle-orm": "0.14.2",
+		"drizzle-orm": "^0.21.1",
 		"itty-router": "^2.6.6",
 		"itty-router-extras": "^0.4.2"
 	}

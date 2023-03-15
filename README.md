@@ -23,18 +23,21 @@ Drizzle ORM is being battle-tested on production projects by multiple teams 🚀
 - Best in class fully typed joins
 - Fully typed partial and non-partial selects of any complexity
 - Auto-inferring of TS types for DB models for selections and insertions separately
+- [Zod schema generation](/drizzle-zod/README.md)
 - Zero dependencies
 
 ## Supported databases
 
 | Database    | Status | |
 |:------------|:-------:|:---|
-| PostgreSQL  | ✅ | [Docs](./drizzle-orm/src/pg-core/README.md)|
+| PostgreSQL  | ✅      | [Docs](./drizzle-orm/src/pg-core/README.md)|
 | MySQL       | ✅      |[Docs](./drizzle-orm/src/mysql-core/README.md)|
 | SQLite      | ✅      |[Docs](./drizzle-orm/src/sqlite-core/README.md)|
+| [Cloudflare D1](https://developers.cloudflare.com/d1) | ✅      | [Docs](./examples/cloudflare-d1/README.md) |
 | DynamoDB    | ⏳      |            |
 | MS SQL      | ⏳      |            |
 | CockroachDB | ⏳      |            |
+
 
 ## Installation
 
@@ -86,13 +89,13 @@ const newUser: NewUser = {
   fullName: 'John Doe',
   phone: '+123456789',
 };
-const insertedUsers /* : User */ = await db.insert(users).values(newUser).returning();
+const insertedUsers /* : User[] */ = await db.insert(users).values(newUser).returning();
 const insertedUser = insertedUsers[0]!;
 
 const newCity: NewCity = {
   name: 'New York',
 };
-const insertedCities /* : City */ = await db.insert(cities).values(newCity).returning();
+const insertedCities /* : City[] */ = await db.insert(cities).values(newCity).returning();
 const insertedCity = insertedCities[0]!;
 
 // Update

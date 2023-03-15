@@ -114,7 +114,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (chunk instanceof Param) {
-				const mappedValue = chunk.encoder.mapToDriverValue(chunk.value);
+				const mappedValue = chunk.value === null ? null : chunk.encoder.mapToDriverValue(chunk.value);
 
 				if (mappedValue instanceof SQL) {
 					const mappedValueQuery = mappedValue.toQuery({
@@ -150,7 +150,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 					throw new Error('Unexpected param value: ' + mappedValue);
 				}
 
-				params.push(chunk.encoder.mapToDriverValue(chunk.value));
+				params.push(mappedValue);
 				if (typeof prepareTyping !== 'undefined') typings.push(prepareTyping(chunk.encoder));
 				return escapeParam(paramStartIndex + params.length - 1, chunk.value);
 			}
