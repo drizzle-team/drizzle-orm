@@ -1,8 +1,9 @@
-import { QueryResult } from 'pg';
+import type { QueryResult } from 'pg';
 import { eq, inArray } from '~/expressions';
 import { sql } from '~/sql';
 
-import { Equal, Expect } from 'tests/utils';
+import type { Equal} from 'tests/utils';
+import { Expect } from 'tests/utils';
 import { db } from './db';
 import { users } from './tables';
 

@@ -1,7 +1,7 @@
-import { ColumnConfig } from '~/column';
-import { ColumnBuilderConfig } from '~/column-builder';
-import { AnyPgTable } from '~/pg-core/table';
-import { SQL } from '~/sql';
+import type { ColumnConfig } from '~/column';
+import type { ColumnBuilderConfig } from '~/column-builder';
+import type { AnyPgTable } from '~/pg-core/table';
+import type { SQL } from '~/sql';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export type CustomColumnBuilderConfig<T extends CustomTypeValues> = {

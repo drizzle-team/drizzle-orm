@@ -1,12 +1,15 @@
-import { Param, Placeholder, Query, SQL, sql, SQLWrapper } from '~/sql';
-import { SQLiteDialect } from '~/sqlite-core/dialect';
-import { IndexColumn } from '~/sqlite-core/indexes';
-import { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
-import { AnySQLiteTable, InferModel, SQLiteTable } from '~/sqlite-core/table';
+import type { Placeholder, Query, SQLWrapper } from '~/sql';
+import { Param, SQL, sql } from '~/sql';
+import type { SQLiteDialect } from '~/sqlite-core/dialect';
+import type { IndexColumn } from '~/sqlite-core/indexes';
+import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
+import type { AnySQLiteTable, InferModel} from '~/sqlite-core/table';
+import { SQLiteTable } from '~/sqlite-core/table';
 import { Table } from '~/table';
-import { mapUpdateSet, orderSelectedFields, Simplify } from '~/utils';
-import { SelectFieldsFlat, SelectFieldsOrdered, SelectResultFields } from './select.types';
-import { SQLiteUpdateSetSource } from './update';
+import type { Simplify } from '~/utils';
+import { mapUpdateSet, orderSelectedFields } from '~/utils';
+import type { SelectFieldsFlat, SelectFieldsOrdered, SelectResultFields } from './select.types';
+import type { SQLiteUpdateSetSource } from './update';
 
 export interface SQLiteInsertConfig<TTable extends AnySQLiteTable = AnySQLiteTable> {
 	table: TTable;

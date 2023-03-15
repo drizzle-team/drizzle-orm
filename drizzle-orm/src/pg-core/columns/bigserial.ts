@@ -1,4 +1,4 @@
-import { AnyPgTable } from '../table';
+import type { AnyPgTable } from '../table';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export class PgBigSerial53Builder extends PgColumnBuilder<{

@@ -1,6 +1,7 @@
 import 'dotenv/config';
 
-import anyTest, { TestFn } from 'ava';
+import type { TestFn } from 'ava';
+import anyTest from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
 import { asc, eq } from 'drizzle-orm/expressions';
@@ -9,6 +10,7 @@ import {
 	boolean,
 	date,
 	datetime,
+	int,
 	json,
 	mysqlEnum,
 	mysqlSchema,
@@ -19,7 +21,9 @@ import {
 	timestamp,
 	year,
 } from 'drizzle-orm/mysql-core';
-import { drizzle, MySql2Database } from 'drizzle-orm/mysql2';
+import { getViewConfig } from 'drizzle-orm/mysql-core/utils';
+import type { MySql2Database } from 'drizzle-orm/mysql2';
+import { drizzle } from 'drizzle-orm/mysql2';
 import { Name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
@@ -27,12 +31,23 @@ import { v4 as uuid } from 'uuid';
 
 const mySchema = mysqlSchema('mySchema');
 
-const usersTable = mySchema('userstest', {
+const usersTable = mySchema.table('userstest', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
 	jsonb: json<string[]>('jsonb'),
 	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+});
+
+const users2Table = mySchema.table('users2', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	cityId: int('city_id').references(() => citiesTable.id),
+});
+
+const citiesTable = mySchema.table('cities', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
 });
 
 const publicUsersTable = mysqlTable('userstest', {
@@ -116,8 +131,8 @@ test.before(async (t) => {
 
 test.beforeEach(async (t) => {
 	const ctx = t.context;
-	await ctx.db.execute(sql`drop table if exists \`mySchema\`.\`userstest\``);
 	await ctx.db.execute(sql`drop table if exists \`datestable\``);
+	await ctx.db.execute(sql`drop schema if exists \`mySchema\``);
 	await ctx.db.execute(sql`create schema if not exists \`mySchema\``);
 	await ctx.db.execute(
 		sql`create table \`mySchema\`.\`userstest\` (
@@ -126,6 +141,21 @@ test.beforeEach(async (t) => {
 			\`verified\` boolean not null default false, 
 			\`jsonb\` json,
 			\`created_at\` timestamp not null default now()
+		)`,
+	);
+
+	await ctx.db.execute(
+		sql`create table \`mySchema\`.\`cities\` (
+			\`id\` serial primary key,
+			\`name\` text not null
+		)`,
+	);
+
+	await ctx.db.execute(
+		sql`create table \`mySchema\`.\`users2\` (
+			\`id\` serial primary key,
+			\`name\` text not null,
+			\`city_id\` int references \`mySchema\`.\`cities\`(\`id\`)
 		)`,
 	);
 
@@ -651,7 +681,7 @@ test.serial('select from tables with same name from different schema using alias
 	}]);
 });
 
-const tableWithEnums = mySchema('enums_test_case', {
+const tableWithEnums = mySchema.table('enums_test_case', {
 	id: serial('id').primaryKey(),
 	enum1: mysqlEnum('enum1', ['a', 'b', 'c']).notNull(),
 	enum2: mysqlEnum('enum2', ['a', 'b', 'c']).default('a'),
@@ -661,7 +691,7 @@ const tableWithEnums = mySchema('enums_test_case', {
 test.serial('Mysql enum test case #1', async (t) => {
 	const { db } = t.context;
 
-	await db.execute(sql`create table \`mySchema\`.\`enums_test_case\` (
+	await db.execute(sql`create table ${tableWithEnums} (
 		\`id\` serial primary key,
 		\`enum1\` ENUM('a', 'b', 'c') not null,
 		\`enum2\` ENUM('a', 'b', 'c') default 'a',
@@ -676,7 +706,7 @@ test.serial('Mysql enum test case #1', async (t) => {
 
 	const res = await db.select().from(tableWithEnums);
 
-	await db.execute(sql`drop table \`mySchema\`.\`enums_test_case\``);
+	await db.execute(sql`drop table ${tableWithEnums}`);
 
 	t.deepEqual(res, [
 		{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },
@@ -689,4 +719,67 @@ test.after.always(async (t) => {
 	const ctx = t.context;
 	await ctx.client?.end().catch(console.error);
 	await ctx.mysqlContainer?.stop().catch(console.error);
+});
+
+test.serial('view', async (t) => {
+	const { db } = t.context;
+
+	const newYorkers1 = mySchema.view('new_yorkers')
+		.as((qb) => qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
+
+	const newYorkers2 = mySchema.view('new_yorkers', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: int('city_id').notNull(),
+	}).as(sql`select * from ${users2Table} where ${eq(users2Table.cityId, 1)}`);
+
+	const newYorkers3 = mySchema.view('new_yorkers', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: int('city_id').notNull(),
+	}).existing();
+
+	await db.execute(sql`create view ${newYorkers1} as ${getViewConfig(newYorkers1).query}`);
+
+	await db.insert(citiesTable).values({ name: 'New York' }, { name: 'Paris' });
+
+	await db.insert(users2Table).values(
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 1 },
+		{ name: 'Jack', cityId: 2 },
+	);
+
+	{
+		const result = await db.select().from(newYorkers1);
+		t.deepEqual(result, [
+			{ id: 1, name: 'John', cityId: 1 },
+			{ id: 2, name: 'Jane', cityId: 1 },
+		]);
+	}
+
+	{
+		const result = await db.select().from(newYorkers2);
+		t.deepEqual(result, [
+			{ id: 1, name: 'John', cityId: 1 },
+			{ id: 2, name: 'Jane', cityId: 1 },
+		]);
+	}
+
+	{
+		const result = await db.select().from(newYorkers3);
+		t.deepEqual(result, [
+			{ id: 1, name: 'John', cityId: 1 },
+			{ id: 2, name: 'Jane', cityId: 1 },
+		]);
+	}
+
+	{
+		const result = await db.select({ name: newYorkers1.name }).from(newYorkers1);
+		t.deepEqual(result, [
+			{ name: 'John' },
+			{ name: 'Jane' },
+		]);
+	}
+
+	await db.execute(sql`drop view ${newYorkers1}`);
 });

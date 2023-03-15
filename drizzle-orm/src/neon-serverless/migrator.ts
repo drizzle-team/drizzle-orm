@@ -1,5 +1,6 @@
-import { MigrationConfig, readMigrationFiles } from '~/migrator';
-import { NeonDatabase } from './driver';
+import type { MigrationConfig} from '~/migrator';
+import { readMigrationFiles } from '~/migrator';
+import type { NeonDatabase } from './driver';
 import { NeonQueryResultHKT } from './session';
 
 export async function migrate(db: NeonDatabase, config: string | MigrationConfig) {

@@ -1,10 +1,13 @@
-import { GetColumnData } from '~/column';
-import { Param, Query, SQL, SQLWrapper } from '~/sql';
-import { SQLiteDialect } from '~/sqlite-core/dialect';
-import { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
-import { AnySQLiteTable, GetTableConfig, InferModel, SQLiteTable } from '~/sqlite-core/table';
-import { mapUpdateSet, orderSelectedFields, Simplify, UpdateSet } from '~/utils';
-import { SelectFields, SelectFieldsOrdered, SelectResultFields } from './select.types';
+import type { GetColumnData } from '~/column';
+import type { Query, SQL, SQLWrapper } from '~/sql';
+import { Param } from '~/sql';
+import type { SQLiteDialect } from '~/sqlite-core/dialect';
+import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
+import type { AnySQLiteTable, GetTableConfig, InferModel} from '~/sqlite-core/table';
+import { SQLiteTable } from '~/sqlite-core/table';
+import type { Simplify, UpdateSet } from '~/utils';
+import { mapUpdateSet, orderSelectedFields } from '~/utils';
+import type { SelectFields, SelectFieldsOrdered, SelectResultFields } from './select.types';
 
 export interface SQLiteUpdateConfig {
 	where?: SQL | undefined;

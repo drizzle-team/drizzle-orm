@@ -9,12 +9,16 @@
 		"test:types": "turbo run test:types --color"
 	},
 	"devDependencies": {
-		"@trivago/prettier-plugin-sort-imports": "^3.2.0",
-		"bun-types": "^0.2.2",
+		"@trivago/prettier-plugin-sort-imports": "^4.1.1",
+		"@typescript-eslint/eslint-plugin": "^5.54.1",
+		"@typescript-eslint/parser": "^5.54.1",
+		"bun-types": "^0.5.7",
 		"concurrently": "^7.5.0",
-		"dprint": "^0.32.2",
+		"dprint": "^0.34.5",
+		"eslint": "^8.36.0",
+		"eslint-plugin-import": "^2.27.5",
 		"prettier": "^2.8.4",
-		"resolve-tspaths": "^0.8.3",
+		"resolve-tspaths": "^0.8.8",
 		"turbo": "^1.8.3",
 		"typescript": "4.8.4"
 	},

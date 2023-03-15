@@ -1,8 +1,11 @@
-import { GetColumnConfig } from 'drizzle-orm';
-import {
+import type { GetColumnConfig } from 'drizzle-orm';
+import type {
 	AnyPgColumn,
 	AnyPgTable,
 	GetTableConfig,
+	PgEnumColumnConfig,
+	PgTextConfig} from 'drizzle-orm/pg-core';
+import {
 	PgBigInt53,
 	PgBigInt64,
 	PgBigSerial53,
@@ -11,7 +14,6 @@ import {
 	PgDate,
 	PgDoublePrecision,
 	PgEnumColumn,
-	PgEnumColumnConfig,
 	PgInteger,
 	PgInterval,
 	PgNumeric,
@@ -20,14 +22,13 @@ import {
 	PgSmallInt,
 	PgSmallSerial,
 	PgText,
-	PgTextConfig,
 	PgTime,
 	PgTimestamp,
 	PgUUID,
 	PgVarchar,
 } from 'drizzle-orm/pg-core';
 import { getTableColumns } from 'drizzle-orm/pg-core/utils';
-import { Simplify } from 'drizzle-orm/utils';
+import type { Simplify } from 'drizzle-orm/utils';
 import { z } from 'zod';
 
 type SnakeToCamelCase<S extends string> = S extends `${infer T}${'_' | '-'}${infer U}`

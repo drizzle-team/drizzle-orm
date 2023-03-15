@@ -1,13 +1,16 @@
 /// <reference types="bun-types" />
 
-import { Database, Statement as BunStatement } from 'bun:sqlite';
-import { Logger, NoopLogger } from '~/logger';
-import { fillPlaceholders, Query } from '~/sql';
-import { SQLiteSyncDialect } from '~/sqlite-core/dialect';
-import { SelectFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
+import type { Database, Statement as BunStatement } from 'bun:sqlite';
+import type { Logger} from '~/logger';
+import { NoopLogger } from '~/logger';
+import type { Query } from '~/sql';
+import { fillPlaceholders } from '~/sql';
+import type { SQLiteSyncDialect } from '~/sqlite-core/dialect';
+import type { SelectFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
+import type {
+	PreparedQueryConfig as PreparedQueryConfigBase} from '~/sqlite-core/session';
 import {
 	PreparedQuery as PreparedQueryBase,
-	PreparedQueryConfig as PreparedQueryConfigBase,
 	SQLiteSession,
 } from '~/sqlite-core/session';
 import { mapResultRow } from '~/utils';

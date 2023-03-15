@@ -1,9 +1,9 @@
-import { ColumnConfig } from '~/column';
-import { ColumnBuilderConfig } from '~/column-builder';
-import { AnyPgTable } from '~/pg-core/table';
+import type { ColumnConfig } from '~/column';
+import type { ColumnBuilderConfig } from '~/column-builder';
+import type { AnyPgTable } from '~/pg-core/table';
 import { PgColumn } from './common';
 import { PgDateColumnBaseBuilder } from './date.common';
-import { Precision } from './timestamp';
+import type { Precision } from './timestamp';
 
 export class PgTimeBuilder<TData extends string = string> extends PgDateColumnBaseBuilder<
 	ColumnBuilderConfig<{ data: TData; driverParam: string }>,

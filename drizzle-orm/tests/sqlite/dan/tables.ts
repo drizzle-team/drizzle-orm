@@ -1,6 +1,10 @@
-import { Equal, Expect } from 'tests/utils';
+import type { Equal } from 'tests/utils';
+import { Expect } from 'tests/utils';
+import { eq, gt } from '~/expressions';
 import { sql } from '~/sql';
-import { check, foreignKey, index, InferModel, integer, primaryKey, sqliteTable, text, uniqueIndex } from '~/sqlite-core';
+import type { InferModel, SQLiteColumn } from '~/sqlite-core';
+import { check, foreignKey, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from '~/sqlite-core';
+import { sqliteView, type SQLiteViewWithSelection } from '~/sqlite-core/view';
 
 export const users = sqliteTable(
 	'users_table',
@@ -123,3 +127,101 @@ Expect<
 		subClass: 'B' | 'D';
 	}>
 >;
+
+export const newYorkers = sqliteView('new_yorkers')
+	.as((qb) => {
+		const sq = qb
+			.$with('sq')
+			.as(
+				qb.select({ userId: users.id, cityId: cities.id })
+					.from(users)
+					.leftJoin(cities, eq(cities.id, users.homeCity))
+					.where(sql`${users.age1} > 18`),
+			);
+		return qb.with(sq).select().from(sq).where(sql`${users.homeCity} = 1`);
+	});
+
+Expect<
+	Equal<
+		SQLiteViewWithSelection<'new_yorkers', false, {
+			userId: SQLiteColumn<{
+				data: number;
+				driverParam: number;
+				notNull: true;
+				hasDefault: true;
+				tableName: 'new_yorkers';
+			}>;
+			cityId: SQLiteColumn<{
+				data: number;
+				driverParam: number;
+				notNull: false;
+				hasDefault: true;
+				tableName: 'new_yorkers';
+			}>;
+		}>,
+		typeof newYorkers
+	>
+>;
+
+{
+	const newYorkers = sqliteView('new_yorkers', {
+		userId: integer('user_id').notNull(),
+		cityId: integer('city_id'),
+	})
+		.as(
+			sql`select ${users.id} as user_id, ${cities.id} as city_id from ${users} left join ${cities} on ${
+				eq(cities.id, users.homeCity)
+			} where ${gt(users.age1, 18)}`,
+		);
+
+	Expect<
+		Equal<
+			SQLiteViewWithSelection<'new_yorkers', false, {
+				userId: SQLiteColumn<{
+					data: number;
+					driverParam: number;
+					hasDefault: false;
+					notNull: true;
+					tableName: 'new_yorkers';
+				}>;
+				cityId: SQLiteColumn<{
+					notNull: false;
+					hasDefault: false;
+					data: number;
+					driverParam: number;
+					tableName: 'new_yorkers';
+				}>;
+			}>,
+			typeof newYorkers
+		>
+	>;
+}
+
+{
+	const newYorkers = sqliteView('new_yorkers', {
+		userId: integer('user_id').notNull(),
+		cityId: integer('city_id'),
+	}).existing();
+
+	Expect<
+		Equal<
+			SQLiteViewWithSelection<'new_yorkers', true, {
+				userId: SQLiteColumn<{
+					data: number;
+					driverParam: number;
+					hasDefault: false;
+					notNull: true;
+					tableName: 'new_yorkers';
+				}>;
+				cityId: SQLiteColumn<{
+					notNull: false;
+					hasDefault: false;
+					data: number;
+					driverParam: number;
+					tableName: 'new_yorkers';
+				}>;
+			}>,
+			typeof newYorkers
+		>
+	>;
+}

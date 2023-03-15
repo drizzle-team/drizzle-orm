@@ -1,4 +1,5 @@
-import { Equal, Expect } from 'tests/utils';
+import type { Equal} from 'tests/utils';
+import { Expect } from 'tests/utils';
 import { gt, inArray } from '~/expressions';
 import { integer, pgTable, serial, text } from '~/pg-core';
 import { sql } from '~/sql';
@@ -14,24 +15,33 @@ const orders = pgTable('orders', {
 
 {
 	const regionalSales = db
-		.select({
-			region: orders.region,
-			totalSales: sql<number>`sum(${orders.amount})`.as('total_sales'),
-		})
-		.from(orders)
-		.groupBy(orders.region)
-		.prepareWithSubquery('regional_sales');
+		.$with('regional_sales')
+		.as((qb) =>
+			qb
+				.select({
+					region: orders.region,
+					totalSales: sql<number>`sum(${orders.amount})`.as('total_sales'),
+				})
+				.from(orders)
+				.groupBy(orders.region)
+		);
 
 	const topRegions = db
-		.select({
-			region: orders.region,
-			totalSales: orders.amount,
-		})
-		.from(regionalSales)
-		.where(
-			gt(regionalSales.totalSales, db.select({ sales: sql`sum(${regionalSales.totalSales})/10` }).from(regionalSales)),
-		)
-		.prepareWithSubquery('top_regions');
+		.$with('top_regions')
+		.as((qb) =>
+			qb
+				.select({
+					region: orders.region,
+					totalSales: orders.amount,
+				})
+				.from(regionalSales)
+				.where(
+					gt(
+						regionalSales.totalSales,
+						db.select({ sales: sql`sum(${regionalSales.totalSales})/10` }).from(regionalSales),
+					),
+				)
+		);
 
 	const result = await db
 		.with(regionalSales, topRegions)

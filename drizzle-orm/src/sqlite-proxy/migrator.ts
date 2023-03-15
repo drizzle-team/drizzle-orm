@@ -1,6 +1,7 @@
-import { MigrationConfig, readMigrationFiles } from '~/migrator';
+import type { MigrationConfig} from '~/migrator';
+import { readMigrationFiles } from '~/migrator';
 import { sql } from '~/sql';
-import { SqliteRemoteDatabase } from './driver';
+import type { SqliteRemoteDatabase } from './driver';
 
 export type ProxyMigrator = (migrationQueries: string[]) => Promise<void>;
 
