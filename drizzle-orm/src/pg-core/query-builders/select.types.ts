@@ -10,8 +10,8 @@ import type { AnyPgTable, GetTableConfig, PgTableWithColumns, TableConfig, Updat
 import type { PgMaterializedViewWithSelection, PgViewBase, PgViewWithSelection } from '~/pg-core/view';
 import type { Placeholder, SQL } from '~/sql';
 import type { GetSubquerySelection, Subquery } from '~/subquery';
-import type { Assume, DrizzleTypeError, Simplify } from '~/utils';
-import type { PgSelect, PgSelectCore } from './select';
+import type { Assume, DrizzleTypeError, Equal, IfThenElse, Or, Simplify } from '~/utils';
+import type { PgSelect, PgSelectQueryBuilder } from './select';
 
 export type JoinType = 'inner' | 'left' | 'right' | 'full';
 
@@ -104,15 +104,16 @@ export type MapColumnsToTableAlias<
 	}
 >;
 
-export type AddAliasToSelection<TSelection, TAlias extends string> = Simplify<
-	{
-		[Key in keyof TSelection]: TSelection[Key] extends AnyPgColumn ? ChangeColumnTableName<TSelection[Key], TAlias>
-			: TSelection[Key] extends SQL | SQL.Aliased ? TSelection[Key]
-			: TSelection[Key] extends Record<string, AnyPgColumn | SQL | SQL.Aliased>
-				? MapColumnsToTableAlias<TSelection[Key], TAlias>
-			: never;
-	}
->;
+export type AddAliasToSelection<TSelection, TAlias extends string> = Equal<TSelection, any> extends true ? any
+	: Simplify<
+		{
+			[Key in keyof TSelection]: TSelection[Key] extends AnyPgColumn ? ChangeColumnTableName<TSelection[Key], TAlias>
+				: TSelection[Key] extends SQL | SQL.Aliased ? TSelection[Key]
+				: TSelection[Key] extends Record<string, AnyPgColumn | SQL | SQL.Aliased>
+					? MapColumnsToTableAlias<TSelection[Key], TAlias>
+				: never;
+		}
+	>;
 
 export type BuildSubquerySelection<
 	TSelection,
@@ -173,16 +174,17 @@ export interface PgSelectConfig {
 }
 
 export type JoinFn<
+	THKT extends PgSelectHKTBase,
 	TTableName extends string,
 	TSelectMode extends SelectMode,
 	TJoinType extends JoinType,
 	TSelection,
-	TExcludedMethods extends string,
 	TNullabilityMap extends Record<string, JoinNullability>,
 > = <
 	TJoinedTable extends AnyPgTable | Subquery,
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
->(table: TJoinedTable, on: SQL | undefined) => PgSelectWithFilteredMethodsFromParams<
+>(table: TJoinedTable, on: SQL | undefined) => PgSelectKind<
+	THKT,
 	TTableName,
 	AppendToResult<
 		TTableName,
@@ -194,9 +196,7 @@ export type JoinFn<
 		TSelectMode
 	>,
 	TSelectMode extends 'partial' ? TSelectMode : 'multiple',
-	TExcludedMethods,
-	AppendToNullabilityMap<TNullabilityMap, TJoinedName, TJoinType>,
-	never
+	AppendToNullabilityMap<TNullabilityMap, TJoinedName, TJoinType>
 >;
 
 export type GetSelectTableName<TTable extends AnyPgTable | Subquery | PgViewBase> = TTable extends AnyPgTable
@@ -249,31 +249,42 @@ export type LockConfig =
 		skipLocked?: undefined;
 	});
 
-export type PgSelectWithFilteredMethodsFromParams<
+export interface PgSelectHKTBase {
+	tableName: string;
+	selection: unknown;
+	selectMode: SelectMode;
+	nullabilityMap: unknown;
+	$type: unknown;
+}
+
+export type PgSelectKind<
+	T extends PgSelectHKTBase,
 	TTableName extends string,
 	TSelection,
 	TSelectMode extends SelectMode,
-	TExcludedMethods extends string,
 	TNullabilityMap extends Record<string, JoinNullability>,
-	TNewExcludedMethods extends string,
-> =
-	& PgSelectCore<TTableName, TSelection, TSelectMode, TNullabilityMap>
-	& Omit<
-		PgSelect<TTableName, TSelection, TSelectMode, TExcludedMethods | TNewExcludedMethods, TNullabilityMap>,
-		TExcludedMethods | TNewExcludedMethods
-	>;
+> = (T & {
+	tableName: TTableName;
+	selection: TSelection;
+	selectMode: TSelectMode;
+	nullabilityMap: TNullabilityMap;
+})['$type'];
 
-export type PgSelectWithFilteredMethods<
-	T extends AnyPgSelect,
-	TNewExcludedMethods extends string = never,
-> = T extends
-	PgSelect<infer TTableName, infer TSelection, infer TSelectMode, infer TExcludedMethods, infer TNullabilityMap>
-	? PgSelectWithFilteredMethodsFromParams<
-		TTableName,
-		TSelection,
-		TSelectMode,
-		TExcludedMethods,
-		TNullabilityMap,
-		TNewExcludedMethods
-	>
-	: never;
+export interface PgSelectQueryBuilderHKT extends PgSelectHKTBase {
+	$type: PgSelectQueryBuilder<
+		this,
+		this['tableName'],
+		this['selection'],
+		this['selectMode'],
+		Assume<this['nullabilityMap'], Record<string, JoinNullability>>
+	>;
+}
+
+export interface PgSelectHKT extends PgSelectHKTBase {
+	$type: PgSelect<
+		this['tableName'],
+		this['selection'],
+		this['selectMode'],
+		Assume<this['nullabilityMap'], Record<string, JoinNullability>>
+	>;
+}

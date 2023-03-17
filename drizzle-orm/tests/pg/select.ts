@@ -24,9 +24,10 @@ import {
 	notLike,
 	or,
 } from '~/expressions';
-import type { InferModel } from '~/pg-core';
+import { boolean, type InferModel, type PgSelect, pgTable, text } from '~/pg-core';
 import { alias } from '~/pg-core/alias';
-import { param, sql } from '~/sql';
+import type { AnyPgSelect, JoinNullability, SelectMode } from '~/pg-core/query-builders/select.types';
+import { param, type SQL, sql } from '~/sql';
 
 import { db } from './db';
 import { cities, classes, newYorkers, newYorkers2, users } from './tables';
@@ -905,4 +906,27 @@ await db
 			typeof result
 		>
 	>;
+}
+
+{
+	// TODO: add to docs
+	function withPagination<T extends AnyPgSelect>(qb: T) {
+		return qb.offset(10).limit(10);
+	}
+
+	const qb = db.select().from(users);
+	const result = await withPagination(qb);
+}
+
+{
+	const users = pgTable('users', {
+		developer: boolean('developer'),
+		application: text<'pending' | 'approved'>('application'),
+	});
+
+	function startIt(whereCallback: (condition: SQL) => SQL | undefined = (c) => c) {
+		return db.select().from(users).where(whereCallback(eq(users.developer, true)));
+	}
+
+	const query = startIt((c) => and(c, eq(users.application, 'approved')));
 }

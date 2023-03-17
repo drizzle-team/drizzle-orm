@@ -36,17 +36,19 @@
     "@aws-sdk/client-rds-data": ">=3 <4",
     "@cloudflare/workers-types": ">=3",
     "@neondatabase/serverless": ">=0.1 <0.2",
+    "@planetscale/database": ">=1 <2",
     "@types/better-sqlite3": "*",
     "@types/pg": "*",
     "@types/sql.js": "*",
     "better-sqlite3": ">=7 <9",
     "bun-types": "*",
+    "knex": "*",
+    "kysely": "*",
     "mysql2": ">=2 <3",
     "pg": ">=8 <9",
     "postgres": ">=3 <4",
     "sql.js": ">=1 <2",
-    "sqlite3": ">=5 <6",
-    "@planetscale/database": ">=1 <2"
+    "sqlite3": ">=5 <6"
   },
   "peerDependenciesMeta": {
     "mysql2": {
@@ -90,6 +92,12 @@
     },
     "@planetscale/database": {
       "optional": true
+    },
+    "knex": {
+      "optional": true
+    },
+    "kysely": {
+      "optional": true
     }
   },
   "devDependencies": {
@@ -103,6 +111,8 @@
     "@types/sql.js": "^1.4.4",
     "better-sqlite3": "^7.6.2",
     "bun-types": "^0.5.0",
+    "knex": "^2.4.2",
+    "kysely": "^0.23.5",
     "mysql2": "^2.3.3",
     "pg": "^8.8.0",
     "postgres": "^3.3.3",

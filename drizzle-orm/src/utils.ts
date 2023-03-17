@@ -231,3 +231,7 @@ export function applyMixins(baseClass: any, extendedClasses: any[]) {
 		});
 	});
 }
+
+export type Or<T1, T2> = T1 extends true ? true : T2 extends true ? true : false;
+
+export type IfThenElse<If, Then, Else> = If extends true ? Then : Else;
