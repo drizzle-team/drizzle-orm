@@ -14,7 +14,6 @@ import { orderSelectedFields } from '~/utils';
 import { ViewBaseConfig } from '~/view';
 import { QueryBuilder } from './query-builder';
 import type {
-	AnyPgSelect,
 	BuildSubquerySelection,
 	GetSelectTableName,
 	GetSelectTableSelection,
@@ -24,15 +23,21 @@ import type {
 	LockConfig,
 	LockStrength,
 	PgSelectConfig,
-	PgSelectWithFilteredMethods,
+	PgSelectHKT,
+	PgSelectHKTBase,
+	PgSelectQueryBuilderHKT,
 	SelectFields,
 	SelectMode,
 	SelectResult,
 } from './select.types';
 
-type CreatePgSelectFromBuilderMode<T extends AnyPgSelect, TBuilderMode extends 'db' | 'qb'> = TBuilderMode extends 'db'
-	? T
-	: PgSelectWithFilteredMethods<T, (keyof QueryPromise<any> & string) | 'prepare'>;
+type CreatePgSelectFromBuilderMode<
+	TBuilderMode extends 'db' | 'qb',
+	TTableName extends string,
+	TSelection,
+	TSelectMode extends SelectMode,
+> = TBuilderMode extends 'db' ? PgSelect<TTableName, TSelection, TSelectMode>
+	: PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>;
 
 export class PgSelectBuilder<TSelection extends SelectFields | undefined, TBuilderMode extends 'db' | 'qb' = 'db'> {
 	constructor(
@@ -45,14 +50,11 @@ export class PgSelectBuilder<TSelection extends SelectFields | undefined, TBuild
 	from<TFrom extends AnyPgTable | Subquery | PgViewBase>(
 		source: TFrom,
 	): CreatePgSelectFromBuilderMode<
-		PgSelect<
-			GetSelectTableName<TFrom>,
-			TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection,
-			TSelection extends undefined ? 'single' : 'partial'
-		>,
-		TBuilderMode
-	>;
-	from(source: AnyPgTable | Subquery | PgViewBase): PgSelectWithFilteredMethods<AnyPgSelect, 'prepare' | 'execute'> {
+		TBuilderMode,
+		GetSelectTableName<TFrom>,
+		TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection,
+		TSelection extends undefined ? 'single' : 'partial'
+	> {
 		const isPartialSelect = !!this.fields;
 
 		let fields: SelectFields;
@@ -72,11 +74,12 @@ export class PgSelectBuilder<TSelection extends SelectFields | undefined, TBuild
 		}
 
 		const fieldsList = orderSelectedFields<AnyPgColumn>(fields);
-		return new PgSelect(source, fields, fieldsList, isPartialSelect, this.session, this.dialect, this.withList);
+		return new PgSelect(source, fields, fieldsList, isPartialSelect, this.session, this.dialect, this.withList) as any;
 	}
 }
 
-export abstract class PgSelectCore<
+export abstract class PgSelectQueryBuilder<
+	THKT extends PgSelectHKTBase,
 	TTableName extends string,
 	TSelection,
 	TSelectMode extends SelectMode,
@@ -85,28 +88,9 @@ export abstract class PgSelectCore<
 	declare protected $selectMode: TSelectMode;
 	declare protected $selection: TSelection;
 	declare protected $subquerySelection: BuildSubquerySelection<TSelection, TNullabilityMap>;
-}
 
-export interface PgSelect<
-	TTableName extends string,
-	TSelection,
-	TSelectMode extends SelectMode,
-	TExcludedMethods extends string = never,
-	TNullabilityMap extends Record<string, JoinNullability> = Record<TTableName, 'not-null'>,
-> extends
-	PgSelectCore<TTableName, TSelection, TSelectMode, TNullabilityMap>,
-	QueryPromise<SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>
-{}
-
-export class PgSelect<
-	TTableName extends string,
-	TSelection,
-	TSelectMode extends SelectMode,
-	TExcludedMethods extends string = never,
-	TNullabilityMap extends Record<string, JoinNullability> = Record<TTableName, 'not-null'>,
-> extends PgSelectCore<TTableName, TSelection, TSelectMode, TNullabilityMap> {
-	private config: PgSelectConfig;
-	private joinsNotNullableMap: Record<string, boolean>;
+	protected config: PgSelectConfig;
+	protected joinsNotNullableMap: Record<string, boolean>;
 	private tableName: string;
 
 	constructor(
@@ -114,8 +98,8 @@ export class PgSelect<
 		fields: PgSelectConfig['fields'],
 		fieldsList: PgSelectConfig['fieldsList'],
 		private isPartialSelect: boolean,
-		private session: PgSession | undefined,
-		private dialect: PgDialect,
+		protected session: PgSession | undefined,
+		protected dialect: PgDialect,
 		withList: Subquery[],
 	) {
 		super();
@@ -140,8 +124,11 @@ export class PgSelect<
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): JoinFn<TTableName, TSelectMode, TJoinType, TSelection, TExcludedMethods, TNullabilityMap> {
-		return (table: AnyPgTable | Subquery, on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined): any => {
+	): JoinFn<THKT, TTableName, TSelectMode, TJoinType, TSelection, TNullabilityMap> {
+		return (
+			table: AnyPgTable | Subquery,
+			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
+		) => {
 			const tableName = table instanceof Subquery ? table[SubqueryConfig].alias : table[Table.Symbol.Name];
 
 			if (this.config.joins[tableName]) {
@@ -208,9 +195,7 @@ export class PgSelect<
 
 	fullJoin = this.createJoin('full');
 
-	where(
-		where: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
-	): PgSelectWithFilteredMethods<this, 'where' | `${JoinType}Join`> {
+	where(where: ((aliases: TSelection) => SQL | undefined) | SQL | undefined) {
 		if (typeof where === 'function') {
 			where = where(
 				new Proxy(
@@ -220,12 +205,10 @@ export class PgSelect<
 			);
 		}
 		this.config.where = where;
-		return this as any;
+		return this;
 	}
 
-	having(
-		having: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
-	): PgSelectWithFilteredMethods<this, 'where' | `${JoinType}Join` | 'having'> {
+	having(having: ((aliases: TSelection) => SQL | undefined) | SQL | undefined) {
 		if (typeof having === 'function') {
 			having = having(
 				new Proxy(
@@ -235,20 +218,16 @@ export class PgSelect<
 			);
 		}
 		this.config.having = having;
-		return this as any;
+		return this;
 	}
 
-	groupBy(
-		builder: (aliases: TSelection) => ValueOrArray<AnyPgColumn | SQL | SQL.Aliased>,
-	): PgSelectWithFilteredMethods<this, 'where' | `${JoinType}Join` | 'groupBy'>;
-	groupBy(
-		...columns: (AnyPgColumn | SQL)[]
-	): PgSelectWithFilteredMethods<this, 'where' | `${JoinType}Join` | 'groupBy'>;
+	groupBy(builder: (aliases: TSelection) => ValueOrArray<AnyPgColumn | SQL | SQL.Aliased>): this;
+	groupBy(...columns: (AnyPgColumn | SQL)[]): this;
 	groupBy(
 		...columns:
 			| [(aliases: TSelection) => ValueOrArray<AnyPgColumn | SQL | SQL.Aliased>]
 			| (AnyPgColumn | SQL)[]
-	): PgSelectWithFilteredMethods<this, 'where' | `${JoinType}Join` | 'groupBy'> {
+	) {
 		if (typeof columns[0] === 'function') {
 			const groupBy = columns[0](
 				new Proxy(
@@ -260,20 +239,16 @@ export class PgSelect<
 		} else {
 			this.config.groupBy = columns as (AnyPgColumn | SQL)[];
 		}
-		return this as any;
+		return this;
 	}
 
-	orderBy(
-		builder: (aliases: TSelection) => ValueOrArray<AnyPgColumn | SQL | SQL.Aliased>,
-	): PgSelectWithFilteredMethods<this, 'where' | `${JoinType}Join` | 'orderBy'>;
-	orderBy(
-		...columns: (AnyPgColumn | SQL)[]
-	): PgSelectWithFilteredMethods<this, 'where' | `${JoinType}Join` | 'orderBy'>;
+	orderBy(builder: (aliases: TSelection) => ValueOrArray<AnyPgColumn | SQL | SQL.Aliased>): this;
+	orderBy(...columns: (AnyPgColumn | SQL)[]): this;
 	orderBy(
 		...columns:
 			| [(aliases: TSelection) => ValueOrArray<AnyPgColumn | SQL | SQL.Aliased>]
 			| (AnyPgColumn | SQL)[]
-	): PgSelectWithFilteredMethods<this, 'where' | `${JoinType}Join` | 'orderBy'> {
+	) {
 		if (typeof columns[0] === 'function') {
 			const orderBy = columns[0](
 				new Proxy(
@@ -285,22 +260,22 @@ export class PgSelect<
 		} else {
 			this.config.orderBy = columns as (AnyPgColumn | SQL)[];
 		}
-		return this as any;
+		return this;
 	}
 
-	limit(limit: number): PgSelectWithFilteredMethods<this, 'where' | `${JoinType}Join` | 'limit'> {
+	limit(limit: number) {
 		this.config.limit = limit;
-		return this as any;
+		return this;
 	}
 
-	offset(offset: number): PgSelectWithFilteredMethods<this, 'where' | `${JoinType}Join` | 'offset'> {
+	offset(offset: number) {
 		this.config.offset = offset;
-		return this as any;
+		return this;
 	}
 
-	for(strength: LockStrength, config: LockConfig = {}): PgSelectWithFilteredMethods<this> {
+	for(strength: LockStrength, config: LockConfig = {}) {
 		this.config.lockingClauses.push({ strength, config });
-		return this as any;
+		return this;
 	}
 
 	/** @internal */
@@ -313,6 +288,32 @@ export class PgSelect<
 		return rest;
 	}
 
+	as<TAlias extends string>(
+		alias: TAlias,
+	): SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias> {
+		return new Proxy(
+			new Subquery(this.getSQL(), this.config.fields, alias),
+			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+		) as SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias>;
+	}
+}
+
+export interface PgSelect<
+	TTableName extends string,
+	TSelection,
+	TSelectMode extends SelectMode,
+	TNullabilityMap extends Record<string, JoinNullability> = Record<TTableName, 'not-null'>,
+> extends
+	PgSelectQueryBuilder<PgSelectHKT, TTableName, TSelection, TSelectMode, TNullabilityMap>,
+	QueryPromise<SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>
+{}
+
+export class PgSelect<
+	TTableName extends string,
+	TSelection,
+	TSelectMode extends SelectMode,
+	TNullabilityMap extends Record<string, JoinNullability> = Record<TTableName, 'not-null'>,
+> extends PgSelectQueryBuilder<PgSelectHKT, TTableName, TSelection, TSelectMode, TNullabilityMap> {
 	private _prepare(name?: string): PreparedQuery<
 		PreparedQueryConfig & {
 			execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
@@ -339,15 +340,6 @@ export class PgSelect<
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return this._prepare().execute(placeholderValues);
 	};
-
-	as<TAlias extends string>(
-		alias: TAlias,
-	): SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias> {
-		return new Proxy(
-			new Subquery(this.getSQL(), this.config.fields, alias),
-			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-		) as SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias>;
-	}
 }
 
 applyMixins(PgSelect, [QueryPromise]);

@@ -16,8 +16,8 @@ import type {
 } from '~/operations';
 import type { Placeholder, SQL } from '~/sql';
 import type { GetSubquerySelection, Subquery } from '~/subquery';
-import type { Assume, DrizzleTypeError, Simplify } from '~/utils';
-import type { MySqlSelect, MySqlSelectCore } from './select';
+import type { Assume, DrizzleTypeError, Equal, Simplify } from '~/utils';
+import type { MySqlSelect, MySqlSelectQueryBuilder } from './select';
 
 export type JoinType = 'inner' | 'left' | 'right' | 'full';
 
@@ -111,15 +111,16 @@ export type MapColumnsToTableAlias<
 	}
 >;
 
-export type AddAliasToSelection<TSelection, TAlias extends string> = Simplify<
-	{
-		[Key in keyof TSelection]: TSelection[Key] extends AnyMySqlColumn ? ChangeColumnTableName<TSelection[Key], TAlias>
-			: TSelection[Key] extends SQL | SQL.Aliased ? TSelection[Key]
-			: TSelection[Key] extends Record<string, AnyMySqlColumn | SQL | SQL.Aliased>
-				? MapColumnsToTableAlias<TSelection[Key], TAlias>
-			: never;
-	}
->;
+export type AddAliasToSelection<TSelection, TAlias extends string> = Equal<TSelection, any> extends true ? any
+	: Simplify<
+		{
+			[Key in keyof TSelection]: TSelection[Key] extends AnyMySqlColumn ? ChangeColumnTableName<TSelection[Key], TAlias>
+				: TSelection[Key] extends SQL | SQL.Aliased ? TSelection[Key]
+				: TSelection[Key] extends Record<string, AnyMySqlColumn | SQL | SQL.Aliased>
+					? MapColumnsToTableAlias<TSelection[Key], TAlias>
+				: never;
+		}
+	>;
 
 export type BuildSubquerySelection<
 	TSelection,
@@ -180,16 +181,17 @@ export interface MySqlSelectConfig {
 }
 
 export type JoinFn<
+	THKT extends MySqlSelectHKTBase,
 	TTableName extends string,
 	TSelectMode extends SelectMode,
 	TJoinType extends JoinType,
 	TSelection,
-	TExcludedMethods extends string,
 	TNullabilityMap extends Record<string, JoinNullability>,
 > = <
 	TJoinedTable extends AnyMySqlTable | Subquery,
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
->(table: TJoinedTable, on: SQL | undefined) => MySqlSelectWithFilteredMethodsFromParams<
+>(table: TJoinedTable, on: SQL | undefined) => MySqlSelectKind<
+	THKT,
 	TTableName,
 	AppendToResult<
 		TTableName,
@@ -201,9 +203,7 @@ export type JoinFn<
 		TSelectMode
 	>,
 	TSelectMode extends 'partial' ? TSelectMode : 'multiple',
-	TExcludedMethods,
-	AppendToNullabilityMap<TNullabilityMap, TJoinedName, TJoinType>,
-	never
+	AppendToNullabilityMap<TNullabilityMap, TJoinedName, TJoinType>
 >;
 
 export type GetSelectTableName<TTable extends AnyMySqlTable | Subquery | MySqlViewBase> = TTable extends AnyMySqlTable
@@ -250,31 +250,42 @@ export type LockConfig = {
 	skipLocked?: undefined;
 };
 
-export type MySqlSelectWithFilteredMethodsFromParams<
+export interface MySqlSelectHKTBase {
+	tableName: string;
+	selection: unknown;
+	selectMode: SelectMode;
+	nullabilityMap: unknown;
+	$type: unknown;
+}
+
+export type MySqlSelectKind<
+	T extends MySqlSelectHKTBase,
 	TTableName extends string,
 	TSelection,
 	TSelectMode extends SelectMode,
-	TExcludedMethods extends string,
 	TNullabilityMap extends Record<string, JoinNullability>,
-	TNewExcludedMethods extends string,
-> =
-	& MySqlSelectCore<TTableName, TSelection, TSelectMode, TNullabilityMap>
-	& Omit<
-		MySqlSelect<TTableName, TSelection, TSelectMode, TExcludedMethods | TNewExcludedMethods, TNullabilityMap>,
-		TExcludedMethods | TNewExcludedMethods
-	>;
+> = (T & {
+	tableName: TTableName;
+	selection: TSelection;
+	selectMode: TSelectMode;
+	nullabilityMap: TNullabilityMap;
+})['$type'];
 
-export type MySqlSelectWithFilteredMethods<
-	T extends AnyMySqlSelect,
-	TNewExcludedMethods extends string = never,
-> = T extends
-	MySqlSelect<infer TTableName, infer TSelection, infer TSelectMode, infer TExcludedMethods, infer TNullabilityMap>
-	? MySqlSelectWithFilteredMethodsFromParams<
-		TTableName,
-		TSelection,
-		TSelectMode,
-		TExcludedMethods,
-		TNullabilityMap,
-		TNewExcludedMethods
-	>
-	: never;
+export interface MySqlSelectQueryBuilderHKT extends MySqlSelectHKTBase {
+	$type: MySqlSelectQueryBuilder<
+		this,
+		this['tableName'],
+		this['selection'],
+		this['selectMode'],
+		Assume<this['nullabilityMap'], Record<string, JoinNullability>>
+	>;
+}
+
+export interface MySqlSelectHKT extends MySqlSelectHKTBase {
+	$type: MySqlSelect<
+		this['tableName'],
+		this['selection'],
+		this['selectMode'],
+		Assume<this['nullabilityMap'], Record<string, JoinNullability>>
+	>;
+}

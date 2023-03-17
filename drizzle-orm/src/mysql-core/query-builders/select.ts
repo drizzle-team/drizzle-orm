@@ -14,7 +14,6 @@ import { orderSelectedFields } from '~/utils';
 import { ViewBaseConfig } from '~/view';
 import { QueryBuilder } from './query-builder';
 import type {
-	AnyMySqlSelect,
 	BuildSubquerySelection,
 	GetSelectTableName,
 	GetSelectTableSelection,
@@ -24,15 +23,21 @@ import type {
 	LockConfig,
 	LockStrength,
 	MySqlSelectConfig,
-	MySqlSelectWithFilteredMethods,
+	MySqlSelectHKT,
+	MySqlSelectHKTBase,
+	MySqlSelectQueryBuilderHKT,
 	SelectFields,
 	SelectMode,
 	SelectResult,
 } from './select.types';
 
-type CreateMySqlSelectFromBuilderMode<T extends AnyMySqlSelect, TBuilderMode extends 'db' | 'qb'> = TBuilderMode extends
-	'db' ? T
-	: MySqlSelectWithFilteredMethods<T, (keyof QueryPromise<any> & string) | 'prepare'>;
+type CreateMySqlSelectFromBuilderMode<
+	TBuilderMode extends 'db' | 'qb',
+	TTableName extends string,
+	TSelection,
+	TSelectMode extends SelectMode,
+> = TBuilderMode extends 'db' ? MySqlSelect<TTableName, TSelection, TSelectMode>
+	: MySqlSelectQueryBuilder<MySqlSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>;
 
 export class MySqlSelectBuilder<TSelection extends SelectFields | undefined, TBuilderMode extends 'db' | 'qb' = 'db'> {
 	constructor(
@@ -45,16 +50,11 @@ export class MySqlSelectBuilder<TSelection extends SelectFields | undefined, TBu
 	from<TFrom extends AnyMySqlTable | Subquery | MySqlViewBase>(
 		source: TFrom,
 	): CreateMySqlSelectFromBuilderMode<
-		MySqlSelect<
-			GetSelectTableName<TFrom>,
-			TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection,
-			TSelection extends undefined ? 'single' : 'partial'
-		>,
-		TBuilderMode
-	>;
-	from(
-		source: AnyMySqlTable | Subquery | MySqlViewBase,
-	): MySqlSelectWithFilteredMethods<AnyMySqlSelect, 'prepare' | 'execute'> {
+		TBuilderMode,
+		GetSelectTableName<TFrom>,
+		TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection,
+		TSelection extends undefined ? 'single' : 'partial'
+	> {
 		const isPartialSelect = !!this.fields;
 
 		let fields: SelectFields;
@@ -74,11 +74,20 @@ export class MySqlSelectBuilder<TSelection extends SelectFields | undefined, TBu
 		}
 
 		const fieldsList = orderSelectedFields<AnyMySqlColumn>(fields);
-		return new MySqlSelect(source, fields, fieldsList, isPartialSelect, this.session, this.dialect, this.withList);
+		return new MySqlSelect(
+			source,
+			fields,
+			fieldsList,
+			isPartialSelect,
+			this.session,
+			this.dialect,
+			this.withList,
+		) as any;
 	}
 }
 
-export abstract class MySqlSelectCore<
+export abstract class MySqlSelectQueryBuilder<
+	THKT extends MySqlSelectHKTBase,
 	TTableName extends string,
 	TSelection,
 	TSelectMode extends SelectMode,
@@ -87,28 +96,9 @@ export abstract class MySqlSelectCore<
 	declare protected $selectMode: TSelectMode;
 	declare protected $selection: TSelection;
 	declare protected $subquerySelection: BuildSubquerySelection<TSelection, TNullabilityMap>;
-}
 
-export interface MySqlSelect<
-	TTableName extends string,
-	TSelection,
-	TSelectMode extends SelectMode,
-	TExcludedMethods extends string = never,
-	TNullabilityMap extends Record<string, JoinNullability> = Record<TTableName, 'not-null'>,
-> extends
-	MySqlSelectCore<TTableName, TSelection, TSelectMode, TNullabilityMap>,
-	QueryPromise<SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>
-{}
-
-export class MySqlSelect<
-	TTableName extends string,
-	TSelection,
-	TSelectMode extends SelectMode,
-	TExcludedMethods extends string = never,
-	TNullabilityMap extends Record<string, JoinNullability> = Record<TTableName, 'not-null'>,
-> extends MySqlSelectCore<TTableName, TSelection, TSelectMode, TNullabilityMap> {
-	private config: MySqlSelectConfig;
-	private joinsNotNullableMap: Record<string, boolean>;
+	protected config: MySqlSelectConfig;
+	protected joinsNotNullableMap: Record<string, boolean>;
 	private tableName: string;
 
 	constructor(
@@ -116,8 +106,8 @@ export class MySqlSelect<
 		fields: MySqlSelectConfig['fields'],
 		fieldsList: MySqlSelectConfig['fieldsList'],
 		private isPartialSelect: boolean,
-		private session: MySqlSession | undefined,
-		private dialect: MySqlDialect,
+		protected session: MySqlSession | undefined,
+		protected dialect: MySqlDialect,
 		withList: Subquery[],
 	) {
 		super();
@@ -141,8 +131,11 @@ export class MySqlSelect<
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): JoinFn<TTableName, TSelectMode, TJoinType, TSelection, TExcludedMethods, TNullabilityMap> {
-		return (table: AnyMySqlTable | Subquery, on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined): any => {
+	): JoinFn<THKT, TTableName, TSelectMode, TJoinType, TSelection, TNullabilityMap> {
+		return (
+			table: AnyMySqlTable | Subquery,
+			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
+		) => {
 			const tableName = table instanceof Subquery ? table[SubqueryConfig].alias : table[Table.Symbol.Name];
 
 			if (this.config.joins[tableName]) {
@@ -197,7 +190,7 @@ export class MySqlSelect<
 					break;
 			}
 
-			return this;
+			return this as any;
 		};
 	}
 
@@ -209,9 +202,7 @@ export class MySqlSelect<
 
 	fullJoin = this.createJoin('full');
 
-	where(
-		where: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
-	): MySqlSelectWithFilteredMethods<this, 'where' | `${JoinType}Join`> {
+	where(where: ((aliases: TSelection) => SQL | undefined) | SQL | undefined) {
 		if (typeof where === 'function') {
 			where = where(
 				new Proxy(
@@ -221,12 +212,10 @@ export class MySqlSelect<
 			);
 		}
 		this.config.where = where;
-		return this as any;
+		return this;
 	}
 
-	having(
-		having: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
-	): MySqlSelectWithFilteredMethods<this, 'where' | `${JoinType}Join` | 'having'> {
+	having(having: ((aliases: TSelection) => SQL | undefined) | SQL | undefined) {
 		if (typeof having === 'function') {
 			having = having(
 				new Proxy(
@@ -236,20 +225,16 @@ export class MySqlSelect<
 			);
 		}
 		this.config.having = having;
-		return this as any;
+		return this;
 	}
 
-	groupBy(
-		builder: (aliases: TSelection) => ValueOrArray<AnyMySqlColumn | SQL | SQL.Aliased>,
-	): MySqlSelectWithFilteredMethods<this, 'where' | `${JoinType}Join` | 'groupBy'>;
-	groupBy(
-		...columns: (AnyMySqlColumn | SQL)[]
-	): MySqlSelectWithFilteredMethods<this, 'where' | `${JoinType}Join` | 'groupBy'>;
+	groupBy(builder: (aliases: TSelection) => ValueOrArray<AnyMySqlColumn | SQL | SQL.Aliased>): this;
+	groupBy(...columns: (AnyMySqlColumn | SQL)[]): this;
 	groupBy(
 		...columns:
 			| [(aliases: TSelection) => ValueOrArray<AnyMySqlColumn | SQL | SQL.Aliased>]
 			| (AnyMySqlColumn | SQL)[]
-	): MySqlSelectWithFilteredMethods<this, 'where' | `${JoinType}Join` | 'groupBy'> {
+	) {
 		if (typeof columns[0] === 'function') {
 			const groupBy = columns[0](
 				new Proxy(
@@ -261,20 +246,16 @@ export class MySqlSelect<
 		} else {
 			this.config.groupBy = columns as (AnyMySqlColumn | SQL)[];
 		}
-		return this as any;
+		return this;
 	}
 
-	orderBy(
-		builder: (aliases: TSelection) => ValueOrArray<AnyMySqlColumn | SQL | SQL.Aliased>,
-	): MySqlSelectWithFilteredMethods<this, 'where' | `${JoinType}Join` | 'orderBy'>;
-	orderBy(
-		...columns: (AnyMySqlColumn | SQL)[]
-	): MySqlSelectWithFilteredMethods<this, 'where' | `${JoinType}Join` | 'orderBy'>;
+	orderBy(builder: (aliases: TSelection) => ValueOrArray<AnyMySqlColumn | SQL | SQL.Aliased>): this;
+	orderBy(...columns: (AnyMySqlColumn | SQL)[]): this;
 	orderBy(
 		...columns:
 			| [(aliases: TSelection) => ValueOrArray<AnyMySqlColumn | SQL | SQL.Aliased>]
 			| (AnyMySqlColumn | SQL)[]
-	): MySqlSelectWithFilteredMethods<this, 'where' | `${JoinType}Join` | 'orderBy'> {
+	) {
 		if (typeof columns[0] === 'function') {
 			const orderBy = columns[0](
 				new Proxy(
@@ -286,22 +267,22 @@ export class MySqlSelect<
 		} else {
 			this.config.orderBy = columns as (AnyMySqlColumn | SQL)[];
 		}
-		return this as any;
+		return this;
 	}
 
-	limit(limit: number): MySqlSelectWithFilteredMethods<this, 'where' | `${JoinType}Join` | 'limit'> {
+	limit(limit: number) {
 		this.config.limit = limit;
-		return this as any;
+		return this;
 	}
 
-	offset(offset: number): MySqlSelectWithFilteredMethods<this, 'where' | `${JoinType}Join` | 'offset'> {
+	offset(offset: number) {
 		this.config.offset = offset;
-		return this as any;
+		return this;
 	}
 
-	for(strength: LockStrength, config: LockConfig = {}): MySqlSelectWithFilteredMethods<this> {
+	for(strength: LockStrength, config: LockConfig = {}) {
 		this.config.lockingClause = { strength, config };
-		return this as any;
+		return this;
 	}
 
 	/** @internal */
@@ -314,6 +295,32 @@ export class MySqlSelect<
 		return rest;
 	}
 
+	as<TAlias extends string>(
+		alias: TAlias,
+	): SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias> {
+		return new Proxy(
+			new Subquery(this.getSQL(), this.config.fields, alias),
+			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+		) as SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias>;
+	}
+}
+
+export interface MySqlSelect<
+	TTableName extends string,
+	TSelection,
+	TSelectMode extends SelectMode,
+	TNullabilityMap extends Record<string, JoinNullability> = Record<TTableName, 'not-null'>,
+> extends
+	MySqlSelectQueryBuilder<MySqlSelectHKT, TTableName, TSelection, TSelectMode, TNullabilityMap>,
+	QueryPromise<SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>
+{}
+
+export class MySqlSelect<
+	TTableName extends string,
+	TSelection,
+	TSelectMode extends SelectMode,
+	TNullabilityMap extends Record<string, JoinNullability> = Record<TTableName, 'not-null'>,
+> extends MySqlSelectQueryBuilder<MySqlSelectHKT, TTableName, TSelection, TSelectMode, TNullabilityMap> {
 	private _prepare(name?: string): PreparedQuery<
 		PreparedQueryConfig & {
 			execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
@@ -340,15 +347,6 @@ export class MySqlSelect<
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return this._prepare().execute(placeholderValues);
 	};
-
-	as<TAlias extends string>(
-		alias: TAlias,
-	): SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias> {
-		return new Proxy(
-			new Subquery(this.getSQL(), this.config.fields, alias),
-			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-		) as SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias>;
-	}
 }
 
 applyMixins(MySqlSelect, [QueryPromise]);
