@@ -1,6 +1,6 @@
-import { ColumnConfig } from '~/column';
-import { ColumnBuilderConfig } from '~/column-builder';
-import { AnyPgTable } from '../table';
+import type { ColumnConfig } from '~/column';
+import type { ColumnBuilderConfig } from '~/column-builder';
+import type { AnyPgTable } from '../table';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export class PgIntegerBuilder

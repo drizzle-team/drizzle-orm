@@ -1,5 +1,7 @@
 import { Subquery, SubqueryConfig } from '~/subquery';
-import { AnyColumn, Column } from '../column';
+import { View, ViewBaseConfig } from '~/view';
+import type { AnyColumn } from '../column';
+import { Column } from '../column';
 import { Table } from '../table';
 
 /**
@@ -12,15 +14,20 @@ export class FakePrimitiveParam {}
 export type Chunk =
 	| string
 	| Table
+	| View
 	| AnyColumn
 	| Name
 	| Param
-	| Placeholder;
+	| Placeholder
+	| SQL;
 
 export interface BuildQueryConfig {
 	escapeName(name: string): string;
 	escapeParam(num: number, value: unknown): string;
+	escapeString(str: string): string;
+	prepareTyping?: (encoder: DriverValueEncoder<unknown, unknown>) => QueryTypingsValue;
 	paramStartIndex?: number;
+	inlineParams?: boolean;
 }
 
 export type QueryTypingsValue = 'json' | 'decimal' | 'time' | 'timestamp' | 'uuid' | 'date' | 'none';
@@ -45,6 +52,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 
 	/** @internal */
 	decoder: DriverValueDecoder<T, any> = noopDecoder;
+	private shouldInlineParams = false;
 
 	constructor(readonly queryChunks: Chunk[]) {}
 
@@ -53,14 +61,30 @@ export class SQL<T = unknown> implements SQLWrapper {
 		return this;
 	}
 
-	toQuery(
-		{ escapeName, escapeParam, paramStartIndex = 0 }: BuildQueryConfig,
-		prepareTyping?: (encoder: DriverValueEncoder<unknown, unknown>) => QueryTypingsValue,
-	): Query {
+	toQuery(config: BuildQueryConfig): Query {
+		const {
+			escapeName,
+			escapeParam,
+			escapeString,
+			prepareTyping,
+			paramStartIndex = 0,
+			inlineParams = false,
+		} = config;
 		const params: unknown[] = [];
 		const typings: QueryTypingsValue[] = [];
 
 		const chunks = this.queryChunks.map((chunk) => {
+			if (chunk instanceof SQL) {
+				const sqlChunkParts = chunk.toQuery({
+					...config,
+					paramStartIndex: paramStartIndex + params.length,
+					inlineParams: this.shouldInlineParams || config.inlineParams,
+				});
+				params.push(...sqlChunkParts.params);
+				if (prepareTyping && sqlChunkParts.typings) typings.push(...sqlChunkParts.typings);
+				return sqlChunkParts.sql;
+			}
+
 			if (typeof chunk === 'string') {
 				return chunk;
 			}
@@ -71,23 +95,59 @@ export class SQL<T = unknown> implements SQLWrapper {
 
 			if (chunk instanceof Table) {
 				const schemaName = chunk[Table.Symbol.Schema];
+				const tableName = chunk[Table.Symbol.Name];
 				return typeof schemaName !== 'undefined'
-					? escapeName(schemaName) + '.' + escapeName(chunk[Table.Symbol.Name])
-					: escapeName(chunk[Table.Symbol.Name]);
+					? escapeName(schemaName) + '.' + escapeName(tableName)
+					: escapeName(tableName);
 			}
 
 			if (chunk instanceof Column) {
 				return escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(chunk.name);
 			}
 
+			if (chunk instanceof View) {
+				const schemaName = chunk[ViewBaseConfig].schema;
+				const viewName = chunk[ViewBaseConfig].name;
+				return typeof schemaName !== 'undefined'
+					? escapeName(schemaName) + '.' + escapeName(viewName)
+					: escapeName(viewName);
+			}
+
 			if (chunk instanceof Param) {
 				const mappedValue = chunk.value === null ? null : chunk.encoder.mapToDriverValue(chunk.value);
 
 				if (mappedValue instanceof SQL) {
-					const mappedValueQuery = mappedValue.toQuery({ escapeName, escapeParam, paramStartIndex }, prepareTyping);
+					const mappedValueQuery = mappedValue.toQuery({
+						...config,
+						paramStartIndex: paramStartIndex + params.length,
+						inlineParams: this.shouldInlineParams || config.inlineParams,
+					});
 					params.push(...mappedValueQuery.params);
 					if (prepareTyping && mappedValueQuery.typings) typings.push(...mappedValueQuery.typings);
 					return mappedValueQuery.sql;
+				}
+
+				if (this.shouldInlineParams || inlineParams) {
+					if (mappedValue === null) {
+						return 'null';
+					}
+					if (mappedValue === undefined) {
+						return '';
+					}
+					if (typeof mappedValue === 'number' || typeof mappedValue === 'boolean') {
+						return mappedValue.toString();
+					}
+					if (typeof mappedValue === 'string') {
+						return escapeString(mappedValue);
+					}
+					if (typeof mappedValue === 'object') {
+						const mappedValueAsString = mappedValue.toString();
+						if (mappedValueAsString === '[object Object]') {
+							return escapeString(JSON.stringify(mappedValue));
+						}
+						return escapeString(mappedValueAsString);
+					}
+					throw new Error('Unexpected param value: ' + mappedValue);
 				}
 
 				params.push(mappedValue);
@@ -100,9 +160,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 			throw err;
 		});
 
-		const sqlString = chunks
-			.join('')
-			.trim();
+		const sqlString = chunks.join('');
 
 		return { sql: sqlString, params, typings };
 	}
@@ -142,6 +200,11 @@ export class SQL<T = unknown> implements SQLWrapper {
 			this.decoder = decoder;
 		}
 		return this as SQL<GetDecoderResult<TDecoder>>;
+	}
+
+	inlineParams(): this {
+		this.shouldInlineParams = true;
+		return this;
 	}
 }
 
@@ -217,6 +280,7 @@ export type SQLSourceParam =
 	| SQLWrapper
 	| SQL
 	| Table
+	| View
 	| Subquery
 	| AnyColumn
 	| Param
@@ -238,27 +302,30 @@ function buildChunksFromParam(param: SQLSourceParam): Chunk[] {
 		return result;
 	}
 
-	if (param instanceof SQL) {
-		return param.queryChunks;
+	if (
+		param instanceof Table
+		|| param instanceof Column
+		|| param instanceof Name
+		|| param instanceof Param
+		|| param instanceof View
+		|| param instanceof SQL
+	) {
+		return [param];
 	}
 
 	if (param instanceof SQL.Aliased && typeof param.fieldAlias !== 'undefined') {
 		return [new Name(param.fieldAlias)];
 	}
 
-	if (param instanceof Table || param instanceof Column || param instanceof Name || param instanceof Param) {
-		return [param];
-	}
-
 	if (param instanceof Subquery) {
 		if (param[SubqueryConfig].isWith) {
 			return [new Name(param[SubqueryConfig].alias)];
 		}
-		return ['(', ...param[SubqueryConfig].sql.queryChunks, ') ', new Name(param[SubqueryConfig].alias)];
+		return ['(', param[SubqueryConfig].sql, ') ', new Name(param[SubqueryConfig].alias)];
 	}
 
 	if (isSQLWrapper(param)) {
-		return ['(', ...param.getSQL().queryChunks, ')'];
+		return ['(', param.getSQL(), ')'];
 	}
 
 	if (param !== undefined) {

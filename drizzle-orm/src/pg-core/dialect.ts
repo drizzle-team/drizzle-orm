@@ -1,24 +1,20 @@
-import { AnyColumn, Column } from '~/column';
-import { MigrationMeta } from '~/migrator';
-import {
-	AnyPgColumn,
-	PgColumn,
-	PgDate,
-	PgJson,
-	PgJsonb,
-	PgNumeric,
-	PgTime,
-	PgTimestamp,
-	PgUUID,
-} from '~/pg-core/columns';
-import { PgDeleteConfig, PgInsertConfig, PgUpdateConfig } from '~/pg-core/query-builders';
-import { PgSelectConfig, SelectFieldsOrdered } from '~/pg-core/query-builders/select.types';
-import { AnyPgTable, PgTable } from '~/pg-core/table';
-import { DriverValueEncoder, Name, Query, QueryTypingsValue, SQL, sql, SQLSourceParam } from '~/sql';
+import type { AnyColumn } from '~/column';
+import { Column } from '~/column';
+import type { MigrationMeta } from '~/migrator';
+import type { AnyPgColumn } from '~/pg-core/columns';
+import { PgColumn, PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core/columns';
+import type { PgDeleteConfig, PgInsertConfig, PgUpdateConfig } from '~/pg-core/query-builders';
+import type { PgSelectConfig, SelectFieldsOrdered } from '~/pg-core/query-builders/select.types';
+import type { AnyPgTable } from '~/pg-core/table';
+import { PgTable } from '~/pg-core/table';
+import type { DriverValueEncoder, Query, QueryTypingsValue, SQLSourceParam } from '~/sql';
+import { Name, SQL, sql } from '~/sql';
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
-import { UpdateSet } from '~/utils';
-import { PgSession } from './session';
+import type { UpdateSet } from '~/utils';
+import { ViewBaseConfig } from '~/view';
+import type { PgSession } from './session';
+import { type PgMaterializedView, PgViewBase } from './view';
 
 export class PgDialect {
 	async migrate(migrations: MigrationMeta[], session: PgSession): Promise<void> {
@@ -63,6 +59,10 @@ export class PgDialect {
 
 	escapeParam(num: number): string {
 		return `$${num + 1}`;
+	}
+
+	escapeString(str: string): string {
+		return `'${str.replace(/'/g, "''")}'`;
 	}
 
 	buildDeleteQuery({ table, where, returning }: PgDeleteConfig): SQL {
@@ -177,7 +177,11 @@ export class PgDialect {
 			if (
 				f.field instanceof Column
 				&& getTableName(f.field.table)
-					!== (table instanceof Subquery ? table[SubqueryConfig].alias : getTableName(table))
+					!== (table instanceof Subquery
+						? table[SubqueryConfig].alias
+						: table instanceof PgViewBase
+						? table[ViewBaseConfig].name
+						: getTableName(table))
 				&& !((tableName = getTableName(f.field.table)) in joins)
 			) {
 				throw new Error(
@@ -320,6 +324,15 @@ export class PgDialect {
 		return sql`insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
+	buildRefreshMaterializedViewQuery(
+		{ view, concurrently, withNoData }: { view: PgMaterializedView; concurrently?: boolean; withNoData?: boolean },
+	): SQL {
+		const concurrentlySql = concurrently ? sql` concurrently` : undefined;
+		const withNoDataSql = withNoData ? sql` with no data` : undefined;
+
+		return sql`refresh materialized view${concurrentlySql} ${view}${withNoDataSql}`;
+	}
+
 	prepareTyping(encoder: DriverValueEncoder<unknown, unknown>): QueryTypingsValue {
 		if (
 			encoder instanceof PgJsonb || encoder instanceof PgJson
@@ -344,6 +357,8 @@ export class PgDialect {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
-		}, this.prepareTyping);
+			escapeString: this.escapeString,
+			prepareTyping: this.prepareTyping,
+		});
 	}
 }

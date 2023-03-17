@@ -1,12 +1,15 @@
 import 'dotenv/config';
 
-import anyTest, { TestFn } from 'ava';
+import type { TestFn } from 'ava';
+import anyTest from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
 import { asc, eq } from 'drizzle-orm/expressions';
-import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { alias, customType, InferModel, pgTable, serial, text } from 'drizzle-orm/pg-core';
+import type { InferModel } from 'drizzle-orm/pg-core';
+import { alias, customType, pgTable, serial, text } from 'drizzle-orm/pg-core';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import { Client } from 'pg';
@@ -556,16 +559,16 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 });
 
-// test.serial('migrator', async (t) => {
-// 	const { db } = t.context;
-// 	await migrate(db, { migrationsFolder: './drizzle/pg' });
+test.serial.skip('migrator', async (t) => {
+	const { db } = t.context;
+	await migrate(db, { migrationsFolder: './drizzle/pg' });
 
-// 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 
-// 	const result = await db.select().from(usersMigratorTable);
+	const result = await db.select().from(usersMigratorTable);
 
-// 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
-// });
+	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+});
 
 test.serial('insert via db.execute + select via db.execute', async (t) => {
 	const { db } = t.context;

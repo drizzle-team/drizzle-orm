@@ -1,5 +1,5 @@
-import { SQL } from '~/sql';
-import { AnySQLiteTable } from './table';
+import type { SQL } from '~/sql';
+import type { AnySQLiteTable } from './table';
 
 export class CheckBuilder {
 	protected brand!: 'SQLiteConstraintBuilder';

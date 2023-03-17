@@ -1,6 +1,7 @@
 import 'dotenv/config';
 
-import anyTest, { TestFn } from 'ava';
+import type { TestFn } from 'ava';
+import anyTest from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
 import { asc, eq } from 'drizzle-orm/expressions';
@@ -19,7 +20,8 @@ import {
 	varchar,
 	year,
 } from 'drizzle-orm/mysql-core';
-import { drizzle, MySql2Database } from 'drizzle-orm/mysql2';
+import type { MySql2Database } from 'drizzle-orm/mysql2';
+import { drizzle } from 'drizzle-orm/mysql2';
 import { migrate } from 'drizzle-orm/mysql2/migrator';
 import { Name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';

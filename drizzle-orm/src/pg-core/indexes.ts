@@ -1,7 +1,7 @@
-import { SQL } from '~/sql';
+import type { SQL } from '~/sql';
 
-import { AnyPgColumn } from './columns';
-import { AnyPgTable } from './table';
+import type { AnyPgColumn } from './columns';
+import type { AnyPgTable } from './table';
 
 interface IndexConfig {
 	name?: string;

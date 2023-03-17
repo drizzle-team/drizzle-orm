@@ -1,4 +1,5 @@
-import { AnyColumn, Column } from './column';
+import type { AnyColumn} from './column';
+import { Column } from './column';
 import { Table } from './table';
 
 export class ColumnAliasProxyHandler<TColumn extends AnyColumn> implements ProxyHandler<TColumn> {

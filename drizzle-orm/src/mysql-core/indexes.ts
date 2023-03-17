@@ -1,6 +1,6 @@
-import { SQL } from '~/sql';
-import { AnyMySqlColumn } from './columns';
-import { AnyMySqlTable } from './table';
+import type { SQL } from '~/sql';
+import type { AnyMySqlColumn } from './columns';
+import type { AnyMySqlTable } from './table';
 
 interface IndexConfig {
 	name: string;

@@ -1,6 +1,6 @@
-import { Query, SQL } from '~/sql';
-import { PgDialect } from './dialect';
-import { SelectFieldsOrdered } from './query-builders/select.types';
+import type { Query, SQL } from '~/sql';
+import type { PgDialect } from './dialect';
+import type { SelectFieldsOrdered } from './query-builders/select.types';
 
 export interface PreparedQueryConfig {
 	execute: unknown;

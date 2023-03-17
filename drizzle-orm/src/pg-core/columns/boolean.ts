@@ -1,7 +1,7 @@
-import { ColumnConfig } from '~/column';
-import { ColumnBuilderConfig } from '~/column-builder';
+import type { ColumnConfig } from '~/column';
+import type { ColumnBuilderConfig } from '~/column-builder';
 
-import { AnyPgTable } from '~/pg-core/table';
+import type { AnyPgTable } from '~/pg-core/table';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export class PgBooleanBuilder extends PgColumnBuilder<

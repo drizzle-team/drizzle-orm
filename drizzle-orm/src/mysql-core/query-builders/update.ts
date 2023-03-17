@@ -1,17 +1,18 @@
-import { GetColumnData } from '~/column';
-import { MySqlDialect } from '~/mysql-core/dialect';
-import {
+import type { GetColumnData } from '~/column';
+import type { MySqlDialect } from '~/mysql-core/dialect';
+import type {
 	MySqlSession,
 	PreparedQuery,
 	PreparedQueryConfig,
 	QueryResultHKT,
 	QueryResultKind,
 } from '~/mysql-core/session';
-import { AnyMySqlTable, GetTableConfig } from '~/mysql-core/table';
+import type { AnyMySqlTable, GetTableConfig } from '~/mysql-core/table';
 import { QueryPromise } from '~/query-promise';
-import { Query, SQL, SQLWrapper } from '~/sql';
-import { mapUpdateSet, Simplify, UpdateSet } from '~/utils';
-import { SelectFieldsOrdered } from './select.types';
+import type { Query, SQL, SQLWrapper } from '~/sql';
+import type { Simplify, UpdateSet } from '~/utils';
+import { mapUpdateSet } from '~/utils';
+import type { SelectFieldsOrdered } from './select.types';
 
 export interface MySqlUpdateConfig {
 	where?: SQL | undefined;

@@ -1,13 +1,13 @@
-import { GetColumnData } from '~/column';
-import { OptionalKeyOnly, RequiredKeyOnly } from '~/operations';
+import type { GetColumnData } from '~/column';
+import type { OptionalKeyOnly, RequiredKeyOnly } from '~/operations';
 import { Table } from '~/table';
-import { Update } from '~/utils';
-import { Simplify } from '~/utils';
-import { CheckBuilder } from './checks';
-import { AnyMySqlColumn, AnyMySqlColumnBuilder, BuildColumns } from './columns/common';
-import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
-import { AnyIndexBuilder } from './indexes';
-import { PrimaryKeyBuilder } from './primary-keys';
+import type { Update } from '~/utils';
+import type { Simplify } from '~/utils';
+import type { CheckBuilder } from './checks';
+import type { AnyMySqlColumn, AnyMySqlColumnBuilder, BuildColumns } from './columns/common';
+import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
+import type { AnyIndexBuilder } from './indexes';
+import type { PrimaryKeyBuilder } from './primary-keys';
 
 export type MySqlTableExtraConfig = Record<
 	string,
@@ -95,62 +95,14 @@ export type InferModel<
 		>;
 	};
 
-const isMySqlSchemaSym = Symbol('isMySqlSchema');
-export interface MySqlSchema {
-	schemaName: string;
-	/** @internal */
-	[isMySqlSchemaSym]: true;
-}
-
-export function isMySqlSchema(obj: unknown): obj is MySqlSchema {
-	return !!obj && typeof obj === 'function' && isMySqlSchemaSym in obj;
-}
-
-/**
- * mysqlDatabase is same as {@link mysqlSchema} function
- *
- * https://dev.mysql.com/doc/refman/8.0/en/create-database.html
- *
- * @param databaseName - mysql use database name
- * @returns
- */
-export function mysqlDatabase<T extends string = string>(databaseName: T) {
-	return mysqlSchema(databaseName);
-}
-
-/**
- * mysqlSchema is same as {@link mysqlDatabase} function
- *
- * https://dev.mysql.com/doc/refman/8.0/en/create-database.html
- *
- * @param schemaName - mysql use schema name
- * @returns
- */
-export function mysqlSchema<T extends string = string>(schemaName: T) {
-	const schemaValue: MySqlSchema = {
-		schemaName,
-		[isMySqlSchemaSym]: true,
-	};
-
-	const columnFactory = <
-		TTableName extends string,
-		TColumnsMap extends Record<string, AnyMySqlColumnBuilder>,
-	>(
-		name: TTableName,
-		columns: TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => MySqlTableExtraConfig,
-	) => mysqlTableWithSchema(name, columns, schemaName, extraConfig);
-	return Object.assign(columnFactory, schemaValue);
-}
-
 export function mysqlTableWithSchema<
 	TTableName extends string,
 	TColumnsMap extends Record<string, AnyMySqlColumnBuilder>,
 >(
 	name: TTableName,
 	columns: TColumnsMap,
-	schema?: string,
 	extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => MySqlTableExtraConfig,
+	schema?: string,
 ): MySqlTableWithColumns<{
 	name: TTableName;
 	columns: BuildColumns<TTableName, TColumnsMap>;
@@ -192,5 +144,5 @@ export function mysqlTable<
 	name: TTableName;
 	columns: BuildColumns<TTableName, TColumnsMap>;
 }> {
-	return mysqlTableWithSchema(name, columns, undefined, extraConfig);
+	return mysqlTableWithSchema(name, columns, extraConfig, undefined);
 }

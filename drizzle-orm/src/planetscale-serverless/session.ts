@@ -1,9 +1,13 @@
-import { connect, Connection, ExecutedQuery } from '@planetscale/database';
-import { Logger, NoopLogger } from '~/logger';
-import { MySqlDialect } from '~/mysql-core/dialect';
-import { SelectFieldsOrdered } from '~/mysql-core/query-builders/select.types';
-import { MySqlSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT } from '~/mysql-core/session';
-import { fillPlaceholders, Query } from '~/sql';
+import type { Connection, ExecutedQuery } from '@planetscale/database';
+import { connect } from '@planetscale/database';
+import type { Logger} from '~/logger';
+import { NoopLogger } from '~/logger';
+import type { MySqlDialect } from '~/mysql-core/dialect';
+import type { SelectFieldsOrdered } from '~/mysql-core/query-builders/select.types';
+import type { PreparedQueryConfig, QueryResultHKT } from '~/mysql-core/session';
+import { MySqlSession, PreparedQuery } from '~/mysql-core/session';
+import type { Query } from '~/sql';
+import { fillPlaceholders } from '~/sql';
 import { mapResultRow } from '~/utils';
 
 // P stays for Planetscale

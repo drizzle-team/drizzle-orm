@@ -1,6 +1,7 @@
 import { bindIfParam } from '~/expressions';
-import { AnyPgColumn } from '~/pg-core/columns';
-import { Placeholder, SQL, sql, SQLSourceParam, SQLWrapper } from '~/sql';
+import type { AnyPgColumn } from '~/pg-core/columns';
+import type { Placeholder, SQL, SQLSourceParam, SQLWrapper } from '~/sql';
+import { sql } from '~/sql';
 
 export * from '~/expressions';
 

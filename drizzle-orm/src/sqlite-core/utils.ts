@@ -1,9 +1,16 @@
 import { Table } from '~/table';
-import { Check, CheckBuilder } from './checks';
-import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
-import { Index, IndexBuilder } from './indexes';
-import { PrimaryKey, PrimaryKeyBuilder } from './primary-keys';
-import { AnySQLiteTable, SQLiteTable } from './table';
+import { ViewBaseConfig } from '~/view';
+import type { Check } from './checks';
+import { CheckBuilder } from './checks';
+import type { ForeignKey } from './foreign-keys';
+import { ForeignKeyBuilder } from './foreign-keys';
+import type { Index } from './indexes';
+import { IndexBuilder } from './indexes';
+import type { PrimaryKey } from './primary-keys';
+import { PrimaryKeyBuilder } from './primary-keys';
+import type { AnySQLiteTable } from './table';
+import { SQLiteTable } from './table';
+import { type SQLiteView, SQLiteViewConfig } from './view';
 
 export function getTableConfig<TTable extends AnySQLiteTable>(table: TTable) {
 	const columns = Object.values(table[SQLiteTable.Symbol.Columns]);
@@ -47,3 +54,13 @@ export function getTableColumns(table: AnySQLiteTable) {
 }
 
 export type OnConflict = 'rollback' | 'abort' | 'fail' | 'ignore' | 'replace';
+
+export function getViewConfig<
+	TName extends string = string,
+	TExisting extends boolean = boolean,
+>(view: SQLiteView<TName, TExisting>) {
+	return {
+		...view[ViewBaseConfig],
+		...view[SQLiteViewConfig],
+	};
+}

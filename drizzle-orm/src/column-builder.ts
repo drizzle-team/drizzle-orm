@@ -1,5 +1,5 @@
-import { SQL } from './sql';
-import { Simplify, Update } from './utils';
+import type { SQL } from './sql';
+import type { Simplify, Update } from './utils';
 
 export interface ColumnBuilderBaseConfig {
 	data: unknown;

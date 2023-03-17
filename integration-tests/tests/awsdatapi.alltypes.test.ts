@@ -2,10 +2,14 @@ import 'dotenv/config';
 
 import { RDSDataClient } from '@aws-sdk/client-rds-data';
 import { fromIni } from '@aws-sdk/credential-providers';
-import anyTest, { TestFn } from 'ava';
+import type { TestFn } from 'ava';
+import anyTest from 'ava';
 import * as dotenv from 'dotenv';
 import { DefaultLogger, sql } from 'drizzle-orm';
-import { AwsDataApiPgDatabase, drizzle } from 'drizzle-orm/aws-data-api/pg';
+import type { AwsDataApiPgDatabase} from 'drizzle-orm/aws-data-api/pg';
+import { drizzle } from 'drizzle-orm/aws-data-api/pg';
+import type {
+	InferModel} from 'drizzle-orm/pg-core';
 import {
 	bigint,
 	bigserial,
@@ -13,7 +17,6 @@ import {
 	date,
 	decimal,
 	doublePrecision,
-	InferModel,
 	integer,
 	json,
 	jsonb,

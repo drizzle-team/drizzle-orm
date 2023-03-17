@@ -1,4 +1,4 @@
-import { AnyPgTable } from '~/pg-core/table';
+import type { AnyPgTable } from '~/pg-core/table';
 
 import { PgColumn, PgColumnBuilder } from './common';
 

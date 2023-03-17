@@ -1,14 +1,13 @@
-import { GetColumnData } from '~/column';
-import { OptionalKeyOnly, RequiredKeyOnly } from '~/operations';
+import type { GetColumnData } from '~/column';
+import type { OptionalKeyOnly, RequiredKeyOnly } from '~/operations';
 import { Table } from '~/table';
-import { Update } from '~/utils';
-import { Simplify } from '~/utils';
-
-import { Check, CheckBuilder } from './checks';
-import { AnySQLiteColumn, AnySQLiteColumnBuilder, BuildColumns } from './columns/common';
-import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
-import { Index, IndexBuilder } from './indexes';
-import { PrimaryKey, PrimaryKeyBuilder } from './primary-keys';
+import type { Update } from '~/utils';
+import type { Simplify } from '~/utils';
+import type { CheckBuilder } from './checks';
+import type { AnySQLiteColumn, AnySQLiteColumnBuilder, BuildColumns } from './columns/common';
+import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
+import type { IndexBuilder } from './indexes';
+import type { PrimaryKeyBuilder } from './primary-keys';
 
 export type SQLiteTableExtraConfig = Record<
 	string,

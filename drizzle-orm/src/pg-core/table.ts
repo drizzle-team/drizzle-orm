@@ -1,13 +1,13 @@
-import { GetColumnData } from '~/column';
-import { OptionalKeyOnly, RequiredKeyOnly } from '~/operations';
+import type { GetColumnData } from '~/column';
+import type { OptionalKeyOnly, RequiredKeyOnly } from '~/operations';
 import { Table } from '~/table';
-import { Update } from '~/utils';
-import { Simplify } from '~/utils';
-import { CheckBuilder } from './checks';
-import { AnyPgColumn, AnyPgColumnBuilder, BuildColumns } from './columns/common';
-import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
-import { AnyIndexBuilder } from './indexes';
-import { PrimaryKeyBuilder } from './primary-keys';
+import type { Update } from '~/utils';
+import type { Simplify } from '~/utils';
+import type { CheckBuilder } from './checks';
+import type { AnyPgColumn, AnyPgColumnBuilder, BuildColumns } from './columns/common';
+import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
+import type { AnyIndexBuilder } from './indexes';
+import type { PrimaryKeyBuilder } from './primary-keys';
 
 export type PgTableExtraConfig = Record<
 	string,
@@ -95,50 +95,15 @@ export type InferModel<
 		>;
 	};
 
-const isPgSchemaSym = Symbol('isPgSchema');
-export interface PgSchema {
-	schemaName: string;
-	/** @internal */
-	[isPgSchemaSym]: true;
-}
-
-export function isPgSchema(obj: unknown): obj is PgSchema {
-	return !!obj && typeof obj === 'function' && isPgSchemaSym in obj;
-}
-
-export function pgSchema<T extends string = string>(
-	schemaName: T extends 'public'
-		? "You can't specify 'public' as schema name. Postgres is using public schema by default. If you want to use 'public' schema, just type pgTable() instead of creating own schema"
-		: T,
-) {
-	if (schemaName === 'public') {
-		throw Error(`You can't specify 'public' as schema name. Postgres is using public schema by default`);
-	}
-
-	const schemaValue: PgSchema = {
-		schemaName,
-		[isPgSchemaSym]: true,
-	};
-
-	const columnFactory = <
-		TTableName extends string,
-		TColumnsMap extends Record<string, AnyPgColumnBuilder>,
-	>(
-		name: TTableName,
-		columns: TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => PgTableExtraConfig,
-	) => pgTableWithSchema(name, columns, schemaName, extraConfig);
-	return Object.assign(columnFactory, schemaValue);
-}
-
-function pgTableWithSchema<
+/** @internal */
+export function pgTableWithSchema<
 	TTableName extends string,
 	TColumnsMap extends Record<string, AnyPgColumnBuilder>,
 >(
 	name: TTableName,
 	columns: TColumnsMap,
-	schema?: string,
-	extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => PgTableExtraConfig,
+	extraConfig: ((self: BuildColumns<TTableName, TColumnsMap>) => PgTableExtraConfig) | undefined,
+	schema: string | undefined,
 ): PgTableWithColumns<{
 	name: TTableName;
 	columns: BuildColumns<TTableName, TColumnsMap>;
@@ -178,5 +143,5 @@ export function pgTable<
 	name: TTableName;
 	columns: BuildColumns<TTableName, TColumnsMap>;
 }> {
-	return pgTableWithSchema(name, columns, undefined, extraConfig);
+	return pgTableWithSchema(name, columns, extraConfig, undefined);
 }

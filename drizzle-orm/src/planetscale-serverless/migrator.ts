@@ -1,7 +1,8 @@
-import { MigrationConfig, readMigrationFiles } from '~/migrator';
+import type { MigrationConfig} from '~/migrator';
+import { readMigrationFiles } from '~/migrator';
 import { sql } from '~/sql';
-import { PlanetScaleDatabase } from './driver';
-import { PlanetscaleSession } from './session';
+import type { PlanetScaleDatabase } from './driver';
+import type { PlanetscaleSession } from './session';
 
 type BPS = { prev: number; acc: { sql: string; params?: any[] }[] };
 

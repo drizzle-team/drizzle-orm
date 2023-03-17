@@ -1,6 +1,7 @@
 import { bindIfParam } from '~/expressions';
-import { Placeholder, SQL, sql, SQLSourceParam, SQLWrapper } from '~/sql';
-import { AnySQLiteColumn } from '~/sqlite-core/columns';
+import type { Placeholder, SQL, SQLSourceParam, SQLWrapper } from '~/sql';
+import { sql } from '~/sql';
+import type { AnySQLiteColumn } from '~/sqlite-core/columns';
 
 export * from '~/expressions';
 

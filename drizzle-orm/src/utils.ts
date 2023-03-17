@@ -1,6 +1,8 @@
-import { AnyColumn, Column } from './column';
-import { SelectFields, SelectFieldsOrdered } from './operations';
-import { DriverValueDecoder, noopDecoder, Param, SQL } from './sql';
+import type { AnyColumn } from './column';
+import { Column } from './column';
+import type { SelectFields, SelectFieldsOrdered } from './operations';
+import type { DriverValueDecoder } from './sql';
+import { Param, SQL } from './sql';
 import { getTableName, Table } from './table';
 
 /**
@@ -217,3 +219,19 @@ export interface DrizzleTypeError<T extends string> {
 }
 
 export type ValueOrArray<T> = T | T[];
+
+export function applyMixins(baseClass: any, extendedClasses: any[]) {
+	extendedClasses.forEach((extendedClass) => {
+		Object.getOwnPropertyNames(extendedClass.prototype).forEach((name) => {
+			Object.defineProperty(
+				baseClass.prototype,
+				name,
+				Object.getOwnPropertyDescriptor(extendedClass.prototype, name) || Object.create(null),
+			);
+		});
+	});
+}
+
+export type Or<T1, T2> = T1 extends true ? true : T2 extends true ? true : false;
+
+export type IfThenElse<If, Then, Else> = If extends true ? Then : Else;
