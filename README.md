@@ -26,6 +26,10 @@ Drizzle ORM is being battle-tested on production projects by multiple teams 🚀
 - [Zod schema generation](/drizzle-zod/README.md)
 - Zero dependencies
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=drizzle-team/drizzle-orm&type=Date)](https://star-history.com/#drizzle-team/drizzle-orm&Date)
+
 ## Supported databases
 
 | Database    | Status | |
