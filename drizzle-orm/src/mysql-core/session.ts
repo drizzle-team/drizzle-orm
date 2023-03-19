@@ -1,4 +1,3 @@
-import { FieldPacket, OkPacket, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import type { Query, SQL } from '~/sql';
 import type { MySqlDialect } from './dialect';
 import type { SelectFieldsOrdered } from './query-builders/select.types';
