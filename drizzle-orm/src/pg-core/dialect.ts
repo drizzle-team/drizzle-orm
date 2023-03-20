@@ -173,7 +173,6 @@ export class PgDialect {
 			PgSelectConfig,
 	): SQL {
 		fieldsList.forEach((f) => {
-			let tableName: string;
 			if (
 				f.field instanceof Column
 				&& getTableName(f.field.table)
@@ -184,8 +183,9 @@ export class PgDialect {
 						: table instanceof SQL
 						? undefined
 						: getTableName(table))
-				&& !((tableName = getTableName(f.field.table)) in joins)
+				&& !((table) => joins.some(({ alias }) => alias === getTableName(table)))(f.field.table)
 			) {
+				const tableName = getTableName(f.field.table);
 				throw new Error(
 					`Your "${
 						f.path.join('->')

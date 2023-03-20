@@ -186,7 +186,7 @@ export type JoinFn<
 > = <
 	TJoinedTable extends AnyPgTable | Subquery | SQL,
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
->(table: TJoinedTable, on: SQL | undefined) => PgSelectKind<
+>(table: TJoinedTable, on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined) => PgSelectKind<
 	THKT,
 	TTableName,
 	AppendToResult<

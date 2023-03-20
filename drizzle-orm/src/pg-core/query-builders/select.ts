@@ -236,11 +236,11 @@ export abstract class PgSelectQueryBuilder<
 	}
 
 	groupBy(builder: (aliases: TSelection) => ValueOrArray<AnyPgColumn | SQL | SQL.Aliased>): this;
-	groupBy(...columns: (AnyPgColumn | SQL)[]): this;
+	groupBy(...columns: (AnyPgColumn | SQL | SQL.Aliased)[]): this;
 	groupBy(
 		...columns:
 			| [(aliases: TSelection) => ValueOrArray<AnyPgColumn | SQL | SQL.Aliased>]
-			| (AnyPgColumn | SQL)[]
+			| (AnyPgColumn | SQL | SQL.Aliased)[]
 	) {
 		if (typeof columns[0] === 'function') {
 			const groupBy = columns[0](
@@ -251,17 +251,17 @@ export abstract class PgSelectQueryBuilder<
 			);
 			this.config.groupBy = Array.isArray(groupBy) ? groupBy : [groupBy];
 		} else {
-			this.config.groupBy = columns as (AnyPgColumn | SQL)[];
+			this.config.groupBy = columns as (AnyPgColumn | SQL | SQL.Aliased)[];
 		}
 		return this;
 	}
 
 	orderBy(builder: (aliases: TSelection) => ValueOrArray<AnyPgColumn | SQL | SQL.Aliased>): this;
-	orderBy(...columns: (AnyPgColumn | SQL)[]): this;
+	orderBy(...columns: (AnyPgColumn | SQL | SQL.Aliased)[]): this;
 	orderBy(
 		...columns:
 			| [(aliases: TSelection) => ValueOrArray<AnyPgColumn | SQL | SQL.Aliased>]
-			| (AnyPgColumn | SQL)[]
+			| (AnyPgColumn | SQL | SQL.Aliased)[]
 	) {
 		if (typeof columns[0] === 'function') {
 			const orderBy = columns[0](
@@ -272,7 +272,7 @@ export abstract class PgSelectQueryBuilder<
 			);
 			this.config.orderBy = Array.isArray(orderBy) ? orderBy : [orderBy];
 		} else {
-			this.config.orderBy = columns as (AnyPgColumn | SQL)[];
+			this.config.orderBy = columns as (AnyPgColumn | SQL | SQL.Aliased)[];
 		}
 		return this;
 	}
@@ -307,7 +307,7 @@ export abstract class PgSelectQueryBuilder<
 	): SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias> {
 		return new Proxy(
 			new Subquery(this.getSQL(), this.config.fields, alias),
-			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'subquery_selection', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias>;
 	}
 }
