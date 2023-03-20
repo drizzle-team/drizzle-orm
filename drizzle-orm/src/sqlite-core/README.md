@@ -47,6 +47,8 @@ const db = drizzle(sqlite);
 const users = db.select().from(users).all();
 ```
 
+> **Note**: Using Drizzle ORM in a new Next.js app router: [Example](#nextjs-app-router-mode).
+
 ## Connecting to databases
 
 ```typescript
@@ -804,3 +806,24 @@ const db = drizzle(sqlite, { logger: new MyLogger() });
 ## Table introspect API
 
 See [dedicated docs](/docs/table-introspect-api.md).
+
+## Next.js app router mode
+
+In order to use Drizzle ORM in the Next.js new app router mode you have to add `better-sqlite3` dependendency to the `experimental.serverComponentsExternalPackages` array in `next.config.js` config file.
+
+Example `next.config.js` should look like this:
+```ts
+/** @type {import("next").NextConfig} */
+const config = {
+  reactStrictMode: true,
+  experimental: {
+    appDir: true,
+    serverComponentsExternalPackages: ["better-sqlite3"],
+  },
+}
+export default config
+```
+
+More details about that feature can be found in the [Next.js beta docs](https://beta.nextjs.org/docs/api-reference/next-config#servercomponentsexternalpackages).
+
+> **Note**: New next.js beta docs changes frequently so if the link above doesn't work try this one: [Next.js beta docs](https://beta.nextjs.org/docs/api-reference/next-config.js#servercomponentsexternalpackages).
