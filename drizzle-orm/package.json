@@ -109,7 +109,7 @@
     "@types/node": "^18.11.9",
     "@types/pg": "^8.6.5",
     "@types/sql.js": "^1.4.4",
-    "better-sqlite3": "^7.6.2",
+    "better-sqlite3": "^8.0.0",
     "bun-types": "^0.5.0",
     "knex": "^2.4.2",
     "kysely": "^0.23.5",

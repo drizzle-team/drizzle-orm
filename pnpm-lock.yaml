@@ -45,7 +45,7 @@ importers:
       '@types/node': ^18.11.9
       '@types/pg': ^8.6.5
       '@types/sql.js': ^1.4.4
-      better-sqlite3: ^7.6.2
+      better-sqlite3: ^8.0.0
       bun-types: ^0.5.0
       knex: ^2.4.2
       kysely: ^0.23.5
@@ -63,7 +63,7 @@ importers:
       '@types/node': 18.11.18
       '@types/pg': 8.6.6
       '@types/sql.js': 1.4.4
-      better-sqlite3: 7.6.2
+      better-sqlite3: 8.0.1
       bun-types: 0.5.4
       knex: 2.4.2_uvf4rh4xmredyjbq46jtk67wnu
       kysely: 0.23.5
@@ -123,7 +123,7 @@ importers:
       '@types/uuid': ^8.3.4
       ava: ^5.1.0
       axios: ^1.3.0
-      better-sqlite3: ^7.6.2
+      better-sqlite3: ^8.0.0
       dockerode: ^3.3.4
       dotenv: ^16.0.3
       drizzle-orm: workspace:../drizzle-orm/dist
@@ -142,7 +142,7 @@ importers:
       '@aws-sdk/client-rds-data': 3.262.0
       '@aws-sdk/credential-providers': 3.263.0
       '@planetscale/database': 1.5.0
-      better-sqlite3: 7.6.2
+      better-sqlite3: 8.0.1
       dockerode: 3.3.4
       dotenv: 16.0.3
       drizzle-orm: link:../drizzle-orm/dist
@@ -1963,13 +1963,6 @@ packages:
     dependencies:
       tweetnacl: 0.14.5
     dev: false
-
-  /better-sqlite3/7.6.2:
-    resolution: {integrity: sha512-S5zIU1Hink2AH4xPsN0W43T1/AJ5jrPh7Oy07ocuW/AKYYY02GWzz9NH0nbSMn/gw6fDZ5jZ1QsHt1BXAwJ6Lg==}
-    requiresBuild: true
-    dependencies:
-      bindings: 1.5.0
-      prebuild-install: 7.1.1
 
   /better-sqlite3/8.0.1:
     resolution: {integrity: sha512-JhTZjpyapA1icCEjIZB4TSSgkGdFgpWZA2Wszg7Cf4JwJwKQmbvuNnJBeR+EYG/Z29OXvR4G//Rbg31BW/Z7Yg==}
@@ -4401,7 +4394,7 @@ packages:
       tedious:
         optional: true
     dependencies:
-      better-sqlite3: 7.6.2
+      better-sqlite3: 8.0.1
       colorette: 2.0.19
       commander: 9.5.0
       debug: 4.3.4
