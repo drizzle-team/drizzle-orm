@@ -35,6 +35,7 @@
   "peerDependencies": {
     "@aws-sdk/client-rds-data": ">=3 <4",
     "@cloudflare/workers-types": ">=3",
+    "@libsql/sqlite3": "^0.1.2",
     "@neondatabase/serverless": ">=0.1 <0.2",
     "@planetscale/database": ">=1 <2",
     "@types/better-sqlite3": "*",
@@ -103,6 +104,7 @@
   "devDependencies": {
     "@aws-sdk/client-rds-data": "^3.257.0",
     "@cloudflare/workers-types": "^3.18.0",
+    "@libsql/sqlite3": "^0.1.2",
     "@neondatabase/serverless": "^0.1.13",
     "@planetscale/database": "^1.5.0",
     "@types/better-sqlite3": "^7.6.2",

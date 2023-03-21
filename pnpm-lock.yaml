@@ -39,6 +39,7 @@ importers:
     specifiers:
       '@aws-sdk/client-rds-data': ^3.257.0
       '@cloudflare/workers-types': ^3.18.0
+      '@libsql/sqlite3': ^0.1.2
       '@neondatabase/serverless': ^0.1.13
       '@planetscale/database': ^1.5.0
       '@types/better-sqlite3': ^7.6.2
@@ -57,6 +58,7 @@ importers:
     devDependencies:
       '@aws-sdk/client-rds-data': 3.262.0
       '@cloudflare/workers-types': 3.19.0
+      '@libsql/sqlite3': 0.1.2
       '@neondatabase/serverless': 0.1.13
       '@planetscale/database': 1.5.0
       '@types/better-sqlite3': 7.6.3
@@ -65,7 +67,7 @@ importers:
       '@types/sql.js': 1.4.4
       better-sqlite3: 8.0.1
       bun-types: 0.5.4
-      knex: 2.4.2_uvf4rh4xmredyjbq46jtk67wnu
+      knex: 2.4.2_njtncz6jyfjov6k5k2qxxmmzhy
       kysely: 0.23.5
       mysql2: 2.3.3
       pg: 8.9.0
@@ -112,6 +114,7 @@ importers:
     specifiers:
       '@aws-sdk/client-rds-data': ^3.257.0
       '@aws-sdk/credential-providers': ^3.258.0
+      '@libsql/sqlite3': ^0.1.2
       '@planetscale/database': ^1.5.0
       '@types/axios': ^0.14.0
       '@types/better-sqlite3': ^7.6.3
@@ -141,6 +144,7 @@ importers:
     dependencies:
       '@aws-sdk/client-rds-data': 3.262.0
       '@aws-sdk/credential-providers': 3.263.0
+      '@libsql/sqlite3': 0.1.2
       '@planetscale/database': 1.5.0
       better-sqlite3: 8.0.1
       dockerode: 3.3.4
@@ -1149,6 +1153,22 @@ packages:
     resolution: {integrity: sha512-trnsAYxU3xnS1gPHPyU961coFyLkh4gAD/0zQ5mymY4yOZ+CYvsPqUbOFSw0aDM4y0tV7tiFxL/1XfXPNC6IPg==}
     dev: true
 
+  /@libsql/hrana-client/0.2.0:
+    resolution: {integrity: sha512-WkZ9QetBK0bEGODGLMU3ajfapvRf4w9Hu6mCRMuRZHBogFHXQCna51EqOqxnme+FLQaUYsYm4pPuKownmByMLA==}
+    dependencies:
+      '@types/ws': 8.5.4
+      isomorphic-ws: 5.0.0
+      js-base64: 3.7.5
+    transitivePeerDependencies:
+      - ws
+
+  /@libsql/sqlite3/0.1.2:
+    resolution: {integrity: sha512-LJTP9YAfLwGdOk8w3L1sW49+WzW5iq+mcAuiucqvuH2eY3QVhnJ5/80n7swqFMgN3ROgcYai4HQJb6sdENXjnA==}
+    dependencies:
+      '@libsql/hrana-client': 0.2.0
+    transitivePeerDependencies:
+      - ws
+
   /@mapbox/node-pre-gyp/1.0.10:
     resolution: {integrity: sha512-4ySo4CjzStuprMwk35H5pPbkymjv1SF3jGLj6rAHp/xT/RF7TL7bd9CTm1xDY49K2qF7jmR/g7k+SkLETP6opA==}
     hasBin: true
@@ -1490,7 +1510,6 @@ packages:
 
   /@types/node/18.11.18:
     resolution: {integrity: sha512-DHQpWGjyQKSHj3ebjFI/wRKcqQcdR+MoFBygntYOZytCqNfkd2ZC4ARDJ2DQqhjH5p85Nnd3jhUJIXrszFX/JA==}
-    dev: true
 
   /@types/pg/8.6.6:
     resolution: {integrity: sha512-O2xNmXebtwVekJDD+02udOncjVcMZQuTEQEMpKJ0ZRf5E7/9JJX3izhKUcUifBkyKpljyUM6BTgy2trmviKlpw==}
@@ -1539,6 +1558,11 @@ packages:
   /@types/uuid/8.3.4:
     resolution: {integrity: sha512-c/I8ZRb51j+pYGAu5CrFMRxqZ2ke4y2grEBO5AUjgSkSk+qT2Ea+OdWElz/OiMf5MNpn2b17kuVBwZLQJXzihw==}
     dev: true
+
+  /@types/ws/8.5.4:
+    resolution: {integrity: sha512-zdQDHKUgcX/zBc4GrwsE/7dVdAD8JR4EuiAXiiUhhfyIJXXb2+PrGshFyeXWQPMmmZ2XxgaqclgpIC7eTXc1mg==}
+    dependencies:
+      '@types/node': 18.11.18
 
   /@typescript-eslint/eslint-plugin/5.54.1_ywupnmau2n6t67hboir3d2uuqq:
     resolution: {integrity: sha512-a2RQAkosH3d3ZIV08s3DcL/mcGc2M/UC528VkPULFxR9VnVPT8pBu0IyBAJJmVsCmhVfwQX1v6q+QGnmSe1bew==}
@@ -4293,6 +4317,11 @@ packages:
   /isexe/2.0.0:
     resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
 
+  /isomorphic-ws/5.0.0:
+    resolution: {integrity: sha512-muId7Zzn9ywDsyXgTIafTry2sV3nySZeUDe6YedVd1Hvuuep5AsIlqK+XefWpYTyJG5e503F2xIuT2lcU6rCSw==}
+    peerDependencies:
+      ws: '*'
+
   /itty-router-extras/0.4.2:
     resolution: {integrity: sha512-ppHaBzcTXs7idFSDISehG+8kif2/4aqLCfyY/Y/uIZv79sfEfNmTq9G+rDeqblun/VZRBiXZD8ztYmMS8EOsKw==}
     dev: false
@@ -4303,6 +4332,9 @@ packages:
   /javascript-natural-sort/0.7.1:
     resolution: {integrity: sha512-nO6jcEfZWQXDhOiBtG2KvKyEptz7RVbpGP4vTD2hLBdmNQSsCiicO2Ioinv6UI4y9ukqnBpy+XZ9H6uLNgJTlw==}
     dev: true
+
+  /js-base64/3.7.5:
+    resolution: {integrity: sha512-3MEt5DTINKqfScXKfJFrRbxkrnk2AxPWGBL/ycjz4dK8iqiSJ06UxD8jh8xuh6p10TX4t2+7FsBYVxxQbMg+qA==}
 
   /js-sdsl/4.3.0:
     resolution: {integrity: sha512-mifzlm2+5nZ+lEcLJMoBK0/IH/bDg8XnJfd/Wq6IP+xoCjLZsTOnV2QpxlVbX9bMnkl5PdEjNtBJ9Cj1NjifhQ==}
@@ -4366,7 +4398,7 @@ packages:
     resolution: {integrity: sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ==}
     engines: {node: '>=6'}
 
-  /knex/2.4.2_uvf4rh4xmredyjbq46jtk67wnu:
+  /knex/2.4.2_njtncz6jyfjov6k5k2qxxmmzhy:
     resolution: {integrity: sha512-tMI1M7a+xwHhPxjbl/H9K1kHX+VncEYcvCx5K00M16bWvpYPKAZd6QrCu68PtHAdIZNQPWZn0GVhqVBEthGWCg==}
     engines: {node: '>=12'}
     hasBin: true
