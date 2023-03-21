@@ -388,6 +388,20 @@ await db.select().from(users).orderBy(desc(users.name));
 await db.select().from(users).orderBy(asc(users.name), desc(users.name));
 ```
 
+#### Select from/join raw SQL
+
+```typescript
+await db.select({ x: sql<number>`x` }).from(sql`generate_series(2, 4) as g(x)`);
+
+await db
+  .select({
+    x1: sql<number>`g1.x`,
+    x2: sql<number>`g2.x`
+  })
+  .from(sql`generate_series(2, 4) as g1(x)`)
+  .leftJoin(sql`generate_series(2, 4) as g2(x)`);
+```
+
 #### Conditionally select fields
 
 ```typescript
@@ -440,7 +454,6 @@ eq(column1, column2)
 ne(column, value)
 ne(column1, column2)
 
-notEq(column, value)
 less(column, value)
 lessEq(column, value)
 
