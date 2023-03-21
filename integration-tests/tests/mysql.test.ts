@@ -173,7 +173,7 @@ test.beforeEach(async (t) => {
 		sql`create table \`userstest\` (
 			\`id\` serial primary key,
 			\`name\` text not null,
-			\`verified\` boolean not null default false, 
+			\`verified\` boolean not null default false,
 			\`jsonb\` json,
 			\`created_at\` timestamp not null default now()
 		)`,
@@ -483,6 +483,38 @@ test.serial('insert with onDuplicate', async (t) => {
 	);
 
 	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
+});
+
+test.serial('insert conflict', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable)
+		.values({ name: 'John' });
+
+	await t.throwsAsync(
+		() => db.insert(usersTable).values({ id: 1, name: 'John1' }),
+		{
+			code: 'ER_DUP_ENTRY',
+			message: "Duplicate entry '1' for key 'userstest.PRIMARY'",
+		},
+	);
+});
+
+test.serial('insert conflict with ignore', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable)
+		.values({ name: 'John' });
+
+	await db.insert(usersTable)
+		.ignore()
+		.values({ id: 1, name: 'John1' });
+
+	const res = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(
+		eq(usersTable.id, 1),
+	);
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
 });
 
 test.serial('insert sql', async (t) => {
