@@ -1205,6 +1205,41 @@ test.serial('materialized view', async (t) => {
 	await db.execute(sql`drop materialized view ${newYorkers1}`);
 });
 
+test.serial('select from raw sql', async (t) => {
+	const { db } = t.context;
+
+	const result = await db.select({
+		id: sql<number>`id`,
+		name: sql<string>`name`,
+	}).from(sql`(select 1 as id, 'John' as name) as users`);
+
+	Expect<Equal<{ id: number; name: string }[], typeof result>>;
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'John' },
+	]);
+});
+
+test.serial('select from raw sql with joins', async (t) => {
+	const { db } = t.context;
+
+	const result = await db
+		.select({
+			id: sql<number>`users.id`,
+			name: sql<string>`users.name`,
+			userCity: sql<string>`users.city`,
+			cityName: sql<string>`cities.name`,
+		})
+		.from(sql`(select 1 as id, 'John' as name, 'New York' as city) as users`)
+		.leftJoin(sql`(select 1 as id, 'Paris' as name) as cities`, sql`cities.id = users.id`);
+
+	Expect<Equal<{ id: number; name: string; userCity: string; cityName: string }[], typeof result>>;
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'John', userCity: 'New York', cityName: 'Paris' },
+	]);
+});
+
 test.serial('join on aliased sql from select', async (t) => {
 	const { db } = t.context;
 

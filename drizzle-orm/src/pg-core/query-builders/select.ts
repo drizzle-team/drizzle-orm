@@ -94,7 +94,7 @@ export abstract class PgSelectQueryBuilder<
 
 	protected config: PgSelectConfig;
 	protected joinsNotNullableMap: Record<string, boolean>;
-	private tableName: string | SQL;
+	private tableName: string | undefined;
 
 	constructor(
 		table: PgSelectConfig['table'],
@@ -122,7 +122,7 @@ export abstract class PgSelectQueryBuilder<
 			: table instanceof PgViewBase
 			? table[ViewBaseConfig].name
 			: table instanceof SQL
-			? table
+			? undefined
 			: table[Table.Symbol.Name];
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
 	}
