@@ -338,7 +338,6 @@ test.serial('insert + select', async (t) => {
 	t.deepEqual(result2, [{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
 });
 
-/* TODO
 test.serial('json insert', async (t) => {
 	const { db } = t.context;
 
@@ -351,9 +350,7 @@ test.serial('json insert', async (t) => {
 
 	t.deepEqual(result, [{ id: 1, name: 'John', json: ['foo', 'bar'] }]);
 });
-*/
 
-/* TODO
 test.serial('insert many', async (t) => {
 	const { db } = t.context;
 
@@ -377,13 +374,11 @@ test.serial('insert many', async (t) => {
 		{ id: 4, name: 'Austin', json: null, verified: 1 },
 	]);
 });
-*/
 
-/* TODO
-test.serial('insert many with returning', (t) => {
+test.serial('insert many with returning', async (t) => {
 	const { db } = t.context;
 
-	const result = db.insert(usersTable).values(
+	const result = await db.insert(usersTable).values(
 		{ name: 'John' },
 		{ name: 'Bruce', json: ['foo', 'bar'] },
 		{ name: 'Jane' },
@@ -404,7 +399,6 @@ test.serial('insert many with returning', (t) => {
 		{ id: 4, name: 'Austin', json: null, verified: 1 },
 	]);
 });
-*/
 
 /* TODO:
 test.serial('partial join with alias', async (t) => {
