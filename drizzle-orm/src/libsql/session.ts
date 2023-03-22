@@ -115,7 +115,7 @@ function normalizeRow(obj: any) {
 }
 
 function normalizeFieldValue(value: unknown) {
-	if (value instanceof Uint8Array) {
+	if (value instanceof ArrayBuffer) {
 		if (typeof Buffer !== 'undefined') {
 			if (!(value instanceof Buffer)) {
 				return Buffer.from(value);
