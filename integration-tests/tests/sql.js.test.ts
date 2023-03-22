@@ -8,7 +8,7 @@ import { Name, name, placeholder } from 'drizzle-orm/sql';
 import type { SQLJsDatabase } from 'drizzle-orm/sql-js';
 import { drizzle } from 'drizzle-orm/sql-js';
 import { migrate } from 'drizzle-orm/sql-js/migrator';
-import { type InferModel, sqliteView } from 'drizzle-orm/sqlite-core';
+import { type InferModel, sqliteTableCreator, sqliteView } from 'drizzle-orm/sqlite-core';
 import { alias, blob, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { getViewConfig } from 'drizzle-orm/sqlite-core/utils';
 import type { Equal } from 'drizzle-orm/utils';
@@ -1097,4 +1097,29 @@ test.serial('join on aliased sql from with clause', (t) => {
 	t.deepEqual(result, [
 		{ userId: 1, name: 'John', userCity: 'New York', cityId: 1, cityName: 'Paris' },
 	]);
+});
+
+test.serial('prefixed table', (t) => {
+	const { db } = t.context;
+
+	const sqliteTable = sqliteTableCreator((name) => `myprefix_${name}`);
+
+	const users = sqliteTable('test_prefixed_table_with_unique_name', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table myprefix_test_prefixed_table_with_unique_name (id integer not null primary key, name text not null)`,
+	);
+
+	db.insert(users).values({ id: 1, name: 'John' }).run();
+
+	const result = db.select().from(users).all();
+
+	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+
+	db.run(sql`drop table ${users}`);
 });

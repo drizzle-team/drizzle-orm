@@ -146,3 +146,10 @@ export function mysqlTable<
 }> {
 	return mysqlTableWithSchema(name, columns, extraConfig, undefined);
 }
+
+export function mysqlTableCreator(customizeTableName: (name: string) => string): typeof mysqlTable {
+	const builder: typeof mysqlTable = (name, columns, extraConfig) => {
+		return mysqlTable(customizeTableName(name) as typeof name, columns, extraConfig);
+	};
+	return builder;
+}

@@ -5,7 +5,7 @@ import anyTest from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
 import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
-import { type AnyPgColumn, type InferModel, pgMaterializedView, pgView } from 'drizzle-orm/pg-core';
+import { type AnyPgColumn, type InferModel, pgMaterializedView, pgTableCreator, pgView } from 'drizzle-orm/pg-core';
 import { alias, boolean, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { getMaterializedViewConfig, getViewConfig } from 'drizzle-orm/pg-core/utils';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
@@ -1300,4 +1300,29 @@ test.serial('join on aliased sql from with clause', async (t) => {
 	t.deepEqual(result, [
 		{ userId: 1, name: 'John', userCity: 'New York', cityId: 1, cityName: 'Paris' },
 	]);
+});
+
+test.serial('prefixed table', async (t) => {
+	const { db } = t.context;
+
+	const pgTable = pgTableCreator((name) => `myprefix_${name}`);
+
+	const users = pgTable('test_prefixed_table_with_unique_name', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table myprefix_test_prefixed_table_with_unique_name (id integer not null primary key, name text not null)`,
+	);
+
+	await db.insert(users).values({ id: 1, name: 'John' });
+
+	const result = await db.select().from(users);
+
+	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+
+	await db.execute(sql`drop table ${users}`);
 });
