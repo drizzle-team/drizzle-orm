@@ -136,7 +136,7 @@ export const cities = sqliteTable('cities', {
 })
 ```
 
-Database and table entity types
+### Database and table entity types
 
 ```typescript
 import { InferModel, text, integer, sqliteTable } from 'drizzle-orm/sqlite-core';
@@ -163,7 +163,24 @@ const insertUser = (user: InsertUser) => {
 }
 ```
 
-The list of all column types. You can also create custom types - [see here](https://github.com/drizzle-team/drizzle-orm/blob/main/docs/custom-types.md).
+### Customizing the table name
+
+There is a "table creator" available, which allow you to customize the table name, for example, to add a prefix or suffix. This is useful if you need to have tables for different environments or applications in the same database.
+
+```ts
+import { sqliteTableCreator } from 'drizzle-orm/sqlite-core';
+
+const sqliteTable = sqliteTableCreator((name) => `myprefix_${name}`);
+
+const users = sqliteTable('users', {
+  id: int('id').primaryKey(),
+  name: text('name').notNull(),
+});
+```
+
+## Column types
+
+The list of all column types. You can also create custom types - [see here](/docs/custom-types.md)
 
 ```typescript
 integer('...')
