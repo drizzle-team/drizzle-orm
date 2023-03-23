@@ -19,6 +19,8 @@ import postgres from 'postgres';
 import { v4 as uuid } from 'uuid';
 import { type Equal, Expect } from './utils';
 
+const QUERY_LOGGING = false;
+
 const usersTable = pgTable('users', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
@@ -126,7 +128,7 @@ test.before(async (t) => {
 		console.error('Cannot connect to Postgres');
 		throw lastError;
 	}
-	ctx.db = drizzle(ctx.client /* , { logger: new DefaultLogger() } */);
+	ctx.db = drizzle(ctx.client, { logger: QUERY_LOGGING });
 });
 
 test.after.always(async (t) => {

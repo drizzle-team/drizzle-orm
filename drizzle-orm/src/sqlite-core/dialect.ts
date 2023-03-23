@@ -1,7 +1,7 @@
 import type { AnyColumn } from '~/column';
 import { Column } from '~/column';
 import type { MigrationMeta } from '~/migrator';
-import type { Query, SQLSourceParam } from '~/sql';
+import type { Query, SQLChunk } from '~/sql';
 import { Name, param, SQL, sql } from '~/sql';
 import type { AnySQLiteColumn } from '~/sqlite-core/columns';
 import { SQLiteColumn } from '~/sqlite-core/columns';
@@ -88,7 +88,7 @@ export abstract class SQLiteDialect {
 
 		const chunks = fields
 			.map(({ field }, i) => {
-				const chunk: SQLSourceParam[] = [];
+				const chunk: SQLChunk[] = [];
 
 				if (field instanceof SQL.Aliased && field.isSelectionField) {
 					chunk.push(new Name(field.fieldAlias));
@@ -98,7 +98,7 @@ export abstract class SQLiteDialect {
 					if (isSingleTable) {
 						chunk.push(
 							new SQL(
-								query.queryChunks.map((c) => {
+								query.chunks.map((c) => {
 									if (c instanceof SQLiteColumn) {
 										return new Name(c.name);
 									}
@@ -239,7 +239,7 @@ export abstract class SQLiteDialect {
 
 	buildInsertQuery({ table, values, onConflict, returning }: SQLiteInsertConfig): SQL {
 		const isSingleValue = values.length === 1;
-		const valuesSqlList: ((SQLSourceParam | SQL)[] | SQL)[] = [];
+		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, AnySQLiteColumn> = table[Table.Symbol.Columns];
 		const colEntries: [string, AnySQLiteColumn][] = isSingleValue
 			? Object.keys(values[0]!).map((fieldName) => [fieldName, columns[fieldName]!])
@@ -247,7 +247,7 @@ export abstract class SQLiteDialect {
 		const insertOrder = colEntries.map(([, column]) => new Name(column.name));
 
 		values.forEach((value, valueIndex) => {
-			const valueList: (SQLSourceParam | SQL)[] = [];
+			const valueList: (SQLChunk | SQL)[] = [];
 			colEntries.forEach(([fieldName, col]) => {
 				const colValue = value[fieldName];
 				if (typeof colValue === 'undefined') {

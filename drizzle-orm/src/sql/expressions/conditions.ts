@@ -1,12 +1,25 @@
 import { type AnyColumn, Column, type GetColumnData } from '~/column';
-import { isSQLWrapper, Param, Placeholder, type SQL, sql, type SQLSourceParam, type SQLWrapper } from '../index';
+import { Table } from '~/table';
+import { View } from '~/view';
+import {
+	isDriverValueEncoder,
+	isSQLWrapper,
+	Param,
+	Placeholder,
+	type SQL,
+	sql,
+	type SQLChunk,
+	type SQLWrapper,
+} from '../index';
 
-export function bindIfParam(value: unknown, column: AnyColumn | SQL.Aliased): SQLSourceParam {
-	if (value instanceof Column || value instanceof Placeholder || isSQLWrapper(column)) {
-		return value as (AnyColumn | Placeholder | SQLWrapper);
-	} else {
+export function bindIfParam(value: unknown, column: AnyColumn | SQL.Aliased): SQLChunk {
+	if (
+		isDriverValueEncoder(column) && !isSQLWrapper(value) && !(value instanceof Param) && !(value instanceof Placeholder)
+		&& !(value instanceof Column) && !(value instanceof Table) && !(value instanceof View)
+	) {
 		return new Param(value, column);
 	}
+	return value as SQLChunk;
 }
 
 export function eq<T>(

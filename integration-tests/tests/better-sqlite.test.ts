@@ -14,6 +14,8 @@ import { getViewConfig } from 'drizzle-orm/sqlite-core/utils';
 import type { Equal } from 'drizzle-orm/utils';
 import { Expect } from './utils';
 
+const ENABLE_LOGGING = false;
+
 const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
@@ -84,7 +86,7 @@ test.before((t) => {
 	const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
 
 	ctx.client = new Database(dbPath);
-	ctx.db = drizzle(ctx.client, { logger: false });
+	ctx.db = drizzle(ctx.client, { logger: ENABLE_LOGGING });
 });
 
 test.after.always((t) => {
