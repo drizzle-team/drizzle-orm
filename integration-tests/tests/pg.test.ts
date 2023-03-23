@@ -1189,7 +1189,7 @@ test.serial('select count w/ custom mapper', async (t) => {
 	function count(value: AnyPgColumn | SQLWrapper): SQL<number>;
 	function count(value: AnyPgColumn | SQLWrapper, alias: string): SQL.Aliased<number>;
 	function count(value: AnyPgColumn | SQLWrapper, alias?: string): SQL<number> | SQL.Aliased<number> {
-		const result = sql`count(${value})`.mapWith((v) => parseInt(v, 10));
+		const result = sql`count(${value})`.chunks((v) => parseInt(v, 10));
 		if (!alias) {
 			return result;
 		}
