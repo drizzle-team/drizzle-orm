@@ -148,7 +148,7 @@ test.beforeEach(async (t) => {
 		sql`create table users (
 			id serial primary key,
 			name text not null,
-			verified boolean not null default false, 
+			verified boolean not null default false,
 			jsonb jsonb,
 			created_at timestamptz not null default now()
 		)`,
@@ -166,6 +166,38 @@ test.serial('select all fields', async (t) => {
 	t.assert(result[0]!.createdAt instanceof Date);
 	t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 100);
 	t.deepEqual(result, [{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+});
+
+test.serial('select empty executeTakeFirst', async (t) => {
+	const { db } = t.context;
+
+	const result = await db.select().from(usersTable).executeTakeFirst();
+
+	t.deepEqual(result, undefined);
+});
+
+test.serial('select full executeTakeFirst', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ name: 'John' });
+	const result = await db.select().from(usersTable).executeTakeFirst();
+
+	t.deepEqual(result, { id: 1, name: 'John', verified: false, jsonb: null, createdAt: result!.createdAt });
+});
+
+test.serial('select empty executeTakeFirstOrThrow', async (t) => {
+	const { db } = t.context;
+
+	await t.throwsAsync(() => db.select().from(usersTable).executeTakeFirstOrThrow());
+});
+
+test.serial('select full executeTakeFirstOrThrow', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ name: 'John' });
+	const result = await db.select().from(usersTable).executeTakeFirstOrThrow();
+
+	t.deepEqual(result, { id: 1, name: 'John', verified: false, jsonb: null, createdAt: result.createdAt });
 });
 
 test.serial('select sql', async (t) => {

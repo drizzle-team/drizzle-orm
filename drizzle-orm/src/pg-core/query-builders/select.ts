@@ -356,6 +356,18 @@ export class PgSelect<
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return this._prepare().execute(placeholderValues);
 	};
+
+	executeTakeFirst = async (placeholderValues?: Record<string, unknown>) => {
+		return (await this.execute(placeholderValues)).at(0);
+	};
+
+	executeTakeFirstOrThrow = async (placeholderValues?: Record<string, unknown>) => {
+		const row = await this.executeTakeFirst(placeholderValues);
+		if (row === undefined) {
+			throw new Error('no result');
+		}
+		return row;
+	};
 }
 
 applyMixins(PgSelect, [QueryPromise]);
