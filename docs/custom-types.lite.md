@@ -233,7 +233,7 @@ export type CustomTypeValues = {
 
 export interface CustomTypeParams<T extends CustomTypeValues> {
   /**
-   * Database data type string represenation, that is used for migrations
+   * Database data type string representation, that is used for migrations
    * @example
    * ```
    * `jsonb`, `text`
