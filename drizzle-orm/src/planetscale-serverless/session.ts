@@ -1,6 +1,5 @@
 import type { Connection, ExecutedQuery } from '@planetscale/database';
-import { connect } from '@planetscale/database';
-import type { Logger} from '~/logger';
+import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
 import type { MySqlDialect } from '~/mysql-core/dialect';
 import type { SelectFieldsOrdered } from '~/mysql-core/query-builders/select.types';

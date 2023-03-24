@@ -29,11 +29,3 @@ export type SelectFieldsOrdered<TColumn extends AnyColumn> = {
 	path: string[];
 	field: TColumn | SQL | SQL.Aliased;
 }[];
-
-// export function normalizeSQLCallback<TReturn, TTable extends Table, TColumn extends AnyColumn, TSelection>(
-// 	builder: (fields: TSelection) => TReturn,
-// 	fields: SelectFields<TColumn, TTable>,
-// ): TReturn {
-// 	const aliases = new Proxy(fields, new SelectionProxyHandler()) as TSelection;
-// 	return builder(aliases);
-// }
