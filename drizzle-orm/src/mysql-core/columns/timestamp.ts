@@ -50,7 +50,7 @@ export class MySqlTimestamp<
 	}
 
 	override mapFromDriverValue(value: string): Date {
-		return new Date(value);
+		return new Date(value + '+0000');
 	}
 }
 

@@ -46,7 +46,7 @@ export class PgTimestamp<TTableName extends string>
 	}
 
 	override mapFromDriverValue = (value: string): Date => {
-		return new Date(value);
+		return new Date(this.withTimezone ? value : value+ '+0000');
 	};
 }
 
