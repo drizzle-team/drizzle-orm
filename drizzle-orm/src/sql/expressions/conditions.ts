@@ -1,9 +1,9 @@
-import { AnyColumn, Column, GetColumnData } from '../../column';
-import { isSQLWrapper, Param, Placeholder, SQL, sql, SQLSourceParam, SQLWrapper } from '..';
+import { type AnyColumn, Column, type GetColumnData } from '~/column';
+import { isSQLWrapper, Param, Placeholder, type SQL, sql, type SQLSourceParam, type SQLWrapper } from '../index';
 
 export function bindIfParam(value: unknown, column: AnyColumn | SQL.Aliased): SQLSourceParam {
-	if (value instanceof Column || value instanceof Placeholder || column instanceof SQL.Aliased) {
-		return value as (AnyColumn | Placeholder | SQL.Aliased);
+	if (value instanceof Column || value instanceof Placeholder || isSQLWrapper(column)) {
+		return value as (AnyColumn | Placeholder | SQLWrapper);
 	} else {
 		return new Param(value, column);
 	}

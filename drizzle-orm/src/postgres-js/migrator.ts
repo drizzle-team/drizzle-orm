@@ -1,5 +1,6 @@
-import { MigrationConfig, readMigrationFiles } from '~/migrator';
-import { PostgresJsDatabase } from './driver';
+import type { MigrationConfig} from '~/migrator';
+import { readMigrationFiles } from '~/migrator';
+import type { PostgresJsDatabase } from './driver';
 
 export async function migrate(db: PostgresJsDatabase, config: string | MigrationConfig) {
 	const migrations = readMigrationFiles(config);

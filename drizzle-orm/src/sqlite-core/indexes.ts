@@ -1,7 +1,7 @@
-import { SQL } from '~/sql';
+import type { SQL } from '~/sql';
 
-import { AnySQLiteColumn } from './columns';
-import { AnySQLiteTable } from './table';
+import type { AnySQLiteColumn } from './columns';
+import type { AnySQLiteTable } from './table';
 
 export interface IndexConfig {
 	name: string;

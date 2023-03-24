@@ -1,7 +1,9 @@
-import { DefaultLogger, Logger } from '~/logger';
+import type { Logger } from '~/logger';
+import { DefaultLogger } from '~/logger';
 import { MySqlDialect } from '~/mysql-core/dialect';
 import { MySqlDatabase } from '.';
-import { MySql2Client, MySql2QueryResultHKT, MySql2Session } from './session';
+import type { MySql2Client, MySql2QueryResultHKT} from './session';
+import { MySql2Session } from './session';
 
 export interface MySqlDriverOptions {
 	logger?: Logger;

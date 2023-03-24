@@ -1,8 +1,9 @@
-import { ColumnBaseConfig } from '~/column';
-import { ColumnBuilderBaseConfig, ColumnBuilderConfig, UpdateCBConfig } from '~/column-builder';
-import { SQL, sql } from '~/sql';
-import { OnConflict } from '~/sqlite-core/utils';
-import { AnySQLiteTable } from '../table';
+import type { ColumnBaseConfig } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderConfig, UpdateCBConfig } from '~/column-builder';
+import type { SQL} from '~/sql';
+import { sql } from '~/sql';
+import type { OnConflict } from '~/sqlite-core/utils';
+import type { AnySQLiteTable } from '../table';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common';
 
 export interface PrimaryKeyConfig {

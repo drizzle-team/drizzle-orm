@@ -1,11 +1,14 @@
-import { Column, ColumnBaseConfig } from '~/column';
-import { ColumnBuilder, ColumnBuilderBaseConfig, ColumnBuilderWithConfig, UpdateCBConfig } from '~/column-builder';
-import { SQL } from '~/sql';
-import { Update } from '~/utils';
-import { Simplify } from '~/utils';
+import type { ColumnBaseConfig } from '~/column';
+import { Column } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderWithConfig, UpdateCBConfig } from '~/column-builder';
+import { ColumnBuilder } from '~/column-builder';
+import type { SQL } from '~/sql';
+import type { Update } from '~/utils';
+import type { Simplify } from '~/utils';
 
-import { ForeignKey, ForeignKeyBuilder, UpdateDeleteAction } from '~/sqlite-core/foreign-keys';
-import { AnySQLiteTable } from '~/sqlite-core/table';
+import type { ForeignKey, UpdateDeleteAction } from '~/sqlite-core/foreign-keys';
+import { ForeignKeyBuilder } from '~/sqlite-core/foreign-keys';
+import type { AnySQLiteTable } from '~/sqlite-core/table';
 
 export interface ReferenceConfig {
 	ref: () => AnySQLiteColumn;

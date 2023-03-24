@@ -6,5 +6,8 @@ export * from './dialect';
 export * from './foreign-keys';
 export * from './indexes';
 export * from './primary-keys';
+export * from './query-builders';
+export * from './schema';
 export * from './session';
 export * from './table';
+export * from './view';

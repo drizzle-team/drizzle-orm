@@ -1,18 +1,20 @@
-import { MySqlDialect } from '~/mysql-core/dialect';
-import {
+import type { MySqlDialect } from '~/mysql-core/dialect';
+import type {
 	MySqlSession,
 	PreparedQuery,
 	PreparedQueryConfig,
 	QueryResultHKT,
 	QueryResultKind,
 } from '~/mysql-core/session';
-import { AnyMySqlTable, InferModel } from '~/mysql-core/table';
+import type { AnyMySqlTable, InferModel } from '~/mysql-core/table';
 import { QueryPromise } from '~/query-promise';
-import { Param, Placeholder, Query, SQL, sql, SQLWrapper } from '~/sql';
+import type { Placeholder, Query, SQLWrapper } from '~/sql';
+import { Param, SQL, sql } from '~/sql';
 import { Table } from '~/table';
-import { mapUpdateSet, Simplify } from '~/utils';
-import { SelectFieldsOrdered } from './select.types';
-import { MySqlUpdateSetSource } from './update';
+import type { Simplify } from '~/utils';
+import { mapUpdateSet } from '~/utils';
+import type { SelectFieldsOrdered } from './select.types';
+import type { MySqlUpdateSetSource } from './update';
 export interface MySqlInsertConfig<TTable extends AnyMySqlTable = AnyMySqlTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[];

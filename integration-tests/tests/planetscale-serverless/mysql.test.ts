@@ -1,7 +1,8 @@
 import 'dotenv/config';
 
 import { connect } from '@planetscale/database';
-import anyTest, { TestFn } from 'ava';
+import type { TestFn } from 'ava';
+import anyTest from 'ava';
 import { sql } from 'drizzle-orm';
 import { asc, eq } from 'drizzle-orm/expressions';
 import {
@@ -19,7 +20,8 @@ import {
 	uniqueIndex,
 	year,
 } from 'drizzle-orm/mysql-core';
-import { drizzle, PlanetScaleDatabase } from 'drizzle-orm/planetscale-serverless';
+import type { PlanetScaleDatabase } from 'drizzle-orm/planetscale-serverless';
+import { drizzle } from 'drizzle-orm/planetscale-serverless';
 import { migrate } from 'drizzle-orm/planetscale-serverless/migrator';
 import { name, placeholder } from 'drizzle-orm/sql';
 

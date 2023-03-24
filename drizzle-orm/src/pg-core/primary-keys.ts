@@ -1,5 +1,6 @@
-import { AnyPgColumn } from './columns';
-import { AnyPgTable, PgTable } from './table';
+import type { AnyPgColumn } from './columns';
+import type { AnyPgTable} from './table';
+import { PgTable } from './table';
 
 export function primaryKey<
 	TTableName extends string,

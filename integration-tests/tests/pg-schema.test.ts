@@ -1,11 +1,15 @@
 import 'dotenv/config';
 
-import anyTest, { TestFn } from 'ava';
+import type { TestFn } from 'ava';
+import anyTest from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
 import { asc, eq } from 'drizzle-orm/expressions';
-import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { alias, boolean, InferModel, jsonb, pgSchema, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { char, type InferModel, integer } from 'drizzle-orm/pg-core';
+import { alias, boolean, jsonb, pgSchema, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { getMaterializedViewConfig, getViewConfig } from 'drizzle-orm/pg-core/utils';
 import { Name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import { Client } from 'pg';
@@ -13,12 +17,24 @@ import { v4 as uuid } from 'uuid';
 
 const mySchema = pgSchema('mySchema');
 
-const usersTable = mySchema('users', {
+const usersTable = mySchema.table('users', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
 	jsonb: jsonb<string[]>('jsonb'),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+const citiesTable = mySchema.table('cities', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	state: char('state', { length: 2 }),
+});
+
+const users2Table = mySchema.table('users2', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	cityId: integer('city_id').references(() => citiesTable.id),
 });
 
 const publicUsersTable = pgTable('users', {
@@ -112,6 +128,20 @@ test.beforeEach(async (t) => {
 			verified boolean not null default false, 
 			jsonb jsonb,
 			created_at timestamptz not null default now()
+		)`,
+	);
+	await ctx.db.execute(
+		sql`create table "mySchema".cities (
+			id serial primary key,
+			name text not null,
+			state char(2)
+		)`,
+	);
+	await ctx.db.execute(
+		sql`create table "mySchema".users2 (
+			id serial primary key,
+			name text not null,
+			city_id integer references "mySchema".cities(id)
 		)`,
 	);
 });
@@ -697,4 +727,137 @@ test.serial('select from tables with same name from different schema using alias
 			createdAt: result[0]!.customer!.createdAt,
 		},
 	}]);
+});
+
+test.serial('view', async (t) => {
+	const { db } = t.context;
+
+	const newYorkers1 = mySchema.view('new_yorkers')
+		.as((qb) => qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
+
+	const newYorkers2 = mySchema.view('new_yorkers', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: integer('city_id').notNull(),
+	}).as(sql`select * from ${users2Table} where ${eq(users2Table.cityId, 1)}`);
+
+	const newYorkers3 = mySchema.view('new_yorkers', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: integer('city_id').notNull(),
+	}).existing();
+
+	await db.execute(sql`create view ${newYorkers1} as ${getViewConfig(newYorkers1).query}`);
+
+	await db.insert(citiesTable).values({ name: 'New York' }, { name: 'Paris' });
+
+	await db.insert(users2Table).values(
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 1 },
+		{ name: 'Jack', cityId: 2 },
+	);
+
+	{
+		const result = await db.select().from(newYorkers1);
+		t.deepEqual(result, [
+			{ id: 1, name: 'John', cityId: 1 },
+			{ id: 2, name: 'Jane', cityId: 1 },
+		]);
+	}
+
+	{
+		const result = await db.select().from(newYorkers2);
+		t.deepEqual(result, [
+			{ id: 1, name: 'John', cityId: 1 },
+			{ id: 2, name: 'Jane', cityId: 1 },
+		]);
+	}
+
+	{
+		const result = await db.select().from(newYorkers3);
+		t.deepEqual(result, [
+			{ id: 1, name: 'John', cityId: 1 },
+			{ id: 2, name: 'Jane', cityId: 1 },
+		]);
+	}
+
+	{
+		const result = await db.select({ name: newYorkers1.name }).from(newYorkers1);
+		t.deepEqual(result, [
+			{ name: 'John' },
+			{ name: 'Jane' },
+		]);
+	}
+
+	await db.execute(sql`drop view ${newYorkers1}`);
+});
+
+test.serial('materialized view', async (t) => {
+	const { db } = t.context;
+
+	const newYorkers1 = mySchema.materializedView('new_yorkers')
+		.as((qb) => qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
+
+	const newYorkers2 = mySchema.materializedView('new_yorkers', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: integer('city_id').notNull(),
+	}).as(sql`select * from ${users2Table} where ${eq(users2Table.cityId, 1)}`);
+
+	const newYorkers3 = mySchema.materializedView('new_yorkers', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: integer('city_id').notNull(),
+	}).existing();
+
+	await db.execute(sql`create materialized view ${newYorkers1} as ${getMaterializedViewConfig(newYorkers1).query}`);
+
+	await db.insert(citiesTable).values({ name: 'New York' }, { name: 'Paris' });
+
+	await db.insert(users2Table).values(
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 1 },
+		{ name: 'Jack', cityId: 2 },
+	);
+
+	{
+		const result = await db.select().from(newYorkers1);
+		t.deepEqual(result, []);
+	}
+
+	await db.refreshMaterializedView(newYorkers1);
+
+	{
+		const result = await db.select().from(newYorkers1);
+		t.deepEqual(result, [
+			{ id: 1, name: 'John', cityId: 1 },
+			{ id: 2, name: 'Jane', cityId: 1 },
+		]);
+	}
+
+	{
+		const result = await db.select().from(newYorkers2);
+		t.deepEqual(result, [
+			{ id: 1, name: 'John', cityId: 1 },
+			{ id: 2, name: 'Jane', cityId: 1 },
+		]);
+	}
+
+	{
+		const result = await db.select().from(newYorkers3);
+		t.deepEqual(result, [
+			{ id: 1, name: 'John', cityId: 1 },
+			{ id: 2, name: 'Jane', cityId: 1 },
+		]);
+	}
+
+	{
+		const result = await db.select({ name: newYorkers1.name }).from(newYorkers1);
+		t.deepEqual(result, [
+			{ name: 'John' },
+			{ name: 'Jane' },
+		]);
+	}
+
+	await db.execute(sql`drop materialized view ${newYorkers1}`);
 });

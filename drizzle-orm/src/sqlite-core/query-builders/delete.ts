@@ -1,10 +1,11 @@
-import { Query, SQL, SQLWrapper } from '~/sql';
-import { SQLiteDialect } from '~/sqlite-core/dialect';
+import type { Query, SQL, SQLWrapper } from '~/sql';
+import type { SQLiteDialect } from '~/sqlite-core/dialect';
 
-import { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
-import { AnySQLiteTable, InferModel, SQLiteTable } from '~/sqlite-core/table';
+import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
+import type { AnySQLiteTable, InferModel} from '~/sqlite-core/table';
+import { SQLiteTable } from '~/sqlite-core/table';
 import { orderSelectedFields } from '~/utils';
-import { SelectFieldsFlat, SelectFieldsOrdered, SelectResultFields } from './select.types';
+import type { SelectFieldsFlat, SelectFieldsOrdered, SelectResultFields } from './select.types';
 
 export interface SQLiteDeleteConfig {
 	where?: SQL | undefined;

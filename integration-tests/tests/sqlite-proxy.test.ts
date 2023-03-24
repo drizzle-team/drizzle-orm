@@ -1,13 +1,15 @@
 import 'dotenv/config';
 
-import anyTest, { TestFn } from 'ava';
-import BetterSqlite3 from 'better-sqlite3';
+import type { TestFn } from 'ava';
+import anyTest from 'ava';
+import type BetterSqlite3 from 'better-sqlite3';
 import Database from 'better-sqlite3';
 import { sql } from 'drizzle-orm';
 import { asc, eq } from 'drizzle-orm/expressions';
 import { Name, placeholder } from 'drizzle-orm/sql';
 import { alias, blob, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { drizzle as proxyDrizzle, SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
+import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
+import { drizzle as proxyDrizzle } from 'drizzle-orm/sqlite-proxy';
 
 class ServerSimulator {
 	constructor(private db: BetterSqlite3.Database) {

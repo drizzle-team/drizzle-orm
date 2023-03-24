@@ -1,16 +1,17 @@
-import { GetColumnConfig, GetColumnData, UpdateColConfig } from '~/column';
-import {
+import type { GetColumnConfig, GetColumnData, UpdateColConfig } from '~/column';
+import type {
 	SelectFields as SelectFieldsBase,
 	SelectFieldsFlat as SelectFieldsFlatBase,
 	SelectFieldsOrdered as SelectFieldsOrderedBase,
 } from '~/operations';
-import { AnyPgColumn } from '~/pg-core/columns';
-import { ChangeColumnTableName, PgColumn } from '~/pg-core/columns/common';
-import { AnyPgTable, GetTableConfig, PgTableWithColumns, TableConfig, UpdateTableConfig } from '~/pg-core/table';
-import { Placeholder, SQL } from '~/sql';
-import { GetSubqueryAlias, GetSubquerySelection, Subquery } from '~/subquery';
-import { Assume, DrizzleTypeError, Simplify } from '~/utils';
-import { PgSelect } from './select';
+import type { AnyPgColumn } from '~/pg-core/columns';
+import type { ChangeColumnTableName, PgColumn } from '~/pg-core/columns/common';
+import type { AnyPgTable, GetTableConfig, PgTableWithColumns, TableConfig, UpdateTableConfig } from '~/pg-core/table';
+import type { PgMaterializedViewWithSelection, PgViewBase, PgViewWithSelection } from '~/pg-core/view';
+import type { Placeholder, SQL } from '~/sql';
+import type { GetSubquerySelection, Subquery } from '~/subquery';
+import type { Assume, DrizzleTypeError, Equal, IfThenElse, Or, Simplify } from '~/utils';
+import type { PgSelect, PgSelectQueryBuilder } from './select';
 
 export type JoinType = 'inner' | 'left' | 'right' | 'full';
 
@@ -18,7 +19,8 @@ export type SelectMode = 'partial' | 'single' | 'multiple';
 
 export interface JoinsValue {
 	on: SQL | undefined;
-	table: AnyPgTable | Subquery;
+	table: AnyPgTable | Subquery | SQL;
+	alias: string | undefined;
 	joinType: JoinType;
 }
 
@@ -37,20 +39,22 @@ export type ApplyNullabilityToColumn<TColumn extends AnyPgColumn, TNullability e
 			>
 		: never;
 
-export type ApplyNotNullMapToJoins<TResult, TNullabilityMap extends Record<string, JoinNullability>> = {
-	[TTableName in keyof TResult & keyof TNullabilityMap & string]: ApplyNullability<
-		TResult[TTableName],
-		TNullabilityMap[TTableName]
-	>;
-};
+export type ApplyNotNullMapToJoins<TResult, TNullabilityMap extends Record<string, JoinNullability>> = Simplify<
+	{
+		[TTableName in keyof TResult & keyof TNullabilityMap & string]: ApplyNullability<
+			TResult[TTableName],
+			TNullabilityMap[TTableName]
+		>;
+	}
+>;
 
 export type SelectResult<
 	TResult,
 	TSelectMode extends SelectMode,
-	TJoinsNotNullable extends Record<string, JoinNullability>,
-> = TSelectMode extends 'partial' ? SelectPartialResult<TResult, TJoinsNotNullable>
+	TNullabilityMap extends Record<string, JoinNullability>,
+> = TSelectMode extends 'partial' ? SelectPartialResult<TResult, TNullabilityMap>
 	: TSelectMode extends 'single' ? SelectResultFields<TResult>
-	: ApplyNotNullMapToJoins<SelectResultFields<TResult>, TJoinsNotNullable>;
+	: ApplyNotNullMapToJoins<SelectResultFields<TResult>, TNullabilityMap>;
 
 type IsUnion<T, U extends T = T> = (T extends any ? (U extends T ? false : true) : never) extends false ? false : true;
 
@@ -91,61 +95,79 @@ export type BuildAliasTable<TTable extends AnyPgTable, TAlias extends string> = 
 	>
 	: never;
 
-export type MapColumnsToTableAlias<TColumns extends Record<string, AnyPgColumn>, TAlias extends string> = {
-	[Key in keyof TColumns]: ChangeColumnTableName<TColumns[Key], TAlias>;
-};
+export type MapColumnsToTableAlias<
+	TColumns extends Record<string, AnyPgColumn | SQL | SQL.Aliased>,
+	TAlias extends string,
+> = Simplify<
+	{
+		[Key in keyof TColumns]: TColumns[Key] extends AnyPgColumn ? ChangeColumnTableName<TColumns[Key], TAlias>
+			: TColumns[Key];
+	}
+>;
+
+export type AddAliasToSelection<TSelection, TAlias extends string> = Equal<TSelection, any> extends true ? any
+	: Simplify<
+		{
+			[Key in keyof TSelection]: TSelection[Key] extends AnyPgColumn ? ChangeColumnTableName<TSelection[Key], TAlias>
+				: TSelection[Key] extends SQL | SQL.Aliased ? TSelection[Key]
+				: TSelection[Key] extends Record<string, AnyPgColumn | SQL | SQL.Aliased>
+					? MapColumnsToTableAlias<TSelection[Key], TAlias>
+				: never;
+		}
+	>;
 
 export type BuildSubquerySelection<
 	TSelection,
-	TAlias extends string,
 	TNullability extends Record<string, JoinNullability>,
-> = {
-	[Key in keyof TSelection]: TSelection[Key] extends SQL
-		? DrizzleTypeError<'You cannot reference this field without assigning it an alias first - use `.as(<alias>)`'>
-		: TSelection[Key] extends SQL.Aliased ? TSelection[Key]
-		: TSelection[Key] extends AnyPgColumn ? ChangeColumnTableName<
-				ApplyNullabilityToColumn<TSelection[Key], TNullability[GetColumnConfig<TSelection[Key], 'tableName'>]>,
-				TAlias
-			>
-		: TSelection[Key] extends Record<string, any>
-			? Simplify<BuildSubquerySelection<TSelection[Key], TAlias, TNullability>>
-		: never;
-};
+> = TSelection extends never ? any : Simplify<
+	{
+		[Key in keyof TSelection]: TSelection[Key] extends SQL
+			? DrizzleTypeError<'You cannot reference this field without assigning it an alias first - use `.as(<alias>)`'>
+			: TSelection[Key] extends SQL.Aliased ? TSelection[Key]
+			: TSelection[Key] extends AnyPgColumn
+				? ApplyNullabilityToColumn<TSelection[Key], TNullability[GetColumnConfig<TSelection[Key], 'tableName'>]>
+			: TSelection[Key] extends Record<string, AnyPgColumn | SQL | SQL.Aliased>
+				? BuildSubquerySelection<TSelection[Key], TNullability>
+			: never;
+	}
+>;
 
 export type AppendToResult<
-	TTableName extends string,
+	TTableName extends string | undefined,
 	TResult,
-	TJoinedName extends string,
+	TJoinedName extends string | undefined,
 	TSelectedFields extends SelectFields,
 	TOldSelectMode extends SelectMode,
 > = TOldSelectMode extends 'partial' ? TResult
-	: TOldSelectMode extends 'single' ? Record<TTableName, TResult> & Record<TJoinedName, TSelectedFields>
-	: TResult & Record<TJoinedName, TSelectedFields>;
+	: TOldSelectMode extends 'single' ? 
+			& (TTableName extends string ? Record<TTableName, TResult> : TResult)
+			& (TJoinedName extends string ? Record<TJoinedName, TSelectedFields> : TSelectedFields)
+	: TResult & (TJoinedName extends string ? Record<TJoinedName, TSelectedFields> : TSelectedFields);
 
 type SetJoinsNullability<TNullabilityMap extends Record<string, JoinNullability>, TValue extends JoinNullability> = {
 	[Key in keyof TNullabilityMap]: TValue;
 };
 
-export type AppendToJoinsNotNull<
+export type AppendToNullabilityMap<
 	TJoinsNotNull extends Record<string, JoinNullability>,
-	TJoinedName extends string,
+	TJoinedName extends string | undefined,
 	TJoinType extends JoinType,
-> = 'left' extends TJoinType ? TJoinsNotNull & { [name in TJoinedName]: 'nullable' }
+> = TJoinedName extends string ? 'left' extends TJoinType ? TJoinsNotNull & { [name in TJoinedName]: 'nullable' }
 	: 'right' extends TJoinType ? SetJoinsNullability<TJoinsNotNull, 'nullable'> & { [name in TJoinedName]: 'not-null' }
 	: 'inner' extends TJoinType ? TJoinsNotNull & { [name in TJoinedName]: 'not-null' }
 	: 'full' extends TJoinType ? SetJoinsNullability<TJoinsNotNull, 'nullable'> & { [name in TJoinedName]: 'nullable' }
-	: never;
-
+	: never
+	: TJoinsNotNull;
 export interface PgSelectConfig {
 	withList: Subquery[];
 	fields: SelectFields;
 	fieldsList: SelectFieldsOrdered;
 	where?: SQL;
 	having?: SQL;
-	table: AnyPgTable | Subquery;
+	table: AnyPgTable | Subquery | PgViewBase | SQL;
 	limit?: number | Placeholder;
 	offset?: number | Placeholder;
-	joins: Record<string, JoinsValue>;
+	joins: JoinsValue[];
 	orderBy: (AnyPgColumn | SQL | SQL.Aliased)[];
 	groupBy: (AnyPgColumn | SQL | SQL.Aliased)[];
 	lockingClauses: {
@@ -155,19 +177,21 @@ export interface PgSelectConfig {
 }
 
 export type JoinFn<
-	TTable extends AnyPgTable | Subquery,
+	THKT extends PgSelectHKTBase,
+	TTableName extends string | undefined,
 	TSelectMode extends SelectMode,
 	TJoinType extends JoinType,
-	TResult,
-	TJoinsNotNullable extends Record<string, JoinNullability> = Record<GetSelectTableName<TTable>, 'not-null'>,
+	TSelection,
+	TNullabilityMap extends Record<string, JoinNullability>,
 > = <
-	TJoinedTable extends AnyPgTable | Subquery,
+	TJoinedTable extends AnyPgTable | Subquery | SQL,
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
->(table: TJoinedTable, on: SQL | undefined) => PgSelect<
-	TTable,
+>(table: TJoinedTable, on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined) => PgSelectKind<
+	THKT,
+	TTableName,
 	AppendToResult<
-		GetSelectTableName<TTable>,
-		TResult,
+		TTableName,
+		TSelection,
 		TJoinedName,
 		TJoinedTable extends AnyPgTable ? GetTableConfig<TJoinedTable, 'columns'>
 			: TJoinedName extends Subquery ? Assume<GetSubquerySelection<TJoinedName>, SelectFields>
@@ -175,12 +199,23 @@ export type JoinFn<
 		TSelectMode
 	>,
 	TSelectMode extends 'partial' ? TSelectMode : 'multiple',
-	AppendToJoinsNotNull<TJoinsNotNullable, TJoinedName, TJoinType>
+	AppendToNullabilityMap<TNullabilityMap, TJoinedName, TJoinType>
 >;
 
-export type GetSelectTableName<TTable extends AnyPgTable | Subquery> = TTable extends AnyPgTable
+export type GetSelectTableName<TTable extends AnyPgTable | Subquery | PgViewBase | SQL> = TTable extends AnyPgTable
 	? GetTableConfig<TTable, 'name'>
-	: TTable extends Subquery ? GetSubqueryAlias<TTable>
+	: TTable extends Subquery<infer TAlias> ? TAlias
+	: TTable extends PgViewBase<infer TAlias> ? TAlias
+	: TTable extends SQL ? undefined
+	: never;
+
+export type GetSelectTableSelection<TTable extends AnyPgTable | Subquery | PgViewBase | SQL> = TTable extends AnyPgTable
+	? GetTableConfig<TTable, 'columns'>
+	: TTable extends Subquery<string, infer TSelection> ? TSelection
+	: TTable extends
+		PgViewWithSelection<any, any, infer TSelection> | PgMaterializedViewWithSelection<any, any, infer TSelection>
+		? TSelection
+	: TTable extends SQL ? {}
 	: never;
 
 export type SelectFieldsFlat = SelectFieldsFlatBase<AnyPgColumn>;
@@ -218,3 +253,43 @@ export type LockConfig =
 		noWait?: undefined;
 		skipLocked?: undefined;
 	});
+
+export interface PgSelectHKTBase {
+	tableName: string | undefined;
+	selection: unknown;
+	selectMode: SelectMode;
+	nullabilityMap: unknown;
+	$type: unknown;
+}
+
+export type PgSelectKind<
+	T extends PgSelectHKTBase,
+	TTableName extends string | undefined,
+	TSelection,
+	TSelectMode extends SelectMode,
+	TNullabilityMap extends Record<string, JoinNullability>,
+> = (T & {
+	tableName: TTableName;
+	selection: TSelection;
+	selectMode: TSelectMode;
+	nullabilityMap: TNullabilityMap;
+})['$type'];
+
+export interface PgSelectQueryBuilderHKT extends PgSelectHKTBase {
+	$type: PgSelectQueryBuilder<
+		this,
+		this['tableName'],
+		this['selection'],
+		this['selectMode'],
+		Assume<this['nullabilityMap'], Record<string, JoinNullability>>
+	>;
+}
+
+export interface PgSelectHKT extends PgSelectHKTBase {
+	$type: PgSelect<
+		this['tableName'],
+		this['selection'],
+		this['selectMode'],
+		Assume<this['nullabilityMap'], Record<string, JoinNullability>>
+	>;
+}

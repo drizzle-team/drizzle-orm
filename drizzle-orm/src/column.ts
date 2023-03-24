@@ -1,7 +1,7 @@
-import { ColumnBuilder, ColumnBuilderBaseConfig, ColumnBuilderConfig } from './column-builder';
-import { DriverValueMapper, SQL } from './sql';
-import { Table } from './table';
-import { Update } from './utils';
+import type { ColumnBuilder, ColumnBuilderBaseConfig, ColumnBuilderConfig } from './column-builder';
+import type { DriverValueMapper, SQL } from './sql';
+import type { Table } from './table';
+import type { Update } from './utils';
 
 export interface ColumnBaseConfig extends ColumnBuilderBaseConfig {
 	tableName: string;
@@ -11,11 +11,6 @@ export type ColumnConfig<TPartial extends Partial<ColumnBaseConfig> = {}> = Upda
 	ColumnBuilderConfig & { tableName: string },
 	TPartial
 >;
-
-// export type UpdateColumnConfig<
-// 	T extends ColumnBaseConfig,
-// 	TUpdate extends Partial<ColumnBaseConfig>,
-// > = Update<T, TUpdate, keyof ColumnBaseConfig>;
 
 /*
 	`Column` only accepts a full `ColumnConfig` as its generic.
@@ -38,7 +33,10 @@ export abstract class Column<T extends Partial<ColumnBaseConfig>>
 	readonly default: T['data'] | SQL | undefined;
 	readonly hasDefault: boolean;
 
-	constructor(readonly table: Table<T['tableName']>, config: ColumnBuilder<Omit<T, 'tableName'>>['config']) {
+	constructor(
+		readonly table: Table<T['tableName']>,
+		config: ColumnBuilder<Omit<T, 'tableName'>>['config'],
+	) {
 		this.name = config.name;
 		this.notNull = config.notNull;
 		this.default = config.default;

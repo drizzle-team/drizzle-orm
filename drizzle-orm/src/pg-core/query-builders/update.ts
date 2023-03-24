@@ -1,12 +1,14 @@
-import { GetColumnData } from '~/column';
-import { PgDialect } from '~/pg-core/dialect';
+import type { GetColumnData } from '~/column';
+import type { PgDialect } from '~/pg-core/dialect';
 import { QueryPromise } from '~/query-promise';
-import { Query, SQL, SQLWrapper } from '~/sql';
-import { mapUpdateSet, orderSelectedFields, Simplify, UpdateSet } from '~/utils';
+import type { Query, SQL, SQLWrapper } from '~/sql';
+import type { Simplify, UpdateSet } from '~/utils';
+import { mapUpdateSet, orderSelectedFields } from '~/utils';
 
-import { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
-import { AnyPgTable, GetTableConfig, InferModel, PgTable } from '~/pg-core/table';
-import { SelectFields, SelectFieldsOrdered, SelectResultFields } from './select.types';
+import type { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
+import type { AnyPgTable, GetTableConfig, InferModel} from '~/pg-core/table';
+import { PgTable } from '~/pg-core/table';
+import type { SelectFields, SelectFieldsOrdered, SelectResultFields } from './select.types';
 
 export interface PgUpdateConfig {
 	where?: SQL | undefined;

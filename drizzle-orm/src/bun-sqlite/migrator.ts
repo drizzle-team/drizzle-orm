@@ -1,5 +1,6 @@
-import { MigrationConfig, readMigrationFiles } from '~/migrator';
-import { BunSQLiteDatabase } from './driver';
+import type { MigrationConfig} from '~/migrator';
+import { readMigrationFiles } from '~/migrator';
+import type { BunSQLiteDatabase } from './driver';
 
 export function migrate(db: BunSQLiteDatabase, config: string | MigrationConfig) {
 	const migrations = readMigrationFiles(config);

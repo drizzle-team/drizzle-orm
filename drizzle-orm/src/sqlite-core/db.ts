@@ -1,16 +1,20 @@
-import { SQLWrapper } from '~/sql';
+import type { SQLWrapper } from '~/sql';
 
-import { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect';
+import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect';
 import {
+	type QueryBuilder,
+	queryBuilder,
+	type QueryBuilderInstance,
 	SQLiteDelete,
 	SQLiteInsertBuilder,
 	SQLiteSelectBuilder,
 	SQLiteUpdateBuilder,
 } from '~/sqlite-core/query-builders';
-import { ResultKind, SQLiteSession } from '~/sqlite-core/session';
-import { AnySQLiteTable } from '~/sqlite-core/table';
-import { WithSubquery } from '~/subquery';
-import { SelectFields } from './query-builders/select.types';
+import type { ResultKind, SQLiteSession } from '~/sqlite-core/session';
+import type { AnySQLiteTable } from '~/sqlite-core/table';
+import { SelectionProxyHandler, WithSubquery } from '~/subquery';
+import type { SelectFields } from './query-builders/select.types';
+import type { WithSubqueryWithSelection } from './subquery';
 
 export class BaseSQLiteDatabase<TResultType extends 'sync' | 'async', TRunResult> {
 	constructor(
@@ -19,6 +23,23 @@ export class BaseSQLiteDatabase<TResultType extends 'sync' | 'async', TRunResult
 		/** @internal */
 		readonly session: SQLiteSession<TResultType, TRunResult>,
 	) {}
+
+	$with<TAlias extends string>(alias: TAlias) {
+		return {
+			as<TSelection>(
+				qb: QueryBuilder<TSelection> | ((qb: QueryBuilderInstance) => QueryBuilder<TSelection>),
+			): WithSubqueryWithSelection<TSelection, TAlias> {
+				if (typeof qb === 'function') {
+					qb = qb(queryBuilder);
+				}
+
+				return new Proxy(
+					new WithSubquery(qb.getSQL(), qb.getSelection() as SelectFields, alias, true),
+					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'subquery_selection', sqlBehavior: 'error' }),
+				) as WithSubqueryWithSelection<TSelection, TAlias>;
+			},
+		};
+	}
 
 	with(...queries: WithSubquery[]) {
 		const self = this;

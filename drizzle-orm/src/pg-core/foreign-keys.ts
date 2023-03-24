@@ -1,5 +1,6 @@
-import { AnyPgColumn } from './columns';
-import { AnyPgTable, PgTable } from './table';
+import type { AnyPgColumn } from './columns';
+import type { AnyPgTable} from './table';
+import { PgTable } from './table';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 

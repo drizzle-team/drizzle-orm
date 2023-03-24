@@ -1,5 +1,6 @@
-import { AnyMySqlColumn } from './columns';
-import { AnyMySqlTable, MySqlTable } from './table';
+import type { AnyMySqlColumn } from './columns';
+import type { AnyMySqlTable} from './table';
+import { MySqlTable } from './table';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 

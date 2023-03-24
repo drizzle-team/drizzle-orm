@@ -1,8 +1,10 @@
 import { types } from '@neondatabase/serverless';
-import { DefaultLogger, Logger } from '~/logger';
+import type { Logger } from '~/logger';
+import { DefaultLogger } from '~/logger';
 import { PgDatabase } from '~/pg-core/db';
 import { PgDialect } from '~/pg-core/dialect';
-import { NeonClient, NeonQueryResultHKT, NeonSession } from './session';
+import type { NeonClient, NeonQueryResultHKT} from './session';
+import { NeonSession } from './session';
 
 export interface NeonDriverOptions {
 	logger?: Logger;

@@ -1,7 +1,8 @@
-import { ColumnBaseConfig } from '~/column';
-import { ColumnBuilderBaseConfig, UpdateCBConfig } from '~/column-builder';
-import { SQL, sql } from '~/sql';
-import { AnyMySqlTable } from '../table';
+import type { ColumnBaseConfig } from '~/column';
+import type { ColumnBuilderBaseConfig, UpdateCBConfig } from '~/column-builder';
+import type { SQL} from '~/sql';
+import { sql } from '~/sql';
+import type { AnyMySqlTable } from '../table';
 
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 

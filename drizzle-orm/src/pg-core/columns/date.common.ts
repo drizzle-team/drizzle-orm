@@ -1,5 +1,6 @@
-import { ColumnBuilderBaseConfig, UpdateCBConfig } from '~/column-builder';
-import { SQL, sql } from '~/sql';
+import type { ColumnBuilderBaseConfig, UpdateCBConfig } from '~/column-builder';
+import type { SQL} from '~/sql';
+import { sql } from '~/sql';
 
 import { PgColumnBuilder } from './common';
 

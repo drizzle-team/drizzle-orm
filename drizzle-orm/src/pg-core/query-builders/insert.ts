@@ -1,13 +1,16 @@
-import { PgDialect } from '~/pg-core/dialect';
-import { IndexColumn } from '~/pg-core/indexes';
-import { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
-import { AnyPgTable, InferModel, PgTable } from '~/pg-core/table';
+import type { PgDialect } from '~/pg-core/dialect';
+import type { IndexColumn } from '~/pg-core/indexes';
+import type { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
+import type { AnyPgTable, InferModel} from '~/pg-core/table';
+import { PgTable } from '~/pg-core/table';
 import { QueryPromise } from '~/query-promise';
-import { Param, Placeholder, Query, SQL, sql, SQLWrapper } from '~/sql';
+import type { Placeholder, Query, SQLWrapper } from '~/sql';
+import { Param, SQL, sql } from '~/sql';
 import { Table } from '~/table';
-import { mapUpdateSet, orderSelectedFields, Simplify } from '~/utils';
-import { SelectFieldsFlat, SelectFieldsOrdered, SelectResultFields } from './select.types';
-import { PgUpdateSetSource } from './update';
+import type { Simplify } from '~/utils';
+import { mapUpdateSet, orderSelectedFields } from '~/utils';
+import type { SelectFieldsFlat, SelectFieldsOrdered, SelectResultFields } from './select.types';
+import type { PgUpdateSetSource } from './update';
 
 export interface PgInsertConfig<TTable extends AnyPgTable = AnyPgTable> {
 	table: TTable;

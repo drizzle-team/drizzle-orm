@@ -1,9 +1,16 @@
-import { AnyPgTable, PgTable } from '~/pg-core/table';
+import type { AnyPgTable } from '~/pg-core/table';
+import { PgTable } from '~/pg-core/table';
 import { Table } from '~/table';
-import { Check, CheckBuilder } from './checks';
-import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
-import { Index, IndexBuilder } from './indexes';
-import { PrimaryKey, PrimaryKeyBuilder } from './primary-keys';
+import { ViewBaseConfig } from '~/view';
+import type { Check } from './checks';
+import { CheckBuilder } from './checks';
+import type { ForeignKey } from './foreign-keys';
+import { ForeignKeyBuilder } from './foreign-keys';
+import type { Index } from './indexes';
+import { IndexBuilder } from './indexes';
+import type { PrimaryKey } from './primary-keys';
+import { PrimaryKeyBuilder } from './primary-keys';
+import { type PgMaterializedView, PgMaterializedViewConfig, type PgView, PgViewConfig } from './view';
 
 export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
 	const columns = Object.values(table[PgTable.Symbol.Columns]);
@@ -44,4 +51,24 @@ export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
 
 export function getTableColumns(table: AnyPgTable) {
 	return Object.assign({}, table[PgTable.Symbol.Columns]);
+}
+
+export function getViewConfig<
+	TName extends string = string,
+	TExisting extends boolean = boolean,
+>(view: PgView<TName, TExisting>) {
+	return {
+		...view[ViewBaseConfig],
+		...view[PgViewConfig],
+	};
+}
+
+export function getMaterializedViewConfig<
+	TName extends string = string,
+	TExisting extends boolean = boolean,
+>(view: PgMaterializedView<TName, TExisting>) {
+	return {
+		...view[ViewBaseConfig],
+		...view[PgMaterializedViewConfig],
+	};
 }

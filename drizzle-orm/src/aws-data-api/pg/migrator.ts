@@ -1,6 +1,7 @@
-import { MigrationConfig, readMigrationFiles } from '~/migrator';
+import type { MigrationConfig} from '~/migrator';
+import { readMigrationFiles } from '~/migrator';
 import { sql } from '~/sql';
-import { AwsDataApiPgDatabase } from './driver';
+import type { AwsDataApiPgDatabase } from './driver';
 
 export async function migrate(db: AwsDataApiPgDatabase, config: string | MigrationConfig) {
 	const migrations = readMigrationFiles(config);

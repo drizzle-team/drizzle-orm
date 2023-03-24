@@ -1,6 +1,6 @@
-import { ColumnConfig } from '~/column';
-import { ColumnBuilderConfig } from '~/column-builder';
-import { AnySQLiteTable } from '../table';
+import type { ColumnConfig } from '~/column';
+import type { ColumnBuilderConfig } from '~/column-builder';
+import type { AnySQLiteTable } from '../table';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common';
 
 export class SQLiteRealBuilder extends SQLiteColumnBuilder<ColumnBuilderConfig<{ data: number; driverParam: number }>> {
