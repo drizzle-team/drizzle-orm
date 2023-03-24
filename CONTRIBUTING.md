@@ -31,7 +31,7 @@ To submit a bug or issue, please use our [issue form](https://github.com/drizzle
 
 There are several ways how you can provide a feedback
 
-- You can join our [Discord](https://discord.gg/42E9GSFg) channel and provide feedback there
+- You can join our [Discord](https://discord.gg/yfjTbVXMW4) channel and provide feedback there
 - You can add new ticket in [Discussions](https://github.com/drizzle-team/drizzle-orm/discussions)
 - Mention our [Twitter account](https://twitter.com/DrizzleOrm)
 
