@@ -1236,7 +1236,7 @@ test.serial('array types', async (t) => {
 		},
 	];
 
-	await db.insert(salEmp).values(...values);
+	await db.insert(salEmp).values(values);
 
 	const res = await db.select().from(salEmp);
 
@@ -1488,7 +1488,7 @@ test.serial('join on aliased sql from select', async (t) => {
 	]);
 });
 
-test.serial.only('join on aliased sql from with clause', async (t) => {
+test.serial('join on aliased sql from with clause', async (t) => {
 	const { db } = t.context;
 
 	const users = db.$with('users').as(

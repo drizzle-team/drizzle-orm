@@ -184,10 +184,10 @@ export function createInsertSchema<
 
 		if ('enum' in column) {
 			const _enum = (column as unknown as { enum: [string, ...string[]] }).enum;
-			if (Array.isArray(_enum)) {
+			if (_enum.length) {
 				type = z.enum(_enum);
 			} else {
-				type = z.enum(_enum);
+				type = z.string();
 			}
 		}
 

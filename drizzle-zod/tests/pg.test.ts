@@ -32,10 +32,12 @@ function assertSchemasEqual<T extends z.SomeZodObject>(t: ExecutionContext, actu
 }
 
 test('users insert schema w/ enum', (t) => {
-	const actual = createInsertSchema(users, 'camel', (schema) => ({
-		id: schema.id.positive(),
-		email: schema.email.email(),
-	}));
+	const actual = createInsertSchema(users, 'camel', (schema) => {
+		return {
+			id: schema.id.positive(),
+			email: schema.email.email(),
+		};
+	});
 
 	const test1 = createInsertSchema(users);
 	const test2 = createInsertSchema(users, 'camel');

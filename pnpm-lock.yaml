@@ -77,11 +77,13 @@ importers:
 
   drizzle-zod:
     specifiers:
+      '@types/node': ^18.15.10
       ava: ^5.1.0
       drizzle-orm: link:../drizzle-orm/dist
       tsx: ^3.12.2
       zod: ^3.20.2
     devDependencies:
+      '@types/node': 18.15.10
       ava: 5.1.1
       drizzle-orm: link:../drizzle-orm/dist
       tsx: 3.12.2
@@ -1709,6 +1711,10 @@ packages:
 
   /@types/node/18.11.18:
     resolution: {integrity: sha512-DHQpWGjyQKSHj3ebjFI/wRKcqQcdR+MoFBygntYOZytCqNfkd2ZC4ARDJ2DQqhjH5p85Nnd3jhUJIXrszFX/JA==}
+
+  /@types/node/18.15.10:
+    resolution: {integrity: sha512-9avDaQJczATcXgfmMAW3MIWArOO7A+m90vuCFLr8AotWf8igO/mRoYukrk2cqZVtv38tHs33retzHEilM7FpeQ==}
+    dev: true
 
   /@types/pg/8.6.6:
     resolution: {integrity: sha512-O2xNmXebtwVekJDD+02udOncjVcMZQuTEQEMpKJ0ZRf5E7/9JJX3izhKUcUifBkyKpljyUM6BTgy2trmviKlpw==}

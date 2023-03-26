@@ -407,10 +407,10 @@ const newUser: NewUser = {
 
 db.insert(users).values(newUser).run();
 
-const insertedUsers/*: NewUser[]*/ = db.insert(users).values(...newUsers).returning().all();
+const insertedUsers/*: NewUser[]*/ = db.insert(users).values(newUsers).returning().all();
 
 const insertedUsersIds/*: { insertedId: number }[]*/ = db.insert(users)
-  .values(...newUsers)
+  .values(newUsers)
   .returning({ insertedId: users.id })
   .all();
 ```
@@ -446,7 +446,7 @@ const newUsers: NewUser[] = [
   },
 ];
 
-db.insert(users).values(...newUsers).run();
+db.insert(users).values(newUsers).run();
 ```
 
 ### Update and Delete

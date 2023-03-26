@@ -17,7 +17,10 @@ export class TableAliasProxyHandler implements ProxyHandler<Table> {
 	constructor(private alias: string) {}
 
 	get(tableObj: Table, prop: string | symbol, receiver: any): any {
-		if (prop === '_') {
+		if (prop === Table.Symbol.Name) {
+			return this.alias;
+		}
+		if (prop === Table.Symbol.Columns) {
 			const columns = tableObj[Table.Symbol.Columns];
 			if (!columns) {
 				return columns;
@@ -32,11 +35,7 @@ export class TableAliasProxyHandler implements ProxyHandler<Table> {
 				);
 			});
 
-			return {
-				...tableObj._,
-				name: this.alias,
-				columns: proxiedColumns,
-			};
+			return proxiedColumns;
 		}
 
 		const value = tableObj[prop as keyof Table];

@@ -19,9 +19,11 @@ export interface SQLiteInsertConfig<TTable extends AnySQLiteTable = AnySQLiteTab
 	returning?: SelectedFieldsOrdered;
 }
 
-export type SQLiteInsertValue<TTable extends AnySQLiteTable> = {
-	[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
-};
+export type SQLiteInsertValue<TTable extends AnySQLiteTable> = Simplify<
+	{
+		[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
+	}
+>;
 
 export class SQLiteInsertBuilder<
 	TTable extends AnySQLiteTable,
@@ -34,8 +36,18 @@ export class SQLiteInsertBuilder<
 		protected dialect: SQLiteDialect,
 	) {}
 
-	protected mapValues(values: SQLiteInsertValue<TTable>[]): Record<string, Param<unknown, unknown> | SQL>[] {
-		return values.map((entry) => {
+	values(value: SQLiteInsertValue<TTable>[]): SQLiteInsert<TTable, TResultType, TRunResult>;
+	/**
+	 * @deprecated Pass the array of values without spreading it.
+	 */
+	values(...values: SQLiteInsertValue<TTable>[]): SQLiteInsert<TTable, TResultType, TRunResult>;
+	values(
+		...values: SQLiteInsertValue<TTable>[] | [SQLiteInsertValue<TTable>[]]
+	): SQLiteInsert<TTable, TResultType, TRunResult> {
+		if (values.length === 1 && Array.isArray(values[0])) {
+			values = values[0];
+		}
+		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
 			const cols = this.table[Table.Symbol.Columns];
 			for (const colKey of Object.keys(entry)) {
@@ -48,10 +60,8 @@ export class SQLiteInsertBuilder<
 			}
 			return result;
 		});
-	}
 
-	values(...values: SQLiteInsertValue<TTable>[]): SQLiteInsert<TTable, TResultType, TRunResult> {
-		return new SQLiteInsert(this.table, this.mapValues(values), this.session, this.dialect);
+		return new SQLiteInsert(this.table, mappedValues, this.session, this.dialect);
 	}
 }
 

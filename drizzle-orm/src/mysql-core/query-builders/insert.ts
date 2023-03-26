@@ -25,9 +25,11 @@ export interface MySqlInsertConfig<TTable extends AnyMySqlTable = AnyMySqlTable>
 
 export type AnyMySqlInsertConfig = MySqlInsertConfig<AnyMySqlTable>;
 
-export type MySqlInsertValue<TTable extends AnyMySqlTable> = {
-	[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
-};
+export type MySqlInsertValue<TTable extends AnyMySqlTable> = Simplify<
+	{
+		[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
+	}
+>;
 
 export class MySqlInsertBuilder<TTable extends AnyMySqlTable, TQueryResult extends QueryResultHKT> {
 	constructor(
@@ -36,7 +38,15 @@ export class MySqlInsertBuilder<TTable extends AnyMySqlTable, TQueryResult exten
 		private dialect: MySqlDialect,
 	) {}
 
-	values(...values: MySqlInsertValue<TTable>[]): MySqlInsert<TTable, TQueryResult> {
+	values(value: MySqlInsertValue<TTable>[]): MySqlInsert<TTable, TQueryResult>;
+	/**
+	 * @deprecated Pass the array of values without spreading it.
+	 */
+	values(...values: MySqlInsertValue<TTable>[]): MySqlInsert<TTable, TQueryResult>;
+	values(...values: MySqlInsertValue<TTable>[] | [MySqlInsertValue<TTable>[]]): MySqlInsert<TTable, TQueryResult> {
+		if (values.length === 1 && Array.isArray(values[0])) {
+			values = values[0];
+		}
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
 			const cols = this.table[Table.Symbol.Columns];

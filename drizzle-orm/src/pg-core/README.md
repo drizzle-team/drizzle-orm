@@ -514,10 +514,10 @@ const newUser: NewUser = {
 
 await db.insert(users).values(newUser);
 
-const insertedUsers/*: NewUser[]*/ = await db.insert(users).values(...newUsers).returning();
+const insertedUsers/*: NewUser[]*/ = await db.insert(users).values(newUsers).returning();
 
 const insertedUsersIds/*: { insertedId: number }[]*/ = await db.insert(users)
-  .values(...newUsers)
+  .values(newUsers)
   .returning({ insertedId: users.id });
 ```
 
@@ -551,7 +551,7 @@ const newUsers: NewUser[] = [
   },
 ];
 
-await db.insert(users).values(...newUsers);
+await db.insert(users).values(newUsers);
 ```
 
 ### Upsert (Insert with on conflict statement)

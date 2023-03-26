@@ -1,6 +1,6 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import { Column } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig, UpdateCBConfig } from '~/column-builder';
 import { ColumnBuilder } from '~/column-builder';
 import type { Assume, Update } from '~/utils';
 
@@ -98,7 +98,7 @@ export abstract class MySqlColumnBuilderWithAutoIncrement<
 		this.config.autoIncrement = false;
 	}
 
-	autoincrement(): MySqlColumnBuilderWithAutoIncrement<THKT, T, TRuntimeConfig> {
+	autoincrement(): MySqlColumnBuilderWithAutoIncrement<THKT, UpdateCBConfig<T, { hasDefault: true }>, TRuntimeConfig> {
 		this.config.autoIncrement = true;
 		return this as ReturnType<this['autoincrement']>;
 	}

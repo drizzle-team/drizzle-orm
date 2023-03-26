@@ -19,9 +19,11 @@ export interface PgInsertConfig<TTable extends AnyPgTable = AnyPgTable> {
 	returning?: SelectedFieldsOrdered;
 }
 
-export type PgInsertValue<TTable extends AnyPgTable> = {
-	[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
-};
+export type PgInsertValue<TTable extends AnyPgTable> = Simplify<
+	{
+		[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
+	}
+>;
 
 export class PgInsertBuilder<TTable extends AnyPgTable, TQueryResult extends QueryResultHKT> {
 	constructor(
@@ -30,7 +32,15 @@ export class PgInsertBuilder<TTable extends AnyPgTable, TQueryResult extends Que
 		private dialect: PgDialect,
 	) {}
 
-	values(...values: PgInsertValue<TTable>[]): PgInsert<TTable, TQueryResult> {
+	values(value: PgInsertValue<TTable>[]): PgInsert<TTable, TQueryResult>;
+	/**
+	 * @deprecated Pass the array of values without spreading it.
+	 */
+	values(...values: PgInsertValue<TTable>[]): PgInsert<TTable, TQueryResult>;
+	values(...values: PgInsertValue<TTable>[] | [PgInsertValue<TTable>[]]): PgInsert<TTable, TQueryResult> {
+		if (values.length === 1 && Array.isArray(values[0])) {
+			values = values[0];
+		}
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
 			const cols = this.table[Table.Symbol.Columns];
