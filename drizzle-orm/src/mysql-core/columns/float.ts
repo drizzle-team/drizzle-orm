@@ -1,61 +1,43 @@
-import type { ColumnConfig } from '~/column';
-import type { ColumnBuilderConfig } from '~/column-builder';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import { MySqlColumn, MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
+import type { Assume } from '~/utils';
+import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
-export class MySqlFloatBuilder extends MySqlColumnBuilderWithAutoIncrement<
-	ColumnBuilderConfig<{
-		data: number;
-		driverParam: number | string;
-	}>,
-	{ precision: number | undefined; scale: number | undefined }
-> {
-	constructor(name: string, precision?: number, scale?: number) {
-		super(name);
-		this.config.precision = precision;
-		this.config.scale = scale;
-	}
+export interface MySqlFloatBuilderHKT extends ColumnBuilderHKTBase {
+	_type: MySqlFloatBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: MySqlFloatHKT;
+}
 
+export interface MySqlFloatHKT extends ColumnHKTBase {
+	_type: MySqlFloat<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type MySqlFloatBuilderInitial<TName extends string> = MySqlFloatBuilder<{
+	name: TName;
+	data: number;
+	driverParam: number | string;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class MySqlFloatBuilder<T extends ColumnBuilderBaseConfig>
+	extends MySqlColumnBuilderWithAutoIncrement<MySqlFloatBuilderHKT, T>
+{
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlFloat<TTableName> {
-		return new MySqlFloat(table, this.config);
+	): MySqlFloat<MakeColumnConfig<T, TTableName>> {
+		return new MySqlFloat<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class MySqlFloat<
-	TTableName extends string,
-> extends MySqlColumnWithAutoIncrement<
-	ColumnConfig<{
-		tableName: TTableName;
-		data: number;
-		driverParam: number | string;
-	}>
-> {
-	protected override $mySqlColumnBrand!: 'MySqlFloat';
-
-	precision: number | undefined;
-	scale: number | undefined;
-
-	constructor(table: AnyMySqlTable<{ name: TTableName }>, config: MySqlFloatBuilder['config']) {
-		super(table, config);
-		this.precision = config.precision;
-		this.scale = config.scale;
-	}
-
+export class MySqlFloat<T extends ColumnBaseConfig> extends MySqlColumnWithAutoIncrement<MySqlFloatHKT, T> {
 	getSQLType(): string {
 		return 'float';
-		// if (typeof this.precision !== 'undefined' && typeof this.scale !== 'undefined') {
-		// 	return `float(${this.precision}, ${this.scale})`;
-		// } else if (typeof this.precision === 'undefined') {
-		// 	return 'float';
-		// } else {
-		// 	return `float(${this.precision})`;
-		// }
 	}
 }
 
-export function float(name: string) {
+export function float<TName extends string>(name: TName): MySqlFloatBuilderInitial<TName> {
 	return new MySqlFloatBuilder(name);
 }

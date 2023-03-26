@@ -1,27 +1,25 @@
-import type { GetColumnConfig, GetColumnData, UpdateColConfig } from '~/column';
 import type { AnyMySqlColumn } from '~/mysql-core/columns';
-import type { ChangeColumnTableName, MySqlColumn } from '~/mysql-core/columns/common';
+import type { AnyMySqlTable, MySqlTableWithColumns, TableConfig } from '~/mysql-core/table';
+import type { MySqlViewBase } from '~/mysql-core/view';
 import type {
-	AnyMySqlTable,
-	GetTableConfig,
-	MySqlTableWithColumns,
-	TableConfig,
-	UpdateTableConfig,
-} from '~/mysql-core/table';
-import type { MySqlViewBase, MySqlViewWithSelection } from '~/mysql-core/view';
-import type {
-	SelectFields as SelectFieldsBase,
-	SelectFieldsFlat as SelectFieldsFlatBase,
-	SelectFieldsOrdered as SelectFieldsOrderedBase,
+	SelectedFields as SelectedFieldsBase,
+	SelectedFieldsFlat as SelectedFieldsFlatBase,
+	SelectedFieldsOrdered as SelectedFieldsOrderedBase,
 } from '~/operations';
+import type {
+	AppendToNullabilityMap,
+	AppendToResult,
+	GetSelectTableName,
+	JoinNullability,
+	JoinType,
+	MapColumnsToTableAlias,
+	SelectMode,
+} from '~/query-builders/select.types';
 import type { Placeholder, SQL } from '~/sql';
-import type { GetSubquerySelection, Subquery } from '~/subquery';
-import type { Assume, DrizzleTypeError, Equal, Simplify } from '~/utils';
+import type { Subquery } from '~/subquery';
+import type { AnyTable, UpdateTableConfig } from '~/table';
+import type { Assume } from '~/utils';
 import type { MySqlSelect, MySqlSelectQueryBuilder } from './select';
-
-export type JoinType = 'inner' | 'left' | 'right' | 'full';
-
-export type SelectMode = 'partial' | 'single' | 'multiple';
 
 export interface JoinsValue {
 	on: SQL | undefined;
@@ -29,143 +27,22 @@ export interface JoinsValue {
 	joinType: JoinType;
 }
 
-export type JoinNullability = 'nullable' | 'not-null';
-
-export type ApplyNullability<T, TNullability extends JoinNullability> = TNullability extends 'nullable' ? T | null
-	: TNullability extends 'null' ? null
-	: T;
-
-export type ApplyNullabilityToColumn<TColumn extends AnyMySqlColumn, TNullability extends JoinNullability> =
-	TNullability extends 'not-null' ? TColumn
-		: TColumn extends MySqlColumn<infer TConfig> ? MySqlColumn<
-				UpdateColConfig<TConfig, {
-					notNull: TNullability extends 'nullable' ? false : TConfig['notNull'];
-				}>
-			>
-		: never;
-
-export type ApplyNotNullMapToJoins<TResult, TNullabilityMap extends Record<string, JoinNullability>> = Simplify<
-	{
-		[TTableName in keyof TResult & keyof TNullabilityMap & string]: ApplyNullability<
-			TResult[TTableName],
-			TNullabilityMap[TTableName]
-		>;
-	}
->;
-
-export type SelectResult<
-	TResult,
-	TSelectMode extends SelectMode,
-	TNullabilityMap extends Record<string, JoinNullability>,
-> = TSelectMode extends 'partial' ? SelectPartialResult<TResult, TNullabilityMap>
-	: TSelectMode extends 'single' ? SelectResultFields<TResult>
-	: ApplyNotNullMapToJoins<SelectResultFields<TResult>, TNullabilityMap>;
-
-type IsUnion<T, U extends T = T> = (T extends any ? (U extends T ? false : true) : never) extends false ? false : true;
-
-type Not<T extends boolean> = T extends true ? false : true;
-
-type SelectPartialResult<TFields, TNullability extends Record<string, JoinNullability>> = TNullability extends
-	TNullability ? {
-		[Key in keyof TFields]: TFields[Key] extends infer TField
-			? TField extends AnyMySqlTable ? GetTableConfig<TField, 'name'> extends keyof TNullability ? ApplyNullability<
-						SelectResultFields<GetTableConfig<TField, 'columns'>>,
-						TNullability[GetTableConfig<TField, 'name'>]
-					>
-				: never
-			: TField extends AnyMySqlColumn
-				? GetColumnConfig<TField, 'tableName'> extends infer TTableName extends keyof TNullability
-					? ApplyNullability<SelectResultField<TField>, TNullability[TTableName]>
-				: never
-			: TField extends SQL | SQL.Aliased ? SelectResultField<TField>
-			: TField extends Record<string, any>
-				? TField[keyof TField] extends
-					AnyMySqlColumn<{ tableName: infer TTableName extends string }> | SQL | SQL.Aliased
-					? Not<IsUnion<TTableName>> extends true
-						? ApplyNullability<SelectResultFields<TField>, TNullability[TTableName]>
-					: SelectPartialResult<TField, TNullability>
-				: never
-			: never
-			: never;
-	}
-	: never;
-
 export type AnyMySqlSelect = MySqlSelect<any, any, any, any>;
 
-export type BuildAliasTable<TTable extends AnyMySqlTable, TAlias extends string> = GetTableConfig<TTable> extends
-	infer TConfig extends TableConfig ? MySqlTableWithColumns<
-		UpdateTableConfig<TConfig, {
+export type BuildAliasTable<TTable extends AnyTable, TAlias extends string> = MySqlTableWithColumns<
+	Assume<
+		UpdateTableConfig<TTable['_']['config'], {
 			name: TAlias;
-			columns: Simplify<MapColumnsToTableAlias<TConfig['columns'], TAlias>>;
-		}>
+			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias>;
+		}>,
+		TableConfig
 	>
-	: never;
-
-export type MapColumnsToTableAlias<
-	TColumns extends Record<string, AnyMySqlColumn | SQL | SQL.Aliased>,
-	TAlias extends string,
-> = Simplify<
-	{
-		[Key in keyof TColumns]: TColumns[Key] extends AnyMySqlColumn ? ChangeColumnTableName<TColumns[Key], TAlias>
-			: TColumns[Key];
-	}
 >;
-
-export type AddAliasToSelection<TSelection, TAlias extends string> = Equal<TSelection, any> extends true ? any
-	: Simplify<
-		{
-			[Key in keyof TSelection]: TSelection[Key] extends AnyMySqlColumn ? ChangeColumnTableName<TSelection[Key], TAlias>
-				: TSelection[Key] extends SQL | SQL.Aliased ? TSelection[Key]
-				: TSelection[Key] extends Record<string, AnyMySqlColumn | SQL | SQL.Aliased>
-					? MapColumnsToTableAlias<TSelection[Key], TAlias>
-				: never;
-		}
-	>;
-
-export type BuildSubquerySelection<
-	TSelection,
-	TNullability extends Record<string, JoinNullability>,
-> = TSelection extends never ? any : Simplify<
-	{
-		[Key in keyof TSelection]: TSelection[Key] extends SQL
-			? DrizzleTypeError<'You cannot reference this field without assigning it an alias first - use `.as(<alias>)`'>
-			: TSelection[Key] extends SQL.Aliased ? TSelection[Key]
-			: TSelection[Key] extends AnyMySqlColumn
-				? ApplyNullabilityToColumn<TSelection[Key], TNullability[GetColumnConfig<TSelection[Key], 'tableName'>]>
-			: TSelection[Key] extends Record<string, AnyMySqlColumn | SQL | SQL.Aliased>
-				? BuildSubquerySelection<TSelection[Key], TNullability>
-			: never;
-	}
->;
-
-export type AppendToResult<
-	TTableName extends string,
-	TResult,
-	TJoinedName extends string,
-	TSelectedFields extends SelectFields,
-	TOldSelectMode extends SelectMode,
-> = TOldSelectMode extends 'partial' ? TResult
-	: TOldSelectMode extends 'single' ? Record<TTableName, TResult> & Record<TJoinedName, TSelectedFields>
-	: TResult & Record<TJoinedName, TSelectedFields>;
-
-type SetJoinsNullability<TNullabilityMap extends Record<string, JoinNullability>, TValue extends JoinNullability> = {
-	[Key in keyof TNullabilityMap]: TValue;
-};
-
-export type AppendToNullabilityMap<
-	TJoinsNotNull extends Record<string, JoinNullability>,
-	TJoinedName extends string,
-	TJoinType extends JoinType,
-> = 'left' extends TJoinType ? TJoinsNotNull & { [name in TJoinedName]: 'nullable' }
-	: 'right' extends TJoinType ? SetJoinsNullability<TJoinsNotNull, 'nullable'> & { [name in TJoinedName]: 'not-null' }
-	: 'inner' extends TJoinType ? TJoinsNotNull & { [name in TJoinedName]: 'not-null' }
-	: 'full' extends TJoinType ? SetJoinsNullability<TJoinsNotNull, 'nullable'> & { [name in TJoinedName]: 'nullable' }
-	: never;
 
 export interface MySqlSelectConfig {
 	withList: Subquery[];
-	fields: SelectFields;
-	fieldsList: SelectFieldsOrdered;
+	fields: SelectedFields;
+	fieldsList: SelectedFieldsOrdered;
 	where?: SQL;
 	having?: SQL;
 	table: AnyMySqlTable | Subquery | MySqlViewBase;
@@ -197,8 +74,8 @@ export type JoinFn<
 		TTableName,
 		TSelection,
 		TJoinedName,
-		TJoinedTable extends AnyMySqlTable ? GetTableConfig<TJoinedTable, 'columns'>
-			: TJoinedName extends Subquery ? Assume<GetSubquerySelection<TJoinedName>, SelectFields>
+		TJoinedTable extends AnyMySqlTable ? TJoinedTable['_']['columns']
+			: TJoinedName extends Subquery ? Assume<TJoinedName['_']['selectedFields'], SelectedFields>
 			: never,
 		TSelectMode
 	>,
@@ -206,36 +83,11 @@ export type JoinFn<
 	AppendToNullabilityMap<TNullabilityMap, TJoinedName, TJoinType>
 >;
 
-export type GetSelectTableName<TTable extends AnyMySqlTable | Subquery | MySqlViewBase> = TTable extends AnyMySqlTable
-	? GetTableConfig<TTable, 'name'>
-	: TTable extends Subquery<infer TAlias> ? TAlias
-	: TTable extends MySqlViewBase<infer TAlias> ? TAlias
-	: never;
+export type SelectedFieldsFlat = SelectedFieldsFlatBase<AnyMySqlColumn>;
 
-export type GetSelectTableSelection<TTable extends AnyMySqlTable | Subquery | MySqlViewBase> = TTable extends
-	AnyMySqlTable ? GetTableConfig<TTable, 'columns'>
-	: TTable extends Subquery<string, infer TSelection> ? TSelection
-	: TTable extends MySqlViewWithSelection<any, any, infer TSelection> ? TSelection
-	: never;
+export type SelectedFields = SelectedFieldsBase<AnyMySqlColumn, AnyMySqlTable>;
 
-export type SelectFieldsFlat = SelectFieldsFlatBase<AnyMySqlColumn>;
-
-export type SelectFields = SelectFieldsBase<AnyMySqlColumn, AnyMySqlTable>;
-
-export type SelectFieldsOrdered = SelectFieldsOrderedBase<AnyMySqlColumn>;
-
-export type SelectResultField<T> = T extends DrizzleTypeError<any> ? T
-	: T extends AnyMySqlTable ? SelectResultField<GetTableConfig<T, 'columns'>>
-	: T extends AnyMySqlColumn ? GetColumnData<T>
-	: T extends SQL<infer T> | SQL.Aliased<infer T> ? T
-	: T extends Record<string, any> ? SelectResultFields<T>
-	: never;
-
-export type SelectResultFields<TSelectedFields> = Simplify<
-	{
-		[Key in keyof TSelectedFields & string]: SelectResultField<TSelectedFields[Key]>;
-	}
->;
+export type SelectedFieldsOrdered = SelectedFieldsOrderedBase<AnyMySqlColumn>;
 
 export type LockStrength = 'update' | 'share';
 
@@ -255,7 +107,7 @@ export interface MySqlSelectHKTBase {
 	selection: unknown;
 	selectMode: SelectMode;
 	nullabilityMap: unknown;
-	$type: unknown;
+	_type: unknown;
 }
 
 export type MySqlSelectKind<
@@ -269,10 +121,10 @@ export type MySqlSelectKind<
 	selection: TSelection;
 	selectMode: TSelectMode;
 	nullabilityMap: TNullabilityMap;
-})['$type'];
+})['_type'];
 
 export interface MySqlSelectQueryBuilderHKT extends MySqlSelectHKTBase {
-	$type: MySqlSelectQueryBuilder<
+	_type: MySqlSelectQueryBuilder<
 		this,
 		this['tableName'],
 		this['selection'],
@@ -282,7 +134,7 @@ export interface MySqlSelectQueryBuilderHKT extends MySqlSelectHKTBase {
 }
 
 export interface MySqlSelectHKT extends MySqlSelectHKTBase {
-	$type: MySqlSelect<
+	_type: MySqlSelect<
 		this['tableName'],
 		this['selection'],
 		this['selectMode'],

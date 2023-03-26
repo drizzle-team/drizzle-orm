@@ -12,8 +12,8 @@ const users = pgTable('users', {
 	email: text('email').notNull(),
 	createdAt: timestamp('created_at').notNull().defaultNow(),
 	role: roleEnum('role').notNull(),
-	roleText: text<'admin' | 'user'>('role1').notNull(),
-	roleText2: text<'admin' | 'user'>('role1').notNull().default('user'),
+	roleText: text('role1', { enum: ['admin', 'user'] }).notNull(),
+	roleText2: text('role1', { enum: ['admin', 'user'] }).notNull().default('user'),
 });
 
 const users1 = pgTable('users', {
@@ -35,8 +35,6 @@ test('users insert schema w/ enum', (t) => {
 	const actual = createInsertSchema(users, 'camel', (schema) => ({
 		id: schema.id.positive(),
 		email: schema.email.email(),
-		roleText: z.enum(['admin', 'user']),
-		roleText2: z.enum(['admin', 'user']),
 	}));
 
 	const test1 = createInsertSchema(users);
@@ -77,17 +75,15 @@ test('users insert schema w/ defaults', (t) => {
 		email: z.string(),
 		createdAt: z.date().optional(),
 		role: z.enum(['admin', 'user']),
-		roleText: z.string(),
-		roleText2: z.string().optional(),
+		roleText: z.enum(['admin', 'user']),
+		roleText2: z.enum(['admin', 'user']).optional(),
 	});
 
 	assertSchemasEqual(t, actual, expected);
 });
 
 test('users insert schema w/ snake case', (t) => {
-	const actual = createInsertSchema(users, 'snake', {
-		role_text: z.enum(['admin', 'user']),
-	});
+	const actual = createInsertSchema(users, 'snake');
 
 	const expected = z.object({
 		id: z.number().optional(),
@@ -96,7 +92,7 @@ test('users insert schema w/ snake case', (t) => {
 		created_at: z.date().optional(),
 		role: z.enum(['admin', 'user']),
 		role_text: z.enum(['admin', 'user']),
-		role_text2: z.string().optional(),
+		role_text2: z.enum(['admin', 'user']).optional(),
 	});
 
 	assertSchemasEqual(t, actual, expected);

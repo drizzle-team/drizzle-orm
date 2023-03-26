@@ -1,6 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { DefaultLogger, sql } from 'drizzle-orm';
-import type { BunSQLiteDatabase} from 'drizzle-orm/bun-sqlite';
+import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { blob, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { suite } from 'uvu';
@@ -10,7 +10,7 @@ const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: integer('verified').notNull().default(0),
-	json: blob<string[]>('json', { mode: 'json' }),
+	json: blob('json', { mode: 'json' }).$type<string[]>(),
 	createdAt: integer('created_at', { mode: 'timestamp' }).notNull().defaultNow(),
 });
 
@@ -51,7 +51,7 @@ test.before.each((ctx) => {
 
 test.skip('select large integer', async (ctx) => {
 	const a = 1667476703000;
-	const result = ctx.db.allObjects<{ a: number }>(sql`select ${sql.raw(String(a))} as a`)[0]!;
+	const result = ctx.db.all<{ a: number }>(sql`select ${sql.raw(String(a))} as a`)[0]!;
 	assert.equal(result.a, a);
 });
 
@@ -60,8 +60,8 @@ test('select all fields', (ctx) => {
 
 	const now = Date.now();
 
-	db.insert(usersTable).values({ name: 'John' }).execute();
-	const result = db.select().from(usersTable).execute()[0]!;
+	db.insert(usersTable).values({ name: 'John' }).run();
+	const result = db.select().from(usersTable).all()[0]!;
 
 	console.log(result);
 

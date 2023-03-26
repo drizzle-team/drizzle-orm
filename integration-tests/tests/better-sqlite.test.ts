@@ -8,15 +8,14 @@ import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
 import { name, placeholder } from 'drizzle-orm/sql';
-import { type InferModel, sqliteView } from 'drizzle-orm/sqlite-core';
-import { alias, blob, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { alias, blob, integer, primaryKey, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
 import { getViewConfig } from 'drizzle-orm/sqlite-core/utils';
 
 const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: integer('verified').notNull().default(0),
-	json: blob<string[]>('json', { mode: 'json' }),
+	json: blob('json', { mode: 'json' }).$type<string[]>(),
 	createdAt: integer('created_at', { mode: 'timestamp' }).notNull().defaultNow(),
 });
 
@@ -688,7 +687,7 @@ test.serial('insert via db.run + select via db.get', (t) => {
 test.serial('insert via db.get w/ query builder', (t) => {
 	const { db } = t.context;
 
-	const inserted = db.get<Pick<InferModel<typeof usersTable>, 'id' | 'name'>>(
+	const inserted = db.get<Pick<typeof usersTable['_']['model']['select'], 'id' | 'name'>>(
 		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 	);
 	t.deepEqual(inserted, { id: 1, name: 'John' });

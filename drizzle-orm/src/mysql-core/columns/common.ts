@@ -1,10 +1,8 @@
-import type { ColumnBaseConfig } from '~/column';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import { Column } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderWithConfig, UpdateCBConfig } from '~/column-builder';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import { ColumnBuilder } from '~/column-builder';
-import type { SQL } from '~/sql';
-import type { Update } from '~/utils';
-import type { Simplify } from '~/utils';
+import type { Assume, Update } from '~/utils';
 
 import type { ForeignKey, UpdateDeleteAction } from '~/mysql-core/foreign-keys';
 import { ForeignKeyBuilder } from '~/mysql-core/foreign-keys';
@@ -18,27 +16,22 @@ export interface ReferenceConfig {
 	};
 }
 
+export interface MySqlColumnBuilderHKT extends ColumnBuilderHKTBase {
+	_type: MySqlColumnBuilder<MySqlColumnBuilderHKT, Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: MySqlColumnHKT;
+}
+
+export interface MySqlColumnHKT extends ColumnHKTBase {
+	_type: MySqlColumn<MySqlColumnHKT, Assume<this['config'], ColumnBaseConfig>>;
+}
+
 export abstract class MySqlColumnBuilder<
-	T extends Partial<ColumnBuilderBaseConfig>,
-	TConfig extends Record<string, unknown> = {},
-> extends ColumnBuilder<T, TConfig> {
+	THKT extends ColumnBuilderHKTBase,
+	T extends ColumnBuilderBaseConfig,
+	TRuntimeConfig extends object = {},
+	TTypeConfig extends Record<string, unknown> = {},
+> extends ColumnBuilder<THKT, T, TRuntimeConfig, TTypeConfig & { mysqlBrand: 'MySqlColumnBuilder' }> {
 	private foreignKeyConfigs: ReferenceConfig[] = [];
-
-	constructor(name: string) {
-		super(name);
-	}
-
-	override notNull(): MySqlColumnBuilder<UpdateCBConfig<T, { notNull: true }>> {
-		return super.notNull() as any;
-	}
-
-	override default(value: T['data'] | SQL): MySqlColumnBuilder<UpdateCBConfig<T, { hasDefault: true }>> {
-		return super.default(value) as any;
-	}
-
-	override primaryKey(): MySqlColumnBuilder<UpdateCBConfig<T, { notNull: true }>> {
-		return super.primaryKey() as any;
-	}
 
 	references(
 		ref: ReferenceConfig['ref'],
@@ -70,75 +63,51 @@ export abstract class MySqlColumnBuilder<
 	/** @internal */
 	abstract build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlColumn<T & { tableName: TTableName }>;
+	): MySqlColumn<Assume<THKT['_columnHKT'], ColumnHKTBase>, MakeColumnConfig<T, TTableName>>;
 }
 
 export type AnyMySqlColumnBuilder<TPartial extends Partial<ColumnBuilderBaseConfig> = {}> = MySqlColumnBuilder<
-	Update<ColumnBuilderBaseConfig, TPartial>
+	MySqlColumnBuilderHKT,
+	Required<Update<ColumnBuilderBaseConfig, TPartial>>
 >;
 
 // To understand how to use `MySqlColumn` and `AnyMySqlColumn`, see `Column` and `AnyColumn` documentation.
-export abstract class MySqlColumn<T extends Partial<ColumnBaseConfig>> extends Column<T> {
-	declare protected $mySqlBrand: 'MySqlColumn';
-	protected abstract $mySqlColumnBrand: string;
-
-	constructor(
-		override readonly table: AnyMySqlTable<{ name: T['tableName'] }>,
-		config: MySqlColumnBuilder<Omit<T, 'tableName'>>['config'],
-	) {
-		super(table, config);
-	}
+export abstract class MySqlColumn<
+	THKT extends ColumnHKTBase,
+	T extends ColumnBaseConfig,
+	TRuntimeConfig extends object = {},
+> extends Column<THKT, T, TRuntimeConfig, { mysqlBrand: 'MySqlColumn' }> {
 }
 
 export type AnyMySqlColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = MySqlColumn<
-	Update<ColumnBaseConfig, TPartial>
+	MySqlColumnHKT,
+	Required<Update<ColumnBaseConfig, TPartial>>
 >;
 
-export type BuildColumn<
-	TTableName extends string,
-	TBuilder extends AnyMySqlColumnBuilder,
-> = TBuilder extends ColumnBuilderWithConfig<infer T> ? MySqlColumn<Simplify<T & { tableName: TTableName }>> : never;
-
-export type BuildColumns<
-	TTableName extends string,
-	TConfigMap extends Record<string, AnyMySqlColumnBuilder>,
-> = Simplify<
-	{
-		[Key in keyof TConfigMap]: BuildColumn<TTableName, TConfigMap[Key]>;
-	}
->;
-
-export type ChangeColumnTableName<TColumn extends AnyMySqlColumn, TAlias extends string> = TColumn extends
-	MySqlColumn<infer T> ? MySqlColumn<Simplify<Omit<T, 'tableName'> & { tableName: TAlias }>>
-	: never;
+export interface MySqlColumnWithAutoIncrementConfig {
+	autoIncrement: boolean;
+}
 
 export abstract class MySqlColumnBuilderWithAutoIncrement<
-	T extends Partial<ColumnBuilderBaseConfig>,
-	TConfig extends Record<string, unknown> = {},
-> extends MySqlColumnBuilder<T, TConfig & { autoIncrement: boolean }> {
-	constructor(name: string) {
+	THKT extends ColumnBuilderHKTBase,
+	T extends ColumnBuilderBaseConfig,
+	TRuntimeConfig extends object = {},
+> extends MySqlColumnBuilder<THKT, T, TRuntimeConfig & MySqlColumnWithAutoIncrementConfig> {
+	constructor(name: NonNullable<T['name']>) {
 		super(name);
 		this.config.autoIncrement = false;
 	}
 
-	autoincrement(): MySqlColumnBuilderWithAutoIncrement<T> {
+	autoincrement(): MySqlColumnBuilderWithAutoIncrement<THKT, T, TRuntimeConfig> {
 		this.config.autoIncrement = true;
 		return this as ReturnType<this['autoincrement']>;
 	}
 }
 
-export abstract class MySqlColumnWithAutoIncrement<T extends Partial<ColumnBaseConfig & { autoIncrement: boolean }>>
-	extends MySqlColumn<T>
-{
-	declare protected $autoIncrement: T['autoIncrement'];
-
-	readonly autoIncrement: boolean;
-
-	constructor(
-		override readonly table: AnyMySqlTable<{ name: T['tableName'] }>,
-		config: MySqlColumnBuilderWithAutoIncrement<Omit<T, 'tableName'>>['config'],
-	) {
-		super(table, config);
-		this.autoIncrement = config.autoIncrement;
-	}
+export abstract class MySqlColumnWithAutoIncrement<
+	THKT extends ColumnHKTBase,
+	T extends ColumnBaseConfig,
+	TRuntimeConfig extends object = {},
+> extends MySqlColumn<THKT, T, MySqlColumnWithAutoIncrementConfig & TRuntimeConfig> {
+	readonly autoIncrement: boolean = this.config.autoIncrement;
 }

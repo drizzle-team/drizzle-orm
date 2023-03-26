@@ -3,32 +3,33 @@ import type { MySqlDialect } from '~/mysql-core/dialect';
 import type { MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/mysql-core/session';
 import type { SubqueryWithSelection } from '~/mysql-core/subquery';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import { getTableColumns } from '~/mysql-core/utils';
 import { MySqlViewBase } from '~/mysql-core/view';
-import { QueryPromise } from '~/query-promise';
-import type { Query, SQL } from '~/sql';
-import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
-import { Table } from '~/table';
-import { applyMixins, type Simplify, type ValueOrArray } from '~/utils';
-import { orderSelectedFields } from '~/utils';
-import { ViewBaseConfig } from '~/view';
-import { QueryBuilder } from './query-builder';
+import { QueryBuilder } from '~/query-builders/query-builder';
 import type {
 	BuildSubquerySelection,
 	GetSelectTableName,
 	GetSelectTableSelection,
-	JoinFn,
 	JoinNullability,
 	JoinType,
+	SelectMode,
+	SelectResult,
+} from '~/query-builders/select.types';
+import { QueryPromise } from '~/query-promise';
+import type { Query, SQL } from '~/sql';
+import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
+import { Table } from '~/table';
+import { applyMixins, getTableColumns, type Simplify, type ValueOrArray } from '~/utils';
+import { orderSelectedFields } from '~/utils';
+import { ViewBaseConfig } from '~/view';
+import type {
+	JoinFn,
 	LockConfig,
 	LockStrength,
 	MySqlSelectConfig,
 	MySqlSelectHKT,
 	MySqlSelectHKTBase,
 	MySqlSelectQueryBuilderHKT,
-	SelectFields,
-	SelectMode,
-	SelectResult,
+	SelectedFields,
 } from './select.types';
 
 type CreateMySqlSelectFromBuilderMode<
@@ -39,7 +40,10 @@ type CreateMySqlSelectFromBuilderMode<
 > = TBuilderMode extends 'db' ? MySqlSelect<TTableName, TSelection, TSelectMode>
 	: MySqlSelectQueryBuilder<MySqlSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>;
 
-export class MySqlSelectBuilder<TSelection extends SelectFields | undefined, TBuilderMode extends 'db' | 'qb' = 'db'> {
+export class MySqlSelectBuilder<
+	TSelection extends SelectedFields | undefined,
+	TBuilderMode extends 'db' | 'qb' = 'db',
+> {
 	constructor(
 		private fields: TSelection,
 		private session: MySqlSession | undefined,
@@ -57,7 +61,7 @@ export class MySqlSelectBuilder<TSelection extends SelectFields | undefined, TBu
 	> {
 		const isPartialSelect = !!this.fields;
 
-		let fields: SelectFields;
+		let fields: SelectedFields;
 		if (this.fields) {
 			fields = this.fields;
 		} else if (source instanceof Subquery) {
@@ -65,12 +69,12 @@ export class MySqlSelectBuilder<TSelection extends SelectFields | undefined, TBu
 			fields = Object.fromEntries(
 				Object.keys(source[SubqueryConfig].selection).map((
 					key,
-				) => [key, source[key as unknown as keyof typeof source] as unknown as SelectFields[string]]),
+				) => [key, source[key as unknown as keyof typeof source] as unknown as SelectedFields[string]]),
 			);
 		} else if (source instanceof MySqlViewBase) {
-			fields = source[ViewBaseConfig].selection as SelectFields;
+			fields = source[ViewBaseConfig].selectedFields as SelectedFields;
 		} else {
-			fields = getTableColumns(source);
+			fields = getTableColumns<AnyMySqlTable>(source);
 		}
 
 		const fieldsList = orderSelectedFields<AnyMySqlColumn>(fields);
@@ -93,9 +97,11 @@ export abstract class MySqlSelectQueryBuilder<
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = Record<TTableName, 'not-null'>,
 > extends QueryBuilder<BuildSubquerySelection<TSelection, TNullabilityMap>> {
-	declare protected $selectMode: TSelectMode;
-	declare protected $selection: TSelection;
-	declare protected $subquerySelection: BuildSubquerySelection<TSelection, TNullabilityMap>;
+	override readonly _: {
+		selectMode: TSelectMode;
+		selection: TSelection;
+		selectedFields: BuildSubquerySelection<TSelection, TNullabilityMap>;
+	};
 
 	protected config: MySqlSelectConfig;
 	protected joinsNotNullableMap: Record<string, boolean>;
@@ -120,7 +126,9 @@ export abstract class MySqlSelectQueryBuilder<
 			orderBy: [],
 			groupBy: [],
 		};
-		this.$subquerySelection = fields as BuildSubquerySelection<TSelection, TNullabilityMap>;
+		this._ = {
+			selectedFields: fields as BuildSubquerySelection<TSelection, TNullabilityMap>,
+		} as this['_'];
 		this.tableName = table instanceof Subquery
 			? table[SubqueryConfig].alias
 			: table instanceof MySqlViewBase

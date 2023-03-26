@@ -48,7 +48,10 @@ export function isSQLWrapper(value: unknown): value is SQLWrapper {
 }
 
 export class SQL<T = unknown> implements SQLWrapper {
-	declare protected $brand: 'SQL';
+	declare _: {
+		brand: 'SQL';
+		type: T;
+	};
 
 	/** @internal */
 	decoder: DriverValueDecoder<T, any> = noopDecoder;
@@ -376,8 +379,10 @@ export namespace sql {
 
 export namespace SQL {
 	export class Aliased<T = unknown> implements SQLWrapper {
-		declare protected $brand: 'SQL.Aliased';
-		declare protected $type: T;
+		declare _: {
+			brand: 'SQL.Aliased';
+			type: T;
+		};
 
 		/** @internal */
 		isSelectionField = false;
@@ -399,8 +404,7 @@ export namespace SQL {
 }
 
 export class Placeholder<TName extends string = string, TValue = any> {
-	declare protected $brand: 'Placeholder';
-	declare protected $type: TValue;
+	declare protected: TValue;
 
 	constructor(readonly name: TName) {}
 }

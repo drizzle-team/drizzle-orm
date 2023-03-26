@@ -1,4 +1,4 @@
-import type { AnyColumn} from './column';
+import type { AnyColumn } from './column';
 import { Column } from './column';
 import { Table } from './table';
 
@@ -17,10 +17,7 @@ export class TableAliasProxyHandler implements ProxyHandler<Table> {
 	constructor(private alias: string) {}
 
 	get(tableObj: Table, prop: string | symbol, receiver: any): any {
-		if (prop === Table.Symbol.Name) {
-			return this.alias;
-		}
-		if (prop === Table.Symbol.Columns) {
+		if (prop === '_') {
 			const columns = tableObj[Table.Symbol.Columns];
 			if (!columns) {
 				return columns;
@@ -35,7 +32,11 @@ export class TableAliasProxyHandler implements ProxyHandler<Table> {
 				);
 			});
 
-			return proxiedColumns;
+			return {
+				...tableObj._,
+				name: this.alias,
+				columns: proxiedColumns,
+			};
 		}
 
 		const value = tableObj[prop as keyof Table];

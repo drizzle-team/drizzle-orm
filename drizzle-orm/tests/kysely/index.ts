@@ -2,7 +2,8 @@ import { Kysely, PostgresDialect } from 'kysely';
 import { Pool } from 'pg';
 import { type Equal, Expect } from 'tests/utils';
 import type { Kyselify } from '~/kysely';
-import { type InferModel, pgTable, serial, text } from '~/pg-core';
+import { pgTable, serial, text } from '~/pg-core';
+import type { InferModel } from '~/table';
 import type { PromiseOf } from '~/utils';
 
 const test = pgTable('test', {

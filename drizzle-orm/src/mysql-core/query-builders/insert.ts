@@ -6,20 +6,21 @@ import type {
 	QueryResultHKT,
 	QueryResultKind,
 } from '~/mysql-core/session';
-import type { AnyMySqlTable, InferModel } from '~/mysql-core/table';
+import type { AnyMySqlTable } from '~/mysql-core/table';
 import { QueryPromise } from '~/query-promise';
 import type { Placeholder, Query, SQLWrapper } from '~/sql';
 import { Param, SQL, sql } from '~/sql';
-import { Table } from '~/table';
+import { type InferModel, Table } from '~/table';
 import type { Simplify } from '~/utils';
 import { mapUpdateSet } from '~/utils';
-import type { SelectFieldsOrdered } from './select.types';
+import type { SelectedFieldsOrdered } from './select.types';
 import type { MySqlUpdateSetSource } from './update';
+
 export interface MySqlInsertConfig<TTable extends AnyMySqlTable = AnyMySqlTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[];
 	onConflict?: SQL;
-	returning?: SelectFieldsOrdered;
+	returning?: SelectedFieldsOrdered;
 }
 
 export type AnyMySqlInsertConfig = MySqlInsertConfig<AnyMySqlTable>;

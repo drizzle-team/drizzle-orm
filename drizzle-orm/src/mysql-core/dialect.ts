@@ -11,7 +11,7 @@ import type { AnyMySqlColumn } from './columns/common';
 import { MySqlColumn } from './columns/common';
 import type { MySqlDeleteConfig } from './query-builders/delete';
 import type { MySqlInsertConfig } from './query-builders/insert';
-import type { MySqlSelectConfig, SelectFieldsOrdered } from './query-builders/select.types';
+import type { MySqlSelectConfig, SelectedFieldsOrdered } from './query-builders/select.types';
 import type { MySqlUpdateConfig } from './query-builders/update';
 import type { MySqlSession } from './session';
 import type { AnyMySqlTable } from './table';
@@ -125,7 +125,7 @@ export class MySqlDialect {
 	 * If `isSingleTable` is true, then columns won't be prefixed with table name
 	 */
 	private buildSelection(
-		fields: SelectFieldsOrdered,
+		fields: SelectedFieldsOrdered,
 		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
 	): SQL {
 		const columnsLen = fields.length;

@@ -14,6 +14,7 @@ import {
 	json,
 	mysqlEnum,
 	mysqlTable,
+	mysqlView,
 	serial,
 	text,
 	time,
@@ -21,7 +22,6 @@ import {
 	uniqueIndex,
 	year,
 } from 'drizzle-orm/mysql-core';
-import { mysqlView } from 'drizzle-orm/mysql-core';
 import { getViewConfig } from 'drizzle-orm/mysql-core/utils';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { drizzle } from 'drizzle-orm/mysql2';
@@ -37,7 +37,7 @@ const usersTable = mysqlTable('userstest', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
-	jsonb: json<string[]>('jsonb'),
+	jsonb: json('jsonb').$type<string[]>(),
 	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
 });
 

@@ -1,16 +1,34 @@
-import type { ColumnConfig } from '~/column';
-import type { ColumnBuilderConfig } from '~/column-builder';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import type { AnyPgTable } from '~/pg-core/table';
+import type { Assume } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 import type { Precision } from './timestamp';
 
-export class PgIntervalBuilder<TData extends string = string>
-	extends PgColumnBuilder<ColumnBuilderConfig<{ data: TData; driverParam: string }>, { intervalConfig: IntervalConfig }>
-{
-	protected override $pgColumnBuilderBrand!: 'PgIntervalBuilder';
+export interface PgIntervalBuilderHKT extends ColumnBuilderHKTBase {
+	_type: PgIntervalBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: PgIntervalHKT;
+}
 
+export interface PgIntervalHKT extends ColumnHKTBase {
+	_type: PgInterval<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type PgIntervalBuilderInitial<TName extends string> = PgIntervalBuilder<{
+	name: TName;
+	data: string;
+	driverParam: string;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class PgIntervalBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<
+	PgIntervalBuilderHKT,
+	T,
+	{ intervalConfig: IntervalConfig }
+> {
 	constructor(
-		name: string,
+		name: T['name'],
 		intervalConfig: IntervalConfig,
 	) {
 		super(name);
@@ -18,26 +36,22 @@ export class PgIntervalBuilder<TData extends string = string>
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgInterval<TTableName, TData> {
-		return new PgInterval(table, this.config);
+	override build<TTableName extends string>(
+		table: AnyPgTable<{ name: TTableName }>,
+	): PgInterval<MakeColumnConfig<T, TTableName>> {
+		return new PgInterval<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class PgInterval<TTableName extends string, TData extends string>
-	extends PgColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>>
+export class PgInterval<T extends ColumnBaseConfig>
+	extends PgColumn<PgIntervalHKT, T, { intervalConfig: IntervalConfig }>
 {
-	protected override $pgColumnBrand!: 'PgTime';
-
-	readonly config: IntervalConfig;
-
-	constructor(table: AnyPgTable<{ name: TTableName }>, config: PgIntervalBuilder<TData>['config']) {
-		super(table, config);
-		this.config = config.intervalConfig;
-	}
+	readonly fields: IntervalConfig['fields'] = this.config.intervalConfig.fields;
+	readonly precision: IntervalConfig['precision'] = this.config.intervalConfig.precision;
 
 	getSQLType(): string {
-		const fields = this.config.fields ? ` ${this.config.fields}` : '';
-		const precision = this.config.precision ? `(${this.config.precision})` : '';
+		const fields = this.fields ? ` ${this.fields}` : '';
+		const precision = this.precision ? `(${this.precision})` : '';
 		return `interval${fields}${precision}`;
 	}
 }
@@ -60,9 +74,9 @@ export interface IntervalConfig {
 	precision?: Precision;
 }
 
-export function interval<T extends string = string>(
-	name: string,
+export function interval<TName extends string>(
+	name: TName,
 	config: IntervalConfig = {},
-) {
-	return new PgIntervalBuilder<T>(name, config);
+): PgIntervalBuilderInitial<TName> {
+	return new PgIntervalBuilder(name, config);
 }

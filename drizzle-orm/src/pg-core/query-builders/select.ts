@@ -3,32 +3,33 @@ import type { PgDialect } from '~/pg-core/dialect';
 import type { PgSession, PreparedQuery, PreparedQueryConfig } from '~/pg-core/session';
 import type { SubqueryWithSelection } from '~/pg-core/subquery';
 import type { AnyPgTable } from '~/pg-core/table';
-import { getTableColumns } from '~/pg-core/utils';
 import { PgViewBase } from '~/pg-core/view';
-import { QueryPromise } from '~/query-promise';
-import type { Query, SQL } from '~/sql';
-import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
-import { Table } from '~/table';
-import { applyMixins, type Simplify, type ValueOrArray } from '~/utils';
-import { orderSelectedFields } from '~/utils';
-import { ViewBaseConfig } from '~/view';
-import { QueryBuilder } from './query-builder';
+import { QueryBuilder } from '~/query-builders/query-builder';
 import type {
 	BuildSubquerySelection,
 	GetSelectTableName,
 	GetSelectTableSelection,
-	JoinFn,
 	JoinNullability,
 	JoinType,
+	SelectMode,
+	SelectResult,
+} from '~/query-builders/select.types';
+import { QueryPromise } from '~/query-promise';
+import type { Query, SQL } from '~/sql';
+import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
+import { Table } from '~/table';
+import { applyMixins, getTableColumns, type Simplify, type ValueOrArray } from '~/utils';
+import { orderSelectedFields } from '~/utils';
+import { ViewBaseConfig } from '~/view';
+import type {
+	JoinFn,
 	LockConfig,
 	LockStrength,
 	PgSelectConfig,
 	PgSelectHKT,
 	PgSelectHKTBase,
 	PgSelectQueryBuilderHKT,
-	SelectFields,
-	SelectMode,
-	SelectResult,
+	SelectedFields,
 } from './select.types';
 
 type CreatePgSelectFromBuilderMode<
@@ -39,7 +40,10 @@ type CreatePgSelectFromBuilderMode<
 > = TBuilderMode extends 'db' ? PgSelect<TTableName, TSelection, TSelectMode>
 	: PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>;
 
-export class PgSelectBuilder<TSelection extends SelectFields | undefined, TBuilderMode extends 'db' | 'qb' = 'db'> {
+export class PgSelectBuilder<
+	TSelection extends SelectedFields | undefined,
+	TBuilderMode extends 'db' | 'qb' = 'db',
+> {
 	constructor(
 		private fields: TSelection,
 		private session: PgSession | undefined,
@@ -57,7 +61,7 @@ export class PgSelectBuilder<TSelection extends SelectFields | undefined, TBuild
 	> {
 		const isPartialSelect = !!this.fields;
 
-		let fields: SelectFields;
+		let fields: SelectedFields;
 		if (this.fields) {
 			fields = this.fields;
 		} else if (source instanceof Subquery) {
@@ -65,12 +69,12 @@ export class PgSelectBuilder<TSelection extends SelectFields | undefined, TBuild
 			fields = Object.fromEntries(
 				Object.keys(source[SubqueryConfig].selection).map((
 					key,
-				) => [key, source[key as unknown as keyof typeof source] as unknown as SelectFields[string]]),
+				) => [key, source[key as unknown as keyof typeof source] as unknown as SelectedFields[string]]),
 			);
 		} else if (source instanceof PgViewBase) {
-			fields = source[ViewBaseConfig].selection as SelectFields;
+			fields = source[ViewBaseConfig].selectedFields as SelectedFields;
 		} else {
-			fields = getTableColumns(source);
+			fields = getTableColumns<AnyPgTable>(source);
 		}
 
 		const fieldsList = orderSelectedFields<AnyPgColumn>(fields);
@@ -85,9 +89,11 @@ export abstract class PgSelectQueryBuilder<
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = Record<TTableName, 'not-null'>,
 > extends QueryBuilder<BuildSubquerySelection<TSelection, TNullabilityMap>> {
-	declare protected $selectMode: TSelectMode;
-	declare protected $selection: TSelection;
-	declare protected $subquerySelection: BuildSubquerySelection<TSelection, TNullabilityMap>;
+	override readonly _: {
+		readonly selectMode: TSelectMode;
+		readonly selection: TSelection;
+		readonly selectedFields: BuildSubquerySelection<TSelection, TNullabilityMap>;
+	};
 
 	protected config: PgSelectConfig;
 	protected joinsNotNullableMap: Record<string, boolean>;
@@ -113,7 +119,9 @@ export abstract class PgSelectQueryBuilder<
 			groupBy: [],
 			lockingClauses: [],
 		};
-		this.$subquerySelection = fields as BuildSubquerySelection<TSelection, TNullabilityMap>;
+		this._ = {
+			selectedFields: fields as BuildSubquerySelection<TSelection, TNullabilityMap>,
+		} as this['_'];
 		this.tableName = table instanceof Subquery
 			? table[SubqueryConfig].alias
 			: table instanceof PgViewBase

@@ -1,7 +1,6 @@
-import { FieldPacket, OkPacket, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import type { Query, SQL } from '~/sql';
 import type { MySqlDialect } from './dialect';
-import type { SelectFieldsOrdered } from './query-builders/select.types';
+import type { SelectedFieldsOrdered } from './query-builders/select.types';
 
 export interface QueryResultHKT {
 	readonly $brand: 'MySqlQueryRowHKT';
@@ -37,7 +36,7 @@ export abstract class MySqlSession {
 
 	abstract prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		fields: SelectFieldsOrdered | undefined,
+		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 	): PreparedQuery<T>;
 

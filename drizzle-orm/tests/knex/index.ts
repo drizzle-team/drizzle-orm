@@ -1,8 +1,9 @@
 import Knex from 'knex';
 import { type Equal, Expect } from 'tests/utils';
-import { type InferModel, pgTable, serial, text } from '~/pg-core';
+import { pgTable, serial, text } from '~/pg-core';
 import type { PromiseOf } from '~/utils';
 import '~/knex';
+import type { InferModel } from '~/table';
 
 const test = pgTable('test', {
 	id: serial('id').primaryKey(),
@@ -19,5 +20,15 @@ const db = Knex({});
 
 {
 	const res = db('test').select();
-	Expect<Equal<PromiseOf<typeof res>, InferModel<typeof test>[]>>;
+	Expect<Equal<PromiseOf<typeof res>, typeof test['_']['model']['select'][]>>;
+}
+
+{
+	// before
+	type Test = InferModel<typeof test>;
+}
+
+{
+	// after
+	type Test = typeof test['_']['model']['select'];
 }

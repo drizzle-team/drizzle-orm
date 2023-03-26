@@ -1,31 +1,41 @@
-import type { ColumnConfig } from '~/column';
-import type { ColumnBuilderConfig } from '~/column-builder';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { Assume } from '~/utils';
 import type { AnyPgTable } from '../table';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgCidrBuilder extends PgColumnBuilder<ColumnBuilderConfig<{ data: string; driverParam: string }>> {
-	protected override $pgColumnBuilderBrand!: 'PgCidrBuilder';
+export interface PgCidrBuilderHKT extends ColumnBuilderHKTBase {
+	_type: PgCidrBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: PgCidrHKT;
+}
 
+export interface PgCidrHKT extends ColumnHKTBase {
+	_type: PgCidr<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type PgCidrBuilderInitial<TName extends string> = PgCidrBuilder<{
+	name: TName;
+	data: string;
+	driverParam: string;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class PgCidrBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgCidrBuilderHKT, T> {
 	/** @internal */
-	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgCidr<TTableName> {
-		return new PgCidr(table, this.config);
+	override build<TTableName extends string>(
+		table: AnyPgTable<{ name: TTableName }>,
+	): PgCidr<MakeColumnConfig<T, TTableName>> {
+		return new PgCidr<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class PgCidr<TTableName extends string> extends PgColumn<
-	ColumnConfig<{
-		tableName: TTableName;
-		data: string;
-		driverParam: string;
-	}>
-> {
-	protected override $pgColumnBrand!: 'PgCidr';
-
+export class PgCidr<T extends ColumnBaseConfig> extends PgColumn<PgCidrHKT, T> {
 	getSQLType(): string {
 		return 'cidr';
 	}
 }
 
-export function cidr(name: string) {
+export function cidr<TName extends string>(name: TName): PgCidrBuilderInitial<TName> {
 	return new PgCidrBuilder(name);
 }

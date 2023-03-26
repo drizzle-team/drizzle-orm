@@ -5,7 +5,7 @@ import anyTest from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
 import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
-import { type AnyPgColumn, type InferModel, pgMaterializedView, pgView } from 'drizzle-orm/pg-core';
+import { type AnyPgColumn, pgMaterializedView, pgView } from 'drizzle-orm/pg-core';
 import { alias, boolean, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { getMaterializedViewConfig, getViewConfig } from 'drizzle-orm/pg-core/utils';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
@@ -22,7 +22,7 @@ const usersTable = pgTable('users', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
-	jsonb: jsonb<string[]>('jsonb'),
+	jsonb: jsonb('jsonb').$type<string[]>(),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -623,7 +623,7 @@ test.serial('insert via db.execute + returning', async (t) => {
 test.serial('insert via db.execute w/ query builder', async (t) => {
 	const { db } = t.context;
 
-	const result = await db.execute<Pick<InferModel<typeof usersTable>, 'id' | 'name'>>(
+	const result = await db.execute<Pick<typeof usersTable['_']['model']['select'], 'id' | 'name'>>(
 		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 	);
 	t.deepEqual(Array.prototype.slice.call(result), [{ id: 1, name: 'John' }]);
