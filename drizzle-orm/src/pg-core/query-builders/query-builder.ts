@@ -6,7 +6,7 @@ import { SelectionProxyHandler, WithSubquery } from '~/subquery';
 import type { WithSubqueryWithSelection } from '../subquery';
 
 export class QueryBuilderInstance {
-	private dialect = new PgDialect();
+	private dialect: PgDialect | undefined;
 	private PgSelectBuilder: typeof PgSelectBuilder;
 
 	constructor() {
@@ -41,7 +41,7 @@ export class QueryBuilderInstance {
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
 		): PgSelectBuilder<TSelection | undefined, 'qb'> {
-			return new self.PgSelectBuilder(fields ?? undefined, undefined, self.dialect, queries);
+			return new self.PgSelectBuilder(fields ?? undefined, undefined, self.getDialect(), queries);
 		}
 
 		return { select };
@@ -50,7 +50,16 @@ export class QueryBuilderInstance {
 	select(): PgSelectBuilder<undefined, 'qb'>;
 	select<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection, 'qb'>;
 	select<TSelection extends SelectedFields>(fields?: TSelection): PgSelectBuilder<TSelection | undefined, 'qb'> {
-		return new this.PgSelectBuilder(fields ?? undefined, undefined, this.dialect);
+		return new this.PgSelectBuilder(fields ?? undefined, undefined, this.getDialect());
+	}
+
+	// Lazy load dialect to avoid circular dependency
+	private getDialect() {
+		if (!this.dialect) {
+			this.dialect = new PgDialect();
+		}
+
+		return this.dialect;
 	}
 }
 

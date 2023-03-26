@@ -6,7 +6,7 @@ import type { MySqlSelectBuilder } from './select';
 import type { SelectedFields } from './select.types';
 
 export class QueryBuilderInstance {
-	private dialect = new MySqlDialect();
+	private dialect: MySqlDialect | undefined;
 	private MySqlSelectBuilder: typeof MySqlSelectBuilder;
 
 	constructor() {
@@ -41,7 +41,7 @@ export class QueryBuilderInstance {
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
 		): MySqlSelectBuilder<TSelection | undefined, 'qb'> {
-			return new self.MySqlSelectBuilder(fields ?? undefined, undefined, self.dialect, queries);
+			return new self.MySqlSelectBuilder(fields ?? undefined, undefined, self.getDialect(), queries);
 		}
 
 		return { select };
@@ -50,7 +50,16 @@ export class QueryBuilderInstance {
 	select(): MySqlSelectBuilder<undefined, 'qb'>;
 	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, 'qb'>;
 	select<TSelection extends SelectedFields>(fields?: TSelection): MySqlSelectBuilder<TSelection | undefined, 'qb'> {
-		return new this.MySqlSelectBuilder(fields ?? undefined, undefined, this.dialect);
+		return new this.MySqlSelectBuilder(fields ?? undefined, undefined, this.getDialect());
+	}
+
+	// Lazy load dialect to avoid circular dependency
+	private getDialect() {
+		if (!this.dialect) {
+			this.dialect = new MySqlDialect();
+		}
+
+		return this.dialect;
 	}
 }
 
