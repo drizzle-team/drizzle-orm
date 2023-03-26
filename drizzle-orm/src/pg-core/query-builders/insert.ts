@@ -32,14 +32,21 @@ export class PgInsertBuilder<TTable extends AnyPgTable, TQueryResult extends Que
 		private dialect: PgDialect,
 	) {}
 
-	values(value: PgInsertValue<TTable>[]): PgInsert<TTable, TQueryResult>;
+	values(value: PgInsertValue<TTable>): PgInsert<TTable, TQueryResult>;
+	values(values: PgInsertValue<TTable>[]): PgInsert<TTable, TQueryResult>;
 	/**
 	 * @deprecated Pass the array of values without spreading it.
 	 */
 	values(...values: PgInsertValue<TTable>[]): PgInsert<TTable, TQueryResult>;
-	values(...values: PgInsertValue<TTable>[] | [PgInsertValue<TTable>[]]): PgInsert<TTable, TQueryResult> {
-		if (values.length === 1 && Array.isArray(values[0])) {
-			values = values[0];
+	values(
+		...values: PgInsertValue<TTable>[] | [PgInsertValue<TTable>] | [PgInsertValue<TTable>[]]
+	): PgInsert<TTable, TQueryResult> {
+		if (values.length === 1) {
+			if (Array.isArray(values[0])) {
+				values = values[0];
+			} else {
+				values = [values[0]];
+			}
 		}
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};

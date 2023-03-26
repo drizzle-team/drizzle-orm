@@ -1,7 +1,7 @@
 import type { AnyColumn } from '~/column';
 import { Column } from '~/column';
 import type { MigrationMeta } from '~/migrator';
-import type { Query, SQLSourceParam } from '~/sql';
+import type { Query, SQLChunk } from '~/sql';
 import { Name, SQL, sql } from '~/sql';
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
@@ -133,7 +133,7 @@ export class MySqlDialect {
 
 		const chunks = fields
 			.map(({ field }, i) => {
-				const chunk: SQLSourceParam[] = [];
+				const chunk: SQLChunk[] = [];
 
 				if (field instanceof SQL.Aliased && field.isSelectionField) {
 					chunk.push(new Name(field.fieldAlias));
@@ -143,7 +143,7 @@ export class MySqlDialect {
 					if (isSingleTable) {
 						chunk.push(
 							new SQL(
-								query.queryChunks.map((c) => {
+								query.chunks.map((c) => {
 									if (c instanceof MySqlColumn) {
 										return new Name(c.name);
 									}
@@ -296,7 +296,7 @@ export class MySqlDialect {
 
 	buildInsertQuery({ table, values, onConflict, returning }: MySqlInsertConfig): SQL {
 		const isSingleValue = values.length === 1;
-		const valuesSqlList: ((SQLSourceParam | SQL)[] | SQL)[] = [];
+		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, AnyMySqlColumn> = table[Table.Symbol.Columns];
 		const colEntries: [string, AnyMySqlColumn][] = isSingleValue
 			? Object.keys(values[0]!).map((fieldName) => [fieldName, columns[fieldName]!])
@@ -304,7 +304,7 @@ export class MySqlDialect {
 		const insertOrder = colEntries.map(([, column]) => new Name(column.name));
 
 		values.forEach((value, valueIndex) => {
-			const valueList: (SQLSourceParam | SQL)[] = [];
+			const valueList: (SQLChunk | SQL)[] = [];
 			colEntries.forEach(([fieldName]) => {
 				const colValue = value[fieldName];
 				if (typeof colValue === 'undefined') {
