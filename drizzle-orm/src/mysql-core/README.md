@@ -170,7 +170,8 @@ export const cities = mysqlTable('cities', {
 
 ```typescript
 // db.ts
-import { InferModel, MySqlDatabase, MySqlRawQueryResult, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
+import { MySqlDatabase, MySqlRawQueryResult, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
+import { InferModel } from 'drizzle-orm';
 import mysql from 'mysql2/promise';
 import { drizzle } from 'drizzle-orm/mysql2';
 
@@ -518,7 +519,8 @@ or(...expressions: SQL[])
 ### Insert
 
 ```typescript
-import { mysqlTable, serial, text, timestamp, InferModel } from 'drizzle-orm/mysql-core';
+import { mysqlTable, serial, text, timestamp } from 'drizzle-orm/mysql-core';
+import { InferModel } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/mysql2';
 
 const users = mysqlTable('users', {

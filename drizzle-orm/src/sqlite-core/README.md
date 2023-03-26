@@ -139,7 +139,8 @@ export const cities = sqliteTable('cities', {
 ### Database and table entity types
 
 ```typescript
-import { InferModel, text, integer, sqliteTable } from 'drizzle-orm/sqlite-core';
+import { text, integer, sqliteTable } from 'drizzle-orm/sqlite-core';
+import { InferModel } from 'drizzle-orm';
 
 const users = sqliteTable('users', {
   id: integer('id').primaryKey(),
@@ -411,7 +412,8 @@ or(...expressions: Expr[])
 ### Insert
 
 ```typescript
-import { sqliteTable, text, integer, InferModel } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { InferModel } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import Database from 'better-sqlite3';
 

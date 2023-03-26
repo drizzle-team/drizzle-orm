@@ -176,7 +176,8 @@ export const cities = pgTable('cities', {
 ### Database and table entity types
 
 ```typescript
-import { pgTable, InferModel, serial, text, varchar } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, varchar } from 'drizzle-orm/pg-core';
+import { InferModel } from 'drizzle-orm';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 const users = pgTable('users', {
@@ -524,7 +525,8 @@ or(...expressions: SQL[])
 ### Insert
 
 ```typescript
-import { pgTable, serial, text, timestamp, InferModel } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { InferModel } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 
 const users = pgTable('users', {
