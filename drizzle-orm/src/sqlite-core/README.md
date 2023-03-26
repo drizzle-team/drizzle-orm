@@ -183,19 +183,30 @@ const users = sqliteTable('users', {
 The list of all column types. You can also create custom types - [see here](/docs/custom-types.md)
 
 ```typescript
-integer('...')
+integer('...');
 integer('...', { mode: 'number' | 'timestamp' | 'bigint' })
-real('...')
+real('...');
 text('...');
-text<'union' | 'string' | 'type'>('...');
+text('role', { enum: ['admin', 'user'] });
 
 blob('...');
 blob('...', { mode: 'json' | 'buffer' });
-blob<{ foo: string }>('...');
+blob('...').$type<{ foo: string }>();
 
-column.primaryKey()
-column.notNull()
-column.default(...)
+column.primaryKey();
+column.notNull();
+column.default(...);
+```
+
+### Customizing column data type
+
+Every column builder has a `.$type()` method, which allows you to customize the data type of the column. This is useful, for example, with branded types.
+
+```ts
+const users = sqliteTable('users', {
+  id: integer('id').$type<UserId>().primaryKey(),
+  jsonField: blob('json_field').$type<Data>(),
+});
 ```
 
 Declaring indexes, foreign keys and composite primary keys

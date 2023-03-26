@@ -304,8 +304,8 @@ binary('name');
 varbinary('name', { length: 2 });
 
 char('name');
-varchar('name', { length: 2 });
-text('name');
+varchar('name', { length: 2, enum: ['a', 'b'] });
+text('name', { enum: ['a', 'b'] });
 
 boolean('name');
 
@@ -319,9 +319,18 @@ timestamp('...', { mode: 'date' | 'string', fsp: 0..6 })
 timestamp('...').defaultNow()
 
 json('name');
-json<string[]>('name');
+json('name').$type<string[]>();
+```
 
-int('...').array(3).array(4)
+### Customizing column data type
+
+Every column builder has a `.$type()` method, which allows you to customize the data type of the column. This is useful, for example, with branded types.
+
+```ts
+const users = mysqlTable('users', {
+  id: serial('id').$type<UserId>().primaryKey(),
+  jsonField: json('json_field').$type<Data>(),
+});
 ```
 
 ## Table schemas
