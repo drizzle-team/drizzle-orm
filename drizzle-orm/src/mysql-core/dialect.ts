@@ -6,7 +6,7 @@ import { Name, SQL, sql } from '~/sql';
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
 import type { UpdateSet } from '~/utils';
-import { View, ViewBaseConfig } from '~/view';
+import { ViewBaseConfig } from '~/view';
 import type { AnyMySqlColumn } from './columns/common';
 import { MySqlColumn } from './columns/common';
 import type { MySqlDeleteConfig } from './query-builders/delete';
@@ -16,6 +16,7 @@ import type { MySqlUpdateConfig } from './query-builders/update';
 import type { MySqlSession } from './session';
 import type { AnyMySqlTable } from './table';
 import { MySqlTable } from './table';
+import { MySqlViewBase } from './view';
 
 // TODO find out how to use all/values. Seems like I need those functions
 // Build project
@@ -177,21 +178,23 @@ export class MySqlDialect {
 	}
 
 	buildSelectQuery(
-		{ withList, fieldsList: fields, where, having, table, joins, orderBy, groupBy, limit, offset, lockingClause }:
+		{ withList, fieldsList, where, having, table, joins, orderBy, groupBy, limit, offset, lockingClause }:
 			MySqlSelectConfig,
 	): SQL {
-		fields.forEach((f) => {
-			let tableName: string;
+		fieldsList.forEach((f) => {
 			if (
 				f.field instanceof Column
 				&& getTableName(f.field.table)
 					!== (table instanceof Subquery
 						? table[SubqueryConfig].alias
-						: table instanceof View
+						: table instanceof MySqlViewBase
 						? table[ViewBaseConfig].name
+						: table instanceof SQL
+						? undefined
 						: getTableName(table))
-				&& !((tableName = getTableName(f.field.table)) in joins)
+				&& !((table) => joins.some(({ alias }) => alias === getTableName(table)))(f.field.table)
 			) {
+				const tableName = getTableName(f.field.table);
 				throw new Error(
 					`Your "${
 						f.path.join('->')
@@ -200,8 +203,7 @@ export class MySqlDialect {
 			}
 		});
 
-		const joinKeys = Object.keys(joins);
-		const isSingleTable = joinKeys.length === 0;
+		const isSingleTable = joins.length === 0;
 
 		let withSql: SQL | undefined;
 		if (withList.length) {
@@ -216,22 +218,21 @@ export class MySqlDialect {
 			withSql = sql.fromList(withSqlChunks);
 		}
 
-		const selection = this.buildSelection(fields, { isSingleTable });
+		const selection = this.buildSelection(fieldsList, { isSingleTable });
 
 		const joinsArray: SQL[] = [];
 
-		joinKeys.forEach((tableAlias, index) => {
+		joins.forEach((joinMeta, index) => {
 			if (index === 0) {
 				joinsArray.push(sql` `);
 			}
-			const joinMeta = joins[tableAlias]!;
 			const table = joinMeta.table;
 
 			if (table instanceof MySqlTable) {
 				const tableName = table[MySqlTable.Symbol.Name];
 				const tableSchema = table[MySqlTable.Symbol.Schema];
 				const origTableName = table[MySqlTable.Symbol.OriginalName];
-				const alias = tableName === origTableName ? undefined : tableAlias;
+				const alias = tableName === origTableName ? undefined : joinMeta.alias;
 				joinsArray.push(
 					sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${new Name(tableSchema)}.` : undefined}${new Name(
 						origTableName,
@@ -242,7 +243,7 @@ export class MySqlDialect {
 					sql`${sql.raw(joinMeta.joinType)} join ${table} on ${joinMeta.on}`,
 				);
 			}
-			if (index < joinKeys.length - 1) {
+			if (index < joins.length - 1) {
 				joinsArray.push(sql` `);
 			}
 		});

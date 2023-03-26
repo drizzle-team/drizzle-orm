@@ -40,7 +40,7 @@ export class SelectionProxyHandler<T extends Subquery | SelectedFields<AnyColumn
 {
 	private config: {
 		alias?: string;
-		sqlAliasedBehavior: 'sql' | 'alias';
+		sqlAliasedBehavior: 'sql' | 'alias' | 'subquery_selection';
 		sqlBehavior: 'sql' | 'error';
 	};
 
@@ -61,7 +61,10 @@ export class SelectionProxyHandler<T extends Subquery | SelectedFields<AnyColumn
 		const value: unknown = columns[prop as keyof typeof columns];
 
 		if (value instanceof SQL.Aliased) {
-			if (this.config.sqlAliasedBehavior === 'sql') {
+			if (
+				(this.config.sqlAliasedBehavior !== 'subquery_selection' && !value.isSelectionField)
+				|| this.config.sqlAliasedBehavior === 'sql'
+			) {
 				return value.sql;
 			}
 

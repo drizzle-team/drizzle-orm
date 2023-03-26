@@ -3,7 +3,7 @@ import type { ChangeColumnTableName } from '~/column-builder';
 import type { SelectedFields } from '~/operations';
 import type { SQL } from '~/sql';
 import type { Subquery } from '~/subquery';
-import type { AnyTable } from '~/table';
+import type { AnyTable, Table } from '~/table';
 import type { Assume, DrizzleTypeError, Equal, Simplify } from '~/utils';
 import type { View } from '~/view';
 
@@ -94,14 +94,16 @@ export type AddAliasToSelection<TSelection, TAlias extends string> = Equal<TSele
 	>;
 
 export type AppendToResult<
-	TTableName extends string,
+	TTableName extends string | undefined,
 	TResult,
-	TJoinedName extends string,
-	TSelectedFields extends SelectedFields<AnyColumn, AnyTable>,
+	TJoinedName extends string | undefined,
+	TSelectedFields extends SelectedFields<AnyColumn, Table>,
 	TOldSelectMode extends SelectMode,
 > = TOldSelectMode extends 'partial' ? TResult
-	: TOldSelectMode extends 'single' ? Record<TTableName, TResult> & Record<TJoinedName, TSelectedFields>
-	: TResult & Record<TJoinedName, TSelectedFields>;
+	: TOldSelectMode extends 'single' ? 
+			& (TTableName extends string ? Record<TTableName, TResult> : TResult)
+			& (TJoinedName extends string ? Record<TJoinedName, TSelectedFields> : TSelectedFields)
+	: TResult & (TJoinedName extends string ? Record<TJoinedName, TSelectedFields> : TSelectedFields);
 
 export type BuildSubquerySelection<
 	TSelection,
@@ -125,23 +127,26 @@ type SetJoinsNullability<TNullabilityMap extends Record<string, JoinNullability>
 
 export type AppendToNullabilityMap<
 	TJoinsNotNull extends Record<string, JoinNullability>,
-	TJoinedName extends string,
+	TJoinedName extends string | undefined,
 	TJoinType extends JoinType,
-> = 'left' extends TJoinType ? TJoinsNotNull & { [name in TJoinedName]: 'nullable' }
+> = TJoinedName extends string ? 'left' extends TJoinType ? TJoinsNotNull & { [name in TJoinedName]: 'nullable' }
 	: 'right' extends TJoinType ? SetJoinsNullability<TJoinsNotNull, 'nullable'> & { [name in TJoinedName]: 'not-null' }
 	: 'inner' extends TJoinType ? TJoinsNotNull & { [name in TJoinedName]: 'not-null' }
 	: 'full' extends TJoinType ? SetJoinsNullability<TJoinsNotNull, 'nullable'> & { [name in TJoinedName]: 'nullable' }
-	: never;
+	: never
+	: TJoinsNotNull;
 
-export type GetSelectTableName<TTable extends AnyTable | Subquery | View> = TTable extends AnyTable
+export type GetSelectTableName<TTable extends AnyTable | Subquery | View | SQL> = TTable extends AnyTable
 	? TTable['_']['name']
 	: TTable extends Subquery ? TTable['_']['alias']
 	: TTable extends View ? TTable['_']['name']
+	: TTable extends SQL ? undefined
 	: never;
 
-export type GetSelectTableSelection<TTable extends AnyTable | Subquery | View> = TTable extends AnyTable
+export type GetSelectTableSelection<TTable extends AnyTable | Subquery | View | SQL> = TTable extends AnyTable
 	? TTable['_']['columns']
 	: TTable extends Subquery | View ? TTable['_']['selectedFields']
+	: TTable extends SQL ? {}
 	: never;
 
 export type SelectResultField<T, TDeep extends boolean = true> = T extends DrizzleTypeError<any> ? T

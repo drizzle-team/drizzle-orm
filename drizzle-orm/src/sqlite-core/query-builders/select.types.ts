@@ -25,7 +25,8 @@ import type { SQLiteSelect, SQLiteSelectQueryBuilder } from './select';
 
 export interface JoinsValue {
 	on: SQL | undefined;
-	table: AnySQLiteTable | Subquery;
+	table: AnySQLiteTable | Subquery | SQL;
+	alias: string | undefined;
 	joinType: JoinType;
 }
 
@@ -47,17 +48,17 @@ export interface SQLiteSelectConfig {
 	fieldsList: SelectedFieldsOrdered;
 	where?: SQL;
 	having?: SQL;
-	table: AnySQLiteTable | Subquery | SQLiteViewBase;
+	table: AnySQLiteTable | Subquery | SQLiteViewBase | SQL;
 	limit?: number | Placeholder;
 	offset?: number | Placeholder;
-	joins: Record<string, JoinsValue>;
+	joins: JoinsValue[];
 	orderBy: (AnySQLiteColumn | SQL | SQL.Aliased)[];
 	groupBy: (AnySQLiteColumn | SQL | SQL.Aliased)[];
 }
 
 export type JoinFn<
 	THKT extends SQLiteSelectHKTBase,
-	TTableName extends string,
+	TTableName extends string | undefined,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TSelectMode extends SelectMode,
@@ -65,9 +66,9 @@ export type JoinFn<
 	TSelection,
 	TNullabilityMap extends Record<string, JoinNullability>,
 > = <
-	TJoinedTable extends AnySQLiteTable | Subquery,
+	TJoinedTable extends AnySQLiteTable | Subquery | SQL,
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
->(table: TJoinedTable, on: SQL | undefined) => SQLiteSelectKind<
+>(table: TJoinedTable, on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined) => SQLiteSelectKind<
 	THKT,
 	TTableName,
 	TResultType,
@@ -92,7 +93,7 @@ export type SelectedFields = SelectFieldsBase<AnySQLiteColumn, AnySQLiteTable>;
 export type SelectedFieldsOrdered = SelectFieldsOrderedBase<AnySQLiteColumn>;
 
 export interface SQLiteSelectHKTBase {
-	tableName: string;
+	tableName: string | undefined;
 	resultType: 'sync' | 'async';
 	runResult: unknown;
 	selection: unknown;
@@ -103,7 +104,7 @@ export interface SQLiteSelectHKTBase {
 
 export type SQLiteSelectKind<
 	T extends SQLiteSelectHKTBase,
-	TTableName extends string,
+	TTableName extends string | undefined,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TSelection,

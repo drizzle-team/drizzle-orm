@@ -23,7 +23,8 @@ import type { MySqlSelect, MySqlSelectQueryBuilder } from './select';
 
 export interface JoinsValue {
 	on: SQL | undefined;
-	table: AnyMySqlTable | Subquery;
+	table: AnyMySqlTable | Subquery | SQL;
+	alias: string | undefined;
 	joinType: JoinType;
 }
 
@@ -45,10 +46,10 @@ export interface MySqlSelectConfig {
 	fieldsList: SelectedFieldsOrdered;
 	where?: SQL;
 	having?: SQL;
-	table: AnyMySqlTable | Subquery | MySqlViewBase;
+	table: AnyMySqlTable | Subquery | MySqlViewBase | SQL;
 	limit?: number | Placeholder;
 	offset?: number | Placeholder;
-	joins: Record<string, JoinsValue>;
+	joins: JoinsValue[];
 	orderBy: (AnyMySqlColumn | SQL | SQL.Aliased)[];
 	groupBy: (AnyMySqlColumn | SQL | SQL.Aliased)[];
 	lockingClause?: {
@@ -59,15 +60,15 @@ export interface MySqlSelectConfig {
 
 export type JoinFn<
 	THKT extends MySqlSelectHKTBase,
-	TTableName extends string,
+	TTableName extends string | undefined,
 	TSelectMode extends SelectMode,
 	TJoinType extends JoinType,
 	TSelection,
 	TNullabilityMap extends Record<string, JoinNullability>,
 > = <
-	TJoinedTable extends AnyMySqlTable | Subquery,
+	TJoinedTable extends AnyMySqlTable | Subquery | SQL,
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
->(table: TJoinedTable, on: SQL | undefined) => MySqlSelectKind<
+>(table: TJoinedTable, on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined) => MySqlSelectKind<
 	THKT,
 	TTableName,
 	AppendToResult<
@@ -103,7 +104,7 @@ export type LockConfig = {
 };
 
 export interface MySqlSelectHKTBase {
-	tableName: string;
+	tableName: string | undefined;
 	selection: unknown;
 	selectMode: SelectMode;
 	nullabilityMap: unknown;
@@ -112,7 +113,7 @@ export interface MySqlSelectHKTBase {
 
 export type MySqlSelectKind<
 	T extends MySqlSelectHKTBase,
-	TTableName extends string,
+	TTableName extends string | undefined,
 	TSelection,
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability>,

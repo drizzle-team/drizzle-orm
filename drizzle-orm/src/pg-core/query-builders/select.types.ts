@@ -23,7 +23,8 @@ import type { PgSelect, PgSelectQueryBuilder } from './select';
 
 export interface JoinsValue {
 	on: SQL | undefined;
-	table: AnyPgTable | Subquery;
+	table: AnyPgTable | Subquery | SQL;
+	alias: string | undefined;
 	joinType: JoinType;
 }
 
@@ -45,10 +46,10 @@ export interface PgSelectConfig {
 	fieldsList: SelectedFieldsOrdered;
 	where?: SQL;
 	having?: SQL;
-	table: AnyPgTable | Subquery | PgViewBase;
+	table: AnyPgTable | Subquery | PgViewBase | SQL;
 	limit?: number | Placeholder;
 	offset?: number | Placeholder;
-	joins: Record<string, JoinsValue>;
+	joins: JoinsValue[];
 	orderBy: (AnyPgColumn | SQL | SQL.Aliased)[];
 	groupBy: (AnyPgColumn | SQL | SQL.Aliased)[];
 	lockingClauses: {
@@ -59,15 +60,15 @@ export interface PgSelectConfig {
 
 export type JoinFn<
 	THKT extends PgSelectHKTBase,
-	TTableName extends string,
+	TTableName extends string | undefined,
 	TSelectMode extends SelectMode,
 	TJoinType extends JoinType,
 	TSelection,
 	TNullabilityMap extends Record<string, JoinNullability>,
 > = <
-	TJoinedTable extends AnyPgTable | Subquery,
+	TJoinedTable extends AnyPgTable | Subquery | SQL,
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
->(table: TJoinedTable, on: SQL | undefined) => PgSelectKind<
+>(table: TJoinedTable, on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined) => PgSelectKind<
 	THKT,
 	TTableName,
 	AppendToResult<
@@ -107,7 +108,7 @@ export type LockConfig =
 	});
 
 export interface PgSelectHKTBase {
-	tableName: string;
+	tableName: string | undefined;
 	selection: unknown;
 	selectMode: SelectMode;
 	nullabilityMap: unknown;
@@ -116,7 +117,7 @@ export interface PgSelectHKTBase {
 
 export type PgSelectKind<
 	T extends PgSelectHKTBase,
-	TTableName extends string,
+	TTableName extends string | undefined,
 	TSelection,
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability>,
