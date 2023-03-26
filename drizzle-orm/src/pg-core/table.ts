@@ -99,3 +99,10 @@ export function pgTable<
 }> {
 	return pgTableWithSchema(name, columns, extraConfig, undefined as TSchemaName);
 }
+
+export function pgTableCreator(customizeTableName: (name: string) => string): typeof pgTable {
+	const builder: typeof pgTable = (name, columns, extraConfig) => {
+		return pgTable(customizeTableName(name) as typeof name, columns, extraConfig);
+	};
+	return builder;
+}

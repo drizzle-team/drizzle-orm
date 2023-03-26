@@ -14,6 +14,7 @@ import {
 	json,
 	mysqlEnum,
 	mysqlTable,
+	mysqlTableCreator,
 	mysqlView,
 	serial,
 	text,
@@ -1226,4 +1227,29 @@ test.serial('join on aliased sql from with clause', async (t) => {
 	t.deepEqual(result, [
 		{ userId: 1, name: 'John', userCity: 'New York', cityId: 1, cityName: 'Paris' },
 	]);
+});
+
+test.serial('prefixed table', async (t) => {
+	const { db } = t.context;
+
+	const mysqlTable = mysqlTableCreator((name) => `myprefix_${name}`);
+
+	const users = mysqlTable('test_prefixed_table_with_unique_name', {
+		id: int('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table myprefix_test_prefixed_table_with_unique_name (id int not null primary key, name text not null)`,
+	);
+
+	await db.insert(users).values({ id: 1, name: 'John' });
+
+	const result = await db.select().from(users);
+
+	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+
+	await db.execute(sql`drop table ${users}`);
 });

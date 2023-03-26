@@ -86,3 +86,10 @@ export function sqliteTable<
 
 	return table;
 }
+
+export function sqliteTableCreator(customizeTableName: (name: string) => string): typeof sqliteTable {
+	const builder: typeof sqliteTable = (name, columns, extraConfig) => {
+		return sqliteTable(customizeTableName(name) as typeof name, columns, extraConfig);
+	};
+	return builder;
+}
