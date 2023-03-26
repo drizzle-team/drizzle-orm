@@ -2,11 +2,13 @@ import { type Equal, Expect } from 'tests/utils';
 import { eq, gt } from '~/expressions';
 import {
 	check,
+	customType,
 	foreignKey,
 	index,
 	int,
-	type MySqlColumn,
 	mysqlEnum,
+	type MySqlInt,
+	type MySqlSerial,
 	mysqlTable,
 	primaryKey,
 	serial,
@@ -17,6 +19,7 @@ import {
 import { mysqlSchema } from '~/mysql-core/schema';
 import { mysqlView, type MySqlViewWithSelection } from '~/mysql-core/view';
 import { sql } from '~/sql';
+import type { InferModel } from '~/table';
 
 export const users = mysqlTable(
 	'users_table',
@@ -28,8 +31,8 @@ export const users = mysqlTable(
 		currentCity: int('current_city').references(() => cities.id),
 		serialNullable: serial('serial1'),
 		serialNotNull: serial('serial2').notNull(),
-		class: text<'A' | 'C'>('class').notNull(),
-		subClass: text<'B' | 'D'>('sub_class'),
+		class: text('class', { enum: ['A', 'C'] }).notNull(),
+		subClass: text('sub_class', { enum: ['B', 'D'] }),
 		text: text('text'),
 		age1: int('age1').notNull(),
 		createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
@@ -55,17 +58,25 @@ export const users = mysqlTable(
 
 export const cities = mysqlTable('cities_table', {
 	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
+	name: text('name_db').notNull(),
 	population: int('population').default(0),
 }, (cities) => ({
 	citiesNameIdx: index('citiesNameIdx').on(cities.id),
 }));
 
+Expect<
+	Equal<{
+		id: number;
+		name_db: string;
+		population: number | null;
+	}, InferModel<typeof cities, 'select', { dbColumnNames: true }>>
+>;
+
 export const customSchema = mysqlSchema('custom_schema');
 
 export const citiesCustom = customSchema.table('cities_table', {
 	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
+	name: text('name_db').notNull(),
 	population: int('population').default(0),
 }, (cities) => ({
 	citiesNameIdx: index('citiesNameIdx').on(cities.id),
@@ -75,8 +86,8 @@ Expect<Equal<typeof cities, typeof citiesCustom>>;
 
 export const classes = mysqlTable('classes_table', {
 	id: serial('id').primaryKey(),
-	class: text<'A' | 'C'>('class'),
-	subClass: text<'B' | 'D'>('sub_class').notNull(),
+	class: text('class', { enum: ['A', 'C'] }),
+	subClass: text('sub_class', { enum: ['B', 'D'] }).notNull(),
 });
 
 export const newYorkers = mysqlView('new_yorkers')
@@ -98,14 +109,16 @@ export const newYorkers = mysqlView('new_yorkers')
 Expect<
 	Equal<
 		MySqlViewWithSelection<'new_yorkers', false, {
-			userId: MySqlColumn<{
+			userId: MySqlSerial<{
+				name: 'id';
 				data: number;
 				driverParam: number;
 				notNull: true;
 				hasDefault: true;
 				tableName: 'new_yorkers';
 			}>;
-			cityId: MySqlColumn<{
+			cityId: MySqlSerial<{
+				name: 'id';
 				data: number;
 				driverParam: number;
 				notNull: false;
@@ -137,14 +150,16 @@ Expect<
 	Expect<
 		Equal<
 			MySqlViewWithSelection<'new_yorkers', false, {
-				userId: MySqlColumn<{
+				userId: MySqlSerial<{
+					name: 'id';
 					data: number;
 					driverParam: number;
 					notNull: true;
 					hasDefault: true;
 					tableName: 'new_yorkers';
 				}>;
-				cityId: MySqlColumn<{
+				cityId: MySqlSerial<{
+					name: 'id';
 					data: number;
 					driverParam: number;
 					notNull: false;
@@ -174,14 +189,16 @@ Expect<
 	Expect<
 		Equal<
 			MySqlViewWithSelection<'new_yorkers', false, {
-				userId: MySqlColumn<{
+				userId: MySqlSerial<{
+					name: 'user_id';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
 					notNull: true;
 					tableName: 'new_yorkers';
 				}>;
-				cityId: MySqlColumn<{
+				cityId: MySqlSerial<{
+					name: 'city_id';
 					notNull: false;
 					hasDefault: false;
 					data: number;
@@ -211,14 +228,16 @@ Expect<
 	Expect<
 		Equal<
 			MySqlViewWithSelection<'new_yorkers', false, {
-				userId: MySqlColumn<{
+				userId: MySqlInt<{
+					name: 'user_id';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
 					notNull: true;
 					tableName: 'new_yorkers';
 				}>;
-				cityId: MySqlColumn<{
+				cityId: MySqlInt<{
+					name: 'city_id';
 					notNull: false;
 					hasDefault: false;
 					data: number;
@@ -240,14 +259,16 @@ Expect<
 	Expect<
 		Equal<
 			MySqlViewWithSelection<'new_yorkers', true, {
-				userId: MySqlColumn<{
+				userId: MySqlInt<{
+					name: 'user_id';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
 					notNull: true;
 					tableName: 'new_yorkers';
 				}>;
-				cityId: MySqlColumn<{
+				cityId: MySqlInt<{
+					name: 'city_id';
 					notNull: false;
 					hasDefault: false;
 					data: number;
@@ -269,14 +290,16 @@ Expect<
 	Expect<
 		Equal<
 			MySqlViewWithSelection<'new_yorkers', true, {
-				userId: MySqlColumn<{
+				userId: MySqlInt<{
+					name: 'user_id';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
 					notNull: true;
 					tableName: 'new_yorkers';
 				}>;
-				cityId: MySqlColumn<{
+				cityId: MySqlInt<{
+					name: 'city_id';
 					notNull: false;
 					hasDefault: false;
 					data: number;
@@ -286,5 +309,24 @@ Expect<
 			}>,
 			typeof newYorkers
 		>
+	>;
+}
+
+{
+	const customText = customType<{ data: string }>({
+		dataType() {
+			return 'text';
+		},
+	});
+
+	const t = customText('name').notNull();
+	Expect<
+		Equal<{
+			name: 'name';
+			data: string;
+			driverParam: unknown;
+			hasDefault: false;
+			notNull: true;
+		}, typeof t['_']['config']>
 	>;
 }

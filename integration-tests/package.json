@@ -3,17 +3,16 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "typecheck": "tsc",
+    "test:types": "tsc",
     "test": "ava tests --timeout=60s --serial"
   },
   "ava": {
     "files": [
-      "tests/**/*.ts",
+      "tests/**/*.test.ts",
       "!tests/awsdatapi.alltypes.test.ts",
       "!tests/awsdatapi.test.ts",
       "!tests/planetscale-serverless/**/*.ts",
-      "!tests/bun/**/*",
-      "!tests/utils.ts"
+      "!tests/bun/**/*"
     ],
     "extensions": {
       "ts": "module"

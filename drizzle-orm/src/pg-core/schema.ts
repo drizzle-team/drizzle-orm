@@ -7,9 +7,9 @@ export class PgSchema {
 		public readonly schemaName: string,
 	) {}
 
-	table: typeof pgTable = (name, columns, extraConfig) => {
+	table = ((name, columns, extraConfig) => {
 		return pgTableWithSchema(name, columns, extraConfig, this.schemaName);
-	};
+	}) as typeof pgTable;
 
 	view = ((name, columns) => {
 		return pgViewWithSchema(name, columns, this.schemaName);

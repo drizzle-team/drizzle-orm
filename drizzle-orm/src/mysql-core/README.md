@@ -263,6 +263,23 @@ index('name_idx')
     .algorythm('default' | 'inplace' | 'copy')
 ```
 
+### Customizing the table name
+
+There are "table creators" available for each dialect, which allow you to customize the table name, for example, to add a prefix or suffix. This is useful if you need to have tables for different environments or applications in the same database.
+
+> **Note:**: this feature should only be used to customize the table name. If you need to put the table into a different schema, refer to the [Table schemas](#table-schemas) section.
+
+```ts
+import { mysqlTableCreator } from 'drizzle-orm/mysql-core';
+
+const mysqlTable = mysqlTableCreator((name) => `myprefix_${name}`);
+
+const users = mysqlTable('users', {
+  id: int('id').primaryKey(),
+  name: text('name').notNull(),
+});
+```
+
 ## Column types
 
 The list of all column types. You can also create custom types - [see here](https://github.com/drizzle-team/drizzle-orm/blob/main/docs/custom-types.md).
@@ -287,8 +304,8 @@ binary('name');
 varbinary('name', { length: 2 });
 
 char('name');
-varchar('name', { length: 2 });
-text('name');
+varchar('name', { length: 2, enum: ['a', 'b'] });
+text('name', { enum: ['a', 'b'] });
 
 boolean('name');
 
@@ -302,9 +319,18 @@ timestamp('...', { mode: 'date' | 'string', fsp: 0..6 })
 timestamp('...').defaultNow()
 
 json('name');
-json<string[]>('name');
+json('name').$type<string[]>();
+```
 
-int('...').array(3).array(4)
+### Customizing column data type
+
+Every column builder has a `.$type()` method, which allows you to customize the data type of the column. This is useful, for example, with branded types.
+
+```ts
+const users = mysqlTable('users', {
+  id: serial('id').$type<UserId>().primaryKey(),
+  jsonField: json('json_field').$type<Data>(),
+});
 ```
 
 ## Table schemas
@@ -543,7 +569,7 @@ const newUsers: NewUser[] = [
   },
 ];
 
-await db.insert(users).values(...newUsers);
+await db.insert(users).values(newUsers);
 ```
 
 ### Update and Delete

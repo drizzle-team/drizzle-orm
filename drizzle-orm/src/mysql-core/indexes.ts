@@ -45,8 +45,6 @@ export interface AnyIndexBuilder {
 export interface IndexBuilder extends AnyIndexBuilder {}
 
 export class IndexBuilder implements AnyIndexBuilder {
-	declare protected $brand: 'MySqlIndexBuilder';
-
 	/** @internal */
 	config: IndexConfig;
 
@@ -80,8 +78,6 @@ export class IndexBuilder implements AnyIndexBuilder {
 }
 
 export class Index {
-	declare protected $brand: 'MySqlIndex';
-
 	readonly config: IndexConfig & { table: AnyMySqlTable };
 
 	constructor(config: IndexConfig, table: AnyMySqlTable) {

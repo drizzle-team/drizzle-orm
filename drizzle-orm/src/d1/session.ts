@@ -1,17 +1,13 @@
 /// <reference types="@cloudflare/workers-types" />
 
-import type { Logger} from '~/logger';
+import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
 import type { Query } from '~/sql';
 import { fillPlaceholders } from '~/sql';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
-import type { SelectFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
-import type {
-	PreparedQueryConfig as PreparedQueryConfigBase} from '~/sqlite-core/session';
-import {
-	PreparedQuery as PreparedQueryBase,
-	SQLiteSession,
-} from '~/sqlite-core/session';
+import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
+import type { PreparedQueryConfig as PreparedQueryConfigBase } from '~/sqlite-core/session';
+import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session';
 import { mapResultRow } from '~/utils';
 
 export interface SQLiteD1SessionOptions {
@@ -37,7 +33,7 @@ export class SQLiteD1Session extends SQLiteSession<'async', D1Result> {
 		// await this.client.exec(query.sql);
 	}
 
-	prepareQuery(query: Query, fields?: SelectFieldsOrdered): PreparedQuery {
+	prepareQuery(query: Query, fields?: SelectedFieldsOrdered): PreparedQuery {
 		const stmt = this.client.prepare(query.sql);
 		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields);
 	}
@@ -51,7 +47,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private queryString: string,
 		private params: unknown[],
 		private logger: Logger,
-		private fields: SelectFieldsOrdered | undefined,
+		private fields: SelectedFieldsOrdered | undefined,
 	) {
 		super();
 	}

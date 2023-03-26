@@ -260,23 +260,40 @@ index('name')
   .where(sql``) // sql expression
 ```
 
+### Customizing the table name
+
+There is a "table creator" available, which allow you to customize the table name, for example, to add a prefix or suffix. This is useful if you need to have tables for different environments or applications in the same database.
+
+> **Note:**: this feature should only be used to customize the table name. If you need to put the table into a different schema, refer to the [Table schemas](#table-schemas) section.
+
+```ts
+import { pgTableCreator } from 'drizzle-orm/pg-core';
+
+const pgTable = pgTableCreator((name) => `myprefix_${name}`);
+
+const users = pgTable('users', {
+  id: int('id').primaryKey(),
+  name: text('name').notNull(),
+});
+```
+
 ## Column types
 
-The list of all column types. You can also create custom types - [see here](https://github.com/drizzle-team/drizzle-orm/blob/main/docs/custom-types.md).
+The list of all column types. You can also create custom types - [see here](/docs/custom-types.md).
 
 ```typescript
 export const popularityEnum = pgEnum('popularity', ['unknown', 'known', 'popular']); // declare enum type
-popularityEnum('column_name') // declare enum column
+popularityEnum('column_name'); // declare enum column
 
-smallint('...')
-integer('...')
-bigint('...', { mode: 'number' | 'bigint' })
+smallint('...');
+integer('...');
+bigint('...', { mode: 'number' | 'bigint' });
 
-boolean('...')
+boolean('...');
 text('...');
-text<'one' | 'two' | 'three'>('...');
+text('...', { enum: ['one', 'two', 'three'] });
 varchar('...');
-varchar<'one' | 'two' | 'three'>('...');
+varchar('...', { enum: ['one', 'two', 'three'] });
 varchar('...', { length: 256 }); // with length limit
 
 serial('...');
@@ -285,29 +302,42 @@ bigserial('...', { mode: 'number' | 'bigint' });
 decimal('...', { precision: 100, scale: 2 });
 numeric('...', { precision: 100, scale: 2 });
 
-real('...')
-doublePrecision('...')
+real('...');
+doublePrecision('...');
 
-json<...>('...');
-json<string[]>('...');
-jsonb<...>('...');
-jsonb<string[]>('...');
+json('...').$type<...>();
+json('...').$type<string[]>();
+jsonb('...').$type<...>();
+jsonb('...').$type<string[]>();
 
-time('...')
-time('...', { precision: 6, withTimezone: true })
-timestamp('...')
-timestamp('...', { mode: 'date' | 'string', precision: 0..6, withTimezone: true })
-timestamp('...').defaultNow()
-date('...')
-date('...', { mode: 'string' | 'date' })
-interval('...')
-interval('...', { fields: 'day' | 'month' | '...' , precision: 0..6 })
+time('...');
+time('...', { precision: 6, withTimezone: true });
+timestamp('...');
+timestamp('...', { mode: 'date' | 'string', precision: 0..6, withTimezone: true });
+timestamp('...').defaultNow();
+date('...');
+date('...', { mode: 'string' | 'date' });
+interval('...');
+interval('...', { fields: 'day' | 'month' | '...' , precision: 0..6 });
 
-column.primaryKey()
-column.notNull()
-column.defaultValue(...)
-timeColumn.defaultNow()
-uuidColumn.defaultRandom()
+column.primaryKey();
+column.notNull();
+column.default(...);
+timeColumn.defaultNow();
+uuidColumn.defaultRandom();
+
+integer('...').array(3).array(4);
+```
+
+### Customizing column data type
+
+Every column builder has a `.$type()` method, which allows you to customize the data type of the column. This is useful, for example, with branded types.
+
+```ts
+const users = pgTable('users', {
+  id: serial('id').$type<UserId>().primaryKey(),
+  jsonField: json('json_field').$type<Data>(),
+});
 ```
 
 ## Table schemas
@@ -514,10 +544,10 @@ const newUser: NewUser = {
 
 await db.insert(users).values(newUser);
 
-const insertedUsers/*: NewUser[]*/ = await db.insert(users).values(...newUsers).returning();
+const insertedUsers/*: NewUser[]*/ = await db.insert(users).values(newUsers).returning();
 
 const insertedUsersIds/*: { insertedId: number }[]*/ = await db.insert(users)
-  .values(...newUsers)
+  .values(newUsers)
   .returning({ insertedId: users.id });
 ```
 
@@ -551,7 +581,7 @@ const newUsers: NewUser[] = [
   },
 ];
 
-await db.insert(users).values(...newUsers);
+await db.insert(users).values(newUsers);
 ```
 
 ### Upsert (Insert with on conflict statement)

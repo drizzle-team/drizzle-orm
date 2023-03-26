@@ -1,8 +1,8 @@
+import type { QueryBuilder } from '~/query-builders/query-builder';
 import type { SQLWrapper } from '~/sql';
 
 import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect';
 import {
-	type QueryBuilder,
 	queryBuilder,
 	type QueryBuilderInstance,
 	SQLiteDelete,
@@ -13,7 +13,7 @@ import {
 import type { ResultKind, SQLiteSession } from '~/sqlite-core/session';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
-import type { SelectFields } from './query-builders/select.types';
+import type { SelectedFields } from './query-builders/select.types';
 import type { WithSubqueryWithSelection } from './subquery';
 
 export class BaseSQLiteDatabase<TResultType extends 'sync' | 'async', TRunResult> {
@@ -34,7 +34,7 @@ export class BaseSQLiteDatabase<TResultType extends 'sync' | 'async', TRunResult
 				}
 
 				return new Proxy(
-					new WithSubquery(qb.getSQL(), qb.getSelection() as SelectFields, alias, true),
+					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
 					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'subquery_selection', sqlBehavior: 'error' }),
 				) as WithSubqueryWithSelection<TSelection, TAlias>;
 			},
@@ -45,10 +45,10 @@ export class BaseSQLiteDatabase<TResultType extends 'sync' | 'async', TRunResult
 		const self = this;
 
 		function select(): SQLiteSelectBuilder<undefined, TResultType, TRunResult>;
-		function select<TSelection extends SelectFields>(
+		function select<TSelection extends SelectedFields>(
 			fields: TSelection,
 		): SQLiteSelectBuilder<TSelection, TResultType, TRunResult>;
-		function select(fields?: SelectFields): SQLiteSelectBuilder<SelectFields | undefined, TResultType, TRunResult> {
+		function select(fields?: SelectedFields): SQLiteSelectBuilder<SelectedFields | undefined, TResultType, TRunResult> {
 			return new SQLiteSelectBuilder(fields ?? undefined, self.session, self.dialect, queries);
 		}
 
@@ -56,8 +56,10 @@ export class BaseSQLiteDatabase<TResultType extends 'sync' | 'async', TRunResult
 	}
 
 	select(): SQLiteSelectBuilder<undefined, TResultType, TRunResult>;
-	select<TSelection extends SelectFields>(fields: TSelection): SQLiteSelectBuilder<TSelection, TResultType, TRunResult>;
-	select(fields?: SelectFields): SQLiteSelectBuilder<SelectFields | undefined, TResultType, TRunResult> {
+	select<TSelection extends SelectedFields>(
+		fields: TSelection,
+	): SQLiteSelectBuilder<TSelection, TResultType, TRunResult>;
+	select(fields?: SelectedFields): SQLiteSelectBuilder<SelectedFields | undefined, TResultType, TRunResult> {
 		return new SQLiteSelectBuilder(fields ?? undefined, this.session, this.dialect);
 	}
 

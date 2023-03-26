@@ -1,48 +1,51 @@
-import type { ColumnConfig } from '~/column';
-import type { ColumnBuilderConfig } from '~/column-builder';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import type { AnyMySqlTable } from '~/mysql-core/table';
+import type { Assume } from '~/utils';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
-export class MySqlTimeBuilder extends MySqlColumnBuilder<
-	ColumnBuilderConfig<{ data: string; driverParam: string | number }>,
-	{ fsp: number | undefined }
+export interface MySqlTimeBuilderHKT extends ColumnBuilderHKTBase {
+	_type: MySqlTimeBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: MySqlTimeHKT;
+}
+
+export interface MySqlTimeHKT extends ColumnHKTBase {
+	_type: MySqlTime<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type MySqlTimeBuilderInitial<TName extends string> = MySqlTimeBuilder<{
+	name: TName;
+	data: string;
+	driverParam: string | number;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class MySqlTimeBuilder<T extends ColumnBuilderBaseConfig> extends MySqlColumnBuilder<
+	MySqlTimeBuilderHKT,
+	T,
+	TimeConfig
 > {
 	constructor(
-		name: string,
-		fsp: number | undefined,
+		name: T['name'],
+		config: TimeConfig | undefined,
 	) {
 		super(name);
-		this.config.fsp = fsp;
+		this.config.fsp = config?.fsp;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlTime<TTableName> {
-		return new MySqlTime(table, this.config);
+	): MySqlTime<MakeColumnConfig<T, TTableName>> {
+		return new MySqlTime<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
 export class MySqlTime<
-	TTableName extends string,
-> extends MySqlColumn<
-	ColumnConfig<{
-		tableName: TTableName;
-		data: string;
-		driverParam: number | string;
-	}>
-> {
-	protected override $mySqlColumnBrand!: 'MySqlTime';
-
-	readonly fsp: number | undefined;
-
-	constructor(
-		table: AnyMySqlTable<{ name: TTableName }>,
-		config: MySqlTimeBuilder['config'],
-	) {
-		super(table, config);
-		this.fsp = config.fsp;
-	}
+	T extends ColumnBaseConfig,
+> extends MySqlColumn<MySqlTimeHKT, T, TimeConfig> {
+	readonly fsp: number | undefined = this.config.fsp;
 
 	getSQLType(): string {
 		const precision = typeof this.fsp !== 'undefined' ? `(${this.fsp})` : '';
@@ -54,6 +57,6 @@ export type TimeConfig = {
 	fsp?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
 };
 
-export function time(name: string, config?: TimeConfig) {
-	return new MySqlTimeBuilder(name, config?.fsp);
+export function time<TName extends string>(name: TName, config?: TimeConfig): MySqlTimeBuilderInitial<TName> {
+	return new MySqlTimeBuilder(name, config);
 }
