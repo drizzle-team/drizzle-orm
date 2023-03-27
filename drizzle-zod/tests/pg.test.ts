@@ -39,22 +39,6 @@ test('users insert schema w/ enum', (t) => {
 		};
 	});
 
-	const test1 = createInsertSchema(users);
-	const test2 = createInsertSchema(users, 'camel');
-	const test3 = createInsertSchema(users, 'snake');
-	const test4 = createInsertSchema(users, {
-		roleText: z.enum(['admin', 'user']),
-	});
-	const test5 = createInsertSchema(users, 'camel', {
-		roleText: z.enum(['admin', 'user']),
-	});
-	const test6 = createInsertSchema(users, 'snake', {
-		role_text: z.enum(['admin', 'user']),
-	});
-	const test7 = createInsertSchema(users, 'snake', (schema) => ({
-		role_text: z.enum(['admin', 'user']),
-	}));
-
 	const expected = z.object({
 		id: z.number().positive().optional(),
 		name: z.string(),
