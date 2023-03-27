@@ -134,7 +134,7 @@ export class PgDialect {
 					if (isSingleTable) {
 						chunk.push(
 							new SQL(
-								query.chunks.map((c) => {
+								query.queryChunks.map((c) => {
 									if (c instanceof PgColumn) {
 										return new Name(c.name);
 									}

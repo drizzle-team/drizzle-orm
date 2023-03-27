@@ -143,7 +143,7 @@ export class MySqlDialect {
 					if (isSingleTable) {
 						chunk.push(
 							new SQL(
-								query.chunks.map((c) => {
+								query.queryChunks.map((c) => {
 									if (c instanceof MySqlColumn) {
 										return new Name(c.name);
 									}
