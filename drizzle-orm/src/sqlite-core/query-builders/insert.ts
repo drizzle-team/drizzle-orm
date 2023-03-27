@@ -36,16 +36,21 @@ export class SQLiteInsertBuilder<
 		protected dialect: SQLiteDialect,
 	) {}
 
-	values(value: SQLiteInsertValue<TTable>[]): SQLiteInsert<TTable, TResultType, TRunResult>;
+	values(value: SQLiteInsertValue<TTable>): SQLiteInsert<TTable, TResultType, TRunResult>;
+	values(values: SQLiteInsertValue<TTable>[]): SQLiteInsert<TTable, TResultType, TRunResult>;
 	/**
 	 * @deprecated Pass the array of values without spreading it.
 	 */
 	values(...values: SQLiteInsertValue<TTable>[]): SQLiteInsert<TTable, TResultType, TRunResult>;
 	values(
-		...values: SQLiteInsertValue<TTable>[] | [SQLiteInsertValue<TTable>[]]
+		...values: SQLiteInsertValue<TTable>[] | [SQLiteInsertValue<TTable>] | [SQLiteInsertValue<TTable>[]]
 	): SQLiteInsert<TTable, TResultType, TRunResult> {
-		if (values.length === 1 && Array.isArray(values[0])) {
-			values = values[0];
+		if (values.length === 1) {
+			if (Array.isArray(values[0])) {
+				values = values[0];
+			} else {
+				values = [values[0]];
+			}
 		}
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};

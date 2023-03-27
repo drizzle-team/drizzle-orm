@@ -38,14 +38,21 @@ export class MySqlInsertBuilder<TTable extends AnyMySqlTable, TQueryResult exten
 		private dialect: MySqlDialect,
 	) {}
 
-	values(value: MySqlInsertValue<TTable>[]): MySqlInsert<TTable, TQueryResult>;
+	values(value: MySqlInsertValue<TTable>): MySqlInsert<TTable, TQueryResult>;
+	values(values: MySqlInsertValue<TTable>[]): MySqlInsert<TTable, TQueryResult>;
 	/**
 	 * @deprecated Pass the array of values without spreading it.
 	 */
 	values(...values: MySqlInsertValue<TTable>[]): MySqlInsert<TTable, TQueryResult>;
-	values(...values: MySqlInsertValue<TTable>[] | [MySqlInsertValue<TTable>[]]): MySqlInsert<TTable, TQueryResult> {
-		if (values.length === 1 && Array.isArray(values[0])) {
-			values = values[0];
+	values(
+		...values: MySqlInsertValue<TTable>[] | [MySqlInsertValue<TTable>] | [MySqlInsertValue<TTable>[]]
+	): MySqlInsert<TTable, TQueryResult> {
+		if (values.length === 1) {
+			if (Array.isArray(values[0])) {
+				values = values[0];
+			} else {
+				values = [values[0]];
+			}
 		}
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
