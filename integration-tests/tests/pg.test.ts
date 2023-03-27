@@ -8,7 +8,7 @@ import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import type { AnyPgColumn, InferModel } from 'drizzle-orm/pg-core';
+import { type AnyPgColumn, pgTableCreator } from 'drizzle-orm/pg-core';
 import {
 	alias,
 	boolean,
@@ -39,7 +39,7 @@ const usersTable = pgTable('users', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
-	jsonb: jsonb<string[]>('jsonb'),
+	jsonb: jsonb('jsonb').$type<string[]>(),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -785,7 +785,7 @@ test.serial('insert via db.execute + returning', async (t) => {
 test.serial('insert via db.execute w/ query builder', async (t) => {
 	const { db } = t.context;
 
-	const inserted = await db.execute<Pick<InferModel<typeof usersTable>, 'id' | 'name'>>(
+	const inserted = await db.execute<Pick<typeof usersTable['_']['model']['select'], 'id' | 'name'>>(
 		db
 			.insert(usersTable)
 			.values({ name: 'John' })
@@ -1189,7 +1189,7 @@ test.serial('select count w/ custom mapper', async (t) => {
 	function count(value: AnyPgColumn | SQLWrapper): SQL<number>;
 	function count(value: AnyPgColumn | SQLWrapper, alias: string): SQL.Aliased<number>;
 	function count(value: AnyPgColumn | SQLWrapper, alias?: string): SQL<number> | SQL.Aliased<number> {
-		const result = sql`count(${value})`.chunks((v) => parseInt(v, 10));
+		const result = sql`count(${value})`.mapWith((v) => parseInt(v, 10));
 		if (!alias) {
 			return result;
 		}
@@ -1206,7 +1206,7 @@ test.serial('select count w/ custom mapper', async (t) => {
 test.serial('network types', async (t) => {
 	const { db } = t.context;
 
-	const value: InferModel<typeof network> = {
+	const value: typeof network['_']['model']['select'] = {
 		inet: '127.0.0.1',
 		cidr: '192.168.100.128/25',
 		macaddr: '08:00:2b:01:02:03',
@@ -1223,7 +1223,7 @@ test.serial('network types', async (t) => {
 test.serial('array types', async (t) => {
 	const { db } = t.context;
 
-	const values: InferModel<typeof salEmp>[] = [
+	const values: typeof salEmp['_']['model']['select'][] = [
 		{
 			name: 'John',
 			payByQuarter: [10000, 10000, 10000, 10000],
@@ -1236,7 +1236,7 @@ test.serial('array types', async (t) => {
 		},
 	];
 
-	await db.insert(salEmp).values(...values);
+	await db.insert(salEmp).values(values);
 
 	const res = await db.select().from(salEmp);
 
@@ -1488,7 +1488,7 @@ test.serial('join on aliased sql from select', async (t) => {
 	]);
 });
 
-test.serial.only('join on aliased sql from with clause', async (t) => {
+test.serial('join on aliased sql from with clause', async (t) => {
 	const { db } = t.context;
 
 	const users = db.$with('users').as(
@@ -1527,4 +1527,29 @@ test.serial.only('join on aliased sql from with clause', async (t) => {
 	t.deepEqual(result, [
 		{ userId: 1, name: 'John', userCity: 'New York', cityId: 1, cityName: 'Paris' },
 	]);
+});
+
+test.serial('prefixed table', async (t) => {
+	const { db } = t.context;
+
+	const pgTable = pgTableCreator((name) => `myprefix_${name}`);
+
+	const users = pgTable('test_prefixed_table_with_unique_name', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table myprefix_test_prefixed_table_with_unique_name (id integer not null primary key, name text not null)`,
+	);
+
+	await db.insert(users).values({ id: 1, name: 'John' });
+
+	const result = await db.select().from(users);
+
+	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+
+	await db.execute(sql`drop table ${users}`);
 });

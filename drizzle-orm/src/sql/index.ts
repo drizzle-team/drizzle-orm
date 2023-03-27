@@ -68,7 +68,10 @@ class StringChunk {
 }
 
 export class SQL<T = unknown> implements SQLWrapper {
-	declare protected $brand: 'SQL';
+	declare _: {
+		brand: 'SQL';
+		type: T;
+	};
 
 	/** @internal */
 	decoder: DriverValueDecoder<T, any> = noopDecoder;
@@ -165,12 +168,16 @@ export class SQL<T = unknown> implements SQLWrapper {
 					return this.buildQueryFromSourceParams([mappedValue], config);
 				}
 
+				if (inlineParams) {
+					return { sql: this.mapInlineParam(mappedValue, config), params: [] };
+				}
+
 				let typings: QueryTypingsValue[] | undefined;
 				if (typeof prepareTyping !== 'undefined') {
 					typings = [prepareTyping(chunk.encoder)];
 				}
 
-				return { ...this.buildQueryFromSourceParams([mappedValue as SQLChunk], config), typings };
+				return { sql: escapeParam(paramStartIndex.value++, mappedValue), params: [mappedValue], typings };
 			}
 
 			if (chunk instanceof SQL.Aliased && typeof chunk.fieldAlias !== 'undefined') {
@@ -198,29 +205,34 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (inlineParams) {
-				if (chunk === null) {
-					return { sql: 'null', params: [] };
-				}
-				if (typeof chunk === 'number' || typeof chunk === 'boolean') {
-					return { sql: chunk.toString(), params: [] };
-				}
-				if (typeof chunk === 'string') {
-					return { sql: escapeString(chunk), params: [] };
-				}
-				if (typeof chunk === 'object') {
-					const mappedValueAsString = chunk.toString();
-					if (mappedValueAsString === '[object Object]') {
-						return { sql: escapeString(JSON.stringify(chunk)), params: [] };
-					}
-					return { sql: escapeString(mappedValueAsString), params: [] };
-				}
-				throw new Error('Unexpected param value: ' + chunk);
+				return { sql: this.mapInlineParam(chunk, config), params: [] };
 			}
 
-			const result = { sql: escapeParam(paramStartIndex.value, chunk), params: [chunk] };
-			paramStartIndex.value++;
-			return result;
+			return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk] };
 		}));
+	}
+
+	private mapInlineParam(
+		chunk: unknown,
+		{ escapeString }: BuildQueryConfig,
+	): string {
+		if (chunk === null) {
+			return 'null';
+		}
+		if (typeof chunk === 'number' || typeof chunk === 'boolean') {
+			return chunk.toString();
+		}
+		if (typeof chunk === 'string') {
+			return escapeString(chunk);
+		}
+		if (typeof chunk === 'object') {
+			const mappedValueAsString = chunk.toString();
+			if (mappedValueAsString === '[object Object]') {
+				return escapeString(JSON.stringify(chunk));
+			}
+			return escapeString(mappedValueAsString);
+		}
+		throw new Error('Unexpected param value: ' + chunk);
 	}
 
 	getSQL(): SQL {
@@ -394,8 +406,10 @@ export namespace sql {
 
 export namespace SQL {
 	export class Aliased<T = unknown> implements SQLWrapper {
-		declare protected $brand: 'SQL.Aliased';
-		declare protected $type: T;
+		declare _: {
+			brand: 'SQL.Aliased';
+			type: T;
+		};
 
 		/** @internal */
 		isSelectionField = false;
@@ -417,8 +431,7 @@ export namespace SQL {
 }
 
 export class Placeholder<TName extends string = string, TValue = any> {
-	declare protected $brand: 'Placeholder';
-	declare protected $type: TValue;
+	declare protected: TValue;
 
 	constructor(readonly name: TName) {}
 }

@@ -1,8 +1,8 @@
 import type { Row, RowList, Sql } from 'postgres';
-import type { Logger} from '~/logger';
+import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
 import type { PgDialect } from '~/pg-core/dialect';
-import type { SelectFieldsOrdered } from '~/pg-core/query-builders/select.types';
+import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
 import type { PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
 import { PgSession, PreparedQuery } from '~/pg-core/session';
 import type { Query } from '~/sql';
@@ -18,7 +18,7 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends Prep
 		queryString: string,
 		private params: unknown[],
 		private logger: Logger,
-		private fields: SelectFieldsOrdered | undefined,
+		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 	) {
 		super();
@@ -73,7 +73,7 @@ export class PostgresJsSession extends PgSession {
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		fields: SelectFieldsOrdered | undefined,
+		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 	): PreparedQuery<T> {
 		return new PostgresJsPreparedQuery(this.client, query.sql, query.params, this.logger, fields, name);

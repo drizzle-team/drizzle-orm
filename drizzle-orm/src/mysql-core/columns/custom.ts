@@ -1,73 +1,98 @@
-import type { ColumnConfig } from '~/column';
-import type { ColumnBuilderConfig } from '~/column-builder';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import type { AnyMySqlTable } from '~/mysql-core/table';
 import type { SQL } from '~/sql';
+import type { Assume, Equal, Simplify } from '~/utils';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
-export type CustomColumnBuilderConfig<T extends CustomTypeValues> = {
+export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTypeValues>> = Simplify<{
+	name: TName;
 	data: T['data'];
 	driverParam: T['driverData'];
-	notNull: T['notNull'] extends undefined ? false : T['notNull'] extends true ? true : false;
-	hasDefault: T['default'] extends undefined ? false : T['default'] extends true ? true : false;
-};
+	// notNull and hasDefault will be of type "unknown" if not defined in T. Thank you TS
+	notNull: T['notNull'] extends true ? true : false;
+	hasDefault: T['default'] extends true ? true : false;
+}>;
 
-function returnColumn<
-	TTableName extends string,
-	TData,
-	TNotNull extends boolean = false,
-	TDefault extends boolean = false,
->(
-	table: AnyMySqlTable<{ name: TTableName }>,
-	config: MySqlColumnBuilder<
-		ColumnConfig<{ data: TData; driverParam: string; notNull: TNotNull; hasDefault: TDefault }>
-	>['config'],
-	sqlName: string,
-	mapTo?: (value: TData) => any,
-	mapFrom?: (value: any) => TData,
-): MySqlColumn<
-	ColumnConfig<
-		{
-			tableName: TTableName;
-			data: TData;
-			driverParam: string;
-			notNull: TNotNull;
-			hasDefault: TDefault;
-		}
-	>
+export interface MySqlCustomColumnInnerConfig {
+	customTypeValues: CustomTypeValues;
+}
+
+export interface MySqlCustomColumnBuilderHKT extends ColumnBuilderHKTBase {
+	_type: MySqlCustomColumnBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: MySqlCustomColumnHKT;
+}
+
+export interface MySqlCustomColumnHKT extends ColumnHKTBase {
+	_type: MySqlCustomColumn<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export class MySqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig> extends MySqlColumnBuilder<
+	MySqlCustomColumnBuilderHKT,
+	T,
+	{
+		fieldConfig: CustomTypeValues['config'];
+		customTypeParams: CustomTypeParams<any>;
+	},
+	{
+		mysqlColumnBuilderBrand: 'MySqlCustomColumnBuilderBrand';
+	}
 > {
-	return new class extends MySqlColumn<
-		ColumnConfig<
-			{
-				tableName: TTableName;
-				data: TData;
-				driverParam: string;
-				notNull: TNotNull;
-				hasDefault: TDefault;
-			}
-		>
-	> {
-		protected override $mySqlColumnBrand!: 'MysqlCustomColumnBrand';
+	constructor(
+		name: T['name'],
+		fieldConfig: CustomTypeValues['config'],
+		customTypeParams: CustomTypeParams<any>,
+	) {
+		super(name);
+		this.config.fieldConfig = fieldConfig;
+		this.config.customTypeParams = customTypeParams;
+	}
 
-		getSQLType(): string {
-			return sqlName;
-		}
+	/** @internal */
+	build<TTableName extends string>(
+		table: AnyMySqlTable<{ name: TTableName }>,
+	): MySqlCustomColumn<MakeColumnConfig<T, TTableName>> {
+		return new MySqlCustomColumn<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config,
+		);
+	}
+}
 
-		override mapFromDriverValue(value: any): TData {
-			if (typeof mapFrom === 'function') {
-				return mapFrom(value);
-			} else {
-				return value as TData;
-			}
-		}
+export class MySqlCustomColumn<T extends ColumnBaseConfig> extends MySqlColumn<MySqlCustomColumnHKT, T> {
+	private sqlName: string;
+	private mapTo?: (value: T['data']) => T['driverParam'];
+	private mapFrom?: (value: T['driverParam']) => T['data'];
 
-		override mapToDriverValue(value: TData): any {
-			if (typeof mapTo === 'function') {
-				return mapTo(value);
-			} else {
-				return value as TData;
-			}
+	constructor(
+		table: AnyMySqlTable<{ name: T['tableName'] }>,
+		config: MySqlCustomColumnBuilder<T>['config'],
+	) {
+		super(table, config);
+		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
+		this.mapTo = config.customTypeParams.toDriver;
+		this.mapFrom = config.customTypeParams.fromDriver;
+	}
+
+	getSQLType(): string {
+		return this.sqlName;
+	}
+
+	override mapFromDriverValue(value: T['driverParam']): T['data'] {
+		if (typeof this.mapFrom === 'function') {
+			return this.mapFrom(value);
+		} else {
+			return value as T['data'];
 		}
-	}(table, config);
+	}
+
+	override mapToDriverValue(value: T['data']): T['driverParam'] {
+		if (typeof this.mapTo === 'function') {
+			return this.mapTo(value);
+		} else {
+			return value as T['data'];
+		}
+	}
 }
 
 export type CustomTypeValues = {
@@ -90,7 +115,13 @@ export type CustomTypeValues = {
 	/**
 	 * What config type should be used for {@link CustomTypeParams} `dataType` generation
 	 */
-	config?: Record<string, unknown>;
+	config?: unknown;
+
+	/**
+	 * Whether the config argument should be required or not
+	 * @default false
+	 */
+	configRequired?: boolean;
 
 	/**
 	 * If your custom data type should be notNull by default you can use `notNull: true`
@@ -147,7 +178,7 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * 	 }
 	 * ```
 	 */
-	dataType: (config: T['config']) => string;
+	dataType: (config: T['config'] | (Equal<T['configRequired'], true> extends true ? never : undefined)) => string;
 
 	/**
 	 * Optional mapping function, between user input and driver
@@ -177,37 +208,21 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 /**
  * Custom mysql database data type generator
  */
-export function customType<
-	T extends CustomTypeValues,
->(
+export function customType<T extends CustomTypeValues = CustomTypeValues>(
 	customTypeParams: CustomTypeParams<T>,
-): (
-	dbName: string,
-	fieldConfig?: T['config'],
-) => MySqlColumnBuilder<
-	ColumnBuilderConfig<CustomColumnBuilderConfig<T>>,
-	Record<string, unknown>
-> {
-	return (dbName: string, fieldConfig?: T['config']) =>
-		new class extends MySqlColumnBuilder<
-			ColumnBuilderConfig<CustomColumnBuilderConfig<T>>,
-			Record<string, unknown>
-		> {
-			protected $pgColumnBuilderBrand!: 'CustomColumnBuilderBrand';
-
-			/** @internal */
-			build<TTableName extends string>(
-				table: AnyMySqlTable<{ name: TTableName }>,
-			): MySqlColumn<
-				ColumnConfig<CustomColumnBuilderConfig<T> & { tableName: TTableName }>
-			> {
-				return returnColumn(
-					table,
-					this.config,
-					customTypeParams.dataType(fieldConfig),
-					customTypeParams.toDriver,
-					customTypeParams.fromDriver,
-				);
-			}
-		}(dbName);
+): Equal<T['configRequired'], true> extends true ? <TName extends string>(
+		dbName: TName,
+		fieldConfig: T['config'],
+	) => MySqlCustomColumnBuilder<ConvertCustomConfig<TName, T>>
+	: <TName extends string>(
+		dbName: TName,
+		fieldConfig?: T['config'],
+	) => MySqlCustomColumnBuilder<ConvertCustomConfig<TName, T>>
+{
+	return <TName extends string>(
+		dbName: TName,
+		fieldConfig?: T['config'],
+	): MySqlCustomColumnBuilder<ConvertCustomConfig<TName, T>> => {
+		return new MySqlCustomColumnBuilder(dbName, fieldConfig, customTypeParams);
+	};
 }

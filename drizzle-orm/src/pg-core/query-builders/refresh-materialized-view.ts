@@ -5,15 +5,6 @@ import { QueryPromise } from '~/query-promise';
 import type { Query, SQL } from '~/sql';
 import type { Simplify } from '~/utils';
 
-export type PgRMVWithFilteredMethods<
-	T extends PgRefreshMaterializedView<any, any>,
-	TNewExcludedMethods extends string,
-> = T extends PgRefreshMaterializedView<infer TQueryResult, infer TExcludedMethods> ? Omit<
-		PgRefreshMaterializedView<TQueryResult, TExcludedMethods | TNewExcludedMethods>,
-		TExcludedMethods | TNewExcludedMethods
-	>
-	: never;
-
 export interface PgRefreshMaterializedView<
 	TQueryResult extends QueryResultHKT,
 	TExcludedMethods extends string = never,
@@ -37,14 +28,20 @@ export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 		this.config = { view };
 	}
 
-	concurrently(): PgRMVWithFilteredMethods<this, 'concurrently' | 'withNoData'> {
+	concurrently(): this {
+		if (typeof this.config.withNoData !== 'undefined') {
+			throw new Error('Cannot use concurrently and withNoData together');
+		}
 		this.config.concurrently = true;
-		return this as any;
+		return this;
 	}
 
-	withNoData(): PgRMVWithFilteredMethods<this, 'concurrently' | 'withNoData'> {
+	withNoData(): this {
+		if (typeof this.config.concurrently !== 'undefined') {
+			throw new Error('Cannot use concurrently and withNoData together');
+		}
 		this.config.withNoData = true;
-		return this as any;
+		return this;
 	}
 
 	/** @internal */

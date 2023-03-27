@@ -1,39 +1,44 @@
 import type { AnyColumn } from './column';
-import type { SelectFields } from './operations';
+import type { SelectedFields } from './operations';
 import type { SQL } from './sql';
 import type { Table } from './table';
 
 export const ViewBaseConfig = Symbol('ViewBaseConfig');
 
 export abstract class View<
-	TAlias extends string = string,
+	TName extends string = string,
 	TExisting extends boolean = boolean,
+	TSelection = unknown,
 > {
-	declare protected $brand: 'View';
-	declare protected $existing: TExisting;
-	protected abstract $viewBrand: string;
+	declare _: {
+		brand: 'View';
+		viewBrand: string;
+		name: TName;
+		existing: TExisting;
+		selectedFields: TSelection;
+	};
 
 	/** @internal */
 	[ViewBaseConfig]: {
-		name: TAlias;
+		name: TName;
 		schema: string | undefined;
-		selection: SelectFields<AnyColumn, Table>;
+		selectedFields: SelectedFields<AnyColumn, Table>;
 		isExisting: TExisting;
 		query: TExisting extends true ? undefined : SQL;
 	};
 
 	constructor(
-		{ name, schema, selection, query }: {
-			name: TAlias;
+		{ name, schema, selectedFields, query }: {
+			name: TName;
 			schema: string | undefined;
-			selection: SelectFields<AnyColumn, Table>;
+			selectedFields: SelectedFields<AnyColumn, Table>;
 			query: SQL | undefined;
 		},
 	) {
 		this[ViewBaseConfig] = {
 			name,
 			schema,
-			selection,
+			selectedFields,
 			query: query as (TExisting extends true ? undefined : SQL),
 			isExisting: !query as TExisting,
 		};

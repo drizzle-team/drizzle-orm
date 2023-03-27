@@ -1,62 +1,76 @@
-import type { UpdateCBConfig } from '~/column-builder';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import type { AnyPgTable } from '~/pg-core/table';
 
-import type { SQL } from '~/sql';
+import type { Assume, Writable } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 
+export interface PgTextBuilderHKT extends ColumnBuilderHKTBase {
+	_type: PgTextBuilder<Assume<this['config'], ColumnBuilderBaseConfig & PgTextBuilderConfig>>;
+	_columnHKT: PgTextHKT;
+}
+
+export interface PgTextHKT extends ColumnHKTBase {
+	_type: PgText<Assume<this['config'], ColumnBaseConfig>>;
+}
+
 export interface PgTextBuilderConfig {
-	notNull: boolean;
-	hasDefault: boolean;
-	data: string;
+	enum: string[];
 }
 
-export interface PgTextConfig extends PgTextBuilderConfig {
-	tableName: string;
-}
+type PgTextBuilderInitial<TName extends string, TEnum extends string[]> = PgTextBuilder<{
+	name: TName;
+	data: TEnum[number];
+	enum: TEnum;
+	driverParam: string;
+	notNull: false;
+	hasDefault: false;
+}>;
 
-export class PgTextBuilder<T extends PgTextBuilderConfig> extends PgColumnBuilder<
-	{ notNull: T['notNull']; hasDefault: T['hasDefault']; data: T['data']; driverParam: string }
+export class PgTextBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<
+	PgTextBuilderHKT,
+	T,
+	{ enum: string[] }
 > {
-	protected override $pgColumnBuilderBrand!: 'PgTextBuilder';
-
-	override notNull(): PgTextBuilder<UpdateCBConfig<T, { notNull: true }>> {
-		return super.notNull() as any;
-	}
-
-	override default(value: T['data'] | SQL): PgTextBuilder<UpdateCBConfig<T, { hasDefault: true }>> {
-		return super.default(value) as any;
-	}
-
-	override primaryKey(): PgTextBuilder<UpdateCBConfig<T, { notNull: true }>> {
-		return super.primaryKey() as any;
+	constructor(
+		name: T['name'],
+		config: PgTextConfig<string[]>,
+	) {
+		super(name);
+		this.config.enum = config.enum ?? [];
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
-	): PgText<Pick<T, keyof PgTextBuilderConfig> & { tableName: TTableName }> {
-		return new PgText<Pick<T, keyof PgTextBuilderConfig> & { tableName: TTableName }>(table, this.config);
+	): PgText<MakeColumnConfig<T, TTableName>> {
+		return new PgText<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class PgText<T extends PgTextConfig> extends PgColumn<
-	{
-		tableName: T['tableName'];
-		data: T['data'];
-		driverParam: string;
-		notNull: T['notNull'];
-		hasDefault: T['hasDefault'];
+export class PgText<T extends ColumnBaseConfig> extends PgColumn<PgTextHKT, T> {
+	readonly enum: string[];
+
+	constructor(
+		table: AnyPgTable<{ name: T['tableName'] }>,
+		config: PgTextBuilder<any>['config'],
+	) {
+		super(table, config);
+		this.enum = config.enum;
 	}
-> {
-	protected override $pgColumnBrand!: 'PgText';
 
 	getSQLType(): string {
 		return 'text';
 	}
 }
 
-export function text<T extends string = string>(
-	name: string,
-): PgTextBuilder<{ hasDefault: false; notNull: false; data: T }> {
-	return new PgTextBuilder(name);
+export interface PgTextConfig<TEnum extends string[]> {
+	enum?: TEnum;
+}
+
+export function text<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
+	name: TName,
+	config: PgTextConfig<Writable<T>> = {},
+): PgTextBuilderInitial<TName, Writable<T>> {
+	return new PgTextBuilder(name, config);
 }

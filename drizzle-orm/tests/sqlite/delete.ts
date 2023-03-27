@@ -1,9 +1,9 @@
 import type { RunResult } from 'better-sqlite3';
 import { eq } from '~/expressions';
 
-import type { Equal} from 'tests/utils';
+import type { Equal } from 'tests/utils';
 import { Expect } from 'tests/utils';
-import type { InferModel } from '~/sqlite-core/index';
+import type { InferModel } from '~/table';
 import { bunDb, db } from './db';
 import { users } from './tables';
 

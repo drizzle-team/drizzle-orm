@@ -12,7 +12,7 @@ import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
 import type { UpdateSet } from '~/utils';
 import { ViewBaseConfig } from '~/view';
-import type { SelectFieldsOrdered, SQLiteSelectConfig } from './query-builders/select.types';
+import type { SelectedFieldsOrdered, SQLiteSelectConfig } from './query-builders/select.types';
 import type { SQLiteSession } from './session';
 import { SQLiteViewBase } from './view';
 
@@ -81,7 +81,7 @@ export abstract class SQLiteDialect {
 	 * If `isSingleTable` is true, then columns won't be prefixed with table name
 	 */
 	private buildSelection(
-		fields: SelectFieldsOrdered,
+		fields: SelectedFieldsOrdered,
 		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
 	): SQL {
 		const columnsLen = fields.length;

@@ -13,7 +13,7 @@ import { PrimaryKeyBuilder } from './primary-keys';
 import { type PgMaterializedView, PgMaterializedViewConfig, type PgView, PgViewConfig } from './view';
 
 export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
-	const columns = Object.values(table[PgTable.Symbol.Columns]);
+	const columns = Object.values(table[Table.Symbol.Columns]);
 	const indexes: Index[] = [];
 	const checks: Check[] = [];
 	const primaryKeys: PrimaryKey[] = [];
@@ -24,7 +24,7 @@ export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
 	const extraConfigBuilder = table[PgTable.Symbol.ExtraConfigBuilder];
 
 	if (typeof extraConfigBuilder !== 'undefined') {
-		const extraConfig = extraConfigBuilder(table[PgTable.Symbol.Columns]);
+		const extraConfig = extraConfigBuilder(table[Table.Symbol.Columns]);
 		Object.values(extraConfig).forEach((builder) => {
 			if (builder instanceof IndexBuilder) {
 				indexes.push(builder.build(table));
@@ -47,10 +47,6 @@ export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
 		name,
 		schema,
 	};
-}
-
-export function getTableColumns(table: AnyPgTable) {
-	return Object.assign({}, table[PgTable.Symbol.Columns]);
 }
 
 export function getViewConfig<
