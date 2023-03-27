@@ -98,7 +98,7 @@ export abstract class SQLiteDialect {
 					if (isSingleTable) {
 						chunk.push(
 							new SQL(
-								query.chunks.map((c) => {
+								query.queryChunks.map((c) => {
 									if (c instanceof SQLiteColumn) {
 										return new Name(c.name);
 									}

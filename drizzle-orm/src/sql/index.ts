@@ -77,15 +77,15 @@ export class SQL<T = unknown> implements SQLWrapper {
 	decoder: DriverValueDecoder<T, any> = noopDecoder;
 	private shouldInlineParams = false;
 
-	constructor(readonly chunks: SQLChunk[]) {}
+	constructor(readonly queryChunks: SQLChunk[]) {}
 
 	append(query: SQL): this {
-		this.chunks.push(...query.chunks);
+		this.queryChunks.push(...query.queryChunks);
 		return this;
 	}
 
 	toQuery(config: BuildQueryConfig): Query {
-		return this.buildQueryFromSourceParams(this.chunks, config);
+		return this.buildQueryFromSourceParams(this.queryChunks, config);
 	}
 
 	buildQueryFromSourceParams(chunks: SQLChunk[], _config: BuildQueryConfig): Query {
@@ -129,7 +129,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (chunk instanceof SQL) {
-				return this.buildQueryFromSourceParams(chunk.chunks, {
+				return this.buildQueryFromSourceParams(chunk.queryChunks, {
 					...config,
 					inlineParams: inlineParams || chunk.shouldInlineParams,
 				});
