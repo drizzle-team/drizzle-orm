@@ -1,4 +1,4 @@
-import type { Placeholder, Query, SQL } from '~/sql';
+import { type Placeholder, type Query, SQL } from '~/sql';
 import type { AnySQLiteColumn } from '~/sqlite-core/columns';
 import type { SQLiteDialect } from '~/sqlite-core/dialect';
 import { Table } from '~/table';
@@ -6,23 +6,24 @@ import { Table } from '~/table';
 import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
 
-import type { SubqueryWithSelection } from '~/sqlite-core/subquery';
-import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
-import { orderSelectedFields, type Simplify, type ValueOrArray } from '~/utils';
-import { ViewBaseConfig } from '~/view';
-import { getTableColumns } from '../utils';
-import { SQLiteViewBase } from '../view';
-import { QueryBuilder } from './query-builder';
+import { QueryBuilder } from '~/query-builders/query-builder';
 import type {
 	BuildSubquerySelection,
 	GetSelectTableName,
 	GetSelectTableSelection,
-	JoinFn,
 	JoinNullability,
 	JoinType,
-	SelectFields,
 	SelectMode,
 	SelectResult,
+} from '~/query-builders/select.types';
+import type { SubqueryWithSelection } from '~/sqlite-core/subquery';
+import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
+import { getTableColumns, orderSelectedFields, type Simplify, type ValueOrArray } from '~/utils';
+import { ViewBaseConfig } from '~/view';
+import { SQLiteViewBase } from '../view';
+import type {
+	JoinFn,
+	SelectedFields,
 	SQLiteSelectConfig,
 	SQLiteSelectHKT,
 	SQLiteSelectHKTBase,
@@ -31,7 +32,7 @@ import type {
 
 type CreateSQLiteSelectFromBuilderMode<
 	TBuilderMode extends 'db' | 'qb',
-	TTableName extends string,
+	TTableName extends string | undefined,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TSelection,
@@ -40,7 +41,7 @@ type CreateSQLiteSelectFromBuilderMode<
 	: SQLiteSelectQueryBuilder<SQLiteSelectQueryBuilderHKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode>;
 
 export class SQLiteSelectBuilder<
-	TSelection extends SelectFields | undefined,
+	TSelection extends SelectedFields | undefined,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TBuilderMode extends 'db' | 'qb' = 'db',
@@ -52,7 +53,7 @@ export class SQLiteSelectBuilder<
 		private withList: Subquery[] = [],
 	) {}
 
-	from<TFrom extends AnySQLiteTable | Subquery | SQLiteViewBase>(
+	from<TFrom extends AnySQLiteTable | Subquery | SQLiteViewBase | SQL>(
 		source: TFrom,
 	): CreateSQLiteSelectFromBuilderMode<
 		TBuilderMode,
@@ -64,7 +65,7 @@ export class SQLiteSelectBuilder<
 	> {
 		const isPartialSelect = !!this.fields;
 
-		let fields: SelectFields;
+		let fields: SelectedFields;
 		if (this.fields) {
 			fields = this.fields;
 		} else if (source instanceof Subquery) {
@@ -72,12 +73,14 @@ export class SQLiteSelectBuilder<
 			fields = Object.fromEntries(
 				Object.keys(source[SubqueryConfig].selection).map((
 					key,
-				) => [key, source[key as unknown as keyof typeof source] as unknown as SelectFields[string]]),
+				) => [key, source[key as unknown as keyof typeof source] as unknown as SelectedFields[string]]),
 			);
 		} else if (source instanceof SQLiteViewBase) {
-			fields = source[ViewBaseConfig].selection as SelectFields;
+			fields = source[ViewBaseConfig].selectedFields as SelectedFields;
+		} else if (source instanceof SQL) {
+			fields = {};
 		} else {
-			fields = getTableColumns(source);
+			fields = getTableColumns<AnySQLiteTable>(source);
 		}
 
 		const fieldsList = orderSelectedFields<AnySQLiteColumn>(fields);
@@ -95,20 +98,23 @@ export class SQLiteSelectBuilder<
 
 export abstract class SQLiteSelectQueryBuilder<
 	THKT extends SQLiteSelectHKTBase,
-	TTableName extends string,
+	TTableName extends string | undefined,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TSelection,
 	TSelectMode extends SelectMode,
-	TNullabilityMap extends Record<string, JoinNullability> = Record<TTableName, 'not-null'>,
+	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
+		: {},
 > extends QueryBuilder<BuildSubquerySelection<TSelection, TNullabilityMap>> {
-	declare protected $selectMode: TSelectMode;
-	declare protected $selection: TSelection;
-	declare protected $subquerySelection: BuildSubquerySelection<TSelection, TNullabilityMap>;
+	override readonly _: {
+		readonly selectMode: TSelectMode;
+		readonly selection: TSelection;
+		readonly selectedFields: BuildSubquerySelection<TSelection, TNullabilityMap>;
+	};
 
 	protected config: SQLiteSelectConfig;
 	protected joinsNotNullableMap: Record<string, boolean>;
-	private tableName: string;
+	private tableName: string | undefined;
 
 	constructor(
 		table: SQLiteSelectConfig['table'],
@@ -125,17 +131,21 @@ export abstract class SQLiteSelectQueryBuilder<
 			table,
 			fields,
 			fieldsList,
-			joins: {},
+			joins: [],
 			orderBy: [],
 			groupBy: [],
 		};
-		this.$subquerySelection = fields as BuildSubquerySelection<TSelection, TNullabilityMap>;
+		this._ = {
+			selectedFields: fields as BuildSubquerySelection<TSelection, TNullabilityMap>,
+		} as this['_'];
 		this.tableName = table instanceof Subquery
 			? table[SubqueryConfig].alias
 			: table instanceof SQLiteViewBase
 			? table[ViewBaseConfig].name
+			: table instanceof SQL
+			? undefined
 			: table[Table.Symbol.Name];
-		this.joinsNotNullableMap = { [this.tableName]: true };
+		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
 	}
 
 	private createJoin<TJoinType extends JoinType>(
@@ -151,29 +161,36 @@ export abstract class SQLiteSelectQueryBuilder<
 		TNullabilityMap
 	> {
 		return (
-			table: AnySQLiteTable | Subquery,
+			table: AnySQLiteTable | Subquery | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
-			const tableName = table instanceof Subquery ? table[SubqueryConfig].alias : table[Table.Symbol.Name];
+			const baseTableName = this.tableName;
+			const tableName = table instanceof Subquery
+				? table[SubqueryConfig].alias
+				: table instanceof SQL
+				? undefined
+				: table[Table.Symbol.Name];
 
-			if (this.config.joins[tableName]) {
+			if (typeof tableName === 'string' && this.config.joins.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
 			}
 
 			if (!this.isPartialSelect) {
-				// If this is the first join and this is not a partial select, "move" the fields from the main table to the nested object
-				if (Object.keys(this.joinsNotNullableMap).length === 1) {
+				// If this is the first join and this is not a partial select and we're not selecting from raw SQL, "move" the fields from the main table to the nested object
+				if (Object.keys(this.joinsNotNullableMap).length === 1 && typeof baseTableName === 'string') {
 					this.config.fieldsList = this.config.fieldsList.map((field) => ({
 						...field,
-						path: [this.tableName, ...field.path],
+						path: [baseTableName, ...field.path],
 					}));
 				}
-				this.config.fieldsList.push(
-					...orderSelectedFields<AnySQLiteColumn>(
-						table instanceof Subquery ? table[SubqueryConfig].selection : table[Table.Symbol.Columns],
-						[tableName],
-					),
-				);
+				if (typeof tableName === 'string' && !(table instanceof SQL)) {
+					this.config.fieldsList.push(
+						...orderSelectedFields<AnySQLiteColumn>(
+							table instanceof Subquery ? table[SubqueryConfig].selection : table[Table.Symbol.Columns],
+							[tableName],
+						),
+					);
+				}
 			}
 
 			if (typeof on === 'function') {
@@ -185,27 +202,29 @@ export abstract class SQLiteSelectQueryBuilder<
 				);
 			}
 
-			this.config.joins[tableName] = { on, table, joinType };
+			this.config.joins.push({ on, table, joinType, alias: tableName });
 
-			switch (joinType) {
-				case 'left':
-					this.joinsNotNullableMap[tableName] = false;
-					break;
-				case 'right':
-					this.joinsNotNullableMap = Object.fromEntries(
-						Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false]),
-					);
-					this.joinsNotNullableMap[tableName] = true;
-					break;
-				case 'inner':
-					this.joinsNotNullableMap[tableName] = true;
-					break;
-				case 'full':
-					this.joinsNotNullableMap = Object.fromEntries(
-						Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false]),
-					);
-					this.joinsNotNullableMap[tableName] = false;
-					break;
+			if (typeof tableName === 'string') {
+				switch (joinType) {
+					case 'left':
+						this.joinsNotNullableMap[tableName] = false;
+						break;
+					case 'right':
+						this.joinsNotNullableMap = Object.fromEntries(
+							Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false]),
+						);
+						this.joinsNotNullableMap[tableName] = true;
+						break;
+					case 'inner':
+						this.joinsNotNullableMap[tableName] = true;
+						break;
+					case 'full':
+						this.joinsNotNullableMap = Object.fromEntries(
+							Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false]),
+						);
+						this.joinsNotNullableMap[tableName] = false;
+						break;
+				}
 			}
 
 			return this;
@@ -251,7 +270,7 @@ export abstract class SQLiteSelectQueryBuilder<
 	groupBy(
 		...columns:
 			| [(aliases: TSelection) => ValueOrArray<AnySQLiteColumn | SQL | SQL.Aliased>]
-			| (AnySQLiteColumn | SQL)[]
+			| (AnySQLiteColumn | SQL | SQL.Aliased)[]
 	): this {
 		if (typeof columns[0] === 'function') {
 			const groupBy = columns[0](
@@ -262,7 +281,7 @@ export abstract class SQLiteSelectQueryBuilder<
 			);
 			this.config.groupBy = Array.isArray(groupBy) ? groupBy : [groupBy];
 		} else {
-			this.config.groupBy = columns as (AnySQLiteColumn | SQL)[];
+			this.config.groupBy = columns as (AnySQLiteColumn | SQL | SQL.Aliased)[];
 		}
 		return this;
 	}
@@ -272,7 +291,7 @@ export abstract class SQLiteSelectQueryBuilder<
 	orderBy(
 		...columns:
 			| [(aliases: TSelection) => ValueOrArray<AnySQLiteColumn | SQL | SQL.Aliased>]
-			| (AnySQLiteColumn | SQL)[]
+			| (AnySQLiteColumn | SQL | SQL.Aliased)[]
 	): this {
 		if (typeof columns[0] === 'function') {
 			const orderBy = columns[0](
@@ -283,7 +302,7 @@ export abstract class SQLiteSelectQueryBuilder<
 			);
 			this.config.orderBy = Array.isArray(orderBy) ? orderBy : [orderBy];
 		} else {
-			this.config.orderBy = columns as (AnySQLiteColumn | SQL)[];
+			this.config.orderBy = columns as (AnySQLiteColumn | SQL | SQL.Aliased)[];
 		}
 		return this;
 	}
@@ -313,22 +332,23 @@ export abstract class SQLiteSelectQueryBuilder<
 	): SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias> {
 		return new Proxy(
 			new Subquery(this.getSQL(), this.config.fields, alias),
-			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'subquery_selection', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias>;
 	}
 }
 
 export interface SQLiteSelect<
-	TTableName extends string,
+	TTableName extends string | undefined,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TSelection,
 	TSelectMode extends SelectMode = 'single',
-	TNullabilityMap extends Record<string, JoinNullability> = Record<TTableName, 'not-null'>,
+	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
+		: {},
 > extends
 	SQLiteSelectQueryBuilder<
 		SQLiteSelectHKT,
-		TTableName,
+		TTableName | undefined,
 		TResultType,
 		TRunResult,
 		TSelection,
@@ -338,12 +358,13 @@ export interface SQLiteSelect<
 {}
 
 export class SQLiteSelect<
-	TTableName extends string,
+	TTableName extends string | undefined,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TSelection,
 	TSelectMode extends SelectMode = 'single',
-	TNullabilityMap extends Record<string, JoinNullability> = Record<TTableName, 'not-null'>,
+	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
+		: {},
 > extends SQLiteSelectQueryBuilder<
 	SQLiteSelectHKT,
 	TTableName,

@@ -1,12 +1,12 @@
 import { MySqlDialect } from '~/mysql-core/dialect';
 import type { WithSubqueryWithSelection } from '~/mysql-core/subquery';
-import type { SQL, SQLWrapper } from '~/sql';
+import type { QueryBuilder } from '~/query-builders/query-builder';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
 import type { MySqlSelectBuilder } from './select';
-import type { SelectFields } from './select.types';
+import type { SelectedFields } from './select.types';
 
 export class QueryBuilderInstance {
-	private dialect = new MySqlDialect();
+	private dialect: MySqlDialect | undefined;
 	private MySqlSelectBuilder: typeof MySqlSelectBuilder;
 
 	constructor() {
@@ -26,7 +26,7 @@ export class QueryBuilderInstance {
 				}
 
 				return new Proxy(
-					new WithSubquery(qb.getSQL(), qb.getSelection() as SelectFields, alias, true),
+					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
 					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 				) as WithSubqueryWithSelection<TSelection, TAlias>;
 			},
@@ -37,36 +37,30 @@ export class QueryBuilderInstance {
 		const self = this;
 
 		function select(): MySqlSelectBuilder<undefined, 'qb'>;
-		function select<TSelection extends SelectFields>(fields: TSelection): MySqlSelectBuilder<TSelection, 'qb'>;
-		function select<TSelection extends SelectFields>(
+		function select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, 'qb'>;
+		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
 		): MySqlSelectBuilder<TSelection | undefined, 'qb'> {
-			return new self.MySqlSelectBuilder(fields ?? undefined, undefined, self.dialect, queries);
+			return new self.MySqlSelectBuilder(fields ?? undefined, undefined, self.getDialect(), queries);
 		}
 
 		return { select };
 	}
 
 	select(): MySqlSelectBuilder<undefined, 'qb'>;
-	select<TSelection extends SelectFields>(fields: TSelection): MySqlSelectBuilder<TSelection, 'qb'>;
-	select<TSelection extends SelectFields>(fields?: TSelection): MySqlSelectBuilder<TSelection | undefined, 'qb'> {
-		return new this.MySqlSelectBuilder(fields ?? undefined, undefined, this.dialect);
-	}
-}
-
-export abstract class QueryBuilder<TSelection> implements SQLWrapper {
-	protected abstract $subquerySelection: TSelection;
-
-	/** @internal */
-	getSelection(): TSelection {
-		return this.$subquerySelection;
+	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, 'qb'>;
+	select<TSelection extends SelectedFields>(fields?: TSelection): MySqlSelectBuilder<TSelection | undefined, 'qb'> {
+		return new this.MySqlSelectBuilder(fields ?? undefined, undefined, this.getDialect());
 	}
 
-	abstract getSQL(): SQL;
-}
+	// Lazy load dialect to avoid circular dependency
+	private getDialect() {
+		if (!this.dialect) {
+			this.dialect = new MySqlDialect();
+		}
 
-export type GetQueryBuilderSelection<T extends QueryBuilder<any>> = T extends QueryBuilder<infer TSelection>
-	? TSelection
-	: never;
+		return this.dialect;
+	}
+}
 
 export const queryBuilder = new QueryBuilderInstance();

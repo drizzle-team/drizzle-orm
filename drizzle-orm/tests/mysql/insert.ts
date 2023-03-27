@@ -1,5 +1,6 @@
-import type { Equal} from 'tests/utils';
+import type { Equal } from 'tests/utils';
 import { Expect } from 'tests/utils';
+import { int, mysqlTable, text } from '~/mysql-core';
 import type { MySqlRawQueryResult } from '~/mysql2';
 import { sql } from '~/sql';
 import { db } from './db';
@@ -97,3 +98,14 @@ const insertReturningSqlPrepared = await insertReturningSqlStmt.execute();
 Expect<
 	Equal<MySqlRawQueryResult, typeof insertReturningSqlPrepared>
 >;
+
+{
+	const users = mysqlTable('users', {
+		id: int('id').autoincrement().primaryKey(),
+		name: text('name').notNull(),
+		age: int('age'),
+		occupation: text('occupation'),
+	});
+
+	await db.insert(users).values({ name: 'John Wick', age: 58, occupation: 'housekeeper' });
+}

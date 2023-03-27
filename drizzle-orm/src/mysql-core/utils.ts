@@ -50,10 +50,6 @@ export function getTableConfig(table: AnyMySqlTable) {
 	};
 }
 
-export function getTableColumns(table: AnyMySqlTable) {
-	return Object.assign({}, table[MySqlTable.Symbol.Columns]);
-}
-
 export function getViewConfig<
 	TName extends string = string,
 	TExisting extends boolean = boolean,

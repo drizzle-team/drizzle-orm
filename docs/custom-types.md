@@ -30,17 +30,17 @@ Each type creation should use 2 classes:
 
 ```typescript
 export class PgTextBuilder<TData extends string = string>
-	extends PgColumnBuilder<
-		ColumnBuilderConfig<{ data: TData; driverParam: string }>
-	>
+  extends PgColumnBuilder<
+    ColumnBuilderConfig<{ data: TData; driverParam: string }>
+  >
 {
-	protected override $pgColumnBuilderBrand!: 'PgTextBuilder';
+  
 
-	build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgText<TTableName, TData> {
-		return new PgText(table, this.config);
-	}
+  build<TTableName extends string>(
+    table: AnyPgTable<{ name: TTableName }>,
+  ): PgText<TTableName, TData> {
+    return new PgText(table, this.config);
+  }
 }
 ```
 
@@ -62,7 +62,7 @@ Column class has set of types/functions, that could be overridden to get needed 
 
 ```typescript
 override mapToDriverValue(value: TData): string {
-	return JSON.stringify(value);
+  return JSON.stringify(value);
 }
 ```
 
@@ -72,10 +72,10 @@ override mapToDriverValue(value: TData): string {
 
 ```typescript
 override mapFromDriverValue(value: number | string): number {
-	if (typeof value === 'string') {
-		return parseInt(value);
-	}
-	return value;
+  if (typeof value === 'string') {
+    return parseInt(value);
+  }
+  return value;
 }
 ```
 
@@ -83,24 +83,24 @@ override mapFromDriverValue(value: number | string): number {
 
 ```typescript
 export class PgText<TTableName extends string, TData extends string>
-	extends PgColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>> {
-	protected override $pgColumnBrand!: 'PgText';
+  extends PgColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>> {
+  
 
-	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgTextBuilder<TData>['config']) {
-		super(table, builder);
-	}
+  constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgTextBuilder<TData>['config']) {
+    super(table, builder);
+  }
 
-	getSQLType(): string {
-		return 'text';
-	}
+  getSQLType(): string {
+    return 'text';
+  }
 
-	override mapFromDriverValue(value: string): TData {
-		return value as TData
-	}
+  override mapFromDriverValue(value: string): TData {
+    return value as TData
+  }
 
-	override mapToDriverValue(value: TData): string {
-		return value
-	}
+  override mapToDriverValue(value: TData): string {
+    return value
+  }
 }
 ```
 
@@ -122,42 +122,42 @@ import { AnyPgTable } from '~/table';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export class PgTextBuilder<TData extends string = string>
-	extends PgColumnBuilder<
-		ColumnBuilderConfig<{ data: TData; driverParam: string }>
-	>
+  extends PgColumnBuilder<
+    ColumnBuilderConfig<{ data: TData; driverParam: string }>
+  >
 {
-	protected override $pgColumnBuilderBrand!: 'PgTextBuilder';
+  
 
-	build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgText<TTableName, TData> {
-		return new PgText(table, this.config);
-	}
+  build<TTableName extends string>(
+    table: AnyPgTable<{ name: TTableName }>,
+  ): PgText<TTableName, TData> {
+    return new PgText(table, this.config);
+  }
 }
 
 export class PgText<TTableName extends string, TData extends string>
-	extends PgColumn<
-		ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>
-	>
+  extends PgColumn<
+    ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>
+  >
 {
-	protected override $pgColumnBrand!: 'PgText';
+  
 
-	constructor(
-		table: AnyPgTable<{ name: TTableName }>,
-		builder: PgTextBuilder<TData>['config'],
-	) {
-		super(table, builder);
-	}
+  constructor(
+    table: AnyPgTable<{ name: TTableName }>,
+    builder: PgTextBuilder<TData>['config'],
+  ) {
+    super(table, builder);
+  }
 
-	getSQLType(): string {
-		return 'text';
-	}
+  getSQLType(): string {
+    return 'text';
+  }
 }
 
 export function text<T extends string = string>(
-	name: string,
+  name: string,
 ): PgTextBuilder<T> {
-	return new PgTextBuilder(name);
+  return new PgTextBuilder(name);
 }
 ```
 
@@ -181,31 +181,31 @@ export function text<T extends string = string>(
 
 ```typescript
 export class PgCITextBuilder<TData extends string = string> extends PgColumnBuilder<
-	ColumnBuilderConfig<{ data: TData; driverParam: string }>
+  ColumnBuilderConfig<{ data: TData; driverParam: string }>
 > {
   protected $pgColumnBuilderBrand: string = 'PgCITextBuilder';
   
-	build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgCIText<TTableName, TData> {
-		return new PgCIText(table, this.config);
-	}
+  build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgCIText<TTableName, TData> {
+    return new PgCIText(table, this.config);
+  }
 }
 
 export class PgCIText<TTableName extends string, TData extends string>
-	extends PgColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>>
+  extends PgColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>>
 {
-	protected override $pgColumnBrand!: 'PgCIText';
+  
 
-	constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgCITextBuilder<TData>['config']) {
-		super(table, builder);
-	}
+  constructor(table: AnyPgTable<{ name: TTableName }>, builder: PgCITextBuilder<TData>['config']) {
+    super(table, builder);
+  }
 
-	getSQLType(): string {
-		return 'citext';
-	}
+  getSQLType(): string {
+    return 'citext';
+  }
 }
 
 export function citext<T extends string = string>(name: string): PgCITextBuilder<T> {
-	return new PgCITextBuilder(name);
+  return new PgCITextBuilder(name);
 }
 ```
 
@@ -213,8 +213,8 @@ export function citext<T extends string = string>(name: string): PgCITextBuilder
 
 ```typescript
 const table = pgTable('table', {
-	id: integer('id').primaryKey(),
-	ciname: citext('ciname')
+  id: integer('id').primaryKey(),
+  ciname: citext('ciname')
 })
 ```
 

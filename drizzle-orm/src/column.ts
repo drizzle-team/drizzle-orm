@@ -1,7 +1,7 @@
-import type { ColumnBuilder, ColumnBuilderBaseConfig, ColumnBuilderConfig } from './column-builder';
+import type { ColumnBuilderBaseConfig, ColumnBuilderConfig, ColumnBuilderRuntimeConfig } from './column-builder';
 import type { DriverValueMapper, SQL } from './sql';
 import type { Table } from './table';
-import type { Update } from './utils';
+import type { Assume, Update } from './utils';
 
 export interface ColumnBaseConfig extends ColumnBuilderBaseConfig {
 	tableName: string;
@@ -12,20 +12,41 @@ export type ColumnConfig<TPartial extends Partial<ColumnBaseConfig> = {}> = Upda
 	TPartial
 >;
 
+export interface ColumnHKTBase {
+	config: unknown;
+	_type: unknown;
+}
+
+export type ColumnKind<T extends ColumnHKTBase, TConfig extends Partial<ColumnBaseConfig>> = (T & {
+	config: TConfig;
+})['_type'];
+
+export interface ColumnHKT extends ColumnHKTBase {
+	_type: Column<ColumnHKT, Assume<this['config'], ColumnBaseConfig>>;
+}
+
 /*
 	`Column` only accepts a full `ColumnConfig` as its generic.
 	To infer parts of the config, use `AnyColumn` that accepts a partial config.
 	See `GetColumnData` for example usage of inferring.
 */
-export abstract class Column<T extends Partial<ColumnBaseConfig>>
-	implements DriverValueMapper<T['data'], T['driverParam']>
-{
-	declare protected $brand: 'Column';
-	declare protected $config: T;
-	declare protected $data: T['data'];
-	declare protected $driverParam: T['driverParam'];
-	declare protected $notNull: T['notNull'];
-	declare protected $hasDefault: T['hasDefault'];
+export abstract class Column<
+	THKT extends ColumnHKTBase,
+	T extends ColumnBaseConfig,
+	TRuntimeConfig extends object = {},
+	TTypeConfig extends object = {},
+> implements DriverValueMapper<T['data'], T['driverParam']> {
+	declare _: {
+		hkt: THKT;
+		brand: 'Column';
+		config: T;
+		tableName: T['tableName'];
+		name: T['name'];
+		data: T['data'];
+		driverParam: T['driverParam'];
+		notNull: T['notNull'];
+		hasDefault: T['hasDefault'];
+	} & TTypeConfig;
 
 	readonly name: string;
 	readonly primary: boolean;
@@ -33,10 +54,13 @@ export abstract class Column<T extends Partial<ColumnBaseConfig>>
 	readonly default: T['data'] | SQL | undefined;
 	readonly hasDefault: boolean;
 
+	protected config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
+
 	constructor(
-		readonly table: Table<T['tableName']>,
-		config: ColumnBuilder<Omit<T, 'tableName'>>['config'],
+		readonly table: Table,
+		config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig,
 	) {
+		this.config = config;
 		this.name = config.name;
 		this.notNull = config.notNull;
 		this.default = config.default;
@@ -60,26 +84,18 @@ export type UpdateColConfig<T extends Partial<ColumnBaseConfig>, TUpdate extends
 	TUpdate
 >;
 
-export type AnyColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = Column<Update<ColumnBaseConfig, TPartial>>;
+export type AnyColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = Column<
+	ColumnHKT,
+	Required<Update<ColumnBaseConfig, TPartial>>
+>;
 
 export type GetColumnData<TColumn extends AnyColumn, TInferMode extends 'query' | 'raw' = 'query'> =
 	// dprint-ignore
-	TColumn extends AnyColumn<{ data: infer TData; notNull: infer TNotNull extends boolean }>
-		? TInferMode extends 'raw' // Raw mode
-			? TData // Just return the underlying type
-			: TNotNull extends true // Query mode
-			? TData // Query mode, not null
-			: TData | null // Query mode, nullable
-		: never;
-
-/**
-	`GetColumnConfig` can be used to infer either the full config of the column or a single parameter.
-	@example
-	type TConfig = GetColumnConfig<typeof column>;
-	type TNotNull = GetColumnConfig<typeof column, 'notNull'>;
-*/
-export type GetColumnConfig<TColumn extends AnyColumn, TParam extends keyof ColumnBaseConfig | undefined = undefined> =
-	TColumn extends Column<infer TConfig> ? TParam extends keyof ColumnBaseConfig ? TConfig[TParam] : TConfig : never;
+	TInferMode extends 'raw' // Raw mode
+		? TColumn['_']['data'] // Just return the underlying type
+		: TColumn['_']['notNull'] extends true // Query mode
+		? TColumn['_']['data'] // Query mode, not null
+		: TColumn['_']['data'] | null; // Query mode, nullable
 
 export type InferColumnsDataTypes<TColumns extends Record<string, AnyColumn>> = {
 	[Key in keyof TColumns]: GetColumnData<TColumns[Key], 'query'>;

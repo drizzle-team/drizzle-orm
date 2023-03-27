@@ -21,7 +21,9 @@ export class IndexBuilderOn {
 }
 
 export class IndexBuilder {
-	declare protected $brand: 'SQLiteIndexBuilder';
+	declare _: {
+		brand: 'SQLiteIndexBuilder';
+	};
 
 	/** @internal */
 	config: IndexConfig;
@@ -50,7 +52,9 @@ export class IndexBuilder {
 }
 
 export class Index {
-	declare protected $brand: 'SQLiteIndex';
+	declare _: {
+		brand: 'SQLiteIndex';
+	};
 
 	readonly config: IndexConfig & { table: AnySQLiteTable };
 
@@ -58,12 +62,6 @@ export class Index {
 		this.config = { ...config, table };
 	}
 }
-
-export type GetColumnsTableName<TColumns> = TColumns extends
-	AnySQLiteColumn<{ tableName: infer TTableName extends string }> | AnySQLiteColumn<
-		{ tableName: infer TTableName extends string }
-	>[] ? TTableName
-	: never;
 
 export function index(name: string): IndexBuilderOn {
 	return new IndexBuilderOn(name, false);

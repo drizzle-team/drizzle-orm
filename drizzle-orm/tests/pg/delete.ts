@@ -1,8 +1,8 @@
 import type { QueryResult } from 'pg';
-import type { Equal} from 'tests/utils';
+import type { Equal } from 'tests/utils';
 import { Expect } from 'tests/utils';
 import { eq } from '~/expressions';
-import type { InferModel } from '~/pg-core/index';
+import type { InferModel } from '~/table';
 import { db } from './db';
 import { users } from './tables';
 

@@ -1,8 +1,16 @@
-import type { Connection, FieldPacket, OkPacket, Pool, QueryOptions, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import type { Logger} from '~/logger';
+import type {
+	Connection,
+	FieldPacket,
+	OkPacket,
+	Pool,
+	QueryOptions,
+	ResultSetHeader,
+	RowDataPacket,
+} from 'mysql2/promise';
+import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
 import type { MySqlDialect } from '~/mysql-core/dialect';
-import type { SelectFieldsOrdered } from '~/mysql-core/query-builders/select.types';
+import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types';
 import type { PreparedQueryConfig, QueryResultHKT } from '~/mysql-core/session';
 import { MySqlSession, PreparedQuery } from '~/mysql-core/session';
 import type { Query } from '~/sql';
@@ -26,7 +34,7 @@ export class MySql2PreparedQuery<T extends PreparedQueryConfig> extends Prepared
 		queryString: string,
 		private params: unknown[],
 		private logger: Logger,
-		private fields: SelectFieldsOrdered | undefined,
+		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 	) {
 		super();
@@ -94,7 +102,7 @@ export class MySql2Session extends MySqlSession {
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		fields: SelectFieldsOrdered | undefined,
+		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 	): PreparedQuery<T> {
 		return new MySql2PreparedQuery(this.client, query.sql, query.params, this.logger, fields, name);

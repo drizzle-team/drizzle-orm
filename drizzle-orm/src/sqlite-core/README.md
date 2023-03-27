@@ -136,10 +136,11 @@ export const cities = sqliteTable('cities', {
 })
 ```
 
-Database and table entity types
+### Database and table entity types
 
 ```typescript
-import { InferModel, text, integer, sqliteTable } from 'drizzle-orm/sqlite-core';
+import { text, integer, sqliteTable } from 'drizzle-orm/sqlite-core';
+import { InferModel } from 'drizzle-orm';
 
 const users = sqliteTable('users', {
   id: integer('id').primaryKey(),
@@ -163,22 +164,50 @@ const insertUser = (user: InsertUser) => {
 }
 ```
 
-The list of all column types. You can also create custom types - [see here](https://github.com/drizzle-team/drizzle-orm/blob/main/docs/custom-types.md).
+### Customizing the table name
+
+There is a "table creator" available, which allow you to customize the table name, for example, to add a prefix or suffix. This is useful if you need to have tables for different environments or applications in the same database.
+
+```ts
+import { sqliteTableCreator } from 'drizzle-orm/sqlite-core';
+
+const sqliteTable = sqliteTableCreator((name) => `myprefix_${name}`);
+
+const users = sqliteTable('users', {
+  id: int('id').primaryKey(),
+  name: text('name').notNull(),
+});
+```
+
+## Column types
+
+The list of all column types. You can also create custom types - [see here](/docs/custom-types.md)
 
 ```typescript
-integer('...')
+integer('...');
 integer('...', { mode: 'number' | 'timestamp' | 'bigint' })
-real('...')
+real('...');
 text('...');
-text<'union' | 'string' | 'type'>('...');
+text('role', { enum: ['admin', 'user'] });
 
 blob('...');
 blob('...', { mode: 'json' | 'buffer' });
-blob<{ foo: string }>('...');
+blob('...').$type<{ foo: string }>();
 
-column.primaryKey()
-column.notNull()
-column.default(...)
+column.primaryKey();
+column.notNull();
+column.default(...);
+```
+
+### Customizing column data type
+
+Every column builder has a `.$type()` method, which allows you to customize the data type of the column. This is useful, for example, with branded types.
+
+```ts
+const users = sqliteTable('users', {
+  id: integer('id').$type<UserId>().primaryKey(),
+  jsonField: blob('json_field').$type<Data>(),
+});
 ```
 
 Declaring indexes, foreign keys and composite primary keys
@@ -275,6 +304,21 @@ db.select().from(users).orderBy(desc(users.name)).all();
 db.select().from(users).orderBy(asc(users.name), desc(users.name)).all();
 ```
 
+#### Select from/join raw SQL
+
+```typescript
+db.select({ x: sql<number>`x` }).from(sql`generate_series(2, 4) as g(x)`).all();
+
+db
+  .select({
+    x1: sql<number>`g1.x`,
+    x2: sql<number>`g2.x`
+  })
+  .from(sql`generate_series(2, 4) as g1(x)`)
+  .leftJoin(sql`generate_series(2, 4) as g2(x)`)
+  .all();
+```
+
 #### Conditionally select fields
 
 ```typescript
@@ -328,7 +372,6 @@ eq(column1, column2)
 ne(column, value)
 ne(column1, column2)
 
-notEq(column, value)
 less(column, value)
 lessEq(column, value)
 
@@ -369,7 +412,8 @@ or(...expressions: Expr[])
 ### Insert
 
 ```typescript
-import { sqliteTable, text, integer, InferModel } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { InferModel } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import Database from 'better-sqlite3';
 
@@ -393,10 +437,10 @@ const newUser: NewUser = {
 
 db.insert(users).values(newUser).run();
 
-const insertedUsers/*: NewUser[]*/ = db.insert(users).values(...newUsers).returning().all();
+const insertedUsers/*: NewUser[]*/ = db.insert(users).values(newUsers).returning().all();
 
 const insertedUsersIds/*: { insertedId: number }[]*/ = db.insert(users)
-  .values(...newUsers)
+  .values(newUsers)
   .returning({ insertedId: users.id })
   .all();
 ```
@@ -432,7 +476,7 @@ const newUsers: NewUser[] = [
   },
 ];
 
-db.insert(users).values(...newUsers).run();
+db.insert(users).values(newUsers).run();
 ```
 
 ### Update and Delete

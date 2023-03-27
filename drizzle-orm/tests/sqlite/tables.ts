@@ -2,9 +2,10 @@ import type { Equal } from 'tests/utils';
 import { Expect } from 'tests/utils';
 import { eq, gt } from '~/expressions';
 import { sql } from '~/sql';
-import type { InferModel, SQLiteColumn } from '~/sqlite-core';
+import type { SQLiteInteger } from '~/sqlite-core';
 import { check, foreignKey, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from '~/sqlite-core';
 import { sqliteView, type SQLiteViewWithSelection } from '~/sqlite-core/view';
+import type { InferModel } from '~/table';
 
 export const users = sqliteTable(
 	'users_table',
@@ -16,12 +17,12 @@ export const users = sqliteTable(
 		currentCity: integer('current_city').references(() => cities.id),
 		serialNullable: integer('serial1'),
 		serialNotNull: integer('serial2').notNull(),
-		class: text<'A' | 'C'>('class').notNull(),
-		subClass: text<'B' | 'D'>('sub_class'),
+		class: text('class', { enum: ['A', 'C'] }).notNull(),
+		subClass: text('sub_class', { enum: ['B', 'D'] }),
 		name: text('name'),
 		age1: integer('age1').notNull(),
 		createdAt: integer('created_at', { mode: 'timestamp' }).notNull().defaultNow(),
-		enumCol: text<'a' | 'b' | 'c'>('enum_col').notNull(),
+		enumCol: text('enum_col', { enum: ['a', 'b', 'c'] }).notNull(),
 	},
 	(users) => ({
 		usersAge1Idx: uniqueIndex('usersAge1Idx').on(users.class),
@@ -106,8 +107,8 @@ Expect<
 
 export const classes = sqliteTable('classes_table', {
 	id: integer('id').primaryKey(),
-	class: text<'A' | 'C'>('class'),
-	subClass: text<'B' | 'D'>('sub_class').notNull(),
+	class: text('class', { enum: ['A', 'C'] }),
+	subClass: text('sub_class', { enum: ['B', 'D'] }).notNull(),
 });
 
 export type Class = InferModel<typeof classes>;
@@ -144,14 +145,16 @@ export const newYorkers = sqliteView('new_yorkers')
 Expect<
 	Equal<
 		SQLiteViewWithSelection<'new_yorkers', false, {
-			userId: SQLiteColumn<{
+			userId: SQLiteInteger<{
+				name: 'id';
 				data: number;
 				driverParam: number;
 				notNull: true;
 				hasDefault: true;
 				tableName: 'new_yorkers';
 			}>;
-			cityId: SQLiteColumn<{
+			cityId: SQLiteInteger<{
+				name: 'id';
 				data: number;
 				driverParam: number;
 				notNull: false;
@@ -177,14 +180,16 @@ Expect<
 	Expect<
 		Equal<
 			SQLiteViewWithSelection<'new_yorkers', false, {
-				userId: SQLiteColumn<{
+				userId: SQLiteInteger<{
+					name: 'user_id';
 					data: number;
 					driverParam: number;
 					hasDefault: false;
 					notNull: true;
 					tableName: 'new_yorkers';
 				}>;
-				cityId: SQLiteColumn<{
+				cityId: SQLiteInteger<{
+					name: 'city_id';
 					notNull: false;
 					hasDefault: false;
 					data: number;
@@ -206,14 +211,16 @@ Expect<
 	Expect<
 		Equal<
 			SQLiteViewWithSelection<'new_yorkers', true, {
-				userId: SQLiteColumn<{
+				userId: SQLiteInteger<{
+					name: 'user_id';
 					data: number;
 					driverParam: number;
 					hasDefault: false;
 					notNull: true;
 					tableName: 'new_yorkers';
 				}>;
-				cityId: SQLiteColumn<{
+				cityId: SQLiteInteger<{
+					name: 'city_id';
 					notNull: false;
 					hasDefault: false;
 					data: number;

@@ -3,7 +3,10 @@ import type { AnySQLiteColumn } from './columns';
 import type { AnySQLiteTable } from './table';
 
 export class UniqueBuilder<TTableName extends string> {
-	protected brand!: 'SQLiteConstraintBuilder';
+	declare _: {
+		brand: 'SQLiteUniqueBuilder';
+		tableName: TTableName;
+	};
 
 	constructor(public name: string, public column: AnySQLiteColumn) {}
 
@@ -25,10 +28,7 @@ export class Unique<TTableName extends string> {
 	}
 }
 
-export type BuildUnique<T extends AnyUniqueBuilder> = T extends UniqueBuilder<
-	infer TTableName
-> ? Unique<TTableName>
-	: never;
+export type BuildUnique<T extends AnyUniqueBuilder> = Unique<T['_']['tableName']>;
 
 export type AnyUnique = Unique<string>;
 

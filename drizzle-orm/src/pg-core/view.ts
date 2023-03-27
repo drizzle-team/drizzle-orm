@@ -1,45 +1,15 @@
+import type { BuildColumns } from '~/column-builder';
+import type { QueryBuilder } from '~/query-builders/query-builder';
+import type { AddAliasToSelection } from '~/query-builders/select.types';
 import type { SQL } from '~/sql';
 import { SelectionProxyHandler } from '~/subquery';
-import type { Assume } from '~/utils';
+import { getTableColumns } from '~/utils';
 import { View } from '~/view';
-import type { AnyPgColumnBuilder, BuildColumns } from './columns/common';
-import type { QueryBuilder, QueryBuilderInstance } from './query-builders';
+import type { AnyPgColumnBuilder } from './columns/common';
+import type { QueryBuilderInstance } from './query-builders';
 import { queryBuilder } from './query-builders';
-import type { AddAliasToSelection, SelectFields } from './query-builders/select.types';
+import type { SelectedFields } from './query-builders/select.types';
 import { pgTable } from './table';
-import { getTableColumns } from './utils';
-
-export interface ViewBuilderHKTBase {
-	name: string;
-	columns: unknown;
-	excludedMethods: string;
-	$type: unknown;
-}
-
-export interface ViewBuilderHKT extends ViewBuilderHKTBase {
-	$type: ViewBuilder<this['name'], this['excludedMethods']>;
-}
-
-export interface ManualViewBuilderHKT extends ViewBuilderHKTBase {
-	$type: ManualViewBuilder<this['name'], Assume<this['columns'], Record<string, AnyPgColumnBuilder>>>;
-}
-
-export interface MaterializedViewBuilderHKT extends ViewBuilderHKTBase {
-	$type: MaterializedViewBuilder<this['name'], this['excludedMethods']>;
-}
-
-export interface ManualMaterializedViewBuilderHKT extends ViewBuilderHKTBase {
-	$type: ManualMaterializedViewBuilder<this['name'], Assume<this['columns'], Record<string, AnyPgColumnBuilder>>>;
-}
-
-export type ViewBuilderKind<
-	T extends ViewBuilderHKTBase,
-	TConfig extends { name: string; columns?: unknown; excludedMethods: string },
-> = (T & {
-	name: TConfig['name'];
-	columns: TConfig['columns'];
-	excludedMethods: TConfig['excludedMethods'];
-})['$type'];
 
 export interface ViewWithConfig {
 	checkOption: 'local' | 'cascaded';
@@ -47,20 +17,11 @@ export interface ViewWithConfig {
 	securityInvoker: boolean;
 }
 
-export type ViewBuilderWithFilteredMethods<
-	THKT extends ViewBuilderHKTBase,
-	TConfig extends { name: string; columns?: unknown; excludedMethods: string },
-	TNewExcludedMethods extends string,
-> = Omit<
-	ViewBuilderKind<THKT, TConfig & { excludedMethods: TConfig['excludedMethods'] | TNewExcludedMethods }>,
-	TConfig['excludedMethods'] | TNewExcludedMethods
->;
-
-export class DefaultViewBuilderCore<
-	THKT extends ViewBuilderHKTBase,
-	TConfig extends { name: string; columns?: unknown; excludedMethods: string },
-> {
-	declare protected $config: TConfig;
+export class DefaultViewBuilderCore<TConfig extends { name: string; columns?: unknown }> {
+	declare readonly _: {
+		readonly name: TConfig['name'];
+		readonly columns: TConfig['columns'];
+	};
 
 	constructor(
 		protected name: TConfig['name'],
@@ -71,50 +32,44 @@ export class DefaultViewBuilderCore<
 		with?: ViewWithConfig;
 	} = {};
 
-	with(config: ViewWithConfig): ViewBuilderWithFilteredMethods<THKT, TConfig, 'with'> {
+	with(config: ViewWithConfig): this {
 		this.config.with = config;
 		return this;
 	}
 }
 
-export class ViewBuilder<TName extends string = string, TExcludedMethods extends string = never>
-	extends DefaultViewBuilderCore<ViewBuilderHKT, { name: TName; excludedMethods: TExcludedMethods }>
-{
-	as<TSelection extends SelectFields>(
-		qb: QueryBuilder<TSelection> | ((qb: QueryBuilderInstance) => QueryBuilder<TSelection>),
-	): PgViewWithSelection<TName, false, AddAliasToSelection<TSelection, TName>> {
+export class ViewBuilder<TName extends string = string> extends DefaultViewBuilderCore<{ name: TName }> {
+	as<TSelectedFields extends SelectedFields>(
+		qb: QueryBuilder<TSelectedFields> | ((qb: QueryBuilderInstance) => QueryBuilder<TSelectedFields>),
+	): PgViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName>> {
 		if (typeof qb === 'function') {
 			qb = qb(queryBuilder);
 		}
-		const selectionProxy = new SelectionProxyHandler<TSelection>({
+		const selectionProxy = new SelectionProxyHandler<TSelectedFields>({
 			alias: this.name,
 			sqlBehavior: 'error',
 			sqlAliasedBehavior: 'alias',
 		});
-		const aliasedSelection = new Proxy(qb.getSelection(), selectionProxy);
+		const aliasedSelection = new Proxy(qb.getSelectedFields(), selectionProxy);
 		return new Proxy(
 			new PgView({
 				pgConfig: this.config,
 				config: {
 					name: this.name,
 					schema: this.schema,
-					selection: aliasedSelection,
+					selectedFields: aliasedSelection,
 					query: qb.getSQL().inlineParams(),
 				},
 			}),
 			selectionProxy as any,
-		) as PgViewWithSelection<TName, false, AddAliasToSelection<TSelection, TName>>;
+		) as PgViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName>>;
 	}
 }
 
 export class ManualViewBuilder<
 	TName extends string = string,
 	TColumns extends Record<string, AnyPgColumnBuilder> = Record<string, AnyPgColumnBuilder>,
-	TExcludedMethods extends string = never,
-> extends DefaultViewBuilderCore<
-	ManualViewBuilderHKT,
-	{ name: TName; columns: TColumns; excludedMethods: TExcludedMethods }
-> {
+> extends DefaultViewBuilderCore<{ name: TName; columns: TColumns }> {
 	private columns: BuildColumns<TName, TColumns>;
 
 	constructor(
@@ -133,7 +88,7 @@ export class ManualViewBuilder<
 				config: {
 					name: this.name,
 					schema: this.schema,
-					selection: this.columns,
+					selectedFields: this.columns,
 					query: undefined,
 				},
 			}),
@@ -152,7 +107,7 @@ export class ManualViewBuilder<
 				config: {
 					name: this.name,
 					schema: this.schema,
-					selection: this.columns,
+					selectedFields: this.columns,
 					query: query.inlineParams(),
 				},
 			}),
@@ -169,11 +124,11 @@ export interface PgMaterializedViewWithConfig {
 	[Key: string]: string | number | boolean | SQL;
 }
 
-export class MaterializedViewBuilderCore<
-	THKT extends ViewBuilderHKTBase,
-	TConfig extends { name: string; columns?: unknown; excludedMethods: string },
-> {
-	declare protected $config: TConfig;
+export class MaterializedViewBuilderCore<TConfig extends { name: string; columns?: unknown }> {
+	declare _: {
+		readonly name: TConfig['name'];
+		readonly columns: TConfig['columns'];
+	};
 
 	constructor(
 		protected name: TConfig['name'],
@@ -187,47 +142,42 @@ export class MaterializedViewBuilderCore<
 		withNoData?: boolean;
 	} = {};
 
-	using(using: string): ViewBuilderWithFilteredMethods<THKT, TConfig, 'using'> {
+	using(using: string): this {
 		this.config.using = using;
 		return this;
 	}
 
-	with(config: PgMaterializedViewWithConfig): ViewBuilderWithFilteredMethods<THKT, TConfig, 'with'> {
+	with(config: PgMaterializedViewWithConfig): this {
 		this.config.with = config;
 		return this;
 	}
 
-	tablespace(tablespace: string): ViewBuilderWithFilteredMethods<THKT, TConfig, 'tablespace'> {
+	tablespace(tablespace: string): this {
 		this.config.tablespace = tablespace;
 		return this;
 	}
 
-	withNoData(): ViewBuilderWithFilteredMethods<THKT, TConfig, 'withNoData'> {
+	withNoData(): this {
 		this.config.withNoData = true;
 		return this;
 	}
 }
 
-export class MaterializedViewBuilder<TName extends string = string, TExcludedMethods extends string = never>
-	extends MaterializedViewBuilderCore<
-		MaterializedViewBuilderHKT,
-		{ name: TName; excludedMethods: TExcludedMethods }
-	>
+export class MaterializedViewBuilder<TName extends string = string>
+	extends MaterializedViewBuilderCore<{ name: TName }>
 {
-	declare protected $excludedMethods: TExcludedMethods;
-
-	as<TSelection extends SelectFields>(
-		qb: QueryBuilder<TSelection> | ((qb: QueryBuilderInstance) => QueryBuilder<TSelection>),
-	): PgMaterializedViewWithSelection<TName, false, AddAliasToSelection<TSelection, TName>> {
+	as<TSelectedFields extends SelectedFields>(
+		qb: QueryBuilder<TSelectedFields> | ((qb: QueryBuilderInstance) => QueryBuilder<TSelectedFields>),
+	): PgMaterializedViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName>> {
 		if (typeof qb === 'function') {
 			qb = qb(queryBuilder);
 		}
-		const selectionProxy = new SelectionProxyHandler<TSelection>({
+		const selectionProxy = new SelectionProxyHandler<TSelectedFields>({
 			alias: this.name,
 			sqlBehavior: 'error',
 			sqlAliasedBehavior: 'alias',
 		});
-		const aliasedSelection = new Proxy(qb.getSelection(), selectionProxy);
+		const aliasedSelection = new Proxy(qb.getSelectedFields(), selectionProxy);
 		return new Proxy(
 			new PgMaterializedView({
 				pgConfig: {
@@ -239,23 +189,19 @@ export class MaterializedViewBuilder<TName extends string = string, TExcludedMet
 				config: {
 					name: this.name,
 					schema: this.schema,
-					selection: aliasedSelection,
+					selectedFields: aliasedSelection,
 					query: qb.getSQL().inlineParams(),
 				},
 			}),
 			selectionProxy as any,
-		) as PgMaterializedViewWithSelection<TName, false, AddAliasToSelection<TSelection, TName>>;
+		) as PgMaterializedViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName>>;
 	}
 }
 
 export class ManualMaterializedViewBuilder<
 	TName extends string = string,
 	TColumns extends Record<string, AnyPgColumnBuilder> = Record<string, AnyPgColumnBuilder>,
-	TExcludedMethods extends string = never,
-> extends MaterializedViewBuilderCore<
-	ManualMaterializedViewBuilderHKT,
-	{ name: TName; columns: TColumns; excludedMethods: TExcludedMethods }
-> {
+> extends MaterializedViewBuilderCore<{ name: TName; columns: TColumns }> {
 	private columns: BuildColumns<TName, TColumns>;
 
 	constructor(
@@ -274,7 +220,7 @@ export class ManualMaterializedViewBuilder<
 				config: {
 					name: this.name,
 					schema: this.schema,
-					selection: this.columns,
+					selectedFields: this.columns,
 					query: undefined,
 				},
 			}),
@@ -293,7 +239,7 @@ export class ManualMaterializedViewBuilder<
 				config: {
 					name: this.name,
 					schema: this.schema,
-					selection: this.columns,
+					selectedFields: this.columns,
 					query: query.inlineParams(),
 				},
 			}),
@@ -309,14 +255,10 @@ export class ManualMaterializedViewBuilder<
 export abstract class PgViewBase<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
-> extends View<TName, TExisting> {
-	declare protected $viewBrand: 'PgViewBase';
-	protected abstract $pgViewBrand: string;
-
-	declare protected $config: {
-		name: TName;
-		selection: SelectFields;
-		query: SQL | undefined;
+	TSelectedFields = unknown,
+> extends View<TName, TExisting, TSelectedFields> {
+	declare readonly _: View<TName, TExisting, TSelectedFields>['_'] & {
+		readonly viewBrand: 'PgViewBase';
 	};
 }
 
@@ -325,9 +267,8 @@ export const PgViewConfig = Symbol('PgViewConfig');
 export class PgView<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
-> extends PgViewBase<TName, TExisting> {
-	declare protected $pgViewBrand: 'PgView';
-
+	TSelectedFields = unknown,
+> extends PgViewBase<TName, TExisting, TSelectedFields> {
 	[PgViewConfig]: {
 		with?: ViewWithConfig;
 	} | undefined;
@@ -339,7 +280,7 @@ export class PgView<
 		config: {
 			name: TName;
 			schema: string | undefined;
-			selection: SelectFields;
+			selectedFields: SelectedFields;
 			query: SQL | undefined;
 		};
 	}) {
@@ -353,19 +294,18 @@ export class PgView<
 }
 
 export type PgViewWithSelection<
-	TName extends string,
-	TExisting extends boolean,
-	TSelection,
-> = PgView<TName, TExisting> & TSelection;
+	TName extends string = string,
+	TExisting extends boolean = boolean,
+	TSelectedFields = unknown,
+> = PgView<TName, TExisting, TSelectedFields> & TSelectedFields;
 
 export const PgMaterializedViewConfig = Symbol('PgMaterializedViewConfig');
 
 export class PgMaterializedView<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
-> extends PgViewBase<TName, TExisting> {
-	declare protected $pgViewBrand: 'PgMaterializedView';
-
+	TSelectedFields = unknown,
+> extends PgViewBase<TName, TExisting, TSelectedFields> {
 	readonly [PgMaterializedViewConfig]: {
 		readonly with?: PgMaterializedViewWithConfig;
 		readonly using?: string;
@@ -383,7 +323,7 @@ export class PgMaterializedView<
 		config: {
 			name: TName;
 			schema: string | undefined;
-			selection: SelectFields;
+			selectedFields: SelectedFields;
 			query: SQL | undefined;
 		};
 	}) {
@@ -398,10 +338,10 @@ export class PgMaterializedView<
 }
 
 export type PgMaterializedViewWithSelection<
-	TName extends string,
-	TExisting extends boolean,
-	TSelection,
-> = PgMaterializedView<TName, TExisting> & TSelection;
+	TName extends string = string,
+	TExisting extends boolean = boolean,
+	TSelectedFields = unknown,
+> = PgMaterializedView<TName, TExisting, TSelectedFields> & TSelectedFields;
 
 /** @internal */
 export function pgViewWithSchema(

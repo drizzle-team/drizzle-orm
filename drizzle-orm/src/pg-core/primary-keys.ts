@@ -1,6 +1,5 @@
 import type { AnyPgColumn } from './columns';
-import type { AnyPgTable} from './table';
-import { PgTable } from './table';
+import { type AnyPgTable, PgTable } from './table';
 
 export function primaryKey<
 	TTableName extends string,
@@ -10,8 +9,6 @@ export function primaryKey<
 }
 
 export class PrimaryKeyBuilder {
-	declare protected $brand: 'PgPrimaryKeyBuilder';
-
 	/** @internal */
 	columns: AnyPgColumn<{}>[];
 

@@ -1,26 +1,29 @@
+import type { SelectResultFields } from '~/query-builders/select.types';
 import type { Placeholder, Query, SQLWrapper } from '~/sql';
 import { Param, SQL, sql } from '~/sql';
 import type { SQLiteDialect } from '~/sqlite-core/dialect';
 import type { IndexColumn } from '~/sqlite-core/indexes';
 import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
-import type { AnySQLiteTable, InferModel} from '~/sqlite-core/table';
+import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SQLiteTable } from '~/sqlite-core/table';
-import { Table } from '~/table';
+import { type InferModel, Table } from '~/table';
 import type { Simplify } from '~/utils';
 import { mapUpdateSet, orderSelectedFields } from '~/utils';
-import type { SelectFieldsFlat, SelectFieldsOrdered, SelectResultFields } from './select.types';
+import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
 import type { SQLiteUpdateSetSource } from './update';
 
 export interface SQLiteInsertConfig<TTable extends AnySQLiteTable = AnySQLiteTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[];
 	onConflict?: SQL;
-	returning?: SelectFieldsOrdered;
+	returning?: SelectedFieldsOrdered;
 }
 
-export type SQLiteInsertValue<TTable extends AnySQLiteTable> = {
-	[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
-};
+export type SQLiteInsertValue<TTable extends AnySQLiteTable> = Simplify<
+	{
+		[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
+	}
+>;
 
 export class SQLiteInsertBuilder<
 	TTable extends AnySQLiteTable,
@@ -33,8 +36,18 @@ export class SQLiteInsertBuilder<
 		protected dialect: SQLiteDialect,
 	) {}
 
-	protected mapValues(values: SQLiteInsertValue<TTable>[]): Record<string, Param<unknown, unknown> | SQL>[] {
-		return values.map((entry) => {
+	values(value: SQLiteInsertValue<TTable>[]): SQLiteInsert<TTable, TResultType, TRunResult>;
+	/**
+	 * @deprecated Pass the array of values without spreading it.
+	 */
+	values(...values: SQLiteInsertValue<TTable>[]): SQLiteInsert<TTable, TResultType, TRunResult>;
+	values(
+		...values: SQLiteInsertValue<TTable>[] | [SQLiteInsertValue<TTable>[]]
+	): SQLiteInsert<TTable, TResultType, TRunResult> {
+		if (values.length === 1 && Array.isArray(values[0])) {
+			values = values[0];
+		}
+		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
 			const cols = this.table[Table.Symbol.Columns];
 			for (const colKey of Object.keys(entry)) {
@@ -47,10 +60,8 @@ export class SQLiteInsertBuilder<
 			}
 			return result;
 		});
-	}
 
-	values(...values: SQLiteInsertValue<TTable>[]): SQLiteInsert<TTable, TResultType, TRunResult> {
-		return new SQLiteInsert(this.table, this.mapValues(values), this.session, this.dialect);
+		return new SQLiteInsert(this.table, mappedValues, this.session, this.dialect);
 	}
 }
 
@@ -67,7 +78,12 @@ export class SQLiteInsert<
 	TRunResult,
 	TReturning = undefined,
 > implements SQLWrapper {
-	declare protected $table: TTable;
+	declare readonly _: {
+		readonly table: TTable;
+		readonly resultType: TResultType;
+		readonly runResult: TRunResult;
+		readonly returning: TReturning;
+	};
 
 	private config: SQLiteInsertConfig<TTable>;
 
@@ -84,14 +100,14 @@ export class SQLiteInsert<
 		SQLiteInsert<TTable, TResultType, TRunResult, InferModel<TTable>>,
 		'returning' | `onConflict${string}`
 	>;
-	returning<TSelectedFields extends SelectFieldsFlat>(
+	returning<TSelectedFields extends SelectedFieldsFlat>(
 		fields: TSelectedFields,
 	): Omit<
 		SQLiteInsert<TTable, TResultType, TRunResult, SelectResultFields<TSelectedFields>>,
 		'returning' | `onConflict${string}`
 	>;
 	returning(
-		fields: SelectFieldsFlat = this.config.table[SQLiteTable.Symbol.Columns],
+		fields: SelectedFieldsFlat = this.config.table[SQLiteTable.Symbol.Columns],
 	): SQLiteInsert<TTable, TResultType, TRunResult, any> {
 		this.config.returning = orderSelectedFields(fields);
 		return this;

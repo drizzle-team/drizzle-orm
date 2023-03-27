@@ -1,29 +1,40 @@
-import type { ColumnConfig } from '~/column';
-import type { ColumnBuilderConfig } from '~/column-builder';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import type { AnyMySqlTable } from '~/mysql-core/table';
+import type { Assume } from '~/utils';
 
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
-export class MySqlBigInt53Builder extends MySqlColumnBuilderWithAutoIncrement<
-	ColumnBuilderConfig<{
-		data: number;
-		driverParam: number | string;
-	}>
-> {
+export interface MySqlBigInt53BuilderHKT extends ColumnBuilderHKTBase {
+	_type: MySqlBigInt53Builder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: MySqlBigInt53HKT;
+}
+
+export interface MySqlBigInt53HKT extends ColumnHKTBase {
+	_type: MySqlBigInt53<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type MySqlBigInt53BuilderInitial<TName extends string> = MySqlBigInt53Builder<{
+	name: TName;
+	data: number;
+	driverParam: number | string;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class MySqlBigInt53Builder<T extends ColumnBuilderBaseConfig>
+	extends MySqlColumnBuilderWithAutoIncrement<MySqlBigInt53BuilderHKT, T>
+{
 	/** @internal */
-	override build<TTableName extends string>(table: AnyMySqlTable<{ name: TTableName }>): MySqlBigInt53<TTableName> {
-		return new MySqlBigInt53(table, this.config);
+	override build<TTableName extends string>(
+		table: AnyMySqlTable<{ name: TTableName }>,
+	): MySqlBigInt53<MakeColumnConfig<T, TTableName>> {
+		return new MySqlBigInt53<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class MySqlBigInt53<TTableName extends string> extends MySqlColumnWithAutoIncrement<
-	ColumnConfig<{
-		tableName: TTableName;
-		data: number;
-		driverParam: number | string;
-	}>
-> {
-	declare protected $mySqlColumnBrand: 'MySqlBigInt53';
+export class MySqlBigInt53<T extends ColumnBaseConfig> extends MySqlColumnWithAutoIncrement<MySqlBigInt53HKT, T> {
+	declare protected $mysqlColumnBrand: 'MySqlBigInt53';
 
 	getSQLType(): string {
 		return 'bigint';
@@ -37,24 +48,35 @@ export class MySqlBigInt53<TTableName extends string> extends MySqlColumnWithAut
 	}
 }
 
-export class MySqlBigInt64Builder
-	extends MySqlColumnBuilderWithAutoIncrement<ColumnBuilderConfig<{ data: bigint; driverParam: string }>>
+export interface MySqlBigInt64BuilderHKT extends ColumnBuilderHKTBase {
+	_type: MySqlBigInt64Builder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: MySqlBigInt64HKT;
+}
+
+export interface MySqlBigInt64HKT extends ColumnHKTBase {
+	_type: MySqlBigInt64<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type MySqlBigInt64BuilderInitial<TName extends string> = MySqlBigInt64Builder<{
+	name: TName;
+	data: bigint;
+	driverParam: string;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class MySqlBigInt64Builder<T extends ColumnBuilderBaseConfig>
+	extends MySqlColumnBuilderWithAutoIncrement<MySqlBigInt64BuilderHKT, T>
 {
 	/** @internal */
-	override build<TTableName extends string>(table: AnyMySqlTable<{ name: TTableName }>): MySqlBigInt64<TTableName> {
-		return new MySqlBigInt64(table, this.config);
+	override build<TTableName extends string>(
+		table: AnyMySqlTable<{ name: TTableName }>,
+	): MySqlBigInt64<MakeColumnConfig<T, TTableName>> {
+		return new MySqlBigInt64<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class MySqlBigInt64<TTableName extends string> extends MySqlColumnWithAutoIncrement<
-	ColumnConfig<{
-		tableName: TTableName;
-		data: bigint;
-		driverParam: string;
-	}>
-> {
-	protected override $mySqlColumnBrand!: 'MySqlBigInt64';
-
+export class MySqlBigInt64<T extends ColumnBaseConfig> extends MySqlColumnWithAutoIncrement<MySqlBigInt64HKT, T> {
 	getSQLType(): string {
 		return 'bigint';
 	}
@@ -68,11 +90,20 @@ interface MySqlBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'>
 	mode: T;
 }
 
-export function bigint(name: string, config: MySqlBigIntConfig<'number'>): MySqlBigInt53Builder;
-export function bigint(name: string, config: MySqlBigIntConfig<'bigint'>): MySqlBigInt64Builder;
-export function bigint(name: string, config: MySqlBigIntConfig) {
+export function bigint<TName extends string>(
+	name: TName,
+	config: MySqlBigIntConfig<'number'>,
+): MySqlBigInt53BuilderInitial<TName>;
+export function bigint<TName extends string>(
+	name: TName,
+	config: MySqlBigIntConfig<'bigint'>,
+): MySqlBigInt64BuilderInitial<TName>;
+export function bigint<TName extends string>(
+	name: TName,
+	config: MySqlBigIntConfig,
+): MySqlBigInt53BuilderInitial<TName> | MySqlBigInt64BuilderInitial<TName> {
 	if (config.mode === 'number') {
-		return new MySqlBigInt53Builder(name);
+		return new MySqlBigInt53Builder<MySqlBigInt53BuilderInitial<TName>['_']['config']>(name);
 	}
-	return new MySqlBigInt64Builder(name);
+	return new MySqlBigInt64Builder<MySqlBigInt64BuilderInitial<TName>['_']['config']>(name);
 }

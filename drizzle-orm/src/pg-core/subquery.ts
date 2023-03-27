@@ -1,5 +1,5 @@
+import type { AddAliasToSelection } from '~/query-builders/select.types';
 import type { Subquery, WithSubquery } from '~/subquery';
-import type { AddAliasToSelection } from './query-builders/select.types';
 
 export type SubqueryWithSelection<TSelection, TAlias extends string> =
 	& Subquery<TAlias, AddAliasToSelection<TSelection, TAlias>>

@@ -5,11 +5,9 @@ import { fromIni } from '@aws-sdk/credential-providers';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import * as dotenv from 'dotenv';
-import { DefaultLogger, sql } from 'drizzle-orm';
-import type { AwsDataApiPgDatabase} from 'drizzle-orm/aws-data-api/pg';
+import { sql } from 'drizzle-orm';
+import type { AwsDataApiPgDatabase } from 'drizzle-orm/aws-data-api/pg';
 import { drizzle } from 'drizzle-orm/aws-data-api/pg';
-import type {
-	InferModel} from 'drizzle-orm/pg-core';
 import {
 	bigint,
 	bigserial,
@@ -30,6 +28,7 @@ import {
 	timestamp,
 	varchar,
 } from 'drizzle-orm/pg-core';
+
 dotenv.config();
 
 export const allColumns = pgTable('all_columns', {
@@ -58,10 +57,10 @@ export const allColumns = pgTable('all_columns', {
 	doublePrecisiondef: doublePrecision('doublePrecisiondef').default(100.0),
 	real: real('real'),
 	realdef: real('realdef').default(100.0),
-	json: json<{ attr: string }>('json'),
-	jsondef: json<{ attr: string }>('jsondef').default({ attr: 'value' }),
-	jsonb: jsonb<{ attr: string }>('jsonb'),
-	jsonbdef: jsonb<{ attr: string }>('jsonbdef').default({ attr: 'value' }),
+	json: json('json').$type<{ attr: string }>(),
+	jsondef: json('jsondef').$type<{ attr: string }>().default({ attr: 'value' }),
+	jsonb: jsonb('jsonb').$type<{ attr: string }>(),
+	jsonbdef: jsonb('jsonbdef').$type<{ attr: string }>().default({ attr: 'value' }),
 	time: time('time'),
 	time2: time('time2', { precision: 6, withTimezone: true }),
 	timedefnow: time('timedefnow').defaultNow(),
@@ -76,7 +75,7 @@ export const allColumns = pgTable('all_columns', {
 
 interface Context {
 	db: AwsDataApiPgDatabase;
-	row: InferModel<typeof allColumns, 'select'>;
+	row: typeof allColumns['_']['model']['select'];
 }
 
 const test = anyTest as TestFn<Context>;

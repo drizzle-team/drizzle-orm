@@ -1,6 +1,6 @@
 {
   "name": "drizzle-orm",
-  "version": "0.22.0",
+  "version": "0.23.1",
   "description": "Drizzle ORM package for SQL databases",
   "scripts": {
     "build": "tsc && resolve-tspaths && cp ../README.md package.json dist/",
@@ -33,23 +33,23 @@
   },
   "homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
   "peerDependencies": {
-    "@aws-sdk/client-rds-data": ">=3 <4",
+    "@aws-sdk/client-rds-data": ">=3",
     "@cloudflare/workers-types": ">=3",
     "@libsql/sqlite3": "^0.1.2",
-    "@neondatabase/serverless": ">=0.1 <0.2",
-    "@planetscale/database": ">=1 <2",
+    "@neondatabase/serverless": ">=0.1",
+    "@planetscale/database": ">=1",
     "@types/better-sqlite3": "*",
     "@types/pg": "*",
     "@types/sql.js": "*",
-    "better-sqlite3": ">=7 <9",
+    "better-sqlite3": ">=7",
     "bun-types": "*",
     "knex": "*",
     "kysely": "*",
-    "mysql2": ">=2 <3",
-    "pg": ">=8 <9",
-    "postgres": ">=3 <4",
-    "sql.js": ">=1 <2",
-    "sqlite3": ">=5 <6"
+    "mysql2": ">=2",
+    "pg": ">=8",
+    "postgres": ">=3",
+    "sql.js": ">=1",
+    "sqlite3": ">=5"
   },
   "peerDependenciesMeta": {
     "mysql2": {
