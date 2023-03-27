@@ -1,48 +1,48 @@
-import type { ColumnConfig } from '~/column';
-import type { ColumnBuilderConfig } from '~/column-builder';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import { MySqlColumn } from './common';
+import type { Assume } from '~/utils';
 import { MySqlDateBaseColumn, MySqlDateColumnBaseBuilder } from './date.common';
-export class MySqlTimestampBuilder extends MySqlDateColumnBaseBuilder<
-	ColumnBuilderConfig<{ data: Date; driverParam: string | number }>,
-	{ fsp: number | undefined }
+
+export interface MySqlTimestampBuilderHKT extends ColumnBuilderHKTBase {
+	_type: MySqlTimestampBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: MySqlTimestampHKT;
+}
+
+export interface MySqlTimestampHKT extends ColumnHKTBase {
+	_type: MySqlTimestamp<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type MySqlTimestampBuilderInitial<TName extends string> = MySqlTimestampBuilder<{
+	name: TName;
+	data: Date;
+	driverParam: string | number;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class MySqlTimestampBuilder<T extends ColumnBuilderBaseConfig> extends MySqlDateColumnBaseBuilder<
+	MySqlTimestampBuilderHKT,
+	T,
+	MySqlTimestampConfig
 > {
-	constructor(
-		name: string,
-		fsp: number | undefined,
-	) {
+	constructor(name: T['name'], config: MySqlTimestampConfig | undefined) {
 		super(name);
-		this.config.fsp = fsp;
+		this.config.fsp = config?.fsp;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlTimestamp<TTableName> {
-		return new MySqlTimestamp(table, this.config);
+	): MySqlTimestamp<MakeColumnConfig<T, TTableName>> {
+		return new MySqlTimestamp<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class MySqlTimestamp<
-	TTableName extends string,
-> extends MySqlDateBaseColumn<
-	ColumnConfig<{
-		tableName: TTableName;
-		data: Date;
-		driverParam: number | string;
-	}>
-> {
-	protected override $mySqlColumnBrand!: 'MySqlTimestamp';
-
-	readonly fsp: number | undefined;
-
-	constructor(
-		table: AnyMySqlTable<{ name: TTableName }>,
-		config: MySqlTimestampBuilder['config'],
-	) {
-		super(table, config);
-		this.fsp = config.fsp;
-	}
+export class MySqlTimestamp<T extends ColumnBaseConfig>
+	extends MySqlDateBaseColumn<MySqlTimestampHKT, T, MySqlTimestampConfig>
+{
+	readonly fsp: number | undefined = this.config.fsp;
 
 	getSQLType(): string {
 		const precision = typeof this.fsp !== 'undefined' ? `(${this.fsp})` : '';
@@ -54,46 +54,45 @@ export class MySqlTimestamp<
 	}
 }
 
-export class MySqlTimestampStringBuilder extends MySqlDateColumnBaseBuilder<
-	ColumnBuilderConfig<{ data: string; driverParam: string | number }>,
-	{ fsp: number | undefined }
+export interface MySqlTimestampStringBuilderHKT extends ColumnBuilderHKTBase {
+	_type: MySqlTimestampStringBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: MySqlTimestampStringHKT;
+}
+
+export interface MySqlTimestampStringHKT extends ColumnHKTBase {
+	_type: MySqlTimestampString<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type MySqlTimestampStringBuilderInitial<TName extends string> = MySqlTimestampStringBuilder<{
+	name: TName;
+	data: string;
+	driverParam: string | number;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class MySqlTimestampStringBuilder<T extends ColumnBuilderBaseConfig> extends MySqlDateColumnBaseBuilder<
+	MySqlTimestampStringBuilderHKT,
+	T,
+	MySqlTimestampConfig
 > {
-	constructor(
-		name: string,
-		fsp: number | undefined,
-	) {
+	constructor(name: T['name'], config: MySqlTimestampConfig | undefined) {
 		super(name);
-		this.config.fsp = fsp;
+		this.config.fsp = config?.fsp;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlTimestampString<TTableName> {
-		return new MySqlTimestampString(table, this.config);
+	): MySqlTimestampString<MakeColumnConfig<T, TTableName>> {
+		return new MySqlTimestampString<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class MySqlTimestampString<
-	TTableName extends string,
-> extends MySqlDateBaseColumn<
-	ColumnConfig<{
-		tableName: TTableName;
-		data: string;
-		driverParam: number | string;
-	}>
-> {
-	protected override $mySqlColumnBrand!: 'MySqlTimestampString';
-
-	readonly fsp: number | undefined;
-
-	constructor(
-		table: AnyMySqlTable<{ name: TTableName }>,
-		config: MySqlTimestampStringBuilder['config'],
-	) {
-		super(table, config);
-		this.fsp = config.fsp;
-	}
+export class MySqlTimestampString<T extends ColumnBaseConfig>
+	extends MySqlDateBaseColumn<MySqlTimestampStringHKT, T, MySqlTimestampConfig>
+{
+	readonly fsp: number | undefined = this.config.fsp;
 
 	getSQLType(): string {
 		const precision = typeof this.fsp !== 'undefined' ? `(${this.fsp})` : '';
@@ -103,21 +102,25 @@ export class MySqlTimestampString<
 
 export type TimestampFsp = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
-export function timestamp(name: string): MySqlTimestampBuilder;
-export function timestamp(
-	name: string,
+export interface MySqlTimestampConfig {
+	fsp?: TimestampFsp;
+}
+
+export function timestamp<TName extends string>(name: TName): MySqlTimestampBuilderInitial<TName>;
+export function timestamp<TName extends string>(
+	name: TName,
 	config: { mode: 'string'; fsp?: TimestampFsp },
-): MySqlTimestampStringBuilder;
-export function timestamp(
-	name: string,
+): MySqlTimestampStringBuilderInitial<TName>;
+export function timestamp<TName extends string>(
+	name: TName,
 	config: { mode?: 'date'; fsp?: TimestampFsp },
-): MySqlTimestampBuilder;
-export function timestamp(
-	name: string,
+): MySqlTimestampBuilderInitial<TName>;
+export function timestamp<TName extends string>(
+	name: TName,
 	config?: { mode?: 'date' | 'string'; fsp?: TimestampFsp },
 ) {
 	if (config?.mode === 'string') {
-		return new MySqlTimestampStringBuilder(name, config.fsp);
+		return new MySqlTimestampStringBuilder(name, config);
 	}
-	return new MySqlTimestampBuilder(name, config?.fsp);
+	return new MySqlTimestampBuilder(name, config);
 }

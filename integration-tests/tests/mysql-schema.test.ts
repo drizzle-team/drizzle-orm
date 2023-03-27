@@ -35,7 +35,7 @@ const usersTable = mySchema.table('userstest', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
-	jsonb: json<string[]>('jsonb'),
+	jsonb: json('jsonb').$type<string[]>(),
 	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
 });
 
@@ -54,7 +54,7 @@ const publicUsersTable = mysqlTable('userstest', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
-	jsonb: json<string[]>('jsonb'),
+	jsonb: json('jsonb').$type<string[]>(),
 	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
 });
 

@@ -8,18 +8,28 @@ import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
 import { name, placeholder } from 'drizzle-orm/sql';
-import { type InferModel, sqliteView } from 'drizzle-orm/sqlite-core';
-import { alias, blob, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import {
+	alias,
+	blob,
+	integer,
+	primaryKey,
+	sqliteTable,
+	sqliteTableCreator,
+	sqliteView,
+	text,
+} from 'drizzle-orm/sqlite-core';
 import { getViewConfig } from 'drizzle-orm/sqlite-core/utils';
 import type { Equal } from 'drizzle-orm/utils';
 import { Expect } from './utils';
+
+const ENABLE_LOGGING = false;
 
 const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: integer('verified').notNull().default(0),
-	json: blob<string[]>('json', { mode: 'json' }),
-	createdAt: integer('created_at', { mode: 'timestamp' }).notNull().defaultNow(),
+	json: blob('json', { mode: 'json' }).$type<string[]>(),
+	createdAt: integer('created_at', { mode: 'timestamp' }).notNull().defaultCurrentTimestamp(),
 });
 
 const users2Table = sqliteTable('users2', {
@@ -84,7 +94,7 @@ test.before((t) => {
 	const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
 
 	ctx.client = new Database(dbPath);
-	ctx.db = drizzle(ctx.client, { logger: false });
+	ctx.db = drizzle(ctx.client, { logger: ENABLE_LOGGING });
 });
 
 test.after.always((t) => {
@@ -690,7 +700,7 @@ test.serial('insert via db.run + select via db.get', (t) => {
 test.serial('insert via db.get w/ query builder', (t) => {
 	const { db } = t.context;
 
-	const inserted = db.get<Pick<InferModel<typeof usersTable>, 'id' | 'name'>>(
+	const inserted = db.get<Pick<typeof usersTable['_']['model']['select'], 'id' | 'name'>>(
 		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 	);
 	t.deepEqual(inserted, { id: 1, name: 'John' });
@@ -1176,4 +1186,29 @@ test.serial('join on aliased sql from with clause', (t) => {
 	t.deepEqual(result, [
 		{ userId: 1, name: 'John', userCity: 'New York', cityId: 1, cityName: 'Paris' },
 	]);
+});
+
+test.serial('prefixed table', (t) => {
+	const { db } = t.context;
+
+	const sqliteTable = sqliteTableCreator((name) => `myprefix_${name}`);
+
+	const users = sqliteTable('test_prefixed_table_with_unique_name', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table myprefix_test_prefixed_table_with_unique_name (id integer not null primary key, name text not null)`,
+	);
+
+	db.insert(users).values({ id: 1, name: 'John' }).run();
+
+	const result = db.select().from(users).all();
+
+	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+
+	db.run(sql`drop table ${users}`);
 });

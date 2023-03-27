@@ -12,7 +12,9 @@ export class CheckBuilder {
 }
 
 export class Check {
-	declare protected $brand: 'SQLiteCheck';
+	declare _: {
+		brand: 'SQLiteCheck';
+	};
 
 	readonly name: string;
 	readonly value: SQL;

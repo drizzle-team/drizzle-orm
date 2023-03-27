@@ -62,8 +62,8 @@ const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: integer('verified').notNull().default(0),
-	json: blob<string[]>('json', { mode: 'json' }),
-	createdAt: integer('created_at', { mode: 'timestamp' }).notNull().defaultNow(),
+	json: blob('json', { mode: 'json' }).$type<string[]>(),
+	createdAt: integer('created_at', { mode: 'timestamp' }).notNull().defaultCurrentTimestamp(),
 });
 
 const usersMigratorTable = sqliteTable('users12', {

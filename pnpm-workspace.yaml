@@ -1,7 +1,5 @@
-prefer-workspace-packages: true
 packages:
   - drizzle-orm
   - drizzle-zod
   - integration-tests
-  - examples/cloudflare-d1
-  # - examples/sqlite-proxy
+  - examples/*

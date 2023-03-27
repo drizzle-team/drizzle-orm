@@ -1,17 +1,34 @@
-import type { ColumnConfig } from '~/column';
-import type { ColumnBuilderConfig } from '~/column-builder';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import type { AnyPgTable } from '~/pg-core/table';
+import type { Assume } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgNumericBuilder extends PgColumnBuilder<
-	ColumnBuilderConfig<{ data: string; driverParam: string }>,
+export interface PgNumericBuilderHKT extends ColumnBuilderHKTBase {
+	_type: PgNumericBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: PgNumericHKT;
+}
+
+export interface PgNumericHKT extends ColumnHKTBase {
+	_type: PgNumeric<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type PgNumericBuilderInitial<TName extends string> = PgNumericBuilder<{
+	name: TName;
+	data: string;
+	driverParam: string;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class PgNumericBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<
+	PgNumericBuilderHKT,
+	T,
 	{
 		precision: number | undefined;
 		scale: number | undefined;
 	}
 > {
-	protected override $pgColumnBuilderBrand!: 'PgNumericBuilder';
-
 	constructor(name: string, precision?: number, scale?: number) {
 		super(name);
 		this.config.precision = precision;
@@ -19,20 +36,18 @@ export class PgNumericBuilder extends PgColumnBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgNumeric<TTableName> {
-		return new PgNumeric(table, this.config);
+	override build<TTableName extends string>(
+		table: AnyPgTable<{ name: TTableName }>,
+	): PgNumeric<MakeColumnConfig<T, TTableName>> {
+		return new PgNumeric<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class PgNumeric<TTableName extends string> extends PgColumn<
-	ColumnConfig<{ tableName: TTableName; data: string; driverParam: string }>
-> {
-	protected override $pgColumnBrand!: 'PgNumeric';
-
+export class PgNumeric<T extends ColumnBaseConfig> extends PgColumn<PgNumericHKT, T> {
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;
 
-	constructor(table: AnyPgTable<{ name: TTableName }>, config: PgNumericBuilder['config']) {
+	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgNumericBuilder<T>['config']) {
 		super(table, config);
 		this.precision = config.precision;
 		this.scale = config.scale;
@@ -49,13 +64,13 @@ export class PgNumeric<TTableName extends string> extends PgColumn<
 	}
 }
 
-export function numeric(
+export function numeric<TName extends string>(
 	name: string,
 	config?:
 		| { precision: number; scale?: number }
 		| { precision?: number; scale: number }
 		| { precision: number; scale: number },
-): PgNumericBuilder {
+): PgNumericBuilderInitial<TName> {
 	return new PgNumericBuilder(name, config?.precision, config?.scale);
 }
 
