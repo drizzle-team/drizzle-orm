@@ -59,7 +59,7 @@ function mergeQueries(queries: Query[]): Query {
 	return result;
 }
 
-class StringChunk {
+export class StringChunk {
 	readonly value: string[];
 
 	constructor(value: string | string[]) {
