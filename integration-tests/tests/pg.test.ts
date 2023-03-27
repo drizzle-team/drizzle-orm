@@ -1553,3 +1553,22 @@ test.serial('prefixed table', async (t) => {
 
 	await db.execute(sql`drop table ${users}`);
 });
+
+test.serial('timestamp timezone', async (t) => {
+	const { db } = t.context;
+
+	const usersTableWithAndWithoutTimezone = pgTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+		updatedAt: timestamp('created_at', { withTimezone: false }).notNull().defaultNow(),
+	});
+
+	await db.insert(usersTableWithAndWithoutTimezone).values({ name: 'John' });
+	const users = await db.select().from(usersTableWithAndWithoutTimezone);
+
+	console.log(users[0]);
+
+	t.assert(Math.abs(users[0]!.updatedAt.getTime() - new Date().getTime()) < 1000);
+	t.assert(Math.abs(users[0]!.createdAt.getTime() - new Date().getTime()) < 1000);
+});

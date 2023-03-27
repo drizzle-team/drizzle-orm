@@ -1253,3 +1253,12 @@ test.serial('prefixed table', async (t) => {
 
 	await db.execute(sql`drop table ${users}`);
 });
+
+test.serial('timestamp timezone', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ name: 'John' });
+	const users = await db.select().from(usersTable);
+
+	t.assert(Math.abs(users[0]!.createdAt.getTime() - new Date().getTime()) < 1000);
+});
