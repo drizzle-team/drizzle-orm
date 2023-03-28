@@ -77,46 +77,6 @@ importers:
       sql.js: 1.8.0
       sqlite3: 5.1.6
 
-  drizzle-orm/dist:
-    specifiers:
-      '@aws-sdk/client-rds-data': ^3.257.0
-      '@cloudflare/workers-types': ^3.18.0
-      '@libsql/sqlite3': ^0.1.2
-      '@neondatabase/serverless': ^0.1.13
-      '@planetscale/database': ^1.5.0
-      '@types/better-sqlite3': ^7.6.2
-      '@types/node': ^18.11.9
-      '@types/pg': ^8.6.5
-      '@types/sql.js': ^1.4.4
-      better-sqlite3: ^8.0.0
-      bun-types: ^0.5.0
-      knex: ^2.4.2
-      kysely: ^0.23.5
-      mysql2: ^2.3.3
-      pg: ^8.8.0
-      postgres: ^3.3.3
-      sql.js: ^1.8.0
-      sqlite3: ^5.1.2
-    devDependencies:
-      '@aws-sdk/client-rds-data': 3.300.0
-      '@cloudflare/workers-types': 3.19.0
-      '@libsql/sqlite3': 0.1.2
-      '@neondatabase/serverless': 0.1.13
-      '@planetscale/database': 1.6.0
-      '@types/better-sqlite3': 7.6.3
-      '@types/node': 18.15.10
-      '@types/pg': 8.6.6
-      '@types/sql.js': 1.4.4
-      better-sqlite3: 8.2.0
-      bun-types: 0.5.7
-      knex: 2.4.2_724b2emcmmyqnzim6ajrldpau4
-      kysely: 0.23.5
-      mysql2: 2.3.3
-      pg: 8.10.0
-      postgres: 3.3.4
-      sql.js: 1.8.0
-      sqlite3: 5.1.6
-
   drizzle-zod:
     specifiers:
       '@types/node': ^18.15.10

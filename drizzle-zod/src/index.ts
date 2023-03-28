@@ -24,22 +24,6 @@ import {
 import { type Equal, getTableColumns, type Or, type Simplify } from 'drizzle-orm/utils';
 import { z } from 'zod';
 
-type SnakeToCamelCase<S extends string> = S extends `${infer T}${'_' | '-'}${infer U}`
-	? `${T}${Capitalize<SnakeToCamelCase<U>>}`
-	: S;
-
-type ToSnakeCase<S extends string> = S extends `${infer T}${'' | '-'}${infer U}`
-	? `${T extends Capitalize<T> ? Lowercase<T> extends Capitalize<T> ? '' : '_' : ''}${Lowercase<T>}${ToSnakeCase<U>}`
-	: S;
-
-function toCamelCase(value: string): string {
-	return value.replace(/([-_][a-z])/gi, ($1) => $1.toUpperCase().replace('-', '').replace('_', ''));
-}
-
-function toSnakeCase(value: string): string {
-	return value.replace(/([A-Z])/g, ($1) => `_${$1.toLowerCase()}`);
-}
-
 type MaybeOptional<TColumn extends AnyPgColumn, TType extends z.ZodTypeAny, TNoOptional extends boolean = false> =
 	TNoOptional extends true ? TType
 		: TColumn['_']['hasDefault'] extends true ? z.ZodOptional<TType>
@@ -57,22 +41,27 @@ type GetZodType<TColumn extends AnyPgColumn> = TColumn['_']['data'] extends infe
 	: z.ZodAny
 	: never;
 
-type ConvertKeyName<K extends string, TCase extends 'snake' | 'camel' | undefined> = undefined extends TCase ? K
-	: 'snake' extends TCase ? ToSnakeCase<K>
-	: SnakeToCamelCase<K>;
+type ValueOrUpdater<T, TUpdaterArg> = T | ((arg: TUpdaterArg) => T);
+
+type UnwrapValueOrUpdater<T> = T extends ValueOrUpdater<infer T, any> ? T : never;
+
+export type Refine<TTable extends AnyPgTable> = ValueOrUpdater<
+	{
+		[K in keyof TTable['_']['columns']]: GetZodType<TTable['_']['columns'][K]>;
+	},
+	BuildInsertSchema<TTable, {}, true>
+>;
 
 export type BuildInsertSchema<
 	TTable extends AnyPgTable,
-	TCase extends 'snake' | 'camel' | undefined,
-	TRefine extends Record<string, z.ZodTypeAny | undefined>,
+	TRefine extends Refine<TTable> | {},
 	TNoOptional extends boolean = false,
 > = TTable['_']['columns'] extends infer TColumns extends Record<string, AnyPgColumn> ? {
-		[K in keyof TColumns & string as ConvertKeyName<K, TCase>]: MaybeOptional<
+		[K in keyof TColumns & string]: MaybeOptional<
 			TColumns[K],
-			ConvertKeyName<K, TCase> extends keyof TRefine
-				? TRefine[ConvertKeyName<K, TCase>] extends z.ZodTypeAny ? TRefine[ConvertKeyName<K, TCase>]
-				: GetZodType<TColumns[K]>
-				: GetZodType<TColumns[K]>,
+			(K extends keyof TRefine
+				? (UnwrapValueOrUpdater<TRefine[K]> extends z.ZodTypeAny ? UnwrapValueOrUpdater<TRefine[K]> : never)
+				: GetZodType<TColumns[K]>),
 			TNoOptional
 		>;
 	}
@@ -95,89 +84,18 @@ export type RequiredFieldsConfig<
 	}
 >;
 
-export type Refine<
-	TTable extends AnyPgTable,
-	TCase extends 'snake' | 'camel' | undefined,
-	TRefine extends {
-		[K in keyof BuildInsertSchema<TTable, TCase, {}>]?: z.ZodTypeAny;
-	},
-> =
-	| { [K in keyof TRefine]: K extends keyof BuildInsertSchema<TTable, TCase, {}> ? TRefine[K] : never }
-	| ((
-		fields: BuildInsertSchema<TTable, TCase, {}, true>,
-	) => { [K in keyof TRefine]: K extends keyof BuildInsertSchema<TTable, TCase, {}> ? TRefine[K] : never });
-
-export function createInsertSchema<TTable extends AnyPgTable>(
-	table: TTable,
-): z.ZodObject<BuildInsertSchema<TTable, undefined, {}>>;
 export function createInsertSchema<
 	TTable extends AnyPgTable,
-	TCase extends 'snake' | 'camel',
->(
-	table: TTable,
-	/**
-	 * @param convertToCase Convert keys to snake_case or camelCase
-	 */
-	convertToCase: TCase,
-): z.ZodObject<BuildInsertSchema<TTable, TCase, {}>>;
-export function createInsertSchema<
-	TTable extends AnyPgTable,
-	TRefine extends {
-		[K in keyof BuildInsertSchema<TTable, undefined, {}>]?: z.ZodTypeAny;
-	},
+	TRefine extends Refine<TTable> | {} = {},
 >(
 	table: TTable,
 	/**
 	 * @param refine Refine schema fields
 	 */
-	refine: Refine<TTable, undefined, TRefine>,
-): z.ZodObject<BuildInsertSchema<TTable, undefined, TRefine>>;
-export function createInsertSchema<
-	TTable extends AnyPgTable,
-	TCase extends 'snake' | 'camel',
-	TRefine extends {
-		[K in keyof BuildInsertSchema<TTable, TCase, {}>]?: z.ZodTypeAny;
-	},
->(
-	table: TTable,
-	/**
-	 * @param convertToCase convert keys to snake_case or camelCase
-	 */
-	convertToCase: TCase,
-	/**
-	 * @param refine Refine schema fields
-	 */
-	refine: Refine<TTable, TCase, TRefine>,
-): z.ZodObject<BuildInsertSchema<TTable, TCase, TRefine>>;
-export function createInsertSchema<
-	TTable extends AnyPgTable,
-	TCase extends 'snake' | 'camel',
-	TRefine extends {
-		[K in keyof BuildInsertSchema<TTable, TCase, {}>]?: z.ZodTypeAny;
-	},
->(
-	table: AnyPgTable,
-	...rest: [] | [TCase] | [Refine<TTable, TCase, TRefine>] | [TCase, Refine<TTable, TCase, TRefine>]
-): z.AnyZodObject {
-	const { convertToCase, refine } = (() => {
-		if (rest.length === 0) {
-			return { convertToCase: undefined, refine: undefined };
-		}
-
-		if (rest.length === 1) {
-			if (typeof rest[0] === 'string') {
-				return { convertToCase: rest[0], refine: undefined };
-			}
-
-			return { convertToCase: undefined, refine: rest[0] };
-		}
-
-		return { convertToCase: rest[0], refine: rest[1] };
-	})();
-
+	refine?: ValueOrUpdater<TRefine, BuildInsertSchema<TTable, {}, true>>,
+): z.ZodObject<BuildInsertSchema<TTable, TRefine>> {
 	const columns = getTableColumns(table);
 	const columnEntries = Object.entries(columns);
-	const fieldNamesMap: Record<string, string> = {};
 
 	let schemaEntries = Object.fromEntries(columnEntries.map(([name, column]) => {
 		let type: z.ZodTypeAny | undefined;
@@ -220,30 +138,21 @@ export function createInsertSchema<
 			type = z.any();
 		}
 
-		fieldNamesMap[name] = convertToCase === 'camel'
-			? toCamelCase(name)
-			: convertToCase === 'snake'
-			? toSnakeCase(name)
-			: name;
-
-		return [
-			fieldNamesMap[name],
-			type,
-		];
+		return [name, type];
 	}));
 
 	if (refine) {
 		schemaEntries = Object.assign(
 			schemaEntries,
-			typeof refine === 'function' ? refine(schemaEntries) : refine,
+			typeof refine === 'function' ? refine(schemaEntries as BuildInsertSchema<TTable, {}, true>) : refine,
 		);
 	}
 
 	columnEntries.forEach(([name, column]) => {
 		if (column.hasDefault) {
-			schemaEntries[fieldNamesMap[name]!] = schemaEntries[fieldNamesMap[name]!].optional();
+			schemaEntries[name] = schemaEntries[name]!.optional();
 		}
 	});
 
-	return z.object(schemaEntries);
+	return z.object(schemaEntries) as z.ZodObject<BuildInsertSchema<TTable, TRefine>>;
 }
