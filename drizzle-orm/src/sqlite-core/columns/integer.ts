@@ -17,7 +17,7 @@ export interface PrimaryKeyConfig {
 	onConflict?: OnConflict;
 }
 
-export abstract class SQLiteIntegerBaseBuilder<
+export abstract class SQLiteBaseIntegerBuilder<
 	THKT extends ColumnBuilderHKTBase,
 	T extends ColumnBuilderBaseConfig,
 > extends SQLiteColumnBuilder<THKT, T, { autoIncrement: boolean }> {
@@ -39,10 +39,10 @@ export abstract class SQLiteIntegerBaseBuilder<
 	/** @internal */
 	abstract override build<TTableName extends string>(
 		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteIntegerBase<Assume<THKT['_columnHKT'], ColumnHKTBase>, MakeColumnConfig<T, TTableName>>;
+	): SQLiteBaseInteger<Assume<THKT['_columnHKT'], ColumnHKTBase>, MakeColumnConfig<T, TTableName>>;
 }
 
-export abstract class SQLiteIntegerBase<
+export abstract class SQLiteBaseInteger<
 	THKT extends ColumnHKTBase,
 	T extends ColumnBaseConfig,
 > extends SQLiteColumn<THKT, T> {
@@ -50,7 +50,7 @@ export abstract class SQLiteIntegerBase<
 
 	constructor(
 		override readonly table: AnySQLiteTable<{ name: T['tableName'] }>,
-		config: SQLiteIntegerBaseBuilder<ColumnBuilderHKTBase, T>['config'],
+		config: SQLiteBaseIntegerBuilder<ColumnBuilderHKTBase, T>['config'],
 	) {
 		super(table, config);
 		this.autoIncrement = config.autoIncrement;
@@ -79,7 +79,7 @@ export type SQLiteIntegerBuilderInitial<TName extends string> = SQLiteIntegerBui
 }>;
 
 export class SQLiteIntegerBuilder<T extends ColumnBuilderBaseConfig>
-	extends SQLiteIntegerBaseBuilder<SQLiteIntegerBuilderHKT, T>
+	extends SQLiteBaseIntegerBuilder<SQLiteIntegerBuilderHKT, T>
 {
 	build<TTableName extends string>(
 		table: AnySQLiteTable<{ name: TTableName }>,
@@ -88,7 +88,7 @@ export class SQLiteIntegerBuilder<T extends ColumnBuilderBaseConfig>
 	}
 }
 
-export class SQLiteInteger<T extends ColumnBaseConfig> extends SQLiteIntegerBase<SQLiteIntegerHKT, T> {}
+export class SQLiteInteger<T extends ColumnBaseConfig> extends SQLiteBaseInteger<SQLiteIntegerHKT, T> {}
 
 export interface SQLiteTimestampBuilderHKT extends ColumnBuilderHKTBase {
 	_type: SQLiteTimestampBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
@@ -108,7 +108,7 @@ export type SQLiteTimestampBuilderInitial<TName extends string> = SQLiteTimestam
 }>;
 
 export class SQLiteTimestampBuilder<T extends ColumnBuilderBaseConfig>
-	extends SQLiteIntegerBaseBuilder<SQLiteTimestampBuilderHKT, T>
+	extends SQLiteBaseIntegerBuilder<SQLiteTimestampBuilderHKT, T>
 {
 	/**
 	 * @deprecated Use `defaultCurrentTimestamp()` or `default()` with your own expression instead.
@@ -133,7 +133,7 @@ export class SQLiteTimestampBuilder<T extends ColumnBuilderBaseConfig>
 	}
 }
 
-export class SQLiteTimestamp<T extends ColumnBaseConfig> extends SQLiteIntegerBase<SQLiteTimestampHKT, T> {
+export class SQLiteTimestamp<T extends ColumnBaseConfig> extends SQLiteBaseInteger<SQLiteTimestampHKT, T> {
 	override mapFromDriverValue(value: number): Date {
 		return new Date(value);
 	}
