@@ -1,31 +1,43 @@
-import type { ColumnConfig } from '~/column';
-import type { ColumnBuilderConfig } from '~/column-builder';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
+import type { Assume } from '~/utils';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common';
 
-export class SQLiteNumericBuilder
-	extends SQLiteColumnBuilder<ColumnBuilderConfig<{ data: string; driverParam: string }>>
-{
-	constructor(name: string) {
-		super(name);
-	}
+export interface SQLiteNumericBuilderHKT extends ColumnBuilderHKTBase {
+	_type: SQLiteNumericBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: SQLiteNumericHKT;
+}
 
+export interface SQLiteNumericHKT extends ColumnHKTBase {
+	_type: SQLiteNumeric<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type SQLiteNumericBuilderInitial<TName extends string> = SQLiteNumericBuilder<{
+	name: TName;
+	data: string;
+	driverParam: string;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class SQLiteNumericBuilder<T extends ColumnBuilderBaseConfig>
+	extends SQLiteColumnBuilder<SQLiteNumericBuilderHKT, T>
+{
 	/** @internal */
-	override build<TTableName extends string>(table: AnySQLiteTable<{ name: TTableName }>): SQLiteNumeric<TTableName> {
-		return new SQLiteNumeric(table, this.config);
+	override build<TTableName extends string>(
+		table: AnySQLiteTable<{ name: TTableName }>,
+	): SQLiteNumeric<MakeColumnConfig<T, TTableName>> {
+		return new SQLiteNumeric<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class SQLiteNumeric<TTableName extends string>
-	extends SQLiteColumn<ColumnConfig<{ tableName: TTableName; data: string; driverParam: string }>>
-{
-	protected override $sqliteColumnBrand!: 'SQLiteNumeric';
-
+export class SQLiteNumeric<T extends ColumnBaseConfig> extends SQLiteColumn<SQLiteNumericHKT, T> {
 	getSQLType(): string {
 		return 'numeric';
 	}
 }
 
-export function numeric(name: string) {
+export function numeric<TName extends string>(name: TName): SQLiteNumericBuilderInitial<TName> {
 	return new SQLiteNumericBuilder(name);
 }

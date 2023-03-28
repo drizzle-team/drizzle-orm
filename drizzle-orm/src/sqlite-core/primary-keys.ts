@@ -1,5 +1,5 @@
 import type { AnySQLiteColumn } from './columns';
-import type { AnySQLiteTable} from './table';
+import type { AnySQLiteTable } from './table';
 import { SQLiteTable } from './table';
 
 export function primaryKey<
@@ -12,7 +12,9 @@ export function primaryKey<
 }
 
 export class PrimaryKeyBuilder {
-	declare protected $brand: 'SQLitePrimaryKeyBuilder';
+	declare _: {
+		brand: 'SQLitePrimaryKeyBuilder';
+	};
 
 	/** @internal */
 	columns: AnySQLiteColumn<{}>[];
@@ -20,7 +22,7 @@ export class PrimaryKeyBuilder {
 	constructor(
 		columns: AnySQLiteColumn[],
 	) {
-        this.columns = columns;
+		this.columns = columns;
 	}
 
 	/** @internal */
@@ -37,6 +39,6 @@ export class PrimaryKey {
 	}
 
 	getName(): string {
-		return `${this.table[SQLiteTable.Symbol.Name]}_${this.columns.map(column => column.name).join('_')}_pk`;
+		return `${this.table[SQLiteTable.Symbol.Name]}_${this.columns.map((column) => column.name).join('_')}_pk`;
 	}
 }

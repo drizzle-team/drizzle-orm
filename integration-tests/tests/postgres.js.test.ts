@@ -5,7 +5,7 @@ import anyTest from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
 import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
-import { type AnyPgColumn, type InferModel, pgMaterializedView, pgView } from 'drizzle-orm/pg-core';
+import { type AnyPgColumn, pgMaterializedView, pgTableCreator, pgView } from 'drizzle-orm/pg-core';
 import { alias, boolean, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { getMaterializedViewConfig, getViewConfig } from 'drizzle-orm/pg-core/utils';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
@@ -19,11 +19,13 @@ import postgres from 'postgres';
 import { v4 as uuid } from 'uuid';
 import { type Equal, Expect } from './utils';
 
+const QUERY_LOGGING = false;
+
 const usersTable = pgTable('users', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
-	jsonb: jsonb<string[]>('jsonb'),
+	jsonb: jsonb('jsonb').$type<string[]>(),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -126,7 +128,7 @@ test.before(async (t) => {
 		console.error('Cannot connect to Postgres');
 		throw lastError;
 	}
-	ctx.db = drizzle(ctx.client /* , { logger: new DefaultLogger() } */);
+	ctx.db = drizzle(ctx.client, { logger: QUERY_LOGGING });
 });
 
 test.after.always(async (t) => {
@@ -624,7 +626,7 @@ test.serial('insert via db.execute + returning', async (t) => {
 test.serial('insert via db.execute w/ query builder', async (t) => {
 	const { db } = t.context;
 
-	const result = await db.execute<Pick<InferModel<typeof usersTable>, 'id' | 'name'>>(
+	const result = await db.execute<Pick<typeof usersTable['_']['model']['select'], 'id' | 'name'>>(
 		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 	);
 	t.deepEqual(Array.prototype.slice.call(result), [{ id: 1, name: 'John' }]);
@@ -1300,4 +1302,29 @@ test.serial('join on aliased sql from with clause', async (t) => {
 	t.deepEqual(result, [
 		{ userId: 1, name: 'John', userCity: 'New York', cityId: 1, cityName: 'Paris' },
 	]);
+});
+
+test.serial('prefixed table', async (t) => {
+	const { db } = t.context;
+
+	const pgTable = pgTableCreator((name) => `myprefix_${name}`);
+
+	const users = pgTable('test_prefixed_table_with_unique_name', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table myprefix_test_prefixed_table_with_unique_name (id integer not null primary key, name text not null)`,
+	);
+
+	await db.insert(users).values({ id: 1, name: 'John' });
+
+	const result = await db.select().from(users);
+
+	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+
+	await db.execute(sql`drop table ${users}`);
 });

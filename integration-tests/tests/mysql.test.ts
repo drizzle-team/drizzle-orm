@@ -14,6 +14,8 @@ import {
 	json,
 	mysqlEnum,
 	mysqlTable,
+	mysqlTableCreator,
+	mysqlView,
 	serial,
 	text,
 	time,
@@ -21,7 +23,6 @@ import {
 	uniqueIndex,
 	year,
 } from 'drizzle-orm/mysql-core';
-import { mysqlView } from 'drizzle-orm/mysql-core';
 import { getViewConfig } from 'drizzle-orm/mysql-core/utils';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { drizzle } from 'drizzle-orm/mysql2';
@@ -38,7 +39,7 @@ const usersTable = mysqlTable('userstest', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
-	jsonb: json<string[]>('jsonb'),
+	jsonb: json('jsonb').$type<string[]>(),
 	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
 });
 
@@ -1226,4 +1227,29 @@ test.serial('join on aliased sql from with clause', async (t) => {
 	t.deepEqual(result, [
 		{ userId: 1, name: 'John', userCity: 'New York', cityId: 1, cityName: 'Paris' },
 	]);
+});
+
+test.serial('prefixed table', async (t) => {
+	const { db } = t.context;
+
+	const mysqlTable = mysqlTableCreator((name) => `myprefix_${name}`);
+
+	const users = mysqlTable('test_prefixed_table_with_unique_name', {
+		id: int('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table myprefix_test_prefixed_table_with_unique_name (id int not null primary key, name text not null)`,
+	);
+
+	await db.insert(users).values({ id: 1, name: 'John' });
+
+	const result = await db.select().from(users);
+
+	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+
+	await db.execute(sql`drop table ${users}`);
 });

@@ -1,45 +1,38 @@
-import type { ColumnConfig } from '~/column';
-import type { ColumnBuilderConfig } from '~/column-builder';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import type { AnyPgTable } from '~/pg-core/table';
+import type { Assume } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgDoublePrecisionBuilder extends PgColumnBuilder<
-	ColumnBuilderConfig<{
-		data: number;
-		driverParam: string | number;
-	}>
-> {
-	protected override $pgColumnBuilderBrand!: 'PgDoublePrecisionBuilder';
+export interface PgDoublePrecisionBuilderHKT extends ColumnBuilderHKTBase {
+	_type: PgDoublePrecisionBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: PgDoublePrecisionHKT;
+}
 
-	/** @internal */ length: number | undefined;
+export interface PgDoublePrecisionHKT extends ColumnHKTBase {
+	_type: PgDoublePrecision<Assume<this['config'], ColumnBaseConfig>>;
+}
 
-	constructor(name: string, length?: number) {
-		super(name);
-		this.length = length;
-	}
+export type PgDoublePrecisionBuilderInitial<TName extends string> = PgDoublePrecisionBuilder<{
+	name: TName;
+	data: number;
+	driverParam: string | number;
+	notNull: false;
+	hasDefault: false;
+}>;
 
+export class PgDoublePrecisionBuilder<T extends ColumnBuilderBaseConfig>
+	extends PgColumnBuilder<PgDoublePrecisionBuilderHKT, T>
+{
 	/** @internal */
-	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgDoublePrecision<TTableName> {
-		return new PgDoublePrecision(table, this.config);
+	override build<TTableName extends string>(
+		table: AnyPgTable<{ name: TTableName }>,
+	): PgDoublePrecision<MakeColumnConfig<T, TTableName>> {
+		return new PgDoublePrecision<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class PgDoublePrecision<TTableName extends string> extends PgColumn<
-	ColumnConfig<{
-		tableName: TTableName;
-		data: number;
-		driverParam: string | number;
-	}>
-> {
-	protected override $pgColumnBrand!: 'PgDoublePrecision';
-
-	constructor(
-		table: AnyPgTable<{ name: TTableName }>,
-		config: PgDoublePrecisionBuilder['config'],
-	) {
-		super(table, config);
-	}
-
+export class PgDoublePrecision<T extends ColumnBaseConfig> extends PgColumn<PgDoublePrecisionHKT, T> {
 	getSQLType(): string {
 		return 'double precision';
 	}
@@ -52,6 +45,6 @@ export class PgDoublePrecision<TTableName extends string> extends PgColumn<
 	}
 }
 
-export function doublePrecision(name: string) {
+export function doublePrecision<TName extends string>(name: TName): PgDoublePrecisionBuilderInitial<TName> {
 	return new PgDoublePrecisionBuilder(name);
 }

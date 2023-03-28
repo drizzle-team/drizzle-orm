@@ -38,6 +38,7 @@ Drizzle ORM is being battle-tested on production projects by multiple teams 🚀
 | MySQL       | ✅      |[Docs](./drizzle-orm/src/mysql-core/README.md)|
 | SQLite      | ✅      |[Docs](./drizzle-orm/src/sqlite-core/README.md)|
 | [Cloudflare D1](https://developers.cloudflare.com/d1) | ✅      | [Docs](./examples/cloudflare-d1/README.md) |
+| [libSQL](https://libsql.org) |  ⏳     |  |
 | DynamoDB    | ⏳      |            |
 | MS SQL      | ⏳      |            |
 | CockroachDB | ⏳      |            |

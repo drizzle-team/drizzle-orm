@@ -1,4 +1,4 @@
-import type { AnyColumn} from './column';
+import type { AnyColumn } from './column';
 import { Column } from './column';
 import { Table } from './table';
 

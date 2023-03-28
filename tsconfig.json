@@ -33,8 +33,7 @@
 		"allowUnusedLabels": false /* Disable error reporting for unused labels. */,
 		"allowUnreachableCode": false /* Disable error reporting for unreachable code. */,
 		"skipLibCheck": true /* Skip type checking all .d.ts files. */,
-		"noErrorTruncation": true /* Disable truncating types in error messages. */,
-		"importsNotUsedAsValues": "error" /* Specify emit/checking behavior for imports that are only used for types */
+		"noErrorTruncation": true /* Disable truncating types in error messages. */
 	},
 	"exclude": ["**/dist"],
 	"ts-node": {

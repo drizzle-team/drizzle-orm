@@ -1,8 +1,14 @@
-import type { ColumnBaseConfig } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderConfig, UpdateCBConfig } from '~/column-builder';
-import type { SQL} from '~/sql';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type {
+	ColumnBuilderBaseConfig,
+	ColumnBuilderHKTBase,
+	ColumnBuilderKind,
+	MakeColumnConfig,
+	UpdateCBConfig,
+} from '~/column-builder';
 import { sql } from '~/sql';
 import type { OnConflict } from '~/sqlite-core/utils';
+import type { Assume } from '~/utils';
 import type { AnySQLiteTable } from '../table';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common';
 
@@ -11,25 +17,18 @@ export interface PrimaryKeyConfig {
 	onConflict?: OnConflict;
 }
 
-export abstract class SQLiteIntegerBaseBuilder<T extends ColumnBuilderBaseConfig = ColumnBuilderConfig>
-	extends SQLiteColumnBuilder<Pick<T, keyof ColumnBuilderBaseConfig>, { autoIncrement: boolean }>
-{
-	constructor(name: string) {
+export abstract class SQLiteBaseIntegerBuilder<
+	THKT extends ColumnBuilderHKTBase,
+	T extends ColumnBuilderBaseConfig,
+> extends SQLiteColumnBuilder<THKT, T, { autoIncrement: boolean }> {
+	constructor(name: T['name']) {
 		super(name);
 		this.config.autoIncrement = false;
 	}
 
-	override notNull(): SQLiteIntegerBaseBuilder<UpdateCBConfig<T, { notNull: true }>> {
-		return super.notNull() as ReturnType<this['notNull']>;
-	}
-
-	override default(value: T['data'] | SQL): SQLiteIntegerBaseBuilder<UpdateCBConfig<T, { hasDefault: true }>> {
-		return super.default(value) as ReturnType<this['default']>;
-	}
-
 	override primaryKey(
 		config?: PrimaryKeyConfig,
-	): SQLiteIntegerBaseBuilder<UpdateCBConfig<T, { notNull: true; hasDefault: true }>> {
+	): ColumnBuilderKind<THKT, UpdateCBConfig<T, { notNull: true; hasDefault: true }>> {
 		if (config?.autoIncrement) {
 			this.config.autoIncrement = true;
 		}
@@ -40,19 +39,18 @@ export abstract class SQLiteIntegerBaseBuilder<T extends ColumnBuilderBaseConfig
 	/** @internal */
 	abstract override build<TTableName extends string>(
 		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteBaseInteger<Pick<T, keyof ColumnBuilderBaseConfig> & { tableName: TTableName }>;
+	): SQLiteBaseInteger<Assume<THKT['_columnHKT'], ColumnHKTBase>, MakeColumnConfig<T, TTableName>>;
 }
 
-export abstract class SQLiteBaseInteger<T extends ColumnBaseConfig>
-	extends SQLiteColumn<Pick<T, keyof ColumnBaseConfig>>
-{
-	protected override $sqliteColumnBrand!: 'SQLiteInteger';
-
+export abstract class SQLiteBaseInteger<
+	THKT extends ColumnHKTBase,
+	T extends ColumnBaseConfig,
+> extends SQLiteColumn<THKT, T> {
 	readonly autoIncrement: boolean;
 
 	constructor(
 		override readonly table: AnySQLiteTable<{ name: T['tableName'] }>,
-		config: SQLiteIntegerBaseBuilder<Omit<T, 'tableName'>>['config'],
+		config: SQLiteBaseIntegerBuilder<ColumnBuilderHKTBase, T>['config'],
 	) {
 		super(table, config);
 		this.autoIncrement = config.autoIncrement;
@@ -63,62 +61,79 @@ export abstract class SQLiteBaseInteger<T extends ColumnBaseConfig>
 	}
 }
 
-interface SQLiteIntegerConfig {
+export interface SQLiteIntegerBuilderHKT extends ColumnBuilderHKTBase {
+	_type: SQLiteIntegerBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: SQLiteIntegerHKT;
+}
+
+export interface SQLiteIntegerHKT extends ColumnHKTBase {
+	_type: SQLiteInteger<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type SQLiteIntegerBuilderInitial<TName extends string> = SQLiteIntegerBuilder<{
+	name: TName;
 	data: number;
 	driverParam: number;
-}
+	notNull: false;
+	hasDefault: false;
+}>;
 
-export class SQLiteIntegerBuilder<
-	T extends Pick<ColumnBuilderBaseConfig, 'notNull' | 'hasDefault'> = { notNull: false; hasDefault: false },
-> extends SQLiteIntegerBaseBuilder<SQLiteIntegerConfig & Pick<T, 'notNull' | 'hasDefault'>> {
-	build<TTableName extends string>(table: AnySQLiteTable<{ name: TTableName }>): SQLiteInteger<
-		Pick<T, 'notNull' | 'hasDefault'> & { tableName: TTableName }
-	> {
-		return new SQLiteInteger<Pick<T, 'notNull' | 'hasDefault'> & { tableName: TTableName }>(table, this.config);
+export class SQLiteIntegerBuilder<T extends ColumnBuilderBaseConfig>
+	extends SQLiteBaseIntegerBuilder<SQLiteIntegerBuilderHKT, T>
+{
+	build<TTableName extends string>(
+		table: AnySQLiteTable<{ name: TTableName }>,
+	): SQLiteInteger<MakeColumnConfig<T, TTableName>> {
+		return new SQLiteInteger<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class SQLiteInteger<T extends Pick<ColumnBaseConfig, 'tableName' | 'notNull' | 'hasDefault'>>
-	extends SQLiteBaseInteger<SQLiteIntegerConfig & Pick<T, 'tableName' | 'notNull' | 'hasDefault'>>
-{}
+export class SQLiteInteger<T extends ColumnBaseConfig> extends SQLiteBaseInteger<SQLiteIntegerHKT, T> {}
 
-interface SQLiteTimestampConfig {
+export interface SQLiteTimestampBuilderHKT extends ColumnBuilderHKTBase {
+	_type: SQLiteTimestampBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: SQLiteTimestampHKT;
+}
+
+export interface SQLiteTimestampHKT extends ColumnHKTBase {
+	_type: SQLiteTimestamp<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type SQLiteTimestampBuilderInitial<TName extends string> = SQLiteTimestampBuilder<{
+	name: TName;
 	data: Date;
 	driverParam: number;
-}
+	notNull: false;
+	hasDefault: false;
+}>;
 
-export class SQLiteTimestampBuilder<
-	T extends Pick<ColumnBuilderBaseConfig, 'notNull' | 'hasDefault'> = { notNull: false; hasDefault: false },
-> extends SQLiteIntegerBaseBuilder<SQLiteTimestampConfig & Pick<T, 'notNull' | 'hasDefault'>> {
-	override notNull(): SQLiteTimestampBuilder<UpdateCBConfig<T, { notNull: true }>> {
-		return super.notNull() as ReturnType<this['notNull']>;
-	}
-
-	override default(value: Date | SQL): SQLiteTimestampBuilder<UpdateCBConfig<T, { hasDefault: true }>> {
-		return super.default(value) as ReturnType<this['default']>;
-	}
-
-	override primaryKey(config?: PrimaryKeyConfig): SQLiteTimestampBuilder<{ notNull: true; hasDefault: true }> {
-		return super.primaryKey(config) as ReturnType<this['primaryKey']>;
-	}
-
+export class SQLiteTimestampBuilder<T extends ColumnBuilderBaseConfig>
+	extends SQLiteBaseIntegerBuilder<SQLiteTimestampBuilderHKT, T>
+{
 	/**
+	 * @deprecated Use `defaultCurrentTimestamp()` or `default()` with your own expression instead.
+	 *
 	 * Adds `DEFAULT (cast((julianday('now') - 2440587.5)*86400000 as integer))` to the column, which is the current epoch timestamp in milliseconds.
 	 */
-	defaultNow(): SQLiteTimestampBuilder<UpdateCBConfig<T, { hasDefault: true }>> {
+	defaultNow(): ColumnBuilderKind<this['_']['hkt'], UpdateCBConfig<T, { hasDefault: true }>> {
 		return this.default(sql`(cast((julianday('now') - 2440587.5)*86400000 as integer))`);
 	}
 
-	build<TTableName extends string>(table: AnySQLiteTable<{ name: TTableName }>): SQLiteTimestamp<
-		Pick<T, 'notNull' | 'hasDefault'> & { tableName: TTableName }
-	> {
-		return new SQLiteTimestamp<Pick<T, 'notNull' | 'hasDefault'> & { tableName: TTableName }>(table, this.config);
+	defaultCurrentTimestamp(): ColumnBuilderKind<this['_']['hkt'], UpdateCBConfig<T, { hasDefault: true }>> {
+		return this.default(sql`current_timestamp`);
+	}
+
+	build<TTableName extends string>(
+		table: AnySQLiteTable<{ name: TTableName }>,
+	): SQLiteTimestamp<MakeColumnConfig<T, TTableName>> {
+		return new SQLiteTimestamp<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config,
+		);
 	}
 }
 
-export class SQLiteTimestamp<T extends Pick<ColumnBaseConfig, 'tableName' | 'notNull' | 'hasDefault'>>
-	extends SQLiteBaseInteger<SQLiteTimestampConfig & Pick<T, 'tableName' | 'notNull' | 'hasDefault'>>
-{
+export class SQLiteTimestamp<T extends ColumnBaseConfig> extends SQLiteBaseInteger<SQLiteTimestampHKT, T> {
 	override mapFromDriverValue(value: number): Date {
 		return new Date(value);
 	}
@@ -132,9 +147,15 @@ export interface IntegerConfig<TMode extends 'number' | 'timestamp' = 'number' |
 	mode: TMode;
 }
 
-export function integer(name: string, config?: IntegerConfig<'number'>): SQLiteIntegerBuilder;
-export function integer(name: string, config?: IntegerConfig<'timestamp'>): SQLiteTimestampBuilder;
-export function integer(name: string, config?: IntegerConfig): SQLiteIntegerBaseBuilder<any> {
+export function integer<TName extends string>(
+	name: TName,
+	config?: IntegerConfig<'number'>,
+): SQLiteIntegerBuilderInitial<TName>;
+export function integer<TName extends string>(
+	name: TName,
+	config?: IntegerConfig<'timestamp'>,
+): SQLiteTimestampBuilderInitial<TName>;
+export function integer<TName extends string>(name: TName, config?: IntegerConfig) {
 	if (config?.mode === 'timestamp') {
 		return new SQLiteTimestampBuilder(name);
 	}

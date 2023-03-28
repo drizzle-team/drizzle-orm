@@ -1,12 +1,25 @@
 import { type AnyColumn, Column, type GetColumnData } from '~/column';
-import { isSQLWrapper, Param, Placeholder, type SQL, sql, type SQLSourceParam, type SQLWrapper } from '../index';
+import { Table } from '~/table';
+import { View } from '~/view';
+import {
+	isDriverValueEncoder,
+	isSQLWrapper,
+	Param,
+	Placeholder,
+	type SQL,
+	sql,
+	type SQLChunk,
+	type SQLWrapper,
+} from '../index';
 
-export function bindIfParam(value: unknown, column: AnyColumn | SQL.Aliased): SQLSourceParam {
-	if (value instanceof Column || value instanceof Placeholder || isSQLWrapper(column)) {
-		return value as (AnyColumn | Placeholder | SQLWrapper);
-	} else {
+export function bindIfParam(value: unknown, column: AnyColumn | SQL.Aliased): SQLChunk {
+	if (
+		isDriverValueEncoder(column) && !isSQLWrapper(value) && !(value instanceof Param) && !(value instanceof Placeholder)
+		&& !(value instanceof Column) && !(value instanceof Table) && !(value instanceof View)
+	) {
 		return new Param(value, column);
 	}
+	return value as SQLChunk;
 }
 
 export function eq<T>(
@@ -155,15 +168,11 @@ export function inArray(
 	column: AnyColumn | SQL.Aliased,
 	values: (unknown | Placeholder)[] | Placeholder | SQLWrapper,
 ): SQL {
-	if (isSQLWrapper(values)) {
-		return sql`${column} in ${values}`;
-	}
-
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
 			throw new Error('inArray requires at least one value');
 		}
-		return sql`${column} in ${values.map((v) => bindIfParam(v, column))}`;
+		return sql`${column} in (${values.map((v) => bindIfParam(v, column))})`;
 	}
 
 	return sql`${column} in ${bindIfParam(values, column)}`;

@@ -1,12 +1,11 @@
 import type { RunResult } from 'better-sqlite3';
-import type { Equal} from 'tests/utils';
+import type { Equal } from 'tests/utils';
 import { Expect } from 'tests/utils';
 import { and, eq } from '~/expressions';
-import { sql } from '~/sql';
-import { placeholder } from '~/sql';
-import type { InferModel } from '~/sqlite-core/index';
+import { placeholder, sql } from '~/sql';
+import type { InferModel } from '~/table';
 import { bunDb, db } from './db';
-import type { NewUser} from './tables';
+import type { NewUser } from './tables';
 import { users } from './tables';
 
 const newUser: NewUser = {

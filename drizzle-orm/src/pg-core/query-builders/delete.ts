@@ -1,16 +1,17 @@
 import type { PgDialect } from '~/pg-core/dialect';
 import type { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
-import type { AnyPgTable, InferModel } from '~/pg-core/table';
-import { PgTable } from '~/pg-core/table';
+import type { AnyPgTable } from '~/pg-core/table';
+import type { SelectResultFields } from '~/query-builders/select.types';
 import { QueryPromise } from '~/query-promise';
 import type { Query, SQL, SQLWrapper } from '~/sql';
+import { type InferModel, Table } from '~/table';
 import { orderSelectedFields, type Simplify } from '~/utils';
-import type { SelectFieldsFlat, SelectFieldsOrdered, SelectResultFields } from './select.types';
+import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
 
 export interface PgDeleteConfig {
 	where?: SQL | undefined;
 	table: AnyPgTable;
-	returning?: SelectFieldsOrdered;
+	returning?: SelectedFieldsOrdered;
 }
 
 export interface PgDelete<
@@ -42,15 +43,13 @@ export class PgDelete<
 		return this;
 	}
 
-	returning(): Omit<PgDelete<TTable, TQueryResult, InferModel<TTable>>, 'where' | 'returning'>;
-	returning<TSelectedFields extends SelectFieldsFlat>(
+	returning(): PgDelete<TTable, TQueryResult, InferModel<TTable>>;
+	returning<TSelectedFields extends SelectedFieldsFlat>(
 		fields: TSelectedFields,
-	): Omit<PgDelete<TTable, TQueryResult, SelectResultFields<TSelectedFields>>, 'where' | 'returning'>;
-	returning(
-		fields: SelectFieldsFlat = this.config.table[PgTable.Symbol.Columns],
-	): Omit<PgDelete<TTable, any>, 'where' | 'returning'> {
+	): PgDelete<TTable, TQueryResult, SelectResultFields<TSelectedFields>>;
+	returning(fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns]): PgDelete<TTable, any, any> {
 		this.config.returning = orderSelectedFields(fields);
-		return this;
+		return this as PgDelete<TTable, any>;
 	}
 
 	/** @internal */

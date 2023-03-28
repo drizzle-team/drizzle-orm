@@ -8,7 +8,6 @@ import { asc, eq } from 'drizzle-orm/expressions';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import type { InferModel } from 'drizzle-orm/pg-core';
 import { alias, customType, pgTable, serial, text } from 'drizzle-orm/pg-core';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
@@ -47,8 +46,8 @@ const customTimestamp = customType<
 	{ data: Date; driverData: string; config: { withTimezone: boolean; precision?: number } }
 >({
 	dataType(config) {
-		const precision = typeof config.precision !== 'undefined' ? ` (${config.precision})` : '';
-		return `timestamp${precision}${config.withTimezone ? ' with time zone' : ''}`;
+		const precision = typeof config?.precision !== 'undefined' ? ` (${config.precision})` : '';
+		return `timestamp${precision}${config?.withTimezone ? ' with time zone' : ''}`;
 	},
 	fromDriver(value: string): Date {
 		return new Date(value);
@@ -593,7 +592,7 @@ test.serial('insert via db.execute + returning', async (t) => {
 test.serial('insert via db.execute w/ query builder', async (t) => {
 	const { db } = t.context;
 
-	const inserted = await db.execute<Pick<InferModel<typeof usersTable>, 'id' | 'name'>>(
+	const inserted = await db.execute<Pick<typeof usersTable['_']['model']['select'], 'id' | 'name'>>(
 		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 	);
 	t.deepEqual(inserted.rows, [{ id: 1, name: 'John' }]);
