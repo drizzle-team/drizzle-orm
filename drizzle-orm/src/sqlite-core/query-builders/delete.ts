@@ -1,15 +1,18 @@
-import { Query, SQL, SQLWrapper } from '~/sql';
-import { SQLiteDialect } from '~/sqlite-core/dialect';
+import type { SelectResultFields } from '~/query-builders/select.types';
+import type { Query, SQL, SQLWrapper } from '~/sql';
+import type { SQLiteDialect } from '~/sqlite-core/dialect';
 
-import { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
-import { AnySQLiteTable, InferModel, SQLiteTable } from '~/sqlite-core/table';
+import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
+import type { AnySQLiteTable } from '~/sqlite-core/table';
+import { SQLiteTable } from '~/sqlite-core/table';
+import type { InferModel } from '~/table';
 import { orderSelectedFields } from '~/utils';
-import { SelectFieldsFlat, SelectFieldsOrdered, SelectResultFields } from './select.types';
+import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
 
 export interface SQLiteDeleteConfig {
 	where?: SQL | undefined;
 	table: AnySQLiteTable;
-	returning?: SelectFieldsOrdered;
+	returning?: SelectedFieldsOrdered;
 }
 
 export interface SQLiteDelete<
@@ -41,11 +44,11 @@ export class SQLiteDelete<
 	}
 
 	returning(): Omit<SQLiteDelete<TTable, TResultType, TRunResult, InferModel<TTable>>, 'where' | 'returning'>;
-	returning<TSelectedFields extends SelectFieldsFlat>(
+	returning<TSelectedFields extends SelectedFieldsFlat>(
 		fields: TSelectedFields,
 	): Omit<SQLiteDelete<TTable, TResultType, TRunResult, SelectResultFields<TSelectedFields>>, 'where' | 'returning'>;
 	returning(
-		fields: SelectFieldsFlat = this.table[SQLiteTable.Symbol.Columns],
+		fields: SelectedFieldsFlat = this.table[SQLiteTable.Symbol.Columns],
 	): SQLiteDelete<TTable, TResultType, TRunResult, any> {
 		this.config.returning = orderSelectedFields(fields);
 		return this;

@@ -1,6 +1,6 @@
-import { Query, SQL } from '~/sql';
-import { SQLiteDialect } from '~/sqlite-core/dialect';
-import { SelectFieldsOrdered } from './query-builders/select.types';
+import type { Query, SQL } from '~/sql';
+import type { SQLiteDialect } from '~/sqlite-core/dialect';
+import type { SelectedFieldsOrdered } from './query-builders/select.types';
 
 export interface PreparedQueryConfig {
 	type: 'sync' | 'async';
@@ -29,12 +29,12 @@ export abstract class SQLiteSession<TResultKind extends 'sync' | 'async' = 'sync
 
 	abstract prepareQuery(
 		query: Query,
-		fields: SelectFieldsOrdered | undefined,
+		fields: SelectedFieldsOrdered | undefined,
 	): PreparedQuery<PreparedQueryConfig & { type: TResultKind }>;
 
 	prepareOneTimeQuery(
 		query: Query,
-		fields: SelectFieldsOrdered | undefined,
+		fields: SelectedFieldsOrdered | undefined,
 	): PreparedQuery<PreparedQueryConfig & { type: TResultKind }> {
 		return this.prepareQuery(query, fields);
 	}
@@ -61,7 +61,7 @@ export abstract class SQLiteSession<TResultKind extends 'sync' | 'async' = 'sync
 }
 
 interface ResultHKT {
-	readonly $brand: 'ResultHKT';
+	readonly $brand: 'SQLiteResultHKT';
 	readonly config: unknown;
 	readonly type: unknown;
 }

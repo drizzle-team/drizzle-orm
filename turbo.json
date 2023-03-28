@@ -1,42 +1,44 @@
 {
-	"$schema": "https://turbo.build/schema.json",
-	"pipeline": {
-		"test:types": {
-			"dependsOn": ["^test:types", "^build"],
-			"inputs": [
-				"src/**/*.ts",
-				"tests/**/*.ts",
-				"tsconfig.json",
-				"tests/tsconfig.json",
-				"../tsconfig.json"
-			],
-			"outputs": [],
-			"outputMode": "new-only"
-		},
-		"build": {
-			"dependsOn": ["^build"],
-			"inputs": [
-				"src/**/*.ts",
-				"package.json",
-				"README.md",
-				"../README.md",
-				"tsconfig.json",
-				"../tsconfig.json"
-			],
-			"outputs": ["dist/**"],
-			"outputMode": "new-only"
-		},
-		"pack": {
-			"dependsOn": ["build", "test:types"],
-			"inputs": ["dist/**"],
-			"outputs": ["package.tgz"],
-			"outputMode": "new-only"
-		},
-		"test": {
-			"dependsOn": ["build", "test:types"],
-			"outputs": [],
-			"inputs": ["tests/**/*.test.ts"],
-			"outputMode": "new-only"
-		}
-	}
+  "$schema": "https://turbo.build/schema.json",
+  "pipeline": {
+    "//#lint": {
+      "inputs": ["**/*.ts", "!**/node_modules", "!**/dist"],
+      "outputMode": "new-only"
+    },
+    "test:types": {
+      "dependsOn": ["^test:types", "^build"],
+      "inputs": [
+        "src/**/*.ts",
+        "tests/**/*.ts",
+        "tsconfig.json",
+        "tests/tsconfig.json",
+        "../tsconfig.json"
+      ],
+      "outputMode": "new-only"
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "src/**/*.ts",
+        "package.json",
+        "README.md",
+        "../README.md",
+        "tsconfig.json",
+        "../tsconfig.json"
+      ],
+      "outputs": ["dist/**"],
+      "outputMode": "new-only"
+    },
+    "pack": {
+      "dependsOn": ["build", "test:types"],
+      "inputs": ["dist/**"],
+      "outputs": ["package.tgz"],
+      "outputMode": "new-only"
+    },
+    "test": {
+      "dependsOn": ["build", "test:types"],
+      "inputs": ["tests/**/*.test.ts"],
+      "outputMode": "new-only"
+    }
+  }
 }

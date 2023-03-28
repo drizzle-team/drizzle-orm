@@ -1,16 +1,30 @@
-import { ColumnConfig } from '~/column';
-import { ColumnBuilderConfig } from '~/column-builder';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 
-import { AnyPgTable } from '~/pg-core/table';
+import type { AnyPgTable } from '~/pg-core/table';
 import { sql } from '~/sql';
+import type { Assume } from '~/utils';
 
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgUUIDBuilder<TData extends string = string>
-	extends PgColumnBuilder<ColumnBuilderConfig<{ data: TData; driverParam: string }>>
-{
-	protected override $pgColumnBuilderBrand!: 'PgUUIDBuilder';
+export interface PgUUIDBuilderHKT extends ColumnBuilderHKTBase {
+	_type: PgUUIDBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: PgUUIDHKT;
+}
 
+export interface PgUUIDHKT extends ColumnHKTBase {
+	_type: PgUUID<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type PgUUIDBuilderInitial<TName extends string> = PgUUIDBuilder<{
+	name: TName;
+	data: string;
+	driverParam: string;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class PgUUIDBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgUUIDBuilderHKT, T> {
 	/**
 	 * Adds `default gen_random_uuid()` to the column definition.
 	 */
@@ -19,21 +33,19 @@ export class PgUUIDBuilder<TData extends string = string>
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgUUID<TTableName, TData> {
-		return new PgUUID(table, this.config);
+	override build<TTableName extends string>(
+		table: AnyPgTable<{ name: TTableName }>,
+	): PgUUID<MakeColumnConfig<T, TTableName>> {
+		return new PgUUID<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class PgUUID<TTableName extends string, TData extends string>
-	extends PgColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>>
-{
-	protected override $pgColumnBrand!: 'PgUUID';
-
+export class PgUUID<T extends ColumnBaseConfig> extends PgColumn<PgUUIDHKT, T> {
 	getSQLType(): string {
 		return 'uuid';
 	}
 }
 
-export function uuid<T extends string = string>(name: string): PgUUIDBuilder<T> {
+export function uuid<TName extends string>(name: TName): PgUUIDBuilderInitial<TName> {
 	return new PgUUIDBuilder(name);
 }

@@ -136,10 +136,11 @@ export const cities = sqliteTable('cities', {
 })
 ```
 
-Database and table entity types
+### Database and table entity types
 
 ```typescript
-import { InferModel, text, integer, sqliteTable } from 'drizzle-orm/sqlite-core';
+import { text, integer, sqliteTable } from 'drizzle-orm/sqlite-core';
+import { InferModel } from 'drizzle-orm';
 
 const users = sqliteTable('users', {
   id: integer('id').primaryKey(),
@@ -163,22 +164,50 @@ const insertUser = (user: InsertUser) => {
 }
 ```
 
-The list of all column types. You can also create custom types - [see here](https://github.com/drizzle-team/drizzle-orm/blob/main/docs/custom-types.md).
+### Customizing the table name
+
+There is a "table creator" available, which allow you to customize the table name, for example, to add a prefix or suffix. This is useful if you need to have tables for different environments or applications in the same database.
+
+```ts
+import { sqliteTableCreator } from 'drizzle-orm/sqlite-core';
+
+const sqliteTable = sqliteTableCreator((name) => `myprefix_${name}`);
+
+const users = sqliteTable('users', {
+  id: int('id').primaryKey(),
+  name: text('name').notNull(),
+});
+```
+
+## Column types
+
+The list of all column types. You can also create custom types - [see here](/docs/custom-types.md)
 
 ```typescript
-integer('...')
+integer('...');
 integer('...', { mode: 'number' | 'timestamp' | 'bigint' })
-real('...')
+real('...');
 text('...');
-text<'union' | 'string' | 'type'>('...');
+text('role', { enum: ['admin', 'user'] });
 
 blob('...');
 blob('...', { mode: 'json' | 'buffer' });
-blob<{ foo: string }>('...');
+blob('...').$type<{ foo: string }>();
 
-column.primaryKey()
-column.notNull()
-column.default(...)
+column.primaryKey();
+column.notNull();
+column.default(...);
+```
+
+### Customizing column data type
+
+Every column builder has a `.$type()` method, which allows you to customize the data type of the column. This is useful, for example, with branded types.
+
+```ts
+const users = sqliteTable('users', {
+  id: integer('id').$type<UserId>().primaryKey(),
+  jsonField: blob('json_field').$type<Data>(),
+});
 ```
 
 Declaring indexes, foreign keys and composite primary keys
@@ -228,7 +257,9 @@ const pkExample = sqliteTable('pk_example', {
 index('name_idx').on(table.column).where(sql``)
 ```
 
-### Create Read Update Delete
+## Select, Insert, Update, Delete
+
+### Select
 
 Querying, sorting and filtering. We also support partial select.
 
@@ -273,6 +304,21 @@ db.select().from(users).orderBy(desc(users.name)).all();
 db.select().from(users).orderBy(asc(users.name), desc(users.name)).all();
 ```
 
+#### Select from/join raw SQL
+
+```typescript
+db.select({ x: sql<number>`x` }).from(sql`generate_series(2, 4) as g(x)`).all();
+
+db
+  .select({
+    x1: sql<number>`g1.x`,
+    x2: sql<number>`g2.x`
+  })
+  .from(sql`generate_series(2, 4) as g1(x)`)
+  .leftJoin(sql`generate_series(2, 4) as g2(x)`)
+  .all();
+```
+
 #### Conditionally select fields
 
 ```typescript
@@ -292,26 +338,15 @@ const users = selectUsers(true);
 #### WITH clause
 
 ```typescript
-const sq = db.select().from(users).where(eq(users.id, 42)).prepareWithSubquery('sq');
+const sq = db.$with('sq').as(db.select().from(users).where(eq(users.id, 42)));
 const result = db.with(sq).select().from(sq).all();
 ```
 
-> **Note**: Keep in mind, that if you need to select raw `sql` in a WITH subquery and reference that field in other queries, you must add an alias to it:
+> **Note**: Keep in mind that if you need to select raw `sql` in a WITH subquery and reference that field in other queries, you must add an alias to it:
 
 ```typescript
-const sq = db
-  .select({
-    name: sql<string>`upper(${users.name})`.as('name'),
-  })
-  .from(users)
-  .prepareWithSubquery('sq');
-
-const result = db
-  .select({
-    name: sq.name,
-  })
-  .from(sq)
-  .all();
+const sq = db.$with('sq').as(db.select({ name: sql<string>`upper(${users.name})`.as('name') }).from(users));
+const result = db.with(sq).select({ name: sq.name }).from(sq).all();
 ```
 
 Otherwise, the field type will become `DrizzleTypeError` and you won't be able to reference it in other queries. If you ignore the type error and still try to reference the field, you will get a runtime error, because we cannot reference that field without an alias.
@@ -320,13 +355,13 @@ Otherwise, the field type will become `DrizzleTypeError` and you won't be able t
 
 ```typescript
 const sq = db.select().from(users).where(eq(users.id, 42)).as('sq');
-db.select().from(sq).all();
+const result = db.select().from(sq).all();
 ```
 
 Subqueries in joins are supported, too:
 
 ```typescript
-db.select().from(users).leftJoin(sq, eq(users.id, sq.id)).all();
+const result = db.select().from(users).leftJoin(sq, eq(users.id, sq.id)).all();
 ```
 
 #### List of all filter operators
@@ -337,7 +372,6 @@ eq(column1, column2)
 ne(column, value)
 ne(column1, column2)
 
-notEq(column, value)
 less(column, value)
 lessEq(column, value)
 
@@ -375,10 +409,11 @@ and(...expressions: Expr[])
 or(...expressions: Expr[])
 ```
 
-Inserting
+### Insert
 
 ```typescript
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { InferModel } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import Database from 'better-sqlite3';
 
@@ -391,22 +426,60 @@ const users = sqliteTable('users', {
   createdAt: integer('created_at', { mode: 'timestamp' }),
 });
 
-db.insert(users).values({ name: 'Andrew', createdAt: +new Date() }).run();
+type NewUser = InferModel<typeof users>;
 
-// insert multiple users
-db.insert(users).values({
-      name: 'Andrew',
-      createdAt: +new Date(),
-    },{
-      name: 'Dan',
-      createdAt: +new Date(),
-    }).run();
+const db = drizzle(...);
 
-// insert with returning
-const insertedUser = db.insert(users).values({ name: 'Dan', createdAt: +new Date() }).returning().get()
+const newUser: NewUser = {
+  name: 'Andrew',
+  createdAt: new Date(),
+};
+
+db.insert(users).values(newUser).run();
+
+const insertedUsers/*: NewUser[]*/ = db.insert(users).values(newUsers).returning().all();
+
+const insertedUsersIds/*: { insertedId: number }[]*/ = db.insert(users)
+  .values(newUsers)
+  .returning({ insertedId: users.id })
+  .all();
 ```
 
-Update and Delete
+#### Insert several items
+
+```ts
+db.insert(users)
+  .values(
+    {
+      name: 'Andrew',
+      createdAt: new Date(),
+    },
+    {
+      name: 'Dan',
+      createdAt: new Date(),
+    },
+  )
+  .run();
+```
+
+#### Insert array of items
+
+```ts
+const newUsers: NewUser[] = [
+  {
+      name: 'Andrew',
+      createdAt: new Date(),
+  },
+  {
+    name: 'Dan',
+    createdAt: new Date(),
+  },
+];
+
+db.insert(users).values(newUsers).run();
+```
+
+### Update and Delete
 
 ```typescript
 db.update(users)
@@ -468,8 +541,6 @@ db
 ```
 
 ### Joins
-
-Last but not least. Probably the most powerful feature in the library🚀
 
 > **Note**: for in-depth partial select joins documentation, refer to [this page](/docs/joins.md).
 
@@ -563,6 +634,62 @@ db
   .all();
 ```
 
+## Query builder
+
+Drizzle ORM provides a standalone query builder that allows you to build queries without creating a database instance.
+
+```ts
+import { queryBuilder as qb } from 'drizzle-orm/sqlite-core';
+
+const query = qb.select().from(users).where(eq(users.name, 'Dan'));
+const { sql, params } = query.toSQL();
+```
+
+## Views (WIP)
+
+> **Warning**: views are currently only implemented on the ORM side. That means you can query the views that already exist in the database, but they won't be added to drizzle-kit migrations or `db push` yet.
+
+### Creating a view
+
+```ts
+import { sqliteView } from 'drizzle-orm/sqlite-core';
+
+const newYorkers = sqliteView('new_yorkers').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
+```
+
+> **Warning**: All the parameters inside the query will be inlined, instead of replaced by `$1`, `$2`, etc.
+
+You can also use the [`queryBuilder` instance](#query-builder) directly instead of passing a callback, if you already have it imported.
+
+```ts
+import { queryBuilder as qb } from 'drizzle-orm/sqlite-core';
+
+const newYorkers = sqliteView('new_yorkers').as(qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
+```
+
+### Using raw SQL in a view query
+
+In case you need to specify the view query using a syntax that is not supported by the query builder, you can directly use SQL. In that case, you also need to specify the view shape.
+
+```ts
+const newYorkers = sqliteView('new_yorkers', {
+  id: integer('id').primaryKey(),
+  name: text('name').notNull(),
+  cityId: integer('city_id').notNull(),
+}).as(sql`select * from ${users} where ${eq(users.cityId, 1)}`);
+```
+
+### Describing existing views
+
+There are cases when you are given readonly access to an existing view. In such cases you can just describe the view shape without specifying the query itself or using it in the migrations.
+
+```ts
+const newYorkers = sqliteView('new_yorkers', {
+  userId: integer('user_id').notNull(),
+  cityId: integer('city_id'),
+}).existing();
+```
+
 ## ⚡️ Performance and prepared statements
 
 With Drizzle ORM you can go [**faster than better-sqlite3 driver**](https://twitter.com/_alexblokh/status/1593593415907909634) by utilizing our `prepared statements` and `placeholder` APIs
@@ -593,8 +720,8 @@ q.all({ name: '%an%' }) // SELECT * FROM customers WHERE name ilike '%an%'
 
 ### Automatic SQL migrations generation with drizzle-kit
 
-[DrizzleKit](https://www.npmjs.com/package/drizzle-kit) - is a CLI migrator tool for DrizzleORM. It is probably one and only tool that lets you completely automatically generate SQL migrations and covers ~95% of the common cases like deletions and renames by prompting user input.
-Check out the [docs for DrizzleKit](https://github.com/drizzle-team/drizzle-kit-mirror)
+[Drizzle Kit](https://www.npmjs.com/package/drizzle-kit) is a CLI migrator tool for Drizzle ORM. It is probably one and only tool that lets you completely automatically generate SQL migrations and covers ~95% of the common cases like deletions and renames by prompting user input.
+Check out the [docs for Drizzle Kit](https://github.com/drizzle-team/drizzle-kit-mirror)
 
 For schema file:
 
@@ -602,7 +729,7 @@ For schema file:
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 export const users = sqliteTable('users', {
-  id: serial('id').primaryKey(),
+  id: integer('id').primaryKey(),
   fullName: text('full_name'),
 }, (users) => ({
   nameIdx: index('name_idx', users.fullName),

@@ -1,7 +1,9 @@
 import { Client } from '@neondatabase/serverless';
 import { eq } from 'drizzle-orm/expressions';
-import { drizzle, NeonDatabase } from 'drizzle-orm/neon-serverless';
-import { Request as IttyRequest, Route, Router } from 'itty-router';
+import type { NeonDatabase } from 'drizzle-orm/neon-serverless';
+import { drizzle } from 'drizzle-orm/neon-serverless';
+import type { Request as IttyRequest, Route} from 'itty-router';
+import { Router } from 'itty-router';
 import { json } from 'itty-router-extras';
 
 import { users } from './schema';

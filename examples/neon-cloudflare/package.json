@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
+    "test:types": "tsc --noEmit",
     "start": "wrangler dev",
     "deploy": "wrangler publish",
     "migrate": "tsx migrate.ts",
@@ -10,7 +11,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.1.13",
-    "drizzle-orm": "0.17.6",
+    "drizzle-orm": "workspace:../../drizzle-orm/dist",
     "itty-router": "^2.6.6",
     "itty-router-extras": "^0.4.2",
     "tsx": "^3.12.1"

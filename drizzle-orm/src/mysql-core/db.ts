@@ -1,11 +1,20 @@
-import { ResultSetHeader } from 'mysql2/promise';
-import { SQLWrapper } from '~/sql';
-import { WithSubquery } from '~/subquery';
-import { MySqlDialect } from './dialect';
-import { MySqlDelete, MySqlInsertBuilder, MySqlSelectBuilder, MySqlUpdateBuilder } from './query-builders';
-import { SelectFields } from './query-builders/select.types';
-import { MySqlSession, QueryResultHKT, QueryResultKind } from './session';
-import { AnyMySqlTable } from './table';
+import type { ResultSetHeader } from 'mysql2/promise';
+import type { QueryBuilder } from '~/query-builders/query-builder';
+import type { SQLWrapper } from '~/sql';
+import { SelectionProxyHandler, WithSubquery } from '~/subquery';
+import type { MySqlDialect } from './dialect';
+import type { QueryBuilderInstance } from './query-builders';
+import {
+	MySqlDelete,
+	MySqlInsertBuilder,
+	MySqlSelectBuilder,
+	MySqlUpdateBuilder,
+	queryBuilder,
+} from './query-builders';
+import type { SelectedFields } from './query-builders/select.types';
+import type { MySqlSession, QueryResultHKT, QueryResultKind } from './session';
+import type { WithSubqueryWithSelection } from './subquery';
+import type { AnyMySqlTable } from './table';
 
 export class MySqlDatabase<TQueryResult extends QueryResultHKT, TSession extends MySqlSession> {
 	constructor(
@@ -15,12 +24,29 @@ export class MySqlDatabase<TQueryResult extends QueryResultHKT, TSession extends
 		readonly session: TSession,
 	) {}
 
+	$with<TAlias extends string>(alias: TAlias) {
+		return {
+			as<TSelection>(
+				qb: QueryBuilder<TSelection> | ((qb: QueryBuilderInstance) => QueryBuilder<TSelection>),
+			): WithSubqueryWithSelection<TSelection, TAlias> {
+				if (typeof qb === 'function') {
+					qb = qb(queryBuilder);
+				}
+
+				return new Proxy(
+					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
+					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'subquery_selection', sqlBehavior: 'error' }),
+				) as WithSubqueryWithSelection<TSelection, TAlias>;
+			},
+		};
+	}
+
 	with(...queries: WithSubquery[]) {
 		const self = this;
 
 		function select(): MySqlSelectBuilder<undefined>;
-		function select<TSelection extends SelectFields>(fields: TSelection): MySqlSelectBuilder<TSelection>;
-		function select(fields?: SelectFields): MySqlSelectBuilder<SelectFields | undefined> {
+		function select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection>;
+		function select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined> {
 			return new MySqlSelectBuilder(fields ?? undefined, self.session, self.dialect, queries);
 		}
 
@@ -28,8 +54,8 @@ export class MySqlDatabase<TQueryResult extends QueryResultHKT, TSession extends
 	}
 
 	select(): MySqlSelectBuilder<undefined>;
-	select<TSelection extends SelectFields>(fields: TSelection): MySqlSelectBuilder<TSelection>;
-	select(fields?: SelectFields): MySqlSelectBuilder<SelectFields | undefined> {
+	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection>;
+	select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined> {
 		return new MySqlSelectBuilder(fields ?? undefined, this.session, this.dialect);
 	}
 

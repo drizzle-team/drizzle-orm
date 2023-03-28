@@ -1,24 +1,36 @@
-import { ColumnConfig } from '~/column';
-import { ColumnBuilderConfig } from '~/column-builder';
-import { AnyPgTable } from '~/pg-core/table';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { AnyPgTable } from '~/pg-core/table';
+import type { Assume } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgSmallIntBuilder extends PgColumnBuilder<
-	ColumnBuilderConfig<{ data: number; driverParam: number | string }>
-> {
-	protected override $pgColumnBuilderBrand!: 'PgSmallIntBuilder';
+export interface PgSmallIntBuilderHKT extends ColumnBuilderHKTBase {
+	_type: PgSmallIntBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: PgSmallIntHKT;
+}
 
+export interface PgSmallIntHKT extends ColumnHKTBase {
+	_type: PgSmallInt<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type PgSmallIntBuilderInitial<TName extends string> = PgSmallIntBuilder<{
+	name: TName;
+	data: number;
+	driverParam: number | string;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class PgSmallIntBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgSmallIntBuilderHKT, T> {
 	/** @internal */
-	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgSmallInt<TTableName> {
-		return new PgSmallInt(table, this.config);
+	override build<TTableName extends string>(
+		table: AnyPgTable<{ name: TTableName }>,
+	): PgSmallInt<MakeColumnConfig<T, TTableName>> {
+		return new PgSmallInt<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class PgSmallInt<TTableName extends string> extends PgColumn<
-	ColumnConfig<{ tableName: TTableName; data: number; driverParam: number | string }>
-> {
-	protected override $pgColumnBrand!: 'PgSmallInt';
-
+export class PgSmallInt<T extends ColumnBaseConfig> extends PgColumn<PgSmallIntHKT, T> {
 	getSQLType(): string {
 		return 'smallint';
 	}
@@ -31,6 +43,6 @@ export class PgSmallInt<TTableName extends string> extends PgColumn<
 	};
 }
 
-export function smallint(name: string) {
+export function smallint<TName extends string>(name: TName): PgSmallIntBuilderInitial<TName> {
 	return new PgSmallIntBuilder(name);
 }

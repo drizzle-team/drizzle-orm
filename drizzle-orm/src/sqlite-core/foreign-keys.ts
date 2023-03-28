@@ -1,5 +1,6 @@
-import { AnySQLiteColumn } from './columns';
-import { AnySQLiteTable, SQLiteTable } from './table';
+import type { AnySQLiteColumn } from './columns';
+import type { AnySQLiteTable } from './table';
+import { SQLiteTable } from './table';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
@@ -10,8 +11,10 @@ export type Reference = () => {
 };
 
 export class ForeignKeyBuilder {
-	declare protected $brand: 'SQLiteForeignKeyBuilder';
-	declare protected $foreignTableName: 'TForeignTableName';
+	declare _: {
+		brand: 'SQLiteForeignKeyBuilder';
+		foreignTableName: 'TForeignTableName';
+	};
 
 	/** @internal */
 	reference: Reference;
@@ -34,7 +37,7 @@ export class ForeignKeyBuilder {
 	) {
 		this.reference = () => {
 			const { columns, foreignColumns } = config();
-			return { columns, foreignTable: foreignColumns[0]!.table, foreignColumns };
+			return { columns, foreignTable: foreignColumns[0]!.table as AnySQLiteTable, foreignColumns };
 		};
 		if (actions) {
 			this._onUpdate = actions.onUpdate;
@@ -87,13 +90,6 @@ type ColumnsWithTable<
 	TTableName extends string,
 	TColumns extends AnySQLiteColumn[],
 > = { [Key in keyof TColumns]: AnySQLiteColumn<{ tableName: TTableName }> };
-
-export type GetColumnsTable<TColumns extends AnySQLiteColumn | AnySQLiteColumn[]> = (
-	TColumns extends AnySQLiteColumn ? TColumns
-		: TColumns extends AnySQLiteColumn[] ? TColumns[number]
-		: never
-) extends AnySQLiteColumn<{ tableName: infer TTableName extends string }> ? TTableName
-	: never;
 
 export function foreignKey<
 	TTableName extends string,

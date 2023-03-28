@@ -1,18 +1,22 @@
-import {
-	BeginTransactionCommand,
+import type {
 	BeginTransactionCommandInput,
-	CommitTransactionCommand,
 	CommitTransactionCommandInput,
-	ExecuteStatementCommand,
 	ExecuteStatementCommandOutput,
 	RDSDataClient,
-	RollbackTransactionCommand,
 	RollbackTransactionCommandInput,
 } from '@aws-sdk/client-rds-data';
-import { Logger } from '~/logger';
-import { PgDialect, PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT } from '~/pg-core';
-import { SelectFieldsOrdered } from '~/pg-core/query-builders/select.types';
-import { fillPlaceholders, Query, QueryTypingsValue, SQL } from '~/sql';
+import {
+	BeginTransactionCommand,
+	CommitTransactionCommand,
+	ExecuteStatementCommand,
+	RollbackTransactionCommand,
+} from '@aws-sdk/client-rds-data';
+import type { Logger } from '~/logger';
+import type { PgDialect, PreparedQueryConfig, QueryResultHKT } from '~/pg-core';
+import { PgSession, PreparedQuery } from '~/pg-core';
+import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
+import type { Query, QueryTypingsValue, SQL } from '~/sql';
+import { fillPlaceholders } from '~/sql';
 import { mapResultRow } from '~/utils';
 import { getValueFromDataApi, toValueParam } from '../common';
 
@@ -27,7 +31,7 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 		private params: unknown[],
 		private typings: QueryTypingsValue[],
 		private options: AwsDataApiSessionOptions,
-		private fields: SelectFieldsOrdered | undefined,
+		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		transactionId: string | undefined,
 	) {
@@ -99,7 +103,7 @@ export class AwsDataApiSession extends PgSession {
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		fields: SelectFieldsOrdered | undefined,
+		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 	): PreparedQuery<T> {
 		return new AwsDataApiPreparedQuery(
@@ -116,7 +120,7 @@ export class AwsDataApiSession extends PgSession {
 
 	prepareQueryWithTransaction<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		fields: SelectFieldsOrdered | undefined,
+		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		transactionId: string | undefined,
 	): PreparedQuery<T> {

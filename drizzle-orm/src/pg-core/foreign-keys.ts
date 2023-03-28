@@ -1,5 +1,5 @@
-import { AnyPgColumn } from './columns';
-import { AnyPgTable, PgTable } from './table';
+import type { AnyPgColumn } from './columns';
+import { type AnyPgTable, PgTable } from './table';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
@@ -10,8 +10,6 @@ export type Reference = () => {
 };
 
 export class ForeignKeyBuilder {
-	declare protected $brand: 'PgForeignKeyBuilder';
-
 	/** @internal */
 	reference: Reference;
 
@@ -33,7 +31,7 @@ export class ForeignKeyBuilder {
 	) {
 		this.reference = () => {
 			const { columns, foreignColumns } = config();
-			return { columns, foreignTable: foreignColumns[0]!.table, foreignColumns };
+			return { columns, foreignTable: foreignColumns[0]!.table as AnyPgTable, foreignColumns };
 		};
 		if (actions) {
 			this._onUpdate = actions.onUpdate;
@@ -88,13 +86,6 @@ type ColumnsWithTable<
 	TTableName extends string,
 	TColumns extends AnyPgColumn[],
 > = { [Key in keyof TColumns]: AnyPgColumn<{ tableName: TTableName }> };
-
-export type GetColumnsTable<TColumns extends AnyPgColumn | AnyPgColumn[]> = (
-	TColumns extends AnyPgColumn ? TColumns
-		: TColumns extends AnyPgColumn[] ? TColumns[number]
-		: never
-) extends AnyPgColumn<{ tableName: infer TTableName extends string }> ? TTableName
-	: never;
 
 export function foreignKey<
 	TTableName extends string,

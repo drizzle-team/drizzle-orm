@@ -1,6 +1,7 @@
 import { bindIfParam } from '~/expressions';
-import { Placeholder, SQL, sql, SQLSourceParam, SQLWrapper } from '~/sql';
-import { AnyMySqlColumn } from './columns/common';
+import type { Placeholder, SQL, SQLChunk, SQLWrapper } from '~/sql';
+import { sql } from '~/sql';
+import type { AnyMySqlColumn } from './columns/common';
 
 export * from '~/expressions';
 
@@ -12,7 +13,7 @@ export function substring(
 	column: AnyMySqlColumn | SQL.Aliased,
 	{ from, for: _for }: { from?: number | Placeholder | SQLWrapper; for?: number | Placeholder | SQLWrapper },
 ): SQL {
-	const chunks: SQLSourceParam[] = [sql`substring(`, column];
+	const chunks: SQLChunk[] = [sql`substring(`, column];
 	if (from !== undefined) {
 		chunks.push(sql` from `, bindIfParam(from, column));
 	}

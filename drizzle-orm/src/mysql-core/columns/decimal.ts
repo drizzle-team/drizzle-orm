@@ -1,16 +1,30 @@
-import { ColumnConfig } from '~/column';
-import { ColumnBuilderConfig } from '~/column-builder';
-import { AnyMySqlTable } from '~/mysql-core/table';
-import { MySqlColumn, MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { AnyMySqlTable } from '~/mysql-core/table';
+import type { Assume } from '~/utils';
+import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
-export class MySqlDecimalBuilder extends MySqlColumnBuilderWithAutoIncrement<
-	ColumnBuilderConfig<{
-		data: number;
-		driverParam: number | string;
-	}>,
-	{ precision: number | undefined; scale: number | undefined }
-> {
-	constructor(name: string, precision?: number, scale?: number) {
+export interface MySqlDecimalBuilderHKT extends ColumnBuilderHKTBase {
+	_type: MySqlDecimalBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: MySqlDecimalHKT;
+}
+
+export interface MySqlDecimalHKT extends ColumnHKTBase {
+	_type: MySqlDecimal<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type MySqlDecimalBuilderInitial<TName extends string> = MySqlDecimalBuilder<{
+	name: TName;
+	data: number;
+	driverParam: number | string;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class MySqlDecimalBuilder<T extends ColumnBuilderBaseConfig>
+	extends MySqlColumnBuilderWithAutoIncrement<MySqlDecimalBuilderHKT, T, MySqlDecimalConfig>
+{
+	constructor(name: T['name'], precision?: number, scale?: number) {
 		super(name);
 		this.config.precision = precision;
 		this.config.scale = scale;
@@ -19,28 +33,16 @@ export class MySqlDecimalBuilder extends MySqlColumnBuilderWithAutoIncrement<
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlDecimal<TTableName> {
-		return new MySqlDecimal(table, this.config);
+	): MySqlDecimal<MakeColumnConfig<T, TTableName>> {
+		return new MySqlDecimal<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class MySqlDecimal<TTableName extends string> extends MySqlColumnWithAutoIncrement<
-	ColumnConfig<{
-		tableName: TTableName;
-		data: number;
-		driverParam: number | string;
-	}>
-> {
-	protected override $mySqlColumnBrand!: 'MySqlDecimal';
-
-	readonly precision: number | undefined;
-	readonly scale: number | undefined;
-
-	constructor(table: AnyMySqlTable<{ name: TTableName }>, config: MySqlDecimalBuilder['config']) {
-		super(table, config);
-		this.precision = config.precision;
-		this.scale = config.scale;
-	}
+export class MySqlDecimal<T extends ColumnBaseConfig>
+	extends MySqlColumnWithAutoIncrement<MySqlDecimalHKT, T, MySqlDecimalConfig>
+{
+	readonly precision: number | undefined = this.config.precision;
+	readonly scale: number | undefined = this.config.scale;
 
 	getSQLType(): string {
 		if (typeof this.precision !== 'undefined' && typeof this.scale !== 'undefined') {
@@ -58,6 +60,9 @@ export interface MySqlDecimalConfig {
 	scale?: number;
 }
 
-export function decimal(name: string, config: MySqlDecimalConfig = {}): MySqlDecimalBuilder {
+export function decimal<TName extends string>(
+	name: TName,
+	config: MySqlDecimalConfig = {},
+): MySqlDecimalBuilderInitial<TName> {
 	return new MySqlDecimalBuilder(name, config.precision, config.scale);
 }

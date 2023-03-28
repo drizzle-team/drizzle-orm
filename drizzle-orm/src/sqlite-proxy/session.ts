@@ -1,14 +1,13 @@
-import { Logger, NoopLogger } from '~/logger';
-import { fillPlaceholders, Query } from '~/sql';
-import { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
-import { SelectFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
-import {
-	PreparedQuery as PreparedQueryBase,
-	PreparedQueryConfig as PreparedQueryConfigBase,
-	SQLiteSession,
-} from '~/sqlite-core/session';
+import type { Logger } from '~/logger';
+import { NoopLogger } from '~/logger';
+import type { Query } from '~/sql';
+import { fillPlaceholders } from '~/sql';
+import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
+import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
+import type { PreparedQueryConfig as PreparedQueryConfigBase } from '~/sqlite-core/session';
+import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session';
 import { mapResultRow } from '~/utils';
-import { RemoteCallback, SqliteRemoteResult } from './driver';
+import type { RemoteCallback, SqliteRemoteResult } from './driver';
 
 export interface SQLiteRemoteSessionOptions {
 	logger?: Logger;
@@ -36,7 +35,7 @@ export class SQLiteRemoteSession extends SQLiteSession<'async', SqliteRemoteResu
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
-		fields?: SelectFieldsOrdered,
+		fields?: SelectedFieldsOrdered,
 	): PreparedQuery<T> {
 		return new PreparedQuery(this.client, query.sql, query.params, this.logger, fields);
 	}
@@ -50,7 +49,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private queryString: string,
 		private params: unknown[],
 		private logger: Logger,
-		private fields: SelectFieldsOrdered | undefined,
+		private fields: SelectedFieldsOrdered | undefined,
 	) {
 		super();
 	}

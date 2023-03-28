@@ -1,73 +1,98 @@
-import { ColumnConfig } from '~/column';
-import { ColumnBuilderConfig } from '~/column-builder';
-import { AnyPgTable } from '~/pg-core/table';
-import { SQL } from '~/sql';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { AnyPgTable } from '~/pg-core/table';
+import type { SQL } from '~/sql';
+import type { Assume, Equal, Simplify } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export type CustomColumnBuilderConfig<T extends CustomTypeValues> = {
+export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTypeValues>> = Simplify<{
+	name: TName;
 	data: T['data'];
 	driverParam: T['driverData'];
-	notNull: T['notNull'] extends undefined ? false : T['notNull'] extends true ? true : false;
-	hasDefault: T['default'] extends undefined ? false : T['default'] extends true ? true : false;
-};
+	// notNull and hasDefault will be of type "unknown" if not defined in T. Thank you TS
+	notNull: T['notNull'] extends true ? true : false;
+	hasDefault: T['default'] extends true ? true : false;
+}>;
 
-function returnColumn<
-	TTableName extends string,
-	TData,
-	TNotNull extends boolean = false,
-	TDefault extends boolean = false,
->(
-	table: AnyPgTable<{ name: TTableName }>,
-	config: PgColumnBuilder<
-		ColumnConfig<{ data: TData; driverParam: string; notNull: TNotNull; hasDefault: TDefault }>
-	>['config'],
-	sqlName: string,
-	mapTo?: (value: TData) => any,
-	mapFrom?: (value: any) => TData,
-): PgColumn<
-	ColumnConfig<
-		{
-			tableName: TTableName;
-			data: TData;
-			driverParam: string;
-			notNull: TNotNull;
-			hasDefault: TDefault;
-		}
-	>
+export interface PgCustomColumnInnerConfig {
+	customTypeValues: CustomTypeValues;
+}
+
+export interface PgCustomColumnBuilderHKT extends ColumnBuilderHKTBase {
+	_type: PgCustomColumnBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: PgCustomColumnHKT;
+}
+
+export interface PgCustomColumnHKT extends ColumnHKTBase {
+	_type: PgCustomColumn<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<
+	PgCustomColumnBuilderHKT,
+	T,
+	{
+		fieldConfig: CustomTypeValues['config'];
+		customTypeParams: CustomTypeParams<any>;
+	},
+	{
+		pgColumnBuilderBrand: 'PgCustomColumnBuilderBrand';
+	}
 > {
-	return new class extends PgColumn<
-		ColumnConfig<
-			{
-				tableName: TTableName;
-				data: TData;
-				driverParam: string;
-				notNull: TNotNull;
-				hasDefault: TDefault;
-			}
-		>
-	> {
-		protected override $pgColumnBrand!: 'CustomColumnBrand';
+	constructor(
+		name: T['name'],
+		fieldConfig: CustomTypeValues['config'],
+		customTypeParams: CustomTypeParams<any>,
+	) {
+		super(name);
+		this.config.fieldConfig = fieldConfig;
+		this.config.customTypeParams = customTypeParams;
+	}
 
-		getSQLType(): string {
-			return sqlName;
-		}
+	/** @internal */
+	build<TTableName extends string>(
+		table: AnyPgTable<{ name: TTableName }>,
+	): PgCustomColumn<MakeColumnConfig<T, TTableName>> {
+		return new PgCustomColumn<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config,
+		);
+	}
+}
 
-		override mapFromDriverValue(value: any): TData {
-			if (typeof mapFrom === 'function') {
-				return mapFrom(value);
-			} else {
-				return value as TData;
-			}
-		}
+export class PgCustomColumn<T extends ColumnBaseConfig> extends PgColumn<PgCustomColumnHKT, T> {
+	private sqlName: string;
+	private mapTo?: (value: T['data']) => T['driverParam'];
+	private mapFrom?: (value: T['driverParam']) => T['data'];
 
-		override mapToDriverValue(value: TData): any {
-			if (typeof mapTo === 'function') {
-				return mapTo(value);
-			} else {
-				return value as TData;
-			}
+	constructor(
+		table: AnyPgTable<{ name: T['tableName'] }>,
+		config: PgCustomColumnBuilder<T>['config'],
+	) {
+		super(table, config);
+		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
+		this.mapTo = config.customTypeParams.toDriver;
+		this.mapFrom = config.customTypeParams.fromDriver;
+	}
+
+	getSQLType(): string {
+		return this.sqlName;
+	}
+
+	override mapFromDriverValue(value: T['driverParam']): T['data'] {
+		if (typeof this.mapFrom === 'function') {
+			return this.mapFrom(value);
+		} else {
+			return value as T['data'];
 		}
-	}(table, config);
+	}
+
+	override mapToDriverValue(value: T['data']): T['driverParam'] {
+		if (typeof this.mapTo === 'function') {
+			return this.mapTo(value);
+		} else {
+			return value as T['data'];
+		}
+	}
 }
 
 export type CustomTypeValues = {
@@ -90,7 +115,13 @@ export type CustomTypeValues = {
 	/**
 	 * What config type should be used for {@link CustomTypeParams} `dataType` generation
 	 */
-	config?: Record<string, unknown>;
+	config?: unknown;
+
+	/**
+	 * Whether the config argument should be required or not
+	 * @default false
+	 */
+	configRequired?: boolean;
 
 	/**
 	 * If your custom data type should be notNull by default you can use `notNull: true`
@@ -147,7 +178,7 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * 	 }
 	 * ```
 	 */
-	dataType: (config: T['config']) => string;
+	dataType: (config: T['config'] | (Equal<T['configRequired'], true> extends true ? never : undefined)) => string;
 
 	/**
 	 * Optional mapping function, between user input and driver
@@ -175,39 +206,23 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 }
 
 /**
- * Custom postgresql database data type generator
+ * Custom pg database data type generator
  */
-export function customType<
-	T extends CustomTypeValues,
->(
+export function customType<T extends CustomTypeValues = CustomTypeValues>(
 	customTypeParams: CustomTypeParams<T>,
-): (
-	dbName: string,
-	fieldConfig?: T['config'],
-) => PgColumnBuilder<
-	ColumnBuilderConfig<CustomColumnBuilderConfig<T>>,
-	Record<string, unknown>
-> {
-	return (dbName: string, fieldConfig?: T['config']) =>
-		new class extends PgColumnBuilder<
-			ColumnBuilderConfig<CustomColumnBuilderConfig<T>>,
-			Record<string, unknown>
-		> {
-			protected $pgColumnBuilderBrand!: 'CustomColumnBuilderBrand';
-
-			/** @internal */
-			build<TTableName extends string>(
-				table: AnyPgTable<{ name: TTableName }>,
-			): PgColumn<
-				ColumnConfig<CustomColumnBuilderConfig<T> & { tableName: TTableName }>
-			> {
-				return returnColumn(
-					table,
-					this.config,
-					customTypeParams.dataType(fieldConfig),
-					customTypeParams.toDriver,
-					customTypeParams.fromDriver,
-				);
-			}
-		}(dbName);
+): Equal<T['configRequired'], true> extends true ? <TName extends string>(
+		dbName: TName,
+		fieldConfig: T['config'],
+	) => PgCustomColumnBuilder<ConvertCustomConfig<TName, T>>
+	: <TName extends string>(
+		dbName: TName,
+		fieldConfig?: T['config'],
+	) => PgCustomColumnBuilder<ConvertCustomConfig<TName, T>>
+{
+	return <TName extends string>(
+		dbName: TName,
+		fieldConfig?: T['config'],
+	): PgCustomColumnBuilder<ConvertCustomConfig<TName, T>> => {
+		return new PgCustomColumnBuilder(dbName, fieldConfig, customTypeParams);
+	};
 }

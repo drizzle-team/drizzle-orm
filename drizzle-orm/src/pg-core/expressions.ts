@@ -1,6 +1,7 @@
 import { bindIfParam } from '~/expressions';
-import { AnyPgColumn } from '~/pg-core/columns';
-import { Placeholder, SQL, sql, SQLSourceParam, SQLWrapper } from '~/sql';
+import type { AnyPgColumn } from '~/pg-core/columns';
+import type { Placeholder, SQL, SQLChunk, SQLWrapper } from '~/sql';
+import { sql } from '~/sql';
 
 export * from '~/expressions';
 
@@ -12,7 +13,7 @@ export function substring(
 	column: AnyPgColumn | SQL.Aliased,
 	{ from, for: _for }: { from?: number | Placeholder | SQLWrapper; for?: number | Placeholder | SQLWrapper },
 ): SQL {
-	const chunks: SQLSourceParam[] = [sql`substring(`, column];
+	const chunks: SQLChunk[] = [sql`substring(`, column];
 	if (from !== undefined) {
 		chunks.push(sql` from `, bindIfParam(from, column));
 	}

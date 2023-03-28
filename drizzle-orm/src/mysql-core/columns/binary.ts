@@ -1,16 +1,32 @@
-import { ColumnConfig } from '~/column';
-import { ColumnBuilderConfig } from '~/column-builder';
-import { AnyMySqlTable } from '~/mysql-core/table';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { AnyMySqlTable } from '~/mysql-core/table';
+import type { Assume } from '~/utils';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
-export class MySqlBinaryBuilder<TData extends string = string> extends MySqlColumnBuilder<
-	ColumnBuilderConfig<{
-		data: TData;
-		driverParam: number | string;
-	}>,
-	{ length: number | undefined }
+export interface MySqlBinaryBuilderHKT extends ColumnBuilderHKTBase {
+	_type: MySqlBinaryBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: MySqlBinaryHKT;
+}
+
+export interface MySqlBinaryHKT extends ColumnHKTBase {
+	_type: MySqlBinary<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type MySqlBinaryBuilderInitial<TName extends string> = MySqlBinaryBuilder<{
+	name: TName;
+	data: string;
+	driverParam: number | string;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class MySqlBinaryBuilder<T extends ColumnBuilderBaseConfig> extends MySqlColumnBuilder<
+	MySqlBinaryBuilderHKT,
+	T,
+	MySqlBinaryConfig
 > {
-	constructor(name: string, length?: number) {
+	constructor(name: T['name'], length: number | undefined) {
 		super(name);
 		this.config.length = length;
 	}
@@ -18,29 +34,19 @@ export class MySqlBinaryBuilder<TData extends string = string> extends MySqlColu
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlBinary<TTableName, TData> {
-		return new MySqlBinary(table, this.config);
+	): MySqlBinary<MakeColumnConfig<T, TTableName>> {
+		return new MySqlBinary<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
 export class MySqlBinary<
-	TTableName extends string,
-	TData extends string = string,
+	T extends ColumnBaseConfig,
 > extends MySqlColumn<
-	ColumnConfig<{
-		tableName: TTableName;
-		data: TData;
-		driverParam: number | string;
-	}>
+	MySqlBinaryHKT,
+	T,
+	MySqlBinaryConfig
 > {
-	declare protected $mySqlColumnBrand: 'MySqlBinary';
-
-	length: number | undefined;
-
-	constructor(table: AnyMySqlTable<{ name: TTableName }>, config: MySqlBinaryBuilder<TData>['config']) {
-		super(table, config);
-		this.length = config.length;
-	}
+	length: number | undefined = this.config.length;
 
 	getSQLType(): string {
 		return typeof this.length !== 'undefined' ? `binary(${this.length})` : `binary`;
@@ -51,6 +57,9 @@ export interface MySqlBinaryConfig {
 	length?: number;
 }
 
-export function binary(name: string, config: MySqlBinaryConfig = {}): MySqlBinaryBuilder {
+export function binary<TName extends string>(
+	name: TName,
+	config: MySqlBinaryConfig = {},
+): MySqlBinaryBuilderInitial<TName> {
 	return new MySqlBinaryBuilder(name, config.length);
 }

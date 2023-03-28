@@ -42,15 +42,13 @@ const newUserSchema = createInsertSchema(users, 'camel');
 
 // Override the fields
 const newUserSchema = createInsertSchema(users, {
-  // this is required for runtime validation of text enum types, otherwise z.string() will be used
-  role: z.enum(['admin', 'user']),
+  role: z.string(),
 });
 
 // Refine the fields
 const newUserSchema = createInsertSchema(users, (schema) => ({
   id: schema.id.positive(),
   email: schema.email.email(),
-  role: z.enum(['admin', 'user']),
 }));
 
 const newUserSchema = createInsertSchema(users, 'snake', (schema) => ({

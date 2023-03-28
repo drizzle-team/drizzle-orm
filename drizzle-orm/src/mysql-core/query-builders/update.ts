@@ -1,29 +1,30 @@
-import { GetColumnData } from '~/column';
-import { MySqlDialect } from '~/mysql-core/dialect';
-import {
+import type { GetColumnData } from '~/column';
+import type { MySqlDialect } from '~/mysql-core/dialect';
+import type {
 	MySqlSession,
 	PreparedQuery,
 	PreparedQueryConfig,
 	QueryResultHKT,
 	QueryResultKind,
 } from '~/mysql-core/session';
-import { AnyMySqlTable, GetTableConfig } from '~/mysql-core/table';
+import type { AnyMySqlTable } from '~/mysql-core/table';
 import { QueryPromise } from '~/query-promise';
-import { Query, SQL, SQLWrapper } from '~/sql';
-import { mapUpdateSet, Simplify, UpdateSet } from '~/utils';
-import { SelectFieldsOrdered } from './select.types';
+import type { Query, SQL, SQLWrapper } from '~/sql';
+import type { Simplify, UpdateSet } from '~/utils';
+import { mapUpdateSet } from '~/utils';
+import type { SelectedFieldsOrdered } from './select.types';
 
 export interface MySqlUpdateConfig {
 	where?: SQL | undefined;
 	set: UpdateSet;
 	table: AnyMySqlTable;
-	returning?: SelectFieldsOrdered;
+	returning?: SelectedFieldsOrdered;
 }
 
 export type MySqlUpdateSetSource<TTable extends AnyMySqlTable> = Simplify<
 	{
-		[Key in keyof GetTableConfig<TTable, 'columns'>]?:
-			| GetColumnData<GetTableConfig<TTable, 'columns'>[Key], 'query'>
+		[Key in keyof TTable['_']['columns']]?:
+			| GetColumnData<TTable['_']['columns'][Key], 'query'>
 			| SQL;
 	}
 >;
@@ -76,17 +77,6 @@ export class MySqlUpdate<
 		this.config.where = where;
 		return this;
 	}
-
-	// returning(): Omit<MySqlUpdate<TTable, InferModel<TTable>>, 'where' | 'returning'>;
-	// returning<TSelectedFields extends SelectFields>(
-	// 	fields: TSelectedFields,
-	// ): Omit<MySqlUpdate<TTable, SelectResultFields<TSelectedFields>>, 'where' | 'returning'>;
-	// returning(
-	// 	fields: SelectFields = this.config.table[MySqlTable.Symbol.Columns],
-	// ): Omit<MySqlUpdate<TTable, any>, 'where' | 'returning'> {
-	// 	this.config.returning = orderSelectedFields(fields);
-	// 	return this;
-	// }
 
 	/** @internal */
 	getSQL(): SQL {

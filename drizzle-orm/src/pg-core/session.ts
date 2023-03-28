@@ -1,6 +1,6 @@
-import { Query, SQL } from '~/sql';
-import { PgDialect } from './dialect';
-import { SelectFieldsOrdered } from './query-builders/select.types';
+import type { Query, SQL } from '~/sql';
+import type { PgDialect } from './dialect';
+import type { SelectedFieldsOrdered } from './query-builders/select.types';
 
 export interface PreparedQueryConfig {
 	execute: unknown;
@@ -26,7 +26,7 @@ export abstract class PgSession {
 
 	abstract prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		fields: SelectFieldsOrdered | undefined,
+		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 	): PreparedQuery<T>;
 

@@ -5,9 +5,3 @@ export const users = sqliteTable('users', {
 	name: text('name').notNull(),
 	email: text('email').notNull(),
 });
-
-export const statItemAggregation = sqliteTable('StatItemAggregation', {
-	userId: integer('user_id').primaryKey(),
-	revenue: integer('revenue'),
-	connectTalkbackTime: integer('connect_talkback_time'),
-});

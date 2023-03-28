@@ -1,20 +1,20 @@
-import { MySqlDialect } from '~/mysql-core/dialect';
-import {
+import type { MySqlDialect } from '~/mysql-core/dialect';
+import type {
 	MySqlSession,
 	PreparedQuery,
 	PreparedQueryConfig,
 	QueryResultHKT,
 	QueryResultKind,
 } from '~/mysql-core/session';
-import { AnyMySqlTable } from '~/mysql-core/table';
+import type { AnyMySqlTable } from '~/mysql-core/table';
 import { QueryPromise } from '~/query-promise';
-import { Query, SQL, SQLWrapper } from '~/sql';
-import { SelectFieldsOrdered } from './select.types';
+import type { Query, SQL, SQLWrapper } from '~/sql';
+import type { SelectedFieldsOrdered } from './select.types';
 
 export interface MySqlDeleteConfig {
 	where?: SQL | undefined;
 	table: AnyMySqlTable;
-	returning?: SelectFieldsOrdered;
+	returning?: SelectedFieldsOrdered;
 }
 
 export interface MySqlDelete<

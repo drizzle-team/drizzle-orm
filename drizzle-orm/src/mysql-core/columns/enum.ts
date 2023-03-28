@@ -1,24 +1,31 @@
-import { AnyMySqlTable } from '~/mysql-core/table';
-import { Update } from '~/utils';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { AnyMySqlTable } from '~/mysql-core/table';
+import type { Assume, Writable } from '~/utils';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
-export interface MySqlEnumColumnBuilderConfig {
-	notNull: boolean;
-	hasDefault: boolean;
-	values: [string, ...string[]];
+export interface MySqlEnumColumnBuilderHKT extends ColumnBuilderHKTBase {
+	_type: MySqlEnumColumnBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: MySqlEnumColumnHKT;
 }
 
-export interface MySqlEnumColumnConfig extends MySqlEnumColumnBuilderConfig {
-	tableName: string;
+export interface MySqlEnumColumnHKT extends ColumnHKTBase {
+	_type: MySqlEnumColumn<Assume<this['config'], ColumnBaseConfig>>;
 }
 
-export class MySqlEnumColumnBuilder<T extends MySqlEnumColumnBuilderConfig = MySqlEnumColumnBuilderConfig>
-	extends MySqlColumnBuilder<
-		{ data: T['values'][number]; driverParam: string; notNull: T['notNull']; hasDefault: T['hasDefault'] },
-		{ values: T['values'] }
-	>
+export type MySqlEnumColumnBuilderInitial<TName extends string, TEnum extends string[]> = MySqlEnumColumnBuilder<{
+	name: TName;
+	data: TEnum[number];
+	driverParam: string;
+	enum: TEnum;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class MySqlEnumColumnBuilder<T extends ColumnBuilderBaseConfig>
+	extends MySqlColumnBuilder<MySqlEnumColumnBuilderHKT, T, { values: string[] }>
 {
-	constructor(name: string, values: T['values']) {
+	constructor(name: T['name'], values: string[]) {
 		super(name);
 		this.config.values = values;
 	}
@@ -26,53 +33,29 @@ export class MySqlEnumColumnBuilder<T extends MySqlEnumColumnBuilderConfig = MyS
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlEnumColumn<Pick<T, keyof MySqlEnumColumnBuilderConfig> & { tableName: TTableName }> {
-		return new MySqlEnumColumn<Pick<T, keyof MySqlEnumColumnBuilderConfig> & { tableName: TTableName }>(
+	): MySqlEnumColumn<MakeColumnConfig<T, TTableName>> {
+		return new MySqlEnumColumn<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config,
 		);
 	}
 }
 
-export class MySqlEnumColumn<T extends MySqlEnumColumnConfig> extends MySqlColumn<{
-	tableName: T['tableName'];
-	data: T['values'][number];
-	driverParam: string;
-	notNull: T['notNull'];
-	hasDefault: T['hasDefault'];
-}> {
-	protected override $mySqlColumnBrand!: 'MySqlEnumColumn';
-
-	readonly values: T['values'];
-
-	constructor(
-		table: AnyMySqlTable<{ name: T['tableName'] }>,
-		config: MySqlEnumColumnBuilder<Pick<T, keyof MySqlEnumColumnBuilderConfig>>['config'],
-	) {
-		super(table, config);
-		this.values = config.values;
-	}
+export class MySqlEnumColumn<T extends ColumnBaseConfig>
+	extends MySqlColumn<MySqlEnumColumnHKT, T, { values: string[] }>
+{
+	readonly values: string[] = this.config.values;
 
 	getSQLType(): string {
 		return `enum(${this.values.map((value) => `'${value}'`).join(',')})`;
 	}
 }
 
-export function mysqlEnum<U extends string, T extends Readonly<[U, ...U[]]>>(
-	name: string,
-	values: T,
-): MySqlEnumColumnBuilder<
-	Update<MySqlEnumColumnBuilderConfig, {
-		notNull: false;
-		hasDefault: false;
-		values: Writeable<T>;
-	}>
-> {
+export function mysqlEnum<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
+	name: TName,
+	values: Writable<T>,
+): MySqlEnumColumnBuilderInitial<TName, Writable<T>> {
 	if (values.length === 0) throw Error(`You have an empty array for "${name}" enum values`);
 
 	return new MySqlEnumColumnBuilder(name, values);
 }
-
-export type Writeable<T> = {
-	-readonly [P in keyof T]: T[P];
-};

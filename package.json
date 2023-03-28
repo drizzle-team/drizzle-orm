@@ -1,26 +1,31 @@
 {
-	"private": true,
-	"scripts": {
-		"build:orm": "turbo run build --filter drizzle-orm --color",
-		"check:examples": "cd examples/sqlite-proxy && npm i && npm run lnk && npm run check:types",
-		"build": "turbo run build test:types --color && pnpm run check:examples",
-		"pack": "turbo run pack --color",
-		"test": "turbo run test --color",
-		"test:types": "turbo run test:types --color"
-	},
-	"devDependencies": {
-		"@trivago/prettier-plugin-sort-imports": "^3.2.0",
-		"bun-types": "^0.2.2",
-		"concurrently": "^7.5.0",
-		"dprint": "^0.32.2",
-		"prettier": "^2.8.4",
-		"resolve-tspaths": "^0.8.3",
-		"turbo": "^1.8.3",
-		"typescript": "4.8.4"
-	},
-	"pnpm": {
-		"patchedDependencies": {
-			"typescript@4.8.4": "patches/typescript@4.8.4.patch"
-		}
-	}
+  "private": true,
+  "scripts": {
+    "build:orm": "turbo run build --filter drizzle-orm --color",
+    "build": "turbo run build test:types //#lint --color",
+    "pack": "turbo run pack --color",
+    "test": "turbo run test --color",
+    "test:types": "turbo run test:types --color",
+    "lint": "eslint --ext ts ."
+  },
+  "devDependencies": {
+    "@trivago/prettier-plugin-sort-imports": "^4.1.1",
+    "@typescript-eslint/eslint-plugin": "^5.54.1",
+    "@typescript-eslint/parser": "^5.54.1",
+    "bun-types": "^0.5.7",
+    "concurrently": "^7.5.0",
+    "dprint": "^0.34.5",
+    "eslint": "^8.36.0",
+    "eslint-plugin-import": "^2.27.5",
+    "eslint-plugin-unused-imports": "^2.0.0",
+    "prettier": "^2.8.4",
+    "resolve-tspaths": "^0.8.8",
+    "turbo": "^1.8.3",
+    "typescript": "4.8.4"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "typescript@4.8.4": "patches/typescript@4.8.4.patch"
+    }
+  }
 }
