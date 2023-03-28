@@ -1,16 +1,12 @@
 import type { Database, Statement } from '@libsql/sqlite3';
-import type { Logger} from '~/logger';
+import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
 import type { Query } from '~/sql';
 import { fillPlaceholders } from '~/sql';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
-import type { SelectFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
-import type {
-	PreparedQueryConfig as PreparedQueryConfigBase} from '~/sqlite-core/session';
-import {
-	PreparedQuery as PreparedQueryBase,
-	SQLiteSession,
-} from '~/sqlite-core/session';
+import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
+import type { PreparedQueryConfig as PreparedQueryConfigBase } from '~/sqlite-core/session';
+import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session';
 import { mapResultRow } from '~/utils';
 
 export interface LibSQLSessionOptions {
@@ -37,7 +33,7 @@ export class LibSQLSession extends SQLiteSession<'async', void> {
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
-		fields?: SelectFieldsOrdered,
+		fields?: SelectedFieldsOrdered,
 	): PreparedQuery<T> {
 		const stmt = this.client.prepare(query.sql);
 		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields);
@@ -52,7 +48,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private queryString: string,
 		private params: unknown[],
 		private logger: Logger,
-		private fields: SelectFieldsOrdered | undefined,
+		private fields: SelectedFieldsOrdered | undefined,
 	) {
 		super();
 		// FIXME: when to call stmt.finalize()?
@@ -61,8 +57,11 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	run(placeholderValues?: Record<string, unknown>): Promise<void> {
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
-		return new Promise(resolve => {
+		return new Promise((resolve, reject) => {
 			this.stmt.run(params, (err) => {
+				if (err) {
+					return reject(err);
+				}
 				resolve();
 			});
 		});
@@ -72,13 +71,21 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		const { fields } = this;
 		if (fields) {
 			const values = this.values(placeholderValues);
-			return values.then((rows) => rows.map((row) => mapResultRow(fields, row.map(normalizeFieldValue), this.joinsNotNullableMap)));
+
+			return values.then((rows) =>
+				rows.map((row) => mapResultRow(fields, row.map(normalizeFieldValue), this.joinsNotNullableMap))
+			);
 		}
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
-		return new Promise(resolve => {
+		return new Promise((resolve, reject) => {
 			const rows: T['all'] = [];
-			this.stmt.each(params, (error, row) => rows.push(normalizeRow(row)), () => {
+			this.stmt.each(params, (err, row) => {
+				if (err) {
+					return reject(err);
+				}
+				return rows.push(normalizeRow(row));
+			}, () => {
 				resolve(rows);
 			});
 		});
@@ -92,7 +99,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	values(placeholderValues?: Record<string, unknown>): Promise<T['values']> {
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
-		return new Promise(resolve => {
+		return new Promise((resolve) => {
 			const rows: T['values'] = [];
 			this.stmt.each(params, (error, row) => rows.push(row ? Object.values(row) : []), () => {
 				resolve(rows);
@@ -108,10 +115,10 @@ function normalizeRow(obj: any) {
 	// d.
 	return Object.keys(obj).reduce((acc: Record<string, any>, key) => {
 		if (obj.propertyIsEnumerable(key)) {
-		  acc[key] = obj[key];
+			acc[key] = obj[key];
 		}
 		return acc;
-	  }, {});
+	}, {});
 }
 
 function normalizeFieldValue(value: unknown) {

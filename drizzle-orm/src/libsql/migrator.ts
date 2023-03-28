@@ -1,8 +1,8 @@
-import type { MigrationConfig} from '~/migrator';
+import type { MigrationConfig } from '~/migrator';
 import { readMigrationFiles } from '~/migrator';
 import type { LibSQLDatabase } from './driver';
 
-export function migrate(db: LibSQLDatabase, config: string | MigrationConfig) {
+export function migrate(db: LibSQLDatabase, config: MigrationConfig) {
 	const migrations = readMigrationFiles(config);
-	db.dialect.migrate(migrations, db.session);
+	return db.dialect.migrate(migrations, db.session);
 }

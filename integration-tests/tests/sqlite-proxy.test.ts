@@ -63,7 +63,7 @@ const usersTable = sqliteTable('users', {
 	name: text('name').notNull(),
 	verified: integer('verified').notNull().default(0),
 	json: blob('json', { mode: 'json' }).$type<string[]>(),
-	createdAt: integer('created_at', { mode: 'timestamp' }).notNull().defaultCurrentTimestamp(),
+	createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`strftime('%s', 'now')`),
 });
 
 const usersMigratorTable = sqliteTable('users12', {
@@ -127,7 +127,7 @@ test.beforeEach(async (t) => {
 			name text not null,
 			verified integer not null default 0,
 			json blob,
-			created_at integer not null default (cast((julianday('now') - 2440587.5)*86400000 as integer))
+			created_at integer not null default (strftime('%s', 'now'))
 		)`);
 });
 

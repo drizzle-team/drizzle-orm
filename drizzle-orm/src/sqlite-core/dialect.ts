@@ -1,8 +1,7 @@
 import type { AnyColumn } from '~/column';
 import { Column } from '~/column';
 import type { MigrationMeta } from '~/migrator';
-import type { Query, SQLChunk } from '~/sql';
-import { Name, param, SQL, sql } from '~/sql';
+import { name, param, type Query, SQL, sql, type SQLChunk } from '~/sql';
 import type { AnySQLiteColumn } from '~/sqlite-core/columns';
 import { SQLiteColumn } from '~/sqlite-core/columns';
 import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders';
@@ -47,7 +46,7 @@ export abstract class SQLiteDialect {
 			setEntries
 				.map(([colName, value], i): SQL[] => {
 					const col: AnySQLiteColumn = table[Table.Symbol.Columns][colName]!;
-					const res = sql`${new Name(col.name)} = ${value}`;
+					const res = sql`${name(col.name)} = ${value}`;
 					if (i < setSize - 1) {
 						return [res, sql.raw(', ')];
 					}
@@ -91,7 +90,7 @@ export abstract class SQLiteDialect {
 				const chunk: SQLChunk[] = [];
 
 				if (field instanceof SQL.Aliased && field.isSelectionField) {
-					chunk.push(new Name(field.fieldAlias));
+					chunk.push(name(field.fieldAlias));
 				} else if (field instanceof SQL.Aliased || field instanceof SQL) {
 					const query = field instanceof SQL.Aliased ? field.sql : field;
 
@@ -100,7 +99,7 @@ export abstract class SQLiteDialect {
 							new SQL(
 								query.queryChunks.map((c) => {
 									if (c instanceof SQLiteColumn) {
-										return new Name(c.name);
+										return name(c.name);
 									}
 									return c;
 								}),
@@ -111,13 +110,15 @@ export abstract class SQLiteDialect {
 					}
 
 					if (field instanceof SQL.Aliased) {
-						chunk.push(sql` as ${new Name(field.fieldAlias)}`);
+						chunk.push(sql` as ${name(field.fieldAlias)}`);
 					}
 				} else if (field instanceof Column) {
 					if (isSingleTable) {
-						chunk.push(new Name(field.name));
+						chunk.push(name(field.name));
 					} else {
-						chunk.push(field);
+						const tableName = field.table[Table.Symbol.Name];
+						const columnName = field.name;
+						chunk.push(sql`${name(tableName)}.${name(columnName)} as ${name(`${tableName}.${columnName}`)}`);
 					}
 				}
 
@@ -163,7 +164,7 @@ export abstract class SQLiteDialect {
 		if (withList.length) {
 			const withSqlChunks = [sql`with `];
 			withList.forEach((w, i) => {
-				withSqlChunks.push(sql`${new Name(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
+				withSqlChunks.push(sql`${name(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
 				if (i < withList.length - 1) {
 					withSqlChunks.push(sql`, `);
 				}
@@ -188,9 +189,9 @@ export abstract class SQLiteDialect {
 				const origTableName = table[SQLiteTable.Symbol.OriginalName];
 				const alias = tableName === origTableName ? undefined : joinMeta.alias;
 				joinsArray.push(
-					sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${new Name(tableSchema)}.` : undefined}${new Name(
-						origTableName,
-					)} ${alias && new Name(alias)} on ${joinMeta.on}`,
+					sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${name(tableSchema)}.` : undefined}${
+						name(origTableName)
+					} ${alias && name(alias)} on ${joinMeta.on}`,
 				);
 			} else {
 				joinsArray.push(
@@ -244,7 +245,7 @@ export abstract class SQLiteDialect {
 		const colEntries: [string, AnySQLiteColumn][] = isSingleValue
 			? Object.keys(values[0]!).map((fieldName) => [fieldName, columns[fieldName]!])
 			: Object.entries(columns);
-		const insertOrder = colEntries.map(([, column]) => new Name(column.name));
+		const insertOrder = colEntries.map(([, column]) => name(column.name));
 
 		values.forEach((value, valueIndex) => {
 			const valueList: (SQLChunk | SQL)[] = [];
