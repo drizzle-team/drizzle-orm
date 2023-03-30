@@ -11,7 +11,7 @@ const db = drizzle(client);
 migrate(db, {
 	migrationsFolder: './migrations',
 }).then(() => {
-	console.log('Migrations complete');
+	console.log('Migrations complete 🎉');
 }).catch((err) => {
 	console.error(err);
 	process.exit(1);

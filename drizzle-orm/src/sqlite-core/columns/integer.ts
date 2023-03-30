@@ -131,6 +131,8 @@ export class SQLiteTimestampBuilder<T extends ColumnBuilderBaseConfig>
 export class SQLiteTimestamp<T extends ColumnBaseConfig>
 	extends SQLiteBaseInteger<SQLiteTimestampHKT, T, { mode: 'timestamp' | 'timestamp_ms' }>
 {
+	readonly mode: 'timestamp' | 'timestamp_ms' = this.config.mode;
+
 	override mapFromDriverValue(value: number): Date {
 		if (this.config.mode === 'timestamp') {
 			return new Date(value * 1000);
