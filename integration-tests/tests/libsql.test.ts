@@ -118,7 +118,7 @@ test.before(async (t) => {
 
 test.after.always(async (t) => {
 	const ctx = t.context;
-	ctx.client.close();
+	// ctx.client.close();
 });
 
 test.beforeEach(async (t) => {
@@ -609,16 +609,25 @@ test.serial('build query', async (t) => {
 
 test.serial.only('migrator', async (t) => {
 	const { db } = t.context;
-	migrate(db, { migrationsFolder: './drizzle2/sqlite' });
 
-	db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).run();
-	const result = db.select().from(usersMigratorTable).all();
+	await db.run(sql`drop table if exists ${usersMigratorTable}`);
+	await db.run(sql`drop table if exists ${anotherUsersMigratorTable}`);
+	await db.run(sql`drop table if exists "__drizzle_migrations"`);
 
-	db.insert(anotherUsersMigratorTable).values({ name: 'John', email: 'email' }).run();
-	const result2 = db.select().from(usersMigratorTable).all();
+	await migrate(db, { migrationsFolder: './drizzle2/sqlite' });
+
+	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).run();
+	const result = await db.select().from(usersMigratorTable).all();
+
+	await db.insert(anotherUsersMigratorTable).values({ name: 'John', email: 'email' }).run();
+	const result2 = await db.select().from(anotherUsersMigratorTable).all();
 
 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
 	t.deepEqual(result2, [{ id: 1, name: 'John', email: 'email' }]);
+
+	await db.run(sql`drop table ${usersMigratorTable}`);
+	await db.run(sql`drop table ${anotherUsersMigratorTable}`);
+	await db.run(sql`drop table "__drizzle_migrations"`);
 });
 
 test.serial('insert via db.run + select via db.all', async (t) => {

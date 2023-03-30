@@ -312,7 +312,9 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 		try {
 			for (const migration of migrations) {
 				if (!lastDbMigration || parseInt(lastDbMigration[2], 10)! < migration.folderMillis) {
-					session.exec(migration.sql);
+					for (const stmnt of migration.sql) {
+						session.exec(stmnt);	
+					}
 					session.run(
 						sql`INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
 					);
@@ -346,7 +348,9 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 		try {
 			for (const migration of migrations) {
 				if (!lastDbMigration || parseInt(lastDbMigration[2], 10)! < migration.folderMillis) {
-					await session.run(sql.raw(migration.sql));
+					for (const stmnt of migration.sql) {
+						await session.run(sql.raw(stmnt));	
+					}
 					await session.run(
 						sql`INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
 					);
