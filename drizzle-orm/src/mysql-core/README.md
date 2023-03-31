@@ -11,10 +11,10 @@
 
 Drizzle ORM is a TypeScript ORM for SQL databases designed with maximum type safety in mind. It comes with a [drizzle-kit](https://github.com/drizzle-team/drizzle-kit-mirror) CLI companion for automatic SQL migrations generation. This is the documentation for Drizzle ORM version for MySQL.
 
-| Driver | Support |
-| :- | :-: |
-| [mysql2](https://github.com/sidorares/node-mysql2) | ✅ |
-| [Planetscale Serverless](https://github.com/planetscale/database-js) | ✅ |
+| Driver                                                               | Support |
+|:---------------------------------------------------------------------|:-------:|
+| [mysql2](https://github.com/sidorares/node-mysql2)                   |    ✅    |
+| [Planetscale Serverless](https://github.com/planetscale/database-js) |    ✅    |
 
 ## Installation
 
@@ -170,10 +170,10 @@ export const cities = mysqlTable('cities', {
 
 ```typescript
 // db.ts
-import { MySqlDatabase, MySqlRawQueryResult, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
+import { MySqlDatabase, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
 import { InferModel } from 'drizzle-orm';
 import mysql from 'mysql2/promise';
-import { drizzle } from 'drizzle-orm/mysql2';
+import { drizzle, MySqlRawQueryResult } from 'drizzle-orm/mysql2';
 
 const users = mysqlTable('users', {
   id: serial('id').primaryKey(),

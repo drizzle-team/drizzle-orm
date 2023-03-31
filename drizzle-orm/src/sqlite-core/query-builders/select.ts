@@ -386,7 +386,8 @@ export class SQLiteSelect<
 		if (!this.session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
-		const query = this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.fieldsList);
+		// TODO: implement transaction support
+		const query = this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.fieldsList, undefined);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
 		return query;
 	}

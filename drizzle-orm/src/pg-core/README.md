@@ -10,12 +10,12 @@
 
 Drizzle ORM is a TypeScript ORM for SQL databases designed with maximum type safety in mind. It comes with a [drizzle-kit](https://github.com/drizzle-team/drizzle-kit-mirror) CLI companion for automatic SQL migrations generation. This is the documentation for Drizzle ORM version for PostgreSQL.
 
-| Driver | Support | | Driver version |
-| :- | :-: | :-: | :-: |
-| [node-postgres](https://github.com/brianc/node-postgres) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/pg'> |
-| [postgres.js](https://github.com/porsager/postgres) | ✅ | [Docs](/drizzle-orm/src/postgres-js/README.md) | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/postgres'> |
-| [NeonDB Serverless](https://github.com/neondatabase/serverless) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/@neondatabase/serverless'> |
-| [AWS Data API](https://github.com/aws/aws-sdk-js-v3/blob/main/clients/client-rds-data/README.md) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/@aws-sdk/client-rds-data'>
+| Driver                                                                                           | Support |                                                |
+|:-------------------------------------------------------------------------------------------------|:-------:|:----------------------------------------------:|
+| [node-postgres](https://github.com/brianc/node-postgres)                                         |    ✅    |                                                |
+| [postgres.js](https://github.com/porsager/postgres)                                              |    ✅    | [Docs](/drizzle-orm/src/postgres-js/README.md) |
+| [NeonDB Serverless](https://github.com/neondatabase/serverless)                                  |    ✅    |                                                |
+| [AWS Data API](https://github.com/aws/aws-sdk-js-v3/blob/main/clients/client-rds-data/README.md) |    ✅    |                                                |
 
 ## Installation
 

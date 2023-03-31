@@ -1,6 +1,6 @@
 {
   "name": "drizzle-orm",
-  "version": "0.23.2",
+  "version": "0.23.3",
   "description": "Drizzle ORM package for SQL databases",
   "scripts": {
     "build": "tsc && resolve-tspaths && cp ../README.md package.json dist/",
@@ -35,6 +35,7 @@
   "peerDependencies": {
     "@aws-sdk/client-rds-data": ">=3",
     "@cloudflare/workers-types": ">=3",
+    "@libsql/client": "*",
     "@neondatabase/serverless": ">=0.1",
     "@planetscale/database": ">=1",
     "@types/better-sqlite3": "*",
@@ -98,22 +99,26 @@
     },
     "kysely": {
       "optional": true
+    },
+    "@libsql/client": {
+      "optional": true
     }
   },
   "devDependencies": {
-    "@aws-sdk/client-rds-data": "^3.257.0",
-    "@cloudflare/workers-types": "^3.18.0",
-    "@neondatabase/serverless": "^0.1.13",
+    "@aws-sdk/client-rds-data": "^3.303.0",
+    "@cloudflare/workers-types": "^4.20230321.0",
+    "@libsql/client": "^0.1.1",
+    "@neondatabase/serverless": "^0.2.9",
     "@planetscale/database": "^1.5.0",
     "@types/better-sqlite3": "^7.6.2",
-    "@types/node": "^18.11.9",
+    "@types/node": "^18.15.11",
     "@types/pg": "^8.6.5",
     "@types/sql.js": "^1.4.4",
-    "better-sqlite3": "^7.6.2",
-    "bun-types": "^0.5.0",
+    "better-sqlite3": "^8.0.0",
+    "bun-types": "^0.5.8",
     "knex": "^2.4.2",
-    "kysely": "^0.23.5",
-    "mysql2": "^2.3.3",
+    "kysely": "^0.24.2",
+    "mysql2": "^3.2.0",
     "pg": "^8.8.0",
     "postgres": "^3.3.3",
     "sql.js": "^1.8.0",
