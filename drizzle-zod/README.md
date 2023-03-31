@@ -10,11 +10,11 @@
 
 `drizzle-zod` is a plugin for [Drizzle ORM](https://github.com/drizzle-team/drizzle-orm) that allows you to generate [Zod](https://zod.dev/) schemas from Drizzle ORM schemas.
 
-| Database    | Insert schema | Select schema |
-|:------------|:-------------:|:-------------:|
-| PostgreSQL  | ✅ | ✅ |
-| MySQL       | ⏳ | ⏳ |
-| SQLite      | ✅ | ✅ |
+| Database   | Insert schema | Select schema |
+|:-----------|:-------------:|:-------------:|
+| PostgreSQL |       ✅       |       ✅       |
+| MySQL      |       ⏳       |       ⏳       |
+| SQLite     |       ✅       |       ✅       |
 
 # Usage
 

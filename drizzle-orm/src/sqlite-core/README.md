@@ -11,17 +11,17 @@
 DrizzleORM is a [tiny](https://twitter.com/_alexblokh/status/1594735880417472512), [blazingly fast](#️-performance-and-prepared-statements) TypeScript ORM library with a [drizzle-kit](#-migrations) CLI companion for automatic SQL migrations generation.
 Here you can find extensive docs for SQLite module.
 
-| Driver | Support | | Driver version |
-|:- | :-: | :-: | :-: |
-| [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/better-sqlite3'> |
-| [sql.js](https://github.com/sql-js/sql.js/) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/sql.js'> |
-| [node-sqlite3](https://github.com/TryGhost/node-sqlite3) | ⏳ | | |
-| [bun:sqlite](https://github.com/oven-sh/bun#bunsqlite-sqlite3-module) | ✅ | [Example](https://github.com/drizzle-team/drizzle-orm/tree/main/examples/bun-sqlite)| |
-| [Cloudflare D1](https://developers.cloudflare.com/d1/) | ✅ | [Example](https://github.com/drizzle-team/drizzle-orm/tree/main/examples/cloudflare-d1)| |
-| [Fly.io LiteFS](https://fly.io/docs/litefs/getting-started/) | ✅ | | |
-| [libSQL server](https://github.com/libsql/sqld/) | ✅ | [Example](/examples/libsql) | |
-| [Turso](https://turso.tech/) | ✅ | [Example](/examples/libsql) | |
-| [Custom proxy driver](https://github.com/drizzle-team/drizzle-orm/tree/main/examples/sqlite-proxy) | ✅ | | |
+| Driver                                                                | Support |                                    |
+|:----------------------------------------------------------------------|:-------:|:----------------------------------:|
+| [better-sqlite3](https://github.com/WiseLibs/better-sqlite3)          |    ✅    |                                    |
+| [sql.js](https://github.com/sql-js/sql.js/)                           |    ✅    |                                    |
+| [node-sqlite3](https://github.com/TryGhost/node-sqlite3)              |    ⏳    |                                    |
+| [bun:sqlite](https://github.com/oven-sh/bun#bunsqlite-sqlite3-module) |    ✅    |  [Example](/examples/bun-sqlite)   |
+| [Cloudflare D1](https://developers.cloudflare.com/d1/)                |    ✅    | [Example](/examples/cloudflare-d1) |
+| [Fly.io LiteFS](https://fly.io/docs/litefs/getting-started/)          |    ✅    |                                    |
+| [libSQL server](https://github.com/libsql/sqld/)                      |    ✅    |    [Example](/examples/libsql)     |
+| [Turso](https://turso.tech/)                                          |    ✅    |    [Example](/examples/libsql)     |
+| [Custom proxy driver](/examples/sqlite-proxy)                         |    ✅    |                                    |
 
 ## 💾 Installation
 
