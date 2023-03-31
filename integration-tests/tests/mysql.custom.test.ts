@@ -117,10 +117,6 @@ const usersMigratorTable = mysqlTable('users12', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
-}, (table) => {
-	return {
-		name: uniqueIndex('').on(table.name).using('btree'),
-	};
 });
 
 interface Context {
@@ -646,9 +642,9 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 });
 
 // TODO change tests to new structure
-test.serial.skip('migrator', async (t) => {
+test.serial('migrator', async (t) => {
 	const { db } = t.context;
-	await migrate(db, { migrationsFolder: './drizzle/mysql' });
+	await migrate(db, { migrationsFolder: './drizzle2/mysql' });
 
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 
