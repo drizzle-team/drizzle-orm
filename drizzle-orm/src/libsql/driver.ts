@@ -1,4 +1,4 @@
-import type { Database } from '@libsql/sqlite3';
+import type { Client, ResultSet } from '@libsql/client';
 import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db';
@@ -9,9 +9,9 @@ export interface DrizzleConfig {
 	logger?: boolean | Logger;
 }
 
-export type LibSQLDatabase = BaseSQLiteDatabase<'async', void>;
+export type LibSQLDatabase = BaseSQLiteDatabase<'async', ResultSet>;
 
-export function drizzle(client: Database, config: DrizzleConfig = {}): LibSQLDatabase {
+export function drizzle(client: Client, config: DrizzleConfig = {}): LibSQLDatabase {
 	const dialect = new SQLiteAsyncDialect();
 	let logger;
 	if (config.logger === true) {

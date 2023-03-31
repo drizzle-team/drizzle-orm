@@ -628,6 +628,11 @@ test.serial('build query', async (t) => {
 
 test.serial('migrator', async (t) => {
 	const { db, serverSimulator } = t.context;
+
+	await db.run(sql`drop table if exists another_users`);
+	await db.run(sql`drop table if exists users12`);
+	await db.run(sql`drop table if exists __drizzle_migrations`);
+
 	await migrate(db, async (queries) => {
 		try {
 			serverSimulator.migrations(queries);
@@ -645,6 +650,10 @@ test.serial('migrator', async (t) => {
 
 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
 	t.deepEqual(result2, [{ id: 1, name: 'John', email: 'email' }]);
+
+	await db.run(sql`drop table another_users`);
+	await db.run(sql`drop table users12`);
+	await db.run(sql`drop table __drizzle_migrations`);
 });
 
 test.serial('insert via db.run + select via db.all', async (t) => {

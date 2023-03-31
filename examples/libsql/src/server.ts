@@ -1,22 +1,27 @@
 import 'dotenv/config';
 
 import { zValidator } from '@hono/zod-validator';
-import { Database } from '@libsql/sqlite3';
+import { createClient } from '@libsql/client';
 import { eq } from 'drizzle-orm/expressions';
 import { drizzle } from 'drizzle-orm/libsql';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { DATABASE_URL } from './env';
+import { type z } from 'zod';
+import { DATABASE_AUTH_TOKEN, DATABASE_URL } from './env';
 import { insertPostSchema, insertUserSchema, posts, selectPostSchema, selectUserSchema, users } from './schema';
 import { aggregateOneToMany } from './utils';
 
-const client = new Database(DATABASE_URL);
-const db = drizzle(client);
+const client = createClient({ url: DATABASE_URL, authToken: DATABASE_AUTH_TOKEN });
+export const db = drizzle(client);
 
 export const app = new Hono();
 
 app.onError((err, ctx) => {
-	console.error(err);
+	if ('format' in err) {
+		console.error(JSON.stringify((err as z.ZodError).format(), undefined, 2));
+	} else {
+		console.error(err);
+	}
 	return ctx.json({ error: 'Internal Server Error' }, 500);
 });
 

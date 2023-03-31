@@ -312,8 +312,8 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 		try {
 			for (const migration of migrations) {
 				if (!lastDbMigration || parseInt(lastDbMigration[2], 10)! < migration.folderMillis) {
-					for (const stmnt of migration.sql) {
-						session.exec(stmnt);	
+					for (const stmt of migration.sql) {
+						session.run(sql.raw(stmt));
 					}
 					session.run(
 						sql`INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
@@ -343,24 +343,18 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 		);
 
 		const lastDbMigration = dbMigrations[0] ?? undefined;
-		await session.run(sql`BEGIN`);
 
-		try {
+		await session.transaction(async (tx) => {
 			for (const migration of migrations) {
 				if (!lastDbMigration || parseInt(lastDbMigration[2], 10)! < migration.folderMillis) {
-					for (const stmnt of migration.sql) {
-						await session.run(sql.raw(stmnt));	
+					for (const stmt of migration.sql) {
+						await tx.run(sql.raw(stmt));
 					}
-					await session.run(
+					await tx.run(
 						sql`INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
 					);
 				}
 			}
-
-			await session.run(sql`COMMIT`);
-		} catch (e) {
-			await session.run(sql`ROLLBACK`);
-			throw e;
-		}
+		});
 	}
 }

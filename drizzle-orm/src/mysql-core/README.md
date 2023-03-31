@@ -170,10 +170,10 @@ export const cities = mysqlTable('cities', {
 
 ```typescript
 // db.ts
-import { MySqlDatabase, MySqlRawQueryResult, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
+import { MySqlDatabase, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
 import { InferModel } from 'drizzle-orm';
 import mysql from 'mysql2/promise';
-import { drizzle } from 'drizzle-orm/mysql2';
+import { drizzle, MySqlRawQueryResult } from 'drizzle-orm/mysql2';
 
 const users = mysqlTable('users', {
   id: serial('id').primaryKey(),

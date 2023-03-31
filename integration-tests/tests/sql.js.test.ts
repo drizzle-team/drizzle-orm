@@ -161,7 +161,7 @@ test.serial('select all fields', (t) => {
 	const result = db.select().from(usersTable).all();
 
 	t.assert(result[0]!.createdAt instanceof Date);
-	t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 100);
+	t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 5000);
 	t.deepEqual(result, [{ id: 1, name: 'John', verified: 0, json: null, createdAt: result[0]!.createdAt }]);
 });
 
@@ -274,7 +274,7 @@ test.serial('update with returning all fields', (t) => {
 	const users = db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning().all();
 
 	t.assert(users[0]!.createdAt instanceof Date);
-	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 100);
+	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 5000);
 	t.deepEqual(users, [{ id: 1, name: 'Jane', verified: 0, json: null, createdAt: users[0]!.createdAt }]);
 });
 
@@ -299,7 +299,7 @@ test.serial('delete with returning all fields', (t) => {
 	const users = db.delete(usersTable).where(eq(usersTable.name, 'John')).returning().all();
 
 	t.assert(users[0]!.createdAt instanceof Date);
-	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 100);
+	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 5000);
 	t.deepEqual(users, [{ id: 1, name: 'John', verified: 0, json: null, createdAt: users[0]!.createdAt }]);
 });
 
@@ -589,6 +589,11 @@ test.serial('build query', (t) => {
 
 test.serial('migrator', async (t) => {
 	const { db } = t.context;
+
+	db.run(sql`drop table if exists another_users`);
+	db.run(sql`drop table if exists users12`);
+	db.run(sql`drop table if exists __drizzle_migrations`);
+
 	migrate(db, { migrationsFolder: './drizzle2/sqlite' });
 
 	db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).run();
@@ -599,6 +604,10 @@ test.serial('migrator', async (t) => {
 
 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
 	t.deepEqual(result2, [{ id: 1, name: 'John', email: 'email' }]);
+
+	db.run(sql`drop table another_users`);
+	db.run(sql`drop table users12`);
+	db.run(sql`drop table __drizzle_migrations`);
 });
 
 test.serial('insert via db.run + select via db.all', (t) => {

@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-import { Database } from '@libsql/sqlite3';
+import { type Client, createClient } from '@libsql/client';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import { type InferModel, sql } from 'drizzle-orm';
@@ -24,7 +24,7 @@ import { type Equal, Expect } from './utils';
 const ENABLE_LOGGING = false;
 
 interface Context {
-	client: Database;
+	client: Client;
 	db: LibSQLDatabase;
 }
 
@@ -90,9 +90,10 @@ const pkExample = sqliteTable('pk_example', {
 
 test.before(async (t) => {
 	const ctx = t.context;
-	const connectionString = process.env['LIBSQL_CONNECTION_STRING'];
-	if (!connectionString) {
-		throw new Error('LIBSQL_CONNECTION_STRING is not set');
+	const url = process.env['LIBSQL_URL'];
+	const authToken = process.env['LIBSQL_AUTH_TOKEN'];
+	if (!url) {
+		throw new Error('LIBSQL_URL is not set');
 	}
 	let sleep = 250;
 	let timeLeft = 5000;
@@ -100,7 +101,7 @@ test.before(async (t) => {
 	let lastError: unknown | undefined;
 	do {
 		try {
-			ctx.client = new Database(connectionString);
+			ctx.client = createClient({ url, authToken });
 			connected = true;
 			break;
 		} catch (e) {
@@ -535,7 +536,7 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 test.serial('select with group by as field', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).run();
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.name)
@@ -607,12 +608,12 @@ test.serial('build query', async (t) => {
 	});
 });
 
-test.serial.only('migrator', async (t) => {
+test.serial('migrator', async (t) => {
 	const { db } = t.context;
 
-	await db.run(sql`drop table if exists ${usersMigratorTable}`);
-	await db.run(sql`drop table if exists ${anotherUsersMigratorTable}`);
-	await db.run(sql`drop table if exists "__drizzle_migrations"`);
+	await db.run(sql`drop table if exists another_users`);
+	await db.run(sql`drop table if exists users12`);
+	await db.run(sql`drop table if exists __drizzle_migrations`);
 
 	await migrate(db, { migrationsFolder: './drizzle2/sqlite' });
 
@@ -625,9 +626,9 @@ test.serial.only('migrator', async (t) => {
 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
 	t.deepEqual(result2, [{ id: 1, name: 'John', email: 'email' }]);
 
-	await db.run(sql`drop table ${usersMigratorTable}`);
-	await db.run(sql`drop table ${anotherUsersMigratorTable}`);
-	await db.run(sql`drop table "__drizzle_migrations"`);
+	await db.run(sql`drop table another_users`);
+	await db.run(sql`drop table users12`);
+	await db.run(sql`drop table __drizzle_migrations`);
 });
 
 test.serial('insert via db.run + select via db.all', async (t) => {

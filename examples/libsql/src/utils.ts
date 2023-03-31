@@ -13,7 +13,9 @@ export function aggregateOneToMany<
 		if (!map[id]) {
 			map[id] = { one: row[one], many: [] };
 		}
-		map[id]!.many.push(row[many]);
+		if (row[many] != null) {
+			map[id]!.many.push(row[many]);
+		}
 	}
 	return Object.values(map).map((r) => ({ ...r.one, [many]: r.many }));
 }
