@@ -745,9 +745,9 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 });
 
 // TODO change tests to new structure
-test.serial.skip('migrator', async (t) => {
+test.serial('migrator', async (t) => {
 	const { db } = t.context;
-	await migrate(db, { migrationsFolder: './drizzle/pg' });
+	await migrate(db, { migrationsFolder: './drizzle2/pg' });
 
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 

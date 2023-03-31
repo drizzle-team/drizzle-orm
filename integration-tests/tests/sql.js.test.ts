@@ -587,9 +587,9 @@ test.serial('build query', (t) => {
 	});
 });
 
-test.serial.skip('migrator', async (t) => {
+test.serial('migrator', async (t) => {
 	const { db } = t.context;
-	migrate(db, { migrationsFolder: './drizzle/sqlite' });
+	migrate(db, { migrationsFolder: './drizzle2/sqlite' });
 
 	db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).run();
 	const result = db.select().from(usersMigratorTable).all();
