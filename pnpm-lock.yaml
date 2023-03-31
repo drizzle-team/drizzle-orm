@@ -1,5 +1,10 @@
 lockfileVersion: '6.0'
 
+patchedDependencies:
+  typescript@5.0.3:
+    hash: 3z36spodsd2tfiihsln6xdxzra
+    path: patches/typescript@5.0.3.patch
+
 importers:
 
   .:
@@ -42,7 +47,7 @@ importers:
         version: 1.8.8
       typescript:
         specifier: 5.0.3
-        version: 5.0.3
+        version: 5.0.3(patch_hash=3z36spodsd2tfiihsln6xdxzra)
 
   drizzle-orm:
     devDependencies:
@@ -101,82 +106,7 @@ importers:
         specifier: ^5.1.2
         version: 5.1.6
 
-  drizzle-orm/dist:
-    devDependencies:
-      '@aws-sdk/client-rds-data':
-        specifier: ^3.303.0
-        version: 3.303.0
-      '@cloudflare/workers-types':
-        specifier: ^4.20230321.0
-        version: 4.20230321.0
-      '@libsql/client':
-        specifier: ^0.1.1
-        version: 0.1.1
-      '@neondatabase/serverless':
-        specifier: ^0.2.9
-        version: 0.2.9
-      '@planetscale/database':
-        specifier: ^1.5.0
-        version: 1.6.0
-      '@types/better-sqlite3':
-        specifier: ^7.6.2
-        version: 7.6.3
-      '@types/node':
-        specifier: ^18.15.11
-        version: 18.15.11
-      '@types/pg':
-        specifier: ^8.6.5
-        version: 8.6.6
-      '@types/sql.js':
-        specifier: ^1.4.4
-        version: 1.4.4
-      better-sqlite3:
-        specifier: ^8.0.0
-        version: 8.2.0
-      bun-types:
-        specifier: ^0.5.8
-        version: 0.5.8
-      knex:
-        specifier: ^2.4.2
-        version: 2.4.2(better-sqlite3@8.2.0)(mysql2@3.2.0)(pg@8.10.0)(sqlite3@5.1.6)
-      kysely:
-        specifier: ^0.24.2
-        version: 0.24.2
-      mysql2:
-        specifier: ^3.2.0
-        version: 3.2.0
-      pg:
-        specifier: ^8.8.0
-        version: 8.10.0
-      postgres:
-        specifier: ^3.3.3
-        version: 3.3.4
-      sql.js:
-        specifier: ^1.8.0
-        version: 1.8.0
-      sqlite3:
-        specifier: ^5.1.2
-        version: 5.1.6
-
   drizzle-zod:
-    devDependencies:
-      '@types/node':
-        specifier: ^18.15.10
-        version: 18.15.10
-      ava:
-        specifier: ^5.1.0
-        version: 5.2.0
-      drizzle-orm:
-        specifier: link:../drizzle-orm/dist
-        version: link:../drizzle-orm/dist
-      tsx:
-        specifier: ^3.12.2
-        version: 3.12.6
-      zod:
-        specifier: ^3.20.2
-        version: 3.21.4
-
-  drizzle-zod/dist:
     devDependencies:
       '@types/node':
         specifier: ^18.15.10
@@ -1717,7 +1647,7 @@ packages:
       natural-compare-lite: 1.4.0
       semver: 7.3.8
       tsutils: 3.21.0(typescript@5.0.3)
-      typescript: 5.0.3
+      typescript: 5.0.3(patch_hash=3z36spodsd2tfiihsln6xdxzra)
     transitivePeerDependencies:
       - supports-color
     dev: true
@@ -1737,7 +1667,7 @@ packages:
       '@typescript-eslint/typescript-estree': 5.57.0(typescript@5.0.3)
       debug: 4.3.4
       eslint: 8.37.0
-      typescript: 5.0.3
+      typescript: 5.0.3(patch_hash=3z36spodsd2tfiihsln6xdxzra)
     transitivePeerDependencies:
       - supports-color
     dev: true
@@ -1765,7 +1695,7 @@ packages:
       debug: 4.3.4
       eslint: 8.37.0
       tsutils: 3.21.0(typescript@5.0.3)
-      typescript: 5.0.3
+      typescript: 5.0.3(patch_hash=3z36spodsd2tfiihsln6xdxzra)
     transitivePeerDependencies:
       - supports-color
     dev: true
@@ -1791,7 +1721,7 @@ packages:
       is-glob: 4.0.3
       semver: 7.3.8
       tsutils: 3.21.0(typescript@5.0.3)
-      typescript: 5.0.3
+      typescript: 5.0.3(patch_hash=3z36spodsd2tfiihsln6xdxzra)
     transitivePeerDependencies:
       - supports-color
     dev: true
@@ -5104,7 +5034,7 @@ packages:
       ansi-colors: 4.1.3
       commander: 10.0.0
       fast-glob: 3.2.12
-      typescript: 5.0.3
+      typescript: 5.0.3(patch_hash=3z36spodsd2tfiihsln6xdxzra)
     dev: true
 
   /resolve@1.22.1:
@@ -5616,7 +5546,7 @@ packages:
       typescript: '>=2.8.0 || >= 3.2.0-dev || >= 3.3.0-dev || >= 3.4.0-dev || >= 3.5.0-dev || >= 3.6.0-dev || >= 3.6.0-beta || >= 3.7.0-dev || >= 3.7.0-beta'
     dependencies:
       tslib: 1.14.1
-      typescript: 5.0.3
+      typescript: 5.0.3(patch_hash=3z36spodsd2tfiihsln6xdxzra)
     dev: true
 
   /tsx@3.12.6:
@@ -5741,11 +5671,12 @@ packages:
       is-typed-array: 1.1.10
     dev: true
 
-  /typescript@5.0.3:
+  /typescript@5.0.3(patch_hash=3z36spodsd2tfiihsln6xdxzra):
     resolution: {integrity: sha512-xv8mOEDnigb/tN9PSMTwSEqAnUvkoXMQlicOb0IUVDBSQCgBSaAAROUZYy2IcUy5qU6XajK5jjjO7TMWqBTKZA==}
     engines: {node: '>=12.20'}
     hasBin: true
     dev: true
+    patched: true
 
   /unbox-primitive@1.0.2:
     resolution: {integrity: sha512-61pPlCD9h51VoreyJ0BReideM3MDKMKnh6+V9L08331ipq6Q8OFXZYiqP6n/tbHx4s5I9uRhcye6BrbkizkBDw==}

@@ -22,5 +22,10 @@
     "resolve-tspaths": "^0.8.8",
     "turbo": "^1.8.8",
     "typescript": "5.0.3"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "typescript@5.0.3": "patches/typescript@5.0.3.patch"
+    }
   }
 }
