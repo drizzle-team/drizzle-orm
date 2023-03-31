@@ -39,6 +39,12 @@ Drizzle ORM is being battle-tested on production projects by multiple teams 🚀
 | MS SQL      | ⏳      |            |
 | CockroachDB | ⏳      |            |
 
+## Our sponsors ❤️
+<p align="center">
+<a href="https://drizzle.team" target="_blank">
+<img src='https://api.drizzle.team/github/sponsors/svg'/>
+</a>
+</p>
 
 ## Installation
 
