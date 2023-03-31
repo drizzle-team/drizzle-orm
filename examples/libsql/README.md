@@ -1,6 +1,7 @@
-# Drizzle ORM + [libSQL](https://libsql.org/)
+# Drizzle ORM + [libSQL](https://libsql.org/)/[Turso](https://turso.tech)
 
-This example shows how to use the Drizzle ORM with libSQL.
+This example shows how to use the Drizzle ORM with the Open Source libSQL server
+and the Turso managed offering.
 
 ## Quick start
 
@@ -39,9 +40,16 @@ curl --request POST \
 
 Migrations are run automatically when the server starts.
 
-## Going to production
+## Using Turso
 
-<Something about switching from a local DB to Turso?>
+For Turso, JWT authentication tokens are needed. This assumes you have already
+created a database with the `turso db create` command.
+
+Getting the database URL:
+
+```
+turso db show <database>
+```
 
 Getting auth token:
 

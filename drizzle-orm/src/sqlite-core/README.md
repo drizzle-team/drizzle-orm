@@ -19,7 +19,8 @@ Here you can find extensive docs for SQLite module.
 | [bun:sqlite](https://github.com/oven-sh/bun#bunsqlite-sqlite3-module) | ✅ | [Example](https://github.com/drizzle-team/drizzle-orm/tree/main/examples/bun-sqlite)| |
 | [Cloudflare D1](https://developers.cloudflare.com/d1/) | ✅ | [Example](https://github.com/drizzle-team/drizzle-orm/tree/main/examples/cloudflare-d1)| |
 | [Fly.io LiteFS](https://fly.io/docs/litefs/getting-started/) | ✅ | | |
-| [ChiselStrike Turso](https://chiselstrike.com/) | ✅ | [Example](https://github.com/drizzle-team/drizzle-orm/tree/main/examples/cloudflare-d1) | |
+| [libSQL server](https://github.com/libsql/sqld/) | ✅ | [Example](/examples/libsql) | |
+| [Turso](https://turso.tech/) | ✅ | [Example](/examples/libsql) | |
 | [Custom proxy driver](https://github.com/drizzle-team/drizzle-orm/tree/main/examples/sqlite-proxy) | ✅ | | |
 
 ## 💾 Installation
@@ -74,7 +75,7 @@ import { drizzle, DrizzleD1Database } from 'drizzle-orm/d1';
 const db/*: DrizzleD1Database*/ = drizzle(env.DB);
 const result = await db.select().from(users).all(); // pay attention this one is async
 
-// libSQL
+// libSQL or Turso
 import { drizzle, LibSQLDatabase } from 'drizzle-orm/libsql';
 import { Database } from '@libsql/sqlite3';
 
