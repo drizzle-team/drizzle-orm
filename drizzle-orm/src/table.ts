@@ -1,6 +1,6 @@
 import type { AnyColumn, GetColumnData } from './column';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations';
-import type { Equal, Simplify, Update } from './utils';
+import type { Simplify, Update } from './utils';
 
 export interface TableConfig<TColumn extends AnyColumn = AnyColumn> {
 	name: string;
@@ -76,7 +76,9 @@ export function getTableName<T extends Table>(table: T): T['_']['name'] {
 }
 
 export type MapColumnName<TName extends string, TColumn extends AnyColumn, TDBColumNames extends boolean> =
-	Equal<TDBColumNames, true> extends true ? TColumn['_']['name'] : TName;
+	[TName] extends [never] ? never
+		: TDBColumNames extends true ? TColumn['_']['name']
+		: TName;
 
 export type InferModel<
 	TTable extends AnyTable,
