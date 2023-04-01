@@ -1,5 +1,6 @@
-import { MigrationConfig, readMigrationFiles } from '~/migrator';
-import { BetterSQLite3Database } from './driver';
+import type { MigrationConfig} from '~/migrator';
+import { readMigrationFiles } from '~/migrator';
+import type { BetterSQLite3Database } from './driver';
 
 export function migrate(db: BetterSQLite3Database, config: string | MigrationConfig) {
 	const migrations = readMigrationFiles(config);

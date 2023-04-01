@@ -204,7 +204,13 @@ export type CustomTypeValues = {
   /**
    * What config type should be used for {@link CustomTypeParams} `dataType` generation
    */
-  config?: Record<string, unknown>;
+  config?: unknown;
+
+  /**
+   * Whether the config argument should be required or not
+   * @default false
+   */
+  configRequired?: boolean;
 
   /**
    * If your custom data type should be notNull by default you can use `notNull: true`
@@ -231,9 +237,9 @@ export type CustomTypeValues = {
   default?: boolean;
 };
 
-export interface CustomTypeParams<T extends CustomTypeValues> {
+export interface CustomTypeParams<T extends Partial<CustomTypeValues>> {
   /**
-   * Database data type string represenation, that is used for migrations
+   * Database data type string representation, that is used for migrations
    * @example
    * ```
    * `jsonb`, `text`
@@ -261,7 +267,7 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
    *   }
    * ```
    */
-  dataType: (config: T['config']) => string;
+  dataType: (config: T['config'] | (Equal<T['configRequired'], true> extends true ? never : undefined)) => string;
 
   /**
    * Optional mapping function, between user input and driver
@@ -273,7 +279,7 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
    * }
    * ```
    */
-  toDriver?: (value: T['data']) => T['driverData'];
+  toDriver?: (value: T['data']) => T['driverData'] | SQL;
 
   /**
    * Optional mapping function, that is responsible for data mapping from database to JS/TS code

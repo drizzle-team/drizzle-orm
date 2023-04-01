@@ -1,5 +1,5 @@
-import { SQL } from '~/sql';
-import { AnyMySqlTable } from './table';
+import type { SQL } from '~/sql';
+import type { AnyMySqlTable } from './table';
 
 export class CheckBuilder {
 	protected brand!: 'MySqlConstraintBuilder';

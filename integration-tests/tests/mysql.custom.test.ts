@@ -1,6 +1,7 @@
 import 'dotenv/config';
 
-import anyTest, { TestFn } from 'ava';
+import type { TestFn } from 'ava';
+import anyTest from 'ava';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
 import { asc, eq } from 'drizzle-orm/expressions';
@@ -15,11 +16,11 @@ import {
 	serial,
 	text,
 	time,
-	uniqueIndex,
 	varchar,
 	year,
 } from 'drizzle-orm/mysql-core';
-import { drizzle, MySql2Database } from 'drizzle-orm/mysql2';
+import type { MySql2Database } from 'drizzle-orm/mysql2';
+import { drizzle } from 'drizzle-orm/mysql2';
 import { migrate } from 'drizzle-orm/mysql2/migrator';
 import { Name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
@@ -64,7 +65,7 @@ const customTimestamp = customType<
 	{ data: Date; driverData: string; config: { fsp: number } }
 >({
 	dataType(config) {
-		const precision = typeof config.fsp !== 'undefined' ? ` (${config.fsp})` : '';
+		const precision = typeof config?.fsp !== 'undefined' ? ` (${config.fsp})` : '';
 		return `timestamp${precision}`;
 	},
 	fromDriver(value: string): Date {
@@ -74,7 +75,7 @@ const customTimestamp = customType<
 
 const customBinary = customType<{ data: string; driverData: Buffer; config: { length: number } }>({
 	dataType(config) {
-		return typeof config.length !== 'undefined'
+		return typeof config?.length !== 'undefined'
 			? `binary(${config.length})`
 			: `binary`;
 	},
@@ -115,10 +116,6 @@ const usersMigratorTable = mysqlTable('users12', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
-}, (table) => {
-	return {
-		name: uniqueIndex('').on(table.name).using('btree'),
-	};
 });
 
 interface Context {
@@ -643,17 +640,27 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 });
 
-// TODO change tests to new structure
-// test.serial('migrator', async (t) => {
-// 	const { db } = t.context;
-// 	await migrate(db, { migrationsFolder: './drizzle/mysql' });
+test.serial('migrator', async (t) => {
+	const { db } = t.context;
 
-// 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	await db.execute(sql`drop table if exists cities_migration`);
+	await db.execute(sql`drop table if exists users_migration`);
+	await db.execute(sql`drop table if exists users12`);
+	await db.execute(sql`drop table if exists __drizzle_migrations`);
 
-// 	const result = await db.select().from(usersMigratorTable);
+	await migrate(db, { migrationsFolder: './drizzle2/mysql' });
 
-// 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
-// });
+	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+
+	const result = await db.select().from(usersMigratorTable);
+
+	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+
+	await db.execute(sql`drop table cities_migration`);
+	await db.execute(sql`drop table users_migration`);
+	await db.execute(sql`drop table users12`);
+	await db.execute(sql`drop table __drizzle_migrations`);
+});
 
 test.serial('insert via db.execute + select via db.execute', async (t) => {
 	const { db } = t.context;

@@ -1,7 +1,8 @@
 /// <reference types="bun-types" />
 
-import { Database } from 'bun:sqlite';
-import { DefaultLogger, Logger } from '~/logger';
+import type { Database } from 'bun:sqlite';
+import type { Logger } from '~/logger';
+import { DefaultLogger } from '~/logger';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect';
 import { SQLiteBunSession } from './session';

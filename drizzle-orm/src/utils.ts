@@ -1,21 +1,12 @@
-import { AnyColumn, Column } from './column';
-import { SelectFields, SelectFieldsOrdered } from './operations';
-import { DriverValueDecoder, noopDecoder, Param, SQL } from './sql';
-import { getTableName, Table } from './table';
-
-/**
- * @deprecated
- * Use `compatibilityVersion` from `drizzle-orm/version` instead.
- */
-export const apiVersion = 2;
-/**
- * @deprecated
- * Use `npmVersion` from `drizzle-orm/version` instead.
- */
-export const npmVersion = '0.17.0';
+import type { AnyColumn } from './column';
+import { Column } from './column';
+import type { SelectedFields, SelectedFieldsOrdered } from './operations';
+import type { DriverValueDecoder } from './sql';
+import { Param, SQL } from './sql';
+import { type AnyTable, getTableName, Table } from './table';
 
 export function mapResultRow<TResult>(
-	columns: SelectFieldsOrdered<AnyColumn>,
+	columns: SelectedFieldsOrdered<AnyColumn>,
 	row: unknown[],
 	joinsNotNullableMap: Record<string, boolean> | undefined,
 ): TResult {
@@ -77,10 +68,10 @@ export function mapResultRow<TResult>(
 }
 
 export function orderSelectedFields<TColumn extends AnyColumn>(
-	fields: SelectFields<AnyColumn, Table>,
+	fields: SelectedFields<AnyColumn, Table>,
 	pathPrefix?: string[],
-): SelectFieldsOrdered<TColumn> {
-	return Object.entries(fields).reduce<SelectFieldsOrdered<AnyColumn>>((result, [name, field]) => {
+): SelectedFieldsOrdered<TColumn> {
+	return Object.entries(fields).reduce<SelectedFieldsOrdered<AnyColumn>>((result, [name, field]) => {
 		if (typeof name !== 'string') {
 			return result;
 		}
@@ -98,7 +89,7 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 			result.push(...orderSelectedFields(field, newPath));
 		}
 		return result;
-	}, []) as SelectFieldsOrdered<TColumn>;
+	}, []) as SelectedFieldsOrdered<TColumn>;
 }
 
 /** @internal */
@@ -211,9 +202,35 @@ export type Assume<T, U> = T extends U ? T : U;
 
 export type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends (<T>() => T extends Y ? 1 : 2) ? true : false;
 
-export interface DrizzleTypeError<T extends string> {
+export interface DrizzleTypeError<T> {
 	$brand: 'DrizzleTypeError';
 	message: T;
 }
 
 export type ValueOrArray<T> = T | T[];
+
+export function applyMixins(baseClass: any, extendedClasses: any[]) {
+	extendedClasses.forEach((extendedClass) => {
+		Object.getOwnPropertyNames(extendedClass.prototype).forEach((name) => {
+			Object.defineProperty(
+				baseClass.prototype,
+				name,
+				Object.getOwnPropertyDescriptor(extendedClass.prototype, name) || Object.create(null),
+			);
+		});
+	});
+}
+
+export type Or<T1, T2> = T1 extends true ? true : T2 extends true ? true : false;
+
+export type IfThenElse<If, Then, Else> = If extends true ? Then : Else;
+
+export type PromiseOf<T> = T extends Promise<infer U> ? U : T;
+
+export type Writable<T> = {
+	-readonly [P in keyof T]: T[P];
+};
+
+export function getTableColumns<T extends AnyTable>(table: T): T['_']['columns'] {
+	return table[Table.Symbol.Columns];
+}

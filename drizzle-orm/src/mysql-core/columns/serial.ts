@@ -1,13 +1,30 @@
-import { AnyMySqlTable } from '~/mysql-core/table';
-import { MySqlColumn, MySqlColumnBuilder, MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { AnyMySqlTable } from '~/mysql-core/table';
+import type { Assume } from '~/utils';
+import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
-export class MySqlSerialBuilder extends MySqlColumnBuilderWithAutoIncrement<{
+export interface MySqlSerialBuilderHKT extends ColumnBuilderHKTBase {
+	_type: MySqlSerialBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: MySqlSerialHKT;
+}
+
+export interface MySqlSerialHKT extends ColumnHKTBase {
+	_type: MySqlSerial<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type MySqlSerialBuilderInitial<TName extends string> = MySqlSerialBuilder<{
+	name: TName;
 	data: number;
 	driverParam: number;
 	notNull: true;
 	hasDefault: true;
-}> {
-	constructor(name: string) {
+}>;
+
+export class MySqlSerialBuilder<T extends ColumnBuilderBaseConfig>
+	extends MySqlColumnBuilderWithAutoIncrement<MySqlSerialBuilderHKT, T>
+{
+	constructor(name: T['name']) {
 		super(name);
 		this.config.hasDefault = true;
 		this.config.autoIncrement = true;
@@ -16,22 +33,14 @@ export class MySqlSerialBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlSerial<TTableName> {
-		return new MySqlSerial(table, this.config);
+	): MySqlSerial<MakeColumnConfig<T, TTableName>> {
+		return new MySqlSerial<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
 export class MySqlSerial<
-	TTableName extends string,
-> extends MySqlColumnWithAutoIncrement<{
-	tableName: TTableName;
-	data: number;
-	driverParam: number;
-	notNull: true;
-	hasDefault: true;
-}> {
-	protected override $mySqlColumnBrand!: 'MySqlSerial';
-
+	T extends ColumnBaseConfig,
+> extends MySqlColumnWithAutoIncrement<MySqlSerialHKT, T> {
 	getSQLType(): string {
 		return 'serial';
 	}
@@ -44,6 +53,6 @@ export class MySqlSerial<
 	}
 }
 
-export function serial(name: string) {
+export function serial<TName extends string>(name: TName): MySqlSerialBuilderInitial<TName> {
 	return new MySqlSerialBuilder(name);
 }

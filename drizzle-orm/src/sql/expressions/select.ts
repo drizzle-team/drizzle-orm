@@ -1,5 +1,6 @@
-import { AnyColumn } from '../../column';
-import { SQL, sql, SQLWrapper } from '..';
+import type { AnyColumn } from '../../column';
+import type { SQL, SQLWrapper } from '..';
+import { sql } from '..';
 
 export function asc(column: AnyColumn | SQLWrapper): SQL {
 	return sql`${column} asc`;

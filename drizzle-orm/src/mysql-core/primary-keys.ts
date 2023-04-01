@@ -1,5 +1,6 @@
-import { AnyMySqlColumn } from './columns';
-import { AnyMySqlTable, MySqlTable } from './table';
+import type { AnyMySqlColumn } from './columns';
+import type { AnyMySqlTable } from './table';
+import { MySqlTable } from './table';
 
 export function primaryKey<
 	TTableName extends string,
@@ -9,8 +10,6 @@ export function primaryKey<
 }
 
 export class PrimaryKeyBuilder {
-	declare protected $brand: 'MySqlPrimaryKeyBuilder';
-
 	/** @internal */
 	columns: AnyMySqlColumn<{}>[];
 

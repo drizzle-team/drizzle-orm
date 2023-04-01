@@ -1,5 +1,6 @@
-import { Database } from 'sql.js';
-import { DefaultLogger, Logger } from '~/logger';
+import type { Database } from 'sql.js';
+import type { Logger } from '~/logger';
+import { DefaultLogger } from '~/logger';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect';
 import { SQLJsSession } from './session';

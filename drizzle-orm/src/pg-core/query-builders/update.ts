@@ -1,30 +1,35 @@
-import { GetColumnData } from '~/column';
-import { PgDialect } from '~/pg-core/dialect';
+import type { GetColumnData } from '~/column';
+import type { PgDialect } from '~/pg-core/dialect';
 import { QueryPromise } from '~/query-promise';
-import { Query, SQL, SQLWrapper } from '~/sql';
-import { mapUpdateSet, orderSelectedFields, Simplify, UpdateSet } from '~/utils';
+import type { Query, SQL, SQLWrapper } from '~/sql';
+import type { Simplify, UpdateSet } from '~/utils';
+import { mapUpdateSet, orderSelectedFields } from '~/utils';
 
-import { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
-import { AnyPgTable, GetTableConfig, InferModel, PgTable } from '~/pg-core/table';
-import { SelectFields, SelectFieldsOrdered, SelectResultFields } from './select.types';
+import type { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
+import type { AnyPgTable } from '~/pg-core/table';
+import type { SelectResultFields } from '~/query-builders/select.types';
+import { type InferModel, Table } from '~/table';
+import type { SelectedFields, SelectedFieldsOrdered } from './select.types';
 
 export interface PgUpdateConfig {
 	where?: SQL | undefined;
 	set: UpdateSet;
 	table: AnyPgTable;
-	returning?: SelectFieldsOrdered;
+	returning?: SelectedFieldsOrdered;
 }
 
 export type PgUpdateSetSource<TTable extends AnyPgTable> = Simplify<
 	{
-		[Key in keyof GetTableConfig<TTable, 'columns'>]?:
-			| GetColumnData<GetTableConfig<TTable, 'columns'>[Key]>
+		[Key in keyof TTable['_']['columns']]?:
+			| GetColumnData<TTable['_']['columns'][Key]>
 			| SQL;
 	}
 >;
 
 export class PgUpdateBuilder<TTable extends AnyPgTable, TQueryResult extends QueryResultHKT> {
-	declare protected $table: TTable;
+	declare readonly _: {
+		readonly table: TTable;
+	};
 
 	constructor(
 		private table: TTable,
@@ -33,7 +38,7 @@ export class PgUpdateBuilder<TTable extends AnyPgTable, TQueryResult extends Que
 	) {}
 
 	set(values: PgUpdateSetSource<TTable>): PgUpdate<TTable, TQueryResult> {
-		return new PgUpdate(this.table, mapUpdateSet(this.table, values), this.session, this.dialect);
+		return new PgUpdate<TTable, TQueryResult>(this.table, mapUpdateSet(this.table, values), this.session, this.dialect);
 	}
 }
 
@@ -53,8 +58,10 @@ export class PgUpdate<
 > extends QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>
 	implements SQLWrapper
 {
-	declare protected $table: TTable;
-	declare protected $return: TReturning;
+	declare readonly _: {
+		readonly table: TTable;
+		readonly return: TReturning;
+	};
 
 	private config: PgUpdateConfig;
 
@@ -68,20 +75,20 @@ export class PgUpdate<
 		this.config = { set, table };
 	}
 
-	where(where: SQL | undefined): Omit<this, 'where'> {
+	where(where: SQL | undefined): this {
 		this.config.where = where;
 		return this;
 	}
 
-	returning(): Omit<PgUpdate<TTable, TQueryResult, InferModel<TTable>>, 'where' | 'returning'>;
-	returning<TSelectedFields extends SelectFields>(
+	returning(): PgUpdate<TTable, TQueryResult, InferModel<TTable>>;
+	returning<TSelectedFields extends SelectedFields>(
 		fields: TSelectedFields,
-	): Omit<PgUpdate<TTable, TQueryResult, SelectResultFields<TSelectedFields>>, 'where' | 'returning'>;
+	): PgUpdate<TTable, TQueryResult, SelectResultFields<TSelectedFields>>;
 	returning(
-		fields: SelectFields = this.config.table[PgTable.Symbol.Columns],
-	): Omit<PgUpdate<TTable, any>, 'where' | 'returning'> {
+		fields: SelectedFields = this.config.table[Table.Symbol.Columns],
+	): PgUpdate<TTable, any, any> {
 		this.config.returning = orderSelectedFields(fields);
-		return this;
+		return this as PgUpdate<TTable, any>;
 	}
 
 	/** @internal */

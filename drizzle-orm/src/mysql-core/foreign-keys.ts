@@ -1,5 +1,6 @@
-import { AnyMySqlColumn } from './columns';
-import { AnyMySqlTable, MySqlTable } from './table';
+import type { AnyMySqlColumn } from './columns';
+import type { AnyMySqlTable } from './table';
+import { MySqlTable } from './table';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
@@ -10,8 +11,6 @@ export type Reference = () => {
 };
 
 export class ForeignKeyBuilder {
-	declare protected $brand: 'MySqlForeignKeyBuilder';
-
 	/** @internal */
 	reference: Reference;
 
@@ -33,7 +32,7 @@ export class ForeignKeyBuilder {
 	) {
 		this.reference = () => {
 			const { columns, foreignColumns } = config();
-			return { columns, foreignTable: foreignColumns[0]!.table, foreignColumns };
+			return { columns, foreignTable: foreignColumns[0]!.table as AnyMySqlTable, foreignColumns };
 		};
 		if (actions) {
 			this._onUpdate = actions.onUpdate;

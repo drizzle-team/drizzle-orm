@@ -1,5 +1,5 @@
-import { SQL } from '~/sql';
-import { AnySQLiteTable } from './table';
+import type { SQL } from '~/sql';
+import type { AnySQLiteTable } from './table';
 
 export class CheckBuilder {
 	protected brand!: 'SQLiteConstraintBuilder';
@@ -12,7 +12,9 @@ export class CheckBuilder {
 }
 
 export class Check {
-	declare protected $brand: 'SQLiteCheck';
+	declare _: {
+		brand: 'SQLiteCheck';
+	};
 
 	readonly name: string;
 	readonly value: SQL;

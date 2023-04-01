@@ -1,7 +1,6 @@
 <div align='center'>
 <h1>drizzle-zod <a href=''><img alt='npm' src='https://img.shields.io/npm/v/drizzle-zod?label='></a></h1>
 <img alt='npm' src='https://img.shields.io/npm/dm/drizzle-zod'>
-<img alt='zod version' src='https://img.shields.io/npm/dependency-version/drizzle-zod/peer/zod'>
 <img alt='npm bundle size' src='https://img.shields.io/bundlephobia/min/drizzle-zod'>
 <a href='https://discord.gg/yfjTbVXMW4'><img alt='Discord' src='https://img.shields.io/discord/1043890932593987624'></a>
 <img alt='License' src='https://img.shields.io/npm/l/drizzle-zod'>
@@ -9,62 +8,55 @@
 <hr />
 </div>
 
-`drizzle-zod` is a plugin for [Drizzle ORM](https://github.com/drizzle-team/drizzle-orm) that allows you to generate [Zod](https://github.com/colinhacks/zod) schemas from Drizzle ORM schemas.
+`drizzle-zod` is a plugin for [Drizzle ORM](https://github.com/drizzle-team/drizzle-orm) that allows you to generate [Zod](https://zod.dev/) schemas from Drizzle ORM schemas.
 
-| Database    | Insert schema | Select schema |
-|:------------|:-------------:|:-------------:|
-| PostgreSQL  | ✅ | ⏳ |
-| MySQL       | ⏳ | ⏳ |
-| SQLite      | ⏳ | ⏳ |
+| Database   | Insert schema | Select schema |
+|:-----------|:-------------:|:-------------:|
+| PostgreSQL |       ✅       |       ✅       |
+| MySQL      |       ⏳       |       ⏳       |
+| SQLite     |       ✅       |       ✅       |
 
 # Usage
 
 ```ts
 import { pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
-import { createInsertSchema } from 'drizzle-zod/pg';
 
 const users = pgTable('users', {
   id: serial('id').primaryKey(),
   name: text('name').notNull(),
   email: text('email').notNull(),
-  role: text<'admin' | 'user'>('role').notNull(),
+  role: text('role', { enum: ['admin', 'user'] }).notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
-const newUserSchema = createInsertSchema(users);
+// Schema for inserting a user - can be used to validate API requests
+const insertUserSchema = createInsertSchema(users);
 
-// Transform keys to snake case
-const newUserSchema = createInsertSchema(users, 'snake');
+// Schema for selecting a user - can be used to validate API responses
+const selectUserSchema = createSelectSchema(users);
 
-// Transform keys to camel case
-const newUserSchema = createInsertSchema(users, 'camel');
-
-// Override the fields
-const newUserSchema = createInsertSchema(users, {
-  // this is required for runtime validation of text enum types, otherwise z.string() will be used
-  role: z.enum(['admin', 'user']),
+// Overriding the fields
+const insertUserSchema = createInsertSchema(users, {
+  role: z.string(),
 });
 
-// Refine the fields
-const newUserSchema = createInsertSchema(users, (schema) => ({
-  id: schema.id.positive(),
-  email: schema.email.email(),
-  role: z.enum(['admin', 'user']),
-}));
-
-const newUserSchema = createInsertSchema(users, 'snake', (schema) => ({
-  created_at: schema.createdAt.min(new Date()),
-}));
+// Refining the fields - useful if you want to change the fields before they become nullable/optional in the final schema
+const insertUserSchema = createInsertSchema(users, {
+  id: (schema) => schema.id.positive(),
+  email: (schema) => schema.email.email(),
+  role: z.string(),
+});
 
 // Usage
 
-const user = newUserSchema.parse({
+const user = insertUserSchema.parse({
   name: 'John Doe',
   email: 'johndoe@test.com',
   role: 'admin',
 });
 
 // Zod schema type is also inferred from the table schema, so you have full type safety
-const requestSchema = newUserSchema.pick({ name: true, email: true });
+const requestSchema = insertUserSchema.pick({ name: true, email: true });
 ```

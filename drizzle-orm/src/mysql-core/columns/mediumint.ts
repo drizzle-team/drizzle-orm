@@ -1,31 +1,38 @@
-import { ColumnConfig } from '~/column';
-import { ColumnBuilderConfig } from '~/column-builder';
-import { AnyMySqlTable } from '~/mysql-core/table';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { AnyMySqlTable } from '~/mysql-core/table';
+import type { Assume } from '~/utils';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
-export class MySqlMediumIntBuilder extends MySqlColumnBuilderWithAutoIncrement<
-	ColumnBuilderConfig<{
-		data: number;
-		driverParam: number | string;
-	}>
-> {
+export interface MySqlMediumIntBuilderHKT extends ColumnBuilderHKTBase {
+	_type: MySqlMediumIntBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: MySqlMediumIntHKT;
+}
+
+export interface MySqlMediumIntHKT extends ColumnHKTBase {
+	_type: MySqlMediumInt<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type MySqlMediumIntBuilderInitial<TName extends string> = MySqlMediumIntBuilder<{
+	name: TName;
+	data: number;
+	driverParam: number | string;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class MySqlMediumIntBuilder<T extends ColumnBuilderBaseConfig>
+	extends MySqlColumnBuilderWithAutoIncrement<MySqlMediumIntBuilderHKT, T>
+{
 	/** @internal */
-	override build<TTableName extends string>(table: AnyMySqlTable<{ name: TTableName }>): MySqlMediumInt<TTableName> {
-		return new MySqlMediumInt(table, this.config);
+	override build<TTableName extends string>(
+		table: AnyMySqlTable<{ name: TTableName }>,
+	): MySqlMediumInt<MakeColumnConfig<T, TTableName>> {
+		return new MySqlMediumInt<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class MySqlMediumInt<
-	TTableName extends string,
-> extends MySqlColumnWithAutoIncrement<
-	ColumnConfig<{
-		tableName: TTableName;
-		data: number;
-		driverParam: number | string;
-	}>
-> {
-	protected override $mySqlColumnBrand!: 'MySqlMediumInt';
-
+export class MySqlMediumInt<T extends ColumnBaseConfig> extends MySqlColumnWithAutoIncrement<MySqlMediumIntHKT, T> {
 	getSQLType(): string {
 		return 'mediumint';
 	}
@@ -38,6 +45,6 @@ export class MySqlMediumInt<
 	}
 }
 
-export function mediumint(name: string) {
+export function mediumint<TName extends string>(name: TName): MySqlMediumIntBuilderInitial<TName> {
 	return new MySqlMediumIntBuilder(name);
 }

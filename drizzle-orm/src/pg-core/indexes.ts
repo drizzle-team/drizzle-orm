@@ -1,7 +1,7 @@
-import { SQL } from '~/sql';
+import type { SQL } from '~/sql';
 
-import { AnyPgColumn } from './columns';
-import { AnyPgTable } from './table';
+import type { AnyPgColumn } from './columns';
+import type { AnyPgTable } from './table';
 
 interface IndexConfig {
 	name?: string;
@@ -65,8 +65,6 @@ export interface AnyIndexBuilder {
 export interface IndexBuilder extends AnyIndexBuilder {}
 
 export class IndexBuilder implements AnyIndexBuilder {
-	declare protected $brand: 'PgIndexBuilder';
-
 	/** @internal */
 	config: IndexConfig;
 
@@ -121,8 +119,6 @@ export class IndexBuilder implements AnyIndexBuilder {
 }
 
 export class Index {
-	declare protected $brand: 'PgIndex';
-
 	readonly config: IndexConfig & { table: AnyPgTable };
 
 	constructor(config: IndexConfig, table: AnyPgTable) {
@@ -130,10 +126,8 @@ export class Index {
 	}
 }
 
-export type GetColumnsTableName<TColumns> = TColumns extends
-	AnyPgColumn<{ tableName: infer TTableName extends string }> | AnyPgColumn<
-		{ tableName: infer TTableName extends string }
-	>[] ? TTableName
+export type GetColumnsTableName<TColumns> = TColumns extends AnyPgColumn ? TColumns['_']['name']
+	: TColumns extends AnyPgColumn[] ? TColumns[number]['_']['name']
 	: never;
 
 export function index(name?: string): IndexBuilderOn {

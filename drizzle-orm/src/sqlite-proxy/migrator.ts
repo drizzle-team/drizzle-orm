@@ -1,6 +1,7 @@
-import { MigrationConfig, readMigrationFiles } from '~/migrator';
+import type { MigrationConfig} from '~/migrator';
+import { readMigrationFiles } from '~/migrator';
 import { sql } from '~/sql';
-import { SqliteRemoteDatabase } from './driver';
+import type { SqliteRemoteDatabase } from './driver';
 
 export type ProxyMigrator = (migrationQueries: string[]) => Promise<void>;
 
@@ -25,7 +26,7 @@ export async function migrate(db: SqliteRemoteDatabase, callback: ProxyMigrator,
 		const queriesToRun: string[] = [];
 		for (const migration of migrations) {
 			if (!lastDbMigration || parseInt(lastDbMigration[2], 10)! < migration.folderMillis) {
-				queriesToRun.push(migration.sql);
+				queriesToRun.push(...migration.sql);
 				queriesToRun.push(
 					`INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES('${migration.hash}', '${migration.folderMillis}')`,
 				);

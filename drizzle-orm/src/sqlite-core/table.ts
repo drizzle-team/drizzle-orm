@@ -1,14 +1,10 @@
-import { GetColumnData } from '~/column';
-import { OptionalKeyOnly, RequiredKeyOnly } from '~/operations';
-import { Table } from '~/table';
-import { Update } from '~/utils';
-import { Simplify } from '~/utils';
-
-import { Check, CheckBuilder } from './checks';
-import { AnySQLiteColumn, AnySQLiteColumnBuilder, BuildColumns } from './columns/common';
-import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
-import { Index, IndexBuilder } from './indexes';
-import { PrimaryKey, PrimaryKeyBuilder } from './primary-keys';
+import type { BuildColumns } from '~/column-builder';
+import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table';
+import type { CheckBuilder } from './checks';
+import type { AnySQLiteColumn, AnySQLiteColumnBuilder } from './columns/common';
+import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
+import type { IndexBuilder } from './indexes';
+import type { PrimaryKeyBuilder } from './primary-keys';
 
 export type SQLiteTableExtraConfig = Record<
 	string,
@@ -17,12 +13,7 @@ export type SQLiteTableExtraConfig = Record<
 	| ForeignKeyBuilder
 	| PrimaryKeyBuilder
 >;
-export interface TableConfig {
-	name: string;
-	columns: Record<string, AnySQLiteColumn>;
-}
-
-export type UpdateTableConfig<T extends TableConfig, TUpdate extends Partial<TableConfig>> = Update<T, TUpdate>;
+export type TableConfig = TableConfigBase<AnySQLiteColumn>;
 
 /** @internal */
 export const InlineForeignKeys = Symbol('InlineForeignKeys');
@@ -30,11 +21,9 @@ export const InlineForeignKeys = Symbol('InlineForeignKeys');
 /** @internal */
 export const ExtraConfigBuilder = Symbol('ExtraConfigBuilder');
 
-export class SQLiteTable<T extends Partial<TableConfig>> extends Table<T['name']> {
-	declare protected $columns: T['columns'];
-
+export class SQLiteTable<T extends TableConfig> extends Table<T> {
 	/** @internal */
-	static override readonly Symbol = Object.assign(Table.Symbol, {
+	static override readonly Symbol = Object.assign({}, Table.Symbol, {
 		InlineForeignKeys: InlineForeignKeys as typeof InlineForeignKeys,
 		ExtraConfigBuilder: ExtraConfigBuilder as typeof ExtraConfigBuilder,
 	});
@@ -47,13 +36,11 @@ export class SQLiteTable<T extends Partial<TableConfig>> extends Table<T['name']
 
 	/** @internal */
 	[ExtraConfigBuilder]: ((self: Record<string, AnySQLiteColumn>) => SQLiteTableExtraConfig) | undefined = undefined;
-
-	override toString(): T['name'] {
-		return this[Table.Symbol.Name]!;
-	}
 }
 
-export type AnySQLiteTable<TPartial extends Partial<TableConfig> = {}> = SQLiteTable<Update<TableConfig, TPartial>>;
+export type AnySQLiteTable<TPartial extends Partial<TableConfig> = {}> = SQLiteTable<
+	UpdateTableConfig<TableConfig, TPartial>
+>;
 
 export type SQLiteTableWithColumns<T extends TableConfig> =
 	& SQLiteTable<T>
@@ -61,57 +48,21 @@ export type SQLiteTableWithColumns<T extends TableConfig> =
 		[Key in keyof T['columns']]: T['columns'][Key];
 	};
 
-/**
- * See `GetColumnConfig`.
- */
-export type GetTableConfig<T extends AnySQLiteTable, TParam extends keyof TableConfig | undefined = undefined> =
-	T extends SQLiteTableWithColumns<infer TConfig>
-		? TParam extends undefined ? TConfig : TParam extends keyof TConfig ? TConfig[TParam] : TConfig
-		: never;
-
-export type InferModel<
-	TTable extends AnySQLiteTable,
-	TInferMode extends 'select' | 'insert' = 'select',
-> = TInferMode extends 'insert' ? Simplify<
-		& {
-			[
-				Key in keyof GetTableConfig<TTable, 'columns'> & string as RequiredKeyOnly<
-					Key,
-					GetTableConfig<TTable, 'columns'>[Key]
-				>
-			]: GetColumnData<GetTableConfig<TTable, 'columns'>[Key], 'query'>;
-		}
-		& {
-			[
-				Key in keyof GetTableConfig<TTable, 'columns'> & string as OptionalKeyOnly<
-					Key,
-					GetTableConfig<TTable, 'columns'>[Key]
-				>
-			]?: GetColumnData<GetTableConfig<TTable, 'columns'>[Key], 'query'>;
-		}
-	>
-	: {
-		[Key in keyof GetTableConfig<TTable, 'columns'>]: GetColumnData<
-			GetTableConfig<TTable, 'columns'>[Key],
-			'query'
-		>;
-	};
-
-export interface SQLiteTableConfig<TName extends string> {
-	name: TName;
-	temporary?: boolean;
-}
-
-export function sqliteTable<TTableName extends string, TColumnsMap extends Record<string, AnySQLiteColumnBuilder>>(
+export function sqliteTable<
+	TTableName extends string,
+	TColumnsMap extends Record<string, AnySQLiteColumnBuilder>,
+>(
 	name: TTableName,
 	columns: TColumnsMap,
 	extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => SQLiteTableExtraConfig,
 ): SQLiteTableWithColumns<{
 	name: TTableName;
+	schema: undefined;
 	columns: BuildColumns<TTableName, TColumnsMap>;
 }> {
 	const rawTable = new SQLiteTable<{
 		name: TTableName;
+		schema: undefined;
 		columns: BuildColumns<TTableName, TColumnsMap>;
 	}>(name);
 
@@ -121,7 +72,7 @@ export function sqliteTable<TTableName extends string, TColumnsMap extends Recor
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
 		}),
-	) as BuildColumns<TTableName, TColumnsMap>;
+	) as unknown as BuildColumns<TTableName, TColumnsMap>;
 
 	const table = Object.assign(rawTable, builtColumns);
 
@@ -134,4 +85,11 @@ export function sqliteTable<TTableName extends string, TColumnsMap extends Recor
 	}
 
 	return table;
+}
+
+export function sqliteTableCreator(customizeTableName: (name: string) => string): typeof sqliteTable {
+	const builder: typeof sqliteTable = (name, columns, extraConfig) => {
+		return sqliteTable(customizeTableName(name) as typeof name, columns, extraConfig);
+	};
+	return builder;
 }

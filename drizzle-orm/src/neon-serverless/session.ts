@@ -1,4 +1,4 @@
-import {
+import type {
 	Client,
 	Pool,
 	PoolClient,
@@ -7,12 +7,15 @@ import {
 	QueryResult,
 	QueryResultRow,
 } from '@neondatabase/serverless';
-import { Logger, NoopLogger } from '~/logger';
-import { PgDialect } from '~/pg-core/dialect';
-import { SelectFieldsOrdered } from '~/pg-core/query-builders/select.types';
-import { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
-import { fillPlaceholders, Query } from '~/sql';
-import { Assume } from '~/utils';
+import type { Logger } from '~/logger';
+import { NoopLogger } from '~/logger';
+import type { PgDialect } from '~/pg-core/dialect';
+import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
+import type { PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
+import { PgSession, PreparedQuery } from '~/pg-core/session';
+import type { Query } from '~/sql';
+import { fillPlaceholders } from '~/sql';
+import type { Assume } from '~/utils';
 import { mapResultRow } from '~/utils';
 
 export type NeonClient = Pool | PoolClient | Client;
@@ -26,7 +29,7 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PreparedQu
 		queryString: string,
 		private params: unknown[],
 		private logger: Logger,
-		private fields: SelectFieldsOrdered | undefined,
+		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 	) {
 		super();
@@ -89,7 +92,7 @@ export class NeonSession extends PgSession {
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		fields: SelectFieldsOrdered | undefined,
+		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 	): PreparedQuery<T> {
 		return new NeonPreparedQuery(this.client, query.sql, query.params, this.logger, fields, name);

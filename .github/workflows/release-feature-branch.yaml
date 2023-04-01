@@ -32,8 +32,7 @@ jobs:
       - name: Build (for fork PRs only)
         if: github.event_name == 'pull_request'
         run: |
-          # TODO: replace with a single pnpm script (move check:examples to turbo)
-          pnpm turbo run build test:types --color --filter ${{ matrix.package }} && pnpm check:examples
+          pnpm build --filter ${{ matrix.package }}
 
       - name: Build & publish
         if: github.event_name == 'push'

@@ -1,29 +1,37 @@
-import { ColumnConfig } from '~/column';
-import { ColumnBuilderConfig } from '~/column-builder';
-import { AnyPgTable } from '~/pg-core/table';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { AnyPgTable } from '~/pg-core/table';
+import type { Assume } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgJsonbBuilder<TData>
-	extends PgColumnBuilder<ColumnBuilderConfig<{ data: TData; driverParam: TData | string }>>
-{
-	protected override $pgColumnBuilderBrand!: 'PgJsonbBuilder';
+export interface PgJsonbBuilderHKT extends ColumnBuilderHKTBase {
+	_type: PgJsonbBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: PgJsonbHKT;
+}
 
-	constructor(name: string) {
-		super(name);
-	}
+export interface PgJsonbHKT extends ColumnHKTBase {
+	_type: PgJsonb<Assume<this['config'], ColumnBaseConfig>>;
+}
 
+export type PgJsonbBuilderInitial<TName extends string> = PgJsonbBuilder<{
+	name: TName;
+	data: unknown;
+	driverParam: unknown;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class PgJsonbBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgJsonbBuilderHKT, T> {
 	/** @internal */
-	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgJsonb<TTableName, TData> {
-		return new PgJsonb(table, this.config);
+	override build<TTableName extends string>(
+		table: AnyPgTable<{ name: TTableName }>,
+	): PgJsonb<MakeColumnConfig<T, TTableName>> {
+		return new PgJsonb<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class PgJsonb<TTableName extends string, TData>
-	extends PgColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: TData | string }>>
-{
-	protected override $pgColumnBrand!: 'PgJsonb';
-
-	constructor(table: AnyPgTable<{ name: TTableName }>, config: PgJsonbBuilder<TData>['config']) {
+export class PgJsonb<T extends ColumnBaseConfig> extends PgColumn<PgJsonbHKT, T> {
+	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgJsonbBuilder<T>['config']) {
 		super(table, config);
 	}
 
@@ -31,22 +39,22 @@ export class PgJsonb<TTableName extends string, TData>
 		return 'jsonb';
 	}
 
-	override mapToDriverValue(value: TData): string {
+	override mapToDriverValue(value: T['data']): string {
 		return JSON.stringify(value);
 	}
 
-	override mapFromDriverValue(value: TData | string): TData {
+	override mapFromDriverValue(value: T['data'] | string): T['data'] {
 		if (typeof value === 'string') {
 			try {
 				return JSON.parse(value);
 			} catch (e) {
-				return value as TData;
+				return value as T['data'];
 			}
 		}
 		return value;
 	}
 }
 
-export function jsonb<TData = any>(name: string): PgJsonbBuilder<TData> {
+export function jsonb<TName extends string>(name: TName): PgJsonbBuilderInitial<TName> {
 	return new PgJsonbBuilder(name);
 }

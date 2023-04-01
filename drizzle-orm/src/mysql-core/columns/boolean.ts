@@ -1,25 +1,38 @@
-import { ColumnConfig } from '~/column';
-import { ColumnBuilderConfig } from '~/column-builder';
-import { AnyMySqlTable } from '~/mysql-core/table';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { AnyMySqlTable } from '~/mysql-core/table';
+import type { Assume } from '~/utils';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
-export class MySqlBooleanBuilder extends MySqlColumnBuilder<
-	ColumnBuilderConfig<{
-		data: boolean;
-		driverParam: number | boolean;
-	}>
-> {
+export interface MySqlBooleanBuilderHKT extends ColumnBuilderHKTBase {
+	_type: MySqlBooleanBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: MySqlBooleanHKT;
+}
+
+export interface MySqlBooleanHKT extends ColumnHKTBase {
+	_type: MySqlBoolean<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type MySqlBooleanBuilderInitial<TName extends string> = MySqlBooleanBuilder<{
+	name: TName;
+	data: boolean;
+	driverParam: number | boolean;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class MySqlBooleanBuilder<T extends ColumnBuilderBaseConfig>
+	extends MySqlColumnBuilder<MySqlBooleanBuilderHKT, T>
+{
 	/** @internal */
-	override build<TTableName extends string>(table: AnyMySqlTable<{ name: TTableName }>): MySqlBoolean<TTableName> {
-		return new MySqlBoolean(table, this.config);
+	override build<TTableName extends string>(
+		table: AnyMySqlTable<{ name: TTableName }>,
+	): MySqlBoolean<MakeColumnConfig<T, TTableName>> {
+		return new MySqlBoolean<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class MySqlBoolean<TTableName extends string>
-	extends MySqlColumn<ColumnConfig<{ tableName: TTableName; data: boolean; driverParam: number | boolean }>>
-{
-	protected override $mySqlColumnBrand!: 'MySqlBoolean';
-
+export class MySqlBoolean<T extends ColumnBaseConfig> extends MySqlColumn<MySqlBooleanHKT, T> {
 	getSQLType(): string {
 		return 'boolean';
 	}
@@ -32,6 +45,6 @@ export class MySqlBoolean<TTableName extends string>
 	}
 }
 
-export function boolean(name: string) {
+export function boolean<TName extends string>(name: TName): MySqlBooleanBuilderInitial<TName> {
 	return new MySqlBooleanBuilder(name);
 }

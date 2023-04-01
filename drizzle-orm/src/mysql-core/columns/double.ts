@@ -1,48 +1,48 @@
-import { ColumnConfig } from '~/column';
-import { ColumnBuilderConfig } from '~/column-builder';
-import { AnyMySqlTable } from '~/mysql-core/table';
-import { MySqlColumn, MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { AnyMySqlTable } from '~/mysql-core/table';
+import type { Assume } from '~/utils';
+import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
-export class MySqlDoubleBuilder extends MySqlColumnBuilderWithAutoIncrement<
-	ColumnBuilderConfig<{
-		data: number;
-		driverParam: number | string;
-	}>,
-	{ precision: number | undefined; scale: number | undefined }
-> {
-	constructor(name: string, precision?: number, scale?: number) {
+export interface MySqlDoubleBuilderHKT extends ColumnBuilderHKTBase {
+	_type: MySqlDoubleBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: MySqlDoubleHKT;
+}
+
+export interface MySqlDoubleHKT extends ColumnHKTBase {
+	_type: MySqlDouble<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type MySqlDoubleBuilderInitial<TName extends string> = MySqlDoubleBuilder<{
+	name: TName;
+	data: number;
+	driverParam: number | string;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class MySqlDoubleBuilder<T extends ColumnBuilderBaseConfig>
+	extends MySqlColumnBuilderWithAutoIncrement<MySqlDoubleBuilderHKT, T, MySqlDoubleConfig>
+{
+	constructor(name: T['name'], config: MySqlDoubleConfig | undefined) {
 		super(name);
-		this.config.precision = precision;
-		this.config.scale = scale;
+		this.config.precision = config?.precision;
+		this.config.scale = config?.scale;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlDouble<TTableName> {
-		return new MySqlDouble(table, this.config);
+	): MySqlDouble<MakeColumnConfig<T, TTableName>> {
+		return new MySqlDouble<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class MySqlDouble<
-	TTableName extends string,
-> extends MySqlColumnWithAutoIncrement<
-	ColumnConfig<{
-		tableName: TTableName;
-		data: number;
-		driverParam: number | string;
-	}>
-> {
-	protected override $mySqlColumnBrand!: 'MySqlDouble';
-
-	precision: number | undefined;
-	scale: number | undefined;
-
-	constructor(table: AnyMySqlTable<{ name: TTableName }>, config: MySqlDoubleBuilder['config']) {
-		super(table, config);
-		this.precision = config.precision;
-		this.scale = config.scale;
-	}
+export class MySqlDouble<T extends ColumnBaseConfig>
+	extends MySqlColumnWithAutoIncrement<MySqlDoubleHKT, T, MySqlDoubleConfig>
+{
+	precision: number | undefined = this.config.precision;
+	scale: number | undefined = this.config.scale;
 
 	getSQLType(): string {
 		// return 'double';
@@ -61,6 +61,9 @@ export interface MySqlDoubleConfig {
 	scale?: number;
 }
 
-export function double(name: string, config?: MySqlDoubleConfig): MySqlDoubleBuilder {
-	return new MySqlDoubleBuilder(name, config?.precision, config?.scale);
+export function double<TName extends string>(
+	name: TName,
+	config?: MySqlDoubleConfig,
+): MySqlDoubleBuilderInitial<TName> {
+	return new MySqlDoubleBuilder(name, config);
 }

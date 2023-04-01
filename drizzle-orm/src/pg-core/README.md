@@ -10,12 +10,12 @@
 
 Drizzle ORM is a TypeScript ORM for SQL databases designed with maximum type safety in mind. It comes with a [drizzle-kit](https://github.com/drizzle-team/drizzle-kit-mirror) CLI companion for automatic SQL migrations generation. This is the documentation for Drizzle ORM version for PostgreSQL.
 
-| Driver | Support | | Driver version |
-| :- | :-: | :-: | :-: |
-| [node-postgres](https://github.com/brianc/node-postgres) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/pg'> |
-| [postgres.js](https://github.com/porsager/postgres) | ✅ | [Docs](/drizzle-orm/src/postgres-js/README.md) | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/postgres'> |
-| [NeonDB Serverless](https://github.com/neondatabase/serverless) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/@neondatabase/serverless'> |
-| [AWS Data API](https://github.com/aws/aws-sdk-js-v3/blob/main/clients/client-rds-data/README.md) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/@aws-sdk/client-rds-data'>
+| Driver                                                                                           | Support |                                                |
+|:-------------------------------------------------------------------------------------------------|:-------:|:----------------------------------------------:|
+| [node-postgres](https://github.com/brianc/node-postgres)                                         |    ✅    |                                                |
+| [postgres.js](https://github.com/porsager/postgres)                                              |    ✅    | [Docs](/drizzle-orm/src/postgres-js/README.md) |
+| [NeonDB Serverless](https://github.com/neondatabase/serverless)                                  |    ✅    |                                                |
+| [AWS Data API](https://github.com/aws/aws-sdk-js-v3/blob/main/clients/client-rds-data/README.md) |    ✅    |                                                |
 
 ## Installation
 
@@ -75,6 +75,27 @@ export const users = pgTable('users', {
   phone: varchar('phone', { length: 256 }),
 });
 ```
+
+### Using Drizzle ORM in Next.js app router
+In order to use Drizzle ORM in the Next.js new app router mode you have to add `pg` dependendency to the `experimental.serverComponentsExternalPackages` array in `next.config.js` config file.
+
+Example `next.config.js` should look like this:
+```ts
+/** @type {import("next").NextConfig} */
+const config = {
+  reactStrictMode: true,
+  experimental: {
+    appDir: true,
+    serverComponentsExternalPackages: ["pg"],
+  },
+}
+export default config
+```
+
+More details about `serverComponentsExternalPackages` can be found in the [Next.js beta docs](https://beta.nextjs.org/docs/api-reference/next-config#servercomponentsexternalpackages).
+
+> **Note**: New next.js beta docs changes frequently so if the link above doesn't work try this one: [Next.js beta docs](https://beta.nextjs.org/docs/api-reference/next-config.js#servercomponentsexternalpackages).
+
 
 ### Connect using node-postgres Pool (recommended)
 
@@ -151,7 +172,7 @@ const db = drizzle(rdsClient, {
 This is how you declare SQL schema in `schema.ts`. You can declare tables, indexes and constraints, foreign keys and enums. Please pay attention to `export` keyword, they are mandatory if you'll be using [drizzle-kit SQL migrations generator](#migrations).
 
 ```typescript
-import { pgEnum, pgTable, serial, uniqueIndex, varchar } from 'drizzle-orm/pg-core';
+import { pgEnum, pgTable, serial, integer, uniqueIndex, varchar } from 'drizzle-orm/pg-core';
 
 // declaring enum in database
 export const popularityEnum = pgEnum('popularity', ['unknown', 'known', 'popular']);
@@ -176,7 +197,8 @@ export const cities = pgTable('cities', {
 ### Database and table entity types
 
 ```typescript
-import { pgTable, InferModel, serial, text, varchar } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, varchar } from 'drizzle-orm/pg-core';
+import { InferModel } from 'drizzle-orm';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 const users = pgTable('users', {
@@ -260,23 +282,40 @@ index('name')
   .where(sql``) // sql expression
 ```
 
+### Customizing the table name
+
+There is a "table creator" available, which allow you to customize the table name, for example, to add a prefix or suffix. This is useful if you need to have tables for different environments or applications in the same database.
+
+> **Note:**: this feature should only be used to customize the table name. If you need to put the table into a different schema, refer to the [Table schemas](#table-schemas) section.
+
+```ts
+import { pgTableCreator } from 'drizzle-orm/pg-core';
+
+const pgTable = pgTableCreator((name) => `myprefix_${name}`);
+
+const users = pgTable('users', {
+  id: int('id').primaryKey(),
+  name: text('name').notNull(),
+});
+```
+
 ## Column types
 
-The list of all column types. You can also create custom types - [see here](https://github.com/drizzle-team/drizzle-orm/blob/main/docs/custom-types.md).
+The list of all column types. You can also create custom types - [see here](/docs/custom-types.md).
 
 ```typescript
 export const popularityEnum = pgEnum('popularity', ['unknown', 'known', 'popular']); // declare enum type
-popularityEnum('column_name') // declare enum column
+popularityEnum('column_name'); // declare enum column
 
-smallint('...')
-integer('...')
-bigint('...', { mode: 'number' | 'bigint' })
+smallint('...');
+integer('...');
+bigint('...', { mode: 'number' | 'bigint' });
 
-boolean('...')
+boolean('...');
 text('...');
-text<'one' | 'two' | 'three'>('...');
+text('...', { enum: ['one', 'two', 'three'] });
 varchar('...');
-varchar<'one' | 'two' | 'three'>('...');
+varchar('...', { enum: ['one', 'two', 'three'] });
 varchar('...', { length: 256 }); // with length limit
 
 serial('...');
@@ -285,29 +324,42 @@ bigserial('...', { mode: 'number' | 'bigint' });
 decimal('...', { precision: 100, scale: 2 });
 numeric('...', { precision: 100, scale: 2 });
 
-real('...')
-doublePrecision('...')
+real('...');
+doublePrecision('...');
 
-json<...>('...');
-json<string[]>('...');
-jsonb<...>('...');
-jsonb<string[]>('...');
+json('...').$type<...>();
+json('...').$type<string[]>();
+jsonb('...').$type<...>();
+jsonb('...').$type<string[]>();
 
-time('...')
-time('...', { precision: 6, withTimezone: true })
-timestamp('...')
-timestamp('...', { mode: 'date' | 'string', precision: 0..6, withTimezone: true })
-timestamp('...').defaultNow()
-date('...')
-date('...', { mode: 'string' | 'date' })
-interval('...')
-interval('...', { fields: 'day' | 'month' | '...' , precision: 0..6 })
+time('...');
+time('...', { precision: 6, withTimezone: true });
+timestamp('...');
+timestamp('...', { mode: 'date' | 'string', precision: 0..6, withTimezone: true });
+timestamp('...').defaultNow();
+date('...');
+date('...', { mode: 'string' | 'date' });
+interval('...');
+interval('...', { fields: 'day' | 'month' | '...' , precision: 0..6 });
 
-column.primaryKey()
-column.notNull()
-column.defaultValue(...)
-timeColumn.defaultNow()
-uuidColumn.defaultRandom()
+column.primaryKey();
+column.notNull();
+column.default(...);
+timeColumn.defaultNow();
+uuidColumn.defaultRandom();
+
+integer('...').array(3).array(4);
+```
+
+### Customizing column data type
+
+Every column builder has a `.$type()` method, which allows you to customize the data type of the column. This is useful, for example, with branded types.
+
+```ts
+const users = pgTable('users', {
+  id: serial('id').$type<UserId>().primaryKey(),
+  jsonField: json('json_field').$type<Data>(),
+});
 ```
 
 ## Table schemas
@@ -337,7 +389,7 @@ const publicUsersTable = pgTable('users', {
 // Table in custom schema
 const mySchema = pgSchema('mySchema');
 
-const usersTable = mySchema('users', {
+const usersTable = mySchema.table('users', {
   id: serial('id').primaryKey(),
   name: text('name').notNull(),
   verified: boolean('verified').notNull().default(false),
@@ -355,7 +407,7 @@ Querying, sorting and filtering. We also support partial select.
 ```typescript
 ...
 import { pgTable, serial, text, varchar } from 'drizzle-orm/pg-core';
-import { drizzle } from 'drizzle-orm/node-postgres';;
+import { drizzle } from 'drizzle-orm/node-postgres';
 import { and, asc, desc, eq, or } from 'drizzle-orm/expressions';
 
 const users = pgTable('users', {
@@ -388,6 +440,20 @@ await db.select().from(users).orderBy(desc(users.name));
 await db.select().from(users).orderBy(asc(users.name), desc(users.name));
 ```
 
+#### Select from/join raw SQL
+
+```typescript
+await db.select({ x: sql<number>`x` }).from(sql`generate_series(2, 4) as g(x)`);
+
+await db
+  .select({
+    x1: sql<number>`g1.x`,
+    x2: sql<number>`g2.x`
+  })
+  .from(sql`generate_series(2, 4) as g1(x)`)
+  .leftJoin(sql`generate_series(2, 4) as g2(x)`);
+```
+
 #### Conditionally select fields
 
 ```typescript
@@ -406,25 +472,15 @@ const users = await selectUsers(true);
 #### WITH clause
 
 ```typescript
-const sq = db.select().from(users).where(eq(users.id, 42)).prepareWithSubquery('sq');
+const sq = db.$with('sq').as(db.select().from(users).where(eq(users.id, 42)));
 const result = await db.with(sq).select().from(sq);
 ```
 
-> **Note**: Keep in mind, that if you need to select raw `sql` in a WITH subquery and reference that field in other queries, you must add an alias to it:
+> **Note**: Keep in mind that if you need to select raw `sql` in a WITH subquery and reference that field in other queries, you must add an alias to it:
 
 ```typescript
-const sq = db
-  .select({
-    name: sql<string>`upper(${users.name})`.as('name'),
-  })
-  .from(users)
-  .prepareWithSubquery('sq');
-
-const result = await db
-  .select({
-    name: sq.name,
-  })
-  .from(sq);
+const sq = db.$with('sq').as(db.select({ name: sql<string>`upper(${users.name})`.as('name') }).from(users));
+const result = await db.with(sq).select({ name: sq.name }).from(sq);
 ```
 
 Otherwise, the field type will become `DrizzleTypeError` and you won't be able to reference it in other queries. If you ignore the type error and still try to reference the field, you will get a runtime error, because we cannot reference that field without an alias.
@@ -433,13 +489,13 @@ Otherwise, the field type will become `DrizzleTypeError` and you won't be able t
 
 ```typescript
 const sq = db.select().from(users).where(eq(users.id, 42)).as('sq');
-await db.select().from(sq);
+const result = await db.select().from(sq);
 ```
 
 Subqueries in joins are supported, too:
 
 ```typescript
-await db.select().from(users).leftJoin(sq, eq(users.id, sq.id));
+const result = await db.select().from(users).leftJoin(sq, eq(users.id, sq.id));
 ```
 
 #### List of all filter operators
@@ -450,7 +506,6 @@ eq(column1, column2)
 ne(column, value)
 ne(column1, column2)
 
-notEq(column, value)
 less(column, value)
 lessEq(column, value)
 
@@ -491,8 +546,9 @@ or(...expressions: SQL[])
 ### Insert
 
 ```typescript
-import { pgTable, serial, text, timestamp, InferModel } from 'drizzle-orm/pg-core';
-import { drizzle } from 'drizzle-orm/node-postgres';;
+import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { InferModel } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/node-postgres';
 
 const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -504,13 +560,23 @@ type NewUser = InferModel<typeof users>;
 
 const db = drizzle(...);
 
-await db.insert(users)
-  .values({
-    name: 'Andrew',
-    createdAt: new Date(),
-  });
+const newUser: NewUser = {
+  name: 'Andrew',
+  createdAt: new Date(),
+};
 
-// accepts vararg of items
+await db.insert(users).values(newUser);
+
+const insertedUsers/*: NewUser[]*/ = await db.insert(users).values(newUsers).returning();
+
+const insertedUsersIds/*: { insertedId: number }[]*/ = await db.insert(users)
+  .values(newUsers)
+  .returning({ insertedId: users.id });
+```
+
+#### Insert several items
+
+```ts
 await db.insert(users)
   .values(
     {
@@ -522,7 +588,11 @@ await db.insert(users)
       createdAt: new Date(),
     },
   );
+```
 
+#### Insert array of items
+
+```ts
 const newUsers: NewUser[] = [
   {
       name: 'Andrew',
@@ -534,13 +604,7 @@ const newUsers: NewUser[] = [
   },
 ];
 
-await db.insert(users).values(...newUsers);
-
-const insertedUsers: NewUser[] = await db.insert(users).values(...newUsers).returning();
-
-const insertedUsersIds: { insertedId: number }[] = await db.insert(users)
-    .values(...newUsers)
-    .returning({ insertedId: users.id });
+await db.insert(users).values(newUsers);
 ```
 
 ### Upsert (Insert with on conflict statement)
@@ -597,8 +661,6 @@ const deletedUserId: { deletedId: number }[] = await db.delete(users)
 ```
 
 ### Joins
-
-Last but not least. Probably the most powerful feature in the library🚀
 
 > **Note**: for in-depth partial select joins documentation, refer to [this page](/docs/joins.md).
 
@@ -689,6 +751,143 @@ const result2 = await db.select({
 }).from(cities).leftJoin(users, eq(users.cityId, cities.id));
 ```
 
+## Query builder
+
+Drizzle ORM provides a standalone query builder that allows you to build queries without creating a database instance.
+
+```ts
+import { queryBuilder as qb } from 'drizzle-orm/pg-core';
+
+const query = qb.select().from(users).where(eq(users.name, 'Dan'));
+const { sql, params } = query.toSQL();
+```
+
+## Views (WIP)
+
+> **Warning**: views are currently only implemented on the ORM side. That means you can query the views that already exist in the database, but they won't be added to drizzle-kit migrations or `db push` yet.
+
+There are two types of views in PostgreSQL: [regular](https://www.postgresql.org/docs/current/sql-createview.html) and [materialized](https://www.postgresql.org/docs/current/sql-creatematerializedview.html).
+
+### Creating a view
+
+```ts
+import { pgView } from 'drizzle-orm/pg-core';
+
+// regular view
+const newYorkers = pgView('new_yorkers').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
+
+// materialized view
+const newYorkers = pgMaterializedView('new_yorkers').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
+```
+
+#### Full view definition syntax
+
+```ts
+// regular view
+const newYorkers = pgView('new_yorkers')
+  .with({
+    checkOption: 'cascaded',
+    securityBarrier: true,
+    securityInvoker: true,
+  })
+  .as((qb) => {
+    const sq = qb
+      .$with('sq')
+      .as(
+        qb.select({ userId: users.id, cityId: cities.id })
+          .from(users)
+          .leftJoin(cities, eq(cities.id, users.homeCity))
+          .where(sql`${users.age1} > 18`),
+      );
+    return qb.with(sq).select().from(sq).where(sql`${users.homeCity} = 1`);
+  });
+
+// materialized view
+const newYorkers2 = pgMaterializedView('new_yorkers')
+  .using('btree')
+  .with({
+    fillfactor: 90,
+    toast_tuple_target: 0.5,
+    autovacuum_enabled: true,
+    ...
+  })
+  .tablespace('custom_tablespace')
+  .withNoData()
+  .as((qb) => {
+    const sq = qb
+      .$with('sq')
+      .as(
+        qb.select({ userId: users.id, cityId: cities.id })
+          .from(users)
+          .leftJoin(cities, eq(cities.id, users.homeCity))
+          .where(sql`${users.age1} > 18`),
+      );
+    return qb.with(sq).select().from(sq).where(sql`${users.homeCity} = 1`);
+  });
+```
+
+> **Warning**: All the parameters inside the query will be inlined, instead of replaced by `$1`, `$2`, etc.
+
+You can also use the [`queryBuilder` instance](#query-builder) directly instead of passing a callback, if you already have it imported.
+
+```ts
+import { queryBuilder as qb } from 'drizzle-orm/pg-core';
+
+// regular view
+const newYorkers = pgView('new_yorkers').as(qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
+
+// materialized view
+const newYorkers = pgMaterializedView('new_yorkers').as(qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
+```
+
+### Using raw SQL in a view query
+
+In case you need to specify the view query using a syntax that is not supported by the query builder, you can directly use SQL. In that case, you also need to specify the view shape.
+
+```ts
+// regular view
+const newYorkers = pgView('new_yorkers', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  cityId: integer('city_id').notNull(),
+}).as(sql`select * from ${users} where ${eq(users.cityId, 1)}`);
+
+// materialized view
+const newYorkers = pgMaterializedView('new_yorkers', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  cityId: integer('city_id').notNull(),
+}).as(sql`select * from ${users} where ${eq(users.cityId, 1)}`);
+```
+
+### Describing existing views
+
+There are cases when you are given readonly access to an existing view. In such cases you can just describe the view shape without specifying the query itself or using it in the migrations.
+
+```ts
+// regular view
+const newYorkers = pgView('new_yorkers', {
+  userId: integer('user_id').notNull(),
+  cityId: integer('city_id'),
+}).existing();
+
+// materialized view won't make any difference in this case, but you can still use it for consistency
+const newYorkers = pgMaterializedView('new_yorkers', {
+  userId: integer('user_id').notNull(),
+  cityId: integer('city_id'),
+}).existing();
+```
+
+### Refreshing materialized views
+
+```ts
+await db.refreshMaterializedView(newYorkers);
+
+await db.refreshMaterializedView(newYorkers).concurrently();
+
+await db.refreshMaterializedView(newYorkers).withNoData();
+```
+
 ## Prepared statements
 
 ```typescript
@@ -697,7 +896,7 @@ const query = db.select().from(users).where(eq(users.name, 'Dan')).prepare();
 const result = await query.execute();
 ```
 
-### Prepared statements with parameters
+### Parametrized queries
 
 ```typescript
 import { placeholder } from 'drizzle-orm/pg-core';
@@ -713,7 +912,7 @@ If you have some complex queries to execute and drizzle-orm can't handle them ye
 
 ```typescript
 // it will automatically run a parametrized query!
-const res: QueryResult<{ id: number; name: string }> = await db.execute<
+const res/*: QueryResult<{ id: number; name: string }>*/ = await db.execute<
   { id: number; name: string }
 >(sql`select * from ${users} where ${users.id} = ${userId}`);
 ```
@@ -722,9 +921,9 @@ const res: QueryResult<{ id: number; name: string }> = await db.execute<
 
 ### Automatic SQL migrations generation with drizzle-kit
 
-[DrizzleKit](https://www.npmjs.com/package/drizzle-kit) - is a CLI migrator tool for DrizzleORM. It is probably one and only tool that lets you completely automatically generate SQL migrations and covers ~95% of the common cases like deletions and renames by prompting user input.
+[Drizzle Kit](https://www.npmjs.com/package/drizzle-kit) is a CLI migrator tool for Drizzle ORM. It is probably one and only tool that lets you completely automatically generate SQL migrations and covers ~95% of the common cases like deletions and renames by prompting user input.
 
-Check out the [docs for DrizzleKit](https://github.com/drizzle-team/drizzle-kit-mirror)
+Check out the [docs for Drizzle Kit](https://github.com/drizzle-team/drizzle-kit-mirror)
 
 For schema file:
 
@@ -771,7 +970,7 @@ CREATE INDEX IF NOT EXISTS users_full_name_index ON users (full_name);
 And you can run migrations manually or using our embedded migrations module
 
 ```typescript
-import { drizzle } from 'drizzle-orm/node-postgres';;
+import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { Pool } from 'pg';
 

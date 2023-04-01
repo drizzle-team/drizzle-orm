@@ -11,10 +11,10 @@
 
 Drizzle ORM is a TypeScript ORM for SQL databases designed with maximum type safety in mind. It comes with a [drizzle-kit](https://github.com/drizzle-team/drizzle-kit-mirror) CLI companion for automatic SQL migrations generation. This is the documentation for Drizzle ORM version for MySQL.
 
-| Driver | Support |
-| :- | :-: |
-| [mysql2](https://github.com/sidorares/node-mysql2) | ✅ |
-| [Planetscale Serverless](https://github.com/planetscale/database-js) | ✅ |
+| Driver                                                               | Support |
+|:---------------------------------------------------------------------|:-------:|
+| [mysql2](https://github.com/sidorares/node-mysql2)                   |    ✅    |
+| [Planetscale Serverless](https://github.com/planetscale/database-js) |    ✅    |
 
 ## Installation
 
@@ -71,6 +71,26 @@ export const users = mysqlTable('users', {
   phone: varchar('phone', { length: 256 }),
 });
 ```
+
+### Using Drizzle ORM in Next.js app router
+In order to use Drizzle ORM in the Next.js new app router mode you have to add `mysql2` dependendency to the `experimental.serverComponentsExternalPackages` array in `next.config.js` config file.
+
+Example `next.config.js` should look like this:
+```ts
+/** @type {import("next").NextConfig} */
+const config = {
+  reactStrictMode: true,
+  experimental: {
+    appDir: true,
+    serverComponentsExternalPackages: ["mysql2"],
+  },
+}
+export default config
+```
+
+More details about `serverComponentsExternalPackages` can be found in the [Next.js beta docs](https://beta.nextjs.org/docs/api-reference/next-config#servercomponentsexternalpackages).
+
+> **Note**: New next.js beta docs changes frequently so if the link above doesn't work try this one: [Next.js beta docs](https://beta.nextjs.org/docs/api-reference/next-config.js#servercomponentsexternalpackages).
 
 ### Connect using mysql2 Pool (recommended)
 
@@ -170,9 +190,10 @@ export const cities = mysqlTable('cities', {
 
 ```typescript
 // db.ts
-import { InferModel, MySqlDatabase, MySqlRawQueryResult, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
+import { MySqlDatabase, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
+import { InferModel } from 'drizzle-orm';
 import mysql from 'mysql2/promise';
-import { drizzle } from 'drizzle-orm/mysql2';
+import { drizzle, MySqlRawQueryResult } from 'drizzle-orm/mysql2';
 
 const users = mysqlTable('users', {
   id: serial('id').primaryKey(),
@@ -263,6 +284,23 @@ index('name_idx')
     .algorythm('default' | 'inplace' | 'copy')
 ```
 
+### Customizing the table name
+
+There are "table creators" available for each dialect, which allow you to customize the table name, for example, to add a prefix or suffix. This is useful if you need to have tables for different environments or applications in the same database.
+
+> **Note:**: this feature should only be used to customize the table name. If you need to put the table into a different schema, refer to the [Table schemas](#table-schemas) section.
+
+```ts
+import { mysqlTableCreator } from 'drizzle-orm/mysql-core';
+
+const mysqlTable = mysqlTableCreator((name) => `myprefix_${name}`);
+
+const users = mysqlTable('users', {
+  id: int('id').primaryKey(),
+  name: text('name').notNull(),
+});
+```
+
 ## Column types
 
 The list of all column types. You can also create custom types - [see here](https://github.com/drizzle-team/drizzle-orm/blob/main/docs/custom-types.md).
@@ -287,8 +325,8 @@ binary('name');
 varbinary('name', { length: 2 });
 
 char('name');
-varchar('name', { length: 2 });
-text('name');
+varchar('name', { length: 2, enum: ['a', 'b'] });
+text('name', { enum: ['a', 'b'] });
 
 boolean('name');
 
@@ -302,9 +340,18 @@ timestamp('...', { mode: 'date' | 'string', fsp: 0..6 })
 timestamp('...').defaultNow()
 
 json('name');
-json<string[]>('name');
+json('name').$type<string[]>();
+```
 
-int('...').array(3).array(4)
+### Customizing column data type
+
+Every column builder has a `.$type()` method, which allows you to customize the data type of the column. This is useful, for example, with branded types.
+
+```ts
+const users = mysqlTable('users', {
+  id: serial('id').$type<UserId>().primaryKey(),
+  jsonField: json('json_field').$type<Data>(),
+});
 ```
 
 ## Table schemas
@@ -385,6 +432,20 @@ await db.select().from(users).orderBy(desc(users.name));
 await db.select().from(users).orderBy(asc(users.name), desc(users.name));
 ```
 
+#### Select from/join raw SQL
+
+```typescript
+await db.select({ x: sql<number>`x` }).from(sql`(select 1) as t(x)`);
+
+await db
+  .select({
+    x1: sql<number>`g1.x`,
+    x2: sql<number>`g2.x`
+  })
+  .from(sql`(select 1) as g1(x)`)
+  .leftJoin(sql`(select 2) as g2(x)`);
+```
+
 #### Conditionally select fields
 
 ```typescript
@@ -403,25 +464,15 @@ const users = await selectUsers(true);
 #### WITH clause
 
 ```typescript
-const sq = db.select().from(users).where(eq(users.id, 42)).prepareWithSubquery('sq');
+const sq = db.$with('sq').as(db.select().from(users).where(eq(users.id, 42)));
 const result = await db.with(sq).select().from(sq);
 ```
 
-> **Note**: Keep in mind, that if you need to select raw `sql` in a WITH subquery and reference that field in other queries, you must add an alias to it:
+> **Note**: Keep in mind that if you need to select raw `sql` in a WITH subquery and reference that field in other queries, you must add an alias to it:
 
 ```typescript
-const sq = db
-  .select({
-    name: sql<string>`upper(${users.name})`.as('name'),
-  })
-  .from(users)
-  .prepareWithSubquery('sq');
-
-const result = await db
-  .select({
-    name: sq.name,
-  })
-  .from(sq);
+const sq = db.$with('sq').as(db.select({ name: sql<string>`upper(${users.name})`.as('name') }).from(users));
+const result = await db.with(sq).select({ name: sq.name }).from(sq);
 ```
 
 Otherwise, the field type will become `DrizzleTypeError` and you won't be able to reference it in other queries. If you ignore the type error and still try to reference the field, you will get a runtime error, because we cannot reference that field without an alias.
@@ -430,13 +481,13 @@ Otherwise, the field type will become `DrizzleTypeError` and you won't be able t
 
 ```typescript
 const sq = db.select().from(users).where(eq(users.id, 42)).as('sq');
-await db.select().from(sq);
+const result = await db.select().from(sq);
 ```
 
 Subqueries in joins are supported, too:
 
 ```typescript
-await db.select().from(users).leftJoin(sq, eq(users.id, sq.id));
+const result = await db.select().from(users).leftJoin(sq, eq(users.id, sq.id));
 ```
 
 #### List of all filter operators
@@ -447,7 +498,6 @@ eq(column1, column2)
 ne(column, value)
 ne(column1, column2)
 
-notEq(column, value)
 less(column, value)
 lessEq(column, value)
 
@@ -489,7 +539,8 @@ or(...expressions: SQL[])
 ### Insert
 
 ```typescript
-import { mysqlTable, serial, text, timestamp, InferModel } from 'drizzle-orm/mysql-core';
+import { mysqlTable, serial, text, timestamp } from 'drizzle-orm/mysql-core';
+import { InferModel } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/mysql2';
 
 const users = mysqlTable('users', {
@@ -502,13 +553,17 @@ type NewUser = InferModel<typeof users>;
 
 const db = drizzle(...);
 
-await db.insert(users)
-  .values({
-    name: 'Andrew',
-    createdAt: new Date(),
-  });
+const newUser: NewUser = {
+  name: 'Andrew',
+  createdAt: new Date(),
+};
 
-// accepts vararg of items
+await db.insert(users).values(newUser);
+```
+
+#### Insert several items
+
+```ts
 await db.insert(users)
   .values(
     {
@@ -520,7 +575,11 @@ await db.insert(users)
       createdAt: new Date(),
     },
   );
+```
 
+#### Insert array of items
+
+```ts
 const newUsers: NewUser[] = [
   {
       name: 'Andrew',
@@ -532,7 +591,7 @@ const newUsers: NewUser[] = [
   },
 ];
 
-await db.insert(users).values(...newUsers);
+await db.insert(users).values(newUsers);
 ```
 
 ### Update and Delete
@@ -547,8 +606,6 @@ await db.delete(users)
 ```
 
 ### Joins
-
-Last but not least. Probably the most powerful feature in the library🚀
 
 > **Note**: for in-depth partial select joins documentation, refer to [this page](/docs/joins.md).
 
@@ -640,6 +697,82 @@ const result2 = await db
   .from(cities).leftJoin(users, eq(users.cityId, cities.id));
 ```
 
+## Query builder
+
+Drizzle ORM provides a standalone query builder that allows you to build queries without creating a database instance.
+
+```ts
+import { queryBuilder as qb } from 'drizzle-orm/mysql-core';
+
+const query = qb.select().from(users).where(eq(users.name, 'Dan'));
+const { sql, params } = query.toSQL();
+```
+
+## Views (WIP)
+
+> **Warning**: views are currently only implemented on the ORM side. That means you can query the views that already exist in the database, but they won't be added to drizzle-kit migrations or `db push` yet.
+
+### Creating a view
+
+```ts
+import { mysqlView } from 'drizzle-orm/mysql-core';
+
+const newYorkers = mysqlView('new_yorkers').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
+```
+
+#### Full view definition syntax
+
+```ts
+const newYorkers = mysqlView('new_yorkers')
+  .algorithm('merge')
+  .definer('root@localhost')
+  .sqlSecurity('definer')
+  .as((qb) => {
+    const sq = qb
+      .$with('sq')
+      .as(
+        qb.select({ userId: users.id, cityId: cities.id })
+          .from(users)
+          .leftJoin(cities, eq(cities.id, users.homeCity))
+          .where(sql`${users.age1} > 18`),
+      );
+    return qb.with(sq).select().from(sq).where(sql`${users.homeCity} = 1`);
+  });
+```
+
+> **Warning**: All the parameters inside the query will be inlined, instead of replaced by `$1`, `$2`, etc.
+
+You can also use the [`queryBuilder` instance](#query-builder) directly instead of passing a callback, if you already have it imported.
+
+```ts
+import { queryBuilder as qb } from 'drizzle-orm/mysql-core';
+
+const newYorkers = mysqlView('new_yorkers').as(qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
+```
+
+### Using raw SQL in a view query
+
+In case you need to specify the view query using a syntax that is not supported by the query builder, you can directly use SQL. In that case, you also need to specify the view shape.
+
+```ts
+const newYorkers = mysqlView('new_yorkers', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  cityId: integer('city_id').notNull(),
+}).as(sql`select * from ${users} where ${eq(users.cityId, 1)}`);
+```
+
+### Describing existing views
+
+There are cases when you are given readonly access to an existing view. In such cases you can just describe the view shape without specifying the query itself or using it in the migrations.
+
+```ts
+const newYorkers = mysqlView('new_yorkers', {
+  userId: integer('user_id').notNull(),
+  cityId: integer('city_id'),
+}).existing();
+```
+
 ## Prepared statements
 
 ```typescript
@@ -673,9 +806,9 @@ const res: MySqlQueryResult<{ id: number; name: string }> = await db.execute<
 
 ### Automatic SQL migrations generation with drizzle-kit
 
-[DrizzleKit](https://www.npmjs.com/package/drizzle-kit) - is a CLI migrator tool for DrizzleORM. It is probably one and only tool that lets you completely automatically generate SQL migrations and covers ~95% of the common cases like deletions and renames by prompting user input.
+[Drizzle Kit](https://www.npmjs.com/package/drizzle-kit) is a CLI migrator tool for Drizzle ORM. It is probably one and only tool that lets you completely automatically generate SQL migrations and covers ~95% of the common cases like deletions and renames by prompting user input.
 
-Check out the [docs for DrizzleKit](https://github.com/drizzle-team/drizzle-kit-mirror)
+Check out the [docs for Drizzle Kit](https://github.com/drizzle-team/drizzle-kit-mirror)
 
 For schema file:
 

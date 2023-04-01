@@ -1,7 +1,9 @@
-import { DefaultLogger, Logger } from '~/logger';
+import type { Logger } from '~/logger';
+import { DefaultLogger } from '~/logger';
 import { PgDatabase } from '~/pg-core/db';
 import { PgDialect } from '~/pg-core/dialect';
-import { AwsDataApiClient, AwsDataApiPgQueryResultHKT, AwsDataApiSession } from './session';
+import type { AwsDataApiClient, AwsDataApiPgQueryResultHKT} from './session';
+import { AwsDataApiSession } from './session';
 
 export interface PgDriverOptions {
 	logger?: Logger;

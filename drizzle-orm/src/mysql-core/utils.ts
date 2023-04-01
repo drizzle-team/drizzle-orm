@@ -1,9 +1,17 @@
 import { Table } from '~/table';
-import { Check, CheckBuilder } from './checks';
-import { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
-import { Index, IndexBuilder } from './indexes';
-import { PrimaryKey, PrimaryKeyBuilder } from './primary-keys';
-import { AnyMySqlTable, MySqlTable } from './table';
+import { ViewBaseConfig } from '~/view';
+import type { Check } from './checks';
+import { CheckBuilder } from './checks';
+import type { ForeignKey } from './foreign-keys';
+import { ForeignKeyBuilder } from './foreign-keys';
+import type { Index } from './indexes';
+import { IndexBuilder } from './indexes';
+import type { PrimaryKey } from './primary-keys';
+import { PrimaryKeyBuilder } from './primary-keys';
+import type { AnyMySqlTable } from './table';
+import { MySqlTable } from './table';
+import type { MySqlView } from './view';
+import { MySqlViewConfig } from './view';
 
 export function getTableConfig(table: AnyMySqlTable) {
 	const columns = Object.values(table[MySqlTable.Symbol.Columns]);
@@ -42,6 +50,12 @@ export function getTableConfig(table: AnyMySqlTable) {
 	};
 }
 
-export function getTableColumns(table: AnyMySqlTable) {
-	return Object.assign({}, table[MySqlTable.Symbol.Columns]);
+export function getViewConfig<
+	TName extends string = string,
+	TExisting extends boolean = boolean,
+>(view: MySqlView<TName, TExisting>) {
+	return {
+		...view[ViewBaseConfig],
+		...view[MySqlViewConfig],
+	};
 }

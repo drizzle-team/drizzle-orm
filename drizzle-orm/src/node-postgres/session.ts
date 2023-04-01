@@ -1,11 +1,14 @@
-import { Client, Pool, PoolClient, QueryArrayConfig, QueryConfig, QueryResult, QueryResultRow } from 'pg';
-import { Logger, NoopLogger } from '~/logger';
-import { PgDialect } from '~/pg-core/dialect';
-import { SelectFieldsOrdered } from '~/pg-core/query-builders/select.types';
-import { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
-import { fillPlaceholders, Query } from '~/sql';
+import type { Client, Pool, PoolClient, QueryArrayConfig, QueryConfig, QueryResult, QueryResultRow } from 'pg';
+import type { Logger } from '~/logger';
+import { NoopLogger } from '~/logger';
+import type { PgDialect } from '~/pg-core/dialect';
+import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
+import type { PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
+import { PgSession, PreparedQuery } from '~/pg-core/session';
+import type { Query } from '~/sql';
+import { fillPlaceholders } from '~/sql';
 import { mapResultRow } from '~/utils';
-import { Assume } from '~/utils';
+import type { Assume } from '~/utils';
 
 export type NodePgClient = Pool | PoolClient | Client;
 
@@ -18,7 +21,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 		queryString: string,
 		private params: unknown[],
 		private logger: Logger,
-		private fields: SelectFieldsOrdered | undefined,
+		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 	) {
 		super();
@@ -81,7 +84,7 @@ export class NodePgSession extends PgSession {
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		fields: SelectFieldsOrdered | undefined,
+		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 	): PreparedQuery<T> {
 		return new NodePgPreparedQuery(this.client, query.sql, query.params, this.logger, fields, name);

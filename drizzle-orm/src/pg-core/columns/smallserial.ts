@@ -1,14 +1,29 @@
-import { AnyPgTable } from '~/pg-core/table';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { AnyPgTable } from '~/pg-core/table';
+import type { Assume } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgSmallSerialBuilder extends PgColumnBuilder<{
+export interface PgSmallSerialBuilderHKT extends ColumnBuilderHKTBase {
+	_type: PgSmallSerialBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: PgSmallSerialHKT;
+}
+
+export interface PgSmallSerialHKT extends ColumnHKTBase {
+	_type: PgSmallSerial<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type PgSmallSerialBuilderInitial<TName extends string> = PgSmallSerialBuilder<{
+	name: TName;
 	data: number;
 	driverParam: number;
-	notNull: true;
-	hasDefault: true;
-}> {
-	protected override $pgColumnBuilderBrand!: 'PgSmallSerialBuilder';
+	notNull: false;
+	hasDefault: false;
+}>;
 
+export class PgSmallSerialBuilder<T extends ColumnBuilderBaseConfig>
+	extends PgColumnBuilder<PgSmallSerialBuilderHKT, T>
+{
 	constructor(name: string) {
 		super(name);
 		this.config.hasDefault = true;
@@ -16,25 +31,19 @@ export class PgSmallSerialBuilder extends PgColumnBuilder<{
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgSmallSerial<TTableName> {
-		return new PgSmallSerial(table, this.config);
+	override build<TTableName extends string>(
+		table: AnyPgTable<{ name: TTableName }>,
+	): PgSmallSerial<MakeColumnConfig<T, TTableName>> {
+		return new PgSmallSerial<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class PgSmallSerial<TTableName extends string> extends PgColumn<{
-	tableName: TTableName;
-	data: number;
-	driverParam: number;
-	notNull: true;
-	hasDefault: true;
-}> {
-	protected override $pgColumnBrand!: 'PgSmallSerial';
-
+export class PgSmallSerial<T extends ColumnBaseConfig> extends PgColumn<PgSmallSerialHKT, T> {
 	getSQLType(): string {
 		return 'serial';
 	}
 }
 
-export function smallserial(name: string) {
+export function smallserial<TName extends string>(name: TName): PgSmallSerialBuilderInitial<TName> {
 	return new PgSmallSerialBuilder(name);
 }

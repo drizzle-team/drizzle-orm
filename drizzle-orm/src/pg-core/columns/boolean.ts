@@ -1,33 +1,42 @@
-import { ColumnConfig } from '~/column';
-import { ColumnBuilderConfig } from '~/column-builder';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 
-import { AnyPgTable } from '~/pg-core/table';
+import type { AnyPgTable } from '~/pg-core/table';
+import type { Assume } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export class PgBooleanBuilder extends PgColumnBuilder<
-	ColumnBuilderConfig<{
-		data: boolean;
-		driverParam: boolean;
-	}>
-> {
-	protected override $pgColumnBuilderBrand!: 'PgBooleanBuilder';
+export interface PgBooleanBuilderHKT extends ColumnBuilderHKTBase {
+	_type: PgBooleanBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: PgBooleanHKT;
+}
 
+export interface PgBooleanHKT extends ColumnHKTBase {
+	_type: PgBoolean<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type PgBooleanBuilderInitial<TName extends string> = PgBooleanBuilder<{
+	name: TName;
+	data: boolean;
+	driverParam: boolean;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class PgBooleanBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgBooleanBuilderHKT, T> {
 	/** @internal */
-	override build<TTableName extends string>(table: AnyPgTable<{ name: TTableName }>): PgBoolean<TTableName> {
-		return new PgBoolean(table, this.config);
+	override build<TTableName extends string>(
+		table: AnyPgTable<{ name: TTableName }>,
+	): PgBoolean<MakeColumnConfig<T, TTableName>> {
+		return new PgBoolean<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class PgBoolean<TTableName extends string>
-	extends PgColumn<ColumnConfig<{ tableName: TTableName; data: boolean; driverParam: boolean }>>
-{
-	protected override $pgColumnBrand!: 'PgBoolean';
-
+export class PgBoolean<T extends ColumnBaseConfig> extends PgColumn<PgBooleanHKT, T> {
 	getSQLType(): string {
 		return 'boolean';
 	}
 }
 
-export function boolean(name: string) {
+export function boolean<TName extends string>(name: TName): PgBooleanBuilderInitial<TName> {
 	return new PgBooleanBuilder(name);
 }

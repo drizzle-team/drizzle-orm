@@ -1,6 +1,7 @@
 import { Database } from 'bun:sqlite';
 import { DefaultLogger, sql } from 'drizzle-orm';
-import { BunSQLiteDatabase, drizzle } from 'drizzle-orm/bun-sqlite';
+import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
+import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { suite } from 'uvu';
 
@@ -60,8 +61,8 @@ test('select', (ctx) => {
 	const { db } = ctx;
 
 	// TODO: convert to normalniy test
-	console.log(db.select().from(order).where(sql`"Order"."ShipCountry" = "Germany"`).execute()[0]);
-	console.log(db.select().from(order).where(sql`"Order"."ShipCountry" = ${'Germany'}`).prepare().execute()[0]);
+	console.log(db.select().from(order).where(sql`"Order"."ShipCountry" = "Germany"`).all()[0]);
+	console.log(db.select().from(order).where(sql`"Order"."ShipCountry" = ${'Germany'}`).prepare().all()[0]);
 });
 
 test.run();

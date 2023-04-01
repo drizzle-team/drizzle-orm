@@ -1,56 +1,82 @@
-import { ColumnConfig } from '~/column';
-import { ColumnBuilderConfig } from '~/column-builder';
-import { AnySQLiteTable } from '~/sqlite-core/table';
-
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { AnySQLiteTable } from '~/sqlite-core/table';
+import type { Assume } from '~/utils';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common';
 
 type BlobMode = 'buffer' | 'json';
 
-export class SQLiteBlobJsonBuilder<TData>
-	extends SQLiteColumnBuilder<ColumnBuilderConfig & { data: TData; driverParam: Buffer }>
+export interface SQLiteBlobJsonBuilderHKT extends ColumnBuilderHKTBase {
+	_type: SQLiteBlobJsonBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: SQLiteBlobJsonHKT;
+}
+
+export interface SQLiteBlobJsonHKT extends ColumnHKTBase {
+	_type: SQLiteBlobJson<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type SQLiteBlobJsonBuilderInitial<TName extends string> = SQLiteBlobJsonBuilder<{
+	name: TName;
+	data: unknown;
+	driverParam: Buffer;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class SQLiteBlobJsonBuilder<T extends ColumnBuilderBaseConfig>
+	extends SQLiteColumnBuilder<SQLiteBlobJsonBuilderHKT, T>
 {
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteBlobJson<TTableName, TData> {
-		return new SQLiteBlobJson(table, this.config);
+	): SQLiteBlobJson<MakeColumnConfig<T, TTableName>> {
+		return new SQLiteBlobJson<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class SQLiteBlobJson<TTableName extends string, TData>
-	extends SQLiteColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: Buffer }>>
-{
-	protected override $sqliteColumnBrand!: 'SQLiteBlobJson';
-
+export class SQLiteBlobJson<T extends ColumnBaseConfig> extends SQLiteColumn<SQLiteBlobJsonHKT, T> {
 	getSQLType(): string {
 		return 'blob';
 	}
 
-	override mapFromDriverValue(value: Buffer): TData {
+	override mapFromDriverValue(value: Buffer): T['data'] {
 		return JSON.parse(value.toString());
 	}
 
-	override mapToDriverValue(value: TData): Buffer {
+	override mapToDriverValue(value: T['data']): Buffer {
 		return Buffer.from(JSON.stringify(value));
 	}
 }
 
-export class SQLiteBlobBufferBuilder
-	extends SQLiteColumnBuilder<ColumnBuilderConfig<{ data: Buffer; driverParam: Buffer }>>
+export interface SQLiteBlobBufferBuilderHKT extends ColumnBuilderHKTBase {
+	_type: SQLiteBlobBufferBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: SQLiteBlobBufferHKT;
+}
+
+export interface SQLiteBlobBufferHKT extends ColumnHKTBase {
+	_type: SQLiteBlobBuffer<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type SQLiteBlobBufferBuilderInitial<TName extends string> = SQLiteBlobBufferBuilder<{
+	name: TName;
+	data: Buffer;
+	driverParam: Buffer;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class SQLiteBlobBufferBuilder<T extends ColumnBuilderBaseConfig>
+	extends SQLiteColumnBuilder<SQLiteBlobBufferBuilderHKT, T>
 {
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteBlobBuffer<TTableName> {
-		return new SQLiteBlobBuffer(table, this.config);
+	): SQLiteBlobBuffer<MakeColumnConfig<T, TTableName>> {
+		return new SQLiteBlobBuffer<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class SQLiteBlobBuffer<TTableName extends string>
-	extends SQLiteColumn<ColumnConfig<{ tableName: TTableName; data: Buffer; driverParam: Buffer }>>
-{
-	protected override $sqliteColumnBrand!: 'SQLiteBlobBuffer';
-
+export class SQLiteBlobBuffer<T extends ColumnBaseConfig> extends SQLiteColumn<SQLiteBlobBufferHKT, T> {
 	getSQLType(): string {
 		return 'blob';
 	}
@@ -60,11 +86,13 @@ export interface BlobConfig<TMode extends BlobMode = BlobMode> {
 	mode: TMode;
 }
 
-export function blob(name: string, config?: BlobConfig<'buffer'>): SQLiteBlobBufferBuilder;
-export function blob<T>(name: string, config: BlobConfig<'json'>): SQLiteBlobJsonBuilder<T>;
-export function blob<T>(name: string, config?: BlobConfig): SQLiteBlobBufferBuilder | SQLiteBlobJsonBuilder<T> {
+export function blob<TName extends string, TMode extends BlobMode = 'buffer'>(
+	name: TName,
+	config?: BlobConfig<TMode>,
+): TMode extends 'buffer' ? SQLiteBlobBufferBuilderInitial<TName> : SQLiteBlobJsonBuilderInitial<TName>;
+export function blob(name: string, config?: BlobConfig) {
 	if (config?.mode === 'json') {
-		return new SQLiteBlobJsonBuilder<T>(name);
+		return new SQLiteBlobJsonBuilder(name);
 	}
 	return new SQLiteBlobBufferBuilder(name);
 }

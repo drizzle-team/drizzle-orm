@@ -1,31 +1,38 @@
-import { ColumnConfig } from '~/column';
-import { ColumnBuilderConfig } from '~/column-builder';
-import { AnyMySqlTable } from '~/mysql-core/table';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { AnyMySqlTable } from '~/mysql-core/table';
+import type { Assume } from '~/utils';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
-export class MySqlTinyIntBuilder extends MySqlColumnBuilderWithAutoIncrement<
-	ColumnBuilderConfig<{
-		data: number;
-		driverParam: number | string;
-	}>
-> {
+export interface MySqlTinyIntBuilderHKT extends ColumnBuilderHKTBase {
+	_type: MySqlTinyIntBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: MySqlTinyIntHKT;
+}
+
+export interface MySqlTinyIntHKT extends ColumnHKTBase {
+	_type: MySqlTinyInt<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type MySqlTinyIntBuilderInitial<TName extends string> = MySqlTinyIntBuilder<{
+	name: TName;
+	data: number;
+	driverParam: number | string;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class MySqlTinyIntBuilder<T extends ColumnBuilderBaseConfig>
+	extends MySqlColumnBuilderWithAutoIncrement<MySqlTinyIntBuilderHKT, T>
+{
 	/** @internal */
-	override build<TTableName extends string>(table: AnyMySqlTable<{ name: TTableName }>): MySqlTinyInt<TTableName> {
-		return new MySqlTinyInt(table, this.config);
+	override build<TTableName extends string>(
+		table: AnyMySqlTable<{ name: TTableName }>,
+	): MySqlTinyInt<MakeColumnConfig<T, TTableName>> {
+		return new MySqlTinyInt<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class MySqlTinyInt<
-	TTableName extends string,
-> extends MySqlColumnWithAutoIncrement<
-	ColumnConfig<{
-		tableName: TTableName;
-		data: number;
-		driverParam: number | string;
-	}>
-> {
-	protected override $mySqlColumnBrand!: 'MySqlTinyInt';
-
+export class MySqlTinyInt<T extends ColumnBaseConfig> extends MySqlColumnWithAutoIncrement<MySqlTinyIntHKT, T> {
 	getSQLType(): string {
 		return 'tinyint';
 	}
@@ -38,6 +45,6 @@ export class MySqlTinyInt<
 	}
 }
 
-export function tinyint(name: string) {
+export function tinyint<TName extends string>(name: TName): MySqlTinyIntBuilderInitial<TName> {
 	return new MySqlTinyIntBuilder(name);
 }

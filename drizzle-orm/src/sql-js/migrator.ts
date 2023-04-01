@@ -1,5 +1,6 @@
-import { MigrationConfig, readMigrationFiles } from '~/migrator';
-import { SQLJsDatabase } from './driver';
+import type { MigrationConfig} from '~/migrator';
+import { readMigrationFiles } from '~/migrator';
+import type { SQLJsDatabase } from './driver';
 
 export function migrate(db: SQLJsDatabase, config: string | MigrationConfig) {
 	const migrations = readMigrationFiles(config);
