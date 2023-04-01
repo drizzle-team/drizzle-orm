@@ -172,7 +172,7 @@ const db = drizzle(rdsClient, {
 This is how you declare SQL schema in `schema.ts`. You can declare tables, indexes and constraints, foreign keys and enums. Please pay attention to `export` keyword, they are mandatory if you'll be using [drizzle-kit SQL migrations generator](#migrations).
 
 ```typescript
-import { pgEnum, pgTable, serial, uniqueIndex, varchar } from 'drizzle-orm/pg-core';
+import { pgEnum, pgTable, serial, integer, uniqueIndex, varchar } from 'drizzle-orm/pg-core';
 
 // declaring enum in database
 export const popularityEnum = pgEnum('popularity', ['unknown', 'known', 'popular']);
