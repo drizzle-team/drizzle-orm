@@ -10,22 +10,22 @@
   },
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^4.1.1",
-    "@typescript-eslint/eslint-plugin": "^5.54.1",
-    "@typescript-eslint/parser": "^5.54.1",
-    "bun-types": "^0.5.7",
-    "concurrently": "^7.5.0",
-    "dprint": "^0.34.5",
-    "eslint": "^8.36.0",
+    "@typescript-eslint/eslint-plugin": "^5.57.0",
+    "@typescript-eslint/parser": "^5.57.0",
+    "bun-types": "^0.5.8",
+    "concurrently": "^8.0.1",
+    "dprint": "^0.35.3",
+    "eslint": "^8.37.0",
     "eslint-plugin-import": "^2.27.5",
     "eslint-plugin-unused-imports": "^2.0.0",
-    "prettier": "^2.8.4",
+    "prettier": "^2.8.7",
     "resolve-tspaths": "^0.8.8",
-    "turbo": "^1.8.3",
-    "typescript": "4.8.4"
+    "turbo": "^1.8.8",
+    "typescript": "5.0.3"
   },
   "pnpm": {
     "patchedDependencies": {
-      "typescript@4.8.4": "patches/typescript@4.8.4.patch"
+      "typescript@5.0.3": "patches/typescript@5.0.3.patch"
     }
   }
 }

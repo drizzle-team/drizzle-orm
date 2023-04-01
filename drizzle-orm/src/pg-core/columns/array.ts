@@ -1,5 +1,11 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type {
+	AnyColumnBuilder,
+	BuildColumn,
+	ColumnBuilderBaseConfig,
+	ColumnBuilderHKTBase,
+	MakeColumnConfig,
+} from '~/column-builder';
 import type { AnyPgTable } from '~/pg-core/table';
 import type { Assume } from '~/utils';
 import { type AnyPgColumn, PgColumn, PgColumnBuilder, type PgColumnBuilderHKT } from './common';
@@ -49,7 +55,24 @@ export class PgArrayBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnB
 	}
 }
 
-export class PgArray<T extends ColumnBaseConfig> extends PgColumn<PgArrayHKT, T> {
+export class PgArray<T extends ColumnBaseConfig> extends PgColumn<PgArrayHKT, T, {}, {
+	baseColumn: BuildColumn<
+		string,
+		Assume<
+			PgColumnBuilder<
+				PgColumnBuilderHKT,
+				{
+					name: T['name'];
+					notNull: T['notNull'];
+					hasDefault: T['hasDefault'];
+					data: Assume<T['data'], unknown[]>[number];
+					driverParam: Assume<T['driverParam'], unknown[]>[number];
+				}
+			>,
+			AnyColumnBuilder
+		>
+	>;
+}> {
 	readonly size: number | undefined;
 
 	constructor(

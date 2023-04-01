@@ -48,7 +48,9 @@ export class MySqlDialect {
 					!lastDbMigration
 					|| parseInt(lastDbMigration.created_at, 10) < migration.folderMillis
 				) {
-					await session.execute(sql.raw(migration.sql));
+					for (const stmnt of migration.sql) {
+						await session.execute(sql.raw(stmnt));	
+					}
 					await session.execute(
 						sql`INSERT INTO \`__drizzle_migrations\` (\`hash\`, \`created_at\`) VALUES(${migration.hash}, ${migration.folderMillis})`,
 					);

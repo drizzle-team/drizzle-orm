@@ -28,17 +28,17 @@ Drizzle ORM is being battle-tested on production projects by multiple teams 🚀
 
 ## Supported databases
 
-| Database    | Status | |
-|:------------|:-------:|:---|
-| PostgreSQL  | ✅      | [Docs](./drizzle-orm/src/pg-core/README.md)|
-| MySQL       | ✅      |[Docs](./drizzle-orm/src/mysql-core/README.md)|
-| SQLite      | ✅      |[Docs](./drizzle-orm/src/sqlite-core/README.md)|
-| [Cloudflare D1](https://developers.cloudflare.com/d1) | ✅      | [Docs](./examples/cloudflare-d1/README.md) |
-| [libSQL](https://libsql.org) |  ⏳     |  |
-| DynamoDB    | ⏳      |            |
-| MS SQL      | ⏳      |            |
-| CockroachDB | ⏳      |            |
-
+| Database                                              | Status |                                                |
+|:------------------------------------------------------|:------:|:-----------------------------------------------|
+| PostgreSQL                                            |   ✅    | [Docs](/drizzle-orm/src/pg-core/README.md)     |
+| MySQL                                                 |   ✅    | [Docs](/drizzle-orm/src/mysql-core/README.md)  |
+| SQLite                                                |   ✅    | [Docs](/drizzle-orm/src/sqlite-core/README.md) |
+| [Cloudflare D1](https://developers.cloudflare.com/d1) |   ✅    | [Docs](/examples/cloudflare-d1/README.md)      |
+| [libSQL](https://libsql.org)                          |   ✅    | [Docs](/examples/libsql/README.md)             |
+| [Turso](https://turso.tech)                           |   ✅    | [Docs](/examples/libsql/README.md)             |
+| DynamoDB                                              |   ⏳    |                                                |
+| MS SQL                                                |   ⏳    |                                                |
+| CockroachDB                                           |   ⏳    |                                                |
 
 ## Installation
 
@@ -54,8 +54,8 @@ npm install -D drizzle-kit
 ```typescript
 import { eq } from 'drizzle-orm/expressions';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { InferModel, integer, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm/sql';
+import { integer, pgTable, serial, text, timestamp, varchar, sql } from 'drizzle-orm/pg-core';
+import { InferModel } from 'drizzle-orm';
 import { Pool } from 'pg';
 
 export const users = pgTable('users', {

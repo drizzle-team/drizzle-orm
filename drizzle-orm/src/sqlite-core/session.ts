@@ -24,39 +24,68 @@ export abstract class PreparedQuery<T extends PreparedQueryConfig> {
 }
 
 export abstract class SQLiteSession<TResultKind extends 'sync' | 'async' = 'sync' | 'async', TRunResult = unknown> {
-	constructor(protected dialect: SQLiteDialect) {
-	}
+	constructor(
+		/** @internal */
+		public dialect: SQLiteDialect,
+	) {}
 
 	abstract prepareQuery(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
+		tx: Transaction<TResultKind, TRunResult> | undefined,
 	): PreparedQuery<PreparedQueryConfig & { type: TResultKind }>;
 
 	prepareOneTimeQuery(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
+		tx: Transaction<TResultKind, TRunResult> | undefined,
 	): PreparedQuery<PreparedQueryConfig & { type: TResultKind }> {
-		return this.prepareQuery(query, fields);
+		return this.prepareQuery(query, fields, tx);
 	}
 
-	abstract exec(
-		query: string,
-	): void;
+	// abstract batch(queries: SQL[]): ResultKind<TResultKind, TRunResult[]>;
+
+	abstract transaction(
+		transaction: (tx: Transaction<TResultKind, TRunResult>) => void | Promise<void>,
+	): ResultKind<TResultKind, void>;
+
+	run(query: SQL, tx?: Transaction<TResultKind, TRunResult>): ResultKind<TResultKind, TRunResult> {
+		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, tx).run();
+	}
+
+	all<T = unknown>(query: SQL, tx?: Transaction<TResultKind, TRunResult>): ResultKind<TResultKind, T[]> {
+		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, tx).all();
+	}
+
+	get<T = unknown>(query: SQL, tx?: Transaction<TResultKind, TRunResult>): ResultKind<TResultKind, T> {
+		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, tx).get();
+	}
+
+	values<T extends any[] = unknown[]>(
+		query: SQL,
+		tx?: Transaction<TResultKind, TRunResult>,
+	): ResultKind<TResultKind, T[]> {
+		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, tx).values();
+	}
+}
+
+export abstract class Transaction<TResultKind extends 'sync' | 'async' = 'sync' | 'async', TRunResult = unknown> {
+	constructor(protected session: SQLiteSession<TResultKind, TRunResult>) {}
 
 	run(query: SQL): ResultKind<TResultKind, TRunResult> {
-		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined).run();
+		return this.session.run(query, this);
 	}
 
 	all<T = unknown>(query: SQL): ResultKind<TResultKind, T[]> {
-		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined).all();
+		return this.session.all(query, this);
 	}
 
 	get<T = unknown>(query: SQL): ResultKind<TResultKind, T> {
-		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined).get();
+		return this.session.get(query, this);
 	}
 
 	values<T extends any[] = unknown[]>(query: SQL): ResultKind<TResultKind, T[]> {
-		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined).values();
+		return this.session.values(query, this);
 	}
 }
 
