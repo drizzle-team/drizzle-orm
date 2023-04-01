@@ -1,10 +1,5 @@
 lockfileVersion: '6.0'
 
-patchedDependencies:
-  typescript@5.0.3:
-    hash: 3z36spodsd2tfiihsln6xdxzra
-    path: patches/typescript@5.0.3.patch
-
 importers:
 
   .:
@@ -123,6 +118,25 @@ importers:
       zod:
         specifier: ^3.20.2
         version: 3.21.4
+
+  examples/postgresjs:
+    dependencies:
+      drizzle-orm:
+        specifier: workspace:^
+        version: link:../../drizzle-orm
+      postgres:
+        specifier: ^3.3.3
+        version: 3.3.4
+    devDependencies:
+      '@types/node':
+        specifier: ^18.15.11
+        version: 18.15.11
+      drizzle-kit:
+        specifier: ^0.17.1
+        version: 0.17.1
+      typescript:
+        specifier: ^5.0.3
+        version: 5.0.3
 
   integration-tests:
     dependencies:
@@ -2880,7 +2894,7 @@ packages:
   /esbuild-linux-arm64@0.15.18:
     resolution: {integrity: sha512-54qr8kg/6ilcxd+0V3h9rjT4qmjc0CccMVWrjOEM/pEcUzt8X62HfBSeZfT2ECpM7104mk4yfQXkosY8Quptug==}
     engines: {node: '>=12'}
-    cpu: [arm]
+    cpu: [arm64]
     os: [linux]
     requiresBuild: true
     dev: true
@@ -5669,6 +5683,12 @@ packages:
       call-bind: 1.0.2
       for-each: 0.3.3
       is-typed-array: 1.1.10
+    dev: true
+
+  /typescript@5.0.3:
+    resolution: {integrity: sha512-xv8mOEDnigb/tN9PSMTwSEqAnUvkoXMQlicOb0IUVDBSQCgBSaAAROUZYy2IcUy5qU6XajK5jjjO7TMWqBTKZA==}
+    engines: {node: '>=12.20'}
+    hasBin: true
     dev: true
 
   /typescript@5.0.3(patch_hash=3z36spodsd2tfiihsln6xdxzra):
