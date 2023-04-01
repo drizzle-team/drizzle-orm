@@ -86,20 +86,13 @@ export interface BlobConfig<TMode extends BlobMode = BlobMode> {
 	mode: TMode;
 }
 
-export function blob<TName extends string>(
+export function blob<TName extends string, TMode extends BlobMode = 'buffer'>(
 	name: TName,
-	config?: BlobConfig<'buffer'>,
-): SQLiteBlobBufferBuilderInitial<TName>;
-export function blob<TName extends string>(
-	name: TName,
-	config: BlobConfig<'json'>,
-): SQLiteBlobJsonBuilderInitial<TName>;
-export function blob<TName extends string>(
-	name: TName,
-	config?: BlobConfig,
-): SQLiteBlobBufferBuilderInitial<TName> | SQLiteBlobJsonBuilderInitial<TName> {
+	config?: BlobConfig<TMode>,
+): TMode extends 'buffer' ? SQLiteBlobBufferBuilderInitial<TName> : SQLiteBlobJsonBuilderInitial<TName>;
+export function blob(name: string, config?: BlobConfig) {
 	if (config?.mode === 'json') {
 		return new SQLiteBlobJsonBuilder(name);
 	}
-	return new SQLiteBlobBufferBuilder<SQLiteBlobBufferBuilderInitial<TName>['_']['config']>(name);
+	return new SQLiteBlobBufferBuilder(name);
 }
