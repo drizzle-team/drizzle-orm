@@ -639,7 +639,7 @@ Join Cities with Users getting only needed fields form request
 db
   .select({
     id: cities.id,
-    cityName: cities.name
+    cityName: cities.name,
     userId: users.id
   })
   .from(cities)
