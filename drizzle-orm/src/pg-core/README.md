@@ -389,7 +389,7 @@ const publicUsersTable = pgTable('users', {
 // Table in custom schema
 const mySchema = pgSchema('mySchema');
 
-const usersTable = mySchema('users', {
+const usersTable = mySchema.table('users', {
   id: serial('id').primaryKey(),
   name: text('name').notNull(),
   verified: boolean('verified').notNull().default(false),
