@@ -94,7 +94,8 @@ export abstract class PgColumn<
 	THKT extends ColumnHKTBase,
 	T extends ColumnBaseConfig,
 	TRuntimeConfig extends object = {},
-> extends Column<THKT, T, TRuntimeConfig, { pgBrand: 'PgColumn' }> {
+	TTypeConfig extends object = {},
+> extends Column<THKT, T, TRuntimeConfig, TTypeConfig & { pgBrand: 'PgColumn' }> {
 }
 
 export type AnyPgColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = PgColumn<

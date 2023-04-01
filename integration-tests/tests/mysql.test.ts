@@ -616,16 +616,26 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 });
 
-// TODO change tests to new structure
-test.serial.skip('migrator', async (t) => {
+test.serial('migrator', async (t) => {
 	const { db } = t.context;
-	await migrate(db, { migrationsFolder: './drizzle/mysql' });
+
+	await db.execute(sql`drop table if exists cities_migration`);
+	await db.execute(sql`drop table if exists users_migration`);
+	await db.execute(sql`drop table if exists users12`);
+	await db.execute(sql`drop table if exists __drizzle_migrations`);
+
+	await migrate(db, { migrationsFolder: './drizzle2/mysql' });
 
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 
 	const result = await db.select().from(usersMigratorTable);
 
 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+
+	await db.execute(sql`drop table cities_migration`);
+	await db.execute(sql`drop table users_migration`);
+	await db.execute(sql`drop table users12`);
+	await db.execute(sql`drop table __drizzle_migrations`);
 });
 
 test.serial('insert via db.execute + select via db.execute', async (t) => {

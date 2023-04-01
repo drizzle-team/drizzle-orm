@@ -20,7 +20,8 @@ export interface PrimaryKeyConfig {
 export abstract class SQLiteBaseIntegerBuilder<
 	THKT extends ColumnBuilderHKTBase,
 	T extends ColumnBuilderBaseConfig,
-> extends SQLiteColumnBuilder<THKT, T, { autoIncrement: boolean }> {
+	TRuntimeConfig extends object = {},
+> extends SQLiteColumnBuilder<THKT, T, TRuntimeConfig & { autoIncrement: boolean }> {
 	constructor(name: T['name']) {
 		super(name);
 		this.config.autoIncrement = false;
@@ -45,16 +46,9 @@ export abstract class SQLiteBaseIntegerBuilder<
 export abstract class SQLiteBaseInteger<
 	THKT extends ColumnHKTBase,
 	T extends ColumnBaseConfig,
-> extends SQLiteColumn<THKT, T> {
-	readonly autoIncrement: boolean;
-
-	constructor(
-		override readonly table: AnySQLiteTable<{ name: T['tableName'] }>,
-		config: SQLiteBaseIntegerBuilder<ColumnBuilderHKTBase, T>['config'],
-	) {
-		super(table, config);
-		this.autoIncrement = config.autoIncrement;
-	}
+	TRuntimeConfig extends object = {},
+> extends SQLiteColumn<THKT, T, TRuntimeConfig & { autoIncrement: boolean }> {
+	readonly autoIncrement: boolean = this.config.autoIncrement;
 
 	getSQLType(): string {
 		return 'integer';
@@ -108,19 +102,20 @@ export type SQLiteTimestampBuilderInitial<TName extends string> = SQLiteTimestam
 }>;
 
 export class SQLiteTimestampBuilder<T extends ColumnBuilderBaseConfig>
-	extends SQLiteBaseIntegerBuilder<SQLiteTimestampBuilderHKT, T>
+	extends SQLiteBaseIntegerBuilder<SQLiteTimestampBuilderHKT, T, { mode: 'timestamp' | 'timestamp_ms' }>
 {
+	constructor(name: T['name'], mode: 'timestamp' | 'timestamp_ms') {
+		super(name);
+		this.config.mode = mode;
+	}
+
 	/**
-	 * @deprecated Use `defaultCurrentTimestamp()` or `default()` with your own expression instead.
+	 * @deprecated Use `default()` with your own expression instead.
 	 *
 	 * Adds `DEFAULT (cast((julianday('now') - 2440587.5)*86400000 as integer))` to the column, which is the current epoch timestamp in milliseconds.
 	 */
 	defaultNow(): ColumnBuilderKind<this['_']['hkt'], UpdateCBConfig<T, { hasDefault: true }>> {
 		return this.default(sql`(cast((julianday('now') - 2440587.5)*86400000 as integer))`);
-	}
-
-	defaultCurrentTimestamp(): ColumnBuilderKind<this['_']['hkt'], UpdateCBConfig<T, { hasDefault: true }>> {
-		return this.default(sql`current_timestamp`);
 	}
 
 	build<TTableName extends string>(
@@ -133,31 +128,40 @@ export class SQLiteTimestampBuilder<T extends ColumnBuilderBaseConfig>
 	}
 }
 
-export class SQLiteTimestamp<T extends ColumnBaseConfig> extends SQLiteBaseInteger<SQLiteTimestampHKT, T> {
+export class SQLiteTimestamp<T extends ColumnBaseConfig>
+	extends SQLiteBaseInteger<SQLiteTimestampHKT, T, { mode: 'timestamp' | 'timestamp_ms' }>
+{
+	readonly mode: 'timestamp' | 'timestamp_ms' = this.config.mode;
+
 	override mapFromDriverValue(value: number): Date {
+		if (this.config.mode === 'timestamp') {
+			return new Date(value * 1000);
+		}
 		return new Date(value);
 	}
 
 	override mapToDriverValue(value: Date): number {
-		return value.getTime();
+		const unix = value.getTime();
+		if (this.config.mode === 'timestamp') {
+			return Math.floor(unix / 1000);
+		}
+		return unix;
 	}
 }
 
-export interface IntegerConfig<TMode extends 'number' | 'timestamp' = 'number' | 'timestamp'> {
+export interface IntegerConfig<
+	TMode extends 'number' | 'timestamp' | 'timestamp_ms' = 'number' | 'timestamp' | 'timestamp_ms',
+> {
 	mode: TMode;
 }
 
-export function integer<TName extends string>(
+export function integer<TName extends string, TMode extends IntegerConfig['mode'] = 'number'>(
 	name: TName,
-	config?: IntegerConfig<'number'>,
-): SQLiteIntegerBuilderInitial<TName>;
-export function integer<TName extends string>(
-	name: TName,
-	config?: IntegerConfig<'timestamp'>,
-): SQLiteTimestampBuilderInitial<TName>;
-export function integer<TName extends string>(name: TName, config?: IntegerConfig) {
-	if (config?.mode === 'timestamp') {
-		return new SQLiteTimestampBuilder(name);
+	config?: IntegerConfig<TMode>,
+): TMode extends 'number' ? SQLiteIntegerBuilderInitial<TName> : SQLiteTimestampBuilderInitial<TName>;
+export function integer(name: string, config?: IntegerConfig) {
+	if (config?.mode === 'timestamp' || config?.mode === 'timestamp_ms') {
+		return new SQLiteTimestampBuilder(name, config.mode);
 	}
 	return new SQLiteIntegerBuilder(name);
 }

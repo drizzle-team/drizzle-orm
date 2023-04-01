@@ -17,7 +17,7 @@ export interface ColumnHKTBase {
 	_type: unknown;
 }
 
-export type ColumnKind<T extends ColumnHKTBase, TConfig extends Partial<ColumnBaseConfig>> = (T & {
+export type ColumnKind<T extends ColumnHKTBase, TConfig extends ColumnBaseConfig> = (T & {
 	config: TConfig;
 })['_type'];
 
@@ -79,7 +79,7 @@ export abstract class Column<
 	}
 }
 
-export type UpdateColConfig<T extends Partial<ColumnBaseConfig>, TUpdate extends Partial<ColumnBaseConfig>> = Update<
+export type UpdateColConfig<T extends ColumnBaseConfig, TUpdate extends Partial<ColumnBaseConfig>> = Update<
 	T,
 	TUpdate
 >;

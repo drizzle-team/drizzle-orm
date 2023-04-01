@@ -71,7 +71,8 @@ export class SQLiteDelete<
 		get: TReturning extends undefined ? never : TReturning | undefined;
 		values: TReturning extends undefined ? never : any[][];
 	}> {
-		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning);
+		// TODO: implement transaction support
+		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, undefined);
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
