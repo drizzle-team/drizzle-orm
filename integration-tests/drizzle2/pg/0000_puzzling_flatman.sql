@@ -1,0 +1,43 @@
+CREATE TABLE IF NOT EXISTS "all_columns" (
+	"smallint" smallint,
+	"smallint_def" smallint DEFAULT 10,
+	"integer" integer,
+	"integer_def" integer DEFAULT 10,
+	"numeric" numeric,
+	"numeric3" numeric,
+	"numeric4" numeric(7, 7),
+	"numeridef" numeric DEFAULT '100',
+	"bigint" bigint,
+	"bigintdef" bigint DEFAULT 100,
+	"boolean" boolean,
+	"boolean_def" boolean DEFAULT true,
+	"text" text,
+	"textdef" text DEFAULT 'text',
+	"varchar" varchar,
+	"varchardef" varchar DEFAULT 'text',
+	"serial" serial NOT NULL,
+	"bigserial" bigserial NOT NULL,
+	"decimal" numeric(100, 2),
+	"decimaldef" numeric(100, 2) DEFAULT '100.0',
+	"doublePrecision" double precision,
+	"doublePrecisiondef" double precision DEFAULT 100,
+	"real" real,
+	"realdef" real DEFAULT 100,
+	"time2" time(6) with time zone,
+	"timedefnow" time DEFAULT now(),
+	"timestamp" timestamp,
+	"timestamp2" timestamp (6) with time zone,
+	"timestamp3" timestamp with time zone,
+	"timestamp4" timestamp (4),
+	"timestampdef" timestamp DEFAULT now(),
+	"date" date,
+	"datedef" date DEFAULT now(),
+	"interval" interval,
+	"intervaldef" interval DEFAULT '10 days'
+);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "users12" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"name" text NOT NULL,
+	"email" text NOT NULL
+);

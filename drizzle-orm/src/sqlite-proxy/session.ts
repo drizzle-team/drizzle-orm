@@ -1,15 +1,11 @@
-import type { Logger} from '~/logger';
+import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
 import type { Query } from '~/sql';
 import { fillPlaceholders } from '~/sql';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
-import type { SelectFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
-import type {
-	PreparedQueryConfig as PreparedQueryConfigBase} from '~/sqlite-core/session';
-import {
-	PreparedQuery as PreparedQueryBase,
-	SQLiteSession,
-} from '~/sqlite-core/session';
+import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
+import type { PreparedQueryConfig as PreparedQueryConfigBase, Transaction } from '~/sqlite-core/session';
+import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session';
 import { mapResultRow } from '~/utils';
 import type { RemoteCallback, SqliteRemoteResult } from './driver';
 
@@ -39,9 +35,15 @@ export class SQLiteRemoteSession extends SQLiteSession<'async', SqliteRemoteResu
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
-		fields?: SelectFieldsOrdered,
+		fields?: SelectedFieldsOrdered,
 	): PreparedQuery<T> {
 		return new PreparedQuery(this.client, query.sql, query.params, this.logger, fields);
+	}
+
+	override transaction(
+		transaction: (tx: Transaction<'async', SqliteRemoteResult>) => void | Promise<void>,
+	): Promise<void> {
+		throw new Error('Method not implemented.');
 	}
 }
 
@@ -53,7 +55,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private queryString: string,
 		private params: unknown[],
 		private logger: Logger,
-		private fields: SelectFieldsOrdered | undefined,
+		private fields: SelectedFieldsOrdered | undefined,
 	) {
 		super();
 	}

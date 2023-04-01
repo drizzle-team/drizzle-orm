@@ -1,31 +1,38 @@
-import type { ColumnConfig } from '~/column';
-import type { ColumnBuilderConfig } from '~/column-builder';
+import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import type { AnyMySqlTable } from '~/mysql-core/table';
+import type { Assume } from '~/utils';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
-export class MySqlIntegerBuilder extends MySqlColumnBuilderWithAutoIncrement<
-	ColumnBuilderConfig<{
-		data: number;
-		driverParam: number | string;
-	}>
-> {
+export interface MySqlIntBuilderHKT extends ColumnBuilderHKTBase {
+	_type: MySqlIntBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: MySqlIntHKT;
+}
+
+export interface MySqlIntHKT extends ColumnHKTBase {
+	_type: MySqlInt<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type MySqlIntBuilderInitial<TName extends string> = MySqlIntBuilder<{
+	name: TName;
+	data: number;
+	driverParam: number | string;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class MySqlIntBuilder<T extends ColumnBuilderBaseConfig>
+	extends MySqlColumnBuilderWithAutoIncrement<MySqlIntBuilderHKT, T>
+{
 	/** @internal */
-	override build<TTableName extends string>(table: AnyMySqlTable<{ name: TTableName }>): MySqlInteger<TTableName> {
-		return new MySqlInteger(table, this.config);
+	override build<TTableName extends string>(
+		table: AnyMySqlTable<{ name: TTableName }>,
+	): MySqlInt<MakeColumnConfig<T, TTableName>> {
+		return new MySqlInt<MakeColumnConfig<T, TTableName>>(table, this.config);
 	}
 }
 
-export class MySqlInteger<
-	TTableName extends string,
-> extends MySqlColumnWithAutoIncrement<
-	ColumnConfig<{
-		tableName: TTableName;
-		data: number;
-		driverParam: number | string;
-	}>
-> {
-	protected override $mySqlColumnBrand!: 'MySqlInteger';
-
+export class MySqlInt<T extends ColumnBaseConfig> extends MySqlColumnWithAutoIncrement<MySqlIntHKT, T> {
 	getSQLType(): string {
 		return 'int';
 	}
@@ -38,6 +45,6 @@ export class MySqlInteger<
 	}
 }
 
-export function int(name: string) {
-	return new MySqlIntegerBuilder(name);
+export function int<TName extends string>(name: TName): MySqlIntBuilderInitial<TName> {
+	return new MySqlIntBuilder(name);
 }

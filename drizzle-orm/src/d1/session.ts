@@ -1,17 +1,13 @@
 /// <reference types="@cloudflare/workers-types" />
 
-import type { Logger} from '~/logger';
+import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
 import type { Query } from '~/sql';
 import { fillPlaceholders } from '~/sql';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
-import type { SelectFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
-import type {
-	PreparedQueryConfig as PreparedQueryConfigBase} from '~/sqlite-core/session';
-import {
-	PreparedQuery as PreparedQueryBase,
-	SQLiteSession,
-} from '~/sqlite-core/session';
+import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
+import { type PreparedQueryConfig as PreparedQueryConfigBase, Transaction } from '~/sqlite-core/session';
+import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session';
 import { mapResultRow } from '~/utils';
 
 export interface SQLiteD1SessionOptions {
@@ -32,16 +28,24 @@ export class SQLiteD1Session extends SQLiteSession<'async', D1Result> {
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
-	exec(query: string): void {
-		throw Error('To implement: D1 migrator');
-		// await this.client.exec(query.sql);
-	}
-
-	prepareQuery(query: Query, fields?: SelectFieldsOrdered): PreparedQuery {
+	prepareQuery(query: Query, fields?: SelectedFieldsOrdered): PreparedQuery {
 		const stmt = this.client.prepare(query.sql);
 		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields);
 	}
+
+	override async transaction(transaction: (tx: D1Transaction) => void | Promise<void>): Promise<void> {
+		await this.client.exec('begin');
+		try {
+			await transaction(new D1Transaction(this));
+			await this.client.exec('commit');
+		} catch (err) {
+			await this.client.exec('rollback');
+			throw err;
+		}
+	}
 }
+
+export class D1Transaction extends Transaction<'async', D1Result> {}
 
 export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
 	{ type: 'async'; run: D1Result; all: T['all']; get: T['get']; values: T['values'] }
@@ -51,7 +55,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private queryString: string,
 		private params: unknown[],
 		private logger: Logger,
-		private fields: SelectFieldsOrdered | undefined,
+		private fields: SelectedFieldsOrdered | undefined,
 	) {
 		super();
 	}

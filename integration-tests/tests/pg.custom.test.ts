@@ -8,7 +8,6 @@ import { asc, eq } from 'drizzle-orm/expressions';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import type { InferModel } from 'drizzle-orm/pg-core';
 import { alias, customType, pgTable, serial, text } from 'drizzle-orm/pg-core';
 import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
@@ -47,8 +46,8 @@ const customTimestamp = customType<
 	{ data: Date; driverData: string; config: { withTimezone: boolean; precision?: number } }
 >({
 	dataType(config) {
-		const precision = typeof config.precision !== 'undefined' ? ` (${config.precision})` : '';
-		return `timestamp${precision}${config.withTimezone ? ' with time zone' : ''}`;
+		const precision = typeof config?.precision !== 'undefined' ? ` (${config.precision})` : '';
+		return `timestamp${precision}${config?.withTimezone ? ' with time zone' : ''}`;
 	},
 	fromDriver(value: string): Date {
 		return new Date(value);
@@ -559,15 +558,24 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 });
 
-test.serial.skip('migrator', async (t) => {
+test.serial('migrator', async (t) => {
 	const { db } = t.context;
-	await migrate(db, { migrationsFolder: './drizzle/pg' });
+
+	await db.execute(sql`drop table if exists all_columns`);
+	await db.execute(sql`drop table if exists users12`);
+	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+
+	await migrate(db, { migrationsFolder: './drizzle2/pg' });
 
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 
 	const result = await db.select().from(usersMigratorTable);
 
 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+
+	await db.execute(sql`drop table all_columns`);
+	await db.execute(sql`drop table users12`);
+	await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
 });
 
 test.serial('insert via db.execute + select via db.execute', async (t) => {
@@ -593,7 +601,7 @@ test.serial('insert via db.execute + returning', async (t) => {
 test.serial('insert via db.execute w/ query builder', async (t) => {
 	const { db } = t.context;
 
-	const inserted = await db.execute<Pick<InferModel<typeof usersTable>, 'id' | 'name'>>(
+	const inserted = await db.execute<Pick<typeof usersTable['_']['model']['select'], 'id' | 'name'>>(
 		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 	);
 	t.deepEqual(inserted.rows, [{ id: 1, name: 'John' }]);

@@ -24,10 +24,11 @@ import {
 	notLike,
 	or,
 } from '~/expressions';
-import { boolean, type InferModel, type PgSelect, pgTable, text } from '~/pg-core';
+import { boolean, integer, pgTable, text } from '~/pg-core';
 import { alias } from '~/pg-core/alias';
-import type { AnyPgSelect, JoinNullability, SelectMode } from '~/pg-core/query-builders/select.types';
+import type { AnyPgSelect } from '~/pg-core/query-builders/select.types';
 import { param, type SQL, sql } from '~/sql';
+import type { InferModel } from '~/table';
 
 import { db } from './db';
 import { cities, classes, newYorkers, newYorkers2, users } from './tables';
@@ -921,7 +922,7 @@ await db
 {
 	const users = pgTable('users', {
 		developer: boolean('developer'),
-		application: text<'pending' | 'approved'>('application'),
+		application: text('application', { enum: ['pending', 'approved'] }),
 	});
 
 	function startIt(whereCallback: (condition: SQL) => SQL | undefined = (c) => c) {
@@ -929,4 +930,29 @@ await db
 	}
 
 	const query = startIt((c) => and(c, eq(users.application, 'approved')));
+}
+
+{
+	const school = pgTable('school', {
+		faculty: integer('faculty'),
+		studentid: integer('studentid'),
+	});
+
+	const student = pgTable('student', {
+		id: integer('id'),
+		email: text('email'),
+	});
+
+	await db
+		.select()
+		.from(school)
+		.where(
+			and(
+				eq(school.faculty, 2),
+				eq(
+					school.studentid,
+					db.select({ id: student.id }).from(student).where(eq(student.email, 'foo@demo.com')),
+				),
+			),
+		);
 }

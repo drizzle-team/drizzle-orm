@@ -8,7 +8,7 @@ import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import type { AnyPgColumn, InferModel } from 'drizzle-orm/pg-core';
+import { type AnyPgColumn, pgTableCreator } from 'drizzle-orm/pg-core';
 import {
 	alias,
 	boolean,
@@ -31,6 +31,7 @@ import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
+import { type Equal, Expect } from './utils';
 
 const ENABLE_LOGGING = false;
 
@@ -38,7 +39,7 @@ const usersTable = pgTable('users', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
-	jsonb: jsonb<string[]>('jsonb'),
+	jsonb: jsonb('jsonb').$type<string[]>(),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -744,15 +745,24 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 });
 
 // TODO change tests to new structure
-test.serial.skip('migrator', async (t) => {
+test.serial('migrator', async (t) => {
 	const { db } = t.context;
-	await migrate(db, { migrationsFolder: './drizzle/pg' });
+
+	await db.execute(sql`drop table if exists all_columns`);
+	await db.execute(sql`drop table if exists users12`);
+	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+
+	await migrate(db, { migrationsFolder: './drizzle2/pg' });
 
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 
 	const result = await db.select().from(usersMigratorTable);
 
 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+
+	await db.execute(sql`drop table all_columns`);
+	await db.execute(sql`drop table users12`);
+	await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
 });
 
 test.serial('insert via db.execute + select via db.execute', async (t) => {
@@ -784,7 +794,7 @@ test.serial('insert via db.execute + returning', async (t) => {
 test.serial('insert via db.execute w/ query builder', async (t) => {
 	const { db } = t.context;
 
-	const inserted = await db.execute<Pick<InferModel<typeof usersTable>, 'id' | 'name'>>(
+	const inserted = await db.execute<Pick<typeof usersTable['_']['model']['select'], 'id' | 'name'>>(
 		db
 			.insert(usersTable)
 			.values({ name: 'John' })
@@ -1205,7 +1215,7 @@ test.serial('select count w/ custom mapper', async (t) => {
 test.serial('network types', async (t) => {
 	const { db } = t.context;
 
-	const value: InferModel<typeof network> = {
+	const value: typeof network['_']['model']['select'] = {
 		inet: '127.0.0.1',
 		cidr: '192.168.100.128/25',
 		macaddr: '08:00:2b:01:02:03',
@@ -1222,7 +1232,7 @@ test.serial('network types', async (t) => {
 test.serial('array types', async (t) => {
 	const { db } = t.context;
 
-	const values: InferModel<typeof salEmp>[] = [
+	const values: typeof salEmp['_']['model']['select'][] = [
 		{
 			name: 'John',
 			payByQuarter: [10000, 10000, 10000, 10000],
@@ -1235,7 +1245,7 @@ test.serial('array types', async (t) => {
 		},
 	];
 
-	await db.insert(salEmp).values(...values);
+	await db.insert(salEmp).values(values);
 
 	const res = await db.select().from(salEmp);
 
@@ -1428,4 +1438,127 @@ test.serial('materialized view', async (t) => {
 	}
 
 	await db.execute(sql`drop materialized view ${newYorkers1}`);
+});
+
+// TODO: copy to SQLite and MySQL, add to docs
+test.serial('select from raw sql', async (t) => {
+	const { db } = t.context;
+
+	const result = await db.select({
+		id: sql<number>`id`,
+		name: sql<string>`name`,
+	}).from(sql`(select 1 as id, 'John' as name) as users`);
+
+	Expect<Equal<{ id: number; name: string }[], typeof result>>;
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'John' },
+	]);
+});
+
+test.serial('select from raw sql with joins', async (t) => {
+	const { db } = t.context;
+
+	const result = await db
+		.select({
+			id: sql<number>`users.id`,
+			name: sql<string>`users.name`,
+			userCity: sql<string>`users.city`,
+			cityName: sql<string>`cities.name`,
+		})
+		.from(sql`(select 1 as id, 'John' as name, 'New York' as city) as users`)
+		.leftJoin(sql`(select 1 as id, 'Paris' as name) as cities`, sql`cities.id = users.id`);
+
+	Expect<Equal<{ id: number; name: string; userCity: string; cityName: string }[], typeof result>>;
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'John', userCity: 'New York', cityName: 'Paris' },
+	]);
+});
+
+test.serial('join on aliased sql from select', async (t) => {
+	const { db } = t.context;
+
+	const result = await db
+		.select({
+			userId: sql<number>`users.id`.as('userId'),
+			name: sql<string>`users.name`,
+			userCity: sql<string>`users.city`,
+			cityId: sql<number>`cities.id`.as('cityId'),
+			cityName: sql<string>`cities.name`,
+		})
+		.from(sql`(select 1 as id, 'John' as name, 'New York' as city) as users`)
+		.leftJoin(sql`(select 1 as id, 'Paris' as name) as cities`, (cols) => eq(cols.cityId, cols.userId));
+
+	Expect<Equal<{ userId: number; name: string; userCity: string; cityId: number; cityName: string }[], typeof result>>;
+
+	t.deepEqual(result, [
+		{ userId: 1, name: 'John', userCity: 'New York', cityId: 1, cityName: 'Paris' },
+	]);
+});
+
+test.serial('join on aliased sql from with clause', async (t) => {
+	const { db } = t.context;
+
+	const users = db.$with('users').as(
+		db.select({
+			id: sql<number>`id`.as('userId'),
+			name: sql<string>`name`.as('userName'),
+			city: sql<string>`city`.as('city'),
+		}).from(
+			sql`(select 1 as id, 'John' as name, 'New York' as city) as users`,
+		),
+	);
+
+	const cities = db.$with('cities').as(
+		db.select({
+			id: sql<number>`id`.as('cityId'),
+			name: sql<string>`name`.as('cityName'),
+		}).from(
+			sql`(select 1 as id, 'Paris' as name) as cities`,
+		),
+	);
+
+	const result = await db
+		.with(users, cities)
+		.select({
+			userId: users.id,
+			name: users.name,
+			userCity: users.city,
+			cityId: cities.id,
+			cityName: cities.name,
+		})
+		.from(users)
+		.leftJoin(cities, (cols) => eq(cols.cityId, cols.userId));
+
+	Expect<Equal<{ userId: number; name: string; userCity: string; cityId: number; cityName: string }[], typeof result>>;
+
+	t.deepEqual(result, [
+		{ userId: 1, name: 'John', userCity: 'New York', cityId: 1, cityName: 'Paris' },
+	]);
+});
+
+test.serial('prefixed table', async (t) => {
+	const { db } = t.context;
+
+	const pgTable = pgTableCreator((name) => `myprefix_${name}`);
+
+	const users = pgTable('test_prefixed_table_with_unique_name', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table myprefix_test_prefixed_table_with_unique_name (id integer not null primary key, name text not null)`,
+	);
+
+	await db.insert(users).values({ id: 1, name: 'John' });
+
+	const result = await db.select().from(users);
+
+	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+
+	await db.execute(sql`drop table ${users}`);
 });

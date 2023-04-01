@@ -1,25 +1,26 @@
 import type { GetColumnData } from '~/column';
+import type { SelectResultFields } from '~/query-builders/select.types';
 import type { Query, SQL, SQLWrapper } from '~/sql';
-import { Param } from '~/sql';
 import type { SQLiteDialect } from '~/sqlite-core/dialect';
 import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
-import type { AnySQLiteTable, GetTableConfig, InferModel} from '~/sqlite-core/table';
+import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SQLiteTable } from '~/sqlite-core/table';
+import type { InferModel } from '~/table';
 import type { Simplify, UpdateSet } from '~/utils';
 import { mapUpdateSet, orderSelectedFields } from '~/utils';
-import type { SelectFields, SelectFieldsOrdered, SelectResultFields } from './select.types';
+import type { SelectedFields, SelectedFieldsOrdered } from './select.types';
 
 export interface SQLiteUpdateConfig {
 	where?: SQL | undefined;
 	set: UpdateSet;
 	table: AnySQLiteTable;
-	returning?: SelectFieldsOrdered;
+	returning?: SelectedFieldsOrdered;
 }
 
 export type SQLiteUpdateSetSource<TTable extends AnySQLiteTable> = Simplify<
 	{
-		[Key in keyof GetTableConfig<TTable, 'columns'>]?:
-			| GetColumnData<GetTableConfig<TTable, 'columns'>[Key], 'query'>
+		[Key in keyof TTable['_']['columns']]?:
+			| GetColumnData<TTable['_']['columns'][Key], 'query'>
 			| SQL;
 	}
 >;
@@ -29,7 +30,9 @@ export class SQLiteUpdateBuilder<
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 > {
-	declare protected $table: TTable;
+	declare readonly _: {
+		readonly table: TTable;
+	};
 
 	constructor(
 		protected table: TTable,
@@ -55,7 +58,9 @@ export class SQLiteUpdate<
 	TRunResult,
 	TReturning = undefined,
 > implements SQLWrapper {
-	declare protected $table: TTable;
+	declare readonly _: {
+		readonly table: TTable;
+	};
 
 	private config: SQLiteUpdateConfig;
 
@@ -77,14 +82,14 @@ export class SQLiteUpdate<
 		SQLiteUpdate<TTable, TResultType, TRunResult, InferModel<TTable>>,
 		'where' | 'returning'
 	>;
-	returning<TSelectedFields extends SelectFields>(
+	returning<TSelectedFields extends SelectedFields>(
 		fields: TSelectedFields,
 	): Omit<
 		SQLiteUpdate<TTable, TResultType, TRunResult, SelectResultFields<TSelectedFields>>,
 		'where' | 'returning'
 	>;
 	returning(
-		fields: SelectFields = this.config.table[SQLiteTable.Symbol.Columns],
+		fields: SelectedFields = this.config.table[SQLiteTable.Symbol.Columns],
 	): Omit<SQLiteUpdate<TTable, TResultType, TRunResult>, 'where' | 'returning'> {
 		this.config.returning = orderSelectedFields(fields);
 		return this;
@@ -109,7 +114,8 @@ export class SQLiteUpdate<
 			values: TReturning extends undefined ? never : any[][];
 		}
 	> {
-		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning);
+		// TODO: implement transaction support
+		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, undefined);
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {

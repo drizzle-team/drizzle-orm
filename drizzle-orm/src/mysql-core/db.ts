@@ -1,8 +1,9 @@
 import type { ResultSetHeader } from 'mysql2/promise';
+import type { QueryBuilder } from '~/query-builders/query-builder';
 import type { SQLWrapper } from '~/sql';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
 import type { MySqlDialect } from './dialect';
-import type { QueryBuilder, QueryBuilderInstance } from './query-builders';
+import type { QueryBuilderInstance } from './query-builders';
 import {
 	MySqlDelete,
 	MySqlInsertBuilder,
@@ -10,7 +11,7 @@ import {
 	MySqlUpdateBuilder,
 	queryBuilder,
 } from './query-builders';
-import type { SelectFields } from './query-builders/select.types';
+import type { SelectedFields } from './query-builders/select.types';
 import type { MySqlSession, QueryResultHKT, QueryResultKind } from './session';
 import type { WithSubqueryWithSelection } from './subquery';
 import type { AnyMySqlTable } from './table';
@@ -33,8 +34,8 @@ export class MySqlDatabase<TQueryResult extends QueryResultHKT, TSession extends
 				}
 
 				return new Proxy(
-					new WithSubquery(qb.getSQL(), qb.getSelection() as SelectFields, alias, true),
-					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
+					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'subquery_selection', sqlBehavior: 'error' }),
 				) as WithSubqueryWithSelection<TSelection, TAlias>;
 			},
 		};
@@ -44,8 +45,8 @@ export class MySqlDatabase<TQueryResult extends QueryResultHKT, TSession extends
 		const self = this;
 
 		function select(): MySqlSelectBuilder<undefined>;
-		function select<TSelection extends SelectFields>(fields: TSelection): MySqlSelectBuilder<TSelection>;
-		function select(fields?: SelectFields): MySqlSelectBuilder<SelectFields | undefined> {
+		function select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection>;
+		function select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined> {
 			return new MySqlSelectBuilder(fields ?? undefined, self.session, self.dialect, queries);
 		}
 
@@ -53,8 +54,8 @@ export class MySqlDatabase<TQueryResult extends QueryResultHKT, TSession extends
 	}
 
 	select(): MySqlSelectBuilder<undefined>;
-	select<TSelection extends SelectFields>(fields: TSelection): MySqlSelectBuilder<TSelection>;
-	select(fields?: SelectFields): MySqlSelectBuilder<SelectFields | undefined> {
+	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection>;
+	select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined> {
 		return new MySqlSelectBuilder(fields ?? undefined, this.session, this.dialect);
 	}
 

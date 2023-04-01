@@ -4,10 +4,10 @@ import type { MigrationMeta } from '~/migrator';
 import type { AnyPgColumn } from '~/pg-core/columns';
 import { PgColumn, PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core/columns';
 import type { PgDeleteConfig, PgInsertConfig, PgUpdateConfig } from '~/pg-core/query-builders';
-import type { PgSelectConfig, SelectFieldsOrdered } from '~/pg-core/query-builders/select.types';
+import type { PgSelectConfig, SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
 import type { AnyPgTable } from '~/pg-core/table';
 import { PgTable } from '~/pg-core/table';
-import type { DriverValueEncoder, Query, QueryTypingsValue, SQLSourceParam } from '~/sql';
+import type { DriverValueEncoder, Query, QueryTypingsValue, SQLChunk } from '~/sql';
 import { Name, SQL, sql } from '~/sql';
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
@@ -39,7 +39,9 @@ export class PgDialect {
 					!lastDbMigration
 					|| parseInt(lastDbMigration.created_at, 10) < migration.folderMillis
 				) {
-					await session.execute(sql.raw(migration.sql));
+					for (const stmnt of migration.sql) {
+						await session.execute(sql.raw(stmnt));	
+					}
 					await session.execute(
 						sql`INSERT INTO "drizzle"."__drizzle_migrations" ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
 					);
@@ -117,14 +119,14 @@ export class PgDialect {
 	 * If `isSingleTable` is true, then columns won't be prefixed with table name
 	 */
 	private buildSelection(
-		fields: SelectFieldsOrdered,
+		fields: SelectedFieldsOrdered,
 		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
 	): SQL {
 		const columnsLen = fields.length;
 
 		const chunks = fields
 			.map(({ field }, i) => {
-				const chunk: SQLSourceParam[] = [];
+				const chunk: SQLChunk[] = [];
 
 				if (field instanceof SQL.Aliased && field.isSelectionField) {
 					chunk.push(new Name(field.fieldAlias));
@@ -169,11 +171,10 @@ export class PgDialect {
 	}
 
 	buildSelectQuery(
-		{ withList, fieldsList: fields, where, having, table, joins, orderBy, groupBy, limit, offset, lockingClauses }:
+		{ withList, fieldsList, where, having, table, joins, orderBy, groupBy, limit, offset, lockingClauses }:
 			PgSelectConfig,
 	): SQL {
-		fields.forEach((f) => {
-			let tableName: string;
+		fieldsList.forEach((f) => {
 			if (
 				f.field instanceof Column
 				&& getTableName(f.field.table)
@@ -181,9 +182,12 @@ export class PgDialect {
 						? table[SubqueryConfig].alias
 						: table instanceof PgViewBase
 						? table[ViewBaseConfig].name
+						: table instanceof SQL
+						? undefined
 						: getTableName(table))
-				&& !((tableName = getTableName(f.field.table)) in joins)
+				&& !((table) => joins.some(({ alias }) => alias === getTableName(table)))(f.field.table)
 			) {
+				const tableName = getTableName(f.field.table);
 				throw new Error(
 					`Your "${
 						f.path.join('->')
@@ -192,8 +196,7 @@ export class PgDialect {
 			}
 		});
 
-		const joinKeys = Object.keys(joins);
-		const isSingleTable = joinKeys.length === 0;
+		const isSingleTable = joins.length === 0;
 
 		let withSql: SQL | undefined;
 		if (withList.length) {
@@ -208,22 +211,21 @@ export class PgDialect {
 			withSql = sql.fromList(withSqlChunks);
 		}
 
-		const selection = this.buildSelection(fields, { isSingleTable });
+		const selection = this.buildSelection(fieldsList, { isSingleTable });
 
 		const joinsArray: SQL[] = [];
 
-		joinKeys.forEach((tableAlias, index) => {
+		joins.forEach((joinMeta, index) => {
 			if (index === 0) {
 				joinsArray.push(sql` `);
 			}
-			const joinMeta = joins[tableAlias]!;
 			const table = joinMeta.table;
 
 			if (table instanceof PgTable) {
 				const tableName = table[PgTable.Symbol.Name];
 				const tableSchema = table[PgTable.Symbol.Schema];
 				const origTableName = table[PgTable.Symbol.OriginalName];
-				const alias = tableName === origTableName ? undefined : tableAlias;
+				const alias = tableName === origTableName ? undefined : joinMeta.alias;
 				joinsArray.push(
 					sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${new Name(tableSchema)}.` : undefined}${new Name(
 						origTableName,
@@ -234,7 +236,7 @@ export class PgDialect {
 					sql`${sql.raw(joinMeta.joinType)} join ${table} on ${joinMeta.on}`,
 				);
 			}
-			if (index < joinKeys.length - 1) {
+			if (index < joins.length - 1) {
 				joinsArray.push(sql` `);
 			}
 		});
@@ -290,7 +292,7 @@ export class PgDialect {
 
 	buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {
 		const isSingleValue = values.length === 1;
-		const valuesSqlList: ((SQLSourceParam | SQL)[] | SQL)[] = [];
+		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, AnyPgColumn> = table[Table.Symbol.Columns];
 		const colEntries: [string, AnyPgColumn][] = isSingleValue
 			? Object.keys(values[0]!).map((fieldName) => [fieldName, columns[fieldName]!])
@@ -298,7 +300,7 @@ export class PgDialect {
 		const insertOrder = colEntries.map(([, column]) => new Name(column.name));
 
 		values.forEach((value, valueIndex) => {
-			const valueList: (SQLSourceParam | SQL)[] = [];
+			const valueList: (SQLChunk | SQL)[] = [];
 			colEntries.forEach(([fieldName]) => {
 				const colValue = value[fieldName];
 				if (typeof colValue === 'undefined') {

@@ -1,67 +1,53 @@
-import type { ExecutionContext } from 'ava';
 import test from 'ava';
-import { pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { integer, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
-import { createInsertSchema } from '../src/pg';
+import { createInsertSchema, createSelectSchema } from '../src';
+import { assertSchemasEqual } from './utils';
 
 export const roleEnum = pgEnum('role', ['admin', 'user']);
 
 const users = pgTable('users', {
+	a: integer('a').array(),
 	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
+	name: text('name'),
 	email: text('email').notNull(),
 	createdAt: timestamp('created_at').notNull().defaultNow(),
 	role: roleEnum('role').notNull(),
-	roleText: text<'admin' | 'user'>('role1').notNull(),
-	roleText2: text<'admin' | 'user'>('role1').notNull().default('user'),
+	roleText: text('role1', { enum: ['admin', 'user'] }).notNull(),
+	roleText2: text('role2', { enum: ['admin', 'user'] }).notNull().default('user'),
 });
 
-const users1 = pgTable('users', {
-	id: serial('id').primaryKey(),
-});
+test('users insert schema', (t) => {
+	const actual = createInsertSchema(users, {
+		id: ({ id }) => id.positive(),
+		email: ({ email }) => email.email(),
+		roleText: z.enum(['user', 'manager', 'admin']),
+	});
 
-function assertSchemasEqual<T extends z.SomeZodObject>(t: ExecutionContext, actual: T, expected: T) {
-	t.deepEqual(Object.keys(actual.shape), Object.keys(expected.shape));
+	(() => {
+		{
+			createInsertSchema(users, {
+				// @ts-expect-error
+				foobar: z.number(),
+			});
+		}
 
-	Object.keys(actual.shape).forEach((key) => {
-		t.deepEqual(actual.shape[key]!._def.typeName, expected.shape[key]?._def.typeName);
-		if (actual.shape[key] instanceof z.ZodOptional) {
-			t.deepEqual(actual.shape[key]!._def.innerType._def.typeName, expected.shape[key]!._def.innerType._def.typeName);
+		{
+			createInsertSchema(users, {
+				// @ts-expect-error
+				id: 123,
+			});
 		}
 	});
-}
-
-test('users insert schema w/ enum', (t) => {
-	const actual = createInsertSchema(users, 'camel', (schema) => ({
-		id: schema.id.positive(),
-		email: schema.email.email(),
-		roleText: z.enum(['admin', 'user']),
-		roleText2: z.enum(['admin', 'user']),
-	}));
-
-	const test1 = createInsertSchema(users);
-	const test2 = createInsertSchema(users, 'camel');
-	const test3 = createInsertSchema(users, 'snake');
-	const test4 = createInsertSchema(users, {
-		roleText: z.enum(['admin', 'user']),
-	});
-	const test5 = createInsertSchema(users, 'camel', {
-		roleText: z.enum(['admin', 'user']),
-	});
-	const test6 = createInsertSchema(users, 'snake', {
-		role_text: z.enum(['admin', 'user']),
-	});
-	const test7 = createInsertSchema(users, 'snake', (schema) => ({
-		role_text: z.enum(['admin', 'user']),
-	}));
 
 	const expected = z.object({
+		a: z.array(z.number()),
 		id: z.number().positive().optional(),
 		name: z.string(),
 		email: z.string().email(),
 		createdAt: z.date().optional(),
 		role: z.enum(['admin', 'user']),
-		roleText: z.enum(['admin', 'user']),
+		roleText: z.enum(['user', 'manager', 'admin']),
 		roleText2: z.enum(['admin', 'user']).optional(),
 	});
 
@@ -72,41 +58,52 @@ test('users insert schema w/ defaults', (t) => {
 	const actual = createInsertSchema(users);
 
 	const expected = z.object({
+		a: z.array(z.number()),
 		id: z.number().optional(),
 		name: z.string(),
 		email: z.string(),
 		createdAt: z.date().optional(),
 		role: z.enum(['admin', 'user']),
-		roleText: z.string(),
-		roleText2: z.string().optional(),
+		roleText: z.enum(['admin', 'user']),
+		roleText2: z.enum(['admin', 'user']).optional(),
 	});
 
 	assertSchemasEqual(t, actual, expected);
 });
 
-test('users insert schema w/ snake case', (t) => {
-	const actual = createInsertSchema(users, 'snake', {
-		role_text: z.enum(['admin', 'user']),
+test('users select schema', (t) => {
+	const actual = createSelectSchema(users, {
+		id: ({ id }) => id.positive(),
+		email: ({ email }) => email.email(),
+		roleText: z.enum(['user', 'manager', 'admin']),
 	});
 
 	const expected = z.object({
-		id: z.number().optional(),
-		name: z.string(),
-		email: z.string(),
-		created_at: z.date().optional(),
+		a: z.array(z.number()).nullable(),
+		id: z.number().positive(),
+		name: z.string().nullable(),
+		email: z.string().email(),
+		createdAt: z.date(),
 		role: z.enum(['admin', 'user']),
-		role_text: z.enum(['admin', 'user']),
-		role_text2: z.string().optional(),
+		roleText: z.enum(['user', 'manager', 'admin']),
+		roleText2: z.enum(['admin', 'user']),
 	});
 
 	assertSchemasEqual(t, actual, expected);
 });
 
-test('users1 insert schema w/ defaults', (t) => {
-	const actual = createInsertSchema(users1);
+test('users select schema w/ defaults', (t) => {
+	const actual = createSelectSchema(users);
 
 	const expected = z.object({
-		id: z.number().optional(),
+		a: z.array(z.number()).nullable(),
+		id: z.number(),
+		name: z.string().nullable(),
+		email: z.string(),
+		createdAt: z.date(),
+		role: z.enum(['admin', 'user']),
+		roleText: z.enum(['admin', 'user']),
+		roleText2: z.enum(['admin', 'user']),
 	});
 
 	assertSchemasEqual(t, actual, expected);

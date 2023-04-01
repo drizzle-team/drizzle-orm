@@ -11,10 +11,10 @@
 
 Drizzle ORM is a TypeScript ORM for SQL databases designed with maximum type safety in mind. It comes with a [drizzle-kit](https://github.com/drizzle-team/drizzle-kit-mirror) CLI companion for automatic SQL migrations generation. This is the documentation for Drizzle ORM version for MySQL.
 
-| Driver | Support |
-| :- | :-: |
-| [mysql2](https://github.com/sidorares/node-mysql2) | ✅ |
-| [Planetscale Serverless](https://github.com/planetscale/database-js) | ✅ |
+| Driver                                                               | Support |
+|:---------------------------------------------------------------------|:-------:|
+| [mysql2](https://github.com/sidorares/node-mysql2)                   |    ✅    |
+| [Planetscale Serverless](https://github.com/planetscale/database-js) |    ✅    |
 
 ## Installation
 
@@ -190,9 +190,10 @@ export const cities = mysqlTable('cities', {
 
 ```typescript
 // db.ts
-import { InferModel, MySqlDatabase, MySqlRawQueryResult, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
+import { MySqlDatabase, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
+import { InferModel } from 'drizzle-orm';
 import mysql from 'mysql2/promise';
-import { drizzle } from 'drizzle-orm/mysql2';
+import { drizzle, MySqlRawQueryResult } from 'drizzle-orm/mysql2';
 
 const users = mysqlTable('users', {
   id: serial('id').primaryKey(),
@@ -283,6 +284,23 @@ index('name_idx')
     .algorythm('default' | 'inplace' | 'copy')
 ```
 
+### Customizing the table name
+
+There are "table creators" available for each dialect, which allow you to customize the table name, for example, to add a prefix or suffix. This is useful if you need to have tables for different environments or applications in the same database.
+
+> **Note:**: this feature should only be used to customize the table name. If you need to put the table into a different schema, refer to the [Table schemas](#table-schemas) section.
+
+```ts
+import { mysqlTableCreator } from 'drizzle-orm/mysql-core';
+
+const mysqlTable = mysqlTableCreator((name) => `myprefix_${name}`);
+
+const users = mysqlTable('users', {
+  id: int('id').primaryKey(),
+  name: text('name').notNull(),
+});
+```
+
 ## Column types
 
 The list of all column types. You can also create custom types - [see here](https://github.com/drizzle-team/drizzle-orm/blob/main/docs/custom-types.md).
@@ -307,8 +325,8 @@ binary('name');
 varbinary('name', { length: 2 });
 
 char('name');
-varchar('name', { length: 2 });
-text('name');
+varchar('name', { length: 2, enum: ['a', 'b'] });
+text('name', { enum: ['a', 'b'] });
 
 boolean('name');
 
@@ -322,9 +340,18 @@ timestamp('...', { mode: 'date' | 'string', fsp: 0..6 })
 timestamp('...').defaultNow()
 
 json('name');
-json<string[]>('name');
+json('name').$type<string[]>();
+```
 
-int('...').array(3).array(4)
+### Customizing column data type
+
+Every column builder has a `.$type()` method, which allows you to customize the data type of the column. This is useful, for example, with branded types.
+
+```ts
+const users = mysqlTable('users', {
+  id: serial('id').$type<UserId>().primaryKey(),
+  jsonField: json('json_field').$type<Data>(),
+});
 ```
 
 ## Table schemas
@@ -405,6 +432,20 @@ await db.select().from(users).orderBy(desc(users.name));
 await db.select().from(users).orderBy(asc(users.name), desc(users.name));
 ```
 
+#### Select from/join raw SQL
+
+```typescript
+await db.select({ x: sql<number>`x` }).from(sql`(select 1) as t(x)`);
+
+await db
+  .select({
+    x1: sql<number>`g1.x`,
+    x2: sql<number>`g2.x`
+  })
+  .from(sql`(select 1) as g1(x)`)
+  .leftJoin(sql`(select 2) as g2(x)`);
+```
+
 #### Conditionally select fields
 
 ```typescript
@@ -457,7 +498,6 @@ eq(column1, column2)
 ne(column, value)
 ne(column1, column2)
 
-notEq(column, value)
 less(column, value)
 lessEq(column, value)
 
@@ -499,7 +539,8 @@ or(...expressions: SQL[])
 ### Insert
 
 ```typescript
-import { mysqlTable, serial, text, timestamp, InferModel } from 'drizzle-orm/mysql-core';
+import { mysqlTable, serial, text, timestamp } from 'drizzle-orm/mysql-core';
+import { InferModel } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/mysql2';
 
 const users = mysqlTable('users', {
@@ -550,7 +591,7 @@ const newUsers: NewUser[] = [
   },
 ];
 
-await db.insert(users).values(...newUsers);
+await db.insert(users).values(newUsers);
 ```
 
 ### Update and Delete

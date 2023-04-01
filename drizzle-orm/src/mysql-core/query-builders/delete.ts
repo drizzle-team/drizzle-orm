@@ -9,12 +9,12 @@ import type {
 import type { AnyMySqlTable } from '~/mysql-core/table';
 import { QueryPromise } from '~/query-promise';
 import type { Query, SQL, SQLWrapper } from '~/sql';
-import type { SelectFieldsOrdered } from './select.types';
+import type { SelectedFieldsOrdered } from './select.types';
 
 export interface MySqlDeleteConfig {
 	where?: SQL | undefined;
 	table: AnyMySqlTable;
-	returning?: SelectFieldsOrdered;
+	returning?: SelectedFieldsOrdered;
 }
 
 export interface MySqlDelete<

@@ -19,7 +19,6 @@ export function getTableConfig<TTable extends AnySQLiteTable>(table: TTable) {
 	const primaryKeys: PrimaryKey[] = [];
 	const foreignKeys: ForeignKey[] = Object.values(table[SQLiteTable.Symbol.InlineForeignKeys]);
 	const name = table[Table.Symbol.Name];
-	const schema = table[Table.Symbol.Schema];
 
 	const extraConfigBuilder = table[SQLiteTable.Symbol.ExtraConfigBuilder];
 
@@ -45,12 +44,7 @@ export function getTableConfig<TTable extends AnySQLiteTable>(table: TTable) {
 		checks,
 		primaryKeys,
 		name,
-		schema,
 	};
-}
-
-export function getTableColumns(table: AnySQLiteTable) {
-	return Object.assign({}, table[SQLiteTable.Symbol.Columns]);
 }
 
 export type OnConflict = 'rollback' | 'abort' | 'fail' | 'ignore' | 'replace';

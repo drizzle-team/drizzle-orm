@@ -5,20 +5,21 @@ import { fromIni } from '@aws-sdk/credential-providers';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import * as dotenv from 'dotenv';
-import { DefaultLogger, sql } from 'drizzle-orm';
-import type { AwsDataApiPgDatabase} from 'drizzle-orm/aws-data-api/pg';
+import { sql } from 'drizzle-orm';
+import type { AwsDataApiPgDatabase } from 'drizzle-orm/aws-data-api/pg';
 import { drizzle } from 'drizzle-orm/aws-data-api/pg';
 import { migrate } from 'drizzle-orm/aws-data-api/pg/migrator';
 import { asc, eq } from 'drizzle-orm/expressions';
 import { alias, boolean, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { name, placeholder } from 'drizzle-orm/sql';
+
 dotenv.config();
 
 const usersTable = pgTable('users', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
-	jsonb: jsonb<string[]>('jsonb'),
+	jsonb: jsonb('jsonb').$type<string[]>(),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -479,17 +480,24 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 });
 
-// TODO change tests to new structure
-// test.serial('migrator', async (t) => {
-// 	const { db } = t.context;
-// 	await migrate(db, { migrationsFolder: './drizzle/pg' });
+test.serial.skip('migrator', async (t) => {
+	const { db } = t.context;
+	await migrate(db, { migrationsFolder: './drizzle/pg' });
 
-// 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	await db.execute(sql`drop table if exists all_columns`);
+	await db.execute(sql`drop table if exists users12`);
+	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-// 	const result = await db.select().from(usersMigratorTable);
+	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 
-// 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
-// });
+	const result = await db.select().from(usersMigratorTable);
+
+	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+
+	await db.execute(sql`drop table all_columns`);
+	await db.execute(sql`drop table users12`);
+	await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
+});
 
 test.serial('insert via db.execute + select via db.execute', async (t) => {
 	const { db } = t.context;

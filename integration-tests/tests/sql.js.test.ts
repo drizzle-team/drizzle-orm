@@ -8,18 +8,28 @@ import { Name, name, placeholder } from 'drizzle-orm/sql';
 import type { SQLJsDatabase } from 'drizzle-orm/sql-js';
 import { drizzle } from 'drizzle-orm/sql-js';
 import { migrate } from 'drizzle-orm/sql-js/migrator';
-import { type InferModel, sqliteView } from 'drizzle-orm/sqlite-core';
-import { alias, blob, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import {
+	alias,
+	blob,
+	integer,
+	primaryKey,
+	sqliteTable,
+	sqliteTableCreator,
+	sqliteView,
+	text,
+} from 'drizzle-orm/sqlite-core';
 import { getViewConfig } from 'drizzle-orm/sqlite-core/utils';
+import type { Equal } from 'drizzle-orm/utils';
 import type { Database } from 'sql.js';
 import initSqlJs from 'sql.js';
+import { Expect } from './utils';
 
 const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: integer('verified').notNull().default(0),
-	json: blob<string[]>('json', { mode: 'json' }),
-	createdAt: integer('created_at', { mode: 'timestamp' }).notNull().defaultNow(),
+	json: blob('json', { mode: 'json' }).$type<string[]>(),
+	createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`strftime('%s', 'now')`),
 });
 
 const users2Table = sqliteTable('users2', {
@@ -108,7 +118,7 @@ test.beforeEach((t) => {
 			name text not null,
 			verified integer not null default 0,
 			json blob,
-			created_at integer not null default (cast((julianday('now') - 2440587.5)*86400000 as integer))
+			created_at integer not null default (strftime('%s', 'now'))
 		)`);
 	ctx.db.run(sql`
 		create table ${users2Table} (
@@ -151,7 +161,7 @@ test.serial('select all fields', (t) => {
 	const result = db.select().from(usersTable).all();
 
 	t.assert(result[0]!.createdAt instanceof Date);
-	t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 100);
+	t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 5000);
 	t.deepEqual(result, [{ id: 1, name: 'John', verified: 0, json: null, createdAt: result[0]!.createdAt }]);
 });
 
@@ -264,7 +274,7 @@ test.serial('update with returning all fields', (t) => {
 	const users = db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning().all();
 
 	t.assert(users[0]!.createdAt instanceof Date);
-	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 100);
+	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 5000);
 	t.deepEqual(users, [{ id: 1, name: 'Jane', verified: 0, json: null, createdAt: users[0]!.createdAt }]);
 });
 
@@ -289,7 +299,7 @@ test.serial('delete with returning all fields', (t) => {
 	const users = db.delete(usersTable).where(eq(usersTable.name, 'John')).returning().all();
 
 	t.assert(users[0]!.createdAt instanceof Date);
-	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 100);
+	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 5000);
 	t.deepEqual(users, [{ id: 1, name: 'John', verified: 0, json: null, createdAt: users[0]!.createdAt }]);
 });
 
@@ -577,9 +587,14 @@ test.serial('build query', (t) => {
 	});
 });
 
-test.serial.skip('migrator', async (t) => {
+test.serial('migrator', async (t) => {
 	const { db } = t.context;
-	migrate(db, { migrationsFolder: './drizzle/sqlite' });
+
+	db.run(sql`drop table if exists another_users`);
+	db.run(sql`drop table if exists users12`);
+	db.run(sql`drop table if exists __drizzle_migrations`);
+
+	migrate(db, { migrationsFolder: './drizzle2/sqlite' });
 
 	db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).run();
 	const result = db.select().from(usersMigratorTable).all();
@@ -589,6 +604,10 @@ test.serial.skip('migrator', async (t) => {
 
 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
 	t.deepEqual(result2, [{ id: 1, name: 'John', email: 'email' }]);
+
+	db.run(sql`drop table another_users`);
+	db.run(sql`drop table users12`);
+	db.run(sql`drop table __drizzle_migrations`);
 });
 
 test.serial('insert via db.run + select via db.all', (t) => {
@@ -625,7 +644,7 @@ test.serial('insert via db.run + select via db.get', (t) => {
 test.serial('insert via db.get w/ query builder', (t) => {
 	const { db } = t.context;
 
-	const inserted = db.get<Pick<InferModel<typeof usersTable>, 'id' | 'name'>>(
+	const inserted = db.get<Pick<typeof usersTable['_']['model']['select'], 'id' | 'name'>>(
 		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 	);
 	t.deepEqual(inserted, { id: 1, name: 'John' });
@@ -995,4 +1014,129 @@ test.serial('view', (t) => {
 	}
 
 	db.run(sql`drop view ${newYorkers1}`);
+});
+
+test.serial('select from raw sql', (t) => {
+	const { db } = t.context;
+
+	const result = db.select({
+		id: sql<number>`id`,
+		name: sql<string>`name`,
+	}).from(sql`(select 1 as id, 'John' as name) as users`).all();
+
+	Expect<Equal<{ id: number; name: string }[], typeof result>>;
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'John' },
+	]);
+});
+
+test.serial('select from raw sql with joins', (t) => {
+	const { db } = t.context;
+
+	const result = db
+		.select({
+			id: sql<number>`users.id`,
+			name: sql<string>`users.name`,
+			userCity: sql<string>`users.city`,
+			cityName: sql<string>`cities.name`,
+		})
+		.from(sql`(select 1 as id, 'John' as name, 'New York' as city) as users`)
+		.leftJoin(sql`(select 1 as id, 'Paris' as name) as cities`, sql`cities.id = users.id`)
+		.all();
+
+	Expect<Equal<{ id: number; name: string; userCity: string; cityName: string }[], typeof result>>;
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'John', userCity: 'New York', cityName: 'Paris' },
+	]);
+});
+
+test.serial('join on aliased sql from select', (t) => {
+	const { db } = t.context;
+
+	const result = db
+		.select({
+			userId: sql<number>`users.id`.as('userId'),
+			name: sql<string>`users.name`,
+			userCity: sql<string>`users.city`,
+			cityId: sql<number>`cities.id`.as('cityId'),
+			cityName: sql<string>`cities.name`,
+		})
+		.from(sql`(select 1 as id, 'John' as name, 'New York' as city) as users`)
+		.leftJoin(sql`(select 1 as id, 'Paris' as name) as cities`, (cols) => eq(cols.cityId, cols.userId))
+		.all();
+
+	Expect<Equal<{ userId: number; name: string; userCity: string; cityId: number; cityName: string }[], typeof result>>;
+
+	t.deepEqual(result, [
+		{ userId: 1, name: 'John', userCity: 'New York', cityId: 1, cityName: 'Paris' },
+	]);
+});
+
+test.serial('join on aliased sql from with clause', (t) => {
+	const { db } = t.context;
+
+	const users = db.$with('users').as(
+		db.select({
+			id: sql<number>`id`.as('userId'),
+			name: sql<string>`name`.as('userName'),
+			city: sql<string>`city`.as('city'),
+		}).from(
+			sql`(select 1 as id, 'John' as name, 'New York' as city) as users`,
+		),
+	);
+
+	const cities = db.$with('cities').as(
+		db.select({
+			id: sql<number>`id`.as('cityId'),
+			name: sql<string>`name`.as('cityName'),
+		}).from(
+			sql`(select 1 as id, 'Paris' as name) as cities`,
+		),
+	);
+
+	const result = db
+		.with(users, cities)
+		.select({
+			userId: users.id,
+			name: users.name,
+			userCity: users.city,
+			cityId: cities.id,
+			cityName: cities.name,
+		})
+		.from(users)
+		.leftJoin(cities, (cols) => eq(cols.cityId, cols.userId))
+		.all();
+
+	Expect<Equal<{ userId: number; name: string; userCity: string; cityId: number; cityName: string }[], typeof result>>;
+
+	t.deepEqual(result, [
+		{ userId: 1, name: 'John', userCity: 'New York', cityId: 1, cityName: 'Paris' },
+	]);
+});
+
+test.serial('prefixed table', (t) => {
+	const { db } = t.context;
+
+	const sqliteTable = sqliteTableCreator((name) => `myprefix_${name}`);
+
+	const users = sqliteTable('test_prefixed_table_with_unique_name', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table myprefix_test_prefixed_table_with_unique_name (id integer not null primary key, name text not null)`,
+	);
+
+	db.insert(users).values({ id: 1, name: 'John' }).run();
+
+	const result = db.select().from(users).all();
+
+	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+
+	db.run(sql`drop table ${users}`);
 });

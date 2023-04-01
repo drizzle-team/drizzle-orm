@@ -10,12 +10,12 @@
 
 Drizzle ORM is a TypeScript ORM for SQL databases designed with maximum type safety in mind. It comes with a [drizzle-kit](https://github.com/drizzle-team/drizzle-kit-mirror) CLI companion for automatic SQL migrations generation. This is the documentation for Drizzle ORM version for PostgreSQL.
 
-| Driver | Support | | Driver version |
-| :- | :-: | :-: | :-: |
-| [node-postgres](https://github.com/brianc/node-postgres) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/pg'> |
-| [postgres.js](https://github.com/porsager/postgres) | ✅ | [Docs](/drizzle-orm/src/postgres-js/README.md) | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/postgres'> |
-| [NeonDB Serverless](https://github.com/neondatabase/serverless) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/@neondatabase/serverless'> |
-| [AWS Data API](https://github.com/aws/aws-sdk-js-v3/blob/main/clients/client-rds-data/README.md) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/@aws-sdk/client-rds-data'>
+| Driver                                                                                           | Support |                                                |
+|:-------------------------------------------------------------------------------------------------|:-------:|:----------------------------------------------:|
+| [node-postgres](https://github.com/brianc/node-postgres)                                         |    ✅    |                                                |
+| [postgres.js](https://github.com/porsager/postgres)                                              |    ✅    | [Docs](/drizzle-orm/src/postgres-js/README.md) |
+| [NeonDB Serverless](https://github.com/neondatabase/serverless)                                  |    ✅    |                                                |
+| [AWS Data API](https://github.com/aws/aws-sdk-js-v3/blob/main/clients/client-rds-data/README.md) |    ✅    |                                                |
 
 ## Installation
 
@@ -197,7 +197,8 @@ export const cities = pgTable('cities', {
 ### Database and table entity types
 
 ```typescript
-import { pgTable, InferModel, serial, text, varchar } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, varchar } from 'drizzle-orm/pg-core';
+import { InferModel } from 'drizzle-orm';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 const users = pgTable('users', {
@@ -281,23 +282,40 @@ index('name')
   .where(sql``) // sql expression
 ```
 
+### Customizing the table name
+
+There is a "table creator" available, which allow you to customize the table name, for example, to add a prefix or suffix. This is useful if you need to have tables for different environments or applications in the same database.
+
+> **Note:**: this feature should only be used to customize the table name. If you need to put the table into a different schema, refer to the [Table schemas](#table-schemas) section.
+
+```ts
+import { pgTableCreator } from 'drizzle-orm/pg-core';
+
+const pgTable = pgTableCreator((name) => `myprefix_${name}`);
+
+const users = pgTable('users', {
+  id: int('id').primaryKey(),
+  name: text('name').notNull(),
+});
+```
+
 ## Column types
 
-The list of all column types. You can also create custom types - [see here](https://github.com/drizzle-team/drizzle-orm/blob/main/docs/custom-types.md).
+The list of all column types. You can also create custom types - [see here](/docs/custom-types.md).
 
 ```typescript
 export const popularityEnum = pgEnum('popularity', ['unknown', 'known', 'popular']); // declare enum type
-popularityEnum('column_name') // declare enum column
+popularityEnum('column_name'); // declare enum column
 
-smallint('...')
-integer('...')
-bigint('...', { mode: 'number' | 'bigint' })
+smallint('...');
+integer('...');
+bigint('...', { mode: 'number' | 'bigint' });
 
-boolean('...')
+boolean('...');
 text('...');
-text<'one' | 'two' | 'three'>('...');
+text('...', { enum: ['one', 'two', 'three'] });
 varchar('...');
-varchar<'one' | 'two' | 'three'>('...');
+varchar('...', { enum: ['one', 'two', 'three'] });
 varchar('...', { length: 256 }); // with length limit
 
 serial('...');
@@ -306,29 +324,42 @@ bigserial('...', { mode: 'number' | 'bigint' });
 decimal('...', { precision: 100, scale: 2 });
 numeric('...', { precision: 100, scale: 2 });
 
-real('...')
-doublePrecision('...')
+real('...');
+doublePrecision('...');
 
-json<...>('...');
-json<string[]>('...');
-jsonb<...>('...');
-jsonb<string[]>('...');
+json('...').$type<...>();
+json('...').$type<string[]>();
+jsonb('...').$type<...>();
+jsonb('...').$type<string[]>();
 
-time('...')
-time('...', { precision: 6, withTimezone: true })
-timestamp('...')
-timestamp('...', { mode: 'date' | 'string', precision: 0..6, withTimezone: true })
-timestamp('...').defaultNow()
-date('...')
-date('...', { mode: 'string' | 'date' })
-interval('...')
-interval('...', { fields: 'day' | 'month' | '...' , precision: 0..6 })
+time('...');
+time('...', { precision: 6, withTimezone: true });
+timestamp('...');
+timestamp('...', { mode: 'date' | 'string', precision: 0..6, withTimezone: true });
+timestamp('...').defaultNow();
+date('...');
+date('...', { mode: 'string' | 'date' });
+interval('...');
+interval('...', { fields: 'day' | 'month' | '...' , precision: 0..6 });
 
-column.primaryKey()
-column.notNull()
-column.defaultValue(...)
-timeColumn.defaultNow()
-uuidColumn.defaultRandom()
+column.primaryKey();
+column.notNull();
+column.default(...);
+timeColumn.defaultNow();
+uuidColumn.defaultRandom();
+
+integer('...').array(3).array(4);
+```
+
+### Customizing column data type
+
+Every column builder has a `.$type()` method, which allows you to customize the data type of the column. This is useful, for example, with branded types.
+
+```ts
+const users = pgTable('users', {
+  id: serial('id').$type<UserId>().primaryKey(),
+  jsonField: json('json_field').$type<Data>(),
+});
 ```
 
 ## Table schemas
@@ -409,6 +440,20 @@ await db.select().from(users).orderBy(desc(users.name));
 await db.select().from(users).orderBy(asc(users.name), desc(users.name));
 ```
 
+#### Select from/join raw SQL
+
+```typescript
+await db.select({ x: sql<number>`x` }).from(sql`generate_series(2, 4) as g(x)`);
+
+await db
+  .select({
+    x1: sql<number>`g1.x`,
+    x2: sql<number>`g2.x`
+  })
+  .from(sql`generate_series(2, 4) as g1(x)`)
+  .leftJoin(sql`generate_series(2, 4) as g2(x)`);
+```
+
 #### Conditionally select fields
 
 ```typescript
@@ -461,7 +506,6 @@ eq(column1, column2)
 ne(column, value)
 ne(column1, column2)
 
-notEq(column, value)
 less(column, value)
 lessEq(column, value)
 
@@ -502,7 +546,8 @@ or(...expressions: SQL[])
 ### Insert
 
 ```typescript
-import { pgTable, serial, text, timestamp, InferModel } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { InferModel } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 
 const users = pgTable('users', {
@@ -522,10 +567,10 @@ const newUser: NewUser = {
 
 await db.insert(users).values(newUser);
 
-const insertedUsers/*: NewUser[]*/ = await db.insert(users).values(...newUsers).returning();
+const insertedUsers/*: NewUser[]*/ = await db.insert(users).values(newUsers).returning();
 
 const insertedUsersIds/*: { insertedId: number }[]*/ = await db.insert(users)
-  .values(...newUsers)
+  .values(newUsers)
   .returning({ insertedId: users.id });
 ```
 
@@ -559,7 +604,7 @@ const newUsers: NewUser[] = [
   },
 ];
 
-await db.insert(users).values(...newUsers);
+await db.insert(users).values(newUsers);
 ```
 
 ### Upsert (Insert with on conflict statement)

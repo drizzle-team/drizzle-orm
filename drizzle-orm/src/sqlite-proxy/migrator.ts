@@ -26,7 +26,7 @@ export async function migrate(db: SqliteRemoteDatabase, callback: ProxyMigrator,
 		const queriesToRun: string[] = [];
 		for (const migration of migrations) {
 			if (!lastDbMigration || parseInt(lastDbMigration[2], 10)! < migration.folderMillis) {
-				queriesToRun.push(migration.sql);
+				queriesToRun.push(...migration.sql);
 				queriesToRun.push(
 					`INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES('${migration.hash}', '${migration.folderMillis}')`,
 				);

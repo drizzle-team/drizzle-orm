@@ -1,27 +1,29 @@
 import { ColumnAliasProxyHandler, TableAliasProxyHandler } from './alias';
 import type { AnyColumn } from './column';
 import { Column } from './column';
-import type { SelectFields } from './operations';
+import type { SelectedFields } from './operations';
 import { SQL } from './sql';
 import type { Table } from './table';
 import { View, ViewBaseConfig } from './view';
 
 export const SubqueryConfig = Symbol('SubqueryConfig');
 
-export class Subquery<TAlias extends string = string, TSelection = unknown> {
-	declare protected $brand: 'Subquery';
-	declare protected $selection: TSelection;
-	declare protected $alias: TAlias;
+export class Subquery<TAlias extends string = string, TSelectedFields = unknown> {
+	declare _: {
+		brand: 'Subquery';
+		selectedFields: TSelectedFields;
+		alias: TAlias;
+	};
 
 	/** @internal */
 	[SubqueryConfig]: {
 		sql: SQL;
-		selection: SelectFields<AnyColumn, Table>;
+		selection: SelectedFields<AnyColumn, Table>;
 		alias: string;
 		isWith: boolean;
 	};
 
-	constructor(sql: SQL, selection: SelectFields<AnyColumn, Table>, alias: string, isWith: boolean = false) {
+	constructor(sql: SQL, selection: SelectedFields<AnyColumn, Table>, alias: string, isWith: boolean = false) {
 		this[SubqueryConfig] = {
 			sql,
 			selection,
@@ -31,19 +33,14 @@ export class Subquery<TAlias extends string = string, TSelection = unknown> {
 	}
 }
 
-export class WithSubquery<TAlias extends string = string, TSelection = unknown> extends Subquery<TAlias, TSelection> {
-	declare protected $subqueryBrand: 'WithSubquery';
-}
+export class WithSubquery<TAlias extends string = string, TSelection = unknown> extends Subquery<TAlias, TSelection> {}
 
-export type GetSubquerySelection<T extends Subquery> = T extends Subquery<any, infer TSelection> ? TSelection : never;
-export type GetSubqueryAlias<T extends Subquery> = T extends Subquery<infer TAlias> ? TAlias : never;
-
-export class SelectionProxyHandler<T extends Subquery | SelectFields<AnyColumn, Table> | View>
-	implements ProxyHandler<Subquery | SelectFields<AnyColumn, Table> | View>
+export class SelectionProxyHandler<T extends Subquery | SelectedFields<AnyColumn, Table> | View>
+	implements ProxyHandler<Subquery | SelectedFields<AnyColumn, Table> | View>
 {
 	private config: {
 		alias?: string;
-		sqlAliasedBehavior: 'sql' | 'alias';
+		sqlAliasedBehavior: 'sql' | 'alias' | 'subquery_selection';
 		sqlBehavior: 'sql' | 'error';
 	};
 
@@ -59,12 +56,15 @@ export class SelectionProxyHandler<T extends Subquery | SelectFields<AnyColumn, 
 		const columns = subquery instanceof Subquery
 			? subquery[SubqueryConfig].selection
 			: subquery instanceof View
-			? subquery[ViewBaseConfig].selection
+			? subquery[ViewBaseConfig].selectedFields
 			: subquery;
 		const value: unknown = columns[prop as keyof typeof columns];
 
 		if (value instanceof SQL.Aliased) {
-			if (this.config.sqlAliasedBehavior === 'sql') {
+			if (
+				(this.config.sqlAliasedBehavior !== 'subquery_selection' && !value.isSelectionField)
+				|| this.config.sqlAliasedBehavior === 'sql'
+			) {
 				return value.sql;
 			}
 

@@ -1,16 +1,12 @@
 import type { Database, RunResult, Statement } from 'better-sqlite3';
-import type { Logger} from '~/logger';
+import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
 import type { Query } from '~/sql';
 import { fillPlaceholders } from '~/sql';
 import type { SQLiteSyncDialect } from '~/sqlite-core/dialect';
-import type { SelectFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
-import type {
-	PreparedQueryConfig as PreparedQueryConfigBase} from '~/sqlite-core/session';
-import {
-	PreparedQuery as PreparedQueryBase,
-	SQLiteSession,
-} from '~/sqlite-core/session';
+import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
+import type { PreparedQueryConfig as PreparedQueryConfigBase, Transaction } from '~/sqlite-core/session';
+import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session';
 import { mapResultRow } from '~/utils';
 
 export interface BetterSQLiteSessionOptions {
@@ -37,10 +33,14 @@ export class BetterSQLiteSession extends SQLiteSession<'sync', RunResult> {
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
-		fields: SelectFieldsOrdered | undefined,
+		fields: SelectedFieldsOrdered | undefined,
 	): PreparedQuery<T> {
 		const stmt = this.client.prepare(query.sql);
 		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields);
+	}
+
+	override transaction(): Transaction<'sync', RunResult> {
+		throw new Error('Method not implemented.');
 	}
 }
 
@@ -52,7 +52,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private queryString: string,
 		private params: unknown[],
 		private logger: Logger,
-		private fields: SelectFieldsOrdered | undefined,
+		private fields: SelectedFieldsOrdered | undefined,
 	) {
 		super();
 	}
