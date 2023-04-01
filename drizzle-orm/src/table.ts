@@ -76,8 +76,7 @@ export function getTableName<T extends Table>(table: T): T['_']['name'] {
 }
 
 export type MapColumnName<TName extends string, TColumn extends AnyColumn, TDBColumNames extends boolean> =
-	[TName] extends [never] ? never
-		: TDBColumNames extends true ? TColumn['_']['name']
+	TDBColumNames extends true ? TColumn['_']['name']
 		: TName;
 
 export type InferModel<
@@ -87,25 +86,17 @@ export type InferModel<
 > = TInferMode extends 'insert' ? Simplify<
 		& {
 			[
-				Key in keyof TTable['_']['columns'] & string as MapColumnName<
-					RequiredKeyOnly<
-						Key,
-						TTable['_']['columns'][Key]
-					>,
-					TTable['_']['columns'][Key],
-					TConfig['dbColumnNames']
+				Key in keyof TTable['_']['columns'] & string as RequiredKeyOnly<
+					MapColumnName<Key, TTable['_']['columns'][Key], TConfig['dbColumnNames']>,
+					TTable['_']['columns'][Key]
 				>
 			]: GetColumnData<TTable['_']['columns'][Key], 'query'>;
 		}
 		& {
 			[
-				Key in keyof TTable['_']['columns'] & string as MapColumnName<
-					OptionalKeyOnly<
-						Key,
-						TTable['_']['columns'][Key]
-					>,
-					TTable['_']['columns'][Key],
-					TConfig['dbColumnNames']
+				Key in keyof TTable['_']['columns'] & string as OptionalKeyOnly<
+					MapColumnName<Key, TTable['_']['columns'][Key], TConfig['dbColumnNames']>,
+					TTable['_']['columns'][Key]
 				>
 			]?: GetColumnData<TTable['_']['columns'][Key], 'query'>;
 		}
