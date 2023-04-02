@@ -61,7 +61,7 @@ export class PgTimestamp<T extends ColumnBaseConfig> extends PgColumn<PgTimestam
 	}
 
 	override mapFromDriverValue = (value: string): Date => {
-		return new Date(value);
+		return new Date(this.withTimezone ? value : value+ '+0000');
 	};
 }
 
