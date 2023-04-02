@@ -1,7 +1,15 @@
 import type { Equal } from 'tests/utils';
 import { Expect } from 'tests/utils';
 import { eq, gt } from '~/expressions';
-import { customType, type PgInteger, type PgSerial, type PgTableWithColumns, type PgText } from '~/pg-core';
+import {
+	bigint,
+	bigserial,
+	customType,
+	type PgInteger,
+	type PgSerial,
+	type PgTableWithColumns,
+	type PgText,
+} from '~/pg-core';
 import {
 	check,
 	cidr,
@@ -717,4 +725,17 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 			typeof cities
 		>
 	>;
+}
+
+{
+	const test = pgTable('test', {
+		bigint: bigint('bigint', { mode: 'bigint' }).default(BigInt(10)),
+		bigintNumber: bigint('bigintNumber', { mode: 'number' }),
+		bigserial: bigserial('bigserial', { mode: 'bigint' }).default(BigInt(10)),
+		bigserialNumber: bigserial('bigserialNumber', { mode: 'number' }),
+		timestamp: timestamp('timestamp').default(new Date()),
+		timestamp2: timestamp('timestamp2', { mode: 'date' }).default(new Date()),
+		timestamp3: timestamp('timestamp3', { mode: undefined }).default(new Date()),
+		timestamp4: timestamp('timestamp4', { mode: 'string' }).default('2020-01-01'),
+	});
 }

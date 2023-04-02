@@ -1,7 +1,7 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import type { Assume } from '~/utils';
+import type { Assume, Equal } from '~/utils';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export interface MySqlDateBuilderHKT extends ColumnBuilderHKTBase {
@@ -88,14 +88,16 @@ export class MySqlDateString<T extends ColumnBaseConfig> extends MySqlColumn<MyS
 	}
 }
 
-export function date<TName extends string>(name: TName): MySqlDateBuilderInitial<TName>;
-export function date<TName extends string>(
+export interface MySqlDateConfig<TMode extends 'date' | 'string' = 'date' | 'string'> {
+	mode?: TMode;
+}
+
+export function date<TName extends string, TMode extends MySqlDateConfig['mode'] & {}>(
 	name: TName,
-	config: { mode: 'string' },
-): MySqlDateStringBuilderInitial<TName>;
-export function date<TName extends string>(name: TName, config: { mode: 'date' }): MySqlDateBuilderInitial<TName>;
-export function date<TName extends string>(name: TName, config?: { mode?: 'date' | 'string' }) {
-	if (config?.mode === 'string') {
+	config?: MySqlDateConfig<TMode>,
+): Equal<TMode, 'string'> extends true ? MySqlDateStringBuilderInitial<TName> : MySqlDateBuilderInitial<TName>;
+export function date(name: string, config: MySqlDateConfig = {}) {
+	if (config.mode === 'string') {
 		return new MySqlDateStringBuilder(name);
 	}
 	return new MySqlDateBuilder(name);

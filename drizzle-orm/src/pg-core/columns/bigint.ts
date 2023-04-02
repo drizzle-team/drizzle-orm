@@ -84,18 +84,11 @@ interface PgBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
 	mode: T;
 }
 
-export function bigint<TName extends string, TMode extends 'number' | 'bigint'>(
+export function bigint<TName extends string, TMode extends PgBigIntConfig['mode']>(
 	name: TName,
 	config: PgBigIntConfig<TMode>,
-): PgBigInt53BuilderInitial<TName>;
-export function bigint<TName extends string>(
-	name: TName,
-	config: PgBigIntConfig<'bigint'>,
-): PgBigInt64BuilderInitial<TName>;
-export function bigint<TName extends string>(
-	name: TName,
-	config: PgBigIntConfig,
-) {
+): TMode extends 'number' ? PgBigInt53BuilderInitial<TName> : PgBigInt64BuilderInitial<TName>;
+export function bigint(name: string, config: PgBigIntConfig) {
 	if (config.mode === 'number') {
 		return new PgBigInt53Builder(name);
 	}
