@@ -1,5 +1,5 @@
 import Knex from 'knex';
-import { type Equal, Expect } from 'tests/utils';
+import { type Equal, Expect } from 'type-tests/utils';
 import { pgTable, serial, text } from '~/pg-core';
 import type { PromiseOf } from '~/utils';
 import '~/knex';

@@ -1,4 +1,4 @@
-import { type Equal, Expect } from 'tests/utils';
+import { type Equal, Expect } from 'type-tests/utils';
 import { eq, gt } from '~/expressions';
 import {
 	bigint,

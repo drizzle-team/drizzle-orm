@@ -1,4 +1,4 @@
-import { Expect } from 'tests/utils';
+import { Expect } from 'type-tests/utils';
 import { and, eq } from '~/expressions';
 import { sql } from '~/sql';
 import { alias, integer, sqliteTable, text } from '~/sqlite-core';

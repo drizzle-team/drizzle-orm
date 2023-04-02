@@ -1,35 +1,35 @@
-import type { Equal } from 'tests/utils';
-import { Expect } from 'tests/utils';
+import type { Equal } from 'type-tests/utils';
+import { Expect } from 'type-tests/utils';
 import { gt, inArray } from '~/expressions';
-import { int, mysqlTable, serial, text } from '~/mysql-core';
+import { integer, pgTable, serial, text } from '~/pg-core';
 import { sql } from '~/sql';
 import { db } from './db';
 
-const orders = mysqlTable('orders', {
+const orders = pgTable('orders', {
 	id: serial('id').primaryKey(),
 	region: text('region').notNull(),
 	product: text('product').notNull(),
-	amount: int('amount').notNull(),
-	quantity: int('quantity').notNull(),
+	amount: integer('amount').notNull(),
+	quantity: integer('quantity').notNull(),
 });
 
 {
 	const regionalSales = db
 		.$with('regional_sales')
-		.as(
-			db
+		.as((qb) =>
+			qb
 				.select({
 					region: orders.region,
 					totalSales: sql<number>`sum(${orders.amount})`.as('total_sales'),
 				})
 				.from(orders)
-				.groupBy(orders.region),
+				.groupBy(orders.region)
 		);
 
 	const topRegions = db
 		.$with('top_regions')
-		.as(
-			db
+		.as((qb) =>
+			qb
 				.select({
 					region: orders.region,
 					totalSales: orders.amount,
@@ -40,7 +40,7 @@ const orders = mysqlTable('orders', {
 						regionalSales.totalSales,
 						db.select({ sales: sql`sum(${regionalSales.totalSales})/10` }).from(regionalSales),
 					),
-				),
+				)
 		);
 
 	const result = await db

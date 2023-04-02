@@ -24,8 +24,8 @@ import {
 import { param, sql } from '~/sql';
 import { alias } from '~/sqlite-core/alias';
 
-import type { Equal } from 'tests/utils';
-import { Expect } from 'tests/utils';
+import type { Equal } from 'type-tests/utils';
+import { Expect } from 'type-tests/utils';
 import type { InferModel } from '~/table';
 import { db } from './db';
 import { cities, classes, newYorkers, users } from './tables';

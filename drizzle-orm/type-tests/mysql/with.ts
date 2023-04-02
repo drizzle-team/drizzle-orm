@@ -1,16 +1,16 @@
-import type { Equal } from 'tests/utils';
-import { Expect } from 'tests/utils';
+import type { Equal } from 'type-tests/utils';
+import { Expect } from 'type-tests/utils';
 import { gt, inArray } from '~/expressions';
+import { int, mysqlTable, serial, text } from '~/mysql-core';
 import { sql } from '~/sql';
-import { integer, sqliteTable, text } from '~/sqlite-core';
 import { db } from './db';
 
-const orders = sqliteTable('orders', {
-	id: integer('id').primaryKey(),
+const orders = mysqlTable('orders', {
+	id: serial('id').primaryKey(),
 	region: text('region').notNull(),
 	product: text('product').notNull(),
-	amount: integer('amount').notNull(),
-	quantity: integer('quantity').notNull(),
+	amount: int('amount').notNull(),
+	quantity: int('quantity').notNull(),
 });
 
 {
@@ -43,7 +43,7 @@ const orders = sqliteTable('orders', {
 				),
 		);
 
-	const result = db
+	const result = await db
 		.with(regionalSales, topRegions)
 		.select({
 			region: orders.region,
@@ -52,8 +52,7 @@ const orders = sqliteTable('orders', {
 			productSales: sql<number>`sum(${orders.amount})`,
 		})
 		.from(orders)
-		.where(inArray(orders.region, db.select({ region: topRegions.region }).from(topRegions)))
-		.all();
+		.where(inArray(orders.region, db.select({ region: topRegions.region }).from(topRegions)));
 
 	Expect<
 		Equal<{

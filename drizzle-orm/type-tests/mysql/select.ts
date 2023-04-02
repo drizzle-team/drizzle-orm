@@ -24,8 +24,8 @@ import {
 import { alias } from '~/mysql-core/alias';
 import { param, sql } from '~/sql';
 
-import type { Equal } from 'tests/utils';
-import { Expect } from 'tests/utils';
+import type { Equal } from 'type-tests/utils';
+import { Expect } from 'type-tests/utils';
 import { db } from './db';
 import { cities, classes, newYorkers, users } from './tables';
 

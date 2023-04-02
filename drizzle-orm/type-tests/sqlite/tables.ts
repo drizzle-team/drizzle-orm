@@ -1,5 +1,5 @@
-import type { Equal } from 'tests/utils';
-import { Expect } from 'tests/utils';
+import type { Equal } from 'type-tests/utils';
+import { Expect } from 'type-tests/utils';
 import { eq, gt } from '~/expressions';
 import { sql } from '~/sql';
 import type { SQLiteInteger } from '~/sqlite-core';

@@ -1,14 +1,14 @@
-import { Expect } from 'tests/utils';
+import { Expect } from 'type-tests/utils';
 import { and, eq } from '~/expressions';
-import { alias, int, mysqlTable, serial, text } from '~/mysql-core';
+import { alias, integer, pgTable, serial, text } from '~/pg-core';
 import { sql } from '~/sql';
 import type { DrizzleTypeError, Equal } from '~/utils';
 import { db } from './db';
 
-const names = mysqlTable('names', {
+const names = pgTable('names', {
 	id: serial('id').primaryKey(),
 	name: text('name'),
-	authorId: int('author_id'),
+	authorId: integer('author_id'),
 });
 
 const n1 = db

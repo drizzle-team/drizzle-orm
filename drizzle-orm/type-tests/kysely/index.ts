@@ -1,6 +1,6 @@
 import { Kysely, PostgresDialect } from 'kysely';
 import { Pool } from 'pg';
-import { type Equal, Expect } from 'tests/utils';
+import { type Equal, Expect } from 'type-tests/utils';
 import type { Kyselify } from '~/kysely';
 import { char, mysqlTable, timestamp as mysqlTimestamp, varchar as mysqlVarchar } from '~/mysql-core';
 import { integer, pgEnum, pgTable, serial, text, timestamp, varchar } from '~/pg-core';
