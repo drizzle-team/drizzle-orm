@@ -1,7 +1,12 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type {
+	ColumnBuilderBaseConfig,
+	ColumnBuilderHKTBase,
+	MakeColumnConfig,
+} from '~/column-builder';
 import type { AnyMySqlTable } from '~/mysql-core/table';
 import type { Assume } from '~/utils';
+
 import { MySqlDateBaseColumn, MySqlDateColumnBaseBuilder } from './date.common';
 
 export interface MySqlTimestampBuilderHKT extends ColumnBuilderHKTBase {
@@ -21,11 +26,9 @@ export type MySqlTimestampBuilderInitial<TName extends string> = MySqlTimestampB
 	hasDefault: false;
 }>;
 
-export class MySqlTimestampBuilder<T extends ColumnBuilderBaseConfig> extends MySqlDateColumnBaseBuilder<
-	MySqlTimestampBuilderHKT,
-	T,
-	MySqlTimestampConfig
-> {
+export class MySqlTimestampBuilder<
+	T extends ColumnBuilderBaseConfig,
+> extends MySqlDateColumnBaseBuilder<MySqlTimestampBuilderHKT, T, MySqlTimestampConfig> {
 	constructor(name: T['name'], config: MySqlTimestampConfig | undefined) {
 		super(name);
 		this.config.fsp = config?.fsp;
@@ -39,9 +42,11 @@ export class MySqlTimestampBuilder<T extends ColumnBuilderBaseConfig> extends My
 	}
 }
 
-export class MySqlTimestamp<T extends ColumnBaseConfig>
-	extends MySqlDateBaseColumn<MySqlTimestampHKT, T, MySqlTimestampConfig>
-{
+export class MySqlTimestamp<T extends ColumnBaseConfig> extends MySqlDateBaseColumn<
+	MySqlTimestampHKT,
+	T,
+	MySqlTimestampConfig
+> {
 	readonly fsp: number | undefined = this.config.fsp;
 
 	getSQLType(): string {
@@ -51,6 +56,10 @@ export class MySqlTimestamp<T extends ColumnBaseConfig>
 
 	override mapFromDriverValue(value: string): Date {
 		return new Date(value + '+0000');
+	}
+
+	override mapToDriverValue(value: Date): string {
+		return value.toISOString().slice(0, 19).replace('T', ' ');
 	}
 }
 
@@ -71,11 +80,9 @@ export type MySqlTimestampStringBuilderInitial<TName extends string> = MySqlTime
 	hasDefault: false;
 }>;
 
-export class MySqlTimestampStringBuilder<T extends ColumnBuilderBaseConfig> extends MySqlDateColumnBaseBuilder<
-	MySqlTimestampStringBuilderHKT,
-	T,
-	MySqlTimestampConfig
-> {
+export class MySqlTimestampStringBuilder<
+	T extends ColumnBuilderBaseConfig,
+> extends MySqlDateColumnBaseBuilder<MySqlTimestampStringBuilderHKT, T, MySqlTimestampConfig> {
 	constructor(name: T['name'], config: MySqlTimestampConfig | undefined) {
 		super(name);
 		this.config.fsp = config?.fsp;
@@ -89,9 +96,11 @@ export class MySqlTimestampStringBuilder<T extends ColumnBuilderBaseConfig> exte
 	}
 }
 
-export class MySqlTimestampString<T extends ColumnBaseConfig>
-	extends MySqlDateBaseColumn<MySqlTimestampStringHKT, T, MySqlTimestampConfig>
-{
+export class MySqlTimestampString<T extends ColumnBaseConfig> extends MySqlDateBaseColumn<
+	MySqlTimestampStringHKT,
+	T,
+	MySqlTimestampConfig
+> {
 	readonly fsp: number | undefined = this.config.fsp;
 
 	getSQLType(): string {
