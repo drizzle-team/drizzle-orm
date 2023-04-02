@@ -122,6 +122,10 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 			this.free();
 		}
 
+		if (!row) {
+			return undefined;
+		}
+
 		return mapResultRow(fields, row.map(normalizeFieldValue), this.joinsNotNullableMap);
 	}
 

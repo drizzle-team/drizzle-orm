@@ -70,7 +70,9 @@ export const users = pgTable(
 			.concurrently()
 			.using(sql`btree`),
 		legalAge: check('legalAge', sql`${users.age1} > 18`),
-		usersClassFK: foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] }),
+		usersClassFK: foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] })
+			.onUpdate('cascade')
+			.onDelete('cascade'),
 		usersClassComplexFK: foreignKey({
 			columns: [users.class, users.subClass],
 			foreignColumns: [classes.class, classes.subClass],
