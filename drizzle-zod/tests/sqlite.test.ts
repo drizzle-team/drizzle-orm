@@ -23,9 +23,13 @@ function assertSchemasEqual<T extends z.SomeZodObject>(t: ExecutionContext, actu
 	t.deepEqual(Object.keys(actual.shape), Object.keys(expected.shape));
 
 	Object.keys(actual.shape).forEach((key) => {
-		t.deepEqual(actual.shape[key]!._def.typeName, expected.shape[key]?._def.typeName);
+		t.deepEqual(actual.shape[key]!._def.typeName, expected.shape[key]?._def.typeName, `key: ${key}`);
 		if (actual.shape[key] instanceof z.ZodOptional) {
-			t.deepEqual(actual.shape[key]!._def.innerType._def.typeName, expected.shape[key]!._def.innerType._def.typeName);
+			t.deepEqual(
+				actual.shape[key]!._def.innerType._def.typeName,
+				expected.shape[key]!._def.innerType._def.typeName,
+				`key (optional): ${key}`,
+			);
 		}
 	});
 }
@@ -60,7 +64,7 @@ test('users insert schema', (t) => {
 		createdAt: z.date(),
 		createdAtMs: z.date(),
 		real: z.number(),
-		text: z.string(),
+		text: z.string().nullable().optional(),
 		role: z.enum(['admin', 'manager', 'user']).optional(),
 	});
 
@@ -77,7 +81,7 @@ test('users insert schema w/ defaults', (t) => {
 		createdAt: z.date(),
 		createdAtMs: z.date(),
 		real: z.number(),
-		text: z.string(),
+		text: z.string().nullable().optional(),
 		role: z.enum(['admin', 'user']).optional(),
 	});
 

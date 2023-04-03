@@ -74,6 +74,8 @@ export class PgArray<T extends ColumnBaseConfig> extends PgColumn<PgArrayHKT, T,
 		>
 	>;
 }> {
+	declare protected $pgColumnBrand: 'PgArray';
+
 	readonly size: number | undefined;
 
 	constructor(

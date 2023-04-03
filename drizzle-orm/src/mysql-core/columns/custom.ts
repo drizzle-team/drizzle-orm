@@ -60,6 +60,8 @@ export class MySqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig> extends
 }
 
 export class MySqlCustomColumn<T extends ColumnBaseConfig> extends MySqlColumn<MySqlCustomColumnHKT, T> {
+	declare protected $mysqlColumnBrand: 'MySqlCustomColumn';
+
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
