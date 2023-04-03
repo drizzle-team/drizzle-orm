@@ -11,10 +11,10 @@
 
 Drizzle ORM is a TypeScript ORM for SQL databases designed with maximum type safety in mind. It comes with a [drizzle-kit](https://github.com/drizzle-team/drizzle-kit-mirror) CLI companion for automatic SQL migrations generation. This is the documentation for Drizzle ORM version for MySQL.
 
-| Driver | Support |
-| :- | :-: |
-| [mysql2](https://github.com/sidorares/node-mysql2) | ✅ |
-| [Planetscale Serverless](https://github.com/planetscale/database-js) | ✅ |
+| Driver                                                               | Support |
+|:---------------------------------------------------------------------|:-------:|
+| [mysql2](https://github.com/sidorares/node-mysql2)                   |    ✅    |
+| [Planetscale Serverless](https://github.com/planetscale/database-js) |    ✅    |
 
 ## Installation
 
@@ -71,6 +71,26 @@ export const users = mysqlTable('users', {
   phone: varchar('phone', { length: 256 }),
 });
 ```
+
+### Using Drizzle ORM in Next.js app router
+In order to use Drizzle ORM in the Next.js new app router mode you have to add `mysql2` dependendency to the `experimental.serverComponentsExternalPackages` array in `next.config.js` config file.
+
+Example `next.config.js` should look like this:
+```ts
+/** @type {import("next").NextConfig} */
+const config = {
+  reactStrictMode: true,
+  experimental: {
+    appDir: true,
+    serverComponentsExternalPackages: ["mysql2"],
+  },
+}
+export default config
+```
+
+More details about `serverComponentsExternalPackages` can be found in the [Next.js beta docs](https://beta.nextjs.org/docs/api-reference/next-config#servercomponentsexternalpackages).
+
+> **Note**: New next.js beta docs changes frequently so if the link above doesn't work try this one: [Next.js beta docs](https://beta.nextjs.org/docs/api-reference/next-config.js#servercomponentsexternalpackages).
 
 ### Connect using mysql2 Pool (recommended)
 
@@ -170,10 +190,10 @@ export const cities = mysqlTable('cities', {
 
 ```typescript
 // db.ts
-import { MySqlDatabase, MySqlRawQueryResult, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
+import { MySqlDatabase, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
 import { InferModel } from 'drizzle-orm';
 import mysql from 'mysql2/promise';
-import { drizzle } from 'drizzle-orm/mysql2';
+import { drizzle, MySqlRawQueryResult } from 'drizzle-orm/mysql2';
 
 const users = mysqlTable('users', {
   id: serial('id').primaryKey(),

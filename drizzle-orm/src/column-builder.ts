@@ -40,7 +40,7 @@ export interface ColumnBuilderHKTBase {
 
 export type ColumnBuilderKind<
 	THKT extends ColumnBuilderHKTBase,
-	TConfig extends Partial<ColumnBuilderBaseConfig>,
+	TConfig extends ColumnBuilderBaseConfig,
 > = (THKT & {
 	config: TConfig;
 })['_type'];
@@ -114,7 +114,7 @@ export abstract class ColumnBuilder<
 export type AnyColumnBuilder = ColumnBuilder<ColumnBuilderHKT, ColumnBuilderBaseConfig>;
 
 export type UpdateCBConfig<
-	T extends Partial<ColumnBuilderBaseConfig>,
+	T extends ColumnBuilderBaseConfig,
 	TUpdate extends Partial<ColumnBuilderBaseConfig>,
 > = Update<T, TUpdate>;
 

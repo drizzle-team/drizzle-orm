@@ -1,10 +1,5 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type {
-	ColumnBuilderBaseConfig,
-	ColumnBuilderConfig,
-	ColumnBuilderHKTBase,
-	MakeColumnConfig,
-} from '~/column-builder';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import type { Assume } from '~/utils';
 import type { AnyPgTable } from '../table';
 import { PgColumn, PgColumnBuilder } from './common';
@@ -73,15 +68,9 @@ export type PgBigSerial64BuilderInitial<TName extends string> = PgBigSerial64Bui
 	hasDefault: true;
 }>;
 
-export class PgBigSerial64Builder<
-	TInitial extends Partial<ColumnBuilderBaseConfig>,
-	T extends ColumnBuilderBaseConfig = ColumnBuilderConfig<TInitial, {
-		data: bigint;
-		driverParam: string;
-		notNull: true;
-		hasDefault: true;
-	}>,
-> extends PgColumnBuilder<PgBigSerial64BuilderHKT, T> {
+export class PgBigSerial64Builder<T extends ColumnBuilderBaseConfig>
+	extends PgColumnBuilder<PgBigSerial64BuilderHKT, T>
+{
 	constructor(name: string) {
 		super(name);
 		this.config.hasDefault = true;
@@ -109,15 +98,11 @@ interface PgBigSerialConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'>
 	mode: T;
 }
 
-export function bigserial<TName extends string>(
+export function bigserial<TName extends string, TMode extends PgBigSerialConfig['mode']>(
 	name: TName,
-	config: PgBigSerialConfig<'number'>,
-): PgBigSerial53BuilderInitial<TName>;
-export function bigserial<TName extends string>(
-	name: TName,
-	config: PgBigSerialConfig<'bigint'>,
-): PgBigSerial64BuilderInitial<TName>;
-export function bigserial<TName extends string>(name: TName, { mode }: PgBigSerialConfig) {
+	config: PgBigSerialConfig<TMode>,
+): TMode extends 'number' ? PgBigSerial53BuilderInitial<TName> : PgBigSerial64BuilderInitial<TName>;
+export function bigserial(name: string, { mode }: PgBigSerialConfig) {
 	if (mode === 'number') {
 		return new PgBigSerial53Builder(name);
 	}
