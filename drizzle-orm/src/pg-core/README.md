@@ -76,6 +76,27 @@ export const users = pgTable('users', {
 });
 ```
 
+### Using Drizzle ORM in Next.js app router
+In order to use Drizzle ORM in the Next.js new app router mode you have to add `pg` dependendency to the `experimental.serverComponentsExternalPackages` array in `next.config.js` config file.
+
+Example `next.config.js` should look like this:
+```ts
+/** @type {import("next").NextConfig} */
+const config = {
+  reactStrictMode: true,
+  experimental: {
+    appDir: true,
+    serverComponentsExternalPackages: ["pg"],
+  },
+}
+export default config
+```
+
+More details about `serverComponentsExternalPackages` can be found in the [Next.js beta docs](https://beta.nextjs.org/docs/api-reference/next-config#servercomponentsexternalpackages).
+
+> **Note**: New next.js beta docs changes frequently so if the link above doesn't work try this one: [Next.js beta docs](https://beta.nextjs.org/docs/api-reference/next-config.js#servercomponentsexternalpackages).
+
+
 ### Connect using node-postgres Pool (recommended)
 
 ```typescript
@@ -151,7 +172,7 @@ const db = drizzle(rdsClient, {
 This is how you declare SQL schema in `schema.ts`. You can declare tables, indexes and constraints, foreign keys and enums. Please pay attention to `export` keyword, they are mandatory if you'll be using [drizzle-kit SQL migrations generator](#migrations).
 
 ```typescript
-import { pgEnum, pgTable, serial, uniqueIndex, varchar } from 'drizzle-orm/pg-core';
+import { pgEnum, pgTable, serial, integer, uniqueIndex, varchar } from 'drizzle-orm/pg-core';
 
 // declaring enum in database
 export const popularityEnum = pgEnum('popularity', ['unknown', 'known', 'popular']);
@@ -368,7 +389,7 @@ const publicUsersTable = pgTable('users', {
 // Table in custom schema
 const mySchema = pgSchema('mySchema');
 
-const usersTable = mySchema('users', {
+const usersTable = mySchema.table('users', {
   id: serial('id').primaryKey(),
   name: text('name').notNull(),
   verified: boolean('verified').notNull().default(false),
