@@ -1,7 +1,8 @@
+import 'dotenv/config';
+
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import Docker from 'dockerode';
-import 'dotenv/config';
 import { sql } from 'drizzle-orm';
 import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -30,7 +31,6 @@ import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
-
 import { type Equal, Expect } from './utils';
 
 const ENABLE_LOGGING = false;
@@ -113,7 +113,7 @@ async function createDockerDB(ctx: Context): Promise<string> {
 
 	const pullStream = await docker.pull(image);
 	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err))),
+		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
 	);
 
 	ctx.pgContainer = await docker.createContainer({
@@ -272,11 +272,9 @@ test.serial('select typed sql', async (t) => {
 
 	await db.insert(usersTable).values({ name: 'John' });
 
-	const users = await db
-		.select({
-			name: sql<string>`upper(${usersTable.name})`,
-		})
-		.from(usersTable);
+	const users = await db.select({
+		name: sql<string>`upper(${usersTable.name})`,
+	}).from(usersTable);
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
 });
@@ -784,9 +782,11 @@ test.serial('insert via db.execute + returning', async (t) => {
 	const { db } = t.context;
 
 	const inserted = await db.execute<{ id: number; name: string }>(
-		sql`insert into ${usersTable} (${name(
-			usersTable.name.name,
-		)}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
+		sql`insert into ${usersTable} (${
+			name(
+				usersTable.name.name,
+			)
+		}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
 	);
 	t.deepEqual(inserted.rows, [{ id: 1, name: 'John' }]);
 });
@@ -794,9 +794,7 @@ test.serial('insert via db.execute + returning', async (t) => {
 test.serial('insert via db.execute w/ query builder', async (t) => {
 	const { db } = t.context;
 
-	const inserted = await db.execute<
-		Pick<(typeof usersTable)['_']['model']['select'], 'id' | 'name'>
-	>(
+	const inserted = await db.execute<Pick<typeof usersTable['_']['model']['select'], 'id' | 'name'>>(
 		db
 			.insert(usersTable)
 			.values({ name: 'John' })
@@ -1075,44 +1073,44 @@ test.serial('join subquery', async (t) => {
 test.serial('with ... select', async (t) => {
 	const { db } = t.context;
 
-	await db
-		.insert(orders)
-		.values(
-			{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
-			{ region: 'Europe', product: 'A', amount: 20, quantity: 2 },
-			{ region: 'Europe', product: 'B', amount: 20, quantity: 2 },
-			{ region: 'Europe', product: 'B', amount: 30, quantity: 3 },
-			{ region: 'US', product: 'A', amount: 30, quantity: 3 },
-			{ region: 'US', product: 'A', amount: 40, quantity: 4 },
-			{ region: 'US', product: 'B', amount: 40, quantity: 4 },
-			{ region: 'US', product: 'B', amount: 50, quantity: 5 },
+	await db.insert(orders).values(
+		{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
+		{ region: 'Europe', product: 'A', amount: 20, quantity: 2 },
+		{ region: 'Europe', product: 'B', amount: 20, quantity: 2 },
+		{ region: 'Europe', product: 'B', amount: 30, quantity: 3 },
+		{ region: 'US', product: 'A', amount: 30, quantity: 3 },
+		{ region: 'US', product: 'A', amount: 40, quantity: 4 },
+		{ region: 'US', product: 'B', amount: 40, quantity: 4 },
+		{ region: 'US', product: 'B', amount: 50, quantity: 5 },
+	);
+
+	const regionalSales = db
+		.$with('regional_sales')
+		.as(
+			db
+				.select({
+					region: orders.region,
+					totalSales: sql<number>`sum(${orders.amount})`.as('total_sales'),
+				})
+				.from(orders)
+				.groupBy(orders.region),
 		);
 
-	const regionalSales = db.$with('regional_sales').as(
-		db
-			.select({
-				region: orders.region,
-				totalSales: sql<number>`sum(${orders.amount})`.as('total_sales'),
-			})
-			.from(orders)
-			.groupBy(orders.region),
-	);
-
-	const topRegions = db.$with('top_regions').as(
-		db
-			.select({
-				region: regionalSales.region,
-			})
-			.from(regionalSales)
-			.where(
-				gt(
-					regionalSales.totalSales,
-					db
-						.select({ sales: sql`sum(${regionalSales.totalSales})/10` })
-						.from(regionalSales),
+	const topRegions = db
+		.$with('top_regions')
+		.as(
+			db
+				.select({
+					region: regionalSales.region,
+				})
+				.from(regionalSales)
+				.where(
+					gt(
+						regionalSales.totalSales,
+						db.select({ sales: sql`sum(${regionalSales.totalSales})/10` }).from(regionalSales),
+					),
 				),
-			),
-	);
+		);
 
 	const result = await db
 		.with(regionalSales, topRegions)
@@ -1179,9 +1177,7 @@ test.serial('select a field without joining its table', (t) => {
 test.serial('select all fields from subquery without alias', (t) => {
 	const { db } = t.context;
 
-	const sq = db
-		.$with('sq')
-		.as(db.select({ name: sql<string>`upper(${users2Table.name})` }).from(users2Table));
+	const sq = db.$with('sq').as(db.select({ name: sql<string>`upper(${users2Table.name})` }).from(users2Table));
 
 	t.throws(() => db.select().from(sq).prepare('query'));
 });
@@ -1201,10 +1197,7 @@ test.serial('select count w/ custom mapper', async (t) => {
 
 	function count(value: AnyPgColumn | SQLWrapper): SQL<number>;
 	function count(value: AnyPgColumn | SQLWrapper, alias: string): SQL.Aliased<number>;
-	function count(
-		value: AnyPgColumn | SQLWrapper,
-		alias?: string,
-	): SQL<number> | SQL.Aliased<number> {
+	function count(value: AnyPgColumn | SQLWrapper, alias?: string): SQL<number> | SQL.Aliased<number> {
 		const result = sql`count(${value})`.mapWith((v) => parseInt(v, 10));
 		if (!alias) {
 			return result;
@@ -1222,7 +1215,7 @@ test.serial('select count w/ custom mapper', async (t) => {
 test.serial('network types', async (t) => {
 	const { db } = t.context;
 
-	const value: (typeof network)['_']['model']['select'] = {
+	const value: typeof network['_']['model']['select'] = {
 		inet: '127.0.0.1',
 		cidr: '192.168.100.128/25',
 		macaddr: '08:00:2b:01:02:03',
@@ -1239,22 +1232,16 @@ test.serial('network types', async (t) => {
 test.serial('array types', async (t) => {
 	const { db } = t.context;
 
-	const values: (typeof salEmp)['_']['model']['select'][] = [
+	const values: typeof salEmp['_']['model']['select'][] = [
 		{
 			name: 'John',
 			payByQuarter: [10000, 10000, 10000, 10000],
-			schedule: [
-				['meeting', 'lunch'],
-				['training', 'presentation'],
-			],
+			schedule: [['meeting', 'lunch'], ['training', 'presentation']],
 		},
 		{
 			name: 'Carol',
 			payByQuarter: [20000, 25000, 25000, 25000],
-			schedule: [
-				['breakfast', 'consulting'],
-				['meeting', 'lunch'],
-			],
+			schedule: [['breakfast', 'consulting'], ['meeting', 'lunch']],
 		},
 	];
 
@@ -1286,18 +1273,12 @@ test.serial('select for ...', (t) => {
 test.serial('having', async (t) => {
 	const { db } = t.context;
 
-	await db
-		.insert(citiesTable)
-		.values({ name: 'London' }, { name: 'Paris' }, { name: 'New York' });
+	await db.insert(citiesTable).values({ name: 'London' }, { name: 'Paris' }, { name: 'New York' });
 
-	await db.insert(users2Table).values(
-		{ name: 'John', cityId: 1 },
-		{ name: 'Jane', cityId: 1 },
-		{
-			name: 'Jack',
-			cityId: 2,
-		},
-	);
+	await db.insert(users2Table).values({ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 1 }, {
+		name: 'Jack',
+		cityId: 2,
+	});
 
 	const result = await db
 		.select({
@@ -1329,9 +1310,8 @@ test.serial('having', async (t) => {
 test.serial('view', async (t) => {
 	const { db } = t.context;
 
-	const newYorkers1 = pgView('new_yorkers').as((qb) =>
-		qb.select().from(users2Table).where(eq(users2Table.cityId, 1)),
-	);
+	const newYorkers1 = pgView('new_yorkers')
+		.as((qb) => qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
 
 	const newYorkers2 = pgView('new_yorkers', {
 		id: serial('id').primaryKey(),
@@ -1349,13 +1329,11 @@ test.serial('view', async (t) => {
 
 	await db.insert(citiesTable).values({ name: 'New York' }, { name: 'Paris' });
 
-	await db
-		.insert(users2Table)
-		.values(
-			{ name: 'John', cityId: 1 },
-			{ name: 'Jane', cityId: 1 },
-			{ name: 'Jack', cityId: 2 },
-		);
+	await db.insert(users2Table).values(
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 1 },
+		{ name: 'Jack', cityId: 2 },
+	);
 
 	{
 		const result = await db.select().from(newYorkers1);
@@ -1383,7 +1361,10 @@ test.serial('view', async (t) => {
 
 	{
 		const result = await db.select({ name: newYorkers1.name }).from(newYorkers1);
-		t.deepEqual(result, [{ name: 'John' }, { name: 'Jane' }]);
+		t.deepEqual(result, [
+			{ name: 'John' },
+			{ name: 'Jane' },
+		]);
 	}
 
 	await db.execute(sql`drop view ${newYorkers1}`);
@@ -1392,9 +1373,8 @@ test.serial('view', async (t) => {
 test.serial('materialized view', async (t) => {
 	const { db } = t.context;
 
-	const newYorkers1 = pgMaterializedView('new_yorkers').as((qb) =>
-		qb.select().from(users2Table).where(eq(users2Table.cityId, 1)),
-	);
+	const newYorkers1 = pgMaterializedView('new_yorkers')
+		.as((qb) => qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
 
 	const newYorkers2 = pgMaterializedView('new_yorkers', {
 		id: serial('id').primaryKey(),
@@ -1408,21 +1388,15 @@ test.serial('materialized view', async (t) => {
 		cityId: integer('city_id').notNull(),
 	}).existing();
 
-	await db.execute(
-		sql`create materialized view ${newYorkers1} as ${
-			getMaterializedViewConfig(newYorkers1).query
-		}`,
-	);
+	await db.execute(sql`create materialized view ${newYorkers1} as ${getMaterializedViewConfig(newYorkers1).query}`);
 
 	await db.insert(citiesTable).values({ name: 'New York' }, { name: 'Paris' });
 
-	await db
-		.insert(users2Table)
-		.values(
-			{ name: 'John', cityId: 1 },
-			{ name: 'Jane', cityId: 1 },
-			{ name: 'Jack', cityId: 2 },
-		);
+	await db.insert(users2Table).values(
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 1 },
+		{ name: 'Jack', cityId: 2 },
+	);
 
 	{
 		const result = await db.select().from(newYorkers1);
@@ -1457,7 +1431,10 @@ test.serial('materialized view', async (t) => {
 
 	{
 		const result = await db.select({ name: newYorkers1.name }).from(newYorkers1);
-		t.deepEqual(result, [{ name: 'John' }, { name: 'Jane' }]);
+		t.deepEqual(result, [
+			{ name: 'John' },
+			{ name: 'Jane' },
+		]);
 	}
 
 	await db.execute(sql`drop materialized view ${newYorkers1}`);
@@ -1467,16 +1444,16 @@ test.serial('materialized view', async (t) => {
 test.serial('select from raw sql', async (t) => {
 	const { db } = t.context;
 
-	const result = await db
-		.select({
-			id: sql<number>`id`,
-			name: sql<string>`name`,
-		})
-		.from(sql`(select 1 as id, 'John' as name) as users`);
+	const result = await db.select({
+		id: sql<number>`id`,
+		name: sql<string>`name`,
+	}).from(sql`(select 1 as id, 'John' as name) as users`);
 
 	Expect<Equal<{ id: number; name: string }[], typeof result>>;
 
-	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+	t.deepEqual(result, [
+		{ id: 1, name: 'John' },
+	]);
 });
 
 test.serial('select from raw sql with joins', async (t) => {
@@ -1492,11 +1469,11 @@ test.serial('select from raw sql with joins', async (t) => {
 		.from(sql`(select 1 as id, 'John' as name, 'New York' as city) as users`)
 		.leftJoin(sql`(select 1 as id, 'Paris' as name) as cities`, sql`cities.id = users.id`);
 
-	Expect<
-		Equal<{ id: number; name: string; userCity: string; cityName: string }[], typeof result>
-	>;
+	Expect<Equal<{ id: number; name: string; userCity: string; cityName: string }[], typeof result>>;
 
-	t.deepEqual(result, [{ id: 1, name: 'John', userCity: 'New York', cityName: 'Paris' }]);
+	t.deepEqual(result, [
+		{ id: 1, name: 'John', userCity: 'New York', cityName: 'Paris' },
+	]);
 });
 
 test.serial('join on aliased sql from select', async (t) => {
@@ -1511,16 +1488,9 @@ test.serial('join on aliased sql from select', async (t) => {
 			cityName: sql<string>`cities.name`,
 		})
 		.from(sql`(select 1 as id, 'John' as name, 'New York' as city) as users`)
-		.leftJoin(sql`(select 1 as id, 'Paris' as name) as cities`, (cols) =>
-			eq(cols.cityId, cols.userId),
-		);
+		.leftJoin(sql`(select 1 as id, 'Paris' as name) as cities`, (cols) => eq(cols.cityId, cols.userId));
 
-	Expect<
-		Equal<
-			{ userId: number; name: string; userCity: string; cityId: number; cityName: string }[],
-			typeof result
-		>
-	>;
+	Expect<Equal<{ userId: number; name: string; userCity: string; cityId: number; cityName: string }[], typeof result>>;
 
 	t.deepEqual(result, [
 		{ userId: 1, name: 'John', userCity: 'New York', cityId: 1, cityName: 'Paris' },
@@ -1531,22 +1501,22 @@ test.serial('join on aliased sql from with clause', async (t) => {
 	const { db } = t.context;
 
 	const users = db.$with('users').as(
-		db
-			.select({
-				id: sql<number>`id`.as('userId'),
-				name: sql<string>`name`.as('userName'),
-				city: sql<string>`city`.as('city'),
-			})
-			.from(sql`(select 1 as id, 'John' as name, 'New York' as city) as users`),
+		db.select({
+			id: sql<number>`id`.as('userId'),
+			name: sql<string>`name`.as('userName'),
+			city: sql<string>`city`.as('city'),
+		}).from(
+			sql`(select 1 as id, 'John' as name, 'New York' as city) as users`,
+		),
 	);
 
 	const cities = db.$with('cities').as(
-		db
-			.select({
-				id: sql<number>`id`.as('cityId'),
-				name: sql<string>`name`.as('cityName'),
-			})
-			.from(sql`(select 1 as id, 'Paris' as name) as cities`),
+		db.select({
+			id: sql<number>`id`.as('cityId'),
+			name: sql<string>`name`.as('cityName'),
+		}).from(
+			sql`(select 1 as id, 'Paris' as name) as cities`,
+		),
 	);
 
 	const result = await db
@@ -1561,12 +1531,7 @@ test.serial('join on aliased sql from with clause', async (t) => {
 		.from(users)
 		.leftJoin(cities, (cols) => eq(cols.cityId, cols.userId));
 
-	Expect<
-		Equal<
-			{ userId: number; name: string; userCity: string; cityId: number; cityName: string }[],
-			typeof result
-		>
-	>;
+	Expect<Equal<{ userId: number; name: string; userCity: string; cityId: number; cityName: string }[], typeof result>>;
 
 	t.deepEqual(result, [
 		{ userId: 1, name: 'John', userCity: 'New York', cityId: 1, cityName: 'Paris' },

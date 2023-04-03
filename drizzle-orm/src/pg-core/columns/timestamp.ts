@@ -1,14 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type {
-	ColumnBuilderBaseConfig,
-	ColumnBuilderHKTBase,
-	MakeColumnConfig,
-} from '~/column-builder';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import type { AnyPgTable } from '~/pg-core/table';
 import type { Assume } from '~/utils';
-
 import { PgColumn } from './common';
-
 import { PgDateColumnBaseBuilder } from './date.common';
 
 export interface PgTimestampBuilderHKT extends ColumnBuilderHKTBase {
@@ -33,7 +27,11 @@ export class PgTimestampBuilder<T extends ColumnBuilderBaseConfig> extends PgDat
 	T,
 	{ withTimezone: boolean; precision: number | undefined }
 > {
-	constructor(name: string, withTimezone: boolean, precision: number | undefined) {
+	constructor(
+		name: string,
+		withTimezone: boolean,
+		precision: number | undefined,
+	) {
 		super(name);
 		this.config.withTimezone = withTimezone;
 		this.config.precision = precision;
@@ -51,10 +49,7 @@ export class PgTimestamp<T extends ColumnBaseConfig> extends PgColumn<PgTimestam
 	readonly withTimezone: boolean;
 	readonly precision: number | undefined;
 
-	constructor(
-		table: AnyPgTable<{ name: T['tableName'] }>,
-		config: PgTimestampBuilder<T>['config'],
-	) {
+	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgTimestampBuilder<T>['config']) {
 		super(table, config);
 		this.withTimezone = config.withTimezone;
 		this.precision = config.precision;
@@ -91,14 +86,16 @@ export type PgTimestampStringBuilderInitial<TName extends string> = PgTimestampS
 	hasDefault: false;
 }>;
 
-export class PgTimestampStringBuilder<
-	T extends ColumnBuilderBaseConfig,
-> extends PgDateColumnBaseBuilder<
+export class PgTimestampStringBuilder<T extends ColumnBuilderBaseConfig> extends PgDateColumnBaseBuilder<
 	PgTimestampStringBuilderHKT,
 	T,
 	{ withTimezone: boolean; precision: number | undefined }
 > {
-	constructor(name: string, withTimezone: boolean, precision: number | undefined) {
+	constructor(
+		name: string,
+		withTimezone: boolean,
+		precision: number | undefined,
+	) {
 		super(name);
 		this.config.withTimezone = withTimezone;
 		this.config.precision = precision;
@@ -112,17 +109,11 @@ export class PgTimestampStringBuilder<
 	}
 }
 
-export class PgTimestampString<T extends ColumnBaseConfig> extends PgColumn<
-	PgTimestampStringHKT,
-	T
-> {
+export class PgTimestampString<T extends ColumnBaseConfig> extends PgColumn<PgTimestampStringHKT, T> {
 	readonly withTimezone: boolean;
 	readonly precision: number | undefined;
 
-	constructor(
-		table: AnyPgTable<{ name: T['tableName'] }>,
-		config: PgTimestampStringBuilder<T>['config'],
-	) {
+	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgTimestampStringBuilder<T>['config']) {
 		super(table, config);
 		this.withTimezone = config.withTimezone;
 		this.precision = config.precision;
