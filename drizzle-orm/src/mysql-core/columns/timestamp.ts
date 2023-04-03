@@ -1,7 +1,7 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import type { Assume } from '~/utils';
+import type { Assume, Equal } from '~/utils';
 import { MySqlDateBaseColumn, MySqlDateColumnBaseBuilder } from './date.common';
 
 export interface MySqlTimestampBuilderHKT extends ColumnBuilderHKTBase {
@@ -102,24 +102,18 @@ export class MySqlTimestampString<T extends ColumnBaseConfig>
 
 export type TimestampFsp = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
-export interface MySqlTimestampConfig {
+export interface MySqlTimestampConfig<TMode extends 'string' | 'date' = 'string' | 'date'> {
+	mode?: TMode;
 	fsp?: TimestampFsp;
 }
 
-export function timestamp<TName extends string>(name: TName): MySqlTimestampBuilderInitial<TName>;
-export function timestamp<TName extends string>(
+export function timestamp<TName extends string, TMode extends MySqlTimestampConfig['mode'] & {}>(
 	name: TName,
-	config: { mode: 'string'; fsp?: TimestampFsp },
-): MySqlTimestampStringBuilderInitial<TName>;
-export function timestamp<TName extends string>(
-	name: TName,
-	config: { mode?: 'date'; fsp?: TimestampFsp },
-): MySqlTimestampBuilderInitial<TName>;
-export function timestamp<TName extends string>(
-	name: TName,
-	config?: { mode?: 'date' | 'string'; fsp?: TimestampFsp },
-) {
-	if (config?.mode === 'string') {
+	config?: MySqlTimestampConfig<TMode>,
+): Equal<TMode, 'string'> extends true ? MySqlTimestampStringBuilderInitial<TName>
+	: MySqlTimestampBuilderInitial<TName>;
+export function timestamp(name: string, config: MySqlTimestampConfig = {}) {
+	if (config.mode === 'string') {
 		return new MySqlTimestampStringBuilder(name, config);
 	}
 	return new MySqlTimestampBuilder(name, config);
