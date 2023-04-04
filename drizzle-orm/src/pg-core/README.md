@@ -381,7 +381,7 @@ const publicUsersTable = pgTable('users', {
   id: serial('id').primaryKey(),
   name: text('name').notNull(),
   verified: boolean('verified').notNull().default(false),
-  jsonb: jsonb<string[]>('jsonb'),
+  jsonb: jsonb('jsonb').$type<string[]>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -393,7 +393,7 @@ const usersTable = mySchema.table('users', {
   id: serial('id').primaryKey(),
   name: text('name').notNull(),
   verified: boolean('verified').notNull().default(false),
-  jsonb: jsonb<string[]>('jsonb'),
+  jsonb: jsonb('jsonb').$type<string[]>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 ```
