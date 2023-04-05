@@ -4,7 +4,7 @@ import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import Docker from 'dockerode';
 import { Name, name, placeholder, type SQL, sql, type SQLWrapper } from 'drizzle-orm';
-import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
+import { and, asc, eq, gt, gte, inArray, lt } from 'drizzle-orm/expressions';
 import {
 	alias,
 	type AnyPgColumn,
@@ -21,6 +21,7 @@ import {
 	serial,
 	text,
 	timestamp,
+	uuid as pgUuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
@@ -1473,4 +1474,58 @@ test.serial('select from enum', async (t) => {
 	await db.execute(sql`drop type ${name(mechanicEnum.enumName)}`);
 	await db.execute(sql`drop type ${name(equipmentEnum.enumName)}`);
 	await db.execute(sql`drop type ${name(categoryEnum.enumName)}`);
+});
+
+test.serial('orderBy with aliased column', (t) => {
+	const { db } = t.context;
+
+	const query = db.select({
+		test: sql`something`.as('test'),
+	}).from(users2Table).orderBy((fields) => fields.test).toSQL();
+
+	t.deepEqual(query.sql, 'select something as "test" from "users2" order by "test"');
+});
+
+test.serial('select from sql', async (t) => {
+	const { db } = t.context;
+
+	const metricEntry = pgTable('metric_entry', {
+		id: pgUuid('id').notNull(),
+		createdAt: timestamp('created_at').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${metricEntry}`);
+	await db.execute(sql`create table ${metricEntry} (id uuid not null, created_at timestamp not null)`);
+
+	const metricId = uuid();
+
+	const intervals = db.$with('intervals').as(
+		db
+			.select({
+				startTime: sql<string>`(date'2023-03-01'+ x * '1 day'::interval)`.as('start_time'),
+				endTime: sql<string>`(date'2023-03-01'+ (x+1) *'1 day'::interval)`.as('end_time'),
+			})
+			.from(sql`generate_series(0, 29, 1) as t(x)`),
+	);
+
+	await t.notThrowsAsync(() =>
+		db
+			.with(intervals)
+			.select({
+				startTime: intervals.startTime,
+				endTime: intervals.endTime,
+				count: sql<number>`count(${metricEntry})`,
+			})
+			.from(metricEntry)
+			.rightJoin(
+				intervals,
+				and(
+					eq(metricEntry.id, metricId),
+					gte(metricEntry.createdAt, intervals.startTime),
+					lt(metricEntry.createdAt, intervals.endTime),
+				),
+			)
+			.groupBy(intervals.startTime, intervals.endTime)
+			.orderBy(asc(intervals.startTime))
+	);
 });
