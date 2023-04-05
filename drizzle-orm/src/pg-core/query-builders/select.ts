@@ -175,7 +175,7 @@ export abstract class PgSelectQueryBuilder<
 				on = on(
 					new Proxy(
 						this.config.fields,
-						new SelectionProxyHandler({ sqlAliasedBehavior: 'alias', sqlBehavior: 'sql' }),
+						new SelectionProxyHandler({ sqlAliasedBehavior: 'sql', sqlBehavior: 'sql' }),
 					) as TSelection,
 				);
 			}
@@ -315,7 +315,7 @@ export abstract class PgSelectQueryBuilder<
 	): SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias> {
 		return new Proxy(
 			new Subquery(this.getSQL(), this.config.fields, alias),
-			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'subquery_selection', sqlBehavior: 'error' }),
+			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias>;
 	}
 }

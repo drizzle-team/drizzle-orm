@@ -39,8 +39,25 @@ export class SelectionProxyHandler<T extends Subquery | SelectedFields<AnyColumn
 	implements ProxyHandler<Subquery | SelectedFields<AnyColumn, Table> | View>
 {
 	private config: {
+		/**
+		 * Table alias for the columns
+		 */
 		alias?: string;
-		sqlAliasedBehavior: 'sql' | 'alias' | 'subquery_selection';
+		/**
+		 * What to do when a field is an instance of `SQL.Aliased` and it's not a selection field (from a subquery)
+		 *
+		 * `sql` - return the underlying SQL expression
+		 *
+		 * `alias` - return the field alias
+		 */
+		sqlAliasedBehavior: 'sql' | 'alias';
+		/**
+		 * What to do when a field is an instance of `SQL` and it doesn't have an alias declared
+		 *
+		 * `sql` - return the underlying SQL expression
+		 *
+		 * `error` - return a DrizzleTypeError on type level and throw an error on runtime
+		 */
 		sqlBehavior: 'sql' | 'error';
 	};
 
@@ -61,10 +78,8 @@ export class SelectionProxyHandler<T extends Subquery | SelectedFields<AnyColumn
 		const value: unknown = columns[prop as keyof typeof columns];
 
 		if (value instanceof SQL.Aliased) {
-			if (
-				(this.config.sqlAliasedBehavior !== 'subquery_selection' && !value.isSelectionField)
-				|| this.config.sqlAliasedBehavior === 'sql'
-			) {
+			// Never return the underlying SQL expression for a field previously selected in a subquery
+			if (this.config.sqlAliasedBehavior === 'sql' && !value.isSelectionField) {
 				return value.sql;
 			}
 
@@ -79,7 +94,7 @@ export class SelectionProxyHandler<T extends Subquery | SelectedFields<AnyColumn
 			}
 
 			throw new Error(
-				`You tried to reference "${prop}" field from a subquery, which is a raw SQL field, but it doesn't have an alias. Please add an alias to the field using ".as('alias')" method.`,
+				`You tried to reference "${prop}" field from a subquery, which is a raw SQL field, but it doesn't have an alias declared. Please add an alias to the field using ".as('alias')" method.`,
 			);
 		}
 
