@@ -172,7 +172,7 @@ export function inArray(
 		if (values.length === 0) {
 			throw new Error('inArray requires at least one value');
 		}
-		return sql`${column} in (${values.map((v) => bindIfParam(v, column))})`;
+		return sql`${column} in ${values.map((v) => bindIfParam(v, column))}`;
 	}
 
 	return sql`${column} in ${bindIfParam(values, column)}`;

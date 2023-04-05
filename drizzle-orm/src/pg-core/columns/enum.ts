@@ -27,7 +27,7 @@ export interface PgEnum<TValues extends [string, ...string[]]> {
 	<TName extends string>(name: TName): PgEnumColumnBuilderInitial<TName, TValues>;
 
 	readonly enumName: string;
-	readonly enumValues: string[];
+	readonly enumValues: TValues;
 	/** @internal */
 	[isPgEnumSym]: true;
 }
@@ -71,7 +71,7 @@ export class PgEnumColumn<T extends ColumnBaseConfig> extends PgColumn<PgEnumCol
 // Gratitude to zod for the enum function types
 export function pgEnum<U extends string, T extends Readonly<[U, ...U[]]>>(
 	enumName: string,
-	values: Writable<T>,
+	values: T | Writable<T>,
 ): PgEnum<Writable<T>> {
 	const enumInstance = Object.assign(
 		<TName extends string>(name: TName): PgEnumColumnBuilderInitial<TName, Writable<T>> =>

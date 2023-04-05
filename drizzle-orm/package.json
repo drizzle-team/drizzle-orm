@@ -126,6 +126,7 @@
     "sql.js": "^1.8.0",
     "sqlite3": "^5.1.2",
     "vite-tsconfig-paths": "^4.0.7",
-    "vitest": "^0.29.8"
+    "vitest": "^0.29.8",
+    "zod": "^3.20.2"
   }
 }

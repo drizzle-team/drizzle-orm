@@ -365,3 +365,9 @@ Expect<
 		col1: decimal('col1').default('1'),
 	});
 }
+
+{
+	const a = ['a', 'b', 'c'] as const;
+	const test1 = mysqlEnum('test', a);
+	const test2 = mysqlEnum('test', ['a', 'b', 'c']);
+}

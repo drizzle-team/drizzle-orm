@@ -1,5 +1,6 @@
 import type { Equal } from 'type-tests/utils';
 import { Expect } from 'type-tests/utils';
+import { z } from 'zod';
 import { eq, gt } from '~/expressions';
 import {
 	bigint,
@@ -748,4 +749,15 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		col1: decimal('col1', { precision: 10, scale: 2 }).notNull().default('10.2'),
 	});
 	Expect<Equal<{ col1: string }, InferModel<typeof test>>>;
+}
+
+{
+	const a = ['a', 'b', 'c'] as const;
+	const b = pgEnum('test', a);
+	const c = z.enum(b.enumValues);
+}
+
+{
+	const b = pgEnum('test', ['a', 'b', 'c']);
+	const c = z.enum(b.enumValues);
 }

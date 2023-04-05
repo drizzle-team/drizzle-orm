@@ -114,6 +114,9 @@ importers:
       vitest:
         specifier: ^0.29.8
         version: 0.29.8
+      zod:
+        specifier: ^3.20.2
+        version: 3.21.4
 
   drizzle-zod:
     devDependencies:
