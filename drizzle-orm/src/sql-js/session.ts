@@ -5,7 +5,7 @@ import type { Query } from '~/sql';
 import { fillPlaceholders } from '~/sql';
 import type { SQLiteSyncDialect } from '~/sqlite-core/dialect';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
-import type { PreparedQueryConfig as PreparedQueryConfigBase } from '~/sqlite-core/session';
+import type { PreparedQueryConfig as PreparedQueryConfigBase, Transaction } from '~/sqlite-core/session';
 import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session';
 import { mapResultRow } from '~/utils';
 
@@ -45,6 +45,10 @@ export class SQLJsSession extends SQLiteSession<'sync', void> {
 	): PreparedQuery<T> {
 		const stmt = this.client.prepare(query.sql);
 		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields, true);
+	}
+
+	override transaction(): Transaction<'sync', void> {
+		throw new Error('Method not implemented.');
 	}
 }
 
@@ -116,6 +120,10 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 
 		if (this.isOneTimeQuery) {
 			this.free();
+		}
+
+		if (!row) {
+			return undefined;
 		}
 
 		return mapResultRow(fields, row.map(normalizeFieldValue), this.joinsNotNullableMap);

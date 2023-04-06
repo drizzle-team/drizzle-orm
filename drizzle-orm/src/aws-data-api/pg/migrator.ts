@@ -30,7 +30,9 @@ export async function migrate(db: AwsDataApiPgDatabase, config: string | Migrati
 				!lastDbMigration
 				|| parseInt(lastDbMigration.created_at, 10) < migration.folderMillis
 			) {
-				await session.executeWithTransaction(sql.raw(migration.sql), transactionId);
+				for (const stmnt of migration.sql) {
+					await session.executeWithTransaction(sql.raw(stmnt), transactionId);	
+				}
 				await session.executeWithTransaction(
 					sql`INSERT INTO "drizzle"."__drizzle_migrations" ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
 					transactionId,

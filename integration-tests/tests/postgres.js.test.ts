@@ -3,19 +3,32 @@ import 'dotenv/config';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import Docker from 'dockerode';
-import { sql } from 'drizzle-orm';
-import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
-import { type AnyPgColumn, pgMaterializedView, pgTableCreator, pgView } from 'drizzle-orm/pg-core';
-import { alias, boolean, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import { getMaterializedViewConfig, getViewConfig } from 'drizzle-orm/pg-core/utils';
+import { Name, name, placeholder, type SQL, sql, type SQLWrapper } from 'drizzle-orm';
+import { and, asc, eq, gt, gte, inArray, lt } from 'drizzle-orm/expressions';
+import {
+	alias,
+	type AnyPgColumn,
+	boolean,
+	getMaterializedViewConfig,
+	getViewConfig,
+	integer,
+	jsonb,
+	pgEnum,
+	pgMaterializedView,
+	pgTable,
+	pgTableCreator,
+	pgView,
+	serial,
+	text,
+	timestamp,
+	uuid as pgUuid,
+	varchar,
+} from 'drizzle-orm/pg-core';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
-import type { SQL, SQLWrapper } from 'drizzle-orm/sql';
-import { Name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
-import type { Sql } from 'postgres';
-import postgres from 'postgres';
+import postgres, { type Sql } from 'postgres';
 import { v4 as uuid } from 'uuid';
 import { type Equal, Expect } from './utils';
 
@@ -592,15 +605,22 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 });
 
 // TODO change tests to new structure
-test.serial.skip('migrator', async (t) => {
+test.serial('migrator', async (t) => {
 	const { db } = t.context;
-	await migrate(db, { migrationsFolder: './drizzle/pg' });
+
+	await db.execute(sql`drop table if exists ${usersMigratorTable}`);
+	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+
+	await migrate(db, { migrationsFolder: './drizzle2/pg' });
 
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 
 	const result = await db.select().from(usersMigratorTable);
 
 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+
+	await db.execute(sql`drop table ${usersMigratorTable}`);
+	await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
 });
 
 test.serial('insert via db.execute + select via db.execute', async (t) => {
@@ -1327,4 +1347,185 @@ test.serial('prefixed table', async (t) => {
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 
 	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('select from enum', async (t) => {
+	const { db } = t.context;
+
+	const muscleEnum = pgEnum('muscle', [
+		'abdominals',
+		'hamstrings',
+		'adductors',
+		'quadriceps',
+		'biceps',
+		'shoulders',
+		'chest',
+		'middle_back',
+		'calves',
+		'glutes',
+		'lower_back',
+		'lats',
+		'triceps',
+		'traps',
+		'forearms',
+		'neck',
+		'abductors',
+	]);
+
+	const forceEnum = pgEnum('force', ['isometric', 'isotonic', 'isokinetic']);
+
+	const levelEnum = pgEnum('level', ['beginner', 'intermediate', 'advanced']);
+
+	const mechanicEnum = pgEnum('mechanic', ['compound', 'isolation']);
+
+	const equipmentEnum = pgEnum('equipment', ['barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell']);
+
+	const categoryEnum = pgEnum('category', ['upper_body', 'lower_body', 'full_body']);
+
+	const exercises = pgTable('exercises', {
+		id: serial('id').primaryKey(),
+		name: varchar('name').notNull(),
+		force: forceEnum('force'),
+		level: levelEnum('level'),
+		mechanic: mechanicEnum('mechanic'),
+		equipment: equipmentEnum('equipment'),
+		instructions: text('instructions'),
+		category: categoryEnum('category'),
+		primaryMuscles: muscleEnum('primary_muscles').array(),
+		secondaryMuscles: muscleEnum('secondary_muscles').array(),
+		createdAt: timestamp('created_at').notNull().default(sql`now()`),
+		updatedAt: timestamp('updated_at').notNull().default(sql`now()`),
+	});
+
+	await db.execute(sql`drop table if exists ${exercises}`);
+	await db.execute(sql`drop type if exists ${name(muscleEnum.enumName)}`);
+	await db.execute(sql`drop type if exists ${name(forceEnum.enumName)}`);
+	await db.execute(sql`drop type if exists ${name(levelEnum.enumName)}`);
+	await db.execute(sql`drop type if exists ${name(mechanicEnum.enumName)}`);
+	await db.execute(sql`drop type if exists ${name(equipmentEnum.enumName)}`);
+	await db.execute(sql`drop type if exists ${name(categoryEnum.enumName)}`);
+
+	await db.execute(
+		sql`create type ${
+			name(muscleEnum.enumName)
+		} as enum ('abdominals', 'hamstrings', 'adductors', 'quadriceps', 'biceps', 'shoulders', 'chest', 'middle_back', 'calves', 'glutes', 'lower_back', 'lats', 'triceps', 'traps', 'forearms', 'neck', 'abductors')`,
+	);
+	await db.execute(sql`create type ${name(forceEnum.enumName)} as enum ('isometric', 'isotonic', 'isokinetic')`);
+	await db.execute(sql`create type ${name(levelEnum.enumName)} as enum ('beginner', 'intermediate', 'advanced')`);
+	await db.execute(sql`create type ${name(mechanicEnum.enumName)} as enum ('compound', 'isolation')`);
+	await db.execute(
+		sql`create type ${
+			name(equipmentEnum.enumName)
+		} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,
+	);
+	await db.execute(sql`create type ${name(categoryEnum.enumName)} as enum ('upper_body', 'lower_body', 'full_body')`);
+	await db.execute(sql`create table ${exercises} (
+		id serial primary key,
+		name varchar not null,
+		force force,
+		level level,
+		mechanic mechanic,
+		equipment equipment,
+		instructions text,
+		category category,
+		primary_muscles muscle[],
+		secondary_muscles muscle[],
+		created_at timestamp not null default now(),
+		updated_at timestamp not null default now()
+	)`);
+
+	await db.insert(exercises).values({
+		name: 'Bench Press',
+		force: 'isotonic',
+		level: 'beginner',
+		mechanic: 'compound',
+		equipment: 'barbell',
+		instructions:
+			'Lie on your back on a flat bench. Grasp the barbell with an overhand grip, slightly wider than shoulder width. Unrack the barbell and hold it over you with your arms locked. Lower the barbell to your chest. Press the barbell back to the starting position.',
+		category: 'upper_body',
+		primaryMuscles: ['chest', 'triceps'],
+		secondaryMuscles: ['shoulders', 'traps'],
+	});
+
+	const result = await db.select().from(exercises);
+
+	t.deepEqual(result, [
+		{
+			id: 1,
+			name: 'Bench Press',
+			force: 'isotonic',
+			level: 'beginner',
+			mechanic: 'compound',
+			equipment: 'barbell',
+			instructions:
+				'Lie on your back on a flat bench. Grasp the barbell with an overhand grip, slightly wider than shoulder width. Unrack the barbell and hold it over you with your arms locked. Lower the barbell to your chest. Press the barbell back to the starting position.',
+			category: 'upper_body',
+			primaryMuscles: ['chest', 'triceps'],
+			secondaryMuscles: ['shoulders', 'traps'],
+			createdAt: result[0]!.createdAt,
+			updatedAt: result[0]!.updatedAt,
+		},
+	]);
+
+	await db.execute(sql`drop table ${exercises}`);
+	await db.execute(sql`drop type ${name(muscleEnum.enumName)}`);
+	await db.execute(sql`drop type ${name(forceEnum.enumName)}`);
+	await db.execute(sql`drop type ${name(levelEnum.enumName)}`);
+	await db.execute(sql`drop type ${name(mechanicEnum.enumName)}`);
+	await db.execute(sql`drop type ${name(equipmentEnum.enumName)}`);
+	await db.execute(sql`drop type ${name(categoryEnum.enumName)}`);
+});
+
+test.serial('orderBy with aliased column', (t) => {
+	const { db } = t.context;
+
+	const query = db.select({
+		test: sql`something`.as('test'),
+	}).from(users2Table).orderBy((fields) => fields.test).toSQL();
+
+	t.deepEqual(query.sql, 'select something as "test" from "users2" order by "test"');
+});
+
+test.serial('select from sql', async (t) => {
+	const { db } = t.context;
+
+	const metricEntry = pgTable('metric_entry', {
+		id: pgUuid('id').notNull(),
+		createdAt: timestamp('created_at').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${metricEntry}`);
+	await db.execute(sql`create table ${metricEntry} (id uuid not null, created_at timestamp not null)`);
+
+	const metricId = uuid();
+
+	const intervals = db.$with('intervals').as(
+		db
+			.select({
+				startTime: sql<string>`(date'2023-03-01'+ x * '1 day'::interval)`.as('start_time'),
+				endTime: sql<string>`(date'2023-03-01'+ (x+1) *'1 day'::interval)`.as('end_time'),
+			})
+			.from(sql`generate_series(0, 29, 1) as t(x)`),
+	);
+
+	await t.notThrowsAsync(() =>
+		db
+			.with(intervals)
+			.select({
+				startTime: intervals.startTime,
+				endTime: intervals.endTime,
+				count: sql<number>`count(${metricEntry})`,
+			})
+			.from(metricEntry)
+			.rightJoin(
+				intervals,
+				and(
+					eq(metricEntry.id, metricId),
+					gte(metricEntry.createdAt, intervals.startTime),
+					lt(metricEntry.createdAt, intervals.endTime),
+				),
+			)
+			.groupBy(intervals.startTime, intervals.endTime)
+			.orderBy(asc(intervals.startTime))
+	);
 });

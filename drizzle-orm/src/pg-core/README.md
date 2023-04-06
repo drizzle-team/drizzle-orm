@@ -10,12 +10,12 @@
 
 Drizzle ORM is a TypeScript ORM for SQL databases designed with maximum type safety in mind. It comes with a [drizzle-kit](https://github.com/drizzle-team/drizzle-kit-mirror) CLI companion for automatic SQL migrations generation. This is the documentation for Drizzle ORM version for PostgreSQL.
 
-| Driver | Support | | Driver version |
-| :- | :-: | :-: | :-: |
-| [node-postgres](https://github.com/brianc/node-postgres) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/pg'> |
-| [postgres.js](https://github.com/porsager/postgres) | ✅ | [Docs](/drizzle-orm/src/postgres-js/README.md) | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/postgres'> |
-| [NeonDB Serverless](https://github.com/neondatabase/serverless) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/@neondatabase/serverless'> |
-| [AWS Data API](https://github.com/aws/aws-sdk-js-v3/blob/main/clients/client-rds-data/README.md) | ✅ | | <img alt='driver version' src='https://img.shields.io/npm/dependency-version/drizzle-orm/peer/@aws-sdk/client-rds-data'>
+| Driver                                                                                           | Support |                                                |
+|:-------------------------------------------------------------------------------------------------|:-------:|:----------------------------------------------:|
+| [node-postgres](https://github.com/brianc/node-postgres)                                         |    ✅    |                                                |
+| [postgres.js](https://github.com/porsager/postgres)                                              |    ✅    | [Docs](/drizzle-orm/src/postgres-js/README.md) |
+| [NeonDB Serverless](https://github.com/neondatabase/serverless)                                  |    ✅    |                                                |
+| [AWS Data API](https://github.com/aws/aws-sdk-js-v3/blob/main/clients/client-rds-data/README.md) |    ✅    |                                                |
 
 ## Installation
 
@@ -75,6 +75,27 @@ export const users = pgTable('users', {
   phone: varchar('phone', { length: 256 }),
 });
 ```
+
+### Using Drizzle ORM in Next.js app router
+In order to use Drizzle ORM in the Next.js new app router mode you have to add `pg` dependendency to the `experimental.serverComponentsExternalPackages` array in `next.config.js` config file.
+
+Example `next.config.js` should look like this:
+```ts
+/** @type {import("next").NextConfig} */
+const config = {
+  reactStrictMode: true,
+  experimental: {
+    appDir: true,
+    serverComponentsExternalPackages: ["pg"],
+  },
+}
+export default config
+```
+
+More details about `serverComponentsExternalPackages` can be found in the [Next.js beta docs](https://beta.nextjs.org/docs/api-reference/next-config#servercomponentsexternalpackages).
+
+> **Note**: New next.js beta docs changes frequently so if the link above doesn't work try this one: [Next.js beta docs](https://beta.nextjs.org/docs/api-reference/next-config.js#servercomponentsexternalpackages).
+
 
 ### Connect using node-postgres Pool (recommended)
 
@@ -151,7 +172,7 @@ const db = drizzle(rdsClient, {
 This is how you declare SQL schema in `schema.ts`. You can declare tables, indexes and constraints, foreign keys and enums. Please pay attention to `export` keyword, they are mandatory if you'll be using [drizzle-kit SQL migrations generator](#migrations).
 
 ```typescript
-import { pgEnum, pgTable, serial, uniqueIndex, varchar } from 'drizzle-orm/pg-core';
+import { pgEnum, pgTable, serial, integer, uniqueIndex, varchar } from 'drizzle-orm/pg-core';
 
 // declaring enum in database
 export const popularityEnum = pgEnum('popularity', ['unknown', 'known', 'popular']);
@@ -360,7 +381,7 @@ const publicUsersTable = pgTable('users', {
   id: serial('id').primaryKey(),
   name: text('name').notNull(),
   verified: boolean('verified').notNull().default(false),
-  jsonb: jsonb<string[]>('jsonb'),
+  jsonb: jsonb('jsonb').$type<string[]>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -368,11 +389,11 @@ const publicUsersTable = pgTable('users', {
 // Table in custom schema
 const mySchema = pgSchema('mySchema');
 
-const usersTable = mySchema('users', {
+const usersTable = mySchema.table('users', {
   id: serial('id').primaryKey(),
   name: text('name').notNull(),
   verified: boolean('verified').notNull().default(false),
-  jsonb: jsonb<string[]>('jsonb'),
+  jsonb: jsonb('jsonb').$type<string[]>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 ```
@@ -617,7 +638,7 @@ await db.update(users)
   .set({ name: 'Mr. Dan' })
   .where(eq(users.name, 'Dan'));
 
-const updatedUser: InferModel<typeof users> = await db.delete(users)
+const updatedUser: InferModel<typeof users> = await db.update(users)
   .set({ name: 'Mr. Dan' })
   .where(eq(users.name, 'Dan'))
   .returning();

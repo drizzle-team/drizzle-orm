@@ -26,7 +26,7 @@ now we can run the project!
 npm i
 
 ## run locally
-npm run dev
+npm start
 
 ## generate SQL migrations for schema.ts
 npm run generate

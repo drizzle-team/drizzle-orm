@@ -173,7 +173,7 @@ test.beforeEach(async (t) => {
 		sql`create table \`userstest\` (
 			\`id\` serial primary key,
 			\`name\` text not null,
-			\`verified\` boolean not null default false, 
+			\`verified\` boolean not null default false,
 			\`jsonb\` json,
 			\`created_at\` timestamp not null default now()
 		)`,
@@ -485,6 +485,38 @@ test.serial('insert with onDuplicate', async (t) => {
 	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
 });
 
+test.serial('insert conflict', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable)
+		.values({ name: 'John' });
+
+	await t.throwsAsync(
+		() => db.insert(usersTable).values({ id: 1, name: 'John1' }),
+		{
+			code: 'ER_DUP_ENTRY',
+			message: "Duplicate entry '1' for key 'userstest.PRIMARY'",
+		},
+	);
+});
+
+test.serial('insert conflict with ignore', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable)
+		.values({ name: 'John' });
+
+	await db.insert(usersTable)
+		.ignore()
+		.values({ id: 1, name: 'John1' });
+
+	const res = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(
+		eq(usersTable.id, 1),
+	);
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+});
+
 test.serial('insert sql', async (t) => {
 	const { db } = t.context;
 
@@ -616,16 +648,26 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 });
 
-// TODO change tests to new structure
-test.serial.skip('migrator', async (t) => {
+test.serial('migrator', async (t) => {
 	const { db } = t.context;
-	await migrate(db, { migrationsFolder: './drizzle/mysql' });
+
+	await db.execute(sql`drop table if exists cities_migration`);
+	await db.execute(sql`drop table if exists users_migration`);
+	await db.execute(sql`drop table if exists users12`);
+	await db.execute(sql`drop table if exists __drizzle_migrations`);
+
+	await migrate(db, { migrationsFolder: './drizzle2/mysql' });
 
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 
 	const result = await db.select().from(usersMigratorTable);
 
 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+
+	await db.execute(sql`drop table cities_migration`);
+	await db.execute(sql`drop table users_migration`);
+	await db.execute(sql`drop table users12`);
+	await db.execute(sql`drop table __drizzle_migrations`);
 });
 
 test.serial('insert via db.execute + select via db.execute', async (t) => {
@@ -1252,4 +1294,14 @@ test.serial('prefixed table', async (t) => {
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 
 	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('orderBy with aliased column', (t) => {
+	const { db } = t.context;
+
+	const query = db.select({
+		test: sql`something`.as('test'),
+	}).from(users2Table).orderBy((fields) => fields.test).toSQL();
+
+	t.deepEqual(query.sql, 'select something as `test` from `users2` order by `test`');
 });

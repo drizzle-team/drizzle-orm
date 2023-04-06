@@ -197,7 +197,7 @@ export abstract class SQLiteSelectQueryBuilder<
 				on = on(
 					new Proxy(
 						this.config.fields,
-						new SelectionProxyHandler({ sqlAliasedBehavior: 'alias', sqlBehavior: 'sql' }),
+						new SelectionProxyHandler({ sqlAliasedBehavior: 'sql', sqlBehavior: 'sql' }),
 					) as TSelection,
 				);
 			}
@@ -332,7 +332,7 @@ export abstract class SQLiteSelectQueryBuilder<
 	): SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias> {
 		return new Proxy(
 			new Subquery(this.getSQL(), this.config.fields, alias),
-			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'subquery_selection', sqlBehavior: 'error' }),
+			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias>;
 	}
 }
@@ -386,7 +386,8 @@ export class SQLiteSelect<
 		if (!this.session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
-		const query = this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.fieldsList);
+		// TODO: implement transaction support
+		const query = this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.fieldsList, undefined);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
 		return query;
 	}

@@ -12,7 +12,7 @@ export interface MigrationConfig {
 }
 
 export interface MigrationMeta {
-	sql: string;
+	sql: string[];
 	folderMillis: number;
 	hash: string;
 	bps: boolean;
@@ -42,7 +42,7 @@ export function readMigrationFiles(config: string | MigrationConfig): MigrationM
 	}
 
 	const journal = JSON.parse(journalAsString) as {
-		entries: { idx: number; when: number; tag: string, breakpoints: boolean }[];
+		entries: { idx: number; when: number; tag: string; breakpoints: boolean }[];
 	};
 
 	for (const journalEntry of journal.entries) {
@@ -51,14 +51,18 @@ export function readMigrationFiles(config: string | MigrationConfig): MigrationM
 		try {
 			const query = fs.readFileSync(`${migrationFolderTo}/${journalEntry.tag}.sql`).toString();
 
+			const result = query.split('--> statement-breakpoint').map((it) => {
+				return it;
+			});
+
 			migrationQueries.push({
-				sql: query,
+				sql: result,
 				bps: journalEntry.breakpoints,
 				folderMillis: journalEntry.when,
 				hash: crypto.createHash('sha256').update(query).digest('hex'),
 			});
 		} catch (e) {
-			throw Error(`No file ${migrationPath} found in ${migrationFolderTo} folder`)
+			throw Error(`No file ${migrationPath} found in ${migrationFolderTo} folder`);
 		}
 	}
 

@@ -7,7 +7,7 @@ import type { Query } from '~/sql';
 import { fillPlaceholders } from '~/sql';
 import type { SQLiteSyncDialect } from '~/sqlite-core/dialect';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
-import type { PreparedQueryConfig as PreparedQueryConfigBase } from '~/sqlite-core/session';
+import type { PreparedQueryConfig as PreparedQueryConfigBase, Transaction } from '~/sqlite-core/session';
 import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session';
 import { mapResultRow } from '~/utils';
 
@@ -40,6 +40,10 @@ export class SQLiteBunSession extends SQLiteSession<'sync', void> {
 	): PreparedQuery<T> {
 		const stmt = this.client.prepare(query.sql);
 		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields);
+	}
+
+	override transaction(): Transaction<'sync', void> {
+		throw new Error('Method not implemented.');
 	}
 }
 
@@ -77,6 +81,10 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
 		const value = this.stmt.get(...params);
+
+		if (!value) {
+			return undefined;
+		}
 
 		const { fields } = this;
 		if (!fields) {

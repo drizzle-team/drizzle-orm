@@ -1,7 +1,14 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type {
+	AnyColumnBuilder,
+	BuildColumn,
+	ColumnBuilderBaseConfig,
+	ColumnBuilderHKTBase,
+	MakeColumnConfig,
+} from '~/column-builder';
 import type { AnyPgTable } from '~/pg-core/table';
 import type { Assume } from '~/utils';
+import { makePgArray, parsePgArray } from '../utils';
 import { type AnyPgColumn, PgColumn, PgColumnBuilder, type PgColumnBuilderHKT } from './common';
 
 export interface PgArrayBuilderHKT extends ColumnBuilderHKTBase {
@@ -49,7 +56,26 @@ export class PgArrayBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnB
 	}
 }
 
-export class PgArray<T extends ColumnBaseConfig> extends PgColumn<PgArrayHKT, T> {
+export class PgArray<T extends ColumnBaseConfig> extends PgColumn<PgArrayHKT, T, {}, {
+	baseColumn: BuildColumn<
+		string,
+		Assume<
+			PgColumnBuilder<
+				PgColumnBuilderHKT,
+				{
+					name: T['name'];
+					notNull: T['notNull'];
+					hasDefault: T['hasDefault'];
+					data: Assume<T['data'], unknown[]>[number];
+					driverParam: Assume<T['driverParam'], unknown[]>[number];
+				}
+			>,
+			AnyColumnBuilder
+		>
+	>;
+}> {
+	declare protected $pgColumnBrand: 'PgArray';
+
 	readonly size: number | undefined;
 
 	constructor(
@@ -66,11 +92,16 @@ export class PgArray<T extends ColumnBaseConfig> extends PgColumn<PgArrayHKT, T>
 		return `${this.baseColumn.getSQLType()}[${typeof this.size === 'number' ? this.size : ''}]`;
 	}
 
-	override mapFromDriverValue(value: unknown[]): T['data'] {
+	override mapFromDriverValue(value: unknown[] | string): T['data'] {
+		if (typeof value === 'string') {
+			// Thank you node-postgres for not parsing enum arrays
+			value = parsePgArray(value);
+		}
 		return value.map((v) => this.baseColumn.mapFromDriverValue(v));
 	}
 
-	override mapToDriverValue(value: unknown[]): T['driverParam'] {
-		return value.map((v) => v === null ? null : this.baseColumn.mapToDriverValue(v));
+	override mapToDriverValue(value: unknown[]): string {
+		const a = value.map((v) => v === null ? null : this.baseColumn.mapToDriverValue(v));
+		return makePgArray(a);
 	}
 }
