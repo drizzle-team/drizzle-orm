@@ -1,6 +1,6 @@
 {
   "name": "drizzle-zod",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Generate Zod schemas from Drizzle ORM schemas",
   "scripts": {
     "build": "tsc && resolve-tspaths && cp README.md package.json dist/",

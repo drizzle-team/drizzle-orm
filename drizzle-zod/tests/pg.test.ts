@@ -41,9 +41,9 @@ test('users insert schema', (t) => {
 	});
 
 	const expected = z.object({
-		a: z.array(z.number()),
+		a: z.array(z.number()).nullable().optional(),
 		id: z.number().positive().optional(),
-		name: z.string(),
+		name: z.string().nullable().optional(),
 		email: z.string().email(),
 		createdAt: z.date().optional(),
 		role: z.enum(['admin', 'user']),
@@ -58,9 +58,9 @@ test('users insert schema w/ defaults', (t) => {
 	const actual = createInsertSchema(users);
 
 	const expected = z.object({
-		a: z.array(z.number()),
+		a: z.array(z.number()).nullable().optional(),
 		id: z.number().optional(),
-		name: z.string(),
+		name: z.string().nullable().optional(),
 		email: z.string(),
 		createdAt: z.date().optional(),
 		role: z.enum(['admin', 'user']),

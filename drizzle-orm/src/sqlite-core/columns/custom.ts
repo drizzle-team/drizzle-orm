@@ -60,6 +60,8 @@ export class SQLiteCustomColumnBuilder<T extends ColumnBuilderBaseConfig> extend
 }
 
 export class SQLiteCustomColumn<T extends ColumnBaseConfig> extends SQLiteColumn<SQLiteCustomColumnHKT, T> {
+	declare protected $sqliteColumnBrand: 'SQLiteCustomColumn';
+
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];

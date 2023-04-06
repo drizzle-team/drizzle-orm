@@ -40,7 +40,7 @@ export abstract class PgColumnBuilder<
 			notNull: NonNullable<T['notNull']>;
 			hasDefault: NonNullable<T['hasDefault']>;
 			data: T['data'][];
-			driverParam: T['driverParam'][];
+			driverParam: T['driverParam'][] | string;
 		}
 	> {
 		// Required to avoid circular dependency

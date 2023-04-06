@@ -31,6 +31,8 @@ export class PgJsonbBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnB
 }
 
 export class PgJsonb<T extends ColumnBaseConfig> extends PgColumn<PgJsonbHKT, T> {
+	declare protected $pgColumnBrand: 'PgJsonb';
+
 	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgJsonbBuilder<T>['config']) {
 		super(table, config);
 	}

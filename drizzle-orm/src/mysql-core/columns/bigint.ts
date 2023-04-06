@@ -90,20 +90,13 @@ interface MySqlBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'>
 	mode: T;
 }
 
-export function bigint<TName extends string>(
+export function bigint<TName extends string, TMode extends MySqlBigIntConfig['mode']>(
 	name: TName,
-	config: MySqlBigIntConfig<'number'>,
-): MySqlBigInt53BuilderInitial<TName>;
-export function bigint<TName extends string>(
-	name: TName,
-	config: MySqlBigIntConfig<'bigint'>,
-): MySqlBigInt64BuilderInitial<TName>;
-export function bigint<TName extends string>(
-	name: TName,
-	config: MySqlBigIntConfig,
-): MySqlBigInt53BuilderInitial<TName> | MySqlBigInt64BuilderInitial<TName> {
+	config: MySqlBigIntConfig<TMode>,
+): TMode extends 'number' ? MySqlBigInt53BuilderInitial<TName> : MySqlBigInt64BuilderInitial<TName>;
+export function bigint(name: string, config: MySqlBigIntConfig) {
 	if (config.mode === 'number') {
-		return new MySqlBigInt53Builder<MySqlBigInt53BuilderInitial<TName>['_']['config']>(name);
+		return new MySqlBigInt53Builder(name);
 	}
-	return new MySqlBigInt64Builder<MySqlBigInt64BuilderInitial<TName>['_']['config']>(name);
+	return new MySqlBigInt64Builder(name);
 }
