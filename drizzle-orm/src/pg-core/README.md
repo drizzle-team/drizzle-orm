@@ -638,7 +638,7 @@ await db.update(users)
   .set({ name: 'Mr. Dan' })
   .where(eq(users.name, 'Dan'));
 
-const updatedUser: InferModel<typeof users> = await db.delete(users)
+const updatedUser: InferModel<typeof users> = await db.update(users)
   .set({ name: 'Mr. Dan' })
   .where(eq(users.name, 'Dan'))
   .returning();
