@@ -1296,6 +1296,7 @@ test.serial('prefixed table', async (t) => {
 	await db.execute(sql`drop table ${users}`);
 });
 
+
 test.serial('orderBy with aliased column', (t) => {
 	const { db } = t.context;
 
@@ -1304,4 +1305,23 @@ test.serial('orderBy with aliased column', (t) => {
 	}).from(users2Table).orderBy((fields) => fields.test).toSQL();
 
 	t.deepEqual(query.sql, 'select something as `test` from `users2` order by `test`');
+});
+
+test.serial('timestamp timezone', async (t) => {
+	const { db } = t.context;
+
+	const date = new Date(Date.parse('2020-01-01T12:34:56+07:00'));
+
+	await db.insert(usersTable).values({ name: 'With default times' });
+	await db.insert(usersTable).values({
+		name: 'Without default times',
+		createdAt: date,
+	});
+	const users = await db.select().from(usersTable);
+
+	// check that the timestamps are set correctly for default times
+	t.assert(Math.abs(users[0]!.createdAt.getTime() - new Date().getTime()) < 1000);
+
+	// check that the timestamps are set correctly for non default times
+	t.assert(Math.abs(users[1]!.createdAt.getTime() - date.getTime()) < 1000);
 });

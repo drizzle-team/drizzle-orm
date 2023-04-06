@@ -1743,3 +1743,43 @@ test.serial('select from sql', async (t) => {
 			.orderBy(asc(intervals.startTime))
 	);
 });
+
+test.serial('timestamp timezone', async (t) => {
+	const { db } = t.context;
+
+	const usersTableWithAndWithoutTimezone = pgTable('users_test_with_and_without_timezone', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+		updatedAt: timestamp('updated_at', { withTimezone: false }).notNull().defaultNow(),
+	});
+
+	await db.execute(sql`drop table if exists ${usersTableWithAndWithoutTimezone}`);
+
+	await db.execute(
+		sql`create table users_test_with_and_without_timezone (
+			id serial not null primary key,
+			name text not null,
+			created_at timestamptz not null default now(),
+			updated_at timestamp not null default now()
+			)`,
+	);
+
+	const date = new Date(Date.parse('2020-01-01T00:00:00+04:00'));
+
+	await db.insert(usersTableWithAndWithoutTimezone).values({ name: 'With default times' });
+	await db.insert(usersTableWithAndWithoutTimezone).values({
+		name: 'Without default times',
+		createdAt: date,
+		updatedAt: date,
+	});
+	const users = await db.select().from(usersTableWithAndWithoutTimezone);
+
+	// check that the timestamps are set correctly for default times
+	t.assert(Math.abs(users[0]!.updatedAt.getTime() - new Date().getTime()) < 1000);
+	t.assert(Math.abs(users[0]!.createdAt.getTime() - new Date().getTime()) < 1000);
+
+	// check that the timestamps are set correctly for non default times
+	t.assert(Math.abs(users[1]!.updatedAt.getTime() - date.getTime()) < 1000);
+	t.assert(Math.abs(users[1]!.createdAt.getTime() - date.getTime()) < 1000);
+});
