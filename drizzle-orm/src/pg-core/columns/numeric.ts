@@ -65,7 +65,7 @@ export class PgNumeric<T extends ColumnBaseConfig> extends PgColumn<PgNumericHKT
 }
 
 export function numeric<TName extends string>(
-	name: string,
+	name: TName,
 	config?:
 		| { precision: number; scale?: number }
 		| { precision?: number; scale: number }

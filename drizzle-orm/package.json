@@ -1,10 +1,11 @@
 {
   "name": "drizzle-orm",
-  "version": "0.23.4",
+  "version": "0.23.6",
   "description": "Drizzle ORM package for SQL databases",
   "scripts": {
     "build": "tsc && resolve-tspaths && cp ../README.md package.json dist/",
-    "test:types": "cd tests && tsc",
+    "test:types": "cd type-tests && tsc",
+    "test": "vitest run",
     "pack": "cp package.json dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
     "publish": "npm publish package.tgz"
   },
@@ -109,6 +110,7 @@
     "@cloudflare/workers-types": "^4.20230321.0",
     "@libsql/client": "^0.1.1",
     "@neondatabase/serverless": "^0.2.9",
+    "@originjs/vite-plugin-commonjs": "^1.0.3",
     "@planetscale/database": "^1.5.0",
     "@types/better-sqlite3": "^7.6.2",
     "@types/node": "^18.15.11",
@@ -122,6 +124,9 @@
     "pg": "^8.8.0",
     "postgres": "^3.3.3",
     "sql.js": "^1.8.0",
-    "sqlite3": "^5.1.2"
+    "sqlite3": "^5.1.2",
+    "vite-tsconfig-paths": "^4.0.7",
+    "vitest": "^0.29.8",
+    "zod": "^3.20.2"
   }
 }

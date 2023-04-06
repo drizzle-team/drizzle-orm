@@ -85,6 +85,10 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 
 		const value = this.stmt.raw().get(...params);
 
+		if (!value) {
+			return undefined;
+		}
+
 		return mapResultRow(fields, value, this.joinsNotNullableMap);
 	}
 

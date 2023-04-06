@@ -56,10 +56,17 @@ export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
 	z.union([literalSchema, z.array(jsonSchema), z.record(jsonSchema)])
 );
 
+type MapInsertColumnToZod<TColumn extends AnyColumn, TType extends z.ZodTypeAny> = TColumn['_']['notNull'] extends false
+	? z.ZodOptional<z.ZodNullable<TType>>
+	: TColumn['_']['hasDefault'] extends true ? z.ZodOptional<TType>
+	: TType;
+
+type MapSelectColumnToZod<TColumn extends AnyColumn, TType extends z.ZodTypeAny> = TColumn['_']['notNull'] extends false
+	? z.ZodNullable<TType>
+	: TType;
+
 type MapColumnToZod<TColumn extends AnyColumn, TType extends z.ZodTypeAny, TMode extends 'insert' | 'select'> =
-	TMode extends 'insert' ? TColumn['_']['hasDefault'] extends true ? z.ZodOptional<TType> : TType
-		: TColumn['_']['notNull'] extends true ? TType
-		: z.ZodNullable<TType>;
+	TMode extends 'insert' ? MapInsertColumnToZod<TColumn, TType> : MapSelectColumnToZod<TColumn, TType>;
 
 type MaybeOptional<
 	TColumn extends AnyColumn,
@@ -163,7 +170,9 @@ export function createInsertSchema<
 	}
 
 	columnEntries.forEach(([name, column]) => {
-		if (column.hasDefault) {
+		if (!column.notNull) {
+			schemaEntries[name] = schemaEntries[name]!.nullable().optional();
+		} else if (column.hasDefault) {
 			schemaEntries[name] = schemaEntries[name]!.optional();
 		}
 	});

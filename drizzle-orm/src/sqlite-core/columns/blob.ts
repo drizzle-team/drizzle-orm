@@ -35,6 +35,8 @@ export class SQLiteBlobJsonBuilder<T extends ColumnBuilderBaseConfig>
 }
 
 export class SQLiteBlobJson<T extends ColumnBaseConfig> extends SQLiteColumn<SQLiteBlobJsonHKT, T> {
+	declare protected $sqliteColumnBrand: 'SQLiteBlobJson';
+
 	getSQLType(): string {
 		return 'blob';
 	}

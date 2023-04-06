@@ -1,0 +1,14 @@
+{
+	"compilerOptions": {
+		"target": "ES2018",
+		"skipLibCheck": true,
+		"moduleResolution": "node",
+		"strict": true,
+		"incremental": true,
+		"allowSyntheticDefaultImports": true,
+		"sourceMap": true,
+		"baseUrl": ".",
+		"outDir": "dist"
+	},
+	"include": ["src"]
+}

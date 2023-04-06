@@ -60,6 +60,8 @@ export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig> extends Pg
 }
 
 export class PgCustomColumn<T extends ColumnBaseConfig> extends PgColumn<PgCustomColumnHKT, T> {
+	declare protected $pgColumnBrand: 'PgCustomColumn';
+
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];

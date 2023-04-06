@@ -13,7 +13,7 @@ export type UpdateTableConfig<T extends TableConfig, TUpdate extends Partial<Tab
 >;
 
 /** @internal */
-export const Name = Symbol('Name');
+export const TableName = Symbol('Name');
 
 /** @internal */
 export const Schema = Symbol('Schema');
@@ -39,7 +39,7 @@ export class Table<T extends TableConfig = TableConfig> {
 
 	/** @internal */
 	static readonly Symbol = {
-		Name: Name as typeof Name,
+		Name: TableName as typeof TableName,
 		Schema: Schema as typeof Schema,
 		OriginalName: OriginalName as typeof OriginalName,
 		Columns: Columns as typeof Columns,
@@ -49,7 +49,7 @@ export class Table<T extends TableConfig = TableConfig> {
 	 * @internal
 	 * Can be changed if the table is aliased.
 	 */
-	[Name]: string;
+	[TableName]: string;
 
 	/**
 	 * @internal
@@ -64,7 +64,7 @@ export class Table<T extends TableConfig = TableConfig> {
 	[Columns]!: T['columns'];
 
 	constructor(name: string, schema?: string) {
-		this[Name] = this[OriginalName] = name;
+		this[TableName] = this[OriginalName] = name;
 		this[Schema] = schema;
 	}
 }
@@ -72,12 +72,11 @@ export class Table<T extends TableConfig = TableConfig> {
 export type AnyTable<TPartial extends Partial<TableConfig> = {}> = Table<UpdateTableConfig<TableConfig, TPartial>>;
 
 export function getTableName<T extends Table>(table: T): T['_']['name'] {
-	return table[Name];
+	return table[TableName];
 }
 
 export type MapColumnName<TName extends string, TColumn extends AnyColumn, TDBColumNames extends boolean> =
-	[TName] extends [never] ? never
-		: TDBColumNames extends true ? TColumn['_']['name']
+	TDBColumNames extends true ? TColumn['_']['name']
 		: TName;
 
 export type InferModel<
@@ -87,25 +86,17 @@ export type InferModel<
 > = TInferMode extends 'insert' ? Simplify<
 		& {
 			[
-				Key in keyof TTable['_']['columns'] & string as MapColumnName<
-					RequiredKeyOnly<
-						Key,
-						TTable['_']['columns'][Key]
-					>,
-					TTable['_']['columns'][Key],
-					TConfig['dbColumnNames']
+				Key in keyof TTable['_']['columns'] & string as RequiredKeyOnly<
+					MapColumnName<Key, TTable['_']['columns'][Key], TConfig['dbColumnNames']>,
+					TTable['_']['columns'][Key]
 				>
 			]: GetColumnData<TTable['_']['columns'][Key], 'query'>;
 		}
 		& {
 			[
-				Key in keyof TTable['_']['columns'] & string as MapColumnName<
-					OptionalKeyOnly<
-						Key,
-						TTable['_']['columns'][Key]
-					>,
-					TTable['_']['columns'][Key],
-					TConfig['dbColumnNames']
+				Key in keyof TTable['_']['columns'] & string as OptionalKeyOnly<
+					MapColumnName<Key, TTable['_']['columns'][Key], TConfig['dbColumnNames']>,
+					TTable['_']['columns'][Key]
 				>
 			]?: GetColumnData<TTable['_']['columns'][Key], 'query'>;
 		}

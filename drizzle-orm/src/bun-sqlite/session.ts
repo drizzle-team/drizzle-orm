@@ -82,6 +82,10 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		this.logger.logQuery(this.queryString, params);
 		const value = this.stmt.get(...params);
 
+		if (!value) {
+			return undefined;
+		}
+
 		const { fields } = this;
 		if (!fields) {
 			return value;

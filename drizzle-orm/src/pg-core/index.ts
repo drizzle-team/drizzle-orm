@@ -9,5 +9,7 @@ export * from './primary-keys';
 export * from './query-builders';
 export * from './schema';
 export * from './session';
+export * from './subquery';
 export * from './table';
+export * from './utils';
 export * from './view';

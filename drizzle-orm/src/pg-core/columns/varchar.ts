@@ -62,7 +62,7 @@ export interface PgVarcharConfig<TEnum extends string[]> {
 }
 
 export function varchar<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	name: string,
+	name: TName,
 	config: PgVarcharConfig<Writable<T>> = {},
 ): PgVarcharBuilderInitial<TName, Writable<T>> {
 	return new PgVarcharBuilder(name, config);

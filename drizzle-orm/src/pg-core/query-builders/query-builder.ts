@@ -1,9 +1,9 @@
 import { PgDialect } from '~/pg-core/dialect';
-import type { PgSelectBuilder } from '~/pg-core/query-builders/select';
-import type { SelectedFields } from '~/pg-core/query-builders/select.types';
 import type { QueryBuilder } from '~/query-builders/query-builder';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
 import type { WithSubqueryWithSelection } from '../subquery';
+import type { PgSelectBuilder } from './select';
+import type { SelectedFields } from './select.types';
 
 export class QueryBuilderInstance {
 	private dialect: PgDialect | undefined;
@@ -11,7 +11,7 @@ export class QueryBuilderInstance {
 
 	constructor() {
 		// Required to avoid circular dependency
-		this.PgSelectBuilder = require('~/pg-core/query-builders/select').PgSelectBuilder;
+		this.PgSelectBuilder = require('./select').PgSelectBuilder;
 	}
 
 	$with<TAlias extends string>(alias: TAlias) {

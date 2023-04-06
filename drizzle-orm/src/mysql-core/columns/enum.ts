@@ -42,9 +42,9 @@ export class MySqlEnumColumnBuilder<T extends ColumnBuilderBaseConfig>
 }
 
 export class MySqlEnumColumn<T extends ColumnBaseConfig>
-	extends MySqlColumn<MySqlEnumColumnHKT, T, { values: string[] }>
+	extends MySqlColumn<MySqlEnumColumnHKT, T, { values: readonly string[] }>
 {
-	readonly values: string[] = this.config.values;
+	readonly values: readonly string[] = this.config.values;
 
 	getSQLType(): string {
 		return `enum(${this.values.map((value) => `'${value}'`).join(',')})`;
@@ -53,8 +53,9 @@ export class MySqlEnumColumn<T extends ColumnBaseConfig>
 
 export function mysqlEnum<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: TName,
-	values: Writable<T>,
-): MySqlEnumColumnBuilderInitial<TName, Writable<T>> {
+	values: T | Writable<T>,
+): MySqlEnumColumnBuilderInitial<TName, Writable<T>>;
+export function mysqlEnum(name: string, values: string[]) {
 	if (values.length === 0) throw Error(`You have an empty array for "${name}" enum values`);
 
 	return new MySqlEnumColumnBuilder(name, values);
