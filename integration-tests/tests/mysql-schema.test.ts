@@ -81,7 +81,10 @@ async function createDockerDB(ctx: Context): Promise<string> {
 	const port = await getPort({ port: 3306 });
 	const image = 'mysql:8';
 
-	await docker.pull(image);
+	const pullStream = await docker.pull(image);
+	await new Promise((resolve, reject) =>
+		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
+	);
 
 	ctx.mysqlContainer = await docker.createContainer({
 		Image: image,
