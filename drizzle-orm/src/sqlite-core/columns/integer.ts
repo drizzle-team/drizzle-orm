@@ -149,8 +149,57 @@ export class SQLiteTimestamp<T extends ColumnBaseConfig>
 	}
 }
 
+export interface SQLiteBooleanBuilderHKT extends ColumnBuilderHKTBase {
+  _type: SQLiteBooleanBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>
+  _columnHKT: SQLiteBooleanHKT
+}
+
+export interface SQLiteBooleanHKT extends ColumnHKTBase {
+  _type: SQLiteBoolean<Assume<this['config'], ColumnBaseConfig>>
+}
+
+export type SQLiteBooleanBuilderInitial<TName extends string> = SQLiteBooleanBuilder<{
+	name: TName;
+	data: boolean;
+	driverParam: number;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class SQLiteBooleanBuilder<T extends ColumnBuilderBaseConfig>
+	extends SQLiteBaseIntegerBuilder<SQLiteBooleanBuilderHKT, T, { mode: 'boolean' }>
+{
+	constructor(name: T['name'], mode: 'boolean') {
+		super(name);
+		this.config.mode = mode;
+	}
+
+	build<TTableName extends string>(
+		table: AnySQLiteTable<{ name: TTableName }>,
+	): SQLiteBoolean<MakeColumnConfig<T, TTableName>> {
+		return new SQLiteBoolean<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config,
+		);
+	}
+}
+
+export class SQLiteBoolean<T extends ColumnBaseConfig>
+	extends SQLiteBaseInteger<SQLiteBooleanHKT, T, { mode: 'boolean' }>
+{
+	readonly mode: 'boolean' = this.config.mode;
+
+	override mapFromDriverValue(value: number): boolean {
+		return Boolean(value)
+	}
+
+	override mapToDriverValue(value: boolean): number {
+		return value ? 1 : 0;
+	}
+}
+
 export interface IntegerConfig<
-	TMode extends 'number' | 'timestamp' | 'timestamp_ms' = 'number' | 'timestamp' | 'timestamp_ms',
+	TMode extends 'number' | 'timestamp' | 'timestamp_ms' | 'boolean' = 'number' | 'timestamp' | 'timestamp_ms' | 'boolean',
 > {
 	mode: TMode;
 }
@@ -159,11 +208,15 @@ export function integer<TName extends string, TMode extends IntegerConfig['mode'
 	name: TName,
 	config?: IntegerConfig<TMode>,
 ): Or<Equal<TMode, 'timestamp'>, Equal<TMode, 'timestamp_ms'>> extends true ? SQLiteTimestampBuilderInitial<TName>
+  : Equal<TMode, 'boolean'> extends true ? SQLiteBooleanBuilderInitial<TName>
 	: SQLiteIntegerBuilderInitial<TName>;
 export function integer(name: string, config?: IntegerConfig) {
 	if (config?.mode === 'timestamp' || config?.mode === 'timestamp_ms') {
 		return new SQLiteTimestampBuilder(name, config.mode);
 	}
+  if(config?.mode === 'boolean'){
+    return new SQLiteBooleanBuilder(name, config.mode);
+  }
 	return new SQLiteIntegerBuilder(name);
 }
 
