@@ -55,6 +55,7 @@ export function sqliteTable<
 	name: TTableName,
 	columns: TColumnsMap,
 	extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => SQLiteTableExtraConfig,
+	baseName = name,
 ): SQLiteTableWithColumns<{
 	name: TTableName;
 	schema: undefined;
@@ -64,7 +65,7 @@ export function sqliteTable<
 		name: TTableName;
 		schema: undefined;
 		columns: BuildColumns<TTableName, TColumnsMap>;
-	}>(name);
+	}>(name, undefined, baseName);
 
 	const builtColumns = Object.fromEntries(
 		Object.entries(columns).map(([name, colBuilder]) => {
@@ -89,7 +90,7 @@ export function sqliteTable<
 
 export function sqliteTableCreator(customizeTableName: (name: string) => string): typeof sqliteTable {
 	const builder: typeof sqliteTable = (name, columns, extraConfig) => {
-		return sqliteTable(customizeTableName(name) as typeof name, columns, extraConfig);
+		return sqliteTable(customizeTableName(name) as typeof name, columns, extraConfig, name);
 	};
 	return builder;
 }

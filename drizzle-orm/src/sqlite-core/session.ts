@@ -1,5 +1,7 @@
+import { DrizzleError } from '~/errors';
 import type { Query, SQL } from '~/sql';
-import type { SQLiteDialect } from '~/sqlite-core/dialect';
+import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect';
+import { type SQLiteTransaction } from './db';
 import type { SelectedFieldsOrdered } from './query-builders/select.types';
 
 export interface PreparedQueryConfig {
@@ -23,69 +25,54 @@ export abstract class PreparedQuery<T extends PreparedQueryConfig> {
 	abstract values(placeholderValues?: Record<string, unknown>): ResultKind<T['type'], T['values']>;
 }
 
+export interface SQLiteTransactionConfig {
+	behavior?: 'deferred' | 'immediate' | 'exclusive';
+}
+
 export abstract class SQLiteSession<TResultKind extends 'sync' | 'async' = 'sync' | 'async', TRunResult = unknown> {
 	constructor(
 		/** @internal */
-		public dialect: SQLiteDialect,
+		readonly dialect: { sync: SQLiteSyncDialect; async: SQLiteAsyncDialect }[TResultKind],
 	) {}
 
 	abstract prepareQuery(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
-		tx: Transaction<TResultKind, TRunResult> | undefined,
 	): PreparedQuery<PreparedQueryConfig & { type: TResultKind }>;
 
 	prepareOneTimeQuery(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
-		tx: Transaction<TResultKind, TRunResult> | undefined,
 	): PreparedQuery<PreparedQueryConfig & { type: TResultKind }> {
-		return this.prepareQuery(query, fields, tx);
+		return this.prepareQuery(query, fields);
 	}
 
-	// abstract batch(queries: SQL[]): ResultKind<TResultKind, TRunResult[]>;
+	abstract transaction<T>(
+		transaction: (tx: SQLiteTransaction<TResultKind, TRunResult>) => ResultKind<TResultKind, T>,
+		config?: SQLiteTransactionConfig,
+	): ResultKind<TResultKind, T>;
 
-	abstract transaction(
-		transaction: (tx: Transaction<TResultKind, TRunResult>) => void | Promise<void>,
-	): ResultKind<TResultKind, void>;
-
-	run(query: SQL, tx?: Transaction<TResultKind, TRunResult>): ResultKind<TResultKind, TRunResult> {
-		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, tx).run();
+	run(query: SQL): ResultKind<TResultKind, TRunResult> {
+		const staticQuery = this.dialect.sqlToQuery(query);
+		try {
+			return this.prepareOneTimeQuery(staticQuery, undefined).run();
+		} catch (err) {
+			throw DrizzleError.wrap(err, `Failed to run the query '${staticQuery.sql}'`);
+		}
 	}
 
-	all<T = unknown>(query: SQL, tx?: Transaction<TResultKind, TRunResult>): ResultKind<TResultKind, T[]> {
-		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, tx).all();
+	all<T = unknown>(query: SQL): ResultKind<TResultKind, T[]> {
+		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined).all();
 	}
 
-	get<T = unknown>(query: SQL, tx?: Transaction<TResultKind, TRunResult>): ResultKind<TResultKind, T> {
-		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, tx).get();
+	get<T = unknown>(query: SQL): ResultKind<TResultKind, T> {
+		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined).get();
 	}
 
 	values<T extends any[] = unknown[]>(
 		query: SQL,
-		tx?: Transaction<TResultKind, TRunResult>,
 	): ResultKind<TResultKind, T[]> {
-		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, tx).values();
-	}
-}
-
-export abstract class Transaction<TResultKind extends 'sync' | 'async' = 'sync' | 'async', TRunResult = unknown> {
-	constructor(protected session: SQLiteSession<TResultKind, TRunResult>) {}
-
-	run(query: SQL): ResultKind<TResultKind, TRunResult> {
-		return this.session.run(query, this);
-	}
-
-	all<T = unknown>(query: SQL): ResultKind<TResultKind, T[]> {
-		return this.session.all(query, this);
-	}
-
-	get<T = unknown>(query: SQL): ResultKind<TResultKind, T> {
-		return this.session.get(query, this);
-	}
-
-	values<T extends any[] = unknown[]>(query: SQL): ResultKind<TResultKind, T[]> {
-		return this.session.values(query, this);
+		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined).values();
 	}
 }
 

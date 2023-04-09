@@ -2,11 +2,15 @@
 
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
-import type { Query } from '~/sql';
+import { type Query, sql } from '~/sql';
 import { fillPlaceholders } from '~/sql';
+import { SQLiteTransaction } from '~/sqlite-core';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
-import { type PreparedQueryConfig as PreparedQueryConfigBase, Transaction } from '~/sqlite-core/session';
+import {
+	type PreparedQueryConfig as PreparedQueryConfigBase,
+	type SQLiteTransactionConfig,
+} from '~/sqlite-core/session';
 import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session';
 import { mapResultRow } from '~/utils';
 
@@ -33,19 +37,38 @@ export class SQLiteD1Session extends SQLiteSession<'async', D1Result> {
 		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields);
 	}
 
-	override async transaction(transaction: (tx: D1Transaction) => void | Promise<void>): Promise<void> {
-		await this.client.exec('begin');
+	override async transaction<T>(
+		transaction: (tx: D1Transaction) => T | Promise<T>,
+		config?: SQLiteTransactionConfig,
+	): Promise<T> {
+		const tx = new D1Transaction(this.dialect, this);
+		await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
 		try {
-			await transaction(new D1Transaction(this));
-			await this.client.exec('commit');
+			const result = await transaction(tx);
+			await this.run(sql`commit`);
+			return result;
 		} catch (err) {
-			await this.client.exec('rollback');
+			await this.run(sql`rollback`);
 			throw err;
 		}
 	}
 }
 
-export class D1Transaction extends Transaction<'async', D1Result> {}
+export class D1Transaction extends SQLiteTransaction<'async', D1Result> {
+	override async transaction<T>(transaction: (tx: D1Transaction) => Promise<T>): Promise<T> {
+		const savepointName = `sp${this.nestedIndex}`;
+		const tx = new D1Transaction(this.dialect, this.session, this.nestedIndex + 1);
+		await this.session.run(sql.raw(`savepoint ${savepointName}`));
+		try {
+			const result = await transaction(tx);
+			await this.session.run(sql.raw(`release savepoint ${savepointName}`));
+			return result;
+		} catch (err) {
+			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			throw err;
+		}
+	}
+}
 
 export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
 	{ type: 'async'; run: D1Result; all: T['all']; get: T['get']; values: T['values'] }

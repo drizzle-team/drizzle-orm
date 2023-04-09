@@ -1,22 +1,21 @@
-import type {
-	Client,
+import {
+	type Client,
 	Pool,
-	PoolClient,
-	QueryArrayConfig,
-	QueryConfig,
-	QueryResult,
-	QueryResultRow,
+	type PoolClient,
+	type QueryArrayConfig,
+	type QueryConfig,
+	type QueryResult,
+	type QueryResultRow,
 } from '@neondatabase/serverless';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
+import { PgTransaction } from '~/pg-core';
 import type { PgDialect } from '~/pg-core/dialect';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
-import type { PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
+import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
 import { PgSession, PreparedQuery } from '~/pg-core/session';
-import type { Query } from '~/sql';
-import { fillPlaceholders } from '~/sql';
-import type { Assume } from '~/utils';
-import { mapResultRow } from '~/utils';
+import { fillPlaceholders, type Query, sql } from '~/sql';
+import { type Assume, mapResultRow } from '~/utils';
 
 export type NeonClient = Pool | PoolClient | Client;
 
@@ -78,13 +77,13 @@ export interface NeonSessionOptions {
 	logger?: Logger;
 }
 
-export class NeonSession extends PgSession {
+export class NeonSession extends PgSession<NeonQueryResultHKT> {
 	private logger: Logger;
 
 	constructor(
 		private client: NeonClient,
 		dialect: PgDialect,
-		options: NeonSessionOptions = {},
+		private options: NeonSessionOptions = {},
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -113,6 +112,41 @@ export class NeonSession extends PgSession {
 		params: unknown[],
 	): Promise<QueryResult<T>> {
 		return this.client.query<T>(query, params);
+	}
+
+	override async transaction<T>(
+		transaction: (tx: NeonTransaction) => Promise<T>,
+		config: PgTransactionConfig = {},
+	): Promise<T> {
+		const session = this.client instanceof Pool
+			? new NeonSession(await this.client.connect(), this.dialect, this.options)
+			: this;
+		const tx = new NeonTransaction(this.dialect, session);
+		await tx.execute(sql`begin ${tx.getTransactionConfigSQL(config)}`);
+		try {
+			const result = await transaction(tx);
+			await tx.execute(sql`commit`);
+			return result;
+		} catch (error) {
+			await tx.execute(sql`rollback`);
+			throw error;
+		}
+	}
+}
+
+export class NeonTransaction extends PgTransaction<NeonQueryResultHKT> {
+	override async transaction<T>(transaction: (tx: NeonTransaction) => Promise<T>): Promise<T> {
+		const savepointName = `sp${this.nestedIndex + 1}`;
+		const tx = new NeonTransaction(this.dialect, this.session, this.nestedIndex + 1);
+		await tx.execute(sql.raw(`savepoint ${savepointName}`));
+		try {
+			const result = await transaction(tx);
+			await tx.execute(sql.raw(`release savepoint ${savepointName}`));
+			return result;
+		} catch (e) {
+			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
+			throw e;
+		}
 	}
 }
 

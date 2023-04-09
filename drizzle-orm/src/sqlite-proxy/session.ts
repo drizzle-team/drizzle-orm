@@ -1,13 +1,13 @@
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
-import type { Query } from '~/sql';
-import { fillPlaceholders } from '~/sql';
+import { fillPlaceholders, type Query, sql } from '~/sql';
+import { SQLiteTransaction } from '~/sqlite-core';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
-import type { PreparedQueryConfig as PreparedQueryConfigBase, Transaction } from '~/sqlite-core/session';
+import type { PreparedQueryConfig as PreparedQueryConfigBase, SQLiteTransactionConfig } from '~/sqlite-core/session';
 import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session';
 import { mapResultRow } from '~/utils';
-import type { RemoteCallback, SqliteRemoteResult } from './driver';
+import { type RemoteCallback, type SqliteRemoteResult } from './driver';
 
 export interface SQLiteRemoteSessionOptions {
 	logger?: Logger;
@@ -27,12 +27,6 @@ export class SQLiteRemoteSession extends SQLiteSession<'async', SqliteRemoteResu
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
-	exec(query: string): void {
-		throw Error('To implement: Proxy SQLite');
-		// await this.client.exec(query.sql);
-		// return this.client(this.queryString, params).then(({ rows }) => rows!)
-	}
-
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
 		fields?: SelectedFieldsOrdered,
@@ -40,10 +34,36 @@ export class SQLiteRemoteSession extends SQLiteSession<'async', SqliteRemoteResu
 		return new PreparedQuery(this.client, query.sql, query.params, this.logger, fields);
 	}
 
-	override transaction(
-		transaction: (tx: Transaction<'async', SqliteRemoteResult>) => void | Promise<void>,
-	): Promise<void> {
-		throw new Error('Method not implemented.');
+	override async transaction<T>(
+		transaction: (tx: SQLiteProxyTransaction) => Promise<T>,
+		config?: SQLiteTransactionConfig,
+	): Promise<T> {
+		const tx = new SQLiteProxyTransaction(this.dialect, this);
+		await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
+		try {
+			const result = await transaction(tx);
+			await this.run(sql`commit`);
+			return result;
+		} catch (err) {
+			await this.run(sql`rollback`);
+			throw err;
+		}
+	}
+}
+
+export class SQLiteProxyTransaction extends SQLiteTransaction<'async', SqliteRemoteResult> {
+	override async transaction<T>(transaction: (tx: SQLiteProxyTransaction) => Promise<T>): Promise<T> {
+		const savepointName = `sp${this.nestedIndex}`;
+		const tx = new SQLiteProxyTransaction(this.dialect, this.session, this.nestedIndex + 1);
+		await this.session.run(sql.raw(`savepoint ${savepointName}`));
+		try {
+			const result = await transaction(tx);
+			await this.session.run(sql.raw(`release savepoint ${savepointName}`));
+			return result;
+		} catch (err) {
+			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			throw err;
+		}
 	}
 }
 

@@ -1,11 +1,11 @@
 import type { BindParams, Database, Statement } from 'sql.js';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
-import type { Query } from '~/sql';
-import { fillPlaceholders } from '~/sql';
+import { fillPlaceholders, type Query, sql } from '~/sql';
+import { SQLiteTransaction } from '~/sqlite-core';
 import type { SQLiteSyncDialect } from '~/sqlite-core/dialect';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
-import type { PreparedQueryConfig as PreparedQueryConfigBase, Transaction } from '~/sqlite-core/session';
+import type { PreparedQueryConfig as PreparedQueryConfigBase, SQLiteTransactionConfig } from '~/sqlite-core/session';
 import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session';
 import { mapResultRow } from '~/utils';
 
@@ -27,10 +27,6 @@ export class SQLJsSession extends SQLiteSession<'sync', void> {
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
-	exec(query: string): void {
-		this.client.exec(query);
-	}
-
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
 		fields?: SelectedFieldsOrdered,
@@ -47,8 +43,33 @@ export class SQLJsSession extends SQLiteSession<'sync', void> {
 		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields, true);
 	}
 
-	override transaction(): Transaction<'sync', void> {
-		throw new Error('Method not implemented.');
+	override transaction<T>(transaction: (tx: SQLJsTransaction) => T, config: SQLiteTransactionConfig = {}): T {
+		const tx = new SQLJsTransaction(this.dialect, this);
+		this.run(sql.raw(`begin${config.behavior ? ` ${config.behavior}` : ''}`));
+		try {
+			const result = transaction(tx);
+			this.run(sql`commit`);
+			return result;
+		} catch (err) {
+			this.run(sql`rollback`);
+			throw err;
+		}
+	}
+}
+
+export class SQLJsTransaction extends SQLiteTransaction<'sync', void> {
+	override transaction<T>(transaction: (tx: SQLJsTransaction) => T): T {
+		const savepointName = `sp${this.nestedIndex + 1}`;
+		const tx = new SQLJsTransaction(this.dialect, this.session, this.nestedIndex + 1);
+		tx.run(sql.raw(`savepoint ${savepointName}`));
+		try {
+			const result = transaction(tx);
+			tx.run(sql.raw(`release savepoint ${savepointName}`));
+			return result;
+		} catch (err) {
+			tx.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			throw err;
+		}
 	}
 }
 
@@ -137,6 +158,11 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		while (this.stmt.step()) {
 			rows.push(this.stmt.get());
 		}
+
+		if (this.isOneTimeQuery) {
+			this.free();
+		}
+
 		return rows;
 	}
 

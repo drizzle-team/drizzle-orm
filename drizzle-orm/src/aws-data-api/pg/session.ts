@@ -1,10 +1,4 @@
-import type {
-	BeginTransactionCommandInput,
-	CommitTransactionCommandInput,
-	ExecuteStatementCommandOutput,
-	RDSDataClient,
-	RollbackTransactionCommandInput,
-} from '@aws-sdk/client-rds-data';
+import type { ExecuteStatementCommandOutput, RDSDataClient } from '@aws-sdk/client-rds-data';
 import {
 	BeginTransactionCommand,
 	CommitTransactionCommand,
@@ -12,11 +6,17 @@ import {
 	RollbackTransactionCommand,
 } from '@aws-sdk/client-rds-data';
 import type { Logger } from '~/logger';
-import type { PgDialect, PreparedQueryConfig, QueryResultHKT } from '~/pg-core';
-import { PgSession, PreparedQuery } from '~/pg-core';
+import {
+	type PgDialect,
+	PgSession,
+	PgTransaction,
+	type PgTransactionConfig,
+	PreparedQuery,
+	type PreparedQueryConfig,
+	type QueryResultHKT,
+} from '~/pg-core';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
-import type { Query, QueryTypingsValue, SQL } from '~/sql';
-import { fillPlaceholders } from '~/sql';
+import { fillPlaceholders, type Query, type QueryTypingsValue, type SQL, sql } from '~/sql';
 import { mapResultRow } from '~/utils';
 import { getValueFromDataApi, toValueParam } from '../common';
 
@@ -32,8 +32,8 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 		private typings: QueryTypingsValue[],
 		private options: AwsDataApiSessionOptions,
 		private fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		transactionId: string | undefined,
+		/** @internal */
+		readonly transactionId: string | undefined,
 	) {
 		super();
 		this.rawQuery = new ExecuteStatementCommand({
@@ -68,14 +68,6 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 			return mapResultRow<T['execute']>(fields, mappedResult, this.joinsNotNullableMap);
 		});
 	}
-
-	all(placeholderValues?: Record<string, unknown> | undefined): Promise<T['all']> {
-		throw new Error('Method not implemented.');
-	}
-
-	values(placeholderValues?: Record<string, unknown> | undefined): Promise<T['values']> {
-		throw new Error('Method not implemented.');
-	}
 }
 
 export interface AwsDataApiSessionOptions {
@@ -85,13 +77,23 @@ export interface AwsDataApiSessionOptions {
 	secretArn: string;
 }
 
-export class AwsDataApiSession extends PgSession {
-	private rawQuery: BeginTransactionCommandInput | CommitTransactionCommandInput | RollbackTransactionCommandInput;
+interface AwsDataApiQueryBase {
+	resourceArn: string;
+	secretArn: string;
+	database: string;
+}
+
+export class AwsDataApiSession extends PgSession<AwsDataApiPgQueryResultHKT> {
+	/** @internal */
+	readonly rawQuery: AwsDataApiQueryBase;
 
 	constructor(
-		private client: AwsDataApiClient,
+		/** @internal */
+		readonly client: AwsDataApiClient,
 		dialect: PgDialect,
 		private options: AwsDataApiSessionOptions,
+		/** @internal */
+		readonly transactionId: string | undefined,
 	) {
 		super(dialect);
 		this.rawQuery = {
@@ -104,7 +106,7 @@ export class AwsDataApiSession extends PgSession {
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
+		transactionId?: string,
 	): PreparedQuery<T> {
 		return new AwsDataApiPreparedQuery(
 			this.client,
@@ -113,57 +115,52 @@ export class AwsDataApiSession extends PgSession {
 			query.typings ?? [],
 			this.options,
 			fields,
-			name,
-			undefined,
-		);
-	}
-
-	prepareQueryWithTransaction<T extends PreparedQueryConfig = PreparedQueryConfig>(
-		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		transactionId: string | undefined,
-	): PreparedQuery<T> {
-		return new AwsDataApiPreparedQuery(
-			this.client,
-			query.sql,
-			query.params,
-			query.typings ?? [],
-			this.options,
-			fields,
-			name,
 			transactionId,
 		);
-	}
-
-	executeWithTransaction<T>(query: SQL, transactionId: string | undefined): Promise<T> {
-		return this.prepareQueryWithTransaction<PreparedQueryConfig & { execute: T }>(
-			this.dialect.sqlToQuery(query),
-			undefined,
-			undefined,
-			transactionId,
-		).execute();
 	}
 
 	override execute<T>(query: SQL): Promise<T> {
 		return this.prepareQuery<PreparedQueryConfig & { execute: T }>(
 			this.dialect.sqlToQuery(query),
 			undefined,
-			undefined,
+			this.transactionId,
 		).execute();
 	}
 
-	async beginTransaction(): Promise<string | undefined> {
-		const transactionRes = await this.client.send(new BeginTransactionCommand(this.rawQuery));
-		return transactionRes.transactionId;
+	override async transaction<T>(
+		transaction: (tx: AwsDataApiTransaction) => Promise<T>,
+		config?: PgTransactionConfig | undefined,
+	): Promise<T> {
+		const { transactionId } = await this.client.send(new BeginTransactionCommand(this.rawQuery));
+		const session = new AwsDataApiSession(this.client, this.dialect, this.options, transactionId);
+		const tx = new AwsDataApiTransaction(this.dialect, session);
+		if (config) {
+			await tx.setTransaction(config);
+		}
+		try {
+			const result = await transaction(tx);
+			await this.client.send(new CommitTransactionCommand({ ...this.rawQuery, transactionId }));
+			return result;
+		} catch (e) {
+			await this.client.send(new RollbackTransactionCommand({ ...this.rawQuery, transactionId }));
+			throw e;
+		}
 	}
+}
 
-	async commitTransaction(transactionId: string): Promise<void> {
-		await this.client.send(new CommitTransactionCommand({ ...this.rawQuery, transactionId }));
-	}
-
-	async rollbackTransaction(transactionId: string): Promise<void> {
-		await this.client.send(new RollbackTransactionCommand({ ...this.rawQuery, transactionId }));
+export class AwsDataApiTransaction extends PgTransaction<AwsDataApiPgQueryResultHKT> {
+	override transaction<T>(transaction: (tx: AwsDataApiTransaction) => Promise<T>): Promise<T> {
+		const savepointName = `sp${this.nestedIndex + 1}`;
+		const tx = new AwsDataApiTransaction(this.dialect, this.session, this.nestedIndex + 1);
+		this.session.execute(sql`savepoint ${savepointName}`);
+		try {
+			const result = transaction(tx);
+			this.session.execute(sql`release savepoint ${savepointName}`);
+			return result;
+		} catch (e) {
+			this.session.execute(sql`rollback to savepoint ${savepointName}`);
+			throw e;
+		}
 	}
 }
 

@@ -21,6 +21,7 @@ export function getTableConfig(table: AnyMySqlTable) {
 	const foreignKeys: ForeignKey[] = Object.values(table[MySqlTable.Symbol.InlineForeignKeys]);
 	const name = table[Table.Symbol.Name];
 	const schema = table[Table.Symbol.Schema];
+	const baseName = table[Table.Symbol.BaseName];
 
 	const extraConfigBuilder = table[MySqlTable.Symbol.ExtraConfigBuilder];
 
@@ -47,6 +48,7 @@ export function getTableConfig(table: AnyMySqlTable) {
 		primaryKeys,
 		name,
 		schema,
+		baseName,
 	};
 }
 
