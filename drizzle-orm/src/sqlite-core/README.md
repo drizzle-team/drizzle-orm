@@ -248,7 +248,7 @@ const users = sqliteTable('users', {
 Declaring indexes, foreign keys and composite primary keys
 
 ```typescript
-import { sqliteTable, foreignKey, primaryKey, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sqliteTable, foreignKey, primaryKey, text, integer, index, uniqueIndex, AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 
 export const countries = sqliteTable('countries', {
     id: integer('id').primaryKey(),
@@ -266,6 +266,7 @@ export const cities = sqliteTable('cities', {
   name: text('name', { length: 256 }),
   countryId: integer('country_id').references(() => countries.id), // inline foreign key
   countryName: text('country_id'),
+  sisterCityId: integer('sister_city_id').references((): AnySQLiteColumn => cities.id), // self-referencing foreign key
 }, (cities) => ({
   // explicit foreign key with 1 column
   countryFk: foreignKey(() => ({

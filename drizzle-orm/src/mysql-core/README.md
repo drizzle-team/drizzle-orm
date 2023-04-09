@@ -65,6 +65,8 @@ With `drizzle-orm` you declare SQL schema in TypeScript. You can have either one
 
 ```typescript
 // schema.ts
+import { mysqlTable, serial, varchar } from "drizzle-orm/mysql-core";
+
 export const users = mysqlTable('users', {
   id: serial('id').primaryKey(),
   fullName: text('full_name'),
@@ -239,7 +241,7 @@ export async function insertUser(user: NewUser): Promise<MySqlRawQueryResult> {
 
 ```typescript
 // db.ts
-import { foreignKey, index, int, mysqlTable, serial, uniqueIndex, varchar } from 'drizzle-orm/mysql-core';
+import { foreignKey, index, int, mysqlTable, serial, uniqueIndex, varchar, AnyMySqlColumn } from 'drizzle-orm/mysql-core';
 
 export const countries = mysqlTable('countries', {
     id: serial('id').primaryKey(),
@@ -257,6 +259,7 @@ export const cities = mysqlTable('cities', {
   name: varchar('name', { length: 256 }),
   countryId: int('country_id').references(() => countries.id), // inline foreign key
   countryName: varchar('country_id', { length: 256 }),
+  sisterCityId: integer('sister_city_id').references((): AnyMySqlColumn => cities.id), // self-referencing foreign key
 }, (cities) => ({
   // explicit foreign key with 1 column
   countryFk: foreignKey(({

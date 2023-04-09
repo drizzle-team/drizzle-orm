@@ -227,7 +227,7 @@ export async function insertUser(user: NewUser): Promise<User> {
 ### Declaring indexes, foreign keys and composite primary keys
 
 ```typescript
-import { foreignKey, index, uniqueIndex, integer, pgTable, serial, varchar } from 'drizzle-orm/pg-core';
+import { foreignKey, index, uniqueIndex, integer, pgTable, serial, varchar, AnyPgColumn } from 'drizzle-orm/pg-core';
 
 export const countries = pgTable('countries', {
     id: serial('id').primaryKey(),
@@ -247,6 +247,7 @@ export const cities = pgTable('cities', {
   name: varchar('name', { length: 256 }),
   countryId: integer('country_id').references(() => countries.id), // inline foreign key
   countryName: varchar('country_id'),
+  sisterCityId: integer('sister_city_id').references((): AnyPgColumn => cities.id), // self-referencing foreign key
 }, (cities) => {
   return {
     // explicit foreign key with 1 column
