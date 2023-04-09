@@ -85,26 +85,27 @@ export function pgTableWithSchema<
 	return table;
 }
 
-export function pgTable<
-	TTableName extends string,
-	TSchemaName extends string | undefined,
-	TColumnsMap extends Record<string, AnyPgColumnBuilder>,
->(
-	name: TTableName,
-	columns: TColumnsMap,
-	extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => PgTableExtraConfig,
-	baseName = name,
-): PgTableWithColumns<{
-	name: TTableName;
-	schema: TSchemaName;
-	columns: BuildColumns<TTableName, TColumnsMap>;
-}> {
-	return pgTableWithSchema(name, columns, extraConfig, undefined as TSchemaName, baseName);
+export interface PgTableFn<TSchema extends string | undefined = undefined> {
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, AnyPgColumnBuilder>,
+	>(
+		name: TTableName,
+		columns: TColumnsMap,
+		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => PgTableExtraConfig,
+	): PgTableWithColumns<{
+		name: TTableName;
+		schema: TSchema;
+		columns: BuildColumns<TTableName, TColumnsMap>;
+	}>;
 }
 
-export function pgTableCreator(customizeTableName: (name: string) => string): typeof pgTable {
-	const builder: typeof pgTable = (name, columns, extraConfig) => {
-		return pgTable(customizeTableName(name) as typeof name, columns, extraConfig, name);
+export const pgTable: PgTableFn = (name, columns, extraConfig) => {
+	return pgTableWithSchema(name, columns, extraConfig, undefined);
+};
+
+export function pgTableCreator(customizeTableName: (name: string) => string): PgTableFn {
+	return (name, columns, extraConfig) => {
+		return pgTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
 	};
-	return builder;
 }
