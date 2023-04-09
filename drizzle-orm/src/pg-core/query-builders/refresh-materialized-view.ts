@@ -5,10 +5,9 @@ import { QueryPromise } from '~/query-promise';
 import type { Query, SQL } from '~/sql';
 import type { Simplify } from '~/utils';
 
-export interface PgRefreshMaterializedView<
-	TQueryResult extends QueryResultHKT,
-	TExcludedMethods extends string = never,
-> extends QueryPromise<QueryResultKind<TQueryResult, never>> {}
+export interface PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
+	extends QueryPromise<QueryResultKind<TQueryResult, never>>
+{}
 
 export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 	extends QueryPromise<QueryResultKind<TQueryResult, never>>

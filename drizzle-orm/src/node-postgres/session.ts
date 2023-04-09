@@ -1,14 +1,20 @@
-import type { Client, Pool, PoolClient, QueryArrayConfig, QueryConfig, QueryResult, QueryResultRow } from 'pg';
-import type { Logger } from '~/logger';
-import { NoopLogger } from '~/logger';
+import {
+	type Client,
+	Pool,
+	type PoolClient,
+	type QueryArrayConfig,
+	type QueryConfig,
+	type QueryResult,
+	type QueryResultRow,
+} from 'pg';
+import { type Logger, NoopLogger } from '~/logger';
+import { PgTransaction } from '~/pg-core';
 import type { PgDialect } from '~/pg-core/dialect';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
-import type { PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
+import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
 import { PgSession, PreparedQuery } from '~/pg-core/session';
-import type { Query } from '~/sql';
-import { fillPlaceholders } from '~/sql';
-import { mapResultRow } from '~/utils';
-import type { Assume } from '~/utils';
+import { fillPlaceholders, type Query, sql } from '~/sql';
+import { type Assume, mapResultRow } from '~/utils';
 
 export type NodePgClient = Pool | PoolClient | Client;
 
@@ -70,13 +76,13 @@ export interface NodePgSessionOptions {
 	logger?: Logger;
 }
 
-export class NodePgSession extends PgSession {
+export class NodePgSession extends PgSession<NodePgQueryResultHKT> {
 	private logger: Logger;
 
 	constructor(
 		private client: NodePgClient,
 		dialect: PgDialect,
-		options: NodePgSessionOptions = {},
+		private options: NodePgSessionOptions = {},
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -105,6 +111,41 @@ export class NodePgSession extends PgSession {
 		params: unknown[],
 	): Promise<QueryResult<T>> {
 		return this.client.query<T>(query, params);
+	}
+
+	override async transaction<T>(
+		transaction: (tx: NodePgTransaction) => Promise<T>,
+		config?: PgTransactionConfig | undefined,
+	): Promise<T> {
+		const session = this.client instanceof Pool
+			? new NodePgSession(await this.client.connect(), this.dialect, this.options)
+			: this;
+		const tx = new NodePgTransaction(this.dialect, session);
+		await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
+		try {
+			const result = await transaction(tx);
+			await tx.execute(sql`commit`);
+			return result;
+		} catch (error) {
+			await tx.execute(sql`rollback`);
+			throw error;
+		}
+	}
+}
+
+export class NodePgTransaction extends PgTransaction<NodePgQueryResultHKT> {
+	override async transaction<T>(transaction: (tx: NodePgTransaction) => Promise<T>): Promise<T> {
+		const savepointName = `sp${this.nestedIndex + 1}`;
+		const tx = new NodePgTransaction(this.dialect, this.session, this.nestedIndex + 1);
+		await tx.execute(sql.raw(`savepoint ${savepointName}`));
+		try {
+			const result = await transaction(tx);
+			await tx.execute(sql.raw(`release savepoint ${savepointName}`));
+			return result;
+		} catch (err) {
+			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
+			throw err;
+		}
 	}
 }
 

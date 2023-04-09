@@ -403,6 +403,20 @@ export namespace sql {
 	export function raw(str: string): SQL {
 		return new SQL([new StringChunk(str)]);
 	}
+
+	/**
+	 * Convenience function to join a list of SQL chunks with a separator.
+	 */
+	export function join(chunks: SQLChunk[], separator: SQLChunk): SQL {
+		const result: SQLChunk[] = [];
+		for (let i = 0; i < chunks.length; i++) {
+			if (i > 0) {
+				result.push(separator);
+			}
+			result.push(chunks[i]);
+		}
+		return sql.fromList(result);
+	}
 }
 
 export namespace SQL {

@@ -1,8 +1,7 @@
 import type { AnyColumn } from '~/column';
 import { Column } from '~/column';
-import type { MigrationMeta } from '~/migrator';
-import type { Query, SQLChunk } from '~/sql';
-import { Name, SQL, sql } from '~/sql';
+import type { MigrationConfig, MigrationMeta } from '~/migrator';
+import { Name, name, type Query, SQL, sql, type SQLChunk } from '~/sql';
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
 import type { UpdateSet } from '~/utils';
@@ -27,41 +26,38 @@ import { MySqlViewBase } from './view';
 // Add Planetscale Driver and create example repo
 
 export class MySqlDialect {
-	async migrate(migrations: MigrationMeta[], session: MySqlSession): Promise<void> {
-		const migrationTableCreate = sql`CREATE TABLE IF NOT EXISTS \`__drizzle_migrations\` (
-			id SERIAL PRIMARY KEY,
-			hash text NOT NULL,
+	async migrate(migrations: MigrationMeta[], session: MySqlSession, config: MigrationConfig): Promise<void> {
+		const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
+		const migrationTableCreate = sql`create table if not exists ${name(migrationsTable)} (
+			id serial primary key,
+			hash text not null,
 			created_at bigint
 		)`;
 		await session.execute(migrationTableCreate);
 
 		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
-			sql`SELECT id, hash, created_at FROM \`__drizzle_migrations\` ORDER BY created_at DESC LIMIT 1`,
+			sql`select id, hash, created_at from ${name(migrationsTable)} order by created_at desc limit 1`,
 		);
 
 		const lastDbMigration = dbMigrations[0];
-		await session.execute(sql`BEGIN`);
 
-		try {
-			for await (const migration of migrations) {
+		await session.transaction(async (tx) => {
+			for (const migration of migrations) {
 				if (
 					!lastDbMigration
 					|| parseInt(lastDbMigration.created_at, 10) < migration.folderMillis
 				) {
-					for (const stmnt of migration.sql) {
-						await session.execute(sql.raw(stmnt));
+					for (const stmt of migration.sql) {
+						await tx.execute(sql.raw(stmt));
 					}
-					await session.execute(
-						sql`INSERT INTO \`__drizzle_migrations\` (\`hash\`, \`created_at\`) VALUES(${migration.hash}, ${migration.folderMillis})`,
+					await tx.execute(
+						sql`insert into ${
+							name(migrationsTable)
+						} (\`hash\`, \`created_at\`) values(${migration.hash}, ${migration.folderMillis})`,
 					);
 				}
 			}
-
-			await session.execute(sql`COMMIT`);
-		} catch (e) {
-			await session.execute(sql`ROLLBACK`);
-			throw e;
-		}
+		});
 	}
 
 	escapeName(name: string): string {
@@ -323,7 +319,7 @@ export class MySqlDialect {
 
 		const valuesSql = sql.fromList(valuesSqlList);
 
-		const ignoreSql = ignore ? sql` ignore` : undefined
+		const ignoreSql = ignore ? sql` ignore` : undefined;
 
 		const returningSql = returning
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`

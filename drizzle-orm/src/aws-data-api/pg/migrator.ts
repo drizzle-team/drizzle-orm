@@ -1,48 +1,8 @@
-import type { MigrationConfig} from '~/migrator';
+import type { MigrationConfig } from '~/migrator';
 import { readMigrationFiles } from '~/migrator';
-import { sql } from '~/sql';
 import type { AwsDataApiPgDatabase } from './driver';
 
 export async function migrate(db: AwsDataApiPgDatabase, config: string | MigrationConfig) {
 	const migrations = readMigrationFiles(config);
-
-	// TODO: Write own aws datapi migrator
-	const { session } = db;
-
-	const migrationTableCreate = sql`CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (
-		id SERIAL PRIMARY KEY,
-		hash text NOT NULL,
-		created_at bigint
-	)`;
-	await session.execute(sql`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
-	await session.execute(migrationTableCreate);
-
-	const dbMigrations = await session.execute<{ id: number; hash: string; created_at: string }[]>(
-		sql`SELECT id, hash, created_at FROM "drizzle"."__drizzle_migrations" ORDER BY created_at DESC LIMIT 1`,
-	);
-
-	const lastDbMigration = dbMigrations[0];
-	const transactionId = await session.beginTransaction();
-
-	try {
-		for await (const migration of migrations) {
-			if (
-				!lastDbMigration
-				|| parseInt(lastDbMigration.created_at, 10) < migration.folderMillis
-			) {
-				for (const stmnt of migration.sql) {
-					await session.executeWithTransaction(sql.raw(stmnt), transactionId);	
-				}
-				await session.executeWithTransaction(
-					sql`INSERT INTO "drizzle"."__drizzle_migrations" ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
-					transactionId,
-				);
-			}
-		}
-
-		await session.commitTransaction(transactionId!);
-	} catch (e) {
-		await session.rollbackTransaction(transactionId!);
-		throw e;
-	}
+	await db.dialect.migrate(migrations, db.session);
 }

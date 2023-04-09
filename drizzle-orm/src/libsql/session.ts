@@ -1,17 +1,14 @@
-import {
-	type Client,
-	type InArgs,
-	type InStatement,
-	type ResultSet,
-	type Transaction as LibSQLNativeTransaction,
-} from '@libsql/client';
+import { type Client, type InArgs, type InStatement, type ResultSet, type Transaction } from '@libsql/client';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
-import type { Query, SQL } from '~/sql';
-import { fillPlaceholders } from '~/sql';
+import { fillPlaceholders, type Query, type SQL, sql } from '~/sql';
+import { SQLiteTransaction } from '~/sqlite-core';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
-import { type PreparedQueryConfig as PreparedQueryConfigBase, Transaction } from '~/sqlite-core/session';
+import {
+	type PreparedQueryConfig as PreparedQueryConfigBase,
+	type SQLiteTransactionConfig,
+} from '~/sqlite-core/session';
 import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session';
 import { mapResultRow } from '~/utils';
 
@@ -27,7 +24,8 @@ export class LibSQLSession extends SQLiteSession<'async', ResultSet> {
 	constructor(
 		private client: Client,
 		dialect: SQLiteAsyncDialect,
-		options: LibSQLSessionOptions = {},
+		private options: LibSQLSessionOptions,
+		private tx: Transaction | undefined,
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -35,10 +33,9 @@ export class LibSQLSession extends SQLiteSession<'async', ResultSet> {
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
-		fields?: SelectedFieldsOrdered,
-		tx?: LibSQLTransaction,
+		fields: SelectedFieldsOrdered,
 	): PreparedQuery<T> {
-		return new PreparedQuery(this.client, tx?.tx, query.sql, query.params, this.logger, fields);
+		return new PreparedQuery(this.client, query.sql, query.params, this.logger, fields, this.tx);
 	}
 
 	/*override */ batch(queries: SQL[]): Promise<ResultSet[]> {
@@ -49,25 +46,38 @@ export class LibSQLSession extends SQLiteSession<'async', ResultSet> {
 		return this.client.batch(builtQueries);
 	}
 
-	override async transaction(transaction: (tx: LibSQLTransaction) => void | Promise<void>): Promise<void> {
-		const tx = new LibSQLTransaction(this, this.client.transaction());
+	override async transaction<T>(
+		transaction: (db: LibSQLTransaction) => T | Promise<T>,
+		config?: SQLiteTransactionConfig,
+	): Promise<T> {
+		// TODO: support transaction behavior
+		const libsqlTx = await this.client.transaction();
+		const session = new LibSQLSession(this.client, this.dialect, this.options, libsqlTx);
+		const tx = new LibSQLTransaction(this.dialect, session);
 		try {
-			await transaction(tx);
-			await (await tx.tx).commit();
+			const result = await transaction(tx);
+			await libsqlTx.commit();
+			return result;
 		} catch (err) {
-			await (await tx.tx).rollback();
+			await libsqlTx.rollback();
 			throw err;
 		}
 	}
 }
 
-export class LibSQLTransaction extends Transaction<'async', ResultSet> {
-	constructor(
-		session: LibSQLSession,
-		/** @internal */
-		public tx: Promise<LibSQLNativeTransaction>,
-	) {
-		super(session);
+export class LibSQLTransaction extends SQLiteTransaction<'async', ResultSet> {
+	override async transaction<T>(transaction: (tx: LibSQLTransaction) => Promise<T>): Promise<T> {
+		const savepointName = `sp${this.nestedIndex}`;
+		const tx = new LibSQLTransaction(this.dialect, this.session, this.nestedIndex + 1);
+		await this.session.run(sql.raw(`savepoint ${savepointName}`));
+		try {
+			const result = await transaction(tx);
+			await this.session.run(sql.raw(`release savepoint ${savepointName}`));
+			return result;
+		} catch (err) {
+			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			throw err;
+		}
 	}
 }
 
@@ -75,12 +85,12 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	{ type: 'async'; run: ResultSet; all: T['all']; get: T['get']; values: T['values'] }
 > {
 	constructor(
-		private client: Client | LibSQLNativeTransaction,
-		private tx: Promise<LibSQLNativeTransaction> | undefined,
+		private client: Client,
 		private queryString: string,
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
+		private tx: Transaction | undefined,
 	) {
 		super();
 	}
@@ -89,7 +99,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
 		const stmt: InStatement = { sql: this.queryString, args: params as InArgs };
-		return this.tx ? this.tx.then((tx) => tx.execute(stmt)) : this.client.execute(stmt);
+		return this.tx ? this.tx.execute(stmt) : this.client.execute(stmt);
 	}
 
 	all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
@@ -111,9 +121,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
 		const stmt: InStatement = { sql: this.queryString, args: params as InArgs };
-		return (this.tx ? this.tx.then((tx) => tx.execute(stmt)) : this.client.execute(stmt)).then(({ rows }) =>
-			rows.map(normalizeRow)
-		);
+		return (this.tx ? this.tx.execute(stmt) : this.client.execute(stmt)).then(({ rows }) => rows.map(normalizeRow));
 	}
 
 	get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
@@ -124,9 +132,9 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
 		const stmt: InStatement = { sql: this.queryString, args: params as InArgs };
-		return (this.tx ? this.tx.then((tx) => tx.execute(stmt)) : this.client.execute(stmt)).then(({ rows }) =>
-			rows
-		) as Promise<T['values']>;
+		return (this.tx ? this.tx.execute(stmt) : this.client.execute(stmt)).then(({ rows }) => rows) as Promise<
+			T['values']
+		>;
 	}
 }
 
