@@ -15,8 +15,8 @@ export interface MySqlVarBinaryHKT extends ColumnHKTBase {
 
 export type MySqlVarBinaryBuilderInitial<TName extends string> = MySqlVarBinaryBuilder<{
 	name: TName;
-	data: number;
-	driverParam: number | string;
+	data: Buffer;
+	driverParam: Buffer | string;
 	notNull: false;
 	hasDefault: false;
 }>;
