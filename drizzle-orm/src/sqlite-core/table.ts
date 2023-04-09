@@ -48,24 +48,43 @@ export type SQLiteTableWithColumns<T extends TableConfig> =
 		[Key in keyof T['columns']]: T['columns'][Key];
 	};
 
-export function sqliteTable<
+export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, AnySQLiteColumnBuilder>,
+	>(
+		name: TTableName,
+		columns: TColumnsMap,
+		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => SQLiteTableExtraConfig,
+	): SQLiteTableWithColumns<{
+		name: TTableName;
+		schema: TSchema;
+		columns: BuildColumns<TTableName, TColumnsMap>;
+	}>;
+}
+
+type Arguments<T extends Function> = T extends (...args: infer TArgs) => any ? TArgs : never;
+
+function sqliteTableBase<
 	TTableName extends string,
 	TColumnsMap extends Record<string, AnySQLiteColumnBuilder>,
+	TSchema extends string | undefined,
 >(
 	name: TTableName,
 	columns: TColumnsMap,
 	extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => SQLiteTableExtraConfig,
+	schema?: TSchema,
 	baseName = name,
 ): SQLiteTableWithColumns<{
 	name: TTableName;
-	schema: undefined;
+	schema: TSchema;
 	columns: BuildColumns<TTableName, TColumnsMap>;
 }> {
 	const rawTable = new SQLiteTable<{
 		name: TTableName;
-		schema: undefined;
+		schema: TSchema;
 		columns: BuildColumns<TTableName, TColumnsMap>;
-	}>(name, undefined, baseName);
+	}>(name, schema, baseName);
 
 	const builtColumns = Object.fromEntries(
 		Object.entries(columns).map(([name, colBuilder]) => {
@@ -88,9 +107,12 @@ export function sqliteTable<
 	return table;
 }
 
-export function sqliteTableCreator(customizeTableName: (name: string) => string): typeof sqliteTable {
-	const builder: typeof sqliteTable = (name, columns, extraConfig) => {
-		return sqliteTable(customizeTableName(name) as typeof name, columns, extraConfig, name);
+export const sqliteTable: SQLiteTableFn = (name, columns, extraConfig) => {
+	return sqliteTableBase(name, columns, extraConfig);
+};
+
+export function sqliteTableCreator(customizeTableName: (name: string) => string): SQLiteTableFn {
+	return (name, columns, extraConfig) => {
+		return sqliteTableBase(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
 	};
-	return builder;
 }

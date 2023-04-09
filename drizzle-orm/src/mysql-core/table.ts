@@ -59,7 +59,7 @@ export function mysqlTableWithSchema<
 	name: TTableName,
 	columns: TColumnsMap,
 	extraConfig: ((self: BuildColumns<TTableName, TColumnsMap>) => MySqlTableExtraConfig) | undefined,
-	schema: string | undefined,
+	schema: TSchemaName,
 	baseName = name,
 ): MySqlTableWithColumns<{
 	name: TTableName;
@@ -93,25 +93,27 @@ export function mysqlTableWithSchema<
 	return table;
 }
 
-export function mysqlTable<
-	TTableName extends string,
-	TColumnsMap extends Record<string, AnyMySqlColumnBuilder>,
->(
-	name: TTableName,
-	columns: TColumnsMap,
-	extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => MySqlTableExtraConfig,
-	baseName = name,
-): MySqlTableWithColumns<{
-	name: TTableName;
-	schema: undefined;
-	columns: BuildColumns<TTableName, TColumnsMap>;
-}> {
-	return mysqlTableWithSchema(name, columns, extraConfig, undefined, baseName);
+export interface MySqlTableFn<TSchemaName extends string | undefined = undefined> {
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, AnyMySqlColumnBuilder>,
+	>(
+		name: TTableName,
+		columns: TColumnsMap,
+		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => MySqlTableExtraConfig,
+	): MySqlTableWithColumns<{
+		name: TTableName;
+		schema: TSchemaName;
+		columns: BuildColumns<TTableName, TColumnsMap>;
+	}>;
 }
 
-export function mysqlTableCreator(customizeTableName: (name: string) => string): typeof mysqlTable {
-	const builder: typeof mysqlTable = (name, columns, extraConfig) => {
-		return mysqlTable(customizeTableName(name) as typeof name, columns, extraConfig, name);
+export const mysqlTable: MySqlTableFn = (name, columns, extraConfig) => {
+	return mysqlTableWithSchema(name, columns, extraConfig, undefined, name);
+};
+
+export function mysqlTableCreator(customizeTableName: (name: string) => string): MySqlTableFn {
+	return (name, columns, extraConfig) => {
+		return mysqlTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
 	};
-	return builder;
 }

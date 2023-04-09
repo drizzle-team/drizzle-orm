@@ -86,7 +86,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 	citiesNameIdx: index('citiesNameIdx').on(cities.id),
 }));
 
-Expect<Equal<typeof cities, typeof citiesCustom>>;
+Expect<Equal<typeof cities._.columns, typeof citiesCustom._.columns>>;
 
 export const classes = mysqlTable('classes_table', {
 	id: serial('id').primaryKey(),
@@ -370,4 +370,19 @@ Expect<
 	const a = ['a', 'b', 'c'] as const;
 	const test1 = mysqlEnum('test', a);
 	const test2 = mysqlEnum('test', ['a', 'b', 'c']);
+}
+
+{
+	function getUsersTable<TSchema extends string>(schemaName: TSchema) {
+		return mysqlSchema(schemaName).table('users', {
+			id: int('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+	}
+
+	const users1 = getUsersTable('id1');
+	Expect<Equal<'id1', typeof users1._.schema>>;
+
+	const users2 = getUsersTable('id2');
+	Expect<Equal<'id2', typeof users2._.schema>>;
 }
