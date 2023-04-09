@@ -15,8 +15,8 @@ export interface MySqlDecimalHKT extends ColumnHKTBase {
 
 export type MySqlDecimalBuilderInitial<TName extends string> = MySqlDecimalBuilder<{
 	name: TName;
-	data: number;
-	driverParam: number | string;
+	data: string;
+	driverParam: string;
 	notNull: false;
 	hasDefault: false;
 }>;

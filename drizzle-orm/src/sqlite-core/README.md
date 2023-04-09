@@ -461,9 +461,7 @@ const users = sqliteTable('users', {
   createdAt: integer('created_at', { mode: 'timestamp' }),
 });
 
-type NewUser = InferModel<typeof users>;
-
-const db = drizzle(...);
+type NewUser = InferModel<typeof users, "insert">;
 
 const newUser: NewUser = {
   name: 'Andrew',
@@ -472,10 +470,10 @@ const newUser: NewUser = {
 
 db.insert(users).values(newUser).run();
 
-const insertedUsers/*: NewUser[]*/ = db.insert(users).values(newUsers).returning().all();
+const insertedUsers/*: NewUser[]*/ = db.insert(users).values(newUser).returning().all();
 
 const insertedUsersIds/*: { insertedId: number }[]*/ = db.insert(users)
-  .values(newUsers)
+  .values(newUser)
   .returning({ insertedId: users.id })
   .all();
 ```

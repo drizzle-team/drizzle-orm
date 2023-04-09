@@ -82,7 +82,10 @@ async function createDockerDB(ctx: Context): Promise<string> {
 	const port = await getPort({ port: 3306 });
 	const image = 'mysql:8';
 
-	await docker.pull(image);
+	const pullStream = await docker.pull(image);
+	await new Promise((resolve, reject) =>
+		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
+	);
 
 	ctx.mysqlContainer = await docker.createContainer({
 		Image: image,
@@ -139,7 +142,7 @@ test.beforeEach(async (t) => {
 		sql`create table \`mySchema\`.\`userstest\` (
 			\`id\` serial primary key,
 			\`name\` text not null,
-			\`verified\` boolean not null default false, 
+			\`verified\` boolean not null default false,
 			\`jsonb\` json,
 			\`created_at\` timestamp not null default now()
 		)`,
@@ -165,7 +168,7 @@ test.beforeEach(async (t) => {
 			\`date\` date,
 			\`date_as_string\` date,
 			\`time\` time,
-			\`datetime\` datetime, 
+			\`datetime\` datetime,
 			\`datetime_as_string\` datetime,
 			\`year\` year
 		)`,
@@ -182,7 +185,7 @@ test.serial('select all fields', async (t) => {
 
 	t.assert(result[0]!.createdAt instanceof Date);
 	// not timezone based timestamp, thats why it should not work here
-	// t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 1000);
+	// t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 2000);
 	t.deepEqual(result, [{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 });
 
@@ -248,7 +251,7 @@ test.serial('update with returning all fields', async (t) => {
 
 	t.assert(users[0]!.createdAt instanceof Date);
 	// not timezone based timestamp, thats why it should not work here
-	// t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 1000);
+	// t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 2000);
 	t.deepEqual(users, [{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
 });
 
@@ -462,6 +465,38 @@ test.serial('insert with onDuplicate', async (t) => {
 	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
 });
 
+test.serial('insert conflict', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable)
+		.values({ name: 'John' });
+
+	await t.throwsAsync(
+		() => db.insert(usersTable).values({ id: 1, name: 'John1' }),
+		{
+			code: 'ER_DUP_ENTRY',
+			message: "Duplicate entry '1' for key 'userstest.PRIMARY'",
+		},
+	);
+});
+
+test.serial('insert conflict with ignore', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable)
+		.values({ name: 'John' });
+
+	await db.insert(usersTable)
+		.ignore()
+		.values({ id: 1, name: 'John1' });
+
+	const res = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(
+		eq(usersTable.id, 1),
+	);
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+});
+
 test.serial('insert sql', async (t) => {
 	const { db } = t.context;
 
@@ -655,7 +690,7 @@ test.serial('select from tables with same name from different schema using alias
 		sql`create table \`userstest\` (
 			\`id\` serial primary key,
 			\`name\` text not null,
-			\`verified\` boolean not null default false, 
+			\`verified\` boolean not null default false,
 			\`jsonb\` json,
 			\`created_at\` timestamp not null default now()
 		)`,

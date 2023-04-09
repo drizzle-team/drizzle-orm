@@ -30,7 +30,7 @@ export class PgDatabase<TQueryResult extends QueryResultHKT> {
 
 				return new Proxy(
 					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
-					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'subquery_selection', sqlBehavior: 'error' }),
+					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 				) as WithSubqueryWithSelection<TSelection, TAlias>;
 			},
 		};

@@ -1150,6 +1150,16 @@ test.serial('prefixed table', (t) => {
 	db.run(sql`drop table ${users}`);
 });
 
+test.serial('orderBy with aliased column', (t) => {
+	const { db } = t.context;
+
+	const query = db.select({
+		test: sql`something`.as('test'),
+	}).from(users2Table).orderBy((fields) => fields.test).toSQL();
+
+	t.deepEqual(query.sql, 'select something as "test" from "users2" order by "test"');
+});
+
 test.serial('transaction', (t) => {
 	const { db } = t.context;
 

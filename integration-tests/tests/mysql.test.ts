@@ -173,7 +173,7 @@ test.beforeEach(async (t) => {
 		sql`create table \`userstest\` (
 			\`id\` serial primary key,
 			\`name\` text not null,
-			\`verified\` boolean not null default false, 
+			\`verified\` boolean not null default false,
 			\`jsonb\` json,
 			\`created_at\` timestamp not null default now()
 		)`,
@@ -205,7 +205,7 @@ test.serial('select all fields', async (t) => {
 
 	t.assert(result[0]!.createdAt instanceof Date);
 	// not timezone based timestamp, thats why it should not work here
-	// t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 1000);
+	// t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 2000);
 	t.deepEqual(result, [{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 });
 
@@ -271,7 +271,7 @@ test.serial('update with returning all fields', async (t) => {
 
 	t.assert(users[0]!.createdAt instanceof Date);
 	// not timezone based timestamp, thats why it should not work here
-	// t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 1000);
+	// t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 2000);
 	t.deepEqual(users, [{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
 });
 
@@ -483,6 +483,38 @@ test.serial('insert with onDuplicate', async (t) => {
 	);
 
 	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
+});
+
+test.serial('insert conflict', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable)
+		.values({ name: 'John' });
+
+	await t.throwsAsync(
+		() => db.insert(usersTable).values({ id: 1, name: 'John1' }),
+		{
+			code: 'ER_DUP_ENTRY',
+			message: "Duplicate entry '1' for key 'userstest.PRIMARY'",
+		},
+	);
+});
+
+test.serial('insert conflict with ignore', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable)
+		.values({ name: 'John' });
+
+	await db.insert(usersTable)
+		.ignore()
+		.values({ id: 1, name: 'John1' });
+
+	const res = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(
+		eq(usersTable.id, 1),
+	);
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
 });
 
 test.serial('insert sql', async (t) => {
@@ -1269,6 +1301,35 @@ test.serial('prefixed table', async (t) => {
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 
 	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('orderBy with aliased column', (t) => {
+	const { db } = t.context;
+
+	const query = db.select({
+		test: sql`something`.as('test'),
+	}).from(users2Table).orderBy((fields) => fields.test).toSQL();
+
+	t.deepEqual(query.sql, 'select something as `test` from `users2` order by `test`');
+});
+
+test.serial('timestamp timezone', async (t) => {
+	const { db } = t.context;
+
+	const date = new Date(Date.parse('2020-01-01T12:34:56+07:00'));
+
+	await db.insert(usersTable).values({ name: 'With default times' });
+	await db.insert(usersTable).values({
+		name: 'Without default times',
+		createdAt: date,
+	});
+	const users = await db.select().from(usersTable);
+
+	// check that the timestamps are set correctly for default times
+	t.assert(Math.abs(users[0]!.createdAt.getTime() - new Date().getTime()) < 2000);
+
+	// check that the timestamps are set correctly for non default times
+	t.assert(Math.abs(users[1]!.createdAt.getTime() - date.getTime()) < 2000);
 });
 
 test.serial('transaction', async (t) => {

@@ -4,10 +4,13 @@ import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import Docker from 'dockerode';
 import {
+	and,
 	asc,
 	eq,
 	gt,
+	gte,
 	inArray,
+	lt,
 	name,
 	placeholder,
 	type SQL,
@@ -18,7 +21,7 @@ import {
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { type AnyPgColumn, pgEnum, pgTableCreator, varchar } from 'drizzle-orm/pg-core';
+import { type AnyPgColumn, pgEnum, pgTableCreator, uuid as pgUuid, varchar } from 'drizzle-orm/pg-core';
 import {
 	alias,
 	boolean,
@@ -1701,6 +1704,100 @@ test.serial('select from enum', async (t) => {
 	await db.execute(sql`drop type ${name(mechanicEnum.enumName)}`);
 	await db.execute(sql`drop type ${name(equipmentEnum.enumName)}`);
 	await db.execute(sql`drop type ${name(categoryEnum.enumName)}`);
+});
+
+test.serial('orderBy with aliased column', (t) => {
+	const { db } = t.context;
+
+	const query = db.select({
+		test: sql`something`.as('test'),
+	}).from(users2Table).orderBy((fields) => fields.test).toSQL();
+
+	t.deepEqual(query.sql, 'select something as "test" from "users2" order by "test"');
+});
+
+test.serial('select from sql', async (t) => {
+	const { db } = t.context;
+
+	const metricEntry = pgTable('metric_entry', {
+		id: pgUuid('id').notNull(),
+		createdAt: timestamp('created_at').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${metricEntry}`);
+	await db.execute(sql`create table ${metricEntry} (id uuid not null, created_at timestamp not null)`);
+
+	const metricId = uuid();
+
+	const intervals = db.$with('intervals').as(
+		db
+			.select({
+				startTime: sql<string>`(date'2023-03-01'+ x * '1 day'::interval)`.as('start_time'),
+				endTime: sql<string>`(date'2023-03-01'+ (x+1) *'1 day'::interval)`.as('end_time'),
+			})
+			.from(sql`generate_series(0, 29, 1) as t(x)`),
+	);
+
+	await t.notThrowsAsync(() =>
+		db
+			.with(intervals)
+			.select({
+				startTime: intervals.startTime,
+				endTime: intervals.endTime,
+				count: sql<number>`count(${metricEntry})`,
+			})
+			.from(metricEntry)
+			.rightJoin(
+				intervals,
+				and(
+					eq(metricEntry.id, metricId),
+					gte(metricEntry.createdAt, intervals.startTime),
+					lt(metricEntry.createdAt, intervals.endTime),
+				),
+			)
+			.groupBy(intervals.startTime, intervals.endTime)
+			.orderBy(asc(intervals.startTime))
+	);
+});
+
+test.serial('timestamp timezone', async (t) => {
+	const { db } = t.context;
+
+	const usersTableWithAndWithoutTimezone = pgTable('users_test_with_and_without_timezone', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+		updatedAt: timestamp('updated_at', { withTimezone: false }).notNull().defaultNow(),
+	});
+
+	await db.execute(sql`drop table if exists ${usersTableWithAndWithoutTimezone}`);
+
+	await db.execute(
+		sql`create table users_test_with_and_without_timezone (
+			id serial not null primary key,
+			name text not null,
+			created_at timestamptz not null default now(),
+			updated_at timestamp not null default now()
+			)`,
+	);
+
+	const date = new Date(Date.parse('2020-01-01T00:00:00+04:00'));
+
+	await db.insert(usersTableWithAndWithoutTimezone).values({ name: 'With default times' });
+	await db.insert(usersTableWithAndWithoutTimezone).values({
+		name: 'Without default times',
+		createdAt: date,
+		updatedAt: date,
+	});
+	const users = await db.select().from(usersTableWithAndWithoutTimezone);
+
+	// check that the timestamps are set correctly for default times
+	t.assert(Math.abs(users[0]!.updatedAt.getTime() - new Date().getTime()) < 2000);
+	t.assert(Math.abs(users[0]!.createdAt.getTime() - new Date().getTime()) < 2000);
+
+	// check that the timestamps are set correctly for non default times
+	t.assert(Math.abs(users[1]!.updatedAt.getTime() - date.getTime()) < 2000);
+	t.assert(Math.abs(users[1]!.createdAt.getTime() - date.getTime()) < 2000);
 });
 
 test.serial('transaction', async (t) => {

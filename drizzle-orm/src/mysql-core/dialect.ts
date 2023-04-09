@@ -292,7 +292,7 @@ export class MySqlDialect {
 		return sql`${withSql}select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
 	}
 
-	buildInsertQuery({ table, values, onConflict, returning }: MySqlInsertConfig): SQL {
+	buildInsertQuery({ table, values, ignore, onConflict, returning }: MySqlInsertConfig): SQL {
 		const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, AnyMySqlColumn> = table[Table.Symbol.Columns];
@@ -319,13 +319,15 @@ export class MySqlDialect {
 
 		const valuesSql = sql.fromList(valuesSqlList);
 
+		const ignoreSql = ignore ? sql` ignore` : undefined;
+
 		const returningSql = returning
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
 		const onConflictSql = onConflict ? sql` on duplicate key ${onConflict}` : undefined;
 
-		return sql`insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}`;
+		return sql`insert${ignoreSql} into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}`;
 	}
 
 	sqlToQuery(sql: SQL): Query {

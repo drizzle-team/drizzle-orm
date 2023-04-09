@@ -1,6 +1,6 @@
 {
   "name": "drizzle-orm",
-  "version": "0.23.5",
+  "version": "0.23.8",
   "description": "Drizzle ORM package for SQL databases",
   "scripts": {
     "build": "tsc && resolve-tspaths && cp ../README.md package.json dist/",
@@ -126,6 +126,7 @@
     "sql.js": "^1.8.0",
     "sqlite3": "^5.1.2",
     "vite-tsconfig-paths": "^4.0.7",
-    "vitest": "^0.29.8"
+    "vitest": "^0.29.8",
+    "zod": "^3.20.2"
   }
 }

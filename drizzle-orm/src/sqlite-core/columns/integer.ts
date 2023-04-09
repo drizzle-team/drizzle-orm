@@ -8,7 +8,7 @@ import type {
 } from '~/column-builder';
 import { sql } from '~/sql';
 import type { OnConflict } from '~/sqlite-core/utils';
-import type { Assume } from '~/utils';
+import type { Assume, Equal, Or } from '~/utils';
 import type { AnySQLiteTable } from '../table';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common';
 
@@ -155,10 +155,11 @@ export interface IntegerConfig<
 	mode: TMode;
 }
 
-export function integer<TName extends string, TMode extends IntegerConfig['mode'] = 'number'>(
+export function integer<TName extends string, TMode extends IntegerConfig['mode']>(
 	name: TName,
 	config?: IntegerConfig<TMode>,
-): TMode extends 'number' ? SQLiteIntegerBuilderInitial<TName> : SQLiteTimestampBuilderInitial<TName>;
+): Or<Equal<TMode, 'timestamp'>, Equal<TMode, 'timestamp_ms'>> extends true ? SQLiteTimestampBuilderInitial<TName>
+	: SQLiteIntegerBuilderInitial<TName>;
 export function integer(name: string, config?: IntegerConfig) {
 	if (config?.mode === 'timestamp' || config?.mode === 'timestamp_ms') {
 		return new SQLiteTimestampBuilder(name, config.mode);

@@ -6,6 +6,7 @@ import {
 	customType,
 	date,
 	datetime,
+	decimal,
 	foreignKey,
 	index,
 	int,
@@ -357,4 +358,16 @@ Expect<
 		timestamp3: timestamp('timestamp3', { mode: 'string' }).default('2020-01-01'),
 		timestamp4: timestamp('timestamp4', { mode: undefined }).default(new Date()),
 	});
+}
+
+{
+	const test = mysqlTable('test', {
+		col1: decimal('col1').default('1'),
+	});
+}
+
+{
+	const a = ['a', 'b', 'c'] as const;
+	const test1 = mysqlEnum('test', a);
+	const test2 = mysqlEnum('test', ['a', 'b', 'c']);
 }

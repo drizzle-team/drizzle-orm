@@ -19,6 +19,7 @@ import type { MySqlUpdateSetSource } from './update';
 export interface MySqlInsertConfig<TTable extends AnyMySqlTable = AnyMySqlTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[];
+	ignore: boolean;
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
 }
@@ -32,11 +33,18 @@ export type MySqlInsertValue<TTable extends AnyMySqlTable> = Simplify<
 >;
 
 export class MySqlInsertBuilder<TTable extends AnyMySqlTable, TQueryResult extends QueryResultHKT> {
+	private shouldIgnore: boolean = false;
+
 	constructor(
 		private table: TTable,
 		private session: MySqlSession,
 		private dialect: MySqlDialect,
 	) {}
+
+	ignore(): this {
+		this.shouldIgnore = true;
+		return this;
+	}
 
 	values(value: MySqlInsertValue<TTable>): MySqlInsert<TTable, TQueryResult>;
 	values(values: MySqlInsertValue<TTable>[]): MySqlInsert<TTable, TQueryResult>;
@@ -68,7 +76,7 @@ export class MySqlInsertBuilder<TTable extends AnyMySqlTable, TQueryResult exten
 			return result;
 		});
 
-		return new MySqlInsert(this.table, mappedValues, this.session, this.dialect);
+		return new MySqlInsert(this.table, mappedValues, this.shouldIgnore, this.session, this.dialect);
 	}
 }
 
@@ -87,11 +95,12 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TQueryResult extends Quer
 	constructor(
 		table: TTable,
 		values: MySqlInsertConfig['values'],
+		ignore: boolean,
 		private session: MySqlSession,
 		private dialect: MySqlDialect,
 	) {
 		super();
-		this.config = { table, values };
+		this.config = { table, values, ignore };
 	}
 
 	onDuplicateKeyUpdate(config: {

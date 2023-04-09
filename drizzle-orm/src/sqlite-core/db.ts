@@ -35,7 +35,7 @@ export class BaseSQLiteDatabase<TResultKind extends 'sync' | 'async', TRunResult
 
 				return new Proxy(
 					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
-					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'subquery_selection', sqlBehavior: 'error' }),
+					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 				) as WithSubqueryWithSelection<TSelection, TAlias>;
 			},
 		};
