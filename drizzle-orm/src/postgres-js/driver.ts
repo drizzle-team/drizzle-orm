@@ -3,14 +3,14 @@ import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
 import { PgDatabase } from '~/pg-core/db';
 import { PgDialect } from '~/pg-core/dialect';
-import type { PostgresJsQueryResultHKT} from './session';
+import type { PostgresJsQueryResultHKT } from './session';
 import { PostgresJsSession } from './session';
 
 export interface DrizzleConfig {
 	logger?: boolean | Logger;
 }
 
-export type PostgresJsDatabase = PgDatabase<PostgresJsQueryResultHKT, PostgresJsSession>;
+export type PostgresJsDatabase = PgDatabase<PostgresJsQueryResultHKT>;
 
 export function drizzle(client: Sql, config: DrizzleConfig = {}): PostgresJsDatabase {
 	const dialect = new PgDialect();

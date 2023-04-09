@@ -3,7 +3,7 @@ import 'dotenv/config';
 import { type Client, createClient } from '@libsql/client';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
-import { type InferModel, sql } from 'drizzle-orm';
+import { type InferModel, sql, TransactionRollbackError } from 'drizzle-orm';
 import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
@@ -440,31 +440,38 @@ test.serial('partial join with alias', async (t) => {
 
 test.serial('full join with alias', async (t) => {
 	const { db } = t.context;
-	const customerAlias = alias(usersTable, 'customer');
 
-	await db.insert(usersTable).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]).run();
+	const sqliteTable = sqliteTableCreator((name) => `prefixed_${name}`);
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await db.run(sql`drop table if exists ${users}`);
+	await db.run(sql`create table ${users} (id integer primary key, name text not null)`);
+
+	const customers = alias(users, 'customer');
+
+	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]).run();
 	const result = await db
-		.select().from(usersTable)
-		.leftJoin(customerAlias, eq(customerAlias.id, 11))
-		.where(eq(usersTable.id, 10))
+		.select().from(users)
+		.leftJoin(customers, eq(customers.id, 11))
+		.where(eq(users.id, 10))
 		.all();
 
 	t.deepEqual(result, [{
 		users: {
 			id: 10,
 			name: 'Ivan',
-			verified: 0,
-			json: null,
-			createdAt: result[0]!.users.createdAt,
 		},
 		customer: {
 			id: 11,
 			name: 'Hans',
-			verified: 0,
-			json: null,
-			createdAt: result[0]!.customer!.createdAt,
 		},
 	}]);
+
+	await db.run(sql`drop table ${users}`);
 });
 
 test.serial('insert with spaces', async (t) => {
@@ -974,7 +981,7 @@ test.serial('having', async (t) => {
 	]);
 });
 
-test.serial.skip('view', async (t) => {
+test.serial('view', async (t) => {
 	const { db } = t.context;
 
 	const newYorkers1 = sqliteView('new_yorkers')
@@ -1174,6 +1181,130 @@ test.serial('prefixed table', async (t) => {
 	const result = await db.select().from(users).all();
 
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+
+	await db.run(sql`drop table ${users}`);
+});
+
+test.serial('transaction', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users_transactions', {
+		id: integer('id').primaryKey(),
+		balance: integer('balance').notNull(),
+	});
+	const products = sqliteTable('products_transactions', {
+		id: integer('id').primaryKey(),
+		price: integer('price').notNull(),
+		stock: integer('stock').notNull(),
+	});
+
+	await db.run(sql`drop table if exists ${users}`);
+	await db.run(sql`drop table if exists ${products}`);
+
+	await db.run(sql`create table users_transactions (id integer not null primary key, balance integer not null)`);
+	await db.run(
+		sql`create table products_transactions (id integer not null primary key, price integer not null, stock integer not null)`,
+	);
+
+	const user = await db.insert(users).values({ balance: 100 }).returning().get();
+	const product = await db.insert(products).values({ price: 10, stock: 10 }).returning().get();
+
+	await db.transaction(async (tx) => {
+		await tx.update(users).set({ balance: user.balance - product.price }).where(eq(users.id, user.id)).run();
+		await tx.update(products).set({ stock: product.stock - 1 }).where(eq(products.id, product.id)).run();
+	});
+
+	const result = await db.select().from(users).all();
+
+	t.deepEqual(result, [{ id: 1, balance: 90 }]);
+
+	await db.run(sql`drop table ${users}`);
+	await db.run(sql`drop table ${products}`);
+});
+
+test.serial('transaction rollback', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users_transactions_rollback', {
+		id: integer('id').primaryKey(),
+		balance: integer('balance').notNull(),
+	});
+
+	await db.run(sql`drop table if exists ${users}`);
+
+	await db.run(
+		sql`create table users_transactions_rollback (id integer not null primary key, balance integer not null)`,
+	);
+
+	await t.throwsAsync(async () =>
+		await db.transaction(async (tx) => {
+			await tx.insert(users).values({ balance: 100 }).run();
+			tx.rollback();
+		}), new TransactionRollbackError());
+
+	const result = await db.select().from(users).all();
+
+	t.deepEqual(result, []);
+
+	await db.run(sql`drop table ${users}`);
+});
+
+test.serial('nested transaction', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users_nested_transactions', {
+		id: integer('id').primaryKey(),
+		balance: integer('balance').notNull(),
+	});
+
+	await db.run(sql`drop table if exists ${users}`);
+
+	await db.run(
+		sql`create table users_nested_transactions (id integer not null primary key, balance integer not null)`,
+	);
+
+	await db.transaction(async (tx) => {
+		await tx.insert(users).values({ balance: 100 }).run();
+
+		await tx.transaction(async (tx) => {
+			await tx.update(users).set({ balance: 200 }).run();
+		});
+	});
+
+	const result = await db.select().from(users).all();
+
+	t.deepEqual(result, [{ id: 1, balance: 200 }]);
+
+	await db.run(sql`drop table ${users}`);
+});
+
+test.serial('nested transaction rollback', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users_nested_transactions_rollback', {
+		id: integer('id').primaryKey(),
+		balance: integer('balance').notNull(),
+	});
+
+	await db.run(sql`drop table if exists ${users}`);
+
+	await db.run(
+		sql`create table users_nested_transactions_rollback (id integer not null primary key, balance integer not null)`,
+	);
+
+	await db.transaction(async (tx) => {
+		await tx.insert(users).values({ balance: 100 }).run();
+
+		await t.throwsAsync(async () =>
+			await tx.transaction(async (tx) => {
+				await tx.update(users).set({ balance: 200 }).run();
+				tx.rollback();
+			}), new TransactionRollbackError());
+	});
+
+	const result = await db.select().from(users).all();
+
+	t.deepEqual(result, [{ id: 1, balance: 100 }]);
 
 	await db.run(sql`drop table ${users}`);
 });

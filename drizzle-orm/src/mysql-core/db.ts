@@ -12,16 +12,22 @@ import {
 	queryBuilder,
 } from './query-builders';
 import type { SelectedFields } from './query-builders/select.types';
-import type { MySqlSession, QueryResultHKT, QueryResultKind } from './session';
+import type {
+	MySqlSession,
+	MySqlTransaction,
+	MySqlTransactionConfig,
+	QueryResultHKT,
+	QueryResultKind,
+} from './session';
 import type { WithSubqueryWithSelection } from './subquery';
 import type { AnyMySqlTable } from './table';
 
-export class MySqlDatabase<TQueryResult extends QueryResultHKT, TSession extends MySqlSession> {
+export class MySqlDatabase<TQueryResult extends QueryResultHKT> {
 	constructor(
 		/** @internal */
 		readonly dialect: MySqlDialect,
 		/** @internal */
-		readonly session: TSession,
+		readonly session: MySqlSession<any>,
 	) {}
 
 	$with<TAlias extends string>(alias: TAlias) {
@@ -75,5 +81,11 @@ export class MySqlDatabase<TQueryResult extends QueryResultHKT, TSession extends
 		query: SQLWrapper,
 	): Promise<QueryResultKind<TQueryResult, T>> {
 		return this.session.execute(query.getSQL());
+	}
+
+	transaction<T>(
+		transaction: (tx: MySqlTransaction<TQueryResult>, config?: MySqlTransactionConfig) => Promise<T>,
+	): Promise<T> {
+		return this.session.transaction(transaction);
 	}
 }

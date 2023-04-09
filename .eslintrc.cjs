@@ -8,6 +8,7 @@ module.exports = {
 			'error',
 			{
 				disallowTypeAnnotations: false,
+				fixStyle: 'inline-type-imports',
 			},
 		],
 		'import/no-cycle': 'error',

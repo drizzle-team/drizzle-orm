@@ -2,7 +2,7 @@
 <h1>Drizzle ORM <a href=""><img alt="npm" src="https://img.shields.io/npm/v/drizzle-orm?label="></a></h1>
 <img alt="npm" src="https://img.shields.io/npm/dm/drizzle-orm">
 <img alt="npm bundle size" src="https://img.shields.io/bundlephobia/min/drizzle-orm">
-<a href="https://discord.gg/yfjTbVXMW4"><img alt="Discord" src="https://img.shields.io/discord/1043890932593987624"></a>
+<a href="https://discord.gg/yfjTbVXMW4"><img alt="Discord" src="https://img.shields.io/discord/1043890932593987624?label=Discord"></a>
 <img alt="License" src="https://img.shields.io/npm/l/drizzle-orm">
 <h6><i>If you know SQL, you know Drizzle ORM</i></h6>
 <hr />
@@ -41,6 +41,7 @@ Drizzle ORM is being battle-tested on production projects by multiple teams 🚀
 | CockroachDB                                           |   ⏳    |                                                |
 
 ## Our sponsors ❤️
+
 <p align="center">
 <a href="https://drizzle.team" target="_blank">
 <img src='https://api.drizzle.team/github/sponsors/svg'/>

@@ -1,14 +1,13 @@
-import type { Row, RowList, Sql } from 'postgres';
+import type { Row, RowList, Sql, TransactionSql } from 'postgres';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
+import { PgTransaction } from '~/pg-core';
 import type { PgDialect } from '~/pg-core/dialect';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
-import type { PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
+import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
 import { PgSession, PreparedQuery } from '~/pg-core/session';
-import type { Query } from '~/sql';
-import { fillPlaceholders } from '~/sql';
-import type { Assume } from '~/utils';
-import { mapResultRow } from '~/utils';
+import { fillPlaceholders, type Query } from '~/sql';
+import { type Assume, mapResultRow } from '~/utils';
 
 export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
 	private query: string;
@@ -59,13 +58,14 @@ export interface PostgresJsSessionOptions {
 	logger?: Logger;
 }
 
-export class PostgresJsSession extends PgSession {
+export class PostgresJsSession<TSQL extends Sql = Sql> extends PgSession<PostgresJsQueryResultHKT> {
 	logger: Logger;
 
 	constructor(
-		public client: Sql,
+		public client: TSQL,
 		dialect: PgDialect,
-		options: PostgresJsSessionOptions = {},
+		/** @internal */
+		readonly options: PostgresJsSessionOptions = {},
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -89,6 +89,41 @@ export class PostgresJsSession extends PgSession {
 		params: unknown[],
 	): Promise<RowList<T[]>> {
 		return this.client.unsafe(query, params as any[]);
+	}
+
+	override transaction<T>(
+		transaction: (tx: PostgresJsTransaction) => Promise<T>,
+		config?: PgTransactionConfig,
+	): Promise<T> {
+		return this.client.begin(async (client) => {
+			const session = new PostgresJsSession(client, this.dialect, this.options);
+			const tx = new PostgresJsTransaction(this.dialect, session);
+			if (config) {
+				await tx.setTransaction(config);
+			}
+			return transaction(tx);
+		}) as Promise<T>;
+	}
+}
+
+export class PostgresJsTransaction extends PgTransaction<PostgresJsQueryResultHKT> {
+	constructor(
+		dialect: PgDialect,
+		/** @internal */
+		override readonly session: PostgresJsSession<TransactionSql>,
+		nestedIndex: number = 0,
+	) {
+		super(dialect, session, nestedIndex);
+	}
+
+	override transaction<T>(
+		transaction: (tx: PostgresJsTransaction) => Promise<T>,
+	): Promise<T> {
+		return this.session.client.savepoint((client) => {
+			const session = new PostgresJsSession(client, this.dialect, this.session.options);
+			const tx = new PostgresJsTransaction(this.dialect, session);
+			return transaction(tx);
+		}) as Promise<T>;
 	}
 }
 

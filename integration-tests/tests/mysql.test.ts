@@ -3,7 +3,7 @@ import 'dotenv/config';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import Docker from 'dockerode';
-import { DefaultLogger, sql } from 'drizzle-orm';
+import { DefaultLogger, sql, TransactionRollbackError } from 'drizzle-orm';
 import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
 import {
 	alias,
@@ -520,30 +520,37 @@ test.serial('partial join with alias', async (t) => {
 
 test.serial('full join with alias', async (t) => {
 	const { db } = t.context;
-	const customerAlias = alias(usersTable, 'customer');
 
-	await db.insert(usersTable).values({ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' });
+	const sqliteTable = mysqlTableCreator((name) => `prefixed_${name}`);
+
+	const users = sqliteTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
+
+	const customers = alias(users, 'customer');
+
+	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
 	const result = await db
-		.select().from(usersTable)
-		.leftJoin(customerAlias, eq(customerAlias.id, 11))
-		.where(eq(usersTable.id, 10));
+		.select().from(users)
+		.leftJoin(customers, eq(customers.id, 11))
+		.where(eq(users.id, 10));
 
 	t.deepEqual(result, [{
-		userstest: {
+		users: {
 			id: 10,
 			name: 'Ivan',
-			verified: false,
-			jsonb: null,
-			createdAt: result[0]!.userstest.createdAt,
 		},
 		customer: {
 			id: 11,
 			name: 'Hans',
-			verified: false,
-			jsonb: null,
-			createdAt: result[0]!.customer!.createdAt,
 		},
 	}]);
+
+	await db.execute(sql`drop table ${users}`);
 });
 
 test.serial('insert with spaces', async (t) => {
@@ -1260,6 +1267,132 @@ test.serial('prefixed table', async (t) => {
 	const result = await db.select().from(users);
 
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+
+	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('transaction', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('users_transactions', {
+		id: serial('id').primaryKey(),
+		balance: int('balance').notNull(),
+	});
+	const products = mysqlTable('products_transactions', {
+		id: serial('id').primaryKey(),
+		price: int('price').notNull(),
+		stock: int('stock').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`drop table if exists ${products}`);
+
+	await db.execute(sql`create table users_transactions (id serial not null primary key, balance int not null)`);
+	await db.execute(
+		sql`create table products_transactions (id serial not null primary key, price int not null, stock int not null)`,
+	);
+
+	const [{ insertId: userId }] = await db.insert(users).values({ balance: 100 });
+	const user = await db.select().from(users).where(eq(users.id, userId)).then((rows) => rows[0]!);
+	const [{ insertId: productId }] = await db.insert(products).values({ price: 10, stock: 10 });
+	const product = await db.select().from(products).where(eq(products.id, productId)).then((rows) => rows[0]!);
+
+	await db.transaction(async (tx) => {
+		await tx.update(users).set({ balance: user.balance - product.price }).where(eq(users.id, user.id));
+		await tx.update(products).set({ stock: product.stock - 1 }).where(eq(products.id, product.id));
+	});
+
+	const result = await db.select().from(users);
+
+	t.deepEqual(result, [{ id: 1, balance: 90 }]);
+
+	await db.execute(sql`drop table ${users}`);
+	await db.execute(sql`drop table ${products}`);
+});
+
+test.serial('transaction rollback', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('users_transactions_rollback', {
+		id: serial('id').primaryKey(),
+		balance: int('balance').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table users_transactions_rollback (id serial not null primary key, balance int not null)`,
+	);
+
+	await t.throwsAsync(async () =>
+		await db.transaction(async (tx) => {
+			await tx.insert(users).values({ balance: 100 });
+			tx.rollback();
+		}), new TransactionRollbackError());
+
+	const result = await db.select().from(users);
+
+	t.deepEqual(result, []);
+
+	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('nested transaction', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('users_nested_transactions', {
+		id: serial('id').primaryKey(),
+		balance: int('balance').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table users_nested_transactions (id serial not null primary key, balance int not null)`,
+	);
+
+	await db.transaction(async (tx) => {
+		await tx.insert(users).values({ balance: 100 });
+
+		await tx.transaction(async (tx) => {
+			await tx.update(users).set({ balance: 200 });
+		});
+	});
+
+	const result = await db.select().from(users);
+
+	t.deepEqual(result, [{ id: 1, balance: 200 }]);
+
+	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('nested transaction rollback', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('users_nested_transactions_rollback', {
+		id: serial('id').primaryKey(),
+		balance: int('balance').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table users_nested_transactions_rollback (id serial not null primary key, balance int not null)`,
+	);
+
+	await db.transaction(async (tx) => {
+		await tx.insert(users).values({ balance: 100 });
+
+		await t.throwsAsync(async () =>
+			await tx.transaction(async (tx) => {
+				await tx.update(users).set({ balance: 200 });
+				tx.rollback();
+			}), new TransactionRollbackError());
+	});
+
+	const result = await db.select().from(users);
+
+	t.deepEqual(result, [{ id: 1, balance: 100 }]);
 
 	await db.execute(sql`drop table ${users}`);
 });

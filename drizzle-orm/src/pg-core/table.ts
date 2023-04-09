@@ -54,6 +54,7 @@ export function pgTableWithSchema<
 	columns: TColumnsMap,
 	extraConfig: ((self: BuildColumns<TTableName, TColumnsMap>) => PgTableExtraConfig) | undefined,
 	schema: TSchemaName,
+	baseName = name,
 ): PgTableWithColumns<{
 	name: TTableName;
 	schema: TSchemaName;
@@ -63,7 +64,7 @@ export function pgTableWithSchema<
 		name: TTableName;
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap>;
-	}>(name, schema);
+	}>(name, schema, baseName);
 
 	const builtColumns = Object.fromEntries(
 		Object.entries(columns).map(([name, colBuilder]) => {
@@ -92,17 +93,18 @@ export function pgTable<
 	name: TTableName,
 	columns: TColumnsMap,
 	extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => PgTableExtraConfig,
+	baseName = name,
 ): PgTableWithColumns<{
 	name: TTableName;
 	schema: TSchemaName;
 	columns: BuildColumns<TTableName, TColumnsMap>;
 }> {
-	return pgTableWithSchema(name, columns, extraConfig, undefined as TSchemaName);
+	return pgTableWithSchema(name, columns, extraConfig, undefined as TSchemaName, baseName);
 }
 
 export function pgTableCreator(customizeTableName: (name: string) => string): typeof pgTable {
 	const builder: typeof pgTable = (name, columns, extraConfig) => {
-		return pgTable(customizeTableName(name) as typeof name, columns, extraConfig);
+		return pgTable(customizeTableName(name) as typeof name, columns, extraConfig, name);
 	};
 	return builder;
 }

@@ -73,9 +73,11 @@ export const users = mysqlTable('users', {
 ```
 
 ### Using Drizzle ORM in Next.js app router
+
 In order to use Drizzle ORM in the Next.js new app router mode you have to add `mysql2` dependendency to the `experimental.serverComponentsExternalPackages` array in `next.config.js` config file.
 
 Example `next.config.js` should look like this:
+
 ```ts
 /** @type {import("next").NextConfig} */
 const config = {
@@ -695,6 +697,44 @@ const result2 = await db
     },
   })
   .from(cities).leftJoin(users, eq(users.cityId, cities.id));
+```
+
+## Transactions
+
+```ts
+await db.transaction(async (tx) => {
+  await tx.insert(users).values(newUser);
+  await tx.update(users).set({ name: 'Mr. Dan' }).where(eq(users.name, 'Dan'));
+  await tx.delete(users).where(eq(users.name, 'Dan'));
+});
+```
+
+### Nested transactions
+
+```ts
+await db.transaction(async (tx) => {
+  await tx.insert(users).values(newUser);
+  await tx.transaction(async (tx2) => {
+    await tx2.update(users).set({ name: 'Mr. Dan' }).where(eq(users.name, 'Dan'));
+    await tx2.delete(users).where(eq(users.name, 'Dan'));
+  });
+});
+```
+
+### Transaction settings
+
+```ts
+interface MySqlTransactionConfig {
+  withConsistentSnapshot?: boolean;
+  accessMode?: 'read only' | 'read write';
+  isolationLevel: 'read uncommitted' | 'read committed' | 'repeatable read' | 'serializable';
+}
+
+await db.transaction(async (tx) => { ... }, {
+  withConsistentSnapshot: true,
+  accessMode: 'read only',
+  isolationLevel: 'read committed',
+});
 ```
 
 ## Query builder

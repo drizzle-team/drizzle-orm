@@ -92,7 +92,7 @@ export class SQLiteSelectBuilder<
 			this.session,
 			this.dialect,
 			this.withList,
-		) as any;
+		);
 	}
 }
 
@@ -144,7 +144,7 @@ export abstract class SQLiteSelectQueryBuilder<
 			? table[ViewBaseConfig].name
 			: table instanceof SQL
 			? undefined
-			: table[Table.Symbol.Name];
+			: table[Table.Symbol.BaseName];
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
 	}
 
@@ -374,7 +374,7 @@ export class SQLiteSelect<
 	TSelectMode,
 	TNullabilityMap
 > {
-	prepare(): PreparedQuery<
+	prepare(isOneTimeQuery?: boolean): PreparedQuery<
 		{
 			type: TResultType;
 			run: TRunResult;
@@ -386,25 +386,27 @@ export class SQLiteSelect<
 		if (!this.session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
-		// TODO: implement transaction support
-		const query = this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.fieldsList, undefined);
+		const query = this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
+			this.dialect.sqlToQuery(this.getSQL()),
+			this.config.fieldsList,
+		);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
 		return query;
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
-		return this.prepare().run(placeholderValues);
+		return this.prepare(true).run(placeholderValues);
 	};
 
 	all: ReturnType<this['prepare']>['all'] = (placeholderValues) => {
-		return this.prepare().all(placeholderValues);
+		return this.prepare(true).all(placeholderValues);
 	};
 
 	get: ReturnType<this['prepare']>['get'] = (placeholderValues) => {
-		return this.prepare().get(placeholderValues);
+		return this.prepare(true).get(placeholderValues);
 	};
 
 	values: ReturnType<this['prepare']>['values'] = (placeholderValues) => {
-		return this.prepare().values(placeholderValues);
+		return this.prepare(true).values(placeholderValues);
 	};
 }

@@ -7,7 +7,19 @@ import { sql } from 'drizzle-orm';
 import { asc, eq } from 'drizzle-orm/expressions';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { alias, boolean, char, integer, jsonb, pgSchema, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import {
+	alias,
+	boolean,
+	char,
+	integer,
+	jsonb,
+	pgSchema,
+	pgTable,
+	pgTableCreator,
+	serial,
+	text,
+	timestamp,
+} from 'drizzle-orm/pg-core';
 import { getMaterializedViewConfig, getViewConfig } from 'drizzle-orm/pg-core/utils';
 import { Name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
@@ -452,31 +464,37 @@ test.serial('partial join with alias', async (t) => {
 
 test.serial('full join with alias', async (t) => {
 	const { db } = t.context;
-	const customerAlias = alias(usersTable, 'customer');
 
-	await db.insert(usersTable).values({ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' });
+	const sqliteTable = pgTableCreator((name) => `prefixed_${name}`);
 
+	const users = sqliteTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
+
+	const customers = alias(users, 'customer');
+
+	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
 	const result = await db
-		.select().from(usersTable)
-		.leftJoin(customerAlias, eq(customerAlias.id, 11))
-		.where(eq(usersTable.id, 10));
+		.select().from(users)
+		.leftJoin(customers, eq(customers.id, 11))
+		.where(eq(users.id, 10));
 
 	t.deepEqual(result, [{
 		users: {
 			id: 10,
 			name: 'Ivan',
-			verified: false,
-			jsonb: null,
-			createdAt: result[0]!.users.createdAt,
 		},
 		customer: {
 			id: 11,
 			name: 'Hans',
-			verified: false,
-			jsonb: null,
-			createdAt: result[0]!.customer!.createdAt,
 		},
 	}]);
+
+	await db.execute(sql`drop table ${users}`);
 });
 
 test.serial('insert with spaces', async (t) => {

@@ -2,7 +2,7 @@ import 'dotenv/config';
 
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
-import { sql } from 'drizzle-orm';
+import { sql, TransactionRollbackError } from 'drizzle-orm';
 import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
 import { Name, name, placeholder } from 'drizzle-orm/sql';
 import type { SQLJsDatabase } from 'drizzle-orm/sql-js';
@@ -23,6 +23,8 @@ import type { Equal } from 'drizzle-orm/utils';
 import type { Database } from 'sql.js';
 import initSqlJs from 'sql.js';
 import { Expect } from './utils';
+
+const ENABLE_LOGGING = false;
 
 const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey(),
@@ -94,7 +96,7 @@ test.before(async (t) => {
 
 	const SQL = await initSqlJs();
 	ctx.client = new SQL.Database();
-	ctx.db = drizzle(ctx.client /* , { logger: new DefaultLogger() } */);
+	ctx.db = drizzle(ctx.client, { logger: ENABLE_LOGGING });
 });
 
 test.after.always((t) => {
@@ -419,31 +421,38 @@ test.serial('partial join with alias', (t) => {
 
 test.serial('full join with alias', (t) => {
 	const { db } = t.context;
-	const customerAlias = alias(usersTable, 'customer');
 
-	db.insert(usersTable).values({ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }).run();
+	const sqliteTable = sqliteTableCreator((name) => `prefixed_${name}`);
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+	db.run(sql`create table ${users} (id integer primary key, name text not null)`);
+
+	const customers = alias(users, 'customer');
+
+	db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]).run();
 	const result = db
-		.select().from(usersTable)
-		.leftJoin(customerAlias, eq(customerAlias.id, 11))
-		.where(eq(usersTable.id, 10))
+		.select().from(users)
+		.leftJoin(customers, eq(customers.id, 11))
+		.where(eq(users.id, 10))
 		.all();
 
 	t.deepEqual(result, [{
 		users: {
 			id: 10,
 			name: 'Ivan',
-			verified: 0,
-			json: null,
-			createdAt: result[0]!.users.createdAt,
 		},
 		customer: {
 			id: 11,
 			name: 'Hans',
-			verified: 0,
-			json: null,
-			createdAt: result[0]!.customer!.createdAt,
 		},
 	}]);
+
+	db.run(sql`drop table ${users}`);
 });
 
 test.serial('insert with spaces', (t) => {
@@ -587,7 +596,7 @@ test.serial('build query', (t) => {
 	});
 });
 
-test.serial('migrator', async (t) => {
+test.serial('migrator', (t) => {
 	const { db } = t.context;
 
 	db.run(sql`drop table if exists another_users`);
@@ -1137,6 +1146,130 @@ test.serial('prefixed table', (t) => {
 	const result = db.select().from(users).all();
 
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+
+	db.run(sql`drop table ${users}`);
+});
+
+test.serial('transaction', (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users_transactions', {
+		id: integer('id').primaryKey(),
+		balance: integer('balance').notNull(),
+	});
+	const products = sqliteTable('products_transactions', {
+		id: integer('id').primaryKey(),
+		price: integer('price').notNull(),
+		stock: integer('stock').notNull(),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+	db.run(sql`drop table if exists ${products}`);
+
+	db.run(sql`create table users_transactions (id integer not null primary key, balance integer not null)`);
+	db.run(
+		sql`create table products_transactions (id integer not null primary key, price integer not null, stock integer not null)`,
+	);
+
+	const user = db.insert(users).values({ balance: 100 }).returning().get();
+	const product = db.insert(products).values({ price: 10, stock: 10 }).returning().get();
+
+	db.transaction((tx) => {
+		tx.update(users).set({ balance: user.balance - product.price }).where(eq(users.id, user.id)).run();
+		tx.update(products).set({ stock: product.stock - 1 }).where(eq(products.id, product.id)).run();
+	});
+
+	const result = db.select().from(users).all();
+
+	t.deepEqual(result, [{ id: 1, balance: 90 }]);
+
+	db.run(sql`drop table ${users}`);
+	db.run(sql`drop table ${products}`);
+});
+
+test.serial('transaction rollback', (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users_transactions_rollback', {
+		id: integer('id').primaryKey(),
+		balance: integer('balance').notNull(),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table users_transactions_rollback (id integer not null primary key, balance integer not null)`,
+	);
+
+	t.throws(() =>
+		db.transaction((tx) => {
+			tx.insert(users).values({ balance: 100 }).run();
+			tx.rollback();
+		}), new TransactionRollbackError());
+
+	const result = db.select().from(users).all();
+
+	t.deepEqual(result, []);
+
+	db.run(sql`drop table ${users}`);
+});
+
+test.serial('nested transaction', (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users_nested_transactions', {
+		id: integer('id').primaryKey(),
+		balance: integer('balance').notNull(),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table users_nested_transactions (id integer not null primary key, balance integer not null)`,
+	);
+
+	db.transaction((tx) => {
+		tx.insert(users).values({ balance: 100 }).run();
+
+		tx.transaction(async (tx) => {
+			tx.update(users).set({ balance: 200 }).run();
+		});
+	});
+
+	const result = db.select().from(users).all();
+
+	t.deepEqual(result, [{ id: 1, balance: 200 }]);
+
+	db.run(sql`drop table ${users}`);
+});
+
+test.serial('nested transaction rollback', (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users_nested_transactions_rollback', {
+		id: integer('id').primaryKey(),
+		balance: integer('balance').notNull(),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table users_nested_transactions_rollback (id integer not null primary key, balance integer not null)`,
+	);
+
+	db.transaction((tx) => {
+		tx.insert(users).values({ balance: 100 }).run();
+
+		t.throws(() =>
+			tx.transaction((tx) => {
+				tx.update(users).set({ balance: 200 }).run();
+				tx.rollback();
+			}), new TransactionRollbackError());
+	});
+
+	const result = db.select().from(users).all();
+
+	t.deepEqual(result, [{ id: 1, balance: 100 }]);
 
 	db.run(sql`drop table ${users}`);
 });

@@ -77,9 +77,11 @@ export const users = pgTable('users', {
 ```
 
 ### Using Drizzle ORM in Next.js app router
+
 In order to use Drizzle ORM in the Next.js new app router mode you have to add `pg` dependendency to the `experimental.serverComponentsExternalPackages` array in `next.config.js` config file.
 
 Example `next.config.js` should look like this:
+
 ```ts
 /** @type {import("next").NextConfig} */
 const config = {
@@ -95,7 +97,6 @@ export default config
 More details about `serverComponentsExternalPackages` can be found in the [Next.js beta docs](https://beta.nextjs.org/docs/api-reference/next-config#servercomponentsexternalpackages).
 
 > **Note**: New next.js beta docs changes frequently so if the link above doesn't work try this one: [Next.js beta docs](https://beta.nextjs.org/docs/api-reference/next-config.js#servercomponentsexternalpackages).
-
 
 ### Connect using node-postgres Pool (recommended)
 
@@ -749,6 +750,44 @@ const result2 = await db.select({
     name: cities.name,
   },
 }).from(cities).leftJoin(users, eq(users.cityId, cities.id));
+```
+
+## Transactions
+
+```ts
+await db.transaction(async (tx) => {
+  await tx.insert(users).values(newUser);
+  await tx.update(users).set({ name: 'Mr. Dan' }).where(eq(users.name, 'Dan'));
+  await tx.delete(users).where(eq(users.name, 'Dan'));
+});
+```
+
+### Nested transactions
+
+```ts
+await db.transaction(async (tx) => {
+  await tx.insert(users).values(newUser);
+  await tx.transaction(async (tx2) => {
+    await tx2.update(users).set({ name: 'Mr. Dan' }).where(eq(users.name, 'Dan'));
+    await tx2.delete(users).where(eq(users.name, 'Dan'));
+  });
+});
+```
+
+### Transaction settings
+
+```ts
+interface PgTransactionConfig {
+  isolationLevel?: 'read uncommitted' | 'read committed' | 'repeatable read' | 'serializable';
+  accessMode?: 'read only' | 'read write';
+  deferrable?: boolean;
+}
+
+await db.transaction(async (tx) => { ... }, {
+  isolationLevel: 'read committed',
+  accessMode: 'read write',
+  deferrable: true,
+});
 ```
 
 ## Query builder

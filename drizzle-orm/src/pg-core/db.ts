@@ -1,22 +1,22 @@
 import type { PgDialect } from '~/pg-core/dialect';
 import type { QueryBuilderInstance } from '~/pg-core/query-builders';
 import { PgDelete, PgInsertBuilder, PgSelectBuilder, PgUpdateBuilder, queryBuilder } from '~/pg-core/query-builders';
-import type { PgSession, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
+import type { PgSession, PgTransaction, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
 import type { AnyPgTable } from '~/pg-core/table';
 import type { QueryBuilder } from '~/query-builders/query-builder';
-import type { SQLWrapper } from '~/sql';
+import { type SQLWrapper } from '~/sql';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
 import { PgRefreshMaterializedView } from './query-builders/refresh-materialized-view';
 import type { SelectedFields } from './query-builders/select.types';
 import type { WithSubqueryWithSelection } from './subquery';
 import type { PgMaterializedView } from './view';
 
-export class PgDatabase<TQueryResult extends QueryResultHKT, TSession extends PgSession> {
+export class PgDatabase<TQueryResult extends QueryResultHKT> {
 	constructor(
 		/** @internal */
 		readonly dialect: PgDialect,
 		/** @internal */
-		readonly session: TSession,
+		readonly session: PgSession<any>,
 	) {}
 
 	$with<TAlias extends string>(alias: TAlias) {
@@ -66,7 +66,7 @@ export class PgDatabase<TQueryResult extends QueryResultHKT, TSession extends Pg
 		return new PgDelete(table, this.session, this.dialect);
 	}
 
-	refreshMaterializedView<TView extends PgMaterializedView>(view: TView) {
+	refreshMaterializedView<TView extends PgMaterializedView>(view: TView): PgRefreshMaterializedView<TQueryResult> {
 		return new PgRefreshMaterializedView(view, this.session, this.dialect);
 	}
 
@@ -74,5 +74,11 @@ export class PgDatabase<TQueryResult extends QueryResultHKT, TSession extends Pg
 		query: SQLWrapper,
 	): Promise<QueryResultKind<TQueryResult, TRow>> {
 		return this.session.execute(query.getSQL());
+	}
+
+	transaction<T>(
+		transaction: (tx: PgTransaction<TQueryResult>) => Promise<T>,
+	): Promise<T> {
+		return this.session.transaction(transaction);
 	}
 }

@@ -78,7 +78,7 @@ export class ManualViewBuilder<
 		schema: string | undefined,
 	) {
 		super(name, schema);
-		this.columns = getTableColumns(pgTable(name, columns)) as BuildColumns<TName, TColumns>;
+		this.columns = getTableColumns(pgTable(name, columns));
 	}
 
 	existing(): PgViewWithSelection<TName, true, BuildColumns<TName, TColumns>> {
@@ -210,7 +210,7 @@ export class ManualMaterializedViewBuilder<
 		schema: string | undefined,
 	) {
 		super(name, schema);
-		this.columns = getTableColumns(pgTable(name, columns)) as BuildColumns<TName, TColumns>;
+		this.columns = getTableColumns(pgTable(name, columns));
 	}
 
 	existing(): PgMaterializedViewWithSelection<TName, true, BuildColumns<TName, TColumns>> {

@@ -169,3 +169,5 @@ export function sqliteView(
 	}
 	return new ViewBuilder(name);
 }
+
+export const view = sqliteView;

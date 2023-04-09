@@ -2,7 +2,7 @@ import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
 import { MySqlDialect } from '~/mysql-core/dialect';
 import { MySqlDatabase } from '.';
-import type { MySql2Client, MySql2QueryResultHKT} from './session';
+import type { MySql2Client, MySql2QueryResultHKT } from './session';
 import { MySql2Session } from './session';
 
 export interface MySqlDriverOptions {
@@ -28,7 +28,7 @@ export interface DrizzleConfig {
 
 export { MySqlDatabase } from '~/mysql-core/db';
 
-export type MySql2Database = MySqlDatabase<MySql2QueryResultHKT, MySql2Session>;
+export type MySql2Database = MySqlDatabase<MySql2QueryResultHKT>;
 
 export function drizzle(
 	client: MySql2Client,

@@ -1,28 +1,26 @@
-import type { Connection, ExecutedQuery } from '@planetscale/database';
+import type { Connection, ExecutedQuery, Transaction } from '@planetscale/database';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
 import type { MySqlDialect } from '~/mysql-core/dialect';
 import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types';
-import type { PreparedQueryConfig, QueryResultHKT } from '~/mysql-core/session';
-import { MySqlSession, PreparedQuery } from '~/mysql-core/session';
-import type { Query } from '~/sql';
-import { fillPlaceholders } from '~/sql';
+import {
+	MySqlSession,
+	MySqlTransaction,
+	PreparedQuery,
+	type PreparedQueryConfig,
+	type QueryResultHKT,
+} from '~/mysql-core/session';
+import { fillPlaceholders, type Query, sql } from '~/sql';
 import { mapResultRow } from '~/utils';
-
-// P stays for Planetscale
-export type PExecuteAs = 'array' | 'object';
-export type PExecuteOptions = {
-	as?: PExecuteAs;
-};
 
 export type PlanetScaleConnection = Connection;
 
 export class PlanetScalePreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
-	private rawQuery: PExecuteOptions = { as: 'object' };
-	private query: PExecuteOptions = { as: 'array' };
+	private rawQuery = { as: 'object' } as const;
+	private query = { as: 'array' } as const;
 
 	constructor(
-		private client: PlanetScaleConnection,
+		private client: PlanetScaleConnection | Transaction,
 		private queryString: string,
 		private params: unknown[],
 		private logger: Logger,
@@ -61,13 +59,16 @@ export interface PlanetscaleSessionOptions {
 
 export class PlanetscaleSession extends MySqlSession {
 	private logger: Logger;
+	private client: PlanetScaleConnection | Transaction;
 
 	constructor(
-		private client: PlanetScaleConnection,
+		private baseClient: PlanetScaleConnection,
 		dialect: MySqlDialect,
-		options: PlanetscaleSessionOptions = {},
+		tx: Transaction | undefined,
+		private options: PlanetscaleSessionOptions = {},
 	) {
 		super(dialect);
+		this.client = tx ?? baseClient;
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
@@ -85,19 +86,37 @@ export class PlanetscaleSession extends MySqlSession {
 		return await this.client.execute(query, params, { as: 'array' });
 	}
 
-	async transaction(queries: { sql: string; params?: any[] }[]) {
-		await this.client.transaction(async (tx) => {
-			for (const query of queries) {
-				await tx.execute(query.sql, query.params);
-			}
-		});
-	}
-
 	async queryObjects(
 		query: string,
 		params: unknown[],
 	): Promise<ExecutedQuery> {
 		return this.client.execute(query, params, { as: 'object' });
+	}
+
+	override transaction<T>(
+		transaction: (tx: MySqlTransaction<QueryResultHKT>) => Promise<T>,
+	): Promise<T> {
+		return this.baseClient.transaction((pstx) => {
+			const session = new PlanetscaleSession(this.baseClient, this.dialect, pstx, this.options);
+			const tx = new PlanetScaleTransaction(this.dialect, session);
+			return transaction(tx);
+		});
+	}
+}
+
+export class PlanetScaleTransaction extends MySqlTransaction<PlanetscaleQueryResultHKT> {
+	override async transaction<T>(transaction: (tx: PlanetScaleTransaction) => Promise<T>): Promise<T> {
+		const savepointName = `sp${this.nestedIndex + 1}`;
+		const tx = new PlanetScaleTransaction(this.dialect, this.session, this.nestedIndex + 1);
+		await tx.execute(sql.raw(`savepoint ${savepointName}`));
+		try {
+			const result = await transaction(tx);
+			await tx.execute(sql.raw(`release savepoint ${savepointName}`));
+			return result;
+		} catch (err) {
+			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
+			throw err;
+		}
 	}
 }
 

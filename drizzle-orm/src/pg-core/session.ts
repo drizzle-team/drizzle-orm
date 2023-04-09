@@ -1,4 +1,6 @@
-import type { Query, SQL } from '~/sql';
+import { TransactionRollbackError } from '~/errors';
+import { type Query, type SQL, sql } from '~/sql';
+import { PgDatabase } from './db';
 import type { PgDialect } from './dialect';
 import type { SelectedFieldsOrdered } from './query-builders/select.types';
 
@@ -13,15 +15,15 @@ export abstract class PreparedQuery<T extends PreparedQueryConfig> {
 	joinsNotNullableMap?: Record<string, boolean>;
 
 	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
-
-	/** @internal */
-	abstract all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;
-
-	/** @internal */
-	abstract values(placeholderValues?: Record<string, unknown>): Promise<T['values']>;
 }
 
-export abstract class PgSession {
+export interface PgTransactionConfig {
+	isolationLevel?: 'read uncommitted' | 'read committed' | 'repeatable read' | 'serializable';
+	accessMode?: 'read only' | 'read write';
+	deferrable?: boolean;
+}
+
+export abstract class PgSession<TQueryResult extends QueryResultHKT = QueryResultHKT> {
 	constructor(protected dialect: PgDialect) {}
 
 	abstract prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -38,21 +40,41 @@ export abstract class PgSession {
 		).execute();
 	}
 
-	all<T = unknown>(query: SQL): Promise<T[]> {
-		return this.prepareQuery<PreparedQueryConfig & { all: T[] }>(
-			this.dialect.sqlToQuery(query),
-			undefined,
-			undefined,
-		).all();
+	abstract transaction<T>(
+		transaction: (tx: PgTransaction<TQueryResult>) => Promise<T>,
+		config?: PgTransactionConfig,
+	): Promise<T>;
+}
+
+export abstract class PgTransaction<TQueryResult extends QueryResultHKT> extends PgDatabase<TQueryResult> {
+	constructor(dialect: PgDialect, session: PgSession, protected readonly nestedIndex = 0) {
+		super(dialect, session);
 	}
 
-	values<T extends unknown[] = unknown[]>(query: SQL): Promise<T[]> {
-		return this.prepareQuery<PreparedQueryConfig & { values: T[] }>(
-			this.dialect.sqlToQuery(query),
-			undefined,
-			undefined,
-		).values();
+	rollback(): never {
+		throw new TransactionRollbackError();
 	}
+
+	/** @internal */
+	getTransactionConfigSQL(config: PgTransactionConfig): SQL {
+		const chunks: string[] = [];
+		if (config.isolationLevel) {
+			chunks.push(`isolation level ${config.isolationLevel}`);
+		}
+		if (config.accessMode) {
+			chunks.push(config.accessMode);
+		}
+		if (typeof config.deferrable === 'boolean') {
+			chunks.push(config.deferrable ? 'deferrable' : 'not deferrable');
+		}
+		return sql.raw(chunks.join(' '));
+	}
+
+	setTransaction(config: PgTransactionConfig): Promise<void> {
+		return this.session.execute(sql`set transaction ${this.getTransactionConfigSQL(config)}`);
+	}
+
+	abstract override transaction<T>(transaction: (tx: PgTransaction<TQueryResult>) => Promise<T>): Promise<T>;
 }
 
 export interface QueryResultHKT {

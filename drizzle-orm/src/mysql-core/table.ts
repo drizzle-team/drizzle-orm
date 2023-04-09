@@ -58,8 +58,9 @@ export function mysqlTableWithSchema<
 >(
 	name: TTableName,
 	columns: TColumnsMap,
-	extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => MySqlTableExtraConfig,
-	schema?: string,
+	extraConfig: ((self: BuildColumns<TTableName, TColumnsMap>) => MySqlTableExtraConfig) | undefined,
+	schema: string | undefined,
+	baseName = name,
 ): MySqlTableWithColumns<{
 	name: TTableName;
 	schema: TSchemaName;
@@ -69,7 +70,7 @@ export function mysqlTableWithSchema<
 		name: TTableName;
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap>;
-	}>(name, schema);
+	}>(name, schema, baseName);
 
 	const builtColumns = Object.fromEntries(
 		Object.entries(columns).map(([name, colBuilder]) => {
@@ -99,17 +100,18 @@ export function mysqlTable<
 	name: TTableName,
 	columns: TColumnsMap,
 	extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => MySqlTableExtraConfig,
+	baseName = name,
 ): MySqlTableWithColumns<{
 	name: TTableName;
 	schema: undefined;
 	columns: BuildColumns<TTableName, TColumnsMap>;
 }> {
-	return mysqlTableWithSchema(name, columns, extraConfig, undefined);
+	return mysqlTableWithSchema(name, columns, extraConfig, undefined, baseName);
 }
 
 export function mysqlTableCreator(customizeTableName: (name: string) => string): typeof mysqlTable {
 	const builder: typeof mysqlTable = (name, columns, extraConfig) => {
-		return mysqlTable(customizeTableName(name) as typeof name, columns, extraConfig);
+		return mysqlTable(customizeTableName(name) as typeof name, columns, extraConfig, name);
 	};
 	return builder;
 }

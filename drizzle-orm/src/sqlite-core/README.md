@@ -50,9 +50,11 @@ const users = db.select().from(users).all();
 ```
 
 ### Using Drizzle ORM in Next.js app router
+
 In order to use Drizzle ORM in the Next.js new app router mode you have to add `better-sqlite3` dependendency to the `experimental.serverComponentsExternalPackages` array in `next.config.js` config file.
 
 Example `next.config.js` should look like this:
+
 ```ts
 /** @type {import("next").NextConfig} */
 const config = {
@@ -665,6 +667,40 @@ db
   .from(cities)
   .leftJoin(users, eq(users.cityId, cities.id))
   .all();
+```
+
+## Transactions
+
+```ts
+db.transaction(async (tx) => {
+  tx.insert(users).values(newUser).run();
+  tx.update(users).set({ name: 'Mr. Dan' }).where(eq(users.name, 'Dan')).run();
+  tx.delete(users).where(eq(users.name, 'Dan')).run();
+});
+```
+
+### Nested transactions
+
+```ts
+db.transaction(async (tx) => {
+  tx.insert(users).values(newUser).run();
+  tx.transaction(async (tx2) => {
+    tx2.update(users).set({ name: 'Mr. Dan' }).where(eq(users.name, 'Dan')).run();
+    tx2.delete(users).where(eq(users.name, 'Dan')).run();
+  });
+});
+```
+
+### Transaction settings
+
+```ts
+interface SQLiteTransactionConfig {
+  behavior?: 'deferred' | 'immediate' | 'exclusive';
+}
+
+db.transaction((tx) => { ... }, {
+  behavior: 'immediate',
+});
 ```
 
 ## Query builder

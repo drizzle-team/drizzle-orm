@@ -24,6 +24,9 @@ export const Columns = Symbol('Columns');
 /** @internal */
 export const OriginalName = Symbol('OriginalName');
 
+/** @internal */
+export const BaseName = Symbol('BaseName');
+
 export class Table<T extends TableConfig = TableConfig> {
 	declare readonly _: {
 		readonly brand: 'Table';
@@ -43,6 +46,7 @@ export class Table<T extends TableConfig = TableConfig> {
 		Schema: Schema as typeof Schema,
 		OriginalName: OriginalName as typeof OriginalName,
 		Columns: Columns as typeof Columns,
+		BaseName: BaseName as typeof BaseName,
 	};
 
 	/**
@@ -63,9 +67,16 @@ export class Table<T extends TableConfig = TableConfig> {
 	/** @internal */
 	[Columns]!: T['columns'];
 
-	constructor(name: string, schema?: string) {
+	/**
+	 *  @internal
+	 * Used to store the table name before the transformation via the `tableCreator` functions.
+	 */
+	[BaseName]: string;
+
+	constructor(name: string, schema: string | undefined, baseName: string) {
 		this[TableName] = this[OriginalName] = name;
 		this[Schema] = schema;
+		this[BaseName] = baseName;
 	}
 }
 
