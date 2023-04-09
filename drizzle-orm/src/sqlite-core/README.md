@@ -671,7 +671,7 @@ db
 ## Transactions
 
 ```ts
-db.transaction(async (tx) => {
+db.transaction((tx) => {
   tx.insert(users).values(newUser).run();
   tx.update(users).set({ name: 'Mr. Dan' }).where(eq(users.name, 'Dan')).run();
   tx.delete(users).where(eq(users.name, 'Dan')).run();
@@ -681,9 +681,9 @@ db.transaction(async (tx) => {
 ### Nested transactions
 
 ```ts
-db.transaction(async (tx) => {
+db.transaction((tx) => {
   tx.insert(users).values(newUser).run();
-  tx.transaction(async (tx2) => {
+  tx.transaction((tx2) => {
     tx2.update(users).set({ name: 'Mr. Dan' }).where(eq(users.name, 'Dan')).run();
     tx2.delete(users).where(eq(users.name, 'Dan')).run();
   });
