@@ -688,7 +688,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		Equal<
 			PgTableWithColumns<{
 				name: 'cities_table';
-				schema: string | undefined;
+				schema: undefined;
 				columns: {
 					id: PgSerial<{
 						tableName: 'cities_table';
@@ -760,4 +760,19 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 {
 	const b = pgEnum('test', ['a', 'b', 'c']);
 	const c = z.enum(b.enumValues);
+}
+
+{
+	function getUsersTable<TSchema extends string>(schemaName: TSchema) {
+		return pgSchema(schemaName).table('users', {
+			id: integer('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+	}
+
+	const users1 = getUsersTable('id1');
+	Expect<Equal<'id1', typeof users1._.schema>>;
+
+	const users2 = getUsersTable('id2');
+	Expect<Equal<'id2', typeof users2._.schema>>;
 }

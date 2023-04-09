@@ -1,15 +1,14 @@
-import type { DrizzleTypeError } from '~/utils';
-import { type pgTable, pgTableWithSchema } from './table';
+import { type PgTableFn, pgTableWithSchema } from './table';
 import { type pgMaterializedView, pgMaterializedViewWithSchema, type pgView, pgViewWithSchema } from './view';
 
-export class PgSchema {
+export class PgSchema<TName extends string = string> {
 	constructor(
-		public readonly schemaName: string,
+		public readonly schemaName: TName,
 	) {}
 
-	table = ((name, columns, extraConfig) => {
+	table: PgTableFn<TName> = ((name, columns, extraConfig) => {
 		return pgTableWithSchema(name, columns, extraConfig, this.schemaName);
-	}) as typeof pgTable;
+	});
 
 	view = ((name, columns) => {
 		return pgViewWithSchema(name, columns, this.schemaName);
@@ -25,13 +24,11 @@ export function isPgSchema(obj: unknown): obj is PgSchema {
 	return obj instanceof PgSchema;
 }
 
-type NoPublicSchemaError = DrizzleTypeError<
-	"You can't specify 'public' as schema name. Postgres is using public schema by default. If you want to use 'public' schema, just use pgTable() instead of creating a schema"
->;
-
-export function pgSchema<T extends string>(name: T extends 'public' ? NoPublicSchemaError : T) {
+export function pgSchema<T extends string>(name: T) {
 	if (name === 'public') {
-		throw Error(`You can't specify 'public' as schema name. Postgres is using public schema by default`);
+		throw Error(
+			`You can't specify 'public' as schema name. Postgres is using public schema by default. If you want to use 'public' schema, just use pgTable() instead of creating a schema`,
+		);
 	}
 
 	return new PgSchema(name);
