@@ -105,7 +105,7 @@ export class SQLiteUpdate<
 		return rest;
 	}
 
-	prepare(): PreparedQuery<
+	prepare(isOneTimeQuery?: boolean): PreparedQuery<
 		{
 			type: TResultType;
 			run: TRunResult;
@@ -114,23 +114,25 @@ export class SQLiteUpdate<
 			values: TReturning extends undefined ? never : any[][];
 		}
 	> {
-		// TODO: implement transaction support
-		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, undefined);
+		return this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
+			this.dialect.sqlToQuery(this.getSQL()),
+			this.config.returning,
+		);
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
-		return this.prepare().run(placeholderValues);
+		return this.prepare(true).run(placeholderValues);
 	};
 
 	all: ReturnType<this['prepare']>['all'] = (placeholderValues) => {
-		return this.prepare().all(placeholderValues);
+		return this.prepare(true).all(placeholderValues);
 	};
 
 	get: ReturnType<this['prepare']>['get'] = (placeholderValues) => {
-		return this.prepare().get(placeholderValues);
+		return this.prepare(true).get(placeholderValues);
 	};
 
 	values: ReturnType<this['prepare']>['values'] = (placeholderValues) => {
-		return this.prepare().values(placeholderValues);
+		return this.prepare(true).values(placeholderValues);
 	};
 }

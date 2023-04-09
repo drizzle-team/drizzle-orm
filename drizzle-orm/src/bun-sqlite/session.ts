@@ -3,11 +3,11 @@
 import type { Database, Statement as BunStatement } from 'bun:sqlite';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
-import type { Query } from '~/sql';
-import { fillPlaceholders } from '~/sql';
+import { fillPlaceholders, type Query, sql } from '~/sql';
+import { SQLiteTransaction } from '~/sqlite-core';
 import type { SQLiteSyncDialect } from '~/sqlite-core/dialect';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
-import type { PreparedQueryConfig as PreparedQueryConfigBase, Transaction } from '~/sqlite-core/session';
+import type { PreparedQueryConfig as PreparedQueryConfigBase, SQLiteTransactionConfig } from '~/sqlite-core/session';
 import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session';
 import { mapResultRow } from '~/utils';
 
@@ -42,8 +42,30 @@ export class SQLiteBunSession extends SQLiteSession<'sync', void> {
 		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields);
 	}
 
-	override transaction(): Transaction<'sync', void> {
-		throw new Error('Method not implemented.');
+	override transaction<T>(transaction: (tx: SQLiteBunTransaction) => T, config: SQLiteTransactionConfig = {}): T {
+		const tx = new SQLiteBunTransaction(this.dialect, this);
+		let result: T | undefined;
+		const nativeTx = this.client.transaction(() => {
+			result = transaction(tx);
+		});
+		nativeTx[config.behavior ?? 'deferred']();
+		return result!;
+	}
+}
+
+export class SQLiteBunTransaction extends SQLiteTransaction<'sync', void> {
+	override transaction<T>(transaction: (tx: SQLiteBunTransaction) => T): T {
+		const savepointName = `sp${this.nestedIndex}`;
+		const tx = new SQLiteBunTransaction(this.dialect, this.session, this.nestedIndex + 1);
+		this.session.run(sql.raw(`savepoint ${savepointName}`));
+		try {
+			const result = transaction(tx);
+			this.session.run(sql.raw(`release savepoint ${savepointName}`));
+			return result;
+		} catch (err) {
+			this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			throw err;
+		}
 	}
 }
 

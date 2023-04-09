@@ -2,7 +2,7 @@ import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
 import { PgDatabase } from '~/pg-core/db';
 import { PgDialect } from '~/pg-core/dialect';
-import type { AwsDataApiClient, AwsDataApiPgQueryResultHKT} from './session';
+import type { AwsDataApiClient, AwsDataApiPgQueryResultHKT } from './session';
 import { AwsDataApiSession } from './session';
 
 export interface PgDriverOptions {
@@ -21,7 +21,7 @@ export class AwsDataApiDriver {
 	}
 
 	createSession(): AwsDataApiSession {
-		return new AwsDataApiSession(this.client, this.dialect, this.options);
+		return new AwsDataApiSession(this.client, this.dialect, this.options, undefined);
 	}
 }
 
@@ -32,7 +32,7 @@ export interface DrizzleConfig {
 	secretArn: string;
 }
 
-export type AwsDataApiPgDatabase = PgDatabase<AwsDataApiPgQueryResultHKT, AwsDataApiSession>;
+export type AwsDataApiPgDatabase = PgDatabase<AwsDataApiPgQueryResultHKT>;
 
 export class AwsPgDialect extends PgDialect {
 	override escapeName(name: string): string {

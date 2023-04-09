@@ -26,33 +26,26 @@ export class PgDialect {
 		await session.execute(sql`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
 		await session.execute(migrationTableCreate);
 
-		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
-			sql`SELECT id, hash, created_at FROM "drizzle"."__drizzle_migrations" ORDER BY created_at DESC LIMIT 1`,
+		const dbMigrations = await session.execute<{ id: number; hash: string; created_at: string }[]>(
+			sql`select id, hash, created_at from "drizzle"."__drizzle_migrations" order by created_at desc limit 1`,
 		);
 
 		const lastDbMigration = dbMigrations[0];
-		await session.execute(sql`BEGIN`);
-
-		try {
+		await session.transaction(async (tx) => {
 			for await (const migration of migrations) {
 				if (
 					!lastDbMigration
 					|| parseInt(lastDbMigration.created_at, 10) < migration.folderMillis
 				) {
-					for (const stmnt of migration.sql) {
-						await session.execute(sql.raw(stmnt));	
+					for (const stmt of migration.sql) {
+						await tx.execute(sql.raw(stmt));
 					}
-					await session.execute(
-						sql`INSERT INTO "drizzle"."__drizzle_migrations" ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
+					await tx.execute(
+						sql`insert into "drizzle"."__drizzle_migrations" ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
 					);
 				}
 			}
-
-			await session.execute(sql`COMMIT`);
-		} catch (e) {
-			await session.execute(sql`ROLLBACK`);
-			throw e;
-		}
+		});
 	}
 
 	escapeName(name: string): string {

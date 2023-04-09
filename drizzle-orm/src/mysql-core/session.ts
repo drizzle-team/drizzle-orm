@@ -1,4 +1,6 @@
-import type { Query, SQL } from '~/sql';
+import { TransactionRollbackError } from '~/errors';
+import { type Query, type SQL, sql } from '~/sql';
+import { MySqlDatabase } from './db';
 import type { MySqlDialect } from './dialect';
 import type { SelectedFieldsOrdered } from './query-builders/select.types';
 
@@ -26,12 +28,15 @@ export abstract class PreparedQuery<T extends PreparedQueryConfig> {
 
 	/** @internal */
 	abstract all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;
-
-	// /** @internal */
-	// abstract values(placeholderValues?: Record<string, unknown>): Promise<T['values']>;
 }
 
-export abstract class MySqlSession {
+export interface MySqlTransactionConfig {
+	withConsistentSnapshot?: boolean;
+	accessMode?: 'read only' | 'read write';
+	isolationLevel: 'read uncommitted' | 'read committed' | 'repeatable read' | 'serializable';
+}
+
+export abstract class MySqlSession<TQueryResult extends QueryResultHKT = QueryResultHKT> {
 	constructor(protected dialect: MySqlDialect) {}
 
 	abstract prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -56,11 +61,45 @@ export abstract class MySqlSession {
 		).all();
 	}
 
-	// values<T extends unknown[] = unknown[]>(query: SQL): Promise<T[]> {
-	// 	return this.prepareQuery<PreparedQueryConfig & { values: T[] }>(
-	// 		this.dialect.sqlToQuery(query),
-	// 		undefined,
-	// 		undefined,
-	// 	).values();
-	// }
+	abstract transaction<T>(
+		transaction: (tx: MySqlTransaction<TQueryResult>) => Promise<T>,
+		config?: MySqlTransactionConfig,
+	): Promise<T>;
+
+	protected getSetTransactionSQL(config: MySqlTransactionConfig): SQL | undefined {
+		const parts: string[] = [];
+
+		if (config.isolationLevel) {
+			parts.push(`isolation level ${config.isolationLevel}`);
+		}
+
+		return parts.length ? sql.fromList(['set transaction ', parts.join(' ')]) : undefined;
+	}
+
+	protected getStartTransactionSQL(config: MySqlTransactionConfig): SQL | undefined {
+		const parts: string[] = [];
+
+		if (config.withConsistentSnapshot) {
+			parts.push('with consistent snapshot');
+		}
+
+		if (config.accessMode) {
+			parts.push(config.accessMode);
+		}
+
+		return parts.length ? sql.fromList(['start transaction ', parts.join(' ')]) : undefined;
+	}
+}
+
+export abstract class MySqlTransaction<TQueryResult extends QueryResultHKT> extends MySqlDatabase<TQueryResult> {
+	constructor(dialect: MySqlDialect, session: MySqlSession, protected readonly nestedIndex = 0) {
+		super(dialect, session);
+	}
+
+	rollback(): never {
+		throw new TransactionRollbackError();
+	}
+
+	/** Nested transactions (aka savepoints) only work with InnoDB engine. */
+	abstract override transaction<T>(transaction: (tx: MySqlTransaction<TQueryResult>) => Promise<T>): Promise<T>;
 }

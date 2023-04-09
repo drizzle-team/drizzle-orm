@@ -131,7 +131,7 @@ export abstract class PgSelectQueryBuilder<
 			? table[ViewBaseConfig].name
 			: table instanceof SQL
 			? undefined
-			: table[Table.Symbol.Name];
+			: table[Table.Symbol.BaseName];
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
 	}
 

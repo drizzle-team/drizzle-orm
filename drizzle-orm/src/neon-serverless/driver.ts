@@ -3,7 +3,7 @@ import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
 import { PgDatabase } from '~/pg-core/db';
 import { PgDialect } from '~/pg-core/dialect';
-import type { NeonClient, NeonQueryResultHKT} from './session';
+import type { NeonClient, NeonQueryResultHKT } from './session';
 import { NeonSession } from './session';
 
 export interface NeonDriverOptions {
@@ -34,7 +34,7 @@ export interface DrizzleConfig {
 	logger?: boolean | Logger;
 }
 
-export type NeonDatabase = PgDatabase<NeonQueryResultHKT, NeonSession>;
+export type NeonDatabase = PgDatabase<NeonQueryResultHKT>;
 
 export function drizzle(client: NeonClient, config: DrizzleConfig = {}): NeonDatabase {
 	const dialect = new PgDialect();

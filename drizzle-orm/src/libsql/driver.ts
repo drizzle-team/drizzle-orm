@@ -19,6 +19,6 @@ export function drizzle(client: Client, config: DrizzleConfig = {}): LibSQLDatab
 	} else if (config.logger !== false) {
 		logger = config.logger;
 	}
-	const session = new LibSQLSession(client, dialect, { logger });
+	const session = new LibSQLSession(client, dialect, { logger }, undefined);
 	return new BaseSQLiteDatabase(dialect, session);
 }

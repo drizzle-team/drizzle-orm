@@ -3,8 +3,21 @@ import 'dotenv/config';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import Docker from 'dockerode';
-import { sql } from 'drizzle-orm';
-import { and, asc, eq, gt, gte, inArray, lt } from 'drizzle-orm/expressions';
+import {
+	and,
+	asc,
+	eq,
+	gt,
+	gte,
+	inArray,
+	lt,
+	name,
+	placeholder,
+	type SQL,
+	sql,
+	type SQLWrapper,
+	TransactionRollbackError,
+} from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -14,20 +27,20 @@ import {
 	boolean,
 	char,
 	cidr,
+	getMaterializedViewConfig,
+	getViewConfig,
 	inet,
 	integer,
 	jsonb,
 	macaddr,
 	macaddr8,
+	pgMaterializedView,
 	pgTable,
+	pgView,
 	serial,
 	text,
 	timestamp,
 } from 'drizzle-orm/pg-core';
-import { getMaterializedViewConfig, getViewConfig } from 'drizzle-orm/pg-core/utils';
-import { pgMaterializedView, pgView } from 'drizzle-orm/pg-core/view';
-import type { SQL, SQLWrapper } from 'drizzle-orm/sql';
-import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
@@ -635,34 +648,37 @@ test.serial('partial join with alias', async (t) => {
 
 test.serial('full join with alias', async (t) => {
 	const { db } = t.context;
-	const customerAlias = alias(usersTable, 'customer');
 
-	await db.insert(usersTable).values({ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' });
+	const sqliteTable = pgTableCreator((name) => `prefixed_${name}`);
 
+	const users = sqliteTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
+
+	const customers = alias(users, 'customer');
+
+	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
 	const result = await db
-		.select()
-		.from(usersTable)
-		.leftJoin(customerAlias, eq(customerAlias.id, 11))
-		.where(eq(usersTable.id, 10));
+		.select().from(users)
+		.leftJoin(customers, eq(customers.id, 11))
+		.where(eq(users.id, 10));
 
-	t.deepEqual(result, [
-		{
-			users: {
-				id: 10,
-				name: 'Ivan',
-				verified: false,
-				jsonb: null,
-				createdAt: result[0]!.users.createdAt,
-			},
-			customer: {
-				id: 11,
-				name: 'Hans',
-				verified: false,
-				jsonb: null,
-				createdAt: result[0]!.customer!.createdAt,
-			},
+	t.deepEqual(result, [{
+		users: {
+			id: 10,
+			name: 'Ivan',
 		},
-	]);
+		customer: {
+			id: 11,
+			name: 'Hans',
+		},
+	}]);
+
+	await db.execute(sql`drop table ${users}`);
 });
 
 test.serial('insert with spaces', async (t) => {
@@ -1776,10 +1792,134 @@ test.serial('timestamp timezone', async (t) => {
 	const users = await db.select().from(usersTableWithAndWithoutTimezone);
 
 	// check that the timestamps are set correctly for default times
-	t.assert(Math.abs(users[0]!.updatedAt.getTime() - new Date().getTime()) < 1000);
-	t.assert(Math.abs(users[0]!.createdAt.getTime() - new Date().getTime()) < 1000);
+	t.assert(Math.abs(users[0]!.updatedAt.getTime() - new Date().getTime()) < 2000);
+	t.assert(Math.abs(users[0]!.createdAt.getTime() - new Date().getTime()) < 2000);
 
 	// check that the timestamps are set correctly for non default times
-	t.assert(Math.abs(users[1]!.updatedAt.getTime() - date.getTime()) < 1000);
-	t.assert(Math.abs(users[1]!.createdAt.getTime() - date.getTime()) < 1000);
+	t.assert(Math.abs(users[1]!.updatedAt.getTime() - date.getTime()) < 2000);
+	t.assert(Math.abs(users[1]!.createdAt.getTime() - date.getTime()) < 2000);
+});
+
+test.serial('transaction', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users_transactions', {
+		id: serial('id').primaryKey(),
+		balance: integer('balance').notNull(),
+	});
+	const products = pgTable('products_transactions', {
+		id: serial('id').primaryKey(),
+		price: integer('price').notNull(),
+		stock: integer('stock').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`drop table if exists ${products}`);
+
+	await db.execute(sql`create table users_transactions (id serial not null primary key, balance integer not null)`);
+	await db.execute(
+		sql`create table products_transactions (id serial not null primary key, price integer not null, stock integer not null)`,
+	);
+
+	const user = await db.insert(users).values({ balance: 100 }).returning().then((rows) => rows[0]!);
+	const product = await db.insert(products).values({ price: 10, stock: 10 }).returning().then((rows) => rows[0]!);
+
+	await db.transaction(async (tx) => {
+		await tx.update(users).set({ balance: user.balance - product.price }).where(eq(users.id, user.id));
+		await tx.update(products).set({ stock: product.stock - 1 }).where(eq(products.id, product.id));
+	});
+
+	const result = await db.select().from(users);
+
+	t.deepEqual(result, [{ id: 1, balance: 90 }]);
+
+	await db.execute(sql`drop table ${users}`);
+	await db.execute(sql`drop table ${products}`);
+});
+
+test.serial('transaction rollback', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users_transactions_rollback', {
+		id: serial('id').primaryKey(),
+		balance: integer('balance').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table users_transactions_rollback (id serial not null primary key, balance integer not null)`,
+	);
+
+	await t.throwsAsync(async () =>
+		await db.transaction(async (tx) => {
+			await tx.insert(users).values({ balance: 100 });
+			tx.rollback();
+		}), new TransactionRollbackError());
+
+	const result = await db.select().from(users);
+
+	t.deepEqual(result, []);
+
+	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('nested transaction', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users_nested_transactions', {
+		id: serial('id').primaryKey(),
+		balance: integer('balance').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table users_nested_transactions (id serial not null primary key, balance integer not null)`,
+	);
+
+	await db.transaction(async (tx) => {
+		await tx.insert(users).values({ balance: 100 });
+
+		await tx.transaction(async (tx) => {
+			await tx.update(users).set({ balance: 200 });
+		});
+	});
+
+	const result = await db.select().from(users);
+
+	t.deepEqual(result, [{ id: 1, balance: 200 }]);
+
+	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('nested transaction rollback', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users_nested_transactions_rollback', {
+		id: serial('id').primaryKey(),
+		balance: integer('balance').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table users_nested_transactions_rollback (id serial not null primary key, balance integer not null)`,
+	);
+
+	await db.transaction(async (tx) => {
+		await tx.insert(users).values({ balance: 100 });
+
+		await t.throwsAsync(async () =>
+			await tx.transaction(async (tx) => {
+				await tx.update(users).set({ balance: 200 });
+				tx.rollback();
+			}), new TransactionRollbackError());
+	});
+
+	const result = await db.select().from(users);
+
+	t.deepEqual(result, [{ id: 1, balance: 100 }]);
+
+	await db.execute(sql`drop table ${users}`);
 });

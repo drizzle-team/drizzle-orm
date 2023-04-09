@@ -9,6 +9,7 @@ export interface KitConfig {
 
 export interface MigrationConfig {
 	migrationsFolder: string;
+	migrationsTable?: string;
 }
 
 export interface MigrationMeta {
@@ -34,12 +35,12 @@ export function readMigrationFiles(config: string | MigrationConfig): MigrationM
 
 	const migrationQueries: MigrationMeta[] = [];
 
-	let journalAsString = '';
-	try {
-		journalAsString = fs.readFileSync(`${migrationFolderTo}/meta/_journal.json`).toString();
-	} catch (e) {
+	const journalPath = `${migrationFolderTo}/meta/_journal.json`;
+	if (!fs.existsSync(journalPath)) {
 		throw Error(`Can't find meta/_journal.json file`);
 	}
+
+	const journalAsString = fs.readFileSync(`${migrationFolderTo}/meta/_journal.json`).toString();
 
 	const journal = JSON.parse(journalAsString) as {
 		entries: { idx: number; when: number; tag: string; breakpoints: boolean }[];

@@ -3,7 +3,7 @@ import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
 import { PgDatabase } from '~/pg-core/db';
 import { PgDialect } from '~/pg-core/dialect';
-import type { NodePgClient, NodePgQueryResultHKT} from './session';
+import type { NodePgClient, NodePgQueryResultHKT } from './session';
 import { NodePgSession } from './session';
 
 export interface PgDriverOptions {
@@ -34,7 +34,7 @@ export interface DrizzleConfig {
 	logger?: boolean | Logger;
 }
 
-export type NodePgDatabase = PgDatabase<NodePgQueryResultHKT, NodePgSession>;
+export type NodePgDatabase = PgDatabase<NodePgQueryResultHKT>;
 
 export function drizzle(client: NodePgClient, config: DrizzleConfig = {}): NodePgDatabase {
 	const dialect = new PgDialect();
