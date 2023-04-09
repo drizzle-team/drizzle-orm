@@ -65,7 +65,7 @@ With `drizzle-orm` you declare SQL schema in TypeScript. You can have either one
 
 ```typescript
 // schema.ts
-import { mysqlTable, serial, varchar } from "drizzle-orm/mysql-core";
+import { mysqlTable, serial, text, varchar } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable('users', {
   id: serial('id').primaryKey(),
