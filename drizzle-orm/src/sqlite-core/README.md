@@ -292,7 +292,6 @@ const pkExample = sqliteTable('pk_example', {
 
 // you can have .where() on indexes
 index('name_idx').on(table.column).where(sql``)
-
 ```
 
 ## Select, Insert, Update, Delete
