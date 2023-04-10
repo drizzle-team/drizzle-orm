@@ -38,7 +38,7 @@ import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import Database from 'better-sqlite3';
 
-const users = sqliteTable('users', {
+const usersTable = sqliteTable('users', {
   id: integer('id').primaryKey(),
   fullName: text('full_name'),
 })
@@ -46,7 +46,7 @@ const users = sqliteTable('users', {
 const sqlite = new Database('sqlite.db');
 const db = drizzle(sqlite);
 
-const users = db.select().from(users).all();
+const users = db.select().from(usersTable).all();
 ```
 
 ### Using Drizzle ORM in Next.js app router
