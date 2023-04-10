@@ -46,7 +46,7 @@ const users = sqliteTable('users', {
 const sqlite = new Database('sqlite.db');
 const db = drizzle(sqlite);
 
-const users = db.select().from(users).all();
+const allUsers = db.select().from(users).all();
 ```
 
 ### Using Drizzle ORM in Next.js app router
