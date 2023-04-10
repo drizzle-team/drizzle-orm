@@ -255,12 +255,12 @@ test.serial('update returning sql + get()', (t) => {
 test.serial('insert with auto increment', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values(
+	db.insert(usersTable).values([
 		{ name: 'John' },
 		{ name: 'Jane' },
 		{ name: 'George' },
 		{ name: 'Austin' },
-	).run();
+  ]).run();
 	const result = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).all();
 
 	t.deepEqual(result, [
@@ -407,12 +407,12 @@ test.serial('json insert', (t) => {
 test.serial('insert many', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values(
+	db.insert(usersTable).values([
 		{ name: 'John' },
 		{ name: 'Bruce', json: ['foo', 'bar'] },
 		{ name: 'Jane' },
 		{ name: 'Austin', verified: true },
-	).run();
+  ]).run();
 	const result = db.select({
 		id: usersTable.id,
 		name: usersTable.name,
@@ -584,7 +584,7 @@ test.serial('prepared statement with placeholder in .where', (t) => {
 test.serial('select with group by as field', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).run();
+	db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
 
 	const result = db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.name)
@@ -596,7 +596,7 @@ test.serial('select with group by as field', (t) => {
 test.serial('select with group by as sql', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).run();
+	db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
 
 	const result = db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(sql`${usersTable.name}`)
@@ -608,7 +608,7 @@ test.serial('select with group by as sql', (t) => {
 test.serial('select with group by as sql + column', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).run();
+	db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
 
 	const result = db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(sql`${usersTable.name}`, usersTable.id)
@@ -620,7 +620,7 @@ test.serial('select with group by as sql + column', (t) => {
 test.serial('select with group by as column + sql', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).run();
+	db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
 
 	const result = db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.id, sql`${usersTable.name}`)
@@ -632,7 +632,7 @@ test.serial('select with group by as column + sql', (t) => {
 test.serial('select with group by complex query', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).run();
+	db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
 
 	const result = db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.id, sql`${usersTable.name}`)
@@ -723,10 +723,10 @@ test.serial('left join (flat object fields)', (t) => {
 	const { db } = t.context;
 
 	const { id: cityId } = db.insert(citiesTable)
-		.values({ name: 'Paris' }, { name: 'London' })
+		.values([{ name: 'Paris' }, { name: 'London' }])
 		.returning({ id: citiesTable.id }).all()[0]!;
 
-	db.insert(users2Table).values({ name: 'John', cityId }, { name: 'Jane' }).run();
+	db.insert(users2Table).values([{ name: 'John', cityId }, { name: 'Jane' }]).run();
 
 	const res = db.select({
 		userId: users2Table.id,
@@ -747,10 +747,10 @@ test.serial('left join (grouped fields)', (t) => {
 	const { db } = t.context;
 
 	const { id: cityId } = db.insert(citiesTable)
-		.values({ name: 'Paris' }, { name: 'London' })
+		.values([{ name: 'Paris' }, { name: 'London' }])
 		.returning({ id: citiesTable.id }).all()[0]!;
 
-	db.insert(users2Table).values({ name: 'John', cityId }, { name: 'Jane' }).run();
+	db.insert(users2Table).values([{ name: 'John', cityId }, { name: 'Jane' }]).run();
 
 	const res = db.select({
 		id: users2Table.id,
@@ -785,10 +785,10 @@ test.serial('left join (all fields)', (t) => {
 	const { db } = t.context;
 
 	const { id: cityId } = db.insert(citiesTable)
-		.values({ name: 'Paris' }, { name: 'London' })
+		.values([{ name: 'Paris' }, { name: 'London' }])
 		.returning({ id: citiesTable.id }).all()[0]!;
 
-	db.insert(users2Table).values({ name: 'John', cityId }, { name: 'Jane' }).run();
+	db.insert(users2Table).values([{ name: 'John', cityId }, { name: 'Jane' }]).run();
 
 	const res = db.select().from(users2Table)
 		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id)).all();
@@ -819,19 +819,19 @@ test.serial('left join (all fields)', (t) => {
 test.serial('join subquery', (t) => {
 	const { db } = t.context;
 
-	db.insert(courseCategoriesTable).values(
+	db.insert(courseCategoriesTable).values([
 		{ name: 'Category 1' },
 		{ name: 'Category 2' },
 		{ name: 'Category 3' },
 		{ name: 'Category 4' },
-	).run();
+  ]).run();
 
-	db.insert(coursesTable).values(
+	db.insert(coursesTable).values([
 		{ name: 'Development', categoryId: 2 },
 		{ name: 'IT & Software', categoryId: 3 },
 		{ name: 'Marketing', categoryId: 4 },
 		{ name: 'Design', categoryId: 1 },
-	).run();
+  ]).run();
 
 	const sq2 = db
 		.select({
@@ -864,7 +864,7 @@ test.serial('join subquery', (t) => {
 test.serial('with ... select', (t) => {
 	const { db } = t.context;
 
-	db.insert(orders).values(
+	db.insert(orders).values([
 		{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
 		{ region: 'Europe', product: 'A', amount: 20, quantity: 2 },
 		{ region: 'Europe', product: 'B', amount: 20, quantity: 2 },
@@ -873,7 +873,7 @@ test.serial('with ... select', (t) => {
 		{ region: 'US', product: 'A', amount: 40, quantity: 4 },
 		{ region: 'US', product: 'B', amount: 40, quantity: 4 },
 		{ region: 'US', product: 'B', amount: 50, quantity: 5 },
-	).run();
+  ]).run();
 
 	const regionalSales = db
 		.$with('regional_sales')
@@ -948,7 +948,7 @@ test.serial('with ... select', (t) => {
 test.serial('select from subquery sql', (t) => {
 	const { db } = t.context;
 
-	db.insert(users2Table).values({ name: 'John' }, { name: 'Jane' }).run();
+	db.insert(users2Table).values([{ name: 'John' }, { name: 'Jane' }]).run();
 
 	const sq = db
 		.select({ name: sql<string>`${users2Table.name} || ' modified'`.as('name') })
@@ -977,7 +977,7 @@ test.serial('select all fields from subquery without alias', (t) => {
 test.serial('select count()', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }).run();
+	db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]).run();
 
 	const res = db.select({ count: sql`count(*)` }).from(usersTable).all();
 
@@ -987,12 +987,13 @@ test.serial('select count()', (t) => {
 test.serial('having', (t) => {
 	const { db } = t.context;
 
-	db.insert(citiesTable).values({ name: 'London' }, { name: 'Paris' }, { name: 'New York' }).run();
+	db.insert(citiesTable).values([{ name: 'London' }, { name: 'Paris' }, { name: 'New York' }]).run();
 
-	db.insert(users2Table).values({ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 1 }, {
-		name: 'Jack',
-		cityId: 2,
-	}).run();
+	db.insert(users2Table).values([
+    { name: 'John', cityId: 1 },
+    { name: 'Jane', cityId: 1 },
+    { name: 'Jack', cityId: 2 },
+  ]).run();
 
 	const result = db
 		.select({
@@ -1042,13 +1043,13 @@ test.serial('view', (t) => {
 
 	db.run(sql`create view new_yorkers as ${getViewConfig(newYorkers1).query}`);
 
-	db.insert(citiesTable).values({ name: 'New York' }, { name: 'Paris' }).run();
+	db.insert(citiesTable).values([{ name: 'New York' }, { name: 'Paris' }]).run();
 
-	db.insert(users2Table).values(
+	db.insert(users2Table).values([
 		{ name: 'John', cityId: 1 },
 		{ name: 'Jane', cityId: 1 },
 		{ name: 'Jack', cityId: 2 },
-	).run();
+  ]).run();
 
 	{
 		const result = db.select().from(newYorkers1).all();
