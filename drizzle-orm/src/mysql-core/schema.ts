@@ -1,12 +1,12 @@
-import { type mysqlTable, mysqlTableWithSchema } from './table';
+import { type MySqlTableFn, mysqlTableWithSchema } from './table';
 import { type mysqlView, mysqlViewWithSchema } from './view';
 
-export class MySqlSchema {
+export class MySqlSchema<TName extends string = string> {
 	constructor(
-		public readonly schemaName: string,
+		public readonly schemaName: TName,
 	) {}
 
-	table: typeof mysqlTable = (name, columns, extraConfig) => {
+	table: MySqlTableFn<TName> = (name, columns, extraConfig) => {
 		return mysqlTableWithSchema(name, columns, extraConfig, this.schemaName);
 	};
 
@@ -27,7 +27,7 @@ export function isMySqlSchema(obj: unknown): obj is MySqlSchema {
  * @param name mysql use schema name
  * @returns MySQL schema
  */
-export function mysqlDatabase(name: string) {
+export function mysqlDatabase<TName extends string>(name: TName) {
 	return new MySqlSchema(name);
 }
 
