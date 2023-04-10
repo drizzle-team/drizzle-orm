@@ -252,8 +252,9 @@ import { sqliteTable, foreignKey, primaryKey, text, integer, index, uniqueIndex,
 
 export const countries = sqliteTable('countries', {
     id: integer('id').primaryKey(),
-    name: text('name', { length: 256 }),
+    name: text('name'),
     population: integer('population'),
+		capital: integer('capital').references(() => cities.id, { onUpdate: 'cascade', onDelete: 'cascade' })
   }, (countries) => ({
     nameIdx: index('name_idx').on(countries.name), // one column
     namePopulationIdx: index('name_population_idx').on(countries.name, countries.population), // multiple columns
@@ -263,7 +264,7 @@ export const countries = sqliteTable('countries', {
 
 export const cities = sqliteTable('cities', {
   id: integer('id').primaryKey(),
-  name: text('name', { length: 256 }),
+  name: text('name'),
   countryId: integer('country_id').references(() => countries.id), // inline foreign key
   countryName: text('country_id'),
   sisterCityId: integer('sister_city_id').references((): AnySQLiteColumn => cities.id), // self-referencing foreign key
