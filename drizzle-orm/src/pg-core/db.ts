@@ -1,7 +1,7 @@
 import type { PgDialect } from '~/pg-core/dialect';
 import type { QueryBuilderInstance } from '~/pg-core/query-builders';
 import { PgDelete, PgInsertBuilder, PgSelectBuilder, PgUpdateBuilder, queryBuilder } from '~/pg-core/query-builders';
-import type { PgSession, PgTransaction, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
+import type { PgSession, PgTransaction, PgTransactionConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
 import type { AnyPgTable } from '~/pg-core/table';
 import type { QueryBuilder } from '~/query-builders/query-builder';
 import { type SQLWrapper } from '~/sql';
@@ -78,7 +78,8 @@ export class PgDatabase<TQueryResult extends QueryResultHKT> {
 
 	transaction<T>(
 		transaction: (tx: PgTransaction<TQueryResult>) => Promise<T>,
+		config?: PgTransactionConfig,
 	): Promise<T> {
-		return this.session.transaction(transaction);
+		return this.session.transaction(transaction, config);
 	}
 }

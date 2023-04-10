@@ -10,7 +10,7 @@ import {
 	SQLiteSelectBuilder,
 	SQLiteUpdateBuilder,
 } from '~/sqlite-core/query-builders';
-import type { ResultKind, SQLiteSession } from '~/sqlite-core/session';
+import type { ResultKind, SQLiteSession, SQLiteTransactionConfig } from '~/sqlite-core/session';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
 import type { SelectedFields } from './query-builders/select.types';
@@ -93,8 +93,9 @@ export class BaseSQLiteDatabase<TResultKind extends 'sync' | 'async', TRunResult
 
 	transaction<T>(
 		transaction: (tx: SQLiteTransaction<TResultKind, TRunResult>) => ResultKind<TResultKind, T>,
+		config?: SQLiteTransactionConfig,
 	): ResultKind<TResultKind, T> {
-		return this.session.transaction(transaction);
+		return this.session.transaction(transaction, config);
 	}
 }
 
