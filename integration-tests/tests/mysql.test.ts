@@ -7,19 +7,34 @@ import { DefaultLogger, sql, TransactionRollbackError } from 'drizzle-orm';
 import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
 import {
 	alias,
+	bigint,
+	binary,
 	boolean,
+	char,
 	date,
 	datetime,
+	decimal,
+	double,
+	float,
 	int,
 	json,
+	longtext,
+	mediumint,
+	mediumtext,
 	mysqlEnum,
 	mysqlTable,
 	mysqlTableCreator,
 	mysqlView,
+	real,
 	serial,
+	smallint,
 	text,
 	time,
 	timestamp,
+	tinyint,
+	tinytext,
+	varbinary,
+	varchar,
 	uniqueIndex,
 	year,
 } from 'drizzle-orm/mysql-core';
@@ -1456,4 +1471,144 @@ test.serial('nested transaction rollback', async (t) => {
 	t.deepEqual(result, [{ id: 1, balance: 100 }]);
 
 	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial("runtime types", async (t) => {
+  const { db } = t.context;
+
+	const typesTable = mysqlTable(`typestable`, {
+    bigintBigInt: bigint(`bigint_bigint`, { mode: `bigint` }).notNull(),
+    bigintNumber: bigint(`bigint_number`, { mode: `number` }).notNull(),
+    binary: binary(`binary`).notNull(),
+    boolean: boolean(`boolean`).notNull(),
+    char: char(`char`).notNull(),
+    enum: mysqlEnum(`enum`, [`a`, `b`, `c`]).notNull(),
+    date: date(`date`).notNull(),
+    dateString: date(`date_string`, { mode: `string` }).notNull(),
+    dateTime: datetime(`datetime`, { fsp: 3 }).notNull(),
+    datetimeString: datetime(`datetime_string`, { mode: `string`, fsp: 3 }).notNull(),
+    decimal: decimal(`decimal`).notNull(),
+    double: double(`double`).notNull(),
+    float: float(`float`).notNull(),
+    int: int(`int`).notNull(),
+    json: json(`json`).notNull().$type<{ a: number }>(),
+    longtext: longtext(`longtext`).notNull(),
+    mediumint: mediumint(`mediumint`).notNull(),
+    mediumtext: mediumtext(`mediumtext`).notNull(),
+    real: real(`real`).notNull(),
+    serial: serial(`serial`).notNull(),
+    smallint: smallint(`smallint`).notNull(),
+    text: text(`text`).notNull(),
+    time: time(`time`, { fsp: 3 }).notNull(),
+    timestamp: timestamp(`timestamp`, { fsp: 3 }).notNull(),
+    timestampString: timestamp(`timestamp_string`, { mode: `string`, fsp: 3 }).notNull(),
+    tinyint: tinyint(`tinyint`).notNull(),
+    tinytext: tinytext(`tinytext`).notNull(),
+    varbinary: varbinary(`varbinary`, { length: 1 }).notNull(),
+    varchar: varchar(`varchar`, { length: 1 }).notNull(),
+    year: year(`year`).notNull(),
+  });
+
+	await db.execute(sql`drop table if exists ${typesTable}`);
+
+  await db.execute(
+    sql`create table ${typesTable} (
+			\`bigint_bigint\` bigint not null,
+			\`bigint_number\` bigint not null,
+			\`binary\` binary not null,
+			\`boolean\` boolean not null,
+			\`char\` char not null,
+			\`enum\` enum('a', 'b', 'c') not null,
+			\`date\` date not null,
+			\`date_string\` date not null,
+			\`datetime\` datetime(3) not null,
+			\`datetime_string\` datetime(3) not null,
+			\`decimal\` decimal not null,
+			\`double\` double not null,
+			\`float\` float not null,
+			\`int\` int not null,
+			\`json\` json not null,
+			\`longtext\` longtext not null,
+			\`mediumint\` mediumint not null,
+			\`mediumtext\` mediumtext not null,
+			\`real\` real not null,
+			\`serial\` serial not null,
+			\`smallint\` smallint not null,
+			\`text\` text not null,
+			\`time\` time not null,
+			\`timestamp\` timestamp(3) not null,
+			\`timestamp_string\` timestamp(3) not null,
+			\`tinyint\` tinyint not null,
+			\`tinytext\` tinytext not null,
+			\`varbinary\` varbinary(1) not null,
+			\`varchar\` varchar(1) not null,
+			\`year\` year not null
+		)`
+  );
+
+  await db.insert(typesTable).values({
+    bigintBigInt: BigInt(1),
+    bigintNumber: 1,
+    binary: Buffer.from([1]),
+    boolean: true,
+    char: `a`,
+    enum: `a`,
+    date: new Date(),
+    dateString: new Date().toISOString().slice(0, 10),
+    dateTime: new Date(),
+    datetimeString: new Date().toISOString().slice(0, 23).replace(`T`, ` `),
+    decimal: `1.1`,
+    double: 1.1,
+    float: 1.1,
+    int: 1,
+    json: { a: 1 },
+    longtext: `a`,
+    mediumint: 1,
+    mediumtext: `a`,
+    real: 1.1,
+    smallint: 1,
+    text: `a`,
+    time: new Date().toISOString().slice(11, 23),
+    timestamp: new Date(),
+    timestampString: new Date().toISOString().slice(0, 23).replace(`T`, ` `),
+    tinyint: 1,
+    tinytext: `a`,
+    varbinary: Buffer.from([1]),
+    varchar: `a`,
+    year: new Date().toISOString().slice(0, 4),
+  });
+
+	const result = await db.select().from(typesTable);
+
+  t.assert(typeof result[0]!.bigintBigInt === `bigint`);
+  t.assert(typeof result[0]!.bigintNumber === `number`);
+  t.assert(result[0]!.binary instanceof Buffer);
+  t.assert(typeof result[0]!.boolean === `boolean`);
+  t.assert(typeof result[0]!.char === `string`);
+  t.assert(typeof result[0]!.enum === `string`);
+  t.assert(result[0]!.date instanceof Date);
+  t.assert(typeof result[0]!.dateString === `string`);
+  t.assert(result[0]!.dateTime instanceof Date);
+  t.assert(typeof result[0]!.datetimeString === `string`);
+  t.assert(typeof result[0]!.decimal === `string`);
+  t.assert(typeof result[0]!.double === `number`);
+  t.assert(typeof result[0]!.float === `number`);
+  t.assert(typeof result[0]!.int === `number`);
+  t.assert(typeof result[0]!.json === `object`);
+  t.assert(typeof result[0]!.longtext === `string`);
+  t.assert(typeof result[0]!.mediumint === `number`);
+  t.assert(typeof result[0]!.mediumtext === `string`);
+  t.assert(typeof result[0]!.real === `number`);
+  t.assert(typeof result[0]!.smallint === `number`);
+  t.assert(typeof result[0]!.text === `string`);
+  t.assert(typeof result[0]!.time === `string`);
+  t.assert(result[0]!.timestamp instanceof Date);
+  t.assert(typeof result[0]!.timestampString === `string`);
+  t.assert(typeof result[0]!.tinyint === `number`);
+  t.assert(typeof result[0]!.tinytext === `string`);
+  t.assert(result[0]!.varbinary instanceof Buffer);
+  t.assert(typeof result[0]!.varchar === `string`);
+  t.assert(typeof result[0]!.year === `string` || typeof result[0]!.year === `number`);
+
+	await db.execute(sql`drop table ${typesTable}`);
 });
