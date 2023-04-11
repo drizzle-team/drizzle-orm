@@ -26,7 +26,7 @@ export class PgDialect {
 		await session.execute(sql`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
 		await session.execute(migrationTableCreate);
 
-		const dbMigrations = await session.execute<{ id: number; hash: string; created_at: string }[]>(
+		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
 			sql`select id, hash, created_at from "drizzle"."__drizzle_migrations" order by created_at desc limit 1`,
 		);
 
