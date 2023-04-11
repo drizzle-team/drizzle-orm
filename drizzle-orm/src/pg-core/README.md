@@ -558,7 +558,7 @@ const users = pgTable('users', {
   createdAt: timestamp('created_at'),
 });
 
-type NewUser = InferModel<typeof users>;
+type NewUser = InferModel<typeof users, 'insert'>;
 
 const db = drizzle(...);
 

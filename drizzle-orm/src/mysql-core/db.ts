@@ -85,7 +85,8 @@ export class MySqlDatabase<TQueryResult extends QueryResultHKT> {
 
 	transaction<T>(
 		transaction: (tx: MySqlTransaction<TQueryResult>, config?: MySqlTransactionConfig) => Promise<T>,
+		config?: MySqlTransactionConfig,
 	): Promise<T> {
-		return this.session.transaction(transaction);
+		return this.session.transaction(transaction, config);
 	}
 }
