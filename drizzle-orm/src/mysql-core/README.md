@@ -530,9 +530,7 @@ between(column, min, max)
 notBetween(column, min, max)
 
 like(column, value)
-like(column, value)
-ilike(column, value)
-notIlike(column, value)
+notLike(column, value)
 
 not(sqlExpression)
 
