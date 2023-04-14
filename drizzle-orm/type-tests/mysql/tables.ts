@@ -24,6 +24,7 @@ import { mysqlSchema } from '~/mysql-core/schema';
 import { mysqlView, type MySqlViewWithSelection } from '~/mysql-core/view';
 import { sql } from '~/sql';
 import type { InferModel } from '~/table';
+import { db } from './db';
 
 export const users = mysqlTable(
 	'users_table',
@@ -385,4 +386,64 @@ Expect<
 
 	const users2 = getUsersTable('id2');
 	Expect<Equal<'id2', typeof users2._.schema>>;
+}
+
+{
+	const internalStaff = mysqlTable('internal_staff', {
+		userId: int('user_id').notNull(),
+	});
+
+	const customUser = mysqlTable('custom_user', {
+		id: int('id').notNull(),
+	});
+
+	const ticket = mysqlTable('ticket', {
+		staffId: int('staff_id').notNull(),
+	});
+
+	const subq = db
+		.select()
+		.from(internalStaff)
+		.leftJoin(
+			customUser,
+			eq(internalStaff.userId, customUser.id),
+		).as('internal_staff');
+
+	const mainQuery = await db
+		.select()
+		.from(ticket)
+		.leftJoin(subq, eq(subq.internal_staff.userId, ticket.staffId));
+
+	Expect<
+		Equal<{
+			internal_staff: {
+				internal_staff: {
+					userId: number;
+				};
+				custom_user: {
+					id: number | null;
+				};
+			} | null;
+			ticket: {
+				staffId: number;
+			};
+		}[], typeof mainQuery>
+	>;
+}
+
+{
+	const newYorkers = mysqlView('new_yorkers')
+		.as((qb) => {
+			const sq = qb
+				.$with('sq')
+				.as(
+					qb.select({ userId: users.id, cityId: cities.id })
+						.from(users)
+						.leftJoin(cities, eq(cities.id, users.homeCity))
+						.where(sql`${users.age1} > 18`),
+				);
+			return qb.with(sq).select().from(sq).where(sql`${users.homeCity} = 1`);
+		});
+
+	await db.select().from(newYorkers).leftJoin(newYorkers, eq(newYorkers.userId, newYorkers.userId));
 }

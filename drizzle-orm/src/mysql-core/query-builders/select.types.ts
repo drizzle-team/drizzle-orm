@@ -19,11 +19,12 @@ import type { Placeholder, SQL } from '~/sql';
 import type { Subquery } from '~/subquery';
 import type { AnyTable, UpdateTableConfig } from '~/table';
 import type { Assume } from '~/utils';
+import { type ColumnsSelection } from '~/view';
 import type { MySqlSelect, MySqlSelectQueryBuilder } from './select';
 
 export interface JoinsValue {
 	on: SQL | undefined;
-	table: AnyMySqlTable | Subquery | SQL;
+	table: AnyMySqlTable | Subquery | MySqlViewBase | SQL;
 	alias: string | undefined;
 	joinType: JoinType;
 }
@@ -42,8 +43,7 @@ export type BuildAliasTable<TTable extends AnyTable, TAlias extends string> = My
 
 export interface MySqlSelectConfig {
 	withList: Subquery[];
-	fields: SelectedFields;
-	fieldsList: SelectedFieldsOrdered;
+	fields: Record<string, unknown>;
 	where?: SQL;
 	having?: SQL;
 	table: AnyMySqlTable | Subquery | MySqlViewBase | SQL;
@@ -66,7 +66,7 @@ export type JoinFn<
 	TSelection,
 	TNullabilityMap extends Record<string, JoinNullability>,
 > = <
-	TJoinedTable extends AnyMySqlTable | Subquery | SQL,
+	TJoinedTable extends AnyMySqlTable | Subquery | MySqlViewBase | SQL,
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 >(table: TJoinedTable, on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined) => MySqlSelectKind<
 	THKT,
@@ -76,7 +76,7 @@ export type JoinFn<
 		TSelection,
 		TJoinedName,
 		TJoinedTable extends AnyMySqlTable ? TJoinedTable['_']['columns']
-			: TJoinedName extends Subquery ? Assume<TJoinedName['_']['selectedFields'], SelectedFields>
+			: TJoinedTable extends Subquery ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
 			: never,
 		TSelectMode
 	>,
@@ -128,7 +128,7 @@ export interface MySqlSelectQueryBuilderHKT extends MySqlSelectHKTBase {
 	_type: MySqlSelectQueryBuilder<
 		this,
 		this['tableName'],
-		this['selection'],
+		Assume<this['selection'], ColumnsSelection>,
 		this['selectMode'],
 		Assume<this['nullabilityMap'], Record<string, JoinNullability>>
 	>;
@@ -137,7 +137,7 @@ export interface MySqlSelectQueryBuilderHKT extends MySqlSelectHKTBase {
 export interface MySqlSelectHKT extends MySqlSelectHKTBase {
 	_type: MySqlSelect<
 		this['tableName'],
-		this['selection'],
+		Assume<this['selection'], ColumnsSelection>,
 		this['selectMode'],
 		Assume<this['nullabilityMap'], Record<string, JoinNullability>>
 	>;

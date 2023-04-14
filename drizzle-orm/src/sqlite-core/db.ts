@@ -13,6 +13,7 @@ import {
 import type { ResultKind, SQLiteSession, SQLiteTransactionConfig } from '~/sqlite-core/session';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
+import { type ColumnsSelection } from '~/view';
 import type { SelectedFields } from './query-builders/select.types';
 import type { WithSubqueryWithSelection } from './subquery';
 
@@ -26,7 +27,7 @@ export class BaseSQLiteDatabase<TResultKind extends 'sync' | 'async', TRunResult
 
 	$with<TAlias extends string>(alias: TAlias) {
 		return {
-			as<TSelection>(
+			as<TSelection extends ColumnsSelection>(
 				qb: QueryBuilder<TSelection> | ((qb: QueryBuilderInstance) => QueryBuilder<TSelection>),
 			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {

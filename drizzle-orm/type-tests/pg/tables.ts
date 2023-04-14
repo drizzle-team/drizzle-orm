@@ -776,3 +776,63 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 	const users2 = getUsersTable('id2');
 	Expect<Equal<'id2', typeof users2._.schema>>;
 }
+
+{
+	const internalStaff = pgTable('internal_staff', {
+		userId: integer('user_id').notNull(),
+	});
+
+	const customUser = pgTable('custom_user', {
+		id: integer('id').notNull(),
+	});
+
+	const ticket = pgTable('ticket', {
+		staffId: integer('staff_id').notNull(),
+	});
+
+	const subq = db
+		.select()
+		.from(internalStaff)
+		.leftJoin(
+			customUser,
+			eq(internalStaff.userId, customUser.id),
+		).as('internal_staff');
+
+	const mainQuery = await db
+		.select()
+		.from(ticket)
+		.leftJoin(subq, eq(subq.internal_staff.userId, ticket.staffId));
+
+	Expect<
+		Equal<{
+			internal_staff: {
+				internal_staff: {
+					userId: number;
+				};
+				custom_user: {
+					id: number | null;
+				};
+			} | null;
+			ticket: {
+				staffId: number;
+			};
+		}[], typeof mainQuery>
+	>;
+}
+
+{
+	const newYorkers = pgView('new_yorkers')
+		.as((qb) => {
+			const sq = qb
+				.$with('sq')
+				.as(
+					qb.select({ userId: users.id, cityId: cities.id })
+						.from(users)
+						.leftJoin(cities, eq(cities.id, users.homeCity))
+						.where(sql`${users.age1} > 18`),
+				);
+			return qb.with(sq).select().from(sq).where(sql`${users.homeCity} = 1`);
+		});
+
+	await db.select().from(newYorkers).leftJoin(newYorkers, eq(newYorkers.userId, newYorkers.userId));
+}

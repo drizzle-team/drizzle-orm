@@ -2,6 +2,7 @@ import type { QueryBuilder } from '~/query-builders/query-builder';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect';
 import type { WithSubqueryWithSelection } from '~/sqlite-core/subquery';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
+import { type ColumnsSelection } from '~/view';
 import type { SQLiteSelectBuilder } from './select';
 import type { SelectedFields } from './select.types';
 
@@ -18,7 +19,7 @@ export class QueryBuilderInstance {
 		const queryBuilder = this;
 
 		return {
-			as<TSelection>(
+			as<TSelection extends ColumnsSelection>(
 				qb: QueryBuilder<TSelection> | ((qb: QueryBuilderInstance) => QueryBuilder<TSelection>),
 			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {

@@ -7,11 +7,10 @@ import type { PgDeleteConfig, PgInsertConfig, PgUpdateConfig } from '~/pg-core/q
 import type { PgSelectConfig, SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
 import type { AnyPgTable } from '~/pg-core/table';
 import { PgTable } from '~/pg-core/table';
-import type { DriverValueEncoder, Query, QueryTypingsValue, SQLChunk } from '~/sql';
-import { Name, SQL, sql } from '~/sql';
+import { type DriverValueEncoder, name, type Query, type QueryTypingsValue, SQL, sql, type SQLChunk } from '~/sql';
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
-import type { UpdateSet } from '~/utils';
+import { orderSelectedFields, type UpdateSet } from '~/utils';
 import { ViewBaseConfig } from '~/view';
 import type { PgSession } from './session';
 import { type PgMaterializedView, PgViewBase } from './view';
@@ -78,7 +77,7 @@ export class PgDialect {
 			setEntries
 				.map(([colName, value], i): SQL[] => {
 					const col: AnyPgColumn = table[Table.Symbol.Columns][colName]!;
-					const res = sql`${new Name(col.name)} = ${value}`;
+					const res = sql`${name(col.name)} = ${value}`;
 					if (i < setSize - 1) {
 						return [res, sql.raw(', ')];
 					}
@@ -122,7 +121,7 @@ export class PgDialect {
 				const chunk: SQLChunk[] = [];
 
 				if (field instanceof SQL.Aliased && field.isSelectionField) {
-					chunk.push(new Name(field.fieldAlias));
+					chunk.push(name(field.fieldAlias));
 				} else if (field instanceof SQL.Aliased || field instanceof SQL) {
 					const query = field instanceof SQL.Aliased ? field.sql : field;
 
@@ -131,7 +130,7 @@ export class PgDialect {
 							new SQL(
 								query.queryChunks.map((c) => {
 									if (c instanceof PgColumn) {
-										return new Name(c.name);
+										return name(c.name);
 									}
 									return c;
 								}),
@@ -142,11 +141,11 @@ export class PgDialect {
 					}
 
 					if (field instanceof SQL.Aliased) {
-						chunk.push(sql` as ${new Name(field.fieldAlias)}`);
+						chunk.push(sql` as ${name(field.fieldAlias)}`);
 					}
 				} else if (field instanceof Column) {
 					if (isSingleTable) {
-						chunk.push(new Name(field.name));
+						chunk.push(name(field.name));
 					} else {
 						chunk.push(field);
 					}
@@ -164,9 +163,9 @@ export class PgDialect {
 	}
 
 	buildSelectQuery(
-		{ withList, fieldsList, where, having, table, joins, orderBy, groupBy, limit, offset, lockingClauses }:
-			PgSelectConfig,
+		{ withList, fields, where, having, table, joins, orderBy, groupBy, limit, offset, lockingClauses }: PgSelectConfig,
 	): SQL {
+		const fieldsList = orderSelectedFields<AnyPgColumn>(fields);
 		fieldsList.forEach((f) => {
 			if (
 				f.field instanceof Column
@@ -195,7 +194,7 @@ export class PgDialect {
 		if (withList.length) {
 			const withSqlChunks = [sql`with `];
 			withList.forEach((w, i) => {
-				withSqlChunks.push(sql`${new Name(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
+				withSqlChunks.push(sql`${name(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
 				if (i < withList.length - 1) {
 					withSqlChunks.push(sql`, `);
 				}
@@ -220,9 +219,9 @@ export class PgDialect {
 				const origTableName = table[PgTable.Symbol.OriginalName];
 				const alias = tableName === origTableName ? undefined : joinMeta.alias;
 				joinsArray.push(
-					sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${new Name(tableSchema)}.` : undefined}${new Name(
-						origTableName,
-					)} ${alias && new Name(alias)} on ${joinMeta.on}`,
+					sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${name(tableSchema)}.` : undefined}${
+						name(origTableName)
+					}${alias && sql` ${name(alias)}`} on ${joinMeta.on}`,
 				);
 			} else {
 				joinsArray.push(
@@ -290,7 +289,7 @@ export class PgDialect {
 		const colEntries: [string, AnyPgColumn][] = isSingleValue
 			? Object.keys(values[0]!).map((fieldName) => [fieldName, columns[fieldName]!])
 			: Object.entries(columns);
-		const insertOrder = colEntries.map(([, column]) => new Name(column.name));
+		const insertOrder = colEntries.map(([, column]) => name(column.name));
 
 		values.forEach((value, valueIndex) => {
 			const valueList: (SQLChunk | SQL)[] = [];

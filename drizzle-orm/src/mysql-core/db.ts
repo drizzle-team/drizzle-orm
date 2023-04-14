@@ -2,6 +2,7 @@ import type { ResultSetHeader } from 'mysql2/promise';
 import type { QueryBuilder } from '~/query-builders/query-builder';
 import type { SQLWrapper } from '~/sql';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
+import { type ColumnsSelection } from '~/view';
 import type { MySqlDialect } from './dialect';
 import type { QueryBuilderInstance } from './query-builders';
 import {
@@ -32,7 +33,7 @@ export class MySqlDatabase<TQueryResult extends QueryResultHKT> {
 
 	$with<TAlias extends string>(alias: TAlias) {
 		return {
-			as<TSelection>(
+			as<TSelection extends ColumnsSelection>(
 				qb: QueryBuilder<TSelection> | ((qb: QueryBuilderInstance) => QueryBuilder<TSelection>),
 			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {

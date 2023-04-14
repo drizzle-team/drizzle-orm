@@ -2,10 +2,21 @@ import type { Equal } from 'type-tests/utils';
 import { Expect } from 'type-tests/utils';
 import { eq, gt } from '~/expressions';
 import { sql } from '~/sql';
-import type { SQLiteInteger } from '~/sqlite-core';
-import { check, foreignKey, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from '~/sqlite-core';
+import {
+	alias,
+	check,
+	foreignKey,
+	index,
+	integer,
+	primaryKey,
+	type SQLiteInteger,
+	sqliteTable,
+	text,
+	uniqueIndex,
+} from '~/sqlite-core';
 import { sqliteView, type SQLiteViewWithSelection } from '~/sqlite-core/view';
 import type { InferModel } from '~/table';
+import { db } from './db';
 
 export const users = sqliteTable(
 	'users_table',
@@ -242,4 +253,80 @@ Expect<
 		// @ts-expect-error
 		col5: integer('col4', { mode: undefined }).default(new Date()),
 	});
+}
+
+{
+	const internalStaff = sqliteTable('internal_staff', {
+		userId: integer('user_id').notNull(),
+	});
+
+	const customUser = sqliteTable('custom_user', {
+		id: integer('id').notNull(),
+	});
+
+	const ticket = sqliteTable('ticket', {
+		staffId: integer('staff_id').notNull(),
+	});
+
+	const subq = db
+		.select()
+		.from(internalStaff)
+		.leftJoin(
+			customUser,
+			eq(internalStaff.userId, customUser.id),
+		).as('internal_staff');
+
+	const mainQuery = db
+		.select()
+		.from(ticket)
+		.leftJoin(subq, eq(subq.internal_staff.userId, ticket.staffId))
+		.all();
+
+	Expect<
+		Equal<{
+			internal_staff: {
+				internal_staff: {
+					userId: number;
+				};
+				custom_user: {
+					id: number | null;
+				};
+			} | null;
+			ticket: {
+				staffId: number;
+			};
+		}[], typeof mainQuery>
+	>;
+}
+
+{
+	const newYorkers = sqliteView('new_yorkers')
+		.as((qb) => {
+			const sq = qb
+				.$with('sq')
+				.as(
+					qb.select({ userId: users.id, cityId: cities.id })
+						.from(users)
+						.leftJoin(cities, eq(cities.id, users.homeCity))
+						.where(sql`${users.age1} > 18`),
+				);
+			return qb.with(sq).select().from(sq).where(sql`${users.homeCity} = 1`);
+		});
+
+	const ny1 = alias(newYorkers, 'ny1');
+
+	const result = db.select().from(newYorkers).leftJoin(ny1, eq(newYorkers.userId, ny1.userId)).all();
+
+	Expect<
+		Equal<{
+			new_yorkers: {
+				userId: number;
+				cityId: number | null;
+			};
+			ny1: {
+				userId: number;
+				cityId: number | null;
+			} | null;
+		}[], typeof result>
+	>;
 }
