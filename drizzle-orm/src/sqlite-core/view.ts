@@ -4,7 +4,7 @@ import type { AddAliasToSelection } from '~/query-builders/select.types';
 import type { SQL } from '~/sql';
 import { SelectionProxyHandler } from '~/subquery';
 import { getTableColumns } from '~/utils';
-import { View } from '~/view';
+import { type ColumnsSelection, View } from '~/view';
 import type { AnySQLiteColumnBuilder } from './columns/common';
 import type { QueryBuilderInstance } from './query-builders';
 import { queryBuilder } from './query-builders';
@@ -44,8 +44,10 @@ export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<
 			alias: this.name,
 			sqlBehavior: 'error',
 			sqlAliasedBehavior: 'alias',
+			replaceOriginalName: true,
 		});
-		const aliasedSelectedFields = new Proxy(qb.getSelectedFields(), selectionProxy);
+		// const aliasedSelectedFields = new Proxy(qb.getSelectedFields(), selectionProxy);
+		const aliasedSelectedFields = qb.getSelectedFields();
 		return new Proxy(
 			new SQLiteView({
 				sqliteConfig: this.config,
@@ -92,6 +94,7 @@ export class ManualViewBuilder<
 				alias: this.name,
 				sqlBehavior: 'error',
 				sqlAliasedBehavior: 'alias',
+				replaceOriginalName: true,
 			}),
 		) as SQLiteViewWithSelection<TName, true, BuildColumns<TName, TColumns>>;
 	}
@@ -111,6 +114,7 @@ export class ManualViewBuilder<
 				alias: this.name,
 				sqlBehavior: 'error',
 				sqlAliasedBehavior: 'alias',
+				replaceOriginalName: true,
 			}),
 		) as SQLiteViewWithSelection<TName, false, BuildColumns<TName, TColumns>>;
 	}
@@ -119,7 +123,7 @@ export class ManualViewBuilder<
 export abstract class SQLiteViewBase<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
-	TSelection = unknown,
+	TSelection extends ColumnsSelection = ColumnsSelection,
 > extends View<TName, TExisting, TSelection> {
 	declare _: View<TName, TExisting, TSelection>['_'] & {
 		viewBrand: 'SQLiteView';
@@ -131,8 +135,9 @@ export const SQLiteViewConfig = Symbol('SQLiteViewConfig');
 export class SQLiteView<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
-	TSelection = unknown,
+	TSelection extends ColumnsSelection = ColumnsSelection,
 > extends SQLiteViewBase<TName, TExisting, TSelection> {
+	/** @internal */
 	[SQLiteViewConfig]: ViewBuilderConfig | undefined;
 
 	constructor({ sqliteConfig, config }: {
@@ -152,7 +157,7 @@ export class SQLiteView<
 export type SQLiteViewWithSelection<
 	TName extends string,
 	TExisting extends boolean,
-	TSelection,
+	TSelection extends ColumnsSelection,
 > = SQLiteView<TName, TExisting, TSelection> & TSelection;
 
 export function sqliteView<TName extends string>(name: TName): ViewBuilder<TName>;

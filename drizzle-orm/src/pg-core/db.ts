@@ -6,6 +6,7 @@ import type { AnyPgTable } from '~/pg-core/table';
 import type { QueryBuilder } from '~/query-builders/query-builder';
 import { type SQLWrapper } from '~/sql';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
+import { type ColumnsSelection } from '~/view';
 import { PgRefreshMaterializedView } from './query-builders/refresh-materialized-view';
 import type { SelectedFields } from './query-builders/select.types';
 import type { WithSubqueryWithSelection } from './subquery';
@@ -21,7 +22,7 @@ export class PgDatabase<TQueryResult extends QueryResultHKT> {
 
 	$with<TAlias extends string>(alias: TAlias) {
 		return {
-			as<TSelection>(
+			as<TSelection extends ColumnsSelection>(
 				qb: QueryBuilder<TSelection> | ((qb: QueryBuilderInstance) => QueryBuilder<TSelection>),
 			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {

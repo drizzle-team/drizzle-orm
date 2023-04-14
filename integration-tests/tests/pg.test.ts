@@ -18,12 +18,11 @@ import {
 	type SQLWrapper,
 	TransactionRollbackError,
 } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { drizzle } from 'drizzle-orm/node-postgres';
+import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { type AnyPgColumn, pgEnum, pgTableCreator, uuid as pgUuid, varchar } from 'drizzle-orm/pg-core';
 import {
 	alias,
+	type AnyPgColumn,
 	boolean,
 	char,
 	cidr,
@@ -34,19 +33,23 @@ import {
 	jsonb,
 	macaddr,
 	macaddr8,
+	pgEnum,
 	pgMaterializedView,
 	pgTable,
+	pgTableCreator,
 	pgView,
 	serial,
 	text,
 	timestamp,
+	uuid as pgUuid,
+	varchar,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
 import { type Equal, Expect } from './utils';
 
-const ENABLE_LOGGING = false;
+const ENABLE_LOGGING = true;
 
 const usersTable = pgTable('users', {
 	id: serial('id').primaryKey(),
@@ -1921,5 +1924,147 @@ test.serial('nested transaction rollback', async (t) => {
 
 	t.deepEqual(result, [{ id: 1, balance: 100 }]);
 
+	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('join subquery with join', async (t) => {
+	const { db } = t.context;
+
+	const internalStaff = pgTable('internal_staff', {
+		userId: integer('user_id').notNull(),
+	});
+
+	const customUser = pgTable('custom_user', {
+		id: integer('id').notNull(),
+	});
+
+	const ticket = pgTable('ticket', {
+		staffId: integer('staff_id').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${internalStaff}`);
+	await db.execute(sql`drop table if exists ${customUser}`);
+	await db.execute(sql`drop table if exists ${ticket}`);
+
+	await db.execute(sql`create table internal_staff (user_id integer not null)`);
+	await db.execute(sql`create table custom_user (id integer not null)`);
+	await db.execute(sql`create table ticket (staff_id integer not null)`);
+
+	await db.insert(internalStaff).values({ userId: 1 });
+	await db.insert(customUser).values({ id: 1 });
+	await db.insert(ticket).values({ staffId: 1 });
+
+	const subq = db
+		.select()
+		.from(internalStaff)
+		.leftJoin(customUser, eq(internalStaff.userId, customUser.id))
+		.as('internal_staff');
+
+	const mainQuery = await db
+		.select()
+		.from(ticket)
+		.leftJoin(subq, eq(subq.internal_staff.userId, ticket.staffId));
+
+	t.deepEqual(mainQuery, [{
+		ticket: { staffId: 1 },
+		internal_staff: {
+			internal_staff: { userId: 1 },
+			custom_user: { id: 1 },
+		},
+	}]);
+
+	await db.execute(sql`drop table ${internalStaff}`);
+	await db.execute(sql`drop table ${customUser}`);
+	await db.execute(sql`drop table ${ticket}`);
+});
+
+test.serial('subquery with view', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users_subquery_view', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: integer('city_id').notNull(),
+	});
+
+	const newYorkers = pgView('new_yorkers').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`drop view if exists ${newYorkers}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial not null primary key, name text not null, city_id integer not null)`,
+	);
+	await db.execute(sql`create view ${newYorkers} as select * from ${users} where city_id = 1`);
+
+	await db.insert(users).values([
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 2 },
+		{ name: 'Jack', cityId: 1 },
+		{ name: 'Jill', cityId: 2 },
+	]);
+
+	const sq = db.$with('sq').as(db.select().from(newYorkers));
+	const result = await db.with(sq).select().from(sq);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'John', cityId: 1 },
+		{ id: 3, name: 'Jack', cityId: 1 },
+	]);
+
+	await db.execute(sql`drop view ${newYorkers}`);
+	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('join view as subquery', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users_join_view', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: integer('city_id').notNull(),
+	});
+
+	const newYorkers = pgView('new_yorkers').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`drop view if exists ${newYorkers}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial not null primary key, name text not null, city_id integer not null)`,
+	);
+	await db.execute(sql`create view ${newYorkers} as select * from ${users} where city_id = 1`);
+
+	await db.insert(users).values([
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 2 },
+		{ name: 'Jack', cityId: 1 },
+		{ name: 'Jill', cityId: 2 },
+	]);
+
+	const sq = db.select().from(newYorkers).as('new_yorkers_sq');
+
+	const result = await db.select().from(users).leftJoin(sq, eq(users.id, sq.id));
+
+	t.deepEqual(result, [
+		{
+			users_join_view: { id: 1, name: 'John', cityId: 1 },
+			new_yorkers_sq: { id: 1, name: 'John', cityId: 1 },
+		},
+		{
+			users_join_view: { id: 2, name: 'Jane', cityId: 2 },
+			new_yorkers_sq: null,
+		},
+		{
+			users_join_view: { id: 3, name: 'Jack', cityId: 1 },
+			new_yorkers_sq: { id: 3, name: 'Jack', cityId: 1 },
+		},
+		{
+			users_join_view: { id: 4, name: 'Jill', cityId: 2 },
+			new_yorkers_sq: null,
+		},
+	]);
+
+	await db.execute(sql`drop view ${newYorkers}`);
 	await db.execute(sql`drop table ${users}`);
 });

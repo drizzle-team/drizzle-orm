@@ -1,27 +1,41 @@
 import type { AnyColumn } from './column';
 import { Column } from './column';
 import { Table } from './table';
+import { type View, ViewBaseConfig } from './view';
 
 export class ColumnAliasProxyHandler<TColumn extends AnyColumn> implements ProxyHandler<TColumn> {
-	constructor(private table: Table) {}
+	constructor(private table: Table | View) {}
 
 	get(columnObj: TColumn, prop: string | symbol, receiver: any): any {
 		if (prop === 'table') {
 			return this.table;
 		}
+
 		return columnObj[prop as keyof TColumn];
 	}
 }
 
-export class TableAliasProxyHandler implements ProxyHandler<Table> {
-	constructor(private alias: string) {}
+export class TableAliasProxyHandler<T extends Table | View> implements ProxyHandler<T> {
+	constructor(private alias: string, private replaceOriginalName: boolean) {}
 
-	get(tableObj: Table, prop: string | symbol, receiver: any): any {
+	get(tableObj: T, prop: string | symbol, receiver: any): any {
 		if (prop === Table.Symbol.Name) {
 			return this.alias;
 		}
+
+		if (this.replaceOriginalName && prop === Table.Symbol.OriginalName) {
+			return this.alias;
+		}
+
+		if (prop === ViewBaseConfig) {
+			return {
+				...tableObj[ViewBaseConfig as keyof typeof tableObj],
+				name: this.alias,
+			};
+		}
+
 		if (prop === Table.Symbol.Columns) {
-			const columns = tableObj[Table.Symbol.Columns];
+			const columns = (tableObj as Table)[Table.Symbol.Columns];
 			if (!columns) {
 				return columns;
 			}
@@ -38,7 +52,7 @@ export class TableAliasProxyHandler implements ProxyHandler<Table> {
 			return proxiedColumns;
 		}
 
-		const value = tableObj[prop as keyof Table];
+		const value = tableObj[prop as keyof typeof tableObj];
 		if (value instanceof Column) {
 			return new Proxy(value, new ColumnAliasProxyHandler(new Proxy(tableObj, this)));
 		}

@@ -18,6 +18,11 @@ export type SelectedFieldsFlat<TColumn extends AnyColumn> = Record<
 	TColumn | SQL | SQL.Aliased
 >;
 
+export type SelectedFieldsFlatFull<TColumn extends AnyColumn> = Record<
+	string,
+	TColumn | SQL | SQL.Aliased
+>;
+
 export type SelectedFields<TColumn extends AnyColumn, TTable extends Table> = Record<
 	string,
 	SelectedFieldsFlat<TColumn>[string] | TTable | SelectedFieldsFlat<TColumn>
