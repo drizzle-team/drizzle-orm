@@ -1,6 +1,6 @@
 import type { AnyColumn } from './column';
 import { Column } from './column';
-import type { SelectedFields, SelectedFieldsOrdered } from './operations';
+import type { SelectedFieldsOrdered } from './operations';
 import type { DriverValueDecoder } from './sql';
 import { Param, SQL } from './sql';
 import { type AnyTable, getTableName, Table } from './table';
@@ -68,7 +68,7 @@ export function mapResultRow<TResult>(
 }
 
 export function orderSelectedFields<TColumn extends AnyColumn>(
-	fields: SelectedFields<AnyColumn, Table>,
+	fields: Record<string, unknown>,
 	pathPrefix?: string[],
 ): SelectedFieldsOrdered<TColumn> {
 	return Object.entries(fields).reduce<SelectedFieldsOrdered<AnyColumn>>((result, [name, field]) => {
@@ -86,7 +86,7 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 		} else if (field instanceof Table) {
 			result.push(...orderSelectedFields(field[Table.Symbol.Columns], newPath));
 		} else {
-			result.push(...orderSelectedFields(field, newPath));
+			result.push(...orderSelectedFields(field as Record<string, unknown>, newPath));
 		}
 		return result;
 	}, []) as SelectedFieldsOrdered<TColumn>;
