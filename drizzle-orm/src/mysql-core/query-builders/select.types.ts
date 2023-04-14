@@ -58,7 +58,7 @@ export interface MySqlSelectConfig {
 		strength: LockStrength;
 		config: LockConfig;
 	}
-	against?: AnyMySqlTable | SQL;
+	against?: string | SQL;
 }
 
 export type JoinFn<

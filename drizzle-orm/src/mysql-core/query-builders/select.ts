@@ -304,7 +304,7 @@ export abstract class MySqlSelectQueryBuilder<
 		return this;
 	}
 
-	against(against: AnyMySqlTable | SQL) {
+	against(against: string | SQL) {
 		this.config.against = against;
 		return this;
 	}
