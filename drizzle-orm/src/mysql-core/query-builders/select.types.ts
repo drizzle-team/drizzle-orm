@@ -57,7 +57,8 @@ export interface MySqlSelectConfig {
 	lockingClause?: {
 		strength: LockStrength;
 		config: LockConfig;
-	};
+	}
+	against?: AnyMySqlTable | SQL;
 }
 
 export type JoinFn<

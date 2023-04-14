@@ -1,4 +1,5 @@
 import type { AnyColumn } from '../../column';
+import type { AnyMySqlTable } from '../../mysql-core/table';
 import type { SQL, SQLWrapper } from '..';
 import { sql } from '..';
 
@@ -42,4 +43,8 @@ export function asc(column: AnyColumn | SQLWrapper): SQL {
  */
 export function desc(column: AnyColumn | SQLWrapper): SQL {
 	return sql`${column} desc`;
+}
+
+export function inNaturalLanguage(table: AnyMySqlTable): SQL {
+	return sql`${table} in natural language mode`;
 }

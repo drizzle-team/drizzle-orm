@@ -637,3 +637,22 @@ export function ilike(column: AnyColumn, value: string | Placeholder | SQLWrappe
 export function notIlike(column: AnyColumn, value: string | Placeholder | SQLWrapper): SQL {
 	return sql`${column} not ilike ${value}`;
 }
+
+export function match(...columns: (AnyColumn | undefined)[]): SQL {
+	if (columns.length === 0) {
+		throw new Error('match requires at least one value');
+	}
+	const chunks: SQL[] = [sql.raw('match (')];
+	columns
+		.filter((c): c is Exclude<typeof c, undefined> => typeof c !== 'undefined')
+		.forEach((column, index) => {
+			if (index === 0) {
+				chunks.push(sql`${column}`);
+			} else {
+				chunks.push(sql`,${column}`);
+			}
+		});
+	chunks.push(sql`)`);
+
+	return sql.fromList(chunks);
+}
