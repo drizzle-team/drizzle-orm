@@ -15,8 +15,8 @@ export interface MySqlYearHKT extends ColumnHKTBase {
 
 export type MySqlYearBuilderInitial<TName extends string> = MySqlYearBuilder<{
 	name: TName;
-	data: string | number;
-	driverParam: string | number;
+	data: number;
+	driverParam: number;
 	notNull: false;
 	hasDefault: false;
 }>;

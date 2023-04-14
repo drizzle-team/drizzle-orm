@@ -49,7 +49,7 @@ import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
 import { type Equal, Expect } from './utils';
 
-const ENABLE_LOGGING = true;
+const ENABLE_LOGGING = false;
 
 const usersTable = pgTable('users', {
 	id: serial('id').primaryKey(),

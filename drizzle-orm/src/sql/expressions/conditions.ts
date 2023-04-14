@@ -204,7 +204,7 @@ export function notInArray(
 	return sql`${column} not in ${bindIfParam(values, column)}`;
 }
 
-export function isNull(column: AnyColumn<{ notNull: false }> | Placeholder | SQLWrapper): SQL {
+export function isNull(column: AnyColumn | Placeholder | SQLWrapper): SQL {
 	return sql`${column} is null`;
 }
 
