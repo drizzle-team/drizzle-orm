@@ -32,6 +32,7 @@ import {
 	time,
 	timestamp,
 	uniqueIndex,
+	fulltextIndex,
 	year,
 } from 'drizzle-orm/mysql-core';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
@@ -1740,4 +1741,58 @@ test.serial('update undefined', async (t) => {
 	await t.notThrowsAsync(async () => await db.update(users).set({ id: 1, name: undefined }));
 
 	await db.execute(sql`drop table ${users}`);
+test.serial('test match against', async (t) => {
+	const { db } = t.context;
+
+	const userReviews = mysqlTable('user_reviews', {
+		id: serial('id').primaryKey(),
+		reviews: text('reviews').notNull(),
+	}, (table) => {
+		return {
+			name: fulltextIndex('').on(table.reviews),
+		}
+	});
+
+	await db.execute(
+		sql`create table user_reviews (id serial not null primary key, reviews text not null)`
+	)
+
+	await db.execute(sql`create fulltext index reviews on user_reviews (reviews)`);
+
+	await db.insert(userReviews).values({ id: 1, reviews: 'Good' });
+	const query = await db.select({ id: userReviews.id, name: userReviews.reviews })
+			.from(userReviews)
+			.where(match(userReviews.reviews))
+			.against('Good')
+			.limit(1);
+	
+	t.deepEqual(query, [{ id: 1, name: 'Good' }]);
+});
+
+
+test.serial('test match against in natural language', async (t) => {
+	const { db } = t.context;
+
+	const userComments = mysqlTable('user_comments', {
+		id: serial('id').primaryKey(),
+		comments: text('comments').notNull(),
+	}, (table) => {
+		return {
+			name: fulltextIndex('').on(table.comments),
+		}
+	});
+
+	await db.execute(
+		sql`create table user_comments (id serial not null primary key, comments text not null)`
+	)
+
+	await db.execute(sql`create fulltext index comments on user_comments (comments)`);
+
+	await db.insert(userComments).values({ id: 1, comments: 'Good' });
+	const query = await db.select({ id: userComments.id, name: userComments.comments })
+			.from(userComments)
+			.where(match(userComments.comments))
+			.against(inNaturalLanguage('Good'));
+
+	t.deepEqual(query, [{ id: 1, name: 'Good' }]);
 });
