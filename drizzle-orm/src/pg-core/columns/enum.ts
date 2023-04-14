@@ -1,29 +1,30 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBaseConfig, ColumnHKTBase, WithEnum } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import type { AnyPgTable } from '~/pg-core/table';
 import type { Assume, Writable } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export interface PgEnumColumnBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgEnumColumnBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_type: PgEnumColumnBuilder<Assume<this['config'], ColumnBuilderBaseConfig & WithEnum>>;
 	_columnHKT: PgEnumColumnHKT;
 }
 
 export interface PgEnumColumnHKT extends ColumnHKTBase {
-	_type: PgEnumColumn<Assume<this['config'], ColumnBaseConfig>>;
+	_type: PgEnumColumn<Assume<this['config'], ColumnBaseConfig & WithEnum>>;
 }
 
-export type PgEnumColumnBuilderInitial<TName extends string, TValues extends string[]> = PgEnumColumnBuilder<{
-	name: TName;
-	data: TValues[number];
-	enum: TValues;
-	driverParam: string;
-	notNull: false;
-	hasDefault: false;
-}>;
+export type PgEnumColumnBuilderInitial<TName extends string, TValues extends [string, ...string[]]> =
+	PgEnumColumnBuilder<{
+		name: TName;
+		data: TValues[number];
+		enumValues: TValues;
+		driverParam: string;
+		notNull: false;
+		hasDefault: false;
+	}>;
 
 const isPgEnumSym = Symbol('isPgEnum');
-export interface PgEnum<TValues extends [string, ...string[]]> {
+export interface PgEnum<TValues extends [string, ...string[]]> extends WithEnum<TValues> {
 	<TName extends string>(name: TName): PgEnumColumnBuilderInitial<TName, TValues>;
 
 	readonly enumName: string;
@@ -36,31 +37,35 @@ export function isPgEnum(obj: unknown): obj is PgEnum<[string, ...string[]]> {
 	return !!obj && typeof obj === 'function' && isPgEnumSym in obj;
 }
 
-export class PgEnumColumnBuilder<T extends ColumnBuilderBaseConfig>
-	extends PgColumnBuilder<PgEnumColumnBuilderHKT, T, { enumInstance: PgEnum<any> }>
+export class PgEnumColumnBuilder<T extends ColumnBuilderBaseConfig & WithEnum>
+	extends PgColumnBuilder<PgEnumColumnBuilderHKT, T, { enum: PgEnum<T['enumValues']> }>
 {
-	constructor(name: string, enumInstance: PgEnum<any>) {
+	constructor(name: string, enumInstance: PgEnum<T['enumValues']>) {
 		super(name);
-		this.config.enumInstance = enumInstance;
+		this.config.enum = enumInstance;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
-	): PgEnumColumn<MakeColumnConfig<T, TTableName>> {
-		return new PgEnumColumn<MakeColumnConfig<T, TTableName>>(table, this.config);
+	): PgEnumColumn<MakeColumnConfig<T, TTableName> & WithEnum<T['enumValues']>> {
+		return new PgEnumColumn<MakeColumnConfig<T, TTableName> & WithEnum<T['enumValues']>>(table, this.config);
 	}
 }
 
-export class PgEnumColumn<T extends ColumnBaseConfig> extends PgColumn<PgEnumColumnHKT, T> {
-	readonly enum: PgEnum<any>;
+export class PgEnumColumn<T extends ColumnBaseConfig & WithEnum>
+	extends PgColumn<PgEnumColumnHKT, T, { enum: PgEnum<T['enumValues']> }>
+	implements WithEnum<T['enumValues']>
+{
+	readonly enum = this.config.enum;
+	readonly enumValues = this.config.enum.enumValues;
 
 	constructor(
 		table: AnyPgTable<{ name: T['tableName'] }>,
 		config: PgEnumColumnBuilder<T>['config'],
 	) {
 		super(table, config);
-		this.enum = config.enumInstance;
+		this.enum = config.enum;
 	}
 
 	getSQLType(): string {

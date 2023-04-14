@@ -1,6 +1,6 @@
 {
   "name": "drizzle-zod",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Generate Zod schemas from Drizzle ORM schemas",
   "scripts": {
     "build": "tsc && resolve-tspaths && cp README.md package.json dist/",
@@ -41,7 +41,7 @@
   "author": "Drizzle Team",
   "license": "Apache-2.0",
   "peerDependencies": {
-    "drizzle-orm": ">=0.17",
+    "drizzle-orm": ">=0.23.13",
     "zod": "*"
   },
   "devDependencies": {
