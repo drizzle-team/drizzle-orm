@@ -63,10 +63,14 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 
 		const result = await this.client.send(this.rawQuery);
 
-		return result.records?.map((result) => {
-			const mappedResult = result.map((res) => getValueFromDataApi(res));
+		return result.records?.map((result: any) => {
+			const mappedResult = result.map((res: any) => getValueFromDataApi(res));
 			return mapResultRow<T['execute']>(fields, mappedResult, this.joinsNotNullableMap);
 		});
+	}
+
+	all(placeholderValues?: Record<string, unknown> | undefined): Promise<T['all']> {
+		return this.execute(placeholderValues)
 	}
 }
 
