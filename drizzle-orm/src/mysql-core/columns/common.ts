@@ -29,7 +29,7 @@ export abstract class MySqlColumnBuilder<
 	THKT extends ColumnBuilderHKTBase,
 	T extends ColumnBuilderBaseConfig,
 	TRuntimeConfig extends object = {},
-	TTypeConfig extends Record<string, unknown> = {},
+	TTypeConfig extends object = {},
 > extends ColumnBuilder<THKT, T, TRuntimeConfig, TTypeConfig & { mysqlBrand: 'MySqlColumnBuilder' }> {
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 

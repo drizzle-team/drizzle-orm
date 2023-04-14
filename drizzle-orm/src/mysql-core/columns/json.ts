@@ -31,6 +31,8 @@ export class MySqlJsonBuilder<T extends ColumnBuilderBaseConfig> extends MySqlCo
 }
 
 export class MySqlJson<T extends ColumnBaseConfig> extends MySqlColumn<MySqlJsonHKT, T> {
+	declare protected $mysqlColumnBrand: 'MySqlJson';
+
 	getSQLType(): string {
 		return 'json';
 	}

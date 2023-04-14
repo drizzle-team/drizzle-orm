@@ -19,33 +19,40 @@ import type {
 	SelectMode,
 } from '~/query-builders/select.types';
 import type { Subquery } from '~/subquery';
-import type { AnyTable, UpdateTableConfig } from '~/table';
-import type { SQLiteViewBase } from '../view';
+import type { Table, UpdateTableConfig } from '~/table';
+import { type ColumnsSelection, type View } from '~/view';
+import type { SQLiteViewBase, SQLiteViewWithSelection } from '../view';
 import type { SQLiteSelect, SQLiteSelectQueryBuilder } from './select';
 
 export interface JoinsValue {
 	on: SQL | undefined;
-	table: AnySQLiteTable | Subquery | SQL;
+	table: AnySQLiteTable | Subquery | SQLiteViewBase | SQL;
 	alias: string | undefined;
 	joinType: JoinType;
 }
 
 export type AnySQLiteSelect = SQLiteSelect<any, any, any, any, any, any>;
 
-export type BuildAliasTable<TTable extends AnyTable, TAlias extends string> = SQLiteTableWithColumns<
-	Assume<
-		UpdateTableConfig<TTable['_']['config'], {
-			name: TAlias;
-			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias>;
-		}>,
-		TableConfig
+export type BuildAliasTable<TTable extends Table | View, TAlias extends string> = TTable extends Table
+	? SQLiteTableWithColumns<
+		Assume<
+			UpdateTableConfig<TTable['_']['config'], {
+				name: TAlias;
+				columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias>;
+			}>,
+			TableConfig
+		>
 	>
->;
+	: TTable extends View ? SQLiteViewWithSelection<
+			TAlias,
+			TTable['_']['existing'],
+			MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias>
+		>
+	: never;
 
 export interface SQLiteSelectConfig {
 	withList: Subquery[];
-	fields: SelectedFields;
-	fieldsList: SelectedFieldsOrdered;
+	fields: Record<string, unknown>;
 	where?: SQL;
 	having?: SQL;
 	table: AnySQLiteTable | Subquery | SQLiteViewBase | SQL;
@@ -66,7 +73,7 @@ export type JoinFn<
 	TSelection,
 	TNullabilityMap extends Record<string, JoinNullability>,
 > = <
-	TJoinedTable extends AnySQLiteTable | Subquery | SQL,
+	TJoinedTable extends AnySQLiteTable | Subquery | SQLiteViewBase | SQL,
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 >(table: TJoinedTable, on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined) => SQLiteSelectKind<
 	THKT,
@@ -78,7 +85,7 @@ export type JoinFn<
 		TSelection,
 		TJoinedName,
 		TJoinedTable extends AnySQLiteTable ? TJoinedTable['_']['columns']
-			: TJoinedTable extends Subquery ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
+			: TJoinedTable extends Subquery | View ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
 			: never,
 		TSelectMode
 	>,
@@ -125,7 +132,7 @@ export interface SQLiteSelectQueryBuilderHKT extends SQLiteSelectHKTBase {
 		this['tableName'],
 		this['resultType'],
 		this['runResult'],
-		this['selection'],
+		Assume<this['selection'], ColumnsSelection>,
 		this['selectMode'],
 		Assume<this['nullabilityMap'], Record<string, JoinNullability>>
 	>;
@@ -136,7 +143,7 @@ export interface SQLiteSelectHKT extends SQLiteSelectHKTBase {
 		this['tableName'],
 		this['resultType'],
 		this['runResult'],
-		this['selection'],
+		Assume<this['selection'], ColumnsSelection>,
 		this['selectMode'],
 		Assume<this['nullabilityMap'], Record<string, JoinNullability>>
 	>;

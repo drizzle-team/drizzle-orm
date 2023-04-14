@@ -17,13 +17,14 @@ import type {
 } from '~/query-builders/select.types';
 import type { Placeholder, SQL } from '~/sql';
 import type { Subquery } from '~/subquery';
-import type { AnyTable, UpdateTableConfig } from '~/table';
+import type { AnyTable, Table, UpdateTableConfig } from '~/table';
 import type { Assume } from '~/utils';
+import { type ColumnsSelection } from '~/view';
 import type { PgSelect, PgSelectQueryBuilder } from './select';
 
 export interface JoinsValue {
 	on: SQL | undefined;
-	table: AnyPgTable | Subquery | SQL;
+	table: AnyPgTable | Subquery | PgViewBase | SQL;
 	alias: string | undefined;
 	joinType: JoinType;
 }
@@ -42,8 +43,7 @@ export type BuildAliasTable<TTable extends AnyTable, TAlias extends string> = Pg
 
 export interface PgSelectConfig {
 	withList: Subquery[];
-	fields: SelectedFields;
-	fieldsList: SelectedFieldsOrdered;
+	fields: Record<string, unknown>;
 	where?: SQL;
 	having?: SQL;
 	table: AnyPgTable | Subquery | PgViewBase | SQL;
@@ -66,7 +66,7 @@ export type JoinFn<
 	TSelection,
 	TNullabilityMap extends Record<string, JoinNullability>,
 > = <
-	TJoinedTable extends AnyPgTable | Subquery | SQL,
+	TJoinedTable extends AnyPgTable | Subquery | PgViewBase | SQL,
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 >(table: TJoinedTable, on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined) => PgSelectKind<
 	THKT,
@@ -75,8 +75,8 @@ export type JoinFn<
 		TTableName,
 		TSelection,
 		TJoinedName,
-		TJoinedTable extends AnyPgTable ? TJoinedTable['_']['columns']
-			: TJoinedName extends Subquery ? Assume<TJoinedName['_']['selectedFields'], SelectedFields>
+		TJoinedTable extends Table ? TJoinedTable['_']['columns']
+			: TJoinedTable extends Subquery ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
 			: never,
 		TSelectMode
 	>,
@@ -132,7 +132,7 @@ export interface PgSelectQueryBuilderHKT extends PgSelectHKTBase {
 	_type: PgSelectQueryBuilder<
 		this,
 		this['tableName'],
-		this['selection'],
+		Assume<this['selection'], ColumnsSelection>,
 		this['selectMode'],
 		Assume<this['nullabilityMap'], Record<string, JoinNullability>>
 	>;
@@ -141,7 +141,7 @@ export interface PgSelectQueryBuilderHKT extends PgSelectHKTBase {
 export interface PgSelectHKT extends PgSelectHKTBase {
 	_type: PgSelect<
 		this['tableName'],
-		this['selection'],
+		Assume<this['selection'], ColumnsSelection>,
 		this['selectMode'],
 		Assume<this['nullabilityMap'], Record<string, JoinNullability>>
 	>;

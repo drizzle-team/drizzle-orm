@@ -3,13 +3,12 @@ import { Column } from '~/column';
 import type { MigrationMeta } from '~/migrator';
 import { name, param, type Query, SQL, sql, type SQLChunk } from '~/sql';
 import type { AnySQLiteColumn } from '~/sqlite-core/columns';
-import { SQLiteColumn } from '~/sqlite-core/columns';
 import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SQLiteTable } from '~/sqlite-core/table';
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
-import type { UpdateSet } from '~/utils';
+import { orderSelectedFields, type UpdateSet } from '~/utils';
 import { ViewBaseConfig } from '~/view';
 import type { SelectedFieldsOrdered, SQLiteSelectConfig } from './query-builders/select.types';
 import type { SQLiteSession } from './session';
@@ -98,7 +97,7 @@ export abstract class SQLiteDialect {
 						chunk.push(
 							new SQL(
 								query.queryChunks.map((c) => {
-									if (c instanceof SQLiteColumn) {
+									if (c instanceof Column) {
 										return name(c.name);
 									}
 									return c;
@@ -113,12 +112,12 @@ export abstract class SQLiteDialect {
 						chunk.push(sql` as ${name(field.fieldAlias)}`);
 					}
 				} else if (field instanceof Column) {
+					const tableName = field.table[Table.Symbol.Name];
+					const columnName = field.name;
 					if (isSingleTable) {
-						chunk.push(name(field.name));
+						chunk.push(name(columnName));
 					} else {
-						const tableName = field.table[Table.Symbol.Name];
-						const columnName = field.name;
-						chunk.push(sql`${name(tableName)}.${name(columnName)} as ${name(`${tableName}.${columnName}`)}`);
+						chunk.push(sql`${name(tableName)}.${name(columnName)}`);
 					}
 				}
 
@@ -134,8 +133,9 @@ export abstract class SQLiteDialect {
 	}
 
 	buildSelectQuery(
-		{ withList, fieldsList, where, having, table, joins, orderBy, groupBy, limit, offset }: SQLiteSelectConfig,
+		{ withList, fields, where, having, table, joins, orderBy, groupBy, limit, offset }: SQLiteSelectConfig,
 	): SQL {
+		const fieldsList = orderSelectedFields<AnySQLiteColumn>(fields);
 		fieldsList.forEach((f) => {
 			if (
 				f.field instanceof Column
@@ -191,7 +191,7 @@ export abstract class SQLiteDialect {
 				joinsArray.push(
 					sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${name(tableSchema)}.` : undefined}${
 						name(origTableName)
-					} ${alias && name(alias)} on ${joinMeta.on}`,
+					}${alias && sql` ${name(alias)}`} on ${joinMeta.on}`,
 				);
 			} else {
 				joinsArray.push(
