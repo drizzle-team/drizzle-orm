@@ -15,6 +15,9 @@ export abstract class PreparedQuery<T extends PreparedQueryConfig> {
 	joinsNotNullableMap?: Record<string, boolean>;
 
 	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
+
+	/** @internal */
+	abstract all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;
 }
 
 export interface PgTransactionConfig {
@@ -38,6 +41,14 @@ export abstract class PgSession<TQueryResult extends QueryResultHKT = QueryResul
 			undefined,
 			undefined,
 		).execute();
+	}
+
+	all<T = unknown>(query: SQL): Promise<T[]> {
+		return this.prepareQuery<PreparedQueryConfig & { all: T[] }>(
+			this.dialect.sqlToQuery(query),
+			undefined,
+			undefined,
+		).all();
 	}
 
 	abstract transaction<T>(
