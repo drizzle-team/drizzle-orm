@@ -13,6 +13,12 @@ interface IndexConfig {
 	unique?: boolean;
 
 	/**
+	 * If true, the index will be created as `create fulltext index` instead of unique or normal index.
+	 * This is mutually exclusive with `unique`.
+	 */
+	fulltext?: boolean;
+
+	/**
 	 * If set, the index will be created as `create index ... using { 'btree' | 'hash' }`.
 	 */
 	using?: 'btree' | 'hash';
@@ -49,11 +55,15 @@ export class IndexBuilder implements AnyIndexBuilder {
 	/** @internal */
 	config: IndexConfig;
 
-	constructor(name: string, columns: IndexColumn[], unique: boolean) {
+	constructor(name: string, columns: IndexColumn[], unique: boolean, fulltext?: boolean) {
+		if (fulltext && unique) 
+			throw new Error('Index cannot be both unique and fulltext.');
+
 		this.config = {
 			name,
 			columns,
 			unique,
+			fulltext,
 		};
 	}
 
@@ -97,5 +107,9 @@ export function index(name: string): IndexBuilderOn {
 }
 
 export function uniqueIndex(name: string): IndexBuilderOn {
+	return new IndexBuilderOn(name, true);
+}
+
+export function fulltextIndex(name: string): IndexBuilderOn {
 	return new IndexBuilderOn(name, true);
 }
