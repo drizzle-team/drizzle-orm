@@ -1,8 +1,8 @@
-import type { ExecutionContext } from 'ava';
 import test from 'ava';
 import { blob, integer, numeric, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { z } from 'zod';
 import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
+import { assertSchemasEqual } from './utils';
 
 const blobJsonSchema = z.object({
 	foo: z.string(),
@@ -18,21 +18,6 @@ const users = sqliteTable('users', {
 	text: text('text'),
 	role: text('role', { enum: ['admin', 'user'] }).notNull().default('user'),
 });
-
-function assertSchemasEqual<T extends z.SomeZodObject>(t: ExecutionContext, actual: T, expected: T) {
-	t.deepEqual(Object.keys(actual.shape), Object.keys(expected.shape));
-
-	Object.keys(actual.shape).forEach((key) => {
-		t.deepEqual(actual.shape[key]!._def.typeName, expected.shape[key]?._def.typeName, `key: ${key}`);
-		if (actual.shape[key] instanceof z.ZodOptional) {
-			t.deepEqual(
-				actual.shape[key]!._def.innerType._def.typeName,
-				expected.shape[key]!._def.innerType._def.typeName,
-				`key (optional): ${key}`,
-			);
-		}
-	});
-}
 
 test('users insert schema', (t) => {
 	const actual = createInsertSchema(users, {

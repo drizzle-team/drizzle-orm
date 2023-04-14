@@ -13,7 +13,7 @@
 | Database   | Insert schema | Select schema |
 |:-----------|:-------------:|:-------------:|
 | PostgreSQL |       ✅       |       ✅       |
-| MySQL      |       ⏳       |       ⏳       |
+| MySQL      |       ✅       |       ✅       |
 | SQLite     |       ✅       |       ✅       |
 
 # Usage

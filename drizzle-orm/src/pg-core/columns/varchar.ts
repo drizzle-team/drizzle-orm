@@ -1,69 +1,66 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBaseConfig, ColumnHKTBase, WithEnum } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import type { AnyPgTable } from '~/pg-core/table';
 import type { Assume, Writable } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export interface PgVarcharBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgVarcharBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_type: PgVarcharBuilder<Assume<this['config'], ColumnBuilderBaseConfig & WithEnum>>;
 	_columnHKT: PgVarcharHKT;
 }
 
 export interface PgVarcharHKT extends ColumnHKTBase {
-	_type: PgVarchar<Assume<this['config'], ColumnBaseConfig>>;
+	_type: PgVarchar<Assume<this['config'], ColumnBaseConfig & WithEnum>>;
 }
 
-export type PgVarcharBuilderInitial<TName extends string, TEnum extends string[]> = PgVarcharBuilder<{
+export type PgVarcharBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = PgVarcharBuilder<{
 	name: TName;
 	data: TEnum[number];
 	driverParam: string;
-	enum: TEnum;
+	enumValues: TEnum;
 	notNull: false;
 	hasDefault: false;
 }>;
 
-export class PgVarcharBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<
+export class PgVarcharBuilder<T extends ColumnBuilderBaseConfig & WithEnum> extends PgColumnBuilder<
 	PgVarcharBuilderHKT,
 	T,
-	{ length: number | undefined; enum: string[] }
+	{ length: number | undefined } & WithEnum<T['enumValues']>
 > {
-	constructor(name: string, config: PgVarcharConfig<string[]>) {
+	constructor(name: string, config: PgVarcharConfig<T['enumValues']>) {
 		super(name);
 		this.config.length = config.length;
-		this.config.enum = config.enum ?? [];
+		this.config.enumValues = (config.enum ?? []) as T['enumValues'];
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
-	): PgVarchar<MakeColumnConfig<T, TTableName>> {
-		return new PgVarchar<MakeColumnConfig<T, TTableName>>(table, this.config);
+	): PgVarchar<MakeColumnConfig<T, TTableName> & WithEnum<T['enumValues']>> {
+		return new PgVarchar<MakeColumnConfig<T, TTableName> & WithEnum<T['enumValues']>>(table, this.config);
 	}
 }
 
-export class PgVarchar<T extends ColumnBaseConfig> extends PgColumn<PgVarcharHKT, T> {
-	readonly length: number | undefined;
-	readonly enum: string[];
-
-	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgVarcharBuilder<T>['config']) {
-		super(table, config);
-		this.length = config.length;
-		this.enum = config.enum;
-	}
+export class PgVarchar<T extends ColumnBaseConfig & WithEnum>
+	extends PgColumn<PgVarcharHKT, T, { length: number | undefined } & WithEnum<T['enumValues']>>
+	implements WithEnum<T['enumValues']>
+{
+	readonly length = this.config.length;
+	readonly enumValues = this.config.enumValues;
 
 	getSQLType(): string {
 		return typeof this.length !== 'undefined' ? `varchar(${this.length})` : `varchar`;
 	}
 }
 
-export interface PgVarcharConfig<TEnum extends string[]> {
+export interface PgVarcharConfig<TEnum extends readonly string[] | string[]> {
 	length?: number;
 	enum?: TEnum;
 }
 
 export function varchar<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: TName,
-	config: PgVarcharConfig<Writable<T>> = {},
+	config: PgVarcharConfig<T | Writable<T>> = {},
 ): PgVarcharBuilderInitial<TName, Writable<T>> {
 	return new PgVarcharBuilder(name, config);
 }
