@@ -1,0 +1,12 @@
+name: "Feature Request"
+description: Suggest new feature for Drizzle
+title: "[FEATURE]:"
+labels: ["enhancement"]
+
+body:
+  - type: textarea
+    attributes:
+      label: Describe want to want
+      description: What the problrem is? What to want to change or add?
+    validations:
+      required: true
