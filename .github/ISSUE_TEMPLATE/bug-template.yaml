@@ -28,3 +28,15 @@ body:
       description: Steps to reproduce
     validations:
       required: true
+  - type: textarea
+    attributes:
+      label: Expected behavior
+      description: What you expect to happen
+    validations:
+      required: false
+  - type: textarea
+    attributes:
+      label: Environment & setup
+      description: In which environment does the problem occur?
+    validations:
+      required: false
