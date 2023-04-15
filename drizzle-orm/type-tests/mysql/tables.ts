@@ -2,6 +2,7 @@ import { type Equal, Expect } from 'type-tests/utils';
 import { eq, gt } from '~/expressions';
 import {
 	bigint,
+	char,
 	check,
 	customType,
 	date,
@@ -10,6 +11,8 @@ import {
 	foreignKey,
 	index,
 	int,
+	longtext,
+	mediumtext,
 	mysqlEnum,
 	type MySqlInt,
 	type MySqlSerial,
@@ -18,7 +21,9 @@ import {
 	serial,
 	text,
 	timestamp,
+	tinytext,
 	uniqueIndex,
+	varchar,
 } from '~/mysql-core';
 import { mysqlSchema } from '~/mysql-core/schema';
 import { mysqlView, type MySqlViewWithSelection } from '~/mysql-core/view';
@@ -368,9 +373,38 @@ Expect<
 }
 
 {
-	const a = ['a', 'b', 'c'] as const;
-	const test1 = mysqlEnum('test', a);
-	const test2 = mysqlEnum('test', ['a', 'b', 'c']);
+	const test = mysqlTable('test', {
+		test1: mysqlEnum('test', ['a', 'b', 'c'] as const),
+		test2: mysqlEnum('test', ['a', 'b', 'c']),
+		test3: varchar('test', { length: 255, enum: ['a', 'b', 'c'] as const }),
+		test4: varchar('test', { length: 255, enum: ['a', 'b', 'c'] }),
+		test5: text('test', { enum: ['a', 'b', 'c'] as const }),
+		test6: text('test', { enum: ['a', 'b', 'c'] }),
+		test7: tinytext('test', { enum: ['a', 'b', 'c'] as const }),
+		test8: tinytext('test', { enum: ['a', 'b', 'c'] }),
+		test9: mediumtext('test', { enum: ['a', 'b', 'c'] as const }),
+		test10: mediumtext('test', { enum: ['a', 'b', 'c'] }),
+		test11: longtext('test', { enum: ['a', 'b', 'c'] as const }),
+		test12: longtext('test', { enum: ['a', 'b', 'c'] }),
+		test13: char('test', { enum: ['a', 'b', 'c'] as const }),
+		test14: char('test', { enum: ['a', 'b', 'c'] }),
+		test15: text('test'),
+	});
+	Expect<Equal<['a', 'b', 'c'], typeof test.test1.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test2.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test3.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test4.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test5.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test6.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test7.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test8.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test9.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test10.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test11.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test12.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test13.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test14.enumValues>>;
+	Expect<Equal<[string, ...string[]], typeof test.test15.enumValues>>;
 }
 
 {
