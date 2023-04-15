@@ -4,7 +4,7 @@ import type { AddAliasToSelection } from '~/query-builders/select.types';
 import type { SQL } from '~/sql';
 import { SelectionProxyHandler } from '~/subquery';
 import { getTableColumns } from '~/utils';
-import { View } from '~/view';
+import { type ColumnsSelection, View } from '~/view';
 import type { AnyPgColumnBuilder } from './columns/common';
 import type { QueryBuilderInstance } from './query-builders';
 import { queryBuilder } from './query-builders';
@@ -49,6 +49,7 @@ export class ViewBuilder<TName extends string = string> extends DefaultViewBuild
 			alias: this.name,
 			sqlBehavior: 'error',
 			sqlAliasedBehavior: 'alias',
+			replaceOriginalName: true,
 		});
 		const aliasedSelection = new Proxy(qb.getSelectedFields(), selectionProxy);
 		return new Proxy(
@@ -96,6 +97,7 @@ export class ManualViewBuilder<
 				alias: this.name,
 				sqlBehavior: 'error',
 				sqlAliasedBehavior: 'alias',
+				replaceOriginalName: true,
 			}),
 		) as PgViewWithSelection<TName, true, BuildColumns<TName, TColumns>>;
 	}
@@ -115,6 +117,7 @@ export class ManualViewBuilder<
 				alias: this.name,
 				sqlBehavior: 'error',
 				sqlAliasedBehavior: 'alias',
+				replaceOriginalName: true,
 			}),
 		) as PgViewWithSelection<TName, false, BuildColumns<TName, TColumns>>;
 	}
@@ -176,6 +179,7 @@ export class MaterializedViewBuilder<TName extends string = string>
 			alias: this.name,
 			sqlBehavior: 'error',
 			sqlAliasedBehavior: 'alias',
+			replaceOriginalName: true,
 		});
 		const aliasedSelection = new Proxy(qb.getSelectedFields(), selectionProxy);
 		return new Proxy(
@@ -228,6 +232,7 @@ export class ManualMaterializedViewBuilder<
 				alias: this.name,
 				sqlBehavior: 'error',
 				sqlAliasedBehavior: 'alias',
+				replaceOriginalName: true,
 			}),
 		) as PgMaterializedViewWithSelection<TName, true, BuildColumns<TName, TColumns>>;
 	}
@@ -247,6 +252,7 @@ export class ManualMaterializedViewBuilder<
 				alias: this.name,
 				sqlBehavior: 'error',
 				sqlAliasedBehavior: 'alias',
+				replaceOriginalName: true,
 			}),
 		) as PgMaterializedViewWithSelection<TName, false, BuildColumns<TName, TColumns>>;
 	}
@@ -255,7 +261,7 @@ export class ManualMaterializedViewBuilder<
 export abstract class PgViewBase<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
-	TSelectedFields = unknown,
+	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > extends View<TName, TExisting, TSelectedFields> {
 	declare readonly _: View<TName, TExisting, TSelectedFields>['_'] & {
 		readonly viewBrand: 'PgViewBase';
@@ -267,7 +273,7 @@ export const PgViewConfig = Symbol('PgViewConfig');
 export class PgView<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
-	TSelectedFields = unknown,
+	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > extends PgViewBase<TName, TExisting, TSelectedFields> {
 	[PgViewConfig]: {
 		with?: ViewWithConfig;
@@ -296,7 +302,7 @@ export class PgView<
 export type PgViewWithSelection<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
-	TSelectedFields = unknown,
+	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > = PgView<TName, TExisting, TSelectedFields> & TSelectedFields;
 
 export const PgMaterializedViewConfig = Symbol('PgMaterializedViewConfig');
@@ -304,7 +310,7 @@ export const PgMaterializedViewConfig = Symbol('PgMaterializedViewConfig');
 export class PgMaterializedView<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
-	TSelectedFields = unknown,
+	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > extends PgViewBase<TName, TExisting, TSelectedFields> {
 	readonly [PgMaterializedViewConfig]: {
 		readonly with?: PgMaterializedViewWithConfig;
@@ -340,7 +346,7 @@ export class PgMaterializedView<
 export type PgMaterializedViewWithSelection<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
-	TSelectedFields = unknown,
+	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > = PgMaterializedView<TName, TExisting, TSelectedFields> & TSelectedFields;
 
 /** @internal */

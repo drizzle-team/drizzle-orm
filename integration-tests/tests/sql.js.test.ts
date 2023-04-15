@@ -1026,6 +1026,22 @@ test.serial('view', (t) => {
 	db.run(sql`drop view ${newYorkers1}`);
 });
 
+test.serial('insert null timestamp', (t) => {
+	const { db } = t.context;
+
+	const test = sqliteTable('test', {
+		t: integer('t', { mode: 'timestamp' }),
+	});
+
+	db.run(sql`create table ${test} (t timestamp)`);
+
+	db.insert(test).values({ t: null }).run();
+	const res = db.select().from(test).all();
+	t.deepEqual(res, [{ t: null }]);
+
+	db.run(sql`drop table ${test}`);
+});
+
 test.serial('select from raw sql', (t) => {
 	const { db } = t.context;
 
@@ -1282,5 +1298,110 @@ test.serial('nested transaction rollback', (t) => {
 
 	t.deepEqual(result, [{ id: 1, balance: 100 }]);
 
+	db.run(sql`drop table ${users}`);
+});
+
+test.serial('join subquery with join', (t) => {
+	const { db } = t.context;
+
+	const internalStaff = sqliteTable('internal_staff', {
+		userId: integer('user_id').notNull(),
+	});
+
+	const customUser = sqliteTable('custom_user', {
+		id: integer('id').notNull(),
+	});
+
+	const ticket = sqliteTable('ticket', {
+		staffId: integer('staff_id').notNull(),
+	});
+
+	db.run(sql`drop table if exists ${internalStaff}`);
+	db.run(sql`drop table if exists ${customUser}`);
+	db.run(sql`drop table if exists ${ticket}`);
+
+	db.run(sql`create table internal_staff (user_id integer not null)`);
+	db.run(sql`create table custom_user (id integer not null)`);
+	db.run(sql`create table ticket (staff_id integer not null)`);
+
+	db.insert(internalStaff).values({ userId: 1 }).run();
+	db.insert(customUser).values({ id: 1 }).run();
+	db.insert(ticket).values({ staffId: 1 }).run();
+
+	const subq = db
+		.select()
+		.from(internalStaff)
+		.leftJoin(customUser, eq(internalStaff.userId, customUser.id))
+		.as('internal_staff');
+
+	const mainQuery = db
+		.select()
+		.from(ticket)
+		.leftJoin(subq, eq(subq.internal_staff.userId, ticket.staffId))
+		.all();
+
+	t.deepEqual(mainQuery, [{
+		ticket: { staffId: 1 },
+		internal_staff: {
+			internal_staff: { userId: 1 },
+			custom_user: { id: 1 },
+		},
+	}]);
+
+	db.run(sql`drop table ${internalStaff}`);
+	db.run(sql`drop table ${customUser}`);
+	db.run(sql`drop table ${ticket}`);
+});
+
+test.serial('join view as subquery', (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users_join_view', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: integer('city_id').notNull(),
+	});
+
+	const newYorkers = sqliteView('new_yorkers').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
+
+	db.run(sql`drop table if exists ${users}`);
+	db.run(sql`drop view if exists ${newYorkers}`);
+
+	db.run(
+		sql`create table ${users} (id integer not null primary key, name text not null, city_id integer not null)`,
+	);
+	db.run(sql`create view ${newYorkers} as ${getViewConfig(newYorkers).query}`);
+
+	db.insert(users).values([
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 2 },
+		{ name: 'Jack', cityId: 1 },
+		{ name: 'Jill', cityId: 2 },
+	]).run();
+
+	const sq = db.select().from(newYorkers).as('new_yorkers_sq');
+
+	const result = db.select().from(users).leftJoin(sq, eq(users.id, sq.id)).all();
+
+	t.deepEqual(result, [
+		{
+			users_join_view: { id: 1, name: 'John', cityId: 1 },
+			new_yorkers_sq: { id: 1, name: 'John', cityId: 1 },
+		},
+		{
+			users_join_view: { id: 2, name: 'Jane', cityId: 2 },
+			new_yorkers_sq: null,
+		},
+		{
+			users_join_view: { id: 3, name: 'Jack', cityId: 1 },
+			new_yorkers_sq: { id: 3, name: 'Jack', cityId: 1 },
+		},
+		{
+			users_join_view: { id: 4, name: 'Jill', cityId: 2 },
+			new_yorkers_sq: null,
+		},
+	]);
+
+	db.run(sql`drop view ${newYorkers}`);
 	db.run(sql`drop table ${users}`);
 });

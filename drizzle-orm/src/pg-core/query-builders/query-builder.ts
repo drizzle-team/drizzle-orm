@@ -1,6 +1,7 @@
 import { PgDialect } from '~/pg-core/dialect';
 import type { QueryBuilder } from '~/query-builders/query-builder';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
+import { type ColumnsSelection } from '~/view';
 import type { WithSubqueryWithSelection } from '../subquery';
 import type { PgSelectBuilder } from './select';
 import type { SelectedFields } from './select.types';
@@ -18,7 +19,7 @@ export class QueryBuilderInstance {
 		const queryBuilder = this;
 
 		return {
-			as<TSelection>(
+			as<TSelection extends ColumnsSelection>(
 				qb: QueryBuilder<TSelection> | ((qb: QueryBuilderInstance) => QueryBuilder<TSelection>),
 			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {

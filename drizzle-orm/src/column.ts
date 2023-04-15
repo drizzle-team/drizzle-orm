@@ -100,3 +100,7 @@ export type GetColumnData<TColumn extends AnyColumn, TInferMode extends 'query' 
 export type InferColumnsDataTypes<TColumns extends Record<string, AnyColumn>> = {
 	[Key in keyof TColumns]: GetColumnData<TColumns[Key], 'query'>;
 };
+
+export interface WithEnum<T extends [string, ...string[]] = [string, ...string[]]> {
+	enumValues: T;
+}

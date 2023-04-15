@@ -5,10 +5,12 @@ import type { Table } from './table';
 
 export const ViewBaseConfig = Symbol('ViewBaseConfig');
 
+export type ColumnsSelection = Record<string, unknown>;
+
 export abstract class View<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
-	TSelection = unknown,
+	TSelection extends ColumnsSelection = ColumnsSelection,
 > {
 	declare _: {
 		brand: 'View';
@@ -21,6 +23,7 @@ export abstract class View<
 	/** @internal */
 	[ViewBaseConfig]: {
 		name: TName;
+		originalName: TName;
 		schema: string | undefined;
 		selectedFields: SelectedFields<AnyColumn, Table>;
 		isExisting: TExisting;
@@ -37,6 +40,7 @@ export abstract class View<
 	) {
 		this[ViewBaseConfig] = {
 			name,
+			originalName: name,
 			schema,
 			selectedFields,
 			query: query as (TExisting extends true ? undefined : SQL),
