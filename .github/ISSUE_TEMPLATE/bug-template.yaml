@@ -16,9 +16,27 @@ body:
       placeholder: 0.0.0
     validations:
       required: true
+  - type: input
+    attributes:
+      label: What version of `drizzle-kit` are you using?
+      placeholder: 0.0.0
+    validations:
+      required: false
   - type: textarea
     attributes:
       label: Describe the Bug
       description: Steps to reproduce
     validations:
       required: true
+  - type: textarea
+    attributes:
+      label: Expected behavior
+      description: What you expect to happen
+    validations:
+      required: false
+  - type: textarea
+    attributes:
+      label: Environment & setup
+      description: In which environment does the problem occur?
+    validations:
+      required: false
