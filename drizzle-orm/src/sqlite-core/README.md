@@ -514,6 +514,25 @@ const newUsers: NewUser[] = [
 db.insert(users).values(newUsers).run();
 ```
 
+### Upsert (Insert with on conflict statement)
+
+```typescript
+db.insert(users)
+  .values({ id: 1, name: 'Dan' })
+  .onConflictDoUpdate({ target: users.id, set: { name: 'John' } })
+  .run();
+
+db.insert(users)
+  .values({ id: 1, name: 'John' })
+  .onConflictDoNothing()
+  .run();
+
+db.insert(users)
+  .values({ id: 1, name: 'John' })
+  .onConflictDoNothing({ target: users.id })
+  .run();
+```
+
 ### Update and Delete
 
 ```typescript
