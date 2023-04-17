@@ -8,10 +8,11 @@ import {
 	MySqlTransaction,
 	PreparedQuery,
 	type PreparedQueryConfig,
+	type PreparedQueryHKT,
 	type QueryResultHKT,
 } from '~/mysql-core/session';
-import { fillPlaceholders, type Query, sql } from '~/sql';
-import { mapResultRow } from '~/utils';
+import { fillPlaceholders, type Query, type SQL, sql } from '~/sql';
+import { type Assume, mapResultRow } from '~/utils';
 
 export type PlanetScaleConnection = Connection;
 
@@ -25,10 +26,10 @@ export class PlanetScalePreparedQuery<T extends PreparedQueryConfig> extends Pre
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
 	) {
 		super();
 	}
+
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 
@@ -46,10 +47,8 @@ export class PlanetScalePreparedQuery<T extends PreparedQueryConfig> extends Pre
 		);
 	}
 
-	async all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-		this.logger.logQuery(this.queryString, params);
-		return this.client.execute(this.queryString, params, this.rawQuery).then((eQuery) => eQuery.rows);
+	override async *iterator(placeholderValues?: Record<string, unknown>): AsyncGenerator<T['iterator']> {
+		throw new Error('Streaming is not supported by the PlanetScale Serverless driver');
 	}
 }
 
@@ -57,7 +56,7 @@ export interface PlanetscaleSessionOptions {
 	logger?: Logger;
 }
 
-export class PlanetscaleSession extends MySqlSession {
+export class PlanetscaleSession extends MySqlSession<PlanetscaleQueryResultHKT, PlanetScalePreparedQueryHKT> {
 	private logger: Logger;
 	private client: PlanetScaleConnection | Transaction;
 
@@ -75,9 +74,8 @@ export class PlanetscaleSession extends MySqlSession {
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
 	): PreparedQuery<T> {
-		return new PlanetScalePreparedQuery(this.client, query.sql, query.params, this.logger, fields, name);
+		return new PlanetScalePreparedQuery(this.client, query.sql, query.params, this.logger, fields);
 	}
 
 	async query(query: string, params: unknown[]): Promise<ExecutedQuery> {
@@ -93,18 +91,24 @@ export class PlanetscaleSession extends MySqlSession {
 		return this.client.execute(query, params, { as: 'object' });
 	}
 
+	override all<T = unknown>(query: SQL<unknown>): Promise<T[]> {
+		const querySql = this.dialect.sqlToQuery(query);
+		this.logger.logQuery(querySql.sql, querySql.params);
+		return this.client.execute(querySql.sql, querySql.params, { as: 'object' }).then((eQuery) => eQuery.rows as T[]);
+	}
+
 	override transaction<T>(
-		transaction: (tx: MySqlTransaction<QueryResultHKT>) => Promise<T>,
+		transaction: (tx: PlanetScaleTransaction) => Promise<T>,
 	): Promise<T> {
 		return this.baseClient.transaction((pstx) => {
 			const session = new PlanetscaleSession(this.baseClient, this.dialect, pstx, this.options);
-			const tx = new PlanetScaleTransaction(this.dialect, session);
+			const tx = new PlanetScaleTransaction(this.dialect, session as MySqlSession);
 			return transaction(tx);
 		});
 	}
 }
 
-export class PlanetScaleTransaction extends MySqlTransaction<PlanetscaleQueryResultHKT> {
+export class PlanetScaleTransaction extends MySqlTransaction<PlanetscaleQueryResultHKT, PlanetScalePreparedQueryHKT> {
 	override async transaction<T>(transaction: (tx: PlanetScaleTransaction) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new PlanetScaleTransaction(this.dialect, this.session, this.nestedIndex + 1);
@@ -122,4 +126,8 @@ export class PlanetScaleTransaction extends MySqlTransaction<PlanetscaleQueryRes
 
 export interface PlanetscaleQueryResultHKT extends QueryResultHKT {
 	type: ExecutedQuery;
+}
+
+export interface PlanetScalePreparedQueryHKT extends PreparedQueryHKT {
+	type: PlanetScalePreparedQuery<Assume<this['config'], PreparedQueryConfig>>;
 }

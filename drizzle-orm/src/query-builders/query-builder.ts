@@ -1,8 +1,9 @@
 import type { SQL, SQLWrapper } from '~/sql';
 
-export abstract class QueryBuilder<TSelection> implements SQLWrapper {
+export abstract class QueryBuilder<TSelection, TResult = unknown> implements SQLWrapper {
 	declare _: {
 		selectedFields: TSelection;
+		result: TResult;
 	};
 
 	/** @internal */

@@ -3,7 +3,7 @@ import 'dotenv/config';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import Docker from 'dockerode';
-import { DefaultLogger, sql, TransactionRollbackError } from 'drizzle-orm';
+import { DefaultLogger, type InferModel, sql, TransactionRollbackError } from 'drizzle-orm';
 import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
 import {
 	alias,
@@ -602,7 +602,7 @@ test.serial('prepared statement', async (t) => {
 		id: usersTable.id,
 		name: usersTable.name,
 	}).from(usersTable)
-		.prepare('statement1');
+		.prepare();
 	const result = await statement.execute();
 
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
@@ -614,7 +614,7 @@ test.serial('prepared statement reuse', async (t) => {
 	const stmt = db.insert(usersTable).values({
 		verified: true,
 		name: placeholder('name'),
-	}).prepare('stmt2');
+	}).prepare();
 
 	for (let i = 0; i < 10; i++) {
 		await stmt.execute({ name: `John ${i}` });
@@ -649,7 +649,7 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 		name: usersTable.name,
 	}).from(usersTable)
 		.where(eq(usersTable.id, placeholder('id')))
-		.prepare('stmt3');
+		.prepare();
 	const result = await stmt.execute({ id: 1 });
 
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
@@ -1043,7 +1043,7 @@ test.serial('select from subquery sql', async (t) => {
 test.serial('select a field without joining its table', (t) => {
 	const { db } = t.context;
 
-	t.throws(() => db.select({ name: users2Table.name }).from(usersTable).prepare('query'));
+	t.throws(() => db.select({ name: users2Table.name }).from(usersTable).prepare());
 });
 
 test.serial('select all fields from subquery without alias', (t) => {
@@ -1051,7 +1051,7 @@ test.serial('select all fields from subquery without alias', (t) => {
 
 	const sq = db.$with('sq').as(db.select({ name: sql<string>`upper(${users2Table.name})` }).from(users2Table));
 
-	t.throws(() => db.select().from(sq).prepare('query'));
+	t.throws(() => db.select().from(sq).prepare());
 });
 
 test.serial('select count()', async (t) => {
@@ -1598,4 +1598,49 @@ test.serial('join view as subquery', async (t) => {
 
 	await db.execute(sql`drop view ${newYorkers}`);
 	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('select iterator', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('users_iterator', {
+		id: serial('id').primaryKey(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`create table ${users} (id serial not null primary key)`);
+
+	await db.insert(users).values([{}, {}, {}]);
+
+	const iter = db.select().from(users).iterator();
+	const result: InferModel<typeof users>[] = [];
+
+	for await (const row of iter) {
+		result.push(row);
+	}
+
+	t.deepEqual(result, [{ id: 1 }, { id: 2 }, { id: 3 }]);
+});
+
+test.serial('select iterator w/ prepared statement', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('users_iterator', {
+		id: serial('id').primaryKey(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`create table ${users} (id serial not null primary key)`);
+
+	await db.insert(users).values([{}, {}, {}]);
+
+	const prepared = db.select().from(users).prepare();
+	const iter = prepared.iterator();
+	const result: InferModel<typeof users>[] = [];
+
+	for await (const row of iter) {
+		result.push(row);
+	}
+
+	t.deepEqual(result, [{ id: 1 }, { id: 2 }, { id: 3 }]);
 });

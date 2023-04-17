@@ -1,8 +1,9 @@
 import type { MySqlDialect } from '~/mysql-core/dialect';
 import type {
 	MySqlSession,
-	PreparedQuery,
 	PreparedQueryConfig,
+	PreparedQueryHKTBase,
+	PreparedQueryKind,
 	QueryResultHKT,
 	QueryResultKind,
 } from '~/mysql-core/session';
@@ -20,11 +21,13 @@ export interface MySqlDeleteConfig {
 export interface MySqlDelete<
 	TTable extends AnyMySqlTable,
 	TQueryResult extends QueryResultHKT,
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > extends QueryPromise<QueryResultKind<TQueryResult, never>> {}
 
 export class MySqlDelete<
 	TTable extends AnyMySqlTable,
 	TQueryResult extends QueryResultHKT,
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > extends QueryPromise<QueryResultKind<TQueryResult, never>> implements SQLWrapper {
 	private config: MySqlDeleteConfig;
 
@@ -54,23 +57,30 @@ export class MySqlDelete<
 		return rest;
 	}
 
-	private _prepare(name?: string): PreparedQuery<
-		PreparedQueryConfig & {
-			execute: TQueryResult;
-		}
-	> {
-		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
-	}
-
-	prepare(name: string): PreparedQuery<
-		PreparedQueryConfig & {
-			execute: QueryResultKind<TQueryResult, never>;
-		}
-	> {
-		return this._prepare(name);
+	prepare() {
+		return this.session.prepareQuery(
+			this.dialect.sqlToQuery(this.getSQL()),
+			this.config.returning,
+		) as PreparedQueryKind<
+			TPreparedQueryHKT,
+			PreparedQueryConfig & {
+				execute: QueryResultKind<TQueryResult, never>;
+				iterator: never;
+			},
+			true
+		>;
 	}
 
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this._prepare().execute(placeholderValues);
+		return this.prepare().execute(placeholderValues);
 	};
+
+	private createIterator = (): ReturnType<this['prepare']>['iterator'] => {
+		const self = this;
+		return async function*(placeholderValues) {
+			yield* self.prepare().iterator(placeholderValues);
+		};
+	};
+
+	iterator = this.createIterator();
 }

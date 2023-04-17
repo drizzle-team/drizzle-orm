@@ -1,3 +1,4 @@
+import { type Connection as CallbackConnection } from 'mysql2';
 import {
 	type Connection,
 	type FieldPacket,
@@ -7,6 +8,7 @@ import {
 	type ResultSetHeader,
 	type RowDataPacket,
 } from 'mysql2/promise';
+import { once } from 'node:events';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
 import type { MySqlDialect } from '~/mysql-core/dialect';
@@ -17,10 +19,12 @@ import {
 	type MySqlTransactionConfig,
 	PreparedQuery,
 	type PreparedQueryConfig,
+	type PreparedQueryHKT,
+	type PreparedQueryKind,
 	type QueryResultHKT,
 } from '~/mysql-core/session';
-import { fillPlaceholders, type Query, sql } from '~/sql';
-import { mapResultRow } from '~/utils';
+import { fillPlaceholders, type Query, type SQL, sql } from '~/sql';
+import { type Assume, mapResultRow } from '~/utils';
 
 export type MySql2Client = Pool | Connection;
 
@@ -40,7 +44,6 @@ export class MySql2PreparedQuery<T extends PreparedQueryConfig> extends Prepared
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
 	) {
 		super();
 		this.rawQuery = {
@@ -65,7 +68,7 @@ export class MySql2PreparedQuery<T extends PreparedQueryConfig> extends Prepared
 		};
 	}
 
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+	async execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 
 		this.logger.logQuery(this.rawQuery.sql, params);
@@ -82,10 +85,46 @@ export class MySql2PreparedQuery<T extends PreparedQueryConfig> extends Prepared
 		);
 	}
 
-	async all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
+	async *iterator(
+		placeholderValues: Record<string, unknown> = {},
+	): AsyncGenerator<T['execute'] extends any[] ? T['execute'][number] : T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
-		this.logger.logQuery(this.rawQuery.sql, params);
-		return this.client.query(this.rawQuery, params).then((result) => result[0]);
+		const conn = ((isPool(this.client) ? await this.client.getConnection() : this.client) as {} as {
+			connection: CallbackConnection;
+		}).connection;
+
+		const { fields } = this;
+		const driverQuery = fields ? conn.query(this.query, params) : conn.query(this.rawQuery, params);
+
+		const stream = driverQuery.stream();
+
+		function dataListener() {
+			stream.pause();
+		}
+
+		stream.on('data', dataListener);
+
+		try {
+			const onEnd = once(stream, 'end');
+			const onError = once(stream, 'error');
+
+			while (true) {
+				stream.resume();
+				const row = await Promise.race([onEnd, onError, new Promise((resolve) => stream.once('data', resolve))]);
+				if (row === undefined || (Array.isArray(row) && row.length === 0)) {
+					break;
+				} else if (row instanceof Error) {
+					throw row;
+				} else {
+					yield (fields ? mapResultRow(fields, row as unknown[], this.joinsNotNullableMap) : row) as T['execute'];
+				}
+			}
+		} finally {
+			stream.off('data', dataListener);
+			if (isPool(this.client)) {
+				conn.end();
+			}
+		}
 	}
 }
 
@@ -105,14 +144,17 @@ export class MySql2Session extends MySqlSession<MySql2QueryResultHKT> {
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
-	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
+	prepareQuery<T extends PreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-	): PreparedQuery<T> {
-		return new MySql2PreparedQuery(this.client, query.sql, query.params, this.logger, fields, name);
+	): PreparedQueryKind<MySql2PreparedQueryHKT, T> {
+		return new MySql2PreparedQuery(this.client, query.sql, query.params, this.logger, fields);
 	}
 
+	/**
+	 * @internal
+	 * What is its purpose?
+	 */
 	async query(query: string, params: unknown[]): Promise<MySqlQueryResult> {
 		this.logger.logQuery(query, params);
 		const result = await this.client.query({
@@ -129,6 +171,12 @@ export class MySql2Session extends MySqlSession<MySql2QueryResultHKT> {
 		return result;
 	}
 
+	override all<T = unknown>(query: SQL<unknown>): Promise<T[]> {
+		const querySql = this.dialect.sqlToQuery(query);
+		this.logger.logQuery(querySql.sql, querySql.params);
+		return this.client.execute(querySql.sql, querySql.params).then((result) => result[0]) as Promise<T[]>;
+	}
+
 	override async transaction<T>(
 		transaction: (tx: MySql2Transaction) => Promise<T>,
 		config?: MySqlTransactionConfig,
@@ -136,7 +184,7 @@ export class MySql2Session extends MySqlSession<MySql2QueryResultHKT> {
 		const session = isPool(this.client)
 			? new MySql2Session(await this.client.getConnection(), this.dialect, this.options)
 			: this;
-		const tx = new MySql2Transaction(this.dialect, session);
+		const tx = new MySql2Transaction(this.dialect, session as MySqlSession);
 		if (config) {
 			const setTransactionConfigSql = this.getSetTransactionSQL(config);
 			if (setTransactionConfigSql) {
@@ -162,7 +210,7 @@ export class MySql2Session extends MySqlSession<MySql2QueryResultHKT> {
 	}
 }
 
-export class MySql2Transaction extends MySqlTransaction<MySql2QueryResultHKT> {
+export class MySql2Transaction extends MySqlTransaction<MySql2QueryResultHKT, MySql2PreparedQueryHKT> {
 	override async transaction<T>(transaction: (tx: MySql2Transaction) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new MySql2Transaction(this.dialect, this.session, this.nestedIndex + 1);
@@ -184,4 +232,8 @@ function isPool(client: MySql2Client): client is Pool {
 
 export interface MySql2QueryResultHKT extends QueryResultHKT {
 	type: MySqlRawQueryResult;
+}
+
+export interface MySql2PreparedQueryHKT extends PreparedQueryHKT {
+	type: MySql2PreparedQuery<Assume<this['config'], PreparedQueryConfig>>;
 }
