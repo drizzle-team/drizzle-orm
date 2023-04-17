@@ -123,7 +123,7 @@ export class SQLiteInsert<
 			this.config.onConflict = sql`do nothing`;
 		} else {
 			const whereSql = config.where ? sql` where ${config.where}` : sql``;
-			this.config.onConflict = sql`${config.target}${whereSql} do nothing`;
+			this.config.onConflict = sql`(${config.target})${whereSql} do nothing`;
 		}
 		return this;
 	}

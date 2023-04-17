@@ -708,6 +708,46 @@ test.after.always((t) => {
 	ctx.client?.close();
 });
 
+test.serial('insert with onConflict do nothing', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ id: 1, name: 'John' }).run();
+
+	await db
+		.insert(usersTable)
+		.values({ id: 1, name: 'John' })
+		.onConflictDoNothing()
+		.run();
+
+	const res = await db
+		.select({ id: usersTable.id, name: usersTable.name})
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+		t.deepEqual(res, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('insert with onConflict do nothing using target', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ id: 1, name: 'John' }).run();
+
+	await db
+		.insert(usersTable)
+		.values({ id: 1, name: 'John' })
+		.onConflictDoNothing({ target: usersTable.id })
+		.run();
+
+	const res = await db
+		.select({ id: usersTable.id, name: usersTable.name})
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+		t.deepEqual(res, [{ id: 1, name: 'John' }]);
+});
+
 test.serial('insert with onConflict do update', async (t) => {
 	const { db } = t.context;
 
