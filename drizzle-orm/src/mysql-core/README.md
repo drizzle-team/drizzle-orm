@@ -495,6 +495,27 @@ Subqueries in joins are supported, too:
 const result = await db.select().from(users).leftJoin(sq, eq(users.id, sq.id));
 ```
 
+#### Querying large datasets
+
+If you need to return a very large amount of rows from a query and you don't want to load them all into memory, you can use `.iterator()` to convert the query into an async iterator:
+
+```typescript
+const iterator = await db.select().from(users).iterator();
+for await (const row of iterator) {
+  console.log(row);
+}
+```
+
+It also works with prepared statements:
+
+```typescript
+const query = await db.select().from(users).prepare();
+const iterator = await query.iterator();
+for await (const row of iterator) {
+  console.log(row);
+}
+```
+
 #### List of all filter operators
 
 ```typescript
