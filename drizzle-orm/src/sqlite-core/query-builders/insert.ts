@@ -135,7 +135,7 @@ export class SQLiteInsert<
 	}): this {
 		const whereSql = config.where ? sql` where ${config.where}` : sql``;
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
-		this.config.onConflict = sql`${config.target}${whereSql} do update set ${setSql}`;
+		this.config.onConflict = sql`(${config.target})${whereSql} do update set ${setSql}`;
 		return this;
 	}
 
