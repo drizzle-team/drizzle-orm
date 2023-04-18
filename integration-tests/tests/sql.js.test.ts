@@ -76,7 +76,7 @@ const anotherUsersMigratorTable = sqliteTable('another_users', {
 	email: text('email').notNull(),
 });
 
-const pkExample = sqliteTable('pk_example', {
+const _pkExample = sqliteTable('pk_example', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
@@ -121,29 +121,34 @@ test.beforeEach((t) => {
 			verified integer not null default 0,
 			json blob,
 			created_at integer not null default (strftime('%s', 'now'))
-		)`);
+		)
+	`);
 	ctx.db.run(sql`
 		create table ${users2Table} (
 			id integer primary key,
 			name text not null,
 			city_id integer references ${citiesTable}(${name(citiesTable.id.name)})
-		)`);
+		)
+	`);
 	ctx.db.run(sql`
 		create table ${citiesTable} (
 			id integer primary key,
 			name text not null
-		)`);
+		)
+	`);
 	ctx.db.run(sql`
-			create table ${courseCategoriesTable} (
-				id integer primary key,
-				name text not null
-			)`);
+		create table ${courseCategoriesTable} (
+			id integer primary key,
+			name text not null
+		)
+	`);
 	ctx.db.run(sql`
 		create table ${coursesTable} (
 			id integer primary key,
 			name text not null,
 			category_id integer references ${courseCategoriesTable}(${name(courseCategoriesTable.id.name)})
-		)`);
+		)
+	`);
 	ctx.db.run(sql`
 		create table ${orders} (
 			id integer primary key,
@@ -151,7 +156,8 @@ test.beforeEach((t) => {
 			product text not null,
 			amount integer not null,
 			quantity integer not null
-		)`);
+		)
+	`);
 });
 
 test.serial('select all fields', (t) => {
@@ -1417,12 +1423,12 @@ test.serial('insert with onConflict do nothing', (t) => {
 		.run();
 
 	const res = db
-		.select({ id: usersTable.id, name: usersTable.name})
+		.select({ id: usersTable.id, name: usersTable.name })
 		.from(usersTable)
 		.where(eq(usersTable.id, 1))
 		.all();
 
-		t.deepEqual(res, [{ id: 1, name: 'John' }]);
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
 });
 
 test.serial('insert with onConflict do nothing using target', (t) => {
@@ -1437,12 +1443,12 @@ test.serial('insert with onConflict do nothing using target', (t) => {
 		.run();
 
 	const res = db
-		.select({ id: usersTable.id, name: usersTable.name})
+		.select({ id: usersTable.id, name: usersTable.name })
 		.from(usersTable)
 		.where(eq(usersTable.id, 1))
 		.all();
 
-		t.deepEqual(res, [{ id: 1, name: 'John' }]);
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
 });
 
 test.serial('insert with onConflict do update', (t) => {
@@ -1453,14 +1459,14 @@ test.serial('insert with onConflict do update', (t) => {
 	db
 		.insert(usersTable)
 		.values({ id: 1, name: 'John' })
-		.onConflictDoUpdate({ target: usersTable.id, set: { name: 'John1' }})
+		.onConflictDoUpdate({ target: usersTable.id, set: { name: 'John1' } })
 		.run();
 
 	const res = db
-		.select({ id: usersTable.id, name: usersTable.name})
+		.select({ id: usersTable.id, name: usersTable.name })
 		.from(usersTable)
 		.where(eq(usersTable.id, 1))
 		.all();
 
-		t.deepEqual(res, [{ id: 1, name: 'John1' }]);
+	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
 });

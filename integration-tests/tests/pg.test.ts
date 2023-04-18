@@ -103,7 +103,7 @@ const salEmp = pgTable('sal_emp', {
 	schedule: text('schedule').array().array(),
 });
 
-const tictactoe = pgTable('tictactoe', {
+const _tictactoe = pgTable('tictactoe', {
 	squares: integer('squares').array(3).array(3),
 });
 
@@ -153,7 +153,7 @@ test.before(async (t) => {
 	const ctx = t.context;
 	const connectionString = process.env['PG_CONNECTION_STRING'] ?? (await createDockerDB(ctx));
 
-	let sleep = 250;
+	const sleep = 250;
 	let timeLeft = 5000;
 	let connected = false;
 	let lastError: unknown | undefined;
@@ -189,69 +189,87 @@ test.beforeEach(async (t) => {
 	await ctx.db.execute(sql`drop schema public cascade`);
 	await ctx.db.execute(sql`create schema public`);
 	await ctx.db.execute(
-		sql`create table users (
-			id serial primary key,
-			name text not null,
-			verified boolean not null default false, 
-			jsonb jsonb,
-			created_at timestamptz not null default now()
-		)`,
+		sql`
+			create table users (
+				id serial primary key,
+				name text not null,
+				verified boolean not null default false, 
+				jsonb jsonb,
+				created_at timestamptz not null default now()
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table cities (
-			id serial primary key,
-			name text not null,
-			state char(2)
-		)`,
+		sql`
+			create table cities (
+				id serial primary key,
+				name text not null,
+				state char(2)
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table users2 (
-			id serial primary key,
-			name text not null,
-			city_id integer references cities(id)
-		)`,
+		sql`
+			create table users2 (
+				id serial primary key,
+				name text not null,
+				city_id integer references cities(id)
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table course_categories (
-			id serial primary key,
-			name text not null
-		)`,
+		sql`
+			create table course_categories (
+				id serial primary key,
+				name text not null
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table courses (
-			id serial primary key,
-			name text not null,
-			category_id integer references course_categories(id)
-		)`,
+		sql`
+			create table courses (
+				id serial primary key,
+				name text not null,
+				category_id integer references course_categories(id)
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table orders (
-			id serial primary key,
-			region text not null,
-			product text not null,
-			amount integer not null,
-			quantity integer not null
-		)`,
+		sql`
+			create table orders (
+				id serial primary key,
+				region text not null,
+				product text not null,
+				amount integer not null,
+				quantity integer not null
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table network_table (
-			inet inet not null,
-			cidr cidr not null,
-			macaddr macaddr not null,
-			macaddr8 macaddr8 not null
-		)`,
+		sql`
+			create table network_table (
+				inet inet not null,
+				cidr cidr not null,
+				macaddr macaddr not null,
+				macaddr8 macaddr8 not null
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table sal_emp (
-			name text not null,
-			pay_by_quarter integer[] not null,
-			schedule text[][] not null
-		)`,
+		sql`
+			create table sal_emp (
+				name text not null,
+				pay_by_quarter integer[] not null,
+				schedule text[][] not null
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table tictactoe (
-			squares integer[3][3] not null
-		)`,
+		sql`
+			create table tictactoe (
+				squares integer[3][3] not null
+			)
+		`,
 	);
 });
 
@@ -1217,7 +1235,7 @@ test.serial('select count w/ custom mapper', async (t) => {
 	function count(value: AnyPgColumn | SQLWrapper): SQL<number>;
 	function count(value: AnyPgColumn | SQLWrapper, alias: string): SQL.Aliased<number>;
 	function count(value: AnyPgColumn | SQLWrapper, alias?: string): SQL<number> | SQL.Aliased<number> {
-		const result = sql`count(${value})`.mapWith((v) => parseInt(v, 10));
+		const result = sql`count(${value})`.mapWith(Number);
 		if (!alias) {
 			return result;
 		}
@@ -1285,6 +1303,7 @@ test.serial('select for ...', (t) => {
 
 	t.regex(
 		query.sql,
+		// eslint-disable-next-line unicorn/better-regex
 		/ for update for no key update of "users2" for no key update of "users2" skip locked for share of "users2" no wait$/,
 	);
 });
@@ -1652,20 +1671,22 @@ test.serial('select from enum', async (t) => {
 		} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,
 	);
 	await db.execute(sql`create type ${name(categoryEnum.enumName)} as enum ('upper_body', 'lower_body', 'full_body')`);
-	await db.execute(sql`create table ${exercises} (
-		id serial primary key,
-		name varchar not null,
-		force force,
-		level level,
-		mechanic mechanic,
-		equipment equipment,
-		instructions text,
-		category category,
-		primary_muscles muscle[],
-		secondary_muscles muscle[],
-		created_at timestamp not null default now(),
-		updated_at timestamp not null default now()
-	)`);
+	await db.execute(sql`
+		create table ${exercises} (
+			id serial primary key,
+			name varchar not null,
+			force force,
+			level level,
+			mechanic mechanic,
+			equipment equipment,
+			instructions text,
+			category category,
+			primary_muscles muscle[],
+			secondary_muscles muscle[],
+			created_at timestamp not null default now(),
+			updated_at timestamp not null default now()
+		)
+	`);
 
 	await db.insert(exercises).values({
 		name: 'Bench Press',
@@ -1776,12 +1797,14 @@ test.serial('timestamp timezone', async (t) => {
 	await db.execute(sql`drop table if exists ${usersTableWithAndWithoutTimezone}`);
 
 	await db.execute(
-		sql`create table users_test_with_and_without_timezone (
-			id serial not null primary key,
-			name text not null,
-			created_at timestamptz not null default now(),
-			updated_at timestamp not null default now()
-			)`,
+		sql`
+			create table users_test_with_and_without_timezone (
+				id serial not null primary key,
+				name text not null,
+				created_at timestamptz not null default now(),
+				updated_at timestamp not null default now()
+			)
+		`,
 	);
 
 	const date = new Date(Date.parse('2020-01-01T00:00:00+04:00'));
@@ -1795,8 +1818,8 @@ test.serial('timestamp timezone', async (t) => {
 	const users = await db.select().from(usersTableWithAndWithoutTimezone);
 
 	// check that the timestamps are set correctly for default times
-	t.assert(Math.abs(users[0]!.updatedAt.getTime() - new Date().getTime()) < 2000);
-	t.assert(Math.abs(users[0]!.createdAt.getTime() - new Date().getTime()) < 2000);
+	t.assert(Math.abs(users[0]!.updatedAt.getTime() - Date.now()) < 2000);
+	t.assert(Math.abs(users[0]!.createdAt.getTime() - Date.now()) < 2000);
 
 	// check that the timestamps are set correctly for non default times
 	t.assert(Math.abs(users[1]!.updatedAt.getTime() - date.getTime()) < 2000);
@@ -2066,5 +2089,50 @@ test.serial('join view as subquery', async (t) => {
 	]);
 
 	await db.execute(sql`drop view ${newYorkers}`);
+	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('table selection with single table', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: integer('city_id').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial not null primary key, name text not null, city_id integer not null)`,
+	);
+
+	await db.insert(users).values({ name: 'John', cityId: 1 });
+
+	const result = await db.select({ users }).from(users);
+
+	t.deepEqual(result, [{ users: { id: 1, name: 'John', cityId: 1 } }]);
+
+	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial.only('set null to jsonb field', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey(),
+		jsonb: jsonb('jsonb'),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial not null primary key, jsonb jsonb)`,
+	);
+
+	const result = await db.insert(users).values({ jsonb: null }).returning();
+
+	t.deepEqual(result, [{ id: 1, jsonb: null }]);
+
 	await db.execute(sql`drop table ${users}`);
 });

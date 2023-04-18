@@ -74,15 +74,15 @@ export class MySql2PreparedQuery<T extends PreparedQueryConfig> extends Prepared
 
 		this.logger.logQuery(this.rawQuery.sql, params);
 
-		const { fields } = this;
+		const { fields, client, rawQuery, query, joinsNotNullableMap } = this;
 		if (!fields) {
-			return this.client.query(this.rawQuery, params);
+			return client.query(rawQuery, params);
 		}
 
-		const result = this.client.query<any[]>(this.query, params);
+		const result = client.query<any[]>(query, params);
 
 		return result.then((result) =>
-			result[0].map((row) => mapResultRow<T['execute']>(fields, row, this.joinsNotNullableMap))
+			result[0].map((row) => mapResultRow<T['execute']>(fields, row, joinsNotNullableMap))
 		);
 	}
 
@@ -94,8 +94,8 @@ export class MySql2PreparedQuery<T extends PreparedQueryConfig> extends Prepared
 			connection: CallbackConnection;
 		}).connection;
 
-		const { fields } = this;
-		const driverQuery = fields ? conn.query(this.query, params) : conn.query(this.rawQuery, params);
+		const { fields, query, rawQuery, joinsNotNullableMap, client } = this;
+		const driverQuery = fields ? conn.query(query, params) : conn.query(rawQuery, params);
 
 		const stream = driverQuery.stream();
 
@@ -117,12 +117,12 @@ export class MySql2PreparedQuery<T extends PreparedQueryConfig> extends Prepared
 				} else if (row instanceof Error) {
 					throw row;
 				} else {
-					yield (fields ? mapResultRow(fields, row as unknown[], this.joinsNotNullableMap) : row) as T['execute'];
+					yield (fields ? mapResultRow(fields, row as unknown[], joinsNotNullableMap) : row) as T['execute'];
 				}
 			}
 		} finally {
 			stream.off('data', dataListener);
-			if (isPool(this.client)) {
+			if (isPool(client)) {
 				conn.end();
 			}
 		}
@@ -192,11 +192,7 @@ export class MySql2Session extends MySqlSession<MySql2QueryResultHKT> {
 				await tx.execute(setTransactionConfigSql);
 			}
 			const startTransactionSql = this.getStartTransactionSQL(config);
-			if (startTransactionSql) {
-				await tx.execute(startTransactionSql);
-			} else {
-				await tx.execute(sql`begin`);
-			}
+			await (startTransactionSql ? tx.execute(startTransactionSql) : tx.execute(sql`begin`));
 		} else {
 			await tx.execute(sql`begin`);
 		}

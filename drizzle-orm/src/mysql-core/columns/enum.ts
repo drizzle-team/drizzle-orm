@@ -57,7 +57,9 @@ export function mysqlEnum<TName extends string, U extends string, T extends Read
 	name: TName,
 	values: T | Writable<T>,
 ): MySqlEnumColumnBuilderInitial<TName, Writable<T>> {
-	if (values.length === 0) throw Error(`You have an empty array for "${name}" enum values`);
+	if (values.length === 0) {
+		throw new Error(`You have an empty array for "${name}" enum values`);
+	}
 
 	return new MySqlEnumColumnBuilder(name, values);
 }

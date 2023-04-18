@@ -90,16 +90,16 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	}
 
 	all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
-		const { fields } = this;
+		const { fields, joinsNotNullableMap, queryString, logger, stmt } = this;
 		if (fields) {
 			return this.values(placeholderValues).then((values) =>
-				values.map((row) => mapResultRow(fields, row, this.joinsNotNullableMap))
+				values.map((row) => mapResultRow(fields, row, joinsNotNullableMap))
 			);
 		}
 
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
-		this.logger.logQuery(this.queryString, params);
-		return this.stmt.bind(...params).all().then(({ results }) => results!);
+		logger.logQuery(queryString, params);
+		return stmt.bind(...params).all().then(({ results }) => results!);
 	}
 
 	get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {

@@ -49,8 +49,10 @@ export class MySqlUpdateBuilder<
 }
 
 export interface MySqlUpdate<
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TTable extends AnyMySqlTable,
 	TQueryResult extends QueryResultHKT,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > extends QueryPromise<QueryResultKind<TQueryResult, never>>, SQLWrapper {}
 export class MySqlUpdate<
@@ -83,7 +85,7 @@ export class MySqlUpdate<
 	}
 
 	toSQL(): Omit<Query, 'typings'> {
-		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
 

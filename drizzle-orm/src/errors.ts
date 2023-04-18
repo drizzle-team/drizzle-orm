@@ -5,11 +5,9 @@ export class DrizzleError extends Error {
 	}
 
 	static wrap(error: unknown, message?: string): DrizzleError {
-		if (error instanceof Error) {
-			return new DrizzleError(message ? `${message}: ${error.message}` : error.message, { cause: error });
-		} else {
-			return new DrizzleError(message ?? String(error));
-		}
+		return error instanceof Error
+			? new DrizzleError(message ? `${message}: ${error.message}` : error.message, { cause: error })
+			: new DrizzleError(message ?? String(error));
 	}
 }
 

@@ -42,22 +42,14 @@ export class PgInsertBuilder<TTable extends AnyPgTable, TQueryResult extends Que
 		...values: PgInsertValue<TTable>[] | [PgInsertValue<TTable>] | [PgInsertValue<TTable>[]]
 	): PgInsert<TTable, TQueryResult> {
 		if (values.length === 1) {
-			if (Array.isArray(values[0])) {
-				values = values[0];
-			} else {
-				values = [values[0]];
-			}
+			values = Array.isArray(values[0]) ? values[0] : [values[0]];
 		}
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
 			const cols = this.table[Table.Symbol.Columns];
 			for (const colKey of Object.keys(entry)) {
 				const colValue = entry[colKey as keyof typeof entry];
-				if (colValue instanceof SQL) {
-					result[colKey] = colValue;
-				} else {
-					result[colKey] = new Param(colValue, cols[colKey]);
-				}
+				result[colKey] = colValue instanceof SQL ? colValue : new Param(colValue, cols[colKey]);
 			}
 			return result;
 		});
@@ -67,6 +59,7 @@ export class PgInsertBuilder<TTable extends AnyPgTable, TQueryResult extends Que
 }
 
 export interface PgInsert<
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TTable extends AnyPgTable,
 	TQueryResult extends QueryResultHKT,
 	TReturning extends Record<string, unknown> | undefined = undefined,
@@ -115,11 +108,9 @@ export class PgInsert<
 			this.config.onConflict = sql`do nothing`;
 		} else {
 			let targetColumn = '';
-			if (Array.isArray(config.target)) {
-				targetColumn = config.target.map((it) => this.dialect.escapeName(it.name)).join(',');
-			} else {
-				targetColumn = this.dialect.escapeName(config.target.name);
-			}
+			targetColumn = Array.isArray(config.target)
+				? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
+				: this.dialect.escapeName(config.target.name);
 
 			const whereSql = config.where ? sql` where ${config.where}` : sql``;
 			this.config.onConflict = sql`(${sql.raw(targetColumn)})${whereSql} do nothing`;
@@ -135,11 +126,9 @@ export class PgInsert<
 		const whereSql = config.where ? sql` where ${config.where}` : sql``;
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
 		let targetColumn = '';
-		if (Array.isArray(config.target)) {
-			targetColumn = config.target.map((it) => this.dialect.escapeName(it.name)).join(',');
-		} else {
-			targetColumn = this.dialect.escapeName(config.target.name);
-		}
+		targetColumn = Array.isArray(config.target)
+			? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
+			: this.dialect.escapeName(config.target.name);
 		this.config.onConflict = sql`(${sql.raw(targetColumn)})${whereSql} do update set ${setSql}`;
 		return this;
 	}
@@ -150,7 +139,7 @@ export class PgInsert<
 	}
 
 	toSQL(): Simplify<Omit<Query, 'typings'>> {
-		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
 

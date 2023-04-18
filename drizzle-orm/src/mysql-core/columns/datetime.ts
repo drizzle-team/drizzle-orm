@@ -53,7 +53,7 @@ export class MySqlDateTime<
 	}
 
 	getSQLType(): string {
-		const precision = typeof this.fsp !== 'undefined' ? `(${this.fsp})` : '';
+		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
 		return `datetime${precision}`;
 	}
 
@@ -111,7 +111,7 @@ export class MySqlDateTimeString<
 	}
 
 	getSQLType(): string {
-		const precision = typeof this.fsp !== 'undefined' ? `(${this.fsp})` : '';
+		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
 		return `datetime${precision}`;
 	}
 }

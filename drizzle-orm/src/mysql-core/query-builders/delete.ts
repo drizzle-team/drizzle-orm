@@ -18,9 +18,12 @@ export interface MySqlDeleteConfig {
 	returning?: SelectedFieldsOrdered;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface MySqlDelete<
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TTable extends AnyMySqlTable,
 	TQueryResult extends QueryResultHKT,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > extends QueryPromise<QueryResultKind<TQueryResult, never>> {}
 
@@ -53,7 +56,7 @@ export class MySqlDelete<
 	}
 
 	toSQL(): Omit<Query, 'typings'> {
-		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
 

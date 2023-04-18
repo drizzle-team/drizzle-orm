@@ -25,6 +25,6 @@ export class Check {
 	}
 }
 
-export function check<TTableName extends string>(name: string, value: SQL): CheckBuilder {
+export function check(name: string, value: SQL): CheckBuilder {
 	return new CheckBuilder(name, value);
 }

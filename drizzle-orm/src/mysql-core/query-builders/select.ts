@@ -196,24 +196,28 @@ export abstract class MySqlSelectQueryBuilder<
 
 			if (typeof tableName === 'string') {
 				switch (joinType) {
-					case 'left':
+					case 'left': {
 						this.joinsNotNullableMap[tableName] = false;
 						break;
-					case 'right':
+					}
+					case 'right': {
 						this.joinsNotNullableMap = Object.fromEntries(
 							Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false]),
 						);
 						this.joinsNotNullableMap[tableName] = true;
 						break;
-					case 'inner':
+					}
+					case 'inner': {
 						this.joinsNotNullableMap[tableName] = true;
 						break;
-					case 'full':
+					}
+					case 'full': {
 						this.joinsNotNullableMap = Object.fromEntries(
 							Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false]),
 						);
 						this.joinsNotNullableMap[tableName] = false;
 						break;
+					}
 				}
 			}
 
@@ -318,7 +322,7 @@ export abstract class MySqlSelectQueryBuilder<
 	}
 
 	toSQL(): Simplify<Omit<Query, 'typings'>> {
-		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
 
@@ -336,6 +340,7 @@ export interface MySqlSelect<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},

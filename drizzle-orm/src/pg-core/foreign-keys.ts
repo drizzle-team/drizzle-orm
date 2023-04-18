@@ -40,12 +40,12 @@ export class ForeignKeyBuilder {
 	}
 
 	onUpdate(action: UpdateDeleteAction): this {
-		this._onUpdate = typeof action === 'undefined' ? 'no action' : action;
+		this._onUpdate = action === undefined ? 'no action' : action;
 		return this;
 	}
 
 	onDelete(action: UpdateDeleteAction): this {
-		this._onDelete = typeof action === 'undefined' ? 'no action' : action;
+		this._onDelete = action === undefined ? 'no action' : action;
 		return this;
 	}
 

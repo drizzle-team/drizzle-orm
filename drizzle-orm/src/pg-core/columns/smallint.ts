@@ -37,7 +37,7 @@ export class PgSmallInt<T extends ColumnBaseConfig> extends PgColumn<PgSmallIntH
 
 	override mapFromDriverValue = (value: number | string): number => {
 		if (typeof value === 'string') {
-			return parseInt(value);
+			return Number(value);
 		}
 		return value;
 	};

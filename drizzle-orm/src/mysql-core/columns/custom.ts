@@ -81,19 +81,11 @@ export class MySqlCustomColumn<T extends ColumnBaseConfig> extends MySqlColumn<M
 	}
 
 	override mapFromDriverValue(value: T['driverParam']): T['data'] {
-		if (typeof this.mapFrom === 'function') {
-			return this.mapFrom(value);
-		} else {
-			return value as T['data'];
-		}
+		return typeof this.mapFrom === 'function' ? this.mapFrom(value) : value as T['data'];
 	}
 
 	override mapToDriverValue(value: T['data']): T['driverParam'] {
-		if (typeof this.mapTo === 'function') {
-			return this.mapTo(value);
-		} else {
-			return value as T['data'];
-		}
+		return typeof this.mapTo === 'function' ? this.mapTo(value) : value as T['data'];
 	}
 }
 

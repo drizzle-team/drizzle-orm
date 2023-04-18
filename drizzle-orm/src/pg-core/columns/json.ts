@@ -52,7 +52,7 @@ export class PgJson<T extends ColumnBaseConfig> extends PgColumn<PgJsonHKT, T> {
 		if (typeof value === 'string') {
 			try {
 				return JSON.parse(value);
-			} catch (e) {
+			} catch {
 				return value as T['data'];
 			}
 		}

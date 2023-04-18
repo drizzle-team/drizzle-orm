@@ -35,19 +35,19 @@ export class PlanetScalePreparedQuery<T extends PreparedQueryConfig> extends Pre
 
 		this.logger.logQuery(this.queryString, params);
 
-		const { fields } = this;
+		const { fields, client, queryString, rawQuery, query, joinsNotNullableMap } = this;
 		if (!fields) {
-			return this.client.execute(this.queryString, params, this.rawQuery);
+			return client.execute(queryString, params, rawQuery);
 		}
 
-		const result = this.client.execute(this.queryString, params, this.query);
+		const result = client.execute(queryString, params, query);
 
 		return result.then((eQuery) =>
-			eQuery.rows.map((row) => mapResultRow<T['execute']>(fields, row as unknown[], this.joinsNotNullableMap))
+			eQuery.rows.map((row) => mapResultRow<T['execute']>(fields, row as unknown[], joinsNotNullableMap))
 		);
 	}
 
-	override async *iterator(placeholderValues?: Record<string, unknown>): AsyncGenerator<T['iterator']> {
+	override iterator(_placeholderValues?: Record<string, unknown>): AsyncGenerator<T['iterator']> {
 		throw new Error('Streaming is not supported by the PlanetScale Serverless driver');
 	}
 }

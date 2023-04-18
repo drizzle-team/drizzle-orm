@@ -22,7 +22,6 @@ export function bindIfParam(value: unknown, column: AnyColumn | SQL.Aliased): SQ
 	return value as SQLChunk;
 }
 
-
 /**
  * Test that two values are equal.
  *
@@ -30,7 +29,7 @@ export function bindIfParam(value: unknown, column: AnyColumn | SQL.Aliased): SQ
  * two NULL values are not equal, so if you want to test
  * whether a value is null, you may want to use
  * `isNull` instead.
- * 
+ *
  * ## Examples
  *
  * ```ts
@@ -63,7 +62,7 @@ export function eq(
  * two NULL values are not equal, so if you want to test
  * whether a value is not null, you may want to use
  * `isNotNull` instead.
- * 
+ *
  * ## Examples
  *
  * ```ts
@@ -92,7 +91,7 @@ export function ne(
 /**
  * Combine a list of conditions with the `and` operator. Conditions
  * that are equal `undefined` are automatically ignored.
- * 
+ *
  * ## Examples
  *
  * ```ts
@@ -111,25 +110,25 @@ export function and(...conditions: (SQL | undefined)[]): SQL | undefined {
 	}
 
 	const chunks: SQL[] = [sql.raw('(')];
-	conditions
-		.filter((c): c is Exclude<typeof c, undefined> => typeof c !== 'undefined')
-		.forEach((condition, index) => {
-			if (index === 0) {
-				chunks.push(condition);
-			} else {
-				chunks.push(sql` and `, condition);
-			}
-		});
+	for (
+		const [index, condition] of conditions
+			.filter((c): c is Exclude<typeof c, undefined> => c !== undefined).entries()
+	) {
+		if (index === 0) {
+			chunks.push(condition);
+		} else {
+			chunks.push(sql` and `, condition);
+		}
+	}
 	chunks.push(sql`)`);
 
 	return sql.fromList(chunks);
 }
 
-
 /**
  * Combine a list of conditions with the `or` operator. Conditions
  * that are equal `undefined` are automatically ignored.
- * 
+ *
  * ## Examples
  *
  * ```ts
@@ -148,15 +147,16 @@ export function or(...conditions: (SQL | undefined)[]): SQL | undefined {
 	}
 
 	const chunks: SQL[] = [sql.raw('(')];
-	conditions
-		.filter((c): c is Exclude<typeof c, undefined> => typeof c !== 'undefined')
-		.forEach((condition, index) => {
-			if (index === 0) {
-				chunks.push(condition);
-			} else {
-				chunks.push(sql` or `, condition);
-			}
-		});
+	for (
+		const [index, condition] of conditions
+			.filter((c): c is Exclude<typeof c, undefined> => c !== undefined).entries()
+	) {
+		if (index === 0) {
+			chunks.push(condition);
+		} else {
+			chunks.push(sql` or `, condition);
+		}
+	}
 	chunks.push(sql`)`);
 
 	return sql.fromList(chunks);
@@ -164,7 +164,7 @@ export function or(...conditions: (SQL | undefined)[]): SQL | undefined {
 
 /**
  * Negate the meaning of an expression using the `not` keyword.
- * 
+ *
  * ## Examples
  *
  * ```ts
@@ -176,7 +176,6 @@ export function or(...conditions: (SQL | undefined)[]): SQL | undefined {
 export function not(condition: SQL): SQL {
 	return sql`not ${condition}`;
 }
-
 
 /**
  * Test that the first expression passed is greater than
@@ -238,7 +237,6 @@ export function gte(
 	return sql`${left} >= ${bindIfParam(right, left)}`;
 }
 
-
 /**
  * Test that the first expression passed is less than
  * the second expression.
@@ -267,7 +265,6 @@ export function lt(
 ): SQL {
 	return sql`${left} < ${bindIfParam(right, left)}`;
 }
-
 
 /**
  * Test that the first expression passed is less than
@@ -298,13 +295,12 @@ export function lte(
 	return sql`${left} <= ${bindIfParam(right, left)}`;
 }
 
-
 /**
  * Test whether the first parameter, a column or expression,
  * has a value from a list passed as the second argument.
  *
  * ## Throws
- * 
+ *
  * The argument passed in the second array can’t be empty:
  * if an empty is provided, this method will throw.
  *
@@ -346,7 +342,7 @@ export function inArray(
  * second argument.
  *
  * ## Throws
- * 
+ *
  * The argument passed in the second array can’t be empty:
  * if an empty is provided, this method will throw.
  *
@@ -385,7 +381,6 @@ export function notInArray(
 
 	return sql`${column} not in ${bindIfParam(values, column)}`;
 }
-
 
 /**
  * Test whether an expression is NULL. By the SQL standard,
@@ -547,7 +542,6 @@ export function notBetween(
 ): SQL {
 	return sql`${column} not between ${bindIfParam(min, column)} and ${bindIfParam(max, column)}`;
 }
-
 
 /**
  * Compare a column to a pattern, which can include `%` and `_`

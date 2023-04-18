@@ -186,24 +186,28 @@ export abstract class PgSelectQueryBuilder<
 
 			if (typeof tableName === 'string') {
 				switch (joinType) {
-					case 'left':
+					case 'left': {
 						this.joinsNotNullableMap[tableName] = false;
 						break;
-					case 'right':
+					}
+					case 'right': {
 						this.joinsNotNullableMap = Object.fromEntries(
 							Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false]),
 						);
 						this.joinsNotNullableMap[tableName] = true;
 						break;
-					case 'inner':
+					}
+					case 'inner': {
 						this.joinsNotNullableMap[tableName] = true;
 						break;
-					case 'full':
+					}
+					case 'full': {
 						this.joinsNotNullableMap = Object.fromEntries(
 							Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false]),
 						);
 						this.joinsNotNullableMap[tableName] = false;
 						break;
+					}
 				}
 			}
 
@@ -308,7 +312,7 @@ export abstract class PgSelectQueryBuilder<
 	}
 
 	toSQL(): Simplify<Omit<Query, 'typings'>> {
-		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
 

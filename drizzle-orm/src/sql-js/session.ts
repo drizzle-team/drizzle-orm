@@ -100,22 +100,22 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	}
 
 	all(placeholderValues?: Record<string, unknown>): T['all'] {
-		const { fields } = this;
+		const { fields, joinsNotNullableMap, logger, queryString, stmt, isOneTimeQuery } = this;
 		if (fields) {
 			return this.values(placeholderValues).map((row) =>
-				mapResultRow(fields, row.map(normalizeFieldValue), this.joinsNotNullableMap)
+				mapResultRow(fields, row.map((v) => normalizeFieldValue(v)), joinsNotNullableMap)
 			);
 		}
 
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
-		this.logger.logQuery(this.queryString, params);
-		this.stmt.bind(params as BindParams);
+		logger.logQuery(queryString, params);
+		stmt.bind(params as BindParams);
 		const rows: T['all'] = [];
-		while (this.stmt.step()) {
-			rows.push(this.stmt.getAsObject());
+		while (stmt.step()) {
+			rows.push(stmt.getAsObject());
 		}
 
-		if (this.isOneTimeQuery) {
+		if (isOneTimeQuery) {
 			this.free();
 		}
 
@@ -126,20 +126,20 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
 
-		const { fields } = this;
+		const { fields, stmt, isOneTimeQuery, joinsNotNullableMap } = this;
 		if (!fields) {
-			const result = this.stmt.getAsObject(params as BindParams);
+			const result = stmt.getAsObject(params as BindParams);
 
-			if (this.isOneTimeQuery) {
+			if (isOneTimeQuery) {
 				this.free();
 			}
 
 			return result;
 		}
 
-		const row = this.stmt.get(params as BindParams);
+		const row = stmt.get(params as BindParams);
 
-		if (this.isOneTimeQuery) {
+		if (isOneTimeQuery) {
 			this.free();
 		}
 
@@ -147,7 +147,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 			return undefined;
 		}
 
-		return mapResultRow(fields, row.map(normalizeFieldValue), this.joinsNotNullableMap);
+		return mapResultRow(fields, row.map((v) => normalizeFieldValue(v)), joinsNotNullableMap);
 	}
 
 	values(placeholderValues?: Record<string, unknown>): T['values'] {

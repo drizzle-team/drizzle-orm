@@ -348,7 +348,7 @@ Expect<
 }
 
 {
-	const test = mysqlTable('test', {
+	mysqlTable('test', {
 		bigint: bigint('bigint', { mode: 'bigint' }),
 		number: bigint('number', { mode: 'number' }),
 		date: date('date').default(new Date()),
@@ -367,7 +367,7 @@ Expect<
 }
 
 {
-	const test = mysqlTable('test', {
+	mysqlTable('test', {
 		col1: decimal('col1').default('1'),
 	});
 }
@@ -408,12 +408,12 @@ Expect<
 }
 
 {
-	function getUsersTable<TSchema extends string>(schemaName: TSchema) {
+	const getUsersTable = <TSchema extends string>(schemaName: TSchema) => {
 		return mysqlSchema(schemaName).table('users', {
 			id: int('id').primaryKey(),
 			name: text('name').notNull(),
 		});
-	}
+	};
 
 	const users1 = getUsersTable('id1');
 	Expect<Equal<'id1', typeof users1._.schema>>;

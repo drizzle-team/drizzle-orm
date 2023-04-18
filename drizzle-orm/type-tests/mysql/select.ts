@@ -374,7 +374,7 @@ Expect<
 >;
 
 {
-	let authenticated = false;
+	const authenticated = false as boolean;
 
 	const result = await db
 		.select({
@@ -400,7 +400,7 @@ await db.select().from(users).for('update', { noWait: true });
 await db
 	.select()
 	.from(users)
-	// @ts-expect-error
+	// @ts-expect-error - can't use both skipLocked and noWait
 	.for('share', { noWait: true, skipLocked: true });
 
 {

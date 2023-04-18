@@ -132,7 +132,7 @@ test.before(async (t) => {
 	const ctx = t.context;
 	const connectionString = process.env['MYSQL_CONNECTION_STRING'] ?? await createDockerDB(ctx);
 
-	let sleep = 1000;
+	const sleep = 1000;
 	let timeLeft = 20000;
 	let connected = false;
 	let lastError: unknown | undefined;
@@ -170,35 +170,39 @@ test.beforeEach(async (t) => {
 	await ctx.db.execute(sql`drop table if exists \`cities\``);
 
 	await ctx.db.execute(
-		sql`create table \`userstest\` (
-			\`id\` serial primary key,
-			\`name\` text not null,
-			\`verified\` boolean not null default false,
-			\`jsonb\` json,
-			\`created_at\` timestamp not null default now()
-		)`,
+		sql`
+			create table \`userstest\` (
+				\`id\` serial primary key,
+				\`name\` text not null,
+				\`verified\` boolean not null default false,
+				\`jsonb\` json,
+				\`created_at\` timestamp not null default now()
+			)
+		`,
 	);
 
 	await ctx.db.execute(
-		sql`create table \`users2\` (
-			\`id\` serial primary key,
-			\`name\` text not null,
-			\`city_id\` int references \`cities\`(\`id\`)
-		)`,
+		sql`
+			create table \`users2\` (
+				\`id\` serial primary key,
+				\`name\` text not null,
+				\`city_id\` int references \`cities\`(\`id\`)
+			)
+		`,
 	);
 
 	await ctx.db.execute(
-		sql`create table \`cities\` (
-			\`id\` serial primary key,
-			\`name\` text not null
-		)`,
+		sql`
+			create table \`cities\` (
+				\`id\` serial primary key,
+				\`name\` text not null
+			)
+		`,
 	);
 });
 
 test.serial('select all fields', async (t) => {
 	const { db } = t.context;
-
-	const now = Date.now();
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const result = await db.select().from(usersTable);
@@ -260,8 +264,6 @@ test.serial('update returning sql', async (t) => {
 test.serial('update with returning all fields', async (t) => {
 	const { db } = t.context;
 
-	const now = Date.now();
-
 	await db.insert(usersTable).values({ name: 'John' });
 	const updatedUsers = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John'));
 
@@ -292,8 +294,6 @@ test.serial('update with returning partial', async (t) => {
 
 test.serial('delete with returning all fields', async (t) => {
 	const { db } = t.context;
-
-	const now = Date.now();
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const deletedUser = await db.delete(usersTable).where(eq(usersTable.name, 'John'));
@@ -449,7 +449,7 @@ test.serial('build query', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'select \`id\`, \`name\` from \`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\`',
+		sql: `select \`id\`, \`name\` from \`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\``,
 		params: [],
 	});
 });
@@ -700,14 +700,16 @@ test.serial('insert + select all possible dates', async (t) => {
 
 	await db.execute(sql`drop table if exists \`datestable\``);
 	await db.execute(
-		sql`create table \`datestable\` (
-			\`date\` date,
-			\`date_as_string\` date,
-			\`time\` time,
-			\`datetime\` datetime,
-			\`datetime_as_string\` datetime,
-			\`year\` year
-		)`,
+		sql`
+			create table \`datestable\` (
+				\`date\` date,
+				\`date_as_string\` date,
+				\`time\` time,
+				\`datetime\` datetime,
+				\`datetime_as_string\` datetime,
+				\`year\` year
+			)
+		`,
 	);
 
 	const date = new Date('2022-11-11');
@@ -750,12 +752,14 @@ const tableWithEnums = mysqlTable('enums_test_case', {
 test.serial('Mysql enum test case #1', async (t) => {
 	const { db } = t.context;
 
-	await db.execute(sql`create table \`enums_test_case\` (
-		\`id\` serial primary key,
-		\`enum1\` ENUM('a', 'b', 'c') not null,
-		\`enum2\` ENUM('a', 'b', 'c') default 'a',
-		\`enum3\` ENUM('a', 'b', 'c') not null default 'b'
-	)`);
+	await db.execute(sql`
+		create table \`enums_test_case\` (
+			\`id\` serial primary key,
+			\`enum1\` ENUM('a', 'b', 'c') not null,
+			\`enum2\` ENUM('a', 'b', 'c') default 'a',
+			\`enum3\` ENUM('a', 'b', 'c') not null default 'b'
+		)
+	`);
 
 	await db.insert(tableWithEnums).values(
 		{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },
@@ -873,18 +877,22 @@ test.serial('join subquery', async (t) => {
 	await db.execute(sql`drop table if exists \`course_categories\``);
 
 	await db.execute(
-		sql`create table \`course_categories\` (
-			\`id\` serial primary key,
-			\`name\` text not null
-		)`,
+		sql`
+			create table \`course_categories\` (
+				\`id\` serial primary key,
+				\`name\` text not null
+			)
+		`,
 	);
 
 	await db.execute(
-		sql`create table \`courses\` (
-			\`id\` serial primary key,
-			\`name\` text not null,
-			\`category_id\` int references \`course_categories\`(\`id\`)
-		)`,
+		sql`
+			create table \`courses\` (
+				\`id\` serial primary key,
+				\`name\` text not null,
+				\`category_id\` int references \`course_categories\`(\`id\`)
+			)
+		`,
 	);
 
 	await db.insert(courseCategoriesTable).values(
@@ -936,13 +944,15 @@ test.serial('with ... select', async (t) => {
 
 	await db.execute(sql`drop table if exists \`orders\``);
 	await db.execute(
-		sql`create table \`orders\` (
-			\`id\` serial primary key,
-			\`region\` text not null,
-			\`product\` text not null,
-			\`amount\` int not null,
-			\`quantity\` int not null
-		)`,
+		sql`
+			create table \`orders\` (
+				\`id\` serial primary key,
+				\`region\` text not null,
+				\`product\` text not null,
+				\`amount\` int not null,
+				\`quantity\` int not null
+			)
+		`,
 	);
 
 	await db.insert(orders).values(
@@ -1326,7 +1336,7 @@ test.serial('timestamp timezone', async (t) => {
 	const users = await db.select().from(usersTable);
 
 	// check that the timestamps are set correctly for default times
-	t.assert(Math.abs(users[0]!.createdAt.getTime() - new Date().getTime()) < 2000);
+	t.assert(Math.abs(users[0]!.createdAt.getTime() - Date.now()) < 2000);
 
 	// check that the timestamps are set correctly for non default times
 	t.assert(Math.abs(users[1]!.createdAt.getTime() - date.getTime()) < 2000);

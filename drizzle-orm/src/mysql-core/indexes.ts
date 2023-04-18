@@ -42,6 +42,7 @@ export interface AnyIndexBuilder {
 	build(table: AnyMySqlTable): Index;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface IndexBuilder extends AnyIndexBuilder {}
 
 export class IndexBuilder implements AnyIndexBuilder {

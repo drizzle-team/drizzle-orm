@@ -49,7 +49,7 @@ export class MySqlChar<T extends ColumnBaseConfig & WithEnum>
 	readonly enumValues: T['enumValues'] = (this.config.enum ?? []) as T['enumValues'];
 
 	getSQLType(): string {
-		return typeof this.length !== 'undefined' ? `char(${this.length})` : `char`;
+		return this.length === undefined ? `char` : `char(${this.length})`;
 	}
 }
 

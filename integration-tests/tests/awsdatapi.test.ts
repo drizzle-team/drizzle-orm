@@ -58,20 +58,20 @@ test.beforeEach(async (t) => {
 	await ctx.db.execute(sql`drop schema public cascade`);
 	await ctx.db.execute(sql`create schema public`);
 	await ctx.db.execute(
-		sql`create table users (
-			id serial primary key,
-			name text not null,
-			verified boolean not null default false, 
-			jsonb jsonb,
-			created_at timestamptz not null default now()
-		)`,
+		sql`
+			create table users (
+				id serial primary key,
+				name text not null,
+				verified boolean not null default false, 
+				jsonb jsonb,
+				created_at timestamptz not null default now()
+			)
+		`,
 	);
 });
 
 test.serial('select all fields', async (t) => {
 	const { db } = t.context;
-
-	const now = Date.now();
 
 	const insertResult = await db.insert(usersTable).values({ name: 'John' });
 
@@ -141,8 +141,6 @@ test.serial('update returning sql', async (t) => {
 test.serial('update with returning all fields', async (t) => {
 	const { db } = t.context;
 
-	const now = Date.now();
-
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning();
 
@@ -165,8 +163,6 @@ test.serial('update with returning partial', async (t) => {
 
 test.serial('delete with returning all fields', async (t) => {
 	const { db } = t.context;
-
-	const now = Date.now();
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.delete(usersTable).where(eq(usersTable.name, 'John')).returning();

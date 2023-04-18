@@ -50,7 +50,7 @@ export class PgReal<T extends ColumnBaseConfig> extends PgColumn<PgRealHKT, T> {
 
 	override mapFromDriverValue = (value: string | number): number => {
 		if (typeof value === 'string') {
-			return parseFloat(value);
+			return Number.parseFloat(value);
 		}
 		return value;
 	};

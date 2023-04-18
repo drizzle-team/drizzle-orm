@@ -47,7 +47,7 @@ export class MySqlBinary<T extends ColumnBaseConfig> extends MySqlColumn<
 	length: number | undefined = this.config.length;
 
 	getSQLType(): string {
-		return typeof this.length !== 'undefined' ? `binary(${this.length})` : `binary`;
+		return this.length === undefined ? `binary` : `binary(${this.length})`;
 	}
 }
 
