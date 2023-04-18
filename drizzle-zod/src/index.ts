@@ -139,7 +139,7 @@ export type BuildInsertSchema<
 
 export type BuildSelectSchema<
 	TTable extends Table,
-	TRefine extends Refine<TTable, 'select'> | {},
+	TRefine extends Refine<TTable, 'select'>,
 	TNoOptional extends boolean = false,
 > = Simplify<
 	{
@@ -165,7 +165,7 @@ export function createInsertSchema<
 		[K in keyof TRefine]: K extends keyof TTable['_']['columns'] ? TRefine[K]
 			: DrizzleTypeError<`Column '${K & string}' does not exist in table '${TTable['_']['name']}'`>;
 	},
-): z.ZodObject<BuildInsertSchema<TTable, TRefine>> {
+): z.ZodObject<BuildInsertSchema<TTable, Equal<TRefine, Refine<TTable, 'insert'>> extends true ? {} : TRefine>> {
 	const columns = getTableColumns(table);
 	const columnEntries = Object.entries(columns);
 
@@ -197,7 +197,7 @@ export function createInsertSchema<
 		}
 	}
 
-	return z.object(schemaEntries) as z.ZodObject<BuildInsertSchema<TTable, TRefine>>;
+	return z.object(schemaEntries) as any;
 }
 
 export function createSelectSchema<
@@ -212,7 +212,7 @@ export function createSelectSchema<
 		[K in keyof TRefine]: K extends keyof TTable['_']['columns'] ? TRefine[K]
 			: DrizzleTypeError<`Column '${K & string}' does not exist in table '${TTable['_']['name']}'`>;
 	},
-): z.ZodObject<BuildSelectSchema<TTable, TRefine>> {
+): z.ZodObject<BuildSelectSchema<TTable, Equal<TRefine, Refine<TTable, 'select'>> extends true ? {} : TRefine>> {
 	const columns = getTableColumns(table);
 	const columnEntries = Object.entries(columns);
 
@@ -242,7 +242,7 @@ export function createSelectSchema<
 		}
 	}
 
-	return z.object(schemaEntries) as z.ZodObject<BuildSelectSchema<TTable, TRefine>>;
+	return z.object(schemaEntries) as any;
 }
 
 function isWithEnum(column: AnyColumn): column is typeof column & WithEnum {
