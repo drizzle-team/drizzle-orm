@@ -2,7 +2,7 @@ import test from 'ava';
 import { blob, integer, numeric, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { z } from 'zod';
 import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
-import { assertSchemasEqual } from './utils';
+import { expectSchemaShape } from './utils';
 
 const blobJsonSchema = z.object({
 	foo: z.string(),
@@ -53,7 +53,7 @@ test('users insert schema', (t) => {
 		role: z.enum(['admin', 'manager', 'user']).optional(),
 	});
 
-	assertSchemasEqual(t, actual, expected);
+	expectSchemaShape(t, expected).from(actual);
 });
 
 test('users insert schema w/ defaults', (t) => {
@@ -70,7 +70,7 @@ test('users insert schema w/ defaults', (t) => {
 		role: z.enum(['admin', 'user']).optional(),
 	});
 
-	assertSchemasEqual(t, actual, expected);
+	expectSchemaShape(t, expected).from(actual);
 });
 
 test('users select schema', (t) => {
@@ -106,7 +106,7 @@ test('users select schema', (t) => {
 		role: z.enum(['admin', 'manager', 'user']),
 	}).required();
 
-	assertSchemasEqual(t, actual, expected);
+	expectSchemaShape(t, expected).from(actual);
 });
 
 test('users select schema w/ defaults', (t) => {
@@ -123,5 +123,5 @@ test('users select schema w/ defaults', (t) => {
 		role: z.enum(['admin', 'user']),
 	}).required();
 
-	assertSchemasEqual(t, actual, expected);
+	expectSchemaShape(t, expected).from(actual);
 });

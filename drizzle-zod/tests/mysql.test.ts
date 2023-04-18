@@ -31,7 +31,7 @@ import {
 } from 'drizzle-orm/mysql-core';
 import { z } from 'zod';
 import { createInsertSchema, createSelectSchema, jsonSchema } from '~/index';
-import { assertSchemasEqual } from './utils';
+import { expectSchemaShape } from './utils';
 
 const customInt = customType<{ data: number }>({
 	dataType() {
@@ -122,7 +122,7 @@ test('insert schema', (t) => {
 		year: z.number(),
 	});
 
-	assertSchemasEqual(t, actual, expected);
+	expectSchemaShape(t, expected).from(actual);
 });
 
 test('select schema', (t) => {
@@ -168,5 +168,5 @@ test('select schema', (t) => {
 		year: z.number(),
 	});
 
-	assertSchemasEqual(t, actual, expected);
+	expectSchemaShape(t, expected).from(actual);
 });
