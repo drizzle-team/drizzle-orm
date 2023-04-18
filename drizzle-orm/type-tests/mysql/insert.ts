@@ -19,7 +19,7 @@ const insertStmt = db.insert(users).values({
 	class: 'A',
 	age1: 1,
 	enumCol: 'a',
-}).prepare('insertStmt');
+}).prepare();
 const insertPrepared = await insertStmt.execute();
 Expect<Equal<MySqlRawQueryResult, typeof insertPrepared>>;
 
@@ -36,7 +36,7 @@ const insertSqlStmt = db.insert(users).values({
 	class: 'A',
 	age1: 1,
 	enumCol: sql`foobar`,
-}).prepare('insertSqlStmt');
+}).prepare();
 const insertSqlPrepared = await insertSqlStmt.execute();
 Expect<Equal<MySqlRawQueryResult, typeof insertSqlPrepared>>;
 
@@ -53,7 +53,7 @@ const insertReturningStmt = db.insert(users).values({
 	class: 'A',
 	age1: 1,
 	enumCol: 'a',
-}).prepare('insertReturningStmt');
+}).prepare();
 const insertReturningPrepared = await insertReturningStmt.execute();
 Expect<Equal<MySqlRawQueryResult, typeof insertReturningPrepared>>;
 
@@ -63,20 +63,16 @@ const insertReturningPartial = await db.insert(users).values({
 	age1: 1,
 	enumCol: 'a',
 });
-Expect<
-	Equal<MySqlRawQueryResult, typeof insertReturningPartial>
->;
+Expect<Equal<MySqlRawQueryResult, typeof insertReturningPartial>>;
 
 const insertReturningPartialStmt = db.insert(users).values({
 	homeCity: 1,
 	class: 'A',
 	age1: 1,
 	enumCol: 'a',
-}).prepare('insertReturningPartialStmt');
+}).prepare();
 const insertReturningPartialPrepared = await insertReturningPartialStmt.execute();
-Expect<
-	Equal<MySqlRawQueryResult, typeof insertReturningPartialPrepared>
->;
+Expect<Equal<MySqlRawQueryResult, typeof insertReturningPartialPrepared>>;
 
 const insertReturningSql = await db.insert(users).values({
 	homeCity: 1,
@@ -84,20 +80,16 @@ const insertReturningSql = await db.insert(users).values({
 	age1: sql`2 + 2`,
 	enumCol: 'a',
 });
-Expect<
-	Equal<MySqlRawQueryResult, typeof insertReturningSql>
->;
+Expect<Equal<MySqlRawQueryResult, typeof insertReturningSql>>;
 
 const insertReturningSqlStmt = db.insert(users).values({
 	homeCity: 1,
 	class: 'A',
 	age1: sql`2 + 2`,
 	enumCol: 'a',
-}).prepare('insertReturningSqlStmt');
+}).prepare();
 const insertReturningSqlPrepared = await insertReturningSqlStmt.execute();
-Expect<
-	Equal<MySqlRawQueryResult, typeof insertReturningSqlPrepared>
->;
+Expect<Equal<MySqlRawQueryResult, typeof insertReturningSqlPrepared>>;
 
 {
 	const users = mysqlTable('users', {

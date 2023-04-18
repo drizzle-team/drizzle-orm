@@ -37,20 +37,22 @@ export class QueryBuilderInstance {
 	with(...queries: WithSubquery[]) {
 		const self = this;
 
-		function select(): MySqlSelectBuilder<undefined, 'qb'>;
-		function select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, 'qb'>;
+		function select(): MySqlSelectBuilder<undefined, never, 'qb'>;
+		function select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, never, 'qb'>;
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): MySqlSelectBuilder<TSelection | undefined, 'qb'> {
+		): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
 			return new self.MySqlSelectBuilder(fields ?? undefined, undefined, self.getDialect(), queries);
 		}
 
 		return { select };
 	}
 
-	select(): MySqlSelectBuilder<undefined, 'qb'>;
-	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, 'qb'>;
-	select<TSelection extends SelectedFields>(fields?: TSelection): MySqlSelectBuilder<TSelection | undefined, 'qb'> {
+	select(): MySqlSelectBuilder<undefined, never, 'qb'>;
+	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, never, 'qb'>;
+	select<TSelection extends SelectedFields>(
+		fields?: TSelection,
+	): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
 		return new this.MySqlSelectBuilder(fields ?? undefined, undefined, this.getDialect());
 	}
 

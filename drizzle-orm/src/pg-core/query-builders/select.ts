@@ -90,10 +90,14 @@ export abstract class PgSelectQueryBuilder<
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
-> extends QueryBuilder<BuildSubquerySelection<TSelection, TNullabilityMap>> {
+> extends QueryBuilder<
+	BuildSubquerySelection<TSelection, TNullabilityMap>,
+	SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
+> {
 	override readonly _: {
 		readonly selectMode: TSelectMode;
 		readonly selection: TSelection;
+		readonly result: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
 		readonly selectedFields: BuildSubquerySelection<TSelection, TNullabilityMap>;
 	};
 

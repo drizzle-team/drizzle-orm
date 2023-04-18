@@ -1,5 +1,6 @@
 import { TransactionRollbackError } from '~/errors';
 import { type Query, type SQL, sql } from '~/sql';
+import { type Assume, type Equal } from '~/utils';
 import { MySqlDatabase } from './db';
 import type { MySqlDialect } from './dialect';
 import type { SelectedFieldsOrdered } from './query-builders/select.types';
@@ -16,9 +17,21 @@ export type QueryResultKind<TKind extends QueryResultHKT, TRow> = (TKind & {
 
 export interface PreparedQueryConfig {
 	execute: unknown;
-	all: unknown;
-	values: unknown;
+	iterator: unknown;
 }
+
+export interface PreparedQueryHKT {
+	readonly $brand: 'MySqlPreparedQueryHKT';
+	readonly config: unknown;
+	readonly type: unknown;
+}
+
+export type PreparedQueryKind<
+	TKind extends PreparedQueryHKT,
+	TConfig extends PreparedQueryConfig,
+	TAssume extends boolean = false,
+> = Equal<TAssume, true> extends true ? Assume<(TKind & { readonly config: TConfig })['type'], PreparedQuery<TConfig>>
+	: (TKind & { readonly config: TConfig })['type'];
 
 export abstract class PreparedQuery<T extends PreparedQueryConfig> {
 	/** @internal */
@@ -26,8 +39,7 @@ export abstract class PreparedQuery<T extends PreparedQueryConfig> {
 
 	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
 
-	/** @internal */
-	abstract all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;
+	abstract iterator(placeholderValues?: Record<string, unknown>): AsyncGenerator<T['iterator']>;
 }
 
 export interface MySqlTransactionConfig {
@@ -36,33 +48,28 @@ export interface MySqlTransactionConfig {
 	isolationLevel: 'read uncommitted' | 'read committed' | 'repeatable read' | 'serializable';
 }
 
-export abstract class MySqlSession<TQueryResult extends QueryResultHKT = QueryResultHKT> {
+export abstract class MySqlSession<
+	TQueryResult extends QueryResultHKT = QueryResultHKT,
+	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
+> {
 	constructor(protected dialect: MySqlDialect) {}
 
-	abstract prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
+	abstract prepareQuery<T extends PreparedQueryConfig, TPreparedQueryHKT extends PreparedQueryHKT>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-	): PreparedQuery<T>;
+	): PreparedQueryKind<TPreparedQueryHKT, T>;
 
 	execute<T>(query: SQL): Promise<T> {
-		return this.prepareQuery<PreparedQueryConfig & { execute: T }>(
+		return this.prepareQuery<PreparedQueryConfig & { execute: T }, PreparedQueryHKTBase>(
 			this.dialect.sqlToQuery(query),
-			undefined,
 			undefined,
 		).execute();
 	}
 
-	all<T = unknown>(query: SQL): Promise<T[]> {
-		return this.prepareQuery<PreparedQueryConfig & { all: T[] }>(
-			this.dialect.sqlToQuery(query),
-			undefined,
-			undefined,
-		).all();
-	}
+	abstract all<T = unknown>(query: SQL): Promise<T[]>;
 
 	abstract transaction<T>(
-		transaction: (tx: MySqlTransaction<TQueryResult>) => Promise<T>,
+		transaction: (tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT>) => Promise<T>,
 		config?: MySqlTransactionConfig,
 	): Promise<T>;
 
@@ -91,7 +98,10 @@ export abstract class MySqlSession<TQueryResult extends QueryResultHKT = QueryRe
 	}
 }
 
-export abstract class MySqlTransaction<TQueryResult extends QueryResultHKT> extends MySqlDatabase<TQueryResult> {
+export abstract class MySqlTransaction<
+	TQueryResult extends QueryResultHKT,
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
+> extends MySqlDatabase<TQueryResult, TPreparedQueryHKT> {
 	constructor(dialect: MySqlDialect, session: MySqlSession, protected readonly nestedIndex = 0) {
 		super(dialect, session);
 	}
@@ -101,5 +111,11 @@ export abstract class MySqlTransaction<TQueryResult extends QueryResultHKT> exte
 	}
 
 	/** Nested transactions (aka savepoints) only work with InnoDB engine. */
-	abstract override transaction<T>(transaction: (tx: MySqlTransaction<TQueryResult>) => Promise<T>): Promise<T>;
+	abstract override transaction<T>(
+		transaction: (tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT>) => Promise<T>,
+	): Promise<T>;
+}
+
+export interface PreparedQueryHKTBase extends PreparedQueryHKT {
+	type: PreparedQuery<Assume<this['config'], PreparedQueryConfig>>;
 }

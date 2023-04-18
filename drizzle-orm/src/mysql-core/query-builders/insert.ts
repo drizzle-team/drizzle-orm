@@ -1,8 +1,9 @@
 import type { MySqlDialect } from '~/mysql-core/dialect';
 import type {
 	MySqlSession,
-	PreparedQuery,
 	PreparedQueryConfig,
+	PreparedQueryHKTBase,
+	PreparedQueryKind,
 	QueryResultHKT,
 	QueryResultKind,
 } from '~/mysql-core/session';
@@ -32,7 +33,11 @@ export type MySqlInsertValue<TTable extends AnyMySqlTable> = Simplify<
 	}
 >;
 
-export class MySqlInsertBuilder<TTable extends AnyMySqlTable, TQueryResult extends QueryResultHKT> {
+export class MySqlInsertBuilder<
+	TTable extends AnyMySqlTable,
+	TQueryResult extends QueryResultHKT,
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
+> {
 	private shouldIgnore: boolean = false;
 
 	constructor(
@@ -46,15 +51,15 @@ export class MySqlInsertBuilder<TTable extends AnyMySqlTable, TQueryResult exten
 		return this;
 	}
 
-	values(value: MySqlInsertValue<TTable>): MySqlInsert<TTable, TQueryResult>;
-	values(values: MySqlInsertValue<TTable>[]): MySqlInsert<TTable, TQueryResult>;
+	values(value: MySqlInsertValue<TTable>): MySqlInsert<TTable, TQueryResult, TPreparedQueryHKT>;
+	values(values: MySqlInsertValue<TTable>[]): MySqlInsert<TTable, TQueryResult, TPreparedQueryHKT>;
 	/**
 	 * @deprecated Pass the array of values without spreading it.
 	 */
-	values(...values: MySqlInsertValue<TTable>[]): MySqlInsert<TTable, TQueryResult>;
+	values(...values: MySqlInsertValue<TTable>[]): MySqlInsert<TTable, TQueryResult, TPreparedQueryHKT>;
 	values(
 		...values: MySqlInsertValue<TTable>[] | [MySqlInsertValue<TTable>] | [MySqlInsertValue<TTable>[]]
-	): MySqlInsert<TTable, TQueryResult> {
+	): MySqlInsert<TTable, TQueryResult, TPreparedQueryHKT> {
 		if (values.length === 1) {
 			if (Array.isArray(values[0])) {
 				values = values[0];
@@ -80,13 +85,18 @@ export class MySqlInsertBuilder<TTable extends AnyMySqlTable, TQueryResult exten
 	}
 }
 
-export interface MySqlInsert<TTable extends AnyMySqlTable, TQueryResult extends QueryResultHKT, TReturning = undefined>
-	extends QueryPromise<QueryResultKind<TQueryResult, never>>, SQLWrapper
-{}
-export class MySqlInsert<TTable extends AnyMySqlTable, TQueryResult extends QueryResultHKT, TReturning = undefined>
-	extends QueryPromise<QueryResultKind<TQueryResult, never>>
-	implements SQLWrapper
-{
+export interface MySqlInsert<
+	TTable extends AnyMySqlTable,
+	TQueryResult extends QueryResultHKT,
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TReturning = undefined,
+> extends QueryPromise<QueryResultKind<TQueryResult, never>>, SQLWrapper {}
+export class MySqlInsert<
+	TTable extends AnyMySqlTable,
+	TQueryResult extends QueryResultHKT,
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TReturning = undefined,
+> extends QueryPromise<QueryResultKind<TQueryResult, never>> implements SQLWrapper {
 	declare protected $table: TTable;
 	declare protected $return: TReturning;
 
@@ -122,23 +132,30 @@ export class MySqlInsert<TTable extends AnyMySqlTable, TQueryResult extends Quer
 		return rest;
 	}
 
-	private _prepare(name?: string): PreparedQuery<
-		PreparedQueryConfig & {
-			execute: QueryResultKind<TQueryResult, never>;
-		}
-	> {
-		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
-	}
-
-	prepare(name: string): PreparedQuery<
-		PreparedQueryConfig & {
-			execute: QueryResultKind<TQueryResult, never>;
-		}
-	> {
-		return this._prepare(name);
+	prepare() {
+		return this.session.prepareQuery(
+			this.dialect.sqlToQuery(this.getSQL()),
+			this.config.returning,
+		) as PreparedQueryKind<
+			TPreparedQueryHKT,
+			PreparedQueryConfig & {
+				execute: QueryResultKind<TQueryResult, never>;
+				iterator: never;
+			},
+			true
+		>;
 	}
 
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this._prepare().execute(placeholderValues);
+		return this.prepare().execute(placeholderValues);
 	};
+
+	private createIterator = (): ReturnType<this['prepare']>['iterator'] => {
+		const self = this;
+		return async function*(placeholderValues) {
+			yield* self.prepare().iterator(placeholderValues);
+		};
+	};
+
+	iterator = this.createIterator();
 }
