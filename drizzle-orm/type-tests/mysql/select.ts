@@ -26,6 +26,7 @@ import { param, sql } from '~/sql';
 
 import type { Equal } from 'type-tests/utils';
 import { Expect } from 'type-tests/utils';
+import { type InferModel } from '~/table';
 import { db } from './db';
 import { cities, classes, newYorkers, users } from './tables';
 
@@ -425,4 +426,11 @@ await db
 			typeof result
 		>
 	>;
+}
+
+{
+	const query = db.select().from(users).prepare().iterator();
+	for await (const row of query) {
+		Expect<Equal<InferModel<typeof users>, typeof row>>();
+	}
 }

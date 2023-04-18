@@ -17,18 +17,22 @@ import type {
 	MySqlSession,
 	MySqlTransaction,
 	MySqlTransactionConfig,
+	PreparedQueryHKTBase,
 	QueryResultHKT,
 	QueryResultKind,
 } from './session';
 import type { WithSubqueryWithSelection } from './subquery';
 import type { AnyMySqlTable } from './table';
 
-export class MySqlDatabase<TQueryResult extends QueryResultHKT> {
+export class MySqlDatabase<
+	TQueryResult extends QueryResultHKT,
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
+> {
 	constructor(
 		/** @internal */
 		readonly dialect: MySqlDialect,
 		/** @internal */
-		readonly session: MySqlSession<any>,
+		readonly session: MySqlSession<any, any>,
 	) {}
 
 	$with<TAlias extends string>(alias: TAlias) {
@@ -51,30 +55,32 @@ export class MySqlDatabase<TQueryResult extends QueryResultHKT> {
 	with(...queries: WithSubquery[]) {
 		const self = this;
 
-		function select(): MySqlSelectBuilder<undefined>;
-		function select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection>;
-		function select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined> {
+		function select(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
+		function select<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
+		function select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
 			return new MySqlSelectBuilder(fields ?? undefined, self.session, self.dialect, queries);
 		}
 
 		return { select };
 	}
 
-	select(): MySqlSelectBuilder<undefined>;
-	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection>;
-	select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined> {
+	select(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
+	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
+	select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
 		return new MySqlSelectBuilder(fields ?? undefined, this.session, this.dialect);
 	}
 
-	update<TTable extends AnyMySqlTable>(table: TTable): MySqlUpdateBuilder<TTable, TQueryResult> {
+	update<TTable extends AnyMySqlTable>(table: TTable): MySqlUpdateBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
 		return new MySqlUpdateBuilder(table, this.session, this.dialect);
 	}
 
-	insert<TTable extends AnyMySqlTable>(table: TTable): MySqlInsertBuilder<TTable, TQueryResult> {
+	insert<TTable extends AnyMySqlTable>(table: TTable): MySqlInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
 		return new MySqlInsertBuilder(table, this.session, this.dialect);
 	}
 
-	delete<TTable extends AnyMySqlTable>(table: TTable): MySqlDelete<TTable, TQueryResult> {
+	delete<TTable extends AnyMySqlTable>(table: TTable): MySqlDelete<TTable, TQueryResult, TPreparedQueryHKT> {
 		return new MySqlDelete(table, this.session, this.dialect);
 	}
 
@@ -85,7 +91,7 @@ export class MySqlDatabase<TQueryResult extends QueryResultHKT> {
 	}
 
 	transaction<T>(
-		transaction: (tx: MySqlTransaction<TQueryResult>, config?: MySqlTransactionConfig) => Promise<T>,
+		transaction: (tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT>, config?: MySqlTransactionConfig) => Promise<T>,
 		config?: MySqlTransactionConfig,
 	): Promise<T> {
 		return this.session.transaction(transaction, config);
