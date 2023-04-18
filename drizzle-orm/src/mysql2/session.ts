@@ -4,6 +4,7 @@ import {
 	type FieldPacket,
 	type OkPacket,
 	type Pool,
+	type PoolConnection,
 	type QueryOptions,
 	type ResultSetHeader,
 	type RowDataPacket,
@@ -206,6 +207,10 @@ export class MySql2Session extends MySqlSession<MySql2QueryResultHKT> {
 		} catch (err) {
 			await tx.execute(sql`rollback`);
 			throw err;
+		} finally {
+			if (isPool(this.client)) {
+				(session.client as PoolConnection).release();
+			}
 		}
 	}
 }

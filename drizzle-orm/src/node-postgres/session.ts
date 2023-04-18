@@ -129,6 +129,10 @@ export class NodePgSession extends PgSession<NodePgQueryResultHKT> {
 		} catch (error) {
 			await tx.execute(sql`rollback`);
 			throw error;
+		} finally {
+			if (this.client instanceof Pool) {
+				(session.client as PoolClient).release();
+			}
 		}
 	}
 }

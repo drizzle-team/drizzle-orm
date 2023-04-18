@@ -130,6 +130,10 @@ export class NeonSession extends PgSession<NeonQueryResultHKT> {
 		} catch (error) {
 			await tx.execute(sql`rollback`);
 			throw error;
+		} finally {
+			if (this.client instanceof Pool) {
+				(session.client as PoolClient).release();
+			}
 		}
 	}
 }
