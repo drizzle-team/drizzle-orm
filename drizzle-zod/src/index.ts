@@ -155,7 +155,7 @@ export type BuildSelectSchema<
 
 export function createInsertSchema<
 	TTable extends Table,
-	TRefine extends Refine<TTable, 'insert'> = {},
+	TRefine extends Refine<TTable, 'insert'> = Refine<TTable, 'insert'>,
 >(
 	table: TTable,
 	/**
@@ -202,7 +202,7 @@ export function createInsertSchema<
 
 export function createSelectSchema<
 	TTable extends Table,
-	TRefine extends Refine<TTable, 'select'> = {},
+	TRefine extends Refine<TTable, 'select'> = Refine<TTable, 'select'>,
 >(
 	table: TTable,
 	/**

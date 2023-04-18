@@ -1423,3 +1423,63 @@ test.serial('join view as subquery', async (t) => {
 	await db.run(sql`drop view ${newYorkers}`);
 	await db.run(sql`drop table ${users}`);
 });
+
+test.serial('insert with onConflict do nothing', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ id: 1, name: 'John' }).run();
+
+	await db
+		.insert(usersTable)
+		.values({ id: 1, name: 'John' })
+		.onConflictDoNothing()
+		.run();
+
+	const res = await db
+		.select({ id: usersTable.id, name: usersTable.name})
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+		t.deepEqual(res, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('insert with onConflict do nothing using target', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ id: 1, name: 'John' }).run();
+
+	await db
+		.insert(usersTable)
+		.values({ id: 1, name: 'John' })
+		.onConflictDoNothing({ target: usersTable.id })
+		.run();
+
+	const res = await db
+		.select({ id: usersTable.id, name: usersTable.name})
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+		t.deepEqual(res, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('insert with onConflict do update', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ id: 1, name: 'John' }).run();
+
+	await db
+		.insert(usersTable)
+		.values({ id: 1, name: 'John' })
+		.onConflictDoUpdate({ target: usersTable.id, set: { name: 'John1' }})
+		.run();
+
+	const res = await db
+		.select({ id: usersTable.id, name: usersTable.name})
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+		t.deepEqual(res, [{ id: 1, name: 'John1' }]);
+});
