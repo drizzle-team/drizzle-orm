@@ -15,7 +15,7 @@ export abstract class QueryPromise<T> implements Promise<T> {
 			},
 			(reason) => {
 				onFinally?.();
-				return Promise.reject(reason);
+				throw reason;
 			},
 		);
 	}

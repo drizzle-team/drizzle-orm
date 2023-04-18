@@ -39,7 +39,7 @@ export class MySqlInt<T extends ColumnBaseConfig> extends MySqlColumnWithAutoInc
 
 	override mapFromDriverValue(value: number | string): number {
 		if (typeof value === 'string') {
-			return parseInt(value);
+			return Number(value);
 		}
 		return value;
 	}

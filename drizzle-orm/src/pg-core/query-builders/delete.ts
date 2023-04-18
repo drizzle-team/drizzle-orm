@@ -14,7 +14,9 @@ export interface PgDeleteConfig {
 	returning?: SelectedFieldsOrdered;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface PgDelete<
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TTable extends AnyPgTable,
 	TQueryResult extends QueryResultHKT,
 	TReturning extends Record<string, unknown> | undefined = undefined,
@@ -58,7 +60,7 @@ export class PgDelete<
 	}
 
 	toSQL(): Simplify<Omit<Query, 'typings'>> {
-		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
 

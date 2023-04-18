@@ -132,7 +132,7 @@ test.before(async (t) => {
 	const ctx = t.context;
 	const connectionString = process.env['PG_CONNECTION_STRING'] ?? await createDockerDB(ctx);
 
-	let sleep = 250;
+	const sleep = 250;
 	let timeLeft = 5000;
 	let connected = false;
 	let lastError: unknown | undefined;
@@ -140,7 +140,9 @@ test.before(async (t) => {
 		try {
 			ctx.client = postgres(connectionString, {
 				max: 1,
-				onnotice: () => {},
+				onnotice: () => {
+					// disable notices
+				},
 			});
 			await ctx.client`select 1`;
 			connected = true;
@@ -169,48 +171,60 @@ test.beforeEach(async (t) => {
 	await ctx.db.execute(sql`drop schema public cascade`);
 	await ctx.db.execute(sql`create schema public`);
 	await ctx.db.execute(
-		sql`create table users (
-			id serial primary key,
-			name text not null,
-			verified boolean not null default false, 
-			jsonb jsonb,
-			created_at timestamptz not null default now()
-		)`,
+		sql`
+			create table users (
+				id serial primary key,
+				name text not null,
+				verified boolean not null default false, 
+				jsonb jsonb,
+				created_at timestamptz not null default now()
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table cities (
-			id serial primary key,
-			name text not null
-		)`,
+		sql`
+			create table cities (
+				id serial primary key,
+				name text not null
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table users2 (
-			id serial primary key,
-			name text not null,
-			city_id integer references cities(id)
-		)`,
+		sql`
+			create table users2 (
+				id serial primary key,
+				name text not null,
+				city_id integer references cities(id)
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table course_categories (
-			id serial primary key,
-			name text not null
-		)`,
+		sql`
+			create table course_categories (
+				id serial primary key,
+				name text not null
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table courses (
-			id serial primary key,
-			name text not null,
-			category_id integer references course_categories(id)
-		)`,
+		sql`
+			create table courses (
+				id serial primary key,
+				name text not null,
+				category_id integer references course_categories(id)
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table orders (
-			id serial primary key,
-			region text not null,
-			product text not null,
-			amount integer not null,
-			quantity integer not null
-		)`,
+		sql`
+			create table orders (
+				id serial primary key,
+				region text not null,
+				product text not null,
+				amount integer not null,
+				quantity integer not null
+			)
+		`,
 	);
 });
 
@@ -1045,7 +1059,7 @@ test.serial('select count w/ custom mapper', async (t) => {
 	function count(value: AnyPgColumn | SQLWrapper): SQL<number>;
 	function count(value: AnyPgColumn | SQLWrapper, alias: string): SQL.Aliased<number>;
 	function count(value: AnyPgColumn | SQLWrapper, alias?: string): SQL<number> | SQL.Aliased<number> {
-		const result = sql`count(${value})`.mapWith((v) => parseInt(v, 10));
+		const result = sql`count(${value})`.mapWith(Number);
 		if (!alias) {
 			return result;
 		}
@@ -1073,6 +1087,7 @@ test.serial('select for ...', (t) => {
 
 	t.regex(
 		query.sql,
+		// eslint-disable-next-line unicorn/better-regex
 		/select ("(id|name|city_id)"(, )?){3} from "users2" for update for no key update of "users2" for no key update of "users2" skip locked for share of "users2" no wait/,
 	);
 });
@@ -1439,20 +1454,22 @@ test.serial('select from enum', async (t) => {
 		} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,
 	);
 	await db.execute(sql`create type ${name(categoryEnum.enumName)} as enum ('upper_body', 'lower_body', 'full_body')`);
-	await db.execute(sql`create table ${exercises} (
-		id serial primary key,
-		name varchar not null,
-		force force,
-		level level,
-		mechanic mechanic,
-		equipment equipment,
-		instructions text,
-		category category,
-		primary_muscles muscle[],
-		secondary_muscles muscle[],
-		created_at timestamp not null default now(),
-		updated_at timestamp not null default now()
-	)`);
+	await db.execute(sql`
+		create table ${exercises} (
+			id serial primary key,
+			name varchar not null,
+			force force,
+			level level,
+			mechanic mechanic,
+			equipment equipment,
+			instructions text,
+			category category,
+			primary_muscles muscle[],
+			secondary_muscles muscle[],
+			created_at timestamp not null default now(),
+			updated_at timestamp not null default now()
+		)
+	`);
 
 	await db.insert(exercises).values({
 		name: 'Bench Press',

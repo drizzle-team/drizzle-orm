@@ -96,7 +96,7 @@ test.before(async (t) => {
 	const ctx = t.context;
 	const connectionString = process.env['PG_CONNECTION_STRING'] ?? await createDockerDB(ctx);
 
-	let sleep = 250;
+	const sleep = 250;
 	let timeLeft = 5000;
 	let connected = false;
 	let lastError: unknown | undefined;
@@ -136,27 +136,33 @@ test.beforeEach(async (t) => {
 		sql`create schema "mySchema"`,
 	);
 	await ctx.db.execute(
-		sql`create table "mySchema".users (
-			id serial primary key,
-			name text not null,
-			verified boolean not null default false, 
-			jsonb jsonb,
-			created_at timestamptz not null default now()
-		)`,
+		sql`
+			create table "mySchema".users (
+				id serial primary key,
+				name text not null,
+				verified boolean not null default false, 
+				jsonb jsonb,
+				created_at timestamptz not null default now()
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table "mySchema".cities (
-			id serial primary key,
-			name text not null,
-			state char(2)
-		)`,
+		sql`
+			create table "mySchema".cities (
+				id serial primary key,
+				name text not null,
+				state char(2)
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table "mySchema".users2 (
-			id serial primary key,
-			name text not null,
-			city_id integer references "mySchema".cities(id)
-		)`,
+		sql`
+			create table "mySchema".users2 (
+				id serial primary key,
+				name text not null,
+				city_id integer references "mySchema".cities(id)
+			)
+		`,
 	);
 });
 
@@ -712,13 +718,15 @@ test.serial('select from tables with same name from different schema using alias
 	const { db } = t.context;
 
 	await db.execute(
-		sql`create table users (
-			id serial primary key,
-			name text not null,
-			verified boolean not null default false, 
-			jsonb jsonb,
-			created_at timestamptz not null default now()
-		)`,
+		sql`
+			create table users (
+				id serial primary key,
+				name text not null,
+				verified boolean not null default false, 
+				jsonb jsonb,
+				created_at timestamptz not null default now()
+			)
+		`,
 	);
 
 	await db.insert(usersTable).values({ id: 10, name: 'Ivan' });

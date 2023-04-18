@@ -48,7 +48,7 @@ export class LibSQLSession extends SQLiteSession<'async', ResultSet> {
 
 	override async transaction<T>(
 		transaction: (db: LibSQLTransaction) => T | Promise<T>,
-		config?: SQLiteTransactionConfig,
+		_config?: SQLiteTransactionConfig,
 	): Promise<T> {
 		// TODO: support transaction behavior
 		const libsqlTx = await this.client.transaction();
@@ -103,7 +103,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	}
 
 	all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
-		const { fields } = this;
+		const { fields, joinsNotNullableMap, logger, queryString, tx, client } = this;
 		if (fields) {
 			const values = this.values(placeholderValues);
 
@@ -111,17 +111,17 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 				rows.map((row) => {
 					return mapResultRow(
 						fields,
-						Array.prototype.slice.call(row).map(normalizeFieldValue),
-						this.joinsNotNullableMap,
+						Array.prototype.slice.call(row).map((v) => normalizeFieldValue(v)),
+						joinsNotNullableMap,
 					);
 				})
 			);
 		}
 
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
-		this.logger.logQuery(this.queryString, params);
-		const stmt: InStatement = { sql: this.queryString, args: params as InArgs };
-		return (this.tx ? this.tx.execute(stmt) : this.client.execute(stmt)).then(({ rows }) => rows.map(normalizeRow));
+		logger.logQuery(queryString, params);
+		const stmt: InStatement = { sql: queryString, args: params as InArgs };
+		return (tx ? tx.execute(stmt) : client.execute(stmt)).then(({ rows }) => rows.map((row) => normalizeRow(row)));
 	}
 
 	get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
@@ -144,7 +144,7 @@ function normalizeRow(obj: any) {
 	// turn them into objects what's what other SQLite drivers
 	// do.
 	return Object.keys(obj).reduce((acc: Record<string, any>, key) => {
-		if (obj.propertyIsEnumerable(key)) {
+		if (Object.prototype.propertyIsEnumerable.call(obj, key)) {
 			acc[key] = obj[key];
 		}
 		return acc;

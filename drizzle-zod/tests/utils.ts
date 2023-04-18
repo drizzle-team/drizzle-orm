@@ -4,7 +4,7 @@ import { z } from 'zod';
 export function assertSchemasEqual<T extends z.SomeZodObject>(t: ExecutionContext, actual: T, expected: T) {
 	t.deepEqual(Object.keys(actual.shape), Object.keys(expected.shape));
 
-	Object.keys(actual.shape).forEach((key) => {
+	for (const key of Object.keys(actual.shape)) {
 		t.deepEqual(actual.shape[key]!._def.typeName, expected.shape[key]?._def.typeName, `key: ${key}`);
 		if (actual.shape[key] instanceof z.ZodOptional) {
 			t.deepEqual(
@@ -13,5 +13,5 @@ export function assertSchemasEqual<T extends z.SomeZodObject>(t: ExecutionContex
 				`key (optional): ${key}`,
 			);
 		}
-	});
+	}
 }

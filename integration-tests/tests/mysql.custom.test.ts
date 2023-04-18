@@ -66,7 +66,7 @@ const customTimestamp = customType<
 	{ data: Date; driverData: string; config: { fsp: number } }
 >({
 	dataType(config) {
-		const precision = typeof config?.fsp !== 'undefined' ? ` (${config.fsp})` : '';
+		const precision = config?.fsp === undefined ? '' : ` (${config.fsp})`;
 		return `timestamp${precision}`;
 	},
 	fromDriver(value: string): Date {
@@ -76,9 +76,9 @@ const customTimestamp = customType<
 
 const customBinary = customType<{ data: string; driverData: Buffer; config: { length: number } }>({
 	dataType(config) {
-		return typeof config?.length !== 'undefined'
-			? `binary(${config.length})`
-			: `binary`;
+		return config?.length === undefined
+			? `binary`
+			: `binary(${config.length})`;
 	},
 
 	toDriver(value) {
@@ -159,7 +159,7 @@ test.before(async (t) => {
 	const ctx = t.context;
 	const connectionString = process.env['MYSQL_CONNECTION_STRING'] ?? await createDockerDB(ctx);
 
-	let sleep = 1000;
+	const sleep = 1000;
 	let timeLeft = 20000;
 	let connected = false;
 	let lastError: unknown | undefined;
@@ -191,39 +191,43 @@ test.beforeEach(async (t) => {
 	await ctx.db.execute(sql`drop table if exists \`test_table\``);
 	// await ctx.db.execute(sql`create schema public`);
 	await ctx.db.execute(
-		sql`create table \`userstest\` (
-			\`id\` serial primary key,
-			\`name\` text not null,
-			\`verified\` boolean not null default false,
-			\`jsonb\` json,
-			\`created_at\` timestamp not null default now()
-		)`,
+		sql`
+			create table \`userstest\` (
+				\`id\` serial primary key,
+				\`name\` text not null,
+				\`verified\` boolean not null default false,
+				\`jsonb\` json,
+				\`created_at\` timestamp not null default now()
+			)
+		`,
 	);
 
 	await ctx.db.execute(
-		sql`create table \`datestable\` (
-			\`date\` date,
-			\`date_as_string\` date,
-			\`time\` time,
-			\`datetime\` datetime,
-			\`datetime_as_string\` datetime,
-			\`year\` year
-		)`,
+		sql`
+			create table \`datestable\` (
+				\`date\` date,
+				\`date_as_string\` date,
+				\`time\` time,
+				\`datetime\` datetime,
+				\`datetime_as_string\` datetime,
+				\`year\` year
+			)
+		`,
 	);
 
 	await ctx.db.execute(
-		sql`create table \`test_table\` (
-			\`id\` binary(16) primary key,
-			\`sql_id\` binary(16),
-			\`raw_id\` varchar(64)
-		)`,
+		sql`
+			create table \`test_table\` (
+				\`id\` binary(16) primary key,
+				\`sql_id\` binary(16),
+				\`raw_id\` varchar(64)
+			)
+		`,
 	);
 });
 
 test.serial('select all fields', async (t) => {
 	const { db } = t.context;
-
-	const now = Date.now();
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const result = await db.select().from(usersTable);
@@ -285,8 +289,6 @@ test.serial('update returning sql', async (t) => {
 test.serial('update with returning all fields', async (t) => {
 	const { db } = t.context;
 
-	const now = Date.now();
-
 	await db.insert(usersTable).values({ name: 'John' });
 	const updatedUsers = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John'));
 
@@ -317,8 +319,6 @@ test.serial('update with returning partial', async (t) => {
 
 test.serial('delete with returning all fields', async (t) => {
 	const { db } = t.context;
-
-	const now = Date.now();
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const deletedUser = await db.delete(usersTable).where(eq(usersTable.name, 'John'));
@@ -474,7 +474,7 @@ test.serial('build query', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'select \`id\`, \`name\` from \`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\`',
+		sql: `select \`id\`, \`name\` from \`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\``,
 		params: [],
 	});
 });
@@ -761,12 +761,14 @@ const tableWithEnums = mysqlTable('enums_test_case', {
 test.serial('Mysql enum test case #1', async (t) => {
 	const { db } = t.context;
 
-	await db.execute(sql`create table \`enums_test_case\` (
-		\`id\` serial primary key,
-		\`enum1\` ENUM('a', 'b', 'c') not null,
-		\`enum2\` ENUM('a', 'b', 'c') default 'a',
-		\`enum3\` ENUM('a', 'b', 'c') not null default 'b'
-	)`);
+	await db.execute(sql`
+		create table \`enums_test_case\` (
+			\`id\` serial primary key,
+			\`enum1\` ENUM('a', 'b', 'c') not null,
+			\`enum2\` ENUM('a', 'b', 'c') default 'a',
+			\`enum3\` ENUM('a', 'b', 'c') not null default 'b'
+		)
+	`);
 
 	await db.insert(tableWithEnums).values(
 		{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },

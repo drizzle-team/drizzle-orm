@@ -29,14 +29,14 @@ test('users insert schema', (t) => {
 	(() => {
 		{
 			createInsertSchema(users, {
-				// @ts-expect-error
+				// @ts-expect-error (missing property)
 				foobar: z.number(),
 			});
 		}
 
 		{
 			createInsertSchema(users, {
-				// @ts-expect-error
+				// @ts-expect-error (invalid type)
 				id: 123,
 			});
 		}
@@ -82,14 +82,14 @@ test('users select schema', (t) => {
 	(() => {
 		{
 			createSelectSchema(users, {
-				// @ts-expect-error
+				// @ts-expect-error (missing property)
 				foobar: z.number(),
 			});
 		}
 
 		{
 			createSelectSchema(users, {
-				// @ts-expect-error
+				// @ts-expect-error (invalid type)
 				id: 123,
 			});
 		}

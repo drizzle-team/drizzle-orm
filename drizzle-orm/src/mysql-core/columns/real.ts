@@ -49,9 +49,9 @@ export class MySqlReal<T extends ColumnBaseConfig> extends MySqlColumnWithAutoIn
 	scale: number | undefined = this.config.scale;
 
 	getSQLType(): string {
-		if (typeof this.precision !== 'undefined' && typeof this.scale !== 'undefined') {
+		if (this.precision !== undefined && this.scale !== undefined) {
 			return `real(${this.precision}, ${this.scale})`;
-		} else if (typeof this.precision === 'undefined') {
+		} else if (this.precision === undefined) {
 			return 'real';
 		} else {
 			return `real(${this.precision})`;

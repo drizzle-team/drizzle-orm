@@ -37,13 +37,14 @@ test.before.each((ctx) => {
 
 		db.run(sql`drop table if exists ${usersTable}`);
 		db.run(sql`
-		create table ${usersTable} (
-			id integer primary key,
-			name text not null,
-			verified integer not null default 0,
-			json blob,
-			created_at text not null default (strftime('%s', 'now'))
-		)`);
+			create table ${usersTable} (
+				id integer primary key,
+				name text not null,
+				verified integer not null default 0,
+				json blob,
+				created_at text not null default (strftime('%s', 'now'))
+			)
+		`);
 	} catch (e) {
 		console.error(e);
 	}

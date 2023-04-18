@@ -108,7 +108,7 @@ test.before(async (t) => {
 	const ctx = t.context;
 	const connectionString = process.env['MYSQL_CONNECTION_STRING'] ?? await createDockerDB(ctx);
 
-	let sleep = 1000;
+	const sleep = 1000;
 	let timeLeft = 20000;
 	let connected = false;
 	let lastError: unknown | undefined;
@@ -139,46 +139,52 @@ test.beforeEach(async (t) => {
 	await ctx.db.execute(sql`drop schema if exists \`mySchema\``);
 	await ctx.db.execute(sql`create schema if not exists \`mySchema\``);
 	await ctx.db.execute(
-		sql`create table \`mySchema\`.\`userstest\` (
-			\`id\` serial primary key,
-			\`name\` text not null,
-			\`verified\` boolean not null default false,
-			\`jsonb\` json,
-			\`created_at\` timestamp not null default now()
-		)`,
+		sql`
+			create table \`mySchema\`.\`userstest\` (
+				\`id\` serial primary key,
+				\`name\` text not null,
+				\`verified\` boolean not null default false,
+				\`jsonb\` json,
+				\`created_at\` timestamp not null default now()
+			)
+		`,
 	);
 
 	await ctx.db.execute(
-		sql`create table \`mySchema\`.\`cities\` (
-			\`id\` serial primary key,
-			\`name\` text not null
-		)`,
+		sql`
+			create table \`mySchema\`.\`cities\` (
+				\`id\` serial primary key,
+				\`name\` text not null
+			)
+		`,
 	);
 
 	await ctx.db.execute(
-		sql`create table \`mySchema\`.\`users2\` (
-			\`id\` serial primary key,
-			\`name\` text not null,
-			\`city_id\` int references \`mySchema\`.\`cities\`(\`id\`)
-		)`,
+		sql`
+			create table \`mySchema\`.\`users2\` (
+				\`id\` serial primary key,
+				\`name\` text not null,
+				\`city_id\` int references \`mySchema\`.\`cities\`(\`id\`)
+			)
+		`,
 	);
 
 	await ctx.db.execute(
-		sql`create table \`datestable\` (
-			\`date\` date,
-			\`date_as_string\` date,
-			\`time\` time,
-			\`datetime\` datetime,
-			\`datetime_as_string\` datetime,
-			\`year\` year
-		)`,
+		sql`
+			create table \`datestable\` (
+				\`date\` date,
+				\`date_as_string\` date,
+				\`time\` time,
+				\`datetime\` datetime,
+				\`datetime_as_string\` datetime,
+				\`year\` year
+			)
+		`,
 	);
 });
 
 test.serial('select all fields', async (t) => {
 	const { db } = t.context;
-
-	const now = Date.now();
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const result = await db.select().from(usersTable);
@@ -240,8 +246,6 @@ test.serial('update returning sql', async (t) => {
 test.serial('update with returning all fields', async (t) => {
 	const { db } = t.context;
 
-	const now = Date.now();
-
 	await db.insert(usersTable).values({ name: 'John' });
 	const updatedUsers = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John'));
 
@@ -272,8 +276,6 @@ test.serial('update with returning partial', async (t) => {
 
 test.serial('delete with returning all fields', async (t) => {
 	const { db } = t.context;
-
-	const now = Date.now();
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const deletedUser = await db.delete(usersTable).where(eq(usersTable.name, 'John'));
@@ -429,7 +431,8 @@ test.serial('build query', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'select \`id\`, \`name\` from `mySchema`.\`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\`',
+		sql:
+			`select \`id\`, \`name\` from \`mySchema\`.\`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\``,
 		params: [],
 	});
 });
@@ -687,13 +690,15 @@ test.serial('select from tables with same name from different schema using alias
 	const { db } = t.context;
 	await db.execute(sql`drop table if exists \`userstest\``);
 	await db.execute(
-		sql`create table \`userstest\` (
-			\`id\` serial primary key,
-			\`name\` text not null,
-			\`verified\` boolean not null default false,
-			\`jsonb\` json,
-			\`created_at\` timestamp not null default now()
-		)`,
+		sql`
+			create table \`userstest\` (
+				\`id\` serial primary key,
+				\`name\` text not null,
+				\`verified\` boolean not null default false,
+				\`jsonb\` json,
+				\`created_at\` timestamp not null default now()
+			)
+		`,
 	);
 
 	await db.insert(usersTable).values({ id: 10, name: 'Ivan' });
@@ -734,12 +739,14 @@ const tableWithEnums = mySchema.table('enums_test_case', {
 test.serial('Mysql enum test case #1', async (t) => {
 	const { db } = t.context;
 
-	await db.execute(sql`create table ${tableWithEnums} (
-		\`id\` serial primary key,
-		\`enum1\` ENUM('a', 'b', 'c') not null,
-		\`enum2\` ENUM('a', 'b', 'c') default 'a',
-		\`enum3\` ENUM('a', 'b', 'c') not null default 'b'
-	)`);
+	await db.execute(sql`
+		create table ${tableWithEnums} (
+			\`id\` serial primary key,
+			\`enum1\` ENUM('a', 'b', 'c') not null,
+			\`enum2\` ENUM('a', 'b', 'c') default 'a',
+			\`enum3\` ENUM('a', 'b', 'c') not null default 'b'
+		)
+	`);
 
 	await db.insert(tableWithEnums).values(
 		{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },

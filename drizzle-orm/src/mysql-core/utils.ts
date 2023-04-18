@@ -25,9 +25,9 @@ export function getTableConfig(table: AnyMySqlTable) {
 
 	const extraConfigBuilder = table[MySqlTable.Symbol.ExtraConfigBuilder];
 
-	if (typeof extraConfigBuilder !== 'undefined') {
+	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[MySqlTable.Symbol.Columns]);
-		Object.values(extraConfig).forEach((builder) => {
+		for (const builder of Object.values(extraConfig)) {
 			if (builder instanceof IndexBuilder) {
 				indexes.push(builder.build(table));
 			} else if (builder instanceof CheckBuilder) {
@@ -37,7 +37,7 @@ export function getTableConfig(table: AnyMySqlTable) {
 			} else if (builder instanceof ForeignKeyBuilder) {
 				foreignKeys.push(builder.build(table));
 			}
-		});
+		}
 	}
 
 	return {

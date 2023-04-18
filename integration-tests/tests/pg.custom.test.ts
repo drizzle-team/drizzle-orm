@@ -46,7 +46,7 @@ const customTimestamp = customType<
 	{ data: Date; driverData: string; config: { withTimezone: boolean; precision?: number } }
 >({
 	dataType(config) {
-		const precision = typeof config?.precision !== 'undefined' ? ` (${config.precision})` : '';
+		const precision = config?.precision === undefined ? '' : ` (${config.precision})`;
 		return `timestamp${precision}${config?.withTimezone ? ' with time zone' : ''}`;
 	},
 	fromDriver(value: string): Date {
@@ -108,7 +108,7 @@ test.before(async (t) => {
 	const ctx = t.context;
 	const connectionString = process.env['PG_CONNECTION_STRING'] ?? await createDockerDB(ctx);
 
-	let sleep = 250;
+	const sleep = 250;
 	let timeLeft = 5000;
 	let connected = false;
 	let lastError: unknown | undefined;
@@ -144,13 +144,15 @@ test.beforeEach(async (t) => {
 	await ctx.db.execute(sql`drop schema public cascade`);
 	await ctx.db.execute(sql`create schema public`);
 	await ctx.db.execute(
-		sql`create table users (
-			id serial primary key,
-			name text not null,
-			verified boolean not null default false, 
-			jsonb jsonb,
-			created_at timestamptz not null default now()
-		)`,
+		sql`
+			create table users (
+				id serial primary key,
+				name text not null,
+				verified boolean not null default false, 
+				jsonb jsonb,
+				created_at timestamptz not null default now()
+			)
+		`,
 	);
 });
 

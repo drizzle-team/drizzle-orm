@@ -645,9 +645,9 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		},
 	});
 
-	const t1 = customTextRequired('t', { length: 10 });
-	// @ts-expect-error
-	const t2 = customTextRequired('t');
+	customTextRequired('t', { length: 10 });
+	// @ts-expect-error - config is required
+	customTextRequired('t');
 }
 
 {
@@ -672,8 +672,8 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		},
 	});
 
-	const t1 = customTextOptional('t', { length: 10 });
-	const t2 = customTextOptional('t');
+	customTextOptional('t', { length: 10 });
+	customTextOptional('t');
 }
 
 {
@@ -734,7 +734,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 }
 
 {
-	const test = pgTable('test', {
+	pgTable('test', {
 		bigint: bigint('bigint', { mode: 'bigint' }).default(BigInt(10)),
 		bigintNumber: bigint('bigintNumber', { mode: 'number' }),
 		bigserial: bigserial('bigserial', { mode: 'bigint' }).default(BigInt(10)),
@@ -756,21 +756,21 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 {
 	const a = ['a', 'b', 'c'] as const;
 	const b = pgEnum('test', a);
-	const c = z.enum(b.enumValues);
+	z.enum(b.enumValues);
 }
 
 {
 	const b = pgEnum('test', ['a', 'b', 'c']);
-	const c = z.enum(b.enumValues);
+	z.enum(b.enumValues);
 }
 
 {
-	function getUsersTable<TSchema extends string>(schemaName: TSchema) {
+	const getUsersTable = <TSchema extends string>(schemaName: TSchema) => {
 		return pgSchema(schemaName).table('users', {
 			id: integer('id').primaryKey(),
 			name: text('name').notNull(),
 		});
-	}
+	};
 
 	const users1 = getUsersTable('id1');
 	Expect<Equal<'id1', typeof users1._.schema>>;

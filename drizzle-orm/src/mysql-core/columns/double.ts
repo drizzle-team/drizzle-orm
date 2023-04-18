@@ -45,10 +45,9 @@ export class MySqlDouble<T extends ColumnBaseConfig>
 	scale: number | undefined = this.config.scale;
 
 	getSQLType(): string {
-		// return 'double';
-		if (typeof this.precision !== 'undefined' && typeof this.scale !== 'undefined') {
+		if (this.precision !== undefined && this.scale !== undefined) {
 			return `double(${this.precision},${this.scale})`;
-		} else if (typeof this.precision === 'undefined') {
+		} else if (this.precision === undefined) {
 			return 'double';
 		} else {
 			return `double(${this.precision})`;

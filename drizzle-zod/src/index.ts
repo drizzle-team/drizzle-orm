@@ -113,7 +113,7 @@ type GetZodType<TColumn extends AnyColumn> = TColumn['_']['data'] extends infer 
 
 type ValueOrUpdater<T, TUpdaterArg> = T | ((arg: TUpdaterArg) => T);
 
-type UnwrapValueOrUpdater<T> = T extends ValueOrUpdater<infer T, any> ? T : never;
+type UnwrapValueOrUpdater<T> = T extends ValueOrUpdater<infer U, any> ? U : never;
 
 export type Refine<TTable extends Table, TMode extends 'select' | 'insert'> = {
 	[K in keyof TTable['_']['columns']]?: ValueOrUpdater<
@@ -189,13 +189,13 @@ export function createInsertSchema<
 		);
 	}
 
-	columnEntries.forEach(([name, column]) => {
+	for (const [name, column] of columnEntries) {
 		if (!column.notNull) {
 			schemaEntries[name] = schemaEntries[name]!.nullable().optional();
 		} else if (column.hasDefault) {
 			schemaEntries[name] = schemaEntries[name]!.optional();
 		}
-	});
+	}
 
 	return z.object(schemaEntries) as z.ZodObject<BuildInsertSchema<TTable, TRefine>>;
 }
@@ -236,11 +236,11 @@ export function createSelectSchema<
 		);
 	}
 
-	columnEntries.forEach(([name, column]) => {
+	for (const [name, column] of columnEntries) {
 		if (!column.notNull) {
 			schemaEntries[name] = schemaEntries[name]!.nullable();
 		}
-	});
+	}
 
 	return z.object(schemaEntries) as z.ZodObject<BuildSelectSchema<TTable, TRefine>>;
 }
@@ -253,11 +253,7 @@ function mapColumnToSchema(column: AnyColumn): z.ZodTypeAny {
 	let type: z.ZodTypeAny | undefined;
 
 	if (isWithEnum(column)) {
-		if (column.enumValues.length) {
-			type = z.enum(column.enumValues);
-		} else {
-			type = z.string();
-		}
+		type = column.enumValues.length ? z.enum(column.enumValues) : z.string();
 	}
 
 	if (!type) {

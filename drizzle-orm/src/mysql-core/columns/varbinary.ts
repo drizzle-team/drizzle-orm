@@ -46,7 +46,7 @@ export class MySqlVarBinary<
 	length: number | undefined = this.config.length;
 
 	getSQLType(): string {
-		return typeof this.length !== 'undefined' ? `varbinary(${this.length})` : `varbinary`;
+		return this.length === undefined ? `varbinary` : `varbinary(${this.length})`;
 	}
 }
 

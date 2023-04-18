@@ -23,9 +23,9 @@ export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
 
 	const extraConfigBuilder = table[PgTable.Symbol.ExtraConfigBuilder];
 
-	if (typeof extraConfigBuilder !== 'undefined') {
+	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[Table.Symbol.Columns]);
-		Object.values(extraConfig).forEach((builder) => {
+		for (const builder of Object.values(extraConfig)) {
 			if (builder instanceof IndexBuilder) {
 				indexes.push(builder.build(table));
 			} else if (builder instanceof CheckBuilder) {
@@ -35,7 +35,7 @@ export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
 			} else if (builder instanceof ForeignKeyBuilder) {
 				foreignKeys.push(builder.build(table));
 			}
-		});
+		}
 	}
 
 	return {
@@ -79,7 +79,7 @@ function parsePgArrayValue(arrayString: string, startFrom: number, inQuotes: boo
 		}
 
 		if (char === '"') {
-			return [arrayString.substring(startFrom, i).replace(/\\/g, ''), i + 1];
+			return [arrayString.slice(startFrom, i).replace(/\\/g, ''), i + 1];
 		}
 
 		if (inQuotes) {
@@ -87,11 +87,11 @@ function parsePgArrayValue(arrayString: string, startFrom: number, inQuotes: boo
 		}
 
 		if (char === ',' || char === '}') {
-			return [arrayString.substring(startFrom, i).replace(/\\/g, ''), i];
+			return [arrayString.slice(startFrom, i).replace(/\\/g, ''), i];
 		}
 	}
 
-	return [arrayString.substring(startFrom).replace(/\\/g, ''), arrayString.length];
+	return [arrayString.slice(startFrom).replace(/\\/g, ''), arrayString.length];
 }
 
 export function parsePgNestedArray(arrayString: string, startFrom = 0): [any[], number] {
