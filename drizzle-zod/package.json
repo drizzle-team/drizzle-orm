@@ -9,6 +9,9 @@
     "publish": "npm publish package.tgz",
     "test": "ava tests"
   },
+  "publishConfig": {
+    "provenance": true
+  },
   "ava": {
     "files": [
       "tests/**/*.test.ts",
