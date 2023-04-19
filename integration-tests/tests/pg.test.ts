@@ -2174,3 +2174,42 @@ test.serial('set null to jsonb field', async (t) => {
 
 	await db.execute(sql`drop table ${users}`);
 });
+
+test.serial('insert undefined', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name'),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial not null primary key, name text)`,
+	);
+
+	await t.notThrowsAsync(async () => await db.insert(users).values({ name: undefined }));
+
+	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('update undefined', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name'),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial not null primary key, name text)`,
+	);
+
+	await t.throwsAsync(async () => await db.update(users).set({ name: undefined }));
+	await t.notThrowsAsync(async () => await db.update(users).set({ id: 1, name: undefined }));
+
+	await db.execute(sql`drop table ${users}`);
+});

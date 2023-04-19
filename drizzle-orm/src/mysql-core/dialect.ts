@@ -1,7 +1,7 @@
 import type { AnyColumn } from '~/column';
 import { Column } from '~/column';
 import type { MigrationConfig, MigrationMeta } from '~/migrator';
-import { name, type Query, SQL, sql, type SQLChunk } from '~/sql';
+import { name, Param, type Query, SQL, sql, type SQLChunk } from '~/sql';
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
 import { orderSelectedFields, type UpdateSet } from '~/utils';
@@ -324,7 +324,7 @@ export class MySqlDialect {
 			const valueList: (SQLChunk | SQL)[] = [];
 			for (const [fieldName] of colEntries) {
 				const colValue = value[fieldName];
-				if (colValue === undefined) {
+				if (colValue === undefined || (colValue instanceof Param && colValue.value === undefined)) {
 					valueList.push(sql`default`);
 				} else {
 					valueList.push(colValue);

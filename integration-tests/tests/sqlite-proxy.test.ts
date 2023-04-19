@@ -805,3 +805,42 @@ test.serial('insert with onConflict do update', async (t) => {
 
 	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
 });
+
+test.serial('insert undefined', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	await db.run(sql`drop table if exists ${users}`);
+
+	await db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	await t.notThrowsAsync(async () => await db.insert(users).values({ name: undefined }).run());
+
+	await db.run(sql`drop table ${users}`);
+});
+
+test.serial('update undefined', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	await db.run(sql`drop table if exists ${users}`);
+
+	await db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	await t.throwsAsync(async () => await db.update(users).set({ name: undefined }).run());
+	await t.notThrowsAsync(async () => await db.update(users).set({ id: 1, name: undefined }).run());
+
+	await db.run(sql`drop table ${users}`);
+});
