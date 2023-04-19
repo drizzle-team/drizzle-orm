@@ -203,14 +203,51 @@ export abstract class PgSelectQueryBuilder<
 		};
 	}
 
+        /**
+          * For each row of the table, include
+          * values from a matching row of the joined
+          * table, if there is a matching row. If not,
+          * all of the columns of the joined table
+          * will be set to null.
+          */
 	leftJoin = this.createJoin('left');
 
+        /**
+          * Includes all of the rows of the joined table.
+          * If there is no matching row in the main table,
+          * all the columns of the main table will be
+          * set to null.
+          */
 	rightJoin = this.createJoin('right');
 
+        /**
+          * This is the default type of join.
+          *
+          * For each row of the table, the joined table
+          * needs to have a matching row, or it will
+          * be excluded from results.
+          */
 	innerJoin = this.createJoin('inner');
 
+        /**
+          * Rows from both the main & joined are included,
+          * regardless of whether or not they have matching
+          * rows in the other table.
+          */
 	fullJoin = this.createJoin('full');
 
+        /**
+          * Specify a condition to narrow the result set. Multiple
+          * conditions can be combined with the `and` and `or`
+          * functions.
+          *
+          * ## Examples
+          *
+          * ```ts
+          * // Find cars made in the year 2000
+          * db.select().from(cars).where(eq(cars.year, 2000));
+          * ```
+          */
 	where(where: ((aliases: TSelection) => SQL | undefined) | SQL | undefined) {
 		if (typeof where === 'function') {
 			where = where(
@@ -258,6 +295,19 @@ export abstract class PgSelectQueryBuilder<
 		return this;
 	}
 
+        /**
+          * Specify the ORDER BY clause of this query: a number of
+          * columns or SQL expressions that will control sorting
+          * of results. You can specify whether results are in ascending
+          * or descending order with the `asc()` and `desc()` operators.
+          *
+          * ## Examples
+          *
+          * ```
+          * // Select cars by year released
+          * db.select().from(cars).orderBy(cars.year);
+          * ```
+          */
 	orderBy(builder: (aliases: TSelection) => ValueOrArray<AnyPgColumn | SQL | SQL.Aliased>): this;
 	orderBy(...columns: (AnyPgColumn | SQL | SQL.Aliased)[]): this;
 	orderBy(
@@ -279,11 +329,19 @@ export abstract class PgSelectQueryBuilder<
 		return this;
 	}
 
+        /**
+          * Set the maximum number of rows that will be
+          * returned by this query.
+          */
 	limit(limit: number | Placeholder) {
 		this.config.limit = limit;
 		return this;
 	}
 
+        /**
+          * Skip a number of rows when returning results
+          * from this query.
+          */
 	offset(offset: number | Placeholder) {
 		this.config.offset = offset;
 		return this;
