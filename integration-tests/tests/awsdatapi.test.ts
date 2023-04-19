@@ -224,12 +224,12 @@ test.serial('insert with overridden default values', async (t) => {
 test.serial('insert many', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values(
+	await db.insert(usersTable).values([
 		{ name: 'John' },
 		{ name: 'Bruce', jsonb: ['foo', 'bar'] },
 		{ name: 'Jane' },
 		{ name: 'Austin', verified: true },
-	);
+	]);
 	const result = await db.select({
 		id: usersTable.id,
 		name: usersTable.name,
@@ -248,12 +248,12 @@ test.serial('insert many', async (t) => {
 test.serial('insert many with returning', async (t) => {
 	const { db } = t.context;
 
-	const result = await db.insert(usersTable).values(
+	const result = await db.insert(usersTable).values([
 		{ name: 'John' },
 		{ name: 'Bruce', jsonb: ['foo', 'bar'] },
 		{ name: 'Jane' },
 		{ name: 'Austin', verified: true },
-	)
+	])
 		.returning({
 			id: usersTable.id,
 			name: usersTable.name,
@@ -272,7 +272,7 @@ test.serial('insert many with returning', async (t) => {
 test.serial('select with group by as field', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.name);
@@ -283,7 +283,7 @@ test.serial('select with group by as field', async (t) => {
 test.serial('select with group by as sql', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(sql`${usersTable.name}`);
@@ -294,7 +294,7 @@ test.serial('select with group by as sql', async (t) => {
 test.serial('select with group by as sql + column', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(sql`${usersTable.name}`, usersTable.id);
@@ -305,7 +305,7 @@ test.serial('select with group by as sql + column', async (t) => {
 test.serial('select with group by as column + sql', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.id, sql`${usersTable.name}`);
@@ -316,7 +316,7 @@ test.serial('select with group by as column + sql', async (t) => {
 test.serial('select with group by complex query', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.id, sql`${usersTable.name}`)
@@ -352,7 +352,7 @@ test.serial('partial join with alias', async (t) => {
 	const { db } = t.context;
 	const customerAlias = alias(usersTable, 'customer');
 
-	await db.insert(usersTable).values({ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' });
+	await db.insert(usersTable).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
 	const result = await db
 		.select({
 			user: {
@@ -377,7 +377,7 @@ test.serial('full join with alias', async (t) => {
 	const { db } = t.context;
 	const customerAlias = alias(usersTable, 'customer');
 
-	await db.insert(usersTable).values({ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' });
+	await db.insert(usersTable).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
 
 	const result = await db
 		.select().from(usersTable)

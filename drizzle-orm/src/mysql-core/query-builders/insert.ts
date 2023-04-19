@@ -51,15 +51,12 @@ export class MySqlInsertBuilder<
 
 	values(value: MySqlInsertValue<TTable>): MySqlInsert<TTable, TQueryResult, TPreparedQueryHKT>;
 	values(values: MySqlInsertValue<TTable>[]): MySqlInsert<TTable, TQueryResult, TPreparedQueryHKT>;
-	/**
-	 * @deprecated Pass the array of values without spreading it.
-	 */
-	values(...values: MySqlInsertValue<TTable>[]): MySqlInsert<TTable, TQueryResult, TPreparedQueryHKT>;
 	values(
-		...values: MySqlInsertValue<TTable>[] | [MySqlInsertValue<TTable>] | [MySqlInsertValue<TTable>[]]
+		values: MySqlInsertValue<TTable> | MySqlInsertValue<TTable>[],
 	): MySqlInsert<TTable, TQueryResult, TPreparedQueryHKT> {
-		if (values.length === 1) {
-			values = Array.isArray(values[0]) ? values[0] : [values[0]];
+		values = Array.isArray(values) ? values : [values];
+		if (values.length === 0) {
+			throw new Error('values() must be called with at least one value');
 		}
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};

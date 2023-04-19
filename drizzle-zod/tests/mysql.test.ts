@@ -170,3 +170,51 @@ test('select schema', (t) => {
 
 	expectSchemaShape(t, expected).from(actual);
 });
+
+test('select schema w/ refine', (t) => {
+	const actual = createSelectSchema(testTable, {
+		bigint: (schema) => schema.bigint.positive(),
+	});
+
+	const expected = z.object({
+		bigint: z.bigint().positive(),
+		bigintNumber: z.number(),
+		binary: z.string(),
+		boolean: z.boolean(),
+		char: z.string(),
+		charEnum: z.enum(['a', 'b', 'c']),
+		customInt: z.any(),
+		date: z.date(),
+		dateString: z.string(),
+		datetime: z.date(),
+		datetimeString: z.string(),
+		decimal: z.string(),
+		double: z.number(),
+		enum: z.enum(['a', 'b', 'c']),
+		float: z.number(),
+		int: z.number(),
+		json: jsonSchema,
+		mediumint: z.number(),
+		real: z.number(),
+		serial: z.number(),
+		smallint: z.number(),
+		text: z.string(),
+		textEnum: z.enum(['a', 'b', 'c']),
+		tinytext: z.string(),
+		tinytextEnum: z.enum(['a', 'b', 'c']),
+		mediumtext: z.string(),
+		mediumtextEnum: z.enum(['a', 'b', 'c']),
+		longtext: z.string(),
+		longtextEnum: z.enum(['a', 'b', 'c']),
+		time: z.string(),
+		timestamp: z.date(),
+		timestampString: z.string(),
+		tinyint: z.number(),
+		varbinary: z.string(),
+		varchar: z.string(),
+		varcharEnum: z.enum(['a', 'b', 'c']),
+		year: z.number(),
+	});
+
+	expectSchemaShape(t, expected).from(actual);
+});

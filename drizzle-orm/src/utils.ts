@@ -92,16 +92,22 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 
 /** @internal */
 export function mapUpdateSet(table: Table, values: Record<string, unknown>): UpdateSet {
-	return Object.fromEntries<UpdateSet[string]>(
-		Object.entries(values).map(([key, value]) => {
+	const entries: [string, UpdateSet[string]][] = Object.entries(values)
+		.filter(([, value]) => value !== undefined)
+		.map(([key, value]) => {
 			// eslint-disable-next-line unicorn/prefer-ternary
-			if (value instanceof SQL || value === null || value === undefined) {
+			if (value instanceof SQL) {
 				return [key, value];
 			} else {
 				return [key, new Param(value, table[Table.Symbol.Columns][key])];
 			}
-		}),
-	);
+		});
+
+	if (entries.length === 0) {
+		throw new Error('No values to set');
+	}
+
+	return Object.fromEntries(entries);
 }
 
 export type UpdateSet = Record<string, SQL | Param | null | undefined>;
