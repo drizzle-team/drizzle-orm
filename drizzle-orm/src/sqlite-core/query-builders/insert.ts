@@ -48,6 +48,9 @@ export class SQLiteInsertBuilder<
 		if (values.length === 1) {
 			values = Array.isArray(values[0]) ? values[0] : [values[0]];
 		}
+		if (values.length === 0) {
+			throw new Error('values() must be called with at least one value');
+		}
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
 			const cols = this.table[Table.Symbol.Columns];
