@@ -10,7 +10,7 @@ import type { AwsDataApiPgDatabase } from 'drizzle-orm/aws-data-api/pg';
 import { drizzle } from 'drizzle-orm/aws-data-api/pg';
 import { migrate } from 'drizzle-orm/aws-data-api/pg/migrator';
 import { asc, eq } from 'drizzle-orm/expressions';
-import { alias, boolean, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { alias, boolean, integer, jsonb, pgTable, pgTableCreator, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { name, placeholder } from 'drizzle-orm/sql';
 
 dotenv.config();
@@ -400,6 +400,43 @@ test.serial('full join with alias', async (t) => {
 			createdAt: result[0]!.customer!.createdAt,
 		},
 	}]);
+});
+
+test.serial('select from alias', async (t) => {
+	const { db } = t.context;
+
+	const pgTable = pgTableCreator((name) => `prefixed_${name}`);
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
+
+	const user = alias(users, 'user');
+	const customers = alias(users, 'customer');
+
+	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
+	const result = await db
+		.select()
+		.from(user)
+		.leftJoin(customers, eq(customers.id, 11))
+		.where(eq(user.id, 10));
+
+	t.deepEqual(result, [{
+		user: {
+			id: 10,
+			name: 'Ivan',
+		},
+		customer: {
+			id: 11,
+			name: 'Hans',
+		},
+	}]);
+
+	await db.execute(sql`drop table ${users}`);
 });
 
 test.serial('insert with spaces', async (t) => {

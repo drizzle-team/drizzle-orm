@@ -670,9 +670,9 @@ test.serial('partial join with alias', async (t) => {
 test.serial('full join with alias', async (t) => {
 	const { db } = t.context;
 
-	const sqliteTable = pgTableCreator((name) => `prefixed_${name}`);
+	const pgTable = pgTableCreator((name) => `prefixed_${name}`);
 
-	const users = sqliteTable('users', {
+	const users = pgTable('users', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
 	});
@@ -684,12 +684,50 @@ test.serial('full join with alias', async (t) => {
 
 	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
 	const result = await db
-		.select().from(users)
+		.select()
+		.from(users)
 		.leftJoin(customers, eq(customers.id, 11))
 		.where(eq(users.id, 10));
 
 	t.deepEqual(result, [{
 		users: {
+			id: 10,
+			name: 'Ivan',
+		},
+		customer: {
+			id: 11,
+			name: 'Hans',
+		},
+	}]);
+
+	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('select from alias', async (t) => {
+	const { db } = t.context;
+
+	const pgTable = pgTableCreator((name) => `prefixed_${name}`);
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
+
+	const user = alias(users, 'user');
+	const customers = alias(users, 'customer');
+
+	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
+	const result = await db
+		.select()
+		.from(user)
+		.leftJoin(customers, eq(customers.id, 11))
+		.where(eq(user.id, 10));
+
+	t.deepEqual(result, [{
+		user: {
 			id: 10,
 			name: 'Ivan',
 		},
@@ -2116,7 +2154,7 @@ test.serial('table selection with single table', async (t) => {
 	await db.execute(sql`drop table ${users}`);
 });
 
-test.serial.only('set null to jsonb field', async (t) => {
+test.serial('set null to jsonb field', async (t) => {
 	const { db } = t.context;
 
 	const users = pgTable('users', {

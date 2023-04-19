@@ -3,7 +3,9 @@ import { Column } from './column';
 import type { SelectedFieldsOrdered } from './operations';
 import type { DriverValueDecoder } from './sql';
 import { Param, SQL } from './sql';
+import { Subquery, SubqueryConfig } from './subquery';
 import { type AnyTable, getTableName, Table } from './table';
+import { View, ViewBaseConfig } from './view';
 
 export function mapResultRow<TResult>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
@@ -230,4 +232,17 @@ export type Writable<T> = {
 
 export function getTableColumns<T extends AnyTable>(table: T): T['_']['columns'] {
 	return table[Table.Symbol.Columns];
+}
+
+/** @internal */
+export function getTableLikeName(table: AnyTable | Subquery | View | SQL): string | undefined {
+	return table instanceof Subquery
+		? table[SubqueryConfig].alias
+		: table instanceof View
+		? table[ViewBaseConfig].name
+		: table instanceof SQL
+		? undefined
+		: table[Table.Symbol.IsAlias]
+		? table[Table.Symbol.Name]
+		: table[Table.Symbol.BaseName];
 }

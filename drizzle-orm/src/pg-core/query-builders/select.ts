@@ -18,7 +18,7 @@ import { QueryPromise } from '~/query-promise';
 import { type Query, SQL } from '~/sql';
 import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
 import { Table } from '~/table';
-import { applyMixins, getTableColumns, type Simplify, type ValueOrArray } from '~/utils';
+import { applyMixins, getTableColumns, getTableLikeName, type Simplify, type ValueOrArray } from '~/utils';
 import { orderSelectedFields } from '~/utils';
 import { type ColumnsSelection, View, ViewBaseConfig } from '~/view';
 import type {
@@ -126,13 +126,7 @@ export abstract class PgSelectQueryBuilder<
 		this._ = {
 			selectedFields: fields as BuildSubquerySelection<TSelection, TNullabilityMap>,
 		} as this['_'];
-		this.tableName = table instanceof Subquery
-			? table[SubqueryConfig].alias
-			: table instanceof PgViewBase
-			? table[ViewBaseConfig].name
-			: table instanceof SQL
-			? undefined
-			: table[Table.Symbol.BaseName];
+		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
 	}
 
@@ -144,13 +138,7 @@ export abstract class PgSelectQueryBuilder<
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
-			const tableName = table instanceof Subquery
-				? table[SubqueryConfig].alias
-				: table instanceof View
-				? table[ViewBaseConfig].name
-				: table instanceof SQL
-				? undefined
-				: table[Table.Symbol.Name];
+			const tableName = getTableLikeName(table);
 
 			if (typeof tableName === 'string' && this.config.joins.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);

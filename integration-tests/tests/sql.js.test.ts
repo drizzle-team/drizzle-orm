@@ -461,6 +461,44 @@ test.serial('full join with alias', (t) => {
 	db.run(sql`drop table ${users}`);
 });
 
+test.serial('select from alias', (t) => {
+	const { db } = t.context;
+
+	const sqliteTable = sqliteTableCreator((name) => `prefixed_${name}`);
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+	db.run(sql`create table ${users} (id integer primary key, name text not null)`);
+
+	const user = alias(users, 'user');
+	const customers = alias(users, 'customer');
+
+	db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]).run();
+	const result = db
+		.select()
+		.from(user)
+		.leftJoin(customers, eq(customers.id, 11))
+		.where(eq(user.id, 10))
+		.all();
+
+	t.deepEqual(result, [{
+		user: {
+			id: 10,
+			name: 'Ivan',
+		},
+		customer: {
+			id: 11,
+			name: 'Hans',
+		},
+	}]);
+
+	db.run(sql`drop table ${users}`);
+});
+
 test.serial('insert with spaces', (t) => {
 	const { db } = t.context;
 

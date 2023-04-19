@@ -19,6 +19,10 @@ export class TableAliasProxyHandler<T extends Table | View> implements ProxyHand
 	constructor(private alias: string, private replaceOriginalName: boolean) {}
 
 	get(tableObj: T, prop: string | symbol): any {
+		if (prop === Table.Symbol.IsAlias) {
+			return true;
+		}
+
 		if (prop === Table.Symbol.Name) {
 			return this.alias;
 		}
@@ -31,6 +35,7 @@ export class TableAliasProxyHandler<T extends Table | View> implements ProxyHand
 			return {
 				...tableObj[ViewBaseConfig as keyof typeof tableObj],
 				name: this.alias,
+				isAlias: true,
 			};
 		}
 
