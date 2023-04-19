@@ -464,9 +464,9 @@ test.serial('partial join with alias', async (t) => {
 test.serial('full join with alias', async (t) => {
 	const { db } = t.context;
 
-	const sqliteTable = pgTableCreator((name) => `prefixed_${name}`);
+	const pgTable = pgTableCreator((name) => `prefixed_${name}`);
 
-	const users = sqliteTable('users', {
+	const users = pgTable('users', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
 	});

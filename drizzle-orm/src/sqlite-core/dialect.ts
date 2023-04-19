@@ -173,6 +173,14 @@ export abstract class SQLiteDialect {
 
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
 
+		const tableSql = (() => {
+			if (table instanceof Table && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
+				return sql`${name(table[Table.Symbol.OriginalName])} ${name(table[Table.Symbol.Name])}`;
+			}
+
+			return table;
+		})();
+
 		const joinsArray: SQL[] = [];
 
 		for (const [index, joinMeta] of joins.entries()) {
@@ -233,7 +241,7 @@ export abstract class SQLiteDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		return sql`${withSql}select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}`;
+		return sql`${withSql}select ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: SQLiteInsertConfig): SQL {
