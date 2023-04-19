@@ -350,12 +350,12 @@ test.serial('insert with overridden default values', async (t) => {
 test.serial('insert many', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values(
+	await db.insert(usersTable).values([
 		{ name: 'John' },
 		{ name: 'Bruce', jsonb: ['foo', 'bar'] },
 		{ name: 'Jane' },
 		{ name: 'Austin', verified: true },
-	);
+	]);
 	const result = await db.select({
 		id: usersTable.id,
 		name: usersTable.name,
@@ -374,12 +374,12 @@ test.serial('insert many', async (t) => {
 test.serial('insert many with returning', async (t) => {
 	const { db } = t.context;
 
-	const result = await db.insert(usersTable).values(
+	const result = await db.insert(usersTable).values([
 		{ name: 'John' },
 		{ name: 'Bruce', jsonb: ['foo', 'bar'] },
 		{ name: 'Jane' },
 		{ name: 'Austin', verified: true },
-	);
+	]);
 
 	t.is(result[0].affectedRows, 4);
 });
@@ -387,7 +387,7 @@ test.serial('insert many with returning', async (t) => {
 test.serial('select with group by as field', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.name);
@@ -398,7 +398,7 @@ test.serial('select with group by as field', async (t) => {
 test.serial('select with group by as sql', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(sql`${usersTable.name}`);
@@ -409,7 +409,7 @@ test.serial('select with group by as sql', async (t) => {
 test.serial('select with group by as sql + column', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(sql`${usersTable.name}`, usersTable.id);
@@ -420,7 +420,7 @@ test.serial('select with group by as sql + column', async (t) => {
 test.serial('select with group by as column + sql', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.id, sql`${usersTable.name}`);
@@ -431,7 +431,7 @@ test.serial('select with group by as column + sql', async (t) => {
 test.serial('select with group by complex query', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.id, sql`${usersTable.name}`)
@@ -529,7 +529,7 @@ test.serial('partial join with alias', async (t) => {
 	const { db } = t.context;
 	const customerAlias = alias(usersTable, 'customer');
 
-	await db.insert(usersTable).values({ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' });
+	await db.insert(usersTable).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
 	const result = await db
 		.select({
 			user: {
@@ -798,11 +798,11 @@ test.serial('Mysql enum test case #1', async (t) => {
 		)
 	`);
 
-	await db.insert(tableWithEnums).values(
+	await db.insert(tableWithEnums).values([
 		{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },
 		{ id: 2, enum1: 'a', enum3: 'c' },
 		{ id: 3, enum1: 'a' },
-	);
+	]);
 
 	const res = await db.select().from(tableWithEnums);
 
@@ -819,9 +819,9 @@ test.serial('left join (flat object fields)', async (t) => {
 	const { db } = t.context;
 
 	await db.insert(citiesTable)
-		.values({ name: 'Paris' }, { name: 'London' });
+		.values([{ name: 'Paris' }, { name: 'London' }]);
 
-	await db.insert(users2Table).values({ name: 'John', cityId: 1 }, { name: 'Jane' });
+	await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
 
 	const res = await db.select({
 		userId: users2Table.id,
@@ -841,9 +841,9 @@ test.serial('left join (grouped fields)', async (t) => {
 	const { db } = t.context;
 
 	await db.insert(citiesTable)
-		.values({ name: 'Paris' }, { name: 'London' });
+		.values([{ name: 'Paris' }, { name: 'London' }]);
 
-	await db.insert(users2Table).values({ name: 'John', cityId: 1 }, { name: 'Jane' });
+	await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
 
 	const res = await db.select({
 		id: users2Table.id,
@@ -877,9 +877,9 @@ test.serial('left join (all fields)', async (t) => {
 	const { db } = t.context;
 
 	await db.insert(citiesTable)
-		.values({ name: 'Paris' }, { name: 'London' });
+		.values([{ name: 'Paris' }, { name: 'London' }]);
 
-	await db.insert(users2Table).values({ name: 'John', cityId: 1 }, { name: 'Jane' });
+	await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
 
 	const res = await db.select().from(users2Table)
 		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id));
@@ -932,19 +932,19 @@ test.serial('join subquery', async (t) => {
 		`,
 	);
 
-	await db.insert(courseCategoriesTable).values(
+	await db.insert(courseCategoriesTable).values([
 		{ name: 'Category 1' },
 		{ name: 'Category 2' },
 		{ name: 'Category 3' },
 		{ name: 'Category 4' },
-	);
+	]);
 
-	await db.insert(coursesTable).values(
+	await db.insert(coursesTable).values([
 		{ name: 'Development', categoryId: 2 },
 		{ name: 'IT & Software', categoryId: 3 },
 		{ name: 'Marketing', categoryId: 4 },
 		{ name: 'Design', categoryId: 1 },
-	);
+	]);
 
 	const sq2 = db
 		.select({
@@ -992,7 +992,7 @@ test.serial('with ... select', async (t) => {
 		`,
 	);
 
-	await db.insert(orders).values(
+	await db.insert(orders).values([
 		{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
 		{ region: 'Europe', product: 'A', amount: 20, quantity: 2 },
 		{ region: 'Europe', product: 'B', amount: 20, quantity: 2 },
@@ -1001,7 +1001,7 @@ test.serial('with ... select', async (t) => {
 		{ region: 'US', product: 'A', amount: 40, quantity: 4 },
 		{ region: 'US', product: 'B', amount: 40, quantity: 4 },
 		{ region: 'US', product: 'B', amount: 50, quantity: 5 },
-	);
+	]);
 
 	const regionalSales = db
 		.$with('regional_sales')
@@ -1075,7 +1075,7 @@ test.serial('with ... select', async (t) => {
 test.serial('select from subquery sql', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(users2Table).values({ name: 'John' }, { name: 'Jane' });
+	await db.insert(users2Table).values([{ name: 'John' }, { name: 'Jane' }]);
 
 	const sq = db
 		.select({ name: sql<string>`concat(${users2Table.name}, " modified")`.as('name') })
@@ -1104,7 +1104,7 @@ test.serial('select all fields from subquery without alias', (t) => {
 test.serial('select count()', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
 
 	const res = await db.select({ count: sql`count(*)` }).from(usersTable);
 
@@ -1131,12 +1131,12 @@ test.serial('select for ...', (t) => {
 test.serial('having', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(citiesTable).values({ name: 'London' }, { name: 'Paris' }, { name: 'New York' });
+	await db.insert(citiesTable).values([{ name: 'London' }, { name: 'Paris' }, { name: 'New York' }]);
 
-	await db.insert(users2Table).values({ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 1 }, {
+	await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 1 }, {
 		name: 'Jack',
 		cityId: 2,
-	});
+	}]);
 
 	const result = await db
 		.select({
@@ -1185,13 +1185,13 @@ test.serial('view', async (t) => {
 
 	await db.execute(sql`create view new_yorkers as ${getViewConfig(newYorkers1).query}`);
 
-	await db.insert(citiesTable).values({ name: 'New York' }, { name: 'Paris' });
+	await db.insert(citiesTable).values([{ name: 'New York' }, { name: 'Paris' }]);
 
-	await db.insert(users2Table).values(
+	await db.insert(users2Table).values([
 		{ name: 'John', cityId: 1 },
 		{ name: 'Jane', cityId: 1 },
 		{ name: 'Jack', cityId: 2 },
-	);
+	]);
 
 	{
 		const result = await db.select().from(newYorkers1);

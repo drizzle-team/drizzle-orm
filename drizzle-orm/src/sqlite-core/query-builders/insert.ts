@@ -38,16 +38,10 @@ export class SQLiteInsertBuilder<
 
 	values(value: SQLiteInsertValue<TTable>): SQLiteInsert<TTable, TResultType, TRunResult>;
 	values(values: SQLiteInsertValue<TTable>[]): SQLiteInsert<TTable, TResultType, TRunResult>;
-	/**
-	 * @deprecated Pass the array of values without spreading it.
-	 */
-	values(...values: SQLiteInsertValue<TTable>[]): SQLiteInsert<TTable, TResultType, TRunResult>;
 	values(
-		...values: SQLiteInsertValue<TTable>[] | [SQLiteInsertValue<TTable>] | [SQLiteInsertValue<TTable>[]]
+		values: SQLiteInsertValue<TTable> | SQLiteInsertValue<TTable>[],
 	): SQLiteInsert<TTable, TResultType, TRunResult> {
-		if (values.length === 1) {
-			values = Array.isArray(values[0]) ? values[0] : [values[0]];
-		}
+		values = Array.isArray(values) ? values : [values];
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
 		}
