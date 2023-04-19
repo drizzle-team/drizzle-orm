@@ -26,7 +26,7 @@ export function isPgSchema(obj: unknown): obj is PgSchema {
 
 export function pgSchema<T extends string>(name: T) {
 	if (name === 'public') {
-		throw Error(
+		throw new Error(
 			`You can't specify 'public' as schema name. Postgres is using public schema by default. If you want to use 'public' schema, just use pgTable() instead of creating a schema`,
 		);
 	}

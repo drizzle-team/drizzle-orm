@@ -1,4 +1,33 @@
-import { type AnyColumn, type Table } from 'drizzle-orm';
+import { type AnyColumn, type Table, type WithEnum } from 'drizzle-orm';
+import {
+	MySqlBigInt53,
+	MySqlBigInt64,
+	MySqlBinary,
+	MySqlBoolean,
+	MySqlChar,
+	MySqlCustomColumn,
+	MySqlDate,
+	MySqlDateString,
+	MySqlDateTime,
+	MySqlDateTimeString,
+	MySqlDecimal,
+	MySqlDouble,
+	MySqlFloat,
+	MySqlInt,
+	MySqlJson,
+	MySqlMediumInt,
+	MySqlReal,
+	MySqlSerial,
+	MySqlSmallInt,
+	MySqlText,
+	MySqlTime,
+	MySqlTimestamp,
+	MySqlTimestampString,
+	MySqlTinyInt,
+	MySqlVarBinary,
+	MySqlVarChar,
+	MySqlYear,
+} from 'drizzle-orm/mysql-core';
 import {
 	PgArray,
 	PgBigInt53,
@@ -11,7 +40,6 @@ import {
 	PgCustomColumn,
 	PgDate,
 	PgDoublePrecision,
-	PgEnumColumn,
 	PgInet,
 	PgInteger,
 	PgInterval,
@@ -39,14 +67,7 @@ import {
 	SQLiteText,
 	SQLiteTimestamp,
 } from 'drizzle-orm/sqlite-core';
-import {
-	type Assume,
-	type DrizzleTypeError,
-	type Equal,
-	getTableColumns,
-	type Or,
-	type Simplify,
-} from 'drizzle-orm/utils';
+import { type Assume, type DrizzleTypeError, type Equal, getTableColumns, type Simplify } from 'drizzle-orm/utils';
 import { z } from 'zod';
 
 const literalSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
@@ -77,13 +98,12 @@ type MaybeOptional<
 	: MapColumnToZod<TColumn, TType, TMode>;
 
 type GetZodType<TColumn extends AnyColumn> = TColumn['_']['data'] extends infer TType
-	? TColumn extends PgCustomColumn<any> | SQLiteCustomColumn<any> ? z.ZodAny
-	: TColumn extends PgJson<any> | PgJsonb<any> | SQLiteBlobJson<any> ? z.ZodType<Json>
-	: TColumn['_']['config'] extends { enum: [string, ...string[]] } ? Or<
-			Equal<[string, ...string[]], TColumn['_']['config']['enum']>,
-			Equal<string[], TColumn['_']['config']['enum']>
-		> extends true ? z.ZodString : z.ZodEnum<TColumn['_']['config']['enum']>
+	? TColumn extends PgCustomColumn<any> | SQLiteCustomColumn<any> | MySqlCustomColumn<any> ? z.ZodAny
+	: TColumn extends PgJson<any> | PgJsonb<any> | SQLiteBlobJson<any> | MySqlJson<any> ? z.ZodType<Json>
+	: TColumn extends WithEnum
+		? Equal<TColumn['enumValues'], [string, ...string[]]> extends true ? z.ZodString : z.ZodEnum<TColumn['enumValues']>
 	: TColumn extends PgArray<any> ? z.ZodArray<GetZodType<Assume<TColumn['_'], { baseColumn: AnyColumn }>['baseColumn']>>
+	: TType extends bigint ? z.ZodBigInt
 	: TType extends number ? z.ZodNumber
 	: TType extends string ? z.ZodString
 	: TType extends boolean ? z.ZodBoolean
@@ -93,7 +113,7 @@ type GetZodType<TColumn extends AnyColumn> = TColumn['_']['data'] extends infer 
 
 type ValueOrUpdater<T, TUpdaterArg> = T | ((arg: TUpdaterArg) => T);
 
-type UnwrapValueOrUpdater<T> = T extends ValueOrUpdater<infer T, any> ? T : never;
+type UnwrapValueOrUpdater<T> = T extends ValueOrUpdater<infer U, any> ? U : never;
 
 export type Refine<TTable extends Table, TMode extends 'select' | 'insert'> = {
 	[K in keyof TTable['_']['columns']]?: ValueOrUpdater<
@@ -119,7 +139,7 @@ export type BuildInsertSchema<
 
 export type BuildSelectSchema<
 	TTable extends Table,
-	TRefine extends Refine<TTable, 'select'> | {},
+	TRefine extends Refine<TTable, 'select'>,
 	TNoOptional extends boolean = false,
 > = Simplify<
 	{
@@ -135,7 +155,7 @@ export type BuildSelectSchema<
 
 export function createInsertSchema<
 	TTable extends Table,
-	TRefine extends Refine<TTable, 'insert'> = {},
+	TRefine extends Refine<TTable, 'insert'> = Refine<TTable, 'insert'>,
 >(
 	table: TTable,
 	/**
@@ -145,7 +165,7 @@ export function createInsertSchema<
 		[K in keyof TRefine]: K extends keyof TTable['_']['columns'] ? TRefine[K]
 			: DrizzleTypeError<`Column '${K & string}' does not exist in table '${TTable['_']['name']}'`>;
 	},
-): z.ZodObject<BuildInsertSchema<TTable, TRefine>> {
+): z.ZodObject<BuildInsertSchema<TTable, Equal<TRefine, Refine<TTable, 'insert'>> extends true ? {} : TRefine>> {
 	const columns = getTableColumns(table);
 	const columnEntries = Object.entries(columns);
 
@@ -169,20 +189,20 @@ export function createInsertSchema<
 		);
 	}
 
-	columnEntries.forEach(([name, column]) => {
+	for (const [name, column] of columnEntries) {
 		if (!column.notNull) {
 			schemaEntries[name] = schemaEntries[name]!.nullable().optional();
 		} else if (column.hasDefault) {
 			schemaEntries[name] = schemaEntries[name]!.optional();
 		}
-	});
+	}
 
-	return z.object(schemaEntries) as z.ZodObject<BuildInsertSchema<TTable, TRefine>>;
+	return z.object(schemaEntries) as any;
 }
 
 export function createSelectSchema<
 	TTable extends Table,
-	TRefine extends Refine<TTable, 'select'> = {},
+	TRefine extends Refine<TTable, 'select'> = Refine<TTable, 'select'>,
 >(
 	table: TTable,
 	/**
@@ -192,7 +212,7 @@ export function createSelectSchema<
 		[K in keyof TRefine]: K extends keyof TTable['_']['columns'] ? TRefine[K]
 			: DrizzleTypeError<`Column '${K & string}' does not exist in table '${TTable['_']['name']}'`>;
 	},
-): z.ZodObject<BuildSelectSchema<TTable, TRefine>> {
+): z.ZodObject<BuildSelectSchema<TTable, Equal<TRefine, Refine<TTable, 'select'>> extends true ? {} : TRefine>> {
 	const columns = getTableColumns(table);
 	const columnEntries = Object.entries(columns);
 
@@ -216,31 +236,35 @@ export function createSelectSchema<
 		);
 	}
 
-	columnEntries.forEach(([name, column]) => {
+	for (const [name, column] of columnEntries) {
 		if (!column.notNull) {
 			schemaEntries[name] = schemaEntries[name]!.nullable();
 		}
-	});
+	}
 
-	return z.object(schemaEntries) as z.ZodObject<BuildSelectSchema<TTable, TRefine>>;
+	return z.object(schemaEntries) as any;
+}
+
+function isWithEnum(column: AnyColumn): column is typeof column & WithEnum {
+	return 'enumValues' in column && Array.isArray(column.enumValues);
 }
 
 function mapColumnToSchema(column: AnyColumn): z.ZodTypeAny {
 	let type: z.ZodTypeAny | undefined;
 
-	if ('enum' in column) {
-		const _enum = (column as unknown as { enum: [string, ...string[]] }).enum;
-		if (_enum.length) {
-			type = z.enum(_enum);
-		} else {
-			type = z.string();
-		}
+	if (isWithEnum(column)) {
+		type = column.enumValues.length ? z.enum(column.enumValues) : z.string();
 	}
 
 	if (!type) {
-		if (column instanceof PgCustomColumn || column instanceof SQLiteCustomColumn) {
+		if (
+			column instanceof PgCustomColumn || column instanceof SQLiteCustomColumn || column instanceof MySqlCustomColumn
+		) {
 			type = z.any();
-		} else if (column instanceof PgJson || column instanceof PgJsonb || column instanceof SQLiteBlobJson) {
+		} else if (
+			column instanceof PgJson || column instanceof PgJsonb || column instanceof SQLiteBlobJson
+			|| column instanceof MySqlJson
+		) {
 			type = jsonSchema;
 		} else if (column instanceof PgArray) {
 			type = z.array(mapColumnToSchema(column.baseColumn));
@@ -248,23 +272,31 @@ function mapColumnToSchema(column: AnyColumn): z.ZodTypeAny {
 			column instanceof PgBigInt53 || column instanceof PgInteger || column instanceof PgSmallInt
 			|| column instanceof PgSerial || column instanceof PgBigSerial53 || column instanceof PgSmallSerial
 			|| column instanceof PgDoublePrecision || column instanceof PgReal || column instanceof SQLiteInteger
-			|| column instanceof SQLiteReal
+			|| column instanceof SQLiteReal || column instanceof MySqlInt || column instanceof MySqlBigInt53
+			|| column instanceof MySqlDouble || column instanceof MySqlFloat || column instanceof MySqlMediumInt
+			|| column instanceof MySqlSmallInt || column instanceof MySqlTinyInt || column instanceof MySqlSerial
+			|| column instanceof MySqlReal || column instanceof MySqlYear
 		) {
 			type = z.number();
-		} else if (column instanceof PgBigInt64 || column instanceof PgBigSerial64) {
+		} else if (column instanceof PgBigInt64 || column instanceof PgBigSerial64 || column instanceof MySqlBigInt64) {
 			type = z.bigint();
-		} else if (column instanceof PgBoolean) {
+		} else if (column instanceof PgBoolean || column instanceof MySqlBoolean) {
 			type = z.boolean();
-		} else if (column instanceof PgDate || column instanceof PgTimestamp || column instanceof SQLiteTimestamp) {
+		} else if (
+			column instanceof PgDate || column instanceof PgTimestamp || column instanceof SQLiteTimestamp
+			|| column instanceof MySqlDate || column instanceof MySqlDateTime
+			|| column instanceof MySqlTimestamp
+		) {
 			type = z.date();
-		} else if (column instanceof PgEnumColumn) {
-			type = z.enum(column.enum.enumValues as [string, ...string[]]);
 		} else if (
 			column instanceof PgInterval || column instanceof PgNumeric || column instanceof PgChar
 			|| column instanceof PgCidr || column instanceof PgInet || column instanceof PgMacaddr
-			|| column instanceof PgMacaddr8
-			|| column instanceof PgText || column instanceof PgTime || column instanceof PgVarchar
-			|| column instanceof SQLiteNumeric || column instanceof SQLiteText
+			|| column instanceof PgMacaddr8 || column instanceof PgText || column instanceof PgTime
+			|| column instanceof PgVarchar || column instanceof SQLiteNumeric || column instanceof SQLiteText
+			|| column instanceof MySqlDateString || column instanceof MySqlDateTimeString || column instanceof MySqlDecimal
+			|| column instanceof MySqlText || column instanceof MySqlTime || column instanceof MySqlTimestampString
+			|| column instanceof MySqlVarChar || column instanceof MySqlBinary
+			|| column instanceof MySqlVarBinary || column instanceof MySqlChar
 		) {
 			type = z.string();
 		} else if (column instanceof PgUUID) {

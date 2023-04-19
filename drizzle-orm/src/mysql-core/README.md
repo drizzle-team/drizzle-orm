@@ -259,7 +259,7 @@ export const cities = mysqlTable('cities', {
   name: varchar('name', { length: 256 }),
   countryId: int('country_id').references(() => countries.id), // inline foreign key
   countryName: varchar('country_id', { length: 256 }),
-  sisterCityId: integer('sister_city_id').references((): AnyMySqlColumn => cities.id), // self-referencing foreign key
+  sisterCityId: int('sister_city_id').references((): AnyMySqlColumn => cities.id), // self-referencing foreign key
 }, (cities) => ({
   // explicit foreign key with 1 column
   countryFk: foreignKey(({
@@ -495,6 +495,27 @@ Subqueries in joins are supported, too:
 const result = await db.select().from(users).leftJoin(sq, eq(users.id, sq.id));
 ```
 
+#### Querying large datasets
+
+If you need to return a very large amount of rows from a query and you don't want to load them all into memory, you can use `.iterator()` to convert the query into an async iterator:
+
+```typescript
+const iterator = await db.select().from(users).iterator();
+for await (const row of iterator) {
+  console.log(row);
+}
+```
+
+It also works with prepared statements:
+
+```typescript
+const query = await db.select().from(users).prepare();
+const iterator = await query.iterator();
+for await (const row of iterator) {
+  console.log(row);
+}
+```
+
 #### List of all filter operators
 
 ```typescript
@@ -530,9 +551,7 @@ between(column, min, max)
 notBetween(column, min, max)
 
 like(column, value)
-like(column, value)
-ilike(column, value)
-notIlike(column, value)
+notLike(column, value)
 
 not(sqlExpression)
 
@@ -645,8 +664,8 @@ const chatGroups = mysqlTable('chat_groups', {
 });
 
 const usersToChatGroups = mysqlTable('usersToChatGroups', {
-  userId: integer('user_id').notNull().references(() => users.id),
-  groupId: integer('group_id').notNull().references(() => chatGroups.id),
+  userId: int('user_id').notNull().references(() => users.id),
+  groupId: int('group_id').notNull().references(() => chatGroups.id),
 });
 
 // querying user group with id 1 and all the participants(users)
@@ -801,7 +820,7 @@ In case you need to specify the view query using a syntax that is not supported 
 const newYorkers = mysqlView('new_yorkers', {
   id: serial('id').primaryKey(),
   name: text('name').notNull(),
-  cityId: integer('city_id').notNull(),
+  cityId: int('city_id').notNull(),
 }).as(sql`select * from ${users} where ${eq(users.cityId, 1)}`);
 ```
 
@@ -811,8 +830,8 @@ There are cases when you are given readonly access to an existing view. In such 
 
 ```ts
 const newYorkers = mysqlView('new_yorkers', {
-  userId: integer('user_id').notNull(),
-  cityId: integer('city_id'),
+  userId: int('user_id').notNull(),
+  cityId: int('city_id'),
 }).existing();
 ```
 
@@ -856,7 +875,7 @@ Check out the [docs for Drizzle Kit](https://github.com/drizzle-team/drizzle-kit
 For schema file:
 
 ```typescript
-import { index, integer, mysqlTable, serial, varchar } from 'drizzle-orm/mysql-core';
+import { index, int, mysqlTable, serial, varchar } from 'drizzle-orm/mysql-core';
 
 export const users = mysqlTable('users', {
   id: serial('id').primaryKey(),

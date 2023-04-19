@@ -1,6 +1,6 @@
 import type { AnyColumn } from './column';
 import { Column } from './column';
-import type { SelectedFields, SelectedFieldsOrdered } from './operations';
+import type { SelectedFieldsOrdered } from './operations';
 import type { DriverValueDecoder } from './sql';
 import { Param, SQL } from './sql';
 import { type AnyTable, getTableName, Table } from './table';
@@ -24,7 +24,7 @@ export function mapResultRow<TResult>(
 				decoder = field.sql.decoder;
 			}
 			let node = result;
-			path.forEach((pathChunk, pathChunkIndex) => {
+			for (const [pathChunkIndex, pathChunk] of path.entries()) {
 				if (pathChunkIndex < path.length - 1) {
 					if (!(pathChunk in node)) {
 						node[pathChunk] = {};
@@ -37,11 +37,7 @@ export function mapResultRow<TResult>(
 					if (joinsNotNullableMap && field instanceof Column && path.length === 2) {
 						const objectName = path[0]!;
 						if (!(objectName in nullifyMap)) {
-							if (value === null) {
-								nullifyMap[objectName] = getTableName(field.table);
-							} else {
-								nullifyMap[objectName] = false;
-							}
+							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
 						} else if (
 							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
 						) {
@@ -49,7 +45,7 @@ export function mapResultRow<TResult>(
 						}
 					}
 				}
-			});
+			}
 			return result;
 		},
 		{},
@@ -57,18 +53,18 @@ export function mapResultRow<TResult>(
 
 	// Nullify all nested objects from nullifyMap that are nullable
 	if (joinsNotNullableMap && Object.keys(nullifyMap).length > 0) {
-		Object.entries(nullifyMap).forEach(([objectName, tableName]) => {
+		for (const [objectName, tableName] of Object.entries(nullifyMap)) {
 			if (typeof tableName === 'string' && !joinsNotNullableMap[tableName]) {
 				result[objectName] = null;
 			}
-		});
+		}
 	}
 
 	return result as TResult;
 }
 
 export function orderSelectedFields<TColumn extends AnyColumn>(
-	fields: SelectedFields<AnyColumn, Table>,
+	fields: Record<string, unknown>,
 	pathPrefix?: string[],
 ): SelectedFieldsOrdered<TColumn> {
 	return Object.entries(fields).reduce<SelectedFieldsOrdered<AnyColumn>>((result, [name, field]) => {
@@ -86,7 +82,7 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 		} else if (field instanceof Table) {
 			result.push(...orderSelectedFields(field[Table.Symbol.Columns], newPath));
 		} else {
-			result.push(...orderSelectedFields(field, newPath));
+			result.push(...orderSelectedFields(field as Record<string, unknown>, newPath));
 		}
 		return result;
 	}, []) as SelectedFieldsOrdered<TColumn>;
@@ -96,6 +92,7 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 export function mapUpdateSet(table: Table, values: Record<string, unknown>): UpdateSet {
 	return Object.fromEntries<UpdateSet[string]>(
 		Object.entries(values).map(([key, value]) => {
+			// eslint-disable-next-line unicorn/prefer-ternary
 			if (value instanceof SQL || value === null || value === undefined) {
 				return [key, value];
 			} else {
@@ -210,15 +207,15 @@ export interface DrizzleTypeError<T> {
 export type ValueOrArray<T> = T | T[];
 
 export function applyMixins(baseClass: any, extendedClasses: any[]) {
-	extendedClasses.forEach((extendedClass) => {
-		Object.getOwnPropertyNames(extendedClass.prototype).forEach((name) => {
+	for (const extendedClass of extendedClasses) {
+		for (const name of Object.getOwnPropertyNames(extendedClass.prototype)) {
 			Object.defineProperty(
 				baseClass.prototype,
 				name,
 				Object.getOwnPropertyDescriptor(extendedClass.prototype, name) || Object.create(null),
 			);
-		});
-	});
+		}
+	}
 }
 
 export type Or<T1, T2> = T1 extends true ? true : T2 extends true ? true : false;

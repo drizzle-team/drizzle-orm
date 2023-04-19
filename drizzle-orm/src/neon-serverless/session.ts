@@ -48,15 +48,15 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PreparedQu
 
 		this.logger.logQuery(this.rawQuery.text, params);
 
-		const { fields } = this;
+		const { fields, client, rawQuery, query, joinsNotNullableMap } = this;
 		if (!fields) {
-			return this.client.query(this.rawQuery, params);
+			return client.query(rawQuery, params);
 		}
 
-		const result = this.client.query(this.query, params);
+		const result = client.query(query, params);
 
 		return result.then((result) =>
-			result.rows.map((row) => mapResultRow<T['execute']>(fields, row, this.joinsNotNullableMap))
+			result.rows.map((row) => mapResultRow<T['execute']>(fields, row, joinsNotNullableMap))
 		);
 	}
 
@@ -130,6 +130,10 @@ export class NeonSession extends PgSession<NeonQueryResultHKT> {
 		} catch (error) {
 			await tx.execute(sql`rollback`);
 			throw error;
+		} finally {
+			if (this.client instanceof Pool) {
+				(session.client as PoolClient).release();
+			}
 		}
 	}
 }

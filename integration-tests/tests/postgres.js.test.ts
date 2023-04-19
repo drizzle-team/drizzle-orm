@@ -132,7 +132,7 @@ test.before(async (t) => {
 	const ctx = t.context;
 	const connectionString = process.env['PG_CONNECTION_STRING'] ?? await createDockerDB(ctx);
 
-	let sleep = 250;
+	const sleep = 250;
 	let timeLeft = 5000;
 	let connected = false;
 	let lastError: unknown | undefined;
@@ -140,7 +140,9 @@ test.before(async (t) => {
 		try {
 			ctx.client = postgres(connectionString, {
 				max: 1,
-				onnotice: () => {},
+				onnotice: () => {
+					// disable notices
+				},
 			});
 			await ctx.client`select 1`;
 			connected = true;
@@ -169,48 +171,60 @@ test.beforeEach(async (t) => {
 	await ctx.db.execute(sql`drop schema public cascade`);
 	await ctx.db.execute(sql`create schema public`);
 	await ctx.db.execute(
-		sql`create table users (
-			id serial primary key,
-			name text not null,
-			verified boolean not null default false, 
-			jsonb jsonb,
-			created_at timestamptz not null default now()
-		)`,
+		sql`
+			create table users (
+				id serial primary key,
+				name text not null,
+				verified boolean not null default false, 
+				jsonb jsonb,
+				created_at timestamptz not null default now()
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table cities (
-			id serial primary key,
-			name text not null
-		)`,
+		sql`
+			create table cities (
+				id serial primary key,
+				name text not null
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table users2 (
-			id serial primary key,
-			name text not null,
-			city_id integer references cities(id)
-		)`,
+		sql`
+			create table users2 (
+				id serial primary key,
+				name text not null,
+				city_id integer references cities(id)
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table course_categories (
-			id serial primary key,
-			name text not null
-		)`,
+		sql`
+			create table course_categories (
+				id serial primary key,
+				name text not null
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table courses (
-			id serial primary key,
-			name text not null,
-			category_id integer references course_categories(id)
-		)`,
+		sql`
+			create table courses (
+				id serial primary key,
+				name text not null,
+				category_id integer references course_categories(id)
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table orders (
-			id serial primary key,
-			region text not null,
-			product text not null,
-			amount integer not null,
-			quantity integer not null
-		)`,
+		sql`
+			create table orders (
+				id serial primary key,
+				region text not null,
+				product text not null,
+				amount integer not null,
+				quantity integer not null
+			)
+		`,
 	);
 });
 
@@ -1045,7 +1059,7 @@ test.serial('select count w/ custom mapper', async (t) => {
 	function count(value: AnyPgColumn | SQLWrapper): SQL<number>;
 	function count(value: AnyPgColumn | SQLWrapper, alias: string): SQL.Aliased<number>;
 	function count(value: AnyPgColumn | SQLWrapper, alias?: string): SQL<number> | SQL.Aliased<number> {
-		const result = sql`count(${value})`.mapWith((v) => parseInt(v, 10));
+		const result = sql`count(${value})`.mapWith(Number);
 		if (!alias) {
 			return result;
 		}
@@ -1073,6 +1087,7 @@ test.serial('select for ...', (t) => {
 
 	t.regex(
 		query.sql,
+		// eslint-disable-next-line unicorn/better-regex
 		/select ("(id|name|city_id)"(, )?){3} from "users2" for update for no key update of "users2" for no key update of "users2" skip locked for share of "users2" no wait/,
 	);
 });
@@ -1439,20 +1454,22 @@ test.serial('select from enum', async (t) => {
 		} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,
 	);
 	await db.execute(sql`create type ${name(categoryEnum.enumName)} as enum ('upper_body', 'lower_body', 'full_body')`);
-	await db.execute(sql`create table ${exercises} (
-		id serial primary key,
-		name varchar not null,
-		force force,
-		level level,
-		mechanic mechanic,
-		equipment equipment,
-		instructions text,
-		category category,
-		primary_muscles muscle[],
-		secondary_muscles muscle[],
-		created_at timestamp not null default now(),
-		updated_at timestamp not null default now()
-	)`);
+	await db.execute(sql`
+		create table ${exercises} (
+			id serial primary key,
+			name varchar not null,
+			force force,
+			level level,
+			mechanic mechanic,
+			equipment equipment,
+			instructions text,
+			category category,
+			primary_muscles muscle[],
+			secondary_muscles muscle[],
+			created_at timestamp not null default now(),
+			updated_at timestamp not null default now()
+		)
+	`);
 
 	await db.insert(exercises).values({
 		name: 'Bench Press',
@@ -1672,5 +1689,109 @@ test.serial('nested transaction rollback', async (t) => {
 
 	t.deepEqual(result, [{ id: 1, balance: 100 }]);
 
+	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('join subquery with join', async (t) => {
+	const { db } = t.context;
+
+	const internalStaff = pgTable('internal_staff', {
+		userId: integer('user_id').notNull(),
+	});
+
+	const customUser = pgTable('custom_user', {
+		id: integer('id').notNull(),
+	});
+
+	const ticket = pgTable('ticket', {
+		staffId: integer('staff_id').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${internalStaff}`);
+	await db.execute(sql`drop table if exists ${customUser}`);
+	await db.execute(sql`drop table if exists ${ticket}`);
+
+	await db.execute(sql`create table internal_staff (user_id integer not null)`);
+	await db.execute(sql`create table custom_user (id integer not null)`);
+	await db.execute(sql`create table ticket (staff_id integer not null)`);
+
+	await db.insert(internalStaff).values({ userId: 1 });
+	await db.insert(customUser).values({ id: 1 });
+	await db.insert(ticket).values({ staffId: 1 });
+
+	const subq = db
+		.select()
+		.from(internalStaff)
+		.leftJoin(customUser, eq(internalStaff.userId, customUser.id))
+		.as('internal_staff');
+
+	const mainQuery = await db
+		.select()
+		.from(ticket)
+		.leftJoin(subq, eq(subq.internal_staff.userId, ticket.staffId));
+
+	t.deepEqual(mainQuery, [{
+		ticket: { staffId: 1 },
+		internal_staff: {
+			internal_staff: { userId: 1 },
+			custom_user: { id: 1 },
+		},
+	}]);
+
+	await db.execute(sql`drop table ${internalStaff}`);
+	await db.execute(sql`drop table ${customUser}`);
+	await db.execute(sql`drop table ${ticket}`);
+});
+
+test.serial('join view as subquery', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users_join_view', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: integer('city_id').notNull(),
+	});
+
+	const newYorkers = pgView('new_yorkers').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`drop view if exists ${newYorkers}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial not null primary key, name text not null, city_id integer not null)`,
+	);
+	await db.execute(sql`create view ${newYorkers} as select * from ${users} where city_id = 1`);
+
+	await db.insert(users).values([
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 2 },
+		{ name: 'Jack', cityId: 1 },
+		{ name: 'Jill', cityId: 2 },
+	]);
+
+	const sq = db.select().from(newYorkers).as('new_yorkers_sq');
+
+	const result = await db.select().from(users).leftJoin(sq, eq(users.id, sq.id));
+
+	t.deepEqual(result, [
+		{
+			users_join_view: { id: 1, name: 'John', cityId: 1 },
+			new_yorkers_sq: { id: 1, name: 'John', cityId: 1 },
+		},
+		{
+			users_join_view: { id: 2, name: 'Jane', cityId: 2 },
+			new_yorkers_sq: null,
+		},
+		{
+			users_join_view: { id: 3, name: 'Jack', cityId: 1 },
+			new_yorkers_sq: { id: 3, name: 'Jack', cityId: 1 },
+		},
+		{
+			users_join_view: { id: 4, name: 'Jill', cityId: 2 },
+			new_yorkers_sq: null,
+		},
+	]);
+
+	await db.execute(sql`drop view ${newYorkers}`);
 	await db.execute(sql`drop table ${users}`);
 });

@@ -2,7 +2,7 @@ import test from 'ava';
 import { integer, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { createInsertSchema, createSelectSchema } from '../src';
-import { assertSchemasEqual } from './utils';
+import { expectSchemaShape } from './utils';
 
 export const roleEnum = pgEnum('role', ['admin', 'user']);
 
@@ -27,14 +27,14 @@ test('users insert schema', (t) => {
 	(() => {
 		{
 			createInsertSchema(users, {
-				// @ts-expect-error
+				// @ts-expect-error (missing property)
 				foobar: z.number(),
 			});
 		}
 
 		{
 			createInsertSchema(users, {
-				// @ts-expect-error
+				// @ts-expect-error (invalid type)
 				id: 123,
 			});
 		}
@@ -51,7 +51,7 @@ test('users insert schema', (t) => {
 		roleText2: z.enum(['admin', 'user']).optional(),
 	});
 
-	assertSchemasEqual(t, actual, expected);
+	expectSchemaShape(t, expected).from(actual);
 });
 
 test('users insert schema w/ defaults', (t) => {
@@ -68,7 +68,7 @@ test('users insert schema w/ defaults', (t) => {
 		roleText2: z.enum(['admin', 'user']).optional(),
 	});
 
-	assertSchemasEqual(t, actual, expected);
+	expectSchemaShape(t, expected).from(actual);
 });
 
 test('users select schema', (t) => {
@@ -89,7 +89,7 @@ test('users select schema', (t) => {
 		roleText2: z.enum(['admin', 'user']),
 	});
 
-	assertSchemasEqual(t, actual, expected);
+	expectSchemaShape(t, expected).from(actual);
 });
 
 test('users select schema w/ defaults', (t) => {
@@ -106,5 +106,5 @@ test('users select schema w/ defaults', (t) => {
 		roleText2: z.enum(['admin', 'user']),
 	});
 
-	assertSchemasEqual(t, actual, expected);
+	expectSchemaShape(t, expected).from(actual);
 });

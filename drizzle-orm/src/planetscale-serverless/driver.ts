@@ -3,7 +3,7 @@ import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
 import { MySqlDatabase } from '~/mysql-core/db';
 import { MySqlDialect } from '~/mysql-core/dialect';
-import type { PlanetscaleQueryResultHKT } from './session';
+import type { PlanetScalePreparedQueryHKT, PlanetscaleQueryResultHKT } from './session';
 import { PlanetscaleSession } from './session';
 
 export interface PlanetscaleSDriverOptions {
@@ -27,7 +27,7 @@ export interface DrizzleConfig {
 	logger?: boolean | Logger;
 }
 
-export type PlanetScaleDatabase = MySqlDatabase<PlanetscaleQueryResultHKT>;
+export type PlanetScaleDatabase = MySqlDatabase<PlanetscaleQueryResultHKT, PlanetScalePreparedQueryHKT>;
 
 export function drizzle(
 	client: Connection,

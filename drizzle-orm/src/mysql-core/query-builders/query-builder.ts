@@ -2,6 +2,7 @@ import { MySqlDialect } from '~/mysql-core/dialect';
 import type { WithSubqueryWithSelection } from '~/mysql-core/subquery';
 import type { QueryBuilder } from '~/query-builders/query-builder';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
+import { type ColumnsSelection } from '~/view';
 import type { MySqlSelectBuilder } from './select';
 import type { SelectedFields } from './select.types';
 
@@ -18,7 +19,7 @@ export class QueryBuilderInstance {
 		const queryBuilder = this;
 
 		return {
-			as<TSelection>(
+			as<TSelection extends ColumnsSelection>(
 				qb: QueryBuilder<TSelection> | ((qb: QueryBuilderInstance) => QueryBuilder<TSelection>),
 			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {
@@ -36,20 +37,22 @@ export class QueryBuilderInstance {
 	with(...queries: WithSubquery[]) {
 		const self = this;
 
-		function select(): MySqlSelectBuilder<undefined, 'qb'>;
-		function select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, 'qb'>;
+		function select(): MySqlSelectBuilder<undefined, never, 'qb'>;
+		function select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, never, 'qb'>;
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): MySqlSelectBuilder<TSelection | undefined, 'qb'> {
+		): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
 			return new self.MySqlSelectBuilder(fields ?? undefined, undefined, self.getDialect(), queries);
 		}
 
 		return { select };
 	}
 
-	select(): MySqlSelectBuilder<undefined, 'qb'>;
-	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, 'qb'>;
-	select<TSelection extends SelectedFields>(fields?: TSelection): MySqlSelectBuilder<TSelection | undefined, 'qb'> {
+	select(): MySqlSelectBuilder<undefined, never, 'qb'>;
+	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, never, 'qb'>;
+	select<TSelection extends SelectedFields>(
+		fields?: TSelection,
+	): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
 		return new this.MySqlSelectBuilder(fields ?? undefined, undefined, this.getDialect());
 	}
 

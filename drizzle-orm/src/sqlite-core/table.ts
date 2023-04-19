@@ -63,8 +63,6 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 	}>;
 }
 
-type Arguments<T extends Function> = T extends (...args: infer TArgs) => any ? TArgs : never;
-
 function sqliteTableBase<
 	TTableName extends string,
 	TColumnsMap extends Record<string, AnySQLiteColumnBuilder>,

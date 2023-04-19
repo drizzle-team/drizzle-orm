@@ -76,28 +76,6 @@ export const users = pgTable('users', {
 });
 ```
 
-### Using Drizzle ORM in Next.js app router
-
-In order to use Drizzle ORM in the Next.js new app router mode you have to add `pg` dependendency to the `experimental.serverComponentsExternalPackages` array in `next.config.js` config file.
-
-Example `next.config.js` should look like this:
-
-```ts
-/** @type {import("next").NextConfig} */
-const config = {
-  reactStrictMode: true,
-  experimental: {
-    appDir: true,
-    serverComponentsExternalPackages: ["pg"],
-  },
-}
-export default config
-```
-
-More details about `serverComponentsExternalPackages` can be found in the [Next.js beta docs](https://beta.nextjs.org/docs/api-reference/next-config#servercomponentsexternalpackages).
-
-> **Note**: New next.js beta docs changes frequently so if the link above doesn't work try this one: [Next.js beta docs](https://beta.nextjs.org/docs/api-reference/next-config.js#servercomponentsexternalpackages).
-
 ### Connect using node-postgres Pool (recommended)
 
 ```typescript

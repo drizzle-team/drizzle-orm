@@ -45,7 +45,7 @@ export class MySqlTimestamp<T extends ColumnBaseConfig>
 	readonly fsp: number | undefined = this.config.fsp;
 
 	getSQLType(): string {
-		const precision = typeof this.fsp !== 'undefined' ? `(${this.fsp})` : '';
+		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
 		return `timestamp${precision}`;
 	}
 
@@ -99,7 +99,7 @@ export class MySqlTimestampString<T extends ColumnBaseConfig>
 	readonly fsp: number | undefined = this.config.fsp;
 
 	getSQLType(): string {
-		const precision = typeof this.fsp !== 'undefined' ? `(${this.fsp})` : '';
+		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
 		return `timestamp${precision}`;
 	}
 }

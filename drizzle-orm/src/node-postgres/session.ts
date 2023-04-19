@@ -47,15 +47,15 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 
 		this.logger.logQuery(this.rawQuery.text, params);
 
-		const { fields } = this;
+		const { fields, rawQuery, client, query, joinsNotNullableMap } = this;
 		if (!fields) {
-			return this.client.query(this.rawQuery, params);
+			return client.query(rawQuery, params);
 		}
 
-		const result = this.client.query(this.query, params);
+		const result = client.query(query, params);
 
 		return result.then((result) =>
-			result.rows.map((row) => mapResultRow<T['execute']>(fields, row, this.joinsNotNullableMap))
+			result.rows.map((row) => mapResultRow<T['execute']>(fields, row, joinsNotNullableMap))
 		);
 	}
 
@@ -129,6 +129,10 @@ export class NodePgSession extends PgSession<NodePgQueryResultHKT> {
 		} catch (error) {
 			await tx.execute(sql`rollback`);
 			throw error;
+		} finally {
+			if (this.client instanceof Pool) {
+				(session.client as PoolClient).release();
+			}
 		}
 	}
 }

@@ -1,8 +1,8 @@
-import type { ExecutionContext } from 'ava';
 import test from 'ava';
 import { blob, integer, numeric, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { z } from 'zod';
 import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
+import { expectSchemaShape } from './utils';
 
 const blobJsonSchema = z.object({
 	foo: z.string(),
@@ -19,21 +19,6 @@ const users = sqliteTable('users', {
 	role: text('role', { enum: ['admin', 'user'] }).notNull().default('user'),
 });
 
-function assertSchemasEqual<T extends z.SomeZodObject>(t: ExecutionContext, actual: T, expected: T) {
-	t.deepEqual(Object.keys(actual.shape), Object.keys(expected.shape));
-
-	Object.keys(actual.shape).forEach((key) => {
-		t.deepEqual(actual.shape[key]!._def.typeName, expected.shape[key]?._def.typeName, `key: ${key}`);
-		if (actual.shape[key] instanceof z.ZodOptional) {
-			t.deepEqual(
-				actual.shape[key]!._def.innerType._def.typeName,
-				expected.shape[key]!._def.innerType._def.typeName,
-				`key (optional): ${key}`,
-			);
-		}
-	});
-}
-
 test('users insert schema', (t) => {
 	const actual = createInsertSchema(users, {
 		id: ({ id }) => id.positive(),
@@ -44,14 +29,14 @@ test('users insert schema', (t) => {
 	(() => {
 		{
 			createInsertSchema(users, {
-				// @ts-expect-error
+				// @ts-expect-error (missing property)
 				foobar: z.number(),
 			});
 		}
 
 		{
 			createInsertSchema(users, {
-				// @ts-expect-error
+				// @ts-expect-error (invalid type)
 				id: 123,
 			});
 		}
@@ -68,7 +53,7 @@ test('users insert schema', (t) => {
 		role: z.enum(['admin', 'manager', 'user']).optional(),
 	});
 
-	assertSchemasEqual(t, actual, expected);
+	expectSchemaShape(t, expected).from(actual);
 });
 
 test('users insert schema w/ defaults', (t) => {
@@ -85,7 +70,7 @@ test('users insert schema w/ defaults', (t) => {
 		role: z.enum(['admin', 'user']).optional(),
 	});
 
-	assertSchemasEqual(t, actual, expected);
+	expectSchemaShape(t, expected).from(actual);
 });
 
 test('users select schema', (t) => {
@@ -97,14 +82,14 @@ test('users select schema', (t) => {
 	(() => {
 		{
 			createSelectSchema(users, {
-				// @ts-expect-error
+				// @ts-expect-error (missing property)
 				foobar: z.number(),
 			});
 		}
 
 		{
 			createSelectSchema(users, {
-				// @ts-expect-error
+				// @ts-expect-error (invalid type)
 				id: 123,
 			});
 		}
@@ -121,7 +106,7 @@ test('users select schema', (t) => {
 		role: z.enum(['admin', 'manager', 'user']),
 	}).required();
 
-	assertSchemasEqual(t, actual, expected);
+	expectSchemaShape(t, expected).from(actual);
 });
 
 test('users select schema w/ defaults', (t) => {
@@ -138,5 +123,5 @@ test('users select schema w/ defaults', (t) => {
 		role: z.enum(['admin', 'user']),
 	}).required();
 
-	assertSchemasEqual(t, actual, expected);
+	expectSchemaShape(t, expected).from(actual);
 });

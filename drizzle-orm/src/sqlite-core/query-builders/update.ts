@@ -45,10 +45,15 @@ export class SQLiteUpdateBuilder<
 	}
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface SQLiteUpdate<
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TTable extends AnySQLiteTable,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TResultType extends 'sync' | 'async',
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TRunResult,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TReturning = undefined,
 > extends SQLWrapper {}
 
@@ -101,7 +106,7 @@ export class SQLiteUpdate<
 	}
 
 	toSQL(): Omit<Query, 'typings'> {
-		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
 

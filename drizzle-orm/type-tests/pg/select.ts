@@ -39,7 +39,7 @@ const city1 = alias(cities, 'city1');
 const leftJoinFull = await db.select().from(users).leftJoin(city, eq(users.id, city.id));
 
 {
-	const result = await db.select().from(users).leftJoin(city, eq(users.id, city.id));
+	await db.select().from(users).leftJoin(city, eq(users.id, city.id));
 }
 
 Expect<
@@ -723,7 +723,7 @@ Expect<
 	>
 >;
 
-const megaFullJoin = await db
+await db
 	.select({
 		user: {
 			id: users.id,
@@ -817,7 +817,7 @@ Expect<
 >;
 
 {
-	let authenticated = false;
+	const authenticated = false as boolean;
 
 	const result = await db
 		.select({
@@ -844,7 +844,7 @@ await db
 	.for('no key update', { of: users })
 	.for('no key update', { of: users, skipLocked: true })
 	.for('share', { of: users, noWait: true })
-	// @ts-expect-error
+	// @ts-expect-error - can't use both skipLocked and noWait
 	.for('share', { of: users, noWait: true, skipLocked: true });
 
 await db
@@ -911,12 +911,12 @@ await db
 
 {
 	// TODO: add to docs
-	function withPagination<T extends AnyPgSelect>(qb: T) {
+	const withPagination = <T extends AnyPgSelect>(qb: T) => {
 		return qb.offset(10).limit(10);
-	}
+	};
 
 	const qb = db.select().from(users);
-	const result = await withPagination(qb);
+	await withPagination(qb);
 }
 
 {
@@ -925,11 +925,11 @@ await db
 		application: text('application', { enum: ['pending', 'approved'] }),
 	});
 
-	function startIt(whereCallback: (condition: SQL) => SQL | undefined = (c) => c) {
+	const startIt = (whereCallback: (condition: SQL) => SQL | undefined = (c) => c) => {
 		return db.select().from(users).where(whereCallback(eq(users.developer, true)));
-	}
+	};
 
-	const query = startIt((c) => and(c, eq(users.application, 'approved')));
+	startIt((c) => and(c, eq(users.application, 'approved')));
 }
 
 {

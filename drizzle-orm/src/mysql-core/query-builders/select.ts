@@ -1,6 +1,6 @@
 import type { AnyMySqlColumn } from '~/mysql-core/columns';
 import type { MySqlDialect } from '~/mysql-core/dialect';
-import type { MySqlSession, PreparedQuery, PreparedQueryConfig } from '~/mysql-core/session';
+import type { MySqlSession, PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '~/mysql-core/session';
 import type { SubqueryWithSelection } from '~/mysql-core/subquery';
 import type { AnyMySqlTable } from '~/mysql-core/table';
 import { MySqlViewBase } from '~/mysql-core/view';
@@ -20,7 +20,7 @@ import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
 import { Table } from '~/table';
 import { applyMixins, getTableColumns, type Simplify, type ValueOrArray } from '~/utils';
 import { orderSelectedFields } from '~/utils';
-import { ViewBaseConfig } from '~/view';
+import { type ColumnsSelection, View, ViewBaseConfig } from '~/view';
 import type {
 	JoinFn,
 	LockConfig,
@@ -35,13 +35,15 @@ import type {
 type CreateMySqlSelectFromBuilderMode<
 	TBuilderMode extends 'db' | 'qb',
 	TTableName extends string | undefined,
-	TSelection,
+	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
-> = TBuilderMode extends 'db' ? MySqlSelect<TTableName, TSelection, TSelectMode>
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
+> = TBuilderMode extends 'db' ? MySqlSelect<TTableName, TSelection, TSelectMode, TPreparedQueryHKT>
 	: MySqlSelectQueryBuilder<MySqlSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>;
 
 export class MySqlSelectBuilder<
 	TSelection extends SelectedFields | undefined,
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TBuilderMode extends 'db' | 'qb' = 'db',
 > {
 	constructor(
@@ -57,7 +59,8 @@ export class MySqlSelectBuilder<
 		TBuilderMode,
 		GetSelectTableName<TFrom>,
 		TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection,
-		TSelection extends undefined ? 'single' : 'partial'
+		TSelection extends undefined ? 'single' : 'partial',
+		TPreparedQueryHKT
 	> {
 		const isPartialSelect = !!this.fields;
 
@@ -79,11 +82,9 @@ export class MySqlSelectBuilder<
 			fields = getTableColumns<AnyMySqlTable>(source);
 		}
 
-		const fieldsList = orderSelectedFields<AnyMySqlColumn>(fields);
 		return new MySqlSelect(
 			source,
 			fields,
-			fieldsList,
 			isPartialSelect,
 			this.session,
 			this.dialect,
@@ -95,14 +96,18 @@ export class MySqlSelectBuilder<
 export abstract class MySqlSelectQueryBuilder<
 	THKT extends MySqlSelectHKTBase,
 	TTableName extends string | undefined,
-	TSelection,
+	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
-> extends QueryBuilder<BuildSubquerySelection<TSelection, TNullabilityMap>> {
+> extends QueryBuilder<
+	BuildSubquerySelection<TSelection, TNullabilityMap>,
+	SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
+> {
 	override readonly _: {
 		selectMode: TSelectMode;
 		selection: TSelection;
+		result: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
 		selectedFields: BuildSubquerySelection<TSelection, TNullabilityMap>;
 	};
 
@@ -113,9 +118,9 @@ export abstract class MySqlSelectQueryBuilder<
 	constructor(
 		table: MySqlSelectConfig['table'],
 		fields: MySqlSelectConfig['fields'],
-		fieldsList: MySqlSelectConfig['fieldsList'],
 		private isPartialSelect: boolean,
-		protected session: MySqlSession | undefined,
+		/** @internal */
+		readonly session: MySqlSession | undefined,
 		protected dialect: MySqlDialect,
 		withList: Subquery[],
 	) {
@@ -123,8 +128,7 @@ export abstract class MySqlSelectQueryBuilder<
 		this.config = {
 			withList,
 			table,
-			fields,
-			fieldsList,
+			fields: { ...fields },
 			joins: [],
 			orderBy: [],
 			groupBy: [],
@@ -146,12 +150,14 @@ export abstract class MySqlSelectQueryBuilder<
 		joinType: TJoinType,
 	): JoinFn<THKT, TTableName, TSelectMode, TJoinType, TSelection, TNullabilityMap> {
 		return (
-			table: AnyMySqlTable | Subquery | SQL,
+			table: AnyMySqlTable | Subquery | MySqlViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = table instanceof Subquery
 				? table[SubqueryConfig].alias
+				: table instanceof View
+				? table[ViewBaseConfig].name
 				: table instanceof SQL
 				? undefined
 				: table[Table.Symbol.Name];
@@ -163,18 +169,17 @@ export abstract class MySqlSelectQueryBuilder<
 			if (!this.isPartialSelect) {
 				// If this is the first join and this is not a partial select and we're not selecting from raw SQL, "move" the fields from the main table to the nested object
 				if (Object.keys(this.joinsNotNullableMap).length === 1 && typeof baseTableName === 'string') {
-					this.config.fieldsList = this.config.fieldsList.map((field) => ({
-						...field,
-						path: [baseTableName, ...field.path],
-					}));
+					this.config.fields = {
+						[baseTableName]: this.config.fields,
+					};
 				}
 				if (typeof tableName === 'string' && !(table instanceof SQL)) {
-					this.config.fieldsList.push(
-						...orderSelectedFields<AnyMySqlColumn>(
-							table instanceof Subquery ? table[SubqueryConfig].selection : table[Table.Symbol.Columns],
-							[tableName],
-						),
-					);
+					const selection = table instanceof Subquery
+						? table[SubqueryConfig].selection
+						: table instanceof View
+						? table[ViewBaseConfig].selectedFields
+						: table[Table.Symbol.Columns];
+					this.config.fields[tableName] = selection;
 				}
 			}
 
@@ -191,24 +196,28 @@ export abstract class MySqlSelectQueryBuilder<
 
 			if (typeof tableName === 'string') {
 				switch (joinType) {
-					case 'left':
+					case 'left': {
 						this.joinsNotNullableMap[tableName] = false;
 						break;
-					case 'right':
+					}
+					case 'right': {
 						this.joinsNotNullableMap = Object.fromEntries(
 							Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false]),
 						);
 						this.joinsNotNullableMap[tableName] = true;
 						break;
-					case 'inner':
+					}
+					case 'inner': {
 						this.joinsNotNullableMap[tableName] = true;
 						break;
-					case 'full':
+					}
+					case 'full': {
 						this.joinsNotNullableMap = Object.fromEntries(
 							Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false]),
 						);
 						this.joinsNotNullableMap[tableName] = false;
 						break;
+					}
 				}
 			}
 
@@ -313,7 +322,7 @@ export abstract class MySqlSelectQueryBuilder<
 	}
 
 	toSQL(): Simplify<Omit<Query, 'typings'>> {
-		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
 
@@ -329,12 +338,20 @@ export abstract class MySqlSelectQueryBuilder<
 
 export interface MySqlSelect<
 	TTableName extends string | undefined,
-	TSelection,
+	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
 > extends
-	MySqlSelectQueryBuilder<MySqlSelectHKT, TTableName, TSelection, TSelectMode, TNullabilityMap>,
+	MySqlSelectQueryBuilder<
+		MySqlSelectHKT,
+		TTableName,
+		TSelection,
+		TSelectMode,
+		TNullabilityMap
+	>,
 	QueryPromise<SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>
 {}
 
@@ -342,35 +359,48 @@ export class MySqlSelect<
 	TTableName extends string | undefined,
 	TSelection,
 	TSelectMode extends SelectMode,
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
-> extends MySqlSelectQueryBuilder<MySqlSelectHKT, TTableName, TSelection, TSelectMode, TNullabilityMap> {
-	private _prepare(name?: string): PreparedQuery<
-		PreparedQueryConfig & {
-			execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
-		}
-	> {
+> extends MySqlSelectQueryBuilder<
+	MySqlSelectHKT,
+	TTableName,
+	TSelection,
+	TSelectMode,
+	TNullabilityMap
+> {
+	prepare() {
 		if (!this.session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
+		const fieldsList = orderSelectedFields<AnyMySqlColumn>(this.config.fields);
 		const query = this.session.prepareQuery<
-			PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] }
-		>(this.dialect.sqlToQuery(this.getSQL()), this.config.fieldsList, name);
+			PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
+			TPreparedQueryHKT
+		>(this.dialect.sqlToQuery(this.getSQL()), fieldsList);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
-		return query;
+		return query as PreparedQueryKind<
+			TPreparedQueryHKT,
+			PreparedQueryConfig & {
+				execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
+				iterator: SelectResult<TSelection, TSelectMode, TNullabilityMap>;
+			},
+			true
+		>;
 	}
 
-	prepare(name: string): PreparedQuery<
-		PreparedQueryConfig & {
-			execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
-		}
-	> {
-		return this._prepare(name);
-	}
+	execute = ((placeholderValues) => {
+		return this.prepare().execute(placeholderValues);
+	}) as ReturnType<this['prepare']>['execute'];
 
-	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this._prepare().execute(placeholderValues);
+	private createIterator = (): ReturnType<this['prepare']>['iterator'] => {
+		const self = this;
+		return async function*(placeholderValues) {
+			yield* self.prepare().iterator(placeholderValues);
+		};
 	};
+
+	iterator = this.createIterator();
 }
 
 applyMixins(MySqlSelect, [QueryPromise]);

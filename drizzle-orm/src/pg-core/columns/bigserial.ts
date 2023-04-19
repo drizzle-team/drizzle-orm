@@ -47,7 +47,7 @@ export class PgBigSerial53<T extends ColumnBaseConfig> extends PgColumn<PgBigSer
 		if (typeof value === 'number') {
 			return value;
 		}
-		return parseInt(value);
+		return Number(value);
 	}
 }
 
@@ -89,6 +89,7 @@ export class PgBigSerial64<T extends ColumnBaseConfig> extends PgColumn<PgBigSer
 		return 'bigserial';
 	}
 
+	// eslint-disable-next-line unicorn/prefer-native-coercion-functions
 	override mapFromDriverValue(value: string): bigint {
 		return BigInt(value);
 	}

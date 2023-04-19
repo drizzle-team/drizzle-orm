@@ -1,6 +1,6 @@
 {
   "name": "drizzle-orm",
-  "version": "0.23.10",
+  "version": "0.24.2",
   "description": "Drizzle ORM package for SQL databases",
   "scripts": {
     "build": "tsc && resolve-tspaths && cp ../README.md package.json dist/",

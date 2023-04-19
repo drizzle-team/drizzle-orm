@@ -1,13 +1,21 @@
 import { type ExecutionContext } from 'ava';
 import { z } from 'zod';
 
-export function assertSchemasEqual<T extends z.SomeZodObject>(t: ExecutionContext, actual: T, expected: T) {
-	t.deepEqual(Object.keys(actual.shape), Object.keys(expected.shape));
+export function expectSchemaShape<T extends z.ZodRawShape>(t: ExecutionContext, expected: z.ZodObject<T>) {
+	return {
+		from(actual: z.ZodObject<T>) {
+			t.deepEqual(Object.keys(actual.shape), Object.keys(expected.shape));
 
-	Object.keys(actual.shape).forEach((key) => {
-		t.deepEqual(actual.shape[key]!._def.typeName, expected.shape[key]?._def.typeName);
-		if (actual.shape[key] instanceof z.ZodOptional) {
-			t.deepEqual(actual.shape[key]!._def.innerType._def.typeName, expected.shape[key]!._def.innerType._def.typeName);
-		}
-	});
+			for (const key of Object.keys(actual.shape)) {
+				t.deepEqual(actual.shape[key]!._def.typeName, expected.shape[key]?._def.typeName, `key: ${key}`);
+				if (actual.shape[key] instanceof z.ZodOptional) {
+					t.deepEqual(
+						actual.shape[key]!._def.innerType._def.typeName,
+						expected.shape[key]!._def.innerType._def.typeName,
+						`key (optional): ${key}`,
+					);
+				}
+			}
+		},
+	};
 }

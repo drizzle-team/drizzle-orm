@@ -2,6 +2,7 @@ import { type Equal, Expect } from 'type-tests/utils';
 import { eq, gt } from '~/expressions';
 import {
 	bigint,
+	char,
 	check,
 	customType,
 	date,
@@ -10,6 +11,8 @@ import {
 	foreignKey,
 	index,
 	int,
+	longtext,
+	mediumtext,
 	mysqlEnum,
 	type MySqlInt,
 	type MySqlSerial,
@@ -18,12 +21,15 @@ import {
 	serial,
 	text,
 	timestamp,
+	tinytext,
 	uniqueIndex,
+	varchar,
 } from '~/mysql-core';
 import { mysqlSchema } from '~/mysql-core/schema';
 import { mysqlView, type MySqlViewWithSelection } from '~/mysql-core/view';
 import { sql } from '~/sql';
 import type { InferModel } from '~/table';
+import { db } from './db';
 
 export const users = mysqlTable(
 	'users_table',
@@ -342,7 +348,7 @@ Expect<
 }
 
 {
-	const test = mysqlTable('test', {
+	mysqlTable('test', {
 		bigint: bigint('bigint', { mode: 'bigint' }),
 		number: bigint('number', { mode: 'number' }),
 		date: date('date').default(new Date()),
@@ -361,28 +367,117 @@ Expect<
 }
 
 {
-	const test = mysqlTable('test', {
+	mysqlTable('test', {
 		col1: decimal('col1').default('1'),
 	});
 }
 
 {
-	const a = ['a', 'b', 'c'] as const;
-	const test1 = mysqlEnum('test', a);
-	const test2 = mysqlEnum('test', ['a', 'b', 'c']);
+	const test = mysqlTable('test', {
+		test1: mysqlEnum('test', ['a', 'b', 'c'] as const),
+		test2: mysqlEnum('test', ['a', 'b', 'c']),
+		test3: varchar('test', { length: 255, enum: ['a', 'b', 'c'] as const }),
+		test4: varchar('test', { length: 255, enum: ['a', 'b', 'c'] }),
+		test5: text('test', { enum: ['a', 'b', 'c'] as const }),
+		test6: text('test', { enum: ['a', 'b', 'c'] }),
+		test7: tinytext('test', { enum: ['a', 'b', 'c'] as const }),
+		test8: tinytext('test', { enum: ['a', 'b', 'c'] }),
+		test9: mediumtext('test', { enum: ['a', 'b', 'c'] as const }),
+		test10: mediumtext('test', { enum: ['a', 'b', 'c'] }),
+		test11: longtext('test', { enum: ['a', 'b', 'c'] as const }),
+		test12: longtext('test', { enum: ['a', 'b', 'c'] }),
+		test13: char('test', { enum: ['a', 'b', 'c'] as const }),
+		test14: char('test', { enum: ['a', 'b', 'c'] }),
+		test15: text('test'),
+	});
+	Expect<Equal<['a', 'b', 'c'], typeof test.test1.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test2.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test3.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test4.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test5.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test6.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test7.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test8.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test9.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test10.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test11.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test12.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test13.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test14.enumValues>>;
+	Expect<Equal<[string, ...string[]], typeof test.test15.enumValues>>;
 }
 
 {
-	function getUsersTable<TSchema extends string>(schemaName: TSchema) {
+	const getUsersTable = <TSchema extends string>(schemaName: TSchema) => {
 		return mysqlSchema(schemaName).table('users', {
 			id: int('id').primaryKey(),
 			name: text('name').notNull(),
 		});
-	}
+	};
 
 	const users1 = getUsersTable('id1');
 	Expect<Equal<'id1', typeof users1._.schema>>;
 
 	const users2 = getUsersTable('id2');
 	Expect<Equal<'id2', typeof users2._.schema>>;
+}
+
+{
+	const internalStaff = mysqlTable('internal_staff', {
+		userId: int('user_id').notNull(),
+	});
+
+	const customUser = mysqlTable('custom_user', {
+		id: int('id').notNull(),
+	});
+
+	const ticket = mysqlTable('ticket', {
+		staffId: int('staff_id').notNull(),
+	});
+
+	const subq = db
+		.select()
+		.from(internalStaff)
+		.leftJoin(
+			customUser,
+			eq(internalStaff.userId, customUser.id),
+		).as('internal_staff');
+
+	const mainQuery = await db
+		.select()
+		.from(ticket)
+		.leftJoin(subq, eq(subq.internal_staff.userId, ticket.staffId));
+
+	Expect<
+		Equal<{
+			internal_staff: {
+				internal_staff: {
+					userId: number;
+				};
+				custom_user: {
+					id: number | null;
+				};
+			} | null;
+			ticket: {
+				staffId: number;
+			};
+		}[], typeof mainQuery>
+	>;
+}
+
+{
+	const newYorkers = mysqlView('new_yorkers')
+		.as((qb) => {
+			const sq = qb
+				.$with('sq')
+				.as(
+					qb.select({ userId: users.id, cityId: cities.id })
+						.from(users)
+						.leftJoin(cities, eq(cities.id, users.homeCity))
+						.where(sql`${users.age1} > 18`),
+				);
+			return qb.with(sq).select().from(sq).where(sql`${users.homeCity} = 1`);
+		});
+
+	await db.select().from(newYorkers).leftJoin(newYorkers, eq(newYorkers.userId, newYorkers.userId));
 }

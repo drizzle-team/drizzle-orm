@@ -4,7 +4,7 @@ import type { AddAliasToSelection } from '~/query-builders/select.types';
 import type { SQL } from '~/sql';
 import { SelectionProxyHandler } from '~/subquery';
 import { getTableColumns } from '~/utils';
-import { View } from '~/view';
+import { type ColumnsSelection, View } from '~/view';
 import type { AnyMySqlColumnBuilder } from './columns/common';
 import type { QueryBuilderInstance } from './query-builders';
 import { queryBuilder } from './query-builders';
@@ -71,6 +71,7 @@ export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<
 			alias: this.name,
 			sqlBehavior: 'error',
 			sqlAliasedBehavior: 'alias',
+			replaceOriginalName: true,
 		});
 		const aliasedSelection = new Proxy(qb.getSelectedFields(), selectionProxy);
 		return new Proxy(
@@ -118,6 +119,7 @@ export class ManualViewBuilder<
 				alias: this.name,
 				sqlBehavior: 'error',
 				sqlAliasedBehavior: 'alias',
+				replaceOriginalName: true,
 			}),
 		) as MySqlViewWithSelection<TName, true, BuildColumns<TName, TColumns>>;
 	}
@@ -137,6 +139,7 @@ export class ManualViewBuilder<
 				alias: this.name,
 				sqlBehavior: 'error',
 				sqlAliasedBehavior: 'alias',
+				replaceOriginalName: true,
 			}),
 		) as MySqlViewWithSelection<TName, false, BuildColumns<TName, TColumns>>;
 	}
@@ -145,7 +148,7 @@ export class ManualViewBuilder<
 export abstract class MySqlViewBase<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
-	TSelectedFields = unknown,
+	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > extends View<TName, TExisting, TSelectedFields> {
 	declare readonly _: View<TName, TExisting, TSelectedFields>['_'] & {
 		readonly viewBrand: 'MySqlViewBase';
@@ -157,7 +160,7 @@ export const MySqlViewConfig = Symbol('MySqlViewConfig');
 export class MySqlView<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
-	TSelectedFields = unknown,
+	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > extends MySqlViewBase<TName, TExisting, TSelectedFields> {
 	declare protected $MySqlViewBrand: 'MySqlView';
 
@@ -180,7 +183,7 @@ export class MySqlView<
 export type MySqlViewWithSelection<
 	TName extends string,
 	TExisting extends boolean,
-	TSelectedFields,
+	TSelectedFields extends ColumnsSelection,
 > = MySqlView<TName, TExisting, TSelectedFields> & TSelectedFields;
 
 /** @internal */

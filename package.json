@@ -3,8 +3,10 @@
   "scripts": {
     "build:orm": "turbo run build --filter drizzle-orm --color",
     "build": "turbo run build test:types //#lint --color",
+    "b": "pnpm build",
     "pack": "turbo run pack --color",
     "test": "turbo run test --color",
+    "t": "pnpm test",
     "test:types": "turbo run test:types --color",
     "lint": "eslint --ext ts ."
   },
@@ -17,6 +19,7 @@
     "dprint": "^0.35.3",
     "eslint": "^8.37.0",
     "eslint-plugin-import": "^2.27.5",
+    "eslint-plugin-unicorn": "^46.0.0",
     "eslint-plugin-unused-imports": "^2.0.0",
     "prettier": "^2.8.7",
     "resolve-tspaths": "^0.8.8",

@@ -5,7 +5,7 @@ import type { SQL } from '~/sql';
 import type { Subquery } from '~/subquery';
 import type { AnyTable, Table } from '~/table';
 import type { Assume, DrizzleTypeError, Equal, Simplify } from '~/utils';
-import type { View } from '~/view';
+import type { ColumnsSelection, View } from '~/view';
 
 export type JoinType = 'inner' | 'left' | 'right' | 'full';
 
@@ -72,7 +72,7 @@ type SelectPartialResult<TFields, TNullability extends Record<string, JoinNullab
 	: never;
 
 export type MapColumnsToTableAlias<
-	TColumns extends Record<string, AnyColumn | SQL | SQL.Aliased>,
+	TColumns extends ColumnsSelection,
 	TAlias extends string,
 > = Simplify<
 	{
@@ -82,13 +82,15 @@ export type MapColumnsToTableAlias<
 	}
 >;
 
-export type AddAliasToSelection<TSelection, TAlias extends string> = Equal<TSelection, any> extends true ? any
+export type AddAliasToSelection<
+	TSelection extends ColumnsSelection,
+	TAlias extends string,
+> = Equal<TSelection, any> extends true ? any
 	: Simplify<
 		{
 			[Key in keyof TSelection]: TSelection[Key] extends AnyColumn ? ChangeColumnTableName<TSelection[Key], TAlias>
 				: TSelection[Key] extends SQL | SQL.Aliased ? TSelection[Key]
-				: TSelection[Key] extends Record<string, AnyColumn | SQL | SQL.Aliased>
-					? MapColumnsToTableAlias<TSelection[Key], TAlias>
+				: TSelection[Key] extends ColumnsSelection ? MapColumnsToTableAlias<TSelection[Key], TAlias>
 				: never;
 		}
 	>;
@@ -106,7 +108,7 @@ export type AppendToResult<
 	: TResult & (TJoinedName extends string ? Record<TJoinedName, TSelectedFields> : TSelectedFields);
 
 export type BuildSubquerySelection<
-	TSelection,
+	TSelection extends ColumnsSelection,
 	TNullability extends Record<string, JoinNullability>,
 > = TSelection extends never ? any : Simplify<
 	{
@@ -115,8 +117,7 @@ export type BuildSubquerySelection<
 			: TSelection[Key] extends SQL.Aliased ? TSelection[Key]
 			: TSelection[Key] extends AnyColumn
 				? ApplyNullabilityToColumn<TSelection[Key], TNullability[TSelection[Key]['_']['tableName']]>
-			: TSelection[Key] extends Record<string, AnyColumn | SQL | SQL.Aliased>
-				? BuildSubquerySelection<TSelection[Key], TNullability>
+			: TSelection[Key] extends ColumnsSelection ? BuildSubquerySelection<TSelection[Key], TNullability>
 			: never;
 	}
 >;
@@ -145,7 +146,7 @@ export type GetSelectTableName<TTable extends AnyTable | Subquery | View | SQL> 
 
 export type GetSelectTableSelection<TTable extends AnyTable | Subquery | View | SQL> = TTable extends AnyTable
 	? TTable['_']['columns']
-	: TTable extends Subquery | View ? TTable['_']['selectedFields']
+	: TTable extends Subquery | View ? Assume<TTable['_']['selectedFields'], ColumnsSelection>
 	: TTable extends SQL ? {}
 	: never;
 
@@ -153,7 +154,7 @@ export type SelectResultField<T, TDeep extends boolean = true> = T extends Drizz
 	: T extends AnyTable ? Equal<TDeep, true> extends true ? SelectResultField<T['_']['columns'], false> : never
 	: T extends AnyColumn ? GetColumnData<T>
 	: T extends SQL | SQL.Aliased ? T['_']['type']
-	: T extends Record<string, any> ? Equal<TDeep, true> extends true ? SelectResultFields<T, false> : never
+	: T extends Record<string, any> ? SelectResultFields<T, true>
 	: never;
 
 export type SelectResultFields<TSelectedFields, TDeep extends boolean = true> = Simplify<

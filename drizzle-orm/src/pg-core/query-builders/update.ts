@@ -43,6 +43,7 @@ export class PgUpdateBuilder<TTable extends AnyPgTable, TQueryResult extends Que
 }
 
 export interface PgUpdate<
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TTable extends AnyPgTable,
 	TQueryResult extends QueryResultHKT,
 	TReturning extends Record<string, unknown> | undefined = undefined,
@@ -97,7 +98,7 @@ export class PgUpdate<
 	}
 
 	toSQL(): Omit<Query, 'typings'> {
-		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
 

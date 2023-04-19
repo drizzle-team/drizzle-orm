@@ -15,8 +15,8 @@ export interface MySqlVarBinaryHKT extends ColumnHKTBase {
 
 export type MySqlVarBinaryBuilderInitial<TName extends string> = MySqlVarBinaryBuilder<{
 	name: TName;
-	data: number;
-	driverParam: number | string;
+	data: string;
+	driverParam: string;
 	notNull: false;
 	hasDefault: false;
 }>;
@@ -46,7 +46,7 @@ export class MySqlVarBinary<
 	length: number | undefined = this.config.length;
 
 	getSQLType(): string {
-		return typeof this.length !== 'undefined' ? `varbinary(${this.length})` : `varbinary`;
+		return this.length === undefined ? `varbinary` : `varbinary(${this.length})`;
 	}
 }
 

@@ -72,7 +72,7 @@ const anotherUsersMigratorTable = sqliteTable('another_users', {
 	email: text('email').notNull(),
 });
 
-const pkExample = sqliteTable('pk_example', {
+const _pkExample = sqliteTable('pk_example', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
@@ -122,29 +122,34 @@ test.beforeEach((t) => {
 			verified integer not null default 0,
 			json blob,
 			created_at integer not null default (strftime('%s', 'now'))
-		)`);
+		)
+	`);
 	ctx.db.run(sql`
 		create table ${users2Table} (
 			id integer primary key,
 			name text not null,
 			city_id integer references ${citiesTable}(${name(citiesTable.id.name)})
-		)`);
+		)
+	`);
 	ctx.db.run(sql`
 		create table ${citiesTable} (
 			id integer primary key,
 			name text not null
-		)`);
+		)
+	`);
 	ctx.db.run(sql`
-			create table ${courseCategoriesTable} (
-				id integer primary key,
-				name text not null
-			)`);
+		create table ${courseCategoriesTable} (
+			id integer primary key,
+			name text not null
+		)
+	`);
 	ctx.db.run(sql`
 		create table ${coursesTable} (
 			id integer primary key,
 			name text not null,
 			category_id integer references ${courseCategoriesTable}(${name(courseCategoriesTable.id.name)})
-		)`);
+		)
+	`);
 	ctx.db.run(sql`
 		create table ${orders} (
 			id integer primary key,
@@ -152,7 +157,8 @@ test.beforeEach((t) => {
 			product text not null,
 			amount integer not null,
 			quantity integer not null
-		)`);
+		)
+	`);
 });
 
 test.serial('select all fields', (t) => {
@@ -713,7 +719,7 @@ test.serial('insert via db.run + select via db.get', (t) => {
 test.serial('insert via db.get w/ query builder', (t) => {
 	const { db } = t.context;
 
-	const inserted = db.get<Pick<typeof usersTable['_']['model']['select'], 'id' | 'name'>>(
+	const inserted = db.get(
 		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 	);
 	t.deepEqual(inserted, { id: 1, name: 'John' });
@@ -723,10 +729,10 @@ test.serial('left join (flat object fields)', (t) => {
 	const { db } = t.context;
 
 	const { id: cityId } = db.insert(citiesTable)
-		.values({ name: 'Paris' }, { name: 'London' })
+		.values([{ name: 'Paris' }, { name: 'London' }])
 		.returning({ id: citiesTable.id }).all()[0]!;
 
-	db.insert(users2Table).values({ name: 'John', cityId }, { name: 'Jane' }).run();
+	db.insert(users2Table).values([{ name: 'John', cityId }, { name: 'Jane' }]).run();
 
 	const res = db.select({
 		userId: users2Table.id,
@@ -819,19 +825,19 @@ test.serial('left join (all fields)', (t) => {
 test.serial('join subquery', (t) => {
 	const { db } = t.context;
 
-	db.insert(courseCategoriesTable).values(
+	db.insert(courseCategoriesTable).values([
 		{ name: 'Category 1' },
 		{ name: 'Category 2' },
 		{ name: 'Category 3' },
 		{ name: 'Category 4' },
-	).run();
+	]).run();
 
-	db.insert(coursesTable).values(
+	db.insert(coursesTable).values([
 		{ name: 'Development', categoryId: 2 },
 		{ name: 'IT & Software', categoryId: 3 },
 		{ name: 'Marketing', categoryId: 4 },
 		{ name: 'Design', categoryId: 1 },
-	).run();
+	]).run();
 
 	const sq2 = db
 		.select({
@@ -864,7 +870,7 @@ test.serial('join subquery', (t) => {
 test.serial('with ... select', (t) => {
 	const { db } = t.context;
 
-	db.insert(orders).values(
+	db.insert(orders).values([
 		{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
 		{ region: 'Europe', product: 'A', amount: 20, quantity: 2 },
 		{ region: 'Europe', product: 'B', amount: 20, quantity: 2 },
@@ -873,7 +879,7 @@ test.serial('with ... select', (t) => {
 		{ region: 'US', product: 'A', amount: 40, quantity: 4 },
 		{ region: 'US', product: 'B', amount: 40, quantity: 4 },
 		{ region: 'US', product: 'B', amount: 50, quantity: 5 },
-	).run();
+	]).run();
 
 	const regionalSales = db
 		.$with('regional_sales')
@@ -1025,30 +1031,31 @@ test.serial('having', (t) => {
 test.serial('view', (t) => {
 	const { db } = t.context;
 
-	const newYorkers1 = sqliteView('new_yorkers')
+	const newYorkers1 = sqliteView('new_yorkers1')
 		.as((qb) => qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
 
-	const newYorkers2 = sqliteView('new_yorkers', {
+	const newYorkers2 = sqliteView('new_yorkers2', {
 		id: integer('id').primaryKey(),
 		name: text('name').notNull(),
 		cityId: integer('city_id').notNull(),
 	}).as(sql`select * from ${users2Table} where ${eq(users2Table.cityId, 1)}`);
 
-	const newYorkers3 = sqliteView('new_yorkers', {
+	const newYorkers3 = sqliteView('new_yorkers1', {
 		id: integer('id').primaryKey(),
 		name: text('name').notNull(),
 		cityId: integer('city_id').notNull(),
 	}).existing();
 
-	db.run(sql`create view new_yorkers as ${getViewConfig(newYorkers1).query}`);
+	db.run(sql`create view ${newYorkers1} as ${getViewConfig(newYorkers1).query}`);
+	db.run(sql`create view ${newYorkers2} as ${getViewConfig(newYorkers2).query}`);
 
-	db.insert(citiesTable).values({ name: 'New York' }, { name: 'Paris' }).run();
+	db.insert(citiesTable).values([{ name: 'New York' }, { name: 'Paris' }]).run();
 
-	db.insert(users2Table).values(
+	db.insert(users2Table).values([
 		{ name: 'John', cityId: 1 },
 		{ name: 'Jane', cityId: 1 },
 		{ name: 'Jack', cityId: 2 },
-	).run();
+	]).run();
 
 	{
 		const result = db.select().from(newYorkers1).all();
@@ -1083,6 +1090,7 @@ test.serial('view', (t) => {
 	}
 
 	db.run(sql`drop view ${newYorkers1}`);
+	db.run(sql`drop view ${newYorkers2}`);
 });
 
 test.serial('insert null timestamp', (t) => {
@@ -1358,4 +1366,169 @@ test.serial('nested transaction rollback', (t) => {
 	t.deepEqual(result, [{ id: 1, balance: 100 }]);
 
 	db.run(sql`drop table ${users}`);
+});
+
+test.serial('join subquery with join', (t) => {
+	const { db } = t.context;
+
+	const internalStaff = sqliteTable('internal_staff', {
+		userId: integer('user_id').notNull(),
+	});
+
+	const customUser = sqliteTable('custom_user', {
+		id: integer('id').notNull(),
+	});
+
+	const ticket = sqliteTable('ticket', {
+		staffId: integer('staff_id').notNull(),
+	});
+
+	db.run(sql`drop table if exists ${internalStaff}`);
+	db.run(sql`drop table if exists ${customUser}`);
+	db.run(sql`drop table if exists ${ticket}`);
+
+	db.run(sql`create table internal_staff (user_id integer not null)`);
+	db.run(sql`create table custom_user (id integer not null)`);
+	db.run(sql`create table ticket (staff_id integer not null)`);
+
+	db.insert(internalStaff).values({ userId: 1 }).run();
+	db.insert(customUser).values({ id: 1 }).run();
+	db.insert(ticket).values({ staffId: 1 }).run();
+
+	const subq = db
+		.select()
+		.from(internalStaff)
+		.leftJoin(customUser, eq(internalStaff.userId, customUser.id))
+		.as('internal_staff');
+
+	const mainQuery = db
+		.select()
+		.from(ticket)
+		.leftJoin(subq, eq(subq.internal_staff.userId, ticket.staffId))
+		.all();
+
+	t.deepEqual(mainQuery, [{
+		ticket: { staffId: 1 },
+		internal_staff: {
+			internal_staff: { userId: 1 },
+			custom_user: { id: 1 },
+		},
+	}]);
+
+	db.run(sql`drop table ${internalStaff}`);
+	db.run(sql`drop table ${customUser}`);
+	db.run(sql`drop table ${ticket}`);
+});
+
+test.serial('join view as subquery', (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users_join_view', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: integer('city_id').notNull(),
+	});
+
+	const newYorkers = sqliteView('new_yorkers').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
+
+	db.run(sql`drop table if exists ${users}`);
+	db.run(sql`drop view if exists ${newYorkers}`);
+
+	db.run(
+		sql`create table ${users} (id integer not null primary key, name text not null, city_id integer not null)`,
+	);
+	db.run(sql`create view ${newYorkers} as ${getViewConfig(newYorkers).query}`);
+
+	db.insert(users).values([
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 2 },
+		{ name: 'Jack', cityId: 1 },
+		{ name: 'Jill', cityId: 2 },
+	]).run();
+
+	const sq = db.select().from(newYorkers).as('new_yorkers_sq');
+
+	const result = db.select().from(users).leftJoin(sq, eq(users.id, sq.id)).all();
+
+	t.deepEqual(result, [
+		{
+			users_join_view: { id: 1, name: 'John', cityId: 1 },
+			new_yorkers_sq: { id: 1, name: 'John', cityId: 1 },
+		},
+		{
+			users_join_view: { id: 2, name: 'Jane', cityId: 2 },
+			new_yorkers_sq: null,
+		},
+		{
+			users_join_view: { id: 3, name: 'Jack', cityId: 1 },
+			new_yorkers_sq: { id: 3, name: 'Jack', cityId: 1 },
+		},
+		{
+			users_join_view: { id: 4, name: 'Jill', cityId: 2 },
+			new_yorkers_sq: null,
+		},
+	]);
+
+	db.run(sql`drop view ${newYorkers}`);
+	db.run(sql`drop table ${users}`);
+});
+
+test.serial('insert with onConflict do nothing', (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ id: 1, name: 'John' }).run();
+
+	db
+		.insert(usersTable)
+		.values({ id: 1, name: 'John' })
+		.onConflictDoNothing()
+		.run();
+
+	const res = db
+		.select({ id: usersTable.id, name: usersTable.name })
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('insert with onConflict do nothing using target', (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ id: 1, name: 'John' }).run();
+
+	db
+		.insert(usersTable)
+		.values({ id: 1, name: 'John' })
+		.onConflictDoNothing({ target: usersTable.id })
+		.run();
+
+	const res = db
+		.select({ id: usersTable.id, name: usersTable.name })
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('insert with onConflict do update', (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ id: 1, name: 'John' }).run();
+
+	db
+		.insert(usersTable)
+		.values({ id: 1, name: 'John' })
+		.onConflictDoUpdate({ target: usersTable.id, set: { name: 'John1' } })
+		.run();
+
+	const res = db
+		.select({ id: usersTable.id, name: usersTable.name })
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
 });

@@ -56,17 +56,21 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 
 		this.options.logger?.logQuery(this.rawQuery.input.sql!, this.rawQuery.input.parameters);
 
-		const { fields } = this;
+		const { fields, rawQuery, client, joinsNotNullableMap } = this;
 		if (!fields) {
-			return await this.client.send(this.rawQuery);
+			return await client.send(rawQuery);
 		}
 
-		const result = await this.client.send(this.rawQuery);
+		const result = await client.send(rawQuery);
 
-		return result.records?.map((result) => {
-			const mappedResult = result.map((res) => getValueFromDataApi(res));
-			return mapResultRow<T['execute']>(fields, mappedResult, this.joinsNotNullableMap);
+		return result.records?.map((result: any) => {
+			const mappedResult = result.map((res: any) => getValueFromDataApi(res));
+			return mapResultRow<T['execute']>(fields, mappedResult, joinsNotNullableMap);
 		});
+	}
+
+	all(placeholderValues?: Record<string, unknown> | undefined): Promise<T['all']> {
+		return this.execute(placeholderValues);
 	}
 }
 

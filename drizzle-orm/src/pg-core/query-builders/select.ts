@@ -20,7 +20,7 @@ import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
 import { Table } from '~/table';
 import { applyMixins, getTableColumns, type Simplify, type ValueOrArray } from '~/utils';
 import { orderSelectedFields } from '~/utils';
-import { ViewBaseConfig } from '~/view';
+import { type ColumnsSelection, View, ViewBaseConfig } from '~/view';
 import type {
 	JoinFn,
 	LockConfig,
@@ -35,7 +35,7 @@ import type {
 type CreatePgSelectFromBuilderMode<
 	TBuilderMode extends 'db' | 'qb',
 	TTableName extends string | undefined,
-	TSelection,
+	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
 > = TBuilderMode extends 'db' ? PgSelect<TTableName, TSelection, TSelectMode>
 	: PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>;
@@ -79,22 +79,25 @@ export class PgSelectBuilder<
 			fields = getTableColumns<AnyPgTable>(source);
 		}
 
-		const fieldsList = orderSelectedFields<AnyPgColumn>(fields);
-		return new PgSelect(source, fields, fieldsList, isPartialSelect, this.session, this.dialect, this.withList) as any;
+		return new PgSelect(source, fields, isPartialSelect, this.session, this.dialect, this.withList) as any;
 	}
 }
 
 export abstract class PgSelectQueryBuilder<
 	THKT extends PgSelectHKTBase,
 	TTableName extends string | undefined,
-	TSelection,
+	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
-> extends QueryBuilder<BuildSubquerySelection<TSelection, TNullabilityMap>> {
+> extends QueryBuilder<
+	BuildSubquerySelection<TSelection, TNullabilityMap>,
+	SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
+> {
 	override readonly _: {
 		readonly selectMode: TSelectMode;
 		readonly selection: TSelection;
+		readonly result: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
 		readonly selectedFields: BuildSubquerySelection<TSelection, TNullabilityMap>;
 	};
 
@@ -105,7 +108,6 @@ export abstract class PgSelectQueryBuilder<
 	constructor(
 		table: PgSelectConfig['table'],
 		fields: PgSelectConfig['fields'],
-		fieldsList: PgSelectConfig['fieldsList'],
 		private isPartialSelect: boolean,
 		protected session: PgSession | undefined,
 		protected dialect: PgDialect,
@@ -115,8 +117,7 @@ export abstract class PgSelectQueryBuilder<
 		this.config = {
 			withList,
 			table,
-			fields,
-			fieldsList,
+			fields: { ...fields },
 			joins: [],
 			orderBy: [],
 			groupBy: [],
@@ -139,12 +140,14 @@ export abstract class PgSelectQueryBuilder<
 		joinType: TJoinType,
 	): JoinFn<THKT, TTableName, TSelectMode, TJoinType, TSelection, TNullabilityMap> {
 		return (
-			table: AnyPgTable | Subquery | SQL,
+			table: AnyPgTable | Subquery | PgViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = table instanceof Subquery
 				? table[SubqueryConfig].alias
+				: table instanceof View
+				? table[ViewBaseConfig].name
 				: table instanceof SQL
 				? undefined
 				: table[Table.Symbol.Name];
@@ -156,18 +159,17 @@ export abstract class PgSelectQueryBuilder<
 			if (!this.isPartialSelect) {
 				// If this is the first join and this is not a partial select and we're not selecting from raw SQL, "move" the fields from the main table to the nested object
 				if (Object.keys(this.joinsNotNullableMap).length === 1 && typeof baseTableName === 'string') {
-					this.config.fieldsList = this.config.fieldsList.map((field) => ({
-						...field,
-						path: [baseTableName, ...field.path],
-					}));
+					this.config.fields = {
+						[baseTableName]: this.config.fields,
+					};
 				}
 				if (typeof tableName === 'string' && !(table instanceof SQL)) {
-					this.config.fieldsList.push(
-						...orderSelectedFields<AnyPgColumn>(
-							table instanceof Subquery ? table[SubqueryConfig].selection : table[Table.Symbol.Columns],
-							[tableName],
-						),
-					);
+					const selection = table instanceof Subquery
+						? table[SubqueryConfig].selection
+						: table instanceof View
+						? table[ViewBaseConfig].selectedFields
+						: table[Table.Symbol.Columns];
+					this.config.fields[tableName] = selection;
 				}
 			}
 
@@ -184,24 +186,28 @@ export abstract class PgSelectQueryBuilder<
 
 			if (typeof tableName === 'string') {
 				switch (joinType) {
-					case 'left':
+					case 'left': {
 						this.joinsNotNullableMap[tableName] = false;
 						break;
-					case 'right':
+					}
+					case 'right': {
 						this.joinsNotNullableMap = Object.fromEntries(
 							Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false]),
 						);
 						this.joinsNotNullableMap[tableName] = true;
 						break;
-					case 'inner':
+					}
+					case 'inner': {
 						this.joinsNotNullableMap[tableName] = true;
 						break;
-					case 'full':
+					}
+					case 'full': {
 						this.joinsNotNullableMap = Object.fromEntries(
 							Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false]),
 						);
 						this.joinsNotNullableMap[tableName] = false;
 						break;
+					}
 				}
 			}
 
@@ -306,7 +312,7 @@ export abstract class PgSelectQueryBuilder<
 	}
 
 	toSQL(): Simplify<Omit<Query, 'typings'>> {
-		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
 
@@ -322,7 +328,7 @@ export abstract class PgSelectQueryBuilder<
 
 export interface PgSelect<
 	TTableName extends string | undefined,
-	TSelection,
+	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
@@ -346,9 +352,10 @@ export class PgSelect<
 		if (!this.session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
+		const fieldsList = orderSelectedFields<AnyPgColumn>(this.config.fields);
 		const query = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] }
-		>(this.dialect.sqlToQuery(this.getSQL()), this.config.fieldsList, name);
+		>(this.dialect.sqlToQuery(this.getSQL()), fieldsList, name);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
 		return query;
 	}

@@ -13,8 +13,7 @@ import { drizzle as proxyDrizzle } from 'drizzle-orm/sqlite-proxy';
 import { migrate } from 'drizzle-orm/sqlite-proxy/migrator';
 
 class ServerSimulator {
-	constructor(private db: BetterSqlite3.Database) {
-	}
+	constructor(private db: BetterSqlite3.Database) {}
 
 	async query(sql: string, params: any[], method: string) {
 		if (method === 'run') {
@@ -36,7 +35,7 @@ class ServerSimulator {
 				const row = this.db.prepare(sql).raw().get(params);
 				return { data: row };
 			} catch (e: any) {
-				console.log('get row: ', e);
+				console.log('get row:', e);
 				return { error: e.message };
 			}
 		} else {
@@ -51,7 +50,7 @@ class ServerSimulator {
 				this.db.exec(query);
 			}
 			this.db.exec('COMMIT');
-		} catch (e: any) {
+		} catch {
 			this.db.exec('ROLLBACK');
 		}
 
@@ -79,7 +78,7 @@ const anotherUsersMigratorTable = sqliteTable('another_users', {
 	email: text('email').notNull(),
 });
 
-const pkExample = sqliteTable('pk_example', {
+const _pkExample = sqliteTable('pk_example', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
@@ -107,13 +106,13 @@ test.before((t) => {
 		try {
 			const rows = await ctx.serverSimulator.query(sql, params, method);
 
-			if (typeof rows.error !== 'undefined') {
-				throw Error(rows.error);
+			if (rows.error !== undefined) {
+				throw new Error(rows.error);
 			}
 
 			return { rows: rows.data };
 		} catch (e: any) {
-			console.error('Error from sqlite proxy server: ', e.response.data);
+			console.error('Error from sqlite proxy server:', e.response.data);
 			return { rows: [] };
 		}
 	});
@@ -129,7 +128,8 @@ test.beforeEach(async (t) => {
 			verified integer not null default 0,
 			json blob,
 			created_at integer not null default (strftime('%s', 'now'))
-		)`);
+		)
+	`);
 });
 
 test.serial('select all fields', async (t) => {
@@ -645,7 +645,7 @@ test.serial('migrator', async (t) => {
 			serverSimulator.migrations(queries);
 		} catch (e) {
 			console.log(e);
-			throw Error('Proxy server cannot run migrations');
+			throw new Error('Proxy server cannot run migrations');
 		}
 	}, { migrationsFolder: 'drizzle2/sqlite' });
 
@@ -706,4 +706,64 @@ test.serial('insert via db.get w/ query builder', async (t) => {
 test.after.always((t) => {
 	const ctx = t.context;
 	ctx.client?.close();
+});
+
+test.serial('insert with onConflict do nothing', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ id: 1, name: 'John' }).run();
+
+	await db
+		.insert(usersTable)
+		.values({ id: 1, name: 'John' })
+		.onConflictDoNothing()
+		.run();
+
+	const res = await db
+		.select({ id: usersTable.id, name: usersTable.name })
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('insert with onConflict do nothing using target', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ id: 1, name: 'John' }).run();
+
+	await db
+		.insert(usersTable)
+		.values({ id: 1, name: 'John' })
+		.onConflictDoNothing({ target: usersTable.id })
+		.run();
+
+	const res = await db
+		.select({ id: usersTable.id, name: usersTable.name })
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('insert with onConflict do update', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ id: 1, name: 'John' }).run();
+
+	await db
+		.insert(usersTable)
+		.values({ id: 1, name: 'John' })
+		.onConflictDoUpdate({ target: usersTable.id, set: { name: 'John1' } })
+		.run();
+
+	const res = await db
+		.select({ id: usersTable.id, name: usersTable.name })
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
 });
