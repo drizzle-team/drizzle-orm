@@ -60,7 +60,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import {
 	SQLiteBlobJson,
-  SQLiteBoolean,
+	SQLiteBoolean,
 	SQLiteCustomColumn,
 	SQLiteInteger,
 	SQLiteNumeric,
