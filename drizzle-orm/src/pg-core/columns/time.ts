@@ -57,7 +57,7 @@ export class PgTime<T extends ColumnBaseConfig> extends PgColumn<PgTimeHKT, T> {
 	}
 
 	getSQLType(): string {
-		const precision = typeof this.precision !== 'undefined' ? `(${this.precision})` : '';
+		const precision = this.precision === undefined ? '' : `(${this.precision})`;
 		return `time${precision}${this.withTimezone ? ' with time zone' : ''}`;
 	}
 }

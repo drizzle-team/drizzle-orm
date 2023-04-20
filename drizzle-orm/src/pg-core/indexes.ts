@@ -62,6 +62,7 @@ export interface AnyIndexBuilder {
 	build(table: AnyPgTable): Index;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface IndexBuilder extends AnyIndexBuilder {}
 
 export class IndexBuilder implements AnyIndexBuilder {

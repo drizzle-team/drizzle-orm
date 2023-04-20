@@ -27,6 +27,9 @@ export const OriginalName = Symbol('OriginalName');
 /** @internal */
 export const BaseName = Symbol('BaseName');
 
+/** @internal */
+export const IsAlias = Symbol('IsAlias');
+
 export class Table<T extends TableConfig = TableConfig> {
 	declare readonly _: {
 		readonly brand: 'Table';
@@ -47,6 +50,7 @@ export class Table<T extends TableConfig = TableConfig> {
 		OriginalName: OriginalName as typeof OriginalName,
 		Columns: Columns as typeof Columns,
 		BaseName: BaseName as typeof BaseName,
+		IsAlias: IsAlias as typeof IsAlias,
 	};
 
 	/**
@@ -72,6 +76,9 @@ export class Table<T extends TableConfig = TableConfig> {
 	 * Used to store the table name before the transformation via the `tableCreator` functions.
 	 */
 	[BaseName]: string;
+
+	/** @internal */
+	[IsAlias] = false;
 
 	constructor(name: string, schema: string | undefined, baseName: string) {
 		this[TableName] = this[OriginalName] = name;

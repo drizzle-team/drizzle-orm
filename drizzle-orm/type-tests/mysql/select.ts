@@ -26,6 +26,7 @@ import { param, sql } from '~/sql';
 
 import type { Equal } from 'type-tests/utils';
 import { Expect } from 'type-tests/utils';
+import { type InferModel } from '~/table';
 import { db } from './db';
 import { cities, classes, newYorkers, users } from './tables';
 
@@ -373,7 +374,7 @@ Expect<
 >;
 
 {
-	let authenticated = false;
+	const authenticated = false as boolean;
 
 	const result = await db
 		.select({
@@ -399,7 +400,7 @@ await db.select().from(users).for('update', { noWait: true });
 await db
 	.select()
 	.from(users)
-	// @ts-expect-error
+	// @ts-expect-error - can't use both skipLocked and noWait
 	.for('share', { noWait: true, skipLocked: true });
 
 {
@@ -425,4 +426,11 @@ await db
 			typeof result
 		>
 	>;
+}
+
+{
+	const query = db.select().from(users).prepare().iterator();
+	for await (const row of query) {
+		Expect<Equal<InferModel<typeof users>, typeof row>>();
+	}
 }

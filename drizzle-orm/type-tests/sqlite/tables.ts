@@ -245,12 +245,12 @@ Expect<
 }
 
 {
-	const test = sqliteTable('test', {
+	sqliteTable('test', {
 		col1: integer('col1').default(1),
 		col2: integer('col2', { mode: 'number' }).default(1),
 		col3: integer('col3', { mode: 'timestamp' }).default(new Date()),
 		col4: integer('col4', { mode: 'timestamp_ms' }).default(new Date()),
-		// @ts-expect-error
+		// @ts-expect-error - invalid mode
 		col5: integer('col4', { mode: undefined }).default(new Date()),
 	});
 }

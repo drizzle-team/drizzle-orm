@@ -39,7 +39,7 @@ export class PgDoublePrecision<T extends ColumnBaseConfig> extends PgColumn<PgDo
 
 	override mapFromDriverValue(value: string | number): number {
 		if (typeof value === 'string') {
-			return parseFloat(value);
+			return Number.parseFloat(value);
 		}
 		return value;
 	}

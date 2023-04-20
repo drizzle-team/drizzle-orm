@@ -20,6 +20,7 @@ import type { Subquery } from '~/subquery';
 import type { AnyTable, UpdateTableConfig } from '~/table';
 import type { Assume } from '~/utils';
 import { type ColumnsSelection } from '~/view';
+import { type PreparedQueryHKTBase } from '../session';
 import type { MySqlSelect, MySqlSelectQueryBuilder } from './select';
 
 export interface JoinsValue {
@@ -107,6 +108,7 @@ export interface MySqlSelectHKTBase {
 	tableName: string | undefined;
 	selection: unknown;
 	selectMode: SelectMode;
+	preparedQueryHKT: unknown;
 	nullabilityMap: unknown;
 	_type: unknown;
 }
@@ -139,6 +141,7 @@ export interface MySqlSelectHKT extends MySqlSelectHKTBase {
 		this['tableName'],
 		Assume<this['selection'], ColumnsSelection>,
 		this['selectMode'],
+		Assume<this['preparedQueryHKT'], PreparedQueryHKTBase>,
 		Assume<this['nullabilityMap'], Record<string, JoinNullability>>
 	>;
 }

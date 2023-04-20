@@ -6,7 +6,7 @@ import { type View, ViewBaseConfig } from './view';
 export class ColumnAliasProxyHandler<TColumn extends AnyColumn> implements ProxyHandler<TColumn> {
 	constructor(private table: Table | View) {}
 
-	get(columnObj: TColumn, prop: string | symbol, receiver: any): any {
+	get(columnObj: TColumn, prop: string | symbol): any {
 		if (prop === 'table') {
 			return this.table;
 		}
@@ -18,7 +18,11 @@ export class ColumnAliasProxyHandler<TColumn extends AnyColumn> implements Proxy
 export class TableAliasProxyHandler<T extends Table | View> implements ProxyHandler<T> {
 	constructor(private alias: string, private replaceOriginalName: boolean) {}
 
-	get(tableObj: T, prop: string | symbol, receiver: any): any {
+	get(tableObj: T, prop: string | symbol): any {
+		if (prop === Table.Symbol.IsAlias) {
+			return true;
+		}
+
 		if (prop === Table.Symbol.Name) {
 			return this.alias;
 		}
@@ -31,6 +35,7 @@ export class TableAliasProxyHandler<T extends Table | View> implements ProxyHand
 			return {
 				...tableObj[ViewBaseConfig as keyof typeof tableObj],
 				name: this.alias,
+				isAlias: true,
 			};
 		}
 

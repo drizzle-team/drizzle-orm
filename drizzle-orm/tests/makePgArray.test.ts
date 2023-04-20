@@ -1,10 +1,21 @@
 import { describe, it } from 'vitest';
-import { makePgArray } from '~/pg-core/utils';
+import { customType, pgTable } from '~/pg-core';
+
+const anyColumn = customType<{ data: any }>({
+	dataType() {
+		return 'any';
+	},
+});
+
+const table = pgTable('test', {
+	a: anyColumn('a').array(),
+	b: anyColumn('a').array().array(),
+});
 
 describe.concurrent('makePgArray', () => {
 	it('parses simple 1D array', ({ expect }) => {
 		const input = ['1', '2', '3'];
-		const output = makePgArray(input);
+		const output = table.a.mapToDriverValue(input);
 		expect(output).toEqual('{1,2,3}');
 	});
 
@@ -14,13 +25,13 @@ describe.concurrent('makePgArray', () => {
 			['4', '5', '6'],
 			['7', '8', '9'],
 		];
-		const output = makePgArray(input);
+		const output = table.b.mapToDriverValue(input);
 		expect(output).toEqual('{{1,2,3},{4,5,6},{7,8,9}}');
 	});
 
 	it('parses array with quoted values', ({ expect }) => {
 		const input = ['1', '2,3', '4'];
-		const output = makePgArray(input);
+		const output = table.a.mapToDriverValue(input);
 		expect(output).toEqual('{1,"2,3",4}');
 	});
 
@@ -29,13 +40,13 @@ describe.concurrent('makePgArray', () => {
 			['1', '2,3', '4'],
 			['5', '6,7', '8'],
 		];
-		const output = makePgArray(input);
+		const output = table.b.mapToDriverValue(input);
 		expect(output).toEqual('{{1,"2,3",4},{5,"6,7",8}}');
 	});
 
 	it('parses array with empty values', ({ expect }) => {
 		const input = ['1', '', '3'];
-		const output = makePgArray(input);
+		const output = table.a.mapToDriverValue(input);
 		expect(output).toEqual('{1,,3}');
 	});
 
@@ -45,43 +56,43 @@ describe.concurrent('makePgArray', () => {
 			['', '5', '6'],
 			['7', '8', '9'],
 		];
-		const output = makePgArray(input);
+		const output = table.b.mapToDriverValue(input);
 		expect(output).toEqual('{{1,2,3},{,5,6},{7,8,9}}');
 	});
 
 	it('parses empty array', ({ expect }) => {
 		const input: string[] = [];
-		const output = makePgArray(input);
+		const output = table.a.mapToDriverValue(input);
 		expect(output).toEqual('{}');
 	});
 
 	it('parses empty nested array', ({ expect }) => {
 		const input = [[]];
-		const output = makePgArray(input);
+		const output = table.b.mapToDriverValue(input);
 		expect(output).toEqual('{{}}');
 	});
 
 	it('parses single-level array with strings', ({ expect }) => {
 		const input = ['one', 'two', 'three'];
-		const output = makePgArray(input);
+		const output = table.a.mapToDriverValue(input);
 		expect(output).toEqual('{one,two,three}');
 	});
 
 	it('parses single-level array with mixed values', ({ expect }) => {
 		const input = ['1', 'two', '3'];
-		const output = makePgArray(input);
+		const output = table.a.mapToDriverValue(input);
 		expect(output).toEqual('{1,two,3}');
 	});
 
 	it('parses single-level array with commas inside quotes', ({ expect }) => {
 		const input = ['1', 'two, three', '4'];
-		const output = makePgArray(input);
+		const output = table.a.mapToDriverValue(input);
 		expect(output).toEqual('{1,"two, three",4}');
 	});
 
 	it('parses single-level array with escaped quotes inside quotes', ({ expect }) => {
 		const input = ['1', 'two "three", four', '5'];
-		const output = makePgArray(input);
+		const output = table.a.mapToDriverValue(input);
 		expect(output).toEqual('{1,"two \\"three\\", four",5}');
 	});
 
@@ -91,7 +102,7 @@ describe.concurrent('makePgArray', () => {
 			['four', 'five', 'six'],
 			['seven', 'eight', 'nine'],
 		];
-		const output = makePgArray(input);
+		const output = table.b.mapToDriverValue(input);
 		expect(output).toEqual('{{one,two,three},{four,five,six},{seven,eight,nine}}');
 	});
 
@@ -101,7 +112,7 @@ describe.concurrent('makePgArray', () => {
 			['four', 'five "and a half", six', '6'],
 			['seven', 'eight', 'nine'],
 		];
-		const output = makePgArray(input);
+		const output = table.b.mapToDriverValue(input);
 		expect(output).toEqual(
 			'{{1,"two \\"and a half\\", three",3},{four,"five \\"and a half\\", six",6},{seven,eight,nine}}',
 		);

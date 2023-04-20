@@ -89,14 +89,14 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	}
 
 	all(placeholderValues?: Record<string, unknown>): T['all'] {
-		const { fields } = this;
+		const { fields, queryString, logger, joinsNotNullableMap, stmt } = this;
 		if (fields) {
-			return this.values(placeholderValues).map((row) => mapResultRow(fields, row, this.joinsNotNullableMap));
+			return this.values(placeholderValues).map((row) => mapResultRow(fields, row, joinsNotNullableMap));
 		}
 
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
-		this.logger.logQuery(this.queryString, params);
-		return this.stmt.all(...params);
+		logger.logQuery(queryString, params);
+		return stmt.all(...params);
 	}
 
 	get(placeholderValues?: Record<string, unknown>): T['get'] {
@@ -108,12 +108,12 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 			return undefined;
 		}
 
-		const { fields } = this;
+		const { fields, joinsNotNullableMap } = this;
 		if (!fields) {
 			return value;
 		}
 
-		return mapResultRow(fields, value, this.joinsNotNullableMap);
+		return mapResultRow(fields, value, joinsNotNullableMap);
 	}
 
 	values(placeholderValues?: Record<string, unknown>): T['values'] {

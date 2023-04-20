@@ -54,9 +54,9 @@ export class PgNumeric<T extends ColumnBaseConfig> extends PgColumn<PgNumericHKT
 	}
 
 	getSQLType(): string {
-		if (typeof this.precision !== 'undefined' && typeof this.scale !== 'undefined') {
+		if (this.precision !== undefined && this.scale !== undefined) {
 			return `numeric(${this.precision}, ${this.scale})`;
-		} else if (typeof this.precision === 'undefined') {
+		} else if (this.precision === undefined) {
 			return 'numeric';
 		} else {
 			return `numeric(${this.precision})`;

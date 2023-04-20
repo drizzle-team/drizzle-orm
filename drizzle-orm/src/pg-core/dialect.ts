@@ -7,7 +7,16 @@ import type { PgDeleteConfig, PgInsertConfig, PgUpdateConfig } from '~/pg-core/q
 import type { PgSelectConfig, SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
 import type { AnyPgTable } from '~/pg-core/table';
 import { PgTable } from '~/pg-core/table';
-import { type DriverValueEncoder, name, type Query, type QueryTypingsValue, SQL, sql, type SQLChunk } from '~/sql';
+import {
+	type DriverValueEncoder,
+	name,
+	Param,
+	type Query,
+	type QueryTypingsValue,
+	SQL,
+	sql,
+	type SQLChunk,
+} from '~/sql';
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
 import { orderSelectedFields, type UpdateSet } from '~/utils';
@@ -17,11 +26,13 @@ import { type PgMaterializedView, PgViewBase } from './view';
 
 export class PgDialect {
 	async migrate(migrations: MigrationMeta[], session: PgSession): Promise<void> {
-		const migrationTableCreate = sql`CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (
-			id SERIAL PRIMARY KEY,
-			hash text NOT NULL,
-			created_at bigint
-		)`;
+		const migrationTableCreate = sql`
+			CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (
+				id SERIAL PRIMARY KEY,
+				hash text NOT NULL,
+				created_at bigint
+			)
+		`;
 		await session.execute(sql`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
 		await session.execute(migrationTableCreate);
 
@@ -34,7 +45,7 @@ export class PgDialect {
 			for await (const migration of migrations) {
 				if (
 					!lastDbMigration
-					|| parseInt(lastDbMigration.created_at, 10) < migration.folderMillis
+					|| Number(lastDbMigration.created_at) < migration.folderMillis
 				) {
 					for (const stmt of migration.sql) {
 						await tx.execute(sql.raw(stmt));
@@ -75,15 +86,14 @@ export class PgDialect {
 		const setSize = setEntries.length;
 		return sql.fromList(
 			setEntries
-				.map(([colName, value], i): SQL[] => {
+				.flatMap(([colName, value], i): SQL[] => {
 					const col: AnyPgColumn = table[Table.Symbol.Columns][colName]!;
 					const res = sql`${name(col.name)} = ${value}`;
 					if (i < setSize - 1) {
 						return [res, sql.raw(', ')];
 					}
 					return [res];
-				})
-				.flat(1),
+				}),
 		);
 	}
 
@@ -117,7 +127,7 @@ export class PgDialect {
 		const columnsLen = fields.length;
 
 		const chunks = fields
-			.map(({ field }, i) => {
+			.flatMap(({ field }, i) => {
 				const chunk: SQLChunk[] = [];
 
 				if (field instanceof SQL.Aliased && field.isSelectionField) {
@@ -156,8 +166,7 @@ export class PgDialect {
 				}
 
 				return chunk;
-			})
-			.flat(1);
+			});
 
 		return sql.fromList(chunks);
 	}
@@ -166,7 +175,7 @@ export class PgDialect {
 		{ withList, fields, where, having, table, joins, orderBy, groupBy, limit, offset, lockingClauses }: PgSelectConfig,
 	): SQL {
 		const fieldsList = orderSelectedFields<AnyPgColumn>(fields);
-		fieldsList.forEach((f) => {
+		for (const f of fieldsList) {
 			if (
 				f.field instanceof Column
 				&& getTableName(f.field.table)
@@ -186,28 +195,36 @@ export class PgDialect {
 					}" field references a column "${tableName}"."${f.field.name}", but the table "${tableName}" is not part of the query! Did you forget to join it?`,
 				);
 			}
-		});
+		}
 
 		const isSingleTable = joins.length === 0;
 
 		let withSql: SQL | undefined;
 		if (withList.length) {
 			const withSqlChunks = [sql`with `];
-			withList.forEach((w, i) => {
+			for (const [i, w] of withList.entries()) {
 				withSqlChunks.push(sql`${name(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
 				if (i < withList.length - 1) {
 					withSqlChunks.push(sql`, `);
 				}
-			});
+			}
 			withSqlChunks.push(sql` `);
 			withSql = sql.fromList(withSqlChunks);
 		}
 
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
 
+		const tableSql = (() => {
+			if (table instanceof Table && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
+				return sql`${name(table[Table.Symbol.OriginalName])} ${name(table[Table.Symbol.Name])}`;
+			}
+
+			return table;
+		})();
+
 		const joinsArray: SQL[] = [];
 
-		joins.forEach((joinMeta, index) => {
+		for (const [index, joinMeta] of joins.entries()) {
 			if (index === 0) {
 				joinsArray.push(sql` `);
 			}
@@ -231,7 +248,7 @@ export class PgDialect {
 			if (index < joins.length - 1) {
 				joinsArray.push(sql` `);
 			}
-		});
+		}
 
 		const joinsSql = sql.fromList(joinsArray);
 
@@ -240,24 +257,24 @@ export class PgDialect {
 		const havingSql = having ? sql` having ${having}` : undefined;
 
 		const orderByList: (AnyPgColumn | SQL | SQL.Aliased)[] = [];
-		orderBy.forEach((orderByValue, index) => {
+		for (const [index, orderByValue] of orderBy.entries()) {
 			orderByList.push(orderByValue);
 
 			if (index < orderBy.length - 1) {
 				orderByList.push(sql`, `);
 			}
-		});
+		}
 
 		const orderBySql = orderByList.length > 0 ? sql` order by ${sql.fromList(orderByList)}` : undefined;
 
 		const groupByList: (SQL | AnyColumn | SQL.Aliased)[] = [];
-		groupBy.forEach((groupByValue, index) => {
+		for (const [index, groupByValue] of groupBy.entries()) {
 			groupByList.push(groupByValue);
 
 			if (index < groupBy.length - 1) {
 				groupByList.push(sql`, `);
 			}
-		});
+		}
 
 		const groupBySql = groupByList.length > 0 ? sql` group by ${sql.fromList(groupByList)}` : undefined;
 
@@ -265,9 +282,9 @@ export class PgDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		let lockingClausesSql = sql.empty();
-		lockingClauses.forEach(({ strength, config }) => {
-			let clauseSql = sql` for ${sql.raw(strength)}`;
+		const lockingClausesSql = sql.empty();
+		for (const { strength, config } of lockingClauses) {
+			const clauseSql = sql` for ${sql.raw(strength)}`;
 			if (config.of) {
 				clauseSql.append(sql` of ${config.of}`);
 			}
@@ -277,9 +294,9 @@ export class PgDialect {
 				clauseSql.append(sql` skip locked`);
 			}
 			lockingClausesSql.append(clauseSql);
-		});
+		}
 
-		return sql`${withSql}select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+		return sql`${withSql}select ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {
@@ -291,21 +308,21 @@ export class PgDialect {
 			: Object.entries(columns);
 		const insertOrder = colEntries.map(([, column]) => name(column.name));
 
-		values.forEach((value, valueIndex) => {
+		for (const [valueIndex, value] of values.entries()) {
 			const valueList: (SQLChunk | SQL)[] = [];
-			colEntries.forEach(([fieldName]) => {
+			for (const [fieldName] of colEntries) {
 				const colValue = value[fieldName];
-				if (typeof colValue === 'undefined') {
+				if (colValue === undefined || (colValue instanceof Param && colValue.value === undefined)) {
 					valueList.push(sql`default`);
 				} else {
 					valueList.push(colValue);
 				}
-			});
+			}
 			valuesSqlList.push(valueList);
 			if (valueIndex < values.length - 1) {
 				valuesSqlList.push(sql`, `);
 			}
-		});
+		}
 
 		const valuesSql = sql.fromList(valuesSqlList);
 

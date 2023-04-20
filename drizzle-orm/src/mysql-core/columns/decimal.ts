@@ -45,9 +45,9 @@ export class MySqlDecimal<T extends ColumnBaseConfig>
 	readonly scale: number | undefined = this.config.scale;
 
 	getSQLType(): string {
-		if (typeof this.precision !== 'undefined' && typeof this.scale !== 'undefined') {
+		if (this.precision !== undefined && this.scale !== undefined) {
 			return `decimal(${this.precision},${this.scale})`;
-		} else if (typeof this.precision === 'undefined') {
+		} else if (this.precision === undefined) {
 			return 'decimal';
 		} else {
 			return `decimal(${this.precision})`;

@@ -20,7 +20,7 @@ export class Subquery<TAlias extends string = string, TSelectedFields = unknown>
 		isWith: boolean;
 	};
 
-	constructor(sql: SQL, selection: Record<string, unknown>, alias: string, isWith: boolean = false) {
+	constructor(sql: SQL, selection: Record<string, unknown>, alias: string, isWith = false) {
 		this[SubqueryConfig] = {
 			sql,
 			selection,
@@ -69,7 +69,7 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 		this.config = { ...config };
 	}
 
-	get(subquery: T, prop: string | symbol, receiver: any): any {
+	get(subquery: T, prop: string | symbol): any {
 		if (prop === SubqueryConfig) {
 			return {
 				...subquery[SubqueryConfig as keyof typeof subquery],

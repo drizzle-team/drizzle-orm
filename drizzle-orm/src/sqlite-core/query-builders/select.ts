@@ -18,7 +18,7 @@ import type {
 } from '~/query-builders/select.types';
 import type { SubqueryWithSelection } from '~/sqlite-core/subquery';
 import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
-import { getTableColumns, orderSelectedFields, type Simplify, type ValueOrArray } from '~/utils';
+import { getTableColumns, getTableLikeName, orderSelectedFields, type Simplify, type ValueOrArray } from '~/utils';
 import { type ColumnsSelection, View, ViewBaseConfig } from '~/view';
 import { SQLiteViewBase } from '../view';
 import type {
@@ -103,10 +103,14 @@ export abstract class SQLiteSelectQueryBuilder<
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
-> extends QueryBuilder<BuildSubquerySelection<TSelection, TNullabilityMap>> {
+> extends QueryBuilder<
+	BuildSubquerySelection<TSelection, TNullabilityMap>,
+	SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
+> {
 	override readonly _: {
 		readonly selectMode: TSelectMode;
 		readonly selection: TSelection;
+		readonly result: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
 		readonly selectedFields: BuildSubquerySelection<TSelection, TNullabilityMap>;
 	};
 
@@ -134,13 +138,7 @@ export abstract class SQLiteSelectQueryBuilder<
 		this._ = {
 			selectedFields: fields as BuildSubquerySelection<TSelection, TNullabilityMap>,
 		} as this['_'];
-		this.tableName = table instanceof Subquery
-			? table[SubqueryConfig].alias
-			: table instanceof SQLiteViewBase
-			? table[ViewBaseConfig].name
-			: table instanceof SQL
-			? undefined
-			: table[Table.Symbol.BaseName];
+		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
 	}
 
@@ -152,13 +150,7 @@ export abstract class SQLiteSelectQueryBuilder<
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
-			const tableName = table instanceof Subquery
-				? table[SubqueryConfig].alias
-				: table instanceof View
-				? table[ViewBaseConfig].name
-				: table instanceof SQL
-				? undefined
-				: table[Table.Symbol.Name];
+			const tableName = getTableLikeName(table);
 
 			if (typeof tableName === 'string' && this.config.joins.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
@@ -194,24 +186,28 @@ export abstract class SQLiteSelectQueryBuilder<
 
 			if (typeof tableName === 'string') {
 				switch (joinType) {
-					case 'left':
+					case 'left': {
 						this.joinsNotNullableMap[tableName] = false;
 						break;
-					case 'right':
+					}
+					case 'right': {
 						this.joinsNotNullableMap = Object.fromEntries(
 							Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false]),
 						);
 						this.joinsNotNullableMap[tableName] = true;
 						break;
-					case 'inner':
+					}
+					case 'inner': {
 						this.joinsNotNullableMap[tableName] = true;
 						break;
-					case 'full':
+					}
+					case 'full': {
 						this.joinsNotNullableMap = Object.fromEntries(
 							Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false]),
 						);
 						this.joinsNotNullableMap[tableName] = false;
 						break;
+					}
 				}
 			}
 
@@ -311,7 +307,7 @@ export abstract class SQLiteSelectQueryBuilder<
 	}
 
 	toSQL(): Simplify<Omit<Query, 'typings'>> {
-		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
 
@@ -332,6 +328,7 @@ export abstract class SQLiteSelectQueryBuilder<
 	}
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface SQLiteSelect<
 	TTableName extends string | undefined,
 	TResultType extends 'sync' | 'async',

@@ -1,6 +1,8 @@
 root: true
 extends:
-  - 'plugin:@typescript-eslint/base'
+  - 'eslint:recommended'
+  - 'plugin:@typescript-eslint/recommended'
+  - 'plugin:unicorn/recommended'
 parser: '@typescript-eslint/parser'
 plugins:
   - import
@@ -17,3 +19,37 @@ rules:
   import/no-useless-path-segments: error
   import/newline-after-import: error
   import/no-duplicates: error
+  '@typescript-eslint/no-explicit-any': 'off'
+  '@typescript-eslint/no-non-null-assertion': 'off'
+  '@typescript-eslint/no-namespace': 'off'
+  '@typescript-eslint/no-unused-vars':
+    - error
+    - argsIgnorePattern: '^_'
+      varsIgnorePattern: '^_'
+  '@typescript-eslint/ban-types':
+    - error
+    - extendDefaults: true
+      types:
+        '{}' : false
+  '@typescript-eslint/no-this-alias': 'off'
+  '@typescript-eslint/no-var-requires': 'off'
+  'unicorn/prefer-node-protocol': 'off'
+  'unicorn/prefer-top-level-await': 'off'
+  'unicorn/prevent-abbreviations': 'off'
+  'unicorn/prefer-switch': 'off'
+  'unicorn/catch-error-name': 'off'
+  'unicorn/no-null': 'off'
+  'unicorn/numeric-separators-style': 'off'
+  'unicorn/explicit-length-check': 'off'
+  'unicorn/filename-case': 'off'
+  'unicorn/prefer-module': 'off'
+  'unicorn/no-array-reduce': 'off'
+  'unicorn/no-nested-ternary': 'off'
+  'unicorn/no-useless-undefined':
+    - error
+    - checkArguments: false
+  'unicorn/no-this-assignment': 'off'
+  'unicorn/empty-brace-spaces': 'off'
+  'unicorn/no-thenable': 'off'
+  'unicorn/consistent-function-scoping': 'off'
+  'unicorn/prefer-type-error': 'off'

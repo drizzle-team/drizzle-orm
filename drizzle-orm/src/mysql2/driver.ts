@@ -1,8 +1,9 @@
+import { type Connection as CallbackConnection, type Pool as CallbackPool } from 'mysql2';
 import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
 import { MySqlDialect } from '~/mysql-core/dialect';
 import { MySqlDatabase } from '.';
-import type { MySql2Client, MySql2QueryResultHKT } from './session';
+import type { MySql2Client, MySql2PreparedQueryHKT, MySql2QueryResultHKT } from './session';
 import { MySql2Session } from './session';
 
 export interface MySqlDriverOptions {
@@ -28,10 +29,10 @@ export interface DrizzleConfig {
 
 export { MySqlDatabase } from '~/mysql-core/db';
 
-export type MySql2Database = MySqlDatabase<MySql2QueryResultHKT>;
+export type MySql2Database = MySqlDatabase<MySql2QueryResultHKT, MySql2PreparedQueryHKT>;
 
 export function drizzle(
-	client: MySql2Client,
+	client: MySql2Client | CallbackConnection | CallbackPool,
 	config: DrizzleConfig = {},
 ): MySql2Database {
 	const dialect = new MySqlDialect();
@@ -41,7 +42,18 @@ export function drizzle(
 	} else if (config.logger !== false) {
 		logger = config.logger;
 	}
-	const driver = new MySql2Driver(client, dialect, { logger });
+	if (isCallbackClient(client)) {
+		client = client.promise();
+	}
+	const driver = new MySql2Driver(client as MySql2Client, dialect, { logger });
 	const session = driver.createSession();
 	return new MySqlDatabase(dialect, session);
+}
+
+interface CallbackClient {
+	promise(): MySql2Client;
+}
+
+function isCallbackClient(client: any): client is CallbackClient {
+	return typeof client.promise === 'function';
 }

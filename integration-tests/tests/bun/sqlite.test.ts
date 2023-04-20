@@ -37,13 +37,14 @@ test.before.each((ctx) => {
 
 		db.run(sql`drop table if exists ${usersTable}`);
 		db.run(sql`
-		create table ${usersTable} (
-			id integer primary key,
-			name text not null,
-			verified integer not null default 0,
-			json blob,
-			created_at text not null default (strftime('%s', 'now'))
-		)`);
+			create table ${usersTable} (
+				id integer primary key,
+				name text not null,
+				verified integer not null default 0,
+				json blob,
+				created_at text not null default (strftime('%s', 'now'))
+			)
+		`);
 	} catch (e) {
 		console.error(e);
 	}
@@ -263,7 +264,7 @@ test.run();
 // 	const { db } = t.context;
 // 	const customerAlias = alias(usersTable, 'customer');
 
-// 	db.insert(usersTable).values({ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }).execute();
+// 	db.insert(usersTable).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]).execute();
 // 	const result = db
 // 		.select().from(usersTable)
 // 		.fields({ id: usersTable.id, name: usersTable.name })

@@ -49,7 +49,7 @@ export class PgVarchar<T extends ColumnBaseConfig & WithEnum>
 	readonly enumValues = this.config.enumValues;
 
 	getSQLType(): string {
-		return typeof this.length !== 'undefined' ? `varchar(${this.length})` : `varchar`;
+		return this.length === undefined ? `varchar` : `varchar(${this.length})`;
 	}
 }
 

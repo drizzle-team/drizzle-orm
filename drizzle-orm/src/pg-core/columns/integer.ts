@@ -37,7 +37,7 @@ export class PgInteger<T extends ColumnBaseConfig> extends PgColumn<PgIntegerHKT
 
 	override mapFromDriverValue(value: number | string): number {
 		if (typeof value === 'string') {
-			return parseInt(value);
+			return Number.parseInt(value);
 		}
 		return value;
 	}

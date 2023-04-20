@@ -40,7 +40,7 @@ export class PgBigInt53<T extends ColumnBaseConfig> extends PgColumn<PgBigInt53H
 		if (typeof value === 'number') {
 			return value;
 		}
-		return parseInt(value);
+		return Number(value);
 	}
 }
 
@@ -75,6 +75,7 @@ export class PgBigInt64<T extends ColumnBaseConfig> extends PgColumn<PgBigInt64H
 		return 'bigint';
 	}
 
+	// eslint-disable-next-line unicorn/prefer-native-coercion-functions
 	override mapFromDriverValue(value: string): bigint {
 		return BigInt(value);
 	}

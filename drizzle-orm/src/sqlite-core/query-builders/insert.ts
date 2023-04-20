@@ -38,30 +38,19 @@ export class SQLiteInsertBuilder<
 
 	values(value: SQLiteInsertValue<TTable>): SQLiteInsert<TTable, TResultType, TRunResult>;
 	values(values: SQLiteInsertValue<TTable>[]): SQLiteInsert<TTable, TResultType, TRunResult>;
-	/**
-	 * @deprecated Pass the array of values without spreading it.
-	 */
-	values(...values: SQLiteInsertValue<TTable>[]): SQLiteInsert<TTable, TResultType, TRunResult>;
 	values(
-		...values: SQLiteInsertValue<TTable>[] | [SQLiteInsertValue<TTable>] | [SQLiteInsertValue<TTable>[]]
+		values: SQLiteInsertValue<TTable> | SQLiteInsertValue<TTable>[],
 	): SQLiteInsert<TTable, TResultType, TRunResult> {
-		if (values.length === 1) {
-			if (Array.isArray(values[0])) {
-				values = values[0];
-			} else {
-				values = [values[0]];
-			}
+		values = Array.isArray(values) ? values : [values];
+		if (values.length === 0) {
+			throw new Error('values() must be called with at least one value');
 		}
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
 			const cols = this.table[Table.Symbol.Columns];
 			for (const colKey of Object.keys(entry)) {
 				const colValue = entry[colKey as keyof typeof entry];
-				if (colValue instanceof SQL) {
-					result[colKey] = colValue;
-				} else {
-					result[colKey] = new Param(colValue, cols[colKey]);
-				}
+				result[colKey] = colValue instanceof SQL ? colValue : new Param(colValue, cols[colKey]);
 			}
 			return result;
 		});
@@ -70,10 +59,15 @@ export class SQLiteInsertBuilder<
 	}
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface SQLiteInsert<
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TTable extends AnySQLiteTable,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TResultType extends 'sync' | 'async',
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TRunResult,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TReturning = undefined,
 > extends SQLWrapper {}
 
@@ -123,7 +117,7 @@ export class SQLiteInsert<
 			this.config.onConflict = sql`do nothing`;
 		} else {
 			const whereSql = config.where ? sql` where ${config.where}` : sql``;
-			this.config.onConflict = sql`${config.target}${whereSql} do nothing`;
+			this.config.onConflict = sql`(${config.target})${whereSql} do nothing`;
 		}
 		return this;
 	}
@@ -135,7 +129,7 @@ export class SQLiteInsert<
 	}): this {
 		const whereSql = config.where ? sql` where ${config.where}` : sql``;
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
-		this.config.onConflict = sql`${config.target}${whereSql} do update set ${setSql}`;
+		this.config.onConflict = sql`(${config.target})${whereSql} do update set ${setSql}`;
 		return this;
 	}
 
@@ -145,7 +139,7 @@ export class SQLiteInsert<
 	}
 
 	toSQL(): Simplify<Omit<Query, 'typings'>> {
-		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
 

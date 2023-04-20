@@ -80,7 +80,7 @@ const anotherUsersMigratorTable = sqliteTable('another_users', {
 	email: text('email').notNull(),
 });
 
-const pkExample = sqliteTable('pk_example', {
+const _pkExample = sqliteTable('pk_example', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
@@ -95,7 +95,7 @@ test.before(async (t) => {
 	if (!url) {
 		throw new Error('LIBSQL_URL is not set');
 	}
-	let sleep = 250;
+	const sleep = 250;
 	let timeLeft = 5000;
 	let connected = false;
 	let lastError: unknown | undefined;
@@ -118,8 +118,7 @@ test.before(async (t) => {
 });
 
 test.after.always(async (t) => {
-	const ctx = t.context;
-	// ctx.client.close();
+	t.context.client.close();
 });
 
 test.beforeEach(async (t) => {
@@ -139,31 +138,36 @@ test.beforeEach(async (t) => {
 			verified integer not null default 0,
 			json blob,
 			created_at integer not null default (strftime('%s', 'now'))
-		)`);
+		)
+	`);
 
 	await ctx.db.run(sql`
 		create table ${citiesTable} (
 			id integer primary key,
 			name text not null
-		)`);
+		)
+	`);
 	await ctx.db.run(sql`
-			create table ${courseCategoriesTable} (
-				id integer primary key,
-				name text not null
-			)`);
+		create table ${courseCategoriesTable} (
+			id integer primary key,
+			name text not null
+		)
+	`);
 
 	await ctx.db.run(sql`
 		create table ${users2Table} (
 			id integer primary key,
 			name text not null,
 			city_id integer references ${citiesTable}(${name(citiesTable.id.name)})
-		)`);
+		)
+	`);
 	await ctx.db.run(sql`
 		create table ${coursesTable} (
 			id integer primary key,
 			name text not null,
 			category_id integer references ${courseCategoriesTable}(${name(courseCategoriesTable.id.name)})
-		)`);
+		)
+	`);
 	await ctx.db.run(sql`
 		create table ${orders} (
 			id integer primary key,
@@ -171,7 +175,8 @@ test.beforeEach(async (t) => {
 			product text not null,
 			amount integer not null,
 			quantity integer not null
-		)`);
+		)
+	`);
 });
 
 test.serial('select all fields', async (t) => {
@@ -257,7 +262,7 @@ test.serial('insert with auto increment', async (t) => {
 		{ name: 'Jane' },
 		{ name: 'George' },
 		{ name: 'Austin' },
-  ]).run();
+	]).run();
 	const result = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).all();
 
 	t.deepEqual(result, [
@@ -371,7 +376,7 @@ test.serial('insert many', async (t) => {
 		{ name: 'Bruce', json: ['foo', 'bar'] },
 		{ name: 'Jane' },
 		{ name: 'Austin', verified: true },
-  ]).run();
+	]).run();
 	const result = await db.select({
 		id: usersTable.id,
 		name: usersTable.name,
@@ -395,7 +400,7 @@ test.serial('insert many with returning', async (t) => {
 		{ name: 'Bruce', json: ['foo', 'bar'] },
 		{ name: 'Jane' },
 		{ name: 'Austin', verified: true },
-  ])
+	])
 		.returning({
 			id: usersTable.id,
 			name: usersTable.name,
@@ -462,6 +467,44 @@ test.serial('full join with alias', async (t) => {
 
 	t.deepEqual(result, [{
 		users: {
+			id: 10,
+			name: 'Ivan',
+		},
+		customer: {
+			id: 11,
+			name: 'Hans',
+		},
+	}]);
+
+	await db.run(sql`drop table ${users}`);
+});
+
+test.serial('select from alias', async (t) => {
+	const { db } = t.context;
+
+	const sqliteTable = sqliteTableCreator((name) => `prefixed_${name}`);
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await db.run(sql`drop table if exists ${users}`);
+	await db.run(sql`create table ${users} (id integer primary key, name text not null)`);
+
+	const user = alias(users, 'user');
+	const customers = alias(users, 'customer');
+
+	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]).run();
+	const result = await db
+		.select()
+		.from(user)
+		.leftJoin(customers, eq(customers.id, 11))
+		.where(eq(user.id, 10))
+		.all();
+
+	t.deepEqual(result, [{
+		user: {
 			id: 10,
 			name: 'Ivan',
 		},
@@ -832,7 +875,7 @@ test.serial('with ... select', async (t) => {
 		{ region: 'US', product: 'A', amount: 40, quantity: 4 },
 		{ region: 'US', product: 'B', amount: 40, quantity: 4 },
 		{ region: 'US', product: 'B', amount: 50, quantity: 5 },
-  ]).run();
+	]).run();
 
 	const regionalSales = await db
 		.$with('regional_sales')
@@ -949,10 +992,10 @@ test.serial('having', async (t) => {
 	await db.insert(citiesTable).values([{ name: 'London' }, { name: 'Paris' }, { name: 'New York' }]).run();
 
 	await db.insert(users2Table).values([
-    { name: 'John', cityId: 1 },
-    { name: 'Jane', cityId: 1 }, 
-    { name: 'Jack', cityId: 2 },
-  ]).run();
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 1 },
+		{ name: 'Jack', cityId: 2 },
+	]).run();
 
 	const result = await db
 		.select({
@@ -1422,5 +1465,104 @@ test.serial('join view as subquery', async (t) => {
 	]);
 
 	await db.run(sql`drop view ${newYorkers}`);
+	await db.run(sql`drop table ${users}`);
+});
+
+test.serial('insert with onConflict do nothing', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ id: 1, name: 'John' }).run();
+
+	await db
+		.insert(usersTable)
+		.values({ id: 1, name: 'John' })
+		.onConflictDoNothing()
+		.run();
+
+	const res = await db
+		.select({ id: usersTable.id, name: usersTable.name })
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('insert with onConflict do nothing using target', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ id: 1, name: 'John' }).run();
+
+	await db
+		.insert(usersTable)
+		.values({ id: 1, name: 'John' })
+		.onConflictDoNothing({ target: usersTable.id })
+		.run();
+
+	const res = await db
+		.select({ id: usersTable.id, name: usersTable.name })
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('insert with onConflict do update', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ id: 1, name: 'John' }).run();
+
+	await db
+		.insert(usersTable)
+		.values({ id: 1, name: 'John' })
+		.onConflictDoUpdate({ target: usersTable.id, set: { name: 'John1' } })
+		.run();
+
+	const res = await db
+		.select({ id: usersTable.id, name: usersTable.name })
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
+});
+
+test.serial('insert undefined', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	await db.run(sql`drop table if exists ${users}`);
+
+	await db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	await t.notThrowsAsync(async () => await db.insert(users).values({ name: undefined }).run());
+
+	await db.run(sql`drop table ${users}`);
+});
+
+test.serial('update undefined', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	await db.run(sql`drop table if exists ${users}`);
+
+	await db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	await t.throwsAsync(async () => await db.update(users).set({ name: undefined }).run());
+	await t.notThrowsAsync(async () => await db.update(users).set({ id: 1, name: undefined }).run());
+
 	await db.run(sql`drop table ${users}`);
 });

@@ -391,7 +391,7 @@ Expect<
 >;
 
 {
-	let authenticated = false;
+	const authenticated = false as boolean;
 
 	const result = db
 		.select({

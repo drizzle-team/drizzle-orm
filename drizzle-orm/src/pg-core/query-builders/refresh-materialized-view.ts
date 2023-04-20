@@ -5,6 +5,7 @@ import { QueryPromise } from '~/query-promise';
 import type { Query, SQL } from '~/sql';
 import type { Simplify } from '~/utils';
 
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 	extends QueryPromise<QueryResultKind<TQueryResult, never>>
 {}
@@ -28,7 +29,7 @@ export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 	}
 
 	concurrently(): this {
-		if (typeof this.config.withNoData !== 'undefined') {
+		if (this.config.withNoData !== undefined) {
 			throw new Error('Cannot use concurrently and withNoData together');
 		}
 		this.config.concurrently = true;
@@ -36,7 +37,7 @@ export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 	}
 
 	withNoData(): this {
-		if (typeof this.config.concurrently !== 'undefined') {
+		if (this.config.concurrently !== undefined) {
 			throw new Error('Cannot use concurrently and withNoData together');
 		}
 		this.config.withNoData = true;
@@ -49,7 +50,7 @@ export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 	}
 
 	toSQL(): Simplify<Omit<Query, 'typings'>> {
-		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
 

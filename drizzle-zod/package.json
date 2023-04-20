@@ -1,6 +1,6 @@
 {
   "name": "drizzle-zod",
-  "version": "0.3.0",
+  "version": "0.3.2",
   "description": "Generate Zod schemas from Drizzle ORM schemas",
   "scripts": {
     "build": "tsc && resolve-tspaths && cp README.md package.json dist/",
@@ -8,6 +8,13 @@
     "pack": "cp package.json dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
     "publish": "npm publish package.tgz",
     "test": "ava tests"
+  },
+  "publishConfig": {
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/drizzle-team/drizzle-orm.git"
   },
   "ava": {
     "files": [

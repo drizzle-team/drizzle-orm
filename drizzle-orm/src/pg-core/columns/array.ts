@@ -31,7 +31,7 @@ export class PgArrayBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnB
 				notNull: T['notNull'];
 				hasDefault: T['hasDefault'];
 				data: Assume<T['data'], unknown[]>[number];
-				driverParam: Assume<T['driverParam'], unknown[]>[number];
+				driverParam: string | Assume<T['driverParam'], unknown[]>[number];
 			}
 		>;
 		size: number | undefined;
@@ -67,7 +67,7 @@ export class PgArray<T extends ColumnBaseConfig> extends PgColumn<PgArrayHKT, T,
 					notNull: T['notNull'];
 					hasDefault: T['hasDefault'];
 					data: Assume<T['data'], unknown[]>[number];
-					driverParam: Assume<T['driverParam'], unknown[]>[number];
+					driverParam: string | Assume<T['driverParam'], unknown[]>[number];
 				}
 			>,
 			AnyColumnBuilder
@@ -100,8 +100,15 @@ export class PgArray<T extends ColumnBaseConfig> extends PgColumn<PgArrayHKT, T,
 		return value.map((v) => this.baseColumn.mapFromDriverValue(v));
 	}
 
-	override mapToDriverValue(value: unknown[]): string {
-		const a = value.map((v) => v === null ? null : this.baseColumn.mapToDriverValue(v));
+	override mapToDriverValue(value: unknown[], isNestedArray = false): unknown[] | string {
+		const a = value.map((v) =>
+			v === null
+				? null
+				: this.baseColumn instanceof PgArray
+				? this.baseColumn.mapToDriverValue(v as unknown[], true)
+				: this.baseColumn.mapToDriverValue(v)
+		);
+		if (isNestedArray) return a;
 		return makePgArray(a);
 	}
 }
