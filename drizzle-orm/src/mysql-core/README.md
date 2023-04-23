@@ -402,7 +402,7 @@ Querying, sorting and filtering. We also support partial select.
 ...
 import { mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
 import { drizzle } from 'drizzle-orm/mysql2';
-import { and, asc, desc, eq, or } from 'drizzle-orm/expressions';
+import { and, asc, desc, eq, or } from 'drizzle-orm';
 
 const users = mysqlTable('users', {
   id: serial('id').primaryKey(),
@@ -962,7 +962,7 @@ const db = drizzle(pool, { logger });
 You can also create a custom logger:
 
 ```typescript
-import { Logger } from 'drizzle-orm/logger';
+import { Logger } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/mysql2';
 
 class MyLogger implements Logger {

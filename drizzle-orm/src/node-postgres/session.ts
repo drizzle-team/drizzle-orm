@@ -1,12 +1,5 @@
-import {
-	type Client,
-	Pool,
-	type PoolClient,
-	type QueryArrayConfig,
-	type QueryConfig,
-	type QueryResult,
-	type QueryResultRow,
-} from 'pg';
+import type { Client, PoolClient, QueryArrayConfig, QueryConfig, QueryResult, QueryResultRow } from 'pg';
+import * as pg from 'pg';
 import { type Logger, NoopLogger } from '~/logger';
 import { PgTransaction } from '~/pg-core';
 import type { PgDialect } from '~/pg-core/dialect';
@@ -16,7 +9,9 @@ import { PgSession, PreparedQuery } from '~/pg-core/session';
 import { fillPlaceholders, type Query, sql } from '~/sql';
 import { type Assume, mapResultRow } from '~/utils';
 
-export type NodePgClient = Pool | PoolClient | Client;
+const { Pool } = pg;
+
+export type NodePgClient = pg.Pool | PoolClient | Client;
 
 export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
 	private rawQuery: QueryConfig;

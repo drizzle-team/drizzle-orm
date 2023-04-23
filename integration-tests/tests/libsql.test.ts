@@ -3,14 +3,24 @@ import 'dotenv/config';
 import { type Client, createClient } from '@libsql/client';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
-import { type InferModel, sql, TransactionRollbackError } from 'drizzle-orm';
-import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
+import {
+	asc,
+	eq,
+	gt,
+	inArray,
+	type InferModel,
+	Name,
+	name,
+	placeholder,
+	sql,
+	TransactionRollbackError,
+} from 'drizzle-orm';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
-import { Name, name, placeholder } from 'drizzle-orm/sql';
 import {
 	alias,
 	blob,
+	getViewConfig,
 	integer,
 	primaryKey,
 	sqliteTable,
@@ -18,7 +28,6 @@ import {
 	sqliteView,
 	text,
 } from 'drizzle-orm/sqlite-core';
-import { getViewConfig } from 'drizzle-orm/sqlite-core/utils';
 import { type Equal, Expect } from './utils';
 
 const ENABLE_LOGGING = false;

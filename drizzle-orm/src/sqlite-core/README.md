@@ -303,7 +303,7 @@ Querying, sorting and filtering. We also support partial select.
 ```typescript
 ...
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
-import { and, asc, desc, eq, or } from 'drizzle-orm/expressions'
+import { and, asc, desc, eq, or } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import Database from 'better-sqlite3';
 
@@ -783,7 +783,7 @@ const newYorkers = sqliteView('new_yorkers', {
 With Drizzle ORM you can go [**faster than better-sqlite3 driver**](https://twitter.com/_alexblokh/status/1593593415907909634) by utilizing our `prepared statements` and `placeholder` APIs
 
 ```typescript
-import { placeholder } from 'drizzle-orm/sql';
+import { placeholder } from 'drizzle-orm';
 
 const db = drizzle(...);
 

@@ -3,8 +3,7 @@
 ## Get table information
 
 ```ts
-import { getTableConfig } from 'drizzle-orm/pg-core/utils';
-import { pgTable } from 'drizzle-orm/pg-core';
+import { pgTable, getTableConfig } from 'drizzle-orm/pg-core';
 
 const table = pgTable(...);
 
@@ -16,16 +15,18 @@ const {
   primaryKeys,
   name,
   schema,
-} = await getTableConfig(table);
+} = getTableConfig(table);
 ```
 
 ## Get table columns map
 
 ```ts
-import { getTableColumns } from 'drizzle-orm/pg-core/utils';
-import { pgTable } from 'drizzle-orm/pg-core';
+import { pgTable, getTableColumns } from 'drizzle-orm/pg-core';
 
-const table = pgTable(...);
+const table = pgTable('table', {
+  id: integer('id').primaryKey(),
+  name: text('name'),
+});
 
-const columns/*: Record<string, AnyPgColumn>*/ = await getTableColumns(table);
+const columns/*: { id: ..., name: ... } */ = getTableColumns(table);
 ```

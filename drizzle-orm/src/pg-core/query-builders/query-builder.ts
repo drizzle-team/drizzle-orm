@@ -1,26 +1,20 @@
 import { PgDialect } from '~/pg-core/dialect';
-import type { QueryBuilder } from '~/query-builders/query-builder';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
 import { type ColumnsSelection } from '~/view';
 import type { WithSubqueryWithSelection } from '../subquery';
-import type { PgSelectBuilder } from './select';
+import { PgSelectBuilder } from './select';
 import type { SelectedFields } from './select.types';
 
-export class QueryBuilderInstance {
+export class QueryBuilder {
 	private dialect: PgDialect | undefined;
-	private PgSelectBuilder: typeof PgSelectBuilder;
-
-	constructor() {
-		// Required to avoid circular dependency
-		this.PgSelectBuilder = require('./select').PgSelectBuilder;
-	}
 
 	$with<TAlias extends string>(alias: TAlias) {
 		const queryBuilder = this;
 
 		return {
 			as<TSelection extends ColumnsSelection>(
-				qb: QueryBuilder<TSelection> | ((qb: QueryBuilderInstance) => QueryBuilder<TSelection>),
+				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
 			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {
 					qb = qb(queryBuilder);
@@ -42,7 +36,7 @@ export class QueryBuilderInstance {
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
 		): PgSelectBuilder<TSelection | undefined, 'qb'> {
-			return new self.PgSelectBuilder(fields ?? undefined, undefined, self.getDialect(), queries);
+			return new PgSelectBuilder(fields ?? undefined, undefined, self.getDialect(), queries);
 		}
 
 		return { select };
@@ -51,7 +45,7 @@ export class QueryBuilderInstance {
 	select(): PgSelectBuilder<undefined, 'qb'>;
 	select<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection, 'qb'>;
 	select<TSelection extends SelectedFields>(fields?: TSelection): PgSelectBuilder<TSelection | undefined, 'qb'> {
-		return new this.PgSelectBuilder(fields ?? undefined, undefined, this.getDialect());
+		return new PgSelectBuilder(fields ?? undefined, undefined, this.getDialect());
 	}
 
 	// Lazy load dialect to avoid circular dependency
@@ -63,5 +57,3 @@ export class QueryBuilderInstance {
 		return this.dialect;
 	}
 }
-
-export const queryBuilder = new QueryBuilderInstance();

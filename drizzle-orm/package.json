@@ -1,14 +1,19 @@
 {
   "name": "drizzle-orm",
-  "version": "0.24.5",
+  "version": "0.25.0",
   "description": "Drizzle ORM package for SQL databases",
+  "type": "module",
   "scripts": {
-    "build": "tsc && resolve-tspaths && cp ../README.md package.json dist/",
+    "build": "scripts/build.ts",
+    "b": "pnpm build",
     "test:types": "cd type-tests && tsc",
     "test": "vitest run",
     "pack": "cp package.json dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
     "publish": "npm publish package.tgz"
   },
+  "main": "./index.cjs",
+  "module": "./index.mjs",
+  "types": "./index.d.ts",
   "publishConfig": {
     "provenance": true
   },
@@ -115,6 +120,9 @@
     "@neondatabase/serverless": "^0.2.9",
     "@originjs/vite-plugin-commonjs": "^1.0.3",
     "@planetscale/database": "^1.5.0",
+    "@rollup/plugin-json": "^6.0.0",
+    "@rollup/plugin-terser": "^0.4.1",
+    "@rollup/plugin-typescript": "^11.1.0",
     "@types/better-sqlite3": "^7.6.2",
     "@types/node": "^18.15.11",
     "@types/pg": "^8.6.5",
@@ -126,10 +134,15 @@
     "mysql2": "^3.2.0",
     "pg": "^8.8.0",
     "postgres": "^3.3.3",
+    "rollup": "^3.20.7",
+    "rollup-plugin-dts": "^5.3.0",
     "sql.js": "^1.8.0",
     "sqlite3": "^5.1.2",
+    "tslib": "^2.5.0",
+    "tsx": "^3.12.2",
     "vite-tsconfig-paths": "^4.0.7",
     "vitest": "^0.29.8",
-    "zod": "^3.20.2"
+    "zod": "^3.20.2",
+    "zx": "^7.2.1"
   }
 }
