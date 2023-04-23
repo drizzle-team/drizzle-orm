@@ -7,7 +7,7 @@
     "build": "rimraf dist && rollup --config rollup.config.ts --configPlugin typescript && resolve-tspaths && cp README.md package.json dist/",
     "b": "pnpm build",
     "test:types": "cd tests && tsc",
-    "pack": "cp package.json dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+    "pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
     "publish": "npm publish package.tgz",
     "test": "ava tests"
   },
