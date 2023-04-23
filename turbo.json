@@ -24,9 +24,12 @@
         "README.md",
         "../README.md",
         "tsconfig.json",
-        "../tsconfig.json"
+        "tsconfig.build.json",
+        "../tsconfig.json",
+        "rollup.config.ts",
+        "rollup.dts.config.ts"
       ],
-      "outputs": ["dist/**"],
+      "outputs": ["dist/**", "dist-dts/**"],
       "outputMode": "new-only"
     },
     "pack": {
@@ -37,7 +40,11 @@
     },
     "test": {
       "dependsOn": ["build", "test:types"],
-      "inputs": ["tests/**/*.test.ts"],
+      "inputs": [
+        "tests/**/*.test.ts",
+        "tests/**/*.test.cjs",
+        "tests/**/*.test.mjs"
+      ],
       "outputMode": "new-only"
     }
   }

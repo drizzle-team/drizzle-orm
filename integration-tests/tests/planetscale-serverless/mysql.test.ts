@@ -3,8 +3,7 @@ import 'dotenv/config';
 import { connect } from '@planetscale/database';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
-import { sql, TransactionRollbackError } from 'drizzle-orm';
-import { asc, eq } from 'drizzle-orm/expressions';
+import { asc, eq, name, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import {
 	alias,
 	boolean,
@@ -26,7 +25,6 @@ import {
 import type { PlanetScaleDatabase } from 'drizzle-orm/planetscale-serverless';
 import { drizzle } from 'drizzle-orm/planetscale-serverless';
 import { migrate } from 'drizzle-orm/planetscale-serverless/migrator';
-import { name, placeholder } from 'drizzle-orm/sql';
 
 const ENABLE_LOGGING = false;
 

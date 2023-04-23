@@ -60,11 +60,9 @@ npm install -D drizzle-kit
 > **Note**: don't forget to install `pg` and `@types/pg` packages for this example to work.
 
 ```typescript
-import { eq } from 'drizzle-orm/expressions';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { integer, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm/sql';
-import { InferModel } from 'drizzle-orm';
+import { InferModel, eq, sql } from 'drizzle-orm';
 import { Pool } from 'pg';
 
 export const users = pgTable('users', {

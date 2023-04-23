@@ -7,6 +7,7 @@ import { Subquery, SubqueryConfig } from './subquery';
 import { type AnyTable, getTableName, Table } from './table';
 import { View, ViewBaseConfig } from './view';
 
+/** @internal */
 export function mapResultRow<TResult>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
 	row: unknown[],
@@ -65,6 +66,7 @@ export function mapResultRow<TResult>(
 	return result as TResult;
 }
 
+/** @internal */
 export function orderSelectedFields<TColumn extends AnyColumn>(
 	fields: Record<string, unknown>,
 	pathPrefix?: string[],
@@ -214,6 +216,7 @@ export interface DrizzleTypeError<T> {
 
 export type ValueOrArray<T> = T | T[];
 
+/** @internal */
 export function applyMixins(baseClass: any, extendedClasses: any[]) {
 	for (const extendedClass of extendedClasses) {
 		for (const name of Object.getOwnPropertyNames(extendedClass.prototype)) {

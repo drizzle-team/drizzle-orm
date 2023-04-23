@@ -3,12 +3,13 @@ import 'dotenv/config';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import Database from 'better-sqlite3';
-import { asc, eq, gt, inArray, name, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
+import { asc, eq, type Equal, gt, inArray, name, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import { type BetterSQLite3Database, drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import {
 	alias,
 	blob,
+	getViewConfig,
 	integer,
 	primaryKey,
 	sqliteTable,
@@ -16,8 +17,6 @@ import {
 	sqliteView,
 	text,
 } from 'drizzle-orm/sqlite-core';
-import { getViewConfig } from 'drizzle-orm/sqlite-core/utils';
-import type { Equal } from 'drizzle-orm/utils';
 import { Expect } from './utils';
 
 const ENABLE_LOGGING = false;

@@ -1,26 +1,20 @@
-import type { QueryBuilder } from '~/query-builders/query-builder';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect';
 import type { WithSubqueryWithSelection } from '~/sqlite-core/subquery';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
 import { type ColumnsSelection } from '~/view';
-import type { SQLiteSelectBuilder } from './select';
+import { SQLiteSelectBuilder } from './select';
 import type { SelectedFields } from './select.types';
 
-export class QueryBuilderInstance {
+export class QueryBuilder {
 	private dialect: SQLiteSyncDialect | undefined;
-	private SQLiteSelectBuilder: typeof SQLiteSelectBuilder;
-
-	constructor() {
-		// Required to avoid circular dependency
-		this.SQLiteSelectBuilder = require('~/sqlite-core/query-builders/select').SQLiteSelectBuilder;
-	}
 
 	$with<TAlias extends string>(alias: TAlias) {
 		const queryBuilder = this;
 
 		return {
 			as<TSelection extends ColumnsSelection>(
-				qb: QueryBuilder<TSelection> | ((qb: QueryBuilderInstance) => QueryBuilder<TSelection>),
+				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
 			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {
 					qb = qb(queryBuilder);
@@ -44,7 +38,7 @@ export class QueryBuilderInstance {
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
 		): SQLiteSelectBuilder<TSelection | undefined, 'sync', void, 'qb'> {
-			return new self.SQLiteSelectBuilder(fields ?? undefined, undefined, self.getDialect(), queries);
+			return new SQLiteSelectBuilder(fields ?? undefined, undefined, self.getDialect(), queries);
 		}
 
 		return { select };
@@ -55,7 +49,7 @@ export class QueryBuilderInstance {
 	select<TSelection extends SelectedFields>(
 		fields?: TSelection,
 	): SQLiteSelectBuilder<TSelection | undefined, 'sync', void, 'qb'> {
-		return new this.SQLiteSelectBuilder(fields ?? undefined, undefined, this.getDialect());
+		return new SQLiteSelectBuilder(fields ?? undefined, undefined, this.getDialect());
 	}
 
 	// Lazy load dialect to avoid circular dependency
@@ -67,5 +61,3 @@ export class QueryBuilderInstance {
 		return this.dialect;
 	}
 }
-
-export const queryBuilder = new QueryBuilderInstance();

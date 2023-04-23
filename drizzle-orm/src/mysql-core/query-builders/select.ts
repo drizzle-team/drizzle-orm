@@ -4,7 +4,7 @@ import type { MySqlSession, PreparedQueryConfig, PreparedQueryHKTBase, PreparedQ
 import type { SubqueryWithSelection } from '~/mysql-core/subquery';
 import type { AnyMySqlTable } from '~/mysql-core/table';
 import { MySqlViewBase } from '~/mysql-core/view';
-import { QueryBuilder } from '~/query-builders/query-builder';
+import { TypedQueryBuilder } from '~/query-builders/query-builder';
 import type {
 	BuildSubquerySelection,
 	GetSelectTableName,
@@ -100,7 +100,7 @@ export abstract class MySqlSelectQueryBuilder<
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
-> extends QueryBuilder<
+> extends TypedQueryBuilder<
 	BuildSubquerySelection<TSelection, TNullabilityMap>,
 	SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
 > {

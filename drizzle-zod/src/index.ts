@@ -1,4 +1,13 @@
-import { type AnyColumn, type Table, type WithEnum } from 'drizzle-orm';
+import {
+	type AnyColumn,
+	type Assume,
+	type DrizzleTypeError,
+	type Equal,
+	getTableColumns,
+	type Simplify,
+	type Table,
+	type WithEnum,
+} from 'drizzle-orm';
 import {
 	MySqlBigInt53,
 	MySqlBigInt64,
@@ -67,7 +76,6 @@ import {
 	SQLiteText,
 	SQLiteTimestamp,
 } from 'drizzle-orm/sqlite-core';
-import { type Assume, type DrizzleTypeError, type Equal, getTableColumns, type Simplify } from 'drizzle-orm/utils';
 import { z } from 'zod';
 
 const literalSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);

@@ -1,26 +1,20 @@
 import { MySqlDialect } from '~/mysql-core/dialect';
 import type { WithSubqueryWithSelection } from '~/mysql-core/subquery';
-import type { QueryBuilder } from '~/query-builders/query-builder';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
 import { type ColumnsSelection } from '~/view';
-import type { MySqlSelectBuilder } from './select';
+import { MySqlSelectBuilder } from './select';
 import type { SelectedFields } from './select.types';
 
-export class QueryBuilderInstance {
+export class QueryBuilder {
 	private dialect: MySqlDialect | undefined;
-	private MySqlSelectBuilder: typeof MySqlSelectBuilder;
-
-	constructor() {
-		// Required to avoid circular dependency
-		this.MySqlSelectBuilder = require('~/mysql-core/query-builders/select').MySqlSelectBuilder;
-	}
 
 	$with<TAlias extends string>(alias: TAlias) {
 		const queryBuilder = this;
 
 		return {
 			as<TSelection extends ColumnsSelection>(
-				qb: QueryBuilder<TSelection> | ((qb: QueryBuilderInstance) => QueryBuilder<TSelection>),
+				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
 			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {
 					qb = qb(queryBuilder);
@@ -42,7 +36,7 @@ export class QueryBuilderInstance {
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
 		): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
-			return new self.MySqlSelectBuilder(fields ?? undefined, undefined, self.getDialect(), queries);
+			return new MySqlSelectBuilder(fields ?? undefined, undefined, self.getDialect(), queries);
 		}
 
 		return { select };
@@ -53,7 +47,7 @@ export class QueryBuilderInstance {
 	select<TSelection extends SelectedFields>(
 		fields?: TSelection,
 	): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
-		return new this.MySqlSelectBuilder(fields ?? undefined, undefined, this.getDialect());
+		return new MySqlSelectBuilder(fields ?? undefined, undefined, this.getDialect());
 	}
 
 	// Lazy load dialect to avoid circular dependency
@@ -65,5 +59,3 @@ export class QueryBuilderInstance {
 		return this.dialect;
 	}
 }
-
-export const queryBuilder = new QueryBuilderInstance();
