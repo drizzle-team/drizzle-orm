@@ -388,7 +388,7 @@ Querying, sorting and filtering. We also support partial select.
 ...
 import { pgTable, serial, text, varchar } from 'drizzle-orm/pg-core';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { and, asc, desc, eq, or } from 'drizzle-orm/expressions';
+import { and, asc, desc, eq, or } from 'drizzle-orm';
 
 const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -1031,7 +1031,7 @@ const db = drizzle(pool, { logger });
 You can also create a custom logger:
 
 ```typescript
-import { Logger } from 'drizzle-orm/logger';
+import { Logger } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 
 class MyLogger implements Logger {

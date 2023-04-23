@@ -3,14 +3,15 @@ import 'dotenv/config';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import Docker from 'dockerode';
-import { sql } from 'drizzle-orm';
-import { asc, eq } from 'drizzle-orm/expressions';
+import { asc, eq, Name, placeholder, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import {
 	alias,
 	boolean,
 	char,
+	getMaterializedViewConfig,
+	getViewConfig,
 	integer,
 	jsonb,
 	pgSchema,
@@ -20,8 +21,6 @@ import {
 	text,
 	timestamp,
 } from 'drizzle-orm/pg-core';
-import { getMaterializedViewConfig, getViewConfig } from 'drizzle-orm/pg-core/utils';
-import { Name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';

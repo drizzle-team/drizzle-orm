@@ -4,7 +4,7 @@ import type { PgSession, PreparedQuery, PreparedQueryConfig } from '~/pg-core/se
 import type { SubqueryWithSelection } from '~/pg-core/subquery';
 import type { AnyPgTable } from '~/pg-core/table';
 import { PgViewBase } from '~/pg-core/view';
-import { QueryBuilder } from '~/query-builders/query-builder';
+import { TypedQueryBuilder } from '~/query-builders/query-builder';
 import type {
 	BuildSubquerySelection,
 	GetSelectTableName,
@@ -90,7 +90,7 @@ export abstract class PgSelectQueryBuilder<
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
-> extends QueryBuilder<
+> extends TypedQueryBuilder<
 	BuildSubquerySelection<TSelection, TNullabilityMap>,
 	SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
 > {

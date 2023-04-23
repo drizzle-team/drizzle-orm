@@ -4,11 +4,14 @@
   "description": "",
   "scripts": {
     "test:types": "tsc",
-    "test": "ava tests --timeout=60s --serial"
+    "test": "ava tests --timeout=60s --serial && pnpm test:esm",
+    "test:esm": "node tests/imports.test.mjs && node tests/imports.test.cjs"
   },
   "ava": {
     "files": [
-      "tests/**/*.test.ts",
+      "tests/**/*.test.{ts,cts,mts,js,cjs,mjs}",
+      "!tests/imports.test.mjs",
+      "!tests/imports.test.cjs",
       "!tests/awsdatapi.alltypes.test.ts",
       "!tests/awsdatapi.test.ts",
       "!tests/planetscale-serverless/**/*.ts",
@@ -48,11 +51,13 @@
     "dockerode": "^3.3.4",
     "dotenv": "^16.0.3",
     "drizzle-orm": "workspace:../drizzle-orm/dist",
+    "drizzle-zod": "workspace:../drizzle-zod/dist",
     "express": "^4.18.2",
     "get-port": "^6.1.2",
     "mysql2": "^3.2.0",
     "pg": "^8.8.0",
     "postgres": "^3.3.3",
+    "source-map-support": "^0.5.21",
     "sql.js": "^1.8.0",
     "sqlite3": "^5.1.4",
     "uuid": "^9.0.0",

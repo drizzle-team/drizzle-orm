@@ -1,0 +1,1 @@
+require('drizzle-zod');

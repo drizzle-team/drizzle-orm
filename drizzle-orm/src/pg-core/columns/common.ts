@@ -7,7 +7,7 @@ import type { Assume, Update } from '~/utils';
 import type { ForeignKey, UpdateDeleteAction } from '~/pg-core/foreign-keys';
 import { ForeignKeyBuilder } from '~/pg-core/foreign-keys';
 import type { AnyPgTable } from '~/pg-core/table';
-import type { PgArrayBuilder } from './array';
+import { PgArrayBuilder } from './array';
 
 export interface ReferenceConfig {
 	ref: () => AnyPgColumn;
@@ -43,8 +43,6 @@ export abstract class PgColumnBuilder<
 			driverParam: T['driverParam'][] | string;
 		}
 	> {
-		// Required to avoid circular dependency
-		const { PgArrayBuilder } = require('./array') as typeof import('./array');
 		return new PgArrayBuilder(this.config.name, this as PgColumnBuilder<any, any>, size);
 	}
 

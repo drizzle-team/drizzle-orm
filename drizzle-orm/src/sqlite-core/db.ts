@@ -1,10 +1,9 @@
 import { TransactionRollbackError } from '~/errors';
-import type { QueryBuilder } from '~/query-builders/query-builder';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import type { SQLWrapper } from '~/sql';
 import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect';
 import {
-	queryBuilder,
-	type QueryBuilderInstance,
+	QueryBuilder,
 	SQLiteDelete,
 	SQLiteInsertBuilder,
 	SQLiteSelectBuilder,
@@ -28,10 +27,10 @@ export class BaseSQLiteDatabase<TResultKind extends 'sync' | 'async', TRunResult
 	$with<TAlias extends string>(alias: TAlias) {
 		return {
 			as<TSelection extends ColumnsSelection>(
-				qb: QueryBuilder<TSelection> | ((qb: QueryBuilderInstance) => QueryBuilder<TSelection>),
+				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
 			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {
-					qb = qb(queryBuilder);
+					qb = qb(new QueryBuilder());
 				}
 
 				return new Proxy(
