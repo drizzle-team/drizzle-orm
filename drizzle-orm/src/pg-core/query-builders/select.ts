@@ -15,7 +15,7 @@ import type {
 	SelectResult,
 } from '~/query-builders/select.types';
 import { QueryPromise } from '~/query-promise';
-import { type Query, SQL } from '~/sql';
+import { type Query, SQL, type Placeholder } from '~/sql';
 import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
 import { Table } from '~/table';
 import { applyMixins, getTableColumns, getTableLikeName, type Simplify, type ValueOrArray } from '~/utils';
@@ -279,12 +279,12 @@ export abstract class PgSelectQueryBuilder<
 		return this;
 	}
 
-	limit(limit: number) {
+	limit(limit: number | Placeholder) {
 		this.config.limit = limit;
 		return this;
 	}
 
-	offset(offset: number) {
+	offset(offset: number | Placeholder) {
 		this.config.offset = offset;
 		return this;
 	}
