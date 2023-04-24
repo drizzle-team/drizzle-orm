@@ -224,7 +224,7 @@ export const cities = pgTable('cities', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 256 }),
   countryId: integer('country_id').references(() => countries.id), // inline foreign key
-  countryName: varchar('country_id'),
+  countryName: varchar('country_name'),
   sisterCityId: integer('sister_city_id').references((): AnyPgColumn => cities.id), // self-referencing foreign key
 }, (cities) => {
   return {
