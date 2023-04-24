@@ -14,6 +14,7 @@
   "main": "./index.cjs",
   "module": "./index.mjs",
   "types": "./index.d.ts",
+  "sideEffects": false,
   "publishConfig": {
     "provenance": true
   },
