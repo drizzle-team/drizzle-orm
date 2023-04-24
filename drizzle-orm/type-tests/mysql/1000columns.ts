@@ -1,6 +1,6 @@
 import { bigint, double, mysqlTable, varchar } from '~/mysql-core';
 
-const test = mysqlTable('test', {
+mysqlTable('test', {
 	col0: double('col1').primaryKey().autoincrement().default(0),
 	col1: double('col1').primaryKey().autoincrement().default(0),
 	col2: double('col1').primaryKey().autoincrement().default(0),
