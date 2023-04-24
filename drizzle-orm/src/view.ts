@@ -28,6 +28,7 @@ export abstract class View<
 		selectedFields: SelectedFields<AnyColumn, Table>;
 		isExisting: TExisting;
 		query: TExisting extends true ? undefined : SQL;
+		isAlias: boolean;
 	};
 
 	constructor(
@@ -45,6 +46,7 @@ export abstract class View<
 			selectedFields,
 			query: query as (TExisting extends true ? undefined : SQL),
 			isExisting: !query as TExisting,
+			isAlias: false,
 		};
 	}
 }

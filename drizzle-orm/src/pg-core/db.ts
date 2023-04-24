@@ -1,9 +1,8 @@
 import type { PgDialect } from '~/pg-core/dialect';
-import type { QueryBuilderInstance } from '~/pg-core/query-builders';
-import { PgDelete, PgInsertBuilder, PgSelectBuilder, PgUpdateBuilder, queryBuilder } from '~/pg-core/query-builders';
+import { PgDelete, PgInsertBuilder, PgSelectBuilder, PgUpdateBuilder, QueryBuilder } from '~/pg-core/query-builders';
 import type { PgSession, PgTransaction, PgTransactionConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
 import type { AnyPgTable } from '~/pg-core/table';
-import type { QueryBuilder } from '~/query-builders/query-builder';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import { type SQLWrapper } from '~/sql';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
 import { type ColumnsSelection } from '~/view';
@@ -23,10 +22,10 @@ export class PgDatabase<TQueryResult extends QueryResultHKT> {
 	$with<TAlias extends string>(alias: TAlias) {
 		return {
 			as<TSelection extends ColumnsSelection>(
-				qb: QueryBuilder<TSelection> | ((qb: QueryBuilderInstance) => QueryBuilder<TSelection>),
+				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
 			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {
-					qb = qb(queryBuilder);
+					qb = qb(new QueryBuilder());
 				}
 
 				return new Proxy(

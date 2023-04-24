@@ -3,8 +3,11 @@ import { Column } from './column';
 import type { SelectedFieldsOrdered } from './operations';
 import type { DriverValueDecoder } from './sql';
 import { Param, SQL } from './sql';
+import { Subquery, SubqueryConfig } from './subquery';
 import { type AnyTable, getTableName, Table } from './table';
+import { View, ViewBaseConfig } from './view';
 
+/** @internal */
 export function mapResultRow<TResult>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
 	row: unknown[],
@@ -63,6 +66,7 @@ export function mapResultRow<TResult>(
 	return result as TResult;
 }
 
+/** @internal */
 export function orderSelectedFields<TColumn extends AnyColumn>(
 	fields: Record<string, unknown>,
 	pathPrefix?: string[],
@@ -90,16 +94,22 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 
 /** @internal */
 export function mapUpdateSet(table: Table, values: Record<string, unknown>): UpdateSet {
-	return Object.fromEntries<UpdateSet[string]>(
-		Object.entries(values).map(([key, value]) => {
+	const entries: [string, UpdateSet[string]][] = Object.entries(values)
+		.filter(([, value]) => value !== undefined)
+		.map(([key, value]) => {
 			// eslint-disable-next-line unicorn/prefer-ternary
-			if (value instanceof SQL || value === null || value === undefined) {
+			if (value instanceof SQL) {
 				return [key, value];
 			} else {
 				return [key, new Param(value, table[Table.Symbol.Columns][key])];
 			}
-		}),
-	);
+		});
+
+	if (entries.length === 0) {
+		throw new Error('No values to set');
+	}
+
+	return Object.fromEntries(entries);
 }
 
 export type UpdateSet = Record<string, SQL | Param | null | undefined>;
@@ -206,6 +216,7 @@ export interface DrizzleTypeError<T> {
 
 export type ValueOrArray<T> = T | T[];
 
+/** @internal */
 export function applyMixins(baseClass: any, extendedClasses: any[]) {
 	for (const extendedClass of extendedClasses) {
 		for (const name of Object.getOwnPropertyNames(extendedClass.prototype)) {
@@ -230,4 +241,17 @@ export type Writable<T> = {
 
 export function getTableColumns<T extends AnyTable>(table: T): T['_']['columns'] {
 	return table[Table.Symbol.Columns];
+}
+
+/** @internal */
+export function getTableLikeName(table: AnyTable | Subquery | View | SQL): string | undefined {
+	return table instanceof Subquery
+		? table[SubqueryConfig].alias
+		: table instanceof View
+		? table[ViewBaseConfig].name
+		: table instanceof SQL
+		? undefined
+		: table[Table.Symbol.IsAlias]
+		? table[Table.Symbol.Name]
+		: table[Table.Symbol.BaseName];
 }

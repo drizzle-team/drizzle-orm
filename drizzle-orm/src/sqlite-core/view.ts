@@ -1,13 +1,12 @@
 import type { BuildColumns } from '~/column-builder';
-import type { QueryBuilder } from '~/query-builders/query-builder';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import type { AddAliasToSelection } from '~/query-builders/select.types';
 import type { SQL } from '~/sql';
 import { SelectionProxyHandler } from '~/subquery';
 import { getTableColumns } from '~/utils';
 import { type ColumnsSelection, View } from '~/view';
 import type { AnySQLiteColumnBuilder } from './columns/common';
-import type { QueryBuilderInstance } from './query-builders';
-import { queryBuilder } from './query-builders';
+import { QueryBuilder } from './query-builders';
 import type { SelectedFields } from './query-builders/select.types';
 import { sqliteTable } from './table';
 
@@ -35,10 +34,10 @@ export class ViewBuilderCore<
 
 export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<{ name: TName }> {
 	as<TSelection extends SelectedFields>(
-		qb: QueryBuilder<TSelection> | ((qb: QueryBuilderInstance) => QueryBuilder<TSelection>),
+		qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
 	): SQLiteViewWithSelection<TName, false, AddAliasToSelection<TSelection, TName>> {
 		if (typeof qb === 'function') {
-			qb = qb(queryBuilder);
+			qb = qb(new QueryBuilder());
 		}
 		const selectionProxy = new SelectionProxyHandler<TSelection>({
 			alias: this.name,

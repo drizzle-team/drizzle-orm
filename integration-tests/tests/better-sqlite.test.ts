@@ -3,12 +3,13 @@ import 'dotenv/config';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import Database from 'better-sqlite3';
-import { asc, eq, gt, inArray, name, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
+import { asc, eq, type Equal, gt, inArray, name, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import { type BetterSQLite3Database, drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import {
 	alias,
 	blob,
+	getViewConfig,
 	integer,
 	primaryKey,
 	sqliteTable,
@@ -16,8 +17,6 @@ import {
 	sqliteView,
 	text,
 } from 'drizzle-orm/sqlite-core';
-import { getViewConfig } from 'drizzle-orm/sqlite-core/utils';
-import type { Equal } from 'drizzle-orm/utils';
 import { Expect } from './utils';
 
 const ENABLE_LOGGING = false;
@@ -261,12 +260,12 @@ test.serial('update returning sql + get()', (t) => {
 test.serial('insert with auto increment', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values(
+	db.insert(usersTable).values([
 		{ name: 'John' },
 		{ name: 'Jane' },
 		{ name: 'George' },
 		{ name: 'Austin' },
-	).run();
+	]).run();
 	const result = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).all();
 
 	t.deepEqual(result, [
@@ -413,12 +412,12 @@ test.serial('json insert', (t) => {
 test.serial('insert many', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values(
+	db.insert(usersTable).values([
 		{ name: 'John' },
 		{ name: 'Bruce', json: ['foo', 'bar'] },
 		{ name: 'Jane' },
 		{ name: 'Austin', verified: 1 },
-	).run();
+	]).run();
 	const result = db.select({
 		id: usersTable.id,
 		name: usersTable.name,
@@ -437,12 +436,12 @@ test.serial('insert many', (t) => {
 test.serial('insert many with returning', (t) => {
 	const { db } = t.context;
 
-	const result = db.insert(usersTable).values(
+	const result = db.insert(usersTable).values([
 		{ name: 'John' },
 		{ name: 'Bruce', json: ['foo', 'bar'] },
 		{ name: 'Jane' },
 		{ name: 'Austin', verified: 1 },
-	)
+	])
 		.returning({
 			id: usersTable.id,
 			name: usersTable.name,
@@ -509,6 +508,44 @@ test.serial('full join with alias', (t) => {
 
 	t.deepEqual(result, [{
 		users: {
+			id: 10,
+			name: 'Ivan',
+		},
+		customer: {
+			id: 11,
+			name: 'Hans',
+		},
+	}]);
+
+	db.run(sql`drop table ${users}`);
+});
+
+test.serial('select from alias', (t) => {
+	const { db } = t.context;
+
+	const sqliteTable = sqliteTableCreator((name) => `prefixed_${name}`);
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+	db.run(sql`create table ${users} (id integer primary key, name text not null)`);
+
+	const user = alias(users, 'user');
+	const customers = alias(users, 'customer');
+
+	db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]).run();
+	const result = db
+		.select()
+		.from(user)
+		.leftJoin(customers, eq(customers.id, 11))
+		.where(eq(user.id, 10))
+		.all();
+
+	t.deepEqual(result, [{
+		user: {
 			id: 10,
 			name: 'Ivan',
 		},
@@ -590,7 +627,7 @@ test.serial('prepared statement with placeholder in .where', (t) => {
 test.serial('select with group by as field', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).run();
+	db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
 
 	const result = db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.name)
@@ -602,7 +639,7 @@ test.serial('select with group by as field', (t) => {
 test.serial('select with group by as sql', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).run();
+	db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
 
 	const result = db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(sql`${usersTable.name}`)
@@ -614,7 +651,7 @@ test.serial('select with group by as sql', (t) => {
 test.serial('select with group by as sql + column', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).run();
+	db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
 
 	const result = db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(sql`${usersTable.name}`, usersTable.id)
@@ -626,7 +663,7 @@ test.serial('select with group by as sql + column', (t) => {
 test.serial('select with group by as column + sql', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).run();
+	db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
 
 	const result = db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.id, sql`${usersTable.name}`)
@@ -638,7 +675,7 @@ test.serial('select with group by as column + sql', (t) => {
 test.serial('select with group by complex query', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).run();
+	db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
 
 	const result = db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.id, sql`${usersTable.name}`)
@@ -753,10 +790,10 @@ test.serial('left join (grouped fields)', (t) => {
 	const { db } = t.context;
 
 	const { id: cityId } = db.insert(citiesTable)
-		.values({ name: 'Paris' }, { name: 'London' })
+		.values([{ name: 'Paris' }, { name: 'London' }])
 		.returning({ id: citiesTable.id }).all()[0]!;
 
-	db.insert(users2Table).values({ name: 'John', cityId }, { name: 'Jane' }).run();
+	db.insert(users2Table).values([{ name: 'John', cityId }, { name: 'Jane' }]).run();
 
 	const res = db.select({
 		id: users2Table.id,
@@ -791,10 +828,10 @@ test.serial('left join (all fields)', (t) => {
 	const { db } = t.context;
 
 	const { id: cityId } = db.insert(citiesTable)
-		.values({ name: 'Paris' }, { name: 'London' })
+		.values([{ name: 'Paris' }, { name: 'London' }])
 		.returning({ id: citiesTable.id }).all()[0]!;
 
-	db.insert(users2Table).values({ name: 'John', cityId }, { name: 'Jane' }).run();
+	db.insert(users2Table).values([{ name: 'John', cityId }, { name: 'Jane' }]).run();
 
 	const res = db.select().from(users2Table)
 		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id)).all();
@@ -954,7 +991,7 @@ test.serial('with ... select', (t) => {
 test.serial('select from subquery sql', (t) => {
 	const { db } = t.context;
 
-	db.insert(users2Table).values({ name: 'John' }, { name: 'Jane' }).run();
+	db.insert(users2Table).values([{ name: 'John' }, { name: 'Jane' }]).run();
 
 	const sq = db
 		.select({ name: sql<string>`${users2Table.name} || ' modified'`.as('name') })
@@ -983,7 +1020,7 @@ test.serial('select all fields from subquery without alias', (t) => {
 test.serial('select count()', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }).run();
+	db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]).run();
 
 	const res = db.select({ count: sql`count(*)` }).from(usersTable).all();
 
@@ -993,12 +1030,13 @@ test.serial('select count()', (t) => {
 test.serial('having', (t) => {
 	const { db } = t.context;
 
-	db.insert(citiesTable).values({ name: 'London' }, { name: 'Paris' }, { name: 'New York' }).run();
+	db.insert(citiesTable).values([{ name: 'London' }, { name: 'Paris' }, { name: 'New York' }]).run();
 
-	db.insert(users2Table).values({ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 1 }, {
-		name: 'Jack',
-		cityId: 2,
-	}).run();
+	db.insert(users2Table).values([
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 1 },
+		{ name: 'Jack', cityId: 2 },
+	]).run();
 
 	const result = db
 		.select({
@@ -1531,4 +1569,43 @@ test.serial('insert with onConflict do update', (t) => {
 		.all();
 
 	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
+});
+
+test.serial('insert undefined', (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	t.notThrows(() => db.insert(users).values({ name: undefined }).run());
+
+	db.run(sql`drop table ${users}`);
+});
+
+test.serial('update undefined', (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	t.throws(() => db.update(users).set({ name: undefined }).run());
+	t.notThrows(() => db.update(users).set({ id: 1, name: undefined }).run());
+
+	db.run(sql`drop table ${users}`);
 });

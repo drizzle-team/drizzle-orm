@@ -6,3 +6,5 @@ dist
 /*.sql
 .cache
 .turbo
+.rollup.cache
+dist-dts

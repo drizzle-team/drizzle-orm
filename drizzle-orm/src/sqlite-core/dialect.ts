@@ -1,7 +1,7 @@
 import type { AnyColumn } from '~/column';
 import { Column } from '~/column';
 import type { MigrationMeta } from '~/migrator';
-import { name, param, type Query, SQL, sql, type SQLChunk } from '~/sql';
+import { name, Param, param, type Query, SQL, sql, type SQLChunk } from '~/sql';
 import type { AnySQLiteColumn } from '~/sqlite-core/columns';
 import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
@@ -173,6 +173,14 @@ export abstract class SQLiteDialect {
 
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
 
+		const tableSql = (() => {
+			if (table instanceof Table && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
+				return sql`${name(table[Table.Symbol.OriginalName])} ${name(table[Table.Symbol.Name])}`;
+			}
+
+			return table;
+		})();
+
 		const joinsArray: SQL[] = [];
 
 		for (const [index, joinMeta] of joins.entries()) {
@@ -233,7 +241,7 @@ export abstract class SQLiteDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		return sql`${withSql}select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}`;
+		return sql`${withSql}select ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: SQLiteInsertConfig): SQL {
@@ -249,7 +257,7 @@ export abstract class SQLiteDialect {
 			const valueList: (SQLChunk | SQL)[] = [];
 			for (const [fieldName, col] of colEntries) {
 				const colValue = value[fieldName];
-				if (colValue === undefined) {
+				if (colValue === undefined || (colValue instanceof Param && colValue.value === undefined)) {
 					let defaultValue;
 					if (col.default !== null && col.default !== undefined) {
 						defaultValue = col.default instanceof SQL ? col.default : param(col.default, col);

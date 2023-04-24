@@ -3,8 +3,7 @@ import 'dotenv/config';
 import { connect } from '@planetscale/database';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
-import { sql, TransactionRollbackError } from 'drizzle-orm';
-import { asc, eq } from 'drizzle-orm/expressions';
+import { asc, eq, name, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import {
 	alias,
 	boolean,
@@ -26,7 +25,6 @@ import {
 import type { PlanetScaleDatabase } from 'drizzle-orm/planetscale-serverless';
 import { drizzle } from 'drizzle-orm/planetscale-serverless';
 import { migrate } from 'drizzle-orm/planetscale-serverless/migrator';
-import { name, placeholder } from 'drizzle-orm/sql';
 
 const ENABLE_LOGGING = false;
 
@@ -264,12 +262,12 @@ test.serial('insert with overridden default values', async (t) => {
 test.serial('insert many', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values(
+	await db.insert(usersTable).values([
 		{ name: 'John' },
 		{ name: 'Bruce', jsonb: ['foo', 'bar'] },
 		{ name: 'Jane' },
 		{ name: 'Austin', verified: true },
-	);
+	]);
 	const result = await db.select({
 		id: usersTable.id,
 		name: usersTable.name,
@@ -288,12 +286,12 @@ test.serial('insert many', async (t) => {
 test.serial('insert many with returning', async (t) => {
 	const { db } = t.context;
 
-	const result = await db.insert(usersTable).values(
+	const result = await db.insert(usersTable).values([
 		{ name: 'John' },
 		{ name: 'Bruce', jsonb: ['foo', 'bar'] },
 		{ name: 'Jane' },
 		{ name: 'Austin', verified: true },
-	);
+	]);
 
 	t.is(result.rowsAffected, 4);
 });
@@ -301,7 +299,7 @@ test.serial('insert many with returning', async (t) => {
 test.serial('select with group by as field', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.name);
@@ -312,7 +310,7 @@ test.serial('select with group by as field', async (t) => {
 test.serial('select with group by as sql', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(sql`${usersTable.name}`);
@@ -334,7 +332,7 @@ test.serial('select with group by as sql + column', async (t) => {
 test.serial('select with group by as column + sql', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.id, sql`${usersTable.name}`);
@@ -345,7 +343,7 @@ test.serial('select with group by as column + sql', async (t) => {
 test.serial('select with group by complex query', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.id, sql`${usersTable.name}`)
@@ -415,7 +413,7 @@ test.serial('partial join with alias', async (t) => {
 	const { db } = t.context;
 	const customerAlias = alias(usersTable, 'customer');
 
-	await db.insert(usersTable).values({ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' });
+	await db.insert(usersTable).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
 	const result = await db
 		.select({
 			user: {
@@ -460,6 +458,41 @@ test.serial('full join with alias', async (t) => {
 
 	t.deepEqual(result, [{
 		users: {
+			id: 10,
+			name: 'Ivan',
+		},
+		customer: {
+			id: 11,
+			name: 'Hans',
+		},
+	}]);
+
+	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('select from alias', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
+
+	const user = alias(users, 'user');
+	const customers = alias(users, 'customer');
+
+	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
+	const result = await db
+		.select()
+		.from(user)
+		.leftJoin(customers, eq(customers.id, 11))
+		.where(eq(user.id, 10));
+
+	t.deepEqual(result, [{
+		user: {
 			id: 10,
 			name: 'Ivan',
 		},
@@ -922,5 +955,44 @@ test.serial('join view as subquery', async (t) => {
 	]);
 
 	await db.execute(sql`drop view ${newYorkers}`);
+	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('insert undefined', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name'),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial not null primary key, name text)`,
+	);
+
+	await t.notThrowsAsync(async () => await db.insert(users).values({ name: undefined }));
+
+	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('update undefined', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name'),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial not null primary key, name text)`,
+	);
+
+	await t.throwsAsync(async () => await db.update(users).set({ name: undefined }));
+	await t.notThrowsAsync(async () => await db.update(users).set({ id: 1, name: undefined }));
+
 	await db.execute(sql`drop table ${users}`);
 });

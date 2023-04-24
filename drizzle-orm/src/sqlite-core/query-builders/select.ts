@@ -6,7 +6,7 @@ import { Table } from '~/table';
 import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
 
-import { QueryBuilder } from '~/query-builders/query-builder';
+import { TypedQueryBuilder } from '~/query-builders/query-builder';
 import type {
 	BuildSubquerySelection,
 	GetSelectTableName,
@@ -18,7 +18,7 @@ import type {
 } from '~/query-builders/select.types';
 import type { SubqueryWithSelection } from '~/sqlite-core/subquery';
 import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
-import { getTableColumns, orderSelectedFields, type Simplify, type ValueOrArray } from '~/utils';
+import { getTableColumns, getTableLikeName, orderSelectedFields, type Simplify, type ValueOrArray } from '~/utils';
 import { type ColumnsSelection, View, ViewBaseConfig } from '~/view';
 import { SQLiteViewBase } from '../view';
 import type {
@@ -103,7 +103,7 @@ export abstract class SQLiteSelectQueryBuilder<
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
-> extends QueryBuilder<
+> extends TypedQueryBuilder<
 	BuildSubquerySelection<TSelection, TNullabilityMap>,
 	SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
 > {
@@ -138,13 +138,7 @@ export abstract class SQLiteSelectQueryBuilder<
 		this._ = {
 			selectedFields: fields as BuildSubquerySelection<TSelection, TNullabilityMap>,
 		} as this['_'];
-		this.tableName = table instanceof Subquery
-			? table[SubqueryConfig].alias
-			: table instanceof SQLiteViewBase
-			? table[ViewBaseConfig].name
-			: table instanceof SQL
-			? undefined
-			: table[Table.Symbol.BaseName];
+		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
 	}
 
@@ -156,13 +150,7 @@ export abstract class SQLiteSelectQueryBuilder<
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
-			const tableName = table instanceof Subquery
-				? table[SubqueryConfig].alias
-				: table instanceof View
-				? table[ViewBaseConfig].name
-				: table instanceof SQL
-				? undefined
-				: table[Table.Symbol.Name];
+			const tableName = getTableLikeName(table);
 
 			if (typeof tableName === 'string' && this.config.joins.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);

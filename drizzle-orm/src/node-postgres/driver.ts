@@ -1,10 +1,12 @@
-import { types } from 'pg';
+import * as pg from 'pg';
 import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
 import { PgDatabase } from '~/pg-core/db';
 import { PgDialect } from '~/pg-core/dialect';
 import type { NodePgClient, NodePgQueryResultHKT } from './session';
 import { NodePgSession } from './session';
+
+const { types } = pg;
 
 export interface PgDriverOptions {
 	logger?: Logger;

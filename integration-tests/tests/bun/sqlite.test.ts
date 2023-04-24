@@ -264,7 +264,7 @@ test.run();
 // 	const { db } = t.context;
 // 	const customerAlias = alias(usersTable, 'customer');
 
-// 	db.insert(usersTable).values({ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }).execute();
+// 	db.insert(usersTable).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]).execute();
 // 	const result = db
 // 		.select().from(usersTable)
 // 		.fields({ id: usersTable.id, name: usersTable.name })

@@ -1,7 +1,7 @@
 import type { AnyColumn } from '~/column';
 import { Column } from '~/column';
 import type { MigrationConfig, MigrationMeta } from '~/migrator';
-import { name, type Query, SQL, sql, type SQLChunk } from '~/sql';
+import { name, Param, type Query, SQL, sql, type SQLChunk } from '~/sql';
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
 import { orderSelectedFields, type UpdateSet } from '~/utils';
@@ -219,6 +219,14 @@ export class MySqlDialect {
 
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
 
+		const tableSql = (() => {
+			if (table instanceof Table && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
+				return sql`${name(table[Table.Symbol.OriginalName])} ${name(table[Table.Symbol.Name])}`;
+			}
+
+			return table;
+		})();
+
 		const joinsArray: SQL[] = [];
 
 		for (const [index, joinMeta] of joins.entries()) {
@@ -300,7 +308,7 @@ export class MySqlDialect {
 			}
 		}
 
-		return sql`${withSql}select ${selection} from ${table}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+		return sql`${withSql}select ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
 	}
 
 	buildInsertQuery({ table, values, ignore, onConflict }: MySqlInsertConfig): SQL {
@@ -316,7 +324,7 @@ export class MySqlDialect {
 			const valueList: (SQLChunk | SQL)[] = [];
 			for (const [fieldName] of colEntries) {
 				const colValue = value[fieldName];
-				if (colValue === undefined) {
+				if (colValue === undefined || (colValue instanceof Param && colValue.value === undefined)) {
 					valueList.push(sql`default`);
 				} else {
 					valueList.push(colValue);

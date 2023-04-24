@@ -34,15 +34,10 @@ export class PgInsertBuilder<TTable extends AnyPgTable, TQueryResult extends Que
 
 	values(value: PgInsertValue<TTable>): PgInsert<TTable, TQueryResult>;
 	values(values: PgInsertValue<TTable>[]): PgInsert<TTable, TQueryResult>;
-	/**
-	 * @deprecated Pass the array of values without spreading it.
-	 */
-	values(...values: PgInsertValue<TTable>[]): PgInsert<TTable, TQueryResult>;
-	values(
-		...values: PgInsertValue<TTable>[] | [PgInsertValue<TTable>] | [PgInsertValue<TTable>[]]
-	): PgInsert<TTable, TQueryResult> {
-		if (values.length === 1) {
-			values = Array.isArray(values[0]) ? values[0] : [values[0]];
+	values(values: PgInsertValue<TTable> | PgInsertValue<TTable>[]): PgInsert<TTable, TQueryResult> {
+		values = Array.isArray(values) ? values : [values];
+		if (values.length === 0) {
+			throw new Error('values() must be called with at least one value');
 		}
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
