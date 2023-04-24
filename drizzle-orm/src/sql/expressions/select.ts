@@ -14,7 +14,7 @@ import { sql } from '..';
  * ```ts
  * // Return cars, starting with the oldest models
  * // and going in ascending order to the newest.
- * db.select(cars)
+ * db.select().from(cars)
  *   .orderBy(asc(cars.year));
  * ```
  *
@@ -35,7 +35,7 @@ export function asc(column: AnyColumn | SQLWrapper): SQL {
  * ```ts
  * // Select users, with the most recently created
  * // records coming first.
- * db.select(users)
+ * db.select().from(users)
  *   .orderBy(desc(users.createdAt));
  * ```
  *
