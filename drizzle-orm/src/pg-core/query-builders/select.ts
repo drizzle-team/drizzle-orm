@@ -55,7 +55,7 @@ export class PgSelectBuilder<
 	 * Specify the table, subquery, or other target that you’re
 	 * building a select query against.
 	 *
-	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FROM|Postgres from docuemntation}
+	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FROM|Postgres from documentation}
 	 */
 	from<TFrom extends AnyPgTable | Subquery | PgViewBase | SQL>(
 		source: TFrom,
