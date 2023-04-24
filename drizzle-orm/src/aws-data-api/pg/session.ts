@@ -59,7 +59,7 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 		const { fields, rawQuery, client, joinsNotNullableMap } = this;
 		if (!fields) {
 			const result = await client.send(rawQuery);
-			return result.records;
+			return result.records ?? [];
 		}
 
 		const result = await client.send(rawQuery);
