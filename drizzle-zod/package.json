@@ -11,6 +11,14 @@
     "publish": "npm publish package.tgz",
     "test": "ava tests"
   },
+  "exports": {
+    ".": {
+      "import": "./index.mjs",
+      "require": "./index.cjs",
+      "default": "./index.mjs",
+      "types": "./index.d.ts"
+    }
+  },
   "main": "./index.cjs",
   "module": "./index.mjs",
   "types": "./index.d.ts",
