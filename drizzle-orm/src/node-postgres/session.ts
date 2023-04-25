@@ -1,5 +1,5 @@
 import type { Client, PoolClient, QueryArrayConfig, QueryConfig, QueryResult, QueryResultRow } from 'pg';
-import * as pg from 'pg';
+import pg from 'pg';
 import { type Logger, NoopLogger } from '~/logger';
 import { PgTransaction } from '~/pg-core';
 import type { PgDialect } from '~/pg-core/dialect';

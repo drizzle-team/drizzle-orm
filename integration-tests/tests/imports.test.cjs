@@ -18,7 +18,7 @@ require('drizzle-orm/neon-serverless');
 require('drizzle-orm/neon-serverless/migrator');
 require('drizzle-orm/node-postgres');
 require('drizzle-orm/node-postgres/migrator');
-require('drizzle-orm/pg-core');
+const { pgTable, serial } = require('drizzle-orm/pg-core');
 require('drizzle-orm/planetscale-serverless');
 require('drizzle-orm/planetscale-serverless/migrator');
 require('drizzle-orm/postgres-js');
@@ -29,9 +29,15 @@ require('drizzle-orm/sqlite-core');
 require('drizzle-orm/sqlite-proxy');
 require('drizzle-orm/sqlite-proxy/migrator');
 require('drizzle-orm/migrator');
-require('drizzle-zod');
+const { createInsertSchema } = require('drizzle-zod');
 const { compatibilityVersion, npmVersion } = require('drizzle-orm/version');
 const { strict: assert } = require('node:assert');
 
 assert.equal(typeof compatibilityVersion, 'number');
 assert.equal(typeof npmVersion, 'string');
+
+const test = pgTable('test', {
+	id: serial('id').primaryKey(),
+});
+
+const insertSchema = createInsertSchema(test);

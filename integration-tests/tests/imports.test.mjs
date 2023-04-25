@@ -18,7 +18,7 @@ import 'drizzle-orm/neon-serverless';
 import 'drizzle-orm/neon-serverless/migrator';
 import 'drizzle-orm/node-postgres';
 import 'drizzle-orm/node-postgres/migrator';
-import 'drizzle-orm/pg-core';
+import { pgTable, serial } from 'drizzle-orm/pg-core';
 import 'drizzle-orm/planetscale-serverless';
 import 'drizzle-orm/planetscale-serverless/migrator';
 import 'drizzle-orm/postgres-js';
@@ -29,9 +29,15 @@ import 'drizzle-orm/sqlite-core';
 import 'drizzle-orm/sqlite-proxy';
 import 'drizzle-orm/sqlite-proxy/migrator';
 import 'drizzle-orm/migrator';
-import 'drizzle-zod';
+import { createInsertSchema } from 'drizzle-zod';
 import { compatibilityVersion, npmVersion } from 'drizzle-orm/version';
 import { strict as assert } from 'node:assert';
 
 assert.equal(typeof compatibilityVersion, 'number');
 assert.equal(typeof npmVersion, 'string');
+
+const test = pgTable('test', {
+	id: serial('id').primaryKey(),
+});
+
+const insertSchema = createInsertSchema(test);
