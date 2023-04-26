@@ -3,13 +3,24 @@ import 'dotenv/config';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import Docker from 'dockerode';
-import { DefaultLogger, type InferModel, sql, TransactionRollbackError } from 'drizzle-orm';
-import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
+import {
+	asc,
+	DefaultLogger,
+	eq,
+	gt,
+	inArray,
+	type InferModel,
+	Name,
+	placeholder,
+	sql,
+	TransactionRollbackError,
+} from 'drizzle-orm';
 import {
 	alias,
 	boolean,
 	date,
 	datetime,
+	getViewConfig,
 	int,
 	json,
 	mysqlEnum,
@@ -23,11 +34,9 @@ import {
 	uniqueIndex,
 	year,
 } from 'drizzle-orm/mysql-core';
-import { getViewConfig } from 'drizzle-orm/mysql-core/utils';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { drizzle } from 'drizzle-orm/mysql2';
 import { migrate } from 'drizzle-orm/mysql2/migrator';
-import { Name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';

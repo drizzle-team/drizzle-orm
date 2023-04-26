@@ -2,15 +2,14 @@ import 'dotenv/config';
 
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
-import { sql, TransactionRollbackError } from 'drizzle-orm';
-import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
-import { Name, name, placeholder } from 'drizzle-orm/sql';
+import { asc, eq, type Equal, gt, inArray, Name, name, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import type { SQLJsDatabase } from 'drizzle-orm/sql-js';
 import { drizzle } from 'drizzle-orm/sql-js';
 import { migrate } from 'drizzle-orm/sql-js/migrator';
 import {
 	alias,
 	blob,
+	getViewConfig,
 	integer,
 	primaryKey,
 	sqliteTable,
@@ -18,8 +17,6 @@ import {
 	sqliteView,
 	text,
 } from 'drizzle-orm/sqlite-core';
-import { getViewConfig } from 'drizzle-orm/sqlite-core/utils';
-import type { Equal } from 'drizzle-orm/utils';
 import type { Database } from 'sql.js';
 import initSqlJs from 'sql.js';
 import { Expect } from './utils';

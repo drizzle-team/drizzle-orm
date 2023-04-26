@@ -1,13 +1,12 @@
 import type { BuildColumns } from '~/column-builder';
-import type { QueryBuilder } from '~/query-builders/query-builder';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import type { AddAliasToSelection } from '~/query-builders/select.types';
 import type { SQL } from '~/sql';
 import { SelectionProxyHandler } from '~/subquery';
 import { getTableColumns } from '~/utils';
 import { type ColumnsSelection, View } from '~/view';
 import type { AnyMySqlColumnBuilder } from './columns/common';
-import type { QueryBuilderInstance } from './query-builders';
-import { queryBuilder } from './query-builders';
+import { QueryBuilder } from './query-builders';
 import type { SelectedFields } from './query-builders/select.types';
 import { mysqlTable } from './table';
 
@@ -62,10 +61,10 @@ export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }
 
 export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<{ name: TName }> {
 	as<TSelectedFields extends SelectedFields>(
-		qb: QueryBuilder<TSelectedFields> | ((qb: QueryBuilderInstance) => QueryBuilder<TSelectedFields>),
+		qb: TypedQueryBuilder<TSelectedFields> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelectedFields>),
 	): MySqlViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName>> {
 		if (typeof qb === 'function') {
-			qb = qb(queryBuilder);
+			qb = qb(new QueryBuilder());
 		}
 		const selectionProxy = new SelectionProxyHandler<TSelectedFields>({
 			alias: this.name,

@@ -3,13 +3,11 @@ import 'dotenv/config';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import Docker from 'dockerode';
-import { sql } from 'drizzle-orm';
-import { asc, eq } from 'drizzle-orm/expressions';
+import { asc, eq, name, placeholder, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { alias, customType, pgTable, pgTableCreator, serial, text } from 'drizzle-orm/pg-core';
-import { name, placeholder } from 'drizzle-orm/sql';
 import getPort from 'get-port';
 import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
@@ -564,6 +562,44 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 	const result = await stmt.execute({ id: 1 });
 
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('prepared statement with placeholder in .limit', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ name: 'John' });
+	const stmt = db
+		.select({
+			id: usersTable.id,
+			name: usersTable.name,
+		})
+		.from(usersTable)
+		.where(eq(usersTable.id, placeholder('id')))
+		.limit(placeholder('limit'))
+		.prepare('stmt_limit');
+
+	const result = await stmt.execute({ id: 1, limit: 1 });
+
+	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+	t.is(result.length, 1);
+});
+
+test.serial('prepared statement with placeholder in .offset', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]);
+	const stmt = db
+		.select({
+			id: usersTable.id,
+			name: usersTable.name,
+		})
+		.from(usersTable)
+		.offset(placeholder('offset'))
+		.prepare('stmt_offset');
+
+	const result = await stmt.execute({ offset: 1 });
+
+	t.deepEqual(result, [{ id: 2, name: 'John1' }]);
 });
 
 test.serial('migrator', async (t) => {

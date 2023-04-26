@@ -115,9 +115,8 @@ export class PgText<TTableName extends string, TData extends string>
 For more postgres data type examples you could check [here](/drizzle-orm/src/pg-core/columns)
 
 ```typescript
-import { ColumnConfig } from 'drizzle-orm';
-import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
-import { AnyPgTable } from '~/table';
+import { ColumnConfig, ColumnBuilderConfig } from 'drizzle-orm';
+import { AnyPgTable } from 'drizzle-orm/pg-core';
 
 import { PgColumn, PgColumnBuilder } from './common';
 

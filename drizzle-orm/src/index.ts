@@ -10,5 +10,4 @@ export * from './sql';
 export * from './subquery';
 export * from './table';
 export * from './utils';
-export * from './version';
 export * from './view';

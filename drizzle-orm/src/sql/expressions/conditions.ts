@@ -34,7 +34,7 @@ export function bindIfParam(value: unknown, column: AnyColumn | SQL.Aliased): SQ
  *
  * ```ts
  * // Select cars made by Ford
- * db.select(cars)
+ * db.select().from(cars)
  *   .where(eq(cars.make, 'Ford'))
  * ```
  *
@@ -67,7 +67,7 @@ export function eq(
  *
  * ```ts
  * // Select cars not made by Ford
- * db.select(cars)
+ * db.select().from(cars)
  *   .where(ne(cars.make, 'Ford'))
  * ```
  *
@@ -95,7 +95,7 @@ export function ne(
  * ## Examples
  *
  * ```ts
- * db.select(cars)
+ * db.select().from(cars)
  *   .where(
  *     and(
  *       eq(cars.make, 'Volvo'),
@@ -132,7 +132,7 @@ export function and(...conditions: (SQL | undefined)[]): SQL | undefined {
  * ## Examples
  *
  * ```ts
- * db.select(cars)
+ * db.select().from(cars)
  *   .where(
  *     or(
  *       eq(cars.make, 'GM'),
@@ -169,7 +169,7 @@ export function or(...conditions: (SQL | undefined)[]): SQL | undefined {
  *
  * ```ts
  * // Select cars _not_ made by GM or Ford.
- * db.select(cars)
+ * db.select().from(cars)
  *   .where(not(inArray(cars.make, ['GM', 'Ford'])))
  * ```
  */
@@ -185,7 +185,7 @@ export function not(condition: SQL): SQL {
  *
  * ```ts
  * // Select cars made after 2000.
- * db.select(cars)
+ * db.select().from(cars)
  *   .where(gt(cars.year, 2000))
  * ```
  *
@@ -216,7 +216,7 @@ export function gt(
  *
  * ```ts
  * // Select cars made on or after 2000.
- * db.select(cars)
+ * db.select().from(cars)
  *   .where(gte(cars.year, 2000))
  * ```
  *
@@ -245,7 +245,7 @@ export function gte(
  *
  * ```ts
  * // Select cars made before 2000.
- * db.select(cars)
+ * db.select().from(cars)
  *   .where(lt(cars.year, 2000))
  * ```
  *
@@ -274,7 +274,7 @@ export function lt(
  *
  * ```ts
  * // Select cars made before 2000.
- * db.select(cars)
+ * db.select().from(cars)
  *   .where(lte(cars.year, 2000))
  * ```
  *
@@ -308,7 +308,7 @@ export function lte(
  *
  * ```ts
  * // Select cars made by Ford or GM.
- * db.select(cars)
+ * db.select().from(cars)
  *   .where(inArray(cars.make, ['Ford', 'GM']))
  * ```
  *
@@ -350,7 +350,7 @@ export function inArray(
  *
  * ```ts
  * // Select cars made by any company except Ford or GM.
- * db.select(cars)
+ * db.select().from(cars)
  *   .where(notInArray(cars.make, ['Ford', 'GM']))
  * ```
  *
@@ -392,7 +392,7 @@ export function notInArray(
  *
  * ```ts
  * // Select cars that have no discontinuedAt date.
- * db.select(cars)
+ * db.select().from(cars)
  *   .where(isNull(cars.discontinuedAt))
  * ```
  *
@@ -412,7 +412,7 @@ export function isNull(column: AnyColumn | Placeholder | SQLWrapper): SQL {
  *
  * ```ts
  * // Select cars that have been discontinued.
- * db.select(cars)
+ * db.select().from(cars)
  *   .where(isNotNull(cars.discontinuedAt))
  * ```
  *
@@ -484,7 +484,7 @@ export function notExists(subquery: SQLWrapper): SQL {
  *
  * ```ts
  * // Select cars made between 1990 and 2000
- * db.select(cars)
+ * db.select().from(cars)
  *   .where(between(cars.year, 1990, 2000))
  * ```
  *
@@ -519,7 +519,7 @@ export function between(
  *
  * ```ts
  * // Exclude cars made in the 1970s
- * db.select(cars)
+ * db.select().from(cars)
  *   .where(notBetween(cars.year, 1970, 1979))
  * ```
  *
@@ -553,7 +553,7 @@ export function notBetween(
  *
  * ```ts
  * // Select all cars with 'Turbo' in their names.
- * db.select(cars)
+ * db.select().from(cars)
  *   .where(like(cars.name, '%Turbo%'))
  * ```
  *
@@ -574,7 +574,7 @@ export function like(column: AnyColumn, value: string | Placeholder | SQLWrapper
  *
  * ```ts
  * // Select all cars that don't have "ROver" in their name.
- * db.select(cars)
+ * db.select().from(cars)
  *   .where(notLike(cars.name, '%Rover%'))
  * ```
  *
@@ -598,7 +598,7 @@ export function notLike(column: AnyColumn, value: string | Placeholder | SQLWrap
  *
  * ```ts
  * // Select all cars with 'Turbo' in their names.
- * db.select(cars)
+ * db.select().from(cars)
  *   .where(ilike(cars.name, '%Turbo%'))
  * ```
  *
@@ -619,7 +619,7 @@ export function ilike(column: AnyColumn, value: string | Placeholder | SQLWrappe
  *
  * ```ts
  * // Select all cars that don't have "Rover" in their name.
- * db.select(cars)
+ * db.select().from(cars)
  *   .where(notLike(cars.name, '%Rover%'))
  * ```
  *
