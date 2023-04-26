@@ -254,7 +254,7 @@ export const countries = sqliteTable('countries', {
     id: integer('id').primaryKey(),
     name: text('name'),
     population: integer('population'),
-		capital: integer('capital').references(() => cities.id, { onUpdate: 'cascade', onDelete: 'cascade' })
+    capital: integer('capital').references(() => cities.id, { onUpdate: 'cascade', onDelete: 'cascade' })
   }, (countries) => ({
     nameIdx: index('name_idx').on(countries.name), // one column
     namePopulationIdx: index('name_population_idx').on(countries.name, countries.population), // multiple columns
@@ -617,7 +617,7 @@ const users = sqliteTable('users', {
 
 const db = drizzle(sqlite);
 
-const result = db.select().from(cities).leftJoin(users, eq(cities2.id, users2.cityId)).all();
+const result = db.select().from(cities).leftJoin(users, eq(cities.id, users.cityId)).all();
 ```
 
 ### Many-to-many

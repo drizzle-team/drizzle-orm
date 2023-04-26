@@ -176,7 +176,7 @@ Example
 [Pg] Add PostGIS extension support
 ```
 
-2. PR should contain detailed description with everyting, that was changed
+2. PR should contain detailed description with everything, that was changed
 
 3. Each PR should contain
     - Tests on feature, that was created;
