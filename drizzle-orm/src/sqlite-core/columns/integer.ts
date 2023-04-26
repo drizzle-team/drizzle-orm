@@ -150,12 +150,12 @@ export class SQLiteTimestamp<T extends ColumnBaseConfig>
 }
 
 export interface SQLiteBooleanBuilderHKT extends ColumnBuilderHKTBase {
-  _type: SQLiteBooleanBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>
-  _columnHKT: SQLiteBooleanHKT
+	_type: SQLiteBooleanBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: SQLiteBooleanHKT;
 }
 
 export interface SQLiteBooleanHKT extends ColumnHKTBase {
-  _type: SQLiteBoolean<Assume<this['config'], ColumnBaseConfig>>
+	_type: SQLiteBoolean<Assume<this['config'], ColumnBaseConfig>>;
 }
 
 export type SQLiteBooleanBuilderInitial<TName extends string> = SQLiteBooleanBuilder<{
@@ -190,7 +190,7 @@ export class SQLiteBoolean<T extends ColumnBaseConfig>
 	readonly mode: 'boolean' = this.config.mode;
 
 	override mapFromDriverValue(value: number): boolean {
-		return Boolean(value)
+		return Boolean(value);
 	}
 
 	override mapToDriverValue(value: boolean): number {
@@ -199,7 +199,11 @@ export class SQLiteBoolean<T extends ColumnBaseConfig>
 }
 
 export interface IntegerConfig<
-	TMode extends 'number' | 'timestamp' | 'timestamp_ms' | 'boolean' = 'number' | 'timestamp' | 'timestamp_ms' | 'boolean',
+	TMode extends 'number' | 'timestamp' | 'timestamp_ms' | 'boolean' =
+		| 'number'
+		| 'timestamp'
+		| 'timestamp_ms'
+		| 'boolean',
 > {
 	mode: TMode;
 }
@@ -208,15 +212,15 @@ export function integer<TName extends string, TMode extends IntegerConfig['mode'
 	name: TName,
 	config?: IntegerConfig<TMode>,
 ): Or<Equal<TMode, 'timestamp'>, Equal<TMode, 'timestamp_ms'>> extends true ? SQLiteTimestampBuilderInitial<TName>
-  : Equal<TMode, 'boolean'> extends true ? SQLiteBooleanBuilderInitial<TName>
+	: Equal<TMode, 'boolean'> extends true ? SQLiteBooleanBuilderInitial<TName>
 	: SQLiteIntegerBuilderInitial<TName>;
 export function integer(name: string, config?: IntegerConfig) {
 	if (config?.mode === 'timestamp' || config?.mode === 'timestamp_ms') {
 		return new SQLiteTimestampBuilder(name, config.mode);
 	}
-  if(config?.mode === 'boolean'){
-    return new SQLiteBooleanBuilder(name, config.mode);
-  }
+	if (config?.mode === 'boolean') {
+		return new SQLiteBooleanBuilder(name, config.mode);
+	}
 	return new SQLiteIntegerBuilder(name);
 }
 
