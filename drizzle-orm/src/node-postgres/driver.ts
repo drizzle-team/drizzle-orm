@@ -1,4 +1,4 @@
-import * as pg from 'pg';
+import pg from 'pg';
 import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
 import { PgDatabase } from '~/pg-core/db';
