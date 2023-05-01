@@ -3,6 +3,7 @@ import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
 import { PgDatabase } from '~/pg-core/db';
 import { PgDialect } from '~/pg-core/dialect';
+import { type ExtractTablesWithRelations, type TablesWithRelations } from '~/relations';
 import type { NodePgClient, NodePgQueryResultHKT } from './session';
 import { NodePgSession } from './session';
 
@@ -32,13 +33,17 @@ export class NodePgDriver {
 	}
 }
 
-export interface DrizzleConfig {
+export interface DrizzleConfig<TSchema extends Record<string, unknown> = {}> {
 	logger?: boolean | Logger;
+	schema?: TSchema;
 }
 
-export type NodePgDatabase = PgDatabase<NodePgQueryResultHKT>;
+export type NodePgDatabase<TRelations extends TablesWithRelations = {}> = PgDatabase<NodePgQueryResultHKT, TRelations>;
 
-export function drizzle(client: NodePgClient, config: DrizzleConfig = {}): NodePgDatabase {
+export function drizzle<TSchema extends Record<string, unknown> = {}>(
+	client: NodePgClient,
+	config: DrizzleConfig<TSchema> = {},
+): NodePgDatabase<ExtractTablesWithRelations<TSchema>> {
 	const dialect = new PgDialect();
 	let logger;
 	if (config.logger === true) {

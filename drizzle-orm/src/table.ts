@@ -2,6 +2,18 @@ import type { AnyColumn, GetColumnData } from './column';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations';
 import type { Simplify, Update } from './utils';
 
+export class TableExtraConfig<TTableName extends string, TConfig extends unknown[]> {
+	declare protected $brand: 'TableConfig';
+	readonly _: {
+		readonly tableName: TTableName;
+		readonly config: (helpers: any) => TConfig;
+	};
+
+	constructor(table: AnyTable<{ name: TTableName }>, config: (helpers: any) => TConfig) {
+		this._ = { tableName: table[TableName] as TTableName, config };
+	}
+}
+
 export interface TableConfig<TColumn extends AnyColumn = AnyColumn> {
 	name: string;
 	schema: string | undefined;
@@ -97,34 +109,40 @@ export type MapColumnName<TName extends string, TColumn extends AnyColumn, TDBCo
 	TDBColumNames extends true ? TColumn['_']['name']
 		: TName;
 
-export type InferModel<
-	TTable extends AnyTable,
+export type InferModelFromColumns<
+	TColumns extends Record<string, AnyColumn>,
 	TInferMode extends 'select' | 'insert' = 'select',
 	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
 > = TInferMode extends 'insert' ? Simplify<
 		& {
 			[
-				Key in keyof TTable['_']['columns'] & string as RequiredKeyOnly<
-					MapColumnName<Key, TTable['_']['columns'][Key], TConfig['dbColumnNames']>,
-					TTable['_']['columns'][Key]
+				Key in keyof TColumns & string as RequiredKeyOnly<
+					MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
+					TColumns[Key]
 				>
-			]: GetColumnData<TTable['_']['columns'][Key], 'query'>;
+			]: GetColumnData<TColumns[Key], 'query'>;
 		}
 		& {
 			[
-				Key in keyof TTable['_']['columns'] & string as OptionalKeyOnly<
-					MapColumnName<Key, TTable['_']['columns'][Key], TConfig['dbColumnNames']>,
-					TTable['_']['columns'][Key]
+				Key in keyof TColumns & string as OptionalKeyOnly<
+					MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
+					TColumns[Key]
 				>
-			]?: GetColumnData<TTable['_']['columns'][Key], 'query'>;
+			]?: GetColumnData<TColumns[Key], 'query'>;
 		}
 	>
 	: {
 		[
-			Key in keyof TTable['_']['columns'] & string as MapColumnName<
+			Key in keyof TColumns & string as MapColumnName<
 				Key,
-				TTable['_']['columns'][Key],
+				TColumns[Key],
 				TConfig['dbColumnNames']
 			>
-		]: GetColumnData<TTable['_']['columns'][Key], 'query'>;
+		]: GetColumnData<TColumns[Key], 'query'>;
 	};
+
+export type InferModel<
+	TTable extends AnyTable,
+	TInferMode extends 'select' | 'insert' = 'select',
+	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
+> = InferModelFromColumns<TTable['_']['columns'], TInferMode, TConfig>;

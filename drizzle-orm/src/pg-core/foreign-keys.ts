@@ -1,5 +1,6 @@
 import type { AnyPgColumn } from './columns';
 import { type AnyPgTable, PgTable } from './table';
+import { type ColumnsWithTable } from './utils';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
@@ -82,27 +83,27 @@ export class ForeignKey {
 	}
 }
 
-type ColumnsWithTable<
-	TTableName extends string,
-	TColumns extends AnyPgColumn[],
-> = { [Key in keyof TColumns]: AnyPgColumn<{ tableName: TTableName }> };
-
 export function foreignKey<
 	TTableName extends string,
 	TForeignTableName extends string,
-	TColumns extends [AnyPgColumn<{ tableName: TTableName }>, ...AnyPgColumn<{ tableName: TTableName }>[]],
+	TColumns extends AnyPgColumn<{ tableName: TTableName }>[],
 >(
 	config: {
+		/** @deprecated Use `fields` instead */
 		columns: TColumns;
-		foreignColumns: ColumnsWithTable<TForeignTableName, TColumns>;
+		/* @deprecated Use `references` instead */
+		foreignColumns: ColumnsWithTable<TTableName, TForeignTableName, TColumns>;
+	} | {
+		fields: TColumns;
+		references: ColumnsWithTable<TTableName, TForeignTableName, TColumns>;
 	},
 ): ForeignKeyBuilder {
 	function mappedConfig() {
-		const { columns, foreignColumns } = config;
-		return {
-			columns,
-			foreignColumns,
+		const extractedConfig = 'columns' in config ? config : {
+			columns: config.fields,
+			foreignColumns: config.references,
 		};
+		return extractedConfig;
 	}
 
 	return new ForeignKeyBuilder(mappedConfig);

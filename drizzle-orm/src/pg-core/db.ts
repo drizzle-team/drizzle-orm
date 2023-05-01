@@ -3,15 +3,29 @@ import { PgDelete, PgInsertBuilder, PgSelectBuilder, PgUpdateBuilder, QueryBuild
 import type { PgSession, PgTransaction, PgTransactionConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
 import type { AnyPgTable } from '~/pg-core/table';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder';
+import {
+	type BuildQueryResult,
+	type BuildSelectionForTable,
+	type TablesWithRelations,
+	type TableWithRelations,
+} from '~/relations';
 import { type SQLWrapper } from '~/sql';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
+import { type Simplify } from '~/utils';
 import { type ColumnsSelection } from '~/view';
 import { PgRefreshMaterializedView } from './query-builders/refresh-materialized-view';
 import type { SelectedFields } from './query-builders/select.types';
 import type { WithSubqueryWithSelection } from './subquery';
 import type { PgMaterializedView } from './view';
 
-export class PgDatabase<TQueryResult extends QueryResultHKT> {
+export class PgDatabase<
+	TQueryResult extends QueryResultHKT,
+	TSchema extends TablesWithRelations = {},
+> {
+	declare readonly _: {
+		readonly schema: TSchema;
+	};
+
 	constructor(
 		/** @internal */
 		readonly dialect: PgDialect,
@@ -81,5 +95,22 @@ export class PgDatabase<TQueryResult extends QueryResultHKT> {
 		config?: PgTransactionConfig,
 	): Promise<T> {
 		return this.session.transaction(transaction, config);
+	}
+
+	declare query: {
+		[K in keyof TSchema]: RelationalQueryBuilder<TSchema, TSchema[K]>;
+	};
+}
+
+class RelationalQueryBuilder<TSchema extends TablesWithRelations, TFields extends TableWithRelations> {
+	findMany<TSelection extends BuildSelectionForTable<TSchema, TFields>>(
+		_selection?: TSelection,
+	): Promise<Simplify<BuildQueryResult<TSchema, TFields, TSelection>, { deep: true }>[]> {
+		return undefined as any;
+	}
+	findFirst<TSelection extends BuildSelectionForTable<TSchema, TFields>>(
+		_selection?: TSelection,
+	): Promise<Simplify<BuildQueryResult<TSchema, TFields, TSelection>, { deep: true }>> {
+		return undefined as any;
 	}
 }
