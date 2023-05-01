@@ -192,6 +192,9 @@ importers:
       '@planetscale/database':
         specifier: ^1.5.0
         version: 1.6.0
+      '@vercel/postgres':
+        specifier: ^0.1.2
+        version: 0.1.2
       better-sqlite3:
         specifier: ^8.0.0
         version: 8.2.0
@@ -1543,7 +1546,6 @@ packages:
     resolution: {integrity: sha512-U8tpuF5f0R5WRsciR7iaJ5S2h54DWa6Z6CEW+J4KgwyvRN3q3qDz0MibdfFXU0WqnRoi/9RSf/2XN4TfeaOCbQ==}
     dependencies:
       '@types/pg': 8.6.6
-    dev: true
 
   /@nodelib/fs.scandir@2.1.5:
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -1816,7 +1818,6 @@ packages:
       '@types/node': 18.15.11
       pg-protocol: 1.6.0
       pg-types: 2.2.0
-    dev: true
 
   /@types/ps-tree@1.1.2:
     resolution: {integrity: sha512-ZREFYlpUmPQJ0esjxoG1fMvB2HNaD3z+mjqdSosZvd3RalncI9NEur73P8ZJz4YQdL64CmV1w0RuqoRUlhQRBw==}
@@ -2005,7 +2006,6 @@ packages:
       bufferutil: 4.0.7
       utf-8-validate: 6.0.3
       ws: 8.13.0(bufferutil@4.0.7)(utf-8-validate@6.0.3)
-    dev: true
 
   /@vitest/expect@0.29.8:
     resolution: {integrity: sha512-xlcVXn5I5oTq6NiZSY3ykyWixBxr5mG8HYtjvpgg6KaqHm0mvhX18xuwl5YGxIRNt/A5jidd7CWcNHrSvgaQqQ==}
