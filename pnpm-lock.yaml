@@ -148,102 +148,6 @@ importers:
         specifier: ^7.2.1
         version: 7.2.1
 
-  drizzle-orm/dist:
-    devDependencies:
-      '@aws-sdk/client-rds-data':
-        specifier: ^3.303.0
-        version: 3.303.0
-      '@cloudflare/workers-types':
-        specifier: ^4.20230321.0
-        version: 4.20230321.0
-      '@libsql/client':
-        specifier: ^0.1.1
-        version: 0.1.1
-      '@neondatabase/serverless':
-        specifier: ^0.2.9
-        version: 0.2.9
-      '@originjs/vite-plugin-commonjs':
-        specifier: ^1.0.3
-        version: 1.0.3
-      '@planetscale/database':
-        specifier: ^1.5.0
-        version: 1.6.0
-      '@rollup/plugin-json':
-        specifier: ^6.0.0
-        version: 6.0.0(rollup@3.20.7)
-      '@rollup/plugin-terser':
-        specifier: ^0.4.1
-        version: 0.4.1(rollup@3.20.7)
-      '@rollup/plugin-typescript':
-        specifier: ^11.1.0
-        version: 11.1.0(rollup@3.20.7)(tslib@2.5.0)(typescript@5.0.3)
-      '@types/better-sqlite3':
-        specifier: ^7.6.2
-        version: 7.6.3
-      '@types/node':
-        specifier: ^18.15.11
-        version: 18.15.11
-      '@types/pg':
-        specifier: ^8.6.5
-        version: 8.6.6
-      '@types/sql.js':
-        specifier: ^1.4.4
-        version: 1.4.4
-      '@vercel/postgres':
-        specifier: ^0.1.2
-        version: 0.1.2
-      better-sqlite3:
-        specifier: ^8.0.0
-        version: 8.2.0
-      bun-types:
-        specifier: ^0.5.8
-        version: 0.5.8
-      knex:
-        specifier: ^2.4.2
-        version: 2.4.2(better-sqlite3@8.2.0)(mysql2@3.2.0)(pg@8.10.0)(sqlite3@5.1.6)
-      kysely:
-        specifier: ^0.24.2
-        version: 0.24.2
-      mysql2:
-        specifier: ^3.2.0
-        version: 3.2.0
-      pg:
-        specifier: ^8.8.0
-        version: 8.10.0
-      postgres:
-        specifier: ^3.3.3
-        version: 3.3.4
-      rollup:
-        specifier: ^3.20.7
-        version: 3.20.7
-      rollup-plugin-dts:
-        specifier: ^5.3.0
-        version: 5.3.0(rollup@3.20.7)(typescript@5.0.3)
-      sql.js:
-        specifier: ^1.8.0
-        version: 1.8.0
-      sqlite3:
-        specifier: ^5.1.2
-        version: 5.1.6
-      tslib:
-        specifier: ^2.5.0
-        version: 2.5.0
-      tsx:
-        specifier: ^3.12.2
-        version: 3.12.6
-      vite-tsconfig-paths:
-        specifier: ^4.0.7
-        version: 4.0.7(typescript@5.0.3)
-      vitest:
-        specifier: ^0.29.8
-        version: 0.29.8
-      zod:
-        specifier: ^3.20.2
-        version: 3.21.4
-      zx:
-        specifier: ^7.2.1
-        version: 7.2.1
-
   drizzle-zod:
     devDependencies:
       '@rollup/plugin-terser':
@@ -288,9 +192,6 @@ importers:
       '@planetscale/database':
         specifier: ^1.5.0
         version: 1.6.0
-      '@vercel/postgres':
-        specifier: ^0.1.2
-        version: 0.1.2
       better-sqlite3:
         specifier: ^8.0.0
         version: 8.2.0
@@ -1642,6 +1543,7 @@ packages:
     resolution: {integrity: sha512-U8tpuF5f0R5WRsciR7iaJ5S2h54DWa6Z6CEW+J4KgwyvRN3q3qDz0MibdfFXU0WqnRoi/9RSf/2XN4TfeaOCbQ==}
     dependencies:
       '@types/pg': 8.6.6
+    dev: true
 
   /@nodelib/fs.scandir@2.1.5:
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -1914,6 +1816,7 @@ packages:
       '@types/node': 18.15.11
       pg-protocol: 1.6.0
       pg-types: 2.2.0
+    dev: true
 
   /@types/ps-tree@1.1.2:
     resolution: {integrity: sha512-ZREFYlpUmPQJ0esjxoG1fMvB2HNaD3z+mjqdSosZvd3RalncI9NEur73P8ZJz4YQdL64CmV1w0RuqoRUlhQRBw==}
@@ -2102,6 +2005,7 @@ packages:
       bufferutil: 4.0.7
       utf-8-validate: 6.0.3
       ws: 8.13.0(bufferutil@4.0.7)(utf-8-validate@6.0.3)
+    dev: true
 
   /@vitest/expect@0.29.8:
     resolution: {integrity: sha512-xlcVXn5I5oTq6NiZSY3ykyWixBxr5mG8HYtjvpgg6KaqHm0mvhX18xuwl5YGxIRNt/A5jidd7CWcNHrSvgaQqQ==}
