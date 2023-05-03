@@ -1,6 +1,6 @@
 {
   "name": "drizzle-orm",
-  "version": "0.25.3",
+  "version": "0.25.5",
   "description": "Drizzle ORM package for SQL databases",
   "type": "module",
   "scripts": {
@@ -59,10 +59,14 @@
     "pg": ">=8",
     "postgres": ">=3",
     "sql.js": ">=1",
-    "sqlite3": ">=5"
+    "sqlite3": ">=5",
+    "@vercel/postgres": "*"
   },
   "peerDependenciesMeta": {
     "mysql2": {
+      "optional": true
+    },
+    "@vercel/postgres": {
       "optional": true
     },
     "better-sqlite3": {
@@ -128,6 +132,7 @@
     "@types/node": "^18.15.11",
     "@types/pg": "^8.6.5",
     "@types/sql.js": "^1.4.4",
+    "@vercel/postgres": "^0.1.2",
     "better-sqlite3": "^8.0.0",
     "bun-types": "^0.5.8",
     "knex": "^2.4.2",
