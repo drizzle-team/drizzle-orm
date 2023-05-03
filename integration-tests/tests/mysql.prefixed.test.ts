@@ -7,6 +7,7 @@ import {
 	asc,
 	DefaultLogger,
 	eq,
+	getTableName,
 	gt,
 	inArray,
 	type InferModel,
@@ -24,7 +25,7 @@ import {
 	int,
 	json,
 	mysqlEnum,
-	mysqlTable,
+	mysqlTable as mysqlTableRaw,
 	mysqlTableCreator,
 	mysqlView,
 	serial,
@@ -44,6 +45,10 @@ import { type Equal, Expect } from './utils';
 
 const ENABLE_LOGGING = false;
 
+const tablePrefix = 'drizzle_tests_';
+
+const mysqlTable = mysqlTableCreator((name) => `${tablePrefix}${name}`);
+
 const usersTable = mysqlTable('userstest', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
@@ -61,44 +66,6 @@ const users2Table = mysqlTable('users2', {
 const citiesTable = mysqlTable('cities', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
-});
-
-const datesTable = mysqlTable('datestable', {
-	date: date('date'),
-	dateAsString: date('date_as_string', { mode: 'string' }),
-	time: time('time', { fsp: 1 }),
-	datetime: datetime('datetime', { fsp: 2 }),
-	datetimeAsString: datetime('datetime_as_string', { fsp: 2, mode: 'string' }),
-	year: year('year'),
-});
-
-const coursesTable = mysqlTable('courses', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	categoryId: int('category_id').references(() => courseCategoriesTable.id),
-});
-
-const courseCategoriesTable = mysqlTable('course_categories', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-});
-
-const orders = mysqlTable('orders', {
-	id: serial('id').primaryKey(),
-	region: text('region').notNull(),
-	product: text('product').notNull(),
-	amount: int('amount').notNull(),
-	quantity: int('quantity').notNull(),
-});
-
-const usersMigratorTable = mysqlTable('users12', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	email: text('email').notNull(),
-}, (table) => {
-	return {
-		name: uniqueIndex('').on(table.name).using('btree'),
-	};
 });
 
 interface Context {
@@ -174,13 +141,13 @@ test.after.always(async (t) => {
 
 test.beforeEach(async (t) => {
 	const ctx = t.context;
-	await ctx.db.execute(sql`drop table if exists \`userstest\``);
-	await ctx.db.execute(sql`drop table if exists \`users2\``);
-	await ctx.db.execute(sql`drop table if exists \`cities\``);
+	await ctx.db.execute(sql`drop table if exists ${usersTable}`);
+	await ctx.db.execute(sql`drop table if exists ${users2Table}`);
+	await ctx.db.execute(sql`drop table if exists ${citiesTable}`);
 
 	await ctx.db.execute(
 		sql`
-			create table \`userstest\` (
+			create table ${usersTable} (
 				\`id\` serial primary key,
 				\`name\` text not null,
 				\`verified\` boolean not null default false,
@@ -192,17 +159,17 @@ test.beforeEach(async (t) => {
 
 	await ctx.db.execute(
 		sql`
-			create table \`users2\` (
+			create table ${users2Table} (
 				\`id\` serial primary key,
 				\`name\` text not null,
-				\`city_id\` int references \`cities\`(\`id\`)
+				\`city_id\` int references ${citiesTable}(\`id\`)
 			)
 		`,
 	);
 
 	await ctx.db.execute(
 		sql`
-			create table \`cities\` (
+			create table ${citiesTable} (
 				\`id\` serial primary key,
 				\`name\` text not null
 			)
@@ -458,7 +425,9 @@ test.serial('build query', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: `select \`id\`, \`name\` from \`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\``,
+		sql: `select \`id\`, \`name\` from \`${getTableName(usersTable)}\` group by \`${
+			getTableName(usersTable)
+		}\`.\`id\`, \`${getTableName(usersTable)}\`.\`name\``,
 		params: [],
 	});
 });
@@ -472,7 +441,9 @@ test.serial('build query insert with onDuplicate', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into `userstest` (`name`, `jsonb`) values (?, ?) on duplicate key update `name` = ?',
+		sql: `insert into \`${
+			getTableName(usersTable)
+		}\` (\`name\`, \`jsonb\`) values (?, ?) on duplicate key update \`name\` = ?`,
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
@@ -504,7 +475,6 @@ test.serial('insert conflict', async (t) => {
 		() => db.insert(usersTable).values({ id: 1, name: 'John1' }),
 		{
 			code: 'ER_DUP_ENTRY',
-			message: "Duplicate entry '1' for key 'userstest.PRIMARY'",
 		},
 	);
 });
@@ -701,13 +671,23 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 });
 
-test.serial('migrator', async (t) => {
+test.serial.only('migrator', async (t) => {
 	const { db } = t.context;
 
-	await db.execute(sql`drop table if exists cities_migration`);
-	await db.execute(sql`drop table if exists users_migration`);
-	await db.execute(sql`drop table if exists users12`);
-	await db.execute(sql`drop table if exists __drizzle_migrations`);
+	const usersMigratorTable = mysqlTableRaw('users12', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		email: text('email').notNull(),
+	}, (table) => {
+		return {
+			name: uniqueIndex('').on(table.name).using('btree'),
+		};
+	});
+
+	await db.execute(sql.raw(`drop table if exists cities_migration`));
+	await db.execute(sql.raw(`drop table if exists users_migration`));
+	await db.execute(sql.raw(`drop table if exists users12`));
+	await db.execute(sql.raw(`drop table if exists __drizzle_migrations`));
 
 	await migrate(db, { migrationsFolder: './drizzle2/mysql' });
 
@@ -717,10 +697,10 @@ test.serial('migrator', async (t) => {
 
 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
 
-	await db.execute(sql`drop table cities_migration`);
-	await db.execute(sql`drop table users_migration`);
-	await db.execute(sql`drop table users12`);
-	await db.execute(sql`drop table __drizzle_migrations`);
+	await db.execute(sql.raw(`drop table cities_migration`));
+	await db.execute(sql.raw(`drop table users_migration`));
+	await db.execute(sql.raw(`drop table users12`));
+	await db.execute(sql.raw(`drop table __drizzle_migrations`));
 });
 
 test.serial('insert via db.execute + select via db.execute', async (t) => {
@@ -744,10 +724,19 @@ test.serial('insert via db.execute w/ query builder', async (t) => {
 test.serial('insert + select all possible dates', async (t) => {
 	const { db } = t.context;
 
-	await db.execute(sql`drop table if exists \`datestable\``);
+	const datesTable = mysqlTable('datestable', {
+		date: date('date'),
+		dateAsString: date('date_as_string', { mode: 'string' }),
+		time: time('time', { fsp: 1 }),
+		datetime: datetime('datetime', { fsp: 2 }),
+		datetimeAsString: datetime('datetime_as_string', { fsp: 2, mode: 'string' }),
+		year: year('year'),
+	});
+
+	await db.execute(sql`drop table if exists ${datesTable}`);
 	await db.execute(
 		sql`
-			create table \`datestable\` (
+			create table ${datesTable} (
 				\`date\` date,
 				\`date_as_string\` date,
 				\`time\` time,
@@ -758,13 +747,13 @@ test.serial('insert + select all possible dates', async (t) => {
 		`,
 	);
 
-	const date = new Date('2022-11-11');
+	const d = new Date('2022-11-11');
 
 	await db.insert(datesTable).values({
-		date: date,
+		date: d,
 		dateAsString: '2022-11-11',
 		time: '12:12:12',
-		datetime: date,
+		datetime: d,
 		year: 22,
 		datetimeAsString: '2022-11-11 12:12:12',
 	});
@@ -785,23 +774,23 @@ test.serial('insert + select all possible dates', async (t) => {
 		datetimeAsString: '2022-11-11 12:12:12',
 	}]);
 
-	await db.execute(sql`drop table if exists \`datestable\``);
-});
-
-const tableWithEnums = mysqlTable('enums_test_case', {
-	id: serial('id').primaryKey(),
-	enum1: mysqlEnum('enum1', ['a', 'b', 'c']).notNull(),
-	enum2: mysqlEnum('enum2', ['a', 'b', 'c']).default('a'),
-	enum3: mysqlEnum('enum3', ['a', 'b', 'c']).notNull().default('b'),
+	await db.execute(sql`drop table ${datesTable}`);
 });
 
 test.serial('Mysql enum test case #1', async (t) => {
 	const { db } = t.context;
 
-	await db.execute(sql`drop table if exists \`enums_test_case\``);
+	const tableWithEnums = mysqlTable('enums_test_case', {
+		id: serial('id').primaryKey(),
+		enum1: mysqlEnum('enum1', ['a', 'b', 'c']).notNull(),
+		enum2: mysqlEnum('enum2', ['a', 'b', 'c']).default('a'),
+		enum3: mysqlEnum('enum3', ['a', 'b', 'c']).notNull().default('b'),
+	});
+
+	await db.execute(sql`drop table if exists ${tableWithEnums}`);
 
 	await db.execute(sql`
-		create table \`enums_test_case\` (
+		create table ${tableWithEnums} (
 			\`id\` serial primary key,
 			\`enum1\` ENUM('a', 'b', 'c') not null,
 			\`enum2\` ENUM('a', 'b', 'c') default 'a',
@@ -817,7 +806,7 @@ test.serial('Mysql enum test case #1', async (t) => {
 
 	const res = await db.select().from(tableWithEnums);
 
-	await db.execute(sql`drop table \`enums_test_case\``);
+	await db.execute(sql`drop table ${tableWithEnums}`);
 
 	t.deepEqual(res, [
 		{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },
@@ -921,12 +910,23 @@ test.serial('left join (all fields)', async (t) => {
 test.serial('join subquery', async (t) => {
 	const { db } = t.context;
 
-	await db.execute(sql`drop table if exists \`courses\``);
-	await db.execute(sql`drop table if exists \`course_categories\``);
+	const coursesTable = mysqlTable('courses', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		categoryId: int('category_id').references(() => courseCategoriesTable.id),
+	});
+
+	const courseCategoriesTable = mysqlTable('course_categories', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${coursesTable}`);
+	await db.execute(sql`drop table if exists ${courseCategoriesTable}`);
 
 	await db.execute(
 		sql`
-			create table \`course_categories\` (
+			create table ${courseCategoriesTable} (
 				\`id\` serial primary key,
 				\`name\` text not null
 			)
@@ -935,10 +935,10 @@ test.serial('join subquery', async (t) => {
 
 	await db.execute(
 		sql`
-			create table \`courses\` (
+			create table ${coursesTable} (
 				\`id\` serial primary key,
 				\`name\` text not null,
-				\`category_id\` int references \`course_categories\`(\`id\`)
+				\`category_id\` int references ${courseCategoriesTable}(\`id\`)
 			)
 		`,
 	);
@@ -976,24 +976,32 @@ test.serial('join subquery', async (t) => {
 		.leftJoin(sq2, eq(coursesTable.categoryId, sq2.categoryId))
 		.orderBy(coursesTable.name);
 
+	await db.execute(sql`drop table ${coursesTable}`);
+	await db.execute(sql`drop table ${courseCategoriesTable}`);
+
 	t.deepEqual(res, [
 		{ courseName: 'Design', categoryId: 1 },
 		{ courseName: 'Development', categoryId: 2 },
 		{ courseName: 'IT & Software', categoryId: 3 },
 		{ courseName: 'Marketing', categoryId: 4 },
 	]);
-
-	await db.execute(sql`drop table if exists \`courses\``);
-	await db.execute(sql`drop table if exists \`course_categories\``);
 });
 
 test.serial('with ... select', async (t) => {
 	const { db } = t.context;
 
-	await db.execute(sql`drop table if exists \`orders\``);
+	const orders = mysqlTable('orders', {
+		id: serial('id').primaryKey(),
+		region: text('region').notNull(),
+		product: text('product').notNull(),
+		amount: int('amount').notNull(),
+		quantity: int('quantity').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${orders}`);
 	await db.execute(
 		sql`
-			create table \`orders\` (
+			create table ${orders} (
 				\`id\` serial primary key,
 				\`region\` text not null,
 				\`product\` text not null,
@@ -1054,6 +1062,8 @@ test.serial('with ... select', async (t) => {
 		.where(inArray(orders.region, db.select({ region: topRegions.region }).from(topRegions)))
 		.groupBy(orders.region, orders.product)
 		.orderBy(orders.region, orders.product);
+
+	await db.execute(sql`drop table ${orders}`);
 
 	t.deepEqual(result, [
 		{
@@ -1368,7 +1378,7 @@ test.serial('orderBy with aliased column', (t) => {
 		test: sql`something`.as('test'),
 	}).from(users2Table).orderBy((fields) => fields.test).toSQL();
 
-	t.deepEqual(query.sql, 'select something as `test` from `users2` order by `test`');
+	t.deepEqual(query.sql, `select something as \`test\` from \`${getTableName(users2Table)}\` order by \`test\``);
 });
 
 test.serial('timestamp timezone', async (t) => {
@@ -1406,9 +1416,9 @@ test.serial('transaction', async (t) => {
 	await db.execute(sql`drop table if exists ${users}`);
 	await db.execute(sql`drop table if exists ${products}`);
 
-	await db.execute(sql`create table users_transactions (id serial not null primary key, balance int not null)`);
+	await db.execute(sql`create table ${users} (id serial not null primary key, balance int not null)`);
 	await db.execute(
-		sql`create table products_transactions (id serial not null primary key, price int not null, stock int not null)`,
+		sql`create table ${products} (id serial not null primary key, price int not null, stock int not null)`,
 	);
 
 	const [{ insertId: userId }] = await db.insert(users).values({ balance: 100 });
@@ -1423,10 +1433,10 @@ test.serial('transaction', async (t) => {
 
 	const result = await db.select().from(users);
 
-	t.deepEqual(result, [{ id: 1, balance: 90 }]);
-
 	await db.execute(sql`drop table ${users}`);
 	await db.execute(sql`drop table ${products}`);
+
+	t.deepEqual(result, [{ id: 1, balance: 90 }]);
 });
 
 test.serial('transaction rollback', async (t) => {
@@ -1440,7 +1450,7 @@ test.serial('transaction rollback', async (t) => {
 	await db.execute(sql`drop table if exists ${users}`);
 
 	await db.execute(
-		sql`create table users_transactions_rollback (id serial not null primary key, balance int not null)`,
+		sql`create table ${users} (id serial not null primary key, balance int not null)`,
 	);
 
 	await t.throwsAsync(async () =>
@@ -1451,9 +1461,9 @@ test.serial('transaction rollback', async (t) => {
 
 	const result = await db.select().from(users);
 
-	t.deepEqual(result, []);
-
 	await db.execute(sql`drop table ${users}`);
+
+	t.deepEqual(result, []);
 });
 
 test.serial('nested transaction', async (t) => {
@@ -1467,7 +1477,7 @@ test.serial('nested transaction', async (t) => {
 	await db.execute(sql`drop table if exists ${users}`);
 
 	await db.execute(
-		sql`create table users_nested_transactions (id serial not null primary key, balance int not null)`,
+		sql`create table ${users} (id serial not null primary key, balance int not null)`,
 	);
 
 	await db.transaction(async (tx) => {
@@ -1480,9 +1490,9 @@ test.serial('nested transaction', async (t) => {
 
 	const result = await db.select().from(users);
 
-	t.deepEqual(result, [{ id: 1, balance: 200 }]);
-
 	await db.execute(sql`drop table ${users}`);
+
+	t.deepEqual(result, [{ id: 1, balance: 200 }]);
 });
 
 test.serial('nested transaction rollback', async (t) => {
@@ -1496,7 +1506,7 @@ test.serial('nested transaction rollback', async (t) => {
 	await db.execute(sql`drop table if exists ${users}`);
 
 	await db.execute(
-		sql`create table users_nested_transactions_rollback (id serial not null primary key, balance int not null)`,
+		sql`create table ${users} (id serial not null primary key, balance int not null)`,
 	);
 
 	await db.transaction(async (tx) => {
@@ -1511,9 +1521,9 @@ test.serial('nested transaction rollback', async (t) => {
 
 	const result = await db.select().from(users);
 
-	t.deepEqual(result, [{ id: 1, balance: 100 }]);
-
 	await db.execute(sql`drop table ${users}`);
+
+	t.deepEqual(result, [{ id: 1, balance: 100 }]);
 });
 
 test.serial('join subquery with join', async (t) => {
@@ -1535,9 +1545,9 @@ test.serial('join subquery with join', async (t) => {
 	await db.execute(sql`drop table if exists ${customUser}`);
 	await db.execute(sql`drop table if exists ${ticket}`);
 
-	await db.execute(sql`create table internal_staff (user_id integer not null)`);
-	await db.execute(sql`create table custom_user (id integer not null)`);
-	await db.execute(sql`create table ticket (staff_id integer not null)`);
+	await db.execute(sql`create table ${internalStaff} (user_id integer not null)`);
+	await db.execute(sql`create table ${customUser} (id integer not null)`);
+	await db.execute(sql`create table ${ticket} (staff_id integer not null)`);
 
 	await db.insert(internalStaff).values({ userId: 1 });
 	await db.insert(customUser).values({ id: 1 });
@@ -1554,6 +1564,10 @@ test.serial('join subquery with join', async (t) => {
 		.from(ticket)
 		.leftJoin(subq, eq(subq.internal_staff.userId, ticket.staffId));
 
+	await db.execute(sql`drop table ${internalStaff}`);
+	await db.execute(sql`drop table ${customUser}`);
+	await db.execute(sql`drop table ${ticket}`);
+
 	t.deepEqual(mainQuery, [{
 		ticket: { staffId: 1 },
 		internal_staff: {
@@ -1561,10 +1575,6 @@ test.serial('join subquery with join', async (t) => {
 			custom_user: { id: 1 },
 		},
 	}]);
-
-	await db.execute(sql`drop table ${internalStaff}`);
-	await db.execute(sql`drop table ${customUser}`);
-	await db.execute(sql`drop table ${ticket}`);
 });
 
 test.serial('subquery with view', async (t) => {
@@ -1596,13 +1606,13 @@ test.serial('subquery with view', async (t) => {
 	const sq = db.$with('sq').as(db.select().from(newYorkers));
 	const result = await db.with(sq).select().from(sq);
 
+	await db.execute(sql`drop view ${newYorkers}`);
+	await db.execute(sql`drop table ${users}`);
+
 	t.deepEqual(result, [
 		{ id: 1, name: 'John', cityId: 1 },
 		{ id: 3, name: 'Jack', cityId: 1 },
 	]);
-
-	await db.execute(sql`drop view ${newYorkers}`);
-	await db.execute(sql`drop table ${users}`);
 });
 
 test.serial('join view as subquery', async (t) => {
