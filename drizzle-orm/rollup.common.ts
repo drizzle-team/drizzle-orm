@@ -8,6 +8,8 @@ export const entries = [
 	'bun-sqlite/migrator',
 	'd1/index',
 	'd1/migrator',
+	'vercel-postgres/migrator',
+	'vercel-postgres/index',
 	'knex/index',
 	'kysely/index',
 	'libsql/index',
