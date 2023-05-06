@@ -65,3 +65,14 @@ export class TableAliasProxyHandler<T extends Table | View> implements ProxyHand
 		return value;
 	}
 }
+
+export function aliasedTable<T extends Table>(table: T, tableAlias: string): T {
+	return new Proxy(table, new TableAliasProxyHandler(tableAlias, false));
+}
+
+export function aliasedTableColumn<T extends AnyColumn>(column: T, tableAlias: string): T {
+	return new Proxy(
+		column,
+		new ColumnAliasProxyHandler(new Proxy(column.table, new TableAliasProxyHandler(tableAlias, false))),
+	);
+}

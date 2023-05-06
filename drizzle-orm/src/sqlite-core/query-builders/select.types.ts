@@ -53,6 +53,7 @@ export type BuildAliasTable<TTable extends Table | View, TAlias extends string> 
 export interface SQLiteSelectConfig {
 	withList: Subquery[];
 	fields: Record<string, unknown>;
+	fieldsFlat?: SelectedFieldsOrdered;
 	where?: SQL;
 	having?: SQL;
 	table: AnySQLiteTable | Subquery | SQLiteViewBase | SQL;

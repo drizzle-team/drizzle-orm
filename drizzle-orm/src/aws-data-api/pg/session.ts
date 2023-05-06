@@ -47,7 +47,21 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
+		const { fields, joinsNotNullableMap } = this;
+
+		const rows = await this.values(placeholderValues);
+		if (!fields) {
+			return rows as T['execute'];
+		}
+		return (rows as unknown[][]).map((row) => mapResultRow<T['execute']>(fields, row, joinsNotNullableMap));
+	}
+
+	all(placeholderValues?: Record<string, unknown> | undefined): Promise<T['all']> {
+		return this.execute(placeholderValues);
+	}
+
+	async values(placeholderValues: Record<string, unknown> = {}): Promise<T['values']> {
+		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 
 		this.rawQuery.input.parameters = params.map((param, index) => ({
 			name: `${index + 1}`,
@@ -56,7 +70,7 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 
 		this.options.logger?.logQuery(this.rawQuery.input.sql!, this.rawQuery.input.parameters);
 
-		const { fields, rawQuery, client, joinsNotNullableMap } = this;
+		const { fields, rawQuery, client } = this;
 		if (!fields) {
 			const result = await client.send(rawQuery);
 			return result.records ?? [];
@@ -65,13 +79,8 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 		const result = await client.send(rawQuery);
 
 		return result.records?.map((result: any) => {
-			const mappedResult = result.map((res: any) => getValueFromDataApi(res));
-			return mapResultRow<T['execute']>(fields, mappedResult, joinsNotNullableMap);
+			return result.map((res: any) => getValueFromDataApi(res));
 		});
-	}
-
-	all(placeholderValues?: Record<string, unknown> | undefined): Promise<T['all']> {
-		return this.execute(placeholderValues);
 	}
 }
 

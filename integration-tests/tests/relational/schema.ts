@@ -1,9 +1,9 @@
-import { foreignKey, integer, pgTable, serial, text } from '~/pg-core';
-import { relations } from '~/relations';
+import { relations } from 'drizzle-orm';
+import { foreignKey, integer, pgTable, serial, text } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
 	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
+	name: text('name'),
 	cityId: integer('city_id').references(() => cities.id).notNull(),
 	homeCityId: integer('home_city_id').references(() => cities.id),
 });

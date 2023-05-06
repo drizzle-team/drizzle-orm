@@ -1,5 +1,6 @@
 import type { AnyColumn } from './column';
 import { Column } from './column';
+import { type Logger } from './logger';
 import type { SelectedFieldsOrdered } from './operations';
 import type { DriverValueDecoder } from './sql';
 import { Param, SQL } from './sql';
@@ -254,4 +255,15 @@ export function getTableLikeName(table: AnyTable | Subquery | View | SQL): strin
 		: table[Table.Symbol.IsAlias]
 		? table[Table.Symbol.Name]
 		: table[Table.Symbol.BaseName];
+}
+
+export type ColumnsWithTable<
+	TTableName extends string,
+	TForeignTableName extends string,
+	TColumns extends AnyColumn<{ tableName: TTableName }>[],
+> = { [Key in keyof TColumns]: AnyColumn<{ tableName: TForeignTableName }> };
+
+export interface DrizzleConfig<TSchema extends Record<string, unknown> = {}> {
+	logger?: boolean | Logger;
+	schema?: TSchema;
 }

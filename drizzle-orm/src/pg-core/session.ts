@@ -18,6 +18,9 @@ export abstract class PreparedQuery<T extends PreparedQueryConfig> {
 
 	/** @internal */
 	abstract all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;
+
+	/** @internal */
+	abstract values(placeholderValues?: Record<string, unknown>): Promise<T['values']>;
 }
 
 export interface PgTransactionConfig {
@@ -51,6 +54,14 @@ export abstract class PgSession<TQueryResult extends QueryResultHKT = QueryResul
 		).all();
 	}
 
+	values<T = unknown>(query: SQL): Promise<T[]> {
+		return this.prepareQuery<PreparedQueryConfig & { values: T[] }>(
+			this.dialect.sqlToQuery(query),
+			undefined,
+			undefined,
+		).values();
+	}
+
 	abstract transaction<T>(
 		transaction: (tx: PgTransaction<TQueryResult>) => Promise<T>,
 		config?: PgTransactionConfig,
@@ -59,7 +70,7 @@ export abstract class PgSession<TQueryResult extends QueryResultHKT = QueryResul
 
 export abstract class PgTransaction<TQueryResult extends QueryResultHKT> extends PgDatabase<TQueryResult> {
 	constructor(dialect: PgDialect, session: PgSession, protected readonly nestedIndex = 0) {
-		super(dialect, session);
+		super(dialect, session, undefined);
 	}
 
 	rollback(): never {

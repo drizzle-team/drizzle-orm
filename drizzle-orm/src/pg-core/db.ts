@@ -1,13 +1,16 @@
 import type { PgDialect } from '~/pg-core/dialect';
 import { PgDelete, PgInsertBuilder, PgSelectBuilder, PgUpdateBuilder, QueryBuilder } from '~/pg-core/query-builders';
 import type { PgSession, PgTransaction, PgTransactionConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
-import type { AnyPgTable } from '~/pg-core/table';
+import { type AnyPgTable } from '~/pg-core/table';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import {
 	type BuildQueryResult,
-	type BuildSelectionForTable,
-	type TablesWithRelations,
-	type TableWithRelations,
+	createTableRelationsHelpers,
+	type DBQueryConfig,
+	extractTablesRelationalConfig,
+	mapRelationalRow,
+	type TableRelationalConfig,
+	type TablesRelationalConfig,
 } from '~/relations';
 import { type SQLWrapper } from '~/sql';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
@@ -20,10 +23,15 @@ import type { PgMaterializedView } from './view';
 
 export class PgDatabase<
 	TQueryResult extends QueryResultHKT,
-	TSchema extends TablesWithRelations = {},
+	TSchema extends TablesRelationalConfig = {},
 > {
 	declare readonly _: {
-		readonly schema: TSchema;
+		readonly schema: TSchema | undefined;
+		readonly tableNamesMap: Record<string, string>;
+	};
+
+	query: {
+		[K in keyof TSchema]: RelationalQueryBuilder<TSchema, TSchema[K]>;
 	};
 
 	constructor(
@@ -31,7 +39,32 @@ export class PgDatabase<
 		readonly dialect: PgDialect,
 		/** @internal */
 		readonly session: PgSession<any>,
-	) {}
+		schema: Record<string, unknown> | undefined,
+	) {
+		if (schema) {
+			const { tables: extractedSchema, tableNamesMap } = extractTablesRelationalConfig<TSchema>(
+				schema,
+				createTableRelationsHelpers,
+			);
+			this._ = { schema: extractedSchema, tableNamesMap };
+		} else {
+			this._ = { schema: undefined, tableNamesMap: {} };
+		}
+		this.query = {} as typeof this['query'];
+		if (this._.schema) {
+			for (const [tableName, columns] of Object.entries(this._.schema)) {
+				this.query[tableName as keyof TSchema] = new RelationalQueryBuilder(
+					schema!,
+					this._.schema,
+					this._.tableNamesMap,
+					schema![tableName] as AnyPgTable,
+					columns,
+					dialect,
+					session,
+				);
+			}
+		}
+	}
 
 	$with<TAlias extends string>(alias: TAlias) {
 		return {
@@ -96,21 +129,53 @@ export class PgDatabase<
 	): Promise<T> {
 		return this.session.transaction(transaction, config);
 	}
-
-	declare query: {
-		[K in keyof TSchema]: RelationalQueryBuilder<TSchema, TSchema[K]>;
-	};
 }
 
-class RelationalQueryBuilder<TSchema extends TablesWithRelations, TFields extends TableWithRelations> {
-	findMany<TSelection extends BuildSelectionForTable<TSchema, TFields>>(
-		_selection?: TSelection,
-	): Promise<Simplify<BuildQueryResult<TSchema, TFields, TSelection>, { deep: true }>[]> {
-		return undefined as any;
+class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields extends TableRelationalConfig> {
+	constructor(
+		private fullSchema: Record<string, unknown>,
+		private schema: TSchema,
+		private tableNamesMap: Record<string, string>,
+		private table: AnyPgTable,
+		private tableConfig: TableRelationalConfig,
+		private dialect: PgDialect,
+		private session: PgSession,
+	) {}
+
+	declare test: DBQueryConfig<TSchema, TFields>;
+
+	async findMany<TConfig extends DBQueryConfig<TSchema, TFields>>(
+		config?: TConfig,
+	): Promise<Simplify<BuildQueryResult<TSchema, TFields, TConfig>, { deep: true }>[]> {
+		const query = this.dialect.buildRelationalQuery(
+			this.fullSchema,
+			this.schema,
+			this.tableNamesMap,
+			this.table,
+			this.tableConfig,
+			config ?? true,
+			this.tableConfig.tsName,
+			[],
+			true,
+		);
+
+		const rows = await this.session.values<unknown[]>(query.sql);
+		return rows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, query.selection)) as any;
 	}
-	findFirst<TSelection extends BuildSelectionForTable<TSchema, TFields>>(
-		_selection?: TSelection,
+
+	findFirst<TSelection extends DBQueryConfig<TSchema, TFields>>(
+		config?: TSelection,
 	): Promise<Simplify<BuildQueryResult<TSchema, TFields, TSelection>, { deep: true }>> {
-		return undefined as any;
+		return this.dialect.buildRelationalQuery(
+			this.fullSchema,
+			this.schema,
+			this.tableNamesMap,
+			this.table,
+			this.tableConfig,
+			config ?? true,
+			this.tableConfig.tsName,
+			[],
+			true,
+		) as any;
 	}
 }

@@ -4,11 +4,24 @@ import type { MigrationMeta } from '~/migrator';
 import type { AnyPgColumn } from '~/pg-core/columns';
 import { PgColumn, PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core/columns';
 import type { PgDeleteConfig, PgInsertConfig, PgUpdateConfig } from '~/pg-core/query-builders';
-import type { PgSelectConfig, SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
+import type { JoinsValue, PgSelectConfig, SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
 import type { AnyPgTable } from '~/pg-core/table';
 import { PgTable } from '~/pg-core/table';
 import {
+	type BuildRelationalQueryResult,
+	type DBQueryConfig,
+	normalizeRelation,
+	One,
+	operators,
+	orderByOperators,
+	Relation,
+	type TableRelationalConfig,
+	type TablesRelationalConfig,
+} from '~/relations';
+import {
+	and,
 	type DriverValueEncoder,
+	eq,
 	name,
 	Param,
 	type Query,
@@ -19,8 +32,9 @@ import {
 } from '~/sql';
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
-import { orderSelectedFields, type UpdateSet } from '~/utils';
+import { orderSelectedFields, type UpdateSet, type ValueOrArray } from '~/utils';
 import { ViewBaseConfig } from '~/view';
+import { aliasedTable, aliasedTableColumn } from '..';
 import type { PgSession } from './session';
 import { type PgMaterializedView, PgViewBase } from './view';
 
@@ -172,9 +186,10 @@ export class PgDialect {
 	}
 
 	buildSelectQuery(
-		{ withList, fields, where, having, table, joins, orderBy, groupBy, limit, offset, lockingClauses }: PgSelectConfig,
+		{ withList, fields, fieldsFlat, where, having, table, joins, orderBy, groupBy, limit, offset, lockingClauses }:
+			PgSelectConfig,
 	): SQL {
-		const fieldsList = orderSelectedFields<AnyPgColumn>(fields);
+		const fieldsList = fieldsFlat ?? orderSelectedFields<AnyPgColumn>(fields);
 		for (const f of fieldsList) {
 			if (
 				f.field instanceof Column
@@ -216,7 +231,7 @@ export class PgDialect {
 
 		const tableSql = (() => {
 			if (table instanceof Table && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
-				return sql`${name(table[Table.Symbol.OriginalName])} ${name(table[Table.Symbol.Name])}`;
+				return sql`${sql.identifier(table[Table.Symbol.OriginalName])} ${sql.identifier(table[Table.Symbol.Name])}`;
 			}
 
 			return table;
@@ -371,5 +386,279 @@ export class PgDialect {
 			escapeString: this.escapeString,
 			prepareTyping: this.prepareTyping,
 		});
+	}
+
+	buildRelationalQuery(
+		fullSchema: Record<string, unknown>,
+		schema: TablesRelationalConfig,
+		tableNamesMap: Record<string, string>,
+		table: AnyPgTable,
+		tableConfig: TableRelationalConfig,
+		config: true | DBQueryConfig,
+		tableAlias: string,
+		relationColumns: AnyColumn[],
+		isRoot = false,
+	): BuildRelationalQueryResult {
+		if (config === true) {
+			const selectionEntries = Object.entries(tableConfig.columns);
+			const selection: BuildRelationalQueryResult['selection'] = selectionEntries.map(([key, value]) => ({
+				dbKey: value.name,
+				tsKey: key,
+				field: value,
+				tableTsKey: undefined,
+				isJson: false,
+				selection: [],
+			}));
+
+			return {
+				tableTsKey: tableConfig.tsName,
+				sql: this.buildSelectQuery({
+					table,
+					fields: {},
+					fieldsFlat: selectionEntries.map(([, c]) => ({
+						path: [c.name],
+						field: c as AnyPgColumn,
+					})),
+					groupBy: [],
+					orderBy: [],
+					joins: [],
+					lockingClauses: [],
+					withList: [],
+				}),
+				selection,
+			};
+		}
+
+		const selection: Record<string, AnyPgColumn | SQL | SQL.Aliased> = {};
+		let selectedColumns: string[] = [];
+		let selectedCustomFields: { key: string; value: SQL | SQL.Aliased }[] = [];
+		let selectedRelations: { key: string; value: true | DBQueryConfig }[] = [];
+
+		if (config.select) {
+			let isIncludeMode = false;
+
+			for (const [field, value] of Object.entries(config.select)) {
+				if (value === undefined) {
+					continue;
+				}
+
+				if (field in tableConfig.columns) {
+					if (!isIncludeMode && value === true) {
+						isIncludeMode = true;
+					}
+					selectedColumns.push(field);
+				} else {
+					selectedRelations.push({ key: field, value });
+				}
+			}
+
+			if (!isIncludeMode && selectedColumns.length > 0) {
+				selectedColumns = Object.entries(tableConfig.columns)
+					.filter(([key, value]) => value instanceof Column && !selectedColumns.includes(key))
+					.map(([field]) => field);
+			}
+		} else if (config.include) {
+			selectedRelations = Object.entries(config.include).map(([key, value]) => ({
+				key,
+				value: value as any,
+			}));
+		}
+
+		if (!config.select) {
+			selectedColumns = Object.keys(tableConfig.columns);
+		}
+
+		if (config.includeCustom) {
+			const includeCustom = config.includeCustom(tableConfig.columns, { sql });
+			selectedCustomFields = Object.entries(includeCustom).map(([key, value]) => ({
+				key,
+				value,
+			}));
+		}
+
+		for (const field of selectedColumns) {
+			const column = tableConfig.columns[field] as AnyPgColumn;
+			selection[field] = column;
+		}
+
+		for (const { key, value } of selectedCustomFields) {
+			selection[key] = value;
+		}
+
+		const builtRelations: { key: string; value: BuildRelationalQueryResult }[] = [];
+		const joins: JoinsValue[] = [];
+		const builtRelationFields: SelectedFieldsOrdered = [];
+
+		for (const { key: selectedRelationKey, value: selectedRelationValue } of selectedRelations) {
+			let relation: Relation | undefined;
+			for (const [relationKey, relationValue] of Object.entries(tableConfig.relations)) {
+				if (relationValue instanceof Relation && relationKey === selectedRelationKey) {
+					relation = relationValue;
+					break;
+				}
+			}
+
+			if (!relation) {
+				throw new Error(`Relation ${selectedRelationKey} not found`);
+			}
+
+			const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
+
+			const relationAlias = `${tableAlias}_${selectedRelationKey}`;
+
+			const builtRelation = this.buildRelationalQuery(
+				fullSchema,
+				schema,
+				tableNamesMap,
+				fullSchema[relation.referencedTable[Table.Symbol.Name]] as AnyPgTable,
+				schema[relation.referencedTable[Table.Symbol.Name]]!,
+				selectedRelationValue,
+				relationAlias,
+				normalizedRelation.references,
+			);
+			builtRelations.push({ key: selectedRelationKey, value: builtRelation });
+
+			joins.push({
+				table: new Subquery(builtRelation.sql, {}, relationAlias),
+				alias: selectedRelationKey,
+				on: and(
+					...normalizedRelation.fields.map((field, i) =>
+						eq(
+							aliasedTableColumn(field, tableAlias),
+							aliasedTableColumn(normalizedRelation.references[i]!, relationAlias),
+						)
+					),
+				),
+				joinType: 'left',
+			});
+
+			const elseField = sql`jsonb_agg(jsonb_build_array(${
+				sql.join(
+					builtRelation.selection.map(({ dbKey: key }) => {
+						const field = sql`${sql.identifier(relationAlias)}.${sql.identifier(key)}`;
+						return field;
+						// return isJson ? sql`json(${field})` : field;
+					}),
+					sql`, `,
+				)
+			}))`;
+
+			const field = sql`case when count(${
+				sql.join(normalizedRelation.references.map((c) => aliasedTableColumn(c, relationAlias)), sql.raw(' or '))
+			}) = 0 then ${relation instanceof One ? sql`null` : sql`'[]'`} else ${elseField} end as ${
+				sql.identifier(selectedRelationKey)
+			}`;
+
+			builtRelationFields.push({
+				path: [selectedRelationKey],
+				field: field,
+			});
+		}
+
+		const unselectedRelationColumns = [...relationColumns];
+
+		const flatSelection: SelectedFieldsOrdered = Object.entries(selection).map(([key, value]) => {
+			if (value instanceof Column) {
+				const valueIndex = unselectedRelationColumns.indexOf(value);
+				if (valueIndex !== -1) {
+					unselectedRelationColumns.splice(valueIndex, 1);
+				}
+				value = aliasedTableColumn(value, tableAlias);
+			}
+			return {
+				path: [key],
+				field: value,
+			};
+		});
+
+		const relationColumnsSelection: SelectedFieldsOrdered = unselectedRelationColumns.map((column) => ({
+			path: [column.name],
+			field: aliasedTableColumn(column, tableAlias) as AnyPgColumn,
+		}));
+
+		const aliasedFields = Object.fromEntries(
+			Object.entries(tableConfig.columns).map(([key, value]) => [key, aliasedTableColumn(value, tableAlias)]),
+		);
+
+		let where = config.where?.(aliasedFields, operators) ?? undefined;
+
+		where = and(
+			where,
+			...selectedRelations.filter(({ key }) => {
+				const relation = config.include?.[key] ?? config.select?.[key];
+				return typeof relation === 'object' && relation.limit !== undefined;
+			}).map(({ key }) => {
+				const field = sql`${sql.identifier(`${tableAlias}_${key}`)}.${sql.identifier('__drizzle_limit')}`;
+				const value = (config.include?.[key] ?? config.select?.[key]) as DBQueryConfig;
+				return sql`(${field} <= ${value.limit} or ${field} is null)`;
+			}),
+		);
+
+		const groupBy = (builtRelationFields.length
+			? (tableConfig.primaryKey.length ? tableConfig.primaryKey : Object.values(tableConfig.columns)).map((c) =>
+				aliasedTableColumn(c, tableAlias)
+			)
+			: []) as AnyPgColumn[];
+
+		let orderBy = config.orderBy?.(aliasedFields, orderByOperators) as ValueOrArray<AnyPgColumn | SQL> ?? [];
+		if (!Array.isArray(orderBy)) {
+			orderBy = [orderBy];
+		}
+
+		const fieldsFlat: SelectedFieldsOrdered = [
+			...flatSelection,
+			...relationColumnsSelection,
+			...builtRelationFields,
+		];
+
+		let limit;
+
+		if (config.limit !== undefined) {
+			if (isRoot) {
+				limit = config.limit;
+			} else {
+				fieldsFlat.push({
+					path: ['__drizzle_limit'],
+					field: sql`row_number() over(partition by ${relationColumns.map((c) => aliasedTableColumn(c, tableAlias))})`
+						.as('__drizzle_limit'),
+				});
+			}
+		}
+
+		const result = this.buildSelectQuery({
+			table: aliasedTable(table, tableAlias),
+			fields: {},
+			fieldsFlat,
+			where,
+			groupBy,
+			orderBy,
+			joins,
+			lockingClauses: [],
+			withList: [],
+			limit,
+		});
+
+		return {
+			tableTsKey: tableConfig.tsName,
+			sql: result,
+			selection: [
+				...flatSelection.map(({ path, field }) => ({
+					dbKey: (tableConfig.columns[path[0]!] as AnyColumn).name,
+					tsKey: path[0]!,
+					field,
+					tableTsKey: undefined,
+					isJson: false,
+					selection: [],
+				})),
+				...builtRelations.map(({ key, value }) => ({
+					dbKey: key,
+					tsKey: key,
+					field: undefined,
+					tableTsKey: value.tableTsKey,
+					isJson: true,
+					selection: value.selection,
+				})),
+			],
+		};
 	}
 }

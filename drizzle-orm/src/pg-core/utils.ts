@@ -2,11 +2,11 @@ import type { AnyPgTable } from '~/pg-core/table';
 import { PgTable } from '~/pg-core/table';
 import { Table } from '~/table';
 import { ViewBaseConfig } from '~/view';
-import type { Check } from './checks';
+import { type Check, CheckBuilder } from './checks';
 import { type AnyPgColumn } from './columns';
-import type { ForeignKey } from './foreign-keys';
-import type { Index } from './indexes';
-import type { PrimaryKey } from './primary-keys';
+import { type ForeignKey, ForeignKeyBuilder } from './foreign-keys';
+import { type Index, IndexBuilder } from './indexes';
+import { type PrimaryKey, PrimaryKeyBuilder } from './primary-keys';
 import { type PgMaterializedView, PgMaterializedViewConfig, type PgView, PgViewConfig } from './view';
 
 export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
@@ -18,22 +18,22 @@ export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
 	const name = table[Table.Symbol.Name];
 	const schema = table[Table.Symbol.Schema];
 
-	// const extraConfigBuilder = table[PgTable.Symbol.ExtraConfigBuilder];
+	const extraConfigBuilder = table[PgTable.Symbol.ExtraConfigBuilder];
 
-	// if (extraConfigBuilder !== undefined) {
-	// 	const extraConfig = extraConfigBuilder(table[Table.Symbol.Columns]);
-	// 	for (const builder of Object.values(extraConfig)) {
-	// 		if (builder instanceof IndexBuilder) {
-	// 			indexes.push(builder.build(table));
-	// 		} else if (builder instanceof CheckBuilder) {
-	// 			checks.push(builder.build(table));
-	// 		} else if (builder instanceof PrimaryKeyBuilder) {
-	// 			primaryKeys.push(builder.build(table));
-	// 		} else if (builder instanceof ForeignKeyBuilder) {
-	// 			foreignKeys.push(builder.build(table));
-	// 		}
-	// 	}
-	// }
+	if (extraConfigBuilder !== undefined) {
+		const extraConfig = extraConfigBuilder(table[Table.Symbol.Columns]);
+		for (const builder of Object.values(extraConfig)) {
+			if (builder instanceof IndexBuilder) {
+				indexes.push(builder.build(table));
+			} else if (builder instanceof CheckBuilder) {
+				checks.push(builder.build(table));
+			} else if (builder instanceof PrimaryKeyBuilder) {
+				primaryKeys.push(builder.build(table));
+			} else if (builder instanceof ForeignKeyBuilder) {
+				foreignKeys.push(builder.build(table));
+			}
+		}
+	}
 
 	return {
 		columns,

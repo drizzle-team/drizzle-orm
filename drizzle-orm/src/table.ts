@@ -1,18 +1,6 @@
 import type { AnyColumn, GetColumnData } from './column';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations';
-import type { Simplify, Update } from './utils';
-
-export class TableExtraConfig<TTableName extends string, TConfig extends unknown[]> {
-	declare protected $brand: 'TableConfig';
-	readonly _: {
-		readonly tableName: TTableName;
-		readonly config: (helpers: any) => TConfig;
-	};
-
-	constructor(table: AnyTable<{ name: TTableName }>, config: (helpers: any) => TConfig) {
-		this._ = { tableName: table[TableName] as TTableName, config };
-	}
-}
+import type { Assume, Simplify, Update } from './utils';
 
 export interface TableConfig<TColumn extends AnyColumn = AnyColumn> {
 	name: string;
@@ -42,6 +30,11 @@ export const BaseName = Symbol('BaseName');
 /** @internal */
 export const IsAlias = Symbol('IsAlias');
 
+/** @internal */
+export const ExtraConfigBuilder = Symbol('ExtraConfigBuilder');
+
+const IsDrizzleTable = Symbol.for('IsDrizzleTable');
+
 export class Table<T extends TableConfig = TableConfig> {
 	declare readonly _: {
 		readonly brand: 'Table';
@@ -63,6 +56,7 @@ export class Table<T extends TableConfig = TableConfig> {
 		Columns: Columns as typeof Columns,
 		BaseName: BaseName as typeof BaseName,
 		IsAlias: IsAlias as typeof IsAlias,
+		ExtraConfigBuilder: ExtraConfigBuilder as typeof ExtraConfigBuilder,
 	};
 
 	/**
@@ -92,6 +86,11 @@ export class Table<T extends TableConfig = TableConfig> {
 	/** @internal */
 	[IsAlias] = false;
 
+	/** @internal */
+	[ExtraConfigBuilder]: ((self: any) => Record<string, unknown>) | undefined = undefined;
+
+	[IsDrizzleTable] = true;
+
 	constructor(name: string, schema: string | undefined, baseName: string) {
 		this[TableName] = this[OriginalName] = name;
 		this[Schema] = schema;
@@ -99,7 +98,24 @@ export class Table<T extends TableConfig = TableConfig> {
 	}
 }
 
+export function isTable(table: unknown): table is Table {
+	return typeof table === 'object' && table !== null && IsDrizzleTable in table;
+}
+
 export type AnyTable<TPartial extends Partial<TableConfig> = {}> = Table<UpdateTableConfig<TableConfig, TPartial>>;
+
+export interface AnyTableHKT {
+	readonly brand: 'TableHKT';
+	config: unknown;
+	type: unknown;
+}
+
+export interface AnyTableHKTBase extends AnyTableHKT {
+	type: AnyTable<Assume<this['config'], Partial<TableConfig>>>;
+}
+
+export type AnyTableKind<THKT extends AnyTableHKT, TConfig extends Partial<TableConfig>> =
+	(THKT & { config: TConfig })['type'];
 
 export function getTableName<T extends Table>(table: T): T['_']['name'] {
 	return table[TableName];

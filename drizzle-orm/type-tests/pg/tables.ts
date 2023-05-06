@@ -6,17 +6,10 @@ import {
 	bigint,
 	bigserial,
 	char,
-	customType,
-	decimal,
-	type PgInteger,
-	type PgSerial,
-	type PgTableWithColumns,
-	type PgText,
-	varchar,
-} from '~/pg-core';
-import {
 	check,
 	cidr,
+	customType,
+	decimal,
 	foreignKey,
 	index,
 	inet,
@@ -24,13 +17,18 @@ import {
 	macaddr,
 	macaddr8,
 	pgEnum,
+	type PgInteger,
+	type PgSerial,
 	pgTable,
+	type PgTableWithColumns,
+	type PgText,
 	primaryKey,
 	serial,
 	text,
 	timestamp,
 	uniqueIndex,
 	uuid,
+	varchar,
 } from '~/pg-core';
 import { pgSchema } from '~/pg-core/schema';
 import {
@@ -682,9 +680,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		name: text('name').notNull().primaryKey(),
 		role: text('role', { enum: ['admin', 'user'] }).default('user').notNull(),
 		population: integer('population').default(0),
-	}, (cities) => ({
-		citiesNameIdx: index().on(cities.id),
-	}));
+	});
 
 	Expect<
 		Equal<

@@ -291,6 +291,7 @@ export class Name {
 
 /**
  * Any DB name (table, column, index etc.)
+ * @deprecated Use `sql.identifier` instead.
  */
 export function name(value: string): Name {
 	return new Name(value);
@@ -411,6 +412,13 @@ export namespace sql {
 			result.push(chunk);
 		}
 		return sql.fromList(result);
+	}
+
+	/**
+	 *  Any DB identifier (table name, column name, index name etc.)
+	 */
+	export function identifier(value: string): Name {
+		return name(value);
 	}
 }
 
