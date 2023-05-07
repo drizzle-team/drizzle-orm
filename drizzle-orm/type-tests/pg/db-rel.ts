@@ -91,7 +91,7 @@ export const db = drizzle(new Client(), { schema });
 {
 	const result = await db.query.users.findMany({
 		includeCustom: (users, { sql }) => ({
-			nameLower: sql<string>`lower(${users.name})`,
+			nameLower: sql<string>`lower(${users.name})`.as('name_lower'),
 		}),
 	});
 	Expect<
@@ -112,7 +112,7 @@ export const db = drizzle(new Client(), { schema });
 	const result = await db.query.users.findMany({
 		select: {},
 		includeCustom: (users, { sql }) => ({
-			nameLower: sql<string>`lower(${users.name})`,
+			nameLower: sql<string>`lower(${users.name})`.as('name_lower'),
 		}),
 	});
 	Expect<
