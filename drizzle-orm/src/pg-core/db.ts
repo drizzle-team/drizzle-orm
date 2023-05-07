@@ -142,9 +142,7 @@ class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields ext
 		private session: PgSession,
 	) {}
 
-	declare test: DBQueryConfig<TSchema, TFields>;
-
-	async findMany<TConfig extends DBQueryConfig<TSchema, TFields>>(
+	async findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
 		config?: TConfig,
 	): Promise<Simplify<BuildQueryResult<TSchema, TFields, TConfig>, { deep: true }>[]> {
 		const query = this.dialect.buildRelationalQuery(
@@ -153,7 +151,7 @@ class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields ext
 			this.tableNamesMap,
 			this.table,
 			this.tableConfig,
-			config ?? true,
+			(config as DBQueryConfig<'many'> | undefined) ?? true,
 			this.tableConfig.tsName,
 			[],
 			true,
@@ -163,19 +161,25 @@ class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields ext
 		return rows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, query.selection)) as any;
 	}
 
-	findFirst<TSelection extends DBQueryConfig<TSchema, TFields>>(
+	async findFirst<TSelection extends Omit<DBQueryConfig<'many', TSchema, TFields>, 'limit'>>(
 		config?: TSelection,
-	): Promise<Simplify<BuildQueryResult<TSchema, TFields, TSelection>, { deep: true }>> {
-		return this.dialect.buildRelationalQuery(
+	): Promise<Simplify<BuildQueryResult<TSchema, TFields, TSelection>, { deep: true }> | undefined> {
+		const query = this.dialect.buildRelationalQuery(
 			this.fullSchema,
 			this.schema,
 			this.tableNamesMap,
 			this.table,
 			this.tableConfig,
-			config ?? true,
+			config ? { ...(config as DBQueryConfig<'many'> | undefined), limit: 1 } : { limit: 1 },
 			this.tableConfig.tsName,
 			[],
 			true,
-		) as any;
+		);
+
+		const rows = await this.session.values<unknown[]>(query.sql);
+		if (!rows[0]) {
+			return undefined;
+		}
+		return mapRelationalRow(this.schema, this.tableConfig, rows[0], query.selection) as any;
 	}
 }

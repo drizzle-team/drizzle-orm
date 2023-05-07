@@ -2,7 +2,7 @@ import { type AnyTable, type InferModelFromColumns, isTable, Table } from '~/tab
 import { type AnyColumn, Column } from './column';
 import { PrimaryKeyBuilder } from './pg-core';
 import { and, asc, desc, eq, or, type Placeholder, SQL, sql } from './sql';
-import { type Assume, type ColumnsWithTable, type Equal, type ValueOrArray } from './utils';
+import { type Assume, type ColumnsWithTable, type Equal, type SimplifyShallow, type ValueOrArray } from './utils';
 
 export abstract class Relation<TTableName extends string = string> {
 	declare readonly brand: 'Relation';
@@ -29,7 +29,7 @@ export class Relations<
 	) {}
 }
 
-export class One<TTableName extends string> extends Relation<TTableName> {
+export class One<TTableName extends string = string> extends Relation<TTableName> {
 	declare protected $brand: 'One';
 
 	constructor(
@@ -112,44 +112,51 @@ export const orderByOperators = {
 export type OrderByOperators = typeof orderByOperators;
 
 export type DBQueryConfig<
+	TRelationType extends 'one' | 'many' = 'one' | 'many',
 	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
 	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
-> = {
-	where?: (
-		fields: TTableConfig['columns'],
-		operators: Operators,
-	) => SQL | undefined;
-	orderBy?: (
-		fields: TTableConfig['columns'],
-		operators: OrderByOperators,
-	) => ValueOrArray<AnyColumn | SQL>;
-	limit?: number | Placeholder;
-	offset?: number | Placeholder;
-	select?:
-		& {
-			[K in keyof TTableConfig['columns']]?: boolean;
-		}
-		& {
+> =
+	& {
+		select?:
+			& {
+				[K in keyof TTableConfig['columns']]?: boolean;
+			}
+			& {
+				[K in keyof TTableConfig['relations']]?:
+					| true
+					| DBQueryConfig<
+						TTableConfig['relations'][K] extends One ? 'one' : 'many',
+						TSchema,
+						TSchema[TTableConfig['relations'][K]['referencedTable']['_']['name']]
+					>;
+			};
+		include?: {
 			[K in keyof TTableConfig['relations']]?:
 				| true
 				| DBQueryConfig<
+					TTableConfig['relations'][K] extends One ? 'one' : 'many',
 					TSchema,
 					TSchema[TTableConfig['relations'][K]['referencedTable']['_']['name']]
 				>;
 		};
-	include?: {
-		[K in keyof TTableConfig['relations']]?:
-			| true
-			| DBQueryConfig<
-				TSchema,
-				TSchema[TTableConfig['relations'][K]['referencedTable']['_']['name']]
-			>;
-	};
-	includeCustom?: (
-		fields: TTableConfig['columns'],
-		operators: { sql: Operators['sql'] },
-	) => Record<string, SQL | SQL.Aliased>;
-};
+		includeCustom?: (
+			fields: TTableConfig['columns'],
+			operators: { sql: Operators['sql'] },
+		) => Record<string, SQL.Aliased>;
+	}
+	& (TRelationType extends 'many' ? {
+			where?: (
+				fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
+				operators: Operators,
+			) => SQL | undefined;
+			orderBy?: (
+				fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
+				operators: OrderByOperators,
+			) => ValueOrArray<AnyColumn | SQL>;
+			limit?: number | Placeholder;
+			offset?: number | Placeholder;
+		}
+		: {});
 export interface TableRelationalConfig {
 	tsName: string;
 	dbName: string;
@@ -194,7 +201,9 @@ export type BuildQueryResult<
 						K
 							in (Equal<TSelection[keyof TSelection & keyof TTableConfig['columns']], false> extends true
 								? Exclude<keyof TTableConfig['columns'], keyof TSelection>
-								: keyof TSelection & keyof TTableConfig['columns'])
+								: 
+									& { [K in keyof TSelection]: Equal<TSelection[K], true> extends true ? K : never }[keyof TSelection]
+									& keyof TTableConfig['columns'])
 					]: TTableConfig['columns'][K];
 				}
 				: TTableConfig['columns']

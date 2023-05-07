@@ -1,5 +1,6 @@
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { View, ViewBaseConfig } from '~/view';
+import { Relation } from '..';
 import type { AnyColumn } from '../column';
 import { Column } from '../column';
 import { Table } from '../table';
@@ -202,6 +203,14 @@ export class SQL<T = unknown> implements SQLWrapper {
 					new StringChunk('('),
 					chunk.getSQL(),
 					new StringChunk(')'),
+				], config);
+			}
+
+			if (chunk instanceof Relation) {
+				return this.buildQueryFromSourceParams([
+					chunk.sourceTable,
+					new StringChunk('.'),
+					sql.identifier(chunk.fieldName),
 				], config);
 			}
 

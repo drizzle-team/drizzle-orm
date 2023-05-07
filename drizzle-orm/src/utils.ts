@@ -206,6 +206,12 @@ export type Simplify<
 > = Flatten<AnyType> extends AnyType ? Flatten<AnyType, Options>
 	: AnyType;
 
+export type SimplifyShallow<T> =
+	& {
+		[K in keyof T]: T[K];
+	}
+	& {};
+
 export type Assume<T, U> = T extends U ? T : U;
 
 export type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends (<T>() => T extends Y ? 1 : 2) ? true : false;

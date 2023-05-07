@@ -1,28 +1,16 @@
-import { aliasedTable, aliasedTableColumn } from '~/alias';
 import type { AnyColumn } from '~/column';
 import { Column } from '~/column';
 import type { MigrationMeta } from '~/migrator';
-import {
-	type DBQueryConfig,
-	Many,
-	normalizeRelation,
-	One,
-	operators,
-	orderByOperators,
-	Relation,
-	type TableRelationalConfig,
-	type TablesRelationalConfig,
-} from '~/relations';
-import { and, eq, name, Param, param, type Query, SQL, sql, type SQLChunk } from '~/sql';
+import { name, Param, param, type Query, SQL, sql, type SQLChunk } from '~/sql';
 import type { AnySQLiteColumn } from '~/sqlite-core/columns';
 import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SQLiteTable } from '~/sqlite-core/table';
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
-import { orderSelectedFields, type UpdateSet, type ValueOrArray } from '~/utils';
+import { orderSelectedFields, type UpdateSet } from '~/utils';
 import { ViewBaseConfig } from '~/view';
-import type { JoinsValue, SelectedFieldsOrdered, SQLiteSelectConfig } from './query-builders/select.types';
+import type { SelectedFieldsOrdered, SQLiteSelectConfig } from './query-builders/select.types';
 import type { SQLiteSession } from './session';
 import { SQLiteViewBase } from './view';
 
@@ -306,270 +294,270 @@ export abstract class SQLiteDialect {
 		});
 	}
 
-	buildRelationalQuery(
-		fullSchema: Record<string, unknown>,
-		schema: TablesRelationalConfig,
-		tableNamesMap: Record<string, string>,
-		table: AnySQLiteTable,
-		tableConfig: TableRelationalConfig,
-		config: true | DBQueryConfig,
-		tableAlias: string,
-		relationColumns: AnyColumn[],
-		isRoot = false,
-	): BuildRelationalQueryResult {
-		if (config === true) {
-			const selectionEntries = Object.entries(tableConfig.columns);
-			const selection: BuildRelationalQueryResult['selection'] = selectionEntries.map(([key, value]) => ({
-				dbKey: value.name,
-				tsKey: key,
-				tableTsKey: undefined,
-				isJson: false,
-				selection: [],
-			}));
+	// 	buildRelationalQuery(
+	// 		fullSchema: Record<string, unknown>,
+	// 		schema: TablesRelationalConfig,
+	// 		tableNamesMap: Record<string, string>,
+	// 		table: AnySQLiteTable,
+	// 		tableConfig: TableRelationalConfig,
+	// 		config: true | DBQueryConfig<'many'>,
+	// 		tableAlias: string,
+	// 		relationColumns: AnyColumn[],
+	// 		isRoot = false,
+	// 	): BuildRelationalQueryResult {
+	// 		if (config === true) {
+	// 			const selectionEntries = Object.entries(tableConfig.columns);
+	// 			const selection: BuildRelationalQueryResult['selection'] = selectionEntries.map(([key, value]) => ({
+	// 				dbKey: value.name,
+	// 				tsKey: key,
+	// 				tableTsKey: undefined,
+	// 				isJson: false,
+	// 				selection: [],
+	// 			}));
 
-			return {
-				sql: isRoot
-					? this.buildSelectQuery({
-						table,
-						fields: {},
-						fieldsFlat: selectionEntries.map(([, c]) => ({
-							path: [c.name],
-							field: c as AnySQLiteColumn,
-						})),
-						groupBy: [],
-						orderBy: [],
-						joins: [],
-						withList: [],
-					})
-					: sql`${table}`,
-				selection,
-			};
-		}
+	// 			return {
+	// 				sql: isRoot
+	// 					? this.buildSelectQuery({
+	// 						table,
+	// 						fields: {},
+	// 						fieldsFlat: selectionEntries.map(([, c]) => ({
+	// 							path: [c.name],
+	// 							field: c as AnySQLiteColumn,
+	// 						})),
+	// 						groupBy: [],
+	// 						orderBy: [],
+	// 						joins: [],
+	// 						withList: [],
+	// 					})
+	// 					: sql`${table}`,
+	// 				selection,
+	// 			};
+	// 		}
 
-		const selection: Record<string, AnySQLiteColumn | SQL | SQL.Aliased> = {};
-		let selectedColumns: string[] = [];
-		let selectedCustomFields: { key: string; value: SQL | SQL.Aliased }[] = [];
-		let selectedRelations: { key: string; value: true | DBQueryConfig }[] = [];
+	// 		const selection: Record<string, AnySQLiteColumn | SQL | SQL.Aliased> = {};
+	// 		let selectedColumns: string[] = [];
+	// 		let selectedCustomFields: { key: string; value: SQL | SQL.Aliased }[] = [];
+	// 		let selectedRelations: { key: string; value: true | DBQueryConfig }[] = [];
 
-		if (config.select) {
-			let isIncludeMode = false;
+	// 		if (config.select) {
+	// 			let isIncludeMode = false;
 
-			for (const [field, value] of Object.entries(config.select)) {
-				if (value === undefined) {
-					continue;
-				}
+	// 			for (const [field, value] of Object.entries(config.select)) {
+	// 				if (value === undefined) {
+	// 					continue;
+	// 				}
 
-				if (field in tableConfig.columns) {
-					if (!isIncludeMode && value === true) {
-						isIncludeMode = true;
-					}
-					selectedColumns.push(field);
-				} else {
-					selectedRelations.push({ key: field, value });
-				}
-			}
+	// 				if (field in tableConfig.columns) {
+	// 					if (!isIncludeMode && value === true) {
+	// 						isIncludeMode = true;
+	// 					}
+	// 					selectedColumns.push(field);
+	// 				} else {
+	// 					selectedRelations.push({ key: field, value });
+	// 				}
+	// 			}
 
-			if (!isIncludeMode && selectedColumns.length > 0) {
-				selectedColumns = Object.entries(tableConfig.columns)
-					.filter(([key, value]) => value instanceof Column && !selectedColumns.includes(key))
-					.map(([field]) => field);
-			}
-		} else if (config.include) {
-			selectedRelations = Object.entries(config.include).map(([key, value]) => ({
-				key,
-				value: value as any,
-			}));
-		}
+	// 			if (!isIncludeMode && selectedColumns.length > 0) {
+	// 				selectedColumns = Object.entries(tableConfig.columns)
+	// 					.filter(([key, value]) => value instanceof Column && !selectedColumns.includes(key))
+	// 					.map(([field]) => field);
+	// 			}
+	// 		} else if (config.include) {
+	// 			selectedRelations = Object.entries(config.include).map(([key, value]) => ({
+	// 				key,
+	// 				value: value as any,
+	// 			}));
+	// 		}
 
-		if (!config.select) {
-			selectedColumns = Object.keys(tableConfig.columns);
-		}
+	// 		if (!config.select) {
+	// 			selectedColumns = Object.keys(tableConfig.columns);
+	// 		}
 
-		if (config.includeCustom) {
-			const includeCustom = config.includeCustom(tableConfig.columns, { sql });
-			selectedCustomFields = Object.entries(includeCustom).map(([key, value]) => ({
-				key,
-				value,
-			}));
-		}
+	// 		if (config.includeCustom) {
+	// 			const includeCustom = config.includeCustom(tableConfig.columns, { sql });
+	// 			selectedCustomFields = Object.entries(includeCustom).map(([key, value]) => ({
+	// 				key,
+	// 				value,
+	// 			}));
+	// 		}
 
-		for (const field of selectedColumns) {
-			const column = tableConfig.columns[field] as AnySQLiteColumn;
-			selection[field] = column;
-		}
+	// 		for (const field of selectedColumns) {
+	// 			const column = tableConfig.columns[field] as AnySQLiteColumn;
+	// 			selection[field] = column;
+	// 		}
 
-		for (const { key, value } of selectedCustomFields) {
-			selection[key] = value;
-		}
+	// 		for (const { key, value } of selectedCustomFields) {
+	// 			selection[key] = value;
+	// 		}
 
-		const builtRelations: { key: string; value: BuildRelationalQueryResult }[] = [];
-		const joins: JoinsValue[] = [];
-		const builtRelationFields: SelectedFieldsOrdered = [];
+	// 		const builtRelations: { key: string; value: BuildRelationalQueryResult }[] = [];
+	// 		const joins: JoinsValue[] = [];
+	// 		const builtRelationFields: SelectedFieldsOrdered = [];
 
-		for (const { key: selectedRelationKey, value: selectedRelationValue } of selectedRelations) {
-			let relation: Relation | undefined;
-			for (const [relationKey, relationValue] of Object.entries(tableConfig.relations)) {
-				if (relationValue instanceof Relation && relationKey === selectedRelationKey) {
-					relation = relationValue;
-					break;
-				}
-			}
+	// 		for (const { key: selectedRelationKey, value: selectedRelationValue } of selectedRelations) {
+	// 			let relation: Relation | undefined;
+	// 			for (const [relationKey, relationValue] of Object.entries(tableConfig.relations)) {
+	// 				if (relationValue instanceof Relation && relationKey === selectedRelationKey) {
+	// 					relation = relationValue;
+	// 					break;
+	// 				}
+	// 			}
 
-			if (!relation) {
-				throw new Error(`Relation ${selectedRelationKey} not found`);
-			}
+	// 			if (!relation) {
+	// 				throw new Error(`Relation ${selectedRelationKey} not found`);
+	// 			}
 
-			const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
+	// 			const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
 
-			const relationAlias = `${tableAlias}_${selectedRelationKey}`;
+	// 			const relationAlias = `${tableAlias}_${selectedRelationKey}`;
 
-			const builtRelation = this.buildRelationalQuery(
-				fullSchema,
-				schema,
-				tableNamesMap,
-				fullSchema[relation.referencedTable[Table.Symbol.Name]] as AnySQLiteTable,
-				schema[relation.referencedTable[Table.Symbol.Name]]!,
-				selectedRelationValue,
-				relationAlias,
-				normalizedRelation.references,
-			);
-			builtRelations.push({ key: selectedRelationKey, value: builtRelation });
+	// 			const builtRelation = this.buildRelationalQuery(
+	// 				fullSchema,
+	// 				schema,
+	// 				tableNamesMap,
+	// 				fullSchema[relation.referencedTable[Table.Symbol.Name]] as AnySQLiteTable,
+	// 				schema[relation.referencedTable[Table.Symbol.Name]]!,
+	// 				selectedRelationValue,
+	// 				relationAlias,
+	// 				normalizedRelation.references,
+	// 			);
+	// 			builtRelations.push({ key: selectedRelationKey, value: builtRelation });
 
-			joins.push({
-				table: new Subquery(builtRelation.sql, {}, relationAlias),
-				alias: selectedRelationKey,
-				on: and(
-					...normalizedRelation.fields.map((field, i) =>
-						eq(
-							aliasedTableColumn(field, tableAlias),
-							aliasedTableColumn(normalizedRelation.references[i]!, relationAlias),
-						)
-					),
-				),
-				joinType: 'left',
-			});
+	// 			joins.push({
+	// 				table: new Subquery(builtRelation.sql, {}, relationAlias),
+	// 				alias: selectedRelationKey,
+	// 				on: and(
+	// 					...normalizedRelation.fields.map((field, i) =>
+	// 						eq(
+	// 							aliasedTableColumn(field, tableAlias),
+	// 							aliasedTableColumn(normalizedRelation.references[i]!, relationAlias),
+	// 						)
+	// 					),
+	// 				),
+	// 				joinType: 'left',
+	// 			});
 
-			let elseField = sql`json_array(${
-				sql.join(
-					builtRelation.selection.map(({ dbKey: key, isJson }) => {
-						const field = sql`${sql.identifier(relationAlias)}.${sql.identifier(key)}`;
-						return isJson ? sql`json(${field})` : field;
-					}),
-					sql`, `,
-				)
-			})`;
-			if (relation instanceof Many) {
-				elseField = sql`json_group_array(${elseField})`;
-			}
+	// 			let elseField = sql`json_array(${
+	// 				sql.join(
+	// 					builtRelation.selection.map(({ dbKey: key, isJson }) => {
+	// 						const field = sql`${sql.identifier(relationAlias)}.${sql.identifier(key)}`;
+	// 						return isJson ? sql`json(${field})` : field;
+	// 					}),
+	// 					sql`, `,
+	// 				)
+	// 			})`;
+	// 			if (relation instanceof Many) {
+	// 				elseField = sql`json_group_array(${elseField})`;
+	// 			}
 
-			const field = sql`case when count(${
-				sql.join(normalizedRelation.references.map((c) => aliasedTableColumn(c, relationAlias)), sql.raw(' or '))
-			}) = 0 then ${relation instanceof One ? sql`null` : sql`'[]'`} else ${elseField} end as ${
-				sql.identifier(selectedRelationKey)
-			}`;
+	// 			const field = sql`case when count(${
+	// 				sql.join(normalizedRelation.references.map((c) => aliasedTableColumn(c, relationAlias)), sql.raw(' or '))
+	// 			}) = 0 then ${relation instanceof One ? sql`null` : sql`'[]'`} else ${elseField} end as ${
+	// 				sql.identifier(selectedRelationKey)
+	// 			}`;
 
-			builtRelationFields.push({
-				path: [selectedRelationKey],
-				field: field,
-			});
-		}
+	// 			builtRelationFields.push({
+	// 				path: [selectedRelationKey],
+	// 				field: field,
+	// 			});
+	// 		}
 
-		const unselectedRelationColumns = [...relationColumns];
+	// 		const unselectedRelationColumns = [...relationColumns];
 
-		const flatSelection: SelectedFieldsOrdered = Object.entries(selection).map(([key, value]) => {
-			if (value instanceof Column) {
-				const valueIndex = unselectedRelationColumns.indexOf(value);
-				if (valueIndex !== -1) {
-					unselectedRelationColumns.splice(valueIndex, 1);
-				}
-				value = aliasedTableColumn(value, tableAlias);
-			}
-			return {
-				path: [key],
-				field: value,
-			};
-		});
+	// 		const flatSelection: SelectedFieldsOrdered = Object.entries(selection).map(([key, value]) => {
+	// 			if (value instanceof Column) {
+	// 				const valueIndex = unselectedRelationColumns.indexOf(value);
+	// 				if (valueIndex !== -1) {
+	// 					unselectedRelationColumns.splice(valueIndex, 1);
+	// 				}
+	// 				value = aliasedTableColumn(value, tableAlias);
+	// 			}
+	// 			return {
+	// 				path: [key],
+	// 				field: value,
+	// 			};
+	// 		});
 
-		const relationColumnsSelection: SelectedFieldsOrdered = unselectedRelationColumns.map((column) => ({
-			path: [column.name],
-			field: aliasedTableColumn(column, tableAlias) as AnySQLiteColumn,
-		}));
+	// 		const relationColumnsSelection: SelectedFieldsOrdered = unselectedRelationColumns.map((column) => ({
+	// 			path: [column.name],
+	// 			field: aliasedTableColumn(column, tableAlias) as AnySQLiteColumn,
+	// 		}));
 
-		const aliasedFields = Object.fromEntries(
-			Object.entries(tableConfig.columns).map(([key, value]) => [key, aliasedTableColumn(value, tableAlias)]),
-		);
+	// 		const aliasedFields = Object.fromEntries(
+	// 			Object.entries(tableConfig.columns).map(([key, value]) => [key, aliasedTableColumn(value, tableAlias)]),
+	// 		);
 
-		let where = config.where?.(aliasedFields, operators) ?? undefined;
+	// 		let where = config.where?.(aliasedFields, operators) ?? undefined;
 
-		where = and(
-			where,
-			...selectedRelations.filter(({ key }) => {
-				const relation = config.include?.[key] ?? config.select?.[key];
-				return typeof relation === 'object' && relation.limit !== undefined;
-			}).map(({ key }) => {
-				const value = (config.include?.[key] ?? config.select?.[key]) as DBQueryConfig;
-				return sql`${sql.identifier(`${tableAlias}_${key}`)}.${
-					sql.identifier('__drizzle_limit')
-				} <= ${value.limit} + 1`;
-			}),
-		);
+	// 		where = and(
+	// 			where,
+	// 			...selectedRelations.filter(({ key }) => {
+	// 				const relation = config.include?.[key] ?? config.select?.[key];
+	// 				return typeof relation === 'object' && relation.limit !== undefined;
+	// 			}).map(({ key }) => {
+	// 				const value = (config.include?.[key] ?? config.select?.[key]) as DBQueryConfig<'many'>;
+	// 				return sql`${sql.identifier(`${tableAlias}_${key}`)}.${
+	// 					sql.identifier('__drizzle_limit')
+	// 				} <= ${value.limit} + 1`;
+	// 			}),
+	// 		);
 
-		const groupBy = (builtRelationFields.length
-			? (tableConfig.primaryKey.length ? tableConfig.primaryKey : Object.values(tableConfig.columns)).map((c) =>
-				aliasedTableColumn(c, tableAlias)
-			)
-			: []) as AnySQLiteColumn[];
+	// 		const groupBy = (builtRelationFields.length
+	// 			? (tableConfig.primaryKey.length ? tableConfig.primaryKey : Object.values(tableConfig.columns)).map((c) =>
+	// 				aliasedTableColumn(c, tableAlias)
+	// 			)
+	// 			: []) as AnySQLiteColumn[];
 
-		let orderBy = config.orderBy?.(aliasedFields, orderByOperators) as ValueOrArray<AnySQLiteColumn | SQL> ?? [];
-		if (!Array.isArray(orderBy)) {
-			orderBy = [orderBy];
-		}
+	// 		let orderBy = config.orderBy?.(aliasedFields, orderByOperators) as ValueOrArray<AnySQLiteColumn | SQL> ?? [];
+	// 		if (!Array.isArray(orderBy)) {
+	// 			orderBy = [orderBy];
+	// 		}
 
-		const fieldsFlat: SelectedFieldsOrdered = [
-			...flatSelection,
-			...relationColumnsSelection,
-			...builtRelationFields,
-		];
+	// 		const fieldsFlat: SelectedFieldsOrdered = [
+	// 			...flatSelection,
+	// 			...relationColumnsSelection,
+	// 			...builtRelationFields,
+	// 		];
 
-		if (config.limit !== undefined) {
-			fieldsFlat.push({
-				path: ['__drizzle_limit'],
-				field: sql`row_number() over(partition by ${relationColumns.map((c) => aliasedTableColumn(c, tableAlias))})`
-					.as('__drizzle_limit'),
-			});
-		}
+	// 		if (config.limit !== undefined) {
+	// 			fieldsFlat.push({
+	// 				path: ['__drizzle_limit'],
+	// 				field: sql`row_number() over(partition by ${relationColumns.map((c) => aliasedTableColumn(c, tableAlias))})`
+	// 					.as('__drizzle_limit'),
+	// 			});
+	// 		}
 
-		const result = this.buildSelectQuery({
-			table: aliasedTable(table, tableAlias),
-			fields: {},
-			fieldsFlat,
-			where,
-			groupBy,
-			orderBy,
-			joins,
-			withList: [],
-		});
+	// 		const result = this.buildSelectQuery({
+	// 			table: aliasedTable(table, tableAlias),
+	// 			fields: {},
+	// 			fieldsFlat,
+	// 			where,
+	// 			groupBy,
+	// 			orderBy,
+	// 			joins,
+	// 			withList: [],
+	// 		});
 
-		return {
-			sql: result,
-			selection: [
-				...flatSelection.map(({ path }) => ({
-					dbKey: (tableConfig.columns[path[0]!] as AnyColumn).name,
-					tsKey: path[0]!,
-					tableTsKey: undefined,
-					isJson: false,
-					selection: [],
-				})),
-				...builtRelations.map(({ key, value }) => ({
-					dbKey: key,
-					tsKey: key,
-					tableTsKey: tableConfig.tsName,
-					isJson: true,
-					selection: value.selection,
-				})),
-			],
-		};
-	}
+	// 		return {
+	// 			sql: result,
+	// 			selection: [
+	// 				...flatSelection.map(({ path }) => ({
+	// 					dbKey: (tableConfig.columns[path[0]!] as AnyColumn).name,
+	// 					tsKey: path[0]!,
+	// 					tableTsKey: undefined,
+	// 					isJson: false,
+	// 					selection: [],
+	// 				})),
+	// 				...builtRelations.map(({ key, value }) => ({
+	// 					dbKey: key,
+	// 					tsKey: key,
+	// 					tableTsKey: tableConfig.tsName,
+	// 					isJson: true,
+	// 					selection: value.selection,
+	// 				})),
+	// 			],
+	// 		};
+	// 	}
 }
 
 export interface BuildRelationalQueryResult {

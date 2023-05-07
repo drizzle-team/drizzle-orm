@@ -8,7 +8,7 @@ const { Pool } = pg;
 
 async function main() {
 	const pool = new Pool({ connectionString: process.env['PG_CONNECTION_STRING'] });
-	const db = drizzle(pool, { schema });
+	const db = drizzle(pool, { schema, logger: true });
 
 	// const result = await db.query.users.findMany({
 	// 	orderBy: (users, { desc }) => [users.name, desc(users.id)],
@@ -42,14 +42,36 @@ async function main() {
 	// 	},
 	// });
 
-	const result = await db.query.users.findMany({
-		limit: 3,
+	// const result = await db.query.users.findMany({
+	// 	limit: 3,
+	// 	include: {
+	// 		posts: {
+	// 			include: {
+	// 				comments: true,
+	// 			},
+	// 			limit: 2,
+	// 		},
+	// 	},
+	// });
+
+	// const result = await db.query.users.findMany({
+	// 	where: (users, { sql }) => sql`jsonb_array_length(${users.posts}) > 0`,
+	// 	include: {
+	// 		posts: {
+	// 			where: (posts, { sql }) => sql`length(${posts.title}) > 0`,
+	// 		},
+	// 	},
+	// });
+
+	const result = await db.query.users.findFirst({
+		where: (users, { eq }) => eq(users.id, 1),
 		include: {
 			posts: {
-				include: {
-					comments: true,
+				limit: 1,
+				select: {
+					title: true,
+					authorId: false,
 				},
-				limit: 2,
 			},
 		},
 	});

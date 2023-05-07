@@ -34,7 +34,7 @@ import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
 import { orderSelectedFields, type UpdateSet, type ValueOrArray } from '~/utils';
 import { ViewBaseConfig } from '~/view';
-import { aliasedTable, aliasedTableColumn } from '..';
+import { aliasedRelation, aliasedTable, aliasedTableColumn } from '..';
 import type { PgSession } from './session';
 import { type PgMaterializedView, PgViewBase } from './view';
 
@@ -394,7 +394,7 @@ export class PgDialect {
 		tableNamesMap: Record<string, string>,
 		table: AnyPgTable,
 		tableConfig: TableRelationalConfig,
-		config: true | DBQueryConfig,
+		config: true | DBQueryConfig<'many'>,
 		tableAlias: string,
 		relationColumns: AnyColumn[],
 		isRoot = false,
@@ -452,16 +452,18 @@ export class PgDialect {
 				}
 			}
 
-			if (!isIncludeMode && selectedColumns.length > 0) {
-				selectedColumns = Object.entries(tableConfig.columns)
-					.filter(([key, value]) => value instanceof Column && !selectedColumns.includes(key))
-					.map(([field]) => field);
+			if (selectedColumns.length > 0) {
+				selectedColumns = isIncludeMode
+					? selectedColumns.filter((c) => config.select?.[c] === true)
+					: Object.keys(tableConfig.columns).filter((key) => !selectedColumns.includes(key));
 			}
 		} else if (config.include) {
-			selectedRelations = Object.entries(config.include).map(([key, value]) => ({
-				key,
-				value: value as any,
-			}));
+			selectedRelations = Object.entries(config.include)
+				.filter((entry): entry is [typeof entry[0], NonNullable<typeof entry[1]>] => !!entry[1])
+				.map(([key, value]) => ({
+					key,
+					value,
+				}));
 		}
 
 		if (!config.select) {
@@ -545,9 +547,7 @@ export class PgDialect {
 
 			const field = sql`case when count(${
 				sql.join(normalizedRelation.references.map((c) => aliasedTableColumn(c, relationAlias)), sql.raw(' or '))
-			}) = 0 then ${relation instanceof One ? sql`null` : sql`'[]'`} else ${elseField} end as ${
-				sql.identifier(selectedRelationKey)
-			}`;
+			}) = 0 then ${relation instanceof One ? sql`null` : sql`'[]'`} else ${elseField} end`.as(selectedRelationKey);
 
 			builtRelationFields.push({
 				path: [selectedRelationKey],
@@ -576,20 +576,23 @@ export class PgDialect {
 			field: aliasedTableColumn(column, tableAlias) as AnyPgColumn,
 		}));
 
-		const aliasedFields = Object.fromEntries(
+		const aliasedColumns = Object.fromEntries(
 			Object.entries(tableConfig.columns).map(([key, value]) => [key, aliasedTableColumn(value, tableAlias)]),
 		);
 
-		let where = config.where?.(aliasedFields, operators) ?? undefined;
+		const aliasedRelations = Object.fromEntries(
+			Object.entries(tableConfig.relations).map(([key, value]) => [key, aliasedRelation(value, tableAlias)]),
+		);
 
-		where = and(
-			where,
+		const aliasedFields = Object.assign({}, aliasedColumns, aliasedRelations);
+
+		const where = and(
 			...selectedRelations.filter(({ key }) => {
 				const relation = config.include?.[key] ?? config.select?.[key];
-				return typeof relation === 'object' && relation.limit !== undefined;
+				return typeof relation === 'object' && (relation as DBQueryConfig<'many'>).limit !== undefined;
 			}).map(({ key }) => {
 				const field = sql`${sql.identifier(`${tableAlias}_${key}`)}.${sql.identifier('__drizzle_limit')}`;
-				const value = (config.include?.[key] ?? config.select?.[key]) as DBQueryConfig;
+				const value = (config.include?.[key] ?? config.select?.[key]) as DBQueryConfig<'many'>;
 				return sql`(${field} <= ${value.limit} or ${field} is null)`;
 			}),
 		);
@@ -625,7 +628,7 @@ export class PgDialect {
 			}
 		}
 
-		const result = this.buildSelectQuery({
+		let result = this.buildSelectQuery({
 			table: aliasedTable(table, tableAlias),
 			fields: {},
 			fieldsFlat,
@@ -637,6 +640,25 @@ export class PgDialect {
 			withList: [],
 			limit,
 		});
+
+		if (config.where) {
+			result = this.buildSelectQuery({
+				table: new Subquery(result, {}, tableAlias),
+				fields: {},
+				fieldsFlat: fieldsFlat.map(({ path, field }) => ({
+					path,
+					field: field instanceof SQL.Aliased
+						? sql`${sql.identifier(field.fieldAlias)}`
+						: field,
+				})),
+				where: config.where(aliasedFields, operators),
+				groupBy: [],
+				orderBy: [],
+				joins: [],
+				lockingClauses: [],
+				withList: [],
+			});
+		}
 
 		return {
 			tableTsKey: tableConfig.tsName,
