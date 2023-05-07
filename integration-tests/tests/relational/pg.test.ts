@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/template-indent */
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import Docker from 'dockerode';
@@ -8,7 +9,7 @@ import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
 import * as schema from './pg.schema';
 
-type t = ExtractTablesWithRelations<typeof schema>;
+const { usersTable, postsTable } = schema;
 
 interface Context {
 	docker: Docker;
@@ -150,22 +151,218 @@ test.beforeEach(async (t) => {
 	);
 });
 
+// insert user and 3 posts
+// check all
+// check with limit
+// check with custom field
+// check with order by
+// check with where
+// check with partial select
+
 test.serial('Get users with posts', async (t) => {
 	const { db } = t.context;
 
-	// insert user and 5 posts
-	// check all
-	// check with limit
-	// check with custom field
-	// check with order by
-	// check with where
-	// check with partial select
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 3, content: 'Post3' },
+	]);
 
 	const usersWithPosts = await db.query.usersTable.findMany({
 		include: {
-			groups: true,
 			posts: true,
-			invitee: true,
 		},
 	});
+
+	t.is(usersWithPosts.length, 3);
+	t.is(usersWithPosts[0]?.posts.length, 1);
+	t.is(usersWithPosts[1]?.posts.length, 1);
+	t.is(usersWithPosts[2]?.posts.length, 1);
+
+	//   t.is(usersWithPosts[0]?.posts[0].ownerId, )
+});
+
+test.serial('Get users with posts + limit posts', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.2' },
+		{ ownerId: 1, content: 'Post1.3' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 2, content: 'Post2.1' },
+		{ ownerId: 3, content: 'Post3' },
+		{ ownerId: 3, content: 'Post3.1' },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findMany({
+		include: {
+			posts: {
+				limit: 1,
+			},
+		},
+	});
+
+	t.is(usersWithPosts.length, 3);
+	t.is(usersWithPosts[0]?.posts.length, 1);
+	t.is(usersWithPosts[1]?.posts.length, 1);
+	t.is(usersWithPosts[2]?.posts.length, 1);
+
+	//   t.is(usersWithPosts[0]?.posts[0].ownerId, )
+});
+
+test.serial('Get users with posts + limit posts and users', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.2' },
+		{ ownerId: 1, content: 'Post1.3' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 2, content: 'Post2.1' },
+		{ ownerId: 3, content: 'Post3' },
+		{ ownerId: 3, content: 'Post3.1' },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findMany({
+		limit: 2,
+		include: {
+			posts: {
+				limit: 1,
+			},
+		},
+	});
+
+	t.is(usersWithPosts.length, 2);
+	t.is(usersWithPosts[0]?.posts.length, 1);
+	t.is(usersWithPosts[1]?.posts.length, 1);
+
+	//   t.is(usersWithPosts[0]?.posts[0].ownerId, )
+});
+
+test.serial('Get users with posts + custom fields', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.2' },
+		{ ownerId: 1, content: 'Post1.3' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 2, content: 'Post2.1' },
+		{ ownerId: 3, content: 'Post3' },
+		{ ownerId: 3, content: 'Post3.1' },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findMany({
+		include: {
+			posts: true,
+		},
+		includeCustom: () => ({
+			lowerName: sql<string>`lower(${usersTable.name})`.as('name_lower'),
+		}),
+	});
+
+	t.is(usersWithPosts.length, 3);
+	t.is(usersWithPosts[0]?.posts.length, 3);
+	t.is(usersWithPosts[1]?.posts.length, 2);
+	t.is(usersWithPosts[2]?.posts.length, 2);
+
+	//   t.is(usersWithPosts[0]?.posts[0].ownerId, )
+});
+
+test.serial('Get users with posts + custom fields + limits', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.2' },
+		{ ownerId: 1, content: 'Post1.3' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 2, content: 'Post2.1' },
+		{ ownerId: 3, content: 'Post3' },
+		{ ownerId: 3, content: 'Post3.1' },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findMany({
+		limit: 1,
+		include: {
+			posts: {
+				limit: 1,
+			},
+		},
+		includeCustom: () => ({
+			lowerName: sql<string>`lower(${usersTable.name})`.as('name_lower'),
+		}),
+	});
+
+	t.is(usersWithPosts.length, 1);
+	t.is(usersWithPosts[0]?.posts.length, 1);
+
+	//   t.is(usersWithPosts[0]?.posts[0].ownerId, )
+});
+
+test.serial('Get users with posts + orderBy', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.2' },
+		{ ownerId: 1, content: 'Post1.3' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 2, content: 'Post2.1' },
+		{ ownerId: 3, content: 'Post3' },
+		{ ownerId: 3, content: 'Post3.1' },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findMany({
+		include: {
+			posts: {
+				orderBy: (postsTable, { asc }) => [asc(postsTable.content)],
+			},
+		},
+		orderBy: (usersTable, { desc }) => [desc(usersTable.id)],
+	});
+
+	t.is(usersWithPosts.length, 3);
+	t.is(usersWithPosts[0]?.posts.length, 3);
+	t.is(usersWithPosts[1]?.posts.length, 2);
+	t.is(usersWithPosts[2]?.posts.length, 2);
+
+	// check order
 });
