@@ -82,8 +82,8 @@ const _pkExample = sqliteTable('pk_example', {
 const bigIntExample = sqliteTable('big_int_example', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
-	bigInt: blob('big_int', { mode: 'bigint' }).notNull()
-  });
+	bigInt: blob('big_int', { mode: 'bigint' }).notNull(),
+});
 
 interface Context {
 	db: BetterSQLite3Database;
@@ -177,22 +177,22 @@ test.beforeEach((t) => {
 
 test.serial('insert bigint values', async (t) => {
 	const { db } = t.context;
-  
-	await db.insert(bigIntExample).values({ name: 'one', bigInt: BigInt("0") }).run();
-	await db.insert(bigIntExample).values({ name: 'two', bigInt: BigInt("127") }).run();
-	await db.insert(bigIntExample).values({ name: 'three', bigInt: BigInt("32767") }).run();
-	await db.insert(bigIntExample).values({ name: 'four', bigInt: BigInt("1234567890") }).run();
-	await db.insert(bigIntExample).values({ name: 'five', bigInt: BigInt("12345678900987654321") }).run();
-  
+
+	await db.insert(bigIntExample).values({ name: 'one', bigInt: BigInt('0') }).run();
+	await db.insert(bigIntExample).values({ name: 'two', bigInt: BigInt('127') }).run();
+	await db.insert(bigIntExample).values({ name: 'three', bigInt: BigInt('32767') }).run();
+	await db.insert(bigIntExample).values({ name: 'four', bigInt: BigInt('1234567890') }).run();
+	await db.insert(bigIntExample).values({ name: 'five', bigInt: BigInt('12345678900987654321') }).run();
+
 	const result = await db.select().from(bigIntExample).all();
-	 t.deepEqual(result, [
-	  { id: 1, name: 'one', bigInt: BigInt("0") },
-	  { id: 2, name: 'two', bigInt: BigInt("127") },
-	  { id: 3, name: 'three', bigInt: BigInt("32767") },
-	  { id: 4, name: 'four', bigInt: BigInt("1234567890") },
-	  { id: 5, name: 'five', bigInt: BigInt("12345678900987654321") },
+	t.deepEqual(result, [
+		{ id: 1, name: 'one', bigInt: BigInt('0') },
+		{ id: 2, name: 'two', bigInt: BigInt('127') },
+		{ id: 3, name: 'three', bigInt: BigInt('32767') },
+		{ id: 4, name: 'four', bigInt: BigInt('1234567890') },
+		{ id: 5, name: 'five', bigInt: BigInt('12345678900987654321') },
 	]);
-  });
+});
 
 test.serial('select all fields', (t) => {
 	const { db } = t.context;

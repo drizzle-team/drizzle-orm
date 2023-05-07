@@ -135,8 +135,9 @@ export interface BlobConfig<TMode extends BlobMode = BlobMode> {
 export function blob<TName extends string, TMode extends BlobMode = BlobMode>(
 	name: TName,
 	config?: BlobConfig<TMode>,
-): Equal<TMode, 'bigint'> extends true ? SQLiteBigIntBuilderInitial<TName> 
-: Equal<TMode, 'buffer'> extends true ? SQLiteBlobBufferBuilderInitial<TName> : SQLiteBlobJsonBuilderInitial<TName>;
+): Equal<TMode, 'bigint'> extends true ? SQLiteBigIntBuilderInitial<TName>
+	: Equal<TMode, 'buffer'> extends true ? SQLiteBlobBufferBuilderInitial<TName>
+	: SQLiteBlobJsonBuilderInitial<TName>;
 export function blob(name: string, config?: BlobConfig) {
 	if (config?.mode === 'json') {
 		return new SQLiteBlobJsonBuilder(name);

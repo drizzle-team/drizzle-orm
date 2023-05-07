@@ -137,9 +137,9 @@ test.beforeEach(async (t) => {
 	`);
 	ctx.db.run(sql`
 		create table ${bigIntExample} (
-      	id integer primary key,
-		name text not null,
-		big_int blob not null
+			id integer primary key,
+			name text not null,
+			big_int blob not null
 	  )
   `);
 });
