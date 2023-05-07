@@ -178,7 +178,7 @@ export type TablesRelationalConfig = Record<string, TableRelationalConfig>;
 
 export type ExtractTablesWithRelations<TSchema extends Record<string, unknown>> = {
 	[K in keyof TSchema as TSchema[K] extends Table ? K : never]: TSchema[K] extends Table ? {
-			tsName: K;
+			tsName: string;
 			dbName: TSchema[K]['_']['name'];
 			columns: TSchema[K]['_']['columns'];
 			relations: ExtractTableRelationsFromSchema<TSchema, TSchema[K]['_']['name']>;
