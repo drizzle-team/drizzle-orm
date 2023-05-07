@@ -213,7 +213,6 @@ test.serial('insert bigint values', async (t) => {
   await db.insert(bigIntExample).values({ name: 'five', bigInt: BigInt("12345678900987654321") }).run();
 
   const result = await db.select().from(bigIntExample).all();
-  console.log(result)
    t.deepEqual(result, [
     { id: 1, name: 'one', bigInt: BigInt("0") },
     { id: 2, name: 'two', bigInt: BigInt("127") },
