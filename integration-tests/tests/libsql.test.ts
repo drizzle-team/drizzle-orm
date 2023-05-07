@@ -198,7 +198,7 @@ test.beforeEach(async (t) => {
     create table ${bigIntExample} (
       id integer primary key,
       name text not null,
-      big_int integer not null
+      big_int blob not null
     )
   `);
 });
