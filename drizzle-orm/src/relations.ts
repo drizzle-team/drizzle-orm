@@ -32,7 +32,9 @@ export class Relations<
 	) {}
 }
 
-export class One<TTableName extends string = string> extends Relation<TTableName> {
+export class One<TTableName extends string = string, TIsNullable extends boolean = boolean>
+	extends Relation<TTableName>
+{
 	declare protected $relationBrand: 'One';
 
 	constructor(
@@ -45,12 +47,13 @@ export class One<TTableName extends string = string> extends Relation<TTableName
 				AnyColumn<{ tableName: TTableName }>[]
 			>
 			| undefined,
+		readonly isNullable: TIsNullable,
 	) {
 		super(sourceTable, referencedTable, config?.relationName);
 	}
 
 	withFieldName(fieldName: string): One<TTableName> {
-		const relation = new One(this.sourceTable, this.referencedTable, this.config);
+		const relation = new One(this.sourceTable, this.referencedTable, this.config, this.isNullable);
 		relation.fieldName = fieldName;
 		return relation;
 	}
@@ -229,7 +232,10 @@ export type BuildQueryResult<
 						TSchema,
 						FindTableByDBName<TSchema, TRel['referencedTableName']>,
 						TSelection[K] extends true ? Record<string, undefined> : Assume<TSelection[K], RelationSelectionBase>
-					> extends infer TResult ? TRel extends One<any> ? TResult : TResult[] : never
+					> extends infer TResult
+						? TRel extends One<any> ? (TResult | (Equal<TRel['isNullable'], false> extends true ? null : never))
+						: TResult[]
+					: never
 					: never;
 			}
 			: {})
@@ -340,8 +346,16 @@ export function createOne<TTableName extends string>(sourceTable: Table) {
 	>(
 		table: TForeignTable,
 		config?: RelationConfig<TTableName, TForeignTable['_']['name'], TColumns>,
-	): One<TForeignTable['_']['name']> {
-		return new One(sourceTable, table, config);
+	): One<TForeignTable['_']['name'], Equal<TColumns[number]['_']['notNull'], true>> {
+		return new One(
+			sourceTable,
+			table,
+			config,
+			(config?.fields.reduce<boolean>((res, f) => res && f.notNull, true) ?? false) as Equal<
+				TColumns[number]['_']['notNull'],
+				true
+			>,
+		);
 	};
 }
 
@@ -458,14 +472,18 @@ export function mapRelationalRow(
 	for (const [selectionItemIndex, selectionItem] of buildQueryResultSelection.entries()) {
 		if (selectionItem.isJson) {
 			const relation = tableConfig.relations[selectionItem.tsKey]!;
-			result[selectionItem.tsKey] = relation instanceof One
-				? mapRelationalRow(
-					tablesConfig,
-					tablesConfig[selectionItem.tableTsKey!]!,
-					(row[selectionItemIndex] as unknown[][])[0]!,
-					selectionItem.selection,
-				)
-				: (row[selectionItemIndex] as unknown[]).map((subRow) =>
+			if (relation instanceof One) {
+				const subRows = row[selectionItemIndex] as unknown[][];
+				result[selectionItem.tsKey] = subRows[0]
+					? mapRelationalRow(
+						tablesConfig,
+						tablesConfig[selectionItem.tableTsKey!]!,
+						subRows[0],
+						selectionItem.selection,
+					)
+					: null;
+			} else {
+				result[selectionItem.tsKey] = (row[selectionItemIndex] as unknown[]).map((subRow) =>
 					mapRelationalRow(
 						tablesConfig,
 						tablesConfig[selectionItem.tableTsKey!]!,
@@ -473,6 +491,7 @@ export function mapRelationalRow(
 						selectionItem.selection,
 					)
 				);
+			}
 		} else {
 			const value = row[selectionItemIndex];
 			const field = selectionItem.field!;

@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { type Equal, Expect } from 'type-tests/utils';
 import { drizzle } from '~/node-postgres';
 import { placeholder } from '~/sql';
 import * as schema from './schema';
@@ -8,23 +9,25 @@ const { Pool } = pg;
 const pdb = new Pool({ connectionString: process.env['PG_CONNECTION_STRING'] });
 const db = drizzle(pdb, { schema });
 
-await db.query.users.findMany({
-	orderBy: (users, { asc, desc }) => [asc(users.name), desc(users.id)],
-	include: {
-		posts: {
-			select: {
-				id: false,
-				author: true,
-				comments: {
-					where: (comments, { sql }) => sql`char_length(${comments.text} > 1)`,
-					limit: placeholder('l'),
-					select: {
-						text: true,
-						author: {
-							select: {
-								city: {
-									include: {
-										users: true,
+{
+	const result = await db.query.users.findMany({
+		orderBy: (users, { asc, desc }) => [asc(users.name), desc(users.id)],
+		include: {
+			posts: {
+				select: {
+					id: false,
+					author: true,
+					comments: {
+						where: (comments, { sql }) => sql`char_length(${comments.text} > 1)`,
+						limit: placeholder('l'),
+						select: {
+							text: true,
+							author: {
+								select: {
+									city: {
+										include: {
+											users: true,
+										},
 									},
 								},
 							},
@@ -33,5 +36,42 @@ await db.query.users.findMany({
 				},
 			},
 		},
-	},
-});
+	});
+
+	Expect<
+		Equal<{
+			id: number;
+			name: string;
+			cityId: number;
+			homeCityId: number | null;
+			createdAt: Date;
+			posts: {
+				title: string;
+				authorId: number | null;
+				comments: {
+					text: string;
+					author: {
+						city: {
+							id: number;
+							name: string;
+							users: {
+								id: number;
+								name: string;
+								cityId: number;
+								homeCityId: number | null;
+								createdAt: Date;
+							}[];
+						};
+					} | null;
+				}[];
+				author: {
+					id: number;
+					name: string;
+					cityId: number;
+					homeCityId: number | null;
+					createdAt: Date;
+				} | null;
+			}[];
+		}[], typeof result>
+	>;
+}
