@@ -178,7 +178,7 @@ export type TablesRelationalConfig = Record<string, TableRelationalConfig>;
 
 export type ExtractTablesWithRelations<TSchema extends Record<string, unknown>> = {
 	[K in keyof TSchema as TSchema[K] extends Table ? K : never]: TSchema[K] extends Table ? {
-			tsName: string;
+			tsName: K;
 			dbName: TSchema[K]['_']['name'];
 			columns: TSchema[K]['_']['columns'];
 			relations: ExtractTableRelationsFromSchema<TSchema, TSchema[K]['_']['name']>;
@@ -203,7 +203,7 @@ export type BuildQueryResult<
 	: never) extends [
 	infer TSelectionMode,
 	infer TSelection,
-] ? 
+] ? SimplifyShallow<
 		& InferModelFromColumns<
 			TSelectionMode extends 'select' ? {
 					[
@@ -233,6 +233,7 @@ export type BuildQueryResult<
 					: never;
 			}
 			: {})
+	>
 	: InferModelFromColumns<TTableConfig['columns']>;
 
 export interface RelationConfig<

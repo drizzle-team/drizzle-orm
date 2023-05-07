@@ -8,11 +8,9 @@ const { Pool } = pg;
 const pdb = new Pool({ connectionString: process.env['PG_CONNECTION_STRING'] });
 const db = drizzle(pdb, { schema });
 
-await db.query.users.findMany({
+const result = await db.query.users.findMany({
 	orderBy: (users, { asc, desc }) => [asc(users.name), desc(users.id)],
-	select: {
-		id: true,
-		name: true,
+	include: {
 		posts: {
 			select: {
 				id: false,

@@ -1,4 +1,4 @@
-import { foreignKey, integer, pgTable, serial, text } from '~/pg-core';
+import { foreignKey, integer, pgTable, serial, text, timestamp } from '~/pg-core';
 import { relations } from '~/relations';
 
 export const users = pgTable('users', {
@@ -6,6 +6,7 @@ export const users = pgTable('users', {
 	name: text('name').notNull(),
 	cityId: integer('city_id').references(() => cities.id).notNull(),
 	homeCityId: integer('home_city_id').references(() => cities.id),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
 });
 export const usersConfig = relations(users, ({ one, many }) => ({
 	city: one(cities, { relationName: 'UsersInCity', fields: [users.cityId], references: [cities.id] }),

@@ -1,6 +1,6 @@
 import type { AnyColumn, GetColumnData } from './column';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations';
-import type { Assume, Simplify, Update } from './utils';
+import type { Assume, SimplifyShallow, Update } from './utils';
 
 export interface TableConfig<TColumn extends AnyColumn = AnyColumn> {
 	name: string;
@@ -129,7 +129,7 @@ export type InferModelFromColumns<
 	TColumns extends Record<string, AnyColumn>,
 	TInferMode extends 'select' | 'insert' = 'select',
 	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
-> = TInferMode extends 'insert' ? Simplify<
+> = TInferMode extends 'insert' ? SimplifyShallow<
 		& {
 			[
 				Key in keyof TColumns & string as RequiredKeyOnly<
