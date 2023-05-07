@@ -52,6 +52,7 @@ async function createDockerDB(ctx: Context): Promise<string> {
 }
 
 test.before(async (t) => {
+	console.log('here');
 	const ctx = t.context;
 	const connectionString = process.env['PG_CONNECTION_STRING'] ?? (await createDockerDB(ctx));
 
@@ -64,6 +65,7 @@ test.before(async (t) => {
 			ctx.client = new Client(connectionString);
 			await ctx.client.connect();
 			connected = true;
+			console.log('connected');
 			break;
 		} catch (e) {
 			lastError = e;
@@ -159,7 +161,7 @@ test.beforeEach(async (t) => {
 // check with where
 // check with partial select
 
-test.serial('Get users with posts', async (t) => {
+test.serial.only('Get users with posts', async (t) => {
 	const { db } = t.context;
 
 	await db.insert(usersTable).values([
@@ -185,7 +187,13 @@ test.serial('Get users with posts', async (t) => {
 	t.is(usersWithPosts[1]?.posts.length, 1);
 	t.is(usersWithPosts[2]?.posts.length, 1);
 
-	//   t.is(usersWithPosts[0]?.posts[0].ownerId, )
+	t.deepEqual(usersWithPosts[0], {
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: usersWithPosts[0]?.posts[0]?.createdAt }],
+	});
 });
 
 test.serial('Get users with posts + limit posts', async (t) => {
