@@ -5,14 +5,17 @@ import { and, asc, desc, eq, or, type Placeholder, SQL, sql } from './sql';
 import { type Assume, type ColumnsWithTable, type Equal, type SimplifyShallow, type ValueOrArray } from './utils';
 
 export abstract class Relation<TTableName extends string = string> {
-	declare readonly brand: 'Relation';
+	declare readonly $brand: 'Relation';
+	readonly referencedTableName: TTableName;
 	fieldName!: string;
 
 	constructor(
 		readonly sourceTable: Table,
 		readonly referencedTable: AnyTable<{ name: TTableName }>,
 		readonly relationName: string | undefined,
-	) {}
+	) {
+		this.referencedTableName = referencedTable[Table.Symbol.Name] as TTableName;
+	}
 
 	abstract withFieldName(fieldName: string): Relation<TTableName>;
 }
@@ -30,7 +33,7 @@ export class Relations<
 }
 
 export class One<TTableName extends string = string> extends Relation<TTableName> {
-	declare protected $brand: 'One';
+	declare protected $relationBrand: 'One';
 
 	constructor(
 		sourceTable: Table,
@@ -54,7 +57,7 @@ export class One<TTableName extends string = string> extends Relation<TTableName
 }
 
 export class Many<TTableName extends string> extends Relation<TTableName> {
-	declare protected $brand: 'Many';
+	declare protected $relationBrand: 'Many';
 
 	constructor(
 		sourceTable: Table,
@@ -111,6 +114,12 @@ export const orderByOperators = {
 
 export type OrderByOperators = typeof orderByOperators;
 
+export type FindTableByDBName<TSchema extends TablesRelationalConfig, TTableName extends string> = ExtractObjectValues<
+	{
+		[K in keyof TSchema as TSchema[K]['dbName'] extends TTableName ? K : never]: TSchema[K];
+	}
+>;
+
 export type DBQueryConfig<
 	TRelationType extends 'one' | 'many' = 'one' | 'many',
 	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
@@ -127,7 +136,7 @@ export type DBQueryConfig<
 					| DBQueryConfig<
 						TTableConfig['relations'][K] extends One ? 'one' : 'many',
 						TSchema,
-						TSchema[TTableConfig['relations'][K]['referencedTable']['_']['name']]
+						FindTableByDBName<TSchema, TTableConfig['relations'][K]['referencedTableName']>
 					>;
 			};
 		include?: {
@@ -136,7 +145,7 @@ export type DBQueryConfig<
 				| DBQueryConfig<
 					TTableConfig['relations'][K] extends One ? 'one' : 'many',
 					TSchema,
-					TSchema[TTableConfig['relations'][K]['referencedTable']['_']['name']]
+					FindTableByDBName<TSchema, TTableConfig['relations'][K]['referencedTableName']>
 				>;
 		};
 		includeCustom?: (
@@ -169,8 +178,8 @@ export type TablesRelationalConfig = Record<string, TableRelationalConfig>;
 
 export type ExtractTablesWithRelations<TSchema extends Record<string, unknown>> = {
 	[K in keyof TSchema as TSchema[K] extends Table ? K : never]: TSchema[K] extends Table ? {
-			tsName: string;
-			dbName: string;
+			tsName: K;
+			dbName: TSchema[K]['_']['name'];
 			columns: TSchema[K]['_']['columns'];
 			relations: ExtractTableRelationsFromSchema<TSchema, TSchema[K]['_']['name']>;
 			primaryKey: AnyColumn[];
@@ -218,7 +227,7 @@ export type BuildQueryResult<
 				[K in keyof TSelection & keyof TTableConfig['relations']]: TTableConfig['relations'][K] extends
 					infer TRel extends Relation ? BuildQueryResult<
 						TSchema,
-						TSchema[TRel['referencedTable']['_']['name']],
+						FindTableByDBName<TSchema, TRel['referencedTableName']>,
 						TSelection[K] extends true ? Record<string, undefined> : Assume<TSelection[K], RelationSelectionBase>
 					> extends infer TResult ? TRel extends One<any> ? TResult : TResult[] : never
 					: never;
