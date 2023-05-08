@@ -244,6 +244,24 @@ test.serial('select typed sql', async (t) => {
 	t.deepEqual(users, [{ name: 'JOHN' }]);
 });
 
+test.serial('select first', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ name: 'John' });
+
+	const result = await db.select().from(usersTable).first();
+
+	t.deepEqual(result, { id: 1, name: 'John', verified: false, jsonb: null, createdAt: result!.createdAt });
+});
+
+test.serial('select first undefined', async (t) => {
+	const { db } = t.context;
+
+	const result = await db.select().from(usersTable).first();
+
+	t.assert(result === undefined);
+});
+
 test.serial('insert returning sql', async (t) => {
 	const { db } = t.context;
 

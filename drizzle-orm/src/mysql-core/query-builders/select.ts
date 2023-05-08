@@ -389,6 +389,12 @@ export class MySqlSelect<
 	};
 
 	iterator = this.createIterator();
+
+	async first(): Promise<SelectResult<TSelection, TSelectMode, TNullabilityMap> | undefined> {
+		this.config.limit = 1;
+		const result = await this.prepare().execute();
+		return result[0];
+	}
 }
 
 applyMixins(MySqlSelect, [QueryPromise]);
