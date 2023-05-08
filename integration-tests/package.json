@@ -15,7 +15,8 @@
       "!tests/awsdatapi.alltypes.test.ts",
       "!tests/awsdatapi.test.ts",
       "!tests/planetscale-serverless/**/*.ts",
-      "!tests/bun/**/*"
+      "!tests/bun/**/*",
+      "!tests/vercel-pg.test.ts"
     ],
     "extensions": {
       "ts": "module"
