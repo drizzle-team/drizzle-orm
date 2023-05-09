@@ -68,10 +68,14 @@ async function main() {
 		include: {
 			posts: {
 				limit: 1,
+				offset: 1,
 				select: {
 					title: true,
 					authorId: false,
 				},
+				includeCustom: (posts, { sql }) => ({
+					upperTitle: sql`upper(${posts.title})`.as('lower_title'),
+				}),
 			},
 		},
 	});

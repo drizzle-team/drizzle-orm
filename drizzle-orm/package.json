@@ -122,7 +122,6 @@
     "@originjs/vite-plugin-commonjs": "^1.0.3",
     "@planetscale/database": "^1.5.0",
     "@rollup/plugin-json": "^6.0.0",
-    "@rollup/plugin-terser": "^0.4.1",
     "@rollup/plugin-typescript": "^11.1.0",
     "@types/better-sqlite3": "^7.6.2",
     "@types/node": "^18.15.11",

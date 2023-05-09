@@ -1,3 +1,4 @@
+import { aliasedRelation, aliasedTable, aliasedTableColumn } from '~/alias';
 import type { AnyColumn } from '~/column';
 import { Column } from '~/column';
 import type { MigrationMeta } from '~/migrator';
@@ -23,6 +24,7 @@ import {
 	type DriverValueEncoder,
 	eq,
 	name,
+	or,
 	Param,
 	type Query,
 	type QueryTypingsValue,
@@ -34,7 +36,6 @@ import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
 import { orderSelectedFields, type UpdateSet, type ValueOrArray } from '~/utils';
 import { ViewBaseConfig } from '~/view';
-import { aliasedRelation, aliasedTable, aliasedTableColumn } from '..';
 import type { PgSession } from './session';
 import { type PgMaterializedView, PgViewBase } from './view';
 
@@ -231,7 +232,11 @@ export class PgDialect {
 
 		const tableSql = (() => {
 			if (table instanceof Table && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
-				return sql`${sql.identifier(table[Table.Symbol.OriginalName])} ${sql.identifier(table[Table.Symbol.Name])}`;
+				let fullName = sql`${sql.identifier(table[Table.Symbol.OriginalName])}`;
+				if (table[Table.Symbol.Schema]) {
+					fullName = sql`${sql.identifier(table[Table.Symbol.Schema]!)}.${fullName}`;
+				}
+				return sql`${fullName} ${sql.identifier(table[Table.Symbol.Name])}`;
 			}
 
 			return table;
@@ -589,11 +594,22 @@ export class PgDialect {
 		const where = and(
 			...selectedRelations.filter(({ key }) => {
 				const relation = config.include?.[key] ?? config.select?.[key];
-				return typeof relation === 'object' && (relation as DBQueryConfig<'many'>).limit !== undefined;
+				return typeof relation === 'object'
+					&& ((relation as DBQueryConfig<'many'>).limit !== undefined
+						|| (relation as DBQueryConfig<'many'>).offset !== undefined);
 			}).map(({ key }) => {
-				const field = sql`${sql.identifier(`${tableAlias}_${key}`)}.${sql.identifier('__drizzle_limit')}`;
+				const field = sql`${sql.identifier(`${tableAlias}_${key}`)}.${sql.identifier('__drizzle_row_number')}`;
 				const value = (config.include?.[key] ?? config.select?.[key]) as DBQueryConfig<'many'>;
-				return sql`(${field} <= ${value.limit} or ${field} is null)`;
+				const cond = or(
+					and(
+						value.offset ? sql`${field} > ${value.offset}` : undefined,
+						value.limit
+							? sql`${field} <= ${value.offset ? sql`${value.offset}::bigint + ` : undefined}${value.limit}`
+							: undefined,
+					),
+					sql`(${field} is null)`,
+				);
+				return cond;
 			}),
 		);
 
@@ -614,16 +630,17 @@ export class PgDialect {
 			...builtRelationFields,
 		];
 
-		let limit;
+		let limit, offset;
 
-		if (config.limit !== undefined) {
+		if (config.limit !== undefined || config.offset !== undefined) {
 			if (isRoot) {
 				limit = config.limit;
+				offset = config.offset;
 			} else {
 				fieldsFlat.push({
-					path: ['__drizzle_limit'],
+					path: ['__drizzle_row_number'],
 					field: sql`row_number() over(partition by ${relationColumns.map((c) => aliasedTableColumn(c, tableAlias))})`
-						.as('__drizzle_limit'),
+						.as('__drizzle_row_number'),
 				});
 			}
 		}
@@ -639,6 +656,7 @@ export class PgDialect {
 			lockingClauses: [],
 			withList: [],
 			limit,
+			offset,
 		});
 
 		if (config.where) {
@@ -665,7 +683,7 @@ export class PgDialect {
 			sql: result,
 			selection: [
 				...flatSelection.map(({ path, field }) => ({
-					dbKey: (tableConfig.columns[path[0]!] as AnyColumn).name,
+					dbKey: field instanceof SQL.Aliased ? field.fieldAlias : tableConfig.columns[path[0]!]!.name,
 					tsKey: path[0]!,
 					field,
 					tableTsKey: undefined,
