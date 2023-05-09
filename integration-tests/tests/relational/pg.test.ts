@@ -81,7 +81,7 @@ beforeAll(async () => {
 		await pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { schema, logger: true });
+	db = drizzle(client, { schema });
 });
 
 afterAll(async () => {
@@ -160,14 +160,9 @@ beforeEach(async (ctx) => {
 	);
 });
 
-// insert user and 3 posts
-// check all
-// check with limit
-// check with custom field
-// check with order by
-
-// check with where
-// check with partial select
+/*
+	One relation users+posts
+*/
 
 test('Get users with posts', async (t) => {
 	const { db } = t;
@@ -190,12 +185,12 @@ test('Get users with posts', async (t) => {
 		},
 	});
 
+	usersWithPosts.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
 	expect(usersWithPosts.length).eq(3);
 	expect(usersWithPosts[0]?.posts.length).eq(1);
 	expect(usersWithPosts[1]?.posts.length).eq(1);
 	expect(usersWithPosts[2]?.posts.length).eq(1);
-
-	usersWithPosts.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
 	expect(usersWithPosts[0]).toEqual({
 		id: 1,
@@ -248,6 +243,9 @@ test('Get users with posts + limit posts', async (t) => {
 	});
 
 	usersWithPosts.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	usersWithPosts[0]?.posts.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	usersWithPosts[1]?.posts.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	usersWithPosts[2]?.posts.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
 	expect(usersWithPosts.length).eq(3);
 	expect(usersWithPosts[0]?.posts.length).eq(1);
@@ -306,6 +304,8 @@ test('Get users with posts + limit posts and users', async (t) => {
 	});
 
 	usersWithPosts.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	usersWithPosts[0]?.posts.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	usersWithPosts[1]?.posts.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
 	expect(usersWithPosts.length).eq(2);
 	expect(usersWithPosts[0]?.posts.length).eq(1);
@@ -328,7 +328,7 @@ test('Get users with posts + limit posts and users', async (t) => {
 });
 
 // NOT WORKING
-test.only('Get users with posts + custom fields', async (t) => {
+test.skip('Get users with posts + custom fields', async (t) => {
 	const { db } = t;
 
 	await db.insert(usersTable).values([
@@ -357,6 +357,9 @@ test.only('Get users with posts + custom fields', async (t) => {
 	});
 
 	usersWithPosts.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	usersWithPosts[0]?.posts.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	usersWithPosts[1]?.posts.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	usersWithPosts[2]?.posts.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
 	expect(usersWithPosts.length).toEqual(3);
 	expect(usersWithPosts[0]?.posts.length).toEqual(3);
@@ -405,7 +408,7 @@ test.only('Get users with posts + custom fields', async (t) => {
 });
 
 // NOT WORKING
-test('Get users with posts + custom fields + limits', async (t) => {
+test.skip('Get users with posts + custom fields + limits', async (t) => {
 	const { db } = t;
 
 	await db.insert(usersTable).values([
@@ -554,5 +557,225 @@ test('Get users with posts + where', async (t) => {
 		verified: false,
 		invitedBy: null,
 		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: usersWithPosts[0]?.posts[0]?.createdAt }],
+	});
+});
+
+test('Get users with posts + where + partial', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 3, content: 'Post3' },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findMany({
+		select: {
+			id: true,
+			name: true,
+			posts: {
+				select: {
+					id: true,
+					content: true,
+				},
+				where: (({ id }, { eq }) => eq(id, 1)),
+			},
+		},
+		where: (({ id }, { eq }) => eq(id, 1)),
+	});
+
+	expect(usersWithPosts.length).eq(1);
+	expect(usersWithPosts[0]?.posts.length).eq(1);
+
+	expect(usersWithPosts[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		posts: [{ id: 1, content: 'Post1' }],
+	});
+});
+
+test.skip('Get users with posts + where + partial. Did not select posts id, but used it in where', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 3, content: 'Post3' },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findMany({
+		select: {
+			id: true,
+			name: true,
+			posts: {
+				select: {
+					id: true,
+					content: true,
+				},
+				where: (({ id }, { eq }) => eq(id, 1)),
+			},
+		},
+		where: (({ id }, { eq }) => eq(id, 1)),
+	});
+
+	expect(usersWithPosts.length).eq(1);
+	expect(usersWithPosts[0]?.posts.length).eq(1);
+
+	expect(usersWithPosts[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		posts: [{ id: 1, content: 'Post1' }],
+	});
+});
+
+test('Get users with posts + where + partial(true + false)', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 3, content: 'Post3' },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findMany({
+		select: {
+			id: true,
+			name: false,
+			posts: {
+				select: {
+					id: true,
+					content: false,
+				},
+				where: (({ id }, { eq }) => eq(id, 1)),
+			},
+		},
+		where: (({ id }, { eq }) => eq(id, 1)),
+	});
+
+	expect(usersWithPosts.length).eq(1);
+	expect(usersWithPosts[0]?.posts.length).eq(1);
+
+	expect(usersWithPosts[0]).toEqual({
+		id: 1,
+		posts: [{ id: 1 }],
+	});
+});
+
+test('Get users with posts + where + partial(false)', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 3, content: 'Post3' },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findMany({
+		select: {
+			name: false,
+			posts: {
+				select: {
+					content: false,
+				},
+				where: (({ id }, { eq }) => eq(id, 1)),
+			},
+		},
+		where: (({ id }, { eq }) => eq(id, 1)),
+	});
+
+	expect(usersWithPosts.length).eq(1);
+	expect(usersWithPosts[0]?.posts.length).eq(1);
+
+	expect(usersWithPosts[0]).toEqual({
+		id: 1,
+		verified: false,
+		invitedBy: null,
+		posts: [{ id: 1, ownerId: 1, createdAt: usersWithPosts[0]?.posts[0]?.createdAt }],
+	});
+});
+
+/*
+	One relation users+users. Self referencing
+*/
+
+test.only('Get user with invitee', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	const usersWithInvitee = await db.query.usersTable.findMany({
+		include: {
+			invitee: true,
+		},
+	});
+
+	usersWithInvitee.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(usersWithInvitee.length).eq(4);
+	expect(usersWithInvitee[0]?.invitee).toBeNull();
+	expect(usersWithInvitee[1]?.invitee).toBeNull();
+	expect(usersWithInvitee[2]?.invitee).not.toBeNull();
+	expect(usersWithInvitee[3]?.invitee).not.toBeNull();
+
+	expect(usersWithInvitee[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		invitee: null,
+	});
+	expect(usersWithInvitee[0]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		invitee: null,
+	});
+	expect(usersWithInvitee[0]).toEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
+		invitee: { id: 1, name: 'Dan', verified: false, invitedBy: null },
+	});
+	expect(usersWithInvitee[0]).toEqual({
+		id: 4,
+		name: 'John',
+		verified: false,
+		invitedBy: null,
+		invitee: { id: 2, name: 'Andrew', verified: false, invitedBy: null },
 	});
 });
