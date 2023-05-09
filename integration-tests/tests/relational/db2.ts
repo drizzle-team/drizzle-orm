@@ -1,11 +1,10 @@
 import 'dotenv/config';
-import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import util from 'node:util';
 import pg from 'pg';
 import * as schema from './schema2';
 
-const { users, posts, comments } = schema;
+// const { users, posts, comments } = schema;
 
 const { Pool } = pg;
 
