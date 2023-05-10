@@ -11,9 +11,13 @@ const db = drizzle(pdb, { schema });
 
 {
 	const result = await db.query.users.findMany({
+		where: (users, { sql }) => sql`char_length(${users.name} > 1)`,
+		limit: placeholder('l'),
 		orderBy: (users, { asc, desc }) => [asc(users.name), desc(users.id)],
 		include: {
 			posts: {
+				where: (posts, { sql }) => sql`char_length(${posts.title} > 1)`,
+				limit: placeholder('l'),
 				select: {
 					id: false,
 					author: true,

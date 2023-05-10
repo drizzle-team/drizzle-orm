@@ -273,3 +273,7 @@ export interface DrizzleConfig<TSchema extends Record<string, unknown> = {}> {
 	logger?: boolean | Logger;
 	schema?: TSchema;
 }
+
+export type KnownKeysOnly<T, U> = {
+	[K in keyof T]: K extends keyof U ? T[K] : never;
+};

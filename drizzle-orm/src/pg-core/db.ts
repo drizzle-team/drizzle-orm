@@ -14,6 +14,7 @@ import {
 } from '~/relations';
 import { type SQLWrapper } from '~/sql';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
+import { type KnownKeysOnly } from '~/utils';
 import { type ColumnsSelection } from '~/view';
 import { PgRefreshMaterializedView } from './query-builders/refresh-materialized-view';
 import type { SelectedFields } from './query-builders/select.types';
@@ -142,7 +143,7 @@ class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields ext
 	) {}
 
 	async findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
-		config?: TConfig,
+		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', true, TSchema, TFields>>,
 	): Promise<BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		const query = this.dialect.buildRelationalQuery(
 			this.fullSchema,
@@ -161,7 +162,7 @@ class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields ext
 	}
 
 	async findFirst<TSelection extends Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>(
-		config?: TSelection,
+		config?: KnownKeysOnly<TSelection, Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>,
 	): Promise<BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
 		const query = this.dialect.buildRelationalQuery(
 			this.fullSchema,
