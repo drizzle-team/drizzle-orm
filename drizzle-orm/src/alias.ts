@@ -104,6 +104,12 @@ export function mapColumnsInSQLToAlias(query: SQL, alias: string): SQL {
 		if (c instanceof Column) {
 			return aliasedTableColumn(c, alias);
 		}
+		if (c instanceof SQL) {
+			return mapColumnsInSQLToAlias(c, alias);
+		}
+		if (c instanceof SQL.Aliased) {
+			return mapColumnsInAliasedSQLToAlias(c, alias);
+		}
 		return c;
 	}));
 }

@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { sql } from 'drizzle-orm';
+import { eq, or, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import util from 'node:util';
 import pg from 'pg';
@@ -66,7 +66,6 @@ async function main() {
 	// });
 
 	const result = await db.query.users.findMany({
-		where: (users) => sql`jsonb_array_length(${users.posts}) > 0`,
 		include: {
 			posts: {
 				limit: 1,
@@ -76,7 +75,7 @@ async function main() {
 				includeCustom: {
 					upperTitle: sql`upper(${posts.title})`.as('lower_title'),
 				},
-				where: sql`${posts.id} is not null`,
+				where: or(eq(schema.posts.id, 1), eq(schema.posts.id, 2)),
 			},
 		},
 	});
