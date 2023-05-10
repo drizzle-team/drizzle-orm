@@ -63,19 +63,18 @@ async function main() {
 	// 	},
 	// });
 
-	const result = await db.query.users.findFirst({
-		where: (users, { eq }) => eq(users.id, 1),
+	const result = await db.query.users.findMany({
+		// where: (users, { eq }) => eq(users.id, 1),
 		include: {
 			posts: {
 				limit: 1,
-				offset: 1,
 				select: {
 					title: true,
-					authorId: false,
 				},
 				includeCustom: (posts, { sql }) => ({
 					upperTitle: sql`upper(${posts.title})`.as('lower_title'),
 				}),
+				// where: (posts, { sql }) => sql`${posts.id} is not null`,
 			},
 		},
 	});

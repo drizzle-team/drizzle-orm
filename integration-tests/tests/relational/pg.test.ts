@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import 'source-map-support/register';
 import Docker from 'dockerode';
 import { type ExtractTablesWithRelations, sql } from 'drizzle-orm';
@@ -9,6 +10,8 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import * as schema from './pg.schema';
 
 const { usersTable, postsTable } = schema;
+
+const ENABLE_LOGGING = true;
 
 declare module 'vitest' {
 	export interface TestContext {
@@ -81,7 +84,7 @@ beforeAll(async () => {
 		await pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { schema });
+	db = drizzle(client, { schema, logger: ENABLE_LOGGING });
 });
 
 afterAll(async () => {
@@ -327,8 +330,7 @@ test('Get users with posts + limit posts and users', async (t) => {
 	});
 });
 
-// NOT WORKING
-test.skip('Get users with posts + custom fields', async (t) => {
+test('Get users with posts + custom fields', async (t) => {
 	const { db } = t;
 
 	await db.insert(usersTable).values([
@@ -408,7 +410,7 @@ test.skip('Get users with posts + custom fields', async (t) => {
 });
 
 // NOT WORKING
-test.skip('Get users with posts + custom fields + limits', async (t) => {
+test('Get users with posts + custom fields + limits', async (t) => {
 	const { db } = t;
 
 	await db.insert(usersTable).values([
@@ -434,7 +436,7 @@ test.skip('Get users with posts + custom fields + limits', async (t) => {
 				limit: 1,
 			},
 		},
-		includeCustom: () => ({
+		includeCustom: (usersTable, { sql }) => ({
 			lowerName: sql<string>`lower(${usersTable.name})`.as('name_lower'),
 		}),
 	});
@@ -601,7 +603,7 @@ test('Get users with posts + where + partial', async (t) => {
 	});
 });
 
-test.skip('Get users with posts + where + partial. Did not select posts id, but used it in where', async (t) => {
+test('Get users with posts + where + partial. Did not select posts id, but used it in where', async (t) => {
 	const { db } = t;
 
 	await db.insert(usersTable).values([
@@ -726,8 +728,7 @@ test('Get users with posts + where + partial(false)', async (t) => {
 	One relation users+users. Self referencing
 */
 
-// NOT WORKING
-test.skip('Get user with invitee', async (t) => {
+test('Get user with invitee', async (t) => {
 	const { db } = t;
 
 	await db.insert(usersTable).values([
@@ -741,6 +742,7 @@ test.skip('Get user with invitee', async (t) => {
 		include: {
 			invitee: true,
 		},
+		orderBy: (usersTable) => usersTable.id,
 	});
 
 	usersWithInvitee.sort((a, b) => (a.id > b.id) ? 1 : -1);
@@ -758,25 +760,25 @@ test.skip('Get user with invitee', async (t) => {
 		invitedBy: null,
 		invitee: null,
 	});
-	expect(usersWithInvitee[0]).toEqual({
+	expect(usersWithInvitee[1]).toEqual({
 		id: 2,
 		name: 'Andrew',
 		verified: false,
 		invitedBy: null,
 		invitee: null,
 	});
-	expect(usersWithInvitee[0]).toEqual({
+	expect(usersWithInvitee[2]).toEqual({
 		id: 3,
 		name: 'Alex',
 		verified: false,
-		invitedBy: null,
+		invitedBy: 1,
 		invitee: { id: 1, name: 'Dan', verified: false, invitedBy: null },
 	});
-	expect(usersWithInvitee[0]).toEqual({
+	expect(usersWithInvitee[3]).toEqual({
 		id: 4,
 		name: 'John',
 		verified: false,
-		invitedBy: null,
+		invitedBy: 2,
 		invitee: { id: 2, name: 'Andrew', verified: false, invitedBy: null },
 	});
 });

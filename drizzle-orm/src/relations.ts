@@ -2,7 +2,14 @@ import { type AnyTable, type InferModelFromColumns, isTable, Table } from '~/tab
 import { type AnyColumn, Column } from './column';
 import { PrimaryKeyBuilder } from './pg-core';
 import { and, asc, desc, eq, or, type Placeholder, SQL, sql } from './sql';
-import { type Assume, type ColumnsWithTable, type Equal, type SimplifyShallow, type ValueOrArray } from './utils';
+import {
+	type Assume,
+	type ColumnsWithTable,
+	type DrizzleTypeError,
+	type Equal,
+	type SimplifyShallow,
+	type ValueOrArray,
+} from './utils';
 
 export abstract class Relation<TTableName extends string = string> {
 	declare readonly $brand: 'Relation';
@@ -125,6 +132,7 @@ export type FindTableByDBName<TSchema extends TablesRelationalConfig, TTableName
 
 export type DBQueryConfig<
 	TRelationType extends 'one' | 'many' = 'one' | 'many',
+	TIsRoot extends boolean = boolean,
 	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
 	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
 > =
@@ -138,6 +146,7 @@ export type DBQueryConfig<
 					| true
 					| DBQueryConfig<
 						TTableConfig['relations'][K] extends One ? 'one' : 'many',
+						false,
 						TSchema,
 						FindTableByDBName<TSchema, TTableConfig['relations'][K]['referencedTableName']>
 					>;
@@ -147,27 +156,34 @@ export type DBQueryConfig<
 				| true
 				| DBQueryConfig<
 					TTableConfig['relations'][K] extends One ? 'one' : 'many',
+					false,
 					TSchema,
 					FindTableByDBName<TSchema, TTableConfig['relations'][K]['referencedTableName']>
 				>;
 		};
 		includeCustom?: (
-			fields: TTableConfig['columns'],
+			fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
 			operators: { sql: Operators['sql'] },
 		) => Record<string, SQL.Aliased>;
 	}
-	& (TRelationType extends 'many' ? {
-			where?: (
-				fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
-				operators: Operators,
-			) => SQL | undefined;
-			orderBy?: (
-				fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
-				operators: OrderByOperators,
-			) => ValueOrArray<AnyColumn | SQL>;
-			limit?: number | Placeholder;
-			offset?: number | Placeholder;
-		}
+	& (TRelationType extends 'many' ? 
+			& {
+				where?: (
+					fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
+					operators: Operators,
+				) => SQL | undefined;
+				orderBy?: (
+					fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
+					operators: OrderByOperators,
+				) => ValueOrArray<AnyColumn | SQL>;
+				limit?: number | Placeholder;
+			}
+			& (TIsRoot extends true ? {
+					offset?: number | Placeholder;
+				}
+				: {
+					offset?: DrizzleTypeError<'Offset is not allowed in nested queries'>;
+				})
 		: {});
 export interface TableRelationalConfig {
 	tsName: string;

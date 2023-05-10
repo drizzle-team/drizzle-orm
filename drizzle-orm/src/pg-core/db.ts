@@ -1,3 +1,4 @@
+import util from 'node:util';
 import type { PgDialect } from '~/pg-core/dialect';
 import { PgDelete, PgInsertBuilder, PgSelectBuilder, PgUpdateBuilder, QueryBuilder } from '~/pg-core/query-builders';
 import type { PgSession, PgTransaction, PgTransactionConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
@@ -141,7 +142,7 @@ class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields ext
 		private session: PgSession,
 	) {}
 
-	async findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
+	async findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
 		config?: TConfig,
 	): Promise<BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		const query = this.dialect.buildRelationalQuery(
@@ -150,17 +151,18 @@ class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields ext
 			this.tableNamesMap,
 			this.table,
 			this.tableConfig,
-			(config as DBQueryConfig<'many'> | undefined) ?? true,
+			(config as DBQueryConfig<'many', true> | undefined) ?? true,
 			this.tableConfig.tsName,
 			[],
 			true,
 		);
 
 		const rows = await this.session.values<unknown[]>(query.sql);
+		console.log(util.inspect(rows, { depth: null, colors: true }));
 		return rows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, query.selection)) as any;
 	}
 
-	async findFirst<TSelection extends Omit<DBQueryConfig<'many', TSchema, TFields>, 'limit'>>(
+	async findFirst<TSelection extends Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>(
 		config?: TSelection,
 	): Promise<BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
 		const query = this.dialect.buildRelationalQuery(
@@ -169,7 +171,7 @@ class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields ext
 			this.tableNamesMap,
 			this.table,
 			this.tableConfig,
-			config ? { ...(config as DBQueryConfig<'many'> | undefined), limit: 1 } : { limit: 1 },
+			config ? { ...(config as DBQueryConfig<'many', true> | undefined), limit: 1 } : { limit: 1 },
 			this.tableConfig.tsName,
 			[],
 			true,

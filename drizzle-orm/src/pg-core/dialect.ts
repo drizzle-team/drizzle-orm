@@ -12,7 +12,6 @@ import {
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
 	normalizeRelation,
-	One,
 	operators,
 	orderByOperators,
 	Relation,
@@ -34,7 +33,7 @@ import {
 } from '~/sql';
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
-import { orderSelectedFields, type UpdateSet, type ValueOrArray } from '~/utils';
+import { type DrizzleTypeError, orderSelectedFields, type UpdateSet, type ValueOrArray } from '~/utils';
 import { ViewBaseConfig } from '~/view';
 import type { PgSession } from './session';
 import { type PgMaterializedView, PgViewBase } from './view';
@@ -434,10 +433,20 @@ export class PgDialect {
 			};
 		}
 
-		const selection: Record<string, AnyPgColumn | SQL | SQL.Aliased> = {};
+		const aliasedColumns = Object.fromEntries(
+			Object.entries(tableConfig.columns).map(([key, value]) => [key, aliasedTableColumn(value, tableAlias)]),
+		);
+
+		const aliasedRelations = Object.fromEntries(
+			Object.entries(tableConfig.relations).map(([key, value]) => [key, aliasedRelation(value, tableAlias)]),
+		);
+
+		const aliasedFields = Object.assign({}, aliasedColumns, aliasedRelations);
+
+		const fieldsSelection: Record<string, AnyPgColumn | SQL.Aliased> = {};
 		let selectedColumns: string[] = [];
-		let selectedCustomFields: { key: string; value: SQL | SQL.Aliased }[] = [];
-		let selectedRelations: { key: string; value: true | DBQueryConfig }[] = [];
+		let selectedCustomFields: { key: string; value: SQL.Aliased }[] = [];
+		let selectedRelations: { key: string; value: true | DBQueryConfig<'many', false> }[] = [];
 
 		if (config.select) {
 			let isIncludeMode = false;
@@ -476,7 +485,7 @@ export class PgDialect {
 		}
 
 		if (config.includeCustom) {
-			const includeCustom = config.includeCustom(tableConfig.columns, { sql });
+			const includeCustom = config.includeCustom(aliasedFields, { sql });
 			selectedCustomFields = Object.entries(includeCustom).map(([key, value]) => ({
 				key,
 				value,
@@ -485,11 +494,11 @@ export class PgDialect {
 
 		for (const field of selectedColumns) {
 			const column = tableConfig.columns[field] as AnyPgColumn;
-			selection[field] = column;
+			fieldsSelection[field] = column;
 		}
 
 		for (const { key, value } of selectedCustomFields) {
-			selection[key] = value;
+			fieldsSelection[key] = value;
 		}
 
 		const builtRelations: { key: string; value: BuildRelationalQueryResult }[] = [];
@@ -552,63 +561,29 @@ export class PgDialect {
 
 			const field = sql`case when count(${
 				sql.join(normalizedRelation.references.map((c) => aliasedTableColumn(c, relationAlias)), sql.raw(' or '))
-			}) = 0 then ${relation instanceof One ? sql`null` : sql`'[]'`} else ${elseField} end`.as(selectedRelationKey);
+			}) = 0 then '[]' else ${elseField} end`.as(selectedRelationKey);
 
 			builtRelationFields.push({
 				path: [selectedRelationKey],
-				field: field,
+				field,
 			});
 		}
 
-		const unselectedRelationColumns = [...relationColumns];
-
-		const flatSelection: SelectedFieldsOrdered = Object.entries(selection).map(([key, value]) => {
-			if (value instanceof Column) {
-				const valueIndex = unselectedRelationColumns.indexOf(value);
-				if (valueIndex !== -1) {
-					unselectedRelationColumns.splice(valueIndex, 1);
-				}
-				value = aliasedTableColumn(value, tableAlias);
-			}
+		const finalFieldsSelection: SelectedFieldsOrdered = Object.entries(fieldsSelection).map(([key, value]) => {
 			return {
 				path: [key],
-				field: value,
+				field: value instanceof Column ? aliasedTableColumn(value, tableAlias) : value,
 			};
 		});
-
-		const relationColumnsSelection: SelectedFieldsOrdered = unselectedRelationColumns.map((column) => ({
-			path: [column.name],
-			field: aliasedTableColumn(column, tableAlias) as AnyPgColumn,
-		}));
-
-		const aliasedColumns = Object.fromEntries(
-			Object.entries(tableConfig.columns).map(([key, value]) => [key, aliasedTableColumn(value, tableAlias)]),
-		);
-
-		const aliasedRelations = Object.fromEntries(
-			Object.entries(tableConfig.relations).map(([key, value]) => [key, aliasedRelation(value, tableAlias)]),
-		);
-
-		const aliasedFields = Object.assign({}, aliasedColumns, aliasedRelations);
 
 		const where = and(
 			...selectedRelations.filter(({ key }) => {
 				const relation = config.include?.[key] ?? config.select?.[key];
-				return typeof relation === 'object'
-					&& ((relation as DBQueryConfig<'many'>).limit !== undefined
-						|| (relation as DBQueryConfig<'many'>).offset !== undefined);
+				return typeof relation === 'object' && (relation as DBQueryConfig<'many'>).limit !== undefined;
 			}).map(({ key }) => {
 				const field = sql`${sql.identifier(`${tableAlias}_${key}`)}.${sql.identifier('__drizzle_row_number')}`;
 				const value = (config.include?.[key] ?? config.select?.[key]) as DBQueryConfig<'many'>;
-				const cond = or(
-					and(
-						value.offset ? sql`${field} > ${value.offset}` : undefined,
-						value.limit
-							? sql`${field} <= ${value.offset ? sql`${value.offset}::bigint + ` : undefined}${value.limit}`
-							: undefined,
-					),
-					sql`(${field} is null)`,
-				);
+				const cond = or(and(sql`${field} <= ${value.limit}`), sql`(${field} is null)`);
 				return cond;
 			}),
 		);
@@ -624,9 +599,28 @@ export class PgDialect {
 			orderBy = [orderBy];
 		}
 
-		const fieldsFlat: SelectedFieldsOrdered = [
-			...flatSelection,
-			...relationColumnsSelection,
+		const finalFieldsFlat: SelectedFieldsOrdered = isRoot
+			? [
+				...finalFieldsSelection,
+				...builtRelationFields.map(({ path, field }) => ({
+					path,
+					field: sql`${sql.identifier((field as SQL.Aliased).fieldAlias)}`,
+				})),
+			]
+			: [{
+				path: [],
+				field: sql`${sql.identifier(tableAlias)}.*`,
+			}];
+
+		const initialFieldsFlat: SelectedFieldsOrdered = [
+			{
+				path: [],
+				field: sql`${sql.identifier(tableAlias)}.*`,
+			},
+			...selectedCustomFields.map(({ key, value }) => ({
+				path: [key],
+				field: value,
+			})),
 			...builtRelationFields,
 		];
 
@@ -637,7 +631,7 @@ export class PgDialect {
 				limit = config.limit;
 				offset = config.offset;
 			} else {
-				fieldsFlat.push({
+				initialFieldsFlat.push({
 					path: ['__drizzle_row_number'],
 					field: sql`row_number() over(partition by ${relationColumns.map((c) => aliasedTableColumn(c, tableAlias))})`
 						.as('__drizzle_row_number'),
@@ -648,7 +642,7 @@ export class PgDialect {
 		let result = this.buildSelectQuery({
 			table: aliasedTable(table, tableAlias),
 			fields: {},
-			fieldsFlat,
+			fieldsFlat: initialFieldsFlat,
 			where,
 			groupBy,
 			orderBy,
@@ -656,19 +650,16 @@ export class PgDialect {
 			lockingClauses: [],
 			withList: [],
 			limit,
-			offset,
+			offset: offset as Exclude<typeof offset, DrizzleTypeError<any>>,
 		});
-
 		if (config.where) {
 			result = this.buildSelectQuery({
 				table: new Subquery(result, {}, tableAlias),
 				fields: {},
-				fieldsFlat: fieldsFlat.map(({ path, field }) => ({
-					path,
-					field: field instanceof SQL.Aliased
-						? sql`${sql.identifier(field.fieldAlias)}`
-						: field,
-				})),
+				fieldsFlat: [{
+					path: [],
+					field: sql`${sql.identifier(tableAlias)}.*`,
+				}],
 				where: config.where(aliasedFields, operators),
 				groupBy: [],
 				orderBy: [],
@@ -677,12 +668,22 @@ export class PgDialect {
 				withList: [],
 			});
 		}
+		result = this.buildSelectQuery({
+			table: new Subquery(result, {}, tableAlias),
+			fields: {},
+			fieldsFlat: finalFieldsFlat,
+			groupBy: [],
+			orderBy: [],
+			joins: [],
+			lockingClauses: [],
+			withList: [],
+		});
 
 		return {
 			tableTsKey: tableConfig.tsName,
 			sql: result,
 			selection: [
-				...flatSelection.map(({ path, field }) => ({
+				...finalFieldsSelection.map(({ path, field }) => ({
 					dbKey: field instanceof SQL.Aliased ? field.fieldAlias : tableConfig.columns[path[0]!]!.name,
 					tsKey: path[0]!,
 					field,
