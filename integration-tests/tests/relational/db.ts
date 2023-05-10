@@ -1,8 +1,10 @@
 import 'dotenv/config';
+import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import util from 'node:util';
 import pg from 'pg';
 import * as schema from './schema';
+import { posts } from './schema';
 
 const { Pool } = pg;
 
@@ -64,20 +66,38 @@ async function main() {
 	// });
 
 	const result = await db.query.users.findMany({
-		// where: (users, { eq }) => eq(users.id, 1),
+		where: (users) => sql`jsonb_array_length(${users.posts}) > 0`,
 		include: {
 			posts: {
 				limit: 1,
 				select: {
 					title: true,
 				},
-				includeCustom: (posts, { sql }) => ({
+				includeCustom: {
 					upperTitle: sql`upper(${posts.title})`.as('lower_title'),
-				}),
-				// where: (posts, { sql }) => sql`${posts.id} is not null`,
+				},
+				where: sql`${posts.id} is not null`,
 			},
 		},
 	});
+
+	// const result = await db.query.users.findMany({
+	// 	where: {
+	// 		users: {}
+	// 	}
+	// 	include: {
+	// 		posts: {
+	// 			limit: 1,
+	// 			select: {
+	// 				title: true,
+	// 			},
+	// 			includeCustom: (posts, { sql }) => ({
+	// 				upperTitle: sql`upper(${posts.title})`.as('lower_title'),
+	// 			}),
+	// 			where: (posts, { sql }) => sql`${posts.id} is not null`,
+	// 		},
+	// 	},
+	// });
 
 	console.log(util.inspect(result, { depth: null, colors: true }));
 

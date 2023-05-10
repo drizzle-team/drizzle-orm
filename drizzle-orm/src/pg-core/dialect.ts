@@ -1,4 +1,10 @@
-import { aliasedRelation, aliasedTable, aliasedTableColumn } from '~/alias';
+import {
+	aliasedRelation,
+	aliasedTable,
+	aliasedTableColumn,
+	mapColumnsInAliasedSQLToAlias,
+	mapColumnsInSQLToAlias,
+} from '~/alias';
 import type { AnyColumn } from '~/column';
 import { Column } from '~/column';
 import type { MigrationMeta } from '~/migrator';
@@ -33,7 +39,7 @@ import {
 } from '~/sql';
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
-import { type DrizzleTypeError, orderSelectedFields, type UpdateSet, type ValueOrArray } from '~/utils';
+import { type DrizzleTypeError, orderSelectedFields, type UpdateSet } from '~/utils';
 import { ViewBaseConfig } from '~/view';
 import type { PgSession } from './session';
 import { type PgMaterializedView, PgViewBase } from './view';
@@ -485,10 +491,12 @@ export class PgDialect {
 		}
 
 		if (config.includeCustom) {
-			const includeCustom = config.includeCustom(aliasedFields, { sql });
-			selectedCustomFields = Object.entries(includeCustom).map(([key, value]) => ({
+			const includeCustomOrig = typeof config.includeCustom === 'function'
+				? config.includeCustom(aliasedFields, { sql })
+				: config.includeCustom;
+			selectedCustomFields = Object.entries(includeCustomOrig).map(([key, value]) => ({
 				key,
-				value,
+				value: mapColumnsInAliasedSQLToAlias(value, tableAlias),
 			}));
 		}
 
@@ -594,10 +602,18 @@ export class PgDialect {
 			)
 			: []) as AnyPgColumn[];
 
-		let orderBy = config.orderBy?.(aliasedFields, orderByOperators) as ValueOrArray<AnyPgColumn | SQL> ?? [];
-		if (!Array.isArray(orderBy)) {
-			orderBy = [orderBy];
+		let orderByOrig = typeof config.orderBy === 'function'
+			? config.orderBy?.(aliasedFields, orderByOperators)
+			: config.orderBy ?? [];
+		if (!Array.isArray(orderByOrig)) {
+			orderByOrig = [orderByOrig];
 		}
+		const orderBy = orderByOrig.map((orderByValue) => {
+			if (orderByValue instanceof Column) {
+				return aliasedTableColumn(orderByValue, tableAlias) as AnyPgColumn;
+			}
+			return mapColumnsInSQLToAlias(orderByValue, tableAlias);
+		});
 
 		const finalFieldsFlat: SelectedFieldsOrdered = isRoot
 			? [
@@ -649,10 +665,10 @@ export class PgDialect {
 			joins,
 			lockingClauses: [],
 			withList: [],
-			limit,
-			offset: offset as Exclude<typeof offset, DrizzleTypeError<any>>,
 		});
 		if (config.where) {
+			const whereSql = typeof config.where === 'function' ? config.where(aliasedFields, operators) : config.where;
+			const where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 			result = this.buildSelectQuery({
 				table: new Subquery(result, {}, tableAlias),
 				fields: {},
@@ -660,12 +676,14 @@ export class PgDialect {
 					path: [],
 					field: sql`${sql.identifier(tableAlias)}.*`,
 				}],
-				where: config.where(aliasedFields, operators),
+				where,
 				groupBy: [],
 				orderBy: [],
 				joins: [],
 				lockingClauses: [],
 				withList: [],
+				limit,
+				offset: offset as Exclude<typeof offset, DrizzleTypeError<any>>,
 			});
 		}
 		result = this.buildSelectQuery({

@@ -161,21 +161,28 @@ export type DBQueryConfig<
 					FindTableByDBName<TSchema, TTableConfig['relations'][K]['referencedTableName']>
 				>;
 		};
-		includeCustom?: (
-			fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
-			operators: { sql: Operators['sql'] },
-		) => Record<string, SQL.Aliased>;
+		includeCustom?:
+			| Record<string, SQL.Aliased>
+			| ((
+				fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
+				operators: { sql: Operators['sql'] },
+			) => Record<string, SQL.Aliased>);
 	}
 	& (TRelationType extends 'many' ? 
 			& {
-				where?: (
-					fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
-					operators: Operators,
-				) => SQL | undefined;
-				orderBy?: (
-					fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
-					operators: OrderByOperators,
-				) => ValueOrArray<AnyColumn | SQL>;
+				where?:
+					| SQL
+					| undefined
+					| ((
+						fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
+						operators: Operators,
+					) => SQL | undefined);
+				orderBy?:
+					| ValueOrArray<AnyColumn | SQL>
+					| ((
+						fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
+						operators: OrderByOperators,
+					) => ValueOrArray<AnyColumn | SQL>);
 				limit?: number | Placeholder;
 			}
 			& (TIsRoot extends true ? {
@@ -209,7 +216,7 @@ export type ExtractTablesWithRelations<TSchema extends Record<string, unknown>> 
 export interface RelationSelectionBase {
 	select?: Record<string, boolean | Record<string, unknown> | undefined>;
 	include?: Record<string, boolean | Record<string, unknown> | undefined>;
-	includeCustom?: (...args: any[]) => Record<string, SQL | SQL.Aliased>;
+	includeCustom?: Record<string, SQL | SQL.Aliased> | ((...args: any[]) => Record<string, SQL | SQL.Aliased>);
 	limit?: number | Placeholder;
 }
 

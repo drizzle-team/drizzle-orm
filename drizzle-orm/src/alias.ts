@@ -1,6 +1,7 @@
 import type { AnyColumn } from './column';
 import { Column } from './column';
 import { type Relation } from './relations';
+import { SQL, sql } from './sql';
 import { Table } from './table';
 import { type View, ViewBaseConfig } from './view';
 
@@ -92,4 +93,17 @@ export function aliasedTableColumn<T extends AnyColumn>(column: T, tableAlias: s
 		column,
 		new ColumnAliasProxyHandler(new Proxy(column.table, new TableAliasProxyHandler(tableAlias, false))),
 	);
+}
+
+export function mapColumnsInAliasedSQLToAlias(query: SQL.Aliased, alias: string): SQL.Aliased {
+	return new SQL.Aliased(mapColumnsInSQLToAlias(query.sql, alias), query.fieldAlias);
+}
+
+export function mapColumnsInSQLToAlias(query: SQL, alias: string): SQL {
+	return sql.fromList(query.queryChunks.map((c) => {
+		if (c instanceof Column) {
+			return aliasedTableColumn(c, alias);
+		}
+		return c;
+	}));
 }
