@@ -220,6 +220,8 @@ export interface RelationSelectionBase {
 	limit?: number | Placeholder;
 }
 
+export type ReturnTypeOrValue<T> = T extends (...args: any[]) => infer R ? R : T;
+
 export type BuildQueryResult<
 	TSchema extends TablesRelationalConfig,
 	TTableConfig extends TableRelationalConfig,
@@ -243,8 +245,9 @@ export type BuildQueryResult<
 				}
 				: TTableConfig['columns']
 		>
-		& (TFullSelection['includeCustom'] extends (...args: any[]) => Record<string, SQL | SQL.Aliased> ? {
-				[K in keyof ReturnType<TFullSelection['includeCustom']>]: ReturnType<
+		& (TFullSelection['includeCustom'] extends
+			Record<string, SQL.Aliased> | ((...args: any[]) => Record<string, SQL.Aliased>) ? {
+				[K in keyof ReturnTypeOrValue<TFullSelection['includeCustom']>]: ReturnTypeOrValue<
 					TFullSelection['includeCustom']
 				>[K]['_']['type'];
 			}
