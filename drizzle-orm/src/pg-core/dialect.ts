@@ -682,8 +682,6 @@ export class PgDialect {
 				joins: [],
 				lockingClauses: [],
 				withList: [],
-				limit,
-				offset: offset as Exclude<typeof offset, DrizzleTypeError<any>>,
 			});
 		}
 		result = this.buildSelectQuery({
@@ -695,6 +693,8 @@ export class PgDialect {
 			joins: [],
 			lockingClauses: [],
 			withList: [],
+			limit,
+			offset: offset as Exclude<typeof offset, DrizzleTypeError<any>>,
 		});
 
 		return {

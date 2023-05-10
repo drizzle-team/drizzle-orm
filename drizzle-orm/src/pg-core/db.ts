@@ -1,4 +1,3 @@
-import util from 'node:util';
 import type { PgDialect } from '~/pg-core/dialect';
 import { PgDelete, PgInsertBuilder, PgSelectBuilder, PgUpdateBuilder, QueryBuilder } from '~/pg-core/query-builders';
 import type { PgSession, PgTransaction, PgTransactionConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
@@ -158,7 +157,6 @@ class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields ext
 		);
 
 		const rows = await this.session.values<unknown[]>(query.sql);
-		console.log(util.inspect(rows, { depth: null, colors: true }));
 		return rows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, query.selection)) as any;
 	}
 

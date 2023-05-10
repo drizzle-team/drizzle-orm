@@ -1,5 +1,4 @@
 import 'dotenv/config';
-import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import util from 'node:util';
 import pg from 'pg';
@@ -43,13 +42,22 @@ async function main() {
 	// 	},
 	// });
 
+	// const result = await db.query.users.findMany({
+	// 	select: {
+	// 		id: true,
+	// 		name: true,
+	// 	},
+	// 	includeCustom: {
+	// 		nameUpper: sql<string>`upper(${schema.users.name})`.as('name_upper'),
+	// 	},
+	// });
+
 	const result = await db.query.users.findMany({
-		select: {
-			id: true,
-			name: true,
-		},
-		includeCustom: {
-			nameUpper: sql<string>`upper(${schema.users.name})`.as('name_upper'),
+		limit: 2,
+		include: {
+			posts: {
+				limit: 1,
+			},
 		},
 	});
 
