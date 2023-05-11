@@ -32,15 +32,13 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 			return rows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, selection));
 		}
 
-		console.log('rows', rows, rows[0], !rows[0]);
-
 		if (!rows[0]) {
 			return undefined;
 		}
 		return mapRelationalRow(this.schema, this.tableConfig, rows[0], selection);
 	}
 
-	prepare(name: string): PreparedQuery<
+	private _prepare(name?: string): PreparedQuery<
 		PreparedQueryConfig & {
 			execute: TResult;
 		}
@@ -66,7 +64,15 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 		);
 	}
 
+	prepare(name: string): PreparedQuery<
+		PreparedQueryConfig & {
+			execute: TResult;
+		}
+	> {
+		return this._prepare(name);
+	}
+
 	override execute(): Promise<TResult> {
-		return this.prepare('execute').execute();
+		return this._prepare().execute();
 	}
 }
