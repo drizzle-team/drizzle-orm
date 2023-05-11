@@ -2551,12 +2551,12 @@ test.skip('Get user with posts and posts with comments and comments with owner',
 */
 
 /*
-	Many-to-many cases
-	Users+users_to_groups+groups
+	[Find Many] Many-to-many cases
 
+	Users+users_to_groups+groups
 */
 
-test('Get users with groups', async (t) => {
+test('[Find Many] Get users with groups', async (t) => {
 	const { db } = t;
 
 	await db.insert(usersTable).values([
@@ -2645,7 +2645,7 @@ test('Get users with groups', async (t) => {
 	});
 });
 
-test('Get groups with users', async (t) => {
+test('[Find Many] Get groups with users', async (t) => {
 	const { db } = t;
 
 	await db.insert(usersTable).values([
@@ -2735,7 +2735,7 @@ test('Get groups with users', async (t) => {
 	});
 });
 
-test('Get users with groups + limit', async (t) => {
+test('[Find Many] Get users with groups + limit', async (t) => {
 	const { db } = t;
 
 	await db.insert(usersTable).values([
@@ -2805,7 +2805,7 @@ test('Get users with groups + limit', async (t) => {
 	});
 });
 
-test('Get groups with users + limit', async (t) => {
+test('[Find Many] Get groups with users + limit', async (t) => {
 	const { db } = t;
 
 	await db.insert(usersTable).values([
@@ -2875,7 +2875,7 @@ test('Get groups with users + limit', async (t) => {
 	});
 });
 
-test('Get users with groups + limit + where', async (t) => {
+test('[Find Many] Get users with groups + limit + where', async (t) => {
 	const { db } = t;
 
 	await db.insert(usersTable).values([
@@ -2931,7 +2931,7 @@ test('Get users with groups + limit + where', async (t) => {
 	});
 });
 
-test('Get groups with users + limit + where', async (t) => {
+test('[Find Many] Get groups with users + limit + where', async (t) => {
 	const { db } = t;
 
 	await db.insert(usersTable).values([
@@ -2988,7 +2988,7 @@ test('Get groups with users + limit + where', async (t) => {
 	});
 });
 
-test('Get users with groups + where', async (t) => {
+test('[Find Many] Get users with groups + where', async (t) => {
 	const { db } = t;
 
 	await db.insert(usersTable).values([
@@ -3052,7 +3052,7 @@ test('Get users with groups + where', async (t) => {
 	});
 });
 
-test('Get groups with users + where', async (t) => {
+test('[Find Many] Get groups with users + where', async (t) => {
 	const { db } = t;
 
 	await db.insert(usersTable).values([
@@ -3115,7 +3115,7 @@ test('Get groups with users + where', async (t) => {
 	});
 });
 
-test('Get users with groups + orderBy', async (t) => {
+test('[Find Many] Get users with groups + orderBy', async (t) => {
 	const { db } = t;
 
 	await db.insert(usersTable).values([
@@ -3204,7 +3204,7 @@ test('Get users with groups + orderBy', async (t) => {
 	});
 });
 
-test('Get groups with users + orderBy', async (t) => {
+test('[Find Many] Get groups with users + orderBy', async (t) => {
 	const { db } = t;
 
 	await db.insert(usersTable).values([
@@ -3294,7 +3294,7 @@ test('Get groups with users + orderBy', async (t) => {
 	});
 });
 
-test('Get users with groups + orderBy + limit', async (t) => {
+test('[Find Many] Get users with groups + orderBy + limit', async (t) => {
 	const { db } = t;
 
 	await db.insert(usersTable).values([
@@ -3350,6 +3350,569 @@ test('Get users with groups + orderBy + limit', async (t) => {
 	});
 
 	expect(response[0]).toEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
+		usersToGroups: [{
+			group: {
+				id: 3,
+				name: 'Group3',
+				description: null,
+			},
+		}],
+	});
+});
+
+/*
+	[Find One] Many-to-many cases
+
+	Users+users_to_groups+groups
+*/
+
+test('[Find One] Get users with groups', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findFirst({
+		include: {
+			usersToGroups: {
+				select: {
+					group: true,
+				},
+			},
+		},
+	});
+
+	expect(response?.usersToGroups.length).toEqual(1);
+
+	expect(response).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		usersToGroups: [{
+			group: {
+				id: 1,
+				name: 'Group1',
+				description: null,
+			},
+		}],
+	});
+});
+
+test('[Find One] Get groups with users', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findFirst({
+		include: {
+			usersToGroups: {
+				select: {
+					user: true,
+				},
+			},
+		},
+	});
+
+	expect(response?.usersToGroups.length).toEqual(1);
+
+	expect(response).toEqual({
+		id: 1,
+		name: 'Group1',
+		description: null,
+		usersToGroups: [{
+			user: {
+				id: 1,
+				name: 'Dan',
+				verified: false,
+				invitedBy: null,
+			},
+		}],
+	});
+});
+
+test('[Find One] Get users with groups + limit', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 2, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findFirst({
+		include: {
+			usersToGroups: {
+				limit: 1,
+				select: {
+					group: true,
+				},
+			},
+		},
+	});
+
+	expect(response?.usersToGroups.length).toEqual(1);
+
+	expect(response).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		usersToGroups: [{
+			group: {
+				id: 1,
+				name: 'Group1',
+				description: null,
+			},
+		}],
+	});
+});
+
+test('[Find One] Get groups with users + limit', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findFirst({
+		include: {
+			usersToGroups: {
+				limit: 1,
+				select: {
+					user: true,
+				},
+			},
+		},
+	});
+
+	expect(response?.usersToGroups.length).toEqual(1);
+
+	expect(response).toEqual({
+		id: 1,
+		name: 'Group1',
+		description: null,
+		usersToGroups: [{
+			user: {
+				id: 1,
+				name: 'Dan',
+				verified: false,
+				invitedBy: null,
+			},
+		}],
+	});
+});
+
+test('[Find One] Get users with groups + limit + where', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 2, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findFirst({
+		where: (_, { eq, or }) => or(eq(usersTable.id, 1), eq(usersTable.id, 2)),
+		include: {
+			usersToGroups: {
+				where: eq(usersToGroupsTable.groupId, 1),
+				select: {
+					group: true,
+				},
+			},
+		},
+	});
+
+	expect(response?.usersToGroups.length).toEqual(1);
+
+	expect(response).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		usersToGroups: [{
+			group: {
+				id: 1,
+				name: 'Group1',
+				description: null,
+			},
+		}],
+	});
+});
+
+test('[Find One] Get groups with users + limit + where', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findFirst({
+		where: gt(groupsTable.id, 1),
+		include: {
+			usersToGroups: {
+				where: eq(usersToGroupsTable.userId, 2),
+				limit: 1,
+				select: {
+					user: true,
+				},
+			},
+		},
+	});
+
+	expect(response?.usersToGroups.length).toEqual(1);
+
+	expect(response).toEqual({
+		id: 2,
+		name: 'Group2',
+		description: null,
+		usersToGroups: [{
+			user: {
+				id: 2,
+				name: 'Andrew',
+				verified: false,
+				invitedBy: null,
+			},
+		}],
+	});
+});
+
+test('[Find One] Get users with groups + where', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 2, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findFirst({
+		where: (_, { eq, or }) => or(eq(usersTable.id, 1), eq(usersTable.id, 2)),
+		include: {
+			usersToGroups: {
+				where: eq(usersToGroupsTable.groupId, 2),
+				select: {
+					group: true,
+				},
+			},
+		},
+	});
+
+	expect(response?.usersToGroups.length).toEqual(0);
+
+	expect(response).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		usersToGroups: [],
+	});
+});
+
+test('[Find One] Get groups with users + where', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findFirst({
+		where: gt(groupsTable.id, 1),
+		include: {
+			usersToGroups: {
+				where: eq(usersToGroupsTable.userId, 2),
+				select: {
+					user: true,
+				},
+			},
+		},
+	});
+
+	expect(response?.usersToGroups.length).toEqual(1);
+
+	expect(response).toEqual({
+		id: 2,
+		name: 'Group2',
+		description: null,
+		usersToGroups: [{
+			user: {
+				id: 2,
+				name: 'Andrew',
+				verified: false,
+				invitedBy: null,
+			},
+		}],
+	});
+});
+
+test('[Find One] Get users with groups + orderBy', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findFirst({
+		orderBy: (users, { desc }) => [desc(users.id)],
+		include: {
+			usersToGroups: {
+				orderBy: [desc(usersToGroupsTable.groupId)],
+				select: {
+					group: true,
+				},
+			},
+		},
+	});
+
+	expect(response?.usersToGroups.length).toEqual(2);
+
+	expect(response).toEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
+		usersToGroups: [{
+			group: {
+				id: 3,
+				name: 'Group3',
+				description: null,
+			},
+		}, {
+			group: {
+				id: 2,
+				name: 'Group2',
+				description: null,
+			},
+		}],
+	});
+});
+
+test('[Find One] Get groups with users + orderBy', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findFirst({
+		orderBy: [desc(groupsTable.id)],
+		include: {
+			usersToGroups: {
+				orderBy: (utg, { desc }) => [desc(utg.userId)],
+				select: {
+					user: true,
+				},
+			},
+		},
+	});
+
+	expect(response?.usersToGroups.length).toEqual(1);
+
+	expect(response).toEqual({
+		id: 3,
+		name: 'Group3',
+		description: null,
+		usersToGroups: [{
+			user: {
+				id: 3,
+				name: 'Alex',
+				verified: false,
+				invitedBy: null,
+			},
+		}],
+	});
+});
+
+test('[Find One] Get users with groups + orderBy + limit', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findFirst({
+		orderBy: (users, { desc }) => [desc(users.id)],
+		include: {
+			usersToGroups: {
+				limit: 1,
+				orderBy: [desc(usersToGroupsTable.groupId)],
+				select: {
+					group: true,
+				},
+			},
+		},
+	});
+
+	expect(response?.usersToGroups.length).toEqual(1);
+
+	expect(response).toEqual({
 		id: 3,
 		name: 'Alex',
 		verified: false,
