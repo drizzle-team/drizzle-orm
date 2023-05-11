@@ -51,10 +51,12 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 		const { fields, joinsNotNullableMap, mapResults } = this;
 
 		const rows = await this.values(placeholderValues);
-		if (!fields) {
-			return (mapResults ? mapResults(rows) : rows) as T['execute'];
+		if (!fields && !mapResults) {
+			return rows as T['execute'];
 		}
-		return (rows as unknown[][]).map((row) => mapResultRow<T['execute']>(fields, row, joinsNotNullableMap));
+		return mapResults
+			? mapResults(rows)
+			: (rows as unknown[][]).map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
 	}
 
 	all(placeholderValues?: Record<string, unknown> | undefined): Promise<T['all']> {
