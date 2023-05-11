@@ -38,11 +38,7 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 		return mapRelationalRow(this.schema, this.tableConfig, rows[0], selection);
 	}
 
-	private _prepare(name?: string): PreparedQuery<
-		PreparedQueryConfig & {
-			execute: TResult;
-		}
-	> {
+	private _prepare(name?: string): PreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		const query = this.dialect.buildRelationalQuery(
 			this.fullSchema,
 			this.schema,
@@ -64,11 +60,7 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 		);
 	}
 
-	prepare(name: string): PreparedQuery<
-		PreparedQueryConfig & {
-			execute: TResult;
-		}
-	> {
+	prepare(name: string): PreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return this._prepare(name);
 	}
 
