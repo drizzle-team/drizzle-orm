@@ -1,5 +1,4 @@
 import 'dotenv/config';
-import 'source-map-support/register';
 import Docker from 'dockerode';
 import { desc, eq, type ExtractTablesWithRelations, gt, or, placeholder, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -88,7 +87,7 @@ beforeAll(async () => {
 		await pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { schema, logger: true });
+	db = drizzle(client, { schema, logger: false });
 });
 
 afterAll(async () => {
@@ -996,7 +995,6 @@ test('[Find One] Get users with posts + limit posts', async (t) => {
 	});
 });
 
-// NOT WORKING. Should return undefined, but [] was returned
 test('[Find One] Get users with posts no results found', async (t) => {
 	const { db } = t;
 
@@ -2493,7 +2491,7 @@ test('Get user with invitee and posts + orderBy + where + partial + custom', asy
 	One two-level relation users+posts+comments
 */
 
-test.skip('Get user with posts and posts with comments', async (t) => {
+test('Get user with posts and posts with comments', async (t) => {
 	const { db } = t;
 
 	await db.insert(usersTable).values([
@@ -2628,7 +2626,7 @@ test.skip('Get user with posts and posts with comments', async (t) => {
 	One three-level relation users+posts+comments+comment_owner
 */
 
-test.skip('Get user with posts and posts with comments and comments with owner', async (t) => {
+test('Get user with posts and posts with comments and comments with owner', async (t) => {
 	const { db } = t;
 
 	await db.insert(usersTable).values([
@@ -4122,9 +4120,6 @@ test('[Find One] Get users with groups + orderBy + limit', async (t) => {
 	});
 });
 
-// NOT WORKING. limit 1 in usersToGroups is not working as expected.
-// Query should order users by id -> so response should be {id:3}, {id:2} users
-// and then limit should just leave {id:3}, but always leaving {id:2}
 test('Get groups with users + orderBy + limit', async (t) => {
 	const { db } = t;
 

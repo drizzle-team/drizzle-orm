@@ -32,6 +32,8 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 			return rows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, selection));
 		}
 
+		console.log('rows', rows, rows[0], !rows[0]);
+
 		if (!rows[0]) {
 			return undefined;
 		}

@@ -647,7 +647,7 @@ export class PgDialect {
 				limit = config.limit;
 				offset = config.offset;
 			} else {
-				initialFieldsFlat.push({
+				finalFieldsFlat.push({
 					path: ['__drizzle_row_number'],
 					field: sql`row_number() over(partition by ${relationColumns.map((c) => aliasedTableColumn(c, tableAlias))})`
 						.as('__drizzle_row_number'),

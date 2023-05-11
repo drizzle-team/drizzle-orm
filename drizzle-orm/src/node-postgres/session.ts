@@ -51,8 +51,9 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 		const result = client.query(query, params);
 
 		return result.then((result) =>
-			mapResults?.(result.rows)
-				?? result.rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap))
+			mapResults
+				? mapResults(result.rows)
+				: result.rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap))
 		);
 	}
 
