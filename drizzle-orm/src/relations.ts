@@ -223,7 +223,7 @@ export type BuildRelationResult<
 	[K in keyof TInclude & keyof TRelations]: TRelations[K] extends infer TRel extends Relation ? BuildQueryResult<
 			TSchema,
 			FindTableByDBName<TSchema, TRel['referencedTableName']>,
-			TInclude[K] extends true ? Record<string, undefined> : Assume<TInclude[K], Record<string, unknown>>
+			Assume<TInclude[K], true | Record<string, unknown>>
 		> extends infer TResult
 			? TRel extends One ? (TResult | (Equal<TRel['isNullable'], false> extends true ? null : never))
 			: TResult[]
@@ -234,48 +234,51 @@ export type BuildRelationResult<
 export type BuildQueryResult<
 	TSchema extends TablesRelationalConfig,
 	TTableConfig extends TableRelationalConfig,
-	TFullSelection extends Record<string, unknown>,
+	TFullSelection extends true | Record<string, unknown>,
 > = TFullSelection extends { select: unknown; include: unknown }
 	? DrizzleTypeError<'Cannot use select and insert in the same query'>
-	: SimplifyShallow<
-		& ([Equal<TFullSelection['select'], {}>, keyof TFullSelection['select']] extends [false, never]
-			? InferModelFromColumns<TTableConfig['columns']>
-			: 
-				& InferModelFromColumns<
-					{
-						[
-							K in (Equal<
-								TFullSelection['select'][keyof TFullSelection['select'] & keyof TTableConfig['columns']],
-								false
-							> extends true ? Exclude<keyof TTableConfig['columns'], keyof TFullSelection['select']>
-								: 
-									& {
-										[K in keyof TFullSelection['select']]: Equal<TFullSelection['select'][K], true> extends true ? K
-											: never;
-									}[keyof TFullSelection['select']]
-									& keyof TTableConfig['columns'])
-						]: TTableConfig['columns'][K];
-					}
-				>
-				& BuildRelationResult<
+	: Equal<TFullSelection, true> extends true ? InferModelFromColumns<TTableConfig['columns']>
+	: TFullSelection extends Record<string, unknown> ? (SimplifyShallow<
+			& ((Equal<TFullSelection['select'], {}> extends false
+				? [keyof TFullSelection['select']] extends [never] ? true : false
+				: false) extends true ? InferModelFromColumns<TTableConfig['columns']>
+				: 
+					& InferModelFromColumns<
+						{
+							[
+								K in (Equal<
+									TFullSelection['select'][keyof TFullSelection['select'] & keyof TTableConfig['columns']],
+									false
+								> extends true ? Exclude<keyof TTableConfig['columns'], keyof TFullSelection['select']>
+									: 
+										& {
+											[K in keyof TFullSelection['select']]: Equal<TFullSelection['select'][K], true> extends true ? K
+												: never;
+										}[keyof TFullSelection['select']]
+										& keyof TTableConfig['columns'])
+							]: TTableConfig['columns'][K];
+						}
+					>
+					& BuildRelationResult<
+						TSchema,
+						TFullSelection['select'],
+						TTableConfig['relations']
+					>)
+			& (TFullSelection extends
+				{ includeCustom: Record<string, SQL.Aliased> | ((...args: any[]) => Record<string, SQL.Aliased>) } ? {
+					[K in keyof ReturnTypeOrValue<TFullSelection['includeCustom']>]: ReturnTypeOrValue<
+						TFullSelection['includeCustom']
+					>[K]['_']['type'];
+				}
+				: {})
+			& (TFullSelection extends { include: unknown } ? BuildRelationResult<
 					TSchema,
-					TFullSelection['select'],
+					TFullSelection['include'],
 					TTableConfig['relations']
-				>)
-		& (TFullSelection extends
-			{ includeCustom: Record<string, SQL.Aliased> | ((...args: any[]) => Record<string, SQL.Aliased>) } ? {
-				[K in keyof ReturnTypeOrValue<TFullSelection['includeCustom']>]: ReturnTypeOrValue<
-					TFullSelection['includeCustom']
-				>[K]['_']['type'];
-			}
-			: {})
-		& (TFullSelection extends { include: unknown } ? BuildRelationResult<
-				TSchema,
-				TFullSelection['include'],
-				TTableConfig['relations']
-			>
-			: {})
-	>;
+				>
+				: {})
+		>)
+	: never;
 
 export interface RelationConfig<
 	TTableName extends string,
