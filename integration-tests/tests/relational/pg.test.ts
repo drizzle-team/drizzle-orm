@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import 'source-map-support/register';
 import Docker from 'dockerode';
-import { type ExtractTablesWithRelations, sql } from 'drizzle-orm';
+import { desc, eq, type ExtractTablesWithRelations, gt, or, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import getPort from 'get-port';
 import { Client } from 'pg';
@@ -9,9 +9,13 @@ import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import * as schema from './pg.schema';
 
-const { usersTable, postsTable } = schema;
+const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
-const ENABLE_LOGGING = true;
+// Comments
+// 1. Search not working tests by "NOT WORKING". Explanations attached
+// 2. All types are broken
+// 3. If I run test "Get groups with users + orderBy + limit" and "Get users with groups + orderBy + limit"
+//    I've got an error about prepared statements. I guess it will be the same for any 2+ tests running simultaneously
 
 declare module 'vitest' {
 	export interface TestContext {
@@ -84,7 +88,7 @@ beforeAll(async () => {
 		await pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { schema, logger: ENABLE_LOGGING });
+	db = drizzle(client, { schema, logger: true });
 });
 
 afterAll(async () => {
@@ -387,8 +391,8 @@ test('Get users with posts + custom fields', async (t) => {
 		lowerName: 'andrew',
 		verified: false,
 		invitedBy: null,
-		posts: [{ id: 2, ownerId: 2, content: 'Post2', createdAt: usersWithPosts[1]?.posts[0]?.createdAt }, {
-			id: 2,
+		posts: [{ id: 4, ownerId: 2, content: 'Post2', createdAt: usersWithPosts[1]?.posts[0]?.createdAt }, {
+			id: 5,
 			ownerId: 2,
 			content: 'Post2.1',
 			createdAt: usersWithPosts[1]?.posts[1]?.createdAt,
@@ -400,8 +404,8 @@ test('Get users with posts + custom fields', async (t) => {
 		lowerName: 'alex',
 		verified: false,
 		invitedBy: null,
-		posts: [{ id: 3, ownerId: 3, content: 'Post3', createdAt: usersWithPosts[2]?.posts[0]?.createdAt }, {
-			id: 2,
+		posts: [{ id: 6, ownerId: 3, content: 'Post3', createdAt: usersWithPosts[2]?.posts[0]?.createdAt }, {
+			id: 7,
 			ownerId: 3,
 			content: 'Post3.1',
 			createdAt: usersWithPosts[2]?.posts[1]?.createdAt,
@@ -409,7 +413,6 @@ test('Get users with posts + custom fields', async (t) => {
 	});
 });
 
-// NOT WORKING
 test('Get users with posts + custom fields + limits', async (t) => {
 	const { db } = t;
 
@@ -742,7 +745,6 @@ test('Get user with invitee', async (t) => {
 		include: {
 			invitee: true,
 		},
-		orderBy: (usersTable) => usersTable.id,
 	});
 
 	usersWithInvitee.sort((a, b) => (a.id > b.id) ? 1 : -1);
@@ -782,3 +784,2227 @@ test('Get user with invitee', async (t) => {
 		invitee: { id: 2, name: 'Andrew', verified: false, invitedBy: null },
 	});
 });
+
+test('Get user + limit with invitee', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew', invitedBy: 1 },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	const usersWithInvitee = await db.query.usersTable.findMany({
+		include: {
+			invitee: true,
+		},
+		limit: 2,
+	});
+
+	usersWithInvitee.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(usersWithInvitee.length).eq(2);
+	expect(usersWithInvitee[0]?.invitee).toBeNull();
+	expect(usersWithInvitee[1]?.invitee).not.toBeNull();
+
+	expect(usersWithInvitee[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		invitee: null,
+	});
+	expect(usersWithInvitee[1]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: 1,
+		invitee: { id: 1, name: 'Dan', verified: false, invitedBy: null },
+	});
+});
+
+test('Get user with invitee and custom fields', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	const usersWithInvitee = await db.query.usersTable.findMany({
+		includeCustom: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
+		include: {
+			invitee: {
+				includeCustom: (invitee, { sql }) => ({ lower: sql<string>`lower(${invitee.name})`.as('lower_name') }),
+			},
+		},
+	});
+
+	usersWithInvitee.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(usersWithInvitee.length).eq(4);
+	expect(usersWithInvitee[0]?.invitee).toBeNull();
+	expect(usersWithInvitee[1]?.invitee).toBeNull();
+	expect(usersWithInvitee[2]?.invitee).not.toBeNull();
+	expect(usersWithInvitee[3]?.invitee).not.toBeNull();
+
+	expect(usersWithInvitee[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		lower: 'dan',
+		verified: false,
+		invitedBy: null,
+		invitee: null,
+	});
+	expect(usersWithInvitee[1]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		lower: 'andrew',
+		verified: false,
+		invitedBy: null,
+		invitee: null,
+	});
+	expect(usersWithInvitee[2]).toEqual({
+		id: 3,
+		name: 'Alex',
+		lower: 'alex',
+		verified: false,
+		invitedBy: 1,
+		invitee: { id: 1, name: 'Dan', lower: 'dan', verified: false, invitedBy: null },
+	});
+	expect(usersWithInvitee[3]).toEqual({
+		id: 4,
+		name: 'John',
+		lower: 'john',
+		verified: false,
+		invitedBy: 2,
+		invitee: { id: 2, name: 'Andrew', lower: 'andrew', verified: false, invitedBy: null },
+	});
+});
+
+test('Get user with invitee and custom fields + limits', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	const usersWithInvitee = await db.query.usersTable.findMany({
+		includeCustom: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
+		limit: 3,
+		include: {
+			invitee: {
+				includeCustom: (invitee, { sql }) => ({ lower: sql<string>`lower(${invitee.name})`.as('lower_name') }),
+			},
+		},
+	});
+
+	usersWithInvitee.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(usersWithInvitee.length).eq(3);
+	expect(usersWithInvitee[0]?.invitee).toBeNull();
+	expect(usersWithInvitee[1]?.invitee).toBeNull();
+	expect(usersWithInvitee[2]?.invitee).not.toBeNull();
+
+	expect(usersWithInvitee[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		lower: 'dan',
+		verified: false,
+		invitedBy: null,
+		invitee: null,
+	});
+	expect(usersWithInvitee[1]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		lower: 'andrew',
+		verified: false,
+		invitedBy: null,
+		invitee: null,
+	});
+	expect(usersWithInvitee[2]).toEqual({
+		id: 3,
+		name: 'Alex',
+		lower: 'alex',
+		verified: false,
+		invitedBy: 1,
+		invitee: { id: 1, name: 'Dan', lower: 'dan', verified: false, invitedBy: null },
+	});
+});
+
+test('Get user with invitee + order by', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	const usersWithInvitee = await db.query.usersTable.findMany({
+		orderBy: (users, { desc }) => [desc(users.id)],
+		include: {
+			invitee: true,
+		},
+	});
+
+	expect(usersWithInvitee.length).eq(4);
+	expect(usersWithInvitee[3]?.invitee).toBeNull();
+	expect(usersWithInvitee[2]?.invitee).toBeNull();
+	expect(usersWithInvitee[1]?.invitee).not.toBeNull();
+	expect(usersWithInvitee[0]?.invitee).not.toBeNull();
+
+	expect(usersWithInvitee[3]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		invitee: null,
+	});
+	expect(usersWithInvitee[2]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		invitee: null,
+	});
+	expect(usersWithInvitee[1]).toEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: 1,
+		invitee: { id: 1, name: 'Dan', verified: false, invitedBy: null },
+	});
+	expect(usersWithInvitee[0]).toEqual({
+		id: 4,
+		name: 'John',
+		verified: false,
+		invitedBy: 2,
+		invitee: { id: 2, name: 'Andrew', verified: false, invitedBy: null },
+	});
+});
+
+test('Get user with invitee + where', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	const usersWithInvitee = await db.query.usersTable.findMany({
+		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
+		include: {
+			invitee: true,
+		},
+	});
+
+	expect(usersWithInvitee.length).eq(2);
+	expect(usersWithInvitee[0]?.invitee).not.toBeNull();
+	expect(usersWithInvitee[1]?.invitee).not.toBeNull();
+
+	expect(usersWithInvitee).toContainEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: 1,
+		invitee: { id: 1, name: 'Dan', verified: false, invitedBy: null },
+	});
+	expect(usersWithInvitee).toContainEqual({
+		id: 4,
+		name: 'John',
+		verified: false,
+		invitedBy: 2,
+		invitee: { id: 2, name: 'Andrew', verified: false, invitedBy: null },
+	});
+});
+
+test('Get user with invitee + where + partial', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	const usersWithInvitee = await db.query.usersTable.findMany({
+		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
+		select: {
+			id: true,
+			name: true,
+			invitee: {
+				select: {
+					id: true,
+					name: true,
+				},
+			},
+		},
+	});
+
+	expect(usersWithInvitee.length).eq(2);
+	expect(usersWithInvitee[0]?.invitee).not.toBeNull();
+	expect(usersWithInvitee[1]?.invitee).not.toBeNull();
+
+	expect(usersWithInvitee).toContainEqual({
+		id: 3,
+		name: 'Alex',
+		invitee: { id: 1, name: 'Dan' },
+	});
+	expect(usersWithInvitee).toContainEqual({
+		id: 4,
+		name: 'John',
+		invitee: { id: 2, name: 'Andrew' },
+	});
+});
+
+test('Get user with invitee + where + partial.  Did not select users id, but used it in where', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	const usersWithInvitee = await db.query.usersTable.findMany({
+		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
+		select: {
+			name: true,
+			invitee: {
+				select: {
+					id: true,
+					name: true,
+				},
+			},
+		},
+	});
+
+	expect(usersWithInvitee.length).eq(2);
+	expect(usersWithInvitee[0]?.invitee).not.toBeNull();
+	expect(usersWithInvitee[1]?.invitee).not.toBeNull();
+
+	expect(usersWithInvitee).toContainEqual({
+		name: 'Alex',
+		invitee: { id: 1, name: 'Dan' },
+	});
+	expect(usersWithInvitee).toContainEqual({
+		name: 'John',
+		invitee: { id: 2, name: 'Andrew' },
+	});
+});
+
+test('Get user with invitee + where + partial(true+false)', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	const usersWithInvitee = await db.query.usersTable.findMany({
+		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
+		select: {
+			id: true,
+			name: true,
+			verified: false,
+			invitee: {
+				select: {
+					id: true,
+					name: true,
+					verified: false,
+				},
+			},
+		},
+	});
+
+	expect(usersWithInvitee.length).eq(2);
+	expect(usersWithInvitee[0]?.invitee).not.toBeNull();
+	expect(usersWithInvitee[1]?.invitee).not.toBeNull();
+
+	expect(usersWithInvitee).toContainEqual({
+		id: 3,
+		name: 'Alex',
+		invitee: { id: 1, name: 'Dan' },
+	});
+	expect(usersWithInvitee).toContainEqual({
+		id: 4,
+		name: 'John',
+		invitee: { id: 2, name: 'Andrew' },
+	});
+});
+
+test('Get user with invitee + where + partial(false)', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	const usersWithInvitee = await db.query.usersTable.findMany({
+		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
+		select: {
+			verified: false,
+			invitee: {
+				select: {
+					name: false,
+				},
+			},
+		},
+	});
+
+	expect(usersWithInvitee.length).eq(2);
+	expect(usersWithInvitee[0]?.invitee).not.toBeNull();
+	expect(usersWithInvitee[1]?.invitee).not.toBeNull();
+
+	expect(usersWithInvitee).toContainEqual({
+		id: 3,
+		name: 'Alex',
+		invitedBy: 1,
+		invitee: { id: 1, verified: false, invitedBy: null },
+	});
+	expect(usersWithInvitee).toContainEqual({
+		id: 4,
+		name: 'John',
+		invitedBy: 2,
+		invitee: { id: 2, verified: false, invitedBy: null },
+	});
+});
+
+/*
+	Two first-level relations users+users and users+posts
+*/
+
+test('Get user with invitee and posts', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 3, content: 'Post3' },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		include: {
+			invitee: true,
+			posts: true,
+		},
+	});
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(response.length).eq(4);
+
+	expect(response[0]?.invitee).toBeNull();
+	expect(response[1]?.invitee).toBeNull();
+	expect(response[2]?.invitee).not.toBeNull();
+	expect(response[3]?.invitee).not.toBeNull();
+
+	expect(response[0]?.posts.length).eq(1);
+	expect(response[1]?.posts.length).eq(1);
+	expect(response[2]?.posts.length).eq(1);
+
+	expect(response).toContainEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		invitee: null,
+		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: response[0]?.posts[0]?.createdAt }],
+	});
+	expect(response).toContainEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		invitee: null,
+		posts: [{ id: 2, ownerId: 2, content: 'Post2', createdAt: response[1]?.posts[0]?.createdAt }],
+	});
+	expect(response).toContainEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: 1,
+		invitee: { id: 1, name: 'Dan', verified: false, invitedBy: null },
+		posts: [{ id: 3, ownerId: 3, content: 'Post3', createdAt: response[2]?.posts[0]?.createdAt }],
+	});
+	expect(response).toContainEqual({
+		id: 4,
+		name: 'John',
+		verified: false,
+		invitedBy: 2,
+		invitee: { id: 2, name: 'Andrew', verified: false, invitedBy: null },
+		posts: [],
+	});
+});
+
+test('Get user with invitee and posts + limit posts and users', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 2, content: 'Post2.1' },
+		{ ownerId: 3, content: 'Post3' },
+		{ ownerId: 3, content: 'Post3.1' },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		limit: 3,
+		include: {
+			invitee: true,
+			posts: {
+				limit: 1,
+			},
+		},
+	});
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(response.length).eq(3);
+
+	expect(response[0]?.invitee).toBeNull();
+	expect(response[1]?.invitee).toBeNull();
+	expect(response[2]?.invitee).not.toBeNull();
+
+	expect(response[0]?.posts.length).eq(1);
+	expect(response[1]?.posts.length).eq(1);
+	expect(response[2]?.posts.length).eq(1);
+
+	expect(response).toContainEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		invitee: null,
+		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: response[0]?.posts[0]?.createdAt }],
+	});
+	expect(response).toContainEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		invitee: null,
+		posts: [{ id: 3, ownerId: 2, content: 'Post2', createdAt: response[1]?.posts[0]?.createdAt }],
+	});
+	expect(response).toContainEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: 1,
+		invitee: { id: 1, name: 'Dan', verified: false, invitedBy: null },
+		posts: [{ id: 5, ownerId: 3, content: 'Post3', createdAt: response[2]?.posts[0]?.createdAt }],
+	});
+});
+
+test('Get user with invitee and posts + limits + custom fields in each', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 2, content: 'Post2.1' },
+		{ ownerId: 3, content: 'Post3' },
+		{ ownerId: 3, content: 'Post3.1' },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		limit: 3,
+		includeCustom: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
+		include: {
+			invitee: {
+				includeCustom: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_invitee_name') }),
+			},
+			posts: {
+				limit: 1,
+				includeCustom: (posts, { sql }) => ({ lower: sql<string>`lower(${posts.content})`.as('lower_content') }),
+			},
+		},
+	});
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(response.length).eq(3);
+
+	expect(response[0]?.invitee).toBeNull();
+	expect(response[1]?.invitee).toBeNull();
+	expect(response[2]?.invitee).not.toBeNull();
+
+	expect(response[0]?.posts.length).eq(1);
+	expect(response[1]?.posts.length).eq(1);
+	expect(response[2]?.posts.length).eq(1);
+
+	expect(response).toContainEqual({
+		id: 1,
+		name: 'Dan',
+		lower: 'dan',
+		verified: false,
+		invitedBy: null,
+		invitee: null,
+		posts: [{ id: 1, ownerId: 1, content: 'Post1', lower: 'post1', createdAt: response[0]?.posts[0]?.createdAt }],
+	});
+	expect(response).toContainEqual({
+		id: 2,
+		name: 'Andrew',
+		lower: 'andrew',
+		verified: false,
+		invitedBy: null,
+		invitee: null,
+		posts: [{ id: 3, ownerId: 2, content: 'Post2', lower: 'post2', createdAt: response[1]?.posts[0]?.createdAt }],
+	});
+	expect(response).toContainEqual({
+		id: 3,
+		name: 'Alex',
+		lower: 'alex',
+		verified: false,
+		invitedBy: 1,
+		invitee: { id: 1, name: 'Dan', lower: 'dan', verified: false, invitedBy: null },
+		posts: [{ id: 5, ownerId: 3, content: 'Post3', lower: 'post3', createdAt: response[2]?.posts[0]?.createdAt }],
+	});
+});
+
+test('Get user with invitee and posts + custom fields in each', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 2, content: 'Post2.1' },
+		{ ownerId: 3, content: 'Post3' },
+		{ ownerId: 3, content: 'Post3.1' },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		includeCustom: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
+		include: {
+			invitee: {
+				includeCustom: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
+			},
+			posts: {
+				includeCustom: (posts, { sql }) => ({ lower: sql<string>`lower(${posts.content})`.as('lower_name') }),
+			},
+		},
+	});
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(response.length).eq(4);
+
+	expect(response[0]?.invitee).toBeNull();
+	expect(response[1]?.invitee).toBeNull();
+	expect(response[2]?.invitee).not.toBeNull();
+	expect(response[3]?.invitee).not.toBeNull();
+
+	expect(response[0]?.posts.length).eq(2);
+	expect(response[1]?.posts.length).eq(2);
+	expect(response[2]?.posts.length).eq(2);
+	expect(response[3]?.posts.length).eq(0);
+
+	expect(response).toContainEqual({
+		id: 1,
+		name: 'Dan',
+		lower: 'dan',
+		verified: false,
+		invitedBy: null,
+		invitee: null,
+		posts: [{ id: 1, ownerId: 1, content: 'Post1', lower: 'post1', createdAt: response[0]?.posts[0]?.createdAt }, {
+			id: 2,
+			ownerId: 1,
+			content: 'Post1.1',
+			lower: 'post1.1',
+			createdAt: response[0]?.posts[1]?.createdAt,
+		}],
+	});
+	expect(response).toContainEqual({
+		id: 2,
+		name: 'Andrew',
+		lower: 'andrew',
+		verified: false,
+		invitedBy: null,
+		invitee: null,
+		posts: [{ id: 3, ownerId: 2, content: 'Post2', lower: 'post2', createdAt: response[1]?.posts[0]?.createdAt }, {
+			id: 4,
+			ownerId: 2,
+			content: 'Post2.1',
+			lower: 'post2.1',
+			createdAt: response[1]?.posts[1]?.createdAt,
+		}],
+	});
+	expect(response).toContainEqual({
+		id: 3,
+		name: 'Alex',
+		lower: 'alex',
+		verified: false,
+		invitedBy: 1,
+		invitee: { id: 1, name: 'Dan', lower: 'dan', verified: false, invitedBy: null },
+		posts: [{ id: 5, ownerId: 3, content: 'Post3', lower: 'post3', createdAt: response[2]?.posts[0]?.createdAt }, {
+			id: 6,
+			ownerId: 3,
+			content: 'Post3.1',
+			lower: 'post3.1',
+			createdAt: response[2]?.posts[1]?.createdAt,
+		}],
+	});
+	expect(response).toContainEqual({
+		id: 4,
+		name: 'John',
+		lower: 'john',
+		verified: false,
+		invitedBy: 2,
+		invitee: { id: 2, name: 'Andrew', lower: 'andrew', verified: false, invitedBy: null },
+		posts: [],
+	});
+});
+
+test('Get user with invitee and posts + orderBy', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 2, content: 'Post2.1' },
+		{ ownerId: 3, content: 'Post3' },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		orderBy: (users, { desc }) => [desc(users.id)],
+		include: {
+			invitee: true,
+			posts: {
+				orderBy: (posts, { desc }) => [desc(posts.id)],
+			},
+		},
+	});
+
+	expect(response.length).eq(4);
+
+	expect(response[3]?.invitee).toBeNull();
+	expect(response[2]?.invitee).toBeNull();
+	expect(response[1]?.invitee).not.toBeNull();
+	expect(response[0]?.invitee).not.toBeNull();
+
+	expect(response[0]?.posts.length).eq(0);
+	expect(response[1]?.posts.length).eq(1);
+	expect(response[2]?.posts.length).eq(2);
+	expect(response[3]?.posts.length).eq(2);
+
+	expect(response[3]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		invitee: null,
+		posts: [{ id: 2, ownerId: 1, content: 'Post1.1', createdAt: response[3]?.posts[0]?.createdAt }, {
+			id: 1,
+			ownerId: 1,
+			content: 'Post1',
+			createdAt: response[3]?.posts[1]?.createdAt,
+		}],
+	});
+	expect(response[2]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		invitee: null,
+		posts: [{ id: 4, ownerId: 2, content: 'Post2.1', createdAt: response[2]?.posts[0]?.createdAt }, {
+			id: 3,
+			ownerId: 2,
+			content: 'Post2',
+			createdAt: response[2]?.posts[1]?.createdAt,
+		}],
+	});
+	expect(response[1]).toEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: 1,
+		invitee: { id: 1, name: 'Dan', verified: false, invitedBy: null },
+		posts: [{
+			id: 5,
+			ownerId: 3,
+			content: 'Post3',
+			createdAt: response[3]?.posts[1]?.createdAt,
+		}],
+	});
+	expect(response[0]).toEqual({
+		id: 4,
+		name: 'John',
+		verified: false,
+		invitedBy: 2,
+		invitee: { id: 2, name: 'Andrew', verified: false, invitedBy: null },
+		posts: [],
+	});
+});
+
+test('Get user with invitee and posts + where', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 3, content: 'Post3' },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		where: (users, { eq, or }) => (or(eq(users.id, 2), eq(users.id, 3))),
+		include: {
+			invitee: true,
+			posts: {
+				where: (posts, { eq }) => (eq(posts.ownerId, 2)),
+			},
+		},
+	});
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(response.length).eq(2);
+
+	expect(response[0]?.invitee).toBeNull();
+	expect(response[1]?.invitee).not.toBeNull();
+
+	expect(response[0]?.posts.length).eq(1);
+	expect(response[1]?.posts.length).eq(0);
+
+	expect(response).toContainEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		invitee: null,
+		posts: [{ id: 2, ownerId: 2, content: 'Post2', createdAt: response[0]?.posts[0]?.createdAt }],
+	});
+	expect(response).toContainEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: 1,
+		invitee: { id: 1, name: 'Dan', verified: false, invitedBy: null },
+		posts: [],
+	});
+});
+
+test('Get user with invitee and posts + limit posts and users + where', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 2, content: 'Post2.1' },
+		{ ownerId: 3, content: 'Post3' },
+		{ ownerId: 3, content: 'Post3.1' },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
+		limit: 1,
+		include: {
+			invitee: true,
+			posts: {
+				where: (posts, { eq }) => (eq(posts.ownerId, 3)),
+				limit: 1,
+			},
+		},
+	});
+
+	console.log(JSON.stringify(response, null, 2));
+
+	expect(response.length).eq(1);
+
+	expect(response[0]?.invitee).not.toBeNull();
+	expect(response[0]?.posts.length).eq(1);
+
+	expect(response).toContainEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: 1,
+		invitee: { id: 1, name: 'Dan', verified: false, invitedBy: null },
+		posts: [{ id: 5, ownerId: 3, content: 'Post3', createdAt: response[0]?.posts[0]?.createdAt }],
+	});
+});
+
+test('Get user with invitee and posts + orderBy + where + custom', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 2, content: 'Post2.1' },
+		{ ownerId: 3, content: 'Post3' },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		orderBy: [desc(usersTable.id)],
+		where: or(eq(usersTable.id, 3), eq(usersTable.id, 4)),
+		includeCustom: {
+			lower: sql<string>`lower(${usersTable.name})`.as('lower_name'),
+		},
+		include: {
+			invitee: true,
+			posts: {
+				where: eq(postsTable.ownerId, 3),
+				orderBy: [desc(postsTable.id)],
+				includeCustom: {
+					lower: sql<string>`lower(${postsTable.content})`.as('lower_name'),
+				},
+			},
+		},
+	});
+
+	expect(response.length).eq(2);
+
+	expect(response[1]?.invitee).not.toBeNull();
+	expect(response[0]?.invitee).not.toBeNull();
+
+	expect(response[0]?.posts.length).eq(0);
+	expect(response[1]?.posts.length).eq(1);
+
+	expect(response[1]).toEqual({
+		id: 3,
+		name: 'Alex',
+		lower: 'alex',
+		verified: false,
+		invitedBy: 1,
+		invitee: { id: 1, name: 'Dan', verified: false, invitedBy: null },
+		posts: [{
+			id: 5,
+			ownerId: 3,
+			content: 'Post3',
+			lower: 'post3',
+			createdAt: response[1]?.posts[0]?.createdAt,
+		}],
+	});
+	expect(response[0]).toEqual({
+		id: 4,
+		name: 'John',
+		lower: 'john',
+		verified: false,
+		invitedBy: 2,
+		invitee: { id: 2, name: 'Andrew', verified: false, invitedBy: null },
+		posts: [],
+	});
+});
+
+test('Get user with invitee and posts + orderBy + where + partial + custom', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 2, content: 'Post2.1' },
+		{ ownerId: 3, content: 'Post3' },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		orderBy: [desc(usersTable.id)],
+		where: or(eq(usersTable.id, 3), eq(usersTable.id, 4)),
+		includeCustom: {
+			lower: sql<string>`lower(${usersTable.name})`.as('lower_name'),
+		},
+		select: {
+			id: true,
+			name: true,
+			invitee: {
+				select: {
+					id: true,
+					name: true,
+				},
+				includeCustom: {
+					lower: sql<string>`lower(${usersTable.name})`.as('lower_name'),
+				},
+			},
+			posts: {
+				select: {
+					id: true,
+					content: true,
+				},
+				where: eq(postsTable.ownerId, 3),
+				orderBy: [desc(postsTable.id)],
+				includeCustom: {
+					lower: sql<string>`lower(${postsTable.content})`.as('lower_name'),
+				},
+			},
+		},
+	});
+
+	expect(response.length).eq(2);
+
+	expect(response[1]?.invitee).not.toBeNull();
+	expect(response[0]?.invitee).not.toBeNull();
+
+	expect(response[0]?.posts.length).eq(0);
+	expect(response[1]?.posts.length).eq(1);
+
+	expect(response[1]).toEqual({
+		id: 3,
+		name: 'Alex',
+		lower: 'alex',
+		invitee: { id: 1, name: 'Dan', lower: 'dan' },
+		posts: [{
+			id: 5,
+			content: 'Post3',
+			lower: 'post3',
+		}],
+	});
+	expect(response[0]).toEqual({
+		id: 4,
+		name: 'John',
+		lower: 'john',
+		invitee: { id: 2, name: 'Andrew', lower: 'andrew' },
+		posts: [],
+	});
+});
+
+/*
+	One two-level relation users+posts+comments
+*/
+
+test.skip('Get user with posts and posts with comments', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ id: 1, ownerId: 1, content: 'Post1' },
+		{ id: 2, ownerId: 2, content: 'Post2' },
+		{ id: 3, ownerId: 3, content: 'Post3' },
+	]);
+
+	await db.insert(commentsTable).values([
+		{ postId: 1, content: 'Comment1', creator: 2 },
+		{ postId: 2, content: 'Comment2', creator: 2 },
+		{ postId: 3, content: 'Comment3', creator: 3 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		include: {
+			posts: {
+				include: {
+					comments: true,
+				},
+			},
+		},
+	});
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(response.length).eq(3);
+	expect(response[0]?.posts.length).eq(1);
+	expect(response[1]?.posts.length).eq(1);
+	expect(response[2]?.posts.length).eq(1);
+
+	expect(response[0]?.posts[0]?.comments.length).eq(1);
+	expect(response[1]?.posts[0]?.comments.length).eq(1);
+	expect(response[2]?.posts[0]?.comments.length).eq(1);
+
+	expect(response[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		posts: [{
+			id: 1,
+			ownerId: 1,
+			content: 'Post1',
+			createdAt: response[0]?.posts[0]?.createdAt,
+			comments: [
+				{
+					id: 1,
+					content: 'Comment1',
+					creator: 2,
+					postId: 1,
+					createdAt: response[0]?.posts[0]?.comments[0]?.createdAt,
+				},
+			],
+		}],
+	});
+	expect(response[1]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		posts: [{
+			id: 2,
+			ownerId: 2,
+			content: 'Post2',
+			createdAt: response[1]?.posts[0]?.createdAt,
+			comments: [
+				{
+					id: 2,
+					content: 'Comment2',
+					creator: 2,
+					postId: 2,
+					createdAt: response[1]?.posts[0]?.comments[0]?.createdAt,
+				},
+			],
+		}],
+	});
+	// expect(response[2]).toEqual({
+	// 	id: 3,
+	// 	name: 'Alex',
+	// 	verified: false,
+	// 	invitedBy: null,
+	// 	posts: [{
+	// 		id: 3,
+	// 		ownerId: 3,
+	// 		content: 'Post3',
+	// 		createdAt: response[2]?.posts[0]?.createdAt,
+	// 		comments: [
+	// 			{
+	// 				id: ,
+	// 				content: 'Comment3',
+	// 				creator: 3,
+	// 				postId: 3,
+	// 				createdAt: response[2]?.posts[0]?.comments[0]?.createdAt,
+	// 			},
+	// 		],
+	// 	}],
+	// });
+});
+
+// Get user with limit posts and limit comments
+
+// Get user with custom field + post + comment with custom field
+
+// Get user with limit + posts orderBy + comment orderBy
+
+// Get user with where + posts where + comment where
+
+// Get user with where + posts partial where + comment where
+
+// Get user with where + posts partial where + comment partial(false) where
+
+// Get user with where partial(false) + posts partial where partial(false) + comment partial(false+true) where
+
+// Get user with where + posts partial where + comment where. Didn't select field from where in posts
+
+// Get user with where + posts partial where + comment where. Didn't select field from where for all
+
+// Get with limit+offset in each
+
+/*
+	One two-level + One first-level relation users+posts+comments and users+users
+*/
+
+/*
+	One three-level relation users+posts+comments+comment_owner
+*/
+
+test.skip('Get user with posts and posts with comments and comments with owner', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ id: 1, ownerId: 1, content: 'Post1' },
+		{ id: 2, ownerId: 2, content: 'Post2' },
+		{ id: 3, ownerId: 3, content: 'Post3' },
+	]);
+
+	await db.insert(commentsTable).values([
+		{ postId: 1, content: 'Comment1', creator: 2 },
+		{ postId: 2, content: 'Comment2', creator: 2 },
+		{ postId: 3, content: 'Comment3', creator: 3 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		include: {
+			posts: {
+				include: {
+					comments: true,
+				},
+			},
+		},
+	});
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(response.length).eq(3);
+	expect(response[0]?.posts.length).eq(1);
+	expect(response[1]?.posts.length).eq(1);
+	expect(response[2]?.posts.length).eq(1);
+
+	expect(response[0]?.posts[0]?.comments.length).eq(1);
+	expect(response[1]?.posts[0]?.comments.length).eq(1);
+	expect(response[2]?.posts[0]?.comments.length).eq(1);
+
+	expect(response[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		posts: [{
+			id: 1,
+			ownerId: 1,
+			content: 'Post1',
+			createdAt: response[0]?.posts[0]?.createdAt,
+			comments: [
+				{
+					id: 1,
+					content: 'Comment1',
+					creator: 2,
+					postId: 1,
+					createdAt: response[0]?.posts[0]?.comments[0]?.createdAt,
+				},
+			],
+		}],
+	});
+	expect(response[1]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		posts: [{
+			id: 2,
+			ownerId: 2,
+			content: 'Post2',
+			createdAt: response[1]?.posts[0]?.createdAt,
+			comments: [
+				{
+					id: 2,
+					content: 'Comment2',
+					creator: 2,
+					postId: 2,
+					createdAt: response[1]?.posts[0]?.comments[0]?.createdAt,
+				},
+			],
+		}],
+	});
+	// expect(response[2]).toEqual({
+	// 	id: 3,
+	// 	name: 'Alex',
+	// 	verified: false,
+	// 	invitedBy: null,
+	// 	posts: [{
+	// 		id: 3,
+	// 		ownerId: 3,
+	// 		content: 'Post3',
+	// 		createdAt: response[2]?.posts[0]?.createdAt,
+	// 		comments: [
+	// 			{
+	// 				id: ,
+	// 				content: 'Comment3',
+	// 				creator: 3,
+	// 				postId: 3,
+	// 				createdAt: response[2]?.posts[0]?.comments[0]?.createdAt,
+	// 			},
+	// 		],
+	// 	}],
+	// });
+});
+
+/*
+	One three-level relation + 1 first-level relatioon
+	1. users+posts+comments+comment_owner
+	2. users+users
+*/
+
+/*
+	One four-level relation users+posts+comments+coment_likes
+*/
+
+/*
+	Many-to-many cases
+	Users+users_to_groups+groups
+
+*/
+
+test('Get users with groups', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		include: {
+			usersToGroups: {
+				select: {
+					group: true,
+				},
+			},
+		},
+	});
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(response.length).toEqual(3);
+
+	expect(response[0]?.usersToGroups.length).toEqual(1);
+	expect(response[1]?.usersToGroups.length).toEqual(1);
+	expect(response[2]?.usersToGroups.length).toEqual(2);
+
+	expect(response).toContainEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		usersToGroups: [{
+			group: {
+				id: 1,
+				name: 'Group1',
+				description: null,
+			},
+		}],
+	});
+
+	expect(response).toContainEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		usersToGroups: [{
+			group: {
+				id: 2,
+				name: 'Group2',
+				description: null,
+			},
+		}],
+	});
+
+	expect(response).toContainEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
+		usersToGroups: [{
+			group: {
+				id: 3,
+				name: 'Group3',
+				description: null,
+			},
+		}, {
+			group: {
+				id: 2,
+				name: 'Group2',
+				description: null,
+			},
+		}],
+	});
+});
+
+test('Get groups with users', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findMany({
+		include: {
+			usersToGroups: {
+				select: {
+					user: true,
+				},
+			},
+		},
+	});
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(response.length).toEqual(3);
+
+	expect(response[0]?.usersToGroups.length).toEqual(1);
+	expect(response[1]?.usersToGroups.length).toEqual(2);
+	expect(response[2]?.usersToGroups.length).toEqual(1);
+
+	expect(response).toContainEqual({
+		id: 1,
+		name: 'Group1',
+		description: null,
+		usersToGroups: [{
+			user: {
+				id: 1,
+				name: 'Dan',
+				verified: false,
+				invitedBy: null,
+			},
+		}],
+	});
+
+	expect(response).toContainEqual({
+		id: 2,
+		name: 'Group2',
+		description: null,
+		usersToGroups: [{
+			user: {
+				id: 2,
+				name: 'Andrew',
+				verified: false,
+				invitedBy: null,
+			},
+		}, {
+			user: {
+				id: 3,
+				name: 'Alex',
+				verified: false,
+				invitedBy: null,
+			},
+		}],
+	});
+
+	expect(response).toContainEqual({
+		id: 3,
+		name: 'Group3',
+		description: null,
+		usersToGroups: [{
+			user: {
+				id: 3,
+				name: 'Alex',
+				verified: false,
+				invitedBy: null,
+			},
+		}],
+	});
+});
+
+test('Get users with groups + limit', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 2, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		limit: 2,
+		include: {
+			usersToGroups: {
+				limit: 1,
+				select: {
+					group: true,
+				},
+			},
+		},
+	});
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(response.length).toEqual(2);
+
+	expect(response[0]?.usersToGroups.length).toEqual(1);
+	expect(response[1]?.usersToGroups.length).toEqual(1);
+
+	expect(response).toContainEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		usersToGroups: [{
+			group: {
+				id: 1,
+				name: 'Group1',
+				description: null,
+			},
+		}],
+	});
+
+	expect(response).toContainEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		usersToGroups: [{
+			group: {
+				id: 2,
+				name: 'Group2',
+				description: null,
+			},
+		}],
+	});
+});
+
+test('Get groups with users + limit', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findMany({
+		limit: 2,
+		include: {
+			usersToGroups: {
+				limit: 1,
+				select: {
+					user: true,
+				},
+			},
+		},
+	});
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(response.length).toEqual(2);
+
+	expect(response[0]?.usersToGroups.length).toEqual(1);
+	expect(response[1]?.usersToGroups.length).toEqual(1);
+
+	expect(response).toContainEqual({
+		id: 1,
+		name: 'Group1',
+		description: null,
+		usersToGroups: [{
+			user: {
+				id: 1,
+				name: 'Dan',
+				verified: false,
+				invitedBy: null,
+			},
+		}],
+	});
+
+	expect(response).toContainEqual({
+		id: 2,
+		name: 'Group2',
+		description: null,
+		usersToGroups: [{
+			user: {
+				id: 2,
+				name: 'Andrew',
+				verified: false,
+				invitedBy: null,
+			},
+		}],
+	});
+});
+
+test('Get users with groups + limit + where', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 2, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		limit: 1,
+		where: (_, { eq, or }) => or(eq(usersTable.id, 1), eq(usersTable.id, 2)),
+		include: {
+			usersToGroups: {
+				where: eq(usersToGroupsTable.groupId, 1),
+				select: {
+					group: true,
+				},
+			},
+		},
+	});
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(response.length).toEqual(1);
+
+	expect(response[0]?.usersToGroups.length).toEqual(1);
+
+	expect(response).toContainEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		usersToGroups: [{
+			group: {
+				id: 1,
+				name: 'Group1',
+				description: null,
+			},
+		}],
+	});
+});
+
+test('Get groups with users + limit + where', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findMany({
+		limit: 1,
+		where: gt(groupsTable.id, 1),
+		include: {
+			usersToGroups: {
+				where: eq(usersToGroupsTable.userId, 2),
+				limit: 1,
+				select: {
+					user: true,
+				},
+			},
+		},
+	});
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(response.length).toEqual(1);
+
+	expect(response[0]?.usersToGroups.length).toEqual(1);
+
+	expect(response).toContainEqual({
+		id: 2,
+		name: 'Group2',
+		description: null,
+		usersToGroups: [{
+			user: {
+				id: 2,
+				name: 'Andrew',
+				verified: false,
+				invitedBy: null,
+			},
+		}],
+	});
+});
+
+test('Get users with groups + where', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 2, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		where: (_, { eq, or }) => or(eq(usersTable.id, 1), eq(usersTable.id, 2)),
+		include: {
+			usersToGroups: {
+				where: eq(usersToGroupsTable.groupId, 2),
+				select: {
+					group: true,
+				},
+			},
+		},
+	});
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(response.length).toEqual(2);
+
+	expect(response[0]?.usersToGroups.length).toEqual(0);
+	expect(response[1]?.usersToGroups.length).toEqual(1);
+
+	expect(response).toContainEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		usersToGroups: [],
+	});
+
+	expect(response).toContainEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		usersToGroups: [{
+			group: {
+				id: 2,
+				name: 'Group2',
+				description: null,
+			},
+		}],
+	});
+});
+
+test('Get groups with users + where', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findMany({
+		where: gt(groupsTable.id, 1),
+		include: {
+			usersToGroups: {
+				where: eq(usersToGroupsTable.userId, 2),
+				select: {
+					user: true,
+				},
+			},
+		},
+	});
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(response.length).toEqual(2);
+
+	expect(response[0]?.usersToGroups.length).toEqual(1);
+	expect(response[1]?.usersToGroups.length).toEqual(0);
+
+	expect(response).toContainEqual({
+		id: 2,
+		name: 'Group2',
+		description: null,
+		usersToGroups: [{
+			user: {
+				id: 2,
+				name: 'Andrew',
+				verified: false,
+				invitedBy: null,
+			},
+		}],
+	});
+
+	expect(response).toContainEqual({
+		id: 3,
+		name: 'Group3',
+		description: null,
+		usersToGroups: [],
+	});
+});
+
+test('Get users with groups + orderBy', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		orderBy: (users, { desc }) => [desc(users.id)],
+		include: {
+			usersToGroups: {
+				orderBy: [desc(usersToGroupsTable.groupId)],
+				select: {
+					group: true,
+				},
+			},
+		},
+	});
+
+	expect(response.length).toEqual(3);
+
+	expect(response[0]?.usersToGroups.length).toEqual(2);
+	expect(response[1]?.usersToGroups.length).toEqual(1);
+	expect(response[2]?.usersToGroups.length).toEqual(1);
+
+	expect(response[2]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		usersToGroups: [{
+			group: {
+				id: 1,
+				name: 'Group1',
+				description: null,
+			},
+		}],
+	});
+
+	expect(response[1]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		usersToGroups: [{
+			group: {
+				id: 2,
+				name: 'Group2',
+				description: null,
+			},
+		}],
+	});
+
+	expect(response[0]).toEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
+		usersToGroups: [{
+			group: {
+				id: 3,
+				name: 'Group3',
+				description: null,
+			},
+		}, {
+			group: {
+				id: 2,
+				name: 'Group2',
+				description: null,
+			},
+		}],
+	});
+});
+
+test('Get groups with users + orderBy', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findMany({
+		orderBy: [desc(groupsTable.id)],
+		include: {
+			usersToGroups: {
+				orderBy: (utg, { desc }) => [desc(utg.userId)],
+				select: {
+					user: true,
+				},
+			},
+		},
+	});
+
+	expect(response.length).toEqual(3);
+
+	expect(response[0]?.usersToGroups.length).toEqual(1);
+	expect(response[1]?.usersToGroups.length).toEqual(2);
+	expect(response[2]?.usersToGroups.length).toEqual(1);
+
+	expect(response[2]).toEqual({
+		id: 1,
+		name: 'Group1',
+		description: null,
+		usersToGroups: [{
+			user: {
+				id: 1,
+				name: 'Dan',
+				verified: false,
+				invitedBy: null,
+			},
+		}],
+	});
+
+	expect(response[1]).toEqual({
+		id: 2,
+		name: 'Group2',
+		description: null,
+		usersToGroups: [{
+			user: {
+				id: 3,
+				name: 'Alex',
+				verified: false,
+				invitedBy: null,
+			},
+		}, {
+			user: {
+				id: 2,
+				name: 'Andrew',
+				verified: false,
+				invitedBy: null,
+			},
+		}],
+	});
+
+	expect(response[0]).toEqual({
+		id: 3,
+		name: 'Group3',
+		description: null,
+		usersToGroups: [{
+			user: {
+				id: 3,
+				name: 'Alex',
+				verified: false,
+				invitedBy: null,
+			},
+		}],
+	});
+});
+
+test('Get users with groups + orderBy + limit', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		orderBy: (users, { desc }) => [desc(users.id)],
+		limit: 2,
+		include: {
+			usersToGroups: {
+				limit: 1,
+				orderBy: [desc(usersToGroupsTable.groupId)],
+				select: {
+					group: true,
+				},
+			},
+		},
+	});
+
+	expect(response.length).toEqual(2);
+
+	expect(response[0]?.usersToGroups.length).toEqual(1);
+	expect(response[1]?.usersToGroups.length).toEqual(1);
+
+	expect(response[1]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		usersToGroups: [{
+			group: {
+				id: 2,
+				name: 'Group2',
+				description: null,
+			},
+		}],
+	});
+
+	expect(response[0]).toEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
+		usersToGroups: [{
+			group: {
+				id: 3,
+				name: 'Group3',
+				description: null,
+			},
+		}],
+	});
+});
+
+// NOT WORKING. limit 1 in usersToGroups is not working as expected.
+// Query should order users by id -> so response should be {id:3}, {id:2} users
+// and then limit should just leave {id:3}, but always leaving {id:2}
+test('Get groups with users + orderBy + limit', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findMany({
+		orderBy: [desc(groupsTable.id)],
+		limit: 2,
+		include: {
+			usersToGroups: {
+				limit: 1,
+				orderBy: (utg, { desc }) => [desc(utg.userId)],
+				select: {
+					user: true,
+				},
+			},
+		},
+	});
+
+	expect(response.length).toEqual(2);
+
+	expect(response[0]?.usersToGroups.length).toEqual(1);
+	expect(response[1]?.usersToGroups.length).toEqual(1);
+
+	expect(response[1]).toEqual({
+		id: 2,
+		name: 'Group2',
+		description: null,
+		usersToGroups: [{
+			user: {
+				id: 3,
+				name: 'Alex',
+				verified: false,
+				invitedBy: null,
+			},
+		}],
+	});
+
+	expect(response[0]).toEqual({
+		id: 3,
+		name: 'Group3',
+		description: null,
+		usersToGroups: [{
+			user: {
+				id: 3,
+				name: 'Alex',
+				verified: false,
+				invitedBy: null,
+			},
+		}],
+	});
+});
+
+// + custom
+
+// + custom + where + orderby
+
+// + custom + where + orderby + limit
+
+// + partial
+
+// + partial(false)
+
+// + partial + orderBy + where (all not selected)
+
+/*
+	One four-level relation users+posts+comments+coment_likes
+	+ users+users_to_groups+groups
+*/
+
+/*
+	Really hard case
+	1. users+posts+comments+coment_likes
+	2. users+users_to_groups+groups
+	3. users+users
+*/
