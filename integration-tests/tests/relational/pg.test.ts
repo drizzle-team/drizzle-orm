@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import 'source-map-support/register';
 import Docker from 'dockerode';
-import { desc, eq, type ExtractTablesWithRelations, gt, or, sql } from 'drizzle-orm';
+import { desc, eq, type ExtractTablesWithRelations, gt, or, placeholder, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import getPort from 'get-port';
 import { Client } from 'pg';
@@ -724,6 +724,201 @@ test('[Find Many] Get users with posts + where + partial(false)', async (t) => {
 		verified: false,
 		invitedBy: null,
 		posts: [{ id: 1, ownerId: 1, createdAt: usersWithPosts[0]?.posts[0]?.createdAt }],
+	});
+});
+
+/*
+	Prepared statements for users+posts
+*/
+test('[Find Many] Get users with posts + prepared limit', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.2' },
+		{ ownerId: 1, content: 'Post1.3' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 2, content: 'Post2.1' },
+		{ ownerId: 3, content: 'Post3' },
+		{ ownerId: 3, content: 'Post3.1' },
+	]);
+
+	const prepared = db.query.usersTable.findMany({
+		include: {
+			posts: {
+				limit: placeholder('limit'),
+			},
+		},
+	}).prepare('query');
+
+	const usersWithPosts = await prepared.execute({ limit: 1 });
+
+	expect(usersWithPosts.length).eq(3);
+	expect(usersWithPosts[0]?.posts.length).eq(1);
+	expect(usersWithPosts[1]?.posts.length).eq(1);
+	expect(usersWithPosts[2]?.posts.length).eq(1);
+
+	expect(usersWithPosts).toContainEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: usersWithPosts[0]?.posts[0]?.createdAt }],
+	});
+	expect(usersWithPosts).toContainEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		posts: [{ id: 4, ownerId: 2, content: 'Post2', createdAt: usersWithPosts[1]?.posts[0]?.createdAt }],
+	});
+	expect(usersWithPosts).toContainEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
+		posts: [{ id: 6, ownerId: 3, content: 'Post3', createdAt: usersWithPosts[2]?.posts[0]?.createdAt }],
+	});
+});
+
+test('[Find Many] Get users with posts + prepared limit + offset', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.2' },
+		{ ownerId: 1, content: 'Post1.3' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 2, content: 'Post2.1' },
+		{ ownerId: 3, content: 'Post3' },
+		{ ownerId: 3, content: 'Post3.1' },
+	]);
+
+	const prepared = db.query.usersTable.findMany({
+		limit: placeholder('uLimit'),
+		offset: placeholder('uOffset'),
+		include: {
+			posts: {
+				limit: placeholder('pLimit'),
+			},
+		},
+	}).prepare('query');
+
+	const usersWithPosts = await prepared.execute({ pLimit: 1, uLimit: 3, uOffset: 1 });
+
+	expect(usersWithPosts.length).eq(2);
+	expect(usersWithPosts[0]?.posts.length).eq(1);
+	expect(usersWithPosts[1]?.posts.length).eq(1);
+
+	expect(usersWithPosts).toContainEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		posts: [{ id: 4, ownerId: 2, content: 'Post2', createdAt: usersWithPosts[0]?.posts[0]?.createdAt }],
+	});
+	expect(usersWithPosts).toContainEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
+		posts: [{ id: 6, ownerId: 3, content: 'Post3', createdAt: usersWithPosts[1]?.posts[0]?.createdAt }],
+	});
+});
+
+test('[Find Many] Get users with posts + prepared where', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 3, content: 'Post3' },
+	]);
+
+	const prepared = db.query.usersTable.findMany({
+		where: (({ id }, { eq }) => eq(id, placeholder('id'))),
+		include: {
+			posts: {
+				where: (({ id }, { eq }) => eq(id, 1)),
+			},
+		},
+	}).prepare('query');
+
+	const usersWithPosts = await prepared.execute({ id: 1 });
+
+	expect(usersWithPosts.length).eq(1);
+	expect(usersWithPosts[0]?.posts.length).eq(1);
+
+	expect(usersWithPosts[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: usersWithPosts[0]?.posts[0]?.createdAt }],
+	});
+});
+
+test('[Find Many] Get users with posts + prepared + limit + offset + where', async (t) => {
+	const { db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.2' },
+		{ ownerId: 1, content: 'Post1.3' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 2, content: 'Post2.1' },
+		{ ownerId: 3, content: 'Post3' },
+		{ ownerId: 3, content: 'Post3.1' },
+	]);
+
+	const prepared = db.query.usersTable.findMany({
+		limit: placeholder('uLimit'),
+		offset: placeholder('uOffset'),
+		where: (({ id }, { eq, or }) => or(eq(id, placeholder('id')), eq(id, 3))),
+		include: {
+			posts: {
+				where: (({ id }, { eq }) => eq(id, placeholder('pid'))),
+				limit: placeholder('pLimit'),
+			},
+		},
+	}).prepare('query');
+
+	const usersWithPosts = await prepared.execute({ pLimit: 1, uLimit: 3, uOffset: 1, id: 2, pid: 6 });
+
+	expect(usersWithPosts.length).eq(1);
+	expect(usersWithPosts[0]?.posts.length).eq(1);
+
+	expect(usersWithPosts).toContainEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
+		posts: [{ id: 6, ownerId: 3, content: 'Post3', createdAt: usersWithPosts[0]?.posts[0]?.createdAt }],
 	});
 });
 
