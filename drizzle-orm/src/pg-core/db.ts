@@ -8,7 +8,6 @@ import {
 	createTableRelationsHelpers,
 	type DBQueryConfig,
 	extractTablesRelationalConfig,
-	mapRelationalRow,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations';
@@ -16,6 +15,7 @@ import { type SQLWrapper } from '~/sql';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
 import { type KnownKeysOnly } from '~/utils';
 import { type ColumnsSelection } from '~/view';
+import { PgRelationalQuery } from './query-builders/query';
 import { PgRefreshMaterializedView } from './query-builders/refresh-materialized-view';
 import type { SelectedFields } from './query-builders/select.types';
 import type { WithSubqueryWithSelection } from './subquery';
@@ -142,44 +142,35 @@ class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields ext
 		private session: PgSession,
 	) {}
 
-	async findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
+	findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', true, TSchema, TFields>>,
-	): Promise<BuildQueryResult<TSchema, TFields, TConfig>[]> {
-		const query = this.dialect.buildRelationalQuery(
+	): PgRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig>[]> {
+		return new PgRelationalQuery(
 			this.fullSchema,
 			this.schema,
 			this.tableNamesMap,
 			this.table,
 			this.tableConfig,
-			(config as DBQueryConfig<'many', true> | undefined) ?? true,
-			this.tableConfig.tsName,
-			[],
-			true,
+			this.dialect,
+			this.session,
+			config ? (config as DBQueryConfig<'many', true>) : true,
+			'many',
 		);
-
-		const rows = await this.session.values<unknown[]>(query.sql);
-		return rows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, query.selection)) as any;
 	}
 
-	async findFirst<TSelection extends Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>(
+	findFirst<TSelection extends Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>(
 		config?: KnownKeysOnly<TSelection, Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>,
-	): Promise<BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
-		const query = this.dialect.buildRelationalQuery(
+	): PgRelationalQuery<BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
+		return new PgRelationalQuery(
 			this.fullSchema,
 			this.schema,
 			this.tableNamesMap,
 			this.table,
 			this.tableConfig,
+			this.dialect,
+			this.session,
 			config ? { ...(config as DBQueryConfig<'many', true> | undefined), limit: 1 } : { limit: 1 },
-			this.tableConfig.tsName,
-			[],
-			true,
+			'first',
 		);
-
-		const rows = await this.session.values<unknown[]>(query.sql);
-		if (!rows[0]) {
-			return undefined;
-		}
-		return mapRelationalRow(this.schema, this.tableConfig, rows[0], query.selection) as any;
 	}
 }

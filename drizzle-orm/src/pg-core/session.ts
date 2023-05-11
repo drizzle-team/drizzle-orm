@@ -36,6 +36,7 @@ export abstract class PgSession<TQueryResult extends QueryResultHKT = QueryResul
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		mapResults?: (result: unknown) => unknown,
 	): PreparedQuery<T>;
 
 	execute<T>(query: SQL): Promise<T> {

@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { placeholder } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import util from 'node:util';
 import pg from 'pg';
@@ -52,16 +53,21 @@ async function main() {
 	// 	},
 	// });
 
-	const result = await db.query.users.findMany({
-		limit: 2,
+	const result = db.query.users.findMany({
+		limit: placeholder('limit'),
+		offset: placeholder('offset'),
 		include: {
 			posts: {
 				limit: 1,
 			},
 		},
-	});
+	}).prepare('query1');
 
-	console.log(util.inspect(result, { depth: null, colors: true }));
+	const result1 = await result.execute({ limit: 1, offset: 0 });
+	const result2 = await result.execute({ limit: 1, offset: 1 });
+
+	console.log(util.inspect(result1, { depth: null, colors: true }));
+	console.log(util.inspect(result2, { depth: null, colors: true }));
 
 	await pool.end();
 }

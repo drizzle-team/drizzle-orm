@@ -24,6 +24,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		private mapResults?: (result: unknown) => unknown,
 	) {
 		super();
 		this.rawQuery = {
@@ -42,15 +43,16 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 
 		this.logger.logQuery(this.rawQuery.text, params);
 
-		const { fields, rawQuery, client, query, joinsNotNullableMap } = this;
-		if (!fields) {
+		const { fields, rawQuery, client, query, joinsNotNullableMap, mapResults } = this;
+		if (!fields && !mapResults) {
 			return client.query(rawQuery, params);
 		}
 
 		const result = client.query(query, params);
 
 		return result.then((result) =>
-			result.rows.map((row) => mapResultRow<T['execute']>(fields, row, joinsNotNullableMap))
+			mapResults?.(result.rows)
+				?? result.rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap))
 		);
 	}
 
@@ -87,8 +89,9 @@ export class NodePgSession extends PgSession<NodePgQueryResultHKT> {
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		mapResults?: (result: unknown) => unknown,
 	): PreparedQuery<T> {
-		return new NodePgPreparedQuery(this.client, query.sql, query.params, this.logger, fields, name);
+		return new NodePgPreparedQuery(this.client, query.sql, query.params, this.logger, fields, name, mapResults);
 	}
 
 	async query(query: string, params: unknown[]): Promise<QueryResult> {

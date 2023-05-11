@@ -18,6 +18,7 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends Prep
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
+		private mapResults?: (result: unknown) => unknown,
 	) {
 		super();
 		this.query = queryString;
@@ -28,9 +29,10 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends Prep
 
 		this.logger.logQuery(this.query, params);
 
-		const { fields, query, client, joinsNotNullableMap } = this;
+		const { fields, query, client, joinsNotNullableMap, mapResults } = this;
 		if (!fields) {
-			return client.unsafe(query, params as any[]);
+			const result = client.unsafe(query, params as any[]);
+			return mapResults ? result.then(mapResults) : result;
 		}
 
 		const result = client.unsafe(query, params as any[]).values();
@@ -71,8 +73,10 @@ export class PostgresJsSession<TSQL extends Sql = Sql> extends PgSession<Postgre
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
+		name: string | undefined,
+		mapResults?: (result: unknown) => unknown,
 	): PreparedQuery<T> {
-		return new PostgresJsPreparedQuery(this.client, query.sql, query.params, this.logger, fields);
+		return new PostgresJsPreparedQuery(this.client, query.sql, query.params, this.logger, fields, mapResults);
 	}
 
 	query(query: string, params: unknown[]): Promise<RowList<Row[]>> {

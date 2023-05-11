@@ -30,6 +30,7 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PreparedQu
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		private mapResults?: (result: unknown) => unknown,
 	) {
 		super();
 		this.rawQuery = {
@@ -48,9 +49,10 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PreparedQu
 
 		this.logger.logQuery(this.rawQuery.text, params);
 
-		const { fields, client, rawQuery, query, joinsNotNullableMap } = this;
+		const { fields, client, rawQuery, query, joinsNotNullableMap, mapResults } = this;
 		if (!fields) {
-			return client.query(rawQuery, params);
+			const result = client.query(rawQuery, params);
+			return mapResults ? result.then(mapResults) : result;
 		}
 
 		const result = client.query(query, params);
@@ -93,8 +95,9 @@ export class NeonSession extends PgSession<NeonQueryResultHKT> {
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		mapResults?: (result: unknown) => unknown,
 	): PreparedQuery<T> {
-		return new NeonPreparedQuery(this.client, query.sql, query.params, this.logger, fields, name);
+		return new NeonPreparedQuery(this.client, query.sql, query.params, this.logger, fields, name, mapResults);
 	}
 
 	async query(query: string, params: unknown[]): Promise<QueryResult> {
