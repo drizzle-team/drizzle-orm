@@ -1,7 +1,7 @@
 import pg from 'pg';
 import { type Equal, Expect } from 'type-tests/utils';
 import { drizzle } from '~/node-postgres';
-import { placeholder } from '~/sql';
+import { placeholder, sql } from '~/sql';
 import * as schema from './schema';
 
 const { Pool } = pg;
@@ -77,5 +77,36 @@ const db = drizzle(pdb, { schema });
 				} | null;
 			}[];
 		}[], typeof result>
+	>;
+}
+
+{
+	const result = await db.query.users.findMany({
+		select: {
+			id: true,
+			name: true,
+			posts: {
+				select: {
+					authorId: true,
+				},
+				includeCustom: {
+					lower: sql<string>`lower(${schema.posts.title})`.as('lower_name'),
+				},
+			},
+		},
+	});
+
+	Expect<
+		Equal<
+			{
+				id: number;
+				name: string;
+				posts: {
+					authorId: number | null;
+					lower: string;
+				}[];
+			}[],
+			typeof result
+		>
 	>;
 }

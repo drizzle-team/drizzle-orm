@@ -264,13 +264,14 @@ export type BuildQueryResult<
 						TFullSelection['select'],
 						TTableConfig['relations']
 					>)
-			& (TFullSelection extends
-				{ includeCustom: Record<string, SQL.Aliased> | ((...args: any[]) => Record<string, SQL.Aliased>) } ? {
-					[K in keyof ReturnTypeOrValue<TFullSelection['includeCustom']>]: ReturnTypeOrValue<
+			& ([keyof ReturnTypeOrValue<TFullSelection['includeCustom']>] extends [never] ? {} : {
+				[K in keyof ReturnTypeOrValue<TFullSelection['includeCustom']>]: Assume<
+					ReturnTypeOrValue<
 						TFullSelection['includeCustom']
-					>[K]['_']['type'];
-				}
-				: {})
+					>[K],
+					SQL.Aliased
+				>['_']['type'];
+			})
 			& (TFullSelection extends { include: unknown } ? BuildRelationResult<
 					TSchema,
 					TFullSelection['include'],
