@@ -5,16 +5,13 @@ import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import getPort from 'get-port';
 import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 import * as schema from './pg.schema';
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
 // Comments
 // 1. Search not working tests by "NOT WORKING". Explanations attached
-// 2. All types are broken
-// 3. If I run test "Get groups with users + orderBy + limit" and "Get users with groups + orderBy + limit"
-//    I've got an error about prepared statements. I guess it will be the same for any 2+ tests running simultaneously
 
 declare module 'vitest' {
 	export interface TestContext {
@@ -191,6 +188,19 @@ test('[Find Many] Get users with posts', async (t) => {
 		},
 	});
 
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+		}[];
+	}[]>();
+
 	usersWithPosts.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
 	expect(usersWithPosts.length).eq(3);
@@ -247,6 +257,19 @@ test('[Find Many] Get users with posts + limit posts', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+		}[];
+	}[]>();
 
 	usersWithPosts.sort((a, b) => (a.id > b.id) ? 1 : -1);
 	usersWithPosts[0]?.posts.sort((a, b) => (a.id > b.id) ? 1 : -1);
@@ -309,6 +332,19 @@ test('[Find Many] Get users with posts + limit posts and users', async (t) => {
 		},
 	});
 
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+		}[];
+	}[]>();
+
 	usersWithPosts.sort((a, b) => (a.id > b.id) ? 1 : -1);
 	usersWithPosts[0]?.posts.sort((a, b) => (a.id > b.id) ? 1 : -1);
 	usersWithPosts[1]?.posts.sort((a, b) => (a.id > b.id) ? 1 : -1);
@@ -360,6 +396,20 @@ test('[Find Many] Get users with posts + custom fields', async (t) => {
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		lowerName: string;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+		}[];
+	}[]>();
 
 	usersWithPosts.sort((a, b) => (a.id > b.id) ? 1 : -1);
 	usersWithPosts[0]?.posts.sort((a, b) => (a.id > b.id) ? 1 : -1);
@@ -443,6 +493,20 @@ test('[Find Many] Get users with posts + custom fields + limits', async (t) => {
 		}),
 	});
 
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		lowerName: string;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+		}[];
+	}[]>();
+
 	expect(usersWithPosts.length).toEqual(1);
 	expect(usersWithPosts[0]?.posts.length).toEqual(1);
 
@@ -483,6 +547,19 @@ test('[Find Many] Get users with posts + orderBy', async (t) => {
 		},
 		orderBy: (usersTable, { desc }) => [desc(usersTable.id)],
 	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+		}[];
+	}[]>();
 
 	expect(usersWithPosts.length).eq(3);
 	expect(usersWithPosts[0]?.posts.length).eq(2);
@@ -552,6 +629,19 @@ test('[Find Many] Get users with posts + where', async (t) => {
 		},
 	});
 
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+		}[];
+	}[]>();
+
 	expect(usersWithPosts.length).eq(1);
 	expect(usersWithPosts[0]?.posts.length).eq(1);
 
@@ -595,6 +685,15 @@ test('[Find Many] Get users with posts + where + partial', async (t) => {
 		where: (({ id }, { eq }) => eq(id, 1)),
 	});
 
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		posts: {
+			id: number;
+			content: string;
+		}[];
+	}[]>();
+
 	expect(usersWithPosts.length).eq(1);
 	expect(usersWithPosts[0]?.posts.length).eq(1);
 
@@ -635,6 +734,15 @@ test('[Find Many] Get users with posts + where + partial. Did not select posts i
 		},
 		where: (({ id }, { eq }) => eq(id, 1)),
 	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		posts: {
+			id: number;
+			content: string;
+		}[];
+	}[]>();
 
 	expect(usersWithPosts.length).eq(1);
 	expect(usersWithPosts[0]?.posts.length).eq(1);
@@ -677,6 +785,13 @@ test('[Find Many] Get users with posts + where + partial(true + false)', async (
 		where: (({ id }, { eq }) => eq(id, 1)),
 	});
 
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		posts: {
+			id: number;
+		}[];
+	}[]>();
+
 	expect(usersWithPosts.length).eq(1);
 	expect(usersWithPosts[0]?.posts.length).eq(1);
 
@@ -714,6 +829,17 @@ test('[Find Many] Get users with posts + where + partial(false)', async (t) => {
 		},
 		where: (({ id }, { eq }) => eq(id, 1)),
 	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		verified: boolean;
+		invitedBy: number | null;
+		posts: {
+			id: number;
+			ownerId: number | null;
+			createdAt: Date;
+		}[];
+	}[]>();
 
 	expect(usersWithPosts.length).eq(1);
 	expect(usersWithPosts[0]?.posts.length).eq(1);
@@ -754,9 +880,22 @@ test('[Find Many] Get users with posts + prepared limit', async (t) => {
 				limit: placeholder('limit'),
 			},
 		},
-	}).prepare('query');
+	}).prepare('query1');
 
 	const usersWithPosts = await prepared.execute({ limit: 1 });
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+		}[];
+	}[]>();
 
 	expect(usersWithPosts.length).eq(3);
 	expect(usersWithPosts[0]?.posts.length).eq(1);
@@ -813,9 +952,22 @@ test('[Find Many] Get users with posts + prepared limit + offset', async (t) => 
 				limit: placeholder('pLimit'),
 			},
 		},
-	}).prepare('query');
+	}).prepare('query2');
 
 	const usersWithPosts = await prepared.execute({ pLimit: 1, uLimit: 3, uOffset: 1 });
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+		}[];
+	}[]>();
 
 	expect(usersWithPosts.length).eq(2);
 	expect(usersWithPosts[0]?.posts.length).eq(1);
@@ -860,9 +1012,22 @@ test('[Find Many] Get users with posts + prepared where', async (t) => {
 				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
-	}).prepare('query');
+	}).prepare('query3');
 
 	const usersWithPosts = await prepared.execute({ id: 1 });
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+		}[];
+	}[]>();
 
 	expect(usersWithPosts.length).eq(1);
 	expect(usersWithPosts[0]?.posts.length).eq(1);
@@ -905,9 +1070,22 @@ test('[Find Many] Get users with posts + prepared + limit + offset + where', asy
 				limit: placeholder('pLimit'),
 			},
 		},
-	}).prepare('query');
+	}).prepare('query4');
 
 	const usersWithPosts = await prepared.execute({ pLimit: 1, uLimit: 3, uOffset: 1, id: 2, pid: 6 });
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+		}[];
+	}[]>();
 
 	expect(usersWithPosts.length).eq(1);
 	expect(usersWithPosts[0]?.posts.length).eq(1);
@@ -945,6 +1123,21 @@ test('[Find One] Get users with posts', async (t) => {
 			posts: true,
 		},
 	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			posts: {
+				id: number;
+				content: string;
+				ownerId: number | null;
+				createdAt: Date;
+			}[];
+		} | undefined
+	>();
 
 	expect(usersWithPosts!.posts.length).eq(1);
 
@@ -984,6 +1177,21 @@ test('[Find One] Get users with posts + limit posts', async (t) => {
 		},
 	});
 
+	expectTypeOf(usersWithPosts).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			posts: {
+				id: number;
+				content: string;
+				ownerId: number | null;
+				createdAt: Date;
+			}[];
+		} | undefined
+	>();
+
 	expect(usersWithPosts!.posts.length).eq(1);
 
 	expect(usersWithPosts).toEqual({
@@ -1005,6 +1213,21 @@ test('[Find One] Get users with posts no results found', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			posts: {
+				id: number;
+				content: string;
+				ownerId: number | null;
+				createdAt: Date;
+			}[];
+		} | undefined
+	>();
 
 	expect(usersWithPosts).toBeUndefined();
 });
@@ -1035,6 +1258,21 @@ test('[Find One] Get users with posts + limit posts and users', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			posts: {
+				id: number;
+				content: string;
+				ownerId: number | null;
+				createdAt: Date;
+			}[];
+		} | undefined
+	>();
 
 	expect(usersWithPosts!.posts.length).eq(1);
 
@@ -1074,6 +1312,22 @@ test('[Find One] Get users with posts + custom fields', async (t) => {
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			lowerName: string;
+			posts: {
+				id: number;
+				content: string;
+				ownerId: number | null;
+				createdAt: Date;
+			}[];
+		} | undefined
+	>();
 
 	expect(usersWithPosts!.posts.length).toEqual(3);
 
@@ -1122,6 +1376,22 @@ test('[Find One] Get users with posts + custom fields + limits', async (t) => {
 		}),
 	});
 
+	expectTypeOf(usersWithPosts).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			lowerName: string;
+			posts: {
+				id: number;
+				content: string;
+				ownerId: number | null;
+				createdAt: Date;
+			}[];
+		} | undefined
+	>();
+
 	expect(usersWithPosts!.posts.length).toEqual(1);
 
 	expect(usersWithPosts).toEqual({
@@ -1161,6 +1431,21 @@ test('[Find One] Get users with posts + orderBy', async (t) => {
 		},
 		orderBy: (usersTable, { desc }) => [desc(usersTable.id)],
 	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			posts: {
+				id: number;
+				content: string;
+				ownerId: number | null;
+				createdAt: Date;
+			}[];
+		} | undefined
+	>();
 
 	expect(usersWithPosts!.posts.length).eq(2);
 
@@ -1202,6 +1487,21 @@ test('[Find One] Get users with posts + where', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			posts: {
+				id: number;
+				content: string;
+				ownerId: number | null;
+				createdAt: Date;
+			}[];
+		} | undefined
+	>();
 
 	expect(usersWithPosts!.posts.length).eq(1);
 
@@ -1245,6 +1545,17 @@ test('[Find One] Get users with posts + where + partial', async (t) => {
 		where: (({ id }, { eq }) => eq(id, 1)),
 	});
 
+	expectTypeOf(usersWithPosts).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			posts: {
+				id: number;
+				content: string;
+			}[];
+		} | undefined
+	>();
+
 	expect(usersWithPosts!.posts.length).eq(1);
 
 	expect(usersWithPosts).toEqual({
@@ -1284,6 +1595,17 @@ test('[Find One] Get users with posts + where + partial. Did not select posts id
 		},
 		where: (({ id }, { eq }) => eq(id, 1)),
 	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			posts: {
+				id: number;
+				content: string;
+			}[];
+		} | undefined
+	>();
 
 	expect(usersWithPosts!.posts.length).eq(1);
 
@@ -1325,6 +1647,15 @@ test('[Find One] Get users with posts + where + partial(true + false)', async (t
 		where: (({ id }, { eq }) => eq(id, 1)),
 	});
 
+	expectTypeOf(usersWithPosts).toEqualTypeOf<
+		{
+			id: number;
+			posts: {
+				id: number;
+			}[];
+		} | undefined
+	>();
+
 	expect(usersWithPosts!.posts.length).eq(1);
 
 	expect(usersWithPosts).toEqual({
@@ -1362,6 +1693,19 @@ test('[Find One] Get users with posts + where + partial(false)', async (t) => {
 		where: (({ id }, { eq }) => eq(id, 1)),
 	});
 
+	expectTypeOf(usersWithPosts).toEqualTypeOf<
+		{
+			id: number;
+			verified: boolean;
+			invitedBy: number | null;
+			posts: {
+				id: number;
+				ownerId: number | null;
+				createdAt: Date;
+			}[];
+		} | undefined
+	>();
+
 	expect(usersWithPosts!.posts.length).eq(1);
 
 	expect(usersWithPosts).toEqual({
@@ -1391,6 +1735,21 @@ test('Get user with invitee', async (t) => {
 			invitee: true,
 		},
 	});
+
+	expectTypeOf(usersWithInvitee).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			invitee: {
+				id: number;
+				name: string;
+				verified: boolean;
+				invitedBy: number | null;
+			} | null;
+		}[]
+	>();
 
 	usersWithInvitee.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
@@ -1447,6 +1806,21 @@ test('Get user + limit with invitee', async (t) => {
 		limit: 2,
 	});
 
+	expectTypeOf(usersWithInvitee).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			invitee: {
+				id: number;
+				name: string;
+				verified: boolean;
+				invitedBy: number | null;
+			} | null;
+		}[]
+	>();
+
 	usersWithInvitee.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
 	expect(usersWithInvitee.length).eq(2);
@@ -1487,6 +1861,23 @@ test('Get user with invitee and custom fields', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(usersWithInvitee).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			lower: string;
+			invitedBy: number | null;
+			invitee: {
+				id: number;
+				name: string;
+				verified: boolean;
+				lower: string;
+				invitedBy: number | null;
+			} | null;
+		}[]
+	>();
 
 	usersWithInvitee.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
@@ -1550,6 +1941,23 @@ test('Get user with invitee and custom fields + limits', async (t) => {
 		},
 	});
 
+	expectTypeOf(usersWithInvitee).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			lower: string;
+			invitedBy: number | null;
+			invitee: {
+				id: number;
+				name: string;
+				verified: boolean;
+				lower: string;
+				invitedBy: number | null;
+			} | null;
+		}[]
+	>();
+
 	usersWithInvitee.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
 	expect(usersWithInvitee.length).eq(3);
@@ -1599,6 +2007,21 @@ test('Get user with invitee + order by', async (t) => {
 			invitee: true,
 		},
 	});
+
+	expectTypeOf(usersWithInvitee).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			invitee: {
+				id: number;
+				name: string;
+				verified: boolean;
+				invitedBy: number | null;
+			} | null;
+		}[]
+	>();
 
 	expect(usersWithInvitee.length).eq(4);
 	expect(usersWithInvitee[3]?.invitee).toBeNull();
@@ -1653,6 +2076,21 @@ test('Get user with invitee + where', async (t) => {
 		},
 	});
 
+	expectTypeOf(usersWithInvitee).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			invitee: {
+				id: number;
+				name: string;
+				verified: boolean;
+				invitedBy: number | null;
+			} | null;
+		}[]
+	>();
+
 	expect(usersWithInvitee.length).eq(2);
 	expect(usersWithInvitee[0]?.invitee).not.toBeNull();
 	expect(usersWithInvitee[1]?.invitee).not.toBeNull();
@@ -1697,6 +2135,17 @@ test('Get user with invitee + where + partial', async (t) => {
 		},
 	});
 
+	expectTypeOf(usersWithInvitee).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			invitee: {
+				id: number;
+				name: string;
+			} | null;
+		}[]
+	>();
+
 	expect(usersWithInvitee.length).eq(2);
 	expect(usersWithInvitee[0]?.invitee).not.toBeNull();
 	expect(usersWithInvitee[1]?.invitee).not.toBeNull();
@@ -1735,6 +2184,16 @@ test('Get user with invitee + where + partial.  Did not select users id, but use
 			},
 		},
 	});
+
+	expectTypeOf(usersWithInvitee).toEqualTypeOf<
+		{
+			name: string;
+			invitee: {
+				id: number;
+				name: string;
+			} | null;
+		}[]
+	>();
 
 	expect(usersWithInvitee.length).eq(2);
 	expect(usersWithInvitee[0]?.invitee).not.toBeNull();
@@ -1776,6 +2235,17 @@ test('Get user with invitee + where + partial(true+false)', async (t) => {
 		},
 	});
 
+	expectTypeOf(usersWithInvitee).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			invitee: {
+				id: number;
+				name: string;
+			} | null;
+		}[]
+	>();
+
 	expect(usersWithInvitee.length).eq(2);
 	expect(usersWithInvitee[0]?.invitee).not.toBeNull();
 	expect(usersWithInvitee[1]?.invitee).not.toBeNull();
@@ -1813,6 +2283,19 @@ test('Get user with invitee + where + partial(false)', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(usersWithInvitee).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			invitedBy: number | null;
+			invitee: {
+				id: number;
+				verified: boolean;
+				invitedBy: number | null;
+			} | null;
+		}[]
+	>();
 
 	expect(usersWithInvitee.length).eq(2);
 	expect(usersWithInvitee[0]?.invitee).not.toBeNull();
@@ -1858,6 +2341,22 @@ test('Get user with invitee and posts', async (t) => {
 			posts: true,
 		},
 	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			posts: { id: number; ownerId: number | null; content: string; createdAt: Date }[];
+			invitee: {
+				id: number;
+				name: string;
+				verified: boolean;
+				invitedBy: number | null;
+			} | null;
+		}[]
+	>();
 
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
@@ -1935,6 +2434,22 @@ test('Get user with invitee and posts + limit posts and users', async (t) => {
 		},
 	});
 
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			posts: { id: number; ownerId: number | null; content: string; createdAt: Date }[];
+			invitee: {
+				id: number;
+				name: string;
+				verified: boolean;
+				invitedBy: number | null;
+			} | null;
+		}[]
+	>();
+
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
 	expect(response.length).eq(3);
@@ -1973,6 +2488,7 @@ test('Get user with invitee and posts + limit posts and users', async (t) => {
 	});
 });
 
+// NOT WORKING. Types not adding custom fields inside posts
 test('Get user with invitee and posts + limits + custom fields in each', async (t) => {
 	const { db } = t;
 
@@ -2005,6 +2521,24 @@ test('Get user with invitee and posts + limits + custom fields in each', async (
 			},
 		},
 	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			lower: string;
+			invitedBy: number | null;
+			posts: { id: number; lower: string; ownerId: number | null; content: string; createdAt: Date }[];
+			invitee: {
+				id: number;
+				name: string;
+				lower: string;
+				verified: boolean;
+				invitedBy: number | null;
+			} | null;
+		}[]
+	>();
 
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
@@ -2077,6 +2611,24 @@ test('Get user with invitee and posts + custom fields in each', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			lower: string;
+			invitedBy: number | null;
+			posts: { id: number; lower: string; ownerId: number | null; content: string; createdAt: Date }[];
+			invitee: {
+				id: number;
+				name: string;
+				lower: string;
+				verified: boolean;
+				invitedBy: number | null;
+			} | null;
+		}[]
+	>();
 
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
@@ -2176,6 +2728,22 @@ test('Get user with invitee and posts + orderBy', async (t) => {
 		},
 	});
 
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			posts: { id: number; ownerId: number | null; content: string; createdAt: Date }[];
+			invitee: {
+				id: number;
+				name: string;
+				verified: boolean;
+				invitedBy: number | null;
+			} | null;
+		}[]
+	>();
+
 	expect(response.length).eq(4);
 
 	expect(response[3]?.invitee).toBeNull();
@@ -2263,6 +2831,22 @@ test('Get user with invitee and posts + where', async (t) => {
 		},
 	});
 
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			posts: { id: number; ownerId: number | null; content: string; createdAt: Date }[];
+			invitee: {
+				id: number;
+				name: string;
+				verified: boolean;
+				invitedBy: number | null;
+			} | null;
+		}[]
+	>();
+
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
 	expect(response.length).eq(2);
@@ -2322,6 +2906,22 @@ test('Get user with invitee and posts + limit posts and users + where', async (t
 		},
 	});
 
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			posts: { id: number; ownerId: number | null; content: string; createdAt: Date }[];
+			invitee: {
+				id: number;
+				name: string;
+				verified: boolean;
+				invitedBy: number | null;
+			} | null;
+		}[]
+	>();
+
 	console.log(JSON.stringify(response, null, 2));
 
 	expect(response.length).eq(1);
@@ -2339,6 +2939,7 @@ test('Get user with invitee and posts + limit posts and users + where', async (t
 	});
 });
 
+// NOT WORKING. Types not adding custom fields inside posts
 test('Get user with invitee and posts + orderBy + where + custom', async (t) => {
 	const { db } = t;
 
@@ -2375,6 +2976,23 @@ test('Get user with invitee and posts + orderBy + where + custom', async (t) => 
 		},
 	});
 
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			lower: string;
+			posts: { id: number; lower: string; ownerId: number | null; content: string; createdAt: Date }[];
+			invitee: {
+				id: number;
+				name: string;
+				verified: boolean;
+				invitedBy: number | null;
+			} | null;
+		}[]
+	>();
+
 	expect(response.length).eq(2);
 
 	expect(response[1]?.invitee).not.toBeNull();
@@ -2409,6 +3027,7 @@ test('Get user with invitee and posts + orderBy + where + custom', async (t) => 
 	});
 });
 
+// NOT WORKING. Types not adding custom fields inside posts and invitee
 test('Get user with invitee and posts + orderBy + where + partial + custom', async (t) => {
 	const { db } = t;
 
@@ -2458,6 +3077,20 @@ test('Get user with invitee and posts + orderBy + where + partial + custom', asy
 			},
 		},
 	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			lower: string;
+			posts: { id: number; lower: string; content: string }[];
+			invitee: {
+				id: number;
+				name: string;
+				lower: string;
+			} | null;
+		}[]
+	>();
 
 	expect(response.length).eq(2);
 
@@ -2521,6 +3154,28 @@ test('Get user with posts and posts with comments', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			posts: {
+				id: number;
+				content: string;
+				ownerId: number | null;
+				createdAt: Date;
+				comments: {
+					id: number;
+					content: string;
+					createdAt: Date;
+					creator: number | null;
+					postId: number | null;
+				}[];
+			}[];
+		}[]
+	>();
 
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
@@ -2651,13 +3306,45 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 		include: {
 			posts: {
 				include: {
-					comments: true,
+					comments: {
+						include: {
+							author: true,
+						},
+					},
 				},
 			},
 		},
 	});
 
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+			comments: {
+				id: number;
+				content: string;
+				createdAt: Date;
+				creator: number | null;
+				postId: number | null;
+				author: {
+					id: number;
+					name: string;
+					verified: boolean;
+					invitedBy: number | null;
+				} | null;
+			}[];
+		}[];
+	}[]>();
+
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	console.log(JSON.stringify(response, null, 2));
 
 	expect(response.length).eq(3);
 	expect(response[0]?.posts.length).eq(1);
@@ -2683,6 +3370,12 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 					id: 1,
 					content: 'Comment1',
 					creator: 2,
+					author: {
+						id: 2,
+						name: 'Andrew',
+						verified: false,
+						invitedBy: null,
+					},
 					postId: 1,
 					createdAt: response[0]?.posts[0]?.comments[0]?.createdAt,
 				},
@@ -2704,33 +3397,18 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 					id: 2,
 					content: 'Comment2',
 					creator: 2,
+					author: {
+						id: 2,
+						name: 'Andrew',
+						verified: false,
+						invitedBy: null,
+					},
 					postId: 2,
 					createdAt: response[1]?.posts[0]?.comments[0]?.createdAt,
 				},
 			],
 		}],
 	});
-	// expect(response[2]).toEqual({
-	// 	id: 3,
-	// 	name: 'Alex',
-	// 	verified: false,
-	// 	invitedBy: null,
-	// 	posts: [{
-	// 		id: 3,
-	// 		ownerId: 3,
-	// 		content: 'Post3',
-	// 		createdAt: response[2]?.posts[0]?.createdAt,
-	// 		comments: [
-	// 			{
-	// 				id: ,
-	// 				content: 'Comment3',
-	// 				creator: 3,
-	// 				postId: 3,
-	// 				createdAt: response[2]?.posts[0]?.comments[0]?.createdAt,
-	// 			},
-	// 		],
-	// 	}],
-	// });
 });
 
 /*
@@ -2780,6 +3458,20 @@ test('[Find Many] Get users with groups', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		usersToGroups: {
+			group: {
+				id: number;
+				name: string;
+				description: string | null;
+			};
+		}[];
+	}[]>();
 
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
@@ -2869,6 +3561,20 @@ test('[Find Many] Get groups with users', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		description: string | null;
+		usersToGroups: {
+			user: {
+				id: number;
+				name: string;
+				verified: boolean;
+				invitedBy: number | null;
+			};
+		}[];
+	}[]>();
 
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
@@ -2962,6 +3668,20 @@ test('[Find Many] Get users with groups + limit', async (t) => {
 		},
 	});
 
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		usersToGroups: {
+			group: {
+				id: number;
+				name: string;
+				description: string | null;
+			};
+		}[];
+	}[]>();
+
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
 	expect(response.length).toEqual(2);
@@ -3031,6 +3751,20 @@ test('[Find Many] Get groups with users + limit', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		description: string | null;
+		usersToGroups: {
+			user: {
+				id: number;
+				name: string;
+				verified: boolean;
+				invitedBy: number | null;
+			};
+		}[];
+	}[]>();
 
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
@@ -3103,6 +3837,20 @@ test('[Find Many] Get users with groups + limit + where', async (t) => {
 		},
 	});
 
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		usersToGroups: {
+			group: {
+				id: number;
+				name: string;
+				description: string | null;
+			};
+		}[];
+	}[]>();
+
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
 	expect(response.length).toEqual(1);
@@ -3160,6 +3908,20 @@ test('[Find Many] Get groups with users + limit + where', async (t) => {
 		},
 	});
 
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		description: string | null;
+		usersToGroups: {
+			user: {
+				id: number;
+				name: string;
+				verified: boolean;
+				invitedBy: number | null;
+			};
+		}[];
+	}[]>();
+
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
 	expect(response.length).toEqual(1);
@@ -3214,6 +3976,20 @@ test('[Find Many] Get users with groups + where', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		usersToGroups: {
+			group: {
+				id: number;
+				name: string;
+				description: string | null;
+			};
+		}[];
+	}[]>();
 
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
@@ -3279,6 +4055,20 @@ test('[Find Many] Get groups with users + where', async (t) => {
 		},
 	});
 
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		description: string | null;
+		usersToGroups: {
+			user: {
+				id: number;
+				name: string;
+				verified: boolean;
+				invitedBy: number | null;
+			};
+		}[];
+	}[]>();
+
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
 	expect(response.length).toEqual(2);
@@ -3341,6 +4131,20 @@ test('[Find Many] Get users with groups + orderBy', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		usersToGroups: {
+			group: {
+				id: number;
+				name: string;
+				description: string | null;
+			};
+		}[];
+	}[]>();
 
 	expect(response.length).toEqual(3);
 
@@ -3430,6 +4234,20 @@ test('[Find Many] Get groups with users + orderBy', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		description: string | null;
+		usersToGroups: {
+			user: {
+				id: number;
+				name: string;
+				verified: boolean;
+				invitedBy: number | null;
+			};
+		}[];
+	}[]>();
 
 	expect(response.length).toEqual(3);
 
@@ -3523,6 +4341,20 @@ test('[Find Many] Get users with groups + orderBy + limit', async (t) => {
 		},
 	});
 
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		usersToGroups: {
+			group: {
+				id: number;
+				name: string;
+				description: string | null;
+			};
+		}[];
+	}[]>();
+
 	expect(response.length).toEqual(2);
 
 	expect(response[0]?.usersToGroups.length).toEqual(1);
@@ -3595,6 +4427,22 @@ test('[Find One] Get users with groups', async (t) => {
 		},
 	});
 
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			usersToGroups: {
+				group: {
+					id: number;
+					name: string;
+					description: string | null;
+				};
+			}[];
+		} | undefined
+	>();
+
 	expect(response?.usersToGroups.length).toEqual(1);
 
 	expect(response).toEqual({
@@ -3643,6 +4491,22 @@ test('[Find One] Get groups with users', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			description: string | null;
+			usersToGroups: {
+				user: {
+					id: number;
+					name: string;
+					verified: boolean;
+					invitedBy: number | null;
+				};
+			}[];
+		} | undefined
+	>();
 
 	expect(response?.usersToGroups.length).toEqual(1);
 
@@ -3694,6 +4558,22 @@ test('[Find One] Get users with groups + limit', async (t) => {
 		},
 	});
 
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			usersToGroups: {
+				group: {
+					id: number;
+					name: string;
+					description: string | null;
+				};
+			}[];
+		} | undefined
+	>();
+
 	expect(response?.usersToGroups.length).toEqual(1);
 
 	expect(response).toEqual({
@@ -3743,6 +4623,22 @@ test('[Find One] Get groups with users + limit', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			description: string | null;
+			usersToGroups: {
+				user: {
+					id: number;
+					name: string;
+					verified: boolean;
+					invitedBy: number | null;
+				};
+			}[];
+		} | undefined
+	>();
 
 	expect(response?.usersToGroups.length).toEqual(1);
 
@@ -3794,6 +4690,22 @@ test('[Find One] Get users with groups + limit + where', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			usersToGroups: {
+				group: {
+					id: number;
+					name: string;
+					description: string | null;
+				};
+			}[];
+		} | undefined
+	>();
 
 	expect(response?.usersToGroups.length).toEqual(1);
 
@@ -3847,6 +4759,22 @@ test('[Find One] Get groups with users + limit + where', async (t) => {
 		},
 	});
 
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			description: string | null;
+			usersToGroups: {
+				user: {
+					id: number;
+					name: string;
+					verified: boolean;
+					invitedBy: number | null;
+				};
+			}[];
+		} | undefined
+	>();
+
 	expect(response?.usersToGroups.length).toEqual(1);
 
 	expect(response).toEqual({
@@ -3898,6 +4826,22 @@ test('[Find One] Get users with groups + where', async (t) => {
 		},
 	});
 
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			usersToGroups: {
+				group: {
+					id: number;
+					name: string;
+					description: string | null;
+				};
+			}[];
+		} | undefined
+	>();
+
 	expect(response?.usersToGroups.length).toEqual(0);
 
 	expect(response).toEqual({
@@ -3942,6 +4886,22 @@ test('[Find One] Get groups with users + where', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			description: string | null;
+			usersToGroups: {
+				user: {
+					id: number;
+					name: string;
+					verified: boolean;
+					invitedBy: number | null;
+				};
+			}[];
+		} | undefined
+	>();
 
 	expect(response?.usersToGroups.length).toEqual(1);
 
@@ -3993,6 +4953,22 @@ test('[Find One] Get users with groups + orderBy', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			usersToGroups: {
+				group: {
+					id: number;
+					name: string;
+					description: string | null;
+				};
+			}[];
+		} | undefined
+	>();
 
 	expect(response?.usersToGroups.length).toEqual(2);
 
@@ -4051,6 +5027,22 @@ test('[Find One] Get groups with users + orderBy', async (t) => {
 		},
 	});
 
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			description: string | null;
+			usersToGroups: {
+				user: {
+					id: number;
+					name: string;
+					verified: boolean;
+					invitedBy: number | null;
+				};
+			}[];
+		} | undefined
+	>();
+
 	expect(response?.usersToGroups.length).toEqual(1);
 
 	expect(response).toEqual({
@@ -4102,6 +5094,22 @@ test('[Find One] Get users with groups + orderBy + limit', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			usersToGroups: {
+				group: {
+					id: number;
+					name: string;
+					description: string | null;
+				};
+			}[];
+		} | undefined
+	>();
 
 	expect(response?.usersToGroups.length).toEqual(1);
 
@@ -4155,6 +5163,22 @@ test('Get groups with users + orderBy + limit', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			description: string | null;
+			usersToGroups: {
+				user: {
+					id: number;
+					name: string;
+					verified: boolean;
+					invitedBy: number | null;
+				};
+			}[];
+		}[]
+	>();
 
 	expect(response.length).toEqual(2);
 
@@ -4228,6 +5252,24 @@ test('Get users with groups + custom', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			lower: string;
+			usersToGroups: {
+				group: {
+					id: number;
+					name: string;
+					description: string | null;
+					lower: string;
+				};
+			}[];
+		}[]
+	>();
 
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
@@ -4331,6 +5373,24 @@ test('Get groups with users + custom', async (t) => {
 			},
 		},
 	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			description: string | null;
+			lower: string;
+			usersToGroups: {
+				user: {
+					id: number;
+					name: string;
+					verified: boolean;
+					invitedBy: number | null;
+					lower: string;
+				};
+			}[];
+		}[]
+	>();
 
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
