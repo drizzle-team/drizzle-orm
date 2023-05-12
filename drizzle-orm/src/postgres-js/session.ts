@@ -30,14 +30,17 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends Prep
 		this.logger.logQuery(this.query, params);
 
 		const { fields, query, client, joinsNotNullableMap, mapResults } = this;
-		if (!fields) {
-			const result = client.unsafe(query, params as any[]);
-			return mapResults ? result.then(mapResults) : result;
+		if (!fields && !mapResults) {
+			return client.unsafe(query, params as any[]);
 		}
 
 		const result = client.unsafe(query, params as any[]).values();
 
-		return result.then((result) => result.map((row) => mapResultRow<T['execute']>(fields, row, joinsNotNullableMap)));
+		return result.then((rows) =>
+			mapResults
+				? mapResults(rows)
+				: rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap))
+		);
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {

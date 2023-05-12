@@ -50,15 +50,16 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PreparedQu
 		this.logger.logQuery(this.rawQuery.text, params);
 
 		const { fields, client, rawQuery, query, joinsNotNullableMap, mapResults } = this;
-		if (!fields) {
-			const result = client.query(rawQuery, params);
-			return mapResults ? result.then(mapResults) : result;
+		if (!fields && !mapResults) {
+			return client.query(rawQuery, params);
 		}
 
 		const result = client.query(query, params);
 
 		return result.then((result) =>
-			result.rows.map((row) => mapResultRow<T['execute']>(fields, row, joinsNotNullableMap))
+			mapResults
+				? mapResults(result.rows)
+				: result.rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap))
 		);
 	}
 
