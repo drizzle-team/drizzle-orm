@@ -556,7 +556,7 @@ export class PgDialect {
 				joinType: 'left',
 			});
 
-			const elseField = sql`jsonb_agg(jsonb_build_array(${
+			const elseField = sql`json_agg(json_build_array(${
 				sql.join(
 					builtRelation.selection.map(({ dbKey: key }) => {
 						const field = sql`${sql.identifier(relationAlias)}.${sql.identifier(key)}`;
