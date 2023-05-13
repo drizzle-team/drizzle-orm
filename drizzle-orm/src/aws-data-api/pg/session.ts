@@ -34,7 +34,7 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 		private fields: SelectedFieldsOrdered | undefined,
 		/** @internal */
 		readonly transactionId: string | undefined,
-		private mapResults?: (result: unknown) => unknown,
+		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super();
 		this.rawQuery = new ExecuteStatementCommand({
@@ -48,15 +48,15 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		const { fields, joinsNotNullableMap, mapResults } = this;
+		const { fields, joinsNotNullableMap, customResultMapper } = this;
 
-		const rows = await this.values(placeholderValues);
-		if (!fields && !mapResults) {
+		const rows = await this.values(placeholderValues) as unknown[][];
+		if (!fields && !customResultMapper) {
 			return rows as T['execute'];
 		}
-		return mapResults
-			? mapResults(rows)
-			: (rows as unknown[][]).map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+		return customResultMapper
+			? customResultMapper(rows)
+			: rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
 	}
 
 	all(placeholderValues?: Record<string, unknown> | undefined): Promise<T['all']> {
@@ -124,7 +124,7 @@ export class AwsDataApiSession extends PgSession<AwsDataApiPgQueryResultHKT> {
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		transactionId?: string,
-		mapResults?: (result: unknown) => unknown,
+		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PreparedQuery<T> {
 		return new AwsDataApiPreparedQuery(
 			this.client,
@@ -134,7 +134,7 @@ export class AwsDataApiSession extends PgSession<AwsDataApiPgQueryResultHKT> {
 			this.options,
 			fields,
 			transactionId,
-			mapResults,
+			customResultMapper,
 		);
 	}
 

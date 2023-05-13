@@ -1,6 +1,5 @@
 import { QueryPromise } from '~/query-promise';
 import {
-	type BuildRelationalQueryResult,
 	type DBQueryConfig,
 	mapRelationalRow,
 	type TableRelationalConfig,
@@ -27,17 +26,6 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 		super();
 	}
 
-	private mapResults(rows: unknown[][], selection: BuildRelationalQueryResult['selection']): unknown {
-		if (this.mode === 'many') {
-			return rows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, selection));
-		}
-
-		if (!rows[0]) {
-			return undefined;
-		}
-		return mapRelationalRow(this.schema, this.tableConfig, rows[0], selection);
-	}
-
 	private _prepare(name?: string): PreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		const query = this.dialect.buildRelationalQuery(
 			this.fullSchema,
@@ -56,7 +44,13 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 			builtQuery,
 			undefined,
 			name,
-			(rows) => this.mapResults(rows as unknown[][], query.selection),
+			(rawRows) => {
+				const rows = rawRows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, query.selection));
+				if (this.mode === 'first') {
+					return rows[0] as TResult;
+				}
+				return rows as TResult;
+			},
 		);
 	}
 

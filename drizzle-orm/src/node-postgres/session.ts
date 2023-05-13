@@ -24,7 +24,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		private mapResults?: (result: unknown) => unknown,
+		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super();
 		this.rawQuery = {
@@ -38,23 +38,21 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 		};
 	}
 
-	execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 
 		this.logger.logQuery(this.rawQuery.text, params);
 
-		const { fields, rawQuery, client, query, joinsNotNullableMap, mapResults } = this;
-		if (!fields && !mapResults) {
+		const { fields, rawQuery, client, query, joinsNotNullableMap, customResultMapper } = this;
+		if (!fields && !customResultMapper) {
 			return client.query(rawQuery, params);
 		}
 
-		const result = client.query(query, params);
+		const result = await client.query(query, params);
 
-		return result.then((result) =>
-			mapResults
-				? mapResults(result.rows)
-				: result.rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap))
-		);
+		return customResultMapper
+			? customResultMapper(result.rows)
+			: result.rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
@@ -90,9 +88,9 @@ export class NodePgSession extends PgSession<NodePgQueryResultHKT> {
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		mapResults?: (result: unknown) => unknown,
+		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PreparedQuery<T> {
-		return new NodePgPreparedQuery(this.client, query.sql, query.params, this.logger, fields, name, mapResults);
+		return new NodePgPreparedQuery(this.client, query.sql, query.params, this.logger, fields, name, customResultMapper);
 	}
 
 	async query(query: string, params: unknown[]): Promise<QueryResult> {

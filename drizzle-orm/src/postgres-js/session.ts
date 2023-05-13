@@ -10,37 +10,32 @@ import { fillPlaceholders, type Query } from '~/sql';
 import { type Assume, mapResultRow } from '~/utils';
 
 export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
-	private query: string;
-
 	constructor(
 		private client: Sql,
-		queryString: string,
+		private query: string,
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
-		private mapResults?: (result: unknown) => unknown,
+		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super();
-		this.query = queryString;
 	}
 
-	execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 
 		this.logger.logQuery(this.query, params);
 
-		const { fields, query, client, joinsNotNullableMap, mapResults } = this;
-		if (!fields && !mapResults) {
+		const { fields, query, client, joinsNotNullableMap, customResultMapper } = this;
+		if (!fields && !customResultMapper) {
 			return client.unsafe(query, params as any[]);
 		}
 
-		const result = client.unsafe(query, params as any[]).values();
+		const rows = await client.unsafe(query, params as any[]).values();
 
-		return result.then((rows) =>
-			mapResults
-				? mapResults(rows)
-				: rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap))
-		);
+		return customResultMapper
+			? customResultMapper(rows)
+			: rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
@@ -77,9 +72,9 @@ export class PostgresJsSession<TSQL extends Sql = Sql> extends PgSession<Postgre
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		mapResults?: (result: unknown) => unknown,
+		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PreparedQuery<T> {
-		return new PostgresJsPreparedQuery(this.client, query.sql, query.params, this.logger, fields, mapResults);
+		return new PostgresJsPreparedQuery(this.client, query.sql, query.params, this.logger, fields, customResultMapper);
 	}
 
 	query(query: string, params: unknown[]): Promise<RowList<Row[]>> {
