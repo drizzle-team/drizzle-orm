@@ -1,4 +1,3 @@
-import util from 'node:util';
 import { QueryPromise } from '~/query-promise';
 import {
 	type BuildQueryResult,
