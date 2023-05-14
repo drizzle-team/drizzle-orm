@@ -84,7 +84,7 @@ export class MySqlRelationalQuery<
 		super();
 	}
 
-	private prepare() {
+	prepare() {
 		const query = this.dialect.buildRelationalQuery(
 			this.fullSchema,
 			this.schema,
