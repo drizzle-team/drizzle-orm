@@ -103,8 +103,6 @@ export class MySqlRelationalQuery<
 			builtQuery,
 			undefined,
 			(rawRows) => {
-				console.log(util.inspect(rawRows, false, null, true));
-
 				const rows = rawRows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, query.selection));
 				if (this.mode === 'first') {
 					return rows[0] as TResult;
