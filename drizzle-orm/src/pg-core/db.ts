@@ -3,27 +3,26 @@ import { PgDelete, PgInsertBuilder, PgSelectBuilder, PgUpdateBuilder, QueryBuild
 import type { PgSession, PgTransaction, PgTransactionConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
 import { type AnyPgTable } from '~/pg-core/table';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder';
-import {
-	type BuildQueryResult,
-	createTableRelationsHelpers,
-	type DBQueryConfig,
-	extractTablesRelationalConfig,
-	type TableRelationalConfig,
-	type TablesRelationalConfig,
-} from '~/relations';
+import { type ExtractTablesWithRelations, type TablesRelationalConfig } from '~/relations';
 import { type SQLWrapper } from '~/sql';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
-import { type KnownKeysOnly } from '~/utils';
 import { type ColumnsSelection } from '~/view';
-import { PgRelationalQuery } from './query-builders/query';
+import { RelationalQueryBuilder } from './query-builders/query';
 import { PgRefreshMaterializedView } from './query-builders/refresh-materialized-view';
 import type { SelectedFields } from './query-builders/select.types';
 import type { WithSubqueryWithSelection } from './subquery';
 import type { PgMaterializedView } from './view';
 
+export interface RelationalSchemaConfig<TSchema extends TablesRelationalConfig> {
+	fullSchema: Record<string, unknown>;
+	schema: TSchema;
+	tableNamesMap: Record<string, string>;
+}
+
 export class PgDatabase<
 	TQueryResult extends QueryResultHKT,
-	TSchema extends TablesRelationalConfig = {},
+	TFullSchema extends Record<string, unknown> = {},
+	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
 > {
 	declare readonly _: {
 		readonly schema: TSchema | undefined;
@@ -38,26 +37,20 @@ export class PgDatabase<
 		/** @internal */
 		readonly dialect: PgDialect,
 		/** @internal */
-		readonly session: PgSession<any>,
-		schema: Record<string, unknown> | undefined,
+		readonly session: PgSession<any, any, any>,
+		schema: RelationalSchemaConfig<TSchema> | undefined,
 	) {
-		if (schema) {
-			const { tables: extractedSchema, tableNamesMap } = extractTablesRelationalConfig<TSchema>(
-				schema,
-				createTableRelationsHelpers,
-			);
-			this._ = { schema: extractedSchema, tableNamesMap };
-		} else {
-			this._ = { schema: undefined, tableNamesMap: {} };
-		}
+		this._ = schema
+			? { schema: schema.schema, tableNamesMap: schema.tableNamesMap }
+			: { schema: undefined, tableNamesMap: {} };
 		this.query = {} as typeof this['query'];
 		if (this._.schema) {
 			for (const [tableName, columns] of Object.entries(this._.schema)) {
 				this.query[tableName as keyof TSchema] = new RelationalQueryBuilder(
-					schema!,
+					schema!.fullSchema,
 					this._.schema,
 					this._.tableNamesMap,
-					schema![tableName] as AnyPgTable,
+					schema!.fullSchema[tableName] as AnyPgTable,
 					columns,
 					dialect,
 					session,
@@ -124,53 +117,9 @@ export class PgDatabase<
 	}
 
 	transaction<T>(
-		transaction: (tx: PgTransaction<TQueryResult>) => Promise<T>,
+		transaction: (tx: PgTransaction<TQueryResult, TFullSchema, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig,
 	): Promise<T> {
 		return this.session.transaction(transaction, config);
-	}
-}
-
-class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields extends TableRelationalConfig> {
-	constructor(
-		private fullSchema: Record<string, unknown>,
-		private schema: TSchema,
-		private tableNamesMap: Record<string, string>,
-		private table: AnyPgTable,
-		private tableConfig: TableRelationalConfig,
-		private dialect: PgDialect,
-		private session: PgSession,
-	) {}
-
-	findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', true, TSchema, TFields>>,
-	): PgRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig>[]> {
-		return new PgRelationalQuery(
-			this.fullSchema,
-			this.schema,
-			this.tableNamesMap,
-			this.table,
-			this.tableConfig,
-			this.dialect,
-			this.session,
-			config ? (config as DBQueryConfig<'many', true>) : true,
-			'many',
-		);
-	}
-
-	findFirst<TSelection extends Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>(
-		config?: KnownKeysOnly<TSelection, Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>,
-	): PgRelationalQuery<BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
-		return new PgRelationalQuery(
-			this.fullSchema,
-			this.schema,
-			this.tableNamesMap,
-			this.table,
-			this.tableConfig,
-			this.dialect,
-			this.session,
-			config ? { ...(config as DBQueryConfig<'many', true> | undefined), limit: 1 } : { limit: 1 },
-			'first',
-		);
 	}
 }

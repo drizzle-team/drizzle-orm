@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import Docker from 'dockerode';
-import { desc, eq, type ExtractTablesWithRelations, gt, or, placeholder, sql } from 'drizzle-orm';
+import { desc, eq, gt, or, placeholder, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import getPort from 'get-port';
 import { Client } from 'pg';
@@ -10,21 +10,18 @@ import * as schema from './pg.schema';
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
-// Comments
-// 1. Search not working tests by "NOT WORKING". Explanations attached
-
 declare module 'vitest' {
 	export interface TestContext {
 		docker: Docker;
 		pgContainer: Docker.Container;
-		db: NodePgDatabase<ExtractTablesWithRelations<typeof schema>>;
+		db: NodePgDatabase<typeof schema>;
 		client: Client;
 	}
 }
 
 let globalDocker: Docker;
 let pgContainer: Docker.Container;
-let db: NodePgDatabase<ExtractTablesWithRelations<typeof schema>>;
+let db: NodePgDatabase<typeof schema>;
 let client: Client;
 
 async function createDockerDB(): Promise<string> {
@@ -2488,7 +2485,6 @@ test('Get user with invitee and posts + limit posts and users', async (t) => {
 	});
 });
 
-// NOT WORKING. Types not adding custom fields inside posts
 test('Get user with invitee and posts + limits + custom fields in each', async (t) => {
 	const { db } = t;
 
@@ -2939,7 +2935,6 @@ test('Get user with invitee and posts + limit posts and users + where', async (t
 	});
 });
 
-// NOT WORKING. Types not adding custom fields inside posts
 test('Get user with invitee and posts + orderBy + where + custom', async (t) => {
 	const { db } = t;
 
@@ -3027,7 +3022,6 @@ test('Get user with invitee and posts + orderBy + where + custom', async (t) => 
 	});
 });
 
-// NOT WORKING. Types not adding custom fields inside posts and invitee
 test('Get user with invitee and posts + orderBy + where + partial + custom', async (t) => {
 	const { db } = t;
 

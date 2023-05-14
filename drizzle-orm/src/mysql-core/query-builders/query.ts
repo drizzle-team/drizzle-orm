@@ -1,3 +1,4 @@
+import util from 'node:util';
 import { QueryPromise } from '~/query-promise';
 import {
 	type BuildQueryResult,
@@ -7,25 +8,34 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations';
 import { type KnownKeysOnly } from '~/utils';
-import { type PgDialect } from '../dialect';
-import { type PgSession, type PreparedQuery, type PreparedQueryConfig } from '../session';
-import { type AnyPgTable } from '../table';
+import { type MySqlDialect } from '../dialect';
+import {
+	type MySqlSession,
+	type PreparedQueryConfig,
+	type PreparedQueryHKTBase,
+	type PreparedQueryKind,
+} from '../session';
+import { type AnyMySqlTable } from '../table';
 
-export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields extends TableRelationalConfig> {
+export class RelationalQueryBuilder<
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TSchema extends TablesRelationalConfig,
+	TFields extends TableRelationalConfig,
+> {
 	constructor(
 		private fullSchema: Record<string, unknown>,
 		private schema: TSchema,
 		private tableNamesMap: Record<string, string>,
-		private table: AnyPgTable,
+		private table: AnyMySqlTable,
 		private tableConfig: TableRelationalConfig,
-		private dialect: PgDialect,
-		private session: PgSession,
+		private dialect: MySqlDialect,
+		private session: MySqlSession,
 	) {}
 
 	findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', true, TSchema, TFields>>,
-	): PgRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig>[]> {
-		return new PgRelationalQuery(
+	): MySqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
+		return new MySqlRelationalQuery(
 			this.fullSchema,
 			this.schema,
 			this.tableNamesMap,
@@ -40,8 +50,8 @@ export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFie
 
 	findFirst<TSelection extends Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>(
 		config?: KnownKeysOnly<TSelection, Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>,
-	): PgRelationalQuery<BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
-		return new PgRelationalQuery(
+	): MySqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
+		return new MySqlRelationalQuery(
 			this.fullSchema,
 			this.schema,
 			this.tableNamesMap,
@@ -55,24 +65,27 @@ export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFie
 	}
 }
 
-export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
-	declare protected $brand: 'PgRelationalQuery';
+export class MySqlRelationalQuery<
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TResult,
+> extends QueryPromise<TResult> {
+	declare protected $brand: 'MySqlRelationalQuery';
 
 	constructor(
 		private fullSchema: Record<string, unknown>,
 		private schema: TablesRelationalConfig,
 		private tableNamesMap: Record<string, string>,
-		private table: AnyPgTable,
+		private table: AnyMySqlTable,
 		private tableConfig: TableRelationalConfig,
-		private dialect: PgDialect,
-		private session: PgSession,
+		private dialect: MySqlDialect,
+		private session: MySqlSession,
 		private config: DBQueryConfig<'many', true> | true,
 		private mode: 'many' | 'first',
 	) {
 		super();
 	}
 
-	private _prepare(name?: string): PreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	private prepare() {
 		const query = this.dialect.buildRelationalQuery(
 			this.fullSchema,
 			this.schema,
@@ -89,22 +102,19 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 		return this.session.prepareQuery(
 			builtQuery,
 			undefined,
-			name,
 			(rawRows) => {
+				console.log(util.inspect(rawRows, false, null, true));
+
 				const rows = rawRows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, query.selection));
 				if (this.mode === 'first') {
 					return rows[0] as TResult;
 				}
 				return rows as TResult;
 			},
-		);
-	}
-
-	prepare(name: string): PreparedQuery<PreparedQueryConfig & { execute: TResult }> {
-		return this._prepare(name);
+		) as PreparedQueryKind<TPreparedQueryHKT, PreparedQueryConfig & { execute: TResult }, true>;
 	}
 
 	override execute(): Promise<TResult> {
-		return this._prepare().execute();
+		return this.prepare().execute();
 	}
 }

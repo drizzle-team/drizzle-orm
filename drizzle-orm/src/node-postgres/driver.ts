@@ -1,9 +1,10 @@
 import pg from 'pg';
 import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
-import { PgDatabase } from '~/pg-core/db';
+import { PgDatabase, type RelationalSchemaConfig } from '~/pg-core/db';
 import { PgDialect } from '~/pg-core/dialect';
-import { type ExtractTablesWithRelations, type TablesRelationalConfig } from '~/relations';
+import { createTableRelationsHelpers, extractTablesRelationalConfig, type TablesRelationalConfig } from '~/relations';
+import { type DrizzleConfig } from '~/utils';
 import type { NodePgClient, NodePgQueryResultHKT } from './session';
 import { NodePgSession } from './session';
 
@@ -22,8 +23,8 @@ export class NodePgDriver {
 		this.initMappers();
 	}
 
-	createSession(): NodePgSession {
-		return new NodePgSession(this.client, this.dialect, { logger: this.options.logger });
+	createSession(schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined): NodePgSession {
+		return new NodePgSession(this.client, this.dialect, schema, { logger: this.options.logger }) as NodePgSession;
 	}
 
 	initMappers() {
@@ -33,20 +34,14 @@ export class NodePgDriver {
 	}
 }
 
-export interface DrizzleConfig<TSchema extends Record<string, unknown> = {}> {
-	logger?: boolean | Logger;
-	schema?: TSchema;
-}
-
-export type NodePgDatabase<TRelations extends TablesRelationalConfig = {}> = PgDatabase<
-	NodePgQueryResultHKT,
-	TRelations
->;
+export type NodePgDatabase<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+> = PgDatabase<NodePgQueryResultHKT, TSchema>;
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: NodePgClient,
 	config: DrizzleConfig<TSchema> = {},
-): NodePgDatabase<ExtractTablesWithRelations<TSchema>> {
+): NodePgDatabase<TSchema> {
 	const dialect = new PgDialect();
 	let logger;
 	if (config.logger === true) {
@@ -54,7 +49,21 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	} else if (config.logger !== false) {
 		logger = config.logger;
 	}
+
+	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
+	if (config.schema) {
+		const tablesConfig = extractTablesRelationalConfig(
+			config.schema,
+			createTableRelationsHelpers,
+		);
+		schema = {
+			fullSchema: config.schema,
+			schema: tablesConfig.tables,
+			tableNamesMap: tablesConfig.tableNamesMap,
+		};
+	}
+
 	const driver = new NodePgDriver(client, dialect, { logger });
-	const session = driver.createSession();
-	return new PgDatabase(dialect, session, config.schema);
+	const session = driver.createSession(schema);
+	return new PgDatabase(dialect, session, schema) as NodePgDatabase<TSchema>;
 }

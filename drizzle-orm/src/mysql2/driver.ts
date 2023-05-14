@@ -1,7 +1,11 @@
 import { type Connection as CallbackConnection, type Pool as CallbackPool } from 'mysql2';
 import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
+import { type MySqlSession } from '~/mysql-core';
 import { MySqlDialect } from '~/mysql-core/dialect';
+import { type RelationalSchemaConfig } from '~/pg-core';
+import { createTableRelationsHelpers, extractTablesRelationalConfig, type TablesRelationalConfig } from '~/relations';
+import { type DrizzleConfig } from '~/utils';
 import { MySqlDatabase } from '.';
 import type { MySql2Client, MySql2PreparedQueryHKT, MySql2QueryResultHKT } from './session';
 import { MySql2Session } from './session';
@@ -18,23 +22,21 @@ export class MySql2Driver {
 	) {
 	}
 
-	createSession(): MySql2Session {
-		return new MySql2Session(this.client, this.dialect, { logger: this.options.logger });
+	createSession(schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined): MySql2Session {
+		return new MySql2Session(this.client, this.dialect, schema, { logger: this.options.logger }) as MySql2Session;
 	}
-}
-
-export interface DrizzleConfig {
-	logger?: boolean | Logger;
 }
 
 export { MySqlDatabase } from '~/mysql-core/db';
 
-export type MySql2Database = MySqlDatabase<MySql2QueryResultHKT, MySql2PreparedQueryHKT>;
+export type MySql2Database<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+> = MySqlDatabase<MySql2QueryResultHKT, MySql2PreparedQueryHKT, TSchema>;
 
-export function drizzle(
+export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: MySql2Client | CallbackConnection | CallbackPool,
-	config: DrizzleConfig = {},
-): MySql2Database {
+	config: DrizzleConfig<TSchema> = {},
+): MySql2Database<TSchema> {
 	const dialect = new MySqlDialect();
 	let logger;
 	if (config.logger === true) {
@@ -45,9 +47,23 @@ export function drizzle(
 	if (isCallbackClient(client)) {
 		client = client.promise();
 	}
+
+	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
+	if (config.schema) {
+		const tablesConfig = extractTablesRelationalConfig(
+			config.schema,
+			createTableRelationsHelpers,
+		);
+		schema = {
+			fullSchema: config.schema,
+			schema: tablesConfig.tables,
+			tableNamesMap: tablesConfig.tableNamesMap,
+		};
+	}
+
 	const driver = new MySql2Driver(client as MySql2Client, dialect, { logger });
-	const session = driver.createSession();
-	return new MySqlDatabase(dialect, session);
+	const session = driver.createSession(schema);
+	return new MySqlDatabase(dialect, session as MySqlSession, schema) as MySql2Database<TSchema>;
 }
 
 interface CallbackClient {

@@ -14,8 +14,10 @@ import {
 	PreparedQuery,
 	type PreparedQueryConfig,
 	type QueryResultHKT,
+	type RelationalSchemaConfig,
 } from '~/pg-core';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
+import { type TablesRelationalConfig } from '~/relations';
 import { fillPlaceholders, type Query, type QueryTypingsValue, type SQL, sql } from '~/sql';
 import { mapResultRow } from '~/utils';
 import { getValueFromDataApi, toValueParam } from '../common';
@@ -100,7 +102,10 @@ interface AwsDataApiQueryBase {
 	database: string;
 }
 
-export class AwsDataApiSession extends PgSession<AwsDataApiPgQueryResultHKT> {
+export class AwsDataApiSession<
+	TFullSchema extends Record<string, unknown> = Record<string, never>,
+	TSchema extends TablesRelationalConfig = Record<string, never>,
+> extends PgSession<AwsDataApiPgQueryResultHKT, TFullSchema, TSchema> {
 	/** @internal */
 	readonly rawQuery: AwsDataApiQueryBase;
 
@@ -108,6 +113,7 @@ export class AwsDataApiSession extends PgSession<AwsDataApiPgQueryResultHKT> {
 		/** @internal */
 		readonly client: AwsDataApiClient,
 		dialect: PgDialect,
+		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		private options: AwsDataApiSessionOptions,
 		/** @internal */
 		readonly transactionId: string | undefined,
@@ -147,12 +153,12 @@ export class AwsDataApiSession extends PgSession<AwsDataApiPgQueryResultHKT> {
 	}
 
 	override async transaction<T>(
-		transaction: (tx: AwsDataApiTransaction) => Promise<T>,
+		transaction: (tx: AwsDataApiTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
 		const { transactionId } = await this.client.send(new BeginTransactionCommand(this.rawQuery));
-		const session = new AwsDataApiSession(this.client, this.dialect, this.options, transactionId);
-		const tx = new AwsDataApiTransaction(this.dialect, session);
+		const session = new AwsDataApiSession(this.client, this.dialect, this.schema, this.options, transactionId);
+		const tx = new AwsDataApiTransaction(this.dialect, session, this.schema);
 		if (config) {
 			await tx.setTransaction(config);
 		}
@@ -167,10 +173,13 @@ export class AwsDataApiSession extends PgSession<AwsDataApiPgQueryResultHKT> {
 	}
 }
 
-export class AwsDataApiTransaction extends PgTransaction<AwsDataApiPgQueryResultHKT> {
-	override transaction<T>(transaction: (tx: AwsDataApiTransaction) => Promise<T>): Promise<T> {
+export class AwsDataApiTransaction<
+	TFullSchema extends Record<string, unknown> = Record<string, never>,
+	TSchema extends TablesRelationalConfig = Record<string, never>,
+> extends PgTransaction<AwsDataApiPgQueryResultHKT, TFullSchema, TSchema> {
+	override transaction<T>(transaction: (tx: AwsDataApiTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new AwsDataApiTransaction(this.dialect, this.session, this.nestedIndex + 1);
+		const tx = new AwsDataApiTransaction(this.dialect, this.session, this.schema, this.nestedIndex + 1);
 		this.session.execute(sql`savepoint ${savepointName}`);
 		try {
 			const result = transaction(tx);

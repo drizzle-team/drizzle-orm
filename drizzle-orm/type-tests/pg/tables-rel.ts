@@ -1,4 +1,4 @@
-import { foreignKey, integer, pgTable, serial, text } from '~/pg-core';
+import { foreignKey, integer, pgTable, serial, text, timestamp } from '~/pg-core';
 import { relations } from '~/relations';
 
 export const users = pgTable('users', {
@@ -6,6 +6,7 @@ export const users = pgTable('users', {
 	name: text('name').notNull(),
 	cityId: integer('city_id').references(() => cities.id).notNull(),
 	homeCityId: integer('home_city_id').references(() => cities.id),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
 });
 export const usersConfig = relations(users, ({ one, many }) => ({
 	city: one(cities, { relationName: 'UsersInCity', fields: [users.cityId], references: [cities.id] }),
@@ -25,7 +26,7 @@ export const citiesConfig = relations(cities, ({ many }) => ({
 export const posts = pgTable('posts', {
 	id: serial('id').primaryKey(),
 	title: text('title').notNull(),
-	authorId: integer('author_id').references(() => users.id).notNull(),
+	authorId: integer('author_id').references(() => users.id),
 });
 export const postsConfig = relations(posts, ({ one, many }) => ({
 	author: one(users, { fields: [posts.authorId], references: [users.id] }),
@@ -35,7 +36,7 @@ export const postsConfig = relations(posts, ({ one, many }) => ({
 export const comments = pgTable('comments', {
 	id: serial('id').primaryKey(),
 	postId: integer('post_id').references(() => posts.id).notNull(),
-	authorId: integer('author_id').references(() => users.id).notNull(),
+	authorId: integer('author_id').references(() => users.id),
 	text: text('text').notNull(),
 });
 export const commentsConfig = relations(comments, ({ one }) => ({

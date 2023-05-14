@@ -1,75 +1,33 @@
 import 'dotenv/config';
-import { placeholder } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/node-postgres';
+import { sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/mysql2';
+import * as mysql from 'mysql2/promise';
 import util from 'node:util';
-import pg from 'pg';
-import * as schema from './schema';
-
-const { Pool } = pg;
+import * as schema from './tables';
 
 async function main() {
-	const pool = new Pool({ connectionString: process.env['PG_CONNECTION_STRING'] });
-	const db = drizzle(pool, { schema, logger: true });
+	const mdb = await mysql.createConnection(process.env['MYSQL_CONNECTION_STRING']!);
+	await mdb.connect();
+	const db = drizzle(mdb, { schema, logger: true });
 
-	// const result = await db.query.users.findMany({
-	// 	orderBy: (users, { desc }) => [users.name, desc(users.id)],
-	// 	select: {
-	// 		id: true,
-	// 		name: true,
-	// 		posts: {
-	// 			select: {
-	// 				id: false,
-	// 				author: true,
-	// 				comments: {
-	// 					where: (comments, { sql }) => sql`length(${comments.text}) > 1`,
-	// 					limit: 5,
-	// 					select: {
-	// 						text: true,
-	// 						author: {
-	// 							select: {
-	// 								city: {
-	// 									include: {
-	// 										users: {
-	// 											orderBy: (users) => users.name,
-	// 										},
-	// 									},
-	// 								},
-	// 							},
-	// 						},
-	// 					},
-	// 				},
-	// 			},
-	// 		},
-	// 	},
-	// });
-
-	// const result = await db.query.users.findMany({
-	// 	select: {
-	// 		id: true,
-	// 		name: true,
-	// 	},
-	// 	includeCustom: {
-	// 		nameUpper: sql<string>`upper(${schema.users.name})`.as('name_upper'),
-	// 	},
-	// });
-
-	const result = db.query.users.findMany({
-		limit: placeholder('limit'),
-		offset: placeholder('offset'),
-		include: {
+	const result = await db.query.users.findMany({
+		select: {
+			id: true,
+			name: true,
 			posts: {
-				limit: 1,
+				select: {
+					authorId: true,
+					comments: true,
+				},
+				includeCustom: {
+					lower: sql<string>`lower(${schema.posts.title})`.as('lower_name'),
+				},
 			},
 		},
-	}).prepare('query1');
+	});
 
-	const result1 = await result.execute({ limit: 1, offset: 0 });
-	const result2 = await result.execute({ limit: 1, offset: 1 });
-
-	console.log(util.inspect(result1, { depth: null, colors: true }));
-	console.log(util.inspect(result2, { depth: null, colors: true }));
-
-	await pool.end();
+	console.log(util.inspect(result, false, null, true));
+	await mdb.end();
 }
 
 main();

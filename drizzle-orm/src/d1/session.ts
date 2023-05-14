@@ -32,9 +32,13 @@ export class SQLiteD1Session extends SQLiteSession<'async', D1Result> {
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
-	prepareQuery(query: Query, fields?: SelectedFieldsOrdered): PreparedQuery {
+	prepareQuery(
+		query: Query,
+		fields?: SelectedFieldsOrdered,
+		mapResult?: (result: unknown) => unknown,
+	): PreparedQuery {
 		const stmt = this.client.prepare(query.sql);
-		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields);
+		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields, mapResult);
 	}
 
 	override async transaction<T>(
@@ -79,6 +83,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
+		private mapResult?: (result: unknown) => unknown,
 	) {
 		super();
 	}
@@ -89,17 +94,21 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		return this.stmt.bind(...params).run();
 	}
 
-	all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
-		const { fields, joinsNotNullableMap, queryString, logger, stmt } = this;
-		if (fields) {
-			return this.values(placeholderValues).then((values) =>
-				values.map((row) => mapResultRow(fields, row, joinsNotNullableMap))
-			);
+	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
+		const { fields, joinsNotNullableMap, queryString, logger, stmt, mapResult } = this;
+		if (!fields && !mapResult) {
+			const params = fillPlaceholders(this.params, placeholderValues ?? {});
+			logger.logQuery(queryString, params);
+			return stmt.bind(...params).all().then(({ results }) => results!);
 		}
 
-		const params = fillPlaceholders(this.params, placeholderValues ?? {});
-		logger.logQuery(queryString, params);
-		return stmt.bind(...params).all().then(({ results }) => results!);
+		const rows = await this.values(placeholderValues);
+
+		if (mapResult) {
+			return mapResult(rows) as T['all'];
+		}
+
+		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {

@@ -1,11 +1,12 @@
 import type { Row, RowList, Sql, TransactionSql } from 'postgres';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
-import { PgTransaction } from '~/pg-core';
+import { PgTransaction, type RelationalSchemaConfig } from '~/pg-core';
 import type { PgDialect } from '~/pg-core/dialect';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
 import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
 import { PgSession, PreparedQuery } from '~/pg-core/session';
+import { type TablesRelationalConfig } from '~/relations';
 import { fillPlaceholders, type Query } from '~/sql';
 import { type Assume, mapResultRow } from '~/utils';
 
@@ -55,12 +56,17 @@ export interface PostgresJsSessionOptions {
 	logger?: Logger;
 }
 
-export class PostgresJsSession<TSQL extends Sql = Sql> extends PgSession<PostgresJsQueryResultHKT> {
+export class PostgresJsSession<
+	TSQL extends Sql = Sql,
+	TFullSchema extends Record<string, unknown> = Record<string, never>,
+	TSchema extends TablesRelationalConfig = Record<string, never>,
+> extends PgSession<PostgresJsQueryResultHKT, TFullSchema, TSchema> {
 	logger: Logger;
 
 	constructor(
 		public client: TSQL,
 		dialect: PgDialect,
+		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		/** @internal */
 		readonly options: PostgresJsSessionOptions = {},
 	) {
@@ -90,12 +96,17 @@ export class PostgresJsSession<TSQL extends Sql = Sql> extends PgSession<Postgre
 	}
 
 	override transaction<T>(
-		transaction: (tx: PostgresJsTransaction) => Promise<T>,
+		transaction: (tx: PostgresJsTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig,
 	): Promise<T> {
 		return this.client.begin(async (client) => {
-			const session = new PostgresJsSession(client, this.dialect, this.options);
-			const tx = new PostgresJsTransaction(this.dialect, session);
+			const session = new PostgresJsSession<TransactionSql, TFullSchema, TSchema>(
+				client,
+				this.dialect,
+				this.schema,
+				this.options,
+			);
+			const tx = new PostgresJsTransaction(this.dialect, session, this.schema);
 			if (config) {
 				await tx.setTransaction(config);
 			}
@@ -104,22 +115,26 @@ export class PostgresJsSession<TSQL extends Sql = Sql> extends PgSession<Postgre
 	}
 }
 
-export class PostgresJsTransaction extends PgTransaction<PostgresJsQueryResultHKT> {
+export class PostgresJsTransaction<
+	TFullSchema extends Record<string, unknown> = Record<string, never>,
+	TSchema extends TablesRelationalConfig = Record<string, never>,
+> extends PgTransaction<PostgresJsQueryResultHKT, TFullSchema, TSchema> {
 	constructor(
 		dialect: PgDialect,
 		/** @internal */
-		override readonly session: PostgresJsSession<TransactionSql>,
+		override readonly session: PostgresJsSession<TransactionSql, TFullSchema, TSchema>,
+		schema: RelationalSchemaConfig<TSchema> | undefined,
 		nestedIndex = 0,
 	) {
-		super(dialect, session, nestedIndex);
+		super(dialect, session, schema, nestedIndex);
 	}
 
 	override transaction<T>(
-		transaction: (tx: PostgresJsTransaction) => Promise<T>,
+		transaction: (tx: PostgresJsTransaction<TFullSchema, TSchema>) => Promise<T>,
 	): Promise<T> {
 		return this.session.client.savepoint((client) => {
-			const session = new PostgresJsSession(client, this.dialect, this.session.options);
-			const tx = new PostgresJsTransaction(this.dialect, session);
+			const session = new PostgresJsSession(client, this.dialect, this.schema, this.session.options);
+			const tx = new PostgresJsTransaction(this.dialect, session, this.schema);
 			return transaction(tx);
 		}) as Promise<T>;
 	}

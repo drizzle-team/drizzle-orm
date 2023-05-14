@@ -1,11 +1,12 @@
 import { relations } from 'drizzle-orm';
-import { foreignKey, integer, pgTable, serial, text } from 'drizzle-orm/pg-core';
+import { foreignKey, int, mysqlTable, serial, text, timestamp } from 'drizzle-orm/mysql-core';
 
-export const users = pgTable('users', {
+export const users = mysqlTable('users', {
 	id: serial('id').primaryKey(),
-	name: text('name'),
-	cityId: integer('city_id').references(() => cities.id).notNull(),
-	homeCityId: integer('home_city_id').references(() => cities.id),
+	name: text('name').notNull(),
+	cityId: int('city_id').references(() => cities.id).notNull(),
+	homeCityId: int('home_city_id').references(() => cities.id),
+	createdAt: timestamp('created_at').notNull(),
 });
 export const usersConfig = relations(users, ({ one, many }) => ({
 	city: one(cities, { relationName: 'UsersInCity', fields: [users.cityId], references: [cities.id] }),
@@ -14,7 +15,7 @@ export const usersConfig = relations(users, ({ one, many }) => ({
 	comments: many(comments),
 }));
 
-export const cities = pgTable('cities', {
+export const cities = mysqlTable('cities', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 });
@@ -22,20 +23,20 @@ export const citiesConfig = relations(cities, ({ many }) => ({
 	users: many(users, { relationName: 'UsersInCity' }),
 }));
 
-export const posts = pgTable('posts', {
+export const posts = mysqlTable('posts', {
 	id: serial('id').primaryKey(),
 	title: text('title').notNull(),
-	authorId: integer('author_id').references(() => users.id).notNull(),
+	authorId: int('author_id').references(() => users.id),
 });
 export const postsConfig = relations(posts, ({ one, many }) => ({
 	author: one(users, { fields: [posts.authorId], references: [users.id] }),
 	comments: many(comments),
 }));
 
-export const comments = pgTable('comments', {
+export const comments = mysqlTable('comments', {
 	id: serial('id').primaryKey(),
-	postId: integer('post_id').references(() => posts.id).notNull(),
-	authorId: integer('author_id').references(() => users.id).notNull(),
+	postId: int('post_id').references(() => posts.id).notNull(),
+	authorId: int('author_id').references(() => users.id),
 	text: text('text').notNull(),
 });
 export const commentsConfig = relations(comments, ({ one }) => ({
@@ -43,7 +44,7 @@ export const commentsConfig = relations(comments, ({ one }) => ({
 	author: one(users, { fields: [comments.authorId], references: [users.id] }),
 }));
 
-export const books = pgTable('books', {
+export const books = mysqlTable('books', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 });
@@ -51,9 +52,9 @@ export const booksConfig = relations(books, ({ many }) => ({
 	authors: many(bookAuthors),
 }));
 
-export const bookAuthors = pgTable('book_authors', {
-	bookId: integer('book_id').references(() => books.id).notNull(),
-	authorId: integer('author_id').references(() => users.id).notNull(),
+export const bookAuthors = mysqlTable('book_authors', {
+	bookId: int('book_id').references(() => books.id).notNull(),
+	authorId: int('author_id').references(() => users.id).notNull(),
 	role: text('role').notNull(),
 });
 export const bookAuthorsConfig = relations(bookAuthors, ({ one }) => ({
@@ -61,11 +62,11 @@ export const bookAuthorsConfig = relations(bookAuthors, ({ one }) => ({
 	author: one(users, { fields: [bookAuthors.authorId], references: [users.id] }),
 }));
 
-export const node = pgTable('node', {
+export const node = mysqlTable('node', {
 	id: serial('id').primaryKey(),
-	parentId: integer('parent_id'),
-	leftId: integer('left_id'),
-	rightId: integer('right_id'),
+	parentId: int('parent_id'),
+	leftId: int('left_id'),
+	rightId: int('right_id'),
 }, (node) => ({
 	fk1: foreignKey({ columns: [node.parentId], foreignColumns: [node.id] }),
 	fk2: foreignKey({ columns: [node.leftId], foreignColumns: [node.id] }),

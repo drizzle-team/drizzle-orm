@@ -2,7 +2,7 @@ import pg from 'pg';
 import { type Equal, Expect } from 'type-tests/utils';
 import { drizzle } from '~/node-postgres';
 import { placeholder, sql } from '~/sql';
-import * as schema from './schema';
+import * as schema from './tables-rel';
 
 const { Pool } = pg;
 

@@ -30,9 +30,10 @@ export class BetterSQLiteSession extends SQLiteSession<'sync', RunResult> {
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
+		mapResult?: (result: unknown) => unknown,
 	): PreparedQuery<T> {
 		const stmt = this.client.prepare(query.sql);
-		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields);
+		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields, mapResult);
 	}
 
 	override transaction<T>(transaction: (tx: BetterSQLiteTransaction) => T, config: SQLiteTransactionConfig = {}): T {
@@ -67,6 +68,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
+		private mapResult?: (result: unknown) => unknown,
 	) {
 		super();
 	}
@@ -78,32 +80,40 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	}
 
 	all(placeholderValues?: Record<string, unknown>): T['all'] {
-		const { fields, joinsNotNullableMap, queryString, logger, stmt } = this;
-		if (fields) {
-			return this.values(placeholderValues).map((row) => mapResultRow(fields, row, joinsNotNullableMap));
+		const { fields, joinsNotNullableMap, queryString, logger, stmt, mapResult } = this;
+		if (!fields && !mapResult) {
+			const params = fillPlaceholders(this.params, placeholderValues ?? {});
+			logger.logQuery(queryString, params);
+			return stmt.all(...params);
 		}
 
-		const params = fillPlaceholders(this.params, placeholderValues ?? {});
-		logger.logQuery(queryString, params);
-		return stmt.all(...params);
+		const rows = this.values(placeholderValues);
+		if (mapResult) {
+			return mapResult(rows) as T['all'];
+		}
+		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	get(placeholderValues?: Record<string, unknown>): T['get'] {
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
 
-		const { fields, stmt, joinsNotNullableMap } = this;
-		if (!fields) {
+		const { fields, stmt, joinsNotNullableMap, mapResult } = this;
+		if (!fields && !mapResult) {
 			return stmt.get(...params);
 		}
 
-		const value = stmt.raw().get(...params);
+		const row = stmt.raw().get(...params);
 
-		if (!value) {
+		if (!row) {
 			return undefined;
 		}
 
-		return mapResultRow(fields, value, joinsNotNullableMap);
+		if (mapResult) {
+			return mapResult(row) as T['get'];
+		}
+
+		return mapResultRow(fields!, row, joinsNotNullableMap);
 	}
 
 	values(placeholderValues?: Record<string, unknown>): T['values'] {
