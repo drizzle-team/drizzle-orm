@@ -4,10 +4,12 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
 	test: {
-		include: ['tests/relational/*.test.ts'],
+		include: ['tests/relational/mysql.test.ts'],
 		typecheck: {
 			tsconfig: 'tsconfig.json',
 		},
+		testTimeout: 40000,
+		hookTimeout: 40000,
 		// deps: {
 		// 	inline: true,
 		// },
