@@ -10,6 +10,14 @@ import * as schema from './pg.schema';
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
+/*
+	Test cases:
+	- select only custom SQL fields without default ones
+	- specifying both select and include
+	- specifying select: {}
+	- querying nested relation without PK with additional fields
+*/
+
 declare module 'vitest' {
 	export interface TestContext {
 		docker: Docker;
