@@ -617,7 +617,10 @@ export class PgDialect {
 
 		const finalFieldsFlat: SelectedFieldsOrdered = isRoot
 			? [
-				...finalFieldsSelection,
+				...finalFieldsSelection.map(({ path, field }) => ({
+					path,
+					field: field instanceof SQL.Aliased ? sql`${sql.identifier(field.fieldAlias)}` : field,
+				})),
 				...builtRelationFields.map(({ path, field }) => ({
 					path,
 					field: sql`${sql.identifier((field as SQL.Aliased).fieldAlias)}`,

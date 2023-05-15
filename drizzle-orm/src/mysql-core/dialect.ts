@@ -537,9 +537,9 @@ export class MySqlDialect {
 				)
 			}))`;
 
-			const field = sql`case when count(${
+			const field = sql`if(count(${
 				sql.join(normalizedRelation.references.map((c) => aliasedTableColumn(c, relationAlias)), sql.raw(' or '))
-			}) = 0 then '[]' else ${elseField} end`.as(selectedRelationKey);
+			}) = 0, '[]', ${elseField})`.as(selectedRelationKey);
 
 			builtRelationFields.push({
 				path: [selectedRelationKey],
@@ -587,7 +587,10 @@ export class MySqlDialect {
 
 		const finalFieldsFlat: SelectedFieldsOrdered = isRoot
 			? [
-				...finalFieldsSelection,
+				...finalFieldsSelection.map(({ path, field }) => ({
+					path,
+					field: field instanceof SQL.Aliased ? sql`${sql.identifier(field.fieldAlias)}` : field,
+				})),
 				...builtRelationFields.map(({ path, field }) => ({
 					path,
 					field: sql`cast(${sql.identifier((field as SQL.Aliased).fieldAlias)} as json)`,
