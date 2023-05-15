@@ -603,7 +603,7 @@ export class PgDialect {
 			: []) as AnyPgColumn[];
 
 		let orderByOrig = typeof config.orderBy === 'function'
-			? config.orderBy?.(aliasedFields, orderByOperators)
+			? config.orderBy(aliasedFields, orderByOperators)
 			: config.orderBy ?? [];
 		if (!Array.isArray(orderByOrig)) {
 			orderByOrig = [orderByOrig];
@@ -664,7 +664,7 @@ export class PgDialect {
 			fieldsFlat: initialFieldsFlat,
 			where,
 			groupBy,
-			orderBy,
+			orderBy: [],
 			joins,
 			lockingClauses: [],
 			withList: [],
@@ -692,7 +692,7 @@ export class PgDialect {
 			fields: {},
 			fieldsFlat: finalFieldsFlat,
 			groupBy: [],
-			orderBy: [],
+			orderBy,
 			joins: [],
 			lockingClauses: [],
 			withList: [],

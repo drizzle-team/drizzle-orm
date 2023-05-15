@@ -572,19 +572,6 @@ export class MySqlDialect {
 			)
 			: []) as AnyMySqlColumn[];
 
-		let orderByOrig = typeof config.orderBy === 'function'
-			? config.orderBy?.(aliasedFields, orderByOperators)
-			: config.orderBy ?? [];
-		if (!Array.isArray(orderByOrig)) {
-			orderByOrig = [orderByOrig];
-		}
-		const orderBy = orderByOrig.map((orderByValue) => {
-			if (orderByValue instanceof Column) {
-				return aliasedTableColumn(orderByValue, tableAlias) as AnyMySqlColumn;
-			}
-			return mapColumnsInSQLToAlias(orderByValue, tableAlias);
-		});
-
 		const finalFieldsFlat: SelectedFieldsOrdered = isRoot
 			? [
 				...finalFieldsSelection.map(({ path, field }) => ({
@@ -601,6 +588,13 @@ export class MySqlDialect {
 				field: sql`${sql.identifier(tableAlias)}.*`,
 			}];
 
+		if (finalFieldsFlat.length === 0) {
+			finalFieldsFlat.push({
+				path: [],
+				field: sql.raw('1'),
+			});
+		}
+
 		const initialFieldsFlat: SelectedFieldsOrdered = [
 			{
 				path: [],
@@ -613,6 +607,25 @@ export class MySqlDialect {
 			...builtRelationFields,
 		];
 
+		let orderByOrig = typeof config.orderBy === 'function'
+			? config.orderBy(aliasedFields, orderByOperators)
+			: config.orderBy ?? [];
+		if (!Array.isArray(orderByOrig)) {
+			orderByOrig = [orderByOrig];
+		}
+		const orderBy = orderByOrig.map((orderByValue) => {
+			if (orderByValue instanceof Column) {
+				return aliasedTableColumn(orderByValue, tableAlias) as AnyMySqlColumn;
+			}
+			return mapColumnsInSQLToAlias(orderByValue, tableAlias);
+		});
+		if (!isRoot && !config.limit && orderBy.length > 0) {
+			finalFieldsFlat.push({
+				path: ['__drizzle_row_number'],
+				field: sql`row_number() over(order by ${sql.join(orderBy, sql`, `)})`,
+			});
+		}
+
 		let limit, offset;
 
 		if (config.limit !== undefined || config.offset !== undefined) {
@@ -622,7 +635,9 @@ export class MySqlDialect {
 			} else {
 				finalFieldsFlat.push({
 					path: ['__drizzle_row_number'],
-					field: sql`row_number() over(partition by ${relationColumns.map((c) => aliasedTableColumn(c, tableAlias))})`
+					field: sql`row_number() over(partition by ${relationColumns.map((c) => aliasedTableColumn(c, tableAlias))}${
+						(orderBy.length > 0 && !isRoot) ? sql` order by ${sql.join(orderBy, sql`, `)}` : sql``
+					})`
 						.as('__drizzle_row_number'),
 				});
 			}
@@ -634,7 +649,7 @@ export class MySqlDialect {
 			fieldsFlat: initialFieldsFlat,
 			where,
 			groupBy,
-			orderBy,
+			orderBy: [],
 			joins,
 			withList: [],
 		});
@@ -660,7 +675,7 @@ export class MySqlDialect {
 			fields: {},
 			fieldsFlat: finalFieldsFlat,
 			groupBy: [],
-			orderBy: [],
+			orderBy: isRoot ? orderBy : [],
 			joins: [],
 			withList: [],
 			limit,

@@ -10,7 +10,7 @@ import * as schema from './mysql.schema';
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
-const ENABLE_LOGGING = true;
+const ENABLE_LOGGING = false;
 
 /*
 	Test cases:
@@ -66,12 +66,10 @@ beforeAll(async () => {
 	let connected = false;
 	let lastError: unknown | undefined;
 	do {
-		console.log('trying:', timeLeft);
 		try {
 			client = await mysql.createConnection(connectionString);
 			await client.connect();
 			connected = true;
-			console.log('connected');
 			break;
 		} catch (e) {
 			lastError = e;
@@ -89,10 +87,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-	console.log('deleting');
 	await client?.end().catch(console.error);
 	await mysqlContainer?.stop().catch(console.error);
-	console.log('deleted');
 });
 
 beforeEach(async (ctx) => {
@@ -981,9 +977,7 @@ test('[Find Many] Get users with posts in rollbacked transaction', async (t) => 
 	expect(usersWithPosts.length).eq(0);
 });
 
-// select only custom
-// check order
-test.skip('[Find Many] Get only custom fields', async (t) => {
+test('[Find Many] Get only custom fields', async (t) => {
 	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
@@ -1015,8 +1009,6 @@ test.skip('[Find Many] Get only custom fields', async (t) => {
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
-
-	console.log(JSON.stringify(usersWithPosts, null, 2));
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		lowerName: string;
@@ -1153,8 +1145,7 @@ test('[Find Many] Get only custom fields + where + limit', async (t) => {
 	});
 });
 
-// NOT WORKING. Getting wrong order for posts if select {} and only custom fields
-test.skip('[Find Many] Get only custom fields + where + orderBy', async (t) => {
+test('[Find Many] Get only custom fields + where + orderBy', async (t) => {
 	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
@@ -1206,8 +1197,7 @@ test.skip('[Find Many] Get only custom fields + where + orderBy', async (t) => {
 	});
 });
 
-// NOT WORKING. Getting wrong order for posts if select {} and only custom fields
-test.skip('[Find One] Get only custom fields', async (t) => {
+test('[Find One] Get only custom fields', async (t) => {
 	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
@@ -1364,8 +1354,7 @@ test('[Find One] Get only custom fields + where + limit', async (t) => {
 	});
 });
 
-// NOT WORKING. Getting wrong order for posts if select {} and only custom fields
-test.skip('[Find One] Get only custom fields + where + orderBy', async (t) => {
+test('[Find One] Get only custom fields + where + orderBy', async (t) => {
 	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
@@ -1475,9 +1464,7 @@ test('[Find One] Get users with posts: select + include', async (t) => {
 	>();
 });
 
-// NOT WORKING.
-// Error: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'from (select `usersTable`.* from `users` `usersTable`) `usersTable`' at line 1
-test.skip('[Find Many] Get select {}', async (t) => {
+test('[Find Many] Get select {}', async (t) => {
 	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
@@ -1499,9 +1486,7 @@ test.skip('[Find Many] Get select {}', async (t) => {
 	expect(users[2]).toEqual({});
 });
 
-// NOT WORKING.
-// Error: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'from (select `usersTable`.* from `users` `usersTable`) `usersTable`' at line 1
-test.skip('[Find One] Get select {}', async (t) => {
+test('[Find One] Get select {}', async (t) => {
 	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
@@ -1770,7 +1755,7 @@ test('[Find Many] Get users with posts + prepared where', async (t) => {
 	});
 });
 
-test.skip('[Find Many] Get users with posts + prepared + limit + offset + where', async (t) => {
+test('[Find Many] Get users with posts + prepared + limit + offset + where', async (t) => {
 	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
@@ -2014,9 +1999,7 @@ test('[Find One] Get users with posts + limit posts and users', async (t) => {
 	});
 });
 
-// NOT WORKING. Wrong order. Here is no order by. But with select {} even order by is not working properly
-// So maybe the reason in query generated
-test.skip('[Find One] Get users with posts + custom fields', async (t) => {
+test('[Find One] Get users with posts + custom fields', async (t) => {
 	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
@@ -3311,8 +3294,7 @@ test('Get user with invitee and posts + limits + custom fields in each', async (
 	});
 });
 
-// NOT WORKING. Order is desc. But in all other tests it's fine. Maybe include custom is making wrong order?
-test.only('Get user with invitee and posts + custom fields in each', async (t) => {
+test('Get user with invitee and posts + custom fields in each', async (t) => {
 	const { mysqlDb: db } = t;
 
 	await db.insert(usersTable).values([
@@ -3342,8 +3324,6 @@ test.only('Get user with invitee and posts + custom fields in each', async (t) =
 			},
 		},
 	});
-
-	console.log(JSON.stringify(response, null, 2));
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -3654,8 +3634,6 @@ test('Get user with invitee and posts + limit posts and users + where', async (t
 			} | null;
 		}[]
 	>();
-
-	console.log(JSON.stringify(response, null, 2));
 
 	expect(response.length).eq(1);
 
@@ -4074,8 +4052,6 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 	}[]>();
 
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
-
-	console.log(JSON.stringify(response, null, 2));
 
 	expect(response.length).eq(3);
 	expect(response[0]?.posts.length).eq(1);
