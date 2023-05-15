@@ -1,12 +1,9 @@
 import 'dotenv/config';
-import Docker from 'dockerode';
+import { connect } from '@planetscale/database';
 import { desc, type DrizzleTypeError, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
-import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
-import getPort from 'get-port';
-import { Client } from 'pg';
-import { v4 as uuid } from 'uuid';
-import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import * as schema from './pg.schema';
+import { drizzle, type PlanetScaleDatabase } from 'drizzle-orm/planetscale-serverless';
+import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
+import * as schema from './mysql.schema';
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
@@ -15,151 +12,84 @@ const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable }
 	- querying nested relation without PK with additional fields
 */
 
-declare module 'vitest' {
-	export interface TestContext {
-		docker: Docker;
-		pgContainer: Docker.Container;
-		pgDb: NodePgDatabase<typeof schema>;
-		pgClient: Client;
-	}
-}
-
-let globalDocker: Docker;
-let pgContainer: Docker.Container;
-let db: NodePgDatabase<typeof schema>;
-let client: Client;
-
-async function createDockerDB(): Promise<string> {
-	const docker = (globalDocker = new Docker());
-	const port = await getPort({ port: 5432 });
-	const image = 'postgres:14';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => err ? reject(err) : resolve(err))
-	);
-
-	pgContainer = await docker.createContainer({
-		Image: image,
-		Env: [
-			'POSTGRES_PASSWORD=postgres',
-			'POSTGRES_USER=postgres',
-			'POSTGRES_DB=postgres',
-		],
-		name: `drizzle-integration-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'5432/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await pgContainer.start();
-
-	return `postgres://postgres:postgres@localhost:${port}/postgres`;
-}
+let db: PlanetScaleDatabase<typeof schema>;
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_CONNECTION_STRING'] ?? (await createDockerDB());
-
-	const sleep = 250;
-	let timeLeft = 5000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = new Client(connectionString);
-			await client.connect();
-			connected = true;
-			console.log('connected');
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to Postgres');
-		await client?.end().catch(console.error);
-		await pgContainer?.stop().catch(console.error);
-		throw lastError;
-	}
-	db = drizzle(client, { schema, logger: false });
+	db = drizzle(
+		connect({
+			host: process.env['DATABASE_HOST']!,
+			username: process.env['DATABASE_USERNAME']!,
+			password: process.env['DATABASE_PASSWORD']!,
+		}),
+		{ schema },
+	);
 });
 
-afterAll(async () => {
-	console.log('deleting');
-	await client?.end().catch(console.error);
-	await pgContainer?.stop().catch(console.error);
-	console.log('deleted');
-});
+beforeEach(async () => {
+	console.log('here');
+	await db.execute(sql`drop table if exists \`users\``);
+	await db.execute(sql`drop table if exists \`groups\``);
+	await db.execute(sql`drop table if exists \`users_to_groups\``);
+	await db.execute(sql`drop table if exists \`posts\``);
+	await db.execute(sql`drop table if exists \`comments\``);
+	await db.execute(sql`drop table if exists \`comment_likes\``);
 
-beforeEach(async (ctx) => {
-	ctx.pgDb = db;
-	ctx.pgClient = client;
-	ctx.docker = globalDocker;
-	ctx.pgContainer = pgContainer;
-
-	await ctx.pgDb.execute(sql`drop schema public cascade`);
-	await ctx.pgDb.execute(sql`create schema public`);
-	await ctx.pgDb.execute(
+	await db.execute(
 		sql`
-			CREATE TABLE "users" (
-				"id" serial PRIMARY KEY NOT NULL,
-				"name" text NOT NULL,
-				"verified" boolean DEFAULT false NOT NULL,
-				"invited_by" int REFERENCES "users"("id")
+			CREATE TABLE \`users\` (
+				\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
+				\`name\` text NOT NULL,
+				\`verified\` boolean DEFAULT false NOT NULL,
+				\`invited_by\` bigint
 			);
 		`,
 	);
-	await ctx.pgDb.execute(
+	await db.execute(
 		sql`
-			CREATE TABLE IF NOT EXISTS "groups" (
-				"id" serial PRIMARY KEY NOT NULL,
-				"name" text NOT NULL,
-				"description" text
+			CREATE TABLE \`groups\` (
+				\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
+				\`name\` text NOT NULL,
+				\`description\` text
 			);
 		`,
 	);
-	await ctx.pgDb.execute(
+	await db.execute(
 		sql`
-			CREATE TABLE IF NOT EXISTS "users_to_groups" (
-				"id" serial PRIMARY KEY NOT NULL,
-				"user_id" int REFERENCES "users"("id"),
-				"group_id" int REFERENCES "groups"("id")
+			CREATE TABLE \`users_to_groups\` (
+				\`id\` serial PRIMARY KEY AUTO_INCREMENT NOT NULL,
+				\`user_id\` bigint,
+				\`group_id\` bigint
 			);
 		`,
 	);
-	await ctx.pgDb.execute(
+	await db.execute(
 		sql`
-			CREATE TABLE IF NOT EXISTS "posts" (
-				"id" serial PRIMARY KEY NOT NULL,
-				"content" text NOT NULL,
-				"owner_id" int REFERENCES "users"("id"),
-				"created_at" timestamp with time zone DEFAULT now() NOT NULL
+			CREATE TABLE \`posts\` (
+				\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
+				\`content\` text NOT NULL,
+				\`owner_id\` bigint,
+				\`created_at\` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
 			);
 		`,
 	);
-	await ctx.pgDb.execute(
+	await db.execute(
 		sql`
-			CREATE TABLE IF NOT EXISTS "comments" (
-				"id" serial PRIMARY KEY NOT NULL,
-				"content" text NOT NULL,
-				"creator" int REFERENCES "users"("id"),
-				"post_id" int REFERENCES "posts"("id"),
-				"created_at" timestamp with time zone DEFAULT now() NOT NULL
+			CREATE TABLE \`comments\` (
+				\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
+				\`content\` text NOT NULL,
+				\`creator\` bigint,
+				\`post_id\` bigint,
+				\`created_at\` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
 			);
 		`,
 	);
-	await ctx.pgDb.execute(
+	await db.execute(
 		sql`
-			CREATE TABLE IF NOT EXISTS "comment_likes" (
-				"id" serial PRIMARY KEY NOT NULL,
-				"creator" int REFERENCES "users"("id"),
-				"comment_id" int REFERENCES "comments"("id"),
-				"created_at" timestamp with time zone DEFAULT now() NOT NULL
+			CREATE TABLE \`comment_likes\` (
+				\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
+				\`creator\` bigint,
+				\`comment_id\` bigint,
+				\`created_at\` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
 			);
 		`,
 	);
@@ -169,9 +99,7 @@ beforeEach(async (ctx) => {
 	[Find Many] One relation users+posts
 */
 
-test('[Find Many] Get users with posts', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with posts', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -233,9 +161,7 @@ test('[Find Many] Get users with posts', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + limit posts', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with posts + limit posts', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -306,9 +232,7 @@ test('[Find Many] Get users with posts + limit posts', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + limit posts and users', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with posts + limit posts and users', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -371,9 +295,7 @@ test('[Find Many] Get users with posts + limit posts and users', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + custom fields', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with posts + custom fields', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -464,9 +386,7 @@ test('[Find Many] Get users with posts + custom fields', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + custom fields + limits', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with posts + custom fields + limits', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -522,9 +442,7 @@ test('[Find Many] Get users with posts + custom fields + limits', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + orderBy', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with posts + orderBy', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -606,9 +524,7 @@ test('[Find Many] Get users with posts + orderBy', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + where', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with posts + where', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -656,9 +572,7 @@ test('[Find Many] Get users with posts + where', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + where + partial', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with posts + where + partial', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -706,9 +620,7 @@ test('[Find Many] Get users with posts + where + partial', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + where + partial. Did not select posts id, but used it in where', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with posts + where + partial. Did not select posts id, but used it in where', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -756,9 +668,7 @@ test('[Find Many] Get users with posts + where + partial. Did not select posts i
 	});
 });
 
-test('[Find Many] Get users with posts + where + partial(true + false)', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with posts + where + partial(true + false)', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -803,9 +713,7 @@ test('[Find Many] Get users with posts + where + partial(true + false)', async (
 	});
 });
 
-test('[Find Many] Get users with posts + where + partial(false)', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with posts + where + partial(false)', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -854,9 +762,7 @@ test('[Find Many] Get users with posts + where + partial(false)', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts in transaction', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with posts in transaction', async () => {
 	let usersWithPosts: {
 		id: number;
 		name: string;
@@ -919,9 +825,7 @@ test('[Find Many] Get users with posts in transaction', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts in rollbacked transaction', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with posts in rollbacked transaction', async () => {
 	let usersWithPosts: {
 		id: number;
 		name: string;
@@ -977,10 +881,7 @@ test('[Find Many] Get users with posts in rollbacked transaction', async (t) => 
 	expect(usersWithPosts.length).eq(0);
 });
 
-// select only custom
-test('[Find Many] Get only custom fields', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get only custom fields', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -988,13 +889,13 @@ test('[Find Many] Get only custom fields', async (t) => {
 	]);
 
 	await db.insert(postsTable).values([
-		{ ownerId: 1, content: 'Post1' },
-		{ ownerId: 1, content: 'Post1.2' },
-		{ ownerId: 1, content: 'Post1.3' },
-		{ ownerId: 2, content: 'Post2' },
-		{ ownerId: 2, content: 'Post2.1' },
-		{ ownerId: 3, content: 'Post3' },
-		{ ownerId: 3, content: 'Post3.1' },
+		{ id: 1, ownerId: 1, content: 'Post1' },
+		{ id: 2, ownerId: 1, content: 'Post1.2' },
+		{ id: 3, ownerId: 1, content: 'Post1.3' },
+		{ id: 4, ownerId: 2, content: 'Post2' },
+		{ id: 5, ownerId: 2, content: 'Post2.1' },
+		{ id: 6, ownerId: 3, content: 'Post3' },
+		{ id: 7, ownerId: 3, content: 'Post3.1' },
 	]);
 
 	const usersWithPosts = await db.query.usersTable.findMany({
@@ -1043,9 +944,7 @@ test('[Find Many] Get only custom fields', async (t) => {
 	});
 });
 
-test('[Find Many] Get only custom fields + where', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get only custom fields + where', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1094,9 +993,7 @@ test('[Find Many] Get only custom fields + where', async (t) => {
 	});
 });
 
-test('[Find Many] Get only custom fields + where + limit', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get only custom fields + where + limit', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1146,9 +1043,7 @@ test('[Find Many] Get only custom fields + where + limit', async (t) => {
 	});
 });
 
-test('[Find Many] Get only custom fields + where + orderBy', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get only custom fields + where + orderBy', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1198,10 +1093,7 @@ test('[Find Many] Get only custom fields + where + orderBy', async (t) => {
 	});
 });
 
-// select only custom find one
-test('[Find One] Get only custom fields', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get only custom fields', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1251,9 +1143,7 @@ test('[Find One] Get only custom fields', async (t) => {
 	});
 });
 
-test('[Find One] Get only custom fields + where', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get only custom fields + where', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1303,9 +1193,7 @@ test('[Find One] Get only custom fields + where', async (t) => {
 	});
 });
 
-test('[Find One] Get only custom fields + where + limit', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get only custom fields + where + limit', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1356,9 +1244,7 @@ test('[Find One] Get only custom fields + where + limit', async (t) => {
 	});
 });
 
-test('[Find One] Get only custom fields + where + orderBy', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get only custom fields + where + orderBy', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1410,9 +1296,7 @@ test('[Find One] Get only custom fields + where + orderBy', async (t) => {
 });
 
 // select + include
-test('[Find Many] Get users with posts: select + include', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with posts: select + include', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1437,9 +1321,7 @@ test('[Find Many] Get users with posts: select + include', async (t) => {
 	expectTypeOf(usersWithPosts).toEqualTypeOf<DrizzleTypeError<'Cannot use select and insert in the same query'>[]>();
 });
 
-test('[Find One] Get users with posts: select + include', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get users with posts: select + include', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1466,10 +1348,7 @@ test('[Find One] Get users with posts: select + include', async (t) => {
 	>();
 });
 
-// select {}
-test('[Find Many] Get select {}', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get select {}', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1489,10 +1368,7 @@ test('[Find Many] Get select {}', async (t) => {
 	expect(users[2]).toEqual({});
 });
 
-// select {}
-test('[Find One] Get select {}', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get select {}', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1509,9 +1385,7 @@ test('[Find One] Get select {}', async (t) => {
 });
 
 // deep select {}
-test('[Find Many] Get deep select {}', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get deep select {}', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1542,9 +1416,7 @@ test('[Find Many] Get deep select {}', async (t) => {
 });
 
 // deep select {}
-test('[Find One] Get deep select {}', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get deep select {}', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1573,9 +1445,7 @@ test('[Find One] Get deep select {}', async (t) => {
 /*
 	Prepared statements for users+posts
 */
-test('[Find Many] Get users with posts + prepared limit', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with posts + prepared limit', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1598,7 +1468,7 @@ test('[Find Many] Get users with posts + prepared limit', async (t) => {
 				limit: placeholder('limit'),
 			},
 		},
-	}).prepare('query1');
+	}).prepare();
 
 	const usersWithPosts = await prepared.execute({ limit: 1 });
 
@@ -1643,9 +1513,7 @@ test('[Find Many] Get users with posts + prepared limit', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + prepared limit + offset', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with posts + prepared limit + offset', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1670,7 +1538,7 @@ test('[Find Many] Get users with posts + prepared limit + offset', async (t) => 
 				limit: placeholder('pLimit'),
 			},
 		},
-	}).prepare('query2');
+	}).prepare();
 
 	const usersWithPosts = await prepared.execute({ pLimit: 1, uLimit: 3, uOffset: 1 });
 
@@ -1707,9 +1575,7 @@ test('[Find Many] Get users with posts + prepared limit + offset', async (t) => 
 	});
 });
 
-test('[Find Many] Get users with posts + prepared where', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with posts + prepared where', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1730,7 +1596,7 @@ test('[Find Many] Get users with posts + prepared where', async (t) => {
 				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
-	}).prepare('query3');
+	}).prepare();
 
 	const usersWithPosts = await prepared.execute({ id: 1 });
 
@@ -1759,9 +1625,7 @@ test('[Find Many] Get users with posts + prepared where', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + prepared + limit + offset + where', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with posts + prepared + limit + offset + where', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1788,7 +1652,7 @@ test('[Find Many] Get users with posts + prepared + limit + offset + where', asy
 				limit: placeholder('pLimit'),
 			},
 		},
-	}).prepare('query4');
+	}).prepare();
 
 	const usersWithPosts = await prepared.execute({ pLimit: 1, uLimit: 3, uOffset: 1, id: 2, pid: 6 });
 
@@ -1821,9 +1685,7 @@ test('[Find Many] Get users with posts + prepared + limit + offset + where', asy
 	[Find One] One relation users+posts
 */
 
-test('[Find One] Get users with posts', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get users with posts', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1868,9 +1730,7 @@ test('[Find One] Get users with posts', async (t) => {
 	});
 });
 
-test('[Find One] Get users with posts + limit posts', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get users with posts + limit posts', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1921,9 +1781,7 @@ test('[Find One] Get users with posts + limit posts', async (t) => {
 	});
 });
 
-test('[Find One] Get users with posts no results found', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get users with posts no results found', async () => {
 	const usersWithPosts = await db.query.usersTable.findFirst({
 		include: {
 			posts: {
@@ -1950,9 +1808,7 @@ test('[Find One] Get users with posts no results found', async (t) => {
 	expect(usersWithPosts).toBeUndefined();
 });
 
-test('[Find One] Get users with posts + limit posts and users', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get users with posts + limit posts and users', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2003,9 +1859,7 @@ test('[Find One] Get users with posts + limit posts and users', async (t) => {
 	});
 });
 
-test('[Find One] Get users with posts + custom fields', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get users with posts + custom fields', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2064,9 +1918,7 @@ test('[Find One] Get users with posts + custom fields', async (t) => {
 	});
 });
 
-test('[Find One] Get users with posts + custom fields + limits', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get users with posts + custom fields + limits', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2122,9 +1974,7 @@ test('[Find One] Get users with posts + custom fields + limits', async (t) => {
 	});
 });
 
-test('[Find One] Get users with posts + orderBy', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get users with posts + orderBy', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2181,9 +2031,7 @@ test('[Find One] Get users with posts + orderBy', async (t) => {
 	});
 });
 
-test('[Find One] Get users with posts + where', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get users with posts + where', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2232,9 +2080,7 @@ test('[Find One] Get users with posts + where', async (t) => {
 	});
 });
 
-test('[Find One] Get users with posts + where + partial', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get users with posts + where + partial', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2283,9 +2129,7 @@ test('[Find One] Get users with posts + where + partial', async (t) => {
 	});
 });
 
-test('[Find One] Get users with posts + where + partial. Did not select posts id, but used it in where', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get users with posts + where + partial. Did not select posts id, but used it in where', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2334,9 +2178,7 @@ test('[Find One] Get users with posts + where + partial. Did not select posts id
 	});
 });
 
-test('[Find One] Get users with posts + where + partial(true + false)', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get users with posts + where + partial(true + false)', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2382,9 +2224,7 @@ test('[Find One] Get users with posts + where + partial(true + false)', async (t
 	});
 });
 
-test('[Find One] Get users with posts + where + partial(false)', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get users with posts + where + partial(false)', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2438,9 +2278,7 @@ test('[Find One] Get users with posts + where + partial(false)', async (t) => {
 	One relation users+users. Self referencing
 */
 
-test('Get user with invitee', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get user with invitee', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2507,9 +2345,7 @@ test('Get user with invitee', async (t) => {
 	});
 });
 
-test('Get user + limit with invitee', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get user + limit with invitee', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew', invitedBy: 1 },
@@ -2561,9 +2397,7 @@ test('Get user + limit with invitee', async (t) => {
 	});
 });
 
-test('Get user with invitee and custom fields', async (t) => {
-	const { pgDb: db } = t;
-
+test.only('Get user with invitee and custom fields', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2639,9 +2473,7 @@ test('Get user with invitee and custom fields', async (t) => {
 	});
 });
 
-test('Get user with invitee and custom fields + limits', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get user with invitee and custom fields + limits', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2709,9 +2541,7 @@ test('Get user with invitee and custom fields + limits', async (t) => {
 	});
 });
 
-test('Get user with invitee + order by', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get user with invitee + order by', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2777,9 +2607,7 @@ test('Get user with invitee + order by', async (t) => {
 	});
 });
 
-test('Get user with invitee + where', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get user with invitee + where', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2829,9 +2657,7 @@ test('Get user with invitee + where', async (t) => {
 	});
 });
 
-test('Get user with invitee + where + partial', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get user with invitee + where + partial', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2880,9 +2706,7 @@ test('Get user with invitee + where + partial', async (t) => {
 	});
 });
 
-test('Get user with invitee + where + partial.  Did not select users id, but used it in where', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get user with invitee + where + partial.  Did not select users id, but used it in where', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2927,9 +2751,7 @@ test('Get user with invitee + where + partial.  Did not select users id, but use
 	});
 });
 
-test('Get user with invitee + where + partial(true+false)', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get user with invitee + where + partial(true+false)', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2980,9 +2802,7 @@ test('Get user with invitee + where + partial(true+false)', async (t) => {
 	});
 });
 
-test('Get user with invitee + where + partial(false)', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get user with invitee + where + partial(false)', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3037,9 +2857,7 @@ test('Get user with invitee + where + partial(false)', async (t) => {
 	Two first-level relations users+users and users+posts
 */
 
-test('Get user with invitee and posts', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get user with invitee and posts', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3123,9 +2941,7 @@ test('Get user with invitee and posts', async (t) => {
 	});
 });
 
-test('Get user with invitee and posts + limit posts and users', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get user with invitee and posts + limit posts and users', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3206,9 +3022,7 @@ test('Get user with invitee and posts + limit posts and users', async (t) => {
 	});
 });
 
-test('Get user with invitee and posts + limits + custom fields in each', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get user with invitee and posts + limits + custom fields in each', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3298,9 +3112,7 @@ test('Get user with invitee and posts + limits + custom fields in each', async (
 	});
 });
 
-test('Get user with invitee and posts + custom fields in each', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get user with invitee and posts + custom fields in each', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3417,9 +3229,7 @@ test('Get user with invitee and posts + custom fields in each', async (t) => {
 	});
 });
 
-test('Get user with invitee and posts + orderBy', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get user with invitee and posts + orderBy', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3522,9 +3332,7 @@ test('Get user with invitee and posts + orderBy', async (t) => {
 	});
 });
 
-test('Get user with invitee and posts + where', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get user with invitee and posts + where', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3592,9 +3400,7 @@ test('Get user with invitee and posts + where', async (t) => {
 	});
 });
 
-test('Get user with invitee and posts + limit posts and users + where', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get user with invitee and posts + limit posts and users + where', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3639,8 +3445,6 @@ test('Get user with invitee and posts + limit posts and users + where', async (t
 		}[]
 	>();
 
-	console.log(JSON.stringify(response, null, 2));
-
 	expect(response.length).eq(1);
 
 	expect(response[0]?.invitee).not.toBeNull();
@@ -3656,9 +3460,7 @@ test('Get user with invitee and posts + limit posts and users + where', async (t
 	});
 });
 
-test('Get user with invitee and posts + orderBy + where + custom', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get user with invitee and posts + orderBy + where + custom', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3743,9 +3545,7 @@ test('Get user with invitee and posts + orderBy + where + custom', async (t) => 
 	});
 });
 
-test('Get user with invitee and posts + orderBy + where + partial + custom', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get user with invitee and posts + orderBy + where + partial + custom', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3839,9 +3639,7 @@ test('Get user with invitee and posts + orderBy + where + partial + custom', asy
 	One two-level relation users+posts+comments
 */
 
-test('Get user with posts and posts with comments', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get user with posts and posts with comments', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3996,9 +3794,7 @@ test('Get user with posts and posts with comments', async (t) => {
 	One three-level relation users+posts+comments+comment_owner
 */
 
-test('Get user with posts and posts with comments and comments with owner', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get user with posts and posts with comments and comments with owner', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4058,8 +3854,6 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 	}[]>();
 
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
-
-	console.log(JSON.stringify(response, null, 2));
 
 	expect(response.length).eq(3);
 	expect(response[0]?.posts.length).eq(1);
@@ -4142,9 +3936,7 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 	Users+users_to_groups+groups
 */
 
-test('[Find Many] Get users with groups', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with groups', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4245,9 +4037,7 @@ test('[Find Many] Get users with groups', async (t) => {
 	});
 });
 
-test('[Find Many] Get groups with users', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get groups with users', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4349,9 +4139,7 @@ test('[Find Many] Get groups with users', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with groups + limit', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with groups + limit', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4433,9 +4221,7 @@ test('[Find Many] Get users with groups + limit', async (t) => {
 	});
 });
 
-test('[Find Many] Get groups with users + limit', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get groups with users + limit', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4517,9 +4303,7 @@ test('[Find Many] Get groups with users + limit', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with groups + limit + where', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with groups + limit + where', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4587,9 +4371,7 @@ test('[Find Many] Get users with groups + limit + where', async (t) => {
 	});
 });
 
-test('[Find Many] Get groups with users + limit + where', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get groups with users + limit + where', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4658,9 +4440,7 @@ test('[Find Many] Get groups with users + limit + where', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with groups + where', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with groups + where', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4736,9 +4516,7 @@ test('[Find Many] Get users with groups + where', async (t) => {
 	});
 });
 
-test('[Find Many] Get groups with users + where', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get groups with users + where', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4813,9 +4591,7 @@ test('[Find Many] Get groups with users + where', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with groups + orderBy', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with groups + orderBy', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4916,9 +4692,7 @@ test('[Find Many] Get users with groups + orderBy', async (t) => {
 	});
 });
 
-test('[Find Many] Get groups with users + orderBy', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get groups with users + orderBy', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5020,9 +4794,7 @@ test('[Find Many] Get groups with users + orderBy', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with groups + orderBy + limit', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find Many] Get users with groups + orderBy + limit', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5110,9 +4882,7 @@ test('[Find Many] Get users with groups + orderBy + limit', async (t) => {
 	Users+users_to_groups+groups
 */
 
-test('[Find One] Get users with groups', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get users with groups', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5175,9 +4945,7 @@ test('[Find One] Get users with groups', async (t) => {
 	});
 });
 
-test('[Find One] Get groups with users', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get groups with users', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5240,9 +5008,7 @@ test('[Find One] Get groups with users', async (t) => {
 	});
 });
 
-test('[Find One] Get users with groups + limit', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get users with groups + limit', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5306,9 +5072,7 @@ test('[Find One] Get users with groups + limit', async (t) => {
 	});
 });
 
-test('[Find One] Get groups with users + limit', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get groups with users + limit', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5372,9 +5136,7 @@ test('[Find One] Get groups with users + limit', async (t) => {
 	});
 });
 
-test('[Find One] Get users with groups + limit + where', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get users with groups + limit + where', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5439,9 +5201,7 @@ test('[Find One] Get users with groups + limit + where', async (t) => {
 	});
 });
 
-test('[Find One] Get groups with users + limit + where', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get groups with users + limit + where', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5507,9 +5267,7 @@ test('[Find One] Get groups with users + limit + where', async (t) => {
 	});
 });
 
-test('[Find One] Get users with groups + where', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get users with groups + where', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5568,9 +5326,7 @@ test('[Find One] Get users with groups + where', async (t) => {
 	});
 });
 
-test('[Find One] Get groups with users + where', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get groups with users + where', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5635,9 +5391,7 @@ test('[Find One] Get groups with users + where', async (t) => {
 	});
 });
 
-test('[Find One] Get users with groups + orderBy', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get users with groups + orderBy', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5708,9 +5462,7 @@ test('[Find One] Get users with groups + orderBy', async (t) => {
 	});
 });
 
-test('[Find One] Get groups with users + orderBy', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get groups with users + orderBy', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5775,9 +5527,7 @@ test('[Find One] Get groups with users + orderBy', async (t) => {
 	});
 });
 
-test('[Find One] Get users with groups + orderBy + limit', async (t) => {
-	const { pgDb: db } = t;
-
+test('[Find One] Get users with groups + orderBy + limit', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5843,9 +5593,7 @@ test('[Find One] Get users with groups + orderBy + limit', async (t) => {
 	});
 });
 
-test('Get groups with users + orderBy + limit', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get groups with users + orderBy + limit', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5929,9 +5677,7 @@ test('Get groups with users + orderBy + limit', async (t) => {
 	});
 });
 
-test('Get users with groups + custom', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get users with groups + custom', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -6050,9 +5796,7 @@ test('Get users with groups + custom', async (t) => {
 	});
 });
 
-test('Get groups with users + custom', async (t) => {
-	const { pgDb: db } = t;
-
+test('Get groups with users + custom', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
