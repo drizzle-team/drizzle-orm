@@ -7,6 +7,8 @@ import * as schema from './mysql.schema';
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
+const ENABLE_LOGGING = true;
+
 /*
 	Test cases:
 	- querying nested relation without PK with additional fields
@@ -17,11 +19,12 @@ let db: PlanetScaleDatabase<typeof schema>;
 beforeAll(async () => {
 	db = drizzle(
 		connect({
-			host: process.env['DATABASE_HOST']!,
-			username: process.env['DATABASE_USERNAME']!,
-			password: process.env['DATABASE_PASSWORD']!,
+			url: process.env['PLANETSCALE_CONNECTION_STRING']!,
+			// host: process.env['DATABASE_HOST']!,
+			// username: process.env['DATABASE_USERNAME']!,
+			// password: process.env['DATABASE_PASSWORD']!,
 		}),
-		{ schema },
+		{ schema, logger: ENABLE_LOGGING },
 	);
 });
 
@@ -1575,7 +1578,7 @@ test('[Find Many] Get users with posts + prepared limit + offset', async () => {
 	});
 });
 
-test('[Find Many] Get users with posts + prepared where', async () => {
+test.only('[Find Many] Get users with posts + prepared where', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2397,7 +2400,7 @@ test('Get user + limit with invitee', async () => {
 	});
 });
 
-test.only('Get user with invitee and custom fields', async () => {
+test('Get user with invitee and custom fields', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },

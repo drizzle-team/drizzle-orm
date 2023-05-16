@@ -10,6 +10,8 @@ import * as schema from './pg.schema';
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
+const ENABLE_LOGGING = false;
+
 /*
 	Test cases:
 	- querying nested relation without PK with additional fields
@@ -86,7 +88,7 @@ beforeAll(async () => {
 		await pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { schema, logger: false });
+	db = drizzle(client, { schema, logger: ENABLE_LOGGING });
 });
 
 afterAll(async () => {

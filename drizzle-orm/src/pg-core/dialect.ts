@@ -530,6 +530,8 @@ export class PgDialect {
 
 			const relationAlias = `${tableAlias}_${selectedRelationKey}`;
 
+			const relationConfig = schema[tableNamesMap[relation.referencedTable[Table.Symbol.Name]]!]!;
+
 			const builtRelation = this.buildRelationalQuery(
 				fullSchema,
 				schema,
@@ -556,16 +558,43 @@ export class PgDialect {
 				joinType: 'left',
 			});
 
+			const relationAliasedColumns = Object.fromEntries(
+				Object.entries(relationConfig.columns).map(([key, value]) => [key, aliasedTableColumn(value, tableAlias)]),
+			);
+
+			const relationAliasedRelations = Object.fromEntries(
+				Object.entries(relationConfig.relations).map(([key, value]) => [key, aliasedRelation(value, tableAlias)]),
+			);
+
+			const relationAliasedFields = Object.assign({}, relationAliasedColumns, relationAliasedRelations);
+
+			let orderBy: (SQL | AnyPgColumn)[] | undefined;
+			if (typeof selectedRelationValue === 'object') {
+				let orderByOrig = typeof selectedRelationValue.orderBy === 'function'
+					? selectedRelationValue.orderBy(relationAliasedFields, orderByOperators)
+					: selectedRelationValue.orderBy ?? [];
+				if (!Array.isArray(orderByOrig)) {
+					orderByOrig = [orderByOrig];
+				}
+				orderBy = orderByOrig.map((orderByValue) => {
+					if (orderByValue instanceof Column) {
+						return aliasedTableColumn(orderByValue, relationAlias) as AnyPgColumn;
+					}
+					return mapColumnsInSQLToAlias(orderByValue, relationAlias);
+				});
+			}
+
+			const orderBySql = orderBy?.length ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined;
+
 			const elseField = sql`json_agg(json_build_array(${
 				sql.join(
 					builtRelation.selection.map(({ dbKey: key }) => {
 						const field = sql`${sql.identifier(relationAlias)}.${sql.identifier(key)}`;
 						return field;
-						// return isJson ? sql`json(${field})` : field;
 					}),
 					sql`, `,
 				)
-			}))`;
+			})${orderBySql})`;
 
 			const field = sql`case when count(${
 				sql.join(normalizedRelation.references.map((c) => aliasedTableColumn(c, relationAlias)), sql.raw(' or '))
@@ -584,7 +613,7 @@ export class PgDialect {
 			};
 		});
 
-		const where = and(
+		const initialWhere = and(
 			...selectedRelations.filter(({ key }) => {
 				const relation = config.include?.[key] ?? config.select?.[key];
 				return typeof relation === 'object' && (relation as DBQueryConfig<'many'>).limit !== undefined;
@@ -652,7 +681,9 @@ export class PgDialect {
 			} else {
 				finalFieldsFlat.push({
 					path: ['__drizzle_row_number'],
-					field: sql`row_number() over(partition by ${relationColumns.map((c) => aliasedTableColumn(c, tableAlias))})`
+					field: sql`row_number() over(partition by ${relationColumns.map((c) => aliasedTableColumn(c, tableAlias))}${
+						orderBy.length ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined
+					})`
 						.as('__drizzle_row_number'),
 				});
 			}
@@ -662,37 +693,26 @@ export class PgDialect {
 			table: aliasedTable(table, tableAlias),
 			fields: {},
 			fieldsFlat: initialFieldsFlat,
-			where,
+			where: initialWhere,
 			groupBy,
 			orderBy: [],
 			joins,
 			lockingClauses: [],
 			withList: [],
 		});
+
+		let where;
 		if (config.where) {
 			const whereSql = typeof config.where === 'function' ? config.where(aliasedFields, operators) : config.where;
-			const where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
-			result = this.buildSelectQuery({
-				table: new Subquery(result, {}, tableAlias),
-				fields: {},
-				fieldsFlat: [{
-					path: [],
-					field: sql`${sql.identifier(tableAlias)}.*`,
-				}],
-				where,
-				groupBy: [],
-				orderBy: [],
-				joins: [],
-				lockingClauses: [],
-				withList: [],
-			});
+			where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 		}
 		result = this.buildSelectQuery({
 			table: new Subquery(result, {}, tableAlias),
 			fields: {},
 			fieldsFlat: finalFieldsFlat,
+			where,
 			groupBy: [],
-			orderBy,
+			orderBy: orderBy ?? [],
 			joins: [],
 			lockingClauses: [],
 			withList: [],
