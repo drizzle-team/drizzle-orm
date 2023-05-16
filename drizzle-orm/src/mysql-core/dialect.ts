@@ -422,13 +422,13 @@ export class MySqlDialect {
 
 		const fieldsSelection: Record<string, AnyMySqlColumn | SQL.Aliased> = {};
 		let selectedColumns: string[] = [];
-		let selectedCustomFields: { key: string; value: SQL.Aliased }[] = [];
+		let selectedExtras: { key: string; value: SQL.Aliased }[] = [];
 		let selectedRelations: { key: string; value: true | DBQueryConfig<'many', false> }[] = [];
 
-		if (config.select) {
+		if (config.fields) {
 			let isIncludeMode = false;
 
-			for (const [field, value] of Object.entries(config.select)) {
+			for (const [field, value] of Object.entries(config.fields)) {
 				if (value === undefined) {
 					continue;
 				}
@@ -438,34 +438,31 @@ export class MySqlDialect {
 						isIncludeMode = true;
 					}
 					selectedColumns.push(field);
-				} else {
-					selectedRelations.push({ key: field, value });
 				}
 			}
 
 			if (selectedColumns.length > 0) {
 				selectedColumns = isIncludeMode
-					? selectedColumns.filter((c) => config.select?.[c] === true)
+					? selectedColumns.filter((c) => config.fields?.[c] === true)
 					: Object.keys(tableConfig.columns).filter((key) => !selectedColumns.includes(key));
 			}
-		} else if (config.include) {
-			selectedRelations = Object.entries(config.include)
-				.filter((entry): entry is [typeof entry[0], NonNullable<typeof entry[1]>] => !!entry[1])
-				.map(([key, value]) => ({
-					key,
-					value,
-				}));
 		}
 
-		if (!config.select) {
+		if (config.with) {
+			selectedRelations = Object.entries(config.with)
+				.filter((entry): entry is [typeof entry[0], NonNullable<typeof entry[1]>] => !!entry[1])
+				.map(([key, value]) => ({ key, value }));
+		}
+
+		if (!config.fields) {
 			selectedColumns = Object.keys(tableConfig.columns);
 		}
 
-		if (config.includeCustom) {
-			const includeCustomOrig = typeof config.includeCustom === 'function'
-				? config.includeCustom(aliasedFields, { sql })
-				: config.includeCustom;
-			selectedCustomFields = Object.entries(includeCustomOrig).map(([key, value]) => ({
+		if (config.extras) {
+			const extrasOrig = typeof config.extras === 'function'
+				? config.extras(aliasedFields, { sql })
+				: config.extras;
+			selectedExtras = Object.entries(extrasOrig).map(([key, value]) => ({
 				key,
 				value: mapColumnsInAliasedSQLToAlias(value, tableAlias),
 			}));
@@ -476,7 +473,7 @@ export class MySqlDialect {
 			fieldsSelection[field] = column;
 		}
 
-		for (const { key, value } of selectedCustomFields) {
+		for (const { key, value } of selectedExtras) {
 			fieldsSelection[key] = value;
 		}
 
@@ -556,11 +553,11 @@ export class MySqlDialect {
 
 		const initialWhere = and(
 			...selectedRelations.filter(({ key }) => {
-				const relation = config.include?.[key] ?? config.select?.[key];
+				const relation = config.with?.[key];
 				return typeof relation === 'object' && (relation as DBQueryConfig<'many'>).limit !== undefined;
 			}).map(({ key }) => {
 				const field = sql`${sql.identifier(`${tableAlias}_${key}`)}.${sql.identifier('__drizzle_row_number')}`;
-				const value = (config.include?.[key] ?? config.select?.[key]) as DBQueryConfig<'many'>;
+				const value = config.with![key] as DBQueryConfig<'many'>;
 				const cond = or(and(sql`${field} <= ${value.limit}`), sql`(${field} is null)`);
 				return cond;
 			}),
@@ -588,7 +585,7 @@ export class MySqlDialect {
 					path: [tsKey],
 					field: aliasedTableColumn(column, tableAlias) as AnyMySqlColumn,
 				})),
-				...selectedCustomFields.map(({ key, value }) => ({
+				...selectedExtras.map(({ key, value }) => ({
 					path: [key],
 					field: value,
 				})),
@@ -610,7 +607,7 @@ export class MySqlDialect {
 				path: [],
 				field: sql`${sql.identifier(tableAlias)}.*`,
 			},
-			...selectedCustomFields.map(({ key, value }) => ({
+			...selectedExtras.map(({ key, value }) => ({
 				path: [key],
 				field: value,
 			})),

@@ -2,14 +2,7 @@ import { type AnyTable, type InferModelFromColumns, isTable, Table } from '~/tab
 import { type AnyColumn, Column } from './column';
 import { PrimaryKeyBuilder } from './pg-core';
 import { and, asc, desc, eq, or, type Placeholder, SQL, sql } from './sql';
-import {
-	type Assume,
-	type ColumnsWithTable,
-	type DrizzleTypeError,
-	type Equal,
-	type SimplifyShallow,
-	type ValueOrArray,
-} from './utils';
+import { type Assume, type ColumnsWithTable, type Equal, type SimplifyShallow, type ValueOrArray } from './utils';
 
 export abstract class Relation<TTableName extends string = string> {
 	declare readonly $brand: 'Relation';
@@ -130,6 +123,67 @@ export type FindTableByDBName<TSchema extends TablesRelationalConfig, TTableName
 	}
 >;
 
+// export type DBQueryConfig<
+// 	TRelationType extends 'one' | 'many' = 'one' | 'many',
+// 	TIsRoot extends boolean = boolean,
+// 	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
+// 	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
+// > =
+// 	& {
+// 		select?:
+// 			& {
+// 				[K in keyof TTableConfig['columns']]?: boolean;
+// 			}
+// 			& {
+// 				[K in keyof TTableConfig['relations']]?:
+// 					| true
+// 					| DBQueryConfig<
+// 						TTableConfig['relations'][K] extends One ? 'one' : 'many',
+// 						false,
+// 						TSchema,
+// 						FindTableByDBName<TSchema, TTableConfig['relations'][K]['referencedTableName']>
+// 					>;
+// 			};
+// 		include?: {
+// 			[K in keyof TTableConfig['relations']]?:
+// 				| true
+// 				| DBQueryConfig<
+// 					TTableConfig['relations'][K] extends One ? 'one' : 'many',
+// 					false,
+// 					TSchema,
+// 					FindTableByDBName<TSchema, TTableConfig['relations'][K]['referencedTableName']>
+// 				>;
+// 		};
+// 		includeCustom?:
+// 			| Record<string, SQL.Aliased>
+// 			| ((
+// 				fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
+// 				operators: { sql: Operators['sql'] },
+// 			) => Record<string, SQL.Aliased>);
+// 	}
+// 	& (TRelationType extends 'many' ?
+// 			& {
+// 				where?:
+// 					| SQL
+// 					| undefined
+// 					| ((
+// 						fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
+// 						operators: Operators,
+// 					) => SQL | undefined);
+// 				orderBy?:
+// 					| ValueOrArray<AnyColumn | SQL>
+// 					| ((
+// 						fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
+// 						operators: OrderByOperators,
+// 					) => ValueOrArray<AnyColumn | SQL>);
+// 				limit?: number | Placeholder;
+// 			}
+// 			& (TIsRoot extends true ? {
+// 					offset?: number | Placeholder;
+// 				}
+// 				: {})
+// 		: {});
+
 export type DBQueryConfig<
 	TRelationType extends 'one' | 'many' = 'one' | 'many',
 	TIsRoot extends boolean = boolean,
@@ -137,21 +191,10 @@ export type DBQueryConfig<
 	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
 > =
 	& {
-		select?:
-			& {
-				[K in keyof TTableConfig['columns']]?: boolean;
-			}
-			& {
-				[K in keyof TTableConfig['relations']]?:
-					| true
-					| DBQueryConfig<
-						TTableConfig['relations'][K] extends One ? 'one' : 'many',
-						false,
-						TSchema,
-						FindTableByDBName<TSchema, TTableConfig['relations'][K]['referencedTableName']>
-					>;
-			};
-		include?: {
+		fields?: {
+			[K in keyof TTableConfig['columns']]?: boolean;
+		};
+		with?: {
 			[K in keyof TTableConfig['relations']]?:
 				| true
 				| DBQueryConfig<
@@ -161,7 +204,7 @@ export type DBQueryConfig<
 					FindTableByDBName<TSchema, TTableConfig['relations'][K]['referencedTableName']>
 				>;
 		};
-		includeCustom?:
+		extras?:
 			| Record<string, SQL.Aliased>
 			| ((
 				fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
@@ -190,6 +233,7 @@ export type DBQueryConfig<
 				}
 				: {})
 		: {});
+
 export interface TableRelationalConfig {
 	tsName: string;
 	dbName: string;
@@ -218,7 +262,8 @@ export type BuildRelationResult<
 	TInclude,
 	TRelations extends Record<string, Relation>,
 > = {
-	[K in keyof TInclude & keyof TRelations]: TRelations[K] extends infer TRel extends Relation ? BuildQueryResult<
+	[K in NonUndefinedKeysOnly<TInclude> & keyof TRelations]: TRelations[K] extends infer TRel extends Relation
+		? BuildQueryResult<
 			TSchema,
 			FindTableByDBName<TSchema, TRel['referencedTableName']>,
 			Assume<TInclude[K], true | Record<string, unknown>>
@@ -229,50 +274,50 @@ export type BuildRelationResult<
 		: never;
 };
 
+export type NonUndefinedKeysOnly<T> =
+	& ExtractObjectValues<
+		{
+			[K in keyof T as T[K] extends undefined ? never : K]: K;
+		}
+	>
+	& keyof T;
+
 export type BuildQueryResult<
 	TSchema extends TablesRelationalConfig,
 	TTableConfig extends TableRelationalConfig,
 	TFullSelection extends true | Record<string, unknown>,
-> = TFullSelection extends { select: unknown; include: unknown }
-	? DrizzleTypeError<'Cannot use select and insert in the same query'>
-	: Equal<TFullSelection, true> extends true ? InferModelFromColumns<TTableConfig['columns']>
+> = Equal<TFullSelection, true> extends true ? InferModelFromColumns<TTableConfig['columns']>
 	: TFullSelection extends Record<string, unknown> ? (SimplifyShallow<
-			& ((Equal<TFullSelection['select'], {}> extends false
-				? [keyof TFullSelection['select']] extends [never] ? true : false
-				: false) extends true ? InferModelFromColumns<TTableConfig['columns']>
-				: 
-					& InferModelFromColumns<
-						{
-							[
-								K in (Equal<
-									TFullSelection['select'][keyof TFullSelection['select'] & keyof TTableConfig['columns']],
-									false
-								> extends true ? Exclude<keyof TTableConfig['columns'], keyof TFullSelection['select']>
-									: 
-										& {
-											[K in keyof TFullSelection['select']]: Equal<TFullSelection['select'][K], true> extends true ? K
-												: never;
-										}[keyof TFullSelection['select']]
-										& keyof TTableConfig['columns'])
-							]: TTableConfig['columns'][K];
-						}
-					>
-					& BuildRelationResult<
-						TSchema,
-						TFullSelection['select'],
-						TTableConfig['relations']
-					>)
-			& ([keyof ReturnTypeOrValue<TFullSelection['includeCustom']>] extends [never] ? {} : {
-				[K in keyof ReturnTypeOrValue<TFullSelection['includeCustom']>]: Assume<
-					ReturnTypeOrValue<
-						TFullSelection['includeCustom']
-					>[K],
-					SQL.Aliased
-				>['_']['type'];
-			})
-			& (TFullSelection extends { include: unknown } ? BuildRelationResult<
+			& (TFullSelection['fields'] extends Record<string, unknown> ? InferModelFromColumns<
+					{
+						[
+							K in (Equal<
+								Exclude<
+									TFullSelection['fields'][keyof TFullSelection['fields'] & keyof TTableConfig['columns']],
+									undefined
+								>,
+								false
+							> extends true ? Exclude<keyof TTableConfig['columns'], NonUndefinedKeysOnly<TFullSelection['fields']>>
+								: 
+									& {
+										[K in keyof TFullSelection['fields']]: Equal<TFullSelection['fields'][K], true> extends true ? K
+											: never;
+									}[keyof TFullSelection['fields']]
+									& keyof TTableConfig['columns'])
+						]: TTableConfig['columns'][K];
+					}
+				>
+				: InferModelFromColumns<TTableConfig['columns']>)
+			& (TFullSelection['extras'] extends Record<string, unknown> ? {
+					[K in NonUndefinedKeysOnly<ReturnTypeOrValue<TFullSelection['extras']>>]: Assume<
+						ReturnTypeOrValue<TFullSelection['extras']>[K],
+						SQL.Aliased
+					>['_']['type'];
+				}
+				: {})
+			& (TFullSelection['with'] extends Record<string, unknown> ? BuildRelationResult<
 					TSchema,
-					TFullSelection['include'],
+					TFullSelection['with'],
 					TTableConfig['relations']
 				>
 				: {})

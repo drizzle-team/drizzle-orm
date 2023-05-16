@@ -187,7 +187,7 @@ test('[Find Many] Get users with posts', async (t) => {
 	]);
 
 	const usersWithPosts = await db.query.usersTable.findMany({
-		include: {
+		with: {
 			posts: true,
 		},
 	});
@@ -255,7 +255,7 @@ test('[Find Many] Get users with posts + limit posts', async (t) => {
 	]);
 
 	const usersWithPosts = await db.query.usersTable.findMany({
-		include: {
+		with: {
 			posts: {
 				limit: 1,
 			},
@@ -329,7 +329,7 @@ test('[Find Many] Get users with posts + limit posts and users', async (t) => {
 
 	const usersWithPosts = await db.query.usersTable.findMany({
 		limit: 2,
-		include: {
+		with: {
 			posts: {
 				limit: 1,
 			},
