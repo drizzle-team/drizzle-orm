@@ -376,7 +376,7 @@ export class MySqlDialect {
 		tableNamesMap: Record<string, string>,
 		table: AnyMySqlTable,
 		tableConfig: TableRelationalConfig,
-		config: true | DBQueryConfig<'many'>,
+		config: true | DBQueryConfig<'many', true>,
 		tableAlias: string,
 		relationColumns: AnyColumn[],
 		isRoot = false,
@@ -554,7 +554,7 @@ export class MySqlDialect {
 			};
 		});
 
-		const where = and(
+		const initialWhere = and(
 			...selectedRelations.filter(({ key }) => {
 				const relation = config.include?.[key] ?? config.select?.[key];
 				return typeof relation === 'object' && (relation as DBQueryConfig<'many'>).limit !== undefined;
@@ -583,10 +583,20 @@ export class MySqlDialect {
 					field: sql`cast(${sql.identifier((field as SQL.Aliased).fieldAlias)} as json)`,
 				})),
 			]
-			: [{
-				path: [],
-				field: sql`${sql.identifier(tableAlias)}.*`,
-			}];
+			: [
+				...Object.entries(tableConfig.columns).map(([tsKey, column]) => ({
+					path: [tsKey],
+					field: aliasedTableColumn(column, tableAlias) as AnyMySqlColumn,
+				})),
+				...selectedCustomFields.map(({ key, value }) => ({
+					path: [key],
+					field: value,
+				})),
+				...builtRelationFields.map(({ path, field }) => ({
+					path,
+					field: sql`${sql.identifier(tableAlias)}.${sql.identifier((field as SQL.Aliased).fieldAlias)}`,
+				})),
+			];
 
 		if (finalFieldsFlat.length === 0) {
 			finalFieldsFlat.push({
@@ -636,7 +646,7 @@ export class MySqlDialect {
 				finalFieldsFlat.push({
 					path: ['__drizzle_row_number'],
 					field: sql`row_number() over(partition by ${relationColumns.map((c) => aliasedTableColumn(c, tableAlias))}${
-						(orderBy.length > 0 && !isRoot) ? sql` order by ${sql.join(orderBy, sql`, `)}` : sql``
+						(orderBy.length > 0 && !isRoot) ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined
 					})`
 						.as('__drizzle_row_number'),
 				});
@@ -647,33 +657,23 @@ export class MySqlDialect {
 			table: aliasedTable(table, tableAlias),
 			fields: {},
 			fieldsFlat: initialFieldsFlat,
-			where,
+			where: initialWhere,
 			groupBy,
 			orderBy: [],
 			joins,
 			withList: [],
 		});
+
+		let where;
 		if (config.where) {
 			const whereSql = typeof config.where === 'function' ? config.where(aliasedFields, operators) : config.where;
-			const where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
-			result = this.buildSelectQuery({
-				table: new Subquery(result, {}, tableAlias),
-				fields: {},
-				fieldsFlat: [{
-					path: [],
-					field: sql`${sql.identifier(tableAlias)}.*`,
-				}],
-				where,
-				groupBy: [],
-				orderBy: [],
-				joins: [],
-				withList: [],
-			});
+			where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 		}
 		result = this.buildSelectQuery({
 			table: new Subquery(result, {}, tableAlias),
 			fields: {},
 			fieldsFlat: finalFieldsFlat,
+			where,
 			groupBy: [],
 			orderBy: isRoot ? orderBy : [],
 			joins: [],

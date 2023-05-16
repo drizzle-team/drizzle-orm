@@ -7,7 +7,7 @@ import * as schema from './mysql.schema';
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
-const ENABLE_LOGGING = true;
+const ENABLE_LOGGING = false;
 
 /*
 	Test cases:
@@ -29,7 +29,6 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-	console.log('here');
 	await db.execute(sql`drop table if exists \`users\``);
 	await db.execute(sql`drop table if exists \`groups\``);
 	await db.execute(sql`drop table if exists \`users_to_groups\``);

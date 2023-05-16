@@ -69,9 +69,12 @@ beforeAll(async () => {
 	let lastError: unknown | undefined;
 	do {
 		try {
-			client = postgres(connectionString);
+			client = postgres(connectionString, {
+				onnotice: () => {
+					// disable notices
+				},
+			});
 			connected = true;
-			console.log('connected');
 			break;
 		} catch (e) {
 			lastError = e;
@@ -89,10 +92,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-	console.log('deleting');
 	await client?.end().catch(console.error);
 	await pgContainer?.stop().catch(console.error);
-	console.log('deleted');
 });
 
 beforeEach(async (ctx) => {
@@ -3638,8 +3639,6 @@ test('Get user with invitee and posts + limit posts and users + where', async (t
 		}[]
 	>();
 
-	console.log(JSON.stringify(response, null, 2));
-
 	expect(response.length).eq(1);
 
 	expect(response[0]?.invitee).not.toBeNull();
@@ -4057,8 +4056,6 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 	}[]>();
 
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
-
-	console.log(JSON.stringify(response, null, 2));
 
 	expect(response.length).eq(3);
 	expect(response[0]?.posts.length).eq(1);

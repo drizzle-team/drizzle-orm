@@ -188,9 +188,7 @@ export type DBQueryConfig<
 			& (TIsRoot extends true ? {
 					offset?: number | Placeholder;
 				}
-				: {
-					offset?: DrizzleTypeError<'Offset is not allowed in nested queries'>;
-				})
+				: {})
 		: {});
 export interface TableRelationalConfig {
 	tsName: string;

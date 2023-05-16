@@ -404,7 +404,7 @@ export class PgDialect {
 		tableNamesMap: Record<string, string>,
 		table: AnyPgTable,
 		tableConfig: TableRelationalConfig,
-		config: true | DBQueryConfig<'many'>,
+		config: true | DBQueryConfig<'many', true>,
 		tableAlias: string,
 		relationColumns: AnyColumn[],
 		isRoot = false,
