@@ -927,23 +927,36 @@ test('[Find Many] Get only custom fields', async () => {
 	expect(usersWithPosts[1]?.posts.length).toEqual(2);
 	expect(usersWithPosts[2]?.posts.length).toEqual(2);
 
-	expect(usersWithPosts).toContainEqual({
-		lowerName: 'dan',
-		posts: [{ lowerName: 'post1' }, {
-			lowerName: 'post1.2',
-		}, { lowerName: 'post1.3' }],
+	expect(usersWithPosts[0]?.lowerName).toEqual('dan');
+	expect(usersWithPosts[1]?.lowerName).toEqual('andrew');
+	expect(usersWithPosts[2]?.lowerName).toEqual('alex');
+
+	expect(usersWithPosts[0]?.posts).toContainEqual({
+		lowerName: 'post1',
 	});
-	expect(usersWithPosts).toContainEqual({
-		lowerName: 'andrew',
-		posts: [{ lowerName: 'post2' }, {
-			lowerName: 'post2.1',
-		}],
+
+	expect(usersWithPosts[0]?.posts).toContainEqual({
+		lowerName: 'post1.2',
 	});
-	expect(usersWithPosts).toContainEqual({
-		lowerName: 'alex',
-		posts: [{ lowerName: 'post3' }, {
-			lowerName: 'post3.1',
-		}],
+
+	expect(usersWithPosts[0]?.posts).toContainEqual({
+		lowerName: 'post1.3',
+	});
+
+	expect(usersWithPosts[1]?.posts).toContainEqual({
+		lowerName: 'post2',
+	});
+
+	expect(usersWithPosts[1]?.posts).toContainEqual({
+		lowerName: 'post2.1',
+	});
+
+	expect(usersWithPosts[2]?.posts).toContainEqual({
+		lowerName: 'post3',
+	});
+
+	expect(usersWithPosts[2]?.posts).toContainEqual({
+		lowerName: 'post3.1',
 	});
 });
 
@@ -1138,11 +1151,18 @@ test('[Find One] Get only custom fields', async () => {
 
 	expect(usersWithPosts?.posts.length).toEqual(3);
 
-	expect(usersWithPosts).toEqual({
-		lowerName: 'dan',
-		posts: [{ lowerName: 'post1' }, {
-			lowerName: 'post1.2',
-		}, { lowerName: 'post1.3' }],
+	expect(usersWithPosts?.lowerName).toEqual('dan');
+
+	expect(usersWithPosts?.posts).toContainEqual({
+		lowerName: 'post1',
+	});
+
+	expect(usersWithPosts?.posts).toContainEqual({
+		lowerName: 'post1.2',
+	});
+
+	expect(usersWithPosts?.posts).toContainEqual({
+		lowerName: 'post1.3',
 	});
 });
 
@@ -1578,7 +1598,7 @@ test('[Find Many] Get users with posts + prepared limit + offset', async () => {
 	});
 });
 
-test.only('[Find Many] Get users with posts + prepared where', async () => {
+test('[Find Many] Get users with posts + prepared where', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1906,18 +1926,31 @@ test('[Find One] Get users with posts + custom fields', async () => {
 
 	expect(usersWithPosts!.posts.length).toEqual(3);
 
-	expect(usersWithPosts).toEqual({
+	expect(usersWithPosts?.lowerName).toEqual('dan');
+	expect(usersWithPosts?.id).toEqual(1);
+	expect(usersWithPosts?.verified).toEqual(false);
+	expect(usersWithPosts?.invitedBy).toEqual(null);
+	expect(usersWithPosts?.name).toEqual('Dan');
+
+	expect(usersWithPosts?.posts).toContainEqual({
 		id: 1,
-		name: 'Dan',
-		verified: false,
-		invitedBy: null,
-		lowerName: 'dan',
-		posts: [{ id: 1, ownerId: 1, content: 'Post1', createdAt: usersWithPosts?.posts[0]?.createdAt }, {
-			id: 2,
-			ownerId: 1,
-			content: 'Post1.2',
-			createdAt: usersWithPosts?.posts[1]?.createdAt,
-		}, { id: 3, ownerId: 1, content: 'Post1.3', createdAt: usersWithPosts?.posts[2]?.createdAt }],
+		ownerId: 1,
+		content: 'Post1',
+		createdAt: usersWithPosts?.posts[0]?.createdAt,
+	});
+
+	expect(usersWithPosts?.posts).toContainEqual({
+		id: 2,
+		ownerId: 1,
+		content: 'Post1.2',
+		createdAt: usersWithPosts?.posts[1]?.createdAt,
+	});
+
+	expect(usersWithPosts?.posts).toContainEqual({
+		id: 3,
+		ownerId: 1,
+		content: 'Post1.3',
+		createdAt: usersWithPosts?.posts[2]?.createdAt,
 	});
 });
 
@@ -3163,6 +3196,10 @@ test('Get user with invitee and posts + custom fields in each', async () => {
 	>();
 
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	response[0]?.posts.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	response[1]?.posts.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	response[2]?.posts.sort((a, b) => (a.id > b.id) ? 1 : -1);
 
 	expect(response.length).eq(4);
 
