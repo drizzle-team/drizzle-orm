@@ -18,7 +18,7 @@ const db = drizzle(pdb, { schema });
 			posts: {
 				where: (posts, { sql }) => sql`char_length(${posts.title} > 1)`,
 				limit: placeholder('l'),
-				fields: {
+				columns: {
 					id: false,
 					title: undefined,
 				},
@@ -27,12 +27,12 @@ const db = drizzle(pdb, { schema });
 					comments: {
 						where: (comments, { sql }) => sql`char_length(${comments.text} > 1)`,
 						limit: placeholder('l'),
-						fields: {
+						columns: {
 							text: true,
 						},
 						with: {
 							author: {
-								fields: {
+								columns: {
 									id: undefined,
 								},
 								with: {
@@ -90,13 +90,13 @@ const db = drizzle(pdb, { schema });
 
 {
 	const result = await db.query.users.findMany({
-		fields: {
+		columns: {
 			id: true,
 			name: true,
 		},
 		with: {
 			posts: {
-				fields: {
+				columns: {
 					authorId: true,
 				},
 				extras: {

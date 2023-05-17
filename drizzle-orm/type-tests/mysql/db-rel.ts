@@ -14,22 +14,27 @@ const db = drizzle(pdb, { schema });
 		where: (users, { sql }) => sql`char_length(${users.name} > 1)`,
 		limit: placeholder('l'),
 		orderBy: (users, { asc, desc }) => [asc(users.name), desc(users.id)],
-		include: {
+		with: {
 			posts: {
 				where: (posts, { sql }) => sql`char_length(${posts.title} > 1)`,
 				limit: placeholder('l'),
-				select: {
+				columns: {
 					id: false,
+				},
+				with: {
 					author: true,
 					comments: {
 						where: (comments, { sql }) => sql`char_length(${comments.text} > 1)`,
 						limit: placeholder('l'),
-						select: {
+						columns: {
 							text: true,
+						},
+						with: {
 							author: {
-								select: {
+								columns: {},
+								with: {
 									city: {
-										include: {
+										with: {
 											users: true,
 										},
 									},
@@ -82,14 +87,16 @@ const db = drizzle(pdb, { schema });
 
 {
 	const result = await db.query.users.findMany({
-		select: {
+		columns: {
 			id: true,
 			name: true,
+		},
+		with: {
 			posts: {
-				select: {
+				columns: {
 					authorId: true,
 				},
-				includeCustom: {
+				extras: {
 					lower: sql<string>`lower(${schema.posts.title})`.as('lower_name'),
 				},
 			},
