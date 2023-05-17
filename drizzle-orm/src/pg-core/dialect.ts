@@ -454,10 +454,10 @@ export class PgDialect {
 		let selectedExtras: { key: string; value: SQL.Aliased }[] = [];
 		let selectedRelations: { key: string; value: true | DBQueryConfig<'many', false> }[] = [];
 
-		if (config.fields) {
+		if (config.columns) {
 			let isIncludeMode = false;
 
-			for (const [field, value] of Object.entries(config.fields)) {
+			for (const [field, value] of Object.entries(config.columns)) {
 				if (value === undefined) {
 					continue;
 				}
@@ -472,7 +472,7 @@ export class PgDialect {
 
 			if (selectedColumns.length > 0) {
 				selectedColumns = isIncludeMode
-					? selectedColumns.filter((c) => config.fields?.[c] === true)
+					? selectedColumns.filter((c) => config.columns?.[c] === true)
 					: Object.keys(tableConfig.columns).filter((key) => !selectedColumns.includes(key));
 			}
 		}
@@ -483,7 +483,7 @@ export class PgDialect {
 				.map(([key, value]) => ({ key, value }));
 		}
 
-		if (!config.fields) {
+		if (!config.columns) {
 			selectedColumns = Object.keys(tableConfig.columns);
 		}
 

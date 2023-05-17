@@ -191,7 +191,7 @@ export type DBQueryConfig<
 	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
 > =
 	& {
-		fields?: {
+		columns?: {
 			[K in keyof TTableConfig['columns']]?: boolean;
 		};
 		with?: {
@@ -288,27 +288,27 @@ export type BuildQueryResult<
 	TFullSelection extends true | Record<string, unknown>,
 > = Equal<TFullSelection, true> extends true ? InferModelFromColumns<TTableConfig['columns']>
 	: TFullSelection extends Record<string, unknown> ? (SimplifyShallow<
-			& (TFullSelection['fields'] extends Record<string, unknown> ? InferModelFromColumns<
+			& (TFullSelection['columns'] extends Record<string, unknown> ? InferModelFromColumns<
 					{
 						[
 							K in (Equal<
 								Exclude<
-									TFullSelection['fields'][keyof TFullSelection['fields'] & keyof TTableConfig['columns']],
+									TFullSelection['columns'][keyof TFullSelection['columns'] & keyof TTableConfig['columns']],
 									undefined
 								>,
 								false
-							> extends true ? Exclude<keyof TTableConfig['columns'], NonUndefinedKeysOnly<TFullSelection['fields']>>
+							> extends true ? Exclude<keyof TTableConfig['columns'], NonUndefinedKeysOnly<TFullSelection['columns']>>
 								: 
 									& {
-										[K in keyof TFullSelection['fields']]: Equal<TFullSelection['fields'][K], true> extends true ? K
+										[K in keyof TFullSelection['columns']]: Equal<TFullSelection['columns'][K], true> extends true ? K
 											: never;
-									}[keyof TFullSelection['fields']]
+									}[keyof TFullSelection['columns']]
 									& keyof TTableConfig['columns'])
 						]: TTableConfig['columns'][K];
 					}
 				>
 				: InferModelFromColumns<TTableConfig['columns']>)
-			& (TFullSelection['extras'] extends Record<string, unknown> ? {
+			& (TFullSelection['extras'] extends Record<string, unknown> | ((...args: any[]) => Record<string, unknown>) ? {
 					[K in NonUndefinedKeysOnly<ReturnTypeOrValue<TFullSelection['extras']>>]: Assume<
 						ReturnTypeOrValue<TFullSelection['extras']>[K],
 						SQL.Aliased
