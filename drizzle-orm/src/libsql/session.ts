@@ -136,8 +136,30 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		});
 	}
 
-	get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
-		return this.all(placeholderValues).then((rows) => rows[0]);
+	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
+		const { fields, joinsNotNullableMap, logger, queryString, tx, client, customResultMapper } = this;
+		if (!fields && !customResultMapper) {
+			const params = fillPlaceholders(this.params, placeholderValues ?? {});
+			logger.logQuery(queryString, params);
+			const stmt: InStatement = { sql: queryString, args: params as InArgs };
+			return (tx ? tx.execute(stmt) : client.execute(stmt)).then(({ rows }) => rows.map((row) => normalizeRow(row)));
+		}
+
+		const rows = await this.values(placeholderValues);
+
+		if (!rows[0]) {
+			return undefined;
+		}
+
+		if (customResultMapper) {
+			return customResultMapper(rows, normalizeFieldValue) as T['get'];
+		}
+
+		return mapResultRow(
+			fields!,
+			Array.prototype.slice.call(rows[0]).map((v) => normalizeFieldValue(v)),
+			joinsNotNullableMap,
+		);
 	}
 
 	values(placeholderValues?: Record<string, unknown>): Promise<T['values']> {

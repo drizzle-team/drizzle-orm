@@ -119,9 +119,25 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
-	get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
-		// TODO: implement using stmt.get()
-		return this.all(placeholderValues).then((rows) => rows[0]);
+	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
+		const { fields, joinsNotNullableMap, queryString, logger, stmt, customResultMapper } = this;
+		if (!fields && !customResultMapper) {
+			const params = fillPlaceholders(this.params, placeholderValues ?? {});
+			logger.logQuery(queryString, params);
+			return stmt.bind(...params).all().then(({ results }) => results!);
+		}
+
+		const rows = await this.values(placeholderValues);
+
+		if (!rows[0]) {
+			return undefined;
+		}
+
+		if (customResultMapper) {
+			return customResultMapper(rows) as T['all'];
+		}
+
+		return mapResultRow(fields!, rows[0], joinsNotNullableMap);
 	}
 
 	values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {
