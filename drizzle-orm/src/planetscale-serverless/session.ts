@@ -11,8 +11,7 @@ import {
 	type PreparedQueryHKT,
 	type QueryResultHKT,
 } from '~/mysql-core/session';
-import { type RelationalSchemaConfig } from '~/pg-core';
-import { type TablesRelationalConfig } from '~/relations';
+import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql';
 import { type Assume, mapResultRow } from '~/utils';
 
@@ -62,8 +61,8 @@ export interface PlanetscaleSessionOptions {
 }
 
 export class PlanetscaleSession<
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends TablesRelationalConfig = Record<string, never>,
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
 > extends MySqlSession<PlanetscaleQueryResultHKT, PlanetScalePreparedQueryHKT, TFullSchema, TSchema> {
 	private logger: Logger;
 	private client: PlanetScaleConnection | Transaction;
@@ -119,8 +118,8 @@ export class PlanetscaleSession<
 }
 
 export class PlanetScaleTransaction<
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends TablesRelationalConfig = Record<string, never>,
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
 > extends MySqlTransaction<PlanetscaleQueryResultHKT, PlanetScalePreparedQueryHKT, TFullSchema, TSchema> {
 	override async transaction<T>(
 		transaction: (tx: PlanetScaleTransaction<TFullSchema, TSchema>) => Promise<T>,

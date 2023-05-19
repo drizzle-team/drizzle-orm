@@ -123,67 +123,6 @@ export type FindTableByDBName<TSchema extends TablesRelationalConfig, TTableName
 	}
 >;
 
-// export type DBQueryConfig<
-// 	TRelationType extends 'one' | 'many' = 'one' | 'many',
-// 	TIsRoot extends boolean = boolean,
-// 	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
-// 	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
-// > =
-// 	& {
-// 		select?:
-// 			& {
-// 				[K in keyof TTableConfig['columns']]?: boolean;
-// 			}
-// 			& {
-// 				[K in keyof TTableConfig['relations']]?:
-// 					| true
-// 					| DBQueryConfig<
-// 						TTableConfig['relations'][K] extends One ? 'one' : 'many',
-// 						false,
-// 						TSchema,
-// 						FindTableByDBName<TSchema, TTableConfig['relations'][K]['referencedTableName']>
-// 					>;
-// 			};
-// 		include?: {
-// 			[K in keyof TTableConfig['relations']]?:
-// 				| true
-// 				| DBQueryConfig<
-// 					TTableConfig['relations'][K] extends One ? 'one' : 'many',
-// 					false,
-// 					TSchema,
-// 					FindTableByDBName<TSchema, TTableConfig['relations'][K]['referencedTableName']>
-// 				>;
-// 		};
-// 		includeCustom?:
-// 			| Record<string, SQL.Aliased>
-// 			| ((
-// 				fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
-// 				operators: { sql: Operators['sql'] },
-// 			) => Record<string, SQL.Aliased>);
-// 	}
-// 	& (TRelationType extends 'many' ?
-// 			& {
-// 				where?:
-// 					| SQL
-// 					| undefined
-// 					| ((
-// 						fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
-// 						operators: Operators,
-// 					) => SQL | undefined);
-// 				orderBy?:
-// 					| ValueOrArray<AnyColumn | SQL>
-// 					| ((
-// 						fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
-// 						operators: OrderByOperators,
-// 					) => ValueOrArray<AnyColumn | SQL>);
-// 				limit?: number | Placeholder;
-// 			}
-// 			& (TIsRoot extends true ? {
-// 					offset?: number | Placeholder;
-// 				}
-// 				: {})
-// 		: {});
-
 export type DBQueryConfig<
 	TRelationType extends 'one' | 'many' = 'one' | 'many',
 	TIsRoot extends boolean = boolean,
@@ -243,6 +182,12 @@ export interface TableRelationalConfig {
 }
 
 export type TablesRelationalConfig = Record<string, TableRelationalConfig>;
+
+export interface RelationalSchemaConfig<TSchema extends TablesRelationalConfig> {
+	fullSchema: Record<string, unknown>;
+	schema: TSchema;
+	tableNamesMap: Record<string, string>;
+}
 
 export type ExtractTablesWithRelations<TSchema extends Record<string, unknown>> = {
 	[K in keyof TSchema as TSchema[K] extends Table ? K : never]: TSchema[K] extends Table ? {
@@ -548,14 +493,18 @@ export function mapRelationalRow(
 	tableConfig: TableRelationalConfig,
 	row: unknown[],
 	buildQueryResultSelection: BuildRelationalQueryResult['selection'],
+	jsonParseRelationalFields = false,
 ): Record<string, unknown> {
 	const result: Record<string, unknown> = {};
 
 	for (const [selectionItemIndex, selectionItem] of buildQueryResultSelection.entries()) {
 		if (selectionItem.isJson) {
 			const relation = tableConfig.relations[selectionItem.tsKey]!;
+			let subRows = row[selectionItemIndex] as unknown[][];
+			if (jsonParseRelationalFields) {
+				subRows = JSON.parse(subRows as unknown as string);
+			}
 			if (relation instanceof One) {
-				const subRows = row[selectionItemIndex] as unknown[][];
 				result[selectionItem.tsKey] = subRows[0]
 					? mapRelationalRow(
 						tablesConfig,
@@ -565,7 +514,7 @@ export function mapRelationalRow(
 					)
 					: null;
 			} else {
-				result[selectionItem.tsKey] = (row[selectionItemIndex] as unknown[]).map((subRow) =>
+				result[selectionItem.tsKey] = (subRows as unknown[]).map((subRow) =>
 					mapRelationalRow(
 						tablesConfig,
 						tablesConfig[selectionItem.tableTsKey!]!,

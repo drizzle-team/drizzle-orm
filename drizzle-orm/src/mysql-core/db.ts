@@ -1,7 +1,6 @@
 import type { ResultSetHeader } from 'mysql2/promise';
-import { type RelationalSchemaConfig } from '~/pg-core';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder';
-import { type ExtractTablesWithRelations, type TablesRelationalConfig } from '~/relations';
+import { type ExtractTablesWithRelations, type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import type { SQLWrapper } from '~/sql';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
 import { type ColumnsSelection } from '~/view';

@@ -32,7 +32,7 @@ export class SQLiteInsertBuilder<
 > {
 	constructor(
 		protected table: TTable,
-		protected session: SQLiteSession,
+		protected session: SQLiteSession<any, any, any, any>,
 		protected dialect: SQLiteDialect,
 	) {}
 
@@ -89,7 +89,7 @@ export class SQLiteInsert<
 	constructor(
 		table: TTable,
 		values: SQLiteInsertConfig['values'],
-		private session: SQLiteSession,
+		private session: SQLiteSession<any, any, any, any>,
 		private dialect: SQLiteDialect,
 	) {
 		this.config = { table, values };

@@ -1,8 +1,13 @@
 import type { Sql } from 'postgres';
 import { DefaultLogger } from '~/logger';
-import { PgDatabase, type RelationalSchemaConfig } from '~/pg-core/db';
+import { PgDatabase } from '~/pg-core/db';
 import { PgDialect } from '~/pg-core/dialect';
-import { createTableRelationsHelpers, extractTablesRelationalConfig, type TablesRelationalConfig } from '~/relations';
+import {
+	createTableRelationsHelpers,
+	extractTablesRelationalConfig,
+	type RelationalSchemaConfig,
+	type TablesRelationalConfig,
+} from '~/relations';
 import { type DrizzleConfig } from '~/utils';
 import type { PostgresJsQueryResultHKT } from './session';
 import { PostgresJsSession } from './session';

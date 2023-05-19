@@ -1,8 +1,13 @@
 import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
-import { PgDatabase, type RelationalSchemaConfig } from '~/pg-core/db';
+import { PgDatabase } from '~/pg-core/db';
 import { PgDialect } from '~/pg-core/dialect';
-import { createTableRelationsHelpers, extractTablesRelationalConfig, type TablesRelationalConfig } from '~/relations';
+import {
+	createTableRelationsHelpers,
+	extractTablesRelationalConfig,
+	type RelationalSchemaConfig,
+	type TablesRelationalConfig,
+} from '~/relations';
 import { type DrizzleConfig } from '~/utils';
 import type { AwsDataApiClient, AwsDataApiPgQueryResultHKT } from './session';
 import { AwsDataApiSession } from './session';

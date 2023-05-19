@@ -1,10 +1,13 @@
 import { type Connection as CallbackConnection, type Pool as CallbackPool } from 'mysql2';
 import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
-import { type MySqlSession } from '~/mysql-core';
 import { MySqlDialect } from '~/mysql-core/dialect';
-import { type RelationalSchemaConfig } from '~/pg-core';
-import { createTableRelationsHelpers, extractTablesRelationalConfig, type TablesRelationalConfig } from '~/relations';
+import {
+	createTableRelationsHelpers,
+	extractTablesRelationalConfig,
+	type RelationalSchemaConfig,
+	type TablesRelationalConfig,
+} from '~/relations';
 import { type DrizzleConfig } from '~/utils';
 import { MySqlDatabase } from '.';
 import type { MySql2Client, MySql2PreparedQueryHKT, MySql2QueryResultHKT } from './session';
@@ -22,8 +25,10 @@ export class MySql2Driver {
 	) {
 	}
 
-	createSession(schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined): MySql2Session {
-		return new MySql2Session(this.client, this.dialect, schema, { logger: this.options.logger }) as MySql2Session;
+	createSession(
+		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
+	): MySql2Session<Record<string, unknown>, TablesRelationalConfig> {
+		return new MySql2Session(this.client, this.dialect, schema, { logger: this.options.logger });
 	}
 }
 
@@ -63,7 +68,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 
 	const driver = new MySql2Driver(client as MySql2Client, dialect, { logger });
 	const session = driver.createSession(schema);
-	return new MySqlDatabase(dialect, session as MySqlSession, schema) as MySql2Database<TSchema>;
+	return new MySqlDatabase(dialect, session, schema) as MySql2Database<TSchema>;
 }
 
 interface CallbackClient {

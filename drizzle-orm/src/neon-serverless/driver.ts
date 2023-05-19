@@ -1,9 +1,14 @@
 import { types } from '@neondatabase/serverless';
 import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
-import { PgDatabase, type RelationalSchemaConfig } from '~/pg-core/db';
+import { PgDatabase } from '~/pg-core/db';
 import { PgDialect } from '~/pg-core/dialect';
-import { createTableRelationsHelpers, extractTablesRelationalConfig, type TablesRelationalConfig } from '~/relations';
+import {
+	createTableRelationsHelpers,
+	extractTablesRelationalConfig,
+	type RelationalSchemaConfig,
+	type TablesRelationalConfig,
+} from '~/relations';
 import { type DrizzleConfig } from '~/utils';
 import type { NeonClient, NeonQueryResultHKT } from './session';
 import { NeonSession } from './session';
@@ -21,8 +26,10 @@ export class NeonDriver {
 		this.initMappers();
 	}
 
-	createSession(schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined): NeonSession {
-		return new NeonSession(this.client, this.dialect, schema, { logger: this.options.logger }) as NeonSession;
+	createSession(
+		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
+	): NeonSession<Record<string, unknown>, TablesRelationalConfig> {
+		return new NeonSession(this.client, this.dialect, schema, { logger: this.options.logger });
 	}
 
 	initMappers() {

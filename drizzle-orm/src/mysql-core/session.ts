@@ -1,6 +1,5 @@
 import { TransactionRollbackError } from '~/errors';
-import { type RelationalSchemaConfig } from '~/pg-core';
-import { type TablesRelationalConfig } from '~/relations';
+import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import { type Query, type SQL, sql } from '~/sql';
 import { type Assume, type Equal } from '~/utils';
 import { MySqlDatabase } from './db';

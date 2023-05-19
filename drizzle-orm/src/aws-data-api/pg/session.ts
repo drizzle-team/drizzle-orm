@@ -14,10 +14,9 @@ import {
 	PreparedQuery,
 	type PreparedQueryConfig,
 	type QueryResultHKT,
-	type RelationalSchemaConfig,
 } from '~/pg-core';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
-import { type TablesRelationalConfig } from '~/relations';
+import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import { fillPlaceholders, type Query, type QueryTypingsValue, type SQL, sql } from '~/sql';
 import { mapResultRow } from '~/utils';
 import { getValueFromDataApi, toValueParam } from '../common';
@@ -103,8 +102,8 @@ interface AwsDataApiQueryBase {
 }
 
 export class AwsDataApiSession<
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends TablesRelationalConfig = Record<string, never>,
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
 > extends PgSession<AwsDataApiPgQueryResultHKT, TFullSchema, TSchema> {
 	/** @internal */
 	readonly rawQuery: AwsDataApiQueryBase;
@@ -174,8 +173,8 @@ export class AwsDataApiSession<
 }
 
 export class AwsDataApiTransaction<
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends TablesRelationalConfig = Record<string, never>,
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<AwsDataApiPgQueryResultHKT, TFullSchema, TSchema> {
 	override transaction<T>(transaction: (tx: AwsDataApiTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;

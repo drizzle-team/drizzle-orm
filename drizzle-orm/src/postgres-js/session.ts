@@ -1,12 +1,12 @@
 import type { Row, RowList, Sql, TransactionSql } from 'postgres';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
-import { PgTransaction, type RelationalSchemaConfig } from '~/pg-core';
+import { PgTransaction } from '~/pg-core';
 import type { PgDialect } from '~/pg-core/dialect';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
 import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
 import { PgSession, PreparedQuery } from '~/pg-core/session';
-import { type TablesRelationalConfig } from '~/relations';
+import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import { fillPlaceholders, type Query } from '~/sql';
 import { type Assume, mapResultRow } from '~/utils';
 
@@ -57,9 +57,9 @@ export interface PostgresJsSessionOptions {
 }
 
 export class PostgresJsSession<
-	TSQL extends Sql = Sql,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends TablesRelationalConfig = Record<string, never>,
+	TSQL extends Sql,
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
 > extends PgSession<PostgresJsQueryResultHKT, TFullSchema, TSchema> {
 	logger: Logger;
 
@@ -116,8 +116,8 @@ export class PostgresJsSession<
 }
 
 export class PostgresJsTransaction<
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends TablesRelationalConfig = Record<string, never>,
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<PostgresJsQueryResultHKT, TFullSchema, TSchema> {
 	constructor(
 		dialect: PgDialect,

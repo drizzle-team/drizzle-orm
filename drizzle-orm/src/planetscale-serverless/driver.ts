@@ -1,11 +1,14 @@
 import type { Connection } from '@planetscale/database';
 import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
-import { type MySqlSession } from '~/mysql-core';
 import { MySqlDatabase } from '~/mysql-core/db';
 import { MySqlDialect } from '~/mysql-core/dialect';
-import { type RelationalSchemaConfig } from '~/pg-core';
-import { createTableRelationsHelpers, extractTablesRelationalConfig, type TablesRelationalConfig } from '~/relations';
+import {
+	createTableRelationsHelpers,
+	extractTablesRelationalConfig,
+	type RelationalSchemaConfig,
+	type TablesRelationalConfig,
+} from '~/relations';
 import { type DrizzleConfig } from '~/utils';
 import type { PlanetScalePreparedQueryHKT, PlanetscaleQueryResultHKT } from './session';
 import { PlanetscaleSession } from './session';
@@ -43,6 +46,6 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const session = new PlanetscaleSession(client, dialect, undefined, schema, { logger }) as PlanetscaleSession;
-	return new MySqlDatabase(dialect, session as MySqlSession, schema) as PlanetScaleDatabase<TSchema>;
+	const session = new PlanetscaleSession(client, dialect, undefined, schema, { logger });
+	return new MySqlDatabase(dialect, session, schema) as PlanetScaleDatabase<TSchema>;
 }

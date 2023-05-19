@@ -24,8 +24,7 @@ import {
 	type PreparedQueryKind,
 	type QueryResultHKT,
 } from '~/mysql-core/session';
-import { type RelationalSchemaConfig } from '~/pg-core';
-import { type TablesRelationalConfig } from '~/relations';
+import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql';
 import { type Assume, mapResultRow } from '~/utils';
 
@@ -150,8 +149,8 @@ export interface MySql2SessionOptions {
 }
 
 export class MySql2Session<
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends TablesRelationalConfig = Record<string, never>,
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
 > extends MySqlSession<MySql2QueryResultHKT, MySql2PreparedQueryHKT, TFullSchema, TSchema> {
 	private logger: Logger;
 
@@ -240,8 +239,8 @@ export class MySql2Session<
 }
 
 export class MySql2Transaction<
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends TablesRelationalConfig = Record<string, never>,
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
 > extends MySqlTransaction<MySql2QueryResultHKT, MySql2PreparedQueryHKT, TFullSchema, TSchema> {
 	override async transaction<T>(transaction: (tx: MySql2Transaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;

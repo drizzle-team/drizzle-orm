@@ -1,6 +1,7 @@
 import { type Client, type InArgs, type InStatement, type ResultSet, type Transaction } from '@libsql/client';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
+import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql';
 import { SQLiteTransaction } from '~/sqlite-core';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
@@ -18,12 +19,16 @@ export interface LibSQLSessionOptions {
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
-export class LibSQLSession extends SQLiteSession<'async', ResultSet> {
+export class LibSQLSession<
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
+> extends SQLiteSession<'async', ResultSet, TFullSchema, TSchema> {
 	private logger: Logger;
 
 	constructor(
 		private client: Client,
 		dialect: SQLiteAsyncDialect,
+		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		private options: LibSQLSessionOptions,
 		private tx: Transaction | undefined,
 	) {
@@ -47,13 +52,13 @@ export class LibSQLSession extends SQLiteSession<'async', ResultSet> {
 	}
 
 	override async transaction<T>(
-		transaction: (db: LibSQLTransaction) => T | Promise<T>,
+		transaction: (db: LibSQLTransaction<TFullSchema, TSchema>) => T | Promise<T>,
 		_config?: SQLiteTransactionConfig,
 	): Promise<T> {
 		// TODO: support transaction behavior
 		const libsqlTx = await this.client.transaction();
-		const session = new LibSQLSession(this.client, this.dialect, this.options, libsqlTx);
-		const tx = new LibSQLTransaction(this.dialect, session);
+		const session = new LibSQLSession(this.client, this.dialect, this.schema, this.options, libsqlTx);
+		const tx = new LibSQLTransaction('async', this.dialect, session, this.schema);
 		try {
 			const result = await transaction(tx);
 			await libsqlTx.commit();
@@ -65,10 +70,13 @@ export class LibSQLSession extends SQLiteSession<'async', ResultSet> {
 	}
 }
 
-export class LibSQLTransaction extends SQLiteTransaction<'async', ResultSet> {
-	override async transaction<T>(transaction: (tx: LibSQLTransaction) => Promise<T>): Promise<T> {
+export class LibSQLTransaction<
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
+> extends SQLiteTransaction<'async', ResultSet, TFullSchema, TSchema> {
+	override async transaction<T>(transaction: (tx: LibSQLTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex}`;
-		const tx = new LibSQLTransaction(this.dialect, this.session, this.nestedIndex + 1);
+		const tx = new LibSQLTransaction('async', this.dialect, this.session, this.schema, this.nestedIndex + 1);
 		await this.session.run(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);

@@ -1,25 +1,28 @@
 import 'dotenv/config';
+import Database from 'better-sqlite3';
 import { sql } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/mysql2';
-import * as mysql from 'mysql2/promise';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
 import util from 'node:util';
 import * as schema from './tables';
 
 async function main() {
-	const mdb = await mysql.createConnection(process.env['MYSQL_CONNECTION_STRING']!);
-	await mdb.connect();
-	const db = drizzle(mdb, { schema, logger: true });
+	const bdb = new Database(process.env['SQLITE_DB_PATH']!);
+	const db = drizzle(bdb, { schema, logger: true });
 
-	const result = await db.query.users.findMany({
-		select: {
+	const result = db.query.users.findMany({
+		columns: {
 			id: true,
 			name: true,
+		},
+		with: {
 			posts: {
-				select: {
+				columns: {
 					authorId: true,
+				},
+				with: {
 					comments: true,
 				},
-				includeCustom: {
+				extras: {
 					lower: sql<string>`lower(${schema.posts.title})`.as('lower_name'),
 				},
 			},
@@ -27,7 +30,7 @@ async function main() {
 	});
 
 	console.log(util.inspect(result, false, null, true));
-	await mdb.end();
+	bdb.close();
 }
 
 main();

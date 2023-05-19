@@ -269,7 +269,7 @@ export type ColumnsWithTable<
 	TColumns extends AnyColumn<{ tableName: TTableName }>[],
 > = { [Key in keyof TColumns]: AnyColumn<{ tableName: TForeignTableName }> };
 
-export interface DrizzleConfig<TSchema extends Record<string, unknown> = {}> {
+export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> {
 	logger?: boolean | Logger;
 	schema?: TSchema;
 }

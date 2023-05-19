@@ -3,7 +3,7 @@ import { PgDelete, PgInsertBuilder, PgSelectBuilder, PgUpdateBuilder, QueryBuild
 import type { PgSession, PgTransaction, PgTransactionConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
 import { type AnyPgTable } from '~/pg-core/table';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder';
-import { type ExtractTablesWithRelations, type TablesRelationalConfig } from '~/relations';
+import { type ExtractTablesWithRelations, type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import { type SQLWrapper } from '~/sql';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
 import { type ColumnsSelection } from '~/view';
@@ -13,15 +13,9 @@ import type { SelectedFields } from './query-builders/select.types';
 import type { WithSubqueryWithSelection } from './subquery';
 import type { PgMaterializedView } from './view';
 
-export interface RelationalSchemaConfig<TSchema extends TablesRelationalConfig> {
-	fullSchema: Record<string, unknown>;
-	schema: TSchema;
-	tableNamesMap: Record<string, string>;
-}
-
 export class PgDatabase<
 	TQueryResult extends QueryResultHKT,
-	TFullSchema extends Record<string, unknown> = {},
+	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
 > {
 	declare readonly _: {

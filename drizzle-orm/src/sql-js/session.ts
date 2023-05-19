@@ -1,6 +1,7 @@
 import type { BindParams, Database, Statement } from 'sql.js';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
+import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import { fillPlaceholders, type Query, sql } from '~/sql';
 import { SQLiteTransaction } from '~/sqlite-core';
 import type { SQLiteSyncDialect } from '~/sqlite-core/dialect';
@@ -15,12 +16,16 @@ export interface SQLJsSessionOptions {
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
-export class SQLJsSession extends SQLiteSession<'sync', void> {
+export class SQLJsSession<
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
+> extends SQLiteSession<'sync', void, TFullSchema, TSchema> {
 	private logger: Logger;
 
 	constructor(
 		private client: Database,
 		dialect: SQLiteSyncDialect,
+		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		options: SQLJsSessionOptions = {},
 	) {
 		super(dialect);
@@ -43,8 +48,11 @@ export class SQLJsSession extends SQLiteSession<'sync', void> {
 		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields, true);
 	}
 
-	override transaction<T>(transaction: (tx: SQLJsTransaction) => T, config: SQLiteTransactionConfig = {}): T {
-		const tx = new SQLJsTransaction(this.dialect, this);
+	override transaction<T>(
+		transaction: (tx: SQLJsTransaction<TFullSchema, TSchema>) => T,
+		config: SQLiteTransactionConfig = {},
+	): T {
+		const tx = new SQLJsTransaction('sync', this.dialect, this, this.schema);
 		this.run(sql.raw(`begin${config.behavior ? ` ${config.behavior}` : ''}`));
 		try {
 			const result = transaction(tx);
@@ -57,10 +65,13 @@ export class SQLJsSession extends SQLiteSession<'sync', void> {
 	}
 }
 
-export class SQLJsTransaction extends SQLiteTransaction<'sync', void> {
-	override transaction<T>(transaction: (tx: SQLJsTransaction) => T): T {
+export class SQLJsTransaction<
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
+> extends SQLiteTransaction<'sync', void, TFullSchema, TSchema> {
+	override transaction<T>(transaction: (tx: SQLJsTransaction<TFullSchema, TSchema>) => T): T {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new SQLJsTransaction(this.dialect, this.session, this.nestedIndex + 1);
+		const tx = new SQLJsTransaction('sync', this.dialect, this.session, this.schema, this.nestedIndex + 1);
 		tx.run(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = transaction(tx);

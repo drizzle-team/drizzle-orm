@@ -1,9 +1,14 @@
 import pg from 'pg';
 import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
-import { PgDatabase, type RelationalSchemaConfig } from '~/pg-core/db';
+import { PgDatabase } from '~/pg-core/db';
 import { PgDialect } from '~/pg-core/dialect';
-import { createTableRelationsHelpers, extractTablesRelationalConfig, type TablesRelationalConfig } from '~/relations';
+import {
+	createTableRelationsHelpers,
+	extractTablesRelationalConfig,
+	type RelationalSchemaConfig,
+	type TablesRelationalConfig,
+} from '~/relations';
 import { type DrizzleConfig } from '~/utils';
 import type { NodePgClient, NodePgQueryResultHKT } from './session';
 import { NodePgSession } from './session';
@@ -23,8 +28,10 @@ export class NodePgDriver {
 		this.initMappers();
 	}
 
-	createSession(schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined): NodePgSession {
-		return new NodePgSession(this.client, this.dialect, schema, { logger: this.options.logger }) as NodePgSession;
+	createSession(
+		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
+	): NodePgSession<Record<string, unknown>, TablesRelationalConfig> {
+		return new NodePgSession(this.client, this.dialect, schema, { logger: this.options.logger });
 	}
 
 	initMappers() {

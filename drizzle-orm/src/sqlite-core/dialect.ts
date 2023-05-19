@@ -392,10 +392,7 @@ export abstract class SQLiteDialect {
 		if (config.with) {
 			selectedRelations = Object.entries(config.with)
 				.filter((entry): entry is [typeof entry[0], NonNullable<typeof entry[1]>] => !!entry[1])
-				.map(([key, value]) => ({
-					key,
-					value,
-				}));
+				.map(([key, value]) => ({ key, value }));
 		}
 
 		if (!config.columns) {
@@ -495,7 +492,7 @@ export abstract class SQLiteDialect {
 			};
 		});
 
-		const where = and(
+		const initialWhere = and(
 			...selectedRelations.filter(({ key }) => {
 				const relation = config.with?.[key];
 				return typeof relation === 'object' && (relation as DBQueryConfig<'many'>).limit !== undefined;
@@ -513,19 +510,6 @@ export abstract class SQLiteDialect {
 			)
 			: []) as AnySQLiteColumn[];
 
-		let orderByOrig = typeof config.orderBy === 'function'
-			? config.orderBy(aliasedFields, orderByOperators)
-			: config.orderBy ?? [];
-		if (!Array.isArray(orderByOrig)) {
-			orderByOrig = [orderByOrig];
-		}
-		const orderBy = orderByOrig.map((orderByValue) => {
-			if (orderByValue instanceof Column) {
-				return aliasedTableColumn(orderByValue, tableAlias) as AnySQLiteColumn;
-			}
-			return mapColumnsInSQLToAlias(orderByValue, tableAlias);
-		});
-
 		const finalFieldsFlat: SelectedFieldsOrdered = isRoot
 			? [
 				...finalFieldsSelection.map(({ path, field }) => ({
@@ -534,13 +518,30 @@ export abstract class SQLiteDialect {
 				})),
 				...builtRelationFields.map(({ path, field }) => ({
 					path,
-					field: sql`cast(${sql.identifier((field as SQL.Aliased).fieldAlias)} as json)`,
+					field: sql`json(${sql.identifier((field as SQL.Aliased).fieldAlias)})`,
 				})),
 			]
-			: [{
+			: [
+				...Object.entries(tableConfig.columns).map(([tsKey, column]) => ({
+					path: [tsKey],
+					field: aliasedTableColumn(column, tableAlias) as AnySQLiteColumn,
+				})),
+				...selectedExtras.map(({ key, value }) => ({
+					path: [key],
+					field: value,
+				})),
+				...builtRelationFields.map(({ path, field }) => ({
+					path,
+					field: sql`${sql.identifier(tableAlias)}.${sql.identifier((field as SQL.Aliased).fieldAlias)}`,
+				})),
+			];
+
+		if (finalFieldsFlat.length === 0) {
+			finalFieldsFlat.push({
 				path: [],
-				field: sql`${sql.identifier(tableAlias)}.*`,
-			}];
+				field: sql.raw('1'),
+			});
+		}
 
 		const initialFieldsFlat: SelectedFieldsOrdered = [
 			{
@@ -554,6 +555,25 @@ export abstract class SQLiteDialect {
 			...builtRelationFields,
 		];
 
+		let orderByOrig = typeof config.orderBy === 'function'
+			? config.orderBy(aliasedFields, orderByOperators)
+			: config.orderBy ?? [];
+		if (!Array.isArray(orderByOrig)) {
+			orderByOrig = [orderByOrig];
+		}
+		const orderBy = orderByOrig.map((orderByValue) => {
+			if (orderByValue instanceof Column) {
+				return aliasedTableColumn(orderByValue, tableAlias) as AnySQLiteColumn;
+			}
+			return mapColumnsInSQLToAlias(orderByValue, tableAlias);
+		});
+		if (!isRoot && !config.limit && orderBy.length > 0) {
+			finalFieldsFlat.push({
+				path: ['__drizzle_row_number'],
+				field: sql`row_number() over(order by ${sql.join(orderBy, sql`, `)})`,
+			});
+		}
+
 		let limit, offset;
 
 		if (config.limit !== undefined || config.offset !== undefined) {
@@ -563,7 +583,9 @@ export abstract class SQLiteDialect {
 			} else {
 				finalFieldsFlat.push({
 					path: ['__drizzle_row_number'],
-					field: sql`row_number() over(partition by ${relationColumns.map((c) => aliasedTableColumn(c, tableAlias))})`
+					field: sql`row_number() over(partition by ${relationColumns.map((c) => aliasedTableColumn(c, tableAlias))}${
+						(orderBy.length > 0 && !isRoot) ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined
+					})`
 						.as('__drizzle_row_number'),
 				});
 			}
@@ -573,35 +595,25 @@ export abstract class SQLiteDialect {
 			table: aliasedTable(table, tableAlias),
 			fields: {},
 			fieldsFlat: initialFieldsFlat,
-			where,
+			where: initialWhere,
 			groupBy,
-			orderBy,
+			orderBy: [],
 			joins,
 			withList: [],
 		});
+
+		let where;
 		if (config.where) {
 			const whereSql = typeof config.where === 'function' ? config.where(aliasedFields, operators) : config.where;
-			const where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
-			result = this.buildSelectQuery({
-				table: new Subquery(result, {}, tableAlias),
-				fields: {},
-				fieldsFlat: [{
-					path: [],
-					field: sql`${sql.identifier(tableAlias)}.*`,
-				}],
-				where,
-				groupBy: [],
-				orderBy: [],
-				joins: [],
-				withList: [],
-			});
+			where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 		}
 		result = this.buildSelectQuery({
 			table: new Subquery(result, {}, tableAlias),
 			fields: {},
 			fieldsFlat: finalFieldsFlat,
+			where,
 			groupBy: [],
-			orderBy: [],
+			orderBy: isRoot ? orderBy : [],
 			joins: [],
 			withList: [],
 			limit,
@@ -634,7 +646,10 @@ export abstract class SQLiteDialect {
 }
 
 export class SQLiteSyncDialect extends SQLiteDialect {
-	migrate(migrations: MigrationMeta[], session: SQLiteSession<'sync'>): void {
+	migrate(
+		migrations: MigrationMeta[],
+		session: SQLiteSession<'sync', unknown, Record<string, unknown>, TablesRelationalConfig>,
+	): void {
 		const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
 				id SERIAL PRIMARY KEY,
@@ -672,7 +687,10 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 }
 
 export class SQLiteAsyncDialect extends SQLiteDialect {
-	async migrate(migrations: MigrationMeta[], session: SQLiteSession<'async'>): Promise<void> {
+	async migrate(
+		migrations: MigrationMeta[],
+		session: SQLiteSession<'async', unknown, Record<string, unknown>, TablesRelationalConfig>,
+	): Promise<void> {
 		const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
 				id SERIAL PRIMARY KEY,

@@ -2,6 +2,7 @@
 
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
+import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import { type Query, sql } from '~/sql';
 import { fillPlaceholders } from '~/sql';
 import { SQLiteTransaction } from '~/sqlite-core';
@@ -20,13 +21,17 @@ export interface SQLiteD1SessionOptions {
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
-export class SQLiteD1Session extends SQLiteSession<'async', D1Result> {
+export class SQLiteD1Session<
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
+> extends SQLiteSession<'async', D1Result, TFullSchema, TSchema> {
 	private logger: Logger;
 
 	constructor(
 		private client: D1Database,
 		dialect: SQLiteAsyncDialect,
-		options: SQLiteD1SessionOptions = {},
+		private schema: RelationalSchemaConfig<TSchema> | undefined,
+		private options: SQLiteD1SessionOptions = {},
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -35,17 +40,17 @@ export class SQLiteD1Session extends SQLiteSession<'async', D1Result> {
 	prepareQuery(
 		query: Query,
 		fields?: SelectedFieldsOrdered,
-		mapResult?: (result: unknown) => unknown,
+		customResultMapper?: (rows: unknown[][]) => unknown,
 	): PreparedQuery {
 		const stmt = this.client.prepare(query.sql);
-		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields, mapResult);
+		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields, customResultMapper);
 	}
 
 	override async transaction<T>(
-		transaction: (tx: D1Transaction) => T | Promise<T>,
+		transaction: (tx: D1Transaction<TFullSchema, TSchema>) => T | Promise<T>,
 		config?: SQLiteTransactionConfig,
 	): Promise<T> {
-		const tx = new D1Transaction(this.dialect, this);
+		const tx = new D1Transaction('async', this.dialect, this, this.schema);
 		await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
 		try {
 			const result = await transaction(tx);
@@ -58,10 +63,13 @@ export class SQLiteD1Session extends SQLiteSession<'async', D1Result> {
 	}
 }
 
-export class D1Transaction extends SQLiteTransaction<'async', D1Result> {
-	override async transaction<T>(transaction: (tx: D1Transaction) => Promise<T>): Promise<T> {
+export class D1Transaction<
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
+> extends SQLiteTransaction<'async', D1Result, TFullSchema, TSchema> {
+	override async transaction<T>(transaction: (tx: D1Transaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex}`;
-		const tx = new D1Transaction(this.dialect, this.session, this.nestedIndex + 1);
+		const tx = new D1Transaction('async', this.dialect, this.session, this.schema, this.nestedIndex + 1);
 		await this.session.run(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);
@@ -83,7 +91,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
-		private mapResult?: (result: unknown) => unknown,
+		private customResultMapper?: (rows: unknown[][]) => unknown,
 	) {
 		super();
 	}
@@ -95,8 +103,8 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	}
 
 	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
-		const { fields, joinsNotNullableMap, queryString, logger, stmt, mapResult } = this;
-		if (!fields && !mapResult) {
+		const { fields, joinsNotNullableMap, queryString, logger, stmt, customResultMapper } = this;
+		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(this.params, placeholderValues ?? {});
 			logger.logQuery(queryString, params);
 			return stmt.bind(...params).all().then(({ results }) => results!);
@@ -104,8 +112,8 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 
 		const rows = await this.values(placeholderValues);
 
-		if (mapResult) {
-			return mapResult(rows) as T['all'];
+		if (customResultMapper) {
+			return customResultMapper(rows) as T['all'];
 		}
 
 		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
