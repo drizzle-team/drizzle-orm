@@ -43,9 +43,10 @@ export class SQLJsSession<
 	override prepareOneTimeQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
 		fields?: SelectedFieldsOrdered,
+		customResultMapper?: (rows: unknown[][]) => unknown,
 	): PreparedQuery<T> {
 		const stmt = this.client.prepare(query.sql);
-		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields, true);
+		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields, customResultMapper, true);
 	}
 
 	override transaction<T>(
@@ -93,6 +94,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
+		private customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown,
 		private isOneTimeQuery = false,
 	) {
 		super();
@@ -111,34 +113,38 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	}
 
 	all(placeholderValues?: Record<string, unknown>): T['all'] {
-		const { fields, joinsNotNullableMap, logger, queryString, stmt, isOneTimeQuery } = this;
-		if (fields) {
-			return this.values(placeholderValues).map((row) =>
-				mapResultRow(fields, row.map((v) => normalizeFieldValue(v)), joinsNotNullableMap)
-			);
+		const { fields, joinsNotNullableMap, logger, queryString, stmt, isOneTimeQuery, customResultMapper } = this;
+		if (!fields && !customResultMapper) {
+			const params = fillPlaceholders(this.params, placeholderValues ?? {});
+			logger.logQuery(queryString, params);
+			stmt.bind(params as BindParams);
+			const rows: T['all'] = [];
+			while (stmt.step()) {
+				rows.push(stmt.getAsObject());
+			}
+
+			if (isOneTimeQuery) {
+				this.free();
+			}
+
+			return rows;
 		}
 
-		const params = fillPlaceholders(this.params, placeholderValues ?? {});
-		logger.logQuery(queryString, params);
-		stmt.bind(params as BindParams);
-		const rows: T['all'] = [];
-		while (stmt.step()) {
-			rows.push(stmt.getAsObject());
+		const rows = this.values(placeholderValues);
+
+		if (customResultMapper) {
+			return customResultMapper(rows, normalizeFieldValue) as T['all'];
 		}
 
-		if (isOneTimeQuery) {
-			this.free();
-		}
-
-		return rows;
+		return rows.map((row) => mapResultRow(fields!, row.map((v) => normalizeFieldValue(v)), joinsNotNullableMap));
 	}
 
 	get(placeholderValues?: Record<string, unknown>): T['get'] {
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
 
-		const { fields, stmt, isOneTimeQuery, joinsNotNullableMap } = this;
-		if (!fields) {
+		const { fields, stmt, isOneTimeQuery, joinsNotNullableMap, customResultMapper } = this;
+		if (!fields && !customResultMapper) {
 			const result = stmt.getAsObject(params as BindParams);
 
 			if (isOneTimeQuery) {
@@ -158,7 +164,11 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 			return undefined;
 		}
 
-		return mapResultRow(fields, row.map((v) => normalizeFieldValue(v)), joinsNotNullableMap);
+		if (customResultMapper) {
+			return customResultMapper([row], normalizeFieldValue) as T['get'];
+		}
+
+		return mapResultRow(fields!, row.map((v) => normalizeFieldValue(v)), joinsNotNullableMap);
 	}
 
 	values(placeholderValues?: Record<string, unknown>): T['values'] {

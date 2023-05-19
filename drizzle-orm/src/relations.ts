@@ -494,6 +494,7 @@ export function mapRelationalRow(
 	row: unknown[],
 	buildQueryResultSelection: BuildRelationalQueryResult['selection'],
 	jsonParseRelationalFields = false,
+	mapColumnValue: (value: unknown) => unknown = (value) => value,
 ): Record<string, unknown> {
 	const result: Record<string, unknown> = {};
 
@@ -524,7 +525,7 @@ export function mapRelationalRow(
 				);
 			}
 		} else {
-			const value = row[selectionItemIndex];
+			const value = mapColumnValue(row[selectionItemIndex]);
 			const field = selectionItem.field!;
 			let decoder;
 			if (field instanceof Column) {

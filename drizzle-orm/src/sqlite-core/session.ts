@@ -44,7 +44,7 @@ export abstract class SQLiteSession<
 	abstract prepareQuery(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
-		customResultMapper?: (rows: unknown[][]) => unknown,
+		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown,
 	): PreparedQuery<PreparedQueryConfig & { type: TResultKind }>;
 
 	prepareOneTimeQuery(

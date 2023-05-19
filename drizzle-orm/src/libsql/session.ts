@@ -39,8 +39,9 @@ export class LibSQLSession<
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
 		fields: SelectedFieldsOrdered,
+		customResultMapper?: (rows: unknown[][]) => unknown,
 	): PreparedQuery<T> {
-		return new PreparedQuery(this.client, query.sql, query.params, this.logger, fields, this.tx);
+		return new PreparedQuery(this.client, query.sql, query.params, this.logger, fields, this.tx, customResultMapper);
 	}
 
 	/*override */ batch(queries: SQL[]): Promise<ResultSet[]> {
@@ -99,6 +100,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		private tx: Transaction | undefined,
+		private customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown,
 	) {
 		super();
 	}
@@ -110,26 +112,28 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		return this.tx ? this.tx.execute(stmt) : this.client.execute(stmt);
 	}
 
-	all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
-		const { fields, joinsNotNullableMap, logger, queryString, tx, client } = this;
-		if (fields) {
-			const values = this.values(placeholderValues);
-
-			return values.then((rows) =>
-				rows.map((row) => {
-					return mapResultRow(
-						fields,
-						Array.prototype.slice.call(row).map((v) => normalizeFieldValue(v)),
-						joinsNotNullableMap,
-					);
-				})
-			);
+	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
+		const { fields, joinsNotNullableMap, logger, queryString, tx, client, customResultMapper } = this;
+		if (!fields && !customResultMapper) {
+			const params = fillPlaceholders(this.params, placeholderValues ?? {});
+			logger.logQuery(queryString, params);
+			const stmt: InStatement = { sql: queryString, args: params as InArgs };
+			return (tx ? tx.execute(stmt) : client.execute(stmt)).then(({ rows }) => rows.map((row) => normalizeRow(row)));
 		}
 
-		const params = fillPlaceholders(this.params, placeholderValues ?? {});
-		logger.logQuery(queryString, params);
-		const stmt: InStatement = { sql: queryString, args: params as InArgs };
-		return (tx ? tx.execute(stmt) : client.execute(stmt)).then(({ rows }) => rows.map((row) => normalizeRow(row)));
+		const rows = await this.values(placeholderValues);
+
+		if (customResultMapper) {
+			return customResultMapper(rows, normalizeFieldValue) as T['all'];
+		}
+
+		return rows.map((row) => {
+			return mapResultRow(
+				fields!,
+				Array.prototype.slice.call(row).map((v) => normalizeFieldValue(v)),
+				joinsNotNullableMap,
+			);
+		});
 	}
 
 	get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
