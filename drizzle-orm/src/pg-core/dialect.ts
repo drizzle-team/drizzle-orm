@@ -207,7 +207,10 @@ export class PgDialect {
 						: table instanceof SQL
 						? undefined
 						: getTableName(table))
-				&& !((table) => joins.some(({ alias }) => alias === getTableName(table)))(f.field.table)
+				&& !((table) =>
+					joins.some(({ alias }) =>
+						alias === (table[Table.Symbol.IsAlias] ? getTableName(table) : table[Table.Symbol.BaseName])
+					))(f.field.table)
 			) {
 				const tableName = getTableName(f.field.table);
 				throw new Error(
