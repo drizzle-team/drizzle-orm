@@ -107,7 +107,7 @@ export class SyncRelationalQueryBuilder<
 		return this.prepareFindMany(config).execute();
 	}
 
-	prepareFindOne<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
+	prepareFindFirst<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', true, TSchema, TFields>>,
 	): {
 		execute: PreparedQuery<
@@ -126,7 +126,7 @@ export class SyncRelationalQueryBuilder<
 			this.dialect,
 			this.session,
 			config ? (config as DBQueryConfig<'many', true>) : true,
-			'many',
+			'first',
 		).prepare();
 
 		return {
@@ -137,7 +137,7 @@ export class SyncRelationalQueryBuilder<
 	findFirst<TSelection extends Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>(
 		config?: KnownKeysOnly<TSelection, Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>,
 	): BuildQueryResult<TSchema, TFields, TSelection> | undefined {
-		return this.prepareFindOne(config).execute();
+		return this.prepareFindFirst(config).execute();
 	}
 }
 
