@@ -118,7 +118,7 @@ beforeEach(async () => {
 	[Find Many] One relation users+posts
 */
 
-test.only('[Find Many] Get users with posts', async () => {
+test('[Find Many] Get users with posts', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5460,7 +5460,7 @@ test('[Find One] Get groups with users + where', async () => {
 	});
 });
 
-test('[Find One] Get users with groups + orderBy', async () => {
+test.only('[Find One] Get users with groups + orderBy', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5492,6 +5492,11 @@ test('[Find One] Get users with groups + orderBy', async () => {
 			},
 		},
 	});
+
+	const f = await db.all(sql`select * from users`)
+	console.log(f)
+
+	console.log(JSON.stringify(response, null, 2))
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
