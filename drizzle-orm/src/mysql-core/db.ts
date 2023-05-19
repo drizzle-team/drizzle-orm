@@ -1,5 +1,6 @@
 import type { ResultSetHeader } from 'mysql2/promise';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder';
+import { type ExtractTablesWithRelations, type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import type { SQLWrapper } from '~/sql';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
 import { type ColumnsSelection } from '~/view';
@@ -11,6 +12,7 @@ import {
 	MySqlUpdateBuilder,
 	QueryBuilder,
 } from './query-builders';
+import { RelationalQueryBuilder } from './query-builders/query';
 import type { SelectedFields } from './query-builders/select.types';
 import type {
 	MySqlSession,
@@ -26,13 +28,43 @@ import type { AnyMySqlTable } from './table';
 export class MySqlDatabase<
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TFullSchema extends Record<string, unknown> = {},
+	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
 > {
+	declare readonly _: {
+		readonly schema: TSchema | undefined;
+		readonly tableNamesMap: Record<string, string>;
+	};
+
+	query: {
+		[K in keyof TSchema]: RelationalQueryBuilder<TPreparedQueryHKT, TSchema, TSchema[K]>;
+	};
+
 	constructor(
 		/** @internal */
 		readonly dialect: MySqlDialect,
 		/** @internal */
-		readonly session: MySqlSession<any, any>,
-	) {}
+		readonly session: MySqlSession<any, any, any, any>,
+		schema: RelationalSchemaConfig<TSchema> | undefined,
+	) {
+		this._ = schema
+			? { schema: schema.schema, tableNamesMap: schema.tableNamesMap }
+			: { schema: undefined, tableNamesMap: {} };
+		this.query = {} as typeof this['query'];
+		if (this._.schema) {
+			for (const [tableName, columns] of Object.entries(this._.schema)) {
+				this.query[tableName as keyof TSchema] = new RelationalQueryBuilder(
+					schema!.fullSchema,
+					this._.schema,
+					this._.tableNamesMap,
+					schema!.fullSchema[tableName] as AnyMySqlTable,
+					columns,
+					dialect,
+					session,
+				);
+			}
+		}
+	}
 
 	$with<TAlias extends string>(alias: TAlias) {
 		return {
@@ -90,7 +122,10 @@ export class MySqlDatabase<
 	}
 
 	transaction<T>(
-		transaction: (tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT>, config?: MySqlTransactionConfig) => Promise<T>,
+		transaction: (
+			tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>,
+			config?: MySqlTransactionConfig,
+		) => Promise<T>,
 		config?: MySqlTransactionConfig,
 	): Promise<T> {
 		return this.session.transaction(transaction, config);

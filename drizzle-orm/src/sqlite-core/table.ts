@@ -18,14 +18,10 @@ export type TableConfig = TableConfigBase<AnySQLiteColumn>;
 /** @internal */
 export const InlineForeignKeys = Symbol('InlineForeignKeys');
 
-/** @internal */
-export const ExtraConfigBuilder = Symbol('ExtraConfigBuilder');
-
 export class SQLiteTable<T extends TableConfig> extends Table<T> {
 	/** @internal */
 	static override readonly Symbol = Object.assign({}, Table.Symbol, {
 		InlineForeignKeys: InlineForeignKeys as typeof InlineForeignKeys,
-		ExtraConfigBuilder: ExtraConfigBuilder as typeof ExtraConfigBuilder,
 	});
 
 	/** @internal */
@@ -35,7 +31,9 @@ export class SQLiteTable<T extends TableConfig> extends Table<T> {
 	[InlineForeignKeys]: ForeignKey[] = [];
 
 	/** @internal */
-	[ExtraConfigBuilder]: ((self: Record<string, AnySQLiteColumn>) => SQLiteTableExtraConfig) | undefined = undefined;
+	override [Table.Symbol.ExtraConfigBuilder]:
+		| ((self: Record<string, AnySQLiteColumn>) => SQLiteTableExtraConfig)
+		| undefined = undefined;
 }
 
 export type AnySQLiteTable<TPartial extends Partial<TableConfig> = {}> = SQLiteTable<

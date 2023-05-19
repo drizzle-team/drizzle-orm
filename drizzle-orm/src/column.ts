@@ -89,6 +89,18 @@ export type AnyColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = Column<
 	Required<Update<ColumnBaseConfig, TPartial>>
 >;
 
+export interface AnyColumnHKT {
+	config: unknown;
+	type: unknown;
+}
+
+export interface AnyColumnHKTBase extends AnyColumnHKT {
+	type: AnyColumn<Assume<this['config'], Partial<ColumnBaseConfig>>>;
+}
+
+export type AnyColumnKind<THKT extends AnyColumnHKT, TConfig extends Partial<ColumnBaseConfig>> =
+	(THKT & { config: TConfig })['type'];
+
 export type GetColumnData<TColumn extends AnyColumn, TInferMode extends 'query' | 'raw' = 'query'> =
 	// dprint-ignore
 	TInferMode extends 'raw' // Raw mode

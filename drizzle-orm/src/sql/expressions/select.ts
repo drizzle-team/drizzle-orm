@@ -24,7 +24,6 @@ export function asc(column: AnyColumn | SQLWrapper): SQL {
 	return sql`${column} asc`;
 }
 
-
 /**
  * Used in sorting, this specifies that the given
  * column or expression should be sorted in descending

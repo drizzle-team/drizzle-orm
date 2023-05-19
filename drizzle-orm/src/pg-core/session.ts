@@ -1,4 +1,5 @@
 import { TransactionRollbackError } from '~/errors';
+import { type TablesRelationalConfig } from '~/relations';
 import { type Query, type SQL, sql } from '~/sql';
 import { PgDatabase } from './db';
 import type { PgDialect } from './dialect';
@@ -18,6 +19,9 @@ export abstract class PreparedQuery<T extends PreparedQueryConfig> {
 
 	/** @internal */
 	abstract all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;
+
+	/** @internal */
+	abstract values(placeholderValues?: Record<string, unknown>): Promise<T['values']>;
 }
 
 export interface PgTransactionConfig {
@@ -26,13 +30,18 @@ export interface PgTransactionConfig {
 	deferrable?: boolean;
 }
 
-export abstract class PgSession<TQueryResult extends QueryResultHKT = QueryResultHKT> {
+export abstract class PgSession<
+	TQueryResult extends QueryResultHKT = QueryResultHKT,
+	TFullSchema extends Record<string, unknown> = Record<string, never>,
+	TSchema extends TablesRelationalConfig = Record<string, never>,
+> {
 	constructor(protected dialect: PgDialect) {}
 
 	abstract prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PreparedQuery<T>;
 
 	execute<T>(query: SQL): Promise<T> {
@@ -51,15 +60,36 @@ export abstract class PgSession<TQueryResult extends QueryResultHKT = QueryResul
 		).all();
 	}
 
+	values<T = unknown>(query: SQL): Promise<T[]> {
+		return this.prepareQuery<PreparedQueryConfig & { values: T[] }>(
+			this.dialect.sqlToQuery(query),
+			undefined,
+			undefined,
+		).values();
+	}
+
 	abstract transaction<T>(
-		transaction: (tx: PgTransaction<TQueryResult>) => Promise<T>,
+		transaction: (tx: PgTransaction<TQueryResult, TFullSchema, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig,
 	): Promise<T>;
 }
 
-export abstract class PgTransaction<TQueryResult extends QueryResultHKT> extends PgDatabase<TQueryResult> {
-	constructor(dialect: PgDialect, session: PgSession, protected readonly nestedIndex = 0) {
-		super(dialect, session);
+export abstract class PgTransaction<
+	TQueryResult extends QueryResultHKT,
+	TFullSchema extends Record<string, unknown> = Record<string, never>,
+	TSchema extends TablesRelationalConfig = Record<string, never>,
+> extends PgDatabase<TQueryResult, TFullSchema, TSchema> {
+	constructor(
+		dialect: PgDialect,
+		session: PgSession<any, any, any>,
+		protected schema: {
+			fullSchema: Record<string, unknown>;
+			schema: TSchema;
+			tableNamesMap: Record<string, string>;
+		} | undefined,
+		protected readonly nestedIndex = 0,
+	) {
+		super(dialect, session, schema);
 	}
 
 	rollback(): never {
@@ -85,7 +115,9 @@ export abstract class PgTransaction<TQueryResult extends QueryResultHKT> extends
 		return this.session.execute(sql`set transaction ${this.getTransactionConfigSQL(config)}`);
 	}
 
-	abstract override transaction<T>(transaction: (tx: PgTransaction<TQueryResult>) => Promise<T>): Promise<T>;
+	abstract override transaction<T>(
+		transaction: (tx: PgTransaction<TQueryResult, TFullSchema, TSchema>) => Promise<T>,
+	): Promise<T>;
 }
 
 export interface QueryResultHKT {
