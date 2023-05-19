@@ -804,14 +804,14 @@ test('[Find Many] Get users with posts in transaction', async () => {
 		}[];
 	}[] = [];
 
-	db.transaction(async (tx) => {
-		tx.insert(usersTable).values([
+	await db.transaction(async (tx) => {
+		await tx.insert(usersTable).values([
 			{ id: 1, name: 'Dan' },
 			{ id: 2, name: 'Andrew' },
 			{ id: 3, name: 'Alex' },
 		]).run();
 
-		tx.insert(postsTable).values([
+		await tx.insert(postsTable).values([
 			{ ownerId: 1, content: 'Post1' },
 			{ ownerId: 1, content: 'Post1.1' },
 			{ ownerId: 2, content: 'Post2' },
@@ -868,20 +868,20 @@ test('[Find Many] Get users with posts in rollbacked transaction', async () => {
 	}[] = [];
 
 	expect(db.transaction(async (tx) => {
-		tx.insert(usersTable).values([
+		await tx.insert(usersTable).values([
 			{ id: 1, name: 'Dan' },
 			{ id: 2, name: 'Andrew' },
 			{ id: 3, name: 'Alex' },
 		]).run();
 
-		tx.insert(postsTable).values([
+		await tx.insert(postsTable).values([
 			{ ownerId: 1, content: 'Post1' },
 			{ ownerId: 1, content: 'Post1.1' },
 			{ ownerId: 2, content: 'Post2' },
 			{ ownerId: 3, content: 'Post3' },
 		]).run();
 
-		tx.rollback();
+		await tx.rollback();
 
 		usersWithPosts = await tx.query.usersTable.findMany({
 			where: (({ id }, { eq }) => eq(id, 1)),
@@ -5460,7 +5460,7 @@ test('[Find One] Get groups with users + where', async () => {
 	});
 });
 
-test.only('[Find One] Get users with groups + orderBy', async () => {
+test('[Find One] Get users with groups + orderBy', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
