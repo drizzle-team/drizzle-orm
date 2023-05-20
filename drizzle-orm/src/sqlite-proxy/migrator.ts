@@ -5,7 +5,9 @@ import type { SqliteRemoteDatabase } from './driver';
 
 export type ProxyMigrator = (migrationQueries: string[]) => Promise<void>;
 
-export async function migrate(db: SqliteRemoteDatabase, callback: ProxyMigrator, config: string | MigrationConfig) {
+export async function migrate<
+	T extends SqliteRemoteDatabase<Record<string, unknown>>,
+>(db: T, callback: ProxyMigrator, config: string | MigrationConfig) {
 	const migrations = readMigrationFiles(config);
 
 	const migrationTableCreate = sql`
@@ -26,7 +28,10 @@ export async function migrate(db: SqliteRemoteDatabase, callback: ProxyMigrator,
 
 	const queriesToRun: string[] = [];
 	for (const migration of migrations) {
-		if (!lastDbMigration || Number(lastDbMigration[2])! < migration.folderMillis) {
+		if (
+			!lastDbMigration
+			|| Number(lastDbMigration[2])! < migration.folderMillis
+		) {
 			queriesToRun.push(
 				...migration.sql,
 				`INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES('${migration.hash}', '${migration.folderMillis}')`,
