@@ -1,4 +1,5 @@
 import { TransactionRollbackError } from '~/errors';
+import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import { type Query, type SQL, sql } from '~/sql';
 import { type Assume, type Equal } from '~/utils';
 import { MySqlDatabase } from './db';
@@ -51,12 +52,15 @@ export interface MySqlTransactionConfig {
 export abstract class MySqlSession<
 	TQueryResult extends QueryResultHKT = QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
+	TFullSchema extends Record<string, unknown> = Record<string, never>,
+	TSchema extends TablesRelationalConfig = Record<string, never>,
 > {
 	constructor(protected dialect: MySqlDialect) {}
 
 	abstract prepareQuery<T extends PreparedQueryConfig, TPreparedQueryHKT extends PreparedQueryHKT>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
+		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PreparedQueryKind<TPreparedQueryHKT, T>;
 
 	execute<T>(query: SQL): Promise<T> {
@@ -69,7 +73,7 @@ export abstract class MySqlSession<
 	abstract all<T = unknown>(query: SQL): Promise<T[]>;
 
 	abstract transaction<T>(
-		transaction: (tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT>) => Promise<T>,
+		transaction: (tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>) => Promise<T>,
 		config?: MySqlTransactionConfig,
 	): Promise<T>;
 
@@ -101,9 +105,16 @@ export abstract class MySqlSession<
 export abstract class MySqlTransaction<
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-> extends MySqlDatabase<TQueryResult, TPreparedQueryHKT> {
-	constructor(dialect: MySqlDialect, session: MySqlSession, protected readonly nestedIndex = 0) {
-		super(dialect, session);
+	TFullSchema extends Record<string, unknown> = Record<string, never>,
+	TSchema extends TablesRelationalConfig = Record<string, never>,
+> extends MySqlDatabase<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema> {
+	constructor(
+		dialect: MySqlDialect,
+		session: MySqlSession,
+		protected schema: RelationalSchemaConfig<TSchema> | undefined,
+		protected readonly nestedIndex = 0,
+	) {
+		super(dialect, session, schema);
 	}
 
 	rollback(): never {
@@ -112,7 +123,7 @@ export abstract class MySqlTransaction<
 
 	/** Nested transactions (aka savepoints) only work with InnoDB engine. */
 	abstract override transaction<T>(
-		transaction: (tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT>) => Promise<T>,
+		transaction: (tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>) => Promise<T>,
 	): Promise<T>;
 }
 

@@ -19,7 +19,6 @@ export class PgSchema<TName extends string = string> {
 	}) as typeof pgMaterializedView;
 }
 
-/** @deprecated - use `instanceof PgSchema` */
 export function isPgSchema(obj: unknown): obj is PgSchema {
 	return obj instanceof PgSchema;
 }

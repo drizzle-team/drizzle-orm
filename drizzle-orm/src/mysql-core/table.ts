@@ -19,16 +19,12 @@ export type TableConfig = TableConfigBase<AnyMySqlColumn>;
 /** @internal */
 export const InlineForeignKeys = Symbol('InlineForeignKeys');
 
-/** @internal */
-export const ExtraConfigBuilder = Symbol('ExtraConfigBuilder');
-
 export class MySqlTable<T extends TableConfig> extends Table<T> {
 	declare protected $columns: T['columns'];
 
 	/** @internal */
 	static override readonly Symbol = Object.assign({}, Table.Symbol, {
 		InlineForeignKeys: InlineForeignKeys as typeof InlineForeignKeys,
-		ExtraConfigBuilder: ExtraConfigBuilder as typeof ExtraConfigBuilder,
 	});
 
 	/** @internal */
@@ -38,7 +34,9 @@ export class MySqlTable<T extends TableConfig> extends Table<T> {
 	[InlineForeignKeys]: ForeignKey[] = [];
 
 	/** @internal */
-	[ExtraConfigBuilder]: ((self: Record<string, AnyMySqlColumn>) => MySqlTableExtraConfig) | undefined = undefined;
+	override [Table.Symbol.ExtraConfigBuilder]:
+		| ((self: Record<string, AnyMySqlColumn>) => MySqlTableExtraConfig)
+		| undefined = undefined;
 }
 
 export type AnyMySqlTable<TPartial extends Partial<TableConfig> = {}> = MySqlTable<

@@ -26,13 +26,17 @@ Drizzle ORM is being battle-tested on production projects by multiple teams 🚀
 - [Zod schema generation](/drizzle-zod/README.md)
 - Zero dependencies
 
+## Documentation
+
+Check the full documenation on [the website](https://orm.drizzle.team)
+
 ## Supported databases
 
 | Database                                              | Status |                                                |
 |:------------------------------------------------------|:------:|:-----------------------------------------------|
-| PostgreSQL                                            |   ✅    | [Docs](/drizzle-orm/src/pg-core/README.md)     |
-| MySQL                                                 |   ✅    | [Docs](/drizzle-orm/src/mysql-core/README.md)  |
-| SQLite                                                |   ✅    | [Docs](/drizzle-orm/src/sqlite-core/README.md) |
+| PostgreSQL                                            |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start)     |
+| MySQL                                                 |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start)  |
+| SQLite                                                |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start) |
 | [Cloudflare D1](https://developers.cloudflare.com/d1) |   ✅    | [Docs](/examples/cloudflare-d1/README.md)      |
 | [libSQL](https://libsql.org)                          |   ✅    | [Docs](/examples/libsql/README.md)             |
 | [Turso](https://turso.tech)                           |   ✅    | [Docs](/examples/libsql/README.md)             |
