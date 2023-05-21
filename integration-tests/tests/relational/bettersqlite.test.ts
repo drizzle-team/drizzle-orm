@@ -4055,7 +4055,7 @@ test('[Find Many] Get users with groups', async () => {
 				name: 'Group2',
 				description: null,
 			},
-		},{
+		}, {
 			group: {
 				id: 3,
 				name: 'Group3',
@@ -5788,7 +5788,7 @@ test('Get users with groups + custom', async () => {
 	response[0]?.usersToGroups.sort((a, b) => (a.group.id > b.group.id) ? 1 : -1);
 	response[1]?.usersToGroups.sort((a, b) => (a.group.id > b.group.id) ? 1 : -1);
 	response[2]?.usersToGroups.sort((a, b) => (a.group.id > b.group.id) ? 1 : -1);
-	
+
 	expect(response.length).toEqual(3);
 
 	expect(response[0]?.usersToGroups.length).toEqual(1);

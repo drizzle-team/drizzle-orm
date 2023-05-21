@@ -6,6 +6,7 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations';
+import { type SQL } from '~/sql';
 import { applyMixins, type KnownKeysOnly } from '~/utils';
 import { type SQLiteDialect } from '../dialect';
 import { type PreparedQuery, type PreparedQueryConfig, type Result, type SQLiteSession } from '../session';
@@ -169,7 +170,7 @@ export class SQLiteRelationalQuery<TResultKind extends 'sync' | 'async', TResult
 			true,
 		);
 
-		const builtQuery = this.dialect.sqlToQuery(query.sql);
+		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
 		return this.session.prepareQuery(
 			builtQuery,
 			undefined,
