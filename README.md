@@ -28,7 +28,7 @@ Drizzle ORM is being battle-tested on production projects by multiple teams 🚀
 
 ## Documentation
 
-Check the full documenation on [the website](https://orm.drizzle.team)
+Check the full documentation on [the website](https://orm.drizzle.team)
 
 ## Supported databases
 
