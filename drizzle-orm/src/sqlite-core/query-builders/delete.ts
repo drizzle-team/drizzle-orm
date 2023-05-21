@@ -37,7 +37,7 @@ export class SQLiteDelete<
 
 	constructor(
 		private table: TTable,
-		private session: SQLiteSession,
+		private session: SQLiteSession<any, any, any, any>,
 		private dialect: SQLiteDialect,
 	) {
 		this.config = { table };
