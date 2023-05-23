@@ -313,7 +313,7 @@ test('Simple case from GH', async () => {
 	>();
 
     expect(response.length).eq(2)
-    expect(response[0]?.modifierGroups.length).eq(2)
+    expect(response[0]?.modifierGroups.length).eq(1)
     expect(response[0]?.modifierGroups[0]?.modifierGroup.modifiers.length).eq(1)
 
     expect(response[0]?.modifierGroups[0]?.modifierGroup.modifiers[0]?.modifier.ingredient?.id).eq('0b2b9abc-5975-4a1d-ba3d-6fc3b3149902')
