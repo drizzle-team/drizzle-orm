@@ -220,14 +220,14 @@ test('Simple case from GH', async () => {
 	const firstModifierId = uuid();
 	const secondModifierId = uuid();
 
-    console.log('firstModifierId: ', firstModifierId)
-    console.log('secondModifierId: ', secondModifierId)
+	console.log('firstModifierId:', firstModifierId);
+	console.log('secondModifierId:', secondModifierId);
 
-    console.log('ing1: ', firstIngredientId)
-    console.log('ing2: ', secondIngredientId)
+	console.log('ing1:', firstIngredientId);
+	console.log('ing2:', secondIngredientId);
 
-    console.log('f1: ', firstMenuItemId)
-    console.log('f2: ', secondMenuItemId)
+	console.log('f1:', firstMenuItemId);
+	console.log('f2:', secondMenuItemId);
 
 	await db.insert(schema.modifiers).values([{
 		id: firstModifierId,
@@ -312,10 +312,14 @@ test('Simple case from GH', async () => {
 		}[]
 	>();
 
-    expect(response.length).eq(2)
-    expect(response[0]?.modifierGroups.length).eq(1)
-    expect(response[0]?.modifierGroups[0]?.modifierGroup.modifiers.length).eq(1)
+	expect(response.length).eq(2);
+	expect(response[0]?.modifierGroups.length).eq(1);
+	expect(response[0]?.modifierGroups[0]?.modifierGroup.modifiers.length).eq(1);
 
-    expect(response[0]?.modifierGroups[0]?.modifierGroup.modifiers[0]?.modifier.ingredient?.id).eq('0b2b9abc-5975-4a1d-ba3d-6fc3b3149902')
-    expect(response[0]?.modifierGroups[0]?.modifierGroup.modifiers[0]?.modifier.item?.id).eq('a867133e-60b7-4003-aaa0-deeefad7e518')
+	expect(response[0]?.modifierGroups[0]?.modifierGroup.modifiers[0]?.modifier.ingredient?.id).eq(
+		'0b2b9abc-5975-4a1d-ba3d-6fc3b3149902',
+	);
+	expect(response[0]?.modifierGroups[0]?.modifierGroup.modifiers[0]?.modifier.item?.id).eq(
+		'a867133e-60b7-4003-aaa0-deeefad7e518',
+	);
 });

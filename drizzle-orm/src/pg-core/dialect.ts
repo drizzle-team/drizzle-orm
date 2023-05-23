@@ -617,8 +617,11 @@ export class PgDialect {
 
 			const elseField = sql`json_agg(json_build_array(${
 				sql.join(
-					builtRelation.selection.map(({ dbKey: key }) => {
-						const field = sql`${sql.identifier(relationAlias)}.${sql.identifier(key)}`;
+					builtRelation.selection.map(({ dbKey: key, isJson }) => {
+						let field = sql`${sql.identifier(relationAlias)}.${sql.identifier(key)}`;
+						if (isJson) {
+							field = sql`${field}::json`;
+						}
 						return field;
 					}),
 					sql`, `,
