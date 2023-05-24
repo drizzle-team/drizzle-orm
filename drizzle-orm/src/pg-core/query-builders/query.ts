@@ -6,6 +6,7 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations';
+import { type SQL } from '~/sql';
 import { type KnownKeysOnly } from '~/utils';
 import { type PgDialect } from '../dialect';
 import { type PgSession, type PreparedQuery, type PreparedQueryConfig } from '../session';
@@ -85,7 +86,7 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 			true,
 		);
 
-		const builtQuery = this.dialect.sqlToQuery(query.sql);
+		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
 		return this.session.prepareQuery(
 			builtQuery,
 			undefined,

@@ -1,5 +1,4 @@
 import type { Database, RunResult, Statement } from 'better-sqlite3';
-import util from 'node:util';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
 import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
@@ -101,7 +100,6 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 
 		const rows = this.values(placeholderValues);
 		if (customResultMapper) {
-			console.log('rows:', util.inspect(rows, { depth: null, colors: true }));
 			return customResultMapper(rows) as T['all'];
 		}
 		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));

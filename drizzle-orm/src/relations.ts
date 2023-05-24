@@ -485,7 +485,7 @@ export interface BuildRelationalQueryResult {
 		isJson: boolean;
 		selection: BuildRelationalQueryResult['selection'];
 	}[];
-	sql: SQL;
+	sql: Table | SQL;
 }
 
 export function mapRelationalRow(
