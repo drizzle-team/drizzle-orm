@@ -5,9 +5,11 @@ import type { SqliteRemoteDatabase } from './driver';
 
 export type ProxyMigrator = (migrationQueries: string[]) => Promise<void>;
 
-export async function migrate<
-	T extends SqliteRemoteDatabase<Record<string, unknown>>,
->(db: T, callback: ProxyMigrator, config: string | MigrationConfig) {
+export async function migrate<TSchema extends Record<string, unknown>>(
+	db: SqliteRemoteDatabase<TSchema>,
+	callback: ProxyMigrator,
+	config: string | MigrationConfig,
+) {
 	const migrations = readMigrationFiles(config);
 
 	const migrationTableCreate = sql`

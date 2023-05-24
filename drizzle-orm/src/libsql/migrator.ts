@@ -2,8 +2,8 @@ import type { MigrationConfig } from '~/migrator';
 import { readMigrationFiles } from '~/migrator';
 import type { LibSQLDatabase } from './driver';
 
-export function migrate<T extends LibSQLDatabase<Record<string, unknown>>>(
-	db: T,
+export function migrate<TSchema extends Record<string, unknown>>(
+	db: LibSQLDatabase<TSchema>,
 	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
