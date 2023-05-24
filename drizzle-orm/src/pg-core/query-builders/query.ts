@@ -34,7 +34,7 @@ export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFie
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config ? (config as DBQueryConfig<'many', true>) : true,
+			config ? (config as DBQueryConfig<'many', true>) : {},
 			'many',
 		);
 	}

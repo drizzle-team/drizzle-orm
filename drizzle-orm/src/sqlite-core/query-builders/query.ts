@@ -38,7 +38,7 @@ export class AsyncRelationalQueryBuilder<
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config ? (config as DBQueryConfig<'many', true>) : true,
+			config ? (config as DBQueryConfig<'many', true>) : {},
 			'many',
 		) as SQLiteAsyncRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig>[]>;
 	}
@@ -93,7 +93,7 @@ export class SyncRelationalQueryBuilder<
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config ? (config as DBQueryConfig<'many', true>) : true,
+			config ? (config as DBQueryConfig<'many', true>) : {},
 			'many',
 		).prepare();
 
@@ -126,7 +126,7 @@ export class SyncRelationalQueryBuilder<
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config ? (config as DBQueryConfig<'many', true>) : true,
+			config ? { ...(config as DBQueryConfig<'many', true> | undefined), limit: 1 } : { limit: 1 },
 			'first',
 		).prepare();
 
