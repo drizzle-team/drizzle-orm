@@ -476,7 +476,7 @@ export function exists(subquery: SQLWrapper): SQL {
  * @see exists for the inverse of this test
  */
 export function notExists(subquery: SQLWrapper): SQL {
-	return sql`exists (${subquery})`;
+	return sql`not exists (${subquery})`;
 }
 
 /**
