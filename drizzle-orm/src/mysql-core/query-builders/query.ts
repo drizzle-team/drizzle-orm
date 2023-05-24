@@ -6,6 +6,7 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations';
+import { type SQL } from '~/sql';
 import { type KnownKeysOnly } from '~/utils';
 import { type MySqlDialect } from '../dialect';
 import {
@@ -42,7 +43,7 @@ export class RelationalQueryBuilder<
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config ? (config as DBQueryConfig<'many', true>) : true,
+			config ? (config as DBQueryConfig<'many', true>) : {},
 			'many',
 		);
 	}
@@ -97,7 +98,7 @@ export class MySqlRelationalQuery<
 			true,
 		);
 
-		const builtQuery = this.dialect.sqlToQuery(query.sql);
+		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
 		return this.session.prepareQuery(
 			builtQuery,
 			undefined,

@@ -74,7 +74,6 @@ beforeAll(async () => {
 			client = new Client(connectionString);
 			await client.connect();
 			connected = true;
-			console.log('connected');
 			break;
 		} catch (e) {
 			lastError = e;
@@ -92,10 +91,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-	console.log('deleting');
 	await client?.end().catch(console.error);
 	await pgContainer?.stop().catch(console.error);
-	console.log('deleted');
 });
 
 beforeEach(async (ctx) => {
