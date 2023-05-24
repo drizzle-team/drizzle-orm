@@ -124,7 +124,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(this.params, placeholderValues ?? {});
 			logger.logQuery(queryString, params);
-			return stmt.bind(...params).all().then(({ results }) => results!);
+			return stmt.bind(...params).all().then(({ results }) => results![0]);
 		}
 
 		const rows = await this.values(placeholderValues);

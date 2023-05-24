@@ -142,7 +142,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 			const params = fillPlaceholders(this.params, placeholderValues ?? {});
 			logger.logQuery(queryString, params);
 			const stmt: InStatement = { sql: queryString, args: params as InArgs };
-			return (tx ? tx.execute(stmt) : client.execute(stmt)).then(({ rows }) => rows.map((row) => normalizeRow(row)));
+			return (tx ? tx.execute(stmt) : client.execute(stmt)).then(({ rows }) => normalizeRow(rows[0]));
 		}
 
 		const rows = await this.values(placeholderValues);
