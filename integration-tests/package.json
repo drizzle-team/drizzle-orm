@@ -55,7 +55,7 @@
     "better-sqlite3": "^8.0.0",
     "dockerode": "^3.3.4",
     "dotenv": "^16.0.3",
-    "drizzle-orm": "file:../drizzle-orm/package.tgz",
+    "drizzle-orm": "workspace:../drizzle-orm/dist",
     "drizzle-zod": "workspace:../drizzle-zod/dist",
     "express": "^4.18.2",
     "get-port": "^6.1.2",

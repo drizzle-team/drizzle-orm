@@ -211,8 +211,8 @@ importers:
         specifier: ^16.0.3
         version: 16.0.3
       drizzle-orm:
-        specifier: file:../drizzle-orm/package.tgz
-        version: file:drizzle-orm/package.tgz(@aws-sdk/client-rds-data@3.303.0)(@libsql/client@0.1.1)(@planetscale/database@1.6.0)(@types/better-sqlite3@7.6.3)(@types/pg@8.6.6)(@types/sql.js@1.4.4)(@vercel/postgres@0.1.2)(better-sqlite3@8.2.0)(bun-types@0.5.8)(mysql2@3.2.0)(pg@8.10.0)(postgres@3.3.4)(sql.js@1.8.0)(sqlite3@5.1.6)
+        specifier: workspace:../drizzle-orm/dist
+        version: link:../drizzle-orm/dist
       drizzle-zod:
         specifier: workspace:../drizzle-zod/dist
         version: link:../drizzle-zod/dist
@@ -1714,6 +1714,7 @@ packages:
     resolution: {integrity: sha512-YS64N9SNDT/NAvou3QNdzAu3E2om/W/0dhORimtPGLef+zSK5l1vDzfsWb4xgXOgfhtOI5ZDTRxnvRPb22AIVQ==}
     dependencies:
       '@types/node': 18.15.11
+    dev: true
 
   /@types/body-parser@1.19.2:
     resolution: {integrity: sha512-ALYone6pm6QmwZoAgeyNksccT9Q4AWZQ6PvfwR37GT6r6FWUPguq6sUmNGSMV2Wr761oQoBxwGGa6DR5o1DC9g==}
@@ -1752,6 +1753,7 @@ packages:
 
   /@types/emscripten@1.39.6:
     resolution: {integrity: sha512-H90aoynNhhkQP6DRweEjJp5vfUVdIj7tdPLsu7pq89vODD/lcugKfZOsfgwpvM6XUewEp2N5dCg1Uf3Qe55Dcg==}
+    dev: true
 
   /@types/estree@1.0.1:
     resolution: {integrity: sha512-LG4opVs2ANWZ1TJoKc937iMmNstM/d0ae1vNbnBvBhqCSezgVUOzcLCqbI5elV8Vy6WKwKjaqR+zO9VKirBBCA==}
@@ -1855,6 +1857,7 @@ packages:
     dependencies:
       '@types/emscripten': 1.39.6
       '@types/node': 18.15.11
+    dev: true
 
   /@types/ssh2@1.11.8:
     resolution: {integrity: sha512-BsD9yrKmD8avjbR+N5tvv0jxYHzizcrC156YkPbNjqbu81tCm4ZdS7D6KtXbZfz+CFHgFrTC7j046Lr39W5eig==}
@@ -2444,6 +2447,7 @@ packages:
 
   /bun-types@0.5.8:
     resolution: {integrity: sha512-VHwD0MAHo3wraYAeqTWH2NDmXOdGfC3wWWOnZvK93ytI6yq/LkgsCjDudWNmN7MlfPvJb2zoLMnkzhjxNwLsLw==}
+    dev: true
 
   /bytes@3.1.2:
     resolution: {integrity: sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg==}
@@ -7192,84 +7196,3 @@ packages:
       which: 3.0.0
       yaml: 2.2.1
     dev: true
-
-  file:drizzle-orm/package.tgz(@aws-sdk/client-rds-data@3.303.0)(@libsql/client@0.1.1)(@planetscale/database@1.6.0)(@types/better-sqlite3@7.6.3)(@types/pg@8.6.6)(@types/sql.js@1.4.4)(@vercel/postgres@0.1.2)(better-sqlite3@8.2.0)(bun-types@0.5.8)(mysql2@3.2.0)(pg@8.10.0)(postgres@3.3.4)(sql.js@1.8.0)(sqlite3@5.1.6):
-    resolution: {integrity: sha512-tmmSxOB106dXiY2KvXv278gmydiSX6esrqX9J/vSol/5E5L46NncdAaGLC4dMFdaK5wA9P06jPTlzpMI3UzBPQ==, tarball: file:drizzle-orm/package.tgz}
-    id: file:drizzle-orm/package.tgz
-    name: drizzle-orm
-    version: 0.26.1
-    peerDependencies:
-      '@aws-sdk/client-rds-data': '>=3'
-      '@cloudflare/workers-types': '>=3'
-      '@libsql/client': '*'
-      '@neondatabase/serverless': '>=0.1'
-      '@opentelemetry/api': ^1.4.1
-      '@planetscale/database': '>=1'
-      '@types/better-sqlite3': '*'
-      '@types/pg': '*'
-      '@types/sql.js': '*'
-      '@vercel/postgres': '*'
-      better-sqlite3: '>=7'
-      bun-types: '*'
-      knex: '*'
-      kysely: '*'
-      mysql2: '>=2'
-      pg: '>=8'
-      postgres: '>=3'
-      sql.js: '>=1'
-      sqlite3: '>=5'
-    peerDependenciesMeta:
-      '@aws-sdk/client-rds-data':
-        optional: true
-      '@cloudflare/workers-types':
-        optional: true
-      '@libsql/client':
-        optional: true
-      '@neondatabase/serverless':
-        optional: true
-      '@opentelemetry/api':
-        optional: true
-      '@planetscale/database':
-        optional: true
-      '@types/better-sqlite3':
-        optional: true
-      '@types/pg':
-        optional: true
-      '@types/sql.js':
-        optional: true
-      '@vercel/postgres':
-        optional: true
-      better-sqlite3:
-        optional: true
-      bun-types:
-        optional: true
-      knex:
-        optional: true
-      kysely:
-        optional: true
-      mysql2:
-        optional: true
-      pg:
-        optional: true
-      postgres:
-        optional: true
-      sql.js:
-        optional: true
-      sqlite3:
-        optional: true
-    dependencies:
-      '@aws-sdk/client-rds-data': 3.303.0
-      '@libsql/client': 0.1.1
-      '@planetscale/database': 1.6.0
-      '@types/better-sqlite3': 7.6.3
-      '@types/pg': 8.6.6
-      '@types/sql.js': 1.4.4
-      '@vercel/postgres': 0.1.2
-      better-sqlite3: 8.2.0
-      bun-types: 0.5.8
-      mysql2: 3.2.0
-      pg: 8.10.0
-      postgres: 3.3.4
-      sql.js: 1.8.0
-      sqlite3: 5.1.6
-    dev: false
