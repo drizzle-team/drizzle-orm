@@ -1,4 +1,5 @@
 import { Subquery, SubqueryConfig } from '~/subquery';
+import { tracer } from '~/tracing';
 import { View, ViewBaseConfig } from '~/view';
 import { Relation } from '..';
 import type { AnyColumn } from '../column';
@@ -88,7 +89,14 @@ export class SQL<T = unknown> implements SQLWrapper {
 	}
 
 	toQuery(config: BuildQueryConfig): Query {
-		return this.buildQueryFromSourceParams(this.queryChunks, config);
+		return tracer.startActiveSpan('drizzle.buildSQL', (span) => {
+			const query = this.buildQueryFromSourceParams(this.queryChunks, config);
+			span?.setAttributes({
+				'drizzle.query.text': query.sql,
+				'drizzle.query.params': JSON.stringify(query.params),
+			});
+			return query;
+		});
 	}
 
 	buildQueryFromSourceParams(chunks: SQLChunk[], _config: BuildQueryConfig): Query {

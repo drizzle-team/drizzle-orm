@@ -8,6 +8,7 @@ import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~
 import { PgSession, PreparedQuery } from '~/pg-core/session';
 import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import { fillPlaceholders, type Query } from '~/sql';
+import { tracer } from '~/tracing';
 import { type Assume, mapResultRow } from '~/utils';
 
 export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
@@ -23,32 +24,56 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends Prep
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
+		return tracer.startActiveSpan('drizzle.execute', async (span) => {
+			const params = fillPlaceholders(this.params, placeholderValues);
 
-		this.logger.logQuery(this.query, params);
+			span?.setAttributes({
+				'drizzle.query.text': this.query,
+				'drizzle.query.params': JSON.stringify(params),
+			});
 
-		const { fields, query, client, joinsNotNullableMap, customResultMapper } = this;
-		if (!fields && !customResultMapper) {
-			return client.unsafe(query, params as any[]);
-		}
+			this.logger.logQuery(this.query, params);
 
-		const rows = await client.unsafe(query, params as any[]).values();
+			const { fields, query, client, joinsNotNullableMap, customResultMapper } = this;
+			if (!fields && !customResultMapper) {
+				return tracer.startActiveSpan('drizzle.driver.execute', () => {
+					return client.unsafe(query, params as any[]);
+				});
+			}
 
-		return customResultMapper
-			? customResultMapper(rows)
-			: rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+			const rows = await tracer.startActiveSpan('drizzle.driver.execute', () => {
+				span?.setAttributes({
+					'drizzle.query.text': query,
+					'drizzle.query.params': JSON.stringify(params),
+				});
+
+				return client.unsafe(query, params as any[]).values();
+			});
+
+			return tracer.startActiveSpan('drizzle.mapResponse', () => {
+				return customResultMapper
+					? customResultMapper(rows)
+					: rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+			});
+		});
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-		this.logger.logQuery(this.query, params);
-		return this.client.unsafe(this.query, params as any[]);
-	}
-
-	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['values']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-		this.logger.logQuery(this.query, params);
-		return this.client.unsafe(this.query, params as any[]).values();
+		return tracer.startActiveSpan('drizzle.execute', async (span) => {
+			const params = fillPlaceholders(this.params, placeholderValues);
+			span?.setAttributes({
+				'drizzle.query.text': this.query,
+				'drizzle.query.params': JSON.stringify(params),
+			});
+			this.logger.logQuery(this.query, params);
+			return tracer.startActiveSpan('drizzle.driver.execute', () => {
+				span?.setAttributes({
+					'drizzle.query.text': this.query,
+					'drizzle.query.params': JSON.stringify(params),
+				});
+				return this.client.unsafe(this.query, params as any[]);
+			});
+		});
 	}
 }
 

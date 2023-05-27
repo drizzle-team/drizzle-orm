@@ -3,6 +3,7 @@ import type { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, Que
 import type { PgMaterializedView } from '~/pg-core/view';
 import { QueryPromise } from '~/query-promise';
 import type { Query, SQL } from '~/sql';
+import { tracer } from '~/tracing';
 import type { Simplify } from '~/utils';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
@@ -59,7 +60,9 @@ export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 			execute: QueryResultKind<TQueryResult, never>;
 		}
 	> {
-		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), undefined, name);
+		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), undefined, name);
+		});
 	}
 
 	prepare(name: string): PreparedQuery<
@@ -71,6 +74,8 @@ export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 	}
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this._prepare().execute(placeholderValues);
+		return tracer.startActiveSpan('drizzle.operation', () => {
+			return this._prepare().execute(placeholderValues);
+		});
 	};
 }

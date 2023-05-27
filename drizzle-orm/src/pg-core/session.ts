@@ -1,6 +1,7 @@
 import { TransactionRollbackError } from '~/errors';
 import { type TablesRelationalConfig } from '~/relations';
 import { type Query, type SQL, sql } from '~/sql';
+import { tracer } from '~/tracing';
 import { PgDatabase } from './db';
 import type { PgDialect } from './dialect';
 import type { SelectedFieldsOrdered } from './query-builders/select.types';
@@ -19,9 +20,6 @@ export abstract class PreparedQuery<T extends PreparedQueryConfig> {
 
 	/** @internal */
 	abstract all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;
-
-	/** @internal */
-	abstract values(placeholderValues?: Record<string, unknown>): Promise<T['values']>;
 }
 
 export interface PgTransactionConfig {
@@ -45,11 +43,17 @@ export abstract class PgSession<
 	): PreparedQuery<T>;
 
 	execute<T>(query: SQL): Promise<T> {
-		return this.prepareQuery<PreparedQueryConfig & { execute: T }>(
-			this.dialect.sqlToQuery(query),
-			undefined,
-			undefined,
-		).execute();
+		return tracer.startActiveSpan('drizzle.operation', () => {
+			const prepared = tracer.startActiveSpan('drizzle.prepareQuery', () => {
+				return this.prepareQuery<PreparedQueryConfig & { execute: T }>(
+					this.dialect.sqlToQuery(query),
+					undefined,
+					undefined,
+				);
+			});
+
+			return prepared.execute();
+		});
 	}
 
 	all<T = unknown>(query: SQL): Promise<T[]> {
@@ -58,14 +62,6 @@ export abstract class PgSession<
 			undefined,
 			undefined,
 		).all();
-	}
-
-	values<T = unknown>(query: SQL): Promise<T[]> {
-		return this.prepareQuery<PreparedQueryConfig & { values: T[] }>(
-			this.dialect.sqlToQuery(query),
-			undefined,
-			undefined,
-		).values();
 	}
 
 	abstract transaction<T>(

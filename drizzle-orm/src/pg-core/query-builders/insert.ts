@@ -7,6 +7,7 @@ import { QueryPromise } from '~/query-promise';
 import type { Placeholder, Query, SQLWrapper } from '~/sql';
 import { Param, SQL, sql } from '~/sql';
 import { type InferModel, Table } from '~/table';
+import { tracer } from '~/tracing';
 import type { Simplify } from '~/utils';
 import { mapUpdateSet, orderSelectedFields } from '~/utils';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
@@ -143,7 +144,13 @@ export class PgInsert<
 			execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
 		}
 	> {
-		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
+		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			return this.session.prepareQuery<
+				PreparedQueryConfig & {
+					execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
+				}
+			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
+		});
 	}
 
 	prepare(name: string): PreparedQuery<
@@ -155,6 +162,8 @@ export class PgInsert<
 	}
 
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this._prepare().execute(placeholderValues);
+		return tracer.startActiveSpan('drizzle.operation', () => {
+			return this._prepare().execute(placeholderValues);
+		});
 	};
 }

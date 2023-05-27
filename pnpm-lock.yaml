@@ -66,6 +66,9 @@ importers:
       '@neondatabase/serverless':
         specifier: ^0.2.9
         version: 0.2.9
+      '@opentelemetry/api':
+        specifier: ^1.4.1
+        version: 1.4.1
       '@originjs/vite-plugin-commonjs':
         specifier: ^1.0.3
         version: 1.0.3
@@ -75,6 +78,9 @@ importers:
       '@rollup/plugin-json':
         specifier: ^6.0.0
         version: 6.0.0(rollup@3.20.7)
+      '@rollup/plugin-replace':
+        specifier: ^5.0.2
+        version: 5.0.2(rollup@3.20.7)
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
         version: 11.1.0(rollup@3.20.7)(tslib@2.5.0)(typescript@5.0.3)
@@ -99,6 +105,9 @@ importers:
       bun-types:
         specifier: ^0.5.8
         version: 0.5.8
+      concurrently:
+        specifier: ^8.0.1
+        version: 8.0.1
       knex:
         specifier: ^2.4.2
         version: 2.4.2(better-sqlite3@8.2.0)(mysql2@3.2.0)(pg@8.10.0)(sqlite3@5.1.6)
@@ -202,8 +211,8 @@ importers:
         specifier: ^16.0.3
         version: 16.0.3
       drizzle-orm:
-        specifier: workspace:../drizzle-orm/dist
-        version: link:../drizzle-orm/dist
+        specifier: file:../drizzle-orm/package.tgz
+        version: file:drizzle-orm/package.tgz(@aws-sdk/client-rds-data@3.303.0)(@libsql/client@0.1.1)(@planetscale/database@1.6.0)(@types/better-sqlite3@7.6.3)(@types/pg@8.6.6)(@types/sql.js@1.4.4)(@vercel/postgres@0.1.2)(better-sqlite3@8.2.0)(bun-types@0.5.8)(mysql2@3.2.0)(pg@8.10.0)(postgres@3.3.4)(sql.js@1.8.0)(sqlite3@5.1.6)
       drizzle-zod:
         specifier: workspace:../drizzle-zod/dist
         version: link:../drizzle-zod/dist
@@ -1568,6 +1577,11 @@ packages:
       rimraf: 3.0.2
     optional: true
 
+  /@opentelemetry/api@1.4.1:
+    resolution: {integrity: sha512-O2yRJce1GOc6PAy3QxFM4NzFiWzvScDC1/5ihYBL6BUEVdq0XMWN01sppE+H6bBXbaFYipjwFLEWLg5PaSOThA==}
+    engines: {node: '>=8.0.0'}
+    dev: true
+
   /@originjs/vite-plugin-commonjs@1.0.3:
     resolution: {integrity: sha512-KuEXeGPptM2lyxdIEJ4R11+5ztipHoE7hy8ClZt3PYaOVQ/pyngd2alaSrPnwyFeOW1UagRBaQ752aA1dTMdOQ==}
     dependencies:
@@ -1595,6 +1609,20 @@ packages:
         optional: true
     dependencies:
       '@rollup/pluginutils': 5.0.2(rollup@3.20.7)
+      rollup: 3.20.7
+    dev: true
+
+  /@rollup/plugin-replace@5.0.2(rollup@3.20.7):
+    resolution: {integrity: sha512-M9YXNekv/C/iHHK+cvORzfRYfPbq0RDD8r0G+bMiTXjNGKulPnCT9O3Ss46WfhI6ZOCgApOP7xAdmCQJ+U2LAA==}
+    engines: {node: '>=14.0.0'}
+    peerDependencies:
+      rollup: ^1.20.0||^2.0.0||^3.0.0
+    peerDependenciesMeta:
+      rollup:
+        optional: true
+    dependencies:
+      '@rollup/pluginutils': 5.0.2(rollup@3.20.7)
+      magic-string: 0.27.0
       rollup: 3.20.7
     dev: true
 
@@ -1686,7 +1714,6 @@ packages:
     resolution: {integrity: sha512-YS64N9SNDT/NAvou3QNdzAu3E2om/W/0dhORimtPGLef+zSK5l1vDzfsWb4xgXOgfhtOI5ZDTRxnvRPb22AIVQ==}
     dependencies:
       '@types/node': 18.15.11
-    dev: true
 
   /@types/body-parser@1.19.2:
     resolution: {integrity: sha512-ALYone6pm6QmwZoAgeyNksccT9Q4AWZQ6PvfwR37GT6r6FWUPguq6sUmNGSMV2Wr761oQoBxwGGa6DR5o1DC9g==}
@@ -1725,7 +1752,6 @@ packages:
 
   /@types/emscripten@1.39.6:
     resolution: {integrity: sha512-H90aoynNhhkQP6DRweEjJp5vfUVdIj7tdPLsu7pq89vODD/lcugKfZOsfgwpvM6XUewEp2N5dCg1Uf3Qe55Dcg==}
-    dev: true
 
   /@types/estree@1.0.1:
     resolution: {integrity: sha512-LG4opVs2ANWZ1TJoKc937iMmNstM/d0ae1vNbnBvBhqCSezgVUOzcLCqbI5elV8Vy6WKwKjaqR+zO9VKirBBCA==}
@@ -1829,7 +1855,6 @@ packages:
     dependencies:
       '@types/emscripten': 1.39.6
       '@types/node': 18.15.11
-    dev: true
 
   /@types/ssh2@1.11.8:
     resolution: {integrity: sha512-BsD9yrKmD8avjbR+N5tvv0jxYHzizcrC156YkPbNjqbu81tCm4ZdS7D6KtXbZfz+CFHgFrTC7j046Lr39W5eig==}
@@ -2419,7 +2444,6 @@ packages:
 
   /bun-types@0.5.8:
     resolution: {integrity: sha512-VHwD0MAHo3wraYAeqTWH2NDmXOdGfC3wWWOnZvK93ytI6yq/LkgsCjDudWNmN7MlfPvJb2zoLMnkzhjxNwLsLw==}
-    dev: true
 
   /bytes@3.1.2:
     resolution: {integrity: sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg==}
@@ -4977,6 +5001,13 @@ packages:
       es5-ext: 0.10.62
     dev: true
 
+  /magic-string@0.27.0:
+    resolution: {integrity: sha512-8UnnX2PeRAPZuN12svgR9j7M1uWMovg/CEnIwIG0LFkXSJJe4PdfUGiTGl8V9bsBHFUtfVINcSyYxd7q+kx9fA==}
+    engines: {node: '>=12'}
+    dependencies:
+      '@jridgewell/sourcemap-codec': 1.4.15
+    dev: true
+
   /magic-string@0.30.0:
     resolution: {integrity: sha512-LA+31JYDJLs82r2ScLrlz1GjSgu66ZV518eyWT+S8VhyQn/JL0u9MeBOvQMGYiPk1DBiSN9DDMOcXvigJZaViQ==}
     engines: {node: '>=12'}
@@ -7161,3 +7192,84 @@ packages:
       which: 3.0.0
       yaml: 2.2.1
     dev: true
+
+  file:drizzle-orm/package.tgz(@aws-sdk/client-rds-data@3.303.0)(@libsql/client@0.1.1)(@planetscale/database@1.6.0)(@types/better-sqlite3@7.6.3)(@types/pg@8.6.6)(@types/sql.js@1.4.4)(@vercel/postgres@0.1.2)(better-sqlite3@8.2.0)(bun-types@0.5.8)(mysql2@3.2.0)(pg@8.10.0)(postgres@3.3.4)(sql.js@1.8.0)(sqlite3@5.1.6):
+    resolution: {integrity: sha512-tmmSxOB106dXiY2KvXv278gmydiSX6esrqX9J/vSol/5E5L46NncdAaGLC4dMFdaK5wA9P06jPTlzpMI3UzBPQ==, tarball: file:drizzle-orm/package.tgz}
+    id: file:drizzle-orm/package.tgz
+    name: drizzle-orm
+    version: 0.26.1
+    peerDependencies:
+      '@aws-sdk/client-rds-data': '>=3'
+      '@cloudflare/workers-types': '>=3'
+      '@libsql/client': '*'
+      '@neondatabase/serverless': '>=0.1'
+      '@opentelemetry/api': ^1.4.1
+      '@planetscale/database': '>=1'
+      '@types/better-sqlite3': '*'
+      '@types/pg': '*'
+      '@types/sql.js': '*'
+      '@vercel/postgres': '*'
+      better-sqlite3: '>=7'
+      bun-types: '*'
+      knex: '*'
+      kysely: '*'
+      mysql2: '>=2'
+      pg: '>=8'
+      postgres: '>=3'
+      sql.js: '>=1'
+      sqlite3: '>=5'
+    peerDependenciesMeta:
+      '@aws-sdk/client-rds-data':
+        optional: true
+      '@cloudflare/workers-types':
+        optional: true
+      '@libsql/client':
+        optional: true
+      '@neondatabase/serverless':
+        optional: true
+      '@opentelemetry/api':
+        optional: true
+      '@planetscale/database':
+        optional: true
+      '@types/better-sqlite3':
+        optional: true
+      '@types/pg':
+        optional: true
+      '@types/sql.js':
+        optional: true
+      '@vercel/postgres':
+        optional: true
+      better-sqlite3:
+        optional: true
+      bun-types:
+        optional: true
+      knex:
+        optional: true
+      kysely:
+        optional: true
+      mysql2:
+        optional: true
+      pg:
+        optional: true
+      postgres:
+        optional: true
+      sql.js:
+        optional: true
+      sqlite3:
+        optional: true
+    dependencies:
+      '@aws-sdk/client-rds-data': 3.303.0
+      '@libsql/client': 0.1.1
+      '@planetscale/database': 1.6.0
+      '@types/better-sqlite3': 7.6.3
+      '@types/pg': 8.6.6
+      '@types/sql.js': 1.4.4
+      '@vercel/postgres': 0.1.2
+      better-sqlite3: 8.2.0
+      bun-types: 0.5.8
+      mysql2: 3.2.0
+      pg: 8.10.0
+      postgres: 3.3.4
+      sql.js: 1.8.0
+      sqlite3: 5.1.6
+    dev: false

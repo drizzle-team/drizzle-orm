@@ -47,10 +47,12 @@
     "@cloudflare/workers-types": ">=3",
     "@libsql/client": "*",
     "@neondatabase/serverless": ">=0.1",
+    "@opentelemetry/api": "^1.4.1",
     "@planetscale/database": ">=1",
     "@types/better-sqlite3": "*",
     "@types/pg": "*",
     "@types/sql.js": "*",
+    "@vercel/postgres": "*",
     "better-sqlite3": ">=7",
     "bun-types": "*",
     "knex": "*",
@@ -59,8 +61,7 @@
     "pg": ">=8",
     "postgres": ">=3",
     "sql.js": ">=1",
-    "sqlite3": ">=5",
-    "@vercel/postgres": "*"
+    "sqlite3": ">=5"
   },
   "peerDependenciesMeta": {
     "mysql2": {
@@ -116,6 +117,9 @@
     },
     "@libsql/client": {
       "optional": true
+    },
+    "@opentelemetry/api": {
+      "optional": true
     }
   },
   "devDependencies": {
@@ -123,9 +127,11 @@
     "@cloudflare/workers-types": "^4.20230321.0",
     "@libsql/client": "^0.1.1",
     "@neondatabase/serverless": "^0.2.9",
+    "@opentelemetry/api": "^1.4.1",
     "@originjs/vite-plugin-commonjs": "^1.0.3",
     "@planetscale/database": "^1.5.0",
     "@rollup/plugin-json": "^6.0.0",
+    "@rollup/plugin-replace": "^5.0.2",
     "@rollup/plugin-typescript": "^11.1.0",
     "@types/better-sqlite3": "^7.6.2",
     "@types/node": "^18.15.11",
@@ -134,6 +140,7 @@
     "@vercel/postgres": "^0.1.2",
     "better-sqlite3": "^8.0.0",
     "bun-types": "^0.5.8",
+    "concurrently": "^8.0.1",
     "knex": "^2.4.2",
     "kysely": "^0.24.2",
     "mysql2": "^3.2.0",
