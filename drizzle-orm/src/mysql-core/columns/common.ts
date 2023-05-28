@@ -100,6 +100,7 @@ export abstract class MySqlColumnBuilderWithAutoIncrement<
 
 	autoincrement(): MySqlColumnBuilderWithAutoIncrement<THKT, UpdateCBConfig<T, { hasDefault: true }>, TRuntimeConfig> {
 		this.config.autoIncrement = true;
+		this.config.hasDefault = true;
 		return this as ReturnType<this['autoincrement']>;
 	}
 }
