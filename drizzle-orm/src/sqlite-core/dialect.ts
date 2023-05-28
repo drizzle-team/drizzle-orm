@@ -661,7 +661,7 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 			sql`SELECT id, hash, created_at FROM "__drizzle_migrations" ORDER BY created_at DESC LIMIT 1`,
 		);
 		// fix for bun-sqlite migrations where dbMigrations return null
-		const lastDbMigration = dbMigrations == null ? undefined : dbMigrations[0] ?? undefined;
+		const lastDbMigration = dbMigrations?.[0] ?? undefined;
 		session.run(sql`BEGIN`);
 
 		try {
