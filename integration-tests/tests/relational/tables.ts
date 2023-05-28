@@ -68,9 +68,9 @@ export const node = sqliteTable('node', {
 	leftId: int('left_id'),
 	rightId: int('right_id'),
 }, (node) => ({
-	fk1: foreignKey(() => ({ columns: [node.parentId], foreignColumns: [node.id] })),
-	fk2: foreignKey(() => ({ columns: [node.leftId], foreignColumns: [node.id] })),
-	fk3: foreignKey(() => ({ columns: [node.rightId], foreignColumns: [node.id] })),
+	fk1: foreignKey({ columns: [node.parentId], foreignColumns: [node.id] }),
+	fk2: foreignKey({ columns: [node.leftId], foreignColumns: [node.id] }),
+	fk3: foreignKey({ columns: [node.rightId], foreignColumns: [node.id] }),
 }));
 export const nodeRelations = relations(node, ({ one }) => ({
 	parent: one(node, { fields: [node.parentId], references: [node.id] }),

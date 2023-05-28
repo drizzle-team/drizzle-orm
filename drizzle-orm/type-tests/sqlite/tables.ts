@@ -49,11 +49,11 @@ export const users = sqliteTable(
 				sql`${users.class} is not null`,
 			),
 		legalAge: check('legalAge', sql`${users.age1} > 18`),
-		usersClassFK: foreignKey(() => ({ columns: [users.subClass], foreignColumns: [classes.subClass] })),
-		usersClassComplexFK: foreignKey(() => ({
+		usersClassFK: foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] }),
+		usersClassComplexFK: foreignKey({
 			columns: [users.class, users.subClass],
 			foreignColumns: [classes.class, classes.subClass],
-		})),
+		}),
 		pk: primaryKey(users.age1, users.class),
 	}),
 );

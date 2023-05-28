@@ -96,17 +96,13 @@ export function foreignKey<
 	TForeignTableName extends string,
 	TColumns extends [AnySQLiteColumn<{ tableName: TTableName }>, ...AnySQLiteColumn<{ tableName: TTableName }>[]],
 >(
-	config: () => {
+	config: {
 		columns: TColumns;
 		foreignColumns: ColumnsWithTable<TForeignTableName, TColumns>;
 	},
 ): ForeignKeyBuilder {
 	function mappedConfig() {
-		const { columns, foreignColumns } = config();
-		return {
-			columns,
-			foreignColumns,
-		};
+		return config;
 	}
 
 	return new ForeignKeyBuilder(mappedConfig);
