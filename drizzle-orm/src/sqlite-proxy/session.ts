@@ -90,10 +90,10 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		super();
 	}
 
-	async run(placeholderValues?: Record<string, unknown>): Promise<SqliteRemoteResult> {
+	run(placeholderValues?: Record<string, unknown>): Promise<SqliteRemoteResult> {
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
-		return await this.client(this.queryString, params, 'run');
+		return this.client(this.queryString, params, 'run');
 	}
 
 	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
@@ -102,10 +102,10 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		logger.logQuery(queryString, params);
 
-		const clientResult = this.client(queryString, params, 'all');
+		const { rows } = await this.client(queryString, params, 'all');
 
 		if (fields) {
-			return clientResult.then((values) => values.rows.map((row) => mapResultRow(fields, row, joinsNotNullableMap)));
+			return rows.map((row) => mapResultRow(fields, row, joinsNotNullableMap));
 		}
 
 		return this.client(queryString, params, 'all').then(({ rows }) => rows!);

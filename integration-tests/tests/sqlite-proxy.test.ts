@@ -16,27 +16,27 @@ class ServerSimulator {
 	async query(sql: string, params: any[], method: string) {
 		if (method === 'run') {
 			try {
-				const result = this.db.prepare(sql).run(params);
-				return { data: result };
+				this.db.prepare(sql).run(params);
+				return { data: [] };
 			} catch (e: any) {
-				return { error: e.message };
+				return { error: e.message, data: [] };
 			}
 		} else if (method === 'all' || method === 'values') {
 			try {
 				const rows = this.db.prepare(sql).raw().all(params);
 				return { data: rows };
 			} catch (e: any) {
-				return { error: e.message };
+				return { error: e.message, data: [] };
 			}
 		} else if (method === 'get') {
 			try {
 				const row = this.db.prepare(sql).raw().get(params);
-				return { data: row };
+				return { data: [row] };
 			} catch (e: any) {
-				return { error: e.message };
+				return { error: e.message, data: [] };
 			}
 		} else {
-			return { error: 'Unkown method value' };
+			return { error: 'Unknown method value', data: [] };
 		}
 	}
 
