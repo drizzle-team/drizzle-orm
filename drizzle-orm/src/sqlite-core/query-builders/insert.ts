@@ -116,20 +116,22 @@ export class SQLiteInsert<
 		if (config.target === undefined) {
 			this.config.onConflict = sql`do nothing`;
 		} else {
+			const targetSql = Array.isArray(config.target) ? sql`${config.target}` : sql`${[config.target]}`;
 			const whereSql = config.where ? sql` where ${config.where}` : sql``;
-			this.config.onConflict = sql`(${config.target})${whereSql} do nothing`;
+			this.config.onConflict = sql`${targetSql}${whereSql} do nothing`;
 		}
 		return this;
 	}
 
 	onConflictDoUpdate(config: {
-		target?: IndexColumn | IndexColumn[];
+		target: IndexColumn | IndexColumn[];
 		where?: SQL;
 		set: SQLiteUpdateSetSource<TTable>;
 	}): this {
+		const targetSql = Array.isArray(config.target) ? sql`${config.target}` : sql`${[config.target]}`;
 		const whereSql = config.where ? sql` where ${config.where}` : sql``;
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
-		this.config.onConflict = sql`(${config.target})${whereSql} do update set ${setSql}`;
+		this.config.onConflict = sql`${targetSql}${whereSql} do update set ${setSql}`;
 		return this;
 	}
 

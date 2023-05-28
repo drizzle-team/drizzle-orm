@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-import { type VercelClient, createClient } from '@vercel/postgres';
+import { createClient, type VercelClient } from '@vercel/postgres';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import Docker from 'dockerode';
@@ -152,8 +152,6 @@ async function createDockerDB(ctx: Context): Promise<string> {
 test.before(async (t) => {
 	const ctx = t.context;
 	const connectionString = process.env['PG_CONNECTION_STRING'] ?? (await createDockerDB(ctx));
-
-	console.log(connectionString)
 
 	const sleep = 250;
 	let timeLeft = 5000;

@@ -180,6 +180,7 @@ export function text<T extends string = string>(
 
 ```typescript
 export class PgCITextBuilder<TData extends string = string> extends PgColumnBuilder<
+  PgColumnBuilderHKT,
   ColumnBuilderConfig<{ data: TData; driverParam: string }>
 > {
   protected $pgColumnBuilderBrand: string = 'PgCITextBuilder';
@@ -190,7 +191,7 @@ export class PgCITextBuilder<TData extends string = string> extends PgColumnBuil
 }
 
 export class PgCIText<TTableName extends string, TData extends string>
-  extends PgColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>>
+  extends PgColumn<PgColumnHKT, ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>>
 {
   
 

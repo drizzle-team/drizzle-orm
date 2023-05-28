@@ -214,8 +214,6 @@ test('Simple case from GH', async () => {
 		},
 	});
 
-	console.log(JSON.stringify(response, null, 2));
-
 	expectTypeOf(response).toEqualTypeOf<
 		{
 			id: number;
