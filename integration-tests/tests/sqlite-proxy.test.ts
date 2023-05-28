@@ -33,7 +33,6 @@ class ServerSimulator {
 				const row = this.db.prepare(sql).raw().get(params);
 				return { data: row };
 			} catch (e: any) {
-				console.log('get row:', e);
 				return { error: e.message };
 			}
 		} else {
@@ -680,7 +679,7 @@ test.serial('migrator', async (t) => {
 		try {
 			serverSimulator.migrations(queries);
 		} catch (e) {
-			console.log(e);
+			console.error(e);
 			throw new Error('Proxy server cannot run migrations');
 		}
 	}, { migrationsFolder: 'drizzle2/sqlite' });
