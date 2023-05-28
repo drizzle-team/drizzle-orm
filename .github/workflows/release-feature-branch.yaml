@@ -40,7 +40,7 @@ jobs:
           MYSQL_PASSWORD: root
           MYSQL_DATABASE: drizzle
         options: >-
-          --health-cmd mysqladmin ping
+          --health-cmd "mysqladmin ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
