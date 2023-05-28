@@ -1,5 +1,6 @@
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
+import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import { fillPlaceholders, type Query, sql } from '~/sql';
 import { SQLiteTransaction } from '~/sqlite-core';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
@@ -15,12 +16,16 @@ export interface SQLiteRemoteSessionOptions {
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
-export class SQLiteRemoteSession extends SQLiteSession<'async', SqliteRemoteResult> {
+export class SQLiteRemoteSession<
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
+> extends SQLiteSession<'async', SqliteRemoteResult, TFullSchema, TSchema> {
 	private logger: Logger;
 
 	constructor(
 		private client: RemoteCallback,
 		dialect: SQLiteAsyncDialect,
+		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		options: SQLiteRemoteSessionOptions = {},
 	) {
 		super(dialect);
@@ -35,10 +40,10 @@ export class SQLiteRemoteSession extends SQLiteSession<'async', SqliteRemoteResu
 	}
 
 	override async transaction<T>(
-		transaction: (tx: SQLiteProxyTransaction) => Promise<T>,
+		transaction: (tx: SQLiteProxyTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config?: SQLiteTransactionConfig,
 	): Promise<T> {
-		const tx = new SQLiteProxyTransaction(this.dialect, this);
+		const tx = new SQLiteProxyTransaction('async', this.dialect, this, this.schema);
 		await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
 		try {
 			const result = await transaction(tx);
@@ -51,10 +56,15 @@ export class SQLiteRemoteSession extends SQLiteSession<'async', SqliteRemoteResu
 	}
 }
 
-export class SQLiteProxyTransaction extends SQLiteTransaction<'async', SqliteRemoteResult> {
-	override async transaction<T>(transaction: (tx: SQLiteProxyTransaction) => Promise<T>): Promise<T> {
+export class SQLiteProxyTransaction<
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
+> extends SQLiteTransaction<'async', SqliteRemoteResult, TFullSchema, TSchema> {
+	override async transaction<T>(
+		transaction: (tx: SQLiteProxyTransaction<TFullSchema, TSchema>) => Promise<T>,
+	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex}`;
-		const tx = new SQLiteProxyTransaction(this.dialect, this.session, this.nestedIndex + 1);
+		const tx = new SQLiteProxyTransaction('async', this.dialect, this.session, this.schema, this.nestedIndex + 1);
 		await this.session.run(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);
@@ -80,10 +90,10 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		super();
 	}
 
-	async run(placeholderValues?: Record<string, unknown>): Promise<SqliteRemoteResult> {
+	run(placeholderValues?: Record<string, unknown>): Promise<SqliteRemoteResult> {
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
-		return await this.client(this.queryString, params, 'run');
+		return this.client(this.queryString, params, 'run');
 	}
 
 	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
@@ -92,13 +102,13 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		logger.logQuery(queryString, params);
 
-		const clientResult = this.client(queryString, params, 'all');
+		const { rows } = await this.client(queryString, params, 'all');
 
 		if (fields) {
-			return clientResult.then((values) => values.rows.map((row) => mapResultRow(fields, row, joinsNotNullableMap)));
+			return rows.map((row) => mapResultRow(fields, row, joinsNotNullableMap));
 		}
 
-		return this.client(queryString, params, 'all').then(({ rows }) => rows!);
+		return this.client(queryString, params, 'all').then(({ rows }) => rows);
 	}
 
 	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {

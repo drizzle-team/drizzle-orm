@@ -1,6 +1,6 @@
 import type { AnyColumn, GetColumnData } from './column';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations';
-import type { Simplify, Update } from './utils';
+import type { Assume, SimplifyShallow, Update } from './utils';
 
 export interface TableConfig<TColumn extends AnyColumn = AnyColumn> {
 	name: string;
@@ -30,6 +30,11 @@ export const BaseName = Symbol('BaseName');
 /** @internal */
 export const IsAlias = Symbol('IsAlias');
 
+/** @internal */
+export const ExtraConfigBuilder = Symbol('ExtraConfigBuilder');
+
+const IsDrizzleTable = Symbol.for('IsDrizzleTable');
+
 export class Table<T extends TableConfig = TableConfig> {
 	declare readonly _: {
 		readonly brand: 'Table';
@@ -51,6 +56,7 @@ export class Table<T extends TableConfig = TableConfig> {
 		Columns: Columns as typeof Columns,
 		BaseName: BaseName as typeof BaseName,
 		IsAlias: IsAlias as typeof IsAlias,
+		ExtraConfigBuilder: ExtraConfigBuilder as typeof ExtraConfigBuilder,
 	};
 
 	/**
@@ -80,6 +86,11 @@ export class Table<T extends TableConfig = TableConfig> {
 	/** @internal */
 	[IsAlias] = false;
 
+	/** @internal */
+	[ExtraConfigBuilder]: ((self: any) => Record<string, unknown>) | undefined = undefined;
+
+	[IsDrizzleTable] = true;
+
 	constructor(name: string, schema: string | undefined, baseName: string) {
 		this[TableName] = this[OriginalName] = name;
 		this[Schema] = schema;
@@ -87,7 +98,24 @@ export class Table<T extends TableConfig = TableConfig> {
 	}
 }
 
+export function isTable(table: unknown): table is Table {
+	return typeof table === 'object' && table !== null && IsDrizzleTable in table;
+}
+
 export type AnyTable<TPartial extends Partial<TableConfig> = {}> = Table<UpdateTableConfig<TableConfig, TPartial>>;
+
+export interface AnyTableHKT {
+	readonly brand: 'TableHKT';
+	config: unknown;
+	type: unknown;
+}
+
+export interface AnyTableHKTBase extends AnyTableHKT {
+	type: AnyTable<Assume<this['config'], Partial<TableConfig>>>;
+}
+
+export type AnyTableKind<THKT extends AnyTableHKT, TConfig extends Partial<TableConfig>> =
+	(THKT & { config: TConfig })['type'];
 
 export function getTableName<T extends Table>(table: T): T['_']['name'] {
 	return table[TableName];
@@ -97,34 +125,40 @@ export type MapColumnName<TName extends string, TColumn extends AnyColumn, TDBCo
 	TDBColumNames extends true ? TColumn['_']['name']
 		: TName;
 
-export type InferModel<
-	TTable extends AnyTable,
+export type InferModelFromColumns<
+	TColumns extends Record<string, AnyColumn>,
 	TInferMode extends 'select' | 'insert' = 'select',
 	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
-> = TInferMode extends 'insert' ? Simplify<
+> = TInferMode extends 'insert' ? SimplifyShallow<
 		& {
 			[
-				Key in keyof TTable['_']['columns'] & string as RequiredKeyOnly<
-					MapColumnName<Key, TTable['_']['columns'][Key], TConfig['dbColumnNames']>,
-					TTable['_']['columns'][Key]
+				Key in keyof TColumns & string as RequiredKeyOnly<
+					MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
+					TColumns[Key]
 				>
-			]: GetColumnData<TTable['_']['columns'][Key], 'query'>;
+			]: GetColumnData<TColumns[Key], 'query'>;
 		}
 		& {
 			[
-				Key in keyof TTable['_']['columns'] & string as OptionalKeyOnly<
-					MapColumnName<Key, TTable['_']['columns'][Key], TConfig['dbColumnNames']>,
-					TTable['_']['columns'][Key]
+				Key in keyof TColumns & string as OptionalKeyOnly<
+					MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
+					TColumns[Key]
 				>
-			]?: GetColumnData<TTable['_']['columns'][Key], 'query'>;
+			]?: GetColumnData<TColumns[Key], 'query'>;
 		}
 	>
 	: {
 		[
-			Key in keyof TTable['_']['columns'] & string as MapColumnName<
+			Key in keyof TColumns & string as MapColumnName<
 				Key,
-				TTable['_']['columns'][Key],
+				TColumns[Key],
 				TConfig['dbColumnNames']
 			>
-		]: GetColumnData<TTable['_']['columns'][Key], 'query'>;
+		]: GetColumnData<TColumns[Key], 'query'>;
 	};
+
+export type InferModel<
+	TTable extends AnyTable,
+	TInferMode extends 'select' | 'insert' = 'select',
+	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
+> = InferModelFromColumns<TTable['_']['columns'], TInferMode, TConfig>;

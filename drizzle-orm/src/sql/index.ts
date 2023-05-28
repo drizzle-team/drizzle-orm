@@ -1,5 +1,6 @@
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { View, ViewBaseConfig } from '~/view';
+import { Relation } from '..';
 import type { AnyColumn } from '../column';
 import { Column } from '../column';
 import { Table } from '../table';
@@ -54,7 +55,8 @@ function mergeQueries(queries: Query[]): Query {
 	for (const query of queries) {
 		result.sql += query.sql;
 		result.params.push(...query.params);
-		if (result.typings && query.typings?.length) {
+		if (query.typings?.length) {
+			result.typings = result.typings || [];
 			result.typings.push(...query.typings);
 		}
 	}
@@ -205,6 +207,14 @@ export class SQL<T = unknown> implements SQLWrapper {
 				], config);
 			}
 
+			if (chunk instanceof Relation) {
+				return this.buildQueryFromSourceParams([
+					chunk.sourceTable,
+					new StringChunk('.'),
+					sql.identifier(chunk.fieldName),
+				], config);
+			}
+
 			if (inlineParams) {
 				return { sql: this.mapInlineParam(chunk, config), params: [] };
 			}
@@ -291,6 +301,7 @@ export class Name {
 
 /**
  * Any DB name (table, column, index etc.)
+ * @deprecated Use `sql.identifier` instead.
  */
 export function name(value: string): Name {
 	return new Name(value);
@@ -411,6 +422,13 @@ export namespace sql {
 			result.push(chunk);
 		}
 		return sql.fromList(result);
+	}
+
+	/**
+	 *  Any DB identifier (table name, column name, index name etc.)
+	 */
+	export function identifier(value: string): Name {
+		return name(value);
 	}
 }
 

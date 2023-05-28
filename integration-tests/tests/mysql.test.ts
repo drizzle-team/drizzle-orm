@@ -798,6 +798,8 @@ const tableWithEnums = mysqlTable('enums_test_case', {
 test.serial('Mysql enum test case #1', async (t) => {
 	const { db } = t.context;
 
+	await db.execute(sql`drop table if exists \`enums_test_case\``);
+
 	await db.execute(sql`
 		create table \`enums_test_case\` (
 			\`id\` serial primary key,

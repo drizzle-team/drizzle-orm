@@ -48,7 +48,7 @@ export class SQLiteSelectBuilder<
 > {
 	constructor(
 		private fields: TSelection,
-		private session: SQLiteSession | undefined,
+		private session: SQLiteSession<any, any, any, any> | undefined,
 		private dialect: SQLiteDialect,
 		private withList: Subquery[] = [],
 	) {}
@@ -122,7 +122,7 @@ export abstract class SQLiteSelectQueryBuilder<
 		table: SQLiteSelectConfig['table'],
 		fields: SQLiteSelectConfig['fields'],
 		private isPartialSelect: boolean,
-		protected session: SQLiteSession | undefined,
+		protected session: SQLiteSession<any, any, any, any> | undefined,
 		protected dialect: SQLiteDialect,
 		withList: Subquery[],
 	) {

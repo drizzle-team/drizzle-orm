@@ -1,18 +1,25 @@
 import type { Sql } from 'postgres';
-import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
 import { PgDatabase } from '~/pg-core/db';
 import { PgDialect } from '~/pg-core/dialect';
+import {
+	createTableRelationsHelpers,
+	extractTablesRelationalConfig,
+	type RelationalSchemaConfig,
+	type TablesRelationalConfig,
+} from '~/relations';
+import { type DrizzleConfig } from '~/utils';
 import type { PostgresJsQueryResultHKT } from './session';
 import { PostgresJsSession } from './session';
 
-export interface DrizzleConfig {
-	logger?: boolean | Logger;
-}
+export type PostgresJsDatabase<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+> = PgDatabase<PostgresJsQueryResultHKT, TSchema>;
 
-export type PostgresJsDatabase = PgDatabase<PostgresJsQueryResultHKT>;
-
-export function drizzle(client: Sql, config: DrizzleConfig = {}): PostgresJsDatabase {
+export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+	client: Sql,
+	config: DrizzleConfig<TSchema> = {},
+): PostgresJsDatabase<TSchema> {
 	const dialect = new PgDialect();
 	let logger;
 	if (config.logger === true) {
@@ -20,6 +27,20 @@ export function drizzle(client: Sql, config: DrizzleConfig = {}): PostgresJsData
 	} else if (config.logger !== false) {
 		logger = config.logger;
 	}
-	const session = new PostgresJsSession(client, dialect, { logger });
-	return new PgDatabase(dialect, session);
+
+	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
+	if (config.schema) {
+		const tablesConfig = extractTablesRelationalConfig(
+			config.schema,
+			createTableRelationsHelpers,
+		);
+		schema = {
+			fullSchema: config.schema,
+			schema: tablesConfig.tables,
+			tableNamesMap: tablesConfig.tableNamesMap,
+		};
+	}
+
+	const session = new PostgresJsSession(client, dialect, schema, { logger });
+	return new PgDatabase(dialect, session, schema) as PostgresJsDatabase<TSchema>;
 }

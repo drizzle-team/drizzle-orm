@@ -2,14 +2,11 @@ import type { AnyPgTable } from '~/pg-core/table';
 import { PgTable } from '~/pg-core/table';
 import { Table } from '~/table';
 import { ViewBaseConfig } from '~/view';
-import type { Check } from './checks';
-import { CheckBuilder } from './checks';
-import type { ForeignKey } from './foreign-keys';
-import { ForeignKeyBuilder } from './foreign-keys';
-import type { Index } from './indexes';
-import { IndexBuilder } from './indexes';
-import type { PrimaryKey } from './primary-keys';
-import { PrimaryKeyBuilder } from './primary-keys';
+import { type Check, CheckBuilder } from './checks';
+import { type AnyPgColumn } from './columns';
+import { type ForeignKey, ForeignKeyBuilder } from './foreign-keys';
+import { type Index, IndexBuilder } from './indexes';
+import { type PrimaryKey, PrimaryKeyBuilder } from './primary-keys';
 import { type PgMaterializedView, PgMaterializedViewConfig, type PgView, PgViewConfig } from './view';
 
 export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
@@ -164,3 +161,9 @@ export function makePgArray(array: any[]): string {
 		}).join(',')
 	}}`;
 }
+
+export type ColumnsWithTable<
+	TTableName extends string,
+	TForeignTableName extends string,
+	TColumns extends AnyPgColumn<{ tableName: TTableName }>[],
+> = { [Key in keyof TColumns]: AnyPgColumn<{ tableName: TForeignTableName }> };

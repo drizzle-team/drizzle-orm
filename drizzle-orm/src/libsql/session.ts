@@ -1,6 +1,7 @@
 import { type Client, type InArgs, type InStatement, type ResultSet, type Transaction } from '@libsql/client';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
+import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql';
 import { SQLiteTransaction } from '~/sqlite-core';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
@@ -18,12 +19,16 @@ export interface LibSQLSessionOptions {
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
-export class LibSQLSession extends SQLiteSession<'async', ResultSet> {
+export class LibSQLSession<
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
+> extends SQLiteSession<'async', ResultSet, TFullSchema, TSchema> {
 	private logger: Logger;
 
 	constructor(
 		private client: Client,
 		dialect: SQLiteAsyncDialect,
+		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		private options: LibSQLSessionOptions,
 		private tx: Transaction | undefined,
 	) {
@@ -34,8 +39,9 @@ export class LibSQLSession extends SQLiteSession<'async', ResultSet> {
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
 		fields: SelectedFieldsOrdered,
+		customResultMapper?: (rows: unknown[][]) => unknown,
 	): PreparedQuery<T> {
-		return new PreparedQuery(this.client, query.sql, query.params, this.logger, fields, this.tx);
+		return new PreparedQuery(this.client, query.sql, query.params, this.logger, fields, this.tx, customResultMapper);
 	}
 
 	/*override */ batch(queries: SQL[]): Promise<ResultSet[]> {
@@ -47,13 +53,13 @@ export class LibSQLSession extends SQLiteSession<'async', ResultSet> {
 	}
 
 	override async transaction<T>(
-		transaction: (db: LibSQLTransaction) => T | Promise<T>,
+		transaction: (db: LibSQLTransaction<TFullSchema, TSchema>) => T | Promise<T>,
 		_config?: SQLiteTransactionConfig,
 	): Promise<T> {
 		// TODO: support transaction behavior
 		const libsqlTx = await this.client.transaction();
-		const session = new LibSQLSession(this.client, this.dialect, this.options, libsqlTx);
-		const tx = new LibSQLTransaction(this.dialect, session);
+		const session = new LibSQLSession(this.client, this.dialect, this.schema, this.options, libsqlTx);
+		const tx = new LibSQLTransaction('async', this.dialect, session, this.schema);
 		try {
 			const result = await transaction(tx);
 			await libsqlTx.commit();
@@ -65,10 +71,13 @@ export class LibSQLSession extends SQLiteSession<'async', ResultSet> {
 	}
 }
 
-export class LibSQLTransaction extends SQLiteTransaction<'async', ResultSet> {
-	override async transaction<T>(transaction: (tx: LibSQLTransaction) => Promise<T>): Promise<T> {
+export class LibSQLTransaction<
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
+> extends SQLiteTransaction<'async', ResultSet, TFullSchema, TSchema> {
+	override async transaction<T>(transaction: (tx: LibSQLTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex}`;
-		const tx = new LibSQLTransaction(this.dialect, this.session, this.nestedIndex + 1);
+		const tx = new LibSQLTransaction('async', this.dialect, this.session, this.schema, this.nestedIndex + 1);
 		await this.session.run(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);
@@ -91,6 +100,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		private tx: Transaction | undefined,
+		private customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown,
 	) {
 		super();
 	}
@@ -102,30 +112,54 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		return this.tx ? this.tx.execute(stmt) : this.client.execute(stmt);
 	}
 
-	all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
-		const { fields, joinsNotNullableMap, logger, queryString, tx, client } = this;
-		if (fields) {
-			const values = this.values(placeholderValues);
-
-			return values.then((rows) =>
-				rows.map((row) => {
-					return mapResultRow(
-						fields,
-						Array.prototype.slice.call(row).map((v) => normalizeFieldValue(v)),
-						joinsNotNullableMap,
-					);
-				})
-			);
+	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
+		const { fields, joinsNotNullableMap, logger, queryString, tx, client, customResultMapper } = this;
+		if (!fields && !customResultMapper) {
+			const params = fillPlaceholders(this.params, placeholderValues ?? {});
+			logger.logQuery(queryString, params);
+			const stmt: InStatement = { sql: queryString, args: params as InArgs };
+			return (tx ? tx.execute(stmt) : client.execute(stmt)).then(({ rows }) => rows.map((row) => normalizeRow(row)));
 		}
 
-		const params = fillPlaceholders(this.params, placeholderValues ?? {});
-		logger.logQuery(queryString, params);
-		const stmt: InStatement = { sql: queryString, args: params as InArgs };
-		return (tx ? tx.execute(stmt) : client.execute(stmt)).then(({ rows }) => rows.map((row) => normalizeRow(row)));
+		const rows = await this.values(placeholderValues);
+
+		if (customResultMapper) {
+			return customResultMapper(rows, normalizeFieldValue) as T['all'];
+		}
+
+		return rows.map((row) => {
+			return mapResultRow(
+				fields!,
+				Array.prototype.slice.call(row).map((v) => normalizeFieldValue(v)),
+				joinsNotNullableMap,
+			);
+		});
 	}
 
-	get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
-		return this.all(placeholderValues).then((rows) => rows[0]);
+	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
+		const { fields, joinsNotNullableMap, logger, queryString, tx, client, customResultMapper } = this;
+		if (!fields && !customResultMapper) {
+			const params = fillPlaceholders(this.params, placeholderValues ?? {});
+			logger.logQuery(queryString, params);
+			const stmt: InStatement = { sql: queryString, args: params as InArgs };
+			return (tx ? tx.execute(stmt) : client.execute(stmt)).then(({ rows }) => normalizeRow(rows[0]));
+		}
+
+		const rows = await this.values(placeholderValues);
+
+		if (!rows[0]) {
+			return undefined;
+		}
+
+		if (customResultMapper) {
+			return customResultMapper(rows, normalizeFieldValue) as T['get'];
+		}
+
+		return mapResultRow(
+			fields!,
+			Array.prototype.slice.call(rows[0]).map((v) => normalizeFieldValue(v)),
+			joinsNotNullableMap,
+		);
 	}
 
 	values(placeholderValues?: Record<string, unknown>): Promise<T['values']> {

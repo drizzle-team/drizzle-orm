@@ -6,6 +6,7 @@ export * from './expressions';
 export * from './logger';
 export * from './operations';
 export * from './query-promise';
+export * from './relations';
 export * from './sql';
 export * from './subquery';
 export * from './table';
