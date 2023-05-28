@@ -105,7 +105,7 @@ jobs:
           pnpm build --filter ${{ matrix.package }}
 
       - name: Run integration tests
-        if: steps.checks.outputs.has_new_release == 'true'
+        if: matrix.package == 'drizzle-orm' && steps.checks.outputs.has_new_release == 'true'
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/drizzle
           MYSQL_CONNECTION_STRING: mysql://root:root@localhost:3306/drizzle
