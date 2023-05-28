@@ -108,8 +108,8 @@ export class PgInsert<
 				? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
 				: this.dialect.escapeName(config.target.name);
 
-			const whereSql = config.where ? sql` where ${config.where}` : sql``;
-			this.config.onConflict = sql`(${sql.raw(targetColumn)})${whereSql} do nothing`;
+			const whereSql = config.where ? sql` where ${config.where}` : undefined;
+			this.config.onConflict = sql`(${sql.raw(targetColumn)}) do nothing${whereSql}`;
 		}
 		return this;
 	}
@@ -119,13 +119,13 @@ export class PgInsert<
 		where?: SQL;
 		set: PgUpdateSetSource<TTable>;
 	}): this {
-		const whereSql = config.where ? sql` where ${config.where}` : sql``;
+		const whereSql = config.where ? sql` where ${config.where}` : undefined;
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
 		let targetColumn = '';
 		targetColumn = Array.isArray(config.target)
 			? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
 			: this.dialect.escapeName(config.target.name);
-		this.config.onConflict = sql`(${sql.raw(targetColumn)})${whereSql} do update set ${setSql}`;
+		this.config.onConflict = sql`(${sql.raw(targetColumn)}) do update set ${setSql}${whereSql}`;
 		return this;
 	}
 
