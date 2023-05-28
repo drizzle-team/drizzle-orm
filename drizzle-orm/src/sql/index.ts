@@ -56,7 +56,8 @@ function mergeQueries(queries: Query[]): Query {
 	for (const query of queries) {
 		result.sql += query.sql;
 		result.params.push(...query.params);
-		if (result.typings && query.typings?.length) {
+		if (query.typings?.length) {
+			result.typings = result.typings || [];
 			result.typings.push(...query.typings);
 		}
 	}

@@ -30,19 +30,20 @@ Drizzle ORM is being battle-tested on production projects by multiple teams 🚀
 Check the full documentation on [the website](https://orm.drizzle.team)
 
 ## Supported databases
-
-| Database                                              | Status |                                                |
-|:------------------------------------------------------|:------:|:-----------------------------------------------|
-| PostgreSQL                                            |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start)     |
-| MySQL                                                 |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start)  |
-| SQLite                                                |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start) |
-| [Cloudflare D1](https://developers.cloudflare.com/d1) |   ✅    | [Docs](/examples/cloudflare-d1/README.md)      |
-| [libSQL](https://libsql.org)                          |   ✅    | [Docs](/examples/libsql/README.md)             |
-| [Turso](https://turso.tech)                           |   ✅    | [Docs](/examples/libsql/README.md)             |
-| [Vercel Postgres](https://vercel.com/docs/storage/vercel-postgres/quickstart)                           |   ✅    | [Docs](/drizzle-orm/src/pg-core/README.md)             |
-| DynamoDB                                              |   ⏳    |                                                |
-| MS SQL                                                |   ⏳    |                                                |
-| CockroachDB                                           |   ⏳    |                                                |
+| Database        | Support |                                                   |                                                                       |
+| :-------------- | :-----: | :------------------------------------------------ | :-------------------------------------------------------------------- |
+| PostgreSQL      |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start) |                                                                       |
+| MySQL           |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start) |                                                                       |
+| SQLite          |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start) |                                                                       |
+| Cloudflare D1   |   ✅    | [Docs](https://driz.li/docs-d1)                   | [Website](https://developers.cloudflare.com/d1)                       |
+| libSQL          |   ✅    | [Docs](/examples/libsql/README.md)                | [Website](https://libsql.org)                                         |
+| Turso           |   ✅    | [Docs](https://driz.li/docs-turso)                | [Website](https://turso.tech)                                         |
+| PlanetScale     |   ✅    | [Docs](https://driz.li/docs-planetscale)          | [Website](https://planetscale.com/)                                   |
+| Neon            |   ✅    | [Docs](https://driz.li/docs-neon)                 | [Website](https://neon.tech/)                                         |
+| Vercel Postgres |   ✅    | [Docs](https://driz.li/docs-vercel-postgres)      | [Website](https://vercel.com/docs/storage/vercel-postgres/quickstart) |
+| DynamoDB        |   ⏳    |                                                   |                                                                       |
+| MS SQL          |   ⏳    |                                                   |                                                                       |
+| CockroachDB     |   ⏳    |                                                   |                                                                       |
 
 ## Our sponsors ❤️
 
