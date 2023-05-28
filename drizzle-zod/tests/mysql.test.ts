@@ -77,6 +77,7 @@ const testTable = mysqlTable('test', {
 	varchar: varchar('varchar', { length: 200 }).notNull(),
 	varcharEnum: varchar('varcharEnum', { length: 200, enum: ['a', 'b', 'c'] }).notNull(),
 	year: year('year').notNull(),
+	autoIncrement: int('autoIncrement').notNull().autoincrement(),
 });
 
 test('insert schema', (t) => {
@@ -120,6 +121,7 @@ test('insert schema', (t) => {
 		varchar: z.string(),
 		varcharEnum: z.enum(['a', 'b', 'c']),
 		year: z.number(),
+		autoIncrement: z.number().optional(),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -166,6 +168,7 @@ test('select schema', (t) => {
 		varchar: z.string(),
 		varcharEnum: z.enum(['a', 'b', 'c']),
 		year: z.number(),
+		autoIncrement: z.number(),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -214,6 +217,7 @@ test('select schema w/ refine', (t) => {
 		varchar: z.string(),
 		varcharEnum: z.enum(['a', 'b', 'c']),
 		year: z.number(),
+		autoIncrement: z.number(),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
