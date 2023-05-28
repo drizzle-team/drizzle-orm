@@ -16,27 +16,27 @@ class ServerSimulator {
 	async query(sql: string, params: any[], method: string) {
 		if (method === 'run') {
 			try {
-				this.db.prepare(sql).run(params);
-				return { data: [] };
+				const result = this.db.prepare(sql).run(params);
+				return { data: result as any };
 			} catch (e: any) {
-				return { error: e.message, data: [] };
+				return { error: e.message };
 			}
 		} else if (method === 'all' || method === 'values') {
 			try {
 				const rows = this.db.prepare(sql).raw().all(params);
 				return { data: rows };
 			} catch (e: any) {
-				return { error: e.message, data: [] };
+				return { error: e.message };
 			}
 		} else if (method === 'get') {
 			try {
 				const row = this.db.prepare(sql).raw().get(params);
-				return { data: [row] };
+				return { data: row };
 			} catch (e: any) {
-				return { error: e.message, data: [] };
+				return { error: e.message };
 			}
 		} else {
-			return { error: 'Unknown method value', data: [] };
+			return { error: 'Unknown method value' };
 		}
 	}
 
@@ -110,7 +110,7 @@ test.before((t) => {
 			return { rows: rows.data };
 		} catch (e: any) {
 			console.error('Error from sqlite proxy server:', e.response.data);
-			return { rows: [] };
+			throw e;
 		}
 	});
 });
