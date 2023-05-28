@@ -3615,8 +3615,6 @@ test('Get user with invitee and posts + limit posts and users + where', async (t
 		}[]
 	>();
 
-	console.log(JSON.stringify(response, null, 2));
-
 	expect(response.length).eq(1);
 
 	expect(response[0]?.invitee).not.toBeNull();
@@ -4036,8 +4034,6 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 	}[]>();
 
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
-
-	console.log(JSON.stringify(response, null, 2));
 
 	expect(response.length).eq(3);
 	expect(response[0]?.posts.length).eq(1);

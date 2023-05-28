@@ -7,7 +7,7 @@ import * as schema from './sqlite.schema';
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
-const ENABLE_LOGGING = true;
+const ENABLE_LOGGING = false;
 
 /*
 	Test cases:
@@ -3489,8 +3489,6 @@ test('Get user with invitee and posts + limit posts and users + where', async ()
 		}[]
 	>();
 
-	console.log(JSON.stringify(response, null, 2));
-
 	expect(response.length).eq(1);
 
 	expect(response[0]?.invitee).not.toBeNull();
@@ -3902,8 +3900,6 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 	}[]>();
 
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
-
-	console.log(JSON.stringify(response, null, 2));
 
 	expect(response.length).eq(3);
 	expect(response[0]?.posts.length).eq(1);
@@ -5493,11 +5489,6 @@ test('[Find One] Get users with groups + orderBy', async () => {
 		},
 	});
 
-	const f = await db.all(sql`select * from users`)
-	console.log(f)
-
-	console.log(JSON.stringify(response, null, 2))
-
 	expectTypeOf(response).toEqualTypeOf<
 		{
 			id: number;
@@ -5916,8 +5907,6 @@ test('Get groups with users + custom', async () => {
 			},
 		},
 	});
-
-	console.log(JSON.stringify(response, null, 2))
 
 	expectTypeOf(response).toEqualTypeOf<
 		{

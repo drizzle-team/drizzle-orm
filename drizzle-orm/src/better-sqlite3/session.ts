@@ -114,7 +114,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 			return stmt.get(...params);
 		}
 
-		const row = stmt.raw().get(...params);
+		const row = stmt.raw().get(...params) as unknown[];
 
 		if (!row) {
 			return undefined;
@@ -130,6 +130,6 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	values(placeholderValues?: Record<string, unknown>): T['values'] {
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
-		return this.stmt.raw().all(...params);
+		return this.stmt.raw().all(...params) as T['values'];
 	}
 }

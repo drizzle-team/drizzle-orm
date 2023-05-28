@@ -5,6 +5,10 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: ['tests/relational/**/*.test.ts'],
+		exclude: [
+			'tests/relational/mysql.planetscale.test.ts',
+			'tests/relational/vercel.test.ts',
+		],
 		typecheck: {
 			tsconfig: 'tsconfig.json',
 		},
