@@ -17,13 +17,14 @@ function updateAndCopyPackageJson() {
 		{},
 	);
 
-	fs.writeJSONSync('dist/package.json', pkg, { spaces: 2 });
+	fs.writeJSONSync('dist.new/package.json', pkg, { spaces: 2 });
 }
 
-fs.removeSync('dist');
 await $`rollup --config rollup.config.ts --configPlugin typescript`;
 fs.copySync('../README.md', 'dist/README.md');
 updateAndCopyPackageJson();
 await $`tsc -p tsconfig.build.json --declaration --outDir dist-dts --emitDeclarationOnly`;
 await $`resolve-tspaths --out dist-dts`;
 await $`rollup --config rollup.dts.config.ts --configPlugin typescript`;
+fs.removeSync('dist');
+fs.renameSync('dist.new', 'dist');

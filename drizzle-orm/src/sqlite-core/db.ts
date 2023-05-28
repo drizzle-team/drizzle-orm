@@ -1,5 +1,5 @@
-import { TransactionRollbackError } from '~/errors';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder';
+import { type ExtractTablesWithRelations, type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import type { SQLWrapper } from '~/sql';
 import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect';
 import {
@@ -9,20 +9,57 @@ import {
 	SQLiteSelectBuilder,
 	SQLiteUpdateBuilder,
 } from '~/sqlite-core/query-builders';
-import type { ResultKind, SQLiteSession, SQLiteTransactionConfig } from '~/sqlite-core/session';
+import type { Result, SQLiteSession, SQLiteTransaction, SQLiteTransactionConfig } from '~/sqlite-core/session';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
 import { type ColumnsSelection } from '~/view';
+import { AsyncRelationalQueryBuilder, SyncRelationalQueryBuilder } from './query-builders/query';
 import type { SelectedFields } from './query-builders/select.types';
 import type { WithSubqueryWithSelection } from './subquery';
 
-export class BaseSQLiteDatabase<TResultKind extends 'sync' | 'async', TRunResult> {
+export class BaseSQLiteDatabase<
+	TResultKind extends 'sync' | 'async',
+	TRunResult,
+	TFullSchema extends Record<string, unknown> = Record<string, never>,
+	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
+> {
+	declare readonly _: {
+		readonly schema: TSchema | undefined;
+		readonly tableNamesMap: Record<string, string>;
+	};
+
+	query: {
+		[K in keyof TSchema]: TResultKind extends 'async' ? AsyncRelationalQueryBuilder<TFullSchema, TSchema, TSchema[K]>
+			: SyncRelationalQueryBuilder<TFullSchema, TSchema, TSchema[K]>;
+	};
+
 	constructor(
+		resultKind: TResultKind,
 		/** @internal */
 		readonly dialect: { sync: SQLiteSyncDialect; async: SQLiteAsyncDialect }[TResultKind],
 		/** @internal */
-		readonly session: SQLiteSession<TResultKind, TRunResult>,
-	) {}
+		readonly session: SQLiteSession<TResultKind, TRunResult, TFullSchema, TSchema>,
+		schema: RelationalSchemaConfig<TSchema> | undefined,
+	) {
+		this._ = schema
+			? { schema: schema.schema, tableNamesMap: schema.tableNamesMap }
+			: { schema: undefined, tableNamesMap: {} };
+		this.query = {} as typeof this['query'];
+		if (this._.schema) {
+			for (const [tableName, columns] of Object.entries(this._.schema)) {
+				this.query[tableName as keyof TSchema] =
+					new (resultKind === 'async' ? AsyncRelationalQueryBuilder : SyncRelationalQueryBuilder)(
+						schema!.fullSchema,
+						this._.schema,
+						this._.tableNamesMap,
+						schema!.fullSchema[tableName] as AnySQLiteTable,
+						columns,
+						dialect,
+						session as SQLiteSession<any, any, any, any> as any,
+					) as this['query'][keyof TSchema];
+			}
+		}
+	}
 
 	$with<TAlias extends string>(alias: TAlias) {
 		return {
@@ -75,42 +112,26 @@ export class BaseSQLiteDatabase<TResultKind extends 'sync' | 'async', TRunResult
 		return new SQLiteDelete(from, this.session, this.dialect);
 	}
 
-	run(query: SQLWrapper): ResultKind<TResultKind, TRunResult> {
+	run(query: SQLWrapper): Result<TResultKind, TRunResult> {
 		return this.session.run(query.getSQL());
 	}
 
-	all<T = unknown>(query: SQLWrapper): ResultKind<TResultKind, T[]> {
+	all<T = unknown>(query: SQLWrapper): Result<TResultKind, T[]> {
 		return this.session.all(query.getSQL());
 	}
 
-	get<T = unknown>(query: SQLWrapper): ResultKind<TResultKind, T> {
+	get<T = unknown>(query: SQLWrapper): Result<TResultKind, T> {
 		return this.session.get(query.getSQL());
 	}
 
-	values<T extends unknown[] = unknown[]>(query: SQLWrapper): ResultKind<TResultKind, T[]> {
+	values<T extends unknown[] = unknown[]>(query: SQLWrapper): Result<TResultKind, T[]> {
 		return this.session.values(query.getSQL());
 	}
 
 	transaction<T>(
-		transaction: (tx: SQLiteTransaction<TResultKind, TRunResult>) => ResultKind<TResultKind, T>,
+		transaction: (tx: SQLiteTransaction<TResultKind, TRunResult, TFullSchema, TSchema>) => Result<TResultKind, T>,
 		config?: SQLiteTransactionConfig,
-	): ResultKind<TResultKind, T> {
+	): Result<TResultKind, T> {
 		return this.session.transaction(transaction, config);
-	}
-}
-
-export abstract class SQLiteTransaction<TResultType extends 'sync' | 'async', TRunResult>
-	extends BaseSQLiteDatabase<TResultType, TRunResult>
-{
-	constructor(
-		dialect: { sync: SQLiteSyncDialect; async: SQLiteAsyncDialect }[TResultType],
-		session: SQLiteSession<TResultType, TRunResult>,
-		protected readonly nestedIndex = 0,
-	) {
-		super(dialect, session);
-	}
-
-	rollback(): never {
-		throw new TransactionRollbackError();
 	}
 }

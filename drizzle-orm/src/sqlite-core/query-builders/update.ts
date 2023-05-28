@@ -36,7 +36,7 @@ export class SQLiteUpdateBuilder<
 
 	constructor(
 		protected table: TTable,
-		protected session: SQLiteSession,
+		protected session: SQLiteSession<any, any, any, any>,
 		protected dialect: SQLiteDialect,
 	) {}
 
@@ -72,7 +72,7 @@ export class SQLiteUpdate<
 	constructor(
 		table: TTable,
 		set: UpdateSet,
-		private session: SQLiteSession,
+		private session: SQLiteSession<any, any, any, any>,
 		private dialect: SQLiteDialect,
 	) {
 		this.config = { set, table };
