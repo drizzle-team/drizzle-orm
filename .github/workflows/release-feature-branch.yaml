@@ -104,6 +104,7 @@ jobs:
           else
             echo "Publishing ${{ matrix.package }}@$tag using version $version"
             npm version $version
+            cp package.json dist/package.json
             npm run pack
             npm run publish -- --tag $tag
           fi
