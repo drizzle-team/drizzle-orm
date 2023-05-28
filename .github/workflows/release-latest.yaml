@@ -128,7 +128,7 @@ jobs:
             npm dist-tag add ${{ matrix.package }}@$version latest
           else
             echo echo "Publishing ${{ matrix.package }}@$version"
-            (cd .. && npm run pack -- --filter ${{ matrix.package }})
+            npm run pack
             npm run publish
           fi
 

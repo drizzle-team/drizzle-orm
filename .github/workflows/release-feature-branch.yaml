@@ -90,7 +90,7 @@ jobs:
         run: |
           pnpm test --filter integration-tests
 
-      - name: Build & publish
+      - name: Publish
         if: github.event_name == 'push'
         run: |
           tag="${{ github.ref_name }}"
@@ -104,7 +104,7 @@ jobs:
           else
             echo "Publishing ${{ matrix.package }}@$tag using version $version"
             npm version $version
-            (cd .. && npm run pack -- --filter ${{ matrix.package }})
+            npm run pack
             npm run publish -- --tag $tag
           fi
 
