@@ -1,12 +1,12 @@
 import 'dotenv/config';
 import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
+import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import getPort from 'get-port';
+import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 import * as schema from './pg.duplicates';
-import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { Client } from 'pg';
 
 const ENABLE_LOGGING = false;
 
@@ -16,7 +16,7 @@ const ENABLE_LOGGING = false;
 */
 
 let pgContainer: Docker.Container;
-let db:  NodePgDatabase<typeof schema>;
+let db: NodePgDatabase<typeof schema>;
 let client: Client;
 
 async function createDockerDB(): Promise<string> {
@@ -174,28 +174,26 @@ test('Simple case from GH', async () => {
 		},
 	});
 
-	console.log(JSON.stringify(response, null, 2));
-
 	expectTypeOf(response).toEqualTypeOf<
-	{
-		id: number;
-		createdAt: Date;
-		updatedAt: Date;
-		companyId: number;
-		albums: {
+		{
 			id: number;
 			createdAt: Date;
 			updatedAt: Date;
-			artistId: number;
-		}[];
-		members: {
-			member: {
+			companyId: number;
+			albums: {
 				id: number;
 				createdAt: Date;
 				updatedAt: Date;
-			};
-		}[];
-	} | undefined
+				artistId: number;
+			}[];
+			members: {
+				member: {
+					id: number;
+					createdAt: Date;
+					updatedAt: Date;
+				};
+			}[];
+		} | undefined
 	>();
 
 	expect(response?.members.length).eq(2);

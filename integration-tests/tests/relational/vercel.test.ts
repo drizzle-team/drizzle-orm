@@ -1,9 +1,9 @@
 import 'dotenv/config';
+import { createClient, type VercelClient } from '@vercel/postgres';
 import Docker from 'dockerode';
 import { desc, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type VercelPgDatabase } from 'drizzle-orm/vercel-postgres';
 import getPort from 'get-port';
-import { type VercelClient, createClient } from '@vercel/postgres';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 import * as schema from './pg.schema';
@@ -74,7 +74,6 @@ beforeAll(async () => {
 			client = createClient({ connectionString });
 			await client.connect();
 			connected = true;
-			console.log('connected');
 			break;
 		} catch (e) {
 			lastError = e;
@@ -92,10 +91,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-	console.log('deleting');
 	await client?.end().catch(console.error);
 	await pgContainer?.stop().catch(console.error);
-	console.log('deleted');
 });
 
 beforeEach(async (ctx) => {
@@ -3618,8 +3615,6 @@ test('Get user with invitee and posts + limit posts and users + where', async (t
 		}[]
 	>();
 
-	console.log(JSON.stringify(response, null, 2));
-
 	expect(response.length).eq(1);
 
 	expect(response[0]?.invitee).not.toBeNull();
@@ -4039,8 +4034,6 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 	}[]>();
 
 	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
-
-	console.log(JSON.stringify(response, null, 2));
 
 	expect(response.length).eq(3);
 	expect(response[0]?.posts.length).eq(1);

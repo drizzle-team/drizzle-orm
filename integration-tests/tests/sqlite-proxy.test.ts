@@ -17,7 +17,7 @@ class ServerSimulator {
 		if (method === 'run') {
 			try {
 				const result = this.db.prepare(sql).run(params);
-				return { data: result };
+				return { data: result as any };
 			} catch (e: any) {
 				return { error: e.message };
 			}
@@ -33,11 +33,10 @@ class ServerSimulator {
 				const row = this.db.prepare(sql).raw().get(params);
 				return { data: row };
 			} catch (e: any) {
-				console.log('get row:', e);
 				return { error: e.message };
 			}
 		} else {
-			return { error: 'Unkown method value' };
+			return { error: 'Unknown method value' };
 		}
 	}
 
@@ -111,7 +110,7 @@ test.before((t) => {
 			return { rows: rows.data };
 		} catch (e: any) {
 			console.error('Error from sqlite proxy server:', e.response.data);
-			return { rows: [] };
+			throw e;
 		}
 	});
 });
@@ -680,7 +679,7 @@ test.serial('migrator', async (t) => {
 		try {
 			serverSimulator.migrations(queries);
 		} catch (e) {
-			console.log(e);
+			console.error(e);
 			throw new Error('Proxy server cannot run migrations');
 		}
 	}, { migrationsFolder: 'drizzle2/sqlite' });
