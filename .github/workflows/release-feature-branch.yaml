@@ -79,7 +79,7 @@ jobs:
 
       - name: Build
         run: |
-          pnpm build --filter ${{ matrix.package }}
+          pnpm build
 
       - name: Run integration tests
         if: matrix.package == 'drizzle-orm'
