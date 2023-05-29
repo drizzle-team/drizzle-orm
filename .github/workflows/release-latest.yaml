@@ -29,8 +29,7 @@ jobs:
       mysql:
         image: mysql:8
         env:
-          MYSQL_USER: root
-          MYSQL_PASSWORD: root
+          MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: drizzle
         options: >-
           --health-cmd "mysqladmin ping"
