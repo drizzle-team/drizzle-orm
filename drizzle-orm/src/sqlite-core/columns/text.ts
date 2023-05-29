@@ -26,11 +26,12 @@ export type SQLiteTextBuilderInitial<TName extends string, TEnum extends [string
 export class SQLiteTextBuilder<T extends ColumnBuilderBaseConfig & WithEnum> extends SQLiteColumnBuilder<
 	SQLiteTextBuilderHKT,
 	T,
-	WithEnum<T['enumValues']>
+	{ length: number | undefined } & WithEnum<T['enumValues']>
 > {
 	constructor(name: T['name'], config: SQLiteTextConfig<T['enumValues']>) {
 		super(name);
 		this.config.enumValues = (config.enum ?? []) as T['enumValues'];
+		this.config.length = config.length;
 	}
 
 	/** @internal */
@@ -42,10 +43,11 @@ export class SQLiteTextBuilder<T extends ColumnBuilderBaseConfig & WithEnum> ext
 }
 
 export class SQLiteText<T extends ColumnBaseConfig & WithEnum>
-	extends SQLiteColumn<SQLiteTextHKT, T, WithEnum<T['enumValues']>>
+	extends SQLiteColumn<SQLiteTextHKT, T, { length: number | undefined } & WithEnum<T['enumValues']>>
 	implements WithEnum<T['enumValues']>
 {
 	readonly enumValues = this.config.enumValues;
+	readonly length: number | undefined = this.config.length;
 
 	constructor(
 		table: AnySQLiteTable<{ name: T['tableName'] }>,
@@ -55,11 +57,12 @@ export class SQLiteText<T extends ColumnBaseConfig & WithEnum>
 	}
 
 	getSQLType(): string {
-		return 'text';
+		return `text${this.config.length ? `(${this.config.length})` : ''}`;
 	}
 }
 
 export interface SQLiteTextConfig<TEnum extends readonly string[] | string[]> {
+	length?: number;
 	enum?: TEnum;
 }
 
