@@ -81,14 +81,17 @@ jobs:
         run: |
           pnpm build
 
-      - name: Run integration tests
-        if: matrix.package == 'drizzle-orm'
+      - name: Run tests
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/drizzle
           MYSQL_CONNECTION_STRING: mysql://root:root@localhost:3306/drizzle
           LIBSQL_URL: file:local.db
         run: |
-          pnpm test --filter integration-tests
+          if [[ "${{ matrix.package }}" == "drizzle-orm" ]]; then
+            pnpm test --filter ${{ matrix.package }} --filter integration-tests
+          else
+          pnpm test --filter ${{ matrix.package }}
+          fi
 
       - name: Publish
         if: github.event_name == 'push'
