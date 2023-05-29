@@ -306,7 +306,15 @@ function mapColumnToSchema(column: AnyColumn): z.ZodTypeAny {
 			|| column instanceof MySqlVarChar || column instanceof MySqlBinary
 			|| column instanceof MySqlVarBinary || column instanceof MySqlChar
 		) {
-			type = z.string();
+			let sType = z.string();
+			if (
+				(column instanceof PgChar || column instanceof PgVarchar || column instanceof MySqlVarChar
+					|| column instanceof MySqlVarBinary || column instanceof MySqlChar || column instanceof SQLiteText)
+				&& (typeof column.length === 'number')
+			) {
+				sType = sType.length(column.length);
+			}
+			type = sType;
 		} else if (column instanceof PgUUID) {
 			type = z.string().uuid();
 		}

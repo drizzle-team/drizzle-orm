@@ -8,6 +8,7 @@ import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~
 import { PgSession, PreparedQuery } from '~/pg-core/session';
 import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import { fillPlaceholders, type Query, sql } from '~/sql';
+import { tracer } from '~/tracing';
 import { type Assume, mapResultRow } from '~/utils';
 
 const { Pool } = pg;
@@ -40,32 +41,53 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
+		return tracer.startActiveSpan('drizzle.execute', async () => {
+			const params = fillPlaceholders(this.params, placeholderValues);
 
-		this.logger.logQuery(this.rawQuery.text, params);
+			this.logger.logQuery(this.rawQuery.text, params);
 
-		const { fields, rawQuery, client, query, joinsNotNullableMap, customResultMapper } = this;
-		if (!fields && !customResultMapper) {
-			return client.query(rawQuery, params);
-		}
+			const { fields, rawQuery, client, query, joinsNotNullableMap, customResultMapper } = this;
+			if (!fields && !customResultMapper) {
+				return tracer.startActiveSpan('drizzle.driver.execute', async (span) => {
+					span?.setAttributes({
+						'drizzle.query.name': rawQuery.name,
+						'drizzle.query.text': rawQuery.text,
+						'drizzle.query.params': JSON.stringify(params),
+					});
+					return client.query(rawQuery, params);
+				});
+			}
 
-		const result = await client.query(query, params);
+			const result = await tracer.startActiveSpan('drizzle.driver.execute', (span) => {
+				span?.setAttributes({
+					'drizzle.query.name': query.name,
+					'drizzle.query.text': query.text,
+					'drizzle.query.params': JSON.stringify(params),
+				});
+				return client.query(query, params);
+			});
 
-		return customResultMapper
-			? customResultMapper(result.rows)
-			: result.rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+			return tracer.startActiveSpan('drizzle.mapResponse', () => {
+				return customResultMapper
+					? customResultMapper(result.rows)
+					: result.rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+			});
+		});
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-		this.logger.logQuery(this.rawQuery.text, params);
-		return this.client.query(this.rawQuery, params).then((result) => result.rows);
-	}
-
-	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['values']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-		this.logger.logQuery(this.rawQuery.text, params);
-		return this.client.query(this.query, params).then((result) => result.rows);
+		return tracer.startActiveSpan('drizzle.execute', () => {
+			const params = fillPlaceholders(this.params, placeholderValues);
+			this.logger.logQuery(this.rawQuery.text, params);
+			return tracer.startActiveSpan('drizzle.driver.execute', (span) => {
+				span?.setAttributes({
+					'drizzle.query.name': this.rawQuery.name,
+					'drizzle.query.text': this.rawQuery.text,
+					'drizzle.query.params': JSON.stringify(params),
+				});
+				return this.client.query(this.rawQuery, params).then((result) => result.rows);
+			});
+		});
 	}
 }
 
@@ -96,23 +118,6 @@ export class NodePgSession<
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PreparedQuery<T> {
 		return new NodePgPreparedQuery(this.client, query.sql, query.params, this.logger, fields, name, customResultMapper);
-	}
-
-	async query(query: string, params: unknown[]): Promise<QueryResult> {
-		this.logger.logQuery(query, params);
-		const result = await this.client.query({
-			rowMode: 'array',
-			text: query,
-			values: params,
-		});
-		return result;
-	}
-
-	async queryObjects<T extends QueryResultRow>(
-		query: string,
-		params: unknown[],
-	): Promise<QueryResult<T>> {
-		return this.client.query<T>(query, params);
 	}
 
 	override async transaction<T>(
