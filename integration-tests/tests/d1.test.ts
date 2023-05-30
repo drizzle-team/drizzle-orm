@@ -782,7 +782,7 @@ test.serial('insert via db.get', async (t) => {
 			sql.identifier(usersTable.name.name)
 		}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
 	);
-	t.deepEqual(inserted, [{ id: 1, name: 'John' }]);
+	t.deepEqual(inserted, { id: 1, name: 'John' });
 });
 
 test.serial('insert via db.run + select via db.get', async (t) => {
@@ -793,7 +793,7 @@ test.serial('insert via db.run + select via db.get', async (t) => {
 	const result = await db.get<{ id: number; name: string }>(
 		sql`select ${usersTable.id}, ${usersTable.name} from ${usersTable}`,
 	);
-	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+	t.deepEqual(result, { id: 1, name: 'John' });
 });
 
 test.serial('insert via db.get w/ query builder', async (t) => {
@@ -802,7 +802,7 @@ test.serial('insert via db.get w/ query builder', async (t) => {
 	const inserted = await db.get(
 		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 	);
-	t.deepEqual(inserted, [{ id: 1, name: 'John' }]);
+	t.deepEqual(inserted, { id: 1, name: 'John' });
 });
 
 test.serial('left join (flat object fields)', async (t) => {
