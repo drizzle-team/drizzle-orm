@@ -41,8 +41,8 @@ export class PgJsonb<T extends ColumnBaseConfig> extends PgColumn<PgJsonbHKT, T>
 		return 'jsonb';
 	}
 
-	override mapToDriverValue(value: T['data']): string {
-		return JSON.stringify(value);
+	override mapToDriverValue(value: T['data']): T['data'] {
+		return value;
 	}
 
 	override mapFromDriverValue(value: T['data'] | string): T['data'] {
