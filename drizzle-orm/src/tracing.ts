@@ -4,13 +4,13 @@ import { npmVersion } from '~/version';
 
 let otel: typeof import('@opentelemetry/api') | undefined;
 let rawTracer: Tracer | undefined;
-try {
-	otel = await import('@opentelemetry/api');
-} catch (err: any) {
-	if (err.code !== 'MODULE_NOT_FOUND' && err.code !== 'ERR_MODULE_NOT_FOUND') {
-		throw err;
-	}
-}
+// try {
+// 	otel = await import('@opentelemetry/api');
+// } catch (err: any) {
+// 	if (err.code !== 'MODULE_NOT_FOUND' && err.code !== 'ERR_MODULE_NOT_FOUND') {
+// 		throw err;
+// 	}
+// }
 
 type SpanName =
 	| 'drizzle.operation'
