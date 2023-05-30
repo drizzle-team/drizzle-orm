@@ -48,6 +48,7 @@ import {
 	PgCidr,
 	PgCustomColumn,
 	PgDate,
+	PgDateString,
 	PgDoublePrecision,
 	PgInet,
 	PgInteger,
@@ -299,7 +300,7 @@ function mapColumnToSchema(column: AnyColumn): z.ZodTypeAny {
 		} else if (
 			column instanceof PgInterval || column instanceof PgNumeric || column instanceof PgChar
 			|| column instanceof PgCidr || column instanceof PgInet || column instanceof PgMacaddr
-			|| column instanceof PgMacaddr8 || column instanceof PgText || column instanceof PgTime
+			|| column instanceof PgMacaddr8 || column instanceof PgText || column instanceof PgTime || column instanceof PgDateString
 			|| column instanceof PgVarchar || column instanceof SQLiteNumeric || column instanceof SQLiteText
 			|| column instanceof MySqlDateString || column instanceof MySqlDateTimeString || column instanceof MySqlDecimal
 			|| column instanceof MySqlText || column instanceof MySqlTime || column instanceof MySqlTimestampString
