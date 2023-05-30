@@ -123,10 +123,11 @@ test.before((t) => {
 
 test.beforeEach(async (t) => {
 	const ctx = t.context;
-	ctx.db.run(sql`drop table if exists ${usersTable}`);
+	await ctx.db.run(sql`drop table if exists ${usersTable}`);
 	await ctx.db.run(sql`drop table if exists ${pkExampleTable}`);
-	ctx.db.run(sql`drop table if exists ${bigIntExample}`);
-	ctx.db.run(sql`
+	await ctx.db.run(sql`drop table if exists ${bigIntExample}`);
+
+	await ctx.db.run(sql`
 		create table ${usersTable} (
 			id integer primary key,
 			name text not null,
@@ -143,13 +144,13 @@ test.beforeEach(async (t) => {
 			primary key (id, name)
 		)
 	`);
-	ctx.db.run(sql`
+	await ctx.db.run(sql`
 		create table ${bigIntExample} (
 			id integer primary key,
 			name text not null,
 			big_int blob not null
-	  )
-  `);
+		 )
+	`);
 });
 
 test.serial('insert bigint values', async (t) => {

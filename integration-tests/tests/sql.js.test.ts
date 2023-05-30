@@ -172,12 +172,12 @@ test.beforeEach((t) => {
 		)
 	`);
 	ctx.db.run(sql`
-    	create table ${bigIntExample} (
+		create table ${bigIntExample} (
 			id integer primary key,
 			name text not null,
 			big_int blob not null
-	  	)
-  	`);
+		)
+	`);
 });
 
 test.serial('insert bigint values', async (t) => {

@@ -180,7 +180,7 @@ test.beforeEach((t) => {
 			name text not null,
 			big_int blob not null
 		)
-  	`);
+	`);
 });
 
 test.serial('insert bigint values', async (t) => {
