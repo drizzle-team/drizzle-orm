@@ -194,7 +194,14 @@ test.beforeEach(async (t) => {
 			quantity integer not null
 		)
 	`);
-	// HEAD
+	await ctx.db.run(sql`
+		create table ${pkExampleTable} (
+			id integer not null,
+			name text not null,
+			email text not null,
+			primary key (id, name)
+		)
+	`);
 	await ctx.db.run(sql`
     create table ${bigIntExample} (
       id integer primary key,
@@ -221,16 +228,6 @@ test.serial('insert bigint values', async (t) => {
 		{ id: 4, name: 'four', bigInt: BigInt('1234567890') },
 		{ id: 5, name: 'five', bigInt: BigInt('12345678900987654321') },
 	]);
-	//
-	await ctx.db.run(sql`
-		create table ${pkExampleTable} (
-			id integer not null,
-			name text not null,
-			email text not null,
-			primary key (id, name)
-		)
-	`);
-	// main
 });
 
 test.serial('select all fields', async (t) => {

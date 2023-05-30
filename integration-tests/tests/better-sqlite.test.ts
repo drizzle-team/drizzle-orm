@@ -174,7 +174,6 @@ test.beforeEach((t) => {
 			primary key (id, name)
 		)
 	`);
-
 	ctx.db.run(sql`
 		create table ${bigIntExample} (
 			id integer primary key,
