@@ -17,7 +17,7 @@ class ServerSimulator {
 		if (method === 'run') {
 			try {
 				const result = this.db.prepare(sql).run(params);
-				return { data: result };
+				return { data: result as any };
 			} catch (e: any) {
 				return { error: e.message };
 			}
@@ -33,11 +33,10 @@ class ServerSimulator {
 				const row = this.db.prepare(sql).raw().get(params);
 				return { data: row };
 			} catch (e: any) {
-				console.log('get row:', e);
 				return { error: e.message };
 			}
 		} else {
-			return { error: 'Unkown method value' };
+			return { error: 'Unknown method value' };
 		}
 	}
 
@@ -76,8 +75,8 @@ const anotherUsersMigratorTable = sqliteTable('another_users', {
 	email: text('email').notNull(),
 });
 
-const _pkExample = sqliteTable('pk_example', {
-	id: integer('id').primaryKey(),
+const pkExampleTable = sqliteTable('pk_example', {
+	id: integer('id').notNull(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
 }, (table) => ({
@@ -117,7 +116,7 @@ test.before((t) => {
 			return { rows: rows.data };
 		} catch (e: any) {
 			console.error('Error from sqlite proxy server:', e.response.data);
-			return { rows: [] };
+			throw e;
 		}
 	});
 });
@@ -125,6 +124,7 @@ test.before((t) => {
 test.beforeEach(async (t) => {
 	const ctx = t.context;
 	ctx.db.run(sql`drop table if exists ${usersTable}`);
+	await ctx.db.run(sql`drop table if exists ${pkExampleTable}`);
 	ctx.db.run(sql`drop table if exists ${bigIntExample}`);
 	ctx.db.run(sql`
 		create table ${usersTable} (
@@ -133,6 +133,14 @@ test.beforeEach(async (t) => {
 			verified integer not null default 0,
 			json blob,
 			created_at integer not null default (strftime('%s', 'now'))
+		)
+	`);
+	await ctx.db.run(sql`
+		create table ${pkExampleTable} (
+			id integer not null,
+			name text not null,
+			email text not null,
+			primary key (id, name)
 		)
 	`);
 	ctx.db.run(sql`
@@ -713,7 +721,7 @@ test.serial('migrator', async (t) => {
 		try {
 			serverSimulator.migrations(queries);
 		} catch (e) {
-			console.log(e);
+			console.error(e);
 			throw new Error('Proxy server cannot run migrations');
 		}
 	}, { migrationsFolder: 'drizzle2/sqlite' });
@@ -797,6 +805,29 @@ test.serial('insert with onConflict do nothing', async (t) => {
 	t.deepEqual(res, [{ id: 1, name: 'John' }]);
 });
 
+test.serial('insert with onConflict do nothing using composite pk', async (t) => {
+	const { db } = t.context;
+
+	await db
+		.insert(pkExampleTable)
+		.values({ id: 1, name: 'John', email: 'john@example.com' })
+		.run();
+
+	await db
+		.insert(pkExampleTable)
+		.values({ id: 1, name: 'John', email: 'john1@example.com' })
+		.onConflictDoNothing()
+		.run();
+
+	const res = await db
+		.select({ id: pkExampleTable.id, name: pkExampleTable.name, email: pkExampleTable.email })
+		.from(pkExampleTable)
+		.where(eq(pkExampleTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John', email: 'john@example.com' }]);
+});
+
 test.serial('insert with onConflict do nothing using target', async (t) => {
 	const { db } = t.context;
 
@@ -817,6 +848,29 @@ test.serial('insert with onConflict do nothing using target', async (t) => {
 	t.deepEqual(res, [{ id: 1, name: 'John' }]);
 });
 
+test.serial('insert with onConflict do nothing using composite pk as target', async (t) => {
+	const { db } = t.context;
+
+	await db
+		.insert(pkExampleTable)
+		.values({ id: 1, name: 'John', email: 'john@example.com' })
+		.run();
+
+	await db
+		.insert(pkExampleTable)
+		.values({ id: 1, name: 'John', email: 'john1@example.com' })
+		.onConflictDoNothing({ target: [pkExampleTable.id, pkExampleTable.name] })
+		.run();
+
+	const res = await db
+		.select({ id: pkExampleTable.id, name: pkExampleTable.name, email: pkExampleTable.email })
+		.from(pkExampleTable)
+		.where(eq(pkExampleTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John', email: 'john@example.com' }]);
+});
+
 test.serial('insert with onConflict do update', async (t) => {
 	const { db } = t.context;
 
@@ -835,6 +889,26 @@ test.serial('insert with onConflict do update', async (t) => {
 		.all();
 
 	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
+});
+
+test.serial('insert with onConflict do update using composite pk', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(pkExampleTable).values({ id: 1, name: 'John', email: 'john@example.com' }).run();
+
+	await db
+		.insert(pkExampleTable)
+		.values({ id: 1, name: 'John', email: 'john@example.com' })
+		.onConflictDoUpdate({ target: [pkExampleTable.id, pkExampleTable.name], set: { email: 'john1@example.com' } })
+		.run();
+
+	const res = await db
+		.select({ id: pkExampleTable.id, name: pkExampleTable.name, email: pkExampleTable.email })
+		.from(pkExampleTable)
+		.where(eq(pkExampleTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John', email: 'john1@example.com' }]);
 });
 
 test.serial('insert undefined', async (t) => {

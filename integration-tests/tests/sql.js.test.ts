@@ -73,8 +73,8 @@ const anotherUsersMigratorTable = sqliteTable('another_users', {
 	email: text('email').notNull(),
 });
 
-const _pkExample = sqliteTable('pk_example', {
-	id: integer('id').primaryKey(),
+const pkExampleTable = sqliteTable('pk_example', {
+	id: integer('id').notNull(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
 }, (table) => ({
@@ -117,6 +117,7 @@ test.beforeEach((t) => {
 	ctx.db.run(sql`drop table if exists ${courseCategoriesTable}`);
 	ctx.db.run(sql`drop table if exists ${orders}`);
 	ctx.db.run(sql`drop table if exists ${bigIntExample}`);
+	ctx.db.run(sql`drop table if exists ${pkExampleTable}`);
 
 	ctx.db.run(sql`
 		create table ${usersTable} (
@@ -163,12 +164,20 @@ test.beforeEach((t) => {
 		)
 	`);
 	ctx.db.run(sql`
-    create table ${bigIntExample} (
-      id integer primary key,
-      name text not null,
-      big_int blob not null
-	  )
-  `);
+		create table ${pkExampleTable} (
+			id integer not null,
+			name text not null,
+			email text not null,
+			primary key (id, name)
+		)
+	`);
+	ctx.db.run(sql`
+    	create table ${bigIntExample} (
+			id integer primary key,
+			name text not null,
+			big_int blob not null
+	  	)
+  	`);
 });
 
 test.serial('insert bigint values', async (t) => {
@@ -1499,6 +1508,29 @@ test.serial('insert with onConflict do nothing', (t) => {
 	t.deepEqual(res, [{ id: 1, name: 'John' }]);
 });
 
+test.serial('insert with onConflict do nothing using composite pk', (t) => {
+	const { db } = t.context;
+
+	db
+		.insert(pkExampleTable)
+		.values({ id: 1, name: 'John', email: 'john@example.com' })
+		.run();
+
+	db
+		.insert(pkExampleTable)
+		.values({ id: 1, name: 'John', email: 'john1@example.com' })
+		.onConflictDoNothing()
+		.run();
+
+	const res = db
+		.select({ id: pkExampleTable.id, name: pkExampleTable.name, email: pkExampleTable.email })
+		.from(pkExampleTable)
+		.where(eq(pkExampleTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John', email: 'john@example.com' }]);
+});
+
 test.serial('insert with onConflict do nothing using target', (t) => {
 	const { db } = t.context;
 
@@ -1519,6 +1551,29 @@ test.serial('insert with onConflict do nothing using target', (t) => {
 	t.deepEqual(res, [{ id: 1, name: 'John' }]);
 });
 
+test.serial('insert with onConflict do nothing using composite pk as target', (t) => {
+	const { db } = t.context;
+
+	db
+		.insert(pkExampleTable)
+		.values({ id: 1, name: 'John', email: 'john@example.com' })
+		.run();
+
+	db
+		.insert(pkExampleTable)
+		.values({ id: 1, name: 'John', email: 'john1@example.com' })
+		.onConflictDoNothing({ target: [pkExampleTable.id, pkExampleTable.name] })
+		.run();
+
+	const res = db
+		.select({ id: pkExampleTable.id, name: pkExampleTable.name, email: pkExampleTable.email })
+		.from(pkExampleTable)
+		.where(eq(pkExampleTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John', email: 'john@example.com' }]);
+});
+
 test.serial('insert with onConflict do update', (t) => {
 	const { db } = t.context;
 
@@ -1537,6 +1592,26 @@ test.serial('insert with onConflict do update', (t) => {
 		.all();
 
 	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
+});
+
+test.serial('insert with onConflict do update using composite pk', (t) => {
+	const { db } = t.context;
+
+	db.insert(pkExampleTable).values({ id: 1, name: 'John', email: 'john@example.com' }).run();
+
+	db
+		.insert(pkExampleTable)
+		.values({ id: 1, name: 'John', email: 'john@example.com' })
+		.onConflictDoUpdate({ target: [pkExampleTable.id, pkExampleTable.name], set: { email: 'john1@example.com' } })
+		.run();
+
+	const res = db
+		.select({ id: pkExampleTable.id, name: pkExampleTable.name, email: pkExampleTable.email })
+		.from(pkExampleTable)
+		.where(eq(pkExampleTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John', email: 'john1@example.com' }]);
 });
 
 test.serial('insert undefined', (t) => {

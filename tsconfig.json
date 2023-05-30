@@ -2,8 +2,8 @@
 	"compilerOptions": {
 		"isolatedModules": true,
 		"composite": false,
-		"target": "es2020",
-		"module": "es2020",
+		"target": "esnext",
+		"module": "esnext",
 		"moduleResolution": "node",
 		"lib": ["es2020", "es2018", "es2017", "es7", "es6", "es5"],
 		"declaration": false /* Generate .d.ts files from TypeScript and JavaScript files in your project. */,

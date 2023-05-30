@@ -12,6 +12,32 @@ jobs:
           - drizzle-orm
           - drizzle-zod
     runs-on: ubuntu-20.04
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: drizzle
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: drizzle
+        options: >-
+          --health-cmd "mysqladmin ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 3306:3306
     steps:
       - uses: actions/checkout@v3
 
@@ -72,6 +98,24 @@ jobs:
             echo "\`$version\` is already latest on NPM" >> $GITHUB_STEP_SUMMARY
           fi
 
+      - name: Build
+        if: steps.checks.outputs.has_new_release == 'true'
+        run: |
+          pnpm build
+
+      - name: Run tests
+        if: steps.checks.outputs.has_new_release == 'true'
+        env:
+          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/drizzle
+          MYSQL_CONNECTION_STRING: mysql://root:root@localhost:3306/drizzle
+          LIBSQL_URL: file:local.db
+        run: |
+          if [[ "${{ matrix.package }}" == "drizzle-orm" ]]; then
+            pnpm test --filter ${{ matrix.package }} --filter integration-tests
+          else
+          pnpm test --filter ${{ matrix.package }}
+          fi
+
       - name: Publish
         if: steps.checks.outputs.has_new_release == 'true'
         working-directory: ${{ matrix.package }}
@@ -87,7 +131,7 @@ jobs:
             npm dist-tag add ${{ matrix.package }}@$version latest
           else
             echo echo "Publishing ${{ matrix.package }}@$version"
-            (cd .. && npm run pack -- --filter ${{ matrix.package }})
+            npm run pack
             npm run publish
           fi
 

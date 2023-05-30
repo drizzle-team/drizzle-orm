@@ -2,6 +2,13 @@ import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
 import { PgDatabase } from '~/pg-core/db';
 import { PgDialect } from '~/pg-core/dialect';
+import {
+	createTableRelationsHelpers,
+	extractTablesRelationalConfig,
+	type RelationalSchemaConfig,
+	type TablesRelationalConfig,
+} from '~/relations';
+import { type DrizzleConfig } from '~/utils';
 import type { AwsDataApiClient, AwsDataApiPgQueryResultHKT } from './session';
 import { AwsDataApiSession } from './session';
 
@@ -12,39 +19,28 @@ export interface PgDriverOptions {
 	secretArn: string;
 }
 
-export class AwsDataApiDriver {
-	constructor(
-		private client: AwsDataApiClient,
-		private dialect: PgDialect,
-		private options: PgDriverOptions,
-	) {
-	}
-
-	createSession(): AwsDataApiSession {
-		return new AwsDataApiSession(this.client, this.dialect, this.options, undefined);
-	}
-}
-
-export interface DrizzleConfig {
-	logger?: boolean | Logger;
+export interface DrizzleAwsDataApiPgConfig<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+> extends DrizzleConfig<TSchema> {
 	database: string;
 	resourceArn: string;
 	secretArn: string;
 }
 
-export type AwsDataApiPgDatabase = PgDatabase<AwsDataApiPgQueryResultHKT>;
+export type AwsDataApiPgDatabase<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+> = PgDatabase<AwsDataApiPgQueryResultHKT, TSchema>;
 
 export class AwsPgDialect extends PgDialect {
-	override escapeName(name: string): string {
-		return `"${name}"`;
-	}
-
 	override escapeParam(num: number): string {
 		return `:${num + 1}`;
 	}
 }
 
-export function drizzle(client: AwsDataApiClient, config: DrizzleConfig): AwsDataApiPgDatabase {
+export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+	client: AwsDataApiClient,
+	config: DrizzleAwsDataApiPgConfig<TSchema>,
+): AwsDataApiPgDatabase<TSchema> {
 	const dialect = new AwsPgDialect();
 	let logger;
 	if (config.logger === true) {
@@ -52,7 +48,20 @@ export function drizzle(client: AwsDataApiClient, config: DrizzleConfig): AwsDat
 	} else if (config.logger !== false) {
 		logger = config.logger;
 	}
-	const driver = new AwsDataApiDriver(client, dialect, { ...config, logger });
-	const session = driver.createSession();
-	return new PgDatabase(dialect, session);
+
+	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
+	if (config.schema) {
+		const tablesConfig = extractTablesRelationalConfig(
+			config.schema,
+			createTableRelationsHelpers,
+		);
+		schema = {
+			fullSchema: config.schema,
+			schema: tablesConfig.tables,
+			tableNamesMap: tablesConfig.tableNamesMap,
+		};
+	}
+
+	const session = new AwsDataApiSession(client, dialect, schema, { ...config, logger }, undefined);
+	return new PgDatabase(dialect, session, schema) as AwsDataApiPgDatabase<TSchema>;
 }

@@ -1,8 +1,15 @@
 import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
-import { type VercelPgClient, VercelPgSession, type VercelPgQueryResultHKT } from './session';
 import { PgDialect } from '~/pg-core';
 import { PgDatabase } from '~/pg-core/db';
+import {
+	createTableRelationsHelpers,
+	extractTablesRelationalConfig,
+	type RelationalSchemaConfig,
+	type TablesRelationalConfig,
+} from '~/relations';
+import { type DrizzleConfig } from '~/utils';
+import { type VercelPgClient, type VercelPgQueryResultHKT, VercelPgSession } from './session';
 
 export interface VercelPgDriverOptions {
 	logger?: Logger;
@@ -17,8 +24,10 @@ export class VercelPgDriver {
 		this.initMappers();
 	}
 
-	createSession(): VercelPgSession {
-		return new VercelPgSession(this.client, this.dialect, { logger: this.options.logger });
+	createSession(
+		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
+	): VercelPgSession<Record<string, unknown>, TablesRelationalConfig> {
+		return new VercelPgSession(this.client, this.dialect, schema, { logger: this.options.logger });
 	}
 
 	initMappers() {
@@ -28,13 +37,14 @@ export class VercelPgDriver {
 	}
 }
 
-export interface DrizzleConfig {
-	logger?: boolean | Logger;
-}
+export type VercelPgDatabase<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+> = PgDatabase<VercelPgQueryResultHKT, TSchema>;
 
-export type VercelPgDatabase = PgDatabase<VercelPgQueryResultHKT>;
-
-export function drizzle(client: VercelPgClient, config: DrizzleConfig = {}): VercelPgDatabase {
+export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+	client: VercelPgClient,
+	config: DrizzleConfig<TSchema> = {},
+): VercelPgDatabase<TSchema> {
 	const dialect = new PgDialect();
 	let logger;
 	if (config.logger === true) {
@@ -42,7 +52,21 @@ export function drizzle(client: VercelPgClient, config: DrizzleConfig = {}): Ver
 	} else if (config.logger !== false) {
 		logger = config.logger;
 	}
+
+	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
+	if (config.schema) {
+		const tablesConfig = extractTablesRelationalConfig(
+			config.schema,
+			createTableRelationsHelpers,
+		);
+		schema = {
+			fullSchema: config.schema,
+			schema: tablesConfig.tables,
+			tableNamesMap: tablesConfig.tableNamesMap,
+		};
+	}
+
 	const driver = new VercelPgDriver(client, dialect, { logger });
-	const session = driver.createSession();
-	return new PgDatabase(dialect, session);
+	const session = driver.createSession(schema);
+	return new PgDatabase(dialect, session, schema) as VercelPgDatabase<TSchema>;
 }

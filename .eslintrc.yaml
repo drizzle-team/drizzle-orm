@@ -54,3 +54,4 @@ rules:
   'unicorn/consistent-function-scoping': 'off'
   'unicorn/prefer-type-error': 'off'
   'unicorn/relative-url-style': 'off'
+  'eqeqeq': 'error'

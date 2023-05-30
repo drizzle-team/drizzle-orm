@@ -1,5 +1,5 @@
 import json from '@rollup/plugin-json';
-import terser from '@rollup/plugin-terser';
+import replace from '@rollup/plugin-replace';
 import typescript from '@rollup/plugin-typescript';
 import { defineConfig } from 'rollup';
 import { entries, external } from './rollup.common';
@@ -12,31 +12,26 @@ export default defineConfig([
 			acc[to] = from;
 			return acc;
 		}, {}),
-		output: [
-			{
-				format: 'esm',
-				dir: 'dist',
-				entryFileNames: '[name].mjs',
-				chunkFileNames: '[name]-[hash].mjs',
-				sourcemap: true,
-			},
-			{
-				format: 'cjs',
-				dir: 'dist',
-				entryFileNames: '[name].cjs',
-				chunkFileNames: '[name]-[hash].cjs',
-				sourcemap: true,
-			},
-		],
+		output: {
+			format: 'cjs',
+			dir: 'dist.new',
+			entryFileNames: '[name].cjs',
+			chunkFileNames: '[name]-[hash].cjs',
+			sourcemap: true,
+		},
 		external,
 		plugins: [
+			replace({
+				'await import': 'require',
+				preventAssignment: true,
+			}),
 			json({
 				preferConst: true,
 			}),
 			typescript({
-				tsconfig: 'tsconfig.build.json',
+				tsconfig: 'tsconfig.cjs.json',
+				outputToFilesystem: true,
 			}),
-			terser(),
 		],
 	},
 ]);

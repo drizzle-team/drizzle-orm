@@ -51,4 +51,6 @@ export const external = [
 	'postgres',
 	'sqlite3',
 	'bun:sqlite',
+	'@opentelemetry/api',
+	'@vercel/postgres',
 ];

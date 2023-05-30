@@ -3,14 +3,16 @@ import {
 	type QueryConfig,
 	type QueryResult,
 	type QueryResultRow,
-	type VercelPoolClient, VercelPool,
 	type VercelClient,
+	VercelPool,
+	type VercelPoolClient,
 } from '@vercel/postgres';
 import { type Logger, NoopLogger } from '~/logger';
 import { type PgDialect, PgTransaction } from '~/pg-core';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
 import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
 import { PgSession, PreparedQuery } from '~/pg-core/session';
+import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import { fillPlaceholders, type Query, sql } from '~/sql';
 import { type Assume, mapResultRow } from '~/utils';
 
@@ -27,6 +29,7 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends Prepar
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super();
 		this.rawQuery = {
@@ -40,21 +43,23 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends Prepar
 		};
 	}
 
-	execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 
 		this.logger.logQuery(this.rawQuery.text, params);
 
-		const { fields, rawQuery, client, query, joinsNotNullableMap } = this;
-		if (!fields) {
+		const { fields, rawQuery, client, query, joinsNotNullableMap, customResultMapper } = this;
+		if (!fields && !customResultMapper) {
 			return client.query(rawQuery, params);
 		}
 
-		const result = client.query(query, params);
+		const { rows } = await client.query(query, params);
 
-		return result.then((result) =>
-			result.rows.map((row) => mapResultRow<T['execute']>(fields, row, joinsNotNullableMap))
-		);
+		if (customResultMapper) {
+			return customResultMapper(rows);
+		}
+
+		return rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
@@ -74,12 +79,16 @@ export interface VercelPgSessionOptions {
 	logger?: Logger;
 }
 
-export class VercelPgSession extends PgSession<VercelPgQueryResultHKT> {
+export class VercelPgSession<
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
+> extends PgSession<VercelPgQueryResultHKT, TFullSchema, TSchema> {
 	private logger: Logger;
 
 	constructor(
 		private client: VercelPgClient,
 		dialect: PgDialect,
+		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		private options: VercelPgSessionOptions = {},
 	) {
 		super(dialect);
@@ -90,8 +99,17 @@ export class VercelPgSession extends PgSession<VercelPgQueryResultHKT> {
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PreparedQuery<T> {
-		return new VercelPgPreparedQuery(this.client, query.sql, query.params, this.logger, fields, name);
+		return new VercelPgPreparedQuery(
+			this.client,
+			query.sql,
+			query.params,
+			this.logger,
+			fields,
+			name,
+			customResultMapper,
+		);
 	}
 
 	async query(query: string, params: unknown[]): Promise<QueryResult> {
@@ -112,13 +130,13 @@ export class VercelPgSession extends PgSession<VercelPgQueryResultHKT> {
 	}
 
 	override async transaction<T>(
-		transaction: (tx: VercelPgTransaction) => Promise<T>,
+		transaction: (tx: VercelPgTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
 		const session = this.client instanceof VercelPool
-			? new VercelPgSession(await this.client.connect(), this.dialect, this.options)
+			? new VercelPgSession(await this.client.connect(), this.dialect, this.schema, this.options)
 			: this;
-		const tx = new VercelPgTransaction(this.dialect, session);
+		const tx = new VercelPgTransaction(this.dialect, session, this.schema);
 		await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
 		try {
 			const result = await transaction(tx);
@@ -135,10 +153,15 @@ export class VercelPgSession extends PgSession<VercelPgQueryResultHKT> {
 	}
 }
 
-export class VercelPgTransaction extends PgTransaction<VercelPgQueryResultHKT> {
-	override async transaction<T>(transaction: (tx: VercelPgTransaction) => Promise<T>): Promise<T> {
+export class VercelPgTransaction<
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
+> extends PgTransaction<VercelPgQueryResultHKT, TFullSchema, TSchema> {
+	override async transaction<T>(
+		transaction: (tx: VercelPgTransaction<TFullSchema, TSchema>) => Promise<T>,
+	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new VercelPgTransaction(this.dialect, this.session, this.nestedIndex + 1);
+		const tx = new VercelPgTransaction(this.dialect, this.session, this.schema, this.nestedIndex + 1);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);

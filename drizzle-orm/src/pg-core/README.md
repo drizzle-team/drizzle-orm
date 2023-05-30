@@ -23,18 +23,15 @@ Drizzle ORM is a TypeScript ORM for SQL databases designed with maximum type saf
 ```bash
 # npm
 npm i drizzle-orm pg
-npm i -D @types/pg
-npm i -D drizzle-kit
+npm i -D @types/pg drizzle-kit
 
 # yarn
 yarn add drizzle-orm pg
-yarn add -D @types/pg
-yarn add -D drizzle-kit
+yarn add -D @types/pg drizzle-kit
 
 # pnpm
 pnpm add drizzle-orm pg
-pnpm add -D @types/pg
-pnpm add -D drizzle-kit
+pnpm add -D @types/pg drizzle-kit
 ```
 
 ## SQL schema declaration

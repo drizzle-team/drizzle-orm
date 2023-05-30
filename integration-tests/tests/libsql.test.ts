@@ -89,8 +89,8 @@ const anotherUsersMigratorTable = sqliteTable('another_users', {
 	email: text('email').notNull(),
 });
 
-const _pkExample = sqliteTable('pk_example', {
-	id: integer('id').primaryKey(),
+const pkExampleTable = sqliteTable('pk_example', {
+	id: integer('id').notNull(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
 }, (table) => ({
@@ -146,6 +146,7 @@ test.beforeEach(async (t) => {
 	await ctx.db.run(sql`drop table if exists ${courseCategoriesTable}`);
 	await ctx.db.run(sql`drop table if exists ${orders}`);
 	await ctx.db.run(sql`drop table if exists ${bigIntExample}`);
+	await ctx.db.run(sql`drop table if exists ${pkExampleTable}`);
 
 	await ctx.db.run(sql`
 		create table ${usersTable} (
@@ -193,7 +194,7 @@ test.beforeEach(async (t) => {
 			quantity integer not null
 		)
 	`);
-
+	// HEAD
 	await ctx.db.run(sql`
     create table ${bigIntExample} (
       id integer primary key,
@@ -220,6 +221,16 @@ test.serial('insert bigint values', async (t) => {
 		{ id: 4, name: 'four', bigInt: BigInt('1234567890') },
 		{ id: 5, name: 'five', bigInt: BigInt('12345678900987654321') },
 	]);
+	//
+	await ctx.db.run(sql`
+		create table ${pkExampleTable} (
+			id integer not null,
+			name text not null,
+			email text not null,
+			primary key (id, name)
+		)
+	`);
+	// main
 });
 
 test.serial('select all fields', async (t) => {
@@ -1531,6 +1542,29 @@ test.serial('insert with onConflict do nothing', async (t) => {
 	t.deepEqual(res, [{ id: 1, name: 'John' }]);
 });
 
+test.serial('insert with onConflict do nothing using composite pk', async (t) => {
+	const { db } = t.context;
+
+	await db
+		.insert(pkExampleTable)
+		.values({ id: 1, name: 'John', email: 'john@example.com' })
+		.run();
+
+	await db
+		.insert(pkExampleTable)
+		.values({ id: 1, name: 'John', email: 'john1@example.com' })
+		.onConflictDoNothing()
+		.run();
+
+	const res = await db
+		.select({ id: pkExampleTable.id, name: pkExampleTable.name, email: pkExampleTable.email })
+		.from(pkExampleTable)
+		.where(eq(pkExampleTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John', email: 'john@example.com' }]);
+});
+
 test.serial('insert with onConflict do nothing using target', async (t) => {
 	const { db } = t.context;
 
@@ -1551,6 +1585,29 @@ test.serial('insert with onConflict do nothing using target', async (t) => {
 	t.deepEqual(res, [{ id: 1, name: 'John' }]);
 });
 
+test.serial('insert with onConflict do nothing using composite pk as target', async (t) => {
+	const { db } = t.context;
+
+	await db
+		.insert(pkExampleTable)
+		.values({ id: 1, name: 'John', email: 'john@example.com' })
+		.run();
+
+	await db
+		.insert(pkExampleTable)
+		.values({ id: 1, name: 'John', email: 'john1@example.com' })
+		.onConflictDoNothing({ target: [pkExampleTable.id, pkExampleTable.name] })
+		.run();
+
+	const res = await db
+		.select({ id: pkExampleTable.id, name: pkExampleTable.name, email: pkExampleTable.email })
+		.from(pkExampleTable)
+		.where(eq(pkExampleTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John', email: 'john@example.com' }]);
+});
+
 test.serial('insert with onConflict do update', async (t) => {
 	const { db } = t.context;
 
@@ -1569,6 +1626,26 @@ test.serial('insert with onConflict do update', async (t) => {
 		.all();
 
 	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
+});
+
+test.serial('insert with onConflict do update using composite pk', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(pkExampleTable).values({ id: 1, name: 'John', email: 'john@example.com' }).run();
+
+	await db
+		.insert(pkExampleTable)
+		.values({ id: 1, name: 'John', email: 'john@example.com' })
+		.onConflictDoUpdate({ target: [pkExampleTable.id, pkExampleTable.name], set: { email: 'john1@example.com' } })
+		.run();
+
+	const res = await db
+		.select({ id: pkExampleTable.id, name: pkExampleTable.name, email: pkExampleTable.email })
+		.from(pkExampleTable)
+		.where(eq(pkExampleTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John', email: 'john1@example.com' }]);
 });
 
 test.serial('insert undefined', async (t) => {
