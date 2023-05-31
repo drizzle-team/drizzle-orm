@@ -431,7 +431,8 @@ export function normalizeRelation(
 	const reverseRelations: Relation[] = [];
 	for (const referencedTableRelation of Object.values(referencedTableFields.relations)) {
 		if (
-			(relation.relationName && referencedTableRelation.relationName === relation.relationName)
+			(relation.relationName && relation !== referencedTableRelation
+				&& referencedTableRelation.relationName === relation.relationName)
 			|| (!relation.relationName && referencedTableRelation.referencedTable === relation.sourceTable)
 		) {
 			reverseRelations.push(referencedTableRelation);
