@@ -39,7 +39,7 @@ export abstract class PgSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
 	): PreparedQuery<T>;
 
 	execute<T>(query: SQL): Promise<T> {

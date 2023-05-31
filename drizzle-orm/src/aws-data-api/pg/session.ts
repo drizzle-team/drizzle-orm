@@ -1,4 +1,4 @@
-import type { ExecuteStatementCommandOutput, RDSDataClient } from '@aws-sdk/client-rds-data';
+import type { ExecuteStatementCommandOutput, Field, RDSDataClient } from '@aws-sdk/client-rds-data';
 import {
 	BeginTransactionCommand,
 	CommitTransactionCommand,
@@ -35,7 +35,7 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 		private fields: SelectedFieldsOrdered | undefined,
 		/** @internal */
 		readonly transactionId: string | undefined,
-		private customResultMapper?: (rows: unknown[][]) => T['execute'],
+		private customResultMapper?: (rows: unknown[][], mapColumnValue: (value: unknown) => unknown) => T['execute'],
 	) {
 		super();
 		this.rawQuery = new ExecuteStatementCommand({
@@ -56,7 +56,7 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 			return rows as T['execute'];
 		}
 		return customResultMapper
-			? customResultMapper(rows)
+			? customResultMapper(rows, (field) => getValueFromDataApi(field as Field))
 			: rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
 	}
 
@@ -82,8 +82,8 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 
 		const result = await client.send(rawQuery);
 
-		return result.records?.map((result: any) => {
-			return result.map((res: any) => getValueFromDataApi(res));
+		return result.records?.map((row: any) => {
+			return row.map((field: Field) => getValueFromDataApi(field));
 		});
 	}
 }
@@ -129,7 +129,7 @@ export class AwsDataApiSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		transactionId?: string,
-		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		customResultMapper?: (rows: unknown[][], mapColumnValue: (value: unknown) => unknown) => T['execute'],
 	): PreparedQuery<T> {
 		return new AwsDataApiPreparedQuery(
 			this.client,

@@ -1,11 +1,11 @@
 import type { BuildColumns } from '~/column-builder';
 import { type AnyTableHKT, Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table';
-import { type Assume } from '~/utils';
-import { type CheckBuilder } from './checks';
+import type { Assume } from '~/utils';
+import type { CheckBuilder } from './checks';
 import type { AnyPgColumn, AnyPgColumnBuilder } from './columns/common';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
-import { type AnyIndexBuilder } from './indexes';
-import { type PrimaryKeyBuilder } from './primary-keys';
+import type { AnyIndexBuilder } from './indexes';
+import type { PrimaryKeyBuilder } from './primary-keys';
 
 export type PgTableExtraConfig = Record<
 	string,
