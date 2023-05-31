@@ -35,7 +35,7 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 		private fields: SelectedFieldsOrdered | undefined,
 		/** @internal */
 		readonly transactionId: string | undefined,
-		private customResultMapper?: (rows: unknown[][], mapColumnValue: (value: unknown) => unknown) => T['execute'],
+		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super();
 		this.rawQuery = new ExecuteStatementCommand({
@@ -56,7 +56,7 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 			return rows as T['execute'];
 		}
 		return customResultMapper
-			? customResultMapper(rows, (field) => getValueFromDataApi(field as Field))
+			? customResultMapper(rows)
 			: rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
 	}
 
@@ -74,8 +74,8 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 
 		this.options.logger?.logQuery(this.rawQuery.input.sql!, this.rawQuery.input.parameters);
 
-		const { fields, rawQuery, client } = this;
-		if (!fields) {
+		const { fields, rawQuery, client, customResultMapper } = this;
+		if (!fields && !customResultMapper) {
 			const result = await client.send(rawQuery);
 			return result.records ?? [];
 		}
@@ -129,7 +129,7 @@ export class AwsDataApiSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		transactionId?: string,
-		customResultMapper?: (rows: unknown[][], mapColumnValue: (value: unknown) => unknown) => T['execute'],
+		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PreparedQuery<T> {
 		return new AwsDataApiPreparedQuery(
 			this.client,
