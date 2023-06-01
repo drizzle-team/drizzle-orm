@@ -176,7 +176,7 @@ export class SQLiteRelationalQuery<TResultKind extends 'sync' | 'async', TResult
 			undefined,
 			(rawRows, mapColumnValue) => {
 				const rows = rawRows.map((row) =>
-					mapRelationalRow(this.schema, this.tableConfig, row, query.selection, true, mapColumnValue)
+					mapRelationalRow(this.schema, this.tableConfig, row, query.selection, mapColumnValue)
 				);
 				if (this.mode === 'first') {
 					return rows[0] as TResult;
