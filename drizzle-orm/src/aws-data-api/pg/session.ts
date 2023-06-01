@@ -1,4 +1,4 @@
-import type { ExecuteStatementCommandOutput, RDSDataClient } from '@aws-sdk/client-rds-data';
+import type { ExecuteStatementCommandOutput, Field, RDSDataClient } from '@aws-sdk/client-rds-data';
 import {
 	BeginTransactionCommand,
 	CommitTransactionCommand,
@@ -74,16 +74,16 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 
 		this.options.logger?.logQuery(this.rawQuery.input.sql!, this.rawQuery.input.parameters);
 
-		const { fields, rawQuery, client } = this;
-		if (!fields) {
+		const { fields, rawQuery, client, customResultMapper } = this;
+		if (!fields && !customResultMapper) {
 			const result = await client.send(rawQuery);
 			return result.records ?? [];
 		}
 
 		const result = await client.send(rawQuery);
 
-		return result.records?.map((result: any) => {
-			return result.map((res: any) => getValueFromDataApi(res));
+		return result.records?.map((row: any) => {
+			return row.map((field: Field) => getValueFromDataApi(field));
 		});
 	}
 }

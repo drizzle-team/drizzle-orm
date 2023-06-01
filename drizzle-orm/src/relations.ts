@@ -431,7 +431,8 @@ export function normalizeRelation(
 	const reverseRelations: Relation[] = [];
 	for (const referencedTableRelation of Object.values(referencedTableFields.relations)) {
 		if (
-			(relation.relationName && referencedTableRelation.relationName === relation.relationName)
+			(relation.relationName && relation !== referencedTableRelation
+				&& referencedTableRelation.relationName === relation.relationName)
 			|| (!relation.relationName && referencedTableRelation.referencedTable === relation.sourceTable)
 		) {
 			reverseRelations.push(referencedTableRelation);
@@ -493,7 +494,6 @@ export function mapRelationalRow(
 	tableConfig: TableRelationalConfig,
 	row: unknown[],
 	buildQueryResultSelection: BuildRelationalQueryResult['selection'],
-	jsonParseRelationalFields = false,
 	mapColumnValue: (value: unknown) => unknown = (value) => value,
 ): Record<string, unknown> {
 	const result: Record<string, unknown> = {};
@@ -501,10 +501,8 @@ export function mapRelationalRow(
 	for (const [selectionItemIndex, selectionItem] of buildQueryResultSelection.entries()) {
 		if (selectionItem.isJson) {
 			const relation = tableConfig.relations[selectionItem.tsKey]!;
-			let subRows = row[selectionItemIndex] as unknown[][];
-			if (jsonParseRelationalFields) {
-				subRows = JSON.parse(subRows as unknown as string);
-			}
+			const rawSubRows = row[selectionItemIndex] as unknown[][] | string;
+			const subRows = typeof rawSubRows === 'string' ? JSON.parse(rawSubRows) as unknown[][] : rawSubRows;
 			if (relation instanceof One) {
 				result[selectionItem.tsKey] = subRows[0]
 					? mapRelationalRow(
@@ -512,6 +510,7 @@ export function mapRelationalRow(
 						tablesConfig[selectionItem.tableTsKey!]!,
 						subRows[0],
 						selectionItem.selection,
+						mapColumnValue,
 					)
 					: null;
 			} else {
@@ -521,6 +520,7 @@ export function mapRelationalRow(
 						tablesConfig[selectionItem.tableTsKey!]!,
 						subRow as unknown[],
 						selectionItem.selection,
+						mapColumnValue,
 					)
 				);
 			}
