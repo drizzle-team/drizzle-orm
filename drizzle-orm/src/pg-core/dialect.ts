@@ -632,9 +632,15 @@ export class PgDialect {
 				elseField.append(sql.raw('::text'));
 			}
 
-			const field = sql`case when count(${
-				sql.join(normalizedRelation.references.map((c) => aliasedTableColumn(c, relationAlias)), sql.raw(' or '))
-			}) = 0 then '[]' else ${elseField} end`.as(selectedRelationKey);
+			const countSql = normalizedRelation.references.length === 1
+				? aliasedTableColumn(normalizedRelation.references[0]!, relationAlias)
+				: sql.fromList([
+					sql`coalesce(`,
+					sql.join(normalizedRelation.references.map((c) => aliasedTableColumn(c, relationAlias)), sql.raw(', ')),
+					sql.raw(')'),
+				]);
+
+			const field = sql`case when count(${countSql}) = 0 then '[]' else ${elseField} end`.as(selectedRelationKey);
 
 			const builtRelationField = {
 				path: [selectedRelationKey],

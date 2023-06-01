@@ -563,9 +563,15 @@ export class MySqlDialect {
 				)
 			}))`;
 
-			const field = sql`if(count(${
-				sql.join(normalizedRelation.references.map((c) => aliasedTableColumn(c, relationAlias)), sql.raw(' or '))
-			}) = 0, '[]', ${elseField})`.as(selectedRelationKey);
+			const countSql = normalizedRelation.references.length === 1
+				? aliasedTableColumn(normalizedRelation.references[0]!, relationAlias)
+				: sql.fromList([
+					sql`coalesce(`,
+					sql.join(normalizedRelation.references.map((c) => aliasedTableColumn(c, relationAlias)), sql.raw(', ')),
+					sql.raw(')'),
+				]);
+
+			const field = sql`if(count(${countSql}) = 0, '[]', ${elseField})`.as(selectedRelationKey);
 
 			const builtRelationField = {
 				path: [selectedRelationKey],
