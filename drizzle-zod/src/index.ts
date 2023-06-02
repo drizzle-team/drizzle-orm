@@ -69,6 +69,7 @@ import {
 	PgVarchar,
 } from 'drizzle-orm/pg-core';
 import {
+	SQLiteBigInt,
 	SQLiteBlobJson,
 	SQLiteCustomColumn,
 	SQLiteInteger,
@@ -287,7 +288,10 @@ function mapColumnToSchema(column: AnyColumn): z.ZodTypeAny {
 			|| column instanceof MySqlReal || column instanceof MySqlYear
 		) {
 			type = z.number();
-		} else if (column instanceof PgBigInt64 || column instanceof PgBigSerial64 || column instanceof MySqlBigInt64) {
+		} else if (
+			column instanceof PgBigInt64 || column instanceof PgBigSerial64 || column instanceof MySqlBigInt64
+			|| column instanceof SQLiteBigInt
+		) {
 			type = z.bigint();
 		} else if (column instanceof PgBoolean || column instanceof MySqlBoolean) {
 			type = z.boolean();
