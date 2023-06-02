@@ -324,7 +324,6 @@ function mapColumnToSchema(column: AnyColumn): z.ZodTypeAny {
                 (
                     column instanceof PgVarchar ||
                     column instanceof MySqlVarChar ||
-                    column instanceof MySqlVarBinary ||
                     column instanceof SQLiteText) &&
                     typeof column.length === "number"
             ) {
