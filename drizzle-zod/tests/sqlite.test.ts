@@ -21,27 +21,27 @@ const users = sqliteTable('users', {
 });
 
 const testUser = {
-    id: 1,
-    blobJson: { foo: 'bar' },
-    blobBigInt: BigInt(123),
-    numeric: '123.45',
-    createdAt: new Date(),
-    createdAtMs: new Date(),
-    real: 123.45,
-    text: 'foobar',
-    role: 'admin',
-}
+	id: 1,
+	blobJson: { foo: 'bar' },
+	blobBigInt: BigInt(123),
+	numeric: '123.45',
+	createdAt: new Date(),
+	createdAtMs: new Date(),
+	real: 123.45,
+	text: 'foobar',
+	role: 'admin',
+};
 
-test("users insert valid user", (t) => {
-    const schema = createInsertSchema(users);
+test('users insert valid user', (t) => {
+	const schema = createInsertSchema(users);
 
-    t.is(schema.safeParse(testUser).success, true);
-})
+	t.is(schema.safeParse(testUser).success, true);
+});
 
-test("users insert invalid text length", (t) => {
-    const schema = createInsertSchema(users);
+test('users insert invalid text length', (t) => {
+	const schema = createInsertSchema(users);
 
-    t.is(schema.safeParse({ ...testUser, text: "a".repeat(256) }).success, false);
+	t.is(schema.safeParse({ ...testUser, text: 'a'.repeat(256) }).success, false);
 });
 
 test('users insert schema', (t) => {

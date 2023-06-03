@@ -304,7 +304,8 @@ function mapColumnToSchema(column: AnyColumn): z.ZodTypeAny {
 		} else if (
 			column instanceof PgInterval || column instanceof PgNumeric || column instanceof PgChar
 			|| column instanceof PgCidr || column instanceof PgInet || column instanceof PgMacaddr
-			|| column instanceof PgMacaddr8 || column instanceof PgText || column instanceof PgTime || column instanceof PgDateString
+			|| column instanceof PgMacaddr8 || column instanceof PgText || column instanceof PgTime
+			|| column instanceof PgDateString
 			|| column instanceof PgVarchar || column instanceof SQLiteNumeric || column instanceof SQLiteText
 			|| column instanceof MySqlDateString || column instanceof MySqlDateTimeString || column instanceof MySqlDecimal
 			|| column instanceof MySqlText || column instanceof MySqlTime || column instanceof MySqlTimestampString
@@ -313,22 +314,24 @@ function mapColumnToSchema(column: AnyColumn): z.ZodTypeAny {
 		) {
 			let sType = z.string();
 
-            if (
-                (
-                    column instanceof PgChar ||
-                    column instanceof MySqlChar) &&
-                    typeof column.length === "number"
-            ) {
-                sType = sType.length(column.length);
-            } else if (
-                (
-                    column instanceof PgVarchar ||
-                    column instanceof MySqlVarChar ||
-                    column instanceof SQLiteText) &&
-                    typeof column.length === "number"
-            ) {
-                sType = sType.max(column.length);
-            }
+			if (
+				(
+					column instanceof PgChar
+					|| column instanceof MySqlChar
+				)
+				&& typeof column.length === 'number'
+			) {
+				sType = sType.length(column.length);
+			} else if (
+				(
+					column instanceof PgVarchar
+					|| column instanceof MySqlVarChar
+					|| column instanceof SQLiteText
+				)
+				&& typeof column.length === 'number'
+			) {
+				sType = sType.max(column.length);
+			}
 
 			type = sType;
 		} else if (column instanceof PgUUID) {

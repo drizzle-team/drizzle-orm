@@ -81,62 +81,62 @@ const testTable = mysqlTable('test', {
 });
 
 const testTableRow = {
-    bigint: BigInt(1),
-    bigintNumber: 1,
-    binary: "binary",
-    boolean: true,
-    char: "char",
-    charEnum: "a",
-    customInt: { data: 1 },
-    date: new Date(),
-    dateString: new Date().toISOString(),
-    datetime: new Date(),
-    datetimeString: new Date().toISOString(),
-    decimal: "1.1",
-    double: 1.1,
-    enum: "a",
-    float: 1.1,
-    int: 1,
-    json: { data: 1 },
-    mediumint: 1,
-    real: 1.1,
-    serial: 1,
-    smallint: 1,
-    text: "text",
-    textEnum: "a",
-    tinytext: "tinytext",
-    tinytextEnum: "a",
-    mediumtext: "mediumtext",
-    mediumtextEnum: "a",
-    longtext: "longtext",
-    longtextEnum: "a",
-    time: "00:00:00",
-    timestamp: new Date(),
-    timestampString: new Date().toISOString(),
-    tinyint: 1,
-    varbinary: "A".repeat(200),
-    varchar: "A".repeat(200),
-    varcharEnum: "a",
-    year: 2021,
-    autoIncrement: 1,
+	bigint: BigInt(1),
+	bigintNumber: 1,
+	binary: 'binary',
+	boolean: true,
+	char: 'char',
+	charEnum: 'a',
+	customInt: { data: 1 },
+	date: new Date(),
+	dateString: new Date().toISOString(),
+	datetime: new Date(),
+	datetimeString: new Date().toISOString(),
+	decimal: '1.1',
+	double: 1.1,
+	enum: 'a',
+	float: 1.1,
+	int: 1,
+	json: { data: 1 },
+	mediumint: 1,
+	real: 1.1,
+	serial: 1,
+	smallint: 1,
+	text: 'text',
+	textEnum: 'a',
+	tinytext: 'tinytext',
+	tinytextEnum: 'a',
+	mediumtext: 'mediumtext',
+	mediumtextEnum: 'a',
+	longtext: 'longtext',
+	longtextEnum: 'a',
+	time: '00:00:00',
+	timestamp: new Date(),
+	timestampString: new Date().toISOString(),
+	tinyint: 1,
+	varbinary: 'A'.repeat(200),
+	varchar: 'A'.repeat(200),
+	varcharEnum: 'a',
+	year: 2021,
+	autoIncrement: 1,
 };
 
-test("insert valid row", (t) => {
-    const schema = createInsertSchema(testTable);
+test('insert valid row', (t) => {
+	const schema = createInsertSchema(testTable);
 
-    t.is(schema.safeParse(testTableRow).success, true);
+	t.is(schema.safeParse(testTableRow).success, true);
 });
 
-test("insert invalid varchar length", (t) => {
-    const schema = createInsertSchema(testTable);
+test('insert invalid varchar length', (t) => {
+	const schema = createInsertSchema(testTable);
 
-    t.is(schema.safeParse({ ...testTableRow, varchar: "A".repeat(201) }).success, false);
+	t.is(schema.safeParse({ ...testTableRow, varchar: 'A'.repeat(201) }).success, false);
 });
 
-test("insert invalid char length", (t) => {
-    const schema = createInsertSchema(testTable);
+test('insert invalid char length', (t) => {
+	const schema = createInsertSchema(testTable);
 
-    t.is(schema.safeParse({ ...testTableRow, char: "abc" }).success, false);
+	t.is(schema.safeParse({ ...testTableRow, char: 'abc' }).success, false);
 });
 
 test('insert schema', (t) => {
