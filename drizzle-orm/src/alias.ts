@@ -1,6 +1,6 @@
 import type { AnyColumn } from './column';
 import { Column } from './column';
-import { type Relation } from './relations';
+import type { Relation } from './relations';
 import { SQL, sql } from './sql';
 import { Table } from './table';
 import { type View, ViewBaseConfig } from './view';

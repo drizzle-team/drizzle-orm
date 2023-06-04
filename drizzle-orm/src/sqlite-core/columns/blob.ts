@@ -1,10 +1,54 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
-import type { Assume } from '~/utils';
+import type { Assume, Equal } from '~/utils';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common';
 
-type BlobMode = 'buffer' | 'json';
+type BlobMode = 'buffer' | 'json' | 'bigint';
+
+export interface SQLiteBigIntBuilderHKT extends ColumnBuilderHKTBase {
+	_type: SQLiteBigIntBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
+	_columnHKT: SQLiteBigIntHKT;
+}
+
+export interface SQLiteBigIntHKT extends ColumnHKTBase {
+	_type: SQLiteBigInt<Assume<this['config'], ColumnBaseConfig>>;
+}
+
+export type SQLiteBigIntBuilderInitial<TName extends string> = SQLiteBigIntBuilder<{
+	name: TName;
+	data: bigint;
+	driverParam: Buffer;
+	notNull: false;
+	hasDefault: false;
+}>;
+
+export class SQLiteBigIntBuilder<T extends ColumnBuilderBaseConfig>
+	extends SQLiteColumnBuilder<SQLiteBigIntBuilderHKT, T>
+{
+	/** @internal */
+	override build<TTableName extends string>(
+		table: AnySQLiteTable<{ name: TTableName }>,
+	): SQLiteBigInt<MakeColumnConfig<T, TTableName>> {
+		return new SQLiteBigInt<MakeColumnConfig<T, TTableName>>(table, this.config);
+	}
+}
+
+export class SQLiteBigInt<T extends ColumnBaseConfig> extends SQLiteColumn<SQLiteBigIntHKT, T> {
+	declare protected $sqliteColumnBrand: 'SQLiteBigInt';
+
+	getSQLType(): string {
+		return 'blob';
+	}
+
+	override mapFromDriverValue(value: Buffer): bigint {
+		return BigInt(value.toString());
+	}
+
+	override mapToDriverValue(value: bigint): Buffer {
+		return Buffer.from(value.toString());
+	}
+}
 
 export interface SQLiteBlobJsonBuilderHKT extends ColumnBuilderHKTBase {
 	_type: SQLiteBlobJsonBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
@@ -88,13 +132,18 @@ export interface BlobConfig<TMode extends BlobMode = BlobMode> {
 	mode: TMode;
 }
 
-export function blob<TName extends string, TMode extends BlobMode = 'buffer'>(
+export function blob<TName extends string, TMode extends BlobMode = BlobMode>(
 	name: TName,
 	config?: BlobConfig<TMode>,
-): TMode extends 'buffer' ? SQLiteBlobBufferBuilderInitial<TName> : SQLiteBlobJsonBuilderInitial<TName>;
+): Equal<TMode, 'bigint'> extends true ? SQLiteBigIntBuilderInitial<TName>
+	: Equal<TMode, 'buffer'> extends true ? SQLiteBlobBufferBuilderInitial<TName>
+	: SQLiteBlobJsonBuilderInitial<TName>;
 export function blob(name: string, config?: BlobConfig) {
 	if (config?.mode === 'json') {
 		return new SQLiteBlobJsonBuilder(name);
+	}
+	if (config?.mode === 'bigint') {
+		return new SQLiteBigIntBuilder(name);
 	}
 	return new SQLiteBlobBufferBuilder(name);
 }

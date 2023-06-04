@@ -6,11 +6,11 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations';
-import { type SQL } from '~/sql';
+import type { SQL } from '~/sql';
 import { tracer } from '~/tracing';
-import { type KnownKeysOnly } from '~/utils';
-import { type PgDialect } from '../dialect';
-import { type PgSession, type PreparedQuery, type PreparedQueryConfig } from '../session';
+import type { KnownKeysOnly } from '~/utils';
+import type { PgDialect } from '../dialect';
+import type { PgSession, PreparedQuery, PreparedQueryConfig } from '../session';
 import { type AnyPgTable } from '../table';
 
 export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields extends TableRelationalConfig> {
@@ -93,8 +93,10 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 				builtQuery,
 				undefined,
 				name,
-				(rawRows) => {
-					const rows = rawRows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, query.selection));
+				(rawRows, mapColumnValue) => {
+					const rows = rawRows.map((row) =>
+						mapRelationalRow(this.schema, this.tableConfig, row, query.selection, mapColumnValue)
+					);
 					if (this.mode === 'first') {
 						return rows[0] as TResult;
 					}
