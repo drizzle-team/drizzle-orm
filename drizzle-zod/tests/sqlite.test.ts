@@ -11,6 +11,7 @@ const blobJsonSchema = z.object({
 const users = sqliteTable('users', {
 	id: integer('id').primaryKey(),
 	blobJson: blob('blob', { mode: 'json' }).$type<z.infer<typeof blobJsonSchema>>().notNull(),
+	blobBigInt: blob('blob', { mode: 'bigint' }).notNull(),
 	numeric: numeric('numeric').notNull(),
 	createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 	createdAtMs: integer('created_at_ms', { mode: 'timestamp_ms' }).notNull(),
@@ -45,6 +46,7 @@ test('users insert schema', (t) => {
 	const expected = z.object({
 		id: z.number().positive().optional(),
 		blobJson: blobJsonSchema,
+		blobBigInt: z.bigint(),
 		numeric: z.string(),
 		createdAt: z.date(),
 		createdAtMs: z.date(),
@@ -62,6 +64,7 @@ test('users insert schema w/ defaults', (t) => {
 	const expected = z.object({
 		id: z.number().optional(),
 		blobJson: jsonSchema,
+		blobBigInt: z.bigint(),
 		numeric: z.string(),
 		createdAt: z.date(),
 		createdAtMs: z.date(),
@@ -98,6 +101,7 @@ test('users select schema', (t) => {
 	const expected = z.object({
 		id: z.number(),
 		blobJson: jsonSchema,
+		blobBigInt: z.bigint(),
 		numeric: z.string(),
 		createdAt: z.date(),
 		createdAtMs: z.date(),
@@ -115,6 +119,7 @@ test('users select schema w/ defaults', (t) => {
 	const expected = z.object({
 		id: z.number(),
 		blobJson: jsonSchema,
+		blobBigInt: z.bigint(),
 		numeric: z.string(),
 		createdAt: z.date(),
 		createdAtMs: z.date(),

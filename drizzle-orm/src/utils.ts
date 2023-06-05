@@ -277,3 +277,7 @@ export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<
 export type KnownKeysOnly<T, U> = {
 	[K in keyof T]: K extends keyof U ? T[K] : never;
 };
+
+export function iife<T extends unknown[], U>(fn: (...args: T) => U, ...args: T): U {
+	return fn(...args);
+}

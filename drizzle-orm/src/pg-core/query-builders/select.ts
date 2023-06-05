@@ -18,6 +18,7 @@ import { QueryPromise } from '~/query-promise';
 import { type Placeholder, type Query, SQL } from '~/sql';
 import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
 import { Table } from '~/table';
+import { tracer } from '~/tracing';
 import { applyMixins, getTableColumns, getTableLikeName, type Simplify, type ValueOrArray } from '~/utils';
 import { orderSelectedFields } from '~/utils';
 import { type ColumnsSelection, View, ViewBaseConfig } from '~/view';
@@ -451,15 +452,18 @@ export class PgSelect<
 			execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
 		}
 	> {
-		if (!this.session) {
+		const { session, config, dialect, joinsNotNullableMap } = this;
+		if (!session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
-		const fieldsList = orderSelectedFields<AnyPgColumn>(this.config.fields);
-		const query = this.session.prepareQuery<
-			PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] }
-		>(this.dialect.sqlToQuery(this.getSQL()), fieldsList, name);
-		query.joinsNotNullableMap = this.joinsNotNullableMap;
-		return query;
+		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			const fieldsList = orderSelectedFields<AnyPgColumn>(config.fields);
+			const query = session.prepareQuery<
+				PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] }
+			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name);
+			query.joinsNotNullableMap = joinsNotNullableMap;
+			return query;
+		});
 	}
 
 	/**
@@ -478,7 +482,9 @@ export class PgSelect<
 	}
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this._prepare().execute(placeholderValues);
+		return tracer.startActiveSpan('drizzle.operation', () => {
+			return this._prepare().execute(placeholderValues);
+		});
 	};
 }
 

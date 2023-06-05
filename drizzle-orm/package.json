@@ -1,6 +1,6 @@
 {
   "name": "drizzle-orm",
-  "version": "0.26.1",
+  "version": "0.26.5",
   "description": "Drizzle ORM package for SQL databases",
   "type": "module",
   "scripts": {
@@ -47,6 +47,7 @@
     "@cloudflare/workers-types": ">=3",
     "@libsql/client": "*",
     "@neondatabase/serverless": ">=0.1",
+    "@opentelemetry/api": "^1.4.1",
     "@planetscale/database": ">=1",
     "@types/better-sqlite3": "*",
     "@types/pg": "*",
@@ -116,6 +117,9 @@
     },
     "@libsql/client": {
       "optional": true
+    },
+    "@opentelemetry/api": {
+      "optional": true
     }
   },
   "devDependencies": {
@@ -123,9 +127,11 @@
     "@cloudflare/workers-types": "^4.20230518.0",
     "@libsql/client": "^0.1.6",
     "@neondatabase/serverless": "^0.4.8",
+    "@opentelemetry/api": "^1.4.1",
     "@originjs/vite-plugin-commonjs": "^1.0.3",
     "@planetscale/database": "^1.7.0",
     "@rollup/plugin-json": "^6.0.0",
+    "@rollup/plugin-replace": "^5.0.2",
     "@rollup/plugin-typescript": "^11.1.1",
     "@types/better-sqlite3": "^7.6.4",
     "@types/node": "^20.2.5",
@@ -134,6 +140,7 @@
     "@vercel/postgres": "^0.3.0",
     "better-sqlite3": "^8.4.0",
     "bun-types": "^0.6.4",
+    "concurrently": "^8.0.1",
     "knex": "^2.4.2",
     "kysely": "^0.25.0",
     "mysql2": "^3.3.3",

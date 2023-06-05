@@ -29,11 +29,10 @@ jobs:
       mysql:
         image: mysql:8
         env:
-          MYSQL_USER: root
-          MYSQL_PASSWORD: root
+          MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: drizzle
         options: >-
-          --health-cmd mysqladmin ping
+          --health-cmd "mysqladmin ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -104,14 +103,18 @@ jobs:
         run: |
           pnpm build
 
-      - name: Run integration tests
-        if: matrix.package == 'drizzle-orm' && steps.checks.outputs.has_new_release == 'true'
+      - name: Run tests
+        if: steps.checks.outputs.has_new_release == 'true'
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/drizzle
           MYSQL_CONNECTION_STRING: mysql://root:root@localhost:3306/drizzle
           LIBSQL_URL: file:local.db
         run: |
-          pnpm test --filter integration-tests
+          if [[ "${{ matrix.package }}" == "drizzle-orm" ]]; then
+            pnpm test --filter ${{ matrix.package }} --filter integration-tests
+          else
+          pnpm test --filter ${{ matrix.package }}
+          fi
 
       - name: Publish
         if: steps.checks.outputs.has_new_release == 'true'

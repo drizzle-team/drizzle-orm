@@ -75,8 +75,9 @@ const testTable = mysqlTable('test', {
 	tinyint: tinyint('tinyint').notNull(),
 	varbinary: varbinary('varbinary', { length: 200 }).notNull(),
 	varchar: varchar('varchar', { length: 200 }).notNull(),
-	varcharEnum: varchar('varcharEnum', { length: 200, enum: ['a', 'b', 'c'] }).notNull(),
+	varcharEnum: varchar('varcharEnum', { length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 	year: year('year').notNull(),
+	autoIncrement: int('autoIncrement').notNull().autoincrement(),
 });
 
 test('insert schema', (t) => {
@@ -116,10 +117,11 @@ test('insert schema', (t) => {
 		timestamp: z.date(),
 		timestampString: z.string(),
 		tinyint: z.number(),
-		varbinary: z.string(),
-		varchar: z.string(),
+		varbinary: z.string().length(200),
+		varchar: z.string().length(200),
 		varcharEnum: z.enum(['a', 'b', 'c']),
 		year: z.number(),
+		autoIncrement: z.number().optional(),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -162,10 +164,11 @@ test('select schema', (t) => {
 		timestamp: z.date(),
 		timestampString: z.string(),
 		tinyint: z.number(),
-		varbinary: z.string(),
-		varchar: z.string(),
+		varbinary: z.string().length(200),
+		varchar: z.string().length(200),
 		varcharEnum: z.enum(['a', 'b', 'c']),
 		year: z.number(),
+		autoIncrement: z.number(),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -210,10 +213,11 @@ test('select schema w/ refine', (t) => {
 		timestamp: z.date(),
 		timestampString: z.string(),
 		tinyint: z.number(),
-		varbinary: z.string(),
-		varchar: z.string(),
+		varbinary: z.string().length(200),
+		varchar: z.string().length(200),
 		varcharEnum: z.enum(['a', 'b', 'c']),
 		year: z.number(),
+		autoIncrement: z.number(),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
