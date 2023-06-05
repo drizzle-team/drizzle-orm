@@ -1717,3 +1717,29 @@ test.serial('update undefined', (t) => {
 
 	db.run(sql`drop table ${users}`);
 });
+
+test.serial('update by limit', (t) => {
+  const { db } = t.context;
+
+  const users = sqliteTable('users', {
+    id: integer('id').primaryKey(),
+    name: text('name'),
+  });
+
+  db.run(sql`drop table if exists ${users}`);
+  db.run(sql`create table ${users} (id integer primary key, name text)`);
+
+  db.insert(users).values({ id: 16, name: 'John' }).run();
+  db.insert(users).values({ id: 42, name: 'Avery' }).run();
+
+  t.notThrows(() => db.update(users).set({ name: 'JJ Abrams' }).limit(1).run());
+
+  const allUsers = db.select().from(users).all();
+
+  t.deepEqual(allUsers, [
+    { id: 16, name: 'JJ Abrams' },
+    { id: 42, name: 'Avery' },
+  ]);
+
+  db.run(sql`drop table ${users}`);
+});

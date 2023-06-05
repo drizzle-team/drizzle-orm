@@ -15,6 +15,7 @@ export interface SQLiteUpdateConfig {
 	set: UpdateSet;
 	table: AnySQLiteTable;
 	returning?: SelectedFieldsOrdered;
+	limit?: number;
 }
 
 export type SQLiteUpdateSetSource<TTable extends AnySQLiteTable> = Simplify<
@@ -110,13 +111,17 @@ export class SQLiteUpdate<
 		return rest;
 	}
 
-	prepare(isOneTimeQuery?: boolean): PreparedQuery<
-		{
-			type: TResultType;
-			run: TRunResult;
-			all: TReturning extends undefined ? never : TReturning[];
-			get: TReturning extends undefined ? never : TReturning;
-			values: TReturning extends undefined ? never : any[][];
+	limit(limit: number): Omit<this, 'limit'> {
+		this.config.limit = limit;
+		return this;
+	}
+
+	prepare(isOneTimeQuery?: boolean): PreparedQuery<{
+		type: TResultType;
+		run: TRunResult;
+		all: TReturning extends undefined ? never : TReturning[];
+		get: TReturning extends undefined ? never : TReturning;
+		values: TReturning extends undefined ? never : any[][];
 		}
 	> {
 		return this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
