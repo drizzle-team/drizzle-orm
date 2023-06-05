@@ -70,7 +70,7 @@ export abstract class SQLiteDialect {
 		);
 	}
 
-	buildUpdateQuery({ table, set, where, returning }: SQLiteUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, returning, limit }: SQLiteUpdateConfig): SQL {
 		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
@@ -79,7 +79,9 @@ export abstract class SQLiteDialect {
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`update ${table} set ${setSql}${whereSql}${returningSql}`;
+		const limitSql = limit ? sql` limit ${limit}` : undefined;
+
+		return sql`update ${table} set ${setSql}${whereSql}${returningSql}${limitSql}`;
 	}
 
 	/**
