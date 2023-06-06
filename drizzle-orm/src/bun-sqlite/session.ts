@@ -115,6 +115,12 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 			return customResultMapper(rows) as T['all'];
 		}
 
+		// fix bun runtime returning null for empty queries (instead of the expected empty array)
+		if (rows == null)
+		{
+			return []
+		}
+
 		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
