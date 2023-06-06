@@ -39,7 +39,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import Database from 'better-sqlite3';
 
 const users = sqliteTable('users', {
-  id: integer('id').primaryKey(),
+  id: integer('id').primaryKey(),  // 'id' is the column name
   fullName: text('full_name'),
 })
 
@@ -151,7 +151,11 @@ With `drizzle-orm` you declare SQL schema in TypeScript. You can have either one
           └ 📜etc.ts
 ```
 
-This is how you declare SQL schema in `schema.ts`. You can declare tables, indexes and constraints, foreign keys and enums. Please pay attention to `export` keyword, they are mandatory if you'll be using [drizzle-kit SQL migrations generator](#-migrations).
+This is how you declare SQL schema in `schema.ts`. You can declare tables, indexes and constraints, foreign keys and enums. 
+
+ℹ Every column has a special _column type_ function that accepts the name of the column in the database (like `integer('id')`)
+
+Please pay attention to `export` keyword, they are mandatory if you'll be using [drizzle-kit SQL migrations generator](#-migrations).
 
 ```typescript
 import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core';
