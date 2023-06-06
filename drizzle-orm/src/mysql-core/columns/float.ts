@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
 export interface MySqlFloatBuilderHKT extends ColumnBuilderHKTBase {
@@ -24,6 +25,8 @@ export type MySqlFloatBuilderInitial<TName extends string> = MySqlFloatBuilder<{
 export class MySqlFloatBuilder<T extends ColumnBuilderBaseConfig>
 	extends MySqlColumnBuilderWithAutoIncrement<MySqlFloatBuilderHKT, T>
 {
+	static readonly [entityKind]: string = 'MySqlFloatBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
@@ -33,6 +36,8 @@ export class MySqlFloatBuilder<T extends ColumnBuilderBaseConfig>
 }
 
 export class MySqlFloat<T extends ColumnBaseConfig> extends MySqlColumnWithAutoIncrement<MySqlFloatHKT, T> {
+	static readonly [entityKind]: string = 'MySqlFloat';
+
 	getSQLType(): string {
 		return 'float';
 	}

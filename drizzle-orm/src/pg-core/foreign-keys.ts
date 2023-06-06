@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import type { AnyPgColumn } from './columns';
 import { type AnyPgTable, PgTable } from './table';
 
@@ -10,6 +11,8 @@ export type Reference = () => {
 };
 
 export class ForeignKeyBuilder {
+	static readonly [entityKind]: string = 'PgForeignKeyBuilder';
+
 	/** @internal */
 	reference: Reference;
 
@@ -58,6 +61,8 @@ export class ForeignKeyBuilder {
 export type AnyForeignKeyBuilder = ForeignKeyBuilder;
 
 export class ForeignKey {
+	static readonly [entityKind]: string = 'PgForeignKey';
+
 	readonly reference: Reference;
 	readonly onUpdate: UpdateDeleteAction | undefined;
 	readonly onDelete: UpdateDeleteAction | undefined;

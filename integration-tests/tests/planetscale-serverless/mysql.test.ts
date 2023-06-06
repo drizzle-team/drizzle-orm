@@ -118,7 +118,7 @@ test.serial('select all fields', async (t) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const result = await db.select().from(usersTable);
 
-	t.assert(result[0]!.createdAt instanceof Date);
+	t.assert(result[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	// not timezone based timestamp, thats why it should not work here
 	// t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 2000);
 	t.deepEqual(result, [{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
@@ -184,7 +184,7 @@ test.serial('update with returning all fields', async (t) => {
 
 	t.is(updatedUsers.rowsAffected, 1);
 
-	t.assert(users[0]!.createdAt instanceof Date);
+	t.assert(users[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	// not timezone based timestamp, thats why it should not work here
 	// t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 2000);
 	t.deepEqual(users, [{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
@@ -641,8 +641,8 @@ test.serial('insert + select all possible dates', async (t) => {
 
 	const res = await db.select().from(datesTable);
 
-	t.assert(res[0]?.date instanceof Date);
-	t.assert(res[0]?.datetime instanceof Date);
+	t.assert(res[0]?.date instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
+	t.assert(res[0]?.datetime instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	t.assert(typeof res[0]?.dateAsString === 'string');
 	t.assert(typeof res[0]?.datetimeAsString === 'string');
 

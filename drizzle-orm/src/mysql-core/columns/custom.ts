@@ -1,8 +1,9 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
 import type { SQL } from '~/sql';
-import type { Assume, Equal, Simplify } from '~/utils';
+import { type Assume, type Equal, type Simplify } from '~/utils';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTypeValues>> = Simplify<{
@@ -38,6 +39,8 @@ export class MySqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig> extends
 		mysqlColumnBuilderBrand: 'MySqlCustomColumnBuilderBrand';
 	}
 > {
+	static readonly [entityKind]: string = 'MySqlCustomColumnBuilder';
+
 	constructor(
 		name: T['name'],
 		fieldConfig: CustomTypeValues['config'],
@@ -60,6 +63,8 @@ export class MySqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig> extends
 }
 
 export class MySqlCustomColumn<T extends ColumnBaseConfig> extends MySqlColumn<MySqlCustomColumnHKT, T> {
+	static readonly [entityKind]: string = 'MySqlCustomColumn';
+
 	declare protected $mysqlColumnBrand: 'MySqlCustomColumn';
 
 	private sqlName: string;

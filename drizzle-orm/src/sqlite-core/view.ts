@@ -1,4 +1,5 @@
 import type { BuildColumns } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import type { AddAliasToSelection } from '~/query-builders/select.types';
 import type { SQL } from '~/sql';
@@ -20,6 +21,8 @@ export interface ViewBuilderConfig {
 export class ViewBuilderCore<
 	TConfig extends { name: string; columns?: unknown },
 > {
+	static readonly [entityKind]: string = 'SQLiteViewBuilderCore';
+
 	declare readonly _: {
 		readonly name: TConfig['name'];
 		readonly columns: TConfig['columns'];
@@ -33,6 +36,8 @@ export class ViewBuilderCore<
 }
 
 export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<{ name: TName }> {
+	static readonly [entityKind]: string = 'SQLiteViewBuilder';
+
 	as<TSelection extends SelectedFields>(
 		qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
 	): SQLiteViewWithSelection<TName, false, AddAliasToSelection<TSelection, TName>> {
@@ -68,6 +73,8 @@ export class ManualViewBuilder<
 > extends ViewBuilderCore<
 	{ name: TName; columns: TColumns }
 > {
+	static readonly [entityKind]: string = 'SQLiteManualViewBuilder';
+
 	private columns: BuildColumns<TName, TColumns>;
 
 	constructor(
@@ -124,18 +131,22 @@ export abstract class SQLiteViewBase<
 	TExisting extends boolean = boolean,
 	TSelection extends ColumnsSelection = ColumnsSelection,
 > extends View<TName, TExisting, TSelection> {
+	static readonly [entityKind]: string = 'SQLiteViewBase';
+
 	declare _: View<TName, TExisting, TSelection>['_'] & {
 		viewBrand: 'SQLiteView';
 	};
 }
 
-export const SQLiteViewConfig = Symbol('SQLiteViewConfig');
+export const SQLiteViewConfig = Symbol.for('drizzle:SQLiteViewConfig');
 
 export class SQLiteView<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
 	TSelection extends ColumnsSelection = ColumnsSelection,
 > extends SQLiteViewBase<TName, TExisting, TSelection> {
+	static readonly [entityKind]: string = 'SQLiteView';
+
 	/** @internal */
 	[SQLiteViewConfig]: ViewBuilderConfig | undefined;
 

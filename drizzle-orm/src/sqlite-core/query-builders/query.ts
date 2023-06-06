@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import { QueryPromise } from '~/query-promise';
 import {
 	type BuildQueryResult,
@@ -17,6 +18,8 @@ export class AsyncRelationalQueryBuilder<
 	TSchema extends TablesRelationalConfig,
 	TFields extends TableRelationalConfig,
 > {
+	static readonly [entityKind]: string = 'SQLiteAsyncRelationalQueryBuilder';
+
 	constructor(
 		private fullSchema: Record<string, unknown>,
 		private schema: TSchema,
@@ -65,6 +68,8 @@ export class SyncRelationalQueryBuilder<
 	TSchema extends TablesRelationalConfig,
 	TFields extends TableRelationalConfig,
 > {
+	static readonly [entityKind]: string = 'SQLiteSyncRelationalQueryBuilder';
+
 	constructor(
 		private fullSchema: Record<string, unknown>,
 		private schema: TSchema,
@@ -118,7 +123,7 @@ export class SyncRelationalQueryBuilder<
 			}
 		>['get'];
 	} {
-		const query = new SQLiteRelationalQuery<'sync', BuildQueryResult<TSchema, TFields, TConfig> | undefined>(
+		const query = new SQLiteRelationalQuery(
 			this.fullSchema,
 			this.schema,
 			this.tableNamesMap,
@@ -131,7 +136,12 @@ export class SyncRelationalQueryBuilder<
 		).prepare();
 
 		return {
-			execute: query.get.bind(query),
+			execute: query.get.bind(query) as PreparedQuery<
+				PreparedQueryConfig & {
+					type: 'sync';
+					get: BuildQueryResult<TSchema, TFields, TConfig> | undefined;
+				}
+			>['get'],
 		};
 	}
 
@@ -143,6 +153,8 @@ export class SyncRelationalQueryBuilder<
 }
 
 export class SQLiteRelationalQuery<TResultKind extends 'sync' | 'async', TResult> {
+	static readonly [entityKind]: string = 'SQLiteRelationalQuery';
+
 	declare protected $brand: 'SQLiteRelationalQuery';
 
 	constructor(

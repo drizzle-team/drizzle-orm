@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common';
 
 export interface SQLiteNumericBuilderHKT extends ColumnBuilderHKTBase {
@@ -24,6 +25,8 @@ export type SQLiteNumericBuilderInitial<TName extends string> = SQLiteNumericBui
 export class SQLiteNumericBuilder<T extends ColumnBuilderBaseConfig>
 	extends SQLiteColumnBuilder<SQLiteNumericBuilderHKT, T>
 {
+	static readonly [entityKind]: string = 'SQLiteNumericBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnySQLiteTable<{ name: TTableName }>,
@@ -33,6 +36,8 @@ export class SQLiteNumericBuilder<T extends ColumnBuilderBaseConfig>
 }
 
 export class SQLiteNumeric<T extends ColumnBaseConfig> extends SQLiteColumn<SQLiteNumericHKT, T> {
+	static readonly [entityKind]: string = 'SQLiteNumeric';
+
 	getSQLType(): string {
 		return 'numeric';
 	}

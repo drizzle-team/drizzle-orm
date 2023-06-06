@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export interface MySqlTimeBuilderHKT extends ColumnBuilderHKTBase {
@@ -26,6 +27,8 @@ export class MySqlTimeBuilder<T extends ColumnBuilderBaseConfig> extends MySqlCo
 	T,
 	TimeConfig
 > {
+	static readonly [entityKind]: string = 'MySqlTimeBuilder';
+
 	constructor(
 		name: T['name'],
 		config: TimeConfig | undefined,
@@ -45,6 +48,8 @@ export class MySqlTimeBuilder<T extends ColumnBuilderBaseConfig> extends MySqlCo
 export class MySqlTime<
 	T extends ColumnBaseConfig,
 > extends MySqlColumn<MySqlTimeHKT, T, TimeConfig> {
+	static readonly [entityKind]: string = 'MySqlTime';
+
 	readonly fsp: number | undefined = this.config.fsp;
 
 	getSQLType(): string {

@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import { DrizzleError, TransactionRollbackError } from '~/errors';
 import { type TablesRelationalConfig } from '~/relations';
 import type { Query, SQL } from '~/sql';
@@ -14,6 +15,8 @@ export interface PreparedQueryConfig {
 }
 
 export abstract class PreparedQuery<T extends PreparedQueryConfig> {
+	static readonly [entityKind]: string = 'PreparedQuery';
+
 	/** @internal */
 	joinsNotNullableMap?: Record<string, boolean>;
 
@@ -36,6 +39,8 @@ export abstract class SQLiteSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > {
+	static readonly [entityKind]: string = 'SQLiteSession';
+
 	constructor(
 		/** @internal */
 		readonly dialect: { sync: SQLiteSyncDialect; async: SQLiteAsyncDialect }[TResultKind],
@@ -108,6 +113,8 @@ export abstract class SQLiteTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends BaseSQLiteDatabase<TResultType, TRunResult, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'SQLiteTransaction';
+
 	constructor(
 		resultType: TResultType,
 		dialect: { sync: SQLiteSyncDialect; async: SQLiteAsyncDialect }[TResultType],

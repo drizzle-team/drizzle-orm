@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import { QueryPromise } from '~/query-promise';
 import {
 	type BuildQueryResult,
@@ -22,6 +23,8 @@ export class RelationalQueryBuilder<
 	TSchema extends TablesRelationalConfig,
 	TFields extends TableRelationalConfig,
 > {
+	static readonly [entityKind]: string = 'MySqlRelationalQueryBuilder';
+
 	constructor(
 		private fullSchema: Record<string, unknown>,
 		private schema: TSchema,
@@ -69,6 +72,8 @@ export class MySqlRelationalQuery<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TResult,
 > extends QueryPromise<TResult> {
+	static readonly [entityKind]: string = 'MySqlRelationalQuery';
+
 	declare protected $brand: 'MySqlRelationalQuery';
 
 	constructor(

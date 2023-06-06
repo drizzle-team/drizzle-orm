@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import type { AnyMySqlColumn } from './columns';
 import type { AnyMySqlTable } from './table';
 import { MySqlTable } from './table';
@@ -11,6 +12,8 @@ export type Reference = () => {
 };
 
 export class ForeignKeyBuilder {
+	static readonly [entityKind]: string = 'MySqlForeignKeyBuilder';
+
 	/** @internal */
 	reference: Reference;
 
@@ -59,6 +62,8 @@ export class ForeignKeyBuilder {
 export type AnyForeignKeyBuilder = ForeignKeyBuilder;
 
 export class ForeignKey {
+	static readonly [entityKind]: string = 'MySqlForeignKey';
+
 	readonly reference: Reference;
 	readonly onUpdate: UpdateDeleteAction | undefined;
 	readonly onDelete: UpdateDeleteAction | undefined;

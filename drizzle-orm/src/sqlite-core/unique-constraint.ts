@@ -1,8 +1,10 @@
+import { entityKind } from '~/entity';
 import type { AnySQLiteColumn } from './columns';
-
 import type { AnySQLiteTable } from './table';
 
 export class UniqueBuilder<TTableName extends string> {
+	static readonly [entityKind]: string = 'SQLiteUniqueBuilder';
+
 	declare _: {
 		brand: 'SQLiteUniqueBuilder';
 		tableName: TTableName;
@@ -19,6 +21,8 @@ export class UniqueBuilder<TTableName extends string> {
 export type AnyUniqueBuilder<TTableName extends string = string> = UniqueBuilder<TTableName>;
 
 export class Unique<TTableName extends string> {
+	static readonly [entityKind]: string = 'SQLiteUnique';
+
 	readonly name: string;
 	readonly column: AnySQLiteColumn;
 

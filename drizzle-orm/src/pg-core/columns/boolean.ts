@@ -1,8 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-
+import { entityKind } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export interface PgBooleanBuilderHKT extends ColumnBuilderHKTBase {
@@ -23,6 +23,8 @@ export type PgBooleanBuilderInitial<TName extends string> = PgBooleanBuilder<{
 }>;
 
 export class PgBooleanBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgBooleanBuilderHKT, T> {
+	static readonly [entityKind]: string = 'PgBooleanBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
@@ -32,6 +34,8 @@ export class PgBooleanBuilder<T extends ColumnBuilderBaseConfig> extends PgColum
 }
 
 export class PgBoolean<T extends ColumnBaseConfig> extends PgColumn<PgBooleanHKT, T> {
+	static readonly [entityKind]: string = 'PgBoolean';
+
 	getSQLType(): string {
 		return 'boolean';
 	}

@@ -1,3 +1,4 @@
+import { entityKind, is } from '~/entity';
 import type { AnyPgColumn } from '~/pg-core/columns';
 import type { PgDialect } from '~/pg-core/dialect';
 import type { PgSession, PreparedQuery, PreparedQueryConfig } from '~/pg-core/session';
@@ -45,6 +46,8 @@ export class PgSelectBuilder<
 	TSelection extends SelectedFields | undefined,
 	TBuilderMode extends 'db' | 'qb' = 'db',
 > {
+	static readonly [entityKind]: string = 'PgSelectBuilder';
+
 	constructor(
 		private fields: TSelection,
 		private session: PgSession | undefined,
@@ -71,16 +74,16 @@ export class PgSelectBuilder<
 		let fields: SelectedFields;
 		if (this.fields) {
 			fields = this.fields;
-		} else if (source instanceof Subquery) {
+		} else if (is(source, Subquery)) {
 			// This is required to use the proxy handler to get the correct field values from the subquery
 			fields = Object.fromEntries(
 				Object.keys(source[SubqueryConfig].selection).map((
 					key,
 				) => [key, source[key as unknown as keyof typeof source] as unknown as SelectedFields[string]]),
 			);
-		} else if (source instanceof PgViewBase) {
+		} else if (is(source, PgViewBase)) {
 			fields = source[ViewBaseConfig].selectedFields as SelectedFields;
-		} else if (source instanceof SQL) {
+		} else if (is(source, SQL)) {
 			fields = {};
 		} else {
 			fields = getTableColumns<AnyPgTable>(source);
@@ -101,6 +104,8 @@ export abstract class PgSelectQueryBuilder<
 	BuildSubquerySelection<TSelection, TNullabilityMap>,
 	SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
 > {
+	static readonly [entityKind]: string = 'PgSelectQueryBuilder';
+
 	override readonly _: {
 		readonly selectMode: TSelectMode;
 		readonly selection: TSelection;
@@ -158,10 +163,10 @@ export abstract class PgSelectQueryBuilder<
 						[baseTableName]: this.config.fields,
 					};
 				}
-				if (typeof tableName === 'string' && !(table instanceof SQL)) {
-					const selection = table instanceof Subquery
+				if (typeof tableName === 'string' && !is(table, SQL)) {
+					const selection = is(table, Subquery)
 						? table[SubqueryConfig].selection
-						: table instanceof View
+						: is(table, View)
 						? table[ViewBaseConfig].selectedFields
 						: table[Table.Symbol.Columns];
 					this.config.fields[tableName] = selection;
@@ -447,6 +452,8 @@ export class PgSelect<
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
 > extends PgSelectQueryBuilder<PgSelectHKT, TTableName, TSelection, TSelectMode, TNullabilityMap> {
+	static readonly [entityKind]: string = 'PgSelect';
+
 	private _prepare(name?: string): PreparedQuery<
 		PreparedQueryConfig & {
 			execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];

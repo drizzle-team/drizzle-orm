@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import type { PgDialect } from '~/pg-core/dialect';
 import { PgDelete, PgInsertBuilder, PgSelectBuilder, PgUpdateBuilder, QueryBuilder } from '~/pg-core/query-builders';
 import type { PgSession, PgTransaction, PgTransactionConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
@@ -18,6 +19,8 @@ export class PgDatabase<
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
 > {
+	static readonly [entityKind]: string = 'PgDatabase';
+
 	declare readonly _: {
 		readonly schema: TSchema | undefined;
 		readonly tableNamesMap: Record<string, string>;

@@ -1,5 +1,5 @@
 import test from 'ava';
-import { integer, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { integer, pgEnum, pgTable, serial, text, timestamp, date } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { createInsertSchema, createSelectSchema } from '../src';
 import { expectSchemaShape } from './utils';
@@ -11,6 +11,8 @@ const users = pgTable('users', {
 	id: serial('id').primaryKey(),
 	name: text('name'),
 	email: text('email').notNull(),
+	birthdayString: date('birthday_string').notNull(),
+	birthdayDate: date('birthday_date', {mode: "date"}).notNull(),
 	createdAt: timestamp('created_at').notNull().defaultNow(),
 	role: roleEnum('role').notNull(),
 	roleText: text('role1', { enum: ['admin', 'user'] }).notNull(),
@@ -45,6 +47,8 @@ test('users insert schema', (t) => {
 		id: z.number().positive().optional(),
 		name: z.string().nullable().optional(),
 		email: z.string().email(),
+		birthdayString: z.string(),
+		birthdayDate: z.date(),
 		createdAt: z.date().optional(),
 		role: z.enum(['admin', 'user']),
 		roleText: z.enum(['user', 'manager', 'admin']),
@@ -62,6 +66,8 @@ test('users insert schema w/ defaults', (t) => {
 		id: z.number().optional(),
 		name: z.string().nullable().optional(),
 		email: z.string(),
+		birthdayString: z.string(),
+		birthdayDate: z.date(),
 		createdAt: z.date().optional(),
 		role: z.enum(['admin', 'user']),
 		roleText: z.enum(['admin', 'user']),
@@ -83,6 +89,8 @@ test('users select schema', (t) => {
 		id: z.number().positive(),
 		name: z.string().nullable(),
 		email: z.string().email(),
+		birthdayString: z.string(),
+		birthdayDate: z.date(),
 		createdAt: z.date(),
 		role: z.enum(['admin', 'user']),
 		roleText: z.enum(['user', 'manager', 'admin']),
@@ -100,6 +108,8 @@ test('users select schema w/ defaults', (t) => {
 		id: z.number(),
 		name: z.string().nullable(),
 		email: z.string(),
+		birthdayString: z.string(),
+		birthdayDate: z.date(),
 		createdAt: z.date(),
 		role: z.enum(['admin', 'user']),
 		roleText: z.enum(['admin', 'user']),

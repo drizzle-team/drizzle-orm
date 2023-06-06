@@ -1,6 +1,7 @@
 export * from './alias';
 export * from './column';
 export * from './column-builder';
+export * from './entity';
 export * from './errors';
 export * from './expressions';
 export * from './logger';

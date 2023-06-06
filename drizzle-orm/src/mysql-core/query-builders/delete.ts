@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import type { MySqlDialect } from '~/mysql-core/dialect';
 import type {
 	MySqlSession,
@@ -32,6 +33,8 @@ export class MySqlDelete<
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > extends QueryPromise<QueryResultKind<TQueryResult, never>> implements SQLWrapper {
+	static readonly [entityKind]: string = 'MySqlDelete';
+
 	private config: MySqlDeleteConfig;
 
 	constructor(

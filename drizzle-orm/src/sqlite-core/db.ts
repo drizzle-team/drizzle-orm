@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import { type ExtractTablesWithRelations, type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import type { SQLWrapper } from '~/sql';
@@ -23,6 +24,8 @@ export class BaseSQLiteDatabase<
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
 > {
+	static readonly [entityKind]: string = 'BaseSQLiteDatabase';
+
 	declare readonly _: {
 		readonly schema: TSchema | undefined;
 		readonly tableNamesMap: Record<string, string>;

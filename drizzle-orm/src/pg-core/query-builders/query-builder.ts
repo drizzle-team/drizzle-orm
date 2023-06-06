@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import { PgDialect } from '~/pg-core/dialect';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
@@ -7,6 +8,8 @@ import { PgSelectBuilder } from './select';
 import type { SelectedFields } from './select.types';
 
 export class QueryBuilder {
+	static readonly [entityKind]: string = 'PgQueryBuilder';
+
 	private dialect: PgDialect | undefined;
 
 	$with<TAlias extends string>(alias: TAlias) {

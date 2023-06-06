@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export interface PgSmallSerialBuilderHKT extends ColumnBuilderHKTBase {
@@ -24,6 +25,8 @@ export type PgSmallSerialBuilderInitial<TName extends string> = PgSmallSerialBui
 export class PgSmallSerialBuilder<T extends ColumnBuilderBaseConfig>
 	extends PgColumnBuilder<PgSmallSerialBuilderHKT, T>
 {
+	static readonly [entityKind]: string = 'PgSmallSerialBuilder';
+
 	constructor(name: string) {
 		super(name);
 		this.config.hasDefault = true;
@@ -39,6 +42,8 @@ export class PgSmallSerialBuilder<T extends ColumnBuilderBaseConfig>
 }
 
 export class PgSmallSerial<T extends ColumnBaseConfig> extends PgColumn<PgSmallSerialHKT, T> {
+	static readonly [entityKind]: string = 'PgSmallSerial';
+
 	getSQLType(): string {
 		return 'serial';
 	}

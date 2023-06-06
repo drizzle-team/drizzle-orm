@@ -1,8 +1,9 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBaseConfig, ColumnHKT, ColumnHKTBase } from '~/column';
 import { Column } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import { ColumnBuilder } from '~/column-builder';
-import type { Assume, Update } from '~/utils';
+import { entityKind } from '~/entity';
+import { type Assume, type Update } from '~/utils';
 
 import type { ForeignKey, UpdateDeleteAction } from '~/sqlite-core/foreign-keys';
 import { ForeignKeyBuilder } from '~/sqlite-core/foreign-keys';
@@ -31,6 +32,8 @@ export abstract class SQLiteColumnBuilder<
 	TRuntimeConfig extends object = {},
 	TTypeConfig extends object = {},
 > extends ColumnBuilder<THKT, T, TRuntimeConfig, TTypeConfig & { sqliteBrand: 'SQLiteColumnBuilder' }> {
+	static readonly [entityKind]: string = 'SQLiteColumnBuilder';
+
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
 	references(
@@ -63,7 +66,7 @@ export abstract class SQLiteColumnBuilder<
 	/** @internal */
 	abstract build<TTableName extends string>(
 		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteColumn<Assume<THKT['_columnHKT'], ColumnHKTBase>, MakeColumnConfig<T, TTableName>>;
+	): SQLiteColumn<Assume<THKT['_columnHKT'], ColumnHKT>, MakeColumnConfig<T, TTableName>>;
 }
 
 export type AnySQLiteColumnBuilder<TPartial extends Partial<ColumnBuilderBaseConfig> = {}> = SQLiteColumnBuilder<
@@ -73,10 +76,11 @@ export type AnySQLiteColumnBuilder<TPartial extends Partial<ColumnBuilderBaseCon
 
 // To understand how to use `SQLiteColumn` and `AnySQLiteColumn`, see `Column` and `AnyColumn` documentation.
 export abstract class SQLiteColumn<
-	THKT extends ColumnHKTBase,
+	THKT extends ColumnHKT,
 	T extends ColumnBaseConfig,
 	TRuntimeConfig extends object = {},
 > extends Column<THKT, T, TRuntimeConfig, { sqliteBrand: 'SQLiteColumn' }> {
+	static readonly [entityKind]: string = 'SQLiteColumn';
 }
 
 export type AnySQLiteColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = SQLiteColumn<

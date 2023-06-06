@@ -1,3 +1,4 @@
+import { is } from '~/entity';
 import { Table } from '~/table';
 import { ViewBaseConfig } from '~/view';
 import type { Check } from './checks';
@@ -28,13 +29,13 @@ export function getTableConfig(table: AnyMySqlTable) {
 	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[MySqlTable.Symbol.Columns]);
 		for (const builder of Object.values(extraConfig)) {
-			if (builder instanceof IndexBuilder) {
+			if (is(builder, IndexBuilder)) {
 				indexes.push(builder.build(table));
-			} else if (builder instanceof CheckBuilder) {
+			} else if (is(builder, CheckBuilder)) {
 				checks.push(builder.build(table));
-			} else if (builder instanceof PrimaryKeyBuilder) {
+			} else if (is(builder, PrimaryKeyBuilder)) {
 				primaryKeys.push(builder.build(table));
-			} else if (builder instanceof ForeignKeyBuilder) {
+			} else if (is(builder, ForeignKeyBuilder)) {
 				foreignKeys.push(builder.build(table));
 			}
 		}

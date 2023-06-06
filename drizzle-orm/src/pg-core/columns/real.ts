@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export interface PgRealBuilderHKT extends ColumnBuilderHKTBase {
@@ -26,6 +27,8 @@ export class PgRealBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBu
 	T,
 	{ length: number | undefined }
 > {
+	static readonly [entityKind]: string = 'PgRealBuilder';
+
 	constructor(name: string, length?: number) {
 		super(name);
 		this.config.length = length;
@@ -40,6 +43,8 @@ export class PgRealBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBu
 }
 
 export class PgReal<T extends ColumnBaseConfig> extends PgColumn<PgRealHKT, T> {
+	static readonly [entityKind]: string = 'PgReal';
+
 	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgRealBuilder<T>['config']) {
 		super(table, config);
 	}

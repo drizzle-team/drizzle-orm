@@ -1,6 +1,7 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-import type { Assume } from '~/utils';
+import { entityKind } from '~/entity';
+import { type Assume } from '~/utils';
 import type { AnyPgTable } from '../table';
 import { PgColumn, PgColumnBuilder } from './common';
 
@@ -22,6 +23,8 @@ export type PgMacaddr8BuilderInitial<TName extends string> = PgMacaddr8Builder<{
 }>;
 
 export class PgMacaddr8Builder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgMacaddr8BuilderHKT, T> {
+	static readonly [entityKind]: string = 'PgMacaddr8Builder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
@@ -31,6 +34,8 @@ export class PgMacaddr8Builder<T extends ColumnBuilderBaseConfig> extends PgColu
 }
 
 export class PgMacaddr8<T extends ColumnBaseConfig> extends PgColumn<PgMacaddr8HKT, T> {
+	static readonly [entityKind]: string = 'PgMacaddr8';
+
 	getSQLType(): string {
 		return 'macaddr8';
 	}

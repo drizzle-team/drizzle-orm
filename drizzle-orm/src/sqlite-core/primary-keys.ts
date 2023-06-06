@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import type { AnySQLiteColumn } from './columns';
 import type { AnySQLiteTable } from './table';
 import { SQLiteTable } from './table';
@@ -12,6 +13,8 @@ export function primaryKey<
 }
 
 export class PrimaryKeyBuilder {
+	static readonly [entityKind]: string = 'SQLitePrimaryKeyBuilder';
+
 	declare _: {
 		brand: 'SQLitePrimaryKeyBuilder';
 	};
@@ -32,6 +35,8 @@ export class PrimaryKeyBuilder {
 }
 
 export class PrimaryKey {
+	static readonly [entityKind]: string = 'SQLitePrimaryKey';
+
 	readonly columns: AnySQLiteColumn<{}>[];
 
 	constructor(readonly table: AnySQLiteTable, columns: AnySQLiteColumn<{}>[]) {

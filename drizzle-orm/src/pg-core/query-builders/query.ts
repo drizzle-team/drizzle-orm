@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import { QueryPromise } from '~/query-promise';
 import {
 	type BuildQueryResult,
@@ -8,12 +9,14 @@ import {
 } from '~/relations';
 import type { SQL } from '~/sql';
 import { tracer } from '~/tracing';
-import type { KnownKeysOnly } from '~/utils';
+import { type KnownKeysOnly } from '~/utils';
 import type { PgDialect } from '../dialect';
 import type { PgSession, PreparedQuery, PreparedQueryConfig } from '../session';
 import { type AnyPgTable } from '../table';
 
 export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields extends TableRelationalConfig> {
+	static readonly [entityKind]: string = 'PgRelationalQueryBuilder';
+
 	constructor(
 		private fullSchema: Record<string, unknown>,
 		private schema: TSchema,
@@ -58,6 +61,8 @@ export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFie
 }
 
 export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
+	static readonly [entityKind]: string = 'PgRelationalQuery';
+
 	declare protected $brand: 'PgRelationalQuery';
 
 	constructor(
