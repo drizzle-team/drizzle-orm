@@ -1,3 +1,4 @@
+import { entityKind, is } from '~/entity';
 import type { PgDialect } from '~/pg-core/dialect';
 import type { IndexColumn } from '~/pg-core/indexes';
 import type { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
@@ -8,7 +9,7 @@ import type { Placeholder, Query, SQLWrapper } from '~/sql';
 import { Param, SQL, sql } from '~/sql';
 import { type InferModel, Table } from '~/table';
 import { tracer } from '~/tracing';
-import type { Simplify } from '~/utils';
+import { type Simplify } from '~/utils';
 import { mapUpdateSet, orderSelectedFields } from '~/utils';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
 import type { PgUpdateSetSource } from './update';
@@ -27,6 +28,8 @@ export type PgInsertValue<TTable extends AnyPgTable> = Simplify<
 >;
 
 export class PgInsertBuilder<TTable extends AnyPgTable, TQueryResult extends QueryResultHKT> {
+	static readonly [entityKind]: string = 'PgInsertBuilder';
+
 	constructor(
 		private table: TTable,
 		private session: PgSession,
@@ -45,7 +48,7 @@ export class PgInsertBuilder<TTable extends AnyPgTable, TQueryResult extends Que
 			const cols = this.table[Table.Symbol.Columns];
 			for (const colKey of Object.keys(entry)) {
 				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = colValue instanceof SQL ? colValue : new Param(colValue, cols[colKey]);
+				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue, cols[colKey]);
 			}
 			return result;
 		});
@@ -71,6 +74,8 @@ export class PgInsert<
 > extends QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>
 	implements SQLWrapper
 {
+	static readonly [entityKind]: string = 'PgInsert';
+
 	declare _: {
 		table: TTable;
 		return: TReturning;

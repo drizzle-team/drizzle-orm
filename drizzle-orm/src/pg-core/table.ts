@@ -1,6 +1,7 @@
 import type { BuildColumns } from '~/column-builder';
+import { entityKind } from '~/entity';
 import { type AnyTableHKT, Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import type { CheckBuilder } from './checks';
 import type { AnyPgColumn, AnyPgColumnBuilder } from './columns/common';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
@@ -18,9 +19,11 @@ export type PgTableExtraConfig = Record<
 export type TableConfig = TableConfigBase<AnyPgColumn>;
 
 /** @internal */
-export const InlineForeignKeys = Symbol('InlineForeignKeys');
+export const InlineForeignKeys = Symbol.for('drizzle:PgInlineForeignKeys');
 
 export class PgTable<T extends TableConfig> extends Table<T> {
+	static readonly [entityKind]: string = 'PgTable';
+
 	/** @internal */
 	static override readonly Symbol = Object.assign({}, Table.Symbol, {
 		InlineForeignKeys: InlineForeignKeys as typeof InlineForeignKeys,

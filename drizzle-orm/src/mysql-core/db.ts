@@ -1,4 +1,5 @@
 import type { ResultSetHeader } from 'mysql2/promise';
+import { entityKind } from '~/entity';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import { type ExtractTablesWithRelations, type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import type { SQLWrapper } from '~/sql';
@@ -31,6 +32,8 @@ export class MySqlDatabase<
 	TFullSchema extends Record<string, unknown> = {},
 	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
 > {
+	static readonly [entityKind]: string = 'MySqlDatabase';
+
 	declare readonly _: {
 		readonly schema: TSchema | undefined;
 		readonly tableNamesMap: Record<string, string>;

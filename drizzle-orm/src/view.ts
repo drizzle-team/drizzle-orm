@@ -1,9 +1,10 @@
 import type { AnyColumn } from './column';
+import { entityKind } from './entity';
 import type { SelectedFields } from './operations';
 import type { SQL } from './sql';
 import type { Table } from './table';
 
-export const ViewBaseConfig = Symbol('ViewBaseConfig');
+export const ViewBaseConfig = Symbol.for('drizzle:ViewBaseConfig');
 
 export type ColumnsSelection = Record<string, unknown>;
 
@@ -12,6 +13,8 @@ export abstract class View<
 	TExisting extends boolean = boolean,
 	TSelection extends ColumnsSelection = ColumnsSelection,
 > {
+	static readonly [entityKind]: string = 'View';
+
 	declare _: {
 		brand: 'View';
 		viewBrand: string;

@@ -1,4 +1,5 @@
 import type { BuildColumns } from '~/column-builder';
+import { entityKind } from '~/entity';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table';
 import type { CheckBuilder } from './checks';
 import type { AnyMySqlColumn, AnyMySqlColumnBuilder } from './columns/common';
@@ -17,9 +18,11 @@ export type MySqlTableExtraConfig = Record<
 export type TableConfig = TableConfigBase<AnyMySqlColumn>;
 
 /** @internal */
-export const InlineForeignKeys = Symbol('InlineForeignKeys');
+export const InlineForeignKeys = Symbol.for('drizzle:MySqlInlineForeignKeys');
 
 export class MySqlTable<T extends TableConfig> extends Table<T> {
+	static readonly [entityKind]: string = 'MySqlTable';
+
 	declare protected $columns: T['columns'];
 
 	/** @internal */

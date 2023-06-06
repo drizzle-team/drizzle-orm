@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import { MySqlDialect } from '~/mysql-core/dialect';
 import type { WithSubqueryWithSelection } from '~/mysql-core/subquery';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder';
@@ -7,6 +8,8 @@ import { MySqlSelectBuilder } from './select';
 import type { SelectedFields } from './select.types';
 
 export class QueryBuilder {
+	static readonly [entityKind]: string = 'MySqlQueryBuilder';
+
 	private dialect: MySqlDialect | undefined;
 
 	$with<TAlias extends string>(alias: TAlias) {

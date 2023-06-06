@@ -1,8 +1,9 @@
-import type { AnyColumnHKT, ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { AnyColumnHKT, ColumnBaseConfig, ColumnHKT, ColumnHKTBase } from '~/column';
 import { Column } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import { ColumnBuilder } from '~/column-builder';
-import type { Assume, Update } from '~/utils';
+import { entityKind } from '~/entity';
+import { type Assume, type Update } from '~/utils';
 
 import type { ForeignKey, UpdateDeleteAction } from '~/pg-core/foreign-keys';
 import { ForeignKeyBuilder } from '~/pg-core/foreign-keys';
@@ -33,6 +34,8 @@ export abstract class PgColumnBuilder<
 	TTypeConfig extends object = {},
 > extends ColumnBuilder<THKT, T, TRuntimeConfig, TTypeConfig & { pgBrand: 'PgColumnBuilder' }> {
 	private foreignKeyConfigs: ReferenceConfig[] = [];
+
+	static readonly [entityKind]: string = 'PgColumnBuilder';
 
 	array(size?: number): PgArrayBuilder<
 		{
@@ -77,7 +80,7 @@ export abstract class PgColumnBuilder<
 	abstract build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgColumn<
-		Assume<THKT['_columnHKT'], ColumnHKTBase>,
+		Assume<THKT['_columnHKT'], ColumnHKT>,
 		MakeColumnConfig<T, TTableName>
 	>;
 }
@@ -89,11 +92,12 @@ export type AnyPgColumnBuilder<TPartial extends Partial<ColumnBuilderBaseConfig>
 
 // To understand how to use `PgColumn` and `AnyPgColumn`, see `Column` and `AnyColumn` documentation.
 export abstract class PgColumn<
-	THKT extends ColumnHKTBase,
+	THKT extends ColumnHKT,
 	T extends ColumnBaseConfig,
 	TRuntimeConfig extends object = {},
 	TTypeConfig extends object = {},
 > extends Column<THKT, T, TRuntimeConfig, TTypeConfig & { pgBrand: 'PgColumn' }> {
+	static readonly [entityKind]: string = 'PgColumn';
 }
 
 export type AnyPgColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = PgColumn<

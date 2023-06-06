@@ -4,6 +4,7 @@ import {
 	type DrizzleTypeError,
 	type Equal,
 	getTableColumns,
+	is,
 	type Simplify,
 	type Table,
 	type WithEnum,
@@ -268,59 +269,59 @@ function mapColumnToSchema(column: AnyColumn): z.ZodTypeAny {
 
 	if (!type) {
 		if (
-			column instanceof PgCustomColumn || column instanceof SQLiteCustomColumn || column instanceof MySqlCustomColumn
+			is(column, PgCustomColumn) || is(column, SQLiteCustomColumn) || is(column, MySqlCustomColumn)
 		) {
 			type = z.any();
 		} else if (
-			column instanceof PgJson || column instanceof PgJsonb || column instanceof SQLiteBlobJson
-			|| column instanceof MySqlJson
+			is(column, PgJson) || is(column, PgJsonb) || is(column, SQLiteBlobJson)
+			|| is(column, MySqlJson)
 		) {
 			type = jsonSchema;
-		} else if (column instanceof PgArray) {
+		} else if (is(column, PgArray)) {
 			type = z.array(mapColumnToSchema(column.baseColumn));
 		} else if (
-			column instanceof PgBigInt53 || column instanceof PgInteger || column instanceof PgSmallInt
-			|| column instanceof PgSerial || column instanceof PgBigSerial53 || column instanceof PgSmallSerial
-			|| column instanceof PgDoublePrecision || column instanceof PgReal || column instanceof SQLiteInteger
-			|| column instanceof SQLiteReal || column instanceof MySqlInt || column instanceof MySqlBigInt53
-			|| column instanceof MySqlDouble || column instanceof MySqlFloat || column instanceof MySqlMediumInt
-			|| column instanceof MySqlSmallInt || column instanceof MySqlTinyInt || column instanceof MySqlSerial
-			|| column instanceof MySqlReal || column instanceof MySqlYear
+			is(column, PgBigInt53) || is(column, PgInteger) || is(column, PgSmallInt)
+			|| is(column, PgSerial) || is(column, PgBigSerial53) || is(column, PgSmallSerial)
+			|| is(column, PgDoublePrecision) || is(column, PgReal) || is(column, SQLiteInteger)
+			|| is(column, SQLiteReal) || is(column, MySqlInt) || is(column, MySqlBigInt53)
+			|| is(column, MySqlDouble) || is(column, MySqlFloat) || is(column, MySqlMediumInt)
+			|| is(column, MySqlSmallInt) || is(column, MySqlTinyInt) || is(column, MySqlSerial)
+			|| is(column, MySqlReal) || is(column, MySqlYear)
 		) {
 			type = z.number();
 		} else if (
-			column instanceof PgBigInt64 || column instanceof PgBigSerial64 || column instanceof MySqlBigInt64
-			|| column instanceof SQLiteBigInt
+			is(column, PgBigInt64) || is(column, PgBigSerial64) || is(column, MySqlBigInt64)
+			|| is(column, SQLiteBigInt)
 		) {
 			type = z.bigint();
-		} else if (column instanceof PgBoolean || column instanceof MySqlBoolean) {
+		} else if (is(column, PgBoolean) || is(column, MySqlBoolean)) {
 			type = z.boolean();
 		} else if (
-			column instanceof PgDate || column instanceof PgTimestamp || column instanceof SQLiteTimestamp
-			|| column instanceof MySqlDate || column instanceof MySqlDateTime
-			|| column instanceof MySqlTimestamp
+			is(column, PgDate) || is(column, PgTimestamp) || is(column, SQLiteTimestamp)
+			|| is(column, MySqlDate) || is(column, MySqlDateTime)
+			|| is(column, MySqlTimestamp)
 		) {
 			type = z.date();
 		} else if (
-			column instanceof PgInterval || column instanceof PgNumeric || column instanceof PgChar
-			|| column instanceof PgCidr || column instanceof PgInet || column instanceof PgMacaddr
-			|| column instanceof PgMacaddr8 || column instanceof PgText || column instanceof PgTime || column instanceof PgDateString
-			|| column instanceof PgVarchar || column instanceof SQLiteNumeric || column instanceof SQLiteText
-			|| column instanceof MySqlDateString || column instanceof MySqlDateTimeString || column instanceof MySqlDecimal
-			|| column instanceof MySqlText || column instanceof MySqlTime || column instanceof MySqlTimestampString
-			|| column instanceof MySqlVarChar || column instanceof MySqlBinary
-			|| column instanceof MySqlVarBinary || column instanceof MySqlChar
+			is(column, PgInterval) || is(column, PgNumeric) || is(column, PgChar)
+			|| is(column, PgCidr) || is(column, PgInet) || is(column, PgMacaddr)
+			|| is(column, PgMacaddr8) || is(column, PgText) || is(column, PgTime) || is(column, PgDateString)
+			|| is(column, PgVarchar) || is(column, SQLiteNumeric) || is(column, SQLiteText)
+			|| is(column, MySqlDateString) || is(column, MySqlDateTimeString) || is(column, MySqlDecimal)
+			|| is(column, MySqlText) || is(column, MySqlTime) || is(column, MySqlTimestampString)
+			|| is(column, MySqlVarChar) || is(column, MySqlBinary)
+			|| is(column, MySqlVarBinary) || is(column, MySqlChar)
 		) {
 			let sType = z.string();
 			if (
-				(column instanceof PgChar || column instanceof PgVarchar || column instanceof MySqlVarChar
-					|| column instanceof MySqlVarBinary || column instanceof MySqlChar || column instanceof SQLiteText)
+				(is(column, PgChar) || is(column, PgVarchar) || is(column, MySqlVarChar)
+					|| is(column, MySqlVarBinary) || is(column, MySqlChar) || is(column, SQLiteText))
 				&& (typeof column.length === 'number')
 			) {
 				sType = sType.length(column.length);
 			}
 			type = sType;
-		} else if (column instanceof PgUUID) {
+		} else if (is(column, PgUUID)) {
 			type = z.string().uuid();
 		}
 	}

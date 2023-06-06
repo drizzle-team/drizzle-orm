@@ -1,8 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase, WithEnum } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
-import type { Assume, Writable } from '~/utils';
-
+import { type Assume, type Writable } from '~/utils';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common';
 
 export interface SQLiteTextBuilderHKT extends ColumnBuilderHKTBase {
@@ -28,6 +28,8 @@ export class SQLiteTextBuilder<T extends ColumnBuilderBaseConfig & WithEnum> ext
 	T,
 	{ length: number | undefined } & WithEnum<T['enumValues']>
 > {
+	static readonly [entityKind]: string = 'SQLiteTextBuilder';
+
 	constructor(name: T['name'], config: SQLiteTextConfig<T['enumValues']>) {
 		super(name);
 		this.config.enumValues = (config.enum ?? []) as T['enumValues'];
@@ -46,6 +48,8 @@ export class SQLiteText<T extends ColumnBaseConfig & WithEnum>
 	extends SQLiteColumn<SQLiteTextHKT, T, { length: number | undefined } & WithEnum<T['enumValues']>>
 	implements WithEnum<T['enumValues']>
 {
+	static readonly [entityKind]: string = 'SQLiteText';
+
 	readonly enumValues = this.config.enumValues;
 	readonly length: number | undefined = this.config.length;
 

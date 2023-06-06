@@ -1,6 +1,7 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-import type { Assume } from '~/utils';
+import { entityKind } from '~/entity';
+import { type Assume } from '~/utils';
 import type { AnyPgTable } from '../table';
 import { PgColumn, PgColumnBuilder } from './common';
 
@@ -22,6 +23,8 @@ export type PgInetBuilderInitial<TName extends string> = PgInetBuilder<{
 }>;
 
 export class PgInetBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgInetBuilderHKT, T> {
+	static readonly [entityKind]: string = 'PgInetBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
@@ -31,6 +34,8 @@ export class PgInetBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBu
 }
 
 export class PgInet<T extends ColumnBaseConfig> extends PgColumn<PgInetHKT, T> {
+	static readonly [entityKind]: string = 'PgInet';
+
 	getSQLType(): string {
 		return 'inet';
 	}

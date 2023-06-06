@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export interface PgNumericBuilderHKT extends ColumnBuilderHKTBase {
@@ -29,6 +30,8 @@ export class PgNumericBuilder<T extends ColumnBuilderBaseConfig> extends PgColum
 		scale: number | undefined;
 	}
 > {
+	static readonly [entityKind]: string = 'PgNumericBuilder';
+
 	constructor(name: string, precision?: number, scale?: number) {
 		super(name);
 		this.config.precision = precision;
@@ -44,6 +47,8 @@ export class PgNumericBuilder<T extends ColumnBuilderBaseConfig> extends PgColum
 }
 
 export class PgNumeric<T extends ColumnBaseConfig> extends PgColumn<PgNumericHKT, T> {
+	static readonly [entityKind]: string = 'PgNumeric';
+
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;
 

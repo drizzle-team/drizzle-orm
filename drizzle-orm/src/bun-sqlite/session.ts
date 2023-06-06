@@ -1,6 +1,7 @@
 /// <reference types="bun-types" />
 
 import type { Database, Statement as BunStatement } from 'bun:sqlite';
+import { entityKind } from '~/entity';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
 import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
@@ -23,6 +24,8 @@ export class SQLiteBunSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteSession<'sync', void, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'SQLiteBunSession';
+
 	private logger: Logger;
 
 	constructor(
@@ -66,6 +69,8 @@ export class SQLiteBunTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteTransaction<'sync', void, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'SQLiteBunTransaction';
+
 	override transaction<T>(transaction: (tx: SQLiteBunTransaction<TFullSchema, TSchema>) => T): T {
 		const savepointName = `sp${this.nestedIndex}`;
 		const tx = new SQLiteBunTransaction('sync', this.dialect, this.session, this.schema, this.nestedIndex + 1);
@@ -84,6 +89,8 @@ export class SQLiteBunTransaction<
 export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
 	{ type: 'sync'; run: void; all: T['all']; get: T['get']; values: T['values'] }
 > {
+	static readonly [entityKind]: string = 'SQLiteBunPreparedQuery';
+
 	constructor(
 		private stmt: Statement,
 		private queryString: string,

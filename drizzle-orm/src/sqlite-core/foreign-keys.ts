@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import type { AnySQLiteColumn } from './columns';
 import type { AnySQLiteTable } from './table';
 import { SQLiteTable } from './table';
@@ -11,6 +12,8 @@ export type Reference = () => {
 };
 
 export class ForeignKeyBuilder {
+	static readonly [entityKind]: string = 'SQLiteForeignKeyBuilder';
+
 	declare _: {
 		brand: 'SQLiteForeignKeyBuilder';
 		foreignTableName: 'TForeignTableName';
@@ -62,6 +65,8 @@ export class ForeignKeyBuilder {
 }
 
 export class ForeignKey {
+	static readonly [entityKind]: string = 'SQLiteForeignKey';
+
 	readonly reference: Reference;
 	readonly onUpdate: UpdateDeleteAction | undefined;
 	readonly onDelete: UpdateDeleteAction | undefined;

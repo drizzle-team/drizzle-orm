@@ -1,12 +1,12 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBaseConfig, ColumnHKT } from '~/column';
 import type {
 	ColumnBuilderBaseConfig,
 	ColumnBuilderHKTBase,
 	ColumnBuilderKind,
 	UpdateCBConfig,
 } from '~/column-builder';
+import { entityKind } from '~/entity';
 import { sql } from '~/sql';
-
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export interface MySqlDateColumnBaseConfig {
@@ -18,6 +18,8 @@ export abstract class MySqlDateColumnBaseBuilder<
 	T extends ColumnBuilderBaseConfig,
 	TRuntimeConfig extends object = {},
 > extends MySqlColumnBuilder<THKT, T, TRuntimeConfig & MySqlDateColumnBaseConfig> {
+	static readonly [entityKind]: string = 'MySqlDateColumnBuilder';
+
 	defaultNow() {
 		return this.default(sql`(now())`);
 	}
@@ -31,9 +33,11 @@ export abstract class MySqlDateColumnBaseBuilder<
 }
 
 export abstract class MySqlDateBaseColumn<
-	THKT extends ColumnHKTBase,
+	THKT extends ColumnHKT,
 	T extends ColumnBaseConfig,
 	TRuntimeConfig extends object = {},
 > extends MySqlColumn<THKT, T, MySqlDateColumnBaseConfig & TRuntimeConfig> {
+	static readonly [entityKind]: string = 'MySqlDateColumn';
+
 	readonly hasOnUpdateNow: boolean = this.config.hasOnUpdateNow;
 }

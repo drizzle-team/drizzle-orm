@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect';
 import type { WithSubqueryWithSelection } from '~/sqlite-core/subquery';
@@ -7,6 +8,8 @@ import { SQLiteSelectBuilder } from './select';
 import type { SelectedFields } from './select.types';
 
 export class QueryBuilder {
+	static readonly [entityKind]: string = 'SQLiteQueryBuilder';
+
 	private dialect: SQLiteSyncDialect | undefined;
 
 	$with<TAlias extends string>(alias: TAlias) {

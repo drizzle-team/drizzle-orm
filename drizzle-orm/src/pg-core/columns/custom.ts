@@ -1,8 +1,9 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
 import type { SQL } from '~/sql';
-import type { Assume, Equal, Simplify } from '~/utils';
+import { type Assume, type Equal, type Simplify } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTypeValues>> = Simplify<{
@@ -38,6 +39,8 @@ export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig> extends Pg
 		pgColumnBuilderBrand: 'PgCustomColumnBuilderBrand';
 	}
 > {
+	static readonly [entityKind]: string = 'PgCustomColumnBuilder';
+
 	constructor(
 		name: T['name'],
 		fieldConfig: CustomTypeValues['config'],
@@ -60,6 +63,8 @@ export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig> extends Pg
 }
 
 export class PgCustomColumn<T extends ColumnBaseConfig> extends PgColumn<PgCustomColumnHKT, T> {
+	static readonly [entityKind]: string = 'PgCustomColumn';
+
 	declare protected $pgColumnBrand: 'PgCustomColumn';
 
 	private sqlName: string;

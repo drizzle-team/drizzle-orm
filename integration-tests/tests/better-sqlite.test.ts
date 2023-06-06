@@ -210,7 +210,7 @@ test.serial('select all fields', (t) => {
 	db.insert(usersTable).values({ name: 'John' }).run();
 	const result = db.select().from(usersTable).all();
 
-	t.assert(result[0]!.createdAt instanceof Date);
+	t.assert(result[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 5000);
 	t.deepEqual(result, [{ id: 1, name: 'John', verified: 0, json: null, createdAt: result[0]!.createdAt }]);
 });
@@ -344,7 +344,7 @@ test.serial('update with returning all fields', (t) => {
 	db.insert(usersTable).values({ name: 'John' }).run();
 	const users = db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning().all();
 
-	t.assert(users[0]!.createdAt instanceof Date);
+	t.assert(users[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 5000);
 	t.deepEqual(users, [{ id: 1, name: 'Jane', verified: 0, json: null, createdAt: users[0]!.createdAt }]);
 });
@@ -357,7 +357,7 @@ test.serial('update with returning all fields + get()', (t) => {
 	db.insert(usersTable).values({ name: 'John' }).run();
 	const users = db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning().get();
 
-	t.assert(users.createdAt instanceof Date);
+	t.assert(users.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	t.assert(Math.abs(users.createdAt.getTime() - now) < 5000);
 	t.deepEqual(users, { id: 1, name: 'Jane', verified: 0, json: null, createdAt: users.createdAt });
 });
@@ -382,7 +382,7 @@ test.serial('delete with returning all fields', (t) => {
 	db.insert(usersTable).values({ name: 'John' }).run();
 	const users = db.delete(usersTable).where(eq(usersTable.name, 'John')).returning().all();
 
-	t.assert(users[0]!.createdAt instanceof Date);
+	t.assert(users[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 5000);
 	t.deepEqual(users, [{ id: 1, name: 'John', verified: 0, json: null, createdAt: users[0]!.createdAt }]);
 });
@@ -395,7 +395,7 @@ test.serial('delete with returning all fields + get()', (t) => {
 	db.insert(usersTable).values({ name: 'John' }).run();
 	const users = db.delete(usersTable).where(eq(usersTable.name, 'John')).returning().get();
 
-	t.assert(users!.createdAt instanceof Date);
+	t.assert(users!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	t.assert(Math.abs(users!.createdAt.getTime() - now) < 5000);
 	t.deepEqual(users, { id: 1, name: 'John', verified: 0, json: null, createdAt: users!.createdAt });
 });

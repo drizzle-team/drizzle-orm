@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import type { Assume, Equal } from '~/utils';
+import { type Assume, type Equal } from '~/utils';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export interface MySqlDateTimeBuilderHKT extends ColumnBuilderHKTBase {
@@ -26,6 +27,8 @@ export class MySqlDateTimeBuilder<T extends ColumnBuilderBaseConfig> extends MyS
 	T,
 	MySqlDatetimeConfig
 > {
+	static readonly [entityKind]: string = 'MySqlDateTimeBuilder';
+
 	constructor(name: T['name'], config: MySqlDatetimeConfig | undefined) {
 		super(name);
 		this.config.fsp = config?.fsp;
@@ -42,6 +45,8 @@ export class MySqlDateTimeBuilder<T extends ColumnBuilderBaseConfig> extends MyS
 export class MySqlDateTime<
 	T extends ColumnBaseConfig,
 > extends MySqlColumn<MySqlDateTimeHKT, T> {
+	static readonly [entityKind]: string = 'MySqlDateTime';
+
 	readonly fsp: number | undefined;
 
 	constructor(
@@ -84,6 +89,8 @@ export class MySqlDateTimeStringBuilder<T extends ColumnBuilderBaseConfig> exten
 	T,
 	MySqlDatetimeConfig
 > {
+	static readonly [entityKind]: string = 'MySqlDateTimeStringBuilder';
+
 	constructor(name: T['name'], config: MySqlDatetimeConfig | undefined) {
 		super(name);
 		this.config.fsp = config?.fsp;
@@ -100,6 +107,8 @@ export class MySqlDateTimeStringBuilder<T extends ColumnBuilderBaseConfig> exten
 export class MySqlDateTimeString<
 	T extends ColumnBaseConfig,
 > extends MySqlColumn<MySqlDateTimeStringHKT, T> {
+	static readonly [entityKind]: string = 'MySqlDateTimeString';
+
 	readonly fsp: number | undefined;
 
 	constructor(

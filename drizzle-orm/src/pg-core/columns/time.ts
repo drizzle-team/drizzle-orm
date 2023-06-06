@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import { PgColumn } from './common';
 import { PgDateColumnBaseBuilder } from './date.common';
 import type { Precision } from './timestamp';
@@ -28,6 +29,8 @@ export class PgTimeBuilder<T extends ColumnBuilderBaseConfig> extends PgDateColu
 	T,
 	{ withTimezone: boolean; precision: number | undefined }
 > {
+	static readonly [entityKind]: string = 'PgTimeBuilder';
+
 	constructor(
 		name: T['name'],
 		readonly withTimezone: boolean,
@@ -47,6 +50,8 @@ export class PgTimeBuilder<T extends ColumnBuilderBaseConfig> extends PgDateColu
 }
 
 export class PgTime<T extends ColumnBaseConfig> extends PgColumn<PgTimeHKT, T> {
+	static readonly [entityKind]: string = 'PgTime';
+
 	readonly withTimezone: boolean;
 	readonly precision: number | undefined;
 
