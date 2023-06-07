@@ -28,6 +28,7 @@ const testUser = {
 	numeric: '123.45',
 	createdAt: new Date(),
 	createdAtMs: new Date(),
+	boolean: true,
 	real: 123.45,
 	text: 'foobar',
 	role: 'admin',
