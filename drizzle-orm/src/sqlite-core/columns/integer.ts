@@ -190,7 +190,7 @@ export class SQLiteBoolean<T extends ColumnBaseConfig>
 	readonly mode: 'boolean' = this.config.mode;
 
 	override mapFromDriverValue(value: number): boolean {
-		return Boolean(value);
+		return Number(value) === 1;
 	}
 
 	override mapToDriverValue(value: boolean): number {
