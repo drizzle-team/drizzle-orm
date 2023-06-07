@@ -15,6 +15,7 @@ const users = sqliteTable('users', {
 	numeric: numeric('numeric').notNull(),
 	createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 	createdAtMs: integer('created_at_ms', { mode: 'timestamp_ms' }).notNull(),
+	boolean: integer('boolean', { mode: 'boolean' }).notNull(),
 	real: real('real').notNull(),
 	text: text('text'),
 	role: text('role', { enum: ['admin', 'user'] }).notNull().default('user'),
@@ -50,9 +51,11 @@ test('users insert schema', (t) => {
 		numeric: z.string(),
 		createdAt: z.date(),
 		createdAtMs: z.date(),
+		boolean: z.boolean(),
 		real: z.number(),
 		text: z.string().nullable().optional(),
 		role: z.enum(['admin', 'manager', 'user']).optional(),
+
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -68,6 +71,7 @@ test('users insert schema w/ defaults', (t) => {
 		numeric: z.string(),
 		createdAt: z.date(),
 		createdAtMs: z.date(),
+		boolean: z.boolean(),
 		real: z.number(),
 		text: z.string().nullable().optional(),
 		role: z.enum(['admin', 'user']).optional(),
@@ -105,6 +109,7 @@ test('users select schema', (t) => {
 		numeric: z.string(),
 		createdAt: z.date(),
 		createdAtMs: z.date(),
+		boolean: z.boolean(),
 		real: z.number(),
 		text: z.string().nullable(),
 		role: z.enum(['admin', 'manager', 'user']),
@@ -123,6 +128,7 @@ test('users select schema w/ defaults', (t) => {
 		numeric: z.string(),
 		createdAt: z.date(),
 		createdAtMs: z.date(),
+		boolean: z.boolean(),
 		real: z.number(),
 		text: z.string().nullable(),
 		role: z.enum(['admin', 'user']),
