@@ -78,12 +78,12 @@ export class IndexBuilder implements AnyIndexBuilder {
 		};
 	}
 
-	concurrently(): Omit<this, 'concurrently'> {
+	concurrently(): this {
 		this.config.concurrently = true;
 		return this;
 	}
 
-	using(method: SQL): Omit<this, 'using'> {
+	using(method: SQL): this {
 		this.config.using = method;
 		return this;
 	}

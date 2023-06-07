@@ -12,7 +12,7 @@ export default defineConfig([
 			return acc;
 		}, {}),
 		output: {
-			dir: 'dist',
+			dir: 'dist.new',
 		},
 		external,
 		plugins: [

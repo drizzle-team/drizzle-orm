@@ -15,9 +15,10 @@ import type {
 	SelectResult,
 } from '~/query-builders/select.types';
 import { QueryPromise } from '~/query-promise';
-import { type Query, SQL, type Placeholder } from '~/sql';
+import { type Placeholder, type Query, SQL } from '~/sql';
 import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
 import { Table } from '~/table';
+import { tracer } from '~/tracing';
 import { applyMixins, getTableColumns, getTableLikeName, type Simplify, type ValueOrArray } from '~/utils';
 import { orderSelectedFields } from '~/utils';
 import { type ColumnsSelection, View, ViewBaseConfig } from '~/view';
@@ -51,6 +52,12 @@ export class PgSelectBuilder<
 		private withList: Subquery[] = [],
 	) {}
 
+	/**
+	 * Specify the table, subquery, or other target that you’re
+	 * building a select query against.
+	 *
+	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FROM|Postgres from documentation}
+	 */
 	from<TFrom extends AnyPgTable | Subquery | PgViewBase | SQL>(
 		source: TFrom,
 	): CreatePgSelectFromBuilderMode<
@@ -203,14 +210,51 @@ export abstract class PgSelectQueryBuilder<
 		};
 	}
 
+	/**
+	 * For each row of the table, include
+	 * values from a matching row of the joined
+	 * table, if there is a matching row. If not,
+	 * all of the columns of the joined table
+	 * will be set to null.
+	 */
 	leftJoin = this.createJoin('left');
 
+	/**
+	 * Includes all of the rows of the joined table.
+	 * If there is no matching row in the main table,
+	 * all the columns of the main table will be
+	 * set to null.
+	 */
 	rightJoin = this.createJoin('right');
 
+	/**
+	 * This is the default type of join.
+	 *
+	 * For each row of the table, the joined table
+	 * needs to have a matching row, or it will
+	 * be excluded from results.
+	 */
 	innerJoin = this.createJoin('inner');
 
+	/**
+	 * Rows from both the main & joined are included,
+	 * regardless of whether or not they have matching
+	 * rows in the other table.
+	 */
 	fullJoin = this.createJoin('full');
 
+	/**
+	 * Specify a condition to narrow the result set. Multiple
+	 * conditions can be combined with the `and` and `or`
+	 * functions.
+	 *
+	 * ## Examples
+	 *
+	 * ```ts
+	 * // Find cars made in the year 2000
+	 * db.select().from(cars).where(eq(cars.year, 2000));
+	 * ```
+	 */
 	where(where: ((aliases: TSelection) => SQL | undefined) | SQL | undefined) {
 		if (typeof where === 'function') {
 			where = where(
@@ -224,6 +268,13 @@ export abstract class PgSelectQueryBuilder<
 		return this;
 	}
 
+	/**
+	 * Sets the HAVING clause of this query, which often
+	 * used with GROUP BY and filters rows after they've been
+	 * grouped together and combined.
+	 *
+	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-HAVING|Postgres having clause documentation}
+	 */
 	having(having: ((aliases: TSelection) => SQL | undefined) | SQL | undefined) {
 		if (typeof having === 'function') {
 			having = having(
@@ -237,6 +288,24 @@ export abstract class PgSelectQueryBuilder<
 		return this;
 	}
 
+	/**
+	 * Specify the GROUP BY of this query: given
+	 * a list of columns or SQL expressions, Postgres will
+	 * combine all rows with the same values in those columns
+	 * into a single row.
+	 *
+	 * ## Examples
+	 *
+	 * ```ts
+	 * // Group and count people by their last names
+	 * db.select({
+	 *    lastName: people.lastName,
+	 *    count: sql<number>`count(*)::integer`
+	 * }).from(people).groupBy(people.lastName);
+	 * ```
+	 *
+	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-GROUPBY|Postgres GROUP BY documentation}
+	 */
 	groupBy(builder: (aliases: TSelection) => ValueOrArray<AnyPgColumn | SQL | SQL.Aliased>): this;
 	groupBy(...columns: (AnyPgColumn | SQL | SQL.Aliased)[]): this;
 	groupBy(
@@ -258,6 +327,21 @@ export abstract class PgSelectQueryBuilder<
 		return this;
 	}
 
+	/**
+	 * Specify the ORDER BY clause of this query: a number of
+	 * columns or SQL expressions that will control sorting
+	 * of results. You can specify whether results are in ascending
+	 * or descending order with the `asc()` and `desc()` operators.
+	 *
+	 * ## Examples
+	 *
+	 * ```
+	 * // Select cars by year released
+	 * db.select().from(cars).orderBy(cars.year);
+	 * ```
+	 *
+	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-ORDERBY|Postgres ORDER BY documentation}
+	 */
 	orderBy(builder: (aliases: TSelection) => ValueOrArray<AnyPgColumn | SQL | SQL.Aliased>): this;
 	orderBy(...columns: (AnyPgColumn | SQL | SQL.Aliased)[]): this;
 	orderBy(
@@ -279,16 +363,47 @@ export abstract class PgSelectQueryBuilder<
 		return this;
 	}
 
+	/**
+	 * Set the maximum number of rows that will be
+	 * returned by this query.
+	 *
+	 * ## Examples
+	 *
+	 * ```ts
+	 * // Get the first 10 people from this query.
+	 * db.select().from(people).limit(10);
+	 * ```
+	 *
+	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-LIMIT|Postgres LIMIT documentation}
+	 */
 	limit(limit: number | Placeholder) {
 		this.config.limit = limit;
 		return this;
 	}
 
+	/**
+	 * Skip a number of rows when returning results
+	 * from this query.
+	 *
+	 * ## Examples
+	 *
+	 * ```ts
+	 * // Get the 10th-20th people from this query.
+	 * db.select().from(people).offset(10).limit(10);
+	 * ```
+	 */
 	offset(offset: number | Placeholder) {
 		this.config.offset = offset;
 		return this;
 	}
 
+	/**
+	 * The FOR clause specifies a lock strength for this query
+	 * that controls how strictly it acquires exclusive access to
+	 * the rows being queried.
+	 *
+	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FOR-UPDATE-SHARE|Postgres locking clause documentation}
+	 */
 	for(strength: LockStrength, config: LockConfig = {}) {
 		this.config.lockingClauses.push({ strength, config });
 		return this;
@@ -337,17 +452,27 @@ export class PgSelect<
 			execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
 		}
 	> {
-		if (!this.session) {
+		const { session, config, dialect, joinsNotNullableMap } = this;
+		if (!session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
-		const fieldsList = orderSelectedFields<AnyPgColumn>(this.config.fields);
-		const query = this.session.prepareQuery<
-			PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] }
-		>(this.dialect.sqlToQuery(this.getSQL()), fieldsList, name);
-		query.joinsNotNullableMap = this.joinsNotNullableMap;
-		return query;
+		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			const fieldsList = orderSelectedFields<AnyPgColumn>(config.fields);
+			const query = session.prepareQuery<
+				PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] }
+			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name);
+			query.joinsNotNullableMap = joinsNotNullableMap;
+			return query;
+		});
 	}
 
+	/**
+	 * Create a prepared statement for this query. This allows
+	 * the database to remember this query for the given session
+	 * and call it by name, rather than specifying the full query.
+	 *
+	 * {@link https://www.postgresql.org/docs/current/sql-prepare.html|Postgres prepare documentation}
+	 */
 	prepare(name: string): PreparedQuery<
 		PreparedQueryConfig & {
 			execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
@@ -357,7 +482,9 @@ export class PgSelect<
 	}
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this._prepare().execute(placeholderValues);
+		return tracer.startActiveSpan('drizzle.operation', () => {
+			return this._prepare().execute(placeholderValues);
+		});
 	};
 }
 

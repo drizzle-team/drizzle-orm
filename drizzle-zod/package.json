@@ -1,6 +1,6 @@
 {
   "name": "drizzle-zod",
-  "version": "0.4.1",
+  "version": "0.4.3",
   "description": "Generate Zod schemas from Drizzle ORM schemas",
   "type": "module",
   "scripts": {
@@ -13,10 +13,10 @@
   },
   "exports": {
     ".": {
+      "types": "./index.d.ts",
       "import": "./index.mjs",
       "require": "./index.cjs",
-      "default": "./index.mjs",
-      "types": "./index.d.ts"
+      "default": "./index.mjs"
     }
   },
   "main": "./index.cjs",

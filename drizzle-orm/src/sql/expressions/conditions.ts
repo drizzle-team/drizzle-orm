@@ -104,16 +104,20 @@ export function ne(
  *   )
  * ```
  */
-export function and(...conditions: (SQL | undefined)[]): SQL | undefined {
+export function and(...conditions: (SQL | undefined)[]): SQL | undefined;
+export function and(...unfilteredConditions: (SQL | undefined)[]): SQL | undefined {
+	const conditions = unfilteredConditions.filter((c): c is Exclude<typeof c, undefined> => c !== undefined);
+
 	if (conditions.length === 0) {
 		return undefined;
 	}
 
+	if (conditions.length === 1) {
+		return conditions[0];
+	}
+
 	const chunks: SQL[] = [sql.raw('(')];
-	for (
-		const [index, condition] of conditions
-			.filter((c): c is Exclude<typeof c, undefined> => c !== undefined).entries()
-	) {
+	for (const [index, condition] of conditions.entries()) {
 		if (index === 0) {
 			chunks.push(condition);
 		} else {
@@ -141,16 +145,20 @@ export function and(...conditions: (SQL | undefined)[]): SQL | undefined {
  *   )
  * ```
  */
-export function or(...conditions: (SQL | undefined)[]): SQL | undefined {
+export function or(...conditions: (SQL | undefined)[]): SQL | undefined;
+export function or(...unfilteredConditions: (SQL | undefined)[]): SQL | undefined {
+	const conditions = unfilteredConditions.filter((c): c is Exclude<typeof c, undefined> => c !== undefined);
+
 	if (conditions.length === 0) {
 		return undefined;
 	}
 
+	if (conditions.length === 1) {
+		return conditions[0];
+	}
+
 	const chunks: SQL[] = [sql.raw('(')];
-	for (
-		const [index, condition] of conditions
-			.filter((c): c is Exclude<typeof c, undefined> => c !== undefined).entries()
-	) {
+	for (const [index, condition] of conditions.entries()) {
 		if (index === 0) {
 			chunks.push(condition);
 		} else {
@@ -468,7 +476,7 @@ export function exists(subquery: SQLWrapper): SQL {
  * @see exists for the inverse of this test
  */
 export function notExists(subquery: SQLWrapper): SQL {
-	return sql`exists (${subquery})`;
+	return sql`not exists (${subquery})`;
 }
 
 /**

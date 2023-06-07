@@ -1,5 +1,6 @@
 import type { AnyColumn } from './column';
 import { Column } from './column';
+import { type Logger } from './logger';
 import type { SelectedFieldsOrdered } from './operations';
 import type { DriverValueDecoder } from './sql';
 import { Param, SQL } from './sql';
@@ -205,6 +206,12 @@ export type Simplify<
 > = Flatten<AnyType> extends AnyType ? Flatten<AnyType, Options>
 	: AnyType;
 
+export type SimplifyShallow<T> =
+	& {
+		[K in keyof T]: T[K];
+	}
+	& {};
+
 export type Assume<T, U> = T extends U ? T : U;
 
 export type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends (<T>() => T extends Y ? 1 : 2) ? true : false;
@@ -254,4 +261,23 @@ export function getTableLikeName(table: AnyTable | Subquery | View | SQL): strin
 		: table[Table.Symbol.IsAlias]
 		? table[Table.Symbol.Name]
 		: table[Table.Symbol.BaseName];
+}
+
+export type ColumnsWithTable<
+	TTableName extends string,
+	TForeignTableName extends string,
+	TColumns extends AnyColumn<{ tableName: TTableName }>[],
+> = { [Key in keyof TColumns]: AnyColumn<{ tableName: TForeignTableName }> };
+
+export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> {
+	logger?: boolean | Logger;
+	schema?: TSchema;
+}
+
+export type KnownKeysOnly<T, U> = {
+	[K in keyof T]: K extends keyof U ? T[K] : never;
+};
+
+export function iife<T extends unknown[], U>(fn: (...args: T) => U, ...args: T): U {
+	return fn(...args);
 }

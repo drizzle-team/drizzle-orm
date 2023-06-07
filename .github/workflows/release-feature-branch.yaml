@@ -19,6 +19,32 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: drizzle
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: drizzle
+        options: >-
+          --health-cmd "mysqladmin ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 3306:3306
     steps:
       - uses: actions/checkout@v3
 
@@ -51,12 +77,23 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build (for fork PRs only)
-        if: github.event_name == 'pull_request'
+      - name: Build
         run: |
-          pnpm build --filter ${{ matrix.package }}
+          pnpm build
 
-      - name: Build & publish
+      - name: Run tests
+        env:
+          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/drizzle
+          MYSQL_CONNECTION_STRING: mysql://root:root@localhost:3306/drizzle
+          LIBSQL_URL: file:local.db
+        run: |
+          if [[ "${{ matrix.package }}" == "drizzle-orm" ]]; then
+            pnpm test --filter ${{ matrix.package }} --filter integration-tests
+          else
+          pnpm test --filter ${{ matrix.package }}
+          fi
+
+      - name: Publish
         if: github.event_name == 'push'
         run: |
           tag="${{ github.ref_name }}"
@@ -70,7 +107,8 @@ jobs:
           else
             echo "Publishing ${{ matrix.package }}@$tag using version $version"
             npm version $version
-            (cd .. && npm run pack -- --filter ${{ matrix.package }})
+            cp package.json dist/package.json
+            npm run pack
             npm run publish -- --tag $tag
           fi
 

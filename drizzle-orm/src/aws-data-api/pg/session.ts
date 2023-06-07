@@ -1,4 +1,4 @@
-import type { ExecuteStatementCommandOutput, RDSDataClient } from '@aws-sdk/client-rds-data';
+import type { ExecuteStatementCommandOutput, Field, RDSDataClient } from '@aws-sdk/client-rds-data';
 import {
 	BeginTransactionCommand,
 	CommitTransactionCommand,
@@ -16,6 +16,7 @@ import {
 	type QueryResultHKT,
 } from '~/pg-core';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
+import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import { fillPlaceholders, type Query, type QueryTypingsValue, type SQL, sql } from '~/sql';
 import { mapResultRow } from '~/utils';
 import { getValueFromDataApi, toValueParam } from '../common';
@@ -34,6 +35,7 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 		private fields: SelectedFieldsOrdered | undefined,
 		/** @internal */
 		readonly transactionId: string | undefined,
+		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super();
 		this.rawQuery = new ExecuteStatementCommand({
@@ -47,7 +49,23 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
+		const { fields, joinsNotNullableMap, customResultMapper } = this;
+
+		const rows = await this.values(placeholderValues) as unknown[][];
+		if (!fields && !customResultMapper) {
+			return rows as T['execute'];
+		}
+		return customResultMapper
+			? customResultMapper(rows)
+			: rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+	}
+
+	all(placeholderValues?: Record<string, unknown> | undefined): Promise<T['all']> {
+		return this.execute(placeholderValues);
+	}
+
+	async values(placeholderValues: Record<string, unknown> = {}): Promise<T['values']> {
+		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 
 		this.rawQuery.input.parameters = params.map((param, index) => ({
 			name: `${index + 1}`,
@@ -56,22 +74,17 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 
 		this.options.logger?.logQuery(this.rawQuery.input.sql!, this.rawQuery.input.parameters);
 
-		const { fields, rawQuery, client, joinsNotNullableMap } = this;
-		if (!fields) {
+		const { fields, rawQuery, client, customResultMapper } = this;
+		if (!fields && !customResultMapper) {
 			const result = await client.send(rawQuery);
 			return result.records ?? [];
 		}
 
 		const result = await client.send(rawQuery);
 
-		return result.records?.map((result: any) => {
-			const mappedResult = result.map((res: any) => getValueFromDataApi(res));
-			return mapResultRow<T['execute']>(fields, mappedResult, joinsNotNullableMap);
+		return result.records?.map((row: any) => {
+			return row.map((field: Field) => getValueFromDataApi(field));
 		});
-	}
-
-	all(placeholderValues?: Record<string, unknown> | undefined): Promise<T['all']> {
-		return this.execute(placeholderValues);
 	}
 }
 
@@ -88,7 +101,10 @@ interface AwsDataApiQueryBase {
 	database: string;
 }
 
-export class AwsDataApiSession extends PgSession<AwsDataApiPgQueryResultHKT> {
+export class AwsDataApiSession<
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
+> extends PgSession<AwsDataApiPgQueryResultHKT, TFullSchema, TSchema> {
 	/** @internal */
 	readonly rawQuery: AwsDataApiQueryBase;
 
@@ -96,6 +112,7 @@ export class AwsDataApiSession extends PgSession<AwsDataApiPgQueryResultHKT> {
 		/** @internal */
 		readonly client: AwsDataApiClient,
 		dialect: PgDialect,
+		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		private options: AwsDataApiSessionOptions,
 		/** @internal */
 		readonly transactionId: string | undefined,
@@ -112,6 +129,7 @@ export class AwsDataApiSession extends PgSession<AwsDataApiPgQueryResultHKT> {
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		transactionId?: string,
+		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PreparedQuery<T> {
 		return new AwsDataApiPreparedQuery(
 			this.client,
@@ -121,6 +139,7 @@ export class AwsDataApiSession extends PgSession<AwsDataApiPgQueryResultHKT> {
 			this.options,
 			fields,
 			transactionId,
+			customResultMapper,
 		);
 	}
 
@@ -133,12 +152,12 @@ export class AwsDataApiSession extends PgSession<AwsDataApiPgQueryResultHKT> {
 	}
 
 	override async transaction<T>(
-		transaction: (tx: AwsDataApiTransaction) => Promise<T>,
+		transaction: (tx: AwsDataApiTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
 		const { transactionId } = await this.client.send(new BeginTransactionCommand(this.rawQuery));
-		const session = new AwsDataApiSession(this.client, this.dialect, this.options, transactionId);
-		const tx = new AwsDataApiTransaction(this.dialect, session);
+		const session = new AwsDataApiSession(this.client, this.dialect, this.schema, this.options, transactionId);
+		const tx = new AwsDataApiTransaction(this.dialect, session, this.schema);
 		if (config) {
 			await tx.setTransaction(config);
 		}
@@ -153,10 +172,13 @@ export class AwsDataApiSession extends PgSession<AwsDataApiPgQueryResultHKT> {
 	}
 }
 
-export class AwsDataApiTransaction extends PgTransaction<AwsDataApiPgQueryResultHKT> {
-	override transaction<T>(transaction: (tx: AwsDataApiTransaction) => Promise<T>): Promise<T> {
+export class AwsDataApiTransaction<
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
+> extends PgTransaction<AwsDataApiPgQueryResultHKT, TFullSchema, TSchema> {
+	override transaction<T>(transaction: (tx: AwsDataApiTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new AwsDataApiTransaction(this.dialect, this.session, this.nestedIndex + 1);
+		const tx = new AwsDataApiTransaction(this.dialect, this.session, this.schema, this.nestedIndex + 1);
 		this.session.execute(sql`savepoint ${savepointName}`);
 		try {
 			const result = transaction(tx);

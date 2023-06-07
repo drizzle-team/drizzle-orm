@@ -43,7 +43,9 @@ export type BuildAliasTable<TTable extends AnyTable, TAlias extends string> = Pg
 
 export interface PgSelectConfig {
 	withList: Subquery[];
+	// Either fields or fieldsFlat must be defined
 	fields: Record<string, unknown>;
+	fieldsFlat?: SelectedFieldsOrdered;
 	where?: SQL;
 	having?: SQL;
 	table: AnyPgTable | Subquery | PgViewBase | SQL;

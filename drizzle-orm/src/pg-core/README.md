@@ -16,24 +16,22 @@ Drizzle ORM is a TypeScript ORM for SQL databases designed with maximum type saf
 | [postgres.js](https://github.com/porsager/postgres)                                              |    ✅    | [Docs](/drizzle-orm/src/postgres-js/README.md) |
 | [NeonDB Serverless](https://github.com/neondatabase/serverless)                                  |    ✅    |                                                |
 | [AWS Data API](https://github.com/aws/aws-sdk-js-v3/blob/main/clients/client-rds-data/README.md) |    ✅    |                                                |
+| [Vercel Postgres](https://vercel.com/docs/storage/vercel-postgres/quickstart)                           |   ✅    |             |
 
 ## Installation
 
 ```bash
 # npm
 npm i drizzle-orm pg
-npm i -D @types/pg
-npm i -D drizzle-kit
+npm i -D @types/pg drizzle-kit
 
 # yarn
 yarn add drizzle-orm pg
-yarn add -D @types/pg
-yarn add -D drizzle-kit
+yarn add -D @types/pg drizzle-kit
 
 # pnpm
 pnpm add drizzle-orm pg
-pnpm add -D @types/pg
-pnpm add -D drizzle-kit
+pnpm add -D @types/pg drizzle-kit
 ```
 
 ## SQL schema declaration
@@ -144,6 +142,17 @@ const db = drizzle(rdsClient, {
   secretArn: '',
   resourceArn: '',
 });
+```
+
+### Connect to Vercel Postgres
+
+```typescript
+import { drizzle } from 'drizzle-orm/vercel-postgres';
+import { sql } from "@vercel/postgres";
+
+const db = drizzle(sql);
+
+db.select(...)
 ```
 
 ## Schema declaration

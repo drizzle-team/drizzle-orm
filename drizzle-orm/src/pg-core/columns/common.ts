@@ -1,4 +1,4 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { AnyColumnHKT, ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import { Column } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import { ColumnBuilder } from '~/column-builder';
@@ -100,3 +100,7 @@ export type AnyPgColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = PgCol
 	PgColumnHKT,
 	Required<Update<ColumnBaseConfig, TPartial>>
 >;
+
+export interface AnyPgColumnHKT extends AnyColumnHKT {
+	type: AnyPgColumn<Assume<this['config'], Partial<ColumnBaseConfig>>>;
+}

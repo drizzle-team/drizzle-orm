@@ -1,5 +1,6 @@
 import type { BuildColumns } from '~/column-builder';
-import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table';
+import { type AnyTableHKT, Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table';
+import type { Assume } from '~/utils';
 import type { CheckBuilder } from './checks';
 import type { AnyPgColumn, AnyPgColumnBuilder } from './columns/common';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
@@ -19,24 +20,25 @@ export type TableConfig = TableConfigBase<AnyPgColumn>;
 /** @internal */
 export const InlineForeignKeys = Symbol('InlineForeignKeys');
 
-/** @internal */
-export const ExtraConfigBuilder = Symbol('ExtraConfigBuilder');
-
 export class PgTable<T extends TableConfig> extends Table<T> {
 	/** @internal */
 	static override readonly Symbol = Object.assign({}, Table.Symbol, {
 		InlineForeignKeys: InlineForeignKeys as typeof InlineForeignKeys,
-		ExtraConfigBuilder: ExtraConfigBuilder as typeof ExtraConfigBuilder,
 	});
 
 	/**@internal */
 	[InlineForeignKeys]: ForeignKey[] = [];
 
 	/** @internal */
-	[ExtraConfigBuilder]: ((self: Record<string, AnyPgColumn>) => PgTableExtraConfig) | undefined = undefined;
+	override [Table.Symbol.ExtraConfigBuilder]: ((self: Record<string, AnyPgColumn>) => PgTableExtraConfig) | undefined =
+		undefined;
 }
 
 export type AnyPgTable<TPartial extends Partial<TableConfig> = {}> = PgTable<UpdateTableConfig<TableConfig, TPartial>>;
+
+export interface AnyPgTableHKT extends AnyTableHKT {
+	type: AnyPgTable<Assume<this['config'], Partial<TableConfig>>>;
+}
 
 export type PgTableWithColumns<T extends TableConfig> =
 	& PgTable<T>

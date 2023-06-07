@@ -1,16 +1,33 @@
+import {
+	aliasedRelation,
+	aliasedTable,
+	aliasedTableColumn,
+	mapColumnsInAliasedSQLToAlias,
+	mapColumnsInSQLToAlias,
+} from '~/alias';
 import type { AnyColumn } from '~/column';
 import { Column } from '~/column';
 import type { MigrationMeta } from '~/migrator';
-import { name, Param, param, type Query, SQL, sql, type SQLChunk } from '~/sql';
+import {
+	type BuildRelationalQueryResult,
+	type DBQueryConfig,
+	normalizeRelation,
+	operators,
+	orderByOperators,
+	Relation,
+	type TableRelationalConfig,
+	type TablesRelationalConfig,
+} from '~/relations';
+import { and, eq, name, or, Param, param, type Query, SQL, sql, type SQLChunk } from '~/sql';
 import type { AnySQLiteColumn } from '~/sqlite-core/columns';
 import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SQLiteTable } from '~/sqlite-core/table';
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
-import { orderSelectedFields, type UpdateSet } from '~/utils';
+import { type DrizzleTypeError, orderSelectedFields, type UpdateSet } from '~/utils';
 import { ViewBaseConfig } from '~/view';
-import type { SelectedFieldsOrdered, SQLiteSelectConfig } from './query-builders/select.types';
+import type { JoinsValue, SelectedFieldsOrdered, SQLiteSelectConfig } from './query-builders/select.types';
 import type { SQLiteSession } from './session';
 import { SQLiteViewBase } from './view';
 
@@ -131,9 +148,9 @@ export abstract class SQLiteDialect {
 	}
 
 	buildSelectQuery(
-		{ withList, fields, where, having, table, joins, orderBy, groupBy, limit, offset }: SQLiteSelectConfig,
+		{ withList, fields, fieldsFlat, where, having, table, joins, orderBy, groupBy, limit, offset }: SQLiteSelectConfig,
 	): SQL {
-		const fieldsList = orderSelectedFields<AnySQLiteColumn>(fields);
+		const fieldsList = fieldsFlat ?? orderSelectedFields<AnySQLiteColumn>(fields);
 		for (const f of fieldsList) {
 			if (
 				f.field instanceof Column
@@ -145,7 +162,10 @@ export abstract class SQLiteDialect {
 						: table instanceof SQL
 						? undefined
 						: getTableName(table))
-				&& !((table) => joins.some(({ alias }) => alias === getTableName(table)))(f.field.table)
+				&& !((table) =>
+					joins.some(({ alias }) =>
+						alias === (table[Table.Symbol.IsAlias] ? getTableName(table) : table[Table.Symbol.BaseName])
+					))(f.field.table)
 			) {
 				const tableName = getTableName(f.field.table);
 				throw new Error(
@@ -195,7 +215,7 @@ export abstract class SQLiteDialect {
 				const origTableName = table[SQLiteTable.Symbol.OriginalName];
 				const alias = tableName === origTableName ? undefined : joinMeta.alias;
 				joinsArray.push(
-					sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${name(tableSchema)}.` : undefined}${
+					sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined}${
 						name(origTableName)
 					}${alias && sql` ${name(alias)}`} on ${joinMeta.on}`,
 				);
@@ -293,10 +313,347 @@ export abstract class SQLiteDialect {
 			escapeString: this.escapeString,
 		});
 	}
+
+	buildRelationalQuery(
+		fullSchema: Record<string, unknown>,
+		schema: TablesRelationalConfig,
+		tableNamesMap: Record<string, string>,
+		table: AnySQLiteTable,
+		tableConfig: TableRelationalConfig,
+		config: true | DBQueryConfig<'many', true>,
+		tableAlias: string,
+		relationColumns: AnyColumn[],
+		isRoot = false,
+	): BuildRelationalQueryResult {
+		if (config === true) {
+			const selectionEntries = Object.entries(tableConfig.columns);
+			const selection: BuildRelationalQueryResult['selection'] = selectionEntries.map(([key, value]) => ({
+				dbKey: value.name,
+				tsKey: key,
+				field: value,
+				tableTsKey: undefined,
+				isJson: false,
+				selection: [],
+			}));
+
+			return {
+				tableTsKey: tableConfig.tsName,
+				sql: table,
+				selection,
+			};
+		}
+
+		const aliasedColumns = Object.fromEntries(
+			Object.entries(tableConfig.columns).map(([key, value]) => [key, aliasedTableColumn(value, tableAlias)]),
+		);
+
+		const aliasedRelations = Object.fromEntries(
+			Object.entries(tableConfig.relations).map(([key, value]) => [key, aliasedRelation(value, tableAlias)]),
+		);
+
+		const aliasedFields = Object.assign({}, aliasedColumns, aliasedRelations);
+
+		const fieldsSelection: Record<string, AnySQLiteColumn | SQL.Aliased> = {};
+		let selectedColumns: string[] = [];
+		let selectedExtras: { key: string; value: SQL.Aliased }[] = [];
+		let selectedRelations: { key: string; value: true | DBQueryConfig<'many', false> }[] = [];
+
+		if (config.columns) {
+			let isIncludeMode = false;
+
+			for (const [field, value] of Object.entries(config.columns)) {
+				if (value === undefined) {
+					continue;
+				}
+
+				if (field in tableConfig.columns) {
+					if (!isIncludeMode && value === true) {
+						isIncludeMode = true;
+					}
+					selectedColumns.push(field);
+				}
+			}
+
+			if (selectedColumns.length > 0) {
+				selectedColumns = isIncludeMode
+					? selectedColumns.filter((c) => config.columns?.[c] === true)
+					: Object.keys(tableConfig.columns).filter((key) => !selectedColumns.includes(key));
+			}
+		}
+
+		if (config.with) {
+			selectedRelations = Object.entries(config.with)
+				.filter((entry): entry is [typeof entry[0], NonNullable<typeof entry[1]>] => !!entry[1])
+				.map(([key, value]) => ({ key, value }));
+		}
+
+		if (!config.columns) {
+			selectedColumns = Object.keys(tableConfig.columns);
+		}
+
+		if (config.extras) {
+			const extrasOrig = typeof config.extras === 'function'
+				? config.extras(aliasedFields, { sql })
+				: config.extras;
+			selectedExtras = Object.entries(extrasOrig).map(([key, value]) => ({
+				key,
+				value: mapColumnsInAliasedSQLToAlias(value, tableAlias),
+			}));
+		}
+
+		for (const field of selectedColumns) {
+			const column = tableConfig.columns[field] as AnySQLiteColumn;
+			fieldsSelection[field] = column;
+		}
+
+		for (const { key, value } of selectedExtras) {
+			fieldsSelection[key] = value;
+		}
+
+		let where;
+		if (config.where) {
+			const whereSql = typeof config.where === 'function' ? config.where(aliasedFields, operators) : config.where;
+			where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
+		}
+
+		const groupBy = (tableConfig.primaryKey.length ? tableConfig.primaryKey : Object.values(tableConfig.columns)).map(
+			(c) => aliasedTableColumn(c as AnySQLiteColumn, tableAlias),
+		);
+
+		let orderByOrig = typeof config.orderBy === 'function'
+			? config.orderBy(aliasedFields, orderByOperators)
+			: config.orderBy ?? [];
+		if (!Array.isArray(orderByOrig)) {
+			orderByOrig = [orderByOrig];
+		}
+		const orderBy = orderByOrig.map((orderByValue) => {
+			if (orderByValue instanceof Column) {
+				return aliasedTableColumn(orderByValue, tableAlias) as AnySQLiteColumn;
+			}
+			return mapColumnsInSQLToAlias(orderByValue, tableAlias);
+		});
+
+		const builtRelations: { key: string; value: BuildRelationalQueryResult }[] = [];
+		const joins: JoinsValue[] = [];
+		const builtRelationFields: SelectedFieldsOrdered = [];
+
+		let result;
+
+		let selectedRelationIndex = 0;
+		for (const { key: selectedRelationKey, value: selectedRelationValue } of selectedRelations) {
+			let relation: Relation | undefined;
+			for (const [relationKey, relationValue] of Object.entries(tableConfig.relations)) {
+				if (relationValue instanceof Relation && relationKey === selectedRelationKey) {
+					relation = relationValue;
+					break;
+				}
+			}
+
+			if (!relation) {
+				throw new Error(`Relation ${selectedRelationKey} not found`);
+			}
+
+			const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
+
+			const relationAlias = `${tableAlias}_${selectedRelationKey}`;
+
+			const builtRelation = this.buildRelationalQuery(
+				fullSchema,
+				schema,
+				tableNamesMap,
+				fullSchema[tableNamesMap[relation.referencedTable[Table.Symbol.Name]]!] as AnySQLiteTable,
+				schema[tableNamesMap[relation.referencedTable[Table.Symbol.Name]]!]!,
+				selectedRelationValue,
+				relationAlias,
+				normalizedRelation.references,
+			);
+			builtRelations.push({ key: selectedRelationKey, value: builtRelation });
+
+			let relationWhere;
+			if (typeof selectedRelationValue === 'object' && selectedRelationValue.limit) {
+				const field = sql`${sql.identifier(relationAlias)}.${sql.identifier('__drizzle_row_number')}`;
+				relationWhere = and(
+					relationWhere,
+					or(and(sql`${field} <= ${selectedRelationValue.limit}`), sql`(${field} is null)`),
+				);
+			}
+
+			const join: JoinsValue = {
+				table: builtRelation.sql instanceof Table
+					? aliasedTable(builtRelation.sql as AnySQLiteTable, relationAlias)
+					: new Subquery(builtRelation.sql, {}, relationAlias),
+				alias: relationAlias,
+				on: and(
+					...normalizedRelation.fields.map((field, i) =>
+						eq(
+							aliasedTableColumn(field, tableAlias),
+							aliasedTableColumn(normalizedRelation.references[i]!, relationAlias),
+						)
+					),
+				),
+				joinType: 'left',
+			};
+
+			const elseField = sql`json_group_array(json_array(${
+				sql.join(
+					builtRelation.selection.map(({ dbKey: key, isJson }) => {
+						const field = sql`${sql.identifier(relationAlias)}.${sql.identifier(key)}`;
+						return isJson ? sql`json(${field})` : field;
+					}),
+					sql`, `,
+				)
+			}))`;
+
+			const countSql = normalizedRelation.references.length === 1
+				? aliasedTableColumn(normalizedRelation.references[0]!, relationAlias)
+				: sql.fromList([
+					sql`coalesce(`,
+					sql.join(normalizedRelation.references.map((c) => aliasedTableColumn(c, relationAlias)), sql.raw(', ')),
+					sql.raw(')'),
+				]);
+
+			const field = sql`case when count(${countSql}) = 0 then '[]' else ${elseField} end`.as(selectedRelationKey);
+
+			const builtRelationField = {
+				path: [selectedRelationKey],
+				field,
+			};
+
+			result = this.buildSelectQuery({
+				table: result ? new Subquery(result, {}, tableAlias) : aliasedTable(table, tableAlias),
+				fields: {},
+				fieldsFlat: [
+					{
+						path: [],
+						field: sql`${sql.identifier(tableAlias)}.*`,
+					},
+					...(selectedRelationIndex === selectedRelations.length - 1
+						? selectedExtras.map(({ key, value }) => ({
+							path: [key],
+							field: value,
+						}))
+						: []),
+					builtRelationField,
+				],
+				where: relationWhere,
+				groupBy,
+				orderBy: selectedRelationIndex === selectedRelations.length - 1 ? orderBy : [],
+				joins: [join],
+				withList: [],
+			});
+
+			joins.push(join);
+			builtRelationFields.push(builtRelationField);
+			selectedRelationIndex++;
+		}
+
+		const finalFieldsSelection: SelectedFieldsOrdered = Object.entries(fieldsSelection).map(([key, value]) => {
+			return {
+				path: [key],
+				field: value instanceof Column ? aliasedTableColumn(value, tableAlias) : value,
+			};
+		});
+
+		const finalFieldsFlat: SelectedFieldsOrdered = isRoot
+			? [
+				...finalFieldsSelection.map(({ path, field }) => ({
+					path,
+					field: field instanceof SQL.Aliased ? sql`${sql.identifier(field.fieldAlias)}` : field,
+				})),
+				...builtRelationFields.map(({ path, field }) => ({
+					path,
+					field: sql`json(${sql.identifier((field as SQL.Aliased).fieldAlias)})`,
+				})),
+			]
+			: [
+				...Object.entries(tableConfig.columns).map(([tsKey, column]) => ({
+					path: [tsKey],
+					field: aliasedTableColumn(column, tableAlias) as AnySQLiteColumn,
+				})),
+				...selectedExtras.map(({ key, value }) => ({
+					path: [key],
+					field: value,
+				})),
+				...builtRelationFields.map(({ path, field }) => ({
+					path,
+					field: sql`${sql.identifier(tableAlias)}.${sql.identifier((field as SQL.Aliased).fieldAlias)}`,
+				})),
+			];
+
+		if (finalFieldsFlat.length === 0) {
+			finalFieldsFlat.push({
+				path: [],
+				field: sql.raw('1'),
+			});
+		}
+
+		if (!isRoot && !config.limit && orderBy.length > 0) {
+			finalFieldsFlat.push({
+				path: ['__drizzle_row_number'],
+				field: sql`row_number() over(order by ${sql.join(orderBy, sql`, `)})`,
+			});
+		}
+
+		let limit, offset;
+
+		if (config.limit !== undefined || config.offset !== undefined) {
+			if (isRoot) {
+				limit = config.limit;
+				offset = config.offset;
+			} else {
+				finalFieldsFlat.push({
+					path: ['__drizzle_row_number'],
+					field: sql`row_number() over(partition by ${relationColumns.map((c) => aliasedTableColumn(c, tableAlias))}${
+						(orderBy.length > 0 && !isRoot) ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined
+					})`
+						.as('__drizzle_row_number'),
+				});
+			}
+		}
+
+		result = this.buildSelectQuery({
+			table: result ? new Subquery(result, {}, tableAlias) : aliasedTable(table, tableAlias),
+			fields: {},
+			fieldsFlat: finalFieldsFlat,
+			where,
+			groupBy: [],
+			orderBy: isRoot ? orderBy : [],
+			joins: [],
+			withList: [],
+			limit,
+			offset: offset as Exclude<typeof offset, DrizzleTypeError<any>>,
+		});
+
+		return {
+			tableTsKey: tableConfig.tsName,
+			sql: result,
+			selection: [
+				...finalFieldsSelection.map(({ path, field }) => ({
+					dbKey: field instanceof SQL.Aliased ? field.fieldAlias : tableConfig.columns[path[0]!]!.name,
+					tsKey: path[0]!,
+					field,
+					tableTsKey: undefined,
+					isJson: false,
+					selection: [],
+				})),
+				...builtRelations.map(({ key, value }) => ({
+					dbKey: key,
+					tsKey: key,
+					field: undefined,
+					tableTsKey: value.tableTsKey,
+					isJson: true,
+					selection: value.selection,
+				})),
+			],
+		};
+	}
 }
 
 export class SQLiteSyncDialect extends SQLiteDialect {
-	migrate(migrations: MigrationMeta[], session: SQLiteSession<'sync'>): void {
+	migrate(
+		migrations: MigrationMeta[],
+		session: SQLiteSession<'sync', unknown, Record<string, unknown>, TablesRelationalConfig>,
+	): void {
 		const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
 				id SERIAL PRIMARY KEY,
@@ -334,7 +691,10 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 }
 
 export class SQLiteAsyncDialect extends SQLiteDialect {
-	async migrate(migrations: MigrationMeta[], session: SQLiteSession<'async'>): Promise<void> {
+	async migrate(
+		migrations: MigrationMeta[],
+		session: SQLiteSession<'async', unknown, Record<string, unknown>, TablesRelationalConfig>,
+	): Promise<void> {
 		const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
 				id SERIAL PRIMARY KEY,

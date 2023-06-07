@@ -63,7 +63,7 @@ As you can see, all the joined columns have been nullified. This might do the tr
 It might not be very convenient to check every field for nullability separately (or, even worse, just add an `!` after every field to "make compiler happy"). It would be much more useful if you could somehow run a single check
 to verify that the user was joined and all of its fields are available.
 
-**To achieve that, you can group the fields of a certain table in a nested object inside the `.fields()`:**
+**To achieve that, you can group the fields of a certain table in a nested object inside of `.select()`:**
 
 ```typescript
 const rows = await db
@@ -102,7 +102,7 @@ Note that you can group any fields in a nested object however you like, but the 
 So, for example, you can group the city fields, too:
 
 ```typescript
-.fields({
+.select({
   city: {
     id: cities.id,
     name: cities.name,
@@ -133,13 +133,13 @@ And the result type will look like this:
 
 <hr />
 
-If you just need all the fields from all the tables you're selecting and joining, you can skip the `.fields()` method altogether:
+If you just need all the fields from all the tables you're selecting and joining, you can simply omit the argument of the `.select()` method altogether:
 
 ```typescript
 const rows = await db.select().from(cities).leftJoin(users, eq(users.cityId, cities.id));
 ```
 
-> **Note**: in this case, the DB table names will be used as the keys in the result object.
+> **Note**: in this case, the Drizzle table/column names will be used as the keys in the result object.
 
 ```typescript
 {
@@ -161,7 +161,7 @@ const rows = await db.select().from(cities).leftJoin(users, eq(users.cityId, cit
 There are cases where you'd want to select all the fields from one table, but pick fields from others. In that case, instead of listing all the table fields, you can just pass a table:
 
 ```typescript
-.fields({
+.select({
   cities, // shorthand for "cities: cities", the key can be anything
   user: {
     firstName: users.firstName,
@@ -186,7 +186,7 @@ There are cases where you'd want to select all the fields from one table, but pi
 But what happens if you group columns from multiple tables in the same nested object? Nothing, really - they will still be all individually nullable, just grouped under the same object (as you might expect!):
 
 ```typescript
-.fields({
+.select({
   id: cities.id,
   cityAndUser: {
     cityName: cities.name,
@@ -240,7 +240,7 @@ const result = rows.reduce<Record<number, { city: City; users: User[] }>>(
     }
 
     if (user) {
-      acc[cityId].users.push(user);
+      acc[city.id].users.push(user);
     }
 
     return acc;
