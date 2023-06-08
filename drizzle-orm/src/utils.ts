@@ -215,7 +215,7 @@ export type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends (<T>() => T ext
 
 export interface DrizzleTypeError<T> {
 	$brand: 'DrizzleTypeError';
-	message: T;
+	$error: T;
 }
 
 export type ValueOrArray<T> = T | T[];

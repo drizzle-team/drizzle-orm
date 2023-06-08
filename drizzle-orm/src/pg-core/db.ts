@@ -7,6 +7,7 @@ import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import { type ExtractTablesWithRelations, type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import { type SQLWrapper } from '~/sql';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
+import { type DrizzleTypeError } from '~/utils';
 import { type ColumnsSelection } from '~/view';
 import { RelationalQueryBuilder } from './query-builders/query';
 import { PgRefreshMaterializedView } from './query-builders/refresh-materialized-view';
@@ -26,9 +27,11 @@ export class PgDatabase<
 		readonly tableNamesMap: Record<string, string>;
 	};
 
-	query: {
-		[K in keyof TSchema]: RelationalQueryBuilder<TSchema, TSchema[K]>;
-	};
+	query: TFullSchema extends Record<string, never>
+		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
+		: {
+			[K in keyof TSchema]: RelationalQueryBuilder<TSchema, TSchema[K]>;
+		};
 
 	constructor(
 		/** @internal */
@@ -43,7 +46,7 @@ export class PgDatabase<
 		this.query = {} as typeof this['query'];
 		if (this._.schema) {
 			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				this.query[tableName as keyof TSchema] = new RelationalQueryBuilder(
+				(this.query as PgDatabase<TQueryResult, Record<string, any>>['query'])[tableName] = new RelationalQueryBuilder(
 					schema!.fullSchema,
 					this._.schema,
 					this._.tableNamesMap,

@@ -4,6 +4,7 @@ import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import { type ExtractTablesWithRelations, type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import type { SQLWrapper } from '~/sql';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
+import { type DrizzleTypeError } from '~/utils';
 import { type ColumnsSelection } from '~/view';
 import type { MySqlDialect } from './dialect';
 import {
@@ -39,9 +40,11 @@ export class MySqlDatabase<
 		readonly tableNamesMap: Record<string, string>;
 	};
 
-	query: {
-		[K in keyof TSchema]: RelationalQueryBuilder<TPreparedQueryHKT, TSchema, TSchema[K]>;
-	};
+	query: TFullSchema extends Record<string, never>
+		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
+		: {
+			[K in keyof TSchema]: RelationalQueryBuilder<TPreparedQueryHKT, TSchema, TSchema[K]>;
+		};
 
 	constructor(
 		/** @internal */
@@ -56,15 +59,16 @@ export class MySqlDatabase<
 		this.query = {} as typeof this['query'];
 		if (this._.schema) {
 			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				this.query[tableName as keyof TSchema] = new RelationalQueryBuilder(
-					schema!.fullSchema,
-					this._.schema,
-					this._.tableNamesMap,
-					schema!.fullSchema[tableName] as AnyMySqlTable,
-					columns,
-					dialect,
-					session,
-				);
+				(this.query as MySqlDatabase<TQueryResult, TPreparedQueryHKT, Record<string, any>>['query'])[tableName] =
+					new RelationalQueryBuilder(
+						schema!.fullSchema,
+						this._.schema,
+						this._.tableNamesMap,
+						schema!.fullSchema[tableName] as AnyMySqlTable,
+						columns,
+						dialect,
+						session,
+					);
 			}
 		}
 	}
