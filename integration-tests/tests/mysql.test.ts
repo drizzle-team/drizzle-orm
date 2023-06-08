@@ -69,8 +69,8 @@ const datesTable = mysqlTable('datestable', {
 	time: time('time', { fsp: 1 }),
 	datetime: datetime('datetime', { fsp: 2 }),
 	datetimeAsString: datetime('datetime_as_string', { fsp: 2, mode: 'string' }),
-  timestamp: timestamp('timestamp', { fsp: 3 }),
-  timestampAsString: timestamp('timestamp_as_string', { fsp: 3, mode: 'string' }),
+	timestamp: timestamp('timestamp', { fsp: 3 }),
+	timestampAsString: timestamp('timestamp_as_string', { fsp: 3, mode: 'string' }),
 	year: year('year'),
 });
 
@@ -763,8 +763,8 @@ test.serial('insert + select all possible dates', async (t) => {
 	);
 
 	const date = new Date('2022-11-11');
-  const dateWithMilliseconds = new Date('2022-11-11 12:12:12.123');
-  
+	const dateWithMilliseconds = new Date('2022-11-11 12:12:12.123');
+
 	await db.insert(datesTable).values({
 		date: date,
 		dateAsString: '2022-11-11',
@@ -772,8 +772,8 @@ test.serial('insert + select all possible dates', async (t) => {
 		datetime: date,
 		year: 22,
 		datetimeAsString: '2022-11-11 12:12:12',
-    timestamp: dateWithMilliseconds,
-    timestampAsString: '2022-11-11 12:12:12.123',
+		timestamp: dateWithMilliseconds,
+		timestampAsString: '2022-11-11 12:12:12.123',
 	});
 
 	const res = await db.select().from(datesTable);
@@ -790,8 +790,8 @@ test.serial('insert + select all possible dates', async (t) => {
 		datetime: new Date('2022-11-11'),
 		year: 2022,
 		datetimeAsString: '2022-11-11 12:12:12',
-    timestamp: new Date('2022-11-11 12:12:12.123'),
-    timestampAsString: '2022-11-11 12:12:12.123',
+		timestamp: new Date('2022-11-11 12:12:12.123'),
+		timestampAsString: '2022-11-11 12:12:12.123',
 	}]);
 
 	await db.execute(sql`drop table if exists \`datestable\``);
