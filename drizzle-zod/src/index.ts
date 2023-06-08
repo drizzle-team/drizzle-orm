@@ -257,7 +257,7 @@ export function createSelectSchema<
 }
 
 function isWithEnum(column: AnyColumn): column is typeof column & WithEnum {
-	return 'enumValues' in column && Array.isArray(column.enumValues);
+	return 'enumValues' in column && Array.isArray(column.enumValues) && column.enumValues.length > 0;
 }
 
 function mapColumnToSchema(column: AnyColumn): z.ZodTypeAny {
@@ -313,13 +313,15 @@ function mapColumnToSchema(column: AnyColumn): z.ZodTypeAny {
 			|| is(column, MySqlVarBinary) || is(column, MySqlChar)
 		) {
 			let sType = z.string();
+
 			if (
 				(is(column, PgChar) || is(column, PgVarchar) || is(column, MySqlVarChar)
 					|| is(column, MySqlVarBinary) || is(column, MySqlChar) || is(column, SQLiteText))
 				&& (typeof column.length === 'number')
 			) {
-				sType = sType.length(column.length);
+				sType = sType.max(column.length);
 			}
+
 			type = sType;
 		} else if (is(column, PgUUID)) {
 			type = z.string().uuid();

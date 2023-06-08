@@ -41,6 +41,7 @@ Check the full documentation on [the website](https://orm.drizzle.team)
 | PlanetScale     |   ✅    | [Docs](https://driz.li/docs-planetscale)          | [Website](https://planetscale.com/)                                   |
 | Neon            |   ✅    | [Docs](https://driz.li/docs-neon)                 | [Website](https://neon.tech/)                                         |
 | Vercel Postgres |   ✅    | [Docs](https://driz.li/docs-vercel-postgres)      | [Website](https://vercel.com/docs/storage/vercel-postgres/quickstart) |
+| Supabase        |   ✅    | [Docs](https://driz.li/docs-supabase)             | [Website](https://supabase.com)                                      |
 | DynamoDB        |   ⏳    |                                                   |                                                                       |
 | MS SQL          |   ⏳    |                                                   |                                                                       |
 | CockroachDB     |   ⏳    |                                                   |                                                                       |
