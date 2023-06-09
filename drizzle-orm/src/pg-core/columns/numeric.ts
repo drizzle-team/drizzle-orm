@@ -15,7 +15,7 @@ export interface PgNumericHKT extends ColumnHKTBase {
 
 export type PgNumericBuilderInitial<TName extends string> = PgNumericBuilder<{
 	name: TName;
-	data: string;
+	data: number;
 	driverParam: string;
 	notNull: false;
 	hasDefault: false;
