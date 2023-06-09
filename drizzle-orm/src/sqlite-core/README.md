@@ -224,7 +224,7 @@ The list of all column types. You can also create custom types - [see here](/doc
 
 ```typescript
 integer('...');
-integer('...', { mode: 'number' | 'timestamp' | 'bigint' })
+integer('...', { mode: 'number' | 'timestamp' | 'timestamp_ms' })
 real('...');
 text('...');
 text('role', { enum: ['admin', 'user'] });
