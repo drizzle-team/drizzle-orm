@@ -927,7 +927,7 @@ test.serial('build query insert with onConflict do update', async (t) => {
 
 	t.deepEqual(query, {
 		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id") do update set "name" = $3',
-		params: ['John', '["foo","bar"]', 'John1'],
+		params: ['John', ["foo","bar"], 'John1'],
 	});
 });
 
@@ -942,7 +942,7 @@ test.serial('build query insert with onConflict do update / multiple columns', a
 
 	t.deepEqual(query, {
 		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id","name") do update set "name" = $3',
-		params: ['John', '["foo","bar"]', 'John1'],
+		params: ['John', ["foo","bar"], 'John1'],
 	});
 });
 
@@ -957,7 +957,7 @@ test.serial('build query insert with onConflict do nothing', async (t) => {
 
 	t.deepEqual(query, {
 		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict do nothing',
-		params: ['John', '["foo","bar"]'],
+		params: ['John', ["foo","bar"]],
 	});
 });
 
@@ -972,7 +972,7 @@ test.serial('build query insert with onConflict do nothing + target', async (t) 
 
 	t.deepEqual(query, {
 		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id") do nothing',
-		params: ['John', '["foo","bar"]'],
+		params: ['John', ["foo","bar"]],
 	});
 });
 
