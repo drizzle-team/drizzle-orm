@@ -92,6 +92,16 @@ const usersMigratorTable = pgTable('users12', {
 	email: text('email').notNull(),
 });
 
+type MetaData = {
+	foo: string;
+	bar: number;
+}
+const metaDataTable = pgTable('meta_data', {
+	id: serial('id').primaryKey(),
+	data: jsonb('data').$type<MetaData>(),
+});
+
+
 interface Context {
 	docker: Docker;
 	pgContainer: Docker.Container;
@@ -223,6 +233,14 @@ test.beforeEach(async (t) => {
 				product text not null,
 				amount integer not null,
 				quantity integer not null
+			)
+		`,
+	);
+	await ctx.db.execute(
+		sql`
+			create table meta_data (
+				id serial primary key,
+				data jsonb
 			)
 		`,
 	);
@@ -360,6 +378,20 @@ test.serial('insert + select', async (t) => {
 	]);
 });
 
+test.serial('json object insert', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(metaDataTable).values({ data: {foo: 'bar', bar: 33} });
+	const result = await db.select({
+		id: metaDataTable.id,
+		data: metaDataTable.data,
+	}).from(metaDataTable).where(
+		sql.raw("data->>`foo`=`bar`")
+	).toSQL()
+	
+	t.deepEqual(result, [{ id: 1, data: {foo: 'bar', bar: 33}}]);
+});
+
 test.serial('json insert', async (t) => {
 	const { db } = t.context;
 
@@ -368,8 +400,13 @@ test.serial('json insert', async (t) => {
 		id: usersTable.id,
 		name: usersTable.name,
 		jsonb: usersTable.jsonb,
-	}).from(usersTable);
-
+	}).from(usersTable).where(
+		and(
+			eq(usersTable.name, 'John'),
+			sql.raw(`jsonb->>0 = 'foo'`),
+		)
+	);
+	
 	t.deepEqual(result, [{ id: 1, name: 'John', jsonb: ['foo', 'bar'] }]);
 });
 
