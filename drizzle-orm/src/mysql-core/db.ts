@@ -98,16 +98,50 @@ export class MySqlDatabase<
 			fields: TSelection,
 		): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
 		function select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
-			return new MySqlSelectBuilder(fields ?? undefined, self.session, self.dialect, queries);
+			return new MySqlSelectBuilder({
+				fields: fields ?? undefined,
+				session: self.session,
+				dialect: self.dialect,
+				withList: queries,
+			});
 		}
 
-		return { select };
+		function selectDistinct(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
+		function selectDistinct(
+			fields?: SelectedFields,
+		): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
+			return new MySqlSelectBuilder({
+				fields: fields ?? undefined,
+				session: self.session,
+				dialect: self.dialect,
+				withList: queries,
+				distinct: true,
+			});
+		}
+
+		return { select, selectDistinct };
 	}
 
 	select(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
 	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
 	select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
-		return new MySqlSelectBuilder(fields ?? undefined, this.session, this.dialect);
+		return new MySqlSelectBuilder({ fields: fields ?? undefined, session: this.session, dialect: this.dialect });
+	}
+
+	selectDistinct(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
+	selectDistinct<TSelection extends SelectedFields>(
+		fields: TSelection,
+	): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
+	selectDistinct(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
+		return new MySqlSelectBuilder({
+			fields: fields ?? undefined,
+			session: this.session,
+			dialect: this.dialect,
+			distinct: true,
+		});
 	}
 
 	update<TTable extends AnyMySqlTable>(table: TTable): MySqlUpdateBuilder<TTable, TQueryResult, TPreparedQueryHKT> {

@@ -49,12 +49,29 @@ export class MySqlSelectBuilder<
 > {
 	static readonly [entityKind]: string = 'MySqlSelectBuilder';
 
+	private fields: TSelection;
+	private session: MySqlSession | undefined;
+	private dialect: MySqlDialect;
+	private withList: Subquery[] = [];
+	private distinct: boolean | undefined;
+
 	constructor(
-		private fields: TSelection,
-		private session: MySqlSession | undefined,
-		private dialect: MySqlDialect,
-		private withList: Subquery[] = [],
-	) {}
+		config: {
+			fields: TSelection;
+			session: MySqlSession | undefined;
+			dialect: MySqlDialect;
+			withList?: Subquery[];
+			distinct?: boolean;
+		},
+	) {
+		this.fields = config.fields;
+		this.session = config.session;
+		this.dialect = config.dialect;
+		if (config.withList) {
+			this.withList = config.withList;
+		}
+		this.distinct = config.distinct;
+	}
 
 	from<TFrom extends AnyMySqlTable | Subquery | MySqlViewBase | SQL>(
 		source: TFrom,
@@ -86,12 +103,15 @@ export class MySqlSelectBuilder<
 		}
 
 		return new MySqlSelect(
-			source,
-			fields,
-			isPartialSelect,
-			this.session,
-			this.dialect,
-			this.withList,
+			{
+				table: source,
+				fields,
+				isPartialSelect,
+				session: this.session,
+				dialect: this.dialect,
+				withList: this.withList,
+				distinct: this.distinct,
+			},
 		) as any;
 	}
 }
@@ -119,15 +139,21 @@ export abstract class MySqlSelectQueryBuilder<
 	protected config: MySqlSelectConfig;
 	protected joinsNotNullableMap: Record<string, boolean>;
 	private tableName: string | undefined;
+	private isPartialSelect: boolean;
+	/** @internal */
+	readonly session: MySqlSession | undefined;
+	protected dialect: MySqlDialect;
 
 	constructor(
-		table: MySqlSelectConfig['table'],
-		fields: MySqlSelectConfig['fields'],
-		private isPartialSelect: boolean,
-		/** @internal */
-		readonly session: MySqlSession | undefined,
-		protected dialect: MySqlDialect,
-		withList: Subquery[],
+		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
+			table: MySqlSelectConfig['table'];
+			fields: MySqlSelectConfig['fields'];
+			isPartialSelect: boolean;
+			session: MySqlSession | undefined;
+			dialect: MySqlDialect;
+			withList: Subquery[];
+			distinct: boolean | undefined;
+		},
 	) {
 		super();
 		this.config = {
@@ -137,7 +163,11 @@ export abstract class MySqlSelectQueryBuilder<
 			joins: [],
 			orderBy: [],
 			groupBy: [],
+			distinct,
 		};
+		this.isPartialSelect = isPartialSelect;
+		this.session = session;
+		this.dialect = dialect;
 		this._ = {
 			selectedFields: fields as BuildSubquerySelection<TSelection, TNullabilityMap>,
 		} as this['_'];

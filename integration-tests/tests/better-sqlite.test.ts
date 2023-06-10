@@ -246,6 +246,33 @@ test.serial('select typed sql', (t) => {
 	t.deepEqual(users, [{ name: 'JOHN' }]);
 });
 
+test.serial('select distinct', (t) => {
+	const { db } = t.context;
+
+	const usersDistinctTable = sqliteTable('users_distinct', {
+		id: integer('id').notNull(),
+		name: text('name').notNull(),
+	});
+
+	db.run(sql`drop table if exists ${usersDistinctTable}`);
+	db.run(sql`create table ${usersDistinctTable} (id integer, name text)`);
+
+	db.insert(usersDistinctTable).values([
+		{ id: 1, name: 'John' },
+		{ id: 1, name: 'John' },
+		{ id: 2, name: 'John' },
+		{ id: 1, name: 'Jane' },
+	]).run();
+	const users = db.selectDistinct().from(usersDistinctTable).orderBy(
+		usersDistinctTable.id,
+		usersDistinctTable.name,
+	).all();
+
+	db.run(sql`drop table ${usersDistinctTable}`);
+
+	t.deepEqual(users, [{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
+});
+
 test.serial('insert returning sql', (t) => {
 	const { db } = t.context;
 

@@ -151,7 +151,8 @@ export abstract class SQLiteDialect {
 	}
 
 	buildSelectQuery(
-		{ withList, fields, fieldsFlat, where, having, table, joins, orderBy, groupBy, limit, offset }: SQLiteSelectConfig,
+		{ withList, fields, fieldsFlat, where, having, table, joins, orderBy, groupBy, limit, offset, distinct }:
+			SQLiteSelectConfig,
 	): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<AnySQLiteColumn>(fields);
 		for (const f of fieldsList) {
@@ -182,7 +183,7 @@ export abstract class SQLiteDialect {
 		const isSingleTable = joins.length === 0;
 
 		let withSql: SQL | undefined;
-		if (withList.length) {
+		if (withList?.length) {
 			const withSqlChunks = [sql`with `];
 			for (const [i, w] of withList.entries()) {
 				withSqlChunks.push(sql`${name(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
@@ -193,6 +194,8 @@ export abstract class SQLiteDialect {
 			withSqlChunks.push(sql` `);
 			withSql = sql.fromList(withSqlChunks);
 		}
+
+		const distinctSql = distinct ? sql` distinct` : undefined;
 
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
 
@@ -264,7 +267,7 @@ export abstract class SQLiteDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		return sql`${withSql}select ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}`;
+		return sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: SQLiteInsertConfig): SQL {
@@ -542,7 +545,6 @@ export abstract class SQLiteDialect {
 				groupBy,
 				orderBy: selectedRelationIndex === selectedRelations.length - 1 ? orderBy : [],
 				joins: [join],
-				withList: [],
 			});
 
 			joins.push(join);
@@ -622,7 +624,6 @@ export abstract class SQLiteDialect {
 			groupBy: [],
 			orderBy: isRoot ? orderBy : [],
 			joins: [],
-			withList: [],
 			limit,
 			offset: offset as Exclude<typeof offset, DrizzleTypeError<any>>,
 		});

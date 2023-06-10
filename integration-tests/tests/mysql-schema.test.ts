@@ -215,6 +215,33 @@ test.serial('select typed sql', async (t) => {
 	t.deepEqual(users, [{ name: 'JOHN' }]);
 });
 
+test.serial('select distinct', async (t) => {
+	const { db } = t.context;
+
+	const usersDistinctTable = mysqlTable('users_distinct', {
+		id: int('id').notNull(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${usersDistinctTable}`);
+	await db.execute(sql`create table ${usersDistinctTable} (id int, name text)`);
+
+	await db.insert(usersDistinctTable).values([
+		{ id: 1, name: 'John' },
+		{ id: 1, name: 'John' },
+		{ id: 2, name: 'John' },
+		{ id: 1, name: 'Jane' },
+	]);
+	const users = await db.selectDistinct().from(usersDistinctTable).orderBy(
+		usersDistinctTable.id,
+		usersDistinctTable.name,
+	);
+
+	await db.execute(sql`drop table ${usersDistinctTable}`);
+
+	t.deepEqual(users, [{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
+});
+
 test.serial('insert returning sql', async (t) => {
 	const { db } = t.context;
 

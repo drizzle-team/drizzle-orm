@@ -9,6 +9,7 @@ import { type SQLWrapper } from '~/sql';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
 import { type DrizzleTypeError } from '~/utils';
 import { type ColumnsSelection } from '~/view';
+import { type AnyPgColumn } from './columns';
 import { RelationalQueryBuilder } from './query-builders/query';
 import { PgRefreshMaterializedView } from './query-builders/refresh-materialized-view';
 import type { SelectedFields } from './query-builders/select.types';
@@ -82,7 +83,12 @@ export class PgDatabase<
 		function select(): PgSelectBuilder<undefined>;
 		function select<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
 		function select(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
-			return new PgSelectBuilder(fields ?? undefined, self.session, self.dialect, queries);
+			return new PgSelectBuilder({
+				fields: fields ?? undefined,
+				session: self.session,
+				dialect: self.dialect,
+				withList: queries,
+			});
 		}
 
 		return { select };
@@ -91,7 +97,39 @@ export class PgDatabase<
 	select(): PgSelectBuilder<undefined>;
 	select<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
 	select(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
-		return new PgSelectBuilder(fields ?? undefined, this.session, this.dialect);
+		return new PgSelectBuilder({
+			fields: fields ?? undefined,
+			session: this.session,
+			dialect: this.dialect,
+		});
+	}
+
+	selectDistinct(): PgSelectBuilder<undefined>;
+	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
+	selectDistinct(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
+		return new PgSelectBuilder({
+			fields: fields ?? undefined,
+			session: this.session,
+			dialect: this.dialect,
+			distinct: true,
+		});
+	}
+
+	selectDistinctOn(on: (AnyPgColumn | SQLWrapper)[]): PgSelectBuilder<undefined>;
+	selectDistinctOn<TSelection extends SelectedFields>(
+		on: (AnyPgColumn | SQLWrapper)[],
+		fields: TSelection,
+	): PgSelectBuilder<TSelection>;
+	selectDistinctOn(
+		on: (AnyPgColumn | SQLWrapper)[],
+		fields?: SelectedFields,
+	): PgSelectBuilder<SelectedFields | undefined> {
+		return new PgSelectBuilder({
+			fields: fields ?? undefined,
+			session: this.session,
+			dialect: this.dialect,
+			distinct: { on },
+		});
 	}
 
 	update<TTable extends AnyPgTable>(table: TTable): PgUpdateBuilder<TTable, TQueryResult> {

@@ -16,7 +16,7 @@ import type {
 	SelectResult,
 } from '~/query-builders/select.types';
 import { QueryPromise } from '~/query-promise';
-import { type Placeholder, type Query, SQL } from '~/sql';
+import { type Placeholder, type Query, SQL, type SQLWrapper } from '~/sql';
 import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
 import { Table } from '~/table';
 import { tracer } from '~/tracing';
@@ -48,15 +48,36 @@ export class PgSelectBuilder<
 > {
 	static readonly [entityKind]: string = 'PgSelectBuilder';
 
+	private fields: TSelection;
+	private session: PgSession | undefined;
+	private dialect: PgDialect;
+	private withList: Subquery[] = [];
+	private distinct: boolean | {
+		on: (AnyPgColumn | SQLWrapper)[];
+	} | undefined;
+
 	constructor(
-		private fields: TSelection,
-		private session: PgSession | undefined,
-		private dialect: PgDialect,
-		private withList: Subquery[] = [],
-	) {}
+		config: {
+			fields: TSelection;
+			session: PgSession | undefined;
+			dialect: PgDialect;
+			withList?: Subquery[];
+			distinct?: boolean | {
+				on: (AnyPgColumn | SQLWrapper)[];
+			};
+		},
+	) {
+		this.fields = config.fields;
+		this.session = config.session;
+		this.dialect = config.dialect;
+		if (config.withList) {
+			this.withList = config.withList;
+		}
+		this.distinct = config.distinct;
+	}
 
 	/**
-	 * Specify the table, subquery, or other target that you’re
+	 * Specify the table, subquery, or other target that you're
 	 * building a select query against.
 	 *
 	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FROM|Postgres from documentation}
@@ -89,7 +110,15 @@ export class PgSelectBuilder<
 			fields = getTableColumns<AnyPgTable>(source);
 		}
 
-		return new PgSelect(source, fields, isPartialSelect, this.session, this.dialect, this.withList) as any;
+		return new PgSelect({
+			table: source,
+			fields,
+			isPartialSelect,
+			session: this.session,
+			dialect: this.dialect,
+			withList: this.withList,
+			distinct: this.distinct,
+		}) as any;
 	}
 }
 
@@ -116,14 +145,22 @@ export abstract class PgSelectQueryBuilder<
 	protected config: PgSelectConfig;
 	protected joinsNotNullableMap: Record<string, boolean>;
 	private tableName: string | undefined;
+	private isPartialSelect: boolean;
+	protected session: PgSession | undefined;
+	protected dialect: PgDialect;
 
 	constructor(
-		table: PgSelectConfig['table'],
-		fields: PgSelectConfig['fields'],
-		private isPartialSelect: boolean,
-		protected session: PgSession | undefined,
-		protected dialect: PgDialect,
-		withList: Subquery[],
+		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
+			table: PgSelectConfig['table'];
+			fields: PgSelectConfig['fields'];
+			isPartialSelect: boolean;
+			session: PgSession | undefined;
+			dialect: PgDialect;
+			withList: Subquery[];
+			distinct: boolean | {
+				on: (AnyPgColumn | SQLWrapper)[];
+			} | undefined;
+		},
 	) {
 		super();
 		this.config = {
@@ -134,7 +171,11 @@ export abstract class PgSelectQueryBuilder<
 			orderBy: [],
 			groupBy: [],
 			lockingClauses: [],
+			distinct,
 		};
+		this.isPartialSelect = isPartialSelect;
+		this.session = session;
+		this.dialect = dialect;
 		this._ = {
 			selectedFields: fields as BuildSubquerySelection<TSelection, TNullabilityMap>,
 		} as this['_'];

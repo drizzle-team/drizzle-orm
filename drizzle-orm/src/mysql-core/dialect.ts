@@ -196,8 +196,21 @@ export class MySqlDialect {
 	}
 
 	buildSelectQuery(
-		{ withList, fields, fieldsFlat, where, having, table, joins, orderBy, groupBy, limit, offset, lockingClause }:
-			MySqlSelectConfig,
+		{
+			withList,
+			fields,
+			fieldsFlat,
+			where,
+			having,
+			table,
+			joins,
+			orderBy,
+			groupBy,
+			limit,
+			offset,
+			lockingClause,
+			distinct,
+		}: MySqlSelectConfig,
 	): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<AnyMySqlColumn>(fields);
 		for (const f of fieldsList) {
@@ -228,7 +241,7 @@ export class MySqlDialect {
 		const isSingleTable = joins.length === 0;
 
 		let withSql: SQL | undefined;
-		if (withList.length) {
+		if (withList?.length) {
 			const withSqlChunks = [sql`with `];
 			for (const [i, w] of withList.entries()) {
 				withSqlChunks.push(sql`${sql.identifier(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
@@ -239,6 +252,8 @@ export class MySqlDialect {
 			withSqlChunks.push(sql` `);
 			withSql = sql.fromList(withSqlChunks);
 		}
+
+		const distinctSql = distinct ? sql` distinct` : undefined;
 
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
 
@@ -331,7 +346,7 @@ export class MySqlDialect {
 			}
 		}
 
-		return sql`${withSql}select ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+		return sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
 	}
 
 	buildInsertQuery({ table, values, ignore, onConflict }: MySqlInsertConfig): SQL {
@@ -605,7 +620,6 @@ export class MySqlDialect {
 				groupBy,
 				orderBy: selectedRelationIndex === selectedRelations.length - 1 ? orderBy : [],
 				joins: [join],
-				withList: [],
 			});
 
 			joins.push(join);
@@ -685,7 +699,6 @@ export class MySqlDialect {
 			groupBy: [],
 			orderBy: isRoot ? orderBy : [],
 			joins: [],
-			withList: [],
 			limit,
 			offset: offset as Exclude<typeof offset, DrizzleTypeError<any>>,
 		});

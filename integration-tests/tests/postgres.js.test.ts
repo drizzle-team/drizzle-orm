@@ -263,6 +263,47 @@ test.serial('select typed sql', async (t) => {
 	t.deepEqual(users, [{ name: 'JOHN' }]);
 });
 
+test.serial('select distinct', async (t) => {
+	const { db } = t.context;
+
+	const usersDistinctTable = pgTable('users_distinct', {
+		id: integer('id').notNull(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${usersDistinctTable}`);
+	await db.execute(sql`create table ${usersDistinctTable} (id integer, name text)`);
+
+	await db.insert(usersDistinctTable).values([
+		{ id: 1, name: 'John' },
+		{ id: 1, name: 'John' },
+		{ id: 2, name: 'John' },
+		{ id: 1, name: 'Jane' },
+	]);
+	const users1 = await db.selectDistinct().from(usersDistinctTable).orderBy(
+		usersDistinctTable.id,
+		usersDistinctTable.name,
+	);
+	const users2 = await db.selectDistinctOn([usersDistinctTable.id]).from(usersDistinctTable).orderBy(
+		usersDistinctTable.id,
+	);
+	const users3 = await db.selectDistinctOn([usersDistinctTable.name], { name: usersDistinctTable.name }).from(
+		usersDistinctTable,
+	).orderBy(usersDistinctTable.name);
+
+	await db.execute(sql`drop table ${usersDistinctTable}`);
+
+	t.deepEqual(users1, [{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
+
+	t.deepEqual(users2.length, 2);
+	t.deepEqual(users2[0]?.id, 1);
+	t.deepEqual(users2[1]?.id, 2);
+
+	t.deepEqual(users3.length, 2);
+	t.deepEqual(users3[0]?.name, 'Jane');
+	t.deepEqual(users3[1]?.name, 'John');
+});
+
 test.serial('insert returning sql', async (t) => {
 	const { db } = t.context;
 

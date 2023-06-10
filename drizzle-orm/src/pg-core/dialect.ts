@@ -195,8 +195,21 @@ export class PgDialect {
 	}
 
 	buildSelectQuery(
-		{ withList, fields, fieldsFlat, where, having, table, joins, orderBy, groupBy, limit, offset, lockingClauses }:
-			PgSelectConfig,
+		{
+			withList,
+			fields,
+			fieldsFlat,
+			where,
+			having,
+			table,
+			joins,
+			orderBy,
+			groupBy,
+			limit,
+			offset,
+			lockingClauses,
+			distinct,
+		}: PgSelectConfig,
 	): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<AnyPgColumn>(fields);
 		for (const f of fieldsList) {
@@ -227,7 +240,7 @@ export class PgDialect {
 		const isSingleTable = joins.length === 0;
 
 		let withSql: SQL | undefined;
-		if (withList.length) {
+		if (withList?.length) {
 			const withSqlChunks = [sql`with `];
 			for (const [i, w] of withList.entries()) {
 				withSqlChunks.push(sql`${name(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
@@ -237,6 +250,11 @@ export class PgDialect {
 			}
 			withSqlChunks.push(sql` `);
 			withSql = sql.fromList(withSqlChunks);
+		}
+
+		let distinctSql: SQL | undefined;
+		if (distinct) {
+			distinctSql = distinct === true ? sql` distinct` : sql` distinct on (${sql.join(distinct.on, ', ')})`;
 		}
 
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
@@ -268,7 +286,7 @@ export class PgDialect {
 				const alias = tableName === origTableName ? undefined : joinMeta.alias;
 				joinsArray.push(
 					sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${name(tableSchema)}.` : undefined}${
-						name(origTableName)
+						sql.identifier(origTableName)
 					}${alias && sql` ${name(alias)}`} on ${joinMeta.on}`,
 				);
 			} else {
@@ -327,7 +345,7 @@ export class PgDialect {
 			lockingClausesSql.append(clauseSql);
 		}
 
-		return sql`${withSql}select ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+		return sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {
@@ -675,7 +693,6 @@ export class PgDialect {
 				],
 				orderBy: selectedRelationIndex === selectedRelations.length - 1 ? orderBy : [],
 				joins: [join],
-				withList: [],
 				lockingClauses: [],
 			});
 
@@ -743,7 +760,6 @@ export class PgDialect {
 			orderBy: orderBy ?? [],
 			joins: [],
 			lockingClauses: [],
-			withList: [],
 			limit,
 			offset: offset as Exclude<typeof offset, DrizzleTypeError<any>>,
 		});

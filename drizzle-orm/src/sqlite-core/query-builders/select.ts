@@ -48,12 +48,27 @@ export class SQLiteSelectBuilder<
 > {
 	static readonly [entityKind]: string = 'SQLiteSelectBuilder';
 
+	private fields: TSelection;
+	private session: SQLiteSession<any, any, any, any> | undefined;
+	private dialect: SQLiteDialect;
+	private withList: Subquery[] | undefined;
+	private distinct: boolean | undefined;
+
 	constructor(
-		private fields: TSelection,
-		private session: SQLiteSession<any, any, any, any> | undefined,
-		private dialect: SQLiteDialect,
-		private withList: Subquery[] = [],
-	) {}
+		config: {
+			fields: TSelection;
+			session: SQLiteSession<any, any, any, any> | undefined;
+			dialect: SQLiteDialect;
+			withList?: Subquery[];
+			distinct?: boolean;
+		},
+	) {
+		this.fields = config.fields;
+		this.session = config.session;
+		this.dialect = config.dialect;
+		this.withList = config.withList;
+		this.distinct = config.distinct;
+	}
 
 	from<TFrom extends AnySQLiteTable | Subquery | SQLiteViewBase | SQL>(
 		source: TFrom,
@@ -85,14 +100,15 @@ export class SQLiteSelectBuilder<
 			fields = getTableColumns<AnySQLiteTable>(source);
 		}
 
-		return new SQLiteSelect(
-			source,
+		return new SQLiteSelect({
+			table: source,
 			fields,
 			isPartialSelect,
-			this.session,
-			this.dialect,
-			this.withList,
-		) as any;
+			session: this.session,
+			dialect: this.dialect,
+			withList: this.withList,
+			distinct: this.distinct,
+		}) as any;
 	}
 }
 
@@ -121,14 +137,20 @@ export abstract class SQLiteSelectQueryBuilder<
 	protected config: SQLiteSelectConfig;
 	protected joinsNotNullableMap: Record<string, boolean>;
 	private tableName: string | undefined;
+	private isPartialSelect: boolean;
+	protected session: SQLiteSession<any, any, any, any> | undefined;
+	protected dialect: SQLiteDialect;
 
 	constructor(
-		table: SQLiteSelectConfig['table'],
-		fields: SQLiteSelectConfig['fields'],
-		private isPartialSelect: boolean,
-		protected session: SQLiteSession<any, any, any, any> | undefined,
-		protected dialect: SQLiteDialect,
-		withList: Subquery[],
+		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
+			table: SQLiteSelectConfig['table'];
+			fields: SQLiteSelectConfig['fields'];
+			isPartialSelect: boolean;
+			session: SQLiteSession<any, any, any, any> | undefined;
+			dialect: SQLiteDialect;
+			withList: Subquery[] | undefined;
+			distinct: boolean | undefined;
+		},
 	) {
 		super();
 		this.config = {
@@ -138,7 +160,11 @@ export abstract class SQLiteSelectQueryBuilder<
 			joins: [],
 			orderBy: [],
 			groupBy: [],
+			distinct,
 		};
+		this.isPartialSelect = isPartialSelect;
+		this.session = session;
+		this.dialect = dialect;
 		this._ = {
 			selectedFields: fields as BuildSubquerySelection<TSelection, TNullabilityMap>,
 		} as this['_'];

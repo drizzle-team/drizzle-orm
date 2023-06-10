@@ -92,10 +92,31 @@ export class BaseSQLiteDatabase<
 			fields: TSelection,
 		): SQLiteSelectBuilder<TSelection, TResultKind, TRunResult>;
 		function select(fields?: SelectedFields): SQLiteSelectBuilder<SelectedFields | undefined, TResultKind, TRunResult> {
-			return new SQLiteSelectBuilder(fields ?? undefined, self.session, self.dialect, queries);
+			return new SQLiteSelectBuilder({
+				fields: fields ?? undefined,
+				session: self.session,
+				dialect: self.dialect,
+				withList: queries,
+			});
 		}
 
-		return { select };
+		function selectDistinct(): SQLiteSelectBuilder<undefined, TResultKind, TRunResult>;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): SQLiteSelectBuilder<TSelection, TResultKind, TRunResult>;
+		function selectDistinct(
+			fields?: SelectedFields,
+		): SQLiteSelectBuilder<SelectedFields | undefined, TResultKind, TRunResult> {
+			return new SQLiteSelectBuilder({
+				fields: fields ?? undefined,
+				session: self.session,
+				dialect: self.dialect,
+				withList: queries,
+				distinct: true,
+			});
+		}
+
+		return { select, selectDistinct };
 	}
 
 	select(): SQLiteSelectBuilder<undefined, TResultKind, TRunResult>;
@@ -103,7 +124,20 @@ export class BaseSQLiteDatabase<
 		fields: TSelection,
 	): SQLiteSelectBuilder<TSelection, TResultKind, TRunResult>;
 	select(fields?: SelectedFields): SQLiteSelectBuilder<SelectedFields | undefined, TResultKind, TRunResult> {
-		return new SQLiteSelectBuilder(fields ?? undefined, this.session, this.dialect);
+		return new SQLiteSelectBuilder({ fields: fields ?? undefined, session: this.session, dialect: this.dialect });
+	}
+
+	selectDistinct(): SQLiteSelectBuilder<undefined, TResultKind, TRunResult>;
+	selectDistinct<TSelection extends SelectedFields>(
+		fields: TSelection,
+	): SQLiteSelectBuilder<TSelection, TResultKind, TRunResult>;
+	selectDistinct(fields?: SelectedFields): SQLiteSelectBuilder<SelectedFields | undefined, TResultKind, TRunResult> {
+		return new SQLiteSelectBuilder({
+			fields: fields ?? undefined,
+			session: this.session,
+			dialect: this.dialect,
+			distinct: true,
+		});
 	}
 
 	update<TTable extends AnySQLiteTable>(table: TTable): SQLiteUpdateBuilder<TTable, TResultKind, TRunResult> {

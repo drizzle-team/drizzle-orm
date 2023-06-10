@@ -39,10 +39,31 @@ export class QueryBuilder {
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
 		): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
-			return new MySqlSelectBuilder(fields ?? undefined, undefined, self.getDialect(), queries);
+			return new MySqlSelectBuilder({
+				fields: fields ?? undefined,
+				session: undefined,
+				dialect: self.getDialect(),
+				withList: queries,
+			});
 		}
 
-		return { select };
+		function selectDistinct(): MySqlSelectBuilder<undefined, never, 'qb'>;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): MySqlSelectBuilder<TSelection, never, 'qb'>;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields?: TSelection,
+		): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
+			return new MySqlSelectBuilder({
+				fields: fields ?? undefined,
+				session: undefined,
+				dialect: self.getDialect(),
+				withList: queries,
+				distinct: true,
+			});
+		}
+
+		return { select, selectDistinct };
 	}
 
 	select(): MySqlSelectBuilder<undefined, never, 'qb'>;
@@ -50,7 +71,20 @@ export class QueryBuilder {
 	select<TSelection extends SelectedFields>(
 		fields?: TSelection,
 	): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
-		return new MySqlSelectBuilder(fields ?? undefined, undefined, this.getDialect());
+		return new MySqlSelectBuilder({ fields: fields ?? undefined, session: undefined, dialect: this.getDialect() });
+	}
+
+	selectDistinct(): MySqlSelectBuilder<undefined, never, 'qb'>;
+	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, never, 'qb'>;
+	selectDistinct<TSelection extends SelectedFields>(
+		fields?: TSelection,
+	): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
+		return new MySqlSelectBuilder({
+			fields: fields ?? undefined,
+			session: undefined,
+			dialect: this.getDialect(),
+			distinct: true,
+		});
 	}
 
 	// Lazy load dialect to avoid circular dependency
