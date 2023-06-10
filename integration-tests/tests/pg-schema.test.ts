@@ -3,7 +3,7 @@ import 'dotenv/config';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import Docker from 'dockerode';
-import { asc, eq, Name, placeholder, sql } from 'drizzle-orm';
+import { asc, eq, Name, placeholder, sql, and } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import {
@@ -305,8 +305,13 @@ test.serial('json insert', async (t) => {
 		id: usersTable.id,
 		name: usersTable.name,
 		jsonb: usersTable.jsonb,
-	}).from(usersTable);
-
+	}).from(usersTable).where(
+		and(
+			eq(usersTable.name, 'John'),
+			sql.raw(`jsonb->>0 = 'foo'`),
+		)
+	);
+	
 	t.deepEqual(result, [{ id: 1, name: 'John', jsonb: ['foo', 'bar'] }]);
 });
 
