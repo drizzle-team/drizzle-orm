@@ -2,7 +2,7 @@ import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import type { AnyPgTable } from '~/pg-core/table';
 import type { Assume } from '~/utils';
-import { PgColumn, PgColumnBuilder } from './common';
+import { PgColumn, PgColumnBuilder } from '~/pg-core/columns';
 
 export interface PgJsonbBuilderHKT extends ColumnBuilderHKTBase {
 	_type: PgJsonbBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
@@ -39,10 +39,6 @@ export class PgJsonb<T extends ColumnBaseConfig> extends PgColumn<PgJsonbHKT, T>
 
 	getSQLType(): string {
 		return 'jsonb';
-	}
-
-	override mapToDriverValue(value: T['data']): string {
-		return JSON.stringify(value);
 	}
 
 	override mapFromDriverValue(value: T['data'] | string): T['data'] {
