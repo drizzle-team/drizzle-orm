@@ -44,7 +44,7 @@ const testTable = mysqlTable('test', {
 	bigintNumber: bigint('bigintNumber', { mode: 'number' }).notNull(),
 	binary: binary('binary').notNull(),
 	boolean: boolean('boolean').notNull(),
-	char: char('char').notNull(),
+	char: char('char', { length: 4 }).notNull(),
 	charEnum: char('char', { enum: ['a', 'b', 'c'] }).notNull(),
 	customInt: customInt('customInt').notNull(),
 	date: date('date').notNull(),
@@ -80,6 +80,65 @@ const testTable = mysqlTable('test', {
 	autoIncrement: int('autoIncrement').notNull().autoincrement(),
 });
 
+const testTableRow = {
+	bigint: BigInt(1),
+	bigintNumber: 1,
+	binary: 'binary',
+	boolean: true,
+	char: 'char',
+	charEnum: 'a',
+	customInt: { data: 1 },
+	date: new Date(),
+	dateString: new Date().toISOString(),
+	datetime: new Date(),
+	datetimeString: new Date().toISOString(),
+	decimal: '1.1',
+	double: 1.1,
+	enum: 'a',
+	float: 1.1,
+	int: 1,
+	json: { data: 1 },
+	mediumint: 1,
+	real: 1.1,
+	serial: 1,
+	smallint: 1,
+	text: 'text',
+	textEnum: 'a',
+	tinytext: 'tinytext',
+	tinytextEnum: 'a',
+	mediumtext: 'mediumtext',
+	mediumtextEnum: 'a',
+	longtext: 'longtext',
+	longtextEnum: 'a',
+	time: '00:00:00',
+	timestamp: new Date(),
+	timestampString: new Date().toISOString(),
+	tinyint: 1,
+	varbinary: 'A'.repeat(200),
+	varchar: 'A'.repeat(200),
+	varcharEnum: 'a',
+	year: 2021,
+	autoIncrement: 1,
+};
+
+test('insert valid row', (t) => {
+	const schema = createInsertSchema(testTable);
+
+	t.is(schema.safeParse(testTableRow).success, true);
+});
+
+test('insert invalid varchar length', (t) => {
+	const schema = createInsertSchema(testTable);
+
+	t.is(schema.safeParse({ ...testTableRow, varchar: 'A'.repeat(201) }).success, false);
+});
+
+test('insert invalid char length', (t) => {
+	const schema = createInsertSchema(testTable);
+
+	t.is(schema.safeParse({ ...testTableRow, char: 'abc' }).success, false);
+});
+
 test('insert schema', (t) => {
 	const actual = createInsertSchema(testTable);
 
@@ -88,7 +147,7 @@ test('insert schema', (t) => {
 		bigintNumber: z.number(),
 		binary: z.string(),
 		boolean: z.boolean(),
-		char: z.string(),
+		char: z.string().length(4),
 		charEnum: z.enum(['a', 'b', 'c']),
 		customInt: z.any(),
 		date: z.date(),
@@ -117,8 +176,8 @@ test('insert schema', (t) => {
 		timestamp: z.date(),
 		timestampString: z.string(),
 		tinyint: z.number(),
-		varbinary: z.string().length(200),
-		varchar: z.string().length(200),
+		varbinary: z.string().max(200),
+		varchar: z.string().max(200),
 		varcharEnum: z.enum(['a', 'b', 'c']),
 		year: z.number(),
 		autoIncrement: z.number().optional(),
@@ -135,7 +194,7 @@ test('select schema', (t) => {
 		bigintNumber: z.number(),
 		binary: z.string(),
 		boolean: z.boolean(),
-		char: z.string(),
+		char: z.string().length(4),
 		charEnum: z.enum(['a', 'b', 'c']),
 		customInt: z.any(),
 		date: z.date(),
@@ -164,8 +223,8 @@ test('select schema', (t) => {
 		timestamp: z.date(),
 		timestampString: z.string(),
 		tinyint: z.number(),
-		varbinary: z.string().length(200),
-		varchar: z.string().length(200),
+		varbinary: z.string().max(200),
+		varchar: z.string().max(200),
 		varcharEnum: z.enum(['a', 'b', 'c']),
 		year: z.number(),
 		autoIncrement: z.number(),
@@ -184,7 +243,7 @@ test('select schema w/ refine', (t) => {
 		bigintNumber: z.number(),
 		binary: z.string(),
 		boolean: z.boolean(),
-		char: z.string(),
+		char: z.string().length(5),
 		charEnum: z.enum(['a', 'b', 'c']),
 		customInt: z.any(),
 		date: z.date(),
@@ -213,8 +272,8 @@ test('select schema w/ refine', (t) => {
 		timestamp: z.date(),
 		timestampString: z.string(),
 		tinyint: z.number(),
-		varbinary: z.string().length(200),
-		varchar: z.string().length(200),
+		varbinary: z.string().max(200),
+		varchar: z.string().max(200),
 		varcharEnum: z.enum(['a', 'b', 'c']),
 		year: z.number(),
 		autoIncrement: z.number(),

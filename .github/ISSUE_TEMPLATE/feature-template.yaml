@@ -6,7 +6,7 @@ labels: ["enhancement"]
 body:
   - type: textarea
     attributes:
-      label: Describe want to want
-      description: What the problrem is? What to want to change or add?
+      label: Describe what you want
+      description: What is the problem? What do you want to change or add?
     validations:
       required: true
