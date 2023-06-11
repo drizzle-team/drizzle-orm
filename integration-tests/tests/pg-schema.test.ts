@@ -317,8 +317,14 @@ test.serial('insert + select', async (t) => {
 test.serial('json object insert', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(metaDataTable).values({ data: {foo: 'bar', bar: 33} });
-	const {rows: result} = await db.execute(sql`select "id", "data" from "meta_data" where data->>'foo'='bar'`);
+	const bar = 33
+	const foo = 'bar';
+
+	await db.insert(metaDataTable).values({ data: {foo, bar} });
+	const result = await db.select({
+		id: metaDataTable.id,
+		data: metaDataTable.data,
+	}).from(metaDataTable).where(and(sql`data->'foo' = ${foo}`, sql`data->'bar' = ${bar}`));
 	
 	t.deepEqual(result, [{ id: 1, data: {foo: 'bar', bar: 33}}]);
 });
