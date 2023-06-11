@@ -10,7 +10,7 @@ import {
 import { type DrizzleConfig } from '~/utils';
 import type { PostgresJsQueryResultHKT } from './session';
 import { PostgresJsSession } from './session';
-import { PgJSDialect } from './dialect';
+import { PgDialect } from '~/pg-core/dialect';
 
 export type PostgresJsDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
@@ -20,7 +20,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	client: Sql,
 	config: DrizzleConfig<TSchema> = {},
 ): PostgresJsDatabase<TSchema> {
-	const dialect = new PgJSDialect();
+	const dialect = new PgDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
