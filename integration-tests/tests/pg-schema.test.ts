@@ -131,8 +131,8 @@ test.before(async (t) => {
 
 test.after.always(async (t) => {
 	const ctx = t.context;
-	// await ctx.client?.end().catch(console.error);
-	// await ctx.pgContainer?.stop().catch(console.error);
+	await ctx.client?.end().catch(console.error);
+	await ctx.pgContainer?.stop().catch(console.error);
 });
 
 test.beforeEach(async (t) => {

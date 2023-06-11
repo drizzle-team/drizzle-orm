@@ -37,6 +37,7 @@ import {
 	timestamp,
 	uuid as pgUuid,
 	varchar,
+	//customType,
 } from 'drizzle-orm/pg-core';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { drizzle } from 'drizzle-orm/postgres-js';
@@ -47,6 +48,25 @@ import { v4 as uuid } from 'uuid';
 import { type Equal, Expect } from './utils';
 
 const QUERY_LOGGING = false;
+
+// const customJsonb = customType<{ data: any }>({
+// 	dataType() {
+// 		return 'jsonb';
+// 	},
+// 	toDriver(val) {
+// 		val as any;
+// 	},
+// 	fromDriver(value) {
+// 		if (typeof value === 'string') {
+// 			try {
+// 				return JSON.parse(value) as any;
+// 			} catch { 
+// 				return value as any;
+// 			}
+// 		}
+// 		return value as any;
+// 	},
+// });
 
 const usersTable = pgTable('users', {
 	id: serial('id').primaryKey(),
@@ -96,6 +116,7 @@ type MetaData = {
 	foo: string;
 	bar: number;
 }
+
 const metaDataTable = pgTable('meta_data', {
 	id: serial('id').primaryKey(),
 	data: jsonb('data').$type<MetaData>(),
@@ -381,9 +402,9 @@ test.serial('json object insert', async (t) => {
 	const { db } = t.context;
 
 	await db.insert(metaDataTable).values({ data: {foo: 'bar', bar: 33} });
-	// const {rows: result} = await db.execute(sql`select "id", "data" from "meta_data" where data->>'foo'='bar'`);
+	const result = await db.execute(sql`select "id", "data" from "meta_data" where data->>'foo'='bar'`);
 	
-	// t.deepEqual(result, [{ id: 1, data: {foo: 'bar', bar: 33}}]);
+	t.deepEqual([result.at(0)], [{ id: 1, data: {foo: 'bar', bar: 33}}]);
 });
 
 
