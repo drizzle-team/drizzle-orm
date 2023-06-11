@@ -55,6 +55,15 @@ const publicUsersTable = pgTable('users', {
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+type MetaData = {
+	foo: string;
+	bar: number;
+}
+const metaDataTable = pgTable('meta_data', {
+	id: serial('id').primaryKey(),
+	data: jsonb('data').$type<MetaData>(),
+});
+
 interface Context {
 	docker: Docker;
 	pgContainer: Docker.Container;
@@ -122,8 +131,8 @@ test.before(async (t) => {
 
 test.after.always(async (t) => {
 	const ctx = t.context;
-	await ctx.client?.end().catch(console.error);
-	await ctx.pgContainer?.stop().catch(console.error);
+	// await ctx.client?.end().catch(console.error);
+	// await ctx.pgContainer?.stop().catch(console.error);
 });
 
 test.beforeEach(async (t) => {
@@ -160,6 +169,14 @@ test.beforeEach(async (t) => {
 				id serial primary key,
 				name text not null,
 				city_id integer references "mySchema".cities(id)
+			)
+		`,
+	);
+	await ctx.db.execute(
+		sql`
+			create table meta_data (
+				id serial primary key,
+				data jsonb
 			)
 		`,
 	);
@@ -295,6 +312,15 @@ test.serial('insert + select', async (t) => {
 		{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result2[0]!.createdAt },
 		{ id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
 	]);
+});
+
+test.serial('json object insert', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(metaDataTable).values({ data: {foo: 'bar', bar: 33} });
+	const {rows: result} = await db.execute(sql`select "id", "data" from "meta_data" where data->>'foo'='bar'`);
+	
+	t.deepEqual(result, [{ id: 1, data: {foo: 'bar', bar: 33}}]);
 });
 
 test.serial('json insert', async (t) => {
