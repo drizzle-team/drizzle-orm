@@ -50,6 +50,15 @@ const customBoolean = customType<{ data: boolean }>({
 	},
 });
 
+const customTinyint = customType<{ data: boolean; driverData: 0 | 1 }>({
+	dataType() {
+		return 'tinyint(1)';
+	},
+	fromDriver(value) {
+		return !!value;
+	},
+});
+
 const customJson = <TData>(name: string) =>
 	customType<{ data: TData; driverData: string }>({
 		dataType() {
@@ -92,6 +101,7 @@ const usersTable = mysqlTable('userstest', {
 	id: customSerial('id').primaryKey(),
 	name: customText('name').notNull(),
 	verified: customBoolean('verified').notNull().default(false),
+	admin: customTinyint('admin').notNull().default(0),
 	jsonb: customJson<string[]>('jsonb'),
 	createdAt: customTimestamp('created_at', { fsp: 2 }).notNull().default(sql`now()`),
 });
@@ -194,6 +204,7 @@ test.beforeEach(async (t) => {
 				\`id\` serial primary key,
 				\`name\` text not null,
 				\`verified\` boolean not null default false,
+				\`admin\` tinyint(1) not null default 0,
 				\`jsonb\` json,
 				\`created_at\` timestamp not null default now()
 			)
@@ -233,7 +244,7 @@ test.serial('select all fields', async (t) => {
 	t.assert(result[0]!.createdAt instanceof Date);
 	// not timezone based timestamp, thats why it should not work here
 	// t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 2000);
-	t.deepEqual(result, [{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+	t.deepEqual(result, [{ id: 1, name: 'John', verified: false, admin: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 });
 
 test.serial('select sql', async (t) => {
@@ -297,7 +308,7 @@ test.serial('update with returning all fields', async (t) => {
 	t.assert(users[0]!.createdAt instanceof Date);
 	// not timezone based timestamp, thats why it should not work here
 	// t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 2000);
-	t.deepEqual(users, [{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
+	t.deepEqual(users, [{ id: 1, name: 'Jane', verified: false, admin: false, jsonb: null, createdAt: users[0]!.createdAt }]);
 });
 
 test.serial('update with returning partial', async (t) => {
@@ -338,13 +349,13 @@ test.serial('insert + select', async (t) => {
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const result = await db.select().from(usersTable);
-	t.deepEqual(result, [{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+	t.deepEqual(result, [{ id: 1, name: 'John', verified: false, admin: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 
 	await db.insert(usersTable).values({ name: 'Jane' });
 	const result2 = await db.select().from(usersTable);
 	t.deepEqual(result2, [
-		{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result2[0]!.createdAt },
-		{ id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
+		{ id: 1, name: 'John', verified: false, admin: false, jsonb: null, createdAt: result2[0]!.createdAt },
+		{ id: 2, name: 'Jane', verified: false, admin: false, jsonb: null, createdAt: result2[1]!.createdAt },
 	]);
 });
 
@@ -364,10 +375,10 @@ test.serial('json insert', async (t) => {
 test.serial('insert with overridden default values', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John', verified: true });
+	await db.insert(usersTable).values({ name: 'John', verified: true, admin: true });
 	const result = await db.select().from(usersTable);
 
-	t.deepEqual(result, [{ id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt }]);
+	t.deepEqual(result, [{ id: 1, name: 'John', verified: true, admin: true, jsonb: null, createdAt: result[0]!.createdAt }]);
 });
 
 test.serial('insert many', async (t) => {
@@ -377,20 +388,21 @@ test.serial('insert many', async (t) => {
 		{ name: 'John' },
 		{ name: 'Bruce', jsonb: ['foo', 'bar'] },
 		{ name: 'Jane' },
-		{ name: 'Austin', verified: true },
+		{ name: 'Austin', verified: true, admin: true },
 	]);
 	const result = await db.select({
 		id: usersTable.id,
 		name: usersTable.name,
 		jsonb: usersTable.jsonb,
 		verified: usersTable.verified,
+		admin: usersTable.admin,
 	}).from(usersTable);
 
 	t.deepEqual(result, [
-		{ id: 1, name: 'John', jsonb: null, verified: false },
-		{ id: 2, name: 'Bruce', jsonb: ['foo', 'bar'], verified: false },
-		{ id: 3, name: 'Jane', jsonb: null, verified: false },
-		{ id: 4, name: 'Austin', jsonb: null, verified: true },
+		{ id: 1, name: 'John', jsonb: null, verified: false, admin: false },
+		{ id: 2, name: 'Bruce', jsonb: ['foo', 'bar'], verified: false, admin: false },
+		{ id: 3, name: 'Jane', jsonb: null, verified: false, admin: false },
+		{ id: 4, name: 'Austin', jsonb: null, verified: true, admin: true },
 	]);
 });
 
@@ -402,9 +414,10 @@ test.serial('insert many with returning', async (t) => {
 		{ name: 'Bruce', jsonb: ['foo', 'bar'] },
 		{ name: 'Jane' },
 		{ name: 'Austin', verified: true },
+		{ name: 'Tony', admin: true },
 	]);
 
-	t.is(result[0].affectedRows, 4);
+	t.is(result[0].affectedRows, 5);
 });
 
 test.serial('select with group by as field', async (t) => {

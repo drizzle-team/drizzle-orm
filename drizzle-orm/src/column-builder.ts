@@ -97,7 +97,7 @@ export abstract class ColumnBuilder<
 	}
 
 	default(
-		value: T['data'] | SQL,
+		value: T['driverParam'] | T['data'] | SQL,
 	): ColumnBuilderKind<THKT, UpdateCBConfig<T, { hasDefault: true }>> {
 		this.config.default = value;
 		this.config.hasDefault = true;
