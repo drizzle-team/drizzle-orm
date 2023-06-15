@@ -5,9 +5,15 @@ import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialec
 import { BaseSQLiteDatabase } from './db';
 import type { SelectedFieldsOrdered } from './query-builders/select.types';
 
+export abstract class Batch<TDatabase, TStatement> {
+	abstract registerQuery(client: TDatabase, preparedStatement: TStatement): Promise<unknown>;
+	abstract run(): Promise<void>;
+}
+
 export interface PreparedQueryConfig {
 	type: 'sync' | 'async';
 	run: unknown;
+	runBatch: unknown[];
 	all: unknown[];
 	get: unknown;
 	values: unknown[][];
@@ -18,6 +24,10 @@ export abstract class PreparedQuery<T extends PreparedQueryConfig> {
 	joinsNotNullableMap?: Record<string, boolean>;
 
 	abstract run(placeholderValues?: Record<string, unknown>): Result<T['type'], T['run']>;
+
+	runInBatch(_batch: Batch<unknown, unknown>, _placeholderValues?: Record<string, unknown>): Result<T['type'], T['runBatch']> {
+		throw new Error('`runInBatch()` not supported');
+	}
 
 	abstract all(placeholderValues?: Record<string, unknown>): Result<T['type'], T['all']>;
 

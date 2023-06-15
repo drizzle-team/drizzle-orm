@@ -370,6 +370,7 @@ export class SQLiteSelect<
 		{
 			type: TResultType;
 			run: TRunResult;
+			runBatch: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
 			all: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
 			get: SelectResult<TSelection, TSelectMode, TNullabilityMap>;
 			values: any[][];
@@ -389,6 +390,10 @@ export class SQLiteSelect<
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
 		return this.prepare(true).run(placeholderValues);
+	};
+
+	runInBatch: ReturnType<this['prepare']>['runInBatch'] = (placeholderValues) => {
+		return this.prepare(true).runInBatch(placeholderValues);
 	};
 
 	all: ReturnType<this['prepare']>['all'] = (placeholderValues) => {

@@ -82,7 +82,7 @@ export class SQLiteBunTransaction<
 }
 
 export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
-	{ type: 'sync'; run: void; all: T['all']; get: T['get']; values: T['values'] }
+	{ type: 'sync'; run: void; runBatch: T['runBatch']; all: T['all']; get: T['get']; values: T['values'] }
 > {
 	constructor(
 		private stmt: Statement,

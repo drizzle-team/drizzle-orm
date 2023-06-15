@@ -149,6 +149,7 @@ export class SQLiteInsert<
 		{
 			type: TResultType;
 			run: TRunResult;
+			runBatch: TReturning[];
 			all: TReturning extends undefined ? never : TReturning[];
 			get: TReturning extends undefined ? never : TReturning;
 			values: TReturning extends undefined ? never : any[][];
@@ -162,6 +163,10 @@ export class SQLiteInsert<
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
 		return this.prepare(true).run(placeholderValues);
+	};
+
+	runInBatch: ReturnType<this['prepare']>['runInBatch'] = (placeholderValues) => {
+		return this.prepare(true).runInBatch(placeholderValues);
 	};
 
 	all: ReturnType<this['prepare']>['all'] = (placeholderValues) => {

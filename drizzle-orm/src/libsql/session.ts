@@ -91,7 +91,7 @@ export class LibSQLTransaction<
 }
 
 export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
-	{ type: 'async'; run: ResultSet; all: T['all']; get: T['get']; values: T['values'] }
+	{ type: 'async'; run: ResultSet; runBatch: T['runBatch']; all: T['all']; get: T['get']; values: T['values'] }
 > {
 	constructor(
 		private client: Client,

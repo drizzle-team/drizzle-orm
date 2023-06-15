@@ -78,7 +78,7 @@ export class SQLiteProxyTransaction<
 }
 
 export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
-	{ type: 'async'; run: SqliteRemoteResult; all: T['all']; get: T['get']; values: T['values'] }
+	{ type: 'async'; run: SqliteRemoteResult; runBatch: T['runBatch'], all: T['all']; get: T['get']; values: T['values'] }
 > {
 	constructor(
 		private client: RemoteCallback,
