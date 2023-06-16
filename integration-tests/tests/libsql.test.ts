@@ -42,7 +42,7 @@ const test = anyTest as TestFn<Context>;
 const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
-	verified: integer('verified').notNull().default(0),
+	verified: integer('verified', { mode: 'boolean' }).notNull().default(false),
 	json: blob('json', { mode: 'json' }).$type<string[]>(),
 	createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`strftime('%s', 'now')`),
 });
@@ -239,7 +239,7 @@ test.serial('select all fields', async (t) => {
 	const result = await db.select().from(usersTable).all();
 	t.assert(result[0]!.createdAt instanceof Date);
 	t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 5000);
-	t.deepEqual(result, [{ id: 1, name: 'John', verified: 0, json: null, createdAt: result[0]!.createdAt }]);
+	t.deepEqual(result, [{ id: 1, name: 'John', verified: false, json: null, createdAt: result[0]!.createdAt }]);
 });
 
 test.serial('select partial', async (t) => {
@@ -330,16 +330,16 @@ test.serial('insert with default values', async (t) => {
 	await db.insert(usersTable).values({ name: 'John' }).run();
 	const result = await db.select().from(usersTable).all();
 
-	t.deepEqual(result, [{ id: 1, name: 'John', verified: 0, json: null, createdAt: result[0]!.createdAt }]);
+	t.deepEqual(result, [{ id: 1, name: 'John', verified: false, json: null, createdAt: result[0]!.createdAt }]);
 });
 
 test.serial('insert with overridden default values', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John', verified: 1 }).run();
+	await db.insert(usersTable).values({ name: 'John', verified: true }).run();
 	const result = await db.select().from(usersTable).all();
 
-	t.deepEqual(result, [{ id: 1, name: 'John', verified: 1, json: null, createdAt: result[0]!.createdAt }]);
+	t.deepEqual(result, [{ id: 1, name: 'John', verified: true, json: null, createdAt: result[0]!.createdAt }]);
 });
 
 test.serial('update with returning all fields', async (t) => {
@@ -352,7 +352,7 @@ test.serial('update with returning all fields', async (t) => {
 
 	t.assert(users[0]!.createdAt instanceof Date);
 	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 5000);
-	t.deepEqual(users, [{ id: 1, name: 'Jane', verified: 0, json: null, createdAt: users[0]!.createdAt }]);
+	t.deepEqual(users, [{ id: 1, name: 'Jane', verified: false, json: null, createdAt: users[0]!.createdAt }]);
 });
 
 test.serial('update with returning partial', async (t) => {
@@ -377,7 +377,7 @@ test.serial('delete with returning all fields', async (t) => {
 
 	t.assert(users[0]!.createdAt instanceof Date);
 	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 5000);
-	t.deepEqual(users, [{ id: 1, name: 'John', verified: 0, json: null, createdAt: users[0]!.createdAt }]);
+	t.deepEqual(users, [{ id: 1, name: 'John', verified: false, json: null, createdAt: users[0]!.createdAt }]);
 });
 
 test.serial('delete with returning partial', async (t) => {
@@ -426,7 +426,7 @@ test.serial('insert many', async (t) => {
 		{ name: 'John' },
 		{ name: 'Bruce', json: ['foo', 'bar'] },
 		{ name: 'Jane' },
-		{ name: 'Austin', verified: 1 },
+		{ name: 'Austin', verified: true },
 	]).run();
 	const result = await db.select({
 		id: usersTable.id,
@@ -436,10 +436,10 @@ test.serial('insert many', async (t) => {
 	}).from(usersTable).all();
 
 	t.deepEqual(result, [
-		{ id: 1, name: 'John', json: null, verified: 0 },
-		{ id: 2, name: 'Bruce', json: ['foo', 'bar'], verified: 0 },
-		{ id: 3, name: 'Jane', json: null, verified: 0 },
-		{ id: 4, name: 'Austin', json: null, verified: 1 },
+		{ id: 1, name: 'John', json: null, verified: false },
+		{ id: 2, name: 'Bruce', json: ['foo', 'bar'], verified: false },
+		{ id: 3, name: 'Jane', json: null, verified: false },
+		{ id: 4, name: 'Austin', json: null, verified: true },
 	]);
 });
 
@@ -450,7 +450,7 @@ test.serial('insert many with returning', async (t) => {
 		{ name: 'John' },
 		{ name: 'Bruce', json: ['foo', 'bar'] },
 		{ name: 'Jane' },
-		{ name: 'Austin', verified: 1 },
+		{ name: 'Austin', verified: true },
 	])
 		.returning({
 			id: usersTable.id,
@@ -461,10 +461,10 @@ test.serial('insert many with returning', async (t) => {
 		.all();
 
 	t.deepEqual(result, [
-		{ id: 1, name: 'John', json: null, verified: 0 },
-		{ id: 2, name: 'Bruce', json: ['foo', 'bar'], verified: 0 },
-		{ id: 3, name: 'Jane', json: null, verified: 0 },
-		{ id: 4, name: 'Austin', json: null, verified: 1 },
+		{ id: 1, name: 'John', json: null, verified: false },
+		{ id: 2, name: 'Bruce', json: ['foo', 'bar'], verified: false },
+		{ id: 3, name: 'Jane', json: null, verified: false },
+		{ id: 4, name: 'Austin', json: null, verified: true },
 	]);
 });
 
@@ -591,7 +591,7 @@ test.serial('prepared statement reuse', async (t) => {
 	const { db } = t.context;
 
 	const stmt = db.insert(usersTable).values({
-		verified: 1,
+		verified: true,
 		name: placeholder('name'),
 	}).prepare();
 
@@ -606,16 +606,16 @@ test.serial('prepared statement reuse', async (t) => {
 	}).from(usersTable).all();
 
 	t.deepEqual(result, [
-		{ id: 1, name: 'John 0', verified: 1 },
-		{ id: 2, name: 'John 1', verified: 1 },
-		{ id: 3, name: 'John 2', verified: 1 },
-		{ id: 4, name: 'John 3', verified: 1 },
-		{ id: 5, name: 'John 4', verified: 1 },
-		{ id: 6, name: 'John 5', verified: 1 },
-		{ id: 7, name: 'John 6', verified: 1 },
-		{ id: 8, name: 'John 7', verified: 1 },
-		{ id: 9, name: 'John 8', verified: 1 },
-		{ id: 10, name: 'John 9', verified: 1 },
+		{ id: 1, name: 'John 0', verified: true },
+		{ id: 2, name: 'John 1', verified: true },
+		{ id: 3, name: 'John 2', verified: true },
+		{ id: 4, name: 'John 3', verified: true },
+		{ id: 5, name: 'John 4', verified: true },
+		{ id: 6, name: 'John 5', verified: true },
+		{ id: 7, name: 'John 6', verified: true },
+		{ id: 8, name: 'John 7', verified: true },
+		{ id: 9, name: 'John 8', verified: true },
+		{ id: 10, name: 'John 9', verified: true },
 	]);
 });
 
