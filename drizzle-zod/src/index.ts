@@ -71,6 +71,7 @@ import {
 import {
 	SQLiteBigInt,
 	SQLiteBlobJson,
+	SQLiteBoolean,
 	SQLiteCustomColumn,
 	SQLiteInteger,
 	SQLiteNumeric,
@@ -293,7 +294,7 @@ function mapColumnToSchema(column: AnyColumn): z.ZodTypeAny {
 			|| column instanceof SQLiteBigInt
 		) {
 			type = z.bigint();
-		} else if (column instanceof PgBoolean || column instanceof MySqlBoolean) {
+		} else if (column instanceof PgBoolean || column instanceof MySqlBoolean || column instanceof SQLiteBoolean) {
 			type = z.boolean();
 		} else if (
 			column instanceof PgDate || column instanceof PgTimestamp || column instanceof SQLiteTimestamp
