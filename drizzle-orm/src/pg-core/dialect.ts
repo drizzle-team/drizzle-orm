@@ -7,7 +7,7 @@ import {
 } from '~/alias';
 import type { AnyColumn } from '~/column';
 import { Column } from '~/column';
-import type { MigrationMeta } from '~/migrator';
+import type { MigrationConfig, MigrationMeta } from '~/migrator';
 import type { AnyPgColumn } from '~/pg-core/columns';
 import { PgColumn, PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core/columns';
 import type { PgDeleteConfig, PgInsertConfig, PgUpdateConfig } from '~/pg-core/query-builders';
@@ -45,19 +45,29 @@ import type { PgSession } from './session';
 import { type PgMaterializedView, PgViewBase } from './view';
 
 export class PgDialect {
-	async migrate(migrations: MigrationMeta[], session: PgSession): Promise<void> {
+	async migrate(migrations: MigrationMeta[], session: PgSession, config: MigrationConfig): Promise<void> {
+		let migrationsSchema: string, migrationsTable: string
+		const migrationTableParts = (config.migrationsTable ?? '').split('.');
+		if (migrationTableParts.length === 1 && migrationTableParts[0]) {
+			migrationsTable = migrationTableParts[0];
+			migrationsSchema = 'drizzle';
+		} else {
+			migrationsSchema = migrationTableParts[0] || 'drizzle';
+			migrationsTable = migrationTableParts[1] || '__drizzle_migrations';
+		}
+
 		const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (
+			CREATE TABLE IF NOT EXISTS ${name(migrationsSchema)}.${name(migrationsTable)} (
 				id SERIAL PRIMARY KEY,
 				hash text NOT NULL,
 				created_at bigint
 			)
 		`;
-		await session.execute(sql`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
+		await session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${name(migrationsSchema)}`);
 		await session.execute(migrationTableCreate);
 
 		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
-			sql`select id, hash, created_at from "drizzle"."__drizzle_migrations" order by created_at desc limit 1`,
+			sql`select id, hash, created_at from ${name(migrationsSchema)}.${name(migrationsTable)} order by created_at desc limit 1`,
 		);
 
 		const lastDbMigration = dbMigrations[0];
@@ -71,7 +81,7 @@ export class PgDialect {
 						await tx.execute(sql.raw(stmt));
 					}
 					await tx.execute(
-						sql`insert into "drizzle"."__drizzle_migrations" ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+						sql`insert into ${name(migrationsSchema)}.${name(migrationsTable)} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
 					);
 				}
 			}
