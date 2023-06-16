@@ -182,6 +182,8 @@ export type SQLiteBooleanBuilderInitial<TName extends string> = SQLiteBooleanBui
 export class SQLiteBooleanBuilder<T extends ColumnBuilderBaseConfig>
 	extends SQLiteBaseIntegerBuilder<SQLiteBooleanBuilderHKT, T, { mode: 'boolean' }>
 {
+	static readonly [entityKind]: string = 'SQLiteBooleanBuilder';
+
 	constructor(name: T['name'], mode: 'boolean') {
 		super(name);
 		this.config.mode = mode;
@@ -200,6 +202,8 @@ export class SQLiteBooleanBuilder<T extends ColumnBuilderBaseConfig>
 export class SQLiteBoolean<T extends ColumnBaseConfig>
 	extends SQLiteBaseInteger<SQLiteBooleanHKT, T, { mode: 'boolean' }>
 {
+	static readonly [entityKind]: string = 'SQLiteBoolean';
+
 	readonly mode: 'boolean' = this.config.mode;
 
 	override mapFromDriverValue(value: number): boolean {
