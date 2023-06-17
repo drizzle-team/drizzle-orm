@@ -1,5 +1,6 @@
 import type { AnyColumn } from './column';
 import { Column } from './column';
+import { is } from './entity';
 import { type Logger } from './logger';
 import type { SelectedFieldsOrdered } from './operations';
 import type { DriverValueDecoder } from './sql';
@@ -20,9 +21,9 @@ export function mapResultRow<TResult>(
 	const result = columns.reduce<Record<string, any>>(
 		(result, { path, field }, columnIndex) => {
 			let decoder: DriverValueDecoder<unknown, unknown>;
-			if (field instanceof Column) {
+			if (is(field, Column)) {
 				decoder = field;
-			} else if (field instanceof SQL) {
+			} else if (is(field, SQL)) {
 				decoder = field.decoder;
 			} else {
 				decoder = field.sql.decoder;
@@ -38,7 +39,7 @@ export function mapResultRow<TResult>(
 					const rawValue = row[columnIndex]!;
 					const value = node[pathChunk] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
 
-					if (joinsNotNullableMap && field instanceof Column && path.length === 2) {
+					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
 						const objectName = path[0]!;
 						if (!(objectName in nullifyMap)) {
 							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
@@ -78,13 +79,9 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 		}
 
 		const newPath = pathPrefix ? [...pathPrefix, name] : [name];
-		if (
-			field instanceof Column
-			|| field instanceof SQL
-			|| field instanceof SQL.Aliased
-		) {
+		if (is(field, Column) || is(field, SQL) || is(field, SQL.Aliased)) {
 			result.push({ path: newPath, field });
-		} else if (field instanceof Table) {
+		} else if (is(field, Table)) {
 			result.push(...orderSelectedFields(field[Table.Symbol.Columns], newPath));
 		} else {
 			result.push(...orderSelectedFields(field as Record<string, unknown>, newPath));
@@ -99,7 +96,7 @@ export function mapUpdateSet(table: Table, values: Record<string, unknown>): Upd
 		.filter(([, value]) => value !== undefined)
 		.map(([key, value]) => {
 			// eslint-disable-next-line unicorn/prefer-ternary
-			if (value instanceof SQL) {
+			if (is(value, SQL)) {
 				return [key, value];
 			} else {
 				return [key, new Param(value, table[Table.Symbol.Columns][key])];
@@ -117,7 +114,7 @@ export type UpdateSet = Record<string, SQL | Param | null | undefined>;
 
 export type OneOrMany<T> = T | T[];
 
-export type Update<T, TUpdate> = Simplify<
+export type Update<T, TUpdate> = SimplifyShallow<
 	& Omit<T, keyof TUpdate>
 	& TUpdate
 >;
@@ -218,7 +215,7 @@ export type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends (<T>() => T ext
 
 export interface DrizzleTypeError<T> {
 	$brand: 'DrizzleTypeError';
-	message: T;
+	$error: T;
 }
 
 export type ValueOrArray<T> = T | T[];
@@ -252,11 +249,11 @@ export function getTableColumns<T extends AnyTable>(table: T): T['_']['columns']
 
 /** @internal */
 export function getTableLikeName(table: AnyTable | Subquery | View | SQL): string | undefined {
-	return table instanceof Subquery
+	return is(table, Subquery)
 		? table[SubqueryConfig].alias
-		: table instanceof View
+		: is(table, View)
 		? table[ViewBaseConfig].name
-		: table instanceof SQL
+		: is(table, SQL)
 		? undefined
 		: table[Table.Symbol.IsAlias]
 		? table[Table.Symbol.Name]

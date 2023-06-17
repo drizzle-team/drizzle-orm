@@ -1,10 +1,13 @@
 import { type AnyTable, type InferModelFromColumns, isTable, Table } from '~/table';
 import { type AnyColumn, Column } from './column';
+import { entityKind, is } from './entity';
 import { PrimaryKeyBuilder } from './pg-core';
 import { and, asc, desc, eq, or, type Placeholder, SQL, sql } from './sql';
 import { type Assume, type ColumnsWithTable, type Equal, type SimplifyShallow, type ValueOrArray } from './utils';
 
 export abstract class Relation<TTableName extends string = string> {
+	static readonly [entityKind]: string = 'Relation';
+
 	declare readonly $brand: 'Relation';
 	readonly referencedTableName: TTableName;
 	fieldName!: string;
@@ -24,6 +27,8 @@ export class Relations<
 	TTableName extends string = string,
 	TConfig extends Record<string, Relation> = Record<string, Relation>,
 > {
+	static readonly [entityKind]: string = 'Relations';
+
 	declare readonly $brand: 'Relations';
 
 	constructor(
@@ -35,6 +40,8 @@ export class Relations<
 export class One<TTableName extends string = string, TIsNullable extends boolean = boolean>
 	extends Relation<TTableName>
 {
+	static readonly [entityKind]: string = 'One';
+
 	declare protected $relationBrand: 'One';
 
 	constructor(
@@ -60,6 +67,8 @@ export class One<TTableName extends string = string, TIsNullable extends boolean
 }
 
 export class Many<TTableName extends string> extends Relation<TTableName> {
+	static readonly [entityKind]: string = 'Many';
+
 	declare protected $relationBrand: 'Many';
 
 	constructor(
@@ -146,7 +155,10 @@ export type DBQueryConfig<
 		extras?:
 			| Record<string, SQL.Aliased>
 			| ((
-				fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
+				fields: SimplifyShallow<
+					& ([TTableConfig['columns']] extends [never] ? {} : TTableConfig['columns'])
+					& ([TTableConfig['relations']] extends [never] ? {} : TTableConfig['relations'])
+				>,
 				operators: { sql: Operators['sql'] },
 			) => Record<string, SQL.Aliased>);
 	}
@@ -156,13 +168,19 @@ export type DBQueryConfig<
 					| SQL
 					| undefined
 					| ((
-						fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
+						fields: SimplifyShallow<
+							& ([TTableConfig['columns']] extends [never] ? {} : TTableConfig['columns'])
+							& ([TTableConfig['relations']] extends [never] ? {} : TTableConfig['relations'])
+						>,
 						operators: Operators,
 					) => SQL | undefined);
 				orderBy?:
 					| ValueOrArray<AnyColumn | SQL>
 					| ((
-						fields: SimplifyShallow<TTableConfig['columns'] & TTableConfig['relations']>,
+						fields: SimplifyShallow<
+							& ([TTableConfig['columns']] extends [never] ? {} : TTableConfig['columns'])
+							& ([TTableConfig['relations']] extends [never] ? {} : TTableConfig['relations'])
+						>,
 						operators: OrderByOperators,
 					) => ValueOrArray<AnyColumn | SQL>);
 				limit?: number | Placeholder;
@@ -283,7 +301,7 @@ export function extractTablesRelationalConfig<TTables extends TablesRelationalCo
 	schema: Record<string, unknown>,
 	configHelpers: (table: Table) => any,
 ): { tables: TTables; tableNamesMap: Record<string, string> } {
-	if (Object.keys(schema).length === 1 && 'default' in schema && !(schema['default'] instanceof Table)) {
+	if (Object.keys(schema).length === 1 && 'default' in schema && !is(schema['default'], Table)) {
 		schema = schema['default'] as Record<string, unknown>;
 	}
 
@@ -315,12 +333,12 @@ export function extractTablesRelationalConfig<TTables extends TablesRelationalCo
 			const extraConfig = value[Table.Symbol.ExtraConfigBuilder]?.(value);
 			if (extraConfig) {
 				for (const configEntry of Object.values(extraConfig)) {
-					if (configEntry instanceof PrimaryKeyBuilder) {
+					if (is(configEntry, PrimaryKeyBuilder)) {
 						tablesConfig[key]!.primaryKey.push(...configEntry.columns);
 					}
 				}
 			}
-		} else if (value instanceof Relations) {
+		} else if (is(value, Relations)) {
 			const dbName: string = value.table[Table.Symbol.Name];
 			const tableName = tableNamesMap[dbName];
 			const relations: Record<string, Relation> = value.config(configHelpers(value.table));
@@ -405,7 +423,7 @@ export function normalizeRelation(
 	tableNamesMap: Record<string, string>,
 	relation: Relation,
 ): NormalizedRelation {
-	if (relation instanceof One && relation.config) {
+	if (is(relation, One) && relation.config) {
 		return {
 			fields: relation.config.fields,
 			references: relation.config.references,
@@ -451,7 +469,7 @@ export function normalizeRelation(
 			);
 	}
 
-	if (reverseRelations[0] && reverseRelations[0] instanceof One && reverseRelations[0].config) {
+	if (reverseRelations[0] && is(reverseRelations[0], One) && reverseRelations[0].config) {
 		return {
 			fields: reverseRelations[0].config.references,
 			references: reverseRelations[0].config.fields,
@@ -503,7 +521,7 @@ export function mapRelationalRow(
 			const relation = tableConfig.relations[selectionItem.tsKey]!;
 			const rawSubRows = row[selectionItemIndex] as unknown[][] | string;
 			const subRows = typeof rawSubRows === 'string' ? JSON.parse(rawSubRows) as unknown[][] : rawSubRows;
-			if (relation instanceof One) {
+			if (is(relation, One)) {
 				result[selectionItem.tsKey] = subRows[0]
 					? mapRelationalRow(
 						tablesConfig,
@@ -528,9 +546,9 @@ export function mapRelationalRow(
 			const value = mapColumnValue(row[selectionItemIndex]);
 			const field = selectionItem.field!;
 			let decoder;
-			if (field instanceof Column) {
+			if (is(field, Column)) {
 				decoder = field;
-			} else if (field instanceof SQL) {
+			} else if (is(field, SQL)) {
 				decoder = field.decoder;
 			} else {
 				decoder = field.sql.decoder;

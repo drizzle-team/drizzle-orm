@@ -1,4 +1,5 @@
 import { type Connection as CallbackConnection, type Pool as CallbackPool } from 'mysql2';
+import { entityKind } from '~/entity';
 import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
 import { MySqlDialect } from '~/mysql-core/dialect';
@@ -18,6 +19,8 @@ export interface MySqlDriverOptions {
 }
 
 export class MySql2Driver {
+	static readonly [entityKind]: string = 'MySql2Driver';
+
 	constructor(
 		private client: MySql2Client,
 		private dialect: MySqlDialect,

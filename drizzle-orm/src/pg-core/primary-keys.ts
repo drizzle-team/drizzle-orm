@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import type { AnyPgColumn } from './columns';
 import { type AnyPgTable, PgTable } from './table';
 
@@ -9,6 +10,8 @@ export function primaryKey<
 }
 
 export class PrimaryKeyBuilder {
+	static readonly [entityKind]: string = 'PgPrimaryKeyBuilder';
+
 	/** @internal */
 	columns: AnyPgColumn<{}>[];
 
@@ -25,6 +28,8 @@ export class PrimaryKeyBuilder {
 }
 
 export class PrimaryKey {
+	static readonly [entityKind]: string = 'PgPrimaryKey';
+
 	readonly columns: AnyPgColumn<{}>[];
 
 	constructor(readonly table: AnyPgTable, columns: AnyPgColumn<{}>[]) {

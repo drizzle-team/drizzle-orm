@@ -1,8 +1,9 @@
 import { Buffer } from 'node:buffer';
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
-import type { Assume, Equal } from '~/utils';
+import { type Assume, type Equal } from '~/utils';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common';
 
 type BlobMode = 'buffer' | 'json' | 'bigint';
@@ -27,6 +28,8 @@ export type SQLiteBigIntBuilderInitial<TName extends string> = SQLiteBigIntBuild
 export class SQLiteBigIntBuilder<T extends ColumnBuilderBaseConfig>
 	extends SQLiteColumnBuilder<SQLiteBigIntBuilderHKT, T>
 {
+	static readonly [entityKind]: string = 'SQLiteBigIntBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnySQLiteTable<{ name: TTableName }>,
@@ -36,6 +39,8 @@ export class SQLiteBigIntBuilder<T extends ColumnBuilderBaseConfig>
 }
 
 export class SQLiteBigInt<T extends ColumnBaseConfig> extends SQLiteColumn<SQLiteBigIntHKT, T> {
+	static readonly [entityKind]: string = 'SQLiteBigInt';
+
 	declare protected $sqliteColumnBrand: 'SQLiteBigInt';
 
 	getSQLType(): string {
@@ -71,6 +76,8 @@ export type SQLiteBlobJsonBuilderInitial<TName extends string> = SQLiteBlobJsonB
 export class SQLiteBlobJsonBuilder<T extends ColumnBuilderBaseConfig>
 	extends SQLiteColumnBuilder<SQLiteBlobJsonBuilderHKT, T>
 {
+	static readonly [entityKind]: string = 'SQLiteBlobJsonBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnySQLiteTable<{ name: TTableName }>,
@@ -80,6 +87,8 @@ export class SQLiteBlobJsonBuilder<T extends ColumnBuilderBaseConfig>
 }
 
 export class SQLiteBlobJson<T extends ColumnBaseConfig> extends SQLiteColumn<SQLiteBlobJsonHKT, T> {
+	static readonly [entityKind]: string = 'SQLiteBlobJson';
+
 	declare protected $sqliteColumnBrand: 'SQLiteBlobJson';
 
 	getSQLType(): string {
@@ -115,6 +124,8 @@ export type SQLiteBlobBufferBuilderInitial<TName extends string> = SQLiteBlobBuf
 export class SQLiteBlobBufferBuilder<T extends ColumnBuilderBaseConfig>
 	extends SQLiteColumnBuilder<SQLiteBlobBufferBuilderHKT, T>
 {
+	static readonly [entityKind]: string = 'SQLiteBlobBufferBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnySQLiteTable<{ name: TTableName }>,
@@ -124,6 +135,8 @@ export class SQLiteBlobBufferBuilder<T extends ColumnBuilderBaseConfig>
 }
 
 export class SQLiteBlobBuffer<T extends ColumnBaseConfig> extends SQLiteColumn<SQLiteBlobBufferHKT, T> {
+	static readonly [entityKind]: string = 'SQLiteBlobBuffer';
+
 	getSQLType(): string {
 		return 'blob';
 	}

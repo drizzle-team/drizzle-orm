@@ -1,4 +1,4 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBaseConfig, ColumnHKT, ColumnHKTBase } from '~/column';
 import type {
 	ColumnBuilderBaseConfig,
 	ColumnBuilderHKTBase,
@@ -6,9 +6,10 @@ import type {
 	MakeColumnConfig,
 	UpdateCBConfig,
 } from '~/column-builder';
+import { entityKind } from '~/entity';
 import { sql } from '~/sql';
 import type { OnConflict } from '~/sqlite-core/utils';
-import type { Assume, Equal, Or } from '~/utils';
+import { type Assume, type Equal, type Or } from '~/utils';
 import type { AnySQLiteTable } from '../table';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common';
 
@@ -22,6 +23,8 @@ export abstract class SQLiteBaseIntegerBuilder<
 	T extends ColumnBuilderBaseConfig,
 	TRuntimeConfig extends object = {},
 > extends SQLiteColumnBuilder<THKT, T, TRuntimeConfig & { autoIncrement: boolean }> {
+	static readonly [entityKind]: string = 'SQLiteBaseIntegerBuilder';
+
 	constructor(name: T['name']) {
 		super(name);
 		this.config.autoIncrement = false;
@@ -40,14 +43,16 @@ export abstract class SQLiteBaseIntegerBuilder<
 	/** @internal */
 	abstract override build<TTableName extends string>(
 		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteBaseInteger<Assume<THKT['_columnHKT'], ColumnHKTBase>, MakeColumnConfig<T, TTableName>>;
+	): SQLiteBaseInteger<Assume<THKT['_columnHKT'], ColumnHKT>, MakeColumnConfig<T, TTableName>>;
 }
 
 export abstract class SQLiteBaseInteger<
-	THKT extends ColumnHKTBase,
+	THKT extends ColumnHKT,
 	T extends ColumnBaseConfig,
 	TRuntimeConfig extends object = {},
 > extends SQLiteColumn<THKT, T, TRuntimeConfig & { autoIncrement: boolean }> {
+	static readonly [entityKind]: string = 'SQLiteBaseInteger';
+
 	readonly autoIncrement: boolean = this.config.autoIncrement;
 
 	getSQLType(): string {
@@ -75,6 +80,8 @@ export type SQLiteIntegerBuilderInitial<TName extends string> = SQLiteIntegerBui
 export class SQLiteIntegerBuilder<T extends ColumnBuilderBaseConfig>
 	extends SQLiteBaseIntegerBuilder<SQLiteIntegerBuilderHKT, T>
 {
+	static readonly [entityKind]: string = 'SQLiteIntegerBuilder';
+
 	build<TTableName extends string>(
 		table: AnySQLiteTable<{ name: TTableName }>,
 	): SQLiteInteger<MakeColumnConfig<T, TTableName>> {
@@ -82,7 +89,9 @@ export class SQLiteIntegerBuilder<T extends ColumnBuilderBaseConfig>
 	}
 }
 
-export class SQLiteInteger<T extends ColumnBaseConfig> extends SQLiteBaseInteger<SQLiteIntegerHKT, T> {}
+export class SQLiteInteger<T extends ColumnBaseConfig> extends SQLiteBaseInteger<SQLiteIntegerHKT, T> {
+	static readonly [entityKind]: string = 'SQLiteInteger';
+}
 
 export interface SQLiteTimestampBuilderHKT extends ColumnBuilderHKTBase {
 	_type: SQLiteTimestampBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
@@ -104,6 +113,8 @@ export type SQLiteTimestampBuilderInitial<TName extends string> = SQLiteTimestam
 export class SQLiteTimestampBuilder<T extends ColumnBuilderBaseConfig>
 	extends SQLiteBaseIntegerBuilder<SQLiteTimestampBuilderHKT, T, { mode: 'timestamp' | 'timestamp_ms' }>
 {
+	static readonly [entityKind]: string = 'SQLiteTimestampBuilder';
+
 	constructor(name: T['name'], mode: 'timestamp' | 'timestamp_ms') {
 		super(name);
 		this.config.mode = mode;
@@ -131,6 +142,8 @@ export class SQLiteTimestampBuilder<T extends ColumnBuilderBaseConfig>
 export class SQLiteTimestamp<T extends ColumnBaseConfig>
 	extends SQLiteBaseInteger<SQLiteTimestampHKT, T, { mode: 'timestamp' | 'timestamp_ms' }>
 {
+	static readonly [entityKind]: string = 'SQLiteTimestamp';
+
 	readonly mode: 'timestamp' | 'timestamp_ms' = this.config.mode;
 
 	override mapFromDriverValue(value: number): Date {
@@ -169,6 +182,8 @@ export type SQLiteBooleanBuilderInitial<TName extends string> = SQLiteBooleanBui
 export class SQLiteBooleanBuilder<T extends ColumnBuilderBaseConfig>
 	extends SQLiteBaseIntegerBuilder<SQLiteBooleanBuilderHKT, T, { mode: 'boolean' }>
 {
+	static readonly [entityKind]: string = 'SQLiteBooleanBuilder';
+
 	constructor(name: T['name'], mode: 'boolean') {
 		super(name);
 		this.config.mode = mode;
@@ -187,6 +202,8 @@ export class SQLiteBooleanBuilder<T extends ColumnBuilderBaseConfig>
 export class SQLiteBoolean<T extends ColumnBaseConfig>
 	extends SQLiteBaseInteger<SQLiteBooleanHKT, T, { mode: 'boolean' }>
 {
+	static readonly [entityKind]: string = 'SQLiteBoolean';
+
 	readonly mode: 'boolean' = this.config.mode;
 
 	override mapFromDriverValue(value: number): boolean {

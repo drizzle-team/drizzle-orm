@@ -1,4 +1,5 @@
 import type { GetColumnData } from '~/column';
+import { entityKind } from '~/entity';
 import type { SelectResultFields } from '~/query-builders/select.types';
 import type { Query, SQL, SQLWrapper } from '~/sql';
 import type { SQLiteDialect } from '~/sqlite-core/dialect';
@@ -6,8 +7,7 @@ import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SQLiteTable } from '~/sqlite-core/table';
 import type { InferModel } from '~/table';
-import type { Simplify, UpdateSet } from '~/utils';
-import { mapUpdateSet, orderSelectedFields } from '~/utils';
+import { mapUpdateSet, orderSelectedFields, type Simplify, type UpdateSet } from '~/utils';
 import type { SelectedFields, SelectedFieldsOrdered } from './select.types';
 
 export interface SQLiteUpdateConfig {
@@ -30,6 +30,8 @@ export class SQLiteUpdateBuilder<
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 > {
+	static readonly [entityKind]: string = 'SQLiteUpdateBuilder';
+
 	declare readonly _: {
 		readonly table: TTable;
 	};
@@ -63,6 +65,8 @@ export class SQLiteUpdate<
 	TRunResult,
 	TReturning = undefined,
 > implements SQLWrapper {
+	static readonly [entityKind]: string = 'SQLiteUpdate';
+
 	declare readonly _: {
 		readonly table: TTable;
 	};

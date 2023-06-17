@@ -7,6 +7,7 @@ import {
 	type QueryResult,
 	type QueryResultRow,
 } from '@neondatabase/serverless';
+import { entityKind } from '~/entity';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
 import { PgTransaction } from '~/pg-core';
@@ -21,6 +22,8 @@ import { type Assume, mapResultRow } from '~/utils';
 export type NeonClient = Pool | PoolClient | Client;
 
 export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
+	static readonly [entityKind]: string = 'NeonPreparedQuery';
+
 	private rawQuery: QueryConfig;
 	private query: QueryArrayConfig;
 
@@ -83,6 +86,8 @@ export class NeonSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<NeonQueryResultHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'NeonSession';
+
 	private logger: Logger;
 
 	constructor(
@@ -125,7 +130,7 @@ export class NeonSession<
 		transaction: (tx: NeonTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config: PgTransactionConfig = {},
 	): Promise<T> {
-		const session = this.client instanceof Pool
+		const session = this.client instanceof Pool // eslint-disable-line no-instanceof/no-instanceof
 			? new NeonSession(await this.client.connect(), this.dialect, this.schema, this.options)
 			: this;
 		const tx = new NeonTransaction(this.dialect, session, this.schema);
@@ -138,7 +143,7 @@ export class NeonSession<
 			await tx.execute(sql`rollback`);
 			throw error;
 		} finally {
-			if (this.client instanceof Pool) {
+			if (this.client instanceof Pool) { // eslint-disable-line no-instanceof/no-instanceof
 				(session.client as PoolClient).release();
 			}
 		}
@@ -149,6 +154,8 @@ export class NeonTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<NeonQueryResultHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'NeonTransaction';
+
 	override async transaction<T>(transaction: (tx: NeonTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new NeonTransaction(this.dialect, this.session, this.schema, this.nestedIndex + 1);

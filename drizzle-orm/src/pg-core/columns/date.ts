@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import { PgColumn } from './common';
 import { PgDateColumnBaseBuilder } from './date.common';
 
@@ -23,6 +24,8 @@ export type PgDateBuilderInitial<TName extends string> = PgDateBuilder<{
 }>;
 
 export class PgDateBuilder<T extends ColumnBuilderBaseConfig> extends PgDateColumnBaseBuilder<PgDateBuilderHKT, T> {
+	static readonly [entityKind]: string = 'PgDateBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
@@ -32,6 +35,8 @@ export class PgDateBuilder<T extends ColumnBuilderBaseConfig> extends PgDateColu
 }
 
 export class PgDate<T extends ColumnBaseConfig> extends PgColumn<PgDateHKT, T> {
+	static readonly [entityKind]: string = 'PgDate';
+
 	getSQLType(): string {
 		return 'date';
 	}
@@ -65,6 +70,8 @@ export type PgDateStringBuilderInitial<TName extends string> = PgDateStringBuild
 export class PgDateStringBuilder<T extends ColumnBuilderBaseConfig>
 	extends PgDateColumnBaseBuilder<PgDateStringBuilderHKT, T>
 {
+	static readonly [entityKind]: string = 'PgDateStringBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
@@ -74,6 +81,8 @@ export class PgDateStringBuilder<T extends ColumnBuilderBaseConfig>
 }
 
 export class PgDateString<T extends ColumnBaseConfig> extends PgColumn<PgDateStringHKT, T> {
+	static readonly [entityKind]: string = 'PgDateString';
+
 	getSQLType(): string {
 		return 'date';
 	}

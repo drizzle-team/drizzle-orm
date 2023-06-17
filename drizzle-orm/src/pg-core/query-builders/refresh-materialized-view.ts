@@ -1,10 +1,11 @@
+import { entityKind } from '~/entity';
 import type { PgDialect } from '~/pg-core/dialect';
 import type { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
 import type { PgMaterializedView } from '~/pg-core/view';
 import { QueryPromise } from '~/query-promise';
 import type { Query, SQL } from '~/sql';
 import { tracer } from '~/tracing';
-import type { Simplify } from '~/utils';
+import { type Simplify } from '~/utils';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
@@ -14,6 +15,8 @@ export interface PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 	extends QueryPromise<QueryResultKind<TQueryResult, never>>
 {
+	static readonly [entityKind]: string = 'PgRefreshMaterializedView';
+
 	private config: {
 		view: PgMaterializedView;
 		concurrently?: boolean;

@@ -1,6 +1,7 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-import type { Assume } from '~/utils';
+import { entityKind } from '~/entity';
+import { type Assume } from '~/utils';
 import type { AnyPgTable } from '../table';
 import { PgColumn, PgColumnBuilder } from './common';
 
@@ -24,6 +25,8 @@ export type PgBigSerial53BuilderInitial<TName extends string> = PgBigSerial53Bui
 export class PgBigSerial53Builder<T extends ColumnBuilderBaseConfig>
 	extends PgColumnBuilder<PgBigSerial53BuilderHKT, T>
 {
+	static readonly [entityKind]: string = 'PgBigSerial53Builder';
+
 	constructor(name: string) {
 		super(name);
 		this.config.hasDefault = true;
@@ -39,6 +42,8 @@ export class PgBigSerial53Builder<T extends ColumnBuilderBaseConfig>
 }
 
 export class PgBigSerial53<T extends ColumnBaseConfig> extends PgColumn<PgBigSerial53HKT, T> {
+	static readonly [entityKind]: string = 'PgBigSerial53';
+
 	getSQLType(): string {
 		return 'bigserial';
 	}
@@ -71,6 +76,8 @@ export type PgBigSerial64BuilderInitial<TName extends string> = PgBigSerial64Bui
 export class PgBigSerial64Builder<T extends ColumnBuilderBaseConfig>
 	extends PgColumnBuilder<PgBigSerial64BuilderHKT, T>
 {
+	static readonly [entityKind]: string = 'PgBigSerial64Builder';
+
 	constructor(name: string) {
 		super(name);
 		this.config.hasDefault = true;
@@ -85,6 +92,8 @@ export class PgBigSerial64Builder<T extends ColumnBuilderBaseConfig>
 }
 
 export class PgBigSerial64<T extends ColumnBaseConfig> extends PgColumn<PgBigSerial64HKT, T> {
+	static readonly [entityKind]: string = 'PgBigSerial64';
+
 	getSQLType(): string {
 		return 'bigserial';
 	}

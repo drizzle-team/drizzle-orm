@@ -1,8 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase, WithEnum } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
-
-import type { Assume, Writable } from '~/utils';
+import { type Assume, type Writable } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export interface PgTextBuilderHKT extends ColumnBuilderHKTBase {
@@ -28,6 +28,8 @@ export class PgTextBuilder<T extends ColumnBuilderBaseConfig & WithEnum> extends
 	T,
 	WithEnum<T['enumValues']>
 > {
+	static readonly [entityKind]: string = 'PgTextBuilder';
+
 	constructor(
 		name: T['name'],
 		config: PgTextConfig<T['enumValues']>,
@@ -47,6 +49,8 @@ export class PgTextBuilder<T extends ColumnBuilderBaseConfig & WithEnum> extends
 export class PgText<T extends ColumnBaseConfig & WithEnum> extends PgColumn<PgTextHKT, T, WithEnum<T['enumValues']>>
 	implements WithEnum<T['enumValues']>
 {
+	static readonly [entityKind]: string = 'PgText';
+
 	readonly enumValues = this.config.enumValues;
 
 	getSQLType(): string {

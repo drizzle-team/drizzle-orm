@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
 export interface MySqlSerialBuilderHKT extends ColumnBuilderHKTBase {
@@ -24,6 +25,8 @@ export type MySqlSerialBuilderInitial<TName extends string> = MySqlSerialBuilder
 export class MySqlSerialBuilder<T extends ColumnBuilderBaseConfig>
 	extends MySqlColumnBuilderWithAutoIncrement<MySqlSerialBuilderHKT, T>
 {
+	static readonly [entityKind]: string = 'MySqlSerialBuilder';
+
 	constructor(name: T['name']) {
 		super(name);
 		this.config.hasDefault = true;
@@ -41,6 +44,8 @@ export class MySqlSerialBuilder<T extends ColumnBuilderBaseConfig>
 export class MySqlSerial<
 	T extends ColumnBaseConfig,
 > extends MySqlColumnWithAutoIncrement<MySqlSerialHKT, T> {
+	static readonly [entityKind]: string = 'MySqlSerial';
+
 	getSQLType(): string {
 		return 'serial';
 	}

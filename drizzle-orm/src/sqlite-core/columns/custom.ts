@@ -1,8 +1,9 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { SQL } from '~/sql';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
-import type { Assume, Equal, Simplify } from '~/utils';
+import { type Assume, type Equal, type Simplify } from '~/utils';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common';
 
 export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTypeValues>> = Simplify<{
@@ -38,6 +39,8 @@ export class SQLiteCustomColumnBuilder<T extends ColumnBuilderBaseConfig> extend
 		sqliteColumnBuilderBrand: 'SQLiteCustomColumnBuilderBrand';
 	}
 > {
+	static readonly [entityKind]: string = 'SQLiteCustomColumnBuilder';
+
 	constructor(
 		name: T['name'],
 		fieldConfig: CustomTypeValues['config'],
@@ -60,6 +63,8 @@ export class SQLiteCustomColumnBuilder<T extends ColumnBuilderBaseConfig> extend
 }
 
 export class SQLiteCustomColumn<T extends ColumnBaseConfig> extends SQLiteColumn<SQLiteCustomColumnHKT, T> {
+	static readonly [entityKind]: string = 'SQLiteCustomColumn';
+
 	declare protected $sqliteColumnBrand: 'SQLiteCustomColumn';
 
 	private sqlName: string;

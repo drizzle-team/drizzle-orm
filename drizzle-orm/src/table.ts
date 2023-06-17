@@ -1,6 +1,7 @@
 import type { AnyColumn, GetColumnData } from './column';
+import { entityKind } from './entity';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations';
-import type { Assume, SimplifyShallow, Update } from './utils';
+import { type Assume, type SimplifyShallow, type Update } from './utils';
 
 export interface TableConfig<TColumn extends AnyColumn = AnyColumn> {
 	name: string;
@@ -13,29 +14,31 @@ export type UpdateTableConfig<T extends TableConfig, TUpdate extends Partial<Tab
 >;
 
 /** @internal */
-export const TableName = Symbol('Name');
+export const TableName = Symbol.for('drizzle:Name');
 
 /** @internal */
-export const Schema = Symbol('Schema');
+export const Schema = Symbol.for('drizzle:Schema');
 
 /** @internal */
-export const Columns = Symbol('Columns');
+export const Columns = Symbol.for('drizzle:Columns');
 
 /** @internal */
-export const OriginalName = Symbol('OriginalName');
+export const OriginalName = Symbol.for('drizzle:OriginalName');
 
 /** @internal */
-export const BaseName = Symbol('BaseName');
+export const BaseName = Symbol.for('drizzle:BaseName');
 
 /** @internal */
-export const IsAlias = Symbol('IsAlias');
+export const IsAlias = Symbol.for('drizzle:IsAlias');
 
 /** @internal */
-export const ExtraConfigBuilder = Symbol('ExtraConfigBuilder');
+export const ExtraConfigBuilder = Symbol.for('drizzle:ExtraConfigBuilder');
 
-const IsDrizzleTable = Symbol.for('IsDrizzleTable');
+const IsDrizzleTable = Symbol.for('drizzle:IsDrizzleTable');
 
 export class Table<T extends TableConfig = TableConfig> {
+	static readonly [entityKind]: string = 'Table';
+
 	declare readonly _: {
 		readonly brand: 'Table';
 		readonly config: T;

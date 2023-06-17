@@ -41,7 +41,9 @@ resolve-tspaths --out dist-dts &&
 rollup --config rollup.dts.config.ts --configPlugin typescript`,
 		name: 'dts',
 	},
-]).result;
+], {
+	killOthers: 'failure',
+}).result.catch(() => process.exit(1));
 fs.copySync('../README.md', 'dist.new/README.md');
 updateAndCopyPackageJson();
 fs.removeSync('dist');

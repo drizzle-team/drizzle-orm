@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import type { PgDialect } from '~/pg-core/dialect';
 import type { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
 import type { AnyPgTable } from '~/pg-core/table';
@@ -30,6 +31,8 @@ export class PgDelete<
 > extends QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>
 	implements SQLWrapper
 {
+	static readonly [entityKind]: string = 'PgDelete';
+
 	private config: PgDeleteConfig;
 
 	constructor(

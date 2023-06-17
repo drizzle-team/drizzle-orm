@@ -183,7 +183,7 @@ test.serial('select all fields', async (t) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const result = await db.select().from(usersTable);
 
-	t.assert(result[0]!.createdAt instanceof Date);
+	t.assert(result[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	// not timezone based timestamp, thats why it should not work here
 	// t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 2000);
 	t.deepEqual(result, [{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
@@ -209,6 +209,33 @@ test.serial('select typed sql', async (t) => {
 	}).from(usersTable);
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
+});
+
+test.serial('select distinct', async (t) => {
+	const { db } = t.context;
+
+	const usersDistinctTable = mysqlTable('users_distinct', {
+		id: int('id').notNull(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${usersDistinctTable}`);
+	await db.execute(sql`create table ${usersDistinctTable} (id int, name text)`);
+
+	await db.insert(usersDistinctTable).values([
+		{ id: 1, name: 'John' },
+		{ id: 1, name: 'John' },
+		{ id: 2, name: 'John' },
+		{ id: 1, name: 'Jane' },
+	]);
+	const users = await db.selectDistinct().from(usersDistinctTable).orderBy(
+		usersDistinctTable.id,
+		usersDistinctTable.name,
+	);
+
+	await db.execute(sql`drop table ${usersDistinctTable}`);
+
+	t.deepEqual(users, [{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
 });
 
 test.serial('insert returning sql', async (t) => {
@@ -247,7 +274,7 @@ test.serial('update with returning all fields', async (t) => {
 
 	t.is(updatedUsers[0].changedRows, 1);
 
-	t.assert(users[0]!.createdAt instanceof Date);
+	t.assert(users[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	// not timezone based timestamp, thats why it should not work here
 	// t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 2000);
 	t.deepEqual(users, [{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
@@ -760,8 +787,8 @@ test.serial('insert + select all possible dates', async (t) => {
 
 	const res = await db.select().from(datesTable);
 
-	t.assert(res[0]?.date instanceof Date);
-	t.assert(res[0]?.datetime instanceof Date);
+	t.assert(res[0]?.date instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
+	t.assert(res[0]?.datetime instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	t.assert(typeof res[0]?.dateAsString === 'string');
 	t.assert(typeof res[0]?.datetimeAsString === 'string');
 

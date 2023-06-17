@@ -1,6 +1,7 @@
+import { entityKind } from '~/entity';
 import type { AnyColumn, ColumnHKTBase, ColumnKind } from './column';
 import type { SQL } from './sql';
-import type { Assume, Simplify, Update } from './utils';
+import { type Assume, type SimplifyShallow, type Update } from './utils';
 
 export interface ColumnBuilderBaseConfig {
 	name: string;
@@ -13,7 +14,7 @@ export interface ColumnBuilderBaseConfig {
 export type ColumnBuilderConfig<
 	TInitial extends Partial<ColumnBuilderBaseConfig> = {},
 	TDefaults extends Partial<ColumnBuilderBaseConfig> = {},
-> = Simplify<
+> = SimplifyShallow<
 	Required<
 		Update<
 			ColumnBuilderBaseConfig & {
@@ -28,7 +29,7 @@ export type ColumnBuilderConfig<
 	>
 >;
 
-export type MakeColumnConfig<T extends ColumnBuilderBaseConfig, TTableName extends string> = Simplify<
+export type MakeColumnConfig<T extends ColumnBuilderBaseConfig, TTableName extends string> = SimplifyShallow<
 	Pick<T, keyof ColumnBuilderBaseConfig> & { tableName: TTableName }
 >;
 
@@ -64,6 +65,8 @@ export abstract class ColumnBuilder<
 	TRuntimeConfig extends object = {},
 	TTypeConfig extends object = {},
 > {
+	static readonly [entityKind]: string = 'ColumnBuilder';
+
 	declare _: {
 		brand: 'ColumnBuilder';
 		config: T;
@@ -124,18 +127,24 @@ export type BuildColumn<
 > = Assume<
 	ColumnKind<
 		Assume<TBuilder['_']['columnHKT'], ColumnHKTBase>,
-		Simplify<{ tableName: TTableName } & TBuilder['_']['config']>
+		SimplifyShallow<{ tableName: TTableName } & TBuilder['_']['config']>
 	>,
 	AnyColumn
 >;
 
-export type BuildColumns<TTableName extends string, TConfigMap extends Record<string, AnyColumnBuilder>> = Simplify<
-	{
-		[Key in keyof TConfigMap]: BuildColumn<TTableName, TConfigMap[Key]>;
-	}
->;
+export type BuildColumns<TTableName extends string, TConfigMap extends Record<string, AnyColumnBuilder>> =
+	SimplifyShallow<
+		{
+			[Key in keyof TConfigMap]: BuildColumn<TTableName, TConfigMap[Key]>;
+		}
+	>;
+
+// export type ChangeColumnTableName<TColumn extends AnyColumn, TAlias extends string> = ColumnKind<
+// 	TColumn['_']['hkt'],
+// 	SimplifyShallow<Update<TColumn['_']['config'], { tableName: TAlias }>>
+// >;
 
 export type ChangeColumnTableName<TColumn extends AnyColumn, TAlias extends string> = ColumnKind<
 	TColumn['_']['hkt'],
-	Simplify<Update<TColumn['_']['config'], { tableName: TAlias }>>
+	SimplifyShallow<Update<TColumn['_']['config'], { tableName: TAlias }>>
 >;

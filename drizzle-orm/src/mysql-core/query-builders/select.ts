@@ -1,3 +1,4 @@
+import { entityKind, is } from '~/entity';
 import type { AnyMySqlColumn } from '~/mysql-core/columns';
 import type { MySqlDialect } from '~/mysql-core/dialect';
 import type { MySqlSession, PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '~/mysql-core/session';
@@ -46,12 +47,31 @@ export class MySqlSelectBuilder<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TBuilderMode extends 'db' | 'qb' = 'db',
 > {
+	static readonly [entityKind]: string = 'MySqlSelectBuilder';
+
+	private fields: TSelection;
+	private session: MySqlSession | undefined;
+	private dialect: MySqlDialect;
+	private withList: Subquery[] = [];
+	private distinct: boolean | undefined;
+
 	constructor(
-		private fields: TSelection,
-		private session: MySqlSession | undefined,
-		private dialect: MySqlDialect,
-		private withList: Subquery[] = [],
-	) {}
+		config: {
+			fields: TSelection;
+			session: MySqlSession | undefined;
+			dialect: MySqlDialect;
+			withList?: Subquery[];
+			distinct?: boolean;
+		},
+	) {
+		this.fields = config.fields;
+		this.session = config.session;
+		this.dialect = config.dialect;
+		if (config.withList) {
+			this.withList = config.withList;
+		}
+		this.distinct = config.distinct;
+	}
 
 	from<TFrom extends AnyMySqlTable | Subquery | MySqlViewBase | SQL>(
 		source: TFrom,
@@ -67,28 +87,31 @@ export class MySqlSelectBuilder<
 		let fields: SelectedFields;
 		if (this.fields) {
 			fields = this.fields;
-		} else if (source instanceof Subquery) {
+		} else if (is(source, Subquery)) {
 			// This is required to use the proxy handler to get the correct field values from the subquery
 			fields = Object.fromEntries(
 				Object.keys(source[SubqueryConfig].selection).map((
 					key,
 				) => [key, source[key as unknown as keyof typeof source] as unknown as SelectedFields[string]]),
 			);
-		} else if (source instanceof MySqlViewBase) {
+		} else if (is(source, MySqlViewBase)) {
 			fields = source[ViewBaseConfig].selectedFields as SelectedFields;
-		} else if (source instanceof SQL) {
+		} else if (is(source, SQL)) {
 			fields = {};
 		} else {
 			fields = getTableColumns<AnyMySqlTable>(source);
 		}
 
 		return new MySqlSelect(
-			source,
-			fields,
-			isPartialSelect,
-			this.session,
-			this.dialect,
-			this.withList,
+			{
+				table: source,
+				fields,
+				isPartialSelect,
+				session: this.session,
+				dialect: this.dialect,
+				withList: this.withList,
+				distinct: this.distinct,
+			},
 		) as any;
 	}
 }
@@ -104,6 +127,8 @@ export abstract class MySqlSelectQueryBuilder<
 	BuildSubquerySelection<TSelection, TNullabilityMap>,
 	SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
 > {
+	static readonly [entityKind]: string = 'MySqlSelectQueryBuilder';
+
 	override readonly _: {
 		selectMode: TSelectMode;
 		selection: TSelection;
@@ -114,15 +139,21 @@ export abstract class MySqlSelectQueryBuilder<
 	protected config: MySqlSelectConfig;
 	protected joinsNotNullableMap: Record<string, boolean>;
 	private tableName: string | undefined;
+	private isPartialSelect: boolean;
+	/** @internal */
+	readonly session: MySqlSession | undefined;
+	protected dialect: MySqlDialect;
 
 	constructor(
-		table: MySqlSelectConfig['table'],
-		fields: MySqlSelectConfig['fields'],
-		private isPartialSelect: boolean,
-		/** @internal */
-		readonly session: MySqlSession | undefined,
-		protected dialect: MySqlDialect,
-		withList: Subquery[],
+		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
+			table: MySqlSelectConfig['table'];
+			fields: MySqlSelectConfig['fields'];
+			isPartialSelect: boolean;
+			session: MySqlSession | undefined;
+			dialect: MySqlDialect;
+			withList: Subquery[];
+			distinct: boolean | undefined;
+		},
 	) {
 		super();
 		this.config = {
@@ -132,7 +163,11 @@ export abstract class MySqlSelectQueryBuilder<
 			joins: [],
 			orderBy: [],
 			groupBy: [],
+			distinct,
 		};
+		this.isPartialSelect = isPartialSelect;
+		this.session = session;
+		this.dialect = dialect;
 		this._ = {
 			selectedFields: fields as BuildSubquerySelection<TSelection, TNullabilityMap>,
 		} as this['_'];
@@ -161,10 +196,10 @@ export abstract class MySqlSelectQueryBuilder<
 						[baseTableName]: this.config.fields,
 					};
 				}
-				if (typeof tableName === 'string' && !(table instanceof SQL)) {
-					const selection = table instanceof Subquery
+				if (typeof tableName === 'string' && !is(table, SQL)) {
+					const selection = is(table, Subquery)
 						? table[SubqueryConfig].selection
-						: table instanceof View
+						: is(table, View)
 						? table[ViewBaseConfig].selectedFields
 						: table[Table.Symbol.Columns];
 					this.config.fields[tableName] = selection;
@@ -357,6 +392,8 @@ export class MySqlSelect<
 	TSelectMode,
 	TNullabilityMap
 > {
+	static readonly [entityKind]: string = 'MySqlSelect';
+
 	prepare() {
 		if (!this.session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
