@@ -1,5 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import { entityKind } from '~/entity';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
 import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
@@ -25,6 +26,8 @@ export class SQLiteD1Session<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteSession<'async', D1Result, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'SQLiteD1Session';
+
 	private logger: Logger;
 
 	constructor(
@@ -67,6 +70,8 @@ export class D1Transaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteTransaction<'async', D1Result, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'D1Transaction';
+
 	override async transaction<T>(transaction: (tx: D1Transaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex}`;
 		const tx = new D1Transaction('async', this.dialect, this.session, this.schema, this.nestedIndex + 1);
@@ -85,6 +90,8 @@ export class D1Transaction<
 export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
 	{ type: 'async'; run: D1Result; all: T['all']; get: T['get']; values: T['values'] }
 > {
+	static readonly [entityKind]: string = 'D1PreparedQuery';
+
 	constructor(
 		private stmt: D1PreparedStatement,
 		private queryString: string,

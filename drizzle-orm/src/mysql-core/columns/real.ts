@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
 export interface MySqlRealBuilderHKT extends ColumnBuilderHKTBase {
@@ -26,6 +27,8 @@ export class MySqlRealBuilder<T extends ColumnBuilderBaseConfig> extends MySqlCo
 	T,
 	MySqlRealConfig
 > {
+	static readonly [entityKind]: string = 'MySqlRealBuilder';
+
 	constructor(name: T['name'], config: MySqlRealConfig | undefined) {
 		super(name);
 		this.config.precision = config?.precision;
@@ -45,6 +48,8 @@ export class MySqlReal<T extends ColumnBaseConfig> extends MySqlColumnWithAutoIn
 	T,
 	MySqlRealConfig
 > {
+	static readonly [entityKind]: string = 'MySqlReal';
+
 	precision: number | undefined = this.config.precision;
 	scale: number | undefined = this.config.scale;
 

@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 
 import { PgColumn, PgColumnBuilder } from './common';
 
@@ -23,6 +24,8 @@ export type PgBigInt53BuilderInitial<TName extends string> = PgBigInt53Builder<{
 }>;
 
 export class PgBigInt53Builder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgBigInt53BuilderHKT, T> {
+	static readonly [entityKind]: string = 'PgBigInt53Builder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
@@ -32,6 +35,8 @@ export class PgBigInt53Builder<T extends ColumnBuilderBaseConfig> extends PgColu
 }
 
 export class PgBigInt53<T extends ColumnBaseConfig> extends PgColumn<PgBigInt53HKT, T> {
+	static readonly [entityKind]: string = 'PgBigInt53';
+
 	getSQLType(): string {
 		return 'bigint';
 	}
@@ -62,6 +67,8 @@ export type PgBigInt64BuilderInitial<TName extends string> = PgBigInt64Builder<{
 }>;
 
 export class PgBigInt64Builder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgBigInt64BuilderHKT, T> {
+	static readonly [entityKind]: string = 'PgBigInt64Builder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
@@ -71,6 +78,8 @@ export class PgBigInt64Builder<T extends ColumnBuilderBaseConfig> extends PgColu
 }
 
 export class PgBigInt64<T extends ColumnBaseConfig> extends PgColumn<PgBigInt64HKT, T> {
+	static readonly [entityKind]: string = 'PgBigInt64';
+
 	getSQLType(): string {
 		return 'bigint';
 	}

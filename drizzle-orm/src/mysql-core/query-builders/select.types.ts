@@ -43,7 +43,7 @@ export type BuildAliasTable<TTable extends AnyTable, TAlias extends string> = My
 >;
 
 export interface MySqlSelectConfig {
-	withList: Subquery[];
+	withList?: Subquery[];
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
 	where?: SQL;
@@ -58,6 +58,7 @@ export interface MySqlSelectConfig {
 		strength: LockStrength;
 		config: LockConfig;
 	};
+	distinct?: boolean;
 }
 
 export type JoinFn<

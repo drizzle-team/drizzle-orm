@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase, WithEnum } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import type { Assume, Writable } from '~/utils';
+import { type Assume, type Writable } from '~/utils';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export interface MySqlCharBuilderHKT extends ColumnBuilderHKTBase {
@@ -27,6 +28,8 @@ export class MySqlCharBuilder<T extends ColumnBuilderBaseConfig & WithEnum> exte
 	T,
 	MySqlCharConfig<T['enumValues']>
 > {
+	static readonly [entityKind]: string = 'MySqlCharBuilder';
+
 	constructor(name: T['name'], config: MySqlCharConfig<T['enumValues']>) {
 		super(name);
 		this.config.length = config.length;
@@ -45,6 +48,8 @@ export class MySqlChar<T extends ColumnBaseConfig & WithEnum>
 	extends MySqlColumn<MySqlCharHKT, T, MySqlCharConfig<T['enumValues']>>
 	implements WithEnum<T['enumValues']>
 {
+	static readonly [entityKind]: string = 'MySqlChar';
+
 	readonly length: number | undefined = this.config.length;
 	readonly enumValues: T['enumValues'] = (this.config.enum ?? []) as T['enumValues'];
 

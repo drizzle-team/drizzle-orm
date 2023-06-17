@@ -7,6 +7,7 @@ import {
 } from '~/alias';
 import type { AnyColumn } from '~/column';
 import { Column } from '~/column';
+import { entityKind, is } from '~/entity';
 import type { MigrationConfig, MigrationMeta } from '~/migrator';
 import {
 	type BuildRelationalQueryResult,
@@ -18,7 +19,7 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations';
-import { and, eq, name, or, Param, type Query, SQL, sql, type SQLChunk } from '~/sql';
+import { and, eq, or, Param, type Query, SQL, sql, type SQLChunk } from '~/sql';
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
 import { type DrizzleTypeError, orderSelectedFields, type UpdateSet } from '~/utils';
@@ -43,10 +44,12 @@ import { MySqlViewBase } from './view';
 // Add Planetscale Driver and create example repo
 
 export class MySqlDialect {
+	static readonly [entityKind]: string = 'MySqlDialect';
+
 	async migrate(migrations: MigrationMeta[], session: MySqlSession, config: MigrationConfig): Promise<void> {
 		const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 		const migrationTableCreate = sql`
-			create table if not exists ${name(migrationsTable)} (
+			create table if not exists ${sql.identifier(migrationsTable)} (
 				id serial primary key,
 				hash text not null,
 				created_at bigint
@@ -55,7 +58,7 @@ export class MySqlDialect {
 		await session.execute(migrationTableCreate);
 
 		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
-			sql`select id, hash, created_at from ${name(migrationsTable)} order by created_at desc limit 1`,
+			sql`select id, hash, created_at from ${sql.identifier(migrationsTable)} order by created_at desc limit 1`,
 		);
 
 		const lastDbMigration = dbMigrations[0];
@@ -71,7 +74,7 @@ export class MySqlDialect {
 					}
 					await tx.execute(
 						sql`insert into ${
-							name(migrationsTable)
+							sql.identifier(migrationsTable)
 						} (\`hash\`, \`created_at\`) values(${migration.hash}, ${migration.folderMillis})`,
 					);
 				}
@@ -109,7 +112,7 @@ export class MySqlDialect {
 			setEntries
 				.flatMap(([colName, value], i): SQL[] => {
 					const col: AnyMySqlColumn = table[Table.Symbol.Columns][colName]!;
-					const res = sql`${name(col.name)} = ${value}`;
+					const res = sql`${sql.identifier(col.name)} = ${value}`;
 					if (i < setSize - 1) {
 						return [res, sql.raw(', ')];
 					}
@@ -151,17 +154,17 @@ export class MySqlDialect {
 			.flatMap(({ field }, i) => {
 				const chunk: SQLChunk[] = [];
 
-				if (field instanceof SQL.Aliased && field.isSelectionField) {
-					chunk.push(name(field.fieldAlias));
-				} else if (field instanceof SQL.Aliased || field instanceof SQL) {
-					const query = field instanceof SQL.Aliased ? field.sql : field;
+				if (is(field, SQL.Aliased) && field.isSelectionField) {
+					chunk.push(sql.identifier(field.fieldAlias));
+				} else if (is(field, SQL.Aliased) || is(field, SQL)) {
+					const query = is(field, SQL.Aliased) ? field.sql : field;
 
 					if (isSingleTable) {
 						chunk.push(
 							new SQL(
 								query.queryChunks.map((c) => {
-									if (c instanceof MySqlColumn) {
-										return name(c.name);
+									if (is(c, MySqlColumn)) {
+										return sql.identifier(c.name);
 									}
 									return c;
 								}),
@@ -171,12 +174,12 @@ export class MySqlDialect {
 						chunk.push(query);
 					}
 
-					if (field instanceof SQL.Aliased) {
-						chunk.push(sql` as ${name(field.fieldAlias)}`);
+					if (is(field, SQL.Aliased)) {
+						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 					}
-				} else if (field instanceof Column) {
+				} else if (is(field, Column)) {
 					if (isSingleTable) {
-						chunk.push(name(field.name));
+						chunk.push(sql.identifier(field.name));
 					} else {
 						chunk.push(field);
 					}
@@ -193,19 +196,32 @@ export class MySqlDialect {
 	}
 
 	buildSelectQuery(
-		{ withList, fields, fieldsFlat, where, having, table, joins, orderBy, groupBy, limit, offset, lockingClause }:
-			MySqlSelectConfig,
+		{
+			withList,
+			fields,
+			fieldsFlat,
+			where,
+			having,
+			table,
+			joins,
+			orderBy,
+			groupBy,
+			limit,
+			offset,
+			lockingClause,
+			distinct,
+		}: MySqlSelectConfig,
 	): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<AnyMySqlColumn>(fields);
 		for (const f of fieldsList) {
 			if (
-				f.field instanceof Column
+				is(f.field, Column)
 				&& getTableName(f.field.table)
-					!== (table instanceof Subquery
+					!== (is(table, Subquery)
 						? table[SubqueryConfig].alias
-						: table instanceof MySqlViewBase
+						: is(table, MySqlViewBase)
 						? table[ViewBaseConfig].name
-						: table instanceof SQL
+						: is(table, SQL)
 						? undefined
 						: getTableName(table))
 				&& !((table) =>
@@ -225,10 +241,10 @@ export class MySqlDialect {
 		const isSingleTable = joins.length === 0;
 
 		let withSql: SQL | undefined;
-		if (withList.length) {
+		if (withList?.length) {
 			const withSqlChunks = [sql`with `];
 			for (const [i, w] of withList.entries()) {
-				withSqlChunks.push(sql`${name(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
+				withSqlChunks.push(sql`${sql.identifier(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
 				if (i < withList.length - 1) {
 					withSqlChunks.push(sql`, `);
 				}
@@ -237,11 +253,13 @@ export class MySqlDialect {
 			withSql = sql.fromList(withSqlChunks);
 		}
 
+		const distinctSql = distinct ? sql` distinct` : undefined;
+
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
 
 		const tableSql = (() => {
-			if (table instanceof Table && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
-				return sql`${name(table[Table.Symbol.OriginalName])} ${name(table[Table.Symbol.Name])}`;
+			if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
+				return sql`${sql.identifier(table[Table.Symbol.OriginalName])} ${sql.identifier(table[Table.Symbol.Name])}`;
 			}
 
 			return table;
@@ -255,25 +273,25 @@ export class MySqlDialect {
 			}
 			const table = joinMeta.table;
 
-			if (table instanceof MySqlTable) {
+			if (is(table, MySqlTable)) {
 				const tableName = table[MySqlTable.Symbol.Name];
 				const tableSchema = table[MySqlTable.Symbol.Schema];
 				const origTableName = table[MySqlTable.Symbol.OriginalName];
 				const alias = tableName === origTableName ? undefined : joinMeta.alias;
 				joinsArray.push(
-					sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${name(tableSchema)}.` : undefined}${
-						name(origTableName)
-					}${alias && sql` ${name(alias)}`} on ${joinMeta.on}`,
+					sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined}${
+						sql.identifier(origTableName)
+					}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
 				);
-			} else if (table instanceof View) {
+			} else if (is(table, View)) {
 				const viewName = table[ViewBaseConfig].name;
 				const viewSchema = table[ViewBaseConfig].schema;
 				const origViewName = table[ViewBaseConfig].originalName;
 				const alias = viewName === origViewName ? undefined : joinMeta.alias;
 				joinsArray.push(
-					sql`${sql.raw(joinMeta.joinType)} join ${viewSchema ? sql`${name(viewSchema)}.` : undefined}${
-						name(origViewName)
-					}${alias && sql` ${name(alias)}`} on ${joinMeta.on}`,
+					sql`${sql.raw(joinMeta.joinType)} join ${viewSchema ? sql`${sql.identifier(viewSchema)}.` : undefined}${
+						sql.identifier(origViewName)
+					}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
 				);
 			} else {
 				joinsArray.push(
@@ -328,7 +346,7 @@ export class MySqlDialect {
 			}
 		}
 
-		return sql`${withSql}select ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+		return sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
 	}
 
 	buildInsertQuery({ table, values, ignore, onConflict }: MySqlInsertConfig): SQL {
@@ -338,13 +356,13 @@ export class MySqlDialect {
 		const colEntries: [string, AnyMySqlColumn][] = isSingleValue
 			? Object.keys(values[0]!).map((fieldName) => [fieldName, columns[fieldName]!])
 			: Object.entries(columns);
-		const insertOrder = colEntries.map(([, column]) => name(column.name));
+		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 
 		for (const [valueIndex, value] of values.entries()) {
 			const valueList: (SQLChunk | SQL)[] = [];
 			for (const [fieldName] of colEntries) {
 				const colValue = value[fieldName];
-				if (colValue === undefined || (colValue instanceof Param && colValue.value === undefined)) {
+				if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
 					valueList.push(sql`default`);
 				} else {
 					valueList.push(colValue);
@@ -486,7 +504,7 @@ export class MySqlDialect {
 			orderByOrig = [orderByOrig];
 		}
 		const orderBy = orderByOrig.map((orderByValue) => {
-			if (orderByValue instanceof Column) {
+			if (is(orderByValue, Column)) {
 				return aliasedTableColumn(orderByValue, tableAlias) as AnyMySqlColumn;
 			}
 			return mapColumnsInSQLToAlias(orderByValue, tableAlias);
@@ -502,7 +520,7 @@ export class MySqlDialect {
 		for (const { key: selectedRelationKey, value: selectedRelationValue } of selectedRelations) {
 			let relation: Relation | undefined;
 			for (const [relationKey, relationValue] of Object.entries(tableConfig.relations)) {
-				if (relationValue instanceof Relation && relationKey === selectedRelationKey) {
+				if (is(relationValue, Relation) && relationKey === selectedRelationKey) {
 					relation = relationValue;
 					break;
 				}
@@ -538,7 +556,7 @@ export class MySqlDialect {
 			}
 
 			const join: JoinsValue = {
-				table: builtRelation.sql instanceof Table
+				table: is(builtRelation.sql, Table)
 					? aliasedTable(builtRelation.sql as AnyMySqlTable, relationAlias)
 					: new Subquery(builtRelation.sql, {}, relationAlias),
 				alias: relationAlias,
@@ -602,7 +620,6 @@ export class MySqlDialect {
 				groupBy,
 				orderBy: selectedRelationIndex === selectedRelations.length - 1 ? orderBy : [],
 				joins: [join],
-				withList: [],
 			});
 
 			joins.push(join);
@@ -613,7 +630,7 @@ export class MySqlDialect {
 		const finalFieldsSelection: SelectedFieldsOrdered = Object.entries(fieldsSelection).map(([key, value]) => {
 			return {
 				path: [key],
-				field: value instanceof Column ? aliasedTableColumn(value, tableAlias) : value,
+				field: is(value, Column) ? aliasedTableColumn(value, tableAlias) : value,
 			};
 		});
 
@@ -621,7 +638,7 @@ export class MySqlDialect {
 			? [
 				...finalFieldsSelection.map(({ path, field }) => ({
 					path,
-					field: field instanceof SQL.Aliased ? sql`${sql.identifier(field.fieldAlias)}` : field,
+					field: is(field, SQL.Aliased) ? sql`${sql.identifier(field.fieldAlias)}` : field,
 				})),
 				...builtRelationFields.map(({ path, field }) => ({
 					path,
@@ -682,7 +699,6 @@ export class MySqlDialect {
 			groupBy: [],
 			orderBy: isRoot ? orderBy : [],
 			joins: [],
-			withList: [],
 			limit,
 			offset: offset as Exclude<typeof offset, DrizzleTypeError<any>>,
 		});
@@ -692,7 +708,7 @@ export class MySqlDialect {
 			sql: result,
 			selection: [
 				...finalFieldsSelection.map(({ path, field }) => ({
-					dbKey: field instanceof SQL.Aliased ? field.fieldAlias : tableConfig.columns[path[0]!]!.name,
+					dbKey: is(field, SQL.Aliased) ? field.fieldAlias : tableConfig.columns[path[0]!]!.name,
 					tsKey: path[0]!,
 					field,
 					tableTsKey: undefined,

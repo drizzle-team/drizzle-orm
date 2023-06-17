@@ -4,7 +4,7 @@ import type { SelectedFields } from '~/operations';
 import type { SQL } from '~/sql';
 import type { Subquery } from '~/subquery';
 import type { AnyTable, Table } from '~/table';
-import type { Assume, DrizzleTypeError, Equal, Simplify } from '~/utils';
+import type { Assume, DrizzleTypeError, Equal, SimplifyShallow } from '~/utils';
 import type { ColumnsSelection, View } from '~/view';
 
 export type JoinType = 'inner' | 'left' | 'right' | 'full';
@@ -24,7 +24,7 @@ export type ApplyNullabilityToColumn<TColumn extends AnyColumn, TNullability ext
 			}>
 		>;
 
-export type ApplyNotNullMapToJoins<TResult, TNullabilityMap extends Record<string, JoinNullability>> = Simplify<
+export type ApplyNotNullMapToJoins<TResult, TNullabilityMap extends Record<string, JoinNullability>> = SimplifyShallow<
 	{
 		[TTableName in keyof TResult & keyof TNullabilityMap & string]: ApplyNullability<
 			TResult[TTableName],
@@ -74,7 +74,7 @@ type SelectPartialResult<TFields, TNullability extends Record<string, JoinNullab
 export type MapColumnsToTableAlias<
 	TColumns extends ColumnsSelection,
 	TAlias extends string,
-> = Simplify<
+> = SimplifyShallow<
 	{
 		[Key in keyof TColumns]: TColumns[Key] extends AnyColumn
 			? ChangeColumnTableName<Assume<TColumns[Key], AnyColumn>, TAlias>
@@ -85,15 +85,15 @@ export type MapColumnsToTableAlias<
 export type AddAliasToSelection<
 	TSelection extends ColumnsSelection,
 	TAlias extends string,
-> = Equal<TSelection, any> extends true ? any
-	: Simplify<
-		{
+> = SimplifyShallow<
+	Equal<TSelection, any> extends true ? any
+		: {
 			[Key in keyof TSelection]: TSelection[Key] extends AnyColumn ? ChangeColumnTableName<TSelection[Key], TAlias>
 				: TSelection[Key] extends SQL | SQL.Aliased ? TSelection[Key]
 				: TSelection[Key] extends ColumnsSelection ? MapColumnsToTableAlias<TSelection[Key], TAlias>
 				: never;
 		}
-	>;
+>;
 
 export type AppendToResult<
 	TTableName extends string | undefined,
@@ -110,7 +110,7 @@ export type AppendToResult<
 export type BuildSubquerySelection<
 	TSelection extends ColumnsSelection,
 	TNullability extends Record<string, JoinNullability>,
-> = TSelection extends never ? any : Simplify<
+> = TSelection extends never ? any : SimplifyShallow<
 	{
 		[Key in keyof TSelection]: TSelection[Key] extends SQL
 			? DrizzleTypeError<'You cannot reference this field without assigning it an alias first - use `.as(<alias>)`'>
@@ -157,7 +157,7 @@ export type SelectResultField<T, TDeep extends boolean = true> = T extends Drizz
 	: T extends Record<string, any> ? SelectResultFields<T, true>
 	: never;
 
-export type SelectResultFields<TSelectedFields, TDeep extends boolean = true> = Simplify<
+export type SelectResultFields<TSelectedFields, TDeep extends boolean = true> = SimplifyShallow<
 	{
 		[Key in keyof TSelectedFields & string]: SelectResultField<TSelectedFields[Key], TDeep>;
 	}

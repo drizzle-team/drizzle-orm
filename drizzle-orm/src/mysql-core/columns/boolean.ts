@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export interface MySqlBooleanBuilderHKT extends ColumnBuilderHKTBase {
@@ -24,6 +25,8 @@ export type MySqlBooleanBuilderInitial<TName extends string> = MySqlBooleanBuild
 export class MySqlBooleanBuilder<T extends ColumnBuilderBaseConfig>
 	extends MySqlColumnBuilder<MySqlBooleanBuilderHKT, T>
 {
+	static readonly [entityKind]: string = 'MySqlBooleanBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
@@ -33,6 +36,8 @@ export class MySqlBooleanBuilder<T extends ColumnBuilderBaseConfig>
 }
 
 export class MySqlBoolean<T extends ColumnBaseConfig> extends MySqlColumn<MySqlBooleanHKT, T> {
+	static readonly [entityKind]: string = 'MySqlBoolean';
+
 	getSQLType(): string {
 		return 'boolean';
 	}

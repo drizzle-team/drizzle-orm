@@ -106,8 +106,7 @@ jobs:
             npm dist-tag add ${{ matrix.package }}@$version $tag
           else
             echo "Publishing ${{ matrix.package }}@$tag using version $version"
-            npm version $version
-            cp package.json dist/package.json
+            (cd dist && npm version $version)
             npm run pack
             npm run publish -- --tag $tag
           fi

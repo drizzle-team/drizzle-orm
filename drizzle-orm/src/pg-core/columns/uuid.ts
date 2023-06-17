@@ -1,10 +1,9 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-
+import { entityKind } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
 import { sql } from '~/sql';
-import type { Assume } from '~/utils';
-
+import { type Assume } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export interface PgUUIDBuilderHKT extends ColumnBuilderHKTBase {
@@ -25,6 +24,8 @@ export type PgUUIDBuilderInitial<TName extends string> = PgUUIDBuilder<{
 }>;
 
 export class PgUUIDBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgUUIDBuilderHKT, T> {
+	static readonly [entityKind]: string = 'PgUUIDBuilder';
+
 	/**
 	 * Adds `default gen_random_uuid()` to the column definition.
 	 */
@@ -41,6 +42,8 @@ export class PgUUIDBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBu
 }
 
 export class PgUUID<T extends ColumnBaseConfig> extends PgColumn<PgUUIDHKT, T> {
+	static readonly [entityKind]: string = 'PgUUID';
+
 	getSQLType(): string {
 		return 'uuid';
 	}

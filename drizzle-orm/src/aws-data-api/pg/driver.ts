@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
 import { PgDatabase } from '~/pg-core/db';
@@ -32,6 +33,8 @@ export type AwsDataApiPgDatabase<
 > = PgDatabase<AwsDataApiPgQueryResultHKT, TSchema>;
 
 export class AwsPgDialect extends PgDialect {
+	static readonly [entityKind]: string = 'AwsPgDialect';
+
 	override escapeParam(num: number): string {
 		return `:${num + 1}`;
 	}

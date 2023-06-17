@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
 export interface MySqlDecimalBuilderHKT extends ColumnBuilderHKTBase {
@@ -24,6 +25,8 @@ export type MySqlDecimalBuilderInitial<TName extends string> = MySqlDecimalBuild
 export class MySqlDecimalBuilder<T extends ColumnBuilderBaseConfig>
 	extends MySqlColumnBuilderWithAutoIncrement<MySqlDecimalBuilderHKT, T, MySqlDecimalConfig>
 {
+	static readonly [entityKind]: string = 'MySqlDecimalBuilder';
+
 	constructor(name: T['name'], precision?: number, scale?: number) {
 		super(name);
 		this.config.precision = precision;
@@ -41,6 +44,8 @@ export class MySqlDecimalBuilder<T extends ColumnBuilderBaseConfig>
 export class MySqlDecimal<T extends ColumnBaseConfig>
 	extends MySqlColumnWithAutoIncrement<MySqlDecimalHKT, T, MySqlDecimalConfig>
 {
+	static readonly [entityKind]: string = 'MySqlDecimal';
+
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
 

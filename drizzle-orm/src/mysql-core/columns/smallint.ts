@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
 export interface MySqlSmallIntBuilderHKT extends ColumnBuilderHKTBase {
@@ -24,6 +25,8 @@ export type MySqlSmallIntBuilderInitial<TName extends string> = MySqlSmallIntBui
 export class MySqlSmallIntBuilder<T extends ColumnBuilderBaseConfig>
 	extends MySqlColumnBuilderWithAutoIncrement<MySqlSmallIntBuilderHKT, T>
 {
+	static readonly [entityKind]: string = 'MySqlSmallIntBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
@@ -33,6 +36,8 @@ export class MySqlSmallIntBuilder<T extends ColumnBuilderBaseConfig>
 }
 
 export class MySqlSmallInt<T extends ColumnBaseConfig> extends MySqlColumnWithAutoIncrement<MySqlSmallIntHKT, T> {
+	static readonly [entityKind]: string = 'MySqlSmallInt';
+
 	getSQLType(): string {
 		return 'smallint';
 	}

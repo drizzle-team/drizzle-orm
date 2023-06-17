@@ -1,6 +1,7 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-import type { Assume } from '~/utils';
+import { entityKind } from '~/entity';
+import { type Assume } from '~/utils';
 import type { AnyPgTable } from '../table';
 import { PgColumn, PgColumnBuilder } from './common';
 
@@ -22,6 +23,8 @@ export type PgCidrBuilderInitial<TName extends string> = PgCidrBuilder<{
 }>;
 
 export class PgCidrBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgCidrBuilderHKT, T> {
+	static readonly [entityKind]: string = 'PgCidrBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
@@ -31,6 +34,8 @@ export class PgCidrBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBu
 }
 
 export class PgCidr<T extends ColumnBaseConfig> extends PgColumn<PgCidrHKT, T> {
+	static readonly [entityKind]: string = 'PgCidr';
+
 	getSQLType(): string {
 		return 'cidr';
 	}

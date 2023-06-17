@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import type { PgDialect } from '~/pg-core/dialect';
 import { PgDelete, PgInsertBuilder, PgSelectBuilder, PgUpdateBuilder, QueryBuilder } from '~/pg-core/query-builders';
 import type { PgSession, PgTransaction, PgTransactionConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
@@ -6,7 +7,9 @@ import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import { type ExtractTablesWithRelations, type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import { type SQLWrapper } from '~/sql';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
+import { type DrizzleTypeError } from '~/utils';
 import { type ColumnsSelection } from '~/view';
+import { type AnyPgColumn } from './columns';
 import { RelationalQueryBuilder } from './query-builders/query';
 import { PgRefreshMaterializedView } from './query-builders/refresh-materialized-view';
 import type { SelectedFields } from './query-builders/select.types';
@@ -18,14 +21,18 @@ export class PgDatabase<
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
 > {
+	static readonly [entityKind]: string = 'PgDatabase';
+
 	declare readonly _: {
 		readonly schema: TSchema | undefined;
 		readonly tableNamesMap: Record<string, string>;
 	};
 
-	query: {
-		[K in keyof TSchema]: RelationalQueryBuilder<TSchema, TSchema[K]>;
-	};
+	query: TFullSchema extends Record<string, never>
+		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
+		: {
+			[K in keyof TSchema]: RelationalQueryBuilder<TSchema, TSchema[K]>;
+		};
 
 	constructor(
 		/** @internal */
@@ -40,7 +47,7 @@ export class PgDatabase<
 		this.query = {} as typeof this['query'];
 		if (this._.schema) {
 			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				this.query[tableName as keyof TSchema] = new RelationalQueryBuilder(
+				(this.query as PgDatabase<TQueryResult, Record<string, any>>['query'])[tableName] = new RelationalQueryBuilder(
 					schema!.fullSchema,
 					this._.schema,
 					this._.tableNamesMap,
@@ -76,7 +83,12 @@ export class PgDatabase<
 		function select(): PgSelectBuilder<undefined>;
 		function select<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
 		function select(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
-			return new PgSelectBuilder(fields ?? undefined, self.session, self.dialect, queries);
+			return new PgSelectBuilder({
+				fields: fields ?? undefined,
+				session: self.session,
+				dialect: self.dialect,
+				withList: queries,
+			});
 		}
 
 		return { select };
@@ -85,7 +97,39 @@ export class PgDatabase<
 	select(): PgSelectBuilder<undefined>;
 	select<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
 	select(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
-		return new PgSelectBuilder(fields ?? undefined, this.session, this.dialect);
+		return new PgSelectBuilder({
+			fields: fields ?? undefined,
+			session: this.session,
+			dialect: this.dialect,
+		});
+	}
+
+	selectDistinct(): PgSelectBuilder<undefined>;
+	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
+	selectDistinct(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
+		return new PgSelectBuilder({
+			fields: fields ?? undefined,
+			session: this.session,
+			dialect: this.dialect,
+			distinct: true,
+		});
+	}
+
+	selectDistinctOn(on: (AnyPgColumn | SQLWrapper)[]): PgSelectBuilder<undefined>;
+	selectDistinctOn<TSelection extends SelectedFields>(
+		on: (AnyPgColumn | SQLWrapper)[],
+		fields: TSelection,
+	): PgSelectBuilder<TSelection>;
+	selectDistinctOn(
+		on: (AnyPgColumn | SQLWrapper)[],
+		fields?: SelectedFields,
+	): PgSelectBuilder<SelectedFields | undefined> {
+		return new PgSelectBuilder({
+			fields: fields ?? undefined,
+			session: this.session,
+			dialect: this.dialect,
+			distinct: { on },
+		});
 	}
 
 	update<TTable extends AnyPgTable>(table: TTable): PgUpdateBuilder<TTable, TQueryResult> {

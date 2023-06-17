@@ -6,8 +6,9 @@ import type {
 	ColumnBuilderHKTBase,
 	MakeColumnConfig,
 } from '~/column-builder';
+import { entityKind, is } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import { makePgArray, parsePgArray } from '../utils';
 import { type AnyPgColumn, PgColumn, PgColumnBuilder, type PgColumnBuilderHKT } from './common';
 
@@ -37,6 +38,8 @@ export class PgArrayBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnB
 		size: number | undefined;
 	}
 > {
+	static override readonly [entityKind] = 'PgArrayBuilder';
+
 	constructor(
 		name: string,
 		baseBuilder: PgArrayBuilder<T>['config']['baseBuilder'],
@@ -78,6 +81,8 @@ export class PgArray<T extends ColumnBaseConfig> extends PgColumn<PgArrayHKT, T,
 
 	readonly size: number | undefined;
 
+	static readonly [entityKind]: string = 'PgArray';
+
 	constructor(
 		table: AnyPgTable<{ name: T['tableName'] }>,
 		config: PgArrayBuilder<T>['config'],
@@ -104,7 +109,7 @@ export class PgArray<T extends ColumnBaseConfig> extends PgColumn<PgArrayHKT, T,
 		const a = value.map((v) =>
 			v === null
 				? null
-				: this.baseColumn instanceof PgArray
+				: is(this.baseColumn, PgArray)
 				? this.baseColumn.mapToDriverValue(v as unknown[], true)
 				: this.baseColumn.mapToDriverValue(v)
 		);

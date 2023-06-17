@@ -10,6 +10,7 @@ import {
 	type RowDataPacket,
 } from 'mysql2/promise';
 import { once } from 'node:events';
+import { entityKind } from '~/entity';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
 import type { MySqlDialect } from '~/mysql-core/dialect';
@@ -37,6 +38,8 @@ export type MySqlQueryResult<
 > = [T extends ResultSetHeader ? T : T[], FieldPacket[]];
 
 export class MySql2PreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
+	static readonly [entityKind]: string = 'MySql2PreparedQuery';
+
 	private rawQuery: QueryOptions;
 	private query: QueryOptions;
 
@@ -120,7 +123,7 @@ export class MySql2PreparedQuery<T extends PreparedQueryConfig> extends Prepared
 				const row = await Promise.race([onEnd, onError, new Promise((resolve) => stream.once('data', resolve))]);
 				if (row === undefined || (Array.isArray(row) && row.length === 0)) {
 					break;
-				} else if (row instanceof Error) {
+				} else if (row instanceof Error) { // eslint-disable-line no-instanceof/no-instanceof
 					throw row;
 				} else {
 					if (hasRowsMapper) {
@@ -152,6 +155,8 @@ export class MySql2Session<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends MySqlSession<MySql2QueryResultHKT, MySql2PreparedQueryHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'MySql2Session';
+
 	private logger: Logger;
 
 	constructor(
@@ -242,6 +247,8 @@ export class MySql2Transaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends MySqlTransaction<MySql2QueryResultHKT, MySql2PreparedQueryHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'MySql2Transaction';
+
 	override async transaction<T>(transaction: (tx: MySql2Transaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new MySql2Transaction(this.dialect, this.session, this.schema, this.nestedIndex + 1);

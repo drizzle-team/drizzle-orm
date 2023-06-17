@@ -1,4 +1,5 @@
 import type { BindParams, Database, Statement } from 'sql.js';
+import { entityKind } from '~/entity';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
 import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
@@ -20,6 +21,8 @@ export class SQLJsSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteSession<'sync', void, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'SQLJsSession';
+
 	private logger: Logger;
 
 	constructor(
@@ -70,6 +73,8 @@ export class SQLJsTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteTransaction<'sync', void, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'SQLJsTransaction';
+
 	override transaction<T>(transaction: (tx: SQLJsTransaction<TFullSchema, TSchema>) => T): T {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new SQLJsTransaction('sync', this.dialect, this.session, this.schema, this.nestedIndex + 1);
@@ -88,6 +93,8 @@ export class SQLJsTransaction<
 export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
 	{ type: 'sync'; run: void; all: T['all']; get: T['get']; values: T['values'] }
 > {
+	static readonly [entityKind]: string = 'SQLJsPreparedQuery';
+
 	constructor(
 		private stmt: Statement,
 		private queryString: string,
@@ -193,9 +200,9 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 }
 
 function normalizeFieldValue(value: unknown) {
-	if (value instanceof Uint8Array) {
+	if (value instanceof Uint8Array) { // eslint-disable-line no-instanceof/no-instanceof
 		if (typeof Buffer !== 'undefined') {
-			if (!(value instanceof Buffer)) {
+			if (!(value instanceof Buffer)) { // eslint-disable-line no-instanceof/no-instanceof
 				return Buffer.from(value);
 			}
 			return value;

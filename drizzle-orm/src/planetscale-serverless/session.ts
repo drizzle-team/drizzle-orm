@@ -1,4 +1,5 @@
 import type { Connection, ExecutedQuery, Transaction } from '@planetscale/database';
+import { entityKind } from '~/entity';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
 import type { MySqlDialect } from '~/mysql-core/dialect';
@@ -18,6 +19,8 @@ import { type Assume, mapResultRow } from '~/utils';
 export type PlanetScaleConnection = Connection;
 
 export class PlanetScalePreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
+	static readonly [entityKind]: string = 'PlanetScalePreparedQuery';
+
 	private rawQuery = { as: 'object' } as const;
 	private query = { as: 'array' } as const;
 
@@ -64,6 +67,8 @@ export class PlanetscaleSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends MySqlSession<PlanetscaleQueryResultHKT, PlanetScalePreparedQueryHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'PlanetscaleSession';
+
 	private logger: Logger;
 	private client: PlanetScaleConnection | Transaction;
 
@@ -121,6 +126,8 @@ export class PlanetScaleTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends MySqlTransaction<PlanetscaleQueryResultHKT, PlanetScalePreparedQueryHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'PlanetScaleTransaction';
+
 	override async transaction<T>(
 		transaction: (tx: PlanetScaleTransaction<TFullSchema, TSchema>) => Promise<T>,
 	): Promise<T> {

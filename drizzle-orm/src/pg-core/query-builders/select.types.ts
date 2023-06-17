@@ -15,7 +15,7 @@ import type {
 	MapColumnsToTableAlias,
 	SelectMode,
 } from '~/query-builders/select.types';
-import type { Placeholder, SQL } from '~/sql';
+import type { Placeholder, SQL, SQLWrapper } from '~/sql';
 import type { Subquery } from '~/subquery';
 import type { AnyTable, Table, UpdateTableConfig } from '~/table';
 import type { Assume } from '~/utils';
@@ -42,7 +42,7 @@ export type BuildAliasTable<TTable extends AnyTable, TAlias extends string> = Pg
 >;
 
 export interface PgSelectConfig {
-	withList: Subquery[];
+	withList?: Subquery[];
 	// Either fields or fieldsFlat must be defined
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
@@ -58,6 +58,9 @@ export interface PgSelectConfig {
 		strength: LockStrength;
 		config: LockConfig;
 	}[];
+	distinct?: boolean | {
+		on: (AnyPgColumn | SQLWrapper)[];
+	};
 }
 
 export type JoinFn<
