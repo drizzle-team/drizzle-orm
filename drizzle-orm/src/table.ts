@@ -130,9 +130,9 @@ export type MapColumnName<TName extends string, TColumn extends AnyColumn, TDBCo
 
 export type InferModelFromColumns<
 	TColumns extends Record<string, AnyColumn>,
-	TInferMode extends 'select' | 'insert' = 'select',
+	TInferMode extends 'select' | 'insert' = 'insert',
 	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
-> = TInferMode extends 'insert' ? SimplifyShallow<
+> = TInferMode extends 'select' ? SimplifyShallow<
 		& {
 			[
 				Key in keyof TColumns & string as RequiredKeyOnly<
@@ -162,6 +162,6 @@ export type InferModelFromColumns<
 
 export type InferModel<
 	TTable extends AnyTable,
-	TInferMode extends 'select' | 'insert' = 'select',
+	TInferMode extends 'select' | 'insert' = 'insert',
 	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
 > = InferModelFromColumns<TTable['_']['columns'], TInferMode, TConfig>;
