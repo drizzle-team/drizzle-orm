@@ -1,4 +1,5 @@
 import type { BuildColumns } from '~/column-builder';
+import { entityKind } from '~/entity';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table';
 import type { CheckBuilder } from './checks';
 import type { AnySQLiteColumn, AnySQLiteColumnBuilder } from './columns/common';
@@ -16,9 +17,11 @@ export type SQLiteTableExtraConfig = Record<
 export type TableConfig = TableConfigBase<AnySQLiteColumn>;
 
 /** @internal */
-export const InlineForeignKeys = Symbol('InlineForeignKeys');
+export const InlineForeignKeys = Symbol.for('drizzle:SQLiteInlineForeignKeys');
 
 export class SQLiteTable<T extends TableConfig> extends Table<T> {
+	static readonly [entityKind]: string = 'SQLiteTable';
+
 	/** @internal */
 	static override readonly Symbol = Object.assign({}, Table.Symbol, {
 		InlineForeignKeys: InlineForeignKeys as typeof InlineForeignKeys,

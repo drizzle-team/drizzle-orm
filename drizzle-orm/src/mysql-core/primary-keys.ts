@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import type { AnyMySqlColumn } from './columns';
 import type { AnyMySqlTable } from './table';
 import { MySqlTable } from './table';
@@ -10,6 +11,8 @@ export function primaryKey<
 }
 
 export class PrimaryKeyBuilder {
+	static readonly [entityKind]: string = 'MySqlPrimaryKeyBuilder';
+
 	/** @internal */
 	columns: AnyMySqlColumn<{}>[];
 
@@ -26,6 +29,8 @@ export class PrimaryKeyBuilder {
 }
 
 export class PrimaryKey {
+	static readonly [entityKind]: string = 'MySqlPrimaryKey';
+
 	readonly columns: AnyMySqlColumn<{}>[];
 
 	constructor(readonly table: AnyMySqlTable, columns: AnyMySqlColumn<{}>[]) {

@@ -1,8 +1,8 @@
 diff --git a/lib/tsserver.js b/lib/tsserver.js
-index 6158bf4eb0a407e9598e128a2f2cd1615f3373d4..b52d0d06dadc8697989a21b766373a2468208a8b 100644
+index 63bcdac309ff42bedada2d018b795be57ee2fe8d..cd9dd67c5a593b9dc721b3d861eb178227ddd6a6 100644
 --- a/lib/tsserver.js
 +++ b/lib/tsserver.js
-@@ -14920,7 +14920,7 @@ function isRestParameter(node) {
+@@ -14987,7 +14987,7 @@ function isRestParameter(node) {
  // src/compiler/utilities.ts
  var resolvingEmptyArray = [];
  var externalHelpersModuleNameText = "tslib";

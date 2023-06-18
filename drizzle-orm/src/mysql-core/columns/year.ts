@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export interface MySqlYearBuilderHKT extends ColumnBuilderHKTBase {
@@ -22,6 +23,8 @@ export type MySqlYearBuilderInitial<TName extends string> = MySqlYearBuilder<{
 }>;
 
 export class MySqlYearBuilder<T extends ColumnBuilderBaseConfig> extends MySqlColumnBuilder<MySqlYearBuilderHKT, T> {
+	static readonly [entityKind]: string = 'MySqlYearBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
@@ -33,6 +36,8 @@ export class MySqlYearBuilder<T extends ColumnBuilderBaseConfig> extends MySqlCo
 export class MySqlYear<
 	T extends ColumnBaseConfig,
 > extends MySqlColumn<MySqlYearHKT, T> {
+	static readonly [entityKind]: string = 'MySqlYear';
+
 	getSQLType(): string {
 		return `year`;
 	}

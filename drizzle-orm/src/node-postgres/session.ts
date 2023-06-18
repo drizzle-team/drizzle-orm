@@ -1,5 +1,6 @@
 import type { Client, PoolClient, QueryArrayConfig, QueryConfig, QueryResult, QueryResultRow } from 'pg';
 import pg from 'pg';
+import { entityKind } from '~/entity';
 import { type Logger, NoopLogger } from '~/logger';
 import { PgTransaction } from '~/pg-core';
 import type { PgDialect } from '~/pg-core/dialect';
@@ -16,6 +17,8 @@ const { Pool } = pg;
 export type NodePgClient = pg.Pool | PoolClient | Client;
 
 export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
+	static readonly [entityKind]: string = 'NodePgPreparedQuery';
+
 	private rawQuery: QueryConfig;
 	private query: QueryArrayConfig;
 
@@ -99,6 +102,8 @@ export class NodePgSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<NodePgQueryResultHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'NodePgSession';
+
 	private logger: Logger;
 
 	constructor(
@@ -124,7 +129,7 @@ export class NodePgSession<
 		transaction: (tx: NodePgTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
-		const session = this.client instanceof Pool
+		const session = this.client instanceof Pool // eslint-disable-line no-instanceof/no-instanceof
 			? new NodePgSession(await this.client.connect(), this.dialect, this.schema, this.options)
 			: this;
 		const tx = new NodePgTransaction(this.dialect, session, this.schema);
@@ -137,7 +142,7 @@ export class NodePgSession<
 			await tx.execute(sql`rollback`);
 			throw error;
 		} finally {
-			if (this.client instanceof Pool) {
+			if (this.client instanceof Pool) { // eslint-disable-line no-instanceof/no-instanceof
 				(session.client as PoolClient).release();
 			}
 		}
@@ -148,6 +153,8 @@ export class NodePgTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<NodePgQueryResultHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'NodePgTransaction';
+
 	override async transaction<T>(transaction: (tx: NodePgTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new NodePgTransaction(this.dialect, this.session, this.schema, this.nestedIndex + 1);

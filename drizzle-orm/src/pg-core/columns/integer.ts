@@ -1,6 +1,7 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-import type { Assume } from '~/utils';
+import { entityKind } from '~/entity';
+import { type Assume } from '~/utils';
 import type { AnyPgTable } from '../table';
 import { PgColumn, PgColumnBuilder } from './common';
 
@@ -22,6 +23,8 @@ type PgIntegerBuilderInitial<TName extends string> = PgIntegerBuilder<{
 }>;
 
 export class PgIntegerBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgIntegerBuilderHKT, T> {
+	static readonly [entityKind]: string = 'PgIntegerBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
@@ -31,6 +34,8 @@ export class PgIntegerBuilder<T extends ColumnBuilderBaseConfig> extends PgColum
 }
 
 export class PgInteger<T extends ColumnBaseConfig> extends PgColumn<PgIntegerHKT, T> {
+	static readonly [entityKind]: string = 'PgInteger';
+
 	getSQLType(): string {
 		return 'integer';
 	}

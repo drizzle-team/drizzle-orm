@@ -1,3 +1,4 @@
+import { is } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
 import { PgTable } from '~/pg-core/table';
 import { Table } from '~/table';
@@ -23,13 +24,13 @@ export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
 	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[Table.Symbol.Columns]);
 		for (const builder of Object.values(extraConfig)) {
-			if (builder instanceof IndexBuilder) {
+			if (is(builder, IndexBuilder)) {
 				indexes.push(builder.build(table));
-			} else if (builder instanceof CheckBuilder) {
+			} else if (is(builder, CheckBuilder)) {
 				checks.push(builder.build(table));
-			} else if (builder instanceof PrimaryKeyBuilder) {
+			} else if (is(builder, PrimaryKeyBuilder)) {
 				primaryKeys.push(builder.build(table));
-			} else if (builder instanceof ForeignKeyBuilder) {
+			} else if (is(builder, ForeignKeyBuilder)) {
 				foreignKeys.push(builder.build(table));
 			}
 		}

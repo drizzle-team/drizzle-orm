@@ -51,7 +51,7 @@ export type BuildAliasTable<TTable extends Table | View, TAlias extends string> 
 	: never;
 
 export interface SQLiteSelectConfig {
-	withList: Subquery[];
+	withList?: Subquery[];
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
 	where?: SQL;
@@ -62,6 +62,7 @@ export interface SQLiteSelectConfig {
 	joins: JoinsValue[];
 	orderBy: (AnySQLiteColumn | SQL | SQL.Aliased)[];
 	groupBy: (AnySQLiteColumn | SQL | SQL.Aliased)[];
+	distinct?: boolean;
 }
 
 export type JoinFn<

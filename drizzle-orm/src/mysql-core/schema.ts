@@ -1,7 +1,10 @@
+import { entityKind, is } from '~/entity';
 import { type MySqlTableFn, mysqlTableWithSchema } from './table';
 import { type mysqlView, mysqlViewWithSchema } from './view';
 
 export class MySqlSchema<TName extends string = string> {
+	static readonly [entityKind]: string = 'MySqlSchema';
+
 	constructor(
 		public readonly schemaName: TName,
 	) {}
@@ -17,7 +20,7 @@ export class MySqlSchema<TName extends string = string> {
 
 /** @deprecated - use `instanceof MySqlSchema` */
 export function isMySqlSchema(obj: unknown): obj is MySqlSchema {
-	return obj instanceof MySqlSchema;
+	return is(obj, MySqlSchema);
 }
 
 /**

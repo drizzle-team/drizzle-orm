@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
 export interface MySqlDoubleBuilderHKT extends ColumnBuilderHKTBase {
@@ -24,6 +25,8 @@ export type MySqlDoubleBuilderInitial<TName extends string> = MySqlDoubleBuilder
 export class MySqlDoubleBuilder<T extends ColumnBuilderBaseConfig>
 	extends MySqlColumnBuilderWithAutoIncrement<MySqlDoubleBuilderHKT, T, MySqlDoubleConfig>
 {
+	static readonly [entityKind]: string = 'MySqlDoubleBuilder';
+
 	constructor(name: T['name'], config: MySqlDoubleConfig | undefined) {
 		super(name);
 		this.config.precision = config?.precision;
@@ -41,6 +44,8 @@ export class MySqlDoubleBuilder<T extends ColumnBuilderBaseConfig>
 export class MySqlDouble<T extends ColumnBaseConfig>
 	extends MySqlColumnWithAutoIncrement<MySqlDoubleHKT, T, MySqlDoubleConfig>
 {
+	static readonly [entityKind]: string = 'MySqlDouble';
+
 	precision: number | undefined = this.config.precision;
 	scale: number | undefined = this.config.scale;
 

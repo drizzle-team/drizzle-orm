@@ -1,8 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import type { Assume } from '~/utils';
-
+import { type Assume } from '~/utils';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
 export interface MySqlBigInt53BuilderHKT extends ColumnBuilderHKTBase {
@@ -25,6 +25,8 @@ export type MySqlBigInt53BuilderInitial<TName extends string> = MySqlBigInt53Bui
 export class MySqlBigInt53Builder<T extends ColumnBuilderBaseConfig>
 	extends MySqlColumnBuilderWithAutoIncrement<MySqlBigInt53BuilderHKT, T>
 {
+	static readonly [entityKind]: string = 'MySqlBigInt53Builder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
@@ -34,6 +36,8 @@ export class MySqlBigInt53Builder<T extends ColumnBuilderBaseConfig>
 }
 
 export class MySqlBigInt53<T extends ColumnBaseConfig> extends MySqlColumnWithAutoIncrement<MySqlBigInt53HKT, T> {
+	static readonly [entityKind]: string = 'MySqlBigInt53';
+
 	declare protected $mysqlColumnBrand: 'MySqlBigInt53';
 
 	getSQLType(): string {
@@ -68,6 +72,8 @@ export type MySqlBigInt64BuilderInitial<TName extends string> = MySqlBigInt64Bui
 export class MySqlBigInt64Builder<T extends ColumnBuilderBaseConfig>
 	extends MySqlColumnBuilderWithAutoIncrement<MySqlBigInt64BuilderHKT, T>
 {
+	static readonly [entityKind]: string = 'MySqlBigInt64Builder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
@@ -77,6 +83,8 @@ export class MySqlBigInt64Builder<T extends ColumnBuilderBaseConfig>
 }
 
 export class MySqlBigInt64<T extends ColumnBaseConfig> extends MySqlColumnWithAutoIncrement<MySqlBigInt64HKT, T> {
+	static readonly [entityKind]: string = 'MySqlBigInt64';
+
 	getSQLType(): string {
 		return 'bigint';
 	}

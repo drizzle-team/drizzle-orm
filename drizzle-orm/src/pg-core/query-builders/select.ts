@@ -1,3 +1,4 @@
+import { entityKind, is } from '~/entity';
 import type { AnyPgColumn } from '~/pg-core/columns';
 import type { PgDialect } from '~/pg-core/dialect';
 import type { PgSession, PreparedQuery, PreparedQueryConfig } from '~/pg-core/session';
@@ -15,7 +16,7 @@ import type {
 	SelectResult,
 } from '~/query-builders/select.types';
 import { QueryPromise } from '~/query-promise';
-import { type Placeholder, type Query, SQL } from '~/sql';
+import { type Placeholder, type Query, SQL, type SQLWrapper } from '~/sql';
 import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
 import { Table } from '~/table';
 import { tracer } from '~/tracing';
@@ -45,15 +46,38 @@ export class PgSelectBuilder<
 	TSelection extends SelectedFields | undefined,
 	TBuilderMode extends 'db' | 'qb' = 'db',
 > {
+	static readonly [entityKind]: string = 'PgSelectBuilder';
+
+	private fields: TSelection;
+	private session: PgSession | undefined;
+	private dialect: PgDialect;
+	private withList: Subquery[] = [];
+	private distinct: boolean | {
+		on: (AnyPgColumn | SQLWrapper)[];
+	} | undefined;
+
 	constructor(
-		private fields: TSelection,
-		private session: PgSession | undefined,
-		private dialect: PgDialect,
-		private withList: Subquery[] = [],
-	) {}
+		config: {
+			fields: TSelection;
+			session: PgSession | undefined;
+			dialect: PgDialect;
+			withList?: Subquery[];
+			distinct?: boolean | {
+				on: (AnyPgColumn | SQLWrapper)[];
+			};
+		},
+	) {
+		this.fields = config.fields;
+		this.session = config.session;
+		this.dialect = config.dialect;
+		if (config.withList) {
+			this.withList = config.withList;
+		}
+		this.distinct = config.distinct;
+	}
 
 	/**
-	 * Specify the table, subquery, or other target that you’re
+	 * Specify the table, subquery, or other target that you're
 	 * building a select query against.
 	 *
 	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FROM|Postgres from documentation}
@@ -71,22 +95,30 @@ export class PgSelectBuilder<
 		let fields: SelectedFields;
 		if (this.fields) {
 			fields = this.fields;
-		} else if (source instanceof Subquery) {
+		} else if (is(source, Subquery)) {
 			// This is required to use the proxy handler to get the correct field values from the subquery
 			fields = Object.fromEntries(
 				Object.keys(source[SubqueryConfig].selection).map((
 					key,
 				) => [key, source[key as unknown as keyof typeof source] as unknown as SelectedFields[string]]),
 			);
-		} else if (source instanceof PgViewBase) {
+		} else if (is(source, PgViewBase)) {
 			fields = source[ViewBaseConfig].selectedFields as SelectedFields;
-		} else if (source instanceof SQL) {
+		} else if (is(source, SQL)) {
 			fields = {};
 		} else {
 			fields = getTableColumns<AnyPgTable>(source);
 		}
 
-		return new PgSelect(source, fields, isPartialSelect, this.session, this.dialect, this.withList) as any;
+		return new PgSelect({
+			table: source,
+			fields,
+			isPartialSelect,
+			session: this.session,
+			dialect: this.dialect,
+			withList: this.withList,
+			distinct: this.distinct,
+		}) as any;
 	}
 }
 
@@ -101,6 +133,8 @@ export abstract class PgSelectQueryBuilder<
 	BuildSubquerySelection<TSelection, TNullabilityMap>,
 	SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
 > {
+	static readonly [entityKind]: string = 'PgSelectQueryBuilder';
+
 	override readonly _: {
 		readonly selectMode: TSelectMode;
 		readonly selection: TSelection;
@@ -111,14 +145,22 @@ export abstract class PgSelectQueryBuilder<
 	protected config: PgSelectConfig;
 	protected joinsNotNullableMap: Record<string, boolean>;
 	private tableName: string | undefined;
+	private isPartialSelect: boolean;
+	protected session: PgSession | undefined;
+	protected dialect: PgDialect;
 
 	constructor(
-		table: PgSelectConfig['table'],
-		fields: PgSelectConfig['fields'],
-		private isPartialSelect: boolean,
-		protected session: PgSession | undefined,
-		protected dialect: PgDialect,
-		withList: Subquery[],
+		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
+			table: PgSelectConfig['table'];
+			fields: PgSelectConfig['fields'];
+			isPartialSelect: boolean;
+			session: PgSession | undefined;
+			dialect: PgDialect;
+			withList: Subquery[];
+			distinct: boolean | {
+				on: (AnyPgColumn | SQLWrapper)[];
+			} | undefined;
+		},
 	) {
 		super();
 		this.config = {
@@ -129,7 +171,11 @@ export abstract class PgSelectQueryBuilder<
 			orderBy: [],
 			groupBy: [],
 			lockingClauses: [],
+			distinct,
 		};
+		this.isPartialSelect = isPartialSelect;
+		this.session = session;
+		this.dialect = dialect;
 		this._ = {
 			selectedFields: fields as BuildSubquerySelection<TSelection, TNullabilityMap>,
 		} as this['_'];
@@ -158,10 +204,10 @@ export abstract class PgSelectQueryBuilder<
 						[baseTableName]: this.config.fields,
 					};
 				}
-				if (typeof tableName === 'string' && !(table instanceof SQL)) {
-					const selection = table instanceof Subquery
+				if (typeof tableName === 'string' && !is(table, SQL)) {
+					const selection = is(table, Subquery)
 						? table[SubqueryConfig].selection
-						: table instanceof View
+						: is(table, View)
 						? table[ViewBaseConfig].selectedFields
 						: table[Table.Symbol.Columns];
 					this.config.fields[tableName] = selection;
@@ -447,6 +493,8 @@ export class PgSelect<
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
 > extends PgSelectQueryBuilder<PgSelectHKT, TTableName, TSelection, TSelectMode, TNullabilityMap> {
+	static readonly [entityKind]: string = 'PgSelect';
+
 	private _prepare(name?: string): PreparedQuery<
 		PreparedQueryConfig & {
 			execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];

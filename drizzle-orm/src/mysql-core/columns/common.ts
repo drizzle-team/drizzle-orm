@@ -1,12 +1,12 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBaseConfig, ColumnHKT, ColumnHKTBase } from '~/column';
 import { Column } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig, UpdateCBConfig } from '~/column-builder';
 import { ColumnBuilder } from '~/column-builder';
-import type { Assume, Update } from '~/utils';
-
+import { entityKind } from '~/entity';
 import type { ForeignKey, UpdateDeleteAction } from '~/mysql-core/foreign-keys';
 import { ForeignKeyBuilder } from '~/mysql-core/foreign-keys';
 import type { AnyMySqlTable } from '~/mysql-core/table';
+import { type Assume, type Update } from '~/utils';
 
 export interface ReferenceConfig {
 	ref: () => AnyMySqlColumn;
@@ -31,6 +31,8 @@ export abstract class MySqlColumnBuilder<
 	TRuntimeConfig extends object = {},
 	TTypeConfig extends object = {},
 > extends ColumnBuilder<THKT, T, TRuntimeConfig, TTypeConfig & { mysqlBrand: 'MySqlColumnBuilder' }> {
+	static readonly [entityKind]: string = 'MySqlColumnBuilder';
+
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
 	references(
@@ -63,7 +65,7 @@ export abstract class MySqlColumnBuilder<
 	/** @internal */
 	abstract build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlColumn<Assume<THKT['_columnHKT'], ColumnHKTBase>, MakeColumnConfig<T, TTableName>>;
+	): MySqlColumn<Assume<THKT['_columnHKT'], ColumnHKT>, MakeColumnConfig<T, TTableName>>;
 }
 
 export type AnyMySqlColumnBuilder<TPartial extends Partial<ColumnBuilderBaseConfig> = {}> = MySqlColumnBuilder<
@@ -73,10 +75,11 @@ export type AnyMySqlColumnBuilder<TPartial extends Partial<ColumnBuilderBaseConf
 
 // To understand how to use `MySqlColumn` and `AnyMySqlColumn`, see `Column` and `AnyColumn` documentation.
 export abstract class MySqlColumn<
-	THKT extends ColumnHKTBase,
+	THKT extends ColumnHKT,
 	T extends ColumnBaseConfig,
 	TRuntimeConfig extends object = {},
 > extends Column<THKT, T, TRuntimeConfig, { mysqlBrand: 'MySqlColumn' }> {
+	static readonly [entityKind]: string = 'MySqlColumn';
 }
 
 export type AnyMySqlColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = MySqlColumn<
@@ -93,6 +96,8 @@ export abstract class MySqlColumnBuilderWithAutoIncrement<
 	T extends ColumnBuilderBaseConfig,
 	TRuntimeConfig extends object = {},
 > extends MySqlColumnBuilder<THKT, T, TRuntimeConfig & MySqlColumnWithAutoIncrementConfig> {
+	static readonly [entityKind]: string = 'MySqlColumnBuilderWithAutoIncrement';
+
 	constructor(name: NonNullable<T['name']>) {
 		super(name);
 		this.config.autoIncrement = false;
@@ -106,9 +111,11 @@ export abstract class MySqlColumnBuilderWithAutoIncrement<
 }
 
 export abstract class MySqlColumnWithAutoIncrement<
-	THKT extends ColumnHKTBase,
+	THKT extends ColumnHKT,
 	T extends ColumnBaseConfig,
 	TRuntimeConfig extends object = {},
 > extends MySqlColumn<THKT, T, MySqlColumnWithAutoIncrementConfig & TRuntimeConfig> {
+	static readonly [entityKind]: string = 'MySqlColumnWithAutoIncrement';
+
 	readonly autoIncrement: boolean = this.config.autoIncrement;
 }

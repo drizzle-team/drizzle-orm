@@ -1,7 +1,7 @@
+import { entityKind } from '~/entity';
 import type { SelectResultFields } from '~/query-builders/select.types';
 import type { Query, SQL, SQLWrapper } from '~/sql';
 import type { SQLiteDialect } from '~/sqlite-core/dialect';
-
 import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SQLiteTable } from '~/sqlite-core/table';
@@ -33,6 +33,8 @@ export class SQLiteDelete<
 	TRunResult,
 	TReturning = undefined,
 > implements SQLWrapper {
+	static readonly [entityKind]: string = 'SQLiteDelete';
+
 	private config: SQLiteDeleteConfig;
 
 	constructor(

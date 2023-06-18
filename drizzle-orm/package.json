@@ -1,6 +1,6 @@
 {
   "name": "drizzle-orm",
-  "version": "0.26.5",
+  "version": "0.27.0",
   "description": "Drizzle ORM package for SQL databases",
   "type": "module",
   "scripts": {
@@ -123,10 +123,10 @@
     }
   },
   "devDependencies": {
-    "@aws-sdk/client-rds-data": "^3.341.0",
+    "@aws-sdk/client-rds-data": "^3.344.0",
     "@cloudflare/workers-types": "^4.20230518.0",
     "@libsql/client": "^0.1.6",
-    "@neondatabase/serverless": "^0.4.8",
+    "@neondatabase/serverless": "^0.4.9",
     "@opentelemetry/api": "^1.4.1",
     "@originjs/vite-plugin-commonjs": "^1.0.3",
     "@planetscale/database": "^1.7.0",
@@ -139,13 +139,13 @@
     "@types/sql.js": "^1.4.4",
     "@vercel/postgres": "^0.3.0",
     "better-sqlite3": "^8.4.0",
-    "bun-types": "^0.6.4",
-    "concurrently": "^8.0.1",
+    "bun-types": "^0.6.6",
+    "concurrently": "^8.1.0",
     "knex": "^2.4.2",
     "kysely": "^0.25.0",
     "mysql2": "^3.3.3",
     "pg": "^8.11.0",
-    "postgres": "^3.3.3",
+    "postgres": "^3.3.5",
     "rollup": "^3.23.0",
     "rollup-plugin-dts": "^5.3.0",
     "sql.js": "^1.8.0",
@@ -153,7 +153,7 @@
     "tslib": "^2.5.2",
     "tsx": "^3.12.7",
     "vite-tsconfig-paths": "^4.2.0",
-    "vitest": "^0.31.1",
+    "vitest": "^0.31.4",
     "zod": "^3.20.2",
     "zx": "^7.2.2"
   }

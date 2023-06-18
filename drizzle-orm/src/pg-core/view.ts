@@ -1,4 +1,5 @@
 import type { BuildColumns } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import type { AddAliasToSelection } from '~/query-builders/select.types';
 import type { SQL } from '~/sql';
@@ -17,6 +18,8 @@ export interface ViewWithConfig {
 }
 
 export class DefaultViewBuilderCore<TConfig extends { name: string; columns?: unknown }> {
+	static readonly [entityKind]: string = 'PgDefaultViewBuilderCore';
+
 	declare readonly _: {
 		readonly name: TConfig['name'];
 		readonly columns: TConfig['columns'];
@@ -38,6 +41,8 @@ export class DefaultViewBuilderCore<TConfig extends { name: string; columns?: un
 }
 
 export class ViewBuilder<TName extends string = string> extends DefaultViewBuilderCore<{ name: TName }> {
+	static readonly [entityKind]: string = 'PgViewBuilder';
+
 	as<TSelectedFields extends SelectedFields>(
 		qb: TypedQueryBuilder<TSelectedFields> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelectedFields>),
 	): PgViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName>> {
@@ -70,6 +75,8 @@ export class ManualViewBuilder<
 	TName extends string = string,
 	TColumns extends Record<string, AnyPgColumnBuilder> = Record<string, AnyPgColumnBuilder>,
 > extends DefaultViewBuilderCore<{ name: TName; columns: TColumns }> {
+	static readonly [entityKind]: string = 'PgManualViewBuilder';
+
 	private columns: BuildColumns<TName, TColumns>;
 
 	constructor(
@@ -127,6 +134,8 @@ export interface PgMaterializedViewWithConfig {
 }
 
 export class MaterializedViewBuilderCore<TConfig extends { name: string; columns?: unknown }> {
+	static readonly [entityKind]: string = 'PgMaterializedViewBuilderCore';
+
 	declare _: {
 		readonly name: TConfig['name'];
 		readonly columns: TConfig['columns'];
@@ -168,6 +177,8 @@ export class MaterializedViewBuilderCore<TConfig extends { name: string; columns
 export class MaterializedViewBuilder<TName extends string = string>
 	extends MaterializedViewBuilderCore<{ name: TName }>
 {
+	static readonly [entityKind]: string = 'PgMaterializedViewBuilder';
+
 	as<TSelectedFields extends SelectedFields>(
 		qb: TypedQueryBuilder<TSelectedFields> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelectedFields>),
 	): PgMaterializedViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName>> {
@@ -205,6 +216,8 @@ export class ManualMaterializedViewBuilder<
 	TName extends string = string,
 	TColumns extends Record<string, AnyPgColumnBuilder> = Record<string, AnyPgColumnBuilder>,
 > extends MaterializedViewBuilderCore<{ name: TName; columns: TColumns }> {
+	static readonly [entityKind]: string = 'PgManualMaterializedViewBuilder';
+
 	private columns: BuildColumns<TName, TColumns>;
 
 	constructor(
@@ -262,18 +275,22 @@ export abstract class PgViewBase<
 	TExisting extends boolean = boolean,
 	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > extends View<TName, TExisting, TSelectedFields> {
+	static readonly [entityKind]: string = 'PgViewBase';
+
 	declare readonly _: View<TName, TExisting, TSelectedFields>['_'] & {
 		readonly viewBrand: 'PgViewBase';
 	};
 }
 
-export const PgViewConfig = Symbol('PgViewConfig');
+export const PgViewConfig = Symbol.for('drizzle:PgViewConfig');
 
 export class PgView<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
 	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > extends PgViewBase<TName, TExisting, TSelectedFields> {
+	static readonly [entityKind]: string = 'PgView';
+
 	[PgViewConfig]: {
 		with?: ViewWithConfig;
 	} | undefined;
@@ -304,13 +321,15 @@ export type PgViewWithSelection<
 	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > = PgView<TName, TExisting, TSelectedFields> & TSelectedFields;
 
-export const PgMaterializedViewConfig = Symbol('PgMaterializedViewConfig');
+export const PgMaterializedViewConfig = Symbol.for('drizzle:PgMaterializedViewConfig');
 
 export class PgMaterializedView<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
 	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > extends PgViewBase<TName, TExisting, TSelectedFields> {
+	static readonly [entityKind]: string = 'PgMaterializedView';
+
 	readonly [PgMaterializedViewConfig]: {
 		readonly with?: PgMaterializedViewWithConfig;
 		readonly using?: string;

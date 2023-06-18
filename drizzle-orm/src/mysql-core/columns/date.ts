@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import type { Assume, Equal } from '~/utils';
+import { type Assume, type Equal } from '~/utils';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export interface MySqlDateBuilderHKT extends ColumnBuilderHKTBase {
@@ -22,6 +23,8 @@ export type MySqlDateBuilderInitial<TName extends string> = MySqlDateBuilder<{
 }>;
 
 export class MySqlDateBuilder<T extends ColumnBuilderBaseConfig> extends MySqlColumnBuilder<MySqlDateBuilderHKT, T> {
+	static readonly [entityKind]: string = 'MySqlDateBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
@@ -31,6 +34,8 @@ export class MySqlDateBuilder<T extends ColumnBuilderBaseConfig> extends MySqlCo
 }
 
 export class MySqlDate<T extends ColumnBaseConfig> extends MySqlColumn<MySqlDateHKT, T> {
+	static readonly [entityKind]: string = 'MySqlDate';
+
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
 		config: MySqlDateBuilder<T>['config'],
@@ -67,6 +72,8 @@ export type MySqlDateStringBuilderInitial<TName extends string> = MySqlDateStrin
 export class MySqlDateStringBuilder<T extends ColumnBuilderBaseConfig>
 	extends MySqlColumnBuilder<MySqlDateStringBuilderHKT, T>
 {
+	static readonly [entityKind]: string = 'MySqlDateStringBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
@@ -76,6 +83,8 @@ export class MySqlDateStringBuilder<T extends ColumnBuilderBaseConfig>
 }
 
 export class MySqlDateString<T extends ColumnBaseConfig> extends MySqlColumn<MySqlDateStringHKT, T> {
+	static readonly [entityKind]: string = 'MySqlDateString';
+
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
 		config: MySqlDateStringBuilder<T>['config'],

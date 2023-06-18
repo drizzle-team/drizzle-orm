@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { entityKind } from '~/entity';
 import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
 import { PgDatabase } from '~/pg-core/db';
@@ -20,6 +21,8 @@ export interface PgDriverOptions {
 }
 
 export class NodePgDriver {
+	static readonly [entityKind]: string = 'NodePgDriver';
+
 	constructor(
 		private client: NodePgClient,
 		private dialect: PgDialect,

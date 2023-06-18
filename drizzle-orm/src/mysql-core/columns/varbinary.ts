@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export interface MySqlVarBinaryBuilderHKT extends ColumnBuilderHKTBase {
@@ -26,6 +27,8 @@ export class MySqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig> extends My
 	T,
 	MySqlVarbinaryOptions
 > {
+	static readonly [entityKind]: string = 'MySqlVarBinaryBuilder';
+
 	/** @internal */
 	constructor(name: T['name'], config: MySqlVarbinaryOptions) {
 		super(name);
@@ -43,6 +46,8 @@ export class MySqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig> extends My
 export class MySqlVarBinary<
 	T extends ColumnBaseConfig,
 > extends MySqlColumn<MySqlVarBinaryHKT, T, MySqlVarbinaryOptions> {
+	static readonly [entityKind]: string = 'MySqlVarBinary';
+
 	length: number | undefined = this.config.length;
 
 	getSQLType(): string {

@@ -7,6 +7,7 @@ import {
 } from '~/alias';
 import type { AnyColumn } from '~/column';
 import { Column } from '~/column';
+import { entityKind, is } from '~/entity';
 import type { MigrationMeta } from '~/migrator';
 import {
 	type BuildRelationalQueryResult,
@@ -32,6 +33,8 @@ import type { SQLiteSession } from './session';
 import { SQLiteViewBase } from './view';
 
 export abstract class SQLiteDialect {
+	static readonly [entityKind]: string = 'SQLiteDialect';
+
 	escapeName(name: string): string {
 		return `"${name}"`;
 	}
@@ -104,16 +107,16 @@ export abstract class SQLiteDialect {
 			.flatMap(({ field }, i) => {
 				const chunk: SQLChunk[] = [];
 
-				if (field instanceof SQL.Aliased && field.isSelectionField) {
-					chunk.push(name(field.fieldAlias));
-				} else if (field instanceof SQL.Aliased || field instanceof SQL) {
-					const query = field instanceof SQL.Aliased ? field.sql : field;
+				if (is(field, SQL.Aliased) && field.isSelectionField) {
+					chunk.push(sql.identifier(field.fieldAlias));
+				} else if (is(field, SQL.Aliased) || is(field, SQL)) {
+					const query = is(field, SQL.Aliased) ? field.sql : field;
 
 					if (isSingleTable) {
 						chunk.push(
 							new SQL(
 								query.queryChunks.map((c) => {
-									if (c instanceof Column) {
+									if (is(c, Column)) {
 										return name(c.name);
 									}
 									return c;
@@ -124,10 +127,10 @@ export abstract class SQLiteDialect {
 						chunk.push(query);
 					}
 
-					if (field instanceof SQL.Aliased) {
+					if (is(field, SQL.Aliased)) {
 						chunk.push(sql` as ${name(field.fieldAlias)}`);
 					}
-				} else if (field instanceof Column) {
+				} else if (is(field, Column)) {
 					const tableName = field.table[Table.Symbol.Name];
 					const columnName = field.name;
 					if (isSingleTable) {
@@ -148,18 +151,19 @@ export abstract class SQLiteDialect {
 	}
 
 	buildSelectQuery(
-		{ withList, fields, fieldsFlat, where, having, table, joins, orderBy, groupBy, limit, offset }: SQLiteSelectConfig,
+		{ withList, fields, fieldsFlat, where, having, table, joins, orderBy, groupBy, limit, offset, distinct }:
+			SQLiteSelectConfig,
 	): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<AnySQLiteColumn>(fields);
 		for (const f of fieldsList) {
 			if (
-				f.field instanceof Column
+				is(f.field, Column)
 				&& getTableName(f.field.table)
-					!== (table instanceof Subquery
+					!== (is(table, Subquery)
 						? table[SubqueryConfig].alias
-						: table instanceof SQLiteViewBase
+						: is(table, SQLiteViewBase)
 						? table[ViewBaseConfig].name
-						: table instanceof SQL
+						: is(table, SQL)
 						? undefined
 						: getTableName(table))
 				&& !((table) =>
@@ -179,7 +183,7 @@ export abstract class SQLiteDialect {
 		const isSingleTable = joins.length === 0;
 
 		let withSql: SQL | undefined;
-		if (withList.length) {
+		if (withList?.length) {
 			const withSqlChunks = [sql`with `];
 			for (const [i, w] of withList.entries()) {
 				withSqlChunks.push(sql`${name(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
@@ -191,10 +195,12 @@ export abstract class SQLiteDialect {
 			withSql = sql.fromList(withSqlChunks);
 		}
 
+		const distinctSql = distinct ? sql` distinct` : undefined;
+
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
 
 		const tableSql = (() => {
-			if (table instanceof Table && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
+			if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
 				return sql`${name(table[Table.Symbol.OriginalName])} ${name(table[Table.Symbol.Name])}`;
 			}
 
@@ -209,7 +215,7 @@ export abstract class SQLiteDialect {
 			}
 			const table = joinMeta.table;
 
-			if (table instanceof SQLiteTable) {
+			if (is(table, SQLiteTable)) {
 				const tableName = table[SQLiteTable.Symbol.Name];
 				const tableSchema = table[SQLiteTable.Symbol.Schema];
 				const origTableName = table[SQLiteTable.Symbol.OriginalName];
@@ -261,7 +267,7 @@ export abstract class SQLiteDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		return sql`${withSql}select ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}`;
+		return sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: SQLiteInsertConfig): SQL {
@@ -277,10 +283,10 @@ export abstract class SQLiteDialect {
 			const valueList: (SQLChunk | SQL)[] = [];
 			for (const [fieldName, col] of colEntries) {
 				const colValue = value[fieldName];
-				if (colValue === undefined || (colValue instanceof Param && colValue.value === undefined)) {
+				if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
 					let defaultValue;
 					if (col.default !== null && col.default !== undefined) {
-						defaultValue = col.default instanceof SQL ? col.default : param(col.default, col);
+						defaultValue = is(col.default, SQL) ? col.default : param(col.default, col);
 					} else {
 						defaultValue = sql`null`;
 					}
@@ -427,7 +433,7 @@ export abstract class SQLiteDialect {
 			orderByOrig = [orderByOrig];
 		}
 		const orderBy = orderByOrig.map((orderByValue) => {
-			if (orderByValue instanceof Column) {
+			if (is(orderByValue, Column)) {
 				return aliasedTableColumn(orderByValue, tableAlias) as AnySQLiteColumn;
 			}
 			return mapColumnsInSQLToAlias(orderByValue, tableAlias);
@@ -443,7 +449,7 @@ export abstract class SQLiteDialect {
 		for (const { key: selectedRelationKey, value: selectedRelationValue } of selectedRelations) {
 			let relation: Relation | undefined;
 			for (const [relationKey, relationValue] of Object.entries(tableConfig.relations)) {
-				if (relationValue instanceof Relation && relationKey === selectedRelationKey) {
+				if (is(relationValue, Relation) && relationKey === selectedRelationKey) {
 					relation = relationValue;
 					break;
 				}
@@ -479,7 +485,7 @@ export abstract class SQLiteDialect {
 			}
 
 			const join: JoinsValue = {
-				table: builtRelation.sql instanceof Table
+				table: is(builtRelation.sql, Table)
 					? aliasedTable(builtRelation.sql as AnySQLiteTable, relationAlias)
 					: new Subquery(builtRelation.sql, {}, relationAlias),
 				alias: relationAlias,
@@ -539,7 +545,6 @@ export abstract class SQLiteDialect {
 				groupBy,
 				orderBy: selectedRelationIndex === selectedRelations.length - 1 ? orderBy : [],
 				joins: [join],
-				withList: [],
 			});
 
 			joins.push(join);
@@ -550,7 +555,7 @@ export abstract class SQLiteDialect {
 		const finalFieldsSelection: SelectedFieldsOrdered = Object.entries(fieldsSelection).map(([key, value]) => {
 			return {
 				path: [key],
-				field: value instanceof Column ? aliasedTableColumn(value, tableAlias) : value,
+				field: is(value, Column) ? aliasedTableColumn(value, tableAlias) : value,
 			};
 		});
 
@@ -558,7 +563,7 @@ export abstract class SQLiteDialect {
 			? [
 				...finalFieldsSelection.map(({ path, field }) => ({
 					path,
-					field: field instanceof SQL.Aliased ? sql`${sql.identifier(field.fieldAlias)}` : field,
+					field: is(field, SQL.Aliased) ? sql`${sql.identifier(field.fieldAlias)}` : field,
 				})),
 				...builtRelationFields.map(({ path, field }) => ({
 					path,
@@ -619,7 +624,6 @@ export abstract class SQLiteDialect {
 			groupBy: [],
 			orderBy: isRoot ? orderBy : [],
 			joins: [],
-			withList: [],
 			limit,
 			offset: offset as Exclude<typeof offset, DrizzleTypeError<any>>,
 		});
@@ -629,7 +633,7 @@ export abstract class SQLiteDialect {
 			sql: result,
 			selection: [
 				...finalFieldsSelection.map(({ path, field }) => ({
-					dbKey: field instanceof SQL.Aliased ? field.fieldAlias : tableConfig.columns[path[0]!]!.name,
+					dbKey: is(field, SQL.Aliased) ? field.fieldAlias : tableConfig.columns[path[0]!]!.name,
 					tsKey: path[0]!,
 					field,
 					tableTsKey: undefined,
@@ -650,6 +654,8 @@ export abstract class SQLiteDialect {
 }
 
 export class SQLiteSyncDialect extends SQLiteDialect {
+	static readonly [entityKind]: string = 'SQLiteSyncDialect';
+
 	migrate(
 		migrations: MigrationMeta[],
 		session: SQLiteSession<'sync', unknown, Record<string, unknown>, TablesRelationalConfig>,
@@ -691,6 +697,8 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 }
 
 export class SQLiteAsyncDialect extends SQLiteDialect {
+	static readonly [entityKind]: string = 'SQLiteAsyncDialect';
+
 	async migrate(
 		migrations: MigrationMeta[],
 		session: SQLiteSession<'async', unknown, Record<string, unknown>, TablesRelationalConfig>,

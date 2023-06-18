@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export interface PgSmallIntBuilderHKT extends ColumnBuilderHKTBase {
@@ -22,6 +23,8 @@ export type PgSmallIntBuilderInitial<TName extends string> = PgSmallIntBuilder<{
 }>;
 
 export class PgSmallIntBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgSmallIntBuilderHKT, T> {
+	static readonly [entityKind]: string = 'PgSmallIntBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
@@ -31,6 +34,8 @@ export class PgSmallIntBuilder<T extends ColumnBuilderBaseConfig> extends PgColu
 }
 
 export class PgSmallInt<T extends ColumnBaseConfig> extends PgColumn<PgSmallIntHKT, T> {
+	static readonly [entityKind]: string = 'PgSmallInt';
+
 	getSQLType(): string {
 		return 'smallint';
 	}

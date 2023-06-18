@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 
 export interface PgJsonbBuilderHKT extends ColumnBuilderHKTBase {
@@ -22,6 +23,8 @@ export type PgJsonbBuilderInitial<TName extends string> = PgJsonbBuilder<{
 }>;
 
 export class PgJsonbBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgJsonbBuilderHKT, T> {
+	static readonly [entityKind]: string = 'PgJsonbBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
@@ -31,6 +34,8 @@ export class PgJsonbBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnB
 }
 
 export class PgJsonb<T extends ColumnBaseConfig> extends PgColumn<PgJsonbHKT, T> {
+	static readonly [entityKind]: string = 'PgJsonb';
+
 	declare protected $pgColumnBrand: 'PgJsonb';
 
 	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgJsonbBuilder<T>['config']) {

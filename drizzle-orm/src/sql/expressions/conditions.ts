@@ -1,4 +1,5 @@
 import { type AnyColumn, Column, type GetColumnData } from '~/column';
+import { is } from '~/entity';
 import { Table } from '~/table';
 import { View } from '~/view';
 import {
@@ -14,8 +15,8 @@ import {
 
 export function bindIfParam(value: unknown, column: AnyColumn | SQL.Aliased): SQLChunk {
 	if (
-		isDriverValueEncoder(column) && !isSQLWrapper(value) && !(value instanceof Param) && !(value instanceof Placeholder)
-		&& !(value instanceof Column) && !(value instanceof Table) && !(value instanceof View)
+		isDriverValueEncoder(column) && !isSQLWrapper(value) && !is(value, Param) && !is(value, Placeholder)
+		&& !is(value, Column) && !is(value, Table) && !is(value, View)
 	) {
 		return new Param(value, column);
 	}

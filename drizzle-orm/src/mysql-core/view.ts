@@ -1,4 +1,5 @@
 import type { BuildColumns } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import type { AddAliasToSelection } from '~/query-builders/select.types';
 import type { SQL } from '~/sql';
@@ -18,6 +19,8 @@ export interface ViewBuilderConfig {
 }
 
 export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }> {
+	static readonly [entityKind]: string = 'MySqlViewBuilder';
+
 	declare readonly _: {
 		readonly name: TConfig['name'];
 		readonly columns: TConfig['columns'];
@@ -60,6 +63,8 @@ export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }
 }
 
 export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<{ name: TName }> {
+	static readonly [entityKind]: string = 'MySqlViewBuilder';
+
 	as<TSelectedFields extends SelectedFields>(
 		qb: TypedQueryBuilder<TSelectedFields> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelectedFields>),
 	): MySqlViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName>> {
@@ -92,6 +97,8 @@ export class ManualViewBuilder<
 	TName extends string = string,
 	TColumns extends Record<string, AnyMySqlColumnBuilder> = Record<string, AnyMySqlColumnBuilder>,
 > extends ViewBuilderCore<{ name: TName; columns: TColumns }> {
+	static readonly [entityKind]: string = 'MySqlManualViewBuilder';
+
 	private columns: BuildColumns<TName, TColumns>;
 
 	constructor(
@@ -149,18 +156,22 @@ export abstract class MySqlViewBase<
 	TExisting extends boolean = boolean,
 	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > extends View<TName, TExisting, TSelectedFields> {
+	static readonly [entityKind]: string = 'MySqlViewBase';
+
 	declare readonly _: View<TName, TExisting, TSelectedFields>['_'] & {
 		readonly viewBrand: 'MySqlViewBase';
 	};
 }
 
-export const MySqlViewConfig = Symbol('MySqlViewConfig');
+export const MySqlViewConfig = Symbol.for('drizzle:MySqlViewConfig');
 
 export class MySqlView<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
 	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > extends MySqlViewBase<TName, TExisting, TSelectedFields> {
+	static readonly [entityKind]: string = 'MySqlView';
+
 	declare protected $MySqlViewBrand: 'MySqlView';
 
 	[MySqlViewConfig]: ViewBuilderConfig | undefined;

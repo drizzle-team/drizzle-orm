@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
 
 export interface MySqlMediumIntBuilderHKT extends ColumnBuilderHKTBase {
@@ -24,6 +25,8 @@ export type MySqlMediumIntBuilderInitial<TName extends string> = MySqlMediumIntB
 export class MySqlMediumIntBuilder<T extends ColumnBuilderBaseConfig>
 	extends MySqlColumnBuilderWithAutoIncrement<MySqlMediumIntBuilderHKT, T>
 {
+	static readonly [entityKind]: string = 'MySqlMediumIntBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
@@ -33,6 +36,8 @@ export class MySqlMediumIntBuilder<T extends ColumnBuilderBaseConfig>
 }
 
 export class MySqlMediumInt<T extends ColumnBaseConfig> extends MySqlColumnWithAutoIncrement<MySqlMediumIntHKT, T> {
+	static readonly [entityKind]: string = 'MySqlMediumInt';
+
 	getSQLType(): string {
 		return 'mediumint';
 	}

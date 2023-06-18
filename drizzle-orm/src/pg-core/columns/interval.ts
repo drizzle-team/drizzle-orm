@@ -1,7 +1,8 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
-import type { Assume } from '~/utils';
+import { type Assume } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 import type { Precision } from './timestamp';
 
@@ -27,6 +28,8 @@ export class PgIntervalBuilder<T extends ColumnBuilderBaseConfig> extends PgColu
 	T,
 	{ intervalConfig: IntervalConfig }
 > {
+	static readonly [entityKind]: string = 'PgIntervalBuilder';
+
 	constructor(
 		name: T['name'],
 		intervalConfig: IntervalConfig,
@@ -46,6 +49,8 @@ export class PgIntervalBuilder<T extends ColumnBuilderBaseConfig> extends PgColu
 export class PgInterval<T extends ColumnBaseConfig>
 	extends PgColumn<PgIntervalHKT, T, { intervalConfig: IntervalConfig }>
 {
+	static readonly [entityKind]: string = 'PgInterval';
+
 	readonly fields: IntervalConfig['fields'] = this.config.intervalConfig.fields;
 	readonly precision: IntervalConfig['precision'] = this.config.intervalConfig.precision;
 

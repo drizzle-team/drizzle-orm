@@ -41,7 +41,7 @@ export const tracer = {
 						} catch (e) {
 							span.setStatus({
 								code: otel.SpanStatusCode.ERROR,
-								message: e instanceof Error ? e.message : 'Unknown error',
+								message: e instanceof Error ? e.message : 'Unknown error', // eslint-disable-line no-instanceof/no-instanceof
 							});
 							throw e;
 						} finally {

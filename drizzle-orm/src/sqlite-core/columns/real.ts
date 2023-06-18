@@ -1,6 +1,7 @@
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-import type { Assume } from '~/utils';
+import { entityKind } from '~/entity';
+import { type Assume } from '~/utils';
 import type { AnySQLiteTable } from '../table';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common';
 
@@ -22,6 +23,8 @@ export type SQLiteRealBuilderInitial<TName extends string> = SQLiteRealBuilder<{
 }>;
 
 export class SQLiteRealBuilder<T extends ColumnBuilderBaseConfig> extends SQLiteColumnBuilder<SQLiteRealBuilderHKT, T> {
+	static readonly [entityKind]: string = 'SQLiteRealBuilder';
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnySQLiteTable<{ name: TTableName }>,
@@ -31,6 +34,8 @@ export class SQLiteRealBuilder<T extends ColumnBuilderBaseConfig> extends SQLite
 }
 
 export class SQLiteReal<T extends ColumnBaseConfig> extends SQLiteColumn<SQLiteRealHKT, T> {
+	static readonly [entityKind]: string = 'SQLiteReal';
+
 	getSQLType(): string {
 		return 'real';
 	}

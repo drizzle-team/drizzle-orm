@@ -1,7 +1,8 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderConfig, ColumnBuilderRuntimeConfig } from './column-builder';
+import { entityKind } from './entity';
 import type { DriverValueMapper, SQL } from './sql';
 import type { Table } from './table';
-import type { Assume, Update } from './utils';
+import { type Assume, type Update } from './utils';
 
 export interface ColumnBaseConfig extends ColumnBuilderBaseConfig {
 	tableName: string;
@@ -31,11 +32,13 @@ export interface ColumnHKT extends ColumnHKTBase {
 	See `GetColumnData` for example usage of inferring.
 */
 export abstract class Column<
-	THKT extends ColumnHKTBase,
-	T extends ColumnBaseConfig,
-	TRuntimeConfig extends object = {},
-	TTypeConfig extends object = {},
+	THKT extends ColumnHKT = ColumnHKT,
+	T extends ColumnBaseConfig = ColumnBaseConfig,
+	TRuntimeConfig extends object = object,
+	TTypeConfig extends object = object,
 > implements DriverValueMapper<T['data'], T['driverParam']> {
+	static readonly [entityKind]: string = 'Column';
+
 	declare _: {
 		hkt: THKT;
 		brand: 'Column';

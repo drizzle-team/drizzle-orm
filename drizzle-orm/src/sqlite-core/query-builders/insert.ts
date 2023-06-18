@@ -1,3 +1,4 @@
+import { entityKind, is } from '~/entity';
 import type { SelectResultFields } from '~/query-builders/select.types';
 import type { Placeholder, Query, SQLWrapper } from '~/sql';
 import { Param, SQL, sql } from '~/sql';
@@ -7,8 +8,7 @@ import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SQLiteTable } from '~/sqlite-core/table';
 import { type InferModel, Table } from '~/table';
-import type { Simplify } from '~/utils';
-import { mapUpdateSet, orderSelectedFields } from '~/utils';
+import { mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
 import type { SQLiteUpdateSetSource } from './update';
 
@@ -30,6 +30,8 @@ export class SQLiteInsertBuilder<
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 > {
+	static readonly [entityKind]: string = 'SQLiteInsertBuilder';
+
 	constructor(
 		protected table: TTable,
 		protected session: SQLiteSession<any, any, any, any>,
@@ -50,7 +52,7 @@ export class SQLiteInsertBuilder<
 			const cols = this.table[Table.Symbol.Columns];
 			for (const colKey of Object.keys(entry)) {
 				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = colValue instanceof SQL ? colValue : new Param(colValue, cols[colKey]);
+				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue, cols[colKey]);
 			}
 			return result;
 		});
@@ -77,6 +79,8 @@ export class SQLiteInsert<
 	TRunResult,
 	TReturning = undefined,
 > implements SQLWrapper {
+	static readonly [entityKind]: string = 'SQLiteInsert';
+
 	declare readonly _: {
 		readonly table: TTable;
 		readonly resultType: TResultType;
