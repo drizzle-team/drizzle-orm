@@ -4,7 +4,7 @@
   "description": "Generate Zod schemas from Drizzle ORM schemas",
   "type": "module",
   "scripts": {
-    "build": "rimraf dist && rollup --config rollup.config.ts --configPlugin typescript && resolve-tspaths && cp README.md package.json dist/",
+    "build": "scripts/build.ts",
     "b": "pnpm build",
     "test:types": "cd tests && tsc",
     "pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
@@ -13,15 +13,23 @@
   },
   "exports": {
     ".": {
-      "types": "./index.d.ts",
-      "import": "./index.mjs",
-      "require": "./index.cjs",
-      "default": "./index.mjs"
+      "import": {
+        "types": "./index.d.mts",
+        "default": "./index.mjs"
+      },
+      "require": {
+        "types": "./index.d.cts",
+        "default": "./index.cjs"
+      },
+      "default": {
+        "types": "./index.d.mts",
+        "default": "./index.mjs"
+      }
     }
   },
   "main": "./index.cjs",
   "module": "./index.mjs",
-  "types": "./index.d.ts",
+  "types": "./index.d.cts",
   "publishConfig": {
     "provenance": true
   },
@@ -72,7 +80,9 @@
     "drizzle-orm": "link:../drizzle-orm/dist",
     "rimraf": "^5.0.0",
     "rollup": "^3.20.7",
+    "rollup-plugin-dts": "^5.3.0",
     "tsx": "^3.12.2",
-    "zod": "^3.20.2"
+    "zod": "^3.20.2",
+    "zx": "^7.2.2"
   }
 }

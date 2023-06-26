@@ -8,4 +8,5 @@ dist.new
 .cache
 .turbo
 .rollup.cache
-dist-dts
+dist-dcts
+dist-dmts

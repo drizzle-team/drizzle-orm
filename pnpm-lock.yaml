@@ -1,4 +1,4 @@
-lockfileVersion: '6.1'
+lockfileVersion: '6.0'
 
 settings:
   autoInstallPeers: true
@@ -190,12 +190,18 @@ importers:
       rollup:
         specifier: ^3.20.7
         version: 3.20.7
+      rollup-plugin-dts:
+        specifier: ^5.3.0
+        version: 5.3.0(rollup@3.20.7)(typescript@5.1.3)
       tsx:
         specifier: ^3.12.2
         version: 3.12.6
       zod:
         specifier: ^3.20.2
         version: 3.21.4
+      zx:
+        specifier: ^7.2.2
+        version: 7.2.2
 
   integration-tests:
     dependencies:
@@ -5361,7 +5367,7 @@ packages:
     resolution: {integrity: sha512-g1MWMLBiz8FKi1e4w0UyVL3w+iJceWAFBAaBnnGKOpNa5f8TLktkbre1+s6oICydWAm+HRUGTmI+//xv2hvXYA==}
     hasBin: true
     dependencies:
-      minimist: 1.2.7
+      minimist: 1.2.8
     dev: true
 
   /jsonc-parser@3.2.0:
@@ -6611,6 +6617,20 @@ packages:
     hasBin: true
     dependencies:
       glob: 10.2.2
+    dev: true
+
+  /rollup-plugin-dts@5.3.0(rollup@3.20.7)(typescript@5.1.3):
+    resolution: {integrity: sha512-8FXp0ZkyZj1iU5klkIJYLjIq/YZSwBoERu33QBDxm/1yw5UU4txrEtcmMkrq+ZiKu3Q4qvPCNqc3ovX6rjqzbQ==}
+    engines: {node: '>=v14'}
+    peerDependencies:
+      rollup: ^3.0.0
+      typescript: ^4.1 || ^5.0
+    dependencies:
+      magic-string: 0.30.0
+      rollup: 3.20.7
+      typescript: 5.1.3(patch_hash=aeulzlcp5mwpqivdtylujgnyli)
+    optionalDependencies:
+      '@babel/code-frame': 7.21.4
     dev: true
 
   /rollup-plugin-dts@5.3.0(rollup@3.23.0)(typescript@5.1.3):

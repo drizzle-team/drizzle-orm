@@ -13,7 +13,7 @@
   },
   "main": "./index.cjs",
   "module": "./index.mjs",
-  "types": "./index.d.ts",
+  "types": "./index.d.cts",
   "sideEffects": false,
   "publishConfig": {
     "provenance": true
