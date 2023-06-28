@@ -9,13 +9,16 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import {
 	alias,
 	blob,
+	getTableConfig,
 	getViewConfig,
+	int,
 	integer,
 	primaryKey,
 	sqliteTable,
 	sqliteTableCreator,
 	sqliteView,
 	text,
+	unique,
 } from 'drizzle-orm/sqlite-core';
 import { Expect } from './utils';
 
@@ -181,6 +184,45 @@ test.beforeEach((t) => {
 			big_int blob not null
 		)
 	`);
+});
+
+test.serial('table configs: unique third param', async (t) => {
+	const cities1Table = sqliteTable('cities1', {
+		id: int('id').primaryKey(),
+		name: text('name').notNull(),
+		state: text('state'),
+	}, (t) => ({
+		f: unique().on(t.name, t.state),
+		f1: unique().on(t.name, t.state),
+	}));
+
+	const tableConfig = getTableConfig(cities1Table);
+
+	t.assert(tableConfig.uniqueConstraints.length === 2);
+
+	t.deepEqual(tableConfig.uniqueConstraints[0]?.columns.map((t) => t.name), ['name', 'state']);
+
+	t.deepEqual(tableConfig.uniqueConstraints[0]?.columns.map((t) => t.name), ['name', 'state']);
+});
+
+test.serial('table configs: unique in column', async (t) => {
+	const cities1Table = sqliteTable('cities1', {
+		id: int('id').primaryKey(),
+		name: text('name').notNull().unique(),
+		state: text('state').unique(),
+		field: text('field').unique(),
+	});
+
+	const tableConfig = getTableConfig(cities1Table);
+
+	const columnName = tableConfig.columns.find((it) => it.name === 'name');
+	t.assert(columnName?.isUnique);
+
+	const columnState = tableConfig.columns.find((it) => it.name === 'state');
+	t.assert(columnState?.isUnique);
+
+	const columnField = tableConfig.columns.find((it) => it.name === 'field');
+	t.assert(columnField?.isUnique);
 });
 
 test.serial('insert bigint values', async (t) => {

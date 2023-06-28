@@ -6,6 +6,7 @@ import type { AnySQLiteColumn, AnySQLiteColumnBuilder } from './columns/common';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
 import type { IndexBuilder } from './indexes';
 import type { PrimaryKeyBuilder } from './primary-keys';
+import type { UniqueConstraintBuilder } from './unique-constraint';
 
 export type SQLiteTableExtraConfig = Record<
 	string,
@@ -13,6 +14,7 @@ export type SQLiteTableExtraConfig = Record<
 	| CheckBuilder
 	| ForeignKeyBuilder
 	| PrimaryKeyBuilder
+	| UniqueConstraintBuilder
 >;
 export type TableConfig = TableConfigBase<AnySQLiteColumn>;
 

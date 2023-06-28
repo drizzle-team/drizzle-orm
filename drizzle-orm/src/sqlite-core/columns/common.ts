@@ -44,6 +44,11 @@ export abstract class SQLiteColumnBuilder<
 		return this;
 	}
 
+	unique(): this {
+		this.config.isUnique = true;
+		return this;
+	}
+
 	/** @internal */
 	buildForeignKeys(column: AnySQLiteColumn, table: AnySQLiteTable): ForeignKey[] {
 		return this.foreignKeyConfigs.map(({ ref, actions }) => {

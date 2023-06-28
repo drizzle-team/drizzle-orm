@@ -315,7 +315,7 @@ test.serial('table configs: unique in column', async (t) => {
 
 	const columnState = tableConfig.columns.find((it) => it.name === 'state');
 	t.assert(columnState?.uniqueName === "custom");
-	t.assert(columnName?.isUnique);
+	t.assert(columnState?.isUnique);
 
 	const columnField = tableConfig.columns.find((it) => it.name === 'field');
 	t.assert(columnField?.uniqueName === "custom_field");

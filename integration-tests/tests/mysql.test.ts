@@ -213,7 +213,7 @@ test.beforeEach(async (t) => {
 	);
 });
 
-test.serial.only('table configs: unique third param', async (t) => {
+test.serial('table configs: unique third param', async (t) => {
 	const cities1Table = mysqlTable('cities1', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
@@ -234,7 +234,7 @@ test.serial.only('table configs: unique third param', async (t) => {
 	t.deepEqual(tableConfig.uniqueConstraints[0]?.columns.map((t) => t.name), ['name', 'state']);
 });
 
-test.serial.only('table configs: unique in column', async (t) => {
+test.serial('table configs: unique in column', async (t) => {
 	const cities1Table = mysqlTable('cities1', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull().unique(),
@@ -250,7 +250,7 @@ test.serial.only('table configs: unique in column', async (t) => {
 
 	const columnState = tableConfig.columns.find((it) => it.name === 'state');
 	t.assert(columnState?.uniqueName === "custom");
-	t.assert(columnName?.isUnique);
+	t.assert(columnState?.isUnique);
 
 	const columnField = tableConfig.columns.find((it) => it.name === 'field');
 	t.assert(columnField?.uniqueName === "custom_field");
