@@ -126,7 +126,7 @@
     "@aws-sdk/client-rds-data": "^3.344.0",
     "@cloudflare/workers-types": "^4.20230518.0",
     "@libsql/client": "^0.1.6",
-    "@neondatabase/serverless": "^0.4.9",
+    "@neondatabase/serverless": "^0.4.20",
     "@opentelemetry/api": "^1.4.1",
     "@originjs/vite-plugin-commonjs": "^1.0.3",
     "@planetscale/database": "^1.7.0",

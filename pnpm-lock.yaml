@@ -1,4 +1,4 @@
-lockfileVersion: '6.1'
+lockfileVersion: '6.0'
 
 settings:
   autoInstallPeers: true
@@ -77,8 +77,8 @@ importers:
         specifier: ^0.1.6
         version: 0.1.6
       '@neondatabase/serverless':
-        specifier: ^0.4.9
-        version: 0.4.9
+        specifier: ^0.4.20
+        version: 0.4.20
       '@opentelemetry/api':
         specifier: ^1.4.1
         version: 1.4.1
@@ -1864,16 +1864,16 @@ packages:
       - encoding
       - supports-color
 
+  /@neondatabase/serverless@0.4.20:
+    resolution: {integrity: sha512-uDIGvczFiIyMfR1+RVA8crmRaYC0FHaUsaGozeusPw/3vI/4QZDMQjPti6zBoGrh852YZ11FSQdAdlG5HK6F1A==}
+    dependencies:
+      '@types/pg': 8.6.6
+    dev: true
+
   /@neondatabase/serverless@0.4.3:
     resolution: {integrity: sha512-U8tpuF5f0R5WRsciR7iaJ5S2h54DWa6Z6CEW+J4KgwyvRN3q3qDz0MibdfFXU0WqnRoi/9RSf/2XN4TfeaOCbQ==}
     dependencies:
       '@types/pg': 8.10.1
-
-  /@neondatabase/serverless@0.4.9:
-    resolution: {integrity: sha512-JJvap8zh7GLfTIEyzYeSE6NeWjZxpcsW3nWR7P6EnfXcyI71vVo6SFr+XCTISgfJNpdofV9udkPEKV7DAYKo5w==}
-    dependencies:
-      '@types/pg': 8.6.6
-    dev: true
 
   /@nodelib/fs.scandir@2.1.5:
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
