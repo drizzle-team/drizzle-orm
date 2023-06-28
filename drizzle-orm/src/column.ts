@@ -56,6 +56,9 @@ export abstract class Column<
 	readonly notNull: boolean;
 	readonly default: T['data'] | SQL | undefined;
 	readonly hasDefault: boolean;
+	readonly isUnique: boolean;
+	readonly uniqueName: string | undefined;
+	readonly uniqueType: string | undefined;
 
 	protected config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
 
@@ -69,6 +72,9 @@ export abstract class Column<
 		this.default = config.default;
 		this.hasDefault = config.hasDefault;
 		this.primary = config.primaryKey;
+		this.isUnique = config.isUnique;
+		this.uniqueName = config.uniqueName;
+		this.uniqueType = config.uniqueType;
 	}
 
 	abstract getSQLType(): string;

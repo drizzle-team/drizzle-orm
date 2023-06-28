@@ -56,6 +56,9 @@ export interface ColumnBuilderRuntimeConfig<TData> {
 	default: TData | SQL | undefined;
 	hasDefault: boolean;
 	primaryKey: boolean;
+	isUnique: boolean;
+	uniqueName: string | undefined;
+	uniqueType: string | undefined;
 }
 
 // To understand how to use `ColumnBuilder` and `AnyColumnBuilder`, see `Column` and `AnyColumn` documentation.
@@ -111,6 +114,16 @@ export abstract class ColumnBuilder<
 		this.config.primaryKey = true;
 		this.config.notNull = true;
 		return this as ReturnType<this['primaryKey']>;
+	}
+
+	unique(
+		name?: string,
+		config?: { nulls: 'distinct' | 'not distinct' },
+	): ColumnBuilderKind<THKT, UpdateCBConfig<T, { notNull: false }>> {
+		this.config.isUnique = true;
+		this.config.uniqueName = name;
+		this.config.uniqueType = config?.nulls;
+		return this as ReturnType<this['unique']>;
 	}
 }
 

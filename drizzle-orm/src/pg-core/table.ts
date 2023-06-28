@@ -7,6 +7,7 @@ import type { AnyPgColumn, AnyPgColumnBuilder } from './columns/common';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
 import type { AnyIndexBuilder } from './indexes';
 import type { PrimaryKeyBuilder } from './primary-keys';
+import type { UniqueConstraintBuilder } from './unique-constraint';
 
 export type PgTableExtraConfig = Record<
 	string,
@@ -14,6 +15,7 @@ export type PgTableExtraConfig = Record<
 	| CheckBuilder
 	| ForeignKeyBuilder
 	| PrimaryKeyBuilder
+	| UniqueConstraintBuilder
 >;
 
 export type TableConfig = TableConfigBase<AnyPgColumn>;
