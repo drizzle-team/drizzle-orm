@@ -20,6 +20,7 @@ import {
 	boolean,
 	date,
 	datetime,
+	getTableConfig,
 	getViewConfig,
 	int,
 	json,
@@ -31,7 +32,9 @@ import {
 	text,
 	time,
 	timestamp,
+	unique,
 	uniqueIndex,
+	uniqueKeyName,
 	year,
 } from 'drizzle-orm/mysql-core';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
@@ -208,6 +211,50 @@ test.beforeEach(async (t) => {
 			)
 		`,
 	);
+});
+
+test.serial.only('table configs: unique third param', async (t) => {
+	const cities1Table = mysqlTable('cities1', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		state: text('state'),
+	}, (t) => ({
+		f: unique('custom_name').on(t.name, t.state),
+		f1: unique('custom_name1').on(t.name, t.state),
+	}));
+
+	const tableConfig = getTableConfig(cities1Table);
+
+	t.assert(tableConfig.uniqueConstraints.length === 2);
+
+	t.assert(tableConfig.uniqueConstraints[0]?.name === 'custom_name');
+	t.deepEqual(tableConfig.uniqueConstraints[0]?.columns.map((t) => t.name), ['name', 'state']);
+
+	t.assert(tableConfig.uniqueConstraints[1]?.name, 'custom_name1');
+	t.deepEqual(tableConfig.uniqueConstraints[0]?.columns.map((t) => t.name), ['name', 'state']);
+});
+
+test.serial.only('table configs: unique in column', async (t) => {
+	const cities1Table = mysqlTable('cities1', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull().unique(),
+		state: text('state').unique('custom'),
+		field: text('field').unique('custom_field'),
+	});
+
+	const tableConfig = getTableConfig(cities1Table);
+
+	const columnName = tableConfig.columns.find((it) => it.name === 'name');
+	t.assert(columnName?.uniqueName === uniqueKeyName(cities1Table, [columnName!.name]));
+	t.assert(columnName?.isUnique);
+
+	const columnState = tableConfig.columns.find((it) => it.name === 'state');
+	t.assert(columnState?.uniqueName === "custom");
+	t.assert(columnName?.isUnique);
+
+	const columnField = tableConfig.columns.find((it) => it.name === 'field');
+	t.assert(columnField?.uniqueName === "custom_field");
+	t.assert(columnField?.isUnique);
 });
 
 test.serial('select all fields', async (t) => {

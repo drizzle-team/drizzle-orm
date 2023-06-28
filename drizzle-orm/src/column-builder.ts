@@ -115,16 +115,6 @@ export abstract class ColumnBuilder<
 		this.config.notNull = true;
 		return this as ReturnType<this['primaryKey']>;
 	}
-
-	unique(
-		name?: string,
-		config?: { nulls: 'distinct' | 'not distinct' },
-	): ColumnBuilderKind<THKT, UpdateCBConfig<T, { notNull: false }>> {
-		this.config.isUnique = true;
-		this.config.uniqueName = name;
-		this.config.uniqueType = config?.nulls;
-		return this as ReturnType<this['unique']>;
-	}
 }
 
 export type AnyColumnBuilder = ColumnBuilder<ColumnBuilderHKT, ColumnBuilderBaseConfig>;

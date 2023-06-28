@@ -276,7 +276,7 @@ test.beforeEach(async (t) => {
 	);
 });
 
-test.serial.only('table configs: unique third param', async (t) => {
+test.serial('table configs: unique third param', async (t) => {
 	const cities1Table = pgTable('cities1', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
@@ -299,7 +299,7 @@ test.serial.only('table configs: unique third param', async (t) => {
 	t.deepEqual(tableConfig.uniqueConstraints[0]?.columns.map((t) => t.name), ['name', 'state']);
 });
 
-test.serial.only('table configs: unique in column', async (t) => {
+test.serial('table configs: unique in column', async (t) => {
 	const cities1Table = pgTable('cities1', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull().unique(),

@@ -1,12 +1,19 @@
 import type { ColumnBaseConfig, ColumnHKT, ColumnHKTBase } from '~/column';
 import { Column } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig, UpdateCBConfig } from '~/column-builder';
+import type {
+	ColumnBuilderBaseConfig,
+	ColumnBuilderHKTBase,
+	ColumnBuilderRuntimeConfig,
+	MakeColumnConfig,
+	UpdateCBConfig,
+} from '~/column-builder';
 import { ColumnBuilder } from '~/column-builder';
 import { entityKind } from '~/entity';
 import type { ForeignKey, UpdateDeleteAction } from '~/mysql-core/foreign-keys';
 import { ForeignKeyBuilder } from '~/mysql-core/foreign-keys';
 import type { AnyMySqlTable } from '~/mysql-core/table';
 import { type Assume, type Update } from '~/utils';
+import { uniqueKeyName } from '../unique-constraint';
 
 export interface ReferenceConfig {
 	ref: () => AnyMySqlColumn;
@@ -40,6 +47,14 @@ export abstract class MySqlColumnBuilder<
 		actions: ReferenceConfig['actions'] = {},
 	): this {
 		this.foreignKeyConfigs.push({ ref, actions });
+		return this;
+	}
+
+	unique(
+		name?: string,
+	): this {
+		this.config.isUnique = true;
+		this.config.uniqueName = name;
 		return this;
 	}
 
@@ -80,6 +95,16 @@ export abstract class MySqlColumn<
 	TRuntimeConfig extends object = {},
 > extends Column<THKT, T, TRuntimeConfig, { mysqlBrand: 'MySqlColumn' }> {
 	static readonly [entityKind]: string = 'MySqlColumn';
+
+	constructor(
+		override readonly table: AnyMySqlTable,
+		config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig,
+	) {
+		if (!config.uniqueName) {
+			config.uniqueName = uniqueKeyName(table, [config.name]);
+		}
+		super(table, config);
+	}
 }
 
 export type AnyMySqlColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = MySqlColumn<

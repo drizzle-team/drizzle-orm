@@ -63,6 +63,16 @@ export abstract class PgColumnBuilder<
 		return this;
 	}
 
+	unique(
+		name?: string,
+		config?: { nulls: 'distinct' | 'not distinct' },
+	): this {
+		this.config.isUnique = true;
+		this.config.uniqueName = name;
+		this.config.uniqueType = config?.nulls;
+		return this;
+	}
+
 	/** @internal */
 	buildForeignKeys(column: AnyPgColumn, table: AnyPgTable): ForeignKey[] {
 		return this.foreignKeyConfigs.map(({ ref, actions }) => {

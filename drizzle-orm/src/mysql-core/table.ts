@@ -6,6 +6,7 @@ import type { AnyMySqlColumn, AnyMySqlColumnBuilder } from './columns/common';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
 import type { AnyIndexBuilder } from './indexes';
 import type { PrimaryKeyBuilder } from './primary-keys';
+import type { UniqueConstraintBuilder } from './unique-constraint';
 
 export type MySqlTableExtraConfig = Record<
 	string,
@@ -13,6 +14,7 @@ export type MySqlTableExtraConfig = Record<
 	| CheckBuilder
 	| ForeignKeyBuilder
 	| PrimaryKeyBuilder
+	| UniqueConstraintBuilder
 >;
 
 export type TableConfig = TableConfigBase<AnyMySqlColumn>;
