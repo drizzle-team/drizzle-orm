@@ -1,13 +1,13 @@
 import { entityKind } from '~/entity';
 import type { AnyPgColumn } from './columns';
-import { PgTable, type AnyPgTable } from './table';
+import { type AnyPgTable, PgTable } from './table';
 
 export function unique(name?: string): UniqueOnConstraintBuilder {
 	return new UniqueOnConstraintBuilder(name);
 }
 
 export function uniqueKeyName(table: AnyPgTable, columns: string[]) {
-	return `${table[PgTable.Symbol.Name]}_${columns.join('_')}_unique`
+	return `${table[PgTable.Symbol.Name]}_${columns.join('_')}_unique`;
 }
 
 export class UniqueConstraintBuilder {
@@ -62,11 +62,11 @@ export class UniqueConstraint {
 
 	constructor(readonly table: AnyPgTable, columns: AnyPgColumn<{}>[], nullsNotDistinct: boolean, name?: string) {
 		this.columns = columns;
-		this.name = name;
+		this.name = name ?? uniqueKeyName(this.table, this.columns.map((column) => column.name));
 		this.nullsNotDistinct = nullsNotDistinct;
 	}
 
 	getName() {
-		return this.name ?? uniqueKeyName(this.table, this.columns.map((column) => column.name));
+		return this.name;
 	}
 }

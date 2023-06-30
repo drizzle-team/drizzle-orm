@@ -55,10 +55,10 @@ export class UniqueConstraint {
 
 	constructor(readonly table: AnyMySqlTable, columns: AnyMySqlColumn<{}>[], name?: string) {
 		this.columns = columns;
-		this.name = name;
+		this.name = name ?? uniqueKeyName(this.table, this.columns.map((column) => column.name));
 	}
 
 	getName() {
-		return this.name ?? uniqueKeyName(this.table, this.columns.map((column) => column.name));
+		return this.name;
 	}
 }
