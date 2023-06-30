@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import type { BindParams, Database, Statement } from 'sql.js';
 import { entityKind } from '~/entity';
 import type { Logger } from '~/logger';

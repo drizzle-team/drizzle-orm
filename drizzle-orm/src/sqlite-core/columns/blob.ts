@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
 import { entityKind } from '~/entity';

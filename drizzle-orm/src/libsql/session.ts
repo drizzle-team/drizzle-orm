@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer'
 import { type Client, type InArgs, type InStatement, type ResultSet, type Transaction } from '@libsql/client';
 import { entityKind } from '~/entity';
 import type { Logger } from '~/logger';
