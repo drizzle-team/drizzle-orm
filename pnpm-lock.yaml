@@ -1,4 +1,4 @@
-lockfileVersion: '6.0'
+lockfileVersion: '6.1'
 
 settings:
   autoInstallPeers: true
@@ -77,8 +77,8 @@ importers:
         specifier: ^0.1.6
         version: 0.1.6
       '@neondatabase/serverless':
-        specifier: ^0.4.20
-        version: 0.4.20
+        specifier: ^0.4.24
+        version: 0.4.24
       '@opentelemetry/api':
         specifier: ^1.4.1
         version: 1.4.1
@@ -266,6 +266,9 @@ importers:
         specifier: ^3.20.2
         version: 3.21.4
     devDependencies:
+      '@neondatabase/serverless':
+        specifier: 0.4.24
+        version: 0.4.24
       '@originjs/vite-plugin-commonjs':
         specifier: ^1.0.3
         version: 1.0.3
@@ -1864,8 +1867,8 @@ packages:
       - encoding
       - supports-color
 
-  /@neondatabase/serverless@0.4.20:
-    resolution: {integrity: sha512-uDIGvczFiIyMfR1+RVA8crmRaYC0FHaUsaGozeusPw/3vI/4QZDMQjPti6zBoGrh852YZ11FSQdAdlG5HK6F1A==}
+  /@neondatabase/serverless@0.4.24:
+    resolution: {integrity: sha512-RhWOk//vv6pHtzuAGuwHPYWa3mO1IMu8FYxtmf7ovUO2OwKuaOxbZrmjM+OqbUnis8U6e9W+GTGUe6rGXTbikA==}
     dependencies:
       '@types/pg': 8.6.6
     dev: true

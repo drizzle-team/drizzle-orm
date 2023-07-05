@@ -32,6 +32,7 @@
   "license": "Apache-2.0",
   "private": true,
   "devDependencies": {
+    "@neondatabase/serverless": "0.4.24",
     "@originjs/vite-plugin-commonjs": "^1.0.3",
     "@types/axios": "^0.14.0",
     "@types/better-sqlite3": "^7.6.4",

@@ -11,18 +11,17 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations';
 import { type DrizzleConfig } from '~/utils';
-import type { NeonClient, NeonQueryResultHKT } from './session';
-import { NeonSession } from './session';
+import { type NeonHttpClient, type NeonHttpQueryResultHKT, NeonHttpSession } from './session';
 
 export interface NeonDriverOptions {
 	logger?: Logger;
 }
 
-export class NeonDriver {
+export class NeonHttpDriver {
 	static readonly [entityKind]: string = 'NeonDriver';
 
 	constructor(
-		private client: NeonClient,
+		private client: NeonHttpClient,
 		private dialect: PgDialect,
 		private options: NeonDriverOptions = {},
 	) {
@@ -31,8 +30,8 @@ export class NeonDriver {
 
 	createSession(
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
-	): NeonSession<Record<string, unknown>, TablesRelationalConfig> {
-		return new NeonSession(this.client, this.dialect, schema, { logger: this.options.logger });
+	): NeonHttpSession<Record<string, unknown>, TablesRelationalConfig> {
+		return new NeonHttpSession(this.client, this.dialect, schema, { logger: this.options.logger });
 	}
 
 	initMappers() {
@@ -42,14 +41,14 @@ export class NeonDriver {
 	}
 }
 
-export type NeonDatabase<
+export type NeonHttpDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = PgDatabase<NeonQueryResultHKT, TSchema>;
+> = PgDatabase<NeonHttpQueryResultHKT, TSchema>;
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
-	client: NeonClient,
+	client: NeonHttpClient,
 	config: DrizzleConfig<TSchema> = {},
-): NeonDatabase<TSchema> {
+): NeonHttpDatabase<TSchema> {
 	const dialect = new PgDialect();
 	let logger;
 	if (config.logger === true) {
@@ -71,7 +70,8 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const driver = new NeonDriver(client, dialect, { logger });
+	const driver = new NeonHttpDriver(client, dialect, { logger });
 	const session = driver.createSession(schema);
-	return new PgDatabase(dialect, session, schema) as NeonDatabase<TSchema>;
+	
+	return new PgDatabase(dialect, session, schema) as NeonHttpDatabase<TSchema>;
 }
