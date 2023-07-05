@@ -14,6 +14,7 @@
       "!tests/imports.test.mjs",
       "!tests/imports.test.cjs",
       "!tests/awsdatapi.alltypes.test.ts",
+      "!tests/neon-http.test.ts",
       "!tests/awsdatapi.test.ts",
       "!tests/planetscale-serverless/**/*.ts",
       "!tests/bun/**/*",
