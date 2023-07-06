@@ -44,8 +44,11 @@ export abstract class SQLiteColumnBuilder<
 		return this;
 	}
 
-	unique(): this {
+	unique(
+		name?: string,
+	): this {
 		this.config.isUnique = true;
+		this.config.uniqueName = name;
 		return this;
 	}
 
