@@ -19,6 +19,7 @@ import {
 	sqliteView,
 	text,
 	unique,
+	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
 import { Expect } from './utils';
 
@@ -193,7 +194,7 @@ test.serial('table configs: unique third param', async (t) => {
 		state: text('state'),
 	}, (t) => ({
 		f: unique().on(t.name, t.state),
-		f1: unique().on(t.name, t.state),
+		f1: unique('custom').on(t.name, t.state),
 	}));
 
 	const tableConfig = getTableConfig(cities1Table);
@@ -201,28 +202,38 @@ test.serial('table configs: unique third param', async (t) => {
 	t.assert(tableConfig.uniqueConstraints.length === 2);
 
 	t.deepEqual(tableConfig.uniqueConstraints[0]?.columns.map((t) => t.name), ['name', 'state']);
+	t.assert(
+		tableConfig.uniqueConstraints[0]?.name
+			=== uniqueKeyName(cities1Table, tableConfig.uniqueConstraints[0]?.columns?.map((column) => column.name) ?? []),
+	);
 
-	t.deepEqual(tableConfig.uniqueConstraints[0]?.columns.map((t) => t.name), ['name', 'state']);
+	t.deepEqual(tableConfig.uniqueConstraints[1]?.columns.map((t) => t.name), ['name', 'state']);
+	t.assert(tableConfig.uniqueConstraints[1]?.name === 'custom');
 });
 
 test.serial('table configs: unique in column', async (t) => {
 	const cities1Table = sqliteTable('cities1', {
 		id: int('id').primaryKey(),
 		name: text('name').notNull().unique(),
-		state: text('state').unique(),
+		state: text('state').unique('custom'),
 		field: text('field').unique(),
 	});
 
 	const tableConfig = getTableConfig(cities1Table);
 
+	console.log(tableConfig)
+
 	const columnName = tableConfig.columns.find((it) => it.name === 'name');
 	t.assert(columnName?.isUnique);
+	t.assert(columnName?.uniqueName === uniqueKeyName(cities1Table, [columnName!.name]));
 
 	const columnState = tableConfig.columns.find((it) => it.name === 'state');
 	t.assert(columnState?.isUnique);
+	t.assert(columnState?.uniqueName === 'custom');
 
 	const columnField = tableConfig.columns.find((it) => it.name === 'field');
 	t.assert(columnField?.isUnique);
+	t.assert(columnField?.uniqueName === uniqueKeyName(cities1Table, [columnField!.name]));
 });
 
 test.serial('insert bigint values', async (t) => {

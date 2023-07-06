@@ -1,6 +1,6 @@
 import type { ColumnBaseConfig, ColumnHKT, ColumnHKTBase } from '~/column';
 import { Column } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
 import { ColumnBuilder } from '~/column-builder';
 import { entityKind } from '~/entity';
 import { type Assume, type Update } from '~/utils';
@@ -8,6 +8,7 @@ import { type Assume, type Update } from '~/utils';
 import type { ForeignKey, UpdateDeleteAction } from '~/sqlite-core/foreign-keys';
 import { ForeignKeyBuilder } from '~/sqlite-core/foreign-keys';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
+import { uniqueKeyName } from '../unique-constraint';
 
 export interface ReferenceConfig {
 	ref: () => AnySQLiteColumn;
@@ -89,6 +90,16 @@ export abstract class SQLiteColumn<
 	TRuntimeConfig extends object = {},
 > extends Column<THKT, T, TRuntimeConfig, { sqliteBrand: 'SQLiteColumn' }> {
 	static readonly [entityKind]: string = 'SQLiteColumn';
+
+	constructor(
+		override readonly table: AnySQLiteTable,
+		config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig,
+	) {
+		if (!config.uniqueName) {
+			config.uniqueName = uniqueKeyName(table, [config.name]);
+		}
+		super(table, config);
+	}
 }
 
 export type AnySQLiteColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = SQLiteColumn<

@@ -231,7 +231,7 @@ test.serial('table configs: unique third param', async (t) => {
 	t.deepEqual(tableConfig.uniqueConstraints[0]?.columns.map((t) => t.name), ['name', 'state']);
 
 	t.assert(tableConfig.uniqueConstraints[1]?.name, 'custom_name1');
-	t.deepEqual(tableConfig.uniqueConstraints[0]?.columns.map((t) => t.name), ['name', 'state']);
+	t.deepEqual(tableConfig.uniqueConstraints[1]?.columns.map((t) => t.name), ['name', 'state']);
 });
 
 test.serial('table configs: unique in column', async (t) => {

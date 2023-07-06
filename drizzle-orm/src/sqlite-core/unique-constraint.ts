@@ -58,6 +58,6 @@ export class UniqueConstraint {
 	}
 
 	getName() {
-		return `${this.table[SQLiteTable.Symbol.Name]}_${this.columns.join('_')}_unique`;
+		return this.name;
 	}
 }
