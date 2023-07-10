@@ -27,6 +27,7 @@ import { drizzle } from 'drizzle-orm/mysql2';
 import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
+import { toLocalDate } from './utils';
 
 const mySchema = mysqlSchema('mySchema');
 
@@ -740,7 +741,7 @@ test.serial('insert + select all possible dates', async (t) => {
 	t.assert(typeof res[0]?.datetimeAsString === 'string');
 
 	t.deepEqual(res, [{
-		date: new Date('2022-11-11'),
+		date: toLocalDate(new Date('2022-11-11')),
 		dateAsString: '2022-11-11',
 		time: '12:12:12',
 		datetime: new Date('2022-11-11'),
