@@ -1,4 +1,4 @@
-lockfileVersion: '6.1'
+lockfileVersion: '6.0'
 
 settings:
   autoInstallPeers: true
@@ -184,6 +184,9 @@ importers:
       drizzle-orm:
         specifier: link:../drizzle-orm/dist
         version: link:../drizzle-orm/dist
+      ncp:
+        specifier: ^2.0.0
+        version: 2.0.0
       rimraf:
         specifier: ^5.0.0
         version: 5.0.0
@@ -5832,6 +5835,11 @@ packages:
 
   /natural-compare@1.4.0:
     resolution: {integrity: sha512-OWND8ei3VtNC9h7V60qff3SVobHr996CTwgxubgyQYEpg290h9J0buyECNNJexkFm5sOajh5G116RYA1c8ZMSw==}
+    dev: true
+
+  /ncp@2.0.0:
+    resolution: {integrity: sha512-zIdGUrPRFTUELUvr3Gmc7KZ2Sw/h1PiVM0Af/oHB6zgnV1ikqSfRk+TOufi79aHYCW3NiOXmr1BP5nWbzojLaA==}
+    hasBin: true
     dev: true
 
   /negotiator@0.6.3:

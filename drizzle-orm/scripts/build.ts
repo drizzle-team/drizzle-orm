@@ -36,9 +36,8 @@ await concurrently([
 		name: 'esm',
 	},
 	{
-		command: `tsc -p tsconfig.esm.json --declaration --outDir dist-dts --emitDeclarationOnly &&
-resolve-tspaths --out dist-dts &&
-rollup --config rollup.dts.config.ts --configPlugin typescript`,
+		command: 'tsc -p tsconfig.esm.json --declaration --outDir dist-dts --emitDeclarationOnly && \
+		resolve-tspaths --out dist-dts && rollup --config rollup.dts.config.ts --configPlugin typescript',
 		name: 'dts',
 	},
 ], {

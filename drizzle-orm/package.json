@@ -4,7 +4,7 @@
   "description": "Drizzle ORM package for SQL databases",
   "type": "module",
   "scripts": {
-    "build": "scripts/build.ts",
+    "build": "pnpm tsx scripts/build.ts",
     "b": "pnpm build",
     "test:types": "cd type-tests && tsc",
     "test": "vitest run",

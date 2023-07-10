@@ -17,11 +17,8 @@ const ENABLE_LOGGING = false;
 let db: LibSQLDatabase<typeof schema>;
 
 beforeAll(async () => {
-	const url = process.env['LIBSQL_URL'];
+	const url = process.env['LIBSQL_URL'] ?? 'file:local.db';
 	const authToken = process.env['LIBSQL_AUTH_TOKEN'];
-	if (!url) {
-		throw new Error('LIBSQL_URL is not set');
-	}
 	const sleep = 250;
 	let timeLeft = 5000;
 	let connected = false;
