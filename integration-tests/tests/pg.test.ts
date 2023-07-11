@@ -27,6 +27,7 @@ import {
 	char,
 	cidr,
 	getMaterializedViewConfig,
+	getTableConfig,
 	getViewConfig,
 	inet,
 	integer,
@@ -41,6 +42,8 @@ import {
 	serial,
 	text,
 	timestamp,
+	unique,
+	uniqueKeyName,
 	uuid as pgUuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
@@ -271,6 +274,53 @@ test.beforeEach(async (t) => {
 			)
 		`,
 	);
+});
+
+test.serial('table configs: unique third param', async (t) => {
+	const cities1Table = pgTable('cities1', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		state: char('state', { length: 2 }),
+	}, (t) => ({
+		f: unique('custom_name').on(t.name, t.state).nullsNotDistinct(),
+		f1: unique('custom_name1').on(t.name, t.state),
+	}));
+
+	const tableConfig = getTableConfig(cities1Table);
+
+	t.assert(tableConfig.uniqueConstraints.length === 2);
+
+	t.assert(tableConfig.uniqueConstraints[0]?.name === 'custom_name');
+	t.assert(tableConfig.uniqueConstraints[0]?.nullsNotDistinct);
+	t.deepEqual(tableConfig.uniqueConstraints[0]?.columns.map((t) => t.name), ['name', 'state']);
+
+	t.assert(tableConfig.uniqueConstraints[1]?.name, 'custom_name1');
+	t.assert(!tableConfig.uniqueConstraints[1]?.nullsNotDistinct);
+	t.deepEqual(tableConfig.uniqueConstraints[0]?.columns.map((t) => t.name), ['name', 'state']);
+});
+
+test.serial('table configs: unique in column', async (t) => {
+	const cities1Table = pgTable('cities1', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull().unique(),
+		state: char('state', { length: 2 }).unique('custom'),
+		field: char('field', { length: 2 }).unique('custom_field', { nulls: 'not distinct' }),
+	});
+
+	const tableConfig = getTableConfig(cities1Table);
+
+	const columnName = tableConfig.columns.find((it) => it.name === 'name');
+	t.assert(columnName?.uniqueName === uniqueKeyName(cities1Table, [columnName!.name]));
+	t.assert(columnName?.isUnique);
+
+	const columnState = tableConfig.columns.find((it) => it.name === 'state');
+	t.assert(columnState?.uniqueName === "custom");
+	t.assert(columnState?.isUnique);
+
+	const columnField = tableConfig.columns.find((it) => it.name === 'field');
+	t.assert(columnField?.uniqueName === "custom_field");
+	t.assert(columnField?.isUnique);
+	t.assert(columnField?.uniqueType === 'not distinct');
 });
 
 test.serial('select all fields', async (t) => {

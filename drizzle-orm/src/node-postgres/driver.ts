@@ -41,6 +41,7 @@ export class NodePgDriver {
 		types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
 		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
 		types.setTypeParser(types.builtins.DATE, (val) => val);
+		types.setTypeParser(types.builtins.INTERVAL, (val) => val);
 	}
 }
 
