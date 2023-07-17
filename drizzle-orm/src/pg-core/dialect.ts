@@ -710,16 +710,23 @@ export class PgDialect {
 
 		const finalFieldsFlat: SelectedFieldsOrdered = isRoot
 			? [
-				...finalFieldsSelection.map(({ path, field }) => ({
+				...finalFieldsSelection.filter(({ field }) =>
+					(!is(field, SQL.Aliased)) || (is(field, SQL.Aliased) && builtRelationFields.length > 0)
+				).map(({ path, field }) => ({
 					path,
 					field: is(field, SQL.Aliased) ? sql`${sql.identifier(field.fieldAlias)}` : field,
 				})),
-				...builtRelationFields.map(({ path, field }) => ({
-					path,
-					field: sql`${sql.identifier((field as SQL.Aliased).fieldAlias)}${
-						selectedRelations.length > 1 ? sql.raw('::json') : undefined
-					}`,
-				})),
+				...(builtRelationFields.length === 0
+					? selectedExtras.map(({ key, value }) => ({
+						path: [key],
+						field: value,
+					}))
+					: builtRelationFields.map(({ path, field }) => ({
+						path,
+						field: sql`${sql.identifier((field as SQL.Aliased).fieldAlias)}${
+							selectedRelations.length > 1 ? sql.raw('::json') : undefined
+						}`,
+					}))),
 			]
 			: [
 				{
