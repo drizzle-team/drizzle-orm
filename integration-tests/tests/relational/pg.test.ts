@@ -985,7 +985,40 @@ test('[Find Many] Get users with posts in rollbacked transaction', async (t) => 
 });
 
 // select only custom
-test('[Find Many] Get only custom fields', async (t) => {
+test('[Find Many] Get only users custom fields', async (t) => {
+	const { pgDb: db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const users = await db.query.usersTable.findMany({
+		columns: {},
+		extras: ({ name }) => ({
+			lowerName: sql<string>`lower(${name})`.as('name_lower'),
+		}),
+	});
+
+	expectTypeOf(users).toEqualTypeOf<{
+		lowerName: string;
+	}[]>();
+
+	expect(users.length).toEqual(3);
+
+	expect(users).toContainEqual({
+		lowerName: 'dan',
+	});
+	expect(users).toContainEqual({
+		lowerName: 'andrew',
+	});
+	expect(users).toContainEqual({
+		lowerName: 'alex',
+	});
+});
+
+test('[Find Many] Get only users custom fields + only posts custom fields', async (t) => {
 	const { pgDb: db } = t;
 
 	await db.insert(usersTable).values([
@@ -1210,7 +1243,34 @@ test('[Find Many] Get only custom fields + where + orderBy', async (t) => {
 });
 
 // select only custom find one
-test('[Find One] Get only custom fields', async (t) => {
+test('[Find One] Get only users custom fields', async (t) => {
+	const { pgDb: db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const users = await db.query.usersTable.findFirst({
+		columns: {},
+		extras: ({ name }) => ({
+			lowerName: sql<string>`lower(${name})`.as('name_lower'),
+		}),
+	});
+
+	expectTypeOf(users).toEqualTypeOf<
+		{
+			lowerName: string;
+		} | undefined
+	>();
+
+	expect(users).toEqual({
+		lowerName: 'dan',
+	});
+});
+
+test('[Find One] Get only users custom fields + only posts custom fields', async (t) => {
 	const { pgDb: db } = t;
 
 	await db.insert(usersTable).values([
