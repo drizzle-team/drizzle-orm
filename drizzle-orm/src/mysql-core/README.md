@@ -764,8 +764,9 @@ await db.transaction(async (tx) => { ... }, {
 Drizzle ORM provides a standalone query builder that allows you to build queries without creating a database instance.
 
 ```ts
-import { queryBuilder as qb } from 'drizzle-orm/mysql-core';
+import { QueryBuilder } from 'drizzle-orm/mysql-core';
 
+const qb = new QueryBuilder();
 const query = qb.select().from(users).where(eq(users.name, 'Dan'));
 const { sql, params } = query.toSQL();
 ```
@@ -807,8 +808,9 @@ const newYorkers = mysqlView('new_yorkers')
 You can also use the [`queryBuilder` instance](#query-builder) directly instead of passing a callback, if you already have it imported.
 
 ```ts
-import { queryBuilder as qb } from 'drizzle-orm/mysql-core';
+import { QueryBuilder } from 'drizzle-orm/mysql-core';
 
+const qb = new QueryBuilder();
 const newYorkers = mysqlView('new_yorkers').as(qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
 ```
 
