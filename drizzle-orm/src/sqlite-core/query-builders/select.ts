@@ -157,9 +157,6 @@ export abstract class SQLiteSelectQueryBuilder<
 			withList,
 			table,
 			fields: { ...fields },
-			joins: [],
-			orderBy: [],
-			groupBy: [],
 			distinct,
 		};
 		this.isPartialSelect = isPartialSelect;
@@ -182,7 +179,7 @@ export abstract class SQLiteSelectQueryBuilder<
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
 
-			if (typeof tableName === 'string' && this.config.joins.some((join) => join.alias === tableName)) {
+			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
 			}
 
@@ -212,6 +209,9 @@ export abstract class SQLiteSelectQueryBuilder<
 				);
 			}
 
+			if (!this.config.joins) {
+				this.config.joins = [];
+			}
 			this.config.joins.push({ on, table, joinType, alias: tableName });
 
 			if (typeof tableName === 'string') {

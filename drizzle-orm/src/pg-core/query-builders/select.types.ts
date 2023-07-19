@@ -22,11 +22,12 @@ import type { Assume } from '~/utils';
 import { type ColumnsSelection } from '~/view';
 import type { PgSelect, PgSelectQueryBuilder } from './select';
 
-export interface JoinsValue {
+export interface Join {
 	on: SQL | undefined;
 	table: AnyPgTable | Subquery | PgViewBase | SQL;
 	alias: string | undefined;
 	joinType: JoinType;
+	lateral?: boolean;
 }
 
 export type AnyPgSelect = PgSelect<any, any, any, any>;
@@ -51,10 +52,10 @@ export interface PgSelectConfig {
 	table: AnyPgTable | Subquery | PgViewBase | SQL;
 	limit?: number | Placeholder;
 	offset?: number | Placeholder;
-	joins: JoinsValue[];
-	orderBy: (AnyPgColumn | SQL | SQL.Aliased)[];
-	groupBy: (AnyPgColumn | SQL | SQL.Aliased)[];
-	lockingClauses: {
+	joins?: Join[];
+	orderBy?: (AnyPgColumn | SQL | SQL.Aliased)[];
+	groupBy?: (AnyPgColumn | SQL | SQL.Aliased)[];
+	lockingClauses?: {
 		strength: LockStrength;
 		config: LockConfig;
 	}[];

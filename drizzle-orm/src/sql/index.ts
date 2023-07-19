@@ -377,6 +377,9 @@ export function param<TData, TDriver>(
 	return new Param(value, encoder);
 }
 
+/**
+ * Anything that can be passed to the `` sql`...` `` tagged function.
+ */
 export type SQLChunk =
 	| StringChunk
 	| SQLChunk[]
@@ -417,6 +420,7 @@ export namespace sql {
 		return new SQL([]);
 	}
 
+	/** @deprecated - use `sql.join()` */
 	export function fromList(list: SQLChunk[]): SQL {
 		return new SQL(list);
 	}
@@ -430,24 +434,43 @@ export namespace sql {
 	}
 
 	/**
-	 * Convenience function to join a list of SQL chunks with a separator.
+	 * Join a list of SQL chunks with a separator.
+	 * @example
+	 * ```ts
+	 * const query = sql.join([sql`a`, sql`b`, sql`c`]);
+	 * // sql`abc`
+	 * ```
+	 * @example
+	 * ```ts
+	 * const query = sql.join([sql`a`, sql`b`, sql`c`], sql`, `);
+	 * // sql`a, b, c`
+	 * ```
 	 */
-	export function join(chunks: SQLChunk[], separator: SQLChunk): SQL {
+	export function join(chunks: SQLChunk[], separator?: SQLChunk): SQL {
 		const result: SQLChunk[] = [];
 		for (const [i, chunk] of chunks.entries()) {
-			if (i > 0) {
+			if (i > 0 && separator !== undefined) {
 				result.push(separator);
 			}
 			result.push(chunk);
 		}
-		return sql.fromList(result);
+		return new SQL(result);
 	}
 
 	/**
-	 *  Any DB identifier (table name, column name, index name etc.)
+	 * Create a SQL chunk that represents a DB identifier (table, column, index etc.).
+	 * When used in a query, the identifier will be escaped based on the DB engine.
+	 * For example, in PostgreSQL, identifiers are escaped with double quotes.
+	 *
+	 * **WARNING: This function does not offer any protection against SQL injections, so you must validate any user input beforehand.**
+	 *
+	 * @example ```ts
+	 * const query = sql`SELECT * FROM ${sql.identifier('my-table')}`;
+	 * // 'SELECT * FROM "my-table"'
+	 * ```
 	 */
 	export function identifier(value: string): Name {
-		return name(value);
+		return new Name(value);
 	}
 }
 

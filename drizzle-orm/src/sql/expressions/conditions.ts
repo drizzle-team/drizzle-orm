@@ -127,7 +127,7 @@ export function and(...unfilteredConditions: (SQL | undefined)[]): SQL | undefin
 	}
 	chunks.push(sql`)`);
 
-	return sql.fromList(chunks);
+	return sql.join(chunks);
 }
 
 /**
@@ -168,7 +168,7 @@ export function or(...unfilteredConditions: (SQL | undefined)[]): SQL | undefine
 	}
 	chunks.push(sql`)`);
 
-	return sql.fromList(chunks);
+	return sql.join(chunks);
 }
 
 /**
