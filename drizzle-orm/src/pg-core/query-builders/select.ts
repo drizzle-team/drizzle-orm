@@ -167,10 +167,6 @@ export abstract class PgSelectQueryBuilder<
 			withList,
 			table,
 			fields: { ...fields },
-			joins: [],
-			orderBy: [],
-			groupBy: [],
-			lockingClauses: [],
 			distinct,
 		};
 		this.isPartialSelect = isPartialSelect;
@@ -193,7 +189,7 @@ export abstract class PgSelectQueryBuilder<
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
 
-			if (typeof tableName === 'string' && this.config.joins.some((join) => join.alias === tableName)) {
+			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
 			}
 
@@ -221,6 +217,10 @@ export abstract class PgSelectQueryBuilder<
 						new SelectionProxyHandler({ sqlAliasedBehavior: 'sql', sqlBehavior: 'sql' }),
 					) as TSelection,
 				);
+			}
+
+			if (!this.config.joins) {
+				this.config.joins = [];
 			}
 
 			this.config.joins.push({ on, table, joinType, alias: tableName });
@@ -451,6 +451,9 @@ export abstract class PgSelectQueryBuilder<
 	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FOR-UPDATE-SHARE|Postgres locking clause documentation}
 	 */
 	for(strength: LockStrength, config: LockConfig = {}) {
+		if (!this.config.lockingClauses) {
+			this.config.lockingClauses = [];
+		}
 		this.config.lockingClauses.push({ strength, config });
 		return this;
 	}

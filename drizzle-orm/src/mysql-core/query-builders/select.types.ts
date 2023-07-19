@@ -23,11 +23,12 @@ import { type ColumnsSelection } from '~/view';
 import { type PreparedQueryHKTBase } from '../session';
 import type { MySqlSelect, MySqlSelectQueryBuilder } from './select';
 
-export interface JoinsValue {
+export interface Join {
 	on: SQL | undefined;
 	table: AnyMySqlTable | Subquery | MySqlViewBase | SQL;
 	alias: string | undefined;
 	joinType: JoinType;
+	lateral?: boolean;
 }
 
 export type AnyMySqlSelect = MySqlSelect<any, any, any, any>;
@@ -51,9 +52,9 @@ export interface MySqlSelectConfig {
 	table: AnyMySqlTable | Subquery | MySqlViewBase | SQL;
 	limit?: number | Placeholder;
 	offset?: number | Placeholder;
-	joins: JoinsValue[];
-	orderBy: (AnyMySqlColumn | SQL | SQL.Aliased)[];
-	groupBy: (AnyMySqlColumn | SQL | SQL.Aliased)[];
+	joins?: Join[];
+	orderBy?: (AnyMySqlColumn | SQL | SQL.Aliased)[];
+	groupBy?: (AnyMySqlColumn | SQL | SQL.Aliased)[];
 	lockingClause?: {
 		strength: LockStrength;
 		config: LockConfig;

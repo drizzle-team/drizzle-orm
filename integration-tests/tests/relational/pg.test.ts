@@ -1289,7 +1289,7 @@ test('[Find One] Get only custom fields + where', async (t) => {
 				columns: {},
 				where: gte(postsTable.id, 2),
 				extras: ({ content }) => ({
-					lowerName: sql<string>`lower(${content})`.as('content_lower'),
+					contentLower: sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
@@ -1303,7 +1303,7 @@ test('[Find One] Get only custom fields + where', async (t) => {
 		{
 			lowerName: string;
 			posts: {
-				lowerName: string;
+				contentLower: string;
 			}[];
 		} | undefined
 	>();
@@ -1312,7 +1312,7 @@ test('[Find One] Get only custom fields + where', async (t) => {
 
 	expect(usersWithPosts).toEqual({
 		lowerName: 'dan',
-		posts: [{ lowerName: 'post1.2' }, { lowerName: 'post1.3' }],
+		posts: [{ contentLower: 'post1.2' }, { contentLower: 'post1.3' }],
 	});
 });
 
@@ -4101,13 +4101,13 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 });
 
 /*
-	One three-level relation + 1 first-level relatioon
+	One three-level relation + 1 first-level relation
 	1. users+posts+comments+comment_owner
 	2. users+users
 */
 
 /*
-	One four-level relation users+posts+comments+coment_likes
+	One four-level relation users+posts+comments+comment_likes
 */
 
 /*
@@ -6169,6 +6169,88 @@ test('Get groups with users + custom', async (t) => {
 			},
 		}],
 	});
+});
+
+test('Filter by columns not present in select', async (t) => {
+	const { pgDb: db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const response = await db.query.usersTable.findFirst({
+		columns: {
+			id: true,
+		},
+		where: eq(usersTable.name, 'Dan'),
+	});
+
+	expect(response).toEqual({ id: 1 });
+});
+
+test('Filter by relational column', async (t) => {
+	const { pgDb: db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ id: 1, ownerId: 1, content: 'Content1' },
+		{ id: 2, ownerId: 2, content: 'Post2' },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		with: {
+			posts: true,
+		},
+		where: (users) => sql`json_array_length(${users.posts}) > 0`,
+		orderBy: usersTable.id,
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+		}[];
+	}[]>();
+
+	expect(response).toEqual([
+		{
+			id: 1,
+			name: 'Dan',
+			verified: false,
+			invitedBy: null,
+			posts: [{
+				id: 1,
+				content: 'Content1',
+				ownerId: 1,
+				createdAt: expect.any(Date),
+			}],
+		},
+		{
+			id: 2,
+			name: 'Andrew',
+			verified: false,
+			invitedBy: null,
+			posts: [{
+				id: 2,
+				content: 'Post2',
+				ownerId: 2,
+				createdAt: expect.any(Date),
+			}],
+		},
+	]);
 });
 
 // + custom + where + orderby

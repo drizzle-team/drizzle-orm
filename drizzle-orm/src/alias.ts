@@ -107,7 +107,7 @@ export function mapColumnsInAliasedSQLToAlias(query: SQL.Aliased, alias: string)
 }
 
 export function mapColumnsInSQLToAlias(query: SQL, alias: string): SQL {
-	return sql.fromList(query.queryChunks.map((c) => {
+	return sql.join(query.queryChunks.map((c) => {
 		if (is(c, Column)) {
 			return aliasedTableColumn(c, alias);
 		}

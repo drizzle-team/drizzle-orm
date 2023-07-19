@@ -24,7 +24,7 @@ import { type ColumnsSelection, type View } from '~/view';
 import type { SQLiteViewBase, SQLiteViewWithSelection } from '../view';
 import type { SQLiteSelect, SQLiteSelectQueryBuilder } from './select';
 
-export interface JoinsValue {
+export interface Join {
 	on: SQL | undefined;
 	table: AnySQLiteTable | Subquery | SQLiteViewBase | SQL;
 	alias: string | undefined;
@@ -59,9 +59,9 @@ export interface SQLiteSelectConfig {
 	table: AnySQLiteTable | Subquery | SQLiteViewBase | SQL;
 	limit?: number | Placeholder;
 	offset?: number | Placeholder;
-	joins: JoinsValue[];
-	orderBy: (AnySQLiteColumn | SQL | SQL.Aliased)[];
-	groupBy: (AnySQLiteColumn | SQL | SQL.Aliased)[];
+	joins?: Join[];
+	orderBy?: (AnySQLiteColumn | SQL | SQL.Aliased)[];
+	groupBy?: (AnySQLiteColumn | SQL | SQL.Aliased)[];
 	distinct?: boolean;
 }
 

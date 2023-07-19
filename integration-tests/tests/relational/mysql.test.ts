@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import Docker from 'dockerode';
-import { desc, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
+import { desc, DrizzleError, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type MySql2Database } from 'drizzle-orm/mysql2';
 import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
@@ -1451,17 +1451,12 @@ test('[Find Many] Get select {}', async (t) => {
 		{ id: 3, name: 'Alex' },
 	]);
 
-	const users = await db.query.usersTable.findMany({
-		columns: {},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{}[]>();
-
-	expect(users.length).toBe(3);
-
-	expect(users[0]).toEqual({});
-	expect(users[1]).toEqual({});
-	expect(users[2]).toEqual({});
+	await expect(
+		async () =>
+			await db.query.usersTable.findMany({
+				columns: {},
+			}),
+	).rejects.toThrow(DrizzleError);
 });
 
 // columns {}
@@ -1474,13 +1469,11 @@ test('[Find One] Get select {}', async (t) => {
 		{ id: 3, name: 'Alex' },
 	]);
 
-	const users = await db.query.usersTable.findFirst({
-		columns: {},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{} | undefined>();
-
-	expect(users).toEqual({});
+	await expect(async () =>
+		await db.query.usersTable.findFirst({
+			columns: {},
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 // deep select {}
@@ -1499,22 +1492,16 @@ test('[Find Many] Get deep select {}', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const users = await db.query.usersTable.findMany({
-		columns: {},
-		with: {
-			posts: {
-				columns: {},
+	await expect(async () =>
+		await db.query.usersTable.findMany({
+			columns: {},
+			with: {
+				posts: {
+					columns: {},
+				},
 			},
-		},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{ posts: {}[] }[]>();
-
-	expect(users.length).toBe(3);
-
-	expect(users[0]).toEqual({ posts: [{}] });
-	expect(users[1]).toEqual({ posts: [{}] });
-	expect(users[2]).toEqual({ posts: [{}] });
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 // deep select {}
@@ -1533,18 +1520,16 @@ test('[Find One] Get deep select {}', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const users = await db.query.usersTable.findFirst({
-		columns: {},
-		with: {
-			posts: {
-				columns: {},
+	await expect(async () =>
+		await db.query.usersTable.findFirst({
+			columns: {},
+			with: {
+				posts: {
+					columns: {},
+				},
 			},
-		},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{ posts: {}[] } | undefined>();
-
-	expect(users).toEqual({ posts: [{}] });
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 /*
