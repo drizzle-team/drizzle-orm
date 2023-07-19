@@ -226,8 +226,7 @@ export class MySqlDialect {
 						? undefined
 						: getTableName(table))
 				&& !((table) =>
-					!joins
-					|| joins.some(({ alias }) =>
+					joins?.some(({ alias }) =>
 						alias === (table[Table.Symbol.IsAlias] ? getTableName(table) : table[Table.Symbol.BaseName])
 					))(f.field.table)
 			) {
