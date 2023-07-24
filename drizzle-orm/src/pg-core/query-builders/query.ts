@@ -81,26 +81,36 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 
 	private _prepare(name?: string): PreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const query = this.tableConfig.primaryKey.length > 0
-				? this.dialect.buildRelationalQueryWithPK({
-					fullSchema: this.fullSchema,
-					schema: this.schema,
-					tableNamesMap: this.tableNamesMap,
-					table: this.table,
-					tableConfig: this.tableConfig,
-					queryConfig: this.config,
-					tableAlias: this.tableConfig.tsName,
-					isRoot: true,
-				})
-				: this.dialect.buildRelationalQueryWithoutPK({
-					fullSchema: this.fullSchema,
-					schema: this.schema,
-					tableNamesMap: this.tableNamesMap,
-					table: this.table,
-					tableConfig: this.tableConfig,
-					queryConfig: this.config,
-					tableAlias: this.tableConfig.tsName,
-				});
+			// const query = this.tableConfig.primaryKey.length > 0
+			// 	? this.dialect.buildRelationalQueryWithPK({
+			// 		fullSchema: this.fullSchema,
+			// 		schema: this.schema,
+			// 		tableNamesMap: this.tableNamesMap,
+			// 		table: this.table,
+			// 		tableConfig: this.tableConfig,
+			// 		queryConfig: this.config,
+			// 		tableAlias: this.tableConfig.tsName,
+			// 		isRoot: true,
+			// 	})
+			// 	: this.dialect.buildRelationalQueryWithoutPK({
+			// 		fullSchema: this.fullSchema,
+			// 		schema: this.schema,
+			// 		tableNamesMap: this.tableNamesMap,
+			// 		table: this.table,
+			// 		tableConfig: this.tableConfig,
+			// 		queryConfig: this.config,
+			// 		tableAlias: this.tableConfig.tsName,
+			// 	});
+
+			const query = this.dialect.buildRelationalQueryWithoutPK({
+				fullSchema: this.fullSchema,
+				schema: this.schema,
+				tableNamesMap: this.tableNamesMap,
+				table: this.table,
+				tableConfig: this.tableConfig,
+				queryConfig: this.config,
+				tableAlias: this.tableConfig.tsName,
+			});
 
 			const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
 			return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(

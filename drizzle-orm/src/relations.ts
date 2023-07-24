@@ -502,6 +502,7 @@ export interface BuildRelationalQueryResult<TTable extends Table = Table, TColum
 		field: TColumn | SQL | SQL.Aliased;
 		relationTableTsKey: string | undefined;
 		isJson: boolean;
+		isExtra?: boolean;
 		selection: BuildRelationalQueryResult<TTable>['selection'];
 	}[];
 	sql: TTable | SQL;
@@ -521,19 +522,16 @@ export function mapRelationalRow(
 			const relation = tableConfig.relations[selectionItem.tsKey]!;
 			const rawSubRows = row[selectionItemIndex] as unknown[] | null | [null] | string;
 			const subRows = typeof rawSubRows === 'string' ? JSON.parse(rawSubRows) as unknown[] : rawSubRows;
-			if (is(relation, One)) {
-				result[selectionItem.tsKey] = subRows
+			result[selectionItem.tsKey] = is(relation, One)
+				? subRows
 					&& mapRelationalRow(
 						tablesConfig,
 						tablesConfig[selectionItem.relationTableTsKey!]!,
 						subRows,
 						selectionItem.selection,
 						mapColumnValue,
-					);
-			} else if (Array.isArray(subRows) && subRows.length === 1 && subRows[0] === null) {
-				result[selectionItem.tsKey] = [];
-			} else {
-				result[selectionItem.tsKey] = (subRows as unknown[][]).map((subRow) =>
+					)
+				: (subRows as unknown[][]).map((subRow) =>
 					mapRelationalRow(
 						tablesConfig,
 						tablesConfig[selectionItem.relationTableTsKey!]!,
@@ -542,7 +540,6 @@ export function mapRelationalRow(
 						mapColumnValue,
 					)
 				);
-			}
 		} else {
 			const value = mapColumnValue(row[selectionItemIndex]);
 			const field = selectionItem.field!;
