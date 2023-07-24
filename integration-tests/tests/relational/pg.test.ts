@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import Docker from 'dockerode';
-import { desc, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
+import { desc, DrizzleError, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import getPort from 'get-port';
 import { Client } from 'pg';
@@ -1434,17 +1434,11 @@ test('[Find Many] Get select {}', async (t) => {
 		{ id: 3, name: 'Alex' },
 	]);
 
-	const users = await db.query.usersTable.findMany({
-		columns: {},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{}[]>();
-
-	expect(users.length).toBe(3);
-
-	expect(users[0]).toEqual({});
-	expect(users[1]).toEqual({});
-	expect(users[2]).toEqual({});
+	await expect(async () =>
+		await db.query.usersTable.findMany({
+			columns: {},
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 // columns {}
@@ -1457,13 +1451,11 @@ test('[Find One] Get select {}', async (t) => {
 		{ id: 3, name: 'Alex' },
 	]);
 
-	const users = await db.query.usersTable.findFirst({
-		columns: {},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{} | undefined>();
-
-	expect(users).toEqual({});
+	await expect(async () =>
+		await db.query.usersTable.findFirst({
+			columns: {},
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 // deep select {}
@@ -1482,22 +1474,16 @@ test('[Find Many] Get deep select {}', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const users = await db.query.usersTable.findMany({
-		columns: {},
-		with: {
-			posts: {
-				columns: {},
+	await expect(async () =>
+		await db.query.usersTable.findMany({
+			columns: {},
+			with: {
+				posts: {
+					columns: {},
+				},
 			},
-		},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{ posts: {}[] }[]>();
-
-	expect(users.length).toBe(3);
-
-	expect(users[0]).toEqual({ posts: [{}] });
-	expect(users[1]).toEqual({ posts: [{}] });
-	expect(users[2]).toEqual({ posts: [{}] });
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 // deep select {}
@@ -1516,18 +1502,16 @@ test('[Find One] Get deep select {}', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const users = await db.query.usersTable.findFirst({
-		columns: {},
-		with: {
-			posts: {
-				columns: {},
+	await expect(async () =>
+		await db.query.usersTable.findFirst({
+			columns: {},
+			with: {
+				posts: {
+					columns: {},
+				},
 			},
-		},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{ posts: {}[] } | undefined>();
-
-	expect(users).toEqual({ posts: [{}] });
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 /*
@@ -4145,8 +4129,10 @@ test('[Find Many] Get users with groups', async (t) => {
 				with: {
 					group: true,
 				},
+				orderBy: usersToGroupsTable.userId,
 			},
 		},
+		orderBy: usersTable.id,
 	});
 
 	expectTypeOf(response).toEqualTypeOf<{
@@ -4204,19 +4190,22 @@ test('[Find Many] Get users with groups', async (t) => {
 		name: 'Alex',
 		verified: false,
 		invitedBy: null,
-		usersToGroups: [{
-			group: {
-				id: 3,
-				name: 'Group3',
-				description: null,
+		usersToGroups: [
+			{
+				group: {
+					id: 2,
+					name: 'Group2',
+					description: null,
+				},
 			},
-		}, {
-			group: {
-				id: 2,
-				name: 'Group2',
-				description: null,
+			{
+				group: {
+					id: 3,
+					name: 'Group3',
+					description: null,
+				},
 			},
-		}],
+		],
 	});
 });
 
@@ -5962,6 +5951,7 @@ test('Get users with groups + custom', async (t) => {
 						},
 					},
 				},
+				orderBy: usersToGroupsTable.groupId,
 			},
 		},
 	});
@@ -6030,21 +6020,24 @@ test('Get users with groups + custom', async (t) => {
 		lower: 'alex',
 		verified: false,
 		invitedBy: null,
-		usersToGroups: [{
-			group: {
-				id: 3,
-				name: 'Group3',
-				lower: 'group3',
-				description: null,
+		usersToGroups: [
+			{
+				group: {
+					id: 2,
+					name: 'Group2',
+					lower: 'group2',
+					description: null,
+				},
 			},
-		}, {
-			group: {
-				id: 2,
-				name: 'Group2',
-				lower: 'group2',
-				description: null,
+			{
+				group: {
+					id: 3,
+					name: 'Group3',
+					lower: 'group3',
+					description: null,
+				},
 			},
-		}],
+		],
 	});
 });
 
@@ -6225,32 +6218,33 @@ test('Filter by relational column', async (t) => {
 		}[];
 	}[]>();
 
-	expect(response).toEqual([
-		{
+	expect(response.length).toEqual(2);
+
+	expect(response[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		posts: [{
 			id: 1,
-			name: 'Dan',
-			verified: false,
-			invitedBy: null,
-			posts: [{
-				id: 1,
-				content: 'Content1',
-				ownerId: 1,
-				createdAt: expect.any(Date),
-			}],
-		},
-		{
+			content: 'Content1',
+			ownerId: 1,
+			createdAt: expect.any(Date),
+		}],
+	});
+
+	expect(response[1]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		posts: [{
 			id: 2,
-			name: 'Andrew',
-			verified: false,
-			invitedBy: null,
-			posts: [{
-				id: 2,
-				content: 'Post2',
-				ownerId: 2,
-				createdAt: expect.any(Date),
-			}],
-		},
-	]);
+			content: 'Post2',
+			ownerId: 2,
+			createdAt: expect.any(Date),
+		}],
+	});
 });
 
 // + custom + where + orderby
