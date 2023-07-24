@@ -494,17 +494,18 @@ export type TableRelationsHelpers<TTableName extends string> = ReturnType<
 	typeof createTableRelationsHelpers<TTableName>
 >;
 
-export interface BuildRelationalQueryResult {
+export interface BuildRelationalQueryResult<TTable extends Table = Table, TColumn extends Column = Column> {
 	tableTsKey: string;
 	selection: {
 		dbKey: string;
 		tsKey: string;
-		field: AnyColumn | SQL | SQL.Aliased | undefined;
-		tableTsKey: string | undefined;
+		field: TColumn | SQL | SQL.Aliased;
+		relationTableTsKey: string | undefined;
 		isJson: boolean;
-		selection: BuildRelationalQueryResult['selection'];
+		isExtra?: boolean;
+		selection: BuildRelationalQueryResult<TTable>['selection'];
 	}[];
-	sql: Table | SQL;
+	sql: TTable | SQL;
 }
 
 export function mapRelationalRow(
@@ -519,29 +520,26 @@ export function mapRelationalRow(
 	for (const [selectionItemIndex, selectionItem] of buildQueryResultSelection.entries()) {
 		if (selectionItem.isJson) {
 			const relation = tableConfig.relations[selectionItem.tsKey]!;
-			const rawSubRows = row[selectionItemIndex] as unknown[][] | string;
-			const subRows = typeof rawSubRows === 'string' ? JSON.parse(rawSubRows) as unknown[][] : rawSubRows;
-			if (is(relation, One)) {
-				result[selectionItem.tsKey] = subRows[0]
-					? mapRelationalRow(
+			const rawSubRows = row[selectionItemIndex] as unknown[] | null | [null] | string;
+			const subRows = typeof rawSubRows === 'string' ? JSON.parse(rawSubRows) as unknown[] : rawSubRows;
+			result[selectionItem.tsKey] = is(relation, One)
+				? subRows
+					&& mapRelationalRow(
 						tablesConfig,
-						tablesConfig[selectionItem.tableTsKey!]!,
-						subRows[0],
+						tablesConfig[selectionItem.relationTableTsKey!]!,
+						subRows,
 						selectionItem.selection,
 						mapColumnValue,
 					)
-					: null;
-			} else {
-				result[selectionItem.tsKey] = (subRows as unknown[]).map((subRow) =>
+				: (subRows as unknown[][]).map((subRow) =>
 					mapRelationalRow(
 						tablesConfig,
-						tablesConfig[selectionItem.tableTsKey!]!,
-						subRow as unknown[],
+						tablesConfig[selectionItem.relationTableTsKey!]!,
+						subRow,
 						selectionItem.selection,
 						mapColumnValue,
 					)
 				);
-			}
 		} else {
 			const value = mapColumnValue(row[selectionItemIndex]);
 			const field = selectionItem.field!;

@@ -1,6 +1,11 @@
 import type { AnyColumnHKT, ColumnBaseConfig, ColumnHKT, ColumnHKTBase } from '~/column';
 import { Column } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type {
+	ColumnBuilderBaseConfig,
+	ColumnBuilderHKTBase,
+	ColumnBuilderRuntimeConfig,
+	MakeColumnConfig,
+} from '~/column-builder';
 import { ColumnBuilder } from '~/column-builder';
 import { entityKind } from '~/entity';
 import { type Assume, type Update } from '~/utils';
@@ -8,6 +13,7 @@ import { type Assume, type Update } from '~/utils';
 import type { ForeignKey, UpdateDeleteAction } from '~/pg-core/foreign-keys';
 import { ForeignKeyBuilder } from '~/pg-core/foreign-keys';
 import type { AnyPgTable } from '~/pg-core/table';
+import { uniqueKeyName } from '../unique-constraint';
 import { PgArrayBuilder } from './array';
 
 export interface ReferenceConfig {
@@ -57,6 +63,16 @@ export abstract class PgColumnBuilder<
 		return this;
 	}
 
+	unique(
+		name?: string,
+		config?: { nulls: 'distinct' | 'not distinct' },
+	): this {
+		this.config.isUnique = true;
+		this.config.uniqueName = name;
+		this.config.uniqueType = config?.nulls;
+		return this;
+	}
+
 	/** @internal */
 	buildForeignKeys(column: AnyPgColumn, table: AnyPgTable): ForeignKey[] {
 		return this.foreignKeyConfigs.map(({ ref, actions }) => {
@@ -98,6 +114,16 @@ export abstract class PgColumn<
 	TTypeConfig extends object = {},
 > extends Column<THKT, T, TRuntimeConfig, TTypeConfig & { pgBrand: 'PgColumn' }> {
 	static readonly [entityKind]: string = 'PgColumn';
+
+	constructor(
+		override readonly table: AnyPgTable,
+		config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig,
+	) {
+		if (!config.uniqueName) {
+			config.uniqueName = uniqueKeyName(table, [config.name]);
+		}
+		super(table, config);
+	}
 }
 
 export type AnyPgColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = PgColumn<

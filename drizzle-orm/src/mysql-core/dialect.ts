@@ -5,30 +5,31 @@ import {
 	mapColumnsInAliasedSQLToAlias,
 	mapColumnsInSQLToAlias,
 } from '~/alias';
-import type { AnyColumn } from '~/column';
 import { Column } from '~/column';
 import { entityKind, is } from '~/entity';
 import type { MigrationConfig, MigrationMeta } from '~/migrator';
 import {
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
+	Many,
 	normalizeRelation,
 	operators,
 	orderByOperators,
-	Relation,
+	type Relation,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations';
-import { and, eq, or, Param, type Query, SQL, sql, type SQLChunk } from '~/sql';
+import { and, eq, Param, type Query, SQL, sql, type SQLChunk } from '~/sql';
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
-import { type DrizzleTypeError, orderSelectedFields, type UpdateSet } from '~/utils';
+import { orderSelectedFields, type UpdateSet } from '~/utils';
 import { View, ViewBaseConfig } from '~/view';
+import { DrizzleError } from '..';
 import type { AnyMySqlColumn } from './columns/common';
 import { MySqlColumn } from './columns/common';
 import type { MySqlDeleteConfig } from './query-builders/delete';
 import type { MySqlInsertConfig } from './query-builders/insert';
-import type { JoinsValue, MySqlSelectConfig, SelectedFieldsOrdered } from './query-builders/select.types';
+import type { Join, MySqlSelectConfig, SelectedFieldsOrdered } from './query-builders/select.types';
 import type { MySqlUpdateConfig } from './query-builders/update';
 import type { MySqlSession } from './session';
 import type { AnyMySqlTable } from './table';
@@ -108,7 +109,7 @@ export class MySqlDialect {
 		const setEntries = Object.entries(set);
 
 		const setSize = setEntries.length;
-		return sql.fromList(
+		return sql.join(
 			setEntries
 				.flatMap(([colName, value], i): SQL[] => {
 					const col: AnyMySqlColumn = table[Table.Symbol.Columns][colName]!;
@@ -192,7 +193,7 @@ export class MySqlDialect {
 				return chunk;
 			});
 
-		return sql.fromList(chunks);
+		return sql.join(chunks);
 	}
 
 	buildSelectQuery(
@@ -225,7 +226,7 @@ export class MySqlDialect {
 						? undefined
 						: getTableName(table))
 				&& !((table) =>
-					joins.some(({ alias }) =>
+					joins?.some(({ alias }) =>
 						alias === (table[Table.Symbol.IsAlias] ? getTableName(table) : table[Table.Symbol.BaseName])
 					))(f.field.table)
 			) {
@@ -238,7 +239,7 @@ export class MySqlDialect {
 			}
 		}
 
-		const isSingleTable = joins.length === 0;
+		const isSingleTable = !joins || joins.length === 0;
 
 		let withSql: SQL | undefined;
 		if (withList?.length) {
@@ -250,7 +251,7 @@ export class MySqlDialect {
 				}
 			}
 			withSqlChunks.push(sql` `);
-			withSql = sql.fromList(withSqlChunks);
+			withSql = sql.join(withSqlChunks);
 		}
 
 		const distinctSql = distinct ? sql` distinct` : undefined;
@@ -267,69 +268,60 @@ export class MySqlDialect {
 
 		const joinsArray: SQL[] = [];
 
-		for (const [index, joinMeta] of joins.entries()) {
-			if (index === 0) {
-				joinsArray.push(sql` `);
-			}
-			const table = joinMeta.table;
+		if (joins) {
+			for (const [index, joinMeta] of joins.entries()) {
+				if (index === 0) {
+					joinsArray.push(sql` `);
+				}
+				const table = joinMeta.table;
+				const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
 
-			if (is(table, MySqlTable)) {
-				const tableName = table[MySqlTable.Symbol.Name];
-				const tableSchema = table[MySqlTable.Symbol.Schema];
-				const origTableName = table[MySqlTable.Symbol.OriginalName];
-				const alias = tableName === origTableName ? undefined : joinMeta.alias;
-				joinsArray.push(
-					sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined}${
-						sql.identifier(origTableName)
-					}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
-				);
-			} else if (is(table, View)) {
-				const viewName = table[ViewBaseConfig].name;
-				const viewSchema = table[ViewBaseConfig].schema;
-				const origViewName = table[ViewBaseConfig].originalName;
-				const alias = viewName === origViewName ? undefined : joinMeta.alias;
-				joinsArray.push(
-					sql`${sql.raw(joinMeta.joinType)} join ${viewSchema ? sql`${sql.identifier(viewSchema)}.` : undefined}${
-						sql.identifier(origViewName)
-					}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
-				);
-			} else {
-				joinsArray.push(
-					sql`${sql.raw(joinMeta.joinType)} join ${table} on ${joinMeta.on}`,
-				);
-			}
-			if (index < joins.length - 1) {
-				joinsArray.push(sql` `);
+				if (is(table, MySqlTable)) {
+					const tableName = table[MySqlTable.Symbol.Name];
+					const tableSchema = table[MySqlTable.Symbol.Schema];
+					const origTableName = table[MySqlTable.Symbol.OriginalName];
+					const alias = tableName === origTableName ? undefined : joinMeta.alias;
+					joinsArray.push(
+						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
+							tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
+						}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+					);
+				} else if (is(table, View)) {
+					const viewName = table[ViewBaseConfig].name;
+					const viewSchema = table[ViewBaseConfig].schema;
+					const origViewName = table[ViewBaseConfig].originalName;
+					const alias = viewName === origViewName ? undefined : joinMeta.alias;
+					joinsArray.push(
+						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
+							viewSchema ? sql`${sql.identifier(viewSchema)}.` : undefined
+						}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+					);
+				} else {
+					joinsArray.push(
+						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${table} on ${joinMeta.on}`,
+					);
+				}
+				if (index < joins.length - 1) {
+					joinsArray.push(sql` `);
+				}
 			}
 		}
 
-		const joinsSql = sql.fromList(joinsArray);
+		const joinsSql = sql.join(joinsArray);
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
 		const havingSql = having ? sql` having ${having}` : undefined;
 
-		const orderByList: (AnyMySqlColumn | SQL | SQL.Aliased)[] = [];
-		for (const [index, orderByValue] of orderBy.entries()) {
-			orderByList.push(orderByValue);
-
-			if (index < orderBy.length - 1) {
-				orderByList.push(sql`, `);
-			}
+		let orderBySql;
+		if (orderBy && orderBy.length > 0) {
+			orderBySql = sql` order by ${sql.join(orderBy, sql`, `)}`;
 		}
 
-		const orderBySql = orderByList.length > 0 ? sql` order by ${sql.fromList(orderByList)}` : undefined;
-
-		const groupByList: (SQL | AnyColumn | SQL.Aliased)[] = [];
-		for (const [index, groupByValue] of groupBy.entries()) {
-			groupByList.push(groupByValue);
-
-			if (index < groupBy.length - 1) {
-				groupByList.push(sql`, `);
-			}
+		let groupBySql;
+		if (groupBy && groupBy.length > 0) {
+			groupBySql = sql` group by ${sql.join(groupBy, sql`, `)}`;
 		}
-
-		const groupBySql = groupByList.length > 0 ? sql` group by ${sql.fromList(groupByList)}` : undefined;
 
 		const limitSql = limit ? sql` limit ${limit}` : undefined;
 
@@ -374,7 +366,7 @@ export class MySqlDialect {
 			}
 		}
 
-		const valuesSql = sql.fromList(valuesSqlList);
+		const valuesSql = sql.join(valuesSqlList);
 
 		const ignoreSql = ignore ? sql` ignore` : undefined;
 
@@ -391,339 +383,336 @@ export class MySqlDialect {
 		});
 	}
 
-	buildRelationalQuery(
-		fullSchema: Record<string, unknown>,
-		schema: TablesRelationalConfig,
-		tableNamesMap: Record<string, string>,
-		table: AnyMySqlTable,
-		tableConfig: TableRelationalConfig,
-		config: true | DBQueryConfig<'many', true>,
-		tableAlias: string,
-		relationColumns: AnyColumn[],
-		isRoot = false,
-	): BuildRelationalQueryResult {
+	buildRelationalQuery({
+		fullSchema,
+		schema,
+		tableNamesMap,
+		table,
+		tableConfig,
+		queryConfig: config,
+		tableAlias,
+		nestedQueryRelation,
+		joinOn,
+	}: {
+		fullSchema: Record<string, unknown>;
+		schema: TablesRelationalConfig;
+		tableNamesMap: Record<string, string>;
+		table: AnyMySqlTable;
+		tableConfig: TableRelationalConfig;
+		queryConfig: true | DBQueryConfig<'many', true>;
+		tableAlias: string;
+		nestedQueryRelation?: Relation;
+		joinOn?: SQL;
+	}): BuildRelationalQueryResult<AnyMySqlTable, AnyMySqlColumn> {
+		let selection: BuildRelationalQueryResult<AnyMySqlTable, AnyMySqlColumn>['selection'] = [];
+		let limit, offset, orderBy: MySqlSelectConfig['orderBy'], where;
+		const joins: Join[] = [];
+
 		if (config === true) {
 			const selectionEntries = Object.entries(tableConfig.columns);
-			const selection: BuildRelationalQueryResult['selection'] = selectionEntries.map(([key, value]) => ({
+			selection = selectionEntries.map((
+				[key, value],
+			) => ({
 				dbKey: value.name,
 				tsKey: key,
-				field: value,
-				tableTsKey: undefined,
+				field: aliasedTableColumn(value as AnyMySqlColumn, tableAlias),
+				relationTableTsKey: undefined,
 				isJson: false,
 				selection: [],
 			}));
-
-			return {
-				tableTsKey: tableConfig.tsName,
-				sql: table,
-				selection,
-			};
-		}
-
-		const aliasedColumns = Object.fromEntries(
-			Object.entries(tableConfig.columns).map(([key, value]) => [key, aliasedTableColumn(value, tableAlias)]),
-		);
-
-		const aliasedRelations = Object.fromEntries(
-			Object.entries(tableConfig.relations).map(([key, value]) => [key, aliasedRelation(value, tableAlias)]),
-		);
-
-		const aliasedFields = Object.assign({}, aliasedColumns, aliasedRelations);
-
-		const fieldsSelection: Record<string, AnyMySqlColumn | SQL.Aliased> = {};
-		let selectedColumns: string[] = [];
-		let selectedExtras: { key: string; value: SQL.Aliased }[] = [];
-		let selectedRelations: { key: string; value: true | DBQueryConfig<'many', false> }[] = [];
-
-		if (config.columns) {
-			let isIncludeMode = false;
-
-			for (const [field, value] of Object.entries(config.columns)) {
-				if (value === undefined) {
-					continue;
-				}
-
-				if (field in tableConfig.columns) {
-					if (!isIncludeMode && value === true) {
-						isIncludeMode = true;
-					}
-					selectedColumns.push(field);
-				}
-			}
-
-			if (selectedColumns.length > 0) {
-				selectedColumns = isIncludeMode
-					? selectedColumns.filter((c) => config.columns?.[c] === true)
-					: Object.keys(tableConfig.columns).filter((key) => !selectedColumns.includes(key));
-			}
-		}
-
-		if (config.with) {
-			selectedRelations = Object.entries(config.with)
-				.filter((entry): entry is [typeof entry[0], NonNullable<typeof entry[1]>] => !!entry[1])
-				.map(([key, value]) => ({ key, value }));
-		}
-
-		if (!config.columns) {
-			selectedColumns = Object.keys(tableConfig.columns);
-		}
-
-		if (config.extras) {
-			const extrasOrig = typeof config.extras === 'function'
-				? config.extras(aliasedFields, { sql })
-				: config.extras;
-			selectedExtras = Object.entries(extrasOrig).map(([key, value]) => ({
-				key,
-				value: mapColumnsInAliasedSQLToAlias(value, tableAlias),
-			}));
-		}
-
-		for (const field of selectedColumns) {
-			const column = tableConfig.columns[field] as AnyMySqlColumn;
-			fieldsSelection[field] = column;
-		}
-
-		for (const { key, value } of selectedExtras) {
-			fieldsSelection[key] = value;
-		}
-
-		let where;
-		if (config.where) {
-			const whereSql = typeof config.where === 'function' ? config.where(aliasedFields, operators) : config.where;
-			where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
-		}
-
-		const groupBy = (tableConfig.primaryKey.length ? tableConfig.primaryKey : Object.values(tableConfig.columns)).map(
-			(c) => aliasedTableColumn(c as AnyMySqlColumn, tableAlias),
-		);
-
-		let orderByOrig = typeof config.orderBy === 'function'
-			? config.orderBy(aliasedFields, orderByOperators)
-			: config.orderBy ?? [];
-		if (!Array.isArray(orderByOrig)) {
-			orderByOrig = [orderByOrig];
-		}
-		const orderBy = orderByOrig.map((orderByValue) => {
-			if (is(orderByValue, Column)) {
-				return aliasedTableColumn(orderByValue, tableAlias) as AnyMySqlColumn;
-			}
-			return mapColumnsInSQLToAlias(orderByValue, tableAlias);
-		});
-
-		const builtRelations: { key: string; value: BuildRelationalQueryResult }[] = [];
-		const joins: JoinsValue[] = [];
-		const builtRelationFields: SelectedFieldsOrdered = [];
-
-		let result;
-
-		let selectedRelationIndex = 0;
-		for (const { key: selectedRelationKey, value: selectedRelationValue } of selectedRelations) {
-			let relation: Relation | undefined;
-			for (const [relationKey, relationValue] of Object.entries(tableConfig.relations)) {
-				if (is(relationValue, Relation) && relationKey === selectedRelationKey) {
-					relation = relationValue;
-					break;
-				}
-			}
-
-			if (!relation) {
-				throw new Error(`Relation ${selectedRelationKey} not found`);
-			}
-
-			const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
-
-			const relationAlias = `${tableAlias}_${selectedRelationKey}`;
-
-			const builtRelation = this.buildRelationalQuery(
-				fullSchema,
-				schema,
-				tableNamesMap,
-				fullSchema[tableNamesMap[relation.referencedTable[Table.Symbol.Name]]!] as AnyMySqlTable,
-				schema[tableNamesMap[relation.referencedTable[Table.Symbol.Name]]!]!,
-				selectedRelationValue,
-				relationAlias,
-				normalizedRelation.references,
+		} else {
+			const aliasedColumns = Object.fromEntries(
+				Object.entries(tableConfig.columns).map(([key, value]) => [key, aliasedTableColumn(value, tableAlias)]),
 			);
-			builtRelations.push({ key: selectedRelationKey, value: builtRelation });
 
-			let relationWhere;
-			if (typeof selectedRelationValue === 'object' && selectedRelationValue.limit) {
-				const field = sql`${sql.identifier(relationAlias)}.${sql.identifier('__drizzle_row_number')}`;
-				relationWhere = and(
-					relationWhere,
-					or(and(sql`${field} <= ${selectedRelationValue.limit}`), sql`(${field} is null)`),
-				);
+			const aliasedRelations = Object.fromEntries(
+				Object.entries(tableConfig.relations).map(([key, value]) => [key, aliasedRelation(value, tableAlias)]),
+			);
+
+			const aliasedFields = Object.assign({}, aliasedColumns, aliasedRelations);
+
+			if (config.where) {
+				const whereSql = typeof config.where === 'function' ? config.where(aliasedFields, operators) : config.where;
+				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 			}
 
-			const join: JoinsValue = {
-				table: is(builtRelation.sql, Table)
-					? aliasedTable(builtRelation.sql as AnyMySqlTable, relationAlias)
-					: new Subquery(builtRelation.sql, {}, relationAlias),
-				alias: relationAlias,
-				on: and(
+			const fieldsSelection: { tsKey: string; value: AnyMySqlColumn | SQL.Aliased }[] = [];
+			let selectedColumns: string[] = [];
+
+			// Figure out which columns to select
+			if (config.columns) {
+				let isIncludeMode = false;
+
+				for (const [field, value] of Object.entries(config.columns)) {
+					if (value === undefined) {
+						continue;
+					}
+
+					if (field in tableConfig.columns) {
+						if (!isIncludeMode && value === true) {
+							isIncludeMode = true;
+						}
+						selectedColumns.push(field);
+					}
+				}
+
+				if (selectedColumns.length > 0) {
+					selectedColumns = isIncludeMode
+						? selectedColumns.filter((c) => config.columns?.[c] === true)
+						: Object.keys(tableConfig.columns).filter((key) => !selectedColumns.includes(key));
+				}
+			} else {
+				// Select all columns if selection is not specified
+				selectedColumns = Object.keys(tableConfig.columns);
+			}
+
+			for (const field of selectedColumns) {
+				const column = tableConfig.columns[field]! as AnyMySqlColumn;
+				fieldsSelection.push({ tsKey: field, value: column });
+			}
+
+			let selectedRelations: {
+				tsKey: string;
+				queryConfig: true | DBQueryConfig<'many', false>;
+				relation: Relation;
+			}[] = [];
+
+			// Figure out which relations to select
+			if (config.with) {
+				selectedRelations = Object.entries(config.with)
+					.filter((entry): entry is [typeof entry[0], NonNullable<typeof entry[1]>] => !!entry[1])
+					.map(([tsKey, queryConfig]) => ({ tsKey, queryConfig, relation: tableConfig.relations[tsKey]! }));
+			}
+
+			let extras;
+
+			// Figure out which extras to select
+			if (config.extras) {
+				extras = typeof config.extras === 'function'
+					? config.extras(aliasedFields, { sql })
+					: config.extras;
+				for (const [tsKey, value] of Object.entries(extras)) {
+					fieldsSelection.push({
+						tsKey,
+						value: mapColumnsInAliasedSQLToAlias(value, tableAlias),
+					});
+				}
+			}
+
+			// Transform `fieldsSelection` into `selection`
+			// `fieldsSelection` shouldn't be used after this point
+			for (const { tsKey, value } of fieldsSelection) {
+				selection.push({
+					dbKey: is(value, SQL.Aliased) ? value.fieldAlias : tableConfig.columns[tsKey]!.name,
+					tsKey,
+					field: is(value, Column) ? aliasedTableColumn(value, tableAlias) : value,
+					relationTableTsKey: undefined,
+					isJson: false,
+					selection: [],
+				});
+			}
+
+			let orderByOrig = typeof config.orderBy === 'function'
+				? config.orderBy(aliasedFields, orderByOperators)
+				: config.orderBy ?? [];
+			if (!Array.isArray(orderByOrig)) {
+				orderByOrig = [orderByOrig];
+			}
+			orderBy = orderByOrig.map((orderByValue) => {
+				if (is(orderByValue, Column)) {
+					return aliasedTableColumn(orderByValue, tableAlias) as AnyMySqlColumn;
+				}
+				return mapColumnsInSQLToAlias(orderByValue, tableAlias);
+			});
+
+			limit = config.limit;
+			offset = config.offset;
+
+			// Process all relations
+			for (
+				const {
+					tsKey: selectedRelationTsKey,
+					queryConfig: selectedRelationConfigValue,
+					relation,
+				} of selectedRelations
+			) {
+				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
+				const relationTableName = relation.referencedTable[Table.Symbol.Name];
+				const relationTableTsName = tableNamesMap[relationTableName]!;
+				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
+				const joinOn = and(
 					...normalizedRelation.fields.map((field, i) =>
 						eq(
+							aliasedTableColumn(normalizedRelation.references[i]!, relationTableAlias),
 							aliasedTableColumn(field, tableAlias),
-							aliasedTableColumn(normalizedRelation.references[i]!, relationAlias),
 						)
 					),
-				),
-				joinType: 'left',
-			};
-
-			const elseField = sql`json_arrayagg(json_array(${
-				sql.join(
-					builtRelation.selection.map(({ dbKey: key, isJson }) => {
-						const field = sql`${sql.identifier(relationAlias)}.${sql.identifier(key)}`;
-						return isJson ? sql`cast(${field} as json)` : field;
-					}),
-					sql`, `,
-				)
-			}))`;
-
-			const countSql = normalizedRelation.references.length === 1
-				? aliasedTableColumn(normalizedRelation.references[0]!, relationAlias)
-				: sql.fromList([
-					sql`coalesce(`,
-					sql.join(normalizedRelation.references.map((c) => aliasedTableColumn(c, relationAlias)), sql.raw(', ')),
-					sql.raw(')'),
-				]);
-
-			const field = sql`if(count(${countSql}) = 0, '[]', ${elseField})`.as(selectedRelationKey);
-
-			const builtRelationField = {
-				path: [selectedRelationKey],
-				field,
-			};
-
-			result = this.buildSelectQuery({
-				table: result ? new Subquery(result, {}, tableAlias) : aliasedTable(table, tableAlias),
-				fields: {},
-				fieldsFlat: [
-					...Object.entries(tableConfig.columns).map(([tsKey, column]) => ({
-						path: [tsKey],
-						field: aliasedTableColumn(column, tableAlias) as AnyMySqlColumn,
-					})),
-					...(selectedRelationIndex === selectedRelations.length - 1
-						? selectedExtras.map(({ key, value }) => ({
-							path: [key],
-							field: value,
-						}))
-						: []),
-					...builtRelationFields.map(({ path, field }) => ({
-						path,
-						field: sql`${sql.identifier(tableAlias)}.${sql.identifier((field as SQL.Aliased).fieldAlias)}`,
-					})),
-					builtRelationField,
-				],
-				where: relationWhere,
-				groupBy,
-				orderBy: selectedRelationIndex === selectedRelations.length - 1 ? orderBy : [],
-				joins: [join],
-			});
-
-			joins.push(join);
-			builtRelationFields.push(builtRelationField);
-			selectedRelationIndex++;
-		}
-
-		const finalFieldsSelection: SelectedFieldsOrdered = Object.entries(fieldsSelection).map(([key, value]) => {
-			return {
-				path: [key],
-				field: is(value, Column) ? aliasedTableColumn(value, tableAlias) : value,
-			};
-		});
-
-		const finalFieldsFlat: SelectedFieldsOrdered = isRoot
-			? [
-				...finalFieldsSelection.map(({ path, field }) => ({
-					path,
-					field: is(field, SQL.Aliased) ? sql`${sql.identifier(field.fieldAlias)}` : field,
-				})),
-				...builtRelationFields.map(({ path, field }) => ({
-					path,
-					field: sql`cast(${sql.identifier((field as SQL.Aliased).fieldAlias)} as json)`,
-				})),
-			]
-			: [
-				...Object.entries(tableConfig.columns).map(([tsKey, column]) => ({
-					path: [tsKey],
-					field: aliasedTableColumn(column, tableAlias) as AnyMySqlColumn,
-				})),
-				...selectedExtras.map(({ key, value }) => ({
-					path: [key],
-					field: value,
-				})),
-				...builtRelationFields.map(({ path, field }) => ({
-					path,
-					field: sql`${sql.identifier(tableAlias)}.${sql.identifier((field as SQL.Aliased).fieldAlias)}`,
-				})),
-			];
-
-		if (finalFieldsFlat.length === 0) {
-			finalFieldsFlat.push({
-				path: [],
-				field: sql.raw('1'),
-			});
-		}
-
-		if (!isRoot && !config.limit && orderBy.length > 0) {
-			finalFieldsFlat.push({
-				path: ['__drizzle_row_number'],
-				field: sql`row_number() over(order by ${sql.join(orderBy, sql`, `)})`,
-			});
-		}
-
-		let limit, offset;
-
-		if (config.limit !== undefined || config.offset !== undefined) {
-			if (isRoot) {
-				limit = config.limit;
-				offset = config.offset;
-			} else {
-				finalFieldsFlat.push({
-					path: ['__drizzle_row_number'],
-					field: sql`row_number() over(partition by ${relationColumns.map((c) => aliasedTableColumn(c, tableAlias))}${
-						(orderBy.length > 0 && !isRoot) ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined
-					})`
-						.as('__drizzle_row_number'),
+				);
+				const builtRelation = this.buildRelationalQuery({
+					fullSchema,
+					schema,
+					tableNamesMap,
+					table: fullSchema[relationTableTsName] as AnyMySqlTable,
+					tableConfig: schema[relationTableTsName]!,
+					queryConfig: selectedRelationConfigValue,
+					tableAlias: relationTableAlias,
+					joinOn,
+					nestedQueryRelation: relation,
+				});
+				const field = sql`${sql.identifier(relationTableAlias)}.${sql.identifier('data')}`.as(selectedRelationTsKey);
+				joins.push({
+					on: sql`true`,
+					table: new Subquery(builtRelation.sql as SQL, {}, relationTableAlias),
+					alias: relationTableAlias,
+					joinType: 'left',
+					lateral: true,
+				});
+				selection.push({
+					dbKey: selectedRelationTsKey,
+					tsKey: selectedRelationTsKey,
+					field,
+					relationTableTsKey: relationTableTsName,
+					isJson: true,
+					selection: builtRelation.selection,
 				});
 			}
 		}
 
-		result = this.buildSelectQuery({
-			table: result ? new Subquery(result, {}, tableAlias) : aliasedTable(table, tableAlias),
-			fields: {},
-			fieldsFlat: finalFieldsFlat,
-			where,
-			groupBy: [],
-			orderBy: isRoot ? orderBy : [],
-			joins: [],
-			limit,
-			offset: offset as Exclude<typeof offset, DrizzleTypeError<any>>,
-		});
+		if (selection.length === 0) {
+			throw new DrizzleError(`No fields selected for table "${tableConfig.tsName}" ("${tableAlias}")`);
+		}
+
+		let result;
+
+		const needsSubquery = where || limit !== undefined || offset !== undefined || (orderBy?.length ?? 0) > 0;
+		where = and(joinOn, where);
+
+		if (nestedQueryRelation) {
+			let field = sql`json_array(${
+				sql.join(
+					selection.map(({ field, tsKey, isJson }) =>
+						isJson
+							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
+							: is(field, SQL.Aliased)
+							? field.sql
+							: field
+					),
+					sql`, `,
+				)
+			})`;
+			if (is(nestedQueryRelation, Many)) {
+				field = sql`coalesce(json_arrayagg(${field}), json_array())`;
+			}
+			const nestedSelection = [{
+				dbKey: 'data',
+				tsKey: 'data',
+				field: field.as('data'),
+				isJson: true,
+				relationTableTsKey: tableConfig.tsName,
+				selection,
+			}];
+
+			if (needsSubquery) {
+				result = this.buildSelectQuery({
+					table: aliasedTable(table, tableAlias),
+					fields: {},
+					fieldsFlat: [
+						{
+							path: [],
+							field: sql.raw('*'),
+						},
+						...(((orderBy?.length ?? 0) > 0)
+							? [{
+								path: [],
+								field: sql`row_number() over (order by ${sql.join(orderBy!, sql`, `)})`,
+							}]
+							: []),
+					],
+					where,
+					limit,
+					offset,
+				});
+
+				where = undefined;
+				limit = undefined;
+				offset = undefined;
+				orderBy = undefined;
+			} else {
+				result = aliasedTable(table, tableAlias);
+			}
+
+			result = this.buildSelectQuery({
+				table: is(result, MySqlTable) ? result : new Subquery(result, {}, tableAlias),
+				fields: {},
+				fieldsFlat: nestedSelection.map(({ field }) => ({
+					path: [],
+					field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field,
+				})),
+				joins,
+				where,
+				limit,
+				offset,
+				orderBy,
+			});
+		} else {
+			if (needsSubquery) {
+				const nestedSelection = selection.filter(({ field }) => !is(field, Column));
+				nestedSelection.splice(0, 0, {
+					dbKey: '*',
+					tsKey: '*',
+					field: sql`${sql.identifier(tableAlias)}.*`,
+					isJson: false,
+					relationTableTsKey: tableConfig.tsName,
+					selection: [],
+				});
+
+				result = this.buildSelectQuery({
+					table: aliasedTable(table, tableAlias),
+					fields: {},
+					fieldsFlat: nestedSelection.map(({ field }) => ({
+						path: [],
+						field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field,
+					})),
+					joins,
+				});
+
+				result = this.buildSelectQuery({
+					table: new Subquery(result, {}, tableAlias),
+					fields: {},
+					fieldsFlat: selection.map(({ field }) => ({
+						path: [],
+						field: is(field, Column)
+							? sql`${sql.identifier(field.name)}`
+							: is(field, SQL.Aliased)
+							? sql`${sql.identifier(field.fieldAlias)}`
+							: field,
+					})),
+					where,
+					limit,
+					offset,
+					orderBy,
+				});
+			} else {
+				result = this.buildSelectQuery({
+					table: aliasedTable(table, tableAlias),
+					fields: {},
+					fieldsFlat: selection.map(({ field }) => ({
+						path: [],
+						field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field,
+					})),
+					joins,
+					where,
+					limit,
+					offset,
+					orderBy,
+				});
+			}
+		}
 
 		return {
 			tableTsKey: tableConfig.tsName,
 			sql: result,
-			selection: [
-				...finalFieldsSelection.map(({ path, field }) => ({
-					dbKey: is(field, SQL.Aliased) ? field.fieldAlias : tableConfig.columns[path[0]!]!.name,
-					tsKey: path[0]!,
-					field,
-					tableTsKey: undefined,
-					isJson: false,
-					selection: [],
-				})),
-				...builtRelations.map(({ key, value }) => ({
-					dbKey: key,
-					tsKey: key,
-					field: undefined,
-					tableTsKey: value.tableTsKey,
-					isJson: true,
-					selection: value.selection,
-				})),
-			],
+			selection,
 		};
 	}
 }

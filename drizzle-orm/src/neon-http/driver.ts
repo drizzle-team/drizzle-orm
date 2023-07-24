@@ -1,4 +1,4 @@
-import pg from 'pg';
+import { types } from '@neondatabase/serverless';
 import { entityKind } from '~/entity';
 import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
@@ -11,48 +11,44 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations';
 import { type DrizzleConfig } from '~/utils';
-import type { NodePgClient, NodePgQueryResultHKT } from './session';
-import { NodePgSession } from './session';
+import { type NeonHttpClient, type NeonHttpQueryResultHKT, NeonHttpSession } from './session';
 
-const { types } = pg;
-
-export interface PgDriverOptions {
+export interface NeonDriverOptions {
 	logger?: Logger;
 }
 
-export class NodePgDriver {
-	static readonly [entityKind]: string = 'NodePgDriver';
+export class NeonHttpDriver {
+	static readonly [entityKind]: string = 'NeonDriver';
 
 	constructor(
-		private client: NodePgClient,
+		private client: NeonHttpClient,
 		private dialect: PgDialect,
-		private options: PgDriverOptions = {},
+		private options: NeonDriverOptions = {},
 	) {
 		this.initMappers();
 	}
 
 	createSession(
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
-	): NodePgSession<Record<string, unknown>, TablesRelationalConfig> {
-		return new NodePgSession(this.client, this.dialect, schema, { logger: this.options.logger });
+	): NeonHttpSession<Record<string, unknown>, TablesRelationalConfig> {
+		return new NeonHttpSession(this.client, this.dialect, schema, { logger: this.options.logger });
 	}
 
 	initMappers() {
 		types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
 		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
 		types.setTypeParser(types.builtins.DATE, (val) => val);
-		types.setTypeParser(types.builtins.INTERVAL, (val) => val);
 	}
 }
 
-export type NodePgDatabase<
+export type NeonHttpDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = PgDatabase<NodePgQueryResultHKT, TSchema>;
+> = PgDatabase<NeonHttpQueryResultHKT, TSchema>;
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
-	client: NodePgClient,
+	client: NeonHttpClient,
 	config: DrizzleConfig<TSchema> = {},
-): NodePgDatabase<TSchema> {
+): NeonHttpDatabase<TSchema> {
 	const dialect = new PgDialect();
 	let logger;
 	if (config.logger === true) {
@@ -74,7 +70,8 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const driver = new NodePgDriver(client, dialect, { logger });
+	const driver = new NeonHttpDriver(client, dialect, { logger });
 	const session = driver.createSession(schema);
-	return new PgDatabase(dialect, session, schema) as NodePgDatabase<TSchema>;
+	
+	return new PgDatabase(dialect, session, schema) as NeonHttpDatabase<TSchema>;
 }

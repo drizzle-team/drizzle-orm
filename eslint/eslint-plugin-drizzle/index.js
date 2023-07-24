@@ -2,11 +2,6 @@
 const { ESLintUtils } = require('@typescript-eslint/experimental-utils');
 const ts = require('typescript');
 
-function isSymbolType(checker, type) {
-	const symbol = checker.getSymbolAtLocation(type);
-	return symbol && symbol.name === 'Symbol';
-}
-
 module.exports = {
 	rules: {
 		'require-entity-kind': ESLintUtils.RuleCreator((name) => name)({

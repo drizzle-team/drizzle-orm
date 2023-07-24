@@ -13,12 +13,14 @@ import type { AnyMySqlTable } from './table';
 import { MySqlTable } from './table';
 import type { MySqlView } from './view';
 import { MySqlViewConfig } from './view';
+import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint';
 
 export function getTableConfig(table: AnyMySqlTable) {
 	const columns = Object.values(table[MySqlTable.Symbol.Columns]);
 	const indexes: Index[] = [];
 	const checks: Check[] = [];
 	const primaryKeys: PrimaryKey[] = [];
+	const uniqueConstraints: UniqueConstraint[] = [];
 	const foreignKeys: ForeignKey[] = Object.values(table[MySqlTable.Symbol.InlineForeignKeys]);
 	const name = table[Table.Symbol.Name];
 	const schema = table[Table.Symbol.Schema];
@@ -33,6 +35,8 @@ export function getTableConfig(table: AnyMySqlTable) {
 				indexes.push(builder.build(table));
 			} else if (is(builder, CheckBuilder)) {
 				checks.push(builder.build(table));
+			} else if (is(builder, UniqueConstraintBuilder)) {
+				uniqueConstraints.push(builder.build(table));
 			} else if (is(builder, PrimaryKeyBuilder)) {
 				primaryKeys.push(builder.build(table));
 			} else if (is(builder, ForeignKeyBuilder)) {
@@ -47,6 +51,7 @@ export function getTableConfig(table: AnyMySqlTable) {
 		foreignKeys,
 		checks,
 		primaryKeys,
+		uniqueConstraints,
 		name,
 		schema,
 		baseName,

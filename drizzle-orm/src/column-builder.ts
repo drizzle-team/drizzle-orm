@@ -56,6 +56,9 @@ export interface ColumnBuilderRuntimeConfig<TData> {
 	default: TData | SQL | undefined;
 	hasDefault: boolean;
 	primaryKey: boolean;
+	isUnique: boolean;
+	uniqueName: string | undefined;
+	uniqueType: string | undefined;
 }
 
 // To understand how to use `ColumnBuilder` and `AnyColumnBuilder`, see `Column` and `AnyColumn` documentation.

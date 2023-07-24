@@ -91,17 +91,15 @@ export class MySqlRelationalQuery<
 	}
 
 	prepare() {
-		const query = this.dialect.buildRelationalQuery(
-			this.fullSchema,
-			this.schema,
-			this.tableNamesMap,
-			this.table,
-			this.tableConfig,
-			this.config,
-			this.tableConfig.tsName,
-			[],
-			true,
-		);
+		const query = this.dialect.buildRelationalQuery({
+			fullSchema: this.fullSchema,
+			schema: this.schema,
+			tableNamesMap: this.tableNamesMap,
+			table: this.table,
+			tableConfig: this.tableConfig,
+			queryConfig: this.config,
+			tableAlias: this.tableConfig.tsName,
+		});
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
 		return this.session.prepareQuery(

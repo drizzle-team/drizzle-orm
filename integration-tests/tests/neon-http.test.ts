@@ -1,5 +1,6 @@
 import 'dotenv/config';
 
+import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import Docker from 'dockerode';
@@ -18,8 +19,8 @@ import {
 	type SQLWrapper,
 	TransactionRollbackError,
 } from 'drizzle-orm';
-import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import { drizzle, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import { migrate } from 'drizzle-orm/neon-http/migrator';
 import {
 	alias,
 	type AnyPgColumn,
@@ -27,7 +28,6 @@ import {
 	char,
 	cidr,
 	getMaterializedViewConfig,
-	getTableConfig,
 	getViewConfig,
 	inet,
 	integer,
@@ -42,8 +42,6 @@ import {
 	serial,
 	text,
 	timestamp,
-	unique,
-	uniqueKeyName,
 	uuid as pgUuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
@@ -119,8 +117,9 @@ const usersMigratorTable = pgTable('users12', {
 interface Context {
 	docker: Docker;
 	pgContainer: Docker.Container;
-	db: NodePgDatabase;
-	client: Client;
+	db: NeonHttpDatabase;
+	ddlRunner: Client;
+	client: NeonQueryFunction<false, true>;
 }
 
 const test = anyTest as TestFn<Context>;
@@ -162,8 +161,9 @@ test.before(async (t) => {
 	let lastError: unknown | undefined;
 	do {
 		try {
-			ctx.client = new Client(connectionString);
-			await ctx.client.connect();
+			ctx.client = neon(connectionString);
+			ctx.ddlRunner = new Client(connectionString);
+			await ctx.ddlRunner.connect();
 			connected = true;
 			break;
 		} catch (e) {
@@ -174,7 +174,7 @@ test.before(async (t) => {
 	} while (timeLeft > 0);
 	if (!connected) {
 		console.error('Cannot connect to Postgres');
-		await ctx.client?.end().catch(console.error);
+		await ctx.ddlRunner?.end().catch(console.error);
 		await ctx.pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
@@ -183,16 +183,26 @@ test.before(async (t) => {
 
 test.after.always(async (t) => {
 	const ctx = t.context;
-	await ctx.client?.end().catch(console.error);
+	await ctx.ddlRunner?.end().catch(console.error);
 	await ctx.pgContainer?.stop().catch(console.error);
 });
 
 test.beforeEach(async (t) => {
 	const ctx = t.context;
-	await ctx.db.execute(sql`drop schema public cascade`);
-	await ctx.db.execute(sql`create schema public`);
-	await ctx.db.execute(
-		sql`
+	// await ctx.ddlRunner.query(`drop schema public cascade`);
+	// await ctx.ddlRunner.query(`create schema public`);
+	await ctx.db.execute(sql`drop table if exists users cascade`);
+	await ctx.db.execute(sql`drop table if exists cities cascade`);
+	await ctx.db.execute(sql`drop table if exists users2 cascade`);
+	await ctx.db.execute(sql`drop table if exists course_categories cascade`);
+	await ctx.db.execute(sql`drop table if exists courses cascade`);
+	await ctx.db.execute(sql`drop table if exists orders cascade`);
+	await ctx.db.execute(sql`drop table if exists network_table cascade`);
+	await ctx.db.execute(sql`drop table if exists sal_emp cascade`);
+	await ctx.db.execute(sql`drop table if exists tictactoe cascade`);
+
+	await ctx.ddlRunner.query(
+		`
 			create table users (
 				id serial primary key,
 				name text not null,
@@ -202,8 +212,8 @@ test.beforeEach(async (t) => {
 			)
 		`,
 	);
-	await ctx.db.execute(
-		sql`
+	await ctx.ddlRunner.query(
+		`
 			create table cities (
 				id serial primary key,
 				name text not null,
@@ -211,8 +221,8 @@ test.beforeEach(async (t) => {
 			)
 		`,
 	);
-	await ctx.db.execute(
-		sql`
+	await ctx.ddlRunner.query(
+		`
 			create table users2 (
 				id serial primary key,
 				name text not null,
@@ -220,16 +230,16 @@ test.beforeEach(async (t) => {
 			)
 		`,
 	);
-	await ctx.db.execute(
-		sql`
+	await ctx.ddlRunner.query(
+		`
 			create table course_categories (
 				id serial primary key,
 				name text not null
 			)
 		`,
 	);
-	await ctx.db.execute(
-		sql`
+	await ctx.ddlRunner.query(
+		`
 			create table courses (
 				id serial primary key,
 				name text not null,
@@ -237,8 +247,8 @@ test.beforeEach(async (t) => {
 			)
 		`,
 	);
-	await ctx.db.execute(
-		sql`
+	await ctx.ddlRunner.query(
+		`
 			create table orders (
 				id serial primary key,
 				region text not null,
@@ -248,8 +258,8 @@ test.beforeEach(async (t) => {
 			)
 		`,
 	);
-	await ctx.db.execute(
-		sql`
+	await ctx.ddlRunner.query(
+		`
 			create table network_table (
 				inet inet not null,
 				cidr cidr not null,
@@ -258,8 +268,8 @@ test.beforeEach(async (t) => {
 			)
 		`,
 	);
-	await ctx.db.execute(
-		sql`
+	await ctx.ddlRunner.query(
+		`
 			create table sal_emp (
 				name text not null,
 				pay_by_quarter integer[] not null,
@@ -267,60 +277,13 @@ test.beforeEach(async (t) => {
 			)
 		`,
 	);
-	await ctx.db.execute(
-		sql`
+	await ctx.ddlRunner.query(
+		`
 			create table tictactoe (
 				squares integer[3][3] not null
 			)
 		`,
 	);
-});
-
-test.serial('table configs: unique third param', async (t) => {
-	const cities1Table = pgTable('cities1', {
-		id: serial('id').primaryKey(),
-		name: text('name').notNull(),
-		state: char('state', { length: 2 }),
-	}, (t) => ({
-		f: unique('custom_name').on(t.name, t.state).nullsNotDistinct(),
-		f1: unique('custom_name1').on(t.name, t.state),
-	}));
-
-	const tableConfig = getTableConfig(cities1Table);
-
-	t.assert(tableConfig.uniqueConstraints.length === 2);
-
-	t.assert(tableConfig.uniqueConstraints[0]?.name === 'custom_name');
-	t.assert(tableConfig.uniqueConstraints[0]?.nullsNotDistinct);
-	t.deepEqual(tableConfig.uniqueConstraints[0]?.columns.map((t) => t.name), ['name', 'state']);
-
-	t.assert(tableConfig.uniqueConstraints[1]?.name, 'custom_name1');
-	t.assert(!tableConfig.uniqueConstraints[1]?.nullsNotDistinct);
-	t.deepEqual(tableConfig.uniqueConstraints[0]?.columns.map((t) => t.name), ['name', 'state']);
-});
-
-test.serial('table configs: unique in column', async (t) => {
-	const cities1Table = pgTable('cities1', {
-		id: serial('id').primaryKey(),
-		name: text('name').notNull().unique(),
-		state: char('state', { length: 2 }).unique('custom'),
-		field: char('field', { length: 2 }).unique('custom_field', { nulls: 'not distinct' }),
-	});
-
-	const tableConfig = getTableConfig(cities1Table);
-
-	const columnName = tableConfig.columns.find((it) => it.name === 'name');
-	t.assert(columnName?.uniqueName === uniqueKeyName(cities1Table, [columnName!.name]));
-	t.assert(columnName?.isUnique);
-
-	const columnState = tableConfig.columns.find((it) => it.name === 'state');
-	t.assert(columnState?.uniqueName === "custom");
-	t.assert(columnState?.isUnique);
-
-	const columnField = tableConfig.columns.find((it) => it.name === 'field');
-	t.assert(columnField?.uniqueName === "custom_field");
-	t.assert(columnField?.isUnique);
-	t.assert(columnField?.uniqueType === 'not distinct');
 });
 
 test.serial('select all fields', async (t) => {
@@ -948,7 +911,6 @@ test.serial('prepared statement with placeholder in .offset', async (t) => {
 	t.deepEqual(result, [{ id: 2, name: 'John1' }]);
 });
 
-// TODO change tests to new structure
 test.serial('migrator', async (t) => {
 	const { db } = t.context;
 
@@ -2017,20 +1979,22 @@ test.serial('transaction', async (t) => {
 	const user = await db.insert(users).values({ balance: 100 }).returning().then((rows) => rows[0]!);
 	const product = await db.insert(products).values({ price: 10, stock: 10 }).returning().then((rows) => rows[0]!);
 
-	await db.transaction(async (tx) => {
+	const error = await t.throwsAsync(() => db.transaction(async (tx) => {
 		await tx.update(users).set({ balance: user.balance - product.price }).where(eq(users.id, user.id));
 		await tx.update(products).set({ stock: product.stock - 1 }).where(eq(products.id, product.id));
-	});
+	}));
+
+    t.is(error!.message, 'No transactions support in neon-http driver');
 
 	const result = await db.select().from(users);
 
-	t.deepEqual(result, [{ id: 1, balance: 90 }]);
+	t.deepEqual(result, [{ id: 1, balance: 100 }]);
 
 	await db.execute(sql`drop table ${users}`);
 	await db.execute(sql`drop table ${products}`);
 });
 
-test.serial('transaction rollback', async (t) => {
+test.serial.skip('transaction rollback', async (t) => {
 	const { db } = t.context;
 
 	const users = pgTable('users_transactions_rollback', {
@@ -2071,22 +2035,24 @@ test.serial('nested transaction', async (t) => {
 		sql`create table users_nested_transactions (id serial not null primary key, balance integer not null)`,
 	);
 
-	await db.transaction(async (tx) => {
+	const error = await t.throwsAsync(() => db.transaction(async (tx) => {
 		await tx.insert(users).values({ balance: 100 });
 
 		await tx.transaction(async (tx) => {
 			await tx.update(users).set({ balance: 200 });
 		});
-	});
+	}));
 
-	const result = await db.select().from(users);
+    t.is(error!.message, 'No transactions support in neon-http driver');
 
-	t.deepEqual(result, [{ id: 1, balance: 200 }]);
+	// const result = await db.select().from(users);
+
+	// t.deepEqual(result, [{ id: 1, balance: 200 }]);
 
 	await db.execute(sql`drop table ${users}`);
 });
 
-test.serial('nested transaction rollback', async (t) => {
+test.serial.skip('nested transaction rollback', async (t) => {
 	const { db } = t.context;
 
 	const users = pgTable('users_nested_transactions_rollback', {
