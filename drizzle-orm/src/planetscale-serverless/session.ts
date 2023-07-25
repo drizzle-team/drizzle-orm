@@ -128,6 +128,15 @@ export class PlanetScaleTransaction<
 > extends MySqlTransaction<PlanetscaleQueryResultHKT, PlanetScalePreparedQueryHKT, TFullSchema, TSchema> {
 	static readonly [entityKind]: string = 'PlanetScaleTransaction';
 
+	constructor(
+		dialect: MySqlDialect,
+		session: MySqlSession,
+		schema: RelationalSchemaConfig<TSchema> | undefined,
+		nestedIndex?: number,
+	) {
+		super(dialect, session, schema, nestedIndex, true);
+	}
+
 	override async transaction<T>(
 		transaction: (tx: PlanetScaleTransaction<TFullSchema, TSchema>) => Promise<T>,
 	): Promise<T> {

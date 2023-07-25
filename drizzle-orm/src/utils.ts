@@ -205,6 +205,7 @@ export type Simplify<
 
 export type SimplifyShallow<T> =
 	& {
+		// @ts-ignore - these types are just a bit too much for TS to handle at this point, will be fixed soon
 		[K in keyof T]: T[K];
 	}
 	& {};

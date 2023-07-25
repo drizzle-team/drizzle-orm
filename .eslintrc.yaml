@@ -63,3 +63,4 @@ rules:
   'drizzle/require-entity-kind': 'error'
   'unicorn/prefer-string-replace-all': 'off'
   'unicorn/no-process-exit': 'off'
+  '@typescript-eslint/ban-ts-comment': 'off'
