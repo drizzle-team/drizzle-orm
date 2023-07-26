@@ -221,8 +221,6 @@ test.serial('table configs: unique in column', async (t) => {
 
 	const tableConfig = getTableConfig(cities1Table);
 
-	console.log(tableConfig)
-
 	const columnName = tableConfig.columns.find((it) => it.name === 'name');
 	t.assert(columnName?.isUnique);
 	t.assert(columnName?.uniqueName === uniqueKeyName(cities1Table, [columnName!.name]));

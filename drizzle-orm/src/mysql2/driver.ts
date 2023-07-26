@@ -41,9 +41,15 @@ export type MySql2Database<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > = MySqlDatabase<MySql2QueryResultHKT, MySql2PreparedQueryHKT, TSchema>;
 
+export interface MySql2DrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>>
+	extends DrizzleConfig<TSchema>
+{
+	noLateralInRQB?: boolean;
+}
+
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: MySql2Client | CallbackConnection | CallbackPool,
-	config: DrizzleConfig<TSchema> = {},
+	config: MySql2DrizzleConfig<TSchema> = {},
 ): MySql2Database<TSchema> {
 	const dialect = new MySqlDialect();
 	let logger;
@@ -71,7 +77,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 
 	const driver = new MySql2Driver(client as MySql2Client, dialect, { logger });
 	const session = driver.createSession(schema);
-	return new MySqlDatabase(dialect, session, schema) as MySql2Database<TSchema>;
+	return new MySqlDatabase(dialect, session, schema, config.noLateralInRQB) as MySql2Database<TSchema>;
 }
 
 interface CallbackClient {

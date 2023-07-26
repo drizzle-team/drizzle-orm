@@ -120,8 +120,9 @@ export abstract class MySqlTransaction<
 		session: MySqlSession,
 		protected schema: RelationalSchemaConfig<TSchema> | undefined,
 		protected readonly nestedIndex = 0,
+		noLateralInRQB?: boolean,
 	) {
-		super(dialect, session, schema);
+		super(dialect, session, schema, noLateralInRQB);
 	}
 
 	rollback(): never {

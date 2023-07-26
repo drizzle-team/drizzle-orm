@@ -33,6 +33,7 @@ export class RelationalQueryBuilder<
 		private tableConfig: TableRelationalConfig,
 		private dialect: MySqlDialect,
 		private session: MySqlSession,
+		private noLateral?: boolean,
 	) {}
 
 	findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
@@ -48,6 +49,7 @@ export class RelationalQueryBuilder<
 			this.session,
 			config ? (config as DBQueryConfig<'many', true>) : {},
 			'many',
+			this.noLateral,
 		);
 	}
 
@@ -64,6 +66,7 @@ export class RelationalQueryBuilder<
 			this.session,
 			config ? { ...(config as DBQueryConfig<'many', true> | undefined), limit: 1 } : { limit: 1 },
 			'first',
+			this.noLateral,
 		);
 	}
 }
@@ -86,20 +89,31 @@ export class MySqlRelationalQuery<
 		private session: MySqlSession,
 		private config: DBQueryConfig<'many', true> | true,
 		private mode: 'many' | 'first',
+		private noLateral?: boolean,
 	) {
 		super();
 	}
 
 	prepare() {
-		const query = this.dialect.buildRelationalQuery({
-			fullSchema: this.fullSchema,
-			schema: this.schema,
-			tableNamesMap: this.tableNamesMap,
-			table: this.table,
-			tableConfig: this.tableConfig,
-			queryConfig: this.config,
-			tableAlias: this.tableConfig.tsName,
-		});
+		const query = this.noLateral
+			? this.dialect.buildRelationalQueryWithoutLateralSubqueries({
+				fullSchema: this.fullSchema,
+				schema: this.schema,
+				tableNamesMap: this.tableNamesMap,
+				table: this.table,
+				tableConfig: this.tableConfig,
+				queryConfig: this.config,
+				tableAlias: this.tableConfig.tsName,
+			})
+			: this.dialect.buildRelationalQuery({
+				fullSchema: this.fullSchema,
+				schema: this.schema,
+				tableNamesMap: this.tableNamesMap,
+				table: this.table,
+				tableConfig: this.tableConfig,
+				queryConfig: this.config,
+				tableAlias: this.tableConfig.tsName,
+			});
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
 		return this.session.prepareQuery(

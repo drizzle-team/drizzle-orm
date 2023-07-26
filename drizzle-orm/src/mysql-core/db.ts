@@ -52,6 +52,7 @@ export class MySqlDatabase<
 		/** @internal */
 		readonly session: MySqlSession<any, any, any, any>,
 		schema: RelationalSchemaConfig<TSchema> | undefined,
+		protected readonly noLateralInRQB?: boolean,
 	) {
 		this._ = schema
 			? { schema: schema.schema, tableNamesMap: schema.tableNamesMap }
@@ -68,6 +69,7 @@ export class MySqlDatabase<
 						columns,
 						dialect,
 						session,
+						this.noLateralInRQB,
 					);
 			}
 		}
