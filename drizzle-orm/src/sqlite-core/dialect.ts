@@ -9,6 +9,7 @@ import {
 	type DBQueryConfig,
 	Many,
 	normalizeRelation,
+	One,
 	operators,
 	orderByOperators,
 	type Relation,
@@ -488,7 +489,11 @@ export abstract class SQLiteDialect {
 					tableNamesMap,
 					table: fullSchema[relationTableTsName] as AnySQLiteTable,
 					tableConfig: schema[relationTableTsName]!,
-					queryConfig: selectedRelationConfigValue,
+					queryConfig: is(relation, One)
+						? (selectedRelationConfigValue === true
+							? { limit: 1 }
+							: { ...selectedRelationConfigValue, limit: 1 })
+						: selectedRelationConfigValue,
 					tableAlias: relationTableAlias,
 					joinOn,
 					nestedQueryRelation: relation,
