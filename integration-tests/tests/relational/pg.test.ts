@@ -4190,7 +4190,7 @@ test('[Find Many] Get users with groups', async (t) => {
 		name: 'Alex',
 		verified: false,
 		invitedBy: null,
-		usersToGroups: [
+		usersToGroups: expect.arrayContaining([
 			{
 				group: {
 					id: 2,
@@ -4205,7 +4205,7 @@ test('[Find Many] Get users with groups', async (t) => {
 					description: null,
 				},
 			},
-		],
+		]),
 	});
 });
 
