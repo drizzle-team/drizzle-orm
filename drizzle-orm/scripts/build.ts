@@ -3,20 +3,34 @@ import 'zx/globals';
 import concurrently from 'concurrently';
 import { entries } from '../rollup.common';
 
+interface Export {
+	types: string;
+	default: string;
+}
+
 function updateAndCopyPackageJson() {
 	const pkg = fs.readJSONSync('package.json');
 
-	pkg.exports = entries.reduce<Record<string, { import: string; require: string; default: string; types: string }>>(
+	pkg.exports = entries.reduce<Record<string, { import: Export; require: Export; default: Export; }>>(
 		(acc, entry) => {
 			const exportsEntry = entry === 'index' ? '.' : './' + entry.replace(/\/index$/, '');
 			const importEntry = `./${entry}.mjs`;
 			const requireEntry = `./${entry}.cjs`;
-			const typesEntry = `./${entry}.d.ts`;
+			const importTypesEntry = `./${entry}.d.mts`;
+			const requireTypesEntry = `./${entry}.d.cts`;
 			acc[exportsEntry] = {
-				types: typesEntry,
-				import: importEntry,
-				require: requireEntry,
-				default: importEntry,
+				import: {
+					types: importTypesEntry,
+					default: importEntry,
+				},
+				require: {
+					types: requireTypesEntry,
+					default: requireEntry,
+				},
+				default: {
+					types: importTypesEntry,
+					default: importEntry,
+				},
 			};
 			return acc;
 		},
@@ -36,10 +50,12 @@ await concurrently([
 		name: 'esm',
 	},
 	{
-		command: `tsc -p tsconfig.esm.json --declaration --outDir dist-dts --emitDeclarationOnly &&
-resolve-tspaths --out dist-dts &&
-rollup --config rollup.dts.config.ts --configPlugin typescript`,
-		name: 'dts',
+		command: `tsc -p tsconfig.cjs.json --declaration --outDir dist-dcts --emitDeclarationOnly && resolve-tspaths --out dist-dcts && rollup --config rollup.dcts.config.ts --configPlugin typescript`,
+		name: 'dcts',
+	},
+	{
+		command: `tsc -p tsconfig.esm.json --declaration --outDir dist-dmts --emitDeclarationOnly && resolve-tspaths --out dist-dmts && rollup --config rollup.dmts.config.ts --configPlugin typescript`,
+		name: 'dmts',
 	},
 ], {
 	killOthers: 'failure',
