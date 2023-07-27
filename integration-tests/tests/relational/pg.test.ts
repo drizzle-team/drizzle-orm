@@ -6183,69 +6183,69 @@ test('Filter by columns not present in select', async (t) => {
 	expect(response).toEqual({ id: 1 });
 });
 
-test('Filter by relational column', async (t) => {
-	const { pgDb: db } = t;
+// test('Filter by relational column', async (t) => {
+// 	const { pgDb: db } = t;
 
-	await db.insert(usersTable).values([
-		{ id: 1, name: 'Dan' },
-		{ id: 2, name: 'Andrew' },
-		{ id: 3, name: 'Alex' },
-	]);
+// 	await db.insert(usersTable).values([
+// 		{ id: 1, name: 'Dan' },
+// 		{ id: 2, name: 'Andrew' },
+// 		{ id: 3, name: 'Alex' },
+// 	]);
 
-	await db.insert(postsTable).values([
-		{ id: 1, ownerId: 1, content: 'Content1' },
-		{ id: 2, ownerId: 2, content: 'Post2' },
-	]);
+// 	await db.insert(postsTable).values([
+// 		{ id: 1, ownerId: 1, content: 'Content1' },
+// 		{ id: 2, ownerId: 2, content: 'Post2' },
+// 	]);
 
-	const response = await db.query.usersTable.findMany({
-		with: {
-			posts: true,
-		},
-		where: (users) => sql`json_array_length(${users.posts}) > 0`,
-		orderBy: usersTable.id,
-	});
+// 	const response = await db.query.usersTable.findMany({
+// 		with: {
+// 			posts: true,
+// 		},
+// 		where: (users) => sql`json_array_length(${users.posts}) > 0`,
+// 		orderBy: usersTable.id,
+// 	});
 
-	expectTypeOf(response).toEqualTypeOf<{
-		id: number;
-		name: string;
-		verified: boolean;
-		invitedBy: number | null;
-		posts: {
-			id: number;
-			content: string;
-			ownerId: number | null;
-			createdAt: Date;
-		}[];
-	}[]>();
+// 	expectTypeOf(response).toEqualTypeOf<{
+// 		id: number;
+// 		name: string;
+// 		verified: boolean;
+// 		invitedBy: number | null;
+// 		posts: {
+// 			id: number;
+// 			content: string;
+// 			ownerId: number | null;
+// 			createdAt: Date;
+// 		}[];
+// 	}[]>();
 
-	expect(response.length).toEqual(2);
+// 	expect(response.length).toEqual(2);
 
-	expect(response[0]).toEqual({
-		id: 1,
-		name: 'Dan',
-		verified: false,
-		invitedBy: null,
-		posts: [{
-			id: 1,
-			content: 'Content1',
-			ownerId: 1,
-			createdAt: expect.any(Date),
-		}],
-	});
+// 	expect(response[0]).toEqual({
+// 		id: 1,
+// 		name: 'Dan',
+// 		verified: false,
+// 		invitedBy: null,
+// 		posts: [{
+// 			id: 1,
+// 			content: 'Content1',
+// 			ownerId: 1,
+// 			createdAt: expect.any(Date),
+// 		}],
+// 	});
 
-	expect(response[1]).toEqual({
-		id: 2,
-		name: 'Andrew',
-		verified: false,
-		invitedBy: null,
-		posts: [{
-			id: 2,
-			content: 'Post2',
-			ownerId: 2,
-			createdAt: expect.any(Date),
-		}],
-	});
-});
+// 	expect(response[1]).toEqual({
+// 		id: 2,
+// 		name: 'Andrew',
+// 		verified: false,
+// 		invitedBy: null,
+// 		posts: [{
+// 			id: 2,
+// 			content: 'Post2',
+// 			ownerId: 2,
+// 			createdAt: expect.any(Date),
+// 		}],
+// 	});
+// });
 
 // + custom + where + orderby
 

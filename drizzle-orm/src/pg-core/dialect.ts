@@ -1,10 +1,4 @@
-import {
-	aliasedRelation,
-	aliasedTable,
-	aliasedTableColumn,
-	mapColumnsInAliasedSQLToAlias,
-	mapColumnsInSQLToAlias,
-} from '~/alias';
+import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias';
 import { Column } from '~/column';
 import { entityKind, is } from '~/entity';
 import { DrizzleError } from '~/errors';
@@ -996,14 +990,8 @@ export class PgDialect {
 				Object.entries(tableConfig.columns).map(([key, value]) => [key, aliasedTableColumn(value, tableAlias)]),
 			);
 
-			const aliasedRelations = Object.fromEntries(
-				Object.entries(tableConfig.relations).map(([key, value]) => [key, aliasedRelation(value, tableAlias)]),
-			);
-
-			const aliasedFields = Object.assign({}, aliasedColumns, aliasedRelations);
-
 			if (config.where) {
-				const whereSql = typeof config.where === 'function' ? config.where(aliasedFields, operators) : config.where;
+				const whereSql = typeof config.where === 'function' ? config.where(aliasedColumns, operators) : config.where;
 				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 			}
 
@@ -1060,7 +1048,7 @@ export class PgDialect {
 			// Figure out which extras to select
 			if (config.extras) {
 				extras = typeof config.extras === 'function'
-					? config.extras(aliasedFields, { sql })
+					? config.extras(aliasedColumns, { sql })
 					: config.extras;
 				for (const [tsKey, value] of Object.entries(extras)) {
 					fieldsSelection.push({
@@ -1084,7 +1072,7 @@ export class PgDialect {
 			}
 
 			let orderByOrig = typeof config.orderBy === 'function'
-				? config.orderBy(aliasedFields, orderByOperators)
+				? config.orderBy(aliasedColumns, orderByOperators)
 				: config.orderBy ?? [];
 			if (!Array.isArray(orderByOrig)) {
 				orderByOrig = [orderByOrig];
@@ -1155,7 +1143,6 @@ export class PgDialect {
 
 		let result;
 
-		const needsSubquery = where || limit !== undefined || offset !== undefined || orderBy.length > 0;
 		where = and(joinOn, where);
 
 		if (nestedQueryRelation) {
@@ -1185,6 +1172,8 @@ export class PgDialect {
 				relationTableTsKey: tableConfig.tsName,
 				selection,
 			}];
+
+			const needsSubquery = limit !== undefined || offset !== undefined || orderBy.length > 0;
 
 			if (needsSubquery) {
 				result = this.buildSelectQuery({
@@ -1222,58 +1211,19 @@ export class PgDialect {
 				orderBy,
 			});
 		} else {
-			if (needsSubquery) {
-				const nestedSelection = selection.filter(({ field }) => !is(field, Column));
-				nestedSelection.splice(0, 0, {
-					dbKey: '*',
-					tsKey: '*',
-					field: sql`${sql.identifier(tableAlias)}.*`,
-					isJson: false,
-					relationTableTsKey: tableConfig.tsName,
-					selection: [],
-				});
-
-				result = this.buildSelectQuery({
-					table: aliasedTable(table, tableAlias),
-					fields: {},
-					fieldsFlat: nestedSelection.map(({ field }) => ({
-						path: [],
-						field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field,
-					})),
-					joins,
-				});
-
-				result = this.buildSelectQuery({
-					table: new Subquery(result, {}, tableAlias),
-					fields: {},
-					fieldsFlat: selection.map(({ field }) => ({
-						path: [],
-						field: is(field, Column)
-							? sql`${sql.identifier(field.name)}`
-							: is(field, SQL.Aliased)
-							? sql`${sql.identifier(field.fieldAlias)}`
-							: field,
-					})),
-					where,
-					limit,
-					offset,
-					orderBy,
-				});
-			} else {
-				result = this.buildSelectQuery({
-					table: aliasedTable(table, tableAlias),
-					fields: {},
-					fieldsFlat: selection.map(({ field }) => ({
-						path: [],
-						field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field,
-					})),
-					joins,
-					where,
-					limit,
-					offset,
-					orderBy,
-				});
-			}
+			result = this.buildSelectQuery({
+				table: aliasedTable(table, tableAlias),
+				fields: {},
+				fieldsFlat: selection.map(({ field }) => ({
+					path: [],
+					field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field,
+				})),
+				joins,
+				where,
+				limit,
+				offset,
+				orderBy,
+			});
 		}
 
 		return {

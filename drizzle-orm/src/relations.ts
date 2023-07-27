@@ -155,10 +155,7 @@ export type DBQueryConfig<
 		extras?:
 			| Record<string, SQL.Aliased>
 			| ((
-				fields: SimplifyShallow<
-					& ([TTableConfig['columns']] extends [never] ? {} : TTableConfig['columns'])
-					& ([TTableConfig['relations']] extends [never] ? {} : TTableConfig['relations'])
-				>,
+				fields: SimplifyShallow<[TTableConfig['columns']] extends [never] ? {} : TTableConfig['columns']>,
 				operators: { sql: Operators['sql'] },
 			) => Record<string, SQL.Aliased>);
 	}
@@ -168,19 +165,13 @@ export type DBQueryConfig<
 					| SQL
 					| undefined
 					| ((
-						fields: SimplifyShallow<
-							& ([TTableConfig['columns']] extends [never] ? {} : TTableConfig['columns'])
-							& ([TTableConfig['relations']] extends [never] ? {} : TTableConfig['relations'])
-						>,
+						fields: SimplifyShallow<[TTableConfig['columns']] extends [never] ? {} : TTableConfig['columns']>,
 						operators: Operators,
 					) => SQL | undefined);
 				orderBy?:
 					| ValueOrArray<AnyColumn | SQL>
 					| ((
-						fields: SimplifyShallow<
-							& ([TTableConfig['columns']] extends [never] ? {} : TTableConfig['columns'])
-							& ([TTableConfig['relations']] extends [never] ? {} : TTableConfig['relations'])
-						>,
+						fields: SimplifyShallow<[TTableConfig['columns']] extends [never] ? {} : TTableConfig['columns']>,
 						operators: OrderByOperators,
 					) => ValueOrArray<AnyColumn | SQL>);
 				limit?: number | Placeholder;
