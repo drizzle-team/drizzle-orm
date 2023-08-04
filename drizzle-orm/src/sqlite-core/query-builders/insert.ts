@@ -57,6 +57,12 @@ export class SQLiteInsertBuilder<
 			return result;
 		});
 
+		// if (mappedValues.length > 1 && mappedValues.some((t) => Object.keys(t).length === 0)) {
+		// 	throw new Error(
+		// 		`One of the values you want to insert is empty. In SQLite you can insert only one empty object per statement. For this case Drizzle with use "INSERT INTO ... DEFAULT VALUES" syntax`,
+		// 	);
+		// }
+
 		return new SQLiteInsert(this.table, mappedValues, this.session, this.dialect);
 	}
 }

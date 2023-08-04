@@ -274,12 +274,13 @@ export abstract class SQLiteDialect {
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: SQLiteInsertConfig): SQL {
-		const isSingleValue = values.length === 1;
+		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, SQLiteColumn> = table[Table.Symbol.Columns];
-		const colEntries: [string, SQLiteColumn][] = isSingleValue
-			? Object.keys(values[0]!).map((fieldName) => [fieldName, columns[fieldName]!])
-			: Object.entries(columns);
+		// const colEntries: [string, SQLiteColumn][] = isSingleValue
+		// 	? Object.keys(values[0]!).map((fieldName) => [fieldName, columns[fieldName]!])
+		// 	: Object.entries(columns);
+		const colEntries: [string, AnySQLiteColumn][] = Object.entries(columns);
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 
 		for (const [valueIndex, value] of values.entries()) {
@@ -311,6 +312,10 @@ export abstract class SQLiteDialect {
 			: undefined;
 
 		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
+
+		// if (isSingleValue && valuesSqlList.length === 0){
+		// 	return sql`insert into ${table} default values ${onConflictSql}${returningSql}`;
+		// }
 
 		return sql`insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
 	}
