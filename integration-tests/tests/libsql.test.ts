@@ -321,6 +321,90 @@ test.serial('delete returning sql', async (t) => {
 	t.deepEqual(users, [{ name: 'JOHN' }]);
 });
 
+test.serial('query check: insert single empty row', (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	const query = db
+		.insert(users)
+		.values({})
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: 'insert into "users" ("id", "name", "state") values (null, ?, null)',
+		params: ['Dan'],
+	});
+});
+
+test.serial('query check: insert multiple empty rows', (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	const query = db
+		.insert(users)
+		.values([{}, {}])
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: 'insert into "users" ("id", "name", "state") values (null, ?, null), (null, ?, null)',
+		params: ['Dan', 'Dan'],
+	});
+});
+
+test.serial('Insert all defaults in 1 row', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('empty_insert_single', {
+		id: integer('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	await db.run(sql`drop table if exists ${users}`);
+
+	await db.run(
+		sql`create table ${users} (id integer primary key, name text default 'Dan', state text)`,
+	);
+
+	await db.insert(users).values({}).run();
+
+	const res = await db.select().from(users).all();
+
+	t.deepEqual(res, [{ id: 1, name: 'Dan', state: null }]);
+});
+
+test.serial('Insert all defaults in multiple rows', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('empty_insert_multiple', {
+		id: integer('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	await db.run(sql`drop table if exists ${users}`);
+
+	await db.run(
+		sql`create table ${users} (id integer primary key, name text default 'Dan', state text)`,
+	);
+
+	await db.insert(users).values([{}, {}]).run()
+
+	const res = await db.select().from(users).all();
+
+	t.deepEqual(res, [{ id: 1, name: 'Dan', state: null }, { id: 2, name: 'Dan', state: null }]);
+});
+
 test.serial('update returning sql', async (t) => {
 	const { db } = t.context;
 
