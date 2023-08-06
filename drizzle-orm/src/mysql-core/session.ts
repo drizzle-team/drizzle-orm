@@ -7,6 +7,8 @@ import { MySqlDatabase } from './db';
 import type { MySqlDialect } from './dialect';
 import type { SelectedFieldsOrdered } from './query-builders/select.types';
 
+export type Mode = 'default' | 'planetscale';
+
 export interface QueryResultHKT {
 	readonly $brand: 'MySqlQueryRowHKT';
 	readonly row: unknown;
@@ -119,10 +121,10 @@ export abstract class MySqlTransaction<
 		dialect: MySqlDialect,
 		session: MySqlSession,
 		protected schema: RelationalSchemaConfig<TSchema> | undefined,
-		protected readonly nestedIndex = 0,
-		noLateralInRQB?: boolean,
+		protected readonly nestedIndex: number,
+		mode: Mode,
 	) {
-		super(dialect, session, schema, noLateralInRQB);
+		super(dialect, session, schema, mode);
 	}
 
 	rollback(): never {
