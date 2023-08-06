@@ -55,6 +55,7 @@
     "@aws-sdk/credential-providers": "^3.345.0",
     "@libsql/client": "^0.1.6",
     "@planetscale/database": "^1.7.0",
+    "@typescript/analyze-trace": "^0.10.0",
     "@vercel/postgres": "^0.3.0",
     "better-sqlite3": "^8.4.0",
     "dockerode": "^3.3.4",

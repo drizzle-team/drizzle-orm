@@ -1,64 +1,53 @@
-import type { ColumnBaseConfig, ColumnHKTBase, WithEnum } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { ColumnBaseConfig } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
 import { entityKind } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
-import { type Assume, type Writable } from '~/utils';
+import { type Writable } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
-
-export interface PgTextBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgTextBuilder<Assume<this['config'], ColumnBuilderBaseConfig & WithEnum>>;
-	_columnHKT: PgTextHKT;
-}
-
-export interface PgTextHKT extends ColumnHKTBase {
-	_type: PgText<Assume<this['config'], ColumnBaseConfig & WithEnum>>;
-}
 
 type PgTextBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = PgTextBuilder<{
 	name: TName;
+	dataType: 'string';
+	columnType: 'PgText';
 	data: TEnum[number];
 	enumValues: TEnum;
 	driverParam: string;
-	notNull: false;
-	hasDefault: false;
 }>;
 
-export class PgTextBuilder<T extends ColumnBuilderBaseConfig & WithEnum> extends PgColumnBuilder<
-	PgTextBuilderHKT,
-	T,
-	WithEnum<T['enumValues']>
-> {
+export class PgTextBuilder<
+	T extends ColumnBuilderBaseConfig<'string', 'PgText'>,
+> extends PgColumnBuilder<T, { enumValues: T['enumValues'] }> {
 	static readonly [entityKind]: string = 'PgTextBuilder';
 
 	constructor(
 		name: T['name'],
 		config: PgTextConfig<T['enumValues']>,
 	) {
-		super(name);
-		this.config.enumValues = (config.enum ?? []) as T['enumValues'];
+		super(name, 'string', 'PgText');
+		this.config.enumValues = config.enum;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
-	): PgText<MakeColumnConfig<T, TTableName> & WithEnum<T['enumValues']>> {
-		return new PgText<MakeColumnConfig<T, TTableName> & WithEnum<T['enumValues']>>(table, this.config);
+	): PgText<MakeColumnConfig<T, TTableName>> {
+		return new PgText<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class PgText<T extends ColumnBaseConfig & WithEnum> extends PgColumn<PgTextHKT, T, WithEnum<T['enumValues']>>
-	implements WithEnum<T['enumValues']>
+export class PgText<T extends ColumnBaseConfig<'string', 'PgText'>>
+	extends PgColumn<T, { enumValues: T['enumValues'] }>
 {
 	static readonly [entityKind]: string = 'PgText';
 
-	readonly enumValues = this.config.enumValues;
+	override readonly enumValues = this.config.enumValues;
 
 	getSQLType(): string {
 		return 'text';
 	}
 }
 
-export interface PgTextConfig<TEnum extends readonly string[] | string[]> {
+export interface PgTextConfig<TEnum extends readonly string[] | string[] | undefined> {
 	enum?: TEnum;
 }
 

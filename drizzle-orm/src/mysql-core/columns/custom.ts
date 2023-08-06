@@ -1,44 +1,39 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { ColumnBaseConfig } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
 import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
 import type { SQL } from '~/sql';
-import { type Assume, type Equal, type Simplify } from '~/utils';
+import { type Equal } from '~/utils';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
-export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTypeValues>> = Simplify<{
-	name: TName;
-	data: T['data'];
-	driverParam: T['driverData'];
-	// notNull and hasDefault will be of type "unknown" if not defined in T. Thank you TS
-	notNull: T['notNull'] extends true ? true : false;
-	hasDefault: T['default'] extends true ? true : false;
-}>;
+export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTypeValues>> =
+	& {
+		name: TName;
+		dataType: 'custom';
+		columnType: 'MySqlCustomColumn';
+		data: T['data'];
+		driverParam: T['driverData'];
+		enumValues: undefined;
+	}
+	& (T['notNull'] extends true ? { notNull: true } : {})
+	& (T['default'] extends true ? { hasDefault: true } : {});
 
 export interface MySqlCustomColumnInnerConfig {
 	customTypeValues: CustomTypeValues;
 }
 
-export interface MySqlCustomColumnBuilderHKT extends ColumnBuilderHKTBase {
-	_type: MySqlCustomColumnBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: MySqlCustomColumnHKT;
-}
-
-export interface MySqlCustomColumnHKT extends ColumnHKTBase {
-	_type: MySqlCustomColumn<Assume<this['config'], ColumnBaseConfig>>;
-}
-
-export class MySqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig> extends MySqlColumnBuilder<
-	MySqlCustomColumnBuilderHKT,
-	T,
-	{
-		fieldConfig: CustomTypeValues['config'];
-		customTypeParams: CustomTypeParams<any>;
-	},
-	{
-		mysqlColumnBuilderBrand: 'MySqlCustomColumnBuilderBrand';
-	}
-> {
+export class MySqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', 'MySqlCustomColumn'>>
+	extends MySqlColumnBuilder<
+		T,
+		{
+			fieldConfig: CustomTypeValues['config'];
+			customTypeParams: CustomTypeParams<any>;
+		},
+		{
+			mysqlColumnBuilderBrand: 'MySqlCustomColumnBuilderBrand';
+		}
+	>
+{
 	static readonly [entityKind]: string = 'MySqlCustomColumnBuilder';
 
 	constructor(
@@ -46,7 +41,7 @@ export class MySqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig> extends
 		fieldConfig: CustomTypeValues['config'],
 		customTypeParams: CustomTypeParams<any>,
 	) {
-		super(name);
+		super(name, 'custom', 'MySqlCustomColumn');
 		this.config.fieldConfig = fieldConfig;
 		this.config.customTypeParams = customTypeParams;
 	}
@@ -57,15 +52,13 @@ export class MySqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig> extends
 	): MySqlCustomColumn<MakeColumnConfig<T, TTableName>> {
 		return new MySqlCustomColumn<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlCustomColumn<T extends ColumnBaseConfig> extends MySqlColumn<MySqlCustomColumnHKT, T> {
+export class MySqlCustomColumn<T extends ColumnBaseConfig<'custom', 'MySqlCustomColumn'>> extends MySqlColumn<T> {
 	static readonly [entityKind]: string = 'MySqlCustomColumn';
-
-	declare protected $mysqlColumnBrand: 'MySqlCustomColumn';
 
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
@@ -222,6 +215,6 @@ export function customType<T extends CustomTypeValues = CustomTypeValues>(
 		dbName: TName,
 		fieldConfig?: T['config'],
 	): MySqlCustomColumnBuilder<ConvertCustomConfig<TName, T>> => {
-		return new MySqlCustomColumnBuilder(dbName, fieldConfig, customTypeParams);
+		return new MySqlCustomColumnBuilder(dbName as ConvertCustomConfig<TName, T>['name'], fieldConfig, customTypeParams);
 	};
 }

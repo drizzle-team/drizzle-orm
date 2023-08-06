@@ -1,5 +1,6 @@
 import { type Equal, Expect } from 'type-tests/utils';
 import { eq, gt } from '~/expressions';
+import { type BuildColumn, type Simplify } from '~/index';
 import {
 	bigint,
 	char,
@@ -13,9 +14,8 @@ import {
 	int,
 	longtext,
 	mediumtext,
+	type MySqlColumn,
 	mysqlEnum,
-	type MySqlInt,
-	type MySqlSerial,
 	mysqlTable,
 	primaryKey,
 	serial,
@@ -125,21 +125,29 @@ export const newYorkers = mysqlView('new_yorkers')
 Expect<
 	Equal<
 		MySqlViewWithSelection<'new_yorkers', false, {
-			userId: MySqlSerial<{
+			userId: MySqlColumn<{
 				name: 'id';
+				dataType: 'number';
+				columnType: 'MySqlSerial';
 				data: number;
 				driverParam: number;
 				notNull: true;
 				hasDefault: true;
 				tableName: 'new_yorkers';
+				enumValues: undefined;
+				baseColumn: never;
 			}>;
-			cityId: MySqlSerial<{
+			cityId: MySqlColumn<{
 				name: 'id';
+				dataType: 'number';
+				columnType: 'MySqlSerial';
 				data: number;
 				driverParam: number;
 				notNull: false;
 				hasDefault: true;
 				tableName: 'new_yorkers';
+				enumValues: undefined;
+				baseColumn: never;
 			}>;
 		}>,
 		typeof newYorkers
@@ -166,21 +174,29 @@ Expect<
 	Expect<
 		Equal<
 			MySqlViewWithSelection<'new_yorkers', false, {
-				userId: MySqlSerial<{
+				userId: MySqlColumn<{
 					name: 'id';
+					dataType: 'number';
+					columnType: 'MySqlSerial';
 					data: number;
 					driverParam: number;
 					notNull: true;
 					hasDefault: true;
 					tableName: 'new_yorkers';
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
-				cityId: MySqlSerial<{
+				cityId: MySqlColumn<{
 					name: 'id';
+					dataType: 'number';
+					columnType: 'MySqlSerial';
 					data: number;
 					driverParam: number;
 					notNull: false;
 					hasDefault: true;
 					tableName: 'new_yorkers';
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
 			}>,
 			typeof newYorkers
@@ -205,21 +221,29 @@ Expect<
 	Expect<
 		Equal<
 			MySqlViewWithSelection<'new_yorkers', false, {
-				userId: MySqlSerial<{
+				userId: MySqlColumn<{
 					name: 'user_id';
+					dataType: 'number';
+					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
 					notNull: true;
 					tableName: 'new_yorkers';
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
-				cityId: MySqlSerial<{
+				cityId: MySqlColumn<{
 					name: 'city_id';
 					notNull: false;
 					hasDefault: false;
+					dataType: 'number';
+					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
 					tableName: 'new_yorkers';
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
 			}>,
 			typeof newYorkers
@@ -244,21 +268,29 @@ Expect<
 	Expect<
 		Equal<
 			MySqlViewWithSelection<'new_yorkers', false, {
-				userId: MySqlInt<{
+				userId: MySqlColumn<{
 					name: 'user_id';
+					dataType: 'number';
+					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
 					notNull: true;
 					tableName: 'new_yorkers';
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
-				cityId: MySqlInt<{
+				cityId: MySqlColumn<{
 					name: 'city_id';
 					notNull: false;
 					hasDefault: false;
+					dataType: 'number';
+					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
 					tableName: 'new_yorkers';
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
 			}>,
 			typeof newYorkers
@@ -275,21 +307,29 @@ Expect<
 	Expect<
 		Equal<
 			MySqlViewWithSelection<'new_yorkers', true, {
-				userId: MySqlInt<{
+				userId: MySqlColumn<{
 					name: 'user_id';
+					dataType: 'number';
+					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
 					notNull: true;
 					tableName: 'new_yorkers';
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
-				cityId: MySqlInt<{
+				cityId: MySqlColumn<{
 					name: 'city_id';
 					notNull: false;
 					hasDefault: false;
+					dataType: 'number';
+					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
 					tableName: 'new_yorkers';
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
 			}>,
 			typeof newYorkers
@@ -306,21 +346,29 @@ Expect<
 	Expect<
 		Equal<
 			MySqlViewWithSelection<'new_yorkers', true, {
-				userId: MySqlInt<{
+				userId: MySqlColumn<{
 					name: 'user_id';
+					dataType: 'number';
+					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
 					notNull: true;
 					tableName: 'new_yorkers';
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
-				cityId: MySqlInt<{
+				cityId: MySqlColumn<{
 					name: 'city_id';
 					notNull: false;
 					hasDefault: false;
+					dataType: 'number';
+					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
 					tableName: 'new_yorkers';
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
 			}>,
 			typeof newYorkers
@@ -337,13 +385,23 @@ Expect<
 
 	const t = customText('name').notNull();
 	Expect<
-		Equal<{
-			name: 'name';
-			data: string;
-			driverParam: unknown;
-			hasDefault: false;
-			notNull: true;
-		}, typeof t['_']['config']>
+		Equal<
+			{
+				brand: 'Column';
+				name: 'name';
+				tableName: 'table';
+				dataType: 'custom';
+				columnType: 'MySqlCustomColumn';
+				data: string;
+				driverParam: unknown;
+				notNull: true;
+				hasDefault: false;
+				enumValues: undefined;
+				baseColumn: never;
+				dialect: 'mysql';
+			},
+			Simplify<BuildColumn<'table', typeof t, 'mysql'>['_']>
+		>
 	>;
 }
 
@@ -374,21 +432,21 @@ Expect<
 
 {
 	const test = mysqlTable('test', {
-		test1: mysqlEnum('test', ['a', 'b', 'c'] as const),
-		test2: mysqlEnum('test', ['a', 'b', 'c']),
-		test3: varchar('test', { length: 255, enum: ['a', 'b', 'c'] as const }),
-		test4: varchar('test', { length: 255, enum: ['a', 'b', 'c'] }),
-		test5: text('test', { enum: ['a', 'b', 'c'] as const }),
-		test6: text('test', { enum: ['a', 'b', 'c'] }),
-		test7: tinytext('test', { enum: ['a', 'b', 'c'] as const }),
-		test8: tinytext('test', { enum: ['a', 'b', 'c'] }),
-		test9: mediumtext('test', { enum: ['a', 'b', 'c'] as const }),
-		test10: mediumtext('test', { enum: ['a', 'b', 'c'] }),
-		test11: longtext('test', { enum: ['a', 'b', 'c'] as const }),
-		test12: longtext('test', { enum: ['a', 'b', 'c'] }),
-		test13: char('test', { enum: ['a', 'b', 'c'] as const }),
-		test14: char('test', { enum: ['a', 'b', 'c'] }),
-		test15: text('test'),
+		test1: mysqlEnum('test', ['a', 'b', 'c'] as const).notNull(),
+		test2: mysqlEnum('test', ['a', 'b', 'c']).notNull(),
+		test3: varchar('test', { length: 255, enum: ['a', 'b', 'c'] as const }).notNull(),
+		test4: varchar('test', { length: 255, enum: ['a', 'b', 'c'] }).notNull(),
+		test5: text('test', { enum: ['a', 'b', 'c'] as const }).notNull(),
+		test6: text('test', { enum: ['a', 'b', 'c'] }).notNull(),
+		test7: tinytext('test', { enum: ['a', 'b', 'c'] as const }).notNull(),
+		test8: tinytext('test', { enum: ['a', 'b', 'c'] }).notNull(),
+		test9: mediumtext('test', { enum: ['a', 'b', 'c'] as const }).notNull(),
+		test10: mediumtext('test', { enum: ['a', 'b', 'c'] }).notNull(),
+		test11: longtext('test', { enum: ['a', 'b', 'c'] as const }).notNull(),
+		test12: longtext('test', { enum: ['a', 'b', 'c'] }).notNull(),
+		test13: char('test', { enum: ['a', 'b', 'c'] as const }).notNull(),
+		test14: char('test', { enum: ['a', 'b', 'c'] }).notNull(),
+		test15: text('test').notNull(),
 	});
 	Expect<Equal<['a', 'b', 'c'], typeof test.test1.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.test2.enumValues>>;

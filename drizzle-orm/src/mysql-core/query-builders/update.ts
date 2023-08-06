@@ -12,7 +12,7 @@ import type {
 import type { AnyMySqlTable } from '~/mysql-core/table';
 import { QueryPromise } from '~/query-promise';
 import type { Query, SQL, SQLWrapper } from '~/sql';
-import { mapUpdateSet, type Simplify, type UpdateSet } from '~/utils';
+import { mapUpdateSet, type UpdateSet } from '~/utils';
 import type { SelectedFieldsOrdered } from './select.types';
 
 export interface MySqlUpdateConfig {
@@ -22,13 +22,13 @@ export interface MySqlUpdateConfig {
 	returning?: SelectedFieldsOrdered;
 }
 
-export type MySqlUpdateSetSource<TTable extends AnyMySqlTable> = Simplify<
-	{
+export type MySqlUpdateSetSource<TTable extends AnyMySqlTable> =
+	& {
 		[Key in keyof TTable['_']['columns']]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
 			| SQL;
 	}
->;
+	& {};
 
 export class MySqlUpdateBuilder<
 	TTable extends AnyMySqlTable,
@@ -78,7 +78,7 @@ export class MySqlUpdate<
 		this.config = { set, table };
 	}
 
-	where(where: SQL | undefined): Omit<this, 'where'> {
+	where(where: SQL | undefined): this {
 		this.config.where = where;
 		return this;
 	}
@@ -88,7 +88,7 @@ export class MySqlUpdate<
 		return this.dialect.buildUpdateQuery(this.config);
 	}
 
-	toSQL(): Omit<Query, 'typings'> {
+	toSQL(): { sql: Query['sql']; params: Query['params'] } {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
