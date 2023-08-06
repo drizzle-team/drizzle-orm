@@ -346,12 +346,11 @@ export class PgDialect {
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {
-		const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
-		const colEntries: [string, PgColumn][] = isSingleValue
-			? Object.keys(values[0]!).map((fieldName) => [fieldName, columns[fieldName]!])
-			: Object.entries(columns);
+
+		const colEntries: [string, PgColumn][] = Object.entries(columns);
+
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 
 		for (const [valueIndex, value] of values.entries()) {
@@ -364,6 +363,7 @@ export class PgDialect {
 					valueList.push(colValue);
 				}
 			}
+
 			valuesSqlList.push(valueList);
 			if (valueIndex < values.length - 1) {
 				valuesSqlList.push(sql`, `);
