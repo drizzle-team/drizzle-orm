@@ -1,33 +1,26 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { ColumnBaseConfig } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
 import { entityKind } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
-import { type Assume, type Equal } from '~/utils';
+import { type Equal } from '~/utils';
 import { PgColumn } from './common';
 import { PgDateColumnBaseBuilder } from './date.common';
 
-export interface PgTimestampBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgTimestampBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgTimestampHKT;
-}
-
-export interface PgTimestampHKT extends ColumnHKTBase {
-	_type: PgTimestamp<Assume<this['config'], ColumnBaseConfig>>;
-}
-
 export type PgTimestampBuilderInitial<TName extends string> = PgTimestampBuilder<{
 	name: TName;
+	dataType: 'date';
+	columnType: 'PgTimestamp';
 	data: Date;
 	driverParam: string;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class PgTimestampBuilder<T extends ColumnBuilderBaseConfig> extends PgDateColumnBaseBuilder<
-	PgTimestampBuilderHKT,
-	T,
-	{ withTimezone: boolean; precision: number | undefined }
-> {
+export class PgTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'PgTimestamp'>>
+	extends PgDateColumnBaseBuilder<
+		T,
+		{ withTimezone: boolean; precision: number | undefined }
+	>
+{
 	static readonly [entityKind]: string = 'PgTimestampBuilder';
 
 	constructor(
@@ -35,7 +28,7 @@ export class PgTimestampBuilder<T extends ColumnBuilderBaseConfig> extends PgDat
 		withTimezone: boolean,
 		precision: number | undefined,
 	) {
-		super(name);
+		super(name, 'date', 'PgTimestamp');
 		this.config.withTimezone = withTimezone;
 		this.config.precision = precision;
 	}
@@ -44,11 +37,11 @@ export class PgTimestampBuilder<T extends ColumnBuilderBaseConfig> extends PgDat
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgTimestamp<MakeColumnConfig<T, TTableName>> {
-		return new PgTimestamp<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new PgTimestamp<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class PgTimestamp<T extends ColumnBaseConfig> extends PgColumn<PgTimestampHKT, T> {
+export class PgTimestamp<T extends ColumnBaseConfig<'date', 'PgTimestamp'>> extends PgColumn<T> {
 	static readonly [entityKind]: string = 'PgTimestamp';
 
 	readonly withTimezone: boolean;
@@ -74,28 +67,21 @@ export class PgTimestamp<T extends ColumnBaseConfig> extends PgColumn<PgTimestam
 	};
 }
 
-export interface PgTimestampStringBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgTimestampStringBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgTimestampStringHKT;
-}
-
-export interface PgTimestampStringHKT extends ColumnHKTBase {
-	_type: PgTimestampString<Assume<this['config'], ColumnBaseConfig>>;
-}
-
 export type PgTimestampStringBuilderInitial<TName extends string> = PgTimestampStringBuilder<{
 	name: TName;
+	dataType: 'string';
+	columnType: 'PgTimestampString';
 	data: string;
 	driverParam: string;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class PgTimestampStringBuilder<T extends ColumnBuilderBaseConfig> extends PgDateColumnBaseBuilder<
-	PgTimestampStringBuilderHKT,
-	T,
-	{ withTimezone: boolean; precision: number | undefined }
-> {
+export class PgTimestampStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgTimestampString'>>
+	extends PgDateColumnBaseBuilder<
+		T,
+		{ withTimezone: boolean; precision: number | undefined }
+	>
+{
 	static readonly [entityKind]: string = 'PgTimestampStringBuilder';
 
 	constructor(
@@ -103,7 +89,7 @@ export class PgTimestampStringBuilder<T extends ColumnBuilderBaseConfig> extends
 		withTimezone: boolean,
 		precision: number | undefined,
 	) {
-		super(name);
+		super(name, 'string', 'PgTimestampString');
 		this.config.withTimezone = withTimezone;
 		this.config.precision = precision;
 	}
@@ -112,11 +98,14 @@ export class PgTimestampStringBuilder<T extends ColumnBuilderBaseConfig> extends
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgTimestampString<MakeColumnConfig<T, TTableName>> {
-		return new PgTimestampString<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new PgTimestampString<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class PgTimestampString<T extends ColumnBaseConfig> extends PgColumn<PgTimestampStringHKT, T> {
+export class PgTimestampString<T extends ColumnBaseConfig<'string', 'PgTimestampString'>> extends PgColumn<T> {
 	static readonly [entityKind]: string = 'PgTimestampString';
 
 	readonly withTimezone: boolean;

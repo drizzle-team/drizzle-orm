@@ -3,7 +3,7 @@ import { type AnyColumn, Column } from './column';
 import { entityKind, is } from './entity';
 import { PrimaryKeyBuilder } from './pg-core';
 import { and, asc, desc, eq, or, type Placeholder, SQL, sql } from './sql';
-import { type Assume, type ColumnsWithTable, type Equal, type SimplifyShallow, type ValueOrArray } from './utils';
+import { type Assume, type ColumnsWithTable, type Equal, type Simplify, type ValueOrArray } from './utils';
 
 export abstract class Relation<TTableName extends string = string> {
 	static readonly [entityKind]: string = 'Relation';
@@ -109,22 +109,26 @@ export type ExtractRelationsFromTableExtraConfigSchema<TConfig extends unknown[]
 	}
 >;
 
-export const operators = {
-	sql,
-	eq,
-	and,
-	or,
-};
+export function getOperators() {
+	return {
+		sql,
+		eq,
+		and,
+		or,
+	};
+}
 
-export type Operators = typeof operators;
+export type Operators = ReturnType<typeof getOperators>;
 
-export const orderByOperators = {
-	sql,
-	asc,
-	desc,
-};
+export function getOrderByOperators() {
+	return {
+		sql,
+		asc,
+		desc,
+	};
+}
 
-export type OrderByOperators = typeof orderByOperators;
+export type OrderByOperators = ReturnType<typeof getOrderByOperators>;
 
 export type FindTableByDBName<TSchema extends TablesRelationalConfig, TTableName extends string> = ExtractObjectValues<
 	{
@@ -155,7 +159,7 @@ export type DBQueryConfig<
 		extras?:
 			| Record<string, SQL.Aliased>
 			| ((
-				fields: SimplifyShallow<[TTableConfig['columns']] extends [never] ? {} : TTableConfig['columns']>,
+				fields: Simplify<[TTableConfig['columns']] extends [never] ? {} : TTableConfig['columns']>,
 				operators: { sql: Operators['sql'] },
 			) => Record<string, SQL.Aliased>);
 	}
@@ -165,13 +169,13 @@ export type DBQueryConfig<
 					| SQL
 					| undefined
 					| ((
-						fields: SimplifyShallow<[TTableConfig['columns']] extends [never] ? {} : TTableConfig['columns']>,
+						fields: Simplify<[TTableConfig['columns']] extends [never] ? {} : TTableConfig['columns']>,
 						operators: Operators,
 					) => SQL | undefined);
 				orderBy?:
 					| ValueOrArray<AnyColumn | SQL>
 					| ((
-						fields: SimplifyShallow<[TTableConfig['columns']] extends [never] ? {} : TTableConfig['columns']>,
+						fields: Simplify<[TTableConfig['columns']] extends [never] ? {} : TTableConfig['columns']>,
 						operators: OrderByOperators,
 					) => ValueOrArray<AnyColumn | SQL>);
 				limit?: number | Placeholder;
@@ -241,7 +245,7 @@ export type BuildQueryResult<
 	TTableConfig extends TableRelationalConfig,
 	TFullSelection extends true | Record<string, unknown>,
 > = Equal<TFullSelection, true> extends true ? InferModelFromColumns<TTableConfig['columns']>
-	: TFullSelection extends Record<string, unknown> ? (SimplifyShallow<
+	: TFullSelection extends Record<string, unknown> ? (Simplify<
 			& (TFullSelection['columns'] extends Record<string, unknown> ? InferModelFromColumns<
 					{
 						[
@@ -426,8 +430,8 @@ export function normalizeRelation(
 		throw new Error(`Table "${relation.referencedTable[Table.Symbol.Name]}" not found in schema`);
 	}
 
-	const referencedTableFields = schema[referencedTableTsName];
-	if (!referencedTableFields) {
+	const referencedTableConfig = schema[referencedTableTsName];
+	if (!referencedTableConfig) {
 		throw new Error(`Table "${referencedTableTsName}" not found in schema`);
 	}
 
@@ -438,7 +442,7 @@ export function normalizeRelation(
 	}
 
 	const reverseRelations: Relation[] = [];
-	for (const referencedTableRelation of Object.values(referencedTableFields.relations)) {
+	for (const referencedTableRelation of Object.values(referencedTableConfig.relations)) {
 		if (
 			(relation.relationName && relation !== referencedTableRelation
 				&& referencedTableRelation.relationName === relation.relationName)

@@ -1,5 +1,5 @@
 import { entityKind } from '~/entity';
-import type { AnyPgColumn } from './columns';
+import type { PgColumn } from './columns';
 import { type AnyPgTable, PgTable } from './table';
 
 export function unique(name?: string): UniqueOnConstraintBuilder {
@@ -14,12 +14,12 @@ export class UniqueConstraintBuilder {
 	static readonly [entityKind]: string = 'PgUniqueConstraintBuilder';
 
 	/** @internal */
-	columns: AnyPgColumn<{}>[];
+	columns: PgColumn[];
 	/** @internal */
 	nullsNotDistinctConfig = false;
 
 	constructor(
-		columns: AnyPgColumn[],
+		columns: PgColumn[],
 		private name?: string,
 	) {
 		this.columns = columns;
@@ -48,7 +48,7 @@ export class UniqueOnConstraintBuilder {
 		this.name = name;
 	}
 
-	on(...columns: [AnyPgColumn, ...AnyPgColumn[]]) {
+	on(...columns: [PgColumn, ...PgColumn[]]) {
 		return new UniqueConstraintBuilder(columns, this.name);
 	}
 }
@@ -56,11 +56,11 @@ export class UniqueOnConstraintBuilder {
 export class UniqueConstraint {
 	static readonly [entityKind]: string = 'PgUniqueConstraint';
 
-	readonly columns: AnyPgColumn<{}>[];
+	readonly columns: PgColumn[];
 	readonly name?: string;
 	readonly nullsNotDistinct: boolean = false;
 
-	constructor(readonly table: AnyPgTable, columns: AnyPgColumn<{}>[], nullsNotDistinct: boolean, name?: string) {
+	constructor(readonly table: AnyPgTable, columns: PgColumn[], nullsNotDistinct: boolean, name?: string) {
 		this.columns = columns;
 		this.name = name ?? uniqueKeyName(this.table, this.columns.map((column) => column.name));
 		this.nullsNotDistinct = nullsNotDistinct;
