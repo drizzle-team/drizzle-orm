@@ -12,11 +12,11 @@ import { PgTable } from '~/pg-core/table';
 import {
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
+	getOperators,
+	getOrderByOperators,
 	Many,
 	normalizeRelation,
 	One,
-	operators,
-	orderByOperators,
 	type Relation,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
@@ -104,7 +104,7 @@ export class PgDialect {
 		return sql.join(
 			setEntries
 				.flatMap(([colName, value], i): SQL[] => {
-					const col: AnyPgColumn = table[Table.Symbol.Columns][colName]!;
+					const col: PgColumn = table[Table.Symbol.Columns][colName]!;
 					const res = sql`${sql.identifier(col.name)} = ${value}`;
 					if (i < setSize - 1) {
 						return [res, sql.raw(', ')];
@@ -347,9 +347,9 @@ export class PgDialect {
 
 	buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
-		const columns: Record<string, AnyPgColumn> = table[Table.Symbol.Columns];
+		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
 
-		const colEntries: [string, AnyPgColumn][] = Object.entries(columns);
+		const colEntries: [string, PgColumn][] = Object.entries(columns);
 
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 
@@ -363,7 +363,7 @@ export class PgDialect {
 					valueList.push(colValue);
 				}
 			}
-			
+
 			valuesSqlList.push(valueList);
 			if (valueIndex < values.length - 1) {
 				valuesSqlList.push(sql`, `);
@@ -969,8 +969,8 @@ export class PgDialect {
 		tableAlias: string;
 		nestedQueryRelation?: Relation;
 		joinOn?: SQL;
-	}): BuildRelationalQueryResult<AnyPgTable, AnyPgColumn> {
-		let selection: BuildRelationalQueryResult<AnyPgTable, AnyPgColumn>['selection'] = [];
+	}): BuildRelationalQueryResult<AnyPgTable, PgColumn> {
+		let selection: BuildRelationalQueryResult<AnyPgTable, PgColumn>['selection'] = [];
 		let limit, offset, orderBy: NonNullable<PgSelectConfig['orderBy']> = [], where;
 		const joins: Join[] = [];
 
@@ -981,7 +981,7 @@ export class PgDialect {
 			) => ({
 				dbKey: value.name,
 				tsKey: key,
-				field: aliasedTableColumn(value as AnyPgColumn, tableAlias),
+				field: aliasedTableColumn(value as PgColumn, tableAlias),
 				relationTableTsKey: undefined,
 				isJson: false,
 				selection: [],
@@ -992,7 +992,9 @@ export class PgDialect {
 			);
 
 			if (config.where) {
-				const whereSql = typeof config.where === 'function' ? config.where(aliasedColumns, operators) : config.where;
+				const whereSql = typeof config.where === 'function'
+					? config.where(aliasedColumns, getOperators())
+					: config.where;
 				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 			}
 
@@ -1073,7 +1075,7 @@ export class PgDialect {
 			}
 
 			let orderByOrig = typeof config.orderBy === 'function'
-				? config.orderBy(aliasedColumns, orderByOperators)
+				? config.orderBy(aliasedColumns, getOrderByOperators())
 				: config.orderBy ?? [];
 			if (!Array.isArray(orderByOrig)) {
 				orderByOrig = [orderByOrig];

@@ -9,7 +9,6 @@ import type { Placeholder, Query, SQLWrapper } from '~/sql';
 import { Param, SQL, sql } from '~/sql';
 import { type InferModel, Table } from '~/table';
 import { tracer } from '~/tracing';
-import { type Simplify } from '~/utils';
 import { mapUpdateSet, orderSelectedFields } from '~/utils';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
 import type { PgUpdateSetSource } from './update';
@@ -21,11 +20,11 @@ export interface PgInsertConfig<TTable extends AnyPgTable = AnyPgTable> {
 	returning?: SelectedFieldsOrdered;
 }
 
-export type PgInsertValue<TTable extends AnyPgTable> = Simplify<
-	{
+export type PgInsertValue<TTable extends AnyPgTable> =
+	& {
 		[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
 	}
->;
+	& {};
 
 export class PgInsertBuilder<TTable extends AnyPgTable, TQueryResult extends QueryResultHKT> {
 	static readonly [entityKind]: string = 'PgInsertBuilder';
@@ -139,7 +138,7 @@ export class PgInsert<
 		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	toSQL(): Simplify<Omit<Query, 'typings'>> {
+	toSQL(): { sql: Query['sql']; params: Query['params'] } {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}

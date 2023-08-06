@@ -23,7 +23,6 @@ import { drizzle, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { migrate } from 'drizzle-orm/neon-http/migrator';
 import {
 	alias,
-	type AnyPgColumn,
 	boolean,
 	char,
 	cidr,
@@ -34,6 +33,7 @@ import {
 	jsonb,
 	macaddr,
 	macaddr8,
+	type PgColumn,
 	pgEnum,
 	pgMaterializedView,
 	pgTable,
@@ -1361,9 +1361,9 @@ test.serial('select count()', async (t) => {
 test.serial('select count w/ custom mapper', async (t) => {
 	const { db } = t.context;
 
-	function count(value: AnyPgColumn | SQLWrapper): SQL<number>;
-	function count(value: AnyPgColumn | SQLWrapper, alias: string): SQL.Aliased<number>;
-	function count(value: AnyPgColumn | SQLWrapper, alias?: string): SQL<number> | SQL.Aliased<number> {
+	function count(value: PgColumn | SQLWrapper): SQL<number>;
+	function count(value: PgColumn | SQLWrapper, alias: string): SQL.Aliased<number>;
+	function count(value: PgColumn | SQLWrapper, alias?: string): SQL<number> | SQL.Aliased<number> {
 		const result = sql`count(${value})`.mapWith(Number);
 		if (!alias) {
 			return result;
@@ -1979,12 +1979,14 @@ test.serial('transaction', async (t) => {
 	const user = await db.insert(users).values({ balance: 100 }).returning().then((rows) => rows[0]!);
 	const product = await db.insert(products).values({ price: 10, stock: 10 }).returning().then((rows) => rows[0]!);
 
-	const error = await t.throwsAsync(() => db.transaction(async (tx) => {
-		await tx.update(users).set({ balance: user.balance - product.price }).where(eq(users.id, user.id));
-		await tx.update(products).set({ stock: product.stock - 1 }).where(eq(products.id, product.id));
-	}));
+	const error = await t.throwsAsync(() =>
+		db.transaction(async (tx) => {
+			await tx.update(users).set({ balance: user.balance - product.price }).where(eq(users.id, user.id));
+			await tx.update(products).set({ stock: product.stock - 1 }).where(eq(products.id, product.id));
+		})
+	);
 
-    t.is(error!.message, 'No transactions support in neon-http driver');
+	t.is(error!.message, 'No transactions support in neon-http driver');
 
 	const result = await db.select().from(users);
 
@@ -2035,15 +2037,17 @@ test.serial('nested transaction', async (t) => {
 		sql`create table users_nested_transactions (id serial not null primary key, balance integer not null)`,
 	);
 
-	const error = await t.throwsAsync(() => db.transaction(async (tx) => {
-		await tx.insert(users).values({ balance: 100 });
+	const error = await t.throwsAsync(() =>
+		db.transaction(async (tx) => {
+			await tx.insert(users).values({ balance: 100 });
 
-		await tx.transaction(async (tx) => {
-			await tx.update(users).set({ balance: 200 });
-		});
-	}));
+			await tx.transaction(async (tx) => {
+				await tx.update(users).set({ balance: 200 });
+			});
+		})
+	);
 
-    t.is(error!.message, 'No transactions support in neon-http driver');
+	t.is(error!.message, 'No transactions support in neon-http driver');
 
 	// const result = await db.select().from(users);
 

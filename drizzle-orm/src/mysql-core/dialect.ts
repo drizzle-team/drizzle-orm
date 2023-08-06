@@ -5,11 +5,11 @@ import type { MigrationConfig, MigrationMeta } from '~/migrator';
 import {
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
+	getOperators,
+	getOrderByOperators,
 	Many,
 	normalizeRelation,
 	One,
-	operators,
-	orderByOperators,
 	type Relation,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
@@ -421,7 +421,9 @@ export class MySqlDialect {
 			);
 
 			if (config.where) {
-				const whereSql = typeof config.where === 'function' ? config.where(aliasedColumns, operators) : config.where;
+				const whereSql = typeof config.where === 'function'
+					? config.where(aliasedColumns, getOperators())
+					: config.where;
 				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 			}
 
@@ -502,7 +504,7 @@ export class MySqlDialect {
 			}
 
 			let orderByOrig = typeof config.orderBy === 'function'
-				? config.orderBy(aliasedColumns, orderByOperators)
+				? config.orderBy(aliasedColumns, getOrderByOperators())
 				: config.orderBy ?? [];
 			if (!Array.isArray(orderByOrig)) {
 				orderByOrig = [orderByOrig];
@@ -713,7 +715,9 @@ export class MySqlDialect {
 			);
 
 			if (config.where) {
-				const whereSql = typeof config.where === 'function' ? config.where(aliasedColumns, operators) : config.where;
+				const whereSql = typeof config.where === 'function'
+					? config.where(aliasedColumns, getOperators())
+					: config.where;
 				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 			}
 
@@ -794,7 +798,7 @@ export class MySqlDialect {
 			}
 
 			let orderByOrig = typeof config.orderBy === 'function'
-				? config.orderBy(aliasedColumns, orderByOperators)
+				? config.orderBy(aliasedColumns, getOrderByOperators())
 				: config.orderBy ?? [];
 			if (!Array.isArray(orderByOrig)) {
 				orderByOrig = [orderByOrig];

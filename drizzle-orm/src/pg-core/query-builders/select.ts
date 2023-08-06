@@ -20,7 +20,7 @@ import { type Placeholder, type Query, SQL, type SQLWrapper } from '~/sql';
 import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
 import { Table } from '~/table';
 import { tracer } from '~/tracing';
-import { applyMixins, getTableColumns, getTableLikeName, type Simplify, type ValueOrArray } from '~/utils';
+import { applyMixins, getTableColumns, getTableLikeName, type ValueOrArray } from '~/utils';
 import { orderSelectedFields } from '~/utils';
 import { type ColumnsSelection, View, ViewBaseConfig } from '~/view';
 import type {
@@ -463,7 +463,7 @@ export abstract class PgSelectQueryBuilder<
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	toSQL(): Simplify<Omit<Query, 'typings'>> {
+	toSQL(): { sql: Query['sql']; params: Query['params'] } {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}

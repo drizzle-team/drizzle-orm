@@ -16,6 +16,7 @@ import { NoopLogger } from '~/logger';
 import type { MySqlDialect } from '~/mysql-core/dialect';
 import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types';
 import {
+	type Mode,
 	MySqlSession,
 	MySqlTransaction,
 	type MySqlTransactionConfig,
@@ -149,7 +150,7 @@ export class MySql2PreparedQuery<T extends PreparedQueryConfig> extends Prepared
 
 export interface MySql2SessionOptions {
 	logger?: Logger;
-	noLateralInRQB?: boolean;
+	mode: Mode;
 }
 
 export class MySql2Session<
@@ -159,17 +160,17 @@ export class MySql2Session<
 	static readonly [entityKind]: string = 'MySql2Session';
 
 	private logger: Logger;
-	private noLateralInRQB?: boolean;
+	private mode: Mode;
 
 	constructor(
 		private client: MySql2Client,
 		dialect: MySqlDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
-		private options: MySql2SessionOptions = {},
+		private options: MySql2SessionOptions,
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.noLateralInRQB = options.noLateralInRQB;
+		this.mode = options.mode;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig>(
@@ -207,7 +208,7 @@ export class MySql2Session<
 		return result;
 	}
 
-	override all<T = unknown>(query: SQL<unknown>): Promise<T[]> {
+	override all<T = unknown>(query: SQL): Promise<T[]> {
 		const querySql = this.dialect.sqlToQuery(query);
 		this.logger.logQuery(querySql.sql, querySql.params);
 		return this.client.execute(querySql.sql, querySql.params).then((result) => result[0]) as Promise<T[]>;
@@ -225,7 +226,7 @@ export class MySql2Session<
 			session as MySqlSession<any, any, any, any>,
 			this.schema,
 			0,
-			this.noLateralInRQB,
+			this.mode,
 		);
 		if (config) {
 			const setTransactionConfigSql = this.getSetTransactionSQL(config);
@@ -265,7 +266,7 @@ export class MySql2Transaction<
 			this.session,
 			this.schema,
 			this.nestedIndex + 1,
-			this.noLateralInRQB,
+			this.mode,
 		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {

@@ -7,7 +7,7 @@ import { QueryPromise } from '~/query-promise';
 import type { Query, SQL, SQLWrapper } from '~/sql';
 import { type InferModel, Table } from '~/table';
 import { tracer } from '~/tracing';
-import { orderSelectedFields, type Simplify } from '~/utils';
+import { orderSelectedFields } from '~/utils';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
 
 export interface PgDeleteConfig {
@@ -63,7 +63,7 @@ export class PgDelete<
 		return this.dialect.buildDeleteQuery(this.config);
 	}
 
-	toSQL(): Simplify<Omit<Query, 'typings'>> {
+	toSQL(): { sql: Query['sql']; params: Query['params'] } {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}

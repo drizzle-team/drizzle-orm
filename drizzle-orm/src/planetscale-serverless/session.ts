@@ -105,7 +105,7 @@ export class PlanetscaleSession<
 		return this.client.execute(query, params, { as: 'object' });
 	}
 
-	override all<T = unknown>(query: SQL<unknown>): Promise<T[]> {
+	override all<T = unknown>(query: SQL): Promise<T[]> {
 		const querySql = this.dialect.sqlToQuery(query);
 		this.logger.logQuery(querySql.sql, querySql.params);
 		return this.client.execute(querySql.sql, querySql.params, { as: 'object' }).then((eQuery) => eQuery.rows as T[]);
@@ -132,9 +132,9 @@ export class PlanetScaleTransaction<
 		dialect: MySqlDialect,
 		session: MySqlSession,
 		schema: RelationalSchemaConfig<TSchema> | undefined,
-		nestedIndex?: number,
+		nestedIndex = 0,
 	) {
-		super(dialect, session, schema, nestedIndex, true);
+		super(dialect, session, schema, nestedIndex, 'planetscale');
 	}
 
 	override async transaction<T>(

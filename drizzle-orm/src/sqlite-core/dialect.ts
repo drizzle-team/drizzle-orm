@@ -7,17 +7,17 @@ import type { MigrationMeta } from '~/migrator';
 import {
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
+	getOperators,
+	getOrderByOperators,
 	Many,
 	normalizeRelation,
 	One,
-	operators,
-	orderByOperators,
 	type Relation,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations';
 import { and, eq, Param, param, type Query, SQL, sql, type SQLChunk } from '~/sql';
-import { type AnySQLiteColumn, SQLiteColumn } from '~/sqlite-core/columns';
+import { SQLiteColumn } from '~/sqlite-core/columns';
 import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SQLiteTable } from '~/sqlite-core/table';
@@ -61,7 +61,7 @@ export abstract class SQLiteDialect {
 		return sql.join(
 			setEntries
 				.flatMap(([colName, value], i): SQL[] => {
-					const col: AnySQLiteColumn = table[Table.Symbol.Columns][colName]!;
+					const col: SQLiteColumn = table[Table.Symbol.Columns][colName]!;
 					const res = sql`${sql.identifier(col.name)} = ${value}`;
 					if (i < setSize - 1) {
 						return [res, sql.raw(', ')];
@@ -151,7 +151,7 @@ export abstract class SQLiteDialect {
 		{ withList, fields, fieldsFlat, where, having, table, joins, orderBy, groupBy, limit, offset, distinct }:
 			SQLiteSelectConfig,
 	): SQL {
-		const fieldsList = fieldsFlat ?? orderSelectedFields<AnySQLiteColumn>(fields);
+		const fieldsList = fieldsFlat ?? orderSelectedFields<SQLiteColumn>(fields);
 		for (const f of fieldsList) {
 			if (
 				is(f.field, Column)
@@ -240,7 +240,7 @@ export abstract class SQLiteDialect {
 
 		const havingSql = having ? sql` having ${having}` : undefined;
 
-		const orderByList: (AnySQLiteColumn | SQL | SQL.Aliased)[] = [];
+		const orderByList: (SQLiteColumn | SQL | SQL.Aliased)[] = [];
 		if (orderBy) {
 			for (const [index, orderByValue] of orderBy.entries()) {
 				orderByList.push(orderByValue);
@@ -276,11 +276,9 @@ export abstract class SQLiteDialect {
 	buildInsertQuery({ table, values, onConflict, returning }: SQLiteInsertConfig): SQL {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
-		const columns: Record<string, AnySQLiteColumn> = table[Table.Symbol.Columns];
-		// const colEntries: [string, AnySQLiteColumn][] = isSingleValue
-		// 	? Object.keys(values[0]!).map((fieldName) => [fieldName, columns[fieldName]!])
-		// 	: Object.entries(columns);
-		const colEntries: [string, AnySQLiteColumn][] = Object.entries(columns);
+		const columns: Record<string, SQLiteColumn> = table[Table.Symbol.Columns];
+
+		const colEntries: [string, SQLiteColumn][] = Object.entries(columns);
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 
 		for (const [valueIndex, value] of values.entries()) {
@@ -348,8 +346,8 @@ export abstract class SQLiteDialect {
 		tableAlias: string;
 		nestedQueryRelation?: Relation;
 		joinOn?: SQL;
-	}): BuildRelationalQueryResult<AnySQLiteTable, AnySQLiteColumn> {
-		let selection: BuildRelationalQueryResult<AnySQLiteTable, AnySQLiteColumn>['selection'] = [];
+	}): BuildRelationalQueryResult<SQLiteTable, SQLiteColumn> {
+		let selection: BuildRelationalQueryResult<SQLiteTable, SQLiteColumn>['selection'] = [];
 		let limit, offset, orderBy: SQLiteSelectConfig['orderBy'] = [], where;
 		const joins: Join[] = [];
 
@@ -360,7 +358,7 @@ export abstract class SQLiteDialect {
 			) => ({
 				dbKey: value.name,
 				tsKey: key,
-				field: aliasedTableColumn(value as AnySQLiteColumn, tableAlias),
+				field: aliasedTableColumn(value as SQLiteColumn, tableAlias),
 				relationTableTsKey: undefined,
 				isJson: false,
 				selection: [],
@@ -371,11 +369,13 @@ export abstract class SQLiteDialect {
 			);
 
 			if (config.where) {
-				const whereSql = typeof config.where === 'function' ? config.where(aliasedColumns, operators) : config.where;
+				const whereSql = typeof config.where === 'function'
+					? config.where(aliasedColumns, getOperators())
+					: config.where;
 				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 			}
 
-			const fieldsSelection: { tsKey: string; value: AnySQLiteColumn | SQL.Aliased }[] = [];
+			const fieldsSelection: { tsKey: string; value: SQLiteColumn | SQL.Aliased }[] = [];
 			let selectedColumns: string[] = [];
 
 			// Figure out which columns to select
@@ -406,7 +406,7 @@ export abstract class SQLiteDialect {
 			}
 
 			for (const field of selectedColumns) {
-				const column = tableConfig.columns[field]! as AnySQLiteColumn;
+				const column = tableConfig.columns[field]! as SQLiteColumn;
 				fieldsSelection.push({ tsKey: field, value: column });
 			}
 
@@ -452,14 +452,14 @@ export abstract class SQLiteDialect {
 			}
 
 			let orderByOrig = typeof config.orderBy === 'function'
-				? config.orderBy(aliasedColumns, orderByOperators)
+				? config.orderBy(aliasedColumns, getOrderByOperators())
 				: config.orderBy ?? [];
 			if (!Array.isArray(orderByOrig)) {
 				orderByOrig = [orderByOrig];
 			}
 			orderBy = orderByOrig.map((orderByValue) => {
 				if (is(orderByValue, Column)) {
-					return aliasedTableColumn(orderByValue, tableAlias) as AnySQLiteColumn;
+					return aliasedTableColumn(orderByValue, tableAlias) as SQLiteColumn;
 				}
 				return mapColumnsInSQLToAlias(orderByValue, tableAlias);
 			});

@@ -1,6 +1,6 @@
 import { entityKind, is } from '~/entity';
 import { type Placeholder, type Query, SQL } from '~/sql';
-import type { AnySQLiteColumn } from '~/sqlite-core/columns';
+import type { SQLiteColumn } from '~/sqlite-core/columns';
 import type { SQLiteDialect } from '~/sqlite-core/dialect';
 import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
@@ -18,7 +18,7 @@ import type {
 } from '~/query-builders/select.types';
 import type { SubqueryWithSelection } from '~/sqlite-core/subquery';
 import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
-import { getTableColumns, getTableLikeName, orderSelectedFields, type Simplify, type ValueOrArray } from '~/utils';
+import { getTableColumns, getTableLikeName, orderSelectedFields, type ValueOrArray } from '~/utils';
 import { type ColumnsSelection, View, ViewBaseConfig } from '~/view';
 import { SQLiteViewBase } from '../view';
 import type {
@@ -279,12 +279,12 @@ export abstract class SQLiteSelectQueryBuilder<
 		return this;
 	}
 
-	groupBy(builder: (aliases: TSelection) => ValueOrArray<AnySQLiteColumn | SQL | SQL.Aliased>): this;
-	groupBy(...columns: (AnySQLiteColumn | SQL)[]): this;
+	groupBy(builder: (aliases: TSelection) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>): this;
+	groupBy(...columns: (SQLiteColumn | SQL)[]): this;
 	groupBy(
 		...columns:
-			| [(aliases: TSelection) => ValueOrArray<AnySQLiteColumn | SQL | SQL.Aliased>]
-			| (AnySQLiteColumn | SQL | SQL.Aliased)[]
+			| [(aliases: TSelection) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>]
+			| (SQLiteColumn | SQL | SQL.Aliased)[]
 	): this {
 		if (typeof columns[0] === 'function') {
 			const groupBy = columns[0](
@@ -295,17 +295,17 @@ export abstract class SQLiteSelectQueryBuilder<
 			);
 			this.config.groupBy = Array.isArray(groupBy) ? groupBy : [groupBy];
 		} else {
-			this.config.groupBy = columns as (AnySQLiteColumn | SQL | SQL.Aliased)[];
+			this.config.groupBy = columns as (SQLiteColumn | SQL | SQL.Aliased)[];
 		}
 		return this;
 	}
 
-	orderBy(builder: (aliases: TSelection) => ValueOrArray<AnySQLiteColumn | SQL | SQL.Aliased>): this;
-	orderBy(...columns: (AnySQLiteColumn | SQL)[]): this;
+	orderBy(builder: (aliases: TSelection) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>): this;
+	orderBy(...columns: (SQLiteColumn | SQL)[]): this;
 	orderBy(
 		...columns:
-			| [(aliases: TSelection) => ValueOrArray<AnySQLiteColumn | SQL | SQL.Aliased>]
-			| (AnySQLiteColumn | SQL | SQL.Aliased)[]
+			| [(aliases: TSelection) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>]
+			| (SQLiteColumn | SQL | SQL.Aliased)[]
 	): this {
 		if (typeof columns[0] === 'function') {
 			const orderBy = columns[0](
@@ -316,7 +316,7 @@ export abstract class SQLiteSelectQueryBuilder<
 			);
 			this.config.orderBy = Array.isArray(orderBy) ? orderBy : [orderBy];
 		} else {
-			this.config.orderBy = columns as (AnySQLiteColumn | SQL | SQL.Aliased)[];
+			this.config.orderBy = columns as (SQLiteColumn | SQL | SQL.Aliased)[];
 		}
 		return this;
 	}
@@ -336,7 +336,7 @@ export abstract class SQLiteSelectQueryBuilder<
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	toSQL(): Simplify<Omit<Query, 'typings'>> {
+	toSQL(): { sql: Query['sql']; params: Query['params'] } {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
@@ -410,7 +410,7 @@ export class SQLiteSelect<
 		if (!this.session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
-		const fieldsList = orderSelectedFields<AnySQLiteColumn>(this.config.fields);
+		const fieldsList = orderSelectedFields<SQLiteColumn>(this.config.fields);
 		const query = this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
 			this.dialect.sqlToQuery(this.getSQL()),
 			fieldsList,

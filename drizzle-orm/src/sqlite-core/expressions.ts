@@ -1,17 +1,17 @@
 import { bindIfParam } from '~/expressions';
-import type { Placeholder, SQL, SQLChunk, SQLWrapper } from '~/sql';
+import type { SQL, SQLChunk, SQLWrapper } from '~/sql';
 import { sql } from '~/sql';
-import type { AnySQLiteColumn } from '~/sqlite-core/columns';
+import type { SQLiteColumn } from '~/sqlite-core/columns';
 
 export * from '~/expressions';
 
-export function concat(column: AnySQLiteColumn | SQL.Aliased, value: string | Placeholder | SQLWrapper): SQL {
+export function concat(column: SQLiteColumn | SQL.Aliased, value: string | SQLWrapper): SQL {
 	return sql`${column} || ${bindIfParam(value, column)}`;
 }
 
 export function substring(
-	column: AnySQLiteColumn | SQL.Aliased,
-	{ from, for: _for }: { from?: number | Placeholder | SQLWrapper; for?: number | Placeholder | SQLWrapper },
+	column: SQLiteColumn | SQL.Aliased,
+	{ from, for: _for }: { from?: number | SQLWrapper; for?: number | SQLWrapper },
 ): SQL {
 	const chunks: SQLChunk[] = [sql`substring(`, column];
 	if (from !== undefined) {
