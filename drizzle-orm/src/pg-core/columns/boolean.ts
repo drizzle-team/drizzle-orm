@@ -1,39 +1,34 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { ColumnBaseConfig } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
 import { entityKind } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
-import { type Assume } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
-
-export interface PgBooleanBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgBooleanBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgBooleanHKT;
-}
-
-export interface PgBooleanHKT extends ColumnHKTBase {
-	_type: PgBoolean<Assume<this['config'], ColumnBaseConfig>>;
-}
 
 export type PgBooleanBuilderInitial<TName extends string> = PgBooleanBuilder<{
 	name: TName;
+	dataType: 'boolean';
+	columnType: 'PgBoolean';
 	data: boolean;
 	driverParam: boolean;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class PgBooleanBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgBooleanBuilderHKT, T> {
+export class PgBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'PgBoolean'>> extends PgColumnBuilder<T> {
 	static readonly [entityKind]: string = 'PgBooleanBuilder';
+
+	constructor(name: T['name']) {
+		super(name, 'boolean', 'PgBoolean');
+	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgBoolean<MakeColumnConfig<T, TTableName>> {
-		return new PgBoolean<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new PgBoolean<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class PgBoolean<T extends ColumnBaseConfig> extends PgColumn<PgBooleanHKT, T> {
+export class PgBoolean<T extends ColumnBaseConfig<'boolean', 'PgBoolean'>> extends PgColumn<T> {
 	static readonly [entityKind]: string = 'PgBoolean';
 
 	getSQLType(): string {

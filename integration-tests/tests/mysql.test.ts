@@ -537,6 +537,90 @@ test.serial('build query', async (t) => {
 	});
 });
 
+test.serial('Query check: Insert all defaults in 1 row', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	const query = db
+		.insert(users)
+		.values({})
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: 'insert into `users` () values ()',
+		params: [],
+	});
+});
+
+test.serial('Query check: Insert all defaults in multiple rows', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state').default('UA'),
+	});
+
+	const query = db
+		.insert(users)
+		.values([{}, {}])
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: 'insert into `users` (`id`, `name`, `state`) values (default, default, default), (default, default, default)',
+		params: [],
+	});
+});
+
+test.serial('Insert all defaults in 1 row', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('empty_insert_single', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial primary key, name text default ('Dan'), state text)`,
+	);
+
+	await db.insert(users).values({});
+
+	const res = await db.select().from(users);
+
+	t.deepEqual(res, [{ id: 1, name: 'Dan', state: null }]);
+});
+
+test.serial('Insert all defaults in multiple rows', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('empty_insert_multiple', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial primary key, name text default ('Dan'), state text)`,
+	);
+
+	await db.insert(users).values([{}, {}])
+
+	const res = await db.select().from(users);
+
+	t.deepEqual(res, [{ id: 1, name: 'Dan', state: null }, { id: 2, name: 'Dan', state: null }]);
+});
+
 test.serial('build query insert with onDuplicate', async (t) => {
 	const { db } = t.context;
 

@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import Database from 'better-sqlite3';
-import { desc, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
+import { desc, DrizzleError, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import { type BetterSQLite3Database, drizzle } from 'drizzle-orm/better-sqlite3';
 import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 import * as schema from './sqlite.schema';
@@ -16,13 +16,13 @@ const ENABLE_LOGGING = false;
 
 let db: BetterSQLite3Database<typeof schema>;
 
-beforeAll(async () => {
+beforeAll(() => {
 	const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
 
 	db = drizzle(new Database(dbPath), { schema, logger: ENABLE_LOGGING });
 });
 
-beforeEach(async () => {
+beforeEach(() => {
 	db.run(sql`drop table if exists \`groups\``);
 	db.run(sql`drop table if exists \`users\``);
 	db.run(sql`drop table if exists \`users_to_groups\``);
@@ -157,7 +157,7 @@ test('[Find Many] Get users with posts', () => {
 	});
 });
 
-test('[Find Many] Get users with posts + limit posts', async () => {
+test('[Find Many] Get users with posts + limit posts', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -228,7 +228,7 @@ test('[Find Many] Get users with posts + limit posts', async () => {
 	});
 });
 
-test('[Find Many] Get users with posts + limit posts and users', async () => {
+test('[Find Many] Get users with posts + limit posts and users', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -291,7 +291,7 @@ test('[Find Many] Get users with posts + limit posts and users', async () => {
 	});
 });
 
-test('[Find Many] Get users with posts + custom fields', async () => {
+test('[Find Many] Get users with posts + custom fields', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -382,7 +382,7 @@ test('[Find Many] Get users with posts + custom fields', async () => {
 	});
 });
 
-test('[Find Many] Get users with posts + custom fields + limits', async () => {
+test('[Find Many] Get users with posts + custom fields + limits', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -438,8 +438,7 @@ test('[Find Many] Get users with posts + custom fields + limits', async () => {
 	});
 });
 
-// TODO check order
-test.skip('[Find Many] Get users with posts + orderBy', async () => {
+test('[Find Many] Get users with posts + orderBy', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -478,50 +477,48 @@ test.skip('[Find Many] Get users with posts + orderBy', async () => {
 		}[];
 	}[]>();
 
-	expect(usersWithPosts.length).eq(3);
-	expect(usersWithPosts[0]?.posts.length).eq(2);
-	expect(usersWithPosts[1]?.posts.length).eq(2);
-	expect(usersWithPosts[2]?.posts.length).eq(3);
+	expect(usersWithPosts[0]).toEqual({
+		id: 3,
+		name: 'Alex',
+		verified: 0,
+		invitedBy: null,
+		posts: expect.anything(),
+	});
+
+	expect(usersWithPosts[0]!.posts).toEqual([
+		{ id: 7, ownerId: 3, content: '7', createdAt: expect.any(Date) },
+		{ id: 6, ownerId: 3, content: '6', createdAt: expect.any(Date) },
+	]);
+
+	expect(usersWithPosts[1]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: 0,
+		invitedBy: null,
+		posts: expect.anything(),
+	});
+
+	expect(usersWithPosts[1]!.posts).toEqual([
+		{ id: 5, ownerId: 2, content: '5', createdAt: expect.any(Date) },
+		{ id: 4, ownerId: 2, content: '4', createdAt: expect.any(Date) },
+	]);
 
 	expect(usersWithPosts[2]).toEqual({
 		id: 1,
 		name: 'Dan',
 		verified: 0,
 		invitedBy: null,
-		posts: [{ id: 1, ownerId: 1, content: '1', createdAt: usersWithPosts[2]?.posts[2]?.createdAt }, {
-			id: 2,
-			ownerId: 1,
-			content: '2',
-			createdAt: usersWithPosts[2]?.posts[1]?.createdAt,
-		}, { id: 3, ownerId: 1, content: '3', createdAt: usersWithPosts[2]?.posts[0]?.createdAt }],
+		posts: expect.anything(),
 	});
-	expect(usersWithPosts[1]).toEqual({
-		id: 2,
-		name: 'Andrew',
-		verified: 0,
-		invitedBy: null,
-		posts: [{
-			id: 5,
-			ownerId: 2,
-			content: '5',
-			createdAt: usersWithPosts[1]?.posts[1]?.createdAt,
-		}, { id: 4, ownerId: 2, content: '4', createdAt: usersWithPosts[1]?.posts[0]?.createdAt }],
-	});
-	expect(usersWithPosts[0]).toEqual({
-		id: 3,
-		name: 'Alex',
-		verified: 0,
-		invitedBy: null,
-		posts: [{
-			id: 7,
-			ownerId: 3,
-			content: '7',
-			createdAt: usersWithPosts[0]?.posts[1]?.createdAt,
-		}, { id: 6, ownerId: 3, content: '6', createdAt: usersWithPosts[0]?.posts[0]?.createdAt }],
-	});
+
+	expect(usersWithPosts[2]!.posts).toEqual([
+		{ id: 3, ownerId: 1, content: '3', createdAt: expect.any(Date) },
+		{ id: 2, ownerId: 1, content: '2', createdAt: expect.any(Date) },
+		{ id: 1, ownerId: 1, content: '1', createdAt: expect.any(Date) },
+	]);
 });
 
-test('[Find Many] Get users with posts + where', async () => {
+test('[Find Many] Get users with posts + where', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -569,7 +566,7 @@ test('[Find Many] Get users with posts + where', async () => {
 	});
 });
 
-test('[Find Many] Get users with posts + where + partial', async () => {
+test('[Find Many] Get users with posts + where + partial', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -619,7 +616,7 @@ test('[Find Many] Get users with posts + where + partial', async () => {
 	});
 });
 
-test('[Find Many] Get users with posts + where + partial. Did not select posts id, but used it in where', async () => {
+test('[Find Many] Get users with posts + where + partial. Did not select posts id, but used it in where', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -669,7 +666,7 @@ test('[Find Many] Get users with posts + where + partial. Did not select posts i
 	});
 });
 
-test('[Find Many] Get users with posts + where + partial(true + false)', async () => {
+test('[Find Many] Get users with posts + where + partial(true + false)', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -716,7 +713,7 @@ test('[Find Many] Get users with posts + where + partial(true + false)', async (
 	});
 });
 
-test('[Find Many] Get users with posts + where + partial(false)', async () => {
+test('[Find Many] Get users with posts + where + partial(false)', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -767,7 +764,7 @@ test('[Find Many] Get users with posts + where + partial(false)', async () => {
 	});
 });
 
-test('[Find Many] Get users with posts in transaction', async () => {
+test('[Find Many] Get users with posts in transaction', () => {
 	let usersWithPosts: {
 		id: number;
 		name: string;
@@ -781,7 +778,7 @@ test('[Find Many] Get users with posts in transaction', async () => {
 		}[];
 	}[] = [];
 
-	db.transaction(async (tx) => {
+	db.transaction((tx) => {
 		tx.insert(usersTable).values([
 			{ id: 1, name: 'Dan' },
 			{ id: 2, name: 'Andrew' },
@@ -830,7 +827,7 @@ test('[Find Many] Get users with posts in transaction', async () => {
 	});
 });
 
-test('[Find Many] Get users with posts in rollbacked transaction', async () => {
+test('[Find Many] Get users with posts in rollbacked transaction', () => {
 	let usersWithPosts: {
 		id: number;
 		name: string;
@@ -844,31 +841,33 @@ test('[Find Many] Get users with posts in rollbacked transaction', async () => {
 		}[];
 	}[] = [];
 
-	expect(db.transaction(async (tx) => {
-		tx.insert(usersTable).values([
-			{ id: 1, name: 'Dan' },
-			{ id: 2, name: 'Andrew' },
-			{ id: 3, name: 'Alex' },
-		]).run();
+	expect(() =>
+		db.transaction((tx) => {
+			tx.insert(usersTable).values([
+				{ id: 1, name: 'Dan' },
+				{ id: 2, name: 'Andrew' },
+				{ id: 3, name: 'Alex' },
+			]).run();
 
-		tx.insert(postsTable).values([
-			{ ownerId: 1, content: 'Post1' },
-			{ ownerId: 1, content: 'Post1.1' },
-			{ ownerId: 2, content: 'Post2' },
-			{ ownerId: 3, content: 'Post3' },
-		]).run();
+			tx.insert(postsTable).values([
+				{ ownerId: 1, content: 'Post1' },
+				{ ownerId: 1, content: 'Post1.1' },
+				{ ownerId: 2, content: 'Post2' },
+				{ ownerId: 3, content: 'Post3' },
+			]).run();
 
-		tx.rollback();
+			tx.rollback();
 
-		usersWithPosts = tx.query.usersTable.findMany({
-			where: (({ id }, { eq }) => eq(id, 1)),
-			with: {
-				posts: {
-					where: (({ id }, { eq }) => eq(id, 1)),
+			usersWithPosts = tx.query.usersTable.findMany({
+				where: (({ id }, { eq }) => eq(id, 1)),
+				with: {
+					posts: {
+						where: (({ id }, { eq }) => eq(id, 1)),
+					},
 				},
-			},
-		});
-	})).rejects.toThrowError(new TransactionRollbackError());
+			});
+		})
+	).toThrow(TransactionRollbackError);
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
@@ -887,7 +886,7 @@ test('[Find Many] Get users with posts in rollbacked transaction', async () => {
 });
 
 // select only custom
-test('[Find Many] Get only custom fields', async () => {
+test('[Find Many] Get only custom fields', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -964,7 +963,7 @@ test('[Find Many] Get only custom fields', async () => {
 	});
 });
 
-test('[Find Many] Get only custom fields + where', async () => {
+test('[Find Many] Get only custom fields + where', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1014,7 +1013,7 @@ test('[Find Many] Get only custom fields + where', async () => {
 	});
 });
 
-test('[Find Many] Get only custom fields + where + limit', async () => {
+test('[Find Many] Get only custom fields + where + limit', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1065,7 +1064,7 @@ test('[Find Many] Get only custom fields + where + limit', async () => {
 	});
 });
 
-test('[Find Many] Get only custom fields + where + orderBy', async () => {
+test('[Find Many] Get only custom fields + where + orderBy', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1117,7 +1116,7 @@ test('[Find Many] Get only custom fields + where + orderBy', async () => {
 });
 
 // select only custom find one
-test('[Find One] Get only custom fields', async () => {
+test('[Find One] Get only custom fields', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1175,7 +1174,7 @@ test('[Find One] Get only custom fields', async () => {
 	});
 });
 
-test('[Find One] Get only custom fields + where', async () => {
+test('[Find One] Get only custom fields + where', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1226,7 +1225,7 @@ test('[Find One] Get only custom fields + where', async () => {
 	});
 });
 
-test('[Find One] Get only custom fields + where + limit', async () => {
+test('[Find One] Get only custom fields + where + limit', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1278,7 +1277,7 @@ test('[Find One] Get only custom fields + where + limit', async () => {
 	});
 });
 
-test('[Find One] Get only custom fields + where + orderBy', async () => {
+test('[Find One] Get only custom fields + where + orderBy', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1331,45 +1330,37 @@ test('[Find One] Get only custom fields + where + orderBy', async () => {
 });
 
 // columns {}
-test('[Find Many] Get select {}', async () => {
+test('[Find Many] Get select {}', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
 	]).run();
 
-	const users = db.query.usersTable.findMany({
-		columns: {},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{}[]>();
-
-	expect(users.length).toBe(3);
-
-	expect(users[0]).toEqual({});
-	expect(users[1]).toEqual({});
-	expect(users[2]).toEqual({});
+	expect(() =>
+		db.query.usersTable.findMany({
+			columns: {},
+		})
+	).toThrow(DrizzleError);
 });
 
 // columns {}
-test('[Find One] Get select {}', async () => {
+test('[Find One] Get select {}', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
 		{ id: 3, name: 'Alex' },
 	]).run();
 
-	const users = db.query.usersTable.findFirst({
-		columns: {},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{} | undefined>();
-
-	expect(users).toEqual({});
+	expect(() =>
+		db.query.usersTable.findFirst({
+			columns: {},
+		})
+	).toThrow(DrizzleError);
 });
 
 // deep select {}
-test('[Find Many] Get deep select {}', async () => {
+test('[Find Many] Get deep select {}', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1382,26 +1373,20 @@ test('[Find Many] Get deep select {}', async () => {
 		{ ownerId: 3, content: 'Post3' },
 	]).run();
 
-	const users = db.query.usersTable.findMany({
-		columns: {},
-		with: {
-			posts: {
-				columns: {},
+	expect(() =>
+		db.query.usersTable.findMany({
+			columns: {},
+			with: {
+				posts: {
+					columns: {},
+				},
 			},
-		},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{ posts: {}[] }[]>();
-
-	expect(users.length).toBe(3);
-
-	expect(users[0]).toEqual({ posts: [{}] });
-	expect(users[1]).toEqual({ posts: [{}] });
-	expect(users[2]).toEqual({ posts: [{}] });
+		})
+	).toThrow(DrizzleError);
 });
 
 // deep select {}
-test('[Find One] Get deep select {}', async () => {
+test('[Find One] Get deep select {}', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1414,24 +1399,22 @@ test('[Find One] Get deep select {}', async () => {
 		{ ownerId: 3, content: 'Post3' },
 	]).run();
 
-	const users = db.query.usersTable.findFirst({
-		columns: {},
-		with: {
-			posts: {
-				columns: {},
+	expect(() =>
+		db.query.usersTable.findFirst({
+			columns: {},
+			with: {
+				posts: {
+					columns: {},
+				},
 			},
-		},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{ posts: {}[] } | undefined>();
-
-	expect(users).toEqual({ posts: [{}] });
+		})
+	).toThrow(DrizzleError);
 });
 
 /*
 	Prepared statements for users+posts
 */
-test('[Find Many] Get users with posts + prepared limit', async () => {
+test('[Find Many] Get users with posts + prepared limit', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1499,7 +1482,7 @@ test('[Find Many] Get users with posts + prepared limit', async () => {
 	});
 });
 
-test('[Find Many] Get users with posts + prepared limit + offset', async () => {
+test('[Find Many] Get users with posts + prepared limit + offset', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1561,7 +1544,7 @@ test('[Find Many] Get users with posts + prepared limit + offset', async () => {
 	});
 });
 
-test('[Find Many] Get users with posts + prepared where', async () => {
+test('[Find Many] Get users with posts + prepared where', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1611,7 +1594,7 @@ test('[Find Many] Get users with posts + prepared where', async () => {
 	});
 });
 
-test('[Find Many] Get users with posts + prepared + limit + offset + where', async () => {
+test('[Find Many] Get users with posts + prepared + limit + offset + where', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1671,7 +1654,7 @@ test('[Find Many] Get users with posts + prepared + limit + offset + where', asy
 	[Find One] One relation users+posts
 */
 
-test('[Find One] Get users with posts', async () => {
+test('[Find One] Get users with posts', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1716,7 +1699,7 @@ test('[Find One] Get users with posts', async () => {
 	});
 });
 
-test('[Find One] Get users with posts + limit posts', async () => {
+test('[Find One] Get users with posts + limit posts', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1767,7 +1750,7 @@ test('[Find One] Get users with posts + limit posts', async () => {
 	});
 });
 
-test('[Find One] Get users with posts no results found', async () => {
+test('[Find One] Get users with posts no results found', () => {
 	const usersWithPosts = db.query.usersTable.findFirst({
 		with: {
 			posts: {
@@ -1794,7 +1777,7 @@ test('[Find One] Get users with posts no results found', async () => {
 	expect(usersWithPosts).toBeUndefined();
 });
 
-test('[Find One] Get users with posts + limit posts and users', async () => {
+test('[Find One] Get users with posts + limit posts and users', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1845,7 +1828,7 @@ test('[Find One] Get users with posts + limit posts and users', async () => {
 	});
 });
 
-test('[Find One] Get users with posts + custom fields', async () => {
+test('[Find One] Get users with posts + custom fields', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1917,7 +1900,7 @@ test('[Find One] Get users with posts + custom fields', async () => {
 	});
 });
 
-test('[Find One] Get users with posts + custom fields + limits', async () => {
+test('[Find One] Get users with posts + custom fields + limits', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1973,8 +1956,7 @@ test('[Find One] Get users with posts + custom fields + limits', async () => {
 	});
 });
 
-// TODO. Check order
-test.skip('[Find One] Get users with posts + orderBy', async () => {
+test.skip('[Find One] Get users with posts + orderBy', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2031,7 +2013,7 @@ test.skip('[Find One] Get users with posts + orderBy', async () => {
 	});
 });
 
-test('[Find One] Get users with posts + where', async () => {
+test('[Find One] Get users with posts + where', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2080,7 +2062,7 @@ test('[Find One] Get users with posts + where', async () => {
 	});
 });
 
-test('[Find One] Get users with posts + where + partial', async () => {
+test('[Find One] Get users with posts + where + partial', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2131,7 +2113,7 @@ test('[Find One] Get users with posts + where + partial', async () => {
 	});
 });
 
-test('[Find One] Get users with posts + where + partial. Did not select posts id, but used it in where', async () => {
+test('[Find One] Get users with posts + where + partial. Did not select posts id, but used it in where', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2182,7 +2164,7 @@ test('[Find One] Get users with posts + where + partial. Did not select posts id
 	});
 });
 
-test('[Find One] Get users with posts + where + partial(true + false)', async () => {
+test('[Find One] Get users with posts + where + partial(true + false)', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2230,7 +2212,7 @@ test('[Find One] Get users with posts + where + partial(true + false)', async ()
 	});
 });
 
-test('[Find One] Get users with posts + where + partial(false)', async () => {
+test('[Find One] Get users with posts + where + partial(false)', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2286,7 +2268,7 @@ test('[Find One] Get users with posts + where + partial(false)', async () => {
 	One relation users+users. Self referencing
 */
 
-test('Get user with invitee', async () => {
+test('Get user with invitee', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2353,7 +2335,7 @@ test('Get user with invitee', async () => {
 	});
 });
 
-test('Get user + limit with invitee', async () => {
+test('Get user + limit with invitee', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew', invitedBy: 1 },
@@ -2405,7 +2387,7 @@ test('Get user + limit with invitee', async () => {
 	});
 });
 
-test('Get user with invitee and custom fields', async () => {
+test('Get user with invitee and custom fields', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2481,7 +2463,7 @@ test('Get user with invitee and custom fields', async () => {
 	});
 });
 
-test('Get user with invitee and custom fields + limits', async () => {
+test('Get user with invitee and custom fields + limits', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2549,7 +2531,7 @@ test('Get user with invitee and custom fields + limits', async () => {
 	});
 });
 
-test('Get user with invitee + order by', async () => {
+test('Get user with invitee + order by', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2615,7 +2597,7 @@ test('Get user with invitee + order by', async () => {
 	});
 });
 
-test('Get user with invitee + where', async () => {
+test('Get user with invitee + where', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2665,7 +2647,7 @@ test('Get user with invitee + where', async () => {
 	});
 });
 
-test('Get user with invitee + where + partial', async () => {
+test('Get user with invitee + where + partial', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2716,7 +2698,7 @@ test('Get user with invitee + where + partial', async () => {
 	});
 });
 
-test('Get user with invitee + where + partial.  Did not select users id, but used it in where', async () => {
+test('Get user with invitee + where + partial.  Did not select users id, but used it in where', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2763,7 +2745,7 @@ test('Get user with invitee + where + partial.  Did not select users id, but use
 	});
 });
 
-test('Get user with invitee + where + partial(true+false)', async () => {
+test('Get user with invitee + where + partial(true+false)', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2816,7 +2798,7 @@ test('Get user with invitee + where + partial(true+false)', async () => {
 	});
 });
 
-test('Get user with invitee + where + partial(false)', async () => {
+test('Get user with invitee + where + partial(false)', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2873,7 +2855,7 @@ test('Get user with invitee + where + partial(false)', async () => {
 	Two first-level relations users+users and users+posts
 */
 
-test('Get user with invitee and posts', async () => {
+test('Get user with invitee and posts', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2957,7 +2939,7 @@ test('Get user with invitee and posts', async () => {
 	});
 });
 
-test('Get user with invitee and posts + limit posts and users', async () => {
+test('Get user with invitee and posts + limit posts and users', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3038,7 +3020,7 @@ test('Get user with invitee and posts + limit posts and users', async () => {
 	});
 });
 
-test('Get user with invitee and posts + limits + custom fields in each', async () => {
+test('Get user with invitee and posts + limits + custom fields in each', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3128,7 +3110,7 @@ test('Get user with invitee and posts + limits + custom fields in each', async (
 	});
 });
 
-test('Get user with invitee and posts + custom fields in each', async () => {
+test('Get user with invitee and posts + custom fields in each', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3250,7 +3232,7 @@ test('Get user with invitee and posts + custom fields in each', async () => {
 });
 
 // TODO Check order
-test.skip('Get user with invitee and posts + orderBy', async () => {
+test.skip('Get user with invitee and posts + orderBy', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3353,7 +3335,7 @@ test.skip('Get user with invitee and posts + orderBy', async () => {
 	});
 });
 
-test('Get user with invitee and posts + where', async () => {
+test('Get user with invitee and posts + where', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3421,7 +3403,7 @@ test('Get user with invitee and posts + where', async () => {
 	});
 });
 
-test('Get user with invitee and posts + limit posts and users + where', async () => {
+test('Get user with invitee and posts + limit posts and users + where', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3481,7 +3463,7 @@ test('Get user with invitee and posts + limit posts and users + where', async ()
 	});
 });
 
-test('Get user with invitee and posts + orderBy + where + custom', async () => {
+test('Get user with invitee and posts + orderBy + where + custom', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3566,7 +3548,7 @@ test('Get user with invitee and posts + orderBy + where + custom', async () => {
 	});
 });
 
-test('Get user with invitee and posts + orderBy + where + partial + custom', async () => {
+test('Get user with invitee and posts + orderBy + where + partial + custom', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3662,7 +3644,7 @@ test('Get user with invitee and posts + orderBy + where + partial + custom', asy
 	One two-level relation users+posts+comments
 */
 
-test('Get user with posts and posts with comments', async () => {
+test('Get user with posts and posts with comments', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3817,7 +3799,7 @@ test('Get user with posts and posts with comments', async () => {
 	One three-level relation users+posts+comments+comment_owner
 */
 
-test('Get user with posts and posts with comments and comments with owner', async () => {
+test('Get user with posts and posts with comments and comments with owner', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3959,7 +3941,7 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 	Users+users_to_groups+groups
 */
 
-test('[Find Many] Get users with groups', async () => {
+test('[Find Many] Get users with groups', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4045,7 +4027,7 @@ test('[Find Many] Get users with groups', async () => {
 		name: 'Alex',
 		verified: 0,
 		invitedBy: null,
-		usersToGroups: [{
+		usersToGroups: expect.arrayContaining([{
 			group: {
 				id: 2,
 				name: 'Group2',
@@ -4057,11 +4039,11 @@ test('[Find Many] Get users with groups', async () => {
 				name: 'Group3',
 				description: null,
 			},
-		}],
+		}]),
 	});
 });
 
-test('[Find Many] Get groups with users', async () => {
+test('[Find Many] Get groups with users', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4164,7 +4146,7 @@ test('[Find Many] Get groups with users', async () => {
 	});
 });
 
-test('[Find Many] Get users with groups + limit', async () => {
+test('[Find Many] Get users with groups + limit', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4247,7 +4229,7 @@ test('[Find Many] Get users with groups + limit', async () => {
 	});
 });
 
-test('[Find Many] Get groups with users + limit', async () => {
+test('[Find Many] Get groups with users + limit', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4330,7 +4312,7 @@ test('[Find Many] Get groups with users + limit', async () => {
 	});
 });
 
-test('[Find Many] Get users with groups + limit + where', async () => {
+test('[Find Many] Get users with groups + limit + where', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4399,7 +4381,7 @@ test('[Find Many] Get users with groups + limit + where', async () => {
 	});
 });
 
-test('[Find Many] Get groups with users + limit + where', async () => {
+test('[Find Many] Get groups with users + limit + where', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4469,7 +4451,7 @@ test('[Find Many] Get groups with users + limit + where', async () => {
 	});
 });
 
-test('[Find Many] Get users with groups + where', async () => {
+test('[Find Many] Get users with groups + where', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4546,7 +4528,7 @@ test('[Find Many] Get users with groups + where', async () => {
 	});
 });
 
-test('[Find Many] Get groups with users + where', async () => {
+test('[Find Many] Get groups with users + where', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4622,7 +4604,7 @@ test('[Find Many] Get groups with users + where', async () => {
 	});
 });
 
-test('[Find Many] Get users with groups + orderBy', async () => {
+test('[Find Many] Get users with groups + orderBy', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4724,7 +4706,7 @@ test('[Find Many] Get users with groups + orderBy', async () => {
 	});
 });
 
-test('[Find Many] Get groups with users + orderBy', async () => {
+test('[Find Many] Get groups with users + orderBy', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4827,7 +4809,7 @@ test('[Find Many] Get groups with users + orderBy', async () => {
 	});
 });
 
-test('[Find Many] Get users with groups + orderBy + limit', async () => {
+test('[Find Many] Get users with groups + orderBy + limit', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4916,7 +4898,7 @@ test('[Find Many] Get users with groups + orderBy + limit', async () => {
 	Users+users_to_groups+groups
 */
 
-test('[Find One] Get users with groups', async () => {
+test('[Find One] Get users with groups', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4980,7 +4962,7 @@ test('[Find One] Get users with groups', async () => {
 	});
 });
 
-test('[Find One] Get groups with users', async () => {
+test('[Find One] Get groups with users', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5044,7 +5026,7 @@ test('[Find One] Get groups with users', async () => {
 	});
 });
 
-test('[Find One] Get users with groups + limit', async () => {
+test('[Find One] Get users with groups + limit', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5109,7 +5091,7 @@ test('[Find One] Get users with groups + limit', async () => {
 	});
 });
 
-test('[Find One] Get groups with users + limit', async () => {
+test('[Find One] Get groups with users + limit', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5174,7 +5156,7 @@ test('[Find One] Get groups with users + limit', async () => {
 	});
 });
 
-test('[Find One] Get users with groups + limit + where', async () => {
+test('[Find One] Get users with groups + limit + where', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5240,7 +5222,7 @@ test('[Find One] Get users with groups + limit + where', async () => {
 	});
 });
 
-test('[Find One] Get groups with users + limit + where', async () => {
+test('[Find One] Get groups with users + limit + where', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5307,7 +5289,7 @@ test('[Find One] Get groups with users + limit + where', async () => {
 	});
 });
 
-test('[Find One] Get users with groups + where', async () => {
+test('[Find One] Get users with groups + where', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5367,7 +5349,7 @@ test('[Find One] Get users with groups + where', async () => {
 	});
 });
 
-test('[Find One] Get groups with users + where', async () => {
+test('[Find One] Get groups with users + where', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5433,7 +5415,7 @@ test('[Find One] Get groups with users + where', async () => {
 	});
 });
 
-test('[Find One] Get users with groups + orderBy', async () => {
+test('[Find One] Get users with groups + orderBy', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5505,7 +5487,7 @@ test('[Find One] Get users with groups + orderBy', async () => {
 	});
 });
 
-test('[Find One] Get groups with users + orderBy', async () => {
+test('[Find One] Get groups with users + orderBy', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5571,7 +5553,7 @@ test('[Find One] Get groups with users + orderBy', async () => {
 	});
 });
 
-test('[Find One] Get users with groups + orderBy + limit', async () => {
+test('[Find One] Get users with groups + orderBy + limit', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5638,7 +5620,7 @@ test('[Find One] Get users with groups + orderBy + limit', async () => {
 	});
 });
 
-test('Get groups with users + orderBy + limit', async () => {
+test('Get groups with users + orderBy + limit', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5723,7 +5705,7 @@ test('Get groups with users + orderBy + limit', async () => {
 	});
 });
 
-test('Get users with groups + custom', async () => {
+test('Get users with groups + custom', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5847,7 +5829,7 @@ test('Get users with groups + custom', async () => {
 	});
 });
 
-test('Get groups with users + custom', async () => {
+test('Get groups with users + custom', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },

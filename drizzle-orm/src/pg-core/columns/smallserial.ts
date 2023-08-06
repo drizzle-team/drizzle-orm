@@ -1,34 +1,25 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { ColumnBaseConfig } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
 import { entityKind } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
-import { type Assume } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
-
-export interface PgSmallSerialBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgSmallSerialBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgSmallSerialHKT;
-}
-
-export interface PgSmallSerialHKT extends ColumnHKTBase {
-	_type: PgSmallSerial<Assume<this['config'], ColumnBaseConfig>>;
-}
 
 export type PgSmallSerialBuilderInitial<TName extends string> = PgSmallSerialBuilder<{
 	name: TName;
+	dataType: 'number';
+	columnType: 'PgSmallSerial';
 	data: number;
 	driverParam: number;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class PgSmallSerialBuilder<T extends ColumnBuilderBaseConfig>
-	extends PgColumnBuilder<PgSmallSerialBuilderHKT, T>
+export class PgSmallSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSmallSerial'>>
+	extends PgColumnBuilder<T>
 {
 	static readonly [entityKind]: string = 'PgSmallSerialBuilder';
 
 	constructor(name: string) {
-		super(name);
+		super(name, 'number', 'PgSmallSerial');
 		this.config.hasDefault = true;
 		this.config.notNull = true;
 	}
@@ -37,11 +28,14 @@ export class PgSmallSerialBuilder<T extends ColumnBuilderBaseConfig>
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgSmallSerial<MakeColumnConfig<T, TTableName>> {
-		return new PgSmallSerial<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new PgSmallSerial<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class PgSmallSerial<T extends ColumnBaseConfig> extends PgColumn<PgSmallSerialHKT, T> {
+export class PgSmallSerial<T extends ColumnBaseConfig<'number', 'PgSmallSerial'>> extends PgColumn<T> {
 	static readonly [entityKind]: string = 'PgSmallSerial';
 
 	getSQLType(): string {

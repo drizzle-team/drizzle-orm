@@ -50,7 +50,7 @@ jobs:
 
       - uses: actions/setup-node@v3
         with:
-          node-version: 19
+          node-version: 18
           registry-url: 'https://registry.npmjs.org'
 
       - uses: pnpm/action-setup@v2
@@ -85,6 +85,7 @@ jobs:
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/drizzle
           MYSQL_CONNECTION_STRING: mysql://root:root@localhost:3306/drizzle
+          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
           LIBSQL_URL: file:local.db
         run: |
           if [[ "${{ matrix.package }}" == "drizzle-orm" ]]; then
