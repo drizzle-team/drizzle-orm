@@ -17,6 +17,7 @@ import {
 import { RelationalQueryBuilder } from './query-builders/query';
 import type { SelectedFields } from './query-builders/select.types';
 import type {
+	Mode,
 	MySqlSession,
 	MySqlTransaction,
 	MySqlTransactionConfig,
@@ -52,7 +53,7 @@ export class MySqlDatabase<
 		/** @internal */
 		readonly session: MySqlSession<any, any, any, any>,
 		schema: RelationalSchemaConfig<TSchema> | undefined,
-		protected readonly noLateralInRQB?: boolean,
+		protected readonly mode: Mode,
 	) {
 		this._ = schema
 			? { schema: schema.schema, tableNamesMap: schema.tableNamesMap }
@@ -69,7 +70,7 @@ export class MySqlDatabase<
 						columns,
 						dialect,
 						session,
-						this.noLateralInRQB,
+						this.mode,
 					);
 			}
 		}

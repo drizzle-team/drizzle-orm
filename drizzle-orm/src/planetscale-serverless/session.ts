@@ -132,9 +132,9 @@ export class PlanetScaleTransaction<
 		dialect: MySqlDialect,
 		session: MySqlSession,
 		schema: RelationalSchemaConfig<TSchema> | undefined,
-		nestedIndex?: number,
+		nestedIndex = 0,
 	) {
-		super(dialect, session, schema, nestedIndex, true);
+		super(dialect, session, schema, nestedIndex, 'planetscale');
 	}
 
 	override async transaction<T>(

@@ -11,6 +11,7 @@ import { type SQL } from '~/sql';
 import { type KnownKeysOnly } from '~/utils';
 import { type MySqlDialect } from '../dialect';
 import {
+	type Mode,
 	type MySqlSession,
 	type PreparedQueryConfig,
 	type PreparedQueryHKTBase,
@@ -33,7 +34,7 @@ export class RelationalQueryBuilder<
 		private tableConfig: TableRelationalConfig,
 		private dialect: MySqlDialect,
 		private session: MySqlSession,
-		private noLateral?: boolean,
+		private mode: Mode,
 	) {}
 
 	findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
@@ -49,7 +50,7 @@ export class RelationalQueryBuilder<
 			this.session,
 			config ? (config as DBQueryConfig<'many', true>) : {},
 			'many',
-			this.noLateral,
+			this.mode,
 		);
 	}
 
@@ -66,7 +67,7 @@ export class RelationalQueryBuilder<
 			this.session,
 			config ? { ...(config as DBQueryConfig<'many', true> | undefined), limit: 1 } : { limit: 1 },
 			'first',
-			this.noLateral,
+			this.mode,
 		);
 	}
 }
@@ -88,14 +89,14 @@ export class MySqlRelationalQuery<
 		private dialect: MySqlDialect,
 		private session: MySqlSession,
 		private config: DBQueryConfig<'many', true> | true,
-		private mode: 'many' | 'first',
-		private noLateral?: boolean,
+		private queryMode: 'many' | 'first',
+		private mode?: Mode,
 	) {
 		super();
 	}
 
 	prepare() {
-		const query = this.noLateral
+		const query = this.mode === 'planetscale'
 			? this.dialect.buildRelationalQueryWithoutLateralSubqueries({
 				fullSchema: this.fullSchema,
 				schema: this.schema,
@@ -121,7 +122,7 @@ export class MySqlRelationalQuery<
 			undefined,
 			(rawRows) => {
 				const rows = rawRows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, query.selection));
-				if (this.mode === 'first') {
+				if (this.queryMode === 'first') {
 					return rows[0] as TResult;
 				}
 				return rows as TResult;
