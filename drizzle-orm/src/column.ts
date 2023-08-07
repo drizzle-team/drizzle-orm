@@ -24,7 +24,7 @@ export type ColumnTypeConfig<T extends ColumnBaseConfig<ColumnDataType, string>,
 	notNull: T['notNull'];
 	hasDefault: T['hasDefault'];
 	enumValues: T['enumValues'];
-	baseColumn: T extends { baseColumn: infer U } ? U : never;
+	baseColumn: T extends { baseColumn: infer U } ? U : unknown;
 } & TTypeConfig;
 
 export type ColumnRuntimeConfig<TData, TRuntimeConfig extends object> = ColumnBuilderRuntimeConfig<

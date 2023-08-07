@@ -189,7 +189,7 @@ export type DBQueryConfig<
 export interface TableRelationalConfig {
 	tsName: string;
 	dbName: string;
-	columns: Record<string, AnyColumn>;
+	columns: Record<string, Column>;
 	relations: Record<string, Relation>;
 	primaryKey: AnyColumn[];
 }
