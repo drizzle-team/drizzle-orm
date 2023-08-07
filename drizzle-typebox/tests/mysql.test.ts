@@ -168,7 +168,6 @@ test('insert larger char length should fail', (t) => {
 test('insert schema', (t) => {
 	const actual = createInsertSchema(testTable);
 
-	// @ts-ignore
 	const expected = Type.Object({
 		bigint: Type.BigInt(),
 		bigintNumber: Type.Number(),

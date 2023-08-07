@@ -25,7 +25,7 @@ import {
 	is,
 	type Simplify,
 	type Table,
-	type WithEnum,
+	Column,
 } from 'drizzle-orm';
 import {
 	MySqlBigInt53,
@@ -99,9 +99,9 @@ import {
 	SQLiteTimestamp,
 } from 'drizzle-orm/sqlite-core';
 
-type TUnionLiterals<T extends TLiteralValue[]> = T extends readonly [
-	infer U extends TLiteralValue,
-	...infer Rest extends TLiteralValue[]
+type TUnionLiterals<T extends string[] > = T extends readonly [
+	infer U extends string,
+	...infer Rest extends string[]
 ]
 	? [TLiteral<U>, ...TUnionLiterals<Rest>]
 	: [];
@@ -113,7 +113,7 @@ const literalSchema = Type.Union([
 	Type.Null(),
 ]);
 
-type Json =  typeof jsonSchema
+type Json = typeof jsonSchema;
 
 export const jsonSchema = Type.Recursive((Self: TThis) =>
 	Type.Union([
@@ -126,7 +126,7 @@ export const jsonSchema = Type.Recursive((Self: TThis) =>
 type TNullable<TType extends TSchema> = TUnion<[TType, TNull]>;
 
 type MapInsertColumnToTypebox<
-	TColumn extends AnyColumn,
+	TColumn extends Column,
 	TType extends TSchema
 > = TColumn['_']['notNull'] extends false
 	? TOptional<TNullable<TType>>
@@ -135,12 +135,12 @@ type MapInsertColumnToTypebox<
 	: TType;
 
 type MapSelectColumnToTypebox<
-	TColumn extends AnyColumn,
+	TColumn extends Column,
 	TType extends TSchema
 > = TColumn['_']['notNull'] extends false ? TNullable<TType> : TType;
 
 type MapColumnToTypebox<
-	TColumn extends AnyColumn,
+	TColumn extends Column,
 	TType extends TSchema,
 	TMode extends 'insert' | 'select'
 > = TMode extends 'insert'
@@ -148,7 +148,7 @@ type MapColumnToTypebox<
 	: MapSelectColumnToTypebox<TColumn, TType>;
 
 type MaybeOptional<
-	TColumn extends AnyColumn,
+	TColumn extends Column,
 	TType extends TSchema,
 	TMode extends 'insert' | 'select',
 	TNoOptional extends boolean
@@ -156,43 +156,36 @@ type MaybeOptional<
 	? TType
 	: MapColumnToTypebox<TColumn, TType, TMode>;
 
-type GetTypeboxType<TColumn extends AnyColumn> =
-	TColumn['_']['data'] extends infer TType
-		? TColumn extends
-				| PgCustomColumn<any>
-				| SQLiteCustomColumn<any>
-				| MySqlCustomColumn<any>
+type GetTypeboxType<TColumn extends Column> =
+	TColumn['_']['dataType'] extends infer TDataType
+		? TDataType extends 'custom'
 			? TAny
-			: TColumn extends
-					| PgJson<any>
-					| PgJsonb<any>
-					| SQLiteBlobJson<any>
-					| MySqlJson<any>
+			: TDataType extends 'json'
 			? Json
-			: TColumn extends WithEnum
+			: TColumn extends { enumValues: [string, ...string[]] }
 			? Equal<TColumn['enumValues'], [string, ...string[]]> extends true
 				? TString
 				: TUnion<TUnionLiterals<TColumn['enumValues']>>
-			: TColumn extends PgArray<any>
+			: TDataType extends 'array'
 			? TArray<
 					GetTypeboxType<
 						Assume<
 							TColumn['_'],
-							{ baseColumn: AnyColumn }
+							{ baseColumn: Column }
 						>['baseColumn']
 					>
 			  >
-			: TType extends bigint
+			: TDataType extends 'bigint'
 			? TBigInt
-			: TType extends number
+			: TDataType extends 'number'
 			? TNumber
-			: TType extends string
+			: TDataType extends 'string'
 			? TString
-			: TType extends boolean
+			: TDataType extends 'boolean'
 			? TBoolean
-			: TType extends Date
+			: TDataType extends 'date'
 			? TDate
-			: TSchema
+			: TAny
 		: never;
 
 type ValueOrUpdater<T, TUpdaterArg> = T | ((arg: TUpdaterArg) => T);
@@ -216,13 +209,13 @@ export type BuildInsertSchema<
 	TNoOptional extends boolean = false
 > = TTable['_']['columns'] extends infer TColumns extends Record<
 	string,
-	AnyColumn
+	Column<any>
 >
 	? {
 			[K in keyof TColumns & string]: MaybeOptional<
 				TColumns[K],
 				K extends keyof TRefine
-					? Assume<UnwrapValueOrUpdater<TRefine[K]>, TSchema>
+					? Assume<UnwrapValueOrUpdater<TRefine[K]>, TAny>
 					: GetTypeboxType<TColumns[K]>,
 				'insert',
 				TNoOptional
@@ -262,6 +255,7 @@ export function createInsertSchema<
 			: DrizzleTypeError<`Column '${K &
 					string}' does not exist in table '${TTable['_']['name']}'`>;
 	}
+	//@ts-ignore
 ): TObject<
 	BuildInsertSchema<
 		TTable,
@@ -301,7 +295,6 @@ export function createInsertSchema<
 
 	for (const [name, column] of columnEntries) {
 		if (!column.notNull) {
-			// schemaEntries[name] = schemaEntries[name]!.nullable().optional();
 			schemaEntries[name] = Type.Optional(Nullable(schemaEntries[name]!));
 		} else if (column.hasDefault) {
 			schemaEntries[name] = Type.Optional(schemaEntries[name]!);
@@ -371,7 +364,9 @@ export function createSelectSchema<
 	return Type.Object(schemaEntries) as any;
 }
 
-function isWithEnum(column: AnyColumn): column is typeof column & WithEnum {
+function isWithEnum(
+	column: AnyColumn
+): column is typeof column & { enumValues: [string, ...string[]] } {
 	return (
 		'enumValues' in column &&
 		Array.isArray(column.enumValues) &&
@@ -382,102 +377,33 @@ function isWithEnum(column: AnyColumn): column is typeof column & WithEnum {
 const uuidPattern =
 	/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
-function mapColumnToSchema(column: AnyColumn): TSchema {
+function mapColumnToSchema(column: Column): TSchema {
 	let type: TSchema | undefined;
 
 	if (isWithEnum(column)) {
-		type = column.enumValues.length
+		type = column.enumValues?.length
 			? Type.Union(column.enumValues.map((value) => Type.Literal(value)))
 			: Type.String();
 	}
 
 	if (!type) {
-		if (
-			is(column, PgCustomColumn) ||
-			is(column, SQLiteCustomColumn) ||
-			is(column, MySqlCustomColumn)
-		) {
+		if (column.dataType === 'custom') {
 			type = Type.Any();
-		} else if (
-			is(column, PgJson) ||
-			is(column, PgJsonb) ||
-			is(column, SQLiteBlobJson) ||
-			is(column, MySqlJson)
-		) {
-			// @ts-ignore
+		} else if (column.dataType === 'json') {
 			type = jsonSchema;
-		} else if (is(column, PgArray)) {
-			type = Type.Array(mapColumnToSchema(column.baseColumn));
-		} else if (
-			is(column, PgBigInt53) ||
-			is(column, PgInteger) ||
-			is(column, PgSmallInt) ||
-			is(column, PgSerial) ||
-			is(column, PgBigSerial53) ||
-			is(column, PgSmallSerial) ||
-			is(column, PgDoublePrecision) ||
-			is(column, PgReal) ||
-			is(column, SQLiteInteger) ||
-			is(column, SQLiteReal) ||
-			is(column, MySqlInt) ||
-			is(column, MySqlBigInt53) ||
-			is(column, MySqlDouble) ||
-			is(column, MySqlFloat) ||
-			is(column, MySqlMediumInt) ||
-			is(column, MySqlSmallInt) ||
-			is(column, MySqlTinyInt) ||
-			is(column, MySqlSerial) ||
-			is(column, MySqlReal) ||
-			is(column, MySqlYear)
-		) {
+		} else if (column.dataType === 'array') {
+			type = Type.Array(
+				mapColumnToSchema((column as PgArray<any, any>).baseColumn)
+			);
+		} else if (column.dataType === 'number') {
 			type = Type.Number();
-		} else if (
-			is(column, PgBigInt64) ||
-			is(column, PgBigSerial64) ||
-			is(column, MySqlBigInt64) ||
-			is(column, SQLiteBigInt)
-		) {
+		} else if (column.dataType === 'bigint') {
 			type = Type.BigInt();
-		} else if (
-			is(column, PgBoolean) ||
-			is(column, MySqlBoolean) ||
-			is(column, SQLiteBoolean)
-		) {
+		} else if (column.dataType === 'boolean') {
 			type = Type.Boolean();
-		} else if (
-			is(column, PgDate) ||
-			is(column, PgTimestamp) ||
-			is(column, SQLiteTimestamp) ||
-			is(column, MySqlDate) ||
-			is(column, MySqlDateTime) ||
-			is(column, MySqlTimestamp)
-		) {
+		} else if (column.dataType === 'date') {
 			type = Type.Date();
-		} else if (
-			is(column, PgInterval) ||
-			is(column, PgNumeric) ||
-			is(column, PgChar) ||
-			is(column, PgCidr) ||
-			is(column, PgInet) ||
-			is(column, PgMacaddr) ||
-			is(column, PgMacaddr8) ||
-			is(column, PgText) ||
-			is(column, PgTime) ||
-			is(column, PgDateString) ||
-			is(column, PgVarchar) ||
-			is(column, SQLiteNumeric) ||
-			is(column, SQLiteText) ||
-			is(column, MySqlDateString) ||
-			is(column, MySqlDateTimeString) ||
-			is(column, MySqlDecimal) ||
-			is(column, MySqlText) ||
-			is(column, MySqlTime) ||
-			is(column, MySqlTimestampString) ||
-			is(column, MySqlVarChar) ||
-			is(column, MySqlBinary) ||
-			is(column, MySqlVarBinary) ||
-			is(column, MySqlChar)
-		) {
+		} else if (column.dataType === 'string') {
 			let sType = Type.String();
 
 			if (
