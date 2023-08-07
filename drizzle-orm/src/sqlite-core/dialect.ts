@@ -280,7 +280,7 @@ export abstract class SQLiteDialect {
 		// const colEntries: [string, SQLiteColumn][] = isSingleValue
 		// 	? Object.keys(values[0]!).map((fieldName) => [fieldName, columns[fieldName]!])
 		// 	: Object.entries(columns);
-		const colEntries: [string, AnySQLiteColumn][] = Object.entries(columns);
+		const colEntries: [string, SQLiteColumn][] = Object.entries(columns);
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 
 		for (const [valueIndex, value] of values.entries()) {
