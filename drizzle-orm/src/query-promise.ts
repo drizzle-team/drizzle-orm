@@ -1,4 +1,8 @@
+import { entityKind } from '~/entity';
+
 export abstract class QueryPromise<T> implements Promise<T> {
+	static readonly [entityKind]: string = 'QueryPromise';
+
 	[Symbol.toStringTag] = 'QueryPromise';
 
 	catch<TResult = never>(
@@ -15,7 +19,7 @@ export abstract class QueryPromise<T> implements Promise<T> {
 			},
 			(reason) => {
 				onFinally?.();
-				return Promise.reject(reason);
+				throw reason;
 			},
 		);
 	}

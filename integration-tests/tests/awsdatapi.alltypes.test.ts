@@ -55,9 +55,9 @@ export const allColumns = pgTable('all_columns', {
 	decimal: decimal('decimal', { precision: 100, scale: 2 }),
 	decimaldef: decimal('decimaldef', { precision: 100, scale: 2 }).default('100.0'),
 	doublePrecision: doublePrecision('doublePrecision'),
-	doublePrecisiondef: doublePrecision('doublePrecisiondef').default(100.0),
+	doublePrecisiondef: doublePrecision('doublePrecisiondef').default(100),
 	real: real('real'),
-	realdef: real('realdef').default(100.0),
+	realdef: real('realdef').default(100),
 	json: json('json').$type<{ attr: string }>(),
 	jsondef: json('jsondef').$type<{ attr: string }>().default({ attr: 'value' }),
 	jsonb: jsonb('jsonb').$type<{ attr: string }>(),
@@ -99,47 +99,49 @@ test.before(async (t) => {
 		// logger: new DefaultLogger(),
 	});
 
-	await ctx.db.execute(sql`CREATE TABLE IF NOT EXISTS "all_columns" (
-		"smallint" smallint,
-		"smallint_def" smallint DEFAULT 10,
-		"integer" integer,
-		"integer_def" integer DEFAULT 10,
-		"numeric" numeric,
-		"numeric2" numeric(5),
-		"numeric3" numeric,
-		"numeric4" numeric(5, 2),
-		"numeridef" numeric DEFAULT '100',
-		"bigint" bigint,
-		"bigintdef" bigint DEFAULT 100,
-		"boolean" boolean,
-		"boolean_def" boolean DEFAULT true,
-		"text" text,
-		"textdef" text DEFAULT 'text',
-		"varchar" varchar,
-		"varchardef" varchar DEFAULT 'text',
-		"serial" serial,
-		"bigserial" bigserial,
-		"decimal" numeric(100, 2),
-		"decimaldef" numeric(100, 2) DEFAULT '100.0',
-		"doublePrecision" double precision,
-		"doublePrecisiondef" double precision DEFAULT 100,
-		"real" real,
-		"realdef" real DEFAULT 100,
-		"json" json,
-		"jsondef" json DEFAULT '{"attr":"value"}'::json,
-		"jsonb" jsonb,
-		"jsonbdef" jsonb DEFAULT '{"attr":"value"}'::jsonb,
-		"time" time,
-		"time2" time,
-		"timedefnow" time DEFAULT now(),
-		"timestamp" timestamp,
-		"timestamp2" timestamp (6) with time zone,
-		"timestamp3" timestamp with time zone,
-		"timestamp4" timestamp (4),
-		"timestampdef" timestamp DEFAULT now(),
-		"date" date,
-		"datedef" date DEFAULT now()
-	)`);
+	await ctx.db.execute(sql`
+		CREATE TABLE IF NOT EXISTS "all_columns" (
+			"smallint" smallint,
+			"smallint_def" smallint DEFAULT 10,
+			"integer" integer,
+			"integer_def" integer DEFAULT 10,
+			"numeric" numeric,
+			"numeric2" numeric(5),
+			"numeric3" numeric,
+			"numeric4" numeric(5, 2),
+			"numeridef" numeric DEFAULT '100',
+			"bigint" bigint,
+			"bigintdef" bigint DEFAULT 100,
+			"boolean" boolean,
+			"boolean_def" boolean DEFAULT true,
+			"text" text,
+			"textdef" text DEFAULT 'text',
+			"varchar" varchar,
+			"varchardef" varchar DEFAULT 'text',
+			"serial" serial,
+			"bigserial" bigserial,
+			"decimal" numeric(100, 2),
+			"decimaldef" numeric(100, 2) DEFAULT '100.0',
+			"doublePrecision" double precision,
+			"doublePrecisiondef" double precision DEFAULT 100,
+			"real" real,
+			"realdef" real DEFAULT 100,
+			"json" json,
+			"jsondef" json DEFAULT '{"attr":"value"}'::json,
+			"jsonb" jsonb,
+			"jsonbdef" jsonb DEFAULT '{"attr":"value"}'::jsonb,
+			"time" time,
+			"time2" time,
+			"timedefnow" time DEFAULT now(),
+			"timestamp" timestamp,
+			"timestamp2" timestamp (6) with time zone,
+			"timestamp3" timestamp with time zone,
+			"timestamp4" timestamp (4),
+			"timestampdef" timestamp DEFAULT now(),
+			"date" date,
+			"datedef" date DEFAULT now()
+		)
+	`);
 
 	const now = new Date();
 
@@ -336,7 +338,7 @@ test.serial('[double precision] type with default', async (t) => {
 	const { row } = t.context;
 
 	t.assert(typeof row.doublePrecisiondef === 'number');
-	t.is(row.doublePrecisiondef, 100.0);
+	t.is(row.doublePrecisiondef, 100);
 });
 
 test.serial('[real] type', async (t) => {
@@ -350,7 +352,7 @@ test.serial('[real] type with default', async (t) => {
 	const { row } = t.context;
 
 	t.assert(typeof row.realdef === 'number');
-	t.is(row.realdef, 100.0);
+	t.is(row.realdef, 100);
 });
 
 test.serial('[json] type', async (t) => {
@@ -392,17 +394,17 @@ test.serial('[time] type', async (t) => {
 test.serial('[timestamp] type with default', async (t) => {
 	const { row } = t.context;
 
-	t.assert(row.timestamp instanceof Date);
-	t.assert(row.timestamp2 instanceof Date);
-	t.assert(row.timestamp3 instanceof Date);
-	t.assert(row.timestamp4 instanceof Date);
-	t.assert(row.timestampdef instanceof Date);
+	t.assert(row.timestamp instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
+	t.assert(row.timestamp2 instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
+	t.assert(row.timestamp3 instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
+	t.assert(row.timestamp4 instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
+	t.assert(row.timestampdef instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 });
 
 test.serial('[date] type with default', async (t) => {
 	const { row } = t.context;
 
-	t.assert(row.date instanceof Date);
+	t.assert(row.date instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	t.assert(typeof row.datedef === 'string');
 });
 
@@ -476,20 +478,22 @@ test.serial('select from enum', async (t) => {
 		} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,
 	);
 	await db.execute(sql`create type ${name(categoryEnum.enumName)} as enum ('upper_body', 'lower_body', 'full_body')`);
-	await db.execute(sql`create table ${exercises} (
-		id serial primary key,
-		name varchar not null,
-		force force,
-		level level,
-		mechanic mechanic,
-		equipment equipment,
-		instructions text,
-		category category,
-		primary_muscles muscle[],
-		secondary_muscles muscle[],
-		created_at timestamp not null default now(),
-		updated_at timestamp not null default now()
-	)`);
+	await db.execute(sql`
+		create table ${exercises} (
+			id serial primary key,
+			name varchar not null,
+			force force,
+			level level,
+			mechanic mechanic,
+			equipment equipment,
+			instructions text,
+			category category,
+			primary_muscles muscle[],
+			secondary_muscles muscle[],
+			created_at timestamp not null default now(),
+			updated_at timestamp not null default now()
+		)
+	`);
 
 	await db.insert(exercises).values({
 		name: 'Bench Press',

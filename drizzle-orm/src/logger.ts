@@ -1,3 +1,5 @@
+import { entityKind } from '~/entity';
+
 export interface Logger {
 	logQuery(query: string, params: unknown[]): void;
 }
@@ -7,23 +9,27 @@ export interface LogWriter {
 }
 
 export class ConsoleLogWriter implements LogWriter {
+	static readonly [entityKind]: string = 'ConsoleLogWriter';
+
 	write(message: string) {
 		console.log(message);
 	}
 }
 
 export class DefaultLogger implements Logger {
+	static readonly [entityKind]: string = 'DefaultLogger';
+
 	readonly writer: LogWriter;
 
-	constructor(config: { writer: LogWriter } = { writer: new ConsoleLogWriter() }) {
-		this.writer = config.writer;
+	constructor(config?: { writer: LogWriter }) {
+		this.writer = config?.writer ?? new ConsoleLogWriter();
 	}
 
 	logQuery(query: string, params: unknown[]): void {
 		const stringifiedParams = params.map((p) => {
 			try {
 				return JSON.stringify(p);
-			} catch (e) {
+			} catch {
 				return String(p);
 			}
 		});
@@ -33,5 +39,9 @@ export class DefaultLogger implements Logger {
 }
 
 export class NoopLogger implements Logger {
-	logQuery(): void {}
+	static readonly [entityKind]: string = 'NoopLogger';
+
+	logQuery(): void {
+		// noop
+	}
 }

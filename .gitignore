@@ -1,8 +1,11 @@
 node_modules
 .vscode
 dist
+dist.new
 *.tsbuildinfo
 *.tgz
 /*.sql
 .cache
 .turbo
+.rollup.cache
+dist-dts

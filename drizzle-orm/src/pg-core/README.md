@@ -16,24 +16,22 @@ Drizzle ORM is a TypeScript ORM for SQL databases designed with maximum type saf
 | [postgres.js](https://github.com/porsager/postgres)                                              |    ✅    | [Docs](/drizzle-orm/src/postgres-js/README.md) |
 | [NeonDB Serverless](https://github.com/neondatabase/serverless)                                  |    ✅    |                                                |
 | [AWS Data API](https://github.com/aws/aws-sdk-js-v3/blob/main/clients/client-rds-data/README.md) |    ✅    |                                                |
+| [Vercel Postgres](https://vercel.com/docs/storage/vercel-postgres/quickstart)                           |   ✅    |             |
 
 ## Installation
 
 ```bash
 # npm
 npm i drizzle-orm pg
-npm i -D @types/pg
-npm i -D drizzle-kit
+npm i -D @types/pg drizzle-kit
 
 # yarn
 yarn add drizzle-orm pg
-yarn add -D @types/pg
-yarn add -D drizzle-kit
+yarn add -D @types/pg drizzle-kit
 
 # pnpm
 pnpm add drizzle-orm pg
-pnpm add -D @types/pg
-pnpm add -D drizzle-kit
+pnpm add -D @types/pg drizzle-kit
 ```
 
 ## SQL schema declaration
@@ -146,6 +144,17 @@ const db = drizzle(rdsClient, {
 });
 ```
 
+### Connect to Vercel Postgres
+
+```typescript
+import { drizzle } from 'drizzle-orm/vercel-postgres';
+import { sql } from "@vercel/postgres";
+
+const db = drizzle(sql);
+
+db.select(...)
+```
+
 ## Schema declaration
 
 This is how you declare SQL schema in `schema.ts`. You can declare tables, indexes and constraints, foreign keys and enums. Please pay attention to `export` keyword, they are mandatory if you'll be using [drizzle-kit SQL migrations generator](#migrations).
@@ -224,7 +233,7 @@ export const cities = pgTable('cities', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 256 }),
   countryId: integer('country_id').references(() => countries.id), // inline foreign key
-  countryName: varchar('country_id'),
+  countryName: varchar('country_name'),
   sisterCityId: integer('sister_city_id').references((): AnyPgColumn => cities.id), // self-referencing foreign key
 }, (cities) => {
   return {
@@ -388,7 +397,7 @@ Querying, sorting and filtering. We also support partial select.
 ...
 import { pgTable, serial, text, varchar } from 'drizzle-orm/pg-core';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { and, asc, desc, eq, or } from 'drizzle-orm/expressions';
+import { and, asc, desc, eq, or } from 'drizzle-orm';
 
 const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -658,7 +667,7 @@ const users = pgTable('users', {
   cityId: integer('city_id').references(() => cities.id),
 });
 
-const result = db.select().from(cities).leftJoin(users, eq(cities2.id, users2.cityId));
+const result = db.select().from(cities).leftJoin(users, eq(cities.id, users.cityId));
 ```
 
 #### Many-to-many
@@ -1031,7 +1040,7 @@ const db = drizzle(pool, { logger });
 You can also create a custom logger:
 
 ```typescript
-import { Logger } from 'drizzle-orm/logger';
+import { Logger } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 
 class MyLogger implements Logger {

@@ -31,7 +31,7 @@ import {
 } from 'drizzle-orm/mysql-core';
 import { z } from 'zod';
 import { createInsertSchema, createSelectSchema, jsonSchema } from '~/index';
-import { assertSchemasEqual } from './utils';
+import { expectSchemaShape } from './utils';
 
 const customInt = customType<{ data: number }>({
 	dataType() {
@@ -44,7 +44,7 @@ const testTable = mysqlTable('test', {
 	bigintNumber: bigint('bigintNumber', { mode: 'number' }).notNull(),
 	binary: binary('binary').notNull(),
 	boolean: boolean('boolean').notNull(),
-	char: char('char').notNull(),
+	char: char('char', { length: 4 }).notNull(),
 	charEnum: char('char', { enum: ['a', 'b', 'c'] }).notNull(),
 	customInt: customInt('customInt').notNull(),
 	date: date('date').notNull(),
@@ -75,8 +75,74 @@ const testTable = mysqlTable('test', {
 	tinyint: tinyint('tinyint').notNull(),
 	varbinary: varbinary('varbinary', { length: 200 }).notNull(),
 	varchar: varchar('varchar', { length: 200 }).notNull(),
-	varcharEnum: varchar('varcharEnum', { length: 200, enum: ['a', 'b', 'c'] }).notNull(),
+	varcharEnum: varchar('varcharEnum', { length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 	year: year('year').notNull(),
+	autoIncrement: int('autoIncrement').notNull().autoincrement(),
+});
+
+const testTableRow = {
+	bigint: BigInt(1),
+	bigintNumber: 1,
+	binary: 'binary',
+	boolean: true,
+	char: 'char',
+	charEnum: 'a',
+	customInt: { data: 1 },
+	date: new Date(),
+	dateString: new Date().toISOString(),
+	datetime: new Date(),
+	datetimeString: new Date().toISOString(),
+	decimal: '1.1',
+	double: 1.1,
+	enum: 'a',
+	float: 1.1,
+	int: 1,
+	json: { data: 1 },
+	mediumint: 1,
+	real: 1.1,
+	serial: 1,
+	smallint: 1,
+	text: 'text',
+	textEnum: 'a',
+	tinytext: 'tinytext',
+	tinytextEnum: 'a',
+	mediumtext: 'mediumtext',
+	mediumtextEnum: 'a',
+	longtext: 'longtext',
+	longtextEnum: 'a',
+	time: '00:00:00',
+	timestamp: new Date(),
+	timestampString: new Date().toISOString(),
+	tinyint: 1,
+	varbinary: 'A'.repeat(200),
+	varchar: 'A'.repeat(200),
+	varcharEnum: 'a',
+	year: 2021,
+	autoIncrement: 1,
+};
+
+test('insert valid row', (t) => {
+	const schema = createInsertSchema(testTable);
+
+	t.is(schema.safeParse(testTableRow).success, true);
+});
+
+test('insert invalid varchar length', (t) => {
+	const schema = createInsertSchema(testTable);
+
+	t.is(schema.safeParse({ ...testTableRow, varchar: 'A'.repeat(201) }).success, false);
+});
+
+test('insert smaller char length should work', (t) => {
+	const schema = createInsertSchema(testTable);
+
+	t.is(schema.safeParse({ ...testTableRow, char: 'abc' }).success, true);
+});
+
+test('insert larger char length should fail', (t) => {
+	const schema = createInsertSchema(testTable);
+
+	t.is(schema.safeParse({ ...testTableRow, char: 'abcde' }).success, false);
 });
 
 test('insert schema', (t) => {
@@ -87,7 +153,7 @@ test('insert schema', (t) => {
 		bigintNumber: z.number(),
 		binary: z.string(),
 		boolean: z.boolean(),
-		char: z.string(),
+		char: z.string().length(4),
 		charEnum: z.enum(['a', 'b', 'c']),
 		customInt: z.any(),
 		date: z.date(),
@@ -116,13 +182,14 @@ test('insert schema', (t) => {
 		timestamp: z.date(),
 		timestampString: z.string(),
 		tinyint: z.number(),
-		varbinary: z.string(),
-		varchar: z.string(),
+		varbinary: z.string().max(200),
+		varchar: z.string().max(200),
 		varcharEnum: z.enum(['a', 'b', 'c']),
 		year: z.number(),
+		autoIncrement: z.number().optional(),
 	});
 
-	assertSchemasEqual(t, actual, expected);
+	expectSchemaShape(t, expected).from(actual);
 });
 
 test('select schema', (t) => {
@@ -133,7 +200,7 @@ test('select schema', (t) => {
 		bigintNumber: z.number(),
 		binary: z.string(),
 		boolean: z.boolean(),
-		char: z.string(),
+		char: z.string().length(4),
 		charEnum: z.enum(['a', 'b', 'c']),
 		customInt: z.any(),
 		date: z.date(),
@@ -162,11 +229,61 @@ test('select schema', (t) => {
 		timestamp: z.date(),
 		timestampString: z.string(),
 		tinyint: z.number(),
-		varbinary: z.string(),
-		varchar: z.string(),
+		varbinary: z.string().max(200),
+		varchar: z.string().max(200),
 		varcharEnum: z.enum(['a', 'b', 'c']),
 		year: z.number(),
+		autoIncrement: z.number(),
 	});
 
-	assertSchemasEqual(t, actual, expected);
+	expectSchemaShape(t, expected).from(actual);
+});
+
+test('select schema w/ refine', (t) => {
+	const actual = createSelectSchema(testTable, {
+		bigint: (schema) => schema.bigint.positive(),
+	});
+
+	const expected = z.object({
+		bigint: z.bigint().positive(),
+		bigintNumber: z.number(),
+		binary: z.string(),
+		boolean: z.boolean(),
+		char: z.string().length(5),
+		charEnum: z.enum(['a', 'b', 'c']),
+		customInt: z.any(),
+		date: z.date(),
+		dateString: z.string(),
+		datetime: z.date(),
+		datetimeString: z.string(),
+		decimal: z.string(),
+		double: z.number(),
+		enum: z.enum(['a', 'b', 'c']),
+		float: z.number(),
+		int: z.number(),
+		json: jsonSchema,
+		mediumint: z.number(),
+		real: z.number(),
+		serial: z.number(),
+		smallint: z.number(),
+		text: z.string(),
+		textEnum: z.enum(['a', 'b', 'c']),
+		tinytext: z.string(),
+		tinytextEnum: z.enum(['a', 'b', 'c']),
+		mediumtext: z.string(),
+		mediumtextEnum: z.enum(['a', 'b', 'c']),
+		longtext: z.string(),
+		longtextEnum: z.enum(['a', 'b', 'c']),
+		time: z.string(),
+		timestamp: z.date(),
+		timestampString: z.string(),
+		tinyint: z.number(),
+		varbinary: z.string().max(200),
+		varchar: z.string().max(200),
+		varcharEnum: z.enum(['a', 'b', 'c']),
+		year: z.number(),
+		autoIncrement: z.number(),
+	});
+
+	expectSchemaShape(t, expected).from(actual);
 });

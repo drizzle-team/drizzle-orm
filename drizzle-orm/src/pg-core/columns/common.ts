@@ -1,13 +1,21 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
+import type { ColumnBaseConfig } from '~/column';
 import { Column } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type {
+	ColumnBuilderBaseConfig,
+	ColumnBuilderExtraConfig,
+	ColumnBuilderRuntimeConfig,
+	ColumnDataType,
+	MakeColumnConfig,
+} from '~/column-builder';
 import { ColumnBuilder } from '~/column-builder';
-import type { Assume, Update } from '~/utils';
+import { entityKind } from '~/entity';
+import { iife, type Update } from '~/utils';
 
 import type { ForeignKey, UpdateDeleteAction } from '~/pg-core/foreign-keys';
 import { ForeignKeyBuilder } from '~/pg-core/foreign-keys';
-import type { AnyPgTable } from '~/pg-core/table';
-import type { PgArrayBuilder } from './array';
+import type { AnyPgTable, PgTable } from '~/pg-core/table';
+import { uniqueKeyName } from '../unique-constraint';
+import { PgArrayBuilder } from './array';
 
 export interface ReferenceConfig {
 	ref: () => AnyPgColumn;
@@ -17,34 +25,29 @@ export interface ReferenceConfig {
 	};
 }
 
-export interface PgColumnBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgColumnBuilder<PgColumnBuilderHKT, Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgColumnHKT;
-}
-
-export interface PgColumnHKT extends ColumnHKTBase {
-	_type: PgColumn<PgColumnHKT, Assume<this['config'], ColumnBaseConfig>>;
-}
-
 export abstract class PgColumnBuilder<
-	THKT extends ColumnBuilderHKTBase,
-	T extends ColumnBuilderBaseConfig,
-	TRuntimeConfig extends object = {},
-	TTypeConfig extends object = {},
-> extends ColumnBuilder<THKT, T, TRuntimeConfig, TTypeConfig & { pgBrand: 'PgColumnBuilder' }> {
+	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
+	TRuntimeConfig extends object = object,
+	TTypeConfig extends object = object,
+	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
+> extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'pg' }, TExtraConfig> {
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
+	static readonly [entityKind]: string = 'PgColumnBuilder';
+
 	array(size?: number): PgArrayBuilder<
-		{
-			name: NonNullable<T['name']>;
-			notNull: NonNullable<T['notNull']>;
-			hasDefault: NonNullable<T['hasDefault']>;
+		& {
+			name: T['name'];
+			dataType: 'array';
+			columnType: 'PgArray';
 			data: T['data'][];
 			driverParam: T['driverParam'][] | string;
+			enumValues: T['enumValues'];
 		}
+		& (T extends { notNull: true } ? { notNull: true } : {})
+		& (T extends { hasDefault: true } ? { hasDefault: true } : {}),
+		T
 	> {
-		// Required to avoid circular dependency
-		const { PgArrayBuilder } = require('./array') as typeof import('./array');
 		return new PgArrayBuilder(this.config.name, this as PgColumnBuilder<any, any>, size);
 	}
 
@@ -56,49 +59,66 @@ export abstract class PgColumnBuilder<
 		return this;
 	}
 
+	unique(
+		name?: string,
+		config?: { nulls: 'distinct' | 'not distinct' },
+	): this {
+		this.config.isUnique = true;
+		this.config.uniqueName = name;
+		this.config.uniqueType = config?.nulls;
+		return this;
+	}
+
 	/** @internal */
-	buildForeignKeys(column: AnyPgColumn, table: AnyPgTable): ForeignKey[] {
+	buildForeignKeys(column: PgColumn, table: PgTable): ForeignKey[] {
 		return this.foreignKeyConfigs.map(({ ref, actions }) => {
-			return ((ref, actions) => {
-				const builder = new ForeignKeyBuilder(() => {
-					const foreignColumn = ref();
-					return { columns: [column], foreignColumns: [foreignColumn] };
-				});
-				if (actions.onUpdate) {
-					builder.onUpdate(actions.onUpdate);
-				}
-				if (actions.onDelete) {
-					builder.onDelete(actions.onDelete);
-				}
-				return builder.build(table);
-			})(ref, actions);
+			return iife(
+				(ref, actions) => {
+					const builder = new ForeignKeyBuilder(() => {
+						const foreignColumn = ref();
+						return { columns: [column], foreignColumns: [foreignColumn] };
+					});
+					if (actions.onUpdate) {
+						builder.onUpdate(actions.onUpdate);
+					}
+					if (actions.onDelete) {
+						builder.onDelete(actions.onDelete);
+					}
+					return builder.build(table);
+				},
+				ref,
+				actions,
+			);
 		});
 	}
 
 	/** @internal */
 	abstract build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
-	): PgColumn<
-		Assume<THKT['_columnHKT'], ColumnHKTBase>,
-		MakeColumnConfig<T, TTableName>
-	>;
+	): PgColumn<MakeColumnConfig<T, TTableName>>;
 }
 
-export type AnyPgColumnBuilder<TPartial extends Partial<ColumnBuilderBaseConfig> = {}> = PgColumnBuilder<
-	PgColumnBuilderHKT,
-	Required<Update<ColumnBuilderBaseConfig, TPartial>>
->;
+export type AnyPgColumnBuilder = PgColumnBuilder<ColumnBuilderBaseConfig<ColumnDataType, string>>;
 
 // To understand how to use `PgColumn` and `AnyPgColumn`, see `Column` and `AnyColumn` documentation.
 export abstract class PgColumn<
-	THKT extends ColumnHKTBase,
-	T extends ColumnBaseConfig,
+	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = {},
 	TTypeConfig extends object = {},
-> extends Column<THKT, T, TRuntimeConfig, TTypeConfig & { pgBrand: 'PgColumn' }> {
+> extends Column<T, TRuntimeConfig, TTypeConfig & { dialect: 'pg' }> {
+	static readonly [entityKind]: string = 'PgColumn';
+
+	constructor(
+		override readonly table: PgTable,
+		config: ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>,
+	) {
+		if (!config.uniqueName) {
+			config.uniqueName = uniqueKeyName(table, [config.name]);
+		}
+		super(table, config);
+	}
 }
 
-export type AnyPgColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = PgColumn<
-	PgColumnHKT,
-	Required<Update<ColumnBaseConfig, TPartial>>
+export type AnyPgColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> = PgColumn<
+	Required<Update<ColumnBaseConfig<ColumnDataType, string>, TPartial>>
 >;

@@ -132,7 +132,7 @@ test.before(async (t) => {
 	const ctx = t.context;
 	const connectionString = process.env['PG_CONNECTION_STRING'] ?? await createDockerDB(ctx);
 
-	let sleep = 250;
+	const sleep = 250;
 	let timeLeft = 5000;
 	let connected = false;
 	let lastError: unknown | undefined;
@@ -140,7 +140,9 @@ test.before(async (t) => {
 		try {
 			ctx.client = postgres(connectionString, {
 				max: 1,
-				onnotice: () => {},
+				onnotice: () => {
+					// disable notices
+				},
 			});
 			await ctx.client`select 1`;
 			connected = true;
@@ -169,48 +171,60 @@ test.beforeEach(async (t) => {
 	await ctx.db.execute(sql`drop schema public cascade`);
 	await ctx.db.execute(sql`create schema public`);
 	await ctx.db.execute(
-		sql`create table users (
-			id serial primary key,
-			name text not null,
-			verified boolean not null default false, 
-			jsonb jsonb,
-			created_at timestamptz not null default now()
-		)`,
+		sql`
+			create table users (
+				id serial primary key,
+				name text not null,
+				verified boolean not null default false, 
+				jsonb jsonb,
+				created_at timestamptz not null default now()
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table cities (
-			id serial primary key,
-			name text not null
-		)`,
+		sql`
+			create table cities (
+				id serial primary key,
+				name text not null
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table users2 (
-			id serial primary key,
-			name text not null,
-			city_id integer references cities(id)
-		)`,
+		sql`
+			create table users2 (
+				id serial primary key,
+				name text not null,
+				city_id integer references cities(id)
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table course_categories (
-			id serial primary key,
-			name text not null
-		)`,
+		sql`
+			create table course_categories (
+				id serial primary key,
+				name text not null
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table courses (
-			id serial primary key,
-			name text not null,
-			category_id integer references course_categories(id)
-		)`,
+		sql`
+			create table courses (
+				id serial primary key,
+				name text not null,
+				category_id integer references course_categories(id)
+			)
+		`,
 	);
 	await ctx.db.execute(
-		sql`create table orders (
-			id serial primary key,
-			region text not null,
-			product text not null,
-			amount integer not null,
-			quantity integer not null
-		)`,
+		sql`
+			create table orders (
+				id serial primary key,
+				region text not null,
+				product text not null,
+				amount integer not null,
+				quantity integer not null
+			)
+		`,
 	);
 });
 
@@ -222,7 +236,7 @@ test.serial('select all fields', async (t) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const result = await db.select().from(usersTable);
 
-	t.assert(result[0]!.createdAt instanceof Date);
+	t.assert(result[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 100);
 	t.deepEqual(result, [{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 });
@@ -247,6 +261,47 @@ test.serial('select typed sql', async (t) => {
 	}).from(usersTable);
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
+});
+
+test.serial('select distinct', async (t) => {
+	const { db } = t.context;
+
+	const usersDistinctTable = pgTable('users_distinct', {
+		id: integer('id').notNull(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${usersDistinctTable}`);
+	await db.execute(sql`create table ${usersDistinctTable} (id integer, name text)`);
+
+	await db.insert(usersDistinctTable).values([
+		{ id: 1, name: 'John' },
+		{ id: 1, name: 'John' },
+		{ id: 2, name: 'John' },
+		{ id: 1, name: 'Jane' },
+	]);
+	const users1 = await db.selectDistinct().from(usersDistinctTable).orderBy(
+		usersDistinctTable.id,
+		usersDistinctTable.name,
+	);
+	const users2 = await db.selectDistinctOn([usersDistinctTable.id]).from(usersDistinctTable).orderBy(
+		usersDistinctTable.id,
+	);
+	const users3 = await db.selectDistinctOn([usersDistinctTable.name], { name: usersDistinctTable.name }).from(
+		usersDistinctTable,
+	).orderBy(usersDistinctTable.name);
+
+	await db.execute(sql`drop table ${usersDistinctTable}`);
+
+	t.deepEqual(users1, [{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
+
+	t.deepEqual(users2.length, 2);
+	t.deepEqual(users2[0]?.id, 1);
+	t.deepEqual(users2[1]?.id, 2);
+
+	t.deepEqual(users3.length, 2);
+	t.deepEqual(users3[0]?.name, 'Jane');
+	t.deepEqual(users3[1]?.name, 'John');
 });
 
 test.serial('insert returning sql', async (t) => {
@@ -289,7 +344,7 @@ test.serial('update with returning all fields', async (t) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning();
 
-	t.assert(users[0]!.createdAt instanceof Date);
+	t.assert(users[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 100);
 	t.deepEqual(users, [{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
 });
@@ -314,7 +369,7 @@ test.serial('delete with returning all fields', async (t) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.delete(usersTable).where(eq(usersTable.name, 'John')).returning();
 
-	t.assert(users[0]!.createdAt instanceof Date);
+	t.assert(users[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 100);
 	t.deepEqual(users, [{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
 });
@@ -371,12 +426,12 @@ test.serial('insert with overridden default values', async (t) => {
 test.serial('insert many', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values(
+	await db.insert(usersTable).values([
 		{ name: 'John' },
 		{ name: 'Bruce', jsonb: ['foo', 'bar'] },
 		{ name: 'Jane' },
 		{ name: 'Austin', verified: true },
-	);
+	]);
 	const result = await db.select({
 		id: usersTable.id,
 		name: usersTable.name,
@@ -395,12 +450,12 @@ test.serial('insert many', async (t) => {
 test.serial('insert many with returning', async (t) => {
 	const { db } = t.context;
 
-	const result = await db.insert(usersTable).values(
+	const result = await db.insert(usersTable).values([
 		{ name: 'John' },
 		{ name: 'Bruce', jsonb: ['foo', 'bar'] },
 		{ name: 'Jane' },
 		{ name: 'Austin', verified: true },
-	)
+	])
 		.returning({
 			id: usersTable.id,
 			name: usersTable.name,
@@ -419,7 +474,7 @@ test.serial('insert many with returning', async (t) => {
 test.serial('select with group by as field', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.name);
@@ -430,7 +485,7 @@ test.serial('select with group by as field', async (t) => {
 test.serial('select with group by as sql', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(sql`${usersTable.name}`);
@@ -441,7 +496,7 @@ test.serial('select with group by as sql', async (t) => {
 test.serial('select with group by as sql + column', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(sql`${usersTable.name}`, usersTable.id);
@@ -452,7 +507,7 @@ test.serial('select with group by as sql + column', async (t) => {
 test.serial('select with group by as column + sql', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.id, sql`${usersTable.name}`);
@@ -463,7 +518,7 @@ test.serial('select with group by as column + sql', async (t) => {
 test.serial('select with group by complex query', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.id, sql`${usersTable.name}`)
@@ -498,7 +553,7 @@ test.serial('partial join with alias', async (t) => {
 	const { db } = t.context;
 	const customerAlias = alias(usersTable, 'customer');
 
-	await db.insert(usersTable).values({ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' });
+	await db.insert(usersTable).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
 	const result = await db
 		.select({
 			user: {
@@ -522,9 +577,9 @@ test.serial('partial join with alias', async (t) => {
 test.serial('full join with alias', async (t) => {
 	const { db } = t.context;
 
-	const sqliteTable = pgTableCreator((name) => `prefixed_${name}`);
+	const pgTable = pgTableCreator((name) => `prefixed_${name}`);
 
-	const users = sqliteTable('users', {
+	const users = pgTable('users', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
 	});
@@ -542,6 +597,43 @@ test.serial('full join with alias', async (t) => {
 
 	t.deepEqual(result, [{
 		users: {
+			id: 10,
+			name: 'Ivan',
+		},
+		customer: {
+			id: 11,
+			name: 'Hans',
+		},
+	}]);
+
+	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('select from alias', async (t) => {
+	const { db } = t.context;
+
+	const pgTable = pgTableCreator((name) => `prefixed_${name}`);
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
+
+	const user = alias(users, 'user');
+	const customers = alias(users, 'customer');
+
+	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
+	const result = await db
+		.select()
+		.from(user)
+		.leftJoin(customers, eq(customers.id, 11))
+		.where(eq(user.id, 10));
+
+	t.deepEqual(result, [{
+		user: {
 			id: 10,
 			name: 'Ivan',
 		},
@@ -575,6 +667,44 @@ test.serial('prepared statement', async (t) => {
 	const result = await statement.execute();
 
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('prepared statement with placeholder in .limit', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values({ name: 'John' });
+	const stmt = db
+		.select({
+			id: usersTable.id,
+			name: usersTable.name,
+		})
+		.from(usersTable)
+		.where(eq(usersTable.id, placeholder('id')))
+		.limit(placeholder('limit'))
+		.prepare('stmt_limit');
+
+	const result = await stmt.execute({ id: 1, limit: 1 });
+
+	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+	t.is(result.length, 1);
+});
+
+test.serial('prepared statement with placeholder in .offset', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]);
+	const stmt = db
+		.select({
+			id: usersTable.id,
+			name: usersTable.name,
+		})
+		.from(usersTable)
+		.offset(placeholder('offset'))
+		.prepare('stmt_offset');
+
+	const result = await stmt.execute({ offset: 1 });
+
+	t.deepEqual(result, [{ id: 2, name: 'John1' }]);
 });
 
 test.serial('prepared statement reuse', async (t) => {
@@ -672,6 +802,90 @@ test.serial('insert via db.execute w/ query builder', async (t) => {
 	t.deepEqual(Array.prototype.slice.call(result), [{ id: 1, name: 'John' }]);
 });
 
+test.serial('Query check: Insert all defaults in 1 row', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	const query = db
+		.insert(users)
+		.values({})
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: 'insert into "users" ("id", "name", "state") values (default, default, default)',
+		params: [],
+	});
+});
+
+test.serial('Query check: Insert all defaults in multiple rows', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state').default('UA'),
+	});
+
+	const query = db
+		.insert(users)
+		.values([{}, {}])
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: 'insert into "users" ("id", "name", "state") values (default, default, default), (default, default, default)',
+		params: [],
+	});
+});
+
+test.serial('Insert all defaults in 1 row', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('empty_insert_single', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial primary key, name text default 'Dan', state text)`,
+	);
+
+	await db.insert(users).values({});
+
+	const res = await db.select().from(users);
+
+	t.deepEqual(res, [{ id: 1, name: 'Dan', state: null }]);
+});
+
+test.serial('Insert all defaults in multiple rows', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('empty_insert_multiple', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial primary key, name text default 'Dan', state text)`,
+	);
+
+	await db.insert(users).values([{}, {}])
+
+	const res = await db.select().from(users);
+
+	t.deepEqual(res, [{ id: 1, name: 'Dan', state: null }, { id: 2, name: 'Dan', state: null }]);
+});
+
 test.serial('build query insert with onConflict do update', async (t) => {
 	const { db } = t.context;
 
@@ -681,7 +895,7 @@ test.serial('build query insert with onConflict do update', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id") do update set "name" = $3',
+		sql: 'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do update set "name" = $3',
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
@@ -695,7 +909,7 @@ test.serial('build query insert with onConflict do update / multiple columns', a
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id","name") do update set "name" = $3',
+		sql: 'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
@@ -709,7 +923,7 @@ test.serial('build query insert with onConflict do nothing', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict do nothing',
+		sql: 'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict do nothing',
 		params: ['John', '["foo","bar"]'],
 	});
 });
@@ -723,7 +937,7 @@ test.serial('build query insert with onConflict do nothing + target', async (t) 
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id") do nothing',
+		sql: 'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
 		params: ['John', '["foo","bar"]'],
 	});
 });
@@ -783,10 +997,10 @@ test.serial('left join (flat object fields)', async (t) => {
 	const { db } = t.context;
 
 	const { id: cityId } = await db.insert(citiesTable)
-		.values({ name: 'Paris' }, { name: 'London' })
+		.values([{ name: 'Paris' }, { name: 'London' }])
 		.returning({ id: citiesTable.id }).then((rows) => rows[0]!);
 
-	await db.insert(users2Table).values({ name: 'John', cityId }, { name: 'Jane' });
+	await db.insert(users2Table).values([{ name: 'John', cityId }, { name: 'Jane' }]);
 
 	const res = await db.select({
 		userId: users2Table.id,
@@ -806,10 +1020,10 @@ test.serial('left join (grouped fields)', async (t) => {
 	const { db } = t.context;
 
 	const { id: cityId } = await db.insert(citiesTable)
-		.values({ name: 'Paris' }, { name: 'London' })
+		.values([{ name: 'Paris' }, { name: 'London' }])
 		.returning({ id: citiesTable.id }).then((rows) => rows[0]!);
 
-	await db.insert(users2Table).values({ name: 'John', cityId }, { name: 'Jane' });
+	await db.insert(users2Table).values([{ name: 'John', cityId }, { name: 'Jane' }]);
 
 	const res = await db.select({
 		id: users2Table.id,
@@ -843,10 +1057,10 @@ test.serial('left join (all fields)', async (t) => {
 	const { db } = t.context;
 
 	const { id: cityId } = await db.insert(citiesTable)
-		.values({ name: 'Paris' }, { name: 'London' })
+		.values([{ name: 'Paris' }, { name: 'London' }])
 		.returning({ id: citiesTable.id }).then((rows) => rows[0]!);
 
-	await db.insert(users2Table).values({ name: 'John', cityId }, { name: 'Jane' });
+	await db.insert(users2Table).values([{ name: 'John', cityId }, { name: 'Jane' }]);
 
 	const res = await db.select().from(users2Table)
 		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id));
@@ -877,19 +1091,19 @@ test.serial('left join (all fields)', async (t) => {
 test.serial('join subquery', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(courseCategoriesTable).values(
+	await db.insert(courseCategoriesTable).values([
 		{ name: 'Category 1' },
 		{ name: 'Category 2' },
 		{ name: 'Category 3' },
 		{ name: 'Category 4' },
-	);
+	]);
 
-	await db.insert(coursesTable).values(
+	await db.insert(coursesTable).values([
 		{ name: 'Development', categoryId: 2 },
 		{ name: 'IT & Software', categoryId: 3 },
 		{ name: 'Marketing', categoryId: 4 },
 		{ name: 'Design', categoryId: 1 },
-	);
+	]);
 
 	const sq2 = db
 		.select({
@@ -921,7 +1135,7 @@ test.serial('join subquery', async (t) => {
 test.serial('with ... select', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(orders).values(
+	await db.insert(orders).values([
 		{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
 		{ region: 'Europe', product: 'A', amount: 20, quantity: 2 },
 		{ region: 'Europe', product: 'B', amount: 20, quantity: 2 },
@@ -930,7 +1144,7 @@ test.serial('with ... select', async (t) => {
 		{ region: 'US', product: 'A', amount: 40, quantity: 4 },
 		{ region: 'US', product: 'B', amount: 40, quantity: 4 },
 		{ region: 'US', product: 'B', amount: 50, quantity: 5 },
-	);
+	]);
 
 	const regionalSales = db
 		.$with('regional_sales')
@@ -1003,7 +1217,7 @@ test.serial('with ... select', async (t) => {
 test.serial('select from subquery sql', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(users2Table).values({ name: 'John' }, { name: 'Jane' });
+	await db.insert(users2Table).values([{ name: 'John' }, { name: 'Jane' }]);
 
 	const sq = db
 		.select({ name: sql<string>`${users2Table.name} || ' modified'`.as('name') })
@@ -1032,7 +1246,7 @@ test.serial('select all fields from subquery without alias', (t) => {
 test.serial('select count()', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
 
 	const res = await db.select({ count: sql`count(*)` }).from(usersTable);
 
@@ -1045,14 +1259,14 @@ test.serial('select count w/ custom mapper', async (t) => {
 	function count(value: AnyPgColumn | SQLWrapper): SQL<number>;
 	function count(value: AnyPgColumn | SQLWrapper, alias: string): SQL.Aliased<number>;
 	function count(value: AnyPgColumn | SQLWrapper, alias?: string): SQL<number> | SQL.Aliased<number> {
-		const result = sql`count(${value})`.mapWith((v) => parseInt(v, 10));
+		const result = sql`count(${value})`.mapWith(Number);
 		if (!alias) {
 			return result;
 		}
 		return result.as(alias);
 	}
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
 
 	const res = await db.select({ count: count(sql`*`) }).from(usersTable);
 
@@ -1073,6 +1287,7 @@ test.serial('select for ...', (t) => {
 
 	t.regex(
 		query.sql,
+		// eslint-disable-next-line unicorn/better-regex
 		/select ("(id|name|city_id)"(, )?){3} from "users2" for update for no key update of "users2" for no key update of "users2" skip locked for share of "users2" no wait/,
 	);
 });
@@ -1080,12 +1295,12 @@ test.serial('select for ...', (t) => {
 test.serial('having', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(citiesTable).values({ name: 'London' }, { name: 'Paris' }, { name: 'New York' });
+	await db.insert(citiesTable).values([{ name: 'London' }, { name: 'Paris' }, { name: 'New York' }]);
 
-	await db.insert(users2Table).values({ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 1 }, {
+	await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 1 }, {
 		name: 'Jack',
 		cityId: 2,
-	});
+	}]);
 
 	const result = await db
 		.select({
@@ -1134,13 +1349,13 @@ test.serial('view', async (t) => {
 
 	await db.execute(sql`create view new_yorkers as ${getViewConfig(newYorkers1).query}`);
 
-	await db.insert(citiesTable).values({ name: 'New York' }, { name: 'Paris' });
+	await db.insert(citiesTable).values([{ name: 'New York' }, { name: 'Paris' }]);
 
-	await db.insert(users2Table).values(
+	await db.insert(users2Table).values([
 		{ name: 'John', cityId: 1 },
 		{ name: 'Jane', cityId: 1 },
 		{ name: 'Jack', cityId: 2 },
-	);
+	]);
 
 	{
 		const result = await db.select().from(newYorkers1);
@@ -1197,13 +1412,13 @@ test.serial('materialized view', async (t) => {
 
 	await db.execute(sql`create materialized view ${newYorkers1} as ${getMaterializedViewConfig(newYorkers1).query}`);
 
-	await db.insert(citiesTable).values({ name: 'New York' }, { name: 'Paris' });
+	await db.insert(citiesTable).values([{ name: 'New York' }, { name: 'Paris' }]);
 
-	await db.insert(users2Table).values(
+	await db.insert(users2Table).values([
 		{ name: 'John', cityId: 1 },
 		{ name: 'Jane', cityId: 1 },
 		{ name: 'Jack', cityId: 2 },
-	);
+	]);
 
 	{
 		const result = await db.select().from(newYorkers1);
@@ -1439,20 +1654,22 @@ test.serial('select from enum', async (t) => {
 		} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,
 	);
 	await db.execute(sql`create type ${name(categoryEnum.enumName)} as enum ('upper_body', 'lower_body', 'full_body')`);
-	await db.execute(sql`create table ${exercises} (
-		id serial primary key,
-		name varchar not null,
-		force force,
-		level level,
-		mechanic mechanic,
-		equipment equipment,
-		instructions text,
-		category category,
-		primary_muscles muscle[],
-		secondary_muscles muscle[],
-		created_at timestamp not null default now(),
-		updated_at timestamp not null default now()
-	)`);
+	await db.execute(sql`
+		create table ${exercises} (
+			id serial primary key,
+			name varchar not null,
+			force force,
+			level level,
+			mechanic mechanic,
+			equipment equipment,
+			instructions text,
+			category category,
+			primary_muscles muscle[],
+			secondary_muscles muscle[],
+			created_at timestamp not null default now(),
+			updated_at timestamp not null default now()
+		)
+	`);
 
 	await db.insert(exercises).values({
 		name: 'Bench Press',
@@ -1776,5 +1993,44 @@ test.serial('join view as subquery', async (t) => {
 	]);
 
 	await db.execute(sql`drop view ${newYorkers}`);
+	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('insert undefined', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name'),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial not null primary key, name text)`,
+	);
+
+	await t.notThrowsAsync(async () => await db.insert(users).values({ name: undefined }));
+
+	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('update undefined', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name'),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial not null primary key, name text)`,
+	);
+
+	await t.throwsAsync(async () => await db.update(users).set({ name: undefined }));
+	await t.notThrowsAsync(async () => await db.update(users).set({ id: 1, name: undefined }));
+
 	await db.execute(sql`drop table ${users}`);
 });

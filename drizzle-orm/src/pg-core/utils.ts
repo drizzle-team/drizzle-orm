@@ -1,15 +1,14 @@
+import { is } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
 import { PgTable } from '~/pg-core/table';
 import { Table } from '~/table';
 import { ViewBaseConfig } from '~/view';
-import type { Check } from './checks';
-import { CheckBuilder } from './checks';
-import type { ForeignKey } from './foreign-keys';
-import { ForeignKeyBuilder } from './foreign-keys';
-import type { Index } from './indexes';
-import { IndexBuilder } from './indexes';
-import type { PrimaryKey } from './primary-keys';
-import { PrimaryKeyBuilder } from './primary-keys';
+import { type Check, CheckBuilder } from './checks';
+import { type AnyPgColumn } from './columns';
+import { type ForeignKey, ForeignKeyBuilder } from './foreign-keys';
+import { type Index, IndexBuilder } from './indexes';
+import { type PrimaryKey, PrimaryKeyBuilder } from './primary-keys';
+import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint';
 import { type PgMaterializedView, PgMaterializedViewConfig, type PgView, PgViewConfig } from './view';
 
 export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
@@ -18,24 +17,27 @@ export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
 	const checks: Check[] = [];
 	const primaryKeys: PrimaryKey[] = [];
 	const foreignKeys: ForeignKey[] = Object.values(table[PgTable.Symbol.InlineForeignKeys]);
+	const uniqueConstraints: UniqueConstraint[] = [];
 	const name = table[Table.Symbol.Name];
 	const schema = table[Table.Symbol.Schema];
 
 	const extraConfigBuilder = table[PgTable.Symbol.ExtraConfigBuilder];
 
-	if (typeof extraConfigBuilder !== 'undefined') {
+	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[Table.Symbol.Columns]);
-		Object.values(extraConfig).forEach((builder) => {
-			if (builder instanceof IndexBuilder) {
+		for (const builder of Object.values(extraConfig)) {
+			if (is(builder, IndexBuilder)) {
 				indexes.push(builder.build(table));
-			} else if (builder instanceof CheckBuilder) {
+			} else if (is(builder, CheckBuilder)) {
 				checks.push(builder.build(table));
-			} else if (builder instanceof PrimaryKeyBuilder) {
+			} else if (is(builder, UniqueConstraintBuilder)) {
+				uniqueConstraints.push(builder.build(table));
+			} else if (is(builder, PrimaryKeyBuilder)) {
 				primaryKeys.push(builder.build(table));
-			} else if (builder instanceof ForeignKeyBuilder) {
+			} else if (is(builder, ForeignKeyBuilder)) {
 				foreignKeys.push(builder.build(table));
 			}
-		});
+		}
 	}
 
 	return {
@@ -44,6 +46,7 @@ export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
 		foreignKeys,
 		checks,
 		primaryKeys,
+		uniqueConstraints,
 		name,
 		schema,
 	};
@@ -79,7 +82,7 @@ function parsePgArrayValue(arrayString: string, startFrom: number, inQuotes: boo
 		}
 
 		if (char === '"') {
-			return [arrayString.substring(startFrom, i).replace(/\\/g, ''), i + 1];
+			return [arrayString.slice(startFrom, i).replace(/\\/g, ''), i + 1];
 		}
 
 		if (inQuotes) {
@@ -87,11 +90,11 @@ function parsePgArrayValue(arrayString: string, startFrom: number, inQuotes: boo
 		}
 
 		if (char === ',' || char === '}') {
-			return [arrayString.substring(startFrom, i).replace(/\\/g, ''), i];
+			return [arrayString.slice(startFrom, i).replace(/\\/g, ''), i];
 		}
 	}
 
-	return [arrayString.substring(startFrom).replace(/\\/g, ''), arrayString.length];
+	return [arrayString.slice(startFrom).replace(/\\/g, ''), arrayString.length];
 }
 
 export function parsePgNestedArray(arrayString: string, startFrom = 0): [any[], number] {
@@ -164,3 +167,9 @@ export function makePgArray(array: any[]): string {
 		}).join(',')
 	}}`;
 }
+
+export type ColumnsWithTable<
+	TTableName extends string,
+	TForeignTableName extends string,
+	TColumns extends AnyPgColumn<{ tableName: TTableName }>[],
+> = { [Key in keyof TColumns]: AnyPgColumn<{ tableName: TForeignTableName }> };

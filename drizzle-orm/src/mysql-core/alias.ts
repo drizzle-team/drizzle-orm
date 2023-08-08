@@ -1,9 +1,9 @@
 import { TableAliasProxyHandler } from '~/alias';
 import type { BuildAliasTable } from './query-builders/select.types';
+import type { MySqlTable } from './table';
+import { type MySqlViewBase } from './view';
 
-import type { AnyMySqlTable } from './table';
-
-export function alias<TTable extends AnyMySqlTable, TAlias extends string>(
+export function alias<TTable extends MySqlTable | MySqlViewBase, TAlias extends string>(
 	table: TTable,
 	alias: TAlias,
 ): BuildAliasTable<TTable, TAlias> {

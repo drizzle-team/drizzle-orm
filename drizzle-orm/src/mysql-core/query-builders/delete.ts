@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import type { MySqlDialect } from '~/mysql-core/dialect';
 import type {
 	MySqlSession,
@@ -18,9 +19,12 @@ export interface MySqlDeleteConfig {
 	returning?: SelectedFieldsOrdered;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface MySqlDelete<
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TTable extends AnyMySqlTable,
 	TQueryResult extends QueryResultHKT,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > extends QueryPromise<QueryResultKind<TQueryResult, never>> {}
 
@@ -29,6 +33,8 @@ export class MySqlDelete<
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > extends QueryPromise<QueryResultKind<TQueryResult, never>> implements SQLWrapper {
+	static readonly [entityKind]: string = 'MySqlDelete';
+
 	private config: MySqlDeleteConfig;
 
 	constructor(
@@ -52,8 +58,8 @@ export class MySqlDelete<
 		return this.dialect.buildDeleteQuery(this.config);
 	}
 
-	toSQL(): Omit<Query, 'typings'> {
-		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+	toSQL(): { sql: Query['sql']; params: Query['params'] } {
+		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
 

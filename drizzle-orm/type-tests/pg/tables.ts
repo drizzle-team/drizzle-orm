@@ -6,31 +6,27 @@ import {
 	bigint,
 	bigserial,
 	char,
-	customType,
-	decimal,
-	type PgInteger,
-	type PgSerial,
-	type PgTableWithColumns,
-	type PgText,
-	varchar,
-} from '~/pg-core';
-import {
 	check,
 	cidr,
+	customType,
+	decimal,
 	foreignKey,
 	index,
 	inet,
 	integer,
 	macaddr,
 	macaddr8,
+	type PgColumn,
 	pgEnum,
 	pgTable,
+	type PgTableWithColumns,
 	primaryKey,
 	serial,
 	text,
 	timestamp,
 	uniqueIndex,
 	uuid,
+	varchar,
 } from '~/pg-core';
 import { pgSchema } from '~/pg-core/schema';
 import {
@@ -156,21 +152,29 @@ export const newYorkers = pgView('new_yorkers')
 Expect<
 	Equal<
 		PgViewWithSelection<'new_yorkers', false, {
-			userId: PgSerial<{
+			userId: PgColumn<{
 				tableName: 'new_yorkers';
 				name: 'id';
+				dataType: 'number';
+				columnType: 'PgSerial';
 				data: number;
 				driverParam: number;
 				notNull: true;
 				hasDefault: true;
+				enumValues: undefined;
+				baseColumn: never;
 			}>;
-			cityId: PgSerial<{
+			cityId: PgColumn<{
 				tableName: 'new_yorkers';
 				name: 'id';
+				dataType: 'number';
+				columnType: 'PgSerial';
 				data: number;
 				driverParam: number;
 				notNull: false;
 				hasDefault: true;
+				enumValues: undefined;
+				baseColumn: never;
 			}>;
 		}>,
 		typeof newYorkers
@@ -199,21 +203,29 @@ Expect<
 	Expect<
 		Equal<
 			PgViewWithSelection<'new_yorkers', false, {
-				userId: PgSerial<{
+				userId: PgColumn<{
 					tableName: 'new_yorkers';
 					name: 'id';
+					dataType: 'number';
+					columnType: 'PgSerial';
 					data: number;
 					driverParam: number;
 					notNull: true;
 					hasDefault: true;
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
-				cityId: PgSerial<{
+				cityId: PgColumn<{
 					tableName: 'new_yorkers';
 					name: 'id';
+					dataType: 'number';
+					columnType: 'PgSerial';
 					data: number;
 					driverParam: number;
 					notNull: false;
 					hasDefault: true;
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
 			}>,
 			typeof newYorkers
@@ -240,21 +252,29 @@ Expect<
 	Expect<
 		Equal<
 			PgViewWithSelection<'new_yorkers', false, {
-				userId: PgInteger<{
+				userId: PgColumn<{
 					tableName: 'new_yorkers';
 					name: 'user_id';
+					dataType: 'number';
+					columnType: 'PgInteger';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
 					notNull: true;
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
-				cityId: PgInteger<{
+				cityId: PgColumn<{
 					tableName: 'new_yorkers';
 					name: 'city_id';
+					dataType: 'number';
+					columnType: 'PgInteger';
 					notNull: false;
 					hasDefault: false;
 					data: number;
 					driverParam: string | number;
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
 			}>,
 			typeof newYorkers
@@ -281,21 +301,29 @@ Expect<
 	Expect<
 		Equal<
 			PgViewWithSelection<'new_yorkers', false, {
-				userId: PgInteger<{
+				userId: PgColumn<{
 					tableName: 'new_yorkers';
 					name: 'user_id';
+					dataType: 'number';
+					columnType: 'PgInteger';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
 					notNull: true;
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
-				cityId: PgInteger<{
+				cityId: PgColumn<{
 					tableName: 'new_yorkers';
 					name: 'city_id';
+					dataType: 'number';
+					columnType: 'PgInteger';
 					notNull: false;
 					hasDefault: false;
 					data: number;
 					driverParam: string | number;
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
 			}>,
 			typeof newYorkers
@@ -312,21 +340,29 @@ Expect<
 	Expect<
 		Equal<
 			PgViewWithSelection<'new_yorkers', true, {
-				userId: PgInteger<{
+				userId: PgColumn<{
 					tableName: 'new_yorkers';
 					name: 'user_id';
+					dataType: 'number';
+					columnType: 'PgInteger';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
 					notNull: true;
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
-				cityId: PgInteger<{
+				cityId: PgColumn<{
 					tableName: 'new_yorkers';
 					name: 'city_id';
+					dataType: 'number';
+					columnType: 'PgInteger';
 					notNull: false;
 					hasDefault: false;
 					data: number;
 					driverParam: string | number;
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
 			}>,
 			typeof newYorkers
@@ -343,21 +379,29 @@ Expect<
 	Expect<
 		Equal<
 			PgViewWithSelection<'new_yorkers', true, {
-				userId: PgInteger<{
+				userId: PgColumn<{
 					tableName: 'new_yorkers';
 					name: 'user_id';
+					dataType: 'number';
+					columnType: 'PgInteger';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
 					notNull: true;
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
-				cityId: PgInteger<{
+				cityId: PgColumn<{
 					tableName: 'new_yorkers';
 					name: 'city_id';
+					dataType: 'number';
+					columnType: 'PgInteger';
 					notNull: false;
 					hasDefault: false;
 					data: number;
 					driverParam: string | number;
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
 			}>,
 			typeof newYorkers
@@ -389,21 +433,29 @@ export const newYorkers2 = pgMaterializedView('new_yorkers')
 Expect<
 	Equal<
 		PgMaterializedViewWithSelection<'new_yorkers', false, {
-			userId: PgSerial<{
+			userId: PgColumn<{
 				tableName: 'new_yorkers';
 				name: 'id';
+				dataType: 'number';
+				columnType: 'PgSerial';
 				data: number;
 				driverParam: number;
 				notNull: true;
 				hasDefault: true;
+				enumValues: undefined;
+				baseColumn: never;
 			}>;
-			cityId: PgSerial<{
+			cityId: PgColumn<{
 				tableName: 'new_yorkers';
 				name: 'id';
+				dataType: 'number';
+				columnType: 'PgSerial';
 				data: number;
 				driverParam: number;
 				notNull: false;
 				hasDefault: true;
+				enumValues: undefined;
+				baseColumn: never;
 			}>;
 		}>,
 		typeof newYorkers2
@@ -435,21 +487,29 @@ Expect<
 	Expect<
 		Equal<
 			PgMaterializedViewWithSelection<'new_yorkers', false, {
-				userId: PgSerial<{
+				userId: PgColumn<{
 					tableName: 'new_yorkers';
 					name: 'id';
+					dataType: 'number';
+					columnType: 'PgSerial';
 					data: number;
 					driverParam: number;
 					notNull: true;
 					hasDefault: true;
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
-				cityId: PgSerial<{
+				cityId: PgColumn<{
 					tableName: 'new_yorkers';
 					name: 'id';
+					dataType: 'number';
+					columnType: 'PgSerial';
 					data: number;
 					driverParam: number;
 					notNull: false;
 					hasDefault: true;
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
 			}>,
 			typeof newYorkers2
@@ -479,21 +539,29 @@ Expect<
 	Expect<
 		Equal<
 			PgMaterializedViewWithSelection<'new_yorkers', false, {
-				userId: PgInteger<{
+				userId: PgColumn<{
 					tableName: 'new_yorkers';
 					name: 'user_id';
+					dataType: 'number';
+					columnType: 'PgInteger';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
 					notNull: true;
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
-				cityId: PgInteger<{
+				cityId: PgColumn<{
 					tableName: 'new_yorkers';
 					name: 'city_id';
+					dataType: 'number';
+					columnType: 'PgInteger';
 					notNull: false;
 					hasDefault: false;
 					data: number;
 					driverParam: string | number;
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
 			}>,
 			typeof newYorkers2
@@ -523,21 +591,29 @@ Expect<
 	Expect<
 		Equal<
 			PgMaterializedViewWithSelection<'new_yorkers', false, {
-				userId: PgInteger<{
+				userId: PgColumn<{
 					tableName: 'new_yorkers';
 					name: 'user_id';
+					dataType: 'number';
+					columnType: 'PgInteger';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
 					notNull: true;
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
-				cityId: PgInteger<{
+				cityId: PgColumn<{
 					tableName: 'new_yorkers';
 					name: 'city_id';
+					dataType: 'number';
+					columnType: 'PgInteger';
 					notNull: false;
 					hasDefault: false;
 					data: number;
 					driverParam: string | number;
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
 			}>,
 			typeof newYorkers2
@@ -554,21 +630,29 @@ Expect<
 	Expect<
 		Equal<
 			PgMaterializedViewWithSelection<'new_yorkers', true, {
-				userId: PgInteger<{
+				userId: PgColumn<{
 					tableName: 'new_yorkers';
 					name: 'user_id';
+					dataType: 'number';
+					columnType: 'PgInteger';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
 					notNull: true;
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
-				cityId: PgInteger<{
+				cityId: PgColumn<{
 					tableName: 'new_yorkers';
 					name: 'city_id';
+					dataType: 'number';
+					columnType: 'PgInteger';
 					notNull: false;
 					hasDefault: false;
 					data: number;
 					driverParam: string | number;
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
 			}>,
 			typeof newYorkers2
@@ -585,21 +669,29 @@ Expect<
 	Expect<
 		Equal<
 			PgMaterializedViewWithSelection<'new_yorkers', true, {
-				userId: PgInteger<{
+				userId: PgColumn<{
 					tableName: 'new_yorkers';
 					name: 'user_id';
+					dataType: 'number';
+					columnType: 'PgInteger';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
 					notNull: true;
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
-				cityId: PgInteger<{
+				cityId: PgColumn<{
 					tableName: 'new_yorkers';
 					name: 'city_id';
+					dataType: 'number';
+					columnType: 'PgInteger';
 					notNull: false;
 					hasDefault: false;
 					data: number;
 					driverParam: string | number;
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
 			}>,
 			typeof newYorkers2
@@ -645,9 +737,9 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		},
 	});
 
-	const t1 = customTextRequired('t', { length: 10 });
-	// @ts-expect-error
-	const t2 = customTextRequired('t');
+	customTextRequired('t', { length: 10 });
+	// @ts-expect-error - config is required
+	customTextRequired('t');
 }
 
 {
@@ -672,8 +764,8 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		},
 	});
 
-	const t1 = customTextOptional('t', { length: 10 });
-	const t2 = customTextOptional('t');
+	customTextOptional('t', { length: 10 });
+	customTextOptional('t');
 }
 
 {
@@ -682,49 +774,62 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		name: text('name').notNull().primaryKey(),
 		role: text('role', { enum: ['admin', 'user'] }).default('user').notNull(),
 		population: integer('population').default(0),
-	}, (cities) => ({
-		citiesNameIdx: index().on(cities.id),
-	}));
+	});
 
 	Expect<
 		Equal<
 			PgTableWithColumns<{
 				name: 'cities_table';
 				schema: undefined;
+				dialect: 'pg';
 				columns: {
-					id: PgSerial<{
+					id: PgColumn<{
 						tableName: 'cities_table';
 						name: 'id';
+						dataType: 'number';
+						columnType: 'PgSerial';
 						data: number;
 						driverParam: number;
 						hasDefault: true;
 						notNull: true;
+						enumValues: undefined;
+						baseColumn: never;
 					}>;
-					name: PgText<{
+					name: PgColumn<{
 						tableName: 'cities_table';
 						name: 'name';
+						dataType: 'string';
+						columnType: 'PgText';
 						data: string;
 						driverParam: string;
 						hasDefault: false;
 						enumValues: [string, ...string[]];
 						notNull: true;
+						baseColumn: never;
 					}>;
-					role: PgText<{
+					role: PgColumn<{
 						tableName: 'cities_table';
 						name: 'role';
+						dataType: 'string';
+						columnType: 'PgText';
 						data: 'admin' | 'user';
 						driverParam: string;
 						hasDefault: true;
 						enumValues: ['admin', 'user'];
 						notNull: true;
+						baseColumn: never;
 					}>;
-					population: PgInteger<{
+					population: PgColumn<{
 						tableName: 'cities_table';
 						name: 'population';
+						dataType: 'number';
+						columnType: 'PgInteger';
 						data: number;
 						driverParam: string | number;
 						notNull: false;
 						hasDefault: true;
+						enumValues: undefined;
+						baseColumn: never;
 					}>;
 				};
 			}>,
@@ -734,7 +839,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 }
 
 {
-	const test = pgTable('test', {
+	pgTable('test', {
 		bigint: bigint('bigint', { mode: 'bigint' }).default(BigInt(10)),
 		bigintNumber: bigint('bigintNumber', { mode: 'number' }),
 		bigserial: bigserial('bigserial', { mode: 'bigint' }).default(BigInt(10)),
@@ -756,21 +861,21 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 {
 	const a = ['a', 'b', 'c'] as const;
 	const b = pgEnum('test', a);
-	const c = z.enum(b.enumValues);
+	z.enum(b.enumValues);
 }
 
 {
 	const b = pgEnum('test', ['a', 'b', 'c']);
-	const c = z.enum(b.enumValues);
+	z.enum(b.enumValues);
 }
 
 {
-	function getUsersTable<TSchema extends string>(schemaName: TSchema) {
+	const getUsersTable = <TSchema extends string>(schemaName: TSchema) => {
 		return pgSchema(schemaName).table('users', {
 			id: integer('id').primaryKey(),
 			name: text('name').notNull(),
 		});
-	}
+	};
 
 	const users1 = getUsersTable('id1');
 	Expect<Equal<'id1', typeof users1._.schema>>;

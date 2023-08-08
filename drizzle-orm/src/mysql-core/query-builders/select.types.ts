@@ -1,6 +1,6 @@
 import type { AnyMySqlColumn } from '~/mysql-core/columns';
-import type { AnyMySqlTable, MySqlTableWithColumns, TableConfig } from '~/mysql-core/table';
-import type { MySqlViewBase } from '~/mysql-core/view';
+import type { AnyMySqlTable, MySqlTable, MySqlTableWithColumns } from '~/mysql-core/table';
+import type { MySqlViewBase, MySqlViewWithSelection } from '~/mysql-core/view';
 import type {
 	SelectedFields as SelectedFieldsBase,
 	SelectedFieldsFlat as SelectedFieldsFlatBase,
@@ -17,46 +17,53 @@ import type {
 } from '~/query-builders/select.types';
 import type { Placeholder, SQL } from '~/sql';
 import type { Subquery } from '~/subquery';
-import type { AnyTable, UpdateTableConfig } from '~/table';
+import type { Table, UpdateTableConfig } from '~/table';
 import type { Assume } from '~/utils';
-import { type ColumnsSelection } from '~/view';
+import { type ColumnsSelection, type View } from '~/view';
 import { type PreparedQueryHKTBase } from '../session';
 import type { MySqlSelect, MySqlSelectQueryBuilder } from './select';
 
-export interface JoinsValue {
+export interface Join {
 	on: SQL | undefined;
 	table: AnyMySqlTable | Subquery | MySqlViewBase | SQL;
 	alias: string | undefined;
 	joinType: JoinType;
+	lateral?: boolean;
 }
 
 export type AnyMySqlSelect = MySqlSelect<any, any, any, any>;
 
-export type BuildAliasTable<TTable extends AnyTable, TAlias extends string> = MySqlTableWithColumns<
-	Assume<
+export type BuildAliasTable<TTable extends MySqlTable | View, TAlias extends string> = TTable extends Table
+	? MySqlTableWithColumns<
 		UpdateTableConfig<TTable['_']['config'], {
 			name: TAlias;
-			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias>;
-		}>,
-		TableConfig
+			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias, 'mysql'>;
+		}>
 	>
->;
+	: TTable extends View ? MySqlViewWithSelection<
+			TAlias,
+			TTable['_']['existing'],
+			MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'mysql'>
+		>
+	: never;
 
 export interface MySqlSelectConfig {
-	withList: Subquery[];
+	withList?: Subquery[];
 	fields: Record<string, unknown>;
+	fieldsFlat?: SelectedFieldsOrdered;
 	where?: SQL;
 	having?: SQL;
 	table: AnyMySqlTable | Subquery | MySqlViewBase | SQL;
 	limit?: number | Placeholder;
 	offset?: number | Placeholder;
-	joins: JoinsValue[];
-	orderBy: (AnyMySqlColumn | SQL | SQL.Aliased)[];
-	groupBy: (AnyMySqlColumn | SQL | SQL.Aliased)[];
+	joins?: Join[];
+	orderBy?: (AnyMySqlColumn | SQL | SQL.Aliased)[];
+	groupBy?: (AnyMySqlColumn | SQL | SQL.Aliased)[];
 	lockingClause?: {
 		strength: LockStrength;
 		config: LockConfig;
 	};
+	distinct?: boolean;
 }
 
 export type JoinFn<

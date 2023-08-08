@@ -140,9 +140,9 @@ Expect<
 	}[], typeof insertReturningSqlBun>
 >;
 
-const upsertDoNothing1 = db.insert(users).values(newUser).onConflictDoNothing().run();
-const upsertDoNothing2 = db.insert(users).values(newUser).onConflictDoNothing({ target: users.class }).run();
-const upsertDoNothing3 = db.insert(users).values(newUser).onConflictDoNothing({
+db.insert(users).values(newUser).onConflictDoNothing().run();
+db.insert(users).values(newUser).onConflictDoNothing({ target: users.class }).run();
+db.insert(users).values(newUser).onConflictDoNothing({
 	target: [
 		sql`${users.class} collate nocase asc`,
 		sql`${users.age1} desc`,
@@ -150,13 +150,13 @@ const upsertDoNothing3 = db.insert(users).values(newUser).onConflictDoNothing({
 	],
 }).run();
 
-const upsertDoUpdate = db.insert(users).values(newUser).onConflictDoUpdate({
+db.insert(users).values(newUser).onConflictDoUpdate({
 	target: users.age1,
 	set: { age1: sql`${users.age1} + 1` },
 })
 	.run();
 
-const upsertAll = db.insert(users).values(newUser)
+db.insert(users).values(newUser)
 	.onConflictDoUpdate({
 		target: users.age1,
 		set: { age1: sql`${users.age1} + 1` },

@@ -7,6 +7,7 @@ import {
 	type QueryResult,
 	type QueryResultRow,
 } from '@neondatabase/serverless';
+import { entityKind } from '~/entity';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
 import { PgTransaction } from '~/pg-core';
@@ -14,12 +15,15 @@ import type { PgDialect } from '~/pg-core/dialect';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
 import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
 import { PgSession, PreparedQuery } from '~/pg-core/session';
+import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import { fillPlaceholders, type Query, sql } from '~/sql';
 import { type Assume, mapResultRow } from '~/utils';
 
 export type NeonClient = Pool | PoolClient | Client;
 
 export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
+	static readonly [entityKind]: string = 'NeonPreparedQuery';
+
 	private rawQuery: QueryConfig;
 	private query: QueryArrayConfig;
 
@@ -30,6 +34,7 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PreparedQu
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super();
 		this.rawQuery = {
@@ -43,21 +48,21 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PreparedQu
 		};
 	}
 
-	execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 
 		this.logger.logQuery(this.rawQuery.text, params);
 
-		const { fields } = this;
-		if (!fields) {
-			return this.client.query(this.rawQuery, params);
+		const { fields, client, rawQuery, query, joinsNotNullableMap, customResultMapper } = this;
+		if (!fields && !customResultMapper) {
+			return client.query(rawQuery, params);
 		}
 
-		const result = this.client.query(this.query, params);
+		const result = await client.query(query, params);
 
-		return result.then((result) =>
-			result.rows.map((row) => mapResultRow<T['execute']>(fields, row, this.joinsNotNullableMap))
-		);
+		return customResultMapper
+			? customResultMapper(result.rows)
+			: result.rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
@@ -77,12 +82,18 @@ export interface NeonSessionOptions {
 	logger?: Logger;
 }
 
-export class NeonSession extends PgSession<NeonQueryResultHKT> {
+export class NeonSession<
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
+> extends PgSession<NeonQueryResultHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'NeonSession';
+
 	private logger: Logger;
 
 	constructor(
 		private client: NeonClient,
 		dialect: PgDialect,
+		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		private options: NeonSessionOptions = {},
 	) {
 		super(dialect);
@@ -93,8 +104,9 @@ export class NeonSession extends PgSession<NeonQueryResultHKT> {
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PreparedQuery<T> {
-		return new NeonPreparedQuery(this.client, query.sql, query.params, this.logger, fields, name);
+		return new NeonPreparedQuery(this.client, query.sql, query.params, this.logger, fields, name, customResultMapper);
 	}
 
 	async query(query: string, params: unknown[]): Promise<QueryResult> {
@@ -115,13 +127,13 @@ export class NeonSession extends PgSession<NeonQueryResultHKT> {
 	}
 
 	override async transaction<T>(
-		transaction: (tx: NeonTransaction) => Promise<T>,
+		transaction: (tx: NeonTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config: PgTransactionConfig = {},
 	): Promise<T> {
-		const session = this.client instanceof Pool
-			? new NeonSession(await this.client.connect(), this.dialect, this.options)
+		const session = this.client instanceof Pool // eslint-disable-line no-instanceof/no-instanceof
+			? new NeonSession(await this.client.connect(), this.dialect, this.schema, this.options)
 			: this;
-		const tx = new NeonTransaction(this.dialect, session);
+		const tx = new NeonTransaction(this.dialect, session, this.schema);
 		await tx.execute(sql`begin ${tx.getTransactionConfigSQL(config)}`);
 		try {
 			const result = await transaction(tx);
@@ -130,14 +142,23 @@ export class NeonSession extends PgSession<NeonQueryResultHKT> {
 		} catch (error) {
 			await tx.execute(sql`rollback`);
 			throw error;
+		} finally {
+			if (this.client instanceof Pool) { // eslint-disable-line no-instanceof/no-instanceof
+				(session.client as PoolClient).release();
+			}
 		}
 	}
 }
 
-export class NeonTransaction extends PgTransaction<NeonQueryResultHKT> {
-	override async transaction<T>(transaction: (tx: NeonTransaction) => Promise<T>): Promise<T> {
+export class NeonTransaction<
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
+> extends PgTransaction<NeonQueryResultHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'NeonTransaction';
+
+	override async transaction<T>(transaction: (tx: NeonTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new NeonTransaction(this.dialect, this.session, this.nestedIndex + 1);
+		const tx = new NeonTransaction(this.dialect, this.session, this.schema, this.nestedIndex + 1);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);

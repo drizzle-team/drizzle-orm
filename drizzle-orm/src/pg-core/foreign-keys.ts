@@ -1,15 +1,18 @@
-import type { AnyPgColumn } from './columns';
+import { entityKind } from '~/entity';
+import { type AnyPgColumn, type PgColumn } from './columns';
 import { type AnyPgTable, PgTable } from './table';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
 export type Reference = () => {
-	readonly columns: AnyPgColumn[];
+	readonly columns: PgColumn[];
 	readonly foreignTable: AnyPgTable;
-	readonly foreignColumns: AnyPgColumn[];
+	readonly foreignColumns: PgColumn[];
 };
 
 export class ForeignKeyBuilder {
+	static readonly [entityKind]: string = 'PgForeignKeyBuilder';
+
 	/** @internal */
 	reference: Reference;
 
@@ -21,8 +24,8 @@ export class ForeignKeyBuilder {
 
 	constructor(
 		config: () => {
-			columns: AnyPgColumn[];
-			foreignColumns: AnyPgColumn[];
+			columns: PgColumn[];
+			foreignColumns: PgColumn[];
 		},
 		actions?: {
 			onUpdate?: UpdateDeleteAction;
@@ -40,12 +43,12 @@ export class ForeignKeyBuilder {
 	}
 
 	onUpdate(action: UpdateDeleteAction): this {
-		this._onUpdate = typeof action === 'undefined' ? 'no action' : action;
+		this._onUpdate = action === undefined ? 'no action' : action;
 		return this;
 	}
 
 	onDelete(action: UpdateDeleteAction): this {
-		this._onDelete = typeof action === 'undefined' ? 'no action' : action;
+		this._onDelete = action === undefined ? 'no action' : action;
 		return this;
 	}
 
@@ -58,6 +61,8 @@ export class ForeignKeyBuilder {
 export type AnyForeignKeyBuilder = ForeignKeyBuilder;
 
 export class ForeignKey {
+	static readonly [entityKind]: string = 'PgForeignKey';
+
 	readonly reference: Reference;
 	readonly onUpdate: UpdateDeleteAction | undefined;
 	readonly onDelete: UpdateDeleteAction | undefined;
@@ -84,7 +89,7 @@ export class ForeignKey {
 
 type ColumnsWithTable<
 	TTableName extends string,
-	TColumns extends AnyPgColumn[],
+	TColumns extends PgColumn[],
 > = { [Key in keyof TColumns]: AnyPgColumn<{ tableName: TTableName }> };
 
 export function foreignKey<

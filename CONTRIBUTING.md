@@ -117,14 +117,14 @@ Project sctructure
 
 ---
 
-- `"pnpm i && pnpm build:int"` -> if you run this script from root folder - it will build whole monorepo and prepare package.tgz files. Running this script from specific package folder will only build current package
+- `"pnpm i && pnpm build"` -> if you run this script from root folder - it will build whole monorepo. Running this script from specific package folder will only build current package
 
 ### <a name="run-tests"></a> Run tests
 
 ---
 All tests for Drizzle ORM are integration tests, that are simulating real database and different queries and responses from database. Each file in `integration-tests` has a list of different scenarios for different dialect+driver. Each file is creating a docker instance with needed database and running test cases there. Right after all tests were run - docker container with database will be deleted
 
-If you have added additional logic to core package - be sure, that all tests were executed without any errors
+If you have added additional logic to core package - make sure that all tests were executed without any errors
 
 > If you have added data types or feature for query building, you need to create additional test cases with this data type/syntax changes, syntax addition
 
@@ -176,7 +176,7 @@ Example
 [Pg] Add PostGIS extension support
 ```
 
-2. PR should contain detailed description with everyting, that was changed
+2. PR should contain detailed description with everything, that was changed
 
 3. Each PR should contain
     - Tests on feature, that was created;

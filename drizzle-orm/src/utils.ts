@@ -1,10 +1,16 @@
 import type { AnyColumn } from './column';
 import { Column } from './column';
+import { is } from './entity';
+import { type Logger } from './logger';
 import type { SelectedFieldsOrdered } from './operations';
+import { type TableLike } from './query-builders/select.types';
 import type { DriverValueDecoder } from './sql';
 import { Param, SQL } from './sql';
-import { type AnyTable, getTableName, Table } from './table';
+import { Subquery, SubqueryConfig } from './subquery';
+import { getTableName, Table } from './table';
+import { View, ViewBaseConfig } from './view';
 
+/** @internal */
 export function mapResultRow<TResult>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
 	row: unknown[],
@@ -16,15 +22,15 @@ export function mapResultRow<TResult>(
 	const result = columns.reduce<Record<string, any>>(
 		(result, { path, field }, columnIndex) => {
 			let decoder: DriverValueDecoder<unknown, unknown>;
-			if (field instanceof Column) {
+			if (is(field, Column)) {
 				decoder = field;
-			} else if (field instanceof SQL) {
+			} else if (is(field, SQL)) {
 				decoder = field.decoder;
 			} else {
 				decoder = field.sql.decoder;
 			}
 			let node = result;
-			path.forEach((pathChunk, pathChunkIndex) => {
+			for (const [pathChunkIndex, pathChunk] of path.entries()) {
 				if (pathChunkIndex < path.length - 1) {
 					if (!(pathChunk in node)) {
 						node[pathChunk] = {};
@@ -34,14 +40,10 @@ export function mapResultRow<TResult>(
 					const rawValue = row[columnIndex]!;
 					const value = node[pathChunk] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
 
-					if (joinsNotNullableMap && field instanceof Column && path.length === 2) {
+					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
 						const objectName = path[0]!;
 						if (!(objectName in nullifyMap)) {
-							if (value === null) {
-								nullifyMap[objectName] = getTableName(field.table);
-							} else {
-								nullifyMap[objectName] = false;
-							}
+							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
 						} else if (
 							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
 						) {
@@ -49,7 +51,7 @@ export function mapResultRow<TResult>(
 						}
 					}
 				}
-			});
+			}
 			return result;
 		},
 		{},
@@ -57,16 +59,17 @@ export function mapResultRow<TResult>(
 
 	// Nullify all nested objects from nullifyMap that are nullable
 	if (joinsNotNullableMap && Object.keys(nullifyMap).length > 0) {
-		Object.entries(nullifyMap).forEach(([objectName, tableName]) => {
+		for (const [objectName, tableName] of Object.entries(nullifyMap)) {
 			if (typeof tableName === 'string' && !joinsNotNullableMap[tableName]) {
 				result[objectName] = null;
 			}
-		});
+		}
 	}
 
 	return result as TResult;
 }
 
+/** @internal */
 export function orderSelectedFields<TColumn extends AnyColumn>(
 	fields: Record<string, unknown>,
 	pathPrefix?: string[],
@@ -77,13 +80,9 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 		}
 
 		const newPath = pathPrefix ? [...pathPrefix, name] : [name];
-		if (
-			field instanceof Column
-			|| field instanceof SQL
-			|| field instanceof SQL.Aliased
-		) {
+		if (is(field, Column) || is(field, SQL) || is(field, SQL.Aliased)) {
 			result.push({ path: newPath, field });
-		} else if (field instanceof Table) {
+		} else if (is(field, Table)) {
 			result.push(...orderSelectedFields(field[Table.Symbol.Columns], newPath));
 		} else {
 			result.push(...orderSelectedFields(field as Record<string, unknown>, newPath));
@@ -94,15 +93,22 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 
 /** @internal */
 export function mapUpdateSet(table: Table, values: Record<string, unknown>): UpdateSet {
-	return Object.fromEntries<UpdateSet[string]>(
-		Object.entries(values).map(([key, value]) => {
-			if (value instanceof SQL || value === null || value === undefined) {
+	const entries: [string, UpdateSet[string]][] = Object.entries(values)
+		.filter(([, value]) => value !== undefined)
+		.map(([key, value]) => {
+			// eslint-disable-next-line unicorn/prefer-ternary
+			if (is(value, SQL)) {
 				return [key, value];
 			} else {
 				return [key, new Param(value, table[Table.Symbol.Columns][key])];
 			}
-		}),
-	);
+		});
+
+	if (entries.length === 0) {
+		throw new Error('No values to set');
+	}
+
+	return Object.fromEntries(entries);
 }
 
 export type UpdateSet = Record<string, SQL | Param | null | undefined>;
@@ -110,93 +116,22 @@ export type UpdateSet = Record<string, SQL | Param | null | undefined>;
 export type OneOrMany<T> = T | T[];
 
 export type Update<T, TUpdate> = Simplify<
-	& Omit<T, keyof TUpdate>
+	& {
+		[K in Exclude<keyof T, keyof TUpdate>]: T[K];
+	}
 	& TUpdate
 >;
 
-// Flatten and Simplify copied from https://github.com/sindresorhus/type-fest
+export type Simplify<T> =
+	& {
+		// @ts-ignore - "Type parameter 'K' has a circular constraint", not sure why
+		[K in keyof T]: T[K];
+	}
+	& {};
 
-/**
-@see Simplify
-*/
-export interface SimplifyOptions {
-	/**
-	Do the simplification recursively.
+export type SimplifyMappedType<T> = [T] extends [unknown] ? T : never;
 
-	@default false
-	*/
-	deep?: boolean;
-}
-
-// Flatten a type without worrying about the result.
-type Flatten<
-	AnyType,
-	Options extends SimplifyOptions = {},
-> = Options['deep'] extends true ? { [KeyType in keyof AnyType]: Simplify<AnyType[KeyType], Options> }
-	: { [KeyType in keyof AnyType]: AnyType[KeyType] };
-
-/**
-Useful to flatten the type output to improve type hints shown in editors. And also to transform an interface into a type to aide with assignability.
-
-@example
-```
-import type {Simplify} from 'type-fest';
-
-type PositionProps = {
-	top: number;
-	left: number;
-};
-
-type SizeProps = {
-	width: number;
-	height: number;
-};
-
-// In your editor, hovering over `Props` will show a flattened object with all the properties.
-type Props = Simplify<PositionProps & SizeProps>;
-```
-
-Sometimes it is desired to pass a value as a function argument that has a different type. At first inspection it may seem assignable, and then you discover it is not because the `value`'s type definition was defined as an interface. In the following example, `fn` requires an argument of type `Record<string, unknown>`. If the value is defined as a literal, then it is assignable. And if the `value` is defined as type using the `Simplify` utility the value is assignable.  But if the `value` is defined as an interface, it is not assignable because the interface is not sealed and elsewhere a non-string property could be added to the interface.
-
-If the type definition must be an interface (perhaps it was defined in a third-party npm package), then the `value` can be defined as `const value: Simplify<SomeInterface> = ...`. Then `value` will be assignable to the `fn` argument.  Or the `value` can be cast as `Simplify<SomeInterface>` if you can't re-declare the `value`.
-
-@example
-```
-import type {Simplify} from 'type-fest';
-
-interface SomeInterface {
-	foo: number;
-	bar?: string;
-	baz: number | undefined;
-}
-
-type SomeType = {
-	foo: number;
-	bar?: string;
-	baz: number | undefined;
-};
-
-const literal = {foo: 123, bar: 'hello', baz: 456};
-const someType: SomeType = literal;
-const someInterface: SomeInterface = literal;
-
-function fn(object: Record<string, unknown>): void {}
-
-fn(literal); // Good: literal object type is sealed
-fn(someType); // Good: type is sealed
-fn(someInterface); // Error: Index signature for type 'string' is missing in type 'someInterface'. Because `interface` can be re-opened
-fn(someInterface as Simplify<SomeInterface>); // Good: transform an `interface` into a `type`
-```
-
-@link https://github.com/microsoft/TypeScript/issues/15300
-
-@category Object
-*/
-export type Simplify<
-	AnyType,
-	Options extends SimplifyOptions = {},
-> = Flatten<AnyType> extends AnyType ? Flatten<AnyType, Options>
-	: AnyType;
+export type ShallowRecord<K extends keyof any, T> = SimplifyMappedType<{ [P in K]: T }>;
 
 export type Assume<T, U> = T extends U ? T : U;
 
@@ -204,21 +139,22 @@ export type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends (<T>() => T ext
 
 export interface DrizzleTypeError<T> {
 	$brand: 'DrizzleTypeError';
-	message: T;
+	$error: T;
 }
 
 export type ValueOrArray<T> = T | T[];
 
+/** @internal */
 export function applyMixins(baseClass: any, extendedClasses: any[]) {
-	extendedClasses.forEach((extendedClass) => {
-		Object.getOwnPropertyNames(extendedClass.prototype).forEach((name) => {
+	for (const extendedClass of extendedClasses) {
+		for (const name of Object.getOwnPropertyNames(extendedClass.prototype)) {
 			Object.defineProperty(
 				baseClass.prototype,
 				name,
 				Object.getOwnPropertyDescriptor(extendedClass.prototype, name) || Object.create(null),
 			);
-		});
-	});
+		}
+	}
 }
 
 export type Or<T1, T2> = T1 extends true ? true : T2 extends true ? true : false;
@@ -231,6 +167,40 @@ export type Writable<T> = {
 	-readonly [P in keyof T]: T[P];
 };
 
-export function getTableColumns<T extends AnyTable>(table: T): T['_']['columns'] {
+export function getTableColumns<T extends Table>(table: T): T['_']['columns'] {
 	return table[Table.Symbol.Columns];
 }
+
+/** @internal */
+export function getTableLikeName(table: TableLike): string | undefined {
+	return is(table, Subquery)
+		? table[SubqueryConfig].alias
+		: is(table, View)
+		? table[ViewBaseConfig].name
+		: is(table, SQL)
+		? undefined
+		: table[Table.Symbol.IsAlias]
+		? table[Table.Symbol.Name]
+		: table[Table.Symbol.BaseName];
+}
+
+export type ColumnsWithTable<
+	TTableName extends string,
+	TForeignTableName extends string,
+	TColumns extends AnyColumn<{ tableName: TTableName }>[],
+> = { [Key in keyof TColumns]: AnyColumn<{ tableName: TForeignTableName }> };
+
+export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> {
+	logger?: boolean | Logger;
+	schema?: TSchema;
+}
+
+export type KnownKeysOnly<T, U> = {
+	[K in keyof T]: K extends keyof U ? T[K] : never;
+};
+
+export function iife<T extends unknown[], U>(fn: (...args: T) => U, ...args: T): U {
+	return fn(...args);
+}
+
+export type IsAny<T> = 0 extends (1 & T) ? true : false;

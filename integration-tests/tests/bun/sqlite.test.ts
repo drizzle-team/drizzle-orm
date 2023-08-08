@@ -37,13 +37,14 @@ test.before.each((ctx) => {
 
 		db.run(sql`drop table if exists ${usersTable}`);
 		db.run(sql`
-		create table ${usersTable} (
-			id integer primary key,
-			name text not null,
-			verified integer not null default 0,
-			json blob,
-			created_at text not null default (strftime('%s', 'now'))
-		)`);
+			create table ${usersTable} (
+				id integer primary key,
+				name text not null,
+				verified integer not null default 0,
+				json blob,
+				created_at text not null default (strftime('%s', 'now'))
+			)
+		`);
 	} catch (e) {
 		console.error(e);
 	}
@@ -63,9 +64,7 @@ test('select all fields', (ctx) => {
 	db.insert(usersTable).values({ name: 'John' }).run();
 	const result = db.select().from(usersTable).all()[0]!;
 
-	console.log(result);
-
-	assert.ok(result.createdAt instanceof Date, 'createdAt is a Date');
+	assert.ok(result.createdAt instanceof Date, 'createdAt is a Date'); // eslint-disable-line no-instanceof/no-instanceof
 	assert.ok(
 		Math.abs(result.createdAt.getTime() - now) < 100,
 		`${result.createdAt.getTime()} is within 100ms of ${now}`,
@@ -263,7 +262,7 @@ test.run();
 // 	const { db } = t.context;
 // 	const customerAlias = alias(usersTable, 'customer');
 
-// 	db.insert(usersTable).values({ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }).execute();
+// 	db.insert(usersTable).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]).execute();
 // 	const result = db
 // 		.select().from(usersTable)
 // 		.fields({ id: usersTable.id, name: usersTable.name })

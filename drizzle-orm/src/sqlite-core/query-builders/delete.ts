@@ -1,9 +1,8 @@
+import { entityKind } from '~/entity';
 import type { SelectResultFields } from '~/query-builders/select.types';
 import type { Query, SQL, SQLWrapper } from '~/sql';
 import type { SQLiteDialect } from '~/sqlite-core/dialect';
-
 import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
-import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SQLiteTable } from '~/sqlite-core/table';
 import type { InferModel } from '~/table';
 import { orderSelectedFields } from '~/utils';
@@ -11,28 +10,35 @@ import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
 
 export interface SQLiteDeleteConfig {
 	where?: SQL | undefined;
-	table: AnySQLiteTable;
+	table: SQLiteTable;
 	returning?: SelectedFieldsOrdered;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface SQLiteDelete<
-	TTable extends AnySQLiteTable,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TTable extends SQLiteTable,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TResultType extends 'sync' | 'async',
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TRunResult,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TReturning = undefined,
 > extends SQLWrapper {}
 
 export class SQLiteDelete<
-	TTable extends AnySQLiteTable,
+	TTable extends SQLiteTable,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TReturning = undefined,
 > implements SQLWrapper {
+	static readonly [entityKind]: string = 'SQLiteDelete';
+
 	private config: SQLiteDeleteConfig;
 
 	constructor(
 		private table: TTable,
-		private session: SQLiteSession,
+		private session: SQLiteSession<any, any, any, any>,
 		private dialect: SQLiteDialect,
 	) {
 		this.config = { table };
@@ -60,7 +66,7 @@ export class SQLiteDelete<
 	}
 
 	toSQL(): Omit<Query, 'typings'> {
-		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
 

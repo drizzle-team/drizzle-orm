@@ -1,13 +1,22 @@
 {
   "name": "drizzle-orm",
-  "version": "0.24.0",
+  "version": "0.28.1",
   "description": "Drizzle ORM package for SQL databases",
+  "type": "module",
   "scripts": {
-    "build": "tsc && resolve-tspaths && cp ../README.md package.json dist/",
+    "build": "scripts/build.ts",
+    "b": "pnpm build",
     "test:types": "cd type-tests && tsc",
     "test": "vitest run",
-    "pack": "cp package.json dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+    "pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
     "publish": "npm publish package.tgz"
+  },
+  "main": "./index.cjs",
+  "module": "./index.mjs",
+  "types": "./index.d.ts",
+  "sideEffects": false,
+  "publishConfig": {
+    "provenance": true
   },
   "repository": {
     "type": "git",
@@ -38,10 +47,12 @@
     "@cloudflare/workers-types": ">=3",
     "@libsql/client": "*",
     "@neondatabase/serverless": ">=0.1",
+    "@opentelemetry/api": "^1.4.1",
     "@planetscale/database": ">=1",
     "@types/better-sqlite3": "*",
     "@types/pg": "*",
     "@types/sql.js": "*",
+    "@vercel/postgres": "*",
     "better-sqlite3": ">=7",
     "bun-types": "*",
     "knex": "*",
@@ -54,6 +65,9 @@
   },
   "peerDependenciesMeta": {
     "mysql2": {
+      "optional": true
+    },
+    "@vercel/postgres": {
       "optional": true
     },
     "better-sqlite3": {
@@ -103,30 +117,44 @@
     },
     "@libsql/client": {
       "optional": true
+    },
+    "@opentelemetry/api": {
+      "optional": true
     }
   },
   "devDependencies": {
-    "@aws-sdk/client-rds-data": "^3.303.0",
-    "@cloudflare/workers-types": "^4.20230321.0",
-    "@libsql/client": "^0.1.1",
-    "@neondatabase/serverless": "^0.2.9",
+    "@aws-sdk/client-rds-data": "^3.344.0",
+    "@cloudflare/workers-types": "^4.20230518.0",
+    "@libsql/client": "^0.1.6",
+    "@neondatabase/serverless": "^0.4.24",
+    "@opentelemetry/api": "^1.4.1",
     "@originjs/vite-plugin-commonjs": "^1.0.3",
-    "@planetscale/database": "^1.5.0",
-    "@types/better-sqlite3": "^7.6.2",
-    "@types/node": "^18.15.11",
-    "@types/pg": "^8.6.5",
+    "@planetscale/database": "^1.7.0",
+    "@rollup/plugin-json": "^6.0.0",
+    "@rollup/plugin-replace": "^5.0.2",
+    "@rollup/plugin-typescript": "^11.1.1",
+    "@types/better-sqlite3": "^7.6.4",
+    "@types/node": "^20.2.5",
+    "@types/pg": "^8.10.1",
     "@types/sql.js": "^1.4.4",
-    "better-sqlite3": "^8.0.0",
-    "bun-types": "^0.5.8",
+    "@vercel/postgres": "^0.3.0",
+    "better-sqlite3": "^8.4.0",
+    "bun-types": "^0.6.6",
+    "concurrently": "^8.1.0",
     "knex": "^2.4.2",
-    "kysely": "^0.24.2",
-    "mysql2": "^3.2.0",
-    "pg": "^8.8.0",
-    "postgres": "^3.3.3",
+    "kysely": "^0.25.0",
+    "mysql2": "^3.3.3",
+    "pg": "^8.11.0",
+    "postgres": "^3.3.5",
+    "rollup": "^3.27.2",
+    "rollup-plugin-dts": "^5.3.1",
     "sql.js": "^1.8.0",
     "sqlite3": "^5.1.2",
-    "vite-tsconfig-paths": "^4.0.7",
-    "vitest": "^0.29.8",
-    "zod": "^3.20.2"
+    "tslib": "^2.5.2",
+    "tsx": "^3.12.7",
+    "vite-tsconfig-paths": "^4.2.0",
+    "vitest": "^0.31.4",
+    "zod": "^3.20.2",
+    "zx": "^7.2.2"
   }
 }

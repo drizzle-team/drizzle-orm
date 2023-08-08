@@ -1,33 +1,26 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { ColumnBaseConfig } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import type { Assume, Equal } from '~/utils';
+import { type Equal } from '~/utils';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
-
-export interface MySqlDateTimeBuilderHKT extends ColumnBuilderHKTBase {
-	_type: MySqlDateTimeBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: MySqlDateTimeHKT;
-}
-
-export interface MySqlDateTimeHKT extends ColumnHKTBase {
-	_type: MySqlDateTime<Assume<this['config'], ColumnBaseConfig>>;
-}
 
 export type MySqlDateTimeBuilderInitial<TName extends string> = MySqlDateTimeBuilder<{
 	name: TName;
+	dataType: 'date';
+	columnType: 'MySqlDateTime';
 	data: Date;
 	driverParam: string | number;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class MySqlDateTimeBuilder<T extends ColumnBuilderBaseConfig> extends MySqlColumnBuilder<
-	MySqlDateTimeBuilderHKT,
-	T,
-	MySqlDatetimeConfig
-> {
+export class MySqlDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date', 'MySqlDateTime'>>
+	extends MySqlColumnBuilder<T, MySqlDatetimeConfig>
+{
+	static readonly [entityKind]: string = 'MySqlDateTimeBuilder';
+
 	constructor(name: T['name'], config: MySqlDatetimeConfig | undefined) {
-		super(name);
+		super(name, 'date', 'MySqlDateTime');
 		this.config.fsp = config?.fsp;
 	}
 
@@ -35,13 +28,16 @@ export class MySqlDateTimeBuilder<T extends ColumnBuilderBaseConfig> extends MyS
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlDateTime<MakeColumnConfig<T, TTableName>> {
-		return new MySqlDateTime<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new MySqlDateTime<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class MySqlDateTime<
-	T extends ColumnBaseConfig,
-> extends MySqlColumn<MySqlDateTimeHKT, T> {
+export class MySqlDateTime<T extends ColumnBaseConfig<'date', 'MySqlDateTime'>> extends MySqlColumn<T> {
+	static readonly [entityKind]: string = 'MySqlDateTime';
+
 	readonly fsp: number | undefined;
 
 	constructor(
@@ -53,7 +49,7 @@ export class MySqlDateTime<
 	}
 
 	getSQLType(): string {
-		const precision = typeof this.fsp !== 'undefined' ? `(${this.fsp})` : '';
+		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
 		return `datetime${precision}`;
 	}
 
@@ -62,30 +58,23 @@ export class MySqlDateTime<
 	}
 }
 
-export interface MySqlDateTimeStringBuilderHKT extends ColumnBuilderHKTBase {
-	_type: MySqlDateTimeStringBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: MySqlDateTimeStringHKT;
-}
-
-export interface MySqlDateTimeStringHKT extends ColumnHKTBase {
-	_type: MySqlDateTimeString<Assume<this['config'], ColumnBaseConfig>>;
-}
-
 export type MySqlDateTimeStringBuilderInitial<TName extends string> = MySqlDateTimeStringBuilder<{
 	name: TName;
+	dataType: 'string';
+	columnType: 'MySqlDateTimeString';
 	data: string;
 	driverParam: string | number;
-	notNull: false;
-	hasDefault: false;
+
+	enumValues: undefined;
 }>;
 
-export class MySqlDateTimeStringBuilder<T extends ColumnBuilderBaseConfig> extends MySqlColumnBuilder<
-	MySqlDateTimeStringBuilderHKT,
-	T,
-	MySqlDatetimeConfig
-> {
+export class MySqlDateTimeStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlDateTimeString'>>
+	extends MySqlColumnBuilder<T, MySqlDatetimeConfig>
+{
+	static readonly [entityKind]: string = 'MySqlDateTimeStringBuilder';
+
 	constructor(name: T['name'], config: MySqlDatetimeConfig | undefined) {
-		super(name);
+		super(name, 'string', 'MySqlDateTimeString');
 		this.config.fsp = config?.fsp;
 	}
 
@@ -93,13 +82,16 @@ export class MySqlDateTimeStringBuilder<T extends ColumnBuilderBaseConfig> exten
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlDateTimeString<MakeColumnConfig<T, TTableName>> {
-		return new MySqlDateTimeString<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new MySqlDateTimeString<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class MySqlDateTimeString<
-	T extends ColumnBaseConfig,
-> extends MySqlColumn<MySqlDateTimeStringHKT, T> {
+export class MySqlDateTimeString<T extends ColumnBaseConfig<'string', 'MySqlDateTimeString'>> extends MySqlColumn<T> {
+	static readonly [entityKind]: string = 'MySqlDateTimeString';
+
 	readonly fsp: number | undefined;
 
 	constructor(
@@ -111,7 +103,7 @@ export class MySqlDateTimeString<
 	}
 
 	getSQLType(): string {
-		const precision = typeof this.fsp !== 'undefined' ? `(${this.fsp})` : '';
+		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
 		return `datetime${precision}`;
 	}
 }

@@ -1,2 +1,7 @@
 node_modules
 dist
+dist-dts
+examples
+**/*.js
+**/*.mjs
+**/*.cjs

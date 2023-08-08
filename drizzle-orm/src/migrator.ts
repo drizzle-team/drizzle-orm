@@ -1,6 +1,6 @@
-import crypto from 'crypto';
-import fs from 'fs';
-import path from 'path';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 
 export interface KitConfig {
 	out: string;
@@ -30,14 +30,14 @@ export function readMigrationFiles(config: string | MigrationConfig): MigrationM
 	}
 
 	if (!migrationFolderTo) {
-		throw Error('no migration folder defined');
+		throw new Error('no migration folder defined');
 	}
 
 	const migrationQueries: MigrationMeta[] = [];
 
 	const journalPath = `${migrationFolderTo}/meta/_journal.json`;
 	if (!fs.existsSync(journalPath)) {
-		throw Error(`Can't find meta/_journal.json file`);
+		throw new Error(`Can't find meta/_journal.json file`);
 	}
 
 	const journalAsString = fs.readFileSync(`${migrationFolderTo}/meta/_journal.json`).toString();
@@ -62,8 +62,8 @@ export function readMigrationFiles(config: string | MigrationConfig): MigrationM
 				folderMillis: journalEntry.when,
 				hash: crypto.createHash('sha256').update(query).digest('hex'),
 			});
-		} catch (e) {
-			throw Error(`No file ${migrationPath} found in ${migrationFolderTo} folder`);
+		} catch {
+			throw new Error(`No file ${migrationPath} found in ${migrationFolderTo} folder`);
 		}
 	}
 

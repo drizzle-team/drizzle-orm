@@ -16,25 +16,85 @@ jobs:
           - drizzle-orm
           - drizzle-zod
     runs-on: ubuntu-20.04
+    permissions:
+      contents: read
+      id-token: write
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: drizzle
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: drizzle
+        options: >-
+          --health-cmd "mysqladmin ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 3306:3306
     steps:
       - uses: actions/checkout@v3
 
       - uses: actions/setup-node@v3
         with:
-          node-version: 16
+          node-version: 18
           registry-url: 'https://registry.npmjs.org'
 
       - uses: pnpm/action-setup@v2
+        name: Install pnpm
+        id: pnpm-install
         with:
           version: latest
-          run_install: true
+          run_install: false
 
-      - name: Build (for fork PRs only)
-        if: github.event_name == 'pull_request'
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
         run: |
-          pnpm build --filter ${{ matrix.package }}
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
 
-      - name: Build & publish
+      - uses: actions/cache@v3
+        name: Setup pnpm cache
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build
+        run: |
+          pnpm build
+
+      - name: Run tests
+        env:
+          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/drizzle
+          MYSQL_CONNECTION_STRING: mysql://root:root@localhost:3306/drizzle
+          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
+          LIBSQL_URL: file:local.db
+        run: |
+          if [[ "${{ matrix.package }}" == "drizzle-orm" ]]; then
+            pnpm test --filter ${{ matrix.package }} --filter integration-tests
+          else
+          pnpm test --filter ${{ matrix.package }}
+          fi
+
+      - name: Publish
         if: github.event_name == 'push'
         run: |
           tag="${{ github.ref_name }}"
@@ -47,8 +107,8 @@ jobs:
             npm dist-tag add ${{ matrix.package }}@$version $tag
           else
             echo "Publishing ${{ matrix.package }}@$tag using version $version"
-            npm version $version
-            (cd .. && npm run pack -- --filter ${{ matrix.package }})
+            (cd dist && npm version $version)
+            npm run pack
             npm run publish -- --tag $tag
           fi
 

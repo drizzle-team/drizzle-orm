@@ -115,9 +115,8 @@ export class PgText<TTableName extends string, TData extends string>
 For more postgres data type examples you could check [here](/drizzle-orm/src/pg-core/columns)
 
 ```typescript
-import { ColumnConfig } from 'drizzle-orm';
-import { ColumnBuilderConfig } from 'drizzle-orm/column-builder';
-import { AnyPgTable } from '~/table';
+import { ColumnConfig, ColumnBuilderConfig } from 'drizzle-orm';
+import { AnyPgTable } from 'drizzle-orm/pg-core';
 
 import { PgColumn, PgColumnBuilder } from './common';
 
@@ -181,6 +180,7 @@ export function text<T extends string = string>(
 
 ```typescript
 export class PgCITextBuilder<TData extends string = string> extends PgColumnBuilder<
+  PgColumnBuilderHKT,
   ColumnBuilderConfig<{ data: TData; driverParam: string }>
 > {
   protected $pgColumnBuilderBrand: string = 'PgCITextBuilder';
@@ -191,7 +191,7 @@ export class PgCITextBuilder<TData extends string = string> extends PgColumnBuil
 }
 
 export class PgCIText<TTableName extends string, TData extends string>
-  extends PgColumn<ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>>
+  extends PgColumn<PgColumnHKT, ColumnConfig<{ tableName: TTableName; data: TData; driverParam: string }>>
 {
   
 

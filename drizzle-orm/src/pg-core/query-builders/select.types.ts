@@ -3,9 +3,9 @@ import type {
 	SelectedFieldsFlat as SelectedFieldsFlatBase,
 	SelectedFieldsOrdered as SelectedFieldsOrderedBase,
 } from '~/operations';
-import type { AnyPgColumn } from '~/pg-core/columns';
-import type { AnyPgTable, PgTableWithColumns, TableConfig } from '~/pg-core/table';
-import type { PgViewBase } from '~/pg-core/view';
+import type { PgColumn } from '~/pg-core/columns';
+import type { PgTable, PgTableWithColumns } from '~/pg-core/table';
+import type { PgViewBase, PgViewWithSelection } from '~/pg-core/view';
 import type {
 	AppendToNullabilityMap,
 	AppendToResult,
@@ -15,47 +15,57 @@ import type {
 	MapColumnsToTableAlias,
 	SelectMode,
 } from '~/query-builders/select.types';
-import type { Placeholder, SQL } from '~/sql';
+import type { Placeholder, SQL, SQLWrapper } from '~/sql';
 import type { Subquery } from '~/subquery';
-import type { AnyTable, Table, UpdateTableConfig } from '~/table';
+import type { Table, UpdateTableConfig } from '~/table';
 import type { Assume } from '~/utils';
-import { type ColumnsSelection } from '~/view';
+import { type ColumnsSelection, type View } from '~/view';
 import type { PgSelect, PgSelectQueryBuilder } from './select';
 
-export interface JoinsValue {
+export interface Join {
 	on: SQL | undefined;
-	table: AnyPgTable | Subquery | PgViewBase | SQL;
+	table: PgTable | Subquery | PgViewBase | SQL;
 	alias: string | undefined;
 	joinType: JoinType;
+	lateral?: boolean;
 }
 
 export type AnyPgSelect = PgSelect<any, any, any, any>;
 
-export type BuildAliasTable<TTable extends AnyTable, TAlias extends string> = PgTableWithColumns<
-	Assume<
+export type BuildAliasTable<TTable extends PgTable | View, TAlias extends string> = TTable extends Table
+	? PgTableWithColumns<
 		UpdateTableConfig<TTable['_']['config'], {
 			name: TAlias;
-			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias>;
-		}>,
-		TableConfig
+			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias, 'pg'>;
+		}>
 	>
->;
+	: TTable extends View ? PgViewWithSelection<
+			TAlias,
+			TTable['_']['existing'],
+			MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'pg'>
+		>
+	: never;
 
 export interface PgSelectConfig {
-	withList: Subquery[];
+	withList?: Subquery[];
+	// Either fields or fieldsFlat must be defined
 	fields: Record<string, unknown>;
+	fieldsFlat?: SelectedFieldsOrdered;
 	where?: SQL;
 	having?: SQL;
-	table: AnyPgTable | Subquery | PgViewBase | SQL;
+	table: PgTable | Subquery | PgViewBase | SQL;
 	limit?: number | Placeholder;
 	offset?: number | Placeholder;
-	joins: JoinsValue[];
-	orderBy: (AnyPgColumn | SQL | SQL.Aliased)[];
-	groupBy: (AnyPgColumn | SQL | SQL.Aliased)[];
-	lockingClauses: {
+	joins?: Join[];
+	orderBy?: (PgColumn | SQL | SQL.Aliased)[];
+	groupBy?: (PgColumn | SQL | SQL.Aliased)[];
+	lockingClauses?: {
 		strength: LockStrength;
 		config: LockConfig;
 	}[];
+	distinct?: boolean | {
+		on: (PgColumn | SQLWrapper)[];
+	};
 }
 
 export type JoinFn<
@@ -66,7 +76,7 @@ export type JoinFn<
 	TSelection,
 	TNullabilityMap extends Record<string, JoinNullability>,
 > = <
-	TJoinedTable extends AnyPgTable | Subquery | PgViewBase | SQL,
+	TJoinedTable extends PgTable | Subquery | PgViewBase | SQL,
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 >(table: TJoinedTable, on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined) => PgSelectKind<
 	THKT,
@@ -84,17 +94,17 @@ export type JoinFn<
 	AppendToNullabilityMap<TNullabilityMap, TJoinedName, TJoinType>
 >;
 
-export type SelectedFieldsFlat = SelectedFieldsFlatBase<AnyPgColumn>;
+export type SelectedFieldsFlat = SelectedFieldsFlatBase<PgColumn>;
 
-export type SelectedFields = SelectedFieldsBase<AnyPgColumn, AnyPgTable>;
+export type SelectedFields = SelectedFieldsBase<PgColumn, PgTable>;
 
-export type SelectedFieldsOrdered = SelectedFieldsOrderedBase<AnyPgColumn>;
+export type SelectedFieldsOrdered = SelectedFieldsOrderedBase<PgColumn>;
 
 export type LockStrength = 'update' | 'no key update' | 'share' | 'key share';
 
 export type LockConfig =
 	& {
-		of?: AnyPgTable;
+		of?: PgTable;
 	}
 	& ({
 		noWait: true;

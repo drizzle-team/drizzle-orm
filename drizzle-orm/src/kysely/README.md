@@ -1,6 +1,6 @@
 # Drizzle ORM + Kysely
 
-This is a toolchain for integrating Drizzle with [Kysely](https://koskimas.github.io/kysely/).
+This is a toolchain for integrating Drizzle with [Kysely](https://kysely-org.github.io/kysely/).
 
 ## Using Kysely as a query builder
 

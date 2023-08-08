@@ -1,40 +1,37 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { ColumnBaseConfig } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
-import type { Assume } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
-
-export interface PgJsonBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgJsonBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgJsonHKT;
-}
-
-export interface PgJsonHKT extends ColumnHKTBase {
-	_type: PgJson<Assume<this['config'], ColumnBaseConfig>>;
-}
 
 export type PgJsonBuilderInitial<TName extends string> = PgJsonBuilder<{
 	name: TName;
+	dataType: 'json';
+	columnType: 'PgJson';
 	data: unknown;
 	driverParam: unknown;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class PgJsonBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<
-	PgJsonBuilderHKT,
+export class PgJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgJson'>> extends PgColumnBuilder<
 	T
 > {
+	static readonly [entityKind]: string = 'PgJsonBuilder';
+
+	constructor(name: T['name']) {
+		super(name, 'json', 'PgJson');
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgJson<MakeColumnConfig<T, TTableName>> {
-		return new PgJson<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new PgJson<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class PgJson<T extends ColumnBaseConfig> extends PgColumn<PgJsonHKT, T> {
-	declare protected $pgColumnBrand: 'PgJson';
+export class PgJson<T extends ColumnBaseConfig<'json', 'PgJson'>> extends PgColumn<T> {
+	static readonly [entityKind]: string = 'PgJson';
 
 	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgJsonBuilder<T>['config']) {
 		super(table, config);
@@ -52,7 +49,7 @@ export class PgJson<T extends ColumnBaseConfig> extends PgColumn<PgJsonHKT, T> {
 		if (typeof value === 'string') {
 			try {
 				return JSON.parse(value);
-			} catch (e) {
+			} catch {
 				return value as T['data'];
 			}
 		}

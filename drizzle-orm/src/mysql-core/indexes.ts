@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import type { SQL } from '~/sql';
 import type { AnyMySqlColumn } from './columns';
 import type { AnyMySqlTable } from './table';
@@ -31,6 +32,8 @@ interface IndexConfig {
 export type IndexColumn = AnyMySqlColumn | SQL;
 
 export class IndexBuilderOn {
+	static readonly [entityKind]: string = 'MySqlIndexBuilderOn';
+
 	constructor(private name: string, private unique: boolean) {}
 
 	on(...columns: [IndexColumn, ...IndexColumn[]]): IndexBuilder {
@@ -42,9 +45,12 @@ export interface AnyIndexBuilder {
 	build(table: AnyMySqlTable): Index;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface IndexBuilder extends AnyIndexBuilder {}
 
 export class IndexBuilder implements AnyIndexBuilder {
+	static readonly [entityKind]: string = 'MySqlIndexBuilder';
+
 	/** @internal */
 	config: IndexConfig;
 
@@ -56,17 +62,17 @@ export class IndexBuilder implements AnyIndexBuilder {
 		};
 	}
 
-	using(using: IndexConfig['using']): Omit<this, 'using'> {
+	using(using: IndexConfig['using']): this {
 		this.config.using = using;
 		return this;
 	}
 
-	algorythm(algorythm: IndexConfig['algorythm']): Omit<this, 'algorythm'> {
+	algorythm(algorythm: IndexConfig['algorythm']): this {
 		this.config.algorythm = algorythm;
 		return this;
 	}
 
-	lock(lock: IndexConfig['lock']): Omit<this, 'lock'> {
+	lock(lock: IndexConfig['lock']): this {
 		this.config.lock = lock;
 		return this;
 	}
@@ -78,6 +84,8 @@ export class IndexBuilder implements AnyIndexBuilder {
 }
 
 export class Index {
+	static readonly [entityKind]: string = 'MySqlIndex';
+
 	readonly config: IndexConfig & { table: AnyMySqlTable };
 
 	constructor(config: IndexConfig, table: AnyMySqlTable) {

@@ -1,7 +1,9 @@
+import { entityKind, is } from '~/entity';
 import { type PgTableFn, pgTableWithSchema } from './table';
 import { type pgMaterializedView, pgMaterializedViewWithSchema, type pgView, pgViewWithSchema } from './view';
 
 export class PgSchema<TName extends string = string> {
+	static readonly [entityKind]: string = 'PgSchema';
 	constructor(
 		public readonly schemaName: TName,
 	) {}
@@ -19,14 +21,13 @@ export class PgSchema<TName extends string = string> {
 	}) as typeof pgMaterializedView;
 }
 
-/** @deprecated - use `instanceof PgSchema` */
 export function isPgSchema(obj: unknown): obj is PgSchema {
-	return obj instanceof PgSchema;
+	return is(obj, PgSchema);
 }
 
 export function pgSchema<T extends string>(name: T) {
 	if (name === 'public') {
-		throw Error(
+		throw new Error(
 			`You can't specify 'public' as schema name. Postgres is using public schema by default. If you want to use 'public' schema, just use pgTable() instead of creating a schema`,
 		);
 	}

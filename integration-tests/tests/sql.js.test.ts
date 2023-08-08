@@ -2,15 +2,14 @@ import 'dotenv/config';
 
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
-import { sql, TransactionRollbackError } from 'drizzle-orm';
-import { asc, eq, gt, inArray } from 'drizzle-orm/expressions';
-import { Name, name, placeholder } from 'drizzle-orm/sql';
+import { asc, eq, type Equal, gt, inArray, Name, name, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import type { SQLJsDatabase } from 'drizzle-orm/sql-js';
 import { drizzle } from 'drizzle-orm/sql-js';
 import { migrate } from 'drizzle-orm/sql-js/migrator';
 import {
 	alias,
 	blob,
+	getViewConfig,
 	integer,
 	primaryKey,
 	sqliteTable,
@@ -18,8 +17,6 @@ import {
 	sqliteView,
 	text,
 } from 'drizzle-orm/sqlite-core';
-import { getViewConfig } from 'drizzle-orm/sqlite-core/utils';
-import type { Equal } from 'drizzle-orm/utils';
 import type { Database } from 'sql.js';
 import initSqlJs from 'sql.js';
 import { Expect } from './utils';
@@ -29,7 +26,7 @@ const ENABLE_LOGGING = false;
 const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
-	verified: integer('verified').notNull().default(0),
+	verified: integer('verified', { mode: 'boolean' }).notNull().default(false),
 	json: blob('json', { mode: 'json' }).$type<string[]>(),
 	createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`strftime('%s', 'now')`),
 });
@@ -76,13 +73,19 @@ const anotherUsersMigratorTable = sqliteTable('another_users', {
 	email: text('email').notNull(),
 });
 
-const pkExample = sqliteTable('pk_example', {
-	id: integer('id').primaryKey(),
+const pkExampleTable = sqliteTable('pk_example', {
+	id: integer('id').notNull(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
 }, (table) => ({
 	compositePk: primaryKey(table.id, table.name),
 }));
+
+const bigIntExample = sqliteTable('big_int_example', {
+	id: integer('id').primaryKey(),
+	name: text('name').notNull(),
+	bigInt: blob('big_int', { mode: 'bigint' }).notNull(),
+});
 
 interface Context {
 	db: SQLJsDatabase;
@@ -113,6 +116,8 @@ test.beforeEach((t) => {
 	ctx.db.run(sql`drop table if exists ${coursesTable}`);
 	ctx.db.run(sql`drop table if exists ${courseCategoriesTable}`);
 	ctx.db.run(sql`drop table if exists ${orders}`);
+	ctx.db.run(sql`drop table if exists ${bigIntExample}`);
+	ctx.db.run(sql`drop table if exists ${pkExampleTable}`);
 
 	ctx.db.run(sql`
 		create table ${usersTable} (
@@ -121,29 +126,34 @@ test.beforeEach((t) => {
 			verified integer not null default 0,
 			json blob,
 			created_at integer not null default (strftime('%s', 'now'))
-		)`);
+		)
+	`);
 	ctx.db.run(sql`
 		create table ${users2Table} (
 			id integer primary key,
 			name text not null,
 			city_id integer references ${citiesTable}(${name(citiesTable.id.name)})
-		)`);
+		)
+	`);
 	ctx.db.run(sql`
 		create table ${citiesTable} (
 			id integer primary key,
 			name text not null
-		)`);
+		)
+	`);
 	ctx.db.run(sql`
-			create table ${courseCategoriesTable} (
-				id integer primary key,
-				name text not null
-			)`);
+		create table ${courseCategoriesTable} (
+			id integer primary key,
+			name text not null
+		)
+	`);
 	ctx.db.run(sql`
 		create table ${coursesTable} (
 			id integer primary key,
 			name text not null,
 			category_id integer references ${courseCategoriesTable}(${name(courseCategoriesTable.id.name)})
-		)`);
+		)
+	`);
 	ctx.db.run(sql`
 		create table ${orders} (
 			id integer primary key,
@@ -151,7 +161,42 @@ test.beforeEach((t) => {
 			product text not null,
 			amount integer not null,
 			quantity integer not null
-		)`);
+		)
+	`);
+	ctx.db.run(sql`
+		create table ${pkExampleTable} (
+			id integer not null,
+			name text not null,
+			email text not null,
+			primary key (id, name)
+		)
+	`);
+	ctx.db.run(sql`
+		create table ${bigIntExample} (
+			id integer primary key,
+			name text not null,
+			big_int blob not null
+		)
+	`);
+});
+
+test.serial('insert bigint values', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(bigIntExample).values({ name: 'one', bigInt: BigInt('0') }).run();
+	await db.insert(bigIntExample).values({ name: 'two', bigInt: BigInt('127') }).run();
+	await db.insert(bigIntExample).values({ name: 'three', bigInt: BigInt('32767') }).run();
+	await db.insert(bigIntExample).values({ name: 'four', bigInt: BigInt('1234567890') }).run();
+	await db.insert(bigIntExample).values({ name: 'five', bigInt: BigInt('12345678900987654321') }).run();
+
+	const result = await db.select().from(bigIntExample).all();
+	t.deepEqual(result, [
+		{ id: 1, name: 'one', bigInt: BigInt('0') },
+		{ id: 2, name: 'two', bigInt: BigInt('127') },
+		{ id: 3, name: 'three', bigInt: BigInt('32767') },
+		{ id: 4, name: 'four', bigInt: BigInt('1234567890') },
+		{ id: 5, name: 'five', bigInt: BigInt('12345678900987654321') },
+	]);
 });
 
 test.serial('select all fields', (t) => {
@@ -162,9 +207,9 @@ test.serial('select all fields', (t) => {
 	db.insert(usersTable).values({ name: 'John' }).run();
 	const result = db.select().from(usersTable).all();
 
-	t.assert(result[0]!.createdAt instanceof Date);
+	t.assert(result[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 5000);
-	t.deepEqual(result, [{ id: 1, name: 'John', verified: 0, json: null, createdAt: result[0]!.createdAt }]);
+	t.deepEqual(result, [{ id: 1, name: 'John', verified: false, json: null, createdAt: result[0]!.createdAt }]);
 });
 
 test.serial('select partial', (t) => {
@@ -196,6 +241,33 @@ test.serial('select typed sql', (t) => {
 	}).from(usersTable).all();
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
+});
+
+test.serial('select distinct', (t) => {
+	const { db } = t.context;
+
+	const usersDistinctTable = sqliteTable('users_distinct', {
+		id: integer('id').notNull(),
+		name: text('name').notNull(),
+	});
+
+	db.run(sql`drop table if exists ${usersDistinctTable}`);
+	db.run(sql`create table ${usersDistinctTable} (id integer, name text)`);
+
+	db.insert(usersDistinctTable).values([
+		{ id: 1, name: 'John' },
+		{ id: 1, name: 'John' },
+		{ id: 2, name: 'John' },
+		{ id: 1, name: 'Jane' },
+	]).run();
+	const users = db.selectDistinct().from(usersDistinctTable).orderBy(
+		usersDistinctTable.id,
+		usersDistinctTable.name,
+	).all();
+
+	db.run(sql`drop table ${usersDistinctTable}`);
+
+	t.deepEqual(users, [{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
 });
 
 test.serial('insert returning sql', (t) => {
@@ -233,12 +305,12 @@ test.serial('update returning sql', (t) => {
 test.serial('insert with auto increment', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values(
+	db.insert(usersTable).values([
 		{ name: 'John' },
 		{ name: 'Jane' },
 		{ name: 'George' },
 		{ name: 'Austin' },
-	).run();
+	]).run();
 	const result = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).all();
 
 	t.deepEqual(result, [
@@ -255,16 +327,16 @@ test.serial('insert with default values', (t) => {
 	db.insert(usersTable).values({ name: 'John' }).run();
 	const result = db.select().from(usersTable).all();
 
-	t.deepEqual(result, [{ id: 1, name: 'John', verified: 0, json: null, createdAt: result[0]!.createdAt }]);
+	t.deepEqual(result, [{ id: 1, name: 'John', verified: false, json: null, createdAt: result[0]!.createdAt }]);
 });
 
 test.serial('insert with overridden default values', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values({ name: 'John', verified: 1 }).run();
+	db.insert(usersTable).values({ name: 'John', verified: true }).run();
 	const result = db.select().from(usersTable).all();
 
-	t.deepEqual(result, [{ id: 1, name: 'John', verified: 1, json: null, createdAt: result[0]!.createdAt }]);
+	t.deepEqual(result, [{ id: 1, name: 'John', verified: true, json: null, createdAt: result[0]!.createdAt }]);
 });
 
 test.serial('update with returning all fields', (t) => {
@@ -275,9 +347,9 @@ test.serial('update with returning all fields', (t) => {
 	db.insert(usersTable).values({ name: 'John' }).run();
 	const users = db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning().all();
 
-	t.assert(users[0]!.createdAt instanceof Date);
+	t.assert(users[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 5000);
-	t.deepEqual(users, [{ id: 1, name: 'Jane', verified: 0, json: null, createdAt: users[0]!.createdAt }]);
+	t.deepEqual(users, [{ id: 1, name: 'Jane', verified: false, json: null, createdAt: users[0]!.createdAt }]);
 });
 
 test.serial('update with returning partial', (t) => {
@@ -300,9 +372,9 @@ test.serial('delete with returning all fields', (t) => {
 	db.insert(usersTable).values({ name: 'John' }).run();
 	const users = db.delete(usersTable).where(eq(usersTable.name, 'John')).returning().all();
 
-	t.assert(users[0]!.createdAt instanceof Date);
+	t.assert(users[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 5000);
-	t.deepEqual(users, [{ id: 1, name: 'John', verified: 0, json: null, createdAt: users[0]!.createdAt }]);
+	t.deepEqual(users, [{ id: 1, name: 'John', verified: false, json: null, createdAt: users[0]!.createdAt }]);
 });
 
 test.serial('delete with returning partial', (t) => {
@@ -347,12 +419,12 @@ test.serial('json insert', (t) => {
 test.serial('insert many', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values(
+	db.insert(usersTable).values([
 		{ name: 'John' },
 		{ name: 'Bruce', json: ['foo', 'bar'] },
 		{ name: 'Jane' },
-		{ name: 'Austin', verified: 1 },
-	).run();
+		{ name: 'Austin', verified: true },
+	]).run();
 	const result = db.select({
 		id: usersTable.id,
 		name: usersTable.name,
@@ -361,22 +433,22 @@ test.serial('insert many', (t) => {
 	}).from(usersTable).all();
 
 	t.deepEqual(result, [
-		{ id: 1, name: 'John', json: null, verified: 0 },
-		{ id: 2, name: 'Bruce', json: ['foo', 'bar'], verified: 0 },
-		{ id: 3, name: 'Jane', json: null, verified: 0 },
-		{ id: 4, name: 'Austin', json: null, verified: 1 },
+		{ id: 1, name: 'John', json: null, verified: false },
+		{ id: 2, name: 'Bruce', json: ['foo', 'bar'], verified: false },
+		{ id: 3, name: 'Jane', json: null, verified: false },
+		{ id: 4, name: 'Austin', json: null, verified: true },
 	]);
 });
 
 test.serial('insert many with returning', (t) => {
 	const { db } = t.context;
 
-	const result = db.insert(usersTable).values(
+	const result = db.insert(usersTable).values([
 		{ name: 'John' },
 		{ name: 'Bruce', json: ['foo', 'bar'] },
 		{ name: 'Jane' },
-		{ name: 'Austin', verified: 1 },
-	)
+		{ name: 'Austin', verified: true },
+	])
 		.returning({
 			id: usersTable.id,
 			name: usersTable.name,
@@ -386,10 +458,10 @@ test.serial('insert many with returning', (t) => {
 		.all();
 
 	t.deepEqual(result, [
-		{ id: 1, name: 'John', json: null, verified: 0 },
-		{ id: 2, name: 'Bruce', json: ['foo', 'bar'], verified: 0 },
-		{ id: 3, name: 'Jane', json: null, verified: 0 },
-		{ id: 4, name: 'Austin', json: null, verified: 1 },
+		{ id: 1, name: 'John', json: null, verified: false },
+		{ id: 2, name: 'Bruce', json: ['foo', 'bar'], verified: false },
+		{ id: 3, name: 'Jane', json: null, verified: false },
+		{ id: 4, name: 'Austin', json: null, verified: true },
 	]);
 });
 
@@ -397,7 +469,7 @@ test.serial('partial join with alias', (t) => {
 	const { db } = t.context;
 	const customerAlias = alias(usersTable, 'customer');
 
-	db.insert(usersTable).values({ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }).run();
+	db.insert(usersTable).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]).run();
 	const result = db
 		.select({
 			user: {
@@ -455,6 +527,44 @@ test.serial('full join with alias', (t) => {
 	db.run(sql`drop table ${users}`);
 });
 
+test.serial('select from alias', (t) => {
+	const { db } = t.context;
+
+	const sqliteTable = sqliteTableCreator((name) => `prefixed_${name}`);
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+	db.run(sql`create table ${users} (id integer primary key, name text not null)`);
+
+	const user = alias(users, 'user');
+	const customers = alias(users, 'customer');
+
+	db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]).run();
+	const result = db
+		.select()
+		.from(user)
+		.leftJoin(customers, eq(customers.id, 11))
+		.where(eq(user.id, 10))
+		.all();
+
+	t.deepEqual(result, [{
+		user: {
+			id: 10,
+			name: 'Ivan',
+		},
+		customer: {
+			id: 11,
+			name: 'Hans',
+		},
+	}]);
+
+	db.run(sql`drop table ${users}`);
+});
+
 test.serial('insert with spaces', (t) => {
 	const { db } = t.context;
 
@@ -478,7 +588,7 @@ test.serial('prepared statement reuse', (t) => {
 	const { db } = t.context;
 
 	const stmt = db.insert(usersTable).values({
-		verified: 1,
+		verified: true,
 		name: placeholder('name'),
 	}).prepare();
 
@@ -493,16 +603,16 @@ test.serial('prepared statement reuse', (t) => {
 	}).from(usersTable).all();
 
 	t.deepEqual(result, [
-		{ id: 1, name: 'John 0', verified: 1 },
-		{ id: 2, name: 'John 1', verified: 1 },
-		{ id: 3, name: 'John 2', verified: 1 },
-		{ id: 4, name: 'John 3', verified: 1 },
-		{ id: 5, name: 'John 4', verified: 1 },
-		{ id: 6, name: 'John 5', verified: 1 },
-		{ id: 7, name: 'John 6', verified: 1 },
-		{ id: 8, name: 'John 7', verified: 1 },
-		{ id: 9, name: 'John 8', verified: 1 },
-		{ id: 10, name: 'John 9', verified: 1 },
+		{ id: 1, name: 'John 0', verified: true },
+		{ id: 2, name: 'John 1', verified: true },
+		{ id: 3, name: 'John 2', verified: true },
+		{ id: 4, name: 'John 3', verified: true },
+		{ id: 5, name: 'John 4', verified: true },
+		{ id: 6, name: 'John 5', verified: true },
+		{ id: 7, name: 'John 6', verified: true },
+		{ id: 8, name: 'John 7', verified: true },
+		{ id: 9, name: 'John 8', verified: true },
+		{ id: 10, name: 'John 9', verified: true },
 	]);
 });
 
@@ -524,7 +634,7 @@ test.serial('prepared statement with placeholder in .where', (t) => {
 test.serial('select with group by as field', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).run();
+	db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
 
 	const result = db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.name)
@@ -536,7 +646,7 @@ test.serial('select with group by as field', (t) => {
 test.serial('select with group by as sql', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).run();
+	db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
 
 	const result = db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(sql`${usersTable.name}`)
@@ -548,7 +658,7 @@ test.serial('select with group by as sql', (t) => {
 test.serial('select with group by as sql + column', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).run();
+	db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
 
 	const result = db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(sql`${usersTable.name}`, usersTable.id)
@@ -560,7 +670,7 @@ test.serial('select with group by as sql + column', (t) => {
 test.serial('select with group by as column + sql', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).run();
+	db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
 
 	const result = db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.id, sql`${usersTable.name}`)
@@ -572,7 +682,7 @@ test.serial('select with group by as column + sql', (t) => {
 test.serial('select with group by complex query', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }).run();
+	db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
 
 	const result = db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.id, sql`${usersTable.name}`)
@@ -663,10 +773,10 @@ test.serial('left join (flat object fields)', (t) => {
 	const { db } = t.context;
 
 	const { id: cityId } = db.insert(citiesTable)
-		.values({ name: 'Paris' }, { name: 'London' })
+		.values([{ name: 'Paris' }, { name: 'London' }])
 		.returning({ id: citiesTable.id }).all()[0]!;
 
-	db.insert(users2Table).values({ name: 'John', cityId }, { name: 'Jane' }).run();
+	db.insert(users2Table).values([{ name: 'John', cityId }, { name: 'Jane' }]).run();
 
 	const res = db.select({
 		userId: users2Table.id,
@@ -687,10 +797,10 @@ test.serial('left join (grouped fields)', (t) => {
 	const { db } = t.context;
 
 	const { id: cityId } = db.insert(citiesTable)
-		.values({ name: 'Paris' }, { name: 'London' })
+		.values([{ name: 'Paris' }, { name: 'London' }])
 		.returning({ id: citiesTable.id }).all()[0]!;
 
-	db.insert(users2Table).values({ name: 'John', cityId }, { name: 'Jane' }).run();
+	db.insert(users2Table).values([{ name: 'John', cityId }, { name: 'Jane' }]).run();
 
 	const res = db.select({
 		id: users2Table.id,
@@ -725,10 +835,10 @@ test.serial('left join (all fields)', (t) => {
 	const { db } = t.context;
 
 	const { id: cityId } = db.insert(citiesTable)
-		.values({ name: 'Paris' }, { name: 'London' })
+		.values([{ name: 'Paris' }, { name: 'London' }])
 		.returning({ id: citiesTable.id }).all()[0]!;
 
-	db.insert(users2Table).values({ name: 'John', cityId }, { name: 'Jane' }).run();
+	db.insert(users2Table).values([{ name: 'John', cityId }, { name: 'Jane' }]).run();
 
 	const res = db.select().from(users2Table)
 		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id)).all();
@@ -759,19 +869,19 @@ test.serial('left join (all fields)', (t) => {
 test.serial('join subquery', (t) => {
 	const { db } = t.context;
 
-	db.insert(courseCategoriesTable).values(
+	db.insert(courseCategoriesTable).values([
 		{ name: 'Category 1' },
 		{ name: 'Category 2' },
 		{ name: 'Category 3' },
 		{ name: 'Category 4' },
-	).run();
+	]).run();
 
-	db.insert(coursesTable).values(
+	db.insert(coursesTable).values([
 		{ name: 'Development', categoryId: 2 },
 		{ name: 'IT & Software', categoryId: 3 },
 		{ name: 'Marketing', categoryId: 4 },
 		{ name: 'Design', categoryId: 1 },
-	).run();
+	]).run();
 
 	const sq2 = db
 		.select({
@@ -804,7 +914,7 @@ test.serial('join subquery', (t) => {
 test.serial('with ... select', (t) => {
 	const { db } = t.context;
 
-	db.insert(orders).values(
+	db.insert(orders).values([
 		{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
 		{ region: 'Europe', product: 'A', amount: 20, quantity: 2 },
 		{ region: 'Europe', product: 'B', amount: 20, quantity: 2 },
@@ -813,7 +923,7 @@ test.serial('with ... select', (t) => {
 		{ region: 'US', product: 'A', amount: 40, quantity: 4 },
 		{ region: 'US', product: 'B', amount: 40, quantity: 4 },
 		{ region: 'US', product: 'B', amount: 50, quantity: 5 },
-	).run();
+	]).run();
 
 	const regionalSales = db
 		.$with('regional_sales')
@@ -888,7 +998,7 @@ test.serial('with ... select', (t) => {
 test.serial('select from subquery sql', (t) => {
 	const { db } = t.context;
 
-	db.insert(users2Table).values({ name: 'John' }, { name: 'Jane' }).run();
+	db.insert(users2Table).values([{ name: 'John' }, { name: 'Jane' }]).run();
 
 	const sq = db
 		.select({ name: sql<string>`${users2Table.name} || ' modified'`.as('name') })
@@ -917,7 +1027,7 @@ test.serial('select all fields from subquery without alias', (t) => {
 test.serial('select count()', (t) => {
 	const { db } = t.context;
 
-	db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }).run();
+	db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]).run();
 
 	const res = db.select({ count: sql`count(*)` }).from(usersTable).all();
 
@@ -927,12 +1037,12 @@ test.serial('select count()', (t) => {
 test.serial('having', (t) => {
 	const { db } = t.context;
 
-	db.insert(citiesTable).values({ name: 'London' }, { name: 'Paris' }, { name: 'New York' }).run();
+	db.insert(citiesTable).values([{ name: 'London' }, { name: 'Paris' }, { name: 'New York' }]).run();
 
-	db.insert(users2Table).values({ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 1 }, {
+	db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 1 }, {
 		name: 'Jack',
 		cityId: 2,
-	}).run();
+	}]).run();
 
 	const result = db
 		.select({
@@ -982,13 +1092,13 @@ test.serial('view', (t) => {
 
 	db.run(sql`create view new_yorkers as ${getViewConfig(newYorkers1).query}`);
 
-	db.insert(citiesTable).values({ name: 'New York' }, { name: 'Paris' }).run();
+	db.insert(citiesTable).values([{ name: 'New York' }, { name: 'Paris' }]).run();
 
-	db.insert(users2Table).values(
+	db.insert(users2Table).values([
 		{ name: 'John', cityId: 1 },
 		{ name: 'Jane', cityId: 1 },
 		{ name: 'Jack', cityId: 2 },
-	).run();
+	]).run();
 
 	{
 		const result = db.select().from(newYorkers1).all();
@@ -1402,5 +1512,170 @@ test.serial('join view as subquery', (t) => {
 	]);
 
 	db.run(sql`drop view ${newYorkers}`);
+	db.run(sql`drop table ${users}`);
+});
+
+test.serial('insert with onConflict do nothing', (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ id: 1, name: 'John' }).run();
+
+	db
+		.insert(usersTable)
+		.values({ id: 1, name: 'John' })
+		.onConflictDoNothing()
+		.run();
+
+	const res = db
+		.select({ id: usersTable.id, name: usersTable.name })
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('insert with onConflict do nothing using composite pk', (t) => {
+	const { db } = t.context;
+
+	db
+		.insert(pkExampleTable)
+		.values({ id: 1, name: 'John', email: 'john@example.com' })
+		.run();
+
+	db
+		.insert(pkExampleTable)
+		.values({ id: 1, name: 'John', email: 'john1@example.com' })
+		.onConflictDoNothing()
+		.run();
+
+	const res = db
+		.select({ id: pkExampleTable.id, name: pkExampleTable.name, email: pkExampleTable.email })
+		.from(pkExampleTable)
+		.where(eq(pkExampleTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John', email: 'john@example.com' }]);
+});
+
+test.serial('insert with onConflict do nothing using target', (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ id: 1, name: 'John' }).run();
+
+	db
+		.insert(usersTable)
+		.values({ id: 1, name: 'John' })
+		.onConflictDoNothing({ target: usersTable.id })
+		.run();
+
+	const res = db
+		.select({ id: usersTable.id, name: usersTable.name })
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('insert with onConflict do nothing using composite pk as target', (t) => {
+	const { db } = t.context;
+
+	db
+		.insert(pkExampleTable)
+		.values({ id: 1, name: 'John', email: 'john@example.com' })
+		.run();
+
+	db
+		.insert(pkExampleTable)
+		.values({ id: 1, name: 'John', email: 'john1@example.com' })
+		.onConflictDoNothing({ target: [pkExampleTable.id, pkExampleTable.name] })
+		.run();
+
+	const res = db
+		.select({ id: pkExampleTable.id, name: pkExampleTable.name, email: pkExampleTable.email })
+		.from(pkExampleTable)
+		.where(eq(pkExampleTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John', email: 'john@example.com' }]);
+});
+
+test.serial('insert with onConflict do update', (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values({ id: 1, name: 'John' }).run();
+
+	db
+		.insert(usersTable)
+		.values({ id: 1, name: 'John' })
+		.onConflictDoUpdate({ target: usersTable.id, set: { name: 'John1' } })
+		.run();
+
+	const res = db
+		.select({ id: usersTable.id, name: usersTable.name })
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
+});
+
+test.serial('insert with onConflict do update using composite pk', (t) => {
+	const { db } = t.context;
+
+	db.insert(pkExampleTable).values({ id: 1, name: 'John', email: 'john@example.com' }).run();
+
+	db
+		.insert(pkExampleTable)
+		.values({ id: 1, name: 'John', email: 'john@example.com' })
+		.onConflictDoUpdate({ target: [pkExampleTable.id, pkExampleTable.name], set: { email: 'john1@example.com' } })
+		.run();
+
+	const res = db
+		.select({ id: pkExampleTable.id, name: pkExampleTable.name, email: pkExampleTable.email })
+		.from(pkExampleTable)
+		.where(eq(pkExampleTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: 'John', email: 'john1@example.com' }]);
+});
+
+test.serial('insert undefined', (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	t.notThrows(() => db.insert(users).values({ name: undefined }).run());
+
+	db.run(sql`drop table ${users}`);
+});
+
+test.serial('update undefined', (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	t.throws(() => db.update(users).set({ name: undefined }).run());
+	t.notThrows(() => db.update(users).set({ id: 1, name: undefined }).run());
+
 	db.run(sql`drop table ${users}`);
 });

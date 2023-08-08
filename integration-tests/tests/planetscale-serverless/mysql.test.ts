@@ -3,8 +3,7 @@ import 'dotenv/config';
 import { connect } from '@planetscale/database';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
-import { sql, TransactionRollbackError } from 'drizzle-orm';
-import { asc, eq } from 'drizzle-orm/expressions';
+import { and, asc, eq, name, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import {
 	alias,
 	boolean,
@@ -21,12 +20,12 @@ import {
 	time,
 	timestamp,
 	uniqueIndex,
+	varchar,
 	year,
 } from 'drizzle-orm/mysql-core';
 import type { PlanetScaleDatabase } from 'drizzle-orm/planetscale-serverless';
 import { drizzle } from 'drizzle-orm/planetscale-serverless';
 import { migrate } from 'drizzle-orm/planetscale-serverless/migrator';
-import { name, placeholder } from 'drizzle-orm/sql';
 
 const ENABLE_LOGGING = false;
 
@@ -88,36 +87,38 @@ test.beforeEach(async (t) => {
 	await ctx.db.execute(sql`drop table if exists ${datesTable}`);
 	// await ctx.db.execute(sql`create schema public`);
 	await ctx.db.execute(
-		sql`create table ${usersTable} (
-			\`id\` serial primary key,
-			\`name\` text not null,
-			\`verified\` boolean not null default false, 
-			\`jsonb\` json,
-			\`created_at\` timestamp not null default now()
-		)`,
+		sql`
+			create table ${usersTable} (
+				\`id\` serial primary key,
+				\`name\` text not null,
+				\`verified\` boolean not null default false, 
+				\`jsonb\` json,
+				\`created_at\` timestamp not null default now()
+			)
+		`,
 	);
 
 	await ctx.db.execute(
-		sql`create table ${datesTable} (
-			\`date\` date,
-			\`date_as_string\` date,
-			\`time\` time,
-			\`datetime\` datetime, 
-			\`datetime_as_string\` datetime,
-			\`year\` year
-		)`,
+		sql`
+			create table ${datesTable} (
+				\`date\` date,
+				\`date_as_string\` date,
+				\`time\` time,
+				\`datetime\` datetime, 
+				\`datetime_as_string\` datetime,
+				\`year\` year
+			)
+		`,
 	);
 });
 
 test.serial('select all fields', async (t) => {
 	const { db } = t.context;
 
-	const now = Date.now();
-
 	await db.insert(usersTable).values({ name: 'John' });
 	const result = await db.select().from(usersTable);
 
-	t.assert(result[0]!.createdAt instanceof Date);
+	t.assert(result[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	// not timezone based timestamp, thats why it should not work here
 	// t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 2000);
 	t.deepEqual(result, [{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
@@ -145,6 +146,33 @@ test.serial('select typed sql', async (t) => {
 	}).from(usersTable);
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
+});
+
+test.serial('select distinct', async (t) => {
+	const { db } = t.context;
+
+	const usersDistinctTable = mysqlTable('users_distinct', {
+		id: int('id').notNull(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${usersDistinctTable}`);
+	await db.execute(sql`create table ${usersDistinctTable} (id int, name text)`);
+
+	await db.insert(usersDistinctTable).values([
+		{ id: 1, name: 'John' },
+		{ id: 1, name: 'John' },
+		{ id: 2, name: 'John' },
+		{ id: 1, name: 'Jane' },
+	]);
+	const users = await db.selectDistinct().from(usersDistinctTable).orderBy(
+		usersDistinctTable.id,
+		usersDistinctTable.name,
+	);
+
+	await db.execute(sql`drop table ${usersDistinctTable}`);
+
+	t.deepEqual(users, [{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
 });
 
 test.serial('insert returning sql', async (t) => {
@@ -176,8 +204,6 @@ test.serial('update returning sql', async (t) => {
 test.serial('update with returning all fields', async (t) => {
 	const { db } = t.context;
 
-	const now = Date.now();
-
 	await db.insert(usersTable).values({ name: 'John' });
 	const updatedUsers = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John'));
 
@@ -185,7 +211,7 @@ test.serial('update with returning all fields', async (t) => {
 
 	t.is(updatedUsers.rowsAffected, 1);
 
-	t.assert(users[0]!.createdAt instanceof Date);
+	t.assert(users[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	// not timezone based timestamp, thats why it should not work here
 	// t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 2000);
 	t.deepEqual(users, [{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
@@ -208,8 +234,6 @@ test.serial('update with returning partial', async (t) => {
 
 test.serial('delete with returning all fields', async (t) => {
 	const { db } = t.context;
-
-	const now = Date.now();
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const deletedUser = await db.delete(usersTable).where(eq(usersTable.name, 'John'));
@@ -266,12 +290,12 @@ test.serial('insert with overridden default values', async (t) => {
 test.serial('insert many', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values(
+	await db.insert(usersTable).values([
 		{ name: 'John' },
 		{ name: 'Bruce', jsonb: ['foo', 'bar'] },
 		{ name: 'Jane' },
 		{ name: 'Austin', verified: true },
-	);
+	]);
 	const result = await db.select({
 		id: usersTable.id,
 		name: usersTable.name,
@@ -290,12 +314,12 @@ test.serial('insert many', async (t) => {
 test.serial('insert many with returning', async (t) => {
 	const { db } = t.context;
 
-	const result = await db.insert(usersTable).values(
+	const result = await db.insert(usersTable).values([
 		{ name: 'John' },
 		{ name: 'Bruce', jsonb: ['foo', 'bar'] },
 		{ name: 'Jane' },
 		{ name: 'Austin', verified: true },
-	);
+	]);
 
 	t.is(result.rowsAffected, 4);
 });
@@ -303,7 +327,7 @@ test.serial('insert many with returning', async (t) => {
 test.serial('select with group by as field', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.name);
@@ -314,7 +338,7 @@ test.serial('select with group by as field', async (t) => {
 test.serial('select with group by as sql', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(sql`${usersTable.name}`);
@@ -336,7 +360,7 @@ test.serial('select with group by as sql + column', async (t) => {
 test.serial('select with group by as column + sql', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.id, sql`${usersTable.name}`);
@@ -347,7 +371,7 @@ test.serial('select with group by as column + sql', async (t) => {
 test.serial('select with group by complex query', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: 'John' }, { name: 'Jane' }, { name: 'Jane' });
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.id, sql`${usersTable.name}`)
@@ -417,7 +441,7 @@ test.serial('partial join with alias', async (t) => {
 	const { db } = t.context;
 	const customerAlias = alias(usersTable, 'customer');
 
-	await db.insert(usersTable).values({ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' });
+	await db.insert(usersTable).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
 	const result = await db
 		.select({
 			user: {
@@ -462,6 +486,41 @@ test.serial('full join with alias', async (t) => {
 
 	t.deepEqual(result, [{
 		users: {
+			id: 10,
+			name: 'Ivan',
+		},
+		customer: {
+			id: 11,
+			name: 'Hans',
+		},
+	}]);
+
+	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('select from alias', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
+
+	const user = alias(users, 'user');
+	const customers = alias(users, 'customer');
+
+	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
+	const result = await db
+		.select()
+		.from(user)
+		.leftJoin(customers, eq(customers.id, 11))
+		.where(eq(user.id, 10));
+
+	t.deepEqual(result, [{
+		user: {
 			id: 10,
 			name: 'Ivan',
 		},
@@ -609,8 +668,8 @@ test.serial('insert + select all possible dates', async (t) => {
 
 	const res = await db.select().from(datesTable);
 
-	t.assert(res[0]?.date instanceof Date);
-	t.assert(res[0]?.datetime instanceof Date);
+	t.assert(res[0]?.date instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
+	t.assert(res[0]?.datetime instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	t.assert(typeof res[0]?.dateAsString === 'string');
 	t.assert(typeof res[0]?.datetimeAsString === 'string');
 
@@ -633,12 +692,14 @@ test.serial('Mysql enum test case #1', async (t) => {
 
 	await db.execute(sql`drop table if exists ${tableWithEnums}`);
 
-	await db.execute(sql`create table ${tableWithEnums} (
-		\`id\` serial primary key,
-		\`enum1\` ENUM('a', 'b', 'c') not null,
-		\`enum2\` ENUM('a', 'b', 'c') default 'a',
-		\`enum3\` ENUM('a', 'b', 'c') not null default 'b'
-	)`);
+	await db.execute(sql`
+		create table ${tableWithEnums} (
+			\`id\` serial primary key,
+			\`enum1\` ENUM('a', 'b', 'c') not null,
+			\`enum2\` ENUM('a', 'b', 'c') default 'a',
+			\`enum3\` ENUM('a', 'b', 'c') not null default 'b'
+		)
+	`);
 
 	await db.insert(tableWithEnums).values([
 		{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },
@@ -825,7 +886,7 @@ test.serial('join subquery with join', async (t) => {
 		ticket: { staffId: 1 },
 		internal_staff: {
 			internal_staff: { userId: 1 },
-			drizzle_tests_custom_user: { id: 1 },
+			custom_user: { id: 1 },
 		},
 	}]);
 
@@ -923,4 +984,132 @@ test.serial('join view as subquery', async (t) => {
 
 	await db.execute(sql`drop view ${newYorkers}`);
 	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('insert undefined', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name'),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial not null primary key, name text)`,
+	);
+
+	await t.notThrowsAsync(async () => await db.insert(users).values({ name: undefined }));
+
+	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('update undefined', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name'),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial not null primary key, name text)`,
+	);
+
+	await t.throwsAsync(async () => await db.update(users).set({ name: undefined }));
+	await t.notThrowsAsync(async () => await db.update(users).set({ id: 1, name: undefined }));
+
+	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('join', async (t) => {
+	const { db } = t.context;
+
+	const usersTable = mysqlTable(
+		'users',
+		{
+			id: varchar('id', { length: 191 }).primaryKey().notNull(),
+			createdAt: datetime('created_at', { fsp: 3 }).notNull(),
+			name: varchar('name', { length: 191 }),
+			email: varchar('email', { length: 191 }).notNull(),
+			emailVerified: datetime('email_verified', { fsp: 3 }),
+			image: text('image'),
+		},
+		(table) => ({
+			emailIdx: uniqueIndex('email_idx').on(table.email),
+		}),
+	);
+
+	const accountsTable = mysqlTable(
+		'accounts',
+		{
+			id: varchar('id', { length: 191 }).primaryKey().notNull(),
+			userId: varchar('user_id', { length: 191 }).notNull(),
+			type: varchar('type', { length: 191 }).notNull(),
+			provider: varchar('provider', { length: 191 }).notNull(),
+			providerAccountId: varchar('provider_account_id', {
+				length: 191,
+			}).notNull(),
+			refreshToken: text('refresh_token'),
+			accessToken: text('access_token'),
+			expiresAt: int('expires_at'),
+			tokenType: varchar('token_type', { length: 191 }),
+			scope: varchar('scope', { length: 191 }),
+			idToken: text('id_token'),
+			sessionState: varchar('session_state', { length: 191 }),
+		},
+		(table) => ({
+			providerProviderAccountIdIdx: uniqueIndex(
+				'provider_provider_account_id_idx',
+			).on(table.provider, table.providerAccountId),
+		}),
+	);
+
+	await db.execute(sql`drop table if exists ${usersTable}`);
+	await db.execute(sql`drop table if exists ${accountsTable}`);
+	await db.execute(sql`
+		create table ${usersTable} (
+			id varchar(191) not null primary key,
+			created_at datetime(3) not null,
+			name varchar(191),
+			email varchar(191) not null,
+			email_verified datetime(3),
+			image text,
+			unique key email_idx (email)
+		)
+	`);
+	await db.execute(sql`
+		create table ${accountsTable} (
+			id varchar(191) not null primary key,
+			user_id varchar(191) not null,
+			type varchar(191) not null,
+			provider varchar(191) not null,
+			provider_account_id varchar(191) not null,
+			refresh_token text,
+			access_token text,
+			expires_at int,
+			token_type varchar(191),
+			scope varchar(191),
+			id_token text,
+			session_state varchar(191),
+			unique key provider_provider_account_id_idx (provider, provider_account_id)
+		)
+	`);
+
+	const result = await db
+		.select({ user: usersTable, account: accountsTable })
+		.from(accountsTable)
+		.leftJoin(usersTable, eq(accountsTable.userId, usersTable.id))
+		.where(
+			and(
+				eq(accountsTable.provider, 'provider'),
+				eq(accountsTable.providerAccountId, 'providerAccountId'),
+			),
+		)
+		.limit(1);
+
+	t.deepEqual(result, []);
 });

@@ -1,2 +1,3 @@
-export const compatibilityVersion = 4;
-export const npmVersion: string = require('./package.json').version;
+// @ts-expect-error - imported using Rollup json plugin
+export { version as npmVersion } from '../package.json';
+export const compatibilityVersion = 5;

@@ -1,10 +1,12 @@
+import { entityKind } from '~/entity';
 import type { PgDialect } from '~/pg-core/dialect';
 import type { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
 import type { PgMaterializedView } from '~/pg-core/view';
 import { QueryPromise } from '~/query-promise';
 import type { Query, SQL } from '~/sql';
-import type { Simplify } from '~/utils';
+import { tracer } from '~/tracing';
 
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 	extends QueryPromise<QueryResultKind<TQueryResult, never>>
 {}
@@ -12,6 +14,8 @@ export interface PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 	extends QueryPromise<QueryResultKind<TQueryResult, never>>
 {
+	static readonly [entityKind]: string = 'PgRefreshMaterializedView';
+
 	private config: {
 		view: PgMaterializedView;
 		concurrently?: boolean;
@@ -28,7 +32,7 @@ export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 	}
 
 	concurrently(): this {
-		if (typeof this.config.withNoData !== 'undefined') {
+		if (this.config.withNoData !== undefined) {
 			throw new Error('Cannot use concurrently and withNoData together');
 		}
 		this.config.concurrently = true;
@@ -36,7 +40,7 @@ export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 	}
 
 	withNoData(): this {
-		if (typeof this.config.concurrently !== 'undefined') {
+		if (this.config.concurrently !== undefined) {
 			throw new Error('Cannot use concurrently and withNoData together');
 		}
 		this.config.withNoData = true;
@@ -48,8 +52,8 @@ export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 		return this.dialect.buildRefreshMaterializedViewQuery(this.config);
 	}
 
-	toSQL(): Simplify<Omit<Query, 'typings'>> {
-		const { typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+	toSQL(): { sql: Query['sql']; params: Query['params'] } {
+		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
 
@@ -58,7 +62,9 @@ export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 			execute: QueryResultKind<TQueryResult, never>;
 		}
 	> {
-		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), undefined, name);
+		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), undefined, name);
+		});
 	}
 
 	prepare(name: string): PreparedQuery<
@@ -70,6 +76,8 @@ export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 	}
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this._prepare().execute(placeholderValues);
+		return tracer.startActiveSpan('drizzle.operation', () => {
+			return this._prepare().execute(placeholderValues);
+		});
 	};
 }

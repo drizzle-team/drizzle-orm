@@ -1,4 +1,5 @@
-import type { AnySQLiteColumn } from './columns';
+import { entityKind } from '~/entity';
+import type { AnySQLiteColumn, SQLiteColumn } from './columns';
 import type { AnySQLiteTable } from './table';
 import { SQLiteTable } from './table';
 
@@ -12,15 +13,17 @@ export function primaryKey<
 }
 
 export class PrimaryKeyBuilder {
+	static readonly [entityKind]: string = 'SQLitePrimaryKeyBuilder';
+
 	declare _: {
 		brand: 'SQLitePrimaryKeyBuilder';
 	};
 
 	/** @internal */
-	columns: AnySQLiteColumn<{}>[];
+	columns: SQLiteColumn[];
 
 	constructor(
-		columns: AnySQLiteColumn[],
+		columns: SQLiteColumn[],
 	) {
 		this.columns = columns;
 	}
@@ -32,9 +35,11 @@ export class PrimaryKeyBuilder {
 }
 
 export class PrimaryKey {
-	readonly columns: AnySQLiteColumn<{}>[];
+	static readonly [entityKind]: string = 'SQLitePrimaryKey';
 
-	constructor(readonly table: AnySQLiteTable, columns: AnySQLiteColumn<{}>[]) {
+	readonly columns: SQLiteColumn[];
+
+	constructor(readonly table: AnySQLiteTable, columns: SQLiteColumn[]) {
 		this.columns = columns;
 	}
 

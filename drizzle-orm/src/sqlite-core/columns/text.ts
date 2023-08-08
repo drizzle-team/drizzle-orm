@@ -1,51 +1,47 @@
-import type { ColumnBaseConfig, ColumnHKTBase, WithEnum } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { ColumnBaseConfig } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
-import type { Assume, Writable } from '~/utils';
-
+import { type Writable } from '~/utils';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common';
-
-export interface SQLiteTextBuilderHKT extends ColumnBuilderHKTBase {
-	_type: SQLiteTextBuilder<Assume<this['config'], ColumnBuilderBaseConfig & WithEnum>>;
-	_columnHKT: SQLiteTextHKT;
-}
-
-export interface SQLiteTextHKT extends ColumnHKTBase {
-	_type: SQLiteText<Assume<this['config'], ColumnBaseConfig & WithEnum>>;
-}
 
 export type SQLiteTextBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = SQLiteTextBuilder<{
 	name: TName;
+	dataType: 'string';
+	columnType: 'SQLiteText';
 	data: TEnum[number];
 	driverParam: string;
 	enumValues: TEnum;
-	notNull: false;
-	hasDefault: false;
 }>;
 
-export class SQLiteTextBuilder<T extends ColumnBuilderBaseConfig & WithEnum> extends SQLiteColumnBuilder<
-	SQLiteTextBuilderHKT,
+export class SQLiteTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'SQLiteText'>> extends SQLiteColumnBuilder<
 	T,
-	WithEnum<T['enumValues']>
+	{ length: number | undefined; enumValues: T['enumValues'] }
 > {
+	static readonly [entityKind]: string = 'SQLiteTextBuilder';
+
 	constructor(name: T['name'], config: SQLiteTextConfig<T['enumValues']>) {
-		super(name);
-		this.config.enumValues = (config.enum ?? []) as T['enumValues'];
+		super(name, 'string', 'SQLiteText');
+		this.config.enumValues = config.enum;
+		this.config.length = config.length;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteText<MakeColumnConfig<T, TTableName> & WithEnum<T['enumValues']>> {
-		return new SQLiteText<MakeColumnConfig<T, TTableName> & WithEnum<T['enumValues']>>(table, this.config);
+	): SQLiteText<MakeColumnConfig<T, TTableName>> {
+		return new SQLiteText<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class SQLiteText<T extends ColumnBaseConfig & WithEnum>
-	extends SQLiteColumn<SQLiteTextHKT, T, WithEnum<T['enumValues']>>
-	implements WithEnum<T['enumValues']>
+export class SQLiteText<T extends ColumnBaseConfig<'string', 'SQLiteText'>>
+	extends SQLiteColumn<T, { length: number | undefined; enumValues: T['enumValues'] }>
 {
-	readonly enumValues = this.config.enumValues;
+	static readonly [entityKind]: string = 'SQLiteText';
+
+	override readonly enumValues = this.config.enumValues;
+
+	readonly length: number | undefined = this.config.length;
 
 	constructor(
 		table: AnySQLiteTable<{ name: T['tableName'] }>,
@@ -55,11 +51,12 @@ export class SQLiteText<T extends ColumnBaseConfig & WithEnum>
 	}
 
 	getSQLType(): string {
-		return 'text';
+		return `text${this.config.length ? `(${this.config.length})` : ''}`;
 	}
 }
 
-export interface SQLiteTextConfig<TEnum extends readonly string[] | string[]> {
+export interface SQLiteTextConfig<TEnum extends readonly string[] | string[] | undefined> {
+	length?: number;
 	enum?: TEnum;
 }
 

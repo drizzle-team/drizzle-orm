@@ -1,9 +1,13 @@
+import { entityKind } from '~/entity';
 import { TransactionRollbackError } from '~/errors';
+import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import { type Query, type SQL, sql } from '~/sql';
 import { type Assume, type Equal } from '~/utils';
 import { MySqlDatabase } from './db';
 import type { MySqlDialect } from './dialect';
 import type { SelectedFieldsOrdered } from './query-builders/select.types';
+
+export type Mode = 'default' | 'planetscale';
 
 export interface QueryResultHKT {
 	readonly $brand: 'MySqlQueryRowHKT';
@@ -34,6 +38,8 @@ export type PreparedQueryKind<
 	: (TKind & { readonly config: TConfig })['type'];
 
 export abstract class PreparedQuery<T extends PreparedQueryConfig> {
+	static readonly [entityKind]: string = 'MySqlPreparedQuery';
+
 	/** @internal */
 	joinsNotNullableMap?: Record<string, boolean>;
 
@@ -51,12 +57,17 @@ export interface MySqlTransactionConfig {
 export abstract class MySqlSession<
 	TQueryResult extends QueryResultHKT = QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
+	TFullSchema extends Record<string, unknown> = Record<string, never>,
+	TSchema extends TablesRelationalConfig = Record<string, never>,
 > {
+	static readonly [entityKind]: string = 'MySqlSession';
+
 	constructor(protected dialect: MySqlDialect) {}
 
 	abstract prepareQuery<T extends PreparedQueryConfig, TPreparedQueryHKT extends PreparedQueryHKT>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
+		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PreparedQueryKind<TPreparedQueryHKT, T>;
 
 	execute<T>(query: SQL): Promise<T> {
@@ -69,7 +80,7 @@ export abstract class MySqlSession<
 	abstract all<T = unknown>(query: SQL): Promise<T[]>;
 
 	abstract transaction<T>(
-		transaction: (tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT>) => Promise<T>,
+		transaction: (tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>) => Promise<T>,
 		config?: MySqlTransactionConfig,
 	): Promise<T>;
 
@@ -80,7 +91,7 @@ export abstract class MySqlSession<
 			parts.push(`isolation level ${config.isolationLevel}`);
 		}
 
-		return parts.length ? sql.fromList(['set transaction ', parts.join(' ')]) : undefined;
+		return parts.length ? sql.join(['set transaction ', parts.join(' ')]) : undefined;
 	}
 
 	protected getStartTransactionSQL(config: MySqlTransactionConfig): SQL | undefined {
@@ -94,16 +105,26 @@ export abstract class MySqlSession<
 			parts.push(config.accessMode);
 		}
 
-		return parts.length ? sql.fromList(['start transaction ', parts.join(' ')]) : undefined;
+		return parts.length ? sql.join(['start transaction ', parts.join(' ')]) : undefined;
 	}
 }
 
 export abstract class MySqlTransaction<
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-> extends MySqlDatabase<TQueryResult, TPreparedQueryHKT> {
-	constructor(dialect: MySqlDialect, session: MySqlSession, protected readonly nestedIndex = 0) {
-		super(dialect, session);
+	TFullSchema extends Record<string, unknown> = Record<string, never>,
+	TSchema extends TablesRelationalConfig = Record<string, never>,
+> extends MySqlDatabase<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'MySqlTransaction';
+
+	constructor(
+		dialect: MySqlDialect,
+		session: MySqlSession,
+		protected schema: RelationalSchemaConfig<TSchema> | undefined,
+		protected readonly nestedIndex: number,
+		mode: Mode,
+	) {
+		super(dialect, session, schema, mode);
 	}
 
 	rollback(): never {
@@ -112,7 +133,7 @@ export abstract class MySqlTransaction<
 
 	/** Nested transactions (aka savepoints) only work with InnoDB engine. */
 	abstract override transaction<T>(
-		transaction: (tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT>) => Promise<T>,
+		transaction: (tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>) => Promise<T>,
 	): Promise<T>;
 }
 

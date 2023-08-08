@@ -1,12 +1,7 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type {
-	ColumnBuilderBaseConfig,
-	ColumnBuilderHKTBase,
-	ColumnBuilderKind,
-	UpdateCBConfig,
-} from '~/column-builder';
+import type { ColumnBaseConfig } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderExtraConfig, ColumnDataType, HasDefault } from '~/column-builder';
+import { entityKind } from '~/entity';
 import { sql } from '~/sql';
-
 import { MySqlColumn, MySqlColumnBuilder } from './common';
 
 export interface MySqlDateColumnBaseConfig {
@@ -14,26 +9,29 @@ export interface MySqlDateColumnBaseConfig {
 }
 
 export abstract class MySqlDateColumnBaseBuilder<
-	THKT extends ColumnBuilderHKTBase,
-	T extends ColumnBuilderBaseConfig,
-	TRuntimeConfig extends object = {},
-> extends MySqlColumnBuilder<THKT, T, TRuntimeConfig & MySqlDateColumnBaseConfig> {
+	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+	TRuntimeConfig extends object = object,
+	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
+> extends MySqlColumnBuilder<T, TRuntimeConfig & MySqlDateColumnBaseConfig, TExtraConfig> {
+	static readonly [entityKind]: string = 'MySqlDateColumnBuilder';
+
 	defaultNow() {
 		return this.default(sql`(now())`);
 	}
 
 	// "on update now" also adds an implicit default value to the column - https://dev.mysql.com/doc/refman/8.0/en/timestamp-initialization.html
-	onUpdateNow(): ColumnBuilderKind<THKT, UpdateCBConfig<T, { hasDefault: true }>> {
+	onUpdateNow(): HasDefault<this> {
 		this.config.hasOnUpdateNow = true;
 		this.config.hasDefault = true;
-		return this;
+		return this as HasDefault<this>;
 	}
 }
 
 export abstract class MySqlDateBaseColumn<
-	THKT extends ColumnHKTBase,
-	T extends ColumnBaseConfig,
-	TRuntimeConfig extends object = {},
-> extends MySqlColumn<THKT, T, MySqlDateColumnBaseConfig & TRuntimeConfig> {
+	T extends ColumnBaseConfig<ColumnDataType, string>,
+	TRuntimeConfig extends object = object,
+> extends MySqlColumn<T, MySqlDateColumnBaseConfig & TRuntimeConfig> {
+	static readonly [entityKind]: string = 'MySqlDateColumn';
+
 	readonly hasOnUpdateNow: boolean = this.config.hasOnUpdateNow;
 }

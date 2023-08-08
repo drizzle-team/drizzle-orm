@@ -1,7 +1,10 @@
+import { entityKind } from '~/entity';
 import type { SQL } from '~/sql';
 import type { AnySQLiteTable } from './table';
 
 export class CheckBuilder {
+	static readonly [entityKind]: string = 'SQLiteCheckBuilder';
+
 	protected brand!: 'SQLiteConstraintBuilder';
 
 	constructor(public name: string, public value: SQL) {}
@@ -12,6 +15,8 @@ export class CheckBuilder {
 }
 
 export class Check {
+	static readonly [entityKind]: string = 'SQLiteCheck';
+
 	declare _: {
 		brand: 'SQLiteCheck';
 	};
@@ -25,6 +30,6 @@ export class Check {
 	}
 }
 
-export function check<TTableName extends string>(name: string, value: SQL): CheckBuilder {
+export function check(name: string, value: SQL): CheckBuilder {
 	return new CheckBuilder(name, value);
 }

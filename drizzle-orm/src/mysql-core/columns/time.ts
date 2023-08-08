@@ -1,36 +1,29 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { ColumnBaseConfig } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import type { Assume } from '~/utils';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
-
-export interface MySqlTimeBuilderHKT extends ColumnBuilderHKTBase {
-	_type: MySqlTimeBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: MySqlTimeHKT;
-}
-
-export interface MySqlTimeHKT extends ColumnHKTBase {
-	_type: MySqlTime<Assume<this['config'], ColumnBaseConfig>>;
-}
 
 export type MySqlTimeBuilderInitial<TName extends string> = MySqlTimeBuilder<{
 	name: TName;
+	dataType: 'string';
+	columnType: 'MySqlTime';
 	data: string;
 	driverParam: string | number;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class MySqlTimeBuilder<T extends ColumnBuilderBaseConfig> extends MySqlColumnBuilder<
-	MySqlTimeBuilderHKT,
+export class MySqlTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlTime'>> extends MySqlColumnBuilder<
 	T,
 	TimeConfig
 > {
+	static readonly [entityKind]: string = 'MySqlTimeBuilder';
+
 	constructor(
 		name: T['name'],
 		config: TimeConfig | undefined,
 	) {
-		super(name);
+		super(name, 'string', 'MySqlTime');
 		this.config.fsp = config?.fsp;
 	}
 
@@ -38,17 +31,19 @@ export class MySqlTimeBuilder<T extends ColumnBuilderBaseConfig> extends MySqlCo
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlTime<MakeColumnConfig<T, TTableName>> {
-		return new MySqlTime<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new MySqlTime<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
 export class MySqlTime<
-	T extends ColumnBaseConfig,
-> extends MySqlColumn<MySqlTimeHKT, T, TimeConfig> {
+	T extends ColumnBaseConfig<'string', 'MySqlTime'>,
+> extends MySqlColumn<T, TimeConfig> {
+	static readonly [entityKind]: string = 'MySqlTime';
+
 	readonly fsp: number | undefined = this.config.fsp;
 
 	getSQLType(): string {
-		const precision = typeof this.fsp !== 'undefined' ? `(${this.fsp})` : '';
+		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
 		return `time${precision}`;
 	}
 }

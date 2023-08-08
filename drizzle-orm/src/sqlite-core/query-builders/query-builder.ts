@@ -1,26 +1,23 @@
-import type { QueryBuilder } from '~/query-builders/query-builder';
+import { entityKind } from '~/entity';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect';
 import type { WithSubqueryWithSelection } from '~/sqlite-core/subquery';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
 import { type ColumnsSelection } from '~/view';
-import type { SQLiteSelectBuilder } from './select';
+import { SQLiteSelectBuilder } from './select';
 import type { SelectedFields } from './select.types';
 
-export class QueryBuilderInstance {
-	private dialect: SQLiteSyncDialect | undefined;
-	private SQLiteSelectBuilder: typeof SQLiteSelectBuilder;
+export class QueryBuilder {
+	static readonly [entityKind]: string = 'SQLiteQueryBuilder';
 
-	constructor() {
-		// Required to avoid circular dependency
-		this.SQLiteSelectBuilder = require('~/sqlite-core/query-builders/select').SQLiteSelectBuilder;
-	}
+	private dialect: SQLiteSyncDialect | undefined;
 
 	$with<TAlias extends string>(alias: TAlias) {
 		const queryBuilder = this;
 
 		return {
 			as<TSelection extends ColumnsSelection>(
-				qb: QueryBuilder<TSelection> | ((qb: QueryBuilderInstance) => QueryBuilder<TSelection>),
+				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
 			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {
 					qb = qb(queryBuilder);
@@ -44,10 +41,31 @@ export class QueryBuilderInstance {
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
 		): SQLiteSelectBuilder<TSelection | undefined, 'sync', void, 'qb'> {
-			return new self.SQLiteSelectBuilder(fields ?? undefined, undefined, self.getDialect(), queries);
+			return new SQLiteSelectBuilder({
+				fields: fields ?? undefined,
+				session: undefined,
+				dialect: self.getDialect(),
+				withList: queries,
+			});
 		}
 
-		return { select };
+		function selectDistinct(): SQLiteSelectBuilder<undefined, 'sync', void, 'qb'>;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): SQLiteSelectBuilder<TSelection, 'sync', void, 'qb'>;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields?: TSelection,
+		): SQLiteSelectBuilder<TSelection | undefined, 'sync', void, 'qb'> {
+			return new SQLiteSelectBuilder({
+				fields: fields ?? undefined,
+				session: undefined,
+				dialect: self.getDialect(),
+				withList: queries,
+				distinct: true,
+			});
+		}
+
+		return { select, selectDistinct };
 	}
 
 	select(): SQLiteSelectBuilder<undefined, 'sync', void, 'qb'>;
@@ -55,7 +73,22 @@ export class QueryBuilderInstance {
 	select<TSelection extends SelectedFields>(
 		fields?: TSelection,
 	): SQLiteSelectBuilder<TSelection | undefined, 'sync', void, 'qb'> {
-		return new this.SQLiteSelectBuilder(fields ?? undefined, undefined, this.getDialect());
+		return new SQLiteSelectBuilder({ fields: fields ?? undefined, session: undefined, dialect: this.getDialect() });
+	}
+
+	selectDistinct(): SQLiteSelectBuilder<undefined, 'sync', void, 'qb'>;
+	selectDistinct<TSelection extends SelectedFields>(
+		fields: TSelection,
+	): SQLiteSelectBuilder<TSelection, 'sync', void, 'qb'>;
+	selectDistinct<TSelection extends SelectedFields>(
+		fields?: TSelection,
+	): SQLiteSelectBuilder<TSelection | undefined, 'sync', void, 'qb'> {
+		return new SQLiteSelectBuilder({
+			fields: fields ?? undefined,
+			session: undefined,
+			dialect: this.getDialect(),
+			distinct: true,
+		});
 	}
 
 	// Lazy load dialect to avoid circular dependency
@@ -67,5 +100,3 @@ export class QueryBuilderInstance {
 		return this.dialect;
 	}
 }
-
-export const queryBuilder = new QueryBuilderInstance();
