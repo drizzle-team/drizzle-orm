@@ -27,6 +27,7 @@ import {
 	char,
 	cidr,
 	getMaterializedViewConfig,
+	getTableConfig,
 	getViewConfig,
 	inet,
 	integer,
@@ -41,6 +42,8 @@ import {
 	serial,
 	text,
 	timestamp,
+	unique,
+	uniqueKeyName,
 	uuid as pgUuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
@@ -273,6 +276,53 @@ test.beforeEach(async (t) => {
 	);
 });
 
+test.serial('table configs: unique third param', async (t) => {
+	const cities1Table = pgTable('cities1', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		state: char('state', { length: 2 }),
+	}, (t) => ({
+		f: unique('custom_name').on(t.name, t.state).nullsNotDistinct(),
+		f1: unique('custom_name1').on(t.name, t.state),
+	}));
+
+	const tableConfig = getTableConfig(cities1Table);
+
+	t.assert(tableConfig.uniqueConstraints.length === 2);
+
+	t.assert(tableConfig.uniqueConstraints[0]?.name === 'custom_name');
+	t.assert(tableConfig.uniqueConstraints[0]?.nullsNotDistinct);
+	t.deepEqual(tableConfig.uniqueConstraints[0]?.columns.map((t) => t.name), ['name', 'state']);
+
+	t.assert(tableConfig.uniqueConstraints[1]?.name, 'custom_name1');
+	t.assert(!tableConfig.uniqueConstraints[1]?.nullsNotDistinct);
+	t.deepEqual(tableConfig.uniqueConstraints[0]?.columns.map((t) => t.name), ['name', 'state']);
+});
+
+test.serial('table configs: unique in column', async (t) => {
+	const cities1Table = pgTable('cities1', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull().unique(),
+		state: char('state', { length: 2 }).unique('custom'),
+		field: char('field', { length: 2 }).unique('custom_field', { nulls: 'not distinct' }),
+	});
+
+	const tableConfig = getTableConfig(cities1Table);
+
+	const columnName = tableConfig.columns.find((it) => it.name === 'name');
+	t.assert(columnName?.uniqueName === uniqueKeyName(cities1Table, [columnName!.name]));
+	t.assert(columnName?.isUnique);
+
+	const columnState = tableConfig.columns.find((it) => it.name === 'state');
+	t.assert(columnState?.uniqueName === 'custom');
+	t.assert(columnState?.isUnique);
+
+	const columnField = tableConfig.columns.find((it) => it.name === 'field');
+	t.assert(columnField?.uniqueName === 'custom_field');
+	t.assert(columnField?.isUnique);
+	t.assert(columnField?.uniqueType === 'not distinct');
+});
+
 test.serial('select all fields', async (t) => {
 	const { db } = t.context;
 
@@ -281,7 +331,7 @@ test.serial('select all fields', async (t) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const result = await db.select().from(usersTable);
 
-	t.assert(result[0]!.createdAt instanceof Date);
+	t.assert(result[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 100);
 	t.deepEqual(result, [
 		{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt },
@@ -311,6 +361,47 @@ test.serial('select typed sql', async (t) => {
 	}).from(usersTable);
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
+});
+
+test.serial('select distinct', async (t) => {
+	const { db } = t.context;
+
+	const usersDistinctTable = pgTable('users_distinct', {
+		id: integer('id').notNull(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${usersDistinctTable}`);
+	await db.execute(sql`create table ${usersDistinctTable} (id integer, name text)`);
+
+	await db.insert(usersDistinctTable).values([
+		{ id: 1, name: 'John' },
+		{ id: 1, name: 'John' },
+		{ id: 2, name: 'John' },
+		{ id: 1, name: 'Jane' },
+	]);
+	const users1 = await db.selectDistinct().from(usersDistinctTable).orderBy(
+		usersDistinctTable.id,
+		usersDistinctTable.name,
+	);
+	const users2 = await db.selectDistinctOn([usersDistinctTable.id]).from(usersDistinctTable).orderBy(
+		usersDistinctTable.id,
+	);
+	const users3 = await db.selectDistinctOn([usersDistinctTable.name], { name: usersDistinctTable.name }).from(
+		usersDistinctTable,
+	).orderBy(usersDistinctTable.name);
+
+	await db.execute(sql`drop table ${usersDistinctTable}`);
+
+	t.deepEqual(users1, [{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
+
+	t.deepEqual(users2.length, 2);
+	t.deepEqual(users2[0]?.id, 1);
+	t.deepEqual(users2[1]?.id, 2);
+
+	t.deepEqual(users3.length, 2);
+	t.deepEqual(users3[0]?.name, 'Jane');
+	t.deepEqual(users3[1]?.name, 'John');
 });
 
 test.serial('insert returning sql', async (t) => {
@@ -367,7 +458,7 @@ test.serial('update with returning all fields', async (t) => {
 		.where(eq(usersTable.name, 'John'))
 		.returning();
 
-	t.assert(users[0]!.createdAt instanceof Date);
+	t.assert(users[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 100);
 	t.deepEqual(users, [
 		{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt },
@@ -398,7 +489,7 @@ test.serial('delete with returning all fields', async (t) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.delete(usersTable).where(eq(usersTable.name, 'John')).returning();
 
-	t.assert(users[0]!.createdAt instanceof Date);
+	t.assert(users[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 100);
 	t.deepEqual(users, [
 		{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: users[0]!.createdAt },
@@ -916,6 +1007,90 @@ test.serial('insert via db.execute w/ query builder', async (t) => {
 	t.deepEqual(inserted.rows, [{ id: 1, name: 'John' }]);
 });
 
+test.serial('Query check: Insert all defaults in 1 row', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	const query = db
+		.insert(users)
+		.values({})
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: 'insert into "users" ("id", "name", "state") values (default, default, default)',
+		params: [],
+	});
+});
+
+test.serial('Query check: Insert all defaults in multiple rows', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state').default('UA'),
+	});
+
+	const query = db
+		.insert(users)
+		.values([{}, {}])
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: 'insert into "users" ("id", "name", "state") values (default, default, default), (default, default, default)',
+		params: [],
+	});
+});
+
+test.serial('Insert all defaults in 1 row', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('empty_insert_single', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial primary key, name text default 'Dan', state text)`,
+	);
+
+	await db.insert(users).values({});
+
+	const res = await db.select().from(users);
+
+	t.deepEqual(res, [{ id: 1, name: 'Dan', state: null }]);
+});
+
+test.serial('Insert all defaults in multiple rows', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('empty_insert_multiple', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial primary key, name text default 'Dan', state text)`,
+	);
+
+	await db.insert(users).values([{}, {}])
+
+	const res = await db.select().from(users);
+
+	t.deepEqual(res, [{ id: 1, name: 'Dan', state: null }, { id: 2, name: 'Dan', state: null }]);
+});
+
 test.serial('build query insert with onConflict do update', async (t) => {
 	const { db } = t.context;
 
@@ -926,7 +1101,7 @@ test.serial('build query insert with onConflict do update', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id") do update set "name" = $3',
+		sql: 'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do update set "name" = $3',
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
@@ -941,7 +1116,7 @@ test.serial('build query insert with onConflict do update / multiple columns', a
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id","name") do update set "name" = $3',
+		sql: 'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
@@ -956,7 +1131,7 @@ test.serial('build query insert with onConflict do nothing', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict do nothing',
+		sql: 'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict do nothing',
 		params: ['John', '["foo","bar"]'],
 	});
 });
@@ -971,7 +1146,7 @@ test.serial('build query insert with onConflict do nothing + target', async (t) 
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id") do nothing',
+		sql: 'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
 		params: ['John', '["foo","bar"]'],
 	});
 });

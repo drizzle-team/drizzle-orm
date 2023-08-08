@@ -1,37 +1,37 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { ColumnBaseConfig } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
-import type { Assume } from '~/utils';
 import { PgColumn } from './common';
 import { PgDateColumnBaseBuilder } from './date.common';
 
-export interface PgDateBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgDateBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgDateHKT;
-}
-
-export interface PgDateHKT extends ColumnHKTBase {
-	_type: PgDate<Assume<this['config'], ColumnBaseConfig>>;
-}
-
 export type PgDateBuilderInitial<TName extends string> = PgDateBuilder<{
 	name: TName;
+	dataType: 'date';
+	columnType: 'PgDate';
 	data: Date;
 	driverParam: string;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class PgDateBuilder<T extends ColumnBuilderBaseConfig> extends PgDateColumnBaseBuilder<PgDateBuilderHKT, T> {
+export class PgDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'PgDate'>> extends PgDateColumnBaseBuilder<T> {
+	static readonly [entityKind]: string = 'PgDateBuilder';
+
+	constructor(name: T['name']) {
+		super(name, 'date', 'PgDate');
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgDate<MakeColumnConfig<T, TTableName>> {
-		return new PgDate<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new PgDate<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class PgDate<T extends ColumnBaseConfig> extends PgColumn<PgDateHKT, T> {
+export class PgDate<T extends ColumnBaseConfig<'date', 'PgDate'>> extends PgColumn<T> {
+	static readonly [entityKind]: string = 'PgDate';
+
 	getSQLType(): string {
 		return 'date';
 	}
@@ -45,35 +45,38 @@ export class PgDate<T extends ColumnBaseConfig> extends PgColumn<PgDateHKT, T> {
 	}
 }
 
-export interface PgDateStringBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgDateStringBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgDateStringHKT;
-}
-
-export interface PgDateStringHKT extends ColumnHKTBase {
-	_type: PgDateString<Assume<this['config'], ColumnBaseConfig>>;
-}
-
 export type PgDateStringBuilderInitial<TName extends string> = PgDateStringBuilder<{
 	name: TName;
+	dataType: 'string';
+	columnType: 'PgDateString';
 	data: string;
 	driverParam: string;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class PgDateStringBuilder<T extends ColumnBuilderBaseConfig>
-	extends PgDateColumnBaseBuilder<PgDateStringBuilderHKT, T>
+export class PgDateStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgDateString'>>
+	extends PgDateColumnBaseBuilder<T>
 {
+	static readonly [entityKind]: string = 'PgDateStringBuilder';
+
+	constructor(name: T['name']) {
+		super(name, 'string', 'PgDateString');
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgDateString<MakeColumnConfig<T, TTableName>> {
-		return new PgDateString<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new PgDateString<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class PgDateString<T extends ColumnBaseConfig> extends PgColumn<PgDateStringHKT, T> {
+export class PgDateString<T extends ColumnBaseConfig<'string', 'PgDateString'>> extends PgColumn<T> {
+	static readonly [entityKind]: string = 'PgDateString';
+
 	getSQLType(): string {
 		return 'date';
 	}

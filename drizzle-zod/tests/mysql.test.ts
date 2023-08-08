@@ -133,10 +133,16 @@ test('insert invalid varchar length', (t) => {
 	t.is(schema.safeParse({ ...testTableRow, varchar: 'A'.repeat(201) }).success, false);
 });
 
-test('insert invalid char length', (t) => {
+test('insert smaller char length should work', (t) => {
 	const schema = createInsertSchema(testTable);
 
-	t.is(schema.safeParse({ ...testTableRow, char: 'abc' }).success, false);
+	t.is(schema.safeParse({ ...testTableRow, char: 'abc' }).success, true);
+});
+
+test('insert larger char length should fail', (t) => {
+	const schema = createInsertSchema(testTable);
+
+	t.is(schema.safeParse({ ...testTableRow, char: 'abcde' }).success, false);
 });
 
 test('insert schema', (t) => {

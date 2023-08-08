@@ -1,4 +1,5 @@
 import { type Client, type InArgs, type InStatement, type ResultSet, type Transaction } from '@libsql/client';
+import { entityKind } from '~/entity';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
 import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
@@ -23,6 +24,8 @@ export class LibSQLSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteSession<'async', ResultSet, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'LibSQLSession';
+
 	private logger: Logger;
 
 	constructor(
@@ -75,6 +78,8 @@ export class LibSQLTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteTransaction<'async', ResultSet, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'LibSQLTransaction';
+
 	override async transaction<T>(transaction: (tx: LibSQLTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex}`;
 		const tx = new LibSQLTransaction('async', this.dialect, this.session, this.schema, this.nestedIndex + 1);
@@ -93,6 +98,8 @@ export class LibSQLTransaction<
 export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
 	{ type: 'async'; run: ResultSet; all: T['all']; get: T['get']; values: T['values'] }
 > {
+	static readonly [entityKind]: string = 'LibSQLPreparedQuery';
+
 	constructor(
 		private client: Client,
 		private queryString: string,
@@ -186,9 +193,9 @@ function normalizeRow(obj: any) {
 }
 
 function normalizeFieldValue(value: unknown) {
-	if (value instanceof ArrayBuffer) {
+	if (value instanceof ArrayBuffer) { // eslint-disable-line no-instanceof/no-instanceof
 		if (typeof Buffer !== 'undefined') {
-			if (!(value instanceof Buffer)) {
+			if (!(value instanceof Buffer)) { // eslint-disable-line no-instanceof/no-instanceof
 				return Buffer.from(value);
 			}
 			return value;

@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import { TransactionRollbackError } from '~/errors';
 import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import { type Query, type SQL, sql } from '~/sql';
@@ -5,6 +6,8 @@ import { type Assume, type Equal } from '~/utils';
 import { MySqlDatabase } from './db';
 import type { MySqlDialect } from './dialect';
 import type { SelectedFieldsOrdered } from './query-builders/select.types';
+
+export type Mode = 'default' | 'planetscale';
 
 export interface QueryResultHKT {
 	readonly $brand: 'MySqlQueryRowHKT';
@@ -35,6 +38,8 @@ export type PreparedQueryKind<
 	: (TKind & { readonly config: TConfig })['type'];
 
 export abstract class PreparedQuery<T extends PreparedQueryConfig> {
+	static readonly [entityKind]: string = 'MySqlPreparedQuery';
+
 	/** @internal */
 	joinsNotNullableMap?: Record<string, boolean>;
 
@@ -55,6 +60,8 @@ export abstract class MySqlSession<
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = Record<string, never>,
 > {
+	static readonly [entityKind]: string = 'MySqlSession';
+
 	constructor(protected dialect: MySqlDialect) {}
 
 	abstract prepareQuery<T extends PreparedQueryConfig, TPreparedQueryHKT extends PreparedQueryHKT>(
@@ -84,7 +91,7 @@ export abstract class MySqlSession<
 			parts.push(`isolation level ${config.isolationLevel}`);
 		}
 
-		return parts.length ? sql.fromList(['set transaction ', parts.join(' ')]) : undefined;
+		return parts.length ? sql.join(['set transaction ', parts.join(' ')]) : undefined;
 	}
 
 	protected getStartTransactionSQL(config: MySqlTransactionConfig): SQL | undefined {
@@ -98,7 +105,7 @@ export abstract class MySqlSession<
 			parts.push(config.accessMode);
 		}
 
-		return parts.length ? sql.fromList(['start transaction ', parts.join(' ')]) : undefined;
+		return parts.length ? sql.join(['start transaction ', parts.join(' ')]) : undefined;
 	}
 }
 
@@ -108,13 +115,16 @@ export abstract class MySqlTransaction<
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = Record<string, never>,
 > extends MySqlDatabase<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'MySqlTransaction';
+
 	constructor(
 		dialect: MySqlDialect,
 		session: MySqlSession,
 		protected schema: RelationalSchemaConfig<TSchema> | undefined,
-		protected readonly nestedIndex = 0,
+		protected readonly nestedIndex: number,
+		mode: Mode,
 	) {
-		super(dialect, session, schema);
+		super(dialect, session, schema, mode);
 	}
 
 	rollback(): never {

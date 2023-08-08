@@ -1,83 +1,16 @@
 import {
-	type AnyColumn,
 	type Assume,
+	type Column,
 	type DrizzleTypeError,
 	type Equal,
 	getTableColumns,
+	is,
 	type Simplify,
 	type Table,
-	type WithEnum,
 } from 'drizzle-orm';
-import {
-	MySqlBigInt53,
-	MySqlBigInt64,
-	MySqlBinary,
-	MySqlBoolean,
-	MySqlChar,
-	MySqlCustomColumn,
-	MySqlDate,
-	MySqlDateString,
-	MySqlDateTime,
-	MySqlDateTimeString,
-	MySqlDecimal,
-	MySqlDouble,
-	MySqlFloat,
-	MySqlInt,
-	MySqlJson,
-	MySqlMediumInt,
-	MySqlReal,
-	MySqlSerial,
-	MySqlSmallInt,
-	MySqlText,
-	MySqlTime,
-	MySqlTimestamp,
-	MySqlTimestampString,
-	MySqlTinyInt,
-	MySqlVarBinary,
-	MySqlVarChar,
-	MySqlYear,
-} from 'drizzle-orm/mysql-core';
-import {
-	PgArray,
-	PgBigInt53,
-	PgBigInt64,
-	PgBigSerial53,
-	PgBigSerial64,
-	PgBoolean,
-	PgChar,
-	PgCidr,
-	PgCustomColumn,
-	PgDate,
-	PgDateString,
-	PgDoublePrecision,
-	PgInet,
-	PgInteger,
-	PgInterval,
-	PgJson,
-	PgJsonb,
-	PgMacaddr,
-	PgMacaddr8,
-	PgNumeric,
-	PgReal,
-	PgSerial,
-	PgSmallInt,
-	PgSmallSerial,
-	PgText,
-	PgTime,
-	PgTimestamp,
-	PgUUID,
-	PgVarchar,
-} from 'drizzle-orm/pg-core';
-import {
-	SQLiteBigInt,
-	SQLiteBlobJson,
-	SQLiteCustomColumn,
-	SQLiteInteger,
-	SQLiteNumeric,
-	SQLiteReal,
-	SQLiteText,
-	SQLiteTimestamp,
-} from 'drizzle-orm/sqlite-core';
+import { MySqlChar, MySqlVarBinary, MySqlVarChar } from 'drizzle-orm/mysql-core';
+import { type PgArray, PgChar, PgUUID, PgVarchar } from 'drizzle-orm/pg-core';
+import { SQLiteText } from 'drizzle-orm/sqlite-core';
 import { z } from 'zod';
 
 const literalSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
@@ -87,37 +20,37 @@ export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
 	z.union([literalSchema, z.array(jsonSchema), z.record(jsonSchema)])
 );
 
-type MapInsertColumnToZod<TColumn extends AnyColumn, TType extends z.ZodTypeAny> = TColumn['_']['notNull'] extends false
+type MapInsertColumnToZod<TColumn extends Column, TType extends z.ZodTypeAny> = TColumn['_']['notNull'] extends false
 	? z.ZodOptional<z.ZodNullable<TType>>
 	: TColumn['_']['hasDefault'] extends true ? z.ZodOptional<TType>
 	: TType;
 
-type MapSelectColumnToZod<TColumn extends AnyColumn, TType extends z.ZodTypeAny> = TColumn['_']['notNull'] extends false
+type MapSelectColumnToZod<TColumn extends Column, TType extends z.ZodTypeAny> = TColumn['_']['notNull'] extends false
 	? z.ZodNullable<TType>
 	: TType;
 
-type MapColumnToZod<TColumn extends AnyColumn, TType extends z.ZodTypeAny, TMode extends 'insert' | 'select'> =
+type MapColumnToZod<TColumn extends Column, TType extends z.ZodTypeAny, TMode extends 'insert' | 'select'> =
 	TMode extends 'insert' ? MapInsertColumnToZod<TColumn, TType> : MapSelectColumnToZod<TColumn, TType>;
 
 type MaybeOptional<
-	TColumn extends AnyColumn,
+	TColumn extends Column,
 	TType extends z.ZodTypeAny,
 	TMode extends 'insert' | 'select',
 	TNoOptional extends boolean,
 > = TNoOptional extends true ? TType
 	: MapColumnToZod<TColumn, TType, TMode>;
 
-type GetZodType<TColumn extends AnyColumn> = TColumn['_']['data'] extends infer TType
-	? TColumn extends PgCustomColumn<any> | SQLiteCustomColumn<any> | MySqlCustomColumn<any> ? z.ZodAny
-	: TColumn extends PgJson<any> | PgJsonb<any> | SQLiteBlobJson<any> | MySqlJson<any> ? z.ZodType<Json>
-	: TColumn extends WithEnum
+type GetZodType<TColumn extends Column> = TColumn['_']['dataType'] extends infer TDataType
+	? TDataType extends 'custom' ? z.ZodAny
+	: TDataType extends 'json' ? z.ZodType<Json>
+	: TColumn extends { enumValues: [string, ...string[]] }
 		? Equal<TColumn['enumValues'], [string, ...string[]]> extends true ? z.ZodString : z.ZodEnum<TColumn['enumValues']>
-	: TColumn extends PgArray<any> ? z.ZodArray<GetZodType<Assume<TColumn['_'], { baseColumn: AnyColumn }>['baseColumn']>>
-	: TType extends bigint ? z.ZodBigInt
-	: TType extends number ? z.ZodNumber
-	: TType extends string ? z.ZodString
-	: TType extends boolean ? z.ZodBoolean
-	: TType extends Date ? z.ZodDate
+	: TDataType extends 'array' ? z.ZodArray<GetZodType<Assume<TColumn['_'], { baseColumn: Column }>['baseColumn']>>
+	: TDataType extends 'bigint' ? z.ZodBigInt
+	: TDataType extends 'number' ? z.ZodNumber
+	: TDataType extends 'string' ? z.ZodString
+	: TDataType extends 'boolean' ? z.ZodBoolean
+	: TDataType extends 'date' ? z.ZodDate
 	: z.ZodAny
 	: never;
 
@@ -136,7 +69,7 @@ export type BuildInsertSchema<
 	TTable extends Table,
 	TRefine extends Refine<TTable, 'insert'> | {},
 	TNoOptional extends boolean = false,
-> = TTable['_']['columns'] extends infer TColumns extends Record<string, AnyColumn> ? {
+> = TTable['_']['columns'] extends infer TColumns extends Record<string, Column<any>> ? {
 		[K in keyof TColumns & string]: MaybeOptional<
 			TColumns[K],
 			(K extends keyof TRefine ? Assume<UnwrapValueOrUpdater<TRefine[K]>, z.ZodTypeAny>
@@ -255,11 +188,11 @@ export function createSelectSchema<
 	return z.object(schemaEntries) as any;
 }
 
-function isWithEnum(column: AnyColumn): column is typeof column & WithEnum {
+function isWithEnum(column: Column): column is typeof column & { enumValues: [string, ...string[]] } {
 	return 'enumValues' in column && Array.isArray(column.enumValues) && column.enumValues.length > 0;
 }
 
-function mapColumnToSchema(column: AnyColumn): z.ZodTypeAny {
+function mapColumnToSchema(column: Column): z.ZodTypeAny {
 	let type: z.ZodTypeAny | undefined;
 
 	if (isWithEnum(column)) {
@@ -267,75 +200,34 @@ function mapColumnToSchema(column: AnyColumn): z.ZodTypeAny {
 	}
 
 	if (!type) {
-		if (
-			column instanceof PgCustomColumn || column instanceof SQLiteCustomColumn || column instanceof MySqlCustomColumn
-		) {
+		if (is(column, PgUUID)) {
+			type = z.string().uuid();
+		} else if (column.dataType === 'custom') {
 			type = z.any();
-		} else if (
-			column instanceof PgJson || column instanceof PgJsonb || column instanceof SQLiteBlobJson
-			|| column instanceof MySqlJson
-		) {
+		} else if (column.dataType === 'json') {
 			type = jsonSchema;
-		} else if (column instanceof PgArray) {
-			type = z.array(mapColumnToSchema(column.baseColumn));
-		} else if (
-			column instanceof PgBigInt53 || column instanceof PgInteger || column instanceof PgSmallInt
-			|| column instanceof PgSerial || column instanceof PgBigSerial53 || column instanceof PgSmallSerial
-			|| column instanceof PgDoublePrecision || column instanceof PgReal || column instanceof SQLiteInteger
-			|| column instanceof SQLiteReal || column instanceof MySqlInt || column instanceof MySqlBigInt53
-			|| column instanceof MySqlDouble || column instanceof MySqlFloat || column instanceof MySqlMediumInt
-			|| column instanceof MySqlSmallInt || column instanceof MySqlTinyInt || column instanceof MySqlSerial
-			|| column instanceof MySqlReal || column instanceof MySqlYear
-		) {
+		} else if (column.dataType === 'array') {
+			type = z.array(mapColumnToSchema((column as PgArray<any, any>).baseColumn));
+		} else if (column.dataType === 'number') {
 			type = z.number();
-		} else if (
-			column instanceof PgBigInt64 || column instanceof PgBigSerial64 || column instanceof MySqlBigInt64
-			|| column instanceof SQLiteBigInt
-		) {
+		} else if (column.dataType === 'bigint') {
 			type = z.bigint();
-		} else if (column instanceof PgBoolean || column instanceof MySqlBoolean) {
+		} else if (column.dataType === 'boolean') {
 			type = z.boolean();
-		} else if (
-			column instanceof PgDate || column instanceof PgTimestamp || column instanceof SQLiteTimestamp
-			|| column instanceof MySqlDate || column instanceof MySqlDateTime
-			|| column instanceof MySqlTimestamp
-		) {
+		} else if (column.dataType === 'date') {
 			type = z.date();
-		} else if (
-			column instanceof PgInterval || column instanceof PgNumeric || column instanceof PgChar
-			|| column instanceof PgCidr || column instanceof PgInet || column instanceof PgMacaddr
-			|| column instanceof PgMacaddr8 || column instanceof PgText || column instanceof PgTime
-			|| column instanceof PgDateString
-			|| column instanceof PgVarchar || column instanceof SQLiteNumeric || column instanceof SQLiteText
-			|| column instanceof MySqlDateString || column instanceof MySqlDateTimeString || column instanceof MySqlDecimal
-			|| column instanceof MySqlText || column instanceof MySqlTime || column instanceof MySqlTimestampString
-			|| column instanceof MySqlVarChar || column instanceof MySqlBinary
-			|| column instanceof MySqlVarBinary || column instanceof MySqlChar
-		) {
+		} else if (column.dataType === 'string') {
 			let sType = z.string();
 
 			if (
-				(
-					column instanceof PgChar
-					|| column instanceof MySqlChar
-				)
-				&& typeof column.length === 'number'
-			) {
-				sType = sType.length(column.length);
-			} else if (
-				(
-					column instanceof PgVarchar
-					|| column instanceof MySqlVarChar
-					|| column instanceof SQLiteText
-				)
-				&& typeof column.length === 'number'
+				(is(column, PgChar) || is(column, PgVarchar) || is(column, MySqlVarChar)
+					|| is(column, MySqlVarBinary) || is(column, MySqlChar) || is(column, SQLiteText))
+				&& (typeof column.length === 'number')
 			) {
 				sType = sType.max(column.length);
 			}
 
 			type = sType;
-		} else if (column instanceof PgUUID) {
-			type = z.string().uuid();
 		}
 	}
 

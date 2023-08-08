@@ -1,5 +1,5 @@
 import { type ExecutionContext } from 'ava';
-import { z } from 'zod';
+import type { z } from 'zod';
 
 export function expectSchemaShape<T extends z.ZodRawShape>(t: ExecutionContext, expected: z.ZodObject<T>) {
 	return {
@@ -8,7 +8,7 @@ export function expectSchemaShape<T extends z.ZodRawShape>(t: ExecutionContext, 
 
 			for (const key of Object.keys(actual.shape)) {
 				t.deepEqual(actual.shape[key]!._def.typeName, expected.shape[key]?._def.typeName, `key: ${key}`);
-				if (actual.shape[key] instanceof z.ZodOptional) {
+				if (actual.shape[key]?._def.typeName === 'ZodOptional') {
 					t.deepEqual(
 						actual.shape[key]!._def.innerType._def.typeName,
 						expected.shape[key]!._def.innerType._def.typeName,

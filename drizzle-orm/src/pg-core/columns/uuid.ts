@@ -1,30 +1,26 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-
+import type { ColumnBaseConfig } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
 import { sql } from '~/sql';
-import type { Assume } from '~/utils';
-
 import { PgColumn, PgColumnBuilder } from './common';
-
-export interface PgUUIDBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgUUIDBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgUUIDHKT;
-}
-
-export interface PgUUIDHKT extends ColumnHKTBase {
-	_type: PgUUID<Assume<this['config'], ColumnBaseConfig>>;
-}
 
 export type PgUUIDBuilderInitial<TName extends string> = PgUUIDBuilder<{
 	name: TName;
+	dataType: 'string';
+	columnType: 'PgUUID';
 	data: string;
 	driverParam: string;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class PgUUIDBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgUUIDBuilderHKT, T> {
+export class PgUUIDBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgUUID'>> extends PgColumnBuilder<T> {
+	static readonly [entityKind]: string = 'PgUUIDBuilder';
+
+	constructor(name: T['name']) {
+		super(name, 'string', 'PgUUID');
+	}
+
 	/**
 	 * Adds `default gen_random_uuid()` to the column definition.
 	 */
@@ -36,11 +32,13 @@ export class PgUUIDBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBu
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgUUID<MakeColumnConfig<T, TTableName>> {
-		return new PgUUID<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new PgUUID<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class PgUUID<T extends ColumnBaseConfig> extends PgColumn<PgUUIDHKT, T> {
+export class PgUUID<T extends ColumnBaseConfig<'string', 'PgUUID'>> extends PgColumn<T> {
+	static readonly [entityKind]: string = 'PgUUID';
+
 	getSQLType(): string {
 		return 'uuid';
 	}

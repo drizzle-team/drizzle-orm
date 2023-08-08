@@ -1,3 +1,4 @@
+import { entityKind, is } from '~/entity';
 import type { SelectResultFields } from '~/query-builders/select.types';
 import type { Placeholder, Query, SQLWrapper } from '~/sql';
 import { Param, SQL, sql } from '~/sql';
@@ -7,8 +8,7 @@ import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SQLiteTable } from '~/sqlite-core/table';
 import { type InferModel, Table } from '~/table';
-import type { Simplify } from '~/utils';
-import { mapUpdateSet, orderSelectedFields } from '~/utils';
+import { mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
 import type { SQLiteUpdateSetSource } from './update';
 
@@ -30,6 +30,8 @@ export class SQLiteInsertBuilder<
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 > {
+	static readonly [entityKind]: string = 'SQLiteInsertBuilder';
+
 	constructor(
 		protected table: TTable,
 		protected session: SQLiteSession<any, any, any, any>,
@@ -50,10 +52,16 @@ export class SQLiteInsertBuilder<
 			const cols = this.table[Table.Symbol.Columns];
 			for (const colKey of Object.keys(entry)) {
 				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = colValue instanceof SQL ? colValue : new Param(colValue, cols[colKey]);
+				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue, cols[colKey]);
 			}
 			return result;
 		});
+
+		// if (mappedValues.length > 1 && mappedValues.some((t) => Object.keys(t).length === 0)) {
+		// 	throw new Error(
+		// 		`One of the values you want to insert is empty. In SQLite you can insert only one empty object per statement. For this case Drizzle with use "INSERT INTO ... DEFAULT VALUES" syntax`,
+		// 	);
+		// }
 
 		return new SQLiteInsert(this.table, mappedValues, this.session, this.dialect);
 	}
@@ -77,6 +85,8 @@ export class SQLiteInsert<
 	TRunResult,
 	TReturning = undefined,
 > implements SQLWrapper {
+	static readonly [entityKind]: string = 'SQLiteInsert';
+
 	declare readonly _: {
 		readonly table: TTable;
 		readonly resultType: TResultType;
@@ -140,7 +150,7 @@ export class SQLiteInsert<
 		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	toSQL(): Simplify<Omit<Query, 'typings'>> {
+	toSQL(): Simplify<{ sql: Query['sql']; params: Query['params'] }> {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}

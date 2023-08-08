@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import { TransactionRollbackError } from '~/errors';
 import { type TablesRelationalConfig } from '~/relations';
 import { type Query, type SQL, sql } from '~/sql';
@@ -13,6 +14,8 @@ export interface PreparedQueryConfig {
 }
 
 export abstract class PreparedQuery<T extends PreparedQueryConfig> {
+	static readonly [entityKind]: string = 'PgPreparedQuery';
+
 	/** @internal */
 	joinsNotNullableMap?: Record<string, boolean>;
 
@@ -33,6 +36,8 @@ export abstract class PgSession<
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = Record<string, never>,
 > {
+	static readonly [entityKind]: string = 'PgSession';
+
 	constructor(protected dialect: PgDialect) {}
 
 	abstract prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -75,6 +80,8 @@ export abstract class PgTransaction<
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = Record<string, never>,
 > extends PgDatabase<TQueryResult, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'PgTransaction';
+
 	constructor(
 		dialect: PgDialect,
 		session: PgSession<any, any, any>,

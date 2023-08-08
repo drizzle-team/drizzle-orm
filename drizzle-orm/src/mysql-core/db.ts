@@ -1,8 +1,10 @@
 import type { ResultSetHeader } from 'mysql2/promise';
+import { entityKind } from '~/entity';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import { type ExtractTablesWithRelations, type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
 import type { SQLWrapper } from '~/sql';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
+import { type DrizzleTypeError } from '~/utils';
 import { type ColumnsSelection } from '~/view';
 import type { MySqlDialect } from './dialect';
 import {
@@ -15,6 +17,7 @@ import {
 import { RelationalQueryBuilder } from './query-builders/query';
 import type { SelectedFields } from './query-builders/select.types';
 import type {
+	Mode,
 	MySqlSession,
 	MySqlTransaction,
 	MySqlTransactionConfig,
@@ -31,14 +34,18 @@ export class MySqlDatabase<
 	TFullSchema extends Record<string, unknown> = {},
 	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
 > {
+	static readonly [entityKind]: string = 'MySqlDatabase';
+
 	declare readonly _: {
 		readonly schema: TSchema | undefined;
 		readonly tableNamesMap: Record<string, string>;
 	};
 
-	query: {
-		[K in keyof TSchema]: RelationalQueryBuilder<TPreparedQueryHKT, TSchema, TSchema[K]>;
-	};
+	query: TFullSchema extends Record<string, never>
+		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
+		: {
+			[K in keyof TSchema]: RelationalQueryBuilder<TPreparedQueryHKT, TSchema, TSchema[K]>;
+		};
 
 	constructor(
 		/** @internal */
@@ -46,6 +53,7 @@ export class MySqlDatabase<
 		/** @internal */
 		readonly session: MySqlSession<any, any, any, any>,
 		schema: RelationalSchemaConfig<TSchema> | undefined,
+		protected readonly mode: Mode,
 	) {
 		this._ = schema
 			? { schema: schema.schema, tableNamesMap: schema.tableNamesMap }
@@ -53,15 +61,17 @@ export class MySqlDatabase<
 		this.query = {} as typeof this['query'];
 		if (this._.schema) {
 			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				this.query[tableName as keyof TSchema] = new RelationalQueryBuilder(
-					schema!.fullSchema,
-					this._.schema,
-					this._.tableNamesMap,
-					schema!.fullSchema[tableName] as AnyMySqlTable,
-					columns,
-					dialect,
-					session,
-				);
+				(this.query as MySqlDatabase<TQueryResult, TPreparedQueryHKT, Record<string, any>>['query'])[tableName] =
+					new RelationalQueryBuilder(
+						schema!.fullSchema,
+						this._.schema,
+						this._.tableNamesMap,
+						schema!.fullSchema[tableName] as AnyMySqlTable,
+						columns,
+						dialect,
+						session,
+						this.mode,
+					);
 			}
 		}
 	}
@@ -70,7 +80,7 @@ export class MySqlDatabase<
 		return {
 			as<TSelection extends ColumnsSelection>(
 				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
-			): WithSubqueryWithSelection<TSelection, TAlias> {
+			): WithSubqueryWithSelection<TSelection, TAlias, 'mysql'> {
 				if (typeof qb === 'function') {
 					qb = qb(new QueryBuilder());
 				}
@@ -78,7 +88,7 @@ export class MySqlDatabase<
 				return new Proxy(
 					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
 					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-				) as WithSubqueryWithSelection<TSelection, TAlias>;
+				) as WithSubqueryWithSelection<TSelection, TAlias, 'mysql'>;
 			},
 		};
 	}
@@ -91,16 +101,50 @@ export class MySqlDatabase<
 			fields: TSelection,
 		): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
 		function select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
-			return new MySqlSelectBuilder(fields ?? undefined, self.session, self.dialect, queries);
+			return new MySqlSelectBuilder({
+				fields: fields ?? undefined,
+				session: self.session,
+				dialect: self.dialect,
+				withList: queries,
+			});
 		}
 
-		return { select };
+		function selectDistinct(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
+		function selectDistinct(
+			fields?: SelectedFields,
+		): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
+			return new MySqlSelectBuilder({
+				fields: fields ?? undefined,
+				session: self.session,
+				dialect: self.dialect,
+				withList: queries,
+				distinct: true,
+			});
+		}
+
+		return { select, selectDistinct };
 	}
 
 	select(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
 	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
 	select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
-		return new MySqlSelectBuilder(fields ?? undefined, this.session, this.dialect);
+		return new MySqlSelectBuilder({ fields: fields ?? undefined, session: this.session, dialect: this.dialect });
+	}
+
+	selectDistinct(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
+	selectDistinct<TSelection extends SelectedFields>(
+		fields: TSelection,
+	): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
+	selectDistinct(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
+		return new MySqlSelectBuilder({
+			fields: fields ?? undefined,
+			session: this.session,
+			dialect: this.dialect,
+			distinct: true,
+		});
 	}
 
 	update<TTable extends AnyMySqlTable>(table: TTable): MySqlUpdateBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
