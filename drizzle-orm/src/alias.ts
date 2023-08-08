@@ -1,11 +1,14 @@
 import type { AnyColumn } from './column';
 import { Column } from './column';
-import { type Relation } from './relations';
+import { entityKind, is } from './entity';
+import type { Relation } from './relations';
 import { SQL, sql } from './sql';
 import { Table } from './table';
 import { type View, ViewBaseConfig } from './view';
 
-export class ColumnAliasProxyHandler<TColumn extends AnyColumn> implements ProxyHandler<TColumn> {
+export class ColumnAliasProxyHandler<TColumn extends Column> implements ProxyHandler<TColumn> {
+	static readonly [entityKind]: string = 'ColumnAliasProxyHandler';
+
 	constructor(private table: Table | View) {}
 
 	get(columnObj: TColumn, prop: string | symbol): any {
@@ -18,6 +21,8 @@ export class ColumnAliasProxyHandler<TColumn extends AnyColumn> implements Proxy
 }
 
 export class TableAliasProxyHandler<T extends Table | View> implements ProxyHandler<T> {
+	static readonly [entityKind]: string = 'TableAliasProxyHandler';
+
 	constructor(private alias: string, private replaceOriginalName: boolean) {}
 
 	get(target: T, prop: string | symbol): any {
@@ -60,8 +65,8 @@ export class TableAliasProxyHandler<T extends Table | View> implements ProxyHand
 		}
 
 		const value = target[prop as keyof typeof target];
-		if (value instanceof Column) {
-			return new Proxy(value, new ColumnAliasProxyHandler(new Proxy(target, this)));
+		if (is(value, Column)) {
+			return new Proxy(value as AnyColumn, new ColumnAliasProxyHandler(new Proxy(target, this)));
 		}
 
 		return value;
@@ -69,6 +74,8 @@ export class TableAliasProxyHandler<T extends Table | View> implements ProxyHand
 }
 
 export class RelationTableAliasProxyHandler<T extends Relation> implements ProxyHandler<T> {
+	static readonly [entityKind]: string = 'RelationTableAliasProxyHandler';
+
 	constructor(private alias: string) {}
 
 	get(target: T, prop: string | symbol): any {
@@ -100,14 +107,14 @@ export function mapColumnsInAliasedSQLToAlias(query: SQL.Aliased, alias: string)
 }
 
 export function mapColumnsInSQLToAlias(query: SQL, alias: string): SQL {
-	return sql.fromList(query.queryChunks.map((c) => {
-		if (c instanceof Column) {
+	return sql.join(query.queryChunks.map((c) => {
+		if (is(c, Column)) {
 			return aliasedTableColumn(c, alias);
 		}
-		if (c instanceof SQL) {
+		if (is(c, SQL)) {
 			return mapColumnsInSQLToAlias(c, alias);
 		}
-		if (c instanceof SQL.Aliased) {
+		if (is(c, SQL.Aliased)) {
 			return mapColumnsInAliasedSQLToAlias(c, alias);
 		}
 		return c;

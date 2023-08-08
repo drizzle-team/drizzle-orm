@@ -1,7 +1,10 @@
+import { entityKind } from '~/entity';
 import type { SQL } from '~/sql';
 import type { AnyPgTable } from './table';
 
 export class CheckBuilder {
+	static readonly [entityKind]: string = 'PgCheckBuilder';
+
 	protected brand!: 'PgConstraintBuilder';
 
 	constructor(public name: string, public value: SQL) {}
@@ -13,6 +16,8 @@ export class CheckBuilder {
 }
 
 export class Check {
+	static readonly [entityKind]: string = 'PgCheck';
+
 	readonly name: string;
 	readonly value: SQL;
 

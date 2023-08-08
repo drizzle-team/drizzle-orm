@@ -50,7 +50,7 @@ jobs:
 
       - uses: actions/setup-node@v3
         with:
-          node-version: 19
+          node-version: 18
           registry-url: 'https://registry.npmjs.org'
 
       - uses: pnpm/action-setup@v2
@@ -81,14 +81,18 @@ jobs:
         run: |
           pnpm build
 
-      - name: Run integration tests
-        if: matrix.package == 'drizzle-orm'
+      - name: Run tests
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/drizzle
           MYSQL_CONNECTION_STRING: mysql://root:root@localhost:3306/drizzle
+          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
           LIBSQL_URL: file:local.db
         run: |
-          pnpm test --filter integration-tests
+          if [[ "${{ matrix.package }}" == "drizzle-orm" ]]; then
+            pnpm test --filter ${{ matrix.package }} --filter integration-tests
+          else
+          pnpm test --filter ${{ matrix.package }}
+          fi
 
       - name: Publish
         if: github.event_name == 'push'
@@ -103,8 +107,7 @@ jobs:
             npm dist-tag add ${{ matrix.package }}@$version $tag
           else
             echo "Publishing ${{ matrix.package }}@$tag using version $version"
-            npm version $version
-            cp package.json dist/package.json
+            (cd dist && npm version $version)
             npm run pack
             npm run publish -- --tag $tag
           fi

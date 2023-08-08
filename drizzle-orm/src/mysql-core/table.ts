@@ -1,10 +1,12 @@
 import type { BuildColumns } from '~/column-builder';
+import { entityKind } from '~/entity';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table';
 import type { CheckBuilder } from './checks';
-import type { AnyMySqlColumn, AnyMySqlColumnBuilder } from './columns/common';
+import type { MySqlColumn, MySqlColumnBuilder } from './columns/common';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
 import type { AnyIndexBuilder } from './indexes';
 import type { PrimaryKeyBuilder } from './primary-keys';
+import type { UniqueConstraintBuilder } from './unique-constraint';
 
 export type MySqlTableExtraConfig = Record<
 	string,
@@ -12,14 +14,17 @@ export type MySqlTableExtraConfig = Record<
 	| CheckBuilder
 	| ForeignKeyBuilder
 	| PrimaryKeyBuilder
+	| UniqueConstraintBuilder
 >;
 
-export type TableConfig = TableConfigBase<AnyMySqlColumn>;
+export type TableConfig = TableConfigBase<MySqlColumn>;
 
 /** @internal */
-export const InlineForeignKeys = Symbol('InlineForeignKeys');
+export const InlineForeignKeys = Symbol.for('drizzle:MySqlInlineForeignKeys');
 
-export class MySqlTable<T extends TableConfig> extends Table<T> {
+export class MySqlTable<T extends TableConfig = TableConfig> extends Table<T> {
+	static readonly [entityKind]: string = 'MySqlTable';
+
 	declare protected $columns: T['columns'];
 
 	/** @internal */
@@ -35,7 +40,7 @@ export class MySqlTable<T extends TableConfig> extends Table<T> {
 
 	/** @internal */
 	override [Table.Symbol.ExtraConfigBuilder]:
-		| ((self: Record<string, AnyMySqlColumn>) => MySqlTableExtraConfig)
+		| ((self: Record<string, MySqlColumn>) => MySqlTableExtraConfig)
 		| undefined = undefined;
 }
 
@@ -52,22 +57,24 @@ export type MySqlTableWithColumns<T extends TableConfig> =
 export function mysqlTableWithSchema<
 	TTableName extends string,
 	TSchemaName extends string | undefined,
-	TColumnsMap extends Record<string, AnyMySqlColumnBuilder>,
+	TColumnsMap extends Record<string, MySqlColumnBuilder>,
 >(
 	name: TTableName,
 	columns: TColumnsMap,
-	extraConfig: ((self: BuildColumns<TTableName, TColumnsMap>) => MySqlTableExtraConfig) | undefined,
+	extraConfig: ((self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig) | undefined,
 	schema: TSchemaName,
 	baseName = name,
 ): MySqlTableWithColumns<{
 	name: TTableName;
 	schema: TSchemaName;
-	columns: BuildColumns<TTableName, TColumnsMap>;
+	columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+	dialect: 'mysql';
 }> {
 	const rawTable = new MySqlTable<{
 		name: TTableName;
 		schema: TSchemaName;
-		columns: BuildColumns<TTableName, TColumnsMap>;
+		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+		dialect: 'mysql';
 	}>(name, schema, baseName);
 
 	const builtColumns = Object.fromEntries(
@@ -76,15 +83,15 @@ export function mysqlTableWithSchema<
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
 		}),
-	) as unknown as BuildColumns<TTableName, TColumnsMap>;
+	) as unknown as BuildColumns<TTableName, TColumnsMap, 'mysql'>;
 
 	const table = Object.assign(rawTable, builtColumns);
 
 	table[Table.Symbol.Columns] = builtColumns;
 
 	if (extraConfig) {
-		table[MySqlTable.Symbol.ExtraConfigBuilder] = extraConfig as (
-			self: Record<string, AnyMySqlColumn>,
+		table[MySqlTable.Symbol.ExtraConfigBuilder] = extraConfig as unknown as (
+			self: Record<string, MySqlColumn>,
 		) => MySqlTableExtraConfig;
 	}
 
@@ -94,15 +101,16 @@ export function mysqlTableWithSchema<
 export interface MySqlTableFn<TSchemaName extends string | undefined = undefined> {
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, AnyMySqlColumnBuilder>,
+		TColumnsMap extends Record<string, MySqlColumnBuilder>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap>) => MySqlTableExtraConfig,
+		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig,
 	): MySqlTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;
-		columns: BuildColumns<TTableName, TColumnsMap>;
+		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+		dialect: 'mysql';
 	}>;
 }
 

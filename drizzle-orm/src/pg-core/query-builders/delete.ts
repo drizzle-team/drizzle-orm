@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import type { PgDialect } from '~/pg-core/dialect';
 import type { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
 import type { AnyPgTable } from '~/pg-core/table';
@@ -5,7 +6,8 @@ import type { SelectResultFields } from '~/query-builders/select.types';
 import { QueryPromise } from '~/query-promise';
 import type { Query, SQL, SQLWrapper } from '~/sql';
 import { type InferModel, Table } from '~/table';
-import { orderSelectedFields, type Simplify } from '~/utils';
+import { tracer } from '~/tracing';
+import { orderSelectedFields } from '~/utils';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
 
 export interface PgDeleteConfig {
@@ -29,6 +31,8 @@ export class PgDelete<
 > extends QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>
 	implements SQLWrapper
 {
+	static readonly [entityKind]: string = 'PgDelete';
+
 	private config: PgDeleteConfig;
 
 	constructor(
@@ -59,7 +63,7 @@ export class PgDelete<
 		return this.dialect.buildDeleteQuery(this.config);
 	}
 
-	toSQL(): Simplify<Omit<Query, 'typings'>> {
+	toSQL(): { sql: Query['sql']; params: Query['params'] } {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
@@ -69,7 +73,13 @@ export class PgDelete<
 			execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
 		}
 	> {
-		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
+		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			return this.session.prepareQuery<
+				PreparedQueryConfig & {
+					execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
+				}
+			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
+		});
 	}
 
 	prepare(name: string): PreparedQuery<
@@ -81,6 +91,8 @@ export class PgDelete<
 	}
 
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this._prepare().execute(placeholderValues);
+		return tracer.startActiveSpan('drizzle.operation', () => {
+			return this._prepare().execute(placeholderValues);
+		});
 	};
 }

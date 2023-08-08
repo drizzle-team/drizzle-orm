@@ -9,7 +9,7 @@ import {
 	index,
 	integer,
 	primaryKey,
-	type SQLiteInteger,
+	type SQLiteColumn,
 	sqliteTable,
 	text,
 	uniqueIndex,
@@ -156,21 +156,29 @@ export const newYorkers = sqliteView('new_yorkers')
 Expect<
 	Equal<
 		SQLiteViewWithSelection<'new_yorkers', false, {
-			userId: SQLiteInteger<{
+			userId: SQLiteColumn<{
 				name: 'id';
+				dataType: 'number';
+				columnType: 'SQLiteInteger';
 				data: number;
 				driverParam: number;
 				notNull: true;
 				hasDefault: true;
 				tableName: 'new_yorkers';
+				enumValues: undefined;
+				baseColumn: never;
 			}>;
-			cityId: SQLiteInteger<{
+			cityId: SQLiteColumn<{
 				name: 'id';
+				dataType: 'number';
+				columnType: 'SQLiteInteger';
 				data: number;
 				driverParam: number;
 				notNull: false;
 				hasDefault: true;
 				tableName: 'new_yorkers';
+				enumValues: undefined;
+				baseColumn: never;
 			}>;
 		}>,
 		typeof newYorkers
@@ -191,21 +199,29 @@ Expect<
 	Expect<
 		Equal<
 			SQLiteViewWithSelection<'new_yorkers', false, {
-				userId: SQLiteInteger<{
+				userId: SQLiteColumn<{
 					name: 'user_id';
+					dataType: 'number';
+					columnType: 'SQLiteInteger';
 					data: number;
 					driverParam: number;
 					hasDefault: false;
 					notNull: true;
 					tableName: 'new_yorkers';
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
-				cityId: SQLiteInteger<{
+				cityId: SQLiteColumn<{
 					name: 'city_id';
 					notNull: false;
 					hasDefault: false;
+					dataType: 'number';
+					columnType: 'SQLiteInteger';
 					data: number;
 					driverParam: number;
 					tableName: 'new_yorkers';
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
 			}>,
 			typeof newYorkers
@@ -222,21 +238,29 @@ Expect<
 	Expect<
 		Equal<
 			SQLiteViewWithSelection<'new_yorkers', true, {
-				userId: SQLiteInteger<{
+				userId: SQLiteColumn<{
 					name: 'user_id';
+					dataType: 'number';
+					columnType: 'SQLiteInteger';
 					data: number;
 					driverParam: number;
 					hasDefault: false;
 					notNull: true;
 					tableName: 'new_yorkers';
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
-				cityId: SQLiteInteger<{
+				cityId: SQLiteColumn<{
 					name: 'city_id';
 					notNull: false;
 					hasDefault: false;
+					dataType: 'number';
+					columnType: 'SQLiteInteger';
 					data: number;
 					driverParam: number;
 					tableName: 'new_yorkers';
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
 			}>,
 			typeof newYorkers
@@ -328,5 +352,25 @@ Expect<
 				cityId: number | null;
 			} | null;
 		}[], typeof result>
+	>;
+}
+
+{
+	type Id = number & { __id: true };
+
+	const _table = sqliteTable('test', {
+		// @ts-expect-error - type should be Id, not number
+		col1: integer('col1').$type<Id>().default(1),
+		col2: integer('col2').$type<Id>().default(1 as Id),
+	});
+
+	const table = sqliteTable('test', {
+		col1: integer('col1').$type<Id>().notNull(),
+	});
+
+	Expect<
+		Equal<{
+			col1: Id;
+		}, InferModel<typeof table>>
 	>;
 }

@@ -1,4 +1,5 @@
 import type { GetColumnData } from '~/column';
+import { entityKind } from '~/entity';
 import type { SelectResultFields } from '~/query-builders/select.types';
 import type { Query, SQL, SQLWrapper } from '~/sql';
 import type { SQLiteDialect } from '~/sqlite-core/dialect';
@@ -6,8 +7,7 @@ import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SQLiteTable } from '~/sqlite-core/table';
 import type { InferModel } from '~/table';
-import type { Simplify, UpdateSet } from '~/utils';
-import { mapUpdateSet, orderSelectedFields } from '~/utils';
+import { mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils';
 import type { SelectedFields, SelectedFieldsOrdered } from './select.types';
 
 export interface SQLiteUpdateConfig {
@@ -17,19 +17,21 @@ export interface SQLiteUpdateConfig {
 	returning?: SelectedFieldsOrdered;
 }
 
-export type SQLiteUpdateSetSource<TTable extends AnySQLiteTable> = Simplify<
-	{
+export type SQLiteUpdateSetSource<TTable extends AnySQLiteTable> =
+	& {
 		[Key in keyof TTable['_']['columns']]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
 			| SQL;
 	}
->;
+	& {};
 
 export class SQLiteUpdateBuilder<
 	TTable extends AnySQLiteTable,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 > {
+	static readonly [entityKind]: string = 'SQLiteUpdateBuilder';
+
 	declare readonly _: {
 		readonly table: TTable;
 	};
@@ -63,6 +65,8 @@ export class SQLiteUpdate<
 	TRunResult,
 	TReturning = undefined,
 > implements SQLWrapper {
+	static readonly [entityKind]: string = 'SQLiteUpdate';
+
 	declare readonly _: {
 		readonly table: TTable;
 	};
@@ -105,7 +109,7 @@ export class SQLiteUpdate<
 		return this.dialect.buildUpdateQuery(this.config);
 	}
 
-	toSQL(): Omit<Query, 'typings'> {
+	toSQL(): { sql: Query['sql']; params: Query['params'] } {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}

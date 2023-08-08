@@ -1,6 +1,6 @@
+import { entityKind } from '~/entity';
 import type { SQL } from '~/sql';
-
-import type { AnySQLiteColumn } from './columns';
+import { type SQLiteColumn } from './columns';
 import type { AnySQLiteTable } from './table';
 
 export interface IndexConfig {
@@ -10,9 +10,11 @@ export interface IndexConfig {
 	where: SQL | undefined;
 }
 
-export type IndexColumn = AnySQLiteColumn | SQL;
+export type IndexColumn = SQLiteColumn | SQL;
 
 export class IndexBuilderOn {
+	static readonly [entityKind]: string = 'SQLiteIndexBuilderOn';
+
 	constructor(private name: string, private unique: boolean) {}
 
 	on(...columns: [IndexColumn, ...IndexColumn[]]): IndexBuilder {
@@ -21,6 +23,8 @@ export class IndexBuilderOn {
 }
 
 export class IndexBuilder {
+	static readonly [entityKind]: string = 'SQLiteIndexBuilder';
+
 	declare _: {
 		brand: 'SQLiteIndexBuilder';
 	};
@@ -52,6 +56,8 @@ export class IndexBuilder {
 }
 
 export class Index {
+	static readonly [entityKind]: string = 'SQLiteIndex';
+
 	declare _: {
 		brand: 'SQLiteIndex';
 	};

@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
 import { PgDialect } from '~/pg-core';
@@ -16,6 +17,8 @@ export interface VercelPgDriverOptions {
 }
 
 export class VercelPgDriver {
+	static readonly [entityKind]: string = 'VercelPgDriver';
+
 	constructor(
 		private client: VercelPgClient,
 		private dialect: PgDialect,

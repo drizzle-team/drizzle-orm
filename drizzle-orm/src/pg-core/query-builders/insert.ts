@@ -1,3 +1,4 @@
+import { entityKind, is } from '~/entity';
 import type { PgDialect } from '~/pg-core/dialect';
 import type { IndexColumn } from '~/pg-core/indexes';
 import type { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
@@ -7,7 +8,7 @@ import { QueryPromise } from '~/query-promise';
 import type { Placeholder, Query, SQLWrapper } from '~/sql';
 import { Param, SQL, sql } from '~/sql';
 import { type InferModel, Table } from '~/table';
-import type { Simplify } from '~/utils';
+import { tracer } from '~/tracing';
 import { mapUpdateSet, orderSelectedFields } from '~/utils';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
 import type { PgUpdateSetSource } from './update';
@@ -19,13 +20,15 @@ export interface PgInsertConfig<TTable extends AnyPgTable = AnyPgTable> {
 	returning?: SelectedFieldsOrdered;
 }
 
-export type PgInsertValue<TTable extends AnyPgTable> = Simplify<
-	{
+export type PgInsertValue<TTable extends AnyPgTable> =
+	& {
 		[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
 	}
->;
+	& {};
 
 export class PgInsertBuilder<TTable extends AnyPgTable, TQueryResult extends QueryResultHKT> {
+	static readonly [entityKind]: string = 'PgInsertBuilder';
+
 	constructor(
 		private table: TTable,
 		private session: PgSession,
@@ -44,7 +47,7 @@ export class PgInsertBuilder<TTable extends AnyPgTable, TQueryResult extends Que
 			const cols = this.table[Table.Symbol.Columns];
 			for (const colKey of Object.keys(entry)) {
 				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = colValue instanceof SQL ? colValue : new Param(colValue, cols[colKey]);
+				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue, cols[colKey]);
 			}
 			return result;
 		});
@@ -70,6 +73,8 @@ export class PgInsert<
 > extends QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>
 	implements SQLWrapper
 {
+	static readonly [entityKind]: string = 'PgInsert';
+
 	declare _: {
 		table: TTable;
 		return: TReturning;
@@ -107,8 +112,8 @@ export class PgInsert<
 				? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
 				: this.dialect.escapeName(config.target.name);
 
-			const whereSql = config.where ? sql` where ${config.where}` : sql``;
-			this.config.onConflict = sql`(${sql.raw(targetColumn)})${whereSql} do nothing`;
+			const whereSql = config.where ? sql` where ${config.where}` : undefined;
+			this.config.onConflict = sql`(${sql.raw(targetColumn)}) do nothing${whereSql}`;
 		}
 		return this;
 	}
@@ -118,13 +123,13 @@ export class PgInsert<
 		where?: SQL;
 		set: PgUpdateSetSource<TTable>;
 	}): this {
-		const whereSql = config.where ? sql` where ${config.where}` : sql``;
+		const whereSql = config.where ? sql` where ${config.where}` : undefined;
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
 		let targetColumn = '';
 		targetColumn = Array.isArray(config.target)
 			? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
 			: this.dialect.escapeName(config.target.name);
-		this.config.onConflict = sql`(${sql.raw(targetColumn)})${whereSql} do update set ${setSql}`;
+		this.config.onConflict = sql`(${sql.raw(targetColumn)}) do update set ${setSql}${whereSql}`;
 		return this;
 	}
 
@@ -133,7 +138,7 @@ export class PgInsert<
 		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	toSQL(): Simplify<Omit<Query, 'typings'>> {
+	toSQL(): { sql: Query['sql']; params: Query['params'] } {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
@@ -143,7 +148,13 @@ export class PgInsert<
 			execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
 		}
 	> {
-		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
+		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			return this.session.prepareQuery<
+				PreparedQueryConfig & {
+					execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
+				}
+			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
+		});
 	}
 
 	prepare(name: string): PreparedQuery<
@@ -155,6 +166,8 @@ export class PgInsert<
 	}
 
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this._prepare().execute(placeholderValues);
+		return tracer.startActiveSpan('drizzle.operation', () => {
+			return this._prepare().execute(placeholderValues);
+		});
 	};
 }

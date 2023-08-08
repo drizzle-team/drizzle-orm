@@ -1,7 +1,9 @@
+import { entityKind, is } from '~/entity';
 import { type PgTableFn, pgTableWithSchema } from './table';
 import { type pgMaterializedView, pgMaterializedViewWithSchema, type pgView, pgViewWithSchema } from './view';
 
 export class PgSchema<TName extends string = string> {
+	static readonly [entityKind]: string = 'PgSchema';
 	constructor(
 		public readonly schemaName: TName,
 	) {}
@@ -20,7 +22,7 @@ export class PgSchema<TName extends string = string> {
 }
 
 export function isPgSchema(obj: unknown): obj is PgSchema {
-	return obj instanceof PgSchema;
+	return is(obj, PgSchema);
 }
 
 export function pgSchema<T extends string>(name: T) {

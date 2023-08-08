@@ -11,12 +11,39 @@ const blobJsonSchema = z.object({
 const users = sqliteTable('users', {
 	id: integer('id').primaryKey(),
 	blobJson: blob('blob', { mode: 'json' }).$type<z.infer<typeof blobJsonSchema>>().notNull(),
+	blobBigInt: blob('blob', { mode: 'bigint' }).notNull(),
 	numeric: numeric('numeric').notNull(),
 	createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 	createdAtMs: integer('created_at_ms', { mode: 'timestamp_ms' }).notNull(),
+	boolean: integer('boolean', { mode: 'boolean' }).notNull(),
 	real: real('real').notNull(),
-	text: text('text'),
+	text: text('text', { length: 255 }),
 	role: text('role', { enum: ['admin', 'user'] }).notNull().default('user'),
+});
+
+const testUser = {
+	id: 1,
+	blobJson: { foo: 'bar' },
+	blobBigInt: BigInt(123),
+	numeric: '123.45',
+	createdAt: new Date(),
+	createdAtMs: new Date(),
+	boolean: true,
+	real: 123.45,
+	text: 'foobar',
+	role: 'admin',
+};
+
+test('users insert valid user', (t) => {
+	const schema = createInsertSchema(users);
+
+	t.is(schema.safeParse(testUser).success, true);
+});
+
+test('users insert invalid text length', (t) => {
+	const schema = createInsertSchema(users);
+
+	t.is(schema.safeParse({ ...testUser, text: 'a'.repeat(256) }).success, false);
 });
 
 test('users insert schema', (t) => {
@@ -45,12 +72,15 @@ test('users insert schema', (t) => {
 	const expected = z.object({
 		id: z.number().positive().optional(),
 		blobJson: blobJsonSchema,
+		blobBigInt: z.bigint(),
 		numeric: z.string(),
 		createdAt: z.date(),
 		createdAtMs: z.date(),
+		boolean: z.boolean(),
 		real: z.number(),
 		text: z.string().nullable().optional(),
 		role: z.enum(['admin', 'manager', 'user']).optional(),
+
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -62,9 +92,11 @@ test('users insert schema w/ defaults', (t) => {
 	const expected = z.object({
 		id: z.number().optional(),
 		blobJson: jsonSchema,
+		blobBigInt: z.bigint(),
 		numeric: z.string(),
 		createdAt: z.date(),
 		createdAtMs: z.date(),
+		boolean: z.boolean(),
 		real: z.number(),
 		text: z.string().nullable().optional(),
 		role: z.enum(['admin', 'user']).optional(),
@@ -98,9 +130,11 @@ test('users select schema', (t) => {
 	const expected = z.object({
 		id: z.number(),
 		blobJson: jsonSchema,
+		blobBigInt: z.bigint(),
 		numeric: z.string(),
 		createdAt: z.date(),
 		createdAtMs: z.date(),
+		boolean: z.boolean(),
 		real: z.number(),
 		text: z.string().nullable(),
 		role: z.enum(['admin', 'manager', 'user']),
@@ -115,9 +149,11 @@ test('users select schema w/ defaults', (t) => {
 	const expected = z.object({
 		id: z.number(),
 		blobJson: jsonSchema,
+		blobBigInt: z.bigint(),
 		numeric: z.string(),
 		createdAt: z.date(),
 		createdAtMs: z.date(),
+		boolean: z.boolean(),
 		real: z.number(),
 		text: z.string().nullable(),
 		role: z.enum(['admin', 'user']),

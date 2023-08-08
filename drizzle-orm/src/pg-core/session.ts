@@ -1,6 +1,8 @@
+import { entityKind } from '~/entity';
 import { TransactionRollbackError } from '~/errors';
 import { type TablesRelationalConfig } from '~/relations';
 import { type Query, type SQL, sql } from '~/sql';
+import { tracer } from '~/tracing';
 import { PgDatabase } from './db';
 import type { PgDialect } from './dialect';
 import type { SelectedFieldsOrdered } from './query-builders/select.types';
@@ -12,6 +14,8 @@ export interface PreparedQueryConfig {
 }
 
 export abstract class PreparedQuery<T extends PreparedQueryConfig> {
+	static readonly [entityKind]: string = 'PgPreparedQuery';
+
 	/** @internal */
 	joinsNotNullableMap?: Record<string, boolean>;
 
@@ -19,9 +23,6 @@ export abstract class PreparedQuery<T extends PreparedQueryConfig> {
 
 	/** @internal */
 	abstract all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;
-
-	/** @internal */
-	abstract values(placeholderValues?: Record<string, unknown>): Promise<T['values']>;
 }
 
 export interface PgTransactionConfig {
@@ -35,21 +36,29 @@ export abstract class PgSession<
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = Record<string, never>,
 > {
+	static readonly [entityKind]: string = 'PgSession';
+
 	constructor(protected dialect: PgDialect) {}
 
 	abstract prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
 	): PreparedQuery<T>;
 
 	execute<T>(query: SQL): Promise<T> {
-		return this.prepareQuery<PreparedQueryConfig & { execute: T }>(
-			this.dialect.sqlToQuery(query),
-			undefined,
-			undefined,
-		).execute();
+		return tracer.startActiveSpan('drizzle.operation', () => {
+			const prepared = tracer.startActiveSpan('drizzle.prepareQuery', () => {
+				return this.prepareQuery<PreparedQueryConfig & { execute: T }>(
+					this.dialect.sqlToQuery(query),
+					undefined,
+					undefined,
+				);
+			});
+
+			return prepared.execute();
+		});
 	}
 
 	all<T = unknown>(query: SQL): Promise<T[]> {
@@ -58,14 +67,6 @@ export abstract class PgSession<
 			undefined,
 			undefined,
 		).all();
-	}
-
-	values<T = unknown>(query: SQL): Promise<T[]> {
-		return this.prepareQuery<PreparedQueryConfig & { values: T[] }>(
-			this.dialect.sqlToQuery(query),
-			undefined,
-			undefined,
-		).values();
 	}
 
 	abstract transaction<T>(
@@ -79,6 +80,8 @@ export abstract class PgTransaction<
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = Record<string, never>,
 > extends PgDatabase<TQueryResult, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'PgTransaction';
+
 	constructor(
 		dialect: PgDialect,
 		session: PgSession<any, any, any>,

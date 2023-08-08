@@ -1,5 +1,6 @@
 import type { SQL } from '~/sql';
 
+import { entityKind } from '~/entity';
 import type { AnyPgColumn } from './columns';
 import type { AnyPgTable } from './table';
 
@@ -47,6 +48,8 @@ interface IndexConfig {
 export type IndexColumn = AnyPgColumn;
 
 export class IndexBuilderOn {
+	static readonly [entityKind]: string = 'PgIndexBuilderOn';
+
 	constructor(private unique: boolean, private name?: string) {}
 
 	on(...columns: [IndexColumn, ...IndexColumn[]]): IndexBuilder {
@@ -66,6 +69,8 @@ export interface AnyIndexBuilder {
 export interface IndexBuilder extends AnyIndexBuilder {}
 
 export class IndexBuilder implements AnyIndexBuilder {
+	static readonly [entityKind]: string = 'PgIndexBuilder';
+
 	/** @internal */
 	config: IndexConfig;
 
@@ -120,6 +125,8 @@ export class IndexBuilder implements AnyIndexBuilder {
 }
 
 export class Index {
+	static readonly [entityKind]: string = 'PgIndex';
+
 	readonly config: IndexConfig & { table: AnyPgTable };
 
 	constructor(config: IndexConfig, table: AnyPgTable) {

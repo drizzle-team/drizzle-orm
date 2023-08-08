@@ -2,23 +2,23 @@ import type { Field } from '@aws-sdk/client-rds-data';
 import { TypeHint } from '@aws-sdk/client-rds-data';
 import type { QueryTypingsValue } from '~/sql';
 
-export function getValueFromDataApi(row: Field) {
-	if (row.stringValue !== undefined) {
-		return row.stringValue;
-	} else if (row.booleanValue !== undefined) {
-		return row.booleanValue;
-	} else if (row.doubleValue !== undefined) {
-		return row.doubleValue;
-	} else if (row.isNull !== undefined) {
+export function getValueFromDataApi(field: Field) {
+	if (field.stringValue !== undefined) {
+		return field.stringValue;
+	} else if (field.booleanValue !== undefined) {
+		return field.booleanValue;
+	} else if (field.doubleValue !== undefined) {
+		return field.doubleValue;
+	} else if (field.isNull !== undefined) {
 		return null;
-	} else if (row.longValue !== undefined) {
-		return row.longValue;
-	} else if (row.blobValue !== undefined) {
-		return row.blobValue;
+	} else if (field.longValue !== undefined) {
+		return field.longValue;
+	} else if (field.blobValue !== undefined) {
+		return field.blobValue;
 		// eslint-disable-next-line unicorn/no-negated-condition
-	} else if (row.arrayValue !== undefined) {
-		if (row.arrayValue.stringValues !== undefined) {
-			return row.arrayValue.stringValues;
+	} else if (field.arrayValue !== undefined) {
+		if (field.arrayValue.stringValues !== undefined) {
+			return field.arrayValue.stringValues;
 		}
 		throw new Error('Unknown array type');
 	} else {
@@ -62,7 +62,7 @@ export function toValueParam(value: any, typings?: QueryTypingsValue): { value: 
 		response.value = { doubleValue: value };
 	} else if (typeof value === 'boolean') {
 		response.value = { booleanValue: value };
-	} else if (value instanceof Date) {
+	} else if (value instanceof Date) { // eslint-disable-line no-instanceof/no-instanceof
 		response.value = { stringValue: value.toISOString().replace('T', ' ').replace('Z', '') };
 	} else {
 		throw new Error(`Unknown type for ${value}`);

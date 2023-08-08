@@ -2,7 +2,7 @@ import 'dotenv/config';
 
 import { zValidator } from '@hono/zod-validator';
 import { createClient } from '@libsql/client';
-import { eq } from 'drizzle-orm/expressions';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/libsql';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
