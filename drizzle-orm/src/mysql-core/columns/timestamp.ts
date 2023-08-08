@@ -1,33 +1,26 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { ColumnBaseConfig } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import type { Assume, Equal } from '~/utils';
+import { type Equal } from '~/utils';
 import { MySqlDateBaseColumn, MySqlDateColumnBaseBuilder } from './date.common';
-
-export interface MySqlTimestampBuilderHKT extends ColumnBuilderHKTBase {
-	_type: MySqlTimestampBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: MySqlTimestampHKT;
-}
-
-export interface MySqlTimestampHKT extends ColumnHKTBase {
-	_type: MySqlTimestamp<Assume<this['config'], ColumnBaseConfig>>;
-}
 
 export type MySqlTimestampBuilderInitial<TName extends string> = MySqlTimestampBuilder<{
 	name: TName;
+	dataType: 'date';
+	columnType: 'MySqlTimestamp';
 	data: Date;
 	driverParam: string | number;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class MySqlTimestampBuilder<T extends ColumnBuilderBaseConfig> extends MySqlDateColumnBaseBuilder<
-	MySqlTimestampBuilderHKT,
-	T,
-	MySqlTimestampConfig
-> {
+export class MySqlTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'MySqlTimestamp'>>
+	extends MySqlDateColumnBaseBuilder<T, MySqlTimestampConfig>
+{
+	static readonly [entityKind]: string = 'MySqlTimestampBuilder';
+
 	constructor(name: T['name'], config: MySqlTimestampConfig | undefined) {
-		super(name);
+		super(name, 'date', 'MySqlTimestamp');
 		this.config.fsp = config?.fsp;
 	}
 
@@ -35,13 +28,18 @@ export class MySqlTimestampBuilder<T extends ColumnBuilderBaseConfig> extends My
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlTimestamp<MakeColumnConfig<T, TTableName>> {
-		return new MySqlTimestamp<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new MySqlTimestamp<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class MySqlTimestamp<T extends ColumnBaseConfig>
-	extends MySqlDateBaseColumn<MySqlTimestampHKT, T, MySqlTimestampConfig>
+export class MySqlTimestamp<T extends ColumnBaseConfig<'date', 'MySqlTimestamp'>>
+	extends MySqlDateBaseColumn<T, MySqlTimestampConfig>
 {
+	static readonly [entityKind]: string = 'MySqlTimestamp';
+
 	readonly fsp: number | undefined = this.config.fsp;
 
 	getSQLType(): string {
@@ -58,30 +56,22 @@ export class MySqlTimestamp<T extends ColumnBaseConfig>
 	}
 }
 
-export interface MySqlTimestampStringBuilderHKT extends ColumnBuilderHKTBase {
-	_type: MySqlTimestampStringBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: MySqlTimestampStringHKT;
-}
-
-export interface MySqlTimestampStringHKT extends ColumnHKTBase {
-	_type: MySqlTimestampString<Assume<this['config'], ColumnBaseConfig>>;
-}
-
 export type MySqlTimestampStringBuilderInitial<TName extends string> = MySqlTimestampStringBuilder<{
 	name: TName;
+	dataType: 'string';
+	columnType: 'MySqlTimestampString';
 	data: string;
 	driverParam: string | number;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class MySqlTimestampStringBuilder<T extends ColumnBuilderBaseConfig> extends MySqlDateColumnBaseBuilder<
-	MySqlTimestampStringBuilderHKT,
-	T,
-	MySqlTimestampConfig
-> {
+export class MySqlTimestampStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlTimestampString'>>
+	extends MySqlDateColumnBaseBuilder<T, MySqlTimestampConfig>
+{
+	static readonly [entityKind]: string = 'MySqlTimestampStringBuilder';
+
 	constructor(name: T['name'], config: MySqlTimestampConfig | undefined) {
-		super(name);
+		super(name, 'string', 'MySqlTimestampString');
 		this.config.fsp = config?.fsp;
 	}
 
@@ -89,13 +79,18 @@ export class MySqlTimestampStringBuilder<T extends ColumnBuilderBaseConfig> exte
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlTimestampString<MakeColumnConfig<T, TTableName>> {
-		return new MySqlTimestampString<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new MySqlTimestampString<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class MySqlTimestampString<T extends ColumnBaseConfig>
-	extends MySqlDateBaseColumn<MySqlTimestampStringHKT, T, MySqlTimestampConfig>
+export class MySqlTimestampString<T extends ColumnBaseConfig<'string', 'MySqlTimestampString'>>
+	extends MySqlDateBaseColumn<T, MySqlTimestampConfig>
 {
+	static readonly [entityKind]: string = 'MySqlTimestampString';
+
 	readonly fsp: number | undefined = this.config.fsp;
 
 	getSQLType(): string {

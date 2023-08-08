@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import { QueryPromise } from '~/query-promise';
 import {
 	type BuildQueryResult,
@@ -6,14 +7,16 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations';
-import { type SQL } from '~/sql';
+import type { SQL } from '~/sql';
 import { tracer } from '~/tracing';
 import { type KnownKeysOnly } from '~/utils';
-import { type PgDialect } from '../dialect';
-import { type PgSession, type PreparedQuery, type PreparedQueryConfig } from '../session';
+import type { PgDialect } from '../dialect';
+import type { PgSession, PreparedQuery, PreparedQueryConfig } from '../session';
 import { type AnyPgTable } from '../table';
 
 export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields extends TableRelationalConfig> {
+	static readonly [entityKind]: string = 'PgRelationalQueryBuilder';
+
 	constructor(
 		private fullSchema: Record<string, unknown>,
 		private schema: TSchema,
@@ -58,6 +61,8 @@ export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFie
 }
 
 export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
+	static readonly [entityKind]: string = 'PgRelationalQuery';
+
 	declare protected $brand: 'PgRelationalQuery';
 
 	constructor(
@@ -76,25 +81,46 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 
 	private _prepare(name?: string): PreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const query = this.dialect.buildRelationalQuery(
-				this.fullSchema,
-				this.schema,
-				this.tableNamesMap,
-				this.table,
-				this.tableConfig,
-				this.config,
-				this.tableConfig.tsName,
-				[],
-				true,
-			);
+			// const query = this.tableConfig.primaryKey.length > 0
+			// 	? this.dialect.buildRelationalQueryWithPK({
+			// 		fullSchema: this.fullSchema,
+			// 		schema: this.schema,
+			// 		tableNamesMap: this.tableNamesMap,
+			// 		table: this.table,
+			// 		tableConfig: this.tableConfig,
+			// 		queryConfig: this.config,
+			// 		tableAlias: this.tableConfig.tsName,
+			// 		isRoot: true,
+			// 	})
+			// 	: this.dialect.buildRelationalQueryWithoutPK({
+			// 		fullSchema: this.fullSchema,
+			// 		schema: this.schema,
+			// 		tableNamesMap: this.tableNamesMap,
+			// 		table: this.table,
+			// 		tableConfig: this.tableConfig,
+			// 		queryConfig: this.config,
+			// 		tableAlias: this.tableConfig.tsName,
+			// 	});
+
+			const query = this.dialect.buildRelationalQueryWithoutPK({
+				fullSchema: this.fullSchema,
+				schema: this.schema,
+				tableNamesMap: this.tableNamesMap,
+				table: this.table,
+				tableConfig: this.tableConfig,
+				queryConfig: this.config,
+				tableAlias: this.tableConfig.tsName,
+			});
 
 			const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
 			return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
 				builtQuery,
 				undefined,
 				name,
-				(rawRows) => {
-					const rows = rawRows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, query.selection));
+				(rawRows, mapColumnValue) => {
+					const rows = rawRows.map((row) =>
+						mapRelationalRow(this.schema, this.tableConfig, row, query.selection, mapColumnValue)
+					);
 					if (this.mode === 'first') {
 						return rows[0] as TResult;
 					}

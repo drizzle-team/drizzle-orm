@@ -667,7 +667,7 @@ const users = pgTable('users', {
   cityId: integer('city_id').references(() => cities.id),
 });
 
-const result = db.select().from(cities).leftJoin(users, eq(cities2.id, users2.cityId));
+const result = db.select().from(cities).leftJoin(users, eq(cities.id, users.cityId));
 ```
 
 #### Many-to-many

@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
 import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
@@ -20,6 +21,8 @@ export class SQLiteRemoteSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteSession<'async', SqliteRemoteResult, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'SQLiteRemoteSession';
+
 	private logger: Logger;
 
 	constructor(
@@ -60,6 +63,8 @@ export class SQLiteProxyTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteTransaction<'async', SqliteRemoteResult, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'SQLiteProxyTransaction';
+
 	override async transaction<T>(
 		transaction: (tx: SQLiteProxyTransaction<TFullSchema, TSchema>) => Promise<T>,
 	): Promise<T> {
@@ -80,6 +85,8 @@ export class SQLiteProxyTransaction<
 export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
 	{ type: 'async'; run: SqliteRemoteResult; all: T['all']; get: T['get']; values: T['values'] }
 > {
+	static readonly [entityKind]: string = 'SQLiteProxyPreparedQuery';
+
 	constructor(
 		private client: RemoteCallback,
 		private queryString: string,

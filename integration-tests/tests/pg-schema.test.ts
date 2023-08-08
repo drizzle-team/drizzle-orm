@@ -173,7 +173,7 @@ test.serial('select all fields', async (t) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const result = await db.select().from(usersTable);
 
-	t.assert(result[0]!.createdAt instanceof Date);
+	t.assert(result[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 100);
 	t.deepEqual(result, [{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 });
@@ -198,6 +198,47 @@ test.serial('select typed sql', async (t) => {
 	}).from(usersTable);
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
+});
+
+test.serial('select distinct', async (t) => {
+	const { db } = t.context;
+
+	const usersDistinctTable = pgTable('users_distinct', {
+		id: integer('id').notNull(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${usersDistinctTable}`);
+	await db.execute(sql`create table ${usersDistinctTable} (id integer, name text)`);
+
+	await db.insert(usersDistinctTable).values([
+		{ id: 1, name: 'John' },
+		{ id: 1, name: 'John' },
+		{ id: 2, name: 'John' },
+		{ id: 1, name: 'Jane' },
+	]);
+	const users1 = await db.selectDistinct().from(usersDistinctTable).orderBy(
+		usersDistinctTable.id,
+		usersDistinctTable.name,
+	);
+	const users2 = await db.selectDistinctOn([usersDistinctTable.id]).from(usersDistinctTable).orderBy(
+		usersDistinctTable.id,
+	);
+	const users3 = await db.selectDistinctOn([usersDistinctTable.name], { name: usersDistinctTable.name }).from(
+		usersDistinctTable,
+	).orderBy(usersDistinctTable.name);
+
+	await db.execute(sql`drop table ${usersDistinctTable}`);
+
+	t.deepEqual(users1, [{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
+
+	t.deepEqual(users2.length, 2);
+	t.deepEqual(users2[0]?.id, 1);
+	t.deepEqual(users2[1]?.id, 2);
+
+	t.deepEqual(users3.length, 2);
+	t.deepEqual(users3[0]?.name, 'Jane');
+	t.deepEqual(users3[1]?.name, 'John');
 });
 
 test.serial('insert returning sql', async (t) => {
@@ -240,7 +281,7 @@ test.serial('update with returning all fields', async (t) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning();
 
-	t.assert(users[0]!.createdAt instanceof Date);
+	t.assert(users[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 100);
 	t.deepEqual(users, [{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
 });
@@ -265,7 +306,7 @@ test.serial('delete with returning all fields', async (t) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.delete(usersTable).where(eq(usersTable.name, 'John')).returning();
 
-	t.assert(users[0]!.createdAt instanceof Date);
+	t.assert(users[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 100);
 	t.deepEqual(users, [{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
 });
@@ -652,7 +693,7 @@ test.serial('build query insert with onConflict do update', async (t) => {
 
 	t.deepEqual(query, {
 		sql:
-			'insert into "mySchema"."users" ("name", "jsonb") values ($1, $2) on conflict ("id") do update set "name" = $3',
+			'insert into "mySchema"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do update set "name" = $3',
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
@@ -667,7 +708,7 @@ test.serial('build query insert with onConflict do update / multiple columns', a
 
 	t.deepEqual(query, {
 		sql:
-			'insert into "mySchema"."users" ("name", "jsonb") values ($1, $2) on conflict ("id","name") do update set "name" = $3',
+			'insert into "mySchema"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
@@ -681,7 +722,7 @@ test.serial('build query insert with onConflict do nothing', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "mySchema"."users" ("name", "jsonb") values ($1, $2) on conflict do nothing',
+		sql: 'insert into "mySchema"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict do nothing',
 		params: ['John', '["foo","bar"]'],
 	});
 });
@@ -695,7 +736,7 @@ test.serial('build query insert with onConflict do nothing + target', async (t) 
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "mySchema"."users" ("name", "jsonb") values ($1, $2) on conflict ("id") do nothing',
+		sql: 'insert into "mySchema"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
 		params: ['John', '["foo","bar"]'],
 	});
 });

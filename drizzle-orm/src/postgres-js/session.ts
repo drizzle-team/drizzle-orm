@@ -1,4 +1,5 @@
 import type { Row, RowList, Sql, TransactionSql } from 'postgres';
+import { entityKind } from '~/entity';
 import type { Logger } from '~/logger';
 import { NoopLogger } from '~/logger';
 import { PgTransaction } from '~/pg-core';
@@ -12,6 +13,8 @@ import { tracer } from '~/tracing';
 import { type Assume, mapResultRow } from '~/utils';
 
 export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
+	static readonly [entityKind]: string = 'PostgresJsPreparedQuery';
+
 	constructor(
 		private client: Sql,
 		private query: string,
@@ -86,6 +89,8 @@ export class PostgresJsSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<PostgresJsQueryResultHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'PostgresJsSession';
+
 	logger: Logger;
 
 	constructor(
@@ -144,6 +149,8 @@ export class PostgresJsTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<PostgresJsQueryResultHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'PostgresJsTransaction';
+
 	constructor(
 		dialect: PgDialect,
 		/** @internal */

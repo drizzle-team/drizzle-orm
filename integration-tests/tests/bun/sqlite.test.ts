@@ -64,9 +64,7 @@ test('select all fields', (ctx) => {
 	db.insert(usersTable).values({ name: 'John' }).run();
 	const result = db.select().from(usersTable).all()[0]!;
 
-	console.log(result);
-
-	assert.ok(result.createdAt instanceof Date, 'createdAt is a Date');
+	assert.ok(result.createdAt instanceof Date, 'createdAt is a Date'); // eslint-disable-line no-instanceof/no-instanceof
 	assert.ok(
 		Math.abs(result.createdAt.getTime() - now) < 100,
 		`${result.createdAt.getTime()} is within 100ms of ${now}`,

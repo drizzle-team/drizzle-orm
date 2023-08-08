@@ -1,10 +1,11 @@
-import type { ExecuteStatementCommandOutput, RDSDataClient } from '@aws-sdk/client-rds-data';
+import type { ExecuteStatementCommandOutput, Field, RDSDataClient } from '@aws-sdk/client-rds-data';
 import {
 	BeginTransactionCommand,
 	CommitTransactionCommand,
 	ExecuteStatementCommand,
 	RollbackTransactionCommand,
 } from '@aws-sdk/client-rds-data';
+import { entityKind } from '~/entity';
 import type { Logger } from '~/logger';
 import {
 	type PgDialect,
@@ -24,6 +25,8 @@ import { getValueFromDataApi, toValueParam } from '../common';
 export type AwsDataApiClient = RDSDataClient;
 
 export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
+	static readonly [entityKind]: string = 'AwsDataApiPreparedQuery';
+
 	private rawQuery: ExecuteStatementCommand;
 
 	constructor(
@@ -74,16 +77,16 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 
 		this.options.logger?.logQuery(this.rawQuery.input.sql!, this.rawQuery.input.parameters);
 
-		const { fields, rawQuery, client } = this;
-		if (!fields) {
+		const { fields, rawQuery, client, customResultMapper } = this;
+		if (!fields && !customResultMapper) {
 			const result = await client.send(rawQuery);
 			return result.records ?? [];
 		}
 
 		const result = await client.send(rawQuery);
 
-		return result.records?.map((result: any) => {
-			return result.map((res: any) => getValueFromDataApi(res));
+		return result.records?.map((row: any) => {
+			return row.map((field: Field) => getValueFromDataApi(field));
 		});
 	}
 }
@@ -105,6 +108,8 @@ export class AwsDataApiSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<AwsDataApiPgQueryResultHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'AwsDataApiSession';
+
 	/** @internal */
 	readonly rawQuery: AwsDataApiQueryBase;
 
@@ -176,6 +181,8 @@ export class AwsDataApiTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<AwsDataApiPgQueryResultHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'AwsDataApiTransaction';
+
 	override transaction<T>(transaction: (tx: AwsDataApiTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new AwsDataApiTransaction(this.dialect, this.session, this.schema, this.nestedIndex + 1);

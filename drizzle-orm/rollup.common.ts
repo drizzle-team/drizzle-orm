@@ -19,6 +19,8 @@ export const entries = [
 	'mysql2/migrator',
 	'neon-serverless/index',
 	'neon-serverless/migrator',
+	'neon-http/index',
+	'neon-http/migrator',
 	'node-postgres/index',
 	'node-postgres/migrator',
 	'pg-core/index',
