@@ -5,6 +5,7 @@ on:
     branches-ignore:
       - main
   pull_request: {}
+  pull_request_target: {}
 
 jobs:
   release:
@@ -88,10 +89,13 @@ jobs:
           PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
           LIBSQL_URL: file:local.db
         run: |
+          if [[ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
+            export SKIP_PLANETSCALE_TESTS=1
+          fi
           if [[ "${{ matrix.package }}" == "drizzle-orm" ]]; then
             pnpm test --filter ${{ matrix.package }} --filter integration-tests
           else
-          pnpm test --filter ${{ matrix.package }}
+            pnpm test --filter ${{ matrix.package }}
           fi
 
       - name: Publish
