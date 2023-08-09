@@ -13,7 +13,7 @@ export class PrimaryKeyBuilder {
 	static readonly [entityKind]: string = 'PgPrimaryKeyBuilder';
 
 	/** @internal */
-	columns: AnyPgColumn<{}>[];
+	columns: AnyPgColumn[];
 
 	constructor(
 		columns: AnyPgColumn[],

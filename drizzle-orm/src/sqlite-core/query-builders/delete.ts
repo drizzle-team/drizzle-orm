@@ -3,7 +3,6 @@ import type { SelectResultFields } from '~/query-builders/select.types';
 import type { Query, SQL, SQLWrapper } from '~/sql';
 import type { SQLiteDialect } from '~/sqlite-core/dialect';
 import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
-import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SQLiteTable } from '~/sqlite-core/table';
 import type { InferModel } from '~/table';
 import { orderSelectedFields } from '~/utils';
@@ -11,14 +10,14 @@ import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
 
 export interface SQLiteDeleteConfig {
 	where?: SQL | undefined;
-	table: AnySQLiteTable;
+	table: SQLiteTable;
 	returning?: SelectedFieldsOrdered;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface SQLiteDelete<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TTable extends AnySQLiteTable,
+	TTable extends SQLiteTable,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TResultType extends 'sync' | 'async',
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -28,7 +27,7 @@ export interface SQLiteDelete<
 > extends SQLWrapper {}
 
 export class SQLiteDelete<
-	TTable extends AnySQLiteTable,
+	TTable extends SQLiteTable,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TReturning = undefined,

@@ -17,6 +17,7 @@ import {
 import { RelationalQueryBuilder } from './query-builders/query';
 import type { SelectedFields } from './query-builders/select.types';
 import type {
+	Mode,
 	MySqlSession,
 	MySqlTransaction,
 	MySqlTransactionConfig,
@@ -52,6 +53,7 @@ export class MySqlDatabase<
 		/** @internal */
 		readonly session: MySqlSession<any, any, any, any>,
 		schema: RelationalSchemaConfig<TSchema> | undefined,
+		protected readonly mode: Mode,
 	) {
 		this._ = schema
 			? { schema: schema.schema, tableNamesMap: schema.tableNamesMap }
@@ -68,6 +70,7 @@ export class MySqlDatabase<
 						columns,
 						dialect,
 						session,
+						this.mode,
 					);
 			}
 		}
@@ -77,7 +80,7 @@ export class MySqlDatabase<
 		return {
 			as<TSelection extends ColumnsSelection>(
 				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
-			): WithSubqueryWithSelection<TSelection, TAlias> {
+			): WithSubqueryWithSelection<TSelection, TAlias, 'mysql'> {
 				if (typeof qb === 'function') {
 					qb = qb(new QueryBuilder());
 				}
@@ -85,7 +88,7 @@ export class MySqlDatabase<
 				return new Proxy(
 					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
 					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-				) as WithSubqueryWithSelection<TSelection, TAlias>;
+				) as WithSubqueryWithSelection<TSelection, TAlias, 'mysql'>;
 			},
 		};
 	}

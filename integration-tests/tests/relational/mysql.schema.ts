@@ -26,6 +26,7 @@ export const usersConfig = relations(usersTable, ({ one, many }) => ({
 	}),
 	usersToGroups: many(usersToGroupsTable),
 	posts: many(postsTable),
+	comments: many(commentsTable),
 }));
 
 export const groupsTable = mysqlTable('groups', {

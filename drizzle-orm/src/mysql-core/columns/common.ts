@@ -1,18 +1,19 @@
-import type { ColumnBaseConfig, ColumnHKT, ColumnHKTBase } from '~/column';
+import type { ColumnBaseConfig } from '~/column';
 import { Column } from '~/column';
 import type {
 	ColumnBuilderBaseConfig,
-	ColumnBuilderHKTBase,
+	ColumnBuilderExtraConfig,
 	ColumnBuilderRuntimeConfig,
+	ColumnDataType,
+	HasDefault,
 	MakeColumnConfig,
-	UpdateCBConfig,
 } from '~/column-builder';
 import { ColumnBuilder } from '~/column-builder';
 import { entityKind } from '~/entity';
 import type { ForeignKey, UpdateDeleteAction } from '~/mysql-core/foreign-keys';
 import { ForeignKeyBuilder } from '~/mysql-core/foreign-keys';
-import type { AnyMySqlTable } from '~/mysql-core/table';
-import { type Assume, type Update } from '~/utils';
+import type { AnyMySqlTable, MySqlTable } from '~/mysql-core/table';
+import { type Update } from '~/utils';
 import { uniqueKeyName } from '../unique-constraint';
 
 export interface ReferenceConfig {
@@ -23,36 +24,22 @@ export interface ReferenceConfig {
 	};
 }
 
-export interface MySqlColumnBuilderHKT extends ColumnBuilderHKTBase {
-	_type: MySqlColumnBuilder<MySqlColumnBuilderHKT, Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: MySqlColumnHKT;
-}
-
-export interface MySqlColumnHKT extends ColumnHKTBase {
-	_type: MySqlColumn<MySqlColumnHKT, Assume<this['config'], ColumnBaseConfig>>;
-}
-
 export abstract class MySqlColumnBuilder<
-	THKT extends ColumnBuilderHKTBase,
-	T extends ColumnBuilderBaseConfig,
-	TRuntimeConfig extends object = {},
-	TTypeConfig extends object = {},
-> extends ColumnBuilder<THKT, T, TRuntimeConfig, TTypeConfig & { mysqlBrand: 'MySqlColumnBuilder' }> {
+	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
+	TRuntimeConfig extends object = object,
+	TTypeConfig extends object = object,
+	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
+> extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'mysql' }, TExtraConfig> {
 	static readonly [entityKind]: string = 'MySqlColumnBuilder';
 
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
-	references(
-		ref: ReferenceConfig['ref'],
-		actions: ReferenceConfig['actions'] = {},
-	): this {
+	references(ref: ReferenceConfig['ref'], actions: ReferenceConfig['actions'] = {}): this {
 		this.foreignKeyConfigs.push({ ref, actions });
 		return this;
 	}
 
-	unique(
-		name?: string,
-	): this {
+	unique(name?: string): this {
 		this.config.isUnique = true;
 		this.config.uniqueName = name;
 		return this;
@@ -80,25 +67,19 @@ export abstract class MySqlColumnBuilder<
 	/** @internal */
 	abstract build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlColumn<Assume<THKT['_columnHKT'], ColumnHKT>, MakeColumnConfig<T, TTableName>>;
+	): MySqlColumn<MakeColumnConfig<T, TTableName>>;
 }
-
-export type AnyMySqlColumnBuilder<TPartial extends Partial<ColumnBuilderBaseConfig> = {}> = MySqlColumnBuilder<
-	MySqlColumnBuilderHKT,
-	Required<Update<ColumnBuilderBaseConfig, TPartial>>
->;
 
 // To understand how to use `MySqlColumn` and `AnyMySqlColumn`, see `Column` and `AnyColumn` documentation.
 export abstract class MySqlColumn<
-	THKT extends ColumnHKT,
-	T extends ColumnBaseConfig,
-	TRuntimeConfig extends object = {},
-> extends Column<THKT, T, TRuntimeConfig, { mysqlBrand: 'MySqlColumn' }> {
+	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
+	TRuntimeConfig extends object = object,
+> extends Column<T, TRuntimeConfig, { dialect: 'mysql' }> {
 	static readonly [entityKind]: string = 'MySqlColumn';
 
 	constructor(
-		override readonly table: AnyMySqlTable,
-		config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig,
+		override readonly table: MySqlTable,
+		config: ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>,
 	) {
 		if (!config.uniqueName) {
 			config.uniqueName = uniqueKeyName(table, [config.name]);
@@ -107,9 +88,8 @@ export abstract class MySqlColumn<
 	}
 }
 
-export type AnyMySqlColumn<TPartial extends Partial<ColumnBaseConfig> = {}> = MySqlColumn<
-	MySqlColumnHKT,
-	Required<Update<ColumnBaseConfig, TPartial>>
+export type AnyMySqlColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> = MySqlColumn<
+	Required<Update<ColumnBaseConfig<ColumnDataType, string>, TPartial>>
 >;
 
 export interface MySqlColumnWithAutoIncrementConfig {
@@ -117,29 +97,28 @@ export interface MySqlColumnWithAutoIncrementConfig {
 }
 
 export abstract class MySqlColumnBuilderWithAutoIncrement<
-	THKT extends ColumnBuilderHKTBase,
-	T extends ColumnBuilderBaseConfig,
-	TRuntimeConfig extends object = {},
-> extends MySqlColumnBuilder<THKT, T, TRuntimeConfig & MySqlColumnWithAutoIncrementConfig> {
+	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
+	TRuntimeConfig extends object = object,
+	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
+> extends MySqlColumnBuilder<T, TRuntimeConfig & MySqlColumnWithAutoIncrementConfig, TExtraConfig> {
 	static readonly [entityKind]: string = 'MySqlColumnBuilderWithAutoIncrement';
 
-	constructor(name: NonNullable<T['name']>) {
-		super(name);
+	constructor(name: NonNullable<T['name']>, dataType: T['dataType'], columnType: T['columnType']) {
+		super(name, dataType, columnType);
 		this.config.autoIncrement = false;
 	}
 
-	autoincrement(): MySqlColumnBuilderWithAutoIncrement<THKT, UpdateCBConfig<T, { hasDefault: true }>, TRuntimeConfig> {
+	autoincrement(): HasDefault<this> {
 		this.config.autoIncrement = true;
 		this.config.hasDefault = true;
-		return this as ReturnType<this['autoincrement']>;
+		return this as HasDefault<this>;
 	}
 }
 
 export abstract class MySqlColumnWithAutoIncrement<
-	THKT extends ColumnHKT,
-	T extends ColumnBaseConfig,
-	TRuntimeConfig extends object = {},
-> extends MySqlColumn<THKT, T, MySqlColumnWithAutoIncrementConfig & TRuntimeConfig> {
+	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
+	TRuntimeConfig extends object = object,
+> extends MySqlColumn<T, MySqlColumnWithAutoIncrementConfig & TRuntimeConfig> {
 	static readonly [entityKind]: string = 'MySqlColumnWithAutoIncrement';
 
 	readonly autoIncrement: boolean = this.config.autoIncrement;
