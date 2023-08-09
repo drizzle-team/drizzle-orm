@@ -1,31 +1,35 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-import type { Assume } from '~/utils';
+import type { ColumnBaseConfig } from '~/column';
+import type {
+	ColumnBuilderBaseConfig,
+	ColumnBuilderRuntimeConfig,
+	HasDefault,
+	MakeColumnConfig,
+	NotNull,
+} from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyPgTable } from '../table';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export interface PgBigSerial53BuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgBigSerial53Builder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgBigSerial53HKT;
-}
+export type PgBigSerial53BuilderInitial<TName extends string> = NotNull<
+	HasDefault<
+		PgBigSerial53Builder<{
+			name: TName;
+			dataType: 'number';
+			columnType: 'PgBigSerial53';
+			data: number;
+			driverParam: number;
+			enumValues: undefined;
+		}>
+	>
+>;
 
-export interface PgBigSerial53HKT extends ColumnHKTBase {
-	_type: PgBigSerial53<Assume<this['config'], ColumnBaseConfig>>;
-}
-
-export type PgBigSerial53BuilderInitial<TName extends string> = PgBigSerial53Builder<{
-	name: TName;
-	data: number;
-	driverParam: number;
-	notNull: true;
-	hasDefault: true;
-}>;
-
-export class PgBigSerial53Builder<T extends ColumnBuilderBaseConfig>
-	extends PgColumnBuilder<PgBigSerial53BuilderHKT, T>
+export class PgBigSerial53Builder<T extends ColumnBuilderBaseConfig<'number', 'PgBigSerial53'>>
+	extends PgColumnBuilder<T>
 {
+	static readonly [entityKind]: string = 'PgBigSerial53Builder';
+
 	constructor(name: string) {
-		super(name);
+		super(name, 'number', 'PgBigSerial53');
 		this.config.hasDefault = true;
 		this.config.notNull = true;
 	}
@@ -34,11 +38,16 @@ export class PgBigSerial53Builder<T extends ColumnBuilderBaseConfig>
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgBigSerial53<MakeColumnConfig<T, TTableName>> {
-		return new PgBigSerial53<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new PgBigSerial53<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class PgBigSerial53<T extends ColumnBaseConfig> extends PgColumn<PgBigSerial53HKT, T> {
+export class PgBigSerial53<T extends ColumnBaseConfig<'number', 'PgBigSerial53'>> extends PgColumn<T> {
+	static readonly [entityKind]: string = 'PgBigSerial53';
+
 	getSQLType(): string {
 		return 'bigserial';
 	}
@@ -51,28 +60,26 @@ export class PgBigSerial53<T extends ColumnBaseConfig> extends PgColumn<PgBigSer
 	}
 }
 
-export interface PgBigSerial64BuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgBigSerial64Builder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgBigSerial64HKT;
-}
+export type PgBigSerial64BuilderInitial<TName extends string> = NotNull<
+	HasDefault<
+		PgBigSerial64Builder<{
+			name: TName;
+			dataType: 'bigint';
+			columnType: 'PgBigSerial64';
+			data: bigint;
+			driverParam: string;
+			enumValues: undefined;
+		}>
+	>
+>;
 
-export interface PgBigSerial64HKT extends ColumnHKTBase {
-	_type: PgBigSerial64<Assume<this['config'], ColumnBaseConfig>>;
-}
-
-export type PgBigSerial64BuilderInitial<TName extends string> = PgBigSerial64Builder<{
-	name: TName;
-	data: bigint;
-	driverParam: string;
-	notNull: true;
-	hasDefault: true;
-}>;
-
-export class PgBigSerial64Builder<T extends ColumnBuilderBaseConfig>
-	extends PgColumnBuilder<PgBigSerial64BuilderHKT, T>
+export class PgBigSerial64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'PgBigSerial64'>>
+	extends PgColumnBuilder<T>
 {
+	static readonly [entityKind]: string = 'PgBigSerial64Builder';
+
 	constructor(name: string) {
-		super(name);
+		super(name, 'bigint', 'PgBigSerial64');
 		this.config.hasDefault = true;
 	}
 
@@ -80,11 +87,16 @@ export class PgBigSerial64Builder<T extends ColumnBuilderBaseConfig>
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgBigSerial64<MakeColumnConfig<T, TTableName>> {
-		return new PgBigSerial64<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new PgBigSerial64<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class PgBigSerial64<T extends ColumnBaseConfig> extends PgColumn<PgBigSerial64HKT, T> {
+export class PgBigSerial64<T extends ColumnBaseConfig<'bigint', 'PgBigSerial64'>> extends PgColumn<T> {
+	static readonly [entityKind]: string = 'PgBigSerial64';
+
 	getSQLType(): string {
 		return 'bigserial';
 	}

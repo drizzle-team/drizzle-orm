@@ -1,14 +1,13 @@
 import type { GetColumnData } from '~/column';
+import { entityKind } from '~/entity';
 import type { PgDialect } from '~/pg-core/dialect';
-import { QueryPromise } from '~/query-promise';
-import type { Query, SQL, SQLWrapper } from '~/sql';
-import type { Simplify, UpdateSet } from '~/utils';
-import { mapUpdateSet, orderSelectedFields } from '~/utils';
-
 import type { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
 import type { AnyPgTable } from '~/pg-core/table';
 import type { SelectResultFields } from '~/query-builders/select.types';
+import { QueryPromise } from '~/query-promise';
+import type { Query, SQL, SQLWrapper } from '~/sql';
 import { type InferModel, Table } from '~/table';
+import { mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils';
 import type { SelectedFields, SelectedFieldsOrdered } from './select.types';
 
 export interface PgUpdateConfig {
@@ -18,15 +17,17 @@ export interface PgUpdateConfig {
 	returning?: SelectedFieldsOrdered;
 }
 
-export type PgUpdateSetSource<TTable extends AnyPgTable> = Simplify<
-	{
+export type PgUpdateSetSource<TTable extends AnyPgTable> =
+	& {
 		[Key in keyof TTable['_']['columns']]?:
 			| GetColumnData<TTable['_']['columns'][Key]>
 			| SQL;
 	}
->;
+	& {};
 
 export class PgUpdateBuilder<TTable extends AnyPgTable, TQueryResult extends QueryResultHKT> {
+	static readonly [entityKind]: string = 'PgUpdateBuilder';
+
 	declare readonly _: {
 		readonly table: TTable;
 	};
@@ -59,6 +60,8 @@ export class PgUpdate<
 > extends QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>
 	implements SQLWrapper
 {
+	static readonly [entityKind]: string = 'PgUpdate';
+
 	declare readonly _: {
 		readonly table: TTable;
 		readonly return: TReturning;

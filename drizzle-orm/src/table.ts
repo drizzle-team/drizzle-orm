@@ -1,11 +1,14 @@
-import type { AnyColumn, GetColumnData } from './column';
+import type { Column, GetColumnData } from './column';
+import { entityKind } from './entity';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations';
-import type { Assume, SimplifyShallow, Update } from './utils';
+import { SQL, type SQLWrapper } from './sql';
+import { type Simplify, type Update } from './utils';
 
-export interface TableConfig<TColumn extends AnyColumn = AnyColumn> {
+export interface TableConfig<TColumn extends Column = Column<any>> {
 	name: string;
 	schema: string | undefined;
 	columns: Record<string, TColumn>;
+	dialect: string;
 }
 
 export type UpdateTableConfig<T extends TableConfig, TUpdate extends Partial<TableConfig>> = Required<
@@ -13,29 +16,31 @@ export type UpdateTableConfig<T extends TableConfig, TUpdate extends Partial<Tab
 >;
 
 /** @internal */
-export const TableName = Symbol('Name');
+export const TableName = Symbol.for('drizzle:Name');
 
 /** @internal */
-export const Schema = Symbol('Schema');
+export const Schema = Symbol.for('drizzle:Schema');
 
 /** @internal */
-export const Columns = Symbol('Columns');
+export const Columns = Symbol.for('drizzle:Columns');
 
 /** @internal */
-export const OriginalName = Symbol('OriginalName');
+export const OriginalName = Symbol.for('drizzle:OriginalName');
 
 /** @internal */
-export const BaseName = Symbol('BaseName');
+export const BaseName = Symbol.for('drizzle:BaseName');
 
 /** @internal */
-export const IsAlias = Symbol('IsAlias');
+export const IsAlias = Symbol.for('drizzle:IsAlias');
 
 /** @internal */
-export const ExtraConfigBuilder = Symbol('ExtraConfigBuilder');
+export const ExtraConfigBuilder = Symbol.for('drizzle:ExtraConfigBuilder');
 
-const IsDrizzleTable = Symbol.for('IsDrizzleTable');
+const IsDrizzleTable = Symbol.for('drizzle:IsDrizzleTable');
 
-export class Table<T extends TableConfig = TableConfig> {
+export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
+	static readonly [entityKind]: string = 'Table';
+
 	declare readonly _: {
 		readonly brand: 'Table';
 		readonly config: T;
@@ -96,6 +101,10 @@ export class Table<T extends TableConfig = TableConfig> {
 		this[Schema] = schema;
 		this[BaseName] = baseName;
 	}
+
+	getSQL(): SQL<unknown> {
+		return new SQL([this]);
+	}
 }
 
 export function isTable(table: unknown): table is Table {
@@ -104,32 +113,19 @@ export function isTable(table: unknown): table is Table {
 
 export type AnyTable<TPartial extends Partial<TableConfig> = {}> = Table<UpdateTableConfig<TableConfig, TPartial>>;
 
-export interface AnyTableHKT {
-	readonly brand: 'TableHKT';
-	config: unknown;
-	type: unknown;
-}
-
-export interface AnyTableHKTBase extends AnyTableHKT {
-	type: AnyTable<Assume<this['config'], Partial<TableConfig>>>;
-}
-
-export type AnyTableKind<THKT extends AnyTableHKT, TConfig extends Partial<TableConfig>> =
-	(THKT & { config: TConfig })['type'];
-
 export function getTableName<T extends Table>(table: T): T['_']['name'] {
 	return table[TableName];
 }
 
-export type MapColumnName<TName extends string, TColumn extends AnyColumn, TDBColumNames extends boolean> =
+export type MapColumnName<TName extends string, TColumn extends Column, TDBColumNames extends boolean> =
 	TDBColumNames extends true ? TColumn['_']['name']
 		: TName;
 
 export type InferModelFromColumns<
-	TColumns extends Record<string, AnyColumn>,
+	TColumns extends Record<string, Column>,
 	TInferMode extends 'select' | 'insert' = 'select',
 	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
-> = TInferMode extends 'insert' ? SimplifyShallow<
+> = TInferMode extends 'insert' ? Simplify<
 		& {
 			[
 				Key in keyof TColumns & string as RequiredKeyOnly<
@@ -158,7 +154,7 @@ export type InferModelFromColumns<
 	};
 
 export type InferModel<
-	TTable extends AnyTable,
+	TTable extends Table,
 	TInferMode extends 'select' | 'insert' = 'select',
 	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
 > = InferModelFromColumns<TTable['_']['columns'], TInferMode, TConfig>;

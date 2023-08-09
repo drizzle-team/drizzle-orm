@@ -21,5 +21,5 @@ export function substring(
 		chunks.push(sql` for `, bindIfParam(_for, column));
 	}
 	chunks.push(sql`)`);
-	return sql.fromList(chunks);
+	return sql.join(chunks);
 }

@@ -1,4 +1,5 @@
 import { types } from '@neondatabase/serverless';
+import { entityKind } from '~/entity';
 import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger';
 import { PgDatabase } from '~/pg-core/db';
@@ -18,6 +19,8 @@ export interface NeonDriverOptions {
 }
 
 export class NeonDriver {
+	static readonly [entityKind]: string = 'NeonDriver';
+
 	constructor(
 		private client: NeonClient,
 		private dialect: PgDialect,

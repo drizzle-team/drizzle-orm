@@ -1,55 +1,50 @@
-import type { ColumnBaseConfig, ColumnHKTBase, WithEnum } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { ColumnBaseConfig } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import type { Assume, Writable } from '~/utils';
+import { type Writable } from '~/utils';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
-
-export interface MySqlEnumColumnBuilderHKT extends ColumnBuilderHKTBase {
-	_type: MySqlEnumColumnBuilder<Assume<this['config'], ColumnBuilderBaseConfig & WithEnum>>;
-	_columnHKT: MySqlEnumColumnHKT;
-}
-
-export interface MySqlEnumColumnHKT extends ColumnHKTBase {
-	_type: MySqlEnumColumn<Assume<this['config'], ColumnBaseConfig & WithEnum>>;
-}
 
 export type MySqlEnumColumnBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> =
 	MySqlEnumColumnBuilder<{
 		name: TName;
+		dataType: 'string';
+		columnType: 'MySqlEnumColumn';
 		data: TEnum[number];
 		driverParam: string;
 		enumValues: TEnum;
-		notNull: false;
-		hasDefault: false;
 	}>;
 
-export class MySqlEnumColumnBuilder<T extends ColumnBuilderBaseConfig & WithEnum>
-	extends MySqlColumnBuilder<MySqlEnumColumnBuilderHKT, T, Pick<T, 'enumValues'>>
+export class MySqlEnumColumnBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlEnumColumn'>>
+	extends MySqlColumnBuilder<T, { enumValues: T['enumValues'] }>
 {
+	static readonly [entityKind]: string = 'MySqlEnumColumnBuilder';
+
 	constructor(name: T['name'], values: T['enumValues']) {
-		super(name);
+		super(name, 'string', 'MySqlEnumColumn');
 		this.config.enumValues = values;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlEnumColumn<MakeColumnConfig<T, TTableName> & Pick<T, 'enumValues'>> {
-		return new MySqlEnumColumn<MakeColumnConfig<T, TTableName> & Pick<T, 'enumValues'>>(
+	): MySqlEnumColumn<MakeColumnConfig<T, TTableName> & { enumValues: T['enumValues'] }> {
+		return new MySqlEnumColumn<MakeColumnConfig<T, TTableName> & { enumValues: T['enumValues'] }>(
 			table,
-			this.config,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MySqlEnumColumn<T extends ColumnBaseConfig & WithEnum>
-	extends MySqlColumn<MySqlEnumColumnHKT, T, Pick<T, 'enumValues'>>
-	implements WithEnum<T['enumValues']>
+export class MySqlEnumColumn<T extends ColumnBaseConfig<'string', 'MySqlEnumColumn'>>
+	extends MySqlColumn<T, { enumValues: T['enumValues'] }>
 {
-	readonly enumValues: T['enumValues'] = this.config.enumValues;
+	static readonly [entityKind]: string = 'MySqlEnumColumn';
+
+	override readonly enumValues = this.config.enumValues;
 
 	getSQLType(): string {
-		return `enum(${this.enumValues.map((value) => `'${value}'`).join(',')})`;
+		return `enum(${this.enumValues!.map((value) => `'${value}'`).join(',')})`;
 	}
 }
 

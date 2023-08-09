@@ -1,4 +1,4 @@
-import { type AnyPgColumn, integer, serial } from '~/pg-core/columns';
+import { integer, type PgColumn, serial } from '~/pg-core/columns';
 import { pgTable } from '~/pg-core/table';
 
 {
@@ -18,7 +18,7 @@ import { pgTable } from '~/pg-core/table';
 {
 	const test1 = pgTable('test1_table', {
 		id: serial('id').primaryKey(),
-		test2Id: integer('test2_id').references((): AnyPgColumn => test2.id),
+		test2Id: integer('test2_id').references((): PgColumn => test2.id),
 	});
 
 	const test2 = pgTable('test2_table', {

@@ -1,38 +1,33 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { ColumnBaseConfig } from '~/column';
+import type {
+	ColumnBuilderBaseConfig,
+	ColumnBuilderRuntimeConfig,
+	HasDefault,
+	MakeColumnConfig,
+	NotNull,
+} from '~/column-builder';
+import { entityKind } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
-import type { Assume } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export interface PgSerialBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgSerialBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgSerialHKT;
-}
+export type PgSerialBuilderInitial<TName extends string> = NotNull<
+	HasDefault<
+		PgSerialBuilder<{
+			name: TName;
+			dataType: 'number';
+			columnType: 'PgSerial';
+			data: number;
+			driverParam: number;
+			enumValues: undefined;
+		}>
+	>
+>;
 
-export interface PgSerialHKT extends ColumnHKTBase {
-	_type: PgSerial<Assume<this['config'], ColumnBaseConfig>>;
-}
+export class PgSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSerial'>> extends PgColumnBuilder<T> {
+	static readonly [entityKind]: string = 'PgSerialBuilder';
 
-export type PgSerialBuilderInitial<TName extends string> = PgSerialBuilder<{
-	name: TName;
-	data: number;
-	driverParam: number;
-	notNull: true;
-	hasDefault: true;
-}>;
-
-export interface PgSerialBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgSerialBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgSerialHKT;
-}
-
-export interface PgSerialHKT extends ColumnHKTBase {
-	_type: PgSerial<Assume<this['config'], ColumnBaseConfig>>;
-}
-
-export class PgSerialBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgSerialBuilderHKT, T> {
 	constructor(name: string) {
-		super(name);
+		super(name, 'number', 'PgSerial');
 		this.config.hasDefault = true;
 		this.config.notNull = true;
 	}
@@ -41,16 +36,18 @@ export class PgSerialBuilder<T extends ColumnBuilderBaseConfig> extends PgColumn
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgSerial<MakeColumnConfig<T, TTableName>> {
-		return new PgSerial<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new PgSerial<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class PgSerial<T extends ColumnBaseConfig> extends PgColumn<PgSerialHKT, T> {
+export class PgSerial<T extends ColumnBaseConfig<'number', 'PgSerial'>> extends PgColumn<T> {
+	static readonly [entityKind]: string = 'PgSerial';
+
 	getSQLType(): string {
 		return 'serial';
 	}
 }
 
 export function serial<TName extends string>(name: TName): PgSerialBuilderInitial<TName> {
-	return new PgSerialBuilder(name);
+	return new PgSerialBuilder(name) as PgSerialBuilderInitial<TName>;
 }

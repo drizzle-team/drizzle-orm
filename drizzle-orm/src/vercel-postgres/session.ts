@@ -7,6 +7,7 @@ import {
 	VercelPool,
 	type VercelPoolClient,
 } from '@vercel/postgres';
+import { entityKind } from '~/entity';
 import { type Logger, NoopLogger } from '~/logger';
 import { type PgDialect, PgTransaction } from '~/pg-core';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
@@ -19,6 +20,8 @@ import { type Assume, mapResultRow } from '~/utils';
 export type VercelPgClient = VercelPool | VercelClient | VercelPoolClient;
 
 export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
+	static readonly [entityKind]: string = 'VercelPgPreparedQuery';
+
 	private rawQuery: QueryConfig;
 	private query: QueryArrayConfig;
 
@@ -83,6 +86,8 @@ export class VercelPgSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<VercelPgQueryResultHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'VercelPgSession';
+
 	private logger: Logger;
 
 	constructor(
@@ -133,7 +138,7 @@ export class VercelPgSession<
 		transaction: (tx: VercelPgTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
-		const session = this.client instanceof VercelPool
+		const session = this.client instanceof VercelPool // eslint-disable-line no-instanceof/no-instanceof
 			? new VercelPgSession(await this.client.connect(), this.dialect, this.schema, this.options)
 			: this;
 		const tx = new VercelPgTransaction(this.dialect, session, this.schema);
@@ -146,7 +151,7 @@ export class VercelPgSession<
 			await tx.execute(sql`rollback`);
 			throw error;
 		} finally {
-			if (this.client instanceof VercelPool) {
+			if (this.client instanceof VercelPool) { // eslint-disable-line no-instanceof/no-instanceof
 				(session.client as VercelPoolClient).release();
 			}
 		}
@@ -157,6 +162,8 @@ export class VercelPgTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<VercelPgQueryResultHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'VercelPgTransaction';
+
 	override async transaction<T>(
 		transaction: (tx: VercelPgTransaction<TFullSchema, TSchema>) => Promise<T>,
 	): Promise<T> {

@@ -1,4 +1,5 @@
 import type { GetColumnData } from '~/column';
+import { entityKind } from '~/entity';
 import type { MySqlDialect } from '~/mysql-core/dialect';
 import type {
 	MySqlSession,
@@ -11,8 +12,7 @@ import type {
 import type { AnyMySqlTable } from '~/mysql-core/table';
 import { QueryPromise } from '~/query-promise';
 import type { Query, SQL, SQLWrapper } from '~/sql';
-import type { Simplify, UpdateSet } from '~/utils';
-import { mapUpdateSet } from '~/utils';
+import { mapUpdateSet, type UpdateSet } from '~/utils';
 import type { SelectedFieldsOrdered } from './select.types';
 
 export interface MySqlUpdateConfig {
@@ -22,19 +22,21 @@ export interface MySqlUpdateConfig {
 	returning?: SelectedFieldsOrdered;
 }
 
-export type MySqlUpdateSetSource<TTable extends AnyMySqlTable> = Simplify<
-	{
+export type MySqlUpdateSetSource<TTable extends AnyMySqlTable> =
+	& {
 		[Key in keyof TTable['_']['columns']]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
 			| SQL;
 	}
->;
+	& {};
 
 export class MySqlUpdateBuilder<
 	TTable extends AnyMySqlTable,
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > {
+	static readonly [entityKind]: string = 'MySqlUpdateBuilder';
+
 	declare protected $table: TTable;
 
 	constructor(
@@ -60,6 +62,8 @@ export class MySqlUpdate<
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > extends QueryPromise<QueryResultKind<TQueryResult, never>> implements SQLWrapper {
+	static readonly [entityKind]: string = 'MySqlUpdate';
+
 	declare protected $table: TTable;
 
 	private config: MySqlUpdateConfig;
@@ -74,7 +78,7 @@ export class MySqlUpdate<
 		this.config = { set, table };
 	}
 
-	where(where: SQL | undefined): Omit<this, 'where'> {
+	where(where: SQL | undefined): this {
 		this.config.where = where;
 		return this;
 	}
@@ -84,7 +88,7 @@ export class MySqlUpdate<
 		return this.dialect.buildUpdateQuery(this.config);
 	}
 
-	toSQL(): Omit<Query, 'typings'> {
+	toSQL(): { sql: Query['sql']; params: Query['params'] } {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
