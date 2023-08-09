@@ -7,7 +7,7 @@ import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SQLiteTable } from '~/sqlite-core/table';
 import type { InferModel } from '~/table';
-import { mapUpdateSet, orderSelectedFields, type Simplify, type UpdateSet } from '~/utils';
+import { mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils';
 import type { SelectedFields, SelectedFieldsOrdered } from './select.types';
 
 export interface SQLiteUpdateConfig {
@@ -17,13 +17,13 @@ export interface SQLiteUpdateConfig {
 	returning?: SelectedFieldsOrdered;
 }
 
-export type SQLiteUpdateSetSource<TTable extends AnySQLiteTable> = Simplify<
-	{
+export type SQLiteUpdateSetSource<TTable extends AnySQLiteTable> =
+	& {
 		[Key in keyof TTable['_']['columns']]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
 			| SQL;
 	}
->;
+	& {};
 
 export class SQLiteUpdateBuilder<
 	TTable extends AnySQLiteTable,
@@ -109,7 +109,7 @@ export class SQLiteUpdate<
 		return this.dialect.buildUpdateQuery(this.config);
 	}
 
-	toSQL(): Omit<Query, 'typings'> {
+	toSQL(): { sql: Query['sql']; params: Query['params'] } {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}

@@ -3,7 +3,7 @@ import { type AnyColumn, Column } from './column';
 import { entityKind, is } from './entity';
 import { PrimaryKeyBuilder } from './pg-core';
 import { and, asc, desc, eq, or, type Placeholder, SQL, sql } from './sql';
-import { type Assume, type ColumnsWithTable, type Equal, type SimplifyShallow, type ValueOrArray } from './utils';
+import { type Assume, type ColumnsWithTable, type Equal, type Simplify, type ValueOrArray } from './utils';
 
 export abstract class Relation<TTableName extends string = string> {
 	static readonly [entityKind]: string = 'Relation';
@@ -109,22 +109,26 @@ export type ExtractRelationsFromTableExtraConfigSchema<TConfig extends unknown[]
 	}
 >;
 
-export const operators = {
-	sql,
-	eq,
-	and,
-	or,
-};
+export function getOperators() {
+	return {
+		sql,
+		eq,
+		and,
+		or,
+	};
+}
 
-export type Operators = typeof operators;
+export type Operators = ReturnType<typeof getOperators>;
 
-export const orderByOperators = {
-	sql,
-	asc,
-	desc,
-};
+export function getOrderByOperators() {
+	return {
+		sql,
+		asc,
+		desc,
+	};
+}
 
-export type OrderByOperators = typeof orderByOperators;
+export type OrderByOperators = ReturnType<typeof getOrderByOperators>;
 
 export type FindTableByDBName<TSchema extends TablesRelationalConfig, TTableName extends string> = ExtractObjectValues<
 	{
@@ -155,10 +159,7 @@ export type DBQueryConfig<
 		extras?:
 			| Record<string, SQL.Aliased>
 			| ((
-				fields: SimplifyShallow<
-					& ([TTableConfig['columns']] extends [never] ? {} : TTableConfig['columns'])
-					& ([TTableConfig['relations']] extends [never] ? {} : TTableConfig['relations'])
-				>,
+				fields: Simplify<[TTableConfig['columns']] extends [never] ? {} : TTableConfig['columns']>,
 				operators: { sql: Operators['sql'] },
 			) => Record<string, SQL.Aliased>);
 	}
@@ -168,19 +169,13 @@ export type DBQueryConfig<
 					| SQL
 					| undefined
 					| ((
-						fields: SimplifyShallow<
-							& ([TTableConfig['columns']] extends [never] ? {} : TTableConfig['columns'])
-							& ([TTableConfig['relations']] extends [never] ? {} : TTableConfig['relations'])
-						>,
+						fields: Simplify<[TTableConfig['columns']] extends [never] ? {} : TTableConfig['columns']>,
 						operators: Operators,
 					) => SQL | undefined);
 				orderBy?:
 					| ValueOrArray<AnyColumn | SQL>
 					| ((
-						fields: SimplifyShallow<
-							& ([TTableConfig['columns']] extends [never] ? {} : TTableConfig['columns'])
-							& ([TTableConfig['relations']] extends [never] ? {} : TTableConfig['relations'])
-						>,
+						fields: Simplify<[TTableConfig['columns']] extends [never] ? {} : TTableConfig['columns']>,
 						operators: OrderByOperators,
 					) => ValueOrArray<AnyColumn | SQL>);
 				limit?: number | Placeholder;
@@ -194,7 +189,7 @@ export type DBQueryConfig<
 export interface TableRelationalConfig {
 	tsName: string;
 	dbName: string;
-	columns: Record<string, AnyColumn>;
+	columns: Record<string, Column>;
 	relations: Record<string, Relation>;
 	primaryKey: AnyColumn[];
 }
@@ -250,7 +245,7 @@ export type BuildQueryResult<
 	TTableConfig extends TableRelationalConfig,
 	TFullSelection extends true | Record<string, unknown>,
 > = Equal<TFullSelection, true> extends true ? InferModelFromColumns<TTableConfig['columns']>
-	: TFullSelection extends Record<string, unknown> ? (SimplifyShallow<
+	: TFullSelection extends Record<string, unknown> ? (Simplify<
 			& (TFullSelection['columns'] extends Record<string, unknown> ? InferModelFromColumns<
 					{
 						[
@@ -435,8 +430,8 @@ export function normalizeRelation(
 		throw new Error(`Table "${relation.referencedTable[Table.Symbol.Name]}" not found in schema`);
 	}
 
-	const referencedTableFields = schema[referencedTableTsName];
-	if (!referencedTableFields) {
+	const referencedTableConfig = schema[referencedTableTsName];
+	if (!referencedTableConfig) {
 		throw new Error(`Table "${referencedTableTsName}" not found in schema`);
 	}
 
@@ -447,7 +442,7 @@ export function normalizeRelation(
 	}
 
 	const reverseRelations: Relation[] = [];
-	for (const referencedTableRelation of Object.values(referencedTableFields.relations)) {
+	for (const referencedTableRelation of Object.values(referencedTableConfig.relations)) {
 		if (
 			(relation.relationName && relation !== referencedTableRelation
 				&& referencedTableRelation.relationName === relation.relationName)
@@ -494,17 +489,18 @@ export type TableRelationsHelpers<TTableName extends string> = ReturnType<
 	typeof createTableRelationsHelpers<TTableName>
 >;
 
-export interface BuildRelationalQueryResult {
+export interface BuildRelationalQueryResult<TTable extends Table = Table, TColumn extends Column = Column> {
 	tableTsKey: string;
 	selection: {
 		dbKey: string;
 		tsKey: string;
-		field: AnyColumn | SQL | SQL.Aliased | undefined;
-		tableTsKey: string | undefined;
+		field: TColumn | SQL | SQL.Aliased;
+		relationTableTsKey: string | undefined;
 		isJson: boolean;
-		selection: BuildRelationalQueryResult['selection'];
+		isExtra?: boolean;
+		selection: BuildRelationalQueryResult<TTable>['selection'];
 	}[];
-	sql: Table | SQL;
+	sql: TTable | SQL;
 }
 
 export function mapRelationalRow(
@@ -519,29 +515,26 @@ export function mapRelationalRow(
 	for (const [selectionItemIndex, selectionItem] of buildQueryResultSelection.entries()) {
 		if (selectionItem.isJson) {
 			const relation = tableConfig.relations[selectionItem.tsKey]!;
-			const rawSubRows = row[selectionItemIndex] as unknown[][] | string;
-			const subRows = typeof rawSubRows === 'string' ? JSON.parse(rawSubRows) as unknown[][] : rawSubRows;
-			if (is(relation, One)) {
-				result[selectionItem.tsKey] = subRows[0]
-					? mapRelationalRow(
+			const rawSubRows = row[selectionItemIndex] as unknown[] | null | [null] | string;
+			const subRows = typeof rawSubRows === 'string' ? JSON.parse(rawSubRows) as unknown[] : rawSubRows;
+			result[selectionItem.tsKey] = is(relation, One)
+				? subRows
+					&& mapRelationalRow(
 						tablesConfig,
-						tablesConfig[selectionItem.tableTsKey!]!,
-						subRows[0],
+						tablesConfig[selectionItem.relationTableTsKey!]!,
+						subRows,
 						selectionItem.selection,
 						mapColumnValue,
 					)
-					: null;
-			} else {
-				result[selectionItem.tsKey] = (subRows as unknown[]).map((subRow) =>
+				: (subRows as unknown[][]).map((subRow) =>
 					mapRelationalRow(
 						tablesConfig,
-						tablesConfig[selectionItem.tableTsKey!]!,
-						subRow as unknown[],
+						tablesConfig[selectionItem.relationTableTsKey!]!,
+						subRow,
 						selectionItem.selection,
 						mapColumnValue,
 					)
 				);
-			}
 		} else {
 			const value = mapColumnValue(row[selectionItemIndex]);
 			const field = selectionItem.field!;

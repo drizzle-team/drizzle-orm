@@ -7,6 +7,8 @@ import { MySqlDatabase } from './db';
 import type { MySqlDialect } from './dialect';
 import type { SelectedFieldsOrdered } from './query-builders/select.types';
 
+export type Mode = 'default' | 'planetscale';
+
 export interface QueryResultHKT {
 	readonly $brand: 'MySqlQueryRowHKT';
 	readonly row: unknown;
@@ -89,7 +91,7 @@ export abstract class MySqlSession<
 			parts.push(`isolation level ${config.isolationLevel}`);
 		}
 
-		return parts.length ? sql.fromList(['set transaction ', parts.join(' ')]) : undefined;
+		return parts.length ? sql.join(['set transaction ', parts.join(' ')]) : undefined;
 	}
 
 	protected getStartTransactionSQL(config: MySqlTransactionConfig): SQL | undefined {
@@ -103,7 +105,7 @@ export abstract class MySqlSession<
 			parts.push(config.accessMode);
 		}
 
-		return parts.length ? sql.fromList(['start transaction ', parts.join(' ')]) : undefined;
+		return parts.length ? sql.join(['start transaction ', parts.join(' ')]) : undefined;
 	}
 }
 
@@ -119,9 +121,10 @@ export abstract class MySqlTransaction<
 		dialect: MySqlDialect,
 		session: MySqlSession,
 		protected schema: RelationalSchemaConfig<TSchema> | undefined,
-		protected readonly nestedIndex = 0,
+		protected readonly nestedIndex: number,
+		mode: Mode,
 	) {
-		super(dialect, session, schema);
+		super(dialect, session, schema, mode);
 	}
 
 	rollback(): never {

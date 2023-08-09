@@ -13,7 +13,7 @@ import { QueryPromise } from '~/query-promise';
 import type { Placeholder, Query, SQLWrapper } from '~/sql';
 import { Param, SQL, sql } from '~/sql';
 import { type InferModel, Table } from '~/table';
-import { mapUpdateSet, type Simplify } from '~/utils';
+import { mapUpdateSet } from '~/utils';
 import type { MySqlUpdateSetSource } from './update';
 
 export interface MySqlInsertConfig<TTable extends AnyMySqlTable = AnyMySqlTable> {
@@ -25,11 +25,11 @@ export interface MySqlInsertConfig<TTable extends AnyMySqlTable = AnyMySqlTable>
 
 export type AnyMySqlInsertConfig = MySqlInsertConfig<AnyMySqlTable>;
 
-export type MySqlInsertValue<TTable extends AnyMySqlTable> = Simplify<
-	{
+export type MySqlInsertValue<TTable extends AnyMySqlTable> =
+	& {
 		[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
 	}
->;
+	& {};
 
 export class MySqlInsertBuilder<
 	TTable extends AnyMySqlTable,
@@ -117,7 +117,7 @@ export class MySqlInsert<
 		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	toSQL(): Simplify<Omit<Query, 'typings'>> {
+	toSQL(): { sql: Query['sql']; params: Query['params'] } {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}

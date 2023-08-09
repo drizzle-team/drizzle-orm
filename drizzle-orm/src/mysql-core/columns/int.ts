@@ -1,41 +1,36 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { ColumnBaseConfig } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
 import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import { type Assume } from '~/utils';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
-
-export interface MySqlIntBuilderHKT extends ColumnBuilderHKTBase {
-	_type: MySqlIntBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: MySqlIntHKT;
-}
-
-export interface MySqlIntHKT extends ColumnHKTBase {
-	_type: MySqlInt<Assume<this['config'], ColumnBaseConfig>>;
-}
 
 export type MySqlIntBuilderInitial<TName extends string> = MySqlIntBuilder<{
 	name: TName;
+	dataType: 'number';
+	columnType: 'MySqlInt';
 	data: number;
 	driverParam: number | string;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class MySqlIntBuilder<T extends ColumnBuilderBaseConfig>
-	extends MySqlColumnBuilderWithAutoIncrement<MySqlIntBuilderHKT, T>
+export class MySqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlInt'>>
+	extends MySqlColumnBuilderWithAutoIncrement<T>
 {
 	static readonly [entityKind]: string = 'MySqlIntBuilder';
+
+	constructor(name: T['name']) {
+		super(name, 'number', 'MySqlInt');
+	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlInt<MakeColumnConfig<T, TTableName>> {
-		return new MySqlInt<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new MySqlInt<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class MySqlInt<T extends ColumnBaseConfig> extends MySqlColumnWithAutoIncrement<MySqlIntHKT, T> {
+export class MySqlInt<T extends ColumnBaseConfig<'number', 'MySqlInt'>> extends MySqlColumnWithAutoIncrement<T> {
 	static readonly [entityKind]: string = 'MySqlInt';
 
 	getSQLType(): string {

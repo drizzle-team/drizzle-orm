@@ -7,7 +7,7 @@ import type { SelectResultFields } from '~/query-builders/select.types';
 import { QueryPromise } from '~/query-promise';
 import type { Query, SQL, SQLWrapper } from '~/sql';
 import { type InferModel, Table } from '~/table';
-import { mapUpdateSet, orderSelectedFields, type Simplify, type UpdateSet } from '~/utils';
+import { mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils';
 import type { SelectedFields, SelectedFieldsOrdered } from './select.types';
 
 export interface PgUpdateConfig {
@@ -17,13 +17,13 @@ export interface PgUpdateConfig {
 	returning?: SelectedFieldsOrdered;
 }
 
-export type PgUpdateSetSource<TTable extends AnyPgTable> = Simplify<
-	{
+export type PgUpdateSetSource<TTable extends AnyPgTable> =
+	& {
 		[Key in keyof TTable['_']['columns']]?:
 			| GetColumnData<TTable['_']['columns'][Key]>
 			| SQL;
 	}
->;
+	& {};
 
 export class PgUpdateBuilder<TTable extends AnyPgTable, TQueryResult extends QueryResultHKT> {
 	static readonly [entityKind]: string = 'PgUpdateBuilder';
