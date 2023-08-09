@@ -63,6 +63,8 @@
     "drizzle-zod": "workspace:../drizzle-zod/dist",
     "express": "^4.18.2",
     "get-port": "^7.0.0",
+    "@miniflare/shared": "^2.14.0",
+    "@miniflare/d1": "^2.14.0",
     "mysql2": "^3.3.3",
     "pg": "^8.11.0",
     "postgres": "^3.3.5",
