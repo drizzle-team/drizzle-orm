@@ -1,11 +1,13 @@
 import type { AnyColumn } from './column';
 import { Column } from './column';
+import { is } from './entity';
 import { type Logger } from './logger';
 import type { SelectedFieldsOrdered } from './operations';
+import { type TableLike } from './query-builders/select.types';
 import type { DriverValueDecoder } from './sql';
 import { Param, SQL } from './sql';
 import { Subquery, SubqueryConfig } from './subquery';
-import { type AnyTable, getTableName, Table } from './table';
+import { getTableName, Table } from './table';
 import { View, ViewBaseConfig } from './view';
 
 /** @internal */
@@ -20,9 +22,9 @@ export function mapResultRow<TResult>(
 	const result = columns.reduce<Record<string, any>>(
 		(result, { path, field }, columnIndex) => {
 			let decoder: DriverValueDecoder<unknown, unknown>;
-			if (field instanceof Column) {
+			if (is(field, Column)) {
 				decoder = field;
-			} else if (field instanceof SQL) {
+			} else if (is(field, SQL)) {
 				decoder = field.decoder;
 			} else {
 				decoder = field.sql.decoder;
@@ -38,7 +40,7 @@ export function mapResultRow<TResult>(
 					const rawValue = row[columnIndex]!;
 					const value = node[pathChunk] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
 
-					if (joinsNotNullableMap && field instanceof Column && path.length === 2) {
+					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
 						const objectName = path[0]!;
 						if (!(objectName in nullifyMap)) {
 							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
@@ -78,13 +80,9 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 		}
 
 		const newPath = pathPrefix ? [...pathPrefix, name] : [name];
-		if (
-			field instanceof Column
-			|| field instanceof SQL
-			|| field instanceof SQL.Aliased
-		) {
+		if (is(field, Column) || is(field, SQL) || is(field, SQL.Aliased)) {
 			result.push({ path: newPath, field });
-		} else if (field instanceof Table) {
+		} else if (is(field, Table)) {
 			result.push(...orderSelectedFields(field[Table.Symbol.Columns], newPath));
 		} else {
 			result.push(...orderSelectedFields(field as Record<string, unknown>, newPath));
@@ -99,7 +97,7 @@ export function mapUpdateSet(table: Table, values: Record<string, unknown>): Upd
 		.filter(([, value]) => value !== undefined)
 		.map(([key, value]) => {
 			// eslint-disable-next-line unicorn/prefer-ternary
-			if (value instanceof SQL) {
+			if (is(value, SQL)) {
 				return [key, value];
 			} else {
 				return [key, new Param(value, table[Table.Symbol.Columns][key])];
@@ -118,99 +116,22 @@ export type UpdateSet = Record<string, SQL | Param | null | undefined>;
 export type OneOrMany<T> = T | T[];
 
 export type Update<T, TUpdate> = Simplify<
-	& Omit<T, keyof TUpdate>
+	& {
+		[K in Exclude<keyof T, keyof TUpdate>]: T[K];
+	}
 	& TUpdate
 >;
 
-// Flatten and Simplify copied from https://github.com/sindresorhus/type-fest
-
-/**
-@see Simplify
-*/
-export interface SimplifyOptions {
-	/**
-	Do the simplification recursively.
-
-	@default false
-	*/
-	deep?: boolean;
-}
-
-// Flatten a type without worrying about the result.
-type Flatten<
-	AnyType,
-	Options extends SimplifyOptions = {},
-> = Options['deep'] extends true ? { [KeyType in keyof AnyType]: Simplify<AnyType[KeyType], Options> }
-	: { [KeyType in keyof AnyType]: AnyType[KeyType] };
-
-/**
-Useful to flatten the type output to improve type hints shown in editors. And also to transform an interface into a type to aide with assignability.
-
-@example
-```
-import type {Simplify} from 'type-fest';
-
-type PositionProps = {
-	top: number;
-	left: number;
-};
-
-type SizeProps = {
-	width: number;
-	height: number;
-};
-
-// In your editor, hovering over `Props` will show a flattened object with all the properties.
-type Props = Simplify<PositionProps & SizeProps>;
-```
-
-Sometimes it is desired to pass a value as a function argument that has a different type. At first inspection it may seem assignable, and then you discover it is not because the `value`'s type definition was defined as an interface. In the following example, `fn` requires an argument of type `Record<string, unknown>`. If the value is defined as a literal, then it is assignable. And if the `value` is defined as type using the `Simplify` utility the value is assignable.  But if the `value` is defined as an interface, it is not assignable because the interface is not sealed and elsewhere a non-string property could be added to the interface.
-
-If the type definition must be an interface (perhaps it was defined in a third-party npm package), then the `value` can be defined as `const value: Simplify<SomeInterface> = ...`. Then `value` will be assignable to the `fn` argument.  Or the `value` can be cast as `Simplify<SomeInterface>` if you can't re-declare the `value`.
-
-@example
-```
-import type {Simplify} from 'type-fest';
-
-interface SomeInterface {
-	foo: number;
-	bar?: string;
-	baz: number | undefined;
-}
-
-type SomeType = {
-	foo: number;
-	bar?: string;
-	baz: number | undefined;
-};
-
-const literal = {foo: 123, bar: 'hello', baz: 456};
-const someType: SomeType = literal;
-const someInterface: SomeInterface = literal;
-
-function fn(object: Record<string, unknown>): void {}
-
-fn(literal); // Good: literal object type is sealed
-fn(someType); // Good: type is sealed
-fn(someInterface); // Error: Index signature for type 'string' is missing in type 'someInterface'. Because `interface` can be re-opened
-fn(someInterface as Simplify<SomeInterface>); // Good: transform an `interface` into a `type`
-```
-
-@link https://github.com/microsoft/TypeScript/issues/15300
-
-@category Object
-*/
-export type Simplify<
-	AnyType,
-	Options extends SimplifyOptions = {},
-> = Flatten<AnyType> extends AnyType ? Flatten<AnyType, Options>
-	: AnyType;
-
-export type SimplifyShallow<T> =
+export type Simplify<T> =
 	& {
+		// @ts-ignore - "Type parameter 'K' has a circular constraint", not sure why
 		[K in keyof T]: T[K];
 	}
 	& {};
+
+export type SimplifyMappedType<T> = [T] extends [unknown] ? T : never;
+
+export type ShallowRecord<K extends keyof any, T> = SimplifyMappedType<{ [P in K]: T }>;
 
 export type Assume<T, U> = T extends U ? T : U;
 
@@ -218,7 +139,7 @@ export type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends (<T>() => T ext
 
 export interface DrizzleTypeError<T> {
 	$brand: 'DrizzleTypeError';
-	message: T;
+	$error: T;
 }
 
 export type ValueOrArray<T> = T | T[];
@@ -246,17 +167,17 @@ export type Writable<T> = {
 	-readonly [P in keyof T]: T[P];
 };
 
-export function getTableColumns<T extends AnyTable>(table: T): T['_']['columns'] {
+export function getTableColumns<T extends Table>(table: T): T['_']['columns'] {
 	return table[Table.Symbol.Columns];
 }
 
 /** @internal */
-export function getTableLikeName(table: AnyTable | Subquery | View | SQL): string | undefined {
-	return table instanceof Subquery
+export function getTableLikeName(table: TableLike): string | undefined {
+	return is(table, Subquery)
 		? table[SubqueryConfig].alias
-		: table instanceof View
+		: is(table, View)
 		? table[ViewBaseConfig].name
-		: table instanceof SQL
+		: is(table, SQL)
 		? undefined
 		: table[Table.Symbol.IsAlias]
 		? table[Table.Symbol.Name]
@@ -281,3 +202,5 @@ export type KnownKeysOnly<T, U> = {
 export function iife<T extends unknown[], U>(fn: (...args: T) => U, ...args: T): U {
 	return fn(...args);
 }
+
+export type IsAny<T> = 0 extends (1 & T) ? true : false;

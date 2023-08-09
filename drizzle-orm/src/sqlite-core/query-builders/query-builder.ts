@@ -1,3 +1,4 @@
+import { entityKind } from '~/entity';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect';
 import type { WithSubqueryWithSelection } from '~/sqlite-core/subquery';
@@ -7,6 +8,8 @@ import { SQLiteSelectBuilder } from './select';
 import type { SelectedFields } from './select.types';
 
 export class QueryBuilder {
+	static readonly [entityKind]: string = 'SQLiteQueryBuilder';
+
 	private dialect: SQLiteSyncDialect | undefined;
 
 	$with<TAlias extends string>(alias: TAlias) {
@@ -38,10 +41,31 @@ export class QueryBuilder {
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
 		): SQLiteSelectBuilder<TSelection | undefined, 'sync', void, 'qb'> {
-			return new SQLiteSelectBuilder(fields ?? undefined, undefined, self.getDialect(), queries);
+			return new SQLiteSelectBuilder({
+				fields: fields ?? undefined,
+				session: undefined,
+				dialect: self.getDialect(),
+				withList: queries,
+			});
 		}
 
-		return { select };
+		function selectDistinct(): SQLiteSelectBuilder<undefined, 'sync', void, 'qb'>;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): SQLiteSelectBuilder<TSelection, 'sync', void, 'qb'>;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields?: TSelection,
+		): SQLiteSelectBuilder<TSelection | undefined, 'sync', void, 'qb'> {
+			return new SQLiteSelectBuilder({
+				fields: fields ?? undefined,
+				session: undefined,
+				dialect: self.getDialect(),
+				withList: queries,
+				distinct: true,
+			});
+		}
+
+		return { select, selectDistinct };
 	}
 
 	select(): SQLiteSelectBuilder<undefined, 'sync', void, 'qb'>;
@@ -49,7 +73,22 @@ export class QueryBuilder {
 	select<TSelection extends SelectedFields>(
 		fields?: TSelection,
 	): SQLiteSelectBuilder<TSelection | undefined, 'sync', void, 'qb'> {
-		return new SQLiteSelectBuilder(fields ?? undefined, undefined, this.getDialect());
+		return new SQLiteSelectBuilder({ fields: fields ?? undefined, session: undefined, dialect: this.getDialect() });
+	}
+
+	selectDistinct(): SQLiteSelectBuilder<undefined, 'sync', void, 'qb'>;
+	selectDistinct<TSelection extends SelectedFields>(
+		fields: TSelection,
+	): SQLiteSelectBuilder<TSelection, 'sync', void, 'qb'>;
+	selectDistinct<TSelection extends SelectedFields>(
+		fields?: TSelection,
+	): SQLiteSelectBuilder<TSelection | undefined, 'sync', void, 'qb'> {
+		return new SQLiteSelectBuilder({
+			fields: fields ?? undefined,
+			session: undefined,
+			dialect: this.getDialect(),
+			distinct: true,
+		});
 	}
 
 	// Lazy load dialect to avoid circular dependency

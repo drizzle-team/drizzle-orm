@@ -5,6 +5,7 @@ import {
 	ExecuteStatementCommand,
 	RollbackTransactionCommand,
 } from '@aws-sdk/client-rds-data';
+import { entityKind } from '~/entity';
 import type { Logger } from '~/logger';
 import {
 	type PgDialect,
@@ -24,6 +25,8 @@ import { getValueFromDataApi, toValueParam } from '../common';
 export type AwsDataApiClient = RDSDataClient;
 
 export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
+	static readonly [entityKind]: string = 'AwsDataApiPreparedQuery';
+
 	private rawQuery: ExecuteStatementCommand;
 
 	constructor(
@@ -105,6 +108,8 @@ export class AwsDataApiSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<AwsDataApiPgQueryResultHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'AwsDataApiSession';
+
 	/** @internal */
 	readonly rawQuery: AwsDataApiQueryBase;
 
@@ -176,6 +181,8 @@ export class AwsDataApiTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgTransaction<AwsDataApiPgQueryResultHKT, TFullSchema, TSchema> {
+	static readonly [entityKind]: string = 'AwsDataApiTransaction';
+
 	override transaction<T>(transaction: (tx: AwsDataApiTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new AwsDataApiTransaction(this.dialect, this.session, this.schema, this.nestedIndex + 1);

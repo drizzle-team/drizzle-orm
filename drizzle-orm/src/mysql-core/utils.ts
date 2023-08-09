@@ -1,3 +1,4 @@
+import { is } from '~/entity';
 import { Table } from '~/table';
 import { ViewBaseConfig } from '~/view';
 import type { Check } from './checks';
@@ -12,12 +13,14 @@ import type { AnyMySqlTable } from './table';
 import { MySqlTable } from './table';
 import type { MySqlView } from './view';
 import { MySqlViewConfig } from './view';
+import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint';
 
 export function getTableConfig(table: AnyMySqlTable) {
 	const columns = Object.values(table[MySqlTable.Symbol.Columns]);
 	const indexes: Index[] = [];
 	const checks: Check[] = [];
 	const primaryKeys: PrimaryKey[] = [];
+	const uniqueConstraints: UniqueConstraint[] = [];
 	const foreignKeys: ForeignKey[] = Object.values(table[MySqlTable.Symbol.InlineForeignKeys]);
 	const name = table[Table.Symbol.Name];
 	const schema = table[Table.Symbol.Schema];
@@ -28,13 +31,15 @@ export function getTableConfig(table: AnyMySqlTable) {
 	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[MySqlTable.Symbol.Columns]);
 		for (const builder of Object.values(extraConfig)) {
-			if (builder instanceof IndexBuilder) {
+			if (is(builder, IndexBuilder)) {
 				indexes.push(builder.build(table));
-			} else if (builder instanceof CheckBuilder) {
+			} else if (is(builder, CheckBuilder)) {
 				checks.push(builder.build(table));
-			} else if (builder instanceof PrimaryKeyBuilder) {
+			} else if (is(builder, UniqueConstraintBuilder)) {
+				uniqueConstraints.push(builder.build(table));
+			} else if (is(builder, PrimaryKeyBuilder)) {
 				primaryKeys.push(builder.build(table));
-			} else if (builder instanceof ForeignKeyBuilder) {
+			} else if (is(builder, ForeignKeyBuilder)) {
 				foreignKeys.push(builder.build(table));
 			}
 		}
@@ -46,6 +51,7 @@ export function getTableConfig(table: AnyMySqlTable) {
 		foreignKeys,
 		checks,
 		primaryKeys,
+		uniqueConstraints,
 		name,
 		schema,
 		baseName,
