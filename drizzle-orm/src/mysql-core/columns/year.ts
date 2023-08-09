@@ -1,41 +1,36 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { ColumnBaseConfig } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
 import { entityKind } from '~/entity';
 import type { AnyMySqlTable } from '~/mysql-core/table';
-import { type Assume } from '~/utils';
 import { MySqlColumn, MySqlColumnBuilder } from './common';
-
-export interface MySqlYearBuilderHKT extends ColumnBuilderHKTBase {
-	_type: MySqlYearBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: MySqlYearHKT;
-}
-
-export interface MySqlYearHKT extends ColumnHKTBase {
-	_type: MySqlYear<Assume<this['config'], ColumnBaseConfig>>;
-}
 
 export type MySqlYearBuilderInitial<TName extends string> = MySqlYearBuilder<{
 	name: TName;
+	dataType: 'number';
+	columnType: 'MySqlYear';
 	data: number;
 	driverParam: number;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class MySqlYearBuilder<T extends ColumnBuilderBaseConfig> extends MySqlColumnBuilder<MySqlYearBuilderHKT, T> {
+export class MySqlYearBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlYear'>> extends MySqlColumnBuilder<T> {
 	static readonly [entityKind]: string = 'MySqlYearBuilder';
+
+	constructor(name: T['name']) {
+		super(name, 'number', 'MySqlYear');
+	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlYear<MakeColumnConfig<T, TTableName>> {
-		return new MySqlYear<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new MySqlYear<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
 export class MySqlYear<
-	T extends ColumnBaseConfig,
-> extends MySqlColumn<MySqlYearHKT, T> {
+	T extends ColumnBaseConfig<'number', 'MySqlYear'>,
+> extends MySqlColumn<T> {
 	static readonly [entityKind]: string = 'MySqlYear';
 
 	getSQLType(): string {

@@ -11,6 +11,7 @@ import { type SQL } from '~/sql';
 import { type KnownKeysOnly } from '~/utils';
 import { type MySqlDialect } from '../dialect';
 import {
+	type Mode,
 	type MySqlSession,
 	type PreparedQueryConfig,
 	type PreparedQueryHKTBase,
@@ -33,6 +34,7 @@ export class RelationalQueryBuilder<
 		private tableConfig: TableRelationalConfig,
 		private dialect: MySqlDialect,
 		private session: MySqlSession,
+		private mode: Mode,
 	) {}
 
 	findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
@@ -48,6 +50,7 @@ export class RelationalQueryBuilder<
 			this.session,
 			config ? (config as DBQueryConfig<'many', true>) : {},
 			'many',
+			this.mode,
 		);
 	}
 
@@ -64,6 +67,7 @@ export class RelationalQueryBuilder<
 			this.session,
 			config ? { ...(config as DBQueryConfig<'many', true> | undefined), limit: 1 } : { limit: 1 },
 			'first',
+			this.mode,
 		);
 	}
 }
@@ -85,23 +89,32 @@ export class MySqlRelationalQuery<
 		private dialect: MySqlDialect,
 		private session: MySqlSession,
 		private config: DBQueryConfig<'many', true> | true,
-		private mode: 'many' | 'first',
+		private queryMode: 'many' | 'first',
+		private mode?: Mode,
 	) {
 		super();
 	}
 
 	prepare() {
-		const query = this.dialect.buildRelationalQuery(
-			this.fullSchema,
-			this.schema,
-			this.tableNamesMap,
-			this.table,
-			this.tableConfig,
-			this.config,
-			this.tableConfig.tsName,
-			[],
-			true,
-		);
+		const query = this.mode === 'planetscale'
+			? this.dialect.buildRelationalQueryWithoutLateralSubqueries({
+				fullSchema: this.fullSchema,
+				schema: this.schema,
+				tableNamesMap: this.tableNamesMap,
+				table: this.table,
+				tableConfig: this.tableConfig,
+				queryConfig: this.config,
+				tableAlias: this.tableConfig.tsName,
+			})
+			: this.dialect.buildRelationalQuery({
+				fullSchema: this.fullSchema,
+				schema: this.schema,
+				tableNamesMap: this.tableNamesMap,
+				table: this.table,
+				tableConfig: this.tableConfig,
+				queryConfig: this.config,
+				tableAlias: this.tableConfig.tsName,
+			});
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
 		return this.session.prepareQuery(
@@ -109,7 +122,7 @@ export class MySqlRelationalQuery<
 			undefined,
 			(rawRows) => {
 				const rows = rawRows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, query.selection));
-				if (this.mode === 'first') {
+				if (this.queryMode === 'first') {
 					return rows[0] as TResult;
 				}
 				return rows as TResult;

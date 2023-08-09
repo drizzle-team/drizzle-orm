@@ -1,44 +1,63 @@
 import { entityKind } from '~/entity';
-import type { AnySQLiteColumn } from './columns';
-import type { AnySQLiteTable } from './table';
+import { type SQLiteColumn } from './columns';
+import { SQLiteTable } from './table';
 
-export class UniqueBuilder<TTableName extends string> {
-	static readonly [entityKind]: string = 'SQLiteUniqueBuilder';
+export function uniqueKeyName(table: SQLiteTable, columns: string[]) {
+	return `${table[SQLiteTable.Symbol.Name]}_${columns.join('_')}_unique`;
+}
 
-	declare _: {
-		brand: 'SQLiteUniqueBuilder';
-		tableName: TTableName;
-	};
+export function unique(name?: string): UniqueOnConstraintBuilder {
+	return new UniqueOnConstraintBuilder(name);
+}
 
-	constructor(public name: string, public column: AnySQLiteColumn) {}
+export class UniqueConstraintBuilder {
+	static readonly [entityKind]: string = 'SQLiteUniqueConstraintBuilder';
 
 	/** @internal */
-	build(table: AnySQLiteTable<{ name: TTableName }>): Unique<TTableName> {
-		return new Unique(table, this);
+	columns: SQLiteColumn[];
+
+	constructor(
+		columns: SQLiteColumn[],
+		private name?: string,
+	) {
+		this.columns = columns;
+	}
+
+	/** @internal */
+	build(table: SQLiteTable): UniqueConstraint {
+		return new UniqueConstraint(table, this.columns, this.name);
 	}
 }
 
-export type AnyUniqueBuilder<TTableName extends string = string> = UniqueBuilder<TTableName>;
+export class UniqueOnConstraintBuilder {
+	static readonly [entityKind]: string = 'SQLiteUniqueOnConstraintBuilder';
 
-export class Unique<TTableName extends string> {
-	static readonly [entityKind]: string = 'SQLiteUnique';
+	/** @internal */
+	name?: string;
 
-	readonly name: string;
-	readonly column: AnySQLiteColumn;
+	constructor(
+		name?: string,
+	) {
+		this.name = name;
+	}
 
-	constructor(public table: AnySQLiteTable<{ name: TTableName }>, builder: UniqueBuilder<TTableName>) {
-		this.name = builder.name;
-		this.column = builder.column;
+	on(...columns: [SQLiteColumn, ...SQLiteColumn[]]) {
+		return new UniqueConstraintBuilder(columns, this.name);
 	}
 }
 
-export type BuildUnique<T extends AnyUniqueBuilder> = Unique<T['_']['tableName']>;
+export class UniqueConstraint {
+	static readonly [entityKind]: string = 'SQLiteUniqueConstraint';
 
-export type AnyUnique = Unique<string>;
+	readonly columns: SQLiteColumn[];
+	readonly name?: string;
 
-export function unique<TTableName extends string>(
-	name: string,
-	column: AnySQLiteColumn<{ tableName: TTableName }>,
-): UniqueBuilder<TTableName> {
-	return new UniqueBuilder(name, column);
+	constructor(readonly table: SQLiteTable, columns: SQLiteColumn[], name?: string) {
+		this.columns = columns;
+		this.name = name ?? uniqueKeyName(this.table, this.columns.map((column) => column.name));
+	}
+
+	getName() {
+		return this.name;
+	}
 }

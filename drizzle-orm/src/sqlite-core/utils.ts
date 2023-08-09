@@ -12,12 +12,14 @@ import { PrimaryKeyBuilder } from './primary-keys';
 import type { AnySQLiteTable } from './table';
 import { SQLiteTable } from './table';
 import { type SQLiteView, SQLiteViewConfig } from './view';
+import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint';
 
 export function getTableConfig<TTable extends AnySQLiteTable>(table: TTable) {
 	const columns = Object.values(table[SQLiteTable.Symbol.Columns]);
 	const indexes: Index[] = [];
 	const checks: Check[] = [];
 	const primaryKeys: PrimaryKey[] = [];
+	const uniqueConstraints: UniqueConstraint[] = [];
 	const foreignKeys: ForeignKey[] = Object.values(table[SQLiteTable.Symbol.InlineForeignKeys]);
 	const name = table[Table.Symbol.Name];
 
@@ -30,6 +32,8 @@ export function getTableConfig<TTable extends AnySQLiteTable>(table: TTable) {
 				indexes.push(builder.build(table));
 			} else if (is(builder, CheckBuilder)) {
 				checks.push(builder.build(table));
+			} else if (is(builder, UniqueConstraintBuilder)) {
+				uniqueConstraints.push(builder.build(table));
 			} else if (is(builder, PrimaryKeyBuilder)) {
 				primaryKeys.push(builder.build(table));
 			} else if (is(builder, ForeignKeyBuilder)) {
@@ -44,6 +48,7 @@ export function getTableConfig<TTable extends AnySQLiteTable>(table: TTable) {
 		foreignKeys,
 		checks,
 		primaryKeys,
+		uniqueConstraints,
 		name,
 	};
 }

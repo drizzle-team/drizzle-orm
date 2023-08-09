@@ -58,7 +58,7 @@ export class MySqlDelete<
 		return this.dialect.buildDeleteQuery(this.config);
 	}
 
-	toSQL(): Omit<Query, 'typings'> {
+	toSQL(): { sql: Query['sql']; params: Query['params'] } {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}

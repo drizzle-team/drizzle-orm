@@ -62,7 +62,7 @@ Expect<
 		cities_table: InferModel<typeof cities> | null;
 		city: InferModel<typeof city> | null;
 		city1: InferModel<typeof city1>;
-	}, typeof joinGet>
+	} | undefined, typeof joinGet>
 >;
 
 const joinValues = db

@@ -62,17 +62,17 @@ export class IndexBuilder implements AnyIndexBuilder {
 		};
 	}
 
-	using(using: IndexConfig['using']): Omit<this, 'using'> {
+	using(using: IndexConfig['using']): this {
 		this.config.using = using;
 		return this;
 	}
 
-	algorythm(algorythm: IndexConfig['algorythm']): Omit<this, 'algorythm'> {
+	algorythm(algorythm: IndexConfig['algorythm']): this {
 		this.config.algorythm = algorythm;
 		return this;
 	}
 
-	lock(lock: IndexConfig['lock']): Omit<this, 'lock'> {
+	lock(lock: IndexConfig['lock']): this {
 		this.config.lock = lock;
 		return this;
 	}

@@ -1,36 +1,26 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { ColumnBaseConfig } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
 import { entityKind } from '~/entity';
 import type { AnyPgTable } from '~/pg-core/table';
-import { type Assume } from '~/utils';
 import { PgColumn, PgColumnBuilder } from './common';
-
-export interface PgRealBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgRealBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgRealHKT;
-}
-
-export interface PgRealHKT extends ColumnHKTBase {
-	_type: PgReal<Assume<this['config'], ColumnBaseConfig>>;
-}
 
 export type PgRealBuilderInitial<TName extends string> = PgRealBuilder<{
 	name: TName;
+	dataType: 'number';
+	columnType: 'PgReal';
 	data: number;
 	driverParam: string | number;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class PgRealBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<
-	PgRealBuilderHKT,
+export class PgRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgReal'>> extends PgColumnBuilder<
 	T,
 	{ length: number | undefined }
 > {
 	static readonly [entityKind]: string = 'PgRealBuilder';
 
 	constructor(name: string, length?: number) {
-		super(name);
+		super(name, 'number', 'PgReal');
 		this.config.length = length;
 	}
 
@@ -38,11 +28,11 @@ export class PgRealBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBu
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgReal<MakeColumnConfig<T, TTableName>> {
-		return new PgReal<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new PgReal<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class PgReal<T extends ColumnBaseConfig> extends PgColumn<PgRealHKT, T> {
+export class PgReal<T extends ColumnBaseConfig<'number', 'PgReal'>> extends PgColumn<T> {
 	static readonly [entityKind]: string = 'PgReal';
 
 	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgRealBuilder<T>['config']) {
