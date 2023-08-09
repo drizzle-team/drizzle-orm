@@ -115,7 +115,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 			return rows.map((row) => mapResultRow(fields, row, joinsNotNullableMap));
 		}
 
-		return this.client(queryString, params, 'all').then(({ rows }) => rows);
+		return rows;
 	}
 
 	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
