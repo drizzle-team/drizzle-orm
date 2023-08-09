@@ -52,7 +52,7 @@ export class MySqlTimestamp<T extends ColumnBaseConfig<'date', 'MySqlTimestamp'>
 	}
 
 	override mapToDriverValue(value: Date): string {
-		return value.toISOString().slice(0, 19).replace('T', ' ');
+		return value.toISOString().slice(0, -1).replace('T', ' ');
 	}
 }
 

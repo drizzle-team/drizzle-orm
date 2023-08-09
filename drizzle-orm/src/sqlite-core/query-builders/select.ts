@@ -403,7 +403,7 @@ export class SQLiteSelect<
 			type: TResultType;
 			run: TRunResult;
 			all: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
-			get: SelectResult<TSelection, TSelectMode, TNullabilityMap>;
+			get: SelectResult<TSelection, TSelectMode, TNullabilityMap> | undefined;
 			values: any[][];
 		}
 	> {
