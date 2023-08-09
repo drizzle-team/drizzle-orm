@@ -47,5 +47,5 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	}
 
 	const session = new PlanetscaleSession(client, dialect, undefined, schema, { logger });
-	return new MySqlDatabase(dialect, session, schema) as PlanetScaleDatabase<TSchema>;
+	return new MySqlDatabase(dialect, session, schema, 'planetscale') as PlanetScaleDatabase<TSchema>;
 }

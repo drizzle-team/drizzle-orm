@@ -8,6 +8,7 @@ import { type AnyPgColumn } from './columns';
 import { type ForeignKey, ForeignKeyBuilder } from './foreign-keys';
 import { type Index, IndexBuilder } from './indexes';
 import { type PrimaryKey, PrimaryKeyBuilder } from './primary-keys';
+import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint';
 import { type PgMaterializedView, PgMaterializedViewConfig, type PgView, PgViewConfig } from './view';
 
 export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
@@ -16,6 +17,7 @@ export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
 	const checks: Check[] = [];
 	const primaryKeys: PrimaryKey[] = [];
 	const foreignKeys: ForeignKey[] = Object.values(table[PgTable.Symbol.InlineForeignKeys]);
+	const uniqueConstraints: UniqueConstraint[] = [];
 	const name = table[Table.Symbol.Name];
 	const schema = table[Table.Symbol.Schema];
 
@@ -28,6 +30,8 @@ export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
 				indexes.push(builder.build(table));
 			} else if (is(builder, CheckBuilder)) {
 				checks.push(builder.build(table));
+			} else if (is(builder, UniqueConstraintBuilder)) {
+				uniqueConstraints.push(builder.build(table));
 			} else if (is(builder, PrimaryKeyBuilder)) {
 				primaryKeys.push(builder.build(table));
 			} else if (is(builder, ForeignKeyBuilder)) {
@@ -42,6 +46,7 @@ export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
 		foreignKeys,
 		checks,
 		primaryKeys,
+		uniqueConstraints,
 		name,
 		schema,
 	};

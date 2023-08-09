@@ -16,6 +16,7 @@ import { NoopLogger } from '~/logger';
 import type { MySqlDialect } from '~/mysql-core/dialect';
 import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types';
 import {
+	type Mode,
 	MySqlSession,
 	MySqlTransaction,
 	type MySqlTransactionConfig,
@@ -149,6 +150,7 @@ export class MySql2PreparedQuery<T extends PreparedQueryConfig> extends Prepared
 
 export interface MySql2SessionOptions {
 	logger?: Logger;
+	mode: Mode;
 }
 
 export class MySql2Session<
@@ -158,15 +160,17 @@ export class MySql2Session<
 	static readonly [entityKind]: string = 'MySql2Session';
 
 	private logger: Logger;
+	private mode: Mode;
 
 	constructor(
 		private client: MySql2Client,
 		dialect: MySqlDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
-		private options: MySql2SessionOptions = {},
+		private options: MySql2SessionOptions,
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.mode = options.mode;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig>(
@@ -204,7 +208,7 @@ export class MySql2Session<
 		return result;
 	}
 
-	override all<T = unknown>(query: SQL<unknown>): Promise<T[]> {
+	override all<T = unknown>(query: SQL): Promise<T[]> {
 		const querySql = this.dialect.sqlToQuery(query);
 		this.logger.logQuery(querySql.sql, querySql.params);
 		return this.client.execute(querySql.sql, querySql.params).then((result) => result[0]) as Promise<T[]>;
@@ -217,7 +221,13 @@ export class MySql2Session<
 		const session = isPool(this.client)
 			? new MySql2Session(await this.client.getConnection(), this.dialect, this.schema, this.options)
 			: this;
-		const tx = new MySql2Transaction(this.dialect, session as MySqlSession<any, any, any, any>, this.schema);
+		const tx = new MySql2Transaction(
+			this.dialect,
+			session as MySqlSession<any, any, any, any>,
+			this.schema,
+			0,
+			this.mode,
+		);
 		if (config) {
 			const setTransactionConfigSql = this.getSetTransactionSQL(config);
 			if (setTransactionConfigSql) {
@@ -251,7 +261,13 @@ export class MySql2Transaction<
 
 	override async transaction<T>(transaction: (tx: MySql2Transaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new MySql2Transaction(this.dialect, this.session, this.schema, this.nestedIndex + 1);
+		const tx = new MySql2Transaction(
+			this.dialect,
+			this.session,
+			this.schema,
+			this.nestedIndex + 1,
+			this.mode,
+		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);

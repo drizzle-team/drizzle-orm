@@ -1,6 +1,6 @@
 import { entityKind } from '~/entity';
 import type { SQL } from '~/sql';
-import type { AnySQLiteColumn } from './columns';
+import { type SQLiteColumn } from './columns';
 import type { AnySQLiteTable } from './table';
 
 export interface IndexConfig {
@@ -10,7 +10,7 @@ export interface IndexConfig {
 	where: SQL | undefined;
 }
 
-export type IndexColumn = AnySQLiteColumn | SQL;
+export type IndexColumn = SQLiteColumn | SQL;
 
 export class IndexBuilderOn {
 	static readonly [entityKind]: string = 'SQLiteIndexBuilderOn';

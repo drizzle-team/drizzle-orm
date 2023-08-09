@@ -45,6 +45,17 @@ export interface Query {
 	typings?: QueryTypingsValue[];
 }
 
+/**
+ * Any value that implements the `getSQL` method. The implementations include:
+ * - `Table`
+ * - `Column`
+ * - `View`
+ * - `Subquery`
+ * - `SQL`
+ * - `SQL.Aliased`
+ * - `Placeholder`
+ * - `Param`
+ */
 export interface SQLWrapper {
 	getSQL(): SQL;
 }
@@ -67,13 +78,17 @@ function mergeQueries(queries: Query[]): Query {
 	return result;
 }
 
-export class StringChunk {
+export class StringChunk implements SQLWrapper {
 	static readonly [entityKind]: string = 'StringChunk';
 
 	readonly value: string[];
 
 	constructor(value: string | string[]) {
 		this.value = Array.isArray(value) ? value : [value];
+	}
+
+	getSQL(): SQL<unknown> {
+		return new SQL([this]);
 	}
 }
 
@@ -198,6 +213,10 @@ export class SQL<T = unknown> implements SQLWrapper {
 				return { sql: escapeParam(paramStartIndex.value++, mappedValue), params: [mappedValue], typings };
 			}
 
+			if (is(chunk, Placeholder)) {
+				return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk] };
+			}
+
 			if (is(chunk, SQL.Aliased) && chunk.fieldAlias !== undefined) {
 				return { sql: escapeName(chunk.fieldAlias), params: [] };
 			}
@@ -213,6 +232,9 @@ export class SQL<T = unknown> implements SQLWrapper {
 					new Name(chunk[SubqueryConfig].alias),
 				], config);
 			}
+
+			// if (is(chunk, Placeholder)) {
+			// 	return {sql: escapeParam}
 
 			if (isSQLWrapper(chunk)) {
 				return this.buildQueryFromSourceParams([
@@ -300,20 +322,24 @@ export class SQL<T = unknown> implements SQLWrapper {
 	}
 }
 
-export type GetDecoderResult<T> = T extends
+export type GetDecoderResult<T> = T extends Column ? T['_']['data'] : T extends
 	| DriverValueDecoder<infer TData, any>
 	| DriverValueDecoder<infer TData, any>['mapFromDriverValue'] ? TData
-	: never;
+: never;
 
 /**
  * Any DB name (table, column, index etc.)
  */
-export class Name {
+export class Name implements SQLWrapper {
 	static readonly [entityKind]: string = 'Name';
 
 	protected brand!: 'Name';
 
 	constructor(readonly value: string) {}
+
+	getSQL(): SQL<unknown> {
+		return new SQL([this]);
+	}
 }
 
 /**
@@ -355,7 +381,7 @@ export const noopMapper: DriverValueMapper<any, any> = {
 };
 
 /** Parameter value that is optionally bound to an encoder (for example, a column). */
-export class Param<TDataType = unknown, TDriverParamType = TDataType> {
+export class Param<TDataType = unknown, TDriverParamType = TDataType> implements SQLWrapper {
 	static readonly [entityKind]: string = 'Param';
 
 	protected brand!: 'BoundParamValue';
@@ -368,6 +394,10 @@ export class Param<TDataType = unknown, TDriverParamType = TDataType> {
 		readonly value: TDataType,
 		readonly encoder: DriverValueEncoder<TDataType, TDriverParamType> = noopEncoder,
 	) {}
+
+	getSQL(): SQL<unknown> {
+		return new SQL([this]);
+	}
 }
 
 export function param<TData, TDriver>(
@@ -377,6 +407,9 @@ export function param<TData, TDriver>(
 	return new Param(value, encoder);
 }
 
+/**
+ * Anything that can be passed to the `` sql`...` `` tagged function.
+ */
 export type SQLChunk =
 	| StringChunk
 	| SQLChunk[]
@@ -417,6 +450,7 @@ export namespace sql {
 		return new SQL([]);
 	}
 
+	/** @deprecated - use `sql.join()` */
 	export function fromList(list: SQLChunk[]): SQL {
 		return new SQL(list);
 	}
@@ -430,24 +464,43 @@ export namespace sql {
 	}
 
 	/**
-	 * Convenience function to join a list of SQL chunks with a separator.
+	 * Join a list of SQL chunks with a separator.
+	 * @example
+	 * ```ts
+	 * const query = sql.join([sql`a`, sql`b`, sql`c`]);
+	 * // sql`abc`
+	 * ```
+	 * @example
+	 * ```ts
+	 * const query = sql.join([sql`a`, sql`b`, sql`c`], sql`, `);
+	 * // sql`a, b, c`
+	 * ```
 	 */
-	export function join(chunks: SQLChunk[], separator: SQLChunk): SQL {
+	export function join(chunks: SQLChunk[], separator?: SQLChunk): SQL {
 		const result: SQLChunk[] = [];
 		for (const [i, chunk] of chunks.entries()) {
-			if (i > 0) {
+			if (i > 0 && separator !== undefined) {
 				result.push(separator);
 			}
 			result.push(chunk);
 		}
-		return sql.fromList(result);
+		return new SQL(result);
 	}
 
 	/**
-	 *  Any DB identifier (table name, column name, index name etc.)
+	 * Create a SQL chunk that represents a DB identifier (table, column, index etc.).
+	 * When used in a query, the identifier will be escaped based on the DB engine.
+	 * For example, in PostgreSQL, identifiers are escaped with double quotes.
+	 *
+	 * **WARNING: This function does not offer any protection against SQL injections, so you must validate any user input beforehand.**
+	 *
+	 * @example ```ts
+	 * const query = sql`SELECT * FROM ${sql.identifier('my-table')}`;
+	 * // 'SELECT * FROM "my-table"'
+	 * ```
 	 */
 	export function identifier(value: string): Name {
-		return name(value);
+		return new Name(value);
 	}
 }
 
@@ -479,12 +532,16 @@ export namespace SQL {
 	}
 }
 
-export class Placeholder<TName extends string = string, TValue = any> {
+export class Placeholder<TName extends string = string, TValue = any> implements SQLWrapper {
 	static readonly [entityKind]: string = 'Placeholder';
 
 	declare protected: TValue;
 
 	constructor(readonly name: TName) {}
+
+	getSQL(): SQL {
+		return new SQL([this]);
+	}
 }
 
 export function placeholder<TName extends string>(name: TName): Placeholder<TName> {
@@ -503,3 +560,8 @@ export function fillPlaceholders(params: unknown[], values: Record<string, unkno
 		return p;
 	});
 }
+
+// Defined separately from the Column class to resolve circular dependency
+Column.prototype.getSQL = function() {
+	return new SQL([this]);
+};

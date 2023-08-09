@@ -20,6 +20,7 @@ import {
 	boolean,
 	date,
 	datetime,
+	getTableConfig,
 	getViewConfig,
 	int,
 	json,
@@ -31,7 +32,9 @@ import {
 	text,
 	time,
 	timestamp,
+	unique,
 	uniqueIndex,
+	uniqueKeyName,
 	year,
 } from 'drizzle-orm/mysql-core';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
@@ -69,6 +72,8 @@ const datesTable = mysqlTable('datestable', {
 	time: time('time', { fsp: 1 }),
 	datetime: datetime('datetime', { fsp: 2 }),
 	datetimeAsString: datetime('datetime_as_string', { fsp: 2, mode: 'string' }),
+	timestamp: timestamp('timestamp', { fsp: 3 }),
+	timestampAsString: timestamp('timestamp_as_string', { fsp: 3, mode: 'string' }),
 	year: year('year'),
 });
 
@@ -208,6 +213,50 @@ test.beforeEach(async (t) => {
 			)
 		`,
 	);
+});
+
+test.serial('table configs: unique third param', async (t) => {
+	const cities1Table = mysqlTable('cities1', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		state: text('state'),
+	}, (t) => ({
+		f: unique('custom_name').on(t.name, t.state),
+		f1: unique('custom_name1').on(t.name, t.state),
+	}));
+
+	const tableConfig = getTableConfig(cities1Table);
+
+	t.assert(tableConfig.uniqueConstraints.length === 2);
+
+	t.assert(tableConfig.uniqueConstraints[0]?.name === 'custom_name');
+	t.deepEqual(tableConfig.uniqueConstraints[0]?.columns.map((t) => t.name), ['name', 'state']);
+
+	t.assert(tableConfig.uniqueConstraints[1]?.name, 'custom_name1');
+	t.deepEqual(tableConfig.uniqueConstraints[1]?.columns.map((t) => t.name), ['name', 'state']);
+});
+
+test.serial('table configs: unique in column', async (t) => {
+	const cities1Table = mysqlTable('cities1', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull().unique(),
+		state: text('state').unique('custom'),
+		field: text('field').unique('custom_field'),
+	});
+
+	const tableConfig = getTableConfig(cities1Table);
+
+	const columnName = tableConfig.columns.find((it) => it.name === 'name');
+	t.assert(columnName?.uniqueName === uniqueKeyName(cities1Table, [columnName!.name]));
+	t.assert(columnName?.isUnique);
+
+	const columnState = tableConfig.columns.find((it) => it.name === 'state');
+	t.assert(columnState?.uniqueName === "custom");
+	t.assert(columnState?.isUnique);
+
+	const columnField = tableConfig.columns.find((it) => it.name === 'field');
+	t.assert(columnField?.uniqueName === "custom_field");
+	t.assert(columnField?.isUnique);
 });
 
 test.serial('select all fields', async (t) => {
@@ -488,6 +537,90 @@ test.serial('build query', async (t) => {
 		sql: `select \`id\`, \`name\` from \`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\``,
 		params: [],
 	});
+});
+
+test.serial('Query check: Insert all defaults in 1 row', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	const query = db
+		.insert(users)
+		.values({})
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: 'insert into `users` () values ()',
+		params: [],
+	});
+});
+
+test.serial('Query check: Insert all defaults in multiple rows', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state').default('UA'),
+	});
+
+	const query = db
+		.insert(users)
+		.values([{}, {}])
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: 'insert into `users` (`id`, `name`, `state`) values (default, default, default), (default, default, default)',
+		params: [],
+	});
+});
+
+test.serial('Insert all defaults in 1 row', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('empty_insert_single', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial primary key, name text default ('Dan'), state text)`,
+	);
+
+	await db.insert(users).values({});
+
+	const res = await db.select().from(users);
+
+	t.deepEqual(res, [{ id: 1, name: 'Dan', state: null }]);
+});
+
+test.serial('Insert all defaults in multiple rows', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('empty_insert_multiple', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial primary key, name text default ('Dan'), state text)`,
+	);
+
+	await db.insert(users).values([{}, {}])
+
+	const res = await db.select().from(users);
+
+	t.deepEqual(res, [{ id: 1, name: 'Dan', state: null }, { id: 2, name: 'Dan', state: null }]);
 });
 
 test.serial('build query insert with onDuplicate', async (t) => {
@@ -780,12 +913,15 @@ test.serial('insert + select all possible dates', async (t) => {
 				\`time\` time,
 				\`datetime\` datetime,
 				\`datetime_as_string\` datetime,
+				\`timestamp\` timestamp(3),
+				\`timestamp_as_string\` timestamp(3),
 				\`year\` year
 			)
 		`,
 	);
 
 	const date = new Date('2022-11-11');
+	const dateWithMilliseconds = new Date('2022-11-11 12:12:12.123');
 
 	await db.insert(datesTable).values({
 		date: date,
@@ -794,6 +930,8 @@ test.serial('insert + select all possible dates', async (t) => {
 		datetime: date,
 		year: 22,
 		datetimeAsString: '2022-11-11 12:12:12',
+		timestamp: dateWithMilliseconds,
+		timestampAsString: '2022-11-11 12:12:12.123',
 	});
 
 	const res = await db.select().from(datesTable);
@@ -810,6 +948,8 @@ test.serial('insert + select all possible dates', async (t) => {
 		datetime: new Date('2022-11-11'),
 		year: 2022,
 		datetimeAsString: '2022-11-11 12:12:12',
+		timestamp: new Date('2022-11-11 12:12:12.123'),
+		timestampAsString: '2022-11-11 12:12:12.123',
 	}]);
 
 	await db.execute(sql`drop table if exists \`datestable\``);

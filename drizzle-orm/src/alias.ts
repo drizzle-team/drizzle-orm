@@ -6,7 +6,7 @@ import { SQL, sql } from './sql';
 import { Table } from './table';
 import { type View, ViewBaseConfig } from './view';
 
-export class ColumnAliasProxyHandler<TColumn extends AnyColumn> implements ProxyHandler<TColumn> {
+export class ColumnAliasProxyHandler<TColumn extends Column> implements ProxyHandler<TColumn> {
 	static readonly [entityKind]: string = 'ColumnAliasProxyHandler';
 
 	constructor(private table: Table | View) {}
@@ -107,7 +107,7 @@ export function mapColumnsInAliasedSQLToAlias(query: SQL.Aliased, alias: string)
 }
 
 export function mapColumnsInSQLToAlias(query: SQL, alias: string): SQL {
-	return sql.fromList(query.queryChunks.map((c) => {
+	return sql.join(query.queryChunks.map((c) => {
 		if (is(c, Column)) {
 			return aliasedTableColumn(c, alias);
 		}
