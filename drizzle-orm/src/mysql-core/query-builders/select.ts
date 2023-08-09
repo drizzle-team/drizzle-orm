@@ -19,7 +19,7 @@ import { QueryPromise } from '~/query-promise';
 import { type Query, SQL } from '~/sql';
 import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
 import { Table } from '~/table';
-import { applyMixins, getTableColumns, getTableLikeName, type Simplify, type ValueOrArray } from '~/utils';
+import { applyMixins, getTableColumns, getTableLikeName, type ValueOrArray } from '~/utils';
 import { orderSelectedFields } from '~/utils';
 import { type ColumnsSelection, View, ViewBaseConfig } from '~/view';
 import type {
@@ -160,9 +160,6 @@ export abstract class MySqlSelectQueryBuilder<
 			withList,
 			table,
 			fields: { ...fields },
-			joins: [],
-			orderBy: [],
-			groupBy: [],
 			distinct,
 		};
 		this.isPartialSelect = isPartialSelect;
@@ -185,7 +182,7 @@ export abstract class MySqlSelectQueryBuilder<
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
 
-			if (typeof tableName === 'string' && this.config.joins.some((join) => join.alias === tableName)) {
+			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
 			}
 
@@ -213,6 +210,10 @@ export abstract class MySqlSelectQueryBuilder<
 						new SelectionProxyHandler({ sqlAliasedBehavior: 'sql', sqlBehavior: 'sql' }),
 					) as TSelection,
 				);
+			}
+
+			if (!this.config.joins) {
+				this.config.joins = [];
 			}
 
 			this.config.joins.push({ on, table, joinType, alias: tableName });
@@ -344,18 +345,18 @@ export abstract class MySqlSelectQueryBuilder<
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	toSQL(): Simplify<Omit<Query, 'typings'>> {
+	toSQL(): { sql: Query['sql']; params: Query['params'] } {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
 
 	as<TAlias extends string>(
 		alias: TAlias,
-	): SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias> {
+	): SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias, 'mysql'> {
 		return new Proxy(
 			new Subquery(this.getSQL(), this.config.fields, alias),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-		) as SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias>;
+		) as SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias, 'mysql'>;
 	}
 }
 

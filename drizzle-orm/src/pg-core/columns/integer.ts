@@ -1,39 +1,34 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
+import type { ColumnBaseConfig } from '~/column';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
 import { entityKind } from '~/entity';
-import { type Assume } from '~/utils';
 import type { AnyPgTable } from '../table';
 import { PgColumn, PgColumnBuilder } from './common';
 
-export interface PgIntegerBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgIntegerBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgIntegerHKT;
-}
-
-export interface PgIntegerHKT extends ColumnHKTBase {
-	_type: PgInteger<Assume<this['config'], ColumnBaseConfig>>;
-}
-
 type PgIntegerBuilderInitial<TName extends string> = PgIntegerBuilder<{
 	name: TName;
+	dataType: 'number';
+	columnType: 'PgInteger';
 	data: number;
 	driverParam: number | string;
-	hasDefault: false;
-	notNull: false;
+	enumValues: undefined;
 }>;
 
-export class PgIntegerBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgIntegerBuilderHKT, T> {
+export class PgIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgInteger'>> extends PgColumnBuilder<T> {
 	static readonly [entityKind]: string = 'PgIntegerBuilder';
+
+	constructor(name: T['name']) {
+		super(name, 'number', 'PgInteger');
+	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgInteger<MakeColumnConfig<T, TTableName>> {
-		return new PgInteger<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new PgInteger<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class PgInteger<T extends ColumnBaseConfig> extends PgColumn<PgIntegerHKT, T> {
+export class PgInteger<T extends ColumnBaseConfig<'number', 'PgInteger'>> extends PgColumn<T> {
 	static readonly [entityKind]: string = 'PgInteger';
 
 	getSQLType(): string {

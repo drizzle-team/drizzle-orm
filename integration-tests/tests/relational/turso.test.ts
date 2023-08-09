@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { type Client, createClient } from '@libsql/client';
-import { desc, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
+import { desc, DrizzleError, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 import * as schema from './sqlite.schema';
@@ -1358,17 +1358,11 @@ test('[Find Many] Get select {}', async () => {
 		{ id: 3, name: 'Alex' },
 	]).run();
 
-	const users = await db.query.usersTable.findMany({
-		columns: {},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{}[]>();
-
-	expect(users.length).toBe(3);
-
-	expect(users[0]).toEqual({});
-	expect(users[1]).toEqual({});
-	expect(users[2]).toEqual({});
+	await expect(async () =>
+		await db.query.usersTable.findMany({
+			columns: {},
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 // columns {}
@@ -1379,13 +1373,11 @@ test('[Find One] Get select {}', async () => {
 		{ id: 3, name: 'Alex' },
 	]).run();
 
-	const users = await db.query.usersTable.findFirst({
-		columns: {},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{} | undefined>();
-
-	expect(users).toEqual({});
+	await expect(async () =>
+		await db.query.usersTable.findFirst({
+			columns: {},
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 // deep select {}
@@ -1402,22 +1394,16 @@ test('[Find Many] Get deep select {}', async () => {
 		{ ownerId: 3, content: 'Post3' },
 	]).run();
 
-	const users = await db.query.usersTable.findMany({
-		columns: {},
-		with: {
-			posts: {
-				columns: {},
+	await expect(async () =>
+		await db.query.usersTable.findMany({
+			columns: {},
+			with: {
+				posts: {
+					columns: {},
+				},
 			},
-		},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{ posts: {}[] }[]>();
-
-	expect(users.length).toBe(3);
-
-	expect(users[0]).toEqual({ posts: [{}] });
-	expect(users[1]).toEqual({ posts: [{}] });
-	expect(users[2]).toEqual({ posts: [{}] });
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 // deep select {}
@@ -1434,18 +1420,16 @@ test('[Find One] Get deep select {}', async () => {
 		{ ownerId: 3, content: 'Post3' },
 	]).run();
 
-	const users = await db.query.usersTable.findFirst({
-		columns: {},
-		with: {
-			posts: {
-				columns: {},
+	await expect(async () =>
+		await db.query.usersTable.findFirst({
+			columns: {},
+			with: {
+				posts: {
+					columns: {},
+				},
 			},
-		},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{ posts: {}[] } | undefined>();
-
-	expect(users).toEqual({ posts: [{}] });
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 /*
@@ -4003,6 +3987,7 @@ test('[Find Many] Get users with groups', async () => {
 		with: {
 			usersToGroups: {
 				columns: {},
+				orderBy: usersToGroupsTable.groupId,
 				with: {
 					group: true,
 				},
