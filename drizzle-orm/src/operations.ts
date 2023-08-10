@@ -1,8 +1,8 @@
-import type { AnyColumn } from './column';
+import type { AnyColumn, Column } from './column';
 import type { SQL } from './sql';
 import type { Table } from './table';
 
-export type RequiredKeyOnly<TKey extends string, T extends AnyColumn> = T extends AnyColumn<{
+export type RequiredKeyOnly<TKey extends string, T extends Column> = T extends AnyColumn<{
 	notNull: true;
 	hasDefault: false;
 }> ? TKey
@@ -10,25 +10,25 @@ export type RequiredKeyOnly<TKey extends string, T extends AnyColumn> = T extend
 
 export type OptionalKeyOnly<
 	TKey extends string,
-	T extends AnyColumn,
+	T extends Column,
 > = TKey extends RequiredKeyOnly<TKey, T> ? never : TKey;
 
-export type SelectedFieldsFlat<TColumn extends AnyColumn> = Record<
+export type SelectedFieldsFlat<TColumn extends Column> = Record<
 	string,
 	TColumn | SQL | SQL.Aliased
 >;
 
-export type SelectedFieldsFlatFull<TColumn extends AnyColumn> = Record<
+export type SelectedFieldsFlatFull<TColumn extends Column> = Record<
 	string,
 	TColumn | SQL | SQL.Aliased
 >;
 
-export type SelectedFields<TColumn extends AnyColumn, TTable extends Table> = Record<
+export type SelectedFields<TColumn extends Column, TTable extends Table> = Record<
 	string,
 	SelectedFieldsFlat<TColumn>[string] | TTable | SelectedFieldsFlat<TColumn>
 >;
 
-export type SelectedFieldsOrdered<TColumn extends AnyColumn> = {
+export type SelectedFieldsOrdered<TColumn extends Column> = {
 	path: string[];
 	field: TColumn | SQL | SQL.Aliased;
 }[];

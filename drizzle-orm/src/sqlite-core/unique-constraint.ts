@@ -1,9 +1,9 @@
 import { entityKind } from '~/entity';
-import { type AnySQLiteTable, SQLiteTable } from './table';
-import { type AnySQLiteColumn } from './columns';
+import { type SQLiteColumn } from './columns';
+import { SQLiteTable } from './table';
 
-export function uniqueKeyName(table: AnySQLiteTable, columns: string[]) {
-	return `${table[SQLiteTable.Symbol.Name]}_${columns.join('_')}_unique`
+export function uniqueKeyName(table: SQLiteTable, columns: string[]) {
+	return `${table[SQLiteTable.Symbol.Name]}_${columns.join('_')}_unique`;
 }
 
 export function unique(name?: string): UniqueOnConstraintBuilder {
@@ -14,17 +14,17 @@ export class UniqueConstraintBuilder {
 	static readonly [entityKind]: string = 'SQLiteUniqueConstraintBuilder';
 
 	/** @internal */
-	columns: AnySQLiteColumn<{}>[];
+	columns: SQLiteColumn[];
 
 	constructor(
-		columns: AnySQLiteColumn[],
+		columns: SQLiteColumn[],
 		private name?: string,
 	) {
 		this.columns = columns;
 	}
 
 	/** @internal */
-	build(table: AnySQLiteTable): UniqueConstraint {
+	build(table: SQLiteTable): UniqueConstraint {
 		return new UniqueConstraint(table, this.columns, this.name);
 	}
 }
@@ -41,7 +41,7 @@ export class UniqueOnConstraintBuilder {
 		this.name = name;
 	}
 
-	on(...columns: [AnySQLiteColumn, ...AnySQLiteColumn[]]) {
+	on(...columns: [SQLiteColumn, ...SQLiteColumn[]]) {
 		return new UniqueConstraintBuilder(columns, this.name);
 	}
 }
@@ -49,10 +49,10 @@ export class UniqueOnConstraintBuilder {
 export class UniqueConstraint {
 	static readonly [entityKind]: string = 'SQLiteUniqueConstraint';
 
-	readonly columns: AnySQLiteColumn<{}>[];
+	readonly columns: SQLiteColumn[];
 	readonly name?: string;
 
-	constructor(readonly table: AnySQLiteTable, columns: AnySQLiteColumn<{}>[], name?: string) {
+	constructor(readonly table: SQLiteTable, columns: SQLiteColumn[], name?: string) {
 		this.columns = columns;
 		this.name = name ?? uniqueKeyName(this.table, this.columns.map((column) => column.name));
 	}

@@ -1,14 +1,14 @@
 import { entityKind } from '~/entity';
-import type { AnySQLiteColumn } from './columns';
+import type { AnySQLiteColumn, SQLiteColumn } from './columns';
 import type { AnySQLiteTable } from './table';
 import { SQLiteTable } from './table';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
 export type Reference = () => {
-	readonly columns: AnySQLiteColumn[];
+	readonly columns: SQLiteColumn[];
 	readonly foreignTable: AnySQLiteTable;
-	readonly foreignColumns: AnySQLiteColumn[];
+	readonly foreignColumns: SQLiteColumn[];
 };
 
 export class ForeignKeyBuilder {
@@ -30,8 +30,8 @@ export class ForeignKeyBuilder {
 
 	constructor(
 		config: () => {
-			columns: AnySQLiteColumn[];
-			foreignColumns: AnySQLiteColumn[];
+			columns: SQLiteColumn[];
+			foreignColumns: SQLiteColumn[];
 		},
 		actions?: {
 			onUpdate?: UpdateDeleteAction;
@@ -93,7 +93,7 @@ export class ForeignKey {
 
 type ColumnsWithTable<
 	TTableName extends string,
-	TColumns extends AnySQLiteColumn[],
+	TColumns extends SQLiteColumn[],
 > = { [Key in keyof TColumns]: AnySQLiteColumn<{ tableName: TTableName }> };
 
 export function foreignKey<

@@ -5,7 +5,6 @@ import type { PgMaterializedView } from '~/pg-core/view';
 import { QueryPromise } from '~/query-promise';
 import type { Query, SQL } from '~/sql';
 import { tracer } from '~/tracing';
-import { type Simplify } from '~/utils';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
@@ -53,7 +52,7 @@ export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 		return this.dialect.buildRefreshMaterializedViewQuery(this.config);
 	}
 
-	toSQL(): Simplify<Omit<Query, 'typings'>> {
+	toSQL(): { sql: Query['sql']; params: Query['params'] } {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}

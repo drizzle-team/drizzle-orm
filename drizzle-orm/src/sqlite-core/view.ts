@@ -6,7 +6,7 @@ import type { SQL } from '~/sql';
 import { SelectionProxyHandler } from '~/subquery';
 import { getTableColumns } from '~/utils';
 import { type ColumnsSelection, View } from '~/view';
-import type { AnySQLiteColumnBuilder } from './columns/common';
+import type { SQLiteColumn, SQLiteColumnBuilder } from './columns/common';
 import { QueryBuilder } from './query-builders';
 import type { SelectedFields } from './query-builders/select.types';
 import { sqliteTable } from './table';
@@ -40,7 +40,7 @@ export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<
 
 	as<TSelection extends SelectedFields>(
 		qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
-	): SQLiteViewWithSelection<TName, false, AddAliasToSelection<TSelection, TName>> {
+	): SQLiteViewWithSelection<TName, false, AddAliasToSelection<TSelection, TName, 'sqlite'>> {
 		if (typeof qb === 'function') {
 			qb = qb(new QueryBuilder());
 		}
@@ -63,29 +63,29 @@ export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<
 				},
 			}),
 			selectionProxy as any,
-		) as SQLiteViewWithSelection<TName, false, AddAliasToSelection<TSelection, TName>>;
+		) as SQLiteViewWithSelection<TName, false, AddAliasToSelection<TSelection, TName, 'sqlite'>>;
 	}
 }
 
 export class ManualViewBuilder<
 	TName extends string = string,
-	TColumns extends Record<string, AnySQLiteColumnBuilder> = Record<string, AnySQLiteColumnBuilder>,
+	TColumns extends Record<string, SQLiteColumnBuilder> = Record<string, SQLiteColumnBuilder>,
 > extends ViewBuilderCore<
 	{ name: TName; columns: TColumns }
 > {
 	static readonly [entityKind]: string = 'SQLiteManualViewBuilder';
 
-	private columns: BuildColumns<TName, TColumns>;
+	private columns: Record<string, SQLiteColumn>;
 
 	constructor(
 		name: TName,
 		columns: TColumns,
 	) {
 		super(name);
-		this.columns = getTableColumns(sqliteTable(name, columns)) as BuildColumns<TName, TColumns>;
+		this.columns = getTableColumns(sqliteTable(name, columns)) as BuildColumns<TName, TColumns, 'sqlite'>;
 	}
 
-	existing(): SQLiteViewWithSelection<TName, true, BuildColumns<TName, TColumns>> {
+	existing(): SQLiteViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'sqlite'>> {
 		return new Proxy(
 			new SQLiteView({
 				sqliteConfig: undefined,
@@ -102,10 +102,10 @@ export class ManualViewBuilder<
 				sqlAliasedBehavior: 'alias',
 				replaceOriginalName: true,
 			}),
-		) as SQLiteViewWithSelection<TName, true, BuildColumns<TName, TColumns>>;
+		) as SQLiteViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'sqlite'>>;
 	}
 
-	as(query: SQL): SQLiteViewWithSelection<TName, false, BuildColumns<TName, TColumns>> {
+	as(query: SQL): SQLiteViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'sqlite'>> {
 		return new Proxy(
 			new SQLiteView({
 				sqliteConfig: this.config,
@@ -122,7 +122,7 @@ export class ManualViewBuilder<
 				sqlAliasedBehavior: 'alias',
 				replaceOriginalName: true,
 			}),
-		) as SQLiteViewWithSelection<TName, false, BuildColumns<TName, TColumns>>;
+		) as SQLiteViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'sqlite'>>;
 	}
 }
 
@@ -171,13 +171,13 @@ export type SQLiteViewWithSelection<
 > = SQLiteView<TName, TExisting, TSelection> & TSelection;
 
 export function sqliteView<TName extends string>(name: TName): ViewBuilder<TName>;
-export function sqliteView<TName extends string, TColumns extends Record<string, AnySQLiteColumnBuilder>>(
+export function sqliteView<TName extends string, TColumns extends Record<string, SQLiteColumnBuilder>>(
 	name: TName,
 	columns: TColumns,
 ): ManualViewBuilder<TName, TColumns>;
 export function sqliteView(
 	name: string,
-	selection?: Record<string, AnySQLiteColumnBuilder>,
+	selection?: Record<string, SQLiteColumnBuilder>,
 ): ViewBuilder | ManualViewBuilder {
 	if (selection) {
 		return new ManualViewBuilder(name, selection);
