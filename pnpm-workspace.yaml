@@ -1,4 +1,5 @@
 packages:
   - drizzle-orm
   - drizzle-zod
+  - drizzle-typebox
   - integration-tests
