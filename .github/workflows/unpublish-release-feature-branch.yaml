@@ -10,6 +10,7 @@ jobs:
         package:
           - drizzle-orm
           - drizzle-zod
+          - drizzle-typebox
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3
