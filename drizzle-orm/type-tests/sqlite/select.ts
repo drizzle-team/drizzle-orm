@@ -57,12 +57,15 @@ const joinGet = db
 	.rightJoin(city1, eq(city1.id, users.id))
 	.get();
 Expect<
-	Equal<{
-		users_table: InferModel<typeof users> | null;
-		cities_table: InferModel<typeof cities> | null;
-		city: InferModel<typeof city> | null;
-		city1: InferModel<typeof city1>;
-	} | undefined, typeof joinGet>
+	Equal<
+		{
+			users_table: InferModel<typeof users> | null;
+			cities_table: InferModel<typeof cities> | null;
+			city: InferModel<typeof city> | null;
+			city1: InferModel<typeof city1>;
+		} | undefined,
+		typeof joinGet
+	>
 >;
 
 const joinValues = db

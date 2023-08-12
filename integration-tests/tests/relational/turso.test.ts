@@ -5976,6 +5976,20 @@ test('Get groups with users + custom', async () => {
 	});
 });
 
+test('async api', async () => {
+	await db.insert(usersTable).values([{ id: 1, name: 'Dan' }]);
+	const users = await db.query.usersTable.findMany();
+	expect(users).toEqual([{ id: 1, name: 'Dan', verified: 0, invitedBy: null }]);
+});
+
+test('async api - prepare', async () => {
+	const insertStmt = db.insert(usersTable).values([{ id: 1, name: 'Dan' }]).prepare();
+	await insertStmt.execute();
+	const queryStmt = db.query.usersTable.findMany().prepare();
+	const users = await queryStmt.execute();
+	expect(users).toEqual([{ id: 1, name: 'Dan', verified: 0, invitedBy: null }]);
+});
+
 // + custom + where + orderby
 
 // + custom + where + orderby + limit

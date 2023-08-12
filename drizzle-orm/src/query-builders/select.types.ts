@@ -155,7 +155,7 @@ export type GetSelectTableSelection<TTable extends TableLike> = TTable extends T
 
 export type SelectResultField<T, TDeep extends boolean = true> = T extends DrizzleTypeError<any> ? T
 	: T extends Table ? Equal<TDeep, true> extends true ? SelectResultField<T['_']['columns'], false> : never
-	: T extends Column ? GetColumnData<T>
+	: T extends Column<any> ? GetColumnData<T>
 	: T extends SQL | SQL.Aliased ? T['_']['type']
 	: T extends Record<string, any> ? SelectResultFields<T, true>
 	: never;
