@@ -647,7 +647,7 @@ export function arrayContains(
 		if (values.length === 0) {
 			throw new Error('arrayContains requires at least one value');
 		}
-    const array = sql`${bindIfParam(values, column)}`;
+		const array = sql`${bindIfParam(values, column)}`;
 		return sql`${column} @> ${array}`;
 	}
 
@@ -695,7 +695,7 @@ export function arrayContained(
 		if (values.length === 0) {
 			throw new Error('arrayContained requires at least one value');
 		}
-    const array = sql`${bindIfParam(values, column)}`;
+		const array = sql`${bindIfParam(values, column)}`;
 		return sql`${column} <@ ${array}`;
 	}
 
@@ -742,7 +742,7 @@ export function arrayOverlaps(
 		if (values.length === 0) {
 			throw new Error('arrayOverlaps requires at least one value');
 		}
-    const array = sql`${bindIfParam(values, column)}`;
+		const array = sql`${bindIfParam(values, column)}`;
 		return sql`${column} && ${array}`;
 	}
 
