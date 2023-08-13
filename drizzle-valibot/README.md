@@ -1,4 +1,4 @@
-`drizzle-typebox` is a plugin for [Drizzle ORM](https://github.com/drizzle-team/drizzle-orm) that allows you to generate [valibot](https://valibot.dev/) schemas from Drizzle ORM schemas.
+`drizzle-valibot` is a plugin for [Drizzle ORM](https://github.com/drizzle-team/drizzle-orm) that allows you to generate [valibot](https://valibot.dev/) schemas from Drizzle ORM schemas.
 
 # Usage
 
