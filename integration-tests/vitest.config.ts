@@ -6,7 +6,7 @@ export default defineConfig({
 	test: {
 		include: ['tests/relational/**/*.test.ts'],
 		exclude: [
-			// 'tests/relational/mysql.planetscale.test.ts',
+			...(process.env.SKIP_PLANETSCALE_TESTS ? ['tests/relational/mysql.planetscale.test.ts'] : []),
 			'tests/relational/vercel.test.ts',
 		],
 		typecheck: {

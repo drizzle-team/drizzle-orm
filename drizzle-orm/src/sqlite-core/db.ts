@@ -15,7 +15,7 @@ import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
 import { type DrizzleTypeError } from '~/utils';
 import { type ColumnsSelection } from '~/view';
-import { AsyncRelationalQueryBuilder, SyncRelationalQueryBuilder } from './query-builders/query';
+import { RelationalQueryBuilder } from './query-builders/query';
 import type { SelectedFields } from './query-builders/select.types';
 import type { WithSubqueryWithSelection } from './subquery';
 
@@ -35,8 +35,7 @@ export class BaseSQLiteDatabase<
 	query: TFullSchema extends Record<string, never>
 		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
 		: {
-			[K in keyof TSchema]: TResultKind extends 'async' ? AsyncRelationalQueryBuilder<TFullSchema, TSchema, TSchema[K]>
-				: SyncRelationalQueryBuilder<TFullSchema, TSchema, TSchema[K]>;
+			[K in keyof TSchema]: RelationalQueryBuilder<TResultKind, TFullSchema, TSchema, TSchema[K]>;
 		};
 
 	constructor(
@@ -53,16 +52,16 @@ export class BaseSQLiteDatabase<
 		this.query = {} as typeof this['query'];
 		if (this._.schema) {
 			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				this.query[tableName as keyof TSchema] =
-					new (resultKind === 'async' ? AsyncRelationalQueryBuilder : SyncRelationalQueryBuilder)(
-						schema!.fullSchema,
-						this._.schema,
-						this._.tableNamesMap,
-						schema!.fullSchema[tableName] as AnySQLiteTable,
-						columns,
-						dialect,
-						session as SQLiteSession<any, any, any, any> as any,
-					) as this['query'][keyof TSchema];
+				this.query[tableName as keyof TSchema] = new RelationalQueryBuilder(
+					resultKind,
+					schema!.fullSchema,
+					this._.schema,
+					this._.tableNamesMap,
+					schema!.fullSchema[tableName] as AnySQLiteTable,
+					columns,
+					dialect,
+					session as SQLiteSession<any, any, any, any> as any,
+				) as this['query'][keyof TSchema];
 			}
 		}
 	}

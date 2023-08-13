@@ -4,6 +4,7 @@ import { Expect } from 'type-tests/utils';
 import { and, eq } from '~/expressions';
 import { placeholder, sql } from '~/sql';
 import type { InferModel } from '~/table';
+import { type DrizzleTypeError } from '~/utils';
 import { bunDb, db } from './db';
 import type { NewUser } from './tables';
 import { users } from './tables';
@@ -23,22 +24,22 @@ const insertRunBun = bunDb.insert(users).values(newUser).run();
 Expect<Equal<void, typeof insertRunBun>>;
 
 const insertAll = db.insert(users).values(newUser).all();
-Expect<Equal<never, typeof insertAll>>;
+Expect<Equal<DrizzleTypeError<'.all() cannot be used without .returning()'>, typeof insertAll>>;
 
 const insertAllBun = bunDb.insert(users).values(newUser).all();
-Expect<Equal<never, typeof insertAllBun>>;
+Expect<Equal<DrizzleTypeError<'.all() cannot be used without .returning()'>, typeof insertAllBun>>;
 
 const insertGet = db.insert(users).values(newUser).get();
-Expect<Equal<never, typeof insertGet>>;
+Expect<Equal<DrizzleTypeError<'.get() cannot be used without .returning()'>, typeof insertGet>>;
 
 const insertGetBun = bunDb.insert(users).values(newUser).get();
-Expect<Equal<never, typeof insertGetBun>>;
+Expect<Equal<DrizzleTypeError<'.get() cannot be used without .returning()'>, typeof insertGetBun>>;
 
 const insertValues = db.insert(users).values(newUser).values();
-Expect<Equal<never, typeof insertValues>>;
+Expect<Equal<DrizzleTypeError<'.values() cannot be used without .returning()'>, typeof insertValues>>;
 
 const insertValuesBun = bunDb.insert(users).values(newUser).values();
-Expect<Equal<never, typeof insertValuesBun>>;
+Expect<Equal<DrizzleTypeError<'.values() cannot be used without .returning()'>, typeof insertValuesBun>>;
 
 const insertRunReturningAll = db.insert(users).values(newUser).returning().run();
 Expect<Equal<RunResult, typeof insertRunReturningAll>>;

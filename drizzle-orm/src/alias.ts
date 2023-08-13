@@ -6,7 +6,7 @@ import { SQL, sql } from './sql';
 import { Table } from './table';
 import { type View, ViewBaseConfig } from './view';
 
-export class ColumnAliasProxyHandler<TColumn extends AnyColumn> implements ProxyHandler<TColumn> {
+export class ColumnAliasProxyHandler<TColumn extends Column> implements ProxyHandler<TColumn> {
 	static readonly [entityKind]: string = 'ColumnAliasProxyHandler';
 
 	constructor(private table: Table | View) {}

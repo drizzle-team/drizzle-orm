@@ -180,16 +180,16 @@ test.beforeEach((t) => {
 	`);
 });
 
-test.serial('insert bigint values', async (t) => {
+test.serial('insert bigint values', (t) => {
 	const { db } = t.context;
 
-	await db.insert(bigIntExample).values({ name: 'one', bigInt: BigInt('0') }).run();
-	await db.insert(bigIntExample).values({ name: 'two', bigInt: BigInt('127') }).run();
-	await db.insert(bigIntExample).values({ name: 'three', bigInt: BigInt('32767') }).run();
-	await db.insert(bigIntExample).values({ name: 'four', bigInt: BigInt('1234567890') }).run();
-	await db.insert(bigIntExample).values({ name: 'five', bigInt: BigInt('12345678900987654321') }).run();
+	db.insert(bigIntExample).values({ name: 'one', bigInt: BigInt('0') }).run();
+	db.insert(bigIntExample).values({ name: 'two', bigInt: BigInt('127') }).run();
+	db.insert(bigIntExample).values({ name: 'three', bigInt: BigInt('32767') }).run();
+	db.insert(bigIntExample).values({ name: 'four', bigInt: BigInt('1234567890') }).run();
+	db.insert(bigIntExample).values({ name: 'five', bigInt: BigInt('12345678900987654321') }).run();
 
-	const result = await db.select().from(bigIntExample).all();
+	const result = db.select().from(bigIntExample).all();
 	t.deepEqual(result, [
 		{ id: 1, name: 'one', bigInt: BigInt('0') },
 		{ id: 2, name: 'two', bigInt: BigInt('127') },
@@ -1367,7 +1367,7 @@ test.serial('nested transaction', (t) => {
 	db.transaction((tx) => {
 		tx.insert(users).values({ balance: 100 }).run();
 
-		tx.transaction(async (tx) => {
+		tx.transaction((tx) => {
 			tx.update(users).set({ balance: 200 }).run();
 		});
 	});
@@ -1678,4 +1678,111 @@ test.serial('update undefined', (t) => {
 	t.notThrows(() => db.update(users).set({ id: 1, name: undefined }).run());
 
 	db.run(sql`drop table ${users}`);
+});
+
+test.serial('async api - CRUD', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	await db.insert(users).values({ id: 1, name: 'John' });
+
+	const res = await db.select().from(users);
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+
+	await db.update(users).set({ name: 'John1' }).where(eq(users.id, 1));
+
+	const res1 = await db.select().from(users);
+
+	t.deepEqual(res1, [{ id: 1, name: 'John1' }]);
+
+	await db.delete(users).where(eq(users.id, 1));
+
+	const res2 = await db.select().from(users);
+
+	t.deepEqual(res2, []);
+});
+
+test.serial('async api - insert + select w/ prepare + async execute', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	const insertStmt = db.insert(users).values({ id: 1, name: 'John' }).prepare();
+	await insertStmt.execute();
+
+	const selectStmt = db.select().from(users).prepare();
+	const res = await selectStmt.execute();
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+
+	const updateStmt = db.update(users).set({ name: 'John1' }).where(eq(users.id, 1)).prepare();
+	await updateStmt.execute();
+
+	const res1 = await selectStmt.execute();
+
+	t.deepEqual(res1, [{ id: 1, name: 'John1' }]);
+
+	const deleteStmt = db.delete(users).where(eq(users.id, 1)).prepare();
+	await deleteStmt.execute();
+
+	const res2 = await selectStmt.execute();
+
+	t.deepEqual(res2, []);
+});
+
+test.serial('async api - insert + select w/ prepare + sync execute', (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	const insertStmt = db.insert(users).values({ id: 1, name: 'John' }).prepare();
+	insertStmt.execute().sync();
+
+	const selectStmt = db.select().from(users).prepare();
+	const res = selectStmt.execute().sync();
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+
+	const updateStmt = db.update(users).set({ name: 'John1' }).where(eq(users.id, 1)).prepare();
+	updateStmt.execute().sync();
+
+	const res1 = selectStmt.execute().sync();
+
+	t.deepEqual(res1, [{ id: 1, name: 'John1' }]);
+
+	const deleteStmt = db.delete(users).where(eq(users.id, 1)).prepare();
+	deleteStmt.execute().sync();
+
+	const res2 = selectStmt.execute().sync();
+
+	t.deepEqual(res2, []);
 });

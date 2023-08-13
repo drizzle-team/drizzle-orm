@@ -6,7 +6,11 @@ import { fillPlaceholders, type Query, sql } from '~/sql';
 import { SQLiteTransaction } from '~/sqlite-core';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
-import type { PreparedQueryConfig as PreparedQueryConfigBase, SQLiteTransactionConfig } from '~/sqlite-core/session';
+import type {
+	PreparedQueryConfig as PreparedQueryConfigBase,
+	SQLiteExecuteMethod,
+	SQLiteTransactionConfig,
+} from '~/sqlite-core/session';
 import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session';
 import { mapResultRow } from '~/utils';
 import { type RemoteCallback, type SqliteRemoteResult } from './driver';
@@ -37,9 +41,10 @@ export class SQLiteRemoteSession<
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
-		fields?: SelectedFieldsOrdered,
+		fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
 	): PreparedQuery<T> {
-		return new PreparedQuery(this.client, query.sql, query.params, this.logger, fields);
+		return new PreparedQuery(this.client, query.sql, query.params, this.logger, fields, executeMethod);
 	}
 
 	override async transaction<T>(
@@ -83,7 +88,7 @@ export class SQLiteProxyTransaction<
 }
 
 export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
-	{ type: 'async'; run: SqliteRemoteResult; all: T['all']; get: T['get']; values: T['values'] }
+	{ type: 'async'; run: SqliteRemoteResult; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
 	static readonly [entityKind]: string = 'SQLiteProxyPreparedQuery';
 
@@ -93,8 +98,9 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
 	) {
-		super();
+		super('async', executeMethod);
 	}
 
 	run(placeholderValues?: Record<string, unknown>): Promise<SqliteRemoteResult> {
@@ -115,7 +121,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 			return rows.map((row) => mapResultRow(fields, row, joinsNotNullableMap));
 		}
 
-		return this.client(queryString, params, 'all').then(({ rows }) => rows);
+		return rows;
 	}
 
 	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {

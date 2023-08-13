@@ -49,27 +49,9 @@ const db = drizzle(sqlite);
 const allUsers = db.select().from(users).all();
 ```
 
-### Using Drizzle ORM in Next.js app router
+### Using Drizzle ORM in Next.js App Router
 
-In order to use Drizzle ORM in the Next.js new app router mode you have to add `better-sqlite3` dependendency to the `experimental.serverComponentsExternalPackages` array in `next.config.js` config file.
-
-Example `next.config.js` should look like this:
-
-```ts
-/** @type {import("next").NextConfig} */
-const config = {
-  reactStrictMode: true,
-  experimental: {
-    appDir: true,
-    serverComponentsExternalPackages: ["better-sqlite3"],
-  },
-}
-export default config
-```
-
-More details about `serverComponentsExternalPackages` can be found in the [Next.js beta docs](https://beta.nextjs.org/docs/api-reference/next-config#servercomponentsexternalpackages).
-
-> **Note**: New next.js beta docs changes frequently so if the link above doesn't work try this one: [Next.js beta docs](https://beta.nextjs.org/docs/api-reference/next-config.js#servercomponentsexternalpackages).
+Next.js' App Router have zero-config support for Drizzle ORM.
 
 ## Connecting to databases
 
@@ -224,7 +206,7 @@ The list of all column types. You can also create custom types - [see here](/doc
 
 ```typescript
 integer('...');
-integer('...', { mode: 'number' | 'timestamp' | 'bigint' })
+integer('...', { mode: 'number' | 'timestamp' | 'timestamp_ms' })
 real('...');
 text('...');
 text('role', { enum: ['admin', 'user'] });

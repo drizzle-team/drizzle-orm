@@ -3,22 +3,48 @@ import { DrizzleError, TransactionRollbackError } from '~/errors';
 import { type TablesRelationalConfig } from '~/relations';
 import type { Query, SQL } from '~/sql';
 import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect';
+import { QueryPromise } from '..';
 import { BaseSQLiteDatabase } from './db';
 import type { SelectedFieldsOrdered } from './query-builders/select.types';
 
 export interface PreparedQueryConfig {
 	type: 'sync' | 'async';
 	run: unknown;
-	all: unknown[];
+	all: unknown;
 	get: unknown;
-	values: unknown[][];
+	values: unknown;
+	execute: unknown;
 }
+
+export class ExecuteResultSync<T> extends QueryPromise<T> {
+	static readonly [entityKind]: string = 'ExecuteResultSync';
+
+	constructor(private resultCb: () => T) {
+		super();
+	}
+
+	override async execute(): Promise<T> {
+		return this.resultCb();
+	}
+
+	sync(): T {
+		return this.resultCb();
+	}
+}
+
+export type ExecuteResult<TType extends 'sync' | 'async', TResult> = TType extends 'async' ? Promise<TResult>
+	: ExecuteResultSync<TResult>;
 
 export abstract class PreparedQuery<T extends PreparedQueryConfig> {
 	static readonly [entityKind]: string = 'PreparedQuery';
 
 	/** @internal */
 	joinsNotNullableMap?: Record<string, boolean>;
+
+	constructor(
+		private mode: 'sync' | 'async',
+		private executeMethod: SQLiteExecuteMethod,
+	) {}
 
 	abstract run(placeholderValues?: Record<string, unknown>): Result<T['type'], T['run']>;
 
@@ -27,11 +53,20 @@ export abstract class PreparedQuery<T extends PreparedQueryConfig> {
 	abstract get(placeholderValues?: Record<string, unknown>): Result<T['type'], T['get']>;
 
 	abstract values(placeholderValues?: Record<string, unknown>): Result<T['type'], T['values']>;
+
+	execute(placeholderValues?: Record<string, unknown>): ExecuteResult<T['type'], T['execute']> {
+		if (this.mode === 'async') {
+			return this[this.executeMethod](placeholderValues) as ExecuteResult<T['type'], T['execute']>;
+		}
+		return new ExecuteResultSync(() => this[this.executeMethod](placeholderValues));
+	}
 }
 
 export interface SQLiteTransactionConfig {
 	behavior?: 'deferred' | 'immediate' | 'exclusive';
 }
+
+export type SQLiteExecuteMethod = 'run' | 'all' | 'get';
 
 export abstract class SQLiteSession<
 	TResultKind extends 'sync' | 'async',
@@ -49,14 +84,16 @@ export abstract class SQLiteSession<
 	abstract prepareQuery(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown,
 	): PreparedQuery<PreparedQueryConfig & { type: TResultKind }>;
 
 	prepareOneTimeQuery(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
 	): PreparedQuery<PreparedQueryConfig & { type: TResultKind }> {
-		return this.prepareQuery(query, fields);
+		return this.prepareQuery(query, fields, executeMethod);
 	}
 
 	abstract transaction<T>(
@@ -67,24 +104,24 @@ export abstract class SQLiteSession<
 	run(query: SQL): Result<TResultKind, TRunResult> {
 		const staticQuery = this.dialect.sqlToQuery(query);
 		try {
-			return this.prepareOneTimeQuery(staticQuery, undefined).run();
+			return this.prepareOneTimeQuery(staticQuery, undefined, 'run').run();
 		} catch (err) {
 			throw DrizzleError.wrap(err, `Failed to run the query '${staticQuery.sql}'`);
 		}
 	}
 
 	all<T = unknown>(query: SQL): Result<TResultKind, T[]> {
-		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined).all();
+		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run').all();
 	}
 
 	get<T = unknown>(query: SQL): Result<TResultKind, T> {
-		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined).get();
+		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run').get();
 	}
 
 	values<T extends any[] = unknown[]>(
 		query: SQL,
 	): Result<TResultKind, T[]> {
-		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined).values();
+		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run').values();
 	}
 }
 
