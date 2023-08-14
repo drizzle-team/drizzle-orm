@@ -1,6 +1,6 @@
 {
   "name": "drizzle-valibot",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Generate valibot schemas from Drizzle ORM schemas",
   "type": "module",
   "scripts": {
