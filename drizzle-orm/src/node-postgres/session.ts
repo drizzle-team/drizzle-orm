@@ -51,6 +51,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 
 			const { fields, rawQuery, client, query, joinsNotNullableMap, customResultMapper } = this;
 			if (!fields && !customResultMapper) {
+				Object.assign(rawQuery, { values: params });
 				return tracer.startActiveSpan('drizzle.driver.execute', async (span) => {
 					span?.setAttributes({
 						'drizzle.query.name': rawQuery.name,
@@ -61,6 +62,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 				});
 			}
 
+			Object.assign(query, { values: params });
 			const result = await tracer.startActiveSpan('drizzle.driver.execute', (span) => {
 				span?.setAttributes({
 					'drizzle.query.name': query.name,
@@ -81,6 +83,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
 		return tracer.startActiveSpan('drizzle.execute', () => {
 			const params = fillPlaceholders(this.params, placeholderValues);
+			Object.assign(this.rawQuery, { values: params });
 			this.logger.logQuery(this.rawQuery.text, params);
 			return tracer.startActiveSpan('drizzle.driver.execute', (span) => {
 				span?.setAttributes({
