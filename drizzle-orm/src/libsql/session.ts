@@ -184,7 +184,7 @@ function normalizeRow(obj: any) {
 	// that can be accessed both as objects and arrays. Let's
 	// turn them into objects what's what other SQLite drivers
 	// do.
-	return Object.keys(obj).reduce((acc: Record<string, any>, key) => {
+	return Object.keys(obj || {}).reduce((acc: Record<string, any>, key) => {
 		if (Object.prototype.propertyIsEnumerable.call(obj, key)) {
 			acc[key] = obj[key];
 		}
