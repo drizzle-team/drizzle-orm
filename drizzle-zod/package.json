@@ -4,7 +4,7 @@
   "description": "Generate Zod schemas from Drizzle ORM schemas",
   "type": "module",
   "scripts": {
-    "build": "rimraf dist && rollup --config rollup.config.ts --configPlugin typescript && resolve-tspaths && cp README.md package.json dist/",
+    "build": "rimraf dist && rollup --config rollup.config.ts --configPlugin typescript && resolve-tspaths && ncp README.md dist/ && ncp package.json dist/",
     "b": "pnpm build",
     "test:types": "cd tests && tsc",
     "pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
@@ -70,6 +70,7 @@
     "@types/node": "^18.15.10",
     "ava": "^5.1.0",
     "drizzle-orm": "link:../drizzle-orm/dist",
+    "ncp": "^2.0.0",
     "rimraf": "^5.0.0",
     "rollup": "^3.20.7",
     "tsx": "^3.12.2",
