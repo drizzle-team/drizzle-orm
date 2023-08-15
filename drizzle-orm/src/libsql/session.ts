@@ -9,6 +9,7 @@ import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
 import {
 	type PreparedQueryConfig as PreparedQueryConfigBase,
+	type SQLiteExecuteMethod,
 	type SQLiteTransactionConfig,
 } from '~/sqlite-core/session';
 import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session';
@@ -41,10 +42,20 @@ export class LibSQLSession<
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
-		fields: SelectedFieldsOrdered,
+		fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): PreparedQuery<T> {
-		return new PreparedQuery(this.client, query.sql, query.params, this.logger, fields, this.tx, customResultMapper);
+		return new PreparedQuery(
+			this.client,
+			query.sql,
+			query.params,
+			this.logger,
+			fields,
+			this.tx,
+			executeMethod,
+			customResultMapper,
+		);
 	}
 
 	/*override */ batch(queries: SQL[]): Promise<ResultSet[]> {
@@ -96,7 +107,7 @@ export class LibSQLTransaction<
 }
 
 export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
-	{ type: 'async'; run: ResultSet; all: T['all']; get: T['get']; values: T['values'] }
+	{ type: 'async'; run: ResultSet; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
 	static readonly [entityKind]: string = 'LibSQLPreparedQuery';
 
@@ -107,9 +118,10 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		private tx: Transaction | undefined,
+		executeMethod: SQLiteExecuteMethod,
 		private customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown,
 	) {
-		super();
+		super('async', executeMethod);
 	}
 
 	run(placeholderValues?: Record<string, unknown>): Promise<ResultSet> {
@@ -128,7 +140,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 			return (tx ? tx.execute(stmt) : client.execute(stmt)).then(({ rows }) => rows.map((row) => normalizeRow(row)));
 		}
 
-		const rows = await this.values(placeholderValues);
+		const rows = await this.values(placeholderValues) as unknown[][];
 
 		if (customResultMapper) {
 			return customResultMapper(rows, normalizeFieldValue) as T['all'];
@@ -152,7 +164,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 			return (tx ? tx.execute(stmt) : client.execute(stmt)).then(({ rows }) => normalizeRow(rows[0]));
 		}
 
-		const rows = await this.values(placeholderValues);
+		const rows = await this.values(placeholderValues) as unknown[][];
 
 		if (!rows[0]) {
 			return undefined;

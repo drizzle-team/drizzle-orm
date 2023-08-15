@@ -11,6 +11,7 @@ import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
 import {
 	type PreparedQueryConfig as PreparedQueryConfigBase,
+	type SQLiteExecuteMethod,
 	type SQLiteTransactionConfig,
 } from '~/sqlite-core/session';
 import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session';
@@ -42,11 +43,12 @@ export class SQLiteD1Session<
 
 	prepareQuery(
 		query: Query,
-		fields?: SelectedFieldsOrdered,
+		fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): PreparedQuery {
 		const stmt = this.client.prepare(query.sql);
-		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields, customResultMapper);
+		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields, executeMethod, customResultMapper);
 	}
 
 	override async transaction<T>(
@@ -88,7 +90,7 @@ export class D1Transaction<
 }
 
 export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
-	{ type: 'async'; run: D1Result; all: T['all']; get: T['get']; values: T['values'] }
+	{ type: 'async'; run: D1Result; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
 	static readonly [entityKind]: string = 'D1PreparedQuery';
 
@@ -98,9 +100,10 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
 		private customResultMapper?: (rows: unknown[][]) => unknown,
 	) {
-		super();
+		super('async', executeMethod);
 	}
 
 	run(placeholderValues?: Record<string, unknown>): Promise<D1Result> {

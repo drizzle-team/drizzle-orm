@@ -1,13 +1,14 @@
 import type { GetColumnData } from '~/column';
 import { entityKind } from '~/entity';
 import type { SelectResultFields } from '~/query-builders/select.types';
+import { QueryPromise } from '~/query-promise';
 import type { Query, SQL, SQLWrapper } from '~/sql';
 import type { SQLiteDialect } from '~/sqlite-core/dialect';
 import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SQLiteTable } from '~/sqlite-core/table';
 import type { InferModel } from '~/table';
-import { mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils';
+import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils';
 import type { SelectedFields, SelectedFieldsOrdered } from './select.types';
 
 export interface SQLiteUpdateConfig {
@@ -57,14 +58,14 @@ export interface SQLiteUpdate<
 	TRunResult,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TReturning = undefined,
-> extends SQLWrapper {}
+> extends SQLWrapper, QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]> {}
 
 export class SQLiteUpdate<
 	TTable extends AnySQLiteTable,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TReturning = undefined,
-> implements SQLWrapper {
+> extends QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]> implements SQLWrapper {
 	static readonly [entityKind]: string = 'SQLiteUpdate';
 
 	declare readonly _: {
@@ -79,6 +80,7 @@ export class SQLiteUpdate<
 		private session: SQLiteSession<any, any, any, any>,
 		private dialect: SQLiteDialect,
 	) {
+		super();
 		this.config = { set, table };
 	}
 
@@ -87,21 +89,15 @@ export class SQLiteUpdate<
 		return this;
 	}
 
-	returning(): Omit<
-		SQLiteUpdate<TTable, TResultType, TRunResult, InferModel<TTable>>,
-		'where' | 'returning'
-	>;
+	returning(): SQLiteUpdate<TTable, TResultType, TRunResult, InferModel<TTable>>;
 	returning<TSelectedFields extends SelectedFields>(
 		fields: TSelectedFields,
-	): Omit<
-		SQLiteUpdate<TTable, TResultType, TRunResult, SelectResultFields<TSelectedFields>>,
-		'where' | 'returning'
-	>;
+	): SQLiteUpdate<TTable, TResultType, TRunResult, SelectResultFields<TSelectedFields>>;
 	returning(
 		fields: SelectedFields = this.config.table[SQLiteTable.Symbol.Columns],
-	): Omit<SQLiteUpdate<TTable, TResultType, TRunResult>, 'where' | 'returning'> {
+	): SQLiteUpdate<TTable, TResultType, TRunResult, InferModel<TTable>> {
 		this.config.returning = orderSelectedFields(fields);
-		return this;
+		return this as SQLiteUpdate<TTable, TResultType, TRunResult, InferModel<TTable>>;
 	}
 
 	/** @internal */
@@ -118,15 +114,18 @@ export class SQLiteUpdate<
 		{
 			type: TResultType;
 			run: TRunResult;
-			all: TReturning extends undefined ? never : TReturning[];
-			get: TReturning extends undefined ? never : TReturning;
-			values: TReturning extends undefined ? never : any[][];
+			all: TReturning extends undefined ? DrizzleTypeError<'.all() cannot be used without .returning()'> : TReturning[];
+			get: TReturning extends undefined ? DrizzleTypeError<'.get() cannot be used without .returning()'> : TReturning;
+			values: TReturning extends undefined ? DrizzleTypeError<'.values() cannot be used without .returning()'>
+				: any[][];
+			execute: TReturning extends undefined ? TRunResult : TReturning[];
 		}
 	> {
 		return this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
-		);
+			this.config.returning ? 'all' : 'run',
+		) as ReturnType<this['prepare']>;
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
@@ -144,4 +143,9 @@ export class SQLiteUpdate<
 	values: ReturnType<this['prepare']>['values'] = (placeholderValues) => {
 		return this.prepare(true).values(placeholderValues);
 	};
+
+	override async execute(): Promise<TReturning extends undefined ? TRunResult : TReturning[]> {
+		return (this.config.returning ? this.all() : this.run()) as TReturning extends undefined ? TRunResult
+			: TReturning[];
+	}
 }

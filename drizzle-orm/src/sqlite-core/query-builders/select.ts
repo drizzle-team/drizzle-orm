@@ -16,9 +16,17 @@ import type {
 	SelectMode,
 	SelectResult,
 } from '~/query-builders/select.types';
+import { QueryPromise } from '~/query-promise';
 import type { SubqueryWithSelection } from '~/sqlite-core/subquery';
 import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
-import { getTableColumns, getTableLikeName, orderSelectedFields, type ValueOrArray } from '~/utils';
+import {
+	applyMixins,
+	getTableColumns,
+	getTableLikeName,
+	orderSelectedFields,
+	type PromiseOf,
+	type ValueOrArray,
+} from '~/utils';
 import { type ColumnsSelection, View, ViewBaseConfig } from '~/view';
 import { SQLiteViewBase } from '../view';
 import type {
@@ -376,7 +384,8 @@ export interface SQLiteSelect<
 		TSelection,
 		TSelectMode,
 		TNullabilityMap
-	>
+	>,
+	QueryPromise<SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>
 {}
 
 export class SQLiteSelect<
@@ -405,6 +414,7 @@ export class SQLiteSelect<
 			all: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
 			get: SelectResult<TSelection, TSelectMode, TNullabilityMap> | undefined;
 			values: any[][];
+			execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
 		}
 	> {
 		if (!this.session) {
@@ -414,9 +424,10 @@ export class SQLiteSelect<
 		const query = this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
 			this.dialect.sqlToQuery(this.getSQL()),
 			fieldsList,
+			'all',
 		);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
-		return query;
+		return query as ReturnType<this['prepare']>;
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
@@ -434,4 +445,10 @@ export class SQLiteSelect<
 	values: ReturnType<this['prepare']>['values'] = (placeholderValues) => {
 		return this.prepare(true).values(placeholderValues);
 	};
+
+	async execute(): Promise<SelectResult<TSelection, TSelectMode, TNullabilityMap>[]> {
+		return this.all() as PromiseOf<ReturnType<this['execute']>>;
+	}
 }
+
+applyMixins(SQLiteSelect, [QueryPromise]);

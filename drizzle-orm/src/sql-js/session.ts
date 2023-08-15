@@ -7,7 +7,11 @@ import { fillPlaceholders, type Query, sql } from '~/sql';
 import { SQLiteTransaction } from '~/sqlite-core';
 import type { SQLiteSyncDialect } from '~/sqlite-core/dialect';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
-import type { PreparedQueryConfig as PreparedQueryConfigBase, SQLiteTransactionConfig } from '~/sqlite-core/session';
+import type {
+	PreparedQueryConfig as PreparedQueryConfigBase,
+	SQLiteExecuteMethod,
+	SQLiteTransactionConfig,
+} from '~/sqlite-core/session';
 import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session';
 import { mapResultRow } from '~/utils';
 
@@ -37,19 +41,30 @@ export class SQLJsSession<
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
-		fields?: SelectedFieldsOrdered,
+		fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
 	): PreparedQuery<T> {
 		const stmt = this.client.prepare(query.sql);
-		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields);
+		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields, executeMethod);
 	}
 
 	override prepareOneTimeQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
-		fields?: SelectedFieldsOrdered,
+		fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): PreparedQuery<T> {
 		const stmt = this.client.prepare(query.sql);
-		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields, customResultMapper, true);
+		return new PreparedQuery(
+			stmt,
+			query.sql,
+			query.params,
+			this.logger,
+			fields,
+			executeMethod,
+			customResultMapper,
+			true,
+		);
 	}
 
 	override transaction<T>(
@@ -91,7 +106,7 @@ export class SQLJsTransaction<
 }
 
 export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
-	{ type: 'sync'; run: void; all: T['all']; get: T['get']; values: T['values'] }
+	{ type: 'sync'; run: void; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
 	static readonly [entityKind]: string = 'SQLJsPreparedQuery';
 
@@ -101,10 +116,11 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
 		private customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown,
 		private isOneTimeQuery = false,
 	) {
-		super();
+		super('sync', executeMethod);
 	}
 
 	run(placeholderValues?: Record<string, unknown>): void {
@@ -125,7 +141,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 			const params = fillPlaceholders(this.params, placeholderValues ?? {});
 			logger.logQuery(queryString, params);
 			stmt.bind(params as BindParams);
-			const rows: T['all'] = [];
+			const rows: unknown[] = [];
 			while (stmt.step()) {
 				rows.push(stmt.getAsObject());
 			}
@@ -137,7 +153,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 			return rows;
 		}
 
-		const rows = this.values(placeholderValues);
+		const rows = this.values(placeholderValues) as unknown[][];
 
 		if (customResultMapper) {
 			return customResultMapper(rows, normalizeFieldValue) as T['all'];
@@ -182,7 +198,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
 		this.stmt.bind(params as BindParams);
-		const rows: T['values'] = [];
+		const rows: unknown[] = [];
 		while (this.stmt.step()) {
 			rows.push(this.stmt.get());
 		}

@@ -1,5 +1,6 @@
 import { entityKind, is } from '~/entity';
 import type { SelectResultFields } from '~/query-builders/select.types';
+import { QueryPromise } from '~/query-promise';
 import type { Placeholder, Query, SQLWrapper } from '~/sql';
 import { Param, SQL, sql } from '~/sql';
 import type { SQLiteDialect } from '~/sqlite-core/dialect';
@@ -8,7 +9,7 @@ import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
 import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SQLiteTable } from '~/sqlite-core/table';
 import { type InferModel, Table } from '~/table';
-import { mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils';
+import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
 import type { SQLiteUpdateSetSource } from './update';
 
@@ -77,14 +78,14 @@ export interface SQLiteInsert<
 	TRunResult,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TReturning = undefined,
-> extends SQLWrapper {}
+> extends SQLWrapper, QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]> {}
 
 export class SQLiteInsert<
 	TTable extends AnySQLiteTable,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TReturning = undefined,
-> implements SQLWrapper {
+> extends QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]> implements SQLWrapper {
 	static readonly [entityKind]: string = 'SQLiteInsert';
 
 	declare readonly _: {
@@ -102,19 +103,14 @@ export class SQLiteInsert<
 		private session: SQLiteSession<any, any, any, any>,
 		private dialect: SQLiteDialect,
 	) {
+		super();
 		this.config = { table, values };
 	}
 
-	returning(): Omit<
-		SQLiteInsert<TTable, TResultType, TRunResult, InferModel<TTable>>,
-		'returning' | `onConflict${string}`
-	>;
+	returning(): SQLiteInsert<TTable, TResultType, TRunResult, InferModel<TTable>>;
 	returning<TSelectedFields extends SelectedFieldsFlat>(
 		fields: TSelectedFields,
-	): Omit<
-		SQLiteInsert<TTable, TResultType, TRunResult, SelectResultFields<TSelectedFields>>,
-		'returning' | `onConflict${string}`
-	>;
+	): SQLiteInsert<TTable, TResultType, TRunResult, SelectResultFields<TSelectedFields>>;
 	returning(
 		fields: SelectedFieldsFlat = this.config.table[SQLiteTable.Symbol.Columns],
 	): SQLiteInsert<TTable, TResultType, TRunResult, any> {
@@ -159,15 +155,18 @@ export class SQLiteInsert<
 		{
 			type: TResultType;
 			run: TRunResult;
-			all: TReturning extends undefined ? never : TReturning[];
-			get: TReturning extends undefined ? never : TReturning;
-			values: TReturning extends undefined ? never : any[][];
+			all: TReturning extends undefined ? DrizzleTypeError<'.all() cannot be used without .returning()'> : TReturning[];
+			get: TReturning extends undefined ? DrizzleTypeError<'.get() cannot be used without .returning()'> : TReturning;
+			values: TReturning extends undefined ? DrizzleTypeError<'.values() cannot be used without .returning()'>
+				: any[][];
+			execute: TReturning extends undefined ? TRunResult : TReturning[];
 		}
 	> {
 		return this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
-		);
+			this.config.returning ? 'all' : 'run',
+		) as ReturnType<this['prepare']>;
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
@@ -185,4 +184,9 @@ export class SQLiteInsert<
 	values: ReturnType<this['prepare']>['values'] = (placeholderValues) => {
 		return this.prepare(true).values(placeholderValues);
 	};
+
+	override async execute(): Promise<TReturning extends undefined ? TRunResult : TReturning[]> {
+		return (this.config.returning ? this.all() : this.run()) as TReturning extends undefined ? TRunResult
+			: TReturning[];
+	}
 }
