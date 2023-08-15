@@ -13,6 +13,7 @@ export default defineConfig([
 		}, {}),
 		output: {
 			dir: 'dist.new',
+			minifyInternalExports: false,
 		},
 		external,
 		plugins: [
