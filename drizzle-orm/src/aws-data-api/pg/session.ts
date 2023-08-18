@@ -1,4 +1,4 @@
-import type { ExecuteStatementCommandOutput, Field, RDSDataClient } from '@aws-sdk/client-rds-data';
+import type { ColumnMetadata, ExecuteStatementCommandOutput, Field, RDSDataClient } from '@aws-sdk/client-rds-data';
 import {
 	BeginTransactionCommand,
 	CommitTransactionCommand,
@@ -79,7 +79,12 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 
 		const { fields, rawQuery, client, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
+			// @ts-ignore
+			rawQuery.includeResultMetadata = true; // TODO: seems that the flag is not included in the type, but exists on the object
 			const result = await client.send(rawQuery);
+			if (result.records && result.records?.length > 0 && result.columnMetadata && result.columnMetadata.length > 0) {
+				return this.mapResultRows(result.records ?? [], result.columnMetadata);
+			}
 			return result.records ?? [];
 		}
 
@@ -87,6 +92,19 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 
 		return result.records?.map((row: any) => {
 			return row.map((field: Field) => getValueFromDataApi(field));
+		});
+	}
+
+	/** @internal */
+	mapResultRows(records: Field[][], columnMetadata: ColumnMetadata[]): unknown[] {
+		return records.map((record) => {
+			const row: Record<string, unknown> = {};
+			for (const [index, field] of record.entries()) {
+				// @ts-ignore
+				const { name } = columnMetadata[index];
+				row[name] = getValueFromDataApi(field);
+			}
+			return row;
 		});
 	}
 }
