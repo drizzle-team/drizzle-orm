@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import type { Equal } from 'type-tests/utils';
 import { Expect } from 'type-tests/utils';
 import { z } from 'zod';
@@ -5,24 +6,33 @@ import { eq, gt } from '~/expressions';
 import {
 	bigint,
 	bigserial,
+	boolean,
 	char,
 	check,
 	cidr,
 	customType,
+	date,
 	decimal,
+	doublePrecision,
 	foreignKey,
 	index,
 	inet,
 	integer,
+	json,
+	jsonb,
 	macaddr,
 	macaddr8,
+	numeric,
 	type PgColumn,
 	pgEnum,
 	pgTable,
 	type PgTableWithColumns,
 	primaryKey,
+	real,
 	serial,
+	smallint,
 	text,
+	time,
 	timestamp,
 	uniqueIndex,
 	uuid,
@@ -36,7 +46,7 @@ import {
 	type PgViewWithSelection,
 } from '~/pg-core/view';
 import { sql } from '~/sql';
-import type { InferModel } from '~/table';
+import type { InferInsertModel, InferModel, InferSelectModel } from '~/table';
 import { db } from './db';
 
 export const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
@@ -80,6 +90,11 @@ export const users = pgTable(
 		pk: primaryKey(users.age1, users.class),
 	}),
 );
+
+Expect<Equal<InferSelectModel<typeof users>, typeof users['$inferSelect']>>;
+Expect<Equal<InferSelectModel<typeof users>, typeof users['_']['inferSelect']>>;
+Expect<Equal<InferInsertModel<typeof users>, typeof users['$inferInsert']>>;
+Expect<Equal<InferInsertModel<typeof users>, typeof users['_']['inferInsert']>>;
 
 export const cities = pgTable('cities_table', {
 	id: serial('id').primaryKey(),
@@ -973,4 +988,71 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 	Expect<Equal<['a', 'b', 'c'], typeof test.col9.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.col10.enumValues>>;
 	Expect<Equal<[string, ...string[]], typeof test.col11.enumValues>>;
+}
+
+{
+	const test = pgTable('test', {
+		id: text('id').$defaultFn(() => crypto.randomUUID()).primaryKey(),
+	});
+
+	Expect<
+		Equal<{
+			id?: string;
+		}, typeof test.$inferInsert>
+	>;
+}
+
+{
+	pgTable('test', {
+		id: integer('id').$default(() => 1),
+		id2: integer('id').$defaultFn(() => 1),
+		// @ts-expect-error - should be number
+		id3: integer('id').$default(() => '1'),
+		// @ts-expect-error - should be number
+		id4: integer('id').$defaultFn(() => '1'),
+	});
+}
+
+{
+	pgTable('all_columns', {
+		sm: smallint('smallint'),
+		smdef: smallint('smallint_def').default(10),
+		int: integer('integer'),
+		intdef: integer('integer_def').default(10),
+		numeric: numeric('numeric'),
+		numeric2: numeric('numeric2', { precision: 5 }),
+		numeric3: numeric('numeric3', { scale: 2 }),
+		numeric4: numeric('numeric4', { precision: 5, scale: 2 }),
+		numericdef: numeric('numeridef').default('100'),
+		bigint: bigint('bigint', { mode: 'number' }),
+		bigintdef: bigint('bigintdef', { mode: 'number' }).default(100),
+		bool: boolean('boolean'),
+		booldef: boolean('boolean_def').default(true),
+		text: text('text'),
+		textdef: text('textdef').default('text'),
+		varchar: varchar('varchar'),
+		varchardef: varchar('varchardef').default('text'),
+		serial: serial('serial'),
+		bigserial: bigserial('bigserial', { mode: 'number' }),
+		decimal: decimal('decimal', { precision: 100, scale: 2 }),
+		decimaldef: decimal('decimaldef', { precision: 100, scale: 2 }).default('100.0'),
+		doublePrecision: doublePrecision('doublePrecision'),
+		doublePrecisiondef: doublePrecision('doublePrecisiondef').default(100),
+		real: real('real'),
+		realdef: real('realdef').default(100),
+		json: json('json').$type<{ attr: string }>(),
+		jsondef: json('jsondef').$type<{ attr: string }>().default({ attr: 'value' }),
+		jsonb: jsonb('jsonb').$type<{ attr: string }>(),
+		jsonbdef: jsonb('jsonbdef').$type<{ attr: string }>().default({ attr: 'value' }),
+		time: time('time'),
+		time2: time('time2', { precision: 6, withTimezone: true }),
+		timedefnow: time('timedefnow').defaultNow(),
+		timestamp: timestamp('timestamp'),
+		timestamp2: timestamp('timestamp2', { precision: 6, withTimezone: true }),
+		timestamp3: timestamp('timestamp3', { withTimezone: true }),
+		timestamp4: timestamp('timestamp4', { precision: 4 }),
+		timestampdef: timestamp('timestampdef').defaultNow(),
+		date: date('date', { mode: 'date' }),
+		datedef: date('datedef').defaultNow(),
+	});
 }

@@ -26,6 +26,7 @@ import {
 	type DriverValueEncoder,
 	eq,
 	Param,
+	param,
 	type Query,
 	type QueryTypingsValue,
 	SQL,
@@ -355,10 +356,17 @@ export class PgDialect {
 
 		for (const [valueIndex, value] of values.entries()) {
 			const valueList: (SQLChunk | SQL)[] = [];
-			for (const [fieldName] of colEntries) {
+			for (const [fieldName, col] of colEntries) {
 				const colValue = value[fieldName];
 				if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
-					valueList.push(sql`default`);
+					// eslint-disable-next-line unicorn/no-negated-condition
+					if (col.defaultFn !== undefined) {
+						const defaultFnResult = col.defaultFn();
+						const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : param(defaultFnResult, col);
+						valueList.push(defaultValue);
+					} else {
+						valueList.push(sql`default`);
+					}
 				} else {
 					valueList.push(colValue);
 				}

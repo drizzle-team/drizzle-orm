@@ -289,6 +289,10 @@ export abstract class SQLiteDialect {
 					let defaultValue;
 					if (col.default !== null && col.default !== undefined) {
 						defaultValue = is(col.default, SQL) ? col.default : param(col.default, col);
+						// eslint-disable-next-line unicorn/no-negated-condition
+					} else if (col.defaultFn !== undefined) {
+						const defaultFnResult = col.defaultFn();
+						defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : param(defaultFnResult, col);
 					} else {
 						defaultValue = sql`null`;
 					}

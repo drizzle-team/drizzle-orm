@@ -65,6 +65,7 @@ export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = ob
 	name: string;
 	notNull: boolean;
 	default: TData | SQL | undefined;
+	defaultFn: (() => TData | SQL) | undefined;
 	hasDefault: boolean;
 	primaryKey: boolean;
 	isUnique: boolean;
@@ -98,7 +99,9 @@ export type $Type<T extends ColumnBuilder, TType> = T & {
 
 // To understand how to use `ColumnBuilder` and `AnyColumnBuilder`, see `Column` and `AnyColumn` documentation.
 export abstract class ColumnBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string> & {
+		data: any;
+	},
 	TRuntimeConfig extends object = object,
 	TTypeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
@@ -124,21 +127,66 @@ export abstract class ColumnBuilder<
 		} as ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>;
 	}
 
+	/**
+	 * Changes the data type of the column. Commonly used with `json` columns. Also, useful for branded types.
+	 *
+	 * @example
+	 * ```ts
+	 * const users = pgTable('users', {
+	 * 	id: integer('id').$type<UserId>().primaryKey(),
+	 * 	details: json('details').$type<UserDetails>().notNull(),
+	 * });
+	 * ```
+	 */
 	$type<TType>(): $Type<this, TType> {
 		return this as $Type<this, TType>;
 	}
 
+	/**
+	 * Adds a `not null` clause to the column definition.
+	 *
+	 * Affects the `select` model of the table - columns *without* `not null` will be nullable on select.
+	 */
 	notNull(): NotNull<this> {
 		this.config.notNull = true;
 		return this as NotNull<this>;
 	}
 
+	/**
+	 * Adds a `default <value>` clause to the column definition.
+	 *
+	 * Affects the `insert` model of the table - columns *with* `default` are optional on insert.
+	 *
+	 * If you need to set a dynamic default value, use {@link $defaultFn} instead.
+	 */
 	default(value: (this['_'] extends { $type: infer U } ? U : T['data']) | SQL): HasDefault<this> {
 		this.config.default = value;
 		this.config.hasDefault = true;
 		return this as HasDefault<this>;
 	}
 
+	/**
+	 * Adds a dynamic default value to the column.
+	 * The function will be called when the row is inserted, and the returned value will be used as the column value.
+	 *
+	 * **Note:** This value does not affect the `drizzle-kit` behavior, it is only used at runtime in `drizzle-orm`.
+	 */
+	$defaultFn(fn: () => (this['_'] extends { $type: infer U } ? U : T['data']) | SQL): HasDefault<this> {
+		this.config.defaultFn = fn;
+		this.config.hasDefault = true;
+		return this as HasDefault<this>;
+	}
+
+	/**
+	 * Alias for {@link $defaultFn}.
+	 */
+	$default = this.$defaultFn;
+
+	/**
+	 * Adds a `primary key` clause to the column definition. This implicitly makes the column `not null`.
+	 *
+	 * In SQLite, `integer primary key` implicitly makes the column auto-incrementing.
+	 */
 	primaryKey(): TExtraConfig['primaryKeyHasDefault'] extends true ? HasDefault<NotNull<this>> : NotNull<this> {
 		this.config.primaryKey = true;
 		this.config.notNull = true;
