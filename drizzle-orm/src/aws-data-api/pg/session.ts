@@ -48,6 +48,7 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 			resourceArn: options.resourceArn,
 			database: options.database,
 			transactionId,
+			includeResultMetadata: !fields && !customResultMapper,
 		});
 	}
 
@@ -79,10 +80,8 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 
 		const { fields, rawQuery, client, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
-			// @ts-ignore
-			rawQuery.includeResultMetadata = true; // TODO: seems that the flag is not included in the type, but exists on the object
 			const result = await client.send(rawQuery);
-			if (result.records && result.records?.length > 0 && result.columnMetadata && result.columnMetadata.length > 0) {
+			if (result.columnMetadata && result.columnMetadata.length > 0) {
 				return this.mapResultRows(result.records ?? [], result.columnMetadata);
 			}
 			return result.records ?? [];
@@ -96,13 +95,12 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 	}
 
 	/** @internal */
-	mapResultRows(records: Field[][], columnMetadata: ColumnMetadata[]): unknown[] {
+	mapResultRows(records: Field[][], columnMetadata: ColumnMetadata[]) {
 		return records.map((record) => {
 			const row: Record<string, unknown> = {};
 			for (const [index, field] of record.entries()) {
-				// @ts-ignore
-				const { name } = columnMetadata[index];
-				row[name] = getValueFromDataApi(field);
+				const { name } = columnMetadata[index]!;
+				row[name || index] = getValueFromDataApi(field); // not what to default if name is undefined
 			}
 			return row;
 		});
