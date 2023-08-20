@@ -14,20 +14,18 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations';
-import { and, eq, Param, param, type Query, SQL, sql, type SQLChunk } from '~/sql';
+import { and, eq, Param, type Query, SQL, sql, type SQLChunk } from '~/sql';
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
 import { orderSelectedFields, type UpdateSet } from '~/utils';
 import { View, ViewBaseConfig } from '~/view';
 import { DrizzleError } from '..';
-import type { AnyMySqlColumn } from './columns/common';
 import { MySqlColumn } from './columns/common';
 import type { MySqlDeleteConfig } from './query-builders/delete';
 import type { MySqlInsertConfig } from './query-builders/insert';
 import type { Join, MySqlSelectConfig, SelectedFieldsOrdered } from './query-builders/select.types';
 import type { MySqlUpdateConfig } from './query-builders/update';
 import type { MySqlSession } from './session';
-import type { AnyMySqlTable } from './table';
 import { MySqlTable } from './table';
 import { MySqlViewBase } from './view';
 
@@ -100,14 +98,14 @@ export class MySqlDialect {
 		return sql`delete from ${table}${whereSql}${returningSql}`;
 	}
 
-	buildUpdateSet(table: AnyMySqlTable, set: UpdateSet): SQL {
+	buildUpdateSet(table: MySqlTable, set: UpdateSet): SQL {
 		const setEntries = Object.entries(set);
 
 		const setSize = setEntries.length;
 		return sql.join(
 			setEntries
 				.flatMap(([colName, value], i): SQL[] => {
-					const col: AnyMySqlColumn = table[Table.Symbol.Columns][colName]!;
+					const col: MySqlColumn = table[Table.Symbol.Columns][colName]!;
 					const res = sql`${sql.identifier(col.name)} = ${value}`;
 					if (i < setSize - 1) {
 						return [res, sql.raw(', ')];
@@ -208,7 +206,7 @@ export class MySqlDialect {
 			distinct,
 		}: MySqlSelectConfig,
 	): SQL {
-		const fieldsList = fieldsFlat ?? orderSelectedFields<AnyMySqlColumn>(fields);
+		const fieldsList = fieldsFlat ?? orderSelectedFields<MySqlColumn>(fields);
 		for (const f of fieldsList) {
 			if (
 				is(f.field, Column)
@@ -339,8 +337,8 @@ export class MySqlDialect {
 	buildInsertQuery({ table, values, ignore, onConflict }: MySqlInsertConfig): SQL {
 		const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
-		const columns: Record<string, AnyMySqlColumn> = table[Table.Symbol.Columns];
-		const colEntries: [string, AnyMySqlColumn][] = isSingleValue
+		const columns: Record<string, MySqlColumn> = table[Table.Symbol.Columns];
+		const colEntries: [string, MySqlColumn][] = isSingleValue
 			? Object.keys(values[0]!).map((fieldName) => [fieldName, columns[fieldName]!])
 			: Object.entries(columns);
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
@@ -353,7 +351,7 @@ export class MySqlDialect {
 					// eslint-disable-next-line unicorn/no-negated-condition
 					if (col.defaultFn !== undefined) {
 						const defaultFnResult = col.defaultFn();
-						const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : param(defaultFnResult, col);
+						const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
 						valueList.push(defaultValue);
 					} else {
 						valueList.push(sql`default`);
@@ -399,14 +397,14 @@ export class MySqlDialect {
 		fullSchema: Record<string, unknown>;
 		schema: TablesRelationalConfig;
 		tableNamesMap: Record<string, string>;
-		table: AnyMySqlTable;
+		table: MySqlTable;
 		tableConfig: TableRelationalConfig;
 		queryConfig: true | DBQueryConfig<'many', true>;
 		tableAlias: string;
 		nestedQueryRelation?: Relation;
 		joinOn?: SQL;
-	}): BuildRelationalQueryResult<AnyMySqlTable, AnyMySqlColumn> {
-		let selection: BuildRelationalQueryResult<AnyMySqlTable, AnyMySqlColumn>['selection'] = [];
+	}): BuildRelationalQueryResult<MySqlTable, MySqlColumn> {
+		let selection: BuildRelationalQueryResult<MySqlTable, MySqlColumn>['selection'] = [];
 		let limit, offset, orderBy: MySqlSelectConfig['orderBy'], where;
 		const joins: Join[] = [];
 
@@ -417,7 +415,7 @@ export class MySqlDialect {
 			) => ({
 				dbKey: value.name,
 				tsKey: key,
-				field: aliasedTableColumn(value as AnyMySqlColumn, tableAlias),
+				field: aliasedTableColumn(value as MySqlColumn, tableAlias),
 				relationTableTsKey: undefined,
 				isJson: false,
 				selection: [],
@@ -434,7 +432,7 @@ export class MySqlDialect {
 				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 			}
 
-			const fieldsSelection: { tsKey: string; value: AnyMySqlColumn | SQL.Aliased }[] = [];
+			const fieldsSelection: { tsKey: string; value: MySqlColumn | SQL.Aliased }[] = [];
 			let selectedColumns: string[] = [];
 
 			// Figure out which columns to select
@@ -465,7 +463,7 @@ export class MySqlDialect {
 			}
 
 			for (const field of selectedColumns) {
-				const column = tableConfig.columns[field]! as AnyMySqlColumn;
+				const column = tableConfig.columns[field]! as MySqlColumn;
 				fieldsSelection.push({ tsKey: field, value: column });
 			}
 
@@ -518,7 +516,7 @@ export class MySqlDialect {
 			}
 			orderBy = orderByOrig.map((orderByValue) => {
 				if (is(orderByValue, Column)) {
-					return aliasedTableColumn(orderByValue, tableAlias) as AnyMySqlColumn;
+					return aliasedTableColumn(orderByValue, tableAlias) as MySqlColumn;
 				}
 				return mapColumnsInSQLToAlias(orderByValue, tableAlias);
 			});
@@ -550,7 +548,7 @@ export class MySqlDialect {
 					fullSchema,
 					schema,
 					tableNamesMap,
-					table: fullSchema[relationTableTsName] as AnyMySqlTable,
+					table: fullSchema[relationTableTsName] as MySqlTable,
 					tableConfig: schema[relationTableTsName]!,
 					queryConfig: is(relation, One)
 						? (selectedRelationConfigValue === true
@@ -694,14 +692,14 @@ export class MySqlDialect {
 		fullSchema: Record<string, unknown>;
 		schema: TablesRelationalConfig;
 		tableNamesMap: Record<string, string>;
-		table: AnyMySqlTable;
+		table: MySqlTable;
 		tableConfig: TableRelationalConfig;
 		queryConfig: true | DBQueryConfig<'many', true>;
 		tableAlias: string;
 		nestedQueryRelation?: Relation;
 		joinOn?: SQL;
-	}): BuildRelationalQueryResult<AnyMySqlTable, AnyMySqlColumn> {
-		let selection: BuildRelationalQueryResult<AnyMySqlTable, AnyMySqlColumn>['selection'] = [];
+	}): BuildRelationalQueryResult<MySqlTable, MySqlColumn> {
+		let selection: BuildRelationalQueryResult<MySqlTable, MySqlColumn>['selection'] = [];
 		let limit, offset, orderBy: MySqlSelectConfig['orderBy'] = [], where;
 
 		if (config === true) {
@@ -711,7 +709,7 @@ export class MySqlDialect {
 			) => ({
 				dbKey: value.name,
 				tsKey: key,
-				field: aliasedTableColumn(value as AnyMySqlColumn, tableAlias),
+				field: aliasedTableColumn(value as MySqlColumn, tableAlias),
 				relationTableTsKey: undefined,
 				isJson: false,
 				selection: [],
@@ -728,7 +726,7 @@ export class MySqlDialect {
 				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 			}
 
-			const fieldsSelection: { tsKey: string; value: AnyMySqlColumn | SQL.Aliased }[] = [];
+			const fieldsSelection: { tsKey: string; value: MySqlColumn | SQL.Aliased }[] = [];
 			let selectedColumns: string[] = [];
 
 			// Figure out which columns to select
@@ -759,7 +757,7 @@ export class MySqlDialect {
 			}
 
 			for (const field of selectedColumns) {
-				const column = tableConfig.columns[field]! as AnyMySqlColumn;
+				const column = tableConfig.columns[field]! as MySqlColumn;
 				fieldsSelection.push({ tsKey: field, value: column });
 			}
 
@@ -812,7 +810,7 @@ export class MySqlDialect {
 			}
 			orderBy = orderByOrig.map((orderByValue) => {
 				if (is(orderByValue, Column)) {
-					return aliasedTableColumn(orderByValue, tableAlias) as AnyMySqlColumn;
+					return aliasedTableColumn(orderByValue, tableAlias) as MySqlColumn;
 				}
 				return mapColumnsInSQLToAlias(orderByValue, tableAlias);
 			});
@@ -844,7 +842,7 @@ export class MySqlDialect {
 					fullSchema,
 					schema,
 					tableNamesMap,
-					table: fullSchema[relationTableTsName] as AnyMySqlTable,
+					table: fullSchema[relationTableTsName] as MySqlTable,
 					tableConfig: schema[relationTableTsName]!,
 					queryConfig: is(relation, One)
 						? (selectedRelationConfigValue === true

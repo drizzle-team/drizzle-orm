@@ -2,7 +2,7 @@ import type { SQL } from '~/sql';
 
 import { entityKind } from '~/entity';
 import type { PgColumn } from './columns';
-import type { AnyPgTable, PgTable } from './table';
+import type { PgTable } from './table';
 
 interface IndexConfig {
 	name?: string;
@@ -62,7 +62,7 @@ export class IndexBuilderOn {
 }
 
 export interface AnyIndexBuilder {
-	build(table: AnyPgTable): Index;
+	build(table: PgTable): Index;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
@@ -127,9 +127,9 @@ export class IndexBuilder implements AnyIndexBuilder {
 export class Index {
 	static readonly [entityKind]: string = 'PgIndex';
 
-	readonly config: IndexConfig & { table: AnyPgTable };
+	readonly config: IndexConfig & { table: PgTable };
 
-	constructor(config: IndexConfig, table: AnyPgTable) {
+	constructor(config: IndexConfig, table: PgTable) {
 		this.config = { ...config, table };
 	}
 }

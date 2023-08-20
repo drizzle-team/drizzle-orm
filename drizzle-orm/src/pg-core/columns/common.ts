@@ -18,7 +18,7 @@ import { uniqueKeyName } from '../unique-constraint';
 import { PgArrayBuilder } from './array';
 
 export interface ReferenceConfig {
-	ref: () => AnyPgColumn;
+	ref: () => PgColumn;
 	actions: {
 		onUpdate?: UpdateDeleteAction;
 		onDelete?: UpdateDeleteAction;
@@ -100,9 +100,7 @@ export abstract class PgColumnBuilder<
 	): PgColumn<MakeColumnConfig<T, TTableName>>;
 }
 
-export type AnyPgColumnBuilder = PgColumnBuilder<ColumnBuilderBaseConfig<ColumnDataType, string>>;
-
-// To understand how to use `PgColumn` and `AnyPgColumn`, see `Column` and `AnyColumn` documentation.
+// To understand how to use `PgColumn` and `PgColumn`, see `Column` and `AnyColumn` documentation.
 export abstract class PgColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = {},

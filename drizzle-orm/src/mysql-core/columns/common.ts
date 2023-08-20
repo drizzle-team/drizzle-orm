@@ -17,7 +17,7 @@ import { type Update } from '~/utils';
 import { uniqueKeyName } from '../unique-constraint';
 
 export interface ReferenceConfig {
-	ref: () => AnyMySqlColumn;
+	ref: () => MySqlColumn;
 	actions: {
 		onUpdate?: UpdateDeleteAction;
 		onDelete?: UpdateDeleteAction;
@@ -25,7 +25,9 @@ export interface ReferenceConfig {
 }
 
 export abstract class MySqlColumnBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string> & {
+		data: any;
+	},
 	TRuntimeConfig extends object = object,
 	TTypeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
@@ -46,7 +48,7 @@ export abstract class MySqlColumnBuilder<
 	}
 
 	/** @internal */
-	buildForeignKeys(column: AnyMySqlColumn, table: AnyMySqlTable): ForeignKey[] {
+	buildForeignKeys(column: MySqlColumn, table: MySqlTable): ForeignKey[] {
 		return this.foreignKeyConfigs.map(({ ref, actions }) => {
 			return ((ref, actions) => {
 				const builder = new ForeignKeyBuilder(() => {

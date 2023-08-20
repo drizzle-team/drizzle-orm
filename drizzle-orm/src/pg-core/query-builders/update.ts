@@ -2,7 +2,7 @@ import type { GetColumnData } from '~/column';
 import { entityKind } from '~/entity';
 import type { PgDialect } from '~/pg-core/dialect';
 import type { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
-import type { AnyPgTable } from '~/pg-core/table';
+import type { PgTable } from '~/pg-core/table';
 import type { SelectResultFields } from '~/query-builders/select.types';
 import { QueryPromise } from '~/query-promise';
 import type { Query, SQL, SQLWrapper } from '~/sql';
@@ -13,11 +13,11 @@ import type { SelectedFields, SelectedFieldsOrdered } from './select.types';
 export interface PgUpdateConfig {
 	where?: SQL | undefined;
 	set: UpdateSet;
-	table: AnyPgTable;
+	table: PgTable;
 	returning?: SelectedFieldsOrdered;
 }
 
-export type PgUpdateSetSource<TTable extends AnyPgTable> =
+export type PgUpdateSetSource<TTable extends PgTable> =
 	& {
 		[Key in keyof TTable['_']['columns']]?:
 			| GetColumnData<TTable['_']['columns'][Key]>
@@ -25,7 +25,7 @@ export type PgUpdateSetSource<TTable extends AnyPgTable> =
 	}
 	& {};
 
-export class PgUpdateBuilder<TTable extends AnyPgTable, TQueryResult extends QueryResultHKT> {
+export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends QueryResultHKT> {
 	static readonly [entityKind]: string = 'PgUpdateBuilder';
 
 	declare readonly _: {
@@ -45,7 +45,7 @@ export class PgUpdateBuilder<TTable extends AnyPgTable, TQueryResult extends Que
 
 export interface PgUpdate<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TTable extends AnyPgTable,
+	TTable extends PgTable,
 	TQueryResult extends QueryResultHKT,
 	TReturning extends Record<string, unknown> | undefined = undefined,
 > extends
@@ -54,7 +54,7 @@ export interface PgUpdate<
 {}
 
 export class PgUpdate<
-	TTable extends AnyPgTable,
+	TTable extends PgTable,
 	TQueryResult extends QueryResultHKT,
 	TReturning extends Record<string, unknown> | undefined = undefined,
 > extends QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>

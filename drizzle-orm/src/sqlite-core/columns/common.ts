@@ -24,7 +24,9 @@ export interface ReferenceConfig {
 }
 
 export abstract class SQLiteColumnBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string> & {
+		data: any;
+	},
 	TRuntimeConfig extends object = object,
 	TTypeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = object,
@@ -50,7 +52,7 @@ export abstract class SQLiteColumnBuilder<
 	}
 
 	/** @internal */
-	buildForeignKeys(column: SQLiteColumn, table: AnySQLiteTable): ForeignKey[] {
+	buildForeignKeys(column: SQLiteColumn, table: SQLiteTable): ForeignKey[] {
 		return this.foreignKeyConfigs.map(({ ref, actions }) => {
 			return ((ref, actions) => {
 				const builder = new ForeignKeyBuilder(() => {

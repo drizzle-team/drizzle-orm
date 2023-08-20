@@ -4,7 +4,7 @@ import type { TypedQueryBuilder } from '~/query-builders/query-builder';
 import { type SQLWrapper } from '~/sql';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
 import { type ColumnsSelection } from '~/view';
-import { type AnyPgColumn } from '../columns';
+import { type PgColumn } from '../columns';
 import type { WithSubqueryWithSelection } from '../subquery';
 import { PgSelectBuilder } from './select';
 import type { SelectedFields } from './select.types';
@@ -60,13 +60,13 @@ export class QueryBuilder {
 			});
 		}
 
-		function selectDistinctOn(on: (AnyPgColumn | SQLWrapper)[]): PgSelectBuilder<undefined, 'qb'>;
+		function selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgSelectBuilder<undefined, 'qb'>;
 		function selectDistinctOn<TSelection extends SelectedFields>(
-			on: (AnyPgColumn | SQLWrapper)[],
+			on: (PgColumn | SQLWrapper)[],
 			fields: TSelection,
 		): PgSelectBuilder<TSelection, 'qb'>;
 		function selectDistinctOn(
-			on: (AnyPgColumn | SQLWrapper)[],
+			on: (PgColumn | SQLWrapper)[],
 			fields?: SelectedFields,
 		): PgSelectBuilder<SelectedFields | undefined, 'qb'> {
 			return new PgSelectBuilder({
@@ -101,13 +101,13 @@ export class QueryBuilder {
 		});
 	}
 
-	selectDistinctOn(on: (AnyPgColumn | SQLWrapper)[]): PgSelectBuilder<undefined>;
+	selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgSelectBuilder<undefined>;
 	selectDistinctOn<TSelection extends SelectedFields>(
-		on: (AnyPgColumn | SQLWrapper)[],
+		on: (PgColumn | SQLWrapper)[],
 		fields: TSelection,
 	): PgSelectBuilder<TSelection>;
 	selectDistinctOn(
-		on: (AnyPgColumn | SQLWrapper)[],
+		on: (PgColumn | SQLWrapper)[],
 		fields?: SelectedFields,
 	): PgSelectBuilder<SelectedFields | undefined> {
 		return new PgSelectBuilder({

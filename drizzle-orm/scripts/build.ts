@@ -38,7 +38,7 @@ await concurrently([
 	},
 	{
 		command:
-			`rimraf dist-dts && tsc -p tsconfig.esm.json --declaration --outDir dist-dts --emitDeclarationOnly && resolve-tspaths --out dist-dts && cpy 'dist-dts/**/*' dist.new && rimraf dist-dts`,
+			`rimraf dist-dts && tsc -p tsconfig.dts.json --declaration --outDir dist-dts --emitDeclarationOnly && resolve-tspaths --out dist-dts && cpy 'dist-dts/**/*' dist.new && rimraf dist-dts`,
 		name: 'dts',
 	},
 ], {

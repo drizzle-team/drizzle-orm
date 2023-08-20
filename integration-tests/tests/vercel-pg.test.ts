@@ -21,7 +21,6 @@ import {
 } from 'drizzle-orm';
 import {
 	alias,
-	type AnyPgColumn,
 	boolean,
 	char,
 	cidr,
@@ -32,6 +31,7 @@ import {
 	jsonb,
 	macaddr,
 	macaddr8,
+	type PgColumn,
 	pgEnum,
 	pgMaterializedView,
 	pgTable,
@@ -1349,9 +1349,9 @@ test.serial('select count()', async (t) => {
 test.serial('select count w/ custom mapper', async (t) => {
 	const { db } = t.context;
 
-	function count(value: AnyPgColumn | SQLWrapper): SQL<number>;
-	function count(value: AnyPgColumn | SQLWrapper, alias: string): SQL.Aliased<number>;
-	function count(value: AnyPgColumn | SQLWrapper, alias?: string): SQL<number> | SQL.Aliased<number> {
+	function count(value: PgColumn | SQLWrapper): SQL<number>;
+	function count(value: PgColumn | SQLWrapper, alias: string): SQL.Aliased<number>;
+	function count(value: PgColumn | SQLWrapper, alias?: string): SQL<number> | SQL.Aliased<number> {
 		const result = sql`count(${value})`.mapWith(Number);
 		if (!alias) {
 			return result;

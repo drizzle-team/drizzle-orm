@@ -1,6 +1,6 @@
 import { entityKind } from '~/entity';
 import type { SQL } from '~/sql';
-import type { AnyPgTable } from './table';
+import type { PgTable } from './table';
 
 export class CheckBuilder {
 	static readonly [entityKind]: string = 'PgCheckBuilder';
@@ -10,7 +10,7 @@ export class CheckBuilder {
 	constructor(public name: string, public value: SQL) {}
 
 	/** @internal */
-	build(table: AnyPgTable): Check {
+	build(table: PgTable): Check {
 		return new Check(table, this);
 	}
 }
@@ -21,7 +21,7 @@ export class Check {
 	readonly name: string;
 	readonly value: SQL;
 
-	constructor(public table: AnyPgTable, builder: CheckBuilder) {
+	constructor(public table: PgTable, builder: CheckBuilder) {
 		this.name = builder.name;
 		this.value = builder.value;
 	}

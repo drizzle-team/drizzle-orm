@@ -9,12 +9,11 @@ import type { Index } from './indexes';
 import { IndexBuilder } from './indexes';
 import type { PrimaryKey } from './primary-keys';
 import { PrimaryKeyBuilder } from './primary-keys';
-import type { AnySQLiteTable } from './table';
 import { SQLiteTable } from './table';
-import { type SQLiteView, SQLiteViewConfig } from './view';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint';
+import { type SQLiteView, SQLiteViewConfig } from './view';
 
-export function getTableConfig<TTable extends AnySQLiteTable>(table: TTable) {
+export function getTableConfig<TTable extends SQLiteTable>(table: TTable) {
 	const columns = Object.values(table[SQLiteTable.Symbol.Columns]);
 	const indexes: Index[] = [];
 	const checks: Check[] = [];

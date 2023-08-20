@@ -9,13 +9,12 @@ import type { Index } from './indexes';
 import { IndexBuilder } from './indexes';
 import type { PrimaryKey } from './primary-keys';
 import { PrimaryKeyBuilder } from './primary-keys';
-import type { AnyMySqlTable } from './table';
 import { MySqlTable } from './table';
+import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint';
 import type { MySqlView } from './view';
 import { MySqlViewConfig } from './view';
-import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint';
 
-export function getTableConfig(table: AnyMySqlTable) {
+export function getTableConfig(table: MySqlTable) {
 	const columns = Object.values(table[MySqlTable.Symbol.Columns]);
 	const indexes: Index[] = [];
 	const checks: Check[] = [];
