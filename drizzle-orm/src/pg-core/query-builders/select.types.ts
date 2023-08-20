@@ -102,8 +102,9 @@ export type PgJoinFn<
 	T extends AnyPgSelectQueryBuilderBase,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
+	TIsLateral extends boolean,
 > = <
-	TJoinedTable extends PgTable | Subquery | PgViewBase | SQL,
+		TJoinedTable extends (TIsLateral extends true ? Subquery : PgTable | Subquery | PgViewBase | SQL),
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 >(
 	table: TJoinedTable,

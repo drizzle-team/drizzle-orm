@@ -181,11 +181,12 @@ export abstract class PgSelectQueryBuilderBase<
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
 	}
 
-	private createJoin<TJoinType extends JoinType>(
+	private createJoin<TJoinType extends JoinType, TIsLateral extends (TJoinType extends 'left' | 'inner' ? boolean : false)>(
 		joinType: TJoinType,
-	): PgJoinFn<this, TDynamic, TJoinType> {
+		lateral: TIsLateral,
+	): PgJoinFn<this, TDynamic, TJoinType, TIsLateral> {
 		return (
-			table: PgTable | Subquery | PgViewBase | SQL,
+			table: TIsLateral extends true ? Subquery : PgTable | Subquery | PgViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
@@ -225,7 +226,7 @@ export abstract class PgSelectQueryBuilderBase<
 				this.config.joins = [];
 			}
 
-			this.config.joins.push({ on, table, joinType, alias: tableName });
+			this.config.joins.push({ on, table, joinType, alias: tableName, lateral });
 
 			if (typeof tableName === 'string') {
 				switch (joinType) {
@@ -265,7 +266,16 @@ export abstract class PgSelectQueryBuilderBase<
 	 * all of the columns of the joined table
 	 * will be set to null.
 	 */
-	leftJoin = this.createJoin('left');
+	leftJoin = this.createJoin('left', false);
+
+	/**
+	 * For each row of the table, include
+	 * values from a matching row of the joined
+	 * table, if there is a matching row. If not,
+	 * all of the columns of the joined table
+	 * will be set to null. 
+	 */
+	leftJoinLateral = this.createJoin('left', true);
 
 	/**
 	 * Includes all of the rows of the joined table.
@@ -273,7 +283,7 @@ export abstract class PgSelectQueryBuilderBase<
 	 * all the columns of the main table will be
 	 * set to null.
 	 */
-	rightJoin = this.createJoin('right');
+	rightJoin = this.createJoin('right', false);
 
 	/**
 	 * This is the default type of join.
@@ -282,14 +292,23 @@ export abstract class PgSelectQueryBuilderBase<
 	 * needs to have a matching row, or it will
 	 * be excluded from results.
 	 */
-	innerJoin = this.createJoin('inner');
+	innerJoin = this.createJoin('inner', false);
+
+	/**
+	 * This is the default type of join.
+	 *
+	 * For each row of the table, the joined table
+	 * needs to have a matching row, or it will
+	 * be excluded from results.
+	 */
+	innerJoinLateral = this.createJoin('inner', true);
 
 	/**
 	 * Rows from both the main & joined are included,
 	 * regardless of whether or not they have matching
 	 * rows in the other table.
 	 */
-	fullJoin = this.createJoin('full');
+	fullJoin = this.createJoin('full', false);
 
 	/**
 	 * Specify a condition to narrow the result set. Multiple
