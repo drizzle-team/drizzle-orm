@@ -1664,6 +1664,33 @@ test.serial('insert with onConflict do update', async (t) => {
 	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
 });
 
+test.serial('insert with onConflict do update where', async (t) => {
+	const { db } = t.context;
+
+	await db
+		.insert(usersTable)
+		.values([{ id: 1, name: "John", verified: 0 }])
+		.run();
+
+	await db
+		.insert(usersTable)
+		.values({ id: 1, name: "John1", verified: 0 })
+		.onConflictDoUpdate({
+			target: usersTable.id,
+			set: { name: "John1", verified: 1 },
+			where: eq(usersTable.verified, 0)
+		})
+		.run();
+
+	const res = await db
+		.select({ id: usersTable.id, name: usersTable.name, verified: usersTable.verified })
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: "John1", verified: 1 }]);
+})
+
 test.serial('insert undefined', async (t) => {
 	const { db } = t.context;
 

@@ -1736,6 +1736,33 @@ test.serial('insert with onConflict do update', async (t) => {
 	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
 });
 
+test.serial('insert with onConflict do update where', async (t) => {
+	const { db } = t.context;
+
+	await db
+		.insert(usersTable)
+		.values([{ id: 1, name: "John", verified: false }])
+		.run();
+
+	await db
+		.insert(usersTable)
+		.values({ id: 1, name: "John1", verified: true })
+		.onConflictDoUpdate({
+			target: usersTable.id,
+			set: { name: "John1", verified: true },
+			where: eq(usersTable.verified, false)
+		})
+		.run();
+
+	const res = await db
+		.select({ id: usersTable.id, name: usersTable.name, verified: usersTable.verified })
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: "John1", verified: true }]);
+})
+
 test.serial('insert with onConflict do update using composite pk', async (t) => {
 	const { db } = t.context;
 
