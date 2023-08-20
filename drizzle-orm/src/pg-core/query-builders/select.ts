@@ -271,9 +271,10 @@ export abstract class PgSelectQueryBuilderBase<
 	/**
 	 * For each row of the table, include
 	 * values from a matching row of the joined
-	 * table, if there is a matching row. If not,
-	 * all of the columns of the joined table
-	 * will be set to null. 
+	 * subquery, if there is a matching row. If not,
+	 * all of the columns of the joined subquery
+	 * will be set to null. The lateral keyword allows
+	 * access to columns after the FROM statement.
 	 */
 	leftJoinLateral = this.createJoin('left', true);
 
@@ -295,11 +296,10 @@ export abstract class PgSelectQueryBuilderBase<
 	innerJoin = this.createJoin('inner', false);
 
 	/**
-	 * This is the default type of join.
-	 *
-	 * For each row of the table, the joined table
+	 * For each row of the table, the joined subquery
 	 * needs to have a matching row, or it will
-	 * be excluded from results.
+	 * be excluded from results. The lateral keyword allows
+	 * access to columns after the FROM statement.
 	 */
 	innerJoinLateral = this.createJoin('inner', true);
 
