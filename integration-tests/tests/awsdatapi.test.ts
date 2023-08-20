@@ -444,7 +444,7 @@ test.serial('full join with alias', async (t) => {
 test.serial('select from alias', async (t) => {
 	const { db } = t.context;
 
-	const pgTable = pgTableCreator((name) => `prefixed_${name}`);
+	const pgTable = pgTableCreator((name: string) => `prefixed_${name}`);
 
 	const users = pgTable('users', {
 		id: serial('id').primaryKey(),
@@ -833,6 +833,29 @@ test.serial('nested transaction rollback', async (t) => {
 	t.deepEqual(result, [{ id: 1, balance: 100 }]);
 
 	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('select from raw sql', async (t) => {
+	const { db } = t.context;
+
+	const result = await db.execute(sql`select 1 as id, 'John' as name`);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'John' },
+	]);
+});
+
+test.serial('select from raw sql with mapped values', async (t) => {
+	const { db } = t.context;
+
+	const result = await db.select({
+		id: sql<number>`id`,
+		name: sql<string>`name`,
+	}).from(sql`(select 1 as id, 'John' as name) as users`);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'John' },
+	]);
 });
 
 test.after.always(async (t) => {
