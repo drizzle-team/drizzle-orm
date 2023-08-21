@@ -10,12 +10,19 @@ import {
 	SQLiteSelectBuilder,
 	SQLiteUpdateBuilder,
 } from '~/sqlite-core/query-builders';
-import type { Result, SQLiteSession, SQLiteTransaction, SQLiteTransactionConfig } from '~/sqlite-core/session';
+import type {
+	DBResult,
+	Result,
+	SQLiteSession,
+	SQLiteTransaction,
+	SQLiteTransactionConfig,
+} from '~/sqlite-core/session';
 import type { SQLiteTable } from '~/sqlite-core/table';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
 import { type DrizzleTypeError } from '~/utils';
 import { type ColumnsSelection } from '~/view';
 import { RelationalQueryBuilder } from './query-builders/query';
+import { SQLiteRaw } from './query-builders/raw';
 import type { SelectedFields } from './query-builders/select.types';
 import type { WithSubqueryWithSelection } from './subquery';
 
@@ -39,7 +46,7 @@ export class BaseSQLiteDatabase<
 		};
 
 	constructor(
-		resultKind: TResultKind,
+		private resultKind: TResultKind,
 		/** @internal */
 		readonly dialect: { sync: SQLiteSyncDialect; async: SQLiteAsyncDialect }[TResultKind],
 		/** @internal */
@@ -151,20 +158,36 @@ export class BaseSQLiteDatabase<
 		return new SQLiteDelete(from, this.session, this.dialect);
 	}
 
-	run(query: SQLWrapper): Result<TResultKind, TRunResult> {
-		return this.session.run(query.getSQL());
+	run(query: SQLWrapper): DBResult<TResultKind, TRunResult> {
+		const sql = query.getSQL();
+		if (this.resultKind === 'async') {
+			return new SQLiteRaw(async () => this.session.run(sql), () => sql);
+		}
+		return this.session.run(sql);
 	}
 
-	all<T = unknown>(query: SQLWrapper): Result<TResultKind, T[]> {
-		return this.session.all(query.getSQL());
+	all<T = unknown>(query: SQLWrapper): DBResult<TResultKind, T[]> {
+		const sql = query.getSQL();
+		if (this.resultKind === 'async') {
+			return new SQLiteRaw(async () => this.session.all(sql), () => sql);
+		}
+		return this.session.all(sql);
 	}
 
-	get<T = unknown>(query: SQLWrapper): Result<TResultKind, T> {
-		return this.session.get(query.getSQL());
+	get<T = unknown>(query: SQLWrapper): DBResult<TResultKind, T> {
+		const sql = query.getSQL();
+		if (this.resultKind === 'async') {
+			return new SQLiteRaw(async () => this.session.get(sql), () => sql);
+		}
+		return this.session.get(sql);
 	}
 
-	values<T extends unknown[] = unknown[]>(query: SQLWrapper): Result<TResultKind, T[]> {
-		return this.session.values(query.getSQL());
+	values<T extends unknown[] = unknown[]>(query: SQLWrapper): DBResult<TResultKind, T[]> {
+		const sql = query.getSQL();
+		if (this.resultKind === 'async') {
+			return new SQLiteRaw(async () => this.session.values(sql), () => sql);
+		}
+		return this.session.values(sql);
 	}
 
 	transaction<T>(

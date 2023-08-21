@@ -7,7 +7,7 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations';
-import { type SQL } from '~/sql';
+import { type SQLWrapper, type SQL } from '~/sql';
 import { type KnownKeysOnly } from '~/utils';
 import { type SQLiteDialect } from '../dialect';
 import { type PreparedQuery, type PreparedQueryConfig, type SQLiteSession } from '../session';
@@ -93,7 +93,7 @@ export class RelationalQueryBuilder<
 	}
 }
 
-export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> extends QueryPromise<TResult> {
+export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> extends QueryPromise<TResult> implements SQLWrapper {
 	static readonly [entityKind]: string = 'SQLiteAsyncRelationalQuery';
 
 	declare protected $brand: 'SQLiteRelationalQuery';
@@ -110,6 +110,19 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 		private mode: 'many' | 'first',
 	) {
 		super();
+	}
+
+	/** @internal */
+	getSQL(): SQL {
+		return this.dialect.buildRelationalQuery({
+			fullSchema: this.fullSchema,
+			schema: this.schema,
+			tableNamesMap: this.tableNamesMap,
+			table: this.table,
+			tableConfig: this.tableConfig,
+			queryConfig: this.config,
+			tableAlias: this.tableConfig.tsName,
+		}).sql as SQL;
 	}
 
 	prepare(): PreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }> {

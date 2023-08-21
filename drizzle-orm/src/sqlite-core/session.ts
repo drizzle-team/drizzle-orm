@@ -6,6 +6,7 @@ import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialec
 import { QueryPromise } from '..';
 import { BaseSQLiteDatabase } from './db';
 import type { SelectedFieldsOrdered } from './query-builders/select.types';
+import { type SQLiteRaw } from './query-builders/raw';
 
 export interface PreparedQueryConfig {
 	type: 'sync' | 'async';
@@ -139,8 +140,17 @@ interface AsyncResultHKT extends ResultHKT {
 	readonly type: Promise<this['config']>;
 }
 
+interface DBAsyncResultHKT extends ResultHKT {
+	readonly type: SQLiteRaw<this['config']>;
+}
+
 export type Result<TKind extends 'sync' | 'async', TResult> =
 	(('sync' extends TKind ? SyncResultHKT : AsyncResultHKT) & {
+		readonly config: TResult;
+	})['type'];
+
+export type DBResult<TKind extends 'sync' | 'async', TResult> =
+	(('sync' extends TKind ? SyncResultHKT : DBAsyncResultHKT) & {
 		readonly config: TResult;
 	})['type'];
 

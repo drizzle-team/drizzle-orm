@@ -6,7 +6,7 @@ import type { SQLiteDialect } from '~/sqlite-core/dialect';
 import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
 import { SQLiteTable } from '~/sqlite-core/table';
 import type { InferModel } from '~/table';
-import { type DrizzleTypeError, orderSelectedFields } from '~/utils';
+import { type DrizzleTypeError, orderSelectedFields, type Simplify } from '~/utils';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
 
 export interface SQLiteDeleteConfig {
@@ -54,7 +54,7 @@ export class SQLiteDelete<
 	returning(): SQLiteDelete<TTable, TResultType, TRunResult, InferModel<TTable>>;
 	returning<TSelectedFields extends SelectedFieldsFlat>(
 		fields: TSelectedFields,
-	): SQLiteDelete<TTable, TResultType, TRunResult, SelectResultFields<TSelectedFields>>;
+	): SQLiteDelete<TTable, TResultType, TRunResult, Simplify<SelectResultFields<TSelectedFields>>>;
 	returning(
 		fields: SelectedFieldsFlat = this.table[SQLiteTable.Symbol.Columns],
 	): SQLiteDelete<TTable, TResultType, TRunResult, any> {

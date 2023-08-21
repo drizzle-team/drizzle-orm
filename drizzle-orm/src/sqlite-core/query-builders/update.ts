@@ -7,7 +7,7 @@ import type { SQLiteDialect } from '~/sqlite-core/dialect';
 import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
 import { SQLiteTable } from '~/sqlite-core/table';
 import type { InferModel } from '~/table';
-import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils';
+import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type UpdateSet, type Simplify } from '~/utils';
 import type { SelectedFields, SelectedFieldsOrdered } from './select.types';
 
 export interface SQLiteUpdateConfig {
@@ -91,7 +91,7 @@ export class SQLiteUpdate<
 	returning(): SQLiteUpdate<TTable, TResultType, TRunResult, InferModel<TTable>>;
 	returning<TSelectedFields extends SelectedFields>(
 		fields: TSelectedFields,
-	): SQLiteUpdate<TTable, TResultType, TRunResult, SelectResultFields<TSelectedFields>>;
+	): SQLiteUpdate<TTable, TResultType, TRunResult, Simplify<SelectResultFields<TSelectedFields>>>;
 	returning(
 		fields: SelectedFields = this.config.table[SQLiteTable.Symbol.Columns],
 	): SQLiteUpdate<TTable, TResultType, TRunResult, InferModel<TTable>> {

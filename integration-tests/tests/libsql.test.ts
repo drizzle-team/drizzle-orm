@@ -321,6 +321,24 @@ test.serial('delete returning sql', async (t) => {
 	t.deepEqual(users, [{ name: 'JOHN' }]);
 });
 
+test.serial('batch api', async (t) => {
+	const { db } = t.context;
+
+	// const f = db.get<{id: string}>(sql``)
+	// const f2 = db.all(sql``)
+	// const f3 = db.values(sql``)
+	// const f4 = db.run(sql``)
+
+	// const g = db.insert(usersTable).values({ name: 'John' })
+
+	const res = await db.batch([
+		db.insert(usersTable).values({ name: 'John' }).returning({id: usersTable.id}),
+		db.update(usersTable).set({ name: 'John' }).returning({id: usersTable.id}),
+		db.select().from(usersTable),
+		db.all<{name: string}>(sql``)
+	]);
+});
+
 test.serial('query check: insert single empty row', (t) => {
 	const { db } = t.context;
 
