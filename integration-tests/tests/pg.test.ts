@@ -88,7 +88,7 @@ const courseCategoriesTable = pgTable('course_categories', {
 const orders = pgTable('orders', {
 	id: serial('id').primaryKey(),
 	region: text('region').notNull(),
-	product: text('product').notNull(),
+	product: text('product').notNull().$default(() => 'random_string'),
 	amount: integer('amount').notNull(),
 	quantity: integer('quantity').notNull(),
 });
@@ -361,6 +361,30 @@ test.serial('select typed sql', async (t) => {
 	}).from(usersTable);
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
+});
+
+test.serial('$default function', async (t) => {
+	const { db } = t.context;
+
+	const insertedOrder = await db.insert(orders).values({ id: 1, region: 'Ukraine', amount: 1, quantity: 1 })
+		.returning();
+	const selectedOrder = await db.select().from(orders);
+
+	t.deepEqual(insertedOrder, [{
+		id: 1,
+		amount: 1,
+		quantity: 1,
+		region: 'Ukraine',
+		product: 'random_string',
+	}]);
+
+	t.deepEqual(selectedOrder, [{
+		id: 1,
+		amount: 1,
+		quantity: 1,
+		region: 'Ukraine',
+		product: 'random_string',
+	}]);
 });
 
 test.serial('select distinct', async (t) => {

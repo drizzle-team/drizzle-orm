@@ -72,9 +72,9 @@ const courseCategoriesTable = sqliteTable('course_categories', {
 const orders = sqliteTable('orders', {
 	id: integer('id').primaryKey(),
 	region: text('region').notNull(),
-	product: text('product').notNull(),
+	product: text('product').notNull().$default(()=>'random_string'),
 	amount: integer('amount').notNull(),
-	quantity: integer('quantity').notNull(),
+	quantity: integer('quantity').notNull()
 });
 
 const usersMigratorTable = sqliteTable('users12', {
@@ -308,6 +308,21 @@ test.serial('insert returning sql', async (t) => {
 	}).all();
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
+});
+
+test.serial('$default function', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(orders).values({ id: 1, region: 'Ukraine', amount: 1, quantity: 1 });
+	const selectedOrder = await db.select().from(orders);
+
+	t.deepEqual(selectedOrder, [{
+		id: 1,
+		amount: 1,
+		quantity: 1,
+		region: 'Ukraine',
+		product: 'random_string',
+	}]);
 });
 
 test.serial('delete returning sql', async (t) => {
