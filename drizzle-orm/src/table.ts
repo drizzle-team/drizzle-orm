@@ -47,11 +47,12 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 		readonly name: T['name'];
 		readonly schema: T['schema'];
 		readonly columns: T['columns'];
-		readonly model: {
-			select: InferModel<Table<T>>;
-			insert: InferModel<Table<T>, 'insert'>;
-		};
+		readonly inferSelect: InferSelectModel<Table<T>>;
+		readonly inferInsert: InferInsertModel<Table<T>>;
 	};
+
+	declare readonly $inferSelect: InferSelectModel<Table<T>>;
+	declare readonly $inferInsert: InferInsertModel<Table<T>>;
 
 	/** @internal */
 	static readonly Symbol = {
@@ -153,8 +154,20 @@ export type InferModelFromColumns<
 		]: GetColumnData<TColumns[Key], 'query'>;
 	};
 
+/** @deprecated Use one of the alternatives: {@link InferSelectModel} / {@link InferInsertModel}, or `table._.inferSelect` / `table._.inferInsert`
+ */
 export type InferModel<
 	TTable extends Table,
 	TInferMode extends 'select' | 'insert' = 'select',
 	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
 > = InferModelFromColumns<TTable['_']['columns'], TInferMode, TConfig>;
+
+export type InferSelectModel<
+	TTable extends Table,
+	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
+> = InferModelFromColumns<TTable['_']['columns'], 'select', TConfig>;
+
+export type InferInsertModel<
+	TTable extends Table,
+	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
+> = InferModelFromColumns<TTable['_']['columns'], 'insert', TConfig>;

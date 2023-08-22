@@ -1,16 +1,16 @@
 import { bindIfParam } from '~/expressions';
-import type { AnyPgColumn } from '~/pg-core/columns';
+import type { PgColumn } from '~/pg-core/columns';
 import type { Placeholder, SQL, SQLChunk, SQLWrapper } from '~/sql';
 import { sql } from '~/sql';
 
 export * from '~/expressions';
 
-export function concat(column: AnyPgColumn | SQL.Aliased, value: string | Placeholder | SQLWrapper): SQL {
+export function concat(column: PgColumn | SQL.Aliased, value: string | Placeholder | SQLWrapper): SQL {
 	return sql`${column} || ${bindIfParam(value, column)}`;
 }
 
 export function substring(
-	column: AnyPgColumn | SQL.Aliased,
+	column: PgColumn | SQL.Aliased,
 	{ from, for: _for }: { from?: number | Placeholder | SQLWrapper; for?: number | Placeholder | SQLWrapper },
 ): SQL {
 	const chunks: SQLChunk[] = [sql`substring(`, column];

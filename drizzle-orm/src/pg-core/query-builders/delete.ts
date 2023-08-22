@@ -1,7 +1,7 @@
 import { entityKind } from '~/entity';
 import type { PgDialect } from '~/pg-core/dialect';
 import type { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
-import type { AnyPgTable } from '~/pg-core/table';
+import type { PgTable } from '~/pg-core/table';
 import type { SelectResultFields } from '~/query-builders/select.types';
 import { QueryPromise } from '~/query-promise';
 import type { Query, SQL, SQLWrapper } from '~/sql';
@@ -12,20 +12,20 @@ import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
 
 export interface PgDeleteConfig {
 	where?: SQL | undefined;
-	table: AnyPgTable;
+	table: PgTable;
 	returning?: SelectedFieldsOrdered;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface PgDelete<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TTable extends AnyPgTable,
+	TTable extends PgTable,
 	TQueryResult extends QueryResultHKT,
 	TReturning extends Record<string, unknown> | undefined = undefined,
 > extends QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]> {}
 
 export class PgDelete<
-	TTable extends AnyPgTable,
+	TTable extends PgTable,
 	TQueryResult extends QueryResultHKT,
 	TReturning extends Record<string, unknown> | undefined = undefined,
 > extends QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>

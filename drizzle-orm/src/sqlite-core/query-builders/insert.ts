@@ -6,28 +6,27 @@ import { Param, SQL, sql } from '~/sql';
 import type { SQLiteDialect } from '~/sqlite-core/dialect';
 import type { IndexColumn } from '~/sqlite-core/indexes';
 import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
-import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SQLiteTable } from '~/sqlite-core/table';
 import { type InferModel, Table } from '~/table';
 import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
 import type { SQLiteUpdateSetSource } from './update';
 
-export interface SQLiteInsertConfig<TTable extends AnySQLiteTable = AnySQLiteTable> {
+export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[];
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
 }
 
-export type SQLiteInsertValue<TTable extends AnySQLiteTable> = Simplify<
+export type SQLiteInsertValue<TTable extends SQLiteTable> = Simplify<
 	{
 		[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
 	}
 >;
 
 export class SQLiteInsertBuilder<
-	TTable extends AnySQLiteTable,
+	TTable extends SQLiteTable,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 > {
@@ -71,7 +70,7 @@ export class SQLiteInsertBuilder<
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface SQLiteInsert<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TTable extends AnySQLiteTable,
+	TTable extends SQLiteTable,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TResultType extends 'sync' | 'async',
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -81,7 +80,7 @@ export interface SQLiteInsert<
 > extends SQLWrapper, QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]> {}
 
 export class SQLiteInsert<
-	TTable extends AnySQLiteTable,
+	TTable extends SQLiteTable,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TReturning = undefined,

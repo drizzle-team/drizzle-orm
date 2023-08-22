@@ -26,6 +26,7 @@ export default defineConfig([
 			typescript({
 				tsconfig: 'tsconfig.esm.json',
 				outputToFilesystem: true,
+				incremental: false,
 			}),
 		],
 	},

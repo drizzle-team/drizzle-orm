@@ -1,10 +1,10 @@
 import { TableAliasProxyHandler } from '~/alias';
 import type { BuildAliasTable } from './query-builders/select.types';
 
-import type { AnyPgTable } from './table';
+import type { PgTable } from './table';
 import { type PgViewBase } from './view';
 
-export function alias<TTable extends AnyPgTable | PgViewBase, TAlias extends string>(
+export function alias<TTable extends PgTable | PgViewBase, TAlias extends string>(
 	table: TTable,
 	alias: TAlias,
 ): BuildAliasTable<TTable, TAlias> {

@@ -183,7 +183,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 			this.free();
 		}
 
-		if (!row) {
+		if (!row || (row.length === 0 && fields!.length > 0)) {
 			return undefined;
 		}
 

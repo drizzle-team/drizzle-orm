@@ -11,7 +11,7 @@ import {
 	SQLiteUpdateBuilder,
 } from '~/sqlite-core/query-builders';
 import type { Result, SQLiteSession, SQLiteTransaction, SQLiteTransactionConfig } from '~/sqlite-core/session';
-import type { AnySQLiteTable } from '~/sqlite-core/table';
+import type { SQLiteTable } from '~/sqlite-core/table';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery';
 import { type DrizzleTypeError } from '~/utils';
 import { type ColumnsSelection } from '~/view';
@@ -57,7 +57,7 @@ export class BaseSQLiteDatabase<
 					schema!.fullSchema,
 					this._.schema,
 					this._.tableNamesMap,
-					schema!.fullSchema[tableName] as AnySQLiteTable,
+					schema!.fullSchema[tableName] as SQLiteTable,
 					columns,
 					dialect,
 					session as SQLiteSession<any, any, any, any> as any,
@@ -139,15 +139,15 @@ export class BaseSQLiteDatabase<
 		});
 	}
 
-	update<TTable extends AnySQLiteTable>(table: TTable): SQLiteUpdateBuilder<TTable, TResultKind, TRunResult> {
+	update<TTable extends SQLiteTable>(table: TTable): SQLiteUpdateBuilder<TTable, TResultKind, TRunResult> {
 		return new SQLiteUpdateBuilder(table, this.session, this.dialect);
 	}
 
-	insert<TTable extends AnySQLiteTable>(into: TTable): SQLiteInsertBuilder<TTable, TResultKind, TRunResult> {
+	insert<TTable extends SQLiteTable>(into: TTable): SQLiteInsertBuilder<TTable, TResultKind, TRunResult> {
 		return new SQLiteInsertBuilder(into, this.session, this.dialect);
 	}
 
-	delete<TTable extends AnySQLiteTable>(from: TTable): SQLiteDelete<TTable, TResultKind, TRunResult> {
+	delete<TTable extends SQLiteTable>(from: TTable): SQLiteDelete<TTable, TResultKind, TRunResult> {
 		return new SQLiteDelete(from, this.session, this.dialect);
 	}
 

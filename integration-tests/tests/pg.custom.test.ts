@@ -645,7 +645,7 @@ test.serial('insert via db.execute + returning', async (t) => {
 test.serial('insert via db.execute w/ query builder', async (t) => {
 	const { db } = t.context;
 
-	const inserted = await db.execute<Pick<typeof usersTable['_']['model']['select'], 'id' | 'name'>>(
+	const inserted = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
 		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 	);
 	t.deepEqual(inserted.rows, [{ id: 1, name: 'John' }]);
@@ -660,7 +660,8 @@ test.serial('build query insert with onConflict do update', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do update set "name" = $3',
+		sql:
+			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do update set "name" = $3',
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
@@ -674,7 +675,8 @@ test.serial('build query insert with onConflict do update / multiple columns', a
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
+		sql:
+			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
@@ -688,7 +690,8 @@ test.serial('build query insert with onConflict do nothing', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict do nothing',
+		sql:
+			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict do nothing',
 		params: ['John', '["foo","bar"]'],
 	});
 });
@@ -702,7 +705,8 @@ test.serial('build query insert with onConflict do nothing + target', async (t) 
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
+		sql:
+			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
 		params: ['John', '["foo","bar"]'],
 	});
 });

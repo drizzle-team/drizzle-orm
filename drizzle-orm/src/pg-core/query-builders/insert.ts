@@ -2,7 +2,7 @@ import { entityKind, is } from '~/entity';
 import type { PgDialect } from '~/pg-core/dialect';
 import type { IndexColumn } from '~/pg-core/indexes';
 import type { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
-import type { AnyPgTable } from '~/pg-core/table';
+import type { PgTable } from '~/pg-core/table';
 import type { SelectResultFields } from '~/query-builders/select.types';
 import { QueryPromise } from '~/query-promise';
 import type { Placeholder, Query, SQLWrapper } from '~/sql';
@@ -13,20 +13,20 @@ import { mapUpdateSet, orderSelectedFields } from '~/utils';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
 import type { PgUpdateSetSource } from './update';
 
-export interface PgInsertConfig<TTable extends AnyPgTable = AnyPgTable> {
+export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[];
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
 }
 
-export type PgInsertValue<TTable extends AnyPgTable> =
+export type PgInsertValue<TTable extends PgTable> =
 	& {
 		[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
 	}
 	& {};
 
-export class PgInsertBuilder<TTable extends AnyPgTable, TQueryResult extends QueryResultHKT> {
+export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends QueryResultHKT> {
 	static readonly [entityKind]: string = 'PgInsertBuilder';
 
 	constructor(
@@ -58,7 +58,7 @@ export class PgInsertBuilder<TTable extends AnyPgTable, TQueryResult extends Que
 
 export interface PgInsert<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TTable extends AnyPgTable,
+	TTable extends PgTable,
 	TQueryResult extends QueryResultHKT,
 	TReturning extends Record<string, unknown> | undefined = undefined,
 > extends
@@ -67,7 +67,7 @@ export interface PgInsert<
 {}
 
 export class PgInsert<
-	TTable extends AnyPgTable,
+	TTable extends PgTable,
 	TQueryResult extends QueryResultHKT,
 	TReturning extends Record<string, unknown> | undefined = undefined,
 > extends QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>

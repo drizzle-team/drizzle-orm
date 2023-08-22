@@ -1,9 +1,9 @@
 import { entityKind, is } from '~/entity';
-import type { AnyPgColumn } from '~/pg-core/columns';
+import type { PgColumn } from '~/pg-core/columns';
 import type { PgDialect } from '~/pg-core/dialect';
 import type { PgSession, PreparedQuery, PreparedQueryConfig } from '~/pg-core/session';
 import type { SubqueryWithSelection } from '~/pg-core/subquery';
-import type { AnyPgTable } from '~/pg-core/table';
+import type { PgTable } from '~/pg-core/table';
 import { PgViewBase } from '~/pg-core/view';
 import { TypedQueryBuilder } from '~/query-builders/query-builder';
 import type {
@@ -53,7 +53,7 @@ export class PgSelectBuilder<
 	private dialect: PgDialect;
 	private withList: Subquery[] = [];
 	private distinct: boolean | {
-		on: (AnyPgColumn | SQLWrapper)[];
+		on: (PgColumn | SQLWrapper)[];
 	} | undefined;
 
 	constructor(
@@ -63,7 +63,7 @@ export class PgSelectBuilder<
 			dialect: PgDialect;
 			withList?: Subquery[];
 			distinct?: boolean | {
-				on: (AnyPgColumn | SQLWrapper)[];
+				on: (PgColumn | SQLWrapper)[];
 			};
 		},
 	) {
@@ -82,7 +82,7 @@ export class PgSelectBuilder<
 	 *
 	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FROM|Postgres from documentation}
 	 */
-	from<TFrom extends AnyPgTable | Subquery | PgViewBase | SQL>(
+	from<TFrom extends PgTable | Subquery | PgViewBase | SQL>(
 		source: TFrom,
 	): CreatePgSelectFromBuilderMode<
 		TBuilderMode,
@@ -107,7 +107,7 @@ export class PgSelectBuilder<
 		} else if (is(source, SQL)) {
 			fields = {};
 		} else {
-			fields = getTableColumns<AnyPgTable>(source);
+			fields = getTableColumns<PgTable>(source);
 		}
 
 		return new PgSelect({
@@ -158,7 +158,7 @@ export abstract class PgSelectQueryBuilder<
 			dialect: PgDialect;
 			withList: Subquery[];
 			distinct: boolean | {
-				on: (AnyPgColumn | SQLWrapper)[];
+				on: (PgColumn | SQLWrapper)[];
 			} | undefined;
 		},
 	) {
@@ -183,7 +183,7 @@ export abstract class PgSelectQueryBuilder<
 		joinType: TJoinType,
 	): JoinFn<THKT, TTableName, TSelectMode, TJoinType, TSelection, TNullabilityMap> {
 		return (
-			table: AnyPgTable | Subquery | PgViewBase | SQL,
+			table: PgTable | Subquery | PgViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
@@ -352,12 +352,12 @@ export abstract class PgSelectQueryBuilder<
 	 *
 	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-GROUPBY|Postgres GROUP BY documentation}
 	 */
-	groupBy(builder: (aliases: TSelection) => ValueOrArray<AnyPgColumn | SQL | SQL.Aliased>): this;
-	groupBy(...columns: (AnyPgColumn | SQL | SQL.Aliased)[]): this;
+	groupBy(builder: (aliases: TSelection) => ValueOrArray<PgColumn | SQL | SQL.Aliased>): this;
+	groupBy(...columns: (PgColumn | SQL | SQL.Aliased)[]): this;
 	groupBy(
 		...columns:
-			| [(aliases: TSelection) => ValueOrArray<AnyPgColumn | SQL | SQL.Aliased>]
-			| (AnyPgColumn | SQL | SQL.Aliased)[]
+			| [(aliases: TSelection) => ValueOrArray<PgColumn | SQL | SQL.Aliased>]
+			| (PgColumn | SQL | SQL.Aliased)[]
 	) {
 		if (typeof columns[0] === 'function') {
 			const groupBy = columns[0](
@@ -368,7 +368,7 @@ export abstract class PgSelectQueryBuilder<
 			);
 			this.config.groupBy = Array.isArray(groupBy) ? groupBy : [groupBy];
 		} else {
-			this.config.groupBy = columns as (AnyPgColumn | SQL | SQL.Aliased)[];
+			this.config.groupBy = columns as (PgColumn | SQL | SQL.Aliased)[];
 		}
 		return this;
 	}
@@ -388,12 +388,12 @@ export abstract class PgSelectQueryBuilder<
 	 *
 	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-ORDERBY|Postgres ORDER BY documentation}
 	 */
-	orderBy(builder: (aliases: TSelection) => ValueOrArray<AnyPgColumn | SQL | SQL.Aliased>): this;
-	orderBy(...columns: (AnyPgColumn | SQL | SQL.Aliased)[]): this;
+	orderBy(builder: (aliases: TSelection) => ValueOrArray<PgColumn | SQL | SQL.Aliased>): this;
+	orderBy(...columns: (PgColumn | SQL | SQL.Aliased)[]): this;
 	orderBy(
 		...columns:
-			| [(aliases: TSelection) => ValueOrArray<AnyPgColumn | SQL | SQL.Aliased>]
-			| (AnyPgColumn | SQL | SQL.Aliased)[]
+			| [(aliases: TSelection) => ValueOrArray<PgColumn | SQL | SQL.Aliased>]
+			| (PgColumn | SQL | SQL.Aliased)[]
 	) {
 		if (typeof columns[0] === 'function') {
 			const orderBy = columns[0](
@@ -404,7 +404,7 @@ export abstract class PgSelectQueryBuilder<
 			);
 			this.config.orderBy = Array.isArray(orderBy) ? orderBy : [orderBy];
 		} else {
-			this.config.orderBy = columns as (AnyPgColumn | SQL | SQL.Aliased)[];
+			this.config.orderBy = columns as (PgColumn | SQL | SQL.Aliased)[];
 		}
 		return this;
 	}
@@ -508,7 +508,7 @@ export class PgSelect<
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const fieldsList = orderSelectedFields<AnyPgColumn>(config.fields);
+			const fieldsList = orderSelectedFields<PgColumn>(config.fields);
 			const query = session.prepareQuery<
 				PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] }
 			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name);

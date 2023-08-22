@@ -2,7 +2,7 @@ import type { BuildColumns } from '~/column-builder';
 import { entityKind } from '~/entity';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table';
 import type { CheckBuilder } from './checks';
-import type { AnyPgColumnBuilder, PgColumn, PgColumnBuilder } from './columns/common';
+import type { PgColumn, PgColumnBuilder } from './columns/common';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
 import type { AnyIndexBuilder } from './indexes';
 import type { PrimaryKeyBuilder } from './primary-keys';
@@ -50,7 +50,7 @@ export type PgTableWithColumns<T extends TableConfig> =
 export function pgTableWithSchema<
 	TTableName extends string,
 	TSchemaName extends string | undefined,
-	TColumnsMap extends Record<string, AnyPgColumnBuilder>,
+	TColumnsMap extends Record<string, PgColumnBuilder>,
 >(
 	name: TTableName,
 	columns: TColumnsMap,
