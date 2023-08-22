@@ -8,28 +8,28 @@ import type {
 	QueryResultHKT,
 	QueryResultKind,
 } from '~/mysql-core/session';
-import type { AnyMySqlTable } from '~/mysql-core/table';
+import type { MySqlTable } from '~/mysql-core/table';
 import { QueryPromise } from '~/query-promise';
 import type { Query, SQL, SQLWrapper } from '~/sql';
 import type { SelectedFieldsOrdered } from './select.types';
 
 export interface MySqlDeleteConfig {
 	where?: SQL | undefined;
-	table: AnyMySqlTable;
+	table: MySqlTable;
 	returning?: SelectedFieldsOrdered;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface MySqlDelete<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TTable extends AnyMySqlTable,
+	TTable extends MySqlTable,
 	TQueryResult extends QueryResultHKT,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > extends QueryPromise<QueryResultKind<TQueryResult, never>> {}
 
 export class MySqlDelete<
-	TTable extends AnyMySqlTable,
+	TTable extends MySqlTable,
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > extends QueryPromise<QueryResultKind<TQueryResult, never>> implements SQLWrapper {

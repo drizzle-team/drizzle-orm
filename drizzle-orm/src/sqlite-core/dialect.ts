@@ -16,10 +16,9 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations';
-import { and, eq, Param, param, type Query, SQL, sql, type SQLChunk } from '~/sql';
+import { and, eq, Param, type Query, SQL, sql, type SQLChunk } from '~/sql';
 import { SQLiteColumn } from '~/sqlite-core/columns';
 import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders';
-import type { AnySQLiteTable } from '~/sqlite-core/table';
 import { SQLiteTable } from '~/sqlite-core/table';
 import { Subquery, SubqueryConfig } from '~/subquery';
 import { getTableName, Table } from '~/table';
@@ -54,7 +53,7 @@ export abstract class SQLiteDialect {
 		return sql`delete from ${table}${whereSql}${returningSql}`;
 	}
 
-	buildUpdateSet(table: AnySQLiteTable, set: UpdateSet): SQL {
+	buildUpdateSet(table: SQLiteTable, set: UpdateSet): SQL {
 		const setEntries = Object.entries(set);
 
 		const setSize = setEntries.length;
@@ -288,7 +287,11 @@ export abstract class SQLiteDialect {
 				if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
 					let defaultValue;
 					if (col.default !== null && col.default !== undefined) {
-						defaultValue = is(col.default, SQL) ? col.default : param(col.default, col);
+						defaultValue = is(col.default, SQL) ? col.default : sql.param(col.default, col);
+						// eslint-disable-next-line unicorn/no-negated-condition
+					} else if (col.defaultFn !== undefined) {
+						const defaultFnResult = col.defaultFn();
+						defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
 					} else {
 						defaultValue = sql`null`;
 					}
@@ -340,7 +343,7 @@ export abstract class SQLiteDialect {
 		fullSchema: Record<string, unknown>;
 		schema: TablesRelationalConfig;
 		tableNamesMap: Record<string, string>;
-		table: AnySQLiteTable;
+		table: SQLiteTable;
 		tableConfig: TableRelationalConfig;
 		queryConfig: true | DBQueryConfig<'many', true>;
 		tableAlias: string;
@@ -492,7 +495,7 @@ export abstract class SQLiteDialect {
 					fullSchema,
 					schema,
 					tableNamesMap,
-					table: fullSchema[relationTableTsName] as AnySQLiteTable,
+					table: fullSchema[relationTableTsName] as SQLiteTable,
 					tableConfig: schema[relationTableTsName]!,
 					queryConfig: is(relation, One)
 						? (selectedRelationConfigValue === true

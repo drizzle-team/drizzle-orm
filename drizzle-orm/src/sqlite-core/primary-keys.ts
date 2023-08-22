@@ -1,6 +1,5 @@
 import { entityKind } from '~/entity';
 import type { AnySQLiteColumn, SQLiteColumn } from './columns';
-import type { AnySQLiteTable } from './table';
 import { SQLiteTable } from './table';
 
 export function primaryKey<
@@ -29,7 +28,7 @@ export class PrimaryKeyBuilder {
 	}
 
 	/** @internal */
-	build(table: AnySQLiteTable): PrimaryKey {
+	build(table: SQLiteTable): PrimaryKey {
 		return new PrimaryKey(table, this.columns);
 	}
 }
@@ -39,7 +38,7 @@ export class PrimaryKey {
 
 	readonly columns: SQLiteColumn[];
 
-	constructor(readonly table: AnySQLiteTable, columns: SQLiteColumn[]) {
+	constructor(readonly table: SQLiteTable, columns: SQLiteColumn[]) {
 		this.columns = columns;
 	}
 

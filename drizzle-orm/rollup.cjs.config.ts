@@ -31,6 +31,7 @@ export default defineConfig([
 			typescript({
 				tsconfig: 'tsconfig.cjs.json',
 				outputToFilesystem: true,
+				incremental: false,
 			}),
 		],
 	},

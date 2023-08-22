@@ -21,7 +21,6 @@ import {
 } from 'drizzle-orm';
 import {
 	alias,
-	type AnyPgColumn,
 	boolean,
 	char,
 	cidr,
@@ -32,6 +31,7 @@ import {
 	jsonb,
 	macaddr,
 	macaddr8,
+	type PgColumn,
 	pgEnum,
 	pgMaterializedView,
 	pgTable,
@@ -948,7 +948,7 @@ test.serial('insert via db.execute + returning', async (t) => {
 test.serial('insert via db.execute w/ query builder', async (t) => {
 	const { db } = t.context;
 
-	const inserted = await db.execute<Pick<typeof usersTable['_']['model']['select'], 'id' | 'name'>>(
+	const inserted = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
 		db
 			.insert(usersTable)
 			.values({ name: 'John' })
@@ -1349,9 +1349,9 @@ test.serial('select count()', async (t) => {
 test.serial('select count w/ custom mapper', async (t) => {
 	const { db } = t.context;
 
-	function count(value: AnyPgColumn | SQLWrapper): SQL<number>;
-	function count(value: AnyPgColumn | SQLWrapper, alias: string): SQL.Aliased<number>;
-	function count(value: AnyPgColumn | SQLWrapper, alias?: string): SQL<number> | SQL.Aliased<number> {
+	function count(value: PgColumn | SQLWrapper): SQL<number>;
+	function count(value: PgColumn | SQLWrapper, alias: string): SQL.Aliased<number>;
+	function count(value: PgColumn | SQLWrapper, alias?: string): SQL<number> | SQL.Aliased<number> {
 		const result = sql`count(${value})`.mapWith(Number);
 		if (!alias) {
 			return result;
@@ -1369,7 +1369,7 @@ test.serial('select count w/ custom mapper', async (t) => {
 test.serial('network types', async (t) => {
 	const { db } = t.context;
 
-	const value: typeof network['_']['model']['select'] = {
+	const value: typeof network.$inferSelect = {
 		inet: '127.0.0.1',
 		cidr: '192.168.100.128/25',
 		macaddr: '08:00:2b:01:02:03',
@@ -1386,7 +1386,7 @@ test.serial('network types', async (t) => {
 test.serial('array types', async (t) => {
 	const { db } = t.context;
 
-	const values: typeof salEmp['_']['model']['select'][] = [
+	const values: typeof salEmp.$inferSelect[] = [
 		{
 			name: 'John',
 			payByQuarter: [10000, 10000, 10000, 10000],

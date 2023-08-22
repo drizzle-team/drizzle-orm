@@ -134,7 +134,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 
 		if (fields) {
 			if (clientResult.rows === undefined) {
-				return mapResultRow(fields, [], joinsNotNullableMap);
+				return undefined;
 			}
 			return mapResultRow(fields, clientResult.rows, joinsNotNullableMap);
 		}

@@ -12,7 +12,7 @@ import { tracer } from '~/tracing';
 import { type KnownKeysOnly } from '~/utils';
 import type { PgDialect } from '../dialect';
 import type { PgSession, PreparedQuery, PreparedQueryConfig } from '../session';
-import { type AnyPgTable } from '../table';
+import { type PgTable } from '../table';
 
 export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields extends TableRelationalConfig> {
 	static readonly [entityKind]: string = 'PgRelationalQueryBuilder';
@@ -21,7 +21,7 @@ export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFie
 		private fullSchema: Record<string, unknown>,
 		private schema: TSchema,
 		private tableNamesMap: Record<string, string>,
-		private table: AnyPgTable,
+		private table: PgTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: PgDialect,
 		private session: PgSession,
@@ -69,7 +69,7 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 		private fullSchema: Record<string, unknown>,
 		private schema: TablesRelationalConfig,
 		private tableNamesMap: Record<string, string>,
-		private table: AnyPgTable,
+		private table: PgTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: PgDialect,
 		private session: PgSession,

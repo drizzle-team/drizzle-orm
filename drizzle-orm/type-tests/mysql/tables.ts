@@ -539,3 +539,26 @@ Expect<
 
 	await db.select().from(newYorkers).leftJoin(newYorkers, eq(newYorkers.userId, newYorkers.userId));
 }
+
+{
+	const test = mysqlTable('test', {
+		id: text('id').$defaultFn(() => crypto.randomUUID()).primaryKey(),
+	});
+
+	Expect<
+		Equal<{
+			id?: string;
+		}, typeof test.$inferInsert>
+	>;
+}
+
+{
+	mysqlTable('test', {
+		id: int('id').$default(() => 1),
+		id2: int('id').$defaultFn(() => 1),
+		// @ts-expect-error - should be number
+		id3: int('id').$default(() => '1'),
+		// @ts-expect-error - should be number
+		id4: int('id').$defaultFn(() => '1'),
+	});
+}

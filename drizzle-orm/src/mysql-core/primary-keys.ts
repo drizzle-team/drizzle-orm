@@ -1,6 +1,5 @@
 import { entityKind } from '~/entity';
-import type { AnyMySqlColumn } from './columns';
-import type { AnyMySqlTable } from './table';
+import type { AnyMySqlColumn, MySqlColumn } from './columns';
 import { MySqlTable } from './table';
 
 export function primaryKey<
@@ -14,16 +13,16 @@ export class PrimaryKeyBuilder {
 	static readonly [entityKind]: string = 'MySqlPrimaryKeyBuilder';
 
 	/** @internal */
-	columns: AnyMySqlColumn<{}>[];
+	columns: MySqlColumn[];
 
 	constructor(
-		columns: AnyMySqlColumn[],
+		columns: MySqlColumn[],
 	) {
 		this.columns = columns;
 	}
 
 	/** @internal */
-	build(table: AnyMySqlTable): PrimaryKey {
+	build(table: MySqlTable): PrimaryKey {
 		return new PrimaryKey(table, this.columns);
 	}
 }
@@ -31,9 +30,9 @@ export class PrimaryKeyBuilder {
 export class PrimaryKey {
 	static readonly [entityKind]: string = 'MySqlPrimaryKey';
 
-	readonly columns: AnyMySqlColumn<{}>[];
+	readonly columns: MySqlColumn[];
 
-	constructor(readonly table: AnyMySqlTable, columns: AnyMySqlColumn<{}>[]) {
+	constructor(readonly table: MySqlTable, columns: MySqlColumn[]) {
 		this.columns = columns;
 	}
 

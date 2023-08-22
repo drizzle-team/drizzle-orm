@@ -26,7 +26,7 @@ import type {
 	QueryResultKind,
 } from './session';
 import type { WithSubqueryWithSelection } from './subquery';
-import type { AnyMySqlTable } from './table';
+import type { MySqlTable } from './table';
 
 export class MySqlDatabase<
 	TQueryResult extends QueryResultHKT,
@@ -66,7 +66,7 @@ export class MySqlDatabase<
 						schema!.fullSchema,
 						this._.schema,
 						this._.tableNamesMap,
-						schema!.fullSchema[tableName] as AnyMySqlTable,
+						schema!.fullSchema[tableName] as MySqlTable,
 						columns,
 						dialect,
 						session,
@@ -147,15 +147,15 @@ export class MySqlDatabase<
 		});
 	}
 
-	update<TTable extends AnyMySqlTable>(table: TTable): MySqlUpdateBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
+	update<TTable extends MySqlTable>(table: TTable): MySqlUpdateBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
 		return new MySqlUpdateBuilder(table, this.session, this.dialect);
 	}
 
-	insert<TTable extends AnyMySqlTable>(table: TTable): MySqlInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
+	insert<TTable extends MySqlTable>(table: TTable): MySqlInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
 		return new MySqlInsertBuilder(table, this.session, this.dialect);
 	}
 
-	delete<TTable extends AnyMySqlTable>(table: TTable): MySqlDelete<TTable, TQueryResult, TPreparedQueryHKT> {
+	delete<TTable extends MySqlTable>(table: TTable): MySqlDelete<TTable, TQueryResult, TPreparedQueryHKT> {
 		return new MySqlDelete(table, this.session, this.dialect);
 	}
 
