@@ -1,6 +1,7 @@
 #!/usr/bin/env -S pnpm tsx
 import 'zx/globals';
 import concurrently from 'concurrently';
+
 import { entries } from '../rollup.common';
 
 function updateAndCopyPackageJson() {
@@ -36,9 +37,8 @@ await concurrently([
 		name: 'esm',
 	},
 	{
-		command: `tsc -p tsconfig.esm.json --declaration --outDir dist-dts --emitDeclarationOnly &&
-resolve-tspaths --out dist-dts &&
-rollup --config rollup.dts.config.ts --configPlugin typescript`,
+		command:
+			`rimraf dist-dts && tsc -p tsconfig.dts.json --declaration --outDir dist-dts --emitDeclarationOnly && resolve-tspaths --out dist-dts && cpy 'dist-dts/**/*' dist.new && rimraf dist-dts`,
 		name: 'dts',
 	},
 ], {

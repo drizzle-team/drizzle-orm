@@ -17,7 +17,7 @@ import {
 	type PreparedQueryHKTBase,
 	type PreparedQueryKind,
 } from '../session';
-import { type AnyMySqlTable } from '../table';
+import { type MySqlTable } from '../table';
 
 export class RelationalQueryBuilder<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
@@ -30,7 +30,7 @@ export class RelationalQueryBuilder<
 		private fullSchema: Record<string, unknown>,
 		private schema: TSchema,
 		private tableNamesMap: Record<string, string>,
-		private table: AnyMySqlTable,
+		private table: MySqlTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: MySqlDialect,
 		private session: MySqlSession,
@@ -84,7 +84,7 @@ export class MySqlRelationalQuery<
 		private fullSchema: Record<string, unknown>,
 		private schema: TablesRelationalConfig,
 		private tableNamesMap: Record<string, string>,
-		private table: AnyMySqlTable,
+		private table: MySqlTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: MySqlDialect,
 		private session: MySqlSession,

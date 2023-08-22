@@ -91,7 +91,7 @@ const courseCategoriesTable = mysqlTable('course_categories', {
 const orders = mysqlTable('orders', {
 	id: serial('id').primaryKey(),
 	region: text('region').notNull(),
-	product: text('product').notNull(),
+	product: text('product').notNull().$default(() => 'random_string'),
 	amount: int('amount').notNull(),
 	quantity: int('quantity').notNull(),
 });
@@ -251,11 +251,11 @@ test.serial('table configs: unique in column', async (t) => {
 	t.assert(columnName?.isUnique);
 
 	const columnState = tableConfig.columns.find((it) => it.name === 'state');
-	t.assert(columnState?.uniqueName === "custom");
+	t.assert(columnState?.uniqueName === 'custom');
 	t.assert(columnState?.isUnique);
 
 	const columnField = tableConfig.columns.find((it) => it.name === 'field');
-	t.assert(columnField?.uniqueName === "custom_field");
+	t.assert(columnField?.uniqueName === 'custom_field');
 	t.assert(columnField?.isUnique);
 });
 
@@ -491,6 +491,64 @@ test.serial('select with group by as sql', async (t) => {
 	t.deepEqual(result, [{ name: 'John' }, { name: 'Jane' }]);
 });
 
+test.serial('$default function', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists \`orders\``);
+	await db.execute(
+		sql`
+			create table \`orders\` (
+				\`id\` serial primary key,
+				\`region\` text not null,
+				\`product\` text not null,
+				\`amount\` int not null,
+				\`quantity\` int not null
+			)
+		`,
+	);
+
+	await db.insert(orders).values({ id: 1, region: 'Ukraine', amount: 1, quantity: 1 });
+	const selectedOrder = await db.select().from(orders);
+
+	t.deepEqual(selectedOrder, [{
+		id: 1,
+		amount: 1,
+		quantity: 1,
+		region: 'Ukraine',
+		product: 'random_string',
+	}]);
+});
+
+test.serial('$default with empty array', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists \`s_orders\``);
+	await db.execute(
+		sql`
+			create table \`s_orders\` (
+				\`id\` serial primary key,
+				\`region\` text default ('Ukraine'),
+				\`product\` text not null
+			)
+		`,
+	);
+
+	const users = mysqlTable('s_orders', {
+		id: serial('id').primaryKey(),
+		region: text('region').default('Ukraine'),
+		product: text('product').$defaultFn(() => 'random_string'),
+	});
+
+	await db.insert(users).values({});
+	const selectedOrder = await db.select().from(users);
+
+	t.deepEqual(selectedOrder, [{
+		id: 1,
+		region: 'Ukraine',
+		product: 'random_string',
+	}]);
+});
+
 test.serial('select with group by as sql + column', async (t) => {
 	const { db } = t.context;
 
@@ -554,7 +612,7 @@ test.serial('Query check: Insert all defaults in 1 row', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into `users` () values ()',
+		sql: 'insert into `users` (`id`, `name`, `state`) values (default, default, default)',
 		params: [],
 	});
 });
@@ -616,7 +674,7 @@ test.serial('Insert all defaults in multiple rows', async (t) => {
 		sql`create table ${users} (id serial primary key, name text default ('Dan'), state text)`,
 	);
 
-	await db.insert(users).values([{}, {}])
+	await db.insert(users).values([{}, {}]);
 
 	const res = await db.select().from(users);
 
@@ -632,7 +690,8 @@ test.serial('build query insert with onDuplicate', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into `userstest` (`name`, `jsonb`) values (?, ?) on duplicate key update `name` = ?',
+		sql:
+			'insert into `userstest` (`id`, `name`, `verified`, `jsonb`, `created_at`) values (default, ?, default, ?, default) on duplicate key update `name` = ?',
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });

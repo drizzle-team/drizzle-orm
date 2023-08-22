@@ -1911,6 +1911,8 @@ test.serial('async api - CRUD', async (t) => {
 	const res2 = await db.select().from(users);
 
 	t.deepEqual(res2, []);
+
+	db.run(sql`drop table ${users}`);
 });
 
 test.serial('async api - insert + select w/ prepare + async execute', async (t) => {
@@ -1948,6 +1950,8 @@ test.serial('async api - insert + select w/ prepare + async execute', async (t) 
 	const res2 = await selectStmt.execute();
 
 	t.deepEqual(res2, []);
+
+	db.run(sql`drop table ${users}`);
 });
 
 test.serial('async api - insert + select w/ prepare + sync execute', (t) => {
@@ -1985,4 +1989,27 @@ test.serial('async api - insert + select w/ prepare + sync execute', (t) => {
 	const res2 = selectStmt.execute().sync();
 
 	t.deepEqual(res2, []);
+
+	db.run(sql`drop table ${users}`);
+});
+
+test.serial('select + .get() for empty result', (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	const res = db.select().from(users).where(eq(users.id, 1)).get();
+
+	t.is(res, undefined);
+
+	db.run(sql`drop table ${users}`);
 });

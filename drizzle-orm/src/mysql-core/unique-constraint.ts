@@ -1,30 +1,30 @@
 import { entityKind } from '~/entity';
-import type { AnyMySqlColumn } from './columns';
-import { type AnyMySqlTable, MySqlTable } from './table';
+import type { MySqlColumn } from './columns';
+import { MySqlTable } from './table';
 
 export function unique(name?: string): UniqueOnConstraintBuilder {
 	return new UniqueOnConstraintBuilder(name);
 }
 
-export function uniqueKeyName(table: AnyMySqlTable, columns: string[]) {
-	return `${table[MySqlTable.Symbol.Name]}_${columns.join('_')}_unique`
+export function uniqueKeyName(table: MySqlTable, columns: string[]) {
+	return `${table[MySqlTable.Symbol.Name]}_${columns.join('_')}_unique`;
 }
 
 export class UniqueConstraintBuilder {
 	static readonly [entityKind]: string = 'MySqlUniqueConstraintBuilder';
 
 	/** @internal */
-	columns: AnyMySqlColumn<{}>[];
+	columns: MySqlColumn[];
 
 	constructor(
-		columns: AnyMySqlColumn[],
+		columns: MySqlColumn[],
 		private name?: string,
 	) {
 		this.columns = columns;
 	}
 
 	/** @internal */
-	build(table: AnyMySqlTable): UniqueConstraint {
+	build(table: MySqlTable): UniqueConstraint {
 		return new UniqueConstraint(table, this.columns, this.name);
 	}
 }
@@ -41,7 +41,7 @@ export class UniqueOnConstraintBuilder {
 		this.name = name;
 	}
 
-	on(...columns: [AnyMySqlColumn, ...AnyMySqlColumn[]]) {
+	on(...columns: [MySqlColumn, ...MySqlColumn[]]) {
 		return new UniqueConstraintBuilder(columns, this.name);
 	}
 }
@@ -49,11 +49,11 @@ export class UniqueOnConstraintBuilder {
 export class UniqueConstraint {
 	static readonly [entityKind]: string = 'MySqlUniqueConstraint';
 
-	readonly columns: AnyMySqlColumn<{}>[];
+	readonly columns: MySqlColumn[];
 	readonly name?: string;
 	readonly nullsNotDistinct: boolean = false;
 
-	constructor(readonly table: AnyMySqlTable, columns: AnyMySqlColumn<{}>[], name?: string) {
+	constructor(readonly table: MySqlTable, columns: MySqlColumn[], name?: string) {
 		this.columns = columns;
 		this.name = name ?? uniqueKeyName(this.table, this.columns.map((column) => column.name));
 	}

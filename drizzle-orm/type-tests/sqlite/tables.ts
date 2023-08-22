@@ -371,6 +371,29 @@ Expect<
 	Expect<
 		Equal<{
 			col1: Id;
-		}, InferModel<typeof table>>
+		}, typeof table.$inferSelect>
 	>;
+}
+
+{
+	const test = sqliteTable('test', {
+		id: text('id').$defaultFn(() => crypto.randomUUID()).primaryKey(),
+	});
+
+	Expect<
+		Equal<{
+			id?: string;
+		}, typeof test.$inferInsert>
+	>;
+}
+
+{
+	sqliteTable('test', {
+		id: integer('id').$default(() => 1),
+		id2: integer('id').$defaultFn(() => 1),
+		// @ts-expect-error - should be number
+		id3: integer('id').$default(() => '1'),
+		// @ts-expect-error - should be number
+		id4: integer('id').$defaultFn(() => '1'),
+	});
 }

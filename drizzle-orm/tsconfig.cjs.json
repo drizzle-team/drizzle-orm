@@ -3,8 +3,7 @@
 	"compilerOptions": {
 		"target": "es2020",
 		"module": "es2020",
-		"rootDir": "src",
-		"incremental": true
+		"rootDir": "src"
 	},
 	"include": ["src"]
 }

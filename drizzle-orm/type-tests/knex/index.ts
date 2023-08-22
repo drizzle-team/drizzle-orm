@@ -19,5 +19,5 @@ const db = Knex({});
 
 {
 	const res = db('test').select();
-	Expect<Equal<PromiseOf<typeof res>, typeof test['_']['model']['select'][]>>;
+	Expect<Equal<PromiseOf<typeof res>, typeof test.$inferSelect[]>>;
 }

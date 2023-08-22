@@ -1,17 +1,16 @@
 import { is } from '~/entity';
-import type { AnyPgTable } from '~/pg-core/table';
 import { PgTable } from '~/pg-core/table';
 import { Table } from '~/table';
 import { ViewBaseConfig } from '~/view';
 import { type Check, CheckBuilder } from './checks';
-import { type AnyPgColumn } from './columns';
+import type { AnyPgColumn } from './columns';
 import { type ForeignKey, ForeignKeyBuilder } from './foreign-keys';
 import { type Index, IndexBuilder } from './indexes';
 import { type PrimaryKey, PrimaryKeyBuilder } from './primary-keys';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint';
 import { type PgMaterializedView, PgMaterializedViewConfig, type PgView, PgViewConfig } from './view';
 
-export function getTableConfig<TTable extends AnyPgTable>(table: TTable) {
+export function getTableConfig<TTable extends PgTable>(table: TTable) {
 	const columns = Object.values(table[Table.Symbol.Columns]);
 	const indexes: Index[] = [];
 	const checks: Check[] = [];
