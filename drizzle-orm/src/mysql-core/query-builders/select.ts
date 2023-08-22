@@ -1,9 +1,9 @@
 import { entityKind, is } from '~/entity';
-import type { AnyMySqlColumn } from '~/mysql-core/columns';
+import type { MySqlColumn } from '~/mysql-core/columns';
 import type { MySqlDialect } from '~/mysql-core/dialect';
 import type { MySqlSession, PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '~/mysql-core/session';
 import type { SubqueryWithSelection } from '~/mysql-core/subquery';
-import type { AnyMySqlTable } from '~/mysql-core/table';
+import type { MySqlTable } from '~/mysql-core/table';
 import { MySqlViewBase } from '~/mysql-core/view';
 import { TypedQueryBuilder } from '~/query-builders/query-builder';
 import type {
@@ -73,7 +73,7 @@ export class MySqlSelectBuilder<
 		this.distinct = config.distinct;
 	}
 
-	from<TFrom extends AnyMySqlTable | Subquery | MySqlViewBase | SQL>(
+	from<TFrom extends MySqlTable | Subquery | MySqlViewBase | SQL>(
 		source: TFrom,
 	): CreateMySqlSelectFromBuilderMode<
 		TBuilderMode,
@@ -99,7 +99,7 @@ export class MySqlSelectBuilder<
 		} else if (is(source, SQL)) {
 			fields = {};
 		} else {
-			fields = getTableColumns<AnyMySqlTable>(source);
+			fields = getTableColumns<MySqlTable>(source);
 		}
 
 		return new MySqlSelect(
@@ -176,7 +176,7 @@ export abstract class MySqlSelectQueryBuilder<
 		joinType: TJoinType,
 	): JoinFn<THKT, TTableName, TSelectMode, TJoinType, TSelection, TNullabilityMap> {
 		return (
-			table: AnyMySqlTable | Subquery | MySqlViewBase | SQL,
+			table: MySqlTable | Subquery | MySqlViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
@@ -283,12 +283,12 @@ export abstract class MySqlSelectQueryBuilder<
 		return this;
 	}
 
-	groupBy(builder: (aliases: TSelection) => ValueOrArray<AnyMySqlColumn | SQL | SQL.Aliased>): this;
-	groupBy(...columns: (AnyMySqlColumn | SQL | SQL.Aliased)[]): this;
+	groupBy(builder: (aliases: TSelection) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>): this;
+	groupBy(...columns: (MySqlColumn | SQL | SQL.Aliased)[]): this;
 	groupBy(
 		...columns:
-			| [(aliases: TSelection) => ValueOrArray<AnyMySqlColumn | SQL | SQL.Aliased>]
-			| (AnyMySqlColumn | SQL | SQL.Aliased)[]
+			| [(aliases: TSelection) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>]
+			| (MySqlColumn | SQL | SQL.Aliased)[]
 	) {
 		if (typeof columns[0] === 'function') {
 			const groupBy = columns[0](
@@ -299,17 +299,17 @@ export abstract class MySqlSelectQueryBuilder<
 			);
 			this.config.groupBy = Array.isArray(groupBy) ? groupBy : [groupBy];
 		} else {
-			this.config.groupBy = columns as (AnyMySqlColumn | SQL | SQL.Aliased)[];
+			this.config.groupBy = columns as (MySqlColumn | SQL | SQL.Aliased)[];
 		}
 		return this;
 	}
 
-	orderBy(builder: (aliases: TSelection) => ValueOrArray<AnyMySqlColumn | SQL | SQL.Aliased>): this;
-	orderBy(...columns: (AnyMySqlColumn | SQL | SQL.Aliased)[]): this;
+	orderBy(builder: (aliases: TSelection) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>): this;
+	orderBy(...columns: (MySqlColumn | SQL | SQL.Aliased)[]): this;
 	orderBy(
 		...columns:
-			| [(aliases: TSelection) => ValueOrArray<AnyMySqlColumn | SQL | SQL.Aliased>]
-			| (AnyMySqlColumn | SQL | SQL.Aliased)[]
+			| [(aliases: TSelection) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>]
+			| (MySqlColumn | SQL | SQL.Aliased)[]
 	) {
 		if (typeof columns[0] === 'function') {
 			const orderBy = columns[0](
@@ -320,7 +320,7 @@ export abstract class MySqlSelectQueryBuilder<
 			);
 			this.config.orderBy = Array.isArray(orderBy) ? orderBy : [orderBy];
 		} else {
-			this.config.orderBy = columns as (AnyMySqlColumn | SQL | SQL.Aliased)[];
+			this.config.orderBy = columns as (MySqlColumn | SQL | SQL.Aliased)[];
 		}
 		return this;
 	}
@@ -399,7 +399,7 @@ export class MySqlSelect<
 		if (!this.session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
-		const fieldsList = orderSelectedFields<AnyMySqlColumn>(this.config.fields);
+		const fieldsList = orderSelectedFields<MySqlColumn>(this.config.fields);
 		const query = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
 			TPreparedQueryHKT

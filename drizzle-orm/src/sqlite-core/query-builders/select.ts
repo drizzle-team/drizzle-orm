@@ -3,7 +3,7 @@ import { type Placeholder, type Query, SQL } from '~/sql';
 import type { SQLiteColumn } from '~/sqlite-core/columns';
 import type { SQLiteDialect } from '~/sqlite-core/dialect';
 import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
-import type { AnySQLiteTable } from '~/sqlite-core/table';
+import type { SQLiteTable } from '~/sqlite-core/table';
 import { Table } from '~/table';
 
 import { TypedQueryBuilder } from '~/query-builders/query-builder';
@@ -78,7 +78,7 @@ export class SQLiteSelectBuilder<
 		this.distinct = config.distinct;
 	}
 
-	from<TFrom extends AnySQLiteTable | Subquery | SQLiteViewBase | SQL>(
+	from<TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL>(
 		source: TFrom,
 	): CreateSQLiteSelectFromBuilderMode<
 		TBuilderMode,
@@ -105,7 +105,7 @@ export class SQLiteSelectBuilder<
 		} else if (is(source, SQL)) {
 			fields = {};
 		} else {
-			fields = getTableColumns<AnySQLiteTable>(source);
+			fields = getTableColumns<SQLiteTable>(source);
 		}
 
 		return new SQLiteSelect({
@@ -181,7 +181,7 @@ export abstract class SQLiteSelectQueryBuilder<
 		joinType: TJoinType,
 	): JoinFn<THKT, TTableName, TResultType, TRunResult, TSelectMode, TJoinType, TSelection, TNullabilityMap> {
 		return (
-			table: AnySQLiteTable | Subquery | SQLiteViewBase | SQL,
+			table: SQLiteTable | Subquery | SQLiteViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;

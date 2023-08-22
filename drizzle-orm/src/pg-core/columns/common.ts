@@ -18,7 +18,7 @@ import { uniqueKeyName } from '../unique-constraint';
 import { PgArrayBuilder } from './array';
 
 export interface ReferenceConfig {
-	ref: () => AnyPgColumn;
+	ref: () => PgColumn;
 	actions: {
 		onUpdate?: UpdateDeleteAction;
 		onDelete?: UpdateDeleteAction;
@@ -26,7 +26,9 @@ export interface ReferenceConfig {
 }
 
 export abstract class PgColumnBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string> & {
+		data: any;
+	},
 	TRuntimeConfig extends object = object,
 	TTypeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
@@ -98,9 +100,7 @@ export abstract class PgColumnBuilder<
 	): PgColumn<MakeColumnConfig<T, TTableName>>;
 }
 
-export type AnyPgColumnBuilder = PgColumnBuilder<ColumnBuilderBaseConfig<ColumnDataType, string>>;
-
-// To understand how to use `PgColumn` and `AnyPgColumn`, see `Column` and `AnyColumn` documentation.
+// To understand how to use `PgColumn` and `PgColumn`, see `Column` and `AnyColumn` documentation.
 export abstract class PgColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = {},

@@ -470,7 +470,7 @@ test.serial('build query insert with onDuplicate', async (t) => {
 	t.deepEqual(query, {
 		sql: `insert into \`${
 			getTableName(usersTable)
-		}\` (\`name\`, \`jsonb\`) values (?, ?) on duplicate key update \`name\` = ?`,
+		}\` (\`id\`, \`name\`, \`verified\`, \`jsonb\`, \`created_at\`) values (default, ?, default, ?, default) on duplicate key update \`name\` = ?`,
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
@@ -698,7 +698,7 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 });
 
-test.serial.only('migrator', async (t) => {
+test.serial('migrator', async (t) => {
 	const { db } = t.context;
 
 	const usersMigratorTable = mysqlTableRaw('users12', {

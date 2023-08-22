@@ -8,7 +8,7 @@ import type {
 	QueryResultHKT,
 	QueryResultKind,
 } from '~/mysql-core/session';
-import type { AnyMySqlTable } from '~/mysql-core/table';
+import type { MySqlTable } from '~/mysql-core/table';
 import { QueryPromise } from '~/query-promise';
 import type { Placeholder, Query, SQLWrapper } from '~/sql';
 import { Param, SQL, sql } from '~/sql';
@@ -16,23 +16,23 @@ import { type InferModel, Table } from '~/table';
 import { mapUpdateSet } from '~/utils';
 import type { MySqlUpdateSetSource } from './update';
 
-export interface MySqlInsertConfig<TTable extends AnyMySqlTable = AnyMySqlTable> {
+export interface MySqlInsertConfig<TTable extends MySqlTable = MySqlTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[];
 	ignore: boolean;
 	onConflict?: SQL;
 }
 
-export type AnyMySqlInsertConfig = MySqlInsertConfig<AnyMySqlTable>;
+export type AnyMySqlInsertConfig = MySqlInsertConfig<MySqlTable>;
 
-export type MySqlInsertValue<TTable extends AnyMySqlTable> =
+export type MySqlInsertValue<TTable extends MySqlTable> =
 	& {
 		[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
 	}
 	& {};
 
 export class MySqlInsertBuilder<
-	TTable extends AnyMySqlTable,
+	TTable extends MySqlTable,
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > {
@@ -76,13 +76,13 @@ export class MySqlInsertBuilder<
 
 export interface MySqlInsert<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TTable extends AnyMySqlTable,
+	TTable extends MySqlTable,
 	TQueryResult extends QueryResultHKT,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > extends QueryPromise<QueryResultKind<TQueryResult, never>>, SQLWrapper {}
 export class MySqlInsert<
-	TTable extends AnyMySqlTable,
+	TTable extends MySqlTable,
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > extends QueryPromise<QueryResultKind<TQueryResult, never>> implements SQLWrapper {

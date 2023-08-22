@@ -400,6 +400,7 @@ export class Param<TDataType = unknown, TDriverParamType = TDataType> implements
 	}
 }
 
+/** @deprecated Use `sql.param` instead. */
 export function param<TData, TDriver>(
 	value: TData,
 	encoder?: DriverValueEncoder<TData, TDriver>,
@@ -502,6 +503,17 @@ export namespace sql {
 	export function identifier(value: string): Name {
 		return new Name(value);
 	}
+
+	export function placeholder<TName extends string>(name: TName): Placeholder<TName> {
+		return new Placeholder(name);
+	}
+
+	export function param<TData, TDriver>(
+		value: TData,
+		encoder?: DriverValueEncoder<TData, TDriver>,
+	): Param<TData, TDriver> {
+		return new Param(value, encoder);
+	}
 }
 
 export namespace SQL {
@@ -544,6 +556,7 @@ export class Placeholder<TName extends string = string, TValue = any> implements
 	}
 }
 
+/** @deprecated Use `sql.placeholder` instead. */
 export function placeholder<TName extends string>(name: TName): Placeholder<TName> {
 	return new Placeholder(name);
 }
