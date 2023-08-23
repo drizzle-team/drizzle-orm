@@ -32,9 +32,9 @@ Check the full documentation on [the website](https://orm.drizzle.team)
 ## Supported databases
 | Database        | Support |                                                   |                                                                       |
 | :-------------- | :-----: | :------------------------------------------------ | :-------------------------------------------------------------------- |
-| PostgreSQL      |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start) |                                                                       |
-| MySQL           |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start) |                                                                       |
-| SQLite          |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start) |                                                                       |
+| PostgreSQL      |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start) | [Website](https://postgresql.org)                                                                       |
+| MySQL           |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start) | [Website](https://mysql.com)                                                                      |
+| SQLite          |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start) | [Website](https://www.sqlite.org)                                                                   |
 | Cloudflare D1   |   ✅    | [Docs](https://driz.li/docs-d1)                   | [Website](https://developers.cloudflare.com/d1)                       |
 | libSQL          |   ✅    | [Docs](/examples/libsql/README.md)                | [Website](https://libsql.org)                                         |
 | Turso           |   ✅    | [Docs](https://driz.li/docs-turso)                | [Website](https://turso.tech)                                         |
