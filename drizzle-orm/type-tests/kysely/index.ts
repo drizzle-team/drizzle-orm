@@ -1,10 +1,12 @@
 import { Kysely, PostgresDialect } from 'kysely';
-import { Pool } from 'pg';
+import pg from 'pg';
 import { type Equal, Expect } from 'type-tests/utils.ts';
 import type { Kyselify } from '~/kysely/index.ts';
 import { char, mysqlTable, timestamp as mysqlTimestamp, varchar as mysqlVarchar } from '~/mysql-core/index.ts';
 import { integer, pgEnum, pgTable, serial, text, timestamp, varchar } from '~/pg-core/index.ts';
 import type { PromiseOf } from '~/utils.ts';
+
+const { Pool } = pg;
 
 const test = pgTable('test', {
 	id: serial('id').primaryKey(),

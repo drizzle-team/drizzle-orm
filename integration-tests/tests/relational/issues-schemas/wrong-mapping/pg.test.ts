@@ -3,10 +3,12 @@ import Docker from 'dockerode';
 import { desc, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import getPort from 'get-port';
-import { Client } from 'pg';
+import pg from 'pg';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expectTypeOf, test } from 'vitest';
 import * as schema from './pg.schema.ts';
+
+const { Client } = pg;
 
 const ENABLE_LOGGING = false;
 
@@ -17,7 +19,7 @@ const ENABLE_LOGGING = false;
 
 let pgContainer: Docker.Container;
 let db: NodePgDatabase<typeof schema>;
-let client: Client;
+let client: pg.Client;
 
 async function createDockerDB(): Promise<string> {
 	const docker = new Docker();
