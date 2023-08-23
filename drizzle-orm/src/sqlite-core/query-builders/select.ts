@@ -1,11 +1,4 @@
 import { entityKind, is } from '~/entity.ts';
-import { type Placeholder, type Query, SQL } from '~/sql/index.ts';
-import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
-import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
-import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
-import type { SQLiteTable } from '~/sqlite-core/table.ts';
-import { Table } from '~/table.ts';
-
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	BuildSubquerySelection,
@@ -17,8 +10,14 @@ import type {
 	SelectResult,
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
+import { type Placeholder, type Query, SQL } from '~/sql/index.ts';
+import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import type { SubqueryWithSelection } from '~/sqlite-core/subquery.ts';
+import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery.ts';
+import { Table } from '~/table.ts';
 import {
 	applyMixins,
 	getTableColumns,

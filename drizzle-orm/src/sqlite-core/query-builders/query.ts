@@ -10,7 +10,7 @@ import {
 import { type SQL } from '~/sql/index.ts';
 import { type KnownKeysOnly } from '~/utils.ts';
 import { type SQLiteDialect } from '../dialect.ts';
-import { type PreparedQuery, type PreparedQueryConfig, type SQLiteSession } from '../session.ts';
+import type { PreparedQuery, PreparedQueryConfig, SQLiteSession } from '../session.ts';
 import { type SQLiteTable } from '../table.ts';
 
 export type SQLiteRelationalQueryKind<TMode extends 'sync' | 'async', TResult> = TMode extends 'async'
