@@ -1,9 +1,9 @@
-import type { Equal } from 'type-tests/utils';
-import { Expect } from 'type-tests/utils';
-import { eq } from '~/expressions';
-import type { MySqlRawQueryResult } from '~/mysql2';
-import { db } from './db';
-import { users } from './tables';
+import type { Equal } from 'type-tests/utils.ts';
+import { Expect } from 'type-tests/utils.ts';
+import { eq } from '~/expressions.ts';
+import type { MySqlRawQueryResult } from '~/mysql2/index.ts';
+import { db } from './db.ts';
+import { users } from './tables.ts';
 
 const deleteAll = await db.delete(users);
 Expect<Equal<MySqlRawQueryResult, typeof deleteAll>>;

@@ -1,11 +1,16 @@
-import { entityKind, is } from '~/entity';
-import type { MySqlColumn } from '~/mysql-core/columns';
-import type { MySqlDialect } from '~/mysql-core/dialect';
-import type { MySqlSession, PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '~/mysql-core/session';
-import type { SubqueryWithSelection } from '~/mysql-core/subquery';
-import type { MySqlTable } from '~/mysql-core/table';
-import { MySqlViewBase } from '~/mysql-core/view';
-import { TypedQueryBuilder } from '~/query-builders/query-builder';
+import { entityKind, is } from '~/entity.ts';
+import type { MySqlColumn } from '~/mysql-core/columns/index.ts';
+import type { MySqlDialect } from '~/mysql-core/dialect.ts';
+import type {
+	MySqlSession,
+	PreparedQueryConfig,
+	PreparedQueryHKTBase,
+	PreparedQueryKind,
+} from '~/mysql-core/session.ts';
+import type { SubqueryWithSelection } from '~/mysql-core/subquery.ts';
+import type { MySqlTable } from '~/mysql-core/table.ts';
+import { MySqlViewBase } from '~/mysql-core/view.ts';
+import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	BuildSubquerySelection,
 	GetSelectTableName,
@@ -14,14 +19,14 @@ import type {
 	JoinType,
 	SelectMode,
 	SelectResult,
-} from '~/query-builders/select.types';
-import { QueryPromise } from '~/query-promise';
-import { type Query, SQL } from '~/sql';
-import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
-import { Table } from '~/table';
-import { applyMixins, getTableColumns, getTableLikeName, type ValueOrArray } from '~/utils';
-import { orderSelectedFields } from '~/utils';
-import { type ColumnsSelection, View, ViewBaseConfig } from '~/view';
+} from '~/query-builders/select.types.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import { type Query, SQL } from '~/sql/index.ts';
+import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery.ts';
+import { Table } from '~/table.ts';
+import { applyMixins, getTableColumns, getTableLikeName, type ValueOrArray } from '~/utils.ts';
+import { orderSelectedFields } from '~/utils.ts';
+import { type ColumnsSelection, View, ViewBaseConfig } from '~/view.ts';
 import type {
 	JoinFn,
 	LockConfig,
@@ -31,7 +36,7 @@ import type {
 	MySqlSelectHKTBase,
 	MySqlSelectQueryBuilderHKT,
 	SelectedFields,
-} from './select.types';
+} from './select.types.ts';
 
 type CreateMySqlSelectFromBuilderMode<
 	TBuilderMode extends 'db' | 'qb',

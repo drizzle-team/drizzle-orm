@@ -1,11 +1,11 @@
-import { entityKind } from '~/entity';
-import { TransactionRollbackError } from '~/errors';
-import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
-import { type Query, type SQL, sql } from '~/sql';
-import { type Assume, type Equal } from '~/utils';
-import { MySqlDatabase } from './db';
-import type { MySqlDialect } from './dialect';
-import type { SelectedFieldsOrdered } from './query-builders/select.types';
+import { entityKind } from '~/entity.ts';
+import { TransactionRollbackError } from '~/errors.ts';
+import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations.ts';
+import { type Query, type SQL, sql } from '~/sql/index.ts';
+import { type Assume, type Equal } from '~/utils.ts';
+import { MySqlDatabase } from './db.ts';
+import type { MySqlDialect } from './dialect.ts';
+import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
 
 export type Mode = 'default' | 'planetscale';
 

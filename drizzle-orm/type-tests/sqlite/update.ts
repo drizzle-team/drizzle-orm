@@ -1,11 +1,10 @@
 import type { RunResult } from 'better-sqlite3';
-import type { Equal } from 'type-tests/utils';
-import { Expect } from 'type-tests/utils';
-import { eq } from '~/expressions';
-import type { InferModel } from '~/table';
-import { type DrizzleTypeError } from '~/utils';
-import { bunDb, db } from './db';
-import { users } from './tables';
+import type { Equal } from 'type-tests/utils.ts';
+import { Expect } from 'type-tests/utils.ts';
+import { eq } from '~/expressions.ts';
+import { type DrizzleTypeError } from '~/utils.ts';
+import { bunDb, db } from './db.ts';
+import { users } from './tables.ts';
 
 const updateRun = db.update(users)
 	.set({
@@ -63,7 +62,7 @@ const updateAllReturningAll = db.update(users)
 	.where(eq(users.id, 1))
 	.returning()
 	.all();
-Expect<Equal<InferModel<typeof users>[], typeof updateAllReturningAll>>;
+Expect<Equal<typeof users.$inferSelect[], typeof updateAllReturningAll>>;
 
 const updateAllReturningAllBun = bunDb.update(users)
 	.set({
@@ -73,7 +72,7 @@ const updateAllReturningAllBun = bunDb.update(users)
 	.where(eq(users.id, 1))
 	.returning()
 	.all();
-Expect<Equal<InferModel<typeof users>[], typeof updateAllReturningAllBun>>;
+Expect<Equal<typeof users.$inferSelect[], typeof updateAllReturningAllBun>>;
 
 const updateGetReturningAll = db.update(users)
 	.set({
@@ -83,7 +82,7 @@ const updateGetReturningAll = db.update(users)
 	.where(eq(users.id, 1))
 	.returning()
 	.get();
-Expect<Equal<InferModel<typeof users>, typeof updateGetReturningAll>>;
+Expect<Equal<typeof users.$inferSelect, typeof updateGetReturningAll>>;
 
 const updateGetReturningAllBun = bunDb.update(users)
 	.set({
@@ -93,4 +92,4 @@ const updateGetReturningAllBun = bunDb.update(users)
 	.where(eq(users.id, 1))
 	.returning()
 	.get();
-Expect<Equal<InferModel<typeof users>, typeof updateGetReturningAllBun>>;
+Expect<Equal<typeof users.$inferSelect, typeof updateGetReturningAllBun>>;

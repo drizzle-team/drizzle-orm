@@ -1,6 +1,6 @@
-import { entityKind } from '~/entity';
-import type { AnyMySqlColumn, MySqlColumn } from './columns';
-import { MySqlTable } from './table';
+import { entityKind } from '~/entity.ts';
+import type { AnyMySqlColumn, MySqlColumn } from './columns/index.ts';
+import { MySqlTable } from './table.ts';
 
 export function primaryKey<
 	TTableName extends string,

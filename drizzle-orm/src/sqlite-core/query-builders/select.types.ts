@@ -1,14 +1,14 @@
-import type { Placeholder, SQL } from '~/sql';
-import type { Assume } from '~/utils';
+import type { Placeholder, SQL } from '~/sql/index.ts';
+import type { Assume } from '~/utils.ts';
 
-import type { SQLiteColumn } from '~/sqlite-core/columns';
-import type { SQLiteTable, SQLiteTableWithColumns } from '~/sqlite-core/table';
+import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
+import type { SQLiteTable, SQLiteTableWithColumns } from '~/sqlite-core/table.ts';
 
 import type {
 	SelectedFields as SelectFieldsBase,
 	SelectedFieldsFlat as SelectFieldsFlatBase,
 	SelectedFieldsOrdered as SelectFieldsOrderedBase,
-} from '~/operations';
+} from '~/operations.ts';
 import type {
 	AppendToNullabilityMap,
 	AppendToResult,
@@ -17,12 +17,12 @@ import type {
 	JoinType,
 	MapColumnsToTableAlias,
 	SelectMode,
-} from '~/query-builders/select.types';
-import type { Subquery } from '~/subquery';
-import type { Table, UpdateTableConfig } from '~/table';
-import { type ColumnsSelection, type View } from '~/view';
-import type { SQLiteViewBase, SQLiteViewWithSelection } from '../view';
-import type { SQLiteSelect, SQLiteSelectQueryBuilder } from './select';
+} from '~/query-builders/select.types.ts';
+import type { Subquery } from '~/subquery.ts';
+import type { Table, UpdateTableConfig } from '~/table.ts';
+import { type ColumnsSelection, type View } from '~/view.ts';
+import type { SQLiteViewBase, SQLiteViewWithSelection } from '../view.ts';
+import type { SQLiteSelect, SQLiteSelectQueryBuilder } from './select.ts';
 
 export interface Join {
 	on: SQL | undefined;

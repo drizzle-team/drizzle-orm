@@ -1,23 +1,23 @@
-import { entityKind } from '~/entity';
-import { QueryPromise } from '~/query-promise';
+import { entityKind } from '~/entity.ts';
+import { QueryPromise } from '~/query-promise.ts';
 import {
 	type BuildQueryResult,
 	type DBQueryConfig,
 	mapRelationalRow,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
-} from '~/relations';
-import { type SQL } from '~/sql';
-import { type KnownKeysOnly } from '~/utils';
-import { type MySqlDialect } from '../dialect';
+} from '~/relations.ts';
+import { type SQL } from '~/sql/index.ts';
+import { type KnownKeysOnly } from '~/utils.ts';
+import { type MySqlDialect } from '../dialect.ts';
 import {
 	type Mode,
 	type MySqlSession,
 	type PreparedQueryConfig,
 	type PreparedQueryHKTBase,
 	type PreparedQueryKind,
-} from '../session';
-import { type MySqlTable } from '../table';
+} from '../session.ts';
+import { type MySqlTable } from '../table.ts';
 
 export class RelationalQueryBuilder<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,

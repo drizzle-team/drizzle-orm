@@ -1,9 +1,9 @@
-import type { Equal } from 'type-tests/utils';
-import { Expect } from 'type-tests/utils';
-import { gt, inArray } from '~/expressions';
-import { int, mysqlTable, serial, text } from '~/mysql-core';
-import { sql } from '~/sql';
-import { db } from './db';
+import type { Equal } from 'type-tests/utils.ts';
+import { Expect } from 'type-tests/utils.ts';
+import { gt, inArray } from '~/expressions.ts';
+import { int, mysqlTable, serial, text } from '~/mysql-core/index.ts';
+import { sql } from '~/sql/index.ts';
+import { db } from './db.ts';
 
 const orders = mysqlTable('orders', {
 	id: serial('id').primaryKey(),

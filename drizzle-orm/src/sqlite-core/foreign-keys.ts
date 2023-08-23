@@ -1,6 +1,6 @@
-import { entityKind } from '~/entity';
-import type { AnySQLiteColumn, SQLiteColumn } from './columns';
-import { SQLiteTable } from './table';
+import { entityKind } from '~/entity.ts';
+import type { AnySQLiteColumn, SQLiteColumn } from './columns/index.ts';
+import { SQLiteTable } from './table.ts';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
