@@ -64,3 +64,4 @@ rules:
   'unicorn/prefer-string-replace-all': 'off'
   'unicorn/no-process-exit': 'off'
   '@typescript-eslint/ban-ts-comment': 'off'
+  '@typescript-eslint/no-empty-interface': 'off'

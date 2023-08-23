@@ -1,8 +1,8 @@
-import type { Column, GetColumnData } from './column';
-import { entityKind } from './entity';
-import type { OptionalKeyOnly, RequiredKeyOnly } from './operations';
-import { SQL, type SQLWrapper } from './sql';
-import { type Simplify, type Update } from './utils';
+import type { Column, GetColumnData } from './column.ts';
+import { entityKind } from './entity.ts';
+import type { OptionalKeyOnly, RequiredKeyOnly } from './operations.ts';
+import { SQL, type SQLWrapper } from './sql/index.ts';
+import { type Simplify, type Update } from './utils.ts';
 
 export interface TableConfig<TColumn extends Column = Column<any>> {
 	name: string;
@@ -126,33 +126,34 @@ export type InferModelFromColumns<
 	TColumns extends Record<string, Column>,
 	TInferMode extends 'select' | 'insert' = 'select',
 	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
-> = TInferMode extends 'insert' ? Simplify<
-		& {
+> = Simplify<
+	TInferMode extends 'insert' ? 
+			& {
+				[
+					Key in keyof TColumns & string as RequiredKeyOnly<
+						MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
+						TColumns[Key]
+					>
+				]: GetColumnData<TColumns[Key], 'query'>;
+			}
+			& {
+				[
+					Key in keyof TColumns & string as OptionalKeyOnly<
+						MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
+						TColumns[Key]
+					>
+				]?: GetColumnData<TColumns[Key], 'query'>;
+			}
+		: {
 			[
-				Key in keyof TColumns & string as RequiredKeyOnly<
-					MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
-					TColumns[Key]
+				Key in keyof TColumns & string as MapColumnName<
+					Key,
+					TColumns[Key],
+					TConfig['dbColumnNames']
 				>
 			]: GetColumnData<TColumns[Key], 'query'>;
 		}
-		& {
-			[
-				Key in keyof TColumns & string as OptionalKeyOnly<
-					MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
-					TColumns[Key]
-				>
-			]?: GetColumnData<TColumns[Key], 'query'>;
-		}
-	>
-	: {
-		[
-			Key in keyof TColumns & string as MapColumnName<
-				Key,
-				TColumns[Key],
-				TConfig['dbColumnNames']
-			>
-		]: GetColumnData<TColumns[Key], 'query'>;
-	};
+>;
 
 /** @deprecated Use one of the alternatives: {@link InferSelectModel} / {@link InferInsertModel}, or `table._.inferSelect` / `table._.inferInsert`
  */

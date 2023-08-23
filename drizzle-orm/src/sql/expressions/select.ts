@@ -1,6 +1,6 @@
-import type { AnyColumn } from '../../column';
-import type { SQL, SQLWrapper } from '..';
-import { sql } from '..';
+import type { AnyColumn } from '../../column.ts';
+import type { SQL, SQLWrapper } from '../index.ts';
+import { sql } from '../index.ts';
 
 /**
  * Used in sorting, this specifies that the given

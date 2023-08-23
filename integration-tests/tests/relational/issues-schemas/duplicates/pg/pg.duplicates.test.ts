@@ -6,7 +6,7 @@ import getPort from 'get-port';
 import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import * as schema from './pg.duplicates';
+import * as schema from './pg.duplicates.ts';
 
 const ENABLE_LOGGING = false;
 

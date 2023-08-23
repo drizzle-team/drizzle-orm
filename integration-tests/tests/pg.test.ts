@@ -50,12 +50,12 @@ import {
 import getPort from 'get-port';
 import { Client } from 'pg';
 import { v4 as uuid } from 'uuid';
-import { type Equal, Expect } from './utils';
+import { type Equal, Expect } from './utils.ts';
 
 const ENABLE_LOGGING = false;
 
 const usersTable = pgTable('users', {
-	id: serial('id').primaryKey(),
+	id: serial('id' as string).primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
 	jsonb: jsonb('jsonb').$type<string[]>(),

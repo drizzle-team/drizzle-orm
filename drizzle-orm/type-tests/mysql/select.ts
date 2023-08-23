@@ -20,15 +20,14 @@ import {
 	notInArray,
 	notLike,
 	or,
-} from '~/expressions';
-import { alias } from '~/mysql-core/alias';
-import { param, sql } from '~/sql';
+} from '~/expressions.ts';
+import { alias } from '~/mysql-core/alias.ts';
+import { param, sql } from '~/sql/index.ts';
 
-import type { Equal } from 'type-tests/utils';
-import { Expect } from 'type-tests/utils';
-import { type InferModel } from '~/table';
-import { db } from './db';
-import { cities, classes, newYorkers, users } from './tables';
+import type { Equal } from 'type-tests/utils.ts';
+import { Expect } from 'type-tests/utils.ts';
+import { db } from './db.ts';
+import { cities, classes, newYorkers, users } from './tables.ts';
 
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
@@ -431,6 +430,6 @@ await db
 {
 	const query = db.select().from(users).prepare().iterator();
 	for await (const row of query) {
-		Expect<Equal<InferModel<typeof users>, typeof row>>();
+		Expect<Equal<typeof users.$inferSelect, typeof row>>();
 	}
 }

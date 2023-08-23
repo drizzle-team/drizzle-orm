@@ -1,9 +1,9 @@
-import type { ColumnBaseConfig } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
-import { entityKind } from '~/entity';
-import type { AnyPgTable } from '~/pg-core/table';
-import { PgColumn, PgColumnBuilder } from './common';
-import type { Precision } from './timestamp';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnyPgTable } from '~/pg-core/table.ts';
+import { PgColumn, PgColumnBuilder } from './common.ts';
+import type { Precision } from './timestamp.ts';
 
 export type PgIntervalBuilderInitial<TName extends string> = PgIntervalBuilder<{
 	name: TName;

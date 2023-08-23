@@ -1,11 +1,10 @@
 import { Kysely, PostgresDialect } from 'kysely';
 import { Pool } from 'pg';
-import { type Equal, Expect } from 'type-tests/utils';
-import type { Kyselify } from '~/kysely';
-import { char, mysqlTable, timestamp as mysqlTimestamp, varchar as mysqlVarchar } from '~/mysql-core';
-import { integer, pgEnum, pgTable, serial, text, timestamp, varchar } from '~/pg-core';
-import type { InferModel } from '~/table';
-import type { PromiseOf } from '~/utils';
+import { type Equal, Expect } from 'type-tests/utils.ts';
+import type { Kyselify } from '~/kysely/index.ts';
+import { char, mysqlTable, timestamp as mysqlTimestamp, varchar as mysqlVarchar } from '~/mysql-core/index.ts';
+import { integer, pgEnum, pgTable, serial, text, timestamp, varchar } from '~/pg-core/index.ts';
+import type { PromiseOf } from '~/utils.ts';
 
 const test = pgTable('test', {
 	id: serial('id').primaryKey(),
@@ -23,7 +22,7 @@ const db = new Kysely<Database>({
 });
 
 const result = db.selectFrom('test').selectAll().execute();
-Expect<Equal<PromiseOf<typeof result>, InferModel<typeof test>[]>>();
+Expect<Equal<PromiseOf<typeof result>, typeof test.$inferSelect[]>>();
 
 {
 	const units = mysqlTable('units', {

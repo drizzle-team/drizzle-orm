@@ -1,17 +1,17 @@
-import { is } from '~/entity';
-import { Table } from '~/table';
-import { ViewBaseConfig } from '~/view';
-import type { Check } from './checks';
-import { CheckBuilder } from './checks';
-import type { ForeignKey } from './foreign-keys';
-import { ForeignKeyBuilder } from './foreign-keys';
-import type { Index } from './indexes';
-import { IndexBuilder } from './indexes';
-import type { PrimaryKey } from './primary-keys';
-import { PrimaryKeyBuilder } from './primary-keys';
-import { SQLiteTable } from './table';
-import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint';
-import { type SQLiteView, SQLiteViewConfig } from './view';
+import { is } from '~/entity.ts';
+import { Table } from '~/table.ts';
+import { ViewBaseConfig } from '~/view.ts';
+import type { Check } from './checks.ts';
+import { CheckBuilder } from './checks.ts';
+import type { ForeignKey } from './foreign-keys.ts';
+import { ForeignKeyBuilder } from './foreign-keys.ts';
+import type { Index } from './indexes.ts';
+import { IndexBuilder } from './indexes.ts';
+import type { PrimaryKey } from './primary-keys.ts';
+import { PrimaryKeyBuilder } from './primary-keys.ts';
+import { SQLiteTable } from './table.ts';
+import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
+import { type SQLiteView, SQLiteViewConfig } from './view.ts';
 
 export function getTableConfig<TTable extends SQLiteTable>(table: TTable) {
 	const columns = Object.values(table[SQLiteTable.Symbol.Columns]);

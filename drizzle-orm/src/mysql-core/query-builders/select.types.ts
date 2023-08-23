@@ -1,11 +1,11 @@
-import type { MySqlColumn } from '~/mysql-core/columns';
-import type { MySqlTable, MySqlTableWithColumns } from '~/mysql-core/table';
-import type { MySqlViewBase, MySqlViewWithSelection } from '~/mysql-core/view';
+import type { MySqlColumn } from '~/mysql-core/columns/index.ts';
+import type { MySqlTable, MySqlTableWithColumns } from '~/mysql-core/table.ts';
+import type { MySqlViewBase, MySqlViewWithSelection } from '~/mysql-core/view.ts';
 import type {
 	SelectedFields as SelectedFieldsBase,
 	SelectedFieldsFlat as SelectedFieldsFlatBase,
 	SelectedFieldsOrdered as SelectedFieldsOrderedBase,
-} from '~/operations';
+} from '~/operations.ts';
 import type {
 	AppendToNullabilityMap,
 	AppendToResult,
@@ -14,14 +14,14 @@ import type {
 	JoinType,
 	MapColumnsToTableAlias,
 	SelectMode,
-} from '~/query-builders/select.types';
-import type { Placeholder, SQL } from '~/sql';
-import type { Subquery } from '~/subquery';
-import type { Table, UpdateTableConfig } from '~/table';
-import type { Assume } from '~/utils';
-import { type ColumnsSelection, type View } from '~/view';
-import { type PreparedQueryHKTBase } from '../session';
-import type { MySqlSelect, MySqlSelectQueryBuilder } from './select';
+} from '~/query-builders/select.types.ts';
+import type { Placeholder, SQL } from '~/sql/index.ts';
+import type { Subquery } from '~/subquery.ts';
+import type { Table, UpdateTableConfig } from '~/table.ts';
+import type { Assume } from '~/utils.ts';
+import { type ColumnsSelection, type View } from '~/view.ts';
+import { type PreparedQueryHKTBase } from '../session.ts';
+import type { MySqlSelect, MySqlSelectQueryBuilder } from './select.ts';
 
 export interface Join {
 	on: SQL | undefined;

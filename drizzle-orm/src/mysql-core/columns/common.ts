@@ -1,20 +1,21 @@
-import type { ColumnBaseConfig } from '~/column';
-import { Column } from '~/column';
+import { ColumnBuilder } from '~/column-builder.ts';
 import type {
+	ColumnBuilderBase,
 	ColumnBuilderBaseConfig,
 	ColumnBuilderExtraConfig,
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
 	HasDefault,
 	MakeColumnConfig,
-} from '~/column-builder';
-import { ColumnBuilder } from '~/column-builder';
-import { entityKind } from '~/entity';
-import type { ForeignKey, UpdateDeleteAction } from '~/mysql-core/foreign-keys';
-import { ForeignKeyBuilder } from '~/mysql-core/foreign-keys';
-import type { AnyMySqlTable, MySqlTable } from '~/mysql-core/table';
-import { type Update } from '~/utils';
-import { uniqueKeyName } from '../unique-constraint';
+} from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { Column } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { ForeignKey, UpdateDeleteAction } from '~/mysql-core/foreign-keys.ts';
+import { ForeignKeyBuilder } from '~/mysql-core/foreign-keys.ts';
+import type { AnyMySqlTable, MySqlTable } from '~/mysql-core/table.ts';
+import { type Update } from '~/utils.ts';
+import { uniqueKeyName } from '../unique-constraint.ts';
 
 export interface ReferenceConfig {
 	ref: () => MySqlColumn;
@@ -24,6 +25,11 @@ export interface ReferenceConfig {
 	};
 }
 
+export interface MySqlColumnBuilderBase<
+	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
+	TTypeConfig extends object = object,
+> extends ColumnBuilderBase<T, TTypeConfig & { dialect: 'mysql' }> {}
+
 export abstract class MySqlColumnBuilder<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string> & {
 		data: any;
@@ -31,7 +37,9 @@ export abstract class MySqlColumnBuilder<
 	TRuntimeConfig extends object = object,
 	TTypeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
-> extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'mysql' }, TExtraConfig> {
+> extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'mysql' }, TExtraConfig>
+	implements MySqlColumnBuilderBase<T, TTypeConfig>
+{
 	static readonly [entityKind]: string = 'MySqlColumnBuilder';
 
 	private foreignKeyConfigs: ReferenceConfig[] = [];

@@ -1,28 +1,21 @@
 import test from 'ava';
+import { blob, integer, numeric, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import {
-	blob,
-	integer,
-	numeric,
-	real,
-	sqliteTable,
-	text,
-} from 'drizzle-orm/sqlite-core';
-import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
-import { expectSchemaShape } from './utils';
-import {
-	type Output,
+	bigint as valibigint,
+	boolean,
+	date as valiDate,
 	enumType,
 	minValue,
+	nullable,
 	number,
 	object,
+	optional,
+	type Output,
 	parse,
 	string,
-	bigint as valibigint,
-	date as valiDate,
-	nullable,
-	boolean,
-	optional,
 } from 'valibot';
+import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
+import { expectSchemaShape } from './utils';
 
 const blobJsonSchema = object({
 	foo: string(),
@@ -68,7 +61,7 @@ test('users insert invalid text length', (t) => {
 	const schema = createInsertSchema(users);
 	t.throws(
 		() => parse(schema, { ...testUser, text: 'a'.repeat(256) }),
-		undefined
+		undefined,
 	);
 });
 
@@ -79,7 +72,7 @@ test('users insert schema', (t) => {
 		role: enumType(['admin', 'user', 'manager']),
 	});
 
-	() => {
+	(() => {
 		{
 			createInsertSchema(users, {
 				// @ts-expect-error (missing property)
@@ -93,7 +86,7 @@ test('users insert schema', (t) => {
 				id: 123,
 			});
 		}
-	};
+	});
 
 	const expected = object({
 		id: optional(number([minValue(0)])),
@@ -136,7 +129,7 @@ test('users select schema', (t) => {
 		role: enumType(['admin', 'user', 'manager']),
 	});
 
-	() => {
+	(() => {
 		{
 			createSelectSchema(users, {
 				// @ts-expect-error (missing property)
@@ -150,7 +143,7 @@ test('users select schema', (t) => {
 				id: 123,
 			});
 		}
-	};
+	});
 
 	const expected = object({
 		id: number(),

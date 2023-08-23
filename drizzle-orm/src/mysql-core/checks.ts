@@ -1,6 +1,6 @@
-import { entityKind } from '~/entity';
-import type { SQL } from '~/sql';
-import type { MySqlTable } from './table';
+import { entityKind } from '~/entity.ts';
+import type { SQL } from '~/sql/index.ts';
+import type { MySqlTable } from './table.ts';
 
 export class CheckBuilder {
 	static readonly [entityKind]: string = 'MySqlCheckBuilder';
