@@ -140,7 +140,6 @@
     "@vercel/postgres": "^0.3.0",
     "better-sqlite3": "^8.4.0",
     "bun-types": "^0.6.6",
-    "concurrently": "^8.1.0",
     "cpy": "^10.1.0",
     "cpy-cli": "^5.0.0",
     "knex": "^2.4.2",

@@ -1,6 +1,5 @@
 #!/usr/bin/env -S pnpm tsx
 import 'zx/globals';
-import concurrently from 'concurrently';
 import cpy from 'cpy';
 
 import { entries } from '../rollup.common';
@@ -46,22 +45,9 @@ function updateAndCopyPackageJson() {
 	fs.writeJSONSync('dist.new/package.json', pkg, { spaces: 2 });
 }
 
-await concurrently([
-	{
-		command: 'rollup --config rollup.cjs.config.ts --configPlugin typescript',
-		name: 'cjs',
-	},
-	{
-		command: 'rollup --config rollup.esm.config.ts --configPlugin typescript',
-		name: 'esm',
-	},
-	{
-		command: `rimraf dist-dts && tsc -p tsconfig.dts.json && resolve-tspaths -p tsconfig.dts.json --out dist-dts`,
-		name: 'dts',
-	},
-], {
-	killOthers: 'failure',
-}).result.catch(() => process.exit(1));
+await $`rollup --config rollup.cjs.config.ts --configPlugin typescript`;
+await $`rollup --config rollup.esm.config.ts --configPlugin typescript`;
+await $`rimraf dist-dts && tsc -p tsconfig.dts.json && resolve-tspaths -p tsconfig.dts.json --out dist-dts`;
 await cpy('dist-dts/**/*.d.ts', 'dist.new', {
 	rename: (basename) => basename.replace(/\.d\.ts$/, '.d.mts'),
 });
