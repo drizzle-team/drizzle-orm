@@ -65,3 +65,4 @@ rules:
   'unicorn/no-process-exit': 'off'
   '@typescript-eslint/ban-ts-comment': 'off'
   '@typescript-eslint/no-empty-interface': 'off'
+  '@typescript-eslint/no-unsafe-declaration-merging': 'off'
