@@ -1,56 +1,60 @@
-import { type Span, type Tracer } from '@opentelemetry/api';
-import { iife } from '~/utils.ts';
-import { npmVersion } from '~/version.ts';
+// Was commented due to errors in types. We will rewrite this logic to make it available explicitly
+// Left the code to save a references for future implementations
 
-let otel: typeof import('@opentelemetry/api') | undefined;
-let rawTracer: Tracer | undefined;
-// try {
-// 	otel = await import('@opentelemetry/api');
-// } catch (err: any) {
-// 	if (err.code !== 'MODULE_NOT_FOUND' && err.code !== 'ERR_MODULE_NOT_FOUND') {
-// 		throw err;
-// 	}
-// }
+// import { type Span, type Tracer } from '@opentelemetry/api';
+// import { iife } from '~/utils.ts';
+// import { npmVersion } from '~/version.ts';
 
-type SpanName =
-	| 'drizzle.operation'
-	| 'drizzle.prepareQuery'
-	| 'drizzle.buildSQL'
-	| 'drizzle.execute'
-	| 'drizzle.driver.execute'
-	| 'drizzle.mapResponse';
+// let otel: typeof import('@opentelemetry/api') | undefined;
+// let rawTracer: Tracer | undefined;
+// // try {
+// // 	otel = await import('@opentelemetry/api');
+// // } catch (err: any) {
+// // 	if (err.code !== 'MODULE_NOT_FOUND' && err.code !== 'ERR_MODULE_NOT_FOUND') {
+// // 		throw err;
+// // 	}
+// // }
 
-/** @internal */
-export const tracer = {
-	startActiveSpan<F extends (span?: Span) => unknown>(name: SpanName, fn: F): ReturnType<F> {
-		if (!otel) {
-			return fn() as ReturnType<F>;
-		}
+// type SpanName =
+// 	| 'drizzle.operation'
+// 	| 'drizzle.prepareQuery'
+// 	| 'drizzle.buildSQL'
+// 	| 'drizzle.execute'
+// 	| 'drizzle.driver.execute'
+// 	| 'drizzle.mapResponse';
 
-		if (!rawTracer) {
-			rawTracer = otel.trace.getTracer('drizzle-orm', npmVersion);
-		}
+// /** @internal */
+// export const tracer = {
+// 	startActiveSpan<F extends (span?: Span) => unknown>(name: SpanName, fn: F): ReturnType<F> {
+// 		if (!otel) {
+// 			return fn() as ReturnType<F>;
+// 		}
 
-		return iife(
-			(otel, rawTracer) =>
-				rawTracer.startActiveSpan(
-					name,
-					((span: Span) => {
-						try {
-							return fn(span);
-						} catch (e) {
-							span.setStatus({
-								code: otel.SpanStatusCode.ERROR,
-								message: e instanceof Error ? e.message : 'Unknown error', // eslint-disable-line no-instanceof/no-instanceof
-							});
-							throw e;
-						} finally {
-							span.end();
-						}
-					}) as F,
-				),
-			otel,
-			rawTracer,
-		);
-	},
-};
+// 		if (!rawTracer) {
+// 			rawTracer = otel.trace.getTracer('drizzle-orm', npmVersion);
+// 		}
+
+// 		return iife(
+// 			(otel, rawTracer) =>
+// 				rawTracer.startActiveSpan(
+// 					name,
+// 					((span: Span) => {
+// 						try {
+// 							return fn(span);
+// 						} catch (e) {
+// 							span.setStatus({
+// 								code: otel.SpanStatusCode.ERROR,
+// 								message: e instanceof Error ? e.message : 'Unknown error', // eslint-disable-line no-instanceof/no-instanceof
+// 							});
+// 							throw e;
+// 						} finally {
+// 							span.end();
+// 						}
+// 					}) as F,
+// 				),
+// 			otel,
+// 			rawTracer,
+// 		);
+// 	},
+// eslint-disable-next-line unicorn/no-empty-file
+// };

@@ -9,7 +9,8 @@ import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~
 import { PgSession, PreparedQuery } from '~/pg-core/session.ts';
 import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/index.ts';
-import { tracer } from '~/tracing.ts';
+// Was removed due to errors in types. We will rewrite this logic to make it available explicitly
+// import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 const { Pool } = pg;
@@ -43,54 +44,58 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 		};
 	}
 
+	// Was commented due to errors in types. We will rewrite this logic to make it available explicitly
+	// Left the code to save a references for future implementations
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		return tracer.startActiveSpan('drizzle.execute', async () => {
-			const params = fillPlaceholders(this.params, placeholderValues);
+		// return tracer.startActiveSpan('drizzle.execute', async () => {
+		const params = fillPlaceholders(this.params, placeholderValues);
 
-			this.logger.logQuery(this.rawQuery.text, params);
+		this.logger.logQuery(this.rawQuery.text, params);
 
-			const { fields, rawQuery, client, query, joinsNotNullableMap, customResultMapper } = this;
-			if (!fields && !customResultMapper) {
-				return tracer.startActiveSpan('drizzle.driver.execute', async (span) => {
-					span?.setAttributes({
-						'drizzle.query.name': rawQuery.name,
-						'drizzle.query.text': rawQuery.text,
-						'drizzle.query.params': JSON.stringify(params),
-					});
-					return client.query(rawQuery, params);
-				});
-			}
+		const { fields, rawQuery, client, query, joinsNotNullableMap, customResultMapper } = this;
+		if (!fields && !customResultMapper) {
+			// return tracer.startActiveSpan('drizzle.driver.execute', async (span) => {
+			// span?.setAttributes({
+			// 	'drizzle.query.name': rawQuery.name,
+			// 	'drizzle.query.text': rawQuery.text,
+			// 	'drizzle.query.params': JSON.stringify(params),
+			// });
+			return client.query(rawQuery, params);
+			// });
+		}
 
-			const result = await tracer.startActiveSpan('drizzle.driver.execute', (span) => {
-				span?.setAttributes({
-					'drizzle.query.name': query.name,
-					'drizzle.query.text': query.text,
-					'drizzle.query.params': JSON.stringify(params),
-				});
-				return client.query(query, params);
-			});
+		// const result = await tracer.startActiveSpan('drizzle.driver.execute', (span) => {
+		// span?.setAttributes({
+		// 	'drizzle.query.name': query.name,
+		// 	'drizzle.query.text': query.text,
+		// 	'drizzle.query.params': JSON.stringify(params),
+		// });
+		const result = await client.query(query, params);
+		// });
 
-			return tracer.startActiveSpan('drizzle.mapResponse', () => {
-				return customResultMapper
-					? customResultMapper(result.rows)
-					: result.rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
-			});
-		});
+		// return tracer.startActiveSpan('drizzle.mapResponse', () => {
+		return customResultMapper
+			? customResultMapper(result.rows)
+			: result.rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+		// });
+		// });
 	}
 
+	// Was commented due to errors in types. We will rewrite this logic to make it available explicitly
+	// Left the code to save a references for future implementations
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
-		return tracer.startActiveSpan('drizzle.execute', () => {
-			const params = fillPlaceholders(this.params, placeholderValues);
-			this.logger.logQuery(this.rawQuery.text, params);
-			return tracer.startActiveSpan('drizzle.driver.execute', (span) => {
-				span?.setAttributes({
-					'drizzle.query.name': this.rawQuery.name,
-					'drizzle.query.text': this.rawQuery.text,
-					'drizzle.query.params': JSON.stringify(params),
-				});
-				return this.client.query(this.rawQuery, params).then((result) => result.rows);
-			});
-		});
+		// return tracer.startActiveSpan('drizzle.execute', () => {
+		const params = fillPlaceholders(this.params, placeholderValues);
+		this.logger.logQuery(this.rawQuery.text, params);
+		// return tracer.startActiveSpan('drizzle.driver.execute', (span) => {
+		// span?.setAttributes({
+		// 	'drizzle.query.name': this.rawQuery.name,
+		// 	'drizzle.query.text': this.rawQuery.text,
+		// 	'drizzle.query.params': JSON.stringify(params),
+		// });
+		return this.client.query(this.rawQuery, params).then((result) => result.rows);
+		// });
+		// });
 	}
 }
 

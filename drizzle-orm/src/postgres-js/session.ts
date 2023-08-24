@@ -9,7 +9,8 @@ import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~
 import { PgSession, PreparedQuery } from '~/pg-core/session.ts';
 import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/index.ts';
-import { tracer } from '~/tracing.ts';
+// Was removed due to errors in types. We will rewrite this logic to make it available explicitly
+// import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
@@ -26,57 +27,61 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends Prep
 		super();
 	}
 
+	// Was commented due to errors in types. We will rewrite this logic to make it available explicitly
+	// Left the code to save a references for future implementations
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		return tracer.startActiveSpan('drizzle.execute', async (span) => {
-			const params = fillPlaceholders(this.params, placeholderValues);
+		// return tracer.startActiveSpan('drizzle.execute', async (span) => {
+		const params = fillPlaceholders(this.params, placeholderValues);
 
-			span?.setAttributes({
-				'drizzle.query.text': this.query,
-				'drizzle.query.params': JSON.stringify(params),
-			});
+		// span?.setAttributes({
+		// 	'drizzle.query.text': this.query,
+		// 	'drizzle.query.params': JSON.stringify(params),
+		// });
 
-			this.logger.logQuery(this.query, params);
+		this.logger.logQuery(this.query, params);
 
-			const { fields, query, client, joinsNotNullableMap, customResultMapper } = this;
-			if (!fields && !customResultMapper) {
-				return tracer.startActiveSpan('drizzle.driver.execute', () => {
-					return client.unsafe(query, params as any[]);
-				});
-			}
+		const { fields, query, client, joinsNotNullableMap, customResultMapper } = this;
+		if (!fields && !customResultMapper) {
+			// return tracer.startActiveSpan('drizzle.driver.execute', () => {
+			return client.unsafe(query, params as any[]);
+			// });
+		}
 
-			const rows = await tracer.startActiveSpan('drizzle.driver.execute', () => {
-				span?.setAttributes({
-					'drizzle.query.text': query,
-					'drizzle.query.params': JSON.stringify(params),
-				});
+		// const rows = await tracer.startActiveSpan('drizzle.driver.execute', () => {
+		// span?.setAttributes({
+		// 	'drizzle.query.text': query,
+		// 	'drizzle.query.params': JSON.stringify(params),
+		// });
 
-				return client.unsafe(query, params as any[]).values();
-			});
+		const rows = await client.unsafe(query, params as any[]).values();
+		// });
 
-			return tracer.startActiveSpan('drizzle.mapResponse', () => {
-				return customResultMapper
-					? customResultMapper(rows)
-					: rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
-			});
-		});
+		// return tracer.startActiveSpan('drizzle.mapResponse', () => {
+		return customResultMapper
+			? customResultMapper(rows)
+			: rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+		// });
+		// });
 	}
 
+	// Was commented due to errors in types. We will rewrite this logic to make it available explicitly
+	// Left the code to save a references for future implementations
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
-		return tracer.startActiveSpan('drizzle.execute', async (span) => {
-			const params = fillPlaceholders(this.params, placeholderValues);
-			span?.setAttributes({
-				'drizzle.query.text': this.query,
-				'drizzle.query.params': JSON.stringify(params),
-			});
-			this.logger.logQuery(this.query, params);
-			return tracer.startActiveSpan('drizzle.driver.execute', () => {
-				span?.setAttributes({
-					'drizzle.query.text': this.query,
-					'drizzle.query.params': JSON.stringify(params),
-				});
-				return this.client.unsafe(this.query, params as any[]);
-			});
-		});
+		// return tracer.startActiveSpan('drizzle.execute', async (span) => {
+		const params = fillPlaceholders(this.params, placeholderValues);
+		// span?.setAttributes({
+		// 	'drizzle.query.text': this.query,
+		// 	'drizzle.query.params': JSON.stringify(params),
+		// });
+		this.logger.logQuery(this.query, params);
+		// return tracer.startActiveSpan('drizzle.driver.execute', () => {
+		// span?.setAttributes({
+		// 	'drizzle.query.text': this.query,
+		// 	'drizzle.query.params': JSON.stringify(params),
+		// });
+		return this.client.unsafe(this.query, params as any[]);
+		// });
+		// });
 	}
 }
 

@@ -10,7 +10,8 @@ import type {
 import type { PgMaterializedView } from '~/pg-core/view.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { Query, SQL } from '~/sql/index.ts';
-import { tracer } from '~/tracing.ts';
+// Was removed due to errors in types. We will rewrite this logic to make it available explicitly
+// import { tracer } from '~/tracing.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
@@ -63,14 +64,16 @@ export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 		return rest;
 	}
 
+	// Was commented due to errors in types. We will rewrite this logic to make it available explicitly
+	// Left the code to save a references for future implementationsы
 	private _prepare(name?: string): PreparedQuery<
 		PreparedQueryConfig & {
 			execute: QueryResultKind<TQueryResult, never>;
 		}
 	> {
-		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), undefined, name);
-		});
+		// return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), undefined, name);
+		// });
 	}
 
 	prepare(name: string): PreparedQuery<
@@ -81,9 +84,11 @@ export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 		return this._prepare(name);
 	}
 
+	// Was commented due to errors in types. We will rewrite this logic to make it available explicitly
+	// Left the code to save a references for future implementations
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues);
-		});
+		// return tracer.startActiveSpan('drizzle.operation', () => {
+		return this._prepare().execute(placeholderValues);
+		// });
 	};
 }

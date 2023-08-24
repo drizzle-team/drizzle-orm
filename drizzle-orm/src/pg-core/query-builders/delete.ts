@@ -12,7 +12,8 @@ import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/index.ts';
 import { type InferModel, Table } from '~/table.ts';
-import { tracer } from '~/tracing.ts';
+// Was removed due to errors in types. We will rewrite this logic to make it available explicitly
+// import { tracer } from '~/tracing.ts';
 import { orderSelectedFields } from '~/utils.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
@@ -74,18 +75,20 @@ export class PgDelete<
 		return rest;
 	}
 
+	// Was commented due to errors in types. We will rewrite this logic to make it available explicitly
+	// Left the code to save a references for future implementations
 	private _prepare(name?: string): PreparedQuery<
 		PreparedQueryConfig & {
 			execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
 		}
 	> {
-		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			return this.session.prepareQuery<
-				PreparedQueryConfig & {
-					execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
-				}
-			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
-		});
+		// return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+		return this.session.prepareQuery<
+			PreparedQueryConfig & {
+				execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
+			}
+		>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
+		// });
 	}
 
 	prepare(name: string): PreparedQuery<
@@ -96,9 +99,11 @@ export class PgDelete<
 		return this._prepare(name);
 	}
 
+	// Was commented due to errors in types. We will rewrite this logic to make it available explicitly
+	// Left the code to save a references for future implementations
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues);
-		});
+		// return tracer.startActiveSpan('drizzle.operation', () => {
+		return this._prepare().execute(placeholderValues);
+		// });
 	};
 }

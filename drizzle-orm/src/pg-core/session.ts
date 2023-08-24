@@ -2,7 +2,8 @@ import { entityKind } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
 import { type TablesRelationalConfig } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/index.ts';
-import { tracer } from '~/tracing.ts';
+// Was removed due to errors in types. We will rewrite this logic to make it available explicitly
+// import { tracer } from '~/tracing.ts';
 import { PgDatabase } from './db.ts';
 import type { PgDialect } from './dialect.ts';
 import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
@@ -47,18 +48,20 @@ export abstract class PgSession<
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
 	): PreparedQuery<T>;
 
+	// Was commented due to errors in types. We will rewrite this logic to make it available explicitly
+	// Left the code to save a references for future implementations
 	execute<T>(query: SQL): Promise<T> {
-		return tracer.startActiveSpan('drizzle.operation', () => {
-			const prepared = tracer.startActiveSpan('drizzle.prepareQuery', () => {
-				return this.prepareQuery<PreparedQueryConfig & { execute: T }>(
-					this.dialect.sqlToQuery(query),
-					undefined,
-					undefined,
-				);
-			});
+		// return tracer.startActiveSpan('drizzle.operation', () => {
+		// const prepared = tracer.startActiveSpan('drizzle.prepareQuery', () => {
+		const prepared = this.prepareQuery<PreparedQueryConfig & { execute: T }>(
+			this.dialect.sqlToQuery(query),
+			undefined,
+			undefined,
+		);
+		// });
 
-			return prepared.execute();
-		});
+		return prepared.execute();
+		// });
 	}
 
 	all<T = unknown>(query: SQL): Promise<T[]> {

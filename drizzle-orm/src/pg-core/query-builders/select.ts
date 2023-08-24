@@ -19,7 +19,8 @@ import { QueryPromise } from '~/query-promise.ts';
 import { type Placeholder, type Query, SQL, type SQLWrapper } from '~/sql/index.ts';
 import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { tracer } from '~/tracing.ts';
+// Was removed due to errors in types. We will rewrite this logic to make it available explicitly
+// import { tracer } from '~/tracing.ts';
 import { applyMixins, getTableColumns, getTableLikeName, type ValueOrArray } from '~/utils.ts';
 import { orderSelectedFields } from '~/utils.ts';
 import { type ColumnsSelection, View, ViewBaseConfig } from '~/view.ts';
@@ -498,6 +499,8 @@ export class PgSelect<
 > extends PgSelectQueryBuilder<PgSelectHKT, TTableName, TSelection, TSelectMode, TNullabilityMap> {
 	static readonly [entityKind]: string = 'PgSelect';
 
+	// Was commented due to errors in types. We will rewrite this logic to make it available explicitly
+	// Left the code to save a references for future implementations
 	private _prepare(name?: string): PreparedQuery<
 		PreparedQueryConfig & {
 			execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
@@ -507,14 +510,14 @@ export class PgSelect<
 		if (!session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
-		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const fieldsList = orderSelectedFields<PgColumn>(config.fields);
-			const query = session.prepareQuery<
-				PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] }
-			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name);
-			query.joinsNotNullableMap = joinsNotNullableMap;
-			return query;
-		});
+		// return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+		const fieldsList = orderSelectedFields<PgColumn>(config.fields);
+		const query = session.prepareQuery<
+			PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] }
+		>(dialect.sqlToQuery(this.getSQL()), fieldsList, name);
+		query.joinsNotNullableMap = joinsNotNullableMap;
+		return query;
+		// });
 	}
 
 	/**
@@ -532,10 +535,12 @@ export class PgSelect<
 		return this._prepare(name);
 	}
 
+	// Was commented due to errors in types. We will rewrite this logic to make it available explicitly
+	// Left the code to save a references for future implementations
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues);
-		});
+		// return tracer.startActiveSpan('drizzle.operation', () => {
+		return this._prepare().execute(placeholderValues);
+		// });
 	};
 }
 

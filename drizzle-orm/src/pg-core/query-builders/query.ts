@@ -8,7 +8,8 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import type { SQL } from '~/sql/index.ts';
-import { tracer } from '~/tracing.ts';
+// Was removed due to errors in types. We will rewrite this logic to make it available explicitly
+// import { tracer } from '~/tracing.ts';
 import { type KnownKeysOnly } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
 import type { PgSession, PreparedQuery, PreparedQueryConfig } from '../session.ts';
@@ -79,64 +80,68 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 		super();
 	}
 
+	// Was commented due to errors in types. We will rewrite this logic to make it available explicitly
+	// Left the code to save a references for future implementations
 	private _prepare(name?: string): PreparedQuery<PreparedQueryConfig & { execute: TResult }> {
-		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			// const query = this.tableConfig.primaryKey.length > 0
-			// 	? this.dialect.buildRelationalQueryWithPK({
-			// 		fullSchema: this.fullSchema,
-			// 		schema: this.schema,
-			// 		tableNamesMap: this.tableNamesMap,
-			// 		table: this.table,
-			// 		tableConfig: this.tableConfig,
-			// 		queryConfig: this.config,
-			// 		tableAlias: this.tableConfig.tsName,
-			// 		isRoot: true,
-			// 	})
-			// 	: this.dialect.buildRelationalQueryWithoutPK({
-			// 		fullSchema: this.fullSchema,
-			// 		schema: this.schema,
-			// 		tableNamesMap: this.tableNamesMap,
-			// 		table: this.table,
-			// 		tableConfig: this.tableConfig,
-			// 		queryConfig: this.config,
-			// 		tableAlias: this.tableConfig.tsName,
-			// 	});
+		// return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+		// const query = this.tableConfig.primaryKey.length > 0
+		// 	? this.dialect.buildRelationalQueryWithPK({
+		// 		fullSchema: this.fullSchema,
+		// 		schema: this.schema,
+		// 		tableNamesMap: this.tableNamesMap,
+		// 		table: this.table,
+		// 		tableConfig: this.tableConfig,
+		// 		queryConfig: this.config,
+		// 		tableAlias: this.tableConfig.tsName,
+		// 		isRoot: true,
+		// 	})
+		// 	: this.dialect.buildRelationalQueryWithoutPK({
+		// 		fullSchema: this.fullSchema,
+		// 		schema: this.schema,
+		// 		tableNamesMap: this.tableNamesMap,
+		// 		table: this.table,
+		// 		tableConfig: this.tableConfig,
+		// 		queryConfig: this.config,
+		// 		tableAlias: this.tableConfig.tsName,
+		// 	});
 
-			const query = this.dialect.buildRelationalQueryWithoutPK({
-				fullSchema: this.fullSchema,
-				schema: this.schema,
-				tableNamesMap: this.tableNamesMap,
-				table: this.table,
-				tableConfig: this.tableConfig,
-				queryConfig: this.config,
-				tableAlias: this.tableConfig.tsName,
-			});
-
-			const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
-			return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
-				builtQuery,
-				undefined,
-				name,
-				(rawRows, mapColumnValue) => {
-					const rows = rawRows.map((row) =>
-						mapRelationalRow(this.schema, this.tableConfig, row, query.selection, mapColumnValue)
-					);
-					if (this.mode === 'first') {
-						return rows[0] as TResult;
-					}
-					return rows as TResult;
-				},
-			);
+		const query = this.dialect.buildRelationalQueryWithoutPK({
+			fullSchema: this.fullSchema,
+			schema: this.schema,
+			tableNamesMap: this.tableNamesMap,
+			table: this.table,
+			tableConfig: this.tableConfig,
+			queryConfig: this.config,
+			tableAlias: this.tableConfig.tsName,
 		});
+
+		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
+		return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
+			builtQuery,
+			undefined,
+			name,
+			(rawRows, mapColumnValue) => {
+				const rows = rawRows.map((row) =>
+					mapRelationalRow(this.schema, this.tableConfig, row, query.selection, mapColumnValue)
+				);
+				if (this.mode === 'first') {
+					return rows[0] as TResult;
+				}
+				return rows as TResult;
+			},
+		);
+		// });
 	}
 
 	prepare(name: string): PreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return this._prepare(name);
 	}
 
+	// Was commented due to errors in types. We will rewrite this logic to make it available explicitly
+	// Left the code to save a references for future implementations
 	override execute(): Promise<TResult> {
-		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute();
-		});
+		// return tracer.startActiveSpan('drizzle.operation', () => {
+		return this._prepare().execute();
+		// });
 	}
 }

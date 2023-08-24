@@ -1,7 +1,8 @@
 import { entityKind, is } from '~/entity.ts';
 import { Relation } from '~/relations.ts';
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
-import { tracer } from '~/tracing.ts';
+// Was removed due to errors in types. We will rewrite this logic to make it available explicitly
+// import { tracer } from '~/tracing.ts';
 import { View, ViewBaseConfig } from '~/view.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
@@ -112,14 +113,17 @@ export class SQL<T = unknown> implements SQLWrapper {
 	}
 
 	toQuery(config: BuildQueryConfig): Query {
-		return tracer.startActiveSpan('drizzle.buildSQL', (span) => {
-			const query = this.buildQueryFromSourceParams(this.queryChunks, config);
-			span?.setAttributes({
-				'drizzle.query.text': query.sql,
-				'drizzle.query.params': JSON.stringify(query.params),
-			});
-			return query;
-		});
+		// Was commented due to errors in types. We will rewrite this logic to make it available explicitly
+		// Left the code to save a references for future implementations
+
+		// return tracer.startActiveSpan('drizzle.buildSQL', (span) => {
+		const query = this.buildQueryFromSourceParams(this.queryChunks, config);
+		// span?.setAttributes({
+		// 	'drizzle.query.text': query.sql,
+		// 	'drizzle.query.params': JSON.stringify(query.params),
+		// });
+		return query;
+		// });
 	}
 
 	buildQueryFromSourceParams(chunks: SQLChunk[], _config: BuildQueryConfig): Query {
