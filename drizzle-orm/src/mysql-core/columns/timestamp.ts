@@ -1,9 +1,9 @@
-import type { ColumnBaseConfig } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
-import { entityKind } from '~/entity';
-import type { AnyMySqlTable } from '~/mysql-core/table';
-import { type Equal } from '~/utils';
-import { MySqlDateBaseColumn, MySqlDateColumnBaseBuilder } from './date.common';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import { type Equal } from '~/utils.ts';
+import { MySqlDateBaseColumn, MySqlDateColumnBaseBuilder } from './date.common.ts';
 
 export type MySqlTimestampBuilderInitial<TName extends string> = MySqlTimestampBuilder<{
 	name: TName;

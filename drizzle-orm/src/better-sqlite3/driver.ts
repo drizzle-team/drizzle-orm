@@ -1,15 +1,15 @@
 import type { Database, RunResult } from 'better-sqlite3';
-import { DefaultLogger } from '~/logger';
+import { DefaultLogger } from '~/logger.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
-} from '~/relations';
-import { BaseSQLiteDatabase } from '~/sqlite-core/db';
-import { SQLiteSyncDialect } from '~/sqlite-core/dialect';
-import { type DrizzleConfig } from '~/utils';
-import { BetterSQLiteSession } from './session';
+} from '~/relations.ts';
+import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
+import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
+import { type DrizzleConfig } from '~/utils.ts';
+import { BetterSQLiteSession } from './session.ts';
 
 export type BetterSQLite3Database<
 	TSchema extends Record<string, unknown> = Record<string, never>,

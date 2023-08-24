@@ -1,9 +1,9 @@
-import { bindIfParam } from '~/expressions';
-import type { PgColumn } from '~/pg-core/columns';
-import type { Placeholder, SQL, SQLChunk, SQLWrapper } from '~/sql';
-import { sql } from '~/sql';
+import { bindIfParam } from '~/expressions.ts';
+import type { PgColumn } from '~/pg-core/columns/index.ts';
+import type { Placeholder, SQL, SQLChunk, SQLWrapper } from '~/sql/index.ts';
+import { sql } from '~/sql/index.ts';
 
-export * from '~/expressions';
+export * from '~/expressions.ts';
 
 export function concat(column: PgColumn | SQL.Aliased, value: string | Placeholder | SQLWrapper): SQL {
 	return sql`${column} || ${bindIfParam(value, column)}`;

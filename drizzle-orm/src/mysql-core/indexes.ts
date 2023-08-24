@@ -1,7 +1,7 @@
-import { entityKind } from '~/entity';
-import type { SQL } from '~/sql';
-import type { AnyMySqlColumn, MySqlColumn } from './columns';
-import type { MySqlTable } from './table';
+import { entityKind } from '~/entity.ts';
+import type { SQL } from '~/sql/index.ts';
+import type { AnyMySqlColumn, MySqlColumn } from './columns/index.ts';
+import type { MySqlTable } from './table.ts';
 
 interface IndexConfig {
 	name: string;

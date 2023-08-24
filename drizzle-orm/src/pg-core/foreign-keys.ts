@@ -1,6 +1,6 @@
-import { entityKind } from '~/entity';
-import type { AnyPgColumn, PgColumn } from './columns';
-import { PgTable } from './table';
+import { entityKind } from '~/entity.ts';
+import type { AnyPgColumn, PgColumn } from './columns/index.ts';
+import { PgTable } from './table.ts';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 

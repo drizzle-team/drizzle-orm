@@ -28,7 +28,7 @@ import {
 	sqliteView,
 	text,
 } from 'drizzle-orm/sqlite-core';
-import { type Equal, Expect } from './utils';
+import { type Equal, Expect } from './utils.ts';
 
 const ENABLE_LOGGING = false;
 
@@ -72,9 +72,9 @@ const courseCategoriesTable = sqliteTable('course_categories', {
 const orders = sqliteTable('orders', {
 	id: integer('id').primaryKey(),
 	region: text('region').notNull(),
-	product: text('product').notNull().$default(()=>'random_string'),
+	product: text('product').notNull().$default(() => 'random_string'),
 	amount: integer('amount').notNull(),
-	quantity: integer('quantity').notNull()
+	quantity: integer('quantity').notNull(),
 });
 
 const usersMigratorTable = sqliteTable('users12', {

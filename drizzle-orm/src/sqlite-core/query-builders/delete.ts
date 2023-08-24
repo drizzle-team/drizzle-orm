@@ -1,13 +1,13 @@
-import { entityKind } from '~/entity';
-import type { SelectResultFields } from '~/query-builders/select.types';
-import { QueryPromise } from '~/query-promise';
-import type { Query, SQL, SQLWrapper } from '~/sql';
-import type { SQLiteDialect } from '~/sqlite-core/dialect';
-import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
-import { SQLiteTable } from '~/sqlite-core/table';
-import type { InferModel } from '~/table';
-import { type DrizzleTypeError, orderSelectedFields } from '~/utils';
-import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
+import { entityKind } from '~/entity.ts';
+import type { SelectResultFields } from '~/query-builders/select.types.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/index.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
+import { SQLiteTable } from '~/sqlite-core/table.ts';
+import type { InferModel } from '~/table.ts';
+import { type DrizzleTypeError, orderSelectedFields } from '~/utils.ts';
+import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
 export interface SQLiteDeleteConfig {
 	where?: SQL | undefined;

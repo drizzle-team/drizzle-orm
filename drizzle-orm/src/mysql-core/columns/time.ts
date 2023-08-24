@@ -1,8 +1,8 @@
-import type { ColumnBaseConfig } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
-import { entityKind } from '~/entity';
-import type { AnyMySqlTable } from '~/mysql-core/table';
-import { MySqlColumn, MySqlColumnBuilder } from './common';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlTimeBuilderInitial<TName extends string> = MySqlTimeBuilder<{
 	name: TName;

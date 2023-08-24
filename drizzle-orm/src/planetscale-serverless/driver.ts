@@ -1,17 +1,17 @@
 import type { Connection } from '@planetscale/database';
-import type { Logger } from '~/logger';
-import { DefaultLogger } from '~/logger';
-import { MySqlDatabase } from '~/mysql-core/db';
-import { MySqlDialect } from '~/mysql-core/dialect';
+import type { Logger } from '~/logger.ts';
+import { DefaultLogger } from '~/logger.ts';
+import { MySqlDatabase } from '~/mysql-core/db.ts';
+import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
-} from '~/relations';
-import { type DrizzleConfig } from '~/utils';
-import type { PlanetScalePreparedQueryHKT, PlanetscaleQueryResultHKT } from './session';
-import { PlanetscaleSession } from './session';
+} from '~/relations.ts';
+import { type DrizzleConfig } from '~/utils.ts';
+import type { PlanetScalePreparedQueryHKT, PlanetscaleQueryResultHKT } from './session.ts';
+import { PlanetscaleSession } from './session.ts';
 
 export interface PlanetscaleSDriverOptions {
 	logger?: Logger;

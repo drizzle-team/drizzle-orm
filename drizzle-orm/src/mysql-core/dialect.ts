@@ -1,7 +1,7 @@
-import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias';
-import { Column } from '~/column';
-import { entityKind, is } from '~/entity';
-import type { MigrationConfig, MigrationMeta } from '~/migrator';
+import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
+import { Column } from '~/column.ts';
+import { entityKind, is } from '~/entity.ts';
+import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import {
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
@@ -13,21 +13,21 @@ import {
 	type Relation,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
-} from '~/relations';
-import { and, eq, Param, type Query, SQL, sql, type SQLChunk } from '~/sql';
-import { Subquery, SubqueryConfig } from '~/subquery';
-import { getTableName, Table } from '~/table';
-import { orderSelectedFields, type UpdateSet } from '~/utils';
-import { View, ViewBaseConfig } from '~/view';
-import { DrizzleError } from '..';
-import { MySqlColumn } from './columns/common';
-import type { MySqlDeleteConfig } from './query-builders/delete';
-import type { MySqlInsertConfig } from './query-builders/insert';
-import type { Join, MySqlSelectConfig, SelectedFieldsOrdered } from './query-builders/select.types';
-import type { MySqlUpdateConfig } from './query-builders/update';
-import type { MySqlSession } from './session';
-import { MySqlTable } from './table';
-import { MySqlViewBase } from './view';
+} from '~/relations.ts';
+import { and, eq, Param, type Query, SQL, sql, type SQLChunk } from '~/sql/index.ts';
+import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { getTableName, Table } from '~/table.ts';
+import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { View, ViewBaseConfig } from '~/view.ts';
+import { DrizzleError } from '../index.ts';
+import { MySqlColumn } from './columns/common.ts';
+import type { MySqlDeleteConfig } from './query-builders/delete.ts';
+import type { MySqlInsertConfig } from './query-builders/insert.ts';
+import type { Join, MySqlSelectConfig, SelectedFieldsOrdered } from './query-builders/select.types.ts';
+import type { MySqlUpdateConfig } from './query-builders/update.ts';
+import type { MySqlSession } from './session.ts';
+import { MySqlTable } from './table.ts';
+import { MySqlViewBase } from './view.ts';
 
 // TODO find out how to use all/values. Seems like I need those functions
 // Build project
@@ -338,8 +338,8 @@ export class MySqlDialect {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, MySqlColumn> = table[Table.Symbol.Columns];
-		const colEntries: [string, MySqlColumn][] = Object.entries(columns)
-		
+		const colEntries: [string, MySqlColumn][] = Object.entries(columns);
+
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 
 		for (const [valueIndex, value] of values.entries()) {

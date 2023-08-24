@@ -1,9 +1,9 @@
-import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias';
-import type { AnyColumn } from '~/column';
-import { Column } from '~/column';
-import { entityKind, is } from '~/entity';
-import { DrizzleError } from '~/errors';
-import type { MigrationMeta } from '~/migrator';
+import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
+import type { AnyColumn } from '~/column.ts';
+import { Column } from '~/column.ts';
+import { entityKind, is } from '~/entity.ts';
+import { DrizzleError } from '~/errors.ts';
+import type { MigrationMeta } from '~/migrator.ts';
 import {
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
@@ -15,18 +15,18 @@ import {
 	type Relation,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
-} from '~/relations';
-import { and, eq, Param, type Query, SQL, sql, type SQLChunk } from '~/sql';
-import { SQLiteColumn } from '~/sqlite-core/columns';
-import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders';
-import { SQLiteTable } from '~/sqlite-core/table';
-import { Subquery, SubqueryConfig } from '~/subquery';
-import { getTableName, Table } from '~/table';
-import { orderSelectedFields, type UpdateSet } from '~/utils';
-import { ViewBaseConfig } from '~/view';
-import type { Join, SelectedFieldsOrdered, SQLiteSelectConfig } from './query-builders/select.types';
-import type { SQLiteSession } from './session';
-import { SQLiteViewBase } from './view';
+} from '~/relations.ts';
+import { and, eq, Param, type Query, SQL, sql, type SQLChunk } from '~/sql/index.ts';
+import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
+import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders/index.ts';
+import { SQLiteTable } from '~/sqlite-core/table.ts';
+import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { getTableName, Table } from '~/table.ts';
+import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { ViewBaseConfig } from '~/view.ts';
+import type { Join, SelectedFieldsOrdered, SQLiteSelectConfig } from './query-builders/select.types.ts';
+import type { SQLiteSession } from './session.ts';
+import { SQLiteViewBase } from './view.ts';
 
 export abstract class SQLiteDialect {
 	static readonly [entityKind]: string = 'SQLiteDialect';

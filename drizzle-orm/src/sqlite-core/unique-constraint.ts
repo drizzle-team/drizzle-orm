@@ -1,6 +1,6 @@
-import { entityKind } from '~/entity';
-import { type SQLiteColumn } from './columns';
-import { SQLiteTable } from './table';
+import { entityKind } from '~/entity.ts';
+import { type SQLiteColumn } from './columns/index.ts';
+import { SQLiteTable } from './table.ts';
 
 export function uniqueKeyName(table: SQLiteTable, columns: string[]) {
 	return `${table[SQLiteTable.Symbol.Name]}_${columns.join('_')}_unique`;

@@ -1,6 +1,6 @@
-import { entityKind } from '~/entity';
-import type { SQL } from '~/sql';
-import type { PgTable } from './table';
+import { entityKind } from '~/entity.ts';
+import type { SQL } from '~/sql/index.ts';
+import type { PgTable } from './table.ts';
 
 export class CheckBuilder {
 	static readonly [entityKind]: string = 'PgCheckBuilder';
