@@ -75,10 +75,6 @@ importers:
         version: 5.1.6(patch_hash=nqltnu2tftypeoe37zeioxuuuq)
 
   drizzle-orm:
-    dependencies:
-      '@opentelemetry/api':
-        specifier: ^1.4.1
-        version: 1.4.1
     devDependencies:
       '@aws-sdk/client-rds-data':
         specifier: ^3.344.0
@@ -2297,11 +2293,6 @@ packages:
       mkdirp: 1.0.4
       rimraf: 3.0.2
     optional: true
-
-  /@opentelemetry/api@1.4.1:
-    resolution: {integrity: sha512-O2yRJce1GOc6PAy3QxFM4NzFiWzvScDC1/5ihYBL6BUEVdq0XMWN01sppE+H6bBXbaFYipjwFLEWLg5PaSOThA==}
-    engines: {node: '>=8.0.0'}
-    dev: false
 
   /@originjs/vite-plugin-commonjs@1.0.3:
     resolution: {integrity: sha512-KuEXeGPptM2lyxdIEJ4R11+5ztipHoE7hy8ClZt3PYaOVQ/pyngd2alaSrPnwyFeOW1UagRBaQ752aA1dTMdOQ==}

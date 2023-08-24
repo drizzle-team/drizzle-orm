@@ -47,7 +47,6 @@
     "@cloudflare/workers-types": ">=3",
     "@libsql/client": "*",
     "@neondatabase/serverless": ">=0.1",
-    "@opentelemetry/api": "^1.4.1",
     "@planetscale/database": ">=1",
     "@types/better-sqlite3": "*",
     "@types/pg": "*",
