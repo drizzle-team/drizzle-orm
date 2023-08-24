@@ -6166,6 +6166,13 @@ test('Get groups with users + custom', async (t) => {
 	});
 });
 
+test('.toSQL()', () => {
+	const query = db.query.usersTable.findFirst().toSQL();
+
+	expect(query).toHaveProperty('sql', expect.any(String));
+	expect(query).toHaveProperty('params', expect.any(Array));
+});
+
 // + custom + where + orderby
 
 // + custom + where + orderby + limit

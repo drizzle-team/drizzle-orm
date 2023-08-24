@@ -2,12 +2,13 @@ import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import {
 	type BuildQueryResult,
+	type BuildRelationalQueryResult,
 	type DBQueryConfig,
 	mapRelationalRow,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { type SQL } from '~/sql/index.ts';
+import { type Query, type QueryWithTypings, type SQL } from '~/sql/index.ts';
 import { type KnownKeysOnly } from '~/utils.ts';
 import { type SQLiteDialect } from '../dialect.ts';
 import type { PreparedQuery, PreparedQueryConfig, SQLiteSession } from '../session.ts';
@@ -113,17 +114,8 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 	}
 
 	prepare(): PreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }> {
-		const query = this.dialect.buildRelationalQuery({
-			fullSchema: this.fullSchema,
-			schema: this.schema,
-			tableNamesMap: this.tableNamesMap,
-			table: this.table,
-			tableConfig: this.tableConfig,
-			queryConfig: this.config,
-			tableAlias: this.tableConfig.tsName,
-		});
+		const { query, builtQuery } = this._toSQL();
 
-		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
 		return this.session.prepareQuery(
 			builtQuery,
 			undefined,
@@ -138,6 +130,26 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 				return rows as TResult;
 			},
 		) as PreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }>;
+	}
+
+	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+		const query = this.dialect.buildRelationalQuery({
+			fullSchema: this.fullSchema,
+			schema: this.schema,
+			tableNamesMap: this.tableNamesMap,
+			table: this.table,
+			tableConfig: this.tableConfig,
+			queryConfig: this.config,
+			tableAlias: this.tableConfig.tsName,
+		});
+
+		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
+
+		return { query, builtQuery };
+	}
+
+	toSQL(): Query {
+		return this._toSQL().builtQuery;
 	}
 
 	/** @internal */

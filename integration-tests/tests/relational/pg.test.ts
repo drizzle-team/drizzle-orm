@@ -6185,6 +6185,13 @@ test('Filter by columns not present in select', async (t) => {
 	expect(response).toEqual({ id: 1 });
 });
 
+test('.toSQL()', () => {
+	const query = db.query.usersTable.findFirst().toSQL();
+
+	expect(query).toHaveProperty('sql', expect.any(String));
+	expect(query).toHaveProperty('params', expect.any(Array));
+});
+
 // test('Filter by relational column', async (t) => {
 // 	const { pgDb: db } = t;
 
