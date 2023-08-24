@@ -1,4 +1,4 @@
-import { type Span, type Tracer } from '@opentelemetry/api';
+import type { Span, Tracer } from '@opentelemetry/api';
 import { iife } from '~/utils.ts';
 import { npmVersion } from '~/version.ts';
 
