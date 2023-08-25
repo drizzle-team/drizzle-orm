@@ -123,7 +123,7 @@ export class SQLiteInsert<
 		} else {
 			const targetSql = Array.isArray(config.target) ? sql`${config.target}` : sql`${[config.target]}`;
 			const whereSql = config.where ? sql` where ${config.where}` : sql``;
-			this.config.onConflict = sql`${targetSql}${whereSql} do nothing`;
+			this.config.onConflict = sql`${targetSql} do nothing${whereSql}`;
 		}
 		return this;
 	}
@@ -136,7 +136,7 @@ export class SQLiteInsert<
 		const targetSql = Array.isArray(config.target) ? sql`${config.target}` : sql`${[config.target]}`;
 		const whereSql = config.where ? sql` where ${config.where}` : sql``;
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
-		this.config.onConflict = sql`${targetSql}${whereSql} do update set ${setSql}`;
+		this.config.onConflict = sql`${targetSql} do update set ${setSql}${whereSql}`;
 		return this;
 	}
 
