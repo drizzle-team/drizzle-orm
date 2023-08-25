@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity';
+import { entityKind } from '~/entity.ts';
 
 export abstract class QueryPromise<T> implements Promise<T> {
 	static readonly [entityKind]: string = 'QueryPromise';

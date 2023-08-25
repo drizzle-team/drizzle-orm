@@ -46,9 +46,11 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
-import { Client } from 'pg';
+import pg from 'pg';
 import { v4 as uuid } from 'uuid';
-import { type Equal, Expect } from './utils';
+import { type Equal, Expect } from './utils.ts';
+
+const { Client } = pg;
 
 const ENABLE_LOGGING = false;
 
@@ -118,7 +120,7 @@ interface Context {
 	docker: Docker;
 	pgContainer: Docker.Container;
 	db: NeonHttpDatabase;
-	ddlRunner: Client;
+	ddlRunner: pg.Client;
 	client: NeonQueryFunction<false, true>;
 }
 

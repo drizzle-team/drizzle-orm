@@ -43,7 +43,7 @@ import { migrate } from 'drizzle-orm/mysql2/migrator';
 import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
-import { type Equal, Expect } from './utils';
+import { type Equal, Expect } from './utils.ts';
 
 const ENABLE_LOGGING = false;
 

@@ -1,5 +1,5 @@
-import { integer, type PgColumn, serial } from '~/pg-core/columns';
-import { pgTable } from '~/pg-core/table';
+import { integer, type PgColumn, serial } from '~/pg-core/columns/index.ts';
+import { pgTable } from '~/pg-core/table.ts';
 
 {
 	const test1 = pgTable('test1_table', {

@@ -21,7 +21,7 @@ import {
 	unique,
 	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
-import { Expect } from './utils';
+import { Expect } from './utils.ts';
 
 const ENABLE_LOGGING = false;
 

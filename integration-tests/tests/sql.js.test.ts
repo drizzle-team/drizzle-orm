@@ -19,7 +19,7 @@ import {
 } from 'drizzle-orm/sqlite-core';
 import type { Database } from 'sql.js';
 import initSqlJs from 'sql.js';
-import { Expect } from './utils';
+import { Expect } from './utils.ts';
 
 const ENABLE_LOGGING = false;
 

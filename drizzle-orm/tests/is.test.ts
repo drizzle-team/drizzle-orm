@@ -1,6 +1,6 @@
 import { describe, test } from 'vitest';
-import { Column, is } from '~/index';
-import { PgArray, PgColumn, PgSerial, pgTable, serial } from '~/pg-core';
+import { Column, is } from '~/index.ts';
+import { PgArray, PgColumn, PgSerial, pgTable, serial } from '~/pg-core/index.ts';
 
 const pgExampleTable = pgTable('test', {
 	a: serial('a').array(),

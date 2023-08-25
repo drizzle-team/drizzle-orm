@@ -1,10 +1,10 @@
-import type { Equal } from 'type-tests/utils';
-import { Expect } from 'type-tests/utils';
-import { int, mysqlTable, text } from '~/mysql-core';
-import type { MySqlRawQueryResult } from '~/mysql2';
-import { sql } from '~/sql';
-import { db } from './db';
-import { users } from './tables';
+import type { Equal } from 'type-tests/utils.ts';
+import { Expect } from 'type-tests/utils.ts';
+import { int, mysqlTable, text } from '~/mysql-core/index.ts';
+import type { MySqlRawQueryResult } from '~/mysql2/index.ts';
+import { sql } from '~/sql/index.ts';
+import { db } from './db.ts';
+import { users } from './tables.ts';
 
 const insert = await db.insert(users).values({
 	homeCity: 1,

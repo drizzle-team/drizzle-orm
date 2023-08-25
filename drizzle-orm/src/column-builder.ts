@@ -1,9 +1,10 @@
-import { entityKind } from '~/entity';
-import type { Column } from './column';
-import type { MySqlColumn } from './mysql-core';
-import type { PgColumn } from './pg-core';
-import type { SQL } from './sql';
-import type { SQLiteColumn } from './sqlite-core';
+import { entityKind } from '~/entity.ts';
+import type { Column } from './column.ts';
+import type { MySqlColumn } from './mysql-core/index.ts';
+import type { PgColumn } from './pg-core/index.ts';
+import type { SQL } from './sql/index.ts';
+import type { SQLiteColumn } from './sqlite-core/index.ts';
+import type { Simplify } from './utils.ts';
 
 export type ColumnDataType =
 	| 'string'
@@ -40,14 +41,15 @@ export type MakeColumnConfig<
 	notNull: T extends { notNull: true } ? true : false;
 	hasDefault: T extends { hasDefault: true } ? true : false;
 	enumValues: T['enumValues'];
-	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilder } ? BuildColumn<TTableName, U, 'common'>
+	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase } ? BuildColumn<TTableName, U, 'common'>
 		: never;
 } & {};
 
 export type ColumnBuilderTypeConfig<
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TTypeConfig extends object = object,
-> =
+> = Simplify<
 	& {
 		brand: 'ColumnBuilder';
 		name: T['name'];
@@ -59,7 +61,8 @@ export type ColumnBuilderTypeConfig<
 		hasDefault: T extends { hasDefault: infer U } ? U : boolean;
 		enumValues: T['enumValues'];
 	}
-	& TTypeConfig;
+	& TTypeConfig
+>;
 
 export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = object> = {
 	name: string;
@@ -79,33 +82,38 @@ export interface ColumnBuilderExtraConfig {
 	primaryKeyHasDefault?: boolean;
 }
 
-export type NotNull<T extends ColumnBuilder> = T & {
+export type NotNull<T extends ColumnBuilderBase> = T & {
 	_: {
 		notNull: true;
 	};
 };
 
-export type HasDefault<T extends ColumnBuilder> = T & {
+export type HasDefault<T extends ColumnBuilderBase> = T & {
 	_: {
 		hasDefault: true;
 	};
 };
 
-export type $Type<T extends ColumnBuilder, TType> = T & {
+export type $Type<T extends ColumnBuilderBase, TType> = T & {
 	_: {
 		$type: TType;
 	};
 };
 
+export interface ColumnBuilderBase<
+	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
+	TTypeConfig extends object = object,
+> {
+	_: ColumnBuilderTypeConfig<T, TTypeConfig>;
+}
+
 // To understand how to use `ColumnBuilder` and `AnyColumnBuilder`, see `Column` and `AnyColumn` documentation.
 export abstract class ColumnBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string> & {
-		data: any;
-	},
+	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
 	TTypeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
-> {
+> implements ColumnBuilderBase<T, TTypeConfig> {
 	static readonly [entityKind]: string = 'ColumnBuilder';
 
 	declare _: ColumnBuilderTypeConfig<T, TTypeConfig>;
@@ -159,7 +167,7 @@ export abstract class ColumnBuilder<
 	 *
 	 * If you need to set a dynamic default value, use {@link $defaultFn} instead.
 	 */
-	default(value: (this['_'] extends { $type: infer U } ? U : T['data']) | SQL): HasDefault<this> {
+	default(value: (this['_'] extends { $type: infer U } ? U : this['_']['data']) | SQL): HasDefault<this> {
 		this.config.default = value;
 		this.config.hasDefault = true;
 		return this as HasDefault<this>;
@@ -171,7 +179,9 @@ export abstract class ColumnBuilder<
 	 *
 	 * **Note:** This value does not affect the `drizzle-kit` behavior, it is only used at runtime in `drizzle-orm`.
 	 */
-	$defaultFn(fn: () => (this['_'] extends { $type: infer U } ? U : T['data']) | SQL): HasDefault<this> {
+	$defaultFn(
+		fn: () => (this['_'] extends { $type: infer U } ? U : this['_']['data']) | SQL,
+	): HasDefault<this> {
 		this.config.defaultFn = fn;
 		this.config.hasDefault = true;
 		return this as HasDefault<this>;
@@ -196,7 +206,7 @@ export abstract class ColumnBuilder<
 
 export type BuildColumn<
 	TTableName extends string,
-	TBuilder extends ColumnBuilder,
+	TBuilder extends ColumnBuilderBase,
 	TDialect extends Dialect,
 > = TDialect extends 'pg' ? PgColumn<MakeColumnConfig<TBuilder['_'], TTableName>>
 	: TDialect extends 'mysql' ? MySqlColumn<MakeColumnConfig<TBuilder['_'], TTableName>>
@@ -206,7 +216,7 @@ export type BuildColumn<
 
 export type BuildColumns<
 	TTableName extends string,
-	TConfigMap extends Record<string, ColumnBuilder>,
+	TConfigMap extends Record<string, ColumnBuilderBase>,
 	TDialect extends Dialect,
 > =
 	& {

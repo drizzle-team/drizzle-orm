@@ -1,17 +1,17 @@
 /// <reference types="bun-types" />
 
 import type { Database } from 'bun:sqlite';
-import { DefaultLogger } from '~/logger';
+import { DefaultLogger } from '~/logger.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
-} from '~/relations';
-import { BaseSQLiteDatabase } from '~/sqlite-core/db';
-import { SQLiteSyncDialect } from '~/sqlite-core/dialect';
-import { type DrizzleConfig } from '~/utils';
-import { SQLiteBunSession } from './session';
+} from '~/relations.ts';
+import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
+import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
+import { type DrizzleConfig } from '~/utils.ts';
+import { SQLiteBunSession } from './session.ts';
 
 export type BunSQLiteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,

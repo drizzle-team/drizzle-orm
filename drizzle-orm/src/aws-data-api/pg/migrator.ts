@@ -1,6 +1,6 @@
-import type { MigrationConfig } from '~/migrator';
-import { readMigrationFiles } from '~/migrator';
-import type { AwsDataApiPgDatabase } from './driver';
+import type { MigrationConfig } from '~/migrator.ts';
+import { readMigrationFiles } from '~/migrator.ts';
+import type { AwsDataApiPgDatabase } from './driver.ts';
 
 export async function migrate<TSchema extends Record<string, unknown>>(
 	db: AwsDataApiPgDatabase<TSchema>,
