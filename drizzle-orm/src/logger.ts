@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity';
+import { entityKind } from '~/entity.ts';
 
 export interface Logger {
 	logQuery(query: string, params: unknown[]): void;

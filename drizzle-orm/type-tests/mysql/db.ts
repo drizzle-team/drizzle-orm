@@ -1,5 +1,5 @@
 import { createPool } from 'mysql2/promise';
-import { drizzle } from '~/mysql2';
+import { drizzle } from '~/mysql2/index.ts';
 
 const pool = createPool({});
 

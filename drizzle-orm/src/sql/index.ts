@@ -1,13 +1,13 @@
-import { entityKind, is } from '~/entity';
-import { Relation } from '~/relations';
-import { Subquery, SubqueryConfig } from '~/subquery';
-import { tracer } from '~/tracing';
-import { View, ViewBaseConfig } from '~/view';
-import type { AnyColumn } from '../column';
-import { Column } from '../column';
-import { Table } from '../table';
+import { entityKind, is } from '~/entity.ts';
+import { Relation } from '~/relations.ts';
+import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { tracer } from '~/tracing.ts';
+import { View, ViewBaseConfig } from '~/view.ts';
+import type { AnyColumn } from '../column.ts';
+import { Column } from '../column.ts';
+import { Table } from '../table.ts';
 
-export * from './expressions';
+export * from './expressions/index.ts';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.
@@ -400,6 +400,7 @@ export class Param<TDataType = unknown, TDriverParamType = TDataType> implements
 	}
 }
 
+/** @deprecated Use `sql.param` instead. */
 export function param<TData, TDriver>(
 	value: TData,
 	encoder?: DriverValueEncoder<TData, TDriver>,
@@ -502,6 +503,17 @@ export namespace sql {
 	export function identifier(value: string): Name {
 		return new Name(value);
 	}
+
+	export function placeholder<TName extends string>(name: TName): Placeholder<TName> {
+		return new Placeholder(name);
+	}
+
+	export function param<TData, TDriver>(
+		value: TData,
+		encoder?: DriverValueEncoder<TData, TDriver>,
+	): Param<TData, TDriver> {
+		return new Param(value, encoder);
+	}
 }
 
 export namespace SQL {
@@ -544,6 +556,7 @@ export class Placeholder<TName extends string = string, TValue = any> implements
 	}
 }
 
+/** @deprecated Use `sql.placeholder` instead. */
 export function placeholder<TName extends string>(name: TName): Placeholder<TName> {
 	return new Placeholder(name);
 }

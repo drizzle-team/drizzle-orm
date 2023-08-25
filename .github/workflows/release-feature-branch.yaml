@@ -16,6 +16,7 @@ jobs:
           - drizzle-orm
           - drizzle-zod
           - drizzle-typebox
+          - drizzle-valibot
     runs-on: ubuntu-20.04
     permissions:
       contents: read

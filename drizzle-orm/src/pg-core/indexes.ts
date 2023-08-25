@@ -1,8 +1,8 @@
-import type { SQL } from '~/sql';
+import type { SQL } from '~/sql/index.ts';
 
-import { entityKind } from '~/entity';
-import type { AnyPgColumn } from './columns';
-import type { AnyPgTable } from './table';
+import { entityKind } from '~/entity.ts';
+import type { PgColumn } from './columns/index.ts';
+import type { PgTable } from './table.ts';
 
 interface IndexConfig {
 	name?: string;
@@ -45,7 +45,7 @@ interface IndexConfig {
 	where?: SQL;
 }
 
-export type IndexColumn = AnyPgColumn;
+export type IndexColumn = PgColumn;
 
 export class IndexBuilderOn {
 	static readonly [entityKind]: string = 'PgIndexBuilderOn';
@@ -62,7 +62,7 @@ export class IndexBuilderOn {
 }
 
 export interface AnyIndexBuilder {
-	build(table: AnyPgTable): Index;
+	build(table: PgTable): Index;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
@@ -119,7 +119,7 @@ export class IndexBuilder implements AnyIndexBuilder {
 	}
 
 	/** @internal */
-	build(table: AnyPgTable): Index {
+	build(table: PgTable): Index {
 		return new Index(this.config, table);
 	}
 }
@@ -127,15 +127,15 @@ export class IndexBuilder implements AnyIndexBuilder {
 export class Index {
 	static readonly [entityKind]: string = 'PgIndex';
 
-	readonly config: IndexConfig & { table: AnyPgTable };
+	readonly config: IndexConfig & { table: PgTable };
 
-	constructor(config: IndexConfig, table: AnyPgTable) {
+	constructor(config: IndexConfig, table: PgTable) {
 		this.config = { ...config, table };
 	}
 }
 
-export type GetColumnsTableName<TColumns> = TColumns extends AnyPgColumn ? TColumns['_']['name']
-	: TColumns extends AnyPgColumn[] ? TColumns[number]['_']['name']
+export type GetColumnsTableName<TColumns> = TColumns extends PgColumn ? TColumns['_']['name']
+	: TColumns extends PgColumn[] ? TColumns[number]['_']['name']
 	: never;
 
 export function index(name?: string): IndexBuilderOn {

@@ -1,8 +1,8 @@
-import type { Column, GetColumnData } from './column';
-import { entityKind } from './entity';
-import type { OptionalKeyOnly, RequiredKeyOnly } from './operations';
-import { SQL, type SQLWrapper } from './sql';
-import { type Simplify, type Update } from './utils';
+import type { Column, GetColumnData } from './column.ts';
+import { entityKind } from './entity.ts';
+import type { OptionalKeyOnly, RequiredKeyOnly } from './operations.ts';
+import { SQL, type SQLWrapper } from './sql/index.ts';
+import { type Simplify, type Update } from './utils.ts';
 
 export interface TableConfig<TColumn extends Column = Column<any>> {
 	name: string;
@@ -47,11 +47,12 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 		readonly name: T['name'];
 		readonly schema: T['schema'];
 		readonly columns: T['columns'];
-		readonly model: {
-			select: InferModel<Table<T>>;
-			insert: InferModel<Table<T>, 'insert'>;
-		};
+		readonly inferSelect: InferSelectModel<Table<T>>;
+		readonly inferInsert: InferInsertModel<Table<T>>;
 	};
+
+	declare readonly $inferSelect: InferSelectModel<Table<T>>;
+	declare readonly $inferInsert: InferInsertModel<Table<T>>;
 
 	/** @internal */
 	static readonly Symbol = {
@@ -125,36 +126,49 @@ export type InferModelFromColumns<
 	TColumns extends Record<string, Column>,
 	TInferMode extends 'select' | 'insert' = 'select',
 	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
-> = TInferMode extends 'insert' ? Simplify<
-		& {
+> = Simplify<
+	TInferMode extends 'insert' ? 
+			& {
+				[
+					Key in keyof TColumns & string as RequiredKeyOnly<
+						MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
+						TColumns[Key]
+					>
+				]: GetColumnData<TColumns[Key], 'query'>;
+			}
+			& {
+				[
+					Key in keyof TColumns & string as OptionalKeyOnly<
+						MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
+						TColumns[Key]
+					>
+				]?: GetColumnData<TColumns[Key], 'query'>;
+			}
+		: {
 			[
-				Key in keyof TColumns & string as RequiredKeyOnly<
-					MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
-					TColumns[Key]
+				Key in keyof TColumns & string as MapColumnName<
+					Key,
+					TColumns[Key],
+					TConfig['dbColumnNames']
 				>
 			]: GetColumnData<TColumns[Key], 'query'>;
 		}
-		& {
-			[
-				Key in keyof TColumns & string as OptionalKeyOnly<
-					MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
-					TColumns[Key]
-				>
-			]?: GetColumnData<TColumns[Key], 'query'>;
-		}
-	>
-	: {
-		[
-			Key in keyof TColumns & string as MapColumnName<
-				Key,
-				TColumns[Key],
-				TConfig['dbColumnNames']
-			>
-		]: GetColumnData<TColumns[Key], 'query'>;
-	};
+>;
 
+/** @deprecated Use one of the alternatives: {@link InferSelectModel} / {@link InferInsertModel}, or `table._.inferSelect` / `table._.inferInsert`
+ */
 export type InferModel<
 	TTable extends Table,
 	TInferMode extends 'select' | 'insert' = 'select',
 	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
 > = InferModelFromColumns<TTable['_']['columns'], TInferMode, TConfig>;
+
+export type InferSelectModel<
+	TTable extends Table,
+	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
+> = InferModelFromColumns<TTable['_']['columns'], 'select', TConfig>;
+
+export type InferInsertModel<
+	TTable extends Table,
+	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
+> = InferModelFromColumns<TTable['_']['columns'], 'insert', TConfig>;

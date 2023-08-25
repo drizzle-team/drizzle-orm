@@ -1,14 +1,14 @@
-import type { ColumnBaseConfig } from '~/column';
 import type {
 	ColumnBuilderBaseConfig,
 	ColumnBuilderRuntimeConfig,
 	HasDefault,
 	MakeColumnConfig,
 	NotNull,
-} from '~/column-builder';
-import { entityKind } from '~/entity';
-import type { AnyMySqlTable } from '~/mysql-core/table';
-import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
+} from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
 export type MySqlSerialBuilderInitial<TName extends string> = NotNull<
 	HasDefault<

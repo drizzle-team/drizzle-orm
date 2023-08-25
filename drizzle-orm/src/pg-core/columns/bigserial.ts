@@ -1,14 +1,14 @@
-import type { ColumnBaseConfig } from '~/column';
 import type {
 	ColumnBuilderBaseConfig,
 	ColumnBuilderRuntimeConfig,
 	HasDefault,
 	MakeColumnConfig,
 	NotNull,
-} from '~/column-builder';
-import { entityKind } from '~/entity';
-import type { AnyPgTable } from '../table';
-import { PgColumn, PgColumnBuilder } from './common';
+} from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnyPgTable } from '../table.ts';
+import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgBigSerial53BuilderInitial<TName extends string> = NotNull<
 	HasDefault<

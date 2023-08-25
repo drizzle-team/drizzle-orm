@@ -1,12 +1,12 @@
-import type { BuildColumns } from '~/column-builder';
-import { entityKind } from '~/entity';
-import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table';
-import type { CheckBuilder } from './checks';
-import type { MySqlColumn, MySqlColumnBuilder } from './columns/common';
-import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
-import type { AnyIndexBuilder } from './indexes';
-import type { PrimaryKeyBuilder } from './primary-keys';
-import type { UniqueConstraintBuilder } from './unique-constraint';
+import type { BuildColumns } from '~/column-builder.ts';
+import { entityKind } from '~/entity.ts';
+import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
+import type { CheckBuilder } from './checks.ts';
+import type { MySqlColumn, MySqlColumnBuilder, MySqlColumnBuilderBase } from './columns/common.ts';
+import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
+import type { AnyIndexBuilder } from './indexes.ts';
+import type { PrimaryKeyBuilder } from './primary-keys.ts';
+import type { UniqueConstraintBuilder } from './unique-constraint.ts';
 
 export type MySqlTableExtraConfig = Record<
 	string,
@@ -57,7 +57,7 @@ export type MySqlTableWithColumns<T extends TableConfig> =
 export function mysqlTableWithSchema<
 	TTableName extends string,
 	TSchemaName extends string | undefined,
-	TColumnsMap extends Record<string, MySqlColumnBuilder>,
+	TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
 >(
 	name: TTableName,
 	columns: TColumnsMap,
@@ -78,7 +78,8 @@ export function mysqlTableWithSchema<
 	}>(name, schema, baseName);
 
 	const builtColumns = Object.fromEntries(
-		Object.entries(columns).map(([name, colBuilder]) => {
+		Object.entries(columns).map(([name, colBuilderBase]) => {
+			const colBuilder = colBuilderBase as MySqlColumnBuilder;
 			const column = colBuilder.build(rawTable);
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
@@ -101,7 +102,7 @@ export function mysqlTableWithSchema<
 export interface MySqlTableFn<TSchemaName extends string | undefined = undefined> {
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, MySqlColumnBuilder>,
+		TColumnsMap extends Record<string, MySqlColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,

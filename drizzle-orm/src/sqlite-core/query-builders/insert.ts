@@ -1,32 +1,32 @@
-import { entityKind, is } from '~/entity';
-import type { SelectResultFields } from '~/query-builders/select.types';
-import type { Placeholder, Query, SQLWrapper } from '~/sql';
-import { Param, SQL, sql } from '~/sql';
-import type { SQLiteDialect } from '~/sqlite-core/dialect';
-import type { IndexColumn } from '~/sqlite-core/indexes';
-import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
-import type { AnySQLiteTable } from '~/sqlite-core/table';
-import { SQLiteTable } from '~/sqlite-core/table';
-import { type InferModel, Table } from '~/table';
-import { mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils';
-import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
-import type { SQLiteUpdateSetSource } from './update';
+import { entityKind, is } from '~/entity.ts';
+import type { SelectResultFields } from '~/query-builders/select.types.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import type { Placeholder, Query, SQLWrapper } from '~/sql/index.ts';
+import { Param, SQL, sql } from '~/sql/index.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { IndexColumn } from '~/sqlite-core/indexes.ts';
+import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
+import { SQLiteTable } from '~/sqlite-core/table.ts';
+import { type InferModel, Table } from '~/table.ts';
+import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils.ts';
+import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
+import type { SQLiteUpdateSetSource } from './update.ts';
 
-export interface SQLiteInsertConfig<TTable extends AnySQLiteTable = AnySQLiteTable> {
+export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[];
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
 }
 
-export type SQLiteInsertValue<TTable extends AnySQLiteTable> = Simplify<
+export type SQLiteInsertValue<TTable extends SQLiteTable> = Simplify<
 	{
 		[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
 	}
 >;
 
 export class SQLiteInsertBuilder<
-	TTable extends AnySQLiteTable,
+	TTable extends SQLiteTable,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 > {
@@ -70,21 +70,21 @@ export class SQLiteInsertBuilder<
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface SQLiteInsert<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TTable extends AnySQLiteTable,
+	TTable extends SQLiteTable,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TResultType extends 'sync' | 'async',
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TRunResult,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TReturning = undefined,
-> extends SQLWrapper {}
+> extends SQLWrapper, QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]> {}
 
 export class SQLiteInsert<
-	TTable extends AnySQLiteTable,
+	TTable extends SQLiteTable,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TReturning = undefined,
-> implements SQLWrapper {
+> extends QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]> implements SQLWrapper {
 	static readonly [entityKind]: string = 'SQLiteInsert';
 
 	declare readonly _: {
@@ -102,19 +102,14 @@ export class SQLiteInsert<
 		private session: SQLiteSession<any, any, any, any>,
 		private dialect: SQLiteDialect,
 	) {
+		super();
 		this.config = { table, values };
 	}
 
-	returning(): Omit<
-		SQLiteInsert<TTable, TResultType, TRunResult, InferModel<TTable>>,
-		'returning' | `onConflict${string}`
-	>;
+	returning(): SQLiteInsert<TTable, TResultType, TRunResult, InferModel<TTable>>;
 	returning<TSelectedFields extends SelectedFieldsFlat>(
 		fields: TSelectedFields,
-	): Omit<
-		SQLiteInsert<TTable, TResultType, TRunResult, SelectResultFields<TSelectedFields>>,
-		'returning' | `onConflict${string}`
-	>;
+	): SQLiteInsert<TTable, TResultType, TRunResult, SelectResultFields<TSelectedFields>>;
 	returning(
 		fields: SelectedFieldsFlat = this.config.table[SQLiteTable.Symbol.Columns],
 	): SQLiteInsert<TTable, TResultType, TRunResult, any> {
@@ -159,15 +154,18 @@ export class SQLiteInsert<
 		{
 			type: TResultType;
 			run: TRunResult;
-			all: TReturning extends undefined ? never : TReturning[];
-			get: TReturning extends undefined ? never : TReturning;
-			values: TReturning extends undefined ? never : any[][];
+			all: TReturning extends undefined ? DrizzleTypeError<'.all() cannot be used without .returning()'> : TReturning[];
+			get: TReturning extends undefined ? DrizzleTypeError<'.get() cannot be used without .returning()'> : TReturning;
+			values: TReturning extends undefined ? DrizzleTypeError<'.values() cannot be used without .returning()'>
+				: any[][];
+			execute: TReturning extends undefined ? TRunResult : TReturning[];
 		}
 	> {
 		return this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
-		);
+			this.config.returning ? 'all' : 'run',
+		) as ReturnType<this['prepare']>;
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
@@ -185,4 +183,9 @@ export class SQLiteInsert<
 	values: ReturnType<this['prepare']>['values'] = (placeholderValues) => {
 		return this.prepare(true).values(placeholderValues);
 	};
+
+	override async execute(): Promise<TReturning extends undefined ? TRunResult : TReturning[]> {
+		return (this.config.returning ? this.all() : this.run()) as TReturning extends undefined ? TRunResult
+			: TReturning[];
+	}
 }

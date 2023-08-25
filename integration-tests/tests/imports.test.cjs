@@ -29,7 +29,13 @@ require('drizzle-orm/sqlite-core');
 require('drizzle-orm/sqlite-proxy');
 require('drizzle-orm/sqlite-proxy/migrator');
 require('drizzle-orm/migrator');
-const { createInsertSchema } = require('drizzle-zod');
+const { createInsertSchema: createZodInsertSchema } = require('drizzle-zod');
+const {
+	createInsertSchema: createTypeboxInsertSchema,
+} = require('drizzle-typebox');
+const {
+	createInsertSchema: createValibotInsertSchema,
+} = require('drizzle-valibot');
 const { compatibilityVersion, npmVersion } = require('drizzle-orm/version');
 const { strict: assert } = require('node:assert');
 
@@ -40,4 +46,6 @@ const test = pgTable('test', {
 	id: serial('id').primaryKey(),
 });
 
-const insertSchema = createInsertSchema(test);
+const zodInsertSchema = createZodInsertSchema(test);
+const typeboxInsertSchema = createTypeboxInsertSchema(test);
+const valibotInsertSchema = createValibotInsertSchema(test);

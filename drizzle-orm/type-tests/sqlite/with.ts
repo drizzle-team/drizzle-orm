@@ -1,9 +1,9 @@
-import type { Equal } from 'type-tests/utils';
-import { Expect } from 'type-tests/utils';
-import { gt, inArray } from '~/expressions';
-import { sql } from '~/sql';
-import { integer, sqliteTable, text } from '~/sqlite-core';
-import { db } from './db';
+import type { Equal } from 'type-tests/utils.ts';
+import { Expect } from 'type-tests/utils.ts';
+import { gt, inArray } from '~/expressions.ts';
+import { sql } from '~/sql/index.ts';
+import { integer, sqliteTable, text } from '~/sqlite-core/index.ts';
+import { db } from './db.ts';
 
 const orders = sqliteTable('orders', {
 	id: integer('id').primaryKey(),
