@@ -2,6 +2,7 @@
   "name": "integration-tests",
   "version": "1.0.0",
   "description": "",
+  "type": "module",
   "scripts": {
     "test:types": "tsc",
     "test": "ava tests --timeout=60s --serial && pnpm test:esm && pnpm test:rqb",
@@ -61,6 +62,8 @@
     "dockerode": "^3.3.4",
     "dotenv": "^16.1.4",
     "drizzle-zod": "workspace:../drizzle-zod/dist",
+    "drizzle-typebox": "workspace:../drizzle-typebox/dist",
+    "drizzle-valibot": "workspace:../drizzle-valibot/dist",
     "express": "^4.18.2",
     "get-port": "^7.0.0",
     "@miniflare/shared": "^2.14.0",

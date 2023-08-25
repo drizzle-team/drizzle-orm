@@ -16,7 +16,7 @@ import {
 	sqliteView,
 	text,
 } from 'drizzle-orm/sqlite-core';
-import { Expect } from './utils';
+import { Expect } from './utils.ts';
 
 const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey(),

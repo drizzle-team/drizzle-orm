@@ -1,16 +1,16 @@
-import { entityKind, is } from '~/entity';
-import type { SelectResultFields } from '~/query-builders/select.types';
-import { QueryPromise } from '~/query-promise';
-import type { Placeholder, Query, SQLWrapper } from '~/sql';
-import { Param, SQL, sql } from '~/sql';
-import type { SQLiteDialect } from '~/sqlite-core/dialect';
-import type { IndexColumn } from '~/sqlite-core/indexes';
-import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
-import { SQLiteTable } from '~/sqlite-core/table';
-import { type InferModel, Table } from '~/table';
-import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils';
-import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
-import type { SQLiteUpdateSetSource } from './update';
+import { entityKind, is } from '~/entity.ts';
+import type { SelectResultFields } from '~/query-builders/select.types.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import type { Placeholder, Query, SQLWrapper } from '~/sql/index.ts';
+import { Param, SQL, sql } from '~/sql/index.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { IndexColumn } from '~/sqlite-core/indexes.ts';
+import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
+import { SQLiteTable } from '~/sqlite-core/table.ts';
+import { type InferModel, Table } from '~/table.ts';
+import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils.ts';
+import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
+import type { SQLiteUpdateSetSource } from './update.ts';
 
 export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 	table: TTable;

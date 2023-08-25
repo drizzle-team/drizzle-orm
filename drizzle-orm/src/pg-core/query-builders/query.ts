@@ -1,18 +1,18 @@
-import { entityKind } from '~/entity';
-import { QueryPromise } from '~/query-promise';
+import { entityKind } from '~/entity.ts';
+import { QueryPromise } from '~/query-promise.ts';
 import {
 	type BuildQueryResult,
 	type DBQueryConfig,
 	mapRelationalRow,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
-} from '~/relations';
-import type { SQL } from '~/sql';
-import { tracer } from '~/tracing';
-import { type KnownKeysOnly } from '~/utils';
-import type { PgDialect } from '../dialect';
-import type { PgSession, PreparedQuery, PreparedQueryConfig } from '../session';
-import { type PgTable } from '../table';
+} from '~/relations.ts';
+import type { SQL } from '~/sql/index.ts';
+import { tracer } from '~/tracing.ts';
+import { type KnownKeysOnly } from '~/utils.ts';
+import type { PgDialect } from '../dialect.ts';
+import type { PgSession, PreparedQuery, PreparedQueryConfig } from '../session.ts';
+import { type PgTable } from '../table.ts';
 
 export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields extends TableRelationalConfig> {
 	static readonly [entityKind]: string = 'PgRelationalQueryBuilder';
