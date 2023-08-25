@@ -5,8 +5,8 @@ import {
 	ExecuteStatementCommand,
 	RollbackTransactionCommand,
 } from '@aws-sdk/client-rds-data';
-import { entityKind } from '~/entity';
-import type { Logger } from '~/logger';
+import { entityKind } from '~/entity.ts';
+import type { Logger } from '~/logger.ts';
 import {
 	type PgDialect,
 	PgSession,
@@ -15,12 +15,12 @@ import {
 	PreparedQuery,
 	type PreparedQueryConfig,
 	type QueryResultHKT,
-} from '~/pg-core';
-import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
-import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
-import { fillPlaceholders, type Query, type QueryTypingsValue, type SQL, sql } from '~/sql';
-import { mapResultRow } from '~/utils';
-import { getValueFromDataApi, toValueParam } from '../common';
+} from '~/pg-core/index.ts';
+import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
+import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations.ts';
+import { fillPlaceholders, type QueryTypingsValue, type QueryWithTypings, type SQL, sql } from '~/sql/index.ts';
+import { mapResultRow } from '~/utils.ts';
+import { getValueFromDataApi, toValueParam } from '../common/index.ts';
 
 export type AwsDataApiClient = RDSDataClient;
 
@@ -131,7 +131,7 @@ export class AwsDataApiSession<
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
-		query: Query,
+		query: QueryWithTypings,
 		fields: SelectedFieldsOrdered | undefined,
 		transactionId?: string,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],

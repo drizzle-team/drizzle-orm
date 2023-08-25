@@ -1,17 +1,23 @@
-import { entityKind, is } from '~/entity';
-import type { PgDialect } from '~/pg-core/dialect';
-import type { IndexColumn } from '~/pg-core/indexes';
-import type { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
-import type { PgTable } from '~/pg-core/table';
-import type { SelectResultFields } from '~/query-builders/select.types';
-import { QueryPromise } from '~/query-promise';
-import type { Placeholder, Query, SQLWrapper } from '~/sql';
-import { Param, SQL, sql } from '~/sql';
-import { type InferModel, Table } from '~/table';
-import { tracer } from '~/tracing';
-import { mapUpdateSet, orderSelectedFields } from '~/utils';
-import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
-import type { PgUpdateSetSource } from './update';
+import { entityKind, is } from '~/entity.ts';
+import type { PgDialect } from '~/pg-core/dialect.ts';
+import type { IndexColumn } from '~/pg-core/indexes.ts';
+import type {
+	PgSession,
+	PreparedQuery,
+	PreparedQueryConfig,
+	QueryResultHKT,
+	QueryResultKind,
+} from '~/pg-core/session.ts';
+import type { PgTable } from '~/pg-core/table.ts';
+import type { SelectResultFields } from '~/query-builders/select.types.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import type { Placeholder, Query, SQLWrapper } from '~/sql/index.ts';
+import { Param, SQL, sql } from '~/sql/index.ts';
+import { type InferModel, Table } from '~/table.ts';
+import { tracer } from '~/tracing.ts';
+import { mapUpdateSet, orderSelectedFields } from '~/utils.ts';
+import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
+import type { PgUpdateSetSource } from './update.ts';
 
 export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	table: TTable;
@@ -138,7 +144,7 @@ export class PgInsert<
 		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	toSQL(): { sql: Query['sql']; params: Query['params'] } {
+	toSQL(): Query {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}

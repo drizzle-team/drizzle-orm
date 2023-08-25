@@ -1,25 +1,20 @@
 import type { Client, ResultSet } from '@libsql/client';
-import { entityKind } from '~/entity';
-import { DefaultLogger } from '~/logger';
-import { type SelectResult } from '~/query-builders/select.types';
+import { DefaultLogger } from '~/logger.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
-} from '~/relations';
-import {
-	type SQLiteDelete,
-	type SQLiteInsert,
-	type SQLiteSelect,
-	type SQLiteUpdate,
-} from '~/sqlite-core';
-import { BaseSQLiteDatabase } from '~/sqlite-core/db';
-import { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
-import { type SQLiteRelationalQuery } from '~/sqlite-core/query-builders/query';
-import { type SQLiteRaw } from '~/sqlite-core/query-builders/raw';
-import { type DrizzleConfig } from '~/utils';
-import { LibSQLSession } from './session';
+} from '~/relations.ts';
+import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
+import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
+import { type DrizzleConfig } from '~/utils.ts';
+import { LibSQLSession } from './session.ts';
+import { entityKind } from '~/entity.ts';
+import type { SQLiteDelete, SQLiteInsert, SQLiteSelect, SQLiteUpdate } from '~/sqlite-core/index.ts';
+import type { SQLiteRelationalQuery } from '~/sqlite-core/query-builders/query.ts';
+import type { SQLiteRaw } from '~/sqlite-core/query-builders/raw.ts';
+import type { SelectResult } from '~/query-builders/select.types.ts';
 
 export type BatchParameters =
 	| SQLiteUpdate<any, 'async', ResultSet, any>

@@ -22,8 +22,10 @@ import {
 	timestamp,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
-import { Client } from 'pg';
+import pg from 'pg';
 import { v4 as uuid } from 'uuid';
+
+const { Client } = pg;
 
 const mySchema = pgSchema('mySchema');
 
@@ -59,7 +61,7 @@ interface Context {
 	docker: Docker;
 	pgContainer: Docker.Container;
 	db: NodePgDatabase;
-	client: Client;
+	client: pg.Client;
 }
 
 const test = anyTest as TestFn<Context>;

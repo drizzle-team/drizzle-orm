@@ -29,9 +29,23 @@ import {
 	varchar,
 	year,
 } from 'drizzle-orm/mysql-core';
+import {
+	any,
+	bigint as valibigint,
+	boolean as valiboolean,
+	date as valiDate,
+	enumType,
+	maxLength,
+	minLength,
+	minValue,
+	number,
+	object,
+	optional,
+	parse,
+	string,
+} from 'valibot';
 import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
 import { expectSchemaShape } from './utils';
-import { bigint as valibigint, boolean as valiboolean, date as valiDate, object, parse, string, number, minValue, minLength, maxLength, enumType, any, optional } from 'valibot';
 
 const customInt = customType<{ data: number }>({
 	dataType() {
@@ -140,14 +154,14 @@ test('insert invalid varchar length', (t) => {
 				...testTableRow,
 				varchar: 'A'.repeat(201),
 			}),
-		undefined /* schema.safeParse({ ...testTableRow, varchar: 'A'.repeat(201) }).success */
+		undefined, /* schema.safeParse({ ...testTableRow, varchar: 'A'.repeat(201) }).success */
 	);
 });
 
 test('insert smaller char length should work', (t) => {
 	const schema = createInsertSchema(testTable);
 
-	const input = { ...testTableRow, char: 'abc' }
+	const input = { ...testTableRow, char: 'abc' };
 
 	t.deepEqual(parse(schema, input), input);
 });
@@ -157,7 +171,7 @@ test('insert larger char length should fail', (t) => {
 
 	t.throws(
 		() => parse(schema, { ...testTableRow, char: 'abcde' }),
-		undefined
+		undefined,
 	);
 });
 

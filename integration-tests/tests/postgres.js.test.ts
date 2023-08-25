@@ -44,7 +44,7 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import getPort from 'get-port';
 import postgres, { type Sql } from 'postgres';
 import { v4 as uuid } from 'uuid';
-import { type Equal, Expect } from './utils';
+import { type Equal, Expect } from './utils.ts';
 
 const QUERY_LOGGING = false;
 
@@ -81,7 +81,7 @@ const courseCategoriesTable = pgTable('course_categories', {
 const orders = pgTable('orders', {
 	id: serial('id').primaryKey(),
 	region: text('region').notNull(),
-	product: text('product').notNull(),
+	product: text('product').notNull().$default(() => 'random_string'),
 	amount: integer('amount').notNull(),
 	quantity: integer('quantity').notNull(),
 });
@@ -840,6 +840,30 @@ test.serial('Query check: Insert all defaults in multiple rows', async (t) => {
 		sql: 'insert into "users" ("id", "name", "state") values (default, default, default), (default, default, default)',
 		params: [],
 	});
+});
+
+test.serial('$default function', async (t) => {
+	const { db } = t.context;
+
+	const insertedOrder = await db.insert(orders).values({ id: 1, region: 'Ukraine', amount: 1, quantity: 1 })
+		.returning();
+	const selectedOrder = await db.select().from(orders);
+
+	t.deepEqual(insertedOrder, [{
+		id: 1,
+		amount: 1,
+		quantity: 1,
+		region: 'Ukraine',
+		product: 'random_string',
+	}]);
+
+	t.deepEqual(selectedOrder, [{
+		id: 1,
+		amount: 1,
+		quantity: 1,
+		region: 'Ukraine',
+		product: 'random_string',
+	}]);
 });
 
 test.serial('Insert all defaults in 1 row', async (t) => {

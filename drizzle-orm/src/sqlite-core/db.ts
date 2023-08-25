@@ -1,30 +1,28 @@
-import { entityKind } from '~/entity';
-import type { TypedQueryBuilder } from '~/query-builders/query-builder';
-import { type ExtractTablesWithRelations, type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
-import type { SQLWrapper } from '~/sql';
-import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect';
+import { entityKind } from '~/entity.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import {
+	type ExtractTablesWithRelations,
+	type RelationalSchemaConfig,
+	type TablesRelationalConfig,
+} from '~/relations.ts';
+import type { SQLWrapper } from '~/sql/index.ts';
+import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import {
 	QueryBuilder,
 	SQLiteDelete,
 	SQLiteInsertBuilder,
 	SQLiteSelectBuilder,
 	SQLiteUpdateBuilder,
-} from '~/sqlite-core/query-builders';
-import type {
-	DBResult,
-	Result,
-	SQLiteSession,
-	SQLiteTransaction,
-	SQLiteTransactionConfig,
-} from '~/sqlite-core/session';
-import type { SQLiteTable } from '~/sqlite-core/table';
-import { SelectionProxyHandler, WithSubquery } from '~/subquery';
-import { type DrizzleTypeError } from '~/utils';
-import { type ColumnsSelection } from '~/view';
-import { RelationalQueryBuilder } from './query-builders/query';
-import { SQLiteRaw } from './query-builders/raw';
-import type { SelectedFields } from './query-builders/select.types';
-import type { WithSubqueryWithSelection } from './subquery';
+} from '~/sqlite-core/query-builders/index.ts';
+import type { DBResult, Result, SQLiteSession, SQLiteTransaction, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
+import type { SQLiteTable } from '~/sqlite-core/table.ts';
+import { SelectionProxyHandler, WithSubquery } from '~/subquery.ts';
+import { type DrizzleTypeError } from '~/utils.ts';
+import { type ColumnsSelection } from '~/view.ts';
+import { RelationalQueryBuilder } from './query-builders/query.ts';
+import type { SelectedFields } from './query-builders/select.types.ts';
+import type { WithSubqueryWithSelection } from './subquery.ts';
+import { SQLiteRaw } from './query-builders/raw.ts';
 
 export class BaseSQLiteDatabase<
 	TResultKind extends 'sync' | 'async',

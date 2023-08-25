@@ -48,14 +48,16 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
-import { Client } from 'pg';
+import pg from 'pg';
 import { v4 as uuid } from 'uuid';
-import { type Equal, Expect } from './utils';
+import { type Equal, Expect } from './utils.ts';
+
+const { Client } = pg;
 
 const ENABLE_LOGGING = false;
 
 const usersTable = pgTable('users', {
-	id: serial('id').primaryKey(),
+	id: serial('id' as string).primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
 	jsonb: jsonb('jsonb').$type<string[]>(),
@@ -88,7 +90,7 @@ const courseCategoriesTable = pgTable('course_categories', {
 const orders = pgTable('orders', {
 	id: serial('id').primaryKey(),
 	region: text('region').notNull(),
-	product: text('product').notNull(),
+	product: text('product').notNull().$default(() => 'random_string'),
 	amount: integer('amount').notNull(),
 	quantity: integer('quantity').notNull(),
 });
@@ -120,7 +122,7 @@ interface Context {
 	docker: Docker;
 	pgContainer: Docker.Container;
 	db: NodePgDatabase;
-	client: Client;
+	client: pg.Client;
 }
 
 const test = anyTest as TestFn<Context>;
@@ -361,6 +363,30 @@ test.serial('select typed sql', async (t) => {
 	}).from(usersTable);
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
+});
+
+test.serial('$default function', async (t) => {
+	const { db } = t.context;
+
+	const insertedOrder = await db.insert(orders).values({ id: 1, region: 'Ukraine', amount: 1, quantity: 1 })
+		.returning();
+	const selectedOrder = await db.select().from(orders);
+
+	t.deepEqual(insertedOrder, [{
+		id: 1,
+		amount: 1,
+		quantity: 1,
+		region: 'Ukraine',
+		product: 'random_string',
+	}]);
+
+	t.deepEqual(selectedOrder, [{
+		id: 1,
+		amount: 1,
+		quantity: 1,
+		region: 'Ukraine',
+		product: 'random_string',
+	}]);
 });
 
 test.serial('select distinct', async (t) => {

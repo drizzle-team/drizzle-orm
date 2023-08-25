@@ -1,13 +1,12 @@
 import type { RunResult } from 'better-sqlite3';
-import type { Equal } from 'type-tests/utils';
-import { Expect } from 'type-tests/utils';
-import { and, eq } from '~/expressions';
-import { placeholder, sql } from '~/sql';
-import type { InferModel } from '~/table';
-import { type DrizzleTypeError } from '~/utils';
-import { bunDb, db } from './db';
-import type { NewUser } from './tables';
-import { users } from './tables';
+import type { Equal } from 'type-tests/utils.ts';
+import { Expect } from 'type-tests/utils.ts';
+import { and, eq } from '~/expressions.ts';
+import { sql } from '~/sql/index.ts';
+import { type DrizzleTypeError } from '~/utils.ts';
+import { bunDb, db } from './db.ts';
+import type { NewUser } from './tables.ts';
+import { users } from './tables.ts';
 
 const newUser: NewUser = {
 	homeCity: 1,
@@ -48,16 +47,16 @@ const insertRunReturningAllBun = bunDb.insert(users).values(newUser).returning()
 Expect<Equal<void, typeof insertRunReturningAllBun>>;
 
 const insertAllReturningAll = db.insert(users).values(newUser).returning().all();
-Expect<Equal<InferModel<typeof users>[], typeof insertAllReturningAll>>;
+Expect<Equal<typeof users.$inferSelect[], typeof insertAllReturningAll>>;
 
 const insertAllReturningAllBun = bunDb.insert(users).values(newUser).returning().all();
-Expect<Equal<InferModel<typeof users>[], typeof insertAllReturningAllBun>>;
+Expect<Equal<typeof users.$inferSelect[], typeof insertAllReturningAllBun>>;
 
 const insertGetReturningAll = db.insert(users).values(newUser).returning().get();
-Expect<Equal<InferModel<typeof users>, typeof insertGetReturningAll>>;
+Expect<Equal<typeof users.$inferSelect, typeof insertGetReturningAll>>;
 
 const insertGetReturningAllBun = bunDb.insert(users).values(newUser).returning().get();
-Expect<Equal<InferModel<typeof users>, typeof insertGetReturningAllBun>>;
+Expect<Equal<typeof users.$inferSelect, typeof insertGetReturningAllBun>>;
 
 const insertValuesReturningAll = db.insert(users).values(newUser).returning().values();
 Expect<Equal<any[][], typeof insertValuesReturningAll>>;
@@ -167,8 +166,8 @@ db.insert(users).values(newUser)
 	.run();
 
 const stmt = db.select().from(users)
-	.where(and(eq(users.id, placeholder('id'))))
-	.offset(placeholder('offset'))
-	.limit(placeholder('limit'))
+	.where(and(eq(users.id, sql.placeholder('id'))))
+	.offset(sql.placeholder('offset'))
+	.limit(sql.placeholder('limit'))
 	.prepare();
 stmt.run({ id: 1, limit: 10, offset: 20 });

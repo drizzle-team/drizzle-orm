@@ -1,5 +1,5 @@
-import { entityKind } from '~/entity';
-import type { MySqlDialect } from '~/mysql-core/dialect';
+import { entityKind } from '~/entity.ts';
+import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type {
 	MySqlSession,
 	PreparedQueryConfig,
@@ -7,11 +7,11 @@ import type {
 	PreparedQueryKind,
 	QueryResultHKT,
 	QueryResultKind,
-} from '~/mysql-core/session';
-import type { MySqlTable } from '~/mysql-core/table';
-import { QueryPromise } from '~/query-promise';
-import type { Query, SQL, SQLWrapper } from '~/sql';
-import type { SelectedFieldsOrdered } from './select.types';
+} from '~/mysql-core/session.ts';
+import type { MySqlTable } from '~/mysql-core/table.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/index.ts';
+import type { SelectedFieldsOrdered } from './select.types.ts';
 
 export interface MySqlDeleteConfig {
 	where?: SQL | undefined;
@@ -58,7 +58,7 @@ export class MySqlDelete<
 		return this.dialect.buildDeleteQuery(this.config);
 	}
 
-	toSQL(): { sql: Query['sql']; params: Query['params'] } {
+	toSQL(): Query {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}

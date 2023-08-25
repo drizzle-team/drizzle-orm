@@ -1,14 +1,20 @@
-import type { GetColumnData } from '~/column';
-import { entityKind } from '~/entity';
-import type { PgDialect } from '~/pg-core/dialect';
-import type { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
-import type { PgTable } from '~/pg-core/table';
-import type { SelectResultFields } from '~/query-builders/select.types';
-import { QueryPromise } from '~/query-promise';
-import type { Query, SQL, SQLWrapper } from '~/sql';
-import { type InferModel, Table } from '~/table';
-import { mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils';
-import type { SelectedFields, SelectedFieldsOrdered } from './select.types';
+import type { GetColumnData } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { PgDialect } from '~/pg-core/dialect.ts';
+import type {
+	PgSession,
+	PreparedQuery,
+	PreparedQueryConfig,
+	QueryResultHKT,
+	QueryResultKind,
+} from '~/pg-core/session.ts';
+import type { PgTable } from '~/pg-core/table.ts';
+import type { SelectResultFields } from '~/query-builders/select.types.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/index.ts';
+import { type InferModel, Table } from '~/table.ts';
+import { mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import type { SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
 
 export interface PgUpdateConfig {
 	where?: SQL | undefined;

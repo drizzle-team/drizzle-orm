@@ -3,7 +3,7 @@ import { type Client, createClient } from '@libsql/client';
 import { desc, DrizzleError, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import * as schema from './sqlite.schema';
+import * as schema from './sqlite.schema.ts';
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
@@ -5988,6 +5988,13 @@ test('async api - prepare', async () => {
 	const queryStmt = db.query.usersTable.findMany().prepare();
 	const users = await queryStmt.execute();
 	expect(users).toEqual([{ id: 1, name: 'Dan', verified: 0, invitedBy: null }]);
+});
+
+test('.toSQL()', () => {
+	const query = db.query.usersTable.findFirst().toSQL();
+
+	expect(query).toHaveProperty('sql', expect.any(String));
+	expect(query).toHaveProperty('params', expect.any(Array));
 });
 
 // + custom + where + orderby

@@ -6,7 +6,7 @@ import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import * as schema from './mysql.schema';
+import * as schema from './mysql.schema.ts';
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
@@ -6184,6 +6184,13 @@ test('Get groups with users + custom', async (t) => {
 			},
 		}],
 	});
+});
+
+test('.toSQL()', () => {
+	const query = db.query.usersTable.findFirst().toSQL();
+
+	expect(query).toHaveProperty('sql', expect.any(String));
+	expect(query).toHaveProperty('params', expect.any(Array));
 });
 
 // + custom + where + orderby

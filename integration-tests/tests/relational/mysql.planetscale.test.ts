@@ -4,7 +4,7 @@ import { connect } from '@planetscale/database';
 import { desc, DrizzleError, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type PlanetScaleDatabase } from 'drizzle-orm/planetscale-serverless';
 import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import * as schema from './mysql.schema';
+import * as schema from './mysql.schema.ts';
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
@@ -5964,6 +5964,13 @@ test('Get groups with users + custom', async () => {
 			},
 		}],
 	});
+});
+
+test('.toSQL()', () => {
+	const query = db.query.usersTable.findFirst().toSQL();
+
+	expect(query).toHaveProperty('sql', expect.any(String));
+	expect(query).toHaveProperty('params', expect.any(Array));
 });
 
 // + custom + where + orderby

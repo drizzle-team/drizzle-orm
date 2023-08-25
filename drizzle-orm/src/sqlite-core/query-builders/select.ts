@@ -1,12 +1,5 @@
-import { entityKind, is } from '~/entity';
-import { type Placeholder, type Query, SQL } from '~/sql';
-import type { SQLiteColumn } from '~/sqlite-core/columns';
-import type { SQLiteDialect } from '~/sqlite-core/dialect';
-import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
-import type { SQLiteTable } from '~/sqlite-core/table';
-import { Table } from '~/table';
-
-import { TypedQueryBuilder } from '~/query-builders/query-builder';
+import { entityKind, is } from '~/entity.ts';
+import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	BuildSubquerySelection,
 	GetSelectTableName,
@@ -15,10 +8,16 @@ import type {
 	JoinType,
 	SelectMode,
 	SelectResult,
-} from '~/query-builders/select.types';
-import { QueryPromise } from '~/query-promise';
-import type { SubqueryWithSelection } from '~/sqlite-core/subquery';
-import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
+} from '~/query-builders/select.types.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import { type Placeholder, type Query, SQL } from '~/sql/index.ts';
+import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
+import type { SubqueryWithSelection } from '~/sqlite-core/subquery.ts';
+import type { SQLiteTable } from '~/sqlite-core/table.ts';
+import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery.ts';
+import { Table } from '~/table.ts';
 import {
 	applyMixins,
 	getTableColumns,
@@ -26,9 +25,9 @@ import {
 	orderSelectedFields,
 	type PromiseOf,
 	type ValueOrArray,
-} from '~/utils';
-import { type ColumnsSelection, View, ViewBaseConfig } from '~/view';
-import { SQLiteViewBase } from '../view';
+} from '~/utils.ts';
+import { type ColumnsSelection, View, ViewBaseConfig } from '~/view.ts';
+import { SQLiteViewBase } from '../view.ts';
 import type {
 	JoinFn,
 	SelectedFields,
@@ -36,7 +35,7 @@ import type {
 	SQLiteSelectHKT,
 	SQLiteSelectHKTBase,
 	SQLiteSelectQueryBuilderHKT,
-} from './select.types';
+} from './select.types.ts';
 
 type CreateSQLiteSelectFromBuilderMode<
 	TBuilderMode extends 'db' | 'qb',
@@ -344,7 +343,7 @@ export abstract class SQLiteSelectQueryBuilder<
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	toSQL(): { sql: Query['sql']; params: Query['params'] } {
+	toSQL(): Query {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}

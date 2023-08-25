@@ -21,7 +21,7 @@ import {
 	unique,
 	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
-import { Expect } from './utils';
+import { Expect } from './utils.ts';
 
 const ENABLE_LOGGING = false;
 
@@ -2012,4 +2012,24 @@ test.serial('select + .get() for empty result', (t) => {
 	t.is(res, undefined);
 
 	db.run(sql`drop table ${users}`);
+});
+
+test.serial.only('text w/ json mode', (t) => {
+	const { db } = t.context;
+
+	const test = sqliteTable('test', {
+		data: text('data', { mode: 'json' }).notNull(),
+		dataTyped: text('data_typed', { mode: 'json' }).$type<{ a: 1 }>().notNull(),
+	});
+
+	db.run(sql`drop table if exists ${test}`);
+	db.run(sql`create table ${test} (data text not null, data_typed text not null)`);
+
+	db.insert(test).values({ data: { foo: 'bar' }, dataTyped: { a: 1 } }).run();
+
+	const res = db.select().from(test).get();
+
+	t.deepEqual(res, { data: { foo: 'bar' }, dataTyped: { a: 1 } });
+
+	db.run(sql`drop table ${test}`);
 });

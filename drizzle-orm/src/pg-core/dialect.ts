@@ -1,12 +1,12 @@
-import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias';
-import { Column } from '~/column';
-import { entityKind, is } from '~/entity';
-import { DrizzleError } from '~/errors';
-import type { MigrationMeta } from '~/migrator';
-import { PgColumn, PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core/columns';
-import type { PgDeleteConfig, PgInsertConfig, PgUpdateConfig } from '~/pg-core/query-builders';
-import type { Join, PgSelectConfig, SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
-import { PgTable } from '~/pg-core/table';
+import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
+import { Column } from '~/column.ts';
+import { entityKind, is } from '~/entity.ts';
+import { DrizzleError } from '~/errors.ts';
+import type { MigrationMeta } from '~/migrator.ts';
+import { PgColumn, PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core/columns/index.ts';
+import type { PgDeleteConfig, PgInsertConfig, PgUpdateConfig } from '~/pg-core/query-builders/index.ts';
+import type { Join, PgSelectConfig, SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
+import { PgTable } from '~/pg-core/table.ts';
 import {
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
@@ -18,24 +18,24 @@ import {
 	type Relation,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
-} from '~/relations';
+} from '~/relations.ts';
 import {
 	and,
 	type DriverValueEncoder,
 	eq,
 	Param,
-	type Query,
 	type QueryTypingsValue,
+	type QueryWithTypings,
 	SQL,
 	sql,
 	type SQLChunk,
-} from '~/sql';
-import { Subquery, SubqueryConfig } from '~/subquery';
-import { getTableName, Table } from '~/table';
-import { orderSelectedFields, type UpdateSet } from '~/utils';
-import { View, ViewBaseConfig } from '~/view';
-import type { PgSession } from './session';
-import { type PgMaterializedView, PgViewBase } from './view';
+} from '~/sql/index.ts';
+import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { getTableName, Table } from '~/table.ts';
+import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { View, ViewBaseConfig } from '~/view.ts';
+import type { PgSession } from './session.ts';
+import { type PgMaterializedView, PgViewBase } from './view.ts';
 
 export class PgDialect {
 	static readonly [entityKind]: string = 'PgDialect';
@@ -415,7 +415,7 @@ export class PgDialect {
 		}
 	}
 
-	sqlToQuery(sql: SQL): Query {
+	sqlToQuery(sql: SQL): QueryWithTypings {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,

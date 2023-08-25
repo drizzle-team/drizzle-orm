@@ -1,23 +1,24 @@
-import { entityKind } from '~/entity';
-import { QueryPromise } from '~/query-promise';
+import { entityKind } from '~/entity.ts';
+import { QueryPromise } from '~/query-promise.ts';
 import {
 	type BuildQueryResult,
+	type BuildRelationalQueryResult,
 	type DBQueryConfig,
 	mapRelationalRow,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
-} from '~/relations';
-import { type SQL } from '~/sql';
-import { type KnownKeysOnly } from '~/utils';
-import { type MySqlDialect } from '../dialect';
+} from '~/relations.ts';
+import { type Query, type QueryWithTypings, type SQL } from '~/sql/index.ts';
+import { type KnownKeysOnly } from '~/utils.ts';
+import { type MySqlDialect } from '../dialect.ts';
 import {
 	type Mode,
 	type MySqlSession,
 	type PreparedQueryConfig,
 	type PreparedQueryHKTBase,
 	type PreparedQueryKind,
-} from '../session';
-import { type MySqlTable } from '../table';
+} from '../session.ts';
+import { type MySqlTable } from '../table.ts';
 
 export class RelationalQueryBuilder<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
@@ -96,6 +97,21 @@ export class MySqlRelationalQuery<
 	}
 
 	prepare() {
+		const { query, builtQuery } = this._toSQL();
+		return this.session.prepareQuery(
+			builtQuery,
+			undefined,
+			(rawRows) => {
+				const rows = rawRows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, query.selection));
+				if (this.queryMode === 'first') {
+					return rows[0] as TResult;
+				}
+				return rows as TResult;
+			},
+		) as PreparedQueryKind<TPreparedQueryHKT, PreparedQueryConfig & { execute: TResult }, true>;
+	}
+
+	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
 		const query = this.mode === 'planetscale'
 			? this.dialect.buildRelationalQueryWithoutLateralSubqueries({
 				fullSchema: this.fullSchema,
@@ -117,17 +133,12 @@ export class MySqlRelationalQuery<
 			});
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
-		return this.session.prepareQuery(
-			builtQuery,
-			undefined,
-			(rawRows) => {
-				const rows = rawRows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, query.selection));
-				if (this.queryMode === 'first') {
-					return rows[0] as TResult;
-				}
-				return rows as TResult;
-			},
-		) as PreparedQueryKind<TPreparedQueryHKT, PreparedQueryConfig & { execute: TResult }, true>;
+
+		return { builtQuery, query };
+	}
+
+	toSQL(): Query {
+		return this._toSQL().builtQuery;
 	}
 
 	override execute(): Promise<TResult> {

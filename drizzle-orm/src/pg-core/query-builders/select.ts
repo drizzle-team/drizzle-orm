@@ -1,11 +1,11 @@
-import { entityKind, is } from '~/entity';
-import type { PgColumn } from '~/pg-core/columns';
-import type { PgDialect } from '~/pg-core/dialect';
-import type { PgSession, PreparedQuery, PreparedQueryConfig } from '~/pg-core/session';
-import type { SubqueryWithSelection } from '~/pg-core/subquery';
-import type { PgTable } from '~/pg-core/table';
-import { PgViewBase } from '~/pg-core/view';
-import { TypedQueryBuilder } from '~/query-builders/query-builder';
+import { entityKind, is } from '~/entity.ts';
+import type { PgColumn } from '~/pg-core/columns/index.ts';
+import type { PgDialect } from '~/pg-core/dialect.ts';
+import type { PgSession, PreparedQuery, PreparedQueryConfig } from '~/pg-core/session.ts';
+import type { SubqueryWithSelection } from '~/pg-core/subquery.ts';
+import type { PgTable } from '~/pg-core/table.ts';
+import { PgViewBase } from '~/pg-core/view.ts';
+import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	BuildSubquerySelection,
 	GetSelectTableName,
@@ -14,15 +14,15 @@ import type {
 	JoinType,
 	SelectMode,
 	SelectResult,
-} from '~/query-builders/select.types';
-import { QueryPromise } from '~/query-promise';
-import { type Placeholder, type Query, SQL, type SQLWrapper } from '~/sql';
-import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
-import { Table } from '~/table';
-import { tracer } from '~/tracing';
-import { applyMixins, getTableColumns, getTableLikeName, type ValueOrArray } from '~/utils';
-import { orderSelectedFields } from '~/utils';
-import { type ColumnsSelection, View, ViewBaseConfig } from '~/view';
+} from '~/query-builders/select.types.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import { type Placeholder, type Query, SQL, type SQLWrapper } from '~/sql/index.ts';
+import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery.ts';
+import { Table } from '~/table.ts';
+import { tracer } from '~/tracing.ts';
+import { applyMixins, getTableColumns, getTableLikeName, type ValueOrArray } from '~/utils.ts';
+import { orderSelectedFields } from '~/utils.ts';
+import { type ColumnsSelection, View, ViewBaseConfig } from '~/view.ts';
 import type {
 	JoinFn,
 	LockConfig,
@@ -32,7 +32,7 @@ import type {
 	PgSelectHKTBase,
 	PgSelectQueryBuilderHKT,
 	SelectedFields,
-} from './select.types';
+} from './select.types.ts';
 
 type CreatePgSelectFromBuilderMode<
 	TBuilderMode extends 'db' | 'qb',
@@ -463,7 +463,7 @@ export abstract class PgSelectQueryBuilder<
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	toSQL(): { sql: Query['sql']; params: Query['params'] } {
+	toSQL(): Query {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}

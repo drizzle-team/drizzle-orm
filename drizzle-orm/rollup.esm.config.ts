@@ -1,6 +1,7 @@
 import json from '@rollup/plugin-json';
 import typescript from '@rollup/plugin-typescript';
 import { defineConfig } from 'rollup';
+
 import { entries, external } from './rollup.common';
 
 export default defineConfig([

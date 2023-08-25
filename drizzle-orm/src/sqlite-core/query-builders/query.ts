@@ -1,17 +1,18 @@
-import { entityKind } from '~/entity';
-import { QueryPromise } from '~/query-promise';
+import { entityKind } from '~/entity.ts';
+import { QueryPromise } from '~/query-promise.ts';
 import {
 	type BuildQueryResult,
+	type BuildRelationalQueryResult,
 	type DBQueryConfig,
 	mapRelationalRow,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
-} from '~/relations';
-import { type SQLWrapper, type SQL } from '~/sql';
-import { type KnownKeysOnly } from '~/utils';
-import { type SQLiteDialect } from '../dialect';
-import { type PreparedQuery, type PreparedQueryConfig, type SQLiteSession } from '../session';
-import { type SQLiteTable } from '../table';
+} from '~/relations.ts';
+import { type Query, type QueryWithTypings, type SQL, type SQLWrapper } from '~/sql/index.ts';
+import { type KnownKeysOnly } from '~/utils.ts';
+import { type SQLiteDialect } from '../dialect.ts';
+import type { PreparedQuery, PreparedQueryConfig, SQLiteSession } from '../session.ts';
+import { type SQLiteTable } from '../table.ts';
 
 export type SQLiteRelationalQueryKind<TMode extends 'sync' | 'async', TResult> = TMode extends 'async'
 	? SQLiteRelationalQuery<TMode, TResult>
@@ -126,17 +127,8 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 	}
 
 	prepare(): PreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }> {
-		const query = this.dialect.buildRelationalQuery({
-			fullSchema: this.fullSchema,
-			schema: this.schema,
-			tableNamesMap: this.tableNamesMap,
-			table: this.table,
-			tableConfig: this.tableConfig,
-			queryConfig: this.config,
-			tableAlias: this.tableConfig.tsName,
-		});
+		const { query, builtQuery } = this._toSQL();
 
-		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
 		return this.session.prepareQuery(
 			builtQuery,
 			undefined,
@@ -151,6 +143,26 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 				return rows as TResult;
 			},
 		) as PreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }>;
+	}
+
+	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+		const query = this.dialect.buildRelationalQuery({
+			fullSchema: this.fullSchema,
+			schema: this.schema,
+			tableNamesMap: this.tableNamesMap,
+			table: this.table,
+			tableConfig: this.tableConfig,
+			queryConfig: this.config,
+			tableAlias: this.tableConfig.tsName,
+		});
+
+		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
+
+		return { query, builtQuery };
+	}
+
+	toSQL(): Query {
+		return this._toSQL().builtQuery;
 	}
 
 	/** @internal */

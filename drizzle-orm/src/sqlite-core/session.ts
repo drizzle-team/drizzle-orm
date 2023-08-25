@@ -1,12 +1,12 @@
-import { entityKind } from '~/entity';
-import { DrizzleError, TransactionRollbackError } from '~/errors';
-import { type TablesRelationalConfig } from '~/relations';
-import type { Query, SQL } from '~/sql';
-import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect';
-import { QueryPromise } from '..';
-import { BaseSQLiteDatabase } from './db';
-import type { SelectedFieldsOrdered } from './query-builders/select.types';
-import { type SQLiteRaw } from './query-builders/raw';
+import { entityKind } from '~/entity.ts';
+import { DrizzleError, TransactionRollbackError } from '~/errors.ts';
+import { type TablesRelationalConfig } from '~/relations.ts';
+import type { Query, SQL } from '~/sql/index.ts';
+import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
+import { QueryPromise } from '../index.ts';
+import { BaseSQLiteDatabase } from './db.ts';
+import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
+import type { SQLiteRaw } from './query-builders/raw.ts';
 
 export interface PreparedQueryConfig {
 	type: 'sync' | 'async';

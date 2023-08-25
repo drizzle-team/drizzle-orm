@@ -2,10 +2,10 @@ import type {
 	SelectedFields as SelectedFieldsBase,
 	SelectedFieldsFlat as SelectedFieldsFlatBase,
 	SelectedFieldsOrdered as SelectedFieldsOrderedBase,
-} from '~/operations';
-import type { PgColumn } from '~/pg-core/columns';
-import type { PgTable, PgTableWithColumns } from '~/pg-core/table';
-import type { PgViewBase, PgViewWithSelection } from '~/pg-core/view';
+} from '~/operations.ts';
+import type { PgColumn } from '~/pg-core/columns/index.ts';
+import type { PgTable, PgTableWithColumns } from '~/pg-core/table.ts';
+import type { PgViewBase, PgViewWithSelection } from '~/pg-core/view.ts';
 import type {
 	AppendToNullabilityMap,
 	AppendToResult,
@@ -14,13 +14,13 @@ import type {
 	JoinType,
 	MapColumnsToTableAlias,
 	SelectMode,
-} from '~/query-builders/select.types';
-import type { Placeholder, SQL, SQLWrapper } from '~/sql';
-import type { Subquery } from '~/subquery';
-import type { Table, UpdateTableConfig } from '~/table';
-import type { Assume } from '~/utils';
-import { type ColumnsSelection, type View } from '~/view';
-import type { PgSelect, PgSelectQueryBuilder } from './select';
+} from '~/query-builders/select.types.ts';
+import type { Placeholder, SQL, SQLWrapper } from '~/sql/index.ts';
+import type { Subquery } from '~/subquery.ts';
+import type { Table, UpdateTableConfig } from '~/table.ts';
+import type { Assume } from '~/utils.ts';
+import { type ColumnsSelection, type View } from '~/view.ts';
+import type { PgSelect, PgSelectQueryBuilder } from './select.ts';
 
 export interface Join {
 	on: SQL | undefined;

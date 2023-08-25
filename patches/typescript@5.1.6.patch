@@ -1,5 +1,5 @@
 diff --git a/lib/tsserver.js b/lib/tsserver.js
-index 63bcdac309ff42bedada2d018b795be57ee2fe8d..cd9dd67c5a593b9dc721b3d861eb178227ddd6a6 100644
+index 2329a12e68fc1788ad518eef084b69767f0e1a6c..9044051c1457ac05d13c9a16ddc7a8f9dc9d3640 100644
 --- a/lib/tsserver.js
 +++ b/lib/tsserver.js
 @@ -14987,7 +14987,7 @@ function isRestParameter(node) {

@@ -1,14 +1,20 @@
-import { entityKind } from '~/entity';
-import type { PgDialect } from '~/pg-core/dialect';
-import type { PgSession, PreparedQuery, PreparedQueryConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
-import type { PgTable } from '~/pg-core/table';
-import type { SelectResultFields } from '~/query-builders/select.types';
-import { QueryPromise } from '~/query-promise';
-import type { Query, SQL, SQLWrapper } from '~/sql';
-import { type InferModel, Table } from '~/table';
-import { tracer } from '~/tracing';
-import { orderSelectedFields } from '~/utils';
-import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
+import { entityKind } from '~/entity.ts';
+import type { PgDialect } from '~/pg-core/dialect.ts';
+import type {
+	PgSession,
+	PreparedQuery,
+	PreparedQueryConfig,
+	QueryResultHKT,
+	QueryResultKind,
+} from '~/pg-core/session.ts';
+import type { PgTable } from '~/pg-core/table.ts';
+import type { SelectResultFields } from '~/query-builders/select.types.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/index.ts';
+import { type InferModel, Table } from '~/table.ts';
+import { tracer } from '~/tracing.ts';
+import { orderSelectedFields } from '~/utils.ts';
+import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
 export interface PgDeleteConfig {
 	where?: SQL | undefined;
@@ -63,7 +69,7 @@ export class PgDelete<
 		return this.dialect.buildDeleteQuery(this.config);
 	}
 
-	toSQL(): { sql: Query['sql']; params: Query['params'] } {
+	toSQL(): Query {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
