@@ -1,31 +1,36 @@
 import type { ResultSetHeader } from 'mysql2/promise';
-import { entityKind } from '~/entity';
-import type { TypedQueryBuilder } from '~/query-builders/query-builder';
-import { type ExtractTablesWithRelations, type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
-import type { SQLWrapper } from '~/sql';
-import { SelectionProxyHandler, WithSubquery } from '~/subquery';
-import { type DrizzleTypeError } from '~/utils';
-import { type ColumnsSelection } from '~/view';
-import type { MySqlDialect } from './dialect';
+import { entityKind } from '~/entity.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import {
+	type ExtractTablesWithRelations,
+	type RelationalSchemaConfig,
+	type TablesRelationalConfig,
+} from '~/relations.ts';
+import type { SQLWrapper } from '~/sql/index.ts';
+import { SelectionProxyHandler, WithSubquery } from '~/subquery.ts';
+import { type DrizzleTypeError } from '~/utils.ts';
+import { type ColumnsSelection } from '~/view.ts';
+import type { MySqlDialect } from './dialect.ts';
 import {
 	MySqlDelete,
 	MySqlInsertBuilder,
 	MySqlSelectBuilder,
 	MySqlUpdateBuilder,
 	QueryBuilder,
-} from './query-builders';
-import { RelationalQueryBuilder } from './query-builders/query';
-import type { SelectedFields } from './query-builders/select.types';
+} from './query-builders/index.ts';
+import { RelationalQueryBuilder } from './query-builders/query.ts';
+import type { SelectedFields } from './query-builders/select.types.ts';
 import type {
+	Mode,
 	MySqlSession,
 	MySqlTransaction,
 	MySqlTransactionConfig,
 	PreparedQueryHKTBase,
 	QueryResultHKT,
 	QueryResultKind,
-} from './session';
-import type { WithSubqueryWithSelection } from './subquery';
-import type { AnyMySqlTable } from './table';
+} from './session.ts';
+import type { WithSubqueryWithSelection } from './subquery.ts';
+import type { MySqlTable } from './table.ts';
 
 export class MySqlDatabase<
 	TQueryResult extends QueryResultHKT,
@@ -52,6 +57,7 @@ export class MySqlDatabase<
 		/** @internal */
 		readonly session: MySqlSession<any, any, any, any>,
 		schema: RelationalSchemaConfig<TSchema> | undefined,
+		protected readonly mode: Mode,
 	) {
 		this._ = schema
 			? { schema: schema.schema, tableNamesMap: schema.tableNamesMap }
@@ -64,10 +70,11 @@ export class MySqlDatabase<
 						schema!.fullSchema,
 						this._.schema,
 						this._.tableNamesMap,
-						schema!.fullSchema[tableName] as AnyMySqlTable,
+						schema!.fullSchema[tableName] as MySqlTable,
 						columns,
 						dialect,
 						session,
+						this.mode,
 					);
 			}
 		}
@@ -77,7 +84,7 @@ export class MySqlDatabase<
 		return {
 			as<TSelection extends ColumnsSelection>(
 				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
-			): WithSubqueryWithSelection<TSelection, TAlias> {
+			): WithSubqueryWithSelection<TSelection, TAlias, 'mysql'> {
 				if (typeof qb === 'function') {
 					qb = qb(new QueryBuilder());
 				}
@@ -85,7 +92,7 @@ export class MySqlDatabase<
 				return new Proxy(
 					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
 					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-				) as WithSubqueryWithSelection<TSelection, TAlias>;
+				) as WithSubqueryWithSelection<TSelection, TAlias, 'mysql'>;
 			},
 		};
 	}
@@ -144,15 +151,15 @@ export class MySqlDatabase<
 		});
 	}
 
-	update<TTable extends AnyMySqlTable>(table: TTable): MySqlUpdateBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
+	update<TTable extends MySqlTable>(table: TTable): MySqlUpdateBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
 		return new MySqlUpdateBuilder(table, this.session, this.dialect);
 	}
 
-	insert<TTable extends AnyMySqlTable>(table: TTable): MySqlInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
+	insert<TTable extends MySqlTable>(table: TTable): MySqlInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
 		return new MySqlInsertBuilder(table, this.session, this.dialect);
 	}
 
-	delete<TTable extends AnyMySqlTable>(table: TTable): MySqlDelete<TTable, TQueryResult, TPreparedQueryHKT> {
+	delete<TTable extends MySqlTable>(table: TTable): MySqlDelete<TTable, TQueryResult, TPreparedQueryHKT> {
 		return new MySqlDelete(table, this.session, this.dialect);
 	}
 

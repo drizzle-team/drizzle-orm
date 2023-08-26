@@ -1,13 +1,12 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase } from '~/column-builder';
-import { entityKind } from '~/entity';
-import { sql } from '~/sql';
-import { PgColumnBuilder } from './common';
+import type { ColumnBuilderBaseConfig, ColumnDataType } from '~/column-builder.ts';
+import { entityKind } from '~/entity.ts';
+import { sql } from '~/sql/index.ts';
+import { PgColumnBuilder } from './common.ts';
 
 export abstract class PgDateColumnBaseBuilder<
-	THKT extends ColumnBuilderHKTBase,
-	T extends ColumnBuilderBaseConfig,
-	TRuntimeConfig extends object = {},
-> extends PgColumnBuilder<THKT, T, TRuntimeConfig> {
+	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+	TRuntimeConfig extends object = object,
+> extends PgColumnBuilder<T, TRuntimeConfig> {
 	static readonly [entityKind]: string = 'PgDateColumnBaseBuilder';
 
 	defaultNow() {

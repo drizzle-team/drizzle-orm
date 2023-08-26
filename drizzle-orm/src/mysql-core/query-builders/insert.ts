@@ -1,5 +1,5 @@
-import { entityKind, is } from '~/entity';
-import type { MySqlDialect } from '~/mysql-core/dialect';
+import { entityKind, is } from '~/entity.ts';
+import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type {
 	MySqlSession,
 	PreparedQueryConfig,
@@ -7,32 +7,32 @@ import type {
 	PreparedQueryKind,
 	QueryResultHKT,
 	QueryResultKind,
-} from '~/mysql-core/session';
-import type { AnyMySqlTable } from '~/mysql-core/table';
-import { QueryPromise } from '~/query-promise';
-import type { Placeholder, Query, SQLWrapper } from '~/sql';
-import { Param, SQL, sql } from '~/sql';
-import { type InferModel, Table } from '~/table';
-import { mapUpdateSet, type Simplify } from '~/utils';
-import type { MySqlUpdateSetSource } from './update';
+} from '~/mysql-core/session.ts';
+import type { MySqlTable } from '~/mysql-core/table.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import type { Placeholder, Query, SQLWrapper } from '~/sql/index.ts';
+import { Param, SQL, sql } from '~/sql/index.ts';
+import { type InferModel, Table } from '~/table.ts';
+import { mapUpdateSet } from '~/utils.ts';
+import type { MySqlUpdateSetSource } from './update.ts';
 
-export interface MySqlInsertConfig<TTable extends AnyMySqlTable = AnyMySqlTable> {
+export interface MySqlInsertConfig<TTable extends MySqlTable = MySqlTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[];
 	ignore: boolean;
 	onConflict?: SQL;
 }
 
-export type AnyMySqlInsertConfig = MySqlInsertConfig<AnyMySqlTable>;
+export type AnyMySqlInsertConfig = MySqlInsertConfig<MySqlTable>;
 
-export type MySqlInsertValue<TTable extends AnyMySqlTable> = Simplify<
-	{
+export type MySqlInsertValue<TTable extends MySqlTable> =
+	& {
 		[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
 	}
->;
+	& {};
 
 export class MySqlInsertBuilder<
-	TTable extends AnyMySqlTable,
+	TTable extends MySqlTable,
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > {
@@ -76,13 +76,13 @@ export class MySqlInsertBuilder<
 
 export interface MySqlInsert<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TTable extends AnyMySqlTable,
+	TTable extends MySqlTable,
 	TQueryResult extends QueryResultHKT,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > extends QueryPromise<QueryResultKind<TQueryResult, never>>, SQLWrapper {}
 export class MySqlInsert<
-	TTable extends AnyMySqlTable,
+	TTable extends MySqlTable,
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > extends QueryPromise<QueryResultKind<TQueryResult, never>> implements SQLWrapper {
@@ -117,7 +117,7 @@ export class MySqlInsert<
 		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	toSQL(): Simplify<Omit<Query, 'typings'>> {
+	toSQL(): { sql: Query['sql']; params: Query['params'] } {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}

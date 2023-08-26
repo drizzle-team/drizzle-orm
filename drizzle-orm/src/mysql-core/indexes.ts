@@ -1,7 +1,7 @@
-import { entityKind } from '~/entity';
-import type { SQL } from '~/sql';
-import type { AnyMySqlColumn } from './columns';
-import type { AnyMySqlTable } from './table';
+import { entityKind } from '~/entity.ts';
+import type { SQL } from '~/sql/index.ts';
+import type { AnyMySqlColumn, MySqlColumn } from './columns/index.ts';
+import type { MySqlTable } from './table.ts';
 
 interface IndexConfig {
 	name: string;
@@ -29,7 +29,7 @@ interface IndexConfig {
 	lock?: 'default' | 'none' | 'shared' | 'exclusive';
 }
 
-export type IndexColumn = AnyMySqlColumn | SQL;
+export type IndexColumn = MySqlColumn | SQL;
 
 export class IndexBuilderOn {
 	static readonly [entityKind]: string = 'MySqlIndexBuilderOn';
@@ -42,7 +42,7 @@ export class IndexBuilderOn {
 }
 
 export interface AnyIndexBuilder {
-	build(table: AnyMySqlTable): Index;
+	build(table: MySqlTable): Index;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
@@ -62,23 +62,23 @@ export class IndexBuilder implements AnyIndexBuilder {
 		};
 	}
 
-	using(using: IndexConfig['using']): Omit<this, 'using'> {
+	using(using: IndexConfig['using']): this {
 		this.config.using = using;
 		return this;
 	}
 
-	algorythm(algorythm: IndexConfig['algorythm']): Omit<this, 'algorythm'> {
+	algorythm(algorythm: IndexConfig['algorythm']): this {
 		this.config.algorythm = algorythm;
 		return this;
 	}
 
-	lock(lock: IndexConfig['lock']): Omit<this, 'lock'> {
+	lock(lock: IndexConfig['lock']): this {
 		this.config.lock = lock;
 		return this;
 	}
 
 	/** @internal */
-	build(table: AnyMySqlTable): Index {
+	build(table: MySqlTable): Index {
 		return new Index(this.config, table);
 	}
 }
@@ -86,9 +86,9 @@ export class IndexBuilder implements AnyIndexBuilder {
 export class Index {
 	static readonly [entityKind]: string = 'MySqlIndex';
 
-	readonly config: IndexConfig & { table: AnyMySqlTable };
+	readonly config: IndexConfig & { table: MySqlTable };
 
-	constructor(config: IndexConfig, table: AnyMySqlTable) {
+	constructor(config: IndexConfig, table: MySqlTable) {
 		this.config = { ...config, table };
 	}
 }

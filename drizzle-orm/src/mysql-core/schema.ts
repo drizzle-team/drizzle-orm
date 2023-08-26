@@ -1,6 +1,6 @@
-import { entityKind, is } from '~/entity';
-import { type MySqlTableFn, mysqlTableWithSchema } from './table';
-import { type mysqlView, mysqlViewWithSchema } from './view';
+import { entityKind, is } from '~/entity.ts';
+import { type MySqlTableFn, mysqlTableWithSchema } from './table.ts';
+import { type mysqlView, mysqlViewWithSchema } from './view.ts';
 
 export class MySqlSchema<TName extends string = string> {
 	static readonly [entityKind]: string = 'MySqlSchema';

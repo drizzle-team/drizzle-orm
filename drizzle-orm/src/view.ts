@@ -1,8 +1,8 @@
-import type { AnyColumn } from './column';
-import { entityKind } from './entity';
-import type { SelectedFields } from './operations';
-import type { SQL } from './sql';
-import type { Table } from './table';
+import type { AnyColumn } from './column.ts';
+import { entityKind } from './entity.ts';
+import type { SelectedFields } from './operations.ts';
+import { SQL, type SQLWrapper } from './sql/index.ts';
+import type { Table } from './table.ts';
 
 export const ViewBaseConfig = Symbol.for('drizzle:ViewBaseConfig');
 
@@ -12,7 +12,7 @@ export abstract class View<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
 	TSelection extends ColumnsSelection = ColumnsSelection,
-> {
+> implements SQLWrapper {
 	static readonly [entityKind]: string = 'View';
 
 	declare _: {
@@ -51,5 +51,9 @@ export abstract class View<
 			isExisting: !query as TExisting,
 			isAlias: false,
 		};
+	}
+
+	getSQL(): SQL<unknown> {
+		return new SQL([this]);
 	}
 }

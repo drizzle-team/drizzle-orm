@@ -1,20 +1,36 @@
-import { entityKind } from '~/entity';
-import type { PgDialect } from '~/pg-core/dialect';
-import { PgDelete, PgInsertBuilder, PgSelectBuilder, PgUpdateBuilder, QueryBuilder } from '~/pg-core/query-builders';
-import type { PgSession, PgTransaction, PgTransactionConfig, QueryResultHKT, QueryResultKind } from '~/pg-core/session';
-import { type AnyPgTable } from '~/pg-core/table';
-import type { TypedQueryBuilder } from '~/query-builders/query-builder';
-import { type ExtractTablesWithRelations, type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
-import { type SQLWrapper } from '~/sql';
-import { SelectionProxyHandler, WithSubquery } from '~/subquery';
-import { type DrizzleTypeError } from '~/utils';
-import { type ColumnsSelection } from '~/view';
-import { type AnyPgColumn } from './columns';
-import { RelationalQueryBuilder } from './query-builders/query';
-import { PgRefreshMaterializedView } from './query-builders/refresh-materialized-view';
-import type { SelectedFields } from './query-builders/select.types';
-import type { WithSubqueryWithSelection } from './subquery';
-import type { PgMaterializedView } from './view';
+import { entityKind } from '~/entity.ts';
+import type { PgDialect } from '~/pg-core/dialect.ts';
+import {
+	PgDelete,
+	PgInsertBuilder,
+	PgSelectBuilder,
+	PgUpdateBuilder,
+	QueryBuilder,
+} from '~/pg-core/query-builders/index.ts';
+import type {
+	PgSession,
+	PgTransaction,
+	PgTransactionConfig,
+	QueryResultHKT,
+	QueryResultKind,
+} from '~/pg-core/session.ts';
+import { type PgTable } from '~/pg-core/table.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import {
+	type ExtractTablesWithRelations,
+	type RelationalSchemaConfig,
+	type TablesRelationalConfig,
+} from '~/relations.ts';
+import { type SQLWrapper } from '~/sql/index.ts';
+import { SelectionProxyHandler, WithSubquery } from '~/subquery.ts';
+import { type DrizzleTypeError } from '~/utils.ts';
+import { type ColumnsSelection } from '~/view.ts';
+import { type PgColumn } from './columns/index.ts';
+import { RelationalQueryBuilder } from './query-builders/query.ts';
+import { PgRefreshMaterializedView } from './query-builders/refresh-materialized-view.ts';
+import type { SelectedFields } from './query-builders/select.types.ts';
+import type { WithSubqueryWithSelection } from './subquery.ts';
+import type { PgMaterializedView } from './view.ts';
 
 export class PgDatabase<
 	TQueryResult extends QueryResultHKT,
@@ -51,7 +67,7 @@ export class PgDatabase<
 					schema!.fullSchema,
 					this._.schema,
 					this._.tableNamesMap,
-					schema!.fullSchema[tableName] as AnyPgTable,
+					schema!.fullSchema[tableName] as PgTable,
 					columns,
 					dialect,
 					session,
@@ -115,13 +131,13 @@ export class PgDatabase<
 		});
 	}
 
-	selectDistinctOn(on: (AnyPgColumn | SQLWrapper)[]): PgSelectBuilder<undefined>;
+	selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgSelectBuilder<undefined>;
 	selectDistinctOn<TSelection extends SelectedFields>(
-		on: (AnyPgColumn | SQLWrapper)[],
+		on: (PgColumn | SQLWrapper)[],
 		fields: TSelection,
 	): PgSelectBuilder<TSelection>;
 	selectDistinctOn(
-		on: (AnyPgColumn | SQLWrapper)[],
+		on: (PgColumn | SQLWrapper)[],
 		fields?: SelectedFields,
 	): PgSelectBuilder<SelectedFields | undefined> {
 		return new PgSelectBuilder({
@@ -132,15 +148,15 @@ export class PgDatabase<
 		});
 	}
 
-	update<TTable extends AnyPgTable>(table: TTable): PgUpdateBuilder<TTable, TQueryResult> {
+	update<TTable extends PgTable>(table: TTable): PgUpdateBuilder<TTable, TQueryResult> {
 		return new PgUpdateBuilder(table, this.session, this.dialect);
 	}
 
-	insert<TTable extends AnyPgTable>(table: TTable): PgInsertBuilder<TTable, TQueryResult> {
+	insert<TTable extends PgTable>(table: TTable): PgInsertBuilder<TTable, TQueryResult> {
 		return new PgInsertBuilder(table, this.session, this.dialect);
 	}
 
-	delete<TTable extends AnyPgTable>(table: TTable): PgDelete<TTable, TQueryResult> {
+	delete<TTable extends PgTable>(table: TTable): PgDelete<TTable, TQueryResult> {
 		return new PgDelete(table, this.session, this.dialect);
 	}
 

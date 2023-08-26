@@ -1,39 +1,34 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-import { entityKind } from '~/entity';
-import { type Assume } from '~/utils';
-import type { AnyPgTable } from '../table';
-import { PgColumn, PgColumnBuilder } from './common';
-
-export interface PgInetBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgInetBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgInetHKT;
-}
-
-export interface PgInetHKT extends ColumnHKTBase {
-	_type: PgInet<Assume<this['config'], ColumnBaseConfig>>;
-}
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnyPgTable } from '../table.ts';
+import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgInetBuilderInitial<TName extends string> = PgInetBuilder<{
 	name: TName;
+	dataType: 'string';
+	columnType: 'PgInet';
 	data: string;
 	driverParam: string;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class PgInetBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgInetBuilderHKT, T> {
+export class PgInetBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgInet'>> extends PgColumnBuilder<T> {
 	static readonly [entityKind]: string = 'PgInetBuilder';
+
+	constructor(name: T['name']) {
+		super(name, 'string', 'PgInet');
+	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgInet<MakeColumnConfig<T, TTableName>> {
-		return new PgInet<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new PgInet<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class PgInet<T extends ColumnBaseConfig> extends PgColumn<PgInetHKT, T> {
+export class PgInet<T extends ColumnBaseConfig<'string', 'PgInet'>> extends PgColumn<T> {
 	static readonly [entityKind]: string = 'PgInet';
 
 	getSQLType(): string {

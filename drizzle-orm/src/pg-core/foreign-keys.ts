@@ -1,13 +1,13 @@
-import { entityKind } from '~/entity';
-import type { AnyPgColumn } from './columns';
-import { type AnyPgTable, PgTable } from './table';
+import { entityKind } from '~/entity.ts';
+import type { AnyPgColumn, PgColumn } from './columns/index.ts';
+import { PgTable } from './table.ts';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
 export type Reference = () => {
-	readonly columns: AnyPgColumn[];
-	readonly foreignTable: AnyPgTable;
-	readonly foreignColumns: AnyPgColumn[];
+	readonly columns: PgColumn[];
+	readonly foreignTable: PgTable;
+	readonly foreignColumns: PgColumn[];
 };
 
 export class ForeignKeyBuilder {
@@ -24,8 +24,8 @@ export class ForeignKeyBuilder {
 
 	constructor(
 		config: () => {
-			columns: AnyPgColumn[];
-			foreignColumns: AnyPgColumn[];
+			columns: PgColumn[];
+			foreignColumns: PgColumn[];
 		},
 		actions?: {
 			onUpdate?: UpdateDeleteAction;
@@ -34,7 +34,7 @@ export class ForeignKeyBuilder {
 	) {
 		this.reference = () => {
 			const { columns, foreignColumns } = config();
-			return { columns, foreignTable: foreignColumns[0]!.table as AnyPgTable, foreignColumns };
+			return { columns, foreignTable: foreignColumns[0]!.table as PgTable, foreignColumns };
 		};
 		if (actions) {
 			this._onUpdate = actions.onUpdate;
@@ -53,7 +53,7 @@ export class ForeignKeyBuilder {
 	}
 
 	/** @internal */
-	build(table: AnyPgTable): ForeignKey {
+	build(table: PgTable): ForeignKey {
 		return new ForeignKey(table, this);
 	}
 }
@@ -67,7 +67,7 @@ export class ForeignKey {
 	readonly onUpdate: UpdateDeleteAction | undefined;
 	readonly onDelete: UpdateDeleteAction | undefined;
 
-	constructor(readonly table: AnyPgTable, builder: ForeignKeyBuilder) {
+	constructor(readonly table: PgTable, builder: ForeignKeyBuilder) {
 		this.reference = builder.reference;
 		this.onUpdate = builder._onUpdate;
 		this.onDelete = builder._onDelete;
@@ -89,7 +89,7 @@ export class ForeignKey {
 
 type ColumnsWithTable<
 	TTableName extends string,
-	TColumns extends AnyPgColumn[],
+	TColumns extends PgColumn[],
 > = { [Key in keyof TColumns]: AnyPgColumn<{ tableName: TTableName }> };
 
 export function foreignKey<

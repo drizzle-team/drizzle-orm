@@ -1,39 +1,34 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-import { entityKind } from '~/entity';
-import type { AnyPgTable } from '~/pg-core/table';
-import { type Assume } from '~/utils';
-import { PgColumn, PgColumnBuilder } from './common';
-
-export interface PgSmallIntBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgSmallIntBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgSmallIntHKT;
-}
-
-export interface PgSmallIntHKT extends ColumnHKTBase {
-	_type: PgSmallInt<Assume<this['config'], ColumnBaseConfig>>;
-}
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnyPgTable } from '~/pg-core/table.ts';
+import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgSmallIntBuilderInitial<TName extends string> = PgSmallIntBuilder<{
 	name: TName;
+	dataType: 'number';
+	columnType: 'PgSmallInt';
 	data: number;
 	driverParam: number | string;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class PgSmallIntBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgSmallIntBuilderHKT, T> {
+export class PgSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSmallInt'>> extends PgColumnBuilder<T> {
 	static readonly [entityKind]: string = 'PgSmallIntBuilder';
+
+	constructor(name: T['name']) {
+		super(name, 'number', 'PgSmallInt');
+	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgSmallInt<MakeColumnConfig<T, TTableName>> {
-		return new PgSmallInt<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new PgSmallInt<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class PgSmallInt<T extends ColumnBaseConfig> extends PgColumn<PgSmallIntHKT, T> {
+export class PgSmallInt<T extends ColumnBaseConfig<'number', 'PgSmallInt'>> extends PgColumn<T> {
 	static readonly [entityKind]: string = 'PgSmallInt';
 
 	getSQLType(): string {

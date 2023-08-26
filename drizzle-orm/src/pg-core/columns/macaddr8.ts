@@ -1,39 +1,34 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-import { entityKind } from '~/entity';
-import { type Assume } from '~/utils';
-import type { AnyPgTable } from '../table';
-import { PgColumn, PgColumnBuilder } from './common';
-
-export interface PgMacaddr8BuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgMacaddr8Builder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgMacaddr8HKT;
-}
-
-export interface PgMacaddr8HKT extends ColumnHKTBase {
-	_type: PgMacaddr8<Assume<this['config'], ColumnBaseConfig>>;
-}
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnyPgTable } from '../table.ts';
+import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgMacaddr8BuilderInitial<TName extends string> = PgMacaddr8Builder<{
 	name: TName;
+	dataType: 'string';
+	columnType: 'PgMacaddr8';
 	data: string;
 	driverParam: string;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class PgMacaddr8Builder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgMacaddr8BuilderHKT, T> {
+export class PgMacaddr8Builder<T extends ColumnBuilderBaseConfig<'string', 'PgMacaddr8'>> extends PgColumnBuilder<T> {
 	static readonly [entityKind]: string = 'PgMacaddr8Builder';
+
+	constructor(name: T['name']) {
+		super(name, 'string', 'PgMacaddr8');
+	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgMacaddr8<MakeColumnConfig<T, TTableName>> {
-		return new PgMacaddr8<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new PgMacaddr8<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class PgMacaddr8<T extends ColumnBaseConfig> extends PgColumn<PgMacaddr8HKT, T> {
+export class PgMacaddr8<T extends ColumnBaseConfig<'string', 'PgMacaddr8'>> extends PgColumn<T> {
 	static readonly [entityKind]: string = 'PgMacaddr8';
 
 	getSQLType(): string {

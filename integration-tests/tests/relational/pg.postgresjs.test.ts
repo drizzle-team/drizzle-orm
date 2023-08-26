@@ -1,12 +1,14 @@
 import 'dotenv/config';
 import Docker from 'dockerode';
-import { desc, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
+import { desc, DrizzleError, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import getPort from 'get-port';
 import postgres from 'postgres';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import * as schema from './pg.schema';
+import * as schema from './pg.schema.ts';
+
+const ENABLE_LOGGING = false;
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
@@ -88,7 +90,7 @@ beforeAll(async () => {
 		await pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { schema, logger: false });
+	db = drizzle(client, { schema, logger: ENABLE_LOGGING });
 });
 
 afterAll(async () => {
@@ -1435,17 +1437,11 @@ test('[Find Many] Get select {}', async (t) => {
 		{ id: 3, name: 'Alex' },
 	]);
 
-	const users = await db.query.usersTable.findMany({
-		columns: {},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{}[]>();
-
-	expect(users.length).toBe(3);
-
-	expect(users[0]).toEqual({});
-	expect(users[1]).toEqual({});
-	expect(users[2]).toEqual({});
+	await expect(async () =>
+		await db.query.usersTable.findMany({
+			columns: {},
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 // columns {}
@@ -1458,13 +1454,11 @@ test('[Find One] Get select {}', async (t) => {
 		{ id: 3, name: 'Alex' },
 	]);
 
-	const users = await db.query.usersTable.findFirst({
-		columns: {},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{} | undefined>();
-
-	expect(users).toEqual({});
+	await expect(async () =>
+		await db.query.usersTable.findFirst({
+			columns: {},
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 // deep select {}
@@ -1483,22 +1477,16 @@ test('[Find Many] Get deep select {}', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const users = await db.query.usersTable.findMany({
-		columns: {},
-		with: {
-			posts: {
-				columns: {},
+	await expect(async () =>
+		await db.query.usersTable.findMany({
+			columns: {},
+			with: {
+				posts: {
+					columns: {},
+				},
 			},
-		},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{ posts: {}[] }[]>();
-
-	expect(users.length).toBe(3);
-
-	expect(users[0]).toEqual({ posts: [{}] });
-	expect(users[1]).toEqual({ posts: [{}] });
-	expect(users[2]).toEqual({ posts: [{}] });
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 // deep select {}
@@ -1517,18 +1505,16 @@ test('[Find One] Get deep select {}', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const users = await db.query.usersTable.findFirst({
-		columns: {},
-		with: {
-			posts: {
-				columns: {},
+	await expect(async () =>
+		await db.query.usersTable.findFirst({
+			columns: {},
+			with: {
+				posts: {
+					columns: {},
+				},
 			},
-		},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{ posts: {}[] } | undefined>();
-
-	expect(users).toEqual({ posts: [{}] });
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 /*
@@ -4146,6 +4132,7 @@ test('[Find Many] Get users with groups', async (t) => {
 				with: {
 					group: true,
 				},
+				orderBy: usersToGroupsTable.groupId,
 			},
 		},
 	});
@@ -4205,19 +4192,22 @@ test('[Find Many] Get users with groups', async (t) => {
 		name: 'Alex',
 		verified: false,
 		invitedBy: null,
-		usersToGroups: [{
-			group: {
-				id: 3,
-				name: 'Group3',
-				description: null,
+		usersToGroups: expect.arrayContaining([
+			{
+				group: {
+					id: 2,
+					name: 'Group2',
+					description: null,
+				},
 			},
-		}, {
-			group: {
-				id: 2,
-				name: 'Group2',
-				description: null,
+			{
+				group: {
+					id: 3,
+					name: 'Group3',
+					description: null,
+				},
 			},
-		}],
+		]),
 	});
 });
 
@@ -5963,6 +5953,7 @@ test('Get users with groups + custom', async (t) => {
 						},
 					},
 				},
+				orderBy: usersToGroupsTable.groupId,
 			},
 		},
 	});
@@ -6031,21 +6022,24 @@ test('Get users with groups + custom', async (t) => {
 		lower: 'alex',
 		verified: false,
 		invitedBy: null,
-		usersToGroups: [{
-			group: {
-				id: 3,
-				name: 'Group3',
-				lower: 'group3',
-				description: null,
+		usersToGroups: [
+			{
+				group: {
+					id: 2,
+					name: 'Group2',
+					lower: 'group2',
+					description: null,
+				},
 			},
-		}, {
-			group: {
-				id: 2,
-				name: 'Group2',
-				lower: 'group2',
-				description: null,
+			{
+				group: {
+					id: 3,
+					name: 'Group3',
+					lower: 'group3',
+					description: null,
+				},
 			},
-		}],
+		],
 	});
 });
 

@@ -1,9 +1,10 @@
 import 'dotenv/config';
+
 import { connect } from '@planetscale/database';
-import { desc, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
+import { desc, DrizzleError, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type PlanetScaleDatabase } from 'drizzle-orm/planetscale-serverless';
 import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import * as schema from './mysql.schema';
+import * as schema from './mysql.schema.ts';
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
@@ -19,10 +20,10 @@ let db: PlanetScaleDatabase<typeof schema>;
 beforeAll(async () => {
 	db = drizzle(
 		connect({
-			// url: process.env['PLANETSCALE_CONNECTION_STRING']!,
-			host: process.env['DATABASE_HOST']!,
-			username: process.env['DATABASE_USERNAME']!,
-			password: process.env['DATABASE_PASSWORD']!,
+			url: process.env['PLANETSCALE_CONNECTION_STRING']!,
+			// host: process.env['DATABASE_HOST']!,
+			// username: process.env['DATABASE_USERNAME']!,
+			// password: process.env['DATABASE_PASSWORD']!,
 		}),
 		{ schema, logger: ENABLE_LOGGING },
 	);
@@ -493,12 +494,26 @@ test('[Find Many] Get users with posts + orderBy', async () => {
 		name: 'Dan',
 		verified: false,
 		invitedBy: null,
-		posts: [{ id: 3, ownerId: 1, content: '3', createdAt: usersWithPosts[2]?.posts[2]?.createdAt }, {
-			id: 2,
-			ownerId: 1,
-			content: '2',
-			createdAt: usersWithPosts[2]?.posts[1]?.createdAt,
-		}, { id: 1, ownerId: 1, content: '1', createdAt: usersWithPosts[2]?.posts[0]?.createdAt }],
+		posts: [
+			{
+				id: 3,
+				ownerId: 1,
+				content: '3',
+				createdAt: usersWithPosts[2]?.posts[2]?.createdAt,
+			},
+			{
+				id: 2,
+				ownerId: 1,
+				content: '2',
+				createdAt: usersWithPosts[2]?.posts[1]?.createdAt,
+			},
+			{
+				id: 1,
+				ownerId: 1,
+				content: '1',
+				createdAt: usersWithPosts[2]?.posts[0]?.createdAt,
+			},
+		],
 	});
 	expect(usersWithPosts[1]).toEqual({
 		id: 2,
@@ -1343,17 +1358,11 @@ test('[Find Many] Get select {}', async () => {
 		{ id: 3, name: 'Alex' },
 	]);
 
-	const users = await db.query.usersTable.findMany({
-		columns: {},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{}[]>();
-
-	expect(users.length).toBe(3);
-
-	expect(users[0]).toEqual({});
-	expect(users[1]).toEqual({});
-	expect(users[2]).toEqual({});
+	await expect(async () =>
+		await db.query.usersTable.findMany({
+			columns: {},
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 // columns {}
@@ -1364,13 +1373,11 @@ test('[Find One] Get select {}', async () => {
 		{ id: 3, name: 'Alex' },
 	]);
 
-	const users = await db.query.usersTable.findFirst({
-		columns: {},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{} | undefined>();
-
-	expect(users).toEqual({});
+	await expect(async () =>
+		await db.query.usersTable.findFirst({
+			columns: {},
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 // deep select {}
@@ -1387,22 +1394,16 @@ test('[Find Many] Get deep select {}', async () => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const users = await db.query.usersTable.findMany({
-		columns: {},
-		with: {
-			posts: {
-				columns: {},
+	await expect(async () =>
+		await db.query.usersTable.findMany({
+			columns: {},
+			with: {
+				posts: {
+					columns: {},
+				},
 			},
-		},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{ posts: {}[] }[]>();
-
-	expect(users.length).toBe(3);
-
-	expect(users[0]).toEqual({ posts: [{}] });
-	expect(users[1]).toEqual({ posts: [{}] });
-	expect(users[2]).toEqual({ posts: [{}] });
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 // deep select {}
@@ -1419,18 +1420,16 @@ test('[Find One] Get deep select {}', async () => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const users = await db.query.usersTable.findFirst({
-		columns: {},
-		with: {
-			posts: {
-				columns: {},
+	await expect(async () =>
+		await db.query.usersTable.findFirst({
+			columns: {},
+			with: {
+				posts: {
+					columns: {},
+				},
 			},
-		},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{ posts: {}[] } | undefined>();
-
-	expect(users).toEqual({ posts: [{}] });
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 /*

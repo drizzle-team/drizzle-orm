@@ -9,15 +9,19 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import {
 	alias,
 	blob,
+	getTableConfig,
 	getViewConfig,
+	int,
 	integer,
 	primaryKey,
 	sqliteTable,
 	sqliteTableCreator,
 	sqliteView,
 	text,
+	unique,
+	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
-import { Expect } from './utils';
+import { Expect } from './utils.ts';
 
 const ENABLE_LOGGING = false;
 
@@ -183,16 +187,63 @@ test.beforeEach((t) => {
 	`);
 });
 
-test.serial('insert bigint values', async (t) => {
+test.serial('table configs: unique third param', (t) => {
+	const cities1Table = sqliteTable('cities1', {
+		id: int('id').primaryKey(),
+		name: text('name').notNull(),
+		state: text('state'),
+	}, (t) => ({
+		f: unique().on(t.name, t.state),
+		f1: unique('custom').on(t.name, t.state),
+	}));
+
+	const tableConfig = getTableConfig(cities1Table);
+
+	t.assert(tableConfig.uniqueConstraints.length === 2);
+
+	t.deepEqual(tableConfig.uniqueConstraints[0]?.columns.map((t) => t.name), ['name', 'state']);
+	t.assert(
+		tableConfig.uniqueConstraints[0]?.name
+			=== uniqueKeyName(cities1Table, tableConfig.uniqueConstraints[0]?.columns?.map((column) => column.name) ?? []),
+	);
+
+	t.deepEqual(tableConfig.uniqueConstraints[1]?.columns.map((t) => t.name), ['name', 'state']);
+	t.assert(tableConfig.uniqueConstraints[1]?.name === 'custom');
+});
+
+test.serial('table configs: unique in column', (t) => {
+	const cities1Table = sqliteTable('cities1', {
+		id: int('id').primaryKey(),
+		name: text('name').notNull().unique(),
+		state: text('state').unique('custom'),
+		field: text('field').unique(),
+	});
+
+	const tableConfig = getTableConfig(cities1Table);
+
+	const columnName = tableConfig.columns.find((it) => it.name === 'name');
+	t.assert(columnName?.isUnique);
+	t.assert(columnName?.uniqueName === uniqueKeyName(cities1Table, [columnName!.name]));
+
+	const columnState = tableConfig.columns.find((it) => it.name === 'state');
+	t.assert(columnState?.isUnique);
+	t.assert(columnState?.uniqueName === 'custom');
+
+	const columnField = tableConfig.columns.find((it) => it.name === 'field');
+	t.assert(columnField?.isUnique);
+	t.assert(columnField?.uniqueName === uniqueKeyName(cities1Table, [columnField!.name]));
+});
+
+test.serial('insert bigint values', (t) => {
 	const { db } = t.context;
 
-	await db.insert(bigIntExample).values({ name: 'one', bigInt: BigInt('0') }).run();
-	await db.insert(bigIntExample).values({ name: 'two', bigInt: BigInt('127') }).run();
-	await db.insert(bigIntExample).values({ name: 'three', bigInt: BigInt('32767') }).run();
-	await db.insert(bigIntExample).values({ name: 'four', bigInt: BigInt('1234567890') }).run();
-	await db.insert(bigIntExample).values({ name: 'five', bigInt: BigInt('12345678900987654321') }).run();
+	db.insert(bigIntExample).values({ name: 'one', bigInt: BigInt('0') }).run();
+	db.insert(bigIntExample).values({ name: 'two', bigInt: BigInt('127') }).run();
+	db.insert(bigIntExample).values({ name: 'three', bigInt: BigInt('32767') }).run();
+	db.insert(bigIntExample).values({ name: 'four', bigInt: BigInt('1234567890') }).run();
+	db.insert(bigIntExample).values({ name: 'five', bigInt: BigInt('12345678900987654321') }).run();
 
-	const result = await db.select().from(bigIntExample).all();
+	const result = db.select().from(bigIntExample).all();
 	t.deepEqual(result, [
 		{ id: 1, name: 'one', bigInt: BigInt('0') },
 		{ id: 2, name: 'two', bigInt: BigInt('127') },
@@ -1057,6 +1108,90 @@ test.serial('with ... select', (t) => {
 	]);
 });
 
+test.serial('query check: insert single empty row', (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	const query = db
+		.insert(users)
+		.values({})
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: 'insert into "users" ("id", "name", "state") values (null, ?, null)',
+		params: ['Dan'],
+	});
+});
+
+test.serial('query check: insert multiple empty rows', (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	const query = db
+		.insert(users)
+		.values([{}, {}])
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: 'insert into "users" ("id", "name", "state") values (null, ?, null), (null, ?, null)',
+		params: ['Dan', 'Dan'],
+	});
+});
+
+test.serial('Insert all defaults in 1 row', (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('empty_insert_single', {
+		id: integer('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text default 'Dan', state text)`,
+	);
+
+	db.insert(users).values({}).run();
+
+	const res = db.select().from(users).all();
+
+	t.deepEqual(res, [{ id: 1, name: 'Dan', state: null }]);
+});
+
+test.serial('Insert all defaults in multiple rows', (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('empty_insert_multiple', {
+		id: integer('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text default 'Dan', state text)`,
+	);
+
+	db.insert(users).values([{}, {}]).run();
+
+	const res = db.select().from(users).all();
+
+	t.deepEqual(res, [{ id: 1, name: 'Dan', state: null }, { id: 2, name: 'Dan', state: null }]);
+});
+
 test.serial('select from subquery sql', (t) => {
 	const { db } = t.context;
 
@@ -1432,7 +1567,7 @@ test.serial('nested transaction', (t) => {
 	db.transaction((tx) => {
 		tx.insert(users).values({ balance: 100 }).run();
 
-		tx.transaction(async (tx) => {
+		tx.transaction((tx) => {
 			tx.update(users).set({ balance: 200 }).run();
 		});
 	});
@@ -1706,6 +1841,33 @@ test.serial('insert with onConflict do update using composite pk', (t) => {
 	t.deepEqual(res, [{ id: 1, name: 'John', email: 'john1@example.com' }]);
 });
 
+test.serial('insert with onConflict do update where', (t) => {
+	const { db } = t.context;
+
+	db
+		.insert(usersTable)
+		.values([{ id: 1, name: "John", verified: false }])
+		.run();
+
+	db
+		.insert(usersTable)
+		.values({ id: 1, name: "John1", verified: true })
+		.onConflictDoUpdate({
+			target: usersTable.id,
+			set: { name: "John1", verified: true },
+			where: eq(usersTable.verified, false)
+		})
+		.run();
+
+	const res = db
+		.select({ id: usersTable.id, name: usersTable.name, verified: usersTable.verified })
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: "John1", verified: true }]);
+})
+
 test.serial('insert undefined', (t) => {
 	const { db } = t.context;
 
@@ -1741,6 +1903,140 @@ test.serial('update undefined', (t) => {
 
 	t.throws(() => db.update(users).set({ name: undefined }).run());
 	t.notThrows(() => db.update(users).set({ id: 1, name: undefined }).run());
+
+	db.run(sql`drop table ${users}`);
+});
+
+test.serial('async api - CRUD', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	await db.insert(users).values({ id: 1, name: 'John' });
+
+	const res = await db.select().from(users);
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+
+	await db.update(users).set({ name: 'John1' }).where(eq(users.id, 1));
+
+	const res1 = await db.select().from(users);
+
+	t.deepEqual(res1, [{ id: 1, name: 'John1' }]);
+
+	await db.delete(users).where(eq(users.id, 1));
+
+	const res2 = await db.select().from(users);
+
+	t.deepEqual(res2, []);
+
+	db.run(sql`drop table ${users}`);
+});
+
+test.serial('async api - insert + select w/ prepare + async execute', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	const insertStmt = db.insert(users).values({ id: 1, name: 'John' }).prepare();
+	await insertStmt.execute();
+
+	const selectStmt = db.select().from(users).prepare();
+	const res = await selectStmt.execute();
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+
+	const updateStmt = db.update(users).set({ name: 'John1' }).where(eq(users.id, 1)).prepare();
+	await updateStmt.execute();
+
+	const res1 = await selectStmt.execute();
+
+	t.deepEqual(res1, [{ id: 1, name: 'John1' }]);
+
+	const deleteStmt = db.delete(users).where(eq(users.id, 1)).prepare();
+	await deleteStmt.execute();
+
+	const res2 = await selectStmt.execute();
+
+	t.deepEqual(res2, []);
+
+	db.run(sql`drop table ${users}`);
+});
+
+test.serial('async api - insert + select w/ prepare + sync execute', (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	const insertStmt = db.insert(users).values({ id: 1, name: 'John' }).prepare();
+	insertStmt.execute().sync();
+
+	const selectStmt = db.select().from(users).prepare();
+	const res = selectStmt.execute().sync();
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+
+	const updateStmt = db.update(users).set({ name: 'John1' }).where(eq(users.id, 1)).prepare();
+	updateStmt.execute().sync();
+
+	const res1 = selectStmt.execute().sync();
+
+	t.deepEqual(res1, [{ id: 1, name: 'John1' }]);
+
+	const deleteStmt = db.delete(users).where(eq(users.id, 1)).prepare();
+	deleteStmt.execute().sync();
+
+	const res2 = selectStmt.execute().sync();
+
+	t.deepEqual(res2, []);
+
+	db.run(sql`drop table ${users}`);
+});
+
+test.serial('select + .get() for empty result', (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	const res = db.select().from(users).where(eq(users.id, 1)).get();
+
+	t.is(res, undefined);
 
 	db.run(sql`drop table ${users}`);
 });

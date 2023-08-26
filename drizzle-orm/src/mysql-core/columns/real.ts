@@ -1,36 +1,28 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-import { entityKind } from '~/entity';
-import type { AnyMySqlTable } from '~/mysql-core/table';
-import { type Assume } from '~/utils';
-import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
-
-export interface MySqlRealBuilderHKT extends ColumnBuilderHKTBase {
-	_type: MySqlRealBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: MySqlRealHKT;
-}
-
-export interface MySqlRealHKT extends ColumnHKTBase {
-	_type: MySqlReal<Assume<this['config'], ColumnBaseConfig>>;
-}
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
 export type MySqlRealBuilderInitial<TName extends string> = MySqlRealBuilder<{
 	name: TName;
+	dataType: 'number';
+	columnType: 'MySqlReal';
 	data: number;
 	driverParam: number | string;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class MySqlRealBuilder<T extends ColumnBuilderBaseConfig> extends MySqlColumnBuilderWithAutoIncrement<
-	MySqlRealBuilderHKT,
-	T,
-	MySqlRealConfig
-> {
+export class MySqlRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlReal'>>
+	extends MySqlColumnBuilderWithAutoIncrement<
+		T,
+		MySqlRealConfig
+	>
+{
 	static readonly [entityKind]: string = 'MySqlRealBuilder';
 
 	constructor(name: T['name'], config: MySqlRealConfig | undefined) {
-		super(name);
+		super(name, 'number', 'MySqlReal');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
 	}
@@ -39,12 +31,11 @@ export class MySqlRealBuilder<T extends ColumnBuilderBaseConfig> extends MySqlCo
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlReal<MakeColumnConfig<T, TTableName>> {
-		return new MySqlReal<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new MySqlReal<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class MySqlReal<T extends ColumnBaseConfig> extends MySqlColumnWithAutoIncrement<
-	MySqlRealHKT,
+export class MySqlReal<T extends ColumnBaseConfig<'number', 'MySqlReal'>> extends MySqlColumnWithAutoIncrement<
 	T,
 	MySqlRealConfig
 > {

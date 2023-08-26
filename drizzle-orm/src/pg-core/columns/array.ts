@@ -1,51 +1,36 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
 import type {
-	AnyColumnBuilder,
-	BuildColumn,
 	ColumnBuilderBaseConfig,
-	ColumnBuilderHKTBase,
+	ColumnBuilderRuntimeConfig,
+	ColumnDataType,
 	MakeColumnConfig,
-} from '~/column-builder';
-import { entityKind, is } from '~/entity';
-import type { AnyPgTable } from '~/pg-core/table';
-import { type Assume } from '~/utils';
-import { makePgArray, parsePgArray } from '../utils';
-import { type AnyPgColumn, PgColumn, PgColumnBuilder, type PgColumnBuilderHKT } from './common';
+} from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind, is } from '~/entity.ts';
+import type { AnyPgTable } from '~/pg-core/table.ts';
+import { makePgArray, parsePgArray } from '../utils.ts';
+import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export interface PgArrayBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgArrayBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgArrayHKT;
-}
-
-export interface PgArrayHKT extends ColumnHKTBase {
-	_type: PgArray<Assume<this['config'], ColumnBaseConfig>>;
-}
-
-export class PgArrayBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<
-	PgArrayBuilderHKT,
+export class PgArrayBuilder<
+	T extends ColumnBuilderBaseConfig<'array', 'PgArray'>,
+	TBase extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+> extends PgColumnBuilder<
 	T,
 	{
-		baseBuilder: PgColumnBuilder<
-			PgColumnBuilderHKT,
-			{
-				name: T['name'];
-				notNull: T['notNull'];
-				hasDefault: T['hasDefault'];
-				data: Assume<T['data'], unknown[]>[number];
-				driverParam: string | Assume<T['driverParam'], unknown[]>[number];
-			}
-		>;
+		baseBuilder: PgColumnBuilder<TBase>;
 		size: number | undefined;
+	},
+	{
+		baseBuilder: PgColumnBuilder<TBase>;
 	}
 > {
 	static override readonly [entityKind] = 'PgArrayBuilder';
 
 	constructor(
 		name: string,
-		baseBuilder: PgArrayBuilder<T>['config']['baseBuilder'],
+		baseBuilder: PgArrayBuilder<T, TBase>['config']['baseBuilder'],
 		size: number | undefined,
 	) {
-		super(name);
+		super(name, 'array', 'PgArray');
 		this.config.baseBuilder = baseBuilder;
 		this.config.size = size;
 	}
@@ -53,40 +38,28 @@ export class PgArrayBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnB
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
-	): PgArray<MakeColumnConfig<T, TTableName>> {
+	): PgArray<MakeColumnConfig<T, TTableName>, TBase> {
 		const baseColumn = this.config.baseBuilder.build(table);
-		return new PgArray<MakeColumnConfig<T, TTableName>>(table, this.config, baseColumn);
+		return new PgArray<MakeColumnConfig<T, TTableName>, TBase>(
+			table as AnyPgTable<{ name: MakeColumnConfig<T, TTableName>['tableName'] }>,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			baseColumn,
+		);
 	}
 }
 
-export class PgArray<T extends ColumnBaseConfig> extends PgColumn<PgArrayHKT, T, {}, {
-	baseColumn: BuildColumn<
-		string,
-		Assume<
-			PgColumnBuilder<
-				PgColumnBuilderHKT,
-				{
-					name: T['name'];
-					notNull: T['notNull'];
-					hasDefault: T['hasDefault'];
-					data: Assume<T['data'], unknown[]>[number];
-					driverParam: string | Assume<T['driverParam'], unknown[]>[number];
-				}
-			>,
-			AnyColumnBuilder
-		>
-	>;
-}> {
-	declare protected $pgColumnBrand: 'PgArray';
-
+export class PgArray<
+	T extends ColumnBaseConfig<'array', 'PgArray'>,
+	TBase extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+> extends PgColumn<T> {
 	readonly size: number | undefined;
 
 	static readonly [entityKind]: string = 'PgArray';
 
 	constructor(
 		table: AnyPgTable<{ name: T['tableName'] }>,
-		config: PgArrayBuilder<T>['config'],
-		readonly baseColumn: AnyPgColumn,
+		config: PgArrayBuilder<T, TBase>['config'],
+		readonly baseColumn: PgColumn,
 		readonly range?: [number | undefined, number | undefined],
 	) {
 		super(table, config);

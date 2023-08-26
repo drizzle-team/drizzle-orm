@@ -1,10 +1,9 @@
 import type { QueryResult } from 'pg';
-import type { Equal } from 'type-tests/utils';
-import { Expect } from 'type-tests/utils';
-import { eq } from '~/expressions';
-import type { InferModel } from '~/table';
-import { db } from './db';
-import { users } from './tables';
+import type { Equal } from 'type-tests/utils.ts';
+import { Expect } from 'type-tests/utils.ts';
+import { eq } from '~/expressions.ts';
+import { db } from './db.ts';
+import { users } from './tables.ts';
 
 const deleteAll = await db.delete(users);
 Expect<Equal<QueryResult<never>, typeof deleteAll>>;
@@ -21,11 +20,11 @@ const deleteWherePrepared = await deleteWhereStmt.execute();
 Expect<Equal<QueryResult<never>, typeof deleteWherePrepared>>;
 
 const deleteReturningAll = await db.delete(users).returning();
-Expect<Equal<InferModel<typeof users>[], typeof deleteReturningAll>>;
+Expect<Equal<typeof users.$inferSelect[], typeof deleteReturningAll>>;
 
 const deleteReturningAllStmt = db.delete(users).returning().prepare('deleteReturningAllStmt');
 const deleteReturningAllPrepared = await deleteReturningAllStmt.execute();
-Expect<Equal<InferModel<typeof users>[], typeof deleteReturningAllPrepared>>;
+Expect<Equal<typeof users.$inferSelect[], typeof deleteReturningAllPrepared>>;
 
 const deleteReturningPartial = await db.delete(users).returning({
 	myId: users.id,

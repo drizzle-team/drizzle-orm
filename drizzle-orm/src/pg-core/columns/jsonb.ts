@@ -1,42 +1,35 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-import { entityKind } from '~/entity';
-import type { AnyPgTable } from '~/pg-core/table';
-import { type Assume } from '~/utils';
-import { PgColumn, PgColumnBuilder } from './common';
-
-export interface PgJsonbBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgJsonbBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgJsonbHKT;
-}
-
-export interface PgJsonbHKT extends ColumnHKTBase {
-	_type: PgJsonb<Assume<this['config'], ColumnBaseConfig>>;
-}
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnyPgTable } from '~/pg-core/table.ts';
+import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgJsonbBuilderInitial<TName extends string> = PgJsonbBuilder<{
 	name: TName;
+	dataType: 'json';
+	columnType: 'PgJsonb';
 	data: unknown;
 	driverParam: unknown;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class PgJsonbBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<PgJsonbBuilderHKT, T> {
+export class PgJsonbBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgJsonb'>> extends PgColumnBuilder<T> {
 	static readonly [entityKind]: string = 'PgJsonbBuilder';
+
+	constructor(name: T['name']) {
+		super(name, 'json', 'PgJsonb');
+	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgJsonb<MakeColumnConfig<T, TTableName>> {
-		return new PgJsonb<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new PgJsonb<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class PgJsonb<T extends ColumnBaseConfig> extends PgColumn<PgJsonbHKT, T> {
+export class PgJsonb<T extends ColumnBaseConfig<'json', 'PgJsonb'>> extends PgColumn<T> {
 	static readonly [entityKind]: string = 'PgJsonb';
-
-	declare protected $pgColumnBrand: 'PgJsonb';
 
 	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgJsonbBuilder<T>['config']) {
 		super(table, config);

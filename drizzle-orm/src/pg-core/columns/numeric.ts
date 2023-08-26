@@ -1,29 +1,19 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-import { entityKind } from '~/entity';
-import type { AnyPgTable } from '~/pg-core/table';
-import { type Assume } from '~/utils';
-import { PgColumn, PgColumnBuilder } from './common';
-
-export interface PgNumericBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgNumericBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgNumericHKT;
-}
-
-export interface PgNumericHKT extends ColumnHKTBase {
-	_type: PgNumeric<Assume<this['config'], ColumnBaseConfig>>;
-}
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnyPgTable } from '~/pg-core/table.ts';
+import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgNumericBuilderInitial<TName extends string> = PgNumericBuilder<{
 	name: TName;
+	dataType: 'string';
+	columnType: 'PgNumeric';
 	data: string;
 	driverParam: string;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class PgNumericBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<
-	PgNumericBuilderHKT,
+export class PgNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgNumeric'>> extends PgColumnBuilder<
 	T,
 	{
 		precision: number | undefined;
@@ -33,7 +23,7 @@ export class PgNumericBuilder<T extends ColumnBuilderBaseConfig> extends PgColum
 	static readonly [entityKind]: string = 'PgNumericBuilder';
 
 	constructor(name: string, precision?: number, scale?: number) {
-		super(name);
+		super(name, 'string', 'PgNumeric');
 		this.config.precision = precision;
 		this.config.scale = scale;
 	}
@@ -42,11 +32,11 @@ export class PgNumericBuilder<T extends ColumnBuilderBaseConfig> extends PgColum
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgNumeric<MakeColumnConfig<T, TTableName>> {
-		return new PgNumeric<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new PgNumeric<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class PgNumeric<T extends ColumnBaseConfig> extends PgColumn<PgNumericHKT, T> {
+export class PgNumeric<T extends ColumnBaseConfig<'string', 'PgNumeric'>> extends PgColumn<T> {
 	static readonly [entityKind]: string = 'PgNumeric';
 
 	readonly precision: number | undefined;

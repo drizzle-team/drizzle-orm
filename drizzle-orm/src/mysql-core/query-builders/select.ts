@@ -1,11 +1,16 @@
-import { entityKind, is } from '~/entity';
-import type { AnyMySqlColumn } from '~/mysql-core/columns';
-import type { MySqlDialect } from '~/mysql-core/dialect';
-import type { MySqlSession, PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '~/mysql-core/session';
-import type { SubqueryWithSelection } from '~/mysql-core/subquery';
-import type { AnyMySqlTable } from '~/mysql-core/table';
-import { MySqlViewBase } from '~/mysql-core/view';
-import { TypedQueryBuilder } from '~/query-builders/query-builder';
+import { entityKind, is } from '~/entity.ts';
+import type { MySqlColumn } from '~/mysql-core/columns/index.ts';
+import type { MySqlDialect } from '~/mysql-core/dialect.ts';
+import type {
+	MySqlSession,
+	PreparedQueryConfig,
+	PreparedQueryHKTBase,
+	PreparedQueryKind,
+} from '~/mysql-core/session.ts';
+import type { SubqueryWithSelection } from '~/mysql-core/subquery.ts';
+import type { MySqlTable } from '~/mysql-core/table.ts';
+import { MySqlViewBase } from '~/mysql-core/view.ts';
+import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	BuildSubquerySelection,
 	GetSelectTableName,
@@ -14,14 +19,14 @@ import type {
 	JoinType,
 	SelectMode,
 	SelectResult,
-} from '~/query-builders/select.types';
-import { QueryPromise } from '~/query-promise';
-import { type Query, SQL } from '~/sql';
-import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
-import { Table } from '~/table';
-import { applyMixins, getTableColumns, getTableLikeName, type Simplify, type ValueOrArray } from '~/utils';
-import { orderSelectedFields } from '~/utils';
-import { type ColumnsSelection, View, ViewBaseConfig } from '~/view';
+} from '~/query-builders/select.types.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import { type Query, SQL } from '~/sql/index.ts';
+import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery.ts';
+import { Table } from '~/table.ts';
+import { applyMixins, getTableColumns, getTableLikeName, type ValueOrArray } from '~/utils.ts';
+import { orderSelectedFields } from '~/utils.ts';
+import { type ColumnsSelection, View, ViewBaseConfig } from '~/view.ts';
 import type {
 	JoinFn,
 	LockConfig,
@@ -31,7 +36,7 @@ import type {
 	MySqlSelectHKTBase,
 	MySqlSelectQueryBuilderHKT,
 	SelectedFields,
-} from './select.types';
+} from './select.types.ts';
 
 type CreateMySqlSelectFromBuilderMode<
 	TBuilderMode extends 'db' | 'qb',
@@ -73,7 +78,7 @@ export class MySqlSelectBuilder<
 		this.distinct = config.distinct;
 	}
 
-	from<TFrom extends AnyMySqlTable | Subquery | MySqlViewBase | SQL>(
+	from<TFrom extends MySqlTable | Subquery | MySqlViewBase | SQL>(
 		source: TFrom,
 	): CreateMySqlSelectFromBuilderMode<
 		TBuilderMode,
@@ -99,7 +104,7 @@ export class MySqlSelectBuilder<
 		} else if (is(source, SQL)) {
 			fields = {};
 		} else {
-			fields = getTableColumns<AnyMySqlTable>(source);
+			fields = getTableColumns<MySqlTable>(source);
 		}
 
 		return new MySqlSelect(
@@ -160,9 +165,6 @@ export abstract class MySqlSelectQueryBuilder<
 			withList,
 			table,
 			fields: { ...fields },
-			joins: [],
-			orderBy: [],
-			groupBy: [],
 			distinct,
 		};
 		this.isPartialSelect = isPartialSelect;
@@ -179,13 +181,13 @@ export abstract class MySqlSelectQueryBuilder<
 		joinType: TJoinType,
 	): JoinFn<THKT, TTableName, TSelectMode, TJoinType, TSelection, TNullabilityMap> {
 		return (
-			table: AnyMySqlTable | Subquery | MySqlViewBase | SQL,
+			table: MySqlTable | Subquery | MySqlViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
 
-			if (typeof tableName === 'string' && this.config.joins.some((join) => join.alias === tableName)) {
+			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
 			}
 
@@ -213,6 +215,10 @@ export abstract class MySqlSelectQueryBuilder<
 						new SelectionProxyHandler({ sqlAliasedBehavior: 'sql', sqlBehavior: 'sql' }),
 					) as TSelection,
 				);
+			}
+
+			if (!this.config.joins) {
+				this.config.joins = [];
 			}
 
 			this.config.joins.push({ on, table, joinType, alias: tableName });
@@ -282,12 +288,12 @@ export abstract class MySqlSelectQueryBuilder<
 		return this;
 	}
 
-	groupBy(builder: (aliases: TSelection) => ValueOrArray<AnyMySqlColumn | SQL | SQL.Aliased>): this;
-	groupBy(...columns: (AnyMySqlColumn | SQL | SQL.Aliased)[]): this;
+	groupBy(builder: (aliases: TSelection) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>): this;
+	groupBy(...columns: (MySqlColumn | SQL | SQL.Aliased)[]): this;
 	groupBy(
 		...columns:
-			| [(aliases: TSelection) => ValueOrArray<AnyMySqlColumn | SQL | SQL.Aliased>]
-			| (AnyMySqlColumn | SQL | SQL.Aliased)[]
+			| [(aliases: TSelection) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>]
+			| (MySqlColumn | SQL | SQL.Aliased)[]
 	) {
 		if (typeof columns[0] === 'function') {
 			const groupBy = columns[0](
@@ -298,17 +304,17 @@ export abstract class MySqlSelectQueryBuilder<
 			);
 			this.config.groupBy = Array.isArray(groupBy) ? groupBy : [groupBy];
 		} else {
-			this.config.groupBy = columns as (AnyMySqlColumn | SQL | SQL.Aliased)[];
+			this.config.groupBy = columns as (MySqlColumn | SQL | SQL.Aliased)[];
 		}
 		return this;
 	}
 
-	orderBy(builder: (aliases: TSelection) => ValueOrArray<AnyMySqlColumn | SQL | SQL.Aliased>): this;
-	orderBy(...columns: (AnyMySqlColumn | SQL | SQL.Aliased)[]): this;
+	orderBy(builder: (aliases: TSelection) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>): this;
+	orderBy(...columns: (MySqlColumn | SQL | SQL.Aliased)[]): this;
 	orderBy(
 		...columns:
-			| [(aliases: TSelection) => ValueOrArray<AnyMySqlColumn | SQL | SQL.Aliased>]
-			| (AnyMySqlColumn | SQL | SQL.Aliased)[]
+			| [(aliases: TSelection) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>]
+			| (MySqlColumn | SQL | SQL.Aliased)[]
 	) {
 		if (typeof columns[0] === 'function') {
 			const orderBy = columns[0](
@@ -319,7 +325,7 @@ export abstract class MySqlSelectQueryBuilder<
 			);
 			this.config.orderBy = Array.isArray(orderBy) ? orderBy : [orderBy];
 		} else {
-			this.config.orderBy = columns as (AnyMySqlColumn | SQL | SQL.Aliased)[];
+			this.config.orderBy = columns as (MySqlColumn | SQL | SQL.Aliased)[];
 		}
 		return this;
 	}
@@ -344,18 +350,18 @@ export abstract class MySqlSelectQueryBuilder<
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	toSQL(): Simplify<Omit<Query, 'typings'>> {
+	toSQL(): { sql: Query['sql']; params: Query['params'] } {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
 
 	as<TAlias extends string>(
 		alias: TAlias,
-	): SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias> {
+	): SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias, 'mysql'> {
 		return new Proxy(
 			new Subquery(this.getSQL(), this.config.fields, alias),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-		) as SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias>;
+		) as SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias, 'mysql'>;
 	}
 }
 
@@ -398,7 +404,7 @@ export class MySqlSelect<
 		if (!this.session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
-		const fieldsList = orderSelectedFields<AnyMySqlColumn>(this.config.fields);
+		const fieldsList = orderSelectedFields<MySqlColumn>(this.config.fields);
 		const query = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
 			TPreparedQueryHKT

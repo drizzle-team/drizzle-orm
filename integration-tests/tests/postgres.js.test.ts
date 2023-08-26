@@ -21,12 +21,12 @@ import {
 } from 'drizzle-orm';
 import {
 	alias,
-	type AnyPgColumn,
 	boolean,
 	getMaterializedViewConfig,
 	getViewConfig,
 	integer,
 	jsonb,
+	type PgColumn,
 	pgEnum,
 	pgMaterializedView,
 	pgTable,
@@ -44,7 +44,7 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import getPort from 'get-port';
 import postgres, { type Sql } from 'postgres';
 import { v4 as uuid } from 'uuid';
-import { type Equal, Expect } from './utils';
+import { type Equal, Expect } from './utils.ts';
 
 const QUERY_LOGGING = false;
 
@@ -81,7 +81,7 @@ const courseCategoriesTable = pgTable('course_categories', {
 const orders = pgTable('orders', {
 	id: serial('id').primaryKey(),
 	region: text('region').notNull(),
-	product: text('product').notNull(),
+	product: text('product').notNull().$default(() => 'random_string'),
 	amount: integer('amount').notNull(),
 	quantity: integer('quantity').notNull(),
 });
@@ -796,10 +796,118 @@ test.serial('insert via db.execute + returning', async (t) => {
 test.serial('insert via db.execute w/ query builder', async (t) => {
 	const { db } = t.context;
 
-	const result = await db.execute<Pick<typeof usersTable['_']['model']['select'], 'id' | 'name'>>(
+	const result = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
 		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 	);
 	t.deepEqual(Array.prototype.slice.call(result), [{ id: 1, name: 'John' }]);
+});
+
+test.serial('Query check: Insert all defaults in 1 row', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	const query = db
+		.insert(users)
+		.values({})
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: 'insert into "users" ("id", "name", "state") values (default, default, default)',
+		params: [],
+	});
+});
+
+test.serial('Query check: Insert all defaults in multiple rows', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state').default('UA'),
+	});
+
+	const query = db
+		.insert(users)
+		.values([{}, {}])
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: 'insert into "users" ("id", "name", "state") values (default, default, default), (default, default, default)',
+		params: [],
+	});
+});
+
+test.serial('$default function', async (t) => {
+	const { db } = t.context;
+
+	const insertedOrder = await db.insert(orders).values({ id: 1, region: 'Ukraine', amount: 1, quantity: 1 })
+		.returning();
+	const selectedOrder = await db.select().from(orders);
+
+	t.deepEqual(insertedOrder, [{
+		id: 1,
+		amount: 1,
+		quantity: 1,
+		region: 'Ukraine',
+		product: 'random_string',
+	}]);
+
+	t.deepEqual(selectedOrder, [{
+		id: 1,
+		amount: 1,
+		quantity: 1,
+		region: 'Ukraine',
+		product: 'random_string',
+	}]);
+});
+
+test.serial('Insert all defaults in 1 row', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('empty_insert_single', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial primary key, name text default 'Dan', state text)`,
+	);
+
+	await db.insert(users).values({});
+
+	const res = await db.select().from(users);
+
+	t.deepEqual(res, [{ id: 1, name: 'Dan', state: null }]);
+});
+
+test.serial('Insert all defaults in multiple rows', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('empty_insert_multiple', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial primary key, name text default 'Dan', state text)`,
+	);
+
+	await db.insert(users).values([{}, {}]);
+
+	const res = await db.select().from(users);
+
+	t.deepEqual(res, [{ id: 1, name: 'Dan', state: null }, { id: 2, name: 'Dan', state: null }]);
 });
 
 test.serial('build query insert with onConflict do update', async (t) => {
@@ -811,7 +919,8 @@ test.serial('build query insert with onConflict do update', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id") do update set "name" = $3',
+		sql:
+			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do update set "name" = $3',
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
@@ -825,7 +934,8 @@ test.serial('build query insert with onConflict do update / multiple columns', a
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id","name") do update set "name" = $3',
+		sql:
+			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
@@ -839,7 +949,8 @@ test.serial('build query insert with onConflict do nothing', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict do nothing',
+		sql:
+			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict do nothing',
 		params: ['John', '["foo","bar"]'],
 	});
 });
@@ -853,7 +964,8 @@ test.serial('build query insert with onConflict do nothing + target', async (t) 
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id") do nothing',
+		sql:
+			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
 		params: ['John', '["foo","bar"]'],
 	});
 });
@@ -1172,9 +1284,9 @@ test.serial('select count()', async (t) => {
 test.serial('select count w/ custom mapper', async (t) => {
 	const { db } = t.context;
 
-	function count(value: AnyPgColumn | SQLWrapper): SQL<number>;
-	function count(value: AnyPgColumn | SQLWrapper, alias: string): SQL.Aliased<number>;
-	function count(value: AnyPgColumn | SQLWrapper, alias?: string): SQL<number> | SQL.Aliased<number> {
+	function count(value: PgColumn | SQLWrapper): SQL<number>;
+	function count(value: PgColumn | SQLWrapper, alias: string): SQL.Aliased<number>;
+	function count(value: PgColumn | SQLWrapper, alias?: string): SQL<number> | SQL.Aliased<number> {
 		const result = sql`count(${value})`.mapWith(Number);
 		if (!alias) {
 			return result;

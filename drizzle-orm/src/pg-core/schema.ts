@@ -1,6 +1,6 @@
-import { entityKind, is } from '~/entity';
-import { type PgTableFn, pgTableWithSchema } from './table';
-import { type pgMaterializedView, pgMaterializedViewWithSchema, type pgView, pgViewWithSchema } from './view';
+import { entityKind, is } from '~/entity.ts';
+import { type PgTableFn, pgTableWithSchema } from './table.ts';
+import { type pgMaterializedView, pgMaterializedViewWithSchema, type pgView, pgViewWithSchema } from './view.ts';
 
 export class PgSchema<TName extends string = string> {
 	static readonly [entityKind]: string = 'PgSchema';

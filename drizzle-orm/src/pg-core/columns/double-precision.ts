@@ -1,41 +1,39 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-import { entityKind } from '~/entity';
-import type { AnyPgTable } from '~/pg-core/table';
-import { type Assume } from '~/utils';
-import { PgColumn, PgColumnBuilder } from './common';
-
-export interface PgDoublePrecisionBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgDoublePrecisionBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgDoublePrecisionHKT;
-}
-
-export interface PgDoublePrecisionHKT extends ColumnHKTBase {
-	_type: PgDoublePrecision<Assume<this['config'], ColumnBaseConfig>>;
-}
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnyPgTable } from '~/pg-core/table.ts';
+import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgDoublePrecisionBuilderInitial<TName extends string> = PgDoublePrecisionBuilder<{
 	name: TName;
+	dataType: 'number';
+	columnType: 'PgDoublePrecision';
 	data: number;
 	driverParam: string | number;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class PgDoublePrecisionBuilder<T extends ColumnBuilderBaseConfig>
-	extends PgColumnBuilder<PgDoublePrecisionBuilderHKT, T>
+export class PgDoublePrecisionBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgDoublePrecision'>>
+	extends PgColumnBuilder<T>
 {
 	static readonly [entityKind]: string = 'PgDoublePrecisionBuilder';
+
+	constructor(name: T['name']) {
+		super(name, 'number', 'PgDoublePrecision');
+	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgDoublePrecision<MakeColumnConfig<T, TTableName>> {
-		return new PgDoublePrecision<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new PgDoublePrecision<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class PgDoublePrecision<T extends ColumnBaseConfig> extends PgColumn<PgDoublePrecisionHKT, T> {
+export class PgDoublePrecision<T extends ColumnBaseConfig<'number', 'PgDoublePrecision'>> extends PgColumn<T> {
 	static readonly [entityKind]: string = 'PgDoublePrecision';
 
 	getSQLType(): string {
