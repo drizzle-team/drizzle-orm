@@ -50,6 +50,7 @@ export const external = [
 	'knex',
 	'kysely',
 	'mysql2',
+	'mysql2/promise',
 	'postgres',
 	'sqlite3',
 	'bun:sqlite',

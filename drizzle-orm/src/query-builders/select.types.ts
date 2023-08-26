@@ -1,11 +1,11 @@
-import type { AnyColumn, Column, GetColumnData, UpdateColConfig } from '~/column';
-import type { ChangeColumnTableName, Dialect } from '~/column-builder';
-import type { SelectedFields } from '~/operations';
-import type { SQL } from '~/sql';
-import type { Subquery } from '~/subquery';
-import type { AnyTable, Table } from '~/table';
-import type { Assume, DrizzleTypeError, Equal, IsAny, Simplify } from '~/utils';
-import type { ColumnsSelection, View } from '~/view';
+import type { ChangeColumnTableName, Dialect } from '~/column-builder.ts';
+import type { AnyColumn, Column, GetColumnData, UpdateColConfig } from '~/column.ts';
+import type { SelectedFields } from '~/operations.ts';
+import type { SQL } from '~/sql/index.ts';
+import type { Subquery } from '~/subquery.ts';
+import type { AnyTable, Table } from '~/table.ts';
+import type { Assume, DrizzleTypeError, Equal, IsAny, Simplify } from '~/utils.ts';
+import type { ColumnsSelection, View } from '~/view.ts';
 
 export type JoinType = 'inner' | 'left' | 'right' | 'full';
 
@@ -155,7 +155,7 @@ export type GetSelectTableSelection<TTable extends TableLike> = TTable extends T
 
 export type SelectResultField<T, TDeep extends boolean = true> = T extends DrizzleTypeError<any> ? T
 	: T extends Table ? Equal<TDeep, true> extends true ? SelectResultField<T['_']['columns'], false> : never
-	: T extends Column ? GetColumnData<T>
+	: T extends Column<any> ? GetColumnData<T>
 	: T extends SQL | SQL.Aliased ? T['_']['type']
 	: T extends Record<string, any> ? SelectResultFields<T, true>
 	: never;

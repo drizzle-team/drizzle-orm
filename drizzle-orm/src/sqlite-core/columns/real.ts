@@ -1,8 +1,8 @@
-import type { ColumnBaseConfig } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
-import { entityKind } from '~/entity';
-import type { AnySQLiteTable } from '../table';
-import { SQLiteColumn, SQLiteColumnBuilder } from './common';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnySQLiteTable } from '../table.ts';
+import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 export type SQLiteRealBuilderInitial<TName extends string> = SQLiteRealBuilder<{
 	name: TName;

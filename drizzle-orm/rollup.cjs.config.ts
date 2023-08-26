@@ -2,6 +2,7 @@ import json from '@rollup/plugin-json';
 import replace from '@rollup/plugin-replace';
 import typescript from '@rollup/plugin-typescript';
 import { defineConfig } from 'rollup';
+
 import { entries, external } from './rollup.common';
 
 export default defineConfig([
@@ -31,6 +32,7 @@ export default defineConfig([
 			typescript({
 				tsconfig: 'tsconfig.cjs.json',
 				outputToFilesystem: true,
+				incremental: false,
 			}),
 		],
 	},

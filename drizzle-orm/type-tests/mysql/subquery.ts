@@ -1,9 +1,9 @@
-import { Expect } from 'type-tests/utils';
-import { and, eq } from '~/expressions';
-import { alias, int, mysqlTable, serial, text } from '~/mysql-core';
-import { sql } from '~/sql';
-import type { DrizzleTypeError, Equal } from '~/utils';
-import { db } from './db';
+import { Expect } from 'type-tests/utils.ts';
+import { and, eq } from '~/expressions.ts';
+import { alias, int, mysqlTable, serial, text } from '~/mysql-core/index.ts';
+import { sql } from '~/sql/index.ts';
+import type { DrizzleTypeError, Equal } from '~/utils.ts';
+import { db } from './db.ts';
 
 const names = mysqlTable('names', {
 	id: serial('id').primaryKey(),

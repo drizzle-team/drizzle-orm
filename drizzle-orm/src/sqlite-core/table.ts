@@ -1,12 +1,12 @@
-import type { BuildColumns } from '~/column-builder';
-import { entityKind } from '~/entity';
-import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table';
-import type { CheckBuilder } from './checks';
-import type { SQLiteColumn, SQLiteColumnBuilder } from './columns/common';
-import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys';
-import type { IndexBuilder } from './indexes';
-import type { PrimaryKeyBuilder } from './primary-keys';
-import type { UniqueConstraintBuilder } from './unique-constraint';
+import type { BuildColumns } from '~/column-builder.ts';
+import { entityKind } from '~/entity.ts';
+import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
+import type { CheckBuilder } from './checks.ts';
+import type { SQLiteColumn, SQLiteColumnBuilder, SQLiteColumnBuilderBase } from './columns/common.ts';
+import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
+import type { IndexBuilder } from './indexes.ts';
+import type { PrimaryKeyBuilder } from './primary-keys.ts';
+import type { UniqueConstraintBuilder } from './unique-constraint.ts';
 
 export type SQLiteTableExtraConfig = Record<
 	string,
@@ -55,7 +55,7 @@ export type SQLiteTableWithColumns<T extends TableConfig> =
 export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, SQLiteColumnBuilder>,
+		TColumnsMap extends Record<string, SQLiteColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
@@ -70,7 +70,7 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 
 function sqliteTableBase<
 	TTableName extends string,
-	TColumnsMap extends Record<string, SQLiteColumnBuilder>,
+	TColumnsMap extends Record<string, SQLiteColumnBuilderBase>,
 	TSchema extends string | undefined,
 >(
 	name: TTableName,
@@ -92,7 +92,8 @@ function sqliteTableBase<
 	}>(name, schema, baseName);
 
 	const builtColumns = Object.fromEntries(
-		Object.entries(columns).map(([name, colBuilder]) => {
+		Object.entries(columns).map(([name, colBuilderBase]) => {
+			const colBuilder = colBuilderBase as SQLiteColumnBuilder;
 			const column = colBuilder.build(rawTable);
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];

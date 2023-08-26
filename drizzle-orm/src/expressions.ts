@@ -1,1 +1,1 @@
-export * from './sql/expressions';
+export * from './sql/expressions/index.ts';

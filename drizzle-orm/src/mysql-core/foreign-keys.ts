@@ -1,14 +1,13 @@
-import { entityKind } from '~/entity';
-import type { AnyMySqlColumn } from './columns';
-import type { AnyMySqlTable } from './table';
-import { MySqlTable } from './table';
+import { entityKind } from '~/entity.ts';
+import type { AnyMySqlColumn, MySqlColumn } from './columns/index.ts';
+import { MySqlTable } from './table.ts';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
 export type Reference = () => {
-	readonly columns: AnyMySqlColumn[];
-	readonly foreignTable: AnyMySqlTable;
-	readonly foreignColumns: AnyMySqlColumn[];
+	readonly columns: MySqlColumn[];
+	readonly foreignTable: MySqlTable;
+	readonly foreignColumns: MySqlColumn[];
 };
 
 export class ForeignKeyBuilder {
@@ -25,8 +24,8 @@ export class ForeignKeyBuilder {
 
 	constructor(
 		config: () => {
-			columns: AnyMySqlColumn[];
-			foreignColumns: AnyMySqlColumn[];
+			columns: MySqlColumn[];
+			foreignColumns: MySqlColumn[];
 		},
 		actions?: {
 			onUpdate?: UpdateDeleteAction;
@@ -35,7 +34,7 @@ export class ForeignKeyBuilder {
 	) {
 		this.reference = () => {
 			const { columns, foreignColumns } = config();
-			return { columns, foreignTable: foreignColumns[0]!.table as AnyMySqlTable, foreignColumns };
+			return { columns, foreignTable: foreignColumns[0]!.table as MySqlTable, foreignColumns };
 		};
 		if (actions) {
 			this._onUpdate = actions.onUpdate;
@@ -54,7 +53,7 @@ export class ForeignKeyBuilder {
 	}
 
 	/** @internal */
-	build(table: AnyMySqlTable): ForeignKey {
+	build(table: MySqlTable): ForeignKey {
 		return new ForeignKey(table, this);
 	}
 }
@@ -68,7 +67,7 @@ export class ForeignKey {
 	readonly onUpdate: UpdateDeleteAction | undefined;
 	readonly onDelete: UpdateDeleteAction | undefined;
 
-	constructor(readonly table: AnyMySqlTable, builder: ForeignKeyBuilder) {
+	constructor(readonly table: MySqlTable, builder: ForeignKeyBuilder) {
 		this.reference = builder.reference;
 		this.onUpdate = builder._onUpdate;
 		this.onDelete = builder._onDelete;
@@ -90,12 +89,12 @@ export class ForeignKey {
 
 type ColumnsWithTable<
 	TTableName extends string,
-	TColumns extends AnyMySqlColumn[],
+	TColumns extends MySqlColumn[],
 > = { [Key in keyof TColumns]: AnyMySqlColumn<{ tableName: TTableName }> };
 
-export type GetColumnsTable<TColumns extends AnyMySqlColumn | AnyMySqlColumn[]> = (
-	TColumns extends AnyMySqlColumn ? TColumns
-		: TColumns extends AnyMySqlColumn[] ? TColumns[number]
+export type GetColumnsTable<TColumns extends MySqlColumn | MySqlColumn[]> = (
+	TColumns extends MySqlColumn ? TColumns
+		: TColumns extends MySqlColumn[] ? TColumns[number]
 		: never
 ) extends AnyMySqlColumn<{ tableName: infer TTableName extends string }> ? TTableName
 	: never;

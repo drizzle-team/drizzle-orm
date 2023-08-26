@@ -1,9 +1,9 @@
-import type { ColumnBaseConfig } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
-import { entityKind } from '~/entity';
-import type { AnySQLiteTable } from '~/sqlite-core/table';
-import { type Writable } from '~/utils';
-import { SQLiteColumn, SQLiteColumnBuilder } from './common';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
+import { type Writable } from '~/utils.ts';
+import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 export type SQLiteTextBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = SQLiteTextBuilder<{
 	name: TName;

@@ -1,8 +1,8 @@
-import { ColumnAliasProxyHandler, TableAliasProxyHandler } from './alias';
-import { Column } from './column';
-import { entityKind, is } from './entity';
-import { SQL, type SQLWrapper } from './sql';
-import { type ColumnsSelection, View, ViewBaseConfig } from './view';
+import { ColumnAliasProxyHandler, TableAliasProxyHandler } from './alias.ts';
+import { Column } from './column.ts';
+import { entityKind, is } from './entity.ts';
+import { SQL, type SQLWrapper } from './sql/index.ts';
+import { type ColumnsSelection, View, ViewBaseConfig } from './view.ts';
 
 export const SubqueryConfig = Symbol.for('drizzle:SubqueryConfig');
 
