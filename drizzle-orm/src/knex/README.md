@@ -9,25 +9,25 @@ You can define you DB schema using Drizzle and use Knex as the query builder. Wi
 This integration is based on [official Knex TypeScript guide](https://knexjs.org/guide/#typescript).
 
 ```ts
-import Knex from 'knex';
 import { pgTable, serial, text } from 'drizzle-orm/pg-core';
+import Knex from 'knex';
 // This line is important - it allows you to use the Knexify type
 import 'drizzle-orm/knex';
 
 const test = pgTable('test', {
-  id: serial('id').primaryKey(),
-  name: text('name').notNull(),
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
 });
 
 declare module 'knex/types/tables' {
-  interface Tables {
-    test: Knexify<typeof test>;
-  }
+	interface Tables {
+		test: Knexify<typeof test>;
+	}
 }
 
 const db = Knex({});
 
-const result/*: { id: number, name: string }[] */ = db('test').select();
+const result /*: { id: number, name: string }[] */ = db('test').select();
 ```
 
 ## Wrapping Knex connection with Drizzle
