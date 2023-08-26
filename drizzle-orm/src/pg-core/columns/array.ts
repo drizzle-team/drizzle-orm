@@ -1,14 +1,14 @@
-import type { ColumnBaseConfig } from '~/column';
 import type {
 	ColumnBuilderBaseConfig,
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
 	MakeColumnConfig,
-} from '~/column-builder';
-import { entityKind, is } from '~/entity';
-import type { AnyPgTable } from '~/pg-core/table';
-import { makePgArray, parsePgArray } from '../utils';
-import { PgColumn, PgColumnBuilder } from './common';
+} from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind, is } from '~/entity.ts';
+import type { AnyPgTable } from '~/pg-core/table.ts';
+import { makePgArray, parsePgArray } from '../utils.ts';
+import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgArrayBuilder<
 	T extends ColumnBuilderBaseConfig<'array', 'PgArray'>,

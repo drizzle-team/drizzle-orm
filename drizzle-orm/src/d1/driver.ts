@@ -1,16 +1,16 @@
 /// <reference types="@cloudflare/workers-types" />
 
-import { DefaultLogger } from '~/logger';
+import { DefaultLogger } from '~/logger.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
-} from '~/relations';
-import { BaseSQLiteDatabase } from '~/sqlite-core/db';
-import { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
-import { type DrizzleConfig } from '~/utils';
-import { SQLiteD1Session } from './session';
+} from '~/relations.ts';
+import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
+import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
+import { type DrizzleConfig } from '~/utils.ts';
+import { SQLiteD1Session } from './session.ts';
 
 export type DrizzleD1Database<
 	TSchema extends Record<string, unknown> = Record<string, never>,

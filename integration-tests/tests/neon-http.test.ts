@@ -46,9 +46,11 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
-import { Client } from 'pg';
+import pg from 'pg';
 import { v4 as uuid } from 'uuid';
-import { type Equal, Expect } from './utils';
+import { type Equal, Expect } from './utils.ts';
+
+const { Client } = pg;
 
 const ENABLE_LOGGING = false;
 
@@ -118,7 +120,7 @@ interface Context {
 	docker: Docker;
 	pgContainer: Docker.Container;
 	db: NeonHttpDatabase;
-	ddlRunner: Client;
+	ddlRunner: pg.Client;
 	client: NeonQueryFunction<false, true>;
 }
 
@@ -960,7 +962,7 @@ test.serial('insert via db.execute + returning', async (t) => {
 test.serial('insert via db.execute w/ query builder', async (t) => {
 	const { db } = t.context;
 
-	const inserted = await db.execute<Pick<typeof usersTable['_']['model']['select'], 'id' | 'name'>>(
+	const inserted = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
 		db
 			.insert(usersTable)
 			.values({ name: 'John' })
@@ -1381,7 +1383,7 @@ test.serial('select count w/ custom mapper', async (t) => {
 test.serial('network types', async (t) => {
 	const { db } = t.context;
 
-	const value: typeof network['_']['model']['select'] = {
+	const value: typeof network.$inferSelect = {
 		inet: '127.0.0.1',
 		cidr: '192.168.100.128/25',
 		macaddr: '08:00:2b:01:02:03',
@@ -1398,7 +1400,7 @@ test.serial('network types', async (t) => {
 test.serial('array types', async (t) => {
 	const { db } = t.context;
 
-	const values: typeof salEmp['_']['model']['select'][] = [
+	const values: typeof salEmp.$inferSelect[] = [
 		{
 			name: 'John',
 			payByQuarter: [10000, 10000, 10000, 10000],

@@ -1,5 +1,5 @@
-import type { Equal } from 'type-tests/utils';
-import { Expect } from 'type-tests/utils';
+import type { Equal } from 'type-tests/utils.ts';
+import { Expect } from 'type-tests/utils.ts';
 
 import {
 	and,
@@ -23,15 +23,14 @@ import {
 	notInArray,
 	notLike,
 	or,
-} from '~/expressions';
-import { boolean, integer, pgTable, text } from '~/pg-core';
-import { alias } from '~/pg-core/alias';
-import type { AnyPgSelect } from '~/pg-core/query-builders/select.types';
-import { param, type SQL, sql } from '~/sql';
-import type { InferModel } from '~/table';
+} from '~/expressions.ts';
+import { alias } from '~/pg-core/alias.ts';
+import { boolean, integer, pgTable, text } from '~/pg-core/index.ts';
+import type { AnyPgSelect } from '~/pg-core/query-builders/select.types.ts';
+import { type SQL, sql } from '~/sql/index.ts';
 
-import { db } from './db';
-import { cities, classes, newYorkers, newYorkers2, users } from './tables';
+import { db } from './db.ts';
+import { cities, classes, newYorkers, newYorkers2, users } from './tables.ts';
 
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
@@ -45,8 +44,8 @@ const leftJoinFull = await db.select().from(users).leftJoin(city, eq(users.id, c
 Expect<
 	Equal<
 		{
-			users_table: InferModel<typeof users>;
-			city: InferModel<typeof city> | null;
+			users_table: typeof users.$inferSelect;
+			city: typeof cities.$inferSelect | null;
 		}[],
 		typeof leftJoinFull
 	>
@@ -57,8 +56,8 @@ const rightJoinFull = await db.select().from(users).rightJoin(city, eq(users.id,
 Expect<
 	Equal<
 		{
-			users_table: InferModel<typeof users> | null;
-			city: InferModel<typeof city>;
+			users_table: typeof users.$inferSelect | null;
+			city: typeof city.$inferSelect;
 		}[],
 		typeof rightJoinFull
 	>
@@ -69,8 +68,8 @@ const innerJoinFull = await db.select().from(users).innerJoin(city, eq(users.id,
 Expect<
 	Equal<
 		{
-			users_table: InferModel<typeof users>;
-			city: InferModel<typeof city>;
+			users_table: typeof users.$inferSelect;
+			city: typeof city.$inferSelect;
 		}[],
 		typeof innerJoinFull
 	>
@@ -81,8 +80,8 @@ const fullJoinFull = await db.select().from(users).fullJoin(city, eq(users.id, c
 Expect<
 	Equal<
 		{
-			users_table: InferModel<typeof users> | null;
-			city: InferModel<typeof city> | null;
+			users_table: typeof users.$inferSelect | null;
+			city: typeof city.$inferSelect | null;
 		}[],
 		typeof fullJoinFull
 	>
@@ -380,15 +379,15 @@ const allOperators = await db
 		col6: sql<boolean>`true`, // boolean
 		col7: sql<number>`random()`, // number
 		col8: sql`some_funky_func(${users.id})`.mapWith(mapFunkyFuncResult), // { foo: string }
-		col9: sql`greatest(${users.createdAt}, ${param(new Date(), users.createdAt)})`, // unknown
+		col9: sql`greatest(${users.createdAt}, ${sql.param(new Date(), users.createdAt)})`, // unknown
 		col10: sql<Date | boolean>`date_or_false(${users.createdAt}, ${
-			param(
+			sql.param(
 				new Date(),
 				users.createdAt,
 			)
 		})`, // Date | boolean
 		col11: sql`${users.age1} + ${age}`, // unknown
-		col12: sql`${users.age1} + ${param(age, users.age1)}`, // unknown
+		col12: sql`${users.age1} + ${sql.param(age, users.age1)}`, // unknown
 		col13: sql`lower(${users.class})`, // unknown
 		col14: sql<number>`length(${users.class})`, // number
 		count: sql<number>`count(*)::int`, // number

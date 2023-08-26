@@ -1,5 +1,5 @@
 import { describe, it } from 'vitest';
-import { customType, pgTable } from '~/pg-core';
+import { customType, pgTable } from '~/pg-core/index.ts';
 
 const anyColumn = customType<{ data: any }>({
 	dataType() {

@@ -1,8 +1,8 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, ColumnDataType } from './column-builder';
-import { entityKind } from './entity';
-import type { DriverValueMapper, SQL, SQLWrapper } from './sql';
-import type { Table } from './table';
-import type { Update } from './utils';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, ColumnDataType } from './column-builder.ts';
+import { entityKind } from './entity.ts';
+import type { DriverValueMapper, SQL, SQLWrapper } from './sql/index.ts';
+import type { Table } from './table.ts';
+import type { Update } from './utils.ts';
 
 export interface ColumnBaseConfig<
 	TDataType extends ColumnDataType,
@@ -57,6 +57,7 @@ export abstract class Column<
 	readonly primary: boolean;
 	readonly notNull: boolean;
 	readonly default: T['data'] | SQL | undefined;
+	readonly defaultFn: (() => T['data'] | SQL) | undefined;
 	readonly hasDefault: boolean;
 	readonly isUnique: boolean;
 	readonly uniqueName: string | undefined;
@@ -75,6 +76,7 @@ export abstract class Column<
 		this.name = config.name;
 		this.notNull = config.notNull;
 		this.default = config.default;
+		this.defaultFn = config.defaultFn;
 		this.hasDefault = config.hasDefault;
 		this.primary = config.primaryKey;
 		this.isUnique = config.isUnique;

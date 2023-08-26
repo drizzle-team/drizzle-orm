@@ -1,9 +1,9 @@
-import type { ColumnBaseConfig } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
-import { entityKind } from '~/entity';
-import type { AnyPgTable } from '~/pg-core/table';
-import { sql } from '~/sql';
-import { PgColumn, PgColumnBuilder } from './common';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnyPgTable } from '~/pg-core/table.ts';
+import { sql } from '~/sql/index.ts';
+import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgUUIDBuilderInitial<TName extends string> = PgUUIDBuilder<{
 	name: TName;

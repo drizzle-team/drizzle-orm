@@ -1,17 +1,17 @@
 import { types } from '@neondatabase/serverless';
-import { entityKind } from '~/entity';
-import type { Logger } from '~/logger';
-import { DefaultLogger } from '~/logger';
-import { PgDatabase } from '~/pg-core/db';
-import { PgDialect } from '~/pg-core/dialect';
+import { entityKind } from '~/entity.ts';
+import type { Logger } from '~/logger.ts';
+import { DefaultLogger } from '~/logger.ts';
+import { PgDatabase } from '~/pg-core/db.ts';
+import { PgDialect } from '~/pg-core/dialect.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
-} from '~/relations';
-import { type DrizzleConfig } from '~/utils';
-import { type NeonHttpClient, type NeonHttpQueryResultHKT, NeonHttpSession } from './session';
+} from '~/relations.ts';
+import { type DrizzleConfig } from '~/utils.ts';
+import { type NeonHttpClient, type NeonHttpQueryResultHKT, NeonHttpSession } from './session.ts';
 
 export interface NeonDriverOptions {
 	logger?: Logger;
@@ -72,6 +72,6 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 
 	const driver = new NeonHttpDriver(client, dialect, { logger });
 	const session = driver.createSession(schema);
-	
+
 	return new PgDatabase(dialect, session, schema) as NeonHttpDatabase<TSchema>;
 }
