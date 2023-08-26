@@ -1,6 +1,6 @@
-import type { MigrationConfig } from '~/migrator';
-import { readMigrationFiles } from '~/migrator';
-import type { SQLJsDatabase } from './driver';
+import type { MigrationConfig } from '~/migrator.ts';
+import { readMigrationFiles } from '~/migrator.ts';
+import type { SQLJsDatabase } from './driver.ts';
 
 export function migrate<TSchema extends Record<string, unknown>>(
 	db: SQLJsDatabase<TSchema>,

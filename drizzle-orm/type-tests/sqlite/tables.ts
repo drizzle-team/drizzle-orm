@@ -1,7 +1,7 @@
-import type { Equal } from 'type-tests/utils';
-import { Expect } from 'type-tests/utils';
-import { eq, gt } from '~/expressions';
-import { sql } from '~/sql';
+import type { Equal } from 'type-tests/utils.ts';
+import { Expect } from 'type-tests/utils.ts';
+import { eq, gt } from '~/expressions.ts';
+import { sql } from '~/sql/index.ts';
 import {
 	alias,
 	check,
@@ -9,14 +9,13 @@ import {
 	index,
 	integer,
 	primaryKey,
-	type SQLiteInteger,
+	type SQLiteColumn,
 	sqliteTable,
 	text,
 	uniqueIndex,
-} from '~/sqlite-core';
-import { sqliteView, type SQLiteViewWithSelection } from '~/sqlite-core/view';
-import type { InferModel } from '~/table';
-import { db } from './db';
+} from '~/sqlite-core/index.ts';
+import { sqliteView, type SQLiteViewWithSelection } from '~/sqlite-core/view.ts';
+import { db } from './db.ts';
 
 export const users = sqliteTable(
 	'users_table',
@@ -58,7 +57,7 @@ export const users = sqliteTable(
 	}),
 );
 
-export type User = InferModel<typeof users>;
+export type User = typeof users.$inferSelect;
 Expect<
 	Equal<User, {
 		id: number;
@@ -75,7 +74,7 @@ Expect<
 	}>
 >;
 
-export type NewUser = InferModel<typeof users, 'insert'>;
+export type NewUser = typeof users.$inferInsert;
 Expect<
 	Equal<NewUser, {
 		id?: number;
@@ -98,7 +97,7 @@ export const cities = sqliteTable('cities_table', {
 	population: integer('population').default(0),
 });
 
-export type City = InferModel<typeof cities>;
+export type City = typeof cities.$inferSelect;
 Expect<
 	Equal<City, {
 		id: number;
@@ -107,7 +106,7 @@ Expect<
 	}>
 >;
 
-export type NewCity = InferModel<typeof cities, 'insert'>;
+export type NewCity = typeof cities.$inferInsert;
 Expect<
 	Equal<NewCity, {
 		id?: number;
@@ -122,7 +121,7 @@ export const classes = sqliteTable('classes_table', {
 	subClass: text('sub_class', { enum: ['B', 'D'] }).notNull(),
 });
 
-export type Class = InferModel<typeof classes>;
+export type Class = typeof classes.$inferSelect;
 Expect<
 	Equal<Class, {
 		id: number;
@@ -131,7 +130,7 @@ Expect<
 	}>
 >;
 
-export type NewClass = InferModel<typeof classes, 'insert'>;
+export type NewClass = typeof classes.$inferInsert;
 Expect<
 	Equal<NewClass, {
 		id?: number;
@@ -156,21 +155,29 @@ export const newYorkers = sqliteView('new_yorkers')
 Expect<
 	Equal<
 		SQLiteViewWithSelection<'new_yorkers', false, {
-			userId: SQLiteInteger<{
+			userId: SQLiteColumn<{
 				name: 'id';
+				dataType: 'number';
+				columnType: 'SQLiteInteger';
 				data: number;
 				driverParam: number;
 				notNull: true;
 				hasDefault: true;
 				tableName: 'new_yorkers';
+				enumValues: undefined;
+				baseColumn: never;
 			}>;
-			cityId: SQLiteInteger<{
+			cityId: SQLiteColumn<{
 				name: 'id';
+				dataType: 'number';
+				columnType: 'SQLiteInteger';
 				data: number;
 				driverParam: number;
 				notNull: false;
 				hasDefault: true;
 				tableName: 'new_yorkers';
+				enumValues: undefined;
+				baseColumn: never;
 			}>;
 		}>,
 		typeof newYorkers
@@ -191,21 +198,29 @@ Expect<
 	Expect<
 		Equal<
 			SQLiteViewWithSelection<'new_yorkers', false, {
-				userId: SQLiteInteger<{
+				userId: SQLiteColumn<{
 					name: 'user_id';
+					dataType: 'number';
+					columnType: 'SQLiteInteger';
 					data: number;
 					driverParam: number;
 					hasDefault: false;
 					notNull: true;
 					tableName: 'new_yorkers';
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
-				cityId: SQLiteInteger<{
+				cityId: SQLiteColumn<{
 					name: 'city_id';
 					notNull: false;
 					hasDefault: false;
+					dataType: 'number';
+					columnType: 'SQLiteInteger';
 					data: number;
 					driverParam: number;
 					tableName: 'new_yorkers';
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
 			}>,
 			typeof newYorkers
@@ -222,21 +237,29 @@ Expect<
 	Expect<
 		Equal<
 			SQLiteViewWithSelection<'new_yorkers', true, {
-				userId: SQLiteInteger<{
+				userId: SQLiteColumn<{
 					name: 'user_id';
+					dataType: 'number';
+					columnType: 'SQLiteInteger';
 					data: number;
 					driverParam: number;
 					hasDefault: false;
 					notNull: true;
 					tableName: 'new_yorkers';
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
-				cityId: SQLiteInteger<{
+				cityId: SQLiteColumn<{
 					name: 'city_id';
 					notNull: false;
 					hasDefault: false;
+					dataType: 'number';
+					columnType: 'SQLiteInteger';
 					data: number;
 					driverParam: number;
 					tableName: 'new_yorkers';
+					enumValues: undefined;
+					baseColumn: never;
 				}>;
 			}>,
 			typeof newYorkers
@@ -329,4 +352,47 @@ Expect<
 			} | null;
 		}[], typeof result>
 	>;
+}
+
+{
+	type Id = number & { __id: true };
+
+	const _table = sqliteTable('test', {
+		// @ts-expect-error - type should be Id, not number
+		col1: integer('col1').$type<Id>().default(1),
+		col2: integer('col2').$type<Id>().default(1 as Id),
+	});
+
+	const table = sqliteTable('test', {
+		col1: integer('col1').$type<Id>().notNull(),
+	});
+
+	Expect<
+		Equal<{
+			col1: Id;
+		}, typeof table.$inferSelect>
+	>;
+}
+
+{
+	const test = sqliteTable('test', {
+		id: text('id').$defaultFn(() => crypto.randomUUID()).primaryKey(),
+	});
+
+	Expect<
+		Equal<{
+			id?: string;
+		}, typeof test.$inferInsert>
+	>;
+}
+
+{
+	sqliteTable('test', {
+		id: integer('id').$default(() => 1),
+		id2: integer('id').$defaultFn(() => 1),
+		// @ts-expect-error - should be number
+		id3: integer('id').$default(() => '1'),
+		// @ts-expect-error - should be number
+		id4: integer('id').$defaultFn(() => '1'),
+	});
 }

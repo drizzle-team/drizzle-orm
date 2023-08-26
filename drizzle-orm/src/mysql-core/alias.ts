@@ -1,9 +1,9 @@
-import { TableAliasProxyHandler } from '~/alias';
-import type { BuildAliasTable } from './query-builders/select.types';
+import { TableAliasProxyHandler } from '~/alias.ts';
+import type { BuildAliasTable } from './query-builders/select.types.ts';
+import type { MySqlTable } from './table.ts';
+import { type MySqlViewBase } from './view.ts';
 
-import type { AnyMySqlTable } from './table';
-
-export function alias<TTable extends AnyMySqlTable, TAlias extends string>(
+export function alias<TTable extends MySqlTable | MySqlViewBase, TAlias extends string>(
 	table: TTable,
 	alias: TAlias,
 ): BuildAliasTable<TTable, TAlias> {

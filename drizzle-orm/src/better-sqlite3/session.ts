@@ -1,15 +1,20 @@
 import type { Database, RunResult, Statement } from 'better-sqlite3';
-import { entityKind } from '~/entity';
-import type { Logger } from '~/logger';
-import { NoopLogger } from '~/logger';
-import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
-import { fillPlaceholders, type Query, sql } from '~/sql';
-import { SQLiteTransaction } from '~/sqlite-core';
-import type { SQLiteSyncDialect } from '~/sqlite-core/dialect';
-import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
-import type { PreparedQueryConfig as PreparedQueryConfigBase, SQLiteTransactionConfig } from '~/sqlite-core/session';
-import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session';
-import { mapResultRow } from '~/utils';
+import { entityKind } from '~/entity.ts';
+import type { Logger } from '~/logger.ts';
+import { NoopLogger } from '~/logger.ts';
+import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations.ts';
+import { fillPlaceholders, type Query, sql } from '~/sql/index.ts';
+import type { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
+import { SQLiteTransaction } from '~/sqlite-core/index.ts';
+import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types.ts';
+import {
+	PreparedQuery as PreparedQueryBase,
+	type PreparedQueryConfig as PreparedQueryConfigBase,
+	type SQLiteExecuteMethod,
+	SQLiteSession,
+	type SQLiteTransactionConfig,
+} from '~/sqlite-core/session.ts';
+import { mapResultRow } from '~/utils.ts';
 
 export interface BetterSQLiteSessionOptions {
 	logger?: Logger;
@@ -38,10 +43,11 @@ export class BetterSQLiteSession<
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): PreparedQuery<T> {
 		const stmt = this.client.prepare(query.sql);
-		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields, customResultMapper);
+		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields, executeMethod, customResultMapper);
 	}
 
 	override transaction<T>(
@@ -76,7 +82,7 @@ export class BetterSQLiteTransaction<
 }
 
 export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
-	{ type: 'sync'; run: RunResult; all: T['all']; get: T['get']; values: T['values'] }
+	{ type: 'sync'; run: RunResult; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
 	static readonly [entityKind]: string = 'BetterSQLitePreparedQuery';
 
@@ -86,9 +92,10 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
 		private customResultMapper?: (rows: unknown[][]) => unknown,
 	) {
-		super();
+		super('sync', executeMethod);
 	}
 
 	run(placeholderValues?: Record<string, unknown>): RunResult {
@@ -105,7 +112,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 			return stmt.all(...params);
 		}
 
-		const rows = this.values(placeholderValues);
+		const rows = this.values(placeholderValues) as unknown[][];
 		if (customResultMapper) {
 			return customResultMapper(rows) as T['all'];
 		}

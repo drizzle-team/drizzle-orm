@@ -1,150 +1,231 @@
-import { entityKind } from '~/entity';
-import type { AnyColumn, ColumnHKTBase, ColumnKind } from './column';
-import type { SQL } from './sql';
-import { type Assume, type SimplifyShallow, type Update } from './utils';
+import { entityKind } from '~/entity.ts';
+import type { Column } from './column.ts';
+import type { MySqlColumn } from './mysql-core/index.ts';
+import type { PgColumn } from './pg-core/index.ts';
+import type { SQL } from './sql/index.ts';
+import type { SQLiteColumn } from './sqlite-core/index.ts';
+import type { Simplify } from './utils.ts';
 
-export interface ColumnBuilderBaseConfig {
+export type ColumnDataType =
+	| 'string'
+	| 'number'
+	| 'boolean'
+	| 'array'
+	| 'json'
+	| 'date'
+	| 'bigint'
+	| 'custom'
+	| 'buffer';
+
+export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'common';
+
+export interface ColumnBuilderBaseConfig<TDataType extends ColumnDataType, TColumnType extends string> {
 	name: string;
+	dataType: TDataType;
+	columnType: TColumnType;
 	data: unknown;
 	driverParam: unknown;
-	notNull: boolean;
-	hasDefault: boolean;
+	enumValues: string[] | undefined;
 }
 
-export type ColumnBuilderConfig<
-	TInitial extends Partial<ColumnBuilderBaseConfig> = {},
-	TDefaults extends Partial<ColumnBuilderBaseConfig> = {},
-> = SimplifyShallow<
-	Required<
-		Update<
-			ColumnBuilderBaseConfig & {
-				notNull: false;
-				hasDefault: false;
-			},
-			& { [K in keyof TInitial]: TInitial[K] }
-			& {
-				[K in Exclude<keyof TDefaults, keyof TInitial> & string]: TDefaults[K];
-			}
-		>
-	>
+export type MakeColumnConfig<
+	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+	TTableName extends string,
+> = {
+	name: T['name'];
+	tableName: TTableName;
+	dataType: T['dataType'];
+	columnType: T['columnType'];
+	data: T extends { $type: infer U } ? U : T['data'];
+	driverParam: T['driverParam'];
+	notNull: T extends { notNull: true } ? true : false;
+	hasDefault: T extends { hasDefault: true } ? true : false;
+	enumValues: T['enumValues'];
+	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase } ? BuildColumn<TTableName, U, 'common'>
+		: never;
+} & {};
+
+export type ColumnBuilderTypeConfig<
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+	TTypeConfig extends object = object,
+> = Simplify<
+	& {
+		brand: 'ColumnBuilder';
+		name: T['name'];
+		dataType: T['dataType'];
+		columnType: T['columnType'];
+		data: T['data'];
+		driverParam: T['driverParam'];
+		notNull: T extends { notNull: infer U } ? U : boolean;
+		hasDefault: T extends { hasDefault: infer U } ? U : boolean;
+		enumValues: T['enumValues'];
+	}
+	& TTypeConfig
 >;
 
-export type MakeColumnConfig<T extends ColumnBuilderBaseConfig, TTableName extends string> = SimplifyShallow<
-	Pick<T, keyof ColumnBuilderBaseConfig> & { tableName: TTableName }
->;
-
-export interface ColumnBuilderHKTBase {
-	config: unknown;
-	_type: unknown;
-	_columnHKT: unknown;
-}
-
-export type ColumnBuilderKind<
-	THKT extends ColumnBuilderHKTBase,
-	TConfig extends ColumnBuilderBaseConfig,
-> = (THKT & {
-	config: TConfig;
-})['_type'];
-
-export interface ColumnBuilderHKT extends ColumnBuilderHKTBase {
-	_type: ColumnBuilder<ColumnBuilderHKT, Assume<this['config'], ColumnBuilderBaseConfig>>;
-}
-
-export interface ColumnBuilderRuntimeConfig<TData> {
+export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = object> = {
 	name: string;
 	notNull: boolean;
 	default: TData | SQL | undefined;
+	defaultFn: (() => TData | SQL) | undefined;
 	hasDefault: boolean;
 	primaryKey: boolean;
+	isUnique: boolean;
+	uniqueName: string | undefined;
+	uniqueType: string | undefined;
+	dataType: string;
+	columnType: string;
+} & TRuntimeConfig;
+
+export interface ColumnBuilderExtraConfig {
+	primaryKeyHasDefault?: boolean;
+}
+
+export type NotNull<T extends ColumnBuilderBase> = T & {
+	_: {
+		notNull: true;
+	};
+};
+
+export type HasDefault<T extends ColumnBuilderBase> = T & {
+	_: {
+		hasDefault: true;
+	};
+};
+
+export type $Type<T extends ColumnBuilderBase, TType> = T & {
+	_: {
+		$type: TType;
+	};
+};
+
+export interface ColumnBuilderBase<
+	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
+	TTypeConfig extends object = object,
+> {
+	_: ColumnBuilderTypeConfig<T, TTypeConfig>;
 }
 
 // To understand how to use `ColumnBuilder` and `AnyColumnBuilder`, see `Column` and `AnyColumn` documentation.
 export abstract class ColumnBuilder<
-	THKT extends ColumnBuilderHKTBase,
-	T extends ColumnBuilderBaseConfig,
-	TRuntimeConfig extends object = {},
-	TTypeConfig extends object = {},
-> {
+	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
+	TRuntimeConfig extends object = object,
+	TTypeConfig extends object = object,
+	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
+> implements ColumnBuilderBase<T, TTypeConfig> {
 	static readonly [entityKind]: string = 'ColumnBuilder';
 
-	declare _: {
-		brand: 'ColumnBuilder';
-		config: T;
-		hkt: THKT;
-		columnHKT: THKT['_columnHKT'];
-		name: T['name'];
-		data: T['data'];
-		driverParam: T['driverParam'];
-		notNull: T['notNull'];
-		hasDefault: T['hasDefault'];
-	} & TTypeConfig;
+	declare _: ColumnBuilderTypeConfig<T, TTypeConfig>;
 
-	protected config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
+	protected config: ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>;
 
-	constructor(name: T['name']) {
+	constructor(name: T['name'], dataType: T['dataType'], columnType: T['columnType']) {
 		this.config = {
 			name,
 			notNull: false,
 			default: undefined,
+			hasDefault: false,
 			primaryKey: false,
-		} as ColumnBuilder<THKT, T, TRuntimeConfig>['config'];
+			isUnique: false,
+			uniqueName: undefined,
+			uniqueType: undefined,
+			dataType,
+			columnType,
+		} as ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>;
 	}
 
-	$type<TType extends T['data']>(): ColumnBuilderKind<THKT, Update<T, { data: TType }>> {
-		return this as ColumnBuilderKind<THKT, Update<T, { data: TType }>>;
+	/**
+	 * Changes the data type of the column. Commonly used with `json` columns. Also, useful for branded types.
+	 *
+	 * @example
+	 * ```ts
+	 * const users = pgTable('users', {
+	 * 	id: integer('id').$type<UserId>().primaryKey(),
+	 * 	details: json('details').$type<UserDetails>().notNull(),
+	 * });
+	 * ```
+	 */
+	$type<TType>(): $Type<this, TType> {
+		return this as $Type<this, TType>;
 	}
 
-	notNull(): ColumnBuilderKind<THKT, UpdateCBConfig<T, { notNull: true }>> {
+	/**
+	 * Adds a `not null` clause to the column definition.
+	 *
+	 * Affects the `select` model of the table - columns *without* `not null` will be nullable on select.
+	 */
+	notNull(): NotNull<this> {
 		this.config.notNull = true;
-		return this as ReturnType<this['notNull']>;
+		return this as NotNull<this>;
 	}
 
-	default(
-		value: T['data'] | SQL,
-	): ColumnBuilderKind<THKT, UpdateCBConfig<T, { hasDefault: true }>> {
+	/**
+	 * Adds a `default <value>` clause to the column definition.
+	 *
+	 * Affects the `insert` model of the table - columns *with* `default` are optional on insert.
+	 *
+	 * If you need to set a dynamic default value, use {@link $defaultFn} instead.
+	 */
+	default(value: (this['_'] extends { $type: infer U } ? U : this['_']['data']) | SQL): HasDefault<this> {
 		this.config.default = value;
 		this.config.hasDefault = true;
-		return this as ReturnType<this['default']>;
+		return this as HasDefault<this>;
 	}
 
-	primaryKey(): ColumnBuilderKind<THKT, UpdateCBConfig<T, { notNull: true }>> {
+	/**
+	 * Adds a dynamic default value to the column.
+	 * The function will be called when the row is inserted, and the returned value will be used as the column value.
+	 *
+	 * **Note:** This value does not affect the `drizzle-kit` behavior, it is only used at runtime in `drizzle-orm`.
+	 */
+	$defaultFn(
+		fn: () => (this['_'] extends { $type: infer U } ? U : this['_']['data']) | SQL,
+	): HasDefault<this> {
+		this.config.defaultFn = fn;
+		this.config.hasDefault = true;
+		return this as HasDefault<this>;
+	}
+
+	/**
+	 * Alias for {@link $defaultFn}.
+	 */
+	$default = this.$defaultFn;
+
+	/**
+	 * Adds a `primary key` clause to the column definition. This implicitly makes the column `not null`.
+	 *
+	 * In SQLite, `integer primary key` implicitly makes the column auto-incrementing.
+	 */
+	primaryKey(): TExtraConfig['primaryKeyHasDefault'] extends true ? HasDefault<NotNull<this>> : NotNull<this> {
 		this.config.primaryKey = true;
 		this.config.notNull = true;
-		return this as ReturnType<this['primaryKey']>;
+		return this as TExtraConfig['primaryKeyHasDefault'] extends true ? HasDefault<NotNull<this>> : NotNull<this>;
 	}
 }
 
-export type AnyColumnBuilder = ColumnBuilder<ColumnBuilderHKT, ColumnBuilderBaseConfig>;
-
-export type UpdateCBConfig<
-	T extends ColumnBuilderBaseConfig,
-	TUpdate extends Partial<ColumnBuilderBaseConfig>,
-> = Update<T, TUpdate>;
-
 export type BuildColumn<
 	TTableName extends string,
-	TBuilder extends AnyColumnBuilder,
-> = Assume<
-	ColumnKind<
-		Assume<TBuilder['_']['columnHKT'], ColumnHKTBase>,
-		SimplifyShallow<{ tableName: TTableName } & TBuilder['_']['config']>
-	>,
-	AnyColumn
->;
+	TBuilder extends ColumnBuilderBase,
+	TDialect extends Dialect,
+> = TDialect extends 'pg' ? PgColumn<MakeColumnConfig<TBuilder['_'], TTableName>>
+	: TDialect extends 'mysql' ? MySqlColumn<MakeColumnConfig<TBuilder['_'], TTableName>>
+	: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TBuilder['_'], TTableName>>
+	: TDialect extends 'common' ? Column<MakeColumnConfig<TBuilder['_'], TTableName>>
+	: never;
 
-export type BuildColumns<TTableName extends string, TConfigMap extends Record<string, AnyColumnBuilder>> =
-	SimplifyShallow<
-		{
-			[Key in keyof TConfigMap]: BuildColumn<TTableName, TConfigMap[Key]>;
-		}
-	>;
+export type BuildColumns<
+	TTableName extends string,
+	TConfigMap extends Record<string, ColumnBuilderBase>,
+	TDialect extends Dialect,
+> =
+	& {
+		[Key in keyof TConfigMap]: BuildColumn<TTableName, TConfigMap[Key], TDialect>;
+	}
+	& {};
 
-// export type ChangeColumnTableName<TColumn extends AnyColumn, TAlias extends string> = ColumnKind<
-// 	TColumn['_']['hkt'],
-// 	SimplifyShallow<Update<TColumn['_']['config'], { tableName: TAlias }>>
-// >;
-
-export type ChangeColumnTableName<TColumn extends AnyColumn, TAlias extends string> = ColumnKind<
-	TColumn['_']['hkt'],
-	SimplifyShallow<Update<TColumn['_']['config'], { tableName: TAlias }>>
->;
+export type ChangeColumnTableName<TColumn extends Column, TAlias extends string, TDialect extends Dialect> =
+	TDialect extends 'pg' ? PgColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+		: TDialect extends 'mysql' ? MySqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+		: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+		: never;

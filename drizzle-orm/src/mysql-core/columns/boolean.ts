@@ -1,41 +1,39 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-import { entityKind } from '~/entity';
-import type { AnyMySqlTable } from '~/mysql-core/table';
-import { type Assume } from '~/utils';
-import { MySqlColumn, MySqlColumnBuilder } from './common';
-
-export interface MySqlBooleanBuilderHKT extends ColumnBuilderHKTBase {
-	_type: MySqlBooleanBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: MySqlBooleanHKT;
-}
-
-export interface MySqlBooleanHKT extends ColumnHKTBase {
-	_type: MySqlBoolean<Assume<this['config'], ColumnBaseConfig>>;
-}
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlBooleanBuilderInitial<TName extends string> = MySqlBooleanBuilder<{
 	name: TName;
+	dataType: 'boolean';
+	columnType: 'MySqlBoolean';
 	data: boolean;
 	driverParam: number | boolean;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class MySqlBooleanBuilder<T extends ColumnBuilderBaseConfig>
-	extends MySqlColumnBuilder<MySqlBooleanBuilderHKT, T>
+export class MySqlBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'MySqlBoolean'>>
+	extends MySqlColumnBuilder<T>
 {
 	static readonly [entityKind]: string = 'MySqlBooleanBuilder';
+
+	constructor(name: T['name']) {
+		super(name, 'boolean', 'MySqlBoolean');
+	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlBoolean<MakeColumnConfig<T, TTableName>> {
-		return new MySqlBoolean<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new MySqlBoolean<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class MySqlBoolean<T extends ColumnBaseConfig> extends MySqlColumn<MySqlBooleanHKT, T> {
+export class MySqlBoolean<T extends ColumnBaseConfig<'boolean', 'MySqlBoolean'>> extends MySqlColumn<T> {
 	static readonly [entityKind]: string = 'MySqlBoolean';
 
 	getSQLType(): string {

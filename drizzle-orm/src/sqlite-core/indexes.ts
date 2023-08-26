@@ -1,7 +1,7 @@
-import { entityKind } from '~/entity';
-import type { SQL } from '~/sql';
-import type { AnySQLiteColumn } from './columns';
-import type { AnySQLiteTable } from './table';
+import { entityKind } from '~/entity.ts';
+import type { SQL } from '~/sql/index.ts';
+import { type SQLiteColumn } from './columns/index.ts';
+import type { SQLiteTable } from './table.ts';
 
 export interface IndexConfig {
 	name: string;
@@ -10,7 +10,7 @@ export interface IndexConfig {
 	where: SQL | undefined;
 }
 
-export type IndexColumn = AnySQLiteColumn | SQL;
+export type IndexColumn = SQLiteColumn | SQL;
 
 export class IndexBuilderOn {
 	static readonly [entityKind]: string = 'SQLiteIndexBuilderOn';
@@ -50,7 +50,7 @@ export class IndexBuilder {
 	}
 
 	/** @internal */
-	build(table: AnySQLiteTable): Index {
+	build(table: SQLiteTable): Index {
 		return new Index(this.config, table);
 	}
 }
@@ -62,9 +62,9 @@ export class Index {
 		brand: 'SQLiteIndex';
 	};
 
-	readonly config: IndexConfig & { table: AnySQLiteTable };
+	readonly config: IndexConfig & { table: SQLiteTable };
 
-	constructor(config: IndexConfig, table: AnySQLiteTable) {
+	constructor(config: IndexConfig, table: SQLiteTable) {
 		this.config = { ...config, table };
 	}
 }

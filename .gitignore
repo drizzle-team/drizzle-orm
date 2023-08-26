@@ -9,3 +9,4 @@ dist.new
 .turbo
 .rollup.cache
 dist-dts
+rollup.config-*.mjs

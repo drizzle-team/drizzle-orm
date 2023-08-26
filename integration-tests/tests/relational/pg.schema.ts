@@ -1,4 +1,4 @@
-import { type AnyPgColumn, boolean, integer, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, integer, type PgColumn, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core';
 
 import { relations } from 'drizzle-orm';
 
@@ -6,7 +6,7 @@ export const usersTable = pgTable('users', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
-	invitedBy: integer('invited_by').references((): AnyPgColumn => usersTable.id),
+	invitedBy: integer('invited_by').references((): PgColumn => usersTable.id),
 });
 
 export const usersConfig = relations(usersTable, ({ one, many }) => ({

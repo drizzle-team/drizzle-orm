@@ -1,11 +1,13 @@
-import { entityKind } from '~/entity';
-import { TransactionRollbackError } from '~/errors';
-import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
-import { type Query, type SQL, sql } from '~/sql';
-import { type Assume, type Equal } from '~/utils';
-import { MySqlDatabase } from './db';
-import type { MySqlDialect } from './dialect';
-import type { SelectedFieldsOrdered } from './query-builders/select.types';
+import { entityKind } from '~/entity.ts';
+import { TransactionRollbackError } from '~/errors.ts';
+import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations.ts';
+import { type Query, type SQL, sql } from '~/sql/index.ts';
+import { type Assume, type Equal } from '~/utils.ts';
+import { MySqlDatabase } from './db.ts';
+import type { MySqlDialect } from './dialect.ts';
+import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
+
+export type Mode = 'default' | 'planetscale';
 
 export interface QueryResultHKT {
 	readonly $brand: 'MySqlQueryRowHKT';
@@ -89,7 +91,7 @@ export abstract class MySqlSession<
 			parts.push(`isolation level ${config.isolationLevel}`);
 		}
 
-		return parts.length ? sql.fromList(['set transaction ', parts.join(' ')]) : undefined;
+		return parts.length ? sql.join(['set transaction ', parts.join(' ')]) : undefined;
 	}
 
 	protected getStartTransactionSQL(config: MySqlTransactionConfig): SQL | undefined {
@@ -103,7 +105,7 @@ export abstract class MySqlSession<
 			parts.push(config.accessMode);
 		}
 
-		return parts.length ? sql.fromList(['start transaction ', parts.join(' ')]) : undefined;
+		return parts.length ? sql.join(['start transaction ', parts.join(' ')]) : undefined;
 	}
 }
 
@@ -119,9 +121,10 @@ export abstract class MySqlTransaction<
 		dialect: MySqlDialect,
 		session: MySqlSession,
 		protected schema: RelationalSchemaConfig<TSchema> | undefined,
-		protected readonly nestedIndex = 0,
+		protected readonly nestedIndex: number,
+		mode: Mode,
 	) {
-		super(dialect, session, schema);
+		super(dialect, session, schema, mode);
 	}
 
 	rollback(): never {

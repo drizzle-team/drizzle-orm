@@ -1,40 +1,29 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-import { entityKind } from '~/entity';
-import type { AnyPgTable } from '~/pg-core/table';
-import { type Assume } from '~/utils';
-import { PgColumn, PgColumnBuilder } from './common';
-import type { Precision } from './timestamp';
-
-export interface PgIntervalBuilderHKT extends ColumnBuilderHKTBase {
-	_type: PgIntervalBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: PgIntervalHKT;
-}
-
-export interface PgIntervalHKT extends ColumnHKTBase {
-	_type: PgInterval<Assume<this['config'], ColumnBaseConfig>>;
-}
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnyPgTable } from '~/pg-core/table.ts';
+import { PgColumn, PgColumnBuilder } from './common.ts';
+import type { Precision } from './timestamp.ts';
 
 export type PgIntervalBuilderInitial<TName extends string> = PgIntervalBuilder<{
 	name: TName;
+	dataType: 'string';
+	columnType: 'PgInterval';
 	data: string;
 	driverParam: string;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class PgIntervalBuilder<T extends ColumnBuilderBaseConfig> extends PgColumnBuilder<
-	PgIntervalBuilderHKT,
-	T,
-	{ intervalConfig: IntervalConfig }
-> {
+export class PgIntervalBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgInterval'>>
+	extends PgColumnBuilder<T, { intervalConfig: IntervalConfig }>
+{
 	static readonly [entityKind]: string = 'PgIntervalBuilder';
 
 	constructor(
 		name: T['name'],
 		intervalConfig: IntervalConfig,
 	) {
-		super(name);
+		super(name, 'string', 'PgInterval');
 		this.config.intervalConfig = intervalConfig;
 	}
 
@@ -42,12 +31,12 @@ export class PgIntervalBuilder<T extends ColumnBuilderBaseConfig> extends PgColu
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgInterval<MakeColumnConfig<T, TTableName>> {
-		return new PgInterval<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new PgInterval<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class PgInterval<T extends ColumnBaseConfig>
-	extends PgColumn<PgIntervalHKT, T, { intervalConfig: IntervalConfig }>
+export class PgInterval<T extends ColumnBaseConfig<'string', 'PgInterval'>>
+	extends PgColumn<T, { intervalConfig: IntervalConfig }>
 {
 	static readonly [entityKind]: string = 'PgInterval';
 

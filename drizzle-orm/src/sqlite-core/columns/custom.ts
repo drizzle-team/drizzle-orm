@@ -1,44 +1,39 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-import { entityKind } from '~/entity';
-import type { SQL } from '~/sql';
-import type { AnySQLiteTable } from '~/sqlite-core/table';
-import { type Assume, type Equal, type Simplify } from '~/utils';
-import { SQLiteColumn, SQLiteColumnBuilder } from './common';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { SQL } from '~/sql/index.ts';
+import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
+import { type Equal } from '~/utils.ts';
+import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
-export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTypeValues>> = Simplify<{
-	name: TName;
-	data: T['data'];
-	driverParam: T['driverData'];
-	// notNull and hasDefault will be of type "unknown" if not defined in T. Thank you TS
-	notNull: T['notNull'] extends true ? true : false;
-	hasDefault: T['default'] extends true ? true : false;
-}>;
+export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTypeValues>> =
+	& {
+		name: TName;
+		dataType: 'custom';
+		columnType: 'SQLiteCustomColumn';
+		data: T['data'];
+		driverParam: T['driverData'];
+		enumValues: undefined;
+	}
+	& (T['notNull'] extends true ? { notNull: true } : {})
+	& (T['default'] extends true ? { hasDefault: true } : {});
 
 export interface SQLiteCustomColumnInnerConfig {
 	customTypeValues: CustomTypeValues;
 }
 
-export interface SQLiteCustomColumnBuilderHKT extends ColumnBuilderHKTBase {
-	_type: SQLiteCustomColumnBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: SQLiteCustomColumnHKT;
-}
-
-export interface SQLiteCustomColumnHKT extends ColumnHKTBase {
-	_type: SQLiteCustomColumn<Assume<this['config'], ColumnBaseConfig>>;
-}
-
-export class SQLiteCustomColumnBuilder<T extends ColumnBuilderBaseConfig> extends SQLiteColumnBuilder<
-	SQLiteCustomColumnBuilderHKT,
-	T,
-	{
-		fieldConfig: CustomTypeValues['config'];
-		customTypeParams: CustomTypeParams<any>;
-	},
-	{
-		sqliteColumnBuilderBrand: 'SQLiteCustomColumnBuilderBrand';
-	}
-> {
+export class SQLiteCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', 'SQLiteCustomColumn'>>
+	extends SQLiteColumnBuilder<
+		T,
+		{
+			fieldConfig: CustomTypeValues['config'];
+			customTypeParams: CustomTypeParams<any>;
+		},
+		{
+			sqliteColumnBuilderBrand: 'SQLiteCustomColumnBuilderBrand';
+		}
+	>
+{
 	static readonly [entityKind]: string = 'SQLiteCustomColumnBuilder';
 
 	constructor(
@@ -46,7 +41,7 @@ export class SQLiteCustomColumnBuilder<T extends ColumnBuilderBaseConfig> extend
 		fieldConfig: CustomTypeValues['config'],
 		customTypeParams: CustomTypeParams<any>,
 	) {
-		super(name);
+		super(name, 'custom', 'SQLiteCustomColumn');
 		this.config.fieldConfig = fieldConfig;
 		this.config.customTypeParams = customTypeParams;
 	}
@@ -57,15 +52,13 @@ export class SQLiteCustomColumnBuilder<T extends ColumnBuilderBaseConfig> extend
 	): SQLiteCustomColumn<MakeColumnConfig<T, TTableName>> {
 		return new SQLiteCustomColumn<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class SQLiteCustomColumn<T extends ColumnBaseConfig> extends SQLiteColumn<SQLiteCustomColumnHKT, T> {
+export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom', 'SQLiteCustomColumn'>> extends SQLiteColumn<T> {
 	static readonly [entityKind]: string = 'SQLiteCustomColumn';
-
-	declare protected $sqliteColumnBrand: 'SQLiteCustomColumn';
 
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
@@ -222,6 +215,10 @@ export function customType<T extends CustomTypeValues = CustomTypeValues>(
 		dbName: TName,
 		fieldConfig?: T['config'],
 	): SQLiteCustomColumnBuilder<ConvertCustomConfig<TName, T>> => {
-		return new SQLiteCustomColumnBuilder(dbName, fieldConfig, customTypeParams);
+		return new SQLiteCustomColumnBuilder(
+			dbName as ConvertCustomConfig<TName, T>['name'],
+			fieldConfig,
+			customTypeParams,
+		);
 	};
 }

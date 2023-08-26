@@ -1,41 +1,41 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-import { entityKind } from '~/entity';
-import type { AnyMySqlTable } from '~/mysql-core/table';
-import { type Assume } from '~/utils';
-import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common';
-
-export interface MySqlSmallIntBuilderHKT extends ColumnBuilderHKTBase {
-	_type: MySqlSmallIntBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: MySqlSmallIntHKT;
-}
-
-export interface MySqlSmallIntHKT extends ColumnHKTBase {
-	_type: MySqlSmallInt<Assume<this['config'], ColumnBaseConfig>>;
-}
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
 export type MySqlSmallIntBuilderInitial<TName extends string> = MySqlSmallIntBuilder<{
 	name: TName;
+	dataType: 'number';
+	columnType: 'MySqlSmallInt';
 	data: number;
 	driverParam: number | string;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class MySqlSmallIntBuilder<T extends ColumnBuilderBaseConfig>
-	extends MySqlColumnBuilderWithAutoIncrement<MySqlSmallIntBuilderHKT, T>
+export class MySqlSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlSmallInt'>>
+	extends MySqlColumnBuilderWithAutoIncrement<T>
 {
 	static readonly [entityKind]: string = 'MySqlSmallIntBuilder';
+
+	constructor(name: T['name']) {
+		super(name, 'number', 'MySqlSmallInt');
+	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlSmallInt<MakeColumnConfig<T, TTableName>> {
-		return new MySqlSmallInt<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new MySqlSmallInt<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class MySqlSmallInt<T extends ColumnBaseConfig> extends MySqlColumnWithAutoIncrement<MySqlSmallIntHKT, T> {
+export class MySqlSmallInt<T extends ColumnBaseConfig<'number', 'MySqlSmallInt'>>
+	extends MySqlColumnWithAutoIncrement<T>
+{
 	static readonly [entityKind]: string = 'MySqlSmallInt';
 
 	getSQLType(): string {

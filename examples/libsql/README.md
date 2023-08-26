@@ -91,7 +91,7 @@ TypeScript client library] to connect.  Run this command to generate a new
 non-expiring token:
 
 ```bash
-turso db tokens create drizzle-example -e none
+turso db tokens create drizzle-example
 ```
 
 Add a new line to .env and add the value to a new variable called

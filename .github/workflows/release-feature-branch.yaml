@@ -15,6 +15,8 @@ jobs:
         package:
           - drizzle-orm
           - drizzle-zod
+          - drizzle-typebox
+          - drizzle-valibot
     runs-on: ubuntu-20.04
     permissions:
       contents: read
@@ -50,7 +52,7 @@ jobs:
 
       - uses: actions/setup-node@v3
         with:
-          node-version: 19
+          node-version: 18
           registry-url: 'https://registry.npmjs.org'
 
       - uses: pnpm/action-setup@v2
@@ -85,12 +87,16 @@ jobs:
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/drizzle
           MYSQL_CONNECTION_STRING: mysql://root:root@localhost:3306/drizzle
+          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
           LIBSQL_URL: file:local.db
         run: |
+          if [[ ${{ github.event_name }} != "push" && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
+            export SKIP_PLANETSCALE_TESTS=1
+          fi
           if [[ "${{ matrix.package }}" == "drizzle-orm" ]]; then
             pnpm test --filter ${{ matrix.package }} --filter integration-tests
           else
-          pnpm test --filter ${{ matrix.package }}
+            pnpm test --filter ${{ matrix.package }}
           fi
 
       - name: Publish

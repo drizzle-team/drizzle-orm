@@ -1,36 +1,26 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-import { entityKind } from '~/entity';
-import type { AnyMySqlTable } from '~/mysql-core/table';
-import { type Assume } from '~/utils';
-import { MySqlColumn, MySqlColumnBuilder } from './common';
-
-export interface MySqlBinaryBuilderHKT extends ColumnBuilderHKTBase {
-	_type: MySqlBinaryBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: MySqlBinaryHKT;
-}
-
-export interface MySqlBinaryHKT extends ColumnHKTBase {
-	_type: MySqlBinary<Assume<this['config'], ColumnBaseConfig>>;
-}
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlBinaryBuilderInitial<TName extends string> = MySqlBinaryBuilder<{
 	name: TName;
+	dataType: 'string';
+	columnType: 'MySqlBinary';
 	data: string;
 	driverParam: string;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class MySqlBinaryBuilder<T extends ColumnBuilderBaseConfig> extends MySqlColumnBuilder<
-	MySqlBinaryBuilderHKT,
+export class MySqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlBinary'>> extends MySqlColumnBuilder<
 	T,
 	MySqlBinaryConfig
 > {
 	static readonly [entityKind]: string = 'MySqlBinaryBuilder';
 
 	constructor(name: T['name'], length: number | undefined) {
-		super(name);
+		super(name, 'string', 'MySqlBinary');
 		this.config.length = length;
 	}
 
@@ -38,12 +28,11 @@ export class MySqlBinaryBuilder<T extends ColumnBuilderBaseConfig> extends MySql
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlBinary<MakeColumnConfig<T, TTableName>> {
-		return new MySqlBinary<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new MySqlBinary<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class MySqlBinary<T extends ColumnBaseConfig> extends MySqlColumn<
-	MySqlBinaryHKT,
+export class MySqlBinary<T extends ColumnBaseConfig<'string', 'MySqlBinary'>> extends MySqlColumn<
 	T,
 	MySqlBinaryConfig
 > {

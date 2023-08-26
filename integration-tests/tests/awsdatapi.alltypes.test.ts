@@ -76,7 +76,7 @@ export const allColumns = pgTable('all_columns', {
 
 interface Context {
 	db: AwsDataApiPgDatabase;
-	row: typeof allColumns['_']['model']['select'];
+	row: typeof allColumns.$inferSelect;
 }
 
 const test = anyTest as TestFn<Context>;

@@ -1,12 +1,14 @@
 import 'dotenv/config';
 import Docker from 'dockerode';
-import { desc, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
+import { desc, DrizzleError, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import getPort from 'get-port';
-import { Client } from 'pg';
+import pg from 'pg';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import * as schema from './pg.schema';
+import * as schema from './pg.schema.ts';
+
+const { Client } = pg;
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
@@ -22,14 +24,14 @@ declare module 'vitest' {
 		docker: Docker;
 		pgContainer: Docker.Container;
 		pgDb: NodePgDatabase<typeof schema>;
-		pgClient: Client;
+		pgClient: pg.Client;
 	}
 }
 
 let globalDocker: Docker;
 let pgContainer: Docker.Container;
 let db: NodePgDatabase<typeof schema>;
-let client: Client;
+let client: pg.Client;
 
 async function createDockerDB(): Promise<string> {
 	const docker = (globalDocker = new Docker());
@@ -1289,7 +1291,7 @@ test('[Find One] Get only custom fields + where', async (t) => {
 				columns: {},
 				where: gte(postsTable.id, 2),
 				extras: ({ content }) => ({
-					lowerName: sql<string>`lower(${content})`.as('content_lower'),
+					contentLower: sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
@@ -1303,7 +1305,7 @@ test('[Find One] Get only custom fields + where', async (t) => {
 		{
 			lowerName: string;
 			posts: {
-				lowerName: string;
+				contentLower: string;
 			}[];
 		} | undefined
 	>();
@@ -1312,7 +1314,7 @@ test('[Find One] Get only custom fields + where', async (t) => {
 
 	expect(usersWithPosts).toEqual({
 		lowerName: 'dan',
-		posts: [{ lowerName: 'post1.2' }, { lowerName: 'post1.3' }],
+		posts: [{ contentLower: 'post1.2' }, { contentLower: 'post1.3' }],
 	});
 });
 
@@ -1434,17 +1436,11 @@ test('[Find Many] Get select {}', async (t) => {
 		{ id: 3, name: 'Alex' },
 	]);
 
-	const users = await db.query.usersTable.findMany({
-		columns: {},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{}[]>();
-
-	expect(users.length).toBe(3);
-
-	expect(users[0]).toEqual({});
-	expect(users[1]).toEqual({});
-	expect(users[2]).toEqual({});
+	await expect(async () =>
+		await db.query.usersTable.findMany({
+			columns: {},
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 // columns {}
@@ -1457,13 +1453,11 @@ test('[Find One] Get select {}', async (t) => {
 		{ id: 3, name: 'Alex' },
 	]);
 
-	const users = await db.query.usersTable.findFirst({
-		columns: {},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{} | undefined>();
-
-	expect(users).toEqual({});
+	await expect(async () =>
+		await db.query.usersTable.findFirst({
+			columns: {},
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 // deep select {}
@@ -1482,22 +1476,16 @@ test('[Find Many] Get deep select {}', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const users = await db.query.usersTable.findMany({
-		columns: {},
-		with: {
-			posts: {
-				columns: {},
+	await expect(async () =>
+		await db.query.usersTable.findMany({
+			columns: {},
+			with: {
+				posts: {
+					columns: {},
+				},
 			},
-		},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{ posts: {}[] }[]>();
-
-	expect(users.length).toBe(3);
-
-	expect(users[0]).toEqual({ posts: [{}] });
-	expect(users[1]).toEqual({ posts: [{}] });
-	expect(users[2]).toEqual({ posts: [{}] });
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 // deep select {}
@@ -1516,18 +1504,16 @@ test('[Find One] Get deep select {}', async (t) => {
 		{ ownerId: 3, content: 'Post3' },
 	]);
 
-	const users = await db.query.usersTable.findFirst({
-		columns: {},
-		with: {
-			posts: {
-				columns: {},
+	await expect(async () =>
+		await db.query.usersTable.findFirst({
+			columns: {},
+			with: {
+				posts: {
+					columns: {},
+				},
 			},
-		},
-	});
-
-	expectTypeOf(users).toEqualTypeOf<{ posts: {}[] } | undefined>();
-
-	expect(users).toEqual({ posts: [{}] });
+		})
+	).rejects.toThrow(DrizzleError);
 });
 
 /*
@@ -4101,13 +4087,13 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 });
 
 /*
-	One three-level relation + 1 first-level relatioon
+	One three-level relation + 1 first-level relation
 	1. users+posts+comments+comment_owner
 	2. users+users
 */
 
 /*
-	One four-level relation users+posts+comments+coment_likes
+	One four-level relation users+posts+comments+comment_likes
 */
 
 /*
@@ -4145,8 +4131,10 @@ test('[Find Many] Get users with groups', async (t) => {
 				with: {
 					group: true,
 				},
+				orderBy: usersToGroupsTable.userId,
 			},
 		},
+		orderBy: usersTable.id,
 	});
 
 	expectTypeOf(response).toEqualTypeOf<{
@@ -4204,19 +4192,22 @@ test('[Find Many] Get users with groups', async (t) => {
 		name: 'Alex',
 		verified: false,
 		invitedBy: null,
-		usersToGroups: [{
-			group: {
-				id: 3,
-				name: 'Group3',
-				description: null,
+		usersToGroups: expect.arrayContaining([
+			{
+				group: {
+					id: 2,
+					name: 'Group2',
+					description: null,
+				},
 			},
-		}, {
-			group: {
-				id: 2,
-				name: 'Group2',
-				description: null,
+			{
+				group: {
+					id: 3,
+					name: 'Group3',
+					description: null,
+				},
 			},
-		}],
+		]),
 	});
 });
 
@@ -5962,6 +5953,7 @@ test('Get users with groups + custom', async (t) => {
 						},
 					},
 				},
+				orderBy: usersToGroupsTable.groupId,
 			},
 		},
 	});
@@ -6030,21 +6022,24 @@ test('Get users with groups + custom', async (t) => {
 		lower: 'alex',
 		verified: false,
 		invitedBy: null,
-		usersToGroups: [{
-			group: {
-				id: 3,
-				name: 'Group3',
-				lower: 'group3',
-				description: null,
+		usersToGroups: [
+			{
+				group: {
+					id: 2,
+					name: 'Group2',
+					lower: 'group2',
+					description: null,
+				},
 			},
-		}, {
-			group: {
-				id: 2,
-				name: 'Group2',
-				lower: 'group2',
-				description: null,
+			{
+				group: {
+					id: 3,
+					name: 'Group3',
+					lower: 'group3',
+					description: null,
+				},
 			},
-		}],
+		],
 	});
 });
 
@@ -6170,6 +6165,89 @@ test('Get groups with users + custom', async (t) => {
 		}],
 	});
 });
+
+test('Filter by columns not present in select', async (t) => {
+	const { pgDb: db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const response = await db.query.usersTable.findFirst({
+		columns: {
+			id: true,
+		},
+		where: eq(usersTable.name, 'Dan'),
+	});
+
+	expect(response).toEqual({ id: 1 });
+});
+
+// test('Filter by relational column', async (t) => {
+// 	const { pgDb: db } = t;
+
+// 	await db.insert(usersTable).values([
+// 		{ id: 1, name: 'Dan' },
+// 		{ id: 2, name: 'Andrew' },
+// 		{ id: 3, name: 'Alex' },
+// 	]);
+
+// 	await db.insert(postsTable).values([
+// 		{ id: 1, ownerId: 1, content: 'Content1' },
+// 		{ id: 2, ownerId: 2, content: 'Post2' },
+// 	]);
+
+// 	const response = await db.query.usersTable.findMany({
+// 		with: {
+// 			posts: true,
+// 		},
+// 		where: (users) => sql`json_array_length(${users.posts}) > 0`,
+// 		orderBy: usersTable.id,
+// 	});
+
+// 	expectTypeOf(response).toEqualTypeOf<{
+// 		id: number;
+// 		name: string;
+// 		verified: boolean;
+// 		invitedBy: number | null;
+// 		posts: {
+// 			id: number;
+// 			content: string;
+// 			ownerId: number | null;
+// 			createdAt: Date;
+// 		}[];
+// 	}[]>();
+
+// 	expect(response.length).toEqual(2);
+
+// 	expect(response[0]).toEqual({
+// 		id: 1,
+// 		name: 'Dan',
+// 		verified: false,
+// 		invitedBy: null,
+// 		posts: [{
+// 			id: 1,
+// 			content: 'Content1',
+// 			ownerId: 1,
+// 			createdAt: expect.any(Date),
+// 		}],
+// 	});
+
+// 	expect(response[1]).toEqual({
+// 		id: 2,
+// 		name: 'Andrew',
+// 		verified: false,
+// 		invitedBy: null,
+// 		posts: [{
+// 			id: 2,
+// 			content: 'Post2',
+// 			ownerId: 2,
+// 			createdAt: expect.any(Date),
+// 		}],
+// 	});
+// });
 
 // + custom + where + orderby
 

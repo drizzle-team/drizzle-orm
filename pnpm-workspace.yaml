@@ -1,4 +1,6 @@
 packages:
   - drizzle-orm
   - drizzle-zod
+  - drizzle-typebox
+  - drizzle-valibot
   - integration-tests

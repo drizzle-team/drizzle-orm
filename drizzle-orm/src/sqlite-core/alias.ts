@@ -1,10 +1,10 @@
-import { TableAliasProxyHandler } from '~/alias';
-import { type BuildAliasTable } from './query-builders/select.types';
+import { TableAliasProxyHandler } from '~/alias.ts';
+import { type BuildAliasTable } from './query-builders/select.types.ts';
 
-import { type AnySQLiteTable } from './table';
-import { type SQLiteViewBase } from './view';
+import { type SQLiteTable } from './table.ts';
+import { type SQLiteViewBase } from './view.ts';
 
-export function alias<TTable extends AnySQLiteTable | SQLiteViewBase, TAlias extends string>(
+export function alias<TTable extends SQLiteTable | SQLiteViewBase, TAlias extends string>(
 	table: TTable,
 	alias: TAlias,
 ): BuildAliasTable<TTable, TAlias> {

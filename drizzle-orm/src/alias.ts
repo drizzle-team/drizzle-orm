@@ -1,12 +1,12 @@
-import type { AnyColumn } from './column';
-import { Column } from './column';
-import { entityKind, is } from './entity';
-import type { Relation } from './relations';
-import { SQL, sql } from './sql';
-import { Table } from './table';
-import { type View, ViewBaseConfig } from './view';
+import type { AnyColumn } from './column.ts';
+import { Column } from './column.ts';
+import { entityKind, is } from './entity.ts';
+import type { Relation } from './relations.ts';
+import { SQL, sql } from './sql/index.ts';
+import { Table } from './table.ts';
+import { type View, ViewBaseConfig } from './view.ts';
 
-export class ColumnAliasProxyHandler<TColumn extends AnyColumn> implements ProxyHandler<TColumn> {
+export class ColumnAliasProxyHandler<TColumn extends Column> implements ProxyHandler<TColumn> {
 	static readonly [entityKind]: string = 'ColumnAliasProxyHandler';
 
 	constructor(private table: Table | View) {}
@@ -107,7 +107,7 @@ export function mapColumnsInAliasedSQLToAlias(query: SQL.Aliased, alias: string)
 }
 
 export function mapColumnsInSQLToAlias(query: SQL, alias: string): SQL {
-	return sql.fromList(query.queryChunks.map((c) => {
+	return sql.join(query.queryChunks.map((c) => {
 		if (is(c, Column)) {
 			return aliasedTableColumn(c, alias);
 		}

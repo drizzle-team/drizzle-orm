@@ -1,7 +1,6 @@
-import { entityKind } from '~/entity';
-import type { AnySQLiteColumn } from './columns';
-import type { AnySQLiteTable } from './table';
-import { SQLiteTable } from './table';
+import { entityKind } from '~/entity.ts';
+import type { AnySQLiteColumn, SQLiteColumn } from './columns/index.ts';
+import { SQLiteTable } from './table.ts';
 
 export function primaryKey<
 	TTableName extends string,
@@ -20,16 +19,16 @@ export class PrimaryKeyBuilder {
 	};
 
 	/** @internal */
-	columns: AnySQLiteColumn<{}>[];
+	columns: SQLiteColumn[];
 
 	constructor(
-		columns: AnySQLiteColumn[],
+		columns: SQLiteColumn[],
 	) {
 		this.columns = columns;
 	}
 
 	/** @internal */
-	build(table: AnySQLiteTable): PrimaryKey {
+	build(table: SQLiteTable): PrimaryKey {
 		return new PrimaryKey(table, this.columns);
 	}
 }
@@ -37,9 +36,9 @@ export class PrimaryKeyBuilder {
 export class PrimaryKey {
 	static readonly [entityKind]: string = 'SQLitePrimaryKey';
 
-	readonly columns: AnySQLiteColumn<{}>[];
+	readonly columns: SQLiteColumn[];
 
-	constructor(readonly table: AnySQLiteTable, columns: AnySQLiteColumn<{}>[]) {
+	constructor(readonly table: SQLiteTable, columns: SQLiteColumn[]) {
 		this.columns = columns;
 	}
 

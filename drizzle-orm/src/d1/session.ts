@@ -1,20 +1,21 @@
 /// <reference types="@cloudflare/workers-types" />
 
-import { entityKind } from '~/entity';
-import type { Logger } from '~/logger';
-import { NoopLogger } from '~/logger';
-import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
-import { type Query, sql } from '~/sql';
-import { fillPlaceholders } from '~/sql';
-import { SQLiteTransaction } from '~/sqlite-core';
-import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
-import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types';
+import { entityKind } from '~/entity.ts';
+import type { Logger } from '~/logger.ts';
+import { NoopLogger } from '~/logger.ts';
+import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations.ts';
+import { type Query, sql } from '~/sql/index.ts';
+import { fillPlaceholders } from '~/sql/index.ts';
+import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
+import { SQLiteTransaction } from '~/sqlite-core/index.ts';
+import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types.ts';
 import {
 	type PreparedQueryConfig as PreparedQueryConfigBase,
+	type SQLiteExecuteMethod,
 	type SQLiteTransactionConfig,
-} from '~/sqlite-core/session';
-import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session';
-import { mapResultRow } from '~/utils';
+} from '~/sqlite-core/session.ts';
+import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session.ts';
+import { mapResultRow } from '~/utils.ts';
 
 export interface SQLiteD1SessionOptions {
 	logger?: Logger;
@@ -42,11 +43,12 @@ export class SQLiteD1Session<
 
 	prepareQuery(
 		query: Query,
-		fields?: SelectedFieldsOrdered,
+		fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): PreparedQuery {
 		const stmt = this.client.prepare(query.sql);
-		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields, customResultMapper);
+		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields, executeMethod, customResultMapper);
 	}
 
 	override async transaction<T>(
@@ -88,7 +90,7 @@ export class D1Transaction<
 }
 
 export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
-	{ type: 'async'; run: D1Result; all: T['all']; get: T['get']; values: T['values'] }
+	{ type: 'async'; run: D1Result; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
 	static readonly [entityKind]: string = 'D1PreparedQuery';
 
@@ -98,9 +100,10 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
 		private customResultMapper?: (rows: unknown[][]) => unknown,
 	) {
-		super();
+		super('async', executeMethod);
 	}
 
 	run(placeholderValues?: Record<string, unknown>): Promise<D1Result> {

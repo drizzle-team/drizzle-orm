@@ -1,11 +1,11 @@
-import { entityKind } from '~/entity';
-import { MySqlDialect } from '~/mysql-core/dialect';
-import type { WithSubqueryWithSelection } from '~/mysql-core/subquery';
-import type { TypedQueryBuilder } from '~/query-builders/query-builder';
-import { SelectionProxyHandler, WithSubquery } from '~/subquery';
-import { type ColumnsSelection } from '~/view';
-import { MySqlSelectBuilder } from './select';
-import type { SelectedFields } from './select.types';
+import { entityKind } from '~/entity.ts';
+import { MySqlDialect } from '~/mysql-core/dialect.ts';
+import type { WithSubqueryWithSelection } from '~/mysql-core/subquery.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import { SelectionProxyHandler, WithSubquery } from '~/subquery.ts';
+import { type ColumnsSelection } from '~/view.ts';
+import { MySqlSelectBuilder } from './select.ts';
+import type { SelectedFields } from './select.types.ts';
 
 export class QueryBuilder {
 	static readonly [entityKind]: string = 'MySqlQueryBuilder';
@@ -18,7 +18,7 @@ export class QueryBuilder {
 		return {
 			as<TSelection extends ColumnsSelection>(
 				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
-			): WithSubqueryWithSelection<TSelection, TAlias> {
+			): WithSubqueryWithSelection<TSelection, TAlias, 'mysql'> {
 				if (typeof qb === 'function') {
 					qb = qb(queryBuilder);
 				}
@@ -26,7 +26,7 @@ export class QueryBuilder {
 				return new Proxy(
 					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
 					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-				) as WithSubqueryWithSelection<TSelection, TAlias>;
+				) as WithSubqueryWithSelection<TSelection, TAlias, 'mysql'>;
 			},
 		};
 	}

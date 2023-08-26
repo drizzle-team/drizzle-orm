@@ -1,32 +1,32 @@
-import type { GetColumnData } from '~/column';
-import { entityKind } from '~/entity';
-import type { SelectResultFields } from '~/query-builders/select.types';
-import type { Query, SQL, SQLWrapper } from '~/sql';
-import type { SQLiteDialect } from '~/sqlite-core/dialect';
-import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
-import type { AnySQLiteTable } from '~/sqlite-core/table';
-import { SQLiteTable } from '~/sqlite-core/table';
-import type { InferModel } from '~/table';
-import { mapUpdateSet, orderSelectedFields, type Simplify, type UpdateSet } from '~/utils';
-import type { SelectedFields, SelectedFieldsOrdered } from './select.types';
+import type { GetColumnData } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { SelectResultFields } from '~/query-builders/select.types.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/index.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
+import { SQLiteTable } from '~/sqlite-core/table.ts';
+import type { InferModel } from '~/table.ts';
+import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import type { SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
 
 export interface SQLiteUpdateConfig {
 	where?: SQL | undefined;
 	set: UpdateSet;
-	table: AnySQLiteTable;
+	table: SQLiteTable;
 	returning?: SelectedFieldsOrdered;
 }
 
-export type SQLiteUpdateSetSource<TTable extends AnySQLiteTable> = Simplify<
-	{
+export type SQLiteUpdateSetSource<TTable extends SQLiteTable> =
+	& {
 		[Key in keyof TTable['_']['columns']]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
 			| SQL;
 	}
->;
+	& {};
 
 export class SQLiteUpdateBuilder<
-	TTable extends AnySQLiteTable,
+	TTable extends SQLiteTable,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 > {
@@ -50,21 +50,21 @@ export class SQLiteUpdateBuilder<
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface SQLiteUpdate<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TTable extends AnySQLiteTable,
+	TTable extends SQLiteTable,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TResultType extends 'sync' | 'async',
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TRunResult,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TReturning = undefined,
-> extends SQLWrapper {}
+> extends SQLWrapper, QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]> {}
 
 export class SQLiteUpdate<
-	TTable extends AnySQLiteTable,
+	TTable extends SQLiteTable,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TReturning = undefined,
-> implements SQLWrapper {
+> extends QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]> implements SQLWrapper {
 	static readonly [entityKind]: string = 'SQLiteUpdate';
 
 	declare readonly _: {
@@ -79,6 +79,7 @@ export class SQLiteUpdate<
 		private session: SQLiteSession<any, any, any, any>,
 		private dialect: SQLiteDialect,
 	) {
+		super();
 		this.config = { set, table };
 	}
 
@@ -87,21 +88,15 @@ export class SQLiteUpdate<
 		return this;
 	}
 
-	returning(): Omit<
-		SQLiteUpdate<TTable, TResultType, TRunResult, InferModel<TTable>>,
-		'where' | 'returning'
-	>;
+	returning(): SQLiteUpdate<TTable, TResultType, TRunResult, InferModel<TTable>>;
 	returning<TSelectedFields extends SelectedFields>(
 		fields: TSelectedFields,
-	): Omit<
-		SQLiteUpdate<TTable, TResultType, TRunResult, SelectResultFields<TSelectedFields>>,
-		'where' | 'returning'
-	>;
+	): SQLiteUpdate<TTable, TResultType, TRunResult, SelectResultFields<TSelectedFields>>;
 	returning(
 		fields: SelectedFields = this.config.table[SQLiteTable.Symbol.Columns],
-	): Omit<SQLiteUpdate<TTable, TResultType, TRunResult>, 'where' | 'returning'> {
+	): SQLiteUpdate<TTable, TResultType, TRunResult, InferModel<TTable>> {
 		this.config.returning = orderSelectedFields(fields);
-		return this;
+		return this as SQLiteUpdate<TTable, TResultType, TRunResult, InferModel<TTable>>;
 	}
 
 	/** @internal */
@@ -109,7 +104,7 @@ export class SQLiteUpdate<
 		return this.dialect.buildUpdateQuery(this.config);
 	}
 
-	toSQL(): Omit<Query, 'typings'> {
+	toSQL(): { sql: Query['sql']; params: Query['params'] } {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
@@ -118,15 +113,18 @@ export class SQLiteUpdate<
 		{
 			type: TResultType;
 			run: TRunResult;
-			all: TReturning extends undefined ? never : TReturning[];
-			get: TReturning extends undefined ? never : TReturning;
-			values: TReturning extends undefined ? never : any[][];
+			all: TReturning extends undefined ? DrizzleTypeError<'.all() cannot be used without .returning()'> : TReturning[];
+			get: TReturning extends undefined ? DrizzleTypeError<'.get() cannot be used without .returning()'> : TReturning;
+			values: TReturning extends undefined ? DrizzleTypeError<'.values() cannot be used without .returning()'>
+				: any[][];
+			execute: TReturning extends undefined ? TRunResult : TReturning[];
 		}
 	> {
 		return this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
-		);
+			this.config.returning ? 'all' : 'run',
+		) as ReturnType<this['prepare']>;
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
@@ -144,4 +142,9 @@ export class SQLiteUpdate<
 	values: ReturnType<this['prepare']>['values'] = (placeholderValues) => {
 		return this.prepare(true).values(placeholderValues);
 	};
+
+	override async execute(): Promise<TReturning extends undefined ? TRunResult : TReturning[]> {
+		return (this.config.returning ? this.all() : this.run()) as TReturning extends undefined ? TRunResult
+			: TReturning[];
+	}
 }

@@ -1,14 +1,13 @@
-import { entityKind } from '~/entity';
-import type { AnySQLiteColumn } from './columns';
-import type { AnySQLiteTable } from './table';
-import { SQLiteTable } from './table';
+import { entityKind } from '~/entity.ts';
+import type { AnySQLiteColumn, SQLiteColumn } from './columns/index.ts';
+import { SQLiteTable } from './table.ts';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
 export type Reference = () => {
-	readonly columns: AnySQLiteColumn[];
-	readonly foreignTable: AnySQLiteTable;
-	readonly foreignColumns: AnySQLiteColumn[];
+	readonly columns: SQLiteColumn[];
+	readonly foreignTable: SQLiteTable;
+	readonly foreignColumns: SQLiteColumn[];
 };
 
 export class ForeignKeyBuilder {
@@ -30,8 +29,8 @@ export class ForeignKeyBuilder {
 
 	constructor(
 		config: () => {
-			columns: AnySQLiteColumn[];
-			foreignColumns: AnySQLiteColumn[];
+			columns: SQLiteColumn[];
+			foreignColumns: SQLiteColumn[];
 		},
 		actions?: {
 			onUpdate?: UpdateDeleteAction;
@@ -40,7 +39,7 @@ export class ForeignKeyBuilder {
 	) {
 		this.reference = () => {
 			const { columns, foreignColumns } = config();
-			return { columns, foreignTable: foreignColumns[0]!.table as AnySQLiteTable, foreignColumns };
+			return { columns, foreignTable: foreignColumns[0]!.table as SQLiteTable, foreignColumns };
 		};
 		if (actions) {
 			this._onUpdate = actions.onUpdate;
@@ -59,7 +58,7 @@ export class ForeignKeyBuilder {
 	}
 
 	/** @internal */
-	build(table: AnySQLiteTable): ForeignKey {
+	build(table: SQLiteTable): ForeignKey {
 		return new ForeignKey(table, this);
 	}
 }
@@ -71,7 +70,7 @@ export class ForeignKey {
 	readonly onUpdate: UpdateDeleteAction | undefined;
 	readonly onDelete: UpdateDeleteAction | undefined;
 
-	constructor(readonly table: AnySQLiteTable, builder: ForeignKeyBuilder) {
+	constructor(readonly table: SQLiteTable, builder: ForeignKeyBuilder) {
 		this.reference = builder.reference;
 		this.onUpdate = builder._onUpdate;
 		this.onDelete = builder._onDelete;
@@ -93,7 +92,7 @@ export class ForeignKey {
 
 type ColumnsWithTable<
 	TTableName extends string,
-	TColumns extends AnySQLiteColumn[],
+	TColumns extends SQLiteColumn[],
 > = { [Key in keyof TColumns]: AnySQLiteColumn<{ tableName: TTableName }> };
 
 export function foreignKey<

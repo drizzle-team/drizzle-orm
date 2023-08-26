@@ -1,41 +1,39 @@
-import type { ColumnBaseConfig, ColumnHKTBase } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderHKTBase, MakeColumnConfig } from '~/column-builder';
-import { entityKind } from '~/entity';
-import type { AnySQLiteTable } from '~/sqlite-core/table';
-import { type Assume } from '~/utils';
-import { SQLiteColumn, SQLiteColumnBuilder } from './common';
-
-export interface SQLiteNumericBuilderHKT extends ColumnBuilderHKTBase {
-	_type: SQLiteNumericBuilder<Assume<this['config'], ColumnBuilderBaseConfig>>;
-	_columnHKT: SQLiteNumericHKT;
-}
-
-export interface SQLiteNumericHKT extends ColumnHKTBase {
-	_type: SQLiteNumeric<Assume<this['config'], ColumnBaseConfig>>;
-}
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
+import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 export type SQLiteNumericBuilderInitial<TName extends string> = SQLiteNumericBuilder<{
 	name: TName;
+	dataType: 'string';
+	columnType: 'SQLiteNumeric';
 	data: string;
 	driverParam: string;
-	notNull: false;
-	hasDefault: false;
+	enumValues: undefined;
 }>;
 
-export class SQLiteNumericBuilder<T extends ColumnBuilderBaseConfig>
-	extends SQLiteColumnBuilder<SQLiteNumericBuilderHKT, T>
+export class SQLiteNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'SQLiteNumeric'>>
+	extends SQLiteColumnBuilder<T>
 {
 	static readonly [entityKind]: string = 'SQLiteNumericBuilder';
+
+	constructor(name: T['name']) {
+		super(name, 'string', 'SQLiteNumeric');
+	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnySQLiteTable<{ name: TTableName }>,
 	): SQLiteNumeric<MakeColumnConfig<T, TTableName>> {
-		return new SQLiteNumeric<MakeColumnConfig<T, TTableName>>(table, this.config);
+		return new SQLiteNumeric<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
-export class SQLiteNumeric<T extends ColumnBaseConfig> extends SQLiteColumn<SQLiteNumericHKT, T> {
+export class SQLiteNumeric<T extends ColumnBaseConfig<'string', 'SQLiteNumeric'>> extends SQLiteColumn<T> {
 	static readonly [entityKind]: string = 'SQLiteNumeric';
 
 	getSQLType(): string {
