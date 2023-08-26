@@ -1,10 +1,10 @@
-import type { AnyColumn } from './column';
-import { Column } from './column';
-import { entityKind, is } from './entity';
-import type { Relation } from './relations';
-import { SQL, sql } from './sql';
-import { Table } from './table';
-import { type View, ViewBaseConfig } from './view';
+import type { AnyColumn } from './column.ts';
+import { Column } from './column.ts';
+import { entityKind, is } from './entity.ts';
+import type { Relation } from './relations.ts';
+import { SQL, sql } from './sql/index.ts';
+import { Table } from './table.ts';
+import { type View, ViewBaseConfig } from './view.ts';
 
 export class ColumnAliasProxyHandler<TColumn extends Column> implements ProxyHandler<TColumn> {
 	static readonly [entityKind]: string = 'ColumnAliasProxyHandler';

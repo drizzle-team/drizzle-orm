@@ -1,8 +1,8 @@
 import Database from 'better-sqlite3';
 import { Database as BunDatabase } from 'bun:sqlite';
-import { drizzle as drizzleBetterSqlite3 } from '~/better-sqlite3';
-import { drizzle as drizzleBun } from '~/bun-sqlite';
-import { drizzle as drizzleD1 } from '~/d1';
+import { drizzle as drizzleBetterSqlite3 } from '~/better-sqlite3/index.ts';
+import { drizzle as drizzleBun } from '~/bun-sqlite/index.ts';
+import { drizzle as drizzleD1 } from '~/d1/index.ts';
 
 const client = new Database(':memory:');
 const bunClient = new BunDatabase(':memory:');

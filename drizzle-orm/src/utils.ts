@@ -1,14 +1,14 @@
-import type { AnyColumn } from './column';
-import { Column } from './column';
-import { is } from './entity';
-import { type Logger } from './logger';
-import type { SelectedFieldsOrdered } from './operations';
-import { type TableLike } from './query-builders/select.types';
-import type { DriverValueDecoder } from './sql';
-import { Param, SQL } from './sql';
-import { Subquery, SubqueryConfig } from './subquery';
-import { getTableName, Table } from './table';
-import { View, ViewBaseConfig } from './view';
+import type { AnyColumn } from './column.ts';
+import { Column } from './column.ts';
+import { is } from './entity.ts';
+import { type Logger } from './logger.ts';
+import type { SelectedFieldsOrdered } from './operations.ts';
+import { type TableLike } from './query-builders/select.types.ts';
+import { Param, SQL } from './sql/index.ts';
+import type { DriverValueDecoder } from './sql/index.ts';
+import { Subquery, SubqueryConfig } from './subquery.ts';
+import { getTableName, Table } from './table.ts';
+import { View, ViewBaseConfig } from './view.ts';
 
 /** @internal */
 export function mapResultRow<TResult>(
@@ -140,9 +140,8 @@ export type Assume<T, U> = T extends U ? T : U;
 
 export type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends (<T>() => T extends Y ? 1 : 2) ? true : false;
 
-export interface DrizzleTypeError<T> {
-	$brand: 'DrizzleTypeError';
-	$error: T;
+export interface DrizzleTypeError<T extends string> {
+	$drizzleTypeError: T;
 }
 
 export type ValueOrArray<T> = T | T[];

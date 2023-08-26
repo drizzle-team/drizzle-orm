@@ -1,2 +1,2 @@
-export * from './conditions';
-export * from './select';
+export * from './conditions.ts';
+export * from './select.ts';

@@ -978,3 +978,137 @@ test.serial('update undefined', async (t) => {
 
 	await db.run(sql`drop table ${users}`);
 });
+
+test.serial('async api - CRUD', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	await db.insert(users).values({ id: 1, name: 'John' });
+
+	const res = await db.select().from(users);
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+
+	await db.update(users).set({ name: 'John1' }).where(eq(users.id, 1));
+
+	const res1 = await db.select().from(users);
+
+	t.deepEqual(res1, [{ id: 1, name: 'John1' }]);
+
+	await db.delete(users).where(eq(users.id, 1));
+
+	const res2 = await db.select().from(users);
+
+	t.deepEqual(res2, []);
+
+	await db.run(sql`drop table ${users}`);
+});
+
+test.serial('async api - insert + select w/ prepare + async execute', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	const insertStmt = db.insert(users).values({ id: 1, name: 'John' }).prepare();
+	await insertStmt.execute();
+
+	const selectStmt = db.select().from(users).prepare();
+	const res = await selectStmt.execute();
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+
+	const updateStmt = db.update(users).set({ name: 'John1' }).where(eq(users.id, 1)).prepare();
+	await updateStmt.execute();
+
+	const res1 = await selectStmt.execute();
+
+	t.deepEqual(res1, [{ id: 1, name: 'John1' }]);
+
+	const deleteStmt = db.delete(users).where(eq(users.id, 1)).prepare();
+	await deleteStmt.execute();
+
+	const res2 = await selectStmt.execute();
+
+	t.deepEqual(res2, []);
+
+	await db.run(sql`drop table ${users}`);
+});
+
+test.serial('async api - insert + select w/ prepare + sync execute', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	const insertStmt = db.insert(users).values({ id: 1, name: 'John' }).prepare();
+	await insertStmt.execute();
+
+	const selectStmt = db.select().from(users).prepare();
+	const res = await selectStmt.execute();
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+
+	const updateStmt = db.update(users).set({ name: 'John1' }).where(eq(users.id, 1)).prepare();
+	await updateStmt.execute();
+
+	const res1 = await selectStmt.execute();
+
+	t.deepEqual(res1, [{ id: 1, name: 'John1' }]);
+
+	const deleteStmt = db.delete(users).where(eq(users.id, 1)).prepare();
+	await deleteStmt.execute();
+
+	const res2 = await selectStmt.execute();
+
+	t.deepEqual(res2, []);
+
+	await db.run(sql`drop table ${users}`);
+});
+
+test.serial('select + .get() for empty result', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	const res = await db.select().from(users).where(eq(users.id, 1)).get();
+
+	t.is(res, undefined);
+
+	await db.run(sql`drop table ${users}`);
+});

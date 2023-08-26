@@ -1,52 +1,61 @@
-import anyTest from "ava";
-import type { TestFn } from "ava";
-import { createSQLiteDB } from "@miniflare/shared";
-import { D1Database, D1DatabaseAPI } from "@miniflare/d1";
-import { sql, eq, placeholder, asc, gt, inArray, type Equal, TransactionRollbackError } from "drizzle-orm";
-import type { DrizzleD1Database } from "drizzle-orm/d1";
-import { drizzle } from "drizzle-orm/d1";
-import { migrate } from "drizzle-orm/d1/migrator";
-import { alias, blob, getViewConfig, integer, sqliteTable, sqliteTableCreator, sqliteView, text } from "drizzle-orm/sqlite-core";
-import { Expect } from './utils';
+import { D1Database, D1DatabaseAPI } from '@miniflare/d1';
+import { createSQLiteDB } from '@miniflare/shared';
+import anyTest from 'ava';
+import type { TestFn } from 'ava';
+import { asc, eq, type Equal, gt, inArray, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
+import type { DrizzleD1Database } from 'drizzle-orm/d1';
+import { drizzle } from 'drizzle-orm/d1';
+import { migrate } from 'drizzle-orm/d1/migrator';
+import {
+	alias,
+	blob,
+	getViewConfig,
+	integer,
+	sqliteTable,
+	sqliteTableCreator,
+	sqliteView,
+	text,
+} from 'drizzle-orm/sqlite-core';
+import { Expect } from './utils.ts';
 
-const usersTable = sqliteTable("users", {
-	id: integer("id").primaryKey(),
-	name: text("name").notNull(),
-	verified: integer("verified").notNull().default(0),
-	json: blob("json", { mode: "json" }).$type<string[]>(),
-	createdAt: integer("created_at", { mode: "timestamp" })
+const usersTable = sqliteTable('users', {
+	id: integer('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: integer('verified').notNull().default(0),
+	json: blob('json', { mode: 'json' }).$type<string[]>(),
+	createdAt: integer('created_at', { mode: 'timestamp' })
 		.notNull()
 		.default(sql`strftime('%s', 'now')`),
 });
 
-const users2Table = sqliteTable("users2", {
-	id: integer("id").primaryKey(),
-	name: text("name").notNull(),
-	cityId: integer("city_id").references(() => citiesTable.id),
+const users2Table = sqliteTable('users2', {
+	id: integer('id').primaryKey(),
+	name: text('name').notNull(),
+	cityId: integer('city_id').references(() => citiesTable.id),
 });
 
-const citiesTable = sqliteTable("cities", {
-	id: integer("id").primaryKey(),
-	name: text("name").notNull(),
+const citiesTable = sqliteTable('cities', {
+	id: integer('id').primaryKey(),
+	name: text('name').notNull(),
 });
 
-const coursesTable = sqliteTable("courses", {
-	id: integer("id").primaryKey(),
-	name: text("name").notNull(),
-	categoryId: integer("category_id").references(() => courseCategoriesTable.id),
+const coursesTable = sqliteTable('courses', {
+	id: integer('id').primaryKey(),
+	name: text('name').notNull(),
+	categoryId: integer('category_id').references(() => courseCategoriesTable.id),
 });
 
-const courseCategoriesTable = sqliteTable("course_categories", {
-	id: integer("id").primaryKey(),
-	name: text("name").notNull(),
+const courseCategoriesTable = sqliteTable('course_categories', {
+	id: integer('id').primaryKey(),
+	name: text('name').notNull(),
 });
 
-const orders = sqliteTable("orders", {
-	id: integer("id").primaryKey(),
-	region: text("region").notNull(),
-	product: text("product").notNull(),
-	amount: integer("amount").notNull(),
-	quantity: integer("quantity").notNull(),
+const orders = sqliteTable('orders', {
+	id: integer('id').primaryKey(),
+	region: text('region').notNull(),
+	product: text('product').notNull(),
+	amount: integer('amount').notNull(),
+	quantity: integer('quantity').notNull(),
 });
 
 const usersMigratorTable = sqliteTable('users12', {
@@ -70,7 +79,7 @@ const test = anyTest as TestFn<Context>;
 
 test.before(async (t) => {
 	const ctx = t.context;
-	const sqliteDb = await createSQLiteDB(":memory:");
+	const sqliteDb = await createSQLiteDB(':memory:');
 	const db = new D1Database(new D1DatabaseAPI(sqliteDb));
 	ctx.d1 = db;
 	/**
@@ -127,9 +136,11 @@ test.beforeEach(async (t) => {
 		create table ${coursesTable} (
 		 id integer primary key,
 		 name text not null,
-		 category_id integer references ${courseCategoriesTable}(${sql.identifier(
-		courseCategoriesTable.id.name
-	)})
+		 category_id integer references ${courseCategoriesTable}(${
+		sql.identifier(
+			courseCategoriesTable.id.name,
+		)
+	})
 		)
 	`);
 	await ctx.db.run(sql`
@@ -143,12 +154,12 @@ test.beforeEach(async (t) => {
 	`);
 });
 
-test.serial("select all fields", async (t) => {
+test.serial('select all fields', async (t) => {
 	const { db } = t.context;
 
 	const now = Date.now();
 
-	await db.insert(usersTable).values({ name: "John" }).run();
+	await db.insert(usersTable).values({ name: 'John' }).run();
 	const result = await db.select().from(usersTable).all();
 
 	t.assert(result[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
@@ -156,7 +167,7 @@ test.serial("select all fields", async (t) => {
 	t.deepEqual(result, [
 		{
 			id: 1,
-			name: "John",
+			name: 'John',
 			verified: 0,
 			json: null,
 			createdAt: result[0]!.createdAt,
@@ -164,19 +175,19 @@ test.serial("select all fields", async (t) => {
 	]);
 });
 
-test.serial("select partial", async (t) => {
+test.serial('select partial', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: "John" }).run();
+	await db.insert(usersTable).values({ name: 'John' }).run();
 	const result = await db.select({ name: usersTable.name }).from(usersTable).all();
 
-	t.deepEqual(result, [{ name: "John" }]);
+	t.deepEqual(result, [{ name: 'John' }]);
 });
 
-test.serial("select sql", async (t) => {
+test.serial('select sql', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: "John" }).run();
+	await db.insert(usersTable).values({ name: 'John' }).run();
 	const users = await db
 		.select({
 			name: sql`upper(${usersTable.name})`,
@@ -184,7 +195,7 @@ test.serial("select sql", async (t) => {
 		.from(usersTable)
 		.all();
 
-	t.deepEqual(users, [{ name: "JOHN" }]);
+	t.deepEqual(users, [{ name: 'JOHN' }]);
 });
 
 test.serial('select typed sql', async (t) => {
@@ -406,8 +417,8 @@ test.serial('json insert', async (t) => {
 			id: usersTable.id,
 			name: usersTable.name,
 			json: usersTable.json,
-		}).from(usersTable).all()
-	)
+		}).from(usersTable).all(),
+	);
 
 	// Uncomment when the above bug is fixed
 	// t.deepEqual(result, [{ id: 1, name: 'John', json: ['foo', 'bar'] }]);
@@ -436,8 +447,8 @@ test.serial('insert many', async (t) => {
 			name: usersTable.name,
 			json: usersTable.json,
 			verified: usersTable.verified,
-		}).from(usersTable).all()
-	)
+		}).from(usersTable).all(),
+	);
 
 	// Uncomment when the above bug is fixed
 	// t.deepEqual(result, [
@@ -460,10 +471,10 @@ test.serial('insert many with returning', async (t) => {
 	 */
 	await t.throwsAsync(
 		db.insert(usersTable).values([
-		{ name: 'John' },
-		{ name: 'Bruce', json: ['foo', 'bar'] },
-		{ name: 'Jane' },
-		{ name: 'Austin', verified: 1 },
+			{ name: 'John' },
+			{ name: 'Bruce', json: ['foo', 'bar'] },
+			{ name: 'Jane' },
+			{ name: 'Austin', verified: 1 },
 		])
 			.returning({
 				id: usersTable.id,
@@ -471,7 +482,7 @@ test.serial('insert many with returning', async (t) => {
 				json: usersTable.json,
 				verified: usersTable.verified,
 			})
-			.all()
+			.all(),
 	);
 
 	// Uncomment when the above bug is fixed
@@ -1413,7 +1424,7 @@ test.serial('transaction rollback', async (t) => {
 		await db.transaction(async (tx) => {
 			await tx.insert(users).values({ balance: 100 }).run();
 			tx.rollback();
-	}), new TransactionRollbackError());
+		}), new TransactionRollbackError());
 
 	const result = await db.select().from(users).all();
 
@@ -1653,6 +1664,33 @@ test.serial('insert with onConflict do update', async (t) => {
 	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
 });
 
+test.serial('insert with onConflict do update where', async (t) => {
+	const { db } = t.context;
+
+	await db
+		.insert(usersTable)
+		.values([{ id: 1, name: "John", verified: 0 }])
+		.run();
+
+	await db
+		.insert(usersTable)
+		.values({ id: 1, name: "John1", verified: 0 })
+		.onConflictDoUpdate({
+			target: usersTable.id,
+			set: { name: "John1", verified: 1 },
+			where: eq(usersTable.verified, 0)
+		})
+		.run();
+
+	const res = await db
+		.select({ id: usersTable.id, name: usersTable.name, verified: usersTable.verified })
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: "John1", verified: 1 }]);
+})
+
 test.serial('insert undefined', async (t) => {
 	const { db } = t.context;
 
@@ -1687,7 +1725,114 @@ test.serial('update undefined', async (t) => {
 	);
 
 	await t.throwsAsync(async () => db.update(users).set({ name: undefined }).run());
-	await t.notThrowsAsync(async () =>  await db.update(users).set({ id: 1, name: undefined }).run());
+	await t.notThrowsAsync(async () => await db.update(users).set({ id: 1, name: undefined }).run());
 
 	await db.run(sql`drop table ${users}`);
+});
+
+test.serial('async api - CRUD', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	await db.insert(users).values({ id: 1, name: 'John' });
+
+	const res = await db.select().from(users);
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+
+	await db.update(users).set({ name: 'John1' }).where(eq(users.id, 1));
+
+	const res1 = await db.select().from(users);
+
+	t.deepEqual(res1, [{ id: 1, name: 'John1' }]);
+
+	await db.delete(users).where(eq(users.id, 1));
+
+	const res2 = await db.select().from(users);
+
+	t.deepEqual(res2, []);
+});
+
+test.serial('async api - insert + select w/ prepare + async execute', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	const insertStmt = db.insert(users).values({ id: 1, name: 'John' }).prepare();
+	await insertStmt.execute();
+
+	const selectStmt = db.select().from(users).prepare();
+	const res = await selectStmt.execute();
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+
+	const updateStmt = db.update(users).set({ name: 'John1' }).where(eq(users.id, 1)).prepare();
+	await updateStmt.execute();
+
+	const res1 = await selectStmt.execute();
+
+	t.deepEqual(res1, [{ id: 1, name: 'John1' }]);
+
+	const deleteStmt = db.delete(users).where(eq(users.id, 1)).prepare();
+	await deleteStmt.execute();
+
+	const res2 = await selectStmt.execute();
+
+	t.deepEqual(res2, []);
+});
+
+test.serial('async api - insert + select w/ prepare + sync execute', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	const insertStmt = db.insert(users).values({ id: 1, name: 'John' }).prepare();
+	await insertStmt.execute();
+
+	const selectStmt = db.select().from(users).prepare();
+	const res = await selectStmt.execute();
+
+	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+
+	const updateStmt = db.update(users).set({ name: 'John1' }).where(eq(users.id, 1)).prepare();
+	await updateStmt.execute();
+
+	const res1 = await selectStmt.execute();
+
+	t.deepEqual(res1, [{ id: 1, name: 'John1' }]);
+
+	const deleteStmt = db.delete(users).where(eq(users.id, 1)).prepare();
+	await deleteStmt.execute();
+
+	const res2 = await selectStmt.execute();
+
+	t.deepEqual(res2, []);
 });

@@ -20,15 +20,14 @@ import {
 	notInArray,
 	notLike,
 	or,
-} from '~/expressions';
-import { param, sql } from '~/sql';
-import { alias } from '~/sqlite-core/alias';
+} from '~/expressions.ts';
+import { param, sql } from '~/sql/index.ts';
+import { alias } from '~/sqlite-core/alias.ts';
 
-import type { Equal } from 'type-tests/utils';
-import { Expect } from 'type-tests/utils';
-import type { InferModel } from '~/table';
-import { db } from './db';
-import { cities, classes, newYorkers, users } from './tables';
+import type { Equal } from 'type-tests/utils.ts';
+import { Expect } from 'type-tests/utils.ts';
+import { db } from './db.ts';
+import { cities, classes, newYorkers, users } from './tables.ts';
 
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
@@ -42,10 +41,10 @@ const joinAll = db
 	.all();
 Expect<
 	Equal<{
-		users_table: InferModel<typeof users> | null;
-		cities_table: InferModel<typeof cities> | null;
-		city: InferModel<typeof city> | null;
-		city1: InferModel<typeof city1>;
+		users_table: typeof users.$inferSelect | null;
+		cities_table: typeof cities.$inferSelect | null;
+		city: typeof city.$inferSelect | null;
+		city1: typeof city1.$inferSelect;
 	}[], typeof joinAll>
 >;
 
@@ -57,12 +56,15 @@ const joinGet = db
 	.rightJoin(city1, eq(city1.id, users.id))
 	.get();
 Expect<
-	Equal<{
-		users_table: InferModel<typeof users> | null;
-		cities_table: InferModel<typeof cities> | null;
-		city: InferModel<typeof city> | null;
-		city1: InferModel<typeof city1>;
-	} | undefined, typeof joinGet>
+	Equal<
+		{
+			users_table: typeof users.$inferSelect | null;
+			cities_table: typeof cities.$inferSelect | null;
+			city: typeof city.$inferSelect | null;
+			city1: typeof city1.$inferSelect;
+		} | undefined,
+		typeof joinGet
+	>
 >;
 
 const joinValues = db

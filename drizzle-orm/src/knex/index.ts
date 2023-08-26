@@ -1,9 +1,11 @@
 import type { Knex as KnexType } from 'knex';
-import type { InferModel, Table } from '~/table';
+import type { InferInsertModel, InferSelectModel, Table } from '~/table.ts';
 
-declare module 'knex/types/tables' {
-	export type Knexify<T extends Table> = KnexType.CompositeTableType<
-		InferModel<T, 'select', { dbColumnNames: true }>,
-		InferModel<T, 'insert', { dbColumnNames: true }>
-	>;
+declare module 'knex/types/tables.ts' {
+	export type Knexify<T extends Table> =
+		& KnexType.CompositeTableType<
+			InferSelectModel<T, { dbColumnNames: true }>,
+			InferInsertModel<T, { dbColumnNames: true }>
+		>
+		& {};
 }

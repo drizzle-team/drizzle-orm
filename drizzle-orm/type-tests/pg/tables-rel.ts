@@ -1,5 +1,5 @@
-import { foreignKey, integer, pgTable, serial, text, timestamp } from '~/pg-core';
-import { relations } from '~/relations';
+import { foreignKey, integer, pgTable, serial, text, timestamp } from '~/pg-core/index.ts';
+import { relations } from '~/relations.ts';
 
 export const users = pgTable('users', {
 	id: serial('id').primaryKey(),

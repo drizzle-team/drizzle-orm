@@ -1,23 +1,27 @@
-import { entityKind } from '~/entity';
-import type { TypedQueryBuilder } from '~/query-builders/query-builder';
-import { type ExtractTablesWithRelations, type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
-import type { SQLWrapper } from '~/sql';
-import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect';
+import { entityKind } from '~/entity.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import {
+	type ExtractTablesWithRelations,
+	type RelationalSchemaConfig,
+	type TablesRelationalConfig,
+} from '~/relations.ts';
+import type { SQLWrapper } from '~/sql/index.ts';
+import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import {
 	QueryBuilder,
 	SQLiteDelete,
 	SQLiteInsertBuilder,
 	SQLiteSelectBuilder,
 	SQLiteUpdateBuilder,
-} from '~/sqlite-core/query-builders';
-import type { Result, SQLiteSession, SQLiteTransaction, SQLiteTransactionConfig } from '~/sqlite-core/session';
-import type { AnySQLiteTable } from '~/sqlite-core/table';
-import { SelectionProxyHandler, WithSubquery } from '~/subquery';
-import { type DrizzleTypeError } from '~/utils';
-import { type ColumnsSelection } from '~/view';
-import { AsyncRelationalQueryBuilder, SyncRelationalQueryBuilder } from './query-builders/query';
-import type { SelectedFields } from './query-builders/select.types';
-import type { WithSubqueryWithSelection } from './subquery';
+} from '~/sqlite-core/query-builders/index.ts';
+import type { Result, SQLiteSession, SQLiteTransaction, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
+import type { SQLiteTable } from '~/sqlite-core/table.ts';
+import { SelectionProxyHandler, WithSubquery } from '~/subquery.ts';
+import { type DrizzleTypeError } from '~/utils.ts';
+import { type ColumnsSelection } from '~/view.ts';
+import { RelationalQueryBuilder } from './query-builders/query.ts';
+import type { SelectedFields } from './query-builders/select.types.ts';
+import type { WithSubqueryWithSelection } from './subquery.ts';
 
 export class BaseSQLiteDatabase<
 	TResultKind extends 'sync' | 'async',
@@ -35,8 +39,7 @@ export class BaseSQLiteDatabase<
 	query: TFullSchema extends Record<string, never>
 		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
 		: {
-			[K in keyof TSchema]: TResultKind extends 'async' ? AsyncRelationalQueryBuilder<TFullSchema, TSchema, TSchema[K]>
-				: SyncRelationalQueryBuilder<TFullSchema, TSchema, TSchema[K]>;
+			[K in keyof TSchema]: RelationalQueryBuilder<TResultKind, TFullSchema, TSchema, TSchema[K]>;
 		};
 
 	constructor(
@@ -53,16 +56,16 @@ export class BaseSQLiteDatabase<
 		this.query = {} as typeof this['query'];
 		if (this._.schema) {
 			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				this.query[tableName as keyof TSchema] =
-					new (resultKind === 'async' ? AsyncRelationalQueryBuilder : SyncRelationalQueryBuilder)(
-						schema!.fullSchema,
-						this._.schema,
-						this._.tableNamesMap,
-						schema!.fullSchema[tableName] as AnySQLiteTable,
-						columns,
-						dialect,
-						session as SQLiteSession<any, any, any, any> as any,
-					) as this['query'][keyof TSchema];
+				this.query[tableName as keyof TSchema] = new RelationalQueryBuilder(
+					resultKind,
+					schema!.fullSchema,
+					this._.schema,
+					this._.tableNamesMap,
+					schema!.fullSchema[tableName] as SQLiteTable,
+					columns,
+					dialect,
+					session as SQLiteSession<any, any, any, any> as any,
+				) as this['query'][keyof TSchema];
 			}
 		}
 	}
@@ -140,15 +143,15 @@ export class BaseSQLiteDatabase<
 		});
 	}
 
-	update<TTable extends AnySQLiteTable>(table: TTable): SQLiteUpdateBuilder<TTable, TResultKind, TRunResult> {
+	update<TTable extends SQLiteTable>(table: TTable): SQLiteUpdateBuilder<TTable, TResultKind, TRunResult> {
 		return new SQLiteUpdateBuilder(table, this.session, this.dialect);
 	}
 
-	insert<TTable extends AnySQLiteTable>(into: TTable): SQLiteInsertBuilder<TTable, TResultKind, TRunResult> {
+	insert<TTable extends SQLiteTable>(into: TTable): SQLiteInsertBuilder<TTable, TResultKind, TRunResult> {
 		return new SQLiteInsertBuilder(into, this.session, this.dialect);
 	}
 
-	delete<TTable extends AnySQLiteTable>(from: TTable): SQLiteDelete<TTable, TResultKind, TRunResult> {
+	delete<TTable extends SQLiteTable>(from: TTable): SQLiteDelete<TTable, TResultKind, TRunResult> {
 		return new SQLiteDelete(from, this.session, this.dialect);
 	}
 

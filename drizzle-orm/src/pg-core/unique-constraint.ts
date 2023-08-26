@@ -1,12 +1,12 @@
-import { entityKind } from '~/entity';
-import type { PgColumn } from './columns';
-import { type AnyPgTable, PgTable } from './table';
+import { entityKind } from '~/entity.ts';
+import type { PgColumn } from './columns/index.ts';
+import { PgTable } from './table.ts';
 
 export function unique(name?: string): UniqueOnConstraintBuilder {
 	return new UniqueOnConstraintBuilder(name);
 }
 
-export function uniqueKeyName(table: AnyPgTable, columns: string[]) {
+export function uniqueKeyName(table: PgTable, columns: string[]) {
 	return `${table[PgTable.Symbol.Name]}_${columns.join('_')}_unique`;
 }
 
@@ -31,7 +31,7 @@ export class UniqueConstraintBuilder {
 	}
 
 	/** @internal */
-	build(table: AnyPgTable): UniqueConstraint {
+	build(table: PgTable): UniqueConstraint {
 		return new UniqueConstraint(table, this.columns, this.nullsNotDistinctConfig, this.name);
 	}
 }
@@ -60,7 +60,7 @@ export class UniqueConstraint {
 	readonly name?: string;
 	readonly nullsNotDistinct: boolean = false;
 
-	constructor(readonly table: AnyPgTable, columns: PgColumn[], nullsNotDistinct: boolean, name?: string) {
+	constructor(readonly table: PgTable, columns: PgColumn[], nullsNotDistinct: boolean, name?: string) {
 		this.columns = columns;
 		this.name = name ?? uniqueKeyName(this.table, this.columns.map((column) => column.name));
 		this.nullsNotDistinct = nullsNotDistinct;

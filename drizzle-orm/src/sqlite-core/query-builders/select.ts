@@ -1,12 +1,5 @@
-import { entityKind, is } from '~/entity';
-import { type Placeholder, type Query, SQL } from '~/sql';
-import type { SQLiteColumn } from '~/sqlite-core/columns';
-import type { SQLiteDialect } from '~/sqlite-core/dialect';
-import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
-import type { AnySQLiteTable } from '~/sqlite-core/table';
-import { Table } from '~/table';
-
-import { TypedQueryBuilder } from '~/query-builders/query-builder';
+import { entityKind, is } from '~/entity.ts';
+import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	BuildSubquerySelection,
 	GetSelectTableName,
@@ -15,12 +8,26 @@ import type {
 	JoinType,
 	SelectMode,
 	SelectResult,
-} from '~/query-builders/select.types';
-import type { SubqueryWithSelection } from '~/sqlite-core/subquery';
-import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery';
-import { getTableColumns, getTableLikeName, orderSelectedFields, type ValueOrArray } from '~/utils';
-import { type ColumnsSelection, View, ViewBaseConfig } from '~/view';
-import { SQLiteViewBase } from '../view';
+} from '~/query-builders/select.types.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import { type Placeholder, type Query, SQL } from '~/sql/index.ts';
+import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
+import type { SubqueryWithSelection } from '~/sqlite-core/subquery.ts';
+import type { SQLiteTable } from '~/sqlite-core/table.ts';
+import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery.ts';
+import { Table } from '~/table.ts';
+import {
+	applyMixins,
+	getTableColumns,
+	getTableLikeName,
+	orderSelectedFields,
+	type PromiseOf,
+	type ValueOrArray,
+} from '~/utils.ts';
+import { type ColumnsSelection, View, ViewBaseConfig } from '~/view.ts';
+import { SQLiteViewBase } from '../view.ts';
 import type {
 	JoinFn,
 	SelectedFields,
@@ -28,7 +35,7 @@ import type {
 	SQLiteSelectHKT,
 	SQLiteSelectHKTBase,
 	SQLiteSelectQueryBuilderHKT,
-} from './select.types';
+} from './select.types.ts';
 
 type CreateSQLiteSelectFromBuilderMode<
 	TBuilderMode extends 'db' | 'qb',
@@ -70,7 +77,7 @@ export class SQLiteSelectBuilder<
 		this.distinct = config.distinct;
 	}
 
-	from<TFrom extends AnySQLiteTable | Subquery | SQLiteViewBase | SQL>(
+	from<TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL>(
 		source: TFrom,
 	): CreateSQLiteSelectFromBuilderMode<
 		TBuilderMode,
@@ -97,7 +104,7 @@ export class SQLiteSelectBuilder<
 		} else if (is(source, SQL)) {
 			fields = {};
 		} else {
-			fields = getTableColumns<AnySQLiteTable>(source);
+			fields = getTableColumns<SQLiteTable>(source);
 		}
 
 		return new SQLiteSelect({
@@ -173,7 +180,7 @@ export abstract class SQLiteSelectQueryBuilder<
 		joinType: TJoinType,
 	): JoinFn<THKT, TTableName, TResultType, TRunResult, TSelectMode, TJoinType, TSelection, TNullabilityMap> {
 		return (
-			table: AnySQLiteTable | Subquery | SQLiteViewBase | SQL,
+			table: SQLiteTable | Subquery | SQLiteViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
@@ -376,7 +383,8 @@ export interface SQLiteSelect<
 		TSelection,
 		TSelectMode,
 		TNullabilityMap
-	>
+	>,
+	QueryPromise<SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>
 {}
 
 export class SQLiteSelect<
@@ -405,6 +413,7 @@ export class SQLiteSelect<
 			all: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
 			get: SelectResult<TSelection, TSelectMode, TNullabilityMap> | undefined;
 			values: any[][];
+			execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
 		}
 	> {
 		if (!this.session) {
@@ -414,9 +423,10 @@ export class SQLiteSelect<
 		const query = this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
 			this.dialect.sqlToQuery(this.getSQL()),
 			fieldsList,
+			'all',
 		);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
-		return query;
+		return query as ReturnType<this['prepare']>;
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
@@ -434,4 +444,10 @@ export class SQLiteSelect<
 	values: ReturnType<this['prepare']>['values'] = (placeholderValues) => {
 		return this.prepare(true).values(placeholderValues);
 	};
+
+	async execute(): Promise<SelectResult<TSelection, TSelectMode, TNullabilityMap>[]> {
+		return this.all() as PromiseOf<ReturnType<this['execute']>>;
+	}
 }
+
+applyMixins(SQLiteSelect, [QueryPromise]);

@@ -1,12 +1,13 @@
-import { entityKind } from '~/entity';
-import type { SelectResultFields } from '~/query-builders/select.types';
-import type { Query, SQL, SQLWrapper } from '~/sql';
-import type { SQLiteDialect } from '~/sqlite-core/dialect';
-import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
-import { SQLiteTable } from '~/sqlite-core/table';
-import type { InferModel } from '~/table';
-import { orderSelectedFields } from '~/utils';
-import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
+import { entityKind } from '~/entity.ts';
+import type { SelectResultFields } from '~/query-builders/select.types.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/index.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
+import { SQLiteTable } from '~/sqlite-core/table.ts';
+import type { InferModel } from '~/table.ts';
+import { type DrizzleTypeError, orderSelectedFields } from '~/utils.ts';
+import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
 export interface SQLiteDeleteConfig {
 	where?: SQL | undefined;
@@ -31,7 +32,7 @@ export class SQLiteDelete<
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TReturning = undefined,
-> implements SQLWrapper {
+> extends QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]> implements SQLWrapper {
 	static readonly [entityKind]: string = 'SQLiteDelete';
 
 	private config: SQLiteDeleteConfig;
@@ -41,6 +42,7 @@ export class SQLiteDelete<
 		private session: SQLiteSession<any, any, any, any>,
 		private dialect: SQLiteDialect,
 	) {
+		super();
 		this.config = { table };
 	}
 
@@ -49,10 +51,10 @@ export class SQLiteDelete<
 		return this;
 	}
 
-	returning(): Omit<SQLiteDelete<TTable, TResultType, TRunResult, InferModel<TTable>>, 'where' | 'returning'>;
+	returning(): SQLiteDelete<TTable, TResultType, TRunResult, InferModel<TTable>>;
 	returning<TSelectedFields extends SelectedFieldsFlat>(
 		fields: TSelectedFields,
-	): Omit<SQLiteDelete<TTable, TResultType, TRunResult, SelectResultFields<TSelectedFields>>, 'where' | 'returning'>;
+	): SQLiteDelete<TTable, TResultType, TRunResult, SelectResultFields<TSelectedFields>>;
 	returning(
 		fields: SelectedFieldsFlat = this.table[SQLiteTable.Symbol.Columns],
 	): SQLiteDelete<TTable, TResultType, TRunResult, any> {
@@ -73,14 +75,17 @@ export class SQLiteDelete<
 	prepare(isOneTimeQuery?: boolean): PreparedQuery<{
 		type: TResultType;
 		run: TRunResult;
-		all: TReturning extends undefined ? never : TReturning[];
-		get: TReturning extends undefined ? never : TReturning | undefined;
-		values: TReturning extends undefined ? never : any[][];
+		all: TReturning extends undefined ? DrizzleTypeError<'.all() cannot be used without .returning()'> : TReturning[];
+		get: TReturning extends undefined ? DrizzleTypeError<'.get() cannot be used without .returning()'>
+			: TReturning | undefined;
+		values: TReturning extends undefined ? DrizzleTypeError<'.values() cannot be used without .returning()'> : any[][];
+		execute: TReturning extends undefined ? TRunResult : TReturning[];
 	}> {
 		return this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
-		);
+			this.config.returning ? 'all' : 'run',
+		) as ReturnType<this['prepare']>;
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
@@ -98,4 +103,11 @@ export class SQLiteDelete<
 	values: ReturnType<this['prepare']>['values'] = (placeholderValues) => {
 		return this.prepare(true).values(placeholderValues);
 	};
+
+	override async execute(
+		placeholderValues?: Record<string, unknown>,
+	): Promise<TReturning extends undefined ? TRunResult : TReturning[]> {
+		return this.prepare(true).execute(placeholderValues) as TReturning extends undefined ? TRunResult
+			: TReturning[];
+	}
 }
