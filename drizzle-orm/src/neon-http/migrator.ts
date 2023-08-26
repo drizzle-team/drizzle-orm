@@ -1,7 +1,7 @@
-import type { MigrationConfig } from '~/migrator';
-import { readMigrationFiles } from '~/migrator';
-import { type SQL, sql } from '~/sql';
-import { type NeonHttpDatabase } from './driver';
+import type { MigrationConfig } from '~/migrator.ts';
+import { readMigrationFiles } from '~/migrator.ts';
+import { type SQL, sql } from '~/sql/index.ts';
+import { type NeonHttpDatabase } from './driver.ts';
 
 /**
  * This function reads migrationFolder and execute each unapplied migration and mark it as executed in database
@@ -42,8 +42,8 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 			}
 
 			rowsToInsert.push(
-				sql`insert into "drizzle"."__drizzle_migrations" ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`
-			)
+				sql`insert into "drizzle"."__drizzle_migrations" ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+			);
 		}
 	}
 

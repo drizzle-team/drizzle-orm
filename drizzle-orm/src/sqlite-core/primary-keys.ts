@@ -1,6 +1,6 @@
-import { entityKind } from '~/entity';
-import type { AnySQLiteColumn, SQLiteColumn } from './columns';
-import { SQLiteTable } from './table';
+import { entityKind } from '~/entity.ts';
+import type { AnySQLiteColumn, SQLiteColumn } from './columns/index.ts';
+import { SQLiteTable } from './table.ts';
 
 export function primaryKey<
 	TTableName extends string,

@@ -1,9 +1,9 @@
-import { type AnyTable, type InferModelFromColumns, isTable, Table } from '~/table';
-import { type AnyColumn, Column } from './column';
-import { entityKind, is } from './entity';
-import { PrimaryKeyBuilder } from './pg-core';
-import { and, asc, desc, eq, or, type Placeholder, SQL, sql } from './sql';
-import { type Assume, type ColumnsWithTable, type Equal, type Simplify, type ValueOrArray } from './utils';
+import { type AnyTable, type InferModelFromColumns, isTable, Table } from '~/table.ts';
+import { type AnyColumn, Column } from './column.ts';
+import { entityKind, is } from './entity.ts';
+import { PrimaryKeyBuilder } from './pg-core/index.ts';
+import { and, asc, desc, eq, or, type Placeholder, SQL, sql } from './sql/index.ts';
+import { type Assume, type ColumnsWithTable, type Equal, type Simplify, type ValueOrArray } from './utils.ts';
 
 export abstract class Relation<TTableName extends string = string> {
 	static readonly [entityKind]: string = 'Relation';

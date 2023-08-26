@@ -1,8 +1,8 @@
 import crypto from 'node:crypto';
-import type { Equal } from 'type-tests/utils';
-import { Expect } from 'type-tests/utils';
+import type { Equal } from 'type-tests/utils.ts';
+import { Expect } from 'type-tests/utils.ts';
 import { z } from 'zod';
-import { eq, gt } from '~/expressions';
+import { eq, gt } from '~/expressions.ts';
 import {
 	bigint,
 	bigserial,
@@ -37,17 +37,17 @@ import {
 	uniqueIndex,
 	uuid,
 	varchar,
-} from '~/pg-core';
-import { pgSchema } from '~/pg-core/schema';
+} from '~/pg-core/index.ts';
+import { pgSchema } from '~/pg-core/schema.ts';
 import {
 	pgMaterializedView,
 	type PgMaterializedViewWithSelection,
 	pgView,
 	type PgViewWithSelection,
-} from '~/pg-core/view';
-import { sql } from '~/sql';
-import type { InferInsertModel, InferModel, InferSelectModel } from '~/table';
-import { db } from './db';
+} from '~/pg-core/view.ts';
+import { sql } from '~/sql/index.ts';
+import type { InferInsertModel, InferSelectModel } from '~/table.ts';
+import { db } from './db.ts';
 
 export const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
 
@@ -123,7 +123,7 @@ Expect<
 		cidr: string;
 		macaddr: string;
 		macaddr8: string;
-	}, InferModel<typeof network>>
+	}, typeof network.$inferSelect>
 >;
 
 export const salEmp = pgTable('sal_emp', {
@@ -870,7 +870,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 	const test = pgTable('test', {
 		col1: decimal('col1', { precision: 10, scale: 2 }).notNull().default('10.2'),
 	});
-	Expect<Equal<{ col1: string }, InferModel<typeof test>>>;
+	Expect<Equal<{ col1: string }, typeof test.$inferSelect>>;
 }
 
 {

@@ -1,19 +1,8 @@
 import test from 'ava';
-import {
-	char,
-	date,
-	integer,
-	pgEnum,
-	pgTable,
-	serial,
-	text,
-	timestamp,
-	varchar,
-} from 'drizzle-orm/pg-core';
-import { createInsertSchema, createSelectSchema } from '../src';
-import { expectSchemaShape } from './utils';
+import { char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 import {
 	array,
+	date as valiDate,
 	email,
 	enumType,
 	maxLength,
@@ -25,8 +14,9 @@ import {
 	optional,
 	parse,
 	string,
-	date as valiDate,
 } from 'valibot';
+import { createInsertSchema, createSelectSchema } from '../src';
+import { expectSchemaShape } from './utils';
 
 export const roleEnum = pgEnum('role', ['admin', 'user']);
 
@@ -77,7 +67,7 @@ test('users insert invalid varchar', (t) => {
 				...testUser,
 				profession: 'Chief Executive Officer',
 			}),
-		undefined
+		undefined,
 	);
 });
 
@@ -94,7 +84,7 @@ test('users insert schema', (t) => {
 		roleText: enumType(['user', 'manager', 'admin']),
 	});
 
-	() => {
+	(() => {
 		{
 			createInsertSchema(users, {
 				// @ts-expect-error (missing property)
@@ -108,7 +98,7 @@ test('users insert schema', (t) => {
 				id: 123,
 			});
 		}
-	};
+	});
 
 	const expected = object({
 		a: optional(nullable(array(number()))),
@@ -118,9 +108,9 @@ test('users insert schema', (t) => {
 		birthdayString: string(),
 		birthdayDate: valiDate(),
 		createdAt: optional(valiDate()),
-		role: enumType(['admin','user']),
+		role: enumType(['admin', 'user']),
 		roleText: enumType(['user', 'manager', 'admin']),
-		roleText2: optional(enumType([ 'admin', 'user'])),
+		roleText2: optional(enumType(['admin', 'user'])),
 		profession: string([maxLength(20), minLength(1)]),
 		initials: string([maxLength(2), minLength(1)]),
 	});
@@ -139,9 +129,9 @@ test('users insert schema w/ defaults', (t) => {
 		birthdayString: string(),
 		birthdayDate: valiDate(),
 		createdAt: optional(valiDate()),
-		role: enumType(['admin','user']),
-		roleText: enumType(['admin', 'user', ]),
-		roleText2: optional(enumType([ 'admin', 'user'])),
+		role: enumType(['admin', 'user']),
+		roleText: enumType(['admin', 'user']),
+		roleText2: optional(enumType(['admin', 'user'])),
 		profession: string([maxLength(20), minLength(1)]),
 		initials: string([maxLength(2), minLength(1)]),
 	});
@@ -164,9 +154,9 @@ test('users select schema', (t) => {
 		birthdayString: string(),
 		birthdayDate: valiDate(),
 		createdAt: valiDate(),
-		role: enumType(['admin', 'user',]),
+		role: enumType(['admin', 'user']),
 		roleText: enumType(['user', 'manager', 'admin']),
-		roleText2: enumType(['admin', 'user', ]),
+		roleText2: enumType(['admin', 'user']),
 		profession: string([maxLength(20), minLength(1)]),
 		initials: string([maxLength(2), minLength(1)]),
 	});
@@ -185,9 +175,9 @@ test('users select schema w/ defaults', (t) => {
 		birthdayString: string(),
 		birthdayDate: valiDate(),
 		createdAt: valiDate(),
-		role: enumType([ 'admin', 'user',]),
-		roleText: enumType(['admin', 'user',]),
-		roleText2: enumType(['admin', 'user',]),
+		role: enumType(['admin', 'user']),
+		roleText: enumType(['admin', 'user']),
+		roleText2: enumType(['admin', 'user']),
 		profession: string([maxLength(20), minLength(1)]),
 		initials: string([maxLength(2), minLength(1)]),
 	});

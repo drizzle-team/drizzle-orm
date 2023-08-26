@@ -1,6 +1,7 @@
 {
-	"extends": "../tsconfig.json",
+	"extends": "../tsconfig.build.json",
 	"compilerOptions": {
+		"composite": false,
 		"module": "esnext",
 		"target": "esnext",
 		"noEmit": true,

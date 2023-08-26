@@ -1,4 +1,4 @@
-import { bigint, double, mysqlTable, varchar } from '~/mysql-core';
+import { bigint, double, mysqlTable, varchar } from '~/mysql-core/index.ts';
 
 mysqlTable('test', {
 	col0: double('col1').primaryKey().autoincrement().default(0),

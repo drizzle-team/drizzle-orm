@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity';
+import { entityKind } from '~/entity.ts';
 
 export class DrizzleError extends Error {
 	static readonly [entityKind]: string = 'DrizzleError';

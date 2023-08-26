@@ -1,7 +1,7 @@
-import { type AnyColumn, Column, type GetColumnData } from '~/column';
-import { is } from '~/entity';
-import { Table } from '~/table';
-import { View } from '~/view';
+import { type AnyColumn, Column, type GetColumnData } from '~/column.ts';
+import { is } from '~/entity.ts';
+import { Table } from '~/table.ts';
+import { View } from '~/view.ts';
 import {
 	isDriverValueEncoder,
 	isSQLWrapper,
@@ -12,7 +12,7 @@ import {
 	type SQLChunk,
 	type SQLWrapper,
 	StringChunk,
-} from '../index';
+} from '../index.ts';
 
 export function bindIfParam(value: unknown, column: SQLWrapper): SQLChunk {
 	if (

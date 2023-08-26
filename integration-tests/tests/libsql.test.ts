@@ -28,7 +28,7 @@ import {
 	sqliteView,
 	text,
 } from 'drizzle-orm/sqlite-core';
-import { type Equal, Expect } from './utils';
+import { type Equal, Expect } from './utils.ts';
 
 const ENABLE_LOGGING = false;
 
@@ -72,9 +72,9 @@ const courseCategoriesTable = sqliteTable('course_categories', {
 const orders = sqliteTable('orders', {
 	id: integer('id').primaryKey(),
 	region: text('region').notNull(),
-	product: text('product').notNull().$default(()=>'random_string'),
+	product: text('product').notNull().$default(() => 'random_string'),
 	amount: integer('amount').notNull(),
-	quantity: integer('quantity').notNull()
+	quantity: integer('quantity').notNull(),
 });
 
 const usersMigratorTable = sqliteTable('users12', {
@@ -1750,6 +1750,33 @@ test.serial('insert with onConflict do update', async (t) => {
 
 	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
 });
+
+test.serial('insert with onConflict do update where', async (t) => {
+	const { db } = t.context;
+
+	await db
+		.insert(usersTable)
+		.values([{ id: 1, name: "John", verified: false }])
+		.run();
+
+	await db
+		.insert(usersTable)
+		.values({ id: 1, name: "John1", verified: true })
+		.onConflictDoUpdate({
+			target: usersTable.id,
+			set: { name: "John1", verified: true },
+			where: eq(usersTable.verified, false)
+		})
+		.run();
+
+	const res = await db
+		.select({ id: usersTable.id, name: usersTable.name, verified: usersTable.verified })
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: "John1", verified: true }]);
+})
 
 test.serial('insert with onConflict do update using composite pk', async (t) => {
 	const { db } = t.context;
