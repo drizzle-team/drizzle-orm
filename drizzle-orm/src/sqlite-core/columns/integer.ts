@@ -1,4 +1,3 @@
-import type { ColumnBaseConfig } from '~/column';
 import type {
 	ColumnBuilderBaseConfig,
 	ColumnBuilderRuntimeConfig,
@@ -6,13 +5,14 @@ import type {
 	HasDefault,
 	MakeColumnConfig,
 	NotNull,
-} from '~/column-builder';
-import { entityKind } from '~/entity';
-import { sql } from '~/sql';
-import type { OnConflict } from '~/sqlite-core/utils';
-import { type Equal, type Or } from '~/utils';
-import type { AnySQLiteTable } from '../table';
-import { SQLiteColumn, SQLiteColumnBuilder } from './common';
+} from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import { sql } from '~/sql/index.ts';
+import type { OnConflict } from '~/sqlite-core/utils.ts';
+import { type Equal, type Or } from '~/utils.ts';
+import type { AnySQLiteTable } from '../table.ts';
+import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 export interface PrimaryKeyConfig {
 	autoIncrement?: boolean;

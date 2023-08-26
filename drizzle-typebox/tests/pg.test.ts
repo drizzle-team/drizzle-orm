@@ -1,19 +1,9 @@
-import test from 'ava';
-import {
-	char,
-	date,
-	integer,
-	pgEnum,
-	pgTable,
-	serial,
-	text,
-	timestamp,
-	varchar,
-} from 'drizzle-orm/pg-core';
-import { Nullable, createInsertSchema, createSelectSchema } from '../src';
-import { expectSchemaShape } from './utils';
-import { Value } from '@sinclair/typebox/value';
 import { Type } from '@sinclair/typebox';
+import { Value } from '@sinclair/typebox/value';
+import test from 'ava';
+import { char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { createInsertSchema, createSelectSchema, Nullable } from '../src';
+import { expectSchemaShape } from './utils';
 
 export const roleEnum = pgEnum('role', ['admin', 'user']);
 
@@ -63,7 +53,7 @@ test('users insert invalid varchar', (t) => {
 			...testUser,
 			profession: 'Chief Executive Officer',
 		}),
-		false
+		false,
 	);
 });
 
@@ -84,7 +74,7 @@ test('users insert schema', (t) => {
 		]),
 	});
 
-	() => {
+	(() => {
 		{
 			createInsertSchema(users, {
 				// @ts-expect-error (missing property)
@@ -98,7 +88,7 @@ test('users insert schema', (t) => {
 				id: 123,
 			});
 		}
-	};
+	});
 
 	const expected = Type.Object({
 		a: Type.Optional(Nullable(Type.Array(Type.Number()))),
@@ -115,7 +105,7 @@ test('users insert schema', (t) => {
 			Type.Literal('admin'),
 		]),
 		roleText2: Type.Optional(
-			Type.Union([Type.Literal('admin'), Type.Literal('user')])
+			Type.Union([Type.Literal('admin'), Type.Literal('user')]),
 		),
 		profession: Type.String({ maxLength: 20, minLength: 1 }),
 		initials: Type.String({ maxLength: 2, minLength: 1 }),
@@ -138,7 +128,7 @@ test('users insert schema w/ defaults', (t) => {
 		role: Type.Union([Type.Literal('admin'), Type.Literal('user')]),
 		roleText: Type.Union([Type.Literal('admin'), Type.Literal('user')]),
 		roleText2: Type.Optional(
-			Type.Union([Type.Literal('admin'), Type.Literal('user')])
+			Type.Union([Type.Literal('admin'), Type.Literal('user')]),
 		),
 		profession: Type.String({ maxLength: 20, minLength: 1 }),
 		initials: Type.String({ maxLength: 2, minLength: 1 }),

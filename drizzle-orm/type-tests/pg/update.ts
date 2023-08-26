@@ -1,9 +1,9 @@
 import type { QueryResult } from 'pg';
-import type { Equal } from 'type-tests/utils';
-import { Expect } from 'type-tests/utils';
-import { eq } from '~/expressions';
-import { db } from './db';
-import { users } from './tables';
+import type { Equal } from 'type-tests/utils.ts';
+import { Expect } from 'type-tests/utils.ts';
+import { eq } from '~/expressions.ts';
+import { db } from './db.ts';
+import { users } from './tables.ts';
 
 const update = await db.update(users)
 	.set({

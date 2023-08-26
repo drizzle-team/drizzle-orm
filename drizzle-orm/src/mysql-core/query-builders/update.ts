@@ -1,6 +1,6 @@
-import type { GetColumnData } from '~/column';
-import { entityKind } from '~/entity';
-import type { MySqlDialect } from '~/mysql-core/dialect';
+import type { GetColumnData } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type {
 	MySqlSession,
 	PreparedQueryConfig,
@@ -8,21 +8,21 @@ import type {
 	PreparedQueryKind,
 	QueryResultHKT,
 	QueryResultKind,
-} from '~/mysql-core/session';
-import type { AnyMySqlTable } from '~/mysql-core/table';
-import { QueryPromise } from '~/query-promise';
-import type { Query, SQL, SQLWrapper } from '~/sql';
-import { mapUpdateSet, type UpdateSet } from '~/utils';
-import type { SelectedFieldsOrdered } from './select.types';
+} from '~/mysql-core/session.ts';
+import type { MySqlTable } from '~/mysql-core/table.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/index.ts';
+import { mapUpdateSet, type UpdateSet } from '~/utils.ts';
+import type { SelectedFieldsOrdered } from './select.types.ts';
 
 export interface MySqlUpdateConfig {
 	where?: SQL | undefined;
 	set: UpdateSet;
-	table: AnyMySqlTable;
+	table: MySqlTable;
 	returning?: SelectedFieldsOrdered;
 }
 
-export type MySqlUpdateSetSource<TTable extends AnyMySqlTable> =
+export type MySqlUpdateSetSource<TTable extends MySqlTable> =
 	& {
 		[Key in keyof TTable['_']['columns']]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
@@ -31,7 +31,7 @@ export type MySqlUpdateSetSource<TTable extends AnyMySqlTable> =
 	& {};
 
 export class MySqlUpdateBuilder<
-	TTable extends AnyMySqlTable,
+	TTable extends MySqlTable,
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > {
@@ -52,13 +52,13 @@ export class MySqlUpdateBuilder<
 
 export interface MySqlUpdate<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TTable extends AnyMySqlTable,
+	TTable extends MySqlTable,
 	TQueryResult extends QueryResultHKT,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > extends QueryPromise<QueryResultKind<TQueryResult, never>>, SQLWrapper {}
 export class MySqlUpdate<
-	TTable extends AnyMySqlTable,
+	TTable extends MySqlTable,
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > extends QueryPromise<QueryResultKind<TQueryResult, never>> implements SQLWrapper {

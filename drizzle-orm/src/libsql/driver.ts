@@ -1,15 +1,15 @@
 import type { Client, ResultSet } from '@libsql/client';
-import { DefaultLogger } from '~/logger';
+import { DefaultLogger } from '~/logger.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
-} from '~/relations';
-import { BaseSQLiteDatabase } from '~/sqlite-core/db';
-import { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
-import { type DrizzleConfig } from '~/utils';
-import { LibSQLSession } from './session';
+} from '~/relations.ts';
+import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
+import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
+import { type DrizzleConfig } from '~/utils.ts';
+import { LibSQLSession } from './session.ts';
 
 export type LibSQLDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,

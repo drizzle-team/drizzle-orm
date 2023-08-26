@@ -1,6 +1,6 @@
-import { entityKind } from '~/entity';
-import type { SQL } from '~/sql';
-import type { AnySQLiteTable } from './table';
+import { entityKind } from '~/entity.ts';
+import type { SQL } from '~/sql/index.ts';
+import type { SQLiteTable } from './table.ts';
 
 export class CheckBuilder {
 	static readonly [entityKind]: string = 'SQLiteCheckBuilder';
@@ -9,7 +9,7 @@ export class CheckBuilder {
 
 	constructor(public name: string, public value: SQL) {}
 
-	build(table: AnySQLiteTable): Check {
+	build(table: SQLiteTable): Check {
 		return new Check(table, this);
 	}
 }
@@ -24,7 +24,7 @@ export class Check {
 	readonly name: string;
 	readonly value: SQL;
 
-	constructor(public table: AnySQLiteTable, builder: CheckBuilder) {
+	constructor(public table: SQLiteTable, builder: CheckBuilder) {
 		this.name = builder.name;
 		this.value = builder.value;
 	}

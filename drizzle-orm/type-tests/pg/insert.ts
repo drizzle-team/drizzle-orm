@@ -1,10 +1,9 @@
 import type { QueryResult } from 'pg';
-import type { Equal } from 'type-tests/utils';
-import { Expect } from 'type-tests/utils';
-import { sql } from '~/sql';
-import type { InferModel } from '~/table';
-import { db } from './db';
-import { users } from './tables';
+import type { Equal } from 'type-tests/utils.ts';
+import { Expect } from 'type-tests/utils.ts';
+import { sql } from '~/sql/index.ts';
+import { db } from './db.ts';
+import { users } from './tables.ts';
 
 const insert = await db
 	.insert(users)
@@ -57,7 +56,7 @@ const insertReturning = await db
 		enumCol: 'a',
 	})
 	.returning();
-Expect<Equal<InferModel<typeof users>[], typeof insertReturning>>;
+Expect<Equal<typeof users.$inferSelect[], typeof insertReturning>>;
 
 const insertReturningStmt = db
 	.insert(users)
@@ -70,7 +69,7 @@ const insertReturningStmt = db
 	.returning()
 	.prepare('insertReturningStmt');
 const insertReturningPrepared = await insertReturningStmt.execute();
-Expect<Equal<InferModel<typeof users>[], typeof insertReturningPrepared>>;
+Expect<Equal<typeof users.$inferSelect[], typeof insertReturningPrepared>>;
 
 const insertReturningPartial = await db
 	.insert(users)
