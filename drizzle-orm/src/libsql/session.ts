@@ -199,7 +199,7 @@ function normalizeRow(obj: any) {
 
 	if (!obj) {
 		throw new Error("Probably using a get() without using returning()");
-    }
+	}
 
 	return Object.keys(obj).reduce((acc: Record<string, any>, key) => {
 		if (Object.prototype.propertyIsEnumerable.call(obj, key)) {
