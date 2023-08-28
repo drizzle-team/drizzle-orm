@@ -15,13 +15,12 @@ export type MySqlDateTimeBuilderInitial<TName extends string> = MySqlDateTimeBui
 }>;
 
 export class MySqlDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date', 'MySqlDateTime'>>
-	extends MySqlColumnBuilder<T, MySqlDatetimeConfig<'date'>> {
+	extends MySqlColumnBuilder<T, MySqlDatetimeConfig> {
 	static readonly [entityKind]: string = 'MySqlDateTimeBuilder';
 
-	constructor(name: T['name'], config: MySqlDatetimeConfig<'date'>) {
+	constructor(name: T['name'], config: MySqlDatetimeConfig) {
 		super(name, 'date', 'MySqlDateTime');
 		this.config.fsp = config?.fsp;
-    this.config.utc = config?.utc;
 	}
 
 	/** @internal */
@@ -39,7 +38,6 @@ export class MySqlDateTime<T extends ColumnBaseConfig<'date', 'MySqlDateTime'>> 
 	static readonly [entityKind]: string = 'MySqlDateTime';
 
 	readonly fsp: number | undefined;
-  readonly utc: boolean | undefined;
 
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
@@ -47,7 +45,6 @@ export class MySqlDateTime<T extends ColumnBaseConfig<'date', 'MySqlDateTime'>> 
 	) {
 		super(table, config);
 		this.fsp = config.fsp;
-    this.utc = config.utc;
 	}
 
 	getSQLType(): string {
@@ -55,14 +52,12 @@ export class MySqlDateTime<T extends ColumnBaseConfig<'date', 'MySqlDateTime'>> 
 		return `datetime${precision}`;
 	}
 
-  override mapToDriverValue(value1: Date): unknown {
-    return this.utc
-      ? value1.toISOString().replace('T', ' ').replace('Z', '')
-      : value1;
+  override mapToDriverValue(value: Date): unknown {
+    return value.toISOString().replace('T', ' ').replace('Z', '')
   }
 
 	override mapFromDriverValue(value: string): Date {
-		return new Date(this.utc ? value.replace(' ', 'T') + 'Z' : value);
+		return new Date(value.replace(' ', 'T') + 'Z');
 	}
 }
 
@@ -119,17 +114,10 @@ export class MySqlDateTimeString<T extends ColumnBaseConfig<'string', 'MySqlDate
 export type DatetimeFsp = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 // If user specifies mode: 'date'. the utc option will be required
-export type MySqlDatetimeConfig<TMode extends "date" | "string" = "date" | "string">
-  = Equal<TMode, 'string'> extends true
-    ? {
-        mode?: TMode;
-        fsp?: DatetimeFsp;
-      }
-    : {
-        mode?: TMode;
-        fsp?: DatetimeFsp;
-        utc?: boolean;
-      };
+export type MySqlDatetimeConfig<TMode extends "date" | "string" = "date" | "string"> = {
+  mode?: TMode;
+  fsp?: DatetimeFsp;
+}
 
 export function datetime<TName extends string, TMode extends MySqlDatetimeConfig['mode'] & {}>(
 	name: TName,
@@ -139,5 +127,5 @@ export function datetime(name: string, config: MySqlDatetimeConfig = {}) {
 	if (config.mode === 'string') {
 		return new MySqlDateTimeStringBuilder(name, config);
 	}
-	return new MySqlDateTimeBuilder(name, config as MySqlDatetimeConfig<'date'>);
+	return new MySqlDateTimeBuilder(name, config);
 }

@@ -1982,7 +1982,7 @@ test.serial('utc config for datetime', async (t) => {
 		`,
 	);
   const datesTable2 = mysqlTable('datestable', {
-    datetimeUTC: datetime('datetime_utc', { fsp: 3, utc: true }),
+    datetimeUTC: datetime('datetime_utc', { fsp: 3 }),
     datetime: datetime('datetime', { fsp: 3 }),
     datetimeAsString: datetime('datetime_as_string', { mode: 'string' }),
   });
