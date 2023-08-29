@@ -3,6 +3,9 @@ import { Expect } from 'type-tests/utils.ts';
 
 import {
 	and,
+	arrayContained,
+	arrayContains,
+	arrayOverlaps,
 	between,
 	eq,
 	exists,
@@ -23,9 +26,6 @@ import {
 	notInArray,
 	notLike,
 	or,
-  arrayContained,
-  arrayContains,
-  arrayOverlaps
 } from '~/expressions.ts';
 import { alias } from '~/pg-core/alias.ts';
 import { boolean, integer, pgTable, text } from '~/pg-core/index.ts';
@@ -433,10 +433,10 @@ const allOperators = await db
 			arrayContained(users.arrayCol, sql`select array_col from ${users}`),
 			arrayOverlaps(users.arrayCol, ['abc']),
 			arrayOverlaps(users.arrayCol, db.select({ arrayCol: users.arrayCol }).from(users)),
-			arrayOverlaps(users.arrayCol, sql`select array_col from ${users}`)
+			arrayOverlaps(users.arrayCol, sql`select array_col from ${users}`),
 		),
 	);
-  users.arrayCol
+users.arrayCol;
 Expect<
 	Equal<{
 		col2: unknown;
@@ -578,7 +578,7 @@ Expect<
 				age1: number;
 				createdAt: Date;
 				enumCol: 'a' | 'b' | 'c';
-        arrayCol: string[];
+				arrayCol: string[];
 			};
 			closestCity: {
 				id: number;
@@ -697,7 +697,7 @@ Expect<
 				age1: number;
 				createdAt: Date;
 				enumCol: 'a' | 'b' | 'c';
-        arrayCol: string[];
+				arrayCol: string[];
 			} | null;
 			closestCity: {
 				id: number;

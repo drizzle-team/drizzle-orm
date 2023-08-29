@@ -12,7 +12,7 @@ const insert = await db
 		class: 'A',
 		age1: 1,
 		enumCol: 'a',
-		arrayCol: ['']
+		arrayCol: [''],
 	});
 Expect<Equal<QueryResult<never>, typeof insert>>;
 
@@ -23,7 +23,7 @@ const insertStmt = db
 		class: 'A',
 		age1: 1,
 		enumCol: 'a',
-		arrayCol: ['']
+		arrayCol: [''],
 	})
 	.prepare('insertStmt');
 const insertPrepared = await insertStmt.execute();
@@ -34,7 +34,7 @@ const insertSql = await db.insert(users).values({
 	class: 'A',
 	age1: 1,
 	enumCol: sql`foobar`,
-	arrayCol: ['']
+	arrayCol: [''],
 });
 Expect<Equal<QueryResult<never>, typeof insertSql>>;
 
@@ -45,7 +45,7 @@ const insertSqlStmt = db
 		class: 'A',
 		age1: 1,
 		enumCol: sql`foobar`,
-		arrayCol: ['']
+		arrayCol: [''],
 	})
 	.prepare('insertSqlStmt');
 const insertSqlPrepared = await insertSqlStmt.execute();
@@ -58,7 +58,7 @@ const insertReturning = await db
 		class: 'A',
 		age1: 1,
 		enumCol: 'a',
-		arrayCol: ['']
+		arrayCol: [''],
 	})
 	.returning();
 Expect<Equal<typeof users.$inferSelect[], typeof insertReturning>>;
@@ -70,7 +70,7 @@ const insertReturningStmt = db
 		class: 'A',
 		age1: 1,
 		enumCol: 'a',
-		arrayCol: ['']
+		arrayCol: [''],
 	})
 	.returning()
 	.prepare('insertReturningStmt');
@@ -84,7 +84,7 @@ const insertReturningPartial = await db
 		class: 'A',
 		age1: 1,
 		enumCol: 'a',
-		arrayCol: ['']
+		arrayCol: [''],
 	})
 	.returning({
 		id: users.id,
@@ -106,7 +106,7 @@ const insertReturningPartialStmt = db
 		class: 'A',
 		age1: 1,
 		enumCol: 'a',
-		arrayCol: ['']
+		arrayCol: [''],
 	})
 	.returning({
 		id: users.id,
@@ -130,7 +130,7 @@ const insertReturningSql = await db
 		class: 'A',
 		age1: sql`2 + 2`,
 		enumCol: 'a',
-		arrayCol: ['']
+		arrayCol: [''],
 	})
 	.returning({
 		id: users.id,
@@ -154,7 +154,7 @@ const insertReturningSqlStmt = db
 		class: 'A',
 		age1: sql`2 + 2`,
 		enumCol: 'a',
-		arrayCol: ['']
+		arrayCol: [''],
 	})
 	.returning({
 		id: users.id,
