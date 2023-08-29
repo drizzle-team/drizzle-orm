@@ -12,36 +12,36 @@ DrizzleORM is a [tiny](https://twitter.com/_alexblokh/status/1594735880417472512
 Here you can find extensive docs for SQLite module.
 
 | Driver                                                                | Support |                                    |
-| :-------------------------------------------------------------------- | :-----: | :--------------------------------: |
-| [better-sqlite3](https://github.com/WiseLibs/better-sqlite3)          |   ✅    |                                    |
-| [sql.js](https://github.com/sql-js/sql.js/)                           |   ✅    |                                    |
-| [node-sqlite3](https://github.com/TryGhost/node-sqlite3)              |   ⏳    |                                    |
-| [bun:sqlite](https://github.com/oven-sh/bun#bunsqlite-sqlite3-module) |   ✅    |  [Example](/examples/bun-sqlite)   |
-| [Cloudflare D1](https://developers.cloudflare.com/d1/)                |   ✅    | [Example](/examples/cloudflare-d1) |
-| [Fly.io LiteFS](https://fly.io/docs/litefs/getting-started/)          |   ✅    |                                    |
-| [libSQL server](https://github.com/libsql/sqld/)                      |   ✅    |    [Example](/examples/libsql)     |
-| [Turso](https://turso.tech/)                                          |   ✅    |    [Example](/examples/libsql)     |
-| [Custom proxy driver](/examples/sqlite-proxy)                         |   ✅    |                                    |
+|:----------------------------------------------------------------------|:-------:|:----------------------------------:|
+| [better-sqlite3](https://github.com/WiseLibs/better-sqlite3)          |    ✅    |                                    |
+| [sql.js](https://github.com/sql-js/sql.js/)                           |    ✅    |                                    |
+| [node-sqlite3](https://github.com/TryGhost/node-sqlite3)              |    ⏳    |                                    |
+| [bun:sqlite](https://github.com/oven-sh/bun#bunsqlite-sqlite3-module) |    ✅    |  [Example](/examples/bun-sqlite)   |
+| [Cloudflare D1](https://developers.cloudflare.com/d1/)                |    ✅    | [Example](/examples/cloudflare-d1) |
+| [Fly.io LiteFS](https://fly.io/docs/litefs/getting-started/)          |    ✅    |                                    |
+| [libSQL server](https://github.com/libsql/sqld/)                      |    ✅    |    [Example](/examples/libsql)     |
+| [Turso](https://turso.tech/)                                          |    ✅    |    [Example](/examples/libsql)     |
+| [Custom proxy driver](/examples/sqlite-proxy)                         |    ✅    |                                    |
 
 ## 💾 Installation
 
 ```bash
 npm install drizzle-orm better-sqlite3
 ## opt-in automatic migrations generator
-npm install -D drizzle-kit
+npm install -D drizzle-kit 
 ```
 
 ## 🚀 Quick start
 
 ```typescript
-import Database from 'better-sqlite3';
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import Database from 'better-sqlite3';
 
 const users = sqliteTable('users', {
-	id: integer('id').primaryKey(), // 'id' is the column name
-	fullName: text('full_name'),
-});
+  id: integer('id').primaryKey(),  // 'id' is the column name
+  fullName: text('full_name'),
+})
 
 const sqlite = new Database('sqlite.db');
 const db = drizzle(sqlite);
@@ -57,54 +57,50 @@ Next.js' App Router have zero-config support for Drizzle ORM.
 
 ```typescript
 // better-sqlite3 or fly.io LiteFS
+import { drizzle, BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import Database from 'better-sqlite3';
-import { BetterSQLite3Database, drizzle } from 'drizzle-orm/better-sqlite3';
 
 const sqlite = new Database('sqlite.db');
-const db /*: BetterSQLite3Database*/ = drizzle(sqlite);
-const result = db.select().from(users).all();
+const db/*: BetterSQLite3Database*/ = drizzle(sqlite);
+const result = db.select().from(users).all()
 
 // bun js embedded sqlite connector
+import { drizzle, BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import { Database } from 'bun:sqlite';
-import { BunSQLiteDatabase, drizzle } from 'drizzle-orm/bun-sqlite';
 
 const sqlite = new Database('nw.sqlite');
-const db /*: BunSQLiteDatabase*/ = drizzle(sqlite);
-const result = db.select().from(users).all();
+const db/*: BunSQLiteDatabase*/ = drizzle(sqlite);
+const result = db.select().from(users).all()
 
 // Cloudflare D1 connector
 import { drizzle, DrizzleD1Database } from 'drizzle-orm/d1';
 
 // env.DB from cloudflare worker environment
-const db /*: DrizzleD1Database*/ = drizzle(env.DB);
+const db/*: DrizzleD1Database*/ = drizzle(env.DB);
 const result = await db.select().from(users).all(); // pay attention this one is async
 
 // libSQL or Turso
-import { Database } from '@libsql/sqlite3';
 import { drizzle, LibSQLDatabase } from 'drizzle-orm/libsql';
+import { Database } from '@libsql/sqlite3';
 
 const sqlite = new Database('libsql://...'); // Remote server
 // or
 const sqlite = new Database('sqlite.db'); // Local file
 
-const db /*: LibSQLDatabase*/ = drizzle(sqlite);
+const db/*: LibSQLDatabase*/ = drizzle(sqlite);
 const result = await db.select().from(users).all(); // pay attention this one is async
 
 // Custom Proxy HTTP driver
-const db = drizzle(async (sql, params, method) => {
-	try {
-		const rows = await axios.post('http://localhost:3000/query', {
-			sql,
-			params,
-			method,
-		});
+  const db = drizzle(async (sql, params, method) => {
+    try {
+      const rows = await axios.post('http://localhost:3000/query', { sql, params, method });
 
-		return { rows: rows.data };
-	} catch (e: any) {
-		console.error('Error from sqlite proxy server: ', e.response.data);
-		return { rows: [] };
-	}
-});
+      return { rows: rows.data };
+    } catch (e: any) {
+      console.error('Error from sqlite proxy server: ', e.response.data)
+      return { rows: [] };
+    }
+  });
 // More example for proxy: https://github.com/drizzle-team/drizzle-orm/tree/main/examples/sqlite-proxy
 ```
 
@@ -137,32 +133,28 @@ With `drizzle-orm` you declare SQL schema in TypeScript. You can have either one
           └ 📜etc.ts
 ```
 
-This is how you declare SQL schema in `schema.ts`. You can declare tables, indexes and constraints, foreign keys and enums.
+This is how you declare SQL schema in `schema.ts`. You can declare tables, indexes and constraints, foreign keys and enums. 
 
 ℹ Every column has a special _column type_ function that accepts the name of the column in the database (like `integer('id')`)
 
 Please pay attention to `export` keyword, they are mandatory if you'll be using [drizzle-kit SQL migrations generator](#-migrations).
 
 ```typescript
-import {
-	integer,
-	sqliteTable,
-	text,
-	uniqueIndex,
-} from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 export const countries = sqliteTable('countries', {
-	id: integer('id').primaryKey(),
-	name: text('name'),
-}, (countries) => ({
-	nameIdx: uniqueIndex('nameIdx').on(countries.name),
-}));
+    id: integer('id').primaryKey(),
+    name: text('name'),
+  }, (countries) => ({
+    nameIdx: uniqueIndex('nameIdx').on(countries.name),
+  })
+);
 
 export const cities = sqliteTable('cities', {
-	id: integer('id').primaryKey(),
-	name: text('name'),
-	countryId: integer('country_id').references(() => countries.id),
-});
+  id: integer('id').primaryKey(),
+  name: text('name'),
+  countryId: integer('country_id').references(() => countries.id),
+})
 ```
 
 ### Database and table entity types
@@ -203,8 +195,8 @@ import { sqliteTableCreator } from 'drizzle-orm/sqlite-core';
 const sqliteTable = sqliteTableCreator((name) => `myprefix_${name}`);
 
 const users = sqliteTable('users', {
-	id: int('id').primaryKey(),
-	name: text('name').notNull(),
+  id: int('id').primaryKey(),
+  name: text('name').notNull(),
 });
 ```
 
@@ -234,74 +226,58 @@ Every column builder has a `.$type()` method, which allows you to customize the 
 
 ```ts
 const users = sqliteTable('users', {
-	id: integer('id').$type<UserId>().primaryKey(),
-	jsonField: blob('json_field').$type<Data>(),
+  id: integer('id').$type<UserId>().primaryKey(),
+  jsonField: blob('json_field').$type<Data>(),
 });
 ```
 
 Declaring indexes, foreign keys and composite primary keys
 
 ```typescript
-import {
-	AnySQLiteColumn,
-	foreignKey,
-	index,
-	integer,
-	primaryKey,
-	sqliteTable,
-	text,
-	uniqueIndex,
-} from 'drizzle-orm/sqlite-core';
+import { sqliteTable, foreignKey, primaryKey, text, integer, index, uniqueIndex, AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 
 export const countries = sqliteTable('countries', {
-	id: integer('id').primaryKey(),
-	name: text('name'),
-	population: integer('population'),
-	capital: integer('capital').references(() => cities.id, {
-		onUpdate: 'cascade',
-		onDelete: 'cascade',
-	}),
-}, (countries) => ({
-	nameIdx: index('name_idx').on(countries.name), // one column
-	namePopulationIdx: index('name_population_idx').on(
-		countries.name,
-		countries.population,
-	), // multiple columns
-	uniqueIdx: uniqueIndex('unique_idx').on(countries.name), // unique index
-}));
+    id: integer('id').primaryKey(),
+    name: text('name'),
+    population: integer('population'),
+    capital: integer('capital').references(() => cities.id, { onUpdate: 'cascade', onDelete: 'cascade' })
+  }, (countries) => ({
+    nameIdx: index('name_idx').on(countries.name), // one column
+    namePopulationIdx: index('name_population_idx').on(countries.name, countries.population), // multiple columns
+    uniqueIdx: uniqueIndex('unique_idx').on(countries.name), // unique index
+  })
+);
 
 export const cities = sqliteTable('cities', {
-	id: integer('id').primaryKey(),
-	name: text('name'),
-	countryId: integer('country_id').references(() => countries.id), // inline foreign key
-	countryName: text('country_id'),
-	sisterCityId: integer('sister_city_id').references((): AnySQLiteColumn =>
-		cities.id
-	), // self-referencing foreign key
+  id: integer('id').primaryKey(),
+  name: text('name'),
+  countryId: integer('country_id').references(() => countries.id), // inline foreign key
+  countryName: text('country_id'),
+  sisterCityId: integer('sister_city_id').references((): AnySQLiteColumn => cities.id), // self-referencing foreign key
 }, (cities) => ({
-	// explicit foreign key with 1 column
-	countryFk: foreignKey(() => ({
-		columns: [cities.countryId],
-		foreignColumns: [countries.id],
-	})),
-	// explicit foreign key with multiple columns
-	countryIdNameFk: foreignKey(() => ({
-		columns: [cities.countryId, cities.countryName],
-		foreignColumns: [countries.id, countries.name],
-	})),
+  // explicit foreign key with 1 column
+  countryFk: foreignKey(() => ({
+    columns: [cities.countryId],
+    foreignColumns: [countries.id],
+  })),
+  // explicit foreign key with multiple columns
+  countryIdNameFk: foreignKey(() => ({
+    columns: [cities.countryId, cities.countryName],
+    foreignColumns: [countries.id, countries.name],
+  })),
 }));
 
 const pkExample = sqliteTable('pk_example', {
-	id: integer('id'),
-	name: text('name').notNull(),
-	email: text('email').notNull(),
+  id: integer('id'),
+  name: text('name').notNull(),
+  email: text('email').notNull(),
 }, (pkExample) => ({
-	// composite primary key on multiple columns
-	compositePk: primaryKey(pkExample.id, pkExample.name),
+  // composite primary key on multiple columns
+  compositePk: primaryKey(pkExample.id, pkExample.name)
 }));
 
 // you can have .where() on indexes
-index('name_idx').on(table.column).where(sql``);
+index('name_idx').on(table.column).where(sql``)
 ```
 
 ## Select, Insert, Update, Delete
@@ -357,26 +333,26 @@ db.select().from(users).orderBy(asc(users.name), desc(users.name)).all();
 db.select({ x: sql<number>`x` }).from(sql`generate_series(2, 4) as g(x)`).all();
 
 db
-	.select({
-		x1: sql<number>`g1.x`,
-		x2: sql<number>`g2.x`,
-	})
-	.from(sql`generate_series(2, 4) as g1(x)`)
-	.leftJoin(sql`generate_series(2, 4) as g2(x)`)
-	.all();
+  .select({
+    x1: sql<number>`g1.x`,
+    x2: sql<number>`g2.x`
+  })
+  .from(sql`generate_series(2, 4) as g1(x)`)
+  .leftJoin(sql`generate_series(2, 4) as g2(x)`)
+  .all();
 ```
 
 #### Conditionally select fields
 
 ```typescript
 function selectUsers(withName: boolean) {
-	return db
-		.select({
-			id: users.id,
-			...(withName ? { name: users.name } : {}),
-		})
-		.from(users)
-		.all();
+  return db
+    .select({
+      id: users.id,
+      ...(withName ? { name: users.name } : {}),
+    })
+    .from(users)
+    .all();
 }
 
 const users = selectUsers(true);
@@ -392,9 +368,7 @@ const result = db.with(sq).select().from(sq).all();
 > **Note**: Keep in mind that if you need to select raw `sql` in a WITH subquery and reference that field in other queries, you must add an alias to it:
 
 ```typescript
-const sq = db.$with('sq').as(
-	db.select({ name: sql<string>`upper(${users.name})`.as('name') }).from(users),
-);
+const sq = db.$with('sq').as(db.select({ name: sql<string>`upper(${users.name})`.as('name') }).from(users));
 const result = db.with(sq).select({ name: sq.name }).from(sq).all();
 ```
 
@@ -461,67 +435,66 @@ or(...expressions: Expr[])
 ### Insert
 
 ```typescript
-import Database from 'better-sqlite3';
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 import { InferModel } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import Database from 'better-sqlite3';
 
 const sqlite = new Database('sqlite.db');
 const db = drizzle(sqlite);
 
 const users = sqliteTable('users', {
-	id: integer('id').primaryKey(),
-	name: text('name'),
-	createdAt: integer('created_at', { mode: 'timestamp' }),
+  id: integer('id').primaryKey(),
+  name: text('name'),
+  createdAt: integer('created_at', { mode: 'timestamp' }),
 });
 
-type NewUser = InferModel<typeof users, 'insert'>;
+type NewUser = InferModel<typeof users, "insert">;
 
 const newUser: NewUser = {
-	name: 'Andrew',
-	createdAt: new Date(),
+  name: 'Andrew',
+  createdAt: new Date(),
 };
 
 db.insert(users).values(newUser).run();
 
-const insertedUsers /*: NewUser[]*/ = db.insert(users).values(newUser)
-	.returning().all();
+const insertedUsers/*: NewUser[]*/ = db.insert(users).values(newUser).returning().all();
 
-const insertedUsersIds /*: { insertedId: number }[]*/ = db.insert(users)
-	.values(newUser)
-	.returning({ insertedId: users.id })
-	.all();
+const insertedUsersIds/*: { insertedId: number }[]*/ = db.insert(users)
+  .values(newUser)
+  .returning({ insertedId: users.id })
+  .all();
 ```
 
 #### Insert several items
 
 ```ts
 db.insert(users)
-	.values(
-		{
-			name: 'Andrew',
-			createdAt: new Date(),
-		},
-		{
-			name: 'Dan',
-			createdAt: new Date(),
-		},
-	)
-	.run();
+  .values(
+    {
+      name: 'Andrew',
+      createdAt: new Date(),
+    },
+    {
+      name: 'Dan',
+      createdAt: new Date(),
+    },
+  )
+  .run();
 ```
 
 #### Insert array of items
 
 ```ts
 const newUsers: NewUser[] = [
-	{
-		name: 'Andrew',
-		createdAt: new Date(),
-	},
-	{
-		name: 'Dan',
-		createdAt: new Date(),
-	},
+  {
+      name: 'Andrew',
+      createdAt: new Date(),
+  },
+  {
+    name: 'Dan',
+    createdAt: new Date(),
+  },
 ];
 
 db.insert(users).values(newUsers).run();
@@ -531,32 +504,32 @@ db.insert(users).values(newUsers).run();
 
 ```typescript
 db.insert(users)
-	.values({ id: 1, name: 'Dan' })
-	.onConflictDoUpdate({ target: users.id, set: { name: 'John' } })
-	.run();
+  .values({ id: 1, name: 'Dan' })
+  .onConflictDoUpdate({ target: users.id, set: { name: 'John' } })
+  .run();
 
 db.insert(users)
-	.values({ id: 1, name: 'John' })
-	.onConflictDoNothing()
-	.run();
+  .values({ id: 1, name: 'John' })
+  .onConflictDoNothing()
+  .run();
 
 db.insert(users)
-	.values({ id: 1, name: 'John' })
-	.onConflictDoNothing({ target: users.id })
-	.run();
+  .values({ id: 1, name: 'John' })
+  .onConflictDoNothing({ target: users.id })
+  .run();
 ```
 
 ### Update and Delete
 
 ```typescript
 db.update(users)
-	.set({ name: 'Mr. Dan' })
-	.where(eq(usersTable.name, 'Dan'))
-	.run();
-
+  .set({ name: 'Mr. Dan' })
+  .where(eq(usersTable.name, 'Dan'))
+  .run();
+  
 db.delete(users)
-	.where(eq(usersTable.name, 'Dan'))
-	.run();
+  .where(eq(usersTable.name, 'Dan'))
+  .run();
 ```
 
 ### Aggregations
@@ -565,45 +538,46 @@ They work just like they do in SQL, but you have them fully type safe
 
 ```typescript
 const orders = sqliteTable('order', {
-	id: integer('id').primaryKey(),
-	orderDate: integer('order_date', { mode: 'timestamp' }).notNull(),
-	requiredDate: integer('required_date', { mode: 'timestamp' }).notNull(),
-	shippedDate: integer('shipped_date', { mode: 'timestamp' }),
-	shipVia: integer('ship_via').notNull(),
-	freight: numeric('freight').notNull(),
-	shipName: text('ship_name').notNull(),
-	shipCity: text('ship_city').notNull(),
-	shipRegion: text('ship_region'),
-	shipPostalCode: text('ship_postal_code'),
-	shipCountry: text('ship_country').notNull(),
-	customerId: text('customer_id').notNull(),
-	employeeId: integer('employee_id').notNull(),
+  id: integer('id').primaryKey(),
+  orderDate: integer('order_date', { mode: 'timestamp' }).notNull(),
+  requiredDate: integer('required_date', { mode: 'timestamp' }).notNull(),
+  shippedDate: integer('shipped_date', { mode: 'timestamp' }),
+  shipVia: integer('ship_via').notNull(),
+  freight: numeric('freight').notNull(),
+  shipName: text('ship_name').notNull(),
+  shipCity: text('ship_city').notNull(),
+  shipRegion: text('ship_region'),
+  shipPostalCode: text('ship_postal_code'),
+  shipCountry: text('ship_country').notNull(),
+  customerId: text('customer_id').notNull(),
+  employeeId: integer('employee_id').notNull(),
 });
 
 const details = sqliteTable('order_detail', {
-	unitPrice: numeric('unit_price').notNull(),
-	quantity: integer('quantity').notNull(),
-	discount: numeric('discount').notNull(),
-	orderId: integer('order_id').notNull(),
-	productId: integer('product_id').notNull(),
+  unitPrice: numeric('unit_price').notNull(),
+  quantity: integer('quantity').notNull(),
+  discount: numeric('discount').notNull(),
+  orderId: integer('order_id').notNull(),
+  productId: integer('product_id').notNull(),
 });
 
+
 db
-	.select({
-		id: orders.id,
-		shippedDate: orders.shippedDate,
-		shipName: orders.shipName,
-		shipCity: orders.shipCity,
-		shipCountry: orders.shipCountry,
-		productsCount: sql<number>`count(${details.productId})`,
-		quantitySum: sql<number>`sum(${details.quantity})`,
-		totalPrice: sql<number>`sum(${details.quantity} * ${details.unitPrice})`,
-	})
-	.from(orders)
-	.leftJoin(details, eq(orders.id, details.orderId))
-	.groupBy(orders.id)
-	.orderBy(asc(orders.id))
-	.all();
+  .select({
+    id: orders.id,
+    shippedDate: orders.shippedDate,
+    shipName: orders.shipName,
+    shipCity: orders.shipCity,
+    shipCountry: orders.shipCountry,
+    productsCount: sql<number>`count(${details.productId})`,
+    quantitySum: sql<number>`sum(${details.quantity})`,
+    totalPrice: sql<number>`sum(${details.quantity} * ${details.unitPrice})`,
+  })
+  .from(orders)
+  .leftJoin(details, eq(orders.id, details.orderId))
+  .groupBy(orders.id)
+  .orderBy(asc(orders.id))
+  .all();
 ```
 
 ### Joins
@@ -613,26 +587,23 @@ db
 ### Many-to-one
 
 ```typescript
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 const cities = sqliteTable('cities', {
-	id: integer('id').primaryKey(),
-	name: text('name'),
+  id: integer('id').primaryKey(),
+  name: text('name'),
 });
 
 const users = sqliteTable('users', {
-	id: integer('id').primaryKey(),
-	name: text('name'),
-	cityId: integer('city_id').references(() => cities.id),
+  id: integer('id').primaryKey(),
+  name: text('name'),
+  cityId: integer('city_id').references(() => cities.id)
 });
 
 const db = drizzle(sqlite);
 
-const result = db.select().from(cities).leftJoin(
-	users,
-	eq(cities.id, users.cityId),
-).all();
+const result = db.select().from(cities).leftJoin(users, eq(cities.id, users.cityId)).all();
 ```
 
 ### Many-to-many
@@ -693,23 +664,23 @@ Join Cities with Users getting only needed fields form request
 
 ```typescript
 db
-	.select({
-		id: cities.id,
-		cityName: cities.name,
-		userId: users.id,
-	})
-	.from(cities)
-	.leftJoin(users, eq(users.cityId, cities.id))
-	.all();
+  .select({
+    id: cities.id,
+    cityName: cities.name,
+    userId: users.id
+  })
+  .from(cities)
+  .leftJoin(users, eq(users.cityId, cities.id))
+  .all();
 ```
 
 ## Transactions
 
 ```ts
 db.transaction((tx) => {
-	tx.insert(users).values(newUser).run();
-	tx.update(users).set({ name: 'Mr. Dan' }).where(eq(users.name, 'Dan')).run();
-	tx.delete(users).where(eq(users.name, 'Dan')).run();
+  tx.insert(users).values(newUser).run();
+  tx.update(users).set({ name: 'Mr. Dan' }).where(eq(users.name, 'Dan')).run();
+  tx.delete(users).where(eq(users.name, 'Dan')).run();
 });
 ```
 
@@ -717,12 +688,11 @@ db.transaction((tx) => {
 
 ```ts
 db.transaction((tx) => {
-	tx.insert(users).values(newUser).run();
-	tx.transaction((tx2) => {
-		tx2.update(users).set({ name: 'Mr. Dan' }).where(eq(users.name, 'Dan'))
-			.run();
-		tx2.delete(users).where(eq(users.name, 'Dan')).run();
-	});
+  tx.insert(users).values(newUser).run();
+  tx.transaction((tx2) => {
+    tx2.update(users).set({ name: 'Mr. Dan' }).where(eq(users.name, 'Dan')).run();
+    tx2.delete(users).where(eq(users.name, 'Dan')).run();
+  });
 });
 ```
 
@@ -758,9 +728,7 @@ const { sql, params } = query.toSQL();
 ```ts
 import { sqliteView } from 'drizzle-orm/sqlite-core';
 
-const newYorkers = sqliteView('new_yorkers').as((qb) =>
-	qb.select().from(users).where(eq(users.cityId, 1))
-);
+const newYorkers = sqliteView('new_yorkers').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
 ```
 
 > **Warning**: All the parameters inside the query will be inlined, instead of replaced by `$1`, `$2`, etc.
@@ -770,9 +738,7 @@ You can also use the [`queryBuilder` instance](#query-builder) directly instead 
 ```ts
 import { queryBuilder as qb } from 'drizzle-orm/sqlite-core';
 
-const newYorkers = sqliteView('new_yorkers').as(
-	qb.select().from(users2Table).where(eq(users2Table.cityId, 1)),
-);
+const newYorkers = sqliteView('new_yorkers').as(qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
 ```
 
 ### Using raw SQL in a view query
@@ -781,9 +747,9 @@ In case you need to specify the view query using a syntax that is not supported 
 
 ```ts
 const newYorkers = sqliteView('new_yorkers', {
-	id: integer('id').primaryKey(),
-	name: text('name').notNull(),
-	cityId: integer('city_id').notNull(),
+  id: integer('id').primaryKey(),
+  name: text('name').notNull(),
+  cityId: integer('city_id').notNull(),
 }).as(sql`select * from ${users} where ${eq(users.cityId, 1)}`);
 ```
 
@@ -793,8 +759,8 @@ There are cases when you are given readonly access to an existing view. In such 
 
 ```ts
 const newYorkers = sqliteView('new_yorkers', {
-	userId: integer('user_id').notNull(),
-	cityId: integer('city_id'),
+  userId: integer('user_id').notNull(),
+  cityId: integer('city_id'),
 }).existing();
 ```
 
@@ -837,16 +803,16 @@ For schema file:
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 export const users = sqliteTable('users', {
-	id: integer('id').primaryKey(),
-	fullName: text('full_name'),
+  id: integer('id').primaryKey(),
+  fullName: text('full_name'),
 }, (users) => ({
-	nameIdx: index('name_idx', users.fullName),
+  nameIdx: index('name_idx', users.fullName),
 }));
 
 export const authOtps = sqliteTable('auth_otp', {
-	id: integer('id').primaryKey(),
-	phone: text('phone'),
-	userId: integer('user_id').references(() => users.id),
+  id: integer('id').primaryKey(),
+  phone: text('phone'),
+  userId: integer('user_id').references(() => users.id),
 });
 ```
 
@@ -876,9 +842,9 @@ CREATE INDEX IF NOT EXISTS users_full_name_index ON users (full_name);
 And you can run migrations manually or using our embedded migrations module
 
 ```typescript
-import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+import Database from 'better-sqlite3';
 
 const sqlite = new Database('sqlite.db');
 const db = drizzle(sqlite);
@@ -908,9 +874,7 @@ const query = db
 
 ```typescript
 // it will automatically run a parametrized query!
-const res: QueryResult<any> = db.run(
-	sql`SELECT * FROM users WHERE user.id = ${userId}`,
-);
+const res: QueryResult<any> = db.run(sql`SELECT * FROM users WHERE user.id = ${userId}`);
 ```
 
 ## Logging
@@ -926,13 +890,13 @@ const db = drizzle(sqlite, { logger: true });
 You can change the logs destination by creating a `DefaultLogger` instance and providing a custom `writer` to it:
 
 ```typescript
-import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { DefaultLogger, LogWriter } from 'drizzle-orm/logger';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
 
 class MyLogWriter implements LogWriter {
-	write(message: string) {
-		// Write to file, console, etc.
-	}
+  write(message: string) {
+    // Write to file, console, etc.
+  }
 }
 
 const logger = new DefaultLogger({ writer: new MyLogWriter() });
@@ -943,13 +907,13 @@ const db = drizzle(sqlite, { logger });
 You can also create a custom logger:
 
 ```typescript
-import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { Logger } from 'drizzle-orm/logger';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
 
 class MyLogger implements Logger {
-	logQuery(query: string, params: unknown[]): void {
-		console.log({ query, params });
-	}
+  logQuery(query: string, params: unknown[]): void {
+    console.log({ query, params });
+  }
 }
 
 const db = drizzle(sqlite, { logger: new MyLogger() });

@@ -33,11 +33,11 @@ See [main docs](/drizzle-orm/src/pg-core/README.md#sql-schema-declaration) for f
 In order to run the migrations, [you need to use `max: 1` in the postgres.js connection options](https://github.com/porsager/postgres#unsafe_transaction). You can create a separate connection instance for migrations with that setting.
 
 ```typescript
-import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
+import { migrate } from 'drizzle-orm/postgres-js/migrator';
 
 const migrationsClient = postgres(connectionString, {
-	max: 1,
+  max: 1,
 });
 const db = drizzle(migrationsClient);
 await migrate(db, { migrationsFolder: '...' });

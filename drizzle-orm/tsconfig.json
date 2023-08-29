@@ -1,12 +1,12 @@
 {
-  "files": [],
-  "references": [
-    {
-      "path": "./tsconfig.build.json"
-    },
-    {
-      "path": "./tsconfig.config.json"
-    }
-  ],
-  "include": ["rollup.*.ts"]
+	"files": [],
+	"references": [
+		{
+			"path": "./tsconfig.build.json"
+		},
+		{
+			"path": "./tsconfig.config.json"
+		}
+	],
+	"include": ["rollup.*.ts"]
 }

@@ -1,17 +1,17 @@
 {
-  "extends": "../tsconfig.json",
-  "compilerOptions": {
-    "composite": true,
-    "baseUrl": ".",
-    "verbatimModuleSyntax": true,
-    "moduleResolution": "NodeNext",
-    "allowImportingTsExtensions": true,
-    "noEmit": true,
-    "incremental": true,
-    "paths": {
-      "~/*": ["src/*"]
-    },
-    "outDir": "dist.new"
-  },
-  "include": ["src"]
+	"extends": "../tsconfig.json",
+	"compilerOptions": {
+		"composite": true,
+		"baseUrl": ".",
+		"verbatimModuleSyntax": true,
+		"moduleResolution": "NodeNext",
+		"allowImportingTsExtensions": true,
+		"noEmit": true,
+		"incremental": true,
+		"paths": {
+			"~/*": ["src/*"]
+		},
+		"outDir": "dist.new"
+	},
+	"include": ["src"]
 }
