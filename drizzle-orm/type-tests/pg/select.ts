@@ -436,7 +436,7 @@ const allOperators = await db
 			arrayOverlaps(users.arrayCol, sql`select array_col from ${users}`),
 		),
 	);
-users.arrayCol;
+
 Expect<
 	Equal<{
 		col2: unknown;
