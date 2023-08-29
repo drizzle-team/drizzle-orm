@@ -186,7 +186,7 @@ export abstract class PgSelectQueryBuilderBase<
 		lateral: TIsLateral,
 	): PgJoinFn<this, TDynamic, TJoinType, TIsLateral> {
 		return (
-			table: TIsLateral extends true ? Subquery : PgTable | Subquery | PgViewBase | SQL,
+			table: TIsLateral extends true ? Subquery | SQL : PgTable | Subquery | PgViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
