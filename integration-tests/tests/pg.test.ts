@@ -820,6 +820,48 @@ test.serial('full join with alias', async (t) => {
 	await db.execute(sql`drop table ${users}`);
 });
 
+test.serial('full join with null values', async (t) => {
+	const { db } = t.context;
+
+	const pgTable = pgTableCreator((name) => `prefixed_${name}`);
+
+	const table1 = pgTable('table1', {
+		nullValue: text('null_value'),
+		id: serial('id').primaryKey(),
+	});
+
+	const table2 = pgTable('table2', {
+		anotherNullValue: text('another_null_value'),
+		id: serial('id').primaryKey(),
+		table1Id: serial('table1_id').references(table1.id),
+	});
+
+	await db.execute(sql`drop table if exists ${table1}`);
+	await db.execute(sql`drop table if exists ${table2}`);
+	await db.execute(sql`create table ${table1} (id serial primary key, null_value text)`);
+	await db.execute(sql`create table ${table2} (id serial primary key, another_null_value text, table1_id integer references ${table1}(id))`);
+
+	await db.insert(table1).values({ id: 1 });
+	await db.insert(table2).values({ id: 123, table1Id: 1 });
+
+	const result = await db
+		.select()
+		.from(table1)
+		.fullJoin(table2, eq(table1.id, table2.table1Id));
+	
+	t.deepEqual(result, [{
+		table1: {
+			nullValue: null,
+			id: 1,
+		},
+		table2: {
+			anotherNullValue: null,
+			id: 123,
+			table1Id: 1,
+		},
+	}]);
+});
+
 test.serial('select from alias', async (t) => {
 	const { db } = t.context;
 
