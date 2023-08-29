@@ -833,7 +833,7 @@ test.serial('full join with null values', async (t) => {
 	const table2 = pgTable('table2', {
 		anotherNullValue: text('another_null_value'),
 		id: serial('id').primaryKey(),
-		table1Id: serial('table1_id').references(table1.id),
+		table1Id: serial('table1_id').references(() => table1.id),
 	});
 
 	await db.execute(sql`drop table if exists ${table1}`);
