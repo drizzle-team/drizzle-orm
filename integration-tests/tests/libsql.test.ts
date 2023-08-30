@@ -28,7 +28,7 @@ import {
 	sqliteView,
 	text,
 } from 'drizzle-orm/sqlite-core';
-import { type Equal, Expect } from './utils';
+import { type Equal, Expect } from './utils.ts';
 
 const ENABLE_LOGGING = false;
 
@@ -72,7 +72,7 @@ const courseCategoriesTable = sqliteTable('course_categories', {
 const orders = sqliteTable('orders', {
 	id: integer('id').primaryKey(),
 	region: text('region').notNull(),
-	product: text('product').notNull(),
+	product: text('product').notNull().$default(() => 'random_string'),
 	amount: integer('amount').notNull(),
 	quantity: integer('quantity').notNull(),
 });
@@ -308,6 +308,21 @@ test.serial('insert returning sql', async (t) => {
 	}).all();
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
+});
+
+test.serial('$default function', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(orders).values({ id: 1, region: 'Ukraine', amount: 1, quantity: 1 });
+	const selectedOrder = await db.select().from(orders);
+
+	t.deepEqual(selectedOrder, [{
+		id: 1,
+		amount: 1,
+		quantity: 1,
+		region: 'Ukraine',
+		product: 'random_string',
+	}]);
 });
 
 test.serial('delete returning sql', async (t) => {
@@ -1736,6 +1751,33 @@ test.serial('insert with onConflict do update', async (t) => {
 	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
 });
 
+test.serial('insert with onConflict do update where', async (t) => {
+	const { db } = t.context;
+
+	await db
+		.insert(usersTable)
+		.values([{ id: 1, name: "John", verified: false }])
+		.run();
+
+	await db
+		.insert(usersTable)
+		.values({ id: 1, name: "John1", verified: true })
+		.onConflictDoUpdate({
+			target: usersTable.id,
+			set: { name: "John1", verified: true },
+			where: eq(usersTable.verified, false)
+		})
+		.run();
+
+	const res = await db
+		.select({ id: usersTable.id, name: usersTable.name, verified: usersTable.verified })
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: "John1", verified: true }]);
+})
+
 test.serial('insert with onConflict do update using composite pk', async (t) => {
 	const { db } = t.context;
 
@@ -1826,6 +1868,8 @@ test.serial('async api - CRUD', async (t) => {
 	const res2 = await db.select().from(users);
 
 	t.deepEqual(res2, []);
+
+	await db.run(sql`drop table ${users}`);
 });
 
 test.serial('async api - insert + select w/ prepare + async execute', async (t) => {
@@ -1863,6 +1907,8 @@ test.serial('async api - insert + select w/ prepare + async execute', async (t) 
 	const res2 = await selectStmt.execute();
 
 	t.deepEqual(res2, []);
+
+	await db.run(sql`drop table ${users}`);
 });
 
 test.serial('async api - insert + select w/ prepare + sync execute', async (t) => {
@@ -1900,4 +1946,27 @@ test.serial('async api - insert + select w/ prepare + sync execute', async (t) =
 	const res2 = await selectStmt.execute();
 
 	t.deepEqual(res2, []);
+
+	await db.run(sql`drop table ${users}`);
+});
+
+test.serial('select + .get() for empty result', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	const res = await db.select().from(users).where(eq(users.id, 1)).get();
+
+	t.is(res, undefined);
+
+	await db.run(sql`drop table ${users}`);
 });

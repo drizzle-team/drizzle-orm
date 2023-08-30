@@ -1,3 +1,5 @@
+import { Type } from '@sinclair/typebox';
+import { Value } from '@sinclair/typebox/value';
 import test from 'ava';
 import {
 	bigint,
@@ -31,8 +33,6 @@ import {
 } from 'drizzle-orm/mysql-core';
 import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
 import { expectSchemaShape } from './utils';
-import { Value } from '@sinclair/typebox/value';
-import { Type } from '@sinclair/typebox';
 
 const customInt = customType<{ data: number }>({
 	dataType() {
@@ -128,15 +128,14 @@ const testTableRow = {
 };
 
 test('insert valid row', (t) => {
-	
 	const schema = createInsertSchema(testTable);
 
 	t.is(
 		Value.Check(
 			schema,
-			testTableRow
-		) ,
-		true
+			testTableRow,
+		),
+		true,
 	);
 });
 
@@ -147,8 +146,8 @@ test('insert invalid varchar length', (t) => {
 		Value.Check(schema, {
 			...testTableRow,
 			varchar: 'A'.repeat(201),
-		}) /* schema.safeParse({ ...testTableRow, varchar: 'A'.repeat(201) }).success */,
-		false
+		}), /* schema.safeParse({ ...testTableRow, varchar: 'A'.repeat(201) }).success */
+		false,
 	);
 });
 
@@ -173,7 +172,7 @@ test('insert schema', (t) => {
 		binary: Type.String(),
 		boolean: Type.Boolean(),
 		char: Type.String({ minLength: 4, maxLength: 4 }),
-		charEnum: Type.Union(([Type.Literal('a'), Type.Literal('b'), Type.Literal('c')])),
+		charEnum: Type.Union([Type.Literal('a'), Type.Literal('b'), Type.Literal('c')]),
 		customInt: Type.Any(),
 		date: Type.Date(),
 		dateString: Type.String(),
@@ -221,8 +220,8 @@ test('insert schema', (t) => {
 		timestamp: Type.Date(),
 		timestampString: Type.String(),
 		tinyint: Type.Number(),
-		varbinary: Type.String({maxLength: 200}),
-		varchar: Type.String({maxLength: 200}),
+		varbinary: Type.String({ maxLength: 200 }),
+		varchar: Type.String({ maxLength: 200 }),
 		varcharEnum: Type.Union([
 			Type.Literal('a'),
 			Type.Literal('b'),
@@ -263,7 +262,7 @@ test('select schema', (t) => {
 		]),
 		float: Type.Number(),
 		int: Type.Number(),
-		// 
+		//
 		json: jsonSchema,
 		mediumint: Type.Number(),
 		real: Type.Number(),
@@ -297,8 +296,8 @@ test('select schema', (t) => {
 		timestamp: Type.Date(),
 		timestampString: Type.String(),
 		tinyint: Type.Number(),
-		varbinary: Type.String({maxLength: 200}),
-		varchar: Type.String({maxLength: 200}),
+		varbinary: Type.String({ maxLength: 200 }),
+		varchar: Type.String({ maxLength: 200 }),
 		varcharEnum: Type.Union([
 			Type.Literal('a'),
 			Type.Literal('b'),
@@ -313,16 +312,16 @@ test('select schema', (t) => {
 
 test('select schema w/ refine', (t) => {
 	const actual = createSelectSchema(testTable, {
-		bigint: (_) => Type.BigInt({minimum: 0n}),
+		bigint: (_) => Type.BigInt({ minimum: 0n }),
 	});
 
 	const expected = Type.Object({
-		bigint: Type.BigInt({minimum: 0n}),
+		bigint: Type.BigInt({ minimum: 0n }),
 		bigintNumber: Type.Number(),
 		binary: Type.String(),
 		boolean: Type.Boolean(),
 		char: Type.String({ minLength: 5, maxLength: 5 }),
-		charEnum: Type.Union(([Type.Literal('a'), Type.Literal('b'), Type.Literal('c')])),
+		charEnum: Type.Union([Type.Literal('a'), Type.Literal('b'), Type.Literal('c')]),
 		customInt: Type.Any(),
 		date: Type.Date(),
 		dateString: Type.String(),
@@ -370,8 +369,8 @@ test('select schema w/ refine', (t) => {
 		timestamp: Type.Date(),
 		timestampString: Type.String(),
 		tinyint: Type.Number(),
-		varbinary: Type.String({maxLength: 200}),
-		varchar: Type.String({maxLength: 200}),
+		varbinary: Type.String({ maxLength: 200 }),
+		varchar: Type.String({ maxLength: 200 }),
 		varcharEnum: Type.Union([
 			Type.Literal('a'),
 			Type.Literal('b'),

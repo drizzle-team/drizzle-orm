@@ -1,24 +1,23 @@
-import type { GetColumnData } from '~/column';
-import { entityKind } from '~/entity';
-import type { SelectResultFields } from '~/query-builders/select.types';
-import { QueryPromise } from '~/query-promise';
-import type { Query, SQL, SQLWrapper } from '~/sql';
-import type { SQLiteDialect } from '~/sqlite-core/dialect';
-import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
-import type { AnySQLiteTable } from '~/sqlite-core/table';
-import { SQLiteTable } from '~/sqlite-core/table';
-import type { InferModel } from '~/table';
-import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils';
-import type { SelectedFields, SelectedFieldsOrdered } from './select.types';
+import type { GetColumnData } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { SelectResultFields } from '~/query-builders/select.types.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/index.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
+import { SQLiteTable } from '~/sqlite-core/table.ts';
+import type { InferModel } from '~/table.ts';
+import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import type { SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
 
 export interface SQLiteUpdateConfig {
 	where?: SQL | undefined;
 	set: UpdateSet;
-	table: AnySQLiteTable;
+	table: SQLiteTable;
 	returning?: SelectedFieldsOrdered;
 }
 
-export type SQLiteUpdateSetSource<TTable extends AnySQLiteTable> =
+export type SQLiteUpdateSetSource<TTable extends SQLiteTable> =
 	& {
 		[Key in keyof TTable['_']['columns']]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
@@ -27,7 +26,7 @@ export type SQLiteUpdateSetSource<TTable extends AnySQLiteTable> =
 	& {};
 
 export class SQLiteUpdateBuilder<
-	TTable extends AnySQLiteTable,
+	TTable extends SQLiteTable,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 > {
@@ -51,7 +50,7 @@ export class SQLiteUpdateBuilder<
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface SQLiteUpdate<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TTable extends AnySQLiteTable,
+	TTable extends SQLiteTable,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TResultType extends 'sync' | 'async',
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -61,7 +60,7 @@ export interface SQLiteUpdate<
 > extends SQLWrapper, QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]> {}
 
 export class SQLiteUpdate<
-	TTable extends AnySQLiteTable,
+	TTable extends SQLiteTable,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TReturning = undefined,

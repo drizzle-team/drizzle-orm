@@ -3,10 +3,12 @@
 	"compilerOptions": {
 		"module": "esnext",
 		"target": "esnext",
+		"moduleResolution": "NodeNext",
+		"allowImportingTsExtensions": true,
 		"noEmit": true,
 		"paths": {
 			"~/*": ["./tests/*"]
 		}
 	},
-	"include": ["tests"]
+	"include": ["tests", "type-tests"]
 }

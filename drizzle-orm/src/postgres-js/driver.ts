@@ -1,16 +1,16 @@
 import type { Sql } from 'postgres';
-import { DefaultLogger } from '~/logger';
-import { PgDatabase } from '~/pg-core/db';
-import { PgDialect } from '~/pg-core/dialect';
+import { DefaultLogger } from '~/logger.ts';
+import { PgDatabase } from '~/pg-core/db.ts';
+import { PgDialect } from '~/pg-core/dialect.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
-} from '~/relations';
-import { type DrizzleConfig } from '~/utils';
-import type { PostgresJsQueryResultHKT } from './session';
-import { PostgresJsSession } from './session';
+} from '~/relations.ts';
+import { type DrizzleConfig } from '~/utils.ts';
+import type { PostgresJsQueryResultHKT } from './session.ts';
+import { PostgresJsSession } from './session.ts';
 
 export type PostgresJsDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,

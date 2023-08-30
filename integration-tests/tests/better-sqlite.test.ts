@@ -21,7 +21,7 @@ import {
 	unique,
 	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
-import { Expect } from './utils';
+import { Expect } from './utils.ts';
 
 const ENABLE_LOGGING = false;
 
@@ -1841,6 +1841,33 @@ test.serial('insert with onConflict do update using composite pk', (t) => {
 	t.deepEqual(res, [{ id: 1, name: 'John', email: 'john1@example.com' }]);
 });
 
+test.serial('insert with onConflict do update where', (t) => {
+	const { db } = t.context;
+
+	db
+		.insert(usersTable)
+		.values([{ id: 1, name: "John", verified: false }])
+		.run();
+
+	db
+		.insert(usersTable)
+		.values({ id: 1, name: "John1", verified: true })
+		.onConflictDoUpdate({
+			target: usersTable.id,
+			set: { name: "John1", verified: true },
+			where: eq(usersTable.verified, false)
+		})
+		.run();
+
+	const res = db
+		.select({ id: usersTable.id, name: usersTable.name, verified: usersTable.verified })
+		.from(usersTable)
+		.where(eq(usersTable.id, 1))
+		.all();
+
+	t.deepEqual(res, [{ id: 1, name: "John1", verified: true }]);
+})
+
 test.serial('insert undefined', (t) => {
 	const { db } = t.context;
 
@@ -1911,6 +1938,8 @@ test.serial('async api - CRUD', async (t) => {
 	const res2 = await db.select().from(users);
 
 	t.deepEqual(res2, []);
+
+	db.run(sql`drop table ${users}`);
 });
 
 test.serial('async api - insert + select w/ prepare + async execute', async (t) => {
@@ -1948,6 +1977,8 @@ test.serial('async api - insert + select w/ prepare + async execute', async (t) 
 	const res2 = await selectStmt.execute();
 
 	t.deepEqual(res2, []);
+
+	db.run(sql`drop table ${users}`);
 });
 
 test.serial('async api - insert + select w/ prepare + sync execute', (t) => {
@@ -1985,4 +2016,27 @@ test.serial('async api - insert + select w/ prepare + sync execute', (t) => {
 	const res2 = selectStmt.execute().sync();
 
 	t.deepEqual(res2, []);
+
+	db.run(sql`drop table ${users}`);
+});
+
+test.serial('select + .get() for empty result', (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	const res = db.select().from(users).where(eq(users.id, 1)).get();
+
+	t.is(res, undefined);
+
+	db.run(sql`drop table ${users}`);
 });

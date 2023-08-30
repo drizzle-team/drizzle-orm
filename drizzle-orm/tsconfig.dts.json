@@ -1,0 +1,13 @@
+{
+	"extends": "./tsconfig.build.json",
+	"compilerOptions": {
+		"composite": false,
+		"rootDir": "src",
+		"outDir": "dist-dts",
+		"declaration": true,
+		"noEmit": false,
+		"emitDeclarationOnly": true,
+		"incremental": false
+	},
+	"include": ["src"]
+}

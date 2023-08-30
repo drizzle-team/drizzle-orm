@@ -1,33 +1,32 @@
-import { entityKind, is } from '~/entity';
-import type { SelectResultFields } from '~/query-builders/select.types';
-import { QueryPromise } from '~/query-promise';
-import type { Placeholder, Query, SQLWrapper } from '~/sql';
-import { Param, SQL, sql } from '~/sql';
-import type { SQLiteDialect } from '~/sqlite-core/dialect';
-import type { IndexColumn } from '~/sqlite-core/indexes';
-import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session';
-import type { AnySQLiteTable } from '~/sqlite-core/table';
-import { SQLiteTable } from '~/sqlite-core/table';
-import { type InferModel, Table } from '~/table';
-import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils';
-import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types';
-import type { SQLiteUpdateSetSource } from './update';
+import { entityKind, is } from '~/entity.ts';
+import type { SelectResultFields } from '~/query-builders/select.types.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import type { Placeholder, Query, SQLWrapper } from '~/sql/index.ts';
+import { Param, SQL, sql } from '~/sql/index.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { IndexColumn } from '~/sqlite-core/indexes.ts';
+import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
+import { SQLiteTable } from '~/sqlite-core/table.ts';
+import { type InferModel, Table } from '~/table.ts';
+import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils.ts';
+import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
+import type { SQLiteUpdateSetSource } from './update.ts';
 
-export interface SQLiteInsertConfig<TTable extends AnySQLiteTable = AnySQLiteTable> {
+export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[];
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
 }
 
-export type SQLiteInsertValue<TTable extends AnySQLiteTable> = Simplify<
+export type SQLiteInsertValue<TTable extends SQLiteTable> = Simplify<
 	{
 		[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
 	}
 >;
 
 export class SQLiteInsertBuilder<
-	TTable extends AnySQLiteTable,
+	TTable extends SQLiteTable,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 > {
@@ -71,7 +70,7 @@ export class SQLiteInsertBuilder<
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface SQLiteInsert<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TTable extends AnySQLiteTable,
+	TTable extends SQLiteTable,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TResultType extends 'sync' | 'async',
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -81,7 +80,7 @@ export interface SQLiteInsert<
 > extends SQLWrapper, QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]> {}
 
 export class SQLiteInsert<
-	TTable extends AnySQLiteTable,
+	TTable extends SQLiteTable,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TReturning = undefined,
@@ -124,7 +123,7 @@ export class SQLiteInsert<
 		} else {
 			const targetSql = Array.isArray(config.target) ? sql`${config.target}` : sql`${[config.target]}`;
 			const whereSql = config.where ? sql` where ${config.where}` : sql``;
-			this.config.onConflict = sql`${targetSql}${whereSql} do nothing`;
+			this.config.onConflict = sql`${targetSql} do nothing${whereSql}`;
 		}
 		return this;
 	}
@@ -137,7 +136,7 @@ export class SQLiteInsert<
 		const targetSql = Array.isArray(config.target) ? sql`${config.target}` : sql`${[config.target]}`;
 		const whereSql = config.where ? sql` where ${config.where}` : sql``;
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
-		this.config.onConflict = sql`${targetSql}${whereSql} do update set ${setSql}`;
+		this.config.onConflict = sql`${targetSql} do update set ${setSql}${whereSql}`;
 		return this;
 	}
 

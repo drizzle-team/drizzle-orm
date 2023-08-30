@@ -1,5 +1,5 @@
-import { foreignKey, int, mysqlTable, serial, text, timestamp } from '~/mysql-core';
-import { relations } from '~/relations';
+import { foreignKey, int, mysqlTable, serial, text, timestamp } from '~/mysql-core/index.ts';
+import { relations } from '~/relations.ts';
 
 export const users = mysqlTable('users', {
 	id: serial('id').primaryKey(),

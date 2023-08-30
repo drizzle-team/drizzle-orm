@@ -1,16 +1,16 @@
 import type { Client, PoolClient, QueryArrayConfig, QueryConfig, QueryResult, QueryResultRow } from 'pg';
 import pg from 'pg';
-import { entityKind } from '~/entity';
-import { type Logger, NoopLogger } from '~/logger';
-import { PgTransaction } from '~/pg-core';
-import type { PgDialect } from '~/pg-core/dialect';
-import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
-import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
-import { PgSession, PreparedQuery } from '~/pg-core/session';
-import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
-import { fillPlaceholders, type Query, sql } from '~/sql';
-import { tracer } from '~/tracing';
-import { type Assume, mapResultRow } from '~/utils';
+import { entityKind } from '~/entity.ts';
+import { type Logger, NoopLogger } from '~/logger.ts';
+import type { PgDialect } from '~/pg-core/dialect.ts';
+import { PgTransaction } from '~/pg-core/index.ts';
+import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
+import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
+import { PgSession, PreparedQuery } from '~/pg-core/session.ts';
+import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations.ts';
+import { fillPlaceholders, type Query, sql } from '~/sql/index.ts';
+import { tracer } from '~/tracing.ts';
+import { type Assume, mapResultRow } from '~/utils.ts';
 
 const { Pool } = pg;
 

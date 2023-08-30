@@ -19,7 +19,7 @@ import {
 } from 'drizzle-orm/sqlite-core';
 import type { Database } from 'sql.js';
 import initSqlJs from 'sql.js';
-import { Expect } from './utils';
+import { Expect } from './utils.ts';
 
 const ENABLE_LOGGING = false;
 
@@ -763,7 +763,7 @@ test.serial('insert via db.run + select via db.get', (t) => {
 test.serial('insert via db.get w/ query builder', (t) => {
 	const { db } = t.context;
 
-	const inserted = db.get<Pick<typeof usersTable['_']['model']['select'], 'id' | 'name'>>(
+	const inserted = db.get<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
 		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 	);
 	t.deepEqual(inserted, { id: 1, name: 'John' });
@@ -1711,6 +1711,8 @@ test.serial('async api - CRUD', async (t) => {
 	const res2 = await db.select().from(users);
 
 	t.deepEqual(res2, []);
+
+	db.run(sql`drop table ${users}`);
 });
 
 test.serial('async api - insert + select w/ prepare + async execute', async (t) => {
@@ -1748,6 +1750,8 @@ test.serial('async api - insert + select w/ prepare + async execute', async (t) 
 	const res2 = await selectStmt.execute();
 
 	t.deepEqual(res2, []);
+
+	db.run(sql`drop table ${users}`);
 });
 
 test.serial('async api - insert + select w/ prepare + sync execute', (t) => {
@@ -1785,4 +1789,27 @@ test.serial('async api - insert + select w/ prepare + sync execute', (t) => {
 	const res2 = selectStmt.execute().sync();
 
 	t.deepEqual(res2, []);
+
+	db.run(sql`drop table ${users}`);
+});
+
+test.serial('select + .get() for empty result', (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
+
+	db.run(sql`drop table if exists ${users}`);
+
+	db.run(
+		sql`create table ${users} (id integer primary key, name text)`,
+	);
+
+	const res = db.select().from(users).where(eq(users.id, 1)).get();
+
+	t.is(res, undefined);
+
+	db.run(sql`drop table ${users}`);
 });
