@@ -1981,28 +1981,28 @@ test.serial('utc config for datetime', async (t) => {
 			)
 		`,
 	);
-	const datesTable2 = mysqlTable('datestable', {
+	const datesTable = mysqlTable('datestable', {
 		datetimeUTC: datetime('datetime_utc', { fsp: 3, mode: 'date' }),
 		datetime: datetime('datetime', { fsp: 3 }),
 		datetimeAsString: datetime('datetime_as_string', { mode: 'string' }),
 	});
 
 	const dateObj = new Date('2022-11-11');
-	const dateUtc = new Date(Date.now());
+	const dateUtc = new Date('2022-11-11T12:12:12.122Z');
 
-	await db.insert(datesTable2).values({
+	await db.insert(datesTable).values({
 		datetimeUTC: dateUtc,
 		datetime: dateObj,
 		datetimeAsString: '2022-11-11 12:12:12',
 	});
 
-	const res = await db.select().from(datesTable2);
+	const res = await db.select().from(datesTable);
 
 	const [rawSelect] = await db.execute(sql`select \`datetime_utc\` from \`datestable\``);
-	const datetimeUTC = (rawSelect as unknown as [{ datetime_utc: string }])[0];
+	const selectedRow = (rawSelect as unknown as [{ datetime_utc: string }])[0];
 
-	t.is(datetimeUTC.datetime_utc.replace(' ', 'T') + 'Z', dateUtc.toISOString());
-	t.deepEqual(new Date(datetimeUTC.datetime_utc.replace(' ', 'T') + 'Z'), dateUtc);
+	t.is(selectedRow.datetime_utc, '2022-11-11 12:12:12.122');
+	t.deepEqual(new Date(selectedRow.datetime_utc.replace(' ', 'T') + 'Z'), dateUtc);
 
 	t.assert(res[0]?.datetime instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	t.assert(res[0]?.datetimeUTC instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
