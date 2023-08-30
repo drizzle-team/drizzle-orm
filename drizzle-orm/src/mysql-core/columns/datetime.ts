@@ -15,10 +15,11 @@ export type MySqlDateTimeBuilderInitial<TName extends string> = MySqlDateTimeBui
 }>;
 
 export class MySqlDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date', 'MySqlDateTime'>>
-	extends MySqlColumnBuilder<T, MySqlDatetimeConfig> {
+	extends MySqlColumnBuilder<T, MySqlDatetimeConfig>
+{
 	static readonly [entityKind]: string = 'MySqlDateTimeBuilder';
 
-	constructor(name: T['name'], config: MySqlDatetimeConfig) {
+	constructor(name: T['name'], config: MySqlDatetimeConfig | undefined) {
 		super(name, 'date', 'MySqlDateTime');
 		this.config.fsp = config?.fsp;
 	}
@@ -34,7 +35,7 @@ export class MySqlDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date', 'MyS
 	}
 }
 
-export class MySqlDateTime<T extends ColumnBaseConfig<'date', 'MySqlDateTime'>> extends MySqlColumn<T, MySqlDatetimeConfig> {
+export class MySqlDateTime<T extends ColumnBaseConfig<'date', 'MySqlDateTime'>> extends MySqlColumn<T> {
 	static readonly [entityKind]: string = 'MySqlDateTime';
 
 	readonly fsp: number | undefined;
@@ -52,9 +53,9 @@ export class MySqlDateTime<T extends ColumnBaseConfig<'date', 'MySqlDateTime'>> 
 		return `datetime${precision}`;
 	}
 
-  override mapToDriverValue(value: Date): unknown {
-    return value.toISOString().replace('T', ' ').replace('Z', '')
-  }
+	override mapToDriverValue(value: Date): unknown {
+		return value.toISOString().replace('T', ' ').replace('Z', '');
+	}
 
 	override mapFromDriverValue(value: string): Date {
 		return new Date(value.replace(' ', 'T') + 'Z');
@@ -92,7 +93,7 @@ export class MySqlDateTimeStringBuilder<T extends ColumnBuilderBaseConfig<'strin
 	}
 }
 
-export class MySqlDateTimeString<T extends ColumnBaseConfig<'string', 'MySqlDateTimeString'>> extends MySqlColumn<T, MySqlDatetimeConfig> {
+export class MySqlDateTimeString<T extends ColumnBaseConfig<'string', 'MySqlDateTimeString'>> extends MySqlColumn<T> {
 	static readonly [entityKind]: string = 'MySqlDateTimeString';
 
 	readonly fsp: number | undefined;
@@ -113,10 +114,9 @@ export class MySqlDateTimeString<T extends ColumnBaseConfig<'string', 'MySqlDate
 
 export type DatetimeFsp = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
-// If user specifies mode: 'date'. the utc option will be required
-export type MySqlDatetimeConfig<TMode extends "date" | "string" = "date" | "string"> = {
-  mode?: TMode;
-  fsp?: DatetimeFsp;
+export interface MySqlDatetimeConfig<TMode extends 'date' | 'string' = 'date' | 'string'> {
+	mode?: TMode;
+	fsp?: DatetimeFsp;
 }
 
 export function datetime<TName extends string, TMode extends MySqlDatetimeConfig['mode'] & {}>(
