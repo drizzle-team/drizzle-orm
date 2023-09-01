@@ -444,7 +444,7 @@ test.serial('full join with alias', async (t) => {
 test.serial('select from alias', async (t) => {
 	const { db } = t.context;
 
-	const pgTable = pgTableCreator((name: string) => `prefixed_${name}`);
+	const pgTable = pgTableCreator((name) => `prefixed_${name}`);
 
 	const users = pgTable('users', {
 		id: serial('id').primaryKey(),
