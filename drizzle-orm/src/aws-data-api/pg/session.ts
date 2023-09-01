@@ -100,7 +100,7 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 			const row: Record<string, unknown> = {};
 			for (const [index, field] of record.entries()) {
 				const { name } = columnMetadata[index]!;
-				row[name || index] = getValueFromDataApi(field); // not what to default if name is undefined
+				row[name ?? index] = getValueFromDataApi(field); // not what to default if name is undefined
 			}
 			return row;
 		});
