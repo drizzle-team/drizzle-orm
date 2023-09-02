@@ -265,9 +265,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 		this.logger.logQuery(this.queryString, params);
 		const stmt: InStatement = { sql: this.queryString, args: params as InArgs };
-		return (this.tx ? this.tx.execute(stmt) : this.client.execute(stmt)).then(({ rows }) =>
-			rows.map((row) => Object.values(row))
-		) as Promise<
+		return (this.tx ? this.tx.execute(stmt) : this.client.execute(stmt)).then(({ rows }) => rows) as Promise<
 			T['values']
 		>;
 	}
