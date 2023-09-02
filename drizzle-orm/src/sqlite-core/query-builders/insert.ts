@@ -94,7 +94,8 @@ export class SQLiteInsert<
 		readonly returning: TReturning;
 	};
 
-	private config: SQLiteInsertConfig<TTable>;
+	/** @internal */
+	config: SQLiteInsertConfig<TTable>;
 
 	constructor(
 		table: TTable,

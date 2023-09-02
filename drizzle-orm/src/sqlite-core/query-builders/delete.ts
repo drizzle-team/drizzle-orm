@@ -35,7 +35,8 @@ export class SQLiteDelete<
 > extends QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]> implements SQLWrapper {
 	static readonly [entityKind]: string = 'SQLiteDelete';
 
-	private config: SQLiteDeleteConfig;
+	/** @internal */
+	config: SQLiteDeleteConfig;
 
 	constructor(
 		private table: TTable,

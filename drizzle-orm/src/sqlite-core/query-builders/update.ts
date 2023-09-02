@@ -71,7 +71,8 @@ export class SQLiteUpdate<
 		readonly table: TTable;
 	};
 
-	private config: SQLiteUpdateConfig;
+	/** @internal */
+	config: SQLiteUpdateConfig;
 
 	constructor(
 		table: TTable,

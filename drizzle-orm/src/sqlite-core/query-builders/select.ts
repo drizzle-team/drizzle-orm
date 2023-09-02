@@ -141,7 +141,8 @@ export abstract class SQLiteSelectQueryBuilder<
 		readonly selectedFields: BuildSubquerySelection<TSelection, TNullabilityMap>;
 	};
 
-	protected config: SQLiteSelectConfig;
+	/** @internal */
+	config: SQLiteSelectConfig;
 	protected joinsNotNullableMap: Record<string, boolean>;
 	private tableName: string | undefined;
 	private isPartialSelect: boolean;

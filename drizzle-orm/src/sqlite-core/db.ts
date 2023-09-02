@@ -159,7 +159,7 @@ export class BaseSQLiteDatabase<
 	run(query: SQLWrapper): DBResult<TResultKind, TRunResult> {
 		const sql = query.getSQL();
 		if (this.resultKind === 'async') {
-			return new SQLiteRaw(async () => this.session.run(sql), () => sql);
+			return new SQLiteRaw(async () => this.session.run(sql), () => sql, 'run');
 		}
 		return this.session.run(sql);
 	}
@@ -167,7 +167,7 @@ export class BaseSQLiteDatabase<
 	all<T = unknown>(query: SQLWrapper): DBResult<TResultKind, T[]> {
 		const sql = query.getSQL();
 		if (this.resultKind === 'async') {
-			return new SQLiteRaw(async () => this.session.all(sql), () => sql);
+			return new SQLiteRaw(async () => this.session.all(sql), () => sql, 'all');
 		}
 		return this.session.all(sql);
 	}
@@ -175,7 +175,7 @@ export class BaseSQLiteDatabase<
 	get<T = unknown>(query: SQLWrapper): DBResult<TResultKind, T> {
 		const sql = query.getSQL();
 		if (this.resultKind === 'async') {
-			return new SQLiteRaw(async () => this.session.get(sql), () => sql);
+			return new SQLiteRaw(async () => this.session.get(sql), () => sql, 'get');
 		}
 		return this.session.get(sql);
 	}
@@ -183,7 +183,7 @@ export class BaseSQLiteDatabase<
 	values<T extends unknown[] = unknown[]>(query: SQLWrapper): DBResult<TResultKind, T[]> {
 		const sql = query.getSQL();
 		if (this.resultKind === 'async') {
-			return new SQLiteRaw(async () => this.session.values(sql), () => sql);
+			return new SQLiteRaw(async () => this.session.values(sql), () => sql, 'values');
 		}
 		return this.session.values(sql);
 	}

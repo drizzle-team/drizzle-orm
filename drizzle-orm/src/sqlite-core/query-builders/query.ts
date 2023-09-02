@@ -99,6 +99,9 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 
 	declare protected $brand: 'SQLiteRelationalQuery';
 
+	/** @internal */
+	mode: 'many' | 'first';
+
 	constructor(
 		private fullSchema: Record<string, unknown>,
 		private schema: TablesRelationalConfig,
@@ -108,9 +111,10 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 		private dialect: SQLiteDialect,
 		private session: SQLiteSession<'sync' | 'async', unknown, Record<string, unknown>, TablesRelationalConfig>,
 		private config: DBQueryConfig<'many', true> | true,
-		private mode: 'many' | 'first',
+		mode: 'many' | 'first',
 	) {
 		super();
+		this.mode = mode;
 	}
 
 	/** @internal */
