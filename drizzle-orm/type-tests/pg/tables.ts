@@ -68,6 +68,7 @@ export const users = pgTable(
 		age1: integer('age1').notNull(),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 		enumCol: myEnum('enum_col').notNull(),
+		arrayCol: text('array_col').array().notNull(),
 	},
 	(users) => ({
 		usersAge1Idx: uniqueIndex('usersAge1Idx').on(users.class),

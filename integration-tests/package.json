@@ -20,7 +20,8 @@
       "!tests/planetscale-serverless/**/*.ts",
       "!tests/bun/**/*",
       "!tests/vercel-pg.test.ts",
-      "!tests/relational/**/*"
+      "!tests/relational/**/*",
+      "!tests/libsql-batch.test.ts"
     ],
     "extensions": {
       "ts": "module"
