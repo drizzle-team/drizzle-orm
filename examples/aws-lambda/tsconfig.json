@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "lib": ["es6"],
+    "allowJs": true,
+    "outDir": "build",
+    "strict": true,
+    "noImplicitAny": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": "./src"
+  },
+  "include": ["./src", "*.d.ts"],
+  "exclude": ["./.esbuild"]
+}
