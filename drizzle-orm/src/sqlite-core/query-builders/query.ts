@@ -8,7 +8,7 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { type Query, type QueryWithTypings, type SQL } from '~/sql/index.ts';
+import { type Query, type QueryWithTypings, type SQL, type SQLWrapper } from '~/sql/index.ts';
 import { type KnownKeysOnly } from '~/utils.ts';
 import { type SQLiteDialect } from '../dialect.ts';
 import type { PreparedQuery, PreparedQueryConfig, SQLiteSession } from '../session.ts';
@@ -94,10 +94,13 @@ export class RelationalQueryBuilder<
 	}
 }
 
-export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> extends QueryPromise<TResult> {
+export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> extends QueryPromise<TResult> implements SQLWrapper {
 	static readonly [entityKind]: string = 'SQLiteAsyncRelationalQuery';
 
 	declare protected $brand: 'SQLiteRelationalQuery';
+
+	/** @internal */
+	mode: 'many' | 'first';
 
 	constructor(
 		private fullSchema: Record<string, unknown>,
@@ -108,9 +111,23 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 		private dialect: SQLiteDialect,
 		private session: SQLiteSession<'sync' | 'async', unknown, Record<string, unknown>, TablesRelationalConfig>,
 		private config: DBQueryConfig<'many', true> | true,
-		private mode: 'many' | 'first',
+		mode: 'many' | 'first',
 	) {
 		super();
+		this.mode = mode;
+	}
+
+	/** @internal */
+	getSQL(): SQL {
+		return this.dialect.buildRelationalQuery({
+			fullSchema: this.fullSchema,
+			schema: this.schema,
+			tableNamesMap: this.tableNamesMap,
+			table: this.table,
+			tableConfig: this.tableConfig,
+			queryConfig: this.config,
+			tableAlias: this.tableConfig.tsName,
+		}).sql as SQL;
 	}
 
 	prepare(): PreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }> {
