@@ -149,7 +149,7 @@ export class AwsDataApiSession<
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: QueryWithTypings,
 		fields: SelectedFieldsOrdered | undefined,
-		transactionId?: string,
+		name: string | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PreparedQuery<T> {
 		return new AwsDataApiPreparedQuery(
@@ -159,7 +159,7 @@ export class AwsDataApiSession<
 			query.typings ?? [],
 			this.options,
 			fields,
-			transactionId,
+			this.transactionId,
 			customResultMapper,
 		);
 	}
