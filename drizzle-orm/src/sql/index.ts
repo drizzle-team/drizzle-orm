@@ -42,6 +42,9 @@ export type QueryTypingsValue = 'json' | 'decimal' | 'time' | 'timestamp' | 'uui
 export interface Query {
 	sql: string;
 	params: unknown[];
+}
+
+export interface QueryWithTypings extends Query {
 	typings?: QueryTypingsValue[];
 }
 
@@ -65,13 +68,15 @@ export function isSQLWrapper(value: unknown): value is SQLWrapper {
 		&& typeof (value as any).getSQL === 'function';
 }
 
-function mergeQueries(queries: Query[]): Query {
-	const result: Query = { sql: '', params: [] };
+function mergeQueries(queries: QueryWithTypings[]): QueryWithTypings {
+	const result: QueryWithTypings = { sql: '', params: [] };
 	for (const query of queries) {
 		result.sql += query.sql;
 		result.params.push(...query.params);
 		if (query.typings?.length) {
-			result.typings = result.typings || [];
+			if (!result.typings) {
+				result.typings = [];
+			}
 			result.typings.push(...query.typings);
 		}
 	}
@@ -111,7 +116,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 		return this;
 	}
 
-	toQuery(config: BuildQueryConfig): Query {
+	toQuery(config: BuildQueryConfig): QueryWithTypings {
 		return tracer.startActiveSpan('drizzle.buildSQL', (span) => {
 			const query = this.buildQueryFromSourceParams(this.queryChunks, config);
 			span?.setAttributes({
@@ -136,7 +141,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 			paramStartIndex,
 		} = config;
 
-		return mergeQueries(chunks.map((chunk): Query => {
+		return mergeQueries(chunks.map((chunk): QueryWithTypings => {
 			if (is(chunk, StringChunk)) {
 				return { sql: chunk.value.join(''), params: [] };
 			}

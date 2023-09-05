@@ -5990,6 +5990,13 @@ test('async api - prepare', async () => {
 	expect(users).toEqual([{ id: 1, name: 'Dan', verified: 0, invitedBy: null }]);
 });
 
+test('.toSQL()', () => {
+	const query = db.query.usersTable.findFirst().toSQL();
+
+	expect(query).toHaveProperty('sql', expect.any(String));
+	expect(query).toHaveProperty('params', expect.any(Array));
+});
+
 // + custom + where + orderby
 
 // + custom + where + orderby + limit

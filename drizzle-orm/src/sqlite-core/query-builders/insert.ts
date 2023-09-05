@@ -145,7 +145,7 @@ export class SQLiteInsert<
 		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	toSQL(): Simplify<{ sql: Query['sql']; params: Query['params'] }> {
+	toSQL(): Simplify<Query> {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}

@@ -18,7 +18,7 @@ import {
 } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query, type QueryTypingsValue, type SQL, sql } from '~/sql/index.ts';
+import { fillPlaceholders, type QueryTypingsValue, type QueryWithTypings, type SQL, sql } from '~/sql/index.ts';
 import { mapResultRow } from '~/utils.ts';
 import { getValueFromDataApi, toValueParam } from '../common/index.ts';
 
@@ -147,7 +147,7 @@ export class AwsDataApiSession<
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
-		query: Query,
+		query: QueryWithTypings,
 		fields: SelectedFieldsOrdered | undefined,
 		transactionId?: string,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],

@@ -14,7 +14,7 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { and, eq, Param, type Query, SQL, sql, type SQLChunk } from '~/sql/index.ts';
+import { and, eq, Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/index.ts';
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
@@ -374,7 +374,7 @@ export class MySqlDialect {
 		return sql`insert${ignoreSql} into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}`;
 	}
 
-	sqlToQuery(sql: SQL): Query {
+	sqlToQuery(sql: SQL): QueryWithTypings {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
