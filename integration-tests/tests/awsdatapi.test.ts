@@ -835,6 +835,29 @@ test.serial('nested transaction rollback', async (t) => {
 	await db.execute(sql`drop table ${users}`);
 });
 
+test.serial('select from raw sql', async (t) => {
+	const { db } = t.context;
+
+	const result = await db.execute(sql`select 1 as id, 'John' as name`);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'John' },
+	]);
+});
+
+test.serial('select from raw sql with mapped values', async (t) => {
+	const { db } = t.context;
+
+	const result = await db.select({
+		id: sql<number>`id`,
+		name: sql<string>`name`,
+	}).from(sql`(select 1 as id, 'John' as name) as users`);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'John' },
+	]);
+});
+
 test.after.always(async (t) => {
 	const ctx = t.context;
 	await ctx.db.execute(sql`drop table "users"`);
