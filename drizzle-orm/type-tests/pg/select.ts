@@ -3,6 +3,9 @@ import { Expect } from 'type-tests/utils.ts';
 
 import {
 	and,
+	arrayContained,
+	arrayContains,
+	arrayOverlaps,
 	between,
 	eq,
 	exists,
@@ -278,6 +281,7 @@ Expect<
 				age1: number;
 				createdAt: Date;
 				enumCol: 'a' | 'b' | 'c';
+				arrayCol: string[];
 			} | null;
 			cities: {
 				id: number;
@@ -421,6 +425,15 @@ const allOperators = await db
 			notLike(users.id, '%1%'),
 			ilike(users.id, '%1%'),
 			notIlike(users.id, '%1%'),
+			arrayContains(users.arrayCol, ['abc']),
+			arrayContains(users.arrayCol, db.select({ arrayCol: users.arrayCol }).from(users)),
+			arrayContains(users.arrayCol, sql`select array_col from ${users}`),
+			arrayContained(users.arrayCol, ['abc']),
+			arrayContained(users.arrayCol, db.select({ arrayCol: users.arrayCol }).from(users)),
+			arrayContained(users.arrayCol, sql`select array_col from ${users}`),
+			arrayOverlaps(users.arrayCol, ['abc']),
+			arrayOverlaps(users.arrayCol, db.select({ arrayCol: users.arrayCol }).from(users)),
+			arrayOverlaps(users.arrayCol, sql`select array_col from ${users}`),
 		),
 	);
 
@@ -545,6 +558,7 @@ Expect<
 				age1: number;
 				createdAt: Date;
 				enumCol: 'a' | 'b' | 'c';
+				arrayCol: string[];
 			};
 			currentCity: {
 				id: number;
@@ -564,6 +578,7 @@ Expect<
 				age1: number;
 				createdAt: Date;
 				enumCol: 'a' | 'b' | 'c';
+				arrayCol: string[];
 			};
 			closestCity: {
 				id: number;
@@ -662,6 +677,7 @@ Expect<
 				age1: number;
 				createdAt: Date;
 				enumCol: 'a' | 'b' | 'c';
+				arrayCol: string[];
 			} | null;
 			currentCity: {
 				id: number;
@@ -681,6 +697,7 @@ Expect<
 				age1: number;
 				createdAt: Date;
 				enumCol: 'a' | 'b' | 'c';
+				arrayCol: string[];
 			} | null;
 			closestCity: {
 				id: number;
@@ -811,6 +828,7 @@ Expect<
 			age1: number;
 			createdAt: Date;
 			enumCol: 'a' | 'b' | 'c';
+			arrayCol: string[];
 		};
 	}[], typeof join4>
 >;

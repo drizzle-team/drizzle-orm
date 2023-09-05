@@ -1,0 +1,28 @@
+{
+  "name": "drizzle-aws-lambda",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "migrate": "npx tsx src/db/migrate.ts",
+    "generate-migration": "npx drizzle-kit generate:pg --schema=./src/db/schema.ts --out=./src/db/migrations",
+    "get-users": "sls invoke local -f getUsers"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "aws-lambda": "^1.0.7",
+    "drizzle-orm": "^0.27.0",
+    "pg": "^8.11.1",
+    "postgres": "^3.3.5"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.119",
+    "@types/node": "^20.4.0",
+    "@types/pg": "^8.10.2",
+    "drizzle-kit": "^0.19.3",
+    "serverless-dotenv-plugin": "^6.0.0",
+    "serverless-esbuild": "^1.45.1"
+  }
+}

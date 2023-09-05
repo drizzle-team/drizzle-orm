@@ -1,0 +1,30 @@
+service: drizzle-sample
+
+plugins:
+  - serverless-esbuild
+  - serverless-dotenv-plugin
+
+package:
+  individually: true
+
+custom:
+  esbuild:
+    bundle: true
+    minify: true
+  stage: ${opt:stage, 'dev'}
+
+useDotenv: true
+
+provider:
+  name: aws
+  region: eu-west-1
+  runtime: nodejs18.x
+  memorySize: 512
+  stage: ${self:custom.stage}
+  environment:
+    ENV: ${self:provider.stage}
+    DATABASE_URL: ${env:DATABASE_URL}
+
+functions:
+  getUsers:
+    handler: ./src/api/user.getAll
