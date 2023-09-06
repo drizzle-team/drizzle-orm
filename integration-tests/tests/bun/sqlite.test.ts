@@ -52,7 +52,8 @@ test.before.each((ctx) => {
 
 test.skip('select large integer', async (ctx) => {
 	const a = 1667476703000;
-	const result = ctx.db.all<{ a: number }>(sql`select ${sql.raw(String(a))} as a`)[0]!;
+	const res = await ctx.db.all<{ a: number }>(sql`select ${sql.raw(String(a))} as a`);
+	const result = res[0]!;
 	assert.equal(result.a, a);
 });
 
