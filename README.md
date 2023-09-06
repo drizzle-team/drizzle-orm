@@ -30,21 +30,22 @@ Drizzle ORM is being battle-tested on production projects by multiple teams 🚀
 Check the full documentation on [the website](https://orm.drizzle.team)
 
 ## Supported databases
-| Database        | Support |                                                   |                                                                       |
-| :-------------- | :-----: | :------------------------------------------------ | :-------------------------------------------------------------------- |
-| PostgreSQL      |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start) |                                                                       |
-| MySQL           |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start) |                                                                       |
-| SQLite          |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start) |                                                                       |
-| Cloudflare D1   |   ✅    | [Docs](https://driz.li/docs-d1)                   | [Website](https://developers.cloudflare.com/d1)                       |
-| libSQL          |   ✅    | [Docs](/examples/libsql/README.md)                | [Website](https://libsql.org)                                         |
-| Turso           |   ✅    | [Docs](https://driz.li/docs-turso)                | [Website](https://turso.tech)                                         |
-| PlanetScale     |   ✅    | [Docs](https://driz.li/docs-planetscale)          | [Website](https://planetscale.com/)                                   |
-| Neon            |   ✅    | [Docs](https://driz.li/docs-neon)                 | [Website](https://neon.tech/)                                         |
-| Vercel Postgres |   ✅    | [Docs](https://driz.li/docs-vercel-postgres)      | [Website](https://vercel.com/docs/storage/vercel-postgres/quickstart) |
-| Supabase        |   ✅    | [Docs](https://driz.li/docs-supabase)             | [Website](https://supabase.com)                                      |
-| DynamoDB        |   ⏳    |                                                   |                                                                       |
-| MS SQL          |   ⏳    |                                                   |                                                                       |
-| CockroachDB     |   ⏳    |                                                   |                                                                       |
+
+| Database | Support | Documentation | Website |
+| :-: | :-: | :-: | :-: |
+| PostgreSQL | ✅ | [Docs](https://orm.drizzle.team/docs/quick-start) | [Website](https://postgresql.org)|
+| MySQL | ✅ | [Docs](https://orm.drizzle.team/docs/quick-start) | [Website](https://mysql.com) |
+| SQLite | ✅ | [Docs](https://orm.drizzle.team/docs/quick-start) | [Website](https://sqlite.org) |
+| Cloudflare D1 | ✅ | [Docs](https://driz.li/docs-d1) | [Website](https://developers.cloudflare.com/d1) |
+| libSQL | ✅ | [Docs](/examples/libsql/README.md) | [Website](https://libsql.org) |
+| Turso | ✅ | [Docs](https://driz.li/docs-turso) | [Website](https://turso.tech) |
+| PlanetScale | ✅ | [Docs](https://driz.li/docs-planetscale) | [Website](https://planetscale.com/) |
+| Neon | ✅ | [Docs](https://driz.li/docs-neon) | [Website](https://neon.tech/) |
+| Vercel Postgres | ✅ | [Docs](https://driz.li/docs-vercel-postgres) | [Website](https://vercel.com/docs/storage/vercel-postgres/quickstart) |
+| Supabase | ✅ | [Docs](https://driz.li/docs-supabase) | [Website](https://supabase.com) |
+| DynamoDB | ⏳ | N/A | [Website](https://aws.amazon.com/dynamodb) |
+| Microsoft SQL | ⏳ | N/A | [Website](https://microsoft.com/sql-server) |
+| CockroachDB | ⏳ | N/A | [Website](https://cockroachlabs.com) |
 
 ## Our sponsors ❤️
 
