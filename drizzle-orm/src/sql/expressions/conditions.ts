@@ -256,11 +256,6 @@ export const lte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  * Test whether the first parameter, a column or expression,
  * has a value from a list passed as the second argument.
  *
- * ## Throws
- *
- * The argument passed in the second array can’t be empty:
- * if an empty is provided, this method will throw.
- *
  * ## Examples
  *
  * ```ts
@@ -289,7 +284,7 @@ export function inArray(
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
-			throw new Error('inArray requires at least one value');
+			return sql`FALSE`;
 		}
 		return sql`${column} in ${values.map((v) => bindIfParam(v, column))}`;
 	}
@@ -301,11 +296,6 @@ export function inArray(
  * Test whether the first parameter, a column or expression,
  * has a value that is not present in a list passed as the
  * second argument.
- *
- * ## Throws
- *
- * The argument passed in the second array can’t be empty:
- * if an empty is provided, this method will throw.
  *
  * ## Examples
  *
@@ -335,7 +325,7 @@ export function notInArray(
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
-			throw new Error('notInArray requires at least one value');
+			return sql`TRUE`;
 		}
 		return sql`${column} not in ${values.map((v) => bindIfParam(v, column))}`;
 	}
@@ -613,9 +603,6 @@ export function notIlike(column: Column, value: string | SQLWrapper): SQL {
  *
  * ## Throws
  *
- * The argument passed in the second array can’t be empty:
- * if an empty is provided, this method will throw.
- *
  * ## Examples
  *
  * ```ts
@@ -645,7 +632,7 @@ export function arrayContains(
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
-			throw new Error('arrayContains requires at least one value');
+			return sql`TRUE`;
 		}
 		const array = sql`${bindIfParam(values, column)}`;
 		return sql`${column} @> ${array}`;
@@ -657,11 +644,6 @@ export function arrayContains(
 /**
  * Test that the list passed as the second argument contains
  * all elements of a column or expression.
- *
- * ## Throws
- *
- * The argument passed in the second array can’t be empty:
- * if an empty is provided, this method will throw.
  *
  * ## Examples
  *
@@ -693,7 +675,7 @@ export function arrayContained(
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
-			throw new Error('arrayContained requires at least one value');
+			return sql`FALSE`;
 		}
 		const array = sql`${bindIfParam(values, column)}`;
 		return sql`${column} <@ ${array}`;
@@ -705,11 +687,6 @@ export function arrayContained(
 /**
  * Test that a column or expression contains any elements of
  * the list passed as the second argument.
- *
- * ## Throws
- *
- * The argument passed in the second array can’t be empty:
- * if an empty is provided, this method will throw.
  *
  * ## Examples
  *
@@ -740,7 +717,7 @@ export function arrayOverlaps(
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
-			throw new Error('arrayOverlaps requires at least one value');
+			return sql`FALSE`;
 		}
 		const array = sql`${bindIfParam(values, column)}`;
 		return sql`${column} && ${array}`;
