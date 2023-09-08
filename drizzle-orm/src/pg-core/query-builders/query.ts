@@ -2,12 +2,13 @@ import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import {
 	type BuildQueryResult,
+	type BuildRelationalQueryResult,
 	type DBQueryConfig,
 	mapRelationalRow,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { SQL } from '~/sql/index.ts';
+import type { Query, QueryWithTypings, SQL } from '~/sql/index.ts';
 import { tracer } from '~/tracing.ts';
 import { type KnownKeysOnly } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
@@ -81,38 +82,8 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 
 	private _prepare(name?: string): PreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			// const query = this.tableConfig.primaryKey.length > 0
-			// 	? this.dialect.buildRelationalQueryWithPK({
-			// 		fullSchema: this.fullSchema,
-			// 		schema: this.schema,
-			// 		tableNamesMap: this.tableNamesMap,
-			// 		table: this.table,
-			// 		tableConfig: this.tableConfig,
-			// 		queryConfig: this.config,
-			// 		tableAlias: this.tableConfig.tsName,
-			// 		isRoot: true,
-			// 	})
-			// 	: this.dialect.buildRelationalQueryWithoutPK({
-			// 		fullSchema: this.fullSchema,
-			// 		schema: this.schema,
-			// 		tableNamesMap: this.tableNamesMap,
-			// 		table: this.table,
-			// 		tableConfig: this.tableConfig,
-			// 		queryConfig: this.config,
-			// 		tableAlias: this.tableConfig.tsName,
-			// 	});
+			const { query, builtQuery } = this._toSQL();
 
-			const query = this.dialect.buildRelationalQueryWithoutPK({
-				fullSchema: this.fullSchema,
-				schema: this.schema,
-				tableNamesMap: this.tableNamesMap,
-				table: this.table,
-				tableConfig: this.tableConfig,
-				queryConfig: this.config,
-				tableAlias: this.tableConfig.tsName,
-			});
-
-			const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
 			return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
 				builtQuery,
 				undefined,
@@ -132,6 +103,26 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 
 	prepare(name: string): PreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return this._prepare(name);
+	}
+
+	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+		const query = this.dialect.buildRelationalQueryWithoutPK({
+			fullSchema: this.fullSchema,
+			schema: this.schema,
+			tableNamesMap: this.tableNamesMap,
+			table: this.table,
+			tableConfig: this.tableConfig,
+			queryConfig: this.config,
+			tableAlias: this.tableConfig.tsName,
+		});
+
+		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
+
+		return { query, builtQuery };
+	}
+
+	toSQL(): Query {
+		return this._toSQL().builtQuery;
 	}
 
 	override execute(): Promise<TResult> {

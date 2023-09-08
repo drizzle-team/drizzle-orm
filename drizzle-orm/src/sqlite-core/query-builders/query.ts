@@ -2,12 +2,13 @@ import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import {
 	type BuildQueryResult,
+	type BuildRelationalQueryResult,
 	type DBQueryConfig,
 	mapRelationalRow,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { type SQL } from '~/sql/index.ts';
+import { type Query, type QueryWithTypings, type SQL, type SQLWrapper } from '~/sql/index.ts';
 import { type KnownKeysOnly } from '~/utils.ts';
 import { type SQLiteDialect } from '../dialect.ts';
 import type { PreparedQuery, PreparedQueryConfig, SQLiteSession } from '../session.ts';
@@ -93,10 +94,13 @@ export class RelationalQueryBuilder<
 	}
 }
 
-export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> extends QueryPromise<TResult> {
+export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> extends QueryPromise<TResult> implements SQLWrapper {
 	static readonly [entityKind]: string = 'SQLiteAsyncRelationalQuery';
 
 	declare protected $brand: 'SQLiteRelationalQuery';
+
+	/** @internal */
+	mode: 'many' | 'first';
 
 	constructor(
 		private fullSchema: Record<string, unknown>,
@@ -107,13 +111,15 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 		private dialect: SQLiteDialect,
 		private session: SQLiteSession<'sync' | 'async', unknown, Record<string, unknown>, TablesRelationalConfig>,
 		private config: DBQueryConfig<'many', true> | true,
-		private mode: 'many' | 'first',
+		mode: 'many' | 'first',
 	) {
 		super();
+		this.mode = mode;
 	}
 
-	prepare(): PreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }> {
-		const query = this.dialect.buildRelationalQuery({
+	/** @internal */
+	getSQL(): SQL {
+		return this.dialect.buildRelationalQuery({
 			fullSchema: this.fullSchema,
 			schema: this.schema,
 			tableNamesMap: this.tableNamesMap,
@@ -121,9 +127,12 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 			tableConfig: this.tableConfig,
 			queryConfig: this.config,
 			tableAlias: this.tableConfig.tsName,
-		});
+		}).sql as SQL;
+	}
 
-		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
+	prepare(): PreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }> {
+		const { query, builtQuery } = this._toSQL();
+
 		return this.session.prepareQuery(
 			builtQuery,
 			undefined,
@@ -138,6 +147,26 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 				return rows as TResult;
 			},
 		) as PreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }>;
+	}
+
+	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+		const query = this.dialect.buildRelationalQuery({
+			fullSchema: this.fullSchema,
+			schema: this.schema,
+			tableNamesMap: this.tableNamesMap,
+			table: this.table,
+			tableConfig: this.tableConfig,
+			queryConfig: this.config,
+			tableAlias: this.tableConfig.tsName,
+		});
+
+		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
+
+		return { query, builtQuery };
+	}
+
+	toSQL(): Query {
+		return this._toSQL().builtQuery;
 	}
 
 	/** @internal */

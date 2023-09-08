@@ -7,7 +7,7 @@ import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { InferModel } from '~/table.ts';
-import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type UpdateSet, type Simplify } from '~/utils.ts';
 import type { SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
 
 export interface SQLiteUpdateConfig {
@@ -71,7 +71,8 @@ export class SQLiteUpdate<
 		readonly table: TTable;
 	};
 
-	private config: SQLiteUpdateConfig;
+	/** @internal */
+	config: SQLiteUpdateConfig;
 
 	constructor(
 		table: TTable,
@@ -91,7 +92,7 @@ export class SQLiteUpdate<
 	returning(): SQLiteUpdate<TTable, TResultType, TRunResult, InferModel<TTable>>;
 	returning<TSelectedFields extends SelectedFields>(
 		fields: TSelectedFields,
-	): SQLiteUpdate<TTable, TResultType, TRunResult, SelectResultFields<TSelectedFields>>;
+	): SQLiteUpdate<TTable, TResultType, TRunResult, Simplify<SelectResultFields<TSelectedFields>>>;
 	returning(
 		fields: SelectedFields = this.config.table[SQLiteTable.Symbol.Columns],
 	): SQLiteUpdate<TTable, TResultType, TRunResult, InferModel<TTable>> {
@@ -104,7 +105,7 @@ export class SQLiteUpdate<
 		return this.dialect.buildUpdateQuery(this.config);
 	}
 
-	toSQL(): { sql: Query['sql']; params: Query['params'] } {
+	toSQL(): Query {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}

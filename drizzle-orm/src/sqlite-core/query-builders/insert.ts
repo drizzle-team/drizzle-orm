@@ -94,7 +94,8 @@ export class SQLiteInsert<
 		readonly returning: TReturning;
 	};
 
-	private config: SQLiteInsertConfig<TTable>;
+	/** @internal */
+	config: SQLiteInsertConfig<TTable>;
 
 	constructor(
 		table: TTable,
@@ -109,7 +110,7 @@ export class SQLiteInsert<
 	returning(): SQLiteInsert<TTable, TResultType, TRunResult, InferModel<TTable>>;
 	returning<TSelectedFields extends SelectedFieldsFlat>(
 		fields: TSelectedFields,
-	): SQLiteInsert<TTable, TResultType, TRunResult, SelectResultFields<TSelectedFields>>;
+	): SQLiteInsert<TTable, TResultType, TRunResult, Simplify<SelectResultFields<TSelectedFields>>>;
 	returning(
 		fields: SelectedFieldsFlat = this.config.table[SQLiteTable.Symbol.Columns],
 	): SQLiteInsert<TTable, TResultType, TRunResult, any> {
@@ -145,7 +146,7 @@ export class SQLiteInsert<
 		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	toSQL(): Simplify<{ sql: Query['sql']; params: Query['params'] }> {
+	toSQL(): Simplify<Query> {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
