@@ -2,7 +2,11 @@ import type { Field } from '@aws-sdk/client-rds-data';
 import { TypeHint } from '@aws-sdk/client-rds-data';
 import type { QueryTypingsValue } from '~/sql/index.ts';
 
-export function getValueFromDataApi(field: Field) {
+type ValueFromDataApi = string | number | boolean | Uint8Array
+	| string[] | boolean[] | number[] | null
+	| ValueFromDataApi[];
+
+export function getValueFromDataApi(field: Field): ValueFromDataApi {
 	if (field.stringValue !== undefined) {
 		return field.stringValue;
 	} else if (field.booleanValue !== undefined) {
@@ -19,6 +23,18 @@ export function getValueFromDataApi(field: Field) {
 	} else if (field.arrayValue !== undefined) {
 		if (field.arrayValue.stringValues !== undefined) {
 			return field.arrayValue.stringValues;
+		}
+		if (field.arrayValue.booleanValues !== undefined) {
+			return field.arrayValue.booleanValues;
+		}
+		if (field.arrayValue.longValues !== undefined) {
+			return field.arrayValue.longValues;
+		}
+		if (field.arrayValue.doubleValues !== undefined) {
+			return field.arrayValue.doubleValues;
+		}
+		if (field.arrayValue.arrayValues !== undefined) {
+			return field.arrayValue.arrayValues.map((arrayValue => getValueFromDataApi({ arrayValue })));
 		}
 		throw new Error('Unknown array type');
 	} else {
