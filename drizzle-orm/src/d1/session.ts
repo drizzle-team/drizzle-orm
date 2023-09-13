@@ -119,7 +119,7 @@ export class SQLiteD1Session<
 			stmt.map(({ results }, index) => {
 				const action = queryToType[index]!;
 				if (action.mode === 'all') {
-					return results![0];
+					return results;
 				}
 				if (action.mode === 'all_mapped') {
 					const mappedRows = this.d1ToRawMapping(results);
