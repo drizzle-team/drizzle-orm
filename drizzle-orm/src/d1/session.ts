@@ -55,6 +55,12 @@ export class SQLiteD1Session<
 		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields, executeMethod, customResultMapper);
 	}
 
+	/**
+	 * This function was taken from the D1 implementation: https://github.com/cloudflare/workerd/blob/4aae9f4c7ae30a59a88ca868c4aff88bda85c956/src/cloudflare/internal/d1-api.ts#L287
+	 * It may cause issues with duplicated column names in join queries, which should be fixed on the D1 side.
+	 * @param results
+	 * @returns
+	 */
 	private d1ToRawMapping(results: any) {
 		const rows: unknown[][] = [];
 		for (const row of results) {
