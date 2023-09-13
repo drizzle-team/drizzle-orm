@@ -1,4 +1,5 @@
 import { type Client, type InArgs, type InStatement, type ResultSet, type Transaction } from '@libsql/client';
+import type { BatchParameters } from '~/batch.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -16,7 +17,6 @@ import {
 } from '~/sqlite-core/session.ts';
 import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session.ts';
 import { mapResultRow } from '~/utils.ts';
-import type { BatchParameters } from './driver.ts';
 
 export interface LibSQLSessionOptions {
 	logger?: Logger;
@@ -74,11 +74,10 @@ export class LibSQLSession<
 			| { mode: 'rqb'; mapper: any }
 		)[] = [];
 
-		const builtQueries: InStatement[] = queries.map((query) => {
+		const builtQueries: InStatement[] = queries.map((query: BatchParameters) => {
 			const builtQuery = this.dialect.sqlToQuery(query.getSQL());
 
-			if (is(query, SQLiteSelect)) {
-				// @ts-expect-error
+			if (is(query, SQLiteSelect<any, 'async', any, any, any>)) {
 				const prepared = query.prepare() as PreparedQuery;
 				prepared.fields === undefined
 					? queryToType.push({ mode: 'all' })
@@ -86,16 +85,6 @@ export class LibSQLSession<
 						mode: 'all_mapped',
 						config: { fields: prepared.fields, joinsNotNullableMap: prepared.joinsNotNullableMap },
 					});
-			} else if (is(query, SQLiteInsert) || is(query, SQLiteUpdate) || is(query, SQLiteDelete)) {
-				queryToType.push(
-					// @ts-expect-error
-					query.config.returning
-						? {
-							mode: 'all_mapped',
-							config: { fields: query.config.returning },
-						}
-						: { mode: 'raw' },
-				);
 			} else if (is(query, SQLiteRaw)) {
 				queryToType.push(
 					query.config.action === 'run' ? { mode: 'raw' } : { mode: query.config.action },
@@ -103,6 +92,19 @@ export class LibSQLSession<
 			} else if (is(query, SQLiteRelationalQuery)) {
 				const preparedRqb = query.prepare() as PreparedQuery;
 				queryToType.push({ mode: 'rqb', mapper: preparedRqb.customResultMapper });
+			} else if (
+				is(query, SQLiteInsert<any, 'async', any, any>)
+				|| is(query, SQLiteUpdate<any, 'async', any, any>)
+				|| is(query, SQLiteDelete<any, 'async', any, any>)
+			) {
+				queryToType.push(
+					query.config.returning
+						? {
+							mode: 'all_mapped',
+							config: { fields: query.config.returning },
+						}
+						: { mode: 'raw' },
+				);
 			}
 
 			return { sql: builtQuery.sql, args: builtQuery.params as InArgs };

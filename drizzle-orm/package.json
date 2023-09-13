@@ -1,6 +1,6 @@
 {
   "name": "drizzle-orm",
-  "version": "0.28.6",
+  "version": "0.28.7",
   "description": "Drizzle ORM package for SQL databases",
   "type": "module",
   "scripts": {
@@ -124,7 +124,7 @@
   },
   "devDependencies": {
     "@aws-sdk/client-rds-data": "^3.344.0",
-    "@cloudflare/workers-types": "^4.20230518.0",
+    "@cloudflare/workers-types": "^4.20230904.0",
     "@libsql/client": "^0.1.6",
     "@neondatabase/serverless": "^0.4.24",
     "@opentelemetry/api": "^1.4.1",
