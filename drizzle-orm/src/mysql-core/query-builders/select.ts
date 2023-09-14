@@ -10,7 +10,6 @@ import type {
 import type { SubqueryWithSelection } from '~/mysql-core/subquery.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { MySqlViewBase } from '~/mysql-core/view.ts';
-import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	BuildSubquerySelection,
 	GetSelectTableName,
@@ -37,6 +36,7 @@ import type {
 	MySqlSelectQueryBuilderHKT,
 	SelectedFields,
 } from './select.types.ts';
+import { MySqlSetOperatorBuilder } from './set-operators.ts';
 
 type CreateMySqlSelectFromBuilderMode<
 	TBuilderMode extends 'db' | 'qb',
@@ -128,9 +128,12 @@ export abstract class MySqlSelectQueryBuilder<
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
-> extends TypedQueryBuilder<
-	BuildSubquerySelection<TSelection, TNullabilityMap>,
-	SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
+> extends MySqlSetOperatorBuilder<
+	TTableName,
+	TSelection,
+	TSelectMode,
+	PreparedQueryHKTBase,
+	TNullabilityMap
 > {
 	static readonly [entityKind]: string = 'MySqlSelectQueryBuilder';
 
