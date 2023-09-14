@@ -1,6 +1,7 @@
 import { entityKind, is } from '~/entity.ts';
 import {
 	applyMixins,
+	type KnownKeysOnly,
 	orderSelectedFields,
 	type Placeholder,
 	type Query,
@@ -77,23 +78,39 @@ export abstract class MySqlSetOperatorBuilder<
 			fields: this.config.fields,
 		};
 	}
-
-	union(
-		rightSelect: MySqlSetOperatorBuilder<
-			TTableName,
-			TSelection,
-			TSelectMode,
-			TPreparedQueryHKT,
-			TNullabilityMap
-		>,
+	union<TValue extends TypedQueryBuilder<any, any>>(
+		rightSelect: TValue extends TypedQueryBuilder<any, infer R>
+			? R extends SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
+				? KnownKeysOnly<R[number], SelectResult<TSelection, TSelectMode, TNullabilityMap>> extends R[number]
+					? TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>
+				: never
+			: never
+			: never,
 	): MySqlSetOperator<
 		TTableName,
 		TSelection,
 		TSelectMode,
-		TPreparedQueryHKT
+		TPreparedQueryHKT,
+		TNullabilityMap
 	> {
-		return new MySqlSetOperator('union', false, this, rightSelect) as any;
+		return new MySqlSetOperator('union', false, this, rightSelect as any);
 	}
+
+	// union<TValue extends TypedQueryBuilder<any, any>>(
+	// 	rightSelect: TValue extends TypedQueryBuilder<any, infer R>
+	// 		? R extends SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
+	// 			? TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>
+	// 		: 'first'
+	// 		: 'second',
+	// ): MySqlSetOperator<
+	// 	TTableName,
+	// 	TSelection,
+	// 	TSelectMode,
+	// 	TPreparedQueryHKT,
+	// 	TNullabilityMap
+	// > {
+	// 	return new MySqlSetOperator('union', false, this, rightSelect as any);
+	// }
 
 	unionAll(
 		rightSelect: MySqlSetOperatorBuilder<
@@ -107,9 +124,10 @@ export abstract class MySqlSetOperatorBuilder<
 		TTableName,
 		TSelection,
 		TSelectMode,
-		TPreparedQueryHKT
+		TPreparedQueryHKT,
+		TNullabilityMap
 	> {
-		return new MySqlSetOperator('union', true, this, rightSelect) as any;
+		return new MySqlSetOperator('union', true, this, rightSelect);
 	}
 
 	intersect(
@@ -124,9 +142,10 @@ export abstract class MySqlSetOperatorBuilder<
 		TTableName,
 		TSelection,
 		TSelectMode,
-		TPreparedQueryHKT
+		TPreparedQueryHKT,
+		TNullabilityMap
 	> {
-		return new MySqlSetOperator('intersect', false, this, rightSelect) as any;
+		return new MySqlSetOperator('intersect', false, this, rightSelect);
 	}
 
 	intersectAll(
@@ -141,9 +160,10 @@ export abstract class MySqlSetOperatorBuilder<
 		TTableName,
 		TSelection,
 		TSelectMode,
-		TPreparedQueryHKT
+		TPreparedQueryHKT,
+		TNullabilityMap
 	> {
-		return new MySqlSetOperator('intersect', true, this, rightSelect) as any;
+		return new MySqlSetOperator('intersect', true, this, rightSelect);
 	}
 
 	except(
@@ -158,9 +178,10 @@ export abstract class MySqlSetOperatorBuilder<
 		TTableName,
 		TSelection,
 		TSelectMode,
-		TPreparedQueryHKT
+		TPreparedQueryHKT,
+		TNullabilityMap
 	> {
-		return new MySqlSetOperator('except', false, this, rightSelect) as any;
+		return new MySqlSetOperator('except', false, this, rightSelect);
 	}
 
 	exceptAll(
@@ -175,9 +196,10 @@ export abstract class MySqlSetOperatorBuilder<
 		TTableName,
 		TSelection,
 		TSelectMode,
-		TPreparedQueryHKT
+		TPreparedQueryHKT,
+		TNullabilityMap
 	> {
-		return new MySqlSetOperator('except', true, this, rightSelect) as any;
+		return new MySqlSetOperator('except', true, this, rightSelect);
 	}
 
 	abstract orderBy(builder: (aliases: TSelection) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>): this;
