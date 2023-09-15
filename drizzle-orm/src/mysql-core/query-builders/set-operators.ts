@@ -1,7 +1,6 @@
 import { entityKind, is } from '~/entity.ts';
 import {
 	applyMixins,
-	type KnownKeysOnly,
 	orderSelectedFields,
 	type Placeholder,
 	type Query,
@@ -9,6 +8,7 @@ import {
 	SelectionProxyHandler,
 	SQL,
 	sql,
+	type ValidateShape,
 	type ValueOrArray,
 } from '~/index.ts';
 import type {
@@ -29,6 +29,7 @@ import { MySqlColumn } from '../columns/common.ts';
 import type { MySqlDialect } from '../dialect.ts';
 
 type SetOperator = 'union' | 'intersect' | 'except';
+// type NewValidate<T, P, TResult = T> = T extends P ? P extends T ? TResult : 'one' : 'dos';
 
 export interface MySqlSetOperatorBuilder<
 	TTableName extends string | undefined,
@@ -78,127 +79,75 @@ export abstract class MySqlSetOperatorBuilder<
 			fields: this.config.fields,
 		};
 	}
-	union<TValue extends TypedQueryBuilder<any, any>>(
-		rightSelect: TValue extends TypedQueryBuilder<any, infer R>
-			? R extends SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
-				? KnownKeysOnly<R[number], SelectResult<TSelection, TSelectMode, TNullabilityMap>> extends R[number]
-					? TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>
-				: never
-			: never
-			: never,
-	): MySqlSetOperator<
-		TTableName,
-		TSelection,
-		TSelectMode,
-		TPreparedQueryHKT,
-		TNullabilityMap
-	> {
-		return new MySqlSetOperator('union', false, this, rightSelect as any);
+	union<TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
+		rightSelect: TValue extends
+			MySqlSetOperatorBuilder<infer TName, infer TSel, infer TMode, infer TPrepared, infer TNull> ? ValidateShape<
+				SelectResult<TSel, TMode, TNull>,
+				SelectResult<TSelection, TSelectMode, TNullabilityMap>,
+				MySqlSetOperatorBuilder<TName, TSel, TMode, TPrepared, TNull>
+			>
+			: TValue,
+	): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
+		return new MySqlSetOperator('union', false, this, rightSelect);
 	}
 
-	// union<TValue extends TypedQueryBuilder<any, any>>(
-	// 	rightSelect: TValue extends TypedQueryBuilder<any, infer R>
-	// 		? R extends SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
-	// 			? TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>
-	// 		: 'first'
-	// 		: 'second',
-	// ): MySqlSetOperator<
-	// 	TTableName,
-	// 	TSelection,
-	// 	TSelectMode,
-	// 	TPreparedQueryHKT,
-	// 	TNullabilityMap
-	// > {
-	// 	return new MySqlSetOperator('union', false, this, rightSelect as any);
-	// }
-
-	unionAll(
-		rightSelect: MySqlSetOperatorBuilder<
-			TTableName,
-			TSelection,
-			TSelectMode,
-			TPreparedQueryHKT,
-			TNullabilityMap
-		>,
-	): MySqlSetOperator<
-		TTableName,
-		TSelection,
-		TSelectMode,
-		TPreparedQueryHKT,
-		TNullabilityMap
-	> {
+	unionAll<TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
+		rightSelect: TValue extends
+			MySqlSetOperatorBuilder<infer TName, infer TSel, infer TMode, infer TPrepared, infer TNull> ? ValidateShape<
+				SelectResult<TSel, TMode, TNull>,
+				SelectResult<TSelection, TSelectMode, TNullabilityMap>,
+				MySqlSetOperatorBuilder<TName, TSel, TMode, TPrepared, TNull>
+			>
+			: TValue,
+	): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
 		return new MySqlSetOperator('union', true, this, rightSelect);
 	}
 
-	intersect(
-		rightSelect: MySqlSetOperatorBuilder<
-			TTableName,
-			TSelection,
-			TSelectMode,
-			TPreparedQueryHKT,
-			TNullabilityMap
-		>,
-	): MySqlSetOperator<
-		TTableName,
-		TSelection,
-		TSelectMode,
-		TPreparedQueryHKT,
-		TNullabilityMap
-	> {
+	intersect<TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
+		rightSelect: TValue extends
+			MySqlSetOperatorBuilder<infer TName, infer TSel, infer TMode, infer TPrepared, infer TNull> ? ValidateShape<
+				SelectResult<TSel, TMode, TNull>,
+				SelectResult<TSelection, TSelectMode, TNullabilityMap>,
+				MySqlSetOperatorBuilder<TName, TSel, TMode, TPrepared, TNull>
+			>
+			: TValue,
+	): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
 		return new MySqlSetOperator('intersect', false, this, rightSelect);
 	}
 
-	intersectAll(
-		rightSelect: MySqlSetOperatorBuilder<
-			TTableName,
-			TSelection,
-			TSelectMode,
-			TPreparedQueryHKT,
-			TNullabilityMap
-		>,
-	): MySqlSetOperator<
-		TTableName,
-		TSelection,
-		TSelectMode,
-		TPreparedQueryHKT,
-		TNullabilityMap
-	> {
+	intersectAll<TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
+		rightSelect: TValue extends
+			MySqlSetOperatorBuilder<infer TName, infer TSel, infer TMode, infer TPrepared, infer TNull> ? ValidateShape<
+				SelectResult<TSel, TMode, TNull>,
+				SelectResult<TSelection, TSelectMode, TNullabilityMap>,
+				MySqlSetOperatorBuilder<TName, TSel, TMode, TPrepared, TNull>
+			>
+			: TValue,
+	): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
 		return new MySqlSetOperator('intersect', true, this, rightSelect);
 	}
 
-	except(
-		rightSelect: MySqlSetOperatorBuilder<
-			TTableName,
-			TSelection,
-			TSelectMode,
-			TPreparedQueryHKT,
-			TNullabilityMap
-		>,
-	): MySqlSetOperator<
-		TTableName,
-		TSelection,
-		TSelectMode,
-		TPreparedQueryHKT,
-		TNullabilityMap
-	> {
+	except<TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
+		rightSelect: TValue extends
+			MySqlSetOperatorBuilder<infer TName, infer TSel, infer TMode, infer TPrepared, infer TNull> ? ValidateShape<
+				SelectResult<TSel, TMode, TNull>,
+				SelectResult<TSelection, TSelectMode, TNullabilityMap>,
+				MySqlSetOperatorBuilder<TName, TSel, TMode, TPrepared, TNull>
+			>
+			: TValue,
+	): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
 		return new MySqlSetOperator('except', false, this, rightSelect);
 	}
 
-	exceptAll(
-		rightSelect: MySqlSetOperatorBuilder<
-			TTableName,
-			TSelection,
-			TSelectMode,
-			TPreparedQueryHKT,
-			TNullabilityMap
-		>,
-	): MySqlSetOperator<
-		TTableName,
-		TSelection,
-		TSelectMode,
-		TPreparedQueryHKT,
-		TNullabilityMap
-	> {
+	exceptAll<TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
+		rightSelect: TValue extends
+			MySqlSetOperatorBuilder<infer TName, infer TSel, infer TMode, infer TPrepared, infer TNull> ? ValidateShape<
+				SelectResult<TSel, TMode, TNull>,
+				SelectResult<TSelection, TSelectMode, TNullabilityMap>,
+				MySqlSetOperatorBuilder<TName, TSel, TMode, TPrepared, TNull>
+			>
+			: TValue,
+	): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
 		return new MySqlSetOperator('except', true, this, rightSelect);
 	}
 
@@ -244,13 +193,7 @@ export class MySqlSetOperator<
 			TPreparedQueryHKT,
 			TNullabilityMap
 		>,
-		private rightSelect: MySqlSetOperatorBuilder<
-			TTableName,
-			TSelection,
-			TSelectMode,
-			TPreparedQueryHKT,
-			TNullabilityMap
-		>,
+		private rightSelect: TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
 	) {
 		super();
 		const { session, dialect, joinsNotNullableMap, fields } = leftSelect.getSetOperatorConfig();
@@ -370,8 +313,8 @@ export function union<
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
-		: {},
+	TNullabilityMap extends Record<string, JoinNullability>,
+	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
 >(
 	leftSelect: MySqlSetOperatorBuilder<
 		TTableName,
@@ -380,13 +323,13 @@ export function union<
 		TPreparedQueryHKT,
 		TNullabilityMap
 	>,
-	rightSelect: MySqlSetOperatorBuilder<
-		TTableName,
-		TSelection,
-		TSelectMode,
-		TPreparedQueryHKT,
-		TNullabilityMap
-	>,
+	rightSelect: TValue extends
+		MySqlSetOperatorBuilder<infer TName, infer TSel, infer TMode, infer TPrepared, infer TNull> ? ValidateShape<
+			SelectResult<TSel, TMode, TNull>,
+			SelectResult<TSelection, TSelectMode, TNullabilityMap>,
+			MySqlSetOperatorBuilder<TName, TSel, TMode, TPrepared, TNull>
+		>
+		: TValue,
 ): MySqlSetOperator<
 	TTableName,
 	TSelection,
@@ -402,8 +345,8 @@ export function unionAll<
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
-		: {},
+	TNullabilityMap extends Record<string, JoinNullability>,
+	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
 >(
 	leftSelect: MySqlSetOperatorBuilder<
 		TTableName,
@@ -412,13 +355,13 @@ export function unionAll<
 		TPreparedQueryHKT,
 		TNullabilityMap
 	>,
-	rightSelect: MySqlSetOperatorBuilder<
-		TTableName,
-		TSelection,
-		TSelectMode,
-		TPreparedQueryHKT,
-		TNullabilityMap
-	>,
+	rightSelect: TValue extends
+		MySqlSetOperatorBuilder<infer TName, infer TSel, infer TMode, infer TPrepared, infer TNull> ? ValidateShape<
+			SelectResult<TSel, TMode, TNull>,
+			SelectResult<TSelection, TSelectMode, TNullabilityMap>,
+			MySqlSetOperatorBuilder<TName, TSel, TMode, TPrepared, TNull>
+		>
+		: TValue,
 ): MySqlSetOperator<
 	TTableName,
 	TSelection,
@@ -434,8 +377,8 @@ export function intersect<
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
-		: {},
+	TNullabilityMap extends Record<string, JoinNullability>,
+	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
 >(
 	leftSelect: MySqlSetOperatorBuilder<
 		TTableName,
@@ -444,13 +387,13 @@ export function intersect<
 		TPreparedQueryHKT,
 		TNullabilityMap
 	>,
-	rightSelect: MySqlSetOperatorBuilder<
-		TTableName,
-		TSelection,
-		TSelectMode,
-		TPreparedQueryHKT,
-		TNullabilityMap
-	>,
+	rightSelect: TValue extends
+		MySqlSetOperatorBuilder<infer TName, infer TSel, infer TMode, infer TPrepared, infer TNull> ? ValidateShape<
+			SelectResult<TSel, TMode, TNull>,
+			SelectResult<TSelection, TSelectMode, TNullabilityMap>,
+			MySqlSetOperatorBuilder<TName, TSel, TMode, TPrepared, TNull>
+		>
+		: TValue,
 ): MySqlSetOperator<
 	TTableName,
 	TSelection,
@@ -466,8 +409,8 @@ export function intersectAll<
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
-		: {},
+	TNullabilityMap extends Record<string, JoinNullability>,
+	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
 >(
 	leftSelect: MySqlSetOperatorBuilder<
 		TTableName,
@@ -476,13 +419,13 @@ export function intersectAll<
 		TPreparedQueryHKT,
 		TNullabilityMap
 	>,
-	rightSelect: MySqlSetOperatorBuilder<
-		TTableName,
-		TSelection,
-		TSelectMode,
-		TPreparedQueryHKT,
-		TNullabilityMap
-	>,
+	rightSelect: TValue extends
+		MySqlSetOperatorBuilder<infer TName, infer TSel, infer TMode, infer TPrepared, infer TNull> ? ValidateShape<
+			SelectResult<TSel, TMode, TNull>,
+			SelectResult<TSelection, TSelectMode, TNullabilityMap>,
+			MySqlSetOperatorBuilder<TName, TSel, TMode, TPrepared, TNull>
+		>
+		: TValue,
 ): MySqlSetOperator<
 	TTableName,
 	TSelection,
@@ -498,8 +441,8 @@ export function except<
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
-		: {},
+	TNullabilityMap extends Record<string, JoinNullability>,
+	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
 >(
 	leftSelect: MySqlSetOperatorBuilder<
 		TTableName,
@@ -508,13 +451,13 @@ export function except<
 		TPreparedQueryHKT,
 		TNullabilityMap
 	>,
-	rightSelect: MySqlSetOperatorBuilder<
-		TTableName,
-		TSelection,
-		TSelectMode,
-		TPreparedQueryHKT,
-		TNullabilityMap
-	>,
+	rightSelect: TValue extends
+		MySqlSetOperatorBuilder<infer TName, infer TSel, infer TMode, infer TPrepared, infer TNull> ? ValidateShape<
+			SelectResult<TSel, TMode, TNull>,
+			SelectResult<TSelection, TSelectMode, TNullabilityMap>,
+			MySqlSetOperatorBuilder<TName, TSel, TMode, TPrepared, TNull>
+		>
+		: TValue,
 ): MySqlSetOperator<
 	TTableName,
 	TSelection,
@@ -530,8 +473,8 @@ export function exceptAll<
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
-		: {},
+	TNullabilityMap extends Record<string, JoinNullability>,
+	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
 >(
 	leftSelect: MySqlSetOperatorBuilder<
 		TTableName,
@@ -540,13 +483,13 @@ export function exceptAll<
 		TPreparedQueryHKT,
 		TNullabilityMap
 	>,
-	rightSelect: MySqlSetOperatorBuilder<
-		TTableName,
-		TSelection,
-		TSelectMode,
-		TPreparedQueryHKT,
-		TNullabilityMap
-	>,
+	rightSelect: TValue extends
+		MySqlSetOperatorBuilder<infer TName, infer TSel, infer TMode, infer TPrepared, infer TNull> ? ValidateShape<
+			SelectResult<TSel, TMode, TNull>,
+			SelectResult<TSelection, TSelectMode, TNullabilityMap>,
+			MySqlSetOperatorBuilder<TName, TSel, TMode, TPrepared, TNull>
+		>
+		: TValue,
 ): MySqlSetOperator<
 	TTableName,
 	TSelection,
