@@ -177,3 +177,53 @@ export class PgDatabase<
 		return this.session.transaction(transaction, config);
 	}
 }
+
+export type PgWithReplicas<Q> = Q & { $primary: Q };
+
+export const withReplicas = <
+	HKT extends QueryResultHKT,
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
+	Q extends PgDatabase<HKT, TFullSchema, TSchema>,
+>(
+	primary: Q,
+	replicas: [Q, ...Q[]],
+	getReplica: (replicas: Q[]) => Q = () => replicas[Math.floor(Math.random() * replicas.length)]!,
+): PgWithReplicas<Q> => {
+	const select: Q['select'] = (...args: any) => getReplica(replicas).select(args);
+	const selectDistinct: Q['selectDistinct'] = (...args: any) => getReplica(replicas).selectDistinct(args);
+	const selectDistinctOn: Q['selectDistinctOn'] = (...args: any) => getReplica(replicas).selectDistinctOn(args);
+	const $with: Q['with'] = (...args: any) => getReplica(replicas).with(args);
+
+	const update: Q['update'] = (...args: any) => primary.update(args);
+	const insert: Q['insert'] = (...args: any) => primary.insert(args);
+	const $delete: Q['delete'] = (...args: any) => primary.delete(args);
+	const execute: Q['execute'] = (...args: any) => primary.execute(args);
+	const transaction: Q['transaction'] = (...args: any) => primary.transaction(args);
+	const refreshMaterializedView: Q['refreshMaterializedView'] = (...args: any) => primary.refreshMaterializedView(args);
+
+	return new Proxy<Q & { $primary: Q }>(
+		{
+			...primary,
+			update,
+			insert,
+			delete: $delete,
+			execute,
+			transaction,
+			refreshMaterializedView,
+			$primary: primary,
+			select,
+			selectDistinct,
+			selectDistinctOn,
+			with: $with,
+		},
+		{
+			get(target, prop, _receiver) {
+				if (prop === 'query') {
+					return getReplica(replicas).query;
+				}
+				return target[prop as keyof typeof target];
+			},
+		},
+	);
+};

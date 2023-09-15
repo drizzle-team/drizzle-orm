@@ -4,7 +4,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
 	test: {
-		include: ['tests/relational/**/*.test.ts', 'tests/libsql-batch.test.ts', 'tests/d1-batch.test.ts'],
+		include: ['tests/relational/**/*.test.ts', 'tests/libsql-batch.test.ts', 'tests/d1-batch.test.ts', 'tests/replicas/**/*'],
 		exclude: [
 			...(process.env.SKIP_PLANETSCALE_TESTS ? ['tests/relational/mysql.planetscale.test.ts'] : []),
 			'tests/relational/vercel.test.ts',
