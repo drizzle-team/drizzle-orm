@@ -311,6 +311,7 @@ export class MySqlSetOperator<
 	private createIterator = (): ReturnType<this['prepare']>['iterator'] => {
 		const self = this;
 		return async function*(placeholderValues) {
+			console.log('placeholderValues', placeholderValues);
 			yield* self.prepare().iterator(placeholderValues);
 		};
 	};
@@ -329,19 +330,17 @@ export function union<
 	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
 >(
 	leftSelect: MySqlSetOperatorBuilder<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap>,
-	...rightSelects: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>[]
+	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
+	...restSelects: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>[]
 ): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
-	if (rightSelects.length < 1) {
-		throw new Error('This operator requires at least two arguments');
-	}
-
-	const [rightSelect, ...rest] = rightSelects;
-
-	if (rightSelect && rest.length === 0) {
+	if (restSelects.length === 0) {
 		return new MySqlSetOperator('union', false, leftSelect, rightSelect);
 	}
 
-	return union(new MySqlSetOperator('union', false, leftSelect, rightSelect!), ...rest);
+	const [select, ...rest] = restSelects;
+	if (!select) throw new Error('Cannot pass undefined values to any set operator');
+
+	return union(new MySqlSetOperator('union', false, leftSelect, rightSelect), select, ...rest);
 }
 
 export function unionAll<
@@ -353,19 +352,17 @@ export function unionAll<
 	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
 >(
 	leftSelect: MySqlSetOperatorBuilder<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap>,
-	...rightSelects: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>[]
+	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
+	...restSelects: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>[]
 ): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
-	if (rightSelects.length < 1) {
-		throw new Error('This operator requires at least two arguments');
-	}
-
-	const [rightSelect, ...rest] = rightSelects;
-
-	if (rightSelect && rest.length === 0) {
+	if (restSelects.length === 0) {
 		return new MySqlSetOperator('union', true, leftSelect, rightSelect);
 	}
 
-	return unionAll(new MySqlSetOperator('union', true, leftSelect, rightSelect!), ...rest);
+	const [select, ...rest] = restSelects;
+	if (!select) throw new Error('Cannot pass undefined values to any set operator');
+
+	return unionAll(new MySqlSetOperator('union', true, leftSelect, rightSelect), select, ...rest);
 }
 
 export function intersect<
@@ -377,19 +374,17 @@ export function intersect<
 	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
 >(
 	leftSelect: MySqlSetOperatorBuilder<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap>,
-	...rightSelects: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>[]
+	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
+	...restSelects: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>[]
 ): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
-	if (rightSelects.length < 1) {
-		throw new Error('This operator requires at least two arguments');
-	}
-
-	const [rightSelect, ...rest] = rightSelects;
-
-	if (rightSelect && rest.length === 0) {
+	if (restSelects.length === 0) {
 		return new MySqlSetOperator('intersect', false, leftSelect, rightSelect);
 	}
 
-	return intersect(new MySqlSetOperator('intersect', false, leftSelect, rightSelect!), ...rest);
+	const [select, ...rest] = restSelects;
+	if (!select) throw new Error('Cannot pass undefined values to any set operator');
+
+	return intersect(new MySqlSetOperator('intersect', false, leftSelect, rightSelect!), select, ...rest);
 }
 
 export function intersectAll<
@@ -401,19 +396,17 @@ export function intersectAll<
 	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
 >(
 	leftSelect: MySqlSetOperatorBuilder<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap>,
-	...rightSelects: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>[]
+	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
+	...restSelects: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>[]
 ): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
-	if (rightSelects.length < 1) {
-		throw new Error('This operator requires at least two arguments');
-	}
-
-	const [rightSelect, ...rest] = rightSelects;
-
-	if (rightSelect && rest.length === 0) {
+	if (restSelects.length === 0) {
 		return new MySqlSetOperator('intersect', true, leftSelect, rightSelect);
 	}
 
-	return intersectAll(new MySqlSetOperator('intersect', true, leftSelect, rightSelect!), ...rest);
+	const [select, ...rest] = restSelects;
+	if (!select) throw new Error('Cannot pass undefined values to any set operator');
+
+	return intersectAll(new MySqlSetOperator('intersect', true, leftSelect, rightSelect!), select, ...rest);
 }
 
 export function except<
@@ -425,19 +418,17 @@ export function except<
 	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
 >(
 	leftSelect: MySqlSetOperatorBuilder<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap>,
-	...rightSelects: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>[]
+	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
+	...restSelects: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>[]
 ): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
-	if (rightSelects.length < 1) {
-		throw new Error('This operator requires at least two arguments');
-	}
-
-	const [rightSelect, ...rest] = rightSelects;
-
-	if (rightSelect && rest.length === 0) {
+	if (restSelects.length === 0) {
 		return new MySqlSetOperator('except', false, leftSelect, rightSelect);
 	}
 
-	return except(new MySqlSetOperator('except', false, leftSelect, rightSelect!), ...rest);
+	const [select, ...rest] = restSelects;
+	if (!select) throw new Error('Cannot pass undefined values to any set operator');
+
+	return except(new MySqlSetOperator('except', false, leftSelect, rightSelect!), select, ...rest);
 }
 
 export function exceptAll<
@@ -449,17 +440,15 @@ export function exceptAll<
 	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
 >(
 	leftSelect: MySqlSetOperatorBuilder<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap>,
-	...rightSelects: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>[]
+	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
+	...restSelects: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>[]
 ): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
-	if (rightSelects.length < 1) {
-		throw new Error('This operator requires at least two arguments');
-	}
-
-	const [rightSelect, ...rest] = rightSelects;
-
-	if (rightSelect && rest.length === 0) {
+	if (restSelects.length === 0) {
 		return new MySqlSetOperator('except', false, leftSelect, rightSelect);
 	}
 
-	return exceptAll(new MySqlSetOperator('except', false, leftSelect, rightSelect!), ...rest);
+	const [select, ...rest] = restSelects;
+	if (!select) throw new Error('Cannot pass undefined values to any set operator');
+
+	return exceptAll(new MySqlSetOperator('except', false, leftSelect, rightSelect!), select, ...rest);
 }
