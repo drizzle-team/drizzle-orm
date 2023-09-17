@@ -24,7 +24,28 @@ const updateRunBun = bunDb.update(users)
 	.run();
 Expect<Equal<void, typeof updateRunBun>>;
 
-const updateAll = db.update(users)
+const updateLimit = db
+	.update(users)
+	.set({
+		name: 'John',
+		age1: 30,
+	})
+	.limit(1)
+	.run();
+Expect<Equal<RunResult, typeof updateLimit>>;
+
+const updateLimitBun = bunDb
+	.update(users)
+	.set({
+		name: 'John',
+		age1: 30,
+	})
+	.limit(1)
+	.run();
+Expect<Equal<void, typeof updateLimitBun>>;
+
+const updateAll = db
+	.update(users)
 	.set({
 		name: 'John',
 		age1: 30,
