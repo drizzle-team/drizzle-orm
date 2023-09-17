@@ -30,6 +30,19 @@ import type { MySqlDialect } from '../dialect.ts';
 
 type SetOperator = 'union' | 'intersect' | 'except';
 
+const getMySqlSetOperators = () => {
+	return {
+		union,
+		unionAll,
+		intersect,
+		intersectAll,
+		except,
+		exceptAll,
+	};
+};
+
+type MySqlSetOperators = ReturnType<typeof getMySqlSetOperators>;
+
 type SetOperatorRightSelect<
 	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
 	TSelection extends ColumnsSelection,
@@ -91,39 +104,63 @@ export abstract class MySqlSetOperatorBuilder<
 		};
 	}
 	union<TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
-		rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
+		rightSelect:
+			| SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>
+			| ((setOperator: MySqlSetOperators) => SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>),
 	): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
-		return new MySqlSetOperator('union', false, this, rightSelect);
+		const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getMySqlSetOperators()) : rightSelect;
+
+		return new MySqlSetOperator('union', false, this, rightSelectOrig);
 	}
 
 	unionAll<TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
-		rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
+		rightSelect:
+			| SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>
+			| ((setOperator: MySqlSetOperators) => SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>),
 	): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
-		return new MySqlSetOperator('union', true, this, rightSelect);
+		const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getMySqlSetOperators()) : rightSelect;
+
+		return new MySqlSetOperator('union', true, this, rightSelectOrig);
 	}
 
 	intersect<TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
-		rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
+		rightSelect:
+			| SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>
+			| ((setOperator: MySqlSetOperators) => SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>),
 	): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
-		return new MySqlSetOperator('intersect', false, this, rightSelect);
+		const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getMySqlSetOperators()) : rightSelect;
+
+		return new MySqlSetOperator('intersect', false, this, rightSelectOrig);
 	}
 
 	intersectAll<TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
-		rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
+		rightSelect:
+			| SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>
+			| ((setOperator: MySqlSetOperators) => SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>),
 	): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
-		return new MySqlSetOperator('intersect', true, this, rightSelect);
+		const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getMySqlSetOperators()) : rightSelect;
+
+		return new MySqlSetOperator('intersect', true, this, rightSelectOrig);
 	}
 
 	except<TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
-		rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
+		rightSelect:
+			| SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>
+			| ((setOperator: MySqlSetOperators) => SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>),
 	): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
-		return new MySqlSetOperator('except', false, this, rightSelect);
+		const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getMySqlSetOperators()) : rightSelect;
+
+		return new MySqlSetOperator('except', false, this, rightSelectOrig);
 	}
 
 	exceptAll<TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
-		rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
+		rightSelect:
+			| SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>
+			| ((setOperator: MySqlSetOperators) => SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>),
 	): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
-		return new MySqlSetOperator('except', true, this, rightSelect);
+		const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getMySqlSetOperators()) : rightSelect;
+
+		return new MySqlSetOperator('except', true, this, rightSelectOrig);
 	}
 
 	abstract orderBy(builder: (aliases: TSelection) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>): this;
