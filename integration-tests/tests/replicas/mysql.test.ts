@@ -1,14 +1,12 @@
 import { sql } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { boolean, jsonb, pgTable, serial, text, timestamp, withReplicas } from 'drizzle-orm/pg-core';
+import { boolean, mysqlTable, serial, text, withReplicas } from 'drizzle-orm/mysql-core';
+import { drizzle } from 'drizzle-orm/mysql2';
 import { describe, expect, it, vi } from 'vitest';
 
-const usersTable = pgTable('users', {
+const usersTable = mysqlTable('users', {
 	id: serial('id' as string).primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
-	jsonb: jsonb('jsonb').$type<string[]>(),
-	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 describe('[select] read replicas postgres', () => {
@@ -220,113 +218,6 @@ describe('[selectDistinct] read replicas postgres', () => {
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 
 		db.selectDistinct().from({} as any);
-		expect(spyRead1).toHaveBeenCalledTimes(2);
-		expect(spyRead2).toHaveBeenCalledTimes(0);
-	});
-});
-
-describe('[selectDistinctOn] read replicas postgres', () => {
-	it('primary selectDistinctOn', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
-		const read2 = drizzle({} as any);
-
-		const db = withReplicas(primaryDb, [read1, read2]);
-
-		const spyPrimary = vi.spyOn(primaryDb, 'selectDistinctOn');
-		const spyRead1 = vi.spyOn(read1, 'selectDistinctOn');
-		const spyRead2 = vi.spyOn(read2, 'selectDistinctOn');
-
-		db.$primary.selectDistinctOn({} as any).from({} as any);
-
-		expect(spyPrimary).toHaveBeenCalledTimes(1);
-		expect(spyRead1).toHaveBeenCalledTimes(0);
-		expect(spyRead2).toHaveBeenCalledTimes(0);
-	});
-
-	it('random replica selectDistinctOn', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
-		const read2 = drizzle({} as any);
-
-		const randomMockReplica = vi.fn().mockReturnValueOnce(read1).mockReturnValueOnce(read2);
-
-		const db = withReplicas(primaryDb, [read1, read2], () => {
-			return randomMockReplica();
-		});
-
-		const spyPrimary = vi.spyOn(primaryDb, 'selectDistinctOn');
-		const spyRead1 = vi.spyOn(read1, 'selectDistinctOn');
-		const spyRead2 = vi.spyOn(read2, 'selectDistinctOn');
-
-		db.selectDistinctOn({} as any).from({} as any);
-
-		expect(spyPrimary).toHaveBeenCalledTimes(0);
-		expect(spyRead1).toHaveBeenCalledTimes(1);
-		expect(spyRead2).toHaveBeenCalledTimes(0);
-
-		db.selectDistinctOn({} as any).from({} as any);
-		expect(spyRead1).toHaveBeenCalledTimes(1);
-		expect(spyRead2).toHaveBeenCalledTimes(1);
-	});
-
-	it('single read replica selectDistinctOn', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
-
-		const db = withReplicas(primaryDb, [read1]);
-
-		const spyPrimary = vi.spyOn(primaryDb, 'selectDistinctOn');
-		const spyRead1 = vi.spyOn(read1, 'selectDistinctOn');
-
-		db.selectDistinctOn({} as any).from({} as any);
-
-		expect(spyPrimary).toHaveBeenCalledTimes(0);
-		expect(spyRead1).toHaveBeenCalledTimes(1);
-
-		db.selectDistinctOn({} as any).from({} as any);
-		expect(spyRead1).toHaveBeenCalledTimes(2);
-	});
-
-	it('single read replica selectDistinctOn + primary selectDistinctOn', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
-
-		const db = withReplicas(primaryDb, [read1]);
-
-		const spyPrimary = vi.spyOn(primaryDb, 'selectDistinctOn');
-		const spyRead1 = vi.spyOn(read1, 'selectDistinctOn');
-
-		db.selectDistinctOn({} as any).from({} as any);
-
-		expect(spyPrimary).toHaveBeenCalledTimes(0);
-		expect(spyRead1).toHaveBeenCalledTimes(1);
-
-		db.$primary.selectDistinctOn({} as any).from({} as any);
-		expect(spyPrimary).toHaveBeenCalledTimes(1);
-		expect(spyRead1).toHaveBeenCalledTimes(1);
-	});
-
-	it('always first read selectDistinctOn', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
-		const read2 = drizzle({} as any);
-
-		const db = withReplicas(primaryDb, [read1, read2], (replicas) => {
-			return replicas[0]!;
-		});
-
-		const spyPrimary = vi.spyOn(primaryDb, 'selectDistinctOn');
-		const spyRead1 = vi.spyOn(read1, 'selectDistinctOn');
-		const spyRead2 = vi.spyOn(read2, 'selectDistinctOn');
-
-		db.selectDistinctOn({} as any).from({} as any);
-
-		expect(spyPrimary).toHaveBeenCalledTimes(0);
-		expect(spyRead1).toHaveBeenCalledTimes(1);
-		expect(spyRead2).toHaveBeenCalledTimes(0);
-
-		db.selectDistinctOn({} as any).from({} as any);
 		expect(spyRead1).toHaveBeenCalledTimes(2);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 	});
@@ -613,43 +504,11 @@ describe('[transaction] replicas postgres', () => {
 	});
 });
 
-describe('[refreshView] replicas postgres', () => {
-	it('primary refreshView', () => {
-		const primaryDb = drizzle({} as any);
-		const read1 = drizzle({} as any);
-		const read2 = drizzle({} as any);
-
-		const db = withReplicas(primaryDb, [read1, read2]);
-
-		const spyPrimary = vi.spyOn(primaryDb, 'refreshMaterializedView');
-		const spyRead1 = vi.spyOn(read1, 'refreshMaterializedView');
-		const spyRead2 = vi.spyOn(read2, 'refreshMaterializedView');
-
-		db.refreshMaterializedView({} as any);
-
-		expect(spyPrimary).toHaveBeenCalledTimes(1);
-		expect(spyRead1).toHaveBeenCalledTimes(0);
-		expect(spyRead2).toHaveBeenCalledTimes(0);
-
-		db.refreshMaterializedView({} as any);
-
-		expect(spyPrimary).toHaveBeenCalledTimes(2);
-		expect(spyRead1).toHaveBeenCalledTimes(0);
-		expect(spyRead2).toHaveBeenCalledTimes(0);
-
-		db.$primary.refreshMaterializedView({} as any);
-
-		expect(spyPrimary).toHaveBeenCalledTimes(3);
-		expect(spyRead1).toHaveBeenCalledTimes(0);
-		expect(spyRead2).toHaveBeenCalledTimes(0);
-	});
-});
-
 describe('[findFirst] read replicas postgres', () => {
 	it('primary findFirst', () => {
-		const primaryDb = drizzle({} as any, { schema: { usersTable } });
-		const read1 = drizzle({} as any, { schema: { usersTable } });
-		const read2 = drizzle({} as any, { schema: { usersTable } });
+		const primaryDb = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
+		const read1 = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
+		const read2 = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -665,10 +524,10 @@ describe('[findFirst] read replicas postgres', () => {
 	});
 
 	it('random replica findFirst', () => {
-		const primaryDb = drizzle({} as any, { schema: { usersTable } });
-		const read1 = drizzle({} as any, { schema: { usersTable } });
-		const read2 = drizzle({} as any, { schema: { usersTable } });
-		
+		const primaryDb = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
+		const read1 = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
+		const read2 = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
+
 		const randomMockReplica = vi.fn().mockReturnValueOnce(read1).mockReturnValueOnce(read2);
 
 		const db = withReplicas(primaryDb, [read1, read2], () => {
@@ -691,8 +550,8 @@ describe('[findFirst] read replicas postgres', () => {
 	});
 
 	it('single read replica findFirst', () => {
-		const primaryDb = drizzle({} as any, { schema: { usersTable } });
-		const read1 = drizzle({} as any, { schema: { usersTable } });
+		const primaryDb = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
+		const read1 = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -709,9 +568,9 @@ describe('[findFirst] read replicas postgres', () => {
 	});
 
 	it('single read replica findFirst + primary findFirst', () => {
-		const primaryDb = drizzle({} as any, { schema: { usersTable } });
-		const read1 = drizzle({} as any, { schema: { usersTable } });
-		
+		const primaryDb = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
+		const read1 = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
+
 		const db = withReplicas(primaryDb, [read1]);
 
 		const spyPrimary = vi.spyOn(primaryDb['query']['usersTable'], 'findFirst');
@@ -728,9 +587,9 @@ describe('[findFirst] read replicas postgres', () => {
 	});
 
 	it('always first read findFirst', () => {
-		const primaryDb = drizzle({} as any, { schema: { usersTable } });
-		const read1 = drizzle({} as any, { schema: { usersTable } });
-		const read2 = drizzle({} as any, { schema: { usersTable } });
+		const primaryDb = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
+		const read1 = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
+		const read2 = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
 
 		const db = withReplicas(primaryDb, [read1, read2], (replicas) => {
 			return replicas[0]!;
@@ -754,9 +613,9 @@ describe('[findFirst] read replicas postgres', () => {
 
 describe('[findMany] read replicas postgres', () => {
 	it('primary findMany', () => {
-		const primaryDb = drizzle({} as any, { schema: { usersTable } });
-		const read1 = drizzle({} as any, { schema: { usersTable } });
-		const read2 = drizzle({} as any, { schema: { usersTable } });
+		const primaryDb = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
+		const read1 = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
+		const read2 = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -772,10 +631,10 @@ describe('[findMany] read replicas postgres', () => {
 	});
 
 	it('random replica findMany', () => {
-		const primaryDb = drizzle({} as any, { schema: { usersTable } });
-		const read1 = drizzle({} as any, { schema: { usersTable } });
-		const read2 = drizzle({} as any, { schema: { usersTable } });
-		
+		const primaryDb = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
+		const read1 = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
+		const read2 = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
+
 		const randomMockReplica = vi.fn().mockReturnValueOnce(read1).mockReturnValueOnce(read2);
 
 		const db = withReplicas(primaryDb, [read1, read2], () => {
@@ -798,8 +657,8 @@ describe('[findMany] read replicas postgres', () => {
 	});
 
 	it('single read replica findMany', () => {
-		const primaryDb = drizzle({} as any, { schema: { usersTable } });
-		const read1 = drizzle({} as any, { schema: { usersTable } });
+		const primaryDb = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
+		const read1 = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -816,9 +675,9 @@ describe('[findMany] read replicas postgres', () => {
 	});
 
 	it('single read replica findMany + primary findMany', () => {
-		const primaryDb = drizzle({} as any, { schema: { usersTable } });
-		const read1 = drizzle({} as any, { schema: { usersTable } });
-		
+		const primaryDb = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
+		const read1 = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
+
 		const db = withReplicas(primaryDb, [read1]);
 
 		const spyPrimary = vi.spyOn(primaryDb['query']['usersTable'], 'findMany');
@@ -835,9 +694,9 @@ describe('[findMany] read replicas postgres', () => {
 	});
 
 	it('always first read findMany', () => {
-		const primaryDb = drizzle({} as any, { schema: { usersTable } });
-		const read1 = drizzle({} as any, { schema: { usersTable } });
-		const read2 = drizzle({} as any, { schema: { usersTable } });
+		const primaryDb = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
+		const read1 = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
+		const read2 = drizzle({} as any, { schema: { usersTable }, mode: 'default' });
 
 		const db = withReplicas(primaryDb, [read1, read2], (replicas) => {
 			return replicas[0]!;
