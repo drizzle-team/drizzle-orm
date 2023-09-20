@@ -77,7 +77,7 @@ const exceptAllTest = await db
 
 Expect<Equal<{ id: number; homeCity: 'A' | 'C' }[], typeof exceptAllTest>>;
 
-const union2Test = await union(db.select().from(cities), db.select().from(cities));
+const union2Test = await union(db.select().from(cities), db.select().from(cities), db.select().from(cities));
 
 Expect<Equal<{ id: number; name: string; population: number | null }[], typeof union2Test>>;
 
@@ -170,3 +170,40 @@ db.select().from(classes).union(db.select({ id: classes.id }).from(classes));
 
 // @ts-expect-error - The select on both sites must be the same shape
 db.select({ id: classes.id }).from(classes).union(db.select().from(classes));
+
+union(
+	db.select({ id: cities.id, name: cities.name }).from(cities),
+	db.select({ id: cities.id, name: cities.name }).from(cities),
+	// @ts-expect-error - The select on rest parameter must be the same shape
+	db.select().from(cities),
+);
+
+union(
+	db.select({ id: cities.id }).from(cities),
+	db.select({ id: cities.id }).from(cities),
+	db.select({ id: cities.id }).from(cities),
+	// @ts-expect-error - The select on any part of the rest parameter must be the same shape
+	db.select({ id: cities.id, name: cities.name }).from(cities),
+	db.select({ id: cities.id }).from(cities),
+	db.select({ id: cities.id }).from(cities),
+);
+
+union(
+	db.select({ id: cities.id }).from(cities),
+	db.select({ id: cities.id }).from(cities),
+	// @ts-expect-error - The select on any part of the rest parameter must be the same shape
+	db.select({ id: cities.id, name: cities.name }).from(cities),
+	db.select({ id: cities.id }).from(cities),
+	db.select({ id: cities.id }).from(cities),
+	db.select({ id: cities.id }).from(cities),
+);
+
+union(
+	db.select({ id: cities.id }).from(cities),
+	db.select({ id: cities.id }).from(cities),
+	db.select({ id: cities.id }).from(cities),
+	db.select({ id: sql<number>`${cities.id}` }).from(cities),
+	db.select({ id: cities.id }).from(cities),
+	// @ts-expect-error - The select on any part of the rest parameter must be the same shape
+	db.select({ id: cities.id, name: cities.name, population: cities.population }).from(cities),
+);

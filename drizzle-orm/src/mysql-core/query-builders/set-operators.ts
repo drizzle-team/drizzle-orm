@@ -55,6 +55,19 @@ type SetOperatorRightSelect<
 	>
 	: TValue;
 
+type SetOperatorRestSelect<
+	TValue extends readonly TypedQueryBuilder<any, any[]>[],
+	Valid,
+> = TValue extends [infer First, ...infer Rest]
+	? First extends MySqlSetOperatorBuilder<any, infer TSel, infer TMode, any, infer TNull>
+		? Rest extends TypedQueryBuilder<any, any[]>[] ? [
+				ValidateShape<SelectResult<TSel, TMode, TNull>, Valid, TValue[0]>,
+				...SetOperatorRestSelect<Rest, Valid>,
+			]
+		: ValidateShape<SelectResult<TSel, TMode, TNull>, Valid, TValue>
+	: never[]
+	: TValue;
+
 export interface MySqlSetOperatorBuilder<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
@@ -328,10 +341,11 @@ export function union<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability>,
 	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
+	TRest extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>[],
 >(
 	leftSelect: MySqlSetOperatorBuilder<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap>,
 	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
-	...restSelects: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>[]
+	...restSelects: SetOperatorRestSelect<TRest, SelectResult<TSelection, TSelectMode, TNullabilityMap>>
 ): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
 	if (restSelects.length === 0) {
 		return new MySqlSetOperator('union', false, leftSelect, rightSelect);
@@ -350,10 +364,11 @@ export function unionAll<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability>,
 	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
+	TRest extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>[],
 >(
 	leftSelect: MySqlSetOperatorBuilder<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap>,
 	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
-	...restSelects: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>[]
+	...restSelects: SetOperatorRestSelect<TRest, SelectResult<TSelection, TSelectMode, TNullabilityMap>>
 ): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
 	if (restSelects.length === 0) {
 		return new MySqlSetOperator('union', true, leftSelect, rightSelect);
@@ -372,10 +387,11 @@ export function intersect<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability>,
 	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
+	TRest extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>[],
 >(
 	leftSelect: MySqlSetOperatorBuilder<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap>,
 	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
-	...restSelects: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>[]
+	...restSelects: SetOperatorRestSelect<TRest, SelectResult<TSelection, TSelectMode, TNullabilityMap>>
 ): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
 	if (restSelects.length === 0) {
 		return new MySqlSetOperator('intersect', false, leftSelect, rightSelect);
@@ -394,10 +410,11 @@ export function intersectAll<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability>,
 	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
+	TRest extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>[],
 >(
 	leftSelect: MySqlSetOperatorBuilder<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap>,
 	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
-	...restSelects: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>[]
+	...restSelects: SetOperatorRestSelect<TRest, SelectResult<TSelection, TSelectMode, TNullabilityMap>>
 ): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
 	if (restSelects.length === 0) {
 		return new MySqlSetOperator('intersect', true, leftSelect, rightSelect);
@@ -416,10 +433,11 @@ export function except<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability>,
 	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
+	TRest extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>[],
 >(
 	leftSelect: MySqlSetOperatorBuilder<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap>,
 	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
-	...restSelects: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>[]
+	...restSelects: SetOperatorRestSelect<TRest, SelectResult<TSelection, TSelectMode, TNullabilityMap>>
 ): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
 	if (restSelects.length === 0) {
 		return new MySqlSetOperator('except', false, leftSelect, rightSelect);
@@ -438,10 +456,11 @@ export function exceptAll<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability>,
 	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
+	TRest extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>[],
 >(
 	leftSelect: MySqlSetOperatorBuilder<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap>,
 	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
-	...restSelects: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>[]
+	...restSelects: SetOperatorRestSelect<TRest, SelectResult<TSelection, TSelectMode, TNullabilityMap>>
 ): MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
 	if (restSelects.length === 0) {
 		return new MySqlSetOperator('except', false, leftSelect, rightSelect);

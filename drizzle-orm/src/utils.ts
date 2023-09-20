@@ -196,9 +196,10 @@ export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<
 
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult
-	: Exclude<keyof T, keyof ValidShape> extends string ? `Invalid key(s): ${Exclude<keyof T, keyof ValidShape>}`
-	: 'uno'
-	: 'dos';
+	: Exclude<keyof T, keyof ValidShape> extends string
+		? DrizzleTypeError<`Invalid key(s): ${Exclude<keyof T, keyof ValidShape>}`>
+	: never
+	: never;
 
 export type KnownKeysOnly<T, U> = {
 	[K in keyof T]: K extends keyof U ? T[K] : never;
