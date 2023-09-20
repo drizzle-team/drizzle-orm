@@ -5,6 +5,9 @@ import anyTest from 'ava';
 import Docker from 'dockerode';
 import {
 	and,
+	arrayContained,
+	arrayContains,
+	arrayOverlaps,
 	asc,
 	eq,
 	gt,
@@ -17,9 +20,6 @@ import {
 	sql,
 	type SQLWrapper,
 	TransactionRollbackError,
-	arrayContains,
-	arrayContained,
-	arrayOverlaps
 } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -2465,7 +2465,7 @@ test.serial('array operators', async (t) => {
 
 	const posts = pgTable('posts', {
 		id: serial('id').primaryKey(),
-		tags: text('tags').array()
+		tags: text('tags').array(),
 	});
 
 	await db.execute(sql`drop table if exists ${posts}`);
@@ -2475,17 +2475,17 @@ test.serial('array operators', async (t) => {
 	);
 
 	await db.insert(posts).values([{
-		tags: ['ORM']
+		tags: ['ORM'],
 	}, {
-		tags: ['Typescript']
+		tags: ['Typescript'],
 	}, {
-		tags: ['Typescript', 'ORM']
+		tags: ['Typescript', 'ORM'],
 	}, {
-		tags: ['Typescript', 'Frontend', 'React']
+		tags: ['Typescript', 'Frontend', 'React'],
 	}, {
-		tags: ['Typescript', 'ORM', 'Database', 'Postgres']
+		tags: ['Typescript', 'ORM', 'Database', 'Postgres'],
 	}, {
-		tags: ['Java', 'Spring', 'OOP']
+		tags: ['Java', 'Spring', 'OOP'],
 	}]);
 
 	const contains = await db.select({ id: posts.id }).from(posts)
@@ -2497,11 +2497,11 @@ test.serial('array operators', async (t) => {
 	const withSubQuery = await db.select({ id: posts.id }).from(posts)
 		.where(arrayContains(
 			posts.tags,
-			db.select({ tags: posts.tags  }).from(posts).where(eq(posts.id, 1))
+			db.select({ tags: posts.tags }).from(posts).where(eq(posts.id, 1)),
 		));
 
 	t.deepEqual(contains, [{ id: 3 }, { id: 5 }]);
 	t.deepEqual(contained, [{ id: 1 }, { id: 2 }, { id: 3 }]);
 	t.deepEqual(overlaps, [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
-	t.deepEqual(withSubQuery, [{ id: 1 }, { id: 3 }, { id: 5 }])
+	t.deepEqual(withSubQuery, [{ id: 1 }, { id: 3 }, { id: 5 }]);
 });
