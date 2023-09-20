@@ -1,10 +1,8 @@
 import { entityKind, is } from '~/entity.ts';
 import {
-	applyMixins,
 	orderSelectedFields,
 	type Placeholder,
 	type Query,
-	QueryPromise,
 	SelectionProxyHandler,
 	SQL,
 	sql,
@@ -18,7 +16,9 @@ import type {
 	SelectMode,
 	SelectResult,
 } from '~/query-builders/select.types.ts';
+import { QueryPromise } from '~/query-promise.ts';
 import { tracer } from '~/tracing.ts';
+import { applyMixins } from '~/utils.ts';
 import { type ColumnsSelection } from '~/view.ts';
 import { PgColumn } from '../columns/common.ts';
 import type { PgDialect } from '../dialect.ts';
