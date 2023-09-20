@@ -191,6 +191,20 @@ test.serial('select sql', async (t) => {
 	t.deepEqual(users, [{ name: 'JOHN' }]);
 });
 
+
+test.serial('set new table schema', async (t) => {
+
+  const oldSchema = pgSchema('oldSchema');
+  const stateTable = oldSchema.table('states', {
+    id: serial('id').primaryKey(),
+    name: text('name').notNull(),
+    state: char('state', { length: 2 }),
+  });
+
+  stateTable.setSchema('newSchema');
+  t.deepEqual(stateTable.getSchema(), 'newSchema')
+});
+
 test.serial('select typed sql', async (t) => {
 	const { db } = t.context;
 
