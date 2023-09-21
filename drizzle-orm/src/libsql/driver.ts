@@ -10,12 +10,7 @@ import {
 } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import type {
-	SQLiteDelete,
-	SQLiteInsert,
-	SQLiteSelect,
-	SQLiteUpdate,
-} from '~/sqlite-core/index.ts';
+import type { SQLiteDelete, SQLiteInsert, SQLiteSelect, SQLiteUpdate } from '~/sqlite-core/index.ts';
 import type { SQLiteRelationalQuery } from '~/sqlite-core/query-builders/query.ts';
 import type { SQLiteRaw } from '~/sqlite-core/query-builders/raw.ts';
 import { type DrizzleConfig } from '~/utils.ts';
@@ -23,7 +18,7 @@ import { LibSQLSession } from './session.ts';
 
 export type BatchParameters =
 	| SQLiteUpdate<any, 'async', ResultSet, any>
-	| SQLiteSelect<any, 'async', ResultSet, any, any>
+	| SQLiteSelect<any, 'async', ResultSet, any, any, any>
 	| SQLiteDelete<any, 'async', ResultSet, any>
 	| Omit<SQLiteDelete<any, 'async', ResultSet, any>, 'where'>
 	| Omit<SQLiteUpdate<any, 'async', ResultSet, any>, 'where'>

@@ -1,5 +1,4 @@
 import { entityKind, is } from '~/entity.ts';
-import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	BuildSubquerySelection,
 	GetSelectTableName,
@@ -36,6 +35,7 @@ import type {
 	SQLiteSelectHKTBase,
 	SQLiteSelectQueryBuilderHKT,
 } from './select.types.ts';
+import { SQLiteSetOperatorBuilder } from './set-operators.ts';
 
 type CreateSQLiteSelectFromBuilderMode<
 	TBuilderMode extends 'db' | 'qb',
@@ -128,9 +128,14 @@ export abstract class SQLiteSelectQueryBuilder<
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
-> extends TypedQueryBuilder<
-	BuildSubquerySelection<TSelection, TNullabilityMap>,
-	SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
+> extends SQLiteSetOperatorBuilder<
+	THKT,
+	TTableName,
+	TResultType,
+	TRunResult,
+	TSelection,
+	TSelectMode,
+	TNullabilityMap
 > {
 	static readonly [entityKind]: string = 'SQLiteSelectQueryBuilder';
 
