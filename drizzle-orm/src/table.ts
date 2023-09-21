@@ -107,13 +107,13 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 		return new SQL([this]);
 	}
 
-  getSchema() {
-    return this[Schema];
-  }
+  	getSchema() {
+    		return this[Schema];
+  	}
 
-  setSbhema(schema: string) {
+  	setSchema(schema: string) {
 		this[Schema] = schema;
-  }
+  	}
 }
 
 export function isTable(table: unknown): table is Table {
