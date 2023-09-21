@@ -18,14 +18,150 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { tracer } from '~/tracing.ts';
-import { applyMixins } from '~/utils.ts';
+import { applyMixins, type ValidateShape } from '~/utils.ts';
 import { type ColumnsSelection } from '~/view.ts';
 import { PgColumn } from '../columns/common.ts';
 import type { PgDialect } from '../dialect.ts';
-import type { PgSelect, PgSelectQueryBuilder } from './select.ts';
-import type { PgSelectHKTBase, PgSelectQueryBuilderHKT } from './select.types.ts';
+import type { PgSelectHKTBase } from './select.types.ts';
 
 type SetOperator = 'union' | 'intersect' | 'except';
+
+const getPgSetOperators = () => {
+	return {
+		union,
+		unionAll,
+		intersect,
+		intersectAll,
+		except,
+		exceptAll,
+	};
+};
+
+type PgSetOperators = ReturnType<typeof getPgSetOperators>;
+
+type SetOperatorRightSelect<
+	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
+	TSelection extends ColumnsSelection,
+	TSelectMode extends SelectMode,
+	TNullabilityMap extends Record<string, JoinNullability>,
+> = TValue extends PgSetOperatorBuilder<any, any, infer TSel, infer TMode, infer TNull> ? ValidateShape<
+		SelectResult<TSel, TMode, TNull>,
+		SelectResult<TSelection, TSelectMode, TNullabilityMap>,
+		TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>
+	>
+	: TValue;
+
+type SetOperatorRestSelect<
+	TValue extends readonly TypedQueryBuilder<any, any[]>[],
+	Valid,
+> = TValue extends [infer First, ...infer Rest]
+	? First extends PgSetOperatorBuilder<any, any, infer TSel, infer TMode, infer TNull>
+		? Rest extends TypedQueryBuilder<any, any[]>[] ? [
+				ValidateShape<SelectResult<TSel, TMode, TNull>, Valid, TValue[0]>,
+				...SetOperatorRestSelect<Rest, Valid>,
+			]
+		: ValidateShape<SelectResult<TSel, TMode, TNull>, Valid, TValue>
+	: never[]
+	: TValue;
+
+export abstract class PgSetOperatorBuilder<
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	THKT extends PgSelectHKTBase,
+	TTableName extends string | undefined,
+	TSelection extends ColumnsSelection,
+	TSelectMode extends SelectMode,
+	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
+		: {},
+> extends TypedQueryBuilder<
+	BuildSubquerySelection<TSelection, TNullabilityMap>,
+	SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
+> {
+	static readonly [entityKind]: string = 'PgSetOperatorBuilder';
+
+	protected abstract joinsNotNullableMap: Record<string, boolean>;
+	protected abstract config: {
+		fields: Record<string, unknown>;
+		limit?: number | Placeholder;
+		orderBy?: (PgColumn | SQL | SQL.Aliased)[];
+	};
+	/* @internal */
+	protected abstract readonly session: PgSession | undefined;
+	protected abstract dialect: PgDialect;
+
+	/** @internal */
+	getSetOperatorConfig() {
+		return {
+			session: this.session,
+			dialect: this.dialect,
+			joinsNotNullableMap: this.joinsNotNullableMap,
+			fields: this.config.fields,
+		};
+	}
+	union<TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
+		rightSelect:
+			| SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>
+			| ((setOperator: PgSetOperators) => SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>),
+	): PgSetOperator<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap> {
+		const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getPgSetOperators()) : rightSelect;
+
+		return new PgSetOperator('union', false, this, rightSelectOrig);
+	}
+
+	unionAll<TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
+		rightSelect:
+			| SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>
+			| ((setOperator: PgSetOperators) => SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>),
+	): PgSetOperator<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap> {
+		const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getPgSetOperators()) : rightSelect;
+
+		return new PgSetOperator('union', true, this, rightSelectOrig);
+	}
+
+	intersect<TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
+		rightSelect:
+			| SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>
+			| ((setOperator: PgSetOperators) => SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>),
+	): PgSetOperator<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap> {
+		const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getPgSetOperators()) : rightSelect;
+
+		return new PgSetOperator('intersect', false, this, rightSelectOrig);
+	}
+
+	intersectAll<TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
+		rightSelect:
+			| SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>
+			| ((setOperator: PgSetOperators) => SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>),
+	): PgSetOperator<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap> {
+		const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getPgSetOperators()) : rightSelect;
+
+		return new PgSetOperator('intersect', true, this, rightSelectOrig);
+	}
+
+	except<TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
+		rightSelect:
+			| SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>
+			| ((setOperator: PgSetOperators) => SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>),
+	): PgSetOperator<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap> {
+		const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getPgSetOperators()) : rightSelect;
+
+		return new PgSetOperator('except', false, this, rightSelectOrig);
+	}
+
+	exceptAll<TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
+		rightSelect:
+			| SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>
+			| ((setOperator: PgSetOperators) => SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>),
+	): PgSetOperator<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap> {
+		const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getPgSetOperators()) : rightSelect;
+
+		return new PgSetOperator('except', true, this, rightSelectOrig);
+	}
+
+	abstract orderBy(builder: (aliases: TSelection) => ValueOrArray<PgColumn | SQL | SQL.Aliased>): this;
+	abstract orderBy(...columns: (PgColumn | SQL | SQL.Aliased)[]): this;
+
+	abstract limit(limit: number): this;
+}
 
 export interface PgSetOperator<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -44,46 +180,45 @@ export interface PgSetOperator<
 {}
 
 export class PgSetOperator<
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	THKT extends PgSelectHKTBase,
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
-> extends TypedQueryBuilder<
-	BuildSubquerySelection<TSelection, TNullabilityMap>,
-	SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
+> extends PgSetOperatorBuilder<
+	THKT,
+	TTableName,
+	TSelection,
+	TSelectMode,
+	TNullabilityMap
 > {
 	static readonly [entityKind]: string = 'PgSetOperator';
 
-	private session: PgSession | undefined;
-	private dialect: PgDialect;
-	private config: {
+	protected joinsNotNullableMap: Record<string, boolean>;
+	protected config: {
 		fields: Record<string, unknown>;
-		joinsNotNullableMap: Record<string, boolean>;
 		limit?: number | Placeholder;
 		orderBy?: (PgColumn | SQL | SQL.Aliased)[];
 	};
+	/* @internal */
+	readonly session: PgSession | undefined;
+	protected dialect: PgDialect;
 
 	constructor(
 		private operator: SetOperator,
 		private isAll: boolean,
-		private leftSelect:
-			| PgSelect<TTableName, TSelection, TSelectMode>
-			| PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>,
-		private rightSelect:
-			| PgSelect<TTableName, TSelection, TSelectMode>
-			| PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>,
+		private leftSelect: PgSetOperatorBuilder<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap>,
+		private rightSelect: TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
 	) {
 		super();
 
 		const { session, dialect, joinsNotNullableMap, fields } = leftSelect.getSetOperatorConfig();
 		this.session = session;
 		this.dialect = dialect;
+		this.joinsNotNullableMap = joinsNotNullableMap;
 		this.config = {
 			fields,
-			joinsNotNullableMap,
 		};
 	}
 
@@ -161,7 +296,7 @@ export class PgSetOperator<
 			execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
 		}
 	> {
-		const { session, config: { fields, joinsNotNullableMap }, dialect } = this;
+		const { session, joinsNotNullableMap, config: { fields }, dialect } = this;
 		if (!session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
@@ -204,20 +339,22 @@ export function union<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
+	TNullabilityMap extends Record<string, JoinNullability>,
+	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
+	TRest extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>[],
 >(
-	leftSelect:
-		| PgSelect<TTableName, TSelection, TSelectMode>
-		| PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>,
-	rightSelect:
-		| PgSelect<TTableName, TSelection, TSelectMode>
-		| PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>,
-): PgSetOperator<
-	THKT,
-	TTableName,
-	TSelection,
-	TSelectMode
-> {
-	return new PgSetOperator('union', false, leftSelect, rightSelect);
+	leftSelect: PgSetOperatorBuilder<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap>,
+	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
+	...restSelects: SetOperatorRestSelect<TRest, SelectResult<TSelection, TSelectMode, TNullabilityMap>>
+): PgSetOperator<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap> {
+	if (restSelects.length === 0) {
+		return new PgSetOperator('union', false, leftSelect, rightSelect);
+	}
+
+	const [select, ...rest] = restSelects;
+	if (!select) throw new Error('Cannot pass undefined values to any set operator');
+
+	return union(new PgSetOperator('union', false, leftSelect, rightSelect), select, ...rest);
 }
 
 export function unionAll<
@@ -225,20 +362,22 @@ export function unionAll<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
+	TNullabilityMap extends Record<string, JoinNullability>,
+	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
+	TRest extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>[],
 >(
-	leftSelect:
-		| PgSelect<TTableName, TSelection, TSelectMode>
-		| PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>,
-	rightSelect:
-		| PgSelect<TTableName, TSelection, TSelectMode>
-		| PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>,
-): PgSetOperator<
-	THKT,
-	TTableName,
-	TSelection,
-	TSelectMode
-> {
-	return new PgSetOperator('union', true, leftSelect, rightSelect);
+	leftSelect: PgSetOperatorBuilder<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap>,
+	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
+	...restSelects: SetOperatorRestSelect<TRest, SelectResult<TSelection, TSelectMode, TNullabilityMap>>
+): PgSetOperator<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap> {
+	if (restSelects.length === 0) {
+		return new PgSetOperator('union', true, leftSelect, rightSelect);
+	}
+
+	const [select, ...rest] = restSelects;
+	if (!select) throw new Error('Cannot pass undefined values to any set operator');
+
+	return unionAll(new PgSetOperator('union', true, leftSelect, rightSelect), select, ...rest);
 }
 
 export function intersect<
@@ -246,20 +385,22 @@ export function intersect<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
+	TNullabilityMap extends Record<string, JoinNullability>,
+	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
+	TRest extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>[],
 >(
-	leftSelect:
-		| PgSelect<TTableName, TSelection, TSelectMode>
-		| PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>,
-	rightSelect:
-		| PgSelect<TTableName, TSelection, TSelectMode>
-		| PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>,
-): PgSetOperator<
-	THKT,
-	TTableName,
-	TSelection,
-	TSelectMode
-> {
-	return new PgSetOperator('intersect', false, leftSelect, rightSelect);
+	leftSelect: PgSetOperatorBuilder<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap>,
+	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
+	...restSelects: SetOperatorRestSelect<TRest, SelectResult<TSelection, TSelectMode, TNullabilityMap>>
+): PgSetOperator<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap> {
+	if (restSelects.length === 0) {
+		return new PgSetOperator('intersect', false, leftSelect, rightSelect);
+	}
+
+	const [select, ...rest] = restSelects;
+	if (!select) throw new Error('Cannot pass undefined values to any set operator');
+
+	return intersect(new PgSetOperator('intersect', false, leftSelect, rightSelect!), select, ...rest);
 }
 
 export function intersectAll<
@@ -267,20 +408,22 @@ export function intersectAll<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
+	TNullabilityMap extends Record<string, JoinNullability>,
+	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
+	TRest extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>[],
 >(
-	leftSelect:
-		| PgSelect<TTableName, TSelection, TSelectMode>
-		| PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>,
-	rightSelect:
-		| PgSelect<TTableName, TSelection, TSelectMode>
-		| PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>,
-): PgSetOperator<
-	THKT,
-	TTableName,
-	TSelection,
-	TSelectMode
-> {
-	return new PgSetOperator('intersect', true, leftSelect, rightSelect);
+	leftSelect: PgSetOperatorBuilder<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap>,
+	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
+	...restSelects: SetOperatorRestSelect<TRest, SelectResult<TSelection, TSelectMode, TNullabilityMap>>
+): PgSetOperator<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap> {
+	if (restSelects.length === 0) {
+		return new PgSetOperator('intersect', true, leftSelect, rightSelect);
+	}
+
+	const [select, ...rest] = restSelects;
+	if (!select) throw new Error('Cannot pass undefined values to any set operator');
+
+	return intersectAll(new PgSetOperator('intersect', true, leftSelect, rightSelect!), select, ...rest);
 }
 
 export function except<
@@ -288,20 +431,22 @@ export function except<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
+	TNullabilityMap extends Record<string, JoinNullability>,
+	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
+	TRest extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>[],
 >(
-	leftSelect:
-		| PgSelect<TTableName, TSelection, TSelectMode>
-		| PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>,
-	rightSelect:
-		| PgSelect<TTableName, TSelection, TSelectMode>
-		| PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>,
-): PgSetOperator<
-	THKT,
-	TTableName,
-	TSelection,
-	TSelectMode
-> {
-	return new PgSetOperator('except', false, leftSelect, rightSelect);
+	leftSelect: PgSetOperatorBuilder<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap>,
+	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
+	...restSelects: SetOperatorRestSelect<TRest, SelectResult<TSelection, TSelectMode, TNullabilityMap>>
+): PgSetOperator<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap> {
+	if (restSelects.length === 0) {
+		return new PgSetOperator('except', false, leftSelect, rightSelect);
+	}
+
+	const [select, ...rest] = restSelects;
+	if (!select) throw new Error('Cannot pass undefined values to any set operator');
+
+	return except(new PgSetOperator('except', false, leftSelect, rightSelect!), select, ...rest);
 }
 
 export function exceptAll<
@@ -309,18 +454,20 @@ export function exceptAll<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
+	TNullabilityMap extends Record<string, JoinNullability>,
+	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
+	TRest extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>[],
 >(
-	leftSelect:
-		| PgSelect<TTableName, TSelection, TSelectMode>
-		| PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>,
-	rightSelect:
-		| PgSelect<TTableName, TSelection, TSelectMode>
-		| PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>,
-): PgSetOperator<
-	THKT,
-	TTableName,
-	TSelection,
-	TSelectMode
-> {
-	return new PgSetOperator('except', true, leftSelect, rightSelect);
+	leftSelect: PgSetOperatorBuilder<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap>,
+	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
+	...restSelects: SetOperatorRestSelect<TRest, SelectResult<TSelection, TSelectMode, TNullabilityMap>>
+): PgSetOperator<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap> {
+	if (restSelects.length === 0) {
+		return new PgSetOperator('except', false, leftSelect, rightSelect);
+	}
+
+	const [select, ...rest] = restSelects;
+	if (!select) throw new Error('Cannot pass undefined values to any set operator');
+
+	return exceptAll(new PgSetOperator('except', false, leftSelect, rightSelect!), select, ...rest);
 }

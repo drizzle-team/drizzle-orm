@@ -5,7 +5,6 @@ import type { PgSession, PreparedQuery, PreparedQueryConfig } from '~/pg-core/se
 import type { SubqueryWithSelection } from '~/pg-core/subquery.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { PgViewBase } from '~/pg-core/view.ts';
-import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	BuildSubquerySelection,
 	GetSelectTableName,
@@ -33,7 +32,7 @@ import type {
 	PgSelectQueryBuilderHKT,
 	SelectedFields,
 } from './select.types.ts';
-import { PgSetOperator } from './set-operators.ts';
+import { PgSetOperatorBuilder } from './set-operators.ts';
 
 type CreatePgSelectFromBuilderMode<
 	TBuilderMode extends 'db' | 'qb',
@@ -130,9 +129,12 @@ export abstract class PgSelectQueryBuilder<
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
-> extends TypedQueryBuilder<
-	BuildSubquerySelection<TSelection, TNullabilityMap>,
-	SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
+> extends PgSetOperatorBuilder<
+	THKT,
+	TTableName,
+	TSelection,
+	TSelectMode,
+	TNullabilityMap
 > {
 	static readonly [entityKind]: string = 'PgSelectQueryBuilder';
 
@@ -178,16 +180,6 @@ export abstract class PgSelectQueryBuilder<
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
-	}
-
-	/** @internal */
-	getSetOperatorConfig() {
-		return {
-			session: this.session,
-			dialect: this.dialect,
-			joinsNotNullableMap: this.joinsNotNullableMap,
-			fields: this.config.fields,
-		};
 	}
 
 	private createJoin<TJoinType extends JoinType>(
@@ -323,114 +315,6 @@ export abstract class PgSelectQueryBuilder<
 		}
 		this.config.where = where;
 		return this;
-	}
-
-	union<
-		THKT extends PgSelectHKTBase,
-		TTableName extends string | undefined,
-		TSelection extends ColumnsSelection,
-		TSelectMode extends SelectMode,
-	>(
-		rightSelect:
-			| PgSelect<TTableName, TSelection, TSelectMode>
-			| PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>,
-	): PgSetOperator<
-		THKT,
-		TTableName,
-		TSelection,
-		TSelectMode
-	> {
-		return new PgSetOperator('union', false, this as any, rightSelect);
-	}
-
-	unionAll<
-		THKT extends PgSelectHKTBase,
-		TTableName extends string | undefined,
-		TSelection extends ColumnsSelection,
-		TSelectMode extends SelectMode,
-	>(
-		rightSelect:
-			| PgSelect<TTableName, TSelection, TSelectMode>
-			| PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>,
-	): PgSetOperator<
-		THKT,
-		TTableName,
-		TSelection,
-		TSelectMode
-	> {
-		return new PgSetOperator('union', true, this as any, rightSelect);
-	}
-
-	intersect<
-		THKT extends PgSelectHKTBase,
-		TTableName extends string | undefined,
-		TSelection extends ColumnsSelection,
-		TSelectMode extends SelectMode,
-	>(
-		rightSelect:
-			| PgSelect<TTableName, TSelection, TSelectMode>
-			| PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>,
-	): PgSetOperator<
-		THKT,
-		TTableName,
-		TSelection,
-		TSelectMode
-	> {
-		return new PgSetOperator('intersect', false, this as any, rightSelect);
-	}
-
-	intersectAll<
-		THKT extends PgSelectHKTBase,
-		TTableName extends string | undefined,
-		TSelection extends ColumnsSelection,
-		TSelectMode extends SelectMode,
-	>(
-		rightSelect:
-			| PgSelect<TTableName, TSelection, TSelectMode>
-			| PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>,
-	): PgSetOperator<
-		THKT,
-		TTableName,
-		TSelection,
-		TSelectMode
-	> {
-		return new PgSetOperator('intersect', true, this as any, rightSelect);
-	}
-
-	except<
-		THKT extends PgSelectHKTBase,
-		TTableName extends string | undefined,
-		TSelection extends ColumnsSelection,
-		TSelectMode extends SelectMode,
-	>(
-		rightSelect:
-			| PgSelect<TTableName, TSelection, TSelectMode>
-			| PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>,
-	): PgSetOperator<
-		THKT,
-		TTableName,
-		TSelection,
-		TSelectMode
-	> {
-		return new PgSetOperator('except', false, this as any, rightSelect);
-	}
-
-	exceptAll<
-		THKT extends PgSelectHKTBase,
-		TTableName extends string | undefined,
-		TSelection extends ColumnsSelection,
-		TSelectMode extends SelectMode,
-	>(
-		rightSelect:
-			| PgSelect<TTableName, TSelection, TSelectMode>
-			| PgSelectQueryBuilder<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>,
-	): PgSetOperator<
-		THKT,
-		TTableName,
-		TSelection,
-		TSelectMode
-	> {
-		return new PgSetOperator('except', true, this as any, rightSelect);
 	}
 
 	/**
