@@ -141,7 +141,8 @@ export abstract class SQLiteSelectQueryBuilder<
 		readonly selectedFields: BuildSubquerySelection<TSelection, TNullabilityMap>;
 	};
 
-	protected config: SQLiteSelectConfig;
+	/** @internal */
+	config: SQLiteSelectConfig;
 	protected joinsNotNullableMap: Record<string, boolean>;
 	private tableName: string | undefined;
 	private isPartialSelect: boolean;
@@ -343,7 +344,7 @@ export abstract class SQLiteSelectQueryBuilder<
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	toSQL(): { sql: Query['sql']; params: Query['params'] } {
+	toSQL(): Query {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}

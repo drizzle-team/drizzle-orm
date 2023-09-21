@@ -598,7 +598,8 @@ test.serial('partial join with alias', async (t) => {
 	const { db } = t.context;
 	const customerAlias = alias(usersTable, 'customer');
 
-	await db.insert(usersTable).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]).run();
+	await db.insert(usersTable).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
+
 	const result = await db
 		.select({
 			user: {
@@ -611,8 +612,7 @@ test.serial('partial join with alias', async (t) => {
 			},
 		}).from(usersTable)
 		.leftJoin(customerAlias, eq(customerAlias.id, 11))
-		.where(eq(usersTable.id, 10))
-		.all();
+		.where(eq(usersTable.id, 10));
 
 	t.deepEqual(result, [{
 		user: { id: 10, name: 'Ivan' },

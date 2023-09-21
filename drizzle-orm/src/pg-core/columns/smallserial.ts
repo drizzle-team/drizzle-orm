@@ -39,7 +39,7 @@ export class PgSmallSerial<T extends ColumnBaseConfig<'number', 'PgSmallSerial'>
 	static readonly [entityKind]: string = 'PgSmallSerial';
 
 	getSQLType(): string {
-		return 'serial';
+		return 'smallserial';
 	}
 }
 
