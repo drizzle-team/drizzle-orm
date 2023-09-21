@@ -4,8 +4,9 @@ import { SQLiteTable } from './table.ts';
 
 export function primaryKey<
 	TTableName extends string,
-	TColumns extends AnySQLiteColumn<{ tableName: TTableName }>,
->(config: { name?: string; columns: [TColumns, ...TColumns[]] }): PrimaryKeyBuilder;
+	TColumn extends AnySQLiteColumn<{ tableName: TTableName }>,
+	TColumns extends AnySQLiteColumn<{ tableName: TTableName }>[],
+>(config: { name?: string; columns: [TColumn, ...TColumns] }): PrimaryKeyBuilder;
 /**
  * @deprecated: Please use primaryKey({ columns: [] }) instead of this function
  * @param columns

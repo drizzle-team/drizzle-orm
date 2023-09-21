@@ -4,8 +4,9 @@ import { MySqlTable } from './table.ts';
 
 export function primaryKey<
 	TTableName extends string,
-	TColumns extends AnyMySqlColumn<{ tableName: TTableName }>,
->(config: { name?: string; columns: [TColumns, ...TColumns[]] }): PrimaryKeyBuilder;
+	TColumn extends AnyMySqlColumn<{ tableName: TTableName }>,
+	TColumns extends AnyMySqlColumn<{ tableName: TTableName }>[],
+>(config: { name?: string; columns: [TColumn, ...TColumns] }): PrimaryKeyBuilder;
 /**
  * @deprecated: Please use primaryKey({ columns: [] }) instead of this function
  * @param columns

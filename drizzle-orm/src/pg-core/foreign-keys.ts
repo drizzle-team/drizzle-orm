@@ -100,13 +100,15 @@ export function foreignKey<
 	TColumns extends [AnyPgColumn<{ tableName: TTableName }>, ...AnyPgColumn<{ tableName: TTableName }>[]],
 >(
 	config: {
+		name?: string;
 		columns: TColumns;
 		foreignColumns: ColumnsWithTable<TForeignTableName, TColumns>;
 	},
 ): ForeignKeyBuilder {
 	function mappedConfig() {
-		const { columns, foreignColumns } = config;
+		const { name, columns, foreignColumns } = config;
 		return {
+			name,
 			columns,
 			foreignColumns,
 		};

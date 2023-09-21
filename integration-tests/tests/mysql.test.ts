@@ -221,7 +221,7 @@ test.beforeEach(async (t) => {
 	);
 });
 
-test.serial.only('table config: unsigned ints', async (t) => {
+test.serial('table config: unsigned ints', async (t) => {
 	const unsignedInts = mysqlTable('cities1', {
 		bigint: bigint('bigint', { mode: 'number', unsigned: true }),
 		int: int('int', { unsigned: true }),
@@ -245,7 +245,7 @@ test.serial.only('table config: unsigned ints', async (t) => {
 	t.is(tinyintColumn.getSQLType(), 'tinyint unsigned');
 });
 
-test.serial.only('table config: signed ints', async (t) => {
+test.serial('table config: signed ints', async (t) => {
 	const unsignedInts = mysqlTable('cities1', {
 		bigint: bigint('bigint', { mode: 'number' }),
 		int: int('int'),
@@ -269,7 +269,7 @@ test.serial.only('table config: signed ints', async (t) => {
 	t.is(tinyintColumn.getSQLType(), 'tinyint');
 });
 
-test.serial.only('table config: foreign keys name', async (t) => {
+test.serial('table config: foreign keys name', async (t) => {
 	const table = mysqlTable('cities', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
@@ -284,7 +284,7 @@ test.serial.only('table config: foreign keys name', async (t) => {
 	t.is(tableConfig.foreignKeys[0]!.getName(), 'custom_fk');
 });
 
-test.serial.only('table config: primary keys name', async (t) => {
+test.serial('table config: primary keys name', async (t) => {
 	const table = mysqlTable('cities', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
