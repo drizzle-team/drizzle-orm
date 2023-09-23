@@ -216,6 +216,42 @@ test.beforeEach(async (t) => {
 	`);
 });
 
+async function setupSetOperationTest(db: LibSQLDatabase<Record<string, never>>) {
+	await db.run(sql`drop table if exists users2`);
+	await db.run(sql`drop table if exists cities`);
+	await db.run(sql`
+		create table \`cities\` (
+			id integer primary key,
+			name text not null
+		)
+	`);
+
+	await db.run(sql`
+		create table \`users2\` (
+			id integer primary key,
+			name text not null,
+			city_id integer references ${citiesTable}(${name(citiesTable.id.name)})
+		)
+	`);
+
+	await db.insert(citiesTable).values([
+		{ id: 1, name: 'New York' },
+		{ id: 2, name: 'London' },
+		{ id: 3, name: 'Tampa' },
+	]);
+
+	await db.insert(users2Table).values([
+		{ id: 1, name: 'John', cityId: 1 },
+		{ id: 2, name: 'Jane', cityId: 2 },
+		{ id: 3, name: 'Jack', cityId: 3 },
+		{ id: 4, name: 'Peter', cityId: 3 },
+		{ id: 5, name: 'Ben', cityId: 2 },
+		{ id: 6, name: 'Jill', cityId: 1 },
+		{ id: 7, name: 'Mary', cityId: 2 },
+		{ id: 8, name: 'Sally', cityId: 1 },
+	]);
+}
+
 test.serial('insert bigint values', async (t) => {
 	const { db } = t.context;
 
@@ -1979,39 +2015,7 @@ test.serial('select + .get() for empty result', async (t) => {
 test.serial('set operations (union) from query builder', async (t) => {
 	const { db } = t.context;
 
-	await db.run(sql`drop table if exists users2`);
-	await db.run(sql`drop table if exists cities`);
-	await db.run(sql`
-		create table \`cities\` (
-			id integer primary key,
-			name text not null
-		)
-	`);
-
-	await db.run(sql`
-		create table \`users2\` (
-			id integer primary key,
-			name text not null,
-			city_id integer references ${citiesTable}(${name(citiesTable.id.name)})
-		)
-	`);
-
-	await db.insert(citiesTable).values([
-		{ id: 1, name: 'New York' },
-		{ id: 2, name: 'London' },
-		{ id: 3, name: 'Tampa' },
-	]);
-
-	await db.insert(users2Table).values([
-		{ id: 1, name: 'John', cityId: 1 },
-		{ id: 2, name: 'Jane', cityId: 2 },
-		{ id: 3, name: 'Jack', cityId: 3 },
-		{ id: 4, name: 'Peter', cityId: 3 },
-		{ id: 5, name: 'Ben', cityId: 2 },
-		{ id: 6, name: 'Jill', cityId: 1 },
-		{ id: 7, name: 'Mary', cityId: 2 },
-		{ id: 8, name: 'Sally', cityId: 1 },
-	]);
+	await setupSetOperationTest(db);
 
 	const result = await db
 		.select({ id: citiesTable.id, name: citiesTable.name })
@@ -2036,44 +2040,22 @@ test.serial('set operations (union) from query builder', async (t) => {
 		{ id: 8, name: 'Sally' },
 		{ id: 3, name: 'Tampa' },
 	]);
+
+	t.throws(() => {
+		db
+			.select({ name: citiesTable.name, id: citiesTable.id })
+			.from(citiesTable).union(
+				db
+					.select({ id: users2Table.id, name: users2Table.name })
+					.from(users2Table),
+			).orderBy(asc(sql`name`));
+	});
 });
 
 test.serial('set operations (union) as function', async (t) => {
 	const { db } = t.context;
 
-	await db.run(sql`drop table if exists users2`);
-	await db.run(sql`drop table if exists cities`);
-	await db.run(sql`
-		create table \`cities\` (
-			id integer primary key,
-			name text not null
-		)
-	`);
-
-	await db.run(sql`
-		create table \`users2\` (
-			id integer primary key,
-			name text not null,
-			city_id integer references ${citiesTable}(${name(citiesTable.id.name)})
-		)
-	`);
-
-	await db.insert(citiesTable).values([
-		{ id: 1, name: 'New York' },
-		{ id: 2, name: 'London' },
-		{ id: 3, name: 'Tampa' },
-	]);
-
-	await db.insert(users2Table).values([
-		{ id: 1, name: 'John', cityId: 1 },
-		{ id: 2, name: 'Jane', cityId: 2 },
-		{ id: 3, name: 'Jack', cityId: 3 },
-		{ id: 4, name: 'Peter', cityId: 3 },
-		{ id: 5, name: 'Ben', cityId: 2 },
-		{ id: 6, name: 'Jill', cityId: 1 },
-		{ id: 7, name: 'Mary', cityId: 2 },
-		{ id: 8, name: 'Sally', cityId: 1 },
-	]);
+	await setupSetOperationTest(db);
 
 	const result = await union(
 		db
@@ -2093,47 +2075,26 @@ test.serial('set operations (union) as function', async (t) => {
 		{ id: 1, name: 'John' },
 		{ id: 1, name: 'New York' },
 	]);
+
+	t.throws(() => {
+		union(
+			db
+				.select({ id: citiesTable.id, name: citiesTable.name })
+				.from(citiesTable).where(eq(citiesTable.id, 1)),
+			db
+				.select({ name: users2Table.name, id: users2Table.id })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+		).orderBy(asc(sql`name`));
+	});
 });
 
 test.serial('set operations (union all) from query builder', async (t) => {
 	const { db } = t.context;
 
-	await db.run(sql`drop table if exists users2`);
-	await db.run(sql`drop table if exists cities`);
-	await db.run(
-		sql`
-			create table \`cities\` (
-			  id integer primary key,
-			  name text not null
-			)
-		`,
-	);
-	await db.run(
-		sql`
-			create table users2 (
-			  id integer primary key,
-			  name text not null,
-				city_id integer references cities(id)
-			)
-		`,
-	);
-
-	await db.insert(citiesTable).values([
-		{ id: 1, name: 'New York' },
-		{ id: 2, name: 'London' },
-		{ id: 3, name: 'Tampa' },
-	]);
-
-	await db.insert(users2Table).values([
-		{ id: 1, name: 'John', cityId: 1 },
-		{ id: 2, name: 'Jane', cityId: 2 },
-		{ id: 3, name: 'Jack', cityId: 3 },
-		{ id: 4, name: 'Peter', cityId: 3 },
-		{ id: 5, name: 'Ben', cityId: 2 },
-		{ id: 6, name: 'Jill', cityId: 1 },
-		{ id: 7, name: 'Mary', cityId: 2 },
-		{ id: 8, name: 'Sally', cityId: 1 },
-	]);
+	await setupSetOperationTest(db);
 
 	const result = await db
 		.select({ id: citiesTable.id, name: citiesTable.name })
@@ -2153,47 +2114,22 @@ test.serial('set operations (union all) from query builder', async (t) => {
 		{ id: 3, name: 'Tampa' },
 		{ id: 3, name: 'Tampa' },
 	]);
+
+	t.throws(() => {
+		db
+			.select({ id: citiesTable.id, name: citiesTable.name })
+			.from(citiesTable).unionAll(
+				db
+					.select({ name: citiesTable.name, id: citiesTable.id })
+					.from(citiesTable),
+			).orderBy(asc(citiesTable.id));
+	});
 });
 
 test.serial('set operations (union all) as function', async (t) => {
 	const { db } = t.context;
 
-	await db.run(sql`drop table if exists users2`);
-	await db.run(sql`drop table if exists cities`);
-	await db.run(
-		sql`
-			create table \`cities\` (
-			  id integer primary key,
-			  name text not null
-			)
-		`,
-	);
-	await db.run(
-		sql`
-			create table users2 (
-			  id integer primary key,
-			  name text not null,
-				city_id integer references cities(id)
-			)
-		`,
-	);
-
-	await db.insert(citiesTable).values([
-		{ id: 1, name: 'New York' },
-		{ id: 2, name: 'London' },
-		{ id: 3, name: 'Tampa' },
-	]);
-
-	await db.insert(users2Table).values([
-		{ id: 1, name: 'John', cityId: 1 },
-		{ id: 2, name: 'Jane', cityId: 2 },
-		{ id: 3, name: 'Jack', cityId: 3 },
-		{ id: 4, name: 'Peter', cityId: 3 },
-		{ id: 5, name: 'Ben', cityId: 2 },
-		{ id: 6, name: 'Jill', cityId: 1 },
-		{ id: 7, name: 'Mary', cityId: 2 },
-		{ id: 8, name: 'Sally', cityId: 1 },
-	]);
+	await setupSetOperationTest(db);
 
 	const result = await unionAll(
 		db
@@ -2214,47 +2150,26 @@ test.serial('set operations (union all) as function', async (t) => {
 		{ id: 1, name: 'John' },
 		{ id: 1, name: 'John' },
 	]);
+
+	t.throws(() => {
+		unionAll(
+			db
+				.select({ id: citiesTable.id, name: citiesTable.name })
+				.from(citiesTable).where(eq(citiesTable.id, 1)),
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+			db
+				.select({ name: users2Table.name, id: users2Table.id })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+		);
+	});
 });
 
 test.serial('set operations (intersect) from query builder', async (t) => {
 	const { db } = t.context;
 
-	await db.run(sql`drop table if exists users2`);
-	await db.run(sql`drop table if exists cities`);
-	await db.run(
-		sql`
-			create table \`cities\` (
-			  id integer primary key,
-			  name text not null
-			)
-		`,
-	);
-	await db.run(
-		sql`
-			create table users2 (
-			  id integer primary key,
-			  name text not null,
-				city_id integer references cities(id)
-			)
-		`,
-	);
-
-	await db.insert(citiesTable).values([
-		{ id: 1, name: 'New York' },
-		{ id: 2, name: 'London' },
-		{ id: 3, name: 'Tampa' },
-	]);
-
-	await db.insert(users2Table).values([
-		{ id: 1, name: 'John', cityId: 1 },
-		{ id: 2, name: 'Jane', cityId: 2 },
-		{ id: 3, name: 'Jack', cityId: 3 },
-		{ id: 4, name: 'Peter', cityId: 3 },
-		{ id: 5, name: 'Ben', cityId: 2 },
-		{ id: 6, name: 'Jill', cityId: 1 },
-		{ id: 7, name: 'Mary', cityId: 2 },
-		{ id: 8, name: 'Sally', cityId: 1 },
-	]);
+	await setupSetOperationTest(db);
 
 	const result = await db
 		.select({ id: citiesTable.id, name: citiesTable.name })
@@ -2270,47 +2185,22 @@ test.serial('set operations (intersect) from query builder', async (t) => {
 		{ id: 2, name: 'London' },
 		{ id: 3, name: 'Tampa' },
 	]);
+
+	t.throws(() => {
+		db
+			.select({ name: citiesTable.name, id: citiesTable.id })
+			.from(citiesTable).intersect(
+				db
+					.select({ id: citiesTable.id, name: citiesTable.name })
+					.from(citiesTable).where(gt(citiesTable.id, 1)),
+			).orderBy(asc(sql`name`));
+	});
 });
 
 test.serial('set operations (intersect) as function', async (t) => {
 	const { db } = t.context;
 
-	await db.run(sql`drop table if exists users2`);
-	await db.run(sql`drop table if exists cities`);
-	await db.run(
-		sql`
-			create table \`cities\` (
-			  id integer primary key,
-			  name text not null
-			)
-		`,
-	);
-	await db.run(
-		sql`
-			create table users2 (
-			  id integer primary key,
-			  name text not null,
-				city_id integer references cities(id)
-			)
-		`,
-	);
-
-	await db.insert(citiesTable).values([
-		{ id: 1, name: 'New York' },
-		{ id: 2, name: 'London' },
-		{ id: 3, name: 'Tampa' },
-	]);
-
-	await db.insert(users2Table).values([
-		{ id: 1, name: 'John', cityId: 1 },
-		{ id: 2, name: 'Jane', cityId: 2 },
-		{ id: 3, name: 'Jack', cityId: 3 },
-		{ id: 4, name: 'Peter', cityId: 3 },
-		{ id: 5, name: 'Ben', cityId: 2 },
-		{ id: 6, name: 'Jill', cityId: 1 },
-		{ id: 7, name: 'Mary', cityId: 2 },
-		{ id: 8, name: 'Sally', cityId: 1 },
-	]);
+	await setupSetOperationTest(db);
 
 	const result = await intersect(
 		db
@@ -2327,47 +2217,26 @@ test.serial('set operations (intersect) as function', async (t) => {
 	t.assert(result.length === 0);
 
 	t.deepEqual(result, []);
+
+	t.throws(() => {
+		intersect(
+			db
+				.select({ id: citiesTable.id, name: citiesTable.name })
+				.from(citiesTable).where(eq(citiesTable.id, 1)),
+			db
+				.select({ name: users2Table.name, id: users2Table.id })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+		);
+	});
 });
 
 test.serial('set operations (except) from query builder', async (t) => {
 	const { db } = t.context;
 
-	await db.run(sql`drop table if exists users2`);
-	await db.run(sql`drop table if exists cities`);
-	await db.run(
-		sql`
-			create table \`cities\` (
-			  id integer primary key,
-			  name text not null
-			)
-		`,
-	);
-	await db.run(
-		sql`
-			create table users2 (
-			  id integer primary key,
-			  name text not null,
-				city_id integer references cities(id)
-			)
-		`,
-	);
-
-	await db.insert(citiesTable).values([
-		{ id: 1, name: 'New York' },
-		{ id: 2, name: 'London' },
-		{ id: 3, name: 'Tampa' },
-	]);
-
-	await db.insert(users2Table).values([
-		{ id: 1, name: 'John', cityId: 1 },
-		{ id: 2, name: 'Jane', cityId: 2 },
-		{ id: 3, name: 'Jack', cityId: 3 },
-		{ id: 4, name: 'Peter', cityId: 3 },
-		{ id: 5, name: 'Ben', cityId: 2 },
-		{ id: 6, name: 'Jill', cityId: 1 },
-		{ id: 7, name: 'Mary', cityId: 2 },
-		{ id: 8, name: 'Sally', cityId: 1 },
-	]);
+	await setupSetOperationTest(db);
 
 	const result = await db
 		.select()
@@ -2382,47 +2251,22 @@ test.serial('set operations (except) from query builder', async (t) => {
 	t.deepEqual(result, [
 		{ id: 1, name: 'New York' },
 	]);
+
+	t.throws(() => {
+		db
+			.select()
+			.from(citiesTable).except(
+				db
+					.select({ name: users2Table.name, id: users2Table.id })
+					.from(citiesTable).where(gt(citiesTable.id, 1)),
+			);
+	});
 });
 
 test.serial('set operations (except) as function', async (t) => {
 	const { db } = t.context;
 
-	await db.run(sql`drop table if exists users2`);
-	await db.run(sql`drop table if exists cities`);
-	await db.run(
-		sql`
-			create table \`cities\` (
-			  id integer primary key,
-			  name text not null
-			)
-		`,
-	);
-	await db.run(
-		sql`
-			create table users2 (
-			  id integer primary key,
-			  name text not null,
-				city_id integer references cities(id)
-			)
-		`,
-	);
-
-	await db.insert(citiesTable).values([
-		{ id: 1, name: 'New York' },
-		{ id: 2, name: 'London' },
-		{ id: 3, name: 'Tampa' },
-	]);
-
-	await db.insert(users2Table).values([
-		{ id: 1, name: 'John', cityId: 1 },
-		{ id: 2, name: 'Jane', cityId: 2 },
-		{ id: 3, name: 'Jack', cityId: 3 },
-		{ id: 4, name: 'Peter', cityId: 3 },
-		{ id: 5, name: 'Ben', cityId: 2 },
-		{ id: 6, name: 'Jill', cityId: 1 },
-		{ id: 7, name: 'Mary', cityId: 2 },
-		{ id: 8, name: 'Sally', cityId: 1 },
-	]);
+	await setupSetOperationTest(db);
 
 	const result = await except(
 		db
@@ -2442,47 +2286,26 @@ test.serial('set operations (except) as function', async (t) => {
 		{ id: 2, name: 'London' },
 		{ id: 3, name: 'Tampa' },
 	]);
+
+	t.throws(() => {
+		except(
+			db
+				.select({ name: citiesTable.name, id: citiesTable.id })
+				.from(citiesTable),
+			db
+				.select({ id: citiesTable.id, name: citiesTable.name })
+				.from(citiesTable).where(eq(citiesTable.id, 1)),
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+		).orderBy(asc(sql`id`));
+	});
 });
 
 test.serial('set operations (mixed) from query builder', async (t) => {
 	const { db } = t.context;
 
-	await db.run(sql`drop table if exists users2`);
-	await db.run(sql`drop table if exists cities`);
-	await db.run(
-		sql`
-			create table \`cities\` (
-			  id integer primary key,
-			  name text not null
-			)
-		`,
-	);
-	await db.run(
-		sql`
-			create table users2 (
-			  id integer primary key,
-			  name text not null,
-				city_id integer references cities(id)
-			)
-		`,
-	);
-
-	await db.insert(citiesTable).values([
-		{ id: 1, name: 'New York' },
-		{ id: 2, name: 'London' },
-		{ id: 3, name: 'Tampa' },
-	]);
-
-	await db.insert(users2Table).values([
-		{ id: 1, name: 'John', cityId: 1 },
-		{ id: 2, name: 'Jane', cityId: 2 },
-		{ id: 3, name: 'Jack', cityId: 3 },
-		{ id: 4, name: 'Peter', cityId: 3 },
-		{ id: 5, name: 'Ben', cityId: 2 },
-		{ id: 6, name: 'Jill', cityId: 1 },
-		{ id: 7, name: 'Mary', cityId: 2 },
-		{ id: 8, name: 'Sally', cityId: 1 },
-	]);
+	await setupSetOperationTest(db);
 
 	const result = await db
 		.select()
@@ -2502,47 +2325,27 @@ test.serial('set operations (mixed) from query builder', async (t) => {
 		{ id: 1, name: 'New York' },
 		{ id: 2, name: 'London' },
 	]);
+
+	t.throws(() => {
+		db
+			.select()
+			.from(citiesTable).except(
+				({ unionAll }) =>
+					unionAll(
+						db
+							.select()
+							.from(citiesTable).where(gt(citiesTable.id, 1)),
+						db.select({ name: citiesTable.name, id: citiesTable.id })
+							.from(citiesTable).where(eq(citiesTable.id, 2)),
+					),
+			);
+	});
 });
 
 test.serial('set operations (mixed all) as function', async (t) => {
 	const { db } = t.context;
 
-	await db.run(sql`drop table if exists users2`);
-	await db.run(sql`drop table if exists cities`);
-	await db.run(
-		sql`
-			create table \`cities\` (
-			  id integer primary key,
-			  name text not null
-			)
-		`,
-	);
-	await db.run(
-		sql`
-			create table \`users2\` (
-			  id integer primary key,
-			  name text not null,
-				city_id integer references cities(id)
-			)
-		`,
-	);
-
-	await db.insert(citiesTable).values([
-		{ id: 1, name: 'New York' },
-		{ id: 2, name: 'London' },
-		{ id: 3, name: 'Tampa' },
-	]);
-
-	await db.insert(users2Table).values([
-		{ id: 1, name: 'John', cityId: 1 },
-		{ id: 2, name: 'Jane', cityId: 2 },
-		{ id: 3, name: 'Jack', cityId: 3 },
-		{ id: 4, name: 'Peter', cityId: 3 },
-		{ id: 5, name: 'Ben', cityId: 2 },
-		{ id: 6, name: 'Jill', cityId: 1 },
-		{ id: 7, name: 'Mary', cityId: 2 },
-		{ id: 8, name: 'Sally', cityId: 1 },
-	]);
+	await setupSetOperationTest(db);
 
 	const result = await union(
 		db
@@ -2570,4 +2373,23 @@ test.serial('set operations (mixed all) as function', async (t) => {
 		{ id: 6, name: 'Jill' },
 		{ id: 8, name: 'Sally' },
 	]);
+
+	t.throws(() => {
+		union(
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+			except(
+				db
+					.select({ id: users2Table.id, name: users2Table.name })
+					.from(users2Table).where(gte(users2Table.id, 5)),
+				db
+					.select({ id: users2Table.id, name: users2Table.name })
+					.from(users2Table).where(eq(users2Table.id, 7)),
+			),
+			db
+				.select({ name: users2Table.name, id: users2Table.id })
+				.from(citiesTable).where(gt(citiesTable.id, 1)),
+		).orderBy(asc(sql`id`));
+	});
 });

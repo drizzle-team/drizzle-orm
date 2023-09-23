@@ -1,6 +1,7 @@
 import { entityKind, is } from '~/entity.ts';
 import {
 	applyMixins,
+	haveSameKeys,
 	orderSelectedFields,
 	type Placeholder,
 	type Query,
@@ -221,7 +222,22 @@ export class MySqlSetOperator<
 		private rightSelect: TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
 	) {
 		super();
+
+		const leftSelectedFields = leftSelect.getSelectedFields();
+		const rightSelectedFields = rightSelect.getSelectedFields();
+
+		if (!haveSameKeys(leftSelectedFields, rightSelectedFields)) {
+			throw new Error(
+				'Set operator error (union / intersect / except): selected fields are not the same or are in a different order',
+			);
+		}
+
 		const { session, dialect, joinsNotNullableMap, fields } = leftSelect.getSetOperatorConfig();
+
+		this._ = {
+			selectedFields: fields,
+		} as this['_'];
+
 		this.session = session;
 		this.dialect = dialect;
 		this.joinsNotNullableMap = joinsNotNullableMap;

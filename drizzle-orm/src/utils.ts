@@ -91,6 +91,23 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 	}, []) as SelectedFieldsOrdered<TColumn>;
 }
 
+export function haveSameKeys(left: Record<string, unknown>, right: Record<string, unknown>) {
+	const leftKeys = Object.keys(left);
+	const rightKeys = Object.keys(right);
+
+	if (leftKeys.length !== rightKeys.length) {
+		return false;
+	}
+
+	for (let i = 0; i < leftKeys.length; i++) {
+		if (leftKeys[i] !== rightKeys[i]) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 /** @internal */
 export function mapUpdateSet(table: Table, values: Record<string, unknown>): UpdateSet {
 	const entries: [string, UpdateSet[string]][] = Object.entries(values)

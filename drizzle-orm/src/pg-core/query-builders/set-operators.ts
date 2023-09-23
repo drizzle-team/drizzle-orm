@@ -18,7 +18,7 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { tracer } from '~/tracing.ts';
-import { applyMixins, type ValidateShape } from '~/utils.ts';
+import { applyMixins, haveSameKeys, type ValidateShape } from '~/utils.ts';
 import { type ColumnsSelection } from '~/view.ts';
 import { PgColumn } from '../columns/common.ts';
 import type { PgDialect } from '../dialect.ts';
@@ -213,7 +213,21 @@ export class PgSetOperator<
 	) {
 		super();
 
+		const leftSelectedFields = leftSelect.getSelectedFields();
+		const rightSelectedFields = rightSelect.getSelectedFields();
+
+		if (!haveSameKeys(leftSelectedFields, rightSelectedFields)) {
+			throw new Error(
+				'Set operator error (union / intersect / except): selected fields are not the same or are in a different order',
+			);
+		}
+
 		const { session, dialect, joinsNotNullableMap, fields } = leftSelect.getSetOperatorConfig();
+
+		this._ = {
+			selectedFields: fields as BuildSubquerySelection<TSelection, TNullabilityMap>,
+		} as this['_'];
+
 		this.session = session;
 		this.dialect = dialect;
 		this.joinsNotNullableMap = joinsNotNullableMap;

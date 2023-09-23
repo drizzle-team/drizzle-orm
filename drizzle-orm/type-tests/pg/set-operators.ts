@@ -150,16 +150,22 @@ const exceptAll2Test = await exceptAll(
 
 Expect<Equal<{ userId: number; cityId: number | null }[], typeof exceptAll2Test>>;
 
-// @ts-expect-error - The select on both sites must be the same shape
+// All queries in combining statements should return the same number of columns
+// and the corresponding columns should have compatible data type
+// @ts-expect-error
 db.select().from(classes).union(db.select({ id: classes.id }).from(classes));
 
-// @ts-expect-error - The select on both sites must be the same shape
+// All queries in combining statements should return the same number of columns
+// and the corresponding columns should have compatible data type
+// @ts-expect-error
 db.select({ id: classes.id }).from(classes).union(db.select().from(classes));
 
 union(
 	db.select({ id: cities.id, name: cities.name }).from(cities),
 	db.select({ id: cities.id, name: cities.name }).from(cities),
-	// @ts-expect-error - The select on rest parameter must be the same shape
+	// All queries in combining statements should return the same number of columns
+	// and the corresponding columns should have compatible data type
+	// @ts-expect-error
 	db.select().from(cities),
 );
 
@@ -167,7 +173,9 @@ union(
 	db.select({ id: cities.id }).from(cities),
 	db.select({ id: cities.id }).from(cities),
 	db.select({ id: cities.id }).from(cities),
-	// @ts-expect-error - The select on any part of the rest parameter must be the same shape
+	// All queries in combining statements should return the same number of columns
+	// and the corresponding columns should have compatible data type
+	// @ts-expect-error
 	db.select({ id: cities.id, name: cities.name }).from(cities),
 	db.select({ id: cities.id }).from(cities),
 	db.select({ id: cities.id }).from(cities),
@@ -176,7 +184,9 @@ union(
 union(
 	db.select({ id: cities.id }).from(cities),
 	db.select({ id: cities.id }).from(cities),
-	// @ts-expect-error - The select on any part of the rest parameter must be the same shape
+	// All queries in combining statements should return the same number of columns
+	// and the corresponding columns should have compatible data type
+	// @ts-expect-error
 	db.select({ id: cities.id, name: cities.name }).from(cities),
 	db.select({ id: cities.id }).from(cities),
 	db.select({ id: cities.id }).from(cities),
@@ -189,6 +199,8 @@ union(
 	db.select({ id: cities.id }).from(cities),
 	db.select({ id: sql<number>`${cities.id}` }).from(cities),
 	db.select({ id: cities.id }).from(cities),
-	// @ts-expect-error - The select on any part of the rest parameter must be the same shape
+	// All queries in combining statements should return the same number of columns
+	// and the corresponding columns should have compatible data type
+	// @ts-expect-error
 	db.select({ id: cities.id, name: cities.name, population: cities.population }).from(cities),
 );
