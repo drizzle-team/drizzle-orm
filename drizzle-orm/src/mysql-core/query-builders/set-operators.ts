@@ -103,6 +103,7 @@ export abstract class MySqlSetOperatorBuilder<
 		fields: Record<string, unknown>;
 		limit?: number | Placeholder;
 		orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
+		offset?: number | Placeholder;
 	};
 	/* @internal */
 	abstract readonly session: MySqlSession | undefined;
@@ -118,7 +119,7 @@ export abstract class MySqlSetOperatorBuilder<
 		};
 	}
 
-	setOperator(
+	private setOperator(
 		type: SetOperator,
 		isAll: boolean,
 	): <TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
@@ -148,6 +149,8 @@ export abstract class MySqlSetOperatorBuilder<
 	abstract orderBy(...columns: (MySqlColumn | SQL | SQL.Aliased)[]): this;
 
 	abstract limit(limit: number): this;
+
+	abstract offset(offset: number | Placeholder): this;
 }
 
 export class MySqlSetOperator<
@@ -171,6 +174,7 @@ export class MySqlSetOperator<
 		fields: Record<string, unknown>;
 		limit?: number | Placeholder;
 		orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
+		offset?: number | Placeholder;
 	};
 	/* @internal */
 	readonly session: MySqlSession | undefined;
@@ -237,6 +241,11 @@ export class MySqlSetOperator<
 		return this;
 	}
 
+	offset(offset: number | Placeholder) {
+		this.config.offset = offset;
+		return this;
+	}
+
 	override getSQL(): SQL<unknown> {
 		const leftChunk = sql`(${this.leftSelect.getSQL()}) `;
 		const rightChunk = sql`(${this.rightSelect.getSQL()})`;
@@ -272,7 +281,9 @@ export class MySqlSetOperator<
 
 		const operatorChunk = sql.raw(`${this.operator} ${this.isAll ? 'all ' : ''}`);
 
-		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}`;
+		const offsetSql = this.config.offset ? sql` offset ${this.config.offset}` : undefined;
+
+		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	toSQL(): Query {

@@ -2567,22 +2567,13 @@ test.serial('set operations (union) from query builder', async (t) => {
 			db
 				.select({ id: users2Table.id, name: users2Table.name })
 				.from(users2Table),
-		).orderBy(asc(sql`name`));
+		).orderBy(asc(sql`name`)).limit(2).offset(1);
 
-	t.assert(result.length === 11);
+	t.assert(result.length === 2);
 
 	t.deepEqual(result, [
-		{ id: 5, name: 'Ben' },
 		{ id: 3, name: 'Jack' },
 		{ id: 2, name: 'Jane' },
-		{ id: 6, name: 'Jill' },
-		{ id: 1, name: 'John' },
-		{ id: 2, name: 'London' },
-		{ id: 7, name: 'Mary' },
-		{ id: 1, name: 'New York' },
-		{ id: 4, name: 'Peter' },
-		{ id: 8, name: 'Sally' },
-		{ id: 3, name: 'Tampa' },
 	]);
 
 	t.throws(() => {
@@ -2612,12 +2603,11 @@ test.serial('set operations (union) as function', async (t) => {
 		db
 			.select({ id: users2Table.id, name: users2Table.name })
 			.from(users2Table).where(eq(users2Table.id, 1)),
-	).orderBy(asc(sql`name`));
+	).orderBy(asc(sql`name`)).limit(1).offset(1);
 
-	t.assert(result.length === 2);
+	t.assert(result.length === 1);
 
 	t.deepEqual(result, [
-		{ id: 1, name: 'John' },
 		{ id: 1, name: 'New York' },
 	]);
 
@@ -2961,13 +2951,11 @@ test.serial('set operations (except all) as function', async (t) => {
 		db
 			.select({ id: users2Table.id, name: users2Table.name })
 			.from(users2Table).where(eq(users2Table.id, 1)),
-	).orderBy(asc(sql`id`));
+	).orderBy(asc(sql`id`)).limit(5).offset(2);
 
-	t.assert(result.length === 6);
+	t.assert(result.length === 4);
 
 	t.deepEqual(result, [
-		{ id: 2, name: 'Jane' },
-		{ id: 3, name: 'Jack' },
 		{ id: 4, name: 'Peter' },
 		{ id: 5, name: 'Ben' },
 		{ id: 6, name: 'Jill' },

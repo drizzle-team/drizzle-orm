@@ -2023,22 +2023,16 @@ test.serial('set operations (union) from query builder', async (t) => {
 			db
 				.select({ id: users2Table.id, name: users2Table.name })
 				.from(users2Table),
-		).orderBy(asc(sql`name`));
+		).orderBy(asc(sql`name`)).limit(5).offset(5);
 
-	t.assert(result.length === 11);
+	t.assert(result.length === 5);
 
 	t.deepEqual(result, [
-		{ id: 5, name: 'Ben' },
-		{ id: 3, name: 'Jack' },
-		{ id: 2, name: 'Jane' },
-		{ id: 6, name: 'Jill' },
-		{ id: 1, name: 'John' },
 		{ id: 2, name: 'London' },
 		{ id: 7, name: 'Mary' },
 		{ id: 1, name: 'New York' },
 		{ id: 4, name: 'Peter' },
 		{ id: 8, name: 'Sally' },
-		{ id: 3, name: 'Tampa' },
 	]);
 
 	t.throws(() => {
@@ -2102,12 +2096,11 @@ test.serial('set operations (union all) from query builder', async (t) => {
 			db
 				.select({ id: citiesTable.id, name: citiesTable.name })
 				.from(citiesTable),
-		).orderBy(asc(citiesTable.id));
+		).orderBy(asc(citiesTable.id)).limit(5).offset(1);
 
-	t.assert(result.length === 6);
+	t.assert(result.length === 5);
 
 	t.deepEqual(result, [
-		{ id: 1, name: 'New York' },
 		{ id: 1, name: 'New York' },
 		{ id: 2, name: 'London' },
 		{ id: 2, name: 'London' },
@@ -2122,7 +2115,7 @@ test.serial('set operations (union all) from query builder', async (t) => {
 				db
 					.select({ name: citiesTable.name, id: citiesTable.id })
 					.from(citiesTable),
-			).orderBy(asc(citiesTable.id));
+			).orderBy(asc(citiesTable.id)).limit(5).offset(1);
 	});
 });
 
@@ -2361,17 +2354,15 @@ test.serial('set operations (mixed all) as function', async (t) => {
 		),
 		db
 			.select().from(citiesTable).where(gt(citiesTable.id, 1)),
-	).orderBy(asc(sql`id`));
+	).orderBy(asc(sql`id`)).limit(4).offset(1);
 
-	t.assert(result.length === 6);
+	t.assert(result.length === 4);
 
 	t.deepEqual(result, [
-		{ id: 1, name: 'John' },
 		{ id: 2, name: 'London' },
 		{ id: 3, name: 'Tampa' },
 		{ id: 5, name: 'Ben' },
 		{ id: 6, name: 'Jill' },
-		{ id: 8, name: 'Sally' },
 	]);
 
 	t.throws(() => {

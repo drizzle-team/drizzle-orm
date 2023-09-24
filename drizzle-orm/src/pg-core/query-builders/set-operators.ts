@@ -83,6 +83,7 @@ export abstract class PgSetOperatorBuilder<
 		fields: Record<string, unknown>;
 		limit?: number | Placeholder;
 		orderBy?: (PgColumn | SQL | SQL.Aliased)[];
+		offset?: number | Placeholder;
 	};
 	/* @internal */
 	protected abstract readonly session: PgSession | undefined;
@@ -98,7 +99,7 @@ export abstract class PgSetOperatorBuilder<
 		};
 	}
 
-	setOperator(
+	private setOperator(
 		type: SetOperator,
 		isAll: boolean,
 	): <TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
@@ -129,6 +130,8 @@ export abstract class PgSetOperatorBuilder<
 	abstract orderBy(...columns: (PgColumn | SQL | SQL.Aliased)[]): this;
 
 	abstract limit(limit: number): this;
+
+	abstract offset(offset: number | Placeholder): this;
 }
 
 export interface PgSetOperator<
@@ -168,6 +171,7 @@ export class PgSetOperator<
 		fields: Record<string, unknown>;
 		limit?: number | Placeholder;
 		orderBy?: (PgColumn | SQL | SQL.Aliased)[];
+		offset?: number | Placeholder;
 	};
 	/* @internal */
 	readonly session: PgSession | undefined;
@@ -230,6 +234,11 @@ export class PgSetOperator<
 		return this;
 	}
 
+	offset(offset: number | Placeholder) {
+		this.config.offset = offset;
+		return this;
+	}
+
 	toSQL(): Query {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
@@ -270,7 +279,9 @@ export class PgSetOperator<
 
 		const operatorChunk = sql.raw(`${this.operator} ${this.isAll ? 'all ' : ''}`);
 
-		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}`;
+		const offsetSql = this.config.offset ? sql` offset ${this.config.offset}` : undefined;
+
+		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	private _prepare(name?: string): PreparedQuery<

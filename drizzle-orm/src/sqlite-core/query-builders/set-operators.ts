@@ -81,6 +81,7 @@ export abstract class SQLiteSetOperatorBuilder<
 		fields: Record<string, unknown>;
 		limit?: number | Placeholder;
 		orderBy?: (SQLiteColumn | SQL | SQL.Aliased)[];
+		offset?: number | Placeholder;
 	};
 	/* @internal */
 	protected abstract readonly session: SQLiteSession<any, any, any, any> | undefined;
@@ -96,7 +97,7 @@ export abstract class SQLiteSetOperatorBuilder<
 		};
 	}
 
-	setOperator(
+	private setOperator(
 		type: SetOperator,
 		isAll: boolean,
 	): <TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
@@ -128,6 +129,8 @@ export abstract class SQLiteSetOperatorBuilder<
 	abstract orderBy(...columns: (SQLiteColumn | SQL | SQL.Aliased)[]): this;
 
 	abstract limit(limit: number): this;
+
+	abstract offset(offset: number | Placeholder): this;
 }
 
 export interface SQLiteSetOperator<
@@ -175,6 +178,7 @@ export class SQLiteSetOperator<
 		fields: Record<string, unknown>;
 		limit?: number | Placeholder;
 		orderBy?: (SQLiteColumn | SQL | SQL.Aliased)[];
+		offset?: number | Placeholder;
 	};
 	/* @internal */
 	readonly session: SQLiteSession<any, any, any, any> | undefined;
@@ -245,6 +249,11 @@ export class SQLiteSetOperator<
 		return this;
 	}
 
+	offset(offset: number | Placeholder) {
+		this.config.offset = offset;
+		return this;
+	}
+
 	toSQL(): Query {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
@@ -285,7 +294,9 @@ export class SQLiteSetOperator<
 
 		const operatorChunk = sql.raw(`${this.operator} ${this.isAll ? 'all ' : ''}`);
 
-		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}`;
+		const offsetSql = this.config.offset ? sql` offset ${this.config.offset}` : undefined;
+
+		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	prepare(isOneTimeQuery?: boolean): PreparedQuery<

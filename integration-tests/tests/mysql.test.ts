@@ -2075,9 +2075,9 @@ test.serial('set operations (union) from query builder', async (t) => {
 			db
 				.select({ id: users2Table.id, name: users2Table.name })
 				.from(users2Table),
-		);
+		).limit(8);
 
-	t.assert(result.length === 11);
+	t.assert(result.length === 8);
 
 	t.deepEqual(result, [
 		{ id: 1, name: 'New York' },
@@ -2088,9 +2088,6 @@ test.serial('set operations (union) from query builder', async (t) => {
 		{ id: 3, name: 'Jack' },
 		{ id: 4, name: 'Peter' },
 		{ id: 5, name: 'Ben' },
-		{ id: 6, name: 'Jill' },
-		{ id: 7, name: 'Mary' },
-		{ id: 8, name: 'Sally' },
 	]);
 
 	// union should throw if selected fields are not in the same order
@@ -2155,14 +2152,13 @@ test.serial('set operations (union all) from query builder', async (t) => {
 			db
 				.select({ id: citiesTable.id, name: citiesTable.name })
 				.from(citiesTable).limit(2),
-		).orderBy(asc(sql`id`));
+		).orderBy(asc(sql`id`)).limit(3);
 
-	t.assert(result.length === 4);
+	t.assert(result.length === 3);
 
 	t.deepEqual(result, [
 		{ id: 1, name: 'New York' },
 		{ id: 1, name: 'New York' },
-		{ id: 2, name: 'London' },
 		{ id: 2, name: 'London' },
 	]);
 
@@ -2192,14 +2188,12 @@ test.serial('set operations (union all) as function', async (t) => {
 		db
 			.select({ id: users2Table.id, name: users2Table.name })
 			.from(users2Table).where(eq(users2Table.id, 1)),
-	);
+	).limit(1);
 
-	t.assert(result.length === 3);
+	t.assert(result.length === 1);
 
 	t.deepEqual(result, [
 		{ id: 1, name: 'New York' },
-		{ id: 1, name: 'John' },
-		{ id: 1, name: 'John' },
 	]);
 
 	t.throws(() => {
@@ -2213,7 +2207,7 @@ test.serial('set operations (union all) as function', async (t) => {
 			db
 				.select({ id: users2Table.id, name: users2Table.name })
 				.from(users2Table).where(eq(users2Table.id, 1)),
-		);
+		).limit(1);
 	});
 });
 
@@ -2263,7 +2257,7 @@ test.serial('set operations (intersect) as function', async (t) => {
 		db
 			.select({ id: users2Table.id, name: users2Table.name })
 			.from(users2Table).where(eq(users2Table.id, 1)),
-	);
+	).limit(1);
 
 	t.assert(result.length === 0);
 
@@ -2280,7 +2274,7 @@ test.serial('set operations (intersect) as function', async (t) => {
 			db
 				.select({ name: users2Table.name, id: users2Table.id })
 				.from(users2Table).where(eq(users2Table.id, 1)),
-		);
+		).limit(1);
 	});
 });
 
@@ -2388,7 +2382,7 @@ test.serial('set operations (except) as function', async (t) => {
 		db
 			.select({ id: users2Table.id, name: users2Table.name })
 			.from(users2Table).where(eq(users2Table.id, 1)),
-	);
+	).limit(3);
 
 	t.assert(result.length === 2);
 
@@ -2408,7 +2402,7 @@ test.serial('set operations (except) as function', async (t) => {
 			db
 				.select({ id: users2Table.id, name: users2Table.name })
 				.from(users2Table).where(eq(users2Table.id, 1)),
-		);
+		).limit(3);
 	});
 });
 
@@ -2458,7 +2452,7 @@ test.serial('set operations (except all) as function', async (t) => {
 		db
 			.select({ id: users2Table.id, name: users2Table.name })
 			.from(users2Table).where(eq(users2Table.id, 1)),
-	);
+	).limit(6);
 
 	t.assert(result.length === 6);
 
@@ -2482,7 +2476,7 @@ test.serial('set operations (except all) as function', async (t) => {
 			db
 				.select({ id: users2Table.id, name: users2Table.name })
 				.from(users2Table).where(eq(users2Table.id, 1)),
-		);
+		).limit(6);
 	});
 });
 
@@ -2500,13 +2494,14 @@ test.serial('set operations (mixed) from query builder', async (t) => {
 						.select()
 						.from(citiesTable).where(gt(citiesTable.id, 1)),
 					db.select().from(citiesTable).where(eq(citiesTable.id, 2)),
-				),
+				).orderBy(asc(citiesTable.id)).limit(1).offset(1),
 		);
 
-	t.assert(result.length === 1);
+	t.assert(result.length === 2);
 
 	t.deepEqual(result, [
 		{ id: 1, name: 'New York' },
+		{ id: 3, name: 'Tampa' },
 	]);
 
 	t.throws(() => {
@@ -2540,18 +2535,16 @@ test.serial('set operations (mixed all) as function', async (t) => {
 			db
 				.select({ id: users2Table.id, name: users2Table.name })
 				.from(users2Table).where(eq(users2Table.id, 7)),
-		),
+		).limit(1),
 		db
 			.select().from(citiesTable).where(gt(citiesTable.id, 1)),
 	);
 
-	t.assert(result.length === 6);
+	t.assert(result.length === 4);
 
 	t.deepEqual(result, [
 		{ id: 1, name: 'John' },
 		{ id: 5, name: 'Ben' },
-		{ id: 6, name: 'Jill' },
-		{ id: 8, name: 'Sally' },
 		{ id: 2, name: 'London' },
 		{ id: 3, name: 'Tampa' },
 	]);
@@ -2568,7 +2561,7 @@ test.serial('set operations (mixed all) as function', async (t) => {
 				db
 					.select({ name: users2Table.name, id: users2Table.id })
 					.from(users2Table).where(eq(users2Table.id, 7)),
-			),
+			).limit(1),
 			db
 				.select().from(citiesTable).where(gt(citiesTable.id, 1)),
 		);
