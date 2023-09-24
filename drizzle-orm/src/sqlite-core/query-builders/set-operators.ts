@@ -95,65 +95,34 @@ export abstract class SQLiteSetOperatorBuilder<
 			fields: this.config.fields,
 		};
 	}
-	union<TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
+
+	setOperator(
+		type: SetOperator,
+		isAll: boolean,
+	): <TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
 		rightSelect:
 			| SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>
 			| ((setOperator: SQLiteSetOperators) => SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>),
-	): SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap> {
-		const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getSQLiteSetOperators()) : rightSelect;
+	) => SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap> {
+		return (rightSelect) => {
+			const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getSQLiteSetOperators()) : rightSelect;
 
-		return new SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap>(
-			'union',
-			false,
-			this,
-			rightSelectOrig,
-		);
+			return new SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap>(
+				type,
+				isAll,
+				this,
+				rightSelectOrig,
+			);
+		};
 	}
 
-	unionAll<TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
-		rightSelect:
-			| SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>
-			| ((setOperator: SQLiteSetOperators) => SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>),
-	): SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap> {
-		const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getSQLiteSetOperators()) : rightSelect;
+	union = this.setOperator('union', false);
 
-		return new SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap>(
-			'union',
-			true,
-			this,
-			rightSelectOrig,
-		);
-	}
+	unionAll = this.setOperator('union', true);
 
-	intersect<TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
-		rightSelect:
-			| SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>
-			| ((setOperator: SQLiteSetOperators) => SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>),
-	): SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap> {
-		const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getSQLiteSetOperators()) : rightSelect;
+	intersect = this.setOperator('intersect', false);
 
-		return new SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap>(
-			'intersect',
-			false,
-			this,
-			rightSelectOrig,
-		);
-	}
-
-	except<TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
-		rightSelect:
-			| SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>
-			| ((setOperator: SQLiteSetOperators) => SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>),
-	): SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap> {
-		const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getSQLiteSetOperators()) : rightSelect;
-
-		return new SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap>(
-			'except',
-			false,
-			this,
-			rightSelectOrig,
-		);
-	}
+	except = this.setOperator('except', false);
 
 	abstract orderBy(builder: (aliases: TSelection) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>): this;
 	abstract orderBy(...columns: (SQLiteColumn | SQL | SQL.Aliased)[]): this;
@@ -365,7 +334,7 @@ export class SQLiteSetOperator<
 
 applyMixins(SQLiteSetOperator, [QueryPromise]);
 
-export function union<
+function setOperator(type: SetOperator, isAll: boolean): <
 	THKT extends SQLiteSelectHKTBase,
 	TTableName extends string | undefined,
 	TResultType extends 'sync' | 'async',
@@ -387,168 +356,23 @@ export function union<
 	>,
 	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
 	...restSelects: SetOperatorRestSelect<TRest, SelectResult<TSelection, TSelectMode, TNullabilityMap>>
-): SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap> {
-	if (restSelects.length === 0) {
-		return new SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap>(
-			'union',
-			false,
-			leftSelect,
-			rightSelect,
-		);
-	}
+) => SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap> {
+	return (leftSelect, rightSelect, ...restSelects) => {
+		if (restSelects.length === 0) {
+			return new SQLiteSetOperator(type, isAll, leftSelect, rightSelect);
+		}
 
-	const [select, ...rest] = restSelects;
-	if (!select) throw new Error('Cannot pass undefined values to any set operator');
+		const [select, ...rest] = restSelects;
+		if (!select) throw new Error('Cannot pass undefined values to any set operator');
 
-	return union(
-		new SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap>(
-			'union',
-			false,
-			leftSelect,
-			rightSelect,
-		),
-		select,
-		...rest,
-	);
+		return setOperator(type, isAll)(new SQLiteSetOperator(type, isAll, leftSelect, rightSelect), select, ...rest);
+	};
 }
 
-export function unionAll<
-	THKT extends SQLiteSelectHKTBase,
-	TTableName extends string | undefined,
-	TResultType extends 'sync' | 'async',
-	TRunResult,
-	TSelection extends ColumnsSelection,
-	TSelectMode extends SelectMode,
-	TNullabilityMap extends Record<string, JoinNullability>,
-	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
-	TRest extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>[],
->(
-	leftSelect: SQLiteSetOperatorBuilder<
-		THKT,
-		TTableName,
-		TResultType,
-		TRunResult,
-		TSelection,
-		TSelectMode,
-		TNullabilityMap
-	>,
-	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
-	...restSelects: SetOperatorRestSelect<TRest, SelectResult<TSelection, TSelectMode, TNullabilityMap>>
-): SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap> {
-	if (restSelects.length === 0) {
-		return new SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap>(
-			'union',
-			true,
-			leftSelect,
-			rightSelect,
-		);
-	}
+export const union = setOperator('union', false);
 
-	const [select, ...rest] = restSelects;
-	if (!select) throw new Error('Cannot pass undefined values to any set operator');
+export const unionAll = setOperator('union', true);
 
-	return unionAll(
-		new SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap>(
-			'union',
-			true,
-			leftSelect,
-			rightSelect,
-		),
-		select,
-		...rest,
-	);
-}
+export const intersect = setOperator('intersect', false);
 
-export function intersect<
-	THKT extends SQLiteSelectHKTBase,
-	TTableName extends string | undefined,
-	TResultType extends 'sync' | 'async',
-	TRunResult,
-	TSelection extends ColumnsSelection,
-	TSelectMode extends SelectMode,
-	TNullabilityMap extends Record<string, JoinNullability>,
-	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
-	TRest extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>[],
->(
-	leftSelect: SQLiteSetOperatorBuilder<
-		THKT,
-		TTableName,
-		TResultType,
-		TRunResult,
-		TSelection,
-		TSelectMode,
-		TNullabilityMap
-	>,
-	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
-	...restSelects: SetOperatorRestSelect<TRest, SelectResult<TSelection, TSelectMode, TNullabilityMap>>
-): SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap> {
-	if (restSelects.length === 0) {
-		return new SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap>(
-			'intersect',
-			false,
-			leftSelect,
-			rightSelect,
-		);
-	}
-
-	const [select, ...rest] = restSelects;
-	if (!select) throw new Error('Cannot pass undefined values to any set operator');
-
-	return intersect(
-		new SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap>(
-			'intersect',
-			false,
-			leftSelect,
-			rightSelect!,
-		),
-		select,
-		...rest,
-	);
-}
-
-export function except<
-	THKT extends SQLiteSelectHKTBase,
-	TTableName extends string | undefined,
-	TResultType extends 'sync' | 'async',
-	TRunResult,
-	TSelection extends ColumnsSelection,
-	TSelectMode extends SelectMode,
-	TNullabilityMap extends Record<string, JoinNullability>,
-	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
-	TRest extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>[],
->(
-	leftSelect: SQLiteSetOperatorBuilder<
-		THKT,
-		TTableName,
-		TResultType,
-		TRunResult,
-		TSelection,
-		TSelectMode,
-		TNullabilityMap
-	>,
-	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
-	...restSelects: SetOperatorRestSelect<TRest, SelectResult<TSelection, TSelectMode, TNullabilityMap>>
-): SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap> {
-	if (restSelects.length === 0) {
-		return new SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap>(
-			'except',
-			false,
-			leftSelect,
-			rightSelect,
-		);
-	}
-
-	const [select, ...rest] = restSelects;
-	if (!select) throw new Error('Cannot pass undefined values to any set operator');
-
-	return except(
-		new SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap>(
-			'except',
-			false,
-			leftSelect,
-			rightSelect!,
-		),
-		select,
-		...rest,
-	);
-}
+export const except = setOperator('except', false);

@@ -99,8 +99,8 @@ export function haveSameKeys(left: Record<string, unknown>, right: Record<string
 		return false;
 	}
 
-	for (let i = 0; i < leftKeys.length; i++) {
-		if (leftKeys[i] !== rightKeys[i]) {
+	for (const [index, key] of leftKeys.entries()) {
+		if (key !== rightKeys[index]) {
 			return false;
 		}
 	}
