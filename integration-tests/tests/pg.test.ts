@@ -2556,17 +2556,19 @@ test.serial('array operators', async (t) => {
 	t.deepEqual(withSubQuery, [{ id: 1 }, { id: 3 }, { id: 5 }]);
 });
 
-test.serial('set operations (union) from query builder', async (t) => {
+test.serial('set operations (union) from query builder with subquery', async (t) => {
 	const { db } = t.context;
 
 	await setupSetOperationTest(db);
 
+	const sq = db
+		.select({ id: users2Table.id, name: users2Table.name })
+		.from(users2Table).as('sq');
+
 	const result = await db
 		.select({ id: cities2Table.id, name: citiesTable.name })
 		.from(cities2Table).union(
-			db
-				.select({ id: users2Table.id, name: users2Table.name })
-				.from(users2Table),
+			db.select().from(sq),
 		).orderBy(asc(sql`name`)).limit(2).offset(1);
 
 	t.assert(result.length === 2);
@@ -2977,19 +2979,20 @@ test.serial('set operations (except all) as function', async (t) => {
 	});
 });
 
-test.serial('set operations (mixed) from query builder', async (t) => {
+test.serial('set operations (mixed) from query builder with subquery', async (t) => {
 	const { db } = t.context;
 
 	await setupSetOperationTest(db);
+	const sq = db
+		.select()
+		.from(cities2Table).where(gt(citiesTable.id, 1)).as('sq');
 
 	const result = await db
 		.select()
 		.from(cities2Table).except(
 			({ unionAll }) =>
 				unionAll(
-					db
-						.select()
-						.from(cities2Table).where(gt(citiesTable.id, 1)),
+					db.select().from(sq),
 					db.select().from(cities2Table).where(eq(citiesTable.id, 2)),
 				),
 		);

@@ -6,6 +6,7 @@ import {
 	SelectionProxyHandler,
 	SQL,
 	sql,
+	Subquery,
 	type ValueOrArray,
 } from '~/index.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -21,6 +22,7 @@ import { applyMixins, haveSameKeys, type PromiseOf, type ValidateShape } from '~
 import { type ColumnsSelection } from '~/view.ts';
 import { SQLiteColumn } from '../columns/common.ts';
 import type { SQLiteDialect } from '../dialect.ts';
+import type { SubqueryWithSelection } from '../subquery.ts';
 import type { SQLiteSelectHKTBase } from './select.types.ts';
 
 type SetOperator = 'union' | 'intersect' | 'except';
@@ -340,6 +342,15 @@ export class SQLiteSetOperator<
 
 	async execute(): Promise<SelectResult<TSelection, TSelectMode, TNullabilityMap>[]> {
 		return this.all() as PromiseOf<ReturnType<this['execute']>>;
+	}
+
+	as<TAlias extends string>(
+		alias: TAlias,
+	): SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias> {
+		return new Proxy(
+			new Subquery(this.getSQL(), this.config.fields, alias),
+			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+		) as SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias>;
 	}
 }
 

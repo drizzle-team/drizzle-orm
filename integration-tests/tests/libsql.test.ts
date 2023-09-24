@@ -2012,18 +2012,20 @@ test.serial('select + .get() for empty result', async (t) => {
 	await db.run(sql`drop table ${users}`);
 });
 
-test.serial('set operations (union) from query builder', async (t) => {
+test.serial('set operations (union) from query builder with subquery', async (t) => {
 	const { db } = t.context;
 
 	await setupSetOperationTest(db);
 
-	const result = await db
+	const sq = db
 		.select({ id: citiesTable.id, name: citiesTable.name })
 		.from(citiesTable).union(
 			db
 				.select({ id: users2Table.id, name: users2Table.name })
 				.from(users2Table),
-		).orderBy(asc(sql`name`)).limit(5).offset(5);
+		).orderBy(asc(sql`name`)).as('sq');
+
+	const result = await db.select().from(sq).limit(5).offset(5);
 
 	t.assert(result.length === 5);
 
@@ -2335,12 +2337,12 @@ test.serial('set operations (mixed) from query builder', async (t) => {
 	});
 });
 
-test.serial('set operations (mixed all) as function', async (t) => {
+test.serial('set operations (mixed all) as function with subquery', async (t) => {
 	const { db } = t.context;
 
 	await setupSetOperationTest(db);
 
-	const result = await union(
+	const sq = union(
 		db
 			.select({ id: users2Table.id, name: users2Table.name })
 			.from(users2Table).where(eq(users2Table.id, 1)),
@@ -2354,7 +2356,9 @@ test.serial('set operations (mixed all) as function', async (t) => {
 		),
 		db
 			.select().from(citiesTable).where(gt(citiesTable.id, 1)),
-	).orderBy(asc(sql`id`)).limit(4).offset(1);
+	).orderBy(asc(sql`id`)).as('sq');
+
+	const result = await db.select().from(sq).limit(4).offset(1);
 
 	t.assert(result.length === 4);
 

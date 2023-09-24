@@ -9,6 +9,7 @@ import {
 	SelectionProxyHandler,
 	SQL,
 	sql,
+	Subquery,
 	type ValidateShape,
 	type ValueOrArray,
 } from '~/index.ts';
@@ -28,6 +29,7 @@ import type {
 import { type ColumnsSelection } from '~/view.ts';
 import { MySqlColumn } from '../columns/common.ts';
 import type { MySqlDialect } from '../dialect.ts';
+import type { SubqueryWithSelection } from '../subquery.ts';
 
 type SetOperator = 'union' | 'intersect' | 'except';
 
@@ -324,6 +326,15 @@ export class MySqlSetOperator<
 	};
 
 	iterator = this.createIterator();
+
+	as<TAlias extends string>(
+		alias: TAlias,
+	): SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias, 'mysql'> {
+		return new Proxy(
+			new Subquery(this.getSQL(), this.config.fields, alias),
+			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+		) as SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias, 'mysql'>;
+	}
 }
 
 applyMixins(MySqlSetOperatorBuilder, [QueryPromise]);

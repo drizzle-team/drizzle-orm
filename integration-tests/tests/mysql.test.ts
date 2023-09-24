@@ -2064,17 +2064,18 @@ test.serial('utc config for datetime', async (t) => {
 	await db.execute(sql`drop table if exists \`datestable\``);
 });
 
-test.serial('set operations (union) from query builder', async (t) => {
+test.serial('set operations (union) from query builder with subquery', async (t) => {
 	const { db } = t.context;
 
 	await setupSetOperationTest(db);
+	const sq = db
+		.select({ id: users2Table.id, name: users2Table.name })
+		.from(users2Table).as('sq');
 
 	const result = await db
 		.select({ id: citiesTable.id, name: citiesTable.name })
 		.from(citiesTable).union(
-			db
-				.select({ id: users2Table.id, name: users2Table.name })
-				.from(users2Table),
+			db.select().from(sq),
 		).limit(8);
 
 	t.assert(result.length === 8);
@@ -2519,23 +2520,25 @@ test.serial('set operations (mixed) from query builder', async (t) => {
 	});
 });
 
-test.serial('set operations (mixed all) as function', async (t) => {
+test.serial('set operations (mixed all) as function with subquery', async (t) => {
 	const { db } = t.context;
 
 	await setupSetOperationTest(db);
+
+	const sq = except(
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(gte(users2Table.id, 5)),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 7)),
+	).as('sq');
 
 	const result = await union(
 		db
 			.select({ id: users2Table.id, name: users2Table.name })
 			.from(users2Table).where(eq(users2Table.id, 1)),
-		except(
-			db
-				.select({ id: users2Table.id, name: users2Table.name })
-				.from(users2Table).where(gte(users2Table.id, 5)),
-			db
-				.select({ id: users2Table.id, name: users2Table.name })
-				.from(users2Table).where(eq(users2Table.id, 7)),
-		).limit(1),
+		db.select().from(sq).limit(1),
 		db
 			.select().from(citiesTable).where(gt(citiesTable.id, 1)),
 	);

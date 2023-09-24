@@ -6,6 +6,7 @@ import {
 	SelectionProxyHandler,
 	SQL,
 	sql,
+	Subquery,
 	type ValueOrArray,
 } from '~/index.ts';
 import type { PgSession, PreparedQuery, PreparedQueryConfig } from '~/pg-core/session.ts';
@@ -22,6 +23,7 @@ import { applyMixins, haveSameKeys, type ValidateShape } from '~/utils.ts';
 import { type ColumnsSelection } from '~/view.ts';
 import { PgColumn } from '../columns/common.ts';
 import type { PgDialect } from '../dialect.ts';
+import type { SubqueryWithSelection } from '../subquery.ts';
 import type { PgSelectHKTBase } from './select.types.ts';
 
 type SetOperator = 'union' | 'intersect' | 'except';
@@ -323,6 +325,15 @@ export class PgSetOperator<
 			return this._prepare().execute(placeholderValues);
 		});
 	};
+
+	as<TAlias extends string>(
+		alias: TAlias,
+	): SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias> {
+		return new Proxy(
+			new Subquery(this.getSQL(), this.config.fields, alias),
+			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+		) as SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias>;
+	}
 }
 
 applyMixins(PgSetOperator, [QueryPromise]);
