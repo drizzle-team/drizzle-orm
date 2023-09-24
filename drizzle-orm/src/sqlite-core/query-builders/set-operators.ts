@@ -1,11 +1,10 @@
-import { entityKind, is } from '~/entity.ts';
+import { entityKind } from '~/entity.ts';
 import {
 	orderSelectedFields,
 	type Placeholder,
 	type Query,
 	SelectionProxyHandler,
-	SQL,
-	sql,
+	type SQL,
 	Subquery,
 	type ValueOrArray,
 } from '~/index.ts';
@@ -19,8 +18,8 @@ import type {
 import { QueryPromise } from '~/query-promise.ts';
 import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { applyMixins, haveSameKeys, type PromiseOf, type ValidateShape } from '~/utils.ts';
-import { type ColumnsSelection } from '~/view.ts';
-import { SQLiteColumn } from '../columns/common.ts';
+import type { ColumnsSelection } from '~/view.ts';
+import type { SQLiteColumn } from '../columns/common.ts';
 import type { SQLiteDialect } from '../dialect.ts';
 import type { SubqueryWithSelection } from '../subquery.ts';
 import type { SQLiteSelectHKTBase } from './select.types.ts';
@@ -62,6 +61,17 @@ type SetOperatorRestSelect<
 		: ValidateShape<SelectResult<TSel, TMode, TNull>, Valid, TValue>
 	: never[]
 	: TValue;
+
+export interface SQLiteSetOperationConfig {
+	fields: Record<string, unknown>;
+	operator: SetOperator;
+	isAll: boolean;
+	leftSelect: SQLiteSetOperatorBuilder<any, any, any, any, any, any, any>;
+	rightSelect: TypedQueryBuilder<any, any[]>;
+	limit?: number | Placeholder;
+	orderBy?: (SQLiteColumn | SQL | SQL.Aliased)[];
+	offset?: number | Placeholder;
+}
 
 export abstract class SQLiteSetOperatorBuilder<
 	THKT extends SQLiteSelectHKTBase,
@@ -176,20 +186,15 @@ export class SQLiteSetOperator<
 	static readonly [entityKind]: string = 'SQLiteSetOperator';
 
 	protected joinsNotNullableMap: Record<string, boolean>;
-	protected config: {
-		fields: Record<string, unknown>;
-		limit?: number | Placeholder;
-		orderBy?: (SQLiteColumn | SQL | SQL.Aliased)[];
-		offset?: number | Placeholder;
-	};
+	protected config: SQLiteSetOperationConfig;
 	/* @internal */
 	readonly session: SQLiteSession<any, any, any, any> | undefined;
 	protected dialect: SQLiteDialect;
 
 	constructor(
-		private operator: SetOperator,
-		private isAll: boolean,
-		private leftSelect: SQLiteSetOperatorBuilder<
+		operator: SetOperator,
+		isAll: boolean,
+		leftSelect: SQLiteSetOperatorBuilder<
 			THKT,
 			TTableName,
 			TResultType,
@@ -198,7 +203,7 @@ export class SQLiteSetOperator<
 			TSelectMode,
 			TNullabilityMap
 		>,
-		private rightSelect: TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
+		rightSelect: TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
 	) {
 		super();
 
@@ -222,6 +227,10 @@ export class SQLiteSetOperator<
 		this.joinsNotNullableMap = joinsNotNullableMap;
 		this.config = {
 			fields,
+			operator,
+			isAll,
+			leftSelect,
+			rightSelect,
 		};
 	}
 
@@ -262,43 +271,7 @@ export class SQLiteSetOperator<
 	}
 
 	override getSQL(): SQL<unknown> {
-		const leftChunk = sql`${this.leftSelect.getSQL()} `;
-		const rightChunk = sql`${this.rightSelect.getSQL()}`;
-
-		let orderBySql;
-		if (this.config.orderBy && this.config.orderBy.length > 0) {
-			const orderByValues: SQL<unknown>[] = [];
-
-			// The next bit is necessary because the sql operator replaces ${table.column} with `table`.`column`
-			// which is invalid MySql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
-			for (const orderBy of this.config.orderBy) {
-				if (is(orderBy, SQLiteColumn)) {
-					orderByValues.push(sql.raw(orderBy.name));
-				} else if (is(orderBy, SQL)) {
-					for (let i = 0; i < orderBy.queryChunks.length; i++) {
-						const chunk = orderBy.queryChunks[i];
-
-						if (is(chunk, SQLiteColumn)) {
-							orderBy.queryChunks[i] = sql.raw(chunk.name);
-						}
-					}
-
-					orderByValues.push(sql`${orderBy}`);
-				} else {
-					orderByValues.push(sql`${orderBy}`);
-				}
-			}
-
-			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)}`;
-		}
-
-		const limitSql = this.config.limit ? sql` limit ${this.config.limit}` : undefined;
-
-		const operatorChunk = sql.raw(`${this.operator} ${this.isAll ? 'all ' : ''}`);
-
-		const offsetSql = this.config.offset ? sql` offset ${this.config.offset}` : undefined;
-
-		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
+		return this.dialect.buildSetOperationQuery(this.config);
 	}
 
 	prepare(isOneTimeQuery?: boolean): PreparedQuery<

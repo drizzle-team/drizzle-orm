@@ -4,7 +4,12 @@ import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationMeta } from '~/migrator.ts';
 import { PgColumn, PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core/columns/index.ts';
-import type { PgDeleteConfig, PgInsertConfig, PgUpdateConfig } from '~/pg-core/query-builders/index.ts';
+import type {
+	PgDeleteConfig,
+	PgInsertConfig,
+	PgSetOperationConfig,
+	PgUpdateConfig,
+} from '~/pg-core/query-builders/index.ts';
 import type { Join, PgSelectConfig, SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import { PgTable } from '~/pg-core/table.ts';
 import {
@@ -341,6 +346,54 @@ export class PgDialect {
 		}
 
 		return sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+	}
+
+	buildSetOperationQuery({
+		operator,
+		isAll,
+		leftSelect,
+		rightSelect,
+		limit,
+		orderBy,
+		offset,
+	}: PgSetOperationConfig): SQL {
+		const leftChunk = sql`(${leftSelect.getSQL()}) `;
+		const rightChunk = sql`(${rightSelect.getSQL()})`;
+
+		let orderBySql;
+		if (orderBy && orderBy.length > 0) {
+			const orderByValues: SQL<unknown>[] = [];
+
+			// The next bit is necessary because the sql operator replaces ${table.column} with `table`.`column`
+			// which is invalid MySql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
+			for (const singleOrderBy of orderBy) {
+				if (is(singleOrderBy, PgColumn)) {
+					orderByValues.push(sql.raw(singleOrderBy.name));
+				} else if (is(singleOrderBy, SQL)) {
+					for (let i = 0; i < singleOrderBy.queryChunks.length; i++) {
+						const chunk = singleOrderBy.queryChunks[i];
+
+						if (is(chunk, PgColumn)) {
+							singleOrderBy.queryChunks[i] = sql.raw(chunk.name);
+						}
+					}
+
+					orderByValues.push(sql`${singleOrderBy}`);
+				} else {
+					orderByValues.push(sql`${singleOrderBy}`);
+				}
+			}
+
+			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)} `;
+		}
+
+		const limitSql = limit ? sql` limit ${limit}` : undefined;
+
+		const operatorChunk = sql.raw(`${operator} ${isAll ? 'all ' : ''}`);
+
+		const offsetSql = offset ? sql` offset ${offset}` : undefined;
+
+		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {

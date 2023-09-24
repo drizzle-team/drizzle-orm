@@ -1,4 +1,4 @@
-import { entityKind, is } from '~/entity.ts';
+import { entityKind } from '~/entity.ts';
 import {
 	applyMixins,
 	haveSameKeys,
@@ -7,8 +7,7 @@ import {
 	type Query,
 	QueryPromise,
 	SelectionProxyHandler,
-	SQL,
-	sql,
+	type SQL,
 	Subquery,
 	type ValidateShape,
 	type ValueOrArray,
@@ -27,7 +26,7 @@ import type {
 	SelectResult,
 } from '~/query-builders/select.types.ts';
 import { type ColumnsSelection } from '~/view.ts';
-import { MySqlColumn } from '../columns/common.ts';
+import type { MySqlColumn } from '../columns/common.ts';
 import type { MySqlDialect } from '../dialect.ts';
 import type { SubqueryWithSelection } from '../subquery.ts';
 
@@ -70,6 +69,17 @@ type SetOperatorRestSelect<
 		: ValidateShape<SelectResult<TSel, TMode, TNull>, Valid, TValue>
 	: never[]
 	: TValue;
+
+export interface MySqlSetOperatorConfig {
+	fields: Record<string, unknown>;
+	operator: SetOperator;
+	isAll: boolean;
+	leftSelect: MySqlSetOperatorBuilder<any, any, any, any, any>;
+	rightSelect: TypedQueryBuilder<any, any[]>;
+	limit?: number | Placeholder;
+	orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
+	offset?: number | Placeholder;
+}
 
 export interface MySqlSetOperatorBuilder<
 	TTableName extends string | undefined,
@@ -172,27 +182,22 @@ export class MySqlSetOperator<
 	static readonly [entityKind]: string = 'MySqlSetOperator';
 
 	protected joinsNotNullableMap: Record<string, boolean>;
-	protected config: {
-		fields: Record<string, unknown>;
-		limit?: number | Placeholder;
-		orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
-		offset?: number | Placeholder;
-	};
+	protected config: MySqlSetOperatorConfig;
 	/* @internal */
 	readonly session: MySqlSession | undefined;
 	protected dialect: MySqlDialect;
 
 	constructor(
-		private operator: SetOperator,
-		private isAll: boolean,
-		private leftSelect: MySqlSetOperatorBuilder<
+		operator: SetOperator,
+		isAll: boolean,
+		leftSelect: MySqlSetOperatorBuilder<
 			TTableName,
 			TSelection,
 			TSelectMode,
 			TPreparedQueryHKT,
 			TNullabilityMap
 		>,
-		private rightSelect: TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
+		rightSelect: TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
 	) {
 		super();
 
@@ -216,6 +221,10 @@ export class MySqlSetOperator<
 		this.joinsNotNullableMap = joinsNotNullableMap;
 		this.config = {
 			fields,
+			operator,
+			isAll,
+			leftSelect,
+			rightSelect,
 		};
 	}
 
@@ -248,44 +257,9 @@ export class MySqlSetOperator<
 		return this;
 	}
 
+	/** @internal */
 	override getSQL(): SQL<unknown> {
-		const leftChunk = sql`(${this.leftSelect.getSQL()}) `;
-		const rightChunk = sql`(${this.rightSelect.getSQL()})`;
-
-		let orderBySql;
-		if (this.config.orderBy && this.config.orderBy.length > 0) {
-			const orderByValues: SQL<unknown>[] = [];
-
-			// The next bit is necessary because the sql operator replaces ${table.column} with `table`.`column`
-			// which is invalid MySql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
-			for (const orderBy of this.config.orderBy) {
-				if (is(orderBy, MySqlColumn)) {
-					orderByValues.push(sql.raw(orderBy.name));
-				} else if (is(orderBy, SQL)) {
-					for (let i = 0; i < orderBy.queryChunks.length; i++) {
-						const chunk = orderBy.queryChunks[i];
-
-						if (is(chunk, MySqlColumn)) {
-							orderBy.queryChunks[i] = sql.raw(chunk.name);
-						}
-					}
-
-					orderByValues.push(sql`${orderBy}`);
-				} else {
-					orderByValues.push(sql`${orderBy}`);
-				}
-			}
-
-			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)} `;
-		}
-
-		const limitSql = this.config.limit ? sql` limit ${this.config.limit}` : undefined;
-
-		const operatorChunk = sql.raw(`${this.operator} ${this.isAll ? 'all ' : ''}`);
-
-		const offsetSql = this.config.offset ? sql` offset ${this.config.offset}` : undefined;
-
-		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
+		return this.dialect.buildSetOperationQuery(this.config);
 	}
 
 	toSQL(): Query {

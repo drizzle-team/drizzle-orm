@@ -24,6 +24,7 @@ import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
 import type { Join, MySqlSelectConfig, SelectedFieldsOrdered } from './query-builders/select.types.ts';
+import type { MySqlSetOperatorConfig } from './query-builders/set-operators.ts';
 import type { MySqlUpdateConfig } from './query-builders/update.ts';
 import type { MySqlSession } from './session.ts';
 import { MySqlTable } from './table.ts';
@@ -332,6 +333,54 @@ export class MySqlDialect {
 		}
 
 		return sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+	}
+
+	buildSetOperationQuery({
+		operator,
+		isAll,
+		leftSelect,
+		rightSelect,
+		limit,
+		orderBy,
+		offset,
+	}: MySqlSetOperatorConfig): SQL {
+		const leftChunk = sql`(${leftSelect.getSQL()}) `;
+		const rightChunk = sql`(${rightSelect.getSQL()})`;
+
+		let orderBySql;
+		if (orderBy && orderBy.length > 0) {
+			const orderByValues: SQL<unknown>[] = [];
+
+			// The next bit is necessary because the sql operator replaces ${table.column} with `table`.`column`
+			// which is invalid MySql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
+			for (const orderByUnit of orderBy) {
+				if (is(orderByUnit, MySqlColumn)) {
+					orderByValues.push(sql.raw(orderByUnit.name));
+				} else if (is(orderByUnit, SQL)) {
+					for (let i = 0; i < orderByUnit.queryChunks.length; i++) {
+						const chunk = orderByUnit.queryChunks[i];
+
+						if (is(chunk, MySqlColumn)) {
+							orderByUnit.queryChunks[i] = sql.raw(chunk.name);
+						}
+					}
+
+					orderByValues.push(sql`${orderByUnit}`);
+				} else {
+					orderByValues.push(sql`${orderByUnit}`);
+				}
+			}
+
+			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)} `;
+		}
+
+		const limitSql = limit ? sql` limit ${limit}` : undefined;
+
+		const operatorChunk = sql.raw(`${operator} ${isAll ? 'all ' : ''}`);
+
+		const offsetSql = offset ? sql` offset ${offset}` : undefined;
+
+		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	buildInsertQuery({ table, values, ignore, onConflict }: MySqlInsertConfig): SQL {
