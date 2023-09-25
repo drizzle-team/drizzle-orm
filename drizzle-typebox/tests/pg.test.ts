@@ -1,11 +1,13 @@
 import { Type } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
 import test from 'ava';
-import { char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar, uuid } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema, Nullable } from '../src';
 import { expectSchemaShape } from './utils';
 
 export const roleEnum = pgEnum('role', ['admin', 'user']);
+
+const uuidPattern = /^[\dA-Fa-f]{8}(?:-[\dA-Fa-f]{4}){3}-[\dA-Fa-f]{12}$/;
 
 const users = pgTable('users', {
 	a: integer('a').array(),
@@ -22,6 +24,7 @@ const users = pgTable('users', {
 		.default('user'),
 	profession: varchar('profession', { length: 20 }).notNull(),
 	initials: char('initials', { length: 2 }).notNull(),
+	externalId: uuid('external_id').notNull(),
 });
 
 const testUser = {
@@ -37,6 +40,7 @@ const testUser = {
 	roleText2: 'admin',
 	profession: 'Software Engineer',
 	initials: 'JD',
+	externalId: '00000000-0000-0000-0000-000000000000',
 };
 
 test('users insert valid user', (t) => {
@@ -61,6 +65,12 @@ test('users insert invalid char', (t) => {
 	const schema = createInsertSchema(users);
 
 	t.is(Value.Check(schema, { ...testUser, initials: 'JoDo' }), false);
+});
+
+test('users insert invalid uuid', (t) => {
+	const schema = createInsertSchema(users);
+
+	t.is(Value.Check(schema, { ...testUser, externalId: 'not a uuid' }), false);
 });
 
 test('users insert schema', (t) => {
@@ -109,6 +119,7 @@ test('users insert schema', (t) => {
 		),
 		profession: Type.String({ maxLength: 20, minLength: 1 }),
 		initials: Type.String({ maxLength: 2, minLength: 1 }),
+		externalId: Type.RegEx(uuidPattern),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -132,6 +143,7 @@ test('users insert schema w/ defaults', (t) => {
 		),
 		profession: Type.String({ maxLength: 20, minLength: 1 }),
 		initials: Type.String({ maxLength: 2, minLength: 1 }),
+		externalId: Type.RegEx(uuidPattern),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -165,6 +177,7 @@ test('users select schema', (t) => {
 		roleText2: Type.Union([Type.Literal('admin'), Type.Literal('user')]),
 		profession: Type.String({ maxLength: 20, minLength: 1 }),
 		initials: Type.String({ maxLength: 2, minLength: 1 }),
+		externalId: Type.RegEx(uuidPattern),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -186,6 +199,7 @@ test('users select schema w/ defaults', (t) => {
 		roleText2: Type.Union([Type.Literal('admin'), Type.Literal('user')]),
 		profession: Type.String({ maxLength: 20, minLength: 1 }),
 		initials: Type.String({ maxLength: 2, minLength: 1 }),
+		externalId: Type.RegEx(uuidPattern),
 	});
 
 	expectSchemaShape(t, expected).from(actual);

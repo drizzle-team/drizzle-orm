@@ -1,5 +1,5 @@
 import test from 'ava';
-import { char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar, uuid } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { createInsertSchema, createSelectSchema } from '../src';
 import { expectSchemaShape } from './utils';
@@ -19,6 +19,7 @@ const users = pgTable('users', {
 	roleText2: text('role2', { enum: ['admin', 'user'] }).notNull().default('user'),
 	profession: varchar('profession', { length: 20 }).notNull(),
 	initials: char('initials', { length: 2 }).notNull(),
+	externalId: uuid('external_id').notNull(),
 });
 
 const testUser = {
@@ -34,6 +35,7 @@ const testUser = {
 	roleText2: 'admin',
 	profession: 'Software Engineer',
 	initials: 'JD',
+	externalId: '00000000-0000-0000-0000-000000000000',
 };
 
 test('users insert valid user', (t) => {
@@ -52,6 +54,12 @@ test('users insert invalid char', (t) => {
 	const schema = createInsertSchema(users);
 
 	t.is(schema.safeParse({ ...testUser, initials: 'JoDo' }).success, false);
+});
+
+test('users insert invalid uuid', (t) => {
+	const schema = createInsertSchema(users);
+
+	t.is(schema.safeParse({ ...testUser, externalId: 'not a uuid' }).success, false);
 });
 
 test('users insert schema', (t) => {
@@ -90,6 +98,7 @@ test('users insert schema', (t) => {
 		roleText2: z.enum(['admin', 'user']).optional(),
 		profession: z.string().max(20).min(1),
 		initials: z.string().max(2).min(1),
+		externalId: z.string().uuid(),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -111,6 +120,7 @@ test('users insert schema w/ defaults', (t) => {
 		roleText2: z.enum(['admin', 'user']).optional(),
 		profession: z.string().max(20).min(1),
 		initials: z.string().max(2).min(1),
+		externalId: z.string().uuid(),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -136,6 +146,7 @@ test('users select schema', (t) => {
 		roleText2: z.enum(['admin', 'user']),
 		profession: z.string().max(20).min(1),
 		initials: z.string().max(2).min(1),
+		externalId: z.string().uuid(),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -157,6 +168,7 @@ test('users select schema w/ defaults', (t) => {
 		roleText2: z.enum(['admin', 'user']),
 		profession: z.string().max(20).min(1),
 		initials: z.string().max(2).min(1),
+		externalId: z.string().uuid(),
 	});
 
 	expectSchemaShape(t, expected).from(actual);

@@ -318,7 +318,9 @@ function mapColumnToSchema(column: Column): TSchema {
 	}
 
 	if (!type) {
-		if (column.dataType === 'custom') {
+		if (is(column, PgUUID)) {
+			type = Type.RegEx(uuidPattern);
+		} else if (column.dataType === 'custom') {
 			type = Type.Any();
 		} else if (column.dataType === 'json') {
 			type = jsonSchema;
@@ -350,8 +352,6 @@ function mapColumnToSchema(column: Column): TSchema {
 			}
 
 			type = sType;
-		} else if (is(column, PgUUID)) {
-			type = Type.RegEx(uuidPattern);
 		}
 	}
 
