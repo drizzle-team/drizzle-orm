@@ -1,4 +1,4 @@
-import { type Client, type InArgs, type InStatement, type ResultSet, type Transaction } from '@libsql/client';
+import type { Client, InArgs, InStatement, ResultSet, Transaction } from '@libsql/client';
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
