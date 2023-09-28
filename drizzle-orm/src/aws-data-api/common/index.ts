@@ -53,9 +53,21 @@ export function toValueParam(value: any, typings?: QueryTypingsValue): { value: 
 	if (value === null) {
 		response.value = { isNull: true };
 	} else if (typeof value === 'string') {
-		response.value = response.typeHint === 'DATE'
-			? { stringValue: value.split('T')[0]! }
-			: { stringValue: value };
+    switch (true) {
+      case response.typeHint === TypeHint.DATE: {
+        response.value = { stringValue: value.split("T")[0]! };
+        break;
+      }
+      case response.typeHint === TypeHint.TIMESTAMP: {
+        response.value = {
+          stringValue: new Date(value).toISOString().replace("T", " ").replace("Z", ""),
+        };
+        break;
+      }
+      default: {
+        response.value = { stringValue: value };
+      }
+    }
 	} else if (typeof value === 'number' && Number.isInteger(value)) {
 		response.value = { longValue: value };
 	} else if (typeof value === 'number' && !Number.isInteger(value)) {
