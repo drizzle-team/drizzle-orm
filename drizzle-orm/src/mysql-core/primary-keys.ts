@@ -16,8 +16,8 @@ export function primaryKey<
 	TColumns extends AnyMySqlColumn<{ tableName: TTableName }>[],
 >(...columns: TColumns): PrimaryKeyBuilder;
 export function primaryKey(...config: any) {
-	if (config.columns) {
-		return new PrimaryKeyBuilder(config.columns, config.name);
+	if (config[0].columns) {
+		return new PrimaryKeyBuilder(config[0].columns, config[0].name);
 	}
 	return new PrimaryKeyBuilder(config);
 }
