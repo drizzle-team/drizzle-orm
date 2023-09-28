@@ -15,8 +15,8 @@ export function primaryKey<
 	TTableName extends string,
 	TColumns extends AnyPgColumn<{ tableName: TTableName }>[],
 >(...columns: TColumns): PrimaryKeyBuilder;
-export function primaryKey(config: any) {
-	if (config.name) {
+export function primaryKey(...config: any) {
+	if (config.columns) {
 		return new PrimaryKeyBuilder(config.columns, config.name);
 	}
 	return new PrimaryKeyBuilder(config);
