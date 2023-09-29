@@ -35,7 +35,7 @@ Check the full documentation on [the website](https://orm.drizzle.team)
 | PostgreSQL      |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start) |                                                                       |
 | MySQL           |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start) |                                                                       |
 | SQLite          |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start) |                                                                       |
-| Cloudflare D1   |   ✅    | [Docs](https://driz.li/docs-d1)                   | [Website](https://developers.cloudflare.com/d1)                       |
+| Cloudflare D1   |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-sqlite/d1)                | [Website](https://developers.cloudflare.com/d1)                       |
 | libSQL          |   ✅    | [Docs](/examples/libsql/README.md)                | [Website](https://libsql.org)                                         |
 | Turso           |   ✅    | [Docs](https://driz.li/docs-turso)                | [Website](https://turso.tech)                                         |
 | PlanetScale     |   ✅    | [Docs](https://driz.li/docs-planetscale)          | [Website](https://planetscale.com/)                                   |
