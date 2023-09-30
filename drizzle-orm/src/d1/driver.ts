@@ -1,8 +1,11 @@
 /// <reference types="@cloudflare/workers-types" />
+import type { BatchItem, BatchResponse } from '~/batch.ts';
+import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
+	type ExtractTablesWithRelations,
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
@@ -10,18 +13,19 @@ import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import { type DrizzleConfig } from '~/utils.ts';
 import { SQLiteD1Session } from './session.ts';
-import { entityKind } from '~/entity.ts';
-import type { BatchParameters, BatchResponse } from '~/batch.ts';
 
 export class DrizzleD1Database<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends BaseSQLiteDatabase<'async', D1Result, TSchema> {
 	static readonly [entityKind]: string = 'LibSQLDatabase';
 
-	async batch<U extends BatchParameters<D1Result>, T extends Readonly<[U, ...U[]]>>(
+	/** @internal */
+	declare readonly session: SQLiteD1Session<TSchema, ExtractTablesWithRelations<TSchema>>;
+
+	async batch<U extends BatchItem<'sqlite'>, T extends Readonly<[U, ...U[]]>>(
 		batch: T,
-	): Promise<BatchResponse<U, T>> {
-		return await (this.session as SQLiteD1Session<TSchema, any>).batch(batch) as BatchResponse<U, T>;
+	): Promise<BatchResponse<T>> {
+		return this.session.batch(batch) as Promise<BatchResponse<T>>;
 	}
 }
 

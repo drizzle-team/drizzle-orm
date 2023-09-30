@@ -15,6 +15,10 @@ export interface QueryResultHKT {
 	readonly type: unknown;
 }
 
+export interface AnyQueryResultHKT extends QueryResultHKT {
+	readonly type: any;
+}
+
 export type QueryResultKind<TKind extends QueryResultHKT, TRow> = (TKind & {
 	readonly row: TRow;
 })['type'];
