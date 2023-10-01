@@ -1,4 +1,4 @@
-import type { ExecuteStatementCommandOutput, Field, RDSDataClient } from '@aws-sdk/client-rds-data';
+import type { ColumnMetadata, ExecuteStatementCommandOutput, Field, RDSDataClient } from '@aws-sdk/client-rds-data';
 import {
 	BeginTransactionCommand,
 	CommitTransactionCommand,
@@ -18,7 +18,7 @@ import {
 } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query, type QueryTypingsValue, type SQL, sql } from '~/sql/index.ts';
+import { fillPlaceholders, type QueryTypingsValue, type QueryWithTypings, type SQL, sql } from '~/sql/index.ts';
 import { mapResultRow } from '~/utils.ts';
 import { getValueFromDataApi, toValueParam } from '../common/index.ts';
 
@@ -48,6 +48,7 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 			resourceArn: options.resourceArn,
 			database: options.database,
 			transactionId,
+			includeResultMetadata: !fields && !customResultMapper,
 		});
 	}
 
@@ -80,6 +81,9 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 		const { fields, rawQuery, client, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
 			const result = await client.send(rawQuery);
+			if (result.columnMetadata && result.columnMetadata.length > 0) {
+				return this.mapResultRows(result.records ?? [], result.columnMetadata);
+			}
 			return result.records ?? [];
 		}
 
@@ -87,6 +91,18 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 
 		return result.records?.map((row: any) => {
 			return row.map((field: Field) => getValueFromDataApi(field));
+		});
+	}
+
+	/** @internal */
+	mapResultRows(records: Field[][], columnMetadata: ColumnMetadata[]) {
+		return records.map((record) => {
+			const row: Record<string, unknown> = {};
+			for (const [index, field] of record.entries()) {
+				const { name } = columnMetadata[index]!;
+				row[name ?? index] = getValueFromDataApi(field); // not what to default if name is undefined
+			}
+			return row;
 		});
 	}
 }
@@ -131,7 +147,7 @@ export class AwsDataApiSession<
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
-		query: Query,
+		query: QueryWithTypings,
 		fields: SelectedFieldsOrdered | undefined,
 		transactionId?: string,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],

@@ -1,11 +1,13 @@
-import type { Client, InArgs, InStatement, ResultSet, Transaction } from '@libsql/client';
-import { entityKind } from '~/entity.ts';
+import { type Client, type InArgs, type InStatement, type ResultSet, type Transaction } from '@libsql/client';
+import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/index.ts';
+import { fillPlaceholders, type Query, sql } from '~/sql/index.ts';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import { SQLiteTransaction } from '~/sqlite-core/index.ts';
+import { SQLiteDelete, SQLiteInsert, SQLiteSelect, SQLiteTransaction, SQLiteUpdate } from '~/sqlite-core/index.ts';
+import { SQLiteRelationalQuery } from '~/sqlite-core/query-builders/query.ts';
+import { SQLiteRaw } from '~/sqlite-core/query-builders/raw.ts';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types.ts';
 import {
 	type PreparedQueryConfig as PreparedQueryConfigBase,
@@ -14,6 +16,7 @@ import {
 } from '~/sqlite-core/session.ts';
 import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session.ts';
 import { mapResultRow } from '~/utils.ts';
+import type { BatchParameters } from './driver.ts';
 
 export interface LibSQLSessionOptions {
 	logger?: Logger;
@@ -58,12 +61,81 @@ export class LibSQLSession<
 		);
 	}
 
-	/*override */ batch(queries: SQL[]): Promise<ResultSet[]> {
+	/*override */ batch<U extends BatchParameters, T extends Readonly<[U, ...U[]]>>(queries: T) {
+		const queryToType: (
+			| { mode: 'all' }
+			| {
+				mode: 'all_mapped';
+				config: { fields: SelectedFieldsOrdered; joinsNotNullableMap?: Record<string, boolean> };
+			}
+			| { mode: 'get' }
+			| { mode: 'values' }
+			| { mode: 'raw' }
+			| { mode: 'rqb'; mapper: any }
+		)[] = [];
+
 		const builtQueries: InStatement[] = queries.map((query) => {
-			const builtQuery = this.dialect.sqlToQuery(query);
+			const builtQuery = this.dialect.sqlToQuery(query.getSQL());
+
+			if (is(query, SQLiteSelect)) {
+				// @ts-expect-error
+				const prepared = query.prepare() as PreparedQuery;
+				prepared.fields === undefined
+					? queryToType.push({ mode: 'all' })
+					: queryToType.push({
+						mode: 'all_mapped',
+						config: { fields: prepared.fields, joinsNotNullableMap: prepared.joinsNotNullableMap },
+					});
+			} else if (is(query, SQLiteInsert) || is(query, SQLiteUpdate) || is(query, SQLiteDelete)) {
+				queryToType.push(
+					// @ts-expect-error
+					query.config.returning
+						? {
+							mode: 'all_mapped',
+							config: { fields: query.config.returning },
+						}
+						: { mode: 'raw' },
+				);
+			} else if (is(query, SQLiteRaw)) {
+				queryToType.push(
+					query.config.action === 'run' ? { mode: 'raw' } : { mode: query.config.action },
+				);
+			} else if (is(query, SQLiteRelationalQuery)) {
+				const preparedRqb = query.prepare() as PreparedQuery;
+				queryToType.push({ mode: 'rqb', mapper: preparedRqb.customResultMapper });
+			}
+
 			return { sql: builtQuery.sql, args: builtQuery.params as InArgs };
 		});
-		return this.client.batch(builtQueries);
+
+		const res = this.client.batch(builtQueries).then((stmt) =>
+			stmt.map(({ rows }, index) => {
+				const action = queryToType[index]!;
+				if (action.mode === 'all') {
+					return rows.map((row) => normalizeRow(row));
+				}
+				if (action.mode === 'all_mapped') {
+					return rows.map((row) => {
+						return mapResultRow(
+							action.config.fields,
+							Array.prototype.slice.call(row).map((v) => normalizeFieldValue(v)),
+							action.config.joinsNotNullableMap,
+						);
+					});
+				}
+				if (action.mode === 'get') {
+					return normalizeRow(rows[0]);
+				}
+				if (action.mode === 'values') {
+					return rows.map((row) => Object.values(row));
+				}
+				if (action.mode === 'raw') {
+					return stmt[index];
+				}
+				return action.mapper(rows, normalizeFieldValue);
+			})
+		);
+		return res;
 	}
 
 	override async transaction<T>(
@@ -111,17 +183,25 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 > {
 	static readonly [entityKind]: string = 'LibSQLPreparedQuery';
 
+	/** @internal */
+	customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown;
+
+	/** @internal */
+	fields?: SelectedFieldsOrdered;
+
 	constructor(
 		private client: Client,
 		private queryString: string,
 		private params: unknown[],
 		private logger: Logger,
-		private fields: SelectedFieldsOrdered | undefined,
+		fields: SelectedFieldsOrdered | undefined,
 		private tx: Transaction | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		private customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown,
+		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown,
 	) {
 		super('async', executeMethod);
+		this.customResultMapper = customResultMapper;
+		this.fields = fields;
 	}
 
 	run(placeholderValues?: Record<string, unknown>): Promise<ResultSet> {

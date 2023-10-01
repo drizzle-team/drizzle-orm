@@ -132,6 +132,12 @@ export interface BlobConfig<TMode extends BlobMode = BlobMode> {
 	mode: TMode;
 }
 
+/**
+ *  It's recommended to use `text('...', { mode: 'json' })` instead of `blob` in JSON mode, because it supports JSON functions:
+ * >All JSON functions currently throw an error if any of their arguments are BLOBs because BLOBs are reserved for a future enhancement in which BLOBs will store the binary encoding for JSON.
+ *
+ * https://www.sqlite.org/json1.html
+ */
 export function blob<TName extends string, TMode extends BlobMode = BlobMode>(
 	name: TName,
 	config?: BlobConfig<TMode>,

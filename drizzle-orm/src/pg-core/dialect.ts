@@ -24,8 +24,8 @@ import {
 	type DriverValueEncoder,
 	eq,
 	Param,
-	type Query,
 	type QueryTypingsValue,
+	type QueryWithTypings,
 	SQL,
 	sql,
 	type SQLChunk,
@@ -415,7 +415,7 @@ export class PgDialect {
 		}
 	}
 
-	sqlToQuery(sql: SQL): Query {
+	sqlToQuery(sql: SQL): QueryWithTypings {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,

@@ -6,7 +6,7 @@ import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { InferModel } from '~/table.ts';
-import { type DrizzleTypeError, orderSelectedFields } from '~/utils.ts';
+import { type DrizzleTypeError, orderSelectedFields, type Simplify } from '~/utils.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
 export interface SQLiteDeleteConfig {
@@ -35,7 +35,8 @@ export class SQLiteDelete<
 > extends QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]> implements SQLWrapper {
 	static readonly [entityKind]: string = 'SQLiteDelete';
 
-	private config: SQLiteDeleteConfig;
+	/** @internal */
+	config: SQLiteDeleteConfig;
 
 	constructor(
 		private table: TTable,
@@ -54,7 +55,7 @@ export class SQLiteDelete<
 	returning(): SQLiteDelete<TTable, TResultType, TRunResult, InferModel<TTable>>;
 	returning<TSelectedFields extends SelectedFieldsFlat>(
 		fields: TSelectedFields,
-	): SQLiteDelete<TTable, TResultType, TRunResult, SelectResultFields<TSelectedFields>>;
+	): SQLiteDelete<TTable, TResultType, TRunResult, Simplify<SelectResultFields<TSelectedFields>>>;
 	returning(
 		fields: SelectedFieldsFlat = this.table[SQLiteTable.Symbol.Columns],
 	): SQLiteDelete<TTable, TResultType, TRunResult, any> {

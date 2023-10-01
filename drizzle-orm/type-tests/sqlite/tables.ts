@@ -396,3 +396,17 @@ Expect<
 		id4: integer('id').$defaultFn(() => '1'),
 	});
 }
+
+{
+	const table = sqliteTable('test', {
+		data: text('data', { mode: 'json' }).notNull(),
+		dataTyped: text('dataTyped', { mode: 'json' }).$type<{ a: number }>().notNull(),
+	});
+
+	Expect<
+		Equal<{
+			data: unknown;
+			dataTyped: { a: number };
+		}, typeof table.$inferSelect>
+	>;
+}

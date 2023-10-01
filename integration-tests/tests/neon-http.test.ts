@@ -18,6 +18,9 @@ import {
 	sql,
 	type SQLWrapper,
 	TransactionRollbackError,
+	arrayContains,
+	arrayContained,
+	arrayOverlaps
 } from 'drizzle-orm';
 import { drizzle, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { migrate } from 'drizzle-orm/neon-http/migrator';
@@ -2313,4 +2316,50 @@ test.serial('update undefined', async (t) => {
 	await t.notThrowsAsync(async () => await db.update(users).set({ id: 1, name: undefined }));
 
 	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('array operators', async (t) => {
+	const { db } = t.context;
+
+	const posts = pgTable('posts', {
+		id: serial('id').primaryKey(),
+		tags: text('tags').array()
+	});
+
+	await db.execute(sql`drop table if exists ${posts}`);
+
+	await db.execute(
+		sql`create table ${posts} (id serial primary key, tags text[])`,
+	);
+
+	await db.insert(posts).values([{
+		tags: ['ORM']
+	}, {
+		tags: ['Typescript']
+	}, {
+		tags: ['Typescript', 'ORM']
+	}, {
+		tags: ['Typescript', 'Frontend', 'React']
+	}, {
+		tags: ['Typescript', 'ORM', 'Database', 'Postgres']
+	}, {
+		tags: ['Java', 'Spring', 'OOP']
+	}]);
+
+	const contains = await db.select({ id: posts.id }).from(posts)
+		.where(arrayContains(posts.tags, ['Typescript', 'ORM']));
+	const contained = await db.select({ id: posts.id }).from(posts)
+		.where(arrayContained(posts.tags, ['Typescript', 'ORM']));
+	const overlaps = await db.select({ id: posts.id }).from(posts)
+		.where(arrayOverlaps(posts.tags, ['Typescript', 'ORM']));
+	const withSubQuery = await db.select({ id: posts.id }).from(posts)
+		.where(arrayContains(
+			posts.tags,
+			db.select({ tags: posts.tags  }).from(posts).where(eq(posts.id, 1))
+		));
+
+	t.deepEqual(contains, [{ id: 3 }, { id: 5 }]);
+	t.deepEqual(contained, [{ id: 1 }, { id: 2 }, { id: 3 }]);
+	t.deepEqual(overlaps, [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+	t.deepEqual(withSubQuery, [{ id: 1 }, { id: 3 }, { id: 5 }])
 });
