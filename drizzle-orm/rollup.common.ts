@@ -33,6 +33,10 @@ export const entries = [
 	'sqlite-core/index',
 	'sqlite-proxy/index',
 	'sqlite-proxy/migrator',
+	'pg-proxy/index',
+	'pg-proxy/migrator',
+	'mysql-proxy/index',
+	'mysql-proxy/migrator',
 	'migrator',
 	'version',
 ];
