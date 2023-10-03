@@ -998,6 +998,29 @@ test.serial('migrator', async (t) => {
 	await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
 });
 
+test.serial('migrator - custom table name', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists all_columns`);
+	await db.execute(sql`drop table if exists users12`);
+	await db.execute(sql`drop table if exists "drizzle"."custom_migration_table"`);
+
+	await migrate(db, {
+		migrationsFolder: './drizzle2/pg',
+		migrationsTable: 'custom_migration_table'
+	});
+
+	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+
+	const result = await db.select().from(usersMigratorTable);
+
+	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+
+	await db.execute(sql`drop table all_columns`);
+	await db.execute(sql`drop table users12`);
+	await db.execute(sql`drop table "drizzle"."custom_migration_table"`);
+});
+
 test.serial('insert via db.execute + select via db.execute', async (t) => {
 	const { db } = t.context;
 
