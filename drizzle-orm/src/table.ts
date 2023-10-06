@@ -112,7 +112,24 @@ export function isTable(table: unknown): table is Table {
 	return typeof table === 'object' && table !== null && IsDrizzleTable in table;
 }
 
-export type AnyTable<TPartial extends Partial<TableConfig> = {}> = Table<UpdateTableConfig<TableConfig, TPartial>>;
+/**
+ * Any table with a specified boundary.
+ *
+ * @example
+	```ts
+	// Any table with a specific name
+	type AnyUsersTable = AnyTable<{ name: 'users' }>;
+	```
+ *
+ * To describe any table with any config, simply use `Table` without any type arguments, like this:
+ *
+	```ts
+	function needsTable(table: Table) {
+		...
+	}
+	```
+ */
+export type AnyTable<TPartial extends Partial<TableConfig>> = Table<UpdateTableConfig<TableConfig, TPartial>>;
 
 export function getTableName<T extends Table>(table: T): T['_']['name'] {
 	return table[TableName];
@@ -155,7 +172,7 @@ export type InferModelFromColumns<
 		}
 >;
 
-/** @deprecated Use one of the alternatives: {@link InferSelectModel} / {@link InferInsertModel}, or `table._.inferSelect` / `table._.inferInsert`
+/** @deprecated Use one of the alternatives: {@link InferSelectModel} / {@link InferInsertModel}, or `table.$inferSelect` / `table.$inferInsert`
  */
 export type InferModel<
 	TTable extends Table,

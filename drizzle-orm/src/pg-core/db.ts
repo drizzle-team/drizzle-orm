@@ -1,7 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import {
-	PgDelete,
+	PgDeleteBase,
 	PgInsertBuilder,
 	PgSelectBuilder,
 	PgUpdateBuilder,
@@ -156,8 +156,8 @@ export class PgDatabase<
 		return new PgInsertBuilder(table, this.session, this.dialect);
 	}
 
-	delete<TTable extends PgTable>(table: TTable): PgDelete<TTable, TQueryResult> {
-		return new PgDelete(table, this.session, this.dialect);
+	delete<TTable extends PgTable>(table: TTable): PgDeleteBase<TTable, TQueryResult> {
+		return new PgDeleteBase(table, this.session, this.dialect);
 	}
 
 	refreshMaterializedView<TView extends PgMaterializedView>(view: TView): PgRefreshMaterializedView<TQueryResult> {

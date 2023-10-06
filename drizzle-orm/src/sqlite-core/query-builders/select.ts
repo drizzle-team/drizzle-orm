@@ -9,43 +9,31 @@ import type {
 	SelectResult,
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
+import type { RunnableQuery } from '~/runnable-query.ts';
 import { type Placeholder, type Query, SQL } from '~/sql/index.ts';
 import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
-import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
+import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import type { SubqueryWithSelection } from '~/sqlite-core/subquery.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import {
-	applyMixins,
-	getTableColumns,
-	getTableLikeName,
-	orderSelectedFields,
-	type PromiseOf,
-	type ValueOrArray,
-} from '~/utils.ts';
+import { applyMixins, getTableColumns, getTableLikeName, orderSelectedFields, type ValueOrArray } from '~/utils.ts';
 import { type ColumnsSelection, View, ViewBaseConfig } from '~/view.ts';
 import { SQLiteViewBase } from '../view.ts';
 import type {
-	JoinFn,
+	CreateSQLiteSelectFromBuilderMode,
 	SelectedFields,
+	SQLiteJoinFn,
 	SQLiteSelectConfig,
+	SQLiteSelectDynamic,
+	SQLiteSelectExecute,
 	SQLiteSelectHKT,
 	SQLiteSelectHKTBase,
-	SQLiteSelectQueryBuilderHKT,
+	SQLiteSelectPrepare,
+	SQLiteSelectWithout,
 } from './select.types.ts';
 import { SQLiteSetOperatorBuilder } from './set-operators.ts';
-
-type CreateSQLiteSelectFromBuilderMode<
-	TBuilderMode extends 'db' | 'qb',
-	TTableName extends string | undefined,
-	TResultType extends 'sync' | 'async',
-	TRunResult,
-	TSelection extends ColumnsSelection,
-	TSelectMode extends SelectMode,
-> = TBuilderMode extends 'db' ? SQLiteSelect<TTableName, TResultType, TRunResult, TSelection, TSelectMode>
-	: SQLiteSelectQueryBuilder<SQLiteSelectQueryBuilderHKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode>;
 
 export class SQLiteSelectBuilder<
 	TSelection extends SelectedFields | undefined,
@@ -107,7 +95,7 @@ export class SQLiteSelectBuilder<
 			fields = getTableColumns<SQLiteTable>(source);
 		}
 
-		return new SQLiteSelect({
+		return new SQLiteSelectBase({
 			table: source,
 			fields,
 			isPartialSelect,
@@ -119,7 +107,7 @@ export class SQLiteSelectBuilder<
 	}
 }
 
-export abstract class SQLiteSelectQueryBuilder<
+export abstract class SQLiteSelectQueryBuilderBase<
 	THKT extends SQLiteSelectHKTBase,
 	TTableName extends string | undefined,
 	TResultType extends 'sync' | 'async',
@@ -128,6 +116,10 @@ export abstract class SQLiteSelectQueryBuilder<
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends SQLiteSetOperatorBuilder<
 	THKT,
 	TTableName,
@@ -135,15 +127,27 @@ export abstract class SQLiteSelectQueryBuilder<
 	TRunResult,
 	TSelection,
 	TSelectMode,
-	TNullabilityMap
+	TNullabilityMap,
+	TDynamic,
+	TExcludedMethods,
+	TResult,
+	TSelectedFields
 > {
 	static readonly [entityKind]: string = 'SQLiteSelectQueryBuilder';
 
 	override readonly _: {
-		readonly selectMode: TSelectMode;
+		dialect: 'sqlite';
+		readonly hkt: THKT;
+		readonly tableName: TTableName;
+		readonly resultType: TResultType;
+		readonly runResult: TRunResult;
 		readonly selection: TSelection;
-		readonly result: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
-		readonly selectedFields: BuildSubquerySelection<TSelection, TNullabilityMap>;
+		readonly selectMode: TSelectMode;
+		readonly nullabilityMap: TNullabilityMap;
+		readonly dynamic: TDynamic;
+		readonly excludedMethods: TExcludedMethods;
+		readonly result: TResult;
+		readonly selectedFields: TSelectedFields;
 	};
 
 	/** @internal */
@@ -176,7 +180,7 @@ export abstract class SQLiteSelectQueryBuilder<
 		this.session = session;
 		this.dialect = dialect;
 		this._ = {
-			selectedFields: fields as BuildSubquerySelection<TSelection, TNullabilityMap>,
+			selectedFields: fields as TSelectedFields,
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
@@ -184,7 +188,7 @@ export abstract class SQLiteSelectQueryBuilder<
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): JoinFn<THKT, TTableName, TResultType, TRunResult, TSelectMode, TJoinType, TSelection, TNullabilityMap> {
+	): SQLiteJoinFn<this, TDynamic, TJoinType> {
 		return (
 			table: SQLiteTable | Subquery | SQLiteViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
@@ -254,7 +258,7 @@ export abstract class SQLiteSelectQueryBuilder<
 				}
 			}
 
-			return this;
+			return this as any;
 		};
 	}
 
@@ -266,7 +270,9 @@ export abstract class SQLiteSelectQueryBuilder<
 
 	fullJoin = this.createJoin('full');
 
-	where(where: ((aliases: TSelection) => SQL | undefined) | SQL | undefined): this {
+	where(
+		where: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
+	): SQLiteSelectWithout<this, TDynamic, 'where'> {
 		if (typeof where === 'function') {
 			where = where(
 				new Proxy(
@@ -276,10 +282,12 @@ export abstract class SQLiteSelectQueryBuilder<
 			);
 		}
 		this.config.where = where;
-		return this;
+		return this as any;
 	}
 
-	having(having: ((aliases: TSelection) => SQL | undefined) | SQL | undefined): this {
+	having(
+		having: ((aliases: this['_']['selection']) => SQL | undefined) | SQL | undefined,
+	): SQLiteSelectWithout<this, TDynamic, 'having'> {
 		if (typeof having === 'function') {
 			having = having(
 				new Proxy(
@@ -289,16 +297,18 @@ export abstract class SQLiteSelectQueryBuilder<
 			);
 		}
 		this.config.having = having;
-		return this;
+		return this as any;
 	}
 
-	groupBy(builder: (aliases: TSelection) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>): this;
-	groupBy(...columns: (SQLiteColumn | SQL)[]): this;
+	groupBy(
+		builder: (aliases: this['_']['selection']) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>,
+	): SQLiteSelectWithout<this, TDynamic, 'groupBy'>;
+	groupBy(...columns: (SQLiteColumn | SQL)[]): SQLiteSelectWithout<this, TDynamic, 'groupBy'>;
 	groupBy(
 		...columns:
-			| [(aliases: TSelection) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>]
+			| [(aliases: this['_']['selection']) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>]
 			| (SQLiteColumn | SQL | SQL.Aliased)[]
-	): this {
+	): SQLiteSelectWithout<this, TDynamic, 'groupBy'> {
 		if (typeof columns[0] === 'function') {
 			const groupBy = columns[0](
 				new Proxy(
@@ -310,16 +320,18 @@ export abstract class SQLiteSelectQueryBuilder<
 		} else {
 			this.config.groupBy = columns as (SQLiteColumn | SQL | SQL.Aliased)[];
 		}
-		return this;
+		return this as any;
 	}
 
-	orderBy(builder: (aliases: TSelection) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>): this;
-	orderBy(...columns: (SQLiteColumn | SQL)[]): this;
+	orderBy(
+		builder: (aliases: this['_']['selection']) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>,
+	): SQLiteSelectWithout<this, TDynamic, 'orderBy'>;
+	orderBy(...columns: (SQLiteColumn | SQL)[]): SQLiteSelectWithout<this, TDynamic, 'orderBy'>;
 	orderBy(
 		...columns:
-			| [(aliases: TSelection) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>]
+			| [(aliases: this['_']['selection']) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>]
 			| (SQLiteColumn | SQL | SQL.Aliased)[]
-	): this {
+	): SQLiteSelectWithout<this, TDynamic, 'orderBy'> {
 		if (typeof columns[0] === 'function') {
 			const orderBy = columns[0](
 				new Proxy(
@@ -331,17 +343,17 @@ export abstract class SQLiteSelectQueryBuilder<
 		} else {
 			this.config.orderBy = columns as (SQLiteColumn | SQL | SQL.Aliased)[];
 		}
-		return this;
+		return this as any;
 	}
 
-	limit(limit: number | Placeholder): this {
+	limit(limit: number | Placeholder): SQLiteSelectWithout<this, TDynamic, 'limit'> {
 		this.config.limit = limit;
-		return this;
+		return this as any;
 	}
 
-	offset(offset: number | Placeholder): this {
+	offset(offset: number | Placeholder): SQLiteSelectWithout<this, TDynamic, 'offset'> {
 		this.config.offset = offset;
-		return this;
+		return this as any;
 	}
 
 	/** @internal */
@@ -356,23 +368,28 @@ export abstract class SQLiteSelectQueryBuilder<
 
 	as<TAlias extends string>(
 		alias: TAlias,
-	): SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias> {
+	): SubqueryWithSelection<this['_']['selectedFields'], TAlias> {
 		return new Proxy(
 			new Subquery(this.getSQL(), this.config.fields, alias),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-		) as SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias>;
+		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}
 
-	override getSelectedFields(): BuildSubquerySelection<TSelection, TNullabilityMap> {
+	/** @internal */
+	override getSelectedFields(): this['_']['selectedFields'] {
 		return new Proxy(
 			this.config.fields,
 			new SelectionProxyHandler({ alias: this.tableName, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-		) as BuildSubquerySelection<TSelection, TNullabilityMap>;
+		) as this['_']['selectedFields'];
+	}
+
+	$dynamic(): SQLiteSelectDynamic<this> {
+		return this;
 	}
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface SQLiteSelect<
+export interface SQLiteSelectBase<
 	TTableName extends string | undefined,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
@@ -380,20 +397,28 @@ export interface SQLiteSelect<
 	TSelectMode extends SelectMode = 'single',
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends
-	SQLiteSelectQueryBuilder<
+	SQLiteSelectQueryBuilderBase<
 		SQLiteSelectHKT,
-		TTableName | undefined,
+		TTableName,
 		TResultType,
 		TRunResult,
 		TSelection,
 		TSelectMode,
-		TNullabilityMap
+		TNullabilityMap,
+		TDynamic,
+		TExcludedMethods,
+		TResult,
+		TSelectedFields
 	>,
-	QueryPromise<SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>
+	QueryPromise<TResult>
 {}
 
-export class SQLiteSelect<
+export class SQLiteSelectBase<
 	TTableName extends string | undefined,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
@@ -401,27 +426,26 @@ export class SQLiteSelect<
 	TSelectMode extends SelectMode = 'single',
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
-> extends SQLiteSelectQueryBuilder<
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
+> extends SQLiteSelectQueryBuilderBase<
 	SQLiteSelectHKT,
 	TTableName,
 	TResultType,
 	TRunResult,
 	TSelection,
 	TSelectMode,
-	TNullabilityMap
-> {
+	TNullabilityMap,
+	TDynamic,
+	TExcludedMethods,
+	TResult,
+	TSelectedFields
+> implements RunnableQuery<TResult, 'sqlite'> {
 	static readonly [entityKind]: string = 'SQLiteSelect';
 
-	prepare(isOneTimeQuery?: boolean): PreparedQuery<
-		{
-			type: TResultType;
-			run: TRunResult;
-			all: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
-			get: SelectResult<TSelection, TSelectMode, TNullabilityMap> | undefined;
-			values: any[][];
-			execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
-		}
-	> {
+	prepare(isOneTimeQuery?: boolean): SQLiteSelectPrepare<this> {
 		if (!this.session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
@@ -451,9 +475,9 @@ export class SQLiteSelect<
 		return this.prepare(true).values(placeholderValues);
 	};
 
-	async execute(): Promise<SelectResult<TSelection, TSelectMode, TNullabilityMap>[]> {
-		return this.all() as PromiseOf<ReturnType<this['execute']>>;
+	async execute(): Promise<SQLiteSelectExecute<this>> {
+		return this.all() as SQLiteSelectExecute<this>;
 	}
 }
 
-applyMixins(SQLiteSelect, [QueryPromise]);
+applyMixins(SQLiteSelectBase, [QueryPromise]);

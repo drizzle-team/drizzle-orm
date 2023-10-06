@@ -1,9 +1,11 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import type { BatchItem } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations.ts';
+import type { PreparedQuery } from '~/session.ts';
 import { type Query, sql } from '~/sql/index.ts';
 import { fillPlaceholders } from '~/sql/index.ts';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
@@ -14,7 +16,7 @@ import {
 	type SQLiteExecuteMethod,
 	type SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
-import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session.ts';
+import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { mapResultRow } from '~/utils.ts';
 
 export interface SQLiteD1SessionOptions {
@@ -46,9 +48,119 @@ export class SQLiteD1Session<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		customResultMapper?: (rows: unknown[][]) => unknown,
-	): PreparedQuery {
+	): D1PreparedQuery {
 		const stmt = this.client.prepare(query.sql);
-		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields, executeMethod, customResultMapper);
+		return new D1PreparedQuery(stmt, query, this.logger, fields, executeMethod, customResultMapper);
+	}
+
+	/**
+	 * This function was taken from the D1 implementation: https://github.com/cloudflare/workerd/blob/4aae9f4c7ae30a59a88ca868c4aff88bda85c956/src/cloudflare/internal/d1-api.ts#L287
+	 * It may cause issues with duplicated column names in join queries, which should be fixed on the D1 side.
+	 * @param results
+	 * @returns
+	 */
+	private d1ToRawMapping(results: any) {
+		const rows: unknown[][] = [];
+		for (const row of results) {
+			const entry = Object.keys(row).map((k) => row[k]);
+			rows.push(entry);
+		}
+		return rows;
+	}
+
+	/*override */ async batch<U extends BatchItem, T extends Readonly<[U, ...U[]]>>(queries: T) {
+		const preparedQueries: PreparedQuery[] = [];
+		const builtQueries: D1PreparedStatement[] = [];
+
+		for (const query of queries) {
+			const preparedQuery = query.prepare();
+			const builtQuery = preparedQuery.getQuery();
+			preparedQueries.push(preparedQuery);
+			builtQueries.push((preparedQuery as D1PreparedQuery).stmt.bind(...builtQuery.params));
+		}
+
+		// const queryToType: (
+		// 	| { mode: 'all' }
+		// 	| {
+		// 		mode: 'all_mapped';
+		// 		config: { fields: SelectedFieldsOrdered; joinsNotNullableMap?: Record<string, boolean> };
+		// 	}
+		// 	| { mode: 'get' }
+		// 	| { mode: 'values' }
+		// 	| { mode: 'raw' }
+		// 	| { mode: 'rqb'; mapper: any }
+		// )[] = [];
+
+		// const builtQueries: D1PreparedStatement[] = queries.map((query) => {
+		// 	if (is(query, SQLiteSelectBase<any, 'async', any, any, any>)) {
+		// 		const prepared = query.prepare() as D1PreparedQuery;
+		// 		prepared.fields === undefined
+		// 			? queryToType.push({ mode: 'all' })
+		// 			: queryToType.push({
+		// 				mode: 'all_mapped',
+		// 				config: { fields: prepared.fields, joinsNotNullableMap: prepared.joinsNotNullableMap },
+		// 			});
+		// 		return prepared.stmt.bind(...prepared.params);
+		// 	} else if (
+		// 		is(query, SQLiteInsertBase<any, 'async', any, any>) || is(query, SQLiteUpdateBase<any, 'async', any, any>)
+		// 		|| is(query, SQLiteDeleteBase<any, 'async', any, any>)
+		// 	) {
+		// 		const prepared = query.prepare() as D1PreparedQuery;
+		// 		queryToType.push(
+		// 			query.config.returning
+		// 				? {
+		// 					mode: 'all_mapped',
+		// 					config: { fields: query.config.returning },
+		// 				}
+		// 				: { mode: 'raw' },
+		// 		);
+		// 		return prepared.stmt.bind(...prepared.params);
+		// 	} else if (is(query, SQLiteRaw)) {
+		// 		const builtQuery = this.dialect.sqlToQuery(query.getSQL());
+		// 		queryToType.push(
+		// 			query.config.action === 'run' ? { mode: 'raw' } : { mode: query.config.action },
+		// 		);
+		// 		return this.client.prepare(builtQuery.sql).bind(...builtQuery.params);
+		// 	} else if (is(query, SQLiteRelationalQuery)) {
+		// 		const preparedRqb = query.prepare() as D1PreparedQuery;
+		// 		queryToType.push({ mode: 'rqb', mapper: preparedRqb.customResultMapper });
+		// 		return preparedRqb.stmt.bind(...preparedRqb.params);
+		// 	}
+		// 	throw new DrizzleError({ message: 'You can use only drizzle queries in D1 batch API' });
+		// });
+
+		const batchResults = await this.client.batch<any>(builtQueries);
+		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
+
+		// const res = this.client.batch<any>(builtQueries).then((stmt) =>
+		// 	stmt.map(({ results }, index) => {
+		// 		const action = queryToType[index]!;
+		// 		if (action.mode === 'all') {
+		// 			return results;
+		// 		}
+		// 		if (action.mode === 'all_mapped') {
+		// 			const mappedRows = this.d1ToRawMapping(results);
+		// 			return mappedRows!.map((row) => {
+		// 				return mapResultRow(
+		// 					action.config.fields,
+		// 					row,
+		// 					action.config.joinsNotNullableMap,
+		// 				);
+		// 			});
+		// 		}
+		// 		if (action.mode === 'get') {
+		// 			return results![0] as unknown[];
+		// 		}
+		// 		if (action.mode === 'values') {
+		// 			return this.d1ToRawMapping(results);
+		// 		}
+		// 		if (action.mode === 'raw') {
+		// 			return stmt[index];
+		// 		}
+		// 		return action.mapper(this.d1ToRawMapping(results));
+		// 	})
+		// );
+		// return res;
 	}
 
 	override async transaction<T>(
@@ -89,51 +201,74 @@ export class D1Transaction<
 	}
 }
 
-export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
+export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLitePreparedQuery<
 	{ type: 'async'; run: D1Result; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
 	static readonly [entityKind]: string = 'D1PreparedQuery';
 
+	/** @internal */
+	customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown;
+
+	/** @internal */
+	fields?: SelectedFieldsOrdered;
+
+	/** @internal */
+	stmt: D1PreparedStatement;
+
 	constructor(
-		private stmt: D1PreparedStatement,
-		private queryString: string,
-		private params: unknown[],
+		stmt: D1PreparedStatement,
+		query: Query,
 		private logger: Logger,
-		private fields: SelectedFieldsOrdered | undefined,
+		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		private customResultMapper?: (rows: unknown[][]) => unknown,
+		customResultMapper?: (rows: unknown[][]) => unknown,
 	) {
-		super('async', executeMethod);
+		super('async', executeMethod, query);
+		this.customResultMapper = customResultMapper;
+		this.fields = fields;
+		this.stmt = stmt;
 	}
 
 	run(placeholderValues?: Record<string, unknown>): Promise<D1Result> {
-		const params = fillPlaceholders(this.params, placeholderValues ?? {});
-		this.logger.logQuery(this.queryString, params);
+		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
+		this.logger.logQuery(this.query.sql, params);
 		return this.stmt.bind(...params).run();
 	}
 
 	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
-		const { fields, joinsNotNullableMap, queryString, logger, stmt, customResultMapper } = this;
+		const { fields, query, logger, stmt, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
-			const params = fillPlaceholders(this.params, placeholderValues ?? {});
-			logger.logQuery(queryString, params);
-			return stmt.bind(...params).all().then(({ results }) => results!);
+			const params = fillPlaceholders(query.params, placeholderValues ?? {});
+			logger.logQuery(query.sql, params);
+			return stmt.bind(...params).all().then(({ results }) => this.mapAllResult(results!));
 		}
 
 		const rows = await this.values(placeholderValues);
 
-		if (customResultMapper) {
-			return customResultMapper(rows) as T['all'];
+		return this.mapAllResult(rows);
+	}
+
+	override mapAllResult(rows: unknown[], isFromBatch?: boolean): unknown {
+		if (isFromBatch) {
+			throw new Error('TODO');
 		}
 
-		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
+		if (!this.fields && !this.customResultMapper) {
+			return rows;
+		}
+
+		if (this.customResultMapper) {
+			return this.customResultMapper(rows as unknown[][]);
+		}
+
+		return (rows as unknown[][]).map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
 	}
 
 	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
-		const { fields, joinsNotNullableMap, queryString, logger, stmt, customResultMapper } = this;
+		const { fields, joinsNotNullableMap, query, logger, stmt, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
-			const params = fillPlaceholders(this.params, placeholderValues ?? {});
-			logger.logQuery(queryString, params);
+			const params = fillPlaceholders(query.params, placeholderValues ?? {});
+			logger.logQuery(query.sql, params);
 			return stmt.bind(...params).all().then(({ results }) => results![0]);
 		}
 
@@ -150,9 +285,25 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		return mapResultRow(fields!, rows[0], joinsNotNullableMap);
 	}
 
+	override mapGetResult(result: unknown, isFromBatch?: boolean): unknown {
+		if (isFromBatch) {
+			throw new Error('TODO');
+		}
+
+		if (!this.fields && !this.customResultMapper) {
+			return result;
+		}
+
+		if (this.customResultMapper) {
+			return this.customResultMapper([result as unknown[]]) as T['all'];
+		}
+
+		return mapResultRow(this.fields!, result as unknown[], this.joinsNotNullableMap);
+	}
+
 	values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {
-		const params = fillPlaceholders(this.params, placeholderValues ?? {});
-		this.logger.logQuery(this.queryString, params);
+		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
+		this.logger.logQuery(this.query.sql, params);
 		return this.stmt.bind(...params).raw();
 	}
 }

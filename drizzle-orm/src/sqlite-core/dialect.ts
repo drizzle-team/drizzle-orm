@@ -29,7 +29,11 @@ import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view.ts';
-import type { Join, SelectedFieldsOrdered, SQLiteSelectConfig } from './query-builders/select.types.ts';
+import type {
+	SelectedFieldsOrdered,
+	SQLiteSelectConfig,
+	SQLiteSelectJoinConfig,
+} from './query-builders/select.types.ts';
 import type { SQLiteSession } from './session.ts';
 import { SQLiteViewBase } from './view.ts';
 
@@ -405,7 +409,7 @@ export abstract class SQLiteDialect {
 	}): BuildRelationalQueryResult<SQLiteTable, SQLiteColumn> {
 		let selection: BuildRelationalQueryResult<SQLiteTable, SQLiteColumn>['selection'] = [];
 		let limit, offset, orderBy: SQLiteSelectConfig['orderBy'] = [], where;
-		const joins: Join[] = [];
+		const joins: SQLiteSelectJoinConfig[] = [];
 
 		if (config === true) {
 			const selectionEntries = Object.entries(tableConfig.columns);
@@ -572,9 +576,10 @@ export abstract class SQLiteDialect {
 		}
 
 		if (selection.length === 0) {
-			throw new DrizzleError(
-				`No fields selected for table "${tableConfig.tsName}" ("${tableAlias}"). You need to have at least one item in "columns", "with" or "extras". If you need to select all columns, omit the "columns" key or set it to undefined.`,
-			);
+			throw new DrizzleError({
+				message:
+					`No fields selected for table "${tableConfig.tsName}" ("${tableAlias}"). You need to have at least one item in "columns", "with" or "extras". If you need to select all columns, omit the "columns" key or set it to undefined.`,
+			});
 		}
 
 		let result;
