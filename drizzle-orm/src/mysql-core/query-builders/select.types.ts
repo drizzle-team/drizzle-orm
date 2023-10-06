@@ -23,11 +23,13 @@ import { type ColumnsSelection, type View } from '~/view.ts';
 import { type PreparedQueryHKTBase } from '../session.ts';
 import type { MySqlSelect, MySqlSelectQueryBuilder } from './select.ts';
 
+export type MySqlJoinType = Exclude<JoinType, 'full'>;
+
 export interface Join {
 	on: SQL | undefined;
 	table: MySqlTable | Subquery | MySqlViewBase | SQL;
 	alias: string | undefined;
-	joinType: JoinType;
+	joinType: MySqlJoinType;
 	lateral?: boolean;
 }
 
@@ -70,7 +72,7 @@ export type JoinFn<
 	THKT extends MySqlSelectHKTBase,
 	TTableName extends string | undefined,
 	TSelectMode extends SelectMode,
-	TJoinType extends JoinType,
+	TJoinType extends MySqlJoinType,
 	TSelection,
 	TNullabilityMap extends Record<string, JoinNullability>,
 > = <
