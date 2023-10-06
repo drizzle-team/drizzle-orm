@@ -74,7 +74,7 @@ export interface MySqlSetOperatorConfig {
 	fields: Record<string, unknown>;
 	operator: SetOperator;
 	isAll: boolean;
-	leftSelect: MySqlSetOperatorBuilder<any, any, any, any, any>;
+	leftSelect: MySqlSetOperatorBuilder<any, any, any, any, any, any, any, any, any>;
 	rightSelect: TypedQueryBuilder<any, any[]>;
 	limit?: number | Placeholder;
 	orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
@@ -89,13 +89,13 @@ export interface MySqlSetOperatorBuilder<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
-> extends
-	TypedQueryBuilder<
-		BuildSubquerySelection<TSelection, TNullabilityMap>,
-		SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
-	>,
-	QueryPromise<SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>
-{}
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TDynamic extends boolean = false,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TExcludedMethods extends string = never,
+	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
+> extends TypedQueryBuilder<TSelectedFields, TResult>, QueryPromise<TResult> {}
 
 export abstract class MySqlSetOperatorBuilder<
 	TTableName extends string | undefined,
@@ -104,10 +104,11 @@ export abstract class MySqlSetOperatorBuilder<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
-> extends TypedQueryBuilder<
-	BuildSubquerySelection<TSelection, TNullabilityMap>,
-	SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
-> {
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
+> extends TypedQueryBuilder<TSelectedFields, TResult> {
 	static readonly [entityKind]: string = 'MySqlSetOperatorBuilder';
 
 	protected abstract joinsNotNullableMap: Record<string, boolean>;
@@ -138,7 +139,17 @@ export abstract class MySqlSetOperatorBuilder<
 		rightSelect:
 			| SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>
 			| ((setOperator: MySqlSetOperators) => SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>),
-	) => MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
+	) => MySqlSetOperator<
+		TTableName,
+		TSelection,
+		TSelectMode,
+		TPreparedQueryHKT,
+		TNullabilityMap,
+		TDynamic,
+		TExcludedMethods,
+		TResult,
+		TSelectedFields
+	> {
 		return (rightSelect) => {
 			const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getMySqlSetOperators()) : rightSelect;
 			return new MySqlSetOperator(type, isAll, this, rightSelectOrig);
@@ -156,13 +167,6 @@ export abstract class MySqlSetOperatorBuilder<
 	except = this.setOperator('except', false);
 
 	exceptAll = this.setOperator('except', true);
-
-	abstract orderBy(builder: (aliases: TSelection) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>): this;
-	abstract orderBy(...columns: (MySqlColumn | SQL | SQL.Aliased)[]): this;
-
-	abstract limit(limit: number): this;
-
-	abstract offset(offset: number | Placeholder): this;
 }
 
 export class MySqlSetOperator<
@@ -172,12 +176,20 @@ export class MySqlSetOperator<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends MySqlSetOperatorBuilder<
 	TTableName,
 	TSelection,
 	TSelectMode,
 	TPreparedQueryHKT,
-	TNullabilityMap
+	TNullabilityMap,
+	TDynamic,
+	TExcludedMethods,
+	TResult,
+	TSelectedFields
 > {
 	static readonly [entityKind]: string = 'MySqlSetOperator';
 
@@ -195,7 +207,11 @@ export class MySqlSetOperator<
 			TSelection,
 			TSelectMode,
 			TPreparedQueryHKT,
-			TNullabilityMap
+			TNullabilityMap,
+			TDynamic,
+			TExcludedMethods,
+			TResult,
+			TSelectedFields
 		>,
 		rightSelect: TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
 	) {
@@ -273,14 +289,14 @@ export class MySqlSetOperator<
 		}
 		const fieldsList = orderSelectedFields<MySqlColumn>(this.config.fields);
 		const query = this.session.prepareQuery<
-			PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
+			PreparedQueryConfig & { execute: TResult },
 			TPreparedQueryHKT
 		>(this.dialect.sqlToQuery(this.getSQL()), fieldsList);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
 		return query as PreparedQueryKind<
 			TPreparedQueryHKT,
 			PreparedQueryConfig & {
-				execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
+				execute: TResult;
 				iterator: SelectResult<TSelection, TSelectMode, TNullabilityMap>;
 			},
 			true
@@ -303,11 +319,11 @@ export class MySqlSetOperator<
 
 	as<TAlias extends string>(
 		alias: TAlias,
-	): SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias, 'mysql'> {
+	): SubqueryWithSelection<TSelectedFields, TAlias> {
 		return new Proxy(
 			new Subquery(this.getSQL(), this.config.fields, alias),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-		) as SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias, 'mysql'>;
+		) as SubqueryWithSelection<TSelectedFields, TAlias>;
 	}
 }
 
@@ -322,7 +338,15 @@ function setOperator(type: SetOperator, isAll: boolean): <
 	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
 	TRest extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>[],
 >(
-	leftSelect: MySqlSetOperatorBuilder<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap>,
+	leftSelect: MySqlSetOperatorBuilder<
+		TTableName,
+		TSelection,
+		TSelectMode,
+		TPreparedQueryHKT,
+		TNullabilityMap,
+		any,
+		any
+	>,
 	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
 	...restSelects: SetOperatorRestSelect<TRest, SelectResult<TSelection, TSelectMode, TNullabilityMap>>
 ) => MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {

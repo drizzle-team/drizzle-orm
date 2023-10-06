@@ -16,7 +16,7 @@ import type {
 	SelectResult,
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { PreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
+import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { applyMixins, haveSameKeys, type PromiseOf, type ValidateShape } from '~/utils.ts';
 import type { ColumnsSelection } from '~/view.ts';
 import type { SQLiteColumn } from '../columns/common.ts';
@@ -66,7 +66,7 @@ export interface SQLiteSetOperationConfig {
 	fields: Record<string, unknown>;
 	operator: SetOperator;
 	isAll: boolean;
-	leftSelect: SQLiteSetOperatorBuilder<any, any, any, any, any, any, any>;
+	leftSelect: SQLiteSetOperatorBuilder<any, any, any, any, any, any, any, any, any, any>;
 	rightSelect: TypedQueryBuilder<any, any[]>;
 	limit?: number | Placeholder;
 	orderBy?: (SQLiteColumn | SQL | SQL.Aliased)[];
@@ -82,9 +82,13 @@ export abstract class SQLiteSetOperatorBuilder<
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends TypedQueryBuilder<
-	BuildSubquerySelection<TSelection, TNullabilityMap>,
-	SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
+	TSelectedFields,
+	TResult
 > {
 	static readonly [entityKind]: string = 'SQLiteSetOperatorBuilder';
 
@@ -116,11 +120,35 @@ export abstract class SQLiteSetOperatorBuilder<
 		rightSelect:
 			| SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>
 			| ((setOperator: SQLiteSetOperators) => SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>),
-	) => SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap> {
+	) => SQLiteSetOperator<
+		THKT,
+		TTableName,
+		TResultType,
+		TRunResult,
+		TSelection,
+		TSelectMode,
+		TNullabilityMap,
+		TDynamic,
+		TExcludedMethods,
+		TResult,
+		TSelectedFields
+	> {
 		return (rightSelect) => {
 			const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getSQLiteSetOperators()) : rightSelect;
 
-			return new SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap>(
+			return new SQLiteSetOperator<
+				THKT,
+				TTableName,
+				TResultType,
+				TRunResult,
+				TSelection,
+				TSelectMode,
+				TNullabilityMap,
+				TDynamic,
+				TExcludedMethods,
+				TResult,
+				TSelectedFields
+			>(
 				type,
 				isAll,
 				this,
@@ -136,13 +164,6 @@ export abstract class SQLiteSetOperatorBuilder<
 	intersect = this.setOperator('intersect', false);
 
 	except = this.setOperator('except', false);
-
-	abstract orderBy(builder: (aliases: TSelection) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>): this;
-	abstract orderBy(...columns: (SQLiteColumn | SQL | SQL.Aliased)[]): this;
-
-	abstract limit(limit: number): this;
-
-	abstract offset(offset: number | Placeholder): this;
 }
 
 export interface SQLiteSetOperator<
@@ -157,13 +178,13 @@ export interface SQLiteSetOperator<
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
-> extends
-	TypedQueryBuilder<
-		BuildSubquerySelection<TSelection, TNullabilityMap>,
-		SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
-	>,
-	QueryPromise<SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>
-{}
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TDynamic extends boolean = false,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TExcludedMethods extends string = never,
+	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
+> extends TypedQueryBuilder<TSelectedFields, TResult>, QueryPromise<TResult> {}
 
 export class SQLiteSetOperator<
 	THKT extends SQLiteSelectHKTBase,
@@ -174,6 +195,10 @@ export class SQLiteSetOperator<
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends SQLiteSetOperatorBuilder<
 	THKT,
 	TTableName,
@@ -181,7 +206,11 @@ export class SQLiteSetOperator<
 	TRunResult,
 	TSelection,
 	TSelectMode,
-	TNullabilityMap
+	TNullabilityMap,
+	TDynamic,
+	TExcludedMethods,
+	TResult,
+	TSelectedFields
 > {
 	static readonly [entityKind]: string = 'SQLiteSetOperator';
 
@@ -201,7 +230,11 @@ export class SQLiteSetOperator<
 			TRunResult,
 			TSelection,
 			TSelectMode,
-			TNullabilityMap
+			TNullabilityMap,
+			TDynamic,
+			TExcludedMethods,
+			TResult,
+			TSelectedFields
 		>,
 		rightSelect: TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
 	) {
@@ -219,7 +252,7 @@ export class SQLiteSetOperator<
 		const { session, dialect, joinsNotNullableMap, fields } = leftSelect.getSetOperatorConfig();
 
 		this._ = {
-			selectedFields: fields as BuildSubquerySelection<TSelection, TNullabilityMap>,
+			selectedFields: fields as TSelectedFields,
 		} as this['_'];
 
 		this.session = session;
@@ -274,14 +307,14 @@ export class SQLiteSetOperator<
 		return this.dialect.buildSetOperationQuery(this.config);
 	}
 
-	prepare(isOneTimeQuery?: boolean): PreparedQuery<
+	prepare(isOneTimeQuery?: boolean): SQLitePreparedQuery<
 		{
 			type: TResultType;
 			run: TRunResult;
-			all: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
+			all: TResult;
 			get: SelectResult<TSelection, TSelectMode, TNullabilityMap> | undefined;
 			values: any[][];
-			execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
+			execute: TResult;
 		}
 	> {
 		if (!this.session) {
@@ -313,7 +346,7 @@ export class SQLiteSetOperator<
 		return this.prepare(true).values(placeholderValues);
 	};
 
-	async execute(): Promise<SelectResult<TSelection, TSelectMode, TNullabilityMap>[]> {
+	async execute(): Promise<TResult> {
 		return this.all() as PromiseOf<ReturnType<this['execute']>>;
 	}
 
@@ -347,11 +380,13 @@ function setOperator(type: SetOperator, isAll: boolean): <
 		TRunResult,
 		TSelection,
 		TSelectMode,
-		TNullabilityMap
+		TNullabilityMap,
+		any,
+		any
 	>,
 	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
 	...restSelects: SetOperatorRestSelect<TRest, SelectResult<TSelection, TSelectMode, TNullabilityMap>>
-) => SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap> {
+) => SQLiteSetOperator<THKT, TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap, any, any> {
 	return (leftSelect, rightSelect, ...restSelects) => {
 		if (restSelects.length === 0) {
 			return new SQLiteSetOperator(type, isAll, leftSelect, rightSelect);

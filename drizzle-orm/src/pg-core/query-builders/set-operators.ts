@@ -69,7 +69,7 @@ export interface PgSetOperationConfig {
 	fields: Record<string, unknown>;
 	operator: SetOperator;
 	isAll: boolean;
-	leftSelect: PgSetOperatorBuilder<any, any, any, any, any>;
+	leftSelect: PgSetOperatorBuilder<any, any, any, any, any, any, any, any, any>;
 	rightSelect: TypedQueryBuilder<any, any[]>;
 	limit?: number | Placeholder;
 	orderBy?: (PgColumn | SQL | SQL.Aliased)[];
@@ -84,10 +84,11 @@ export abstract class PgSetOperatorBuilder<
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
-> extends TypedQueryBuilder<
-	BuildSubquerySelection<TSelection, TNullabilityMap>,
-	SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
-> {
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
+> extends TypedQueryBuilder<TSelectedFields, TResult> {
 	static readonly [entityKind]: string = 'PgSetOperatorBuilder';
 
 	protected abstract joinsNotNullableMap: Record<string, boolean>;
@@ -118,7 +119,17 @@ export abstract class PgSetOperatorBuilder<
 		rightSelect:
 			| SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>
 			| ((setOperator: PgSetOperators) => SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>),
-	) => PgSetOperator<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap> {
+	) => PgSetOperator<
+		THKT,
+		TTableName,
+		TSelection,
+		TSelectMode,
+		TNullabilityMap,
+		TDynamic,
+		TExcludedMethods,
+		TResult,
+		TSelectedFields
+	> {
 		return (rightSelect) => {
 			const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getPgSetOperators()) : rightSelect;
 
@@ -137,13 +148,6 @@ export abstract class PgSetOperatorBuilder<
 	except = this.setOperator('except', false);
 
 	exceptAll = this.setOperator('except', true);
-
-	abstract orderBy(builder: (aliases: TSelection) => ValueOrArray<PgColumn | SQL | SQL.Aliased>): this;
-	abstract orderBy(...columns: (PgColumn | SQL | SQL.Aliased)[]): this;
-
-	abstract limit(limit: number): this;
-
-	abstract offset(offset: number | Placeholder): this;
 }
 
 export interface PgSetOperator<
@@ -154,12 +158,23 @@ export interface PgSetOperator<
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends
-	TypedQueryBuilder<
-		BuildSubquerySelection<TSelection, TNullabilityMap>,
-		SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
+	PgSetOperatorBuilder<
+		THKT,
+		TTableName,
+		TSelection,
+		TSelectMode,
+		TNullabilityMap,
+		TDynamic,
+		TExcludedMethods,
+		TResult,
+		TSelectedFields
 	>,
-	QueryPromise<SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>
+	QueryPromise<TResult>
 {}
 
 export class PgSetOperator<
@@ -169,12 +184,20 @@ export class PgSetOperator<
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends PgSetOperatorBuilder<
 	THKT,
 	TTableName,
 	TSelection,
 	TSelectMode,
-	TNullabilityMap
+	TNullabilityMap,
+	TDynamic,
+	TExcludedMethods,
+	TResult,
+	TSelectedFields
 > {
 	static readonly [entityKind]: string = 'PgSetOperator';
 
@@ -187,7 +210,17 @@ export class PgSetOperator<
 	constructor(
 		operator: SetOperator,
 		isAll: boolean,
-		leftSelect: PgSetOperatorBuilder<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap>,
+		leftSelect: PgSetOperatorBuilder<
+			THKT,
+			TTableName,
+			TSelection,
+			TSelectMode,
+			TNullabilityMap,
+			TDynamic,
+			TExcludedMethods,
+			TResult,
+			TSelectedFields
+		>,
 		rightSelect: TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
 	) {
 		super();
@@ -204,7 +237,7 @@ export class PgSetOperator<
 		const { session, dialect, joinsNotNullableMap, fields } = leftSelect.getSetOperatorConfig();
 
 		this._ = {
-			selectedFields: fields as BuildSubquerySelection<TSelection, TNullabilityMap>,
+			selectedFields: fields as TSelectedFields,
 		} as this['_'];
 
 		this.session = session;
@@ -261,7 +294,7 @@ export class PgSetOperator<
 
 	private _prepare(name?: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
+			execute: TResult;
 		}
 	> {
 		const { session, joinsNotNullableMap, config: { fields }, dialect } = this;
@@ -271,7 +304,7 @@ export class PgSetOperator<
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const fieldsList = orderSelectedFields<PgColumn>(fields);
 			const query = session.prepareQuery<
-				PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] }
+				PreparedQueryConfig & { execute: TResult }
 			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name);
 			query.joinsNotNullableMap = joinsNotNullableMap;
 			return query;
@@ -287,7 +320,7 @@ export class PgSetOperator<
 	 */
 	prepare(name: string): PreparedQuery<
 		PreparedQueryConfig & {
-			execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
+			execute: TResult;
 		}
 	> {
 		return this._prepare(name);

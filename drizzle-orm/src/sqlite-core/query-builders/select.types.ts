@@ -258,11 +258,11 @@ export type SQLiteSelectQueryBuilder<
 	TTableName extends string | undefined = string | undefined,
 	TResultType extends 'sync' | 'async' = 'sync' | 'async',
 	TRunResult = unknown,
-	TSelection extends ColumnsSelection = ColumnsSelection,
+	TSelection extends ColumnsSelection = Record<string, any>,
 	TSelectMode extends SelectMode = SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
 	TResult = unknown,
-	TSelectedFields extends ColumnsSelection = ColumnsSelection,
+	TSelectedFields extends ColumnsSelection = Record<string, any>,
 > = SQLiteSelectQueryBuilderBase<
 	THKT,
 	TTableName,

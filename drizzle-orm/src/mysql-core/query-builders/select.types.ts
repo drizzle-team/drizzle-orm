@@ -239,12 +239,12 @@ export type CreateMySqlSelectFromBuilderMode<
 export type MySqlSelectQueryBuilder<
 	THKT extends MySqlSelectHKTBase = MySqlSelectQueryBuilderHKT,
 	TTableName extends string | undefined = string | undefined,
-	TSelection extends ColumnsSelection = ColumnsSelection,
+	TSelection extends ColumnsSelection = Record<string, any>,
 	TSelectMode extends SelectMode = SelectMode,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
 	TResult = unknown,
-	TSelectedFields extends ColumnsSelection = ColumnsSelection,
+	TSelectedFields extends ColumnsSelection = Record<string, any>,
 > = MySqlSelectQueryBuilderBase<
 	THKT,
 	TTableName,
