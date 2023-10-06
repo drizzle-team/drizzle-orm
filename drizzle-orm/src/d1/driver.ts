@@ -1,5 +1,4 @@
 /// <reference types="@cloudflare/workers-types" />
-
 import { DefaultLogger } from '~/logger.ts';
 import {
 	createTableRelationsHelpers,
@@ -11,10 +10,20 @@ import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import { type DrizzleConfig } from '~/utils.ts';
 import { SQLiteD1Session } from './session.ts';
+import { entityKind } from '~/entity.ts';
+import type { BatchParameters, BatchResponse } from '~/batch.ts';
 
-export type DrizzleD1Database<
+export class DrizzleD1Database<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = BaseSQLiteDatabase<'async', D1Result, TSchema>;
+> extends BaseSQLiteDatabase<'async', D1Result, TSchema> {
+	static readonly [entityKind]: string = 'LibSQLDatabase';
+
+	async batch<U extends BatchParameters<D1Result>, T extends Readonly<[U, ...U[]]>>(
+		batch: T,
+	): Promise<BatchResponse<U, T>> {
+		return await (this.session as SQLiteD1Session<TSchema, any>).batch(batch) as BatchResponse<U, T>;
+	}
+}
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: D1Database,
@@ -42,5 +51,5 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	}
 
 	const session = new SQLiteD1Session(client, dialect, schema, { logger });
-	return new BaseSQLiteDatabase('async', dialect, session, schema) as DrizzleD1Database<TSchema>;
+	return new DrizzleD1Database('async', dialect, session, schema) as DrizzleD1Database<TSchema>;
 }
