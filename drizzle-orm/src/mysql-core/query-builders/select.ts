@@ -16,7 +16,6 @@ import type {
 	GetSelectTableName,
 	GetSelectTableSelection,
 	JoinNullability,
-	JoinType,
 	SelectMode,
 	SelectResult,
 } from '~/query-builders/select.types.ts';
@@ -31,6 +30,7 @@ import type {
 	JoinFn,
 	LockConfig,
 	LockStrength,
+	MySqlJoinType,
 	MySqlSelectConfig,
 	MySqlSelectHKT,
 	MySqlSelectHKTBase,
@@ -177,7 +177,7 @@ export abstract class MySqlSelectQueryBuilder<
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
 	}
 
-	private createJoin<TJoinType extends JoinType>(
+	private createJoin<TJoinType extends MySqlJoinType>(
 		joinType: TJoinType,
 	): JoinFn<THKT, TTableName, TSelectMode, TJoinType, TSelection, TNullabilityMap> {
 		return (
@@ -240,13 +240,6 @@ export abstract class MySqlSelectQueryBuilder<
 						this.joinsNotNullableMap[tableName] = true;
 						break;
 					}
-					case 'full': {
-						this.joinsNotNullableMap = Object.fromEntries(
-							Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false]),
-						);
-						this.joinsNotNullableMap[tableName] = false;
-						break;
-					}
 				}
 			}
 
@@ -259,8 +252,6 @@ export abstract class MySqlSelectQueryBuilder<
 	rightJoin = this.createJoin('right');
 
 	innerJoin = this.createJoin('inner');
-
-	fullJoin = this.createJoin('full');
 
 	where(where: ((aliases: TSelection) => SQL | undefined) | SQL | undefined) {
 		if (typeof where === 'function') {
