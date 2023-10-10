@@ -20,7 +20,10 @@ import { migrate } from 'drizzle-orm/libsql/migrator';
 import {
 	alias,
 	blob,
+	foreignKey,
+	getTableConfig,
 	getViewConfig,
+	int,
 	integer,
 	primaryKey,
 	sqliteTable,
@@ -209,6 +212,38 @@ test.beforeEach(async (t) => {
 		  big_int blob not null
 		)
 	`);
+});
+
+test.serial('table config: foreign keys name', async (t) => {
+	const table = sqliteTable('cities', {
+		id: int('id').primaryKey(),
+		name: text('name').notNull(),
+		state: text('state'),
+	}, (t) => ({
+		f: foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' }),
+		f1: foreignKey(() => ({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk_deprecated' })),
+	}));
+
+	const tableConfig = getTableConfig(table);
+
+	t.is(tableConfig.foreignKeys.length, 2);
+	t.is(tableConfig.foreignKeys[0]!.getName(), 'custom_fk');
+	t.is(tableConfig.foreignKeys[1]!.getName(), 'custom_fk_deprecated');
+});
+
+test.serial('table config: primary keys name', async (t) => {
+	const table = sqliteTable('cities', {
+		id: int('id').primaryKey(),
+		name: text('name').notNull(),
+		state: text('state'),
+	}, (t) => ({
+		f: primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
+	}));
+
+	const tableConfig = getTableConfig(table);
+
+	t.is(tableConfig.primaryKeys.length, 1);
+	t.is(tableConfig.primaryKeys[0]!.getName(), 'custom_pk');
 });
 
 test.serial('insert bigint values', async (t) => {
