@@ -23,7 +23,7 @@ import { DrizzleError } from '../index.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
-import type { Join, MySqlSelectConfig, SelectedFieldsOrdered } from './query-builders/select.types.ts';
+import type { MySqlSelectConfig, MySqlSelectJoinConfig, SelectedFieldsOrdered } from './query-builders/select.types.ts';
 import type { MySqlUpdateConfig } from './query-builders/update.ts';
 import type { MySqlSession } from './session.ts';
 import { MySqlTable } from './table.ts';
@@ -405,7 +405,7 @@ export class MySqlDialect {
 	}): BuildRelationalQueryResult<MySqlTable, MySqlColumn> {
 		let selection: BuildRelationalQueryResult<MySqlTable, MySqlColumn>['selection'] = [];
 		let limit, offset, orderBy: MySqlSelectConfig['orderBy'], where;
-		const joins: Join[] = [];
+		const joins: MySqlSelectJoinConfig[] = [];
 
 		if (config === true) {
 			const selectionEntries = Object.entries(tableConfig.columns);
@@ -578,7 +578,7 @@ export class MySqlDialect {
 		}
 
 		if (selection.length === 0) {
-			throw new DrizzleError(`No fields selected for table "${tableConfig.tsName}" ("${tableAlias}")`);
+			throw new DrizzleError({ message: `No fields selected for table "${tableConfig.tsName}" ("${tableAlias}")` });
 		}
 
 		let result;
@@ -869,9 +869,10 @@ export class MySqlDialect {
 		}
 
 		if (selection.length === 0) {
-			throw new DrizzleError(
-				`No fields selected for table "${tableConfig.tsName}" ("${tableAlias}"). You need to have at least one item in "columns", "with" or "extras". If you need to select all columns, omit the "columns" key or set it to undefined.`,
-			);
+			throw new DrizzleError({
+				message:
+					`No fields selected for table "${tableConfig.tsName}" ("${tableAlias}"). You need to have at least one item in "columns", "with" or "extras". If you need to select all columns, omit the "columns" key or set it to undefined.`,
+			});
 		}
 
 		let result;

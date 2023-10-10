@@ -69,7 +69,9 @@ export class QueryBuilder {
 	}
 
 	select(): SQLiteSelectBuilder<undefined, 'sync', void, 'qb'>;
-	select<TSelection extends SelectedFields>(fields: TSelection): SQLiteSelectBuilder<TSelection, 'sync', void, 'qb'>;
+	select<TSelection extends SelectedFields>(
+		fields: TSelection,
+	): SQLiteSelectBuilder<TSelection, 'sync', void, 'qb'>;
 	select<TSelection extends SelectedFields>(
 		fields?: TSelection,
 	): SQLiteSelectBuilder<TSelection | undefined, 'sync', void, 'qb'> {
