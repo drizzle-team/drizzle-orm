@@ -49,6 +49,8 @@ import {
 	uniqueKeyName,
 	uuid as pgUuid,
 	varchar,
+	primaryKey,
+	foreignKey,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import pg from 'pg';
@@ -326,6 +328,36 @@ test.serial('table configs: unique in column', async (t) => {
 	t.assert(columnField?.uniqueName === 'custom_field');
 	t.assert(columnField?.isUnique);
 	t.assert(columnField?.uniqueType === 'not distinct');
+});
+
+test.serial('table config: foreign keys name', async (t) => {
+	const table = pgTable('cities', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		state: text('state'),
+	}, (t) => ({
+		f: foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' }),
+	}));
+
+	const tableConfig = getTableConfig(table);
+
+	t.is(tableConfig.foreignKeys.length, 1);
+	t.is(tableConfig.foreignKeys[0]!.getName(), 'custom_fk');
+});
+
+test.serial('table config: primary keys name', async (t) => {
+	const table = pgTable('cities', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		state: text('state'),
+	}, (t) => ({
+		f: primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
+	}));
+
+	const tableConfig = getTableConfig(table);
+
+	t.is(tableConfig.primaryKeys.length, 1);
+	t.is(tableConfig.primaryKeys[0]!.getName(), 'custom_pk');
 });
 
 test.serial('select all fields', async (t) => {

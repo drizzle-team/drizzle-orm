@@ -3,6 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
+import type { MySqlIntConfig } from './int.ts';
 
 export type MySqlMediumIntBuilderInitial<TName extends string> = MySqlMediumIntBuilder<{
 	name: TName;
@@ -14,12 +15,13 @@ export type MySqlMediumIntBuilderInitial<TName extends string> = MySqlMediumIntB
 }>;
 
 export class MySqlMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlMediumInt'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T>
+	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>
 {
 	static readonly [entityKind]: string = 'MySqlMediumIntBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: T['name'], config?: MySqlIntConfig) {
 		super(name, 'number', 'MySqlMediumInt');
+		this.config.unsigned = config ? config.unsigned : false;
 	}
 
 	/** @internal */
@@ -34,12 +36,12 @@ export class MySqlMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', '
 }
 
 export class MySqlMediumInt<T extends ColumnBaseConfig<'number', 'MySqlMediumInt'>>
-	extends MySqlColumnWithAutoIncrement<T>
+	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
 {
 	static readonly [entityKind]: string = 'MySqlMediumInt';
 
 	getSQLType(): string {
-		return 'mediumint';
+		return `mediumint${this.config.unsigned ? ' unsigned' : ''}`;
 	}
 
 	override mapFromDriverValue(value: number | string): number {
@@ -50,6 +52,9 @@ export class MySqlMediumInt<T extends ColumnBaseConfig<'number', 'MySqlMediumInt
 	}
 }
 
-export function mediumint<TName extends string>(name: TName): MySqlMediumIntBuilderInitial<TName> {
-	return new MySqlMediumIntBuilder(name);
+export function mediumint<TName extends string>(
+	name: TName,
+	config?: MySqlIntConfig,
+): MySqlMediumIntBuilderInitial<TName> {
+	return new MySqlMediumIntBuilder(name, config);
 }
