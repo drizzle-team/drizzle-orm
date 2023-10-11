@@ -53,21 +53,6 @@ export class SQLiteD1Session<
 		return new D1PreparedQuery(stmt, query, this.logger, fields, executeMethod, customResultMapper);
 	}
 
-	/**
-	 * This function was taken from the D1 implementation: https://github.com/cloudflare/workerd/blob/4aae9f4c7ae30a59a88ca868c4aff88bda85c956/src/cloudflare/internal/d1-api.ts#L287
-	 * It may cause issues with duplicated column names in join queries, which should be fixed on the D1 side.
-	 * @param results
-	 * @returns
-	 */
-	private d1ToRawMapping(results: any) {
-		const rows: unknown[][] = [];
-		for (const row of results) {
-			const entry = Object.keys(row).map((k) => row[k]);
-			rows.push(entry);
-		}
-		return rows;
-	}
-
 	/*override */ async batch<U extends BatchItem, T extends Readonly<[U, ...U[]]>>(queries: T) {
 		const preparedQueries: PreparedQuery[] = [];
 		const builtQueries: D1PreparedStatement[] = [];
@@ -76,7 +61,14 @@ export class SQLiteD1Session<
 			const preparedQuery = query.prepare();
 			const builtQuery = preparedQuery.getQuery();
 			preparedQueries.push(preparedQuery);
-			builtQueries.push((preparedQuery as D1PreparedQuery).stmt.bind(...builtQuery.params));
+			if (builtQuery.params.length > 0) {
+				builtQueries.push((preparedQuery as D1PreparedQuery).stmt.bind(...builtQuery.params));
+			} else {
+				const builtQuery = preparedQuery.getQuery();
+				builtQueries.push(
+					this.client.prepare(builtQuery.sql).bind(...builtQuery.params),
+				);
+			}
 		}
 
 		// const queryToType: (
@@ -163,6 +155,18 @@ export class SQLiteD1Session<
 		// return res;
 	}
 
+	override extractRawAllValueFromBatchResult(_result: unknown): unknown {
+		return (_result as D1Result).results;
+	}
+
+	override extractRawGetValueFromBatchResult(result: unknown): unknown {
+		return (result as D1Result).results[0];
+	}
+
+	override extractRawValuesValueFromBatchResult(result: unknown): unknown {
+		return d1ToRawMapping((result as D1Result).results);
+	}
+
 	override async transaction<T>(
 		transaction: (tx: D1Transaction<TFullSchema, TSchema>) => T | Promise<T>,
 		config?: SQLiteTransactionConfig,
@@ -199,6 +203,21 @@ export class D1Transaction<
 			throw err;
 		}
 	}
+}
+
+/**
+ * This function was taken from the D1 implementation: https://github.com/cloudflare/workerd/blob/4aae9f4c7ae30a59a88ca868c4aff88bda85c956/src/cloudflare/internal/d1-api.ts#L287
+ * It may cause issues with duplicated column names in join queries, which should be fixed on the D1 side.
+ * @param results
+ * @returns
+ */
+function d1ToRawMapping(results: any) {
+	const rows: unknown[][] = [];
+	for (const row of results) {
+		const entry = Object.keys(row).map((k) => row[k]);
+		rows.push(entry);
+	}
+	return rows;
 }
 
 export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLitePreparedQuery<
@@ -248,9 +267,9 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 		return this.mapAllResult(rows);
 	}
 
-	override mapAllResult(rows: unknown[], isFromBatch?: boolean): unknown {
+	override mapAllResult(rows: unknown, isFromBatch?: boolean): unknown {
 		if (isFromBatch) {
-			throw new Error('TODO');
+			rows = d1ToRawMapping((rows as D1Result).results);
 		}
 
 		if (!this.fields && !this.customResultMapper) {
@@ -287,7 +306,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 
 	override mapGetResult(result: unknown, isFromBatch?: boolean): unknown {
 		if (isFromBatch) {
-			throw new Error('TODO');
+			result = d1ToRawMapping((result as D1Result).results)[0];
 		}
 
 		if (!this.fields && !this.customResultMapper) {
