@@ -37,7 +37,8 @@ import {
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
-import { View, ViewBaseConfig } from '~/view.ts';
+import { ViewBaseConfig } from '~/view-common.ts';
+import { View } from '~/view.ts';
 import type { PgSession } from './session.ts';
 import { type PgMaterializedView, PgViewBase } from './view.ts';
 

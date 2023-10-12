@@ -3,8 +3,7 @@ import { entityKind } from './entity.ts';
 import type { SelectedFields } from './operations.ts';
 import { SQL, type SQLWrapper } from './sql/index.ts';
 import type { Table } from './table.ts';
-
-export const ViewBaseConfig = Symbol.for('drizzle:ViewBaseConfig');
+import { ViewBaseConfig } from './view-common.ts';
 
 export type ColumnsSelection = Record<string, unknown>;
 

@@ -1,8 +1,8 @@
 import type { Column, GetColumnData } from './column.ts';
 import { entityKind } from './entity.ts';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations.ts';
-import { SQL, type SQLWrapper } from './sql/index.ts';
-import { type Simplify, type Update } from './utils.ts';
+import { SQL, type SQLWrapper } from './sql/sql.ts';
+import type { Simplify, Update } from './utils.ts';
 
 export interface TableConfig<TColumn extends Column = Column<any>> {
 	name: string;

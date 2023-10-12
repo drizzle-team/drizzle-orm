@@ -7,7 +7,7 @@ import type {
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
-import { makePgArray, parsePgArray } from '../utils.ts';
+import { makePgArray, parsePgArray } from '../utils/array.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgArrayBuilder<
