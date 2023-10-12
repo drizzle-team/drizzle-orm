@@ -333,7 +333,14 @@ export class PgDialect {
 		if (lockingClause) {
 			const clauseSql = sql` for ${sql.raw(lockingClause.strength)}`;
 			if (lockingClause.config.of) {
-				clauseSql.append(sql` of ${lockingClause.config.of}`);
+				clauseSql.append(
+					sql` of ${
+						sql.join(
+							Array.isArray(lockingClause.config.of) ? lockingClause.config.of : [lockingClause.config.of],
+							sql`, `,
+						)
+					}`,
+				);
 			}
 			if (lockingClause.config.noWait) {
 				clauseSql.append(sql` no wait`);
