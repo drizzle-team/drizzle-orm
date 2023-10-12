@@ -582,3 +582,8 @@ export function fillPlaceholders(params: unknown[], values: Record<string, unkno
 Column.prototype.getSQL = function() {
 	return new SQL([this]);
 };
+
+// Defined separately from the Table class to resolve circular dependency
+Table.prototype.getSQL = function() {
+	return new SQL([this]);
+};
