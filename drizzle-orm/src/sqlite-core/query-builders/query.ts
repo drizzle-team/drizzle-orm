@@ -9,11 +9,11 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import { type Query, type QueryWithTypings, type SQL, type SQLWrapper } from '~/sql/index.ts';
-import { type KnownKeysOnly } from '~/utils.ts';
-import { type SQLiteDialect } from '../dialect.ts';
+import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/index.ts';
+import type { KnownKeysOnly } from '~/utils.ts';
+import type { SQLiteDialect } from '../dialect.ts';
 import type { PreparedQueryConfig, SQLitePreparedQuery, SQLiteSession } from '../session.ts';
-import { type SQLiteTable } from '../table.ts';
+import type { SQLiteTable } from '../table.ts';
 
 export type SQLiteRelationalQueryKind<TMode extends 'sync' | 'async', TResult> = TMode extends 'async'
 	? SQLiteRelationalQuery<TMode, TResult>

@@ -4,16 +4,16 @@ import { NoopLogger } from '~/logger.ts';
 import { MySqlTransaction } from '~/mysql-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types.ts';
 import type { MySqlTransactionConfig, QueryResultHKT , PreparedQueryConfig, PreparedQueryHKT, PreparedQueryKind } from '~/mysql-core/session.ts';
-import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations.ts';
+import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders} from '~/sql/index.ts';
 import type { SQL, Query } from '~/sql/index.ts';
 import { mapResultRow, type Assume } from '~/utils.ts';
-import { type RemoteCallback } from './driver.ts';
+import type { RemoteCallback } from './driver.ts';
 import { MySqlSession, PreparedQuery as PreparedQueryBase } from '~/mysql-core/session.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import {
-	type FieldPacket,
-	type ResultSetHeader,
+import type {
+	FieldPacket,
+	ResultSetHeader,
 } from 'mysql2/promise';
 
 export type MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]];

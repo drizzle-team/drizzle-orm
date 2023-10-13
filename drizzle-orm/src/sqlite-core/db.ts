@@ -1,9 +1,9 @@
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import {
-	type ExtractTablesWithRelations,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
+import type {
+	ExtractTablesWithRelations,
+	RelationalSchemaConfig,
+	TablesRelationalConfig,
 } from '~/relations.ts';
 import type { SQLWrapper } from '~/sql/index.ts';
 import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
@@ -23,8 +23,8 @@ import type {
 } from '~/sqlite-core/session.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery.ts';
-import { type DrizzleTypeError } from '~/utils.ts';
-import { type ColumnsSelection } from '~/view.ts';
+import type { DrizzleTypeError } from '~/utils.ts';
+import type { ColumnsSelection } from '~/view.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import { SQLiteRaw } from './query-builders/raw.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';

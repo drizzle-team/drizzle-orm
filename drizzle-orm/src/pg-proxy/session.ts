@@ -6,11 +6,11 @@ import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
 import { PgSession, PreparedQuery as PreparedQueryBase } from '~/pg-core/session.ts';
-import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations.ts';
+import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/index.ts';
 import { tracer } from '~/tracing.ts';
 import { mapResultRow, type Assume } from '~/utils.ts';
-import { type RemoteCallback } from './driver.ts';
+import type { RemoteCallback } from './driver.ts';
 
 export interface PgRemoteSessionOptions {
 	logger?: Logger;

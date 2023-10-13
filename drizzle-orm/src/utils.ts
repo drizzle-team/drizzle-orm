@@ -1,9 +1,9 @@
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { is } from './entity.ts';
-import { type Logger } from './logger.ts';
+import type { Logger } from './logger.ts';
 import type { SelectedFieldsOrdered } from './operations.ts';
-import { type TableLike } from './query-builders/select.types.ts';
+import type { TableLike } from './query-builders/select.types.ts';
 import { Param, SQL } from './sql/index.ts';
 import type { DriverValueDecoder } from './sql/index.ts';
 import { Subquery, SubqueryConfig } from './subquery.ts';
