@@ -8,7 +8,8 @@ import { Param, SQL } from './sql/index.ts';
 import type { DriverValueDecoder } from './sql/index.ts';
 import { Subquery, SubqueryConfig } from './subquery.ts';
 import { getTableName, Table } from './table.ts';
-import { View, ViewBaseConfig } from './view.ts';
+import { ViewBaseConfig } from './view-common.ts';
+import { View } from './view.ts';
 
 /** @internal */
 export function mapResultRow<TResult>(

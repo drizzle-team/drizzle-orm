@@ -1,8 +1,8 @@
 import type { Column, GetColumnData } from './column.ts';
 import { entityKind } from './entity.ts';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations.ts';
-import { SQL, type SQLWrapper } from './sql/index.ts';
-import { type Simplify, type Update } from './utils.ts';
+import type { SQLWrapper } from './sql/sql.ts';
+import type { Simplify, Update } from './utils.ts';
 
 export interface TableConfig<TColumn extends Column = Column<any>> {
 	name: string;
@@ -37,6 +37,13 @@ export const IsAlias = Symbol.for('drizzle:IsAlias');
 export const ExtraConfigBuilder = Symbol.for('drizzle:ExtraConfigBuilder');
 
 const IsDrizzleTable = Symbol.for('drizzle:IsDrizzleTable');
+
+export interface Table<
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	T extends TableConfig = TableConfig,
+> extends SQLWrapper {
+	// SQLWrapper runtime implementation is defined in 'sql/sql.ts'
+}
 
 export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 	static readonly [entityKind]: string = 'Table';
@@ -101,10 +108,6 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 		this[TableName] = this[OriginalName] = name;
 		this[Schema] = schema;
 		this[BaseName] = baseName;
-	}
-
-	getSQL(): SQL<unknown> {
-		return new SQL([this]);
 	}
 }
 

@@ -12,7 +12,7 @@ import {
 	type SQLChunk,
 	type SQLWrapper,
 	StringChunk,
-} from '../index.ts';
+} from '../sql.ts';
 
 export function bindIfParam(value: unknown, column: SQLWrapper): SQLChunk {
 	if (
