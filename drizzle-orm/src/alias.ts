@@ -4,7 +4,8 @@ import { entityKind, is } from './entity.ts';
 import type { Relation } from './relations.ts';
 import { SQL, sql } from './sql/index.ts';
 import { Table } from './table.ts';
-import { type View, ViewBaseConfig } from './view.ts';
+import { ViewBaseConfig } from './view-common.ts';
+import type { View } from './view.ts';
 
 export class ColumnAliasProxyHandler<TColumn extends Column> implements ProxyHandler<TColumn> {
 	static readonly [entityKind]: string = 'ColumnAliasProxyHandler';

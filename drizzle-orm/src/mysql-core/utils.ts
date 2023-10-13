@@ -1,6 +1,6 @@
 import { is } from '~/entity.ts';
 import { Table } from '~/table.ts';
-import { ViewBaseConfig } from '~/view.ts';
+import { ViewBaseConfig } from '~/view-common.ts';
 import type { Check } from './checks.ts';
 import { CheckBuilder } from './checks.ts';
 import type { ForeignKey } from './foreign-keys.ts';
@@ -11,8 +11,8 @@ import type { PrimaryKey } from './primary-keys.ts';
 import { PrimaryKeyBuilder } from './primary-keys.ts';
 import { MySqlTable } from './table.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
+import { MySqlViewConfig } from './view-common.ts';
 import type { MySqlView } from './view.ts';
-import { MySqlViewConfig } from './view.ts';
 
 export function getTableConfig(table: MySqlTable) {
 	const columns = Object.values(table[MySqlTable.Symbol.Columns]);

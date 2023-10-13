@@ -12,7 +12,7 @@ import { type DrizzleTypeError } from '~/utils.ts';
 import { type ColumnsSelection } from '~/view.ts';
 import type { MySqlDialect } from './dialect.ts';
 import {
-	MySqlDelete,
+	MySqlDeleteBase,
 	MySqlInsertBuilder,
 	MySqlSelectBuilder,
 	MySqlUpdateBuilder,
@@ -84,7 +84,7 @@ export class MySqlDatabase<
 		return {
 			as<TSelection extends ColumnsSelection>(
 				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
-			): WithSubqueryWithSelection<TSelection, TAlias, 'mysql'> {
+			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {
 					qb = qb(new QueryBuilder());
 				}
@@ -92,7 +92,7 @@ export class MySqlDatabase<
 				return new Proxy(
 					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
 					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-				) as WithSubqueryWithSelection<TSelection, TAlias, 'mysql'>;
+				) as WithSubqueryWithSelection<TSelection, TAlias>;
 			},
 		};
 	}
@@ -159,8 +159,8 @@ export class MySqlDatabase<
 		return new MySqlInsertBuilder(table, this.session, this.dialect);
 	}
 
-	delete<TTable extends MySqlTable>(table: TTable): MySqlDelete<TTable, TQueryResult, TPreparedQueryHKT> {
-		return new MySqlDelete(table, this.session, this.dialect);
+	delete<TTable extends MySqlTable>(table: TTable): MySqlDeleteBase<TTable, TQueryResult, TPreparedQueryHKT> {
+		return new MySqlDeleteBase(table, this.session, this.dialect);
 	}
 
 	execute<T extends { [column: string]: any } = ResultSetHeader>(

@@ -1,12 +1,7 @@
 import { entityKind, is } from '~/entity.ts';
 import type { MySqlColumn } from '~/mysql-core/columns/index.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type {
-	MySqlSession,
-	PreparedQueryConfig,
-	PreparedQueryHKTBase,
-	PreparedQueryKind,
-} from '~/mysql-core/session.ts';
+import type { MySqlSession, PreparedQueryConfig, PreparedQueryHKTBase } from '~/mysql-core/session.ts';
 import type { SubqueryWithSelection } from '~/mysql-core/subquery.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { MySqlViewBase } from '~/mysql-core/view.ts';
@@ -26,26 +21,21 @@ import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { applyMixins, getTableColumns, getTableLikeName, type ValueOrArray } from '~/utils.ts';
 import { orderSelectedFields } from '~/utils.ts';
-import { type ColumnsSelection, View, ViewBaseConfig } from '~/view.ts';
+import { ViewBaseConfig } from '~/view-common.ts';
+import { type ColumnsSelection, View } from '~/view.ts';
 import type {
-	JoinFn,
+	CreateMySqlSelectFromBuilderMode,
 	LockConfig,
 	LockStrength,
+	MySqlJoinFn,
 	MySqlSelectConfig,
+	MySqlSelectDynamic,
 	MySqlSelectHKT,
 	MySqlSelectHKTBase,
-	MySqlSelectQueryBuilderHKT,
+	MySqlSelectPrepare,
+	MySqlSelectWithout,
 	SelectedFields,
 } from './select.types.ts';
-
-type CreateMySqlSelectFromBuilderMode<
-	TBuilderMode extends 'db' | 'qb',
-	TTableName extends string | undefined,
-	TSelection extends ColumnsSelection,
-	TSelectMode extends SelectMode,
-	TPreparedQueryHKT extends PreparedQueryHKTBase,
-> = TBuilderMode extends 'db' ? MySqlSelect<TTableName, TSelection, TSelectMode, TPreparedQueryHKT>
-	: MySqlSelectQueryBuilder<MySqlSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>;
 
 export class MySqlSelectBuilder<
 	TSelection extends SelectedFields | undefined,
@@ -107,7 +97,7 @@ export class MySqlSelectBuilder<
 			fields = getTableColumns<MySqlTable>(source);
 		}
 
-		return new MySqlSelect(
+		return new MySqlSelectBase(
 			{
 				table: source,
 				fields,
@@ -121,24 +111,32 @@ export class MySqlSelectBuilder<
 	}
 }
 
-export abstract class MySqlSelectQueryBuilder<
+export abstract class MySqlSelectQueryBuilderBase<
 	THKT extends MySqlSelectHKTBase,
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
-> extends TypedQueryBuilder<
-	BuildSubquerySelection<TSelection, TNullabilityMap>,
-	SelectResult<TSelection, TSelectMode, TNullabilityMap>[]
-> {
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
+> extends TypedQueryBuilder<TSelectedFields, TResult> {
 	static readonly [entityKind]: string = 'MySqlSelectQueryBuilder';
 
 	override readonly _: {
-		selectMode: TSelectMode;
-		selection: TSelection;
-		result: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
-		selectedFields: BuildSubquerySelection<TSelection, TNullabilityMap>;
+		readonly hkt: THKT;
+		readonly tableName: TTableName;
+		readonly selection: TSelection;
+		readonly selectMode: TSelectMode;
+		readonly preparedQueryHKT: TPreparedQueryHKT;
+		readonly nullabilityMap: TNullabilityMap;
+		readonly dynamic: TDynamic;
+		readonly excludedMethods: TExcludedMethods;
+		readonly result: TResult;
+		readonly selectedFields: TSelectedFields;
 	};
 
 	protected config: MySqlSelectConfig;
@@ -171,7 +169,7 @@ export abstract class MySqlSelectQueryBuilder<
 		this.session = session;
 		this.dialect = dialect;
 		this._ = {
-			selectedFields: fields as BuildSubquerySelection<TSelection, TNullabilityMap>,
+			selectedFields: fields as TSelectedFields,
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
@@ -179,7 +177,7 @@ export abstract class MySqlSelectQueryBuilder<
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): JoinFn<THKT, TTableName, TSelectMode, TJoinType, TSelection, TNullabilityMap> {
+	): MySqlJoinFn<this, TDynamic, TJoinType> {
 		return (
 			table: MySqlTable | Subquery | MySqlViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
@@ -250,7 +248,7 @@ export abstract class MySqlSelectQueryBuilder<
 				}
 			}
 
-			return this;
+			return this as any;
 		};
 	}
 
@@ -262,7 +260,9 @@ export abstract class MySqlSelectQueryBuilder<
 
 	fullJoin = this.createJoin('full');
 
-	where(where: ((aliases: TSelection) => SQL | undefined) | SQL | undefined) {
+	where(
+		where: ((aliases: this['_']['selection']) => SQL | undefined) | SQL | undefined,
+	): MySqlSelectWithout<this, TDynamic, 'where'> {
 		if (typeof where === 'function') {
 			where = where(
 				new Proxy(
@@ -272,10 +272,12 @@ export abstract class MySqlSelectQueryBuilder<
 			);
 		}
 		this.config.where = where;
-		return this;
+		return this as any;
 	}
 
-	having(having: ((aliases: TSelection) => SQL | undefined) | SQL | undefined) {
+	having(
+		having: ((aliases: this['_']['selection']) => SQL | undefined) | SQL | undefined,
+	): MySqlSelectWithout<this, TDynamic, 'having'> {
 		if (typeof having === 'function') {
 			having = having(
 				new Proxy(
@@ -285,16 +287,18 @@ export abstract class MySqlSelectQueryBuilder<
 			);
 		}
 		this.config.having = having;
-		return this;
+		return this as any;
 	}
 
-	groupBy(builder: (aliases: TSelection) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>): this;
-	groupBy(...columns: (MySqlColumn | SQL | SQL.Aliased)[]): this;
+	groupBy(
+		builder: (aliases: this['_']['selection']) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>,
+	): MySqlSelectWithout<this, TDynamic, 'groupBy'>;
+	groupBy(...columns: (MySqlColumn | SQL | SQL.Aliased)[]): MySqlSelectWithout<this, TDynamic, 'groupBy'>;
 	groupBy(
 		...columns:
-			| [(aliases: TSelection) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>]
+			| [(aliases: this['_']['selection']) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>]
 			| (MySqlColumn | SQL | SQL.Aliased)[]
-	) {
+	): MySqlSelectWithout<this, TDynamic, 'groupBy'> {
 		if (typeof columns[0] === 'function') {
 			const groupBy = columns[0](
 				new Proxy(
@@ -306,16 +310,18 @@ export abstract class MySqlSelectQueryBuilder<
 		} else {
 			this.config.groupBy = columns as (MySqlColumn | SQL | SQL.Aliased)[];
 		}
-		return this;
+		return this as any;
 	}
 
-	orderBy(builder: (aliases: TSelection) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>): this;
-	orderBy(...columns: (MySqlColumn | SQL | SQL.Aliased)[]): this;
+	orderBy(
+		builder: (aliases: this['_']['selection']) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>,
+	): MySqlSelectWithout<this, TDynamic, 'orderBy'>;
+	orderBy(...columns: (MySqlColumn | SQL | SQL.Aliased)[]): MySqlSelectWithout<this, TDynamic, 'orderBy'>;
 	orderBy(
 		...columns:
-			| [(aliases: TSelection) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>]
+			| [(aliases: this['_']['selection']) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>]
 			| (MySqlColumn | SQL | SQL.Aliased)[]
-	) {
+	): MySqlSelectWithout<this, TDynamic, 'orderBy'> {
 		if (typeof columns[0] === 'function') {
 			const orderBy = columns[0](
 				new Proxy(
@@ -327,22 +333,22 @@ export abstract class MySqlSelectQueryBuilder<
 		} else {
 			this.config.orderBy = columns as (MySqlColumn | SQL | SQL.Aliased)[];
 		}
-		return this;
+		return this as any;
 	}
 
-	limit(limit: number) {
+	limit(limit: number): MySqlSelectWithout<this, TDynamic, 'limit'> {
 		this.config.limit = limit;
-		return this;
+		return this as any;
 	}
 
-	offset(offset: number) {
+	offset(offset: number): MySqlSelectWithout<this, TDynamic, 'offset'> {
 		this.config.offset = offset;
-		return this;
+		return this as any;
 	}
 
-	for(strength: LockStrength, config: LockConfig = {}) {
+	for(strength: LockStrength, config: LockConfig = {}): MySqlSelectWithout<this, TDynamic, 'for'> {
 		this.config.lockingClause = { strength, config };
-		return this;
+		return this as any;
 	}
 
 	/** @internal */
@@ -357,50 +363,79 @@ export abstract class MySqlSelectQueryBuilder<
 
 	as<TAlias extends string>(
 		alias: TAlias,
-	): SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias, 'mysql'> {
+	): SubqueryWithSelection<this['_']['selectedFields'], TAlias> {
 		return new Proxy(
 			new Subquery(this.getSQL(), this.config.fields, alias),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-		) as SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias, 'mysql'>;
+		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
+	}
+
+	/** @internal */
+	override getSelectedFields(): this['_']['selectedFields'] {
+		return new Proxy(
+			this.config.fields,
+			new SelectionProxyHandler({ alias: this.tableName, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+		) as this['_']['selectedFields'];
+	}
+
+	$dynamic(): MySqlSelectDynamic<this> {
+		return this as any;
 	}
 }
 
-export interface MySqlSelect<
+export interface MySqlSelectBase<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends
-	MySqlSelectQueryBuilder<
+	MySqlSelectQueryBuilderBase<
 		MySqlSelectHKT,
 		TTableName,
 		TSelection,
 		TSelectMode,
-		TNullabilityMap
+		TPreparedQueryHKT,
+		TNullabilityMap,
+		TDynamic,
+		TExcludedMethods,
+		TResult,
+		TSelectedFields
 	>,
-	QueryPromise<SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>
+	QueryPromise<TResult>
 {}
 
-export class MySqlSelect<
+export class MySqlSelectBase<
 	TTableName extends string | undefined,
 	TSelection,
 	TSelectMode extends SelectMode,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
-> extends MySqlSelectQueryBuilder<
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TSelectedFields = BuildSubquerySelection<TSelection, TNullabilityMap>,
+> extends MySqlSelectQueryBuilderBase<
 	MySqlSelectHKT,
 	TTableName,
 	TSelection,
 	TSelectMode,
-	TNullabilityMap
+	TPreparedQueryHKT,
+	TNullabilityMap,
+	TDynamic,
+	TExcludedMethods,
+	TResult,
+	TSelectedFields
 > {
 	static readonly [entityKind]: string = 'MySqlSelect';
 
-	prepare() {
+	prepare(): MySqlSelectPrepare<this> {
 		if (!this.session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
@@ -410,14 +445,7 @@ export class MySqlSelect<
 			TPreparedQueryHKT
 		>(this.dialect.sqlToQuery(this.getSQL()), fieldsList);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
-		return query as PreparedQueryKind<
-			TPreparedQueryHKT,
-			PreparedQueryConfig & {
-				execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[];
-				iterator: SelectResult<TSelection, TSelectMode, TNullabilityMap>;
-			},
-			true
-		>;
+		return query as MySqlSelectPrepare<this>;
 	}
 
 	execute = ((placeholderValues) => {
@@ -434,4 +462,4 @@ export class MySqlSelect<
 	iterator = this.createIterator();
 }
 
-applyMixins(MySqlSelect, [QueryPromise]);
+applyMixins(MySqlSelectBase, [QueryPromise]);
