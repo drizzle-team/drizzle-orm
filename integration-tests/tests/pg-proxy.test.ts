@@ -1648,20 +1648,71 @@ test.serial('array types', async (t) => {
 test.serial('select for ...', (t) => {
 	const { db } = t.context;
 
-	const query = db
-		.select()
-		.from(users2Table)
-		.for('update')
-		.for('no key update', { of: users2Table })
-		.for('no key update', { of: users2Table, skipLocked: true })
-		.for('share', { of: users2Table, noWait: true })
-		.toSQL();
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('update')
+			.toSQL();
 
-	t.regex(
-		query.sql,
-		// eslint-disable-next-line unicorn/better-regex
-		/ for update for no key update of "users2" for no key update of "users2" skip locked for share of "users2" no wait$/,
-	);
+		t.regex(
+			query.sql,
+			/ for update$/,
+		);
+	}
+
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('update', { of: [users2Table, coursesTable] })
+			.toSQL();
+
+		t.regex(
+			query.sql,
+			/ for update of "users2", "courses"$/,
+		);
+	}
+
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('no key update', { of: users2Table })
+			.toSQL();
+
+		t.regex(
+			query.sql,
+			/for no key update of "users2"$/,
+		);
+	}
+
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('no key update', { of: users2Table, skipLocked: true })
+			.toSQL();
+
+		t.regex(
+			query.sql,
+			/ for no key update of "users2" skip locked$/,
+		);
+	}
+
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('share', { of: users2Table, noWait: true })
+			.toSQL();
+
+		t.regex(
+			query.sql,
+			// eslint-disable-next-line unicorn/better-regex
+			/for share of "users2" no wait$/,
+		);
+	}
 });
 
 test.serial('having', async (t) => {
