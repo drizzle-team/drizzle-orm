@@ -16,11 +16,7 @@ import type {
 } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import type {
-	ExtractTablesWithRelations,
-	RelationalSchemaConfig,
-	TablesRelationalConfig,
-} from '~/relations.ts';
+import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import type { SQLWrapper } from '~/sql/index.ts';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';

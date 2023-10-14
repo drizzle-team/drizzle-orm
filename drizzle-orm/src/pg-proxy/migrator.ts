@@ -11,7 +11,7 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 	config: string | MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
-	
+
 	const migrationTableCreate = sql`
 		CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (
 			id SERIAL PRIMARY KEY,
@@ -24,7 +24,7 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 	await db.execute(migrationTableCreate);
 
 	const dbMigrations = await db.execute(
-		sql`SELECT id, hash, created_at FROM "drizzle"."__drizzle_migrations" ORDER BY created_at DESC LIMIT 1`
+		sql`SELECT id, hash, created_at FROM "drizzle"."__drizzle_migrations" ORDER BY created_at DESC LIMIT 1`,
 	) as unknown as [number, string, string][];
 
 	const lastDbMigration = dbMigrations[0] ?? undefined;

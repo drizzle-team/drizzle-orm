@@ -11,7 +11,7 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
-	
+
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 	const migrationTableCreate = sql`
 		create table if not exists ${sql.identifier(migrationsTable)} (
@@ -27,7 +27,7 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 		hash: sql.raw('hash'),
 		created_at: sql.raw('created_at'),
 	}).from(sql.raw(migrationsTable)).orderBy(
-		sql.raw('created_at desc')
+		sql.raw('created_at desc'),
 	).limit(1);
 
 	const lastDbMigration = dbMigrations[0];
@@ -41,7 +41,9 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 		) {
 			queriesToRun.push(
 				...migration.sql,
-				`insert into ${sql.identifier(migrationsTable)} (\`hash\`, \`created_at\`) values(${migration.hash}, ${migration.folderMillis})`,
+				`insert into ${
+					sql.identifier(migrationsTable)
+				} (\`hash\`, \`created_at\`) values(${migration.hash}, ${migration.folderMillis})`,
 			);
 		}
 	}

@@ -1,12 +1,13 @@
 {
-	"files": [],
-	"references": [
-		{
-			"path": "./tsconfig.build.json"
+	"extends": "../tsconfig.json",
+	"compilerOptions": {
+		"baseUrl": ".",
+		"paths": {
+			"~/*": ["src/*"]
 		},
-		{
-			"path": "./tsconfig.config.json"
-		}
-	],
-	"include": ["rollup.*.ts"]
+		"declaration": true,
+		"outDir": "dist",
+		"noEmit": true
+	},
+	"include": ["src", "scripts"]
 }

@@ -8,16 +8,16 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
-import { MySqlRemoteSession, type MySqlRemoteQueryResultHKT, type MySqlRemotePreparedQueryHKT } from './session.ts';
+import { type MySqlRemotePreparedQueryHKT, type MySqlRemoteQueryResultHKT, MySqlRemoteSession } from './session.ts';
 
 export type MySqlRemoteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = MySqlDatabase<MySqlRemoteQueryResultHKT, MySqlRemotePreparedQueryHKT,  TSchema>;
+> = MySqlDatabase<MySqlRemoteQueryResultHKT, MySqlRemotePreparedQueryHKT, TSchema>;
 
 export type RemoteCallback = (
 	sql: string,
 	params: any[],
-	method: 'all' | 'execute'
+	method: 'all' | 'execute',
 ) => Promise<{ rows: any[] }>;
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(

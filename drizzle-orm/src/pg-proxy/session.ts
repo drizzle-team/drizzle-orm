@@ -9,7 +9,7 @@ import { PgSession, PreparedQuery as PreparedQueryBase } from '~/pg-core/session
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/index.ts';
 import { tracer } from '~/tracing.ts';
-import { mapResultRow, type Assume } from '~/utils.ts';
+import { type Assume, mapResultRow } from '~/utils.ts';
 import type { RemoteCallback } from './driver.ts';
 
 export interface PgRemoteSessionOptions {

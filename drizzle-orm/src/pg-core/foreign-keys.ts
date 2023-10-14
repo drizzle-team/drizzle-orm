@@ -25,7 +25,7 @@ export class ForeignKeyBuilder {
 
 	constructor(
 		config: () => {
-			name?: string,
+			name?: string;
 			columns: PgColumn[];
 			foreignColumns: PgColumn[];
 		},

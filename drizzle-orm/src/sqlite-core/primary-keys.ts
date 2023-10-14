@@ -60,6 +60,7 @@ export class PrimaryKey {
 	}
 
 	getName(): string {
-		return this.name ?? `${this.table[SQLiteTable.Symbol.Name]}_${this.columns.map((column) => column.name).join('_')}_pk`;
+		return this.name
+			?? `${this.table[SQLiteTable.Symbol.Name]}_${this.columns.map((column) => column.name).join('_')}_pk`;
 	}
 }

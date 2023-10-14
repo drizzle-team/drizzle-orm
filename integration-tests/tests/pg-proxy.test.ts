@@ -5,6 +5,9 @@ import anyTest from 'ava';
 import Docker from 'dockerode';
 import {
 	and,
+	arrayContained,
+	arrayContains,
+	arrayOverlaps,
 	asc,
 	eq,
 	gt,
@@ -16,11 +19,7 @@ import {
 	type SQL,
 	sql,
 	type SQLWrapper,
-	arrayContains,
-	arrayContained,
-	arrayOverlaps
 } from 'drizzle-orm';
-import { v4 as uuid } from 'uuid';
 import {
 	alias,
 	boolean,
@@ -48,12 +47,13 @@ import {
 	uuid as pgUuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
-import pg from 'pg';
-import getPort from 'get-port';
-import { migrate } from 'drizzle-orm/pg-proxy/migrator';
 import { drizzle as proxyDrizzle } from 'drizzle-orm/pg-proxy';
 import type { PgRemoteDatabase } from 'drizzle-orm/pg-proxy';
-import type { Equal} from './utils.ts';
+import { migrate } from 'drizzle-orm/pg-proxy/migrator';
+import getPort from 'get-port';
+import pg from 'pg';
+import { v4 as uuid } from 'uuid';
+import type { Equal } from './utils.ts';
 import { Expect } from './utils.ts';
 
 // eslint-disable-next-line drizzle/require-entity-kind
@@ -232,7 +232,7 @@ test.before(async (t) => {
 
 	ctx.serverSimulator = new ServerSimulator(ctx.client);
 
-    ctx.db = proxyDrizzle(async (sql, params, method) => {
+	ctx.db = proxyDrizzle(async (sql, params, method) => {
 		try {
 			const response = await ctx.serverSimulator.query(sql, params, method);
 
@@ -246,8 +246,8 @@ test.before(async (t) => {
 			throw e;
 		}
 	}, {
-        logger: ENABLE_LOGGING
-    })
+		logger: ENABLE_LOGGING,
+	});
 });
 
 test.after.always(async (t) => {
@@ -1048,7 +1048,7 @@ test.serial('migrator', async (t) => {
 	await db.execute(sql`drop table if exists all_columns`);
 	await db.execute(sql`drop table if exists users12`);
 	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
-	
+
 	await migrate(db, async (queries) => {
 		try {
 			await serverSimulator.migrations(queries);
@@ -2593,7 +2593,7 @@ test.serial('array operators', async (t) => {
 
 	const posts = pgTable('posts', {
 		id: serial('id').primaryKey(),
-		tags: text('tags').array()
+		tags: text('tags').array(),
 	});
 
 	await db.execute(sql`drop table if exists ${posts}`);
@@ -2603,17 +2603,17 @@ test.serial('array operators', async (t) => {
 	);
 
 	await db.insert(posts).values([{
-		tags: ['ORM']
+		tags: ['ORM'],
 	}, {
-		tags: ['Typescript']
+		tags: ['Typescript'],
 	}, {
-		tags: ['Typescript', 'ORM']
+		tags: ['Typescript', 'ORM'],
 	}, {
-		tags: ['Typescript', 'Frontend', 'React']
+		tags: ['Typescript', 'Frontend', 'React'],
 	}, {
-		tags: ['Typescript', 'ORM', 'Database', 'Postgres']
+		tags: ['Typescript', 'ORM', 'Database', 'Postgres'],
 	}, {
-		tags: ['Java', 'Spring', 'OOP']
+		tags: ['Java', 'Spring', 'OOP'],
 	}]);
 
 	const contains = await db.select({ id: posts.id }).from(posts)
@@ -2625,11 +2625,11 @@ test.serial('array operators', async (t) => {
 	const withSubQuery = await db.select({ id: posts.id }).from(posts)
 		.where(arrayContains(
 			posts.tags,
-			db.select({ tags: posts.tags  }).from(posts).where(eq(posts.id, 1))
+			db.select({ tags: posts.tags }).from(posts).where(eq(posts.id, 1)),
 		));
 
 	t.deepEqual(contains, [{ id: 3 }, { id: 5 }]);
 	t.deepEqual(contained, [{ id: 1 }, { id: 2 }, { id: 3 }]);
 	t.deepEqual(overlaps, [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
-	t.deepEqual(withSubQuery, [{ id: 1 }, { id: 3 }, { id: 5 }])
+	t.deepEqual(withSubQuery, [{ id: 1 }, { id: 3 }, { id: 5 }]);
 });
