@@ -26,23 +26,23 @@ function fixImportPath(importPath: string, file: string, ext: string) {
 
 const cjsFiles = await glob('dist.new/**/*.{cjs,d.cts}');
 
-for (const file of cjsFiles) {
+await Promise.all(cjsFiles.map(async (file) => {
 	const code = parse(await fs.readFile(file, 'utf8'), { parser });
 
 	visit(code, {
 		visitImportDeclaration(path) {
 			path.value.source.value = fixImportPath(path.value.source.value, file, '.cjs');
-			return false;
+			this.traverse(path);
 		},
 		visitExportAllDeclaration(path) {
 			path.value.source.value = fixImportPath(path.value.source.value, file, '.cjs');
-			return false;
+			this.traverse(path);
 		},
 		visitExportNamedDeclaration(path) {
 			if (path.value.source) {
 				path.value.source.value = fixImportPath(path.value.source.value, file, '.cjs');
 			}
-			return false;
+			this.traverse(path);
 		},
 		visitCallExpression(path) {
 			if (path.value.callee.type === 'Identifier' && path.value.callee.name === 'require') {
@@ -57,35 +57,33 @@ for (const file of cjsFiles) {
 	});
 
 	await fs.writeFile(file, print(code).code);
-}
+}));
 
 const esmFiles = await glob('dist.new/**/*.{js,d.ts}');
 
-for (const file of esmFiles) {
+await Promise.all(esmFiles.map(async (file) => {
 	const code = parse(await fs.readFile(file, 'utf8'), { parser });
-
-	// console.log(code);
 
 	visit(code, {
 		visitImportDeclaration(path) {
-			path.value.source.value = resolvePathAlias(path.value.source.value, file);
+			path.value.source.value = fixImportPath(path.value.source.value, file, '.js');
 			this.traverse(path);
 		},
 		visitExportAllDeclaration(path) {
-			path.value.source.value = resolvePathAlias(path.value.source.value, file);
+			path.value.source.value = fixImportPath(path.value.source.value, file, '.js');
 			this.traverse(path);
 		},
 		visitExportNamedDeclaration(path) {
 			if (path.value.source) {
-				path.value.source.value = resolvePathAlias(path.value.source.value, file);
+				path.value.source.value = fixImportPath(path.value.source.value, file, '.js');
 			}
 			this.traverse(path);
 		},
 		visitTSImportType(path) {
-			path.value.argument.value = resolvePathAlias(path.value.argument.value, file);
+			path.value.argument.value = fixImportPath(path.value.argument.value, file, '.js');
 			this.traverse(path);
 		},
 	});
 
 	await fs.writeFile(file, print(code).code);
-}
+}));
