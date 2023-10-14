@@ -25,11 +25,11 @@ import type { SQLiteColumn } from '../columns/common.ts';
 import type { SQLiteDialect } from '../dialect.ts';
 import type { SubqueryWithSelection } from '../subquery.ts';
 import type {
-	AnySQLiteSetOperatorBase,
 	CreateSetOperatorFn,
 	SetOperatorRightSelect,
 	SQLiteSelectHKTBase,
 	SQLiteSetOperationConfig,
+	SQLiteSetOperatorBaseWithResult,
 	SQLiteSetOperatorDynamic,
 	SQLiteSetOperatorInterface,
 	SQLiteSetOperatorWithout,
@@ -104,7 +104,7 @@ export abstract class SQLiteSetOperatorBuilder<
 	private createSetOperator(
 		type: SetOperator,
 		isAll: boolean,
-	): <TValue extends AnySQLiteSetOperatorBase>(
+	): <TValue extends SQLiteSetOperatorBaseWithResult<TResult>>(
 		rightSelect:
 			| ((setOperator: SQLiteSetOperators) => SetOperatorRightSelect<TValue, TResult>)
 			| SetOperatorRightSelect<TValue, TResult>,

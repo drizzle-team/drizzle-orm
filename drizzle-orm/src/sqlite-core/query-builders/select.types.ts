@@ -230,27 +230,6 @@ export type SQLiteSelectWithout<
 		T['_']['excludedMethods'] | K
 	>;
 
-// export type SQLiteSelectWithout<
-// 	T extends AnySQLiteSelectQueryBuilder,
-// 	TDynamic extends boolean,
-// 	K extends keyof T & string,
-// > = TDynamic extends true ? T : Omit<
-// 	SQLiteSelectKind<
-// 		T['_']['hkt'],
-// 		T['_']['tableName'],
-// 		T['_']['resultType'],
-// 		T['_']['runResult'],
-// 		T['_']['selection'],
-// 		T['_']['selectMode'],
-// 		T['_']['nullabilityMap'],
-// 		TDynamic,
-// 		T['_']['excludedMethods'] | K,
-// 		T['_']['result'],
-// 		T['_']['selectedFields']
-// 	>,
-// 	T['_']['excludedMethods'] | K
-// >;
-
 export type SQLiteSelectExecute<T extends AnySQLiteSelect> = T['_']['result'];
 
 export type SQLiteSelectPrepare<T extends AnySQLiteSelect> = SQLitePreparedQuery<
@@ -316,6 +295,20 @@ export type AnySQLiteSelectQueryBuilder = SQLiteSelectQueryBuilderBase<
 	any
 >;
 
+export type SQLiteSetOperatorBaseWithResult<T extends any[]> = SQLiteSetOperatorInterface<
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	T,
+	any
+>;
+
 export type SQLiteSelect<
 	TTableName extends string | undefined = string | undefined,
 	TResultType extends 'sync' | 'async' = 'sync' | 'async',
@@ -328,7 +321,7 @@ export type SQLiteSelect<
 export type AnySQLiteSelect = SQLiteSelectBase<any, any, any, any, any, any, any, any, any, any>;
 
 export type SetOperatorRightSelect<
-	TValue extends AnySQLiteSetOperatorBase,
+	TValue extends SQLiteSetOperatorBaseWithResult<TResult>,
 	TResult extends any[],
 > = TValue extends SQLiteSetOperatorInterface<any, any, any, any, any, any, any, any, any, infer TValueResult, any>
 	? TValueResult extends Array<infer TValueObj> ? ValidateShape<
@@ -340,7 +333,7 @@ export type SetOperatorRightSelect<
 	: TValue;
 
 export type SetOperatorRestSelect<
-	TValue extends readonly AnySQLiteSetOperatorBase[],
+	TValue extends readonly SQLiteSetOperatorBaseWithResult<TResult>[],
 	TResult extends any[],
 > = TValue extends [infer First, ...infer Rest]
 	? First extends SQLiteSetOperatorInterface<any, any, any, any, any, any, any, any, any, infer TValueResult, any>
@@ -351,7 +344,7 @@ export type SetOperatorRestSelect<
 				]
 			: ValidateShape<TValueObj, TResult[number], TypedQueryBuilder<any, TValueResult>[]>
 		: never
-	: TValue
+	: never
 	: TValue;
 
 export interface SQLiteSetOperationConfig {
@@ -429,8 +422,8 @@ export type CreateSetOperatorFn = <
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability>,
-	TValue extends AnySQLiteSetOperatorBase,
-	TRest extends AnySQLiteSetOperatorBase[],
+	TValue extends SQLiteSetOperatorBaseWithResult<TResult>,
+	TRest extends SQLiteSetOperatorBaseWithResult<TResult>[],
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
