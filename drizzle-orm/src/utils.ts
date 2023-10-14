@@ -210,13 +210,12 @@ export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<
 	logger?: boolean | Logger;
 	schema?: TSchema;
 }
-
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult
-	: Exclude<keyof T, keyof ValidShape> extends string
-		? DrizzleTypeError<`Invalid key(s): ${Exclude<keyof T, keyof ValidShape>}`>
-	: never
-	: never;
+	: DrizzleTypeError<
+		`Invalid key(s): ${Exclude<(keyof T) & (string | number | bigint | boolean | null | undefined), keyof ValidShape>}`
+	>
+	: DrizzleTypeError<`Fields need to be the same and produce the same types`>;
 
 export type KnownKeysOnly<T, U> = {
 	[K in keyof T]: K extends keyof U ? T[K] : never;

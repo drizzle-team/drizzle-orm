@@ -165,3 +165,5 @@ export type SelectResultFields<TSelectedFields, TDeep extends boolean = true> = 
 		[Key in keyof TSelectedFields & string]: SelectResultField<TSelectedFields[Key], TDeep>;
 	}
 >;
+
+export type SetOperator = 'union' | 'intersect' | 'except';

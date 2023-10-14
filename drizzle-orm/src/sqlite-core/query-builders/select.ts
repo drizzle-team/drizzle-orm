@@ -118,7 +118,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 		: {},
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends SQLiteSetOperatorBuilder<
 	THKT,
@@ -399,7 +399,7 @@ export interface SQLiteSelectBase<
 		: {},
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends
 	SQLiteSelectQueryBuilderBase<

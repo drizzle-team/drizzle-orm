@@ -1,5 +1,5 @@
 import type { Placeholder, SQL } from '~/sql/index.ts';
-import type { Assume } from '~/utils.ts';
+import type { Assume, ValidateShape } from '~/utils.ts';
 
 import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteTable, SQLiteTableWithColumns } from '~/sqlite-core/table.ts';
@@ -9,6 +9,7 @@ import type {
 	SelectedFieldsFlat as SelectFieldsFlatBase,
 	SelectedFieldsOrdered as SelectFieldsOrderedBase,
 } from '~/operations.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	AppendToNullabilityMap,
 	AppendToResult,
@@ -19,13 +20,16 @@ import type {
 	MapColumnsToTableAlias,
 	SelectMode,
 	SelectResult,
+	SetOperator,
 } from '~/query-builders/select.types.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import { type ColumnsSelection, type View } from '~/view.ts';
-import type { SQLitePreparedQuery } from '../session.ts';
+import type { SQLiteDialect } from '../dialect.ts';
+import type { SQLitePreparedQuery, SQLiteSession } from '../session.ts';
 import type { SQLiteViewBase, SQLiteViewWithSelection } from '../view.ts';
 import type { SQLiteSelectBase, SQLiteSelectQueryBuilderBase } from './select.ts';
+import type { SQLiteSetOperatorBase, SQLiteSetOperatorBuilder } from './set-operators.ts';
 
 export interface SQLiteSelectJoinConfig {
 	on: SQL | undefined;
@@ -162,7 +166,7 @@ export interface SQLiteSelectQueryBuilderHKT extends SQLiteSelectHKTBase {
 		Assume<this['nullabilityMap'], Record<string, JoinNullability>>,
 		this['dynamic'],
 		this['excludedMethods'],
-		this['result'],
+		Assume<this['result'], any[]>,
 		Assume<this['selectedFields'], ColumnsSelection>
 	>;
 }
@@ -177,7 +181,7 @@ export interface SQLiteSelectHKT extends SQLiteSelectHKTBase {
 		Assume<this['nullabilityMap'], Record<string, JoinNullability>>,
 		this['dynamic'],
 		this['excludedMethods'],
-		this['result'],
+		Assume<this['result'], any[]>,
 		Assume<this['selectedFields'], ColumnsSelection>
 	>;
 }
@@ -209,22 +213,43 @@ export type SQLiteSelectWithout<
 	T extends AnySQLiteSelectQueryBuilder,
 	TDynamic extends boolean,
 	K extends keyof T & string,
-> = TDynamic extends true ? T : Omit<
-	SQLiteSelectKind<
-		T['_']['hkt'],
-		T['_']['tableName'],
-		T['_']['resultType'],
-		T['_']['runResult'],
-		T['_']['selection'],
-		T['_']['selectMode'],
-		T['_']['nullabilityMap'],
-		TDynamic,
-		T['_']['excludedMethods'] | K,
-		T['_']['result'],
-		T['_']['selectedFields']
-	>,
-	T['_']['excludedMethods'] | K
->;
+> = TDynamic extends true ? T
+	: Omit<
+		SQLiteSelectBase<
+			T['_']['tableName'],
+			T['_']['resultType'],
+			T['_']['runResult'],
+			T['_']['selection'],
+			T['_']['selectMode'],
+			T['_']['nullabilityMap'],
+			TDynamic,
+			T['_']['excludedMethods'] | K,
+			T['_']['result'],
+			T['_']['selectedFields']
+		>,
+		T['_']['excludedMethods'] | K
+	>;
+
+// export type SQLiteSelectWithout<
+// 	T extends AnySQLiteSelectQueryBuilder,
+// 	TDynamic extends boolean,
+// 	K extends keyof T & string,
+// > = TDynamic extends true ? T : Omit<
+// 	SQLiteSelectKind<
+// 		T['_']['hkt'],
+// 		T['_']['tableName'],
+// 		T['_']['resultType'],
+// 		T['_']['runResult'],
+// 		T['_']['selection'],
+// 		T['_']['selectMode'],
+// 		T['_']['nullabilityMap'],
+// 		TDynamic,
+// 		T['_']['excludedMethods'] | K,
+// 		T['_']['result'],
+// 		T['_']['selectedFields']
+// 	>,
+// 	T['_']['excludedMethods'] | K
+// >;
 
 export type SQLiteSelectExecute<T extends AnySQLiteSelect> = T['_']['result'];
 
@@ -261,7 +286,7 @@ export type SQLiteSelectQueryBuilder<
 	TSelection extends ColumnsSelection = Record<string, any>,
 	TSelectMode extends SelectMode = SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
-	TResult = unknown,
+	TResult extends any[] = unknown[],
 	TSelectedFields extends ColumnsSelection = Record<string, any>,
 > = SQLiteSelectQueryBuilderBase<
 	THKT,
@@ -301,3 +326,210 @@ export type SQLiteSelect<
 > = SQLiteSelectBase<TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap, true, never>;
 
 export type AnySQLiteSelect = SQLiteSelectBase<any, any, any, any, any, any, any, any, any, any>;
+
+export type SetOperatorRightSelect<
+	TValue extends AnySQLiteSetOperatorBase,
+	TResult extends any[],
+> = TValue extends SQLiteSetOperatorInterface<any, any, any, any, any, any, any, any, any, infer TValueResult, any>
+	? TValueResult extends Array<infer TValueObj> ? ValidateShape<
+			TValueObj,
+			TResult[number],
+			TypedQueryBuilder<any, TValueResult>
+		>
+	: never
+	: TValue;
+
+export type SetOperatorRestSelect<
+	TValue extends readonly AnySQLiteSetOperatorBase[],
+	TResult extends any[],
+> = TValue extends [infer First, ...infer Rest]
+	? First extends SQLiteSetOperatorInterface<any, any, any, any, any, any, any, any, any, infer TValueResult, any>
+		? TValueResult extends Array<infer TValueObj>
+			? Rest extends SQLiteSetOperatorInterface<any, any, any, any, any, any, any, any, any, any, any>[] ? [
+					ValidateShape<TValueObj, TResult[number], TypedQueryBuilder<any, TValueResult>>,
+					...SetOperatorRestSelect<Rest, TResult>,
+				]
+			: ValidateShape<TValueObj, TResult[number], TypedQueryBuilder<any, TValueResult>[]>
+		: never
+	: TValue
+	: TValue;
+
+export interface SQLiteSetOperationConfig {
+	fields: Record<string, unknown>;
+	operator: SetOperator;
+	isAll: boolean;
+	leftSelect: AnySQLiteSetOperatorBase;
+	rightSelect: TypedQueryBuilder<any, any[]>;
+	limit?: number | Placeholder;
+	orderBy?: (SQLiteColumn | SQL | SQL.Aliased)[];
+	offset?: number | Placeholder;
+}
+
+export interface SQLiteSetOperatorInterface<
+	THKT extends SQLiteSelectHKTBase,
+	TTableName extends string | undefined,
+	TResultType extends 'sync' | 'async',
+	TRunResult,
+	TSelection extends ColumnsSelection,
+	TSelectMode extends SelectMode,
+	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
+		: {},
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
+> extends
+	TypedQueryBuilder<
+		TSelectedFields,
+		TResult
+	>
+{
+	_: {
+		dialect: 'sqlite';
+		readonly hkt: THKT;
+		readonly tableName: TTableName;
+		readonly resultType: TResultType;
+		readonly runResult: TRunResult;
+		readonly selection: TSelection;
+		readonly selectMode: TSelectMode;
+		readonly nullabilityMap: TNullabilityMap;
+		readonly dynamic: TDynamic;
+		readonly excludedMethods: TExcludedMethods;
+		readonly result: TResult;
+		readonly selectedFields: TSelectedFields;
+	};
+	getSelectedFields: () => TSelectedFields;
+	getSetOperatorConfig: () => {
+		session: SQLiteSession<any, any, any, any> | undefined;
+		dialect: SQLiteDialect;
+		joinsNotNullableMap: Record<string, boolean>;
+		fields: Record<string, unknown>;
+	};
+}
+
+export type AnySQLiteSetOperatorBase = SQLiteSetOperatorInterface<
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any
+>;
+
+export type CreateSetOperatorFn = <
+	THKT extends SQLiteSelectHKTBase,
+	TTableName extends string | undefined,
+	TResultType extends 'sync' | 'async',
+	TRunResult,
+	TSelection extends ColumnsSelection,
+	TSelectMode extends SelectMode,
+	TNullabilityMap extends Record<string, JoinNullability>,
+	TValue extends AnySQLiteSetOperatorBase,
+	TRest extends AnySQLiteSetOperatorBase[],
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
+>(
+	leftSelect: SQLiteSetOperatorInterface<
+		THKT,
+		TTableName,
+		TResultType,
+		TRunResult,
+		TSelection,
+		TSelectMode,
+		TNullabilityMap,
+		TDynamic,
+		TExcludedMethods,
+		TResult,
+		TSelectedFields
+	>,
+	rightSelect: SetOperatorRightSelect<TValue, TResult>,
+	...restSelects: SetOperatorRestSelect<TRest, TResult>
+) => SQLiteSetOperatorBase<
+	TTableName,
+	TResultType,
+	TRunResult,
+	TSelection,
+	TSelectMode,
+	TNullabilityMap,
+	TDynamic,
+	TExcludedMethods,
+	TResult,
+	TSelectedFields
+>;
+
+export type AnySQLiteSetOperator = SQLiteSetOperatorBase<
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any
+>;
+
+export type SQLiteSetOperator<
+	TTableName extends string | undefined = string | undefined,
+	TResultType extends 'sync' | 'async' = 'sync' | 'async',
+	TRunResult = unknown,
+	TSelection extends ColumnsSelection = Record<string, any>,
+	TSelectMode extends SelectMode = SelectMode,
+	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
+> = SQLiteSetOperatorBase<TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap, true, never>;
+
+export type AnySQLiteSetOperatorBuilder = SQLiteSetOperatorBuilder<
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any
+>;
+
+export type SQLiteSetOperatorWithout<
+	T extends AnySQLiteSetOperator,
+	TDynamic extends boolean,
+	K extends keyof T & string,
+> = TDynamic extends true ? T
+	: Omit<
+		SQLiteSetOperatorBase<
+			T['_']['tableName'],
+			T['_']['resultType'],
+			T['_']['runResult'],
+			T['_']['selection'],
+			T['_']['selectMode'],
+			T['_']['nullabilityMap'],
+			TDynamic,
+			T['_']['excludedMethods'] | K,
+			T['_']['result'],
+			T['_']['selectedFields']
+		>,
+		T['_']['excludedMethods'] | K
+	>;
+
+export type SQLiteSetOperatorDynamic<T extends AnySQLiteSetOperatorBuilder> = SQLiteSetOperatorBase<
+	T['_']['tableName'],
+	T['_']['resultType'],
+	T['_']['runResult'],
+	T['_']['selection'],
+	T['_']['selectMode'],
+	T['_']['nullabilityMap'],
+	true,
+	never,
+	T['_']['result'],
+	T['_']['selectedFields']
+>;

@@ -16,7 +16,7 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { and, eq, Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/index.ts';
+import { and, eq, Name, Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/index.ts';
 import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type {
 	SQLiteDeleteConfig,
@@ -295,19 +295,19 @@ export abstract class SQLiteDialect {
 
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {
-			const orderByValues: SQL<unknown>[] = [];
+			const orderByValues: (SQL<unknown> | Name)[] = [];
 
 			// The next bit is necessary because the sql operator replaces ${table.column} with `table`.`column`
-			// which is invalid MySql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
+			// which is invalid Sql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
 			for (const singleOrderBy of orderBy) {
 				if (is(singleOrderBy, SQLiteColumn)) {
-					orderByValues.push(sql.raw(singleOrderBy.name));
+					orderByValues.push(sql.identifier(singleOrderBy.name));
 				} else if (is(singleOrderBy, SQL)) {
 					for (let i = 0; i < singleOrderBy.queryChunks.length; i++) {
 						const chunk = singleOrderBy.queryChunks[i];
 
 						if (is(chunk, SQLiteColumn)) {
-							singleOrderBy.queryChunks[i] = sql.raw(chunk.name);
+							singleOrderBy.queryChunks[i] = sql.identifier(chunk.name);
 						}
 					}
 
