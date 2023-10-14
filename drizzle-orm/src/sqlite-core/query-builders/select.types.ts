@@ -414,7 +414,7 @@ export type AnySQLiteSetOperatorBase = SQLiteSetOperatorInterface<
 	any
 >;
 
-export type CreateSetOperatorFn = <
+export type SQLiteCreateSetOperatorFn = <
 	THKT extends SQLiteSelectHKTBase,
 	TTableName extends string | undefined,
 	TResultType extends 'sync' | 'async',

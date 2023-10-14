@@ -25,8 +25,8 @@ import type { SQLiteColumn } from '../columns/common.ts';
 import type { SQLiteDialect } from '../dialect.ts';
 import type { SubqueryWithSelection } from '../subquery.ts';
 import type {
-	CreateSetOperatorFn,
 	SetOperatorRightSelect,
+	SQLiteCreateSetOperatorFn,
 	SQLiteSelectHKTBase,
 	SQLiteSetOperationConfig,
 	SQLiteSetOperatorBaseWithResult,
@@ -355,7 +355,7 @@ export class SQLiteSetOperatorBase<
 
 applyMixins(SQLiteSetOperatorBase, [QueryPromise]);
 
-function createSetOperator(type: SetOperator, isAll: boolean): CreateSetOperatorFn {
+function createSetOperator(type: SetOperator, isAll: boolean): SQLiteCreateSetOperatorFn {
 	return (leftSelect, rightSelect, ...restSelects) => {
 		if (restSelects.length === 0) {
 			return new SQLiteSetOperatorBase(type, isAll, leftSelect, rightSelect as any);

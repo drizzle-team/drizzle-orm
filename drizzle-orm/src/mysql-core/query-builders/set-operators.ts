@@ -9,7 +9,6 @@ import {
 	SelectionProxyHandler,
 	type SQL,
 	Subquery,
-	type ValidateShape,
 	type ValueOrArray,
 } from '~/index.ts';
 import type {
@@ -24,13 +23,22 @@ import type {
 	JoinNullability,
 	SelectMode,
 	SelectResult,
+	SetOperator,
 } from '~/query-builders/select.types.ts';
 import { type ColumnsSelection } from '~/view.ts';
 import type { MySqlColumn } from '../columns/common.ts';
 import type { MySqlDialect } from '../dialect.ts';
 import type { SubqueryWithSelection } from '../subquery.ts';
-
-type SetOperator = 'union' | 'intersect' | 'except';
+import type {
+	MySqlCreateSetOperatorFn,
+	MySqlSelectHKTBase,
+	MySqlSetOperationConfig,
+	MySqlSetOperatorBaseWithResult,
+	MySqlSetOperatorDynamic,
+	MySqlSetOperatorInterface,
+	MySqlSetOperatorWithout,
+	SetOperatorRightSelect,
+} from './select.types.ts';
 
 const getMySqlSetOperators = () => {
 	return {
@@ -45,59 +53,8 @@ const getMySqlSetOperators = () => {
 
 type MySqlSetOperators = ReturnType<typeof getMySqlSetOperators>;
 
-type SetOperatorRightSelect<
-	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
-	TSelection extends ColumnsSelection,
-	TSelectMode extends SelectMode,
-	TNullabilityMap extends Record<string, JoinNullability>,
-> = TValue extends MySqlSetOperatorBuilder<any, infer TSel, infer TMode, any, infer TNull> ? ValidateShape<
-		SelectResult<TSel, TMode, TNull>,
-		SelectResult<TSelection, TSelectMode, TNullabilityMap>,
-		TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>
-	>
-	: TValue;
-
-type SetOperatorRestSelect<
-	TValue extends readonly TypedQueryBuilder<any, any[]>[],
-	Valid,
-> = TValue extends [infer First, ...infer Rest]
-	? First extends MySqlSetOperatorBuilder<any, infer TSel, infer TMode, any, infer TNull>
-		? Rest extends TypedQueryBuilder<any, any[]>[] ? [
-				ValidateShape<SelectResult<TSel, TMode, TNull>, Valid, TValue[0]>,
-				...SetOperatorRestSelect<Rest, Valid>,
-			]
-		: ValidateShape<SelectResult<TSel, TMode, TNull>, Valid, TValue>
-	: never[]
-	: TValue;
-
-export interface MySqlSetOperatorConfig {
-	fields: Record<string, unknown>;
-	operator: SetOperator;
-	isAll: boolean;
-	leftSelect: MySqlSetOperatorBuilder<any, any, any, any, any, any, any, any, any>;
-	rightSelect: TypedQueryBuilder<any, any[]>;
-	limit?: number | Placeholder;
-	orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
-	offset?: number | Placeholder;
-}
-
-export interface MySqlSetOperatorBuilder<
-	TTableName extends string | undefined,
-	TSelection extends ColumnsSelection,
-	TSelectMode extends SelectMode,
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
-		: {},
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TDynamic extends boolean = false,
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TExcludedMethods extends string = never,
-	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
-	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
-> extends TypedQueryBuilder<TSelectedFields, TResult>, QueryPromise<TResult> {}
-
 export abstract class MySqlSetOperatorBuilder<
+	THKT extends MySqlSelectHKTBase,
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
@@ -106,10 +63,23 @@ export abstract class MySqlSetOperatorBuilder<
 		: {},
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends TypedQueryBuilder<TSelectedFields, TResult> {
 	static readonly [entityKind]: string = 'MySqlSetOperatorBuilder';
+
+	abstract override readonly _: {
+		readonly hkt: THKT;
+		readonly tableName: TTableName;
+		readonly selection: TSelection;
+		readonly selectMode: TSelectMode;
+		readonly preparedQueryHKT: TPreparedQueryHKT;
+		readonly nullabilityMap: TNullabilityMap;
+		readonly dynamic: TDynamic;
+		readonly excludedMethods: TExcludedMethods;
+		readonly result: TResult;
+		readonly selectedFields: TSelectedFields;
+	};
 
 	protected abstract joinsNotNullableMap: Record<string, boolean>;
 	protected abstract config: {
@@ -132,14 +102,14 @@ export abstract class MySqlSetOperatorBuilder<
 		};
 	}
 
-	private setOperator(
+	private createSetOperator(
 		type: SetOperator,
 		isAll: boolean,
-	): <TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
+	): <TValue extends MySqlSetOperatorBaseWithResult<TResult>>(
 		rightSelect:
-			| SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>
-			| ((setOperator: MySqlSetOperators) => SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>),
-	) => MySqlSetOperator<
+			| ((setOperator: MySqlSetOperators) => SetOperatorRightSelect<TValue, TResult>)
+			| SetOperatorRightSelect<TValue, TResult>,
+	) => MySqlSetOperatorBase<
 		TTableName,
 		TSelection,
 		TSelectMode,
@@ -152,24 +122,39 @@ export abstract class MySqlSetOperatorBuilder<
 	> {
 		return (rightSelect) => {
 			const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getMySqlSetOperators()) : rightSelect;
-			return new MySqlSetOperator(type, isAll, this, rightSelectOrig);
+			return new MySqlSetOperatorBase(type, isAll, this as any, rightSelectOrig as any);
 		};
 	}
 
-	union = this.setOperator('union', false);
+	union = this.createSetOperator('union', false);
 
-	unionAll = this.setOperator('union', true);
+	unionAll = this.createSetOperator('union', true);
 
-	intersect = this.setOperator('intersect', false);
+	intersect = this.createSetOperator('intersect', false);
 
-	intersectAll = this.setOperator('intersect', true);
+	intersectAll = this.createSetOperator('intersect', true);
 
-	except = this.setOperator('except', false);
+	except = this.createSetOperator('except', false);
 
-	exceptAll = this.setOperator('except', true);
+	exceptAll = this.createSetOperator('except', true);
 }
 
-export class MySqlSetOperator<
+export interface MySqlSetOperatorBase<
+	TTableName extends string | undefined,
+	TSelection extends ColumnsSelection,
+	TSelectMode extends SelectMode,
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
+		: {},
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TDynamic extends boolean = false,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TExcludedMethods extends string = never,
+	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
+> extends TypedQueryBuilder<TSelectedFields, TResult>, QueryPromise<TResult> {}
+
+export class MySqlSetOperatorBase<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
@@ -181,6 +166,7 @@ export class MySqlSetOperator<
 	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends MySqlSetOperatorBuilder<
+	MySqlSelectHKTBase,
 	TTableName,
 	TSelection,
 	TSelectMode,
@@ -193,8 +179,21 @@ export class MySqlSetOperator<
 > {
 	static readonly [entityKind]: string = 'MySqlSetOperator';
 
+	readonly _: {
+		readonly hkt: MySqlSelectHKTBase;
+		readonly tableName: TTableName;
+		readonly selection: TSelection;
+		readonly selectMode: TSelectMode;
+		readonly preparedQueryHKT: TPreparedQueryHKT;
+		readonly nullabilityMap: TNullabilityMap;
+		readonly dynamic: TDynamic;
+		readonly excludedMethods: TExcludedMethods;
+		readonly result: TResult;
+		readonly selectedFields: TSelectedFields;
+	};
+
 	protected joinsNotNullableMap: Record<string, boolean>;
-	protected config: MySqlSetOperatorConfig;
+	protected config: MySqlSetOperationConfig;
 	/* @internal */
 	readonly session: MySqlSession | undefined;
 	protected dialect: MySqlDialect;
@@ -202,7 +201,8 @@ export class MySqlSetOperator<
 	constructor(
 		operator: SetOperator,
 		isAll: boolean,
-		leftSelect: MySqlSetOperatorBuilder<
+		leftSelect: MySqlSetOperatorInterface<
+			MySqlSelectHKTBase,
 			TTableName,
 			TSelection,
 			TSelectMode,
@@ -213,7 +213,7 @@ export class MySqlSetOperator<
 			TResult,
 			TSelectedFields
 		>,
-		rightSelect: TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
+		rightSelect: TypedQueryBuilder<any, TResult>,
 	) {
 		super();
 
@@ -248,7 +248,7 @@ export class MySqlSetOperator<
 		...columns:
 			| [(aliases: TSelection) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>]
 			| (MySqlColumn | SQL | SQL.Aliased)[]
-	) {
+	): MySqlSetOperatorWithout<this, TDynamic, 'orderBy'> {
 		if (typeof columns[0] === 'function') {
 			const orderBy = columns[0](
 				new Proxy(
@@ -260,17 +260,17 @@ export class MySqlSetOperator<
 		} else {
 			this.config.orderBy = columns as (MySqlColumn | SQL | SQL.Aliased)[];
 		}
-		return this;
+		return this as any;
 	}
 
-	limit(limit: number) {
+	limit(limit: number): MySqlSetOperatorWithout<this, TDynamic, 'limit'> {
 		this.config.limit = limit;
-		return this;
+		return this as any;
 	}
 
-	offset(offset: number | Placeholder) {
+	offset(offset: number | Placeholder): MySqlSetOperatorWithout<this, TDynamic, 'offset'> {
 		this.config.offset = offset;
-		return this;
+		return this as any;
 	}
 
 	/** @internal */
@@ -325,51 +325,39 @@ export class MySqlSetOperator<
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<TSelectedFields, TAlias>;
 	}
+
+	$dynamic(): MySqlSetOperatorDynamic<this> {
+		return this as any;
+	}
 }
 
-applyMixins(MySqlSetOperatorBuilder, [QueryPromise]);
+applyMixins(MySqlSetOperatorBase, [QueryPromise]);
 
-function setOperator(type: SetOperator, isAll: boolean): <
-	TTableName extends string | undefined,
-	TSelection extends ColumnsSelection,
-	TSelectMode extends SelectMode,
-	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TNullabilityMap extends Record<string, JoinNullability>,
-	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
-	TRest extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>[],
->(
-	leftSelect: MySqlSetOperatorBuilder<
-		TTableName,
-		TSelection,
-		TSelectMode,
-		TPreparedQueryHKT,
-		TNullabilityMap,
-		any,
-		any
-	>,
-	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
-	...restSelects: SetOperatorRestSelect<TRest, SelectResult<TSelection, TSelectMode, TNullabilityMap>>
-) => MySqlSetOperator<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TNullabilityMap> {
+function createSetOperator(type: SetOperator, isAll: boolean): MySqlCreateSetOperatorFn {
 	return (leftSelect, rightSelect, ...restSelects) => {
 		if (restSelects.length === 0) {
-			return new MySqlSetOperator(type, isAll, leftSelect, rightSelect);
+			return new MySqlSetOperatorBase(type, isAll, leftSelect, rightSelect as any);
 		}
 
 		const [select, ...rest] = restSelects;
 		if (!select) throw new Error('Cannot pass undefined values to any set operator');
 
-		return setOperator(type, isAll)(new MySqlSetOperator(type, isAll, leftSelect, rightSelect), select, ...rest);
+		return createSetOperator(type, isAll)(
+			new MySqlSetOperatorBase(type, isAll, leftSelect, rightSelect as any),
+			select as any,
+			...rest,
+		);
 	};
 }
 
-export const union = setOperator('union', false);
+export const union = createSetOperator('union', false);
 
-export const unionAll = setOperator('union', true);
+export const unionAll = createSetOperator('union', true);
 
-export const intersect = setOperator('intersect', false);
+export const intersect = createSetOperator('intersect', false);
 
-export const intersectAll = setOperator('intersect', true);
+export const intersectAll = createSetOperator('intersect', true);
 
-export const except = setOperator('except', false);
+export const except = createSetOperator('except', false);
 
-export const exceptAll = setOperator('except', true);
+export const exceptAll = createSetOperator('except', true);

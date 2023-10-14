@@ -19,12 +19,16 @@ import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { View, ViewBaseConfig } from '~/view.ts';
-import { DrizzleError } from '../index.ts';
+import { DrizzleError, Name } from '../index.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
-import type { MySqlSelectConfig, MySqlSelectJoinConfig, SelectedFieldsOrdered } from './query-builders/select.types.ts';
-import type { MySqlSetOperatorConfig } from './query-builders/set-operators.ts';
+import type {
+	MySqlSelectConfig,
+	MySqlSelectJoinConfig,
+	MySqlSetOperationConfig,
+	SelectedFieldsOrdered,
+} from './query-builders/select.types.ts';
 import type { MySqlUpdateConfig } from './query-builders/update.ts';
 import type { MySqlSession } from './session.ts';
 import { MySqlTable } from './table.ts';
@@ -343,25 +347,25 @@ export class MySqlDialect {
 		limit,
 		orderBy,
 		offset,
-	}: MySqlSetOperatorConfig): SQL {
+	}: MySqlSetOperationConfig): SQL {
 		const leftChunk = sql`(${leftSelect.getSQL()}) `;
 		const rightChunk = sql`(${rightSelect.getSQL()})`;
 
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {
-			const orderByValues: SQL<unknown>[] = [];
+			const orderByValues: (SQL<unknown> | Name)[] = [];
 
 			// The next bit is necessary because the sql operator replaces ${table.column} with `table`.`column`
 			// which is invalid MySql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
 			for (const orderByUnit of orderBy) {
 				if (is(orderByUnit, MySqlColumn)) {
-					orderByValues.push(sql.raw(orderByUnit.name));
+					orderByValues.push(sql.identifier(orderByUnit.name));
 				} else if (is(orderByUnit, SQL)) {
 					for (let i = 0; i < orderByUnit.queryChunks.length; i++) {
 						const chunk = orderByUnit.queryChunks[i];
 
 						if (is(chunk, MySqlColumn)) {
-							orderByUnit.queryChunks[i] = sql.raw(chunk.name);
+							orderByUnit.queryChunks[i] = sql.identifier(chunk.name);
 						}
 					}
 

@@ -120,9 +120,10 @@ export abstract class MySqlSelectQueryBuilderBase<
 		: {},
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends MySqlSetOperatorBuilder<
+	THKT,
 	TTableName,
 	TSelection,
 	TSelectMode,
@@ -401,7 +402,7 @@ export interface MySqlSelectBase<
 		: {},
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends
 	MySqlSelectQueryBuilderBase<
