@@ -132,7 +132,7 @@ jobs:
         run: |
           npm run pack
 
-      - name: Running @arethetypeswrong/cli
+      - name: Run @arethetypeswrong/cli
         if: steps.checks.outputs.has_new_release == 'true'
         working-directory: ${{ matrix.package }}
         shell: bash
