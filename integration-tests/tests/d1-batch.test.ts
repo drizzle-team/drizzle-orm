@@ -229,8 +229,6 @@ test('batch api example', async () => {
 		db.select().from(usersTable),
 	]);
 
-	console.log('batchResponse', batchResponse);
-
 	expectTypeOf(batchResponse).toEqualTypeOf<[
 		{
 			id: number;

@@ -10,6 +10,7 @@ import type { PgColumn, PgColumnBuilderBase } from './columns/common.ts';
 import { QueryBuilder } from './query-builders/index.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import { pgTable } from './table.ts';
+import { PgViewConfig } from './view-common.ts';
 
 export interface ViewWithConfig {
 	checkOption: 'local' | 'cascaded';
@@ -281,8 +282,6 @@ export abstract class PgViewBase<
 		readonly viewBrand: 'PgViewBase';
 	};
 }
-
-export const PgViewConfig = Symbol.for('drizzle:PgViewConfig');
 
 export class PgView<
 	TName extends string = string,

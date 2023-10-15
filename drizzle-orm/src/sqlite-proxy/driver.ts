@@ -7,7 +7,7 @@ import {
 } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import { type DrizzleConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import { SQLiteRemoteSession } from './session.ts';
 
 export interface SqliteRemoteResult<T = unknown> {

@@ -7,9 +7,10 @@ import { SelectionProxyHandler } from '~/subquery.ts';
 import { getTableColumns } from '~/utils.ts';
 import { type ColumnsSelection, View } from '~/view.ts';
 import type { SQLiteColumn, SQLiteColumnBuilderBase } from './columns/common.ts';
-import { QueryBuilder } from './query-builders/index.ts';
+import { QueryBuilder } from './query-builders/query-builder.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import { sqliteTable } from './table.ts';
+import { SQLiteViewConfig } from './view-common.ts';
 
 export interface ViewBuilderConfig {
 	algorithm?: 'undefined' | 'merge' | 'temptable';
@@ -137,8 +138,6 @@ export abstract class SQLiteViewBase<
 		viewBrand: 'SQLiteView';
 	};
 }
-
-export const SQLiteViewConfig = Symbol.for('drizzle:SQLiteViewConfig');
 
 export class SQLiteView<
 	TName extends string = string,

@@ -2,7 +2,7 @@ import type { Database, RunResult, Statement } from 'better-sqlite3';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations.ts';
+import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/index.ts';
 import type { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteTransaction } from '~/sqlite-core/index.ts';

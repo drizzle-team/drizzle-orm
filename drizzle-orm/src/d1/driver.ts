@@ -11,7 +11,7 @@ import {
 } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import { type DrizzleConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import { SQLiteD1Session } from './session.ts';
 
 export class DrizzleD1Database<

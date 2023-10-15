@@ -40,7 +40,8 @@ import {
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
-import { View, ViewBaseConfig } from '~/view.ts';
+import { ViewBaseConfig } from '~/view-common.ts';
+import { View } from '~/view.ts';
 import type { PgSession } from './session.ts';
 import { type PgMaterializedView, PgViewBase } from './view.ts';
 
@@ -335,7 +336,14 @@ export class PgDialect {
 		if (lockingClause) {
 			const clauseSql = sql` for ${sql.raw(lockingClause.strength)}`;
 			if (lockingClause.config.of) {
-				clauseSql.append(sql` of ${lockingClause.config.of}`);
+				clauseSql.append(
+					sql` of ${
+						sql.join(
+							Array.isArray(lockingClause.config.of) ? lockingClause.config.of : [lockingClause.config.of],
+							sql`, `,
+						)
+					}`,
+				);
 			}
 			if (lockingClause.config.noWait) {
 				clauseSql.append(sql` no wait`);

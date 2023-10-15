@@ -2,7 +2,7 @@
   "$schema": "https://turbo.build/schema.json",
   "pipeline": {
     "//#lint": {
-      "inputs": ["**/*.ts", "!**/node_modules", "!**/dist"],
+      "inputs": ["**/*.ts", "!**/node_modules", "!**/dist", "!**/dist-dts"],
       "outputMode": "new-only"
     },
     "test:types": {
@@ -24,10 +24,11 @@
         "README.md",
         "../README.md",
         "tsconfig.json",
-        "tsconfig.build.json",
-        "../tsconfig.json",
-        "rollup.config.ts",
-        "rollup.dts.config.ts"
+        "tsconfig.*.json",
+        "tsup.config.ts",
+        "scripts/build.ts",
+        "scripts/fix-imports.ts",
+        "../tsconfig.json"
       ],
       "outputs": ["dist/**", "dist-dts/**"],
       "outputMode": "new-only"

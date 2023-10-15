@@ -6,10 +6,11 @@ import type { SQL } from '~/sql/index.ts';
 import { SelectionProxyHandler } from '~/subquery.ts';
 import { getTableColumns } from '~/utils.ts';
 import { type ColumnsSelection, View } from '~/view.ts';
-import { type MySqlColumn, type MySqlColumnBuilderBase } from './columns/index.ts';
+import type { MySqlColumn, MySqlColumnBuilderBase } from './columns/index.ts';
 import { QueryBuilder } from './query-builders/index.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import { mysqlTable } from './table.ts';
+import { MySqlViewConfig } from './view-common.ts';
 
 export interface ViewBuilderConfig {
 	algorithm?: 'undefined' | 'merge' | 'temptable';
@@ -162,8 +163,6 @@ export abstract class MySqlViewBase<
 		readonly viewBrand: 'MySqlViewBase';
 	};
 }
-
-export const MySqlViewConfig = Symbol.for('drizzle:MySqlViewConfig');
 
 export class MySqlView<
 	TName extends string = string,

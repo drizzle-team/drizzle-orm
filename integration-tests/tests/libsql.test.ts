@@ -22,7 +22,10 @@ import {
 	alias,
 	blob,
 	except,
+	foreignKey,
+	getTableConfig,
 	getViewConfig,
+	int,
 	integer,
 	intersect,
 	primaryKey,
@@ -251,6 +254,38 @@ async function setupSetOperationTest(db: LibSQLDatabase<Record<string, never>>) 
 		{ id: 8, name: 'Sally', cityId: 1 },
 	]);
 }
+
+test.serial('table config: foreign keys name', async (t) => {
+	const table = sqliteTable('cities', {
+		id: int('id').primaryKey(),
+		name: text('name').notNull(),
+		state: text('state'),
+	}, (t) => ({
+		f: foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' }),
+		f1: foreignKey(() => ({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk_deprecated' })),
+	}));
+
+	const tableConfig = getTableConfig(table);
+
+	t.is(tableConfig.foreignKeys.length, 2);
+	t.is(tableConfig.foreignKeys[0]!.getName(), 'custom_fk');
+	t.is(tableConfig.foreignKeys[1]!.getName(), 'custom_fk_deprecated');
+});
+
+test.serial('table config: primary keys name', async (t) => {
+	const table = sqliteTable('cities', {
+		id: int('id').primaryKey(),
+		name: text('name').notNull(),
+		state: text('state'),
+	}, (t) => ({
+		f: primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
+	}));
+
+	const tableConfig = getTableConfig(table);
+
+	t.is(tableConfig.primaryKeys.length, 1);
+	t.is(tableConfig.primaryKeys[0]!.getName(), 'custom_pk');
+});
 
 test.serial('insert bigint values', async (t) => {
 	const { db } = t.context;

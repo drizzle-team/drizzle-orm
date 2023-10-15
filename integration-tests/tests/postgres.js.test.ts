@@ -9,7 +9,6 @@ import {
 	arrayContains,
 	arrayOverlaps,
 	asc,
-	DrizzleError,
 	eq,
 	gt,
 	gte,
@@ -21,6 +20,7 @@ import {
 	type SQL,
 	sql,
 	type SQLWrapper,
+	TransactionRollbackError,
 } from 'drizzle-orm';
 import {
 	alias,
@@ -1905,7 +1905,7 @@ test.serial('transaction rollback', async (t) => {
 		await db.transaction(async (tx) => {
 			await tx.insert(users).values({ balance: 100 });
 			await tx.rollback();
-		}), new DrizzleError({ message: 'Rollback' }));
+		}), { instanceOf: TransactionRollbackError });
 
 	const result = await db.select().from(users);
 
@@ -1964,7 +1964,7 @@ test.serial('nested transaction rollback', async (t) => {
 			await tx.transaction(async (tx) => {
 				await tx.update(users).set({ balance: 200 });
 				await tx.rollback();
-			}), new DrizzleError({ message: 'Rollback' }));
+			}), { instanceOf: TransactionRollbackError });
 	});
 
 	const result = await db.select().from(users);

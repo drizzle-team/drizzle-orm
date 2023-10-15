@@ -1,6 +1,6 @@
 import { type Equal, Expect } from 'type-tests/utils.ts';
 import { eq, gt } from '~/expressions.ts';
-import { type BuildColumn, type InferSelectModel, type Simplify } from '~/index.ts';
+import type { BuildColumn, InferSelectModel, Simplify } from '~/index.ts';
 import {
 	bigint,
 	char,

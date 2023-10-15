@@ -1,15 +1,11 @@
 import type { ResultSetHeader } from 'mysql2/promise';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import {
-	type ExtractTablesWithRelations,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
+import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import type { SQLWrapper } from '~/sql/index.ts';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery.ts';
-import { type DrizzleTypeError } from '~/utils.ts';
-import { type ColumnsSelection } from '~/view.ts';
+import type { DrizzleTypeError } from '~/utils.ts';
+import type { ColumnsSelection } from '~/view.ts';
 import type { MySqlDialect } from './dialect.ts';
 import {
 	MySqlDeleteBase,

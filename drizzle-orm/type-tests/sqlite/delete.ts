@@ -5,7 +5,7 @@ import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { sql } from '~/sql/index.ts';
 import type { SQLiteDelete } from '~/sqlite-core/index.ts';
-import { type DrizzleTypeError } from '~/utils.ts';
+import type { DrizzleTypeError } from '~/utils.ts';
 import { bunDb, db } from './db.ts';
 import { users } from './tables.ts';
 

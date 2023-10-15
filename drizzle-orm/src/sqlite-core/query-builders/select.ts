@@ -19,7 +19,8 @@ import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { applyMixins, getTableColumns, getTableLikeName, orderSelectedFields, type ValueOrArray } from '~/utils.ts';
-import { type ColumnsSelection, View, ViewBaseConfig } from '~/view.ts';
+import { ViewBaseConfig } from '~/view-common.ts';
+import { type ColumnsSelection, View } from '~/view.ts';
 import { SQLiteViewBase } from '../view.ts';
 import type {
 	CreateSQLiteSelectFromBuilderMode,

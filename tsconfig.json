@@ -37,8 +37,5 @@
 		"checkJs": true,
 		"allowImportingTsExtensions": true
 	},
-	"exclude": ["**/dist"],
-	"ts-node": {
-		"require": ["tsconfig-paths/register"]
-	}
+	"exclude": ["**/dist"]
 }

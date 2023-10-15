@@ -18,27 +18,33 @@ import {
 } from 'drizzle-orm';
 import {
 	alias,
+	bigint,
 	boolean,
 	date,
 	datetime,
 	except,
 	exceptAll,
+	foreignKey,
 	getTableConfig,
 	getViewConfig,
 	int,
 	intersect,
 	intersectAll,
 	json,
+	mediumint,
 	mysqlEnum,
 	mysqlTable,
 	mysqlTableCreator,
 	mysqlView,
+	primaryKey,
 	serial,
+	smallint,
 	text,
 	time,
 	timestamp,
 	union,
 	unionAll,
+	tinyint,
 	unique,
 	uniqueIndex,
 	uniqueKeyName,
@@ -261,6 +267,84 @@ async function setupSetOperationTest(db: MySql2Database) {
 		{ id: 8, name: 'Sally', cityId: 1 },
 	]);
 }
+
+test.serial('table config: unsigned ints', async (t) => {
+	const unsignedInts = mysqlTable('cities1', {
+		bigint: bigint('bigint', { mode: 'number', unsigned: true }),
+		int: int('int', { unsigned: true }),
+		smallint: smallint('smallint', { unsigned: true }),
+		mediumint: mediumint('mediumint', { unsigned: true }),
+		tinyint: tinyint('tinyint', { unsigned: true }),
+	});
+
+	const tableConfig = getTableConfig(unsignedInts);
+
+	const bigintColumn = tableConfig.columns.find((c) => c.name === 'bigint')!;
+	const intColumn = tableConfig.columns.find((c) => c.name === 'int')!;
+	const smallintColumn = tableConfig.columns.find((c) => c.name === 'smallint')!;
+	const mediumintColumn = tableConfig.columns.find((c) => c.name === 'mediumint')!;
+	const tinyintColumn = tableConfig.columns.find((c) => c.name === 'tinyint')!;
+
+	t.is(bigintColumn.getSQLType(), 'bigint unsigned');
+	t.is(intColumn.getSQLType(), 'int unsigned');
+	t.is(smallintColumn.getSQLType(), 'smallint unsigned');
+	t.is(mediumintColumn.getSQLType(), 'mediumint unsigned');
+	t.is(tinyintColumn.getSQLType(), 'tinyint unsigned');
+});
+
+test.serial('table config: signed ints', async (t) => {
+	const unsignedInts = mysqlTable('cities1', {
+		bigint: bigint('bigint', { mode: 'number' }),
+		int: int('int'),
+		smallint: smallint('smallint'),
+		mediumint: mediumint('mediumint'),
+		tinyint: tinyint('tinyint'),
+	});
+
+	const tableConfig = getTableConfig(unsignedInts);
+
+	const bigintColumn = tableConfig.columns.find((c) => c.name === 'bigint')!;
+	const intColumn = tableConfig.columns.find((c) => c.name === 'int')!;
+	const smallintColumn = tableConfig.columns.find((c) => c.name === 'smallint')!;
+	const mediumintColumn = tableConfig.columns.find((c) => c.name === 'mediumint')!;
+	const tinyintColumn = tableConfig.columns.find((c) => c.name === 'tinyint')!;
+
+	t.is(bigintColumn.getSQLType(), 'bigint');
+	t.is(intColumn.getSQLType(), 'int');
+	t.is(smallintColumn.getSQLType(), 'smallint');
+	t.is(mediumintColumn.getSQLType(), 'mediumint');
+	t.is(tinyintColumn.getSQLType(), 'tinyint');
+});
+
+test.serial('table config: foreign keys name', async (t) => {
+	const table = mysqlTable('cities', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		state: text('state'),
+	}, (t) => ({
+		f: foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' }),
+	}));
+
+	const tableConfig = getTableConfig(table);
+
+	t.is(tableConfig.foreignKeys.length, 1);
+	t.is(tableConfig.foreignKeys[0]!.getName(), 'custom_fk');
+});
+
+test.serial('table config: primary keys name', async (t) => {
+	const table = mysqlTable('cities', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		state: text('state'),
+	}, (t) => ({
+		f: primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
+	}));
+
+	const tableConfig = getTableConfig(table);
+
+	t.is(tableConfig.primaryKeys.length, 1);
+	t.is(tableConfig.primaryKeys[0]!.getName(), 'custom_pk');
+});
 
 test.serial('table configs: unique third param', async (t) => {
 	const cities1Table = mysqlTable('cities1', {

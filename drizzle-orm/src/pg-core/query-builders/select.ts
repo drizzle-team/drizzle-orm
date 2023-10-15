@@ -21,7 +21,8 @@ import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { applyMixins, getTableColumns, getTableLikeName, type ValueOrArray } from '~/utils.ts';
 import { orderSelectedFields } from '~/utils.ts';
-import { type ColumnsSelection, View, ViewBaseConfig } from '~/view.ts';
+import { ViewBaseConfig } from '~/view-common.ts';
+import { type ColumnsSelection, View } from '~/view.ts';
 import type {
 	CreatePgSelectFromBuilderMode,
 	LockConfig,
