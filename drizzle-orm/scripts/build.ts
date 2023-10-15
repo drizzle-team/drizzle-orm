@@ -51,11 +51,6 @@ await fs.remove('dist.new');
 await Promise.all([
 	(async () => {
 		await $`tsup`;
-
-		await Promise.all([
-			$`tsup src/version.ts --no-config --dts --format esm --outDir dist.new`,
-			$`tsup src/version.ts --no-config --dts --format cjs --outDir dist.new`,
-		]);
 	})(),
 	(async () => {
 		await $`tsc -p tsconfig.dts.json`;
@@ -66,6 +61,11 @@ await Promise.all([
 			rename: (basename) => basename.replace(/\.d\.ts$/, '.d.ts'),
 		});
 	})(),
+]);
+
+await Promise.all([
+	$`tsup src/version.ts --no-config --dts --format esm --outDir dist.new`,
+	$`tsup src/version.ts --no-config --dts --format cjs --outDir dist.new`,
 ]);
 
 await $`scripts/fix-imports.ts`;

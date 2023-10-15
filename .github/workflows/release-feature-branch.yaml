@@ -86,6 +86,7 @@ jobs:
         run: |
           old_version="$(jq -r .version package.json)"
           version="$old_version-$(git rev-parse --short HEAD)"
+          (cd dist && npm version $version)
           tag="${{ github.ref_name }}"
           is_version_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
 
@@ -147,7 +148,6 @@ jobs:
           version="${{ steps.checks.outputs.version }}"
 
           echo "Publishing ${{ matrix.package }}@$tag using version $version"
-          (cd dist && npm version $version)
           npm run publish -- --tag $tag
 
           echo "npm: \`${{ matrix.package }}@$tag | ${{ matrix.package }}@$version\`" >> $GITHUB_STEP_SUMMARY
