@@ -29,6 +29,7 @@ import {
 	and,
 	type DriverValueEncoder,
 	eq,
+	type Name,
 	Param,
 	type QueryTypingsValue,
 	type QueryWithTypings,
@@ -361,19 +362,19 @@ export class PgDialect {
 
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {
-			const orderByValues: SQL<unknown>[] = [];
+			const orderByValues: (SQL<unknown> | Name)[] = [];
 
 			// The next bit is necessary because the sql operator replaces ${table.column} with `table`.`column`
 			// which is invalid MySql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
 			for (const singleOrderBy of orderBy) {
 				if (is(singleOrderBy, PgColumn)) {
-					orderByValues.push(sql.raw(singleOrderBy.name));
+					orderByValues.push(sql.identifier(singleOrderBy.name));
 				} else if (is(singleOrderBy, SQL)) {
 					for (let i = 0; i < singleOrderBy.queryChunks.length; i++) {
 						const chunk = singleOrderBy.queryChunks[i];
 
 						if (is(chunk, PgColumn)) {
-							singleOrderBy.queryChunks[i] = sql.raw(chunk.name);
+							singleOrderBy.queryChunks[i] = sql.identifier(chunk.name);
 						}
 					}
 

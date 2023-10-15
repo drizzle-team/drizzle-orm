@@ -1,6 +1,6 @@
 import { type Equal, Expect } from 'type-tests/utils.ts';
 import { eq } from '~/expressions.ts';
-import { except, exceptAll, intersect, intersectAll, union, unionAll } from '~/pg-core/index.ts';
+import { except, exceptAll, intersect, intersectAll, type PgSetOperator, union, unionAll } from '~/pg-core/index.ts';
 import { desc, sql } from '~/sql/index.ts';
 import { db } from './db.ts';
 import { cities, classes, newYorkers, users } from './tables.ts';
@@ -17,15 +17,15 @@ const unionTest = await db
 Expect<Equal<{ id: number }[], typeof unionTest>>;
 
 const unionAllTest = await db
-	.select({ id: users.id, text: users.text })
+	.select({ id: users.id, age: users.age1 })
 	.from(users)
 	.unionAll(
-		db.select({ id: users.id, text: users.text })
+		db.select({ id: users.id, age: users.age1 })
 			.from(users)
 			.leftJoin(cities, eq(users.id, cities.id)),
 	);
 
-Expect<Equal<{ id: number; text: string | null }[], typeof unionAllTest>>;
+Expect<Equal<{ id: number; age: number }[], typeof unionAllTest>>;
 
 const intersectTest = await db
 	.select({ id: users.id, homeCity: users.homeCity })
@@ -46,7 +46,7 @@ Expect<Equal<{ id: number; homeCity: number }[], typeof intersectTest>>;
 const intersectAllTest = await db
 	.select({ id: users.id, homeCity: users.class })
 	.from(users)
-	.intersectAll(
+	.intersect(
 		db
 			.select({ id: users.id, homeCity: users.class })
 			.from(users)
@@ -69,7 +69,7 @@ Expect<Equal<{ id: number; homeCity: number }[], typeof exceptTest>>;
 const exceptAllTest = await db
 	.select({ id: users.id, homeCity: users.class })
 	.from(users)
-	.exceptAll(
+	.except(
 		db
 			.select({ id: users.id, homeCity: sql<'A' | 'C'>`${users.class}` })
 			.from(users),
@@ -113,9 +113,15 @@ const intersect2Test = await intersect(
 Expect<Equal<{ id: number; name: string; population: number | null }[], typeof intersect2Test>>;
 
 const intersectAll2Test = await intersectAll(
-	db.select({
-		id: cities.id,
-	}).from(cities),
+	union(
+		db.select({
+			id: cities.id,
+		}).from(cities),
+		db.select({
+			id: cities.id,
+		})
+			.from(cities).where(sql``),
+	),
 	db.select({
 		id: cities.id,
 	})
@@ -141,14 +147,67 @@ const exceptAll2Test = await exceptAll(
 		userId: newYorkers.userId,
 		cityId: newYorkers.cityId,
 	})
-		.from(newYorkers),
+		.from(newYorkers).where(sql``),
 	db.select({
 		userId: newYorkers.userId,
 		cityId: newYorkers.cityId,
-	}).from(newYorkers),
+	}).from(newYorkers).leftJoin(newYorkers, sql``),
 );
 
 Expect<Equal<{ userId: number; cityId: number | null }[], typeof exceptAll2Test>>;
+
+const unionfull = await union(db.select().from(users), db.select().from(users)).orderBy(sql``).limit(1).offset(2);
+
+Expect<
+	Equal<{
+		id: number;
+		uuid: string;
+		homeCity: number;
+		currentCity: number | null;
+		serialNullable: number;
+		serialNotNull: number;
+		class: 'A' | 'C';
+		subClass: 'B' | 'D' | null;
+		text: string | null;
+		age1: number;
+		createdAt: Date;
+		enumCol: 'a' | 'b' | 'c';
+		arrayCol: string[];
+	}[], typeof unionfull>
+>;
+
+union(db.select().from(users), db.select().from(users))
+	.orderBy(sql``)
+	// @ts-expect-error - method was already called
+	.orderBy(sql``);
+
+union(db.select().from(users), db.select().from(users))
+	.offset(1)
+	// @ts-expect-error - method was already called
+	.offset(2);
+
+union(db.select().from(users), db.select().from(users))
+	.orderBy(sql``)
+	// @ts-expect-error - method was already called
+	.orderBy(sql``);
+
+{
+	function dynamic<T extends PgSetOperator>(qb: T) {
+		return qb.orderBy(sql``).limit(1).offset(2);
+	}
+
+	const qb = union(db.select().from(users), db.select().from(users)).$dynamic();
+	const result = await dynamic(qb);
+	Expect<Equal<typeof result, typeof users.$inferSelect[]>>;
+}
+
+await db
+	.select({ id: users.id, homeCity: users.homeCity })
+	.from(users)
+	// All queries in combining statements should return the same number of columns
+	// and the corresponding columns should have compatible data type
+	// @ts-expect-error
+	.intersect(({ intersect }) => intersect(db.select().from(users), db.select().from(users)));
 
 // All queries in combining statements should return the same number of columns
 // and the corresponding columns should have compatible data type
@@ -158,10 +217,15 @@ db.select().from(classes).union(db.select({ id: classes.id }).from(classes));
 // All queries in combining statements should return the same number of columns
 // and the corresponding columns should have compatible data type
 // @ts-expect-error
+db.select({ id: classes.id }).from(classes).union(db.select().from(classes).where(sql``));
+
+// All queries in combining statements should return the same number of columns
+// and the corresponding columns should have compatible data type
+// @ts-expect-error
 db.select({ id: classes.id }).from(classes).union(db.select().from(classes));
 
 union(
-	db.select({ id: cities.id, name: cities.name }).from(cities),
+	db.select({ id: cities.id, name: cities.name }).from(cities).where(sql``),
 	db.select({ id: cities.id, name: cities.name }).from(cities),
 	// All queries in combining statements should return the same number of columns
 	// and the corresponding columns should have compatible data type
@@ -170,6 +234,16 @@ union(
 );
 
 union(
+	db.select({ id: cities.id, name: cities.name }).from(cities).where(sql``),
+	// All queries in combining statements should return the same number of columns
+	// and the corresponding columns should have compatible data type
+	// @ts-expect-error
+	db.select({ id: cities.id, name: cities.name, population: cities.population }).from(cities),
+	db.select({ id: cities.id, name: cities.name }).from(cities).where(sql``).limit(3).$dynamic(),
+	db.select({ id: cities.id, name: cities.name }).from(cities),
+);
+
+union(
 	db.select({ id: cities.id }).from(cities),
 	db.select({ id: cities.id }).from(cities),
 	db.select({ id: cities.id }).from(cities),
@@ -189,18 +263,18 @@ union(
 	// @ts-expect-error
 	db.select({ id: cities.id, name: cities.name }).from(cities),
 	db.select({ id: cities.id }).from(cities),
-	db.select({ id: cities.id }).from(cities),
+	db.select({ id: newYorkers.userId }).from(newYorkers),
 	db.select({ id: cities.id }).from(cities),
 );
 
 union(
 	db.select({ id: cities.id }).from(cities),
 	db.select({ id: cities.id }).from(cities),
-	db.select({ id: cities.id }).from(cities),
+	db.select({ id: cities.id }).from(cities).where(sql``),
 	db.select({ id: sql<number>`${cities.id}` }).from(cities),
 	db.select({ id: cities.id }).from(cities),
 	// All queries in combining statements should return the same number of columns
 	// and the corresponding columns should have compatible data type
 	// @ts-expect-error
-	db.select({ id: cities.id, name: cities.name, population: cities.population }).from(cities),
+	db.select({ id: cities.id, name: cities.name, population: cities.population }).from(cities).where(sql``),
 );

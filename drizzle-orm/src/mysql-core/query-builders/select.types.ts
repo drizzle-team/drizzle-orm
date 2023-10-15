@@ -24,8 +24,7 @@ import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, ValidateShape } from '~/utils.ts';
 import type { ColumnsSelection, View } from '~/view.ts';
-import type { MySqlDialect } from '../dialect.ts';
-import type { MySqlSession, PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
+import type { PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
 import type { MySqlSelectBase, MySqlSelectQueryBuilderBase } from './select.ts';
 import type { MySqlSetOperatorBase, MySqlSetOperatorBuilder } from './set-operators.ts';
 
@@ -343,9 +342,20 @@ export interface MySqlSetOperatorInterface<
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends
-	TypedQueryBuilder<
-		TSelectedFields,
-		TResult
+	Omit<
+		MySqlSetOperatorBuilder<
+			THKT,
+			TTableName,
+			TSelection,
+			TSelectMode,
+			TPreparedQueryHKT,
+			TNullabilityMap,
+			TDynamic,
+			TExcludedMethods,
+			TResult,
+			TSelectedFields
+		>,
+		'joinsNotNullableMap' | 'session' | 'dialect' | 'createSetOperator'
 	>
 {
 	_: {
@@ -359,13 +369,6 @@ export interface MySqlSetOperatorInterface<
 		readonly excludedMethods: TExcludedMethods;
 		readonly result: TResult;
 		readonly selectedFields: TSelectedFields;
-	};
-	getSelectedFields: () => TSelectedFields;
-	getSetOperatorConfig: () => {
-		session: MySqlSession<any, any, any, any> | undefined;
-		dialect: MySqlDialect;
-		joinsNotNullableMap: Record<string, boolean>;
-		fields: Record<string, unknown>;
 	};
 }
 
@@ -415,8 +418,8 @@ export type MySqlCreateSetOperatorFn = <
 	TSelectMode,
 	TPreparedQueryHKT,
 	TNullabilityMap,
-	TDynamic,
-	TExcludedMethods,
+	false,
+	never,
 	TResult,
 	TSelectedFields
 >;

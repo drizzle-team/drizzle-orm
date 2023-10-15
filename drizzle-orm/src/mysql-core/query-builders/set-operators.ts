@@ -115,8 +115,8 @@ export abstract class MySqlSetOperatorBuilder<
 		TSelectMode,
 		TPreparedQueryHKT,
 		TNullabilityMap,
-		TDynamic,
-		TExcludedMethods,
+		false,
+		never,
 		TResult,
 		TSelectedFields
 	> {
@@ -143,6 +143,7 @@ export interface MySqlSetOperatorBase<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
@@ -336,7 +337,7 @@ applyMixins(MySqlSetOperatorBase, [QueryPromise]);
 function createSetOperator(type: SetOperator, isAll: boolean): MySqlCreateSetOperatorFn {
 	return (leftSelect, rightSelect, ...restSelects) => {
 		if (restSelects.length === 0) {
-			return new MySqlSetOperatorBase(type, isAll, leftSelect, rightSelect as any);
+			return new MySqlSetOperatorBase(type, isAll, leftSelect, rightSelect as any) as any;
 		}
 
 		const [select, ...rest] = restSelects;

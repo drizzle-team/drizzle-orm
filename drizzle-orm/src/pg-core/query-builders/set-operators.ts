@@ -15,17 +15,25 @@ import type {
 	JoinNullability,
 	SelectMode,
 	SelectResult,
+	SetOperator,
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { tracer } from '~/tracing.ts';
-import { applyMixins, haveSameKeys, type ValidateShape } from '~/utils.ts';
+import { applyMixins, haveSameKeys } from '~/utils.ts';
 import { type ColumnsSelection } from '~/view.ts';
 import { type PgColumn } from '../columns/common.ts';
 import type { PgDialect } from '../dialect.ts';
 import type { SubqueryWithSelection } from '../subquery.ts';
-import type { PgSelectHKTBase } from './select.types.ts';
-
-type SetOperator = 'union' | 'intersect' | 'except';
+import type {
+	PgCreateSetOperatorFn,
+	PgSelectHKTBase,
+	PgSetOperationConfig,
+	PgSetOperatorBaseWithResult,
+	PgSetOperatorDynamic,
+	PgSetOperatorInterface,
+	PgSetOperatorWithout,
+	SetOperatorRightSelect,
+} from './select.types.ts';
 
 const getPgSetOperators = () => {
 	return {
@@ -40,44 +48,7 @@ const getPgSetOperators = () => {
 
 type PgSetOperators = ReturnType<typeof getPgSetOperators>;
 
-type SetOperatorRightSelect<
-	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
-	TSelection extends ColumnsSelection,
-	TSelectMode extends SelectMode,
-	TNullabilityMap extends Record<string, JoinNullability>,
-> = TValue extends PgSetOperatorBuilder<any, any, infer TSel, infer TMode, infer TNull> ? ValidateShape<
-		SelectResult<TSel, TMode, TNull>,
-		SelectResult<TSelection, TSelectMode, TNullabilityMap>,
-		TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>
-	>
-	: TValue;
-
-type SetOperatorRestSelect<
-	TValue extends readonly TypedQueryBuilder<any, any[]>[],
-	Valid,
-> = TValue extends [infer First, ...infer Rest]
-	? First extends PgSetOperatorBuilder<any, any, infer TSel, infer TMode, infer TNull>
-		? Rest extends TypedQueryBuilder<any, any[]>[] ? [
-				ValidateShape<SelectResult<TSel, TMode, TNull>, Valid, TValue[0]>,
-				...SetOperatorRestSelect<Rest, Valid>,
-			]
-		: ValidateShape<SelectResult<TSel, TMode, TNull>, Valid, TValue>
-	: never[]
-	: TValue;
-
-export interface PgSetOperationConfig {
-	fields: Record<string, unknown>;
-	operator: SetOperator;
-	isAll: boolean;
-	leftSelect: PgSetOperatorBuilder<any, any, any, any, any, any, any, any, any>;
-	rightSelect: TypedQueryBuilder<any, any[]>;
-	limit?: number | Placeholder;
-	orderBy?: (PgColumn | SQL | SQL.Aliased)[];
-	offset?: number | Placeholder;
-}
-
 export abstract class PgSetOperatorBuilder<
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	THKT extends PgSelectHKTBase,
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
@@ -86,10 +57,22 @@ export abstract class PgSetOperatorBuilder<
 		: {},
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends TypedQueryBuilder<TSelectedFields, TResult> {
 	static readonly [entityKind]: string = 'PgSetOperatorBuilder';
+
+	abstract override readonly _: {
+		readonly hkt: THKT;
+		readonly tableName: TTableName;
+		readonly selection: TSelection;
+		readonly selectMode: TSelectMode;
+		readonly nullabilityMap: TNullabilityMap;
+		readonly dynamic: TDynamic;
+		readonly excludedMethods: TExcludedMethods;
+		readonly result: TResult;
+		readonly selectedFields: TSelectedFields;
+	};
 
 	protected abstract joinsNotNullableMap: Record<string, boolean>;
 	protected abstract config: {
@@ -115,25 +98,24 @@ export abstract class PgSetOperatorBuilder<
 	private setOperator(
 		type: SetOperator,
 		isAll: boolean,
-	): <TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>>(
+	): <TValue extends PgSetOperatorBaseWithResult<TResult>>(
 		rightSelect:
-			| SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>
-			| ((setOperator: PgSetOperators) => SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>),
-	) => PgSetOperator<
-		THKT,
+			| ((setOperator: PgSetOperators) => SetOperatorRightSelect<TValue, TResult>)
+			| SetOperatorRightSelect<TValue, TResult>,
+	) => PgSetOperatorBase<
 		TTableName,
 		TSelection,
 		TSelectMode,
 		TNullabilityMap,
-		TDynamic,
-		TExcludedMethods,
+		false,
+		never,
 		TResult,
 		TSelectedFields
 	> {
 		return (rightSelect) => {
 			const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getPgSetOperators()) : rightSelect;
 
-			return new PgSetOperator(type, isAll, this, rightSelectOrig);
+			return new PgSetOperatorBase(type, isAll, this, rightSelectOrig as any) as any;
 		};
 	}
 
@@ -150,9 +132,7 @@ export abstract class PgSetOperatorBuilder<
 	exceptAll = this.setOperator('except', true);
 }
 
-export interface PgSetOperator<
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	THKT extends PgSelectHKTBase,
+export interface PgSetOperatorBase<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
@@ -160,11 +140,11 @@ export interface PgSetOperator<
 		: {},
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends
 	PgSetOperatorBuilder<
-		THKT,
+		PgSelectHKTBase,
 		TTableName,
 		TSelection,
 		TSelectMode,
@@ -177,8 +157,7 @@ export interface PgSetOperator<
 	QueryPromise<TResult>
 {}
 
-export class PgSetOperator<
-	THKT extends PgSelectHKTBase,
+export class PgSetOperatorBase<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
@@ -189,7 +168,7 @@ export class PgSetOperator<
 	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends PgSetOperatorBuilder<
-	THKT,
+	PgSelectHKTBase,
 	TTableName,
 	TSelection,
 	TSelectMode,
@@ -201,6 +180,18 @@ export class PgSetOperator<
 > {
 	static readonly [entityKind]: string = 'PgSetOperator';
 
+	readonly _: {
+		readonly hkt: PgSelectHKTBase;
+		readonly tableName: TTableName;
+		readonly selection: TSelection;
+		readonly selectMode: TSelectMode;
+		readonly nullabilityMap: TNullabilityMap;
+		readonly dynamic: TDynamic;
+		readonly excludedMethods: TExcludedMethods;
+		readonly result: TResult;
+		readonly selectedFields: TSelectedFields;
+	};
+
 	protected joinsNotNullableMap: Record<string, boolean>;
 	protected config: PgSetOperationConfig;
 	/* @internal */
@@ -210,8 +201,8 @@ export class PgSetOperator<
 	constructor(
 		operator: SetOperator,
 		isAll: boolean,
-		leftSelect: PgSetOperatorBuilder<
-			THKT,
+		leftSelect: PgSetOperatorInterface<
+			PgSelectHKTBase,
 			TTableName,
 			TSelection,
 			TSelectMode,
@@ -221,7 +212,7 @@ export class PgSetOperator<
 			TResult,
 			TSelectedFields
 		>,
-		rightSelect: TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
+		rightSelect: TypedQueryBuilder<any, TResult>,
 	) {
 		super();
 
@@ -252,13 +243,15 @@ export class PgSetOperator<
 		};
 	}
 
-	orderBy(builder: (aliases: TSelection) => ValueOrArray<PgColumn | SQL | SQL.Aliased>): this;
-	orderBy(...columns: (PgColumn | SQL | SQL.Aliased)[]): this;
+	orderBy(
+		builder: (aliases: TSelection) => ValueOrArray<PgColumn | SQL | SQL.Aliased>,
+	): PgSetOperatorWithout<this, TDynamic, 'orderBy'>;
+	orderBy(...columns: (PgColumn | SQL | SQL.Aliased)[]): PgSetOperatorWithout<this, TDynamic, 'orderBy'>;
 	orderBy(
 		...columns:
 			| [(aliases: TSelection) => ValueOrArray<PgColumn | SQL | SQL.Aliased>]
 			| (PgColumn | SQL | SQL.Aliased)[]
-	) {
+	): PgSetOperatorWithout<this, TDynamic, 'orderBy'> {
 		if (typeof columns[0] === 'function') {
 			const orderBy = columns[0](
 				new Proxy(
@@ -270,17 +263,17 @@ export class PgSetOperator<
 		} else {
 			this.config.orderBy = columns as (PgColumn | SQL | SQL.Aliased)[];
 		}
-		return this;
+		return this as any;
 	}
 
-	limit(limit: number) {
+	limit(limit: number): PgSetOperatorWithout<this, TDynamic, 'limit'> {
 		this.config.limit = limit;
-		return this;
+		return this as any;
 	}
 
-	offset(offset: number | Placeholder) {
+	offset(offset: number | Placeholder): PgSetOperatorWithout<this, TDynamic, 'offset'> {
 		this.config.offset = offset;
-		return this;
+		return this as any;
 	}
 
 	toSQL(): Query {
@@ -340,32 +333,28 @@ export class PgSetOperator<
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<BuildSubquerySelection<TSelection, TNullabilityMap>, TAlias>;
 	}
+
+	$dynamic(): PgSetOperatorDynamic<this> {
+		return this as any;
+	}
 }
 
-applyMixins(PgSetOperator, [QueryPromise]);
+applyMixins(PgSetOperatorBase, [QueryPromise]);
 
-function setOperator(type: SetOperator, isAll: boolean): <
-	THKT extends PgSelectHKTBase,
-	TTableName extends string | undefined,
-	TSelection extends ColumnsSelection,
-	TSelectMode extends SelectMode,
-	TNullabilityMap extends Record<string, JoinNullability>,
-	TValue extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>,
-	TRest extends TypedQueryBuilder<any, SelectResult<TSelection, TSelectMode, TNullabilityMap>[]>[],
->(
-	leftSelect: PgSetOperatorBuilder<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap>,
-	rightSelect: SetOperatorRightSelect<TValue, TSelection, TSelectMode, TNullabilityMap>,
-	...restSelects: SetOperatorRestSelect<TRest, SelectResult<TSelection, TSelectMode, TNullabilityMap>>
-) => PgSetOperator<THKT, TTableName, TSelection, TSelectMode, TNullabilityMap> {
+function setOperator(type: SetOperator, isAll: boolean): PgCreateSetOperatorFn {
 	return (leftSelect, rightSelect, ...restSelects) => {
 		if (restSelects.length === 0) {
-			return new PgSetOperator(type, isAll, leftSelect, rightSelect);
+			return new PgSetOperatorBase(type, isAll, leftSelect, rightSelect as any) as any;
 		}
 
 		const [select, ...rest] = restSelects;
 		if (!select) throw new Error('Cannot pass undefined values to any set operator');
 
-		return setOperator(type, isAll)(new PgSetOperator(type, isAll, leftSelect, rightSelect), select, ...rest);
+		return setOperator(type, isAll)(
+			new PgSetOperatorBase(type, isAll, leftSelect, rightSelect as any),
+			select as any,
+			...rest,
+		);
 	};
 }
 

@@ -25,8 +25,7 @@ import type {
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import { type ColumnsSelection, type View } from '~/view.ts';
-import type { SQLiteDialect } from '../dialect.ts';
-import type { SQLitePreparedQuery, SQLiteSession } from '../session.ts';
+import type { SQLitePreparedQuery } from '../session.ts';
 import type { SQLiteViewBase, SQLiteViewWithSelection } from '../view.ts';
 import type { SQLiteSelectBase, SQLiteSelectQueryBuilderBase } from './select.ts';
 import type { SQLiteSetOperatorBase, SQLiteSetOperatorBuilder } from './set-operators.ts';
@@ -372,9 +371,21 @@ export interface SQLiteSetOperatorInterface<
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends
-	TypedQueryBuilder<
-		TSelectedFields,
-		TResult
+	Omit<
+		SQLiteSetOperatorBuilder<
+			THKT,
+			TTableName,
+			TResultType,
+			TRunResult,
+			TSelection,
+			TSelectMode,
+			TNullabilityMap,
+			TDynamic,
+			TExcludedMethods,
+			TResult,
+			TSelectedFields
+		>,
+		'joinsNotNullableMap' | 'session' | 'dialect' | 'createSetOperator'
 	>
 {
 	_: {
@@ -390,13 +401,6 @@ export interface SQLiteSetOperatorInterface<
 		readonly excludedMethods: TExcludedMethods;
 		readonly result: TResult;
 		readonly selectedFields: TSelectedFields;
-	};
-	getSelectedFields: () => TSelectedFields;
-	getSetOperatorConfig: () => {
-		session: SQLiteSession<any, any, any, any> | undefined;
-		dialect: SQLiteDialect;
-		joinsNotNullableMap: Record<string, boolean>;
-		fields: Record<string, unknown>;
 	};
 }
 
@@ -451,8 +455,8 @@ export type SQLiteCreateSetOperatorFn = <
 	TSelection,
 	TSelectMode,
 	TNullabilityMap,
-	TDynamic,
-	TExcludedMethods,
+	false,
+	never,
 	TResult,
 	TSelectedFields
 >;

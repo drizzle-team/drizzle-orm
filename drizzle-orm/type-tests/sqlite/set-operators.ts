@@ -147,7 +147,7 @@ const exceptAll2Test = await except(
 		userId: newYorkers.userId,
 		cityId: newYorkers.cityId,
 	})
-		.from(newYorkers).where(sql``),
+		.from(newYorkers).where(eq(newYorkers.cityId, 2)),
 	db.select({
 		userId: newYorkers.userId,
 		cityId: newYorkers.cityId,
@@ -205,16 +205,7 @@ await db
 	// All queries in combining statements should return the same number of columns
 	// and the corresponding columns should have compatible data type
 	// @ts-expect-error
-	.intersect(({ intersect }) =>
-		intersect(
-			db
-				.select()
-				.from(users),
-			db
-				.select()
-				.from(users),
-		)
-	);
+	.intersect(({ intersect }) => intersect(db.select().from(users), db.select().from(users)));
 
 // All queries in combining statements should return the same number of columns
 // and the corresponding columns should have compatible data type

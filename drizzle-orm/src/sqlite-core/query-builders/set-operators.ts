@@ -115,20 +115,15 @@ export abstract class SQLiteSetOperatorBuilder<
 		TSelection,
 		TSelectMode,
 		TNullabilityMap,
-		TDynamic,
-		TExcludedMethods,
+		false,
+		never,
 		TResult,
 		TSelectedFields
 	> {
 		return (rightSelect) => {
 			const rightSelectOrig = typeof rightSelect === 'function' ? rightSelect(getSQLiteSetOperators()) : rightSelect;
 
-			return new SQLiteSetOperatorBase(
-				type,
-				isAll,
-				this,
-				rightSelectOrig as any,
-			);
+			return new SQLiteSetOperatorBase(type, isAll, this, rightSelectOrig as any) as any;
 		};
 	}
 
@@ -358,7 +353,7 @@ applyMixins(SQLiteSetOperatorBase, [QueryPromise]);
 function createSetOperator(type: SetOperator, isAll: boolean): SQLiteCreateSetOperatorFn {
 	return (leftSelect, rightSelect, ...restSelects) => {
 		if (restSelects.length === 0) {
-			return new SQLiteSetOperatorBase(type, isAll, leftSelect, rightSelect as any);
+			return new SQLiteSetOperatorBase(type, isAll, leftSelect, rightSelect as any) as any;
 		}
 
 		const [select, ...rest] = restSelects;

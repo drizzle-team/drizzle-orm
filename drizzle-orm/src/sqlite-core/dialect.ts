@@ -16,7 +16,7 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { and, eq, Name, Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/index.ts';
+import { and, eq, type Name, Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/index.ts';
 import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type {
 	SQLiteDeleteConfig,

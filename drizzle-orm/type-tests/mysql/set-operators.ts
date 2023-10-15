@@ -120,7 +120,7 @@ const intersect2Test = await intersect(
 
 Expect<Equal<{ id: number; name: string; population: number | null }[], typeof intersect2Test>>;
 
-const intersectAll2Test = await intersect(
+const intersectAll2Test = await intersectAll(
 	union(
 		db.select({
 			id: cities.id,
@@ -150,7 +150,7 @@ const except2Test = await except(
 
 Expect<Equal<{ userId: number }[], typeof except2Test>>;
 
-const exceptAll2Test = await except(
+const exceptAll2Test = await exceptAll(
 	db.select({
 		userId: newYorkers.userId,
 		cityId: newYorkers.cityId,
@@ -213,16 +213,7 @@ await db
 	// All queries in combining statements should return the same number of columns
 	// and the corresponding columns should have compatible data type
 	// @ts-expect-error
-	.intersect(({ intersect }) =>
-		intersect(
-			db
-				.select()
-				.from(users),
-			db
-				.select()
-				.from(users),
-		)
-	);
+	.intersect(({ intersect }) => intersect(db.select().from(users), db.select().from(users)));
 
 // All queries in combining statements should return the same number of columns
 // and the corresponding columns should have compatible data type
