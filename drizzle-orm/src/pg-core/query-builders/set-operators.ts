@@ -20,8 +20,8 @@ import type {
 import { QueryPromise } from '~/query-promise.ts';
 import { tracer } from '~/tracing.ts';
 import { applyMixins, haveSameKeys } from '~/utils.ts';
-import { type ColumnsSelection } from '~/view.ts';
-import { type PgColumn } from '../columns/common.ts';
+import type { ColumnsSelection } from '~/view.ts';
+import type { PgColumn } from '../columns/common.ts';
 import type { PgDialect } from '../dialect.ts';
 import type { SubqueryWithSelection } from '../subquery.ts';
 import type {

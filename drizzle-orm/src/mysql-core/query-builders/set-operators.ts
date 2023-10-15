@@ -25,7 +25,7 @@ import type {
 	SelectResult,
 	SetOperator,
 } from '~/query-builders/select.types.ts';
-import { type ColumnsSelection } from '~/view.ts';
+import type { ColumnsSelection } from '~/view.ts';
 import type { MySqlColumn } from '../columns/common.ts';
 import type { MySqlDialect } from '../dialect.ts';
 import type { SubqueryWithSelection } from '../subquery.ts';
