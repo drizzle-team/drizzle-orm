@@ -86,7 +86,7 @@ jobs:
         run: |
           old_version="$(jq -r .version package.json)"
           version="$old_version-$(git rev-parse --short HEAD)"
-          (cd dist && npm version $version)
+          npm version $version
           tag="${{ github.ref_name }}"
           is_version_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
 
