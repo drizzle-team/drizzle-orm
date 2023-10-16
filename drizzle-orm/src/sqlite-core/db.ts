@@ -233,7 +233,12 @@ export const withReplicas = <
 	TRunResult,
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-	Q extends BaseSQLiteDatabase<TResultKind, TRunResult, TFullSchema, TSchema>,
+	Q extends BaseSQLiteDatabase<
+		TResultKind,
+		TRunResult,
+		TFullSchema,
+		TSchema extends Record<string, unknown> ? ExtractTablesWithRelations<TFullSchema> : TSchema
+	>,
 >(
 	primary: Q,
 	replicas: [Q, ...Q[]],

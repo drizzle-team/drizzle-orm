@@ -183,7 +183,12 @@ export const withReplicas = <
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-	Q extends MySqlDatabase<HKT, TPreparedQueryHKT, TFullSchema, TSchema>,
+	Q extends MySqlDatabase<
+		HKT,
+		TPreparedQueryHKT,
+		TFullSchema,
+		TSchema extends Record<string, unknown> ? ExtractTablesWithRelations<TFullSchema> : TSchema
+	>,
 >(
 	primary: Q,
 	replicas: [Q, ...Q[]],
