@@ -20,7 +20,10 @@ import { migrate } from 'drizzle-orm/libsql/migrator';
 import {
 	alias,
 	blob,
+	foreignKey,
+	getTableConfig,
 	getViewConfig,
+	int,
 	integer,
 	primaryKey,
 	sqliteTable,
@@ -209,6 +212,38 @@ test.beforeEach(async (t) => {
 		  big_int blob not null
 		)
 	`);
+});
+
+test.serial('table config: foreign keys name', async (t) => {
+	const table = sqliteTable('cities', {
+		id: int('id').primaryKey(),
+		name: text('name').notNull(),
+		state: text('state'),
+	}, (t) => ({
+		f: foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' }),
+		f1: foreignKey(() => ({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk_deprecated' })),
+	}));
+
+	const tableConfig = getTableConfig(table);
+
+	t.is(tableConfig.foreignKeys.length, 2);
+	t.is(tableConfig.foreignKeys[0]!.getName(), 'custom_fk');
+	t.is(tableConfig.foreignKeys[1]!.getName(), 'custom_fk_deprecated');
+});
+
+test.serial('table config: primary keys name', async (t) => {
+	const table = sqliteTable('cities', {
+		id: int('id').primaryKey(),
+		name: text('name').notNull(),
+		state: text('state'),
+	}, (t) => ({
+		f: primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
+	}));
+
+	const tableConfig = getTableConfig(table);
+
+	t.is(tableConfig.primaryKeys.length, 1);
+	t.is(tableConfig.primaryKeys[0]!.getName(), 'custom_pk');
 });
 
 test.serial('insert bigint values', async (t) => {
@@ -1471,7 +1506,7 @@ test.serial('transaction rollback', async (t) => {
 		await db.transaction(async (tx) => {
 			await tx.insert(users).values({ balance: 100 }).run();
 			tx.rollback();
-		}), new TransactionRollbackError());
+		}), { instanceOf: TransactionRollbackError });
 
 	const result = await db.select().from(users).all();
 
@@ -1530,7 +1565,7 @@ test.serial('nested transaction rollback', async (t) => {
 			await tx.transaction(async (tx) => {
 				await tx.update(users).set({ balance: 200 }).run();
 				tx.rollback();
-			}), new TransactionRollbackError());
+			}), { instanceOf: TransactionRollbackError });
 	});
 
 	const result = await db.select().from(users).all();
@@ -1756,16 +1791,16 @@ test.serial('insert with onConflict do update where', async (t) => {
 
 	await db
 		.insert(usersTable)
-		.values([{ id: 1, name: "John", verified: false }])
+		.values([{ id: 1, name: 'John', verified: false }])
 		.run();
 
 	await db
 		.insert(usersTable)
-		.values({ id: 1, name: "John1", verified: true })
+		.values({ id: 1, name: 'John1', verified: true })
 		.onConflictDoUpdate({
 			target: usersTable.id,
-			set: { name: "John1", verified: true },
-			where: eq(usersTable.verified, false)
+			set: { name: 'John1', verified: true },
+			where: eq(usersTable.verified, false),
 		})
 		.run();
 
@@ -1775,8 +1810,8 @@ test.serial('insert with onConflict do update where', async (t) => {
 		.where(eq(usersTable.id, 1))
 		.all();
 
-	t.deepEqual(res, [{ id: 1, name: "John1", verified: true }]);
-})
+	t.deepEqual(res, [{ id: 1, name: 'John1', verified: true }]);
+});
 
 test.serial('insert with onConflict do update using composite pk', async (t) => {
 	const { db } = t.context;

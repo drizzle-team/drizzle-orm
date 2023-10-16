@@ -5,7 +5,11 @@ import { DrizzleError } from '~/errors.ts';
 import type { MigrationMeta } from '~/migrator.ts';
 import { PgColumn, PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core/columns/index.ts';
 import type { PgDeleteConfig, PgInsertConfig, PgUpdateConfig } from '~/pg-core/query-builders/index.ts';
-import type { Join, PgSelectConfig, SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
+import type {
+	PgSelectConfig,
+	PgSelectJoinConfig,
+	SelectedFieldsOrdered,
+} from '~/pg-core/query-builders/select.types.ts';
 import { PgTable } from '~/pg-core/table.ts';
 import {
 	type BuildRelationalQueryResult,
@@ -33,7 +37,8 @@ import {
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
-import { View, ViewBaseConfig } from '~/view.ts';
+import { ViewBaseConfig } from '~/view-common.ts';
+import { View } from '~/view.ts';
 import type { PgSession } from './session.ts';
 import { type PgMaterializedView, PgViewBase } from './view.ts';
 
@@ -199,7 +204,7 @@ export class PgDialect {
 			groupBy,
 			limit,
 			offset,
-			lockingClauses,
+			lockingClause,
 			distinct,
 		}: PgSelectConfig,
 	): SQL {
@@ -324,23 +329,28 @@ export class PgDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		const lockingClausesSql = sql.empty();
-		if (lockingClauses) {
-			for (const { strength, config } of lockingClauses) {
-				const clauseSql = sql` for ${sql.raw(strength)}`;
-				if (config.of) {
-					clauseSql.append(sql` of ${config.of}`);
-				}
-				if (config.noWait) {
-					clauseSql.append(sql` no wait`);
-				} else if (config.skipLocked) {
-					clauseSql.append(sql` skip locked`);
-				}
-				lockingClausesSql.append(clauseSql);
+		const lockingClauseSql = sql.empty();
+		if (lockingClause) {
+			const clauseSql = sql` for ${sql.raw(lockingClause.strength)}`;
+			if (lockingClause.config.of) {
+				clauseSql.append(
+					sql` of ${
+						sql.join(
+							Array.isArray(lockingClause.config.of) ? lockingClause.config.of : [lockingClause.config.of],
+							sql`, `,
+						)
+					}`,
+				);
 			}
+			if (lockingClause.config.noWait) {
+				clauseSql.append(sql` no wait`);
+			} else if (lockingClause.config.skipLocked) {
+				clauseSql.append(sql` skip locked`);
+			}
+			lockingClauseSql.append(clauseSql);
 		}
 
-		return sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+		return sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClauseSql}`;
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {
@@ -977,7 +987,7 @@ export class PgDialect {
 	}): BuildRelationalQueryResult<PgTable, PgColumn> {
 		let selection: BuildRelationalQueryResult<PgTable, PgColumn>['selection'] = [];
 		let limit, offset, orderBy: NonNullable<PgSelectConfig['orderBy']> = [], where;
-		const joins: Join[] = [];
+		const joins: PgSelectJoinConfig[] = [];
 
 		if (config === true) {
 			const selectionEntries = Object.entries(tableConfig.columns);
@@ -1150,7 +1160,7 @@ export class PgDialect {
 		}
 
 		if (selection.length === 0) {
-			throw new DrizzleError(`No fields selected for table "${tableConfig.tsName}" ("${tableAlias}")`);
+			throw new DrizzleError({ message: `No fields selected for table "${tableConfig.tsName}" ("${tableAlias}")` });
 		}
 
 		let result;

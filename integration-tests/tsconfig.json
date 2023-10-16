@@ -1,14 +1,11 @@
 {
 	"extends": "../tsconfig.json",
 	"compilerOptions": {
-		"module": "esnext",
-		"target": "esnext",
-		"moduleResolution": "NodeNext",
-		"allowImportingTsExtensions": true,
 		"noEmit": true,
 		"paths": {
 			"~/*": ["./tests/*"]
 		}
 	},
-	"include": ["tests", "type-tests"]
+	"include": ["tests", "type-tests"],
+	"exclude": ["**/playground"]
 }

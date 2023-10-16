@@ -1,7 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import {
-	PgDelete,
+	PgDeleteBase,
 	PgInsertBuilder,
 	PgSelectBuilder,
 	PgUpdateBuilder,
@@ -14,18 +14,14 @@ import type {
 	QueryResultHKT,
 	QueryResultKind,
 } from '~/pg-core/session.ts';
-import { type PgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import {
-	type ExtractTablesWithRelations,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
-import { type SQLWrapper } from '~/sql/index.ts';
+import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { SQLWrapper } from '~/sql/index.ts';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery.ts';
-import { type DrizzleTypeError } from '~/utils.ts';
-import { type ColumnsSelection } from '~/view.ts';
-import { type PgColumn } from './columns/index.ts';
+import type { DrizzleTypeError } from '~/utils.ts';
+import type { ColumnsSelection } from '~/view.ts';
+import type { PgColumn } from './columns/index.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import { PgRefreshMaterializedView } from './query-builders/refresh-materialized-view.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
@@ -156,8 +152,8 @@ export class PgDatabase<
 		return new PgInsertBuilder(table, this.session, this.dialect);
 	}
 
-	delete<TTable extends PgTable>(table: TTable): PgDelete<TTable, TQueryResult> {
-		return new PgDelete(table, this.session, this.dialect);
+	delete<TTable extends PgTable>(table: TTable): PgDeleteBase<TTable, TQueryResult> {
+		return new PgDeleteBase(table, this.session, this.dialect);
 	}
 
 	refreshMaterializedView<TView extends PgMaterializedView>(view: TView): PgRefreshMaterializedView<TQueryResult> {

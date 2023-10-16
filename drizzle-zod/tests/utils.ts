@@ -1,4 +1,4 @@
-import { type ExecutionContext } from 'ava';
+import type { ExecutionContext } from 'ava';
 import type { z } from 'zod';
 
 export function expectSchemaShape<T extends z.ZodRawShape>(t: ExecutionContext, expected: z.ZodObject<T>) {

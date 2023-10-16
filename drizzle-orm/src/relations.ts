@@ -30,7 +30,7 @@ import {
 	SQL,
 	sql,
 } from './sql/index.ts';
-import { type Assume, type ColumnsWithTable, type Equal, type Simplify, type ValueOrArray } from './utils.ts';
+import type { Assume, ColumnsWithTable, Equal, Simplify, ValueOrArray } from './utils.ts';
 
 export abstract class Relation<TTableName extends string = string> {
 	static readonly [entityKind]: string = 'Relation';

@@ -1,15 +1,11 @@
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import {
-	type ExtractTablesWithRelations,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
+import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import type { SQLWrapper } from '~/sql/index.ts';
 import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import {
 	QueryBuilder,
-	SQLiteDelete,
+	SQLiteDeleteBase,
 	SQLiteInsertBuilder,
 	SQLiteSelectBuilder,
 	SQLiteUpdateBuilder,
@@ -23,8 +19,8 @@ import type {
 } from '~/sqlite-core/session.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery.ts';
-import { type DrizzleTypeError } from '~/utils.ts';
-import { type ColumnsSelection } from '~/view.ts';
+import type { DrizzleTypeError } from '~/utils.ts';
+import type { ColumnsSelection } from '~/view.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import { SQLiteRaw } from './query-builders/raw.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
@@ -101,7 +97,9 @@ export class BaseSQLiteDatabase<
 		function select<TSelection extends SelectedFields>(
 			fields: TSelection,
 		): SQLiteSelectBuilder<TSelection, TResultKind, TRunResult>;
-		function select(fields?: SelectedFields): SQLiteSelectBuilder<SelectedFields | undefined, TResultKind, TRunResult> {
+		function select(
+			fields?: SelectedFields,
+		): SQLiteSelectBuilder<SelectedFields | undefined, TResultKind, TRunResult> {
 			return new SQLiteSelectBuilder({
 				fields: fields ?? undefined,
 				session: self.session,
@@ -141,7 +139,9 @@ export class BaseSQLiteDatabase<
 	selectDistinct<TSelection extends SelectedFields>(
 		fields: TSelection,
 	): SQLiteSelectBuilder<TSelection, TResultKind, TRunResult>;
-	selectDistinct(fields?: SelectedFields): SQLiteSelectBuilder<SelectedFields | undefined, TResultKind, TRunResult> {
+	selectDistinct(
+		fields?: SelectedFields,
+	): SQLiteSelectBuilder<SelectedFields | undefined, TResultKind, TRunResult> {
 		return new SQLiteSelectBuilder({
 			fields: fields ?? undefined,
 			session: this.session,
@@ -158,40 +158,64 @@ export class BaseSQLiteDatabase<
 		return new SQLiteInsertBuilder(into, this.session, this.dialect);
 	}
 
-	delete<TTable extends SQLiteTable>(from: TTable): SQLiteDelete<TTable, TResultKind, TRunResult> {
-		return new SQLiteDelete(from, this.session, this.dialect);
+	delete<TTable extends SQLiteTable>(from: TTable): SQLiteDeleteBase<TTable, TResultKind, TRunResult> {
+		return new SQLiteDeleteBase(from, this.session, this.dialect);
 	}
 
 	run(query: SQLWrapper): DBResult<TResultKind, TRunResult> {
 		const sql = query.getSQL();
 		if (this.resultKind === 'async') {
-			return new SQLiteRaw(async () => this.session.run(sql), () => sql, 'run');
+			return new SQLiteRaw(
+				async () => this.session.run(sql),
+				() => sql,
+				'run',
+				this.dialect as SQLiteAsyncDialect,
+				this.session.extractRawRunValueFromBatchResult.bind(this.session),
+			) as DBResult<TResultKind, TRunResult>;
 		}
-		return this.session.run(sql);
+		return this.session.run(sql) as DBResult<TResultKind, TRunResult>;
 	}
 
 	all<T = unknown>(query: SQLWrapper): DBResult<TResultKind, T[]> {
 		const sql = query.getSQL();
 		if (this.resultKind === 'async') {
-			return new SQLiteRaw(async () => this.session.all(sql), () => sql, 'all');
+			return new SQLiteRaw(
+				async () => this.session.all(sql),
+				() => sql,
+				'all',
+				this.dialect as SQLiteAsyncDialect,
+				this.session.extractRawAllValueFromBatchResult.bind(this.session),
+			) as any;
 		}
-		return this.session.all(sql);
+		return this.session.all(sql) as DBResult<TResultKind, T[]>;
 	}
 
 	get<T = unknown>(query: SQLWrapper): DBResult<TResultKind, T> {
 		const sql = query.getSQL();
 		if (this.resultKind === 'async') {
-			return new SQLiteRaw(async () => this.session.get(sql), () => sql, 'get');
+			return new SQLiteRaw(
+				async () => this.session.get(sql),
+				() => sql,
+				'get',
+				this.dialect as SQLiteAsyncDialect,
+				this.session.extractRawGetValueFromBatchResult.bind(this.session),
+			) as DBResult<TResultKind, T>;
 		}
-		return this.session.get(sql);
+		return this.session.get(sql) as DBResult<TResultKind, T>;
 	}
 
 	values<T extends unknown[] = unknown[]>(query: SQLWrapper): DBResult<TResultKind, T[]> {
 		const sql = query.getSQL();
 		if (this.resultKind === 'async') {
-			return new SQLiteRaw(async () => this.session.values(sql), () => sql, 'values');
+			return new SQLiteRaw(
+				async () => this.session.values(sql),
+				() => sql,
+				'values',
+				this.dialect as SQLiteAsyncDialect,
+				this.session.extractRawValuesValueFromBatchResult.bind(this.session),
+			) as any;
 		}
-		return this.session.values(sql);
+		return this.session.values(sql) as DBResult<TResultKind, T[]>;
 	}
 
 	transaction<T>(
