@@ -4,5 +4,4 @@ export * from './query-builder.ts';
 export * from './refresh-materialized-view.ts';
 export * from './select.ts';
 export * from './select.types.ts';
-export * from './set-operators.ts';
 export * from './update.ts';

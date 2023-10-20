@@ -91,14 +91,14 @@ export type MySqlJoin<
 				T['_']['selection'],
 				TJoinedName,
 				TJoinedTable extends MySqlTable ? TJoinedTable['_']['columns']
-					: TJoinedTable extends Subquery | View ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
+					: TJoinedTable extends Subquery ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
 					: never,
 				T['_']['selectMode']
 			>,
 			T['_']['selectMode'] extends 'partial' ? T['_']['selectMode'] : 'multiple',
 			T['_']['preparedQueryHKT'],
 			AppendToNullabilityMap<T['_']['nullabilityMap'], TJoinedName, TJoinType>,
-			T['_']['dynamic'],
+			TDynamic,
 			T['_']['excludedMethods']
 		>,
 		TDynamic,
@@ -229,7 +229,8 @@ export type MySqlSelectWithout<
 	K extends keyof T & string,
 	TResetExcluded extends boolean = false,
 > = TDynamic extends true ? T : Omit<
-	MySqlSelectBase<
+	MySqlSelectKind<
+    T['_']['hkt'],
 		T['_']['tableName'],
 		T['_']['selection'],
 		T['_']['selectMode'],
@@ -277,12 +278,12 @@ export type CreateMySqlSelectFromBuilderMode<
 export type MySqlSelectQueryBuilder<
 	THKT extends MySqlSelectHKTBase = MySqlSelectQueryBuilderHKT,
 	TTableName extends string | undefined = string | undefined,
-	TSelection extends ColumnsSelection = Record<string, any>,
+	TSelection extends ColumnsSelection = ColumnsSelection,
 	TSelectMode extends SelectMode = SelectMode,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
 	TResult extends any[] = unknown[],
-	TSelectedFields extends ColumnsSelection = Record<string, any>,
+	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > = MySqlSelectQueryBuilderBase<
 	THKT,
 	TTableName,
@@ -296,7 +297,7 @@ export type MySqlSelectQueryBuilder<
 	TSelectedFields
 >;
 
-export type AnyMySqlSelectQueryBuilder = MySqlSelectQueryBuilderBase<any, any, any, any, any, any, any, any, any, any>;
+export type AnyMySqlSelectQueryBuilder = MySqlSelectQueryBuilderBase<any, any, any, any, any, any, any, any, any>;
 
 export type AnyMySqlSetOperatorInterface = MySqlSetOperatorInterface<any, any, any, any, any, any, any, any, any>;
 
@@ -340,31 +341,6 @@ export interface MySqlSetOperatorInterface<
 		readonly selectedFields: TSelectedFields;
 	};
 }
-
-export type MySqlSelectBuilderWithResult<TResult extends any[]> = MySqlSelectQueryBuilderBase<
-	any,
-	any,
-	any,
-	any,
-	any,
-	any,
-	any,
-	any,
-	TResult,
-	any
->;
-
-export type MySqlSelectWithResult<TResult extends any[]> = MySqlSelectBase<
-	any,
-	any,
-	any,
-	any,
-	any,
-	any,
-	any,
-	TResult,
-	any
->;
 
 export type MySqlSetOperatorWithResult<TResult extends any[]> = MySqlSetOperatorInterface<
 	any,
