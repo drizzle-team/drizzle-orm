@@ -353,7 +353,7 @@ export class MySqlDialect {
 			return this.buildSetOperationQuery({ leftSelect, setOperator });
 		}
 
-    // Some recursive magic here
+		// Some recursive magic here
 		return this.buildSetOperations(
 			this.buildSetOperationQuery({ leftSelect, setOperator }),
 			rest,

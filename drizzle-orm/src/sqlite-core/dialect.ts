@@ -18,12 +18,7 @@ import {
 } from '~/relations.ts';
 import { and, eq, type Name, Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/index.ts';
 import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
-import type {
-	SQLiteDeleteConfig,
-	SQLiteInsertConfig,
-	SQLiteSetOperationConfig,
-	SQLiteUpdateConfig,
-} from '~/sqlite-core/query-builders/index.ts';
+import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders/index.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
@@ -156,8 +151,21 @@ export abstract class SQLiteDialect {
 	}
 
 	buildSelectQuery(
-		{ withList, fields, fieldsFlat, where, having, table, joins, orderBy, groupBy, limit, offset, distinct }:
-			SQLiteSelectConfig,
+		{
+			withList,
+			fields,
+			fieldsFlat,
+			where,
+			having,
+			table,
+			joins,
+			orderBy,
+			groupBy,
+			limit,
+			offset,
+			distinct,
+			setOperators,
+		}: SQLiteSelectConfig,
 	): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<SQLiteColumn>(fields);
 		for (const f of fieldsList) {
@@ -278,18 +286,39 @@ export abstract class SQLiteDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		return sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}`;
+		const finalQuery =
+			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}`;
+
+		if (setOperators.length > 0) {
+			return this.buildSetOperations(finalQuery, setOperators);
+		}
+
+		return finalQuery;
+	}
+
+	buildSetOperations(leftSelect: SQL, setOperators: SQLiteSelectConfig['setOperators']): SQL {
+		const [setOperator, ...rest] = setOperators;
+
+		if (!setOperator) {
+			throw new Error('Cannot pass undefined values to any set operator');
+		}
+
+		if (rest.length === 0) {
+			return this.buildSetOperationQuery({ leftSelect, setOperator });
+		}
+
+		// Some recursive magic here
+		return this.buildSetOperations(
+			this.buildSetOperationQuery({ leftSelect, setOperator }),
+			rest,
+		);
 	}
 
 	buildSetOperationQuery({
-		operator,
-		isAll,
 		leftSelect,
-		rightSelect,
-		limit,
-		orderBy,
-		offset,
-	}: SQLiteSetOperationConfig): SQL {
+		setOperator: { type, isAll, rightSelect, limit, orderBy, offset },
+	}: { leftSelect: SQL; setOperator: SQLiteSelectConfig['setOperators'][number] }): SQL {
+		// SQLite doesn't support parenthesis in set operations
 		const leftChunk = sql`${leftSelect.getSQL()} `;
 		const rightChunk = sql`${rightSelect.getSQL()}`;
 
@@ -322,7 +351,7 @@ export abstract class SQLiteDialect {
 
 		const limitSql = limit ? sql` limit ${limit}` : undefined;
 
-		const operatorChunk = sql.raw(`${operator} ${isAll ? 'all ' : ''}`);
+		const operatorChunk = sql.raw(`${type} ${isAll ? 'all ' : ''}`);
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
@@ -623,6 +652,7 @@ export abstract class SQLiteDialect {
 					limit,
 					offset,
 					orderBy,
+					setOperators: [],
 				});
 
 				where = undefined;
@@ -645,6 +675,7 @@ export abstract class SQLiteDialect {
 				limit,
 				offset,
 				orderBy,
+				setOperators: [],
 			});
 		} else {
 			result = this.buildSelectQuery({
@@ -659,6 +690,7 @@ export abstract class SQLiteDialect {
 				limit,
 				offset,
 				orderBy,
+				setOperators: [],
 			});
 		}
 
