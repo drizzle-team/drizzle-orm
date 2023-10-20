@@ -700,6 +700,7 @@ export class MySqlDialect {
 	}): BuildRelationalQueryResult<MySqlTable, MySqlColumn> {
 		let selection: BuildRelationalQueryResult<MySqlTable, MySqlColumn>['selection'] = [];
 		let limit, offset, orderBy: MySqlSelectConfig['orderBy'] = [], where;
+		const joins: Join[] = [];
 
 		if (config === true) {
 			const selectionEntries = Object.entries(tableConfig.columns);
@@ -866,6 +867,19 @@ export class MySqlDialect {
 					selection: builtRelation.selection,
 				});
 			}
+
+			// Add any joins
+			if (config.joins) {
+				for (const join of config.joins) {
+					joins.push({
+						on: sql`true`,
+						table: join.table,
+						alias: undefined,
+						joinType: join.type,
+						lateral: false,
+					});
+				}
+			}
 		}
 
 		if (selection.length === 0) {
@@ -954,6 +968,7 @@ export class MySqlDialect {
 				limit,
 				offset,
 				orderBy,
+				joins,
 			});
 		}
 
