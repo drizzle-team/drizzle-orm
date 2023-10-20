@@ -23,12 +23,7 @@ import { DrizzleError, type Name, ViewBaseConfig } from '../index.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
-import type {
-	MySqlSelectConfig,
-	MySqlSelectJoinConfig,
-	MySqlSetOperationConfig,
-	SelectedFieldsOrdered,
-} from './query-builders/select.types.ts';
+import type { MySqlSelectConfig, MySqlSelectJoinConfig, SelectedFieldsOrdered } from './query-builders/select.types.ts';
 import type { MySqlUpdateConfig } from './query-builders/update.ts';
 import type { MySqlSession } from './session.ts';
 import { MySqlTable } from './table.ts';
@@ -209,6 +204,7 @@ export class MySqlDialect {
 			offset,
 			lockingClause,
 			distinct,
+			setOperators,
 		}: MySqlSelectConfig,
 	): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<MySqlColumn>(fields);
@@ -336,18 +332,37 @@ export class MySqlDialect {
 			}
 		}
 
-		return sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+		const finalQuery =
+			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+
+		if (setOperators.length > 0) {
+			return this.buildSetOperations(finalQuery, setOperators);
+		}
+
+		return finalQuery;
+	}
+
+	buildSetOperations(leftSelect: SQL, setOperators: MySqlSelectConfig['setOperators']): SQL {
+		const [setOperator, ...rest] = setOperators;
+
+		if (!setOperator) {
+			throw new Error('Cannot pass undefined values to any set operator');
+		}
+
+		if (rest.length === 0) {
+			return this.buildSetOperationQuery({ leftSelect, setOperator });
+		}
+
+		return this.buildSetOperations(
+			this.buildSetOperationQuery({ leftSelect, setOperator }),
+			rest,
+		);
 	}
 
 	buildSetOperationQuery({
-		operator,
-		isAll,
 		leftSelect,
-		rightSelect,
-		limit,
-		orderBy,
-		offset,
-	}: MySqlSetOperationConfig): SQL {
+		setOperator: { type, isAll, rightSelect, limit, orderBy, offset },
+	}: { leftSelect: SQL; setOperator: MySqlSelectConfig['setOperators'][number] }): SQL {
 		const leftChunk = sql`(${leftSelect.getSQL()}) `;
 		const rightChunk = sql`(${rightSelect.getSQL()})`;
 
@@ -380,7 +395,7 @@ export class MySqlDialect {
 
 		const limitSql = limit ? sql` limit ${limit}` : undefined;
 
-		const operatorChunk = sql.raw(`${operator} ${isAll ? 'all ' : ''}`);
+		const operatorChunk = sql.raw(`${type} ${isAll ? 'all ' : ''}`);
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
@@ -684,6 +699,7 @@ export class MySqlDialect {
 					where,
 					limit,
 					offset,
+					setOperators: [],
 				});
 
 				where = undefined;
@@ -706,6 +722,7 @@ export class MySqlDialect {
 				limit,
 				offset,
 				orderBy,
+				setOperators: [],
 			});
 		} else {
 			result = this.buildSelectQuery({
@@ -720,6 +737,7 @@ export class MySqlDialect {
 				limit,
 				offset,
 				orderBy,
+				setOperators: [],
 			});
 		}
 
@@ -974,6 +992,7 @@ export class MySqlDialect {
 					where,
 					limit,
 					offset,
+					setOperators: [],
 				});
 
 				where = undefined;
@@ -995,6 +1014,7 @@ export class MySqlDialect {
 				limit,
 				offset,
 				orderBy,
+				setOperators: [],
 			});
 		} else {
 			result = this.buildSelectQuery({
@@ -1008,6 +1028,7 @@ export class MySqlDialect {
 				limit,
 				offset,
 				orderBy,
+				setOperators: [],
 			});
 		}
 
