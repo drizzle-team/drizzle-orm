@@ -4,6 +4,7 @@
 		"composite": true,
 		"baseUrl": ".",
 		"verbatimModuleSyntax": true,
+		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
 		"allowImportingTsExtensions": true,
 		"noEmit": true,
@@ -11,7 +12,7 @@
 		"paths": {
 			"~/*": ["src/*"]
 		},
-		"outDir": "dist.new"
+		"outDir": "dist.new",
 	},
 	"include": ["src"]
 }

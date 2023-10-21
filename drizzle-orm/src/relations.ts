@@ -252,7 +252,7 @@ export type DBQueryConfig<
 		joins?: [
 			{
 				table: MySqlTable | Subquery | MySqlViewBase | SQL,
-				on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
+				on: ((aliases: TSelection) => SQL | undefined) | SQL,
 				type: JoinType,
 			}
 		]
@@ -667,6 +667,7 @@ export interface BuildRelationalQueryResult<
 		isJson: boolean;
 		isExtra?: boolean;
 		selection: BuildRelationalQueryResult<TTable>['selection'];
+		joinKeys?: (TColumn | SQL | SQL.Aliased)[]
 	}[];
 	sql: TTable | SQL;
 }

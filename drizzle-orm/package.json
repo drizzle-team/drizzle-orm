@@ -147,6 +147,7 @@
     "mysql2": "^3.3.3",
     "pg": "^8.11.0",
     "postgres": "^3.3.5",
+    "resolve-tspaths": "^0.8.16",
     "rimraf": "^5.0.0",
     "rollup": "^3.27.2",
     "rollup-plugin-dts": "^5.3.1",

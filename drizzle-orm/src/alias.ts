@@ -87,12 +87,24 @@ export class RelationTableAliasProxyHandler<T extends Relation> implements Proxy
 	}
 }
 
+export function maybeAliasedTable<T extends Table>(table: T, tableAlias: string | undefined): T {
+	return tableAlias ? aliasedTable(table, tableAlias) : table;
+}
+
 export function aliasedTable<T extends Table>(table: T, tableAlias: string): T {
 	return new Proxy(table, new TableAliasProxyHandler(tableAlias, false));
 }
 
+export function maybeAliasedRelation<T extends Relation>(relation: T, tableAlias: string | undefined): T {
+	return tableAlias ? aliasedRelation(relation, tableAlias) : relation;
+}
+
 export function aliasedRelation<T extends Relation>(relation: T, tableAlias: string): T {
 	return new Proxy(relation, new RelationTableAliasProxyHandler(tableAlias));
+}
+
+export function maybeAliasedTableColumn<T extends AnyColumn>(column: T, tableAlias: string | undefined): T {
+	return tableAlias ? aliasedTableColumn(column, tableAlias) : column;
 }
 
 export function aliasedTableColumn<T extends AnyColumn>(column: T, tableAlias: string): T {
@@ -102,8 +114,16 @@ export function aliasedTableColumn<T extends AnyColumn>(column: T, tableAlias: s
 	);
 }
 
+export function maybeMapColumnsInAliasedSQLToAlias(query: SQL.Aliased, alias: string | undefined): SQL.Aliased {
+	return alias ? mapColumnsInAliasedSQLToAlias(query, alias) : query; 
+}
+
 export function mapColumnsInAliasedSQLToAlias(query: SQL.Aliased, alias: string): SQL.Aliased {
 	return new SQL.Aliased(mapColumnsInSQLToAlias(query.sql, alias), query.fieldAlias);
+}
+
+export function maybeMapColumnsInSQLToAlias(query: SQL, alias: string | undefined): SQL {
+	return alias ? mapColumnsInSQLToAlias(query, alias) : query;
 }
 
 export function mapColumnsInSQLToAlias(query: SQL, alias: string): SQL {
