@@ -105,22 +105,22 @@ const usersMigratorTable = mysqlTable('users12', {
 
 // eslint-disable-next-line drizzle/require-entity-kind
 class ServerSimulator {
-	constructor(private db: mysql.Connection) {}
+	constructor(private db: mysql.Connection) { }
 
 	async query(sql: string, params: any[], method: 'all' | 'execute') {
 		if (method === 'all') {
 			try {
 				const result = await this.db.query({
-                    sql,
-                    values: params,
+					sql,
+					values: params,
 					rowsAsArray: true,
-                    typeCast: function(field: any, next: any) {
-                        if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
-                            return field.string();
-                        }
-                        return next();
-                    },
-                });
+					typeCast: function (field: any, next: any) {
+						if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
+							return field.string();
+						}
+						return next();
+					},
+				});
 
 				return { data: result[0] as any };
 			} catch (e: any) {
@@ -129,14 +129,14 @@ class ServerSimulator {
 		} else if (method === 'execute') {
 			try {
 				const result = await this.db.query({
-                    sql,
-                    values: params,
-                    typeCast: function(field: any, next: any) {
-                        if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
-                            return field.string();
-                        }
-                        return next();
-                    },
+					sql,
+					values: params,
+					typeCast: function (field: any, next: any) {
+						if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
+							return field.string();
+						}
+						return next();
+					},
 				});
 
 				return { data: result as any };
@@ -149,14 +149,15 @@ class ServerSimulator {
 	}
 
 	async migrations(queries: string[]) {
-		await this.db.query('BEGIN');
+		await this.db.query('START TRANSACTION');
 		try {
 			for (const query of queries) {
 				await this.db.query(query);
 			}
 			await this.db.query('COMMIT');
-		} catch {
+		} catch (e) {
 			await this.db.query('ROLLBACK');
+			throw e;
 		}
 
 		return {};
@@ -168,7 +169,7 @@ interface Context {
 	mysqlContainer: Docker.Container;
 	db: MySqlRemoteDatabase;
 	client: mysql.Connection;
-    serverSimulator: ServerSimulator;
+	serverSimulator: ServerSimulator;
 }
 
 const test = anyTest as TestFn<Context>;
@@ -227,21 +228,21 @@ test.before(async (t) => {
 		throw lastError;
 	}
 
-    ctx.serverSimulator = new ServerSimulator(ctx.client);
+	ctx.serverSimulator = new ServerSimulator(ctx.client);
 
 	ctx.db = proxyDrizzle(async (sql, params, method) => {
-    try {
-        const response = await ctx.serverSimulator.query(sql, params, method);
+		try {
+			const response = await ctx.serverSimulator.query(sql, params, method);
 
-        if (response.error !== undefined) {
-            throw response.error;
-        }
+			if (response.error !== undefined) {
+				throw response.error;
+			}
 
-        return { rows: response.data };
-    } catch (e: any) {
-        console.error('Error from mysql proxy server:', e.message);
-        throw e;
-    }
+			return { rows: response.data };
+		} catch (e: any) {
+			console.error('Error from mysql proxy server:', e.message);
+			throw e;
+		}
 	}, { logger: ENABLE_LOGGING });
 });
 
@@ -252,47 +253,47 @@ test.after.always(async (t) => {
 });
 
 test.beforeEach(async (t) => {
-    try {
-        
-        const ctx = t.context;
-        await ctx.db.execute(sql`drop table if exists \`userstest\``);
-        await ctx.db.execute(sql`drop table if exists \`users2\``);
-        await ctx.db.execute(sql`drop table if exists \`cities\``);
-    
-        await ctx.db.execute(
-            sql`
-              create table \`userstest\` (
-                  \`id\` serial primary key,
-                  \`name\` text not null,
-                  \`verified\` boolean not null default false,
-                  \`jsonb\` json,
-                  \`created_at\` timestamp not null default now()
-              )
-            `,
-        );
-    
-        await ctx.db.execute(
-            sql`
-              create table \`users2\` (
-                  \`id\` serial primary key,
-                  \`name\` text not null,
-                  \`city_id\` int references \`cities\`(\`id\`)
-              )
-            `,
-        );
-    
-        await ctx.db.execute(
-            sql`
-              create table \`cities\` (
-                  \`id\` serial primary key,
-                  \`name\` text not null
-              )
-            `,
-        );
-    } catch (error) {
-        console.log('error', error)
-        throw error;
-    }
+	try {
+
+		const ctx = t.context;
+		await ctx.db.execute(sql`drop table if exists \`userstest\``);
+		await ctx.db.execute(sql`drop table if exists \`users2\``);
+		await ctx.db.execute(sql`drop table if exists \`cities\``);
+
+		await ctx.db.execute(
+			sql`
+				create table \`userstest\` (
+				    \`id\` serial primary key,
+				    \`name\` text not null,
+				    \`verified\` boolean not null default false,
+				    \`jsonb\` json,
+				    \`created_at\` timestamp not null default now()
+				)
+			`,
+		);
+
+		await ctx.db.execute(
+			sql`
+				create table \`users2\` (
+				    \`id\` serial primary key,
+				    \`name\` text not null,
+				    \`city_id\` int references \`cities\`(\`id\`)
+				)
+			`,
+		);
+
+		await ctx.db.execute(
+			sql`
+				create table \`cities\` (
+				    \`id\` serial primary key,
+				    \`name\` text not null
+				)
+			`,
+		);
+	} catch (error) {
+		console.log('error', error)
+		throw error;
+	}
 });
 
 test.serial('table configs: unique third param', async (t) => {
@@ -1003,8 +1004,7 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 test.serial('migrator', async (t) => {
 	const { db, serverSimulator } = t.context;
 
-	await db.execute(sql`drop table if exists cities_migration`);
-	await db.execute(sql`drop table if exists users_migration`);
+	await db.execute(sql`drop table if exists userstest`);
 	await db.execute(sql`drop table if exists users12`);
 	await db.execute(sql`drop table if exists __drizzle_migrations`);
 
@@ -1015,16 +1015,36 @@ test.serial('migrator', async (t) => {
 			console.error(e);
 			throw new Error('Proxy server cannot run migrations');
 		}
-	}, { migrationsFolder: './drizzle2/mysql' });
+	}, { migrationsFolder: './drizzle2/mysql-proxy/first' });
 
-	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	await t.notThrowsAsync(async () => {
+		await db.insert(usersTable).values({ name: 'John' });
+	});
 
-	const result = await db.select().from(usersMigratorTable);
+	await t.throwsAsync(async () => {
+		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	}, {
+		message: 'Table \'drizzle.users12\' doesn\'t exist'
+	});
 
-	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+	await migrate(db, async (queries) => {
+		try {
+			await serverSimulator.migrations(queries);
+		} catch (e) {
+			console.error(e);
+			throw new Error('Proxy server cannot run migrations');
+		}
+	}, { migrationsFolder: './drizzle2/mysql-proxy/second' });
 
-	await db.execute(sql`drop table cities_migration`);
-	await db.execute(sql`drop table users_migration`);
+	await t.notThrowsAsync(async () => {
+		await db.insert(usersTable).values({ name: 'John' });
+	});
+
+	await t.notThrowsAsync(async () => {
+		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	});
+
+	await db.execute(sql`drop table userstest`);
 	await db.execute(sql`drop table users12`);
 	await db.execute(sql`drop table __drizzle_migrations`);
 });
