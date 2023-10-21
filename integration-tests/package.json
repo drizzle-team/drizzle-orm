@@ -22,7 +22,8 @@
       "!tests/vercel-pg.test.ts",
       "!tests/relational/**/*",
       "!tests/libsql-batch.test.ts",
-      "!tests/d1-batch.test.ts"
+      "!tests/d1-batch.test.ts",
+      "!tests/replicas/**/*"
     ],
     "extensions": {
       "ts": "module"

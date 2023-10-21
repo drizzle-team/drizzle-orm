@@ -7,8 +7,8 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { type DrizzleConfig } from '~/utils.ts';
-import { PgRemoteSession, type PgRemoteQueryResultHKT } from './session.ts';
+import type { DrizzleConfig } from '~/utils.ts';
+import { type PgRemoteQueryResultHKT, PgRemoteSession } from './session.ts';
 
 export type PgRemoteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
@@ -17,7 +17,7 @@ export type PgRemoteDatabase<
 export type RemoteCallback = (
 	sql: string,
 	params: any[],
-	method: 'all' | 'execute'
+	method: 'all' | 'execute',
 ) => Promise<{ rows: any[] }>;
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(

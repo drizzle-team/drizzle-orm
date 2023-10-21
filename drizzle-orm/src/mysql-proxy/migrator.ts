@@ -11,7 +11,7 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
-	
+
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 	const migrationTableCreate = sql`
 		create table if not exists ${sql.identifier(migrationsTable)} (

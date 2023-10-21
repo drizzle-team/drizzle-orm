@@ -22,7 +22,7 @@ import type {
 } from '~/query-builders/select.types.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
-import { type ColumnsSelection, type View } from '~/view.ts';
+import type { ColumnsSelection, View } from '~/view.ts';
 import type { SQLitePreparedQuery } from '../session.ts';
 import type { SQLiteViewBase, SQLiteViewWithSelection } from '../view.ts';
 import type { SQLiteSelectBase, SQLiteSelectQueryBuilderBase } from './select.ts';

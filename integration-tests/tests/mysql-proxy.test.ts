@@ -3,15 +3,7 @@ import 'dotenv/config';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import Docker from 'dockerode';
-import {
-	asc,
-	eq,
-	gt,
-	inArray,
-	Name,
-	placeholder,
-	sql,
-} from 'drizzle-orm';
+import { asc, eq, gt, inArray, Name, placeholder, sql } from 'drizzle-orm';
 import {
 	alias,
 	boolean,
@@ -34,9 +26,9 @@ import {
 	uniqueKeyName,
 	year,
 } from 'drizzle-orm/mysql-core';
-import { migrate } from 'drizzle-orm/mysql-proxy/migrator';
 import { drizzle as proxyDrizzle } from 'drizzle-orm/mysql-proxy';
 import type { MySqlRemoteDatabase } from 'drizzle-orm/mysql-proxy';
+import { migrate } from 'drizzle-orm/mysql-proxy/migrator';
 import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
@@ -254,7 +246,6 @@ test.after.always(async (t) => {
 
 test.beforeEach(async (t) => {
 	try {
-
 		const ctx = t.context;
 		await ctx.db.execute(sql`drop table if exists \`userstest\``);
 		await ctx.db.execute(sql`drop table if exists \`users2\``);
@@ -291,7 +282,7 @@ test.beforeEach(async (t) => {
 			`,
 		);
 	} catch (error) {
-		console.log('error', error)
+		console.log('error', error);
 		throw error;
 	}
 });

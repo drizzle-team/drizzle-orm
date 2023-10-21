@@ -1,20 +1,23 @@
+import type { FieldPacket, ResultSetHeader } from 'mysql2/promise';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
+import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import { MySqlTransaction } from '~/mysql-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types.ts';
-import type { MySqlTransactionConfig, QueryResultHKT , PreparedQueryConfig, PreparedQueryHKT, PreparedQueryKind } from '~/mysql-core/session.ts';
-import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders} from '~/sql/index.ts';
-import type { SQL, Query } from '~/sql/index.ts';
-import { mapResultRow, type Assume } from '~/utils.ts';
-import { type RemoteCallback } from './driver.ts';
+import type {
+	MySqlTransactionConfig,
+	PreparedQueryConfig,
+	PreparedQueryHKT,
+	PreparedQueryKind,
+	QueryResultHKT,
+} from '~/mysql-core/session.ts';
 import { MySqlSession, PreparedQuery as PreparedQueryBase } from '~/mysql-core/session.ts';
-import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import {
-	type FieldPacket,
-	type ResultSetHeader,
-} from 'mysql2/promise';
+import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import { fillPlaceholders } from '~/sql/index.ts';
+import type { Query, SQL } from '~/sql/index.ts';
+import { type Assume, mapResultRow } from '~/utils.ts';
+import type { RemoteCallback } from './driver.ts';
 
 export type MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]];
 
@@ -45,7 +48,14 @@ export class MySqlRemoteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PreparedQueryKind<MySqlRemotePreparedQueryHKT, T> {
-		return new PreparedQuery(this.client, query.sql, query.params, this.logger, fields, customResultMapper) as PreparedQueryKind<MySqlRemotePreparedQueryHKT, T>;
+		return new PreparedQuery(
+			this.client,
+			query.sql,
+			query.params,
+			this.logger,
+			fields,
+			customResultMapper,
+		) as PreparedQueryKind<MySqlRemotePreparedQueryHKT, T>;
 	}
 
 	override all<T = unknown>(query: SQL): Promise<T[]> {

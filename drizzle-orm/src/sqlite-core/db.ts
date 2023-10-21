@@ -1,10 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import {
-	type ExtractTablesWithRelations,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
+import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import type { SQLWrapper } from '~/sql/index.ts';
 import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import {
@@ -23,8 +19,8 @@ import type {
 } from '~/sqlite-core/session.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { SelectionProxyHandler, WithSubquery } from '~/subquery.ts';
-import { type DrizzleTypeError } from '~/utils.ts';
-import { type ColumnsSelection } from '~/view.ts';
+import type { DrizzleTypeError } from '~/utils.ts';
+import type { ColumnsSelection } from '~/view.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import { SQLiteRaw } from './query-builders/raw.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
@@ -229,3 +225,61 @@ export class BaseSQLiteDatabase<
 		return this.session.transaction(transaction, config);
 	}
 }
+
+export type SQLiteWithReplicas<Q> = Q & { $primary: Q };
+
+export const withReplicas = <
+	TResultKind extends 'sync' | 'async',
+	TRunResult,
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
+	Q extends BaseSQLiteDatabase<
+		TResultKind,
+		TRunResult,
+		TFullSchema,
+		TSchema extends Record<string, unknown> ? ExtractTablesWithRelations<TFullSchema> : TSchema
+	>,
+>(
+	primary: Q,
+	replicas: [Q, ...Q[]],
+	getReplica: (replicas: Q[]) => Q = () => replicas[Math.floor(Math.random() * replicas.length)]!,
+): SQLiteWithReplicas<Q> => {
+	const select: Q['select'] = (...args: any) => getReplica(replicas).select(args);
+	const selectDistinct: Q['selectDistinct'] = (...args: any) => getReplica(replicas).selectDistinct(args);
+	const $with: Q['with'] = (...args: any) => getReplica(replicas).with(args);
+
+	const update: Q['update'] = (...args: any) => primary.update(args);
+	const insert: Q['insert'] = (...args: any) => primary.insert(args);
+	const $delete: Q['delete'] = (...args: any) => primary.delete(args);
+	const run: Q['run'] = (...args: any) => primary.run(args);
+	const all: Q['all'] = (...args: any) => primary.all(args);
+	const get: Q['get'] = (...args: any) => primary.get(args);
+	const values: Q['values'] = (...args: any) => primary.values(args);
+	const transaction: Q['transaction'] = (...args: any) => primary.transaction(args);
+
+	return new Proxy<Q & { $primary: Q }>(
+		{
+			...primary,
+			update,
+			insert,
+			delete: $delete,
+			run,
+			all,
+			get,
+			values,
+			transaction,
+			$primary: primary,
+			select,
+			selectDistinct,
+			with: $with,
+		},
+		{
+			get(target, prop, _receiver) {
+				if (prop === 'query') {
+					return getReplica(replicas).query;
+				}
+				return target[prop as keyof typeof target];
+			},
+		},
+	);
+};

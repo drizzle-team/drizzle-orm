@@ -28,6 +28,7 @@ import {
 	boolean,
 	char,
 	cidr,
+	foreignKey,
 	getMaterializedViewConfig,
 	getTableConfig,
 	getViewConfig,
@@ -37,11 +38,11 @@ import {
 	macaddr,
 	macaddr8,
 	type PgColumn,
-	pgEnum,
 	pgMaterializedView,
 	pgTable,
 	pgTableCreator,
 	pgView,
+	primaryKey,
 	serial,
 	text,
 	timestamp,
@@ -49,8 +50,7 @@ import {
 	uniqueKeyName,
 	uuid as pgUuid,
 	varchar,
-	primaryKey,
-	foreignKey,
+	pgEnum,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import pg from 'pg';

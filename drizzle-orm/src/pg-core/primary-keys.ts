@@ -9,7 +9,7 @@ export function primaryKey<
 >(config: { name?: string; columns: [TColumn, ...TColumns] }): PrimaryKeyBuilder;
 /**
  * @deprecated: Please use primaryKey({ columns: [] }) instead of this function
- * @param columns 
+ * @param columns
  */
 export function primaryKey<
 	TTableName extends string,

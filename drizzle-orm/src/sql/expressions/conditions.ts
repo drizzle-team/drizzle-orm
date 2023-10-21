@@ -258,7 +258,7 @@ export const lte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  *
  * ## Throws
  *
- * The argument passed in the second array can’t be empty:
+ * The argument passed in the second array can't be empty:
  * if an empty is provided, this method will throw.
  *
  * ## Examples
@@ -304,7 +304,7 @@ export function inArray(
  *
  * ## Throws
  *
- * The argument passed in the second array can’t be empty:
+ * The argument passed in the second array can't be empty:
  * if an empty is provided, this method will throw.
  *
  * ## Examples
@@ -613,7 +613,7 @@ export function notIlike(column: Column, value: string | SQLWrapper): SQL {
  *
  * ## Throws
  *
- * The argument passed in the second array can’t be empty:
+ * The argument passed in the second array can't be empty:
  * if an empty is provided, this method will throw.
  *
  * ## Examples
@@ -660,7 +660,7 @@ export function arrayContains(
  *
  * ## Throws
  *
- * The argument passed in the second array can’t be empty:
+ * The argument passed in the second array can't be empty:
  * if an empty is provided, this method will throw.
  *
  * ## Examples
@@ -708,7 +708,7 @@ export function arrayContained(
  *
  * ## Throws
  *
- * The argument passed in the second array can’t be empty:
+ * The argument passed in the second array can't be empty:
  * if an empty is provided, this method will throw.
  *
  * ## Examples

@@ -52,6 +52,9 @@ export class MySqlSmallInt<T extends ColumnBaseConfig<'number', 'MySqlSmallInt'>
 	}
 }
 
-export function smallint<TName extends string>(name: TName, config?: MySqlIntConfig): MySqlSmallIntBuilderInitial<TName> {
+export function smallint<TName extends string>(
+	name: TName,
+	config?: MySqlIntConfig,
+): MySqlSmallIntBuilderInitial<TName> {
 	return new MySqlSmallIntBuilder(name, config);
 }

@@ -6,7 +6,7 @@ import type { SQL } from '~/sql/index.ts';
 import { SelectionProxyHandler } from '~/subquery.ts';
 import { getTableColumns } from '~/utils.ts';
 import { type ColumnsSelection, View } from '~/view.ts';
-import { type MySqlColumn, type MySqlColumnBuilderBase } from './columns/index.ts';
+import type { MySqlColumn, MySqlColumnBuilderBase } from './columns/index.ts';
 import { QueryBuilder } from './query-builders/index.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import { mysqlTable } from './table.ts';

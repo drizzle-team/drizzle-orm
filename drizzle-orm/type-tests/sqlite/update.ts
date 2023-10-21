@@ -4,7 +4,7 @@ import { Expect } from 'type-tests/utils.ts';
 import { eq } from '~/expressions.ts';
 import { sql } from '~/sql/index.ts';
 import type { SQLiteUpdate } from '~/sqlite-core/query-builders/update.ts';
-import { type DrizzleTypeError } from '~/utils.ts';
+import type { DrizzleTypeError } from '~/utils.ts';
 import { bunDb, db } from './db.ts';
 import { users } from './tables.ts';
 
