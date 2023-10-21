@@ -1,0 +1,76 @@
+name: Package for github
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: pnpm/action-setup@v2
+        name: Install pnpm
+        id: pnpm-install
+        with:
+          version: latest
+          run_install: false
+      
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v3
+        name: Setup pnpm cache
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build
+        run: |
+          pnpm build:orm
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+          registry-url: https://npm.pkg.github.com/
+        
+      - run: |
+          echo "Publishing drizzle-orm@$tag using version $version"
+          old_version="$(jq -r .version package.json)"
+          version="$old_version-$(git rev-parse --short HEAD)"
+          tag="${{ github.ref_name }}"
+          npm publish -- --tag tag
+        working-directory: ./drizzle-orm/dist
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+      
+  # publish-gpr:
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: read
+  #     packages: write
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - uses: actions/setup-node@v3
+  #       with:
+  #         node-version: 16
+  #         registry-url: https://npm.pkg.github.com/
+  #     - run: npm ci
+  #     - run: npm publish
+  #       env:
+  #         NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
