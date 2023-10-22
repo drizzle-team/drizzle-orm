@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -42,6 +42,10 @@ export class QueryBuilder {
 			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {
 					qb = qb(queryBuilder);
+				}
+
+				if (is(qb, PgSelectQueryBuilderBase)) {
+					qb.setSelfReferenceName(alias);
 				}
 
 				return new Proxy(

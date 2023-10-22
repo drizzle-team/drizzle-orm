@@ -4,11 +4,12 @@ import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationMeta } from '~/migrator.ts';
 import { PgColumn, PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core/columns/index.ts';
-import type {
-	PgDeleteConfig,
-	PgInsertConfig,
-	PgSelectJoinConfig,
-	PgUpdateConfig,
+import {
+	type PgDeleteConfig,
+	type PgInsertConfig,
+	type PgSelectJoinConfig,
+	PgSelectQueryBuilderBase,
+	type PgUpdateConfig,
 } from '~/pg-core/query-builders/index.ts';
 import type { PgSelectConfig, SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import { PgTable } from '~/pg-core/table.ts';
@@ -35,7 +36,7 @@ import {
 	type SQLChunk,
 } from '~/sql/sql.ts';
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
-import { getTableName, Table } from '~/table.ts';
+import { getTableName, IsLazilyNamedTable, OriginalName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgSession } from './session.ts';
@@ -209,6 +210,7 @@ export class PgDialect {
 			distinct,
 			setOperators,
 			recursive,
+			selfReferenceName,
 		}: PgSelectConfig,
 	): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<PgColumn>(fields);
@@ -234,6 +236,9 @@ export class PgDialect {
 						f.path.join('->')
 					}" field references a column "${tableName}"."${f.field.name}", but the table "${tableName}" is not part of the query! Did you forget to join it?`,
 				);
+			} else if (is(f.field, Column) && !table) {
+				const tableName = getTableName(f.field.table);
+				throw new Error(`You cannot reference a column "${tableName}"."${f.field.name}" without using .form()`);
 			}
 		}
 
@@ -358,13 +363,13 @@ export class PgDialect {
 			sql`${withSql}select${distinctSql} ${selection}${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClauseSql}`;
 
 		if (setOperators.length > 0) {
-			return this.buildSetOperations(finalQuery, setOperators);
+			return this.buildSetOperations(finalQuery, setOperators, selfReferenceName);
 		}
 
 		return finalQuery;
 	}
 
-	buildSetOperations(leftSelect: SQL, setOperators: PgSelectConfig['setOperators']): SQL {
+	buildSetOperations(leftSelect: SQL, setOperators: PgSelectConfig['setOperators'], selfReferenceName?: string): SQL {
 		const [setOperator, ...rest] = setOperators;
 
 		if (!setOperator) {
@@ -372,12 +377,12 @@ export class PgDialect {
 		}
 
 		if (rest.length === 0) {
-			return this.buildSetOperationQuery({ leftSelect, setOperator });
+			return this.buildSetOperationQuery({ leftSelect, setOperator, selfReferenceName });
 		}
 
 		// Some recursive magic here
 		return this.buildSetOperations(
-			this.buildSetOperationQuery({ leftSelect, setOperator }),
+			this.buildSetOperationQuery({ leftSelect, setOperator, selfReferenceName }),
 			rest,
 		);
 	}
@@ -385,7 +390,19 @@ export class PgDialect {
 	buildSetOperationQuery({
 		leftSelect,
 		setOperator: { type, isAll, rightSelect, limit, orderBy, offset },
-	}: { leftSelect: SQL; setOperator: PgSelectConfig['setOperators'][number] }): SQL {
+		selfReferenceName,
+	}: { leftSelect: SQL; setOperator: PgSelectConfig['setOperators'][number]; selfReferenceName?: string }): SQL {
+		if (is(rightSelect, PgSelectQueryBuilderBase)) {
+			const rightSelectTable = rightSelect.getTable();
+
+			if (is(rightSelectTable, Table) && rightSelectTable[IsLazilyNamedTable]) {
+				if (!selfReferenceName) {
+					throw new Error('You attempted to use a self reference table outsite a "with recursive" clause');
+				}
+				rightSelectTable[OriginalName] = selfReferenceName!;
+			}
+		}
+
 		const leftChunk = sql`(${leftSelect.getSQL()}) `;
 		const rightChunk = sql`(${rightSelect.getSQL()})`;
 

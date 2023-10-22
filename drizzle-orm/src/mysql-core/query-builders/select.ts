@@ -4,7 +4,7 @@ import { customType, type MySqlColumn, type MySqlColumnBuilderBase } from '~/mys
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { MySqlSession, PreparedQueryConfig, PreparedQueryHKTBase } from '~/mysql-core/session.ts';
 import type { SubqueryWithSelection } from '~/mysql-core/subquery.ts';
-import { type MySqlTable, mysqlTable, type SelfReferenceTable } from '~/mysql-core/table.ts';
+import { type MySqlSelfReferenceTable, type MySqlTable, mysqlTable } from '~/mysql-core/table.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	BuildSubquerySelection,
@@ -298,7 +298,7 @@ export class MySqlSelectQueryBuilderBase<
 		rightSelection:
 			| ((
 				setOperators: GetMySqlSetOperators,
-				selfReferenceTable: SelfReferenceTable<TSelection>,
+				selfReferenceTable: MySqlSelfReferenceTable<TSelection>,
 			) => SetOperatorRightSelect<TValue, TResult>)
 			| SetOperatorRightSelect<TValue, TResult>,
 	) => MySqlSelectWithout<

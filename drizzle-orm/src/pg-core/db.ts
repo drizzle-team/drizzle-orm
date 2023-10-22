@@ -1,10 +1,11 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import {
 	PgDeleteBase,
 	PgInsertBuilder,
 	PgSelectBase,
 	PgSelectBuilder,
+	PgSelectQueryBuilderBase,
 	PgUpdateBuilder,
 	QueryBuilder,
 } from '~/pg-core/query-builders/index.ts';
@@ -97,6 +98,11 @@ export class PgDatabase<
 			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {
 					qb = qb(new QueryBuilder());
+				}
+
+				// Have to use the PgSelectQueryBuilderBase because the query is built with a new QueryBuilder (see 3 lines above)
+				if (is(qb, PgSelectQueryBuilderBase)) {
+					qb.setSelfReferenceName(alias);
 				}
 
 				return new Proxy(

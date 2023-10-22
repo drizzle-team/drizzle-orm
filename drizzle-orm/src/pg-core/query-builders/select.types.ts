@@ -51,6 +51,8 @@ export type BuildAliasTable<TTable extends PgTable | View, TAlias extends string
 
 export interface PgSelectConfig {
 	withList?: Subquery[];
+	recursive?: boolean;
+	selfReferenceName?: string;
 	// Either fields or fieldsFlat must be defined
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
@@ -77,7 +79,6 @@ export interface PgSelectConfig {
 		limit?: number | Placeholder;
 		offset?: number | Placeholder;
 	}[];
-	recursive?: boolean;
 }
 
 export type PgJoin<

@@ -17,6 +17,26 @@ export type PgTableExtraConfig = Record<
 	| UniqueConstraintBuilder
 >;
 
+export type PgSelfReferenceTable<T extends Record<string, unknown>> =
+	& PgTableWithColumns<{
+		columns: {
+			[key in keyof T]: PgColumn;
+		};
+		name: '';
+		schema: undefined;
+		dialect: 'mysql';
+	}>
+	& {
+		as: (alias: string) => PgTableWithColumns<{
+			columns: {
+				[key in keyof T]: PgColumn;
+			};
+			name: '';
+			schema: undefined;
+			dialect: 'mysql';
+		}>;
+	};
+
 export type TableConfig = TableConfigBase<PgColumn>;
 
 /** @internal */

@@ -17,7 +17,7 @@ export type MySqlTableExtraConfig = Record<
 	| UniqueConstraintBuilder
 >;
 
-export type SelfReferenceTable<T extends Record<string, unknown>> =
+export type MySqlSelfReferenceTable<T extends Record<string, unknown>> =
 	& MySqlTableWithColumns<{
 		columns: {
 			[key in keyof T]: MySqlColumn;

@@ -1,9 +1,10 @@
+import { LazyTableAliasProxyHandler } from '~/alias.ts';
 import { entityKind, is } from '~/entity.ts';
-import type { PgColumn } from '~/pg-core/columns/index.ts';
+import { customType, type PgColumn, type PgColumnBuilderBase } from '~/pg-core/columns/index.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgSession, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { SubqueryWithSelection } from '~/pg-core/subquery.ts';
-import type { PgTable } from '~/pg-core/table.ts';
+import { type PgSelfReferenceTable, type PgTable, pgTable } from '~/pg-core/table.ts';
 import { PgViewBase } from '~/pg-core/view-base.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
@@ -21,7 +22,7 @@ import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { SQL, View } from '~/sql/sql.ts';
 import type { ColumnsSelection, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
-import { Table } from '~/table.ts';
+import { IsLazilyNamedTable, Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, type ValueOrArray } from '~/utils.ts';
 import { orderSelectedFields } from '~/utils.ts';
@@ -201,6 +202,16 @@ export class PgSelectQueryBuilderBase<
 		return this as any;
 	}
 
+	/** @internal */
+	getTable() {
+		return this.config.table;
+	}
+
+	/** @internal */
+	setSelfReferenceName(name: string) {
+		this.config.selfReferenceName = name;
+	}
+
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
 	): PgJoinFn<this, TDynamic, TJoinType> {
@@ -316,7 +327,10 @@ export class PgSelectQueryBuilderBase<
 		isAll: boolean,
 	): <TValue extends PgSetOperatorWithResult<TResult>>(
 		rightSelection:
-			| ((setOperators: GetPgSetOperators) => SetOperatorRightSelect<TValue, TResult>)
+			| ((
+				setOperators: GetPgSetOperators,
+				selfReferenceTable: PgSelfReferenceTable<TSelection>,
+			) => SetOperatorRightSelect<TValue, TResult>)
 			| SetOperatorRightSelect<TValue, TResult>,
 	) => PgSelectWithout<
 		this,
@@ -325,8 +339,23 @@ export class PgSelectQueryBuilderBase<
 		true
 	> {
 		return (rightSelection) => {
+			const columns = {} as Record<keyof TSelection, PgColumnBuilderBase>;
+			for (const key of Object.keys(this.config.fields)) {
+				columns[key as keyof TSelection] = customType<
+					{ data: TSelection[typeof key] }
+				>({
+					dataType() {
+						return '';
+					},
+				})(key);
+			}
+
+			const ttable = pgTable('', columns);
+
+			ttable[IsLazilyNamedTable] = true;
+			const aliased = new Proxy(ttable, new LazyTableAliasProxyHandler());
 			const rightSelect = (typeof rightSelection === 'function'
-				? rightSelection(getPgSetOperators())
+				? rightSelection(getPgSetOperators(), aliased as any)
 				: rightSelection) as TypedQueryBuilder<
 					any,
 					TResult
