@@ -196,6 +196,7 @@ export class MySqlDialect {
 			lockingClause,
 			distinct,
 			setOperators,
+			recursive,
 		}: MySqlSelectConfig,
 	): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<MySqlColumn>(fields);
@@ -228,7 +229,7 @@ export class MySqlDialect {
 
 		let withSql: SQL | undefined;
 		if (withList?.length) {
-			const withSqlChunks = [sql`with `];
+			const withSqlChunks = recursive ? [sql`with recursive `] : [sql`with `];
 			for (const [i, w] of withList.entries()) {
 				withSqlChunks.push(sql`${sql.identifier(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
 				if (i < withList.length - 1) {

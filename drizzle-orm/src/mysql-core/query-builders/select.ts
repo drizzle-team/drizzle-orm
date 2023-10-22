@@ -56,6 +56,7 @@ export class MySqlSelectBuilder<
 	private dialect: MySqlDialect;
 	private withList: Subquery[] = [];
 	private distinct: boolean | undefined;
+	private recursive: boolean | undefined;
 
 	constructor(
 		config: {
@@ -63,6 +64,7 @@ export class MySqlSelectBuilder<
 			dialect: MySqlDialect;
 			withList?: Subquery[];
 			distinct?: boolean;
+			recursive?: boolean;
 		},
 	) {
 		this.session = config.session;
@@ -71,6 +73,7 @@ export class MySqlSelectBuilder<
 			this.withList = config.withList;
 		}
 		this.distinct = config.distinct;
+		this.recursive = config.recursive;
 	}
 
 	from<TFrom extends MySqlTable | Subquery | MySqlViewBase | SQL>(
@@ -108,6 +111,7 @@ export class MySqlSelectBuilder<
 				dialect: this.dialect,
 				withList: this.withList,
 				distinct: this.distinct,
+				recursive: this.recursive,
 			},
 		) as any;
 	}
@@ -150,7 +154,7 @@ export class MySqlSelectQueryBuilderBase<
 	protected dialect: MySqlDialect;
 
 	constructor(
-		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
+		{ table, fields, isPartialSelect, session, dialect, withList, distinct, recursive }: {
 			table: MySqlSelectConfig['table'];
 			fields: MySqlSelectConfig['fields'];
 			isPartialSelect: boolean;
@@ -158,6 +162,7 @@ export class MySqlSelectQueryBuilderBase<
 			dialect: MySqlDialect;
 			withList?: Subquery[];
 			distinct?: boolean | undefined;
+			recursive?: boolean;
 		},
 	) {
 		super();
@@ -167,6 +172,7 @@ export class MySqlSelectQueryBuilderBase<
 			fields: { ...fields },
 			distinct,
 			setOperators: [],
+			recursive,
 		};
 		this.isPartialSelect = isPartialSelect;
 		this.session = session;

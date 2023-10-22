@@ -51,6 +51,7 @@ export type BuildAliasTable<TTable extends MySqlTable | View, TAlias extends str
 
 export interface MySqlSelectConfig {
 	withList?: Subquery[];
+	recursive?: boolean;
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
 	where?: SQL;

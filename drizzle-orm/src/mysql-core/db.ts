@@ -94,6 +94,25 @@ export class MySqlDatabase<
 		};
 	}
 
+	$withRecursive<TAlias extends string>(alias: TAlias) {
+		return {
+			as<TSelection extends ColumnsSelection>(
+				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
+			): WithSubqueryWithSelection<TSelection, TAlias> {
+				if (typeof qb === 'function') {
+					qb = qb(new QueryBuilder());
+				}
+
+				// Give the name here
+
+				return new Proxy(
+					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
+					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+				) as WithSubqueryWithSelection<TSelection, TAlias>;
+			},
+		};
+	}
+
 	with(...queries: WithSubquery[]) {
 		const self = this;
 
@@ -148,6 +167,70 @@ export class MySqlDatabase<
 					dialect: self.dialect,
 					withList: queries,
 					distinct: true,
+				});
+		}
+
+		return { select, selectDistinct };
+	}
+
+	withRecursive(...queries: WithSubquery[]) {
+		const self = this;
+
+		function select(): MySqlSelectBuilder<TPreparedQueryHKT>;
+		function select<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): MySqlSelectBase<undefined, TSelection, 'partial', TPreparedQueryHKT>;
+		function select(
+			fields?: SelectedFields,
+		):
+			| MySqlSelectBuilder<TPreparedQueryHKT>
+			| MySqlSelectBase<undefined, SelectedFields, 'partial', TPreparedQueryHKT>
+		{
+			return fields
+				? new MySqlSelectBase({
+					table: undefined,
+					fields,
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					isPartialSelect: true,
+					recursive: true,
+				})
+				: new MySqlSelectBuilder({
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					recursive: true,
+				});
+		}
+
+		function selectDistinct(): MySqlSelectBuilder<TPreparedQueryHKT>;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): MySqlSelectBase<undefined, TSelection, 'partial', TPreparedQueryHKT>;
+		function selectDistinct(
+			fields?: SelectedFields,
+		):
+			| MySqlSelectBuilder<TPreparedQueryHKT>
+			| MySqlSelectBase<undefined, SelectedFields, 'partial', TPreparedQueryHKT>
+		{
+			return fields
+				? new MySqlSelectBase({
+					table: undefined,
+					fields,
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					isPartialSelect: true,
+					distinct: true,
+					recursive: true,
+				})
+				: new MySqlSelectBuilder({
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					distinct: true,
+					recursive: true,
 				});
 		}
 
