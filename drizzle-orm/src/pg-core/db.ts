@@ -3,6 +3,7 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import {
 	PgDeleteBase,
 	PgInsertBuilder,
+	PgSelectBase,
 	PgSelectBuilder,
 	PgUpdateBuilder,
 	QueryBuilder,
@@ -92,56 +93,151 @@ export class PgDatabase<
 	with(...queries: WithSubquery[]) {
 		const self = this;
 
-		function select(): PgSelectBuilder<undefined>;
-		function select<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
-		function select(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
-			return new PgSelectBuilder({
-				fields: fields ?? undefined,
-				session: self.session,
-				dialect: self.dialect,
-				withList: queries,
-			});
+		function select(): PgSelectBuilder;
+		function select<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): PgSelectBase<undefined, TSelection, 'partial'>;
+		function select<TSelection extends SelectedFields>(
+			fields?: TSelection,
+		): PgSelectBuilder | PgSelectBase<undefined, TSelection, 'partial'> {
+			return fields
+				? new PgSelectBase({
+					table: undefined,
+					fields,
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					isPartialSelect: true,
+				})
+				: new PgSelectBuilder({
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+				});
 		}
 
-		return { select };
+		function selectDistinct(): PgSelectBuilder;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): PgSelectBase<undefined, TSelection, 'partial'>;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields?: TSelection,
+		): PgSelectBuilder | PgSelectBase<undefined, TSelection, 'partial'> {
+			return fields
+				? new PgSelectBase({
+					table: undefined,
+					fields,
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					isPartialSelect: true,
+					distinct: true,
+				})
+				: new PgSelectBuilder({
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					distinct: true,
+				});
+		}
+
+		function selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgSelectBuilder;
+		function selectDistinctOn<TSelection extends SelectedFields>(
+			on: (PgColumn | SQLWrapper)[],
+			fields: TSelection,
+		): PgSelectBase<undefined, TSelection, 'partial'>;
+		function selectDistinctOn<TSelection extends SelectedFields>(
+			on: (PgColumn | SQLWrapper)[],
+			fields?: SelectedFields,
+		): PgSelectBuilder | PgSelectBase<undefined, TSelection, 'partial'> {
+			return fields
+				? new PgSelectBase({
+					table: undefined,
+					fields,
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					isPartialSelect: true,
+					distinct: { on },
+				})
+				: new PgSelectBuilder({
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					distinct: { on },
+				});
+		}
+
+		return { select, selectDistinct, selectDistinctOn };
 	}
 
-	select(): PgSelectBuilder<undefined>;
-	select<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
-	select(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
-		return new PgSelectBuilder({
-			fields: fields ?? undefined,
-			session: this.session,
-			dialect: this.dialect,
-		});
+	select(): PgSelectBuilder;
+	select<TSelection extends SelectedFields>(
+		fields: TSelection,
+	): PgSelectBase<undefined, TSelection, 'partial'>;
+	select<TSelection extends SelectedFields>(
+		fields?: TSelection,
+	): PgSelectBuilder | PgSelectBase<undefined, TSelection, 'partial'> {
+		return fields
+			? new PgSelectBase({
+				table: undefined,
+				fields,
+				session: this.session,
+				dialect: this.dialect,
+				isPartialSelect: true,
+			})
+			: new PgSelectBuilder({
+				session: this.session,
+				dialect: this.dialect,
+			});
 	}
 
-	selectDistinct(): PgSelectBuilder<undefined>;
-	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
-	selectDistinct(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
-		return new PgSelectBuilder({
-			fields: fields ?? undefined,
-			session: this.session,
-			dialect: this.dialect,
-			distinct: true,
-		});
+	selectDistinct(): PgSelectBuilder;
+	selectDistinct<TSelection extends SelectedFields>(
+		fields: TSelection,
+	): PgSelectBase<undefined, TSelection, 'partial'>;
+	selectDistinct<TSelection extends SelectedFields>(
+		fields?: TSelection,
+	): PgSelectBuilder | PgSelectBase<undefined, TSelection, 'partial'> {
+		return fields
+			? new PgSelectBase({
+				table: undefined,
+				fields,
+				session: this.session,
+				dialect: this.dialect,
+				isPartialSelect: true,
+				distinct: true,
+			})
+			: new PgSelectBuilder({
+				session: this.session,
+				dialect: this.dialect,
+				distinct: true,
+			});
 	}
 
-	selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgSelectBuilder<undefined>;
+	selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgSelectBuilder;
 	selectDistinctOn<TSelection extends SelectedFields>(
 		on: (PgColumn | SQLWrapper)[],
 		fields: TSelection,
-	): PgSelectBuilder<TSelection>;
-	selectDistinctOn(
+	): PgSelectBase<undefined, TSelection, 'partial'>;
+	selectDistinctOn<TSelection extends SelectedFields>(
 		on: (PgColumn | SQLWrapper)[],
 		fields?: SelectedFields,
-	): PgSelectBuilder<SelectedFields | undefined> {
-		return new PgSelectBuilder({
-			fields: fields ?? undefined,
-			session: this.session,
-			dialect: this.dialect,
-			distinct: { on },
-		});
+	): PgSelectBuilder | PgSelectBase<undefined, TSelection, 'partial'> {
+		return fields
+			? new PgSelectBase({
+				table: undefined,
+				fields,
+				session: this.session,
+				dialect: this.dialect,
+				isPartialSelect: true,
+				distinct: { on },
+			})
+			: new PgSelectBuilder({
+				session: this.session,
+				dialect: this.dialect,
+				distinct: { on },
+			});
 	}
 
 	update<TTable extends PgTable>(table: TTable): PgUpdateBuilder<TTable, TQueryResult> {

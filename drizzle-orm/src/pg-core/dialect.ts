@@ -219,7 +219,7 @@ export class PgDialect {
 						? table[SubqueryConfig].alias
 						: is(table, PgViewBase)
 						? table[ViewBaseConfig].name
-						: is(table, SQL)
+						: is(table, SQL) || !table
 						? undefined
 						: getTableName(table))
 				&& !((table) =>
@@ -259,15 +259,17 @@ export class PgDialect {
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
 
 		const tableSql = (() => {
+			if (!table) return;
+
 			if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
 				let fullName = sql`${sql.identifier(table[Table.Symbol.OriginalName])}`;
 				if (table[Table.Symbol.Schema]) {
 					fullName = sql`${sql.identifier(table[Table.Symbol.Schema]!)}.${fullName}`;
 				}
-				return sql`${fullName} ${sql.identifier(table[Table.Symbol.Name])}`;
+				return sql` from ${fullName} ${sql.identifier(table[Table.Symbol.Name])}`;
 			}
 
-			return table;
+			return sql` from ${table}`;
 		})();
 
 		const joinsArray: SQL[] = [];
@@ -352,7 +354,7 @@ export class PgDialect {
 			lockingClauseSql.append(clauseSql);
 		}
 		const finalQuery =
-			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClauseSql}`;
+			sql`${withSql}select${distinctSql} ${selection}${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClauseSql}`;
 
 		if (setOperators.length > 0) {
 			return this.buildSetOperations(finalQuery, setOperators);

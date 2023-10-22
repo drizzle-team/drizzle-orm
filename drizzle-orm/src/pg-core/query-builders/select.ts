@@ -36,6 +36,7 @@ import type {
 	PgJoinFn,
 	PgSelectConfig,
 	PgSelectDynamic,
+	PgSelectFrom,
 	PgSelectHKT,
 	PgSelectHKTBase,
 	PgSelectPrepare,
@@ -47,12 +48,10 @@ import type {
 } from './select.types.ts';
 
 export class PgSelectBuilder<
-	TSelection extends SelectedFields | undefined,
 	TBuilderMode extends 'db' | 'qb' = 'db',
 > {
 	static readonly [entityKind]: string = 'PgSelectBuilder';
 
-	private fields: TSelection;
 	private session: PgSession | undefined;
 	private dialect: PgDialect;
 	private withList: Subquery[] = [];
@@ -62,7 +61,6 @@ export class PgSelectBuilder<
 
 	constructor(
 		config: {
-			fields: TSelection;
 			session: PgSession | undefined;
 			dialect: PgDialect;
 			withList?: Subquery[];
@@ -71,7 +69,6 @@ export class PgSelectBuilder<
 			};
 		},
 	) {
-		this.fields = config.fields;
 		this.session = config.session;
 		this.dialect = config.dialect;
 		if (config.withList) {
@@ -91,15 +88,12 @@ export class PgSelectBuilder<
 	): CreatePgSelectFromBuilderMode<
 		TBuilderMode,
 		GetSelectTableName<TFrom>,
-		TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection,
-		TSelection extends undefined ? 'single' : 'partial'
+		GetSelectTableSelection<TFrom>,
+		'single'
 	> {
-		const isPartialSelect = !!this.fields;
-
 		let fields: SelectedFields;
-		if (this.fields) {
-			fields = this.fields;
-		} else if (is(source, Subquery)) {
+
+		if (is(source, Subquery)) {
 			// This is required to use the proxy handler to get the correct field values from the subquery
 			fields = Object.fromEntries(
 				Object.keys(source[SubqueryConfig].selection).map((
@@ -117,7 +111,7 @@ export class PgSelectBuilder<
 		return new PgSelectBase({
 			table: source,
 			fields,
-			isPartialSelect,
+			isPartialSelect: false,
 			session: this.session,
 			dialect: this.dialect,
 			withList: this.withList,
@@ -126,7 +120,7 @@ export class PgSelectBuilder<
 	}
 }
 
-export abstract class PgSelectQueryBuilderBase<
+export class PgSelectQueryBuilderBase<
 	THKT extends PgSelectHKTBase,
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
@@ -166,8 +160,8 @@ export abstract class PgSelectQueryBuilderBase<
 			isPartialSelect: boolean;
 			session: PgSession | undefined;
 			dialect: PgDialect;
-			withList: Subquery[];
-			distinct: boolean | {
+			withList?: Subquery[];
+			distinct?: boolean | {
 				on: (PgColumn | SQLWrapper)[];
 			} | undefined;
 		},
@@ -188,6 +182,17 @@ export abstract class PgSelectQueryBuilderBase<
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
+	}
+
+	from<TFrom extends PgTable | Subquery | PgViewBase | SQL>(
+		source: TFrom,
+	): PgSelectFrom<this, TFrom, TDynamic> {
+		this.config.table = source;
+
+		this.tableName = getTableLikeName(source);
+		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
+
+		return this as any;
 	}
 
 	private createJoin<TJoinType extends JoinType>(

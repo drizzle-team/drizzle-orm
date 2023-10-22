@@ -56,7 +56,7 @@ export interface PgSelectConfig {
 	fieldsFlat?: SelectedFieldsOrdered;
 	where?: SQL;
 	having?: SQL;
-	table: PgTable | Subquery | PgViewBase | SQL;
+	table?: PgTable | Subquery | PgViewBase | SQL;
 	limit?: number | Placeholder;
 	offset?: number | Placeholder;
 	joins?: PgSelectJoinConfig[];
@@ -220,6 +220,28 @@ export type PgSetOperatorExcludedMethods =
 	| 'having'
 	| 'groupBy'
 	| 'for';
+
+export type PgSelectFrom<
+	T extends AnyPgSelectQueryBuilder,
+	TFrom extends PgTable | Subquery | PgViewBase | SQL,
+	TDynamic extends boolean,
+	TTableName extends string | undefined = GetSelectTableName<TFrom>,
+	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
+		: {},
+> = TDynamic extends true ? T : Omit<
+	PgSelectKind<
+		T['_']['hkt'],
+		TTableName,
+		T['_']['selection'],
+		T['_']['selectMode'],
+		TNullabilityMap,
+		TDynamic,
+		T['_']['excludedMethods'],
+		SelectResult<T['_']['selection'], T['_']['selectMode'], TNullabilityMap>[],
+		BuildSubquerySelection<T['_']['selection'], TNullabilityMap>
+	>,
+	'from'
+>;
 
 export type PgSelectWithout<
 	T extends AnyPgSelectQueryBuilder,
