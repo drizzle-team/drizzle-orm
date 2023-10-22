@@ -256,7 +256,7 @@ export type MySqlSelectWithout<
 		T['_']['result'],
 		T['_']['selectedFields']
 	>,
-	TResetExcluded extends true ? K : T['_']['excludedMethods'] | K
+	'from' | (TResetExcluded extends true ? K : T['_']['excludedMethods'] | K)
 >;
 
 export type MySqlSelectPrepare<T extends AnyMySqlSelect> = PreparedQueryKind<
