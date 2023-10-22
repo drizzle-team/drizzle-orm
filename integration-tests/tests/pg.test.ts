@@ -13,6 +13,7 @@ import {
 	gt,
 	gte,
 	inArray,
+	isNull,
 	lt,
 	name,
 	placeholder,
@@ -25,6 +26,7 @@ import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import {
 	alias,
+	type AnyPgColumn,
 	boolean,
 	char,
 	cidr,
@@ -42,6 +44,7 @@ import {
 	macaddr,
 	macaddr8,
 	type PgColumn,
+	pgEnum,
 	pgMaterializedView,
 	pgTable,
 	pgTableCreator,
@@ -56,7 +59,6 @@ import {
 	uniqueKeyName,
 	uuid as pgUuid,
 	varchar,
-	pgEnum,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import pg from 'pg';
@@ -3150,4 +3152,158 @@ test.serial('set operations (mixed all) as function', async (t) => {
 				.select().from(cities2Table).where(gt(citiesTable.id, 1)),
 		).orderBy(asc(sql`id`));
 	});
+});
+
+test.serial('Select without from', async (t) => {
+	const { db } = t.context;
+
+	const withoutFrom = await db.select({
+		hello1: sql<string>`'Hello World'`, // string
+		hello2: sql`'Hello World'`.mapWith(String), // string
+		hello3: sql`'Hello World'`, // unknown
+		number1: sql<number>`1`, // should be inferred as number but it will depend on the driver
+		number2: sql`1`.mapWith(Number), // number
+		number3: sql`1`, // unknown
+	});
+
+	const withoutFrom2 = await db.select({
+		hello1: sql<string>`'Hello World'`.as('hello'), // string
+		hello2: sql`'Hello World'`.mapWith(String), // string
+		hello3: sql`'Hello World'`, // unknown
+		number1: sql<number>`1`, // should be inferred as number but it will depend on the driver
+		number2: sql`1`.mapWith(Number), // number
+		number3: sql`1`, // unknown
+	}).orderBy(sql`"hello"`).limit(1).offset(3);
+
+	t.deepEqual(withoutFrom, [
+		{
+			hello1: 'Hello World',
+			hello2: 'Hello World',
+			hello3: 'Hello World',
+			number1: 1,
+			number2: 1,
+			number3: 1,
+		},
+	]);
+
+	t.deepEqual(withoutFrom2, []);
+});
+
+test.serial('with recursive ... select using a db table', async (t) => {
+	const { db } = t.context;
+	const users = pgTable('users', {
+		id: serial('id'),
+		name: text('name').notNull(),
+		managerId: integer('manager_id')
+			.references((): AnyPgColumn => users.id)
+			.$default(() => 1),
+		createdAt: timestamp('created_at', { precision: 3, mode: 'string' }).default(
+			sql`current_timestamp(3)`,
+		),
+	});
+
+	await db.execute(sql`drop table if exists "users"`);
+	await db.execute(
+		sql`
+			CREATE TABLE "users" (
+			      "id" serial,
+			      "name" text NOT NULL,
+			      "manager_id" integer DEFAULT NULL,
+			      "created_at" timestamp(3) NULL DEFAULT CURRENT_TIMESTAMP(3),
+			      PRIMARY KEY ("id"),
+			      FOREIGN KEY ("manager_id") REFERENCES "users" ("id")
+			    )
+		`,
+	);
+
+	const USERS: typeof users.$inferInsert[] = [
+		{ id: 1, name: 'Angel', managerId: null },
+		{ id: 2, name: 'Joe', managerId: 1 },
+		{ id: 3, name: 'Jane', managerId: 1 },
+		{ id: 4, name: 'John', managerId: 2 },
+		{ id: 5, name: 'Dan', managerId: 4 },
+		{ id: 6, name: 'Pete', managerId: 2 },
+		{ id: 7, name: 'Luis', managerId: 1 },
+	];
+
+	await db.insert(users).values(USERS);
+
+	const employeePath = db.$withRecursive('employeePath').as(
+		db
+			.select({
+				id: users.id,
+				name: users.name,
+				path: sql`${users.id}::text`.mapWith(String).as('path'),
+			})
+			.from(users)
+			.where(isNull(users.managerId))
+			.union((_, empPath) =>
+				db
+					.select({
+						id: users.id,
+						name: users.name,
+						path: sql<string>`concat_ws(' -> ', ${empPath.path}, ${users.id})::text`,
+					})
+					.from(empPath.as('recursive'))
+					.innerJoin(users, eq(empPath.id, users.managerId))
+			),
+	);
+
+	const result = await db
+		.withRecursive(employeePath)
+		.select()
+		.from(employeePath)
+		.orderBy(employeePath.id);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'Angel', path: '1' },
+		{ id: 2, name: 'Joe', path: '1 -> 2' },
+		{ id: 3, name: 'Jane', path: '1 -> 3' },
+		{ id: 4, name: 'John', path: '1 -> 2 -> 4' },
+		{ id: 5, name: 'Dan', path: '1 -> 2 -> 4 -> 5' },
+		{ id: 6, name: 'Pete', path: '1 -> 2 -> 6' },
+		{ id: 7, name: 'Luis', path: '1 -> 7' },
+	]);
+});
+
+test.serial('with recursive ... select without from', async (t) => {
+	const { db } = t.context;
+
+	const fibonacci = db.$withRecursive('fibonacci').as((qb) =>
+		qb
+			.select({
+				n: sql<number>`1`.as('n'),
+				fibN: sql<number>`0`.as('fibN'),
+				nextFibN: sql<number>`1`.as('nextFibN'),
+				goldenRatio: sql<number>`0::float`.as('gRatio'),
+			})
+			.unionAll((_, recTable) =>
+				qb
+					.select({
+						n: sql<number>`${recTable.n} + 1`,
+						fibN: recTable.nextFibN,
+						nextFibN: sql<number>`${recTable.fibN} + ${recTable.nextFibN}`,
+						goldenRatio: sql<
+							number
+						>`case when ${recTable.fibN} = 0 then 0::float else (${recTable.nextFibN}::float / ${recTable.fibN}::float)::float end`,
+					})
+					.from(recTable)
+					.where(and(lt(recTable.n, 10)))
+			)
+	);
+
+	const result = await db.withRecursive(fibonacci).select().from(fibonacci);
+
+	t.deepEqual(result, [
+		{ n: 1, fibN: 0, nextFibN: 1, goldenRatio: 0 },
+		{ n: 2, fibN: 1, nextFibN: 1, goldenRatio: 0 },
+		{ n: 3, fibN: 1, nextFibN: 2, goldenRatio: 1 },
+		{ n: 4, fibN: 2, nextFibN: 3, goldenRatio: 2 },
+		{ n: 5, fibN: 3, nextFibN: 5, goldenRatio: 1.5 },
+		{ n: 6, fibN: 5, nextFibN: 8, goldenRatio: 1.6666666666666667 },
+		{ n: 7, fibN: 8, nextFibN: 13, goldenRatio: 1.6 },
+		{ n: 8, fibN: 13, nextFibN: 21, goldenRatio: 1.625 },
+		{ n: 9, fibN: 21, nextFibN: 34, goldenRatio: 1.6153846153846154 },
+		{ n: 10, fibN: 34, nextFibN: 55, goldenRatio: 1.619047619047619 },
+	]);
 });

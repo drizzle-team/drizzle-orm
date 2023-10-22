@@ -262,7 +262,7 @@ export type PgSelectWithout<
 		T['_']['result'],
 		T['_']['selectedFields']
 	>,
-	TResetExcluded extends true ? K : T['_']['excludedMethods'] | K
+	'from' | (TResetExcluded extends true ? K : T['_']['excludedMethods'] | K)
 >;
 
 export type PgSelectPrepare<T extends AnyPgSelect> = PreparedQuery<
