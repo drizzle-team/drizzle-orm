@@ -392,9 +392,9 @@ export const withReplicas = <
 	replicas: [Q, ...Q[]],
 	getReplica: (replicas: Q[]) => Q = () => replicas[Math.floor(Math.random() * replicas.length)]!,
 ): PgWithReplicas<Q> => {
-	const select: Q['select'] = (...args: any) => getReplica(replicas).select(args);
-	const selectDistinct: Q['selectDistinct'] = (...args: any) => getReplica(replicas).selectDistinct(args);
-	const selectDistinctOn: Q['selectDistinctOn'] = (...args: any) => getReplica(replicas).selectDistinctOn(args);
+	const select: Q['select'] = (...args: any) => getReplica(replicas).select(args) as any;
+	const selectDistinct: Q['selectDistinct'] = (...args: any) => getReplica(replicas).selectDistinct(args) as any;
+	const selectDistinctOn: Q['selectDistinctOn'] = (...args: any) => getReplica(replicas).selectDistinctOn(args) as any;
 	const $with: Q['with'] = (...args: any) => getReplica(replicas).with(args);
 
 	const update: Q['update'] = (...args: any) => primary.update(args);
