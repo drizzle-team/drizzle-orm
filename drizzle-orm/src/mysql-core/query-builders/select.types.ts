@@ -55,7 +55,7 @@ export interface MySqlSelectConfig {
 	fieldsFlat?: SelectedFieldsOrdered;
 	where?: SQL;
 	having?: SQL;
-	table: MySqlTable | Subquery | MySqlViewBase | SQL;
+	table?: MySqlTable | Subquery | MySqlViewBase | SQL;
 	limit?: number | Placeholder;
 	offset?: number | Placeholder;
 	joins?: MySqlSelectJoinConfig[];
@@ -212,6 +212,29 @@ export type MySqlSetOperatorExcludedMethods =
 	| 'innerJoin'
 	| 'fullJoin'
 	| 'for';
+
+export type MySqlSelectFrom<
+	T extends AnyMySqlSelectQueryBuilder,
+	TFrom extends MySqlTable | Subquery | MySqlViewBase | SQL,
+	TDynamic extends boolean,
+	TTableName extends string | undefined = GetSelectTableName<TFrom>,
+	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
+		: {},
+> = TDynamic extends true ? T : Omit<
+	MySqlSelectKind<
+		T['_']['hkt'],
+		TTableName,
+		T['_']['selection'],
+		T['_']['selectMode'],
+		T['_']['preparedQueryHKT'],
+		TNullabilityMap,
+		TDynamic,
+		T['_']['excludedMethods'],
+		SelectResult<T['_']['selection'], T['_']['selectMode'], TNullabilityMap>[],
+		BuildSubquerySelection<T['_']['selection'], TNullabilityMap>
+	>,
+	'from'
+>;
 
 export type MySqlSelectWithout<
 	T extends AnyMySqlSelectQueryBuilder,

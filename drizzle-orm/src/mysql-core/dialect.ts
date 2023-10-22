@@ -207,7 +207,7 @@ export class MySqlDialect {
 						? table[SubqueryConfig].alias
 						: is(table, MySqlViewBase)
 						? table[ViewBaseConfig].name
-						: is(table, SQL)
+						: is(table, SQL) || !table
 						? undefined
 						: getTableName(table))
 				&& !((table) =>
@@ -244,11 +244,15 @@ export class MySqlDialect {
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
 
 		const tableSql = (() => {
+			if (!table) return;
+
 			if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
-				return sql`${sql.identifier(table[Table.Symbol.OriginalName])} ${sql.identifier(table[Table.Symbol.Name])}`;
+				return sql` from ${sql.identifier(table[Table.Symbol.OriginalName])} ${
+					sql.identifier(table[Table.Symbol.Name])
+				}`;
 			}
 
-			return table;
+			return sql` from ${table}`;
 		})();
 
 		const joinsArray: SQL[] = [];
@@ -324,7 +328,7 @@ export class MySqlDialect {
 		}
 
 		const finalQuery =
-			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+			sql`${withSql}select${distinctSql} ${selection}${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
 
 		if (setOperators.length > 0) {
 			return this.buildSetOperations(finalQuery, setOperators);

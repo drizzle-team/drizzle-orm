@@ -35,6 +35,7 @@ import type {
 	MySqlJoinFn,
 	MySqlSelectConfig,
 	MySqlSelectDynamic,
+	MySqlSelectFrom,
 	MySqlSelectHKT,
 	MySqlSelectHKTBase,
 	MySqlSelectPrepare,
@@ -46,13 +47,11 @@ import type {
 } from './select.types.ts';
 
 export class MySqlSelectBuilder<
-	TSelection extends SelectedFields | undefined,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TBuilderMode extends 'db' | 'qb' = 'db',
 > {
 	static readonly [entityKind]: string = 'MySqlSelectBuilder';
 
-	private fields: TSelection;
 	private session: MySqlSession | undefined;
 	private dialect: MySqlDialect;
 	private withList: Subquery[] = [];
@@ -60,14 +59,12 @@ export class MySqlSelectBuilder<
 
 	constructor(
 		config: {
-			fields: TSelection;
 			session: MySqlSession | undefined;
 			dialect: MySqlDialect;
 			withList?: Subquery[];
 			distinct?: boolean;
 		},
 	) {
-		this.fields = config.fields;
 		this.session = config.session;
 		this.dialect = config.dialect;
 		if (config.withList) {
@@ -81,16 +78,13 @@ export class MySqlSelectBuilder<
 	): CreateMySqlSelectFromBuilderMode<
 		TBuilderMode,
 		GetSelectTableName<TFrom>,
-		TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection,
-		TSelection extends undefined ? 'single' : 'partial',
+		GetSelectTableSelection<TFrom>,
+		'single',
 		TPreparedQueryHKT
 	> {
-		const isPartialSelect = !!this.fields;
-
 		let fields: SelectedFields;
-		if (this.fields) {
-			fields = this.fields;
-		} else if (is(source, Subquery)) {
+
+		if (is(source, Subquery)) {
 			// This is required to use the proxy handler to get the correct field values from the subquery
 			fields = Object.fromEntries(
 				Object.keys(source[SubqueryConfig].selection).map((
@@ -109,7 +103,7 @@ export class MySqlSelectBuilder<
 			{
 				table: source,
 				fields,
-				isPartialSelect,
+				isPartialSelect: false,
 				session: this.session,
 				dialect: this.dialect,
 				withList: this.withList,
@@ -119,7 +113,7 @@ export class MySqlSelectBuilder<
 	}
 }
 
-export abstract class MySqlSelectQueryBuilderBase<
+export class MySqlSelectQueryBuilderBase<
 	THKT extends MySqlSelectHKTBase,
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
@@ -162,8 +156,8 @@ export abstract class MySqlSelectQueryBuilderBase<
 			isPartialSelect: boolean;
 			session: MySqlSession | undefined;
 			dialect: MySqlDialect;
-			withList: Subquery[];
-			distinct: boolean | undefined;
+			withList?: Subquery[];
+			distinct?: boolean | undefined;
 		},
 	) {
 		super();
@@ -182,6 +176,17 @@ export abstract class MySqlSelectQueryBuilderBase<
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
+	}
+
+	from<TFrom extends MySqlTable | Subquery | MySqlViewBase | SQL>(
+		source: TFrom,
+	): MySqlSelectFrom<this, TFrom, TDynamic> {
+		this.config.table = source;
+
+		this.tableName = getTableLikeName(source);
+		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
+
+		return this as any;
 	}
 
 	private createJoin<TJoinType extends JoinType>(
