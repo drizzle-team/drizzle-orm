@@ -1,9 +1,10 @@
+import { LazyTableAliasProxyHandler } from '~/alias.ts';
 import { entityKind, is } from '~/entity.ts';
-import type { MySqlColumn } from '~/mysql-core/columns/index.ts';
+import { customType, type MySqlColumn, type MySqlColumnBuilderBase } from '~/mysql-core/columns/index.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { MySqlSession, PreparedQueryConfig, PreparedQueryHKTBase } from '~/mysql-core/session.ts';
 import type { SubqueryWithSelection } from '~/mysql-core/subquery.ts';
-import type { MySqlTable } from '~/mysql-core/table.ts';
+import { type MySqlTable, mysqlTable, type SelfReferenceTable } from '~/mysql-core/table.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	BuildSubquerySelection,
@@ -20,7 +21,7 @@ import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, Query } from '~/sql/sql.ts';
 import { SQL, View } from '~/sql/sql.ts';
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
-import { Table } from '~/table.ts';
+import { IsLazilyNamedTable, Table } from '~/table.ts';
 import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, type ValueOrArray } from '~/utils.ts';
 import { orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
@@ -195,6 +196,16 @@ export class MySqlSelectQueryBuilderBase<
 		return this as any;
 	}
 
+	/** @internal */
+	getTable() {
+		return this.config.table;
+	}
+
+	/** @internal */
+	setSelfReferenceName(name: string) {
+		this.config.selfReferenceName = name;
+	}
+
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
 	): MySqlJoinFn<this, TDynamic, TJoinType> {
@@ -285,7 +296,10 @@ export class MySqlSelectQueryBuilderBase<
 		isAll: boolean,
 	): <TValue extends MySqlSetOperatorWithResult<TResult>>(
 		rightSelection:
-			| ((setOperators: GetMySqlSetOperators) => SetOperatorRightSelect<TValue, TResult>)
+			| ((
+				setOperators: GetMySqlSetOperators,
+				selfReferenceTable: SelfReferenceTable<TSelection>,
+			) => SetOperatorRightSelect<TValue, TResult>)
 			| SetOperatorRightSelect<TValue, TResult>,
 	) => MySqlSelectWithout<
 		this,
@@ -294,8 +308,23 @@ export class MySqlSelectQueryBuilderBase<
 		true
 	> {
 		return (rightSelection) => {
+			const columns = {} as Record<keyof TSelection, MySqlColumnBuilderBase>;
+			for (const key of Object.keys(this.config.fields)) {
+				columns[key as keyof TSelection] = customType<
+					{ data: TSelection[typeof key] }
+				>({
+					dataType() {
+						return '';
+					},
+				})(key);
+			}
+
+			const ttable = mysqlTable('', columns);
+
+			ttable[IsLazilyNamedTable] = true;
+			const aliased = new Proxy(ttable, new LazyTableAliasProxyHandler());
 			const rightSelect = (typeof rightSelection === 'function'
-				? rightSelection(getMySqlSetOperators())
+				? rightSelection(getMySqlSetOperators(), aliased as any)
 				: rightSelection) as TypedQueryBuilder<
 					any,
 					TResult

@@ -16,12 +16,13 @@ import {
 } from '~/relations.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
-import { getTableName, Table } from '~/table.ts';
+import { getTableName, IsLazilyNamedTable, OriginalName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { DrizzleError, type Name, ViewBaseConfig, and, eq } from '../index.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
+import { MySqlSelectQueryBuilderBase } from './query-builders/select.ts';
 import type { MySqlSelectConfig, MySqlSelectJoinConfig, SelectedFieldsOrdered } from './query-builders/select.types.ts';
 import type { MySqlUpdateConfig } from './query-builders/update.ts';
 import type { MySqlSession } from './session.ts';
@@ -197,6 +198,7 @@ export class MySqlDialect {
 			distinct,
 			setOperators,
 			recursive,
+			selfReferenceName,
 		}: MySqlSelectConfig,
 	): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<MySqlColumn>(fields);
@@ -222,6 +224,9 @@ export class MySqlDialect {
 						f.path.join('->')
 					}" field references a column "${tableName}"."${f.field.name}", but the table "${tableName}" is not part of the query! Did you forget to join it?`,
 				);
+			} else if (is(f.field, Column) && !table) {
+				const tableName = getTableName(f.field.table);
+				throw new Error(`You cannot referece a column "${tableName}"."${f.field.name}" without using .from()`);
 			}
 		}
 
@@ -332,13 +337,17 @@ export class MySqlDialect {
 			sql`${withSql}select${distinctSql} ${selection}${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
 
 		if (setOperators.length > 0) {
-			return this.buildSetOperations(finalQuery, setOperators);
+			return this.buildSetOperations(finalQuery, setOperators, selfReferenceName);
 		}
 
 		return finalQuery;
 	}
 
-	buildSetOperations(leftSelect: SQL, setOperators: MySqlSelectConfig['setOperators']): SQL {
+	buildSetOperations(
+		leftSelect: SQL,
+		setOperators: MySqlSelectConfig['setOperators'],
+		selfReferenceName?: string,
+	): SQL {
 		const [setOperator, ...rest] = setOperators;
 
 		if (!setOperator) {
@@ -346,12 +355,12 @@ export class MySqlDialect {
 		}
 
 		if (rest.length === 0) {
-			return this.buildSetOperationQuery({ leftSelect, setOperator });
+			return this.buildSetOperationQuery({ leftSelect, setOperator, selfReferenceName });
 		}
 
 		// Some recursive magic here
 		return this.buildSetOperations(
-			this.buildSetOperationQuery({ leftSelect, setOperator }),
+			this.buildSetOperationQuery({ leftSelect, setOperator, selfReferenceName }),
 			rest,
 		);
 	}
@@ -359,7 +368,18 @@ export class MySqlDialect {
 	buildSetOperationQuery({
 		leftSelect,
 		setOperator: { type, isAll, rightSelect, limit, orderBy, offset },
-	}: { leftSelect: SQL; setOperator: MySqlSelectConfig['setOperators'][number] }): SQL {
+		selfReferenceName,
+	}: { leftSelect: SQL; setOperator: MySqlSelectConfig['setOperators'][number]; selfReferenceName?: string }): SQL {
+		if (is(rightSelect, MySqlSelectQueryBuilderBase)) {
+			const rightSelectTable = rightSelect.getTable();
+
+			if (is(rightSelectTable, Table) && rightSelectTable[IsLazilyNamedTable]) {
+				if (!selfReferenceName) {
+					throw new Error('You attempted to use a self reference table outsite a "with recursive" clause');
+				}
+				rightSelectTable[OriginalName] = selfReferenceName!;
+			}
+		}
 		const leftChunk = sql`(${leftSelect.getSQL()}) `;
 		const rightChunk = sql`(${rightSelect.getSQL()})`;
 

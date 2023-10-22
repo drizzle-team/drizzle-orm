@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { WithSubqueryWithSelection } from '~/mysql-core/subquery.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -43,7 +43,9 @@ export class QueryBuilder {
 					qb = qb(queryBuilder);
 				}
 
-				// Give the name here
+				if (is(qb, MySqlSelectQueryBuilderBase)) {
+					qb.setSelfReferenceName(alias);
+				}
 
 				return new Proxy(
 					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),

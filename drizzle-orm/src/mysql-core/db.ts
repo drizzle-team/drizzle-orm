@@ -1,5 +1,5 @@
 import type { ResultSetHeader } from 'mysql2/promise';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
@@ -10,6 +10,7 @@ import {
 	MySqlInsertBuilder,
 	MySqlSelectBase,
 	MySqlSelectBuilder,
+	MySqlSelectQueryBuilderBase,
 	MySqlUpdateBuilder,
 	QueryBuilder,
 } from './query-builders/index.ts';
@@ -103,7 +104,9 @@ export class MySqlDatabase<
 					qb = qb(new QueryBuilder());
 				}
 
-				// Give the name here
+				if (is(qb, MySqlSelectQueryBuilderBase)) {
+					qb.setSelfReferenceName(alias);
+				}
 
 				return new Proxy(
 					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),

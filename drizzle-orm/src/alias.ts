@@ -21,6 +21,64 @@ export class ColumnAliasProxyHandler<TColumn extends Column> implements ProxyHan
 	}
 }
 
+export class LazyTableAliasProxyHandler<T extends Table | View> implements ProxyHandler<T> {
+	static readonly [entityKind]: string = 'LazyTableAliasProxyHandler';
+	private alias: string = 'recursive_self_reference';
+
+	constructor() {}
+
+	get(target: T, prop: string | symbol): any {
+		if (prop === 'as') {
+			const self = this;
+			return function(alias: string) {
+				self.alias = alias;
+				return new Proxy(target, self);
+			};
+		}
+
+		if (prop === Table.Symbol.IsAlias) {
+			return true;
+		}
+
+		if (prop === Table.Symbol.Name) {
+			return this.alias;
+		}
+
+		if (prop === ViewBaseConfig) {
+			return {
+				...target[ViewBaseConfig as keyof typeof target],
+				name: this.alias,
+				isAlias: true,
+			};
+		}
+
+		if (prop === Table.Symbol.Columns) {
+			const columns = (target as Table)[Table.Symbol.Columns];
+			if (!columns) {
+				return columns;
+			}
+
+			const proxiedColumns: { [key: string]: any } = {};
+
+			Object.keys(columns).map((key) => {
+				proxiedColumns[key] = new Proxy(
+					columns[key]!,
+					new ColumnAliasProxyHandler(new Proxy(target, this)),
+				);
+			});
+
+			return proxiedColumns;
+		}
+
+		const value = target[prop as keyof typeof target];
+		if (is(value, Column)) {
+			return new Proxy(value as AnyColumn, new ColumnAliasProxyHandler(new Proxy(target, this)));
+		}
+
+		return value;
+	}
+}
+
 export class TableAliasProxyHandler<T extends Table | View> implements ProxyHandler<T> {
 	static readonly [entityKind]: string = 'TableAliasProxyHandler';
 
