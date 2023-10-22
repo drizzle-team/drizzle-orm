@@ -77,6 +77,7 @@ export interface PgSelectConfig {
 		limit?: number | Placeholder;
 		offset?: number | Placeholder;
 	}[];
+	recursive?: boolean;
 }
 
 export type PgJoin<

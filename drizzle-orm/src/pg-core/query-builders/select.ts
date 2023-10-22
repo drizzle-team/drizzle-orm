@@ -58,6 +58,7 @@ export class PgSelectBuilder<
 	private distinct: boolean | {
 		on: (PgColumn | SQLWrapper)[];
 	} | undefined;
+	private recursive: boolean | undefined;
 
 	constructor(
 		config: {
@@ -67,6 +68,7 @@ export class PgSelectBuilder<
 			distinct?: boolean | {
 				on: (PgColumn | SQLWrapper)[];
 			};
+			recursive?: boolean;
 		},
 	) {
 		this.session = config.session;
@@ -75,6 +77,7 @@ export class PgSelectBuilder<
 			this.withList = config.withList;
 		}
 		this.distinct = config.distinct;
+		this.recursive = config.recursive;
 	}
 
 	/**
@@ -116,6 +119,7 @@ export class PgSelectBuilder<
 			dialect: this.dialect,
 			withList: this.withList,
 			distinct: this.distinct,
+			recursive: this.recursive,
 		}) as any;
 	}
 }
@@ -154,7 +158,7 @@ export class PgSelectQueryBuilderBase<
 	protected dialect: PgDialect;
 
 	constructor(
-		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
+		{ table, fields, isPartialSelect, session, dialect, withList, distinct, recursive }: {
 			table: PgSelectConfig['table'];
 			fields: PgSelectConfig['fields'];
 			isPartialSelect: boolean;
@@ -164,6 +168,7 @@ export class PgSelectQueryBuilderBase<
 			distinct?: boolean | {
 				on: (PgColumn | SQLWrapper)[];
 			} | undefined;
+			recursive?: boolean;
 		},
 	) {
 		super();
@@ -173,6 +178,7 @@ export class PgSelectQueryBuilderBase<
 			fields: { ...fields },
 			distinct,
 			setOperators: [],
+			recursive,
 		};
 		this.isPartialSelect = isPartialSelect;
 		this.session = session;
