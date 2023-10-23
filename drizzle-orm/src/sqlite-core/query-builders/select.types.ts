@@ -56,7 +56,7 @@ export interface SQLiteSelectConfig {
 	fieldsFlat?: SelectedFieldsOrdered;
 	where?: SQL;
 	having?: SQL;
-	table: SQLiteTable | Subquery | SQLiteViewBase | SQL;
+	table?: SQLiteTable | Subquery | SQLiteViewBase | SQL;
 	limit?: number | Placeholder;
 	offset?: number | Placeholder;
 	joins?: SQLiteSelectJoinConfig[];
@@ -225,6 +225,30 @@ export type CreateSQLiteSelectFromBuilderMode<
 		TSelectMode
 	>;
 
+export type SQLiteSelectFrom<
+	T extends AnySQLiteSelectQueryBuilder,
+	TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL,
+	TDynamic extends boolean,
+	TTableName extends string | undefined = GetSelectTableName<TFrom>,
+	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
+		: {},
+> = TDynamic extends true ? T : Omit<
+	SQLiteSelectKind<
+		T['_']['hkt'],
+		TTableName,
+		T['_']['resultType'],
+		T['_']['runResult'],
+		T['_']['selection'],
+		T['_']['selectMode'],
+		TNullabilityMap,
+		TDynamic,
+		T['_']['excludedMethods'],
+		SelectResult<T['_']['selection'], T['_']['selectMode'], TNullabilityMap>[],
+		BuildSubquerySelection<T['_']['selection'], TNullabilityMap>
+	>,
+	'from'
+>;
+
 export type SQLiteSelectWithout<
 	T extends AnySQLiteSelectQueryBuilder,
 	TDynamic extends boolean,
@@ -244,7 +268,7 @@ export type SQLiteSelectWithout<
 		T['_']['result'],
 		T['_']['selectedFields']
 	>,
-	TResetExcluded extends true ? K : T['_']['excludedMethods'] | K
+	'from' | (TResetExcluded extends true ? K : T['_']['excludedMethods'] | K)
 >;
 
 export type SQLiteSelectExecute<T extends AnySQLiteSelect> = T['_']['result'];

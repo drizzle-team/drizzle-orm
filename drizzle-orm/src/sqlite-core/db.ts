@@ -7,6 +7,7 @@ import {
 	QueryBuilder,
 	SQLiteDeleteBase,
 	SQLiteInsertBuilder,
+	SQLiteSelectBase,
 	SQLiteSelectBuilder,
 	SQLiteUpdateBuilder,
 } from '~/sqlite-core/query-builders/index.ts';
@@ -93,61 +94,111 @@ export class BaseSQLiteDatabase<
 	with(...queries: WithSubquery[]) {
 		const self = this;
 
-		function select(): SQLiteSelectBuilder<undefined, TResultKind, TRunResult>;
+		function select(): SQLiteSelectBuilder<TResultKind, void>;
 		function select<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): SQLiteSelectBuilder<TSelection, TResultKind, TRunResult>;
-		function select(
-			fields?: SelectedFields,
-		): SQLiteSelectBuilder<SelectedFields | undefined, TResultKind, TRunResult> {
-			return new SQLiteSelectBuilder({
-				fields: fields ?? undefined,
-				session: self.session,
-				dialect: self.dialect,
-				withList: queries,
-			});
+		): SQLiteSelectBase<undefined, TResultKind, void, TSelection, 'partial'>;
+		function select<TSelection extends SelectedFields>(
+			fields?: TSelection,
+		):
+			| SQLiteSelectBuilder<TResultKind, void>
+			| SQLiteSelectBase<undefined, TResultKind, void, TSelection, 'partial'>
+		{
+			return fields
+				? new SQLiteSelectBase({
+					table: undefined,
+					fields,
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					isPartialSelect: true,
+				})
+				: new SQLiteSelectBuilder({
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+				});
 		}
 
-		function selectDistinct(): SQLiteSelectBuilder<undefined, TResultKind, TRunResult>;
+		function selectDistinct(): SQLiteSelectBuilder<TResultKind, void>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): SQLiteSelectBuilder<TSelection, TResultKind, TRunResult>;
-		function selectDistinct(
-			fields?: SelectedFields,
-		): SQLiteSelectBuilder<SelectedFields | undefined, TResultKind, TRunResult> {
-			return new SQLiteSelectBuilder({
-				fields: fields ?? undefined,
-				session: self.session,
-				dialect: self.dialect,
-				withList: queries,
-				distinct: true,
-			});
+		): SQLiteSelectBase<undefined, TResultKind, void, TSelection, 'partial'>;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields?: TSelection,
+		):
+			| SQLiteSelectBuilder<TResultKind, void>
+			| SQLiteSelectBase<undefined, TResultKind, void, TSelection, 'partial'>
+		{
+			return fields
+				? new SQLiteSelectBase({
+					table: undefined,
+					fields,
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					isPartialSelect: true,
+					distinct: true,
+				})
+				: new SQLiteSelectBuilder({
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					distinct: true,
+				});
 		}
 
 		return { select, selectDistinct };
 	}
 
-	select(): SQLiteSelectBuilder<undefined, TResultKind, TRunResult>;
+	select(): SQLiteSelectBuilder<TResultKind, void>;
 	select<TSelection extends SelectedFields>(
 		fields: TSelection,
-	): SQLiteSelectBuilder<TSelection, TResultKind, TRunResult>;
-	select(fields?: SelectedFields): SQLiteSelectBuilder<SelectedFields | undefined, TResultKind, TRunResult> {
-		return new SQLiteSelectBuilder({ fields: fields ?? undefined, session: this.session, dialect: this.dialect });
+	): SQLiteSelectBase<undefined, TResultKind, void, TSelection, 'partial'>;
+	select<TSelection extends SelectedFields>(
+		fields?: TSelection,
+	):
+		| SQLiteSelectBuilder<TResultKind, void>
+		| SQLiteSelectBase<undefined, TResultKind, void, TSelection, 'partial'>
+	{
+		return fields
+			? new SQLiteSelectBase({
+				table: undefined,
+				fields,
+				session: this.session,
+				dialect: this.dialect,
+				isPartialSelect: true,
+			})
+			: new SQLiteSelectBuilder({
+				session: this.session,
+				dialect: this.dialect,
+			});
 	}
 
-	selectDistinct(): SQLiteSelectBuilder<undefined, TResultKind, TRunResult>;
+	selectDistinct(): SQLiteSelectBuilder<TResultKind, void>;
 	selectDistinct<TSelection extends SelectedFields>(
 		fields: TSelection,
-	): SQLiteSelectBuilder<TSelection, TResultKind, TRunResult>;
-	selectDistinct(
-		fields?: SelectedFields,
-	): SQLiteSelectBuilder<SelectedFields | undefined, TResultKind, TRunResult> {
-		return new SQLiteSelectBuilder({
-			fields: fields ?? undefined,
-			session: this.session,
-			dialect: this.dialect,
-			distinct: true,
-		});
+	): SQLiteSelectBase<undefined, TResultKind, void, TSelection, 'partial'>;
+	selectDistinct<TSelection extends SelectedFields>(
+		fields?: TSelection,
+	):
+		| SQLiteSelectBuilder<TResultKind, void>
+		| SQLiteSelectBase<undefined, TResultKind, void, TSelection, 'partial'>
+	{
+		return fields
+			? new SQLiteSelectBase({
+				table: undefined,
+				fields,
+				session: this.session,
+				dialect: this.dialect,
+				isPartialSelect: true,
+				distinct: true,
+			})
+			: new SQLiteSelectBuilder({
+				session: this.session,
+				dialect: this.dialect,
+				distinct: true,
+			});
 	}
 
 	update<TTable extends SQLiteTable>(table: TTable): SQLiteUpdateBuilder<TTable, TResultKind, TRunResult> {
@@ -244,8 +295,8 @@ export const withReplicas = <
 	replicas: [Q, ...Q[]],
 	getReplica: (replicas: Q[]) => Q = () => replicas[Math.floor(Math.random() * replicas.length)]!,
 ): SQLiteWithReplicas<Q> => {
-	const select: Q['select'] = (...args: any) => getReplica(replicas).select(args);
-	const selectDistinct: Q['selectDistinct'] = (...args: any) => getReplica(replicas).selectDistinct(args);
+	const select: Q['select'] = (...args: any) => getReplica(replicas).select(args) as any;
+	const selectDistinct: Q['selectDistinct'] = (...args: any) => getReplica(replicas).selectDistinct(args) as any;
 	const $with: Q['with'] = (...args: any) => getReplica(replicas).with(args);
 
 	const update: Q['update'] = (...args: any) => primary.update(args);

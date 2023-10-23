@@ -178,7 +178,7 @@ export abstract class SQLiteDialect {
 						? table[SubqueryConfig].alias
 						: is(table, SQLiteViewBase)
 						? table[ViewBaseConfig].name
-						: is(table, SQL)
+						: is(table, SQL) || !table
 						? undefined
 						: getTableName(table))
 				&& !((table) =>
@@ -215,11 +215,15 @@ export abstract class SQLiteDialect {
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
 
 		const tableSql = (() => {
+			if (!table) return;
+
 			if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
-				return sql`${sql.identifier(table[Table.Symbol.OriginalName])} ${sql.identifier(table[Table.Symbol.Name])}`;
+				return sql` from ${sql.identifier(table[Table.Symbol.OriginalName])} ${
+					sql.identifier(table[Table.Symbol.Name])
+				}`;
 			}
 
-			return table;
+			return sql` from ${table}`;
 		})();
 
 		const joinsArray: SQL[] = [];
@@ -289,7 +293,7 @@ export abstract class SQLiteDialect {
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
 		const finalQuery =
-			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}`;
+			sql`${withSql}select${distinctSql} ${selection}${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}`;
 
 		if (setOperators.length > 0) {
 			return this.buildSetOperations(finalQuery, setOperators);

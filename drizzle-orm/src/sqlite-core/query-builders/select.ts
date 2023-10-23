@@ -40,6 +40,7 @@ import type {
 	SQLiteSelectConfig,
 	SQLiteSelectDynamic,
 	SQLiteSelectExecute,
+	SQLiteSelectFrom,
 	SQLiteSelectHKT,
 	SQLiteSelectHKTBase,
 	SQLiteSelectPrepare,
@@ -52,14 +53,12 @@ import { SQLiteViewBase } from '../view-base.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 
 export class SQLiteSelectBuilder<
-	TSelection extends SelectedFields | undefined,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TBuilderMode extends 'db' | 'qb' = 'db',
 > {
 	static readonly [entityKind]: string = 'SQLiteSelectBuilder';
 
-	private fields: TSelection;
 	private session: SQLiteSession<any, any, any, any> | undefined;
 	private dialect: SQLiteDialect;
 	private withList: Subquery[] | undefined;
@@ -67,14 +66,12 @@ export class SQLiteSelectBuilder<
 
 	constructor(
 		config: {
-			fields: TSelection;
 			session: SQLiteSession<any, any, any, any> | undefined;
 			dialect: SQLiteDialect;
 			withList?: Subquery[];
 			distinct?: boolean;
 		},
 	) {
-		this.fields = config.fields;
 		this.session = config.session;
 		this.dialect = config.dialect;
 		this.withList = config.withList;
@@ -88,15 +85,12 @@ export class SQLiteSelectBuilder<
 		GetSelectTableName<TFrom>,
 		TResultType,
 		TRunResult,
-		TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection,
-		TSelection extends undefined ? 'single' : 'partial'
+		GetSelectTableSelection<TFrom>,
+		'single'
 	> {
-		const isPartialSelect = !!this.fields;
-
 		let fields: SelectedFields;
-		if (this.fields) {
-			fields = this.fields;
-		} else if (is(source, Subquery)) {
+
+		if (is(source, Subquery)) {
 			// This is required to use the proxy handler to get the correct field values from the subquery
 			fields = Object.fromEntries(
 				Object.keys(source[SubqueryConfig].selection).map((
@@ -114,7 +108,7 @@ export class SQLiteSelectBuilder<
 		return new SQLiteSelectBase({
 			table: source,
 			fields,
-			isPartialSelect,
+			isPartialSelect: false,
 			session: this.session,
 			dialect: this.dialect,
 			withList: this.withList,
@@ -123,7 +117,7 @@ export class SQLiteSelectBuilder<
 	}
 }
 
-export abstract class SQLiteSelectQueryBuilderBase<
+export class SQLiteSelectQueryBuilderBase<
 	THKT extends SQLiteSelectHKTBase,
 	TTableName extends string | undefined,
 	TResultType extends 'sync' | 'async',
@@ -169,8 +163,8 @@ export abstract class SQLiteSelectQueryBuilderBase<
 			isPartialSelect: boolean;
 			session: SQLiteSession<any, any, any, any> | undefined;
 			dialect: SQLiteDialect;
-			withList: Subquery[] | undefined;
-			distinct: boolean | undefined;
+			withList?: Subquery[] | undefined;
+			distinct?: boolean | undefined;
 		},
 	) {
 		super();
@@ -189,6 +183,17 @@ export abstract class SQLiteSelectQueryBuilderBase<
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
+	}
+
+	from<TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL>(
+		source: TFrom,
+	): SQLiteSelectFrom<this, TFrom, TDynamic> {
+		this.config.table = source;
+
+		this.tableName = getTableLikeName(source);
+		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
+
+		return this as any;
 	}
 
 	private createJoin<TJoinType extends JoinType>(
