@@ -1,4 +1,5 @@
 import { entityKind, is } from '~/entity.ts';
+import { LazyTableAliasProxyHandler } from '~/index.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	BuildSubquerySelection,
@@ -12,14 +13,16 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { SQL, View } from '~/sql/sql.ts';
 import type { ColumnsSelection, Placeholder, Query } from '~/sql/sql.ts';
-import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
+import { customType, type SQLiteColumn, type SQLiteColumnBuilderBase } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import type { SubqueryWithSelection } from '~/sqlite-core/subquery.ts';
-import type { SQLiteTable } from '~/sqlite-core/table.ts';
-import { Table } from '~/table.ts';
+import { type SQLiteSelfReferenceTable, type SQLiteTable, sqliteTable } from '~/sqlite-core/table.ts';
+import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { IsLazilyNamedTable, Table } from '~/table.ts';
 import {
 	applyMixins,
 	getTableColumns,
@@ -29,6 +32,7 @@ import {
 	type ValueOrArray,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { SQLiteViewBase } from '../view-base.ts';
 import type {
 	AnySQLiteSelect,
 	CreateSQLiteSelectFromBuilderMode,
@@ -48,9 +52,6 @@ import type {
 	SQLiteSetOperatorExcludedMethods,
 	SQLiteSetOperatorWithResult,
 } from './select.types.ts';
-import { Subquery, SubqueryConfig } from '~/subquery.ts';
-import { SQLiteViewBase } from '../view-base.ts';
-import { SelectionProxyHandler } from '~/selection-proxy.ts';
 
 export class SQLiteSelectBuilder<
 	TResultType extends 'sync' | 'async',
@@ -202,6 +203,16 @@ export class SQLiteSelectQueryBuilderBase<
 		return this as any;
 	}
 
+	/** @internal */
+	getTable() {
+		return this.config.table;
+	}
+
+	/** @internal */
+	setSelfReferenceName(name: string) {
+		this.config.selfReferenceName = name;
+	}
+
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
 	): SQLiteJoinFn<this, TDynamic, TJoinType> {
@@ -291,7 +302,10 @@ export class SQLiteSelectQueryBuilderBase<
 		isAll: boolean,
 	): <TValue extends SQLiteSetOperatorWithResult<TResult>>(
 		rightSelection:
-			| ((setOperators: GetSQLiteSetOperators) => SetOperatorRightSelect<TValue, TResult>)
+			| ((
+				setOperators: GetSQLiteSetOperators,
+				selfReferenceTable: SQLiteSelfReferenceTable<TSelection>,
+			) => SetOperatorRightSelect<TValue, TResult>)
 			| SetOperatorRightSelect<TValue, TResult>,
 	) => SQLiteSelectWithout<
 		this,
@@ -300,8 +314,23 @@ export class SQLiteSelectQueryBuilderBase<
 		true
 	> {
 		return (rightSelection) => {
+			const columns = {} as Record<keyof TSelection, SQLiteColumnBuilderBase>;
+			for (const key of Object.keys(this.config.fields)) {
+				columns[key as keyof TSelection] = customType<
+					{ data: TSelection[typeof key] }
+				>({
+					dataType() {
+						return '';
+					},
+				})(key);
+			}
+
+			const ttable = sqliteTable('', columns);
+
+			ttable[IsLazilyNamedTable] = true;
+			const aliased = new Proxy(ttable, new LazyTableAliasProxyHandler());
 			const rightSelect = (typeof rightSelection === 'function'
-				? rightSelection(getSQLiteSetOperators())
+				? rightSelection(getSQLiteSetOperators(), aliased as any)
 				: rightSelection) as TypedQueryBuilder<
 					any,
 					TResult

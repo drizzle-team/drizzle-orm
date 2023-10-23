@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
@@ -9,6 +9,7 @@ import {
 	SQLiteInsertBuilder,
 	SQLiteSelectBase,
 	SQLiteSelectBuilder,
+	SQLiteSelectQueryBuilderBase,
 	SQLiteUpdateBuilder,
 } from '~/sqlite-core/query-builders/index.ts';
 import type {
@@ -98,6 +99,10 @@ export class BaseSQLiteDatabase<
 			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {
 					qb = qb(new QueryBuilder());
+				}
+
+				if (is(qb, SQLiteSelectQueryBuilderBase)) {
+					qb.setSelfReferenceName(alias);
 				}
 
 				return new Proxy(

@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
@@ -41,6 +41,10 @@ export class QueryBuilder {
 			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {
 					qb = qb(queryBuilder);
+				}
+
+				if (is(qb, SQLiteSelectQueryBuilderBase)) {
+					qb.setSelfReferenceName(alias);
 				}
 
 				return new Proxy(

@@ -53,6 +53,7 @@ export type BuildAliasTable<TTable extends SQLiteTable | View, TAlias extends st
 export interface SQLiteSelectConfig {
 	withList?: Subquery[];
 	recursive?: boolean;
+	selfReferenceName?: string;
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
 	where?: SQL;
