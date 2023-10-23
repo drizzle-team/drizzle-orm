@@ -63,6 +63,7 @@ export class SQLiteSelectBuilder<
 	private dialect: SQLiteDialect;
 	private withList: Subquery[] | undefined;
 	private distinct: boolean | undefined;
+	private recursive: boolean | undefined;
 
 	constructor(
 		config: {
@@ -70,12 +71,14 @@ export class SQLiteSelectBuilder<
 			dialect: SQLiteDialect;
 			withList?: Subquery[];
 			distinct?: boolean;
+			recursive?: boolean;
 		},
 	) {
 		this.session = config.session;
 		this.dialect = config.dialect;
 		this.withList = config.withList;
 		this.distinct = config.distinct;
+		this.recursive = config.recursive;
 	}
 
 	from<TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL>(
@@ -113,6 +116,7 @@ export class SQLiteSelectBuilder<
 			dialect: this.dialect,
 			withList: this.withList,
 			distinct: this.distinct,
+			recursive: this.recursive,
 		}) as any;
 	}
 }
@@ -157,7 +161,7 @@ export class SQLiteSelectQueryBuilderBase<
 	protected dialect: SQLiteDialect;
 
 	constructor(
-		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
+		{ table, fields, isPartialSelect, session, dialect, withList, distinct, recursive }: {
 			table: SQLiteSelectConfig['table'];
 			fields: SQLiteSelectConfig['fields'];
 			isPartialSelect: boolean;
@@ -165,6 +169,7 @@ export class SQLiteSelectQueryBuilderBase<
 			dialect: SQLiteDialect;
 			withList?: Subquery[] | undefined;
 			distinct?: boolean | undefined;
+			recursive?: boolean;
 		},
 	) {
 		super();
@@ -174,6 +179,7 @@ export class SQLiteSelectQueryBuilderBase<
 			fields: { ...fields },
 			distinct,
 			setOperators: [],
+			recursive,
 		};
 		this.isPartialSelect = isPartialSelect;
 		this.session = session;

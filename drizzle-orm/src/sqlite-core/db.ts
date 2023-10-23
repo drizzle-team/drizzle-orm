@@ -91,6 +91,23 @@ export class BaseSQLiteDatabase<
 		};
 	}
 
+	$withRecursive<TAlias extends string>(alias: TAlias) {
+		return {
+			as<TSelection extends ColumnsSelection>(
+				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
+			): WithSubqueryWithSelection<TSelection, TAlias> {
+				if (typeof qb === 'function') {
+					qb = qb(new QueryBuilder());
+				}
+
+				return new Proxy(
+					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
+					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+				) as WithSubqueryWithSelection<TSelection, TAlias>;
+			},
+		};
+	}
+
 	with(...queries: WithSubquery[]) {
 		const self = this;
 
@@ -145,6 +162,70 @@ export class BaseSQLiteDatabase<
 					dialect: self.dialect,
 					withList: queries,
 					distinct: true,
+				});
+		}
+
+		return { select, selectDistinct };
+	}
+
+	withRecursive(...queries: WithSubquery[]) {
+		const self = this;
+
+		function select(): SQLiteSelectBuilder<TResultKind, void>;
+		function select<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): SQLiteSelectBase<undefined, TResultKind, void, TSelection, 'partial'>;
+		function select<TSelection extends SelectedFields>(
+			fields?: TSelection,
+		):
+			| SQLiteSelectBuilder<TResultKind, void>
+			| SQLiteSelectBase<undefined, TResultKind, void, TSelection, 'partial'>
+		{
+			return fields
+				? new SQLiteSelectBase({
+					table: undefined,
+					fields,
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					isPartialSelect: true,
+					recursive: true,
+				})
+				: new SQLiteSelectBuilder({
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					recursive: true,
+				});
+		}
+
+		function selectDistinct(): SQLiteSelectBuilder<TResultKind, void>;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): SQLiteSelectBase<undefined, TResultKind, void, TSelection, 'partial'>;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields?: TSelection,
+		):
+			| SQLiteSelectBuilder<TResultKind, void>
+			| SQLiteSelectBase<undefined, TResultKind, void, TSelection, 'partial'>
+		{
+			return fields
+				? new SQLiteSelectBase({
+					table: undefined,
+					fields,
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					isPartialSelect: true,
+					distinct: true,
+					recursive: true,
+				})
+				: new SQLiteSelectBuilder({
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					distinct: true,
+					recursive: true,
 				});
 		}
 
