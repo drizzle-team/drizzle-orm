@@ -1,6 +1,6 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, ColumnDataType } from './column-builder.ts';
 import { entityKind } from './entity.ts';
-import type { DriverValueMapper, SQL, SQLWrapper } from './sql/sql.ts';
+import type { DriverValueMapper, Name, SQL, SQLWrapper } from './sql/sql.ts';
 import type { Table } from './table.ts';
 import type { Update } from './utils.ts';
 
@@ -31,6 +31,10 @@ export type ColumnRuntimeConfig<TData, TRuntimeConfig extends object> = ColumnBu
 	TData,
 	TRuntimeConfig
 >;
+
+export type AnyCustomColumn = AnyColumn & {
+	customSelect?: (value: Column | string | Name | SQL) => SQL;
+};
 
 export interface Column<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,

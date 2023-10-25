@@ -20,6 +20,7 @@ import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { DrizzleError, type Name, ViewBaseConfig, and, eq } from '../index.ts';
 import { MySqlColumn } from './columns/common.ts';
+import type { AnyMySqlCustomColumn } from './columns/custom.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
 import type { MySqlSelectConfig, MySqlSelectJoinConfig, SelectedFieldsOrdered } from './query-builders/select.types.ts';
@@ -164,9 +165,17 @@ export class MySqlDialect {
 					}
 				} else if (is(field, Column)) {
 					if (isSingleTable) {
-						chunk.push(sql.identifier(field.name));
+						if (isCustomColumn(field) && field.customSelect) {
+							chunk.push(field.customSelect(sql.identifier(field.name)), sql` as ${sql.identifier(field.name)}`);
+						} else {
+							chunk.push(sql.identifier(field.name));
+						}
 					} else {
-						chunk.push(field);
+						if (isCustomColumn(field) && field.customSelect) {
+							chunk.push(field, sql` as ${sql.identifier(field.name)}`);
+						} else {
+							chunk.push(field);
+						}
 					}
 				}
 
@@ -1031,3 +1040,20 @@ export class MySqlDialect {
 		};
 	}
 }
+
+// Had to reuse the constructor logic from `is` to avoid circular dependencies
+const isCustomColumn = (c: MySqlColumn): c is AnyMySqlCustomColumn => {
+	let cls = c.constructor;
+	if (cls) {
+		// Traverse the prototype chain to find the entityKind
+		while (cls) {
+			if (entityKind in cls && cls[entityKind] === 'MySqlCustomColumn') {
+				return true;
+			}
+
+			cls = Object.getPrototypeOf(cls);
+		}
+	}
+
+	return false;
+};

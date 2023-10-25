@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import type { SQL } from '~/sql/sql.ts';
+import type { Name, SQL } from '~/sql/sql.ts';
 import type { Equal } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
@@ -57,12 +57,15 @@ export class MySqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'
 	}
 }
 
+export type AnyMySqlCustomColumn = MySqlCustomColumn<any>;
+
 export class MySqlCustomColumn<T extends ColumnBaseConfig<'custom', 'MySqlCustomColumn'>> extends MySqlColumn<T> {
 	static readonly [entityKind]: string = 'MySqlCustomColumn';
 
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
+	customSelect?: (value: MySqlColumn | string | Name) => SQL;
 
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
@@ -72,6 +75,7 @@ export class MySqlCustomColumn<T extends ColumnBaseConfig<'custom', 'MySqlCustom
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
+		this.customSelect = config.customTypeParams.customSelect;
 	}
 
 	getSQLType(): string {
@@ -195,6 +199,18 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	fromDriver?: (value: T['driverData']) => T['data'];
+
+	/**
+	 * Optional custom sql when performing a select. This sql will automatically get aliased to the provided name.
+	 * @example
+	 * For example, when you want to always select a text value in lowercase:
+	 * ```
+	 * customSelect(value: MySqlColumn): SQL {
+	 * 	 return sql`LOWER(${value})`;  // <-- will be mapped to `LOWER(column) as "column_name"`
+	 * },
+	 * ```
+	 */
+	customSelect?: (value: MySqlColumn | string | Name | SQL) => SQL;
 }
 
 /**
