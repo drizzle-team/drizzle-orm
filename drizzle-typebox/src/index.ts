@@ -97,6 +97,8 @@ type GetTypeboxType<TColumn extends Column> =
 			: TColumn extends { enumValues: [string, ...string[]] }
 			? Equal<TColumn['enumValues'], [string, ...string[]]> extends true
 				? TString
+				: TDataType extends 'array'
+				? TArray<TUnion<TUnionLiterals<TColumn['enumValues']>>>
 				: TUnion<TUnionLiterals<TColumn['enumValues']>>
 			: TDataType extends 'array'
 			? TArray<
