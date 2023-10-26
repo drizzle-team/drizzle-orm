@@ -150,6 +150,9 @@ export class MySqlDialect {
 							new SQL(
 								query.queryChunks.map((c) => {
 									if (is(c, MySqlColumn)) {
+										if (isCustomColumn(c) && c.customSelect) {
+											return c.customSelect(sql.identifier(c.name));
+										}
 										return sql.identifier(c.name);
 									}
 									return c;
