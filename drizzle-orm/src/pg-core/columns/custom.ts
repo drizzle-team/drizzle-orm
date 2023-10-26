@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
-import type { SQL } from '~/sql/sql.ts';
+import type { Name, SQL } from '~/sql/sql.ts';
 import type { Equal } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
@@ -57,12 +57,15 @@ export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', '
 	}
 }
 
+export type AnyPgCustomColumn = PgCustomColumn<any>;
+
 export class PgCustomColumn<T extends ColumnBaseConfig<'custom', 'PgCustomColumn'>> extends PgColumn<T> {
 	static readonly [entityKind]: string = 'PgCustomColumn';
 
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
+	customSelect?: (value: PgColumn | string | Name) => SQL;
 
 	constructor(
 		table: AnyPgTable<{ name: T['tableName'] }>,
@@ -195,6 +198,18 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	fromDriver?: (value: T['driverData']) => T['data'];
+
+	/**
+	 * Optional custom sql when performing a select. This sql will automatically get aliased to the provided name.
+	 * @example
+	 * For example, when you want to always select a text value in lowercase:
+	 * ```
+	 * customSelect(value: PgColumn): SQL {
+	 * 	 return sql`LOWER(${value})`;  // <-- will be mapped to `LOWER(column) as "column_name"`
+	 * },
+	 * ```
+	 */
+	customSelect?: (value: PgColumn | string | Name | SQL) => SQL;
 }
 
 /**
