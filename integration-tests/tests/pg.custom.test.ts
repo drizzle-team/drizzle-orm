@@ -54,12 +54,39 @@ const customTimestamp = customType<
 	},
 });
 
+const customLowerText = customType<{ data: string }>({
+	dataType() {
+		return 'text';
+	},
+	customSelect(value) {
+		return sql`lower(${value})`;
+	},
+});
+
+const customPrefixedText = customType<{ data: string }>({
+	dataType() {
+		return 'text';
+	},
+	customSelect(value) {
+		return sql`lower(${value})`;
+	},
+	fromDriver: (k) => `hello ${k}`,
+});
+
 const usersTable = pgTable('users', {
 	id: customSerial('id').primaryKey(),
 	name: customText('name').notNull(),
 	verified: customBoolean('verified').notNull().default(false),
 	jsonb: customJsonb<string[]>('jsonb'),
 	createdAt: customTimestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+});
+
+const anotherUsersTable = pgTable('another_users', {
+	id: customSerial('id').primaryKey(),
+	name: text('name').notNull(),
+	lowerName: customLowerText('lower_name').default(sql`(\`name\`)`),
+	greetings: customPrefixedText('greetings').default(sql`(\`name\`)`),
+	related: text('related'),
 });
 
 const usersMigratorTable = pgTable('users12', {
@@ -152,6 +179,17 @@ test.beforeEach(async (t) => {
 				jsonb jsonb,
 				created_at timestamptz not null default now()
 			)
+		`,
+	);
+	await ctx.db.execute(
+		sql`
+			create table another_users (
+			id serial primary key,
+			name text not null,
+			lower_name text,
+			greetings text,
+			related text
+						)
 		`,
 	);
 });
@@ -762,4 +800,92 @@ test.serial('insert with onConflict do nothing + target', async (t) => {
 	);
 
 	t.deepEqual(res, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('select custom field with custom select', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(anotherUsersTable).values([
+		{ id: 1, name: 'John', lowerName: 'john', greetings: 'john' },
+		{ id: 2, name: 'Jane', lowerName: 'jane', greetings: 'jane' },
+		{ id: 3, name: 'Joe', lowerName: 'joe', greetings: 'joe' },
+	]);
+
+	const res = await db.select().from(anotherUsersTable);
+
+	t.deepEqual(res, [
+		{ id: 1, name: 'John', lowerName: 'john', greetings: 'hello john', related: null },
+		{ id: 2, name: 'Jane', lowerName: 'jane', greetings: 'hello jane', related: null },
+		{ id: 3, name: 'Joe', lowerName: 'joe', greetings: 'hello joe', related: null },
+	]);
+});
+
+test.serial('select custom field with custom select in a join', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(anotherUsersTable).values([
+		{ id: 1, name: 'John', lowerName: 'john', greetings: 'john', related: 'Jane' },
+		{ id: 2, name: 'Jane', lowerName: 'jane', greetings: 'jane' },
+		{ id: 3, name: 'Joe', lowerName: 'joe', greetings: 'joe' },
+	]);
+	const aliased = alias(anotherUsersTable, 'us');
+
+	const res = await db.select({
+		name: anotherUsersTable.name,
+		related: aliased.name,
+		greetings: aliased.greetings,
+	}).from(anotherUsersTable).leftJoin(aliased, eq(anotherUsersTable.name, aliased.related));
+
+	t.deepEqual(res, [
+		{ name: 'John', related: null, greetings: null },
+		{ name: 'Jane', related: 'John', greetings: 'hello john' },
+		{ name: 'Joe', related: null, greetings: null },
+	]);
+});
+
+test.serial('select custom field with custom select + sql', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(anotherUsersTable).values([
+		{ id: 1, name: 'John', lowerName: 'john', greetings: 'john' },
+		{ id: 2, name: 'Jane', lowerName: 'jane', greetings: 'jane' },
+		{ id: 3, name: 'Joe', lowerName: 'joe', greetings: 'joe' },
+	]);
+
+	const res = await db.select({
+		id: anotherUsersTable.id,
+		name: anotherUsersTable.name,
+		lowerName: sql`${anotherUsersTable.lowerName}`, // It ignores the column alias but uses the custom select
+		greetings: sql`${anotherUsersTable.greetings}`.as('col3'),
+		greetings2: sql`${anotherUsersTable.greetings}`.mapWith((val) => `${val} and bye`).as('col4'),
+	}).from(anotherUsersTable);
+
+	t.deepEqual(res, [
+		{ id: 1, name: 'John', lowerName: 'john', greetings: 'john', greetings2: 'john and bye' },
+		{ id: 2, name: 'Jane', lowerName: 'jane', greetings: 'jane', greetings2: 'jane and bye' },
+		{ id: 3, name: 'Joe', lowerName: 'joe', greetings: 'joe', greetings2: 'joe and bye' },
+	]);
+});
+
+test.serial('select custom field with custom select in a join and sql', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(anotherUsersTable).values([
+		{ id: 1, name: 'John', lowerName: 'john', greetings: 'john', related: 'Jane' },
+		{ id: 2, name: 'Jane', lowerName: 'jane', greetings: 'jane' },
+		{ id: 3, name: 'Joe', lowerName: 'joe', greetings: 'joe' },
+	]);
+	const aliased = alias(anotherUsersTable, 'us');
+
+	const res = await db.select({
+		name: sql`${anotherUsersTable.name}`,
+		related: sql`${aliased.name}`,
+		greetings: aliased.greetings,
+	}).from(anotherUsersTable).leftJoin(aliased, eq(anotherUsersTable.name, aliased.related));
+
+	t.deepEqual(res, [
+		{ name: 'John', related: null, greetings: null },
+		{ name: 'Jane', related: 'John', greetings: 'hello john' },
+		{ name: 'Joe', related: null, greetings: null },
+	]);
 });
