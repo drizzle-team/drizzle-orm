@@ -1,7 +1,7 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { SQL } from '~/sql/sql.ts';
+import type { Name, SQL } from '~/sql/sql.ts';
 import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
 import type { Equal } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
@@ -57,12 +57,15 @@ export class SQLiteCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom
 	}
 }
 
+export type AnySQLiteCustomColumn = SQLiteCustomColumn<any>;
+
 export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom', 'SQLiteCustomColumn'>> extends SQLiteColumn<T> {
 	static readonly [entityKind]: string = 'SQLiteCustomColumn';
 
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
+	customSelect?: (value: SQLiteColumn | string | Name) => SQL;
 
 	constructor(
 		table: AnySQLiteTable<{ name: T['tableName'] }>,
@@ -195,6 +198,18 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	fromDriver?: (value: T['driverData']) => T['data'];
+
+	/**
+	 * Optional custom sql when performing a select. This sql will automatically get aliased to the provided name.
+	 * @example
+	 * For example, when you want to always select a text value in lowercase:
+	 * ```
+	 * customSelect(value: SQLiteColumn): SQL {
+	 * 	 return sql`LOWER(${value})`;  // <-- will be mapped to `LOWER(column) as "column_name"`
+	 * },
+	 * ```
+	 */
+	customSelect?: (value: SQLiteColumn | string | Name | SQL) => SQL;
 }
 
 /**
