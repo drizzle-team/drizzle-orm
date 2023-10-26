@@ -140,8 +140,8 @@ const usersMigratorTable = mysqlTable('users12', {
 const anotherUsersTable = mysqlTable('another_users', {
 	id: customSerial('id').primaryKey(),
 	name: text('name').notNull(),
-	lowerName: customLowerText('lower_name').default(sql`(\`name\`)`),
-	greetings: customPrefixedText('greetings').default(sql`(\`name\`)`),
+	lowerName: customLowerText('lower_name').default(sql`(upper(\`name\`))`),
+	greetings: customPrefixedText('greetings').default(sql`(upper(\`name\`))`),
 	related: text('related'),
 });
 

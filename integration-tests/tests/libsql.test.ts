@@ -2467,12 +2467,14 @@ test.serial('select custom field with custom select', async (t) => {
 	const { db } = t.context;
 
 	await db.insert(anotherUsersTable).values([
-		{ id: 1, name: 'John', lowerName: 'john', greetings: 'john' },
-		{ id: 2, name: 'Jane', lowerName: 'jane', greetings: 'jane' },
-		{ id: 3, name: 'Joe', lowerName: 'joe', greetings: 'joe' },
+		{ id: 1, name: 'John', lowerName: 'JOHN', greetings: 'JOHN' },
+		{ id: 2, name: 'Jane', lowerName: 'JANE', greetings: 'JANE' },
+		{ id: 3, name: 'Joe', lowerName: 'JOE', greetings: 'JOE' },
 	]);
+  const query = db.select().from(anotherUsersTable);
+  console.log(query.toSQL())
 
-	const res = await db.select().from(anotherUsersTable);
+	const res = await query
 
 	t.deepEqual(res, [
 		{ id: 1, name: 'John', lowerName: 'john', greetings: 'hello john', related: null },
@@ -2485,17 +2487,19 @@ test.serial('select custom field with custom select in a join', async (t) => {
 	const { db } = t.context;
 
 	await db.insert(anotherUsersTable).values([
-		{ id: 1, name: 'John', lowerName: 'john', greetings: 'john', related: 'Jane' },
-		{ id: 2, name: 'Jane', lowerName: 'jane', greetings: 'jane' },
-		{ id: 3, name: 'Joe', lowerName: 'joe', greetings: 'joe' },
+		{ id: 1, name: 'John', lowerName: 'JOHN', greetings: 'JOHN', related: 'Jane' },
+		{ id: 2, name: 'Jane', lowerName: 'JANE', greetings: 'JANE' },
+		{ id: 3, name: 'Joe', lowerName: 'JOE', greetings: 'JOE' },
 	]);
 	const aliased = alias(anotherUsersTable, 'us');
-
-	const res = await db.select({
+  const query = db.select({
 		name: anotherUsersTable.name,
 		related: aliased.name,
 		greetings: aliased.greetings,
 	}).from(anotherUsersTable).leftJoin(aliased, eq(anotherUsersTable.name, aliased.related));
+  console.log(query.toSQL())
+
+	const res = await query
 
 	t.deepEqual(res, [
 		{ name: 'John', related: null, greetings: null },
@@ -2508,18 +2512,20 @@ test.serial('select custom field with custom select + sql', async (t) => {
 	const { db } = t.context;
 
 	await db.insert(anotherUsersTable).values([
-		{ id: 1, name: 'John', lowerName: 'john', greetings: 'john' },
-		{ id: 2, name: 'Jane', lowerName: 'jane', greetings: 'jane' },
-		{ id: 3, name: 'Joe', lowerName: 'joe', greetings: 'joe' },
+		{ id: 1, name: 'John', lowerName: 'JOHN', greetings: 'JOHN' },
+		{ id: 2, name: 'Jane', lowerName: 'JANE', greetings: 'JANE' },
+		{ id: 3, name: 'Joe', lowerName: 'JOE', greetings: 'JOE' },
 	]);
 
-	const res = await db.select({
+  const query = db.select({
 		id: anotherUsersTable.id,
 		name: anotherUsersTable.name,
 		lowerName: sql`${anotherUsersTable.lowerName}`, // It ignores the column alias but uses the custom select
 		greetings: sql`${anotherUsersTable.greetings}`.as('col3'),
 		greetings2: sql`${anotherUsersTable.greetings}`.mapWith((val) => `${val} and bye`).as('col4'),
 	}).from(anotherUsersTable);
+  console.log(query.toSQL());
+	const res = await query
 
 	t.deepEqual(res, [
 		{ id: 1, name: 'John', lowerName: 'john', greetings: 'john', greetings2: 'john and bye' },
@@ -2532,21 +2538,24 @@ test.serial('select custom field with custom select in a join and sql', async (t
 	const { db } = t.context;
 
 	await db.insert(anotherUsersTable).values([
-		{ id: 1, name: 'John', lowerName: 'john', greetings: 'john', related: 'Jane' },
-		{ id: 2, name: 'Jane', lowerName: 'jane', greetings: 'jane' },
-		{ id: 3, name: 'Joe', lowerName: 'joe', greetings: 'joe' },
+		{ id: 1, name: 'John', lowerName: 'JOHN', greetings: 'JOHN', related: 'Jane' },
+		{ id: 2, name: 'Jane', lowerName: 'JANE', greetings: 'JANE' },
+		{ id: 3, name: 'Joe', lowerName: 'JOE', greetings: 'JOE' },
 	]);
 	const aliased = alias(anotherUsersTable, 'us');
 
-	const res = await db.select({
+  const query = db.select({
 		name: sql`${anotherUsersTable.name}`,
 		related: sql`${aliased.name}`,
 		greetings: aliased.greetings,
 	}).from(anotherUsersTable).leftJoin(aliased, eq(anotherUsersTable.name, aliased.related));
+  console.log(query.toSQL());
+
+	const res = await query
 
 	t.deepEqual(res, [
 		{ name: 'John', related: null, greetings: null },
 		{ name: 'Jane', related: 'John', greetings: 'hello john' },
 		{ name: 'Joe', related: null, greetings: null },
-	]);
+  ]);
 });
