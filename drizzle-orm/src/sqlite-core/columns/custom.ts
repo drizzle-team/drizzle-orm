@@ -75,6 +75,7 @@ export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom', 'SQLiteCust
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
+		this.customSelect = config.customTypeParams.customSelect;
 	}
 
 	getSQLType(): string {
