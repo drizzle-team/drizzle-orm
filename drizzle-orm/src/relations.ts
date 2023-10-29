@@ -46,6 +46,8 @@ export abstract class Relation<TTableName extends string = string> {
 	}
 
 	abstract withFieldName(fieldName: string): Relation<TTableName>;
+
+	abstract getConfig(): RelationConfigBase | undefined;
 }
 
 export class Relations<
@@ -95,6 +97,10 @@ export class One<
 		relation.fieldName = fieldName;
 		return relation;
 	}
+
+	getConfig() {
+		return this.config;
+	}
 }
 
 export class Many<TTableName extends string> extends Relation<TTableName> {
@@ -118,6 +124,10 @@ export class Many<TTableName extends string> extends Relation<TTableName> {
 		);
 		relation.fieldName = fieldName;
 		return relation;
+	}
+
+	getConfig() {
+		return this.config;
 	}
 }
 
