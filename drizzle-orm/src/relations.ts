@@ -105,7 +105,7 @@ export class Many<TTableName extends string> extends Relation<TTableName> {
 	constructor(
 		sourceTable: Table,
 		referencedTable: AnyTable<{ name: TTableName }>,
-		readonly config: { relationName: string } | undefined,
+		readonly config: RelationConfigBase | undefined,
 	) {
 		super(sourceTable, referencedTable, config?.relationName);
 	}
@@ -400,10 +400,14 @@ export interface RelationConfig<
 	TTableName extends string,
 	TForeignTableName extends string,
 	TColumns extends AnyColumn<{ tableName: TTableName }>[],
-> {
-	relationName?: string;
+> extends RelationConfigBase {
 	fields: TColumns;
 	references: ColumnsWithTable<TTableName, TForeignTableName, TColumns>;
+}
+
+export interface RelationConfigBase {
+	relationName?: string;
+	where?: SQL;
 }
 
 export function extractTablesRelationalConfig<
@@ -538,7 +542,7 @@ export function createOne<TTableName extends string>(sourceTable: Table) {
 export function createMany(sourceTable: Table) {
 	return function many<TForeignTable extends Table>(
 		referencedTable: TForeignTable,
-		config?: { relationName: string },
+		config?: RelationConfigBase,
 	): Many<TForeignTable['_']['name']> {
 		return new Many(sourceTable, referencedTable, config);
 	};
