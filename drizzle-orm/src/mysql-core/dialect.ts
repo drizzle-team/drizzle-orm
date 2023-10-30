@@ -613,14 +613,16 @@ export class MySqlDialect {
 						? { where: relation.getConfig()?.where }
 						: {
 							...queryConfig,
-							where: and(
-								sql`${
-									typeof queryConfig.where === 'function'
-										? queryConfig.where(aliasedColumns, getOperators())
-										: queryConfig.where
-								}`,
-								relation.getConfig()?.where,
-							),
+							where: queryConfig.where
+								? and(
+									sql`${
+										typeof queryConfig.where === 'function'
+											? queryConfig.where(aliasedColumns, getOperators())
+											: queryConfig.where
+									}`,
+									relation.getConfig()?.where,
+								)
+								: relation.getConfig()?.where,
 						};
 				}
 				const builtRelation = this.buildRelationalQuery({
