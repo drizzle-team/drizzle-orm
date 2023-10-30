@@ -2,6 +2,7 @@ import {
 	type AnyMySqlColumn,
 	bigint,
 	boolean,
+	mysqlEnum,
 	mysqlTable,
 	primaryKey,
 	serial,
@@ -9,7 +10,7 @@ import {
 	timestamp,
 } from 'drizzle-orm/mysql-core';
 
-import { relations } from 'drizzle-orm';
+import { eq, relations } from 'drizzle-orm';
 
 export const usersTable = mysqlTable('users', {
 	id: serial('id').primaryKey(),
@@ -27,6 +28,9 @@ export const usersConfig = relations(usersTable, ({ one, many }) => ({
 	usersToGroups: many(usersToGroupsTable),
 	posts: many(postsTable),
 	comments: many(commentsTable),
+	notes: many(notes, {
+		where: eq(notes.notableType, 'user'),
+	}),
 }));
 
 export const groupsTable = mysqlTable('groups', {
@@ -80,6 +84,9 @@ export const postsConfig = relations(postsTable, ({ one, many }) => ({
 		references: [usersTable.id],
 	}),
 	comments: many(commentsTable),
+	notes: many(notes, {
+		where: eq(notes.notableType, 'post'),
+	}),
 }));
 
 export const commentsTable = mysqlTable('comments', {
@@ -103,6 +110,9 @@ export const commentsConfig = relations(commentsTable, ({ one, many }) => ({
 		references: [usersTable.id],
 	}),
 	likes: many(commentLikesTable),
+	notes: many(notes, {
+		where: eq(notes.notableType, 'comment'),
+	}),
 }));
 
 export const commentLikesTable = mysqlTable('comment_likes', {
@@ -125,5 +135,28 @@ export const commentLikesConfig = relations(commentLikesTable, ({ one }) => ({
 	author: one(usersTable, {
 		fields: [commentLikesTable.creator],
 		references: [usersTable.id],
+	}),
+}));
+
+export const notes = mysqlTable('notes', {
+	id: serial('id').primaryKey(),
+	content: text('content').notNull(),
+	notableId: bigint('notable_id', { mode: 'number' }).notNull(),
+	notableType: mysqlEnum('notable_type', ['user', 'post', 'comment']).notNull(),
+});
+
+export const notesConfig = relations(notes, ({ one }) => ({
+	user: one(usersTable, {
+		fields: [notes.notableId],
+		references: [usersTable.id],
+	}),
+	post: one(postsTable, {
+		fields: [notes.notableId],
+		references: [postsTable.id],
+	}),
+	comment: one(commentsTable, {
+		fields: [notes.notableId],
+		references: [commentsTable.id],
+		where: eq(commentsTable.content, 'comment'), // only a comment that says "comment" will work
 	}),
 }));
