@@ -192,26 +192,15 @@ export interface SQLiteSelectHKT extends SQLiteSelectHKTBase {
 	>;
 }
 
-export type SQLiteSetOperatorExcludedMethods = Exclude<
-	keyof AnySQLiteSelectQueryBuilder,
-	// Only add the methods that a SetOperator is supposed to have
-	| 'orderBy'
-	| 'limit'
-	| 'offset'
-	| 'union'
-	| 'unionAll'
-	| 'intersect'
-	| 'intersectAll'
-	| 'except'
-	| 'exceptAll'
-	| '_'
-	| 'getSQL'
-	| 'as'
-	| 'addSetOperators'
-	| 'toSQL'
-	| '$dynamic'
-	| 'getSelectedFields'
->;
+export type SQLiteSetOperatorExcludedMethods =
+	| 'config'
+	| 'leftJoin'
+	| 'rightJoin'
+	| 'innerJoin'
+	| 'fullJoin'
+	| 'where'
+	| 'having'
+	| 'groupBy';
 
 export type CreateSQLiteSelectFromBuilderMode<
 	TBuilderMode extends 'db' | 'qb',
@@ -337,23 +326,7 @@ export interface SQLiteSetOperatorInterface<
 	TExcludedMethods extends string = never,
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
-> extends
-	Pick<
-		SQLiteSelectBase<
-			TTableName,
-			TResultType,
-			TRunResult,
-			TSelection,
-			TSelectMode,
-			TNullabilityMap,
-			TDynamic,
-			TExcludedMethods,
-			TResult,
-			TSelectedFields
-		>,
-		never
-	>
-{
+> {
 	_: {
 		readonly hkt: SQLiteSelectHKTBase;
 		readonly tableName: TTableName;
@@ -415,12 +388,11 @@ export type SetOperatorRightSelect<
 	TValue extends SQLiteSetOperatorWithResult<TResult>,
 	TResult extends any[],
 > = TValue extends SQLiteSetOperatorInterface<any, any, any, any, any, any, any, any, infer TValueResult, any>
-	? TValueResult extends Array<infer TValueObj> ? ValidateShape<
-			TValueObj,
-			TResult[number],
-			TypedQueryBuilder<any, TValueResult>
-		>
-	: never
+	? ValidateShape<
+		TValueResult[number],
+		TResult[number],
+		TypedQueryBuilder<any, TValueResult>
+	>
 	: TValue;
 
 export type SetOperatorRestSelect<
@@ -428,12 +400,11 @@ export type SetOperatorRestSelect<
 	TResult extends any[],
 > = TValue extends [infer First, ...infer Rest]
 	? First extends SQLiteSetOperatorInterface<any, any, any, any, any, any, any, any, infer TValueResult, any>
-		? TValueResult extends Array<infer TValueObj> ? Rest extends AnySQLiteSetOperatorInterface[] ? [
-					ValidateShape<TValueObj, TResult[number], TypedQueryBuilder<any, TValueResult>>,
-					...SetOperatorRestSelect<Rest, TResult>,
-				]
-			: ValidateShape<TValueObj, TResult[number], TypedQueryBuilder<any, TValueResult>[]>
-		: never
+		? Rest extends AnySQLiteSetOperatorInterface[] ? [
+				ValidateShape<TValueResult[number], TResult[number], TypedQueryBuilder<any, TValueResult>>,
+				...SetOperatorRestSelect<Rest, TResult>,
+			]
+		: ValidateShape<TValueResult[number], TResult[number], TypedQueryBuilder<any, TValueResult>[]>
 	: never
 	: TValue;
 
