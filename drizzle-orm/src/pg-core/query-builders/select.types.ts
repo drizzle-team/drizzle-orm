@@ -211,26 +211,15 @@ export type CreatePgSelectFromBuilderMode<
 > = TBuilderMode extends 'db' ? PgSelectBase<TTableName, TSelection, TSelectMode>
 	: PgSelectQueryBuilderBase<PgSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>;
 
-export type PgSetOperatorExcludedMethods = Exclude<
-	keyof AnyPgSelectQueryBuilder,
-	// Only add the methods that a SetOperator is supposed to have
-	| 'orderBy'
-	| 'limit'
-	| 'offset'
-	| 'union'
-	| 'unionAll'
-	| 'intersect'
-	| 'intersectAll'
-	| 'except'
-	| 'exceptAll'
-	| '_'
-	| 'getSQL'
-	| 'as'
-	| 'addSetOperators'
-	| 'toSQL'
-	| '$dynamic'
-	| 'getSelectedFields'
->;
+export type PgSetOperatorExcludedMethods =
+	| 'leftJoin'
+	| 'rightJoin'
+	| 'innerJoin'
+	| 'fullJoin'
+	| 'where'
+	| 'having'
+	| 'groupBy'
+	| 'for';
 
 export type PgSelectWithout<
 	T extends AnyPgSelectQueryBuilder,
@@ -304,21 +293,7 @@ export interface PgSetOperatorInterface<
 	TExcludedMethods extends string = never,
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
-> extends
-	Pick<
-		PgSelectBase<
-			TTableName,
-			TSelection,
-			TSelectMode,
-			TNullabilityMap,
-			TDynamic,
-			TExcludedMethods,
-			TResult,
-			TSelectedFields
-		>,
-		never
-	>
-{
+> {
 	_: {
 		readonly hkt: PgSelectHKT;
 		readonly tableName: TTableName;
@@ -369,13 +344,11 @@ export type PgSetOperator<
 export type SetOperatorRightSelect<
 	TValue extends PgSetOperatorWithResult<TResult>,
 	TResult extends any[],
-> = TValue extends PgSetOperatorInterface<any, any, any, any, any, any, infer TValueResult, any>
-	? TValueResult extends Array<infer TValueObj> ? ValidateShape<
-			TValueObj,
-			TResult[number],
-			TypedQueryBuilder<any, TValueResult>
-		>
-	: never
+> = TValue extends PgSetOperatorInterface<any, any, any, any, any, any, infer TValueResult, any> ? ValidateShape<
+		TValueResult[number],
+		TResult[number],
+		TypedQueryBuilder<any, TValueResult>
+	>
 	: TValue;
 
 export type SetOperatorRestSelect<
@@ -383,12 +356,11 @@ export type SetOperatorRestSelect<
 	TResult extends any[],
 > = TValue extends [infer First, ...infer Rest]
 	? First extends PgSetOperatorInterface<any, any, any, any, any, any, infer TValueResult, any>
-		? TValueResult extends Array<infer TValueObj> ? Rest extends AnyPgSetOperatorInterface[] ? [
-					ValidateShape<TValueObj, TResult[number], TypedQueryBuilder<any, TValueResult>>,
-					...SetOperatorRestSelect<Rest, TResult>,
-				]
-			: ValidateShape<TValueObj, TResult[number], TypedQueryBuilder<any, TValueResult>[]>
-		: never
+		? Rest extends AnyPgSetOperatorInterface[] ? [
+				ValidateShape<TValueResult[number], TResult[number], TypedQueryBuilder<any, TValueResult>>,
+				...SetOperatorRestSelect<Rest, TResult>,
+			]
+		: ValidateShape<TValueResult[number], TResult[number], TypedQueryBuilder<any, TValueResult>[]>
 	: never
 	: TValue;
 
