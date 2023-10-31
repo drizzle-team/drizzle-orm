@@ -202,26 +202,16 @@ export interface MySqlSelectHKT extends MySqlSelectHKTBase {
 	>;
 }
 
-export type MySqlSetOperatorExcludedMethods = Exclude<
-	keyof AnyMySqlSelectQueryBuilder,
-	// Only add the methods that a SetOperator is supposed to have
-	| 'orderBy'
-	| 'limit'
-	| 'offset'
-	| 'union'
-	| 'unionAll'
-	| 'intersect'
-	| 'intersectAll'
-	| 'except'
-	| 'exceptAll'
-	| '_'
-	| 'getSQL'
-	| 'as'
-	| 'addSetOperators'
-	| 'toSQL'
-	| '$dynamic'
-	| 'getSelectedFields'
->;
+export type MySqlSetOperatorExcludedMethods =
+	| 'where'
+	| 'having'
+	| 'groupBy'
+	| 'session'
+	| 'leftJoin'
+	| 'rightJoin'
+	| 'innerJoin'
+	| 'fullJoin'
+	| 'for';
 
 export type MySqlSelectWithout<
 	T extends AnyMySqlSelectQueryBuilder,
@@ -230,7 +220,7 @@ export type MySqlSelectWithout<
 	TResetExcluded extends boolean = false,
 > = TDynamic extends true ? T : Omit<
 	MySqlSelectKind<
-    T['_']['hkt'],
+		T['_']['hkt'],
 		T['_']['tableName'],
 		T['_']['selection'],
 		T['_']['selectMode'],
@@ -312,22 +302,7 @@ export interface MySqlSetOperatorInterface<
 	TExcludedMethods extends string = never,
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
-> extends
-	Pick<
-		MySqlSelectBase<
-			TTableName,
-			TSelection,
-			TSelectMode,
-			TPreparedQueryHKT,
-			TNullabilityMap,
-			TDynamic,
-			TExcludedMethods,
-			TResult,
-			TSelectedFields
-		>,
-		never
-	>
-{
+> {
 	_: {
 		readonly hkt: MySqlSelectHKT;
 		readonly tableName: TTableName;
@@ -383,12 +358,11 @@ export type SetOperatorRightSelect<
 	TValue extends MySqlSetOperatorWithResult<TResult>,
 	TResult extends any[],
 > = TValue extends MySqlSetOperatorInterface<any, any, any, any, any, any, any, infer TValueResult, any>
-	? TValueResult extends Array<infer TValueObj> ? ValidateShape<
-			TValueObj,
-			TResult[number],
-			TypedQueryBuilder<any, TValueResult>
-		>
-	: never
+	? ValidateShape<
+		TValueResult[number],
+		TResult[number],
+		TypedQueryBuilder<any, TValueResult>
+	>
 	: TValue;
 
 export type SetOperatorRestSelect<
@@ -396,12 +370,11 @@ export type SetOperatorRestSelect<
 	TResult extends any[],
 > = TValue extends [infer First, ...infer Rest]
 	? First extends MySqlSetOperatorInterface<any, any, any, any, any, any, any, infer TValueResult, any>
-		? TValueResult extends Array<infer TValueObj> ? Rest extends AnyMySqlSetOperatorInterface[] ? [
-					ValidateShape<TValueObj, TResult[number], TypedQueryBuilder<any, TValueResult>>,
-					...SetOperatorRestSelect<Rest, TResult>,
-				]
-			: ValidateShape<TValueObj, TResult[number], TypedQueryBuilder<any, TValueResult>[]>
-		: never
+		? Rest extends AnyMySqlSetOperatorInterface[] ? [
+				ValidateShape<TValueResult[number], TResult[number], TypedQueryBuilder<any, TValueResult>>,
+				...SetOperatorRestSelect<Rest, TResult>,
+			]
+		: ValidateShape<TValueResult[number], TResult[number], TypedQueryBuilder<any, TValueResult>[]>
 	: never
 	: TValue;
 
