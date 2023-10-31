@@ -2537,7 +2537,7 @@ test.serial('set operations (except all) as function', async (t) => {
 		db
 			.select({ id: users2Table.id, name: users2Table.name })
 			.from(users2Table).where(eq(users2Table.id, 1)),
-	).limit(6);
+	).limit(6).orderBy(asc(sql.identifier('id')));
 
 	t.assert(result.length === 6);
 
@@ -2616,7 +2616,7 @@ test.serial('set operations (mixed all) as function with subquery', async (t) =>
 		db
 			.select({ id: users2Table.id, name: users2Table.name })
 			.from(users2Table).where(eq(users2Table.id, 7)),
-	).as('sq');
+	).orderBy(asc(sql.identifier('id'))).as('sq');
 
 	const result = await union(
 		db
