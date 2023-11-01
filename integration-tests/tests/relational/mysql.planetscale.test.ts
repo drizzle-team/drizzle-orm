@@ -5265,7 +5265,7 @@ test('[Find Many] Get notes with comments', async () => {
 				createdAt: Date;
 				creator: number | null;
 				postId: number | null;
-			};
+			} | null;
 		}[]
 	>();
 
