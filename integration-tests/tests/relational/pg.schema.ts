@@ -1,6 +1,6 @@
 import { boolean, integer, type PgColumn, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core';
 
-import { relations } from 'drizzle-orm';
+import { eq, relations } from 'drizzle-orm';
 
 export const usersTable = pgTable('users', {
 	id: serial('id').primaryKey(),
@@ -13,6 +13,9 @@ export const usersConfig = relations(usersTable, ({ one, many }) => ({
 	invitee: one(usersTable, { fields: [usersTable.invitedBy], references: [usersTable.id] }),
 	usersToGroups: many(usersToGroupsTable),
 	posts: many(postsTable),
+	notes: many(notes, {
+		where: eq(notes.notableType, 'user'),
+	}),
 }));
 
 export const groupsTable = pgTable('groups', {
@@ -30,7 +33,7 @@ export const usersToGroupsTable = pgTable('users_to_groups', {
 	userId: integer('user_id').notNull().references(() => usersTable.id),
 	groupId: integer('group_id').notNull().references(() => groupsTable.id),
 }, (t) => ({
-	pk: primaryKey(t.groupId,t.userId),
+	pk: primaryKey(t.groupId, t.userId),
 }));
 
 export const usersToGroupsConfig = relations(usersToGroupsTable, ({ one }) => ({
@@ -48,6 +51,9 @@ export const postsTable = pgTable('posts', {
 export const postsConfig = relations(postsTable, ({ one, many }) => ({
 	author: one(usersTable, { fields: [postsTable.ownerId], references: [usersTable.id] }),
 	comments: many(commentsTable),
+	notes: many(notes, {
+		where: eq(notes.notableType, 'post'),
+	}),
 }));
 
 export const commentsTable = pgTable('comments', {
@@ -62,6 +68,9 @@ export const commentsConfig = relations(commentsTable, ({ one, many }) => ({
 	post: one(postsTable, { fields: [commentsTable.postId], references: [postsTable.id] }),
 	author: one(usersTable, { fields: [commentsTable.creator], references: [usersTable.id] }),
 	likes: many(commentLikesTable),
+	notes: many(notes, {
+		where: eq(notes.notableType, 'comment'),
+	}),
 }));
 
 export const commentLikesTable = pgTable('comment_likes', {
@@ -74,4 +83,26 @@ export const commentLikesTable = pgTable('comment_likes', {
 export const commentLikesConfig = relations(commentLikesTable, ({ one }) => ({
 	comment: one(commentsTable, { fields: [commentLikesTable.commentId], references: [commentsTable.id] }),
 	author: one(usersTable, { fields: [commentLikesTable.creator], references: [usersTable.id] }),
+}));
+export const notes = pgTable('notes', {
+	id: serial('id').primaryKey(),
+	content: text('content').notNull(),
+	notableId: integer('notable_id').notNull(),
+	notableType: text('notable_type', { enum: ['user', 'post', 'comment'] }).notNull(),
+});
+
+export const notesConfig = relations(notes, ({ one }) => ({
+	user: one(usersTable, {
+		fields: [notes.notableId],
+		references: [usersTable.id],
+	}),
+	post: one(postsTable, {
+		fields: [notes.notableId],
+		references: [postsTable.id],
+	}),
+	comment: one(commentsTable, {
+		fields: [notes.notableId],
+		references: [commentsTable.id],
+		where: eq(commentsTable.content, 'comment'), // only a comment that says "comment" will work
+	}),
 }));

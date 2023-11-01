@@ -120,3 +120,43 @@ const db = drizzle(pdb, { schema });
 		>
 	>;
 }
+
+{ // One relations can be null even if the foreign key is not nullable if they have a where clause
+	const result = await db.query.notes.findMany({
+		with: {
+			users: true,
+			posts: true,
+			comments: true,
+		},
+	});
+
+	Expect<
+		Equal<
+			{
+				id: number;
+				text: string;
+				notableId: number;
+				notableType: 'User' | 'Post' | 'Comment';
+				users: {
+					id: number;
+					name: string;
+					cityId: number;
+					homeCityId: number | null;
+					createdAt: Date;
+				} | null; // users can be null due to the where condition
+				posts: {
+					id: number;
+					title: string;
+					authorId: number | null;
+				};
+				comments: {
+					id: number;
+					text: string;
+					authorId: number | null;
+					postId: number;
+				};
+			}[],
+			typeof result
+		>
+	>;
+}
