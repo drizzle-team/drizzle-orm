@@ -14,20 +14,24 @@ import type {
 	JoinType,
 	SelectMode,
 	SelectResult,
+	SetOperator,
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { type Placeholder, type Query, SQL, type SQLWrapper } from '~/sql/index.ts';
 import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
-import { applyMixins, getTableColumns, getTableLikeName, type ValueOrArray } from '~/utils.ts';
+import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, type ValueOrArray } from '~/utils.ts';
 import { orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { type ColumnsSelection, View } from '~/view.ts';
 import type {
+	AnyPgSelect,
 	CreatePgSelectFromBuilderMode,
+	GetPgSetOperators,
 	LockConfig,
 	LockStrength,
+	PgCreateSetOperatorFn,
 	PgJoinFn,
 	PgSelectConfig,
 	PgSelectDynamic,
@@ -35,7 +39,10 @@ import type {
 	PgSelectHKTBase,
 	PgSelectPrepare,
 	PgSelectWithout,
+	PgSetOperatorExcludedMethods,
+	PgSetOperatorWithResult,
 	SelectedFields,
+	SetOperatorRightSelect,
 } from './select.types.ts';
 
 export class PgSelectBuilder<
@@ -127,7 +134,7 @@ export abstract class PgSelectQueryBuilderBase<
 		: {},
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends TypedQueryBuilder<TSelectedFields, TResult> {
 	static readonly [entityKind]: string = 'PgSelectQueryBuilder';
@@ -170,6 +177,7 @@ export abstract class PgSelectQueryBuilderBase<
 			table,
 			fields: { ...fields },
 			distinct,
+			setOperators: [],
 		};
 		this.isPartialSelect = isPartialSelect;
 		this.session = session;
@@ -290,6 +298,61 @@ export abstract class PgSelectQueryBuilderBase<
 	 * rows in the other table.
 	 */
 	fullJoin = this.createJoin('full');
+
+	private createSetOperator(
+		type: SetOperator,
+		isAll: boolean,
+	): <TValue extends PgSetOperatorWithResult<TResult>>(
+		rightSelection:
+			| ((setOperators: GetPgSetOperators) => SetOperatorRightSelect<TValue, TResult>)
+			| SetOperatorRightSelect<TValue, TResult>,
+	) => PgSelectWithout<
+		this,
+		TDynamic,
+		PgSetOperatorExcludedMethods,
+		true
+	> {
+		return (rightSelection) => {
+			const rightSelect = (typeof rightSelection === 'function'
+				? rightSelection(getPgSetOperators())
+				: rightSelection) as TypedQueryBuilder<
+					any,
+					TResult
+				>;
+
+			if (!haveSameKeys(this.getSelectedFields(), rightSelect.getSelectedFields())) {
+				throw new Error(
+					'Set operator error (union / intersect / except): selected fields are not the same or are in a different order',
+				);
+			}
+
+			this.config.setOperators.push({ type, isAll, rightSelect });
+			return this as any;
+		};
+	}
+
+	union = this.createSetOperator('union', false);
+
+	unionAll = this.createSetOperator('union', true);
+
+	intersect = this.createSetOperator('intersect', false);
+
+	intersectAll = this.createSetOperator('intersect', true);
+
+	except = this.createSetOperator('except', false);
+
+	exceptAll = this.createSetOperator('except', true);
+
+	/** @internal */
+	addSetOperators(setOperators: PgSelectConfig['setOperators']): PgSelectWithout<
+		this,
+		TDynamic,
+		PgSetOperatorExcludedMethods,
+		true
+	> {
+		this.config.setOperators.push(...setOperators);
+		return this as any;
+	}
 
 	/**
 	 * Specify a condition to narrow the result set. Multiple
@@ -412,9 +475,22 @@ export abstract class PgSelectQueryBuilderBase<
 					new SelectionProxyHandler({ sqlAliasedBehavior: 'alias', sqlBehavior: 'sql' }),
 				) as TSelection,
 			);
-			this.config.orderBy = Array.isArray(orderBy) ? orderBy : [orderBy];
+
+			const orderByArray = Array.isArray(orderBy) ? orderBy : [orderBy];
+
+			if (this.config.setOperators.length > 0) {
+				this.config.setOperators.at(-1)!.orderBy = orderByArray;
+			} else {
+				this.config.orderBy = orderByArray;
+			}
 		} else {
-			this.config.orderBy = columns as (PgColumn | SQL | SQL.Aliased)[];
+			const orderByArray = columns as (PgColumn | SQL | SQL.Aliased)[];
+
+			if (this.config.setOperators.length > 0) {
+				this.config.setOperators.at(-1)!.orderBy = orderByArray;
+			} else {
+				this.config.orderBy = orderByArray;
+			}
 		}
 		return this as any;
 	}
@@ -433,7 +509,11 @@ export abstract class PgSelectQueryBuilderBase<
 	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-LIMIT | Postgres LIMIT documentation}
 	 */
 	limit(limit: number | Placeholder): PgSelectWithout<this, TDynamic, 'limit'> {
-		this.config.limit = limit;
+		if (this.config.setOperators.length > 0) {
+			this.config.setOperators.at(-1)!.limit = limit;
+		} else {
+			this.config.limit = limit;
+		}
 		return this as any;
 	}
 
@@ -449,7 +529,11 @@ export abstract class PgSelectQueryBuilderBase<
 	 * ```
 	 */
 	offset(offset: number | Placeholder): PgSelectWithout<this, TDynamic, 'offset'> {
-		this.config.offset = offset;
+		if (this.config.setOperators.length > 0) {
+			this.config.setOperators.at(-1)!.offset = offset;
+		} else {
+			this.config.offset = offset;
+		}
 		return this as any;
 	}
 
@@ -505,7 +589,7 @@ export interface PgSelectBase<
 		: {},
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends
 	PgSelectQueryBuilderBase<
@@ -579,3 +663,44 @@ export class PgSelectBase<
 }
 
 applyMixins(PgSelectBase, [QueryPromise]);
+
+function createSetOperator(type: SetOperator, isAll: boolean): PgCreateSetOperatorFn {
+	return (leftSelect, rightSelect, ...restSelects) => {
+		const setOperators = [rightSelect, ...restSelects].map((select) => ({
+			type,
+			isAll,
+			rightSelect: select as AnyPgSelect,
+		}));
+
+		for (const setOperator of setOperators) {
+			if (!haveSameKeys((leftSelect as any).getSelectedFields(), setOperator.rightSelect.getSelectedFields())) {
+				throw new Error(
+					'Set operator error (union / intersect / except): selected fields are not the same or are in a different order',
+				);
+			}
+		}
+
+		return (leftSelect as AnyPgSelect).addSetOperators(setOperators) as any;
+	};
+}
+
+const getPgSetOperators = () => ({
+	union,
+	unionAll,
+	intersect,
+	intersectAll,
+	except,
+	exceptAll,
+});
+
+export const union = createSetOperator('union', false);
+
+export const unionAll = createSetOperator('union', true);
+
+export const intersect = createSetOperator('intersect', false);
+
+export const intersectAll = createSetOperator('intersect', true);
+
+export const except = createSetOperator('except', false);
+
+export const exceptAll = createSetOperator('except', true);

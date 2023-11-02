@@ -14,19 +14,23 @@ import type {
 	JoinType,
 	SelectMode,
 	SelectResult,
+	SetOperator,
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { type Query, SQL } from '~/sql/index.ts';
 import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { applyMixins, getTableColumns, getTableLikeName, type ValueOrArray } from '~/utils.ts';
+import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, type ValueOrArray } from '~/utils.ts';
 import { orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { type ColumnsSelection, View } from '~/view.ts';
 import type {
+	AnyMySqlSelect,
 	CreateMySqlSelectFromBuilderMode,
+	GetMySqlSetOperators,
 	LockConfig,
 	LockStrength,
+	MySqlCreateSetOperatorFn,
 	MySqlJoinFn,
 	MySqlSelectConfig,
 	MySqlSelectDynamic,
@@ -34,7 +38,10 @@ import type {
 	MySqlSelectHKTBase,
 	MySqlSelectPrepare,
 	MySqlSelectWithout,
+	MySqlSetOperatorExcludedMethods,
+	MySqlSetOperatorWithResult,
 	SelectedFields,
+	SetOperatorRightSelect,
 } from './select.types.ts';
 
 export class MySqlSelectBuilder<
@@ -121,7 +128,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 		: {},
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends TypedQueryBuilder<TSelectedFields, TResult> {
 	static readonly [entityKind]: string = 'MySqlSelectQueryBuilder';
@@ -164,6 +171,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 			table,
 			fields: { ...fields },
 			distinct,
+			setOperators: [],
 		};
 		this.isPartialSelect = isPartialSelect;
 		this.session = session;
@@ -260,6 +268,61 @@ export abstract class MySqlSelectQueryBuilderBase<
 
 	fullJoin = this.createJoin('full');
 
+	private createSetOperator(
+		type: SetOperator,
+		isAll: boolean,
+	): <TValue extends MySqlSetOperatorWithResult<TResult>>(
+		rightSelection:
+			| ((setOperators: GetMySqlSetOperators) => SetOperatorRightSelect<TValue, TResult>)
+			| SetOperatorRightSelect<TValue, TResult>,
+	) => MySqlSelectWithout<
+		this,
+		TDynamic,
+		MySqlSetOperatorExcludedMethods,
+		true
+	> {
+		return (rightSelection) => {
+			const rightSelect = (typeof rightSelection === 'function'
+				? rightSelection(getMySqlSetOperators())
+				: rightSelection) as TypedQueryBuilder<
+					any,
+					TResult
+				>;
+
+			if (!haveSameKeys(this.getSelectedFields(), rightSelect.getSelectedFields())) {
+				throw new Error(
+					'Set operator error (union / intersect / except): selected fields are not the same or are in a different order',
+				);
+			}
+
+			this.config.setOperators.push({ type, isAll, rightSelect });
+			return this as any;
+		};
+	}
+
+	union = this.createSetOperator('union', false);
+
+	unionAll = this.createSetOperator('union', true);
+
+	intersect = this.createSetOperator('intersect', false);
+
+	intersectAll = this.createSetOperator('intersect', true);
+
+	except = this.createSetOperator('except', false);
+
+	exceptAll = this.createSetOperator('except', true);
+
+	/** @internal */
+	addSetOperators(setOperators: MySqlSelectConfig['setOperators']): MySqlSelectWithout<
+		this,
+		TDynamic,
+		MySqlSetOperatorExcludedMethods,
+		true
+	> {
+		this.config.setOperators.push(...setOperators);
+		return this as any;
+	}
+
 	where(
 		where: ((aliases: this['_']['selection']) => SQL | undefined) | SQL | undefined,
 	): MySqlSelectWithout<this, TDynamic, 'where'> {
@@ -329,20 +392,41 @@ export abstract class MySqlSelectQueryBuilderBase<
 					new SelectionProxyHandler({ sqlAliasedBehavior: 'alias', sqlBehavior: 'sql' }),
 				) as TSelection,
 			);
-			this.config.orderBy = Array.isArray(orderBy) ? orderBy : [orderBy];
+
+			const orderByArray = Array.isArray(orderBy) ? orderBy : [orderBy];
+
+			if (this.config.setOperators.length > 0) {
+				this.config.setOperators.at(-1)!.orderBy = orderByArray;
+			} else {
+				this.config.orderBy = orderByArray;
+			}
 		} else {
-			this.config.orderBy = columns as (MySqlColumn | SQL | SQL.Aliased)[];
+			const orderByArray = columns as (MySqlColumn | SQL | SQL.Aliased)[];
+
+			if (this.config.setOperators.length > 0) {
+				this.config.setOperators.at(-1)!.orderBy = orderByArray;
+			} else {
+				this.config.orderBy = orderByArray;
+			}
 		}
 		return this as any;
 	}
 
 	limit(limit: number): MySqlSelectWithout<this, TDynamic, 'limit'> {
-		this.config.limit = limit;
+		if (this.config.setOperators.length > 0) {
+			this.config.setOperators.at(-1)!.limit = limit;
+		} else {
+			this.config.limit = limit;
+		}
 		return this as any;
 	}
 
 	offset(offset: number): MySqlSelectWithout<this, TDynamic, 'offset'> {
-		this.config.offset = offset;
+		if (this.config.setOperators.length > 0) {
+			this.config.setOperators.at(-1)!.offset = offset;
+		} else {
+			this.config.offset = offset;
+		}
 		return this as any;
 	}
 
@@ -392,7 +476,7 @@ export interface MySqlSelectBase<
 		: {},
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends
 	MySqlSelectQueryBuilderBase<
@@ -463,3 +547,44 @@ export class MySqlSelectBase<
 }
 
 applyMixins(MySqlSelectBase, [QueryPromise]);
+
+function createSetOperator(type: SetOperator, isAll: boolean): MySqlCreateSetOperatorFn {
+	return (leftSelect, rightSelect, ...restSelects) => {
+		const setOperators = [rightSelect, ...restSelects].map((select) => ({
+			type,
+			isAll,
+			rightSelect: select as AnyMySqlSelect,
+		}));
+
+		for (const setOperator of setOperators) {
+			if (!haveSameKeys((leftSelect as any).getSelectedFields(), setOperator.rightSelect.getSelectedFields())) {
+				throw new Error(
+					'Set operator error (union / intersect / except): selected fields are not the same or are in a different order',
+				);
+			}
+		}
+
+		return (leftSelect as AnyMySqlSelect).addSetOperators(setOperators) as any;
+	};
+}
+
+const getMySqlSetOperators = () => ({
+	union,
+	unionAll,
+	intersect,
+	intersectAll,
+	except,
+	exceptAll,
+});
+
+export const union = createSetOperator('union', false);
+
+export const unionAll = createSetOperator('union', true);
+
+export const intersect = createSetOperator('intersect', false);
+
+export const intersectAll = createSetOperator('intersect', true);
+
+export const except = createSetOperator('except', false);
+
+export const exceptAll = createSetOperator('except', true);
