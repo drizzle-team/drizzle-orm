@@ -480,16 +480,18 @@ test.serial('select distinct', async (t) => {
 	const usersDistinctTable = pgTable('users_distinct', {
 		id: integer('id').notNull(),
 		name: text('name').notNull(),
+		age: integer('age').notNull()
 	});
 
 	await db.execute(sql`drop table if exists ${usersDistinctTable}`);
-	await db.execute(sql`create table ${usersDistinctTable} (id integer, name text)`);
+	await db.execute(sql`create table ${usersDistinctTable} (id integer, name text, age integer)`);
 
 	await db.insert(usersDistinctTable).values([
-		{ id: 1, name: 'John' },
-		{ id: 1, name: 'John' },
-		{ id: 2, name: 'John' },
-		{ id: 1, name: 'Jane' },
+		{ id: 1, name: 'John', age: 24 },
+		{ id: 1, name: 'John', age: 24 },
+		{ id: 2, name: 'John', age: 25 },
+		{ id: 1, name: 'Jane', age: 24 },
+		{ id: 1, name: 'Jane', age: 26 }
 	]);
 	const users1 = await db.selectDistinct().from(usersDistinctTable).orderBy(
 		usersDistinctTable.id,
@@ -501,10 +503,18 @@ test.serial('select distinct', async (t) => {
 	const users3 = await db.selectDistinctOn([usersDistinctTable.name], { name: usersDistinctTable.name }).from(
 		usersDistinctTable,
 	).orderBy(usersDistinctTable.name);
+	const users4 = await db.selectDistinctOn([usersDistinctTable.id, usersDistinctTable.age]).from(
+		usersDistinctTable
+	).orderBy(usersDistinctTable.id, usersDistinctTable.age)
 
 	await db.execute(sql`drop table ${usersDistinctTable}`);
 
-	t.deepEqual(users1, [{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
+	t.deepEqual(users1, [
+		{ id: 1, name: 'Jane', age: 24 },
+		{ id: 1, name: 'Jane', age: 26 },
+		{ id: 1, name: 'John', age: 24 },
+		{ id: 2, name: 'John', age: 25 }
+	]);
 
 	t.deepEqual(users2.length, 2);
 	t.deepEqual(users2[0]?.id, 1);
@@ -513,6 +523,12 @@ test.serial('select distinct', async (t) => {
 	t.deepEqual(users3.length, 2);
 	t.deepEqual(users3[0]?.name, 'Jane');
 	t.deepEqual(users3[1]?.name, 'John');
+
+	t.deepEqual(users4, [
+		{ id: 1, name: 'John', age: 24 },
+		{ id: 1, name: 'Jane', age: 26 },
+		{ id: 2, name: 'John', age: 25 }
+	]);
 });
 
 test.serial('insert returning sql', async (t) => {
