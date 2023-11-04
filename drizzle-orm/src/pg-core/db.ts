@@ -103,7 +103,37 @@ export class PgDatabase<
 			});
 		}
 
-		return { select };
+		function selectDistinct(): PgSelectBuilder<undefined>;
+		function selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
+		function selectDistinct(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
+			return new PgSelectBuilder({
+				fields: fields ?? undefined,
+				session: self.session,
+				dialect: self.dialect,
+				withList: queries,
+				distinct: true,
+			});
+		}
+
+		function selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgSelectBuilder<undefined>;
+		function selectDistinctOn<TSelection extends SelectedFields>(
+			on: (PgColumn | SQLWrapper)[],
+			fields: TSelection,
+		): PgSelectBuilder<TSelection>;
+		function selectDistinctOn(
+			on: (PgColumn | SQLWrapper)[],
+			fields?: SelectedFields,
+		): PgSelectBuilder<SelectedFields | undefined> {
+			return new PgSelectBuilder({
+				fields: fields ?? undefined,
+				session: self.session,
+				dialect: self.dialect,
+				withList: queries,
+				distinct: { on },
+			});
+		}
+
+		return { select, selectDistinct, selectDistinctOn };
 	}
 
 	select(): PgSelectBuilder<undefined>;
