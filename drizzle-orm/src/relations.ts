@@ -275,6 +275,7 @@ export interface TableRelationalConfig {
 	columns: Record<string, Column>;
 	relations: Record<string, Relation>;
 	primaryKey: AnyColumn[];
+	schema?: string;
 }
 
 export type TablesRelationalConfig = Record<string, TableRelationalConfig>;
@@ -435,6 +436,7 @@ export function extractTablesRelationalConfig<
 			tablesConfig[key] = {
 				tsName: key,
 				dbName: value[Table.Symbol.Name],
+				schema: value[Table.Symbol.Schema],
 				columns: value[Table.Symbol.Columns],
 				relations: bufferedRelations?.relations ?? {},
 				primaryKey: bufferedRelations?.primaryKey ?? [],
