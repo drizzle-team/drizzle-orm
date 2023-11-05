@@ -91,6 +91,23 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 	}, []) as SelectedFieldsOrdered<TColumn>;
 }
 
+export function haveSameKeys(left: Record<string, unknown>, right: Record<string, unknown>) {
+	const leftKeys = Object.keys(left);
+	const rightKeys = Object.keys(right);
+
+	if (leftKeys.length !== rightKeys.length) {
+		return false;
+	}
+
+	for (const [index, key] of leftKeys.entries()) {
+		if (key !== rightKeys[index]) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 /** @internal */
 export function mapUpdateSet(table: Table, values: Record<string, unknown>): UpdateSet {
 	const entries: [string, UpdateSet[string]][] = Object.entries(values)
@@ -193,6 +210,12 @@ export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<
 	logger?: boolean | Logger;
 	schema?: TSchema;
 }
+export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
+	? Exclude<keyof T, keyof ValidShape> extends never ? TResult
+	: DrizzleTypeError<
+		`Invalid key(s): ${Exclude<(keyof T) & (string | number | bigint | boolean | null | undefined), keyof ValidShape>}`
+	>
+	: never;
 
 export type KnownKeysOnly<T, U> = {
 	[K in keyof T]: K extends keyof U ? T[K] : never;
