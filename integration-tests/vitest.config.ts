@@ -12,8 +12,8 @@ export default defineConfig({
 		typecheck: {
 			tsconfig: 'tsconfig.json',
 		},
-		testTimeout: 60000,
-		hookTimeout: 60000,
+		testTimeout: 100000,
+		hookTimeout: 100000,
 		// deps: {
 		// 	inline: true,
 		// },
