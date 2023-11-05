@@ -1,4 +1,9 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, ColumnDataType } from './column-builder.ts';
+import type {
+	ColumnBuilderBaseConfig,
+	ColumnBuilderRuntimeConfig,
+	ColumnDataType,
+	GeneratedColumnConfig,
+} from './column-builder.ts';
 import { entityKind } from './entity.ts';
 import type { DriverValueMapper, SQL, SQLWrapper } from './sql/sql.ts';
 import type { Table } from './table.ts';
@@ -25,6 +30,7 @@ export type ColumnTypeConfig<T extends ColumnBaseConfig<ColumnDataType, string>,
 	hasDefault: T['hasDefault'];
 	enumValues: T['enumValues'];
 	baseColumn: T extends { baseColumn: infer U } ? U : unknown;
+	generated: GeneratedColumnConfig<T['data']> | undefined;
 } & TTypeConfig;
 
 export type ColumnRuntimeConfig<TData, TRuntimeConfig extends object> = ColumnBuilderRuntimeConfig<
@@ -67,6 +73,7 @@ export abstract class Column<
 	readonly dataType: T['dataType'];
 	readonly columnType: T['columnType'];
 	readonly enumValues: T['enumValues'] = undefined;
+	readonly generated: GeneratedColumnConfig<T['data']> | undefined = undefined;
 
 	protected config: ColumnRuntimeConfig<T['data'], TRuntimeConfig>;
 
@@ -86,6 +93,7 @@ export abstract class Column<
 		this.uniqueType = config.uniqueType;
 		this.dataType = config.dataType as T['dataType'];
 		this.columnType = config.columnType;
+		this.generated = config.generated;
 	}
 
 	abstract getSQLType(): string;

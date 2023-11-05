@@ -8,10 +8,15 @@ export type RequiredKeyOnly<TKey extends string, T extends Column> = T extends A
 }> ? TKey
 	: never;
 
+export type NotGenerated<TKey extends string, T extends Column> = T extends AnyColumn<{
+	generated: undefined;
+}> ? TKey
+	: never;
+
 export type OptionalKeyOnly<
 	TKey extends string,
 	T extends Column,
-> = TKey extends RequiredKeyOnly<TKey, T> ? never : TKey;
+> = TKey extends RequiredKeyOnly<TKey, T> ? never : TKey extends NotGenerated<TKey, T> ? TKey : never;
 
 export type SelectedFieldsFlat<TColumn extends Column> = Record<
 	string,
