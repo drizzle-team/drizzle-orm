@@ -166,6 +166,7 @@ Expect<
 				tableName: 'new_yorkers';
 				enumValues: undefined;
 				baseColumn: never;
+				generated: undefined;
 			}>;
 			cityId: SQLiteColumn<{
 				name: 'id';
@@ -178,6 +179,7 @@ Expect<
 				tableName: 'new_yorkers';
 				enumValues: undefined;
 				baseColumn: never;
+				generated: undefined;
 			}>;
 		}>,
 		typeof newYorkers
@@ -209,6 +211,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: SQLiteColumn<{
 					name: 'city_id';
@@ -221,6 +224,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -248,6 +252,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: SQLiteColumn<{
 					name: 'city_id';
@@ -260,6 +265,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers
