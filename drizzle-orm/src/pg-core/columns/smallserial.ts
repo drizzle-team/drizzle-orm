@@ -11,6 +11,7 @@ export type PgSmallSerialBuilderInitial<TName extends string> = PgSmallSerialBui
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class PgSmallSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSmallSerial'>>

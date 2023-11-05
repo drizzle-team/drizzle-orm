@@ -11,6 +11,7 @@ type PgIntegerBuilderInitial<TName extends string> = PgIntegerBuilder<{
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class PgIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgInteger'>> extends PgColumnBuilder<T> {

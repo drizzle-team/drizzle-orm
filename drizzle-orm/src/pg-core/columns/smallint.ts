@@ -11,6 +11,7 @@ export type PgSmallIntBuilderInitial<TName extends string> = PgSmallIntBuilder<{
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class PgSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSmallInt'>> extends PgColumnBuilder<T> {

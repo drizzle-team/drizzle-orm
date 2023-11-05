@@ -4,6 +4,8 @@ import type {
 	ColumnBuilderExtraConfig,
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
+	GeneratedColumnConfig,
+	HasGenerated,
 	MakeColumnConfig,
 } from '~/column-builder.ts';
 import { ColumnBuilder } from '~/column-builder.ts';
@@ -12,6 +14,7 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Update } from '~/utils.ts';
 
+import { type SQL, sql } from '~/index.ts';
 import type { ForeignKey, UpdateDeleteAction } from '~/pg-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/pg-core/foreign-keys.ts';
 import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
@@ -31,6 +34,10 @@ export interface PgColumnBuilderBase<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TTypeConfig extends object = object,
 > extends ColumnBuilderBase<T, TTypeConfig & { dialect: 'pg' }> {}
+
+export interface PgGeneratedColumnConfig {
+	type?: 'always' | 'byDefault';
+}
 
 export abstract class PgColumnBuilder<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
@@ -52,6 +59,7 @@ export abstract class PgColumnBuilder<
 			data: T['data'][];
 			driverParam: T['driverParam'][] | string;
 			enumValues: T['enumValues'];
+			generated: GeneratedColumnConfig<T['data']>;
 		}
 		& (T extends { notNull: true } ? { notNull: true } : {})
 		& (T extends { hasDefault: true } ? { hasDefault: true } : {}),
@@ -76,6 +84,23 @@ export abstract class PgColumnBuilder<
 		this.config.uniqueName = name;
 		this.config.uniqueType = config?.nulls;
 		return this;
+	}
+
+	generatedAlwaysAs(as: SQL | T['data'], config?: PgGeneratedColumnConfig): HasGenerated<this> {
+		this.config.generated = {
+			as,
+			type: config?.type ?? 'always',
+			mode: 'stored',
+		};
+		return this as any;
+	}
+
+	generatedAsIdentity(config?: PgGeneratedColumnConfig & { sequenceOpts?: SQL }): HasGenerated<this> {
+		this.config.generated = {
+			as: sql`identity${config?.sequenceOpts ? ` ${config.sequenceOpts}` : ''}`,
+			type: config?.type ?? 'always',
+		};
+		return this as any;
 	}
 
 	/** @internal */
