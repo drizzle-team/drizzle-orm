@@ -3,7 +3,7 @@ import { Expect } from 'type-tests/utils.ts';
 import { eq } from '~/expressions.ts';
 import type { MySqlDelete } from '~/mysql-core/index.ts';
 import type { MySqlRawQueryResult } from '~/mysql2/index.ts';
-import { sql } from '~/sql/index.ts';
+import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
 import { users } from './tables.ts';
 

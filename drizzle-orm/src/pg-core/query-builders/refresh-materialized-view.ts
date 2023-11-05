@@ -9,7 +9,7 @@ import type {
 } from '~/pg-core/session.ts';
 import type { PgMaterializedView } from '~/pg-core/view.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { Query, SQL } from '~/sql/index.ts';
+import type { Query, SQL } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
