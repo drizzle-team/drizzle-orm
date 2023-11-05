@@ -14,8 +14,8 @@ import type {
 } from '~/mysql-core/session.ts';
 import { MySqlSession, PreparedQuery as PreparedQueryBase } from '~/mysql-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders } from '~/sql/index.ts';
-import type { Query, SQL } from '~/sql/index.ts';
+import { fillPlaceholders } from '~/sql/sql.ts';
+import type { Query, SQL } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 import type { RemoteCallback } from './driver.ts';
 

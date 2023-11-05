@@ -11,18 +11,16 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import { type Placeholder, type Query, SQL } from '~/sql/index.ts';
+import { SQL, View } from '~/sql/sql.ts';
+import type { ColumnsSelection, Placeholder, Query } from '~/sql/sql.ts';
 import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import type { SubqueryWithSelection } from '~/sqlite-core/subquery.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
-import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { applyMixins, getTableColumns, getTableLikeName, orderSelectedFields, type ValueOrArray } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
-import { type ColumnsSelection, View } from '~/view.ts';
-import { SQLiteViewBase } from '../view.ts';
 import type {
 	CreateSQLiteSelectFromBuilderMode,
 	SelectedFields,
@@ -35,6 +33,9 @@ import type {
 	SQLiteSelectPrepare,
 	SQLiteSelectWithout,
 } from './select.types.ts';
+import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { SQLiteViewBase } from '../view-base.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
 
 export class SQLiteSelectBuilder<
 	TSelection extends SelectedFields | undefined,

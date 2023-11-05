@@ -24,23 +24,22 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import {
-	and,
 	type DriverValueEncoder,
-	eq,
 	Param,
 	type QueryTypingsValue,
 	type QueryWithTypings,
 	SQL,
 	sql,
 	type SQLChunk,
-} from '~/sql/index.ts';
+} from '~/sql/sql.ts';
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
-import { View } from '~/view.ts';
 import type { PgSession } from './session.ts';
-import { type PgMaterializedView, PgViewBase } from './view.ts';
+import type { PgMaterializedView } from './view.ts';
+import { View, and, eq } from '~/sql/index.ts';
+import { PgViewBase } from './view-base.ts';
 
 export class PgDialect {
 	static readonly [entityKind]: string = 'PgDialect';

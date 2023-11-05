@@ -4,7 +4,7 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgSession, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { SubqueryWithSelection } from '~/pg-core/subquery.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-import { PgViewBase } from '~/pg-core/view.ts';
+import { PgViewBase } from '~/pg-core/view-base.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	BuildSubquerySelection,
@@ -16,14 +16,15 @@ import type {
 	SelectResult,
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import { type Placeholder, type Query, SQL, type SQLWrapper } from '~/sql/index.ts';
-import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
+import { SQL, View } from '~/sql/sql.ts';
+import type { ColumnsSelection, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
+import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { applyMixins, getTableColumns, getTableLikeName, type ValueOrArray } from '~/utils.ts';
 import { orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
-import { type ColumnsSelection, View } from '~/view.ts';
 import type {
 	CreatePgSelectFromBuilderMode,
 	LockConfig,

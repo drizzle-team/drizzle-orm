@@ -1,6 +1,5 @@
 import type { MySqlColumn } from '~/mysql-core/columns/index.ts';
 import type { MySqlTable, MySqlTableWithColumns } from '~/mysql-core/table.ts';
-import type { MySqlViewBase, MySqlViewWithSelection } from '~/mysql-core/view.ts';
 import type {
 	SelectedFields as SelectedFieldsBase,
 	SelectedFieldsFlat as SelectedFieldsFlatBase,
@@ -17,13 +16,14 @@ import type {
 	SelectMode,
 	SelectResult,
 } from '~/query-builders/select.types.ts';
-import type { Placeholder, SQL } from '~/sql/index.ts';
+import type { ColumnsSelection, Placeholder, SQL, View } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume } from '~/utils.ts';
-import type { ColumnsSelection, View } from '~/view.ts';
 import type { PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
 import type { MySqlSelectBase, MySqlSelectQueryBuilderBase } from './select.ts';
+import type { MySqlViewBase } from '../view-base.ts';
+import type { MySqlViewWithSelection } from '../view.ts';
 
 export interface MySqlSelectJoinConfig {
 	on: SQL | undefined;

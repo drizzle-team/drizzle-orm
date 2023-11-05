@@ -3,10 +3,10 @@ import { Relation } from '~/relations.ts';
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { tracer } from '~/tracing.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
-import { View } from '~/view.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
 import { Table } from '../table.ts';
+import type { SelectedFields } from '~/operations.ts';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.
@@ -578,6 +578,58 @@ export function fillPlaceholders(params: unknown[], values: Record<string, unkno
 	});
 }
 
+export type ColumnsSelection = Record<string, unknown>;
+
+export abstract class View<
+	TName extends string = string,
+	TExisting extends boolean = boolean,
+	TSelection extends ColumnsSelection = ColumnsSelection,
+> implements SQLWrapper {
+	static readonly [entityKind]: string = 'View';
+
+	declare _: {
+		brand: 'View';
+		viewBrand: string;
+		name: TName;
+		existing: TExisting;
+		selectedFields: TSelection;
+	};
+
+	/** @internal */
+	[ViewBaseConfig]: {
+		name: TName;
+		originalName: TName;
+		schema: string | undefined;
+		selectedFields: SelectedFields<AnyColumn, Table>;
+		isExisting: TExisting;
+		query: TExisting extends true ? undefined : SQL;
+		isAlias: boolean;
+	};
+
+	constructor(
+		{ name, schema, selectedFields, query }: {
+			name: TName;
+			schema: string | undefined;
+			selectedFields: SelectedFields<AnyColumn, Table>;
+			query: SQL | undefined;
+		},
+	) {
+		this[ViewBaseConfig] = {
+			name,
+			originalName: name,
+			schema,
+			selectedFields,
+			query: query as (TExisting extends true ? undefined : SQL),
+			isExisting: !query as TExisting,
+			isAlias: false,
+		};
+	}
+
+	getSQL(): SQL<unknown> {
+		return new SQL([this]);
+	}
+}
+
 // Defined separately from the Column class to resolve circular dependency
 Column.prototype.getSQL = function() {
 	return new SQL([this]);
@@ -585,5 +637,10 @@ Column.prototype.getSQL = function() {
 
 // Defined separately from the Table class to resolve circular dependency
 Table.prototype.getSQL = function() {
+	return new SQL([this]);
+};
+
+// Defined separately from the Column class to resolve circular dependency
+Subquery.prototype.getSQL = function() {
 	return new SQL([this]);
 };

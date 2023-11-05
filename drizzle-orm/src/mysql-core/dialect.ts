@@ -14,12 +14,11 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { and, eq, Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/index.ts';
+import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
-import { View } from '~/view.ts';
-import { DrizzleError, ViewBaseConfig } from '../index.ts';
+import { DrizzleError, ViewBaseConfig, and, eq } from '../index.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
@@ -27,15 +26,7 @@ import type { MySqlSelectConfig, MySqlSelectJoinConfig, SelectedFieldsOrdered } 
 import type { MySqlUpdateConfig } from './query-builders/update.ts';
 import type { MySqlSession } from './session.ts';
 import { MySqlTable } from './table.ts';
-import { MySqlViewBase } from './view.ts';
-
-// TODO find out how to use all/values. Seems like I need those functions
-// Build project
-// copy runtime tests to be sure it's working
-
-// Add mysql to drizzle-kit
-
-// Add Planetscale Driver and create example repo
+import { MySqlViewBase } from './view-base.ts';
 
 export class MySqlDialect {
 	static readonly [entityKind]: string = 'MySqlDialect';
