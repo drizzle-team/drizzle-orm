@@ -19,7 +19,7 @@ export interface SQLiteUpdateConfig {
 
 export type SQLiteUpdateSetSource<TTable extends SQLiteTable> =
 	& {
-		[Key in keyof TTable['_']['columns']]?:
+		[Key in keyof TTable['$inferInsert']]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
 			| SQL;
 	}

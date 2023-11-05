@@ -1,5 +1,6 @@
 import type { GetColumnData } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
+// import type { NotGenerated } from '~/index.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type {
 	AnyQueryResultHKT,
@@ -25,7 +26,7 @@ export interface MySqlUpdateConfig {
 
 export type MySqlUpdateSetSource<TTable extends MySqlTable> =
 	& {
-		[Key in keyof TTable['_']['columns']]?:
+		[Key in keyof TTable['$inferInsert']]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
 			| SQL;
 	}

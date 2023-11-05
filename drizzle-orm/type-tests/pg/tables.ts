@@ -1020,6 +1020,37 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 }
 
 {
+	const e1 = pgEnum('test', ['a', 'b', 'c']);
+	const e2 = pgEnum('test', ['a', 'b', 'c'] as const);
+
+	const test = pgTable('test', {
+		col1: char('col1', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		col2: char('col2', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		col3: char('col3').generatedAlwaysAs(sql``),
+		col4: e1('col4').generatedAlwaysAs(sql``),
+		col5: e2('col5').generatedAlwaysAs(sql``),
+		col6: text('col6', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		col7: text('col7', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		col8: text('col8').generatedAlwaysAs(sql``),
+		col9: varchar('col9', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		col10: varchar('col10', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		col11: varchar('col11').generatedAlwaysAs(sql``),
+	});
+
+	Expect<Equal<['a', 'b', 'c'], typeof test.col1.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.col2.enumValues>>;
+	Expect<Equal<[string, ...string[]], typeof test.col3.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.col4.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.col5.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.col6.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.col7.enumValues>>;
+	Expect<Equal<[string, ...string[]], typeof test.col8.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.col9.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.col10.enumValues>>;
+	Expect<Equal<[string, ...string[]], typeof test.col11.enumValues>>;
+}
+
+{
 	const test = pgTable('test', {
 		id: text('id').$defaultFn(() => crypto.randomUUID()).primaryKey(),
 	});
