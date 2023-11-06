@@ -105,6 +105,11 @@ export abstract class Column<
 	mapToDriverValue(value: unknown): unknown {
 		return value;
 	}
+
+	// ** @internal */
+	isGenerated(): boolean {
+		return this.generated !== undefined;
+	}
 }
 
 export type UpdateColConfig<

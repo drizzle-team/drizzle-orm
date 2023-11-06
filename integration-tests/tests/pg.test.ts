@@ -42,6 +42,7 @@ import {
 	macaddr,
 	macaddr8,
 	type PgColumn,
+	pgEnum,
 	pgMaterializedView,
 	pgTable,
 	pgTableCreator,
@@ -56,7 +57,6 @@ import {
 	uniqueKeyName,
 	uuid as pgUuid,
 	varchar,
-	pgEnum,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import pg from 'pg';
@@ -3150,4 +3150,100 @@ test.serial('set operations (mixed all) as function', async (t) => {
 				.select().from(cities2Table).where(gt(citiesTable.id, 1)),
 		).orderBy(asc(sql`id`));
 	});
+});
+
+test.serial('select from a table with generated columns', async (t) => {
+	const { db } = t.context;
+
+	const usersTable = pgTable('users', {
+		id: serial('id'),
+		firstName: text('first_name'),
+		lastName: text('last_name'),
+		fullName: text('full_name').generatedAlwaysAs(sql`first_name || ' ' || last_name`),
+		upper: text('upper').generatedAlwaysAs(sql`upper(full_name)`),
+	});
+
+	await db.execute(sql`drop table if exists ${usersTable}`);
+	await db.execute(sql`
+		create table ${usersTable} (
+		  id serial,
+		  first_name text,
+		  last_name text,
+		  full_name text generated always as (CASE WHEN first_name IS NULL THEN last_name
+		                             WHEN last_name  IS NULL THEN first_name
+		                             ELSE first_name || ' ' || last_name END) stored,
+		  upper text generated always as (upper(CASE WHEN first_name IS NULL THEN last_name
+		                             WHEN last_name  IS NULL THEN first_name
+		                             ELSE first_name || ' ' || last_name END)) stored
+		)
+	`);
+
+	await db.insert(usersTable).values([
+		{ firstName: 'John', lastName: 'Doe' },
+		{ firstName: 'Jane', lastName: 'Doe' },
+	]);
+
+	const result = await db.select().from(usersTable);
+
+	Expect<
+		Equal<{
+			id: number;
+			firstName: string | null;
+			lastName: string | null;
+			fullName: string;
+			upper: string;
+		}[], typeof result>
+	>;
+
+	t.deepEqual(result, [
+		{ id: 1, firstName: 'John', lastName: 'Doe', fullName: 'John Doe', upper: 'JOHN DOE' },
+		{ id: 2, firstName: 'Jane', lastName: 'Doe', fullName: 'Jane Doe', upper: 'JANE DOE' },
+	]);
+});
+
+test.serial('select from a table with generated columns with null', async (t) => {
+	const { db } = t.context;
+
+	const usersTable = pgTable('users', {
+		id: serial('id'),
+		firstName: text('first_name'),
+		lastName: text('last_name'),
+		fullName: text('full_name').generatedAlwaysAs(sql`first_name || ' ' || last_name`).$type<
+			string | null
+		>(),
+		upper: text('upper').generatedAlwaysAs(sql`upper(full_name)`).$type<string | null>(),
+	});
+
+	await db.execute(sql`drop table if exists ${usersTable}`);
+	await db.execute(sql`
+		create table ${usersTable} (
+		  id serial,
+		  first_name text,
+		  last_name text,
+		  full_name text generated always as (CASE WHEN first_name IS NULL THEN last_name
+		                             WHEN last_name  IS NULL THEN first_name
+		                             ELSE first_name || ' ' || last_name END) stored,
+		  upper text generated always as (upper(CASE WHEN first_name IS NULL THEN last_name
+		                             WHEN last_name  IS NULL THEN first_name
+		                             ELSE first_name || ' ' || last_name END)) stored
+		)
+	`);
+
+	await db.insert(usersTable).values({});
+
+	const result = await db.select().from(usersTable);
+
+	Expect<
+		Equal<{
+			id: number;
+			firstName: string | null;
+			lastName: string | null;
+			fullName: string | null;
+			upper: string | null;
+		}[], typeof result>
+	>;
+
+	t.deepEqual(result, [
+		{ id: 1, firstName: null, lastName: null, fullName: null, upper: null },
+	]);
 });
