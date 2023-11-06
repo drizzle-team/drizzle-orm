@@ -1,8 +1,14 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type {
+	ColumnBuilderBaseConfig,
+	ColumnBuilderRuntimeConfig,
+	IsIdentityByDefault,
+	MakeColumnConfig,
+} from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
+import { type SQL, sql } from '~/sql/sql.ts';
 import type { AnyPgTable } from '../table.ts';
-import { PgColumn, PgColumnBuilder } from './common.ts';
+import { PgColumn, PgColumnBuilder, type PgGeneratedColumnConfig } from './common.ts';
 
 type PgIntegerBuilderInitial<TName extends string> = PgIntegerBuilder<{
 	name: TName;
@@ -19,6 +25,16 @@ export class PgIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgInt
 
 	constructor(name: T['name']) {
 		super(name, 'number', 'PgInteger');
+	}
+
+	generatedAsIdentity<TType extends 'always' | 'byDefault'>(
+		config?: PgGeneratedColumnConfig<TType> & { sequenceOpts?: SQL },
+	): IsIdentityByDefault<this, TType> {
+		this.config.generated = {
+			as: sql`identity${config?.sequenceOpts ? ` ${config.sequenceOpts}` : ''}`,
+			type: config?.type ?? 'always',
+		};
+		return this as any;
 	}
 
 	/** @internal */

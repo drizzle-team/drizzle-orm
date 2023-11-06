@@ -1,7 +1,7 @@
 import { type Equal, Expect } from 'type-tests/utils';
 import { type InferInsertModel, type InferSelectModel, sql } from '~/index';
 import { drizzle } from '~/node-postgres';
-import { pgTable, serial, text, varchar } from '~/pg-core';
+import { integer, pgTable, serial, text, varchar } from '~/pg-core';
 import { db } from './db';
 
 const users = pgTable(
@@ -155,4 +155,36 @@ const users = pgTable(
 		// @ts-expect-error - Can't use the fullName because it's a generated column
 		fullName: 'test',
 	});
+}
+
+const users2 = pgTable(
+	'users',
+	{
+		id: integer('id').generatedAsIdentity({ type: 'byDefault' }),
+		id2: integer('id').generatedAsIdentity({ type: 'always' }),
+	},
+);
+
+{
+	type User = typeof users2.$inferSelect;
+	type NewUser = typeof users2.$inferInsert;
+
+	Expect<
+		Equal<
+			{
+				id: number;
+				id2: number;
+			},
+			User
+		>
+	>();
+
+	Expect<
+		Equal<
+			{
+				id?: number | undefined;
+			},
+			NewUser
+		>
+	>();
 }

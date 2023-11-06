@@ -55,7 +55,7 @@ export type MakeColumnConfig<
 	enumValues: T['enumValues'];
 	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase } ? BuildColumn<TTableName, U, 'common'>
 		: never;
-	generated: T['generated'] extends object ? GeneratedColumnConfig<TData> : undefined;
+	generated: T['generated'] extends object ? T['generated'] : undefined;
 } & {};
 
 export type ColumnBuilderTypeConfig<
@@ -120,6 +120,17 @@ export type HasGenerated<T extends ColumnBuilderBase, TGenerated extends {} = {}
 		notNull: true;
 		hasDefault: true;
 		generated: TGenerated;
+	};
+};
+
+export type IsIdentityByDefault<
+	T extends ColumnBuilderBase,
+	TType extends 'always' | 'byDefault',
+> = T & {
+	_: {
+		notNull: true;
+		hasDefault: true;
+		generated: { as: any; type: TType };
 	};
 };
 

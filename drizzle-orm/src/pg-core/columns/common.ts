@@ -14,13 +14,13 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Update } from '~/utils.ts';
 
-import { type SQL, sql } from '~/index.ts';
+import type { SQL } from '~/index.ts';
 import type { ForeignKey, UpdateDeleteAction } from '~/pg-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/pg-core/foreign-keys.ts';
 import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
+import { iife } from '~/tracing-utils.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
 import { makePgArray, parsePgArray } from '../utils/array.ts';
-import { iife } from '~/tracing-utils.ts';
 
 export interface ReferenceConfig {
 	ref: () => PgColumn;
@@ -35,8 +35,8 @@ export interface PgColumnBuilderBase<
 	TTypeConfig extends object = object,
 > extends ColumnBuilderBase<T, TTypeConfig & { dialect: 'pg' }> {}
 
-export interface PgGeneratedColumnConfig {
-	type?: 'always' | 'byDefault';
+export interface PgGeneratedColumnConfig<TType extends 'always' | 'byDefault' = 'always'> {
+	type?: TType;
 }
 
 export abstract class PgColumnBuilder<
@@ -91,14 +91,6 @@ export abstract class PgColumnBuilder<
 			as,
 			type: config?.type ?? 'always',
 			mode: 'stored',
-		};
-		return this as any;
-	}
-
-	generatedAsIdentity(config?: PgGeneratedColumnConfig & { sequenceOpts?: SQL }): HasGenerated<this> {
-		this.config.generated = {
-			as: sql`identity${config?.sequenceOpts ? ` ${config.sequenceOpts}` : ''}`,
-			type: config?.type ?? 'always',
 		};
 		return this as any;
 	}

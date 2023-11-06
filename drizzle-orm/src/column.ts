@@ -107,8 +107,8 @@ export abstract class Column<
 	}
 
 	// ** @internal */
-	isGenerated(): boolean {
-		return this.generated !== undefined;
+	shouldDisableInsert(): boolean {
+		return this.config.generated !== undefined && this.config.generated.type !== 'byDefault';
 	}
 }
 

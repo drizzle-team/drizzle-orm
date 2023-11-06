@@ -426,7 +426,7 @@ export class PgDialect {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
 
-		const colEntries: [string, PgColumn][] = Object.entries(columns).filter(([_, col]) => !col.isGenerated());
+		const colEntries: [string, PgColumn][] = Object.entries(columns).filter(([_, col]) => !col.shouldDisableInsert());
 
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 
