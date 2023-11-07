@@ -3,8 +3,17 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationMeta } from '~/migrator.ts';
-import type { AnyPgCustomColumn } from '~/pg-core/columns/index.ts';
-import { PgColumn, PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core/columns/index.ts';
+import {
+	PgColumn,
+	PgCustomColumn,
+	PgDate,
+	PgJson,
+	PgJsonb,
+	PgNumeric,
+	PgTime,
+	PgTimestamp,
+	PgUUID,
+} from '~/pg-core/columns/index.ts';
 import type {
 	PgDeleteConfig,
 	PgInsertConfig,
@@ -25,6 +34,7 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
+import { and, eq, View } from '~/sql/index.ts';
 import {
 	type DriverValueEncoder,
 	type Name,
@@ -40,9 +50,8 @@ import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgSession } from './session.ts';
-import type { PgMaterializedView } from './view.ts';
-import { View, and, eq } from '~/sql/index.ts';
 import { PgViewBase } from './view-base.ts';
+import type { PgMaterializedView } from './view.ts';
 
 export class PgDialect {
 	static readonly [entityKind]: string = 'PgDialect';
@@ -162,7 +171,7 @@ export class PgDialect {
 							new SQL(
 								query.queryChunks.map((c) => {
 									if (is(c, PgColumn)) {
-										if (isCustomColumn(c) && c.customSelect) {
+										if (is(c, PgCustomColumn) && c.customSelect) {
 											return c.customSelect(sql.identifier(c.name));
 										}
 										return sql.identifier(c.name);
@@ -180,13 +189,13 @@ export class PgDialect {
 					}
 				} else if (is(field, Column)) {
 					if (isSingleTable) {
-						if (isCustomColumn(field) && field.customSelect) {
+						if (is(field, PgCustomColumn) && field.customSelect) {
 							chunk.push(field.customSelect(sql.identifier(field.name)), sql` as ${sql.identifier(field.name)}`);
 						} else {
 							chunk.push(sql.identifier(field.name));
 						}
 					} else {
-						if (isCustomColumn(field) && field.customSelect) {
+						if (is(field, PgCustomColumn) && field.customSelect) {
 							chunk.push(field, sql` as ${sql.identifier(field.name)}`);
 						} else {
 							chunk.push(field);
@@ -1339,20 +1348,3 @@ export class PgDialect {
 		};
 	}
 }
-
-// Had to reuse the constructor logic from `is` to avoid circular dependencies
-const isCustomColumn = (c: PgColumn): c is AnyPgCustomColumn => {
-	let cls = c.constructor;
-	if (cls) {
-		// Traverse the prototype chain to find the entityKind
-		while (cls) {
-			if (entityKind in cls && cls[entityKind] === 'PgCustomColumn') {
-				return true;
-			}
-
-			cls = Object.getPrototypeOf(cls);
-		}
-	}
-
-	return false;
-};

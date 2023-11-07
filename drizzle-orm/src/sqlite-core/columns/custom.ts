@@ -1,7 +1,7 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { Name, SQL } from '~/sql/sql.ts';
+import type { SQL } from '~/sql/sql.ts';
 import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
 import type { Equal } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
@@ -65,7 +65,7 @@ export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom', 'SQLiteCust
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
-	customSelect?: (value: SQLiteColumn | string | Name) => SQL;
+	customSelect?: (value: any) => SQL;
 
 	constructor(
 		table: AnySQLiteTable<{ name: T['tableName'] }>,
@@ -210,7 +210,7 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * },
 	 * ```
 	 */
-	customSelect?: (value: SQLiteColumn | string | Name | SQL) => SQL;
+	customSelect?: (value: SQLiteColumn) => SQL;
 }
 
 /**

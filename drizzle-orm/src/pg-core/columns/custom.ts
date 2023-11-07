@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
-import type { Name, SQL } from '~/sql/sql.ts';
+import type { SQL } from '~/sql/sql.ts';
 import type { Equal } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
@@ -65,7 +65,7 @@ export class PgCustomColumn<T extends ColumnBaseConfig<'custom', 'PgCustomColumn
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
-	customSelect?: (value: PgColumn | string | Name) => SQL;
+	customSelect?: (value: any) => SQL;
 
 	constructor(
 		table: AnyPgTable<{ name: T['tableName'] }>,
@@ -210,7 +210,7 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * },
 	 * ```
 	 */
-	customSelect?: (value: PgColumn | string | Name | SQL) => SQL;
+	customSelect?: (value: PgColumn) => SQL;
 }
 
 /**
