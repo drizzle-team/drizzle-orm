@@ -1,7 +1,7 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { and, eq, gt, inArray, isNull, lt } from '~/expressions.ts';
-import { AnyMySqlColumn, int, mysqlTable, serial, text, timestamp } from '~/mysql-core/index.ts';
+import { type AnyMySqlColumn, int, mysqlTable, serial, text, timestamp } from '~/mysql-core/index.ts';
 import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
 

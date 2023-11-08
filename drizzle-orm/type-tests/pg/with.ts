@@ -1,7 +1,7 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { and, eq, gt, inArray, isNull, lt } from '~/expressions.ts';
-import { AnyPgColumn, integer, pgTable, serial, text, timestamp } from '~/pg-core/index.ts';
+import { type AnyPgColumn, integer, pgTable, serial, text, timestamp } from '~/pg-core/index.ts';
 import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
 

@@ -2,7 +2,7 @@ import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { and, eq, gt, inArray, isNull, lt } from '~/expressions.ts';
 import { sql } from '~/sql/sql.ts';
-import { AnySQLiteColumn, integer, sqliteTable, text } from '~/sqlite-core/index.ts';
+import { type AnySQLiteColumn, integer, sqliteTable, text } from '~/sqlite-core/index.ts';
 import { db } from './db.ts';
 
 const orders = sqliteTable('orders', {
