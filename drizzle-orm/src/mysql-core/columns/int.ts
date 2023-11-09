@@ -14,12 +14,13 @@ export type MySqlIntBuilderInitial<TName extends string> = MySqlIntBuilder<{
 }>;
 
 export class MySqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlInt'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T>
+	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>
 {
 	static readonly [entityKind]: string = 'MySqlIntBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: T['name'], config?: MySqlIntConfig) {
 		super(name, 'number', 'MySqlInt');
+		this.config.unsigned = config ? config.unsigned : false;
 	}
 
 	/** @internal */
@@ -30,11 +31,13 @@ export class MySqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlI
 	}
 }
 
-export class MySqlInt<T extends ColumnBaseConfig<'number', 'MySqlInt'>> extends MySqlColumnWithAutoIncrement<T> {
+export class MySqlInt<T extends ColumnBaseConfig<'number', 'MySqlInt'>>
+	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
+{
 	static readonly [entityKind]: string = 'MySqlInt';
 
 	getSQLType(): string {
-		return 'int';
+		return `int${this.config.unsigned ? ' unsigned' : ''}`;
 	}
 
 	override mapFromDriverValue(value: number | string): number {
@@ -45,6 +48,10 @@ export class MySqlInt<T extends ColumnBaseConfig<'number', 'MySqlInt'>> extends 
 	}
 }
 
-export function int<TName extends string>(name: TName): MySqlIntBuilderInitial<TName> {
-	return new MySqlIntBuilder(name);
+export interface MySqlIntConfig {
+	unsigned?: boolean;
+}
+
+export function int<TName extends string>(name: TName, config?: MySqlIntConfig): MySqlIntBuilderInitial<TName> {
+	return new MySqlIntBuilder(name, config);
 }

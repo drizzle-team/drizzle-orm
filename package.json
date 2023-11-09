@@ -11,30 +11,34 @@
     "lint": "eslint --ext ts ."
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.12.1",
     "@trivago/prettier-plugin-sort-imports": "^4.2.0",
-    "@typescript-eslint/eslint-plugin": "^6.4.1",
+    "@typescript-eslint/eslint-plugin": "^6.7.3",
     "@typescript-eslint/experimental-utils": "^5.62.0",
-    "@typescript-eslint/parser": "^6.4.1",
-    "bun-types": "^0.7.3",
+    "@typescript-eslint/parser": "^6.7.3",
+    "bun-types": "^1.0.3",
     "concurrently": "^8.2.1",
-    "dprint": "^0.40.2",
+    "dprint": "^0.41.0",
     "drizzle-kit": "^0.19.13",
     "drizzle-orm": "workspace:./drizzle-orm/dist",
     "drizzle-orm-old": "npm:drizzle-orm@^0.27.2",
-    "eslint": "^8.47.0",
+    "eslint": "^8.50.0",
     "eslint-plugin-drizzle": "link:eslint/eslint-plugin-drizzle",
     "eslint-plugin-import": "^2.28.1",
     "eslint-plugin-no-instanceof": "^1.0.1",
     "eslint-plugin-unicorn": "^48.0.1",
     "eslint-plugin-unused-imports": "^3.0.0",
-    "prettier": "^3.0.2",
-    "resolve-tspaths": "^0.8.15",
-    "turbo": "^1.10.13",
-    "typescript": "5.1.6"
+    "glob": "^10.3.10",
+    "prettier": "^3.0.3",
+    "recast": "^0.23.4",
+    "resolve-tspaths": "^0.8.16",
+    "tsup": "^7.2.0",
+    "turbo": "^1.10.14",
+    "typescript": "5.2.2"
   },
   "pnpm": {
     "patchedDependencies": {
-      "typescript@5.1.6": "patches/typescript@5.1.6.patch"
+      "typescript@5.2.2": "patches/typescript@5.2.2.patch"
     }
   }
 }

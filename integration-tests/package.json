@@ -21,7 +21,10 @@
       "!tests/bun/**/*",
       "!tests/vercel-pg.test.ts",
       "!tests/relational/**/*",
-      "!tests/libsql-batch.test.ts"
+      "!tests/libsql-batch.test.ts",
+      "!tests/d1-batch.test.ts",
+      "!tests/replicas/**/*",
+      "!tests/imports/**/*"
     ],
     "extensions": {
       "ts": "module"
@@ -50,25 +53,26 @@
     "axios": "^1.4.0",
     "tsx": "^3.12.7",
     "vite": "^4.3.9",
-    "vite-tsconfig-paths": "^4.2.0"
+    "vite-tsconfig-paths": "^4.2.0",
+    "zx": "^7.2.2"
   },
   "dependencies": {
     "@aws-sdk/client-rds-data": "^3.345.0",
     "@aws-sdk/credential-providers": "^3.345.0",
     "@libsql/client": "^0.1.6",
+    "@miniflare/d1": "^2.14.0",
+    "@miniflare/shared": "^2.14.0",
     "@planetscale/database": "^1.7.0",
     "@typescript/analyze-trace": "^0.10.0",
     "@vercel/postgres": "^0.3.0",
     "better-sqlite3": "^8.4.0",
     "dockerode": "^3.3.4",
     "dotenv": "^16.1.4",
-    "drizzle-zod": "workspace:../drizzle-zod/dist",
     "drizzle-typebox": "workspace:../drizzle-typebox/dist",
     "drizzle-valibot": "workspace:../drizzle-valibot/dist",
+    "drizzle-zod": "workspace:../drizzle-zod/dist",
     "express": "^4.18.2",
     "get-port": "^7.0.0",
-    "@miniflare/shared": "^2.14.0",
-    "@miniflare/d1": "^2.14.0",
     "mysql2": "^3.3.3",
     "pg": "^8.11.0",
     "postgres": "^3.3.5",

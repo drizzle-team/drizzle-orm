@@ -13,4 +13,6 @@ export * from './subquery.ts';
 export * from './table.ts';
 export * from './unique-constraint.ts';
 export * from './utils.ts';
+export * from './utils/index.ts';
+export * from './view-common.ts';
 export * from './view.ts';

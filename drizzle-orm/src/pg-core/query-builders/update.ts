@@ -11,8 +11,8 @@ import type {
 import type { PgTable } from '~/pg-core/table.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { Query, SQL, SQLWrapper } from '~/sql/index.ts';
-import { type InferModel, Table } from '~/table.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { Table } from '~/table.ts';
 import { mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import type { SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
 
@@ -44,34 +44,108 @@ export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends QueryR
 		private dialect: PgDialect,
 	) {}
 
-	set(values: PgUpdateSetSource<TTable>): PgUpdate<TTable, TQueryResult> {
-		return new PgUpdate<TTable, TQueryResult>(this.table, mapUpdateSet(this.table, values), this.session, this.dialect);
+	set(values: PgUpdateSetSource<TTable>): PgUpdateBase<TTable, TQueryResult> {
+		return new PgUpdateBase<TTable, TQueryResult>(
+			this.table,
+			mapUpdateSet(this.table, values),
+			this.session,
+			this.dialect,
+		);
 	}
 }
 
-export interface PgUpdate<
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TTable extends PgTable,
-	TQueryResult extends QueryResultHKT,
-	TReturning extends Record<string, unknown> | undefined = undefined,
-> extends
-	QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>,
-	SQLWrapper
-{}
+export type PgUpdateWithout<
+	T extends AnyPgUpdate,
+	TDynamic extends boolean,
+	K extends keyof T & string,
+> = TDynamic extends true ? T : Omit<
+	PgUpdateBase<
+		T['_']['table'],
+		T['_']['queryResult'],
+		T['_']['returning'],
+		TDynamic,
+		T['_']['excludedMethods'] | K
+	>,
+	T['_']['excludedMethods'] | K
+>;
 
-export class PgUpdate<
+export type PgUpdateReturningAll<T extends AnyPgUpdate, TDynamic extends boolean> = PgUpdateWithout<
+	PgUpdateBase<
+		T['_']['table'],
+		T['_']['queryResult'],
+		T['_']['table']['$inferSelect'],
+		TDynamic,
+		T['_']['excludedMethods']
+	>,
+	TDynamic,
+	'returning'
+>;
+
+export type PgUpdateReturning<
+	T extends AnyPgUpdate,
+	TDynamic extends boolean,
+	TSelectedFields extends SelectedFields,
+> = PgUpdateWithout<
+	PgUpdateBase<
+		T['_']['table'],
+		T['_']['queryResult'],
+		SelectResultFields<TSelectedFields>,
+		TDynamic,
+		T['_']['excludedMethods']
+	>,
+	TDynamic,
+	'returning'
+>;
+
+export type PgUpdatePrepare<T extends AnyPgUpdate> = PreparedQuery<
+	PreparedQueryConfig & {
+		execute: T['_']['returning'] extends undefined ? QueryResultKind<T['_']['queryResult'], never>
+			: T['_']['returning'][];
+	}
+>;
+
+export type PgUpdateDynamic<T extends AnyPgUpdate> = PgUpdate<
+	T['_']['table'],
+	T['_']['queryResult'],
+	T['_']['returning']
+>;
+
+export type PgUpdate<
+	TTable extends PgTable = PgTable,
+	TQueryResult extends QueryResultHKT = QueryResultHKT,
+	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
+> = PgUpdateBase<TTable, TQueryResult, TReturning, true, never>;
+
+type AnyPgUpdate = PgUpdateBase<any, any, any, any, any>;
+
+export interface PgUpdateBase<
 	TTable extends PgTable,
 	TQueryResult extends QueryResultHKT,
 	TReturning extends Record<string, unknown> | undefined = undefined,
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+> extends QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>, SQLWrapper {
+	readonly _: {
+		readonly table: TTable;
+		readonly queryResult: TQueryResult;
+		readonly returning: TReturning;
+		readonly dynamic: TDynamic;
+		readonly excludedMethods: TExcludedMethods;
+	};
+}
+
+export class PgUpdateBase<
+	TTable extends PgTable,
+	TQueryResult extends QueryResultHKT,
+	TReturning extends Record<string, unknown> | undefined = undefined,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TDynamic extends boolean = false,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TExcludedMethods extends string = never,
 > extends QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>
 	implements SQLWrapper
 {
 	static readonly [entityKind]: string = 'PgUpdate';
-
-	declare readonly _: {
-		readonly table: TTable;
-		readonly return: TReturning;
-	};
 
 	private config: PgUpdateConfig;
 
@@ -85,20 +159,20 @@ export class PgUpdate<
 		this.config = { set, table };
 	}
 
-	where(where: SQL | undefined): this {
+	where(where: SQL | undefined): PgUpdateWithout<this, TDynamic, 'where'> {
 		this.config.where = where;
-		return this;
+		return this as any;
 	}
 
-	returning(): PgUpdate<TTable, TQueryResult, InferModel<TTable>>;
+	returning(): PgUpdateReturningAll<this, TDynamic>;
 	returning<TSelectedFields extends SelectedFields>(
 		fields: TSelectedFields,
-	): PgUpdate<TTable, TQueryResult, SelectResultFields<TSelectedFields>>;
+	): PgUpdateReturning<this, TDynamic, TSelectedFields>;
 	returning(
 		fields: SelectedFields = this.config.table[Table.Symbol.Columns],
-	): PgUpdate<TTable, any, any> {
+	): PgUpdateWithout<AnyPgUpdate, TDynamic, 'returning'> {
 		this.config.returning = orderSelectedFields(fields);
-		return this as PgUpdate<TTable, any>;
+		return this as any;
 	}
 
 	/** @internal */
@@ -106,28 +180,24 @@ export class PgUpdate<
 		return this.dialect.buildUpdateQuery(this.config);
 	}
 
-	toSQL(): Omit<Query, 'typings'> {
+	toSQL(): Query {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
 
-	private _prepare(name?: string): PreparedQuery<
-		PreparedQueryConfig & {
-			execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
-		}
-	> {
+	private _prepare(name?: string): PgUpdatePrepare<this> {
 		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
 	}
 
-	prepare(name: string): PreparedQuery<
-		PreparedQueryConfig & {
-			execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
-		}
-	> {
+	prepare(name: string): PgUpdatePrepare<this> {
 		return this._prepare(name);
 	}
 
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return this._prepare().execute(placeholderValues);
 	};
+
+	$dynamic(): PgUpdateDynamic<this> {
+		return this as any;
+	}
 }
