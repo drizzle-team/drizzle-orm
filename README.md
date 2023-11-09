@@ -32,16 +32,16 @@ Check the full documentation on [the website](https://orm.drizzle.team)
 ## Supported databases
 | Database        | Support |                                                   |                                                                       |
 | :-------------- | :-----: | :------------------------------------------------ | :-------------------------------------------------------------------- |
-| PostgreSQL      |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start) |                                                                       |
-| MySQL           |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start) |                                                                       |
-| SQLite          |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-start) |                                                                       |
-| Cloudflare D1   |   ✅    | [Docs](https://driz.li/docs-d1)                   | [Website](https://developers.cloudflare.com/d1)                       |
+| PostgreSQL      |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-postgresql) |                                                                       |
+| MySQL           |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-mysql) |                                                                       |
+| SQLite          |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-sqlite) |                                                                       |
+| Cloudflare D1   |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-sqlite/d1)                   | [Website](https://developers.cloudflare.com/d1)                       |
 | libSQL          |   ✅    | [Docs](/examples/libsql/README.md)                | [Website](https://libsql.org)                                         |
-| Turso           |   ✅    | [Docs](https://driz.li/docs-turso)                | [Website](https://turso.tech)                                         |
-| PlanetScale     |   ✅    | [Docs](https://driz.li/docs-planetscale)          | [Website](https://planetscale.com/)                                   |
-| Neon            |   ✅    | [Docs](https://driz.li/docs-neon)                 | [Website](https://neon.tech/)                                         |
-| Vercel Postgres |   ✅    | [Docs](https://driz.li/docs-vercel-postgres)      | [Website](https://vercel.com/docs/storage/vercel-postgres/quickstart) |
-| Supabase        |   ✅    | [Docs](https://driz.li/docs-supabase)             | [Website](https://supabase.com)                                      |
+| Turso           |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-sqlite/turso)                | [Website](https://turso.tech)                                         |
+| PlanetScale     |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-mysql/planetscale)          | [Website](https://planetscale.com/)                                   |
+| Neon            |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-postgresql/neon)                 | [Website](https://neon.tech/)                                         |
+| Vercel Postgres |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-postgresql/vercel)      | [Website](https://vercel.com/docs/storage/vercel-postgres/quickstart) |
+| Supabase        |   ✅    | [Docs](https://orm.drizzle.team/docs/quick-postgresql/supabase)             | [Website](https://supabase.com)                                      |
 | DynamoDB        |   ⏳    |                                                   |                                                                       |
 | MS SQL          |   ⏳    |                                                   |                                                                       |
 | CockroachDB     |   ⏳    |                                                   |                                                                       |
@@ -148,9 +148,3 @@ const deletedNames /* : { name: string }[] */ = await db.delete(users)
   .where(eq(users.id, insertedUser.id))
   .returning({ name: users.fullName });
 ```
-
-**See full docs for further reference:**
-
-- [PostgreSQL](./drizzle-orm/src/pg-core/README.md)
-- [MySQL](./drizzle-orm/src/mysql-core/README.md)
-- [SQLite](./drizzle-orm/src/sqlite-core/README.md)
