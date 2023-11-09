@@ -22,6 +22,9 @@ export type TableConfig = TableConfigBase<PgColumn>;
 /** @internal */
 export const InlineForeignKeys = Symbol.for('drizzle:PgInlineForeignKeys');
 
+/** @internal */
+export const RLSEnabled = Symbol.for('drizzle:RLSEnabled');
+
 export class PgTable<T extends TableConfig = TableConfig> extends Table<T> {
 	static readonly [entityKind]: string = 'PgTable';
 
@@ -33,9 +36,16 @@ export class PgTable<T extends TableConfig = TableConfig> extends Table<T> {
 	/**@internal */
 	[InlineForeignKeys]: ForeignKey[] = [];
 
+	[RLSEnabled]: boolean = false;
+
 	/** @internal */
 	override [Table.Symbol.ExtraConfigBuilder]: ((self: Record<string, PgColumn>) => PgTableExtraConfig) | undefined =
 		undefined;
+
+	enableRLS(): this {
+		this[RLSEnabled] = true;
+		return this;
+	}
 }
 
 export type AnyPgTable<TPartial extends Partial<TableConfig> = {}> = PgTable<UpdateTableConfig<TableConfig, TPartial>>;

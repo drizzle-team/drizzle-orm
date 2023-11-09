@@ -1,7 +1,7 @@
-import { entityKind } from '~/entity';
-import type { AnyPgTable } from '~/pg-core/table';
-import { SQL, type SQLWrapper } from '~/sql/sql';
-import type { AnyPgRole } from './role';
+import { entityKind } from '~/entity.ts';
+import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { SQL } from '~/sql/sql.ts';
+import type { AnyPgRole } from './role.ts';
 
 export type PgPolicyFor = 'select' | 'insert' | 'update' | 'delete' | 'all';
 
@@ -20,11 +20,12 @@ export type PgPolicyConfig = {
 export const PolicyName = Symbol.for('drizzle:PolicyName');
 export const PolicyTable = Symbol.for('drizzle:PolicyTable');
 
+// Do we need to implement SQLWrapper here? I'm not entirely sure if drizzle-kit will need it
 export class PgPolicy<
 	TName extends string,
 	TTable extends AnyPgTable,
 	TConfig extends PgPolicyConfig | undefined,
-> implements SQLWrapper {
+> {
 	static readonly [entityKind]: string = 'PgPolicy';
 
 	[PolicyName]: TName;
@@ -42,10 +43,6 @@ export class PgPolicy<
 		this[PolicyName] = name;
 		this[PolicyTable] = table;
 		this.config = config;
-	}
-
-	getSQL(): SQL<unknown> {
-		return new SQL([this]);
 	}
 }
 

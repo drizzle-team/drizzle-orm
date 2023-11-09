@@ -1,5 +1,4 @@
-import { entityKind } from '~/entity';
-import { SQL, type SQLWrapper } from '~/sql/sql.ts';
+import { entityKind } from '~/entity.ts';
 
 // Since the create role clause only allow one of these, I guess drizzle-kit will have to generate
 // alter role clauses if the user defines more than one of these
@@ -23,7 +22,8 @@ export type AnyPgRole = PgRole<string, PgRoleConfig>;
 
 export const RoleName = Symbol.for('drizzle:RoleName');
 
-export class PgRole<TName extends string, TConfig extends PgRoleConfig> implements SQLWrapper {
+// Do we need to implement SQLWrapper here? I'm not entirely sure if drizzle-kit will need it
+export class PgRole<TName extends string, TConfig extends PgRoleConfig> {
 	static readonly [entityKind]: string = 'PgRole';
 
 	declare readonly _: {
@@ -38,11 +38,6 @@ export class PgRole<TName extends string, TConfig extends PgRoleConfig> implemen
 	constructor(name: TName, config: TConfig) {
 		this[RoleName] = name;
 		this.config = config;
-	}
-
-	// Maybe this will be moved to ~/sql/sql.ts like Table, Column and Subquery?
-	getSQL(): SQL<unknown> {
-		return new SQL([this]);
 	}
 }
 
