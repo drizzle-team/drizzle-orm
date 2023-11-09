@@ -49,6 +49,7 @@ import type {
 	SQLiteSetOperatorExcludedMethods,
 	SQLiteSetOperatorWithResult,
 } from './select.types.ts';
+import type { SQLiteBuiltInFunction } from '../functions/common.ts';
 
 export class SQLiteSelectBuilder<
 	TSelection extends SelectedFields | undefined,
@@ -525,7 +526,7 @@ export class SQLiteSelectBase<
 		if (!this.session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
-		const fieldsList = orderSelectedFields<SQLiteColumn>(this.config.fields);
+		const fieldsList = orderSelectedFields<SQLiteColumn, SQLiteBuiltInFunction>(this.config.fields);
 		const query = this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
 			this.dialect.sqlToQuery(this.getSQL()),
 			fieldsList,

@@ -1,5 +1,6 @@
 import type { AnyColumn } from './column.ts';
 import { entityKind } from './entity.ts';
+import type { BuiltInFunction } from './built-in-function.ts';
 import type { SelectedFields } from './operations.ts';
 import { SQL, type SQLWrapper } from './sql/index.ts';
 import type { Table } from './table.ts';
@@ -27,7 +28,7 @@ export abstract class View<
 		name: TName;
 		originalName: TName;
 		schema: string | undefined;
-		selectedFields: SelectedFields<AnyColumn, Table>;
+		selectedFields: SelectedFields<AnyColumn, Table, BuiltInFunction>;
 		isExisting: TExisting;
 		query: TExisting extends true ? undefined : SQL;
 		isAlias: boolean;
@@ -37,7 +38,7 @@ export abstract class View<
 		{ name, schema, selectedFields, query }: {
 			name: TName;
 			schema: string | undefined;
-			selectedFields: SelectedFields<AnyColumn, Table>;
+			selectedFields: SelectedFields<AnyColumn, Table, BuiltInFunction>;
 			query: SQL | undefined;
 		},
 	) {

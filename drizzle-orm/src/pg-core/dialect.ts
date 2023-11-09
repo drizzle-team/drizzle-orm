@@ -43,7 +43,7 @@ import { ViewBaseConfig } from '~/view-common.ts';
 import { View } from '~/view.ts';
 import type { PgSession } from './session.ts';
 import { type PgMaterializedView, PgViewBase } from './view.ts';
-import { BuiltInFunction, BuiltInFunctionSQL } from '~/built-in-function.ts';
+import { BuiltInFunction } from '~/built-in-function.ts';
 import type { PgBuiltInFunction } from './functions/common.ts';
 
 export class PgDialect {
@@ -157,7 +157,7 @@ export class PgDialect {
 				if (is(field, SQL.Aliased) && field.isSelectionField) {
 					chunk.push(sql.identifier(field.fieldAlias));
 				} else if (is(field, SQL.Aliased) || is(field, SQL) || is(field, BuiltInFunction)) {
-					const field_ = is(field, BuiltInFunction) ? field[BuiltInFunctionSQL] : field
+					const field_ = is(field, BuiltInFunction) ? field[BuiltInFunction.Symbol.SQL] : field
 					const query = is(field_, SQL.Aliased) ? field_.sql : field_;
 
 					if (isSingleTable) {

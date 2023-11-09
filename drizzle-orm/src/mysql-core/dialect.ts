@@ -28,6 +28,8 @@ import type { MySqlUpdateConfig } from './query-builders/update.ts';
 import type { MySqlSession } from './session.ts';
 import { MySqlTable } from './table.ts';
 import { MySqlViewBase } from './view.ts';
+import { BuiltInFunction } from '~/built-in-function.ts';
+import type { MySqlBuiltInFunction } from './functions/common.ts';
 
 // TODO find out how to use all/values. Seems like I need those functions
 // Build project
@@ -150,8 +152,9 @@ export class MySqlDialect {
 
 				if (is(field, SQL.Aliased) && field.isSelectionField) {
 					chunk.push(sql.identifier(field.fieldAlias));
-				} else if (is(field, SQL.Aliased) || is(field, SQL)) {
-					const query = is(field, SQL.Aliased) ? field.sql : field;
+				} else if (is(field, SQL.Aliased) || is(field, SQL) || is(field, BuiltInFunction)) {
+					const field_ = is(field, BuiltInFunction) ? field[BuiltInFunction.Symbol.SQL] : field
+					const query = is(field_, SQL.Aliased) ? field_.sql : field_;
 
 					if (isSingleTable) {
 						chunk.push(
@@ -207,7 +210,7 @@ export class MySqlDialect {
 			setOperators,
 		}: MySqlSelectConfig,
 	): SQL {
-		const fieldsList = fieldsFlat ?? orderSelectedFields<MySqlColumn>(fields);
+		const fieldsList = fieldsFlat ?? orderSelectedFields<MySqlColumn, MySqlBuiltInFunction>(fields);
 		for (const f of fieldsList) {
 			if (
 				is(f.field, Column)

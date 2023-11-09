@@ -1,8 +1,8 @@
 import type { Placeholder, SQL } from '~/sql/index.ts';
 import type { Assume, ValidateShape } from '~/utils.ts';
-
 import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteTable, SQLiteTableWithColumns } from '~/sqlite-core/table.ts';
+import type { SQLiteBuiltInFunction } from '../functions/common.ts';
 
 import type {
 	SelectedFields as SelectFieldsBase,
@@ -116,11 +116,11 @@ export type SQLiteJoinFn<
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
 ) => SQLiteJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
-export type SelectedFieldsFlat = SelectFieldsFlatBase<SQLiteColumn>;
+export type SelectedFieldsFlat = SelectFieldsFlatBase<SQLiteColumn, SQLiteBuiltInFunction>;
 
-export type SelectedFields = SelectFieldsBase<SQLiteColumn, SQLiteTable>;
+export type SelectedFields = SelectFieldsBase<SQLiteColumn, SQLiteTable, SQLiteBuiltInFunction>;
 
-export type SelectedFieldsOrdered = SelectFieldsOrderedBase<SQLiteColumn>;
+export type SelectedFieldsOrdered = SelectFieldsOrderedBase<SQLiteColumn, SQLiteBuiltInFunction>;
 
 export interface SQLiteSelectHKTBase {
 	tableName: string | undefined;

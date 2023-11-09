@@ -26,6 +26,7 @@ import type { Assume, ValidateShape } from '~/utils.ts';
 import type { ColumnsSelection, View } from '~/view.ts';
 import type { PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
 import type { MySqlSelectBase, MySqlSelectQueryBuilderBase } from './select.ts';
+import type { MySqlBuiltInFunction } from '../functions/common.ts';
 
 export interface MySqlSelectJoinConfig {
 	on: SQL | undefined;
@@ -118,11 +119,11 @@ export type MySqlJoinFn<
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
 ) => MySqlJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
-export type SelectedFieldsFlat = SelectedFieldsFlatBase<MySqlColumn>;
+export type SelectedFieldsFlat = SelectedFieldsFlatBase<MySqlColumn, MySqlBuiltInFunction>;
 
-export type SelectedFields = SelectedFieldsBase<MySqlColumn, MySqlTable>;
+export type SelectedFields = SelectedFieldsBase<MySqlColumn, MySqlTable, MySqlBuiltInFunction>;
 
-export type SelectedFieldsOrdered = SelectedFieldsOrderedBase<MySqlColumn>;
+export type SelectedFieldsOrdered = SelectedFieldsOrderedBase<MySqlColumn, MySqlBuiltInFunction>;
 
 export type LockStrength = 'update' | 'share';
 

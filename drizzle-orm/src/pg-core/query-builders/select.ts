@@ -44,6 +44,7 @@ import type {
 	SelectedFields,
 	SetOperatorRightSelect,
 } from './select.types.ts';
+import type { PgBuiltInFunction } from '../functions/common.ts';
 
 export class PgSelectBuilder<
 	TSelection extends SelectedFields | undefined,
@@ -635,7 +636,7 @@ export class PgSelectBase<
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const fieldsList = orderSelectedFields<PgColumn>(config.fields);
+			const fieldsList = orderSelectedFields<PgColumn, PgBuiltInFunction>(config.fields);
 			const query = session.prepareQuery<
 				PreparedQueryConfig & { execute: TResult }
 			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name);
