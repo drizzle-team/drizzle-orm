@@ -15,6 +15,8 @@ import type { Query, SQL, SQLWrapper } from '~/sql/index.ts';
 import { Table } from '~/table.ts';
 import { mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import type { SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
+import type { PgColumn } from '../columns/common.ts';
+import { PgBuiltInFunction } from '../functions/common.ts'
 
 export interface PgUpdateConfig {
 	where?: SQL | undefined;
@@ -171,7 +173,7 @@ export class PgUpdateBase<
 	returning(
 		fields: SelectedFields = this.config.table[Table.Symbol.Columns],
 	): PgUpdateWithout<AnyPgUpdate, TDynamic, 'returning'> {
-		this.config.returning = orderSelectedFields(fields);
+		this.config.returning = orderSelectedFields<PgColumn, PgBuiltInFunction>(fields);
 		return this as any;
 	}
 

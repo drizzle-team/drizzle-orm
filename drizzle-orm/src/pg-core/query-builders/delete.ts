@@ -15,6 +15,8 @@ import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { orderSelectedFields } from '~/utils.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
+import type { PgColumn } from '../columns/common.ts';
+import type { PgBuiltInFunction } from '../functions/common.ts';
 
 export type PgDeleteWithout<
 	T extends AnyPgDeleteBase,
@@ -141,7 +143,7 @@ export class PgDeleteBase<
 	returning(
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
 	): PgDeleteReturning<this, TDynamic, any> {
-		this.config.returning = orderSelectedFields(fields);
+		this.config.returning = orderSelectedFields<PgColumn, PgBuiltInFunction>(fields);
 		return this as any;
 	}
 

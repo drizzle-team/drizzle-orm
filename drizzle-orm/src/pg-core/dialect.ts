@@ -43,6 +43,8 @@ import { ViewBaseConfig } from '~/view-common.ts';
 import { View } from '~/view.ts';
 import type { PgSession } from './session.ts';
 import { type PgMaterializedView, PgViewBase } from './view.ts';
+import { BuiltInFunction, BuiltInFunctionSQL } from '~/built-in-function.ts';
+import type { PgBuiltInFunction } from './functions/common.ts';
 
 export class PgDialect {
 	static readonly [entityKind]: string = 'PgDialect';
@@ -154,8 +156,9 @@ export class PgDialect {
 
 				if (is(field, SQL.Aliased) && field.isSelectionField) {
 					chunk.push(sql.identifier(field.fieldAlias));
-				} else if (is(field, SQL.Aliased) || is(field, SQL)) {
-					const query = is(field, SQL.Aliased) ? field.sql : field;
+				} else if (is(field, SQL.Aliased) || is(field, SQL) || is(field, BuiltInFunction)) {
+					const field_ = is(field, BuiltInFunction) ? field[BuiltInFunctionSQL] : field
+					const query = is(field_, SQL.Aliased) ? field_.sql : field_;
 
 					if (isSingleTable) {
 						chunk.push(
@@ -211,7 +214,7 @@ export class PgDialect {
 			setOperators,
 		}: PgSelectConfig,
 	): SQL {
-		const fieldsList = fieldsFlat ?? orderSelectedFields<PgColumn>(fields);
+		const fieldsList = fieldsFlat ?? orderSelectedFields<PgColumn, PgBuiltInFunction>(fields);
 		for (const f of fieldsList) {
 			if (
 				is(f.field, Column)
