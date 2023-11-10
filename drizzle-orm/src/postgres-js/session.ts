@@ -1,16 +1,16 @@
 import type { Row, RowList, Sql, TransactionSql } from 'postgres';
-import { entityKind } from '~/entity';
-import type { Logger } from '~/logger';
-import { NoopLogger } from '~/logger';
-import { PgTransaction } from '~/pg-core';
-import type { PgDialect } from '~/pg-core/dialect';
-import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
-import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
-import { PgSession, PreparedQuery } from '~/pg-core/session';
-import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
-import { fillPlaceholders, type Query } from '~/sql';
-import { tracer } from '~/tracing';
-import { type Assume, mapResultRow } from '~/utils';
+import { entityKind } from '~/entity.ts';
+import type { Logger } from '~/logger.ts';
+import { NoopLogger } from '~/logger.ts';
+import type { PgDialect } from '~/pg-core/dialect.ts';
+import { PgTransaction } from '~/pg-core/index.ts';
+import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
+import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
+import { PgSession, PreparedQuery } from '~/pg-core/session.ts';
+import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import { fillPlaceholders, type Query } from '~/sql/sql.ts';
+import { tracer } from '~/tracing.ts';
+import { type Assume, mapResultRow } from '~/utils.ts';
 
 export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
 	static readonly [entityKind]: string = 'PostgresJsPreparedQuery';

@@ -1,7 +1,6 @@
-import { type AnyColumn, Column, type GetColumnData, type ColumnBaseConfig } from '~/column';
-import { entityKind, is } from '~/entity';
-import { Table } from '~/table';
-import { View } from '~/view';
+import { type AnyColumn, Column, type ColumnBaseConfig, type GetColumnData } from '~/column.ts';
+import { entityKind, is } from '~/entity.ts';
+import { Table } from '~/table.ts';
 import {
 	isDriverValueEncoder,
 	isSQLWrapper,
@@ -12,54 +11,60 @@ import {
 	type SQLChunk,
 	type SQLWrapper,
 	StringChunk,
-} from '../index';
+	View,
+} from '../sql.ts';
 
-type AnyTextColumn = Column<ColumnBaseConfig<'string', string>>
-type AgainstSearchModifier = 'natural' | 'boolean' | 'natural with exp' | 'with exp'
+type AnyTextColumn = Column<ColumnBaseConfig<'string', string>>;
+type AgainstSearchModifier = 'natural' | 'boolean' | 'natural with exp' | 'with exp';
 type MatchAgainstConfig = {
-  /** 
-  * natural --> IN NATURAL LANGUAGE MODE
-  * boolean --> IN BOOLEAN MODE
-  * natural with exp --> IN NATURAL LANGUAGE MODE WITH QUERY EXPANSION
-  * with exp --> WITH QUERY EXPANSION
-  **/
-  mode: AgainstSearchModifier
-}
+	/**
+	 * natural --> IN NATURAL LANGUAGE MODE
+	 * boolean --> IN BOOLEAN MODE
+	 * natural with exp --> IN NATURAL LANGUAGE MODE WITH QUERY EXPANSION
+	 * with exp --> WITH QUERY EXPANSION
+	 */
+	mode: AgainstSearchModifier;
+};
 
 const matchModeMap: Record<AgainstSearchModifier, string> = {
-  'natural': 'IN NATURAL LANGUAGE MODE',
-  'boolean': 'IN BOOLEAN MODE',
-  'natural with exp': 'IN NATURAL LANGUAGE MODE WITH QUERY EXPANSION',
-  'with exp': 'WITH QUERY EXPANSION'
-}
+	natural: 'IN NATURAL LANGUAGE MODE',
+	boolean: 'IN BOOLEAN MODE',
+	'natural with exp': 'IN NATURAL LANGUAGE MODE WITH QUERY EXPANSION',
+	'with exp': 'WITH QUERY EXPANSION',
+};
 
-class MatchAgainst {
-  static readonly [entityKind]: string = 'MatchFunction'
+export class MatchAgainst {
+	static readonly [entityKind]: string = 'MatchFunction';
 
-  constructor(private columns: AnyTextColumn[]) {}
+	constructor(private columns: AnyTextColumn[]) {}
 
-  against(value: string | SQLWrapper, config?: MatchAgainstConfig): SQL {
-    const chunks: SQLChunk[] = [sql`match(`];
+	against(value: string | SQLWrapper, config?: MatchAgainstConfig): SQL {
+		const chunks: SQLChunk[] = [sql`match(`];
 
-    for (const column of this.columns.slice(0, -1)) {
-      chunks.push(column, sql`, `);
-    }
+		for (const column of this.columns.slice(0, -1)) {
+			chunks.push(column, sql`, `);
+		}
 
-    chunks.push(this.columns.at(-1), sql`) against (${value}`)
+		chunks.push(this.columns.at(-1), sql`) against (${value}`);
 
-    if (config) {
-      chunks.push(sql.raw(` ${matchModeMap[config.mode]}`));
-    }
-    chunks.push(sql`)`);
+		if (config) {
+			chunks.push(sql.raw(` ${matchModeMap[config.mode]}`));
+		}
+		chunks.push(sql`)`);
 
-    return sql.join(chunks);
-  }
+		return sql.join(chunks);
+	}
 }
 
 export function bindIfParam(value: unknown, column: SQLWrapper): SQLChunk {
 	if (
-		isDriverValueEncoder(column) && !isSQLWrapper(value) && !is(value, Param) && !is(value, Placeholder)
-		&& !is(value, Column) && !is(value, Table) && !is(value, View)
+		isDriverValueEncoder(column)
+		&& !isSQLWrapper(value)
+		&& !is(value, Param)
+		&& !is(value, Placeholder)
+		&& !is(value, Column)
+		&& !is(value, Table)
+		&& !is(value, View)
 	) {
 		return new Param(value, column);
 	}
@@ -71,10 +76,7 @@ export interface BinaryOperator {
 		left: TColumn,
 		right: GetColumnData<TColumn, 'raw'> | SQLWrapper,
 	): SQL;
-	<T>(
-		left: SQL.Aliased<T>,
-		right: T | SQLWrapper,
-	): SQL;
+	<T>(left: SQL.Aliased<T>, right: T | SQLWrapper): SQL;
 	<T extends SQLWrapper>(
 		left: Exclude<T, SQL.Aliased | Column>,
 		right: unknown,
@@ -142,8 +144,12 @@ export const ne: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  * ```
  */
 export function and(...conditions: (SQLWrapper | undefined)[]): SQL | undefined;
-export function and(...unfilteredConditions: (SQLWrapper | undefined)[]): SQL | undefined {
-	const conditions = unfilteredConditions.filter((c): c is Exclude<typeof c, undefined> => c !== undefined);
+export function and(
+	...unfilteredConditions: (SQLWrapper | undefined)[]
+): SQL | undefined {
+	const conditions = unfilteredConditions.filter(
+		(c): c is Exclude<typeof c, undefined> => c !== undefined,
+	);
 
 	if (conditions.length === 0) {
 		return undefined;
@@ -153,7 +159,11 @@ export function and(...unfilteredConditions: (SQLWrapper | undefined)[]): SQL | 
 		return new SQL(conditions);
 	}
 
-	return new SQL([new StringChunk('('), sql.join(conditions, new StringChunk(' and ')), new StringChunk(')')]);
+	return new SQL([
+		new StringChunk('('),
+		sql.join(conditions, new StringChunk(' and ')),
+		new StringChunk(')'),
+	]);
 }
 
 /**
@@ -173,8 +183,12 @@ export function and(...unfilteredConditions: (SQLWrapper | undefined)[]): SQL | 
  * ```
  */
 export function or(...conditions: (SQLWrapper | undefined)[]): SQL | undefined;
-export function or(...unfilteredConditions: (SQLWrapper | undefined)[]): SQL | undefined {
-	const conditions = unfilteredConditions.filter((c): c is Exclude<typeof c, undefined> => c !== undefined);
+export function or(
+	...unfilteredConditions: (SQLWrapper | undefined)[]
+): SQL | undefined {
+	const conditions = unfilteredConditions.filter(
+		(c): c is Exclude<typeof c, undefined> => c !== undefined,
+	);
 
 	if (conditions.length === 0) {
 		return undefined;
@@ -184,7 +198,11 @@ export function or(...unfilteredConditions: (SQLWrapper | undefined)[]): SQL | u
 		return new SQL(conditions);
 	}
 
-	return new SQL([new StringChunk('('), sql.join(conditions, new StringChunk(' or ')), new StringChunk(')')]);
+	return new SQL([
+		new StringChunk('('),
+		sql.join(conditions, new StringChunk(' or ')),
+		new StringChunk(')'),
+	]);
 }
 
 /**
@@ -282,7 +300,7 @@ export const lte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  *
  * ## Throws
  *
- * The argument passed in the second array can’t be empty:
+ * The argument passed in the second array can't be empty:
  * if an empty is provided, this method will throw.
  *
  * ## Examples
@@ -328,7 +346,7 @@ export function inArray(
  *
  * ## Throws
  *
- * The argument passed in the second array can’t be empty:
+ * The argument passed in the second array can't be empty:
  * if an empty is provided, this method will throw.
  *
  * ## Examples
@@ -357,13 +375,9 @@ export function notInArray(
 	column: SQLWrapper,
 	values: (unknown | Placeholder)[] | SQLWrapper,
 ): SQL {
-	if (isSQLWrapper(values)) {
-		return sql`${column} not in ${values}`;
-	}
-
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
-			throw new Error('inArray requires at least one value');
+			throw new Error('notInArray requires at least one value');
 		}
 		return sql`${column} not in ${values.map((v) => bindIfParam(v, column))}`;
 	}
@@ -494,12 +508,13 @@ export function between<T extends SQLWrapper>(
 	min: unknown,
 	max: unknown,
 ): SQL;
-export function between(
-	column: SQLWrapper,
-	min: unknown,
-	max: unknown,
-): SQL {
-	return sql`${column} between ${bindIfParam(min, column)} and ${bindIfParam(max, column)}`;
+export function between(column: SQLWrapper, min: unknown, max: unknown): SQL {
+	return sql`${column} between ${bindIfParam(min, column)} and ${
+		bindIfParam(
+			max,
+			column,
+		)
+	}`;
 }
 
 /**
@@ -539,7 +554,12 @@ export function notBetween(
 	min: unknown,
 	max: unknown,
 ): SQL {
-	return sql`${column} not between ${bindIfParam(min, column)} and ${bindIfParam(max, column)}`;
+	return sql`${column} not between ${
+		bindIfParam(
+			min,
+			column,
+		)
+	} and ${bindIfParam(max, column)}`;
 }
 
 /**
@@ -630,6 +650,148 @@ export function notIlike(column: Column, value: string | SQLWrapper): SQL {
 }
 
 /**
+ * Test that a column or expression contains all elements of
+ * the list passed as the second argument.
+ *
+ * ## Throws
+ *
+ * The argument passed in the second array can't be empty:
+ * if an empty is provided, this method will throw.
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // Select posts where its tags contain "Typescript" and "ORM".
+ * db.select().from(posts)
+ *   .where(arrayContains(posts.tags, ['Typescript', 'ORM']))
+ * ```
+ *
+ * @see arrayContained to find if an array contains all elements of a column or expression
+ * @see arrayOverlaps to find if a column or expression contains any elements of an array
+ */
+export function arrayContains<T>(
+	column: SQL.Aliased<T>,
+	values: (T | Placeholder) | SQLWrapper,
+): SQL;
+export function arrayContains<TColumn extends Column>(
+	column: TColumn,
+	values: (GetColumnData<TColumn, 'raw'> | Placeholder) | SQLWrapper,
+): SQL;
+export function arrayContains<T extends SQLWrapper>(
+	column: Exclude<T, SQL.Aliased | Column>,
+	values: (unknown | Placeholder)[] | SQLWrapper,
+): SQL;
+export function arrayContains(
+	column: SQLWrapper,
+	values: (unknown | Placeholder)[] | SQLWrapper,
+): SQL {
+	if (Array.isArray(values)) {
+		if (values.length === 0) {
+			throw new Error('arrayContains requires at least one value');
+		}
+		const array = sql`${bindIfParam(values, column)}`;
+		return sql`${column} @> ${array}`;
+	}
+
+	return sql`${column} @> ${bindIfParam(values, column)}`;
+}
+
+/**
+ * Test that the list passed as the second argument contains
+ * all elements of a column or expression.
+ *
+ * ## Throws
+ *
+ * The argument passed in the second array can't be empty:
+ * if an empty is provided, this method will throw.
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // Select posts where its tags contain "Typescript", "ORM" or both,
+ * // but filtering posts that have additional tags.
+ * db.select().from(posts)
+ *   .where(arrayContained(posts.tags, ['Typescript', 'ORM']))
+ * ```
+ *
+ * @see arrayContains to find if a column or expression contains all elements of an array
+ * @see arrayOverlaps to find if a column or expression contains any elements of an array
+ */
+export function arrayContained<T>(
+	column: SQL.Aliased<T>,
+	values: (T | Placeholder) | SQLWrapper,
+): SQL;
+export function arrayContained<TColumn extends Column>(
+	column: TColumn,
+	values: (GetColumnData<TColumn, 'raw'> | Placeholder) | SQLWrapper,
+): SQL;
+export function arrayContained<T extends SQLWrapper>(
+	column: Exclude<T, SQL.Aliased | Column>,
+	values: (unknown | Placeholder)[] | SQLWrapper,
+): SQL;
+export function arrayContained(
+	column: SQLWrapper,
+	values: (unknown | Placeholder)[] | SQLWrapper,
+): SQL {
+	if (Array.isArray(values)) {
+		if (values.length === 0) {
+			throw new Error('arrayContained requires at least one value');
+		}
+		const array = sql`${bindIfParam(values, column)}`;
+		return sql`${column} <@ ${array}`;
+	}
+
+	return sql`${column} <@ ${bindIfParam(values, column)}`;
+}
+
+/**
+ * Test that a column or expression contains any elements of
+ * the list passed as the second argument.
+ *
+ * ## Throws
+ *
+ * The argument passed in the second array can't be empty:
+ * if an empty is provided, this method will throw.
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // Select posts where its tags contain "Typescript", "ORM" or both.
+ * db.select().from(posts)
+ *   .where(arrayOverlaps(posts.tags, ['Typescript', 'ORM']))
+ * ```
+ *
+ * @see arrayContains to find if a column or expression contains all elements of an array
+ * @see arrayContained to find if an array contains all elements of a column or expression
+ */
+export function arrayOverlaps<T>(
+	column: SQL.Aliased<T>,
+	values: (T | Placeholder) | SQLWrapper,
+): SQL;
+export function arrayOverlaps<TColumn extends Column>(
+	column: TColumn,
+	values: (GetColumnData<TColumn, 'raw'> | Placeholder) | SQLWrapper,
+): SQL;
+export function arrayOverlaps<T extends SQLWrapper>(
+	column: Exclude<T, SQL.Aliased | Column>,
+	values: (unknown | Placeholder)[] | SQLWrapper,
+): SQL;
+export function arrayOverlaps(
+	column: SQLWrapper,
+	values: (unknown | Placeholder)[] | SQLWrapper,
+): SQL {
+	if (Array.isArray(values)) {
+		if (values.length === 0) {
+			throw new Error('arrayOverlaps requires at least one value');
+		}
+		const array = sql`${bindIfParam(values, column)}`;
+		return sql`${column} && ${array}`;
+	}
+
+	return sql`${column} && ${bindIfParam(values, column)}`;
+}
+
+/**
  * Creates a `match` fulltext search function that can be used in a WHERE clause.
  * The match function must be followed by the `.against` clause.
  * This will perform a fulltext search on the specified column(s).
@@ -644,5 +806,5 @@ export function notIlike(column: Column, value: string | SQLWrapper): SQL {
  * ```
  */
 export function match(...columns: [AnyTextColumn, ...AnyTextColumn[]]): MatchAgainst {
-  return new MatchAgainst(columns);
+	return new MatchAgainst(columns);
 }

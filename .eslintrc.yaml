@@ -15,7 +15,8 @@ rules:
   '@typescript-eslint/consistent-type-imports':
     - error
     - disallowTypeAnnotations: false
-      fixStyle: inline-type-imports
+      fixStyle: separate-type-imports
+  '@typescript-eslint/no-import-type-side-effects': 'error'
   import/no-cycle: error
   import/no-self-import: error
   import/no-empty-named-blocks: error
@@ -64,3 +65,6 @@ rules:
   'unicorn/prefer-string-replace-all': 'off'
   'unicorn/no-process-exit': 'off'
   '@typescript-eslint/ban-ts-comment': 'off'
+  '@typescript-eslint/no-empty-interface': 'off'
+  '@typescript-eslint/no-unsafe-declaration-merging': 'off'
+  'no-inner-declarations': 'off'

@@ -1,11 +1,10 @@
-import type { AnyColumn, Column, GetColumnData, UpdateColConfig } from '~/column';
-import type { ChangeColumnTableName, Dialect } from '~/column-builder';
-import type { SelectedFields } from '~/operations';
-import type { SQL } from '~/sql';
-import type { Subquery } from '~/subquery';
-import type { AnyTable, Table } from '~/table';
-import type { Assume, DrizzleTypeError, Equal, IsAny, Simplify } from '~/utils';
-import type { ColumnsSelection, View } from '~/view';
+import type { ChangeColumnTableName, Dialect } from '~/column-builder.ts';
+import type { AnyColumn, Column, GetColumnData, UpdateColConfig } from '~/column.ts';
+import type { SelectedFields } from '~/operations.ts';
+import type { ColumnsSelection, SQL, View } from '~/sql/sql.ts';
+import type { Subquery } from '~/subquery.ts';
+import type { Table } from '~/table.ts';
+import type { Assume, DrizzleTypeError, Equal, IsAny, Simplify } from '~/utils.ts';
 
 export type JoinType = 'inner' | 'left' | 'right' | 'full';
 
@@ -49,7 +48,7 @@ type Not<T extends boolean> = T extends true ? false : true;
 type SelectPartialResult<TFields, TNullability extends Record<string, JoinNullability>> = TNullability extends
 	TNullability ? {
 		[Key in keyof TFields]: TFields[Key] extends infer TField
-			? TField extends AnyTable ? TField['_']['name'] extends keyof TNullability ? ApplyNullability<
+			? TField extends Table ? TField['_']['name'] extends keyof TNullability ? ApplyNullability<
 						SelectResultFields<TField['_']['columns']>,
 						TNullability[TField['_']['name']]
 					>
@@ -155,13 +154,15 @@ export type GetSelectTableSelection<TTable extends TableLike> = TTable extends T
 
 export type SelectResultField<T, TDeep extends boolean = true> = T extends DrizzleTypeError<any> ? T
 	: T extends Table ? Equal<TDeep, true> extends true ? SelectResultField<T['_']['columns'], false> : never
-	: T extends Column ? GetColumnData<T>
+	: T extends Column<any> ? GetColumnData<T>
 	: T extends SQL | SQL.Aliased ? T['_']['type']
 	: T extends Record<string, any> ? SelectResultFields<T, true>
 	: never;
 
-export type SelectResultFields<TSelectedFields, TDeep extends boolean = true> =
-	& {
+export type SelectResultFields<TSelectedFields, TDeep extends boolean = true> = Simplify<
+	{
 		[Key in keyof TSelectedFields & string]: SelectResultField<TSelectedFields[Key], TDeep>;
 	}
-	& {};
+>;
+
+export type SetOperator = 'union' | 'intersect' | 'except';

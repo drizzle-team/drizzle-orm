@@ -1,16 +1,16 @@
-import { bindIfParam } from '~/expressions';
-import type { Placeholder, SQL, SQLChunk, SQLWrapper } from '~/sql';
-import { sql } from '~/sql';
-import type { AnyMySqlColumn } from './columns/common';
+import { bindIfParam } from '~/expressions.ts';
+import type { Placeholder, SQL, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
+import { sql } from '~/sql/sql.ts';
+import type { MySqlColumn } from './columns/index.ts';
 
-export * from '~/expressions';
+export * from '~/expressions.ts';
 
-export function concat(column: AnyMySqlColumn | SQL.Aliased, value: string | Placeholder | SQLWrapper): SQL {
+export function concat(column: MySqlColumn | SQL.Aliased, value: string | Placeholder | SQLWrapper): SQL {
 	return sql`${column} || ${bindIfParam(value, column)}`;
 }
 
 export function substring(
-	column: AnyMySqlColumn | SQL.Aliased,
+	column: MySqlColumn | SQL.Aliased,
 	{ from, for: _for }: { from?: number | Placeholder | SQLWrapper; for?: number | Placeholder | SQLWrapper },
 ): SQL {
 	const chunks: SQLChunk[] = [sql`substring(`, column];

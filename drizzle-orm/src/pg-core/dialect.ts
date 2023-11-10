@@ -1,14 +1,17 @@
-import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias';
-import { Column } from '~/column';
-import { entityKind, is } from '~/entity';
-import { DrizzleError } from '~/errors';
-import type { MigrationMeta } from '~/migrator';
-import type { AnyPgColumn } from '~/pg-core/columns';
-import { PgColumn, PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core/columns';
-import type { PgDeleteConfig, PgInsertConfig, PgUpdateConfig } from '~/pg-core/query-builders';
-import type { Join, PgSelectConfig, SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
-import type { AnyPgTable } from '~/pg-core/table';
-import { PgTable } from '~/pg-core/table';
+import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
+import { Column } from '~/column.ts';
+import { entityKind, is } from '~/entity.ts';
+import { DrizzleError } from '~/errors.ts';
+import type { MigrationMeta } from '~/migrator.ts';
+import { PgColumn, PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core/columns/index.ts';
+import type {
+	PgDeleteConfig,
+	PgInsertConfig,
+	PgSelectJoinConfig,
+	PgUpdateConfig,
+} from '~/pg-core/query-builders/index.ts';
+import type { PgSelectConfig, SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
+import { PgTable } from '~/pg-core/table.ts';
 import {
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
@@ -20,24 +23,25 @@ import {
 	type Relation,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
-} from '~/relations';
+} from '~/relations.ts';
 import {
-	and,
 	type DriverValueEncoder,
-	eq,
+	type Name,
 	Param,
-	type Query,
 	type QueryTypingsValue,
+	type QueryWithTypings,
 	SQL,
 	sql,
 	type SQLChunk,
-} from '~/sql';
-import { Subquery, SubqueryConfig } from '~/subquery';
-import { getTableName, Table } from '~/table';
-import { orderSelectedFields, type UpdateSet } from '~/utils';
-import { View, ViewBaseConfig } from '~/view';
-import type { PgSession } from './session';
-import { type PgMaterializedView, PgViewBase } from './view';
+} from '~/sql/sql.ts';
+import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { getTableName, Table } from '~/table.ts';
+import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { ViewBaseConfig } from '~/view-common.ts';
+import type { PgSession } from './session.ts';
+import type { PgMaterializedView } from './view.ts';
+import { View, and, eq } from '~/sql/index.ts';
+import { PgViewBase } from './view-base.ts';
 
 export class PgDialect {
 	static readonly [entityKind]: string = 'PgDialect';
@@ -97,7 +101,7 @@ export class PgDialect {
 		return sql`delete from ${table}${whereSql}${returningSql}`;
 	}
 
-	buildUpdateSet(table: AnyPgTable, set: UpdateSet): SQL {
+	buildUpdateSet(table: PgTable, set: UpdateSet): SQL {
 		const setEntries = Object.entries(set);
 
 		const setSize = setEntries.length;
@@ -201,11 +205,12 @@ export class PgDialect {
 			groupBy,
 			limit,
 			offset,
-			lockingClauses,
+			lockingClause,
 			distinct,
+			setOperators,
 		}: PgSelectConfig,
 	): SQL {
-		const fieldsList = fieldsFlat ?? orderSelectedFields<AnyPgColumn>(fields);
+		const fieldsList = fieldsFlat ?? orderSelectedFields<PgColumn>(fields);
 		for (const f of fieldsList) {
 			if (
 				is(f.field, Column)
@@ -326,23 +331,95 @@ export class PgDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		const lockingClausesSql = sql.empty();
-		if (lockingClauses) {
-			for (const { strength, config } of lockingClauses) {
-				const clauseSql = sql` for ${sql.raw(strength)}`;
-				if (config.of) {
-					clauseSql.append(sql` of ${config.of}`);
-				}
-				if (config.noWait) {
-					clauseSql.append(sql` no wait`);
-				} else if (config.skipLocked) {
-					clauseSql.append(sql` skip locked`);
-				}
-				lockingClausesSql.append(clauseSql);
+		const lockingClauseSql = sql.empty();
+		if (lockingClause) {
+			const clauseSql = sql` for ${sql.raw(lockingClause.strength)}`;
+			if (lockingClause.config.of) {
+				clauseSql.append(
+					sql` of ${
+						sql.join(
+							Array.isArray(lockingClause.config.of) ? lockingClause.config.of : [lockingClause.config.of],
+							sql`, `,
+						)
+					}`,
+				);
 			}
+			if (lockingClause.config.noWait) {
+				clauseSql.append(sql` no wait`);
+			} else if (lockingClause.config.skipLocked) {
+				clauseSql.append(sql` skip locked`);
+			}
+			lockingClauseSql.append(clauseSql);
+		}
+		const finalQuery =
+			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClauseSql}`;
+
+		if (setOperators.length > 0) {
+			return this.buildSetOperations(finalQuery, setOperators);
 		}
 
-		return sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+		return finalQuery;
+	}
+
+	buildSetOperations(leftSelect: SQL, setOperators: PgSelectConfig['setOperators']): SQL {
+		const [setOperator, ...rest] = setOperators;
+
+		if (!setOperator) {
+			throw new Error('Cannot pass undefined values to any set operator');
+		}
+
+		if (rest.length === 0) {
+			return this.buildSetOperationQuery({ leftSelect, setOperator });
+		}
+
+		// Some recursive magic here
+		return this.buildSetOperations(
+			this.buildSetOperationQuery({ leftSelect, setOperator }),
+			rest,
+		);
+	}
+
+	buildSetOperationQuery({
+		leftSelect,
+		setOperator: { type, isAll, rightSelect, limit, orderBy, offset },
+	}: { leftSelect: SQL; setOperator: PgSelectConfig['setOperators'][number] }): SQL {
+		const leftChunk = sql`(${leftSelect.getSQL()}) `;
+		const rightChunk = sql`(${rightSelect.getSQL()})`;
+
+		let orderBySql;
+		if (orderBy && orderBy.length > 0) {
+			const orderByValues: (SQL<unknown> | Name)[] = [];
+
+			// The next bit is necessary because the sql operator replaces ${table.column} with `table`.`column`
+			// which is invalid Sql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
+			for (const singleOrderBy of orderBy) {
+				if (is(singleOrderBy, PgColumn)) {
+					orderByValues.push(sql.identifier(singleOrderBy.name));
+				} else if (is(singleOrderBy, SQL)) {
+					for (let i = 0; i < singleOrderBy.queryChunks.length; i++) {
+						const chunk = singleOrderBy.queryChunks[i];
+
+						if (is(chunk, PgColumn)) {
+							singleOrderBy.queryChunks[i] = sql.identifier(chunk.name);
+						}
+					}
+
+					orderByValues.push(sql`${singleOrderBy}`);
+				} else {
+					orderByValues.push(sql`${singleOrderBy}`);
+				}
+			}
+
+			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)} `;
+		}
+
+		const limitSql = limit ? sql` limit ${limit}` : undefined;
+
+		const operatorChunk = sql.raw(`${type} ${isAll ? 'all ' : ''}`);
+
+		const offsetSql = offset ? sql` offset ${offset}` : undefined;
+
+		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {
@@ -355,10 +432,17 @@ export class PgDialect {
 
 		for (const [valueIndex, value] of values.entries()) {
 			const valueList: (SQLChunk | SQL)[] = [];
-			for (const [fieldName] of colEntries) {
+			for (const [fieldName, col] of colEntries) {
 				const colValue = value[fieldName];
 				if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
-					valueList.push(sql`default`);
+					// eslint-disable-next-line unicorn/no-negated-condition
+					if (col.defaultFn !== undefined) {
+						const defaultFnResult = col.defaultFn();
+						const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
+						valueList.push(defaultValue);
+					} else {
+						valueList.push(sql`default`);
+					}
 				} else {
 					valueList.push(colValue);
 				}
@@ -410,7 +494,7 @@ export class PgDialect {
 		}
 	}
 
-	sqlToQuery(sql: SQL): Query {
+	sqlToQuery(sql: SQL): QueryWithTypings {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
@@ -433,22 +517,22 @@ export class PgDialect {
 	// 	fullSchema: Record<string, unknown>;
 	// 	schema: TablesRelationalConfig;
 	// 	tableNamesMap: Record<string, string>;
-	// 	table: AnyPgTable;
+	// 	table: PgTable;
 	// 	tableConfig: TableRelationalConfig;
 	// 	queryConfig: true | DBQueryConfig<'many', true>;
 	// 	tableAlias: string;
 	// 	isRoot?: boolean;
 	// 	joinOn?: SQL;
-	// }): BuildRelationalQueryResult<AnyPgTable, AnyPgColumn> {
+	// }): BuildRelationalQueryResult<PgTable, PgColumn> {
 	// 	// For { "<relation>": true }, return a table with selection of all columns
 	// 	if (config === true) {
 	// 		const selectionEntries = Object.entries(tableConfig.columns);
-	// 		const selection: BuildRelationalQueryResult<AnyPgTable, AnyPgColumn>['selection'] = selectionEntries.map((
+	// 		const selection: BuildRelationalQueryResult<PgTable, PgColumn>['selection'] = selectionEntries.map((
 	// 			[key, value],
 	// 		) => ({
 	// 			dbKey: value.name,
 	// 			tsKey: key,
-	// 			field: value as AnyPgColumn,
+	// 			field: value as PgColumn,
 	// 			relationTableTsKey: undefined,
 	// 			isJson: false,
 	// 			selection: [],
@@ -461,7 +545,7 @@ export class PgDialect {
 	// 		};
 	// 	}
 
-	// 	// let selection: BuildRelationalQueryResult<AnyPgTable, AnyPgColumn>['selection'] = [];
+	// 	// let selection: BuildRelationalQueryResult<PgTable, PgColumn>['selection'] = [];
 	// 	// let selectionForBuild = selection;
 
 	// 	const aliasedColumns = Object.fromEntries(
@@ -482,7 +566,7 @@ export class PgDialect {
 	// 	}
 	// 	where = and(joinOn, where);
 
-	// 	// const fieldsSelection: { tsKey: string; value: AnyPgColumn | SQL.Aliased; isExtra?: boolean }[] = [];
+	// 	// const fieldsSelection: { tsKey: string; value: PgColumn | SQL.Aliased; isExtra?: boolean }[] = [];
 	// 	let joins: Join[] = [];
 	// 	let selectedColumns: string[] = [];
 
@@ -514,7 +598,7 @@ export class PgDialect {
 	// 	}
 
 	// 	// for (const field of selectedColumns) {
-	// 	// 	const column = tableConfig.columns[field]! as AnyPgColumn;
+	// 	// 	const column = tableConfig.columns[field]! as PgColumn;
 	// 	// 	fieldsSelection.push({ tsKey: field, value: column });
 	// 	// }
 
@@ -524,7 +608,7 @@ export class PgDialect {
 	// 		relation: Relation;
 	// 	}[] = [];
 
-	// 	// let selectedRelations: BuildRelationalQueryResult<AnyPgTable, AnyPgColumn>['selection'] = [];
+	// 	// let selectedRelations: BuildRelationalQueryResult<PgTable, PgColumn>['selection'] = [];
 
 	// 	// Figure out which relations to select
 	// 	if (config.with) {
@@ -580,7 +664,7 @@ export class PgDialect {
 	// 	}
 	// 	const orderBy = orderByOrig.map((orderByValue) => {
 	// 		if (is(orderByValue, Column)) {
-	// 			return aliasedTableColumn(orderByValue, tableAlias) as AnyPgColumn;
+	// 			return aliasedTableColumn(orderByValue, tableAlias) as PgColumn;
 	// 		}
 	// 		return mapColumnsInSQLToAlias(orderByValue, tableAlias);
 	// 	});
@@ -604,7 +688,7 @@ export class PgDialect {
 	// 			selection: selectedColumns.map((key) => ({
 	// 				dbKey: tableConfig.columns[key]!.name,
 	// 				tsKey: key,
-	// 				field: tableConfig.columns[key] as AnyPgColumn,
+	// 				field: tableConfig.columns[key] as PgColumn,
 	// 				relationTableTsKey: undefined,
 	// 				isJson: false,
 	// 				selection: [],
@@ -644,7 +728,7 @@ export class PgDialect {
 	// 			fullSchema,
 	// 			schema,
 	// 			tableNamesMap,
-	// 			table: fullSchema[relationTableTsName] as AnyPgTable,
+	// 			table: fullSchema[relationTableTsName] as PgTable,
 	// 			tableConfig: schema[relationTableTsName]!,
 	// 			queryConfig: selectedRelationConfigValue,
 	// 			tableAlias: relationTableAlias,
@@ -703,7 +787,7 @@ export class PgDialect {
 	// 			fullSchema,
 	// 			schema,
 	// 			tableNamesMap,
-	// 			table: fullSchema[relationTableTsName] as AnyPgTable,
+	// 			table: fullSchema[relationTableTsName] as PgTable,
 	// 			tableConfig: schema[relationTableTsName]!,
 	// 			queryConfig: selectedRelationConfigValue,
 	// 			tableAlias: relationTableAlias,
@@ -742,7 +826,7 @@ export class PgDialect {
 	// 	}
 
 	// 	let distinct: PgSelectConfig['distinct'];
-	// 	let tableFrom: AnyPgTable | Subquery = table;
+	// 	let tableFrom: PgTable | Subquery = table;
 
 	// 	// Process first Many relation - each one requires a nested subquery
 	// 	const manyRelation = manyRelations[0];
@@ -754,7 +838,7 @@ export class PgDialect {
 	// 		} = manyRelation;
 
 	// 		distinct = {
-	// 			on: tableConfig.primaryKey.map((c) => aliasedTableColumn(c as AnyPgColumn, tableAlias)),
+	// 			on: tableConfig.primaryKey.map((c) => aliasedTableColumn(c as PgColumn, tableAlias)),
 	// 		};
 
 	// 		const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
@@ -774,7 +858,7 @@ export class PgDialect {
 	// 			fullSchema,
 	// 			schema,
 	// 			tableNamesMap,
-	// 			table: fullSchema[relationTableTsName] as AnyPgTable,
+	// 			table: fullSchema[relationTableTsName] as PgTable,
 	// 			tableConfig: schema[relationTableTsName]!,
 	// 			queryConfig: selectedRelationQueryConfig,
 	// 			tableAlias: relationTableAlias,
@@ -800,7 +884,7 @@ export class PgDialect {
 	// 			on: isLateralJoin ? sql`true` : joinOn,
 	// 			table: isLateralJoin
 	// 				? new Subquery(builtRelationJoin.sql as SQL, {}, relationTableAlias)
-	// 				: aliasedTable(builtRelationJoin.sql as AnyPgTable, relationTableAlias),
+	// 				: aliasedTable(builtRelationJoin.sql as PgTable, relationTableAlias),
 	// 			alias: relationTableAlias,
 	// 			joinType: 'left',
 	// 			lateral: isLateralJoin,
@@ -872,13 +956,13 @@ export class PgDialect {
 	// 		throw new DrizzleError(`No fields selected for table "${tableConfig.tsName}" ("${tableAlias}")`);
 	// 	}
 
-	// 	let selection: BuildRelationalQueryResult<AnyPgTable, AnyPgColumn>['selection'];
+	// 	let selection: BuildRelationalQueryResult<PgTable, PgColumn>['selection'];
 
 	// 	function prepareSelectedColumns() {
 	// 		return selectedColumns.map((key) => ({
 	// 			dbKey: tableConfig.columns[key]!.name,
 	// 			tsKey: key,
-	// 			field: tableConfig.columns[key] as AnyPgColumn,
+	// 			field: tableConfig.columns[key] as PgColumn,
 	// 			relationTableTsKey: undefined,
 	// 			isJson: false,
 	// 			selection: [],
@@ -963,16 +1047,16 @@ export class PgDialect {
 		fullSchema: Record<string, unknown>;
 		schema: TablesRelationalConfig;
 		tableNamesMap: Record<string, string>;
-		table: AnyPgTable;
+		table: PgTable;
 		tableConfig: TableRelationalConfig;
 		queryConfig: true | DBQueryConfig<'many', true>;
 		tableAlias: string;
 		nestedQueryRelation?: Relation;
 		joinOn?: SQL;
-	}): BuildRelationalQueryResult<AnyPgTable, PgColumn> {
-		let selection: BuildRelationalQueryResult<AnyPgTable, PgColumn>['selection'] = [];
+	}): BuildRelationalQueryResult<PgTable, PgColumn> {
+		let selection: BuildRelationalQueryResult<PgTable, PgColumn>['selection'] = [];
 		let limit, offset, orderBy: NonNullable<PgSelectConfig['orderBy']> = [], where;
-		const joins: Join[] = [];
+		const joins: PgSelectJoinConfig[] = [];
 
 		if (config === true) {
 			const selectionEntries = Object.entries(tableConfig.columns);
@@ -998,7 +1082,7 @@ export class PgDialect {
 				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 			}
 
-			const fieldsSelection: { tsKey: string; value: AnyPgColumn | SQL.Aliased }[] = [];
+			const fieldsSelection: { tsKey: string; value: PgColumn | SQL.Aliased }[] = [];
 			let selectedColumns: string[] = [];
 
 			// Figure out which columns to select
@@ -1029,7 +1113,7 @@ export class PgDialect {
 			}
 
 			for (const field of selectedColumns) {
-				const column = tableConfig.columns[field]! as AnyPgColumn;
+				const column = tableConfig.columns[field]! as PgColumn;
 				fieldsSelection.push({ tsKey: field, value: column });
 			}
 
@@ -1082,7 +1166,7 @@ export class PgDialect {
 			}
 			orderBy = orderByOrig.map((orderByValue) => {
 				if (is(orderByValue, Column)) {
-					return aliasedTableColumn(orderByValue, tableAlias) as AnyPgColumn;
+					return aliasedTableColumn(orderByValue, tableAlias) as PgColumn;
 				}
 				return mapColumnsInSQLToAlias(orderByValue, tableAlias);
 			});
@@ -1114,7 +1198,7 @@ export class PgDialect {
 					fullSchema,
 					schema,
 					tableNamesMap,
-					table: fullSchema[relationTableTsName] as AnyPgTable,
+					table: fullSchema[relationTableTsName] as PgTable,
 					tableConfig: schema[relationTableTsName]!,
 					queryConfig: is(relation, One)
 						? (selectedRelationConfigValue === true
@@ -1145,7 +1229,7 @@ export class PgDialect {
 		}
 
 		if (selection.length === 0) {
-			throw new DrizzleError(`No fields selected for table "${tableConfig.tsName}" ("${tableAlias}")`);
+			throw new DrizzleError({ message: `No fields selected for table "${tableConfig.tsName}" ("${tableAlias}")` });
 		}
 
 		let result;
@@ -1194,6 +1278,7 @@ export class PgDialect {
 					limit,
 					offset,
 					orderBy,
+					setOperators: [],
 				});
 
 				where = undefined;
@@ -1216,6 +1301,7 @@ export class PgDialect {
 				limit,
 				offset,
 				orderBy,
+				setOperators: [],
 			});
 		} else {
 			result = this.buildSelectQuery({
@@ -1230,6 +1316,7 @@ export class PgDialect {
 				limit,
 				offset,
 				orderBy,
+				setOperators: [],
 			});
 		}
 

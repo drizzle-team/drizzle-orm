@@ -1,8 +1,11 @@
-import type { Equal } from 'type-tests/utils';
-import { Expect } from 'type-tests/utils';
+import type { Equal } from 'type-tests/utils.ts';
+import { Expect } from 'type-tests/utils.ts';
 
 import {
 	and,
+	arrayContained,
+	arrayContains,
+	arrayOverlaps,
 	between,
 	eq,
 	exists,
@@ -23,15 +26,21 @@ import {
 	notInArray,
 	notLike,
 	or,
-} from '~/expressions';
-import { boolean, integer, pgTable, text } from '~/pg-core';
-import { alias } from '~/pg-core/alias';
-import type { AnyPgSelect } from '~/pg-core/query-builders/select.types';
-import { param, type SQL, sql } from '~/sql';
-import type { InferModel } from '~/table';
+} from '~/expressions.ts';
+import { alias } from '~/pg-core/alias.ts';
+import {
+	boolean,
+	integer,
+	type PgSelect,
+	type PgSelectQueryBuilder,
+	pgTable,
+	QueryBuilder,
+	text,
+} from '~/pg-core/index.ts';
+import { type SQL, sql } from '~/sql/sql.ts';
 
-import { db } from './db';
-import { cities, classes, newYorkers, newYorkers2, users } from './tables';
+import { db } from './db.ts';
+import { cities, classes, newYorkers, newYorkers2, users } from './tables.ts';
 
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
@@ -45,8 +54,8 @@ const leftJoinFull = await db.select().from(users).leftJoin(city, eq(users.id, c
 Expect<
 	Equal<
 		{
-			users_table: InferModel<typeof users>;
-			city: InferModel<typeof city> | null;
+			users_table: typeof users.$inferSelect;
+			city: typeof cities.$inferSelect | null;
 		}[],
 		typeof leftJoinFull
 	>
@@ -57,8 +66,8 @@ const rightJoinFull = await db.select().from(users).rightJoin(city, eq(users.id,
 Expect<
 	Equal<
 		{
-			users_table: InferModel<typeof users> | null;
-			city: InferModel<typeof city>;
+			users_table: typeof users.$inferSelect | null;
+			city: typeof city.$inferSelect;
 		}[],
 		typeof rightJoinFull
 	>
@@ -69,8 +78,8 @@ const innerJoinFull = await db.select().from(users).innerJoin(city, eq(users.id,
 Expect<
 	Equal<
 		{
-			users_table: InferModel<typeof users>;
-			city: InferModel<typeof city>;
+			users_table: typeof users.$inferSelect;
+			city: typeof city.$inferSelect;
 		}[],
 		typeof innerJoinFull
 	>
@@ -81,8 +90,8 @@ const fullJoinFull = await db.select().from(users).fullJoin(city, eq(users.id, c
 Expect<
 	Equal<
 		{
-			users_table: InferModel<typeof users> | null;
-			city: InferModel<typeof city> | null;
+			users_table: typeof users.$inferSelect | null;
+			city: typeof city.$inferSelect | null;
 		}[],
 		typeof fullJoinFull
 	>
@@ -279,6 +288,7 @@ Expect<
 				age1: number;
 				createdAt: Date;
 				enumCol: 'a' | 'b' | 'c';
+				arrayCol: string[];
 			} | null;
 			cities: {
 				id: number;
@@ -380,15 +390,15 @@ const allOperators = await db
 		col6: sql<boolean>`true`, // boolean
 		col7: sql<number>`random()`, // number
 		col8: sql`some_funky_func(${users.id})`.mapWith(mapFunkyFuncResult), // { foo: string }
-		col9: sql`greatest(${users.createdAt}, ${param(new Date(), users.createdAt)})`, // unknown
+		col9: sql`greatest(${users.createdAt}, ${sql.param(new Date(), users.createdAt)})`, // unknown
 		col10: sql<Date | boolean>`date_or_false(${users.createdAt}, ${
-			param(
+			sql.param(
 				new Date(),
 				users.createdAt,
 			)
 		})`, // Date | boolean
 		col11: sql`${users.age1} + ${age}`, // unknown
-		col12: sql`${users.age1} + ${param(age, users.age1)}`, // unknown
+		col12: sql`${users.age1} + ${sql.param(age, users.age1)}`, // unknown
 		col13: sql`lower(${users.class})`, // unknown
 		col14: sql<number>`length(${users.class})`, // number
 		count: sql<number>`count(*)::int`, // number
@@ -422,6 +432,15 @@ const allOperators = await db
 			notLike(users.id, '%1%'),
 			ilike(users.id, '%1%'),
 			notIlike(users.id, '%1%'),
+			arrayContains(users.arrayCol, ['abc']),
+			arrayContains(users.arrayCol, db.select({ arrayCol: users.arrayCol }).from(users)),
+			arrayContains(users.arrayCol, sql`select array_col from ${users}`),
+			arrayContained(users.arrayCol, ['abc']),
+			arrayContained(users.arrayCol, db.select({ arrayCol: users.arrayCol }).from(users)),
+			arrayContained(users.arrayCol, sql`select array_col from ${users}`),
+			arrayOverlaps(users.arrayCol, ['abc']),
+			arrayOverlaps(users.arrayCol, db.select({ arrayCol: users.arrayCol }).from(users)),
+			arrayOverlaps(users.arrayCol, sql`select array_col from ${users}`),
 		),
 	);
 
@@ -546,6 +565,7 @@ Expect<
 				age1: number;
 				createdAt: Date;
 				enumCol: 'a' | 'b' | 'c';
+				arrayCol: string[];
 			};
 			currentCity: {
 				id: number;
@@ -565,6 +585,7 @@ Expect<
 				age1: number;
 				createdAt: Date;
 				enumCol: 'a' | 'b' | 'c';
+				arrayCol: string[];
 			};
 			closestCity: {
 				id: number;
@@ -663,6 +684,7 @@ Expect<
 				age1: number;
 				createdAt: Date;
 				enumCol: 'a' | 'b' | 'c';
+				arrayCol: string[];
 			} | null;
 			currentCity: {
 				id: number;
@@ -682,6 +704,7 @@ Expect<
 				age1: number;
 				createdAt: Date;
 				enumCol: 'a' | 'b' | 'c';
+				arrayCol: string[];
 			} | null;
 			closestCity: {
 				id: number;
@@ -812,6 +835,7 @@ Expect<
 			age1: number;
 			createdAt: Date;
 			enumCol: 'a' | 'b' | 'c';
+			arrayCol: string[];
 		};
 	}[], typeof join4>
 >;
@@ -840,10 +864,26 @@ Expect<
 await db
 	.select()
 	.from(users)
-	.for('update')
-	.for('no key update', { of: users })
-	.for('no key update', { of: users, skipLocked: true })
-	.for('share', { of: users, noWait: true })
+	.for('update');
+
+await db
+	.select()
+	.from(users)
+	.for('no key update', { of: users });
+
+await db
+	.select()
+	.from(users)
+	.for('no key update', { of: users, skipLocked: true });
+
+await db
+	.select()
+	.from(users)
+	.for('share', { of: users, noWait: true });
+
+await db
+	.select()
+	.from(users)
 	// @ts-expect-error - can't use both skipLocked and noWait
 	.for('share', { of: users, noWait: true, skipLocked: true });
 
@@ -910,13 +950,173 @@ await db
 }
 
 {
-	// TODO: add to docs
-	const withPagination = <T extends AnyPgSelect>(qb: T) => {
-		return qb.offset(10).limit(10);
-	};
+	db
+		.select()
+		.from(users)
+		.where(eq(users.id, 1));
 
-	const qb = db.select().from(users);
-	await withPagination(qb);
+	db
+		.select()
+		.from(users)
+		.where(eq(users.id, 1))
+		// @ts-expect-error - can't use where twice
+		.where(eq(users.id, 1));
+
+	db
+		.select()
+		.from(users)
+		.where(eq(users.id, 1))
+		.limit(10)
+		// @ts-expect-error - can't use where twice
+		.where(eq(users.id, 1));
+}
+
+{
+	function withFriends<T extends PgSelect>(qb: T) {
+		const friends = alias(users, 'friends');
+		const friends2 = alias(users, 'friends2');
+		const friends3 = alias(users, 'friends3');
+		const friends4 = alias(users, 'friends4');
+		const friends5 = alias(users, 'friends5');
+		return qb
+			.leftJoin(friends, sql`true`)
+			.leftJoin(friends2, sql`true`)
+			.leftJoin(friends3, sql`true`)
+			.leftJoin(friends4, sql`true`)
+			.leftJoin(friends5, sql`true`);
+	}
+
+	const qb = db.select().from(users).$dynamic();
+	const result = await withFriends(qb);
+	Expect<
+		Equal<typeof result, {
+			users_table: typeof users.$inferSelect;
+			friends: typeof users.$inferSelect | null;
+			friends2: typeof users.$inferSelect | null;
+			friends3: typeof users.$inferSelect | null;
+			friends4: typeof users.$inferSelect | null;
+			friends5: typeof users.$inferSelect | null;
+		}[]>
+	>;
+}
+
+{
+	function withFriends<T extends PgSelectQueryBuilder>(qb: T) {
+		const friends = alias(users, 'friends');
+		const friends2 = alias(users, 'friends2');
+		const friends3 = alias(users, 'friends3');
+		const friends4 = alias(users, 'friends4');
+		const friends5 = alias(users, 'friends5');
+		return qb
+			.leftJoin(friends, sql`true`)
+			.leftJoin(friends2, sql`true`)
+			.leftJoin(friends3, sql`true`)
+			.leftJoin(friends4, sql`true`)
+			.leftJoin(friends5, sql`true`);
+	}
+
+	const qb = db.select().from(users).$dynamic();
+	const result = await withFriends(qb);
+	Expect<
+		Equal<typeof result, {
+			users_table: typeof users.$inferSelect;
+			friends: typeof users.$inferSelect | null;
+			friends2: typeof users.$inferSelect | null;
+			friends3: typeof users.$inferSelect | null;
+			friends4: typeof users.$inferSelect | null;
+			friends5: typeof users.$inferSelect | null;
+		}[]>
+	>;
+}
+
+{
+	function dynamic<T extends PgSelect>(qb: T) {
+		return qb.where(sql``).having(sql``).groupBy(sql``).orderBy(sql``).limit(1).offset(1).for('update');
+	}
+
+	const qb = db.select().from(users).$dynamic();
+	const result = await dynamic(qb);
+	Expect<Equal<typeof result, typeof users.$inferSelect[]>>;
+}
+
+{
+	// TODO: add to docs
+	function dynamic<T extends PgSelectQueryBuilder>(qb: T) {
+		return qb.where(sql``).having(sql``).groupBy(sql``).orderBy(sql``).limit(1).offset(1).for('update');
+	}
+
+	const query = new QueryBuilder().select().from(users).$dynamic();
+	dynamic(query);
+}
+
+{
+	// TODO: add to docs
+	function paginated<T extends PgSelect>(qb: T, page: number) {
+		return qb.limit(10).offset((page - 1) * 10);
+	}
+
+	const qb = db.select().from(users).$dynamic();
+	const result = await paginated(qb, 1);
+
+	Expect<Equal<typeof result, typeof users.$inferSelect[]>>;
+}
+
+{
+	db
+		.select()
+		.from(users)
+		.where(sql``)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.where(sql``);
+
+	db
+		.select()
+		.from(users)
+		.having(sql``)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.having(sql``);
+
+	db
+		.select()
+		.from(users)
+		.groupBy(sql``)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.groupBy(sql``);
+
+	db
+		.select()
+		.from(users)
+		.orderBy(sql``)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.orderBy(sql``);
+
+	db
+		.select()
+		.from(users)
+		.limit(10)
+		.where(sql``)
+		// @ts-expect-error method was already called
+		.limit(10);
+
+	db
+		.select()
+		.from(users)
+		.offset(10)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.offset(10);
+
+	db
+		.select()
+		.from(users)
+		.for('update')
+		.limit(10)
+		// @ts-expect-error method was already called
+		.for('update');
 }
 
 {

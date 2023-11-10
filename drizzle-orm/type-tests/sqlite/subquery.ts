@@ -1,9 +1,9 @@
-import { Expect } from 'type-tests/utils';
-import { and, eq } from '~/expressions';
-import { sql } from '~/sql';
-import { alias, integer, sqliteTable, text } from '~/sqlite-core';
-import type { DrizzleTypeError, Equal } from '~/utils';
-import { db } from './db';
+import { Expect } from 'type-tests/utils.ts';
+import { and, eq } from '~/expressions.ts';
+import { sql } from '~/sql/sql.ts';
+import { alias, integer, sqliteTable, text } from '~/sqlite-core/index.ts';
+import type { DrizzleTypeError, Equal } from '~/utils.ts';
+import { db } from './db.ts';
 
 const names = sqliteTable('names', {
 	id: integer('id').primaryKey(),
@@ -84,3 +84,15 @@ Expect<
 	const sq = db.select({ count: sql<number>`count(1)::int` }).from(names).as('sq');
 	Expect<typeof sq.count extends DrizzleTypeError<any> ? true : false>;
 }
+
+const sqUnion = db.select().from(names).union(db.select().from(names2)).as('sqUnion');
+
+const resUnion = await db.select().from(sqUnion);
+
+Expect<
+	Equal<{
+		id: number;
+		name: string | null;
+		authorId: number | null;
+	}[], typeof resUnion>
+>;

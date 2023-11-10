@@ -6,6 +6,9 @@ import anyTest from 'ava';
 import Docker from 'dockerode';
 import {
 	and,
+	arrayContained,
+	arrayContains,
+	arrayOverlaps,
 	asc,
 	eq,
 	gt,
@@ -46,9 +49,11 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
-import { Client } from 'pg';
+import pg from 'pg';
 import { v4 as uuid } from 'uuid';
-import { type Equal, Expect } from './utils';
+import { type Equal, Expect } from './utils.ts';
+
+const { Client } = pg;
 
 const ENABLE_LOGGING = false;
 
@@ -118,7 +123,7 @@ interface Context {
 	docker: Docker;
 	pgContainer: Docker.Container;
 	db: NeonHttpDatabase;
-	ddlRunner: Client;
+	ddlRunner: pg.Client;
 	client: NeonQueryFunction<false, true>;
 }
 
@@ -960,7 +965,7 @@ test.serial('insert via db.execute + returning', async (t) => {
 test.serial('insert via db.execute w/ query builder', async (t) => {
 	const { db } = t.context;
 
-	const inserted = await db.execute<Pick<typeof usersTable['_']['model']['select'], 'id' | 'name'>>(
+	const inserted = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
 		db
 			.insert(usersTable)
 			.values({ name: 'John' })
@@ -1381,7 +1386,7 @@ test.serial('select count w/ custom mapper', async (t) => {
 test.serial('network types', async (t) => {
 	const { db } = t.context;
 
-	const value: typeof network['_']['model']['select'] = {
+	const value: typeof network.$inferSelect = {
 		inet: '127.0.0.1',
 		cidr: '192.168.100.128/25',
 		macaddr: '08:00:2b:01:02:03',
@@ -1398,7 +1403,7 @@ test.serial('network types', async (t) => {
 test.serial('array types', async (t) => {
 	const { db } = t.context;
 
-	const values: typeof salEmp['_']['model']['select'][] = [
+	const values: typeof salEmp.$inferSelect[] = [
 		{
 			name: 'John',
 			payByQuarter: [10000, 10000, 10000, 10000],
@@ -1421,20 +1426,71 @@ test.serial('array types', async (t) => {
 test.serial('select for ...', (t) => {
 	const { db } = t.context;
 
-	const query = db
-		.select()
-		.from(users2Table)
-		.for('update')
-		.for('no key update', { of: users2Table })
-		.for('no key update', { of: users2Table, skipLocked: true })
-		.for('share', { of: users2Table, noWait: true })
-		.toSQL();
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('update')
+			.toSQL();
 
-	t.regex(
-		query.sql,
-		// eslint-disable-next-line unicorn/better-regex
-		/ for update for no key update of "users2" for no key update of "users2" skip locked for share of "users2" no wait$/,
-	);
+		t.regex(
+			query.sql,
+			/ for update$/,
+		);
+	}
+
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('update', { of: [users2Table, coursesTable] })
+			.toSQL();
+
+		t.regex(
+			query.sql,
+			/ for update of "users2", "courses"$/,
+		);
+	}
+
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('no key update', { of: users2Table })
+			.toSQL();
+
+		t.regex(
+			query.sql,
+			/for no key update of "users2"$/,
+		);
+	}
+
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('no key update', { of: users2Table, skipLocked: true })
+			.toSQL();
+
+		t.regex(
+			query.sql,
+			/ for no key update of "users2" skip locked$/,
+		);
+	}
+
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('share', { of: users2Table, noWait: true })
+			.toSQL();
+
+		t.regex(
+			query.sql,
+			// eslint-disable-next-line unicorn/better-regex
+			/for share of "users2" no wait$/,
+		);
+	}
 });
 
 test.serial('having', async (t) => {
@@ -2014,7 +2070,7 @@ test.serial.skip('transaction rollback', async (t) => {
 		await db.transaction(async (tx) => {
 			await tx.insert(users).values({ balance: 100 });
 			tx.rollback();
-		}), new TransactionRollbackError());
+		}), { instanceOf: TransactionRollbackError });
 
 	const result = await db.select().from(users);
 
@@ -2077,7 +2133,7 @@ test.serial.skip('nested transaction rollback', async (t) => {
 			await tx.transaction(async (tx) => {
 				await tx.update(users).set({ balance: 200 });
 				tx.rollback();
-			}), new TransactionRollbackError());
+			}), { instanceOf: TransactionRollbackError });
 	});
 
 	const result = await db.select().from(users);
@@ -2311,4 +2367,50 @@ test.serial('update undefined', async (t) => {
 	await t.notThrowsAsync(async () => await db.update(users).set({ id: 1, name: undefined }));
 
 	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('array operators', async (t) => {
+	const { db } = t.context;
+
+	const posts = pgTable('posts', {
+		id: serial('id').primaryKey(),
+		tags: text('tags').array(),
+	});
+
+	await db.execute(sql`drop table if exists ${posts}`);
+
+	await db.execute(
+		sql`create table ${posts} (id serial primary key, tags text[])`,
+	);
+
+	await db.insert(posts).values([{
+		tags: ['ORM'],
+	}, {
+		tags: ['Typescript'],
+	}, {
+		tags: ['Typescript', 'ORM'],
+	}, {
+		tags: ['Typescript', 'Frontend', 'React'],
+	}, {
+		tags: ['Typescript', 'ORM', 'Database', 'Postgres'],
+	}, {
+		tags: ['Java', 'Spring', 'OOP'],
+	}]);
+
+	const contains = await db.select({ id: posts.id }).from(posts)
+		.where(arrayContains(posts.tags, ['Typescript', 'ORM']));
+	const contained = await db.select({ id: posts.id }).from(posts)
+		.where(arrayContained(posts.tags, ['Typescript', 'ORM']));
+	const overlaps = await db.select({ id: posts.id }).from(posts)
+		.where(arrayOverlaps(posts.tags, ['Typescript', 'ORM']));
+	const withSubQuery = await db.select({ id: posts.id }).from(posts)
+		.where(arrayContains(
+			posts.tags,
+			db.select({ tags: posts.tags }).from(posts).where(eq(posts.id, 1)),
+		));
+
+	t.deepEqual(contains, [{ id: 3 }, { id: 5 }]);
+	t.deepEqual(contained, [{ id: 1 }, { id: 2 }, { id: 3 }]);
+	t.deepEqual(overlaps, [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+	t.deepEqual(withSubQuery, [{ id: 1 }, { id: 3 }, { id: 5 }]);
 });

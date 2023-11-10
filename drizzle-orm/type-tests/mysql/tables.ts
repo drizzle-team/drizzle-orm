@@ -1,6 +1,6 @@
-import { type Equal, Expect } from 'type-tests/utils';
-import { eq, gt } from '~/expressions';
-import { type BuildColumn, type Simplify } from '~/index';
+import { type Equal, Expect } from 'type-tests/utils.ts';
+import { eq, gt } from '~/expressions.ts';
+import type { BuildColumn, InferSelectModel, Simplify } from '~/index.ts';
 import {
 	bigint,
 	char,
@@ -24,12 +24,11 @@ import {
 	tinytext,
 	uniqueIndex,
 	varchar,
-} from '~/mysql-core';
-import { mysqlSchema } from '~/mysql-core/schema';
-import { mysqlView, type MySqlViewWithSelection } from '~/mysql-core/view';
-import { sql } from '~/sql';
-import type { InferModel } from '~/table';
-import { db } from './db';
+} from '~/mysql-core/index.ts';
+import { mysqlSchema } from '~/mysql-core/schema.ts';
+import { mysqlView, type MySqlViewWithSelection } from '~/mysql-core/view.ts';
+import { sql } from '~/sql/sql.ts';
+import { db } from './db.ts';
 
 export const users = mysqlTable(
 	'users_table',
@@ -79,7 +78,7 @@ Expect<
 		id: number;
 		name_db: string;
 		population: number | null;
-	}, InferModel<typeof cities, 'select', { dbColumnNames: true }>>
+	}, InferSelectModel<typeof cities, { dbColumnNames: true }>>
 >;
 
 export const customSchema = mysqlSchema('custom_schema');
@@ -538,4 +537,27 @@ Expect<
 		});
 
 	await db.select().from(newYorkers).leftJoin(newYorkers, eq(newYorkers.userId, newYorkers.userId));
+}
+
+{
+	const test = mysqlTable('test', {
+		id: text('id').$defaultFn(() => crypto.randomUUID()).primaryKey(),
+	});
+
+	Expect<
+		Equal<{
+			id?: string;
+		}, typeof test.$inferInsert>
+	>;
+}
+
+{
+	mysqlTable('test', {
+		id: int('id').$default(() => 1),
+		id2: int('id').$defaultFn(() => 1),
+		// @ts-expect-error - should be number
+		id3: int('id').$default(() => '1'),
+		// @ts-expect-error - should be number
+		id4: int('id').$defaultFn(() => '1'),
+	});
 }

@@ -1,21 +1,20 @@
-import { is } from '~/entity';
-import { Table } from '~/table';
-import { ViewBaseConfig } from '~/view';
-import type { Check } from './checks';
-import { CheckBuilder } from './checks';
-import type { ForeignKey } from './foreign-keys';
-import { ForeignKeyBuilder } from './foreign-keys';
-import type { Index } from './indexes';
-import { IndexBuilder } from './indexes';
-import type { PrimaryKey } from './primary-keys';
-import { PrimaryKeyBuilder } from './primary-keys';
-import type { AnyMySqlTable } from './table';
-import { MySqlTable } from './table';
-import type { MySqlView } from './view';
-import { MySqlViewConfig } from './view';
-import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint';
+import { is } from '~/entity.ts';
+import { Table } from '~/table.ts';
+import { ViewBaseConfig } from '~/view-common.ts';
+import type { Check } from './checks.ts';
+import { CheckBuilder } from './checks.ts';
+import type { ForeignKey } from './foreign-keys.ts';
+import { ForeignKeyBuilder } from './foreign-keys.ts';
+import type { Index } from './indexes.ts';
+import { IndexBuilder } from './indexes.ts';
+import type { PrimaryKey } from './primary-keys.ts';
+import { PrimaryKeyBuilder } from './primary-keys.ts';
+import { MySqlTable } from './table.ts';
+import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
+import { MySqlViewConfig } from './view-common.ts';
+import type { MySqlView } from './view.ts';
 
-export function getTableConfig(table: AnyMySqlTable) {
+export function getTableConfig(table: MySqlTable) {
 	const columns = Object.values(table[MySqlTable.Symbol.Columns]);
 	const indexes: Index[] = [];
 	const checks: Check[] = [];

@@ -1,14 +1,14 @@
-import { DefaultLogger } from '~/logger';
+import { DefaultLogger } from '~/logger.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
-} from '~/relations';
-import { BaseSQLiteDatabase } from '~/sqlite-core/db';
-import { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
-import { type DrizzleConfig } from '~/utils';
-import { SQLiteRemoteSession } from './session';
+} from '~/relations.ts';
+import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
+import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
+import type { DrizzleConfig } from '~/utils.ts';
+import { SQLiteRemoteSession } from './session.ts';
 
 export interface SqliteRemoteResult<T = unknown> {
 	rows?: T[];

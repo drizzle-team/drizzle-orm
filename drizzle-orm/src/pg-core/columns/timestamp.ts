@@ -1,10 +1,10 @@
-import type { ColumnBaseConfig } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder';
-import { entityKind } from '~/entity';
-import type { AnyPgTable } from '~/pg-core/table';
-import { type Equal } from '~/utils';
-import { PgColumn } from './common';
-import { PgDateColumnBaseBuilder } from './date.common';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { Equal } from '~/utils.ts';
+import { PgColumn } from './common.ts';
+import { PgDateColumnBaseBuilder } from './date.common.ts';
 
 export type PgTimestampBuilderInitial<TName extends string> = PgTimestampBuilder<{
 	name: TName;

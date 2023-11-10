@@ -1,16 +1,16 @@
-import { entityKind } from '~/entity';
-import type { Logger } from '~/logger';
-import { DefaultLogger } from '~/logger';
-import { PgDialect } from '~/pg-core';
-import { PgDatabase } from '~/pg-core/db';
+import { entityKind } from '~/entity.ts';
+import type { Logger } from '~/logger.ts';
+import { DefaultLogger } from '~/logger.ts';
+import { PgDatabase } from '~/pg-core/db.ts';
+import { PgDialect } from '~/pg-core/index.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
-} from '~/relations';
-import { type DrizzleConfig } from '~/utils';
-import { type VercelPgClient, type VercelPgQueryResultHKT, VercelPgSession } from './session';
+} from '~/relations.ts';
+import type { DrizzleConfig } from '~/utils.ts';
+import { type VercelPgClient, type VercelPgQueryResultHKT, VercelPgSession } from './session.ts';
 
 export interface VercelPgDriverOptions {
 	logger?: Logger;

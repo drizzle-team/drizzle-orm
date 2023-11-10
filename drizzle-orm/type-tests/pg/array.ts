@@ -1,6 +1,6 @@
-import { type Equal, Expect } from 'type-tests/utils';
-import { type Column } from '~/column';
-import { integer, pgTable } from '~/pg-core';
+import { type Equal, Expect } from 'type-tests/utils.ts';
+import type { Column } from '~/column.ts';
+import { integer, pgTable } from '~/pg-core/index.ts';
 
 {
 	const table = pgTable('table', {

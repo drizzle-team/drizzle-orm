@@ -1,8 +1,13 @@
-import type { ColumnBaseConfig } from '~/column';
-import type { ColumnBuilderBaseConfig, ColumnBuilderExtraConfig, ColumnDataType, HasDefault } from '~/column-builder';
-import { entityKind } from '~/entity';
-import { sql } from '~/sql';
-import { MySqlColumn, MySqlColumnBuilder } from './common';
+import type {
+	ColumnBuilderBaseConfig,
+	ColumnBuilderExtraConfig,
+	ColumnDataType,
+	HasDefault,
+} from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import { sql } from '~/sql/sql.ts';
+import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export interface MySqlDateColumnBaseConfig {
 	hasOnUpdateNow: boolean;

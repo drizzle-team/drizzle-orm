@@ -1,19 +1,33 @@
 import type { Client, ResultSet } from '@libsql/client';
-import { DefaultLogger } from '~/logger';
+import type { BatchItem, BatchResponse } from '~/batch.ts';
+import { entityKind } from '~/entity.ts';
+import { DefaultLogger } from '~/logger.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
+	type ExtractTablesWithRelations,
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
-} from '~/relations';
-import { BaseSQLiteDatabase } from '~/sqlite-core/db';
-import { SQLiteAsyncDialect } from '~/sqlite-core/dialect';
-import { type DrizzleConfig } from '~/utils';
-import { LibSQLSession } from './session';
+} from '~/relations.ts';
+import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
+import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
+import type { DrizzleConfig } from '~/utils.ts';
+import { LibSQLSession } from './session.ts';
 
-export type LibSQLDatabase<
+export class LibSQLDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = BaseSQLiteDatabase<'async', ResultSet, TSchema>;
+> extends BaseSQLiteDatabase<'async', ResultSet, TSchema> {
+	static readonly [entityKind]: string = 'LibSQLDatabase';
+
+	/** @internal */
+	declare readonly session: LibSQLSession<TSchema, ExtractTablesWithRelations<TSchema>>;
+
+	async batch<U extends BatchItem<'sqlite'>, T extends Readonly<[U, ...U[]]>>(
+		batch: T,
+	): Promise<BatchResponse<T>> {
+		return this.session.batch(batch) as Promise<BatchResponse<T>>;
+	}
+}
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
@@ -40,5 +54,5 @@ export function drizzle<
 	}
 
 	const session = new LibSQLSession(client, dialect, schema, { logger }, undefined);
-	return new BaseSQLiteDatabase('async', dialect, session, schema) as LibSQLDatabase<TSchema>;
+	return new LibSQLDatabase('async', dialect, session, schema) as LibSQLDatabase<TSchema>;
 }

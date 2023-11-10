@@ -7,15 +7,15 @@ import {
 	VercelPool,
 	type VercelPoolClient,
 } from '@vercel/postgres';
-import { entityKind } from '~/entity';
-import { type Logger, NoopLogger } from '~/logger';
-import { type PgDialect, PgTransaction } from '~/pg-core';
-import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types';
-import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session';
-import { PgSession, PreparedQuery } from '~/pg-core/session';
-import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
-import { fillPlaceholders, type Query, sql } from '~/sql';
-import { type Assume, mapResultRow } from '~/utils';
+import { entityKind } from '~/entity.ts';
+import { type Logger, NoopLogger } from '~/logger.ts';
+import { type PgDialect, PgTransaction } from '~/pg-core/index.ts';
+import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
+import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
+import { PgSession, PreparedQuery } from '~/pg-core/session.ts';
+import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
+import { type Assume, mapResultRow } from '~/utils.ts';
 
 export type VercelPgClient = VercelPool | VercelClient | VercelPoolClient;
 

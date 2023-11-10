@@ -4,7 +4,10 @@
 		"baseUrl": ".",
 		"paths": {
 			"~/*": ["src/*"]
-		}
+		},
+		"declaration": true,
+		"outDir": "dist",
+		"noEmit": true
 	},
-	"include": ["src", "*.ts"]
+	"include": ["src", "scripts"]
 }

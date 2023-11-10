@@ -1,20 +1,20 @@
-import { type Connection as CallbackConnection, type Pool as CallbackPool } from 'mysql2';
-import { entityKind } from '~/entity';
-import type { Logger } from '~/logger';
-import { DefaultLogger } from '~/logger';
-import { MySqlDialect } from '~/mysql-core/dialect';
-import type { Mode } from '~/mysql-core/session';
+import type { Connection as CallbackConnection, Pool as CallbackPool } from 'mysql2';
+import { entityKind } from '~/entity.ts';
+import type { Logger } from '~/logger.ts';
+import { DefaultLogger } from '~/logger.ts';
+import { MySqlDatabase } from '~/mysql-core/db.ts';
+import { MySqlDialect } from '~/mysql-core/dialect.ts';
+import type { Mode } from '~/mysql-core/session.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
-} from '~/relations';
-import { type DrizzleConfig } from '~/utils';
-import { DrizzleError } from '..';
-import { MySqlDatabase } from '.';
-import type { MySql2Client, MySql2PreparedQueryHKT, MySql2QueryResultHKT } from './session';
-import { MySql2Session } from './session';
+} from '~/relations.ts';
+import type { DrizzleConfig } from '~/utils.ts';
+import { DrizzleError } from '../index.ts';
+import type { MySql2Client, MySql2PreparedQueryHKT, MySql2QueryResultHKT } from './session.ts';
+import { MySql2Session } from './session.ts';
 
 export interface MySqlDriverOptions {
 	logger?: Logger;
@@ -38,7 +38,7 @@ export class MySql2Driver {
 	}
 }
 
-export { MySqlDatabase } from '~/mysql-core/db';
+export { MySqlDatabase } from '~/mysql-core/db.ts';
 
 export type MySql2Database<
 	TSchema extends Record<string, unknown> = Record<string, never>,
@@ -66,9 +66,10 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
 	if (config.schema) {
 		if (config.mode === undefined) {
-			throw new DrizzleError(
-				'You need to specify "mode": "planetscale" or "default" when providing a schema. Read more: https://orm.drizzle.team/docs/rqb#modes',
-			);
+			throw new DrizzleError({
+				message:
+					'You need to specify "mode": "planetscale" or "default" when providing a schema. Read more: https://orm.drizzle.team/docs/rqb#modes',
+			});
 		}
 
 		const tablesConfig = extractTablesRelationalConfig(

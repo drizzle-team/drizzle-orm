@@ -1,7 +1,7 @@
-import type { Equal } from 'type-tests/utils';
-import { Expect } from 'type-tests/utils';
-import { eq, gt } from '~/expressions';
-import { sql } from '~/sql';
+import type { Equal } from 'type-tests/utils.ts';
+import { Expect } from 'type-tests/utils.ts';
+import { eq, gt } from '~/expressions.ts';
+import { sql } from '~/sql/sql.ts';
 import {
 	alias,
 	check,
@@ -13,10 +13,9 @@ import {
 	sqliteTable,
 	text,
 	uniqueIndex,
-} from '~/sqlite-core';
-import { sqliteView, type SQLiteViewWithSelection } from '~/sqlite-core/view';
-import type { InferModel } from '~/table';
-import { db } from './db';
+} from '~/sqlite-core/index.ts';
+import { sqliteView, type SQLiteViewWithSelection } from '~/sqlite-core/view.ts';
+import { db } from './db.ts';
 
 export const users = sqliteTable(
 	'users_table',
@@ -58,7 +57,7 @@ export const users = sqliteTable(
 	}),
 );
 
-export type User = InferModel<typeof users>;
+export type User = typeof users.$inferSelect;
 Expect<
 	Equal<User, {
 		id: number;
@@ -75,7 +74,7 @@ Expect<
 	}>
 >;
 
-export type NewUser = InferModel<typeof users, 'insert'>;
+export type NewUser = typeof users.$inferInsert;
 Expect<
 	Equal<NewUser, {
 		id?: number;
@@ -98,7 +97,7 @@ export const cities = sqliteTable('cities_table', {
 	population: integer('population').default(0),
 });
 
-export type City = InferModel<typeof cities>;
+export type City = typeof cities.$inferSelect;
 Expect<
 	Equal<City, {
 		id: number;
@@ -107,7 +106,7 @@ Expect<
 	}>
 >;
 
-export type NewCity = InferModel<typeof cities, 'insert'>;
+export type NewCity = typeof cities.$inferInsert;
 Expect<
 	Equal<NewCity, {
 		id?: number;
@@ -122,7 +121,7 @@ export const classes = sqliteTable('classes_table', {
 	subClass: text('sub_class', { enum: ['B', 'D'] }).notNull(),
 });
 
-export type Class = InferModel<typeof classes>;
+export type Class = typeof classes.$inferSelect;
 Expect<
 	Equal<Class, {
 		id: number;
@@ -131,7 +130,7 @@ Expect<
 	}>
 >;
 
-export type NewClass = InferModel<typeof classes, 'insert'>;
+export type NewClass = typeof classes.$inferInsert;
 Expect<
 	Equal<NewClass, {
 		id?: number;
@@ -371,6 +370,43 @@ Expect<
 	Expect<
 		Equal<{
 			col1: Id;
-		}, InferModel<typeof table>>
+		}, typeof table.$inferSelect>
+	>;
+}
+
+{
+	const test = sqliteTable('test', {
+		id: text('id').$defaultFn(() => crypto.randomUUID()).primaryKey(),
+	});
+
+	Expect<
+		Equal<{
+			id?: string;
+		}, typeof test.$inferInsert>
+	>;
+}
+
+{
+	sqliteTable('test', {
+		id: integer('id').$default(() => 1),
+		id2: integer('id').$defaultFn(() => 1),
+		// @ts-expect-error - should be number
+		id3: integer('id').$default(() => '1'),
+		// @ts-expect-error - should be number
+		id4: integer('id').$defaultFn(() => '1'),
+	});
+}
+
+{
+	const table = sqliteTable('test', {
+		data: text('data', { mode: 'json' }).notNull(),
+		dataTyped: text('dataTyped', { mode: 'json' }).$type<{ a: number }>().notNull(),
+	});
+
+	Expect<
+		Equal<{
+			data: unknown;
+			dataTyped: { a: number };
+		}, typeof table.$inferSelect>
 	>;
 }

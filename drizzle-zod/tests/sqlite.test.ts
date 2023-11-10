@@ -80,7 +80,6 @@ test('users insert schema', (t) => {
 		real: z.number(),
 		text: z.string().nullable().optional(),
 		role: z.enum(['admin', 'manager', 'user']).optional(),
-
 	});
 
 	expectSchemaShape(t, expected).from(actual);

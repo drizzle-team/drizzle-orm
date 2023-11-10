@@ -1,7 +1,7 @@
-import { entityKind } from '~/entity';
-import type { SQL } from '~/sql';
-import type { AnyMySqlColumn } from './columns';
-import type { AnyMySqlTable } from './table';
+import { entityKind } from '~/entity.ts';
+import type { SQL } from '~/sql/sql.ts';
+import type { AnyMySqlColumn, MySqlColumn } from './columns/index.ts';
+import type { MySqlTable } from './table.ts';
 
 interface IndexConfig {
 	name: string;
@@ -34,7 +34,7 @@ interface IndexConfig {
 	lock?: 'default' | 'none' | 'shared' | 'exclusive';
 }
 
-export type IndexColumn = AnyMySqlColumn | SQL;
+export type IndexColumn = MySqlColumn | SQL;
 
 export class IndexBuilderOn {
 	static readonly [entityKind]: string = 'MySqlIndexBuilderOn';
@@ -47,7 +47,7 @@ export class IndexBuilderOn {
 }
 
 export interface AnyIndexBuilder {
-	build(table: AnyMySqlTable): Index;
+	build(table: MySqlTable): Index;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
@@ -91,7 +91,7 @@ export class IndexBuilder implements AnyIndexBuilder {
 	}
 
 	/** @internal */
-	build(table: AnyMySqlTable): Index {
+	build(table: MySqlTable): Index {
 		return new Index(this.config, table);
 	}
 }
@@ -99,9 +99,9 @@ export class IndexBuilder implements AnyIndexBuilder {
 export class Index {
 	static readonly [entityKind]: string = 'MySqlIndex';
 
-	readonly config: IndexConfig & { table: AnyMySqlTable };
+	readonly config: IndexConfig & { table: MySqlTable };
 
-	constructor(config: IndexConfig, table: AnyMySqlTable) {
+	constructor(config: IndexConfig, table: MySqlTable) {
 		this.config = { ...config, table };
 	}
 }

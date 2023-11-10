@@ -1,13 +1,13 @@
-import { entityKind } from '~/entity';
-import type { AnySQLiteColumn, SQLiteColumn } from './columns';
-import type { AnySQLiteTable } from './table';
-import { SQLiteTable } from './table';
+import { entityKind } from '~/entity.ts';
+import type { AnySQLiteColumn, SQLiteColumn } from './columns/index.ts';
+import { SQLiteTable } from './table.ts';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
 export type Reference = () => {
+	readonly name?: string;
 	readonly columns: SQLiteColumn[];
-	readonly foreignTable: AnySQLiteTable;
+	readonly foreignTable: SQLiteTable;
 	readonly foreignColumns: SQLiteColumn[];
 };
 
@@ -30,6 +30,7 @@ export class ForeignKeyBuilder {
 
 	constructor(
 		config: () => {
+			name?: string;
 			columns: SQLiteColumn[];
 			foreignColumns: SQLiteColumn[];
 		},
@@ -39,8 +40,8 @@ export class ForeignKeyBuilder {
 		} | undefined,
 	) {
 		this.reference = () => {
-			const { columns, foreignColumns } = config();
-			return { columns, foreignTable: foreignColumns[0]!.table as AnySQLiteTable, foreignColumns };
+			const { name, columns, foreignColumns } = config();
+			return { name, columns, foreignTable: foreignColumns[0]!.table as SQLiteTable, foreignColumns };
 		};
 		if (actions) {
 			this._onUpdate = actions.onUpdate;
@@ -59,7 +60,7 @@ export class ForeignKeyBuilder {
 	}
 
 	/** @internal */
-	build(table: AnySQLiteTable): ForeignKey {
+	build(table: SQLiteTable): ForeignKey {
 		return new ForeignKey(table, this);
 	}
 }
@@ -71,14 +72,14 @@ export class ForeignKey {
 	readonly onUpdate: UpdateDeleteAction | undefined;
 	readonly onDelete: UpdateDeleteAction | undefined;
 
-	constructor(readonly table: AnySQLiteTable, builder: ForeignKeyBuilder) {
+	constructor(readonly table: SQLiteTable, builder: ForeignKeyBuilder) {
 		this.reference = builder.reference;
 		this.onUpdate = builder._onUpdate;
 		this.onDelete = builder._onDelete;
 	}
 
 	getName(): string {
-		const { columns, foreignColumns } = this.reference();
+		const { name, columns, foreignColumns } = this.reference();
 		const columnNames = columns.map((column) => column.name);
 		const foreignColumnNames = foreignColumns.map((column) => column.name);
 		const chunks = [
@@ -87,7 +88,7 @@ export class ForeignKey {
 			foreignColumns[0]!.table[SQLiteTable.Symbol.Name],
 			...foreignColumnNames,
 		];
-		return `${chunks.join('_')}_fk`;
+		return name ?? `${chunks.join('_')}_fk`;
 	}
 }
 
@@ -96,22 +97,46 @@ type ColumnsWithTable<
 	TColumns extends SQLiteColumn[],
 > = { [Key in keyof TColumns]: AnySQLiteColumn<{ tableName: TTableName }> };
 
+/**
+ * @deprecated please use `foreignKey({ columns: [], foreignColumns: [] })` syntax without callback
+ * @param config
+ * @returns
+ */
 export function foreignKey<
 	TTableName extends string,
 	TForeignTableName extends string,
 	TColumns extends [AnySQLiteColumn<{ tableName: TTableName }>, ...AnySQLiteColumn<{ tableName: TTableName }>[]],
 >(
 	config: () => {
+		name?: string;
 		columns: TColumns;
 		foreignColumns: ColumnsWithTable<TForeignTableName, TColumns>;
 	},
+): ForeignKeyBuilder;
+export function foreignKey<
+	TTableName extends string,
+	TForeignTableName extends string,
+	TColumns extends [AnySQLiteColumn<{ tableName: TTableName }>, ...AnySQLiteColumn<{ tableName: TTableName }>[]],
+>(
+	config: {
+		name?: string;
+		columns: TColumns;
+		foreignColumns: ColumnsWithTable<TForeignTableName, TColumns>;
+	},
+): ForeignKeyBuilder;
+export function foreignKey(
+	config: any,
 ): ForeignKeyBuilder {
 	function mappedConfig() {
-		const { columns, foreignColumns } = config();
-		return {
-			columns,
-			foreignColumns,
-		};
+		if (typeof config === 'function') {
+			const { name, columns, foreignColumns } = config();
+			return {
+				name,
+				columns,
+				foreignColumns,
+			};
+		}
+		return config;
 	}
 
 	return new ForeignKeyBuilder(mappedConfig);

@@ -20,15 +20,15 @@ import {
 	notInArray,
 	notLike,
 	or,
-} from '~/expressions';
-import { param, sql } from '~/sql';
-import { alias } from '~/sqlite-core/alias';
+} from '~/expressions.ts';
+import { param, sql } from '~/sql/sql.ts';
+import { alias } from '~/sqlite-core/alias.ts';
 
-import type { Equal } from 'type-tests/utils';
-import { Expect } from 'type-tests/utils';
-import type { InferModel } from '~/table';
-import { db } from './db';
-import { cities, classes, newYorkers, users } from './tables';
+import type { Equal } from 'type-tests/utils.ts';
+import { Expect } from 'type-tests/utils.ts';
+import type { SQLiteSelect, SQLiteSelectQueryBuilder } from '~/sqlite-core/query-builders/select.types.ts';
+import { db } from './db.ts';
+import { cities, classes, newYorkers, users } from './tables.ts';
 
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
@@ -42,10 +42,10 @@ const joinAll = db
 	.all();
 Expect<
 	Equal<{
-		users_table: InferModel<typeof users> | null;
-		cities_table: InferModel<typeof cities> | null;
-		city: InferModel<typeof city> | null;
-		city1: InferModel<typeof city1>;
+		users_table: typeof users.$inferSelect | null;
+		cities_table: typeof cities.$inferSelect | null;
+		city: typeof city.$inferSelect | null;
+		city1: typeof city1.$inferSelect;
 	}[], typeof joinAll>
 >;
 
@@ -57,12 +57,15 @@ const joinGet = db
 	.rightJoin(city1, eq(city1.id, users.id))
 	.get();
 Expect<
-	Equal<{
-		users_table: InferModel<typeof users> | null;
-		cities_table: InferModel<typeof cities> | null;
-		city: InferModel<typeof city> | null;
-		city1: InferModel<typeof city1>;
-	} | undefined, typeof joinGet>
+	Equal<
+		{
+			users_table: typeof users.$inferSelect | null;
+			cities_table: typeof cities.$inferSelect | null;
+			city: typeof city.$inferSelect | null;
+			city1: typeof city1.$inferSelect;
+		} | undefined,
+		typeof joinGet
+	>
 >;
 
 const joinValues = db
@@ -435,4 +438,144 @@ Expect<
 			typeof result
 		>
 	>;
+}
+
+{
+	db
+		.select()
+		.from(users)
+		.where(eq(users.id, 1));
+
+	db
+		.select()
+		.from(users)
+		.where(eq(users.id, 1))
+		// @ts-expect-error - can't use where twice
+		.where(eq(users.id, 1));
+
+	db
+		.select()
+		.from(users)
+		.where(eq(users.id, 1))
+		.limit(10)
+		// @ts-expect-error - can't use where twice
+		.where(eq(users.id, 1));
+}
+
+{
+	function withFriends<T extends SQLiteSelect>(qb: T) {
+		const friends = alias(users, 'friends');
+		const friends2 = alias(users, 'friends2');
+		const friends3 = alias(users, 'friends3');
+		const friends4 = alias(users, 'friends4');
+		const friends5 = alias(users, 'friends5');
+		return qb
+			.leftJoin(friends, sql`true`)
+			.leftJoin(friends2, sql`true`)
+			.leftJoin(friends3, sql`true`)
+			.leftJoin(friends4, sql`true`)
+			.leftJoin(friends5, sql`true`);
+	}
+
+	const qb = db.select().from(users).$dynamic();
+	const result = await withFriends(qb);
+	Expect<
+		Equal<typeof result, {
+			users_table: typeof users.$inferSelect;
+			friends: typeof users.$inferSelect | null;
+			friends2: typeof users.$inferSelect | null;
+			friends3: typeof users.$inferSelect | null;
+			friends4: typeof users.$inferSelect | null;
+			friends5: typeof users.$inferSelect | null;
+		}[]>
+	>;
+}
+
+{
+	function withFriends<T extends SQLiteSelectQueryBuilder>(qb: T) {
+		const friends = alias(users, 'friends');
+		const friends2 = alias(users, 'friends2');
+		const friends3 = alias(users, 'friends3');
+		const friends4 = alias(users, 'friends4');
+		const friends5 = alias(users, 'friends5');
+		return qb
+			.leftJoin(friends, sql`true`)
+			.leftJoin(friends2, sql`true`)
+			.leftJoin(friends3, sql`true`)
+			.leftJoin(friends4, sql`true`)
+			.leftJoin(friends5, sql`true`);
+	}
+
+	const qb = db.select().from(users).$dynamic();
+	const result = await withFriends(qb);
+	Expect<
+		Equal<typeof result, {
+			users_table: typeof users.$inferSelect;
+			friends: typeof users.$inferSelect | null;
+			friends2: typeof users.$inferSelect | null;
+			friends3: typeof users.$inferSelect | null;
+			friends4: typeof users.$inferSelect | null;
+			friends5: typeof users.$inferSelect | null;
+		}[]>
+	>;
+}
+
+{
+	function dynamic<T extends SQLiteSelect>(qb: T) {
+		return qb.where(sql``).having(sql``).groupBy(sql``).orderBy(sql``).limit(1).offset(1);
+	}
+
+	const qb = db.select().from(users).$dynamic();
+	const result = await dynamic(qb);
+	Expect<Equal<typeof result, typeof users.$inferSelect[]>>;
+}
+
+{
+	db
+		.select()
+		.from(users)
+		.where(sql``)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.where(sql``);
+
+	db
+		.select()
+		.from(users)
+		.having(sql``)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.having(sql``);
+
+	db
+		.select()
+		.from(users)
+		.groupBy(sql``)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.groupBy(sql``);
+
+	db
+		.select()
+		.from(users)
+		.orderBy(sql``)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.orderBy(sql``);
+
+	db
+		.select()
+		.from(users)
+		.limit(10)
+		.where(sql``)
+		// @ts-expect-error method was already called
+		.limit(10);
+
+	db
+		.select()
+		.from(users)
+		.offset(10)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.offset(10);
 }

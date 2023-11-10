@@ -1,18 +1,19 @@
-import { entityKind } from '~/entity';
-import { QueryPromise } from '~/query-promise';
+import { entityKind } from '~/entity.ts';
+import { QueryPromise } from '~/query-promise.ts';
 import {
 	type BuildQueryResult,
+	type BuildRelationalQueryResult,
 	type DBQueryConfig,
 	mapRelationalRow,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
-} from '~/relations';
-import type { SQL } from '~/sql';
-import { tracer } from '~/tracing';
-import { type KnownKeysOnly } from '~/utils';
-import type { PgDialect } from '../dialect';
-import type { PgSession, PreparedQuery, PreparedQueryConfig } from '../session';
-import { type AnyPgTable } from '../table';
+} from '~/relations.ts';
+import type { Query, QueryWithTypings, SQL } from '~/sql/sql.ts';
+import { tracer } from '~/tracing.ts';
+import type { KnownKeysOnly } from '~/utils.ts';
+import type { PgDialect } from '../dialect.ts';
+import type { PgSession, PreparedQuery, PreparedQueryConfig } from '../session.ts';
+import type { PgTable } from '../table.ts';
 
 export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields extends TableRelationalConfig> {
 	static readonly [entityKind]: string = 'PgRelationalQueryBuilder';
@@ -21,7 +22,7 @@ export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFie
 		private fullSchema: Record<string, unknown>,
 		private schema: TSchema,
 		private tableNamesMap: Record<string, string>,
-		private table: AnyPgTable,
+		private table: PgTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: PgDialect,
 		private session: PgSession,
@@ -69,7 +70,7 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 		private fullSchema: Record<string, unknown>,
 		private schema: TablesRelationalConfig,
 		private tableNamesMap: Record<string, string>,
-		private table: AnyPgTable,
+		private table: PgTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: PgDialect,
 		private session: PgSession,
@@ -81,38 +82,8 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 
 	private _prepare(name?: string): PreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			// const query = this.tableConfig.primaryKey.length > 0
-			// 	? this.dialect.buildRelationalQueryWithPK({
-			// 		fullSchema: this.fullSchema,
-			// 		schema: this.schema,
-			// 		tableNamesMap: this.tableNamesMap,
-			// 		table: this.table,
-			// 		tableConfig: this.tableConfig,
-			// 		queryConfig: this.config,
-			// 		tableAlias: this.tableConfig.tsName,
-			// 		isRoot: true,
-			// 	})
-			// 	: this.dialect.buildRelationalQueryWithoutPK({
-			// 		fullSchema: this.fullSchema,
-			// 		schema: this.schema,
-			// 		tableNamesMap: this.tableNamesMap,
-			// 		table: this.table,
-			// 		tableConfig: this.tableConfig,
-			// 		queryConfig: this.config,
-			// 		tableAlias: this.tableConfig.tsName,
-			// 	});
+			const { query, builtQuery } = this._toSQL();
 
-			const query = this.dialect.buildRelationalQueryWithoutPK({
-				fullSchema: this.fullSchema,
-				schema: this.schema,
-				tableNamesMap: this.tableNamesMap,
-				table: this.table,
-				tableConfig: this.tableConfig,
-				queryConfig: this.config,
-				tableAlias: this.tableConfig.tsName,
-			});
-
-			const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
 			return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
 				builtQuery,
 				undefined,
@@ -132,6 +103,26 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 
 	prepare(name: string): PreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return this._prepare(name);
+	}
+
+	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+		const query = this.dialect.buildRelationalQueryWithoutPK({
+			fullSchema: this.fullSchema,
+			schema: this.schema,
+			tableNamesMap: this.tableNamesMap,
+			table: this.table,
+			tableConfig: this.tableConfig,
+			queryConfig: this.config,
+			tableAlias: this.tableConfig.tsName,
+		});
+
+		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
+
+		return { query, builtQuery };
+	}
+
+	toSQL(): Query {
+		return this._toSQL().builtQuery;
 	}
 
 	override execute(): Promise<TResult> {

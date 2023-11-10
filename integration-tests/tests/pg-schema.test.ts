@@ -22,8 +22,10 @@ import {
 	timestamp,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
-import { Client } from 'pg';
+import pg from 'pg';
 import { v4 as uuid } from 'uuid';
+
+const { Client } = pg;
 
 const mySchema = pgSchema('mySchema');
 
@@ -59,7 +61,7 @@ interface Context {
 	docker: Docker;
 	pgContainer: Docker.Container;
 	db: NodePgDatabase;
-	client: Client;
+	client: pg.Client;
 }
 
 const test = anyTest as TestFn<Context>;
@@ -677,7 +679,7 @@ test.serial('insert via db.execute + returning', async (t) => {
 test.serial('insert via db.execute w/ query builder', async (t) => {
 	const { db } = t.context;
 
-	const inserted = await db.execute<Pick<typeof usersTable['_']['model']['select'], 'id' | 'name'>>(
+	const inserted = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
 		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 	);
 	t.deepEqual(inserted.rows, [{ id: 1, name: 'John' }]);
@@ -722,7 +724,8 @@ test.serial('build query insert with onConflict do nothing', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "mySchema"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict do nothing',
+		sql:
+			'insert into "mySchema"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict do nothing',
 		params: ['John', '["foo","bar"]'],
 	});
 });
@@ -736,7 +739,8 @@ test.serial('build query insert with onConflict do nothing + target', async (t) 
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "mySchema"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
+		sql:
+			'insert into "mySchema"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
 		params: ['John', '["foo","bar"]'],
 	});
 });

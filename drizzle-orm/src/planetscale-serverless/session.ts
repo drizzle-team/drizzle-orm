@@ -1,9 +1,9 @@
 import type { Connection, ExecutedQuery, Transaction } from '@planetscale/database';
-import { entityKind } from '~/entity';
-import type { Logger } from '~/logger';
-import { NoopLogger } from '~/logger';
-import type { MySqlDialect } from '~/mysql-core/dialect';
-import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types';
+import { entityKind } from '~/entity.ts';
+import type { Logger } from '~/logger.ts';
+import { NoopLogger } from '~/logger.ts';
+import type { MySqlDialect } from '~/mysql-core/dialect.ts';
+import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types.ts';
 import {
 	MySqlSession,
 	MySqlTransaction,
@@ -11,10 +11,10 @@ import {
 	type PreparedQueryConfig,
 	type PreparedQueryHKT,
 	type QueryResultHKT,
-} from '~/mysql-core/session';
-import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
-import { fillPlaceholders, type Query, type SQL, sql } from '~/sql';
-import { type Assume, mapResultRow } from '~/utils';
+} from '~/mysql-core/session.ts';
+import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
+import { type Assume, mapResultRow } from '~/utils.ts';
 
 export type PlanetScaleConnection = Connection;
 

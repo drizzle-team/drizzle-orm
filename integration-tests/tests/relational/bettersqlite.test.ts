@@ -3,7 +3,7 @@ import Database from 'better-sqlite3';
 import { desc, DrizzleError, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import { type BetterSQLite3Database, drizzle } from 'drizzle-orm/better-sqlite3';
 import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import * as schema from './sqlite.schema';
+import * as schema from './sqlite.schema.ts';
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
@@ -112,7 +112,7 @@ test('[Find Many] Get users with posts', () => {
 		with: {
 			posts: true,
 		},
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
@@ -180,7 +180,7 @@ test('[Find Many] Get users with posts + limit posts', () => {
 				limit: 1,
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
@@ -252,7 +252,7 @@ test('[Find Many] Get users with posts + limit posts and users', () => {
 				limit: 1,
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
@@ -315,7 +315,7 @@ test('[Find Many] Get users with posts + custom fields', () => {
 		extras: ({ name }) => ({
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
@@ -409,7 +409,7 @@ test('[Find Many] Get users with posts + custom fields + limits', () => {
 		extras: (usersTable, { sql }) => ({
 			lowerName: sql<string>`lower(${usersTable.name})`.as('name_lower'),
 		}),
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
@@ -462,7 +462,7 @@ test('[Find Many] Get users with posts + orderBy', () => {
 			},
 		},
 		orderBy: (usersTable, { desc }) => [desc(usersTable.id)],
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
@@ -539,7 +539,7 @@ test('[Find Many] Get users with posts + where', () => {
 				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
@@ -595,7 +595,7 @@ test('[Find Many] Get users with posts + where + partial', () => {
 			},
 		},
 		where: (({ id }, { eq }) => eq(id, 1)),
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
@@ -645,7 +645,7 @@ test('[Find Many] Get users with posts + where + partial. Did not select posts i
 			},
 		},
 		where: (({ id }, { eq }) => eq(id, 1)),
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
@@ -695,7 +695,7 @@ test('[Find Many] Get users with posts + where + partial(true + false)', () => {
 			},
 		},
 		where: (({ id }, { eq }) => eq(id, 1)),
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
@@ -740,7 +740,7 @@ test('[Find Many] Get users with posts + where + partial(false)', () => {
 			},
 		},
 		where: (({ id }, { eq }) => eq(id, 1)),
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
@@ -799,7 +799,7 @@ test('[Find Many] Get users with posts in transaction', () => {
 					where: (({ id }, { eq }) => eq(id, 1)),
 				},
 			},
-		});
+		}).sync();
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
@@ -865,7 +865,7 @@ test('[Find Many] Get users with posts in rollbacked transaction', () => {
 						where: (({ id }, { eq }) => eq(id, 1)),
 					},
 				},
-			});
+			}).sync();
 		})
 	).toThrow(TransactionRollbackError);
 
@@ -916,7 +916,7 @@ test('[Find Many] Get only custom fields', () => {
 		extras: ({ name }) => ({
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		lowerName: string;
@@ -995,7 +995,7 @@ test('[Find Many] Get only custom fields + where', () => {
 		extras: ({ name }) => ({
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		lowerName: string;
@@ -1046,7 +1046,7 @@ test('[Find Many] Get only custom fields + where + limit', () => {
 		extras: ({ name }) => ({
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		lowerName: string;
@@ -1097,7 +1097,7 @@ test('[Find Many] Get only custom fields + where + orderBy', () => {
 		extras: ({ name }) => ({
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		lowerName: string;
@@ -1146,7 +1146,7 @@ test('[Find One] Get only custom fields', () => {
 		extras: ({ name }) => ({
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -1206,7 +1206,7 @@ test('[Find One] Get only custom fields + where', () => {
 		extras: ({ name }) => ({
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -1258,7 +1258,7 @@ test('[Find One] Get only custom fields + where + limit', () => {
 		extras: ({ name }) => ({
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -1310,7 +1310,7 @@ test('[Find One] Get only custom fields + where + orderBy', () => {
 		extras: ({ name }) => ({
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -1340,7 +1340,7 @@ test('[Find Many] Get select {}', () => {
 	expect(() =>
 		db.query.usersTable.findMany({
 			columns: {},
-		})
+		}).sync()
 	).toThrow(DrizzleError);
 });
 
@@ -1355,7 +1355,7 @@ test('[Find One] Get select {}', () => {
 	expect(() =>
 		db.query.usersTable.findFirst({
 			columns: {},
-		})
+		}).sync()
 	).toThrow(DrizzleError);
 });
 
@@ -1381,7 +1381,7 @@ test('[Find Many] Get deep select {}', () => {
 					columns: {},
 				},
 			},
-		})
+		}).sync()
 	).toThrow(DrizzleError);
 });
 
@@ -1407,7 +1407,7 @@ test('[Find One] Get deep select {}', () => {
 					columns: {},
 				},
 			},
-		})
+		}).sync()
 	).toThrow(DrizzleError);
 });
 
@@ -1431,15 +1431,15 @@ test('[Find Many] Get users with posts + prepared limit', () => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]).run();
 
-	const prepared = db.query.usersTable.prepareFindMany({
+	const prepared = db.query.usersTable.findMany({
 		with: {
 			posts: {
 				limit: placeholder('limit'),
 			},
 		},
-	});
+	}).prepare();
 
-	const usersWithPosts = prepared.execute({ limit: 1 });
+	const usersWithPosts = prepared.execute({ limit: 1 }).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
@@ -1499,7 +1499,7 @@ test('[Find Many] Get users with posts + prepared limit + offset', () => {
 		{ ownerId: 3, content: 'Post3.1' },
 	]).run();
 
-	const prepared = db.query.usersTable.prepareFindMany({
+	const prepared = db.query.usersTable.findMany({
 		limit: placeholder('uLimit'),
 		offset: placeholder('uOffset'),
 		with: {
@@ -1507,9 +1507,9 @@ test('[Find Many] Get users with posts + prepared limit + offset', () => {
 				limit: placeholder('pLimit'),
 			},
 		},
-	});
+	}).prepare();
 
-	const usersWithPosts = prepared.execute({ pLimit: 1, uLimit: 3, uOffset: 1 });
+	const usersWithPosts = prepared.execute({ pLimit: 1, uLimit: 3, uOffset: 1 }).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
@@ -1558,16 +1558,16 @@ test('[Find Many] Get users with posts + prepared where', () => {
 		{ ownerId: 3, content: 'Post3' },
 	]).run();
 
-	const prepared = db.query.usersTable.prepareFindMany({
+	const prepared = db.query.usersTable.findMany({
 		where: (({ id }, { eq }) => eq(id, placeholder('id'))),
 		with: {
 			posts: {
 				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
-	});
+	}).prepare();
 
-	const usersWithPosts = prepared.execute({ id: 1 });
+	const usersWithPosts = prepared.execute({ id: 1 }).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
@@ -1611,7 +1611,7 @@ test('[Find Many] Get users with posts + prepared + limit + offset + where', () 
 		{ ownerId: 3, content: 'Post3.1' },
 	]).run();
 
-	const prepared = db.query.usersTable.prepareFindMany({
+	const prepared = db.query.usersTable.findMany({
 		limit: placeholder('uLimit'),
 		offset: placeholder('uOffset'),
 		where: (({ id }, { eq, or }) => or(eq(id, placeholder('id')), eq(id, 3))),
@@ -1621,9 +1621,9 @@ test('[Find Many] Get users with posts + prepared + limit + offset + where', () 
 				limit: placeholder('pLimit'),
 			},
 		},
-	});
+	}).prepare();
 
-	const usersWithPosts = prepared.execute({ pLimit: 1, uLimit: 3, uOffset: 1, id: 2, pid: 6 });
+	const usersWithPosts = prepared.execute({ pLimit: 1, uLimit: 3, uOffset: 1, id: 2, pid: 6 }).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
@@ -1671,7 +1671,7 @@ test('[Find One] Get users with posts', () => {
 		with: {
 			posts: true,
 		},
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -1722,7 +1722,7 @@ test('[Find One] Get users with posts + limit posts', () => {
 				limit: 1,
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -1757,7 +1757,7 @@ test('[Find One] Get users with posts no results found', () => {
 				limit: 1,
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -1800,7 +1800,7 @@ test('[Find One] Get users with posts + limit posts and users', () => {
 				limit: 1,
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -1852,7 +1852,7 @@ test('[Find One] Get users with posts + custom fields', () => {
 		extras: ({ name }) => ({
 			lowerName: sql<string>`lower(${name})`.as('name_lower'),
 		}),
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -1926,7 +1926,7 @@ test('[Find One] Get users with posts + custom fields + limits', () => {
 		extras: (usersTable, { sql }) => ({
 			lowerName: sql<string>`lower(${usersTable.name})`.as('name_lower'),
 		}),
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -1980,7 +1980,7 @@ test.skip('[Find One] Get users with posts + orderBy', () => {
 			},
 		},
 		orderBy: (usersTable, { desc }) => [desc(usersTable.id)],
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -2034,7 +2034,7 @@ test('[Find One] Get users with posts + where', () => {
 				where: (({ id }, { eq }) => eq(id, 1)),
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -2091,7 +2091,7 @@ test('[Find One] Get users with posts + where + partial', () => {
 			},
 		},
 		where: (({ id }, { eq }) => eq(id, 1)),
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -2142,7 +2142,7 @@ test('[Find One] Get users with posts + where + partial. Did not select posts id
 			},
 		},
 		where: (({ id }, { eq }) => eq(id, 1)),
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -2193,7 +2193,7 @@ test('[Find One] Get users with posts + where + partial(true + false)', () => {
 			},
 		},
 		where: (({ id }, { eq }) => eq(id, 1)),
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -2239,7 +2239,7 @@ test('[Find One] Get users with posts + where + partial(false)', () => {
 			},
 		},
 		where: (({ id }, { eq }) => eq(id, 1)),
-	});
+	}).sync();
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
 		{
@@ -2280,7 +2280,7 @@ test('Get user with invitee', () => {
 		with: {
 			invitee: true,
 		},
-	});
+	}).sync();
 
 	expectTypeOf(usersWithInvitee).toEqualTypeOf<
 		{
@@ -2348,7 +2348,7 @@ test('Get user + limit with invitee', () => {
 			invitee: true,
 		},
 		limit: 2,
-	});
+	}).sync();
 
 	expectTypeOf(usersWithInvitee).toEqualTypeOf<
 		{
@@ -2402,7 +2402,7 @@ test('Get user with invitee and custom fields', () => {
 				extras: (invitee, { sql }) => ({ lower: sql<string>`lower(${invitee.name})`.as('lower_name') }),
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(usersWithInvitee).toEqualTypeOf<
 		{
@@ -2479,7 +2479,7 @@ test('Get user with invitee and custom fields + limits', () => {
 				extras: (invitee, { sql }) => ({ lower: sql<string>`lower(${invitee.name})`.as('lower_name') }),
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(usersWithInvitee).toEqualTypeOf<
 		{
@@ -2544,7 +2544,7 @@ test('Get user with invitee + order by', () => {
 		with: {
 			invitee: true,
 		},
-	});
+	}).sync();
 
 	expectTypeOf(usersWithInvitee).toEqualTypeOf<
 		{
@@ -2610,7 +2610,7 @@ test('Get user with invitee + where', () => {
 		with: {
 			invitee: true,
 		},
-	});
+	}).sync();
 
 	expectTypeOf(usersWithInvitee).toEqualTypeOf<
 		{
@@ -2669,7 +2669,7 @@ test('Get user with invitee + where + partial', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(usersWithInvitee).toEqualTypeOf<
 		{
@@ -2719,7 +2719,7 @@ test('Get user with invitee + where + partial.  Did not select users id, but use
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(usersWithInvitee).toEqualTypeOf<
 		{
@@ -2769,7 +2769,7 @@ test('Get user with invitee + where + partial(true+false)', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(usersWithInvitee).toEqualTypeOf<
 		{
@@ -2818,7 +2818,7 @@ test('Get user with invitee + where + partial(false)', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(usersWithInvitee).toEqualTypeOf<
 		{
@@ -2874,7 +2874,7 @@ test('Get user with invitee and posts', () => {
 			invitee: true,
 			posts: true,
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -2964,7 +2964,7 @@ test('Get user with invitee and posts + limit posts and users', () => {
 				limit: 1,
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -3049,7 +3049,7 @@ test('Get user with invitee and posts + limits + custom fields in each', () => {
 				extras: (posts, { sql }) => ({ lower: sql<string>`lower(${posts.content})`.as('lower_content') }),
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -3137,7 +3137,7 @@ test('Get user with invitee and posts + custom fields in each', () => {
 				extras: (posts, { sql }) => ({ lower: sql<string>`lower(${posts.content})`.as('lower_name') }),
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -3256,7 +3256,7 @@ test.skip('Get user with invitee and posts + orderBy', () => {
 				orderBy: (posts, { desc }) => [desc(posts.id)],
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -3357,7 +3357,7 @@ test('Get user with invitee and posts + where', () => {
 				where: (posts, { eq }) => (eq(posts.ownerId, 2)),
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -3430,7 +3430,7 @@ test('Get user with invitee and posts + limit posts and users + where', () => {
 				limit: 1,
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -3495,7 +3495,7 @@ test('Get user with invitee and posts + orderBy + where + custom', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -3596,7 +3596,7 @@ test('Get user with invitee and posts + orderBy + where + partial + custom', () 
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -3671,7 +3671,7 @@ test('Get user with posts and posts with comments', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -3830,7 +3830,7 @@ test('Get user with posts and posts with comments and comments with owner', () =
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
@@ -3970,7 +3970,7 @@ test('[Find Many] Get users with groups', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
@@ -4072,7 +4072,7 @@ test('[Find Many] Get groups with users', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
@@ -4177,7 +4177,7 @@ test('[Find Many] Get users with groups + limit', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
@@ -4260,7 +4260,7 @@ test('[Find Many] Get groups with users + limit', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
@@ -4344,7 +4344,7 @@ test('[Find Many] Get users with groups + limit + where', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
@@ -4414,7 +4414,7 @@ test('[Find Many] Get groups with users + limit + where', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
@@ -4482,7 +4482,7 @@ test('[Find Many] Get users with groups + where', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
@@ -4559,7 +4559,7 @@ test('[Find Many] Get groups with users + where', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
@@ -4635,7 +4635,7 @@ test('[Find Many] Get users with groups + orderBy', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
@@ -4737,7 +4737,7 @@ test('[Find Many] Get groups with users + orderBy', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
@@ -4842,7 +4842,7 @@ test('[Find Many] Get users with groups + orderBy + limit', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<{
 		id: number;
@@ -4927,7 +4927,7 @@ test('[Find One] Get users with groups', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -4991,7 +4991,7 @@ test('[Find One] Get groups with users', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -5056,7 +5056,7 @@ test('[Find One] Get users with groups + limit', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -5121,7 +5121,7 @@ test('[Find One] Get groups with users + limit', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -5187,7 +5187,7 @@ test('[Find One] Get users with groups + limit + where', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -5254,7 +5254,7 @@ test('[Find One] Get groups with users + limit + where', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -5320,7 +5320,7 @@ test('[Find One] Get users with groups + where', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -5380,7 +5380,7 @@ test('[Find One] Get groups with users + where', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -5446,7 +5446,7 @@ test('[Find One] Get users with groups + orderBy', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -5518,7 +5518,7 @@ test('[Find One] Get groups with users + orderBy', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -5585,7 +5585,7 @@ test('[Find One] Get users with groups + orderBy + limit', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -5653,7 +5653,7 @@ test('Get groups with users + orderBy + limit', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -5741,7 +5741,7 @@ test('Get users with groups + custom', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -5865,7 +5865,7 @@ test('Get groups with users + custom', () => {
 				},
 			},
 		},
-	});
+	}).sync();
 
 	expectTypeOf(response).toEqualTypeOf<
 		{
@@ -5948,6 +5948,41 @@ test('Get groups with users + custom', () => {
 			},
 		}],
 	});
+});
+
+test('async api', async () => {
+	await db.insert(usersTable).values([{ id: 1, name: 'Dan' }]);
+	const users = await db.query.usersTable.findMany();
+	expect(users).toEqual([{ id: 1, name: 'Dan', verified: 0, invitedBy: null }]);
+});
+
+test('async api - sync()', () => {
+	db.insert(usersTable).values([{ id: 1, name: 'Dan' }]).run();
+	const users = db.query.usersTable.findMany().sync();
+	expect(users).toEqual([{ id: 1, name: 'Dan', verified: 0, invitedBy: null }]);
+});
+
+test('async api - prepare', async () => {
+	const insertStmt = db.insert(usersTable).values([{ id: 1, name: 'Dan' }]).prepare();
+	await insertStmt.execute();
+	const queryStmt = db.query.usersTable.findMany().prepare();
+	const users = await queryStmt.execute();
+	expect(users).toEqual([{ id: 1, name: 'Dan', verified: 0, invitedBy: null }]);
+});
+
+test('async api - sync() + prepare', () => {
+	const insertStmt = db.insert(usersTable).values([{ id: 1, name: 'Dan' }]).prepare();
+	insertStmt.execute().sync();
+	const queryStmt = db.query.usersTable.findMany().prepare();
+	const users = queryStmt.execute().sync();
+	expect(users).toEqual([{ id: 1, name: 'Dan', verified: 0, invitedBy: null }]);
+});
+
+test('.toSQL()', () => {
+	const query = db.query.usersTable.findFirst().toSQL();
+
+	expect(query).toHaveProperty('sql', expect.any(String));
+	expect(query).toHaveProperty('params', expect.any(Array));
 });
 
 // + custom + where + orderby

@@ -1,9 +1,11 @@
 import type { QueryResult } from 'pg';
-import type { Equal } from 'type-tests/utils';
-import { Expect } from 'type-tests/utils';
-import { eq } from '~/expressions';
-import { db } from './db';
-import { users } from './tables';
+import type { Equal } from 'type-tests/utils.ts';
+import { Expect } from 'type-tests/utils.ts';
+import { eq } from '~/expressions.ts';
+import type { PgUpdate } from '~/pg-core/index.ts';
+import { sql } from '~/sql/sql.ts';
+import { db } from './db.ts';
+import { users } from './tables.ts';
 
 const update = await db.update(users)
 	.set({
@@ -46,3 +48,41 @@ const updateReturningStmt = db.update(users)
 	.prepare('updateReturningStmt');
 const updateReturningPrepared = await updateReturningStmt.execute();
 Expect<Equal<{ text: string | null }[], typeof updateReturningPrepared>>;
+
+{
+	function dynamic<T extends PgUpdate>(qb: T) {
+		return qb.where(sql``).returning();
+	}
+
+	const qbBase = db.update(users).set({}).$dynamic();
+	const qb = dynamic(qbBase);
+	const result = await qb;
+	Expect<Equal<typeof users.$inferSelect[], typeof result>>;
+}
+
+{
+	function withReturning<T extends PgUpdate>(qb: T) {
+		return qb.returning();
+	}
+
+	const qbBase = db.update(users).set({}).$dynamic();
+	const qb = withReturning(qbBase);
+	const result = await qb;
+	Expect<Equal<typeof users.$inferSelect[], typeof result>>;
+}
+
+{
+	db
+		.update(users)
+		.set({})
+		.returning()
+		// @ts-expect-error method was already called
+		.returning();
+
+	db
+		.update(users)
+		.set({})
+		.where(sql``)
+		// @ts-expect-error method was already called
+		.where(sql``);
+}

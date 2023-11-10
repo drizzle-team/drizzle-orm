@@ -1,21 +1,41 @@
 #!/usr/bin/env -S pnpm tsx
 import 'zx/globals';
-import concurrently from 'concurrently';
-import { entries } from '../rollup.common';
+import cpy from 'cpy';
 
-function updateAndCopyPackageJson() {
-	const pkg = fs.readJSONSync('package.json');
+async function updateAndCopyPackageJson() {
+	const pkg = await fs.readJSON('package.json');
 
-	pkg.exports = entries.reduce<Record<string, { import: string; require: string; default: string; types: string }>>(
-		(acc, entry) => {
+	const entries = await glob('src/**/*.ts');
+
+	pkg.exports = entries.reduce<
+		Record<string, {
+			import: {
+				types?: string;
+				default: string;
+			};
+			require: {
+				types: string;
+				default: string;
+			};
+			default: string;
+			types: string;
+		}>
+	>(
+		(acc, rawEntry) => {
+			const entry = rawEntry.match(/src\/(.*)\.ts/)![1]!;
 			const exportsEntry = entry === 'index' ? '.' : './' + entry.replace(/\/index$/, '');
-			const importEntry = `./${entry}.mjs`;
+			const importEntry = `./${entry}.js`;
 			const requireEntry = `./${entry}.cjs`;
-			const typesEntry = `./${entry}.d.ts`;
 			acc[exportsEntry] = {
-				types: typesEntry,
-				import: importEntry,
-				require: requireEntry,
+				import: {
+					types: `./${entry}.d.ts`,
+					default: importEntry,
+				},
+				require: {
+					types: `./${entry}.d.cts`,
+					default: requireEntry,
+				},
+				types: `./${entry}.d.ts`,
 				default: importEntry,
 			};
 			return acc;
@@ -23,28 +43,34 @@ function updateAndCopyPackageJson() {
 		{},
 	);
 
-	fs.writeJSONSync('dist.new/package.json', pkg, { spaces: 2 });
+	await fs.writeJSON('dist.new/package.json', pkg, { spaces: 2 });
 }
 
-await concurrently([
-	{
-		command: 'rollup --config rollup.cjs.config.ts --configPlugin typescript',
-		name: 'cjs',
-	},
-	{
-		command: 'rollup --config rollup.esm.config.ts --configPlugin typescript',
-		name: 'esm',
-	},
-	{
-		command: `tsc -p tsconfig.esm.json --declaration --outDir dist-dts --emitDeclarationOnly &&
-resolve-tspaths --out dist-dts &&
-rollup --config rollup.dts.config.ts --configPlugin typescript`,
-		name: 'dts',
-	},
-], {
-	killOthers: 'failure',
-}).result.catch(() => process.exit(1));
-fs.copySync('../README.md', 'dist.new/README.md');
-updateAndCopyPackageJson();
-fs.removeSync('dist');
-fs.renameSync('dist.new', 'dist');
+await fs.remove('dist.new');
+
+await Promise.all([
+	(async () => {
+		await $`tsup`;
+	})(),
+	(async () => {
+		await $`tsc -p tsconfig.dts.json`;
+		await cpy('dist-dts/**/*.d.ts', 'dist.new', {
+			rename: (basename) => basename.replace(/\.d\.ts$/, '.d.cts'),
+		});
+		await cpy('dist-dts/**/*.d.ts', 'dist.new', {
+			rename: (basename) => basename.replace(/\.d\.ts$/, '.d.ts'),
+		});
+	})(),
+]);
+
+await Promise.all([
+	$`tsup src/version.ts --no-config --dts --format esm --outDir dist.new`,
+	$`tsup src/version.ts --no-config --dts --format cjs --outDir dist.new`,
+]);
+
+await $`scripts/fix-imports.ts`;
+
+await fs.copy('../README.md', 'dist.new/README.md');
+await updateAndCopyPackageJson();
+await fs.remove('dist');
+await fs.rename('dist.new', 'dist');

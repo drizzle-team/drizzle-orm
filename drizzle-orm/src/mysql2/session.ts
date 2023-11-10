@@ -1,20 +1,20 @@
-import { type Connection as CallbackConnection } from 'mysql2';
-import {
-	type Connection,
-	type FieldPacket,
-	type OkPacket,
-	type Pool,
-	type PoolConnection,
-	type QueryOptions,
-	type ResultSetHeader,
-	type RowDataPacket,
+import type { Connection as CallbackConnection } from 'mysql2';
+import type {
+	Connection,
+	FieldPacket,
+	OkPacket,
+	Pool,
+	PoolConnection,
+	QueryOptions,
+	ResultSetHeader,
+	RowDataPacket,
 } from 'mysql2/promise';
 import { once } from 'node:events';
-import { entityKind } from '~/entity';
-import type { Logger } from '~/logger';
-import { NoopLogger } from '~/logger';
-import type { MySqlDialect } from '~/mysql-core/dialect';
-import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types';
+import { entityKind } from '~/entity.ts';
+import type { Logger } from '~/logger.ts';
+import { NoopLogger } from '~/logger.ts';
+import type { MySqlDialect } from '~/mysql-core/dialect.ts';
+import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types.ts';
 import {
 	type Mode,
 	MySqlSession,
@@ -25,10 +25,10 @@ import {
 	type PreparedQueryHKT,
 	type PreparedQueryKind,
 	type QueryResultHKT,
-} from '~/mysql-core/session';
-import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations';
-import { fillPlaceholders, type Query, type SQL, sql } from '~/sql';
-import { type Assume, mapResultRow } from '~/utils';
+} from '~/mysql-core/session.ts';
+import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
+import { type Assume, mapResultRow } from '~/utils.ts';
 
 export type MySql2Client = Pool | Connection;
 

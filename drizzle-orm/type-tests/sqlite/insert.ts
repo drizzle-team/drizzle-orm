@@ -1,12 +1,13 @@
 import type { RunResult } from 'better-sqlite3';
-import type { Equal } from 'type-tests/utils';
-import { Expect } from 'type-tests/utils';
-import { and, eq } from '~/expressions';
-import { placeholder, sql } from '~/sql';
-import type { InferModel } from '~/table';
-import { bunDb, db } from './db';
-import type { NewUser } from './tables';
-import { users } from './tables';
+import type { Equal } from 'type-tests/utils.ts';
+import { Expect } from 'type-tests/utils.ts';
+import { and, eq } from '~/expressions.ts';
+import { sql } from '~/sql/sql.ts';
+import type { SQLiteInsert } from '~/sqlite-core/query-builders/insert.ts';
+import type { DrizzleTypeError } from '~/utils.ts';
+import { bunDb, db } from './db.ts';
+import type { NewUser } from './tables.ts';
+import { users } from './tables.ts';
 
 const newUser: NewUser = {
 	homeCity: 1,
@@ -23,22 +24,22 @@ const insertRunBun = bunDb.insert(users).values(newUser).run();
 Expect<Equal<void, typeof insertRunBun>>;
 
 const insertAll = db.insert(users).values(newUser).all();
-Expect<Equal<never, typeof insertAll>>;
+Expect<Equal<DrizzleTypeError<'.all() cannot be used without .returning()'>, typeof insertAll>>;
 
 const insertAllBun = bunDb.insert(users).values(newUser).all();
-Expect<Equal<never, typeof insertAllBun>>;
+Expect<Equal<DrizzleTypeError<'.all() cannot be used without .returning()'>, typeof insertAllBun>>;
 
 const insertGet = db.insert(users).values(newUser).get();
-Expect<Equal<never, typeof insertGet>>;
+Expect<Equal<DrizzleTypeError<'.get() cannot be used without .returning()'>, typeof insertGet>>;
 
 const insertGetBun = bunDb.insert(users).values(newUser).get();
-Expect<Equal<never, typeof insertGetBun>>;
+Expect<Equal<DrizzleTypeError<'.get() cannot be used without .returning()'>, typeof insertGetBun>>;
 
 const insertValues = db.insert(users).values(newUser).values();
-Expect<Equal<never, typeof insertValues>>;
+Expect<Equal<DrizzleTypeError<'.values() cannot be used without .returning()'>, typeof insertValues>>;
 
 const insertValuesBun = bunDb.insert(users).values(newUser).values();
-Expect<Equal<never, typeof insertValuesBun>>;
+Expect<Equal<DrizzleTypeError<'.values() cannot be used without .returning()'>, typeof insertValuesBun>>;
 
 const insertRunReturningAll = db.insert(users).values(newUser).returning().run();
 Expect<Equal<RunResult, typeof insertRunReturningAll>>;
@@ -47,16 +48,16 @@ const insertRunReturningAllBun = bunDb.insert(users).values(newUser).returning()
 Expect<Equal<void, typeof insertRunReturningAllBun>>;
 
 const insertAllReturningAll = db.insert(users).values(newUser).returning().all();
-Expect<Equal<InferModel<typeof users>[], typeof insertAllReturningAll>>;
+Expect<Equal<typeof users.$inferSelect[], typeof insertAllReturningAll>>;
 
 const insertAllReturningAllBun = bunDb.insert(users).values(newUser).returning().all();
-Expect<Equal<InferModel<typeof users>[], typeof insertAllReturningAllBun>>;
+Expect<Equal<typeof users.$inferSelect[], typeof insertAllReturningAllBun>>;
 
 const insertGetReturningAll = db.insert(users).values(newUser).returning().get();
-Expect<Equal<InferModel<typeof users>, typeof insertGetReturningAll>>;
+Expect<Equal<typeof users.$inferSelect, typeof insertGetReturningAll>>;
 
 const insertGetReturningAllBun = bunDb.insert(users).values(newUser).returning().get();
-Expect<Equal<InferModel<typeof users>, typeof insertGetReturningAllBun>>;
+Expect<Equal<typeof users.$inferSelect, typeof insertGetReturningAllBun>>;
 
 const insertValuesReturningAll = db.insert(users).values(newUser).returning().values();
 Expect<Equal<any[][], typeof insertValuesReturningAll>>;
@@ -166,8 +167,41 @@ db.insert(users).values(newUser)
 	.run();
 
 const stmt = db.select().from(users)
-	.where(and(eq(users.id, placeholder('id'))))
-	.offset(placeholder('offset'))
-	.limit(placeholder('limit'))
+	.where(and(eq(users.id, sql.placeholder('id'))))
+	.offset(sql.placeholder('offset'))
+	.limit(sql.placeholder('limit'))
 	.prepare();
 stmt.run({ id: 1, limit: 10, offset: 20 });
+
+{
+	function dynamic<T extends SQLiteInsert>(qb: T) {
+		return qb.returning().onConflictDoNothing().onConflictDoUpdate({ set: {}, target: users.id, where: sql`` });
+	}
+
+	const qbBase = db.insert(users).values({ age1: 0, class: 'A', enumCol: 'a', homeCity: 0, serialNotNull: 0 })
+		.$dynamic();
+	const qb = dynamic(qbBase);
+	const result = await qb;
+	Expect<Equal<typeof users.$inferSelect[], typeof result>>;
+}
+
+{
+	function withReturning<T extends SQLiteInsert>(qb: T) {
+		return qb.returning();
+	}
+
+	const qbBase = db.insert(users).values({ age1: 0, class: 'A', enumCol: 'a', homeCity: 0, serialNotNull: 0 })
+		.$dynamic();
+	const qb = withReturning(qbBase);
+	const result = await qb;
+	Expect<Equal<typeof users.$inferSelect[], typeof result>>;
+}
+
+{
+	db
+		.insert(users)
+		.values({ age1: 0, class: 'A', enumCol: 'a', homeCity: 0, serialNotNull: 0 })
+		.returning()
+		// @ts-expect-error method was already called
+		.returning();
+}

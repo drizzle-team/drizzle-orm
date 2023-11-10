@@ -1,21 +1,9 @@
-import test from 'ava';
-import {
-	blob,
-	integer,
-	numeric,
-	real,
-	sqliteTable,
-	text,
-} from 'drizzle-orm/sqlite-core';
-import {
-	Nullable,
-	createInsertSchema,
-	createSelectSchema,
-	jsonSchema,
-} from '../src';
-import { expectSchemaShape } from './utils';
-import { Value } from '@sinclair/typebox/value';
 import { type Static, Type } from '@sinclair/typebox';
+import { Value } from '@sinclair/typebox/value';
+import test from 'ava';
+import { blob, integer, numeric, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { createInsertSchema, createSelectSchema, jsonSchema, Nullable } from '../src';
+import { expectSchemaShape } from './utils';
 
 const blobJsonSchema = Type.Object({
 	foo: Type.String(),
@@ -74,7 +62,7 @@ test('users insert schema', (t) => {
 		]),
 	});
 
-	() => {
+	(() => {
 		{
 			createInsertSchema(users, {
 				// @ts-expect-error (missing property)
@@ -88,7 +76,7 @@ test('users insert schema', (t) => {
 				id: 123,
 			});
 		}
-	};
+	});
 
 	const expected = Type.Object({
 		id: Type.Optional(Type.Number({ minimum: 0 })),
@@ -105,7 +93,7 @@ test('users insert schema', (t) => {
 				Type.Literal('admin'),
 				Type.Literal('user'),
 				Type.Literal('manager'),
-			])
+			]),
 		),
 	});
 
@@ -126,7 +114,7 @@ test('users insert schema w/ defaults', (t) => {
 		real: Type.Number(),
 		text: Type.Optional(Nullable(Type.String())),
 		role: Type.Optional(
-			Type.Union([Type.Literal('admin'), Type.Literal('user')])
+			Type.Union([Type.Literal('admin'), Type.Literal('user')]),
 		),
 	});
 
@@ -143,7 +131,7 @@ test('users select schema', (t) => {
 		]),
 	});
 
-	() => {
+	(() => {
 		{
 			createSelectSchema(users, {
 				// @ts-expect-error (missing property)
@@ -157,7 +145,7 @@ test('users select schema', (t) => {
 				id: 123,
 			});
 		}
-	};
+	});
 
 	const expected = Type.Strict(
 		Type.Object({
@@ -175,7 +163,7 @@ test('users select schema', (t) => {
 				Type.Literal('user'),
 				Type.Literal('manager'),
 			]),
-		})
+		}),
 	);
 
 	expectSchemaShape(t, expected).from(actual);

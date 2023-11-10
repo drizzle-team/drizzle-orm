@@ -3,10 +3,12 @@ import Docker from 'dockerode';
 import { desc, DrizzleError, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import getPort from 'get-port';
-import { Client } from 'pg';
+import pg from 'pg';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import * as schema from './pg.schema';
+import * as schema from './pg.schema.ts';
+
+const { Client } = pg;
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
@@ -22,14 +24,14 @@ declare module 'vitest' {
 		docker: Docker;
 		pgContainer: Docker.Container;
 		pgDb: NodePgDatabase<typeof schema>;
-		pgClient: Client;
+		pgClient: pg.Client;
 	}
 }
 
 let globalDocker: Docker;
 let pgContainer: Docker.Container;
 let db: NodePgDatabase<typeof schema>;
-let client: Client;
+let client: pg.Client;
 
 async function createDockerDB(): Promise<string> {
 	const docker = (globalDocker = new Docker());
@@ -6181,6 +6183,13 @@ test('Filter by columns not present in select', async (t) => {
 	});
 
 	expect(response).toEqual({ id: 1 });
+});
+
+test('.toSQL()', () => {
+	const query = db.query.usersTable.findFirst().toSQL();
+
+	expect(query).toHaveProperty('sql', expect.any(String));
+	expect(query).toHaveProperty('params', expect.any(Array));
 });
 
 // test('Filter by relational column', async (t) => {

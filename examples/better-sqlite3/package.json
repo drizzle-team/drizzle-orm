@@ -1,0 +1,19 @@
+{
+  "name": "better-sqlite3",
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "generate": "drizzle-kit generate:sqlite",
+    "migrate": "tsx migrate.ts",
+    "studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "better-sqlite3": "^8.4.0",
+    "drizzle-orm": "^0.27.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.4",
+    "drizzle-kit": "^0.19.6",
+    "tsx": "^3.12.7"
+  }
+}

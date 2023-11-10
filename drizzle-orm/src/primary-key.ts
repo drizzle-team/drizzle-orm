@@ -1,6 +1,6 @@
-import { entityKind } from '~/entity';
-import { type AnyColumn } from './column';
-import { type Table } from './table';
+import { entityKind } from '~/entity.ts';
+import type { AnyColumn } from './column.ts';
+import type { Table } from './table.ts';
 
 export abstract class PrimaryKey {
 	static readonly [entityKind]: string = 'PrimaryKey';

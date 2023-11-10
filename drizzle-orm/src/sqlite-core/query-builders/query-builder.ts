@@ -1,11 +1,12 @@
-import { entityKind } from '~/entity';
-import type { TypedQueryBuilder } from '~/query-builders/query-builder';
-import { SQLiteSyncDialect } from '~/sqlite-core/dialect';
-import type { WithSubqueryWithSelection } from '~/sqlite-core/subquery';
-import { SelectionProxyHandler, WithSubquery } from '~/subquery';
-import { type ColumnsSelection } from '~/view';
-import { SQLiteSelectBuilder } from './select';
-import type { SelectedFields } from './select.types';
+import { entityKind } from '~/entity.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
+import type { WithSubqueryWithSelection } from '~/sqlite-core/subquery.ts';
+import { SQLiteSelectBuilder } from './select.ts';
+import type { SelectedFields } from './select.types.ts';
+import type { ColumnsSelection } from '~/sql/sql.ts';
+import { WithSubquery } from '~/subquery.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
 
 export class QueryBuilder {
 	static readonly [entityKind]: string = 'SQLiteQueryBuilder';
@@ -69,7 +70,9 @@ export class QueryBuilder {
 	}
 
 	select(): SQLiteSelectBuilder<undefined, 'sync', void, 'qb'>;
-	select<TSelection extends SelectedFields>(fields: TSelection): SQLiteSelectBuilder<TSelection, 'sync', void, 'qb'>;
+	select<TSelection extends SelectedFields>(
+		fields: TSelection,
+	): SQLiteSelectBuilder<TSelection, 'sync', void, 'qb'>;
 	select<TSelection extends SelectedFields>(
 		fields?: TSelection,
 	): SQLiteSelectBuilder<TSelection | undefined, 'sync', void, 'qb'> {

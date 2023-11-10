@@ -1,17 +1,17 @@
-import { entityKind } from '~/entity';
-import type { Logger } from '~/logger';
-import { DefaultLogger } from '~/logger';
-import { PgDatabase } from '~/pg-core/db';
-import { PgDialect } from '~/pg-core/dialect';
+import { entityKind } from '~/entity.ts';
+import type { Logger } from '~/logger.ts';
+import { DefaultLogger } from '~/logger.ts';
+import { PgDatabase } from '~/pg-core/db.ts';
+import { PgDialect } from '~/pg-core/dialect.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
-} from '~/relations';
-import { type DrizzleConfig } from '~/utils';
-import type { AwsDataApiClient, AwsDataApiPgQueryResultHKT } from './session';
-import { AwsDataApiSession } from './session';
+} from '~/relations.ts';
+import type { DrizzleConfig } from '~/utils.ts';
+import type { AwsDataApiClient, AwsDataApiPgQueryResultHKT } from './session.ts';
+import { AwsDataApiSession } from './session.ts';
 
 export interface PgDriverOptions {
 	logger?: Logger;
