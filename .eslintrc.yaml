@@ -16,6 +16,7 @@ rules:
     - error
     - disallowTypeAnnotations: false
       fixStyle: separate-type-imports
+  '@typescript-eslint/no-import-type-side-effects': 'error'
   import/no-cycle: error
   import/no-self-import: error
   import/no-empty-named-blocks: error
@@ -66,3 +67,4 @@ rules:
   '@typescript-eslint/ban-ts-comment': 'off'
   '@typescript-eslint/no-empty-interface': 'off'
   '@typescript-eslint/no-unsafe-declaration-merging': 'off'
+  'no-inner-declarations': 'off'

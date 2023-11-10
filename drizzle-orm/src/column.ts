@@ -1,6 +1,6 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, ColumnDataType } from './column-builder.ts';
 import { entityKind } from './entity.ts';
-import type { DriverValueMapper, SQL, SQLWrapper } from './sql/index.ts';
+import type { DriverValueMapper, SQL, SQLWrapper } from './sql/sql.ts';
 import type { Table } from './table.ts';
 import type { Update } from './utils.ts';
 
@@ -38,7 +38,9 @@ export interface Column<
 	TRuntimeConfig extends object = object,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TTypeConfig extends object = object,
-> extends DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {}
+> extends DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {
+	// SQLWrapper runtime implementation is defined in 'sql/sql.ts'
+}
 /*
 	`Column` only accepts a full `ColumnConfig` as its generic.
 	To infer parts of the config, use `AnyColumn` that accepts a partial config.

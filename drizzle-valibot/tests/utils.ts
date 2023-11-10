@@ -1,5 +1,5 @@
-import { type ExecutionContext } from 'ava';
-import { type BaseSchema } from 'valibot';
+import type { ExecutionContext } from 'ava';
+import type { BaseSchema } from 'valibot';
 
 export function expectSchemaShape<T extends BaseSchema<any, any>>(t: ExecutionContext, expected: T) {
 	return {
@@ -8,4 +8,3 @@ export function expectSchemaShape<T extends BaseSchema<any, any>>(t: ExecutionCo
 		},
 	};
 }
-

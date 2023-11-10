@@ -28,9 +28,16 @@ import {
 	or,
 } from '~/expressions.ts';
 import { alias } from '~/pg-core/alias.ts';
-import { boolean, integer, pgTable, text } from '~/pg-core/index.ts';
-import type { AnyPgSelect } from '~/pg-core/query-builders/select.types.ts';
-import { type SQL, sql } from '~/sql/index.ts';
+import {
+	boolean,
+	integer,
+	type PgSelect,
+	type PgSelectQueryBuilder,
+	pgTable,
+	QueryBuilder,
+	text,
+} from '~/pg-core/index.ts';
+import { type SQL, sql } from '~/sql/sql.ts';
 
 import { db } from './db.ts';
 import { cities, classes, newYorkers, newYorkers2, users } from './tables.ts';
@@ -857,10 +864,26 @@ Expect<
 await db
 	.select()
 	.from(users)
-	.for('update')
-	.for('no key update', { of: users })
-	.for('no key update', { of: users, skipLocked: true })
-	.for('share', { of: users, noWait: true })
+	.for('update');
+
+await db
+	.select()
+	.from(users)
+	.for('no key update', { of: users });
+
+await db
+	.select()
+	.from(users)
+	.for('no key update', { of: users, skipLocked: true });
+
+await db
+	.select()
+	.from(users)
+	.for('share', { of: users, noWait: true });
+
+await db
+	.select()
+	.from(users)
 	// @ts-expect-error - can't use both skipLocked and noWait
 	.for('share', { of: users, noWait: true, skipLocked: true });
 
@@ -927,13 +950,173 @@ await db
 }
 
 {
-	// TODO: add to docs
-	const withPagination = <T extends AnyPgSelect>(qb: T) => {
-		return qb.offset(10).limit(10);
-	};
+	db
+		.select()
+		.from(users)
+		.where(eq(users.id, 1));
 
-	const qb = db.select().from(users);
-	await withPagination(qb);
+	db
+		.select()
+		.from(users)
+		.where(eq(users.id, 1))
+		// @ts-expect-error - can't use where twice
+		.where(eq(users.id, 1));
+
+	db
+		.select()
+		.from(users)
+		.where(eq(users.id, 1))
+		.limit(10)
+		// @ts-expect-error - can't use where twice
+		.where(eq(users.id, 1));
+}
+
+{
+	function withFriends<T extends PgSelect>(qb: T) {
+		const friends = alias(users, 'friends');
+		const friends2 = alias(users, 'friends2');
+		const friends3 = alias(users, 'friends3');
+		const friends4 = alias(users, 'friends4');
+		const friends5 = alias(users, 'friends5');
+		return qb
+			.leftJoin(friends, sql`true`)
+			.leftJoin(friends2, sql`true`)
+			.leftJoin(friends3, sql`true`)
+			.leftJoin(friends4, sql`true`)
+			.leftJoin(friends5, sql`true`);
+	}
+
+	const qb = db.select().from(users).$dynamic();
+	const result = await withFriends(qb);
+	Expect<
+		Equal<typeof result, {
+			users_table: typeof users.$inferSelect;
+			friends: typeof users.$inferSelect | null;
+			friends2: typeof users.$inferSelect | null;
+			friends3: typeof users.$inferSelect | null;
+			friends4: typeof users.$inferSelect | null;
+			friends5: typeof users.$inferSelect | null;
+		}[]>
+	>;
+}
+
+{
+	function withFriends<T extends PgSelectQueryBuilder>(qb: T) {
+		const friends = alias(users, 'friends');
+		const friends2 = alias(users, 'friends2');
+		const friends3 = alias(users, 'friends3');
+		const friends4 = alias(users, 'friends4');
+		const friends5 = alias(users, 'friends5');
+		return qb
+			.leftJoin(friends, sql`true`)
+			.leftJoin(friends2, sql`true`)
+			.leftJoin(friends3, sql`true`)
+			.leftJoin(friends4, sql`true`)
+			.leftJoin(friends5, sql`true`);
+	}
+
+	const qb = db.select().from(users).$dynamic();
+	const result = await withFriends(qb);
+	Expect<
+		Equal<typeof result, {
+			users_table: typeof users.$inferSelect;
+			friends: typeof users.$inferSelect | null;
+			friends2: typeof users.$inferSelect | null;
+			friends3: typeof users.$inferSelect | null;
+			friends4: typeof users.$inferSelect | null;
+			friends5: typeof users.$inferSelect | null;
+		}[]>
+	>;
+}
+
+{
+	function dynamic<T extends PgSelect>(qb: T) {
+		return qb.where(sql``).having(sql``).groupBy(sql``).orderBy(sql``).limit(1).offset(1).for('update');
+	}
+
+	const qb = db.select().from(users).$dynamic();
+	const result = await dynamic(qb);
+	Expect<Equal<typeof result, typeof users.$inferSelect[]>>;
+}
+
+{
+	// TODO: add to docs
+	function dynamic<T extends PgSelectQueryBuilder>(qb: T) {
+		return qb.where(sql``).having(sql``).groupBy(sql``).orderBy(sql``).limit(1).offset(1).for('update');
+	}
+
+	const query = new QueryBuilder().select().from(users).$dynamic();
+	dynamic(query);
+}
+
+{
+	// TODO: add to docs
+	function paginated<T extends PgSelect>(qb: T, page: number) {
+		return qb.limit(10).offset((page - 1) * 10);
+	}
+
+	const qb = db.select().from(users).$dynamic();
+	const result = await paginated(qb, 1);
+
+	Expect<Equal<typeof result, typeof users.$inferSelect[]>>;
+}
+
+{
+	db
+		.select()
+		.from(users)
+		.where(sql``)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.where(sql``);
+
+	db
+		.select()
+		.from(users)
+		.having(sql``)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.having(sql``);
+
+	db
+		.select()
+		.from(users)
+		.groupBy(sql``)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.groupBy(sql``);
+
+	db
+		.select()
+		.from(users)
+		.orderBy(sql``)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.orderBy(sql``);
+
+	db
+		.select()
+		.from(users)
+		.limit(10)
+		.where(sql``)
+		// @ts-expect-error method was already called
+		.limit(10);
+
+	db
+		.select()
+		.from(users)
+		.offset(10)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.offset(10);
+
+	db
+		.select()
+		.from(users)
+		.for('update')
+		.limit(10)
+		// @ts-expect-error method was already called
+		.for('update');
 }
 
 {

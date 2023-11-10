@@ -3,6 +3,7 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
+import type { MySqlIntConfig } from './int.ts';
 
 export type MySqlTinyIntBuilderInitial<TName extends string> = MySqlTinyIntBuilder<{
 	name: TName;
@@ -14,12 +15,13 @@ export type MySqlTinyIntBuilderInitial<TName extends string> = MySqlTinyIntBuild
 }>;
 
 export class MySqlTinyIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlTinyInt'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T>
+	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>
 {
 	static readonly [entityKind]: string = 'MySqlTinyIntBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: T['name'], config?: MySqlIntConfig) {
 		super(name, 'number', 'MySqlTinyInt');
+		this.config.unsigned = config ? config.unsigned : false;
 	}
 
 	/** @internal */
@@ -34,12 +36,12 @@ export class MySqlTinyIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'My
 }
 
 export class MySqlTinyInt<T extends ColumnBaseConfig<'number', 'MySqlTinyInt'>>
-	extends MySqlColumnWithAutoIncrement<T>
+	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
 {
 	static readonly [entityKind]: string = 'MySqlTinyInt';
 
 	getSQLType(): string {
-		return 'tinyint';
+		return `tinyint${this.config.unsigned ? ' unsigned' : ''}`;
 	}
 
 	override mapFromDriverValue(value: number | string): number {
@@ -50,6 +52,6 @@ export class MySqlTinyInt<T extends ColumnBaseConfig<'number', 'MySqlTinyInt'>>
 	}
 }
 
-export function tinyint<TName extends string>(name: TName): MySqlTinyIntBuilderInitial<TName> {
-	return new MySqlTinyIntBuilder(name);
+export function tinyint<TName extends string>(name: TName, config?: MySqlIntConfig): MySqlTinyIntBuilderInitial<TName> {
+	return new MySqlTinyIntBuilder(name, config);
 }

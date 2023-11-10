@@ -1,14 +1,14 @@
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { is } from './entity.ts';
-import { type Logger } from './logger.ts';
+import type { Logger } from './logger.ts';
 import type { SelectedFieldsOrdered } from './operations.ts';
-import { type TableLike } from './query-builders/select.types.ts';
-import { Param, SQL } from './sql/index.ts';
-import type { DriverValueDecoder } from './sql/index.ts';
+import type { TableLike } from './query-builders/select.types.ts';
+import { Param, SQL, View } from './sql/sql.ts';
+import type { DriverValueDecoder } from './sql/sql.ts';
 import { Subquery, SubqueryConfig } from './subquery.ts';
 import { getTableName, Table } from './table.ts';
-import { View, ViewBaseConfig } from './view.ts';
+import { ViewBaseConfig } from './view-common.ts';
 
 /** @internal */
 export function mapResultRow<TResult>(
@@ -89,6 +89,23 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 		}
 		return result;
 	}, []) as SelectedFieldsOrdered<TColumn>;
+}
+
+export function haveSameKeys(left: Record<string, unknown>, right: Record<string, unknown>) {
+	const leftKeys = Object.keys(left);
+	const rightKeys = Object.keys(right);
+
+	if (leftKeys.length !== rightKeys.length) {
+		return false;
+	}
+
+	for (const [index, key] of leftKeys.entries()) {
+		if (key !== rightKeys[index]) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 /** @internal */
@@ -193,13 +210,15 @@ export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<
 	logger?: boolean | Logger;
 	schema?: TSchema;
 }
+export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
+	? Exclude<keyof T, keyof ValidShape> extends never ? TResult
+	: DrizzleTypeError<
+		`Invalid key(s): ${Exclude<(keyof T) & (string | number | bigint | boolean | null | undefined), keyof ValidShape>}`
+	>
+	: never;
 
 export type KnownKeysOnly<T, U> = {
 	[K in keyof T]: K extends keyof U ? T[K] : never;
 };
-
-export function iife<T extends unknown[], U>(fn: (...args: T) => U, ...args: T): U {
-	return fn(...args);
-}
 
 export type IsAny<T> = 0 extends (1 & T) ? true : false;
