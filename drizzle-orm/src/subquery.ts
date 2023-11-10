@@ -22,14 +22,16 @@ export class Subquery<TAlias extends string = string, TSelectedFields = unknown>
 		selection: ColumnsSelection;
 		alias: string;
 		isWith: boolean;
+		isRecursive: boolean;
 	};
 
-	constructor(sql: SQL, selection: Record<string, unknown>, alias: string, isWith = false) {
+	constructor(sql: SQL, selection: Record<string, unknown>, alias: string, isWith = false, isRecursive = false) {
 		this[SubqueryConfig] = {
 			sql,
 			selection,
 			alias,
 			isWith,
+			isRecursive
 		};
 	}
 

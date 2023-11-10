@@ -241,6 +241,10 @@ export class PgDialect {
 		let withSql: SQL | undefined;
 		if (withList?.length) {
 			const withSqlChunks = [sql`with `];
+			if (withList[0] && withList[0][SubqueryConfig].isRecursive) {
+				withSqlChunks.push(sql`recursive `)
+			}
+
 			for (const [i, w] of withList.entries()) {
 				withSqlChunks.push(sql`${sql.identifier(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
 				if (i < withList.length - 1) {
