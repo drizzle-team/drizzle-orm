@@ -2,7 +2,7 @@ import { entityKind } from '~/entity.ts';
 import type { Column } from './column.ts';
 import type { MySqlColumn } from './mysql-core/index.ts';
 import type { PgColumn } from './pg-core/index.ts';
-import type { SQL } from './sql/index.ts';
+import type { SQL } from './sql/sql.ts';
 import type { SQLiteColumn } from './sqlite-core/index.ts';
 import type { Simplify } from './utils.ts';
 

@@ -28,6 +28,10 @@ require('drizzle-orm/sql-js/migrator');
 require('drizzle-orm/sqlite-core');
 require('drizzle-orm/sqlite-proxy');
 require('drizzle-orm/sqlite-proxy/migrator');
+require('drizzle-orm/pg-proxy');
+require('drizzle-orm/pg-proxy/migrator');
+require('drizzle-orm/mysql-proxy');
+require('drizzle-orm/mysql-proxy/migrator');
 require('drizzle-orm/migrator');
 const { createInsertSchema: createZodInsertSchema } = require('drizzle-zod');
 const {

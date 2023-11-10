@@ -1,6 +1,7 @@
 import { entityKind, is } from '~/entity.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type {
+	AnyQueryResultHKT,
 	MySqlSession,
 	PreparedQueryConfig,
 	PreparedQueryHKTBase,
@@ -10,8 +11,8 @@ import type {
 } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { Placeholder, Query, SQLWrapper } from '~/sql/index.ts';
-import { Param, SQL, sql } from '~/sql/index.ts';
+import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
+import { Param, SQL, sql } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
 import { mapUpdateSet, type ValidateShape } from '~/utils.ts';
 import type { MySqlUpdateSetSource } from './update.ts';
@@ -51,15 +52,15 @@ export class MySqlInsertBuilder<
 		return this;
 	}
 
-	values<TValue>(
+	values<TValue extends MySqlInsertValue<TTable>>(
 		value: ValidateShape<TValue, MySqlInsertValue<TTable>>,
-	): MySqlInsert<TTable, TQueryResult, TPreparedQueryHKT>;
-	values<TValue>(
+	): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
+	values<TValue extends MySqlInsertValue<TTable>>(
 		values: ValidateShape<TValue, MySqlInsertValue<TTable>>[],
-	): MySqlInsert<TTable, TQueryResult, TPreparedQueryHKT>;
-	values<TValue>(
+	): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
+	values<TValue extends MySqlInsertValue<TTable>>(
 		values: ValidateShape<TValue, MySqlInsertValue<TTable>> | ValidateShape<TValue, MySqlInsertValue<TTable>>[],
-	): MySqlInsert<TTable, TQueryResult, TPreparedQueryHKT> {
+	): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT> {
 		values = Array.isArray(values) ? values : [values];
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
@@ -74,21 +75,75 @@ export class MySqlInsertBuilder<
 			return result;
 		});
 
-		return new MySqlInsert(this.table, mappedValues, this.shouldIgnore, this.session, this.dialect);
+		return new MySqlInsertBase(this.table, mappedValues, this.shouldIgnore, this.session, this.dialect);
 	}
 }
 
-export interface MySqlInsert<
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export type MySqlInsertWithout<T extends AnyMySqlInsert, TDynamic extends boolean, K extends keyof T & string> =
+	TDynamic extends true ? T
+		: Omit<
+			MySqlInsertBase<
+				T['_']['table'],
+				T['_']['queryResult'],
+				T['_']['preparedQueryHKT'],
+				TDynamic,
+				T['_']['excludedMethods'] | K
+			>,
+			T['_']['excludedMethods'] | K
+		>;
+
+export type MySqlInsertDynamic<T extends AnyMySqlInsert> = MySqlInsert<
+	T['_']['table'],
+	T['_']['queryResult'],
+	T['_']['preparedQueryHKT']
+>;
+
+export type MySqlInsertPrepare<T extends AnyMySqlInsert> = PreparedQueryKind<
+	T['_']['preparedQueryHKT'],
+	PreparedQueryConfig & {
+		execute: QueryResultKind<T['_']['queryResult'], never>;
+		iterator: never;
+	},
+	true
+>;
+
+export type MySqlInsertOnDuplicateKeyUpdateConfig<T extends AnyMySqlInsert> = {
+	set: MySqlUpdateSetSource<T['_']['table']>;
+};
+
+export type MySqlInsert<
+	TTable extends MySqlTable = MySqlTable,
+	TQueryResult extends QueryResultHKT = AnyQueryResultHKT,
+	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
+> = MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, true, never>;
+
+export type AnyMySqlInsert = MySqlInsertBase<any, any, any, any, any>;
+
+export interface MySqlInsertBase<
+	TTable extends MySqlTable,
+	TQueryResult extends QueryResultHKT,
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+> extends QueryPromise<QueryResultKind<TQueryResult, never>>, SQLWrapper {
+	readonly _: {
+		readonly table: TTable;
+		readonly queryResult: TQueryResult;
+		readonly preparedQueryHKT: TPreparedQueryHKT;
+		readonly dynamic: TDynamic;
+		readonly excludedMethods: TExcludedMethods;
+	};
+}
+
+export class MySqlInsertBase<
 	TTable extends MySqlTable,
 	TQueryResult extends QueryResultHKT,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-> extends QueryPromise<QueryResultKind<TQueryResult, never>>, SQLWrapper {}
-export class MySqlInsert<
-	TTable extends MySqlTable,
-	TQueryResult extends QueryResultHKT,
-	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TDynamic extends boolean = false,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TExcludedMethods extends string = never,
 > extends QueryPromise<QueryResultKind<TQueryResult, never>> implements SQLWrapper {
 	static readonly [entityKind]: string = 'MySqlInsert';
 
@@ -107,13 +162,12 @@ export class MySqlInsert<
 		this.config = { table, values, ignore };
 	}
 
-	onDuplicateKeyUpdate(config: {
-		// target?: IndexColumn | IndexColumn[];
-		set: MySqlUpdateSetSource<TTable>;
-	}): this {
+	onDuplicateKeyUpdate(
+		config: MySqlInsertOnDuplicateKeyUpdateConfig<this>,
+	): MySqlInsertWithout<this, TDynamic, 'onDuplicateKeyUpdate'> {
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
 		this.config.onConflict = sql`update ${setSql}`;
-		return this;
+		return this as any;
 	}
 
 	/** @internal */
@@ -121,23 +175,16 @@ export class MySqlInsert<
 		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	toSQL(): { sql: Query['sql']; params: Query['params'] } {
+	toSQL(): Query {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
 
-	prepare() {
+	prepare(): MySqlInsertPrepare<this> {
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
 			undefined,
-		) as PreparedQueryKind<
-			TPreparedQueryHKT,
-			PreparedQueryConfig & {
-				execute: QueryResultKind<TQueryResult, never>;
-				iterator: never;
-			},
-			true
-		>;
+		) as MySqlInsertPrepare<this>;
 	}
 
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
@@ -152,4 +199,8 @@ export class MySqlInsert<
 	};
 
 	iterator = this.createIterator();
+
+	$dynamic(): MySqlInsertDynamic<this> {
+		return this as any;
+	}
 }
