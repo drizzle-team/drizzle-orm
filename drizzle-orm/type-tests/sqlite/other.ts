@@ -1,6 +1,6 @@
 import type { RunResult } from 'better-sqlite3';
 import { eq, inArray } from '~/expressions.ts';
-import { sql } from '~/sql/index.ts';
+import { sql } from '~/sql/sql.ts';
 
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
@@ -11,17 +11,17 @@ const query = sql`select ${users.id}, ${users.class} from ${users} where ${inArr
 	eq(users.class, 'A')
 }`;
 
-const all = db.all(query);
+const all = await db.all(query);
 Expect<Equal<unknown[], typeof all>>;
 
-const allValuesTyped = db.values<[number, 'A' | 'B' | 'C']>(query);
+const allValuesTyped = await db.values<[number, 'A' | 'B' | 'C']>(query);
 Expect<Equal<[number, 'A' | 'B' | 'C'][], typeof allValuesTyped>>;
 
-const allObjects = db.all(query);
+const allObjects = await db.all(query);
 Expect<Equal<unknown[], typeof allObjects>>;
 
-const allObjectsTyped = db.all<{ id: number; class: 'A' | 'B' | 'C' }>(query);
+const allObjectsTyped = await db.all<{ id: number; class: 'A' | 'B' | 'C' }>(query);
 Expect<Equal<{ id: number; class: 'A' | 'B' | 'C' }[], typeof allObjectsTyped>>;
 
-const run = db.run(query);
+const run = await db.run(query);
 Expect<Equal<RunResult, typeof run>>;

@@ -5,3 +5,4 @@ examples
 **/*.js
 **/*.mjs
 **/*.cjs
+**/playground

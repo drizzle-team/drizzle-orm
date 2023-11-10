@@ -1,7 +1,7 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { eq, gt } from '~/expressions.ts';
-import { sql } from '~/sql/index.ts';
+import { sql } from '~/sql/sql.ts';
 import {
 	alias,
 	check,
@@ -395,4 +395,18 @@ Expect<
 		// @ts-expect-error - should be number
 		id4: integer('id').$defaultFn(() => '1'),
 	});
+}
+
+{
+	const table = sqliteTable('test', {
+		data: text('data', { mode: 'json' }).notNull(),
+		dataTyped: text('dataTyped', { mode: 'json' }).$type<{ a: number }>().notNull(),
+	});
+
+	Expect<
+		Equal<{
+			data: unknown;
+			dataTyped: { a: number };
+		}, typeof table.$inferSelect>
+	>;
 }

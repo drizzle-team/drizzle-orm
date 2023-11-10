@@ -46,14 +46,14 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-	db.run(sql`drop table if exists \`groups\``);
-	db.run(sql`drop table if exists \`users\``);
-	db.run(sql`drop table if exists \`users_to_groups\``);
-	db.run(sql`drop table if exists \`posts\``);
-	db.run(sql`drop table if exists \`comments\``);
-	db.run(sql`drop table if exists \`comment_likes\``);
+	await db.run(sql`drop table if exists \`groups\``);
+	await db.run(sql`drop table if exists \`users\``);
+	await db.run(sql`drop table if exists \`users_to_groups\``);
+	await db.run(sql`drop table if exists \`posts\``);
+	await db.run(sql`drop table if exists \`comments\``);
+	await db.run(sql`drop table if exists \`comment_likes\``);
 
-	db.run(
+	await db.run(
 		sql`
 			CREATE TABLE \`users\` (
 			    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -63,7 +63,7 @@ beforeEach(async () => {
 			);
 		`,
 	);
-	db.run(
+	await db.run(
 		sql`
 			CREATE TABLE \`groups\` (
 			    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -72,7 +72,7 @@ beforeEach(async () => {
 			);
 		`,
 	);
-	db.run(
+	await db.run(
 		sql`
 			CREATE TABLE \`users_to_groups\` (
 			    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -81,7 +81,7 @@ beforeEach(async () => {
 			);
 		`,
 	);
-	db.run(
+	await db.run(
 		sql`
 			CREATE TABLE \`posts\` (
 			    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -91,7 +91,7 @@ beforeEach(async () => {
 			);
 		`,
 	);
-	db.run(
+	await db.run(
 		sql`
 			CREATE TABLE \`comments\` (
 			    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -102,7 +102,7 @@ beforeEach(async () => {
 			);
 		`,
 	);
-	db.run(
+	await db.run(
 		sql`
 			CREATE TABLE \`comment_likes\` (
 			    \`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -5988,6 +5988,13 @@ test('async api - prepare', async () => {
 	const queryStmt = db.query.usersTable.findMany().prepare();
 	const users = await queryStmt.execute();
 	expect(users).toEqual([{ id: 1, name: 'Dan', verified: 0, invitedBy: null }]);
+});
+
+test('.toSQL()', () => {
+	const query = db.query.usersTable.findFirst().toSQL();
+
+	expect(query).toHaveProperty('sql', expect.any(String));
+	expect(query).toHaveProperty('params', expect.any(Array));
 });
 
 // + custom + where + orderby

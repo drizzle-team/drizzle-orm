@@ -3,15 +3,10 @@ import { entityKind } from '~/entity.ts';
 export class DrizzleError extends Error {
 	static readonly [entityKind]: string = 'DrizzleError';
 
-	constructor(message: string) {
+	constructor({ message, cause }: { message?: string; cause?: unknown }) {
 		super(message);
 		this.name = 'DrizzleError';
-	}
-
-	static wrap(error: unknown, message?: string): DrizzleError {
-		return error instanceof Error // eslint-disable-line no-instanceof/no-instanceof
-			? new DrizzleError(message ? `${message}: ${error.message}` : error.message)
-			: new DrizzleError(message ?? String(error));
+		this.cause = cause;
 	}
 }
 
@@ -19,6 +14,6 @@ export class TransactionRollbackError extends DrizzleError {
 	static readonly [entityKind]: string = 'TransactionRollbackError';
 
 	constructor() {
-		super('Rollback');
+		super({ message: 'Rollback' });
 	}
 }

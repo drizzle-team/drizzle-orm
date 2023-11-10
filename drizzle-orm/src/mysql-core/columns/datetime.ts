@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import { type Equal } from '~/utils.ts';
+import type { Equal } from '~/utils.ts';
 import { MySqlDateBaseColumn, MySqlDateColumnBaseBuilder } from './date.common.ts';
 
 export type MySqlDateTimeBuilderInitial<TName extends string> = MySqlDateTimeBuilder<{
@@ -53,8 +53,12 @@ export class MySqlDateTime<T extends ColumnBaseConfig<'date', 'MySqlDateTime'>> 
 		return `datetime${precision}`;
 	}
 
+	override mapToDriverValue(value: Date): unknown {
+		return value.toISOString().replace('T', ' ').replace('Z', '');
+	}
+
 	override mapFromDriverValue(value: string): Date {
-		return new Date(value);
+		return new Date(value.replace(' ', 'T') + 'Z');
 	}
 }
 
@@ -89,7 +93,9 @@ export class MySqlDateTimeStringBuilder<T extends ColumnBuilderBaseConfig<'strin
 	}
 }
 
-export class MySqlDateTimeString<T extends ColumnBaseConfig<'string', 'MySqlDateTimeString'>> extends MySqlDateBaseColumn<T> {
+export class MySqlDateTimeString<T extends ColumnBaseConfig<'string', 'MySqlDateTimeString'>>
+	extends MySqlDateBaseColumn<T>
+{
 	static readonly [entityKind]: string = 'MySqlDateTimeString';
 
 	readonly fsp: number | undefined;
