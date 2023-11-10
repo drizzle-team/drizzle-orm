@@ -217,11 +217,6 @@ export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	>
 	: never;
 
-export type ValidateShape<T, ValidShape> = T extends ValidShape ? Exclude<keyof T, keyof ValidShape> extends never ? T
-	: Exclude<keyof T, keyof ValidShape> extends string ? `Invalid key(s): ${Exclude<keyof T, keyof ValidShape>}`
-	: never
-	: never;
-
 export type KnownKeysOnly<T, U> = {
 	[K in keyof T]: K extends keyof U ? T[K] : never;
 };
