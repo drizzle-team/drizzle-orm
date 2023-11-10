@@ -2,7 +2,7 @@ import { entityKind } from '~/entity.ts';
 import { DrizzleError, TransactionRollbackError } from '~/errors.ts';
 import type { TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
-import type { Query, SQL } from '~/sql/index.ts';
+import type { Query, SQL } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import { QueryPromise } from '../index.ts';
 import { BaseSQLiteDatabase } from './db.ts';

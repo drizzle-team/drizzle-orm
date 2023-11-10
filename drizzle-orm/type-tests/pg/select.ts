@@ -37,7 +37,7 @@ import {
 	QueryBuilder,
 	text,
 } from '~/pg-core/index.ts';
-import { type SQL, sql } from '~/sql/index.ts';
+import { type SQL, sql } from '~/sql/sql.ts';
 
 import { db } from './db.ts';
 import { cities, classes, newYorkers, newYorkers2, users } from './tables.ts';

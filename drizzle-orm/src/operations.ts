@@ -1,6 +1,6 @@
 import type { BuiltInFunction } from './built-in-function.ts';
 import type { AnyColumn, Column } from './column.ts';
-import type { SQL } from './sql/index.ts';
+import type { SQL } from './sql/sql.ts';
 import type { Table } from './table.ts';
 
 export type RequiredKeyOnly<TKey extends string, T extends Column> = T extends AnyColumn<{

@@ -5,7 +5,8 @@ import type {
 } from '~/operations.ts';
 import type { PgColumn } from '~/pg-core/columns/index.ts';
 import type { PgTable, PgTableWithColumns } from '~/pg-core/table.ts';
-import type { PgViewBase, PgViewWithSelection } from '~/pg-core/view.ts';
+import type { PgViewBase } from '~/pg-core/view-base.ts';
+import type { PgViewWithSelection } from '~/pg-core/view.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	AppendToNullabilityMap,
@@ -19,11 +20,10 @@ import type {
 	SelectResult,
 	SetOperator,
 } from '~/query-builders/select.types.ts';
-import type { Placeholder, SQL, SQLWrapper } from '~/sql/index.ts';
+import type { ColumnsSelection, Placeholder, SQL, SQLWrapper, View } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, ValidateShape, ValueOrArray } from '~/utils.ts';
-import type { ColumnsSelection, View } from '~/view.ts';
 import type { PreparedQuery, PreparedQueryConfig } from '../session.ts';
 import type { PgSelectBase, PgSelectQueryBuilderBase } from './select.ts';
 import type { PgBuiltInFunction } from '../functions/common.ts';

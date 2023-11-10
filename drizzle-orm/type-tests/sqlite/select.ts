@@ -21,7 +21,7 @@ import {
 	notLike,
 	or,
 } from '~/expressions.ts';
-import { param, sql } from '~/sql/index.ts';
+import { param, sql } from '~/sql/sql.ts';
 import { alias } from '~/sqlite-core/alias.ts';
 
 import type { Equal } from 'type-tests/utils.ts';
