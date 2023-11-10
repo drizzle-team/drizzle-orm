@@ -139,7 +139,7 @@ export function total(expression: MaybeDistinct<SQLWrapper>): SQLiteAggregateFun
  * db.select({ value: max(employees.salary) }).from(employees)
  * ```
  */
-export function max<T extends SQLWrapper>(expression: SQLWrapper): T extends SQLiteColumn
+export function max<T extends SQLWrapper>(expression: T): T extends SQLiteColumn
 	? SQLiteAggregateFunction<T['_']['data'] | null>
 	: SQLiteAggregateFunction<string | null>
 {

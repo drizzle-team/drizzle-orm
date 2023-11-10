@@ -66,7 +66,7 @@ export function avg<T extends 'number' | 'bigint' | 'string' | undefined = undef
 	let sql_ = sql.join([sql`avg(`, ...chunks, sql`)`]);
 
 	if (config?.mode === 'bigint') {
-		sql_ = sql_.mapWith(BigInt);
+		sql_ = sql_.mapWith((value: string) => BigInt(Number.parseInt(value)));
 	} else if (config?.mode === 'number') {
 		sql_ = sql_.mapWith(Number);
 	}
@@ -100,7 +100,7 @@ export function sum<T extends 'number' | 'bigint' | 'string' | undefined = undef
 	let sql_ = sql.join([sql`sum(`, ...chunks, sql`)`]);
 
 	if (config?.mode === 'bigint') {
-		sql_ = sql_.mapWith(BigInt);
+		sql_ = sql_.mapWith((value: string) => BigInt(Number.parseInt(value)));
 	} else if (config?.mode === 'number') {
 		sql_ = sql_.mapWith(Number);
 	}
