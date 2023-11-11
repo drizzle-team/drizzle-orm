@@ -136,6 +136,8 @@ export class NeonSession<
 		const tx = new NeonTransaction(this.dialect, session, this.schema);
 		await tx.execute(sql`begin ${tx.getTransactionConfigSQL(config)}`);
 		try {
+			await tx.executeRLSConfig(config);
+
 			const result = await transaction(tx);
 			await tx.execute(sql`commit`);
 			return result;

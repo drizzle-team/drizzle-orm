@@ -139,7 +139,10 @@ export class PostgresJsSession<
 			const tx = new PostgresJsTransaction(this.dialect, session, this.schema);
 			if (config) {
 				await tx.setTransaction(config);
+
+				await tx.executeRLSConfig(config);
 			}
+
 			return transaction(tx);
 		}) as Promise<T>;
 	}
