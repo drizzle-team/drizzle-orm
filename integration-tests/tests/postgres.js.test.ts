@@ -41,13 +41,14 @@ import {
 	uuid as pgUuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
+import { pgRole } from 'drizzle-orm/pg-core/role';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import getPort from 'get-port';
 import postgres, { type Sql } from 'postgres';
 import { v4 as uuid } from 'uuid';
-import { type Equal, Expect } from './utils.ts';
+import { type Equal, Expect } from './utils';
 
 const QUERY_LOGGING = false;
 
@@ -1972,6 +1973,72 @@ test.serial('nested transaction rollback', async (t) => {
 	t.deepEqual(result, [{ id: 1, balance: 100 }]);
 
 	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('transaction with RLS', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users_transactions', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		lastName: text('lastname'),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial not null primary key, name text not null, lastname text)`,
+	);
+	await db.execute(sql`CREATE ROLE admin_all`);
+
+	await db.insert(users).values([{ name: 'user', lastName: 'lastName' }, {
+		name: 'user2',
+		lastName: 'lastName2',
+	}]);
+
+	await db.execute(sql`ALTER TABLE ${users} ENABLE ROW LEVEL SECURITY`);
+	await db.execute(
+		sql`CREATE POLICY all_view ON ${users} for select USING (true)`,
+	);
+
+	await db.execute(sql`GRANT USAGE ON SCHEMA public TO admin_all`);
+	await db.execute(sql`GRANT all ON ${users} TO admin_all`);
+
+	await db.transaction(async (tx) => {
+		await tx.update(users).set({ lastName: 'another' }).where(eq(users.id, 1));
+	}, {
+		rlsConfig: {
+			role: pgRole('admin_all'),
+		},
+	});
+
+	const badResult = await db.select().from(users).orderBy(users.id);
+
+	t.deepEqual(badResult, [{ id: 1, name: 'user', lastName: 'lastName' }, {
+		id: 2,
+		name: 'user2',
+		lastName: 'lastName2',
+	}]);
+
+	await db.execute(sql`CREATE POLICY administrator_all ON ${users} TO admin_all USING (true) WITH CHECK (true)`);
+
+	await db.transaction(async (tx) => {
+		await tx.update(users).set({ lastName: 'another' }).where(eq(users.id, 1));
+	}, {
+		rlsConfig: {
+			role: pgRole('admin_all'),
+		},
+	});
+
+	const result = await db.select().from(users).orderBy(users.id);
+
+	t.deepEqual(result, [{ id: 1, name: 'user', lastName: 'another' }, { id: 2, name: 'user2', lastName: 'lastName2' }]);
+
+	await db.execute(sql`drop owned by admin_all`);
+	await db.execute(sql`drop policy if exists administrator_all on ${users}`);
+	await db.execute(sql`drop policy if exists all_view on ${users}`);
+	await db.execute(sql`drop role if exists admin_all`);
+	await db.execute(sql`drop table if exists ${users}`);
 });
 
 test.serial('join subquery with join', async (t) => {
