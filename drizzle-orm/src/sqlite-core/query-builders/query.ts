@@ -9,7 +9,7 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/index.ts';
+import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { SQLiteDialect } from '../dialect.ts';
 import type { PreparedQueryConfig, SQLitePreparedQuery, SQLiteSession } from '../session.ts';

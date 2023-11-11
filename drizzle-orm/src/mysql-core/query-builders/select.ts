@@ -4,7 +4,6 @@ import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { MySqlSession, PreparedQueryConfig, PreparedQueryHKTBase } from '~/mysql-core/session.ts';
 import type { SubqueryWithSelection } from '~/mysql-core/subquery.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
-import { MySqlViewBase } from '~/mysql-core/view.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	BuildSubquerySelection,
@@ -17,13 +16,15 @@ import type {
 	SetOperator,
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import { type Query, SQL } from '~/sql/index.ts';
-import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
+import type { ColumnsSelection, Query } from '~/sql/sql.ts';
+import { SQL, View } from '~/sql/sql.ts';
+import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, type ValueOrArray } from '~/utils.ts';
 import { orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
-import { type ColumnsSelection, View } from '~/view.ts';
+import { MySqlViewBase } from '../view-base.ts';
 import type {
 	AnyMySqlSelect,
 	CreateMySqlSelectFromBuilderMode,

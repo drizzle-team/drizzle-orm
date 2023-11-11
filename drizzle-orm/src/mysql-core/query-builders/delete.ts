@@ -11,7 +11,7 @@ import type {
 } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { Query, SQL, SQLWrapper } from '~/sql/index.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 
 export type MySqlDeleteWithout<

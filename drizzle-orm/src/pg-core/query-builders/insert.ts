@@ -11,8 +11,8 @@ import type {
 import type { PgTable } from '~/pg-core/table.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { Placeholder, Query, SQLWrapper } from '~/sql/index.ts';
-import { Param, SQL, sql } from '~/sql/index.ts';
+import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
+import { Param, SQL, sql } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { mapUpdateSet, orderSelectedFields } from '~/utils.ts';
