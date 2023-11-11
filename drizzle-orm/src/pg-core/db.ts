@@ -17,16 +17,16 @@ import type {
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import type { SQLWrapper } from '~/sql/index.ts';
-import { SelectionProxyHandler, WithSubquery } from '~/subquery.ts';
+import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
+import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
-import type { ColumnsSelection } from '~/view.ts';
 import type { PgColumn } from './columns/index.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import { PgRefreshMaterializedView } from './query-builders/refresh-materialized-view.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import type { WithSubqueryWithSelection } from './subquery.ts';
 import type { PgMaterializedView } from './view.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
 
 export class PgDatabase<
 	TQueryResult extends QueryResultHKT,

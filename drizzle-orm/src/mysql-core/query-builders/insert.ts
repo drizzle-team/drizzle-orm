@@ -11,8 +11,8 @@ import type {
 } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { Placeholder, Query, SQLWrapper } from '~/sql/index.ts';
-import { Param, SQL, sql } from '~/sql/index.ts';
+import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
+import { Param, SQL, sql } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
 import { mapUpdateSet } from '~/utils.ts';
 import type { MySqlUpdateSetSource } from './update.ts';

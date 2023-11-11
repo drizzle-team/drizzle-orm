@@ -2,10 +2,10 @@ import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
 import type { Relation } from './relations.ts';
-import { SQL, sql } from './sql/index.ts';
+import type { View} from './sql/sql.ts';
+import { SQL, sql } from './sql/sql.ts';
 import { Table } from './table.ts';
 import { ViewBaseConfig } from './view-common.ts';
-import type { View } from './view.ts';
 
 export class ColumnAliasProxyHandler<TColumn extends Column> implements ProxyHandler<TColumn> {
 	static readonly [entityKind]: string = 'ColumnAliasProxyHandler';

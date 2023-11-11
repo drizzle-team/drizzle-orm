@@ -1,7 +1,7 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { gt, inArray } from '~/expressions.ts';
-import { sql } from '~/sql/index.ts';
+import { sql } from '~/sql/sql.ts';
 import { integer, sqliteTable, text } from '~/sqlite-core/index.ts';
 import { db } from './db.ts';
 

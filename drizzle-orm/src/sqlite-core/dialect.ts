@@ -16,7 +16,9 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { and, eq, type Name, Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/index.ts';
+import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
+import type { Name} from '~/sql/index.ts';
+import { and, eq } from '~/sql/index.ts'
 import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders/index.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
@@ -30,7 +32,7 @@ import type {
 	SQLiteSelectJoinConfig,
 } from './query-builders/select.types.ts';
 import type { SQLiteSession } from './session.ts';
-import { SQLiteViewBase } from './view.ts';
+import { SQLiteViewBase } from './view-base.ts';
 
 export abstract class SQLiteDialect {
 	static readonly [entityKind]: string = 'SQLiteDialect';
