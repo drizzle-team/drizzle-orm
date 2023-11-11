@@ -1,6 +1,6 @@
 import { is, entityKind } from '~/entity.ts';
 import { MySqlColumn } from '../columns/index.ts';
-import { type SQL, sql, type SQLWrapper, isSQLWrapper, SQLChunk } from '~/sql/index.ts';
+import { sql, type SQLWrapper, isSQLWrapper, type SQLChunk } from '~/sql/index.ts';
 import { MySqlBuiltInFunction } from './common.ts';
 import { type MaybeDistinct, getValueWithDistinct } from '~/distinct.ts';
 
@@ -122,14 +122,9 @@ export function max<T extends SQLWrapper>(expression: T): T extends MySqlColumn
 	? MySqlAggregateFunction<T['_']['data'] | null>
 	: MySqlAggregateFunction<string | null>
 {
-	let sql_ = sql.join([sql`max(`, expression, sql`)`]);
-
-	if (is(expression, MySqlColumn)) {
-		sql_ = sql_.mapWith(expression);
-	} else {
-		sql_ = sql_.mapWith(String);
-	}
-
+	const sql_ = sql
+		.join([sql`max(`, expression, sql`)`])
+		.mapWith(is(expression, MySqlColumn) ? expression : String);
 	return new MySqlAggregateFunction(sql_) as any;
 }
 
@@ -147,13 +142,8 @@ export function min<T extends SQLWrapper>(expression: T): T extends MySqlColumn
 	? MySqlAggregateFunction<T['_']['data'] | null>
 	: MySqlAggregateFunction<string | null>
 {
-	let sql_ = sql.join([sql`min(`, expression, sql`)`]);
-
-	if (is(expression, MySqlColumn)) {
-		sql_ = sql_.mapWith(expression);
-	} else {
-		sql_ = sql_.mapWith(String);
-	}
-
+	const sql_ = sql
+		.join([sql`min(`, expression, sql`)`])
+		.mapWith(is(expression, MySqlColumn) ? expression : String);
 	return new MySqlAggregateFunction(sql_) as any;
 }

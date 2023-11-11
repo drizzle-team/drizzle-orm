@@ -16,7 +16,7 @@ import { Table } from '~/table.ts';
 import { mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import type { SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
 import type { PgColumn } from '../columns/common.ts';
-import { PgBuiltInFunction } from '../functions/common.ts'
+import type { PgBuiltInFunction } from '../functions/common.ts'
 
 export interface PgUpdateConfig {
 	where?: SQL | undefined;

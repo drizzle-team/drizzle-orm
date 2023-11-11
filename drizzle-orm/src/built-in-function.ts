@@ -1,10 +1,11 @@
 import { entityKind } from './entity.ts';
-import { Dialect } from './column-builder.ts';
-import { type SQLWrapper, type SQL, sql, DriverValueDecoder, GetDecoderResult } from './sql/sql.ts';
+import type { Dialect } from './column-builder.ts';
+import type { SQLWrapper, SQL, DriverValueDecoder, GetDecoderResult } from './sql/sql.ts';
 
 /** @internal */
 export const BuiltInFunctionSQL = Symbol.for('drizzle:BuiltInFunctionSQL');
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface BuiltInFunction<T = unknown> extends SQLWrapper {
   // SQLWrapper runtime implementation is defined in 'sql/sql.ts'
 }
@@ -24,7 +25,7 @@ export abstract class BuiltInFunction<T = unknown> implements SQLWrapper {
   /** @internal */
 	get [BuiltInFunctionSQL](): SQL<T> {
     return this.sql;
-  };
+  }
   
   protected sql: SQL<T>;
 

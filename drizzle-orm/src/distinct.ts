@@ -1,5 +1,5 @@
 import { entityKind, is } from './entity.ts';
-import { type SQLWrapper } from './index.ts';
+import type { SQLWrapper } from './index.ts';
 
 /** @internal */
 export const DistinctValue = Symbol.for('drizzle:DistinctValue');

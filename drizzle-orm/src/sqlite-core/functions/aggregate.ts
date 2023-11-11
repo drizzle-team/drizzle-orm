@@ -1,6 +1,6 @@
 import { is, entityKind } from '~/entity.ts';
 import { SQLiteColumn } from '../columns/index.ts';
-import { type SQL, sql, type SQLWrapper, isSQLWrapper, SQLChunk } from '~/sql/index.ts';
+import { type SQL, sql, type SQLWrapper, isSQLWrapper, type SQLChunk } from '~/sql/index.ts';
 import { SQLiteBuiltInFunction } from './common.ts';
 import { type MaybeDistinct, getValueWithDistinct } from '~/distinct.ts';
 
@@ -143,14 +143,9 @@ export function max<T extends SQLWrapper>(expression: T): T extends SQLiteColumn
 	? SQLiteAggregateFunction<T['_']['data'] | null>
 	: SQLiteAggregateFunction<string | null>
 {
-	let sql_ = sql.join([sql`max(`, expression, sql`)`]);
-
-	if (is(expression, SQLiteColumn)) {
-		sql_ = sql_.mapWith(expression);
-	} else {
-		sql_ = sql_.mapWith(String);
-	}
-
+	const sql_ = sql
+		.join([sql`max(`, expression, sql`)`])
+		.mapWith(is(expression, SQLiteColumn) ? expression : String)
 	return new SQLiteAggregateFunction(sql_) as any;
 }
 
@@ -168,13 +163,8 @@ export function min<T extends SQLWrapper>(expression: T): T extends SQLiteColumn
 	? SQLiteAggregateFunction<T['_']['data'] | null>
 	: SQLiteAggregateFunction<string | null>
 {
-	let sql_ = sql.join([sql`min(`, expression, sql`)`]);
-
-	if (is(expression, SQLiteColumn)) {
-		sql_ = sql_.mapWith(expression);
-	} else {
-		sql_ = sql_.mapWith(String);
-	}
-
+	const sql_ = sql
+		.join([sql`min(`, expression, sql`)`])
+		.mapWith(is(expression, SQLiteColumn) ? expression : String);
 	return new SQLiteAggregateFunction(sql_) as any;
 }
