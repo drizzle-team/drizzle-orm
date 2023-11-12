@@ -1,7 +1,9 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { eq } from '~/expressions.ts';
+import type { MySqlDelete } from '~/mysql-core/index.ts';
 import type { MySqlRawQueryResult } from '~/mysql2/index.ts';
+import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
 import { users } from './tables.ts';
 
@@ -32,3 +34,28 @@ Expect<Equal<MySqlRawQueryResult, typeof deleteReturningPartial>>;
 const deleteReturningPartialStmt = db.delete(users).prepare();
 const deleteReturningPartialPrepared = await deleteReturningPartialStmt.execute();
 Expect<Equal<MySqlRawQueryResult, typeof deleteReturningPartialPrepared>>;
+
+{
+	function dynamic<T extends MySqlDelete>(qb: T) {
+		return qb.where(sql``);
+	}
+
+	const qbBase = db.delete(users).$dynamic();
+	const qb = dynamic(qbBase);
+	const result = await qb;
+	Expect<Equal<MySqlRawQueryResult, typeof result>>;
+}
+
+{
+	db
+		.delete(users)
+		.where(sql``)
+		// @ts-expect-error method was already called
+		.where(sql``);
+
+	db
+		.delete(users)
+		.$dynamic()
+		.where(sql``)
+		.where(sql``);
+}

@@ -2,14 +2,15 @@ import type { BuildColumns } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
-import type { SQL } from '~/sql/index.ts';
-import { SelectionProxyHandler } from '~/subquery.ts';
+import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
-import { type ColumnsSelection, View } from '~/view.ts';
-import { type MySqlColumn, type MySqlColumnBuilderBase } from './columns/index.ts';
-import { QueryBuilder } from './query-builders/index.ts';
+import type { MySqlColumn, MySqlColumnBuilderBase } from './columns/index.ts';
+import { QueryBuilder } from './query-builders/query-builder.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import { mysqlTable } from './table.ts';
+import { MySqlViewConfig } from './view-common.ts';
+import { MySqlViewBase } from './view-base.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
 
 export interface ViewBuilderConfig {
 	algorithm?: 'undefined' | 'merge' | 'temptable';
@@ -150,20 +151,6 @@ export class ManualViewBuilder<
 		) as MySqlViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'mysql'>>;
 	}
 }
-
-export abstract class MySqlViewBase<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
-	TSelectedFields extends ColumnsSelection = ColumnsSelection,
-> extends View<TName, TExisting, TSelectedFields> {
-	static readonly [entityKind]: string = 'MySqlViewBase';
-
-	declare readonly _: View<TName, TExisting, TSelectedFields>['_'] & {
-		readonly viewBrand: 'MySqlViewBase';
-	};
-}
-
-export const MySqlViewConfig = Symbol.for('drizzle:MySqlViewConfig');
 
 export class MySqlView<
 	TName extends string = string,

@@ -8,6 +8,7 @@ import {
 	DefaultLogger,
 	eq,
 	gt,
+	gte,
 	inArray,
 	type InferModel,
 	Name,
@@ -17,21 +18,33 @@ import {
 } from 'drizzle-orm';
 import {
 	alias,
+	bigint,
 	boolean,
 	date,
 	datetime,
+	except,
+	exceptAll,
+	foreignKey,
 	getTableConfig,
 	getViewConfig,
 	int,
+	intersect,
+	intersectAll,
 	json,
+	mediumint,
 	mysqlEnum,
 	mysqlTable,
 	mysqlTableCreator,
 	mysqlView,
+	primaryKey,
 	serial,
+	smallint,
 	text,
 	time,
 	timestamp,
+	tinyint,
+	union,
+	unionAll,
 	unique,
 	uniqueIndex,
 	uniqueKeyName,
@@ -43,7 +56,7 @@ import { migrate } from 'drizzle-orm/mysql2/migrator';
 import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
-import { type Equal, Expect } from './utils.ts';
+import { type Equal, Expect, toLocalDate } from './utils.ts';
 
 const ENABLE_LOGGING = false;
 
@@ -213,6 +226,124 @@ test.beforeEach(async (t) => {
 			)
 		`,
 	);
+});
+
+async function setupSetOperationTest(db: MySql2Database) {
+	await db.execute(sql`drop table if exists \`users2\``);
+	await db.execute(sql`drop table if exists \`cities\``);
+	await db.execute(
+		sql`
+			create table \`users2\` (
+				\`id\` serial primary key,
+				\`name\` text not null,
+				\`city_id\` int references \`cities\`(\`id\`)
+			)
+		`,
+	);
+
+	await db.execute(
+		sql`
+			create table \`cities\` (
+				\`id\` serial primary key,
+				\`name\` text not null
+			)
+		`,
+	);
+
+	await db.insert(citiesTable).values([
+		{ id: 1, name: 'New York' },
+		{ id: 2, name: 'London' },
+		{ id: 3, name: 'Tampa' },
+	]);
+
+	await db.insert(users2Table).values([
+		{ id: 1, name: 'John', cityId: 1 },
+		{ id: 2, name: 'Jane', cityId: 2 },
+		{ id: 3, name: 'Jack', cityId: 3 },
+		{ id: 4, name: 'Peter', cityId: 3 },
+		{ id: 5, name: 'Ben', cityId: 2 },
+		{ id: 6, name: 'Jill', cityId: 1 },
+		{ id: 7, name: 'Mary', cityId: 2 },
+		{ id: 8, name: 'Sally', cityId: 1 },
+	]);
+}
+
+test.serial('table config: unsigned ints', async (t) => {
+	const unsignedInts = mysqlTable('cities1', {
+		bigint: bigint('bigint', { mode: 'number', unsigned: true }),
+		int: int('int', { unsigned: true }),
+		smallint: smallint('smallint', { unsigned: true }),
+		mediumint: mediumint('mediumint', { unsigned: true }),
+		tinyint: tinyint('tinyint', { unsigned: true }),
+	});
+
+	const tableConfig = getTableConfig(unsignedInts);
+
+	const bigintColumn = tableConfig.columns.find((c) => c.name === 'bigint')!;
+	const intColumn = tableConfig.columns.find((c) => c.name === 'int')!;
+	const smallintColumn = tableConfig.columns.find((c) => c.name === 'smallint')!;
+	const mediumintColumn = tableConfig.columns.find((c) => c.name === 'mediumint')!;
+	const tinyintColumn = tableConfig.columns.find((c) => c.name === 'tinyint')!;
+
+	t.is(bigintColumn.getSQLType(), 'bigint unsigned');
+	t.is(intColumn.getSQLType(), 'int unsigned');
+	t.is(smallintColumn.getSQLType(), 'smallint unsigned');
+	t.is(mediumintColumn.getSQLType(), 'mediumint unsigned');
+	t.is(tinyintColumn.getSQLType(), 'tinyint unsigned');
+});
+
+test.serial('table config: signed ints', async (t) => {
+	const unsignedInts = mysqlTable('cities1', {
+		bigint: bigint('bigint', { mode: 'number' }),
+		int: int('int'),
+		smallint: smallint('smallint'),
+		mediumint: mediumint('mediumint'),
+		tinyint: tinyint('tinyint'),
+	});
+
+	const tableConfig = getTableConfig(unsignedInts);
+
+	const bigintColumn = tableConfig.columns.find((c) => c.name === 'bigint')!;
+	const intColumn = tableConfig.columns.find((c) => c.name === 'int')!;
+	const smallintColumn = tableConfig.columns.find((c) => c.name === 'smallint')!;
+	const mediumintColumn = tableConfig.columns.find((c) => c.name === 'mediumint')!;
+	const tinyintColumn = tableConfig.columns.find((c) => c.name === 'tinyint')!;
+
+	t.is(bigintColumn.getSQLType(), 'bigint');
+	t.is(intColumn.getSQLType(), 'int');
+	t.is(smallintColumn.getSQLType(), 'smallint');
+	t.is(mediumintColumn.getSQLType(), 'mediumint');
+	t.is(tinyintColumn.getSQLType(), 'tinyint');
+});
+
+test.serial('table config: foreign keys name', async (t) => {
+	const table = mysqlTable('cities', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		state: text('state'),
+	}, (t) => ({
+		f: foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' }),
+	}));
+
+	const tableConfig = getTableConfig(table);
+
+	t.is(tableConfig.foreignKeys.length, 1);
+	t.is(tableConfig.foreignKeys[0]!.getName(), 'custom_fk');
+});
+
+test.serial('table config: primary keys name', async (t) => {
+	const table = mysqlTable('cities', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		state: text('state'),
+	}, (t) => ({
+		f: primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
+	}));
+
+	const tableConfig = getTableConfig(table);
+
+	t.is(tableConfig.primaryKeys.length, 1);
+	t.is(tableConfig.primaryKeys[0]!.getName(), 'custom_pk');
 });
 
 test.serial('table configs: unique third param', async (t) => {
@@ -1001,7 +1132,7 @@ test.serial('insert + select all possible dates', async (t) => {
 	t.assert(typeof res[0]?.datetimeAsString === 'string');
 
 	t.deepEqual(res, [{
-		date: new Date('2022-11-11'),
+		date: toLocalDate(new Date('2022-11-11')),
 		dateAsString: '2022-11-11',
 		time: '12:12:12',
 		datetime: new Date('2022-11-11'),
@@ -1673,7 +1804,7 @@ test.serial('transaction rollback', async (t) => {
 		await db.transaction(async (tx) => {
 			await tx.insert(users).values({ balance: 100 });
 			tx.rollback();
-		}), new TransactionRollbackError());
+		}), { instanceOf: TransactionRollbackError });
 
 	const result = await db.select().from(users);
 
@@ -1732,7 +1863,7 @@ test.serial('nested transaction rollback', async (t) => {
 			await tx.transaction(async (tx) => {
 				await tx.update(users).set({ balance: 200 });
 				tx.rollback();
-			}), new TransactionRollbackError());
+			}), { instanceOf: TransactionRollbackError });
 	});
 
 	const result = await db.select().from(users);
@@ -2015,4 +2146,511 @@ test.serial('utc config for datetime', async (t) => {
 	}]);
 
 	await db.execute(sql`drop table if exists \`datestable\``);
+});
+
+test.serial('set operations (union) from query builder with subquery', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+	const sq = db
+		.select({ id: users2Table.id, name: users2Table.name })
+		.from(users2Table).as('sq');
+
+	const result = await db
+		.select({ id: citiesTable.id, name: citiesTable.name })
+		.from(citiesTable).union(
+			db.select().from(sq),
+		).limit(8);
+
+	t.assert(result.length === 8);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'New York' },
+		{ id: 2, name: 'London' },
+		{ id: 3, name: 'Tampa' },
+		{ id: 1, name: 'John' },
+		{ id: 2, name: 'Jane' },
+		{ id: 3, name: 'Jack' },
+		{ id: 4, name: 'Peter' },
+		{ id: 5, name: 'Ben' },
+	]);
+
+	// union should throw if selected fields are not in the same order
+	t.throws(() =>
+		db
+			.select({ id: citiesTable.id, name: citiesTable.name })
+			.from(citiesTable).union(
+				db
+					.select({ name: users2Table.name, id: users2Table.id })
+					.from(users2Table),
+			)
+	);
+});
+
+test.serial('set operations (union) as function', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await union(
+		db
+			.select({ id: citiesTable.id, name: citiesTable.name })
+			.from(citiesTable).where(eq(citiesTable.id, 1)),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+	);
+
+	t.assert(result.length === 2);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'New York' },
+		{ id: 1, name: 'John' },
+	]);
+
+	t.throws(() => {
+		union(
+			db
+				.select({ id: citiesTable.id, name: citiesTable.name })
+				.from(citiesTable).where(eq(citiesTable.id, 1)),
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+			db
+				.select({ name: users2Table.name, id: users2Table.id })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+		);
+	});
+});
+
+test.serial('set operations (union all) from query builder', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await db
+		.select({ id: citiesTable.id, name: citiesTable.name })
+		.from(citiesTable).limit(2).unionAll(
+			db
+				.select({ id: citiesTable.id, name: citiesTable.name })
+				.from(citiesTable).limit(2),
+		).orderBy(asc(sql`id`)).limit(3);
+
+	t.assert(result.length === 3);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'New York' },
+		{ id: 1, name: 'New York' },
+		{ id: 2, name: 'London' },
+	]);
+
+	t.throws(() => {
+		db
+			.select({ id: citiesTable.id, name: citiesTable.name })
+			.from(citiesTable).limit(2).unionAll(
+				db
+					.select({ name: citiesTable.name, id: citiesTable.id })
+					.from(citiesTable).limit(2),
+			).orderBy(asc(sql`id`));
+	});
+});
+
+test.serial('set operations (union all) as function', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await unionAll(
+		db
+			.select({ id: citiesTable.id, name: citiesTable.name })
+			.from(citiesTable).where(eq(citiesTable.id, 1)),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+	).limit(1);
+
+	t.assert(result.length === 1);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'New York' },
+	]);
+
+	t.throws(() => {
+		unionAll(
+			db
+				.select({ id: citiesTable.id, name: citiesTable.name })
+				.from(citiesTable).where(eq(citiesTable.id, 1)),
+			db
+				.select({ name: users2Table.name, id: users2Table.id })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+		).limit(1);
+	});
+});
+
+test.serial('set operations (intersect) from query builder', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await db
+		.select({ id: citiesTable.id, name: citiesTable.name })
+		.from(citiesTable).intersect(
+			db
+				.select({ id: citiesTable.id, name: citiesTable.name })
+				.from(citiesTable).where(gt(citiesTable.id, 1)),
+		);
+
+	t.assert(result.length === 2);
+
+	t.deepEqual(result, [
+		{ id: 2, name: 'London' },
+		{ id: 3, name: 'Tampa' },
+	]);
+
+	t.throws(() => {
+		db
+			.select({ name: citiesTable.name, id: citiesTable.id })
+			.from(citiesTable).intersect(
+				db
+					.select({ id: citiesTable.id, name: citiesTable.name })
+					.from(citiesTable).where(gt(citiesTable.id, 1)),
+			);
+	});
+});
+
+test.serial('set operations (intersect) as function', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await intersect(
+		db
+			.select({ id: citiesTable.id, name: citiesTable.name })
+			.from(citiesTable).where(eq(citiesTable.id, 1)),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+	).limit(1);
+
+	t.assert(result.length === 0);
+
+	t.deepEqual(result, []);
+
+	t.throws(() => {
+		intersect(
+			db
+				.select({ id: citiesTable.id, name: citiesTable.name })
+				.from(citiesTable).where(eq(citiesTable.id, 1)),
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+			db
+				.select({ name: users2Table.name, id: users2Table.id })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+		).limit(1);
+	});
+});
+
+test.serial('set operations (intersect all) from query builder', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await db
+		.select({ id: citiesTable.id, name: citiesTable.name })
+		.from(citiesTable).limit(2).intersectAll(
+			db
+				.select({ id: citiesTable.id, name: citiesTable.name })
+				.from(citiesTable).limit(2),
+		).orderBy(asc(sql`id`));
+
+	t.assert(result.length === 2);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'New York' },
+		{ id: 2, name: 'London' },
+	]);
+
+	t.throws(() => {
+		db
+			.select({ id: citiesTable.id, name: citiesTable.name })
+			.from(citiesTable).limit(2).intersectAll(
+				db
+					.select({ name: citiesTable.name, id: citiesTable.id })
+					.from(citiesTable).limit(2),
+			).orderBy(asc(sql`id`));
+	});
+});
+
+test.serial('set operations (intersect all) as function', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await intersectAll(
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+	);
+
+	t.assert(result.length === 1);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'John' },
+	]);
+
+	t.throws(() => {
+		intersectAll(
+			db
+				.select({ name: users2Table.name, id: users2Table.id })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+		);
+	});
+});
+
+test.serial('set operations (except) from query builder', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await db
+		.select()
+		.from(citiesTable).except(
+			db
+				.select()
+				.from(citiesTable).where(gt(citiesTable.id, 1)),
+		);
+
+	t.assert(result.length === 1);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'New York' },
+	]);
+});
+
+test.serial('set operations (except) as function', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await except(
+		db
+			.select({ id: citiesTable.id, name: citiesTable.name })
+			.from(citiesTable),
+		db
+			.select({ id: citiesTable.id, name: citiesTable.name })
+			.from(citiesTable).where(eq(citiesTable.id, 1)),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+	).limit(3);
+
+	t.assert(result.length === 2);
+
+	t.deepEqual(result, [
+		{ id: 2, name: 'London' },
+		{ id: 3, name: 'Tampa' },
+	]);
+
+	t.throws(() => {
+		except(
+			db
+				.select({ name: citiesTable.name, id: citiesTable.id })
+				.from(citiesTable),
+			db
+				.select({ id: citiesTable.id, name: citiesTable.name })
+				.from(citiesTable).where(eq(citiesTable.id, 1)),
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+		).limit(3);
+	});
+});
+
+test.serial('set operations (except all) from query builder', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await db
+		.select()
+		.from(citiesTable).exceptAll(
+			db
+				.select({ id: citiesTable.id, name: citiesTable.name })
+				.from(citiesTable).where(eq(citiesTable.id, 1)),
+		).orderBy(asc(sql`id`));
+
+	t.assert(result.length === 2);
+
+	t.deepEqual(result, [
+		{ id: 2, name: 'London' },
+		{ id: 3, name: 'Tampa' },
+	]);
+
+	t.throws(() => {
+		db
+			.select()
+			.from(citiesTable).exceptAll(
+				db
+					.select({ name: citiesTable.name, id: citiesTable.id })
+					.from(citiesTable).where(eq(citiesTable.id, 1)),
+			).orderBy(asc(sql`id`));
+	});
+});
+
+test.serial('set operations (except all) as function', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await exceptAll(
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(gt(users2Table.id, 7)),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+	).limit(6).orderBy(asc(sql.identifier('id')));
+
+	t.assert(result.length === 6);
+
+	t.deepEqual(result, [
+		{ id: 2, name: 'Jane' },
+		{ id: 3, name: 'Jack' },
+		{ id: 4, name: 'Peter' },
+		{ id: 5, name: 'Ben' },
+		{ id: 6, name: 'Jill' },
+		{ id: 7, name: 'Mary' },
+	]);
+
+	t.throws(() => {
+		exceptAll(
+			db
+				.select({ name: users2Table.name, id: users2Table.id })
+				.from(users2Table),
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(gt(users2Table.id, 7)),
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+		).limit(6);
+	});
+});
+
+test.serial('set operations (mixed) from query builder', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await db
+		.select()
+		.from(citiesTable).except(
+			({ unionAll }) =>
+				unionAll(
+					db
+						.select()
+						.from(citiesTable).where(gt(citiesTable.id, 1)),
+					db.select().from(citiesTable).where(eq(citiesTable.id, 2)),
+				).orderBy(asc(citiesTable.id)).limit(1).offset(1),
+		);
+
+	t.assert(result.length === 2);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'New York' },
+		{ id: 3, name: 'Tampa' },
+	]);
+
+	t.throws(() => {
+		db
+			.select()
+			.from(citiesTable).except(
+				({ unionAll }) =>
+					unionAll(
+						db
+							.select({ name: citiesTable.name, id: citiesTable.id })
+							.from(citiesTable).where(gt(citiesTable.id, 1)),
+						db.select().from(citiesTable).where(eq(citiesTable.id, 2)),
+					),
+			);
+	});
+});
+
+test.serial('set operations (mixed all) as function with subquery', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const sq = except(
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(gte(users2Table.id, 5)),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 7)),
+	).orderBy(asc(sql.identifier('id'))).as('sq');
+
+	const result = await union(
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+		db.select().from(sq).limit(1),
+		db
+			.select().from(citiesTable).where(gt(citiesTable.id, 1)),
+	);
+
+	t.assert(result.length === 4);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'John' },
+		{ id: 5, name: 'Ben' },
+		{ id: 2, name: 'London' },
+		{ id: 3, name: 'Tampa' },
+	]);
+
+	t.throws(() => {
+		union(
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+			except(
+				db
+					.select({ id: users2Table.id, name: users2Table.name })
+					.from(users2Table).where(gte(users2Table.id, 5)),
+				db
+					.select({ name: users2Table.name, id: users2Table.id })
+					.from(users2Table).where(eq(users2Table.id, 7)),
+			).limit(1),
+			db
+				.select().from(citiesTable).where(gt(citiesTable.id, 1)),
+		);
+	});
 });

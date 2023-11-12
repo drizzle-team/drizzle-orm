@@ -4,8 +4,13 @@ import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationMeta } from '~/migrator.ts';
 import { PgColumn, PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core/columns/index.ts';
-import type { PgDeleteConfig, PgInsertConfig, PgUpdateConfig } from '~/pg-core/query-builders/index.ts';
-import type { Join, PgSelectConfig, SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
+import type {
+	PgDeleteConfig,
+	PgInsertConfig,
+	PgSelectJoinConfig,
+	PgUpdateConfig,
+} from '~/pg-core/query-builders/index.ts';
+import type { PgSelectConfig, SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import { PgTable } from '~/pg-core/table.ts';
 import {
 	type BuildRelationalQueryResult,
@@ -20,22 +25,23 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import {
-	and,
 	type DriverValueEncoder,
-	eq,
+	type Name,
 	Param,
 	type QueryTypingsValue,
 	type QueryWithTypings,
 	SQL,
 	sql,
 	type SQLChunk,
-} from '~/sql/index.ts';
+} from '~/sql/sql.ts';
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
-import { View, ViewBaseConfig } from '~/view.ts';
+import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgSession } from './session.ts';
-import { type PgMaterializedView, PgViewBase } from './view.ts';
+import type { PgMaterializedView } from './view.ts';
+import { View, and, eq } from '~/sql/index.ts';
+import { PgViewBase } from './view-base.ts';
 
 export class PgDialect {
 	static readonly [entityKind]: string = 'PgDialect';
@@ -199,8 +205,9 @@ export class PgDialect {
 			groupBy,
 			limit,
 			offset,
-			lockingClauses,
+			lockingClause,
 			distinct,
+			setOperators,
 		}: PgSelectConfig,
 	): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<PgColumn>(fields);
@@ -324,23 +331,95 @@ export class PgDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		const lockingClausesSql = sql.empty();
-		if (lockingClauses) {
-			for (const { strength, config } of lockingClauses) {
-				const clauseSql = sql` for ${sql.raw(strength)}`;
-				if (config.of) {
-					clauseSql.append(sql` of ${config.of}`);
-				}
-				if (config.noWait) {
-					clauseSql.append(sql` no wait`);
-				} else if (config.skipLocked) {
-					clauseSql.append(sql` skip locked`);
-				}
-				lockingClausesSql.append(clauseSql);
+		const lockingClauseSql = sql.empty();
+		if (lockingClause) {
+			const clauseSql = sql` for ${sql.raw(lockingClause.strength)}`;
+			if (lockingClause.config.of) {
+				clauseSql.append(
+					sql` of ${
+						sql.join(
+							Array.isArray(lockingClause.config.of) ? lockingClause.config.of : [lockingClause.config.of],
+							sql`, `,
+						)
+					}`,
+				);
 			}
+			if (lockingClause.config.noWait) {
+				clauseSql.append(sql` no wait`);
+			} else if (lockingClause.config.skipLocked) {
+				clauseSql.append(sql` skip locked`);
+			}
+			lockingClauseSql.append(clauseSql);
+		}
+		const finalQuery =
+			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClauseSql}`;
+
+		if (setOperators.length > 0) {
+			return this.buildSetOperations(finalQuery, setOperators);
 		}
 
-		return sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+		return finalQuery;
+	}
+
+	buildSetOperations(leftSelect: SQL, setOperators: PgSelectConfig['setOperators']): SQL {
+		const [setOperator, ...rest] = setOperators;
+
+		if (!setOperator) {
+			throw new Error('Cannot pass undefined values to any set operator');
+		}
+
+		if (rest.length === 0) {
+			return this.buildSetOperationQuery({ leftSelect, setOperator });
+		}
+
+		// Some recursive magic here
+		return this.buildSetOperations(
+			this.buildSetOperationQuery({ leftSelect, setOperator }),
+			rest,
+		);
+	}
+
+	buildSetOperationQuery({
+		leftSelect,
+		setOperator: { type, isAll, rightSelect, limit, orderBy, offset },
+	}: { leftSelect: SQL; setOperator: PgSelectConfig['setOperators'][number] }): SQL {
+		const leftChunk = sql`(${leftSelect.getSQL()}) `;
+		const rightChunk = sql`(${rightSelect.getSQL()})`;
+
+		let orderBySql;
+		if (orderBy && orderBy.length > 0) {
+			const orderByValues: (SQL<unknown> | Name)[] = [];
+
+			// The next bit is necessary because the sql operator replaces ${table.column} with `table`.`column`
+			// which is invalid Sql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
+			for (const singleOrderBy of orderBy) {
+				if (is(singleOrderBy, PgColumn)) {
+					orderByValues.push(sql.identifier(singleOrderBy.name));
+				} else if (is(singleOrderBy, SQL)) {
+					for (let i = 0; i < singleOrderBy.queryChunks.length; i++) {
+						const chunk = singleOrderBy.queryChunks[i];
+
+						if (is(chunk, PgColumn)) {
+							singleOrderBy.queryChunks[i] = sql.identifier(chunk.name);
+						}
+					}
+
+					orderByValues.push(sql`${singleOrderBy}`);
+				} else {
+					orderByValues.push(sql`${singleOrderBy}`);
+				}
+			}
+
+			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)} `;
+		}
+
+		const limitSql = limit ? sql` limit ${limit}` : undefined;
+
+		const operatorChunk = sql.raw(`${type} ${isAll ? 'all ' : ''}`);
+
+		const offsetSql = offset ? sql` offset ${offset}` : undefined;
+
+		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {
@@ -977,7 +1056,7 @@ export class PgDialect {
 	}): BuildRelationalQueryResult<PgTable, PgColumn> {
 		let selection: BuildRelationalQueryResult<PgTable, PgColumn>['selection'] = [];
 		let limit, offset, orderBy: NonNullable<PgSelectConfig['orderBy']> = [], where;
-		const joins: Join[] = [];
+		const joins: PgSelectJoinConfig[] = [];
 
 		if (config === true) {
 			const selectionEntries = Object.entries(tableConfig.columns);
@@ -1150,7 +1229,7 @@ export class PgDialect {
 		}
 
 		if (selection.length === 0) {
-			throw new DrizzleError(`No fields selected for table "${tableConfig.tsName}" ("${tableAlias}")`);
+			throw new DrizzleError({ message: `No fields selected for table "${tableConfig.tsName}" ("${tableAlias}")` });
 		}
 
 		let result;
@@ -1199,6 +1278,7 @@ export class PgDialect {
 					limit,
 					offset,
 					orderBy,
+					setOperators: [],
 				});
 
 				where = undefined;
@@ -1221,6 +1301,7 @@ export class PgDialect {
 				limit,
 				offset,
 				orderBy,
+				setOperators: [],
 			});
 		} else {
 			result = this.buildSelectQuery({
@@ -1235,6 +1316,7 @@ export class PgDialect {
 				limit,
 				offset,
 				orderBy,
+				setOperators: [],
 			});
 		}
 

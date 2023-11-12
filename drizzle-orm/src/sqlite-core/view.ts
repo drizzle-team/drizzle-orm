@@ -2,14 +2,15 @@ import type { BuildColumns } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
-import type { SQL } from '~/sql/index.ts';
-import { SelectionProxyHandler } from '~/subquery.ts';
+import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
-import { type ColumnsSelection, View } from '~/view.ts';
 import type { SQLiteColumn, SQLiteColumnBuilderBase } from './columns/common.ts';
-import { QueryBuilder } from './query-builders/index.ts';
+import { QueryBuilder } from './query-builders/query-builder.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import { sqliteTable } from './table.ts';
+import { SQLiteViewConfig } from './view-common.ts';
+import { SQLiteViewBase } from './view-base.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
 
 export interface ViewBuilderConfig {
 	algorithm?: 'undefined' | 'merge' | 'temptable';
@@ -125,20 +126,6 @@ export class ManualViewBuilder<
 		) as SQLiteViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'sqlite'>>;
 	}
 }
-
-export abstract class SQLiteViewBase<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
-	TSelection extends ColumnsSelection = ColumnsSelection,
-> extends View<TName, TExisting, TSelection> {
-	static readonly [entityKind]: string = 'SQLiteViewBase';
-
-	declare _: View<TName, TExisting, TSelection>['_'] & {
-		viewBrand: 'SQLiteView';
-	};
-}
-
-export const SQLiteViewConfig = Symbol.for('drizzle:SQLiteViewConfig');
 
 export class SQLiteView<
 	TName extends string = string,

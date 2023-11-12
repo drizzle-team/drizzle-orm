@@ -4,7 +4,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
 	test: {
-		include: ['tests/relational/**/*.test.ts', 'tests/libsql-batch.test.ts'],
+		include: ['tests/relational/**/*.test.ts', 'tests/libsql-batch.test.ts', 'tests/d1-batch.test.ts', 'tests/replicas/**/*', 'tests/imports/**/*'],
 		exclude: [
 			...(process.env.SKIP_PLANETSCALE_TESTS ? ['tests/relational/mysql.planetscale.test.ts'] : []),
 			'tests/relational/vercel.test.ts',
@@ -12,8 +12,8 @@ export default defineConfig({
 		typecheck: {
 			tsconfig: 'tsconfig.json',
 		},
-		testTimeout: 40000,
-		hookTimeout: 40000,
+		testTimeout: 100000,
+		hookTimeout: 100000,
 		// deps: {
 		// 	inline: true,
 		// },

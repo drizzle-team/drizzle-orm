@@ -2,11 +2,10 @@
 	"extends": "../tsconfig.build.json",
 	"compilerOptions": {
 		"composite": false,
-		"module": "esnext",
-		"target": "esnext",
 		"noEmit": true,
 		"rootDir": "..",
 		"outDir": "./.cache"
 	},
-	"include": [".", "../src"]
+	"include": [".", "../src"],
+	"exclude": ["**/playground"]
 }

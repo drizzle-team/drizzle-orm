@@ -8,12 +8,12 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { Query, QueryWithTypings, SQL } from '~/sql/index.ts';
+import type { Query, QueryWithTypings, SQL } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { type KnownKeysOnly } from '~/utils.ts';
+import type { KnownKeysOnly } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
 import type { PgSession, PreparedQuery, PreparedQueryConfig } from '../session.ts';
-import { type PgTable } from '../table.ts';
+import type { PgTable } from '../table.ts';
 
 export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields extends TableRelationalConfig> {
 	static readonly [entityKind]: string = 'PgRelationalQueryBuilder';

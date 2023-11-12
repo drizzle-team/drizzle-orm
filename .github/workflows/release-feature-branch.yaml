@@ -79,11 +79,35 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Check preconditions
+        id: checks
+        shell: bash
+        working-directory: ${{ matrix.package }}
+        run: |
+          old_version="$(jq -r .version package.json)"
+          version="$old_version-$(git rev-parse --short HEAD)"
+          npm version $version
+          tag="${{ github.ref_name }}"
+          is_version_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
+
+          if [[ "$is_version_published" == "true" ]]; then
+            echo "\`${{ matrix.package }}@$version\` already published, adding tag \`$tag\`" >> $GITHUB_STEP_SUMMARY
+            npm dist-tag add ${{ matrix.package }}@$version $tag
+          else
+            {
+              echo "version=$version"
+              echo "tag=$tag"
+              echo "has_new_release=true"
+            } >> $GITHUB_OUTPUT
+          fi
+
       - name: Build
+        if: steps.checks.outputs.has_new_release == 'true'
         run: |
           pnpm build
 
       - name: Run tests
+        if: steps.checks.outputs.has_new_release == 'true'
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/drizzle
           MYSQL_CONNECTION_STRING: mysql://root:root@localhost:3306/drizzle
@@ -99,28 +123,37 @@ jobs:
             pnpm test --filter ${{ matrix.package }}
           fi
 
-      - name: Publish
-        if: github.event_name == 'push'
+      - name: Pack
+        if: steps.checks.outputs.has_new_release == 'true'
+        working-directory: ${{ matrix.package }}
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
         run: |
-          tag="${{ github.ref_name }}"
-          old_version="$(jq -r .version package.json)"
-          version="$old_version-$(git rev-parse --short HEAD)"
-          is_version_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
+          npm run pack
+  
+      - name: Run @arethetypeswrong/cli
+        if: steps.checks.outputs.has_new_release == 'true'
+        working-directory: ${{ matrix.package }}
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
+        run: |
+          pnpm attw package.tgz
 
-          if [[ "$is_version_published" == "true" ]]; then
-            echo "Version $version already published, adding tag $tag"
-            npm dist-tag add ${{ matrix.package }}@$version $tag
-          else
-            echo "Publishing ${{ matrix.package }}@$tag using version $version"
-            (cd dist && npm version $version)
-            npm run pack
-            npm run publish -- --tag $tag
-          fi
+      - name: Publish
+        if: github.event_name == 'push' && steps.checks.outputs.has_new_release == 'true'
+        run: |
+          tag="${{ steps.checks.outputs.tag }}"
+          version="${{ steps.checks.outputs.version }}"
+
+          echo "Publishing ${{ matrix.package }}@$tag using version $version"
+          npm run publish -- --tag $tag
 
           echo "npm: \`${{ matrix.package }}@$tag | ${{ matrix.package }}@$version\`" >> $GITHUB_STEP_SUMMARY
 
           # Post release message to Discord
-          curl -X POST -H "Content-Type: application/json" -d "{\"embeds\": [{\"title\": \"New \`${{ matrix.package }}\` release! 🎉\", \"url\": \"https://www.npmjs.com/package/${{ matrix.package }}/v/$version\", \"color\": \"12907856\", \"fields\": [{\"name\": \"Version\", \"value\": \"\`$version\`\"}, {\"name\": \"Tag\", \"value\": \"\`$tag\`\"}]}]}" ${{ secrets.DISCORD_DEV_RELEASE_WEBHOOK_URL }}
+          # curl -X POST -H "Content-Type: application/json" -d "{\"embeds\": [{\"title\": \"New \`${{ matrix.package }}\` release! 🎉\", \"url\": \"https://www.npmjs.com/package/${{ matrix.package }}/v/$version\", \"color\": \"12907856\", \"fields\": [{\"name\": \"Version\", \"value\": \"\`$version\`\"}, {\"name\": \"Tag\", \"value\": \"\`$tag\`\"}]}]}" ${{ secrets.DISCORD_DEV_RELEASE_WEBHOOK_URL }}
         working-directory: ${{ matrix.package }}
         shell: bash
         env:

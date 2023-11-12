@@ -11,9 +11,9 @@ import type {
 import type { PgTable } from '~/pg-core/table.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { Placeholder, Query, SQLWrapper } from '~/sql/index.ts';
-import { Param, SQL, sql } from '~/sql/index.ts';
-import { type InferModel, Table } from '~/table.ts';
+import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
+import { Param, SQL, sql } from '~/sql/sql.ts';
+import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { mapUpdateSet, orderSelectedFields } from '~/utils.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
@@ -28,7 +28,7 @@ export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 
 export type PgInsertValue<TTable extends PgTable> =
 	& {
-		[Key in keyof InferModel<TTable, 'insert'>]: InferModel<TTable, 'insert'>[Key] | SQL | Placeholder;
+		[Key in keyof TTable['$inferInsert']]: TTable['$inferInsert'][Key] | SQL | Placeholder;
 	}
 	& {};
 
@@ -41,9 +41,9 @@ export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends QueryR
 		private dialect: PgDialect,
 	) {}
 
-	values(value: PgInsertValue<TTable>): PgInsert<TTable, TQueryResult>;
-	values(values: PgInsertValue<TTable>[]): PgInsert<TTable, TQueryResult>;
-	values(values: PgInsertValue<TTable> | PgInsertValue<TTable>[]): PgInsert<TTable, TQueryResult> {
+	values(value: PgInsertValue<TTable>): PgInsertBase<TTable, TQueryResult>;
+	values(values: PgInsertValue<TTable>[]): PgInsertBase<TTable, TQueryResult>;
+	values(values: PgInsertValue<TTable> | PgInsertValue<TTable>[]): PgInsertBase<TTable, TQueryResult> {
 		values = Array.isArray(values) ? values : [values];
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
@@ -58,33 +58,98 @@ export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends QueryR
 			return result;
 		});
 
-		return new PgInsert(this.table, mappedValues, this.session, this.dialect);
+		return new PgInsertBase(this.table, mappedValues, this.session, this.dialect);
 	}
 }
 
-export interface PgInsert<
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TTable extends PgTable,
-	TQueryResult extends QueryResultHKT,
-	TReturning extends Record<string, unknown> | undefined = undefined,
-> extends
-	QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>,
-	SQLWrapper
-{}
+export type PgInsertWithout<T extends AnyPgInsert, TDynamic extends boolean, K extends keyof T & string> =
+	TDynamic extends true ? T
+		: Omit<
+			PgInsertBase<
+				T['_']['table'],
+				T['_']['queryResult'],
+				T['_']['returning'],
+				TDynamic,
+				T['_']['excludedMethods'] | K
+			>,
+			T['_']['excludedMethods'] | K
+		>;
 
-export class PgInsert<
+export type PgInsertReturning<
+	T extends AnyPgInsert,
+	TDynamic extends boolean,
+	TSelectedFields extends SelectedFieldsFlat,
+> = PgInsertBase<
+	T['_']['table'],
+	T['_']['queryResult'],
+	SelectResultFields<TSelectedFields>,
+	TDynamic,
+	T['_']['excludedMethods']
+>;
+
+export type PgInsertReturningAll<T extends AnyPgInsert, TDynamic extends boolean> = PgInsertBase<
+	T['_']['table'],
+	T['_']['queryResult'],
+	T['_']['table']['$inferSelect'],
+	TDynamic,
+	T['_']['excludedMethods']
+>;
+
+export interface PgInsertOnConflictDoUpdateConfig<T extends AnyPgInsert> {
+	target: IndexColumn | IndexColumn[];
+	where?: SQL;
+	set: PgUpdateSetSource<T['_']['table']>;
+}
+
+export type PgInsertPrepare<T extends AnyPgInsert> = PreparedQuery<
+	PreparedQueryConfig & {
+		execute: T['_']['returning'] extends undefined ? QueryResultKind<T['_']['queryResult'], never>
+			: T['_']['returning'][];
+	}
+>;
+
+export type PgInsertDynamic<T extends AnyPgInsert> = PgInsert<
+	T['_']['table'],
+	T['_']['queryResult'],
+	T['_']['returning']
+>;
+
+export type AnyPgInsert = PgInsertBase<any, any, any, any, any>;
+
+export interface PgInsertBase<
 	TTable extends PgTable,
 	TQueryResult extends QueryResultHKT,
 	TReturning extends Record<string, unknown> | undefined = undefined,
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+> extends QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>, SQLWrapper {
+	readonly _: {
+		readonly table: TTable;
+		readonly queryResult: TQueryResult;
+		readonly returning: TReturning;
+		readonly dynamic: TDynamic;
+		readonly excludedMethods: TExcludedMethods;
+	};
+}
+
+export type PgInsert<
+	TTable extends PgTable = PgTable,
+	TQueryResult extends QueryResultHKT = QueryResultHKT,
+	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
+> = PgInsertBase<TTable, TQueryResult, TReturning, true, never>;
+
+export class PgInsertBase<
+	TTable extends PgTable,
+	TQueryResult extends QueryResultHKT,
+	TReturning extends Record<string, unknown> | undefined = undefined,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TDynamic extends boolean = false,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TExcludedMethods extends string = never,
 > extends QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>
 	implements SQLWrapper
 {
 	static readonly [entityKind]: string = 'PgInsert';
-
-	declare _: {
-		table: TTable;
-		return: TReturning;
-	};
 
 	private config: PgInsertConfig<TTable>;
 
@@ -98,18 +163,20 @@ export class PgInsert<
 		this.config = { table, values };
 	}
 
-	returning(): PgInsert<TTable, TQueryResult, InferModel<TTable>>;
+	returning(): PgInsertWithout<PgInsertReturningAll<this, TDynamic>, TDynamic, 'returning'>;
 	returning<TSelectedFields extends SelectedFieldsFlat>(
 		fields: TSelectedFields,
-	): PgInsert<TTable, TQueryResult, SelectResultFields<TSelectedFields>>;
+	): PgInsertWithout<PgInsertReturning<this, TDynamic, TSelectedFields>, TDynamic, 'returning'>;
 	returning(
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
-	): PgInsert<TTable, any, any> {
+	): PgInsertWithout<AnyPgInsert, TDynamic, 'returning'> {
 		this.config.returning = orderSelectedFields(fields);
-		return this;
+		return this as any;
 	}
 
-	onConflictDoNothing(config: { target?: IndexColumn | IndexColumn[]; where?: SQL } = {}): this {
+	onConflictDoNothing(
+		config: { target?: IndexColumn | IndexColumn[]; where?: SQL } = {},
+	): PgInsertWithout<this, TDynamic, 'onConflictDoNothing' | 'onConflictDoUpdate'> {
 		if (config.target === undefined) {
 			this.config.onConflict = sql`do nothing`;
 		} else {
@@ -121,14 +188,12 @@ export class PgInsert<
 			const whereSql = config.where ? sql` where ${config.where}` : undefined;
 			this.config.onConflict = sql`(${sql.raw(targetColumn)}) do nothing${whereSql}`;
 		}
-		return this;
+		return this as any;
 	}
 
-	onConflictDoUpdate(config: {
-		target: IndexColumn | IndexColumn[];
-		where?: SQL;
-		set: PgUpdateSetSource<TTable>;
-	}): this {
+	onConflictDoUpdate(
+		config: PgInsertOnConflictDoUpdateConfig<this>,
+	): PgInsertWithout<this, TDynamic, 'onConflictDoNothing' | 'onConflictDoUpdate'> {
 		const whereSql = config.where ? sql` where ${config.where}` : undefined;
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
 		let targetColumn = '';
@@ -136,7 +201,7 @@ export class PgInsert<
 			? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
 			: this.dialect.escapeName(config.target.name);
 		this.config.onConflict = sql`(${sql.raw(targetColumn)}) do update set ${setSql}${whereSql}`;
-		return this;
+		return this as any;
 	}
 
 	/** @internal */
@@ -149,11 +214,7 @@ export class PgInsert<
 		return rest;
 	}
 
-	private _prepare(name?: string): PreparedQuery<
-		PreparedQueryConfig & {
-			execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
-		}
-	> {
+	private _prepare(name?: string): PgInsertPrepare<this> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			return this.session.prepareQuery<
 				PreparedQueryConfig & {
@@ -163,11 +224,7 @@ export class PgInsert<
 		});
 	}
 
-	prepare(name: string): PreparedQuery<
-		PreparedQueryConfig & {
-			execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
-		}
-	> {
+	prepare(name: string): PgInsertPrepare<this> {
 		return this._prepare(name);
 	}
 
@@ -176,4 +233,8 @@ export class PgInsert<
 			return this._prepare().execute(placeholderValues);
 		});
 	};
+
+	$dynamic(): PgInsertDynamic<this> {
+		return this as any;
+	}
 }
