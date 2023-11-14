@@ -1515,7 +1515,7 @@ test.serial('with ... select', async (t) => {
 				),
 		);
 
-	const result = await db
+	const result1 = await db
 		.with(regionalSales, topRegions)
 		.select({
 			region: orders.region,
@@ -1527,8 +1527,31 @@ test.serial('with ... select', async (t) => {
 		.where(inArray(orders.region, db.select({ region: topRegions.region }).from(topRegions)))
 		.groupBy(orders.region, orders.product)
 		.orderBy(orders.region, orders.product);
+	const result2 = await db
+		.with(regionalSales, topRegions)
+		.selectDistinct({
+			region: orders.region,
+			product: orders.product,
+			productUnits: sql<number>`sum(${orders.quantity})::int`,
+			productSales: sql<number>`sum(${orders.amount})::int`,
+		})
+		.from(orders)
+		.where(inArray(orders.region, db.select({ region: topRegions.region }).from(topRegions)))
+		.groupBy(orders.region, orders.product)
+		.orderBy(orders.region, orders.product);
+	const result3 = await db
+		.with(regionalSales, topRegions)
+		.selectDistinctOn([orders.region], {
+			region: orders.region,
+			productUnits: sql<number>`sum(${orders.quantity})::int`,
+			productSales: sql<number>`sum(${orders.amount})::int`,
+		})
+		.from(orders)
+		.where(inArray(orders.region, db.select({ region: topRegions.region }).from(topRegions)))
+		.groupBy(orders.region)
+		.orderBy(orders.region);
 
-	t.deepEqual(result, [
+	t.deepEqual(result1, [
 		{
 			region: 'Europe',
 			product: 'A',
@@ -1554,6 +1577,19 @@ test.serial('with ... select', async (t) => {
 			productSales: 90,
 		},
 	]);
+	t.deepEqual(result2, result1);
+	t.deepEqual(result3, [
+		{
+			region: 'Europe',
+			productUnits: 8,
+			productSales: 80,
+		},
+		{
+			region: 'US',
+			productUnits: 16,
+			productSales: 160,
+		},
+	])
 });
 
 test.serial('select from subquery sql', async (t) => {
