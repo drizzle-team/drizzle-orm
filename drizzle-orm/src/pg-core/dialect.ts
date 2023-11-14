@@ -24,6 +24,7 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
+import { and, eq, View } from '~/sql/index.ts';
 import {
 	type DriverValueEncoder,
 	type Name,
@@ -39,9 +40,8 @@ import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgSession } from './session.ts';
-import type { PgMaterializedView } from './view.ts';
-import { View, and, eq } from '~/sql/index.ts';
 import { PgViewBase } from './view-base.ts';
+import type { PgMaterializedView } from './view.ts';
 
 export class PgDialect {
 	static readonly [entityKind]: string = 'PgDialect';
@@ -103,12 +103,13 @@ export class PgDialect {
 
 	buildUpdateSet(table: PgTable, set: UpdateSet): SQL {
 		const setEntries = Object.entries(set);
+		const tableColumns = table[Table.Symbol.Columns];
 
 		const setSize = setEntries.length;
-		return sql.join(
+		const setSql = sql.join(
 			setEntries
 				.flatMap(([colName, value], i): SQL[] => {
-					const col: PgColumn = table[Table.Symbol.Columns][colName]!;
+					const col: PgColumn = tableColumns[colName]!;
 					const res = sql`${sql.identifier(col.name)} = ${value}`;
 					if (i < setSize - 1) {
 						return [res, sql.raw(', ')];
@@ -116,6 +117,18 @@ export class PgDialect {
 					return [res];
 				}),
 		);
+
+		// I don't really like the overhead of this additional for loop.
+		// Maybe we can add a `has onUpdateFn` flag to the tables?
+		for (const colName in tableColumns) {
+			const col = tableColumns[colName]!;
+			if (!set[colName] && col.onUpdateFn !== undefined) {
+				const value = col.onUpdateFn();
+				setSql.append(sql`${sql.identifier(col.name)} = ${value}`);
+			}
+		}
+
+		return setSql;
 	}
 
 	buildUpdateQuery({ table, set, where, returning }: PgUpdateConfig): SQL {
@@ -440,6 +453,11 @@ export class PgDialect {
 						const defaultFnResult = col.defaultFn();
 						const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
 						valueList.push(defaultValue);
+						// eslint-disable-next-line unicorn/no-negated-condition
+					} else if (col.onUpdateFn !== undefined) {
+						const onUpdateFnResult = col.onUpdateFn();
+						const newValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
+						valueList.push(newValue);
 					} else {
 						valueList.push(sql`default`);
 					}
