@@ -18,7 +18,7 @@ import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/s
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
-import { DrizzleError, type Name, ViewBaseConfig, and, eq } from '../index.ts';
+import { and, DrizzleError, eq, type Name, ViewBaseConfig } from '../index.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
@@ -91,12 +91,13 @@ export class MySqlDialect {
 
 	buildUpdateSet(table: MySqlTable, set: UpdateSet): SQL {
 		const setEntries = Object.entries(set);
+		const tableColumns = table[Table.Symbol.Columns];
 
 		const setSize = setEntries.length;
-		return sql.join(
+		const setSql = sql.join(
 			setEntries
 				.flatMap(([colName, value], i): SQL[] => {
-					const col: MySqlColumn = table[Table.Symbol.Columns][colName]!;
+					const col: MySqlColumn = tableColumns[colName]!;
 					const res = sql`${sql.identifier(col.name)} = ${value}`;
 					if (i < setSize - 1) {
 						return [res, sql.raw(', ')];
@@ -104,6 +105,18 @@ export class MySqlDialect {
 					return [res];
 				}),
 		);
+
+		// I don't really like the overhead of this additional for loop.
+		// Maybe we can add a `has onUpdateFn` flag to the tables?
+		for (const colName in tableColumns) {
+			const col = tableColumns[colName]!;
+			if (!set[colName] && col.onUpdateFn !== undefined) {
+				const value = col.onUpdateFn();
+				setSql.append(sql`${sql.identifier(col.name)} = ${value}`);
+			}
+		}
+
+		return setSql;
 	}
 
 	buildUpdateQuery({ table, set, where, returning }: MySqlUpdateConfig): SQL {
@@ -412,6 +425,11 @@ export class MySqlDialect {
 						const defaultFnResult = col.defaultFn();
 						const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
 						valueList.push(defaultValue);
+						// eslint-disable-next-line unicorn/no-negated-condition
+					} else if (col.onUpdateFn !== undefined) {
+						const onUpdateFnResult = col.onUpdateFn();
+						const newValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
+						valueList.push(newValue);
 					} else {
 						valueList.push(sql`default`);
 					}
