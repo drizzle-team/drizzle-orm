@@ -16,9 +16,9 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
+import type { Name } from '~/sql/index.ts';
+import { and, eq } from '~/sql/index.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
-import type { Name} from '~/sql/index.ts';
-import { and, eq } from '~/sql/index.ts'
 import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders/index.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
@@ -61,12 +61,13 @@ export abstract class SQLiteDialect {
 
 	buildUpdateSet(table: SQLiteTable, set: UpdateSet): SQL {
 		const setEntries = Object.entries(set);
+		const tableColumns = table[Table.Symbol.Columns];
 
 		const setSize = setEntries.length;
-		return sql.join(
+		const setSql = sql.join(
 			setEntries
 				.flatMap(([colName, value], i): SQL[] => {
-					const col: SQLiteColumn = table[Table.Symbol.Columns][colName]!;
+					const col: SQLiteColumn = tableColumns[colName]!;
 					const res = sql`${sql.identifier(col.name)} = ${value}`;
 					if (i < setSize - 1) {
 						return [res, sql.raw(', ')];
@@ -74,6 +75,18 @@ export abstract class SQLiteDialect {
 					return [res];
 				}),
 		);
+
+		// I don't really like the overhead of this additional for loop.
+		// Maybe we can add a `has onUpdateFn` flag to the tables?
+		for (const colName in tableColumns) {
+			const col = tableColumns[colName]!;
+			if (!set[colName] && col.onUpdateFn !== undefined) {
+				const value = col.onUpdateFn();
+				setSql.append(sql`${sql.identifier(col.name)} = ${value}`);
+			}
+		}
+
+		return setSql;
 	}
 
 	buildUpdateQuery({ table, set, where, returning }: SQLiteUpdateConfig): SQL {
@@ -380,6 +393,10 @@ export abstract class SQLiteDialect {
 					} else if (col.defaultFn !== undefined) {
 						const defaultFnResult = col.defaultFn();
 						defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
+						// eslint-disable-next-line unicorn/no-negated-condition
+					} else if (col.onUpdateFn !== undefined) {
+						const onUpdateFnResult = col.onUpdateFn();
+						defaultValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
 					} else {
 						defaultValue = sql`null`;
 					}
