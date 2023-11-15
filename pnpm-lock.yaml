@@ -295,6 +295,9 @@ importers:
       '@typescript-eslint/utils':
         specifier: ^6.10.0
         version: 6.10.0(eslint@8.53.0)(typescript@5.2.2)
+      cpy-cli:
+        specifier: ^5.0.0
+        version: 5.0.0
       eslint:
         specifier: ^8.53.0
         version: 8.53.0
@@ -4169,6 +4172,15 @@ packages:
     dev: false
     optional: true
 
+  /cpy-cli@5.0.0:
+    resolution: {integrity: sha512-fb+DZYbL9KHc0BC4NYqGRrDIJZPXUmjjtqdw4XRRg8iV8dIfghUX/WiL+q4/B/KFTy3sK6jsbUhBaz0/Hxg7IQ==}
+    engines: {node: '>=16'}
+    hasBin: true
+    dependencies:
+      cpy: 10.1.0
+      meow: 12.1.1
+    dev: true
+
   /cpy@10.1.0:
     resolution: {integrity: sha512-VC2Gs20JcTyeQob6UViBLnyP0bYHkBh6EiKzot9vi2DmeGlFT9Wd7VG3NBrkNx/jYvFBeyDOMMHdHQhbtKLgHQ==}
     engines: {node: '>=16'}
@@ -6717,6 +6729,11 @@ packages:
       lru-queue: 0.1.0
       next-tick: 1.1.0
       timers-ext: 0.1.7
+    dev: true
+
+  /meow@12.1.1:
+    resolution: {integrity: sha512-BhXM0Au22RwUneMPwSCnyhTOizdWoIEPU9sp0Aqa1PnDMR5Wv2FGXYDjuzJEIX+Eo2Rb8xuYe5jrnm5QowQFkw==}
+    engines: {node: '>=16.10'}
     dev: true
 
   /merge-descriptors@1.0.1:
