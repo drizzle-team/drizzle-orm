@@ -5,7 +5,7 @@
   "main": "src/index.js",
   "scripts": {
     "test": "vitest run",
-    "build": "tsc -b && cp ./readme.md ./dist/readme.md",
+    "build": "tsc -b && pnpm cpy readme.md dist/",
     "pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
     "publish": "npm publish package.tgz"
   },
@@ -21,11 +21,11 @@
     "url": "git+https://github.com/drizzle-team/drizzle-orm.git"
   },
   "license": "Apache-2.0",
-  "dependencies": {},
   "devDependencies": {
-    "@typescript-eslint/utils": "^6.10.0",
     "@typescript-eslint/parser": "^6.10.0",
     "@typescript-eslint/rule-tester": "^6.10.0",
+    "@typescript-eslint/utils": "^6.10.0",
+    "cpy-cli": "^5.0.0",
     "eslint": "^8.53.0",
     "typescript": "^5.2.2",
     "vitest": "^0.34.6"
