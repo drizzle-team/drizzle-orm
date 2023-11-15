@@ -1,0 +1,36 @@
+{
+  "name": "eslint-plugin-drizzle",
+  "version": "0.2.0",
+  "description": "Eslint plugin for drizzle users to avoid common pitfalls",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "vitest run",
+    "build": "tsc -b && cp ./readme.md ./dist/readme.md",
+    "pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+    "publish": "npm publish package.tgz"
+  },
+  "keywords": [
+    "eslint",
+    "eslintplugin",
+    "eslint-plugin",
+    "drizzle"
+  ],
+  "author": "Angelelz",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/drizzle-team/drizzle-orm.git"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {},
+  "devDependencies": {
+    "@typescript-eslint/utils": "^6.10.0",
+    "@typescript-eslint/parser": "^6.10.0",
+    "@typescript-eslint/rule-tester": "^6.10.0",
+    "eslint": "^8.53.0",
+    "typescript": "^5.2.2",
+    "vitest": "^0.34.6"
+  },
+  "peerDependencies": {
+    "eslint": ">=8.0.0"
+  }
+}
