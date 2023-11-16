@@ -152,6 +152,27 @@ export class PgDatabase<
 		return new PgInsertBuilder(table, this.session, this.dialect);
 	}
 
+	/**
+	 * Creates a delete query.
+	 * 
+	 * Calling this method without `.where()` clause will delete all rows in a table. The `.where()` clause specifies which records should be deleted. 
+	 * 
+	 * @param table The table to delete from.
+	 * ### Examples
+	 * 
+	 * ```ts
+	 * // Delete all rows in the 'cars' table
+	 * await db.delete(cars);
+	 * 
+	 * // Delete rows with filters and conditions
+	 * await db.delete(cars).where(eq(cars.color, 'green'));
+	 * 
+	 * // Delete with returning clause
+	 * const deletedCar: Car[] = await db.delete(cars)
+	 *   .where(eq(cars.id, 1))
+	 *   .returning();
+	 * ```
+	 */
 	delete<TTable extends PgTable>(table: TTable): PgDeleteBase<TTable, TQueryResult> {
 		return new PgDeleteBase(table, this.session, this.dialect);
 	}
