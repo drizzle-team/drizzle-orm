@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import type { Client, InArgs, InStatement, ResultSet, Transaction } from '@libsql/client';
 import type { BatchItem as BatchItem } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
@@ -256,7 +257,7 @@ function normalizeRow(obj: any) {
 
 function normalizeFieldValue(value: unknown) {
 	if (typeof ArrayBuffer !== 'undefined' && value instanceof ArrayBuffer) { // eslint-disable-line no-instanceof/no-instanceof
-		if (typeof Buffer !== 'undefined') {
+		if (Buffer !== undefined) {
 			if (!(value instanceof Buffer)) { // eslint-disable-line no-instanceof/no-instanceof
 				return Buffer.from(value);
 			}
