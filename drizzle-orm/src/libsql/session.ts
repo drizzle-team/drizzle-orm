@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { type Client, type InArgs, type InStatement, type ResultSet, type Transaction } from '@libsql/client';
 import { entityKind } from '~/entity';
 import type { Logger } from '~/logger';
@@ -194,7 +195,7 @@ function normalizeRow(obj: any) {
 
 function normalizeFieldValue(value: unknown) {
 	if (value instanceof ArrayBuffer) { // eslint-disable-line no-instanceof/no-instanceof
-		if (typeof Buffer !== 'undefined') {
+		if (Buffer !== undefined) {
 			if (!(value instanceof Buffer)) { // eslint-disable-line no-instanceof/no-instanceof
 				return Buffer.from(value);
 			}

@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import type { BindParams, Database, Statement } from 'sql.js';
 import { entityKind } from '~/entity';
 import type { Logger } from '~/logger';
@@ -201,7 +202,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 
 function normalizeFieldValue(value: unknown) {
 	if (value instanceof Uint8Array) { // eslint-disable-line no-instanceof/no-instanceof
-		if (typeof Buffer !== 'undefined') {
+		if (Buffer !== undefined) {
 			if (!(value instanceof Buffer)) { // eslint-disable-line no-instanceof/no-instanceof
 				return Buffer.from(value);
 			}
