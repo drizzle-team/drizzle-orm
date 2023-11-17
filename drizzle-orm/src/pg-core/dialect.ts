@@ -102,33 +102,23 @@ export class PgDialect {
 	}
 
 	buildUpdateSet(table: PgTable, set: UpdateSet): SQL {
-		const setEntries = Object.entries(set);
 		const tableColumns = table[Table.Symbol.Columns];
 
-		const setSize = setEntries.length;
-		const setSql = sql.join(
-			setEntries
-				.flatMap(([colName, value], i): SQL[] => {
-					const col: PgColumn = tableColumns[colName]!;
-					const res = sql`${sql.identifier(col.name)} = ${value}`;
-					if (i < setSize - 1) {
-						return [res, sql.raw(', ')];
-					}
-					return [res];
-				}),
+		const columnNames = Object.keys(tableColumns).filter((colName) =>
+			!!set[colName] || tableColumns[colName]?.onUpdateFn !== undefined
 		);
 
-		// I don't really like the overhead of this additional for loop.
-		// Maybe we can add a `has onUpdateFn` flag to the tables?
-		for (const colName in tableColumns) {
+		const setSize = columnNames.length;
+		return sql.join(columnNames.flatMap((colName, i) => {
 			const col = tableColumns[colName]!;
-			if (!set[colName] && col.onUpdateFn !== undefined) {
-				const value = col.onUpdateFn();
-				setSql.append(sql`${sql.identifier(col.name)} = ${value}`);
+			const res = set[colName]
+				? sql`${sql.identifier(col.name)} = ${set[colName]}`
+				: sql`${sql.identifier(col.name)} = ${col.onUpdateFn!()}`;
+			if (i < setSize - 1) {
+				return [res, sql.raw(', ')];
 			}
-		}
-
-		return setSql;
+			return [res];
+		}));
 	}
 
 	buildUpdateQuery({ table, set, where, returning }: PgUpdateConfig): SQL {
