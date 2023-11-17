@@ -156,6 +156,7 @@ export class PgDeleteBase<
 	 * db.delete(cars).where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
 	 * ```
 	 * 
+	 * See docs: {@link} https://orm.drizzle.team/docs/delete
 	*/
 	where(where: SQL | undefined): PgDeleteWithout<this, TDynamic, 'where'> {
 		this.config.where = where;
@@ -180,6 +181,8 @@ export class PgDeleteBase<
 	 *   .where(eq(cars.color, 'green'))
 	 *   .returning({ id: cars.id, brand: cars.brand });
 	 * ```
+	 * 
+	 * See docs: {@link} https://orm.drizzle.team/docs/delete#delete-with-return
 	 */
 	returning(): PgDeleteReturningAll<this, TDynamic>;
 	returning<TSelectedFields extends SelectedFieldsFlat>(

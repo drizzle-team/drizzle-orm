@@ -172,6 +172,8 @@ export class PgDatabase<
 	 *   .where(eq(cars.id, 1))
 	 *   .returning();
 	 * ```
+	 * 
+	 * See docs: {@link} https://orm.drizzle.team/docs/delete
 	 */
 	delete<TTable extends PgTable>(table: TTable): PgDeleteBase<TTable, TQueryResult> {
 		return new PgDeleteBase(table, this.session, this.dialect);
