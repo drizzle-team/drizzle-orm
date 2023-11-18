@@ -15,14 +15,19 @@ import {
 	placeholder,
 	sql,
 	TransactionRollbackError,
-	distinct,
+	sum,
+	sumDistinct,
+	count,
+	countDistinct,
+	avg,
+	avgDistinct,
+	max,
+	min,
 } from 'drizzle-orm';
 import {
 	alias,
-	avg,
 	bigint,
 	boolean,
-	count,
 	date,
 	datetime,
 	except,
@@ -34,9 +39,7 @@ import {
 	intersect,
 	intersectAll,
 	json,
-	max,
 	mediumint,
-	min,
 	mysqlEnum,
 	mysqlTable,
 	mysqlTableCreator,
@@ -44,7 +47,6 @@ import {
 	primaryKey,
 	serial,
 	smallint,
-	sum,
 	text,
 	time,
 	timestamp,
@@ -2701,15 +2703,13 @@ test.serial('aggregate function: count', async (t) => {
 	const table = aggregateTable;
 	await setupAggregateFunctionsTest(db);
 
-	const result1 = await db.select({ value: count('*') }).from(table);
-	const result2 = await db.select({ value: count('*', { mode: 'number' }) }).from(table);
-	const result3 = await db.select({ value: count(table.a) }).from(table);
-	const result4 = await db.select({ value: count(distinct(table.name)) }).from(table);
+	const result1 = await db.select({ value: count() }).from(table);
+	const result2 = await db.select({ value: count(table.a) }).from(table);
+	const result3 = await db.select({ value: countDistinct(table.name) }).from(table);
 
-	t.deepEqual(result1[0]?.value, BigInt(7));
-	t.deepEqual(result2[0]?.value, 7);
-	t.deepEqual(result3[0]?.value, BigInt(5));
-	t.deepEqual(result4[0]?.value, BigInt(6));
+	t.deepEqual(result1[0]?.value, 7);
+	t.deepEqual(result2[0]?.value, 5);
+	t.deepEqual(result3[0]?.value, 6);
 });
 
 test.serial('aggregate function: avg', async (t) => {
@@ -2718,16 +2718,12 @@ test.serial('aggregate function: avg', async (t) => {
 	await setupAggregateFunctionsTest(db);
 
 	const result1 = await db.select({ value: avg(table.b) }).from(table);
-	const result2 = await db.select({ value: avg(table.b, { mode: 'number' }) }).from(table);
-	const result3 = await db.select({ value: avg(table.b, { mode: 'bigint' }) }).from(table);
-	const result4 = await db.select({ value: avg(table.nullOnly) }).from(table);
-	const result5 = await db.select({ value: avg(distinct(table.b)) }).from(table);
+	const result2 = await db.select({ value: avg(table.nullOnly) }).from(table);
+	const result3 = await db.select({ value: avgDistinct(table.b) }).from(table);
 
 	t.deepEqual(result1[0]?.value, '33.3333');
-	t.deepEqual(result2[0]?.value, 33.3333);
-	t.deepEqual(result3[0]?.value, BigInt(33));
-	t.deepEqual(result4[0]?.value, null);
-	t.deepEqual(result5[0]?.value, '42.5000');
+	t.deepEqual(result2[0]?.value, null);
+	t.deepEqual(result3[0]?.value, '42.5000');
 });
 
 test.serial('aggregate function: sum', async (t) => {
@@ -2736,16 +2732,12 @@ test.serial('aggregate function: sum', async (t) => {
 	await setupAggregateFunctionsTest(db);
 
 	const result1 = await db.select({ value: sum(table.b) }).from(table);
-	const result2 = await db.select({ value: sum(table.b, { mode: 'number' }) }).from(table);
-	const result3 = await db.select({ value: sum(table.b, { mode: 'bigint' }) }).from(table);
-	const result4 = await db.select({ value: sum(table.nullOnly) }).from(table);
-	const result5 = await db.select({ value: sum(distinct(table.b)) }).from(table);
+	const result2 = await db.select({ value: sum(table.nullOnly) }).from(table);
+	const result3 = await db.select({ value: sumDistinct(table.b) }).from(table);
 
 	t.deepEqual(result1[0]?.value, '200');
-	t.deepEqual(result2[0]?.value, 200);
-	t.deepEqual(result3[0]?.value, BigInt(200));
-	t.deepEqual(result4[0]?.value, null);
-	t.deepEqual(result5[0]?.value, '170');
+	t.deepEqual(result2[0]?.value, null);
+	t.deepEqual(result3[0]?.value, '170');
 });
 
 test.serial('aggregate function: max', async (t) => {
