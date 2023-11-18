@@ -186,17 +186,17 @@ export const withReplicas = <
 	replicas: [Q, ...Q[]],
 	getReplica: (replicas: Q[]) => Q = () => replicas[Math.floor(Math.random() * replicas.length)]!,
 ): PgWithReplicas<Q> => {
-	const select: Q['select'] = (...args: any) => getReplica(replicas).select(args);
-	const selectDistinct: Q['selectDistinct'] = (...args: any) => getReplica(replicas).selectDistinct(args);
-	const selectDistinctOn: Q['selectDistinctOn'] = (...args: any) => getReplica(replicas).selectDistinctOn(args);
-	const $with: Q['with'] = (...args: any) => getReplica(replicas).with(args);
+	const select: Q['select'] = (...args: any) => getReplica(replicas).select(...args);
+	const selectDistinct: Q['selectDistinct'] = (...args: any) => getReplica(replicas).selectDistinct(...args);
+	const selectDistinctOn: Q['selectDistinctOn'] = (...args: any) => getReplica(replicas).selectDistinctOn(...args);
+	const $with: Q['with'] = (...args: any) => getReplica(replicas).with(...args);
 
-	const update: Q['update'] = (...args: any) => primary.update(args);
-	const insert: Q['insert'] = (...args: any) => primary.insert(args);
-	const $delete: Q['delete'] = (...args: any) => primary.delete(args);
-	const execute: Q['execute'] = (...args: any) => primary.execute(args);
-	const transaction: Q['transaction'] = (...args: any) => primary.transaction(args);
-	const refreshMaterializedView: Q['refreshMaterializedView'] = (...args: any) => primary.refreshMaterializedView(args);
+	const update: Q['update'] = (...args: any) => primary.update(...args);
+	const insert: Q['insert'] = (...args: any) => primary.insert(...args);
+	const $delete: Q['delete'] = (...args: any) => primary.delete(...args);
+	const execute: Q['execute'] = (...args: any) => primary.execute(...args);
+	const transaction: Q['transaction'] = (...args: any) => primary.transaction(...args);
+	const refreshMaterializedView: Q['refreshMaterializedView'] = (...args: any) => primary.refreshMaterializedView(...args);
 
 	return new Proxy<Q & { $primary: Q }>(
 		{
