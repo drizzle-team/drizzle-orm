@@ -12,7 +12,6 @@ import { Table } from '~/table.ts';
 import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { SQLiteUpdateSetSource } from './update.ts';
-import type { SQLiteBuiltInFunction } from '../functions/common.ts';
 import type { SQLiteColumn } from '../columns/common.ts';
 
 export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
@@ -215,7 +214,7 @@ export class SQLiteInsertBase<
 	returning(
 		fields: SelectedFieldsFlat = this.config.table[SQLiteTable.Symbol.Columns],
 	): SQLiteInsertWithout<AnySQLiteInsert, TDynamic, 'returning'> {
-		this.config.returning = orderSelectedFields<SQLiteColumn, SQLiteBuiltInFunction>(fields);
+		this.config.returning = orderSelectedFields<SQLiteColumn>(fields);
 		return this as any;
 	}
 

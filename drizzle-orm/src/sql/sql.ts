@@ -6,7 +6,6 @@ import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
 import { Table } from '../table.ts';
-import { BuiltInFunction } from '~/built-in-function.ts';
 import type { SelectedFields } from '~/operations.ts';
 
 /**
@@ -58,7 +57,6 @@ export interface QueryWithTypings extends Query {
  * - `SQL.Aliased`
  * - `Placeholder`
  * - `Param`
- * - `BuiltInFunction`
  */
 export interface SQLWrapper {
 	getSQL(): SQL;
@@ -171,13 +169,6 @@ export class SQL<T = unknown> implements SQLWrapper {
 				return this.buildQueryFromSourceParams(chunk.queryChunks, {
 					...config,
 					inlineParams: inlineParams || chunk.shouldInlineParams,
-				});
-			}
-
-			if (is(chunk, BuiltInFunction)) {
-				return this.buildQueryFromSourceParams(chunk[BuiltInFunction.Symbol.SQL].queryChunks, {
-					...config,
-					inlineParams: inlineParams || chunk[BuiltInFunction.Symbol.SQL].shouldInlineParams,
 				});
 			}
 
@@ -437,8 +428,7 @@ export type SQLChunk =
 	| Name
 	| undefined
 	| FakePrimitiveParam
-	| Placeholder
-	| BuiltInFunction;
+	| Placeholder;
 
 export function sql<T>(strings: TemplateStringsArray, ...params: any[]): SQL<T>;
 /*
@@ -610,7 +600,7 @@ export abstract class View<
 		name: TName;
 		originalName: TName;
 		schema: string | undefined;
-		selectedFields: SelectedFields<AnyColumn, Table, BuiltInFunction>;
+		selectedFields: SelectedFields<AnyColumn, Table>;
 		isExisting: TExisting;
 		query: TExisting extends true ? undefined : SQL;
 		isAlias: boolean;
@@ -620,7 +610,7 @@ export abstract class View<
 		{ name, schema, selectedFields, query }: {
 			name: TName;
 			schema: string | undefined;
-			selectedFields: SelectedFields<AnyColumn, Table, BuiltInFunction>;
+			selectedFields: SelectedFields<AnyColumn, Table>;
 			query: SQL | undefined;
 		},
 	) {
@@ -647,11 +637,6 @@ Column.prototype.getSQL = function() {
 
 // Defined separately from the Table class to resolve circular dependency
 Table.prototype.getSQL = function() {
-	return new SQL([this]);
-};
-
-// Defined separately from the Column class to resolve circular dependency
-BuiltInFunction.prototype.getSQL = function() {
 	return new SQL([this]);
 };
 

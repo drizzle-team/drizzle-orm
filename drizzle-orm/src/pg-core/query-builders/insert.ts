@@ -19,7 +19,6 @@ import { mapUpdateSet, orderSelectedFields } from '~/utils.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { PgUpdateSetSource } from './update.ts';
 import type { PgColumn } from '../columns/common.ts';
-import type { PgBuiltInFunction } from '../functions/common.ts'
 
 export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	table: TTable;
@@ -172,7 +171,7 @@ export class PgInsertBase<
 	returning(
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
 	): PgInsertWithout<AnyPgInsert, TDynamic, 'returning'> {
-		this.config.returning = orderSelectedFields<PgColumn, PgBuiltInFunction>(fields);
+		this.config.returning = orderSelectedFields<PgColumn>(fields);
 		return this as any;
 	}
 

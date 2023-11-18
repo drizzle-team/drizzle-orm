@@ -8,7 +8,6 @@ import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.t
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { type DrizzleTypeError, orderSelectedFields } from '~/utils.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
-import type { SQLiteBuiltInFunction } from '../functions/common.ts';
 import type { SQLiteColumn } from '../columns/common.ts';
 
 export type SQLiteDeleteWithout<
@@ -157,7 +156,7 @@ export class SQLiteDeleteBase<
 	returning(
 		fields: SelectedFieldsFlat = this.table[SQLiteTable.Symbol.Columns],
 	): SQLiteDeleteReturning<this, TDynamic, any> {
-		this.config.returning = orderSelectedFields<SQLiteColumn, SQLiteBuiltInFunction>(fields);
+		this.config.returning = orderSelectedFields<SQLiteColumn>(fields);
 		return this as any;
 	}
 

@@ -32,8 +32,6 @@ import type {
 	SQLiteSelectJoinConfig,
 } from './query-builders/select.types.ts';
 import type { SQLiteSession } from './session.ts';
-import type { SQLiteBuiltInFunction } from './functions/common.ts';
-import { BuiltInFunction } from '~/built-in-function.ts';
 import { SQLiteViewBase } from './view-base.ts';
 
 export abstract class SQLiteDialect {
@@ -113,9 +111,8 @@ export abstract class SQLiteDialect {
 
 				if (is(field, SQL.Aliased) && field.isSelectionField) {
 					chunk.push(sql.identifier(field.fieldAlias));
-				} else if (is(field, SQL.Aliased) || is(field, SQL) || is(field, BuiltInFunction)) {
-					const field_ = is(field, BuiltInFunction) ? field[BuiltInFunction.Symbol.SQL] : field
-					const query = is(field_, SQL.Aliased) ? field_.sql : field_;
+				} else if (is(field, SQL.Aliased) || is(field, SQL)) {
+					const query = is(field, SQL.Aliased) ? field.sql : field;
 
 					if (isSingleTable) {
 						chunk.push(
@@ -172,7 +169,7 @@ export abstract class SQLiteDialect {
 			setOperators,
 		}: SQLiteSelectConfig,
 	): SQL {
-		const fieldsList = fieldsFlat ?? orderSelectedFields<SQLiteColumn, SQLiteBuiltInFunction>(fields);
+		const fieldsList = fieldsFlat ?? orderSelectedFields<SQLiteColumn>(fields);
 		for (const f of fieldsList) {
 			if (
 				is(f.field, Column)

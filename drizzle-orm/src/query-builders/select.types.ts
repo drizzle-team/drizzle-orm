@@ -5,7 +5,6 @@ import type { ColumnsSelection, SQL, View } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table } from '~/table.ts';
 import type { Assume, DrizzleTypeError, Equal, IsAny, Simplify } from '~/utils.ts';
-import type { BuiltInFunction } from '../built-in-function.ts';
 
 export type JoinType = 'inner' | 'left' | 'right' | 'full';
 
@@ -58,9 +57,9 @@ type SelectPartialResult<TFields, TNullability extends Record<string, JoinNullab
 				? TField['_']['tableName'] extends keyof TNullability
 					? ApplyNullability<SelectResultField<TField>, TNullability[TField['_']['tableName']]>
 				: never
-			: TField extends SQL | SQL.Aliased | BuiltInFunction ? SelectResultField<TField>
+			: TField extends SQL | SQL.Aliased ? SelectResultField<TField>
 			: TField extends Record<string, any>
-				? TField[keyof TField] extends AnyColumn<{ tableName: infer TTableName extends string }> | SQL | SQL.Aliased | BuiltInFunction
+				? TField[keyof TField] extends AnyColumn<{ tableName: infer TTableName extends string }> | SQL | SQL.Aliased
 					? Not<IsUnion<TTableName>> extends true
 						? ApplyNullability<SelectResultFields<TField>, TNullability[TTableName]>
 					: SelectPartialResult<TField, TNullability>
@@ -101,7 +100,7 @@ export type AppendToResult<
 	TTableName extends string | undefined,
 	TResult,
 	TJoinedName extends string | undefined,
-	TSelectedFields extends SelectedFields<Column, Table, BuiltInFunction>,
+	TSelectedFields extends SelectedFields<Column, Table>,
 	TOldSelectMode extends SelectMode,
 > = TOldSelectMode extends 'partial' ? TResult
 	: TOldSelectMode extends 'single' ? 
@@ -156,7 +155,7 @@ export type GetSelectTableSelection<TTable extends TableLike> = TTable extends T
 export type SelectResultField<T, TDeep extends boolean = true> = T extends DrizzleTypeError<any> ? T
 	: T extends Table ? Equal<TDeep, true> extends true ? SelectResultField<T['_']['columns'], false> : never
 	: T extends Column<any> ? GetColumnData<T>
-	: T extends SQL | SQL.Aliased | BuiltInFunction ? T['_']['type']
+	: T extends SQL | SQL.Aliased ? T['_']['type']
 	: T extends Record<string, any> ? SelectResultFields<T, true>
 	: never;
 

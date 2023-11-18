@@ -44,7 +44,6 @@ import type {
 	SelectedFields,
 	SetOperatorRightSelect,
 } from './select.types.ts';
-import type { MySqlBuiltInFunction } from '../index.ts';
 
 export class MySqlSelectBuilder<
 	TSelection extends SelectedFields | undefined,
@@ -525,7 +524,7 @@ export class MySqlSelectBase<
 		if (!this.session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
-		const fieldsList = orderSelectedFields<MySqlColumn, MySqlBuiltInFunction>(this.config.fields);
+		const fieldsList = orderSelectedFields<MySqlColumn>(this.config.fields);
 		const query = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
 			TPreparedQueryHKT

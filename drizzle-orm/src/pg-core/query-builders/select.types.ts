@@ -26,7 +26,6 @@ import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, ValidateShape, ValueOrArray } from '~/utils.ts';
 import type { PreparedQuery, PreparedQueryConfig } from '../session.ts';
 import type { PgSelectBase, PgSelectQueryBuilderBase } from './select.ts';
-import type { PgBuiltInFunction } from '../functions/common.ts';
 
 export interface PgSelectJoinConfig {
 	on: SQL | undefined;
@@ -121,11 +120,11 @@ export type PgJoinFn<
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
 ) => PgJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
-export type SelectedFieldsFlat = SelectedFieldsFlatBase<PgColumn, PgBuiltInFunction>;
+export type SelectedFieldsFlat = SelectedFieldsFlatBase<PgColumn>;
 
-export type SelectedFields = SelectedFieldsBase<PgColumn, PgTable, PgBuiltInFunction>;
+export type SelectedFields = SelectedFieldsBase<PgColumn, PgTable>;
 
-export type SelectedFieldsOrdered = SelectedFieldsOrderedBase<PgColumn, PgBuiltInFunction>;
+export type SelectedFieldsOrdered = SelectedFieldsOrderedBase<PgColumn>;
 
 export type LockStrength = 'update' | 'no key update' | 'share' | 'key share';
 

@@ -1,5 +1,4 @@
 export * from './alias.ts';
-export * from './built-in-function.ts';
 export * from './column-builder.ts';
 export * from './column.ts';
 export * from './distinct.ts';

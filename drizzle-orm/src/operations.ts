@@ -1,4 +1,3 @@
-import type { BuiltInFunction } from './built-in-function.ts';
 import type { AnyColumn, Column } from './column.ts';
 import type { SQL } from './sql/sql.ts';
 import type { Table } from './table.ts';
@@ -14,22 +13,22 @@ export type OptionalKeyOnly<
 	T extends Column,
 > = TKey extends RequiredKeyOnly<TKey, T> ? never : TKey;
 
-export type SelectedFieldsFlat<TColumn extends Column, TBuiltInFunction extends BuiltInFunction> = Record<
+export type SelectedFieldsFlat<TColumn extends Column> = Record<
 	string,
-	TColumn | TBuiltInFunction | SQL | SQL.Aliased
+	TColumn | SQL | SQL.Aliased
 >;
 
-export type SelectedFieldsFlatFull<TColumn extends Column, TBuiltInFunction extends BuiltInFunction> = Record<
+export type SelectedFieldsFlatFull<TColumn extends Column> = Record<
 	string,
-	TColumn | TBuiltInFunction | SQL | SQL.Aliased
+	TColumn | SQL | SQL.Aliased
 >;
 
-export type SelectedFields<TColumn extends Column, TTable extends Table, TBuiltInFunction extends BuiltInFunction> = Record<
+export type SelectedFields<TColumn extends Column, TTable extends Table> = Record<
 	string,
-	SelectedFieldsFlat<TColumn, TBuiltInFunction>[string] | TTable | SelectedFieldsFlat<TColumn, TBuiltInFunction>
+	SelectedFieldsFlat<TColumn>[string] | TTable | SelectedFieldsFlat<TColumn>
 >;
 
-export type SelectedFieldsOrdered<TColumn extends Column, TBuiltInFunction extends BuiltInFunction> = {
+export type SelectedFieldsOrdered<TColumn extends Column> = {
 	path: string[];
-	field: TColumn | TBuiltInFunction | SQL | SQL.Aliased;
+	field: TColumn | SQL | SQL.Aliased;
 }[];

@@ -9,7 +9,6 @@ import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.t
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import type { SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
-import type { SQLiteBuiltInFunction } from '../functions/common.ts';
 import type { SQLiteColumn } from '../columns/common.ts';
 
 export interface SQLiteUpdateConfig {
@@ -188,7 +187,7 @@ export class SQLiteUpdateBase<
 	returning(
 		fields: SelectedFields = this.config.table[SQLiteTable.Symbol.Columns],
 	): SQLiteUpdateWithout<AnySQLiteUpdate, TDynamic, 'returning'> {
-		this.config.returning = orderSelectedFields<SQLiteColumn, SQLiteBuiltInFunction>(fields);
+		this.config.returning = orderSelectedFields<SQLiteColumn>(fields);
 		return this as any;
 	}
 

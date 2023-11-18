@@ -1,4 +1,3 @@
-import { BuiltInFunction } from './built-in-function.ts';
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { is } from './entity.ts';
@@ -13,7 +12,7 @@ import { ViewBaseConfig } from './view-common.ts';
 
 /** @internal */
 export function mapResultRow<TResult>(
-	columns: SelectedFieldsOrdered<AnyColumn, BuiltInFunction>,
+	columns: SelectedFieldsOrdered<AnyColumn>,
 	row: unknown[],
 	joinsNotNullableMap: Record<string, boolean> | undefined,
 ): TResult {
@@ -27,8 +26,6 @@ export function mapResultRow<TResult>(
 				decoder = field;
 			} else if (is(field, SQL)) {
 				decoder = field.decoder;
-			} else if (is(field, BuiltInFunction)) {
-				decoder = field[BuiltInFunction.Symbol.SQL].decoder;
 			} else {
 				decoder = field.sql.decoder;
 			}
@@ -73,17 +70,17 @@ export function mapResultRow<TResult>(
 }
 
 /** @internal */
-export function orderSelectedFields<TColumn extends AnyColumn, TBuiltInFunction extends BuiltInFunction>(
+export function orderSelectedFields<TColumn extends AnyColumn>(
 	fields: Record<string, unknown>,
 	pathPrefix?: string[],
-): SelectedFieldsOrdered<TColumn, TBuiltInFunction> {
-	return Object.entries(fields).reduce<SelectedFieldsOrdered<AnyColumn, BuiltInFunction>>((result, [name, field]) => {
+): SelectedFieldsOrdered<TColumn> {
+	return Object.entries(fields).reduce<SelectedFieldsOrdered<AnyColumn>>((result, [name, field]) => {
 		if (typeof name !== 'string') {
 			return result;
 		}
 
 		const newPath = pathPrefix ? [...pathPrefix, name] : [name];
-		if (is(field, Column) || is(field, SQL) || is(field, SQL.Aliased) || is(field, BuiltInFunction)) {
+		if (is(field, Column) || is(field, SQL) || is(field, SQL.Aliased)) {
 			result.push({ path: newPath, field });
 		} else if (is(field, Table)) {
 			result.push(...orderSelectedFields(field[Table.Symbol.Columns], newPath));
@@ -91,7 +88,7 @@ export function orderSelectedFields<TColumn extends AnyColumn, TBuiltInFunction 
 			result.push(...orderSelectedFields(field as Record<string, unknown>, newPath));
 		}
 		return result;
-	}, []) as SelectedFieldsOrdered<TColumn, TBuiltInFunction>;
+	}, []) as SelectedFieldsOrdered<TColumn>;
 }
 
 export function haveSameKeys(left: Record<string, unknown>, right: Record<string, unknown>) {
