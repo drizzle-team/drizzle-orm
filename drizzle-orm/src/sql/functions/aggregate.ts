@@ -1,109 +1,129 @@
-import { is, entityKind } from '~/entity.ts';
-import { SQL, sql, type SQLWrapper, type SQLChunk, isSQLWrapper, type DriverValueDecoder, type GetDecoderResult } from '../sql.ts';
-import { type MaybeDistinct, getValueWithDistinct } from '~/distinct.ts';
-import { PgColumn } from '~/pg-core/columns/common.ts';
-import { MySqlColumn } from '~/mysql-core/columns/common.ts';
-import { SQLiteColumn } from '~/sqlite-core/columns/common.ts';
-import type { Dialect } from '~/column-builder.ts';
-import type { Column } from '~/column.ts';
+import { is } from '~/entity.ts';
+import { type SQL, sql, type SQLWrapper } from '../sql.ts';
+import { type AnyColumn, Column } from '~/column.ts';
 
-export interface AggregateFunction<T = unknown> extends SQL<T> {
-  mapWith<
-    TDecoder extends
-      | DriverValueDecoder<any, any>
-      | DriverValueDecoder<any, any>['mapFromDriverValue'],
-  >(decoder: TDecoder): AggregateFunction<GetDecoderResult<TDecoder>>
-}
-export class AggregateFunction<T = unknown> extends SQL<T> {
-  static readonly [entityKind]: string = 'AggregateFunction';
-
-  constructor(sql: SQL) {
-    super(sql.queryChunks);
-  }
-
-  filterWhere(where?: SQL | undefined): this {
-		if (where) {
-			this.append(sql` filter (where ${where})`);
-		}
-		return this;
-	}
+/**
+ * Returns the number of values in `expression`.
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // Number employees with null values
+ * db.select({ value: count() }).from(employees)
+ * // Number of employees where `name` is not null
+ * db.select({ value: count(employees.name) }).from(employees)
+ * ```
+ * 
+ * @see countDistinct to get the number of non-duplicate values in `expression`
+ */
+export function count(expression?: SQLWrapper): SQL<number> {
+  return sql`count(${expression || sql.raw('*')})`.mapWith(Number);
 }
 
-/** @internal */
-export function count$<T extends Dialect>(dialect: T, expression?: MaybeDistinct<SQLWrapper> | '*'): T extends 'pg'
-  ? AggregateFunction<bigint>
-  : T extends 'mysql'
-    ? SQL<bigint>
-    : AggregateFunction<number> 
-{
-  const { value, distinct } = getValueWithDistinct(expression);
-	const chunks: SQLChunk[] = [];
-
-	if (distinct) {
-		chunks.push(sql`distinct `);
-	}
-	chunks.push(isSQLWrapper(value) ? value : sql`*`);
-
-  let fn = sql.join([sql`count(`, ...chunks, sql`)` ]);
-  fn = (dialect === 'mysql' ? fn : new AggregateFunction(fn))
-    .mapWith(dialect === 'sqlite' ? Number : BigInt);
-  return fn as any;
+/**
+ * Returns the number of non-duplicate values in `expression`.
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // Number of employees where `name` is distinct
+ * db.select({ value: countDistinct(employees.name) }).from(employees)
+ * ```
+ * 
+ * @see count to get the number of values in `expression`, including duplicates
+ */
+export function countDistinct(expression: SQLWrapper): SQL<number> {
+  return sql`count(distinct ${expression})`.mapWith(Number);
 }
 
-/** @internal */
-export function avg$<T extends Dialect>(dialect: T, expression: MaybeDistinct<SQLWrapper>): T extends 'mysql'
-  ? SQL<string | null>
-  : AggregateFunction<string | null>
-{
-  const { value, distinct } = getValueWithDistinct(expression);
-	const chunks: SQLChunk[] = [];
-
-	if (distinct) {
-		chunks.push(sql`distinct `);
-	}
-	chunks.push(value);
-
-	let fn = sql.join([sql`avg(`, ...chunks, sql`)`])
-  fn = (dialect === 'mysql' ? fn : new AggregateFunction(fn)).mapWith(String);
-	return fn as any;
+/**
+ * Returns the average (arithmetic mean) of all non-null values in `expression`.
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // Average salary of an employee
+ * db.select({ value: avg(employees.salary) }).from(employees)
+ * ```
+ * 
+ * @see avgDistinct to get the average of all non-null and non-duplicate values in `expression`
+ */
+export function avg(expression: SQLWrapper): SQL<string | null> {
+  return sql`avg(${expression})`.mapWith(String);
 }
 
-/** @internal */
-export function sum$<T extends Dialect>(dialect: T, expression: MaybeDistinct<SQLWrapper>): T extends 'mysql'
-  ? SQL<string | null>
-  : AggregateFunction<string | null>
-{
-  const { value, distinct } = getValueWithDistinct(expression);
-	const chunks: SQLChunk[] = [];
-
-	if (distinct) {
-		chunks.push(sql`distinct `);
-	}
-	chunks.push(value);
-
-  let fn = sql.join([sql`sum(`, ...chunks, sql`)`]);
-  fn = (dialect === 'mysql' ? fn : new AggregateFunction(fn)).mapWith(String);
-	return fn as any;
+/**
+ * Returns the average (arithmetic mean) of all non-null and non-duplicate values in `expression`.
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // Average salary of an employee where `salary` is distinct
+ * db.select({ value: avgDistinct(employees.salary) }).from(employees)
+ * ```
+ * 
+ * @see avg to get the average of all non-null values in `expression`, including duplicates
+ */
+export function avgDistinct(expression: SQLWrapper): SQL<string | null> {
+  return sql`avg(distinct ${expression})`.mapWith(String);
 }
 
-/** @internal */
-export function max$<T1 extends Dialect, T2 extends SQLWrapper>(dialect: T1, expression: T2): T2 extends Column
-  ? (T1 extends 'mysql' ? SQL<T2['_']['data'] | null> : AggregateFunction<T2['_']['data'] | null>)
-  : (T1 extends 'mysql' ? SQL<string | null> : AggregateFunction<string | null>)
-{
-  let fn = sql.join([sql`max(`, expression, sql`)`])
-  fn = (dialect === 'mysql' ? fn : new AggregateFunction(fn))
-    .mapWith(is(expression, PgColumn) || is(expression, MySqlColumn) || is(expression, SQLiteColumn) ? expression : String);
-  return fn as any;
+/**
+ * Returns the sum of all non-null values in `expression`.
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // Sum of every employee's salary
+ * db.select({ value: sum(employees.salary) }).from(employees)
+ * ```
+ * 
+ * @see sumDistinct to get the sum of all non-null and non-duplicate values in `expression`
+ */
+export function sum(expression: SQLWrapper): SQL<string | null> {
+  return sql`sum(${expression})`.mapWith(String);
 }
 
-/** @internal */
-export function min$<T1 extends Dialect, T2 extends SQLWrapper>(dialect: T1, expression: T2): T2 extends Column
-  ? (T1 extends 'mysql' ? SQL<T2['_']['data'] | null> : AggregateFunction<T2['_']['data'] | null>)
-  : (T1 extends 'mysql' ? SQL<string | null> : AggregateFunction<string | null>)
-{
-  let fn = sql.join([sql`min(`, expression, sql`)`]);
-  fn = (dialect === 'mysql' ? fn : new AggregateFunction(fn))
-    .mapWith(is(expression, PgColumn) || is(expression, MySqlColumn) || is(expression, SQLiteColumn) ? expression : String);
-  return fn as any;
+/**
+ * Returns the sum of all non-null and non-duplicate values in `expression`.
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // Sum of every employee's salary where `salary` is distinct (no duplicates)
+ * db.select({ value: sumDistinct(employees.salary) }).from(employees)
+ * ```
+ * 
+ * @see sum to get the sum of all non-null values in `expression`, including duplicates
+ */
+export function sumDistinct(expression: SQLWrapper): SQL<string | null> {
+  return sql`sum(distinct ${expression})`.mapWith(String);
+}
+
+/**
+ * Returns the maximum value in `expression`.
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // The employee with the highest salary
+ * db.select({ value: max(employees.salary) }).from(employees)
+ * ```
+ */
+export function max<T extends SQLWrapper>(expression: T): SQL<(T extends AnyColumn ? T['_']['data'] : string) | null> {
+  return sql`max(${expression})`.mapWith(is(expression, Column) ? expression : String) as any;
+}
+
+/**
+ * Returns the minimum value in `expression`.
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // The employee with the lowest salary
+ * db.select({ value: min(employees.salary) }).from(employees)
+ * ```
+ */
+export function min<T extends SQLWrapper>(expression: T): SQL<(T extends AnyColumn ? T['_']['data'] : string) | null> {
+  return sql`min(${expression})`.mapWith(is(expression, Column) ? expression : String) as any;
 }
