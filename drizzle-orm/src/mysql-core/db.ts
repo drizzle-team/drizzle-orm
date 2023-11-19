@@ -147,14 +147,73 @@ export class MySqlDatabase<
 		});
 	}
 
+	/**
+	 * Creates an update query.
+	 * 
+	 * Calling this method without `.where()` clause will update all rows in a table. The `.where()` clause specifies which rows should be updated.
+	 * 
+	 * Use `.set()` method to specify which values to update.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/update} 
+	 * 
+	 * @param table The table to update.
+	 * 
+	 * @example
+	 * 
+	 * ```ts
+	 * // Update all rows in the 'cars' table
+	 * await db.update(cars).set({ color: 'red' });
+	 * 
+	 * // Update rows with filters and conditions
+	 * await db.update(cars).set({ color: 'red' }).where(eq(cars.brand, 'BMW'));
+	 * ```
+	 */
 	update<TTable extends MySqlTable>(table: TTable): MySqlUpdateBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
 		return new MySqlUpdateBuilder(table, this.session, this.dialect);
 	}
 
+	/**
+	 * Creates an insert query.
+	 * 
+	 * Calling this method will create new rows in a table. Use `.values()` method to specify which values to insert.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/insert} 
+	 * 
+	 * @param table The table to insert into.
+	 * 
+	 * @example
+	 * 
+	 * ```ts
+	 * // Insert one row
+	 * await db.insert(cars).values({ brand: 'BMW' });
+	 * 
+	 * // Insert multiple rows
+	 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
+	 * ```
+	 */
 	insert<TTable extends MySqlTable>(table: TTable): MySqlInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
 		return new MySqlInsertBuilder(table, this.session, this.dialect);
 	}
 
+	/**
+	 * Creates a delete query.
+	 * 
+	 * Calling this method without `.where()` clause will delete all rows in a table. The `.where()` clause specifies which rows should be deleted. 
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/delete}
+	 *  
+	 * @param table The table to delete from.
+	 * 
+	 * @example
+	 * 
+	 * ```ts
+	 * // Delete all rows in the 'cars' table
+	 * await db.delete(cars);
+	 * 
+	 * // Delete rows with filters and conditions
+	 * await db.delete(cars).where(eq(cars.color, 'green'));
+	 * ```
+	 */
 	delete<TTable extends MySqlTable>(table: TTable): MySqlDeleteBase<TTable, TQueryResult, TPreparedQueryHKT> {
 		return new MySqlDeleteBase(table, this.session, this.dialect);
 	}
