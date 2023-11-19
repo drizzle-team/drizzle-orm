@@ -132,13 +132,14 @@ export class PgDeleteBase<
 	/** 
 	 * Adds a `where` clause to the query.
 	 * 
-	 * Calling this method will delete only those records that fulfill a specified condition.
+	 * Calling this method will delete only those rows that fulfill a specified condition.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/delete}
 	 * 
 	 * @param where the `where` clause.
 	 * 
-	 * ### Examples
-	 * 
-	 * You can use conditional operators and `sql function` to filter the records to be deleted.
+	 * @example
+	 * You can use conditional operators and `sql function` to filter the rows to be deleted.
 	 * 
 	 * ```ts
 	 * // Delete all cars with green color
@@ -146,6 +147,7 @@ export class PgDeleteBase<
 	 * // or
 	 * db.delete(cars).where(sql`${cars.color} = 'green'`)
 	 * ```
+	 * 
 	 * You can logically combine conditional operators with `and()` and `or()` operators:
 	 * 
 	 * ```ts
@@ -155,8 +157,6 @@ export class PgDeleteBase<
 	 * // Delete all cars with the green or blue color
 	 * db.delete(cars).where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
 	 * ```
-	 * 
-	 * See docs: {@link} https://orm.drizzle.team/docs/delete
 	*/
 	where(where: SQL | undefined): PgDeleteWithout<this, TDynamic, 'where'> {
 		this.config.where = where;
@@ -166,10 +166,11 @@ export class PgDeleteBase<
 	/**
 	 * Adds a `returning` clause to the query.
 	 * 
-	 * Calling this method will return the specified fields of the deleted records. If no fields are specified, all fields will be returned.
+	 * Calling this method will return the specified fields of the deleted rows. If no fields are specified, all fields will be returned.
 	 * 
-	 * ### Examples
+	 * See docs: {@link https://orm.drizzle.team/docs/delete#delete-with-return} 
 	 * 
+	 * @example
 	 * ```ts
 	 * // Delete all cars with the green color and return all fields
 	 * const deletedCars: Car[] = await db.delete(cars)
@@ -181,8 +182,6 @@ export class PgDeleteBase<
 	 *   .where(eq(cars.color, 'green'))
 	 *   .returning({ id: cars.id, brand: cars.brand });
 	 * ```
-	 * 
-	 * See docs: {@link} https://orm.drizzle.team/docs/delete#delete-with-return
 	 */
 	returning(): PgDeleteReturningAll<this, TDynamic>;
 	returning<TSelectedFields extends SelectedFieldsFlat>(
