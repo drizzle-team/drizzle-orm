@@ -150,14 +150,89 @@ export class BaseSQLiteDatabase<
 		});
 	}
 
+	/**
+	 * Creates an update query.
+	 * 
+	 * Calling this method without `.where()` clause will update all rows in a table. The `.where()` clause specifies which rows should be updated.
+	 * 
+	 * Use `.set()` method to specify which values to update.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/update} 
+	 * 
+	 * @param table The table to update.
+	 * 
+	 * @example
+	 * 
+	 * ```ts
+	 * // Update all rows in the 'cars' table
+	 * await db.update(cars).set({ color: 'red' });
+	 * 
+	 * // Update rows with filters and conditions
+	 * await db.update(cars).set({ color: 'red' }).where(eq(cars.brand, 'BMW'));
+	 * 
+	 * // Update with returning clause
+	 * const updatedCar: Car[] = await db.update(cars)
+	 *   .set({ color: 'red' })
+	 *   .where(eq(cars.id, 1))
+	 *   .returning();
+	 * ```
+	 */
 	update<TTable extends SQLiteTable>(table: TTable): SQLiteUpdateBuilder<TTable, TResultKind, TRunResult> {
 		return new SQLiteUpdateBuilder(table, this.session, this.dialect);
 	}
 
+	/**
+	 * Creates an insert query.
+	 * 
+	 * Calling this method will create new rows in a table. Use `.values()` method to specify which values to insert.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/insert} 
+	 * 
+	 * @param table The table to insert into.
+	 * 
+	 * @example
+	 * 
+	 * ```ts
+	 * // Insert one row
+	 * await db.insert(cars).values({ brand: 'BMW' });
+	 * 
+	 * // Insert multiple rows
+	 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
+	 * 
+	 * // Insert with returning clause
+	 * const insertedCar: Car[] = await db.insert(cars)
+	 *   .values({ brand: 'BMW' })
+	 *   .returning();
+	 * ```
+	 */
 	insert<TTable extends SQLiteTable>(into: TTable): SQLiteInsertBuilder<TTable, TResultKind, TRunResult> {
 		return new SQLiteInsertBuilder(into, this.session, this.dialect);
 	}
 
+	/**
+	 * Creates a delete query.
+	 * 
+	 * Calling this method without `.where()` clause will delete all rows in a table. The `.where()` clause specifies which rows should be deleted. 
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/delete}
+	 *  
+	 * @param table The table to delete from.
+	 * 
+	 * @example
+	 * 
+	 * ```ts
+	 * // Delete all rows in the 'cars' table
+	 * await db.delete(cars);
+	 * 
+	 * // Delete rows with filters and conditions
+	 * await db.delete(cars).where(eq(cars.color, 'green'));
+	 * 
+	 * // Delete with returning clause
+	 * const deletedCar: Car[] = await db.delete(cars)
+	 *   .where(eq(cars.id, 1))
+	 *   .returning();
+	 * ```
+	 */
 	delete<TTable extends SQLiteTable>(from: TTable): SQLiteDeleteBase<TTable, TResultKind, TRunResult> {
 		return new SQLiteDeleteBase(from, this.session, this.dialect);
 	}
