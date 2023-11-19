@@ -1,6 +1,5 @@
 import type { GetColumnData } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-// import type { NotGenerated } from '~/index.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type {
 	AnyQueryResultHKT,

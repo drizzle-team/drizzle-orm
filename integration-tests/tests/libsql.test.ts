@@ -2435,8 +2435,6 @@ test.serial('select from a table with generated columns', async (t) => {
 		fullName2: text('full_name2').generatedAlwaysAs(sql`first_name || ' ' || last_name`, { mode: 'stored' }),
 		upper: text('upper').generatedAlwaysAs(sql`upper(full_name)`, { mode: 'virtual' }),
 	});
-	// const lkj = await db.get(sql`select * from ${usersTable}`);
-	// console.log(lkj);
 
 	await db.run(sql`drop table if exists ${usersTable}`);
 	await db.run(sql`
