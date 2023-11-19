@@ -111,9 +111,10 @@ export class PgDialect {
 		const setSize = columnNames.length;
 		return sql.join(columnNames.flatMap((colName, i) => {
 			const col = tableColumns[colName]!;
-			const res = set[colName]
-				? sql`${sql.identifier(col.name)} = ${set[colName]}`
-				: sql`${sql.identifier(col.name)} = ${col.onUpdateFn!()}`;
+
+			const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
+			const res = sql`${sql.identifier(col.name)} = ${value}`;
+
 			if (i < setSize - 1) {
 				return [res, sql.raw(', ')];
 			}
@@ -444,7 +445,7 @@ export class PgDialect {
 						const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
 						valueList.push(defaultValue);
 						// eslint-disable-next-line unicorn/no-negated-condition
-					} else if (col.onUpdateFn !== undefined) {
+					} else if (!col.default && col.onUpdateFn !== undefined) {
 						const onUpdateFnResult = col.onUpdateFn();
 						const newValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
 						valueList.push(newValue);
