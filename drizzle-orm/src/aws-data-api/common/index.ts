@@ -1,6 +1,6 @@
 import type { Field } from '@aws-sdk/client-rds-data';
 import { TypeHint } from '@aws-sdk/client-rds-data';
-import type { QueryTypingsValue } from '~/sql/index.ts';
+import type { QueryTypingsValue } from '~/sql/sql.ts';
 
 export function getValueFromDataApi(field: Field) {
 	if (field.stringValue !== undefined) {

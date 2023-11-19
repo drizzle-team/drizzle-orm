@@ -8,24 +8,34 @@ import type {
 	JoinType,
 	SelectMode,
 	SelectResult,
+	SetOperator,
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import { type Placeholder, type Query, SQL } from '~/sql/index.ts';
+import { SQL, View } from '~/sql/sql.ts';
+import type { ColumnsSelection, Placeholder, Query } from '~/sql/sql.ts';
 import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import type { SubqueryWithSelection } from '~/sqlite-core/subquery.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
-import { SelectionProxyHandler, Subquery, SubqueryConfig } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { applyMixins, getTableColumns, getTableLikeName, orderSelectedFields, type ValueOrArray } from '~/utils.ts';
+import {
+	applyMixins,
+	getTableColumns,
+	getTableLikeName,
+	haveSameKeys,
+	orderSelectedFields,
+	type ValueOrArray,
+} from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
-import { type ColumnsSelection, View } from '~/view.ts';
-import { SQLiteViewBase } from '../view.ts';
 import type {
+	AnySQLiteSelect,
 	CreateSQLiteSelectFromBuilderMode,
+	GetSQLiteSetOperators,
 	SelectedFields,
+	SetOperatorRightSelect,
+	SQLiteCreateSetOperatorFn,
 	SQLiteJoinFn,
 	SQLiteSelectConfig,
 	SQLiteSelectDynamic,
@@ -34,7 +44,12 @@ import type {
 	SQLiteSelectHKTBase,
 	SQLiteSelectPrepare,
 	SQLiteSelectWithout,
+	SQLiteSetOperatorExcludedMethods,
+	SQLiteSetOperatorWithResult,
 } from './select.types.ts';
+import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { SQLiteViewBase } from '../view-base.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
 
 export class SQLiteSelectBuilder<
 	TSelection extends SelectedFields | undefined,
@@ -119,7 +134,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 		: {},
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends TypedQueryBuilder<TSelectedFields, TResult> {
 	static readonly [entityKind]: string = 'SQLiteSelectQueryBuilder';
@@ -164,6 +179,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 			table,
 			fields: { ...fields },
 			distinct,
+			setOperators: [],
 		};
 		this.isPartialSelect = isPartialSelect;
 		this.session = session;
@@ -259,6 +275,57 @@ export abstract class SQLiteSelectQueryBuilderBase<
 
 	fullJoin = this.createJoin('full');
 
+	private createSetOperator(
+		type: SetOperator,
+		isAll: boolean,
+	): <TValue extends SQLiteSetOperatorWithResult<TResult>>(
+		rightSelection:
+			| ((setOperators: GetSQLiteSetOperators) => SetOperatorRightSelect<TValue, TResult>)
+			| SetOperatorRightSelect<TValue, TResult>,
+	) => SQLiteSelectWithout<
+		this,
+		TDynamic,
+		SQLiteSetOperatorExcludedMethods,
+		true
+	> {
+		return (rightSelection) => {
+			const rightSelect = (typeof rightSelection === 'function'
+				? rightSelection(getSQLiteSetOperators())
+				: rightSelection) as TypedQueryBuilder<
+					any,
+					TResult
+				>;
+
+			if (!haveSameKeys(this.getSelectedFields(), rightSelect.getSelectedFields())) {
+				throw new Error(
+					'Set operator error (union / intersect / except): selected fields are not the same or are in a different order',
+				);
+			}
+
+			this.config.setOperators.push({ type, isAll, rightSelect });
+			return this as any;
+		};
+	}
+
+	union = this.createSetOperator('union', false);
+
+	unionAll = this.createSetOperator('union', true);
+
+	intersect = this.createSetOperator('intersect', false);
+
+	except = this.createSetOperator('except', false);
+
+	/** @internal */
+	addSetOperators(setOperators: SQLiteSelectConfig['setOperators']): SQLiteSelectWithout<
+		this,
+		TDynamic,
+		SQLiteSetOperatorExcludedMethods,
+		true
+	> {
+		this.config.setOperators.push(...setOperators);
+		return this as any;
+	}
+
 	where(
 		where: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 	): SQLiteSelectWithout<this, TDynamic, 'where'> {
@@ -328,20 +395,41 @@ export abstract class SQLiteSelectQueryBuilderBase<
 					new SelectionProxyHandler({ sqlAliasedBehavior: 'alias', sqlBehavior: 'sql' }),
 				) as TSelection,
 			);
-			this.config.orderBy = Array.isArray(orderBy) ? orderBy : [orderBy];
+
+			const orderByArray = Array.isArray(orderBy) ? orderBy : [orderBy];
+
+			if (this.config.setOperators.length > 0) {
+				this.config.setOperators.at(-1)!.orderBy = orderByArray;
+			} else {
+				this.config.orderBy = orderByArray;
+			}
 		} else {
-			this.config.orderBy = columns as (SQLiteColumn | SQL | SQL.Aliased)[];
+			const orderByArray = columns as (SQLiteColumn | SQL | SQL.Aliased)[];
+
+			if (this.config.setOperators.length > 0) {
+				this.config.setOperators.at(-1)!.orderBy = orderByArray;
+			} else {
+				this.config.orderBy = orderByArray;
+			}
 		}
 		return this as any;
 	}
 
 	limit(limit: number | Placeholder): SQLiteSelectWithout<this, TDynamic, 'limit'> {
-		this.config.limit = limit;
+		if (this.config.setOperators.length > 0) {
+			this.config.setOperators.at(-1)!.limit = limit;
+		} else {
+			this.config.limit = limit;
+		}
 		return this as any;
 	}
 
 	offset(offset: number | Placeholder): SQLiteSelectWithout<this, TDynamic, 'offset'> {
-		this.config.offset = offset;
+		if (this.config.setOperators.length > 0) {
+			this.config.setOperators.at(-1)!.offset = offset;
+		} else {
+			this.config.offset = offset;
+		}
 		return this as any;
 	}
 
@@ -388,7 +476,7 @@ export interface SQLiteSelectBase<
 		: {},
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends
 	SQLiteSelectQueryBuilderBase<
@@ -470,3 +558,38 @@ export class SQLiteSelectBase<
 }
 
 applyMixins(SQLiteSelectBase, [QueryPromise]);
+
+function createSetOperator(type: SetOperator, isAll: boolean): SQLiteCreateSetOperatorFn {
+	return (leftSelect, rightSelect, ...restSelects) => {
+		const setOperators = [rightSelect, ...restSelects].map((select) => ({
+			type,
+			isAll,
+			rightSelect: select as AnySQLiteSelect,
+		}));
+
+		for (const setOperator of setOperators) {
+			if (!haveSameKeys((leftSelect as any).getSelectedFields(), setOperator.rightSelect.getSelectedFields())) {
+				throw new Error(
+					'Set operator error (union / intersect / except): selected fields are not the same or are in a different order',
+				);
+			}
+		}
+
+		return (leftSelect as AnySQLiteSelect).addSetOperators(setOperators) as any;
+	};
+}
+
+const getSQLiteSetOperators = () => ({
+	union,
+	unionAll,
+	intersect,
+	except,
+});
+
+export const union = createSetOperator('union', false);
+
+export const unionAll = createSetOperator('union', true);
+
+export const intersect = createSetOperator('intersect', false);
+
+export const except = createSetOperator('except', false);

@@ -1,7 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { type Query, type SQL, sql } from '~/sql/index.ts';
+import { type Query, type SQL, sql } from '~/sql/sql.ts';
 import type { Assume, Equal } from '~/utils.ts';
 import { MySqlDatabase } from './db.ts';
 import type { MySqlDialect } from './dialect.ts';
