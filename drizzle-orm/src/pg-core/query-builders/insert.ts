@@ -97,6 +97,7 @@ export type PgInsertReturningAll<T extends AnyPgInsert, TDynamic extends boolean
 
 export interface PgInsertOnConflictDoUpdateConfig<T extends AnyPgInsert> {
 	target: IndexColumn | IndexColumn[];
+	targetWhere?: SQL;
 	where?: SQL;
 	set: PgUpdateSetSource<T['_']['table']>;
 }
@@ -200,7 +201,8 @@ export class PgInsertBase<
 		targetColumn = Array.isArray(config.target)
 			? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
 			: this.dialect.escapeName(config.target.name);
-		this.config.onConflict = sql`(${sql.raw(targetColumn)}) do update set ${setSql}${whereSql}`;
+		const targetWhereSql = config.targetWhere ? sql` where ${config.targetWhere}` : undefined;
+		this.config.onConflict = sql`(${sql.raw(targetColumn)})${targetWhereSql} do update set ${setSql}${whereSql}`;
 		return this as any;
 	}
 
