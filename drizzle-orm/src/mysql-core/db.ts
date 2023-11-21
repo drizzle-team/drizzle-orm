@@ -204,26 +204,19 @@ export const withReplicas = <
 	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
 	const transaction: Q['transaction'] = (...args: [any, any]) => primary.transaction(...args);
 
-	return new Proxy<Q & { $primary: Q }>(
-		{
-			...primary,
-			update,
-			insert,
-			delete: $delete,
-			execute,
-			transaction,
-			$primary: primary,
-			select,
-			selectDistinct,
-			with: $with,
+	return {
+		...primary,
+		update,
+		insert,
+		delete: $delete,
+		execute,
+		transaction,
+		$primary: primary,
+		select,
+		selectDistinct,
+		with: $with,
+		get query() {
+			return getReplica(replicas).query;
 		},
-		{
-			get(target, prop, _receiver) {
-				if (prop === 'query') {
-					return getReplica(replicas).query;
-				}
-				return target[prop as keyof typeof target];
-			},
-		},
-	);
+	};
 };
