@@ -168,7 +168,7 @@ export class PgDatabase<
 	 * // Select all unique rows from the 'cars' table
 	 * await db.selectDistinct()
 	 *   .from(cars)
-	 *   .orderyBy(cars.id, cars.brand, cars.color);
+	 *   .orderBy(cars.id, cars.brand, cars.color);
 	 * 
 	 * // Select all unique brands from the 'cars' table
 	 * await db.selectDistinct({ brand: cars.brand })
