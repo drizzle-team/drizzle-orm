@@ -127,6 +127,42 @@ export class BaseSQLiteDatabase<
 		return { select, selectDistinct };
 	}
 
+	/**
+	 * Creates a select query.
+	 * 
+	 * Calling this method with no arguments will select all columns from the table. Pass a selection object to specify the columns you want to select.
+	 * 
+	 * Use `.from()` method to specify which table to select from.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/select}
+	 * 
+	 * @param fields The selection object.
+	 * 
+	 * @example
+	 * 
+	 * ```ts
+	 * // Select all columns and all rows from the 'cars' table
+	 * const allCars: Car[] = await db.select().from(cars);
+	 * 
+	 * // Select specific columns and all rows from the 'cars' table
+	 * const carsIdsAndBrands: { id: number; brand: string }[] = await db.select({ 
+	 *   id: cars.id, 
+	 *   brand: cars.brand 
+	 * })
+	 *   .from(cars);
+	 * ```
+	 * 
+	 * Like in SQL, you can use arbitrary expressions as selection fields, not just table columns:
+	 * 
+	 * ```ts
+	 * // Select specific columns along with expression and all rows from the 'cars' table
+	 * const carsIdsAndLowerNames: { id: number; lowerBrand: string }[] = await db.select({
+	 *   id: cars.id,
+	 *   lowerBrand: sql<string>`lower(${cars.brand})`,
+	 * })
+	 *   .from(cars);
+	 * ```
+	 */
 	select(): SQLiteSelectBuilder<undefined, TResultKind, TRunResult>;
 	select<TSelection extends SelectedFields>(
 		fields: TSelection,
@@ -135,6 +171,31 @@ export class BaseSQLiteDatabase<
 		return new SQLiteSelectBuilder({ fields: fields ?? undefined, session: this.session, dialect: this.dialect });
 	}
 
+	/**
+	 * Adds `distinct` expression to the select query.
+	 * 
+	 * Calling this method will return only unique values. When multiple columns are selected, it returns rows with unique combinations of values in these columns.
+	 * 
+	 * Use `.from()` method to specify which table to select from.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/select#distinct}
+	 * 
+	 * @param fields The selection object.
+	 * 
+	 * @example
+	 * 
+	 * ```ts
+	 * // Select all unique rows from the 'cars' table
+	 * await db.selectDistinct()
+	 *   .from(cars)
+	 *   .orderBy(cars.id, cars.brand, cars.color);
+	 * 
+	 * // Select all unique brands from the 'cars' table
+	 * await db.selectDistinct({ brand: cars.brand })
+	 *   .from(cars)
+	 *   .orderBy(cars.brand);
+	 * ```
+	 */
 	selectDistinct(): SQLiteSelectBuilder<undefined, TResultKind, TRunResult>;
 	selectDistinct<TSelection extends SelectedFields>(
 		fields: TSelection,
