@@ -106,6 +106,42 @@ export class PgDatabase<
 		return { select };
 	}
 
+	/**
+	 * Creates a select query.
+	 * 
+	 * Calling this method with no arguments will select all columns from the table. Pass a selection object to specify the columns you want to select.
+	 * 
+	 * Use `.from()` method to specify which table to select from.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/select}
+	 * 
+	 * @param fields The selection object.
+	 * 
+	 * @example
+	 * 
+	 * ```ts
+	 * // Select all columns and all rows from the 'cars' table
+	 * const allCars: Car[] = await db.select().from(cars);
+	 * 
+	 * // Select specific columns and all rows from the 'cars' table
+	 * const carsIdsAndBrands: { id: number; brand: string }[] = await db.select({ 
+	 *   id: cars.id, 
+	 *   brand: cars.brand 
+	 * })
+	 *   .from(cars);
+	 * ```
+	 * 
+	 * Like in SQL, you can use arbitrary expressions as selection fields, not just table columns:
+	 * 
+	 * ```ts
+	 * // Select specific columns along with expression and all rows from the 'cars' table
+	 * const carsIdsAndLowerNames: { id: number; lowerBrand: string }[] = await db.select({
+	 *   id: cars.id,
+	 *   lowerBrand: sql<string>`lower(${cars.brand})`,
+	 * })
+	 *   .from(cars);
+	 * ```
+	 */
 	select(): PgSelectBuilder<undefined>;
 	select<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
 	select(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
@@ -116,6 +152,30 @@ export class PgDatabase<
 		});
 	}
 
+	/**
+	 * Adds `distinct` expression to the select query.
+	 * 
+	 * Calling this method will return only unique values. When multiple columns are selected, it returns rows with unique combinations of values in these columns.
+	 * 
+	 * Use `.from()` method to specify which table to select from.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/select#distinct}
+	 * 
+	 * @param fields The selection object.
+	 * 
+	 * @example
+	 * ```ts
+	 * // Select all unique rows from the 'cars' table
+	 * await db.selectDistinct()
+	 *   .from(cars)
+	 *   .orderyBy(cars.id, cars.brand, cars.color);
+	 * 
+	 * // Select all unique brands from the 'cars' table
+	 * await db.selectDistinct({ brand: cars.brand })
+	 *   .from(cars)
+	 *   .orderBy(cars.brand);
+	 * ```
+	 */
 	selectDistinct(): PgSelectBuilder<undefined>;
 	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
 	selectDistinct(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
@@ -127,6 +187,31 @@ export class PgDatabase<
 		});
 	}
 
+	/**
+	 * Adds `distinct on` expression to the select query.
+	 * 
+	 * Calling this method will specify how the unique rows are determined.  
+	 * 
+	 * Use `.from()` method to specify which table to select from.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/select#distinct}
+	 * 
+	 * @param on The expression defining uniqueness.
+	 * @param fields The selection object.
+	 * 
+	 * @example
+	 * ```ts
+	 * // Select the first row for each unique brand from the 'cars' table
+	 * await db.selectDistinctOn([cars.brand])
+	 *   .from(cars)
+	 *   .orderBy(cars.brand);
+	 * 
+	 * // Selects the first occurrence of each unique car brand along with its color from the 'cars' table
+	 * await db.selectDistinctOn([cars.brand], { brand: cars.brand, color: cars.color })
+	 *   .from(cars)
+	 *   .orderBy(cars.brand, cars.color);
+	 * ```
+	 */
 	selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgSelectBuilder<undefined>;
 	selectDistinctOn<TSelection extends SelectedFields>(
 		on: (PgColumn | SQLWrapper)[],

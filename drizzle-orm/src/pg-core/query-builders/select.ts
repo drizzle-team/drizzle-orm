@@ -355,18 +355,35 @@ export abstract class PgSelectQueryBuilderBase<
 		return this as any;
 	}
 
-	/**
-	 * Specify a condition to narrow the result set. Multiple
-	 * conditions can be combined with the `and` and `or`
-	 * functions.
-	 *
-	 * ## Examples
-	 *
+	/** 
+	 * Adds a `where` clause to the query.
+	 * 
+	 * Calling this method will select only those rows that fulfill a specified condition.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/select#filtering}
+	 * 
+	 * @param where the `where` clause.
+	 * 
+	 * @example
+	 * You can use conditional operators and `sql function` to filter the rows to be selected.
+	 * 
 	 * ```ts
-	 * // Find cars made in the year 2000
-	 * db.select().from(cars).where(eq(cars.year, 2000));
+	 * // Select all cars with green color
+	 * await db.select().from(cars).where(eq(cars.color, 'green'));
+	 * // or
+	 * await db.select().from(cars).where(sql`${cars.color} = 'green'`)
 	 * ```
-	 */
+	 * 
+	 * You can logically combine conditional operators with `and()` and `or()` operators:
+	 * 
+	 * ```ts
+	 * // Select all BMW cars with a green color
+	 * await db.select().from(cars).where(and(eq(cars.color, 'green'), eq(cars.brand, 'BMW')));
+	 * 
+	 * // Select all cars with the green or blue color
+	 * await db.select().from(cars).where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
+	 * ```
+	*/
 	where(
 		where: ((aliases: this['_']['selection']) => SQL | undefined) | SQL | undefined,
 	): PgSelectWithout<this, TDynamic, 'where'> {
@@ -383,11 +400,26 @@ export abstract class PgSelectQueryBuilderBase<
 	}
 
 	/**
-	 * Sets the HAVING clause of this query, which often
-	 * used with GROUP BY and filters rows after they've been
-	 * grouped together and combined.
-	 *
-	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-HAVING | Postgres having clause documentation}
+	 * Adds a `having` clause to the query.
+	 * 
+	 * Calling this method will select only those rows that fulfill a specified condition. It is typically used with aggregate functions to filter the aggregated data based on a specified condition.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/select#aggregations}
+	 * 
+	 * @param having the `having` clause.
+	 * 
+	 * @example
+	 * 
+	 * ```ts
+	 * // Select all brands with more than one car
+	 * await db.select({
+	 * 	brand: cars.brand,
+	 * 	count: sql<number>`cast(count(${cars.id}) as int)`,
+	 * })
+	 *   .from(cars)
+	 *   .groupBy(cars.brand)
+	 *   .having(({ count }) => gt(count, 1));
+	 * ```
 	 */
 	having(
 		having: ((aliases: this['_']['selection']) => SQL | undefined) | SQL | undefined,
@@ -405,22 +437,23 @@ export abstract class PgSelectQueryBuilderBase<
 	}
 
 	/**
-	 * Specify the GROUP BY of this query: given
-	 * a list of columns or SQL expressions, Postgres will
-	 * combine all rows with the same values in those columns
-	 * into a single row.
+	 * Adds a `group by` clause to the query.
+	 * 
+	 * Calling this method will group rows that have the same values into summary rows, often used for aggregation purposes.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/select#aggregations}
 	 *
-	 * ## Examples
-	 *
+	 * @example
+	 * 
 	 * ```ts
 	 * // Group and count people by their last names
-	 * db.select({
+	 * await db.select({
 	 *    lastName: people.lastName,
-	 *    count: sql<number>`count(*)::integer`
-	 * }).from(people).groupBy(people.lastName);
+	 *    count: sql<number>`cast(count(*) as int)`
+	 * })
+	 *   .from(people)
+	 *   .groupBy(people.lastName);
 	 * ```
-	 *
-	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-GROUPBY | Postgres GROUP BY documentation}
 	 */
 	groupBy(
 		builder: (aliases: this['_']['selection']) => ValueOrArray<PgColumn | SQL | SQL.Aliased>,
@@ -446,19 +479,28 @@ export abstract class PgSelectQueryBuilderBase<
 	}
 
 	/**
-	 * Specify the ORDER BY clause of this query: a number of
-	 * columns or SQL expressions that will control sorting
-	 * of results. You can specify whether results are in ascending
-	 * or descending order with the `asc()` and `desc()` operators.
+	 * Adds an `order by` clause to the query.
+	 * 
+	 * Calling this method will sort the result-set in ascending or descending order. By default, the sort order is ascending.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/select#order-by}
 	 *
-	 * ## Examples
+	 * @example
 	 *
 	 * ```
-	 * // Select cars by year released
-	 * db.select().from(cars).orderBy(cars.year);
+	 * // Select cars ordered by year
+	 * await db.select().from(cars).orderBy(cars.year);
 	 * ```
-	 *
-	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-ORDERBY | Postgres ORDER BY documentation}
+	 * 
+	 * You can specify whether results are in ascending or descending order with the `asc()` and `desc()` operators.
+	 * 
+	 * ```ts
+	 * // Select cars ordered by year in descending order
+	 * await db.select().from(cars).orderBy(desc(cars.year));
+	 * 
+	 * // Select cars ordered by year and price
+	 * await db.select().from(cars).orderBy(asc(cars.year), desc(cars.price));
+	 * ```
 	 */
 	orderBy(
 		builder: (aliases: this['_']['selection']) => ValueOrArray<PgColumn | SQL | SQL.Aliased>,
@@ -497,17 +539,20 @@ export abstract class PgSelectQueryBuilderBase<
 	}
 
 	/**
-	 * Set the maximum number of rows that will be
-	 * returned by this query.
+	 * Adds a `limit` clause to the query.
+	 * 
+	 * Calling this method will set the maximum number of rows that will be returned by this query.
 	 *
-	 * ## Examples
+	 * See docs: {@link https://orm.drizzle.team/docs/select#limit--offset}
+	 * 
+	 * @param limit the `limit` clause.
+	 * 
+	 * @example
 	 *
 	 * ```ts
 	 * // Get the first 10 people from this query.
-	 * db.select().from(people).limit(10);
+	 * await db.select().from(people).limit(10);
 	 * ```
-	 *
-	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-LIMIT | Postgres LIMIT documentation}
 	 */
 	limit(limit: number | Placeholder): PgSelectWithout<this, TDynamic, 'limit'> {
 		if (this.config.setOperators.length > 0) {
@@ -519,14 +564,19 @@ export abstract class PgSelectQueryBuilderBase<
 	}
 
 	/**
-	 * Skip a number of rows when returning results
-	 * from this query.
-	 *
-	 * ## Examples
+	 * Adds an `offset` clause to the query.
+	 * 
+	 * Calling this method will skip a number of rows when returning results from this query.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/select#limit--offset}
+	 * 
+	 * @param offset the `offset` clause.
+	 * 
+	 * @example
 	 *
 	 * ```ts
 	 * // Get the 10th-20th people from this query.
-	 * db.select().from(people).offset(10).limit(10);
+	 * await db.select().from(people).offset(10).limit(10);
 	 * ```
 	 */
 	offset(offset: number | Placeholder): PgSelectWithout<this, TDynamic, 'offset'> {
@@ -539,11 +589,14 @@ export abstract class PgSelectQueryBuilderBase<
 	}
 
 	/**
-	 * The FOR clause specifies a lock strength for this query
-	 * that controls how strictly it acquires exclusive access to
-	 * the rows being queried.
-	 *
-	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FOR-UPDATE-SHARE | PostgreSQL locking clause documentation}
+	 * Adds a `for` clause to the query.
+	 * 
+	 * Calling this method will specify a lock strength for this query that controls how strictly it acquires exclusive access to the rows being queried.
+	 * 
+	 * See docs: {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FOR-UPDATE-SHARE}
+	 * 
+	 * @param strength the lock strength.
+	 * @param config the lock configuration.
 	 */
 	for(strength: LockStrength, config: LockConfig = {}): PgSelectWithout<this, TDynamic, 'for'> {
 		this.config.lockingClause = { strength, config };
