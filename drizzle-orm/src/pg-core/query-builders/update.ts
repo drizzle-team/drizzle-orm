@@ -173,10 +173,10 @@ export class PgUpdateBase<
 	 * 
 	 * ```ts
 	 * // Update all cars with green color
-	 * db.update(cars).set({ color: 'red' })
+	 * await db.update(cars).set({ color: 'red' })
 	 *   .where(eq(cars.color, 'green'));
 	 * // or
-	 * db.update(cars).set({ color: 'red' })
+	 * await db.update(cars).set({ color: 'red' })
 	 *   .where(sql`${cars.color} = 'green'`)
 	 * ```
 	 * 
@@ -184,11 +184,11 @@ export class PgUpdateBase<
 	 * 
 	 * ```ts
 	 * // Update all BMW cars with a green color
-	 * db.update(cars).set({ color: 'red' })
+	 * await db.update(cars).set({ color: 'red' })
 	 *   .where(and(eq(cars.color, 'green'), eq(cars.brand, 'BMW')));
 	 * 
 	 * // Update all cars with the green or blue color
-	 * db.update(cars).set({ color: 'red' })
+	 * await db.update(cars).set({ color: 'red' })
 	 *   .where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
 	 * ```
 	 */

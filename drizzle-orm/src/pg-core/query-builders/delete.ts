@@ -143,19 +143,19 @@ export class PgDeleteBase<
 	 * 
 	 * ```ts
 	 * // Delete all cars with green color
-	 * db.delete(cars).where(eq(cars.color, 'green'));
+	 * await db.delete(cars).where(eq(cars.color, 'green'));
 	 * // or
-	 * db.delete(cars).where(sql`${cars.color} = 'green'`)
+	 * await db.delete(cars).where(sql`${cars.color} = 'green'`)
 	 * ```
 	 * 
 	 * You can logically combine conditional operators with `and()` and `or()` operators:
 	 * 
 	 * ```ts
 	 * // Delete all BMW cars with a green color
-	 * db.delete(cars).where(and(eq(cars.color, 'green'), eq(cars.brand, 'BMW')));
+	 * await db.delete(cars).where(and(eq(cars.color, 'green'), eq(cars.brand, 'BMW')));
 	 * 
 	 * // Delete all cars with the green or blue color
-	 * db.delete(cars).where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
+	 * await db.delete(cars).where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
 	 * ```
 	*/
 	where(where: SQL | undefined): PgDeleteWithout<this, TDynamic, 'where'> {
