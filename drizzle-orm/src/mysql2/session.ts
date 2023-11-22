@@ -34,9 +34,14 @@ export type MySql2Client = Pool | Connection;
 
 export type MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]];
 export type MySqlQueryResultType = RowDataPacket[][] | RowDataPacket[] | OkPacket | OkPacket[] | ResultSetHeader;
+export type MultiQueryResult<T extends any[]> = {
+	[K in keyof T]: [T[K]] extends [never] ? ResultSetHeader: unknown extends T[K] ? ResultSetHeader:
+	T[K] extends ResultSetHeader ? T[K] : T[K][];
+};
 export type MySqlQueryResult<
 	T = any,
-> = [T extends ResultSetHeader ? T : T[], FieldPacket[]];
+> = [[T] extends [never] ? ResultSetHeader : unknown extends T ? ResultSetHeader:
+	T extends ResultSetHeader ? T : T extends any[]? MultiQueryResult<T> : T[], FieldPacket[]];
 
 export class MySql2PreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
 	static readonly [entityKind]: string = 'MySql2PreparedQuery';
@@ -205,7 +210,7 @@ export class MySql2Session<
 				return next();
 			},
 		});
-		return result;
+		return result as MySqlQueryResult;
 	}
 
 	override all<T = unknown>(query: SQL): Promise<T[]> {
@@ -285,7 +290,7 @@ function isPool(client: MySql2Client): client is Pool {
 }
 
 export interface MySql2QueryResultHKT extends QueryResultHKT {
-	type: MySqlRawQueryResult;
+	type: MySqlQueryResult<this['row']>;
 }
 
 export interface MySql2PreparedQueryHKT extends PreparedQueryHKT {

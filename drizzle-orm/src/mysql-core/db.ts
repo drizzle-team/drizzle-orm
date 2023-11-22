@@ -159,7 +159,7 @@ export class MySqlDatabase<
 		return new MySqlDeleteBase(table, this.session, this.dialect);
 	}
 
-	execute<T extends { [column: string]: any } = ResultSetHeader>(
+	execute<T extends { [column: string]: any } | { [column: string]: any }[] = ResultSetHeader>(
 		query: SQLWrapper,
 	): Promise<QueryResultKind<TQueryResult, T>> {
 		return this.session.execute(query.getSQL());
