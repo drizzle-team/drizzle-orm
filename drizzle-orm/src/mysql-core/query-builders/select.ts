@@ -324,6 +324,35 @@ export abstract class MySqlSelectQueryBuilderBase<
 		return this as any;
 	}
 
+	/** 
+	 * Adds a `where` clause to the query.
+	 * 
+	 * Calling this method will select only those rows that fulfill a specified condition.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/select#filtering}
+	 * 
+	 * @param where the `where` clause.
+	 * 
+	 * @example
+	 * You can use conditional operators and `sql function` to filter the rows to be selected.
+	 * 
+	 * ```ts
+	 * // Select all cars with green color
+	 * await db.select().from(cars).where(eq(cars.color, 'green'));
+	 * // or
+	 * await db.select().from(cars).where(sql`${cars.color} = 'green'`)
+	 * ```
+	 * 
+	 * You can logically combine conditional operators with `and()` and `or()` operators:
+	 * 
+	 * ```ts
+	 * // Select all BMW cars with a green color
+	 * await db.select().from(cars).where(and(eq(cars.color, 'green'), eq(cars.brand, 'BMW')));
+	 * 
+	 * // Select all cars with the green or blue color
+	 * await db.select().from(cars).where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
+	 * ```
+	*/
 	where(
 		where: ((aliases: this['_']['selection']) => SQL | undefined) | SQL | undefined,
 	): MySqlSelectWithout<this, TDynamic, 'where'> {
@@ -339,6 +368,28 @@ export abstract class MySqlSelectQueryBuilderBase<
 		return this as any;
 	}
 
+	/**
+	 * Adds a `having` clause to the query.
+	 * 
+	 * Calling this method will select only those rows that fulfill a specified condition. It is typically used with aggregate functions to filter the aggregated data based on a specified condition.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/select#aggregations}
+	 * 
+	 * @param having the `having` clause.
+	 * 
+	 * @example
+	 * 
+	 * ```ts
+	 * // Select all brands with more than one car
+	 * await db.select({
+	 * 	brand: cars.brand,
+	 * 	count: sql<number>`cast(count(${cars.id}) as int)`,
+	 * })
+	 *   .from(cars)
+	 *   .groupBy(cars.brand)
+	 *   .having(({ count }) => gt(count, 1));
+	 * ```
+	 */
 	having(
 		having: ((aliases: this['_']['selection']) => SQL | undefined) | SQL | undefined,
 	): MySqlSelectWithout<this, TDynamic, 'having'> {
@@ -354,6 +405,25 @@ export abstract class MySqlSelectQueryBuilderBase<
 		return this as any;
 	}
 
+	/**
+	 * Adds a `group by` clause to the query.
+	 * 
+	 * Calling this method will group rows that have the same values into summary rows, often used for aggregation purposes.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/select#aggregations}
+	 *
+	 * @example
+	 * 
+	 * ```ts
+	 * // Group and count people by their last names
+	 * await db.select({
+	 *    lastName: people.lastName,
+	 *    count: sql<number>`cast(count(*) as int)`
+	 * })
+	 *   .from(people)
+	 *   .groupBy(people.lastName);
+	 * ```
+	 */
 	groupBy(
 		builder: (aliases: this['_']['selection']) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>,
 	): MySqlSelectWithout<this, TDynamic, 'groupBy'>;
@@ -377,6 +447,30 @@ export abstract class MySqlSelectQueryBuilderBase<
 		return this as any;
 	}
 
+	/**
+	 * Adds an `order by` clause to the query.
+	 * 
+	 * Calling this method will sort the result-set in ascending or descending order. By default, the sort order is ascending.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/select#order-by}
+	 *
+	 * @example
+	 *
+	 * ```
+	 * // Select cars ordered by year
+	 * await db.select().from(cars).orderBy(cars.year);
+	 * ```
+	 * 
+	 * You can specify whether results are in ascending or descending order with the `asc()` and `desc()` operators.
+	 * 
+	 * ```ts
+	 * // Select cars ordered by year in descending order
+	 * await db.select().from(cars).orderBy(desc(cars.year));
+	 * 
+	 * // Select cars ordered by year and price
+	 * await db.select().from(cars).orderBy(asc(cars.year), desc(cars.price));
+	 * ```
+	 */
 	orderBy(
 		builder: (aliases: this['_']['selection']) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>,
 	): MySqlSelectWithout<this, TDynamic, 'orderBy'>;
@@ -413,6 +507,22 @@ export abstract class MySqlSelectQueryBuilderBase<
 		return this as any;
 	}
 
+	/**
+	 * Adds a `limit` clause to the query.
+	 * 
+	 * Calling this method will set the maximum number of rows that will be returned by this query.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/select#limit--offset}
+	 * 
+	 * @param limit the `limit` clause.
+	 * 
+	 * @example
+	 *
+	 * ```ts
+	 * // Get the first 10 people from this query.
+	 * await db.select().from(people).limit(10);
+	 * ```
+	 */
 	limit(limit: number): MySqlSelectWithout<this, TDynamic, 'limit'> {
 		if (this.config.setOperators.length > 0) {
 			this.config.setOperators.at(-1)!.limit = limit;
@@ -422,6 +532,22 @@ export abstract class MySqlSelectQueryBuilderBase<
 		return this as any;
 	}
 
+	/**
+	 * Adds an `offset` clause to the query.
+	 * 
+	 * Calling this method will skip a number of rows when returning results from this query.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/select#limit--offset}
+	 * 
+	 * @param offset the `offset` clause.
+	 * 
+	 * @example
+	 *
+	 * ```ts
+	 * // Get the 10th-20th people from this query.
+	 * await db.select().from(people).offset(10).limit(10);
+	 * ```
+	 */
 	offset(offset: number): MySqlSelectWithout<this, TDynamic, 'offset'> {
 		if (this.config.setOperators.length > 0) {
 			this.config.setOperators.at(-1)!.offset = offset;
@@ -431,6 +557,16 @@ export abstract class MySqlSelectQueryBuilderBase<
 		return this as any;
 	}
 
+	/**
+	 * Adds a `for` clause to the query.
+	 * 
+	 * Calling this method will specify a lock strength for this query that controls how strictly it acquires exclusive access to the rows being queried.
+	 * 
+	 * See docs: {@link https://dev.mysql.com/doc/refman/8.0/en/innodb-locking-reads.html}
+	 * 
+	 * @param strength the lock strength.
+	 * @param config the lock configuration.
+	 */
 	for(strength: LockStrength, config: LockConfig = {}): MySqlSelectWithout<this, TDynamic, 'for'> {
 		this.config.lockingClause = { strength, config };
 		return this as any;
