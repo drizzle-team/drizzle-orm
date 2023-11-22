@@ -2654,3 +2654,53 @@ test.serial('set operations (mixed all) as function with subquery', async (t) =>
 		);
 	});
 });
+
+
+test.serial('insert and select raw query', async (t) => {
+	const { db } = t.context;
+	await setupSetOperationTest(db);
+	const [insertedUser] = await db.execute(sql`INSERT INTO ${usersTable} (${usersTable.name}) VALUES ('Chandler')`)
+
+	t.is(insertedUser.affectedRows, 1)
+
+	const [user] = await db.execute<{ id: number, name: string }>(sql`SELECT ${usersTable.id},${usersTable.name} FROM ${usersTable} WHERE ${usersTable.id} = ${insertedUser.insertId}`)
+
+	t.is(user[0]?.id, insertedUser.insertId)
+	t.is(user[0]?.name, "Chandler")
+});
+
+test.serial('multi-statement insert and select raw query', async (t) => {
+	const { db } = t.context;
+	const [multiStmtResult] = await db.execute<[mysql.ResultSetHeader, { id: number, name: string }]>(sql`
+		INSERT INTO ${usersTable} (${usersTable.name}) VALUES ('Chandler');
+		SELECT ${usersTable.id},${usersTable.name} FROM ${usersTable} WHERE ${usersTable.name} = 'Chandler';
+	`)
+	t.is(multiStmtResult[0].affectedRows, 1)
+	t.is(multiStmtResult[1][0]?.id, multiStmtResult[0].insertId)
+	t.is(multiStmtResult[1][0]?.name, "Chandler")
+});
+
+test.serial('multi-statement select raw query', async (t) => {
+	const { db } = t.context;
+	const userInsert = await db.insert(usersTable).values({ name: "Chandler"})
+	const orderInsert = await db.insert(orders).values({ amount: 10, quantity: 1, region: "Philadelphia", product: "Shoes"})
+	const [multiSelectResult] = await db.execute<[{ id: number, name: string }, { id: number, product: string }]>(sql`
+		SELECT ${usersTable.id}, ${usersTable.name} FROM ${usersTable} WHERE ${usersTable.id} = ${userInsert[0].insertId};
+		SELECT ${orders.id}, ${orders.product} FROM ${orders} WHERE ${orders.id} = ${orderInsert[0].insertId};
+	`)
+	t.is(multiSelectResult[0][0]?.id, userInsert[0].insertId)
+	t.is(multiSelectResult[0][0]?.name, "Chandler")
+	t.is(multiSelectResult[1][0]?.id, orderInsert[0].insertId)
+	t.is(multiSelectResult[1][0]?.product, "Shoes")
+});
+
+test.serial('multi-statement insert raw query', async (t) => {
+	const { db } = t.context;
+	const [multiStmtResult] = await db.execute<[mysql.ResultSetHeader, mysql.ResultSetHeader,]>(sql`
+		INSERT INTO ${usersTable} (${usersTable.name}) VALUES ('Chandler');
+		INSERT INTO ${usersTable} (${usersTable.name}) VALUES ('Joey');
+	`)
+	t.is(multiStmtResult[0].affectedRows, 1)
+	t.is(multiStmtResult[1].affectedRows, 1)
+
+});
