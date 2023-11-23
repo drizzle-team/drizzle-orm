@@ -26,14 +26,6 @@ import type { MySqlSelectConfig, MySqlSelectJoinConfig, SelectedFieldsOrdered } 
 import type { MySqlUpdateConfig } from './query-builders/update.ts';
 import type { MySqlSession } from './session.ts';
 import { MySqlTable } from './table.ts';
-
-// TODO find out how to use all/values. Seems like I need those functions
-// Build project
-// copy runtime tests to be sure it's working
-
-// Add mysql to drizzle-kit
-
-// Add Planetscale Driver and create example repo
 import { MySqlViewBase } from './view-base.ts';
 
 export class MySqlDialect {
