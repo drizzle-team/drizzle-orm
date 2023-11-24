@@ -93,7 +93,7 @@ export class MySqlDialect {
 		const tableColumns = table[Table.Symbol.Columns];
 
 		const columnNames = Object.keys(tableColumns).filter((colName) =>
-			!!set[colName] || tableColumns[colName]?.onUpdateFn !== undefined
+			set[colName] !== undefined || tableColumns[colName]?.onUpdateFn !== undefined
 		);
 
 		const setSize = columnNames.length;
