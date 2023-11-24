@@ -267,12 +267,120 @@ export abstract class SQLiteSelectQueryBuilderBase<
 		};
 	}
 
+	/**
+	 * Executes a `left join` operation by adding another table to the current query.
+	 * 
+	 * Calling this method associates each row of the table with the corresponding row from the joined table, if a match is found. If no matching row exists, it sets all columns of the joined table to null.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#left-join}
+	 * 
+	 * @param table the table to join.
+	 * @param on the `on` clause.
+	 * 
+	 * @example
+	 * 
+	 * ```ts
+	 * // Select all users and their pets
+	 * const usersWithPets: { user: User; pets: Pet | null }[] = await db.select()
+	 *   .from(users)
+	 *   .leftJoin(pets, eq(users.id, pets.ownerId))
+	 * 
+	 * // Select userId and petId
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .leftJoin(pets, eq(users.id, pets.ownerId))
+	 * ```
+	 */
 	leftJoin = this.createJoin('left');
-
+	
+	/**
+	 * Executes a `right join` operation by adding another table to the current query.
+	 * 
+	 * Calling this method associates each row of the joined table with the corresponding row from the main table, if a match is found. If no matching row exists, it sets all columns of the main table to null.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#right-join}
+	 * 
+	 * @param table the table to join.
+	 * @param on the `on` clause.
+	 * 
+	 * @example
+	 * 
+	 * ```ts
+	 * // Select all users and their pets
+	 * const usersWithPets: { user: User | null; pets: Pet }[] = await db.select()
+	 *   .from(users)
+	 *   .rightJoin(pets, eq(users.id, pets.ownerId))
+	 * 
+	 * // Select userId and petId
+	 * const usersIdsAndPetIds: { userId: number | null; petId: number }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .rightJoin(pets, eq(users.id, pets.ownerId))
+	 * ```
+	 */
 	rightJoin = this.createJoin('right');
 
+	/**
+	 * Executes an `inner join` operation, creating a new table by combining rows from two tables that have matching values.
+	 * 
+	 * Calling this method retrieves rows that have corresponding entries in both joined tables. Rows without matching entries in either table are excluded, resulting in a table that includes only matching pairs.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#inner-join}
+	 * 
+	 * @param table the table to join.
+	 * @param on the `on` clause.
+	 * 
+	 * @example
+	 * 
+	 * ```ts
+	 * // Select all users and their pets
+	 * const usersWithPets: { user: User; pets: Pet }[] = await db.select()
+	 *   .from(users)
+	 *   .innerJoin(pets, eq(users.id, pets.ownerId))
+	 * 
+	 * // Select userId and petId
+	 * const usersIdsAndPetIds: { userId: number; petId: number }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .innerJoin(pets, eq(users.id, pets.ownerId))
+	 * ```
+	 */
 	innerJoin = this.createJoin('inner');
 
+	/**
+	 * Executes a `full join` operation by combining rows from two tables into a new table.
+	 * 
+	 * Calling this method retrieves all rows from both main and joined tables, merging rows with matching values and filling in `null` for non-matching columns.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#full-join}
+	 * 
+	 * @param table the table to join.
+	 * @param on the `on` clause.
+	 * 
+	 * @example
+	 * 
+	 * ```ts
+	 * // Select all users and their pets
+	 * const usersWithPets: { user: User | null; pets: Pet | null }[] = await db.select()
+	 *   .from(users)
+	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
+	 * 
+	 * // Select userId and petId
+	 * const usersIdsAndPetIds: { userId: number | null; petId: number | null }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
+	 * ```
+	 */
 	fullJoin = this.createJoin('full');
 
 	private createSetOperator(
