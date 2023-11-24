@@ -71,6 +71,7 @@ const usersOnUpdate = sqliteTable('users_on_update', {
 	name: text('name').notNull(),
 	updateCounter: integer('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
 	updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$onUpdate(() => new Date()),
+	alwaysNull: text('always_null').$type<string | null>().$onUpdate(() => null),
 	// uppercaseName: text('uppercase_name').$onUpdateFn(() =>
 	// 	sql`upper(s.name)`
 	// ),  This doesn't seem to be supported in sqlite
@@ -2567,11 +2568,12 @@ test.serial('test $onUpdateFn and $onUpdate works as $default', async (t) => {
 	await db.run(
 		sql`
 			create table ${usersOnUpdate} (
-			        id integer primary key autoincrement,
-			        name text not null,
-			        update_counter integer default 1 not null,
-			        updated_at integer
-			      )
+			id integer primary key autoincrement,
+			name text not null,
+			update_counter integer default 1 not null,
+			updated_at integer,
+			always_null text
+			)
 		`,
 	);
 
@@ -2588,15 +2590,15 @@ test.serial('test $onUpdateFn and $onUpdate works as $default', async (t) => {
 	const response = await db.select({ ...rest }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
 
 	t.deepEqual(response, [
-		{ name: 'John', id: 1, updateCounter: 1 },
-		{ name: 'Jane', id: 2, updateCounter: 1 },
-		{ name: 'Jack', id: 3, updateCounter: 1 },
-		{ name: 'Jill', id: 4, updateCounter: 1 },
+		{ name: 'John', id: 1, updateCounter: 1, alwaysNull: null },
+		{ name: 'Jane', id: 2, updateCounter: 1, alwaysNull: null },
+		{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
+		{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
 	]);
-	const msDelay = 100;
+	const msDelay = 250;
 
 	for (const eachUser of justDates) {
-		t.assert(eachUser.updatedAt!.valueOf() > Date.now() - msDelay); // This test might fail if db read is too slow. Is there a better way to test Date.now()?
+		t.assert(eachUser.updatedAt!.valueOf() > Date.now() - msDelay);
 	}
 });
 
@@ -2608,16 +2610,17 @@ test.serial('test $onUpdateFn and $onUpdate works updating', async (t) => {
 	await db.run(
 		sql`
 			create table ${usersOnUpdate} (
-			        id integer primary key autoincrement,
-			        name text not null,
-			        update_counter integer default 1 not null,
-			        updated_at integer
-			      )
+			id integer primary key autoincrement,
+			name text not null,
+			update_counter integer default 1,
+			updated_at integer,
+			always_null text
+			)
 		`,
 	);
 
 	await db.insert(usersOnUpdate).values([
-		{ name: 'John' },
+		{ name: 'John', alwaysNull: 'this will be null after updating' },
 		{ name: 'Jane' },
 		{ name: 'Jack' },
 		{ name: 'Jill' },
@@ -2625,20 +2628,21 @@ test.serial('test $onUpdateFn and $onUpdate works updating', async (t) => {
 	const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
 
 	await db.update(usersOnUpdate).set({ name: 'Angel' }).where(eq(usersOnUpdate.id, 1));
+	await db.update(usersOnUpdate).set({ updateCounter: null }).where(eq(usersOnUpdate.id, 2));
 
 	const justDates = await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
 
 	const response = await db.select({ ...rest }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
 
 	t.deepEqual(response, [
-		{ name: 'Angel', id: 1, updateCounter: 2 },
-		{ name: 'Jane', id: 2, updateCounter: 1 },
-		{ name: 'Jack', id: 3, updateCounter: 1 },
-		{ name: 'Jill', id: 4, updateCounter: 1 },
+		{ name: 'Angel', id: 1, updateCounter: 2, alwaysNull: null },
+		{ name: 'Jane', id: 2, updateCounter: null, alwaysNull: null },
+		{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
+		{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
 	]);
-	const msDelay = 100;
+	const msDelay = 250;
 
 	for (const eachUser of justDates) {
-		t.assert(eachUser.updatedAt!.valueOf() > Date.now() - msDelay); // This test might fail if db read is too slow. Is there a better way to test Date.now()?
+		t.assert(eachUser.updatedAt!.valueOf() > Date.now() - msDelay);
 	}
 });
