@@ -40,6 +40,7 @@ import {
 	timestamp,
 	uuid as pgUuid,
 	varchar,
+	json,
 } from 'drizzle-orm/pg-core';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { drizzle } from 'drizzle-orm/postgres-js';
@@ -87,6 +88,12 @@ const orders = pgTable('orders', {
 	product: text('product').notNull().$default(() => 'random_string'),
 	amount: integer('amount').notNull(),
 	quantity: integer('quantity').notNull(),
+});
+
+const jsonTestTable = pgTable('jsontest', {
+	id: serial('id').primaryKey(),
+	json: json('json').$type<{ string: string, number: number }>(),
+	jsonb: jsonb('jsonb').$type<{ string: string, number: number }>(),
 });
 
 const usersMigratorTable = pgTable('users12', {
@@ -229,6 +236,15 @@ test.beforeEach(async (t) => {
 			)
 		`,
 	);
+	await ctx.db.execute(
+		sql`
+			create table jsontest (
+				id serial primary key,
+				json json,
+				jsonb jsonb
+			)
+		`
+	)
 });
 
 test.serial('select all fields', async (t) => {
@@ -416,6 +432,34 @@ test.serial('json insert', async (t) => {
 
 	t.deepEqual(result, [{ id: 1, name: 'John', jsonb: ['foo', 'bar'] }]);
 });
+
+test.serial.failing('set json/jsonb fields with objects and retrieve with the ->> operator', async (t) => {
+	const { db } = t.context;
+
+	const obj = { string: 'test', number: 123 }
+	const { string: testString, number: testNumber } = obj
+
+	await db.insert(jsonTestTable).values({
+		json: obj,
+		jsonb: obj
+	})
+
+	const result = await db.select({
+		jsonStringField: sql<string>`${jsonTestTable.json}->>'string'`,
+		jsonNumberField: sql<string>`${jsonTestTable.json}->>'number'`,
+		jsonbStringField: sql<string>`${jsonTestTable.jsonb}->>'string'`,
+		jsonbNumberField: sql<string>`${jsonTestTable.jsonb}->>'number'`
+	}).from(jsonTestTable)
+
+	t.deepEqual(result, [{
+		jsonStringField: testString,
+		jsonNumberField: String(testNumber),
+		jsonbStringField: testString,
+		jsonbNumberField: String(testNumber)
+	}])
+
+	await db.execute(sql`drop table ${jsonTestTable}`);
+})
 
 test.serial('insert with overridden default values', async (t) => {
 	const { db } = t.context;
