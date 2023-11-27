@@ -415,12 +415,112 @@ export abstract class SQLiteSelectQueryBuilderBase<
 		};
 	}
 
+	/**
+	 * Adds `union` set operator to the query.
+	 * 
+	 * Calling this method will combine the result sets of the `select` statements and remove any duplicate rows that appear across them.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/set-operations#union}
+	 * 
+	 * @example
+	 * 
+	 * ```ts
+	 * // Select all unique names from customers and users tables
+	 * await db.select({ name: users.name })
+	 *   .from(users)
+	 *   .union(
+	 *     db.select({ name: customers.name }).from(customers)
+	 *   );
+	 * // or
+	 * import { union } from 'drizzle-orm/sqlite-core'
+	 * 
+	 * await union(
+	 *   db.select({ name: users.name }).from(users), 
+	 *   db.select({ name: customers.name }).from(customers)
+	 * );
+	 * ```
+	 */
 	union = this.createSetOperator('union', false);
 
+	/**
+	 * Adds `union all` set operator to the query.
+	 * 
+	 * Calling this method will combine the result-set of the `select` statements and keep all duplicate rows that appear across them.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/set-operations#union-all}
+	 * 
+	 * @example
+	 * 
+	 * ```ts
+	 * // Select all transaction ids from both online and in-store sales
+	 * await db.select({ transaction: onlineSales.transactionId })
+	 *   .from(onlineSales)
+	 *   .unionAll(
+	 *     db.select({ transaction: inStoreSales.transactionId }).from(inStoreSales)
+	 *   );
+	 * // or
+	 * import { unionAll } from 'drizzle-orm/sqlite-core'
+	 * 
+	 * await unionAll(
+	 *   db.select({ transaction: onlineSales.transactionId }).from(onlineSales),
+	 *   db.select({ transaction: inStoreSales.transactionId }).from(inStoreSales)
+	 * );
+	 * ```
+	 */
 	unionAll = this.createSetOperator('union', true);
 
+	/**
+	 * Adds `intersect` set operator to the query.
+	 * 
+	 * Calling this method will retain only the rows that are present in both result sets and eliminate duplicates.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/set-operations#intersect}
+	 * 
+	 * @example
+	 * 
+	 * ```ts
+	 * // Select course names that are offered in both departments A and B
+	 * await db.select({ courseName: depA.courseName })
+	 *   .from(depA)
+	 *   .intersect(
+	 *     db.select({ courseName: depB.courseName }).from(depB)
+	 *   );
+	 * // or
+	 * import { intersect } from 'drizzle-orm/sqlite-core'
+	 * 
+	 * await intersect(
+	 *   db.select({ courseName: depA.courseName }).from(depA),
+	 *   db.select({ courseName: depB.courseName }).from(depB)
+	 * );
+	 * ```
+	 */
 	intersect = this.createSetOperator('intersect', false);
 
+	/**
+	 * Adds `except` set operator to the query.
+	 * 
+	 * Calling this method will retrieve all unique rows from the left query, except for the rows that are present in the result set of the right query.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/set-operations#except}
+	 * 
+	 * @example
+	 * 
+	 * ```ts
+	 * // Select all courses offered in department A but not in department B
+	 * await db.select({ courseName: depA.courseName })
+	 *   .from(depA)
+	 *   .except(
+	 *     db.select({ courseName: depB.courseName }).from(depB)
+	 *   );
+	 * // or
+	 * import { except } from 'drizzle-orm/sqlite-core'
+	 * 
+	 * await except(
+	 *   db.select({ courseName: depA.courseName }).from(depA),
+	 *   db.select({ courseName: depB.courseName }).from(depB)
+	 * );
+	 * ```
+	 */
 	except = this.createSetOperator('except', false);
 
 	/** @internal */
@@ -820,10 +920,110 @@ const getSQLiteSetOperators = () => ({
 	except,
 });
 
+/**
+ * Adds `union` set operator to the query.
+ * 
+ * Calling this method will combine the result sets of the `select` statements and remove any duplicate rows that appear across them.
+ * 
+ * See docs: {@link https://orm.drizzle.team/docs/set-operations#union}
+ * 
+ * @example
+ * 
+ * ```ts
+ * // Select all unique names from customers and users tables
+ * import { union } from 'drizzle-orm/sqlite-core'
+ * 
+ * await union(
+ *   db.select({ name: users.name }).from(users), 
+ *   db.select({ name: customers.name }).from(customers)
+ * );
+ * // or
+ * await db.select({ name: users.name })
+ *   .from(users)
+ *   .union(
+ *     db.select({ name: customers.name }).from(customers)
+ *   );
+ * ```
+ */
 export const union = createSetOperator('union', false);
 
+/**
+ * Adds `union all` set operator to the query.
+ * 
+ * Calling this method will combine the result-set of the `select` statements and keep all duplicate rows that appear across them.
+ * 
+ * See docs: {@link https://orm.drizzle.team/docs/set-operations#union-all}
+ * 
+ * @example
+ * 
+ * ```ts
+ * // Select all transaction ids from both online and in-store sales
+ * import { unionAll } from 'drizzle-orm/sqlite-core'
+ * 
+ * await unionAll(
+ *   db.select({ transaction: onlineSales.transactionId }).from(onlineSales),
+ *   db.select({ transaction: inStoreSales.transactionId }).from(inStoreSales)
+ * );
+ * // or
+ * await db.select({ transaction: onlineSales.transactionId })
+ *   .from(onlineSales)
+ *   .unionAll(
+ *     db.select({ transaction: inStoreSales.transactionId }).from(inStoreSales)
+ *   );
+ * ```
+ */
 export const unionAll = createSetOperator('union', true);
 
+/**
+ * Adds `intersect` set operator to the query.
+ * 
+ * Calling this method will retain only the rows that are present in both result sets and eliminate duplicates.
+ * 
+ * See docs: {@link https://orm.drizzle.team/docs/set-operations#intersect}
+ * 
+ * @example
+ * 
+ * ```ts
+ * // Select course names that are offered in both departments A and B
+ * import { intersect } from 'drizzle-orm/sqlite-core'
+ * 
+ * await intersect(
+ *   db.select({ courseName: depA.courseName }).from(depA),
+ *   db.select({ courseName: depB.courseName }).from(depB)
+ * );
+ * // or
+ * await db.select({ courseName: depA.courseName })
+ *   .from(depA)
+ *   .intersect(
+ *     db.select({ courseName: depB.courseName }).from(depB)
+ *   );
+ * ```
+ */
 export const intersect = createSetOperator('intersect', false);
 
+/**
+ * Adds `except` set operator to the query.
+ * 
+ * Calling this method will retrieve all unique rows from the left query, except for the rows that are present in the result set of the right query.
+ * 
+ * See docs: {@link https://orm.drizzle.team/docs/set-operations#except}
+ * 
+ * @example
+ * 
+ * ```ts
+ * // Select all courses offered in department A but not in department B
+ * import { except } from 'drizzle-orm/sqlite-core'
+ * 
+ * await except(
+ *   db.select({ courseName: depA.courseName }).from(depA),
+ *   db.select({ courseName: depB.courseName }).from(depB)
+ * );
+ * // or
+ * await db.select({ courseName: depA.courseName })
+ *   .from(depA)
+ *   .except(
+ *     db.select({ courseName: depB.courseName }).from(depB)
+ *   );
+ * ```
+ */
 export const except = createSetOperator('except', false);
