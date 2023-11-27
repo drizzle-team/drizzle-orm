@@ -76,6 +76,38 @@ export class MySqlDatabase<
 		}
 	}
 
+	/**
+	 * Creates a subquery that defines a temporary named result set as a CTE.
+	 * 
+	 * It is useful for breaking down complex queries into simpler parts and for reusing the result set in subsequent parts of the query.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/select#with-clause}
+	 * 
+	 * @param alias The alias for the subquery.
+	 * 
+	 * Failure to provide an alias will result in a DrizzleTypeError, preventing the subquery from being referenced in other queries.
+	 * 
+	 * @example
+	 * 
+	 * ```ts
+	 * // Create a subquery with alias 'sq' and use it in the select query
+	 * const sq = db.$with('sq').as(db.select().from(users).where(eq(users.id, 42)));
+	 * 
+	 * const result = await db.with(sq).select().from(sq);
+	 * ```
+	 * 
+	 * To select arbitrary SQL values as fields in a CTE and reference them in other CTEs or in the main query, you need to add aliases to them:
+	 * 
+	 * ```ts
+	 * // Select an arbitrary SQL value as a field in a CTE and reference it in the main query
+	 * const sq = db.$with('sq').as(db.select({
+	 *   name: sql<string>`upper(${users.name})`.as('name'),
+	 * })
+	 * .from(users));
+	 * 
+	 * const result = await db.with(sq).select({ name: sq.name }).from(sq);
+	 * ```
+	 */
 	$with<TAlias extends string>(alias: TAlias) {
 		return {
 			as<TSelection extends ColumnsSelection>(
@@ -93,6 +125,25 @@ export class MySqlDatabase<
 		};
 	}
 
+	/**
+	 * Incorporates a previously defined CTE (using `$with`) into the main query.
+	 * 
+	 * This method allows the main query to reference a temporary named result set.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/select#with-clause}
+	 * 
+	 * @param queries The CTEs to incorporate into the main query.
+	 * 
+	 * @example
+	 * 
+	 * ```ts
+	 * // Define a subquery 'sq' as a CTE using $with
+	 * const sq = db.$with('sq').as(db.select().from(users).where(eq(users.id, 42)));
+	 * 
+	 * // Incorporate the CTE 'sq' into the main query and select from it
+	 * const result = await db.with(sq).select().from(sq);
+	 * ```
+	 */
 	with(...queries: WithSubquery[]) {
 		const self = this;
 
