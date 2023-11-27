@@ -1,7 +1,7 @@
 import pg from 'pg';
 import { type Equal, Expect } from 'type-tests/utils.ts';
 import { drizzle } from '~/node-postgres/index.ts';
-import { sql } from '~/sql/index.ts';
+import { sql } from '~/sql/sql.ts';
 import * as schema from './tables-rel.ts';
 
 const { Pool } = pg;

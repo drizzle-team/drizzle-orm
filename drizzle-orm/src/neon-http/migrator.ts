@@ -1,7 +1,7 @@
 import type { MigrationConfig } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
-import { type SQL, sql } from '~/sql/index.ts';
-import { type NeonHttpDatabase } from './driver.ts';
+import { type SQL, sql } from '~/sql/sql.ts';
+import type { NeonHttpDatabase } from './driver.ts';
 
 /**
  * This function reads migrationFolder and execute each unapplied migration and mark it as executed in database

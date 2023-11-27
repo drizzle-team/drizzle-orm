@@ -1,18 +1,12 @@
 import type { ResultSetHeader } from 'mysql2/promise';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import {
-	type ExtractTablesWithRelations,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
-import type { SQLWrapper } from '~/sql/index.ts';
-import { SelectionProxyHandler, WithSubquery } from '~/subquery.ts';
-import { type DrizzleTypeError } from '~/utils.ts';
-import { type ColumnsSelection } from '~/view.ts';
+import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
+import type { DrizzleTypeError } from '~/utils.ts';
 import type { MySqlDialect } from './dialect.ts';
 import {
-	MySqlDelete,
+	MySqlDeleteBase,
 	MySqlInsertBuilder,
 	MySqlSelectBuilder,
 	MySqlUpdateBuilder,
@@ -31,6 +25,8 @@ import type {
 } from './session.ts';
 import type { WithSubqueryWithSelection } from './subquery.ts';
 import type { MySqlTable } from './table.ts';
+import { WithSubquery } from '~/subquery.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
 
 export class MySqlDatabase<
 	TQueryResult extends QueryResultHKT,
@@ -84,7 +80,7 @@ export class MySqlDatabase<
 		return {
 			as<TSelection extends ColumnsSelection>(
 				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
-			): WithSubqueryWithSelection<TSelection, TAlias, 'mysql'> {
+			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {
 					qb = qb(new QueryBuilder());
 				}
@@ -92,7 +88,7 @@ export class MySqlDatabase<
 				return new Proxy(
 					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
 					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-				) as WithSubqueryWithSelection<TSelection, TAlias, 'mysql'>;
+				) as WithSubqueryWithSelection<TSelection, TAlias>;
 			},
 		};
 	}
@@ -159,8 +155,8 @@ export class MySqlDatabase<
 		return new MySqlInsertBuilder(table, this.session, this.dialect);
 	}
 
-	delete<TTable extends MySqlTable>(table: TTable): MySqlDelete<TTable, TQueryResult, TPreparedQueryHKT> {
-		return new MySqlDelete(table, this.session, this.dialect);
+	delete<TTable extends MySqlTable>(table: TTable): MySqlDeleteBase<TTable, TQueryResult, TPreparedQueryHKT> {
+		return new MySqlDeleteBase(table, this.session, this.dialect);
 	}
 
 	execute<T extends { [column: string]: any } = ResultSetHeader>(
@@ -179,3 +175,55 @@ export class MySqlDatabase<
 		return this.session.transaction(transaction, config);
 	}
 }
+
+export type MySQLWithReplicas<Q> = Q & { $primary: Q };
+
+export const withReplicas = <
+	HKT extends QueryResultHKT,
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TFullSchema extends Record<string, unknown>,
+	TSchema extends TablesRelationalConfig,
+	Q extends MySqlDatabase<
+		HKT,
+		TPreparedQueryHKT,
+		TFullSchema,
+		TSchema extends Record<string, unknown> ? ExtractTablesWithRelations<TFullSchema> : TSchema
+	>,
+>(
+	primary: Q,
+	replicas: [Q, ...Q[]],
+	getReplica: (replicas: Q[]) => Q = () => replicas[Math.floor(Math.random() * replicas.length)]!,
+): MySQLWithReplicas<Q> => {
+	const select: Q['select'] = (...args: any) => getReplica(replicas).select(args);
+	const selectDistinct: Q['selectDistinct'] = (...args: any) => getReplica(replicas).selectDistinct(args);
+	const $with: Q['with'] = (...args: any) => getReplica(replicas).with(args);
+
+	const update: Q['update'] = (...args: any) => primary.update(args);
+	const insert: Q['insert'] = (...args: any) => primary.insert(args);
+	const $delete: Q['delete'] = (...args: any) => primary.delete(args);
+	const execute: Q['execute'] = (...args: any) => primary.execute(args);
+	const transaction: Q['transaction'] = (...args: any) => primary.transaction(args);
+
+	return new Proxy<Q & { $primary: Q }>(
+		{
+			...primary,
+			update,
+			insert,
+			delete: $delete,
+			execute,
+			transaction,
+			$primary: primary,
+			select,
+			selectDistinct,
+			with: $with,
+		},
+		{
+			get(target, prop, _receiver) {
+				if (prop === 'query') {
+					return getReplica(replicas).query;
+				}
+				return target[prop as keyof typeof target];
+			},
+		},
+	);
+};
