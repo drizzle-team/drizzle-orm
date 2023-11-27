@@ -1,8 +1,8 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-import { int, mysqlTable, text } from '~/mysql-core/index.ts';
+import { int, type MySqlInsert, mysqlTable, text } from '~/mysql-core/index.ts';
 import type { MySqlRawQueryResult } from '~/mysql2/index.ts';
-import { sql } from '~/sql/index.ts';
+import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
 import { users } from './tables.ts';
 
@@ -100,4 +100,24 @@ Expect<Equal<MySqlRawQueryResult, typeof insertReturningSqlPrepared>>;
 	});
 
 	await db.insert(users).values({ name: 'John Wick', age: 58, occupation: 'housekeeper' });
+}
+
+{
+	function dynamic<T extends MySqlInsert>(qb: T) {
+		return qb.onDuplicateKeyUpdate({ set: {} });
+	}
+
+	const qbBase = db.insert(users).values({ age1: 0, class: 'A', enumCol: 'a', homeCity: 0 }).$dynamic();
+	const qb = dynamic(qbBase);
+	const result = await qb;
+	Expect<Equal<MySqlRawQueryResult, typeof result>>;
+}
+
+{
+	db
+		.insert(users)
+		.values({ age1: 0, class: 'A', enumCol: 'a', homeCity: 0 })
+		.onDuplicateKeyUpdate({ set: {} })
+		// @ts-expect-error method was already called
+		.onDuplicateKeyUpdate({ set: {} });
 }

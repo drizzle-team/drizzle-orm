@@ -1,4 +1,3 @@
-export * from './array.ts';
 export * from './bigint.ts';
 export * from './bigserial.ts';
 export * from './boolean.ts';

@@ -22,10 +22,11 @@ import {
 	or,
 } from '~/expressions.ts';
 import { alias } from '~/mysql-core/alias.ts';
-import { param, sql } from '~/sql/index.ts';
+import { param, sql } from '~/sql/sql.ts';
 
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
+import { type MySqlSelect, type MySqlSelectQueryBuilder, QueryBuilder } from '~/mysql-core/index.ts';
 import { db } from './db.ts';
 import { cities, classes, newYorkers, users } from './tables.ts';
 
@@ -432,4 +433,174 @@ await db
 	for await (const row of query) {
 		Expect<Equal<typeof users.$inferSelect, typeof row>>();
 	}
+}
+
+{
+	db
+		.select()
+		.from(users)
+		.where(eq(users.id, 1));
+
+	db
+		.select()
+		.from(users)
+		.where(eq(users.id, 1))
+		// @ts-expect-error - can't use where twice
+		.where(eq(users.id, 1));
+
+	db
+		.select()
+		.from(users)
+		.where(eq(users.id, 1))
+		.limit(10)
+		// @ts-expect-error - can't use where twice
+		.where(eq(users.id, 1));
+}
+
+{
+	function withFriends<T extends MySqlSelect>(qb: T) {
+		const friends = alias(users, 'friends');
+		const friends2 = alias(users, 'friends2');
+		const friends3 = alias(users, 'friends3');
+		const friends4 = alias(users, 'friends4');
+		const friends5 = alias(users, 'friends5');
+		return qb
+			.leftJoin(friends, sql`true`)
+			.leftJoin(friends2, sql`true`)
+			.leftJoin(friends3, sql`true`)
+			.leftJoin(friends4, sql`true`)
+			.leftJoin(friends5, sql`true`);
+	}
+
+	const qb = db.select().from(users).$dynamic();
+	const result = await withFriends(qb);
+	Expect<
+		Equal<typeof result, {
+			users_table: typeof users.$inferSelect;
+			friends: typeof users.$inferSelect | null;
+			friends2: typeof users.$inferSelect | null;
+			friends3: typeof users.$inferSelect | null;
+			friends4: typeof users.$inferSelect | null;
+			friends5: typeof users.$inferSelect | null;
+		}[]>
+	>;
+}
+
+{
+	function withFriends<T extends MySqlSelectQueryBuilder>(qb: T) {
+		const friends = alias(users, 'friends');
+		const friends2 = alias(users, 'friends2');
+		const friends3 = alias(users, 'friends3');
+		const friends4 = alias(users, 'friends4');
+		const friends5 = alias(users, 'friends5');
+		return qb
+			.leftJoin(friends, sql`true`)
+			.leftJoin(friends2, sql`true`)
+			.leftJoin(friends3, sql`true`)
+			.leftJoin(friends4, sql`true`)
+			.leftJoin(friends5, sql`true`);
+	}
+
+	const qb = db.select().from(users).$dynamic();
+	const result = await withFriends(qb);
+	Expect<
+		Equal<typeof result, {
+			users_table: typeof users.$inferSelect;
+			friends: typeof users.$inferSelect | null;
+			friends2: typeof users.$inferSelect | null;
+			friends3: typeof users.$inferSelect | null;
+			friends4: typeof users.$inferSelect | null;
+			friends5: typeof users.$inferSelect | null;
+		}[]>
+	>;
+}
+
+{
+	function dynamic<T extends MySqlSelect>(qb: T) {
+		return qb.where(sql``).having(sql``).groupBy(sql``).orderBy(sql``).limit(1).offset(1).for('update');
+	}
+
+	const qb = db.select().from(users).$dynamic();
+	const result = await dynamic(qb);
+	Expect<Equal<typeof result, typeof users.$inferSelect[]>>;
+}
+
+{
+	// TODO: add to docs
+	function dynamic<T extends MySqlSelectQueryBuilder>(qb: T) {
+		return qb.where(sql``).having(sql``).groupBy(sql``).orderBy(sql``).limit(1).offset(1).for('update');
+	}
+
+	const query = new QueryBuilder().select().from(users).$dynamic();
+	dynamic(query);
+}
+
+{
+	// TODO: add to docs
+	function paginated<T extends MySqlSelect>(qb: T, page: number) {
+		return qb.limit(10).offset((page - 1) * 10);
+	}
+
+	const qb = db.select().from(users).$dynamic();
+	const result = await paginated(qb, 1);
+
+	Expect<Equal<typeof result, typeof users.$inferSelect[]>>;
+}
+
+{
+	db
+		.select()
+		.from(users)
+		.where(sql``)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.where(sql``);
+
+	db
+		.select()
+		.from(users)
+		.having(sql``)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.having(sql``);
+
+	db
+		.select()
+		.from(users)
+		.groupBy(sql``)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.groupBy(sql``);
+
+	db
+		.select()
+		.from(users)
+		.orderBy(sql``)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.orderBy(sql``);
+
+	db
+		.select()
+		.from(users)
+		.limit(10)
+		.where(sql``)
+		// @ts-expect-error method was already called
+		.limit(10);
+
+	db
+		.select()
+		.from(users)
+		.offset(10)
+		.limit(10)
+		// @ts-expect-error method was already called
+		.offset(10);
+
+	db
+		.select()
+		.from(users)
+		.for('update')
+		.limit(10)
+		// @ts-expect-error method was already called
+		.for('update');
 }

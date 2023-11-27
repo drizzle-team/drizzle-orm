@@ -1,5 +1,5 @@
 import type { TSchema } from '@sinclair/typebox';
-import { type ExecutionContext } from 'ava';
+import type { ExecutionContext } from 'ava';
 
 export function expectSchemaShape<T extends TSchema>(t: ExecutionContext, expected: T) {
 	return {
@@ -15,4 +15,3 @@ export function expectSchemaShape<T extends TSchema>(t: ExecutionContext, expect
 		},
 	};
 }
-
