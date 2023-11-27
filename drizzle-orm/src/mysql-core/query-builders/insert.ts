@@ -158,6 +158,32 @@ export class MySqlInsertBase<
 		this.config = { table, values, ignore };
 	}
 
+	/**
+	 * Adds an `on duplicate key update` clause to the query.
+	 * 
+	 * Calling this method will update update the row if any unique index conflicts. MySQL will automatically determine the conflict target based on the primary key and unique indexes.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/insert#on-duplicate-key-update}
+	 * 
+	 * @param config The `set` clause
+	 * 
+	 * @example
+	 * ```ts
+	 * await db.insert(cars)
+	 *   .values({ id: 1, brand: 'BMW'})
+	 *   .onDuplicateKeyUpdate({ set: { brand: 'Porsche' }});
+	 * ```
+	 * 
+	 * While MySQL does not directly support doing nothing on conflict, you can perform a no-op by setting any column's value to itself and achieve the same effect:
+	 * 
+	 * ```ts
+	 * import { sql } from 'drizzle-orm';
+	 * 
+	 * await db.insert(cars)
+	 *   .values({ id: 1, brand: 'BMW' })
+	 *   .onDuplicateKeyUpdate({ set: { id: sql`id` } });
+	 * ```
+	 */
 	onDuplicateKeyUpdate(
 		config: MySqlInsertOnDuplicateKeyUpdateConfig<this>,
 	): MySqlInsertWithout<this, TDynamic, 'onDuplicateKeyUpdate'> {
