@@ -407,7 +407,10 @@ test('insert + db.all + db.get + db.values + db.run', async () => {
 		{ id: 2, name: 'Dan', verified: 0, invited_by: null },
 	]);
 
-	expect(batchResponse[3]).toEqual([[1, 'John', 0, null], [2, 'Dan', 0, null]]);
+	expect(batchResponse[3].map((row) => Array.prototype.slice.call(row))).toEqual([
+		[1, 'John', 0, null],
+		[2, 'Dan', 0, null],
+	]);
 
 	expect(batchResponse[4]).toEqual(
 		{ id: 1, name: 'John', verified: 0, invited_by: null },

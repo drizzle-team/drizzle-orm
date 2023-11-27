@@ -4,7 +4,7 @@
 		"composite": false,
 		"target": "esnext",
 		"module": "esnext",
-		"moduleResolution": "node",
+		"moduleResolution": "bundler",
 		"lib": ["es2020", "es2018", "es2017", "es7", "es6", "es5"],
 		"declaration": false /* Generate .d.ts files from TypeScript and JavaScript files in your project. */,
 		"declarationMap": false,
@@ -34,10 +34,8 @@
 		"allowUnreachableCode": false /* Disable error reporting for unreachable code. */,
 		"skipLibCheck": true /* Skip type checking all .d.ts files. */,
 		"noErrorTruncation": true /* Disable truncating types in error messages. */,
-		"checkJs": true
+		"checkJs": true,
+		"allowImportingTsExtensions": true
 	},
-	"exclude": ["**/dist"],
-	"ts-node": {
-		"require": ["tsconfig-paths/register"]
-	}
+	"exclude": ["**/dist"]
 }

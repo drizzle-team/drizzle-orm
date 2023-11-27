@@ -13,7 +13,7 @@ import { entityKind } from '~/entity.ts';
 import type { ForeignKey, UpdateDeleteAction } from '~/sqlite-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/sqlite-core/foreign-keys.ts';
 import type { AnySQLiteTable, SQLiteTable } from '~/sqlite-core/table.ts';
-import { type Update } from '~/utils.ts';
+import type { Update } from '~/utils.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
 
 export interface ReferenceConfig {
