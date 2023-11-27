@@ -350,16 +350,15 @@ export class PgSelectQueryBuilderBase<
 				})(key);
 			}
 
-			const ttable = pgTable('', columns);
+			const table = pgTable('', columns);
 
-			ttable[IsLazilyNamedTable] = true;
-			const aliased = new Proxy(ttable, new LazyTableAliasProxyHandler());
-			const rightSelect = (typeof rightSelection === 'function'
-				? rightSelection(getPgSetOperators(), aliased as any)
-				: rightSelection) as TypedQueryBuilder<
-					any,
-					TResult
-				>;
+			table[IsLazilyNamedTable] = true;
+			const aliased = new Proxy(table, new LazyTableAliasProxyHandler());
+			const rightSelect = (
+				typeof rightSelection === 'function'
+					? rightSelection(getPgSetOperators(), aliased as any)
+					: rightSelection
+			) as TypedQueryBuilder<any, TResult>;
 
 			if (!haveSameKeys(this.getSelectedFields(), rightSelect.getSelectedFields())) {
 				throw new Error(
