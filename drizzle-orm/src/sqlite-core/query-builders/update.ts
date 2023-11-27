@@ -9,6 +9,7 @@ import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.t
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import type { SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
+import type { SQLiteColumn } from '../columns/common.ts';
 
 export interface SQLiteUpdateConfig {
 	where?: SQL | undefined;
@@ -174,11 +175,66 @@ export class SQLiteUpdateBase<
 		this.config = { set, table };
 	}
 
+	/**
+	 * Adds a 'where' clause to the query.
+	 * 
+	 * Calling this method will update only those rows that fulfill a specified condition.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/update}
+	 * 
+	 * @param where the 'where' clause.
+	 * 
+	 * @example
+	 * You can use conditional operators and `sql function` to filter the rows to be updated.
+	 * 
+	 * ```ts
+	 * // Update all cars with green color
+	 * db.update(cars).set({ color: 'red' })
+	 *   .where(eq(cars.color, 'green'));
+	 * // or
+	 * db.update(cars).set({ color: 'red' })
+	 *   .where(sql`${cars.color} = 'green'`)
+	 * ```
+	 * 
+	 * You can logically combine conditional operators with `and()` and `or()` operators:
+	 * 
+	 * ```ts
+	 * // Update all BMW cars with a green color
+	 * db.update(cars).set({ color: 'red' })
+	 *   .where(and(eq(cars.color, 'green'), eq(cars.brand, 'BMW')));
+	 * 
+	 * // Update all cars with the green or blue color
+	 * db.update(cars).set({ color: 'red' })
+	 *   .where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
+	 * ```
+	 */
 	where(where: SQL | undefined): SQLiteUpdateWithout<this, TDynamic, 'where'> {
 		this.config.where = where;
 		return this as any;
 	}
 
+	/**
+	 * Adds a `returning` clause to the query.
+	 * 
+	 * Calling this method will return the specified fields of the updated rows. If no fields are specified, all fields will be returned.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/update#update-with-returning}
+	 * 
+	 * @example
+	 * ```ts
+	 * // Update all cars with the green color and return all fields
+	 * const updatedCars: Car[] = await db.update(cars)
+	 *   .set({ color: 'red' })
+	 *   .where(eq(cars.color, 'green'))
+	 *   .returning();
+	 * 
+	 * // Update all cars with the green color and return only their id and brand fields
+	 * const updatedCarsIdsAndBrands: { id: number, brand: string }[] = await db.update(cars)
+	 *   .set({ color: 'red' })
+	 *   .where(eq(cars.color, 'green'))
+	 *   .returning({ id: cars.id, brand: cars.brand });
+	 * ```
+	 */
 	returning(): SQLiteUpdateReturningAll<this, TDynamic>;
 	returning<TSelectedFields extends SelectedFields>(
 		fields: TSelectedFields,
@@ -186,7 +242,7 @@ export class SQLiteUpdateBase<
 	returning(
 		fields: SelectedFields = this.config.table[SQLiteTable.Symbol.Columns],
 	): SQLiteUpdateWithout<AnySQLiteUpdate, TDynamic, 'returning'> {
-		this.config.returning = orderSelectedFields(fields);
+		this.config.returning = orderSelectedFields<SQLiteColumn>(fields);
 		return this as any;
 	}
 
