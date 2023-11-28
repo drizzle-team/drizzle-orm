@@ -41,6 +41,7 @@ ruleTester.run('enforce delete with where (default options)', myRule, {
 ruleTester.run('enforce delete with where (string option)', myRule, {
 	valid: [
 		{ code: 'const a = db.delete({}).where({});', options: [{ drizzleObjectName: 'db' }] },
+		{ code: 'const a = something.delete({})', options: [{ drizzleObjectName: 'db' }] },
 		{ code: 'delete db.something', options: [{ drizzleObjectName: 'db' }] },
 		{
 			code: `dataSource

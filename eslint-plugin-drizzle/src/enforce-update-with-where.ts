@@ -1,25 +1,35 @@
-import type { TSESLint } from '@typescript-eslint/utils';
+import { ESLintUtils } from '@typescript-eslint/utils';
+import { isDrizzleObj, type Options } from './utils/options';
 
+const createRule = ESLintUtils.RuleCreator(() => 'https://github.com/drizzle-team/eslint-plugin-drizzle');
 type MessageIds = 'enforceUpdateWithWhere';
 
 let lastNodeName: string = '';
 
-const deleteRule: TSESLint.RuleModule<MessageIds> = {
-	defaultOptions: [],
+const updateRule = createRule<Options, MessageIds>({
+	defaultOptions: [{ drizzleObjectName: [] }],
+	name: 'enforce-update-with-where',
 	meta: {
 		type: 'problem',
 		docs: {
 			description: 'Enforce that `update` method is used with `where` to avoid deleting all the rows in a table.',
-			url: 'https://github.com/drizzle-team/eslint-plugin-drizzle',
 		},
 		fixable: 'code',
 		messages: {
 			enforceUpdateWithWhere:
 				'Avoid updating all the rows in a table. Use `db.update(...).set(...).where(...)` instead.',
 		},
-		schema: [],
+		schema: [{
+			type: 'object',
+			properties: {
+				drizzleObjectName: {
+					type: ['string', 'array'],
+				},
+			},
+			additionalProperties: false,
+		}],
 	},
-	create(context) {
+	create(context, options) {
 		return {
 			MemberExpression: (node) => {
 				if (node.property.type === 'Identifier') {
@@ -30,6 +40,7 @@ const deleteRule: TSESLint.RuleModule<MessageIds> = {
 						&& node.object.callee.type === 'MemberExpression'
 						&& node.object.callee.property.type === 'Identifier'
 						&& node.object.callee.property.name === 'update'
+						&& isDrizzleObj(node.object.callee, options)
 					) {
 						context.report({
 							node,
@@ -42,6 +53,6 @@ const deleteRule: TSESLint.RuleModule<MessageIds> = {
 			},
 		};
 	},
-};
+});
 
-export default deleteRule;
+export default updateRule;
