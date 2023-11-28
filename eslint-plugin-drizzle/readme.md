@@ -37,8 +37,22 @@ If you don't use the preset, ensure you use the same `env` and `parserOptions` c
 ## Rules
 
 **enforce-delete-with-where**: Enforce using `delete` with `where` in `DELETE` statement
+Optionally, you can defined a `drizzleObjectName` in the plugin options that accepts a string or an array of strings.
+This is useful when you have object or classes with a delete method that's not from drizzle. Such delete method will trigger the eslint rule.
+To avoid that, you can define the name of the drizzle object that you use in your codebase (like `db`) so that the rule would only trigger if the delete method comes from this object:
+```json
+"rules": {
+  "drizzle/enforce-delete-with-where": ["error", { "drizzleObjectName": ["db", "dataSource", "database"] }],
+}
+```
 
 **enforce-update-with-where**: Enforce using `update` with `where` in `UPDATE` statement
+Similar to the delete rule, you can define the name of the drizzle object that you use in your codebase (like `db`) so that the rule would only trigger if the update method comes from this object:
+```json
+"rules": {
+  "drizzle/enforce-update-with-where": ["error", { "drizzleObjectName": "db" }],
+}
+```
 
 ## Preset configs
 
