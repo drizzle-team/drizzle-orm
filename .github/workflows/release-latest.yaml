@@ -13,6 +13,7 @@ jobs:
           - drizzle-zod
           - drizzle-typebox
           - drizzle-valibot
+          - eslint-plugin-drizzle
     runs-on: ubuntu-20.04
     services:
       postgres:
@@ -82,8 +83,8 @@ jobs:
           is_version_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
 
           if [[ "$is_version_published" == "true" ]]; then
-            echo "\`${{ matrix.package }}@$version\` already published, adding tag \`latest\`" >> $GITHUB_STEP_SUMMARY
-            npm dist-tag add ${{ matrix.package }}@$version latest
+            echo "\`${{ matrix.package }}@ $version\` already published, adding tag \`latest\`" >> $GITHUB_STEP_SUMMARY
+            npm dist-tag add ${{ matrix.package }}@ $version latest
           elif [[ "$latest" != "$version" ]]; then
             echo "Latest:  $latest"
             echo "Current: $version"
