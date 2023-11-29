@@ -17,7 +17,7 @@ const updateRule = createRule<Options, MessageIds>({
 		fixable: 'code',
 		messages: {
 			enforceUpdateWithWhere:
-				'Avoid updating all the rows in a table. Use `db.update(...).set(...).where(...)` instead.',
+			'Without `.where(...)` you will update all the rows in a table. If you didn\'t want to do it, please use `db.update(...).set(...).where(...)` instead. Otherwise you can ignore this rule here'
 		},
 		schema: [{
 			type: 'object',

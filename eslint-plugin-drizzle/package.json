@@ -1,6 +1,6 @@
 {
   "name": "eslint-plugin-drizzle",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Eslint plugin for drizzle users to avoid common pitfalls",
   "main": "src/index.js",
   "scripts": {
@@ -15,10 +15,10 @@
     "eslint-plugin",
     "drizzle"
   ],
-  "author": "Angelelz",
+  "author": "Drizzle Team",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/drizzle-team/drizzle-orm.git"
+    "url": "git+https://github.com/drizzle-team/drizzle-orm/tree/main/eslint-plugin-drizzle.git"
   },
   "license": "Apache-2.0",
   "devDependencies": {

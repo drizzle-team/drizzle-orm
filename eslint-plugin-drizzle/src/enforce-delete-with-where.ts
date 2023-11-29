@@ -17,7 +17,7 @@ const deleteRule = createRule<Options, MessageIds>({
 		},
 		fixable: 'code',
 		messages: {
-			enforceDeleteWithWhere: 'Avoid deleting all the rows in a table. Use `db.delete(...).where(...)` instead.',
+			enforceDeleteWithWhere: 'Without `.where(...)` you will delete all the rows in a table. If you didn\'t want to do it, please use `db.delete(...).where(...)` instead. Otherwise you can ignore this rule here',
 		},
 		schema: [{
 			type: 'object',
