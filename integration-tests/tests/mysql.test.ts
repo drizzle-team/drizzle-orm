@@ -23,6 +23,7 @@ import {
 	avgDistinct,
 	max,
 	min,
+	lt,
 } from 'drizzle-orm';
 import {
 	alias,
@@ -30,6 +31,7 @@ import {
 	boolean,
 	date,
 	datetime,
+	decimal,
 	except,
 	exceptAll,
 	foreignKey,
@@ -1480,6 +1482,122 @@ test.serial('with ... select', async (t) => {
 			productUnits: 9,
 			productSales: 90,
 		},
+	]);
+});
+
+test.serial('with ... update', async (t) => {
+	const { db } = t.context;
+
+	const products = mysqlTable('products', {
+		id: serial('id').primaryKey(),
+		price: decimal('price', {
+			precision: 15,
+			scale: 2
+		}).notNull(),
+		cheap: boolean('cheap').notNull().default(false)
+	});
+
+	await db.execute(sql`drop table if exists ${products}`);
+	await db.execute(sql`create table ${products} (
+		id serial primary key,
+		price decimal(15, 2) not null,
+		cheap boolean not null default false
+	)`);
+
+	await db.insert(products).values([
+		{ price: '10.99' },
+		{ price: '25.85' },
+		{ price: '32.99' },
+		{ price: '2.50' },
+		{ price: '4.59' },
+	]);
+
+	const averagePrice = db
+		.$with('average_price')
+		.as(
+			db
+				.select({
+					value: sql`avg(${products.price})`.as('value')
+				})
+				.from(products)
+		);
+
+	await db
+		.with(averagePrice)
+		.update(products)
+		.set({
+			cheap: true
+		})
+		.where(lt(products.price, sql`(select * from ${averagePrice})`));
+
+	const result = await db
+		.select({
+			id: products.id
+		})
+		.from(products)
+		.where(eq(products.cheap, true))
+
+	t.deepEqual(result, [
+		{ id: 1 },
+		{ id: 4 },
+		{ id: 5 }
+	]);
+});
+
+test.serial('with ... delete', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists \`orders\``);
+	await db.execute(
+		sql`
+			create table \`orders\` (
+				\`id\` serial primary key,
+				\`region\` text not null,
+				\`product\` text not null,
+				\`amount\` int not null,
+				\`quantity\` int not null
+			)
+		`,
+	);
+
+	await db.insert(orders).values([
+		{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
+		{ region: 'Europe', product: 'A', amount: 20, quantity: 2 },
+		{ region: 'Europe', product: 'B', amount: 20, quantity: 2 },
+		{ region: 'Europe', product: 'B', amount: 30, quantity: 3 },
+		{ region: 'US', product: 'A', amount: 30, quantity: 3 },
+		{ region: 'US', product: 'A', amount: 40, quantity: 4 },
+		{ region: 'US', product: 'B', amount: 40, quantity: 4 },
+		{ region: 'US', product: 'B', amount: 50, quantity: 5 },
+	]);
+
+	const averageAmount = db
+		.$with('average_amount')
+		.as(
+			db
+				.select({
+					value: sql`avg(${orders.amount})`.as('value')
+				})
+				.from(orders)
+		);
+
+	await db
+		.with(averageAmount)
+		.delete(orders)
+		.where(gt(orders.amount, sql`(select * from ${averageAmount})`));
+
+	const result = await db
+		.select({
+			id: orders.id
+		})
+		.from(orders);
+
+	t.deepEqual(result, [
+		{ id: 1 },
+		{ id: 2 },
+		{ id: 3 },
+		{ id: 4 },
+		{ id: 5 }
 	]);
 });
 
