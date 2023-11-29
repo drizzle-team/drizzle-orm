@@ -356,8 +356,8 @@ export class PgDatabase<
 			return new PgDeleteBase(table, self.session, self.dialect, queries);
 		}
 
-			return { select, selectDistinct, selectDistinctOn, update, insert, delete: delete_ };
-		}
+		return { select, selectDistinct, selectDistinctOn, update, insert, delete: delete_ };
+	}
 
 	/**
 	 * Creates a select query.
