@@ -2,14 +2,15 @@ import type { BuildColumns } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
-import type { SQL } from '~/sql/index.ts';
-import { SelectionProxyHandler } from '~/subquery.ts';
+import type { SQL, ColumnsSelection } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
-import { type ColumnsSelection, View } from '~/view.ts';
 import type { PgColumn, PgColumnBuilderBase } from './columns/common.ts';
-import { QueryBuilder } from './query-builders/index.ts';
+import { QueryBuilder } from './query-builders/query-builder.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import { pgTable } from './table.ts';
+import { PgViewConfig } from './view-common.ts';
+import { PgViewBase } from './view-base.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
 
 export interface ViewWithConfig {
 	checkOption: 'local' | 'cascaded';
@@ -269,20 +270,6 @@ export class ManualMaterializedViewBuilder<
 		) as PgMaterializedViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'pg'>>;
 	}
 }
-
-export abstract class PgViewBase<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
-	TSelectedFields extends ColumnsSelection = ColumnsSelection,
-> extends View<TName, TExisting, TSelectedFields> {
-	static readonly [entityKind]: string = 'PgViewBase';
-
-	declare readonly _: View<TName, TExisting, TSelectedFields>['_'] & {
-		readonly viewBrand: 'PgViewBase';
-	};
-}
-
-export const PgViewConfig = Symbol.for('drizzle:PgViewConfig');
 
 export class PgView<
 	TName extends string = string,

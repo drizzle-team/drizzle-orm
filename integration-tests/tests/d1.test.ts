@@ -1424,7 +1424,7 @@ test.serial('transaction rollback', async (t) => {
 		await db.transaction(async (tx) => {
 			await tx.insert(users).values({ balance: 100 }).run();
 			tx.rollback();
-		}), new TransactionRollbackError());
+		}), { instanceOf: TransactionRollbackError });
 
 	const result = await db.select().from(users).all();
 
@@ -1483,7 +1483,7 @@ test.serial('nested transaction rollback', async (t) => {
 			await tx.transaction(async (tx) => {
 				await tx.update(users).set({ balance: 200 }).run();
 				tx.rollback();
-			}), new TransactionRollbackError());
+			}), { instanceOf: TransactionRollbackError });
 	});
 
 	const result = await db.select().from(users).all();
@@ -1669,16 +1669,16 @@ test.serial('insert with onConflict do update where', async (t) => {
 
 	await db
 		.insert(usersTable)
-		.values([{ id: 1, name: "John", verified: 0 }])
+		.values([{ id: 1, name: 'John', verified: 0 }])
 		.run();
 
 	await db
 		.insert(usersTable)
-		.values({ id: 1, name: "John1", verified: 0 })
+		.values({ id: 1, name: 'John1', verified: 0 })
 		.onConflictDoUpdate({
 			target: usersTable.id,
-			set: { name: "John1", verified: 1 },
-			where: eq(usersTable.verified, 0)
+			set: { name: 'John1', verified: 1 },
+			where: eq(usersTable.verified, 0),
 		})
 		.run();
 
@@ -1688,8 +1688,8 @@ test.serial('insert with onConflict do update where', async (t) => {
 		.where(eq(usersTable.id, 1))
 		.all();
 
-	t.deepEqual(res, [{ id: 1, name: "John1", verified: 1 }]);
-})
+	t.deepEqual(res, [{ id: 1, name: 'John1', verified: 1 }]);
+});
 
 test.serial('insert undefined', async (t) => {
 	const { db } = t.context;

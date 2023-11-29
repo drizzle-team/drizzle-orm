@@ -12,4 +12,4 @@ export * from './sql/index.ts';
 export * from './subquery.ts';
 export * from './table.ts';
 export * from './utils.ts';
-export * from './view.ts';
+export * from './view-common.ts';

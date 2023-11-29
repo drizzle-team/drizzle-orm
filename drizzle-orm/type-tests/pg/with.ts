@@ -2,7 +2,7 @@ import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { gt, inArray } from '~/expressions.ts';
 import { integer, pgTable, serial, text } from '~/pg-core/index.ts';
-import { sql } from '~/sql/index.ts';
+import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
 
 const orders = pgTable('orders', {

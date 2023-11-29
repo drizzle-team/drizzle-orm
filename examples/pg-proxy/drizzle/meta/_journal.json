@@ -1,0 +1,13 @@
+{
+  "version": "5",
+  "dialect": "pg",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1696231532854,
+      "tag": "0000_loving_gravity",
+      "breakpoints": true
+    }
+  ]
+}

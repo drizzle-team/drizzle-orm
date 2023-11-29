@@ -2,8 +2,8 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
-import type { SQL } from '~/sql/index.ts';
-import { type Equal } from '~/utils.ts';
+import type { SQL } from '~/sql/sql.ts';
+import type { Equal } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTypeValues>> =

@@ -8,11 +8,12 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { type Query, type QueryWithTypings, type SQL, type SQLWrapper } from '~/sql/index.ts';
-import { type KnownKeysOnly } from '~/utils.ts';
-import { type SQLiteDialect } from '../dialect.ts';
-import type { PreparedQuery, PreparedQueryConfig, SQLiteSession } from '../session.ts';
-import { type SQLiteTable } from '../table.ts';
+import type { RunnableQuery } from '~/runnable-query.ts';
+import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { KnownKeysOnly } from '~/utils.ts';
+import type { SQLiteDialect } from '../dialect.ts';
+import type { PreparedQueryConfig, SQLitePreparedQuery, SQLiteSession } from '../session.ts';
+import type { SQLiteTable } from '../table.ts';
 
 export type SQLiteRelationalQueryKind<TMode extends 'sync' | 'async', TResult> = TMode extends 'async'
 	? SQLiteRelationalQuery<TMode, TResult>
@@ -94,10 +95,16 @@ export class RelationalQueryBuilder<
 	}
 }
 
-export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> extends QueryPromise<TResult> implements SQLWrapper {
+export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> extends QueryPromise<TResult>
+	implements RunnableQuery<TResult, 'sqlite'>, SQLWrapper
+{
 	static readonly [entityKind]: string = 'SQLiteAsyncRelationalQuery';
 
-	declare protected $brand: 'SQLiteRelationalQuery';
+	declare readonly _: {
+		readonly dialect: 'sqlite';
+		readonly type: TType;
+		readonly result: TResult;
+	};
 
 	/** @internal */
 	mode: 'many' | 'first';
@@ -130,7 +137,7 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 		}).sql as SQL;
 	}
 
-	prepare(): PreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }> {
+	prepare(): SQLitePreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }> {
 		const { query, builtQuery } = this._toSQL();
 
 		return this.session.prepareQuery(
@@ -146,7 +153,7 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 				}
 				return rows as TResult;
 			},
-		) as PreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }>;
+		) as SQLitePreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }>;
 	}
 
 	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
