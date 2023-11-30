@@ -22,6 +22,7 @@
   },
   "license": "Apache-2.0",
   "devDependencies": {
+    "@types/node": "^20.10.1",
     "@typescript-eslint/parser": "^6.10.0",
     "@typescript-eslint/rule-tester": "^6.10.0",
     "@typescript-eslint/utils": "^6.10.0",
