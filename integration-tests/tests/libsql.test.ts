@@ -1255,11 +1255,13 @@ test.serial('with ... update', async (t) => {
 	});
 
 	await db.run(sql`drop table if exists ${products}`);
-	await db.run(sql`create table ${products} (
-		id integer primary key,
-		price numeric not null,
-		cheap integer not null default 0
-	)`);
+	await db.run(sql`
+		create table ${products} (
+			id integer primary key,
+			price numeric not null,
+			cheap integer not null default 0
+		)
+	`);
 
 	await db.insert(products).values([
 		{ price: '10.99' },
