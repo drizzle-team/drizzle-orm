@@ -16,10 +16,15 @@ ruleTester.run('enforce delete with where (default options)', myRule, {
 		`dataSource
       .delete()
       .where()`,
+		`this.database.delete({}).where()`,
 	],
 	invalid: [
 		{
 			code: 'db.delete({})',
+			errors: [{ messageId: 'enforceDeleteWithWhere' }],
+		},
+		{
+			code: 'this.dataSource.db.delete({})',
 			errors: [{ messageId: 'enforceDeleteWithWhere' }],
 		},
 		{
@@ -41,6 +46,7 @@ ruleTester.run('enforce delete with where (default options)', myRule, {
 ruleTester.run('enforce delete with where (string option)', myRule, {
 	valid: [
 		{ code: 'const a = db.delete({}).where({});', options: [{ drizzleObjectName: 'db' }] },
+		{ code: 'const a = this.database.db.delete({}).where({});', options: [{ drizzleObjectName: 'db' }] },
 		{ code: 'const a = something.delete({})', options: [{ drizzleObjectName: 'db' }] },
 		{ code: 'delete db.something', options: [{ drizzleObjectName: 'db' }] },
 		{
@@ -62,6 +68,11 @@ ruleTester.run('enforce delete with where (string option)', myRule, {
 			options: [{ drizzleObjectName: 'db' }],
 		},
 		{
+			code: 'this.database.db.delete({})',
+			errors: [{ messageId: 'enforceDeleteWithWhere' }],
+			options: [{ drizzleObjectName: 'db' }],
+		},
+		{
 			code: 'const a = await db.delete({})',
 			errors: [{ messageId: 'enforceDeleteWithWhere' }],
 			options: [{ drizzleObjectName: 'db' }],
@@ -77,6 +88,10 @@ ruleTester.run('enforce delete with where (string option)', myRule, {
 ruleTester.run('enforce delete with where (array option)', myRule, {
 	valid: [
 		{ code: 'const a = db.delete({}).where({});', options: [{ drizzleObjectName: ['db'] }] },
+		{
+			code: 'const a = this.database.dataSource.delete({}).where({});',
+			options: [{ drizzleObjectName: ['db', 'dataSource'] }],
+		},
 		{ code: 'delete db.something', options: [{ drizzleObjectName: ['db'] }] },
 		{
 			code: `dataSource
@@ -93,6 +108,11 @@ ruleTester.run('enforce delete with where (array option)', myRule, {
 	invalid: [
 		{
 			code: 'db.delete({})',
+			errors: [{ messageId: 'enforceDeleteWithWhere' }],
+			options: [{ drizzleObjectName: ['db', 'anotherName'] }],
+		},
+		{
+			code: 'this.dataSource.db.delete({})',
 			errors: [{ messageId: 'enforceDeleteWithWhere' }],
 			options: [{ drizzleObjectName: ['db', 'anotherName'] }],
 		},
