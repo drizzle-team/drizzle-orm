@@ -22,10 +22,19 @@ ruleTester.run('enforce update with where (default options)', myRule, {
       .update()
       .set()
       .where()`,
+		`this
+      .dataSource
+      .update()
+      .set()
+      .where()`,
 	],
 	invalid: [
 		{
 			code: 'db.update({}).set()',
+			errors: [{ messageId: 'enforceUpdateWithWhere' }],
+		},
+		{
+			code: 'this.database.db.update({}).set()',
 			errors: [{ messageId: 'enforceUpdateWithWhere' }],
 		},
 		{
@@ -48,6 +57,7 @@ ruleTester.run('enforce update with where (default options)', myRule, {
 ruleTester.run('enforce update with where (string option)', myRule, {
 	valid: [
 		{ code: 'const a = db.update({}).set().where({});', options: [{ drizzleObjectName: 'db' }] },
+		{ code: 'const a = this.database.db.update({}).set().where({});', options: [{ drizzleObjectName: 'db' }] },
 		{ code: 'update.db.update()', options: [{ drizzleObjectName: 'db' }] },
 		{
 			code: `dataSource
@@ -68,6 +78,11 @@ ruleTester.run('enforce update with where (string option)', myRule, {
 			options: [{ drizzleObjectName: 'db' }],
 		},
 		{
+			code: 'this.dataSource.db.update({}).set({})',
+			errors: [{ messageId: 'enforceUpdateWithWhere' }],
+			options: [{ drizzleObjectName: 'db' }],
+		},
+		{
 			code: 'const a = await db.update({}).set()',
 			errors: [{ messageId: 'enforceUpdateWithWhere' }],
 			options: [{ drizzleObjectName: 'db' }],
@@ -83,6 +98,7 @@ ruleTester.run('enforce update with where (string option)', myRule, {
 ruleTester.run('enforce delete with where (array option)', myRule, {
 	valid: [
 		{ code: 'const a = db.update({}).set().where({});', options: [{ drizzleObjectName: ['db'] }] },
+		{ code: 'const a = this.dataSource.db.update({}).set().where({});', options: [{ drizzleObjectName: ['db'] }] },
 		{ code: 'update.db.something', options: [{ drizzleObjectName: ['db'] }] },
 		{
 			code: `dataSource
@@ -100,6 +116,11 @@ ruleTester.run('enforce delete with where (array option)', myRule, {
 	invalid: [
 		{
 			code: 'db.update({}).set()',
+			errors: [{ messageId: 'enforceUpdateWithWhere' }],
+			options: [{ drizzleObjectName: ['db', 'anotherName'] }],
+		},
+		{
+			code: 'this.dataSource.db.update({}).set()',
 			errors: [{ messageId: 'enforceUpdateWithWhere' }],
 			options: [{ drizzleObjectName: ['db', 'anotherName'] }],
 		},
