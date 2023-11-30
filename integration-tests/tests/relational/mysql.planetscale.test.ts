@@ -27,75 +27,95 @@ beforeAll(async () => {
 		}),
 		{ schema, logger: ENABLE_LOGGING },
 	);
+
+	await Promise.all([
+		db.execute(sql`drop table if exists \`users\``),
+		db.execute(sql`drop table if exists \`groups\``),
+		db.execute(sql`drop table if exists \`users_to_groups\``),
+		db.execute(sql`drop table if exists \`posts\``),
+		db.execute(sql`drop table if exists \`comments\``),
+		db.execute(sql`drop table if exists \`comment_likes\``),
+	]);
+	await Promise.all([
+		db.execute(
+			sql`
+				CREATE TABLE IF NOT EXISTS \`users\` (
+					  \`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
+					  \`name\` text NOT NULL,
+					  \`verified\` boolean DEFAULT false NOT NULL,
+					  \`invited_by\` bigint
+				);
+			`,
+		),
+		db.execute(
+			sql`
+				CREATE TABLE IF NOT EXISTS \`groups\` (
+					\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
+					\`name\` text NOT NULL,
+					\`description\` text
+				);
+			`,
+		),
+		db.execute(
+			sql`
+				CREATE TABLE IF NOT EXISTS \`users_to_groups\` (
+					\`id\` serial PRIMARY KEY AUTO_INCREMENT NOT NULL,
+					\`user_id\` bigint,
+					\`group_id\` bigint
+				);
+			`,
+		),
+		db.execute(
+			sql`
+				CREATE TABLE IF NOT EXISTS \`posts\` (
+					\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
+					\`content\` text NOT NULL,
+					\`owner_id\` bigint,
+					\`created_at\` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+				);
+			`,
+		),
+		db.execute(
+			sql`
+				CREATE TABLE IF NOT EXISTS \`comments\` (
+					\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
+					\`content\` text NOT NULL,
+					\`creator\` bigint,
+					\`post_id\` bigint,
+					\`created_at\` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+				);
+			`,
+		),
+		db.execute(
+			sql`
+				CREATE TABLE IF NOT EXISTS \`comment_likes\` (
+					\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
+					\`creator\` bigint,
+					\`comment_id\` bigint,
+					\`created_at\` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+				);
+			`,
+		),
+	]);
 });
 
 beforeEach(async () => {
-	await db.execute(sql`drop table if exists \`users\``);
-	await db.execute(sql`drop table if exists \`groups\``);
-	await db.execute(sql`drop table if exists \`users_to_groups\``);
-	await db.execute(sql`drop table if exists \`posts\``);
-	await db.execute(sql`drop table if exists \`comments\``);
-	await db.execute(sql`drop table if exists \`comment_likes\``);
-
-	await db.execute(
-		sql`
-			CREATE TABLE \`users\` (
-				\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
-				\`name\` text NOT NULL,
-				\`verified\` boolean DEFAULT false NOT NULL,
-				\`invited_by\` bigint
-			);
-		`,
-	);
-	await db.execute(
-		sql`
-			CREATE TABLE \`groups\` (
-				\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
-				\`name\` text NOT NULL,
-				\`description\` text
-			);
-		`,
-	);
-	await db.execute(
-		sql`
-			CREATE TABLE \`users_to_groups\` (
-				\`id\` serial PRIMARY KEY AUTO_INCREMENT NOT NULL,
-				\`user_id\` bigint,
-				\`group_id\` bigint
-			);
-		`,
-	);
-	await db.execute(
-		sql`
-			CREATE TABLE \`posts\` (
-				\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
-				\`content\` text NOT NULL,
-				\`owner_id\` bigint,
-				\`created_at\` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
-			);
-		`,
-	);
-	await db.execute(
-		sql`
-			CREATE TABLE \`comments\` (
-				\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
-				\`content\` text NOT NULL,
-				\`creator\` bigint,
-				\`post_id\` bigint,
-				\`created_at\` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
-			);
-		`,
-	);
-	await db.execute(
-		sql`
-			CREATE TABLE \`comment_likes\` (
-				\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
-				\`creator\` bigint,
-				\`comment_id\` bigint,
-				\`created_at\` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
-			);
-		`,
-	);
+	await Promise.all([
+		db.delete(usersTable),
+		db.delete(postsTable),
+		db.delete(commentsTable),
+		db.delete(groupsTable),
+		db.delete(usersToGroupsTable),
+		db.execute(sql`delete from \`comment_likes\``),
+	]);
+	await Promise.all([
+		db.execute(sql`ALTER TABLE \`users\` AUTO_INCREMENT = 1`),
+		db.execute(sql`ALTER TABLE \`groups\` AUTO_INCREMENT = 1`),
+		db.execute(sql`ALTER TABLE \`users_to_groups\` AUTO_INCREMENT = 1`),
+		db.execute(sql`ALTER TABLE \`posts\` AUTO_INCREMENT = 1`),
+		db.execute(sql`ALTER TABLE \`comments\` AUTO_INCREMENT = 1`),
+		db.execute(sql`ALTER TABLE \`comment_likes\` AUTO_INCREMENT = 1`),
+	]);
 });
 
 /*
