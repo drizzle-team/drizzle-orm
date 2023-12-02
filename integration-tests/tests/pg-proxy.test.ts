@@ -58,7 +58,7 @@ import { Expect } from './utils.ts';
 
 // eslint-disable-next-line drizzle/require-entity-kind
 class ServerSimulator {
-	constructor(private db: pg.Client) {}
+	constructor(private db: pg.Client) { }
 
 	async query(sql: string, params: any[], method: 'all' | 'execute') {
 		if (method === 'all') {
@@ -96,8 +96,9 @@ class ServerSimulator {
 				await this.db.query(query);
 			}
 			await this.db.query('COMMIT');
-		} catch {
+		} catch (e) {
 			await this.db.query('ROLLBACK');
+			throw e;
 		}
 
 		return {};
@@ -1045,7 +1046,7 @@ test.serial('prepared statement with placeholder in .offset', async (t) => {
 test.serial('migrator', async (t) => {
 	const { db, serverSimulator } = t.context;
 
-	await db.execute(sql`drop table if exists all_columns`);
+	await db.execute(sql`drop table if exists users`);
 	await db.execute(sql`drop table if exists users12`);
 	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
@@ -1056,15 +1057,36 @@ test.serial('migrator', async (t) => {
 			console.error(e);
 			throw new Error('Proxy server cannot run migrations');
 		}
-	}, { migrationsFolder: './drizzle2/pg' });
+	}, { migrationsFolder: './drizzle2/pg-proxy/first' });
 
-	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	await t.notThrowsAsync(async () => {
+		await db.insert(usersTable).values({ name: 'John' });
+	});
 
-	const result = await db.select().from(usersMigratorTable);
+	await t.throwsAsync(async () => {
+		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	}, {
+		message: 'relation "users12" does not exist'
+	});
 
-	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+	await migrate(db, async (queries) => {
+		try {
+			await serverSimulator.migrations(queries);
+		} catch (e) {
+			console.error(e);
+			throw new Error('Proxy server cannot run migrations');
+		}
+	}, { migrationsFolder: './drizzle2/pg-proxy/second' });
 
-	await db.execute(sql`drop table all_columns`);
+	await t.notThrowsAsync(async () => {
+		await db.insert(usersTable).values({ name: 'John' });
+	});
+
+	await t.notThrowsAsync(async () => {
+		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	});
+
+	await db.execute(sql`drop table users`);
 	await db.execute(sql`drop table users12`);
 	await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
 });
@@ -1087,11 +1109,10 @@ test.serial('insert via db.execute + returning', async (t) => {
 	const { db } = t.context;
 
 	const inserted = await db.execute<{ id: number; name: string }>(
-		sql`insert into ${usersTable} (${
-			name(
-				usersTable.name.name,
-			)
-		}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
+		sql`insert into ${usersTable} (${name(
+			usersTable.name.name,
+		)
+			}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
 	);
 	t.deepEqual(inserted, [{ id: 1, name: 'John' }]);
 });
@@ -2064,19 +2085,11 @@ test.serial('select from enum', async (t) => {
 	await db.execute(sql`drop type if exists ${name(equipmentEnum.enumName)}`);
 	await db.execute(sql`drop type if exists ${name(categoryEnum.enumName)}`);
 
-	await db.execute(
-		sql`create type ${
-			name(muscleEnum.enumName)
-		} as enum ('abdominals', 'hamstrings', 'adductors', 'quadriceps', 'biceps', 'shoulders', 'chest', 'middle_back', 'calves', 'glutes', 'lower_back', 'lats', 'triceps', 'traps', 'forearms', 'neck', 'abductors')`,
-	);
+	await db.execute(sql`create type ${name(muscleEnum.enumName)} as enum ('abdominals', 'hamstrings', 'adductors', 'quadriceps', 'biceps', 'shoulders', 'chest', 'middle_back', 'calves', 'glutes', 'lower_back', 'lats', 'triceps', 'traps', 'forearms', 'neck', 'abductors')`,);
 	await db.execute(sql`create type ${name(forceEnum.enumName)} as enum ('isometric', 'isotonic', 'isokinetic')`);
 	await db.execute(sql`create type ${name(levelEnum.enumName)} as enum ('beginner', 'intermediate', 'advanced')`);
 	await db.execute(sql`create type ${name(mechanicEnum.enumName)} as enum ('compound', 'isolation')`);
-	await db.execute(
-		sql`create type ${
-			name(equipmentEnum.enumName)
-		} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,
-	);
+	await db.execute(sql`create type ${name(equipmentEnum.enumName)} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,);
 	await db.execute(sql`create type ${name(categoryEnum.enumName)} as enum ('upper_body', 'lower_body', 'full_body')`);
 	await db.execute(sql`
 		create table ${exercises} (

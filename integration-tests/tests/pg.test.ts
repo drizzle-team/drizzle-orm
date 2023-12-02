@@ -20,6 +20,14 @@ import {
 	sql,
 	type SQLWrapper,
 	TransactionRollbackError,
+	count,
+	countDistinct,
+	avg,
+	avgDistinct,
+	sum,
+	sumDistinct,
+	max,
+	min,
 } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -132,6 +140,16 @@ const usersMigratorTable = pgTable('users12', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
+});
+
+// To test aggregate functions
+const aggregateTable = pgTable('aggregate_table', {
+	id: serial('id').notNull(),
+	name: text('name').notNull(),
+	a: integer('a'),
+	b: integer('b'),
+	c: integer('c'),
+	nullOnly: integer('null_only')
 });
 
 interface Context {
@@ -333,6 +351,31 @@ async function setupSetOperationTest(db: NodePgDatabase) {
 	]);
 }
 
+async function setupAggregateFunctionsTest(db: NodePgDatabase) {
+	await db.execute(sql`drop table if exists "aggregate_table"`);
+	await db.execute(
+		sql`
+			create table "aggregate_table" (
+				"id" serial not null,
+				"name" text not null,
+				"a" integer,
+				"b" integer,
+				"c" integer,
+				"null_only" integer
+			);
+		`,
+	);
+	await db.insert(aggregateTable).values([
+		{ name: 'value 1', a: 5, b: 10, c: 20 },
+		{ name: 'value 1', a: 5, b: 20, c: 30 },
+		{ name: 'value 2', a: 10, b: 50, c: 60 },
+		{ name: 'value 3', a: 20, b: 20, c: null },
+		{ name: 'value 4', a: null, b: 90, c: 120 },
+		{ name: 'value 5', a: 80, b: 10, c: null },
+		{ name: 'value 6', a: null, b: null, c: 150 },
+	]);
+}
+
 test.serial('table configs: unique third param', async (t) => {
 	const cities1Table = pgTable('cities1', {
 		id: serial('id').primaryKey(),
@@ -480,16 +523,18 @@ test.serial('select distinct', async (t) => {
 	const usersDistinctTable = pgTable('users_distinct', {
 		id: integer('id').notNull(),
 		name: text('name').notNull(),
+		age: integer('age').notNull()
 	});
 
 	await db.execute(sql`drop table if exists ${usersDistinctTable}`);
-	await db.execute(sql`create table ${usersDistinctTable} (id integer, name text)`);
+	await db.execute(sql`create table ${usersDistinctTable} (id integer, name text, age integer)`);
 
 	await db.insert(usersDistinctTable).values([
-		{ id: 1, name: 'John' },
-		{ id: 1, name: 'John' },
-		{ id: 2, name: 'John' },
-		{ id: 1, name: 'Jane' },
+		{ id: 1, name: 'John', age: 24 },
+		{ id: 1, name: 'John', age: 24 },
+		{ id: 2, name: 'John', age: 25 },
+		{ id: 1, name: 'Jane', age: 24 },
+		{ id: 1, name: 'Jane', age: 26 }
 	]);
 	const users1 = await db.selectDistinct().from(usersDistinctTable).orderBy(
 		usersDistinctTable.id,
@@ -501,10 +546,18 @@ test.serial('select distinct', async (t) => {
 	const users3 = await db.selectDistinctOn([usersDistinctTable.name], { name: usersDistinctTable.name }).from(
 		usersDistinctTable,
 	).orderBy(usersDistinctTable.name);
+	const users4 = await db.selectDistinctOn([usersDistinctTable.id, usersDistinctTable.age]).from(
+		usersDistinctTable
+	).orderBy(usersDistinctTable.id, usersDistinctTable.age)
 
 	await db.execute(sql`drop table ${usersDistinctTable}`);
 
-	t.deepEqual(users1, [{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
+	t.deepEqual(users1, [
+		{ id: 1, name: 'Jane', age: 24 },
+		{ id: 1, name: 'Jane', age: 26 },
+		{ id: 1, name: 'John', age: 24 },
+		{ id: 2, name: 'John', age: 25 }
+	]);
 
 	t.deepEqual(users2.length, 2);
 	t.deepEqual(users2[0]?.id, 1);
@@ -513,6 +566,12 @@ test.serial('select distinct', async (t) => {
 	t.deepEqual(users3.length, 2);
 	t.deepEqual(users3[0]?.name, 'Jane');
 	t.deepEqual(users3[1]?.name, 'John');
+
+	t.deepEqual(users4, [
+		{ id: 1, name: 'John', age: 24 },
+		{ id: 1, name: 'Jane', age: 26 },
+		{ id: 2, name: 'John', age: 25 }
+	]);
 });
 
 test.serial('insert returning sql', async (t) => {
@@ -3150,4 +3209,70 @@ test.serial('set operations (mixed all) as function', async (t) => {
 				.select().from(cities2Table).where(gt(citiesTable.id, 1)),
 		).orderBy(asc(sql`id`));
 	});
+});
+
+test.serial('aggregate function: count', async (t) => {
+	const { db } = t.context;
+	const table = aggregateTable;
+	await setupAggregateFunctionsTest(db);
+
+	const result1 = await db.select({ value: count() }).from(table);
+	const result2 = await db.select({ value: count(table.a) }).from(table);
+	const result3 = await db.select({ value: countDistinct(table.name) }).from(table);
+
+	t.deepEqual(result1[0]?.value, 7);
+	t.deepEqual(result2[0]?.value, 5);
+	t.deepEqual(result3[0]?.value, 6);
+});
+
+test.serial('aggregate function: avg', async (t) => {
+	const { db } = t.context;
+	const table = aggregateTable;
+	await setupAggregateFunctionsTest(db);
+
+	const result1 = await db.select({ value: avg(table.b) }).from(table);
+	const result2 = await db.select({ value: avg(table.nullOnly) }).from(table);
+	const result3 = await db.select({ value: avgDistinct(table.b) }).from(table);
+
+	t.deepEqual(result1[0]?.value, '33.3333333333333333');
+	t.deepEqual(result2[0]?.value, null);
+	t.deepEqual(result3[0]?.value, '42.5000000000000000');
+});
+
+test.serial('aggregate function: sum', async (t) => {
+	const { db } = t.context;
+	const table = aggregateTable;
+	await setupAggregateFunctionsTest(db);
+
+	const result1 = await db.select({ value: sum(table.b) }).from(table);
+	const result2 = await db.select({ value: sum(table.nullOnly) }).from(table);
+	const result3 = await db.select({ value: sumDistinct(table.b) }).from(table);
+
+	t.deepEqual(result1[0]?.value, '200');
+	t.deepEqual(result2[0]?.value, null);
+	t.deepEqual(result3[0]?.value, '170');
+});
+
+test.serial('aggregate function: max', async (t) => {
+	const { db } = t.context;
+	const table = aggregateTable;
+	await setupAggregateFunctionsTest(db);
+
+	const result1 = await db.select({ value: max(table.b) }).from(table);
+	const result2 = await db.select({ value: max(table.nullOnly) }).from(table);
+
+	t.deepEqual(result1[0]?.value, 90);
+	t.deepEqual(result2[0]?.value, null);
+});
+
+test.serial('aggregate function: min', async (t) => {
+	const { db } = t.context;
+	const table = aggregateTable;
+	await setupAggregateFunctionsTest(db);
+
+	const result1 = await db.select({ value: min(table.b) }).from(table);
+	const result2 = await db.select({ value: min(table.nullOnly) }).from(table);
+
+	t.deepEqual(result1[0]?.value, 10);
+	t.deepEqual(result2[0]?.value, null);
 });

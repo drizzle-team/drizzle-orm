@@ -653,4 +653,3 @@ Table.prototype.getSQL = function() {
 Subquery.prototype.getSQL = function() {
 	return new SQL([this]);
 };
-

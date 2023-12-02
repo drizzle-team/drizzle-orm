@@ -17,6 +17,7 @@ jobs:
           - drizzle-zod
           - drizzle-typebox
           - drizzle-valibot
+          - eslint-plugin-drizzle
     runs-on: ubuntu-20.04
     permissions:
       contents: read
@@ -91,8 +92,8 @@ jobs:
           is_version_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
 
           if [[ "$is_version_published" == "true" ]]; then
-            echo "\`${{ matrix.package }}@$version\` already published, adding tag \`$tag\`" >> $GITHUB_STEP_SUMMARY
-            npm dist-tag add ${{ matrix.package }}@$version $tag
+            echo "\`${{ matrix.package }}@ $version\` already published, adding tag \`$tag\`" >> $GITHUB_STEP_SUMMARY
+            npm dist-tag add ${{ matrix.package }}@ $version $tag
           else
             {
               echo "version=$version"

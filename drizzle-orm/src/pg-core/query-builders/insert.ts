@@ -18,6 +18,7 @@ import { tracer } from '~/tracing.ts';
 import { mapUpdateSet, orderSelectedFields } from '~/utils.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { PgUpdateSetSource } from './update.ts';
+import type { PgColumn } from '../columns/common.ts';
 
 export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	table: TTable;
@@ -163,6 +164,26 @@ export class PgInsertBase<
 		this.config = { table, values };
 	}
 
+	/**
+	 * Adds a `returning` clause to the query.
+	 * 
+	 * Calling this method will return the specified fields of the inserted rows. If no fields are specified, all fields will be returned.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/insert#insert-returning}
+	 * 
+	 * @example
+	 * ```ts
+	 * // Insert one row and return all fields
+	 * const insertedCar: Car[] = await db.insert(cars)
+	 *   .values({ brand: 'BMW' })
+	 *   .returning();
+	 * 
+	 * // Insert one row and return only the id
+	 * const insertedCarId: { id: number }[] = await db.insert(cars)
+	 *   .values({ brand: 'BMW' })
+	 *   .returning({ id: cars.id });
+	 * ```
+	 */
 	returning(): PgInsertWithout<PgInsertReturningAll<this, TDynamic>, TDynamic, 'returning'>;
 	returning<TSelectedFields extends SelectedFieldsFlat>(
 		fields: TSelectedFields,
@@ -170,10 +191,32 @@ export class PgInsertBase<
 	returning(
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
 	): PgInsertWithout<AnyPgInsert, TDynamic, 'returning'> {
-		this.config.returning = orderSelectedFields(fields);
+		this.config.returning = orderSelectedFields<PgColumn>(fields);
 		return this as any;
 	}
 
+	/**
+	 * Adds an `on conflict do nothing` clause to the query.
+	 * 
+	 * Calling this method simply avoids inserting a row as its alternative action.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/insert#on-conflict-do-nothing}
+	 * 
+	 * @param config The `target` and `where` clauses.
+	 * 
+	 * @example
+	 * ```ts
+	 * // Insert one row and cancel the insert if there's a conflict
+	 * await db.insert(cars)
+	 *   .values({ id: 1, brand: 'BMW' })
+	 *   .onConflictDoNothing();
+	 * 
+	 * // Explicitly specify conflict target
+	 * await db.insert(cars)
+	 *   .values({ id: 1, brand: 'BMW' })
+	 *   .onConflictDoNothing({ target: cars.id });
+	 * ```
+	 */
 	onConflictDoNothing(
 		config: { target?: IndexColumn | IndexColumn[]; where?: SQL } = {},
 	): PgInsertWithout<this, TDynamic, 'onConflictDoNothing' | 'onConflictDoUpdate'> {
@@ -191,6 +234,36 @@ export class PgInsertBase<
 		return this as any;
 	}
 
+
+	/**
+	 * Adds an `on conflict do update` clause to the query.
+	 * 
+	 * Calling this method will update the existing row that conflicts with the row proposed for insertion as its alternative action.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/insert#upserts-and-conflicts} 
+	 * 
+	 * @param config The `target`, `set` and `where` clauses.
+	 * 
+	 * @example
+	 * ```ts
+	 * // Update the row if there's a conflict
+	 * await db.insert(cars)
+	 *   .values({ id: 1, brand: 'BMW' })
+	 *   .onConflictDoUpdate({ 
+	 *     target: cars.id, 
+	 *     set: { brand: 'Porsche' } 
+	 *   });
+	 * 
+	 * // Upsert with 'where' clause
+	 * await db.insert(cars)
+	 *   .values({ id: 1, brand: 'BMW' })
+	 *   .onConflictDoUpdate({
+	 *     target: cars.id,
+	 *     set: { brand: 'newBMW' },
+	 *     where: sql`${cars.createdAt} > '2023-01-01'::date`,
+	 *   });
+	 * ```
+	 */
 	onConflictDoUpdate(
 		config: PgInsertOnConflictDoUpdateConfig<this>,
 	): PgInsertWithout<this, TDynamic, 'onConflictDoNothing' | 'onConflictDoUpdate'> {
