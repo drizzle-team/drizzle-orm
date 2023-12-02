@@ -131,6 +131,39 @@ export class MySqlUpdateBase<
 		this.config = { set, table };
 	}
 
+	/**
+	 * Adds a 'where' clause to the query.
+	 * 
+	 * Calling this method will update only those rows that fulfill a specified condition.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/update}
+	 * 
+	 * @param where the 'where' clause.
+	 * 
+	 * @example
+	 * You can use conditional operators and `sql function` to filter the rows to be updated.
+	 * 
+	 * ```ts
+	 * // Update all cars with green color
+	 * db.update(cars).set({ color: 'red' })
+	 *   .where(eq(cars.color, 'green'));
+	 * // or
+	 * db.update(cars).set({ color: 'red' })
+	 *   .where(sql`${cars.color} = 'green'`)
+	 * ```
+	 * 
+	 * You can logically combine conditional operators with `and()` and `or()` operators:
+	 * 
+	 * ```ts
+	 * // Update all BMW cars with a green color
+	 * db.update(cars).set({ color: 'red' })
+	 *   .where(and(eq(cars.color, 'green'), eq(cars.brand, 'BMW')));
+	 * 
+	 * // Update all cars with the green or blue color
+	 * db.update(cars).set({ color: 'red' })
+	 *   .where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
+	 * ```
+	 */
 	where(where: SQL | undefined): MySqlUpdateWithout<this, TDynamic, 'where'> {
 		this.config.where = where;
 		return this as any;

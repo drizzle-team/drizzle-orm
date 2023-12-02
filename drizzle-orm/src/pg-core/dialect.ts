@@ -253,7 +253,7 @@ export class PgDialect {
 
 		let distinctSql: SQL | undefined;
 		if (distinct) {
-			distinctSql = distinct === true ? sql` distinct` : sql` distinct on (${sql.join(distinct.on, ', ')})`;
+			distinctSql = distinct === true ? sql` distinct` : sql` distinct on (${sql.join(distinct.on, sql`, `)})`;
 		}
 
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
