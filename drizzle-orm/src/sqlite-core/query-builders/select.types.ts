@@ -1,6 +1,5 @@
 import type { ColumnsSelection, Placeholder, SQL, View } from '~/sql/sql.ts';
 import type { Assume, ValidateShape } from '~/utils.ts';
-
 import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteTable, SQLiteTableWithColumns } from '~/sqlite-core/table.ts';
 
