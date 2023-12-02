@@ -2,15 +2,15 @@ import type { BuildColumns } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
 import type { MySqlColumn, MySqlColumnBuilderBase } from './columns/index.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import { mysqlTable } from './table.ts';
-import { MySqlViewConfig } from './view-common.ts';
 import { MySqlViewBase } from './view-base.ts';
-import { SelectionProxyHandler } from '~/selection-proxy.ts';
+import { MySqlViewConfig } from './view-common.ts';
 
 export interface ViewBuilderConfig {
 	algorithm?: 'undefined' | 'merge' | 'temptable';

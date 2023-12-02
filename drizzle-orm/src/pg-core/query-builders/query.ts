@@ -105,8 +105,8 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 		return this._prepare(name);
 	}
 
-	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
-		const query = this.dialect.buildRelationalQueryWithoutPK({
+	private _getQuery() {
+		return this.dialect.buildRelationalQueryWithoutPK({
 			fullSchema: this.fullSchema,
 			schema: this.schema,
 			tableNamesMap: this.tableNamesMap,
@@ -115,6 +115,15 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 			queryConfig: this.config,
 			tableAlias: this.tableConfig.tsName,
 		});
+	}
+
+	/** @internal */
+	getSQL(): SQL {
+		return this._getQuery().sql as SQL;
+	}
+
+	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+		const query = this._getQuery();
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
 
