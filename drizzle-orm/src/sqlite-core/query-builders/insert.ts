@@ -12,6 +12,7 @@ import { Table } from '~/table.ts';
 import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { SQLiteUpdateSetSource } from './update.ts';
+import type { SQLiteColumn } from '../columns/common.ts';
 
 export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 	table: TTable;
@@ -206,6 +207,26 @@ export class SQLiteInsertBase<
 		this.config = { table, values };
 	}
 
+	/**
+	 * Adds a `returning` clause to the query.
+	 * 
+	 * Calling this method will return the specified fields of the inserted rows. If no fields are specified, all fields will be returned.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/insert#insert-returning}
+	 * 
+	 * @example
+	 * ```ts
+	 * // Insert one row and return all fields
+	 * const insertedCar: Car[] = await db.insert(cars)
+	 *   .values({ brand: 'BMW' })
+	 *   .returning();
+	 * 
+	 * // Insert one row and return only the id
+	 * const insertedCarId: { id: number }[] = await db.insert(cars)
+	 *   .values({ brand: 'BMW' })
+	 *   .returning({ id: cars.id });
+	 * ```
+	 */
 	returning(): SQLiteInsertReturningAll<this, TDynamic>;
 	returning<TSelectedFields extends SelectedFieldsFlat>(
 		fields: TSelectedFields,
@@ -213,10 +234,32 @@ export class SQLiteInsertBase<
 	returning(
 		fields: SelectedFieldsFlat = this.config.table[SQLiteTable.Symbol.Columns],
 	): SQLiteInsertWithout<AnySQLiteInsert, TDynamic, 'returning'> {
-		this.config.returning = orderSelectedFields(fields);
+		this.config.returning = orderSelectedFields<SQLiteColumn>(fields);
 		return this as any;
 	}
 
+	/**
+	 * Adds an `on conflict do nothing` clause to the query.
+	 * 
+	 * Calling this method simply avoids inserting a row as its alternative action.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/insert#on-conflict-do-nothing}
+	 * 
+	 * @param config The `target` and `where` clauses.
+	 * 
+	 * @example
+	 * ```ts
+	 * // Insert one row and cancel the insert if there's a conflict
+	 * await db.insert(cars)
+	 *   .values({ id: 1, brand: 'BMW' })
+	 *   .onConflictDoNothing();
+	 * 
+	 * // Explicitly specify conflict target
+	 * await db.insert(cars)
+	 *   .values({ id: 1, brand: 'BMW' })
+	 *   .onConflictDoNothing({ target: cars.id });
+	 * ```
+	 */
 	onConflictDoNothing(config: { target?: IndexColumn | IndexColumn[]; where?: SQL } = {}): this {
 		if (config.target === undefined) {
 			this.config.onConflict = sql`do nothing`;
@@ -228,6 +271,35 @@ export class SQLiteInsertBase<
 		return this;
 	}
 
+	/**
+	 * Adds an `on conflict do update` clause to the query.
+	 * 
+	 * Calling this method will update the existing row that conflicts with the row proposed for insertion as its alternative action.
+	 * 
+	 * See docs: {@link https://orm.drizzle.team/docs/insert#upserts-and-conflicts} 
+	 * 
+	 * @param config The `target`, `set` and `where` clauses.
+	 * 
+	 * @example
+	 * ```ts
+	 * // Update the row if there's a conflict
+	 * await db.insert(cars)
+	 *   .values({ id: 1, brand: 'BMW' })
+	 *   .onConflictDoUpdate({ 
+	 *     target: cars.id, 
+	 *     set: { brand: 'Porsche' } 
+	 *   });
+	 * 
+	 * // Upsert with 'where' clause
+	 * await db.insert(cars)
+	 *   .values({ id: 1, brand: 'BMW' })
+	 *   .onConflictDoUpdate({
+	 *     target: cars.id,
+	 *     set: { brand: 'newBMW' },
+	 *     where: sql`${cars.createdAt} > '2023-01-01'::date`,
+	 *   });
+	 * ```
+	 */
 	onConflictDoUpdate(config: SQLiteInsertOnConflictDoUpdateConfig<this>): this {
 		const targetSql = Array.isArray(config.target) ? sql`${config.target}` : sql`${[config.target]}`;
 		const whereSql = config.where ? sql` where ${config.where}` : sql``;
