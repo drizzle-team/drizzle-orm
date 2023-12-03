@@ -45,7 +45,7 @@ import {
 	pgView,
 	type PgViewWithSelection,
 } from '~/pg-core/view.ts';
-import { sql } from '~/sql/index.ts';
+import { sql } from '~/sql/sql.ts';
 import type { InferInsertModel, InferSelectModel } from '~/table.ts';
 import { db } from './db.ts';
 

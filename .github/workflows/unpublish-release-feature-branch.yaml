@@ -12,6 +12,7 @@ jobs:
           - drizzle-zod
           - drizzle-typebox
           - drizzle-valibot
+          - eslint-plugin-drizzle
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3

@@ -4,8 +4,8 @@ import type { Database, Statement as BunStatement } from 'bun:sqlite';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query, sql } from '~/sql/index.ts';
+import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import type { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteTransaction } from '~/sqlite-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types.ts';
@@ -14,7 +14,7 @@ import type {
 	SQLiteExecuteMethod,
 	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
-import { PreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session.ts';
+import { SQLitePreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session.ts';
 import { mapResultRow } from '~/utils.ts';
 
 export interface SQLiteBunSessionOptions {
@@ -53,7 +53,7 @@ export class SQLiteBunSession<
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): PreparedQuery<T> {
 		const stmt = this.client.prepare(query.sql);
-		return new PreparedQuery(stmt, query.sql, query.params, this.logger, fields, executeMethod, customResultMapper);
+		return new PreparedQuery(stmt, query, this.logger, fields, executeMethod, customResultMapper);
 	}
 
 	override transaction<T>(
@@ -98,27 +98,26 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 
 	constructor(
 		private stmt: Statement,
-		private queryString: string,
-		private params: unknown[],
+		query: Query,
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		private customResultMapper?: (rows: unknown[][]) => unknown,
 	) {
-		super('sync', executeMethod);
+		super('sync', executeMethod, query);
 	}
 
 	run(placeholderValues?: Record<string, unknown>): void {
-		const params = fillPlaceholders(this.params, placeholderValues ?? {});
-		this.logger.logQuery(this.queryString, params);
+		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
+		this.logger.logQuery(this.query.sql, params);
 		return this.stmt.run(...params);
 	}
 
 	all(placeholderValues?: Record<string, unknown>): T['all'] {
-		const { fields, queryString, logger, joinsNotNullableMap, stmt, customResultMapper } = this;
+		const { fields, query, logger, joinsNotNullableMap, stmt, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
-			const params = fillPlaceholders(this.params, placeholderValues ?? {});
-			logger.logQuery(queryString, params);
+			const params = fillPlaceholders(query.params, placeholderValues ?? {});
+			logger.logQuery(query.sql, params);
 			return stmt.all(...params);
 		}
 
@@ -132,8 +131,8 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	}
 
 	get(placeholderValues?: Record<string, unknown>): T['get'] {
-		const params = fillPlaceholders(this.params, placeholderValues ?? {});
-		this.logger.logQuery(this.queryString, params);
+		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
+		this.logger.logQuery(this.query.sql, params);
 		const row = this.stmt.get(...params);
 
 		if (!row) {
@@ -153,8 +152,8 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	}
 
 	values(placeholderValues?: Record<string, unknown>): T['values'] {
-		const params = fillPlaceholders(this.params, placeholderValues ?? {});
-		this.logger.logQuery(this.queryString, params);
+		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
+		this.logger.logQuery(this.query.sql, params);
 		return this.stmt.values(...params);
 	}
 }

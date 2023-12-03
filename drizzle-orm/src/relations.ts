@@ -1,7 +1,7 @@
 import { type AnyTable, type InferModelFromColumns, isTable, Table } from '~/table.ts';
 import { type AnyColumn, Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
-import { PrimaryKeyBuilder } from './pg-core/index.ts';
+import { PrimaryKeyBuilder } from './pg-core/primary-keys.ts';
 import {
 	and,
 	asc,
@@ -26,11 +26,9 @@ import {
 	notInArray,
 	notLike,
 	or,
-	type Placeholder,
-	SQL,
-	sql,
-} from './sql/index.ts';
-import { type Assume, type ColumnsWithTable, type Equal, type Simplify, type ValueOrArray } from './utils.ts';
+} from './sql/expressions/index.ts';
+import { type Placeholder, SQL, sql } from './sql/sql.ts';
+import type { Assume, ColumnsWithTable, Equal, Simplify, ValueOrArray } from './utils.ts';
 
 export abstract class Relation<TTableName extends string = string> {
 	static readonly [entityKind]: string = 'Relation';
@@ -277,6 +275,7 @@ export interface TableRelationalConfig {
 	columns: Record<string, Column>;
 	relations: Record<string, Relation>;
 	primaryKey: AnyColumn[];
+	schema?: string;
 }
 
 export type TablesRelationalConfig = Record<string, TableRelationalConfig>;
@@ -437,6 +436,7 @@ export function extractTablesRelationalConfig<
 			tablesConfig[key] = {
 				tsName: key,
 				dbName: value[Table.Symbol.Name],
+				schema: value[Table.Symbol.Schema],
 				columns: value[Table.Symbol.Columns],
 				relations: bufferedRelations?.relations ?? {},
 				primaryKey: bufferedRelations?.primaryKey ?? [],

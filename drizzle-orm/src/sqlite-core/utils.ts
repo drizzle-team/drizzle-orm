@@ -1,6 +1,6 @@
 import { is } from '~/entity.ts';
 import { Table } from '~/table.ts';
-import { ViewBaseConfig } from '~/view.ts';
+import { ViewBaseConfig } from '~/view-common.ts';
 import type { Check } from './checks.ts';
 import { CheckBuilder } from './checks.ts';
 import type { ForeignKey } from './foreign-keys.ts';
@@ -11,7 +11,8 @@ import type { PrimaryKey } from './primary-keys.ts';
 import { PrimaryKeyBuilder } from './primary-keys.ts';
 import { SQLiteTable } from './table.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
-import { type SQLiteView, SQLiteViewConfig } from './view.ts';
+import { SQLiteViewConfig } from './view-common.ts';
+import type { SQLiteView } from './view.ts';
 
 export function getTableConfig<TTable extends SQLiteTable>(table: TTable) {
 	const columns = Object.values(table[SQLiteTable.Symbol.Columns]);

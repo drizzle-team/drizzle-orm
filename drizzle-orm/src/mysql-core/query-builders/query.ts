@@ -8,17 +8,11 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { type Query, type QueryWithTypings, type SQL } from '~/sql/index.ts';
-import { type KnownKeysOnly } from '~/utils.ts';
-import { type MySqlDialect } from '../dialect.ts';
-import {
-	type Mode,
-	type MySqlSession,
-	type PreparedQueryConfig,
-	type PreparedQueryHKTBase,
-	type PreparedQueryKind,
-} from '../session.ts';
-import { type MySqlTable } from '../table.ts';
+import type { Query, QueryWithTypings, SQL } from '~/sql/sql.ts';
+import type { KnownKeysOnly } from '~/utils.ts';
+import type { MySqlDialect } from '../dialect.ts';
+import type { Mode, MySqlSession, PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
+import type { MySqlTable } from '../table.ts';
 
 export class RelationalQueryBuilder<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
@@ -111,7 +105,7 @@ export class MySqlRelationalQuery<
 		) as PreparedQueryKind<TPreparedQueryHKT, PreparedQueryConfig & { execute: TResult }, true>;
 	}
 
-	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+	private _getQuery() {
 		const query = this.mode === 'planetscale'
 			? this.dialect.buildRelationalQueryWithoutLateralSubqueries({
 				fullSchema: this.fullSchema,
@@ -131,10 +125,20 @@ export class MySqlRelationalQuery<
 				queryConfig: this.config,
 				tableAlias: this.tableConfig.tsName,
 			});
+		return query;
+	}
+
+	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+		const query = this._getQuery();
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
 
 		return { builtQuery, query };
+	}
+
+	/** @internal */
+	getSQL(): SQL {
+		return this._getQuery().sql as SQL;
 	}
 
 	toSQL(): Query {
