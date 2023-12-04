@@ -23,9 +23,9 @@ import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, ValidateShape } from '~/utils.ts';
 import type { PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
-import type { MsSqlSelectBase, MsSqlSelectQueryBuilderBase } from './select.ts';
 import type { MsSqlViewBase } from '../view-base.ts';
 import type { MsSqlViewWithSelection } from '../view.ts';
+import type { MsSqlSelectBase, MsSqlSelectQueryBuilderBase } from './select.ts';
 
 export interface MsSqlSelectJoinConfig {
 	on: SQL | undefined;
@@ -427,6 +427,4 @@ export type GetMsSqlSetOperators = {
 	intersect: MsSqlCreateSetOperatorFn;
 	except: MsSqlCreateSetOperatorFn;
 	unionAll: MsSqlCreateSetOperatorFn;
-	intersectAll: MsSqlCreateSetOperatorFn;
-	exceptAll: MsSqlCreateSetOperatorFn;
 };
