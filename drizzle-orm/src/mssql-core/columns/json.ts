@@ -32,11 +32,15 @@ export class MsSqlJson<T extends ColumnBaseConfig<'json', 'MsSqlJson'>> extends 
 	static readonly [entityKind]: string = 'MsSqlJson';
 
 	getSQLType(): string {
-		return 'json';
+		return 'text';
 	}
 
 	override mapToDriverValue(value: T['data']): string {
 		return JSON.stringify(value);
+	}
+
+	override mapFromDriverValue(value: string): T['data'] {
+		return JSON.parse(value);
 	}
 }
 
