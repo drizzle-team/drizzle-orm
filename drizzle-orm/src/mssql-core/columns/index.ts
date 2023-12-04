@@ -14,7 +14,6 @@ export * from './int.ts';
 export * from './json.ts';
 export * from './mediumint.ts';
 export * from './real.ts';
-export * from './serial.ts';
 export * from './smallint.ts';
 export * from './text.ts';
 export * from './time.ts';

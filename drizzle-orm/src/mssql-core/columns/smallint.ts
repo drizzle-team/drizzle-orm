@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
-import { MsSqlColumnBuilderWithAutoIncrement, MsSqlColumnWithAutoIncrement } from './common.ts';
+import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 import type { MsSqlIntConfig } from './int.ts';
 
 export type MsSqlSmallIntBuilderInitial<TName extends string> = MsSqlSmallIntBuilder<{
@@ -15,7 +15,7 @@ export type MsSqlSmallIntBuilderInitial<TName extends string> = MsSqlSmallIntBui
 }>;
 
 export class MsSqlSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlSmallInt'>>
-	extends MsSqlColumnBuilderWithAutoIncrement<T, MsSqlIntConfig>
+	extends MsSqlColumnBuilderWithIdentity<T, MsSqlIntConfig>
 {
 	static readonly [entityKind]: string = 'MsSqlSmallIntBuilder';
 
@@ -36,11 +36,11 @@ export class MsSqlSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'M
 }
 
 export class MsSqlSmallInt<T extends ColumnBaseConfig<'number', 'MsSqlSmallInt'>>
-	extends MsSqlColumnWithAutoIncrement<T, MsSqlIntConfig>
+	extends MsSqlColumnWithIdentity<T, MsSqlIntConfig>
 {
 	static readonly [entityKind]: string = 'MsSqlSmallInt';
 
-	getSQLType(): string {
+	_getSQLType(): string {
 		return `smallint${this.config.unsigned ? ' unsigned' : ''}`;
 	}
 

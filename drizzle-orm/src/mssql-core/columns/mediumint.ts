@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
-import { MsSqlColumnBuilderWithAutoIncrement, MsSqlColumnWithAutoIncrement } from './common.ts';
+import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 import type { MsSqlIntConfig } from './int.ts';
 
 export type MsSqlMediumIntBuilderInitial<TName extends string> = MsSqlMediumIntBuilder<{
@@ -15,7 +15,7 @@ export type MsSqlMediumIntBuilderInitial<TName extends string> = MsSqlMediumIntB
 }>;
 
 export class MsSqlMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlMediumInt'>>
-	extends MsSqlColumnBuilderWithAutoIncrement<T, MsSqlIntConfig>
+	extends MsSqlColumnBuilderWithIdentity<T, MsSqlIntConfig>
 {
 	static readonly [entityKind]: string = 'MsSqlMediumIntBuilder';
 
@@ -36,11 +36,11 @@ export class MsSqlMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', '
 }
 
 export class MsSqlMediumInt<T extends ColumnBaseConfig<'number', 'MsSqlMediumInt'>>
-	extends MsSqlColumnWithAutoIncrement<T, MsSqlIntConfig>
+	extends MsSqlColumnWithIdentity<T, MsSqlIntConfig>
 {
 	static readonly [entityKind]: string = 'MsSqlMediumInt';
 
-	getSQLType(): string {
+	_getSQLType(): string {
 		return `mediumint${this.config.unsigned ? ' unsigned' : ''}`;
 	}
 

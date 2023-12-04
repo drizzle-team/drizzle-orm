@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
-import { MsSqlColumnBuilderWithAutoIncrement, MsSqlColumnWithAutoIncrement } from './common.ts';
+import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
 export type MsSqlIntBuilderInitial<TName extends string> = MsSqlIntBuilder<{
 	name: TName;
@@ -14,7 +14,7 @@ export type MsSqlIntBuilderInitial<TName extends string> = MsSqlIntBuilder<{
 }>;
 
 export class MsSqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlInt'>>
-	extends MsSqlColumnBuilderWithAutoIncrement<T, MsSqlIntConfig>
+	extends MsSqlColumnBuilderWithIdentity<T, MsSqlIntConfig>
 {
 	static readonly [entityKind]: string = 'MsSqlIntBuilder';
 
@@ -32,11 +32,11 @@ export class MsSqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlI
 }
 
 export class MsSqlInt<T extends ColumnBaseConfig<'number', 'MsSqlInt'>>
-	extends MsSqlColumnWithAutoIncrement<T, MsSqlIntConfig>
+	extends MsSqlColumnWithIdentity<T, MsSqlIntConfig>
 {
 	static readonly [entityKind]: string = 'MsSqlInt';
 
-	getSQLType(): string {
+	_getSQLType(): string {
 		return `int${this.config.unsigned ? ' unsigned' : ''}`;
 	}
 

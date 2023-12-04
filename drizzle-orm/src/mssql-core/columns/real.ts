@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
-import { MsSqlColumnBuilderWithAutoIncrement, MsSqlColumnWithAutoIncrement } from './common.ts';
+import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
 export type MsSqlRealBuilderInitial<TName extends string> = MsSqlRealBuilder<{
 	name: TName;
@@ -14,7 +14,7 @@ export type MsSqlRealBuilderInitial<TName extends string> = MsSqlRealBuilder<{
 }>;
 
 export class MsSqlRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlReal'>>
-	extends MsSqlColumnBuilderWithAutoIncrement<
+	extends MsSqlColumnBuilderWithIdentity<
 		T,
 		MsSqlRealConfig
 	>
@@ -35,7 +35,7 @@ export class MsSqlRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSql
 	}
 }
 
-export class MsSqlReal<T extends ColumnBaseConfig<'number', 'MsSqlReal'>> extends MsSqlColumnWithAutoIncrement<
+export class MsSqlReal<T extends ColumnBaseConfig<'number', 'MsSqlReal'>> extends MsSqlColumnWithIdentity<
 	T,
 	MsSqlRealConfig
 > {
@@ -44,7 +44,7 @@ export class MsSqlReal<T extends ColumnBaseConfig<'number', 'MsSqlReal'>> extend
 	precision: number | undefined = this.config.precision;
 	scale: number | undefined = this.config.scale;
 
-	getSQLType(): string {
+	_getSQLType(): string {
 		if (this.precision !== undefined && this.scale !== undefined) {
 			return `real(${this.precision}, ${this.scale})`;
 		} else if (this.precision === undefined) {
