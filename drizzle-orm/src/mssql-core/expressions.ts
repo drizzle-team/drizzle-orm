@@ -5,6 +5,12 @@ import type { MsSqlColumn } from './columns/index.ts';
 
 export * from '~/expressions.ts';
 
+// type ConcatValue = string | number | Placeholder | SQLWrapper;
+//
+// export function concat(...values: [ConcatValue, ConcatValue, ...ConcatValue[]]): SQL<string> {
+// 	return sql.join(values.map((value) => sql`${value}`), sql`, `) as SQL<string>;
+// }
+
 export function concat(column: MsSqlColumn | SQL.Aliased, value: string | Placeholder | SQLWrapper): SQL {
 	return sql`${column} || ${bindIfParam(value, column)}`;
 }

@@ -1,4 +1,4 @@
-import { entityKind, is } from '~/entity.ts';
+import { entityKind } from '~/entity.ts';
 import { type MsSqlTableFn, mssqlTableWithSchema } from './table.ts';
 import { type mssqlView, mssqlViewWithSchema } from './view.ts';
 
@@ -16,11 +16,6 @@ export class MsSqlSchema<TName extends string = string> {
 	view = ((name, columns) => {
 		return mssqlViewWithSchema(name, columns, this.schemaName);
 	}) as typeof mssqlView;
-}
-
-/** @deprecated - use `instanceof MsSqlSchema` */
-export function isMsSqlSchema(obj: unknown): obj is MsSqlSchema {
-	return is(obj, MsSqlSchema);
 }
 
 /**
