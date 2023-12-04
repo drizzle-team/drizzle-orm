@@ -96,6 +96,11 @@ export abstract class MsSqlColumn<
 		}
 		super(table, config);
 	}
+
+	/** @internal */
+	shouldDisableInsert(): boolean {
+		return false;
+	}
 }
 
 export type AnyMsSqlColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> = MsSqlColumn<
@@ -146,5 +151,9 @@ export abstract class MsSqlColumnWithIdentity<
 	override getSQLType(): string {
 		const identity = this.getIdentity();
 		return identity ? `${this._getSQLType()} ${identity}` : this._getSQLType();
+	}
+
+	override shouldDisableInsert(): boolean {
+		return !!this.identity;
 	}
 }

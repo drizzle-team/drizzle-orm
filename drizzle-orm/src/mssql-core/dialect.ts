@@ -398,7 +398,9 @@ export class MsSqlDialect {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, MsSqlColumn> = table[Table.Symbol.Columns];
-		const colEntries: [string, MsSqlColumn][] = Object.entries(columns);
+		const colEntries: [string, MsSqlColumn][] = Object.entries(columns).filter(
+			([_, col]) => !col.shouldDisableInsert(),
+		);
 
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 
