@@ -57,8 +57,8 @@ export class MsSqlDateTime<T extends ColumnBaseConfig<'date', 'MsSqlDateTime'>> 
 		return value.toISOString().replace('T', ' ').replace('Z', '');
 	}
 
-	override mapFromDriverValue(value: string): Date {
-		return new Date(value.replace(' ', 'T') + 'Z');
+	override mapFromDriverValue(value: Date): Date {
+		return value;
 	}
 }
 
