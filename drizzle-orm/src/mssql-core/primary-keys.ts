@@ -6,20 +6,8 @@ export function primaryKey<
 	TTableName extends string,
 	TColumn extends AnyMsSqlColumn<{ tableName: TTableName }>,
 	TColumns extends AnyMsSqlColumn<{ tableName: TTableName }>[],
->(config: { name?: string; columns: [TColumn, ...TColumns] }): PrimaryKeyBuilder;
-/**
- * @deprecated: Please use primaryKey({ columns: [] }) instead of this function
- * @param columns
- */
-export function primaryKey<
-	TTableName extends string,
-	TColumns extends AnyMsSqlColumn<{ tableName: TTableName }>[],
->(...columns: TColumns): PrimaryKeyBuilder;
-export function primaryKey(...config: any) {
-	if (config[0].columns) {
-		return new PrimaryKeyBuilder(config[0].columns, config[0].name);
-	}
-	return new PrimaryKeyBuilder(config);
+>(config: { name?: string; columns: [TColumn, ...TColumns] }): PrimaryKeyBuilder {
+	return new PrimaryKeyBuilder(config.columns, config.name);
 }
 
 export class PrimaryKeyBuilder {

@@ -1,5 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import type { Column } from './column.ts';
+import type { MsSqlColumn } from './mssql-core/index.ts';
 import type { MySqlColumn } from './mysql-core/index.ts';
 import type { PgColumn } from './pg-core/index.ts';
 import type { SQL } from './sql/sql.ts';
@@ -211,6 +212,7 @@ export type BuildColumn<
 > = TDialect extends 'pg' ? PgColumn<MakeColumnConfig<TBuilder['_'], TTableName>>
 	: TDialect extends 'mysql' ? MySqlColumn<MakeColumnConfig<TBuilder['_'], TTableName>>
 	: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TBuilder['_'], TTableName>>
+	: TDialect extends 'mssql' ? MsSqlColumn<MakeColumnConfig<TBuilder['_'], TTableName>>
 	: TDialect extends 'common' ? Column<MakeColumnConfig<TBuilder['_'], TTableName>>
 	: never;
 
@@ -228,4 +230,5 @@ export type ChangeColumnTableName<TColumn extends Column, TAlias extends string,
 	TDialect extends 'pg' ? PgColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'mysql' ? MySqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+		: TDialect extends 'mssql' ? MsSqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: never;
