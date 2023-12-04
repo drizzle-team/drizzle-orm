@@ -17,7 +17,7 @@ export type ColumnDataType =
 	| 'custom'
 	| 'buffer';
 
-export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'common';
+export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'common' | 'mssql';
 
 export interface ColumnBuilderBaseConfig<TDataType extends ColumnDataType, TColumnType extends string> {
 	name: string;
