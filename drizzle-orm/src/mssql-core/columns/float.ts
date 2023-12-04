@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
-import { MsSqlColumnBuilderWithAutoIncrement, MsSqlColumnWithAutoIncrement } from './common.ts';
+import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
 export type MsSqlFloatBuilderInitial<TName extends string> = MsSqlFloatBuilder<{
 	name: TName;
@@ -14,7 +14,7 @@ export type MsSqlFloatBuilderInitial<TName extends string> = MsSqlFloatBuilder<{
 }>;
 
 export class MsSqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlFloat'>>
-	extends MsSqlColumnBuilderWithAutoIncrement<T>
+	extends MsSqlColumnBuilderWithIdentity<T>
 {
 	static readonly [entityKind]: string = 'MsSqlFloatBuilder';
 
@@ -30,10 +30,10 @@ export class MsSqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSq
 	}
 }
 
-export class MsSqlFloat<T extends ColumnBaseConfig<'number', 'MsSqlFloat'>> extends MsSqlColumnWithAutoIncrement<T> {
+export class MsSqlFloat<T extends ColumnBaseConfig<'number', 'MsSqlFloat'>> extends MsSqlColumnWithIdentity<T> {
 	static readonly [entityKind]: string = 'MsSqlFloat';
 
-	getSQLType(): string {
+	_getSQLType(): string {
 		return 'float';
 	}
 }

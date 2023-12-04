@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
-import { MsSqlColumnBuilderWithAutoIncrement, MsSqlColumnWithAutoIncrement } from './common.ts';
+import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
 export type MsSqlDecimalBuilderInitial<TName extends string> = MsSqlDecimalBuilder<{
 	name: TName;
@@ -15,7 +15,7 @@ export type MsSqlDecimalBuilderInitial<TName extends string> = MsSqlDecimalBuild
 
 export class MsSqlDecimalBuilder<
 	T extends ColumnBuilderBaseConfig<'string', 'MsSqlDecimal'>,
-> extends MsSqlColumnBuilderWithAutoIncrement<T, MsSqlDecimalConfig> {
+> extends MsSqlColumnBuilderWithIdentity<T, MsSqlDecimalConfig> {
 	static readonly [entityKind]: string = 'MsSqlDecimalBuilder';
 
 	constructor(name: T['name'], precision?: number, scale?: number) {
@@ -36,14 +36,14 @@ export class MsSqlDecimalBuilder<
 }
 
 export class MsSqlDecimal<T extends ColumnBaseConfig<'string', 'MsSqlDecimal'>>
-	extends MsSqlColumnWithAutoIncrement<T, MsSqlDecimalConfig>
+	extends MsSqlColumnWithIdentity<T, MsSqlDecimalConfig>
 {
 	static readonly [entityKind]: string = 'MsSqlDecimal';
 
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
 
-	getSQLType(): string {
+	_getSQLType(): string {
 		if (this.precision !== undefined && this.scale !== undefined) {
 			return `decimal(${this.precision},${this.scale})`;
 		} else if (this.precision === undefined) {

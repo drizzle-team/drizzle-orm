@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
-import { MsSqlColumnBuilderWithAutoIncrement, MsSqlColumnWithAutoIncrement } from './common.ts';
+import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
 export type MsSqlDoubleBuilderInitial<TName extends string> = MsSqlDoubleBuilder<{
 	name: TName;
@@ -14,7 +14,7 @@ export type MsSqlDoubleBuilderInitial<TName extends string> = MsSqlDoubleBuilder
 }>;
 
 export class MsSqlDoubleBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlDouble'>>
-	extends MsSqlColumnBuilderWithAutoIncrement<T, MsSqlDoubleConfig>
+	extends MsSqlColumnBuilderWithIdentity<T, MsSqlDoubleConfig>
 {
 	static readonly [entityKind]: string = 'MsSqlDoubleBuilder';
 
@@ -33,14 +33,14 @@ export class MsSqlDoubleBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsS
 }
 
 export class MsSqlDouble<T extends ColumnBaseConfig<'number', 'MsSqlDouble'>>
-	extends MsSqlColumnWithAutoIncrement<T, MsSqlDoubleConfig>
+	extends MsSqlColumnWithIdentity<T, MsSqlDoubleConfig>
 {
 	static readonly [entityKind]: string = 'MsSqlDouble';
 
 	precision: number | undefined = this.config.precision;
 	scale: number | undefined = this.config.scale;
 
-	getSQLType(): string {
+	_getSQLType(): string {
 		if (this.precision !== undefined && this.scale !== undefined) {
 			return `double(${this.precision},${this.scale})`;
 		} else if (this.precision === undefined) {

@@ -102,34 +102,49 @@ export type AnyMsSqlColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataT
 	Required<Update<ColumnBaseConfig<ColumnDataType, string>, TPartial>>
 >;
 
-export interface MsSqlColumnWithAutoIncrementConfig {
-	autoIncrement: boolean;
+export interface MsSqlColumnWithIdentityConfig {
+	identity?: { seed: number; increment: number } | true | undefined;
 }
 
-export abstract class MsSqlColumnBuilderWithAutoIncrement<
+export abstract class MsSqlColumnBuilderWithIdentity<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
-> extends MsSqlColumnBuilder<T, TRuntimeConfig & MsSqlColumnWithAutoIncrementConfig, TExtraConfig> {
+> extends MsSqlColumnBuilder<T, TRuntimeConfig & MsSqlColumnWithIdentityConfig, TExtraConfig> {
 	static readonly [entityKind]: string = 'MsSqlColumnBuilderWithAutoIncrement';
 
 	constructor(name: NonNullable<T['name']>, dataType: T['dataType'], columnType: T['columnType']) {
 		super(name, dataType, columnType);
-		this.config.autoIncrement = false;
 	}
-
-	autoincrement(): HasDefault<this> {
-		this.config.autoIncrement = true;
+	identity(): HasDefault<this>;
+	identity(seed: number, increment: number): HasDefault<this>;
+	identity(seed?: number, increment?: number): HasDefault<this> {
+		this.config.identity = seed !== undefined && increment !== undefined ? { seed, increment } : true;
 		this.config.hasDefault = true;
 		return this as HasDefault<this>;
 	}
 }
 
-export abstract class MsSqlColumnWithAutoIncrement<
+export abstract class MsSqlColumnWithIdentity<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
-> extends MsSqlColumn<T, MsSqlColumnWithAutoIncrementConfig & TRuntimeConfig> {
+> extends MsSqlColumn<T, MsSqlColumnWithIdentityConfig & TRuntimeConfig> {
 	static readonly [entityKind]: string = 'MsSqlColumnWithAutoIncrement';
 
-	readonly autoIncrement: boolean = this.config.autoIncrement;
+	readonly identity = this.config.identity;
+	private getIdentity() {
+		if (this.identity) {
+			return typeof this.identity === 'object' && 'seed' in this.identity
+				? `identity(${this.identity.seed}, ${this.identity.increment})`
+				: 'identity';
+		}
+		return;
+	}
+
+	abstract _getSQLType(): string;
+
+	override getSQLType(): string {
+		const identity = this.getIdentity();
+		return identity ? `${this._getSQLType()} ${identity}` : this._getSQLType();
+	}
 }

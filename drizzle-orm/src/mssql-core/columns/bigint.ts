@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
-import { MsSqlColumnBuilderWithAutoIncrement, MsSqlColumnWithAutoIncrement } from './common.ts';
+import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
 export type MsSqlBigInt53BuilderInitial<TName extends string> = MsSqlBigInt53Builder<{
 	name: TName;
@@ -14,7 +14,7 @@ export type MsSqlBigInt53BuilderInitial<TName extends string> = MsSqlBigInt53Bui
 }>;
 
 export class MsSqlBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlBigInt53'>>
-	extends MsSqlColumnBuilderWithAutoIncrement<T, { unsigned: boolean }>
+	extends MsSqlColumnBuilderWithIdentity<T, { unsigned: boolean }>
 {
 	static readonly [entityKind]: string = 'MsSqlBigInt53Builder';
 
@@ -35,11 +35,11 @@ export class MsSqlBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'M
 }
 
 export class MsSqlBigInt53<T extends ColumnBaseConfig<'number', 'MsSqlBigInt53'>>
-	extends MsSqlColumnWithAutoIncrement<T, { unsigned: boolean }>
+	extends MsSqlColumnWithIdentity<T, { unsigned: boolean }>
 {
 	static readonly [entityKind]: string = 'MsSqlBigInt53';
 
-	getSQLType(): string {
+	_getSQLType(): string {
 		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;
 	}
 
@@ -61,7 +61,7 @@ export type MsSqlBigInt64BuilderInitial<TName extends string> = MsSqlBigInt64Bui
 }>;
 
 export class MsSqlBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'MsSqlBigInt64'>>
-	extends MsSqlColumnBuilderWithAutoIncrement<T, { unsigned: boolean }>
+	extends MsSqlColumnBuilderWithIdentity<T, { unsigned: boolean }>
 {
 	static readonly [entityKind]: string = 'MsSqlBigInt64Builder';
 
@@ -82,11 +82,11 @@ export class MsSqlBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'M
 }
 
 export class MsSqlBigInt64<T extends ColumnBaseConfig<'bigint', 'MsSqlBigInt64'>>
-	extends MsSqlColumnWithAutoIncrement<T, { unsigned: boolean }>
+	extends MsSqlColumnWithIdentity<T, { unsigned: boolean }>
 {
 	static readonly [entityKind]: string = 'MsSqlBigInt64';
 
-	getSQLType(): string {
+	_getSQLType(): string {
 		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;
 	}
 
