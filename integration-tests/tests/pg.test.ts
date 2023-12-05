@@ -3276,3 +3276,165 @@ test.serial('aggregate function: min', async (t) => {
 	t.deepEqual(result1[0]?.value, 10);
 	t.deepEqual(result2[0]?.value, null);
 });
+
+test.serial('insert into ... select', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey(),
+		registeredAt: timestamp('registered_at').notNull(),
+		name: text('name').notNull(),
+		phoneNumber: text('phone_number'),
+	});
+	const users2020 = pgTable('users_2020', {
+		id: serial('id').primaryKey(),
+		registeredAt: timestamp('registered_at').notNull(),
+		name: text('name').notNull().unique(),
+		phoneNumber: text('phone_number'),
+	});
+	const users2021 = pgTable('users_2021', {
+		id: serial('id').primaryKey(),
+		registeredAt: timestamp('registered_at').notNull(),
+		name: text('name').notNull().unique(),
+		phoneNumber: text('phone_number'),
+	});
+	const usersBackup = pgTable('users_backup', {
+		id: serial('id').primaryKey(),
+		backedUpAt: timestamp('backed_up_at').notNull().defaultNow(),
+		registeredAt: timestamp('registered_at').notNull(),
+		name: text('name').notNull(),
+		phoneNumber: text('phone_number'),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`
+		create table ${users} (
+			id serial primary key,
+			registered_at timestamp not null,
+			name text not null,
+			phone_number text
+		)
+	`);
+	await db.execute(sql`
+		create table ${users2020} (
+			id serial primary key,
+			registered_at timestamp not null,
+			name text not null unique,
+			phone_number text
+		)
+	`);
+	await db.execute(sql`
+		create table ${users2021} (
+			id serial primary key,
+			registered_at timestamp not null,
+			name text not null unique,
+			phone_number text
+		)
+	`);
+	await db.execute(sql`
+		create table ${usersBackup} (
+			id serial primary key,
+			backed_up_at timestamp not null default now(),
+			registered_at timestamp not null,
+			name text not null,
+			phone_number text
+		)
+	`);
+
+	await db
+		.insert(users)
+		.values([{
+			name: 'John',
+			registeredAt: new Date('05-06-2020')
+		}, {
+			name: 'Michael',
+			registeredAt: new Date('09-14-2020')
+		}, {
+			name: 'Michael',
+			registeredAt: new Date('09-14-2020')
+		}, {
+			name: 'sarah',
+			registeredAt: new Date('04-21-2021')
+		}, {
+			name: 'paul',
+			registeredAt: new Date('07-28-2021')
+		}, {
+			name: 'paul',
+			registeredAt: new Date('07-28-2021')
+		}, {
+			name: 'Amanda',
+			registeredAt: new Date('02-06-2022')
+		}]);
+
+	const result1 = await db
+		.insert(users2020)
+		.select({
+			registeredAt: users.registeredAt,
+			name: users.name,
+		})
+		.from(users)
+		.where(
+			and(
+				gte(users.registeredAt, new Date('01-01-2020')),
+				lt(users.registeredAt, new Date('01-01-2021'))
+			)
+		)
+		.onConflictDoNothing({
+			target: users2020.name
+		})
+		.returning({
+			name: users2020.name
+		});
+	const result2 = await db
+		.insert(users2021)
+		.selectDistinct({
+			name: sql`upper(left(${users.name}, 1)) || substring(${users.name}, 2, length(${users.name}))`,
+			registeredAt: users.registeredAt,
+		})
+		.from(users)
+		.where(
+			and(
+				gte(users.registeredAt, new Date('01-01-2021')),
+				lt(users.registeredAt, new Date('01-01-2022'))
+			)
+		)
+		.returning({
+			name: users2021.name
+		});
+	const result3 = await db
+		.insert(usersBackup)
+		.select({
+			name: users2020.name,
+			registeredAt: users2020.registeredAt,
+			phoneNumber: users2020.phoneNumber
+		})
+		.from(users2020)
+		.union(
+			db
+				.select({
+					name: users2021.name,
+					registeredAt: users2021.registeredAt,
+					phoneNumber: users2021.phoneNumber
+				})
+				.from(users2021)
+		)
+		.returning({
+			name: usersBackup.name
+		})
+		.orderBy(asc(usersBackup.name));
+
+	t.deepEqual(result1, [
+		{ name: 'John' },
+		{ name: 'Michael' },
+	]);
+	t.deepEqual(result2, [
+		{ name: 'Paul' },
+		{ name: 'Sarah' },
+	]);
+	t.deepEqual(result3, [
+		{ name: 'John' },
+		{ name: 'Michael' },
+		{ name: 'Paul' },
+		{ name: 'Sarah' },
+	]);
+});
