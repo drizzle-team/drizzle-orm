@@ -5,6 +5,7 @@ import { DrizzleError } from '~/errors.ts';
 import type { MigrationMeta } from '~/migrator.ts';
 import { PgColumn, PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core/columns/index.ts';
 import type {
+	AnyPgSelectQueryBuilder,
 	PgDeleteConfig,
 	PgInsertConfig,
 	PgSelectJoinConfig,
@@ -422,39 +423,85 @@ export class PgDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {
+	buildInsertQuery({ table, values, onConflict, returning, selectConfig }: PgInsertConfig): SQL {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
-		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
+		let colEntries: [string, PgColumn][] = [];
 
-		const colEntries: [string, PgColumn][] = Object.entries(columns);
+		let valuesSql: SQL | undefined;
+		let selectSql: SQL | undefined;
 
-		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
+		if (selectConfig) {
+			for (const [fieldName, col] of Object.entries(table[Table.Symbol.Columns])) {
+				const selectedField = selectConfig.fields[fieldName];
 
-		for (const [valueIndex, value] of values.entries()) {
-			const valueList: (SQLChunk | SQL)[] = [];
-			for (const [fieldName, col] of colEntries) {
-				const colValue = value[fieldName];
-				if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
-					// eslint-disable-next-line unicorn/no-negated-condition
-					if (col.defaultFn !== undefined) {
-						const defaultFnResult = col.defaultFn();
-						const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
-						valueList.push(defaultValue);
+				let value: SQL | undefined;
+				if (selectedField === undefined && !col.getSQLType().includes('serial')) {
+					if (col.default) {
+						value = is(col.default, SQL) ? col.default : sql.param(col.default, col).getSQL();
 					} else {
-						valueList.push(sql`default`);
+						value = sql`null`;
 					}
-				} else {
-					valueList.push(colValue);
+				}
+
+				if (!value) {
+					continue;
+				}
+				
+				selectConfig.fields[fieldName] = value;
+				for (let i = 0; i < selectConfig.setOperators.length; i++) {
+					const setOperator = selectConfig.setOperators[i] as PgSelectConfig['setOperators'][number];
+					const rightSelect = setOperator.rightSelect as AnyPgSelectQueryBuilder;
+					rightSelect.setFields((fields) => {
+						fields[fieldName] = value;
+						return fields;
+					});
 				}
 			}
 
-			valuesSqlList.push(valueList);
-			if (valueIndex < values.length - 1) {
-				valuesSqlList.push(sql`, `);
+			const fieldsList = orderSelectedFields<PgColumn>(selectConfig.fields);
+			selectConfig.fieldsFlat = fieldsList;
+
+			const columns: Record<string, PgColumn> = {};
+
+			for (const selection of fieldsList) {
+				const colName = selection.path[0] || '';
+				columns[colName] = table[Table.Symbol.Columns][colName] as PgColumn;
 			}
+
+			colEntries = Object.entries(columns);
+			selectSql = this.buildSelectQuery(selectConfig);
+		} else {
+			const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
+			colEntries = Object.entries(columns);
+
+			for (const [valueIndex, value] of values.entries()) {
+				const valueList: (SQLChunk | SQL)[] = [];
+				for (const [fieldName, col] of colEntries) {
+					const colValue = value[fieldName];
+					if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
+						// eslint-disable-next-line unicorn/no-negated-condition
+						if (col.defaultFn !== undefined) {
+							const defaultFnResult = col.defaultFn();
+							const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
+							valueList.push(defaultValue);
+						} else {
+							valueList.push(sql`default`);
+						}
+					} else {
+						valueList.push(colValue);
+					}
+				}
+	
+				valuesSqlList.push(valueList);
+				if (valueIndex < values.length - 1) {
+					valuesSqlList.push(sql`, `);
+				}
+			}
+	
+			valuesSql = sql.join(valuesSqlList);
 		}
 
-		const valuesSql = sql.join(valuesSqlList);
+		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 
 		const returningSql = returning
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
@@ -462,7 +509,12 @@ export class PgDialect {
 
 		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
 
-		return sql`insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
+		return sql.join([
+			sql`insert into ${table} ${insertOrder} `,
+			selectConfig ? selectSql : sql`values ${valuesSql}`,
+			onConflictSql,
+			returningSql
+		]);
 	}
 
 	buildRefreshMaterializedViewQuery(

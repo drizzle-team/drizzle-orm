@@ -35,6 +35,7 @@ import type {
 	PgCreateSetOperatorFn,
 	PgJoinFn,
 	PgSelectConfig,
+	PgSelectConstructorConfig,
 	PgSelectDynamic,
 	PgSelectHKT,
 	PgSelectHKTBase,
@@ -46,17 +47,16 @@ import type {
 	SetOperatorRightSelect,
 } from './select.types.ts';
 
-export class PgSelectBuilder<
+export abstract class PgCommonSelectBuilder<
 	TSelection extends SelectedFields | undefined,
-	TBuilderMode extends 'db' | 'qb' = 'db',
 > {
-	static readonly [entityKind]: string = 'PgSelectBuilder';
+	static readonly [entityKind]: string = 'PgCommonSelectBuilder';
 
-	private fields: TSelection;
-	private session: PgSession | undefined;
-	private dialect: PgDialect;
-	private withList: Subquery[] = [];
-	private distinct: boolean | {
+	protected fields: TSelection;
+	protected session: PgSession | undefined;
+	protected dialect: PgDialect;
+	protected withList: Subquery[] = [];
+	protected distinct: boolean | {
 		on: (PgColumn | SQLWrapper)[];
 	} | undefined;
 
@@ -80,23 +80,9 @@ export class PgSelectBuilder<
 		this.distinct = config.distinct;
 	}
 
-	/**
-	 * Specify the table, subquery, or other target that you're
-	 * building a select query against.
-	 *
-	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FROM | Postgres from documentation}
-	 */
-	from<TFrom extends PgTable | Subquery | PgViewBase | SQL>(
-		source: TFrom,
-	): CreatePgSelectFromBuilderMode<
-		TBuilderMode,
-		GetSelectTableName<TFrom>,
-		TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection,
-		TSelection extends undefined ? 'single' : 'partial'
-	> {
-		const isPartialSelect = !!this.fields;
-
+	protected getSelectedFields<TFrom extends PgTable | Subquery | PgViewBase | SQL>(source: TFrom): SelectedFields {
 		let fields: SelectedFields;
+
 		if (this.fields) {
 			fields = this.fields;
 		} else if (is(source, Subquery)) {
@@ -114,6 +100,33 @@ export class PgSelectBuilder<
 			fields = getTableColumns<PgTable>(source);
 		}
 
+		return fields;
+	}
+}
+
+export class PgSelectBuilder<
+	TSelection extends SelectedFields | undefined,
+	TBuilderMode extends 'db' | 'qb' = 'db',
+> extends PgCommonSelectBuilder<TSelection> {
+	static readonly [entityKind]: string = 'PgSelectBuilder';
+
+	/**
+	 * Specify the table, subquery, or other target that you're
+	 * building a select query against.
+	 *
+	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FROM | Postgres from documentation}
+	 */
+	from<TFrom extends PgTable | Subquery | PgViewBase | SQL>(
+		source: TFrom,
+	): CreatePgSelectFromBuilderMode<
+		TBuilderMode,
+		GetSelectTableName<TFrom>,
+		TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection,
+		TSelection extends undefined ? 'single' : 'partial'
+	> {
+		const isPartialSelect = !!this.fields;
+		const fields = this.getSelectedFields(source);
+		
 		return new PgSelectBase({
 			table: source,
 			fields,
@@ -131,7 +144,8 @@ export abstract class PgSelectQueryBuilderBase<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
-	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
+	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string
+		? Record<TTableName, 'not-null'>
 		: {},
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
@@ -160,16 +174,10 @@ export abstract class PgSelectQueryBuilderBase<
 	protected dialect: PgDialect;
 
 	constructor(
-		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
-			table: PgSelectConfig['table'];
-			fields: PgSelectConfig['fields'];
+		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: PgSelectConstructorConfig & {
 			isPartialSelect: boolean;
 			session: PgSession | undefined;
 			dialect: PgDialect;
-			withList: Subquery[];
-			distinct: boolean | {
-				on: (PgColumn | SQLWrapper)[];
-			} | undefined;
 		},
 	) {
 		super();
@@ -893,6 +901,12 @@ export abstract class PgSelectQueryBuilderBase<
 		) as this['_']['selectedFields'];
 	}
 
+	/** @internal */
+	setFields(setFn: (fields: Record<string, unknown>) => Record<string, unknown>): this {
+		this.config.fields = setFn(this.config.fields);
+		return this;
+	}
+
 	$dynamic(): PgSelectDynamic<this> {
 		return this;
 	}
@@ -902,7 +916,8 @@ export interface PgSelectBase<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
-	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
+	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string
+		? Record<TTableName, 'not-null'>
 		: {},
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
@@ -1001,7 +1016,8 @@ function createSetOperator(type: SetOperator, isAll: boolean): PgCreateSetOperat
 	};
 }
 
-const getPgSetOperators = () => ({
+/** @internal */
+export const getPgSetOperators = () => ({
 	union,
 	unionAll,
 	intersect,
