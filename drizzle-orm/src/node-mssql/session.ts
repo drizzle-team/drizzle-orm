@@ -236,7 +236,7 @@ export class NodeMsSqlTransaction<
 			this.nestedIndex + 1,
 		);
 
-		await tx.execute(sql.raw(`save ${savepointName}`));
+		await tx.execute(sql.raw(`save transaction ${savepointName}`));
 		try {
 			const result = await transaction(tx);
 			return result;
