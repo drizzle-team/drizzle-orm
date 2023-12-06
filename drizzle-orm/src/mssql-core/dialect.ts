@@ -34,8 +34,8 @@ export class MsSqlDialect {
 	async migrate(migrations: MigrationMeta[], session: MsSqlSession, config: MigrationConfig): Promise<void> {
 		const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 		const migrationTableCreate = sql`
-			create table if not exists ${sql.identifier(migrationsTable)} (
-				id serial primary key,
+			create table ${sql.identifier(migrationsTable)} (
+				id bigint identity primary key,
 				hash text not null,
 				created_at bigint
 			)
@@ -43,7 +43,9 @@ export class MsSqlDialect {
 		await session.execute(migrationTableCreate);
 
 		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
-			sql`select id, hash, created_at from ${sql.identifier(migrationsTable)} order by created_at desc limit 1`,
+			sql`select id, hash, created_at from ${
+				sql.identifier(migrationsTable)
+			} order by created_at desc offset 0 rows fetch next 1 rows only`,
 		);
 
 		const lastDbMigration = dbMigrations[0];
@@ -60,7 +62,7 @@ export class MsSqlDialect {
 					await tx.execute(
 						sql`insert into ${
 							sql.identifier(migrationsTable)
-						} (\`hash\`, \`created_at\`) values(${migration.hash}, ${migration.folderMillis})`,
+						} ([hash], [created_at]) values(${migration.hash}, ${migration.folderMillis})`,
 					);
 				}
 			}
@@ -394,7 +396,7 @@ export class MsSqlDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${offsetSql}${fetchSql}`;
 	}
 
-	buildInsertQuery({ table, values, ignore, onConflict }: MsSqlInsertConfig): SQL {
+	buildInsertQuery({ table, values }: MsSqlInsertConfig): SQL {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, MsSqlColumn> = table[Table.Symbol.Columns];
@@ -429,13 +431,7 @@ export class MsSqlDialect {
 
 		const valuesSql = insertOrder.length === 0 ? undefined : sql.join(valuesSqlList);
 
-		const ignoreSql = ignore ? sql` ignore` : undefined;
-
-		const onConflictSql = onConflict ? sql` on duplicate key ${onConflict}` : undefined;
-
-		return sql`insert${ignoreSql} into ${table} ${
-			insertOrder.length === 0 ? sql`default` : insertOrder
-		} values ${valuesSql}${onConflictSql}`;
+		return sql`insert into ${table} ${insertOrder.length === 0 ? sql`default` : insertOrder} values ${valuesSql}`;
 	}
 
 	sqlToQuery(sql: SQL): QueryWithTypings {
