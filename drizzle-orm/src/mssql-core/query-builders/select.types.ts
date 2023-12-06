@@ -56,8 +56,8 @@ export interface MsSqlSelectConfig {
 	where?: SQL;
 	having?: SQL;
 	table: MsSqlTable | Subquery | MsSqlViewBase | SQL;
-	limit?: number | Placeholder;
 	offset?: number | Placeholder;
+	fetch?: number | Placeholder;
 	joins?: MsSqlSelectJoinConfig[];
 	orderBy?: (MsSqlColumn | SQL | SQL.Aliased)[];
 	groupBy?: (MsSqlColumn | SQL | SQL.Aliased)[];
@@ -71,7 +71,7 @@ export interface MsSqlSelectConfig {
 		type: SetOperator;
 		isAll: boolean;
 		orderBy?: (MsSqlColumn | SQL | SQL.Aliased)[];
-		limit?: number | Placeholder;
+		fetch?: number | Placeholder;
 		offset?: number | Placeholder;
 	}[];
 }
@@ -207,6 +207,8 @@ export type MsSqlSetOperatorExcludedMethods =
 	| 'having'
 	| 'groupBy'
 	| 'session'
+	| 'fetch'
+	| 'offset'
 	| 'leftJoin'
 	| 'rightJoin'
 	| 'innerJoin'
@@ -233,6 +235,30 @@ export type MsSqlSelectWithout<
 	>,
 	TResetExcluded extends true ? K : T['_']['excludedMethods'] | K
 >;
+
+export type MsSqlSelectReplace<
+	T extends AnyMsSqlSelectQueryBuilder,
+	TDynamic extends boolean,
+	K extends keyof T & string,
+	Include extends keyof T & string,
+> = TDynamic extends true ? T
+	: 
+		& Omit<
+			MsSqlSelectKind<
+				T['_']['hkt'],
+				T['_']['tableName'],
+				T['_']['selection'],
+				T['_']['selectMode'],
+				T['_']['preparedQueryHKT'],
+				T['_']['nullabilityMap'],
+				TDynamic,
+				T['_']['excludedMethods'] | K,
+				T['_']['result'],
+				T['_']['selectedFields']
+			>,
+			T['_']['excludedMethods'] | K
+		>
+		& Record<Include, T[Include]>;
 
 export type MsSqlSelectPrepare<T extends AnyMsSqlSelect> = PreparedQueryKind<
 	T['_']['preparedQueryHKT'],
@@ -388,7 +414,7 @@ export type MsSqlCreateSetOperatorFn = <
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
 	TDynamic extends boolean = false,
-	TExcludedMethods extends string = never,
+	TExcludedMethods extends string = 'offset' | 'fetch',
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 >(
