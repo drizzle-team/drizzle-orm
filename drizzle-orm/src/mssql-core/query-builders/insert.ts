@@ -18,8 +18,6 @@ import { Table } from '~/table.ts';
 export interface MsSqlInsertConfig<TTable extends MsSqlTable = MsSqlTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[];
-	ignore: boolean;
-	onConflict?: SQL;
 }
 
 export type AnyMsSqlInsertConfig = MsSqlInsertConfig<MsSqlTable>;
@@ -37,18 +35,11 @@ export class MsSqlInsertBuilder<
 > {
 	static readonly [entityKind]: string = 'MsSqlInsertBuilder';
 
-	private shouldIgnore = false;
-
 	constructor(
 		private table: TTable,
 		private session: MsSqlSession,
 		private dialect: MsSqlDialect,
 	) {}
-
-	ignore(): this {
-		this.shouldIgnore = true;
-		return this;
-	}
 
 	values(value: MsSqlInsertValue<TTable>): MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
 	values(values: MsSqlInsertValue<TTable>[]): MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
@@ -69,7 +60,7 @@ export class MsSqlInsertBuilder<
 			return result;
 		});
 
-		return new MsSqlInsertBase(this.table, mappedValues, this.shouldIgnore, this.session, this.dialect);
+		return new MsSqlInsertBase(this.table, mappedValues, this.session, this.dialect);
 	}
 }
 
@@ -144,12 +135,11 @@ export class MsSqlInsertBase<
 	constructor(
 		table: TTable,
 		values: MsSqlInsertConfig['values'],
-		ignore: boolean,
 		private session: MsSqlSession,
 		private dialect: MsSqlDialect,
 	) {
 		super();
-		this.config = { table, values, ignore };
+		this.config = { table, values };
 	}
 
 	/** @internal */
