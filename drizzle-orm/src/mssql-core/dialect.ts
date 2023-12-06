@@ -191,7 +191,7 @@ export class MsSqlDialect {
 			joins,
 			orderBy,
 			groupBy,
-			limit,
+			fetch,
 			offset,
 			lockingClause,
 			distinct,
@@ -308,9 +308,9 @@ export class MsSqlDialect {
 			groupBySql = sql` group by ${sql.join(groupBy, sql`, `)}`;
 		}
 
-		const limitSql = limit ? sql` limit ${limit}` : undefined;
+		const offsetSql = offset === undefined ? undefined : sql` offset ${offset} rows`;
 
-		const offsetSql = offset ? sql` offset ${offset}` : undefined;
+		const fetchSql = fetch === undefined ? undefined : sql` fetch next ${fetch} rows only`;
 
 		let lockingClausesSql;
 		if (lockingClause) {
@@ -324,7 +324,7 @@ export class MsSqlDialect {
 		}
 
 		const finalQuery =
-			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${offsetSql}${fetchSql}${lockingClausesSql}`;
 
 		if (setOperators.length > 0) {
 			return this.buildSetOperations(finalQuery, setOperators);
@@ -353,7 +353,7 @@ export class MsSqlDialect {
 
 	buildSetOperationQuery({
 		leftSelect,
-		setOperator: { type, isAll, rightSelect, limit, orderBy, offset },
+		setOperator: { type, isAll, rightSelect, fetch, orderBy, offset },
 	}: { leftSelect: SQL; setOperator: MsSqlSelectConfig['setOperators'][number] }): SQL {
 		const leftChunk = sql`(${leftSelect.getSQL()}) `;
 		const rightChunk = sql`(${rightSelect.getSQL()})`;
@@ -385,13 +385,13 @@ export class MsSqlDialect {
 			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)} `;
 		}
 
-		const limitSql = limit ? sql` limit ${limit}` : undefined;
+		const offsetSql = offset === undefined ? undefined : sql` offset ${offset} rows`;
+
+		const fetchSql = fetch === undefined ? undefined : sql` fetch next ${fetch} rows only`;
 
 		const operatorChunk = sql.raw(`${type} ${isAll ? 'all ' : ''}`);
 
-		const offsetSql = offset ? sql` offset ${offset}` : undefined;
-
-		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
+		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${offsetSql}${fetchSql}`;
 	}
 
 	buildInsertQuery({ table, values, ignore, onConflict }: MsSqlInsertConfig): SQL {
@@ -427,13 +427,15 @@ export class MsSqlDialect {
 			}
 		}
 
-		const valuesSql = sql.join(valuesSqlList);
+		const valuesSql = insertOrder.length === 0 ? undefined : sql.join(valuesSqlList);
 
 		const ignoreSql = ignore ? sql` ignore` : undefined;
 
 		const onConflictSql = onConflict ? sql` on duplicate key ${onConflict}` : undefined;
 
-		return sql`insert${ignoreSql} into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}`;
+		return sql`insert${ignoreSql} into ${table} ${
+			insertOrder.length === 0 ? sql`default` : insertOrder
+		} values ${valuesSql}${onConflictSql}`;
 	}
 
 	sqlToQuery(sql: SQL): QueryWithTypings {
@@ -691,7 +693,6 @@ export class MsSqlDialect {
 							: []),
 					],
 					where,
-					limit,
 					offset,
 					setOperators: [],
 				});
@@ -713,7 +714,6 @@ export class MsSqlDialect {
 				})),
 				joins,
 				where,
-				limit,
 				offset,
 				orderBy,
 				setOperators: [],
@@ -728,7 +728,6 @@ export class MsSqlDialect {
 				})),
 				joins,
 				where,
-				limit,
 				offset,
 				orderBy,
 				setOperators: [],
@@ -984,7 +983,6 @@ export class MsSqlDialect {
 							: [],
 					],
 					where,
-					limit,
 					offset,
 					setOperators: [],
 				});
@@ -1005,7 +1003,6 @@ export class MsSqlDialect {
 					field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field,
 				})),
 				where,
-				limit,
 				offset,
 				orderBy,
 				setOperators: [],
@@ -1019,7 +1016,6 @@ export class MsSqlDialect {
 					field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field,
 				})),
 				where,
-				limit,
 				offset,
 				orderBy,
 				setOperators: [],
