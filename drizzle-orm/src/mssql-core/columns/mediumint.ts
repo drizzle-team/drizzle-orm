@@ -3,7 +3,6 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
 import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
-import type { MsSqlIntConfig } from './int.ts';
 
 export type MsSqlMediumIntBuilderInitial<TName extends string> = MsSqlMediumIntBuilder<{
 	name: TName;
@@ -15,13 +14,12 @@ export type MsSqlMediumIntBuilderInitial<TName extends string> = MsSqlMediumIntB
 }>;
 
 export class MsSqlMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlMediumInt'>>
-	extends MsSqlColumnBuilderWithIdentity<T, MsSqlIntConfig>
+	extends MsSqlColumnBuilderWithIdentity<T>
 {
 	static readonly [entityKind]: string = 'MsSqlMediumIntBuilder';
 
-	constructor(name: T['name'], config?: MsSqlIntConfig) {
+	constructor(name: T['name']) {
 		super(name, 'number', 'MsSqlMediumInt');
-		this.config.unsigned = config ? config.unsigned : false;
 	}
 
 	/** @internal */
@@ -35,13 +33,11 @@ export class MsSqlMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', '
 	}
 }
 
-export class MsSqlMediumInt<T extends ColumnBaseConfig<'number', 'MsSqlMediumInt'>>
-	extends MsSqlColumnWithIdentity<T, MsSqlIntConfig>
-{
+export class MsSqlMediumInt<T extends ColumnBaseConfig<'number', 'MsSqlMediumInt'>> extends MsSqlColumnWithIdentity<T> {
 	static readonly [entityKind]: string = 'MsSqlMediumInt';
 
 	_getSQLType(): string {
-		return `mediumint${this.config.unsigned ? ' unsigned' : ''}`;
+		return `mediumint`;
 	}
 
 	override mapFromDriverValue(value: number | string): number {
@@ -54,7 +50,6 @@ export class MsSqlMediumInt<T extends ColumnBaseConfig<'number', 'MsSqlMediumInt
 
 export function mediumint<TName extends string>(
 	name: TName,
-	config?: MsSqlIntConfig,
 ): MsSqlMediumIntBuilderInitial<TName> {
-	return new MsSqlMediumIntBuilder(name, config);
+	return new MsSqlMediumIntBuilder(name);
 }

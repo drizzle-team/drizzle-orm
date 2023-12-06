@@ -3,7 +3,6 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
 import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
-import type { MsSqlIntConfig } from './int.ts';
 
 export type MsSqlSmallIntBuilderInitial<TName extends string> = MsSqlSmallIntBuilder<{
 	name: TName;
@@ -15,13 +14,12 @@ export type MsSqlSmallIntBuilderInitial<TName extends string> = MsSqlSmallIntBui
 }>;
 
 export class MsSqlSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlSmallInt'>>
-	extends MsSqlColumnBuilderWithIdentity<T, MsSqlIntConfig>
+	extends MsSqlColumnBuilderWithIdentity<T>
 {
 	static readonly [entityKind]: string = 'MsSqlSmallIntBuilder';
 
-	constructor(name: T['name'], config?: MsSqlIntConfig) {
+	constructor(name: T['name']) {
 		super(name, 'number', 'MsSqlSmallInt');
-		this.config.unsigned = config ? config.unsigned : false;
 	}
 
 	/** @internal */
@@ -35,13 +33,11 @@ export class MsSqlSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'M
 	}
 }
 
-export class MsSqlSmallInt<T extends ColumnBaseConfig<'number', 'MsSqlSmallInt'>>
-	extends MsSqlColumnWithIdentity<T, MsSqlIntConfig>
-{
+export class MsSqlSmallInt<T extends ColumnBaseConfig<'number', 'MsSqlSmallInt'>> extends MsSqlColumnWithIdentity<T> {
 	static readonly [entityKind]: string = 'MsSqlSmallInt';
 
 	_getSQLType(): string {
-		return `smallint${this.config.unsigned ? ' unsigned' : ''}`;
+		return `smallint`;
 	}
 
 	override mapFromDriverValue(value: number | string): number {
@@ -54,7 +50,6 @@ export class MsSqlSmallInt<T extends ColumnBaseConfig<'number', 'MsSqlSmallInt'>
 
 export function smallint<TName extends string>(
 	name: TName,
-	config?: MsSqlIntConfig,
 ): MsSqlSmallIntBuilderInitial<TName> {
-	return new MsSqlSmallIntBuilder(name, config);
+	return new MsSqlSmallIntBuilder(name);
 }

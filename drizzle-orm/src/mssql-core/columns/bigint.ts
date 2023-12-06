@@ -4,99 +4,59 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
 import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
-export type MsSqlBigInt53BuilderInitial<TName extends string> = MsSqlBigInt53Builder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'MsSqlBigInt53';
-	data: number;
-	driverParam: number | string;
-	enumValues: undefined;
-}>;
+export type MsSqlBigIntBuilderInitial<TMode extends 'number' | 'bigint' | 'string', TName extends string> =
+	MsSqlBigIntBuilder<{
+		name: TName;
+		dataType: 'bigint';
+		columnType: 'MsSqlBigInt';
+		data: TMode extends 'string' ? string : TMode extends 'number' ? number : bigint;
+		driverParam: string;
+		enumValues: undefined;
+	}>;
 
-export class MsSqlBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlBigInt53'>>
-	extends MsSqlColumnBuilderWithIdentity<T, { unsigned: boolean }>
+export class MsSqlBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 'MsSqlBigInt'>>
+	extends MsSqlColumnBuilderWithIdentity<T, MsSqlBigIntConfig>
 {
-	static readonly [entityKind]: string = 'MsSqlBigInt53Builder';
+	static readonly [entityKind]: string = 'MsSqlBigIntBuilder';
 
-	constructor(name: T['name'], unsigned: boolean = false) {
-		super(name, 'number', 'MsSqlBigInt53');
-		this.config.unsigned = unsigned;
+	constructor(name: T['name'], config: MsSqlBigIntConfig) {
+		super(name, 'bigint', 'MsSqlBigInt');
+		this.config.mode = config.mode;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlBigInt53<MakeColumnConfig<T, TTableName>> {
-		return new MsSqlBigInt53<MakeColumnConfig<T, TTableName>>(
+	): MsSqlBigInt<MakeColumnConfig<T, TTableName>> {
+		return new MsSqlBigInt<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MsSqlBigInt53<T extends ColumnBaseConfig<'number', 'MsSqlBigInt53'>>
-	extends MsSqlColumnWithIdentity<T, { unsigned: boolean }>
+export class MsSqlBigInt<T extends ColumnBaseConfig<'bigint', 'MsSqlBigInt'>>
+	extends MsSqlColumnWithIdentity<T, MsSqlBigIntConfig>
 {
-	static readonly [entityKind]: string = 'MsSqlBigInt53';
+	static readonly [entityKind]: string = 'MsSqlBigInt';
+
+	readonly mode: 'number' | 'bigint' | 'string' = this.config.mode;
 
 	_getSQLType(): string {
-		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;
+		return `bigint`;
 	}
 
-	override mapFromDriverValue(value: number | string): number {
-		if (typeof value === 'number') {
-			return value;
-		}
-		return Number(value);
-	}
-}
-
-export type MsSqlBigInt64BuilderInitial<TName extends string> = MsSqlBigInt64Builder<{
-	name: TName;
-	dataType: 'bigint';
-	columnType: 'MsSqlBigInt64';
-	data: bigint;
-	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class MsSqlBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'MsSqlBigInt64'>>
-	extends MsSqlColumnBuilderWithIdentity<T, { unsigned: boolean }>
-{
-	static readonly [entityKind]: string = 'MsSqlBigInt64Builder';
-
-	constructor(name: T['name'], unsigned: boolean = false) {
-		super(name, 'bigint', 'MsSqlBigInt64');
-		this.config.unsigned = unsigned;
+	constructor(table: AnyMsSqlTable<{ name: T['tableName'] }>, config: MsSqlBigIntBuilder<T>['config']) {
+		super(table, config);
+		this.mode = config.mode;
 	}
 
-	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlBigInt64<MakeColumnConfig<T, TTableName>> {
-		return new MsSqlBigInt64<MakeColumnConfig<T, TTableName>>(
-			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
-		);
+	override mapFromDriverValue(value: string): T['data'] {
+		return this.mode === 'string' ? value.toString() : this.mode === 'number' ? Number(value) : BigInt(value);
 	}
 }
 
-export class MsSqlBigInt64<T extends ColumnBaseConfig<'bigint', 'MsSqlBigInt64'>>
-	extends MsSqlColumnWithIdentity<T, { unsigned: boolean }>
-{
-	static readonly [entityKind]: string = 'MsSqlBigInt64';
-
-	_getSQLType(): string {
-		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;
-	}
-
-	// eslint-disable-next-line unicorn/prefer-native-coercion-functions
-	override mapFromDriverValue(value: string): bigint {
-		return BigInt(value);
-	}
-}
-
-interface MsSqlBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
+interface MsSqlBigIntConfig<T extends 'number' | 'bigint' | 'string' = 'number' | 'bigint' | 'string'> {
 	mode: T;
 	unsigned?: boolean;
 }
@@ -104,10 +64,7 @@ interface MsSqlBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'>
 export function bigint<TName extends string, TMode extends MsSqlBigIntConfig['mode']>(
 	name: TName,
 	config: MsSqlBigIntConfig<TMode>,
-): TMode extends 'number' ? MsSqlBigInt53BuilderInitial<TName> : MsSqlBigInt64BuilderInitial<TName>;
+): MsSqlBigIntBuilderInitial<TMode, TName>;
 export function bigint(name: string, config: MsSqlBigIntConfig) {
-	if (config.mode === 'number') {
-		return new MsSqlBigInt53Builder(name, config.unsigned);
-	}
-	return new MsSqlBigInt64Builder(name, config.unsigned);
+	return new MsSqlBigIntBuilder(name, config);
 }
