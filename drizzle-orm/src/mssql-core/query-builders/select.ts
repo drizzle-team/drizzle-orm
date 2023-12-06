@@ -38,6 +38,7 @@ import type {
 	MsSqlSelectHKT,
 	MsSqlSelectHKTBase,
 	MsSqlSelectPrepare,
+	MsSqlSelectReplace,
 	MsSqlSelectWithout,
 	MsSqlSetOperatorExcludedMethods,
 	MsSqlSetOperatorWithResult,
@@ -128,7 +129,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
 	TDynamic extends boolean = false,
-	TExcludedMethods extends string = never,
+	TExcludedMethods extends string = 'offset' | 'fetch',
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends TypedQueryBuilder<TSelectedFields, TResult> {
@@ -677,13 +678,15 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	 */
 	orderBy(
 		builder: (aliases: this['_']['selection']) => ValueOrArray<MsSqlColumn | SQL | SQL.Aliased>,
-	): MsSqlSelectWithout<this, TDynamic, 'orderBy'>;
-	orderBy(...columns: (MsSqlColumn | SQL | SQL.Aliased)[]): MsSqlSelectWithout<this, TDynamic, 'orderBy'>;
+	): MsSqlSelectReplace<this, TDynamic, 'orderBy', 'offset'>;
+	orderBy(
+		...columns: (MsSqlColumn | SQL | SQL.Aliased)[]
+	): MsSqlSelectReplace<this, TDynamic, 'orderBy', 'offset'>;
 	orderBy(
 		...columns:
 			| [(aliases: this['_']['selection']) => ValueOrArray<MsSqlColumn | SQL | SQL.Aliased>]
 			| (MsSqlColumn | SQL | SQL.Aliased)[]
-	): MsSqlSelectWithout<this, TDynamic, 'orderBy'> {
+	): MsSqlSelectReplace<this, TDynamic, 'orderBy', 'offset'> {
 		if (typeof columns[0] === 'function') {
 			const orderBy = columns[0](
 				new Proxy(
@@ -712,31 +715,6 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	}
 
 	/**
-	 * Adds a `limit` clause to the query.
-	 *
-	 * Calling this method will set the maximum number of rows that will be returned by this query.
-	 *
-	 * See docs: {@link https://orm.drizzle.team/docs/select#limit--offset}
-	 *
-	 * @param limit the `limit` clause.
-	 *
-	 * @example
-	 *
-	 * ```ts
-	 * // Get the first 10 people from this query.
-	 * await db.select().from(people).limit(10);
-	 * ```
-	 */
-	limit(limit: number): MsSqlSelectWithout<this, TDynamic, 'limit'> {
-		if (this.config.setOperators.length > 0) {
-			this.config.setOperators.at(-1)!.limit = limit;
-		} else {
-			this.config.limit = limit;
-		}
-		return this as any;
-	}
-
-	/**
 	 * Adds an `offset` clause to the query.
 	 *
 	 * Calling this method will skip a number of rows when returning results from this query.
@@ -752,11 +730,20 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	 * await db.select().from(people).offset(10).limit(10);
 	 * ```
 	 */
-	offset(offset: number): MsSqlSelectWithout<this, TDynamic, 'offset'> {
+	offset(offset: number): MsSqlSelectReplace<this, TDynamic, 'offset', 'fetch'> {
 		if (this.config.setOperators.length > 0) {
 			this.config.setOperators.at(-1)!.offset = offset;
 		} else {
 			this.config.offset = offset;
+		}
+		return this as any;
+	}
+
+	fetch(fetch: number): MsSqlSelectWithout<this, TDynamic, 'fetch'> {
+		if (this.config.setOperators.length > 0) {
+			this.config.setOperators.at(-1)!.fetch = fetch;
+		} else {
+			this.config.fetch = fetch;
 		}
 		return this as any;
 	}
@@ -816,7 +803,7 @@ export interface MsSqlSelectBase<
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
 	TDynamic extends boolean = false,
-	TExcludedMethods extends string = never,
+	TExcludedMethods extends string = 'offset' | 'fetch',
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends
@@ -843,7 +830,7 @@ export class MsSqlSelectBase<
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
 	TDynamic extends boolean = false,
-	TExcludedMethods extends string = never,
+	TExcludedMethods extends string = 'offset' | 'fetch',
 	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends MsSqlSelectQueryBuilderBase<
