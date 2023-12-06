@@ -12,10 +12,8 @@ import type {
 import type { MsSqlTable } from '~/mssql-core/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
-import { Param, SQL, sql } from '~/sql/sql.ts';
+import { Param, SQL } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
-import { mapUpdateSet } from '~/utils.ts';
-import type { MsSqlUpdateSetSource } from './update.ts';
 
 export interface MsSqlInsertConfig<TTable extends MsSqlTable = MsSqlTable> {
 	table: TTable;
@@ -103,10 +101,6 @@ export type MsSqlInsertPrepare<T extends AnyMsSqlInsert> = PreparedQueryKind<
 	true
 >;
 
-export type MsSqlInsertOnDuplicateKeyUpdateConfig<T extends AnyMsSqlInsert> = {
-	set: MsSqlUpdateSetSource<T['_']['table']>;
-};
-
 export type MsSqlInsert<
 	TTable extends MsSqlTable = MsSqlTable,
 	TQueryResult extends QueryResultHKT = AnyQueryResultHKT,
@@ -156,40 +150,6 @@ export class MsSqlInsertBase<
 	) {
 		super();
 		this.config = { table, values, ignore };
-	}
-
-	/**
-	 * Adds an `on duplicate key update` clause to the query.
-	 * 
-	 * Calling this method will update update the row if any unique index conflicts. MySQL will automatically determine the conflict target based on the primary key and unique indexes.
-	 * 
-	 * See docs: {@link https://orm.drizzle.team/docs/insert#on-duplicate-key-update}
-	 * 
-	 * @param config The `set` clause
-	 * 
-	 * @example
-	 * ```ts
-	 * await db.insert(cars)
-	 *   .values({ id: 1, brand: 'BMW'})
-	 *   .onDuplicateKeyUpdate({ set: { brand: 'Porsche' }});
-	 * ```
-	 * 
-	 * While MySQL does not directly support doing nothing on conflict, you can perform a no-op by setting any column's value to itself and achieve the same effect:
-	 * 
-	 * ```ts
-	 * import { sql } from 'drizzle-orm';
-	 * 
-	 * await db.insert(cars)
-	 *   .values({ id: 1, brand: 'BMW' })
-	 *   .onDuplicateKeyUpdate({ set: { id: sql`id` } });
-	 * ```
-	 */
-	onDuplicateKeyUpdate(
-		config: MsSqlInsertOnDuplicateKeyUpdateConfig<this>,
-	): MsSqlInsertWithout<this, TDynamic, 'onDuplicateKeyUpdate'> {
-		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
-		this.config.onConflict = sql`update ${setSql}`;
-		return this as any;
 	}
 
 	/** @internal */
