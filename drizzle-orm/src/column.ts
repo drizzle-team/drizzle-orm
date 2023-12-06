@@ -67,6 +67,8 @@ export abstract class Column<
 	readonly dataType: T['dataType'];
 	readonly columnType: T['columnType'];
 	readonly enumValues: T['enumValues'] = undefined;
+	readonly isCheck: boolean;
+	readonly check: T["data"] | SQL | undefined;
 
 	protected config: ColumnRuntimeConfig<T['data'], TRuntimeConfig>;
 
@@ -86,6 +88,8 @@ export abstract class Column<
 		this.uniqueType = config.uniqueType;
 		this.dataType = config.dataType as T['dataType'];
 		this.columnType = config.columnType;
+		this.isCheck = config.isCheck;
+		this.check = config.check
 	}
 
 	abstract getSQLType(): string;
@@ -111,10 +115,10 @@ export type AnyColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, 
 export type GetColumnData<TColumn extends Column, TInferMode extends 'query' | 'raw' = 'query'> =
 	// dprint-ignore
 	TInferMode extends 'raw' // Raw mode
-		? TColumn['_']['data'] // Just return the underlying type
-		: TColumn['_']['notNull'] extends true // Query mode
-		? TColumn['_']['data'] // Query mode, not null
-		: TColumn['_']['data'] | null; // Query mode, nullable
+	? TColumn['_']['data'] // Just return the underlying type
+	: TColumn['_']['notNull'] extends true // Query mode
+	? TColumn['_']['data'] // Query mode, not null
+	: TColumn['_']['data'] | null; // Query mode, nullable
 
 export type InferColumnsDataTypes<TColumns extends Record<string, Column>> = {
 	[Key in keyof TColumns]: GetColumnData<TColumns[Key], 'query'>;

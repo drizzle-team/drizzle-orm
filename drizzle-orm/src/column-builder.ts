@@ -42,7 +42,7 @@ export type MakeColumnConfig<
 	hasDefault: T extends { hasDefault: true } ? true : false;
 	enumValues: T['enumValues'];
 	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase } ? BuildColumn<TTableName, U, 'common'>
-		: never;
+	: never;
 } & {};
 
 export type ColumnBuilderTypeConfig<
@@ -76,6 +76,8 @@ export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = ob
 	uniqueType: string | undefined;
 	dataType: string;
 	columnType: string;
+	isCheck: boolean;
+	check: TData | SQL | undefined;
 } & TRuntimeConfig;
 
 export interface ColumnBuilderExtraConfig {
@@ -93,6 +95,12 @@ export type HasDefault<T extends ColumnBuilderBase> = T & {
 		hasDefault: true;
 	};
 };
+
+export type HasCheckConstraint<T extends ColumnBuilderBase> = T & {
+	_: {
+		hasCheck: true
+	}
+}
 
 export type $Type<T extends ColumnBuilderBase, TType> = T & {
 	_: {
@@ -174,6 +182,15 @@ export abstract class ColumnBuilder<
 	}
 
 	/**
+	 * Adds a `CHECK` clause to the column definition.
+	 */
+	check(value: (this['_'] extends { $type: infer U } ? U : this['_']['data']) | SQL): HasCheckConstraint<this> {
+		this.config.isCheck = true
+		this.config.check = value
+		return this as HasCheckConstraint<this>;
+	}
+
+	/**
 	 * Adds a dynamic default value to the column.
 	 * The function will be called when the row is inserted, and the returned value will be used as the column value.
 	 *
@@ -226,6 +243,6 @@ export type BuildColumns<
 
 export type ChangeColumnTableName<TColumn extends Column, TAlias extends string, TDialect extends Dialect> =
 	TDialect extends 'pg' ? PgColumn<MakeColumnConfig<TColumn['_'], TAlias>>
-		: TDialect extends 'mysql' ? MySqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
-		: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TColumn['_'], TAlias>>
-		: never;
+	: TDialect extends 'mysql' ? MySqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+	: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+	: never;
