@@ -43,7 +43,7 @@ export class MsSqlDate<T extends ColumnBaseConfig<'date', 'MsSqlDate'>> extends 
 		return `date`;
 	}
 
-	override mapFromDriverValue(value: string): Date {
+	override mapFromDriverValue(value: Date | string): Date {
 		return new Date(value);
 	}
 }
@@ -89,6 +89,10 @@ export class MsSqlDateString<T extends ColumnBaseConfig<'string', 'MsSqlDateStri
 
 	getSQLType(): string {
 		return `date`;
+	}
+
+	override mapFromDriverValue(value: Date | string | null): string | null {
+		return typeof value === 'string' ? value : value?.toISOString().split('T')[0] ?? null;
 	}
 }
 
