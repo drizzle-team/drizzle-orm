@@ -110,6 +110,10 @@ export class MsSqlDateTimeString<T extends ColumnBaseConfig<'string', 'MsSqlDate
 		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
 		return `datetime${precision}`;
 	}
+
+	override mapFromDriverValue(value: Date | string | null): string | null {
+		return typeof value === 'string' ? value : value?.toISOString() ?? null;
+	}
 }
 
 export type DatetimeFsp = 0 | 1 | 2 | 3 | 4 | 5 | 6;
