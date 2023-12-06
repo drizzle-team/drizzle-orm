@@ -14,13 +14,12 @@ export type MsSqlIntBuilderInitial<TName extends string> = MsSqlIntBuilder<{
 }>;
 
 export class MsSqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlInt'>>
-	extends MsSqlColumnBuilderWithIdentity<T, MsSqlIntConfig>
+	extends MsSqlColumnBuilderWithIdentity<T>
 {
 	static readonly [entityKind]: string = 'MsSqlIntBuilder';
 
-	constructor(name: T['name'], config?: MsSqlIntConfig) {
+	constructor(name: T['name']) {
 		super(name, 'number', 'MsSqlInt');
-		this.config.unsigned = config ? config.unsigned : false;
 	}
 
 	/** @internal */
@@ -31,13 +30,11 @@ export class MsSqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlI
 	}
 }
 
-export class MsSqlInt<T extends ColumnBaseConfig<'number', 'MsSqlInt'>>
-	extends MsSqlColumnWithIdentity<T, MsSqlIntConfig>
-{
+export class MsSqlInt<T extends ColumnBaseConfig<'number', 'MsSqlInt'>> extends MsSqlColumnWithIdentity<T> {
 	static readonly [entityKind]: string = 'MsSqlInt';
 
 	_getSQLType(): string {
-		return `int${this.config.unsigned ? ' unsigned' : ''}`;
+		return `int`;
 	}
 
 	override mapFromDriverValue(value: number | string): number {
@@ -48,10 +45,6 @@ export class MsSqlInt<T extends ColumnBaseConfig<'number', 'MsSqlInt'>>
 	}
 }
 
-export interface MsSqlIntConfig {
-	unsigned?: boolean;
-}
-
-export function int<TName extends string>(name: TName, config?: MsSqlIntConfig): MsSqlIntBuilderInitial<TName> {
-	return new MsSqlIntBuilder(name, config);
+export function int<TName extends string>(name: TName): MsSqlIntBuilderInitial<TName> {
+	return new MsSqlIntBuilder(name);
 }
