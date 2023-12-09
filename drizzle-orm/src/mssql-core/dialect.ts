@@ -22,7 +22,7 @@ import { and, DrizzleError, eq, type Name, ViewBaseConfig } from '../index.ts';
 import { MsSqlColumn } from './columns/common.ts';
 import type { MsSqlDeleteConfig } from './query-builders/delete.ts';
 import type { MsSqlInsertConfig } from './query-builders/insert.ts';
-import type { MsSqlSelectConfig, MsSqlSelectJoinConfig, SelectedFieldsOrdered } from './query-builders/select.types.ts';
+import type { MsSqlSelectConfig, SelectedFieldsOrdered } from './query-builders/select.types.ts';
 import type { MsSqlUpdateConfig } from './query-builders/update.ts';
 import type { MsSqlSession } from './session.ts';
 import { MsSqlTable } from './table.ts';
@@ -194,8 +194,9 @@ export class MsSqlDialect {
 			orderBy,
 			groupBy,
 			fetch,
+			for: _for,
+			top,
 			offset,
-			lockingClause,
 			distinct,
 			setOperators,
 		}: MsSqlSelectConfig,
@@ -242,6 +243,10 @@ export class MsSqlDialect {
 		}
 
 		const distinctSql = distinct ? sql` distinct` : undefined;
+
+		const topSql = top
+			? sql` top(${top?.value})${top.percent ? sql` percent` : undefined}${top.withTies ? sql` with ties` : undefined}`
+			: undefined;
 
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
 
@@ -314,19 +319,17 @@ export class MsSqlDialect {
 
 		const fetchSql = fetch === undefined ? undefined : sql` fetch next ${fetch} rows only`;
 
-		let lockingClausesSql;
-		if (lockingClause) {
-			const { config, strength } = lockingClause;
-			lockingClausesSql = sql` for ${sql.raw(strength)}`;
-			if (config.noWait) {
-				lockingClausesSql.append(sql` no wait`);
-			} else if (config.skipLocked) {
-				lockingClausesSql.append(sql` skip locked`);
-			}
+		let forSQL: SQL | undefined;
+		if (_for && _for.mode === 'json') {
+			forSQL = sql` for json ${sql.raw(_for.type)}${
+				_for.options?.root ? sql` root(${sql.identifier(_for.options.root)})` : undefined
+			}${_for.options?.includeNullValues ? sql` include_null_values` : undefined}${
+				_for.options?.withoutArrayWrapper ? sql` without_array_wrapper` : undefined
+			}`;
 		}
 
 		const finalQuery =
-			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${offsetSql}${fetchSql}${lockingClausesSql}`;
+			sql`${withSql}select${distinctSql}${topSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${offsetSql}${fetchSql}${forSQL}`;
 
 		if (setOperators.length > 0) {
 			return this.buildSetOperations(finalQuery, setOperators);
@@ -443,301 +446,6 @@ export class MsSqlDialect {
 	}
 
 	buildRelationalQuery({
-		fullSchema,
-		schema,
-		tableNamesMap,
-		table,
-		tableConfig,
-		queryConfig: config,
-		tableAlias,
-		nestedQueryRelation,
-		joinOn,
-	}: {
-		fullSchema: Record<string, unknown>;
-		schema: TablesRelationalConfig;
-		tableNamesMap: Record<string, string>;
-		table: MsSqlTable;
-		tableConfig: TableRelationalConfig;
-		queryConfig: true | DBQueryConfig<'many', true>;
-		tableAlias: string;
-		nestedQueryRelation?: Relation;
-		joinOn?: SQL;
-	}): BuildRelationalQueryResult<MsSqlTable, MsSqlColumn> {
-		let selection: BuildRelationalQueryResult<MsSqlTable, MsSqlColumn>['selection'] = [];
-		let limit, offset, orderBy: MsSqlSelectConfig['orderBy'], where;
-		const joins: MsSqlSelectJoinConfig[] = [];
-
-		if (config === true) {
-			const selectionEntries = Object.entries(tableConfig.columns);
-			selection = selectionEntries.map((
-				[key, value],
-			) => ({
-				dbKey: value.name,
-				tsKey: key,
-				field: aliasedTableColumn(value as MsSqlColumn, tableAlias),
-				relationTableTsKey: undefined,
-				isJson: false,
-				selection: [],
-			}));
-		} else {
-			const aliasedColumns = Object.fromEntries(
-				Object.entries(tableConfig.columns).map(([key, value]) => [key, aliasedTableColumn(value, tableAlias)]),
-			);
-
-			if (config.where) {
-				const whereSql = typeof config.where === 'function'
-					? config.where(aliasedColumns, getOperators())
-					: config.where;
-				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
-			}
-
-			const fieldsSelection: { tsKey: string; value: MsSqlColumn | SQL.Aliased }[] = [];
-			let selectedColumns: string[] = [];
-
-			// Figure out which columns to select
-			if (config.columns) {
-				let isIncludeMode = false;
-
-				for (const [field, value] of Object.entries(config.columns)) {
-					if (value === undefined) {
-						continue;
-					}
-
-					if (field in tableConfig.columns) {
-						if (!isIncludeMode && value === true) {
-							isIncludeMode = true;
-						}
-						selectedColumns.push(field);
-					}
-				}
-
-				if (selectedColumns.length > 0) {
-					selectedColumns = isIncludeMode
-						? selectedColumns.filter((c) => config.columns?.[c] === true)
-						: Object.keys(tableConfig.columns).filter((key) => !selectedColumns.includes(key));
-				}
-			} else {
-				// Select all columns if selection is not specified
-				selectedColumns = Object.keys(tableConfig.columns);
-			}
-
-			for (const field of selectedColumns) {
-				const column = tableConfig.columns[field]! as MsSqlColumn;
-				fieldsSelection.push({ tsKey: field, value: column });
-			}
-
-			let selectedRelations: {
-				tsKey: string;
-				queryConfig: true | DBQueryConfig<'many', false>;
-				relation: Relation;
-			}[] = [];
-
-			// Figure out which relations to select
-			if (config.with) {
-				selectedRelations = Object.entries(config.with)
-					.filter((entry): entry is [typeof entry[0], NonNullable<typeof entry[1]>] => !!entry[1])
-					.map(([tsKey, queryConfig]) => ({ tsKey, queryConfig, relation: tableConfig.relations[tsKey]! }));
-			}
-
-			let extras;
-
-			// Figure out which extras to select
-			if (config.extras) {
-				extras = typeof config.extras === 'function'
-					? config.extras(aliasedColumns, { sql })
-					: config.extras;
-				for (const [tsKey, value] of Object.entries(extras)) {
-					fieldsSelection.push({
-						tsKey,
-						value: mapColumnsInAliasedSQLToAlias(value, tableAlias),
-					});
-				}
-			}
-
-			// Transform `fieldsSelection` into `selection`
-			// `fieldsSelection` shouldn't be used after this point
-			for (const { tsKey, value } of fieldsSelection) {
-				selection.push({
-					dbKey: is(value, SQL.Aliased) ? value.fieldAlias : tableConfig.columns[tsKey]!.name,
-					tsKey,
-					field: is(value, Column) ? aliasedTableColumn(value, tableAlias) : value,
-					relationTableTsKey: undefined,
-					isJson: false,
-					selection: [],
-				});
-			}
-
-			let orderByOrig = typeof config.orderBy === 'function'
-				? config.orderBy(aliasedColumns, getOrderByOperators())
-				: config.orderBy ?? [];
-			if (!Array.isArray(orderByOrig)) {
-				orderByOrig = [orderByOrig];
-			}
-			orderBy = orderByOrig.map((orderByValue) => {
-				if (is(orderByValue, Column)) {
-					return aliasedTableColumn(orderByValue, tableAlias) as MsSqlColumn;
-				}
-				return mapColumnsInSQLToAlias(orderByValue, tableAlias);
-			});
-
-			limit = config.limit;
-			offset = config.offset;
-
-			// Process all relations
-			for (
-				const {
-					tsKey: selectedRelationTsKey,
-					queryConfig: selectedRelationConfigValue,
-					relation,
-				} of selectedRelations
-			) {
-				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
-				const relationTableName = relation.referencedTable[Table.Symbol.Name];
-				const relationTableTsName = tableNamesMap[relationTableName]!;
-				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
-				const joinOn = and(
-					...normalizedRelation.fields.map((field, i) =>
-						eq(
-							aliasedTableColumn(normalizedRelation.references[i]!, relationTableAlias),
-							aliasedTableColumn(field, tableAlias),
-						)
-					),
-				);
-				const builtRelation = this.buildRelationalQuery({
-					fullSchema,
-					schema,
-					tableNamesMap,
-					table: fullSchema[relationTableTsName] as MsSqlTable,
-					tableConfig: schema[relationTableTsName]!,
-					queryConfig: is(relation, One)
-						? (selectedRelationConfigValue === true
-							? { limit: 1 }
-							: { ...selectedRelationConfigValue, limit: 1 })
-						: selectedRelationConfigValue,
-					tableAlias: relationTableAlias,
-					joinOn,
-					nestedQueryRelation: relation,
-				});
-				const field = sql`${sql.identifier(relationTableAlias)}.${sql.identifier('data')}`.as(selectedRelationTsKey);
-				joins.push({
-					on: sql`true`,
-					table: new Subquery(builtRelation.sql as SQL, {}, relationTableAlias),
-					alias: relationTableAlias,
-					joinType: 'left',
-					lateral: true,
-				});
-				selection.push({
-					dbKey: selectedRelationTsKey,
-					tsKey: selectedRelationTsKey,
-					field,
-					relationTableTsKey: relationTableTsName,
-					isJson: true,
-					selection: builtRelation.selection,
-				});
-			}
-		}
-
-		if (selection.length === 0) {
-			throw new DrizzleError({ message: `No fields selected for table "${tableConfig.tsName}" ("${tableAlias}")` });
-		}
-
-		let result;
-
-		where = and(joinOn, where);
-
-		if (nestedQueryRelation) {
-			let field = sql`json_array(${
-				sql.join(
-					selection.map(({ field, tsKey, isJson }) =>
-						isJson
-							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
-							: is(field, SQL.Aliased)
-							? field.sql
-							: field
-					),
-					sql`, `,
-				)
-			})`;
-			if (is(nestedQueryRelation, Many)) {
-				field = sql`coalesce(json_arrayagg(${field}), json_array())`;
-			}
-			const nestedSelection = [{
-				dbKey: 'data',
-				tsKey: 'data',
-				field: field.as('data'),
-				isJson: true,
-				relationTableTsKey: tableConfig.tsName,
-				selection,
-			}];
-
-			const needsSubquery = limit !== undefined || offset !== undefined || (orderBy?.length ?? 0) > 0;
-
-			if (needsSubquery) {
-				result = this.buildSelectQuery({
-					table: aliasedTable(table, tableAlias),
-					fields: {},
-					fieldsFlat: [
-						{
-							path: [],
-							field: sql.raw('*'),
-						},
-						...(((orderBy?.length ?? 0) > 0)
-							? [{
-								path: [],
-								field: sql`row_number() over (order by ${sql.join(orderBy!, sql`, `)})`,
-							}]
-							: []),
-					],
-					where,
-					offset,
-					setOperators: [],
-				});
-
-				where = undefined;
-				limit = undefined;
-				offset = undefined;
-				orderBy = undefined;
-			} else {
-				result = aliasedTable(table, tableAlias);
-			}
-
-			result = this.buildSelectQuery({
-				table: is(result, MsSqlTable) ? result : new Subquery(result, {}, tableAlias),
-				fields: {},
-				fieldsFlat: nestedSelection.map(({ field }) => ({
-					path: [],
-					field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field,
-				})),
-				joins,
-				where,
-				offset,
-				orderBy,
-				setOperators: [],
-			});
-		} else {
-			result = this.buildSelectQuery({
-				table: aliasedTable(table, tableAlias),
-				fields: {},
-				fieldsFlat: selection.map(({ field }) => ({
-					path: [],
-					field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field,
-				})),
-				joins,
-				where,
-				offset,
-				orderBy,
-				setOperators: [],
-			});
-		}
-
-		return {
-			tableTsKey: tableConfig.tsName,
-			sql: result,
-			selection,
-		};
-	}
-
-	buildRelationalQueryWithoutLateralSubqueries({
 		fullSchema,
 		schema,
 		tableNamesMap,
@@ -897,7 +605,7 @@ export class MsSqlDialect {
 						)
 					),
 				);
-				const builtRelation = this.buildRelationalQueryWithoutLateralSubqueries({
+				const builtRelation = this.buildRelationalQuery({
 					fullSchema,
 					schema,
 					tableNamesMap,
@@ -912,9 +620,11 @@ export class MsSqlDialect {
 					joinOn,
 					nestedQueryRelation: relation,
 				});
-				let fieldSql = sql`(${builtRelation.sql})`;
+				let fieldSql = sql`(${builtRelation.sql} for json auto, include_null_values)${
+					nestedQueryRelation ? sql` as ${sql.identifier(relationTableAlias)}` : undefined
+				}`;
 				if (is(relation, Many)) {
-					fieldSql = sql`coalesce(${fieldSql}, json_array())`;
+					fieldSql = sql`${fieldSql}`;
 				}
 				const field = fieldSql.as(selectedRelationTsKey);
 				selection.push({
@@ -940,16 +650,22 @@ export class MsSqlDialect {
 		where = and(joinOn, where);
 
 		if (nestedQueryRelation) {
-			let field = sql`json_array(${
+			let field = sql`${
 				sql.join(
-					selection.map(({ field }) =>
-						is(field, MsSqlColumn) ? sql.identifier(field.name) : is(field, SQL.Aliased) ? field.sql : field
-					),
+					selection.map((sel) => {
+						return is(sel.field, MsSqlColumn)
+							? sql.identifier(sel.field.name)
+							: is(sel.field, SQL.Aliased)
+							? sel.isJson
+								? sel.field.sql
+								: sql`${sel.field.sql} as ${sql.identifier(sel.field.fieldAlias)}`
+							: sel.field;
+					}),
 					sql`, `,
 				)
-			})`;
+			}`;
 			if (is(nestedQueryRelation, Many)) {
-				field = sql`json_arrayagg(${field})`;
+				field = sql`${field}`;
 			}
 			const nestedSelection = [{
 				dbKey: 'data',
@@ -960,35 +676,15 @@ export class MsSqlDialect {
 				selection,
 			}];
 
-			const needsSubquery = limit !== undefined || offset !== undefined || orderBy.length > 0;
+			result = aliasedTable(table, tableAlias);
 
-			if (needsSubquery) {
-				result = this.buildSelectQuery({
-					table: aliasedTable(table, tableAlias),
-					fields: {},
-					fieldsFlat: [
-						{
-							path: [],
-							field: sql.raw('*'),
-						},
-						...(orderBy.length > 0)
-							? [{
-								path: [],
-								field: sql`row_number() over (order by ${sql.join(orderBy, sql`, `)})`,
-							}]
-							: [],
-					],
-					where,
-					offset,
-					setOperators: [],
-				});
+			const top = offset ? undefined : limit ? { value: limit } : undefined;
+			const fetch = offset && limit ? limit : undefined;
 
-				where = undefined;
-				limit = undefined;
-				offset = undefined;
-				orderBy = undefined;
-			} else {
-				result = aliasedTable(table, tableAlias);
+			// Mssql required order by to be present in the query if using offset and fetch(limit)
+			// With order by 1, the query will be ordered by the first column in the selection
+			if (orderBy.length === 0 && offset !== undefined && fetch !== undefined) {
+				orderBy = [sql`1`];
 			}
 
 			result = this.buildSelectQuery({
@@ -999,11 +695,19 @@ export class MsSqlDialect {
 					field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field,
 				})),
 				where,
+				top,
 				offset,
+				fetch,
 				orderBy,
 				setOperators: [],
 			});
 		} else {
+			const top = offset ? undefined : limit ? { value: limit } : undefined;
+			const fetch = offset && limit ? limit : undefined;
+
+			if (orderBy.length === 0 && offset !== undefined && fetch !== undefined) {
+				orderBy = [sql`1`];
+			}
 			result = this.buildSelectQuery({
 				table: aliasedTable(table, tableAlias),
 				fields: {},
@@ -1012,7 +716,9 @@ export class MsSqlDialect {
 					field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field,
 				})),
 				where,
+				top,
 				offset,
+				fetch,
 				orderBy,
 				setOperators: [],
 			});

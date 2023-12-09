@@ -61,10 +61,20 @@ export interface MsSqlSelectConfig {
 	joins?: MsSqlSelectJoinConfig[];
 	orderBy?: (MsSqlColumn | SQL | SQL.Aliased)[];
 	groupBy?: (MsSqlColumn | SQL | SQL.Aliased)[];
-	lockingClause?: {
-		strength: LockStrength;
-		config: LockConfig;
+	for?: { // this is not exposed. Just used internally for the RQB
+		mode: 'browse'; // TODO: implement in dialect
+	} | {
+		mode: 'xml'; // TODO: implement in dialect
+	} | {
+		mode: 'json';
+		type: 'auto' | 'path';
+		options?: {
+			root?: string;
+			includeNullValues?: true;
+			withoutArrayWrapper?: true;
+		};
 	};
+	top?: { value: number | Placeholder; percent?: boolean; withTies?: boolean };
 	distinct?: boolean;
 	setOperators: {
 		rightSelect: TypedQueryBuilder<any, any>;
@@ -123,19 +133,6 @@ export type SelectedFieldsFlat = SelectedFieldsFlatBase<MsSqlColumn>;
 export type SelectedFields = SelectedFieldsBase<MsSqlColumn, MsSqlTable>;
 
 export type SelectedFieldsOrdered = SelectedFieldsOrderedBase<MsSqlColumn>;
-
-export type LockStrength = 'update' | 'share';
-
-export type LockConfig = {
-	noWait: true;
-	skipLocked?: undefined;
-} | {
-	noWait?: undefined;
-	skipLocked: true;
-} | {
-	noWait?: undefined;
-	skipLocked?: undefined;
-};
 
 export interface MsSqlSelectHKTBase {
 	tableName: string | undefined;
@@ -212,8 +209,7 @@ export type MsSqlSetOperatorExcludedMethods =
 	| 'leftJoin'
 	| 'rightJoin'
 	| 'innerJoin'
-	| 'fullJoin'
-	| 'for';
+	| 'fullJoin';
 
 export type MsSqlSelectWithout<
 	T extends AnyMsSqlSelectQueryBuilder,

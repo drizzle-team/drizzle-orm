@@ -29,8 +29,6 @@ import type {
 	AnyMsSqlSelect,
 	CreateMsSqlSelectFromBuilderMode,
 	GetMsSqlSetOperators,
-	LockConfig,
-	LockStrength,
 	MsSqlCreateSetOperatorFn,
 	MsSqlJoinFn,
 	MsSqlSelectConfig,
@@ -745,21 +743,6 @@ export abstract class MsSqlSelectQueryBuilderBase<
 		} else {
 			this.config.fetch = fetch;
 		}
-		return this as any;
-	}
-
-	/**
-	 * Adds a `for` clause to the query.
-	 *
-	 * Calling this method will specify a lock strength for this query that controls how strictly it acquires exclusive access to the rows being queried.
-	 *
-	 * See docs: {@link https://dev.mssql.com/doc/refman/8.0/en/innodb-locking-reads.html}
-	 *
-	 * @param strength the lock strength.
-	 * @param config the lock configuration.
-	 */
-	for(strength: LockStrength, config: LockConfig = {}): MsSqlSelectWithout<this, TDynamic, 'for'> {
-		this.config.lockingClause = { strength, config };
 		return this as any;
 	}
 
