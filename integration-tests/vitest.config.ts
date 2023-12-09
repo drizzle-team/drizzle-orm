@@ -3,6 +3,7 @@ import { viteCommonjs } from '@originjs/vite-plugin-commonjs';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig } from 'vitest/config';
 
+console.log('process.env.SKIP_PLANETSCALE_TESTS', process.env.SKIP_PLANETSCALE_TESTS);
 export default defineConfig({
 	test: {
 		include: [

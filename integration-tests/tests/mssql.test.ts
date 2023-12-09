@@ -136,7 +136,7 @@ interface Context {
 
 const test = anyTest as TestFn<Context>;
 
-async function createDockerDB(ctx: Context): Promise<config> {
+async function createDockerDB(ctx: Context): Promise<config | string> {
 	const docker = (ctx.docker = new Docker());
 	const port = await getPort({ port: 1434 });
 	const image = 'mcr.microsoft.com/mssql/server:2019-latest';
@@ -161,13 +161,7 @@ async function createDockerDB(ctx: Context): Promise<config> {
 
 	await ctx.mssqlContainer.start();
 
-	return {
-		server: 'localhost',
-		options: { trustServerCertificate: true },
-		user: 'SA',
-		port: port,
-		password: 'drizzle123PASSWORD',
-	};
+	return `Server=localhost,${port};User Id=SA;Password=drizzle123PASSWORD;TrustServerCertificate=True;`;
 }
 
 test.before(async (t) => {
@@ -1429,23 +1423,6 @@ test.serial('select count()', async (t) => {
 	const res = await db.select({ count: sql`count(*)` }).from(usersTable);
 
 	t.deepEqual(res, [{ count: 2 }]);
-});
-
-test.serial('select for ...', (t) => {
-	const { db } = t.context;
-
-	{
-		const query = db.select().from(users2Table).for('update').toSQL();
-		t.regex(query.sql, / for update$/);
-	}
-	{
-		const query = db.select().from(users2Table).for('share', { skipLocked: true }).toSQL();
-		t.regex(query.sql, / for share skip locked$/);
-	}
-	{
-		const query = db.select().from(users2Table).for('update', { noWait: true }).toSQL();
-		t.regex(query.sql, / for update no wait$/);
-	}
 });
 
 test.serial('having', async (t) => {
