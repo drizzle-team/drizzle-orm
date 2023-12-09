@@ -7,9 +7,5 @@
 		}
 	},
 	"include": ["tests", "type-tests"],
-	"exclude": ["**/playground"],
-  "ts-node": {
-    "esm": true,
-    "experimentalSpecifierResolution": "node"
-  }
+	"exclude": ["**/playground"]
 }
