@@ -4,7 +4,7 @@ import {
 	type BuildQueryResult,
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
-	mapRelationalRow,
+	mapRelationalRowFromObj,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
@@ -92,7 +92,7 @@ export class MsSqlRelationalQuery<
 			builtQuery,
 			undefined,
 			(rawRows) => {
-				const rows = rawRows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, query.selection));
+				const rows = rawRows.map((row) => mapRelationalRowFromObj(this.schema, this.tableConfig, row, query.selection));
 				if (this.queryMode === 'first') {
 					return rows[0] as TResult;
 				}
@@ -102,7 +102,7 @@ export class MsSqlRelationalQuery<
 	}
 
 	private _getQuery() {
-		const query = this.dialect.buildRelationalQueryWithoutLateralSubqueries({
+		return this.dialect.buildRelationalQuery({
 			fullSchema: this.fullSchema,
 			schema: this.schema,
 			tableNamesMap: this.tableNamesMap,
@@ -111,16 +111,6 @@ export class MsSqlRelationalQuery<
 			queryConfig: this.config,
 			tableAlias: this.tableConfig.tsName,
 		});
-		// : this.dialect.buildRelationalQuery({
-		// 	fullSchema: this.fullSchema,
-		// 	schema: this.schema,
-		// 	tableNamesMap: this.tableNamesMap,
-		// 	table: this.table,
-		// 	tableConfig: this.tableConfig,
-		// 	queryConfig: this.config,
-		// 	tableAlias: this.tableConfig.tsName,
-		// });
-		return query;
 	}
 
 	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
