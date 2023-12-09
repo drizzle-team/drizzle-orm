@@ -127,17 +127,17 @@ export type MsSqlVarCharConfigInitial<
 	TEnum extends string[] | readonly string[] | undefined,
 > = TMode extends 'text' ? {
 		mode?: TMode;
-		length: number;
+		length?: number;
 		enum?: TEnum;
 	}
 	: {
 		mode?: TMode;
-		length: number;
+		length?: number;
 	};
 
 export function varchar<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: TName,
-	config: MsSqlVarCharConfigInitial<'text', T | Writable<T>>,
+	config?: MsSqlVarCharConfigInitial<'text', T | Writable<T>>,
 ): MsSqlVarCharBuilderInitial<TName, Writable<T>> {
 	return new MsSqlVarCharBuilder(name, { ...config, nonUnicode: false });
 }
@@ -149,15 +149,15 @@ export function nVarchar<
 	TMode extends 'text' | 'json' = 'text' | 'json',
 >(
 	name: TName,
-	config: MsSqlVarCharConfigInitial<TMode, T | Writable<T>>,
+	config?: MsSqlVarCharConfigInitial<TMode, T | Writable<T>>,
 ): Equal<TMode, 'json'> extends true ? MsSqlVarCharJsonBuilderInitial<TName>
 	: MsSqlVarCharBuilderInitial<TName, Writable<T>>
 {
-	return config.mode === 'json'
+	return config?.mode === 'json'
 		? new MsSqlVarCharJsonBuilder(name, { length: config.length })
 		: new MsSqlVarCharBuilder(name, {
-			length: config.length,
-			enum: (config as any).enum,
+			length: config?.length,
+			enum: (config as any)?.enum,
 			nonUnicode: true,
 		}) as any;
 }

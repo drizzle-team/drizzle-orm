@@ -69,13 +69,13 @@ export type MsSqlCharConfig<TEnum extends string[] | readonly string[] | undefin
 export type MsSqlCharConfigInitial<
 	TEnum extends string[] | readonly string[] | undefined,
 > = {
-	length: number;
+	length?: number;
 	enum?: TEnum;
 };
 
 export function char<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: TName,
-	config: MsSqlCharConfigInitial<T | Writable<T>>,
+	config?: MsSqlCharConfigInitial<T | Writable<T>>,
 ): MsSqlCharBuilderInitial<TName, Writable<T>> {
 	return new MsSqlCharBuilder(name, { ...config, nonUnicode: false });
 }
@@ -86,11 +86,11 @@ export function nChar<
 	T extends Readonly<[U, ...U[]]>,
 >(
 	name: TName,
-	config: MsSqlCharConfigInitial<T | Writable<T>>,
+	config?: MsSqlCharConfigInitial<T | Writable<T>>,
 ): MsSqlCharBuilderInitial<TName, Writable<T>> {
 	return new MsSqlCharBuilder(name, {
-		length: config.length,
-		enum: config.enum,
+		length: config?.length,
+		enum: config?.enum,
 		nonUnicode: true,
 	});
 }
