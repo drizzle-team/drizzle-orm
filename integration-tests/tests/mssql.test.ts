@@ -11,6 +11,7 @@ import {
 	countDistinct,
 	DefaultLogger,
 	eq,
+	getTableColumns,
 	gt,
 	gte,
 	inArray,
@@ -77,6 +78,15 @@ const users2Table = mssqlTable('users2', {
 const citiesTable = mssqlTable('cities', {
 	id: int('id').identity().primaryKey(),
 	name: varchar('name', { length: 30 }).notNull(),
+});
+
+const usersOnUpdate = mssqlTable('users_on_update', {
+	id: int('id').identity().primaryKey(),
+	name: text('name').notNull(),
+	updateCounter: int('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
+	updatedAt: datetime('updated_at', { mode: 'date' }).$onUpdate(() => new Date()),
+	// uppercaseName: text('uppercase_name').$onUpdateFn(() => sql`upper([name])`),
+	alwaysNull: text('always_null').$type<string | null>().$onUpdateFn(() => null), // need to add $type because $onUpdate add a default value
 });
 
 const datesTable = mssqlTable('datestable', {
@@ -831,7 +841,7 @@ test.serial('insert sql', async (t) => {
 test.serial('partial join with alias', async (t) => {
 	const { db } = t.context;
 
-	const users = mssqlTable('users', {
+	const users = mssqlTable('usersForTest', {
 		id: int('id').primaryKey(),
 		name: text('name').notNull(),
 	});
@@ -860,6 +870,8 @@ test.serial('partial join with alias', async (t) => {
 		user: { id: 10, name: 'Ivan' },
 		customer: { id: 11, name: 'Hans' },
 	}]);
+
+	await db.execute(sql`drop table ${users}`);
 });
 
 test.serial('full join with alias', async (t) => {
@@ -1996,7 +2008,7 @@ test.serial('select iterator w/ prepared statement', async (t) => {
 test.serial('insert undefined', async (t) => {
 	const { db } = t.context;
 
-	const users = mssqlTable('users', {
+	const users = mssqlTable('usersForTests', {
 		id: int('id').identity().primaryKey(),
 		name: text('name'),
 	});
@@ -2015,7 +2027,7 @@ test.serial('insert undefined', async (t) => {
 test.serial('update undefined', async (t) => {
 	const { db } = t.context;
 
-	const users = mssqlTable('users', {
+	const users = mssqlTable('usersForTests', {
 		id: int('id').identity().primaryKey(),
 		name: text('name'),
 	});
@@ -2446,6 +2458,96 @@ test.serial('set operations (mixed all) as function with subquery', async (t) =>
 				.from(citiesTable).where(gt(citiesTable.id, 1)),
 		).orderBy(asc(sql`id`));
 	});
+});
+
+test.serial('test $onUpdateFn and $onUpdate works as $default', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists ${usersOnUpdate}`);
+
+	await db.execute(
+		sql`
+			create table ${usersOnUpdate} (
+			id int identity not null primary key,
+			[name] text not null,
+			update_counter integer default 1 not null,
+			updated_at datetime,
+			always_null text
+			)
+		`,
+	);
+
+	await db.insert(usersOnUpdate).values([
+		{ name: 'John' },
+		{ name: 'Jane' },
+		{ name: 'Jack' },
+		{ name: 'Jill' },
+	]);
+	const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
+
+	const justDates = await db.select({ updatedAt }).from(usersOnUpdate);
+
+	const response = await db.select({ ...rest }).from(usersOnUpdate);
+
+	t.deepEqual(response, [
+		{ name: 'John', id: 1, updateCounter: 1, alwaysNull: null },
+		{ name: 'Jane', id: 2, updateCounter: 1, alwaysNull: null },
+		{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
+		{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
+	]);
+	const msDelay = 250;
+
+	for (const eachUser of justDates) {
+		t.assert(eachUser.updatedAt!.valueOf() > Date.now() - msDelay);
+	}
+});
+
+test.serial('test $onUpdateFn and $onUpdate works updating', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists ${usersOnUpdate}`);
+
+	await db.execute(
+		sql`
+			create table ${usersOnUpdate} (
+			id int identity not null primary key,
+			[name] text not null,
+			update_counter integer default 1 not null,
+			updated_at datetime,
+			always_null text
+			)
+		`,
+	);
+
+	await db.insert(usersOnUpdate).values([
+		{ name: 'John', alwaysNull: 'this will will be null after updating' },
+		{ name: 'Jane' },
+		{ name: 'Jack' },
+		{ name: 'Jill' },
+	]);
+
+	const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
+	const initial = await db.select({ updatedAt }).from(usersOnUpdate);
+
+	await db.update(usersOnUpdate).set({ name: 'Angel' }).where(eq(usersOnUpdate.id, 1));
+
+	const justDates = await db.select({ updatedAt }).from(usersOnUpdate);
+
+	const response = await db.select({ ...rest }).from(usersOnUpdate);
+
+	t.deepEqual(response, [
+		{ name: 'Angel', id: 1, updateCounter: 2, alwaysNull: null },
+		{ name: 'Jane', id: 2, updateCounter: 1, alwaysNull: null },
+		{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
+		{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
+	]);
+	const msDelay = 250;
+
+	t.assert(initial[0]?.updatedAt?.valueOf() !== justDates[0]?.updatedAt?.valueOf());
+
+	for (const eachUser of justDates) {
+		t.assert(eachUser.updatedAt!.valueOf() > Date.now() - msDelay);
+	}
 });
 
 test.serial('aggregate function: count', async (t) => {
