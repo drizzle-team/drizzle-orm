@@ -38,7 +38,7 @@ import {
 	mssqlTable,
 	mssqlTableCreator,
 	mssqlView,
-	nVarchar,
+	nvarchar,
 	primaryKey,
 	smallint,
 	text,
@@ -65,8 +65,8 @@ const usersTable = mssqlTable('userstest', {
 	id: int('id').identity().primaryKey(),
 	name: varchar('name', { length: 30 }).notNull(),
 	verified: bit('verified').notNull().default(false),
-	jsonb: nVarchar('jsonb', { length: 300, mode: 'json' }).$type<string[]>(),
-	createdAt: datetime('created_at', { fsp: 2 }).notNull().default(sql`CURRENT_TIMESTAMP`),
+	jsonb: nvarchar('jsonb', { length: 300, mode: 'json' }).$type<string[]>(),
+	createdAt: datetime('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
 const users2Table = mssqlTable('users2', {
@@ -94,8 +94,8 @@ const datesTable = mssqlTable('datestable', {
 	dateAsString: date('date_as_string', { mode: 'string' }),
 	time: time('time', { fsp: 1 }),
 	timeAsString: time('time_as_string', { mode: 'string', fsp: 1 }),
-	datetime: datetime('datetime', { fsp: 2 }),
-	datetimeAsString: datetime('datetime_as_string', { fsp: 2, mode: 'string' }),
+	datetime: datetime('datetime'),
+	datetimeAsString: datetime('datetime_as_string', { mode: 'string' }),
 });
 
 const coursesTable = mssqlTable('courses', {
