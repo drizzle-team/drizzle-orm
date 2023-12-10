@@ -6,21 +6,21 @@ import { MsSqlColumn, MsSqlColumnBuilder } from './common.ts';
 
 export type MsSqlBinaryBuilderInitial<TName extends string> = MsSqlBinaryBuilder<{
 	name: TName;
-	dataType: 'string';
+	dataType: 'buffer';
 	columnType: 'MsSqlBinary';
-	data: string;
-	driverParam: string;
+	data: Buffer;
+	driverParam: Buffer;
 	enumValues: undefined;
 }>;
 
-export class MsSqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSqlBinary'>> extends MsSqlColumnBuilder<
+export class MsSqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'MsSqlBinary'>> extends MsSqlColumnBuilder<
 	T,
 	MsSqlBinaryConfig
 > {
 	static readonly [entityKind]: string = 'MsSqlBinaryBuilder';
 
 	constructor(name: T['name'], length: number | undefined) {
-		super(name, 'string', 'MsSqlBinary');
+		super(name, 'buffer', 'MsSqlBinary');
 		this.config.length = length;
 	}
 
@@ -32,7 +32,7 @@ export class MsSqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsS
 	}
 }
 
-export class MsSqlBinary<T extends ColumnBaseConfig<'string', 'MsSqlBinary'>> extends MsSqlColumn<
+export class MsSqlBinary<T extends ColumnBaseConfig<'buffer', 'MsSqlBinary'>> extends MsSqlColumn<
 	T,
 	MsSqlBinaryConfig
 > {

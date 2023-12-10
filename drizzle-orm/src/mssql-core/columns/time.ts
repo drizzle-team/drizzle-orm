@@ -9,7 +9,7 @@ export type MsSqlTimeStringBuilderInitial<TName extends string> = MsSqlTimeStrin
 	dataType: 'string';
 	columnType: 'MsSqlTime';
 	data: string;
-	driverParam: string | number;
+	driverParam: string | Date;
 	enumValues: undefined;
 }>;
 
@@ -62,7 +62,7 @@ export type MsSqlTimeBuilderInitial<TName extends string> = MsSqlTimeBuilder<{
 	dataType: 'date';
 	columnType: 'MsSqlTime';
 	data: Date;
-	driverParam: string | number;
+	driverParam: string | Date;
 	enumValues: undefined;
 }>;
 
@@ -101,7 +101,7 @@ export class MsSqlTime<
 	}
 }
 export type TimeConfig<TMode extends 'date' | 'string' = 'date'> = {
-	fsp?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
+	fsp?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 	mode?: TMode;
 };
 

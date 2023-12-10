@@ -7,6 +7,7 @@ import type {
 	ColumnDataType,
 	HasDefault,
 	MakeColumnConfig,
+	NotNull,
 } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { Column } from '~/column.ts';
@@ -121,12 +122,13 @@ export abstract class MsSqlColumnBuilderWithIdentity<
 	constructor(name: NonNullable<T['name']>, dataType: T['dataType'], columnType: T['columnType']) {
 		super(name, dataType, columnType);
 	}
-	identity(): HasDefault<this>;
-	identity(seed: number, increment: number): HasDefault<this>;
-	identity(seed?: number, increment?: number): HasDefault<this> {
+	identity(): NotNull<HasDefault<this>>;
+	identity(seed: number, increment: number): NotNull<HasDefault<this>>;
+	identity(seed?: number, increment?: number): NotNull<HasDefault<this>> {
 		this.config.identity = seed !== undefined && increment !== undefined ? { seed, increment } : true;
 		this.config.hasDefault = true;
-		return this as HasDefault<this>;
+		this.config.notNull = true;
+		return this as NotNull<HasDefault<this>>;
 	}
 }
 

@@ -9,7 +9,7 @@ export type MsSqlIntBuilderInitial<TName extends string> = MsSqlIntBuilder<{
 	dataType: 'number';
 	columnType: 'MsSqlInt';
 	data: number;
-	driverParam: number | string;
+	driverParam: number;
 	enumValues: undefined;
 }>;
 
@@ -35,13 +35,6 @@ export class MsSqlInt<T extends ColumnBaseConfig<'number', 'MsSqlInt'>> extends 
 
 	_getSQLType(): string {
 		return `int`;
-	}
-
-	override mapFromDriverValue(value: number | string): number {
-		if (typeof value === 'string') {
-			return Number(value);
-		}
-		return value;
 	}
 }
 

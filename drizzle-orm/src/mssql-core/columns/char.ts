@@ -80,7 +80,7 @@ export function char<TName extends string, U extends string, T extends Readonly<
 	return new MsSqlCharBuilder(name, { ...config, nonUnicode: false });
 }
 
-export function nChar<
+export function nchar<
 	TName extends string,
 	U extends string,
 	T extends Readonly<[U, ...U[]]>,

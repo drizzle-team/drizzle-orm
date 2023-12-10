@@ -9,17 +9,18 @@ export type MsSqlFloatBuilderInitial<TName extends string> = MsSqlFloatBuilder<{
 	dataType: 'number';
 	columnType: 'MsSqlFloat';
 	data: number;
-	driverParam: number | string;
+	driverParam: number;
 	enumValues: undefined;
 }>;
 
 export class MsSqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlFloat'>>
-	extends MsSqlColumnBuilderWithIdentity<T>
+	extends MsSqlColumnBuilderWithIdentity<T, MsSqlFloatConfig>
 {
 	static readonly [entityKind]: string = 'MsSqlFloatBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: T['name'], config?: MsSqlFloatConfig) {
 		super(name, 'number', 'MsSqlFloat');
+		this.config.precision = config?.precision;
 	}
 
 	/** @internal */
@@ -30,14 +31,23 @@ export class MsSqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSq
 	}
 }
 
-export class MsSqlFloat<T extends ColumnBaseConfig<'number', 'MsSqlFloat'>> extends MsSqlColumnWithIdentity<T> {
+export class MsSqlFloat<T extends ColumnBaseConfig<'number', 'MsSqlFloat'>>
+	extends MsSqlColumnWithIdentity<T, MsSqlFloatConfig>
+{
 	static readonly [entityKind]: string = 'MsSqlFloat';
 
+	readonly precision: number | undefined = this.config.precision;
+
 	_getSQLType(): string {
-		return 'float';
+		const precision = this.precision === undefined ? '' : `(${this.precision})`;
+		return `float${precision}`;
 	}
 }
 
-export function float<TName extends string>(name: TName): MsSqlFloatBuilderInitial<TName> {
-	return new MsSqlFloatBuilder(name);
+export interface MsSqlFloatConfig {
+	precision?: number;
+}
+
+export function float<TName extends string>(name: TName, config?: MsSqlFloatConfig): MsSqlFloatBuilderInitial<TName> {
+	return new MsSqlFloatBuilder(name, config);
 }
