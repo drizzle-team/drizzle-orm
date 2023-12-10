@@ -56,7 +56,7 @@ export class MsSqlVarChar<T extends ColumnBaseConfig<'string', 'MsSqlVarChar'>>
 {
 	static readonly [entityKind]: string = 'MsSqlVarChar';
 
-	readonly length: number | undefined = this.config.length;
+	readonly length: number | 'max' | undefined = this.config.length;
 
 	override readonly enumValues = this.config.enum;
 
@@ -72,12 +72,12 @@ export class MsSqlVarChar<T extends ColumnBaseConfig<'string', 'MsSqlVarChar'>>
 }
 
 export class MsSqlVarCharJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'MsSqlNVarCharJson'>>
-	extends MsSqlColumnBuilder<T, { length: number | undefined; nonUnicode: boolean }>
+	extends MsSqlColumnBuilder<T, { length: number | 'max' | undefined; nonUnicode: boolean }>
 {
 	static readonly [entityKind]: string = 'MsSqlVarCharJsonBuilder';
 
 	/** @internal */
-	constructor(name: T['name'], config: { length: number | undefined }) {
+	constructor(name: T['name'], config: { length: number | 'max' | undefined }) {
 		super(name, 'json', 'MsSqlNVarCharJson');
 		this.config.length = config.length;
 		this.config.nonUnicode = true;
@@ -99,7 +99,7 @@ export class MsSqlVarCharJson<T extends ColumnBaseConfig<'json', 'MsSqlNVarCharJ
 {
 	static readonly [entityKind]: string = 'MsSqlVarCharJson';
 
-	readonly length: number | undefined = this.config.length;
+	readonly length: number | 'max' | undefined = this.config.length;
 
 	getSQLType(): string {
 		return this.length === undefined
@@ -127,12 +127,12 @@ export type MsSqlVarCharConfigInitial<
 	TEnum extends string[] | readonly string[] | undefined,
 > = TMode extends 'text' ? {
 		mode?: TMode;
-		length?: number;
+		length?: number | 'max';
 		enum?: TEnum;
 	}
 	: {
 		mode?: TMode;
-		length?: number;
+		length?: number | 'max';
 	};
 
 export function varchar<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
@@ -142,7 +142,7 @@ export function varchar<TName extends string, U extends string, T extends Readon
 	return new MsSqlVarCharBuilder(name, { ...config, nonUnicode: false });
 }
 
-export function nVarchar<
+export function nvarchar<
 	TName extends string,
 	U extends string,
 	T extends Readonly<[U, ...U[]]>,

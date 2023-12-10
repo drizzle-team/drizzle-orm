@@ -3,7 +3,8 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
 import type { Equal } from '~/utils.ts';
-import { MsSqlColumn, MsSqlColumnBuilder } from './common.ts';
+import { MsSqlColumn } from './common.ts';
+import { MsSqlDateColumnBaseBuilder } from './date.common.ts';
 
 export type MsSqlDateBuilderInitial<TName extends string> = MsSqlDateBuilder<{
 	name: TName;
@@ -14,7 +15,9 @@ export type MsSqlDateBuilderInitial<TName extends string> = MsSqlDateBuilder<{
 	enumValues: undefined;
 }>;
 
-export class MsSqlDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'MsSqlDate'>> extends MsSqlColumnBuilder<T> {
+export class MsSqlDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'MsSqlDate'>>
+	extends MsSqlDateColumnBaseBuilder<T>
+{
 	static readonly [entityKind]: string = 'MsSqlDateBuilder';
 
 	constructor(name: T['name']) {
@@ -58,7 +61,7 @@ export type MsSqlDateStringBuilderInitial<TName extends string> = MsSqlDateStrin
 }>;
 
 export class MsSqlDateStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSqlDateString'>>
-	extends MsSqlColumnBuilder<T>
+	extends MsSqlDateColumnBaseBuilder<T>
 {
 	static readonly [entityKind]: string = 'MsSqlDateStringBuilder';
 

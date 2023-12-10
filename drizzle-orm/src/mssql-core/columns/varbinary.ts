@@ -6,21 +6,21 @@ import { MsSqlColumn, MsSqlColumnBuilder } from './common.ts';
 
 export type MsSqlVarBinaryBuilderInitial<TName extends string> = MsSqlVarBinaryBuilder<{
 	name: TName;
-	dataType: 'string';
+	dataType: 'buffer';
 	columnType: 'MsSqlVarBinary';
-	data: string;
-	driverParam: string;
+	data: Buffer;
+	driverParam: Buffer;
 	enumValues: undefined;
 }>;
 
-export class MsSqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSqlVarBinary'>>
+export class MsSqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'MsSqlVarBinary'>>
 	extends MsSqlColumnBuilder<T, MsSqlVarbinaryOptions>
 {
 	static readonly [entityKind]: string = 'MsSqlVarBinaryBuilder';
 
 	/** @internal */
 	constructor(name: T['name'], config: MsSqlVarbinaryOptions) {
-		super(name, 'string', 'MsSqlVarBinary');
+		super(name, 'buffer', 'MsSqlVarBinary');
 		this.config.length = config?.length;
 	}
 
@@ -36,11 +36,11 @@ export class MsSqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', '
 }
 
 export class MsSqlVarBinary<
-	T extends ColumnBaseConfig<'string', 'MsSqlVarBinary'>,
+	T extends ColumnBaseConfig<'buffer', 'MsSqlVarBinary'>,
 > extends MsSqlColumn<T, MsSqlVarbinaryOptions> {
 	static readonly [entityKind]: string = 'MsSqlVarBinary';
 
-	length: number | undefined = this.config.length;
+	length: number | 'max' | undefined = this.config.length;
 
 	getSQLType(): string {
 		return this.length === undefined ? `varbinary` : `varbinary(${this.length})`;
@@ -48,7 +48,7 @@ export class MsSqlVarBinary<
 }
 
 export interface MsSqlVarbinaryOptions {
-	length: number;
+	length: number | 'max';
 }
 
 export function varbinary<TName extends string>(

@@ -3,23 +3,24 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
 import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
+import type { MsSqlDecimalConfig as MsSqlNumericConfig } from './decimal.ts';
 
-export type MsSqlDecimalBuilderInitial<TName extends string> = MsSqlDecimalBuilder<{
+export type MsSqlNumericBuilderInitial<TName extends string> = MsSqlNumericBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MsSqlDecimal';
+	columnType: 'MsSqlNumeric';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
 }>;
 
-export class MsSqlDecimalBuilder<
-	T extends ColumnBuilderBaseConfig<'number', 'MsSqlDecimal'>,
-> extends MsSqlColumnBuilderWithIdentity<T, MsSqlDecimalConfig> {
-	static readonly [entityKind]: string = 'MsSqlDecimalBuilder';
+export class MsSqlNumericBuilder<
+	T extends ColumnBuilderBaseConfig<'number', 'MsSqlNumeric'>,
+> extends MsSqlColumnBuilderWithIdentity<T, MsSqlNumericConfig> {
+	static readonly [entityKind]: string = 'MsSqlNumericBuilder';
 
 	constructor(name: T['name'], precision?: number, scale?: number) {
-		super(name, 'number', 'MsSqlDecimal');
+		super(name, 'number', 'MsSqlNumeric');
 		this.config.precision = precision;
 		this.config.scale = scale;
 	}
@@ -27,41 +28,36 @@ export class MsSqlDecimalBuilder<
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlDecimal<MakeColumnConfig<T, TTableName>> {
-		return new MsSqlDecimal<MakeColumnConfig<T, TTableName>>(
+	): MsSqlNumeric<MakeColumnConfig<T, TTableName>> {
+		return new MsSqlNumeric<MakeColumnConfig<T, TTableName>>(
 			table,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 		);
 	}
 }
 
-export class MsSqlDecimal<T extends ColumnBaseConfig<'number', 'MsSqlDecimal'>>
-	extends MsSqlColumnWithIdentity<T, MsSqlDecimalConfig>
+export class MsSqlNumeric<T extends ColumnBaseConfig<'number', 'MsSqlNumeric'>>
+	extends MsSqlColumnWithIdentity<T, MsSqlNumericConfig>
 {
-	static readonly [entityKind]: string = 'MsSqlDecimal';
+	static readonly [entityKind]: string = 'MsSqlNumeric';
 
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
 
 	_getSQLType(): string {
 		if (this.precision !== undefined && this.scale !== undefined) {
-			return `decimal(${this.precision},${this.scale})`;
+			return `numeric(${this.precision},${this.scale})`;
 		} else if (this.precision === undefined) {
-			return 'decimal';
+			return 'numeric';
 		} else {
-			return `decimal(${this.precision})`;
+			return `numeric(${this.precision})`;
 		}
 	}
 }
 
-export interface MsSqlDecimalConfig {
-	precision?: number;
-	scale?: number;
-}
-
-export function decimal<TName extends string>(
+export function numeric<TName extends string>(
 	name: TName,
-	config: MsSqlDecimalConfig = {},
-): MsSqlDecimalBuilderInitial<TName> {
-	return new MsSqlDecimalBuilder(name, config.precision, config.scale);
+	config: MsSqlNumericConfig = {},
+): MsSqlNumericBuilderInitial<TName> {
+	return new MsSqlNumericBuilder(name, config.precision, config.scale);
 }

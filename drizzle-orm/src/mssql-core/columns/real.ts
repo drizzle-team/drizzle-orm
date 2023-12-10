@@ -9,22 +9,17 @@ export type MsSqlRealBuilderInitial<TName extends string> = MsSqlRealBuilder<{
 	dataType: 'number';
 	columnType: 'MsSqlReal';
 	data: number;
-	driverParam: number | string;
+	driverParam: number;
 	enumValues: undefined;
 }>;
 
 export class MsSqlRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlReal'>>
-	extends MsSqlColumnBuilderWithIdentity<
-		T,
-		MsSqlRealConfig
-	>
+	extends MsSqlColumnBuilderWithIdentity<T>
 {
 	static readonly [entityKind]: string = 'MsSqlRealBuilder';
 
-	constructor(name: T['name'], config: MsSqlRealConfig | undefined) {
+	constructor(name: T['name']) {
 		super(name, 'number', 'MsSqlReal');
-		this.config.precision = config?.precision;
-		this.config.scale = config?.scale;
 	}
 
 	/** @internal */
@@ -35,31 +30,14 @@ export class MsSqlRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSql
 	}
 }
 
-export class MsSqlReal<T extends ColumnBaseConfig<'number', 'MsSqlReal'>> extends MsSqlColumnWithIdentity<
-	T,
-	MsSqlRealConfig
-> {
+export class MsSqlReal<T extends ColumnBaseConfig<'number', 'MsSqlReal'>> extends MsSqlColumnWithIdentity<T> {
 	static readonly [entityKind]: string = 'MsSqlReal';
 
-	precision: number | undefined = this.config.precision;
-	scale: number | undefined = this.config.scale;
-
 	_getSQLType(): string {
-		if (this.precision !== undefined && this.scale !== undefined) {
-			return `real(${this.precision}, ${this.scale})`;
-		} else if (this.precision === undefined) {
-			return 'real';
-		} else {
-			return `real(${this.precision})`;
-		}
+		return 'real';
 	}
 }
 
-export interface MsSqlRealConfig {
-	precision?: number;
-	scale?: number;
-}
-
-export function real<TName extends string>(name: TName, config: MsSqlRealConfig = {}): MsSqlRealBuilderInitial<TName> {
-	return new MsSqlRealBuilder(name, config);
+export function real<TName extends string>(name: TName): MsSqlRealBuilderInitial<TName> {
+	return new MsSqlRealBuilder(name);
 }

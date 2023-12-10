@@ -3,25 +3,25 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
 import type { Equal } from '~/utils.ts';
-import { MsSqlColumn, MsSqlColumnBuilder } from './common.ts';
+import { MsSqlColumn } from './common.ts';
+import { MsSqlDateColumnBaseBuilder } from './date.common.ts';
 
 export type MsSqlDateTimeBuilderInitial<TName extends string> = MsSqlDateTimeBuilder<{
 	name: TName;
 	dataType: 'date';
 	columnType: 'MsSqlDateTime';
 	data: Date;
-	driverParam: string | number;
+	driverParam: string | Date;
 	enumValues: undefined;
 }>;
 
 export class MsSqlDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date', 'MsSqlDateTime'>>
-	extends MsSqlColumnBuilder<T, MsSqlDatetimeConfig>
+	extends MsSqlDateColumnBaseBuilder<T, MsSqlDatetimeConfig>
 {
 	static readonly [entityKind]: string = 'MsSqlDateTimeBuilder';
 
-	constructor(name: T['name'], config: MsSqlDatetimeConfig | undefined) {
+	constructor(name: T['name']) {
 		super(name, 'date', 'MsSqlDateTime');
-		this.config.fsp = config?.fsp;
 	}
 
 	/** @internal */
@@ -38,27 +38,15 @@ export class MsSqlDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date', 'MsS
 export class MsSqlDateTime<T extends ColumnBaseConfig<'date', 'MsSqlDateTime'>> extends MsSqlColumn<T> {
 	static readonly [entityKind]: string = 'MsSqlDateTime';
 
-	readonly fsp: number | undefined;
-
 	constructor(
 		table: AnyMsSqlTable<{ name: T['tableName'] }>,
 		config: MsSqlDateTimeBuilder<T>['config'],
 	) {
 		super(table, config);
-		this.fsp = config.fsp;
 	}
 
 	getSQLType(): string {
-		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
-		return `datetime${precision}`;
-	}
-
-	override mapToDriverValue(value: Date): unknown {
-		return value.toISOString().replace('T', ' ').replace('Z', '');
-	}
-
-	override mapFromDriverValue(value: Date): Date {
-		return value;
+		return `datetime`;
 	}
 }
 
@@ -67,19 +55,17 @@ export type MsSqlDateTimeStringBuilderInitial<TName extends string> = MsSqlDateT
 	dataType: 'string';
 	columnType: 'MsSqlDateTimeString';
 	data: string;
-	driverParam: string | number;
-
+	driverParam: string | Date;
 	enumValues: undefined;
 }>;
 
 export class MsSqlDateTimeStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSqlDateTimeString'>>
-	extends MsSqlColumnBuilder<T, MsSqlDatetimeConfig>
+	extends MsSqlDateColumnBaseBuilder<T, MsSqlDatetimeConfig>
 {
 	static readonly [entityKind]: string = 'MsSqlDateTimeStringBuilder';
 
-	constructor(name: T['name'], config: MsSqlDatetimeConfig | undefined) {
+	constructor(name: T['name']) {
 		super(name, 'string', 'MsSqlDateTimeString');
-		this.config.fsp = config?.fsp;
 	}
 
 	/** @internal */
@@ -96,19 +82,15 @@ export class MsSqlDateTimeStringBuilder<T extends ColumnBuilderBaseConfig<'strin
 export class MsSqlDateTimeString<T extends ColumnBaseConfig<'string', 'MsSqlDateTimeString'>> extends MsSqlColumn<T> {
 	static readonly [entityKind]: string = 'MsSqlDateTimeString';
 
-	readonly fsp: number | undefined;
-
 	constructor(
 		table: AnyMsSqlTable<{ name: T['tableName'] }>,
 		config: MsSqlDateTimeStringBuilder<T>['config'],
 	) {
 		super(table, config);
-		this.fsp = config.fsp;
 	}
 
 	getSQLType(): string {
-		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
-		return `datetime${precision}`;
+		return 'datetime';
 	}
 
 	override mapFromDriverValue(value: Date | string | null): string | null {
@@ -116,11 +98,8 @@ export class MsSqlDateTimeString<T extends ColumnBaseConfig<'string', 'MsSqlDate
 	}
 }
 
-export type DatetimeFsp = 0 | 1 | 2 | 3 | 4 | 5 | 6;
-
 export interface MsSqlDatetimeConfig<TMode extends 'date' | 'string' = 'date' | 'string'> {
 	mode?: TMode;
-	fsp?: DatetimeFsp;
 }
 
 export function datetime<TName extends string, TMode extends MsSqlDatetimeConfig['mode'] & {}>(
@@ -129,7 +108,7 @@ export function datetime<TName extends string, TMode extends MsSqlDatetimeConfig
 ): Equal<TMode, 'string'> extends true ? MsSqlDateTimeStringBuilderInitial<TName> : MsSqlDateTimeBuilderInitial<TName>;
 export function datetime(name: string, config: MsSqlDatetimeConfig = {}) {
 	if (config.mode === 'string') {
-		return new MsSqlDateTimeStringBuilder(name, config);
+		return new MsSqlDateTimeStringBuilder(name);
 	}
-	return new MsSqlDateTimeBuilder(name, config);
+	return new MsSqlDateTimeBuilder(name);
 }
