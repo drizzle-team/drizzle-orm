@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgJsonbBuilderInitial<TName extends string> = PgJsonbBuilder<{
-	name: TName;
-	dataType: 'json';
-	columnType: 'PgJsonb';
-	data: unknown;
-	driverParam: unknown;
-	enumValues: undefined;
-}>;
+export type PgJsonbBuilderInitial<TName extends string> = PgJsonbBuilder<
+	{
+		name: TName;
+		dataType: 'json';
+		columnType: 'PgJsonb';
+		data: unknown;
+		driverParam: unknown;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class PgJsonbBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgJsonb'>> extends PgColumnBuilder<T> {
 	static readonly [entityKind]: string = 'PgJsonbBuilder';

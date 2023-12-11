@@ -7,14 +7,17 @@ import { MsSqlColumn } from './common.ts';
 import type { MsSqlDatetimeConfig } from './date.common.ts';
 import { MsSqlDateColumnBaseBuilder } from './date.common.ts';
 
-export type MsSqlDateTimeOffsetBuilderInitial<TName extends string> = MsSqlDateTimeOffsetBuilder<{
-	name: TName;
-	dataType: 'date';
-	columnType: 'MsSqlDateTimeOffset';
-	data: Date;
-	driverParam: string | Date;
-	enumValues: undefined;
-}>;
+export type MsSqlDateTimeOffsetBuilderInitial<TName extends string> = MsSqlDateTimeOffsetBuilder<
+	{
+		name: TName;
+		dataType: 'date';
+		columnType: 'MsSqlDateTimeOffset';
+		data: Date;
+		driverParam: string | Date;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MsSqlDateTimeOffsetBuilder<T extends ColumnBuilderBaseConfig<'date', 'MsSqlDateTimeOffset'>>
 	extends MsSqlDateColumnBaseBuilder<T, MsSqlDatetimeConfig>
@@ -56,14 +59,17 @@ export class MsSqlDateTimeOffset<T extends ColumnBaseConfig<'date', 'MsSqlDateTi
 	}
 }
 
-export type MsSqlDateTimeOffsetStringBuilderInitial<TName extends string> = MsSqlDateTimeOffsetStringBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'MsSqlDateTimeOffsetString';
-	data: string;
-	driverParam: string | Date;
-	enumValues: undefined;
-}>;
+export type MsSqlDateTimeOffsetStringBuilderInitial<TName extends string> = MsSqlDateTimeOffsetStringBuilder<
+	{
+		name: TName;
+		dataType: 'string';
+		columnType: 'MsSqlDateTimeOffsetString';
+		data: string;
+		driverParam: string | Date;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MsSqlDateTimeOffsetStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSqlDateTimeOffsetString'>>
 	extends MsSqlDateColumnBaseBuilder<T, MsSqlDatetimeConfig>

@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlRealBuilderInitial<TName extends string> = MySqlRealBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'MySqlReal';
-	data: number;
-	driverParam: number | string;
-	enumValues: undefined;
-}>;
+export type MySqlRealBuilderInitial<TName extends string> = MySqlRealBuilder<
+	{
+		name: TName;
+		dataType: 'number';
+		columnType: 'MySqlReal';
+		data: number;
+		driverParam: number | string;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MySqlRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlReal'>>
 	extends MySqlColumnBuilderWithAutoIncrement<

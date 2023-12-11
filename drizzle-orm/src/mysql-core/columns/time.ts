@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
-export type MySqlTimeBuilderInitial<TName extends string> = MySqlTimeBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'MySqlTime';
-	data: string;
-	driverParam: string | number;
-	enumValues: undefined;
-}>;
+export type MySqlTimeBuilderInitial<TName extends string> = MySqlTimeBuilder<
+	{
+		name: TName;
+		dataType: 'string';
+		columnType: 'MySqlTime';
+		data: string;
+		driverParam: string | number;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MySqlTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlTime'>> extends MySqlColumnBuilder<
 	T,

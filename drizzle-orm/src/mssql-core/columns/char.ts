@@ -13,6 +13,7 @@ export type MsSqlCharBuilderInitial<TName extends string, TEnum extends [string,
 		data: TEnum[number];
 		driverParam: number | string;
 		enumValues: TEnum;
+		generated: undefined;
 	}
 >;
 

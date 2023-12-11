@@ -13,6 +13,7 @@ export type MsSqlVarCharBuilderInitial<TName extends string, TEnum extends [stri
 		data: TEnum[number];
 		driverParam: number | string;
 		enumValues: TEnum;
+		generated: undefined;
 	}
 >;
 
@@ -24,6 +25,7 @@ export type MsSqlVarCharJsonBuilderInitial<TName extends string> = MsSqlVarCharJ
 		data: unknown;
 		driverParam: string;
 		enumValues: undefined;
+		generated: undefined;
 	}
 >;
 

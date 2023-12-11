@@ -5,9 +5,8 @@ import type {
 	ColumnBuilderExtraConfig,
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
-	HasDefault,
+	HasGenerated,
 	MakeColumnConfig,
-	NotNull,
 } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { Column } from '~/column.ts';
@@ -113,7 +112,10 @@ export interface MsSqlColumnWithIdentityConfig {
 }
 
 export abstract class MsSqlColumnBuilderWithIdentity<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<
+		ColumnDataType,
+		string
+	>,
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
 > extends MsSqlColumnBuilder<T, TRuntimeConfig & MsSqlColumnWithIdentityConfig, TExtraConfig> {
@@ -122,18 +124,22 @@ export abstract class MsSqlColumnBuilderWithIdentity<
 	constructor(name: NonNullable<T['name']>, dataType: T['dataType'], columnType: T['columnType']) {
 		super(name, dataType, columnType);
 	}
-	identity(): NotNull<HasDefault<this>>;
-	identity(seed: number, increment: number): NotNull<HasDefault<this>>;
-	identity(seed?: number, increment?: number): NotNull<HasDefault<this>> {
+
+	identity(): HasGenerated<this>;
+	identity(seed: number, increment: number): HasGenerated<this>;
+	identity(seed?: number, increment?: number): HasGenerated<this> {
 		this.config.identity = seed !== undefined && increment !== undefined ? { seed, increment } : true;
 		this.config.hasDefault = true;
 		this.config.notNull = true;
-		return this as NotNull<HasDefault<this>>;
+		return this as HasGenerated<this>;
 	}
 }
 
 export abstract class MsSqlColumnWithIdentity<
-	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
+	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<
+		ColumnDataType,
+		string
+	>,
 	TRuntimeConfig extends object = object,
 > extends MsSqlColumn<T, MsSqlColumnWithIdentityConfig & TRuntimeConfig> {
 	static readonly [entityKind]: string = 'MsSqlColumnWithAutoIncrement';
@@ -141,7 +147,7 @@ export abstract class MsSqlColumnWithIdentity<
 	readonly identity = this.config.identity;
 	private getIdentity() {
 		if (this.identity) {
-			return typeof this.identity === 'object' && 'seed' in this.identity
+			return typeof this.identity === 'object'
 				? `identity(${this.identity.seed}, ${this.identity.increment})`
 				: 'identity';
 		}

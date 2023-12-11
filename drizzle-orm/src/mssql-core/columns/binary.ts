@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
 import { MsSqlColumn, MsSqlColumnBuilder } from './common.ts';
 
-export type MsSqlBinaryBuilderInitial<TName extends string> = MsSqlBinaryBuilder<{
-	name: TName;
-	dataType: 'buffer';
-	columnType: 'MsSqlBinary';
-	data: Buffer;
-	driverParam: Buffer;
-	enumValues: undefined;
-}>;
+export type MsSqlBinaryBuilderInitial<TName extends string> = MsSqlBinaryBuilder<
+	{
+		name: TName;
+		dataType: 'buffer';
+		columnType: 'MsSqlBinary';
+		data: Buffer;
+		driverParam: Buffer;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MsSqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'MsSqlBinary'>> extends MsSqlColumnBuilder<
 	T,

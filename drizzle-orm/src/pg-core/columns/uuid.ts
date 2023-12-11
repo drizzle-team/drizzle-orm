@@ -5,14 +5,17 @@ import type { AnyPgTable } from '~/pg-core/table.ts';
 import { sql } from '~/sql/sql.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgUUIDBuilderInitial<TName extends string> = PgUUIDBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'PgUUID';
-	data: string;
-	driverParam: string;
-	enumValues: undefined;
-}>;
+export type PgUUIDBuilderInitial<TName extends string> = PgUUIDBuilder<
+	{
+		name: TName;
+		dataType: 'string';
+		columnType: 'PgUUID';
+		data: string;
+		driverParam: string;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class PgUUIDBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgUUID'>> extends PgColumnBuilder<T> {
 	static readonly [entityKind]: string = 'PgUUIDBuilder';

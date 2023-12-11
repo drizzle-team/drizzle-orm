@@ -5,14 +5,17 @@ import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 import type { MySqlIntConfig } from './int.ts';
 
-export type MySqlMediumIntBuilderInitial<TName extends string> = MySqlMediumIntBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'MySqlMediumInt';
-	data: number;
-	driverParam: number | string;
-	enumValues: undefined;
-}>;
+export type MySqlMediumIntBuilderInitial<TName extends string> = MySqlMediumIntBuilder<
+	{
+		name: TName;
+		dataType: 'number';
+		columnType: 'MySqlMediumInt';
+		data: number;
+		driverParam: number | string;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MySqlMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlMediumInt'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>

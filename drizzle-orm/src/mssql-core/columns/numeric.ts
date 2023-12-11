@@ -5,14 +5,17 @@ import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
 import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 import type { MsSqlDecimalConfig as MsSqlNumericConfig } from './decimal.ts';
 
-export type MsSqlNumericBuilderInitial<TName extends string> = MsSqlNumericBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'MsSqlNumeric';
-	data: number;
-	driverParam: number;
-	enumValues: undefined;
-}>;
+export type MsSqlNumericBuilderInitial<TName extends string> = MsSqlNumericBuilder<
+	{
+		name: TName;
+		dataType: 'number';
+		columnType: 'MsSqlNumeric';
+		data: number;
+		driverParam: number;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MsSqlNumericBuilder<
 	T extends ColumnBuilderBaseConfig<'number', 'MsSqlNumeric'>,

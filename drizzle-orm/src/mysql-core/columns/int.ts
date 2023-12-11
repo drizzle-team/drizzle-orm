@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlIntBuilderInitial<TName extends string> = MySqlIntBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'MySqlInt';
-	data: number;
-	driverParam: number | string;
-	enumValues: undefined;
-}>;
+export type MySqlIntBuilderInitial<TName extends string> = MySqlIntBuilder<
+	{
+		name: TName;
+		dataType: 'number';
+		columnType: 'MySqlInt';
+		data: number;
+		driverParam: number | string;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MySqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlInt'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>

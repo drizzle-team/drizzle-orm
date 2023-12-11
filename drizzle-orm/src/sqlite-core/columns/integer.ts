@@ -62,14 +62,17 @@ export abstract class SQLiteBaseInteger<
 	}
 }
 
-export type SQLiteIntegerBuilderInitial<TName extends string> = SQLiteIntegerBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'SQLiteInteger';
-	data: number;
-	driverParam: number;
-	enumValues: undefined;
-}>;
+export type SQLiteIntegerBuilderInitial<TName extends string> = SQLiteIntegerBuilder<
+	{
+		name: TName;
+		dataType: 'number';
+		columnType: 'SQLiteInteger';
+		data: number;
+		driverParam: number;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class SQLiteIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'SQLiteInteger'>>
 	extends SQLiteBaseIntegerBuilder<T>
@@ -94,14 +97,17 @@ export class SQLiteInteger<T extends ColumnBaseConfig<'number', 'SQLiteInteger'>
 	static readonly [entityKind]: string = 'SQLiteInteger';
 }
 
-export type SQLiteTimestampBuilderInitial<TName extends string> = SQLiteTimestampBuilder<{
-	name: TName;
-	dataType: 'date';
-	columnType: 'SQLiteTimestamp';
-	data: Date;
-	driverParam: number;
-	enumValues: undefined;
-}>;
+export type SQLiteTimestampBuilderInitial<TName extends string> = SQLiteTimestampBuilder<
+	{
+		name: TName;
+		dataType: 'date';
+		columnType: 'SQLiteTimestamp';
+		data: Date;
+		driverParam: number;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class SQLiteTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'SQLiteTimestamp'>>
 	extends SQLiteBaseIntegerBuilder<T, { mode: 'timestamp' | 'timestamp_ms' }>
@@ -155,14 +161,17 @@ export class SQLiteTimestamp<T extends ColumnBaseConfig<'date', 'SQLiteTimestamp
 	}
 }
 
-export type SQLiteBooleanBuilderInitial<TName extends string> = SQLiteBooleanBuilder<{
-	name: TName;
-	dataType: 'boolean';
-	columnType: 'SQLiteBoolean';
-	data: boolean;
-	driverParam: number;
-	enumValues: undefined;
-}>;
+export type SQLiteBooleanBuilderInitial<TName extends string> = SQLiteBooleanBuilder<
+	{
+		name: TName;
+		dataType: 'boolean';
+		columnType: 'SQLiteBoolean';
+		data: boolean;
+		driverParam: number;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class SQLiteBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'SQLiteBoolean'>>
 	extends SQLiteBaseIntegerBuilder<T, { mode: 'boolean' }>

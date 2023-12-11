@@ -6,14 +6,17 @@ import type { Equal } from '~/utils.ts';
 import { MsSqlColumn } from './common.ts';
 import { MsSqlDateColumnBaseBuilder } from './date.common.ts';
 
-export type MsSqlDateBuilderInitial<TName extends string> = MsSqlDateBuilder<{
-	name: TName;
-	dataType: 'date';
-	columnType: 'MsSqlDate';
-	data: Date;
-	driverParam: string | number;
-	enumValues: undefined;
-}>;
+export type MsSqlDateBuilderInitial<TName extends string> = MsSqlDateBuilder<
+	{
+		name: TName;
+		dataType: 'date';
+		columnType: 'MsSqlDate';
+		data: Date;
+		driverParam: string | number;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MsSqlDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'MsSqlDate'>>
 	extends MsSqlDateColumnBaseBuilder<T>
@@ -51,14 +54,17 @@ export class MsSqlDate<T extends ColumnBaseConfig<'date', 'MsSqlDate'>> extends 
 	}
 }
 
-export type MsSqlDateStringBuilderInitial<TName extends string> = MsSqlDateStringBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'MsSqlDateString';
-	data: string;
-	driverParam: string | number;
-	enumValues: undefined;
-}>;
+export type MsSqlDateStringBuilderInitial<TName extends string> = MsSqlDateStringBuilder<
+	{
+		name: TName;
+		dataType: 'string';
+		columnType: 'MsSqlDateString';
+		data: string;
+		driverParam: string | number;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MsSqlDateStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSqlDateString'>>
 	extends MsSqlDateColumnBaseBuilder<T>

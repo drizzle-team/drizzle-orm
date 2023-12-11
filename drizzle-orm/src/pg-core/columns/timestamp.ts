@@ -6,14 +6,17 @@ import type { Equal } from '~/utils.ts';
 import { PgColumn } from './common.ts';
 import { PgDateColumnBaseBuilder } from './date.common.ts';
 
-export type PgTimestampBuilderInitial<TName extends string> = PgTimestampBuilder<{
-	name: TName;
-	dataType: 'date';
-	columnType: 'PgTimestamp';
-	data: Date;
-	driverParam: string;
-	enumValues: undefined;
-}>;
+export type PgTimestampBuilderInitial<TName extends string> = PgTimestampBuilder<
+	{
+		name: TName;
+		dataType: 'date';
+		columnType: 'PgTimestamp';
+		data: Date;
+		driverParam: string;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class PgTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'PgTimestamp'>>
 	extends PgDateColumnBaseBuilder<
@@ -67,14 +70,17 @@ export class PgTimestamp<T extends ColumnBaseConfig<'date', 'PgTimestamp'>> exte
 	};
 }
 
-export type PgTimestampStringBuilderInitial<TName extends string> = PgTimestampStringBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'PgTimestampString';
-	data: string;
-	driverParam: string;
-	enumValues: undefined;
-}>;
+export type PgTimestampStringBuilderInitial<TName extends string> = PgTimestampStringBuilder<
+	{
+		name: TName;
+		dataType: 'string';
+		columnType: 'PgTimestampString';
+		data: string;
+		driverParam: string;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class PgTimestampStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgTimestampString'>>
 	extends PgDateColumnBaseBuilder<

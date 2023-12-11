@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '../table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgMacaddrBuilderInitial<TName extends string> = PgMacaddrBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'PgMacaddr';
-	data: string;
-	driverParam: string;
-	enumValues: undefined;
-}>;
+export type PgMacaddrBuilderInitial<TName extends string> = PgMacaddrBuilder<
+	{
+		name: TName;
+		dataType: 'string';
+		columnType: 'PgMacaddr';
+		data: string;
+		driverParam: string;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class PgMacaddrBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgMacaddr'>> extends PgColumnBuilder<T> {
 	static readonly [entityKind]: string = 'PgMacaddrBuilder';

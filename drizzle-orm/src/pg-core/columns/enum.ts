@@ -13,6 +13,7 @@ export type PgEnumColumnBuilderInitial<TName extends string, TValues extends [st
 		data: TValues[number];
 		enumValues: TValues;
 		driverParam: string;
+		generated: undefined;
 	}>;
 
 const isPgEnumSym = Symbol.for('drizzle:isPgEnum');

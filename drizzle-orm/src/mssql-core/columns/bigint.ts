@@ -5,14 +5,17 @@ import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
 import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
 export type MsSqlBigIntBuilderInitial<TMode extends 'number' | 'bigint' | 'string', TName extends string> =
-	MsSqlBigIntBuilder<{
-		name: TName;
-		dataType: 'bigint';
-		columnType: 'MsSqlBigInt';
-		data: TMode extends 'string' ? string : TMode extends 'number' ? number : bigint;
-		driverParam: string;
-		enumValues: undefined;
-	}>;
+	MsSqlBigIntBuilder<
+		{
+			name: TName;
+			dataType: 'bigint';
+			columnType: 'MsSqlBigInt';
+			data: TMode extends 'string' ? string : TMode extends 'number' ? number : bigint;
+			driverParam: string;
+			enumValues: undefined;
+			generated: undefined;
+		}
+	>;
 
 export class MsSqlBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 'MsSqlBigInt'>>
 	extends MsSqlColumnBuilderWithIdentity<T, MsSqlBigIntConfig>

@@ -20,6 +20,16 @@ export type ColumnDataType =
 
 export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'common' | 'mssql';
 
+export type GeneratedStorageMode = 'virtual' | 'stored';
+
+export type GeneratedType = 'always' | 'byDefault';
+
+export type GeneratedColumnConfig<TDataType> = {
+	as: TDataType | SQL;
+	type?: GeneratedType;
+	mode?: GeneratedStorageMode;
+};
+
 export interface ColumnBuilderBaseConfig<TDataType extends ColumnDataType, TColumnType extends string> {
 	name: string;
 	dataType: TDataType;
@@ -27,6 +37,7 @@ export interface ColumnBuilderBaseConfig<TDataType extends ColumnDataType, TColu
 	data: unknown;
 	driverParam: unknown;
 	enumValues: string[] | undefined;
+	generated: GeneratedColumnConfig<unknown> | undefined;
 }
 
 export type MakeColumnConfig<
@@ -44,6 +55,7 @@ export type MakeColumnConfig<
 	enumValues: T['enumValues'];
 	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase } ? BuildColumn<TTableName, U, 'common'>
 		: never;
+	generated: T['generated'] extends object ? T['generated'] : undefined;
 } & {};
 
 export type ColumnBuilderTypeConfig<
@@ -61,6 +73,7 @@ export type ColumnBuilderTypeConfig<
 		notNull: T extends { notNull: infer U } ? U : boolean;
 		hasDefault: T extends { hasDefault: infer U } ? U : boolean;
 		enumValues: T['enumValues'];
+		generated: GeneratedColumnConfig<T['data']> | undefined;
 	}
 	& TTypeConfig
 >;
@@ -78,6 +91,7 @@ export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = ob
 	uniqueType: string | undefined;
 	dataType: string;
 	columnType: string;
+	generated: GeneratedColumnConfig<TData> | undefined;
 } & TRuntimeConfig;
 
 export interface ColumnBuilderExtraConfig {
@@ -99,6 +113,14 @@ export type HasDefault<T extends ColumnBuilderBase> = T & {
 export type $Type<T extends ColumnBuilderBase, TType> = T & {
 	_: {
 		$type: TType;
+	};
+};
+
+export type HasGenerated<T extends ColumnBuilderBase, TGenerated = object> = T & {
+	_: {
+		notNull: true;
+		hasDefault: true;
+		generated: TGenerated;
 	};
 };
 

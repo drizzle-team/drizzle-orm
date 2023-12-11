@@ -325,7 +325,7 @@ export class MsSqlDatabase<
 		return new MsSqlDeleteBase(table, this.session, this.dialect);
 	}
 
-	execute<T extends { [column: string]: any }>(
+	execute<T extends { [column: string]: any } | { [column: string]: any }[]>(
 		query: SQLWrapper,
 	): Promise<QueryResultKind<TQueryResult, T>> {
 		return this.session.execute(query.getSQL());

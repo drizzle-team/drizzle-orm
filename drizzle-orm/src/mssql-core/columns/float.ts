@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
 import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
-export type MsSqlFloatBuilderInitial<TName extends string> = MsSqlFloatBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'MsSqlFloat';
-	data: number;
-	driverParam: number;
-	enumValues: undefined;
-}>;
+export type MsSqlFloatBuilderInitial<TName extends string> = MsSqlFloatBuilder<
+	{
+		name: TName;
+		dataType: 'number';
+		columnType: 'MsSqlFloat';
+		data: number;
+		driverParam: number;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MsSqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlFloat'>>
 	extends MsSqlColumnBuilderWithIdentity<T, MsSqlFloatConfig>
