@@ -12,14 +12,17 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgSerialBuilderInitial<TName extends string> = NotNull<
 	HasDefault<
-		PgSerialBuilder<{
-			name: TName;
-			dataType: 'number';
-			columnType: 'PgSerial';
-			data: number;
-			driverParam: number;
-			enumValues: undefined;
-		}>
+		PgSerialBuilder<
+			{
+				name: TName;
+				dataType: 'number';
+				columnType: 'PgSerial';
+				data: number;
+				driverParam: number;
+				enumValues: undefined;
+				generated: undefined;
+			}
+		>
 	>
 >;
 

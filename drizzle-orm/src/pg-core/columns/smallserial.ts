@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgSmallSerialBuilderInitial<TName extends string> = PgSmallSerialBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'PgSmallSerial';
-	data: number;
-	driverParam: number;
-	enumValues: undefined;
-}>;
+export type PgSmallSerialBuilderInitial<TName extends string> = PgSmallSerialBuilder<
+	{
+		name: TName;
+		dataType: 'number';
+		columnType: 'PgSmallSerial';
+		data: number;
+		driverParam: number;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class PgSmallSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSmallSerial'>>
 	extends PgColumnBuilder<T>

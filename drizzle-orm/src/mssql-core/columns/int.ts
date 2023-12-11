@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
 import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
-export type MsSqlIntBuilderInitial<TName extends string> = MsSqlIntBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'MsSqlInt';
-	data: number;
-	driverParam: number;
-	enumValues: undefined;
-}>;
+export type MsSqlIntBuilderInitial<TName extends string> = MsSqlIntBuilder<
+	{
+		name: TName;
+		dataType: 'number';
+		columnType: 'MsSqlInt';
+		data: number;
+		driverParam: number;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MsSqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlInt'>>
 	extends MsSqlColumnBuilderWithIdentity<T>

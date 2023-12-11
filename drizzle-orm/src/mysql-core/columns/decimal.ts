@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlDecimalBuilderInitial<TName extends string> = MySqlDecimalBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'MySqlDecimal';
-	data: string;
-	driverParam: string;
-	enumValues: undefined;
-}>;
+export type MySqlDecimalBuilderInitial<TName extends string> = MySqlDecimalBuilder<
+	{
+		name: TName;
+		dataType: 'string';
+		columnType: 'MySqlDecimal';
+		data: string;
+		driverParam: string;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MySqlDecimalBuilder<
 	T extends ColumnBuilderBaseConfig<'string', 'MySqlDecimal'>,

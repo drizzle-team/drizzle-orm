@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgBooleanBuilderInitial<TName extends string> = PgBooleanBuilder<{
-	name: TName;
-	dataType: 'boolean';
-	columnType: 'PgBoolean';
-	data: boolean;
-	driverParam: boolean;
-	enumValues: undefined;
-}>;
+export type PgBooleanBuilderInitial<TName extends string> = PgBooleanBuilder<
+	{
+		name: TName;
+		dataType: 'boolean';
+		columnType: 'PgBoolean';
+		data: boolean;
+		driverParam: boolean;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class PgBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'PgBoolean'>> extends PgColumnBuilder<T> {
 	static readonly [entityKind]: string = 'PgBooleanBuilder';

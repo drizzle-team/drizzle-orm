@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
 import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
-export type MsSqlRealBuilderInitial<TName extends string> = MsSqlRealBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'MsSqlReal';
-	data: number;
-	driverParam: number;
-	enumValues: undefined;
-}>;
+export type MsSqlRealBuilderInitial<TName extends string> = MsSqlRealBuilder<
+	{
+		name: TName;
+		dataType: 'number';
+		columnType: 'MsSqlReal';
+		data: number;
+		driverParam: number;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MsSqlRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlReal'>>
 	extends MsSqlColumnBuilderWithIdentity<T>

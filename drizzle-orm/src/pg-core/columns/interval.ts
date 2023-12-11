@@ -5,14 +5,17 @@ import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 import type { Precision } from './timestamp.ts';
 
-export type PgIntervalBuilderInitial<TName extends string> = PgIntervalBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'PgInterval';
-	data: string;
-	driverParam: string;
-	enumValues: undefined;
-}>;
+export type PgIntervalBuilderInitial<TName extends string> = PgIntervalBuilder<
+	{
+		name: TName;
+		dataType: 'string';
+		columnType: 'PgInterval';
+		data: string;
+		driverParam: string;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class PgIntervalBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgInterval'>>
 	extends PgColumnBuilder<T, { intervalConfig: IntervalConfig }>

@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
-export type MySqlYearBuilderInitial<TName extends string> = MySqlYearBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'MySqlYear';
-	data: number;
-	driverParam: number;
-	enumValues: undefined;
-}>;
+export type MySqlYearBuilderInitial<TName extends string> = MySqlYearBuilder<
+	{
+		name: TName;
+		dataType: 'number';
+		columnType: 'MySqlYear';
+		data: number;
+		driverParam: number;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MySqlYearBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlYear'>> extends MySqlColumnBuilder<T> {
 	static readonly [entityKind]: string = 'MySqlYearBuilder';

@@ -7,14 +7,17 @@ import { MsSqlColumn } from './common.ts';
 import type { MsSqlDatetimeConfig } from './date.common.ts';
 import { MsSqlDateColumnBaseBuilder } from './date.common.ts';
 
-export type MsSqlDateTime2BuilderInitial<TName extends string> = MsSqlDateTime2Builder<{
-	name: TName;
-	dataType: 'date';
-	columnType: 'MsSqlDateTime2';
-	data: Date;
-	driverParam: string | Date;
-	enumValues: undefined;
-}>;
+export type MsSqlDateTime2BuilderInitial<TName extends string> = MsSqlDateTime2Builder<
+	{
+		name: TName;
+		dataType: 'date';
+		columnType: 'MsSqlDateTime2';
+		data: Date;
+		driverParam: string | Date;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MsSqlDateTime2Builder<T extends ColumnBuilderBaseConfig<'date', 'MsSqlDateTime2'>>
 	extends MsSqlDateColumnBaseBuilder<T, MsSqlDatetimeConfig>
@@ -56,14 +59,17 @@ export class MsSqlDateTime2<T extends ColumnBaseConfig<'date', 'MsSqlDateTime2'>
 	}
 }
 
-export type MsSqlDateTime2StringBuilderInitial<TName extends string> = MsSqlDateTime2StringBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'MsSqlDateTime2String';
-	data: string;
-	driverParam: string | Date;
-	enumValues: undefined;
-}>;
+export type MsSqlDateTime2StringBuilderInitial<TName extends string> = MsSqlDateTime2StringBuilder<
+	{
+		name: TName;
+		dataType: 'string';
+		columnType: 'MsSqlDateTime2String';
+		data: string;
+		driverParam: string | Date;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MsSqlDateTime2StringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSqlDateTime2String'>>
 	extends MsSqlDateColumnBaseBuilder<T, MsSqlDatetimeConfig>

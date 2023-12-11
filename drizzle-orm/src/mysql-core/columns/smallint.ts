@@ -5,14 +5,17 @@ import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 import type { MySqlIntConfig } from './int.ts';
 
-export type MySqlSmallIntBuilderInitial<TName extends string> = MySqlSmallIntBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'MySqlSmallInt';
-	data: number;
-	driverParam: number | string;
-	enumValues: undefined;
-}>;
+export type MySqlSmallIntBuilderInitial<TName extends string> = MySqlSmallIntBuilder<
+	{
+		name: TName;
+		dataType: 'number';
+		columnType: 'MySqlSmallInt';
+		data: number;
+		driverParam: number | string;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MySqlSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlSmallInt'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>

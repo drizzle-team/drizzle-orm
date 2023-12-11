@@ -6,14 +6,17 @@ import type { Equal } from '~/utils.ts';
 import { MsSqlColumn } from './common.ts';
 import { MsSqlDateColumnBaseBuilder } from './date.common.ts';
 
-export type MsSqlSmallDateBuilderInitial<TName extends string> = MsSqlSmallDateBuilder<{
-	name: TName;
-	dataType: 'date';
-	columnType: 'MsSqlSmallDate';
-	data: Date;
-	driverParam: string | Date;
-	enumValues: undefined;
-}>;
+export type MsSqlSmallDateBuilderInitial<TName extends string> = MsSqlSmallDateBuilder<
+	{
+		name: TName;
+		dataType: 'date';
+		columnType: 'MsSqlSmallDate';
+		data: Date;
+		driverParam: string | Date;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MsSqlSmallDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'MsSqlSmallDate'>>
 	extends MsSqlDateColumnBaseBuilder<T, MsSqlSamalldateConfig>
@@ -50,14 +53,17 @@ export class MsSqlSmallDate<T extends ColumnBaseConfig<'date', 'MsSqlSmallDate'>
 	}
 }
 
-export type MsSqlSmallDateStringBuilderInitial<TName extends string> = MsSqlSmallDateStringBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'MsSqlSmallDateString';
-	data: string;
-	driverParam: string | Date;
-	enumValues: undefined;
-}>;
+export type MsSqlSmallDateStringBuilderInitial<TName extends string> = MsSqlSmallDateStringBuilder<
+	{
+		name: TName;
+		dataType: 'string';
+		columnType: 'MsSqlSmallDateString';
+		data: string;
+		driverParam: string | Date;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MsSqlSmallDateStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSqlSmallDateString'>>
 	extends MsSqlDateColumnBaseBuilder<T, MsSqlSamalldateConfig>

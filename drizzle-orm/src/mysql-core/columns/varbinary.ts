@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
-export type MySqlVarBinaryBuilderInitial<TName extends string> = MySqlVarBinaryBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'MySqlVarBinary';
-	data: string;
-	driverParam: string;
-	enumValues: undefined;
-}>;
+export type MySqlVarBinaryBuilderInitial<TName extends string> = MySqlVarBinaryBuilder<
+	{
+		name: TName;
+		dataType: 'string';
+		columnType: 'MySqlVarBinary';
+		data: string;
+		driverParam: string;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MySqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlVarBinary'>>
 	extends MySqlColumnBuilder<T, MySqlVarbinaryOptions>

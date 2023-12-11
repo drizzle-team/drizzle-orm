@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
 import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
-export type MsSqlBitBuilderInitial<TName extends string> = MsSqlBitBuilder<{
-	name: TName;
-	dataType: 'boolean';
-	columnType: 'MsSqlBit';
-	data: boolean;
-	driverParam: number | string;
-	enumValues: undefined;
-}>;
+export type MsSqlBitBuilderInitial<TName extends string> = MsSqlBitBuilder<
+	{
+		name: TName;
+		dataType: 'boolean';
+		columnType: 'MsSqlBit';
+		data: boolean;
+		driverParam: number | string;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MsSqlBitBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'MsSqlBit'>>
 	extends MsSqlColumnBuilderWithIdentity<T>

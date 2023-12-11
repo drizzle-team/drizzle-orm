@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
 import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
-export type MsSqlDecimalBuilderInitial<TName extends string> = MsSqlDecimalBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'MsSqlDecimal';
-	data: number;
-	driverParam: number;
-	enumValues: undefined;
-}>;
+export type MsSqlDecimalBuilderInitial<TName extends string> = MsSqlDecimalBuilder<
+	{
+		name: TName;
+		dataType: 'number';
+		columnType: 'MsSqlDecimal';
+		data: number;
+		driverParam: number;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MsSqlDecimalBuilder<
 	T extends ColumnBuilderBaseConfig<'number', 'MsSqlDecimal'>,

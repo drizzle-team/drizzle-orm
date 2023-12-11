@@ -7,14 +7,17 @@ import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 type BlobMode = 'buffer' | 'json' | 'bigint';
 
-export type SQLiteBigIntBuilderInitial<TName extends string> = SQLiteBigIntBuilder<{
-	name: TName;
-	dataType: 'bigint';
-	columnType: 'SQLiteBigInt';
-	data: bigint;
-	driverParam: Buffer;
-	enumValues: undefined;
-}>;
+export type SQLiteBigIntBuilderInitial<TName extends string> = SQLiteBigIntBuilder<
+	{
+		name: TName;
+		dataType: 'bigint';
+		columnType: 'SQLiteBigInt';
+		data: bigint;
+		driverParam: Buffer;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class SQLiteBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 'SQLiteBigInt'>>
 	extends SQLiteColumnBuilder<T>
@@ -49,14 +52,17 @@ export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint', 'SQLiteBigInt'>> 
 	}
 }
 
-export type SQLiteBlobJsonBuilderInitial<TName extends string> = SQLiteBlobJsonBuilder<{
-	name: TName;
-	dataType: 'json';
-	columnType: 'SQLiteBlobJson';
-	data: unknown;
-	driverParam: Buffer;
-	enumValues: undefined;
-}>;
+export type SQLiteBlobJsonBuilderInitial<TName extends string> = SQLiteBlobJsonBuilder<
+	{
+		name: TName;
+		dataType: 'json';
+		columnType: 'SQLiteBlobJson';
+		data: unknown;
+		driverParam: Buffer;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class SQLiteBlobJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'SQLiteBlobJson'>>
 	extends SQLiteColumnBuilder<T>
@@ -94,14 +100,17 @@ export class SQLiteBlobJson<T extends ColumnBaseConfig<'json', 'SQLiteBlobJson'>
 	}
 }
 
-export type SQLiteBlobBufferBuilderInitial<TName extends string> = SQLiteBlobBufferBuilder<{
-	name: TName;
-	dataType: 'buffer';
-	columnType: 'SQLiteBlobBuffer';
-	data: Buffer;
-	driverParam: Buffer;
-	enumValues: undefined;
-}>;
+export type SQLiteBlobBufferBuilderInitial<TName extends string> = SQLiteBlobBufferBuilder<
+	{
+		name: TName;
+		dataType: 'buffer';
+		columnType: 'SQLiteBlobBuffer';
+		data: Buffer;
+		driverParam: Buffer;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class SQLiteBlobBufferBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'SQLiteBlobBuffer'>>
 	extends SQLiteColumnBuilder<T>

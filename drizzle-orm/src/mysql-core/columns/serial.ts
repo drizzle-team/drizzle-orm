@@ -12,14 +12,17 @@ import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } fro
 
 export type MySqlSerialBuilderInitial<TName extends string> = NotNull<
 	HasDefault<
-		MySqlSerialBuilder<{
-			name: TName;
-			dataType: 'number';
-			columnType: 'MySqlSerial';
-			data: number;
-			driverParam: number;
-			enumValues: undefined;
-		}>
+		MySqlSerialBuilder<
+			{
+				name: TName;
+				dataType: 'number';
+				columnType: 'MySqlSerial';
+				data: number;
+				driverParam: number;
+				enumValues: undefined;
+				generated: undefined;
+			}
+		>
 	>
 >;
 

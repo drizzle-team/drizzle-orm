@@ -12,14 +12,17 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgBigSerial53BuilderInitial<TName extends string> = NotNull<
 	HasDefault<
-		PgBigSerial53Builder<{
-			name: TName;
-			dataType: 'number';
-			columnType: 'PgBigSerial53';
-			data: number;
-			driverParam: number;
-			enumValues: undefined;
-		}>
+		PgBigSerial53Builder<
+			{
+				name: TName;
+				dataType: 'number';
+				columnType: 'PgBigSerial53';
+				data: number;
+				driverParam: number;
+				enumValues: undefined;
+				generated: undefined;
+			}
+		>
 	>
 >;
 
@@ -62,14 +65,17 @@ export class PgBigSerial53<T extends ColumnBaseConfig<'number', 'PgBigSerial53'>
 
 export type PgBigSerial64BuilderInitial<TName extends string> = NotNull<
 	HasDefault<
-		PgBigSerial64Builder<{
-			name: TName;
-			dataType: 'bigint';
-			columnType: 'PgBigSerial64';
-			data: bigint;
-			driverParam: string;
-			enumValues: undefined;
-		}>
+		PgBigSerial64Builder<
+			{
+				name: TName;
+				dataType: 'bigint';
+				columnType: 'PgBigSerial64';
+				data: bigint;
+				driverParam: string;
+				enumValues: undefined;
+				generated: undefined;
+			}
+		>
 	>
 >;
 

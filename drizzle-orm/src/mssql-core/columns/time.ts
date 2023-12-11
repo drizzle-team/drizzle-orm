@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
 import { MsSqlColumn, MsSqlColumnBuilder } from './common.ts';
 
-export type MsSqlTimeStringBuilderInitial<TName extends string> = MsSqlTimeStringBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'MsSqlTime';
-	data: string;
-	driverParam: string | Date;
-	enumValues: undefined;
-}>;
+export type MsSqlTimeStringBuilderInitial<TName extends string> = MsSqlTimeStringBuilder<
+	{
+		name: TName;
+		dataType: 'string';
+		columnType: 'MsSqlTime';
+		data: string;
+		driverParam: string | Date;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MsSqlTimeStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSqlTime'>>
 	extends MsSqlColumnBuilder<
@@ -26,7 +29,7 @@ export class MsSqlTimeStringBuilder<T extends ColumnBuilderBaseConfig<'string', 
 		config: TimeConfig | undefined,
 	) {
 		super(name, 'string', 'MsSqlTime');
-		this.config.fsp = config?.fsp;
+		this.config.precision = config?.precision;
 	}
 
 	/** @internal */
@@ -45,7 +48,7 @@ export class MsSqlTimeString<
 > extends MsSqlColumn<T, TimeConfig> {
 	static readonly [entityKind]: string = 'MsSqlTime';
 
-	readonly fsp: number | undefined = this.config.fsp;
+	readonly fsp: number | undefined = this.config.precision;
 
 	getSQLType(): string {
 		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
@@ -57,14 +60,17 @@ export class MsSqlTimeString<
 	}
 }
 
-export type MsSqlTimeBuilderInitial<TName extends string> = MsSqlTimeBuilder<{
-	name: TName;
-	dataType: 'date';
-	columnType: 'MsSqlTime';
-	data: Date;
-	driverParam: string | Date;
-	enumValues: undefined;
-}>;
+export type MsSqlTimeBuilderInitial<TName extends string> = MsSqlTimeBuilder<
+	{
+		name: TName;
+		dataType: 'date';
+		columnType: 'MsSqlTime';
+		data: Date;
+		driverParam: string | Date;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MsSqlTimeBuilder<T extends ColumnBuilderBaseConfig<'date', 'MsSqlTime'>> extends MsSqlColumnBuilder<
 	T,
@@ -77,7 +83,7 @@ export class MsSqlTimeBuilder<T extends ColumnBuilderBaseConfig<'date', 'MsSqlTi
 		config: TimeConfig | undefined,
 	) {
 		super(name, 'date', 'MsSqlTime');
-		this.config.fsp = config?.fsp;
+		this.config.precision = config?.precision;
 	}
 
 	/** @internal */
@@ -93,7 +99,7 @@ export class MsSqlTime<
 > extends MsSqlColumn<T, TimeConfig> {
 	static readonly [entityKind]: string = 'MsSqlTime';
 
-	readonly fsp: number | undefined = this.config.fsp;
+	readonly fsp: number | undefined = this.config.precision;
 
 	getSQLType(): string {
 		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
@@ -101,7 +107,7 @@ export class MsSqlTime<
 	}
 }
 export type TimeConfig<TMode extends 'date' | 'string' = 'date'> = {
-	fsp?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+	precision?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 	mode?: TMode;
 };
 

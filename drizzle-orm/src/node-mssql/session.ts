@@ -23,7 +23,7 @@ import { type Assume, mapResultRow } from '~/utils.ts';
 export type NodeMsSqlClient = Pick<ConnectionPool, 'request'>;
 
 export type MsSqlQueryResult<
-	T = any,
+	T extends unknown | unknown[] = any,
 > = IResult<T>;
 
 export class NodeMsSqlPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
