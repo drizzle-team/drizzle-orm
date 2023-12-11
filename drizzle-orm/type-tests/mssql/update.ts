@@ -23,4 +23,7 @@ import { users } from './tables.ts';
 		.where(sql``)
 		// @ts-expect-error method was already called
 		.where(sql``);
+
+	// @ts-expect-error Can't update and identity column
+	db.update(users).set({ id: 2 });
 }

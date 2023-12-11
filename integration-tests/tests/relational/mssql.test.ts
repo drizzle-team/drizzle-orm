@@ -118,7 +118,7 @@ beforeEach(async (ctx) => {
 	await ctx.mssqlDb.execute(
 		sql`
 			CREATE TABLE [groups] (
-				[id] int identity PRIMARY KEY NOT NULL,
+				[id] int PRIMARY KEY NOT NULL,
 				[name] varchar(100) NOT NULL,
 				[description] varchar(100)
 			);
@@ -995,13 +995,13 @@ test('[Find Many] Get only custom fields', async () => {
 	]);
 
 	await db.insert(postsTable).values([
-		{ id: 1, ownerId: 1, content: 'Post1' },
-		{ id: 2, ownerId: 1, content: 'Post1.2' },
-		{ id: 3, ownerId: 1, content: 'Post1.3' },
-		{ id: 4, ownerId: 2, content: 'Post2' },
-		{ id: 5, ownerId: 2, content: 'Post2.1' },
-		{ id: 6, ownerId: 3, content: 'Post3' },
-		{ id: 7, ownerId: 3, content: 'Post3.1' },
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.2' },
+		{ ownerId: 1, content: 'Post1.3' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 2, content: 'Post2.1' },
+		{ ownerId: 3, content: 'Post3' },
+		{ ownerId: 3, content: 'Post3.1' },
 	]);
 
 	const usersWithPosts = await db.query.usersTable.findMany({
@@ -3841,9 +3841,9 @@ test('Get user with posts and posts with comments', async (t) => {
 	]);
 
 	await db.insert(postsTable).values([
-		{ id: 1, ownerId: 1, content: 'Post1' },
-		{ id: 2, ownerId: 2, content: 'Post2' },
-		{ id: 3, ownerId: 3, content: 'Post3' },
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 3, content: 'Post3' },
 	]);
 
 	await db.insert(commentsTable).values([
@@ -3998,9 +3998,9 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 	]);
 
 	await db.insert(postsTable).values([
-		{ id: 1, ownerId: 1, content: 'Post1' },
-		{ id: 2, ownerId: 2, content: 'Post2' },
-		{ id: 3, ownerId: 3, content: 'Post3' },
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 3, content: 'Post3' },
 	]);
 
 	await db.insert(commentsTable).values([

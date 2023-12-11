@@ -100,4 +100,6 @@ Expect<Equal<MsSqlQueryResult, typeof insertReturningSqlPrepared>>;
 	});
 
 	await db.insert(users).values({ name: 'John Wick', age: 58, occupation: 'housekeeper' });
+	// @ts-expect-error id is an identity column MsSql doesn't allow to write to it
+	await db.insert(users).values({ name: 'John Wick', age: 58, occupation: 'housekeeper', id: 1 });
 }

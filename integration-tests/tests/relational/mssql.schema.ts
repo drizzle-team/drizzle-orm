@@ -18,7 +18,7 @@ export const usersConfig = relations(usersTable, ({ one, many }) => ({
 }));
 
 export const groupsTable = mssqlTable('groups', {
-	id: int('id').primaryKey().identity().notNull(),
+	id: int('id').primaryKey().notNull(),
 	name: varchar('name', { length: 100 }).notNull(),
 	description: varchar('description', { length: 100 }),
 });

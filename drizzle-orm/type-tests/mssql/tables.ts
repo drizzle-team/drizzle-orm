@@ -1,6 +1,6 @@
 import { type Equal, Expect } from 'type-tests/utils.ts';
 import { eq, gt } from '~/expressions.ts';
-import type { BuildColumn, InferSelectModel, Simplify } from '~/index.ts';
+import type { BuildColumn, GeneratedColumnConfig, InferSelectModel, Simplify } from '~/index.ts';
 import {
 	bigint,
 	char,
@@ -131,6 +131,7 @@ Expect<
 				tableName: 'new_yorkers';
 				enumValues: undefined;
 				baseColumn: never;
+				generated: GeneratedColumnConfig<number> & object;
 			}>;
 			cityId: MsSqlColumn<{
 				name: 'id';
@@ -143,6 +144,7 @@ Expect<
 				tableName: 'new_yorkers';
 				enumValues: undefined;
 				baseColumn: never;
+				generated: GeneratedColumnConfig<number> & object;
 			}>;
 		}>,
 		typeof newYorkers
@@ -180,6 +182,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: GeneratedColumnConfig<number> & object;
 				}>;
 				cityId: MsSqlColumn<{
 					name: 'id';
@@ -192,6 +195,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: GeneratedColumnConfig<number> & object;
 				}>;
 			}>,
 			typeof newYorkers
@@ -227,6 +231,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: MsSqlColumn<{
 					name: 'city_id';
@@ -239,6 +244,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -274,6 +280,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: MsSqlColumn<{
 					name: 'city_id';
@@ -286,6 +293,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -313,6 +321,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: MsSqlColumn<{
 					name: 'city_id';
@@ -325,6 +334,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -352,6 +362,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: MsSqlColumn<{
 					name: 'city_id';
@@ -364,6 +375,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -394,6 +406,7 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				dialect: 'mssql';
+				generated: undefined;
 			},
 			Simplify<BuildColumn<'table', typeof t, 'mssql'>['_']>
 		>
