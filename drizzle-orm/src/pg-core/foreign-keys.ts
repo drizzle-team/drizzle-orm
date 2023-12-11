@@ -104,6 +104,10 @@ export function foreignKey<
 		columns: TColumns;
 		foreignColumns: ColumnsWithTable<TForeignTableName, TColumns>;
 	},
+	actions?: {
+		onUpdate?: UpdateDeleteAction;
+		onDelete?: UpdateDeleteAction;
+	} | undefined,
 ): ForeignKeyBuilder {
 	function mappedConfig() {
 		const { name, columns, foreignColumns } = config;
@@ -114,5 +118,5 @@ export function foreignKey<
 		};
 	}
 
-	return new ForeignKeyBuilder(mappedConfig);
+	return new ForeignKeyBuilder(mappedConfig, actions);
 }

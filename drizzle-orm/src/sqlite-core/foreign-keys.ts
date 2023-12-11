@@ -126,6 +126,10 @@ export function foreignKey<
 ): ForeignKeyBuilder;
 export function foreignKey(
 	config: any,
+	actions?: {
+		onUpdate?: UpdateDeleteAction;
+		onDelete?: UpdateDeleteAction;
+	} | undefined,
 ): ForeignKeyBuilder {
 	function mappedConfig() {
 		if (typeof config === 'function') {
@@ -139,5 +143,5 @@ export function foreignKey(
 		return config;
 	}
 
-	return new ForeignKeyBuilder(mappedConfig);
+	return new ForeignKeyBuilder(mappedConfig, actions);
 }
