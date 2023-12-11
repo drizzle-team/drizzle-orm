@@ -20,6 +20,7 @@ import { integer, pgTable } from '~/pg-core/index.ts';
 					hasDefault: false;
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}
 			>,
 			typeof table['a']['_']['baseColumn']

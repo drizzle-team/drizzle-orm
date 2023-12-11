@@ -70,13 +70,13 @@ const usersTable = mssqlTable('userstest', {
 });
 
 const users2Table = mssqlTable('users2', {
-	id: int('id').identity().primaryKey(),
+	id: int('id').primaryKey(),
 	name: varchar('name', { length: 30 }).notNull(),
 	cityId: int('city_id').default(sql`null`).references(() => citiesTable.id),
 });
 
 const citiesTable = mssqlTable('cities', {
-	id: int('id').identity().primaryKey(),
+	id: int('id').primaryKey(),
 	name: varchar('name', { length: 30 }).notNull(),
 });
 
@@ -92,8 +92,8 @@ const usersOnUpdate = mssqlTable('users_on_update', {
 const datesTable = mssqlTable('datestable', {
 	date: date('date'),
 	dateAsString: date('date_as_string', { mode: 'string' }),
-	time: time('time', { fsp: 1 }),
-	timeAsString: time('time_as_string', { mode: 'string', fsp: 1 }),
+	time: time('time', { precision: 1 }),
+	timeAsString: time('time_as_string', { mode: 'string', precision: 1 }),
 	datetime: datetime('datetime'),
 	datetimeAsString: datetime('datetime_as_string', { mode: 'string' }),
 });
@@ -110,7 +110,7 @@ const courseCategoriesTable = mssqlTable('course_categories', {
 });
 
 const orders = mssqlTable('orders', {
-	id: int('id').identity().primaryKey(),
+	id: int('id').primaryKey(),
 	region: varchar('region', { length: 50 }).notNull(),
 	product: varchar('product', { length: 50 }).notNull().$default(() => 'random_string'),
 	amount: int('amount').notNull(),
@@ -230,7 +230,7 @@ test.beforeEach(async (t) => {
 	await ctx.db.execute(
 		sql`
 			create table [cities] (
-				[id] int identity primary key,
+				[id] int primary key,
 				[name] varchar(30) not null
 			)
 		`,
@@ -239,7 +239,7 @@ test.beforeEach(async (t) => {
 	await ctx.db.execute(
 		sql`
 			create table [users2] (
-				[id] int identity primary key,
+				[id] int primary key,
 				[name] varchar(30) not null,
 				[city_id] int null foreign key references [cities]([id])
 			)
@@ -254,7 +254,7 @@ async function setupSetOperationTest(db: NodeMsSqlDatabase) {
 	await db.execute(
 		sql`
 			create table [cities] (
-				[id] int identity primary key,
+				[id] int primary key,
 				[name] varchar(30) not null
 			)
 		`,
@@ -263,7 +263,7 @@ async function setupSetOperationTest(db: NodeMsSqlDatabase) {
 	await db.execute(
 		sql`
 			create table [users2] (
-				[id] int identity primary key,
+				[id] int primary key,
 				[name] varchar(30) not null,
 				[city_id] int foreign key references [cities]([id])
 			)
@@ -647,7 +647,7 @@ test.serial('$default function', async (t) => {
 	await db.execute(
 		sql`
 			create table [orders] (
-				[id] int identity primary key,
+				[id] int primary key,
 				[region] text not null,
 				[product] text not null,
 				[amount] int not null,
@@ -1104,7 +1104,7 @@ test.serial('insert + select all possible dates', async (t) => {
 });
 
 const tableWithEnums = mssqlTable('enums_test_case', {
-	id: int('id').identity().primaryKey(),
+	id: int('id').primaryKey(),
 	enum1: text('enum1', ['a', 'b', 'c']).notNull(),
 	enum2: text('enum2', ['a', 'b', 'c']).default('a'),
 	enum3: text('enum3', ['a', 'b', 'c']).notNull().default('b'),
@@ -1117,7 +1117,7 @@ test.serial('Mssql enum test case #1', async (t) => {
 
 	await db.execute(sql`
 		create table [enums_test_case] (
-			[id] int identity primary key,
+			[id] int primary key,
 			[enum1] text not null,
 			[enum2] text default 'a',
 			[enum3] text not null default 'b'
@@ -1145,9 +1145,9 @@ test.serial('left join (flat object fields)', async (t) => {
 	const { db } = t.context;
 
 	await db.insert(citiesTable)
-		.values([{ name: 'Paris' }, { name: 'London' }]);
+		.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
 
-	await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+	await db.insert(users2Table).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane' }]);
 
 	const res = await db.select({
 		userId: users2Table.id,
@@ -1167,9 +1167,9 @@ test.serial('left join (grouped fields)', async (t) => {
 	const { db } = t.context;
 
 	await db.insert(citiesTable)
-		.values([{ name: 'Paris' }, { name: 'London' }]);
+		.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
 
-	await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+	await db.insert(users2Table).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane' }]);
 
 	const res = await db.select({
 		id: users2Table.id,
@@ -1203,9 +1203,9 @@ test.serial('left join (all fields)', async (t) => {
 	const { db } = t.context;
 
 	await db.insert(citiesTable)
-		.values([{ name: 'Paris' }, { name: 'London' }]);
+		.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
 
-	await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+	await db.insert(users2Table).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane' }]);
 
 	const res = await db.select().from(users2Table)
 		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id));
@@ -1309,7 +1309,7 @@ test.serial('with ... select', async (t) => {
 	await db.execute(
 		sql`
 			create table [orders] (
-				[id] int identity primary key,
+				[id] int primary key,
 				[region] varchar(50) not null,
 				[product] varchar(50) not null,
 				[amount] int not null,
@@ -1319,14 +1319,14 @@ test.serial('with ... select', async (t) => {
 	);
 
 	await db.insert(orders).values([
-		{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
-		{ region: 'Europe', product: 'A', amount: 20, quantity: 2 },
-		{ region: 'Europe', product: 'B', amount: 20, quantity: 2 },
-		{ region: 'Europe', product: 'B', amount: 30, quantity: 3 },
-		{ region: 'US', product: 'A', amount: 30, quantity: 3 },
-		{ region: 'US', product: 'A', amount: 40, quantity: 4 },
-		{ region: 'US', product: 'B', amount: 40, quantity: 4 },
-		{ region: 'US', product: 'B', amount: 50, quantity: 5 },
+		{ id: 1, region: 'Europe', product: 'A', amount: 10, quantity: 1 },
+		{ id: 2, region: 'Europe', product: 'A', amount: 20, quantity: 2 },
+		{ id: 3, region: 'Europe', product: 'B', amount: 20, quantity: 2 },
+		{ id: 4, region: 'Europe', product: 'B', amount: 30, quantity: 3 },
+		{ id: 5, region: 'US', product: 'A', amount: 30, quantity: 3 },
+		{ id: 6, region: 'US', product: 'A', amount: 40, quantity: 4 },
+		{ id: 7, region: 'US', product: 'B', amount: 40, quantity: 4 },
+		{ id: 8, region: 'US', product: 'B', amount: 50, quantity: 5 },
 	]);
 
 	const regionalSales = db
@@ -1401,7 +1401,7 @@ test.serial('with ... select', async (t) => {
 test.serial('select from subquery sql', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(users2Table).values([{ name: 'John' }, { name: 'Jane' }]);
+	await db.insert(users2Table).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
 
 	const sq = db
 		.select({ name: sql<string>`concat(${users2Table.name}, ' modified')`.as('name') })
@@ -1440,12 +1440,16 @@ test.serial('select count()', async (t) => {
 test.serial('having', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(citiesTable).values([{ name: 'London' }, { name: 'Paris' }, { name: 'New York' }]);
-
-	await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 1 }, {
-		name: 'Jack',
-		cityId: 2,
+	await db.insert(citiesTable).values([{ id: 1, name: 'London' }, { id: 2, name: 'Paris' }, {
+		id: 3,
+		name: 'New York',
 	}]);
+
+	await db.insert(users2Table).values([
+		{ id: 1, name: 'John', cityId: 1 },
+		{ id: 2, name: 'Jane', cityId: 1 },
+		{ id: 3, name: 'Jack', cityId: 2 },
+	]);
 
 	const result = await db
 		.select({
@@ -1494,12 +1498,12 @@ test.serial('view', async (t) => {
 
 	await db.execute(sql`create view new_yorkers as ${getViewConfig(newYorkers1).query}`);
 
-	await db.insert(citiesTable).values([{ name: 'New York' }, { name: 'Paris' }]);
+	await db.insert(citiesTable).values([{ id: 1, name: 'New York' }, { id: 2, name: 'Paris' }]);
 
 	await db.insert(users2Table).values([
-		{ name: 'John', cityId: 1 },
-		{ name: 'Jane', cityId: 1 },
-		{ name: 'Jack', cityId: 2 },
+		{ id: 1, name: 'John', cityId: 1 },
+		{ id: 2, name: 'Jane', cityId: 1 },
+		{ id: 3, name: 'Jack', cityId: 2 },
 	]);
 
 	{
@@ -1709,9 +1713,9 @@ test.serial('transaction', async (t) => {
 		sql`create table products_transactions (id int identity not null primary key, price int not null, stock int not null)`,
 	);
 
-	await db.insert(users).values({ balance: 100, id: 1 });
+	await db.insert(users).values({ balance: 100 });
 	const user = await db.select().from(users).where(eq(users.id, 1)).then((rows) => rows[0]!);
-	await db.insert(products).values({ price: 10, stock: 10, id: 1 });
+	await db.insert(products).values({ price: 10, stock: 10 });
 	const product = await db.select().from(products).where(eq(products.id, 1)).then((rows) => rows[0]!);
 
 	await db.transaction(async (tx) => {
@@ -2028,7 +2032,7 @@ test.serial('update undefined', async (t) => {
 	const { db } = t.context;
 
 	const users = mssqlTable('usersForTests', {
-		id: int('id').identity().primaryKey(),
+		id: int('id').primaryKey(),
 		name: text('name'),
 	});
 
