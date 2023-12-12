@@ -2,7 +2,7 @@ import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapCol
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import type { MigrationMeta } from '~/migrator.ts';
+import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import { PgColumn, PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core/columns/index.ts';
 import type {
 	PgDeleteConfig,
@@ -46,9 +46,10 @@ import { PgViewBase } from './view-base.ts';
 export class PgDialect {
 	static readonly [entityKind]: string = 'PgDialect';
 
-	async migrate(migrations: MigrationMeta[], session: PgSession): Promise<void> {
+	async migrate(migrations: MigrationMeta[], session: PgSession, config: string | MigrationConfig): Promise<void> {
+		const migrationsTable = typeof config !== "string"  ? config.migrationsTable ?? '__drizzle_migrations' :  '__drizzle_migrations';
 		const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (
+			CREATE TABLE IF NOT EXISTS "drizzle".${sql.identifier(migrationsTable)} (
 				id SERIAL PRIMARY KEY,
 				hash text NOT NULL,
 				created_at bigint
@@ -58,7 +59,7 @@ export class PgDialect {
 		await session.execute(migrationTableCreate);
 
 		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
-			sql`select id, hash, created_at from "drizzle"."__drizzle_migrations" order by created_at desc limit 1`,
+			sql`select id, hash, created_at from "drizzle".${sql.identifier(migrationsTable)} order by created_at desc limit 1`,
 		);
 
 		const lastDbMigration = dbMigrations[0];
@@ -72,7 +73,7 @@ export class PgDialect {
 						await tx.execute(sql.raw(stmt));
 					}
 					await tx.execute(
-						sql`insert into "drizzle"."__drizzle_migrations" ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+						sql`insert into "drizzle".${sql.identifier(migrationsTable)} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
 					);
 				}
 			}
