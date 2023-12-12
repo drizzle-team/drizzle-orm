@@ -24,6 +24,7 @@ import {
 import { alias } from '~/mssql-core/alias.ts';
 import { sql } from '~/sql/sql.ts';
 
+import type { IRecordSet } from 'mssql';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { type MsSqlSelect, type MsSqlSelectQueryBuilder, QueryBuilder } from '~/mssql-core/index.ts';
@@ -585,4 +586,17 @@ await db.select().from(users);
 		.offset(10)
 		// @ts-expect-error method was already called
 		.offset(10);
+}
+
+{
+	const result = await db.execute<{ name: string | null }[]>(sql`select name from users`);
+
+	Expect<
+		Equal<typeof result, {
+			recordset: IRecordSet<{ name: string | null }>;
+			recordsets: IRecordSet<{ name: string | null }>[];
+			output: { [key: string]: any };
+			rowsAffected: number[];
+		}>
+	>;
 }

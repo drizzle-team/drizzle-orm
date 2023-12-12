@@ -86,10 +86,9 @@ export type MsSqlInsertDynamic<T extends AnyMsSqlInsert> = MsSqlInsert<
 export type MsSqlInsertPrepare<T extends AnyMsSqlInsert> = PreparedQueryKind<
 	T['_']['preparedQueryHKT'],
 	PreparedQueryConfig & {
-		execute: QueryResultKind<T['_']['queryResult'], never>;
+		execute: QueryResultKind<T['_']['queryResult'], any>;
 		iterator: never;
-	},
-	true
+	}
 >;
 
 export type MsSqlInsert<
@@ -106,7 +105,7 @@ export interface MsSqlInsertBase<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-> extends QueryPromise<QueryResultKind<TQueryResult, never>>, SQLWrapper {
+> extends QueryPromise<QueryResultKind<TQueryResult, any>>, SQLWrapper {
 	readonly _: {
 		readonly table: TTable;
 		readonly queryResult: TQueryResult;
@@ -125,7 +124,7 @@ export class MsSqlInsertBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<QueryResultKind<TQueryResult, never>> implements SQLWrapper {
+> extends QueryPromise<QueryResultKind<TQueryResult, any>> implements SQLWrapper {
 	static readonly [entityKind]: string = 'MsSqlInsert';
 
 	declare protected $table: TTable;
