@@ -174,7 +174,7 @@ export class NodeMsSqlSession<
 	 * @internal
 	 * What is its purpose?
 	 */
-	query<T = any[]>(query: string, params: unknown[]): Promise<IResult<T>> {
+	query(query: string, params: unknown[]): Promise<MsSqlQueryResult> {
 		this.logger.logQuery(query, params);
 
 		const request = this.client.request() as Request & { arrayRowMode: boolean };
@@ -190,7 +190,7 @@ export class NodeMsSqlSession<
 	override async all<T = unknown>(query: SQL): Promise<T[]> {
 		const querySql = this.dialect.sqlToQuery(query);
 		this.logger.logQuery(querySql.sql, querySql.params);
-		return this.query<T[]>(querySql.sql, querySql.params).then((result) => result.recordset);
+		return this.query(querySql.sql, querySql.params).then((result) => result.recordset);
 	}
 
 	override async transaction<T>(
@@ -259,7 +259,7 @@ const isolationLevelMap: Record<
 };
 
 export interface NodeMsSqlQueryResultHKT extends QueryResultHKT {
-	type: MsSqlQueryResult;
+	type: MsSqlQueryResult<this['row']>;
 }
 
 export interface NodeMsSqlPreparedQueryHKT extends PreparedQueryHKT {

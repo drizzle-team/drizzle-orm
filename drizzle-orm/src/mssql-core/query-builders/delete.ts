@@ -45,10 +45,9 @@ export interface MsSqlDeleteConfig {
 export type MsSqlDeletePrepare<T extends AnyMsSqlDeleteBase> = PreparedQueryKind<
 	T['_']['preparedQueryHKT'],
 	PreparedQueryConfig & {
-		execute: QueryResultKind<T['_']['queryResult'], never>;
+		execute: QueryResultKind<T['_']['queryResult'], any>;
 		iterator: never;
-	},
-	true
+	}
 >;
 
 type MsSqlDeleteDynamic<T extends AnyMsSqlDeleteBase> = MsSqlDelete<
@@ -65,7 +64,7 @@ export interface MsSqlDeleteBase<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-> extends QueryPromise<QueryResultKind<TQueryResult, never>> {
+> extends QueryPromise<QueryResultKind<TQueryResult, any>> {
 	readonly _: {
 		readonly table: TTable;
 		readonly queryResult: TQueryResult;
@@ -83,7 +82,7 @@ export class MsSqlDeleteBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<QueryResultKind<TQueryResult, never>> implements SQLWrapper {
+> extends QueryPromise<QueryResultKind<TQueryResult, any>> implements SQLWrapper {
 	static readonly [entityKind]: string = 'MsSqlDelete';
 
 	private config: MsSqlDeleteConfig;
@@ -97,35 +96,35 @@ export class MsSqlDeleteBase<
 		this.config = { table };
 	}
 
-	/** 
+	/**
 	 * Adds a `where` clause to the query.
-	 * 
+	 *
 	 * Calling this method will delete only those rows that fulfill a specified condition.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/delete}
-	 * 
+	 *
 	 * @param where the `where` clause.
-	 * 
+	 *
 	 * @example
 	 * You can use conditional operators and `sql function` to filter the rows to be deleted.
-	 * 
+	 *
 	 * ```ts
 	 * // Delete all cars with green color
 	 * db.delete(cars).where(eq(cars.color, 'green'));
 	 * // or
 	 * db.delete(cars).where(sql`${cars.color} = 'green'`)
 	 * ```
-	 * 
+	 *
 	 * You can logically combine conditional operators with `and()` and `or()` operators:
-	 * 
+	 *
 	 * ```ts
 	 * // Delete all BMW cars with a green color
 	 * db.delete(cars).where(and(eq(cars.color, 'green'), eq(cars.brand, 'BMW')));
-	 * 
+	 *
 	 * // Delete all cars with the green or blue color
 	 * db.delete(cars).where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
 	 * ```
-	*/
+	 */
 	where(where: SQL | undefined): MsSqlDeleteWithout<this, TDynamic, 'where'> {
 		this.config.where = where;
 		return this as any;
