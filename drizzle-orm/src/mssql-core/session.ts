@@ -10,7 +10,7 @@ import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
 export interface QueryResultHKT {
 	readonly $brand: 'MsSqlQueryRowHKT';
 	readonly row: unknown;
-	readonly type: unknown;
+	readonly type: any;
 }
 
 export interface AnyQueryResultHKT extends QueryResultHKT {

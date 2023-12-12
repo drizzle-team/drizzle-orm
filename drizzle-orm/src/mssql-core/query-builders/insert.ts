@@ -172,7 +172,7 @@ export class MsSqlInsertBase<
 
 	iterator = this.createIterator();
 
-	$dynamic(): MsSqlInsertDynamic<this> {
-		return this as any;
-	}
+	// $dynamic(): MsSqlInsertDynamic<this> {
+	// 	return this as any;
+	// }
 }
