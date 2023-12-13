@@ -2183,11 +2183,9 @@ test.serial('array mapping and parsing', async (t) => {
 		)
 	`);
 
-	// TODO support possoble null values
-	// @ts-ignore
 	await db.insert(arrays).values({
 		tags: ['', 'b', 'c'],
-		nested: [['1', ''], ['3', '4']],
+		nested: [['1', ''], ['3', '\\a']],
 		numbers: [1, 2, 3],
 	});
 
@@ -2196,7 +2194,7 @@ test.serial('array mapping and parsing', async (t) => {
 	t.deepEqual(result, [{
 		id: 1,
 		tags: ['', 'b', 'c'],
-		nested: [['1', ''], ['3', '4']],
+		nested: [['1', ''], ['3', '\\a']],
 		numbers: [1, 2, 3],
 	}]);
 
