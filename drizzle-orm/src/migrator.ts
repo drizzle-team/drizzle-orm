@@ -10,6 +10,7 @@ export interface KitConfig {
 export interface MigrationConfig {
 	migrationsFolder: string;
 	migrationsTable?: string;
+	migrationsSchema?: string;
 }
 
 export interface MigrationMeta {
