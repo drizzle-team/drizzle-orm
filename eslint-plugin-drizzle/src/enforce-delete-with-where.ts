@@ -17,7 +17,8 @@ const deleteRule = createRule<Options, MessageIds>({
 		},
 		fixable: 'code',
 		messages: {
-			enforceDeleteWithWhere: 'Without `.where(...)` you will delete all the rows in a table. If you didn\'t want to do it, please use `db.delete(...).where(...)` instead. Otherwise you can ignore this rule here',
+			enforceDeleteWithWhere:
+				"Without `.where(...)` you will delete all the rows in a table. If you didn't want to do it, please use `db.delete(...).where(...)` instead. Otherwise you can ignore this rule here",
 		},
 		schema: [{
 			type: 'object',
@@ -33,7 +34,7 @@ const deleteRule = createRule<Options, MessageIds>({
 		return {
 			MemberExpression: (node) => {
 				if (node.property.type === 'Identifier') {
-					if (isDrizzleObj(node, options) && node.property.name === 'delete' && lastNodeName !== 'where') {
+					if (node.property.name === 'delete' && lastNodeName !== 'where' && isDrizzleObj(node, options)) {
 						context.report({
 							node,
 							messageId: 'enforceDeleteWithWhere',
