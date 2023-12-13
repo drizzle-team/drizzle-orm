@@ -433,7 +433,7 @@ test.serial('json insert', async (t) => {
 	t.deepEqual(result, [{ id: 1, name: 'John', jsonb: ['foo', 'bar'] }]);
 });
 
-test.serial.failing('set json/jsonb fields with objects and retrieve with the ->> operator', async (t) => {
+test.serial('set json/jsonb fields with objects and retrieve with the ->> operator', async (t) => {
 	const { db } = t.context;
 
 	const obj = { string: 'test', number: 123 }
