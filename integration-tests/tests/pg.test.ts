@@ -9,25 +9,25 @@ import {
 	arrayContains,
 	arrayOverlaps,
 	asc,
+	avg,
+	avgDistinct,
+	count,
+	countDistinct,
 	eq,
 	gt,
 	gte,
 	inArray,
 	lt,
+	max,
+	min,
 	name,
 	placeholder,
 	type SQL,
 	sql,
 	type SQLWrapper,
-	TransactionRollbackError,
-	count,
-	countDistinct,
-	avg,
-	avgDistinct,
 	sum,
 	sumDistinct,
-	max,
-	min,
+	TransactionRollbackError,
 } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -46,10 +46,12 @@ import {
 	integer,
 	intersect,
 	intersectAll,
+	json,
 	jsonb,
 	macaddr,
 	macaddr8,
 	type PgColumn,
+	pgEnum,
 	pgMaterializedView,
 	pgTable,
 	pgTableCreator,
@@ -64,7 +66,6 @@ import {
 	uniqueKeyName,
 	uuid as pgUuid,
 	varchar,
-	pgEnum,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import pg from 'pg';
@@ -149,7 +150,7 @@ const aggregateTable = pgTable('aggregate_table', {
 	a: integer('a'),
 	b: integer('b'),
 	c: integer('c'),
-	nullOnly: integer('null_only')
+	nullOnly: integer('null_only'),
 });
 
 interface Context {
@@ -523,7 +524,7 @@ test.serial('select distinct', async (t) => {
 	const usersDistinctTable = pgTable('users_distinct', {
 		id: integer('id').notNull(),
 		name: text('name').notNull(),
-		age: integer('age').notNull()
+		age: integer('age').notNull(),
 	});
 
 	await db.execute(sql`drop table if exists ${usersDistinctTable}`);
@@ -534,7 +535,7 @@ test.serial('select distinct', async (t) => {
 		{ id: 1, name: 'John', age: 24 },
 		{ id: 2, name: 'John', age: 25 },
 		{ id: 1, name: 'Jane', age: 24 },
-		{ id: 1, name: 'Jane', age: 26 }
+		{ id: 1, name: 'Jane', age: 26 },
 	]);
 	const users1 = await db.selectDistinct().from(usersDistinctTable).orderBy(
 		usersDistinctTable.id,
@@ -547,8 +548,8 @@ test.serial('select distinct', async (t) => {
 		usersDistinctTable,
 	).orderBy(usersDistinctTable.name);
 	const users4 = await db.selectDistinctOn([usersDistinctTable.id, usersDistinctTable.age]).from(
-		usersDistinctTable
-	).orderBy(usersDistinctTable.id, usersDistinctTable.age)
+		usersDistinctTable,
+	).orderBy(usersDistinctTable.id, usersDistinctTable.age);
 
 	await db.execute(sql`drop table ${usersDistinctTable}`);
 
@@ -556,7 +557,7 @@ test.serial('select distinct', async (t) => {
 		{ id: 1, name: 'Jane', age: 24 },
 		{ id: 1, name: 'Jane', age: 26 },
 		{ id: 1, name: 'John', age: 24 },
-		{ id: 2, name: 'John', age: 25 }
+		{ id: 2, name: 'John', age: 25 },
 	]);
 
 	t.deepEqual(users2.length, 2);
@@ -570,7 +571,7 @@ test.serial('select distinct', async (t) => {
 	t.deepEqual(users4, [
 		{ id: 1, name: 'John', age: 24 },
 		{ id: 1, name: 'Jane', age: 26 },
-		{ id: 2, name: 'John', age: 25 }
+		{ id: 2, name: 'John', age: 25 },
 	]);
 });
 
@@ -2204,6 +2205,42 @@ test.serial('select from enum', async (t) => {
 	await db.execute(sql`drop type ${name(mechanicEnum.enumName)}`);
 	await db.execute(sql`drop type ${name(equipmentEnum.enumName)}`);
 	await db.execute(sql`drop type ${name(categoryEnum.enumName)}`);
+});
+
+test.serial('proper json and jsonb handling', async (t) => {
+	const { db } = t.context;
+
+	const jsonTable = pgTable('json_table', {
+		json: json('json').$type<{ name: string; age: number }>(),
+		jsonb: jsonb('jsonb').$type<{ name: string; age: number }>(),
+	});
+
+	await db.execute(sql`drop table if exists ${jsonTable}`);
+
+	db.execute(sql`create table ${jsonTable} (json json, jsonb jsonb)`);
+
+	await db.insert(jsonTable).values({ json: { name: 'Tom', age: 75 }, jsonb: { name: 'Pete', age: 23 } });
+
+	const result = await db.select().from(jsonTable);
+
+	const justNames = await db.select({
+		name1: sql<string>`${jsonTable.json}->>'name'`.as('name1'),
+		name2: sql<string>`${jsonTable.jsonb}->>'name'`.as('name2'),
+	}).from(jsonTable);
+
+	t.deepEqual(result, [
+		{
+			json: { name: 'Tom', age: 75 },
+			jsonb: { name: 'Pete', age: 23 },
+		},
+	]);
+
+	t.deepEqual(justNames, [
+		{
+			name1: 'Tom',
+			name2: 'Pete',
+		},
+	]);
 });
 
 test.serial('orderBy with aliased column', (t) => {

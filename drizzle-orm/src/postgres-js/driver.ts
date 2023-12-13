@@ -1,4 +1,5 @@
 import type { Sql } from 'postgres';
+import { Column, is } from '~/index.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
@@ -20,7 +21,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	client: Sql,
 	config: DrizzleConfig<TSchema> = {},
 ): PostgresJsDatabase<TSchema> {
-	const dialect = new PgDialect();
+	const dialect = new PgDialect((param) => is(param.encoder, Column) && param.encoder.dataType === 'json');
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
