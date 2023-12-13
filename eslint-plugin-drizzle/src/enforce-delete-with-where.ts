@@ -1,4 +1,5 @@
 import { ESLintUtils } from '@typescript-eslint/utils';
+import { resolveMemberExpressionPath } from './utils/ast';
 import { isDrizzleObj, type Options } from './utils/options';
 
 const createRule = ESLintUtils.RuleCreator(() => 'https://github.com/drizzle-team/eslint-plugin-drizzle');
@@ -18,7 +19,7 @@ const deleteRule = createRule<Options, MessageIds>({
 		fixable: 'code',
 		messages: {
 			enforceDeleteWithWhere:
-				"Without `.where(...)` you will delete all the rows in a table. If you didn't want to do it, please use `db.delete(...).where(...)` instead. Otherwise you can ignore this rule here",
+				"Without `.where(...)` you will delete all the rows in a table. If you didn't want to do it, please use `{{ drizzleObjName }}.delete(...).where(...)` instead. Otherwise you can ignore this rule here",
 		},
 		schema: [{
 			type: 'object',
@@ -38,6 +39,9 @@ const deleteRule = createRule<Options, MessageIds>({
 						context.report({
 							node,
 							messageId: 'enforceDeleteWithWhere',
+							data: {
+								drizzleObjName: resolveMemberExpressionPath(node),
+							},
 						});
 					}
 					lastNodeName = node.property.name;
