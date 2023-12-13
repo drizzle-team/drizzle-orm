@@ -85,8 +85,11 @@ export function makePgArray(array: any[]): string {
 				return makePgArray(item);
 			}
 
-			if (typeof item === 'string' && item.includes(',')) {
-				return `"${item.replace(/"/g, '\\"')}"`;
+			if (typeof item === 'string') {
+				if (item.includes(',')) {
+					return `"${item.replace(/"/g, '\\"')}"`;
+				}
+				if (item === '') return '""';
 			}
 
 			return `${item}`;

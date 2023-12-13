@@ -47,7 +47,7 @@ describe.concurrent('makePgArray', () => {
 	it('parses array with empty values', ({ expect }) => {
 		const input = ['1', '', '3'];
 		const output = table.a.mapToDriverValue(input);
-		expect(output).toEqual('{1,,3}');
+		expect(output).toEqual('{1,"",3}');
 	});
 
 	it('parses array with empty nested values', ({ expect }) => {
@@ -57,7 +57,7 @@ describe.concurrent('makePgArray', () => {
 			['7', '8', '9'],
 		];
 		const output = table.b.mapToDriverValue(input);
-		expect(output).toEqual('{{1,2,3},{,5,6},{7,8,9}}');
+		expect(output).toEqual('{{1,2,3},{"",5,6},{7,8,9}}');
 	});
 
 	it('parses empty array', ({ expect }) => {
@@ -116,5 +116,27 @@ describe.concurrent('makePgArray', () => {
 		expect(output).toEqual(
 			'{{1,"two \\"and a half\\", three",3},{four,"five \\"and a half\\", six",6},{seven,eight,nine}}',
 		);
+	});
+
+	it('parses an array with null values', ({ expect }) => {
+		const input = ['1', null, '3'];
+		const output = table.a.mapToDriverValue(input);
+		expect(output).toEqual('{1,null,3}');
+	});
+
+	it('parses an array with null values in nested arrays', ({ expect }) => {
+		const input = [
+			['1', '2', '3'],
+			[null, '5', '6'],
+			['7', '8', '9'],
+		];
+		const output = table.b.mapToDriverValue(input);
+		expect(output).toEqual('{{1,2,3},{null,5,6},{7,8,9}}');
+	});
+
+	it('parses string array with empty strings', ({ expect }) => {
+		const input = ['1', '', '3'];
+		const output = table.a.mapToDriverValue(input);
+		expect(output).toEqual('{1,"",3}');
 	});
 });

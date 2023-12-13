@@ -2162,3 +2162,43 @@ test.serial('array operators', async (t) => {
 	t.deepEqual(overlaps, [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
 	t.deepEqual(withSubQuery, [{ id: 1 }, { id: 3 }, { id: 5 }]);
 });
+
+test.serial('array mapping and parsing', async (t) => {
+	const { db } = t.context;
+
+	const arrays = pgTable('arrays_tests', {
+		id: serial('id').primaryKey(),
+		tags: text('tags').array(),
+		nested: text('nested').array().array(),
+		numbers: integer('numbers').notNull().array(),
+	});
+
+	db.execute(sql`drop table if exists ${arrays}`);
+	db.execute(sql`
+		 create table ${arrays} (
+		 id serial primary key,
+		 tags text[],
+		 nested text[][],
+		 numbers integer[]
+		)
+	`);
+
+	// TODO support possoble null values
+	// @ts-ignore
+	await db.insert(arrays).values({
+		tags: ['', 'b', 'c'],
+		nested: [['1', ''], ['3', '4']],
+		numbers: [1, 2, 3],
+	});
+
+	const result = await db.select().from(arrays);
+
+	t.deepEqual(result, [{
+		id: 1,
+		tags: ['', 'b', 'c'],
+		nested: [['1', ''], ['3', '4']],
+		numbers: [1, 2, 3],
+	}]);
+
+	await db.execute(sql`drop table ${arrays}`);
+});
