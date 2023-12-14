@@ -65,6 +65,7 @@ import {
 	uuid as pgUuid,
 	varchar,
 	pgEnum,
+	uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import pg from 'pg';
@@ -451,6 +452,50 @@ test.serial('table config: primary keys name', async (t) => {
 
 	t.is(tableConfig.primaryKeys.length, 1);
 	t.is(tableConfig.primaryKeys[0]!.getName(), 'custom_pk');
+});
+
+test.serial("table config: multi-column foreign keys", async (t) => {
+	const peopleTable = pgTable(
+		"people",
+		{
+			firstName: text("first_name"),
+			lastName: text("last_name"),
+		},
+		(table) => ({
+			// Has to be unique for foreign key to work
+			uniqueIndex: uniqueIndex().on(table.firstName, table.lastName),
+		}),
+	);
+
+	const homesTable = pgTable(
+		"homes",
+		{
+			firstName: text("first_name"),
+			lastName: text("last_name"),
+			// Just some example data:
+			address: text("address"),
+		},
+		(table) => ({
+			fk: foreignKey(
+				{
+					columns: [table.firstName, table.lastName],
+					foreignColumns: [peopleTable.firstName, peopleTable.lastName],
+					onDelete: "cascade",
+					onUpdate: "restrict",
+				},
+			),
+		}),
+	);
+
+	const homesConfig = getTableConfig(homesTable);
+
+	t.is(homesConfig.foreignKeys.length, 1);
+	const key = homesConfig.foreignKeys[0]!;
+	t.is(key.reference().foreignTable, peopleTable);
+	t.deepEqual(key.reference().columns, [homesTable.firstName, homesTable.lastName]);
+	t.deepEqual(key.reference().foreignColumns, [peopleTable.firstName, peopleTable.lastName]);
+	t.is(key.onDelete, "cascade");
+	t.is(key.onUpdate, "restrict");
 });
 
 test.serial('select all fields', async (t) => {

@@ -433,6 +433,48 @@ test.serial('table configs: unique in column', async (t) => {
 	t.assert(columnField?.isUnique);
 });
 
+test.serial("table config: multi-column foreign keys", async (t) => {
+	const peopleTable = mysqlTable(
+		"people",
+		{
+			firstName: text("first_name"),
+			lastName: text("last_name"),
+		},
+		(table) => ({
+			// Has to be unique for foreign key to work
+			uniqueIndex: uniqueIndex("first_name_last_name_uq").on(table.firstName, table.lastName),
+		}),
+	);
+
+	const homesTable = mysqlTable(
+		"homes",
+		{
+			firstName: text("first_name"),
+			lastName: text("last_name"),
+			// Just some example data:
+			address: text("address"),
+		},
+		(table) => ({
+			fk: foreignKey({
+				columns: [table.firstName, table.lastName],
+				foreignColumns: [peopleTable.firstName, peopleTable.lastName],
+				onDelete: "cascade",
+				onUpdate: "restrict",
+			}),
+		}),
+	);
+
+	const homesConfig = getTableConfig(homesTable);
+
+	t.is(homesConfig.foreignKeys.length, 1);
+	const key = homesConfig.foreignKeys[0]!;
+	t.is(key.reference().foreignTable, peopleTable);
+	t.deepEqual(key.reference().columns, [homesTable.firstName, homesTable.lastName]);
+	t.deepEqual(key.reference().foreignColumns, [peopleTable.firstName, peopleTable.lastName]);
+	t.is(key.onDelete, "cascade");
+	t.is(key.onUpdate, "restrict");
+});
+
 test.serial('select all fields', async (t) => {
 	const { db } = t.context;
 
