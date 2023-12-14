@@ -122,6 +122,8 @@ export function foreignKey<
 		name?: string;
 		columns: TColumns;
 		foreignColumns: ColumnsWithTable<TForeignTableName, TColumns>;
+		onUpdate?: UpdateDeleteAction;
+		onDelete?: UpdateDeleteAction;
 	},
 ): ForeignKeyBuilder;
 export function foreignKey(
