@@ -53,9 +53,20 @@ export function toValueParam(value: any, typings?: QueryTypingsValue): { value: 
 	if (value === null) {
 		response.value = { isNull: true };
 	} else if (typeof value === 'string') {
-		response.value = response.typeHint === 'DATE'
-			? { stringValue: value.split('T')[0]! }
-			: { stringValue: value };
+		switch (response.typeHint) {
+			case TypeHint.DATE: {
+				response.value = { stringValue: value.split('T')[0]! };
+				break;
+			}
+			case TypeHint.TIMESTAMP: {
+				response.value = { stringValue: value.replace('T', ' ').replace('Z', '') };
+				break;
+			}
+			default: {
+				response.value = { stringValue: value };
+				break;
+			}
+		}
 	} else if (typeof value === 'number' && Number.isInteger(value)) {
 		response.value = { longValue: value };
 	} else if (typeof value === 'number' && !Number.isInteger(value)) {
@@ -63,6 +74,7 @@ export function toValueParam(value: any, typings?: QueryTypingsValue): { value: 
 	} else if (typeof value === 'boolean') {
 		response.value = { booleanValue: value };
 	} else if (value instanceof Date) { // eslint-disable-line no-instanceof/no-instanceof
+		// TODO: check if this clause is needed? Seems like date value always comes as string
 		response.value = { stringValue: value.toISOString().replace('T', ' ').replace('Z', '') };
 	} else {
 		throw new Error(`Unknown type for ${value}`);
