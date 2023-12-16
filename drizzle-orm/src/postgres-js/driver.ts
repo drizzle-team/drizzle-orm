@@ -20,6 +20,14 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	client: Sql,
 	config: DrizzleConfig<TSchema> = {},
 ): PostgresJsDatabase<TSchema> {
+	const transparentParser = (val: any) => val;
+
+	// Override postgres.js default date parsers
+	client.options.parsers['1184'] = transparentParser;
+	client.options.parsers['1082'] = transparentParser;
+	client.options.parsers['1083'] = transparentParser;
+	client.options.parsers['1114'] = transparentParser;
+
 	const dialect = new PgDialect();
 	let logger;
 	if (config.logger === true) {
