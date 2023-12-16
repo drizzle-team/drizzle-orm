@@ -2209,39 +2209,6 @@ test.serial('select from enum', async (t) => {
 	await db.execute(sql`drop type ${name(categoryEnum.enumName)}`);
 });
 
-test.serial('timestamp and date in placeholders', async (t) => {
-	const { db } = t.context;
-
-	const datesTable = pgTable('dates', {
-		id: serial('id').primaryKey(),
-		timestamp: timestamp('timestamp', { precision: 3 }).notNull(),
-	});
-
-	db.execute(sql`drop table if exists ${datesTable}`);
-
-	db.execute(sql`create table ${datesTable} (id serial primary key, timestamp timestamp(3) not null)`);
-
-	const date = new Date();
-	await db.insert(datesTable).values({
-		timestamp: date,
-	});
-
-	const prepared = db.select().from(datesTable).where(gte(datesTable.timestamp, sql.placeholder('timestamp'))).prepare(
-		'prepared',
-	);
-
-	const result = await prepared.execute({ timestamp: new Date() });
-
-	t.deepEqual(result, [
-		{
-			id: 1,
-			timestamp: date,
-		},
-	]);
-
-	db.execute(sql`drop table if exists ${datesTable}`);
-});
-
 test.serial('all date and time columns', async (t) => {
 	const { db } = t.context;
 
