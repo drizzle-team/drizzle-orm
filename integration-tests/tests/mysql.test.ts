@@ -68,6 +68,21 @@ import { type Equal, Expect, toLocalDate } from './utils.ts';
 
 const ENABLE_LOGGING = false;
 
+export const orgTable = mysqlTable('org_table', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull(),
+});
+
+export const orgBrandingTable = mysqlTable('org_branding_table', {
+  id: serial('id').primaryKey(),
+  orgId: int('org_id')
+    .notNull()
+    .references(() => orgTable.id),
+  logo: text('logo'),
+  panelBackground: text('panel_background'),
+});
+
 const usersTable = mysqlTable('userstest', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
@@ -213,6 +228,29 @@ test.beforeEach(async (t) => {
 	await ctx.db.execute(sql`drop table if exists \`userstest\``);
 	await ctx.db.execute(sql`drop table if exists \`users2\``);
 	await ctx.db.execute(sql`drop table if exists \`cities\``);
+	await ctx.db.execute(sql`drop table if exists \`org_branding_table\``);
+	await ctx.db.execute(sql`drop table if exists \`org_table\``);
+
+	await ctx.db.execute(
+		sql`
+			create table org_table (
+				id serial primary key,
+				name text not null,
+				slug text not null
+			)
+		`,
+	);
+
+	await ctx.db.execute(
+		sql`
+			create table org_branding_table (
+				id serial primary key,
+				org_id integer not null references org_table(id),
+				logo text,
+				panel_background text
+			)
+		`,
+	);
 
 	await ctx.db.execute(
 		sql`
@@ -2763,3 +2801,37 @@ test.serial('aggregate function: min', async (t) => {
 	t.deepEqual(result1[0]?.value, 10);
 	t.deepEqual(result2[0]?.value, null);
 });
+
+test.serial('nested select: returns null on left join if first column value is null', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(orgTable).values([
+		{
+		name: 'test org 1',
+		slug: 'test-org-1',
+		},
+	])
+
+	await db.insert(orgBrandingTable).values([
+		{
+		orgId: 1,
+		logo: null,
+		panelBackground: '#000000'
+		},
+	])
+
+	const org = await db
+    .select({
+      name: orgTable.name,
+      slug: orgTable.slug,
+      branding: {
+				logo: orgBrandingTable.logo, // this is null
+        panelBackground: orgBrandingTable.panelBackground,
+      },
+    })
+    .from(orgTable)
+    .leftJoin(orgBrandingTable, eq(orgTable.id, orgBrandingTable.orgId))
+    .where(eq(orgTable.id, 1));
+
+		t.deepEqual(org[0]?.branding, { logo: null, panelBackground: '#000000' })
+})
