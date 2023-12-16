@@ -3347,5 +3347,5 @@ test.serial('nested select: returns null on left join if first column value is n
     .leftJoin(orgBrandingTable, eq(orgTable.id, orgBrandingTable.orgId))
     .where(eq(orgTable.id, 1));
 
-		t.deepEqual(org[0]?.branding, { logo: null, panelBackground: '#000000' })
+	t.deepEqual(org[0]?.branding, { logo: null, panelBackground: '#000000' })
 })
