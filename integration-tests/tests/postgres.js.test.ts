@@ -25,9 +25,11 @@ import {
 import {
 	alias,
 	boolean,
+	date,
 	getMaterializedViewConfig,
 	getViewConfig,
 	integer,
+	interval,
 	jsonb,
 	type PgColumn,
 	pgEnum,
@@ -37,6 +39,7 @@ import {
 	pgView,
 	serial,
 	text,
+	time,
 	timestamp,
 	uuid as pgUuid,
 	varchar,
@@ -1795,6 +1798,39 @@ test.serial('select from enum', async (t) => {
 	await db.execute(sql`drop type ${name(categoryEnum.enumName)}`);
 });
 
+test.serial('timestamp and date in placeholders', async (t) => {
+	const { db } = t.context;
+
+	const datesTable = pgTable('dates', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp', { precision: 3 }).notNull(),
+	});
+
+	db.execute(sql`drop table if exists ${datesTable}`);
+
+	db.execute(sql`create table ${datesTable} (id serial primary key, timestamp timestamp(3) not null)`);
+
+	const date = new Date();
+	await db.insert(datesTable).values({
+		timestamp: date,
+	});
+
+	const prepared = db.select().from(datesTable).where(eq(datesTable.timestamp, sql.placeholder('timestamp'))).prepare(
+		'prepared',
+	);
+
+	const result = await prepared.execute({ timestamp: date });
+
+	t.deepEqual(result, [
+		{
+			id: 1,
+			timestamp: date,
+		},
+	]);
+
+	db.execute(sql`drop table if exists ${datesTable}`);
+});
+
 test.serial('orderBy with aliased column', (t) => {
 	const { db } = t.context;
 
@@ -1848,6 +1884,142 @@ test.serial('select from sql', async (t) => {
 			.orderBy(asc(intervals.startTime))
 	);
 	// beta
+});
+
+test.serial('timestamp timezone', async (t) => {
+	const { db } = t.context;
+
+	const usersTableWithAndWithoutTimezone = pgTable('users_test_with_and_without_timezone', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+		updatedAt: timestamp('updated_at', { withTimezone: false }).notNull().defaultNow(),
+	});
+
+	await db.execute(sql`drop table if exists ${usersTableWithAndWithoutTimezone}`);
+
+	await db.execute(
+		sql`
+			create table users_test_with_and_without_timezone (
+				id serial not null primary key,
+				name text not null,
+				created_at timestamptz not null default now(),
+				updated_at timestamp not null default now()
+			)
+		`,
+	);
+
+	const date = new Date(Date.parse('2020-01-01T00:00:00+04:00'));
+
+	await db.insert(usersTableWithAndWithoutTimezone).values({ name: 'With default times' });
+	await db.insert(usersTableWithAndWithoutTimezone).values({
+		name: 'Without default times',
+		createdAt: date,
+		updatedAt: date,
+	});
+	const users = await db.select().from(usersTableWithAndWithoutTimezone);
+
+	// check that the timestamps are set correctly for default times
+	t.assert(Math.abs(users[0]!.updatedAt.getTime() - Date.now()) < 2000);
+	t.assert(Math.abs(users[0]!.createdAt.getTime() - Date.now()) < 2000);
+
+	// check that the timestamps are set correctly for non default times
+	t.assert(Math.abs(users[1]!.updatedAt.getTime() - date.getTime()) < 2000);
+	t.assert(Math.abs(users[1]!.createdAt.getTime() - date.getTime()) < 2000);
+});
+
+test.serial('all date and time columns', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		dateString: date('date_string', { mode: 'string' }).notNull(),
+		time: time('time', { precision: 3 }).notNull(),
+		datetime: timestamp('datetime').notNull(),
+		datetimeWTZ: timestamp('datetime_wtz', { withTimezone: true }).notNull(),
+		datetimeString: timestamp('datetime_string', { mode: 'string' }).notNull(),
+		datetimeFullPrecision: timestamp('datetime_full_precision', { precision: 6, mode: 'string' }).notNull(),
+		datetimeWTZString: timestamp('datetime_wtz_string', { withTimezone: true, mode: 'string' }).notNull(),
+		interval: interval('interval').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					date_string date not null,
+					time time(3) not null,
+					datetime timestamp not null,
+					datetime_wtz timestamp with time zone not null,
+					datetime_string timestamp not null,
+					datetime_full_precision timestamp(6) not null,
+					datetime_wtz_string timestamp with time zone not null,
+					interval interval not null
+			)
+	`);
+
+	const someDatetime = new Date('2022-01-01T00:00:00.123Z');
+	const fullPrecision = '2022-01-01T00:00:00.123456Z';
+	const someTime = '23:23:12.432';
+
+	await db.insert(table).values({
+		dateString: '2022-01-01',
+		time: someTime,
+		datetime: someDatetime,
+		datetimeWTZ: someDatetime,
+		datetimeString: '2022-01-01T00:00:00.123Z',
+		datetimeFullPrecision: fullPrecision,
+		datetimeWTZString: '2022-01-01T00:00:00.123Z',
+		interval: '1 day',
+	});
+
+	const result = await db.select().from(table);
+
+	Expect<
+		Equal<{
+			id: number;
+			dateString: string;
+			time: string;
+			datetime: Date;
+			datetimeWTZ: Date;
+			datetimeString: string;
+			datetimeFullPrecision: string;
+			datetimeWTZString: string;
+			interval: string;
+		}[], typeof result>
+	>;
+
+	Expect<
+		Equal<{
+			dateString: string;
+			time: string;
+			datetime: Date;
+			datetimeWTZ: Date;
+			datetimeString: string;
+			datetimeFullPrecision: string;
+			datetimeWTZString: string;
+			interval: string;
+			id?: number | undefined;
+		}, typeof table.$inferInsert>
+	>;
+
+	t.deepEqual(result, [
+		{
+			id: 1,
+			dateString: '2022-01-01',
+			time: someTime,
+			datetime: someDatetime,
+			datetimeWTZ: someDatetime,
+			datetimeString: '2022-01-01 00:00:00.123',
+			// Postgres trim the microseconds for some reason
+			datetimeFullPrecision: '2022-01-01 00:00:00.123',
+			datetimeWTZString: '2022-01-01 00:00:00.123+00',
+			interval: '1 day',
+		},
+	]);
+
+	await db.execute(sql`drop table if exists ${table}`);
 });
 
 test.serial('transaction', async (t) => {

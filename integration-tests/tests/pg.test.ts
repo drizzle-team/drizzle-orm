@@ -9,25 +9,25 @@ import {
 	arrayContains,
 	arrayOverlaps,
 	asc,
+	avg,
+	avgDistinct,
+	count,
+	countDistinct,
 	eq,
 	gt,
 	gte,
 	inArray,
 	lt,
+	max,
+	min,
 	name,
 	placeholder,
 	type SQL,
 	sql,
 	type SQLWrapper,
-	TransactionRollbackError,
-	count,
-	countDistinct,
-	avg,
-	avgDistinct,
 	sum,
 	sumDistinct,
-	max,
-	min,
+	TransactionRollbackError,
 } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -36,6 +36,7 @@ import {
 	boolean,
 	char,
 	cidr,
+	date,
 	except,
 	exceptAll,
 	foreignKey,
@@ -46,10 +47,12 @@ import {
 	integer,
 	intersect,
 	intersectAll,
+	interval,
 	jsonb,
 	macaddr,
 	macaddr8,
 	type PgColumn,
+	pgEnum,
 	pgMaterializedView,
 	pgTable,
 	pgTableCreator,
@@ -57,6 +60,7 @@ import {
 	primaryKey,
 	serial,
 	text,
+	time,
 	timestamp,
 	union,
 	unionAll,
@@ -64,7 +68,6 @@ import {
 	uniqueKeyName,
 	uuid as pgUuid,
 	varchar,
-	pgEnum,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import pg from 'pg';
@@ -149,7 +152,7 @@ const aggregateTable = pgTable('aggregate_table', {
 	a: integer('a'),
 	b: integer('b'),
 	c: integer('c'),
-	nullOnly: integer('null_only')
+	nullOnly: integer('null_only'),
 });
 
 interface Context {
@@ -523,7 +526,7 @@ test.serial('select distinct', async (t) => {
 	const usersDistinctTable = pgTable('users_distinct', {
 		id: integer('id').notNull(),
 		name: text('name').notNull(),
-		age: integer('age').notNull()
+		age: integer('age').notNull(),
 	});
 
 	await db.execute(sql`drop table if exists ${usersDistinctTable}`);
@@ -534,7 +537,7 @@ test.serial('select distinct', async (t) => {
 		{ id: 1, name: 'John', age: 24 },
 		{ id: 2, name: 'John', age: 25 },
 		{ id: 1, name: 'Jane', age: 24 },
-		{ id: 1, name: 'Jane', age: 26 }
+		{ id: 1, name: 'Jane', age: 26 },
 	]);
 	const users1 = await db.selectDistinct().from(usersDistinctTable).orderBy(
 		usersDistinctTable.id,
@@ -547,8 +550,8 @@ test.serial('select distinct', async (t) => {
 		usersDistinctTable,
 	).orderBy(usersDistinctTable.name);
 	const users4 = await db.selectDistinctOn([usersDistinctTable.id, usersDistinctTable.age]).from(
-		usersDistinctTable
-	).orderBy(usersDistinctTable.id, usersDistinctTable.age)
+		usersDistinctTable,
+	).orderBy(usersDistinctTable.id, usersDistinctTable.age);
 
 	await db.execute(sql`drop table ${usersDistinctTable}`);
 
@@ -556,7 +559,7 @@ test.serial('select distinct', async (t) => {
 		{ id: 1, name: 'Jane', age: 24 },
 		{ id: 1, name: 'Jane', age: 26 },
 		{ id: 1, name: 'John', age: 24 },
-		{ id: 2, name: 'John', age: 25 }
+		{ id: 2, name: 'John', age: 25 },
 	]);
 
 	t.deepEqual(users2.length, 2);
@@ -570,7 +573,7 @@ test.serial('select distinct', async (t) => {
 	t.deepEqual(users4, [
 		{ id: 1, name: 'John', age: 24 },
 		{ id: 1, name: 'Jane', age: 26 },
-		{ id: 2, name: 'John', age: 25 }
+		{ id: 2, name: 'John', age: 25 },
 	]);
 });
 
@@ -2204,6 +2207,132 @@ test.serial('select from enum', async (t) => {
 	await db.execute(sql`drop type ${name(mechanicEnum.enumName)}`);
 	await db.execute(sql`drop type ${name(equipmentEnum.enumName)}`);
 	await db.execute(sql`drop type ${name(categoryEnum.enumName)}`);
+});
+
+test.serial('timestamp and date in placeholders', async (t) => {
+	const { db } = t.context;
+
+	const datesTable = pgTable('dates', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp', { precision: 3 }).notNull(),
+	});
+
+	db.execute(sql`drop table if exists ${datesTable}`);
+
+	db.execute(sql`create table ${datesTable} (id serial primary key, timestamp timestamp(3) not null)`);
+
+	const date = new Date();
+	await db.insert(datesTable).values({
+		timestamp: date,
+	});
+
+	const prepared = db.select().from(datesTable).where(gte(datesTable.timestamp, sql.placeholder('timestamp'))).prepare(
+		'prepared',
+	);
+
+	const result = await prepared.execute({ timestamp: new Date() });
+
+	t.deepEqual(result, [
+		{
+			id: 1,
+			timestamp: date,
+		},
+	]);
+
+	db.execute(sql`drop table if exists ${datesTable}`);
+});
+
+test.serial('all date and time columns', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		dateString: date('date_string', { mode: 'string' }).notNull(),
+		time: time('time', { precision: 3 }).notNull(),
+		datetime: timestamp('datetime').notNull(),
+		datetimeWTZ: timestamp('datetime_wtz', { withTimezone: true }).notNull(),
+		datetimeString: timestamp('datetime_string', { mode: 'string' }).notNull(),
+		datetimeFullPrecision: timestamp('datetime_full_precision', { precision: 6, mode: 'string' }).notNull(),
+		datetimeWTZString: timestamp('datetime_wtz_string', { withTimezone: true, mode: 'string' }).notNull(),
+		interval: interval('interval').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					date_string date not null,
+					time time(3) not null,
+					datetime timestamp not null,
+					datetime_wtz timestamp with time zone not null,
+					datetime_string timestamp not null,
+					datetime_full_precision timestamp(6) not null,
+					datetime_wtz_string timestamp with time zone not null,
+					interval interval not null
+			)
+	`);
+
+	const someDatetime = new Date('2022-01-01T00:00:00.123Z');
+	const fullPrecision = '2022-01-01T00:00:00.123456Z';
+	const someTime = '23:23:12.432';
+
+	await db.insert(table).values({
+		dateString: '2022-01-01',
+		time: someTime,
+		datetime: someDatetime,
+		datetimeWTZ: someDatetime,
+		datetimeString: '2022-01-01T00:00:00.123Z',
+		datetimeFullPrecision: fullPrecision,
+		datetimeWTZString: '2022-01-01T00:00:00.123Z',
+		interval: '1 day',
+	});
+
+	const result = await db.select().from(table);
+
+	Expect<
+		Equal<{
+			id: number;
+			dateString: string;
+			time: string;
+			datetime: Date;
+			datetimeWTZ: Date;
+			datetimeString: string;
+			datetimeFullPrecision: string;
+			datetimeWTZString: string;
+			interval: string;
+		}[], typeof result>
+	>;
+
+	Expect<
+		Equal<{
+			dateString: string;
+			time: string;
+			datetime: Date;
+			datetimeWTZ: Date;
+			datetimeString: string;
+			datetimeFullPrecision: string;
+			datetimeWTZString: string;
+			interval: string;
+			id?: number | undefined;
+		}, typeof table.$inferInsert>
+	>;
+
+	t.deepEqual(result, [
+		{
+			id: 1,
+			dateString: '2022-01-01',
+			time: someTime,
+			datetime: someDatetime,
+			datetimeWTZ: someDatetime,
+			datetimeString: '2022-01-01 00:00:00.123',
+			datetimeFullPrecision: fullPrecision.replace('T', ' ').replace('Z', ''),
+			datetimeWTZString: '2022-01-01 00:00:00.123+00',
+			interval: '1 day',
+		},
+	]);
+
+	await db.execute(sql`drop table if exists ${table}`);
 });
 
 test.serial('orderBy with aliased column', (t) => {

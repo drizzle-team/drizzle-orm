@@ -25,11 +25,13 @@ import {
 	boolean,
 	char,
 	cidr,
+	date,
 	getMaterializedViewConfig,
 	getTableConfig,
 	getViewConfig,
 	inet,
 	integer,
+	interval,
 	jsonb,
 	macaddr,
 	macaddr8,
@@ -41,6 +43,7 @@ import {
 	pgView,
 	serial,
 	text,
+	time,
 	timestamp,
 	unique,
 	uniqueKeyName,
@@ -58,7 +61,14 @@ import { Expect } from './utils.ts';
 
 // eslint-disable-next-line drizzle/require-entity-kind
 class ServerSimulator {
-	constructor(private db: pg.Client) { }
+	constructor(private db: pg.Client) {
+		const { types } = pg;
+
+		types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
+		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
+		types.setTypeParser(types.builtins.DATE, (val) => val);
+		types.setTypeParser(types.builtins.INTERVAL, (val) => val);
+	}
 
 	async query(sql: string, params: any[], method: 'all' | 'execute') {
 		if (method === 'all') {
@@ -1066,7 +1076,7 @@ test.serial('migrator', async (t) => {
 	await t.throwsAsync(async () => {
 		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 	}, {
-		message: 'relation "users12" does not exist'
+		message: 'relation "users12" does not exist',
 	});
 
 	await migrate(db, async (queries) => {
@@ -1109,10 +1119,11 @@ test.serial('insert via db.execute + returning', async (t) => {
 	const { db } = t.context;
 
 	const inserted = await db.execute<{ id: number; name: string }>(
-		sql`insert into ${usersTable} (${name(
-			usersTable.name.name,
-		)
-			}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
+		sql`insert into ${usersTable} (${
+			name(
+				usersTable.name.name,
+			)
+		}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
 	);
 	t.deepEqual(inserted, [{ id: 1, name: 'John' }]);
 });
@@ -2085,11 +2096,19 @@ test.serial('select from enum', async (t) => {
 	await db.execute(sql`drop type if exists ${name(equipmentEnum.enumName)}`);
 	await db.execute(sql`drop type if exists ${name(categoryEnum.enumName)}`);
 
-	await db.execute(sql`create type ${name(muscleEnum.enumName)} as enum ('abdominals', 'hamstrings', 'adductors', 'quadriceps', 'biceps', 'shoulders', 'chest', 'middle_back', 'calves', 'glutes', 'lower_back', 'lats', 'triceps', 'traps', 'forearms', 'neck', 'abductors')`,);
+	await db.execute(
+		sql`create type ${
+			name(muscleEnum.enumName)
+		} as enum ('abdominals', 'hamstrings', 'adductors', 'quadriceps', 'biceps', 'shoulders', 'chest', 'middle_back', 'calves', 'glutes', 'lower_back', 'lats', 'triceps', 'traps', 'forearms', 'neck', 'abductors')`,
+	);
 	await db.execute(sql`create type ${name(forceEnum.enumName)} as enum ('isometric', 'isotonic', 'isokinetic')`);
 	await db.execute(sql`create type ${name(levelEnum.enumName)} as enum ('beginner', 'intermediate', 'advanced')`);
 	await db.execute(sql`create type ${name(mechanicEnum.enumName)} as enum ('compound', 'isolation')`);
-	await db.execute(sql`create type ${name(equipmentEnum.enumName)} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,);
+	await db.execute(
+		sql`create type ${
+			name(equipmentEnum.enumName)
+		} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,
+	);
 	await db.execute(sql`create type ${name(categoryEnum.enumName)} as enum ('upper_body', 'lower_body', 'full_body')`);
 	await db.execute(sql`
 		create table ${exercises} (
@@ -2244,6 +2263,99 @@ test.serial('timestamp timezone', async (t) => {
 	// check that the timestamps are set correctly for non default times
 	t.assert(Math.abs(users[1]!.updatedAt.getTime() - date.getTime()) < 2000);
 	t.assert(Math.abs(users[1]!.createdAt.getTime() - date.getTime()) < 2000);
+});
+
+test.serial('all date and time columns', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		dateString: date('date_string', { mode: 'string' }).notNull(),
+		time: time('time', { precision: 3 }).notNull(),
+		datetime: timestamp('datetime').notNull(),
+		datetimeWTZ: timestamp('datetime_wtz', { withTimezone: true }).notNull(),
+		datetimeString: timestamp('datetime_string', { mode: 'string' }).notNull(),
+		datetimeFullPrecision: timestamp('datetime_full_precision', { precision: 6, mode: 'string' }).notNull(),
+		datetimeWTZString: timestamp('datetime_wtz_string', { withTimezone: true, mode: 'string' }).notNull(),
+		interval: interval('interval').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					date_string date not null,
+					time time(3) not null,
+					datetime timestamp not null,
+					datetime_wtz timestamp with time zone not null,
+					datetime_string timestamp not null,
+					datetime_full_precision timestamp(6) not null,
+					datetime_wtz_string timestamp with time zone not null,
+					interval interval not null
+			)
+	`);
+
+	const someDatetime = new Date('2022-01-01T00:00:00.123Z');
+	const fullPrecision = '2022-01-01T00:00:00.123456Z';
+	const someTime = '23:23:12.432';
+
+	await db.insert(table).values({
+		dateString: '2022-01-01',
+		time: someTime,
+		datetime: someDatetime,
+		datetimeWTZ: someDatetime,
+		datetimeString: '2022-01-01T00:00:00.123Z',
+		datetimeFullPrecision: fullPrecision,
+		datetimeWTZString: '2022-01-01T00:00:00.123Z',
+		interval: '1 day',
+	});
+
+	const result = await db.select().from(table);
+
+	Expect<
+		Equal<{
+			id: number;
+			dateString: string;
+			time: string;
+			datetime: Date;
+			datetimeWTZ: Date;
+			datetimeString: string;
+			datetimeFullPrecision: string;
+			datetimeWTZString: string;
+			interval: string;
+		}[], typeof result>
+	>;
+
+	Expect<
+		Equal<{
+			dateString: string;
+			time: string;
+			datetime: Date;
+			datetimeWTZ: Date;
+			datetimeString: string;
+			datetimeFullPrecision: string;
+			datetimeWTZString: string;
+			interval: string;
+			id?: number | undefined;
+		}, typeof table.$inferInsert>
+	>;
+
+	t.deepEqual(result, [
+		{
+			id: 1,
+			dateString: '2022-01-01',
+			time: someTime,
+			datetime: someDatetime,
+			datetimeWTZ: someDatetime,
+			datetimeString: '2022-01-01 00:00:00.123',
+			datetimeFullPrecision: fullPrecision.replace('T', ' ').replace('Z', ''),
+			datetimeWTZString: '2022-01-01 00:00:00.123+00',
+			interval: '1 day',
+		},
+	]);
+
+	await db.execute(sql`drop table if exists ${table}`);
 });
 
 // TODO: implement transaction
