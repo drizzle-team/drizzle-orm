@@ -21,6 +21,7 @@ import {
 	max,
 	min,
 	name,
+	or,
 	placeholder,
 	type SQL,
 	sql,
@@ -2226,11 +2227,16 @@ test.serial('timestamp and date in placeholders', async (t) => {
 		timestamp: date,
 	});
 
-	const prepared = db.select().from(datesTable).where(gte(datesTable.timestamp, sql.placeholder('timestamp'))).prepare(
+	const prepared = db.select().from(datesTable).where(
+		or(lt(datesTable.timestamp, sql.placeholder('timestamp')), gt(datesTable.timestamp, sql.placeholder('timestamp2'))),
+	).prepare(
 		'prepared',
 	);
 
-	const result = await prepared.execute({ timestamp: new Date() });
+	const result = await prepared.execute({
+		timestamp: new Date(date.valueOf() - 200),
+		timestamp2: new Date(date.valueOf() + 200),
+	});
 
 	t.deepEqual(result, [
 		{
