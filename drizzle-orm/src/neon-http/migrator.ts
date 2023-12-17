@@ -16,8 +16,8 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 	config: string | MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
-	const migrationsTable = typeof config !== "string"  ? config.migrationsTable ?? '__drizzle_migrations' :  '__drizzle_migrations';
-	const migrationsSchema = typeof config !== "string"  ? config.migrationsSchema ?? 'drizzle' :  'drizzle';
+	const migrationsTable = typeof config === "string"  ? '__drizzle_migrations' : config.migrationsTable ?? '__drizzle_migrations';
+	const migrationsSchema = typeof config === "string"  ? 'drizzle' :  config.migrationsSchema ?? 'drizzle';
 	const migrationTableCreate = sql`
 		CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
 			id SERIAL PRIMARY KEY,

@@ -47,20 +47,20 @@ export class PgDialect {
 	static readonly [entityKind]: string = 'PgDialect';
 
 	async migrate(migrations: MigrationMeta[], session: PgSession, config: string | MigrationConfig): Promise<void> {
-		const migrationsTable = typeof config !== "string"  ? config.migrationsTable ?? '__drizzle_migrations' :  '__drizzle_migrations';
-		const migrationsSchema = typeof config !== "string"  ? config.migrationsSchema ?? 'drizzle' :  'drizzle';
+		const migrationsTable = typeof config === "string"  ? '__drizzle_migrations' : config.migrationsTable ?? '__drizzle_migrations';
+		const migrationsSchema = typeof config === "string"  ?  'drizzle' : config.migrationsSchema ?? 'drizzle';
 		const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)}.${sql.identifier(migrationsTable)} (
+			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
 				id SERIAL PRIMARY KEY,
 				hash text NOT NULL,
 				created_at bigint
 			)
 		`;
-		await session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsTable)}`);
+		await session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
 		await session.execute(migrationTableCreate);
 
 		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
-			sql`select id, hash, created_at from ${sql.identifier(migrationsTable)}.${sql.identifier(migrationsTable)} order by created_at desc limit 1`,
+			sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} order by created_at desc limit 1`,
 		);
 
 		const lastDbMigration = dbMigrations[0];
@@ -74,7 +74,7 @@ export class PgDialect {
 						await tx.execute(sql.raw(stmt));
 					}
 					await tx.execute(
-						sql`insert into ${sql.identifier(migrationsTable)}.${sql.identifier(migrationsTable)} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+						sql`insert into ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
 					);
 				}
 			}
