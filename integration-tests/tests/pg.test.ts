@@ -9,25 +9,25 @@ import {
 	arrayContains,
 	arrayOverlaps,
 	asc,
+	avg,
+	avgDistinct,
+	count,
+	countDistinct,
 	eq,
 	gt,
 	gte,
 	inArray,
 	lt,
+	max,
+	min,
 	name,
 	placeholder,
 	type SQL,
 	sql,
 	type SQLWrapper,
-	TransactionRollbackError,
-	count,
-	countDistinct,
-	avg,
-	avgDistinct,
 	sum,
 	sumDistinct,
-	max,
-	min,
+	TransactionRollbackError,
 } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -50,6 +50,7 @@ import {
 	macaddr,
 	macaddr8,
 	type PgColumn,
+	pgEnum,
 	pgMaterializedView,
 	pgTable,
 	pgTableCreator,
@@ -64,7 +65,6 @@ import {
 	uniqueKeyName,
 	uuid as pgUuid,
 	varchar,
-	pgEnum,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import pg from 'pg';
@@ -149,7 +149,7 @@ const aggregateTable = pgTable('aggregate_table', {
 	a: integer('a'),
 	b: integer('b'),
 	c: integer('c'),
-	nullOnly: integer('null_only')
+	nullOnly: integer('null_only'),
 });
 
 interface Context {
@@ -523,7 +523,7 @@ test.serial('select distinct', async (t) => {
 	const usersDistinctTable = pgTable('users_distinct', {
 		id: integer('id').notNull(),
 		name: text('name').notNull(),
-		age: integer('age').notNull()
+		age: integer('age').notNull(),
 	});
 
 	await db.execute(sql`drop table if exists ${usersDistinctTable}`);
@@ -534,7 +534,7 @@ test.serial('select distinct', async (t) => {
 		{ id: 1, name: 'John', age: 24 },
 		{ id: 2, name: 'John', age: 25 },
 		{ id: 1, name: 'Jane', age: 24 },
-		{ id: 1, name: 'Jane', age: 26 }
+		{ id: 1, name: 'Jane', age: 26 },
 	]);
 	const users1 = await db.selectDistinct().from(usersDistinctTable).orderBy(
 		usersDistinctTable.id,
@@ -547,8 +547,8 @@ test.serial('select distinct', async (t) => {
 		usersDistinctTable,
 	).orderBy(usersDistinctTable.name);
 	const users4 = await db.selectDistinctOn([usersDistinctTable.id, usersDistinctTable.age]).from(
-		usersDistinctTable
-	).orderBy(usersDistinctTable.id, usersDistinctTable.age)
+		usersDistinctTable,
+	).orderBy(usersDistinctTable.id, usersDistinctTable.age);
 
 	await db.execute(sql`drop table ${usersDistinctTable}`);
 
@@ -556,7 +556,7 @@ test.serial('select distinct', async (t) => {
 		{ id: 1, name: 'Jane', age: 24 },
 		{ id: 1, name: 'Jane', age: 26 },
 		{ id: 1, name: 'John', age: 24 },
-		{ id: 2, name: 'John', age: 25 }
+		{ id: 2, name: 'John', age: 25 },
 	]);
 
 	t.deepEqual(users2.length, 2);
@@ -570,7 +570,7 @@ test.serial('select distinct', async (t) => {
 	t.deepEqual(users4, [
 		{ id: 1, name: 'John', age: 24 },
 		{ id: 1, name: 'Jane', age: 26 },
-		{ id: 2, name: 'John', age: 25 }
+		{ id: 2, name: 'John', age: 25 },
 	]);
 });
 
@@ -1116,6 +1116,44 @@ test.serial('prepared statement with placeholder in .offset', async (t) => {
 	const result = await stmt.execute({ offset: 1 });
 
 	t.deepEqual(result, [{ id: 2, name: 'John1' }]);
+});
+
+test.serial('prepared statement in update', async (t) => {
+	const { db } = t.context;
+
+	const enumValues = ['a', 'b', 'c'] as const;
+
+	const anEnum = pgEnum('an_enum', enumValues);
+
+	const testTable = pgTable('prepared_test_table', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		anEnum: anEnum('enum_column').notNull().default('a'),
+	});
+
+	await db.execute(sql`create type ${sql.identifier(anEnum.enumName)} as enum ('a', 'b', 'c')`);
+
+	await db.execute(sql`
+		create table ${testTable} (
+			id serial primary key,
+			name text not null,
+			enum_column ${sql.identifier(anEnum.enumName)} not null default 'a'
+		)
+	`);
+
+	await db.insert(testTable).values({ name: 'John', anEnum: 'c' });
+
+	const preparedUpdate = db.update(testTable).set({ anEnum: sql.placeholder('anEnum') }).where(eq(testTable.id, 1))
+		.prepare('preparedUpdate');
+
+	await preparedUpdate.execute({ anEnum: 'b' });
+
+	const result = await db.select().from(testTable);
+
+	t.deepEqual(result, [{ id: 1, name: 'John', anEnum: 'b' }]);
+
+	db.execute(sql`drop table ${testTable}`);
+	await db.execute(sql`drop type ${sql.identifier(anEnum.enumName)}`);
 });
 
 // TODO change tests to new structure

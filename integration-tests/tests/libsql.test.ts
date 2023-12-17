@@ -5,24 +5,24 @@ import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import {
 	asc,
+	avg,
+	avgDistinct,
+	count,
+	countDistinct,
 	eq,
 	gt,
 	gte,
 	inArray,
 	type InferModel,
+	max,
+	min,
 	Name,
 	name,
 	placeholder,
 	sql,
-	TransactionRollbackError,
-	count,
-	countDistinct,
-	avg,
-	avgDistinct,
 	sum,
 	sumDistinct,
-	max,
-	min
+	TransactionRollbackError,
 } from 'drizzle-orm';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
@@ -126,7 +126,7 @@ const aggregateTable = sqliteTable('aggregate_table', {
 	a: integer('a'),
 	b: integer('b'),
 	c: integer('c'),
-	nullOnly: integer('null_only')
+	nullOnly: integer('null_only'),
 });
 
 test.before(async (t) => {
@@ -877,6 +877,39 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 	const result = await stmt.all({ id: 1 });
 
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+});
+
+test.serial('prepared statement in update', async (t) => {
+	const { db } = t.context;
+
+	const enumValues = ['a', 'b', 'c'] as const;
+
+	const testTable = sqliteTable('prepared_test_table', {
+		id: int('id').primaryKey({ autoIncrement: true }),
+		name: text('name').notNull(),
+		anEnum: text('an_enum', { enum: enumValues }).notNull().default('a'),
+	});
+
+	await db.run(sql`
+		create table ${testTable} (
+			id integer primary key autoincrement not null,
+			name text not null,
+			an_enum text not null default 'a'
+		)
+	`);
+
+	await db.insert(testTable).values({ name: 'John', anEnum: 'c' });
+
+	const preparedUpdate = db.update(testTable).set({ anEnum: sql.placeholder('anEnum') }).where(eq(testTable.id, 1))
+		.prepare();
+
+	await preparedUpdate.execute({ anEnum: 'b' });
+
+	const result = await db.select().from(testTable);
+
+	t.deepEqual(result, [{ id: 1, name: 'John', anEnum: 'b' }]);
+
+	db.run(sql`drop table ${testTable}`);
 });
 
 test.serial('select with group by as field', async (t) => {
