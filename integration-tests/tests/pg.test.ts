@@ -9,25 +9,25 @@ import {
 	arrayContains,
 	arrayOverlaps,
 	asc,
+	avg,
+	avgDistinct,
+	count,
+	countDistinct,
 	eq,
 	gt,
 	gte,
 	inArray,
 	lt,
+	max,
+	min,
 	name,
 	placeholder,
 	type SQL,
 	sql,
 	type SQLWrapper,
-	TransactionRollbackError,
-	count,
-	countDistinct,
-	avg,
-	avgDistinct,
 	sum,
 	sumDistinct,
-	max,
-	min,
+	TransactionRollbackError,
 } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -50,6 +50,7 @@ import {
 	macaddr,
 	macaddr8,
 	type PgColumn,
+	pgEnum,
 	pgMaterializedView,
 	pgTable,
 	pgTableCreator,
@@ -64,7 +65,6 @@ import {
 	uniqueKeyName,
 	uuid as pgUuid,
 	varchar,
-	pgEnum,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import pg from 'pg';
@@ -149,7 +149,7 @@ const aggregateTable = pgTable('aggregate_table', {
 	a: integer('a'),
 	b: integer('b'),
 	c: integer('c'),
-	nullOnly: integer('null_only')
+	nullOnly: integer('null_only'),
 });
 
 interface Context {
@@ -523,7 +523,7 @@ test.serial('select distinct', async (t) => {
 	const usersDistinctTable = pgTable('users_distinct', {
 		id: integer('id').notNull(),
 		name: text('name').notNull(),
-		age: integer('age').notNull()
+		age: integer('age').notNull(),
 	});
 
 	await db.execute(sql`drop table if exists ${usersDistinctTable}`);
@@ -534,7 +534,7 @@ test.serial('select distinct', async (t) => {
 		{ id: 1, name: 'John', age: 24 },
 		{ id: 2, name: 'John', age: 25 },
 		{ id: 1, name: 'Jane', age: 24 },
-		{ id: 1, name: 'Jane', age: 26 }
+		{ id: 1, name: 'Jane', age: 26 },
 	]);
 	const users1 = await db.selectDistinct().from(usersDistinctTable).orderBy(
 		usersDistinctTable.id,
@@ -547,8 +547,8 @@ test.serial('select distinct', async (t) => {
 		usersDistinctTable,
 	).orderBy(usersDistinctTable.name);
 	const users4 = await db.selectDistinctOn([usersDistinctTable.id, usersDistinctTable.age]).from(
-		usersDistinctTable
-	).orderBy(usersDistinctTable.id, usersDistinctTable.age)
+		usersDistinctTable,
+	).orderBy(usersDistinctTable.id, usersDistinctTable.age);
 
 	await db.execute(sql`drop table ${usersDistinctTable}`);
 
@@ -556,7 +556,7 @@ test.serial('select distinct', async (t) => {
 		{ id: 1, name: 'Jane', age: 24 },
 		{ id: 1, name: 'Jane', age: 26 },
 		{ id: 1, name: 'John', age: 24 },
-		{ id: 2, name: 'John', age: 25 }
+		{ id: 2, name: 'John', age: 25 },
 	]);
 
 	t.deepEqual(users2.length, 2);
@@ -570,7 +570,7 @@ test.serial('select distinct', async (t) => {
 	t.deepEqual(users4, [
 		{ id: 1, name: 'John', age: 24 },
 		{ id: 1, name: 'Jane', age: 26 },
-		{ id: 2, name: 'John', age: 25 }
+		{ id: 2, name: 'John', age: 25 },
 	]);
 });
 
@@ -2300,6 +2300,49 @@ test.serial('timestamp timezone', async (t) => {
 	// check that the timestamps are set correctly for non default times
 	t.assert(Math.abs(users[1]!.updatedAt.getTime() - date.getTime()) < 2000);
 	t.assert(Math.abs(users[1]!.createdAt.getTime() - date.getTime()) < 2000);
+});
+
+test.serial('timestamp in placeholders on insert', async (t) => {
+	const { db } = t.context;
+
+	const datesTable = pgTable('dates', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp', { precision: 3 }).notNull(),
+		timestampString: timestamp('timestamp_string', { precision: 3, mode: 'string' }).notNull(),
+	});
+
+	db.execute(sql`drop table if exists ${datesTable}`);
+
+	db.execute(sql`
+		create table ${datesTable} (
+		id serial primary key,
+		timestamp timestamp(3) not null,
+		timestamp_string timestamp(3) not null
+		)
+	`);
+
+	const date = new Date();
+	const prepared = db.insert(datesTable).values({
+		timestamp: sql.placeholder('date'),
+		timestampString: sql.placeholder('date2'),
+	}).prepare('prepared');
+
+	await prepared.execute({
+		date: datesTable.timestamp.mapToDriverValue(date),
+		date2: date.toISOString(),
+	});
+
+	const result = await db.select().from(datesTable);
+
+	t.deepEqual(result, [
+		{
+			id: 1,
+			timestamp: date,
+			timestampString: date.toISOString().replace('T', ' ').replace('Z', ''),
+		},
+	]);
+
+	db.execute(sql`drop table if exists ${datesTable}`);
 });
 
 test.serial('transaction', async (t) => {
