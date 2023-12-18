@@ -120,6 +120,15 @@ export type PgJoinFn<
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
 ) => PgJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
+export type PgCrossJoinFn<
+	T extends AnyPgSelectQueryBuilder,
+	TDynamic extends boolean,
+	TJoinType extends JoinType,
+> = <
+	TJoinedTable extends PgTable | Subquery | PgViewBase | SQL,
+	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
+>(table: TJoinedTable) => PgJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
+
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<PgColumn>;
 
 export type SelectedFields = SelectedFieldsBase<PgColumn, PgTable>;

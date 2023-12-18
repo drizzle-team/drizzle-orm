@@ -118,6 +118,15 @@ export type MySqlJoinFn<
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
 ) => MySqlJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
+export type MySqlCrossJoinFn<
+	T extends AnyMySqlSelectQueryBuilder,
+	TDynamic extends boolean,
+	TJoinType extends JoinType,
+> = <
+	TJoinedTable extends MySqlTable | Subquery | MySqlViewBase | SQL,
+	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
+>(table: TJoinedTable) => MySqlJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
+
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<MySqlColumn>;
 
 export type SelectedFields = SelectedFieldsBase<MySqlColumn, MySqlTable>;

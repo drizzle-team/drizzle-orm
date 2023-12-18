@@ -47,10 +47,6 @@ const city1 = alias(cities, 'city1');
 
 const leftJoinFull = await db.select().from(users).leftJoin(city, eq(users.id, city.id));
 
-{
-	await db.select().from(users).leftJoin(city, eq(users.id, city.id));
-}
-
 Expect<
 	Equal<
 		{
@@ -94,6 +90,18 @@ Expect<
 			city: typeof city.$inferSelect | null;
 		}[],
 		typeof fullJoinFull
+	>
+>;
+
+const crossJoinFull = await db.select().from(users).crossJoin(city);
+
+Expect<
+	Equal<
+		{
+			users_table: typeof users.$inferSelect;
+			city: typeof city.$inferSelect;
+		}[],
+		typeof crossJoinFull
 	>
 >;
 
@@ -171,6 +179,25 @@ Expect<
 		cityId: number | null;
 		cityName: string | null;
 	}[], typeof fullJoinFlat>
+>;
+
+const crossJoinFlat = await db
+	.select({
+		userId: users.id,
+		userText: users.text,
+		cityId: city.id,
+		cityName: city.name,
+	})
+	.from(users)
+	.crossJoin(city);
+
+Expect<
+	Equal<{
+		userId: number;
+		userText: string | null;
+		cityId: number;
+		cityName: string;
+	}[], typeof crossJoinFlat>
 >;
 
 const leftJoinMixed = await db

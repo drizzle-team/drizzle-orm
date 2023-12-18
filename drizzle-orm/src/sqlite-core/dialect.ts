@@ -230,6 +230,7 @@ export abstract class SQLiteDialect {
 					joinsArray.push(sql` `);
 				}
 				const table = joinMeta.table;
+				const onSql = joinMeta.on ? sql` on ${joinMeta.on}` : undefined;
 
 				if (is(table, SQLiteTable)) {
 					const tableName = table[SQLiteTable.Symbol.Name];
@@ -239,11 +240,11 @@ export abstract class SQLiteDialect {
 					joinsArray.push(
 						sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined}${
 							sql.identifier(origTableName)
-						}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+						}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 					);
 				} else {
 					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join ${table} on ${joinMeta.on}`,
+						sql`${sql.raw(joinMeta.joinType)} join ${table}${onSql}`,
 					);
 				}
 				if (index < joins.length - 1) {
