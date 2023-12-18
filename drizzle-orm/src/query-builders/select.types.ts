@@ -6,7 +6,7 @@ import type { Subquery } from '~/subquery.ts';
 import type { Table } from '~/table.ts';
 import type { Assume, DrizzleTypeError, Equal, IsAny, Simplify } from '~/utils.ts';
 
-export type JoinType = 'inner' | 'left' | 'right' | 'full';
+export type JoinType = 'inner' | 'left' | 'right' | 'full' | 'cross';
 
 export type JoinNullability = 'nullable' | 'not-null';
 
@@ -135,6 +135,7 @@ export type AppendToNullabilityMap<
 > = TJoinedName extends string ? 'left' extends TJoinType ? TJoinsNotNull & { [name in TJoinedName]: 'nullable' }
 	: 'right' extends TJoinType ? SetJoinsNullability<TJoinsNotNull, 'nullable'> & { [name in TJoinedName]: 'not-null' }
 	: 'inner' extends TJoinType ? TJoinsNotNull & { [name in TJoinedName]: 'not-null' }
+	: 'cross' extends TJoinType ? TJoinsNotNull & { [name in TJoinedName]: 'not-null' }
 	: 'full' extends TJoinType ? SetJoinsNullability<TJoinsNotNull, 'nullable'> & { [name in TJoinedName]: 'nullable' }
 	: never
 	: TJoinsNotNull;
