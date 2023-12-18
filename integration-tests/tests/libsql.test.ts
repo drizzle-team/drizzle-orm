@@ -2532,3 +2532,36 @@ test.serial('aggregate function: min', async (t) => {
 	t.deepEqual(result1[0]?.value, 10);
 	t.deepEqual(result2[0]?.value, null);
 });
+
+test.serial('cross join', async (t) => {
+	const { db } = t.context;
+	
+	await db
+		.insert(usersTable)
+		.values([
+			{ name: 'John' },
+			{ name: 'Jane' }
+		]);
+
+	await db
+		.insert(citiesTable)
+		.values([
+			{ name: 'Seattle' },
+			{ name: 'New York City' }
+		]);
+
+	const result = await db
+		.select({
+			user: usersTable.name,
+			city: citiesTable.name
+		})
+		.from(usersTable)
+		.crossJoin(citiesTable);
+
+	t.deepEqual(result, [
+		{ city: 'Seattle', user: 'John' },
+		{ city: 'New York City', user: 'John' },
+		{ city: 'Seattle', user: 'Jane' },
+		{ city: 'New York City', user: 'Jane' },
+	]);
+});

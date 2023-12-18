@@ -33,6 +33,217 @@ import { cities, classes, newYorkers, users } from './tables.ts';
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
 
+const leftJoinFull = await db.select().from(users).leftJoin(city, eq(users.id, city.id));
+
+Expect<
+	Equal<
+		{
+			users_table: typeof users.$inferSelect;
+			city: typeof cities.$inferSelect | null;
+		}[],
+		typeof leftJoinFull
+	>
+>;
+
+const rightJoinFull = await db.select().from(users).rightJoin(city, eq(users.id, city.id));
+
+Expect<
+	Equal<
+		{
+			users_table: typeof users.$inferSelect | null;
+			city: typeof city.$inferSelect;
+		}[],
+		typeof rightJoinFull
+	>
+>;
+
+const innerJoinFull = await db.select().from(users).innerJoin(city, eq(users.id, city.id));
+
+Expect<
+	Equal<
+		{
+			users_table: typeof users.$inferSelect;
+			city: typeof city.$inferSelect;
+		}[],
+		typeof innerJoinFull
+	>
+>;
+
+const fullJoinFull = await db.select().from(users).fullJoin(city, eq(users.id, city.id));
+
+Expect<
+	Equal<
+		{
+			users_table: typeof users.$inferSelect | null;
+			city: typeof city.$inferSelect | null;
+		}[],
+		typeof fullJoinFull
+	>
+>;
+
+const crossJoinFull = await db.select().from(users).crossJoin(city);
+
+Expect<
+	Equal<
+		{
+			users_table: typeof users.$inferSelect;
+			city: typeof city.$inferSelect;
+		}[],
+		typeof crossJoinFull
+	>
+>;
+
+const leftJoinFlat = await db
+	.select({
+		userId: users.id,
+		userText: users.text,
+		cityId: city.id,
+		cityName: city.name,
+	})
+	.from(users)
+	.leftJoin(city, eq(users.id, city.id));
+
+Expect<
+	Equal<{
+		userId: number;
+		userText: string | null;
+		cityId: number | null;
+		cityName: string | null;
+	}[], typeof leftJoinFlat>
+>;
+
+const rightJoinFlat = await db
+	.select({
+		userId: users.id,
+		userText: users.text,
+		cityId: city.id,
+		cityName: city.name,
+	})
+	.from(users)
+	.rightJoin(city, eq(users.id, city.id));
+
+Expect<
+	Equal<{
+		userId: number | null;
+		userText: string | null;
+		cityId: number;
+		cityName: string;
+	}[], typeof rightJoinFlat>
+>;
+
+const innerJoinFlat = await db
+	.select({
+		userId: users.id,
+		userText: users.text,
+		cityId: city.id,
+		cityName: city.name,
+	})
+	.from(users)
+	.innerJoin(city, eq(users.id, city.id));
+
+Expect<
+	Equal<{
+		userId: number;
+		userText: string | null;
+		cityId: number;
+		cityName: string;
+	}[], typeof innerJoinFlat>
+>;
+
+const fullJoinFlat = await db
+	.select({
+		userId: users.id,
+		userText: users.text,
+		cityId: city.id,
+		cityName: city.name,
+	})
+	.from(users)
+	.fullJoin(city, eq(users.id, city.id));
+
+Expect<
+	Equal<{
+		userId: number | null;
+		userText: string | null;
+		cityId: number | null;
+		cityName: string | null;
+	}[], typeof fullJoinFlat>
+>;
+
+const crossJoinFlat = await db
+	.select({
+		userId: users.id,
+		userText: users.text,
+		cityId: city.id,
+		cityName: city.name,
+	})
+	.from(users)
+	.crossJoin(city);
+
+Expect<
+	Equal<{
+		userId: number;
+		userText: string | null;
+		cityId: number;
+		cityName: string;
+	}[], typeof crossJoinFlat>
+>;
+
+const leftJoinMixed = await db
+	.select({
+		id: users.id,
+		text: users.text,
+		textUpper: sql<string | null>`upper(${users.text})`,
+		idComplex: sql<string | null>`${users.id}::text || ${city.id}::text`,
+		city: {
+			id: city.id,
+			name: city.name,
+		},
+	})
+	.from(users)
+	.leftJoin(city, eq(users.id, city.id));
+
+Expect<
+	Equal<
+		{
+			id: number;
+			text: string | null;
+			textUpper: string | null;
+			idComplex: string | null;
+			city: {
+				id: number;
+				name: string;
+			} | null;
+		}[],
+		typeof leftJoinMixed
+	>
+>;
+
+const leftJoinMixed2 = await db
+	.select({
+		id: users.id,
+		text: users.text,
+		foo: {
+			bar: users.id,
+			baz: cities.id,
+		},
+	})
+	.from(users)
+	.leftJoin(cities, eq(users.id, cities.id));
+
+Expect<
+	Equal<
+		{
+			id: number;
+			text: string | null;
+			foo: {
+				bar: number;
+				baz: number | null;
+			};
+		}[],
+		typeof leftJoinMixed2
+	>
+>;
+
 const join = await db
 	.select({
 		users,
