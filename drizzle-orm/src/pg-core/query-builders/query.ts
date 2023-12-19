@@ -28,6 +28,9 @@ export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFie
 		private session: PgSession,
 	) {}
 
+	declare $inferFindManyArgs: DBQueryConfig<'many', true, TSchema, TFields>;
+	declare $inferFindFirstArgs: Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>;
+
 	findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', true, TSchema, TFields>>,
 	): PgRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig>[]> {

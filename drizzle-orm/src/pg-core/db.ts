@@ -16,16 +16,11 @@ import type {
 } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import type {
-	DBQueryConfig,
-	ExtractTablesWithRelations,
-	RelationalSchemaConfig,
-	TablesRelationalConfig,
-} from '~/relations.ts';
+import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
-import type { DrizzleTypeError, Simplify } from '~/utils.ts';
+import type { DrizzleTypeError } from '~/utils.ts';
 import type { PgColumn } from './columns/index.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import { PgRefreshMaterializedView } from './query-builders/refresh-materialized-view.ts';
@@ -48,10 +43,7 @@ export class PgDatabase<
 	query: TFullSchema extends Record<string, never>
 		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
 		: {
-			[K in keyof TSchema]: RelationalQueryBuilder<TSchema, TSchema[K]> & {
-				$inferFindManyArgs: Simplify<DBQueryConfig<'many', true, TSchema, TSchema[K]>>;
-				$inferFindFirstArgs: Simplify<Omit<DBQueryConfig<'many', true, TSchema, TSchema[K]>, 'limit'>>;
-			};
+			[K in keyof TSchema]: RelationalQueryBuilder<TSchema, TSchema[K]>;
 		};
 
 	constructor(
@@ -67,7 +59,7 @@ export class PgDatabase<
 		this.query = {} as typeof this['query'];
 		if (this._.schema) {
 			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				(this.query as PgDatabase<TQueryResult, Record<string, any>>['query'])[tableName] = new RelationalQueryBuilder(
+				this.query[tableName as keyof TSchema] = new RelationalQueryBuilder(
 					schema!.fullSchema,
 					this._.schema,
 					this._.tableNamesMap,
@@ -75,7 +67,7 @@ export class PgDatabase<
 					columns,
 					dialect,
 					session,
-				) as any;
+				) as this['query'][keyof TSchema];
 			}
 		}
 	}
@@ -398,8 +390,8 @@ export type PgWithReplicas<Q> = Q & { $primary: Q };
 export const withReplicas = <
 	HKT extends QueryResultHKT,
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-	Q extends PgDatabase<HKT, TFullSchema, TSchema>,
+	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
+	Q extends PgDatabase<HKT, TFullSchema, TSchema> = PgDatabase<HKT, TFullSchema, TSchema>,
 >(
 	primary: Q,
 	replicas: [Q, ...Q[]],

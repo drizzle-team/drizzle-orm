@@ -32,6 +32,9 @@ export class RelationalQueryBuilder<
 		private mode: Mode,
 	) {}
 
+	declare $inferFindManyArgs: DBQueryConfig<'many', true, TSchema, TFields>;
+	declare $inferFindFirstArgs: Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>;
+
 	findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', true, TSchema, TFields>>,
 	): MySqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {

@@ -1,16 +1,11 @@
 import type { ResultSetHeader } from 'mysql2/promise';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import type {
-	DBQueryConfig,
-	ExtractTablesWithRelations,
-	RelationalSchemaConfig,
-	TablesRelationalConfig,
-} from '~/relations.ts';
+import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
-import type { DrizzleTypeError, Simplify } from '~/utils.ts';
+import type { DrizzleTypeError } from '~/utils.ts';
 import type { MySqlDialect } from './dialect.ts';
 import {
 	MySqlDeleteBase,
@@ -49,10 +44,7 @@ export class MySqlDatabase<
 	query: TFullSchema extends Record<string, never>
 		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
 		: {
-			[K in keyof TSchema]: RelationalQueryBuilder<TPreparedQueryHKT, TSchema, TSchema[K]> & {
-				$inferFindManyArgs: Simplify<DBQueryConfig<'many', true, TSchema, TSchema[K]>>;
-				$inferFindFirstArgs: Simplify<Omit<DBQueryConfig<'many', true, TSchema, TSchema[K]>, 'limit'>>;
-			};
+			[K in keyof TSchema]: RelationalQueryBuilder<TPreparedQueryHKT, TSchema, TSchema[K]>;
 		};
 
 	constructor(
@@ -69,17 +61,16 @@ export class MySqlDatabase<
 		this.query = {} as typeof this['query'];
 		if (this._.schema) {
 			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				(this.query as MySqlDatabase<TQueryResult, TPreparedQueryHKT, Record<string, any>>['query'])[tableName] =
-					new RelationalQueryBuilder(
-						schema!.fullSchema,
-						this._.schema,
-						this._.tableNamesMap,
-						schema!.fullSchema[tableName] as MySqlTable,
-						columns,
-						dialect,
-						session,
-						this.mode,
-					) as any;
+				this.query[tableName as keyof TSchema] = new RelationalQueryBuilder(
+					schema!.fullSchema,
+					this._.schema,
+					this._.tableNamesMap,
+					schema!.fullSchema[tableName] as MySqlTable,
+					columns,
+					dialect,
+					session,
+					this.mode,
+				) as this['query'][keyof TSchema];
 			}
 		}
 	}

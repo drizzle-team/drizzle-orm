@@ -1,11 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import type {
-	DBQueryConfig,
-	ExtractTablesWithRelations,
-	RelationalSchemaConfig,
-	TablesRelationalConfig,
-} from '~/relations.ts';
+import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
@@ -25,7 +20,7 @@ import type {
 } from '~/sqlite-core/session.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { WithSubquery } from '~/subquery.ts';
-import type { DrizzleTypeError, Simplify } from '~/utils.ts';
+import type { DrizzleTypeError } from '~/utils.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import { SQLiteRaw } from './query-builders/raw.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
@@ -47,10 +42,7 @@ export class BaseSQLiteDatabase<
 	query: TFullSchema extends Record<string, never>
 		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
 		: {
-			[K in keyof TSchema]: RelationalQueryBuilder<TResultKind, TFullSchema, TSchema, TSchema[K]> & {
-				$inferFindManyArgs: Simplify<DBQueryConfig<'many', true, TSchema, TSchema[K]>>;
-				$inferFindFirstArgs: Simplify<Omit<DBQueryConfig<'many', true, TSchema, TSchema[K]>, 'limit'>>;
-			};
+			[K in keyof TSchema]: RelationalQueryBuilder<TResultKind, TFullSchema, TSchema, TSchema[K]>;
 		};
 
 	constructor(
