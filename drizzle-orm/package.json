@@ -138,6 +138,8 @@
     "better-sqlite3": "^8.4.0",
     "bun-types": "^0.6.6",
     "cpy": "^10.1.0",
+    "expo-crypto": "^12.6.0",
+    "expo-sqlite": "^11.6.0",
     "knex": "^2.4.2",
     "kysely": "^0.25.0",
     "mysql2": "^3.3.3",

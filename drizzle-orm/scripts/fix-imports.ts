@@ -14,8 +14,8 @@ function resolvePathAlias(importPath: string, file: string) {
 	return importPath;
 }
 
-function fixImportPath(importPath: string, file: string, ext: string) {
-	importPath = resolvePathAlias(importPath, file);
+function fixImportPath(importPath: string | undefined, file: string, ext: string) {
+	importPath = resolvePathAlias(importPath || "", file);
 
 	if (!/\..*\.(js|ts)$/.test(importPath)) {
 		return importPath;
