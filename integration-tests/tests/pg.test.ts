@@ -69,7 +69,7 @@ import {
 import getPort from 'get-port';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
-import { type Equal, Expect } from './utils.ts';
+import { type Equal, Expect, randomString } from './utils.ts';
 
 const { Client } = pg;
 
@@ -1119,7 +1119,7 @@ test.serial('prepared statement with placeholder in .offset', async (t) => {
 });
 
 // TODO change tests to new structure
-test.serial('migrator', async (t) => {
+test.serial('migrator : default migration strategy', async (t) => {
 	const { db } = t.context;
 
 	await db.execute(sql`drop table if exists all_columns`);
@@ -1137,6 +1137,77 @@ test.serial('migrator', async (t) => {
 	await db.execute(sql`drop table all_columns`);
 	await db.execute(sql`drop table users12`);
 	await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
+});
+
+test.serial('migrator : migrate with custom schema', async (t) => { 
+	const { db } = t.context;
+	const customSchema = randomString();
+	await db.execute(sql`drop table if exists all_columns`);
+	await db.execute(sql`drop table if exists users12`);
+	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+
+	await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsSchema: customSchema });
+
+	// test if the custom migrations table was created
+	const {rowCount} = await db.execute(sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`);
+	t.true(rowCount > 0);
+
+	// test if the migrated table are working as expected
+	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	const result = await db.select().from(usersMigratorTable);
+	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+	
+	await db.execute(sql`drop table all_columns`);
+	await db.execute(sql`drop table users12`);
+	await db.execute(sql`drop table ${sql.identifier(customSchema)}."__drizzle_migrations"`);
+});
+
+test.serial('migrator : migrate with custom table', async (t) => { 
+	const { db } = t.context;
+	const customTable = randomString();
+	await db.execute(sql`drop table if exists all_columns`);
+	await db.execute(sql`drop table if exists users12`);
+	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+
+	await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsTable: customTable});
+
+	// test if the custom migrations table was created
+	const {rowCount} = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
+	t.true(rowCount > 0);
+
+	// test if the migrated table are working as expected
+	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	const result = await db.select().from(usersMigratorTable);
+	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+	
+	await db.execute(sql`drop table all_columns`);
+	await db.execute(sql`drop table users12`);
+	await db.execute(sql`drop table "drizzle".${sql.identifier(customTable)}`);
+});
+
+
+test.serial('migrator : migrate with custom table and custom schema', async (t) => { 
+	const { db } = t.context;
+	const customTable = randomString();
+	const customSchema = randomString();
+	await db.execute(sql`drop table if exists all_columns`);
+	await db.execute(sql`drop table if exists users12`);
+	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+
+	await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsTable: customTable, migrationsSchema: customSchema});
+
+	// test if the custom migrations table was created
+	const {rowCount} = await db.execute(sql`select * from ${sql.identifier(customSchema)}.${sql.identifier(customTable)};`);
+	t.true(rowCount > 0);
+
+	// test if the migrated table are working as expected
+	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	const result = await db.select().from(usersMigratorTable);
+	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+	
+	await db.execute(sql`drop table all_columns`);
+	await db.execute(sql`drop table users12`);
+	await db.execute(sql`drop table ${sql.identifier(customSchema)}.${sql.identifier(customTable)}`);
 });
 
 test.serial('insert via db.execute + select via db.execute', async (t) => {

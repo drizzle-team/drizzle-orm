@@ -11,8 +11,7 @@ import { alias, customType, pgTable, pgTableCreator, serial, text } from 'drizzl
 import getPort from 'get-port';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
-
-const randomString = () => Array.from({length: 10}, () => 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]).join('');
+import { randomString } from './utils';
 
 const { Client } = pg;
 
