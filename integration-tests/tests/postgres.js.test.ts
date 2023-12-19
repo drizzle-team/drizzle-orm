@@ -1979,8 +1979,7 @@ test.serial('all date and time columns', async (t) => {
 			datetime: someDatetime,
 			datetimeWTZ: someDatetime,
 			datetimeString: '2022-01-01 00:00:00.123',
-			// Postgres trim the microseconds for some reason
-			datetimeFullPrecision: '2022-01-01 00:00:00.123',
+			datetimeFullPrecision: fullPrecision.replace('T', ' ').replace('Z', ''),
 			datetimeWTZString: '2022-01-01 00:00:00.123+00',
 			interval: '1 day',
 		},
