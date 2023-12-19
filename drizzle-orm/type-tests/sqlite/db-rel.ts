@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { type Equal, Expect } from 'type-tests/utils.ts';
 import { drizzle } from '~/better-sqlite3';
-import { InferFirstRelationalResult, InferManyRelationalResult } from '~/relations.ts';
+import type { InferFirstRelationalResult, InferManyRelationalResult } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import * as schema from './tables-rel.ts';
 

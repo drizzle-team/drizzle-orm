@@ -16,9 +16,9 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
+import type { Name } from '~/sql/index.ts';
+import { and, eq } from '~/sql/index.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
-import type { Name} from '~/sql/index.ts';
-import { and, eq } from '~/sql/index.ts'
 import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders/index.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
@@ -709,7 +709,7 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 
 	migrate(
 		migrations: MigrationMeta[],
-		session: SQLiteSession<'sync', unknown, Record<string, unknown>, TablesRelationalConfig>,
+		session: SQLiteSession<'sync', unknown, Record<string, unknown>, any>,
 	): void {
 		const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
@@ -752,7 +752,7 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 
 	async migrate(
 		migrations: MigrationMeta[],
-		session: SQLiteSession<'async', unknown, Record<string, unknown>, TablesRelationalConfig>,
+		session: SQLiteSession<'async', unknown, Record<string, unknown>, any>,
 	): Promise<void> {
 		const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (

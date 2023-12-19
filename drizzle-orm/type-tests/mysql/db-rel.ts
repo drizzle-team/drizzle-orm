@@ -1,7 +1,7 @@
 import * as mysql from 'mysql2';
 import { type Equal, Expect } from 'type-tests/utils.ts';
 import { drizzle } from '~/mysql2/index.ts';
-import { InferFirstRelationalResult, InferManyRelationalResult } from '~/relations.ts';
+import type { InferFirstRelationalResult, InferManyRelationalResult } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import * as schema from './tables-rel.ts';
 
