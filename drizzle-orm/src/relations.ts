@@ -716,3 +716,39 @@ export function mapRelationalRow(
 
 	return result;
 }
+
+export type InferRelationalResult<
+	TFullSchema extends Record<string, unknown>,
+	TTable extends keyof TSchema,
+	TConfig extends Simplify<DBQueryConfig<'many', true, TSchema, TFields>>,
+	TMode extends 'many' | 'first' = 'many',
+	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
+	TFields extends TableRelationalConfig = TSchema[TTable],
+> = TMode extends 'many' ? BuildQueryResult<TSchema, TFields, TConfig>[]
+	: BuildQueryResult<TSchema, TFields, TConfig> | undefined;
+
+export type InferManyRelationalResult<
+	TFullSchema extends Record<string, unknown>,
+	TTable extends keyof ExtractTablesWithRelations<TFullSchema>,
+	TConfig extends Simplify<
+		DBQueryConfig<
+			'many',
+			true,
+			ExtractTablesWithRelations<TFullSchema>,
+			ExtractTablesWithRelations<TFullSchema>[TTable]
+		>
+	> = {},
+> = InferRelationalResult<TFullSchema, TTable, TConfig>;
+
+export type InferFirstRelationalResult<
+	TFullSchema extends Record<string, unknown>,
+	TTable extends keyof ExtractTablesWithRelations<TFullSchema>,
+	TConfig extends Simplify<
+		DBQueryConfig<
+			'many',
+			true,
+			ExtractTablesWithRelations<TFullSchema>,
+			ExtractTablesWithRelations<TFullSchema>[TTable]
+		>
+	> = {},
+> = InferRelationalResult<TFullSchema, TTable, TConfig, 'first'>;
