@@ -51,7 +51,7 @@ export class MySqlDatabase<
 		: {
 			[K in keyof TSchema]: RelationalQueryBuilder<TPreparedQueryHKT, TSchema, TSchema[K]> & {
 				$inferFindManyArgs: Simplify<DBQueryConfig<'many', true, TSchema, TSchema[K]>>;
-				$InferFindFirstArgs: Simplify<Omit<DBQueryConfig<'many', true, TSchema, TSchema[K]>, 'limit'>>;
+				$inferFindFirstArgs: Simplify<Omit<DBQueryConfig<'many', true, TSchema, TSchema[K]>, 'limit'>>;
 			};
 		};
 

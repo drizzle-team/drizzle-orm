@@ -49,7 +49,7 @@ export class BaseSQLiteDatabase<
 		: {
 			[K in keyof TSchema]: RelationalQueryBuilder<TResultKind, TFullSchema, TSchema, TSchema[K]> & {
 				$inferFindManyArgs: Simplify<DBQueryConfig<'many', true, TSchema, TSchema[K]>>;
-				$InferFindFirstArgs: Simplify<Omit<DBQueryConfig<'many', true, TSchema, TSchema[K]>, 'limit'>>;
+				$inferFindFirstArgs: Simplify<Omit<DBQueryConfig<'many', true, TSchema, TSchema[K]>, 'limit'>>;
 			};
 		};
 
