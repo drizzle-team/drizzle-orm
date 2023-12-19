@@ -168,7 +168,7 @@ importers:
         version: 3.12.7
       vite-tsconfig-paths:
         specifier: ^4.2.0
-        version: 4.2.0
+        version: 4.2.0(typescript@5.2.2)(vite@4.3.9)
       vitest:
         specifier: ^0.31.4
         version: 0.31.4
@@ -186,7 +186,7 @@ importers:
         version: 0.4.1(rollup@3.27.2)
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.1(rollup@3.27.2)(typescript@5.2.2)
+        version: 11.1.1(rollup@3.27.2)(typescript@5.3.3)
       '@sinclair/typebox':
         specifier: ^0.29.6
         version: 0.29.6
@@ -222,7 +222,7 @@ importers:
         version: 0.4.1(rollup@3.27.2)
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.1(rollup@3.27.2)(typescript@5.2.2)
+        version: 11.1.1(rollup@3.27.2)(typescript@5.3.3)
       '@sinclair/typebox':
         specifier: ^0.29.6
         version: 0.29.6
@@ -261,7 +261,7 @@ importers:
         version: 0.4.1(rollup@3.27.2)
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.1(rollup@3.27.2)(typescript@5.2.2)
+        version: 11.1.1(rollup@3.27.2)(typescript@5.3.3)
       '@types/node':
         specifier: ^18.15.10
         version: 18.15.10
@@ -284,8 +284,8 @@ importers:
         specifier: ^3.12.2
         version: 3.12.7
       zod:
-        specifier: ^3.20.2
-        version: 3.20.2
+        specifier: ^3.22.4
+        version: 3.22.4
       zx:
         specifier: ^7.2.2
         version: 7.2.2
@@ -3362,7 +3362,7 @@ packages:
       '@expo/metro-config': 0.10.7
       '@expo/osascript': 2.0.33
       '@expo/spawn-async': 1.5.0
-      body-parser: 1.20.1
+      body-parser: 1.20.2
       chalk: 4.1.2
       connect: 3.7.0
       fs-extra: 9.0.0
@@ -3393,7 +3393,7 @@ packages:
       rimraf: 2.7.1
       sudo-prompt: 8.2.5
       tmp: 0.0.33
-      tslib: 2.6.2
+      tslib: 2.5.2
     transitivePeerDependencies:
       - supports-color
     dev: true
@@ -3618,7 +3618,7 @@ packages:
     dependencies:
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 20.10.4
+      '@types/node': 20.2.5
       '@types/yargs': 15.0.19
       chalk: 4.1.2
     dev: true
@@ -3849,7 +3849,7 @@ packages:
       terser: 5.26.0
     dev: true
 
-  /@rollup/plugin-typescript@11.1.1(rollup@3.27.2)(typescript@5.2.2):
+  /@rollup/plugin-typescript@11.1.1(rollup@3.27.2)(typescript@5.3.3):
     resolution: {integrity: sha512-Ioir+x5Bejv72Lx2Zbz3/qGg7tvGbxQZALCLoJaGrkNXak/19+vKgKYJYM3i/fJxvsb23I9FuFQ8CUBEfsmBRg==}
     engines: {node: '>=14.0.0'}
     peerDependencies:
@@ -3865,7 +3865,7 @@ packages:
       '@rollup/pluginutils': 5.1.0(rollup@3.27.2)
       resolve: 1.22.8
       rollup: 3.27.2
-      typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
+      typescript: 5.3.3
     dev: true
 
   /@rollup/pluginutils@5.1.0(rollup@3.27.2):
@@ -5120,6 +5120,27 @@ packages:
       unpipe: 1.0.0
     transitivePeerDependencies:
       - supports-color
+    dev: false
+
+  /body-parser@1.20.2:
+    resolution: {integrity: sha512-ml9pReCu3M61kGlqoTm2umSXTlRTuGTx0bfYj+uIUKKYycG5NtSbeetV3faSU6R7ajOPw0g/J1PvK4qNy7s5bA==}
+    engines: {node: '>= 0.8', npm: 1.2.8000 || >= 1.4.16}
+    dependencies:
+      bytes: 3.1.2
+      content-type: 1.0.5
+      debug: 2.6.9
+      depd: 2.0.0
+      destroy: 1.2.0
+      http-errors: 2.0.0
+      iconv-lite: 0.4.24
+      on-finished: 2.4.1
+      qs: 6.11.0
+      raw-body: 2.5.2
+      type-is: 1.6.18
+      unpipe: 1.0.0
+    transitivePeerDependencies:
+      - supports-color
+    dev: true
 
   /bowser@2.11.0:
     resolution: {integrity: sha512-AlcaJBi/pqqJBIQ8U9Mcpc9i8Aqxn88Skv5d+xBX006BY5u8N3mGLHa5Lgppa7L/HfwgwLgZ6NYs+Ag6uUmJRA==}
@@ -5168,7 +5189,7 @@ packages:
     hasBin: true
     dependencies:
       caniuse-lite: 1.0.30001570
-      electron-to-chromium: 1.4.614
+      electron-to-chromium: 1.4.615
       node-releases: 2.0.14
       update-browserslist-db: 1.0.13(browserslist@4.22.2)
     dev: true
@@ -6031,7 +6052,7 @@ packages:
       hanji: 0.0.5
       json-diff: 0.9.0
       minimatch: 7.4.6
-      zod: 3.20.2
+      zod: 3.22.4
     transitivePeerDependencies:
       - supports-color
     dev: true
@@ -6112,8 +6133,8 @@ packages:
   /ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  /electron-to-chromium@1.4.614:
-    resolution: {integrity: sha512-X4ze/9Sc3QWs6h92yerwqv7aB/uU8vCjZcrMjA8N9R1pjMFRe44dLsck5FzLilOYvcXuDn93B+bpGYyufc70gQ==}
+  /electron-to-chromium@1.4.615:
+    resolution: {integrity: sha512-/bKPPcgZVUziECqDc+0HkT87+0zhaWSZHNXqF8FLd2lQcptpmUFwoCSWjCdOng9Gdq+afKArPdEg/0ZW461Eng==}
     dev: true
 
   /emittery@1.0.1:
@@ -7670,7 +7691,7 @@ packages:
       graphql: ^0.9.0 || ^0.10.0 || ^0.11.0 || ^0.12.0 || ^0.13.0 || ^14.0.0 || ^15.0.0 || ^16.0.0
     dependencies:
       graphql: 15.8.0
-      tslib: 2.6.2
+      tslib: 2.5.2
     dev: true
 
   /graphql@15.8.0:
@@ -10015,6 +10036,17 @@ packages:
       http-errors: 2.0.0
       iconv-lite: 0.4.24
       unpipe: 1.0.0
+    dev: false
+
+  /raw-body@2.5.2:
+    resolution: {integrity: sha512-8zGqypfENjCIqGhgXToC8aB2r7YrBX+AQAfIPs/Mlk+BtPTztOvTS01NRW/3Eh60J+a48lt8qsCzirQ6loCVfA==}
+    engines: {node: '>= 0.8'}
+    dependencies:
+      bytes: 3.1.2
+      http-errors: 2.0.0
+      iconv-lite: 0.4.24
+      unpipe: 1.0.0
+    dev: true
 
   /rc@1.2.8:
     resolution: {integrity: sha512-y3bGgqKj3QBdxLbLkomlohkvsA8gdAiUQlSBJnBhfn+BPxg4bc62d8TcBW15wavDfgexCgccckhcZvywyQYPOw==}
@@ -11145,17 +11177,6 @@ packages:
     resolution: {integrity: sha512-Y/arvbn+rrz3JCKl9C4kVNfTfSm2/mEp5FSz5EsZSANGPSlQrpRI5M4PKF+mJnE52jOO90PnPSc3Ur3bTQw0gA==}
     dev: true
 
-  /tsconfck@2.1.2:
-    resolution: {integrity: sha512-ghqN1b0puy3MhhviwO2kGF8SeMDNhEbnKxjK7h6+fvY9JAxqvXi8y5NAHSQv687OVboS2uZIByzGd45/YxrRHg==}
-    engines: {node: ^14.13.1 || ^16 || >=18}
-    hasBin: true
-    peerDependencies:
-      typescript: ^4.3.5 || ^5.0.0
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-    dev: true
-
   /tsconfck@2.1.2(typescript@5.2.2):
     resolution: {integrity: sha512-ghqN1b0puy3MhhviwO2kGF8SeMDNhEbnKxjK7h6+fvY9JAxqvXi8y5NAHSQv687OVboS2uZIByzGd45/YxrRHg==}
     engines: {node: ^14.13.1 || ^16 || >=18}
@@ -11428,6 +11449,12 @@ packages:
     hasBin: true
     dev: true
     patched: true
+
+  /typescript@5.3.3:
+    resolution: {integrity: sha512-pXWcraxM0uxAS+tN0AG/BF2TyqmHO014Z070UsJ+pFvYuRSq8KH8DmWpnbXe0pEPDHXZV3FcAbJkijJ5oNEnWw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
+    dev: true
 
   /ua-parser-js@1.0.37:
     resolution: {integrity: sha512-bhTyI94tZofjo+Dn8SN6Zv8nBDvyXTymAdM3LDI/0IboIUwTu1rEhW7v2TfiVsoYWgkQ4kOVqnI8APUFbIQIFQ==}
@@ -11708,22 +11735,6 @@ packages:
       - sugarss
       - supports-color
       - terser
-    dev: true
-
-  /vite-tsconfig-paths@4.2.0:
-    resolution: {integrity: sha512-jGpus0eUy5qbbMVGiTxCL1iB9ZGN6Bd37VGLJU39kTDD6ZfULTTb1bcc5IeTWqWJKiWV5YihCaibeASPiGi8kw==}
-    peerDependencies:
-      vite: '*'
-    peerDependenciesMeta:
-      vite:
-        optional: true
-    dependencies:
-      debug: 4.3.4
-      globrex: 0.1.2
-      tsconfck: 2.1.2
-    transitivePeerDependencies:
-      - supports-color
-      - typescript
     dev: true
 
   /vite-tsconfig-paths@4.2.0(typescript@5.2.2)(vite@4.3.9):
@@ -12267,6 +12278,10 @@ packages:
 
   /zod@3.20.2:
     resolution: {integrity: sha512-1MzNQdAvO+54H+EaK5YpyEy0T+Ejo/7YLHS93G3RnYWh5gaotGHwGeN/ZO687qEDU2y4CdStQYXVHIgrUl5UVQ==}
+
+  /zod@3.22.4:
+    resolution: {integrity: sha512-iC+8Io04lddc+mVqQ9AZ7OQ2MrUKGN+oIQyq1vemgt46jwCwLfhq7/pwnBnNXXXZb8VTVLKwp9EDkx+ryxIWmg==}
+    dev: true
 
   /zx@7.2.2:
     resolution: {integrity: sha512-50Gjicd6ijTt7Zcz5fNX+rHrmE0uVqC+X6lYKhf2Cu8wIxDpNIzXwTmzchNdW+JY3LFsRcU43B1lHE4HBMmKgQ==}
