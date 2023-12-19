@@ -1,14 +1,12 @@
-import pg from 'pg';
+import Database from 'better-sqlite3';
 import { type Equal, Expect } from 'type-tests/utils.ts';
-import { drizzle } from '~/node-postgres/index.ts';
+import { drizzle } from '~/better-sqlite3';
 import { InferFirstRelationalResult, InferManyRelationalResult } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import * as schema from './tables-rel.ts';
 
-const { Pool } = pg;
-
-const pdb = new Pool({ connectionString: process.env['PG_CONNECTION_STRING'] });
-const db = drizzle(pdb, { schema });
+const sqlite = new Database('sqlite.db');
+const db = drizzle(sqlite, { schema });
 
 {
 	const result = await db.query.users.findMany({
@@ -21,7 +19,6 @@ const db = drizzle(pdb, { schema });
 				limit: sql.placeholder('l'),
 				columns: {
 					id: false,
-					title: undefined,
 				},
 				with: {
 					author: true,
@@ -33,9 +30,7 @@ const db = drizzle(pdb, { schema });
 						},
 						with: {
 							author: {
-								columns: {
-									id: undefined,
-								},
+								columns: {},
 								with: {
 									city: {
 										with: {
