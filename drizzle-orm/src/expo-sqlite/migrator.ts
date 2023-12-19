@@ -16,7 +16,7 @@ async function readMigrationFiles({ journal, migrations }: MigrationConfig): Pro
 		const query = migrations[`m${journalEntry.idx.toString().padStart(4, '0')}`];
 
 		if (!query) {
-			throw new Error(`Missing migration file: ${journalEntry.tag}`);
+			throw new Error(`Missing migration: ${journalEntry.tag}`);
 		}
 
 		try {
