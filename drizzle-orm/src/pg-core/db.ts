@@ -16,11 +16,16 @@ import type {
 } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type {
+	DBQueryConfig,
+	ExtractTablesWithRelations,
+	RelationalSchemaConfig,
+	TablesRelationalConfig,
+} from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
-import type { DrizzleTypeError } from '~/utils.ts';
+import type { DrizzleTypeError, Simplify } from '~/utils.ts';
 import type { PgColumn } from './columns/index.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import { PgRefreshMaterializedView } from './query-builders/refresh-materialized-view.ts';
@@ -43,7 +48,10 @@ export class PgDatabase<
 	query: TFullSchema extends Record<string, never>
 		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
 		: {
-			[K in keyof TSchema]: RelationalQueryBuilder<TSchema, TSchema[K]>;
+			[K in keyof TSchema]: RelationalQueryBuilder<TSchema, TSchema[K]> & {
+				$inferFindManyArgs: Simplify<DBQueryConfig<'many', true, TSchema, TSchema[K]>>;
+				$InferFindFirstArgs: Simplify<Omit<DBQueryConfig<'many', true, TSchema, TSchema[K]>, 'limit'>>;
+			};
 		};
 
 	constructor(
@@ -67,7 +75,7 @@ export class PgDatabase<
 					columns,
 					dialect,
 					session,
-				);
+				) as any;
 			}
 		}
 	}
