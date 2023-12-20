@@ -1,5 +1,6 @@
 import type { AnyColumn, Column } from './column.ts';
 import type { SQL } from './sql/sql.ts';
+import type { Subquery } from './subquery.ts';
 import type { Table } from './table.ts';
 
 export type RequiredKeyOnly<TKey extends string, T extends Column> = T extends AnyColumn<{
@@ -15,7 +16,7 @@ export type OptionalKeyOnly<
 
 export type SelectedFieldsFlat<TColumn extends Column> = Record<
 	string,
-	TColumn | SQL | SQL.Aliased
+	TColumn | SQL | SQL.Aliased | Subquery
 >;
 
 export type SelectedFieldsFlatFull<TColumn extends Column> = Record<
@@ -30,5 +31,5 @@ export type SelectedFields<TColumn extends Column, TTable extends Table> = Recor
 
 export type SelectedFieldsOrdered<TColumn extends Column> = {
 	path: string[];
-	field: TColumn | SQL | SQL.Aliased;
+	field: TColumn | SQL | SQL.Aliased | Subquery;
 }[];
