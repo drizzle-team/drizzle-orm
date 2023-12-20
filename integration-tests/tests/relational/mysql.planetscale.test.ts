@@ -3945,6 +3945,100 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 	});
 });
 
+test('Get user with posts and posts with comments and comments with owner where exists', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ id: 1, ownerId: 1, content: 'Post1' },
+		{ id: 2, ownerId: 2, content: 'Post2' },
+		{ id: 3, ownerId: 3, content: 'Post3' },
+	]);
+
+	await db.insert(commentsTable).values([
+		{ postId: 1, content: 'Comment1', creator: 2 },
+		{ postId: 2, content: 'Comment2', creator: 2 },
+		{ postId: 3, content: 'Comment3', creator: 3 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		with: {
+			posts: {
+				with: {
+					comments: {
+						with: {
+							author: true,
+						},
+					},
+				},
+			},
+		},
+		where: (table, { exists, eq }) => exists(db.select({ one: sql`1` }).from(usersTable).where(eq(sql`1`, table.id))),
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+			comments: {
+				id: number;
+				content: string;
+				createdAt: Date;
+				creator: number | null;
+				postId: number | null;
+				author: {
+					id: number;
+					name: string;
+					verified: boolean;
+					invitedBy: number | null;
+				} | null;
+			}[];
+		}[];
+	}[]>();
+
+	expect(response.length).eq(1);
+	expect(response[0]?.posts.length).eq(1);
+
+	expect(response[0]?.posts[0]?.comments.length).eq(1);
+
+	expect(response[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: 0,
+		invitedBy: null,
+		posts: [{
+			id: 1,
+			ownerId: 1,
+			content: 'Post1',
+			createdAt: response[0]?.posts[0]?.createdAt,
+			comments: [
+				{
+					id: 1,
+					content: 'Comment1',
+					creator: 2,
+					author: {
+						id: 2,
+						name: 'Andrew',
+						verified: 0,
+						invitedBy: null,
+					},
+					postId: 1,
+					createdAt: response[0]?.posts[0]?.comments[0]?.createdAt,
+				},
+			],
+		}],
+	});
+});
+
 /*
 	One three-level relation + 1 first-level relatioon
 	1. users+posts+comments+comment_owner
