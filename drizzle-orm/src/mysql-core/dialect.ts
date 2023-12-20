@@ -14,11 +14,12 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
+import { Param, SQL, sql, View } from '~/sql/sql.ts';
+import type { QueryWithTypings, SQLChunk } from '~/sql/sql.ts';
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
-import { DrizzleError, type Name, ViewBaseConfig, and, eq } from '../index.ts';
+import { and, DrizzleError, eq, type Name, ViewBaseConfig } from '../index.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
@@ -168,6 +169,23 @@ export class MySqlDialect {
 					} else {
 						chunk.push(field);
 					}
+				} else if (is(field, Subquery)) {
+					const entries = Object.entries(field[SubqueryConfig].selection) as [string, SQL.Aliased | Column | SQL][];
+
+					if (entries.length === 1) {
+						const entry = entries[0]![1];
+
+						const fieldDecoder = is(entry, SQL)
+							? entry.decoder
+							: is(entry, Column)
+							? { mapFromDriverValue: entry.mapFromDriverValue }
+							: entry.sql.decoder;
+
+						if (fieldDecoder) {
+							field[SubqueryConfig].sql.decoder = fieldDecoder;
+						}
+					}
+					chunk.push(field);
 				}
 
 				if (i < columnsLen - 1) {

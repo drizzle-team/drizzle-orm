@@ -24,6 +24,7 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
+import { and, eq, View } from '~/sql/index.ts';
 import {
 	type DriverValueEncoder,
 	type Name,
@@ -39,9 +40,8 @@ import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgSession } from './session.ts';
-import type { PgMaterializedView } from './view.ts';
-import { View, and, eq } from '~/sql/index.ts';
 import { PgViewBase } from './view-base.ts';
+import type { PgMaterializedView } from './view.ts';
 
 export class PgDialect {
 	static readonly [entityKind]: string = 'PgDialect';
@@ -180,6 +180,23 @@ export class PgDialect {
 					} else {
 						chunk.push(field);
 					}
+				} else if (is(field, Subquery)) {
+					const entries = Object.entries(field[SubqueryConfig].selection) as [string, SQL.Aliased | Column | SQL][];
+
+					if (entries.length === 1) {
+						const entry = entries[0]![1];
+
+						const fieldDecoder = is(entry, SQL)
+							? entry.decoder
+							: is(entry, Column)
+							? { mapFromDriverValue: entry.mapFromDriverValue }
+							: entry.sql.decoder;
+
+						if (fieldDecoder) {
+							field[SubqueryConfig].sql.decoder = fieldDecoder;
+						}
+					}
+					chunk.push(field);
 				}
 
 				if (i < columnsLen - 1) {
