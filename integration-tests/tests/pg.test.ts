@@ -3290,3 +3290,41 @@ test.serial('aggregate function: min', async (t) => {
 	t.deepEqual(result1[0]?.value, 10);
 	t.deepEqual(result2[0]?.value, null);
 });
+
+test.serial('array mapping and parsing', async (t) => {
+	const { db } = t.context;
+
+	const arrays = pgTable('arrays_tests', {
+		id: serial('id').primaryKey(),
+		tags: text('tags').array(),
+		nested: text('nested').array().array(),
+		numbers: integer('numbers').notNull().array(),
+	});
+
+	db.execute(sql`drop table if exists ${arrays}`);
+	db.execute(sql`
+		 create table ${arrays} (
+		 id serial primary key,
+		 tags text[],
+		 nested text[][],
+		 numbers integer[]
+		)
+	`);
+
+	await db.insert(arrays).values({
+		tags: ['', 'b', 'c'],
+		nested: [['1', ''], ['3', '\\a']],
+		numbers: [1, 2, 3],
+	});
+
+	const result = await db.select().from(arrays);
+
+	t.deepEqual(result, [{
+		id: 1,
+		tags: ['', 'b', 'c'],
+		nested: [['1', ''], ['3', '\\a']],
+		numbers: [1, 2, 3],
+	}]);
+
+	await db.execute(sql`drop table ${arrays}`);
+});
