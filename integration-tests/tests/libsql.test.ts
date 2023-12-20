@@ -5,24 +5,24 @@ import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import {
 	asc,
+	avg,
+	avgDistinct,
+	count,
+	countDistinct,
 	eq,
 	gt,
 	gte,
 	inArray,
 	type InferModel,
+	max,
+	min,
 	Name,
 	name,
 	placeholder,
 	sql,
-	TransactionRollbackError,
-	count,
-	countDistinct,
-	avg,
-	avgDistinct,
 	sum,
 	sumDistinct,
-	max,
-	min
+	TransactionRollbackError,
 } from 'drizzle-orm';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
@@ -126,7 +126,7 @@ const aggregateTable = sqliteTable('aggregate_table', {
 	a: integer('a'),
 	b: integer('b'),
 	c: integer('c'),
-	nullOnly: integer('null_only')
+	nullOnly: integer('null_only'),
 });
 
 test.before(async (t) => {
@@ -1112,6 +1112,81 @@ test.serial('left join (all fields)', async (t) => {
 			cities: null,
 		},
 	]);
+});
+
+test.serial('select from a many subquery', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(citiesTable)
+		.values([{ name: 'Paris' }, { name: 'London' }]);
+
+	await db.insert(users2Table).values([
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 2 },
+		{ name: 'Jack', cityId: 2 },
+	]);
+
+	const res = await db.select({
+		population: db.select({ count: count().as('count') }).from(users2Table).where(
+			eq(users2Table.cityId, citiesTable.id),
+		).as(
+			'population',
+		),
+		name: citiesTable.name,
+	}).from(citiesTable);
+
+	Expect<
+		Equal<typeof res, {
+			population: number;
+			name: string;
+		}[]>
+	>();
+
+	t.deepEqual(res, [{
+		population: 1,
+		name: 'Paris',
+	}, {
+		population: 2,
+		name: 'London',
+	}]);
+});
+
+test.serial('select from a one subquery', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(citiesTable)
+		.values([{ name: 'Paris' }, { name: 'London' }]);
+
+	await db.insert(users2Table).values([
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 2 },
+		{ name: 'Jack', cityId: 2 },
+	]);
+
+	const res = await db.select({
+		cityName: db.select({ name: citiesTable.name }).from(citiesTable).where(eq(users2Table.cityId, citiesTable.id)).as(
+			'cityName',
+		),
+		name: users2Table.name,
+	}).from(users2Table);
+
+	Expect<
+		Equal<typeof res, {
+			cityName: string;
+			name: string;
+		}[]>
+	>();
+
+	t.deepEqual(res, [{
+		cityName: 'Paris',
+		name: 'John',
+	}, {
+		cityName: 'London',
+		name: 'Jane',
+	}, {
+		cityName: 'London',
+		name: 'Jack',
+	}]);
 });
 
 test.serial('join subquery', async (t) => {

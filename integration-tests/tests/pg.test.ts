@@ -9,25 +9,25 @@ import {
 	arrayContains,
 	arrayOverlaps,
 	asc,
+	avg,
+	avgDistinct,
+	count,
+	countDistinct,
 	eq,
 	gt,
 	gte,
 	inArray,
 	lt,
+	max,
+	min,
 	name,
 	placeholder,
 	type SQL,
 	sql,
 	type SQLWrapper,
-	TransactionRollbackError,
-	count,
-	countDistinct,
-	avg,
-	avgDistinct,
 	sum,
 	sumDistinct,
-	max,
-	min,
+	TransactionRollbackError,
 } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -50,6 +50,7 @@ import {
 	macaddr,
 	macaddr8,
 	type PgColumn,
+	pgEnum,
 	pgMaterializedView,
 	pgTable,
 	pgTableCreator,
@@ -64,7 +65,6 @@ import {
 	uniqueKeyName,
 	uuid as pgUuid,
 	varchar,
-	pgEnum,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import pg from 'pg';
@@ -149,7 +149,7 @@ const aggregateTable = pgTable('aggregate_table', {
 	a: integer('a'),
 	b: integer('b'),
 	c: integer('c'),
-	nullOnly: integer('null_only')
+	nullOnly: integer('null_only'),
 });
 
 interface Context {
@@ -523,7 +523,7 @@ test.serial('select distinct', async (t) => {
 	const usersDistinctTable = pgTable('users_distinct', {
 		id: integer('id').notNull(),
 		name: text('name').notNull(),
-		age: integer('age').notNull()
+		age: integer('age').notNull(),
 	});
 
 	await db.execute(sql`drop table if exists ${usersDistinctTable}`);
@@ -534,7 +534,7 @@ test.serial('select distinct', async (t) => {
 		{ id: 1, name: 'John', age: 24 },
 		{ id: 2, name: 'John', age: 25 },
 		{ id: 1, name: 'Jane', age: 24 },
-		{ id: 1, name: 'Jane', age: 26 }
+		{ id: 1, name: 'Jane', age: 26 },
 	]);
 	const users1 = await db.selectDistinct().from(usersDistinctTable).orderBy(
 		usersDistinctTable.id,
@@ -547,8 +547,8 @@ test.serial('select distinct', async (t) => {
 		usersDistinctTable,
 	).orderBy(usersDistinctTable.name);
 	const users4 = await db.selectDistinctOn([usersDistinctTable.id, usersDistinctTable.age]).from(
-		usersDistinctTable
-	).orderBy(usersDistinctTable.id, usersDistinctTable.age)
+		usersDistinctTable,
+	).orderBy(usersDistinctTable.id, usersDistinctTable.age);
 
 	await db.execute(sql`drop table ${usersDistinctTable}`);
 
@@ -556,7 +556,7 @@ test.serial('select distinct', async (t) => {
 		{ id: 1, name: 'Jane', age: 24 },
 		{ id: 1, name: 'Jane', age: 26 },
 		{ id: 1, name: 'John', age: 24 },
-		{ id: 2, name: 'John', age: 25 }
+		{ id: 2, name: 'John', age: 25 },
 	]);
 
 	t.deepEqual(users2.length, 2);
@@ -570,7 +570,7 @@ test.serial('select distinct', async (t) => {
 	t.deepEqual(users4, [
 		{ id: 1, name: 'John', age: 24 },
 		{ id: 1, name: 'Jane', age: 26 },
-		{ id: 2, name: 'John', age: 25 }
+		{ id: 2, name: 'John', age: 25 },
 	]);
 });
 
@@ -1482,6 +1482,81 @@ test.serial('left join (all fields)', async (t) => {
 			cities: null,
 		},
 	]);
+});
+
+test.serial('select from a many subquery', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(citiesTable)
+		.values([{ name: 'Paris' }, { name: 'London' }]);
+
+	await db.insert(users2Table).values([
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 2 },
+		{ name: 'Jack', cityId: 2 },
+	]);
+
+	const res = await db.select({
+		population: db.select({ count: count().as('count') }).from(users2Table).where(
+			eq(users2Table.cityId, citiesTable.id),
+		).as(
+			'population',
+		),
+		name: citiesTable.name,
+	}).from(citiesTable);
+
+	Expect<
+		Equal<typeof res, {
+			population: number;
+			name: string;
+		}[]>
+	>();
+
+	t.deepEqual(res, [{
+		population: 1,
+		name: 'Paris',
+	}, {
+		population: 2,
+		name: 'London',
+	}]);
+});
+
+test.serial('select from a one subquery', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(citiesTable)
+		.values([{ name: 'Paris' }, { name: 'London' }]);
+
+	await db.insert(users2Table).values([
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 2 },
+		{ name: 'Jack', cityId: 2 },
+	]);
+
+	const res = await db.select({
+		cityName: db.select({ name: citiesTable.name }).from(citiesTable).where(eq(users2Table.cityId, citiesTable.id)).as(
+			'cityName',
+		),
+		name: users2Table.name,
+	}).from(users2Table);
+
+	Expect<
+		Equal<typeof res, {
+			cityName: string;
+			name: string;
+		}[]>
+	>();
+
+	t.deepEqual(res, [{
+		cityName: 'Paris',
+		name: 'John',
+	}, {
+		cityName: 'London',
+		name: 'Jane',
+	}, {
+		cityName: 'London',
+		name: 'Jack',
+	}]);
 });
 
 test.serial('join subquery', async (t) => {
