@@ -1,35 +1,42 @@
 import { Expect } from 'type-tests/utils.ts';
 import { and, eq } from '~/expressions.ts';
+import { count } from '~/index.ts';
 import { alias, int, mysqlTable, serial, text } from '~/mysql-core/index.ts';
 import { sql } from '~/sql/sql.ts';
 import type { DrizzleTypeError, Equal } from '~/utils.ts';
 import { db } from './db.ts';
 
-const names = mysqlTable('names', {
+const users = mysqlTable('names', {
 	id: serial('id').primaryKey(),
 	name: text('name'),
+	managerId: int('author_id'),
+});
+
+const posts = mysqlTable('posts', {
+	id: serial('id').primaryKey(),
 	authorId: int('author_id'),
+	title: text('title'),
 });
 
 const n1 = db
 	.select({
-		id: names.id,
-		name: names.name,
-		authorId: names.authorId,
+		id: users.id,
+		name: users.name,
+		authorId: users.managerId,
 		count1: sql<number>`count(1)::int`.as('count1'),
 	})
-	.from(names)
-	.groupBy(names.id, names.name, names.authorId)
+	.from(users)
+	.groupBy(users.id, users.name, users.managerId)
 	.as('n1');
 
 const n2 = db
 	.select({
-		id: names.id,
-		authorId: names.authorId,
+		id: users.id,
+		authorId: users.managerId,
 		totalCount: sql<number>`count(1)::int`.as('totalCount'),
 	})
-	.from(names)
-	.groupBy(names.id, names.authorId)
+	.from(users)
+	.groupBy(users.id, users.managerId)
 	.as('n2');
 
 const result = await db
@@ -54,16 +61,16 @@ Expect<
 	>
 >;
 
-const names2 = alias(names, 'names2');
+const names2 = alias(users, 'names2');
 
 const sq1 = db
 	.select({
-		id: names.id,
-		name: names.name,
+		id: users.id,
+		name: users.name,
 		id2: names2.id,
 	})
-	.from(names)
-	.leftJoin(names2, eq(names.name, names2.name))
+	.from(users)
+	.leftJoin(names2, eq(users.name, names2.name))
 	.as('sq1');
 
 const res = await db.select().from(sq1);
@@ -80,11 +87,11 @@ Expect<
 >;
 
 {
-	const sq = db.select({ count: sql<number>`count(1)::int` }).from(names).as('sq');
+	const sq = db.select({ count: sql<number>`count(1)::int` }).from(users).as('sq');
 	Expect<typeof sq.count extends DrizzleTypeError<any> ? true : false>;
 }
 
-const sqUnion = db.select().from(names).union(db.select().from(names2)).as('sqUnion');
+const sqUnion = db.select().from(users).union(db.select().from(names2)).as('sqUnion');
 
 const resUnion = await db.select().from(sqUnion);
 
@@ -92,6 +99,26 @@ Expect<
 	Equal<{
 		id: number;
 		name: string | null;
-		authorId: number | null;
+		managerId: number | null;
 	}[], typeof resUnion>
 >;
+
+const fromSubquery = await db.select({
+	count: db.select({ count: count().as('c') }).from(posts).where(eq(posts.authorId, users.id)).as('count'),
+}).from(users);
+
+Expect<Equal<typeof fromSubquery, { count: number }[]>>;
+
+const fromSubquery2 = await db.select({
+	name: db.select({ name: users.name }).from(users).where(eq(users.id, posts.authorId)).as('name'),
+}).from(posts);
+
+Expect<Equal<typeof fromSubquery2, { name: string | null }[]>>;
+
+const errorSubquery = await db.select({
+	name: db.select({ name: users.name, managerId: users.managerId }).from(users).where(eq(users.id, posts.authorId)).as(
+		'name',
+	),
+}).from(posts);
+
+Expect<Equal<typeof errorSubquery, { name: DrizzleTypeError<'You can only select one column in the subquery'> }[]>>;
