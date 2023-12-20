@@ -1,6 +1,7 @@
 import type { MigrationMeta } from '~/migrator.ts';
 import type { ExpoSQLiteDatabase } from './driver.ts';
 import { digestStringAsync, CryptoDigestAlgorithm } from 'expo-crypto';
+import { useEffect, useReducer } from "react";
 
 interface MigrationConfig {
 	journal: {
@@ -44,4 +45,58 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 ) {
 	const migrations = await readMigrationFiles(config);
 	return db.dialect.migrate(migrations, db.session);
+}
+
+interface State {
+	success: boolean;
+	error?: Error;
+}
+
+type Action =
+	| { type: 'migrating' }
+	| { type: 'migrated'; payload: true }
+	| { type: 'error'; payload: Error }
+
+export const useMigrations = (db: ExpoSQLiteDatabase<any>, migrations: {
+	journal: {
+		entries: { idx: number; when: number; tag: string; breakpoints: boolean }[];
+	};
+	migrations: Record<string, string>;
+}): State => {
+	const initialState: State = {
+		success: false,
+		error: undefined,
+	}
+
+	const fetchReducer = (state: State, action: Action): State => {
+		switch (action.type) {
+			case 'migrating': {
+				return { ...initialState }
+			}
+			case 'migrated': {
+				return { ...initialState, success: action.payload }
+			}
+			case 'error': {
+				return { ...initialState, error: action.payload }
+			}
+			default: {
+				return state
+			}
+		}
+	}
+
+	const [state, dispatch] = useReducer(fetchReducer, initialState);
+
+	useEffect(() => {
+		dispatch({ type: 'migrating' })
+		try {
+			migrate(db, migrations as any).then(() => {
+				dispatch({ type: 'migrated', payload: true })
+			})
+		} catch (error) {
+			dispatch({ type: 'error', payload: error as Error })
+		}
+	}, []);
+
+	return state;
 }

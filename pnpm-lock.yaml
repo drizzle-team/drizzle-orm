@@ -118,6 +118,9 @@ importers:
       '@types/pg':
         specifier: ^8.10.1
         version: 8.10.1
+      '@types/react':
+        specifier: ^18.2.45
+        version: 18.2.45
       '@types/sql.js':
         specifier: ^1.4.4
         version: 1.4.4
@@ -154,6 +157,9 @@ importers:
       postgres:
         specifier: ^3.3.5
         version: 3.3.5
+      react:
+        specifier: ^18.2.0
+        version: 18.2.0
       sql.js:
         specifier: ^1.8.0
         version: 1.8.0
@@ -186,7 +192,7 @@ importers:
         version: 0.4.1(rollup@3.27.2)
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.1(rollup@3.27.2)(typescript@5.3.3)
+        version: 11.1.1(rollup@3.27.2)(typescript@5.2.2)
       '@sinclair/typebox':
         specifier: ^0.29.6
         version: 0.29.6
@@ -222,7 +228,7 @@ importers:
         version: 0.4.1(rollup@3.27.2)
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.1(rollup@3.27.2)(typescript@5.3.3)
+        version: 11.1.1(rollup@3.27.2)(typescript@5.2.2)
       '@sinclair/typebox':
         specifier: ^0.29.6
         version: 0.29.6
@@ -261,7 +267,7 @@ importers:
         version: 0.4.1(rollup@3.27.2)
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.1(rollup@3.27.2)(typescript@5.3.3)
+        version: 11.1.1(rollup@3.27.2)(typescript@5.2.2)
       '@types/node':
         specifier: ^18.15.10
         version: 18.15.10
@@ -3393,7 +3399,7 @@ packages:
       rimraf: 2.7.1
       sudo-prompt: 8.2.5
       tmp: 0.0.33
-      tslib: 2.5.2
+      tslib: 2.6.2
     transitivePeerDependencies:
       - supports-color
     dev: true
@@ -3618,7 +3624,7 @@ packages:
     dependencies:
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 20.2.5
+      '@types/node': 20.10.4
       '@types/yargs': 15.0.19
       chalk: 4.1.2
     dev: true
@@ -3849,7 +3855,7 @@ packages:
       terser: 5.26.0
     dev: true
 
-  /@rollup/plugin-typescript@11.1.1(rollup@3.27.2)(typescript@5.3.3):
+  /@rollup/plugin-typescript@11.1.1(rollup@3.27.2)(typescript@5.2.2):
     resolution: {integrity: sha512-Ioir+x5Bejv72Lx2Zbz3/qGg7tvGbxQZALCLoJaGrkNXak/19+vKgKYJYM3i/fJxvsb23I9FuFQ8CUBEfsmBRg==}
     engines: {node: '>=14.0.0'}
     peerDependencies:
@@ -3865,7 +3871,7 @@ packages:
       '@rollup/pluginutils': 5.1.0(rollup@3.27.2)
       resolve: 1.22.8
       rollup: 3.27.2
-      typescript: 5.3.3
+      typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
     dev: true
 
   /@rollup/pluginutils@5.1.0(rollup@3.27.2):
@@ -4107,6 +4113,10 @@ packages:
       pg-types: 2.2.0
     dev: true
 
+  /@types/prop-types@15.7.11:
+    resolution: {integrity: sha512-ga8y9v9uyeiLdpKddhxYQkxNDrfvuPrlFb0N1qnZZByvcElJaXthF1UhvCh9TLWJBEHeNtdnbysW7Y6Uq8CVng==}
+    dev: true
+
   /@types/ps-tree@1.1.6:
     resolution: {integrity: sha512-PtrlVaOaI44/3pl3cvnlK+GxOM3re2526TJvPvh7W+keHIXdV4TE0ylpPBAcvFQCbGitaTXwL9u+RF7qtVeazQ==}
     dev: true
@@ -4117,6 +4127,18 @@ packages:
 
   /@types/range-parser@1.2.7:
     resolution: {integrity: sha512-hKormJbkJqzQGhziax5PItDUTMAM9uE2XXQmM37dyd4hVM+5aVl7oVxMVUiVQn2oCQFN/LKCZdvSM0pFRqbSmQ==}
+    dev: true
+
+  /@types/react@18.2.45:
+    resolution: {integrity: sha512-TtAxCNrlrBp8GoeEp1npd5g+d/OejJHFxS3OWmrPBMFaVQMSN0OFySozJio5BHxTuTeug00AVXVAjfDSfk+lUg==}
+    dependencies:
+      '@types/prop-types': 15.7.11
+      '@types/scheduler': 0.16.8
+      csstype: 3.1.3
+    dev: true
+
+  /@types/scheduler@0.16.8:
+    resolution: {integrity: sha512-WZLiwShhwLRmeV6zH+GkbOFT6Z6VklCItrDioxUnv+u4Ll+8vKeFySoFyK/0ctcRpOmwAicELfmys1sDc/Rw+A==}
     dev: true
 
   /@types/semver@7.5.6:
@@ -5763,6 +5785,10 @@ packages:
   /crypto-random-string@2.0.0:
     resolution: {integrity: sha512-v1plID3y9r/lPhviJ1wrXpLeyUIGAZ2SHNYTEapm7/8A9nLPoyvVp3RK/EPFqn5kEznyWgYZNsRtYYIWbuG8KA==}
     engines: {node: '>=8'}
+    dev: true
+
+  /csstype@3.1.3:
+    resolution: {integrity: sha512-M1uQkMl8rQK/szD0LNhtqxIPLpimGm8sOBwU7lLnCpSbTyY3yeU1Vc7l4KT5zT4s/yOxHH5O7tIuuLOCnLADRw==}
     dev: true
 
   /currently-unhandled@0.4.1:
@@ -7691,7 +7717,7 @@ packages:
       graphql: ^0.9.0 || ^0.10.0 || ^0.11.0 || ^0.12.0 || ^0.13.0 || ^14.0.0 || ^15.0.0 || ^16.0.0
     dependencies:
       graphql: 15.8.0
-      tslib: 2.5.2
+      tslib: 2.6.2
     dev: true
 
   /graphql@15.8.0:
@@ -10069,6 +10095,13 @@ packages:
     engines: {node: '>=0.10.0'}
     dev: true
 
+  /react@18.2.0:
+    resolution: {integrity: sha512-/3IjMdb2L9QbBdWiW5e3P2/npwMBaU9mHCSCUzNln0ZCYbcfTsGbTJrU/kGemdH2IWmB2ioZ+zkxtmq6g09fGQ==}
+    engines: {node: '>=0.10.0'}
+    dependencies:
+      loose-envify: 1.4.0
+    dev: true
+
   /read-pkg-up@7.0.1:
     resolution: {integrity: sha512-zK0TB7Xd6JpCLmlLmufqykGE+/TlOePD6qKClNW7hHDKFh/J7/7gCWGR7joEQEW1bKq3a3yUZSObOoWLFQ4ohg==}
     engines: {node: '>=8'}
@@ -11449,12 +11482,6 @@ packages:
     hasBin: true
     dev: true
     patched: true
-
-  /typescript@5.3.3:
-    resolution: {integrity: sha512-pXWcraxM0uxAS+tN0AG/BF2TyqmHO014Z070UsJ+pFvYuRSq8KH8DmWpnbXe0pEPDHXZV3FcAbJkijJ5oNEnWw==}
-    engines: {node: '>=14.17'}
-    hasBin: true
-    dev: true
 
   /ua-parser-js@1.0.37:
     resolution: {integrity: sha512-bhTyI94tZofjo+Dn8SN6Zv8nBDvyXTymAdM3LDI/0IboIUwTu1rEhW7v2TfiVsoYWgkQ4kOVqnI8APUFbIQIFQ==}
