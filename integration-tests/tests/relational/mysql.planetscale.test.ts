@@ -4033,7 +4033,7 @@ test('Get user with posts and posts with comments and comments with owner where 
 	expect(response[0]).toEqual({
 		id: 1,
 		name: 'Dan',
-		verified: 0,
+		verified: false,
 		invitedBy: null,
 		posts: [{
 			id: 1,
@@ -4048,7 +4048,7 @@ test('Get user with posts and posts with comments and comments with owner where 
 					author: {
 						id: 2,
 						name: 'Andrew',
-						verified: 0,
+						verified: false,
 						invitedBy: null,
 					},
 					postId: 1,
