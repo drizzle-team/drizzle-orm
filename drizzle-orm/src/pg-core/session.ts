@@ -1,6 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
-import { type TablesRelationalConfig } from '~/relations.ts';
+import type { TablesRelationalConfig } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/index.ts';
 import { tracer } from '~/tracing.ts';
 import { PgDatabase } from './db.ts';

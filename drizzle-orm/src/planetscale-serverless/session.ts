@@ -12,8 +12,8 @@ import {
 	type PreparedQueryHKT,
 	type QueryResultHKT,
 } from '~/mysql-core/session.ts';
-import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/index.ts';
+import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 export type PlanetScaleConnection = Connection;

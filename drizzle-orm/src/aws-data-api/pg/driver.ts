@@ -9,7 +9,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { type DrizzleConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import type { AwsDataApiClient, AwsDataApiPgQueryResultHKT } from './session.ts';
 import { AwsDataApiSession } from './session.ts';
 

@@ -2,10 +2,11 @@ import { entityKind } from '~/entity.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { WithSubqueryWithSelection } from '~/mysql-core/subquery.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import { SelectionProxyHandler, WithSubquery } from '~/subquery.ts';
-import { type ColumnsSelection } from '~/view.ts';
 import { MySqlSelectBuilder } from './select.ts';
 import type { SelectedFields } from './select.types.ts';
+import { WithSubquery } from '~/subquery.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
+import type { ColumnsSelection } from '~/sql/sql.ts';
 
 export class QueryBuilder {
 	static readonly [entityKind]: string = 'MySqlQueryBuilder';
@@ -18,7 +19,7 @@ export class QueryBuilder {
 		return {
 			as<TSelection extends ColumnsSelection>(
 				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
-			): WithSubqueryWithSelection<TSelection, TAlias, 'mysql'> {
+			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {
 					qb = qb(queryBuilder);
 				}
@@ -26,7 +27,7 @@ export class QueryBuilder {
 				return new Proxy(
 					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
 					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-				) as WithSubqueryWithSelection<TSelection, TAlias, 'mysql'>;
+				) as WithSubqueryWithSelection<TSelection, TAlias>;
 			},
 		};
 	}
@@ -35,7 +36,9 @@ export class QueryBuilder {
 		const self = this;
 
 		function select(): MySqlSelectBuilder<undefined, never, 'qb'>;
-		function select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, never, 'qb'>;
+		function select<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): MySqlSelectBuilder<TSelection, never, 'qb'>;
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
 		): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
@@ -75,7 +78,9 @@ export class QueryBuilder {
 	}
 
 	selectDistinct(): MySqlSelectBuilder<undefined, never, 'qb'>;
-	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, never, 'qb'>;
+	selectDistinct<TSelection extends SelectedFields>(
+		fields: TSelection,
+	): MySqlSelectBuilder<TSelection, never, 'qb'>;
 	selectDistinct<TSelection extends SelectedFields>(
 		fields?: TSelection,
 	): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {

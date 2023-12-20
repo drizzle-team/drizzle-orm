@@ -1341,7 +1341,7 @@ test.serial('transaction rollback', (t) => {
 		db.transaction((tx) => {
 			tx.insert(users).values({ balance: 100 }).run();
 			tx.rollback();
-		}), new TransactionRollbackError());
+		}), { instanceOf: TransactionRollbackError });
 
 	const result = db.select().from(users).all();
 
@@ -1400,7 +1400,7 @@ test.serial('nested transaction rollback', (t) => {
 			tx.transaction((tx) => {
 				tx.update(users).set({ balance: 200 }).run();
 				tx.rollback();
-			}), new TransactionRollbackError());
+			}), { instanceOf: TransactionRollbackError });
 	});
 
 	const result = db.select().from(users).all();

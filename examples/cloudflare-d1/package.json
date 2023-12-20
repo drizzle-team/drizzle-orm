@@ -4,8 +4,8 @@
   "description": "",
   "scripts": {
     "test:types": "tsc --noEmit",
-    "generate": "drizzle-kit generate:sqlite --schema=src/schema.ts",
-    "up": "drizzle-kit up:sqlite --schema=src/schema.ts"
+    "generate": "drizzle-kit generate:sqlite",
+    "up": "drizzle-kit up:sqlite"
   },
   "keywords": [],
   "author": "",
