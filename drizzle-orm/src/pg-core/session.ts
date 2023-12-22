@@ -6,6 +6,7 @@ import { tracer } from '~/tracing.ts';
 import { PgDatabase } from './db.ts';
 import type { PgDialect } from './dialect.ts';
 import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
+import type { AnyPgRole } from './role.ts';
 
 export interface PreparedQueryConfig {
 	execute: unknown;
@@ -29,6 +30,14 @@ export interface PgTransactionConfig {
 	isolationLevel?: 'read uncommitted' | 'read committed' | 'repeatable read' | 'serializable';
 	accessMode?: 'read only' | 'read write';
 	deferrable?: boolean;
+	rlsConfig?: {
+		set?: {
+			name: string;
+			value: string;
+			isLocal?: boolean;
+		}[];
+		role?: AnyPgRole;
+	};
 }
 
 export abstract class PgSession<
@@ -114,8 +123,25 @@ export abstract class PgTransaction<
 		return sql.raw(chunks.join(' '));
 	}
 
-	setTransaction(config: PgTransactionConfig): Promise<void> {
-		return this.session.execute(sql`set transaction ${this.getTransactionConfigSQL(config)}`);
+	setTransaction(config: PgTransactionConfig): Promise<void> | void {
+		if (config.accessMode || config.deferrable || config.isolationLevel) {
+			return this.session.execute(sql`set transaction ${this.getTransactionConfigSQL(config)}`);
+		}
+	}
+
+	async executeRLSConfig(config: PgTransactionConfig | undefined): Promise<void> {
+		const rlsConfig = config?.rlsConfig;
+		if (rlsConfig) {
+			if (rlsConfig.set) {
+				for (const { name, value, isLocal } of rlsConfig.set) {
+					await this.session.execute(sql`select set_config(${name}, ${value}, ${isLocal === false ? false : true})`);
+				}
+			}
+
+			if (rlsConfig.role) {
+				await this.session.execute(sql`set local role ${rlsConfig.role}`);
+			}
+		}
 	}
 
 	abstract override transaction<T>(

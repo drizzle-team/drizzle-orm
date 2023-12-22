@@ -183,6 +183,8 @@ export class AwsDataApiSession<
 			await tx.setTransaction(config);
 		}
 		try {
+			await tx.executeRLSConfig(config);
+
 			const result = await transaction(tx);
 			await this.client.send(new CommitTransactionCommand({ ...this.rawQuery, transactionId }));
 			return result;

@@ -1,12 +1,14 @@
 import { entityKind, is } from '~/entity.ts';
+import type { SelectedFields } from '~/operations.ts';
+import { Policy } from '~/policy.ts';
 import { Relation } from '~/relations.ts';
+import { Role } from '~/role.ts';
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { tracer } from '~/tracing.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
 import { Table } from '../table.ts';
-import type { SelectedFields } from '~/operations.ts';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.
@@ -147,6 +149,10 @@ export class SQL<T = unknown> implements SQLWrapper {
 
 			if (is(chunk, Name)) {
 				return { sql: escapeName(chunk.value), params: [] };
+			}
+
+			if (is(chunk, Role) || is(chunk, Policy)) {
+				return { sql: escapeName(chunk.name), params: [] };
 			}
 
 			if (chunk === undefined) {

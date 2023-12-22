@@ -10,6 +10,7 @@ import type { AwsDataApiPgDatabase } from 'drizzle-orm/aws-data-api/pg';
 import { drizzle } from 'drizzle-orm/aws-data-api/pg';
 import { migrate } from 'drizzle-orm/aws-data-api/pg/migrator';
 import { alias, boolean, integer, jsonb, pgTable, pgTableCreator, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { pgRole } from 'drizzle-orm/pg-core/role';
 
 dotenv.config();
 
@@ -833,6 +834,146 @@ test.serial('nested transaction rollback', async (t) => {
 	t.deepEqual(result, [{ id: 1, balance: 100 }]);
 
 	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('transaction with RLS', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users_transactions', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		lastName: text('lastname'),
+	});
+
+	const adminRole = pgRole('admin_all');
+
+	await db.execute(sql`drop policy if exists administrator_all on ${users}`);
+	await db.execute(sql`drop policy if exists all_view on ${users}`);
+	await db.execute(sql`drop role if exists admin_all`);
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial not null primary key, name text not null, lastname text)`,
+	);
+	await db.execute(sql`CREATE ROLE ${adminRole}`);
+
+	await db.insert(users).values([{ name: 'admin_all', lastName: 'lastName' }, {
+		name: 'user2',
+		lastName: 'lastName2',
+	}]);
+
+	await db.execute(sql`ALTER TABLE ${users} ENABLE ROW LEVEL SECURITY`);
+	await db.execute(
+		sql`CREATE POLICY all_view ON ${users} for select USING (true)`,
+	);
+
+	await db.execute(sql`GRANT USAGE ON SCHEMA public TO admin_all`);
+	await db.execute(sql`GRANT all ON ${users} TO admin_all`);
+
+	await db.transaction(async (tx) => {
+		await tx.update(users).set({ lastName: 'another' }).where(eq(users.id, 1));
+	}, {
+		rlsConfig: {
+			role: adminRole,
+		},
+	});
+
+	const badResult = await db.select().from(users).where(eq(users.id, 1));
+
+	t.deepEqual(badResult, [{ id: 1, name: 'admin_all', lastName: 'lastName' }]);
+
+	await db.execute(
+		sql`CREATE POLICY administrator_all ON ${users} TO admin_all USING (true) WITH CHECK (current_role = name)`,
+	);
+
+	await db.transaction(async (tx) => {
+		await tx.update(users).set({ lastName: 'another' }).where(eq(users.id, 1));
+	}, {
+		rlsConfig: {
+			role: adminRole,
+		},
+	});
+
+	const result = await db.select().from(users).where(eq(users.id, 1));
+
+	t.deepEqual(result, [{ id: 1, name: 'admin_all', lastName: 'another' }]);
+
+	await db.execute(sql`drop owned by admin_all`);
+	await db.execute(sql`drop policy if exists administrator_all on ${users}`);
+	await db.execute(sql`drop policy if exists all_view on ${users}`);
+	await db.execute(sql`drop role if exists admin_all`);
+	await db.execute(sql`drop table if exists ${users}`);
+});
+
+test.serial('transaction with RLS with attempt to update another user', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users_transactions', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		lastName: text('lastname'),
+	});
+
+	const adminRole = pgRole('admin_all');
+
+	await db.execute(sql`drop policy if exists administrator_all on ${users}`);
+	await db.execute(sql`drop policy if exists all_view on ${users}`);
+	await db.execute(sql`drop role if exists admin_all`);
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial not null primary key, name text not null, lastname text)`,
+	);
+	await db.execute(sql`CREATE ROLE ${adminRole}`);
+
+	await db.insert(users).values([{ name: 'admin_all', lastName: 'lastName' }, {
+		name: 'user2',
+		lastName: 'lastName2',
+	}]);
+
+	await db.execute(sql`ALTER TABLE ${users} ENABLE ROW LEVEL SECURITY`);
+	await db.execute(
+		sql`CREATE POLICY all_view ON ${users} for select USING (true)`,
+	);
+
+	await db.execute(sql`GRANT USAGE ON SCHEMA public TO admin_all`);
+	await db.execute(sql`GRANT all ON ${users} TO admin_all`);
+
+	await db.execute(
+		sql`CREATE POLICY administrator_all ON ${users} TO admin_all USING (true) WITH CHECK (current_role = name)`,
+	);
+
+	await t.throwsAsync(async () =>
+		await db.transaction(async (tx) => {
+			await tx.update(users).set({ lastName: 'another' }).where(eq(users.id, 2));
+		}, {
+			rlsConfig: {
+				role: adminRole,
+			},
+		})
+	);
+
+	const badResult2 = await db.select().from(users).where(eq(users.id, 2));
+
+	t.deepEqual(badResult2, [{ id: 2, name: 'user2', lastName: 'lastName2' }]);
+
+	await db.transaction(async (tx) => {
+		await tx.update(users).set({ lastName: 'another' }).where(eq(users.id, 1));
+	}, {
+		rlsConfig: {
+			role: adminRole,
+		},
+	});
+
+	const result = await db.select().from(users).where(eq(users.id, 1));
+
+	t.deepEqual(result, [{ id: 1, name: 'admin_all', lastName: 'another' }]);
+
+	await db.execute(sql`drop owned by admin_all`);
+	await db.execute(sql`drop policy if exists administrator_all on ${users}`);
+	await db.execute(sql`drop policy if exists all_view on ${users}`);
+	await db.execute(sql`drop role if exists admin_all`);
+	await db.execute(sql`drop table if exists ${users}`);
 });
 
 test.serial('select from raw sql', async (t) => {
