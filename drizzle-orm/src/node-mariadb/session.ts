@@ -62,7 +62,7 @@ export class NodeMariaDbPreparedQuery<T extends PreparedQueryConfig> extends Pre
 			return customResultMapper(rows);
 		}
 		
-		return rows.map((row: any) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+		return rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
 	}
 
 	override iterator(_placeholderValues?: Record<string, unknown>): AsyncGenerator<T['iterator']> {
@@ -124,7 +124,7 @@ export class NodeMariaDbSession<
 	override all<T = unknown>(query: SQL): Promise<T[]> {
 		const querySql = this.dialect.sqlToQuery(query);
 		this.logger.logQuery(querySql.sql, querySql.params);
-		return this.client.execute(querySql.sql, querySql.params).then((result) => result[0]) as Promise<T[]>;
+		return this.client.execute(querySql.sql, querySql.params).then((result) => result) as Promise<T[]>;
 	}
 
 	override async transaction<T>(
