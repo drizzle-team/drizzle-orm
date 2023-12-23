@@ -18,7 +18,7 @@ import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/s
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
-import { DrizzleError, type Name, ViewBaseConfig, and, eq } from '../index.ts';
+import { and, DrizzleError, eq, type Name, ViewBaseConfig } from '../index.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
@@ -653,6 +653,8 @@ export class MySqlDialect {
 							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
 							: is(field, SQL.Aliased)
 							? field.sql
+							: is(field, Column) && field.columnType === 'MySqlDecimal'
+							? sql`cast(${sql.identifier(tableAlias)}.${sql.identifier(tsKey)} as char)`
 							: field
 					),
 					sql`, `,
@@ -946,7 +948,13 @@ export class MySqlDialect {
 			let field = sql`json_array(${
 				sql.join(
 					selection.map(({ field }) =>
-						is(field, MySqlColumn) ? sql.identifier(field.name) : is(field, SQL.Aliased) ? field.sql : field
+						is(field, MySqlColumn)
+							? field.columnType === 'MySqlDecimal'
+								? sql`cast(${sql.identifier(field.name)} as char)`
+								: sql.identifier(field.name)
+							: is(field, SQL.Aliased)
+							? field.sql
+							: field
 					),
 					sql`, `,
 				)
