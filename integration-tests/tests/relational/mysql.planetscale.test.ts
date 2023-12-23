@@ -6,7 +6,7 @@ import { drizzle, type PlanetScaleDatabase } from 'drizzle-orm/planetscale-serve
 import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 import * as schema from './mysql.schema.ts';
 
-const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
+const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable, accountsTable } = schema;
 
 const ENABLE_LOGGING = false;
 
@@ -34,6 +34,7 @@ beforeAll(async () => {
 		db.execute(sql`drop table if exists \`users_to_groups\``),
 		db.execute(sql`drop table if exists \`posts\``),
 		db.execute(sql`drop table if exists \`comments\``),
+		db.execute(sql`drop table if exists \`accounts\``),
 		db.execute(sql`drop table if exists \`comment_likes\``),
 	]);
 	await Promise.all([
@@ -96,6 +97,15 @@ beforeAll(async () => {
 				);
 			`,
 		),
+		db.execute(
+			sql`
+				CREATE TABLE \`accounts\` (
+				\`id\` serial PRIMARY KEY NOT NULL,
+				\`user_id\` bigint not null,
+				\`balance\` decimal(20,18) NOT NULL
+				);
+			`,
+		),
 	]);
 });
 
@@ -106,6 +116,7 @@ beforeEach(async () => {
 		db.delete(commentsTable),
 		db.delete(groupsTable),
 		db.delete(usersToGroupsTable),
+		db.delete(accountsTable),
 		db.execute(sql`delete from \`comment_likes\``),
 	]);
 	await Promise.all([
@@ -114,6 +125,7 @@ beforeEach(async () => {
 		db.execute(sql`ALTER TABLE \`users_to_groups\` AUTO_INCREMENT = 1`),
 		db.execute(sql`ALTER TABLE \`posts\` AUTO_INCREMENT = 1`),
 		db.execute(sql`ALTER TABLE \`comments\` AUTO_INCREMENT = 1`),
+		db.execute(sql`ALTER TABLE \`accounts\` AUTO_INCREMENT = 1`),
 		db.execute(sql`ALTER TABLE \`comment_likes\` AUTO_INCREMENT = 1`),
 	]);
 });
@@ -1156,6 +1168,142 @@ test('[Find Many] Get only custom fields + where + orderBy', async () => {
 	});
 });
 
+test('[Find Many] Get related table with decimal as string', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(accountsTable).values([
+		{ id: 1, userId: 1, balance: '10.123456789012345678' },
+		{ id: 2, userId: 1, balance: '33.123456789012345678' },
+	]);
+
+	const usersWithAccounts = await db.query.usersTable.findMany({
+		with: {
+			accounts: true,
+		},
+	});
+
+	expectTypeOf(usersWithAccounts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		accounts: {
+			id: number;
+			userId: number;
+			balance: string;
+		}[];
+	}[]>();
+
+	expect(usersWithAccounts.length).toEqual(3);
+	expect(usersWithAccounts[0]?.accounts.length).toEqual(2);
+
+	expect(usersWithAccounts).toEqual([
+		{
+			id: 1,
+			name: 'Dan',
+			verified: false,
+			invitedBy: null,
+			accounts: [{ id: 1, userId: 1, balance: '10.123456789012345678' }, {
+				id: 2,
+				userId: 1,
+				balance: '33.123456789012345678',
+			}],
+		},
+		{ id: 2, name: 'Andrew', verified: false, invitedBy: null, accounts: [] },
+		{ id: 3, name: 'Alex', verified: false, invitedBy: null, accounts: [] },
+	]);
+});
+
+test('[Find Many] Get related sub table with decimal as string', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ id: 1, ownerId: 1, content: 'Post1' },
+		{ id: 2, ownerId: 1, content: 'Post1.1' },
+	]);
+
+	await db.insert(accountsTable).values([
+		{ id: 1, userId: 1, balance: '10.123456789012345678' },
+		{ id: 2, userId: 1, balance: '33.123456789012345678' },
+	]);
+
+	const postsWithUsersAndAccounts = await db.query.postsTable.findMany({
+		with: {
+			author: {
+				with: {
+					accounts: true,
+				},
+			},
+		},
+	});
+
+	expectTypeOf(postsWithUsersAndAccounts).toEqualTypeOf<{
+		id: number;
+		content: string;
+		ownerId: number | null;
+		createdAt: Date;
+		author: {
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			accounts: {
+				id: number;
+				userId: number;
+				balance: string;
+			}[];
+		} | null;
+	}[]>();
+
+	expect(postsWithUsersAndAccounts.length).toEqual(2);
+	expect(postsWithUsersAndAccounts[0]?.author?.accounts.length).toEqual(2);
+
+	expect(postsWithUsersAndAccounts).toEqual([
+		{
+			id: 1,
+			content: 'Post1',
+			ownerId: 1,
+			createdAt: expect.any(Date),
+			author: {
+				id: 1,
+				name: 'Dan',
+				verified: false,
+				invitedBy: null,
+				accounts: [{ id: 1, userId: 1, balance: '10.123456789012345678' }, {
+					id: 2,
+					userId: 1,
+					balance: '33.123456789012345678',
+				}],
+			},
+		},
+		{
+			id: 2,
+			content: 'Post1.1',
+			ownerId: 1,
+			createdAt: expect.any(Date),
+			author: {
+				id: 1,
+				name: 'Dan',
+				verified: false,
+				invitedBy: null,
+				accounts: [{ id: 1, userId: 1, balance: '10.123456789012345678' }, {
+					id: 2,
+					userId: 1,
+					balance: '33.123456789012345678',
+				}],
+			},
+		},
+	]);
+});
+
 // select only custom find one
 test('[Find One] Get only custom fields', async () => {
 	await db.insert(usersTable).values([
@@ -1367,6 +1515,119 @@ test('[Find One] Get only custom fields + where + orderBy', async () => {
 	expect(usersWithPosts).toEqual({
 		lowerName: 'dan',
 		posts: [{ lowerName: 'post1.3' }, { lowerName: 'post1.2' }],
+	});
+});
+
+test('[Find First] Get related table with decimal as string', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(accountsTable).values([
+		{ id: 1, userId: 1, balance: '10.123456789012345678' },
+		{ id: 2, userId: 1, balance: '33.123456789012345678' },
+	]);
+
+	const usersWithAccounts = await db.query.usersTable.findFirst({
+		with: {
+			accounts: true,
+		},
+		where: eq(usersTable.id, 1),
+	});
+
+	expectTypeOf(usersWithAccounts).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			accounts: {
+				id: number;
+				userId: number;
+				balance: string;
+			}[];
+		} | undefined
+	>();
+
+	expect(usersWithAccounts).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		accounts: [{ id: 1, userId: 1, balance: '10.123456789012345678' }, {
+			id: 2,
+			userId: 1,
+			balance: '33.123456789012345678',
+		}],
+	});
+});
+
+test('[Find First] Get related sub table with decimal as string', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ id: 1, ownerId: 1, content: 'Post1' },
+		{ id: 2, ownerId: 1, content: 'Post1.1' },
+	]);
+
+	await db.insert(accountsTable).values([
+		{ id: 1, userId: 1, balance: '10.123456789012345678' },
+		{ id: 2, userId: 1, balance: '33.123456789012345678' },
+	]);
+
+	const postsWithUsersAndAccounts = await db.query.postsTable.findFirst({
+		with: {
+			author: {
+				with: {
+					accounts: true,
+				},
+			},
+		},
+		where: eq(postsTable.id, 1),
+	});
+
+	expectTypeOf(postsWithUsersAndAccounts).toEqualTypeOf<
+		{
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+			author: {
+				id: number;
+				name: string;
+				verified: boolean;
+				invitedBy: number | null;
+				accounts: {
+					id: number;
+					userId: number;
+					balance: string;
+				}[];
+			} | null;
+		} | undefined
+	>();
+
+	expect(postsWithUsersAndAccounts).toEqual({
+		id: 1,
+		content: 'Post1',
+		ownerId: 1,
+		createdAt: expect.any(Date),
+		author: {
+			id: 1,
+			name: 'Dan',
+			verified: false,
+			invitedBy: null,
+			accounts: [{ id: 1, userId: 1, balance: '10.123456789012345678' }, {
+				id: 2,
+				userId: 1,
+				balance: '33.123456789012345678',
+			}],
+		},
 	});
 });
 
