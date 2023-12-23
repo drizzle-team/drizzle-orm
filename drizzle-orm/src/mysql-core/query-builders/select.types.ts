@@ -210,7 +210,6 @@ export type MySqlSetOperatorExcludedMethods =
 	| 'leftJoin'
 	| 'rightJoin'
 	| 'innerJoin'
-	| 'fullJoin'
 	| 'for';
 
 export type MySqlSelectWithout<
