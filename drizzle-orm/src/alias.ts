@@ -2,7 +2,7 @@ import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
 import type { Relation } from './relations.ts';
-import type { View} from './sql/sql.ts';
+import type { View } from './sql/sql.ts';
 import { SQL, sql } from './sql/sql.ts';
 import { Table } from './table.ts';
 import { ViewBaseConfig } from './view-common.ts';
@@ -108,7 +108,7 @@ export function mapColumnsInAliasedSQLToAlias(query: SQL.Aliased, alias: string)
 }
 
 export function mapColumnsInSQLToAlias(query: SQL, alias: string): SQL {
-	return sql.join(query.queryChunks.map((c) => {
+	const newSql = sql.join(query.queryChunks.map((c) => {
 		if (is(c, Column)) {
 			return aliasedTableColumn(c, alias);
 		}
@@ -120,4 +120,6 @@ export function mapColumnsInSQLToAlias(query: SQL, alias: string): SQL {
 		}
 		return c;
 	}));
+	newSql.decoder = query.decoder;
+	return newSql;
 }
