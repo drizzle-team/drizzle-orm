@@ -68,7 +68,7 @@ npm install -D drizzle-kit
 ```typescript
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { integer, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
-import { InferModel, eq, sql } from 'drizzle-orm';
+import { InferInsertModel, InferSelectModel, eq, sql } from 'drizzle-orm';
 import { Pool } from 'pg';
 
 export const users = pgTable('users', {
@@ -81,16 +81,16 @@ export const users = pgTable('users', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
-export type User = InferModel<typeof users>;
-export type NewUser = InferModel<typeof users, 'insert'>;
+export type User = InferSelectModel<typeof users>;
+export type NewUser = InferInsertModel<typeof users>;
 
 export const cities = pgTable('cities', {
   id: serial('id').primaryKey(),
   name: text('name').notNull(),
 });
 
-export type City = InferModel<typeof cities>;
-export type NewCity = InferModel<typeof cities, 'insert'>;
+export type City = InferSelectModel<typeof cities>;
+export type NewCity = InferInsertModel<typeof cities>;
 
 const pool = new Pool({
   connectionString: 'postgres://user:password@host:port/db',
