@@ -270,32 +270,32 @@ export class PgDatabase<
 		}
 
 		/**
-			* Creates an update query.
-			*
-			* Calling this method without `.where()` clause will update all rows in a table. The `.where()` clause specifies which rows should be updated.
-			*
-			* Use `.set()` method to specify which values to update.
-			*
-			* See docs: {@link https://orm.drizzle.team/docs/update}
-			*
-			* @param table The table to update.
-			*
-			* @example
-			*
-			* ```ts
-			* // Update all rows in the 'cars' table
-			* await db.update(cars).set({ color: 'red' });
-			*
-			* // Update rows with filters and conditions
-			* await db.update(cars).set({ color: 'red' }).where(eq(cars.brand, 'BMW'));
-			*
-			* // Update with returning clause
-			* const updatedCar: Car[] = await db.update(cars)
-			*   .set({ color: 'red' })
-			*   .where(eq(cars.id, 1))
-			*   .returning();
-			* ```
-			*/
+		 * Creates an update query.
+		 *
+		 * Calling this method without `.where()` clause will update all rows in a table. The `.where()` clause specifies which rows should be updated.
+		 *
+		 * Use `.set()` method to specify which values to update.
+		 *
+		 * See docs: {@link https://orm.drizzle.team/docs/update}
+		 *
+		 * @param table The table to update.
+		 *
+		 * @example
+		 *
+		 * ```ts
+		 * // Update all rows in the 'cars' table
+		 * await db.update(cars).set({ color: 'red' });
+		 *
+		 * // Update rows with filters and conditions
+		 * await db.update(cars).set({ color: 'red' }).where(eq(cars.brand, 'BMW'));
+		 *
+		 * // Update with returning clause
+		 * const updatedCar: Car[] = await db.update(cars)
+		 *   .set({ color: 'red' })
+		 *   .where(eq(cars.id, 1))
+		 *   .returning();
+		 * ```
+		 */
 		function update<TTable extends PgTable>(table: TTable): PgUpdateBuilder<TTable, TQueryResult> {
 			return new PgUpdateBuilder(table, self.session, self.dialect, queries);
 		}
