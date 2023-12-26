@@ -4,26 +4,28 @@ import { type Client, createClient } from '@libsql/client';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import {
+	and,
 	asc,
+	avg,
+	avgDistinct,
+	count,
+	countDistinct,
 	eq,
+	exists,
 	gt,
 	gte,
 	inArray,
 	type InferModel,
+	max,
+	min,
 	Name,
 	name,
 	placeholder,
 	sql,
-	TransactionRollbackError,
-	count,
-	countDistinct,
-	avg,
-	avgDistinct,
 	sum,
 	sumDistinct,
-	max,
-	min,
-	lt
+	lt,
+	TransactionRollbackError,
 } from 'drizzle-orm';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
@@ -128,7 +130,7 @@ const aggregateTable = sqliteTable('aggregate_table', {
 	a: integer('a'),
 	b: integer('b'),
 	c: integer('c'),
-	nullOnly: integer('null_only')
+	nullOnly: integer('null_only'),
 });
 
 test.before(async (t) => {
@@ -891,6 +893,19 @@ test.serial('select with group by as field', async (t) => {
 		.all();
 
 	t.deepEqual(result, [{ name: 'Jane' }, { name: 'John' }]);
+});
+
+test.serial('select with exists', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
+
+	const user = alias(usersTable, 'user');
+	const result = await db.select({ name: usersTable.name }).from(usersTable).where(
+		exists(db.select({ one: sql`1` }).from(user).where(and(eq(usersTable.name, 'John'), eq(user.id, usersTable.id)))),
+	).all();
+
+	t.deepEqual(result, [{ name: 'John' }]);
 });
 
 test.serial('select with group by as sql', async (t) => {
