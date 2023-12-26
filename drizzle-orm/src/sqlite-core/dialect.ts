@@ -16,9 +16,9 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
+import type { Name } from '~/sql/index.ts';
+import { and, eq } from '~/sql/index.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
-import type { Name} from '~/sql/index.ts';
-import { and, eq } from '~/sql/index.ts'
 import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders/index.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
@@ -110,7 +110,11 @@ export abstract class SQLiteDialect {
 				const chunk: SQLChunk[] = [];
 
 				if (is(field, SQL.Aliased) && field.isSelectionField) {
-					chunk.push(sql.identifier(field.fieldAlias));
+					chunk.push(
+						field.qualifier
+							? sql`${sql.identifier(field.qualifier)}.${sql.identifier(field.fieldAlias)}`
+							: sql.identifier(field.fieldAlias),
+					);
 				} else if (is(field, SQL.Aliased) || is(field, SQL)) {
 					const query = is(field, SQL.Aliased) ? field.sql : field;
 

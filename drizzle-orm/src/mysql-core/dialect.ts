@@ -18,7 +18,7 @@ import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/s
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
-import { DrizzleError, type Name, ViewBaseConfig, and, eq } from '../index.ts';
+import { and, DrizzleError, eq, type Name, ViewBaseConfig } from '../index.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
@@ -140,7 +140,11 @@ export class MySqlDialect {
 				const chunk: SQLChunk[] = [];
 
 				if (is(field, SQL.Aliased) && field.isSelectionField) {
-					chunk.push(sql.identifier(field.fieldAlias));
+					chunk.push(
+						field.qualifier
+							? sql`${sql.identifier(field.qualifier)}.${sql.identifier(field.fieldAlias)}`
+							: sql.identifier(field.fieldAlias),
+					);
 				} else if (is(field, SQL.Aliased) || is(field, SQL)) {
 					const query = is(field, SQL.Aliased) ? field.sql : field;
 
