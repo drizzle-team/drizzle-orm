@@ -14,6 +14,7 @@ import {
 	count,
 	countDistinct,
 	eq,
+	exists,
 	gt,
 	gte,
 	inArray,
@@ -823,6 +824,19 @@ test.serial('select with group by as field', async (t) => {
 		.groupBy(usersTable.name);
 
 	t.deepEqual(result, [{ name: 'Jane' }, { name: 'John' }]);
+});
+
+test.serial('select with exists', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+
+	const user = alias(usersTable, 'user');
+	const result = await db.select({ name: usersTable.name }).from(usersTable).where(
+		exists(db.select({ one: sql`1` }).from(user).where(and(eq(usersTable.name, 'John'), eq(user.id, usersTable.id)))),
+	);
+
+	t.deepEqual(result, [{ name: 'John' }]);
 });
 
 test.serial('select with group by as sql', async (t) => {
@@ -3431,4 +3445,42 @@ test.serial('aggregate function: min', async (t) => {
 
 	t.deepEqual(result1[0]?.value, 10);
 	t.deepEqual(result2[0]?.value, null);
+});
+
+test.serial('array mapping and parsing', async (t) => {
+	const { db } = t.context;
+
+	const arrays = pgTable('arrays_tests', {
+		id: serial('id').primaryKey(),
+		tags: text('tags').array(),
+		nested: text('nested').array().array(),
+		numbers: integer('numbers').notNull().array(),
+	});
+
+	db.execute(sql`drop table if exists ${arrays}`);
+	db.execute(sql`
+		 create table ${arrays} (
+		 id serial primary key,
+		 tags text[],
+		 nested text[][],
+		 numbers integer[]
+		)
+	`);
+
+	await db.insert(arrays).values({
+		tags: ['', 'b', 'c'],
+		nested: [['1', ''], ['3', '\\a']],
+		numbers: [1, 2, 3],
+	});
+
+	const result = await db.select().from(arrays);
+
+	t.deepEqual(result, [{
+		id: 1,
+		tags: ['', 'b', 'c'],
+		nested: [['1', ''], ['3', '\\a']],
+		numbers: [1, 2, 3],
+	}]);
+
+	await db.execute(sql`drop table ${arrays}`);
 });
