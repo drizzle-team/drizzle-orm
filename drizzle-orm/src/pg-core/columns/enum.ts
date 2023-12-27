@@ -87,8 +87,7 @@ export function pgEnum<U extends string, T extends Readonly<[U, ...U[]]>>(
 			[isPgEnumSym]: true,
 			get enum(): { [K in T[number]]: K } {
 				const enumObj: Record<string, string> = {};
-				for (let i = 0; i < values.length; i++) {
-					const value = values[i] as string;
+				for (const value of values) {
 					enumObj[value] = value;
 				}
 				return enumObj as any;
