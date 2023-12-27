@@ -2091,6 +2091,19 @@ test.serial('prefixed table', async (t) => {
 	await db.execute(sql`drop table ${users}`);
 });
 
+test.serial('enums', async (t) => {
+	const myEnum = pgEnum('my_enum', ['abc', 'def', '1', '2']);
+
+	Expect<Equal<'abc' | 'def' | '1' | '2', (typeof myEnum)['$inferValues']>>;
+
+	t.deepEqual(myEnum.enum, {
+		'abc': 'abc',
+		'def': 'def',
+		'1': '1',
+		'2': '2'
+	});
+});
+
 test.serial('select from enum', async (t) => {
 	const { db } = t.context;
 
