@@ -14,6 +14,7 @@ import {
 	count,
 	countDistinct,
 	eq,
+	exists,
 	gt,
 	gte,
 	inArray,
@@ -68,6 +69,7 @@ import {
 	uniqueKeyName,
 	uuid as pgUuid,
 	varchar,
+	numeric
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import pg from 'pg';
@@ -826,6 +828,19 @@ test.serial('select with group by as field', async (t) => {
 	t.deepEqual(result, [{ name: 'Jane' }, { name: 'John' }]);
 });
 
+test.serial('select with exists', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+
+	const user = alias(usersTable, 'user');
+	const result = await db.select({ name: usersTable.name }).from(usersTable).where(
+		exists(db.select({ one: sql`1` }).from(user).where(and(eq(usersTable.name, 'John'), eq(user.id, usersTable.id)))),
+	);
+
+	t.deepEqual(result, [{ name: 'John' }]);
+});
+
 test.serial('select with group by as sql', async (t) => {
 	const { db } = t.context;
 
@@ -1577,7 +1592,7 @@ test.serial('with ... select', async (t) => {
 				),
 		);
 
-	const result = await db
+	const result1 = await db
 		.with(regionalSales, topRegions)
 		.select({
 			region: orders.region,
@@ -1589,8 +1604,31 @@ test.serial('with ... select', async (t) => {
 		.where(inArray(orders.region, db.select({ region: topRegions.region }).from(topRegions)))
 		.groupBy(orders.region, orders.product)
 		.orderBy(orders.region, orders.product);
+	const result2 = await db
+		.with(regionalSales, topRegions)
+		.selectDistinct({
+			region: orders.region,
+			product: orders.product,
+			productUnits: sql<number>`sum(${orders.quantity})::int`,
+			productSales: sql<number>`sum(${orders.amount})::int`,
+		})
+		.from(orders)
+		.where(inArray(orders.region, db.select({ region: topRegions.region }).from(topRegions)))
+		.groupBy(orders.region, orders.product)
+		.orderBy(orders.region, orders.product);
+	const result3 = await db
+		.with(regionalSales, topRegions)
+		.selectDistinctOn([orders.region], {
+			region: orders.region,
+			productUnits: sql<number>`sum(${orders.quantity})::int`,
+			productSales: sql<number>`sum(${orders.amount})::int`,
+		})
+		.from(orders)
+		.where(inArray(orders.region, db.select({ region: topRegions.region }).from(topRegions)))
+		.groupBy(orders.region)
+		.orderBy(orders.region);
 
-	t.deepEqual(result, [
+	t.deepEqual(result1, [
 		{
 			region: 'Europe',
 			product: 'A',
@@ -1615,6 +1653,146 @@ test.serial('with ... select', async (t) => {
 			productUnits: 9,
 			productSales: 90,
 		},
+	]);
+	t.deepEqual(result2, result1);
+	t.deepEqual(result3, [
+		{
+			region: 'Europe',
+			productUnits: 8,
+			productSales: 80,
+		},
+		{
+			region: 'US',
+			productUnits: 16,
+			productSales: 160,
+		},
+	])
+});
+
+test.serial('with ... update', async (t) => {
+	const { db } = t.context;
+
+	const products = pgTable('products', {
+		id: serial('id').primaryKey(),
+		price: numeric('price').notNull(),
+		cheap: boolean('cheap').notNull().default(false)
+	});
+
+	await db.execute(sql`drop table if exists ${products}`);
+	await db.execute(sql`
+		create table ${products} (
+			id serial primary key,
+			price numeric not null,
+			cheap boolean not null default false
+		)
+	`);
+
+	await db.insert(products).values([
+		{ price: '10.99' },
+		{ price: '25.85' },
+		{ price: '32.99' },
+		{ price: '2.50' },
+		{ price: '4.59' },
+	]);
+
+	const averagePrice = db
+		.$with('average_price')
+		.as(
+			db
+				.select({
+					value: sql`avg(${products.price})`.as('value')
+				})
+				.from(products)
+		);
+
+	const result = await db
+		.with(averagePrice)
+		.update(products)
+		.set({
+			cheap: true
+		})
+		.where(lt(products.price, sql`(select * from ${averagePrice})`))
+		.returning({
+			id: products.id
+		});
+
+	t.deepEqual(result, [
+		{ id: 1 },
+		{ id: 4 },
+		{ id: 5 }
+	]);
+});
+
+test.serial('with ... insert', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users', {
+		username: text('username').notNull(),
+		admin: boolean('admin').notNull()
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`create table ${users} (username text not null, admin boolean not null default false)`);
+
+	const userCount = db
+		.$with('user_count')
+		.as(
+			db
+				.select({
+					value: sql`count(*)`.as('value')
+				})
+				.from(users)
+		);
+
+	const result = await db
+		.with(userCount)
+		.insert(users)
+		.values([
+			{ username: 'user1', admin: sql`((select * from ${userCount}) = 0)` }
+		])
+		.returning({
+			admin: users.admin
+		});
+
+	t.deepEqual(result, [{ admin: true }])
+});
+
+test.serial('with ... delete', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(orders).values([
+		{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
+		{ region: 'Europe', product: 'A', amount: 20, quantity: 2 },
+		{ region: 'Europe', product: 'B', amount: 20, quantity: 2 },
+		{ region: 'Europe', product: 'B', amount: 30, quantity: 3 },
+		{ region: 'US', product: 'A', amount: 30, quantity: 3 },
+		{ region: 'US', product: 'A', amount: 40, quantity: 4 },
+		{ region: 'US', product: 'B', amount: 40, quantity: 4 },
+		{ region: 'US', product: 'B', amount: 50, quantity: 5 },
+	]);
+
+	const averageAmount = db
+		.$with('average_amount')
+		.as(
+			db
+				.select({
+					value: sql`avg(${orders.amount})`.as('value')
+				})
+				.from(orders)
+		);
+
+	const result = await db
+		.with(averageAmount)
+		.delete(orders)
+		.where(gt(orders.amount, sql`(select * from ${averageAmount})`))
+		.returning({
+			id: orders.id
+		});
+
+	t.deepEqual(result, [
+		{ id: 6 },
+		{ id: 7 },
+		{ id: 8 }
 	]);
 });
 
@@ -3371,4 +3549,42 @@ test.serial('aggregate function: min', async (t) => {
 
 	t.deepEqual(result1[0]?.value, 10);
 	t.deepEqual(result2[0]?.value, null);
+});
+
+test.serial('array mapping and parsing', async (t) => {
+	const { db } = t.context;
+
+	const arrays = pgTable('arrays_tests', {
+		id: serial('id').primaryKey(),
+		tags: text('tags').array(),
+		nested: text('nested').array().array(),
+		numbers: integer('numbers').notNull().array(),
+	});
+
+	db.execute(sql`drop table if exists ${arrays}`);
+	db.execute(sql`
+		 create table ${arrays} (
+		 id serial primary key,
+		 tags text[],
+		 nested text[][],
+		 numbers integer[]
+		)
+	`);
+
+	await db.insert(arrays).values({
+		tags: ['', 'b', 'c'],
+		nested: [['1', ''], ['3', '\\a']],
+		numbers: [1, 2, 3],
+	});
+
+	const result = await db.select().from(arrays);
+
+	t.deepEqual(result, [{
+		id: 1,
+		tags: ['', 'b', 'c'],
+		nested: [['1', ''], ['3', '\\a']],
+		numbers: [1, 2, 3],
+	}]);
+
+	await db.execute(sql`drop table ${arrays}`);
 });
