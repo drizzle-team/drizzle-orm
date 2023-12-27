@@ -123,6 +123,15 @@
     },
     "@opentelemetry/api": {
       "optional": true
+    },
+    "expo-sqlite": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "@types/react": {
+      "optional": true
     }
   },
   "devDependencies": {
