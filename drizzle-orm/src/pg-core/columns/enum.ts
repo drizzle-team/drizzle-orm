@@ -100,4 +100,4 @@ export function pgEnum<U extends string, T extends Readonly<[U, ...U[]]>>(
 	return enumInstance;
 }
 
-export type InferEnumValues<T extends PgEnum<[string, ...string[]]>> = T['$inferValues'];
+export type InferEnumValues<T extends PgEnum<any>> = T['$inferValues'];
