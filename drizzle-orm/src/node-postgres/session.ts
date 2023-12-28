@@ -10,7 +10,7 @@ import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.type
 import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
 import { PgSession, PreparedQuery } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import type { SelectAsyncGenerator } from '~/select-iterator';
+import type { SelectAsyncGenerator, TypeFromSelection } from '~/select-iterator';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
@@ -87,8 +87,9 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 		if (!this.fields && !this.customResultMapper) {
 			throw new Error('no fields or customResultMapper')
 		}
-		return new NodePgSelectIterator<T['iterator']>(span, this.client, this.query, params, this.fields,
-			this.customResultMapper as () => T['iterator'][], this.joinsNotNullableMap);
+		type my = TypeFromSelection<T['iterator']>
+		return new NodePgSelectIterator<my>(span, this.client, this.query, params, this.fields,
+			this.customResultMapper as () => my[], this.joinsNotNullableMap);
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {

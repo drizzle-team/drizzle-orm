@@ -11,7 +11,7 @@ import type { SelectAsyncGenerator } from '~/select-iterator.ts';
 
 export interface PreparedQueryConfig {
 	execute: unknown;
-	iterator: unknown;
+	iterator: Record<string, unknown>;
 	all: unknown;
 	values: unknown;
 }

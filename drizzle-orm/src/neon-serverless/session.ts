@@ -7,7 +7,7 @@ import {
 	type QueryResult,
 	type QueryResultRow,
 } from '@neondatabase/serverless';
-import { Span } from '@opentelemetry/api';
+import type { Span } from '@opentelemetry/api';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -17,7 +17,7 @@ import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.type
 import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
 import { PgSession, PreparedQuery } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { SelectAsyncGenerator } from '~/select-iterator';
+import type { SelectAsyncGenerator } from '~/select-iterator';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
