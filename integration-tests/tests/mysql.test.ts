@@ -4,25 +4,27 @@ import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import Docker from 'dockerode';
 import {
+	and,
 	asc,
+	avg,
+	avgDistinct,
+	count,
+	countDistinct,
 	DefaultLogger,
 	eq,
+	exists,
 	gt,
 	gte,
 	inArray,
 	type InferModel,
+	max,
+	min,
 	Name,
 	placeholder,
 	sql,
-	TransactionRollbackError,
 	sum,
 	sumDistinct,
-	count,
-	countDistinct,
-	avg,
-	avgDistinct,
-	max,
-	min,
+	TransactionRollbackError,
 } from 'drizzle-orm';
 import {
 	alias,
@@ -134,7 +136,7 @@ const aggregateTable = mysqlTable('aggregate_table', {
 	a: int('a'),
 	b: int('b'),
 	c: int('c'),
-	nullOnly: int('null_only')
+	nullOnly: int('null_only'),
 });
 
 interface Context {
@@ -694,6 +696,19 @@ test.serial('select with group by as field', async (t) => {
 		.groupBy(usersTable.name);
 
 	t.deepEqual(result, [{ name: 'John' }, { name: 'Jane' }]);
+});
+
+test.serial('select with exists', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+
+	const user = alias(usersTable, 'user');
+	const result = await db.select({ name: usersTable.name }).from(usersTable).where(
+		exists(db.select({ one: sql`1` }).from(user).where(and(eq(usersTable.name, 'John'), eq(user.id, usersTable.id)))),
+	);
+
+	t.deepEqual(result, [{ name: 'John' }]);
 });
 
 test.serial('select with group by as sql', async (t) => {
