@@ -3,7 +3,19 @@ import 'dotenv/config';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import Database from 'better-sqlite3';
-import { asc, eq, type Equal, gt, inArray, name, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
+import {
+	and,
+	asc,
+	eq,
+	type Equal,
+	exists,
+	gt,
+	inArray,
+	name,
+	placeholder,
+	sql,
+	TransactionRollbackError,
+} from 'drizzle-orm';
 import { type BetterSQLite3Database, drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import {
@@ -754,6 +766,19 @@ test.serial('select with group by as field', (t) => {
 		.all();
 
 	t.deepEqual(result, [{ name: 'Jane' }, { name: 'John' }]);
+});
+
+test.serial('select with exists', async (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
+
+	const user = alias(usersTable, 'user');
+	const result = db.select({ name: usersTable.name }).from(usersTable).where(
+		exists(db.select({ one: sql`1` }).from(user).where(and(eq(usersTable.name, 'John'), eq(user.id, usersTable.id)))),
+	).all();
+
+	t.deepEqual(result, [{ name: 'John' }]);
 });
 
 test.serial('select with group by as sql', (t) => {

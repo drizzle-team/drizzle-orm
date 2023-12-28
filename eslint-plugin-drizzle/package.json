@@ -1,6 +1,6 @@
 {
   "name": "eslint-plugin-drizzle",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Eslint plugin for drizzle users to avoid common pitfalls",
   "main": "src/index.js",
   "scripts": {
@@ -22,6 +22,7 @@
   },
   "license": "Apache-2.0",
   "devDependencies": {
+    "@types/node": "^20.10.1",
     "@typescript-eslint/parser": "^6.10.0",
     "@typescript-eslint/rule-tester": "^6.10.0",
     "@typescript-eslint/utils": "^6.10.0",

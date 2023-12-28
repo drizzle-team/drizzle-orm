@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test:types": "tsc",
-    "test": "ava tests --timeout=60s --serial && pnpm test:esm && pnpm test:rqb",
+    "test": "NODE_OPTIONS='--loader=tsx --no-warnings' ava --timeout=60s --serial && pnpm test:esm && pnpm test:rqb",
     "test:rqb": "vitest run --no-threads",
     "test:esm": "node tests/imports.test.mjs && node tests/imports.test.cjs"
   },

@@ -27,75 +27,95 @@ beforeAll(async () => {
 		}),
 		{ schema, logger: ENABLE_LOGGING },
 	);
+
+	await Promise.all([
+		db.execute(sql`drop table if exists \`users\``),
+		db.execute(sql`drop table if exists \`groups\``),
+		db.execute(sql`drop table if exists \`users_to_groups\``),
+		db.execute(sql`drop table if exists \`posts\``),
+		db.execute(sql`drop table if exists \`comments\``),
+		db.execute(sql`drop table if exists \`comment_likes\``),
+	]);
+	await Promise.all([
+		db.execute(
+			sql`
+				CREATE TABLE IF NOT EXISTS \`users\` (
+					  \`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
+					  \`name\` text NOT NULL,
+					  \`verified\` boolean DEFAULT false NOT NULL,
+					  \`invited_by\` bigint
+				);
+			`,
+		),
+		db.execute(
+			sql`
+				CREATE TABLE IF NOT EXISTS \`groups\` (
+					\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
+					\`name\` text NOT NULL,
+					\`description\` text
+				);
+			`,
+		),
+		db.execute(
+			sql`
+				CREATE TABLE IF NOT EXISTS \`users_to_groups\` (
+					\`id\` serial PRIMARY KEY AUTO_INCREMENT NOT NULL,
+					\`user_id\` bigint,
+					\`group_id\` bigint
+				);
+			`,
+		),
+		db.execute(
+			sql`
+				CREATE TABLE IF NOT EXISTS \`posts\` (
+					\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
+					\`content\` text NOT NULL,
+					\`owner_id\` bigint,
+					\`created_at\` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+				);
+			`,
+		),
+		db.execute(
+			sql`
+				CREATE TABLE IF NOT EXISTS \`comments\` (
+					\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
+					\`content\` text NOT NULL,
+					\`creator\` bigint,
+					\`post_id\` bigint,
+					\`created_at\` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+				);
+			`,
+		),
+		db.execute(
+			sql`
+				CREATE TABLE IF NOT EXISTS \`comment_likes\` (
+					\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
+					\`creator\` bigint,
+					\`comment_id\` bigint,
+					\`created_at\` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+				);
+			`,
+		),
+	]);
 });
 
 beforeEach(async () => {
-	await db.execute(sql`drop table if exists \`users\``);
-	await db.execute(sql`drop table if exists \`groups\``);
-	await db.execute(sql`drop table if exists \`users_to_groups\``);
-	await db.execute(sql`drop table if exists \`posts\``);
-	await db.execute(sql`drop table if exists \`comments\``);
-	await db.execute(sql`drop table if exists \`comment_likes\``);
-
-	await db.execute(
-		sql`
-			CREATE TABLE \`users\` (
-				\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
-				\`name\` text NOT NULL,
-				\`verified\` boolean DEFAULT false NOT NULL,
-				\`invited_by\` bigint
-			);
-		`,
-	);
-	await db.execute(
-		sql`
-			CREATE TABLE \`groups\` (
-				\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
-				\`name\` text NOT NULL,
-				\`description\` text
-			);
-		`,
-	);
-	await db.execute(
-		sql`
-			CREATE TABLE \`users_to_groups\` (
-				\`id\` serial PRIMARY KEY AUTO_INCREMENT NOT NULL,
-				\`user_id\` bigint,
-				\`group_id\` bigint
-			);
-		`,
-	);
-	await db.execute(
-		sql`
-			CREATE TABLE \`posts\` (
-				\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
-				\`content\` text NOT NULL,
-				\`owner_id\` bigint,
-				\`created_at\` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
-			);
-		`,
-	);
-	await db.execute(
-		sql`
-			CREATE TABLE \`comments\` (
-				\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
-				\`content\` text NOT NULL,
-				\`creator\` bigint,
-				\`post_id\` bigint,
-				\`created_at\` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
-			);
-		`,
-	);
-	await db.execute(
-		sql`
-			CREATE TABLE \`comment_likes\` (
-				\`id\` bigint PRIMARY KEY AUTO_INCREMENT NOT NULL,
-				\`creator\` bigint,
-				\`comment_id\` bigint,
-				\`created_at\` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
-			);
-		`,
-	);
+	await Promise.all([
+		db.delete(usersTable),
+		db.delete(postsTable),
+		db.delete(commentsTable),
+		db.delete(groupsTable),
+		db.delete(usersToGroupsTable),
+		db.execute(sql`delete from \`comment_likes\``),
+	]);
+	await Promise.all([
+		db.execute(sql`ALTER TABLE \`users\` AUTO_INCREMENT = 1`),
+		db.execute(sql`ALTER TABLE \`groups\` AUTO_INCREMENT = 1`),
+		db.execute(sql`ALTER TABLE \`users_to_groups\` AUTO_INCREMENT = 1`),
+		db.execute(sql`ALTER TABLE \`posts\` AUTO_INCREMENT = 1`),
+		db.execute(sql`ALTER TABLE \`comments\` AUTO_INCREMENT = 1`),
+		db.execute(sql`ALTER TABLE \`comment_likes\` AUTO_INCREMENT = 1`),
+	]);
 });
 
 /*
@@ -3939,6 +3959,100 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 					},
 					postId: 2,
 					createdAt: response[1]?.posts[0]?.comments[0]?.createdAt,
+				},
+			],
+		}],
+	});
+});
+
+test('Get user with posts and posts with comments and comments with owner where exists', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ id: 1, ownerId: 1, content: 'Post1' },
+		{ id: 2, ownerId: 2, content: 'Post2' },
+		{ id: 3, ownerId: 3, content: 'Post3' },
+	]);
+
+	await db.insert(commentsTable).values([
+		{ postId: 1, content: 'Comment1', creator: 2 },
+		{ postId: 2, content: 'Comment2', creator: 2 },
+		{ postId: 3, content: 'Comment3', creator: 3 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		with: {
+			posts: {
+				with: {
+					comments: {
+						with: {
+							author: true,
+						},
+					},
+				},
+			},
+		},
+		where: (table, { exists, eq }) => exists(db.select({ one: sql`1` }).from(usersTable).where(eq(sql`1`, table.id))),
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+			comments: {
+				id: number;
+				content: string;
+				createdAt: Date;
+				creator: number | null;
+				postId: number | null;
+				author: {
+					id: number;
+					name: string;
+					verified: boolean;
+					invitedBy: number | null;
+				} | null;
+			}[];
+		}[];
+	}[]>();
+
+	expect(response.length).eq(1);
+	expect(response[0]?.posts.length).eq(1);
+
+	expect(response[0]?.posts[0]?.comments.length).eq(1);
+
+	expect(response[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		posts: [{
+			id: 1,
+			ownerId: 1,
+			content: 'Post1',
+			createdAt: response[0]?.posts[0]?.createdAt,
+			comments: [
+				{
+					id: 1,
+					content: 'Comment1',
+					creator: 2,
+					author: {
+						id: 2,
+						name: 'Andrew',
+						verified: false,
+						invitedBy: null,
+					},
+					postId: 1,
+					createdAt: response[0]?.posts[0]?.comments[0]?.createdAt,
 				},
 			],
 		}],

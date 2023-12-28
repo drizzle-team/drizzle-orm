@@ -164,6 +164,8 @@ export type ValueOrArray<T> = T | T[];
 export function applyMixins(baseClass: any, extendedClasses: any[]) {
 	for (const extendedClass of extendedClasses) {
 		for (const name of Object.getOwnPropertyNames(extendedClass.prototype)) {
+			if (name === 'constructor') continue;
+
 			Object.defineProperty(
 				baseClass.prototype,
 				name,
