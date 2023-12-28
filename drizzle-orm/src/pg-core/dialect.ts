@@ -92,14 +92,30 @@ export class PgDialect {
 		return `'${str.replace(/'/g, "''")}'`;
 	}
 
-	buildDeleteQuery({ table, where, returning }: PgDeleteConfig): SQL {
+	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
+		if (!queries?.length) return undefined;
+
+		const withSqlChunks = [sql`with `];
+		for (const [i, w] of queries.entries()) {
+			withSqlChunks.push(sql`${sql.identifier(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
+			if (i < queries.length - 1) {
+				withSqlChunks.push(sql`, `);
+			}
+		}
+		withSqlChunks.push(sql` `);
+		return sql.join(withSqlChunks);
+	}
+
+	buildDeleteQuery({ table, where, returning, withList }: PgDeleteConfig): SQL {
+		const withSql = this.buildWithCTE(withList);
+
 		const returningSql = returning
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`delete from ${table}${whereSql}${returningSql}`;
+		return sql`${withSql}delete from ${table}${whereSql}${returningSql}`;
 	}
 
 	buildUpdateSet(table: PgTable, set: UpdateSet): SQL {
@@ -119,7 +135,9 @@ export class PgDialect {
 		);
 	}
 
-	buildUpdateQuery({ table, set, where, returning }: PgUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, returning, withList }: PgUpdateConfig): SQL {
+		const withSql = this.buildWithCTE(withList);
+
 		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
@@ -128,7 +146,7 @@ export class PgDialect {
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`update ${table} set ${setSql}${whereSql}${returningSql}`;
+		return sql`${withSql}update ${table} set ${setSql}${whereSql}${returningSql}`;
 	}
 
 	/**
@@ -239,18 +257,7 @@ export class PgDialect {
 
 		const isSingleTable = !joins || joins.length === 0;
 
-		let withSql: SQL | undefined;
-		if (withList?.length) {
-			const withSqlChunks = [sql`with `];
-			for (const [i, w] of withList.entries()) {
-				withSqlChunks.push(sql`${sql.identifier(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
-				if (i < withList.length - 1) {
-					withSqlChunks.push(sql`, `);
-				}
-			}
-			withSqlChunks.push(sql` `);
-			withSql = sql.join(withSqlChunks);
-		}
+		const withSql = this.buildWithCTE(withList);
 
 		let distinctSql: SQL | undefined;
 		if (distinct) {
@@ -423,7 +430,7 @@ export class PgDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	buildInsertQuery({ table, values, onConflict, returning, selectConfig }: PgInsertConfig): SQL {
+	buildInsertQuery({ table, values, onConflict, returning, withList, selectConfig }: PgInsertConfig): SQL {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		let colEntries: [string, PgColumn][] = [];
 
@@ -502,6 +509,7 @@ export class PgDialect {
 		}
 
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
+		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
@@ -510,7 +518,7 @@ export class PgDialect {
 		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
 
 		return sql.join([
-			sql`insert into ${table} ${insertOrder} `,
+			sql`${withSql}insert into ${table} ${insertOrder} `,
 			selectConfig ? selectSql : sql`values ${valuesSql}`,
 			onConflictSql,
 			returningSql

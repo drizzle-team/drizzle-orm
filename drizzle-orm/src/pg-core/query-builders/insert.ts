@@ -20,10 +20,12 @@ import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import type { PgSelectConfig, SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { PgUpdateSetSource } from './update.ts';
 import type { PgColumn } from '../columns/common.ts';
+import type { Subquery } from '~/subquery.ts';
 
 export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[];
+	withList?: Subquery[];
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
 	selectConfig?: PgSelectConfig;
@@ -42,6 +44,7 @@ export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends QueryR
 		private table: TTable,
 		private session: PgSession,
 		private dialect: PgDialect,
+		private withList?: Subquery[],
 	) {}
 
 	values(value: PgInsertValue<TTable>): PgInsertBase<TTable, TQueryResult>;
