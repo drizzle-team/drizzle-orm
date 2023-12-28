@@ -1,4 +1,5 @@
 import { ESLintUtils } from '@typescript-eslint/utils';
+import { resolveMemberExpressionPath } from './utils/ast';
 import { isDrizzleObj, type Options } from './utils/options';
 
 const createRule = ESLintUtils.RuleCreator(() => 'https://github.com/drizzle-team/eslint-plugin-drizzle');
@@ -17,7 +18,7 @@ const updateRule = createRule<Options, MessageIds>({
 		fixable: 'code',
 		messages: {
 			enforceUpdateWithWhere:
-			'Without `.where(...)` you will update all the rows in a table. If you didn\'t want to do it, please use `db.update(...).set(...).where(...)` instead. Otherwise you can ignore this rule here'
+				"Without `.where(...)` you will update all the rows in a table. If you didn't want to do it, please use `{{ drizzleObjName }}.update(...).set(...).where(...)` instead. Otherwise you can ignore this rule here",
 		},
 		schema: [{
 			type: 'object',
@@ -45,6 +46,9 @@ const updateRule = createRule<Options, MessageIds>({
 						context.report({
 							node,
 							messageId: 'enforceUpdateWithWhere',
+							data: {
+								drizzleObjName: resolveMemberExpressionPath(node.object.callee),
+							},
 						});
 					}
 					lastNodeName = node.property.name;
