@@ -46,9 +46,6 @@ export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends QueryR
 	values(values: PgInsertValue<TTable>[]): PgInsertBase<TTable, TQueryResult>;
 	values(values: PgInsertValue<TTable> | PgInsertValue<TTable>[]): PgInsertBase<TTable, TQueryResult> {
 		values = Array.isArray(values) ? values : [values];
-		if (values.length === 0) {
-			throw new Error('values() must be called with at least one value');
-		}
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
 			const cols = this.table[Table.Symbol.Columns];

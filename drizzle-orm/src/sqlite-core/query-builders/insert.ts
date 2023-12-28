@@ -46,9 +46,6 @@ export class SQLiteInsertBuilder<
 		values: SQLiteInsertValue<TTable> | SQLiteInsertValue<TTable>[],
 	): SQLiteInsertBase<TTable, TResultType, TRunResult> {
 		values = Array.isArray(values) ? values : [values];
-		if (values.length === 0) {
-			throw new Error('values() must be called with at least one value');
-		}
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
 			const cols = this.table[Table.Symbol.Columns];
