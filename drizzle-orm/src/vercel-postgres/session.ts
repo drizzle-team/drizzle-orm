@@ -1,3 +1,4 @@
+import type { Span } from '@opentelemetry/api';
 import {
 	type QueryArrayConfig,
 	type QueryConfig,
@@ -14,6 +15,7 @@ import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.type
 import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
 import { PgSession, PreparedQuery } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { SelectAsyncGenerator } from '~/select-iterator';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
@@ -63,6 +65,11 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends Prepar
 		}
 
 		return rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+	}
+
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	override iterator(span?: Span | undefined): SelectAsyncGenerator<T['iterator']> {
+		throw new Error('Iterator Not implemented');
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {

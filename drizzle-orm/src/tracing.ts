@@ -18,6 +18,7 @@ type SpanName =
 	| 'drizzle.buildSQL'
 	| 'drizzle.execute'
 	| 'drizzle.driver.execute'
+	| 'drizzle.driver.iterator'
 	| 'drizzle.mapResponse';
 
 /** @internal */

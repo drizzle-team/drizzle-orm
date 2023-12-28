@@ -21,6 +21,8 @@ import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations
 import { fillPlaceholders, type QueryTypingsValue, type QueryWithTypings, type SQL, sql } from '~/sql/sql.ts';
 import { mapResultRow } from '~/utils.ts';
 import { getValueFromDataApi, toValueParam } from '../common/index.ts';
+import type { Span } from '@opentelemetry/api';
+import type { SelectAsyncGenerator } from '~/select-iterator.ts';
 
 export type AwsDataApiClient = RDSDataClient;
 
@@ -62,6 +64,11 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 		return customResultMapper
 			? customResultMapper(rows)
 			: rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+	}
+
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	override iterator(span?: Span | undefined): SelectAsyncGenerator<T['iterator']> {
+		throw new Error('Iterator Not implemented');
 	}
 
 	all(placeholderValues?: Record<string, unknown> | undefined): Promise<T['all']> {
