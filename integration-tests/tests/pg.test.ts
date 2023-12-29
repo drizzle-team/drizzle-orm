@@ -52,6 +52,7 @@ import {
 	jsonb,
 	macaddr,
 	macaddr8,
+	numeric,
 	type PgColumn,
 	pgEnum,
 	pgMaterializedView,
@@ -69,7 +70,6 @@ import {
 	uniqueKeyName,
 	uuid as pgUuid,
 	varchar,
-	numeric
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import pg from 'pg';
@@ -1666,7 +1666,7 @@ test.serial('with ... select', async (t) => {
 			productUnits: 16,
 			productSales: 160,
 		},
-	])
+	]);
 });
 
 test.serial('with ... update', async (t) => {
@@ -1675,7 +1675,7 @@ test.serial('with ... update', async (t) => {
 	const products = pgTable('products', {
 		id: serial('id').primaryKey(),
 		price: numeric('price').notNull(),
-		cheap: boolean('cheap').notNull().default(false)
+		cheap: boolean('cheap').notNull().default(false),
 	});
 
 	await db.execute(sql`drop table if exists ${products}`);
@@ -1700,26 +1700,26 @@ test.serial('with ... update', async (t) => {
 		.as(
 			db
 				.select({
-					value: sql`avg(${products.price})`.as('value')
+					value: sql`avg(${products.price})`.as('value'),
 				})
-				.from(products)
+				.from(products),
 		);
 
 	const result = await db
 		.with(averagePrice)
 		.update(products)
 		.set({
-			cheap: true
+			cheap: true,
 		})
 		.where(lt(products.price, sql`(select * from ${averagePrice})`))
 		.returning({
-			id: products.id
+			id: products.id,
 		});
 
 	t.deepEqual(result, [
 		{ id: 1 },
 		{ id: 4 },
-		{ id: 5 }
+		{ id: 5 },
 	]);
 });
 
@@ -1728,7 +1728,7 @@ test.serial('with ... insert', async (t) => {
 
 	const users = pgTable('users', {
 		username: text('username').notNull(),
-		admin: boolean('admin').notNull()
+		admin: boolean('admin').notNull(),
 	});
 
 	await db.execute(sql`drop table if exists ${users}`);
@@ -1739,22 +1739,22 @@ test.serial('with ... insert', async (t) => {
 		.as(
 			db
 				.select({
-					value: sql`count(*)`.as('value')
+					value: sql`count(*)`.as('value'),
 				})
-				.from(users)
+				.from(users),
 		);
 
 	const result = await db
 		.with(userCount)
 		.insert(users)
 		.values([
-			{ username: 'user1', admin: sql`((select * from ${userCount}) = 0)` }
+			{ username: 'user1', admin: sql`((select * from ${userCount}) = 0)` },
 		])
 		.returning({
-			admin: users.admin
+			admin: users.admin,
 		});
 
-	t.deepEqual(result, [{ admin: true }])
+	t.deepEqual(result, [{ admin: true }]);
 });
 
 test.serial('with ... delete', async (t) => {
@@ -1776,9 +1776,9 @@ test.serial('with ... delete', async (t) => {
 		.as(
 			db
 				.select({
-					value: sql`avg(${orders.amount})`.as('value')
+					value: sql`avg(${orders.amount})`.as('value'),
 				})
-				.from(orders)
+				.from(orders),
 		);
 
 	const result = await db
@@ -1786,13 +1786,13 @@ test.serial('with ... delete', async (t) => {
 		.delete(orders)
 		.where(gt(orders.amount, sql`(select * from ${averageAmount})`))
 		.returning({
-			id: orders.id
+			id: orders.id,
 		});
 
 	t.deepEqual(result, [
 		{ id: 6 },
 		{ id: 7 },
-		{ id: 8 }
+		{ id: 8 },
 	]);
 });
 
@@ -2476,6 +2476,166 @@ test.serial('all date and time columns', async (t) => {
 			interval: '1 day',
 		},
 	]);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('all date and time columns with timezone', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp_string', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
+		timestampAsDate: timestamp('timestamp_date', { withTimezone: true, precision: 3 }).notNull(),
+		timestampTimeZones: timestamp('timestamp_date_2', { withTimezone: true, precision: 3 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(6) with time zone not null,
+					timestamp_date timestamp(3) with time zone not null,
+					timestamp_date_2 timestamp(3) with time zone not null
+			)
+	`);
+
+	const timestampString = '2022-01-01 00:00:00.123456-0200';
+	const timestampDate = new Date();
+	const timestampDateWTZ = new Date('2022-01-01 00:00:00.123 +0500');
+
+	const timestampString2 = '2022-01-01 00:00:00.123456-0400';
+	const timestampDate2 = new Date();
+	const timestampDateWTZ2 = new Date('2022-01-01 00:00:00.123 +0200');
+
+	await db.insert(table).values([
+		{ timestamp: timestampString, timestampAsDate: timestampDate, timestampTimeZones: timestampDateWTZ },
+		{ timestamp: timestampString2, timestampAsDate: timestampDate2, timestampTimeZones: timestampDateWTZ2 },
+	]);
+
+	const result = await db.select().from(table);
+	const result2 = await db.execute<{
+		id: number;
+		timestamp_string: string;
+		timestamp_date: string;
+		timestamp_date_2: string;
+	}>(sql`select * from ${table}`);
+
+	// Whatever you put in, you get back when you're using the date mode
+	// But when using the string mode, postgres returns a string transformed into UTC
+	t.deepEqual(result, [
+		{
+			id: 1,
+			timestamp: '2022-01-01 02:00:00.123456+00',
+			timestampAsDate: timestampDate,
+			timestampTimeZones: timestampDateWTZ,
+		},
+		{
+			id: 2,
+			timestamp: '2022-01-01 04:00:00.123456+00',
+			timestampAsDate: timestampDate2,
+			timestampTimeZones: timestampDateWTZ2,
+		},
+	]);
+
+	t.deepEqual(result2.rows, [
+		{
+			id: 1,
+			timestamp_string: '2022-01-01 02:00:00.123456+00',
+			timestamp_date: timestampDate.toISOString().replace('T', ' ').replace('Z', '') + '+00',
+			timestamp_date_2: timestampDateWTZ.toISOString().replace('T', ' ').replace('Z', '') + '+00',
+		},
+		{
+			id: 2,
+			timestamp_string: '2022-01-01 04:00:00.123456+00',
+			timestamp_date: timestampDate2.toISOString().replace('T', ' ').replace('Z', '') + '+00',
+			timestamp_date_2: timestampDateWTZ2.toISOString().replace('T', ' ').replace('Z', '') + '+00',
+		},
+	]);
+
+	t.deepEqual(result[0]?.timestampTimeZones.getTime(), new Date(result2.rows[0]?.timestamp_date_2 as any).getTime());
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('all date and time columns without timezone', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestampString: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
+		timestampString2: timestamp('timestamp_string2', { precision: 3, mode: 'string' }).notNull(),
+		timestampDate: timestamp('timestamp_date', { precision: 3 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(6) not null,
+					timestamp_string2 timestamp(3) not null,
+					timestamp_date timestamp(3) not null
+			)
+	`);
+
+	const timestampString = '2022-01-01 00:00:00.123456';
+	const timestampString2 = '2022-01-02 00:00:00.123 -0300';
+	const timestampDate = new Date('2022-01-01 00:00:00.123Z');
+
+	const timestampString_2 = '2022-01-01 00:00:00.123456';
+	const timestampString2_2 = '2022-01-01 00:00:00.123 -0300';
+	const timestampDate2 = new Date('2022-01-01 00:00:00.123 +0200');
+
+	await db.insert(table).values([
+		{ timestampString, timestampString2, timestampDate },
+		{ timestampString: timestampString_2, timestampString2: timestampString2_2, timestampDate: timestampDate2 },
+	]);
+
+	const result = await db.select().from(table);
+	const result2 = await db.execute<{
+		id: number;
+		timestamp_string: string;
+		timestamp_string2: string;
+		timestamp_date: string;
+	}>(sql`select * from ${table}`);
+
+	// Whatever you put in, you get back when you're using the date mode
+	// But when using the string mode, postgres returns a string transformed into UTC
+	t.deepEqual(result, [
+		{
+			id: 1,
+			timestampString: timestampString,
+			timestampString2: '2022-01-02 00:00:00.123',
+			timestampDate: timestampDate,
+		},
+		{
+			id: 2,
+			timestampString: timestampString_2,
+			timestampString2: '2022-01-01 00:00:00.123',
+			timestampDate: timestampDate2,
+		},
+	]);
+
+	t.deepEqual(result2.rows, [
+		{
+			id: 1,
+			timestamp_string: timestampString,
+			timestamp_string2: '2022-01-02 00:00:00.123',
+			timestamp_date: timestampDate.toISOString().replace('T', ' ').replace('Z', ''),
+		},
+		{
+			id: 2,
+			timestamp_string: timestampString_2,
+			timestamp_string2: '2022-01-01 00:00:00.123',
+			timestamp_date: timestampDate2.toISOString().replace('T', ' ').replace('Z', ''),
+		},
+	]);
+
+	t.deepEqual(result2.rows[0]?.timestamp_string, '2022-01-01 00:00:00.123456');
+	// need to add the 'Z', otherwise javascript assumes it's in local time
+	t.deepEqual(new Date(result2.rows[0]?.timestamp_date + 'Z' as any).getTime(), timestampDate.getTime());
 
 	await db.execute(sql`drop table if exists ${table}`);
 });
