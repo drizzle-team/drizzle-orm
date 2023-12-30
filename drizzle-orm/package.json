@@ -106,6 +106,9 @@
     "bun-types": {
       "optional": true
     },
+    "expo-sqlite": {
+      "optional": true
+    },
     "@aws-sdk/client-rds-data": {
       "optional": true
     },
