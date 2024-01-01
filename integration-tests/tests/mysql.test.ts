@@ -26,7 +26,6 @@ import {
 	sql,
 	sum,
 	sumDistinct,
-	lt,
 	TransactionRollbackError,
 } from 'drizzle-orm';
 import type { AnyMySqlColumn } from 'drizzle-orm/mysql-core';
@@ -1510,9 +1509,9 @@ test.serial('with ... update', async (t) => {
 		id: serial('id').primaryKey(),
 		price: decimal('price', {
 			precision: 15,
-			scale: 2
+			scale: 2,
 		}).notNull(),
-		cheap: boolean('cheap').notNull().default(false)
+		cheap: boolean('cheap').notNull().default(false),
 	});
 
 	await db.execute(sql`drop table if exists ${products}`);
@@ -1537,30 +1536,30 @@ test.serial('with ... update', async (t) => {
 		.as(
 			db
 				.select({
-					value: sql`avg(${products.price})`.as('value')
+					value: sql`avg(${products.price})`.as('value'),
 				})
-				.from(products)
+				.from(products),
 		);
 
 	await db
 		.with(averagePrice)
 		.update(products)
 		.set({
-			cheap: true
+			cheap: true,
 		})
 		.where(lt(products.price, sql`(select * from ${averagePrice})`));
 
 	const result = await db
 		.select({
-			id: products.id
+			id: products.id,
 		})
 		.from(products)
-		.where(eq(products.cheap, true))
+		.where(eq(products.cheap, true));
 
 	t.deepEqual(result, [
 		{ id: 1 },
 		{ id: 4 },
-		{ id: 5 }
+		{ id: 5 },
 	]);
 });
 
@@ -1596,9 +1595,9 @@ test.serial('with ... delete', async (t) => {
 		.as(
 			db
 				.select({
-					value: sql`avg(${orders.amount})`.as('value')
+					value: sql`avg(${orders.amount})`.as('value'),
 				})
-				.from(orders)
+				.from(orders),
 		);
 
 	await db
@@ -1608,7 +1607,7 @@ test.serial('with ... delete', async (t) => {
 
 	const result = await db
 		.select({
-			id: orders.id
+			id: orders.id,
 		})
 		.from(orders);
 
@@ -1617,7 +1616,7 @@ test.serial('with ... delete', async (t) => {
 		{ id: 2 },
 		{ id: 3 },
 		{ id: 4 },
-		{ id: 5 }
+		{ id: 5 },
 	]);
 });
 
