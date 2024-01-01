@@ -10,12 +10,14 @@ import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import type { SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
 import type { SQLiteColumn } from '../columns/common.ts';
+import type { Subquery } from '~/subquery.ts';
 
 export interface SQLiteUpdateConfig {
 	where?: SQL | undefined;
 	set: UpdateSet;
 	table: SQLiteTable;
 	returning?: SelectedFieldsOrdered;
+	withList?: Subquery[];
 }
 
 export type SQLiteUpdateSetSource<TTable extends SQLiteTable> =
@@ -41,10 +43,11 @@ export class SQLiteUpdateBuilder<
 		protected table: TTable,
 		protected session: SQLiteSession<any, any, any, any>,
 		protected dialect: SQLiteDialect,
+		private withList?: Subquery[],
 	) {}
 
 	set(values: SQLiteUpdateSetSource<TTable>): SQLiteUpdateBase<TTable, TResultType, TRunResult> {
-		return new SQLiteUpdateBase(this.table, mapUpdateSet(this.table, values), this.session, this.dialect);
+		return new SQLiteUpdateBase(this.table, mapUpdateSet(this.table, values), this.session, this.dialect, this.withList);
 	}
 }
 
@@ -170,9 +173,10 @@ export class SQLiteUpdateBase<
 		set: UpdateSet,
 		private session: SQLiteSession<any, any, any, any>,
 		private dialect: SQLiteDialect,
+		withList?: Subquery[],
 	) {
 		super();
-		this.config = { set, table };
+		this.config = { set, table, withList };
 	}
 
 	/**

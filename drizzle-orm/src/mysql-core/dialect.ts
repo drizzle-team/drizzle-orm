@@ -18,7 +18,7 @@ import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/s
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, IsLazilyNamedTable, OriginalName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
-import { DrizzleError, type Name, ViewBaseConfig, and, eq } from '../index.ts';
+import { and, DrizzleError, eq, type Name, ViewBaseConfig } from '../index.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
@@ -80,14 +80,30 @@ export class MySqlDialect {
 		return `'${str.replace(/'/g, "''")}'`;
 	}
 
-	buildDeleteQuery({ table, where, returning }: MySqlDeleteConfig): SQL {
+	private buildWithCTE(queries: Subquery[] | undefined, recursive: boolean = false): SQL | undefined {
+		if (!queries?.length) return undefined;
+
+		const withSqlChunks = recursive ? [sql`with recursive `] : [sql`with `];
+		for (const [i, w] of queries.entries()) {
+			withSqlChunks.push(sql`${sql.identifier(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
+			if (i < queries.length - 1) {
+				withSqlChunks.push(sql`, `);
+			}
+		}
+		withSqlChunks.push(sql` `);
+		return sql.join(withSqlChunks);
+	}
+
+	buildDeleteQuery({ table, where, returning, withList }: MySqlDeleteConfig): SQL {
+		const withSql = this.buildWithCTE(withList);
+
 		const returningSql = returning
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`delete from ${table}${whereSql}${returningSql}`;
+		return sql`${withSql}delete from ${table}${whereSql}${returningSql}`;
 	}
 
 	buildUpdateSet(table: MySqlTable, set: UpdateSet): SQL {
@@ -107,7 +123,9 @@ export class MySqlDialect {
 		);
 	}
 
-	buildUpdateQuery({ table, set, where, returning }: MySqlUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, returning, withList }: MySqlUpdateConfig): SQL {
+		const withSql = this.buildWithCTE(withList);
+
 		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
@@ -116,7 +134,7 @@ export class MySqlDialect {
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`update ${table} set ${setSql}${whereSql}${returningSql}`;
+		return sql`${withSql}update ${table} set ${setSql}${whereSql}${returningSql}`;
 	}
 
 	/**
@@ -232,19 +250,7 @@ export class MySqlDialect {
 
 		const isSingleTable = !joins || joins.length === 0;
 
-		let withSql: SQL | undefined;
-		if (withList?.length) {
-			const withSqlChunks = recursive ? [sql`with recursive `] : [sql`with `];
-			for (const [i, w] of withList.entries()) {
-				withSqlChunks.push(sql`${sql.identifier(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
-				if (i < withList.length - 1) {
-					withSqlChunks.push(sql`, `);
-				}
-			}
-			withSqlChunks.push(sql` `);
-			withSql = sql.join(withSqlChunks);
-		}
-
+		const withSql = this.buildWithCTE(withList, recursive);
 		const distinctSql = distinct ? sql` distinct` : undefined;
 
 		const selection = this.buildSelection(fieldsList, { isSingleTable });

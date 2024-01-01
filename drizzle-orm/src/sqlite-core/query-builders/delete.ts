@@ -9,6 +9,7 @@ import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { type DrizzleTypeError, orderSelectedFields } from '~/utils.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { SQLiteColumn } from '../columns/common.ts';
+import type { Subquery } from '~/subquery.ts';
 
 export type SQLiteDeleteWithout<
 	T extends AnySQLiteDeleteBase,
@@ -38,6 +39,7 @@ export interface SQLiteDeleteConfig {
 	where?: SQL | undefined;
 	table: SQLiteTable;
 	returning?: SelectedFieldsOrdered;
+	withList?: Subquery[];
 }
 
 export type SQLiteDeleteReturningAll<
@@ -139,9 +141,10 @@ export class SQLiteDeleteBase<
 		private table: TTable,
 		private session: SQLiteSession<any, any, any, any>,
 		private dialect: SQLiteDialect,
+		withList?: Subquery[],
 	) {
 		super();
-		this.config = { table };
+		this.config = { table, withList };
 	}
 
 	/** 
