@@ -29,6 +29,7 @@ import {
 	sum,
 	sumDistinct,
 	TransactionRollbackError,
+	type InferSelectModel,
 } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -752,6 +753,52 @@ test.serial('insert + select iterator', async (t) => {
 		{ id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
 	]);
 
+});
+
+
+test.serial('select iterator', async (t) => {
+	const { db } = t.context;
+
+	const usersTable = pgTable('users_iterator', {
+		id: serial('id').primaryKey(),
+	});
+
+	await db.execute(sql`drop table if exists ${usersTable}`);
+	await db.execute(sql`create table ${usersTable} (id serial not null primary key)`);
+
+	await db.insert(usersTable).values([ {}, {}, {} ]);
+
+	const iter = db.select().from(usersTable).iterator();
+	const result: InferSelectModel<typeof usersTable>[] = [];
+
+	for await (const row of iter) {
+		result.push(row);
+	}
+
+	t.deepEqual(result, [{ id: 1 }, { id: 2 }, { id: 3 }]);
+});
+
+test.serial('select iterator w/ prepared statement', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users_iterator', {
+		id: serial('id').primaryKey(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`create table ${users} (id serial not null primary key)`);
+
+	await db.insert(users).values([{}, {}, {}]);
+
+	const prepared = db.select().from(users).prepare("jojo");
+	const iter = prepared.iterator();
+	const result: InferSelectModel<typeof users>[] = [];
+
+	for await (const row of iter) {
+		result.push(row);
+	}
+
+	t.deepEqual(result, [{ id: 1 }, { id: 2 }, { id: 3 }]);
 });
 
 
