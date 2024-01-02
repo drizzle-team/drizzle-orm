@@ -66,6 +66,7 @@ import {
 	uniqueKeyName,
 	uuid as pgUuid,
 	varchar,
+	type InferEnumValues,
 	numeric,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
@@ -2253,6 +2254,20 @@ test.serial('prefixed table', async (t) => {
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 
 	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('enums', async (t) => {
+	const myEnum = pgEnum('my_enum', ['abc', 'def', '1', '2']);
+
+	Expect<Equal<'abc' | 'def' | '1' | '2', typeof myEnum.$inferValues>>;
+	Expect<Equal<'abc' | 'def' | '1' | '2', InferEnumValues<typeof myEnum>>>;
+
+	t.deepEqual(myEnum.enum, {
+		'abc': 'abc',
+		'def': 'def',
+		'1': '1',
+		'2': '2'
+	});
 });
 
 test.serial('select from enum', async (t) => {

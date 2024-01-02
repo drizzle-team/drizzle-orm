@@ -19,6 +19,8 @@ const isPgEnumSym = Symbol.for('drizzle:isPgEnum');
 export interface PgEnum<TValues extends [string, ...string[]]> {
 	<TName extends string>(name: TName): PgEnumColumnBuilderInitial<TName, TValues>;
 
+	readonly $inferValues: TValues[number];
+	readonly enum: { [K in TValues[number]]: K };
 	readonly enumName: string;
 	readonly enumValues: TValues;
 	/** @internal */
@@ -83,8 +85,18 @@ export function pgEnum<U extends string, T extends Readonly<[U, ...U[]]>>(
 			enumName,
 			enumValues: values,
 			[isPgEnumSym]: true,
+			get enum(): { [K in T[number]]: K } {
+				const enumObj: Record<string, string> = {};
+				for (const value of values) {
+					enumObj[value] = value;
+				}
+				return enumObj as any;
+			},
+			$inferValues: undefined as any
 		} as const,
 	);
 
 	return enumInstance;
 }
+
+export type InferEnumValues<T extends PgEnum<any>> = T['$inferValues'];
