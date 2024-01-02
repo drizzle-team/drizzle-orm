@@ -15,12 +15,14 @@ import { QueryPromise } from '~/query-promise.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { mapUpdateSet, type UpdateSet } from '~/utils.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
+import type { Subquery } from '~/subquery.ts';
 
 export interface MySqlUpdateConfig {
 	where?: SQL | undefined;
 	set: UpdateSet;
 	table: MySqlTable;
 	returning?: SelectedFieldsOrdered;
+	withList?: Subquery[];
 }
 
 export type MySqlUpdateSetSource<TTable extends MySqlTable> =
@@ -46,10 +48,11 @@ export class MySqlUpdateBuilder<
 		private table: TTable,
 		private session: MySqlSession,
 		private dialect: MySqlDialect,
+		private withList?: Subquery[],
 	) {}
 
 	set(values: MySqlUpdateSetSource<TTable>): MySqlUpdateBase<TTable, TQueryResult, TPreparedQueryHKT> {
-		return new MySqlUpdateBase(this.table, mapUpdateSet(this.table, values), this.session, this.dialect);
+		return new MySqlUpdateBase(this.table, mapUpdateSet(this.table, values), this.session, this.dialect, this.withList);
 	}
 }
 
@@ -126,9 +129,10 @@ export class MySqlUpdateBase<
 		set: UpdateSet,
 		private session: MySqlSession,
 		private dialect: MySqlDialect,
+		withList?: Subquery[],
 	) {
 		super();
-		this.config = { set, table };
+		this.config = { set, table, withList };
 	}
 
 	/**

@@ -16,12 +16,14 @@ import { Table } from '~/table.ts';
 import { mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import type { SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
 import type { PgColumn } from '../columns/common.ts';
+import type { Subquery } from '~/subquery.ts';
 
 export interface PgUpdateConfig {
 	where?: SQL | undefined;
 	set: UpdateSet;
 	table: PgTable;
 	returning?: SelectedFieldsOrdered;
+	withList?: Subquery[];
 }
 
 export type PgUpdateSetSource<TTable extends PgTable> =
@@ -43,6 +45,7 @@ export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends QueryR
 		private table: TTable,
 		private session: PgSession,
 		private dialect: PgDialect,
+		private withList?: Subquery[],
 	) {}
 
 	set(values: PgUpdateSetSource<TTable>): PgUpdateBase<TTable, TQueryResult> {
@@ -51,6 +54,7 @@ export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends QueryR
 			mapUpdateSet(this.table, values),
 			this.session,
 			this.dialect,
+			this.withList,
 		);
 	}
 }
@@ -155,9 +159,10 @@ export class PgUpdateBase<
 		set: UpdateSet,
 		private session: PgSession,
 		private dialect: PgDialect,
+		withList?: Subquery[],
 	) {
 		super();
-		this.config = { set, table };
+		this.config = { set, table, withList };
 	}
 
 	/**
