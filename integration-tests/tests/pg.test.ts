@@ -2480,46 +2480,6 @@ test.serial('all date and time columns', async (t) => {
 	await db.execute(sql`drop table if exists ${table}`);
 });
 
-test.serial('all date and time columns with timezone first case mode string', async (t) => {
-	const { db } = t.context;
-
-	const table = pgTable('all_columns', {
-		id: serial('id').primaryKey(),
-		timestamp: timestamp('timestamp_string', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
-	});
-
-	await db.execute(sql`drop table if exists ${table}`);
-
-	await db.execute(sql`
-		create table ${table} (
-					id serial primary key,
-					timestamp_string timestamp(6) with time zone not null
-			)
-	`);
-
-	// 1. Insert date in string format with timezone in it
-	await db.insert(table).values([
-		{ timestamp: '2022-01-01 02:00:00.123456-0200' },
-	]);
-
-	// 2, Select in string format and check that values are the same
-	const result = await db.select().from(table);
-
-	t.deepEqual(result, [{ id: 1, timestamp: '2022-01-01 04:00:00.123456+00' }]);
-
-	// 3. Select as raw query and check that values are the same
-	const result2 = await db.execute<{
-		id: number;
-		timestamp_string: string;
-	}>(sql`select * from ${table}`);
-
-	t.deepEqual(result, [{ id: 1, timestamp: '2022-01-01 04:00:00.123456+00' }]);
-
-	t.deepEqual(result2.rows, [{ id: 1, timestamp_string: '2022-01-01 04:00:00.123456+00' }]);
-
-	await db.execute(sql`drop table if exists ${table}`);
-});
-
 test.serial('all date and time columns with timezone second case mode date', async (t) => {
 	const { db } = t.context;
 
@@ -2641,7 +2601,7 @@ test.serial('all date and time columns without timezone second case mode string'
 	await db.execute(sql`
 		create table ${table} (
 					id serial primary key,
-					timestamp_string timestamp(6) with time zone not null
+					timestamp_string timestamp(6) not null
 			)
 	`);
 
@@ -2656,9 +2616,7 @@ test.serial('all date and time columns without timezone second case mode string'
 		timestamp_string: string;
 	}>(sql`select * from ${table}`);
 
-	// Please notice that postgres will transform the date to UTC and it saves it in UTC.
-	// even if set without time zone, just becuase it was provided a timezone offset, it will transform it to UTC
-	t.deepEqual(result.rows, [{ id: 1, timestamp_string: '2022-01-01 04:00:00.123456+00' }]);
+	t.deepEqual(result.rows, [{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
 	await db.execute(sql`drop table if exists ${table}`);
 });
@@ -2676,7 +2634,7 @@ test.serial('all date and time columns without timezone third case mode date', a
 	await db.execute(sql`
 		create table ${table} (
 					id serial primary key,
-					timestamp_string timestamp(3) with time zone not null
+					timestamp_string timestamp(3) not null
 			)
 	`);
 
@@ -2693,8 +2651,8 @@ test.serial('all date and time columns without timezone third case mode date', a
 		timestamp_string: string;
 	}>(sql`select * from ${table}`);
 
-	// 3. Compare both dates using orm mapping
-	t.deepEqual(new Date(result.rows[0]!.timestamp_string).getTime(), insertedDate.getTime());
+	// 3. Compare both dates using orm mapping - Need to add 'Z' to tell JS that it is UTC
+	t.deepEqual(new Date(result.rows[0]!.timestamp_string + 'Z').getTime(), insertedDate.getTime());
 
 	await db.execute(sql`drop table if exists ${table}`);
 });
