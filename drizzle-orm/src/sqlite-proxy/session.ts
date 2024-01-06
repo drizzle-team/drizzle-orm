@@ -43,8 +43,9 @@ export class SQLiteRemoteSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		customResultMapper?: (rows: unknown[][]) => unknown,
 	): PreparedQuery<T> {
-		return new PreparedQuery(this.client, query, this.logger, fields, executeMethod);
+		return new PreparedQuery(this.client, query, this.logger, fields, executeMethod, customResultMapper);
 	}
 
 	override async transaction<T>(
@@ -98,6 +99,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		private customResultMapper?: (rows: unknown[][]) => unknown,
 	) {
 		super('async', executeMethod, query);
 	}
@@ -109,12 +111,16 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	}
 
 	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
-		const { fields, query, logger, joinsNotNullableMap } = this;
+		const { fields, query, logger, joinsNotNullableMap, customResultMapper } = this;
 
 		const params = fillPlaceholders(query.params, placeholderValues ?? {});
 		logger.logQuery(query.sql, params);
 
 		const { rows } = await this.client(query.sql, params, 'all');
+
+		if (customResultMapper) {
+			return customResultMapper(rows) as T['all'];
+		}
 
 		if (fields) {
 			return rows.map((row) => mapResultRow(fields, row, joinsNotNullableMap));
@@ -131,10 +137,15 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 
 		const clientResult = await this.client(query.sql, params, 'get');
 
+		if (Array.isArray(clientResult.rows) && clientResult.rows.length === 0) {
+			return undefined;
+		}
+
+		if (customResultMapper) {
+			return customResultMapper([clientResult.rows]) as T['get'];
+		}
+
 		if (fields) {
-			if (clientResult.rows === undefined) {
-				return undefined;
-			}
 			return mapResultRow(fields, clientResult.rows, joinsNotNullableMap);
 		}
 
