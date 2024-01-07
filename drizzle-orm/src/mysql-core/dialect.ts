@@ -18,7 +18,7 @@ import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/s
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
-import { DrizzleError, type Name, ViewBaseConfig, and, eq } from '../index.ts';
+import { and, DrizzleError, eq, type Name, ViewBaseConfig } from '../index.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
@@ -681,7 +681,7 @@ export class MySqlDialect {
 							path: [],
 							field: sql.raw('*'),
 						},
-						...(((orderBy?.length ?? 0) > 0)
+						...(((orderBy?.length ?? 0) > 0 && !limit)
 							? [{
 								path: [],
 								field: sql`row_number() over (order by ${sql.join(orderBy!, sql`, `)})`,
@@ -690,6 +690,7 @@ export class MySqlDialect {
 					],
 					where,
 					limit,
+					orderBy: (orderBy?.length ?? 0) > 0 && !limit ? undefined : orderBy,
 					offset,
 					setOperators: [],
 				});
@@ -974,7 +975,7 @@ export class MySqlDialect {
 							path: [],
 							field: sql.raw('*'),
 						},
-						...(orderBy.length > 0)
+						...(orderBy.length > 0 && !limit)
 							? [{
 								path: [],
 								field: sql`row_number() over (order by ${sql.join(orderBy, sql`, `)})`,
@@ -983,6 +984,7 @@ export class MySqlDialect {
 					],
 					where,
 					limit,
+					orderBy: orderBy.length > 0 && !limit ? undefined : orderBy,
 					offset,
 					setOperators: [],
 				});
