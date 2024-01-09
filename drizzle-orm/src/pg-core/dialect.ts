@@ -17,6 +17,7 @@ import {
 	type DBQueryConfig,
 	getOperators,
 	getOrderByOperators,
+	getTableOrViewName,
 	Many,
 	normalizeRelation,
 	One,
@@ -24,6 +25,7 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
+import { and, eq, View } from '~/sql/index.ts';
 import {
 	type DriverValueEncoder,
 	type Name,
@@ -39,9 +41,9 @@ import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgSession } from './session.ts';
-import type { PgMaterializedView } from './view.ts';
-import { View, and, eq } from '~/sql/index.ts';
 import { PgViewBase } from './view-base.ts';
+import type { PgMaterializedView } from './view.ts';
+import { PgView } from './view.ts';
 
 export class PgDialect {
 	static readonly [entityKind]: string = 'PgDialect';
@@ -265,6 +267,12 @@ export class PgDialect {
 					fullName = sql`${sql.identifier(table[Table.Symbol.Schema]!)}.${fullName}`;
 				}
 				return sql`${fullName} ${sql.identifier(table[Table.Symbol.Name])}`;
+			} else if (is(table, View) && table[ViewBaseConfig].originalName !== table[ViewBaseConfig].name) {
+				let fullName = sql`${sql.identifier(table[ViewBaseConfig].originalName)}`;
+				if (table[ViewBaseConfig].schema) {
+					fullName = sql`${sql.identifier(table[ViewBaseConfig].schema)}.${fullName}`;
+				}
+				return sql`${fullName} ${sql.identifier(table[ViewBaseConfig].name)}`;
 			}
 
 			return table;
@@ -1047,7 +1055,7 @@ export class PgDialect {
 		fullSchema: Record<string, unknown>;
 		schema: TablesRelationalConfig;
 		tableNamesMap: Record<string, string>;
-		table: PgTable;
+		table: PgTable | PgView;
 		tableConfig: TableRelationalConfig;
 		queryConfig: true | DBQueryConfig<'many', true>;
 		tableAlias: string;
@@ -1183,7 +1191,7 @@ export class PgDialect {
 				} of selectedRelations
 			) {
 				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
-				const relationTableName = relation.referencedTable[Table.Symbol.Name];
+				const relationTableName = getTableOrViewName(relation.referencedTable);
 				const relationTableTsName = tableNamesMap[relationTableName]!;
 				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
 				const joinOn = and(
@@ -1290,7 +1298,7 @@ export class PgDialect {
 			}
 
 			result = this.buildSelectQuery({
-				table: is(result, PgTable) ? result : new Subquery(result, {}, tableAlias),
+				table: is(result, PgTable) || is(result, PgView) ? result : new Subquery(result, {}, tableAlias),
 				fields: {},
 				fieldsFlat: nestedSelection.map(({ field }) => ({
 					path: [],
