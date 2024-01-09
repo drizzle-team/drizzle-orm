@@ -26,6 +26,7 @@ import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, ValidateShape, ValueOrArray } from '~/utils.ts';
 import type { PreparedQuery, PreparedQueryConfig } from '../session.ts';
 import type { PgSelectBase, PgSelectQueryBuilderBase } from './select.ts';
+import type { AnyPgInsertSelect } from './insert-select.ts';
 
 export interface PgSelectJoinConfig {
 	on: SQL | undefined;
@@ -79,6 +80,15 @@ export interface PgSelectConfig {
 	}[];
 }
 
+export interface PgSelectConstructorConfig {
+	table: PgSelectConfig['table'];
+	fields: PgSelectConfig['fields'];
+	withList: Subquery[];
+	distinct: boolean | {
+		on: (PgColumn | SQLWrapper)[];
+	} | undefined;
+}
+
 export type PgJoin<
 	T extends AnyPgSelectQueryBuilder,
 	TDynamic extends boolean,
@@ -109,7 +119,7 @@ export type PgJoin<
 	: never;
 
 export type PgJoinFn<
-	T extends AnyPgSelectQueryBuilder,
+	T extends AnyPgSelectQueryBuilder | AnyPgInsertSelect,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
 > = <
@@ -118,7 +128,9 @@ export type PgJoinFn<
 >(
 	table: TJoinedTable,
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
-) => PgJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
+) => T extends AnyPgSelectQueryBuilder
+	? PgJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>
+	: T;
 
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<PgColumn>;
 

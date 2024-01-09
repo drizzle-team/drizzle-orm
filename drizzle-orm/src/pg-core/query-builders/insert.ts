@@ -8,15 +8,16 @@ import type {
 	QueryResultHKT,
 	QueryResultKind,
 } from '~/pg-core/session.ts';
-import type { PgTable } from '~/pg-core/table.ts';
-import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { mapUpdateSet, orderSelectedFields } from '~/utils.ts';
-import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
+import { PgInsertSelectBuilder, type PgInsertSelectedFields } from './insert-select.ts';
+import type { PgTable } from '~/pg-core/table.ts';
+import type { SelectResultFields } from '~/query-builders/select.types.ts';
+import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
+import type { PgSelectConfig, SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { PgUpdateSetSource } from './update.ts';
 import type { PgColumn } from '../columns/common.ts';
 import type { Subquery } from '~/subquery.ts';
@@ -27,6 +28,7 @@ export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	withList?: Subquery[];
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
+	selectConfig?: PgSelectConfig;
 }
 
 export type PgInsertValue<TTable extends PgTable> =
@@ -62,7 +64,50 @@ export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends QueryR
 			return result;
 		});
 
-		return new PgInsertBase(this.table, mappedValues, this.session, this.dialect, this.withList);
+		return new PgInsertBase({
+			table: this.table,
+			values: mappedValues,
+			session: this.session,
+			dialect: this.dialect,
+		});
+	}
+
+	select<TSelection extends PgInsertSelectedFields<TTable>>(fields: TSelection): PgInsertSelectBuilder<TTable, TSelection, TQueryResult>;
+	select(fields: PgInsertSelectedFields<TTable>): PgInsertSelectBuilder<TTable, PgInsertSelectedFields<TTable>, TQueryResult> {
+		return new PgInsertSelectBuilder({
+			fields,
+			session: this.session,
+			dialect: this.dialect,
+			insertTable: this.table,
+		});
+	}
+
+	selectDistinct<TSelection extends PgInsertSelectedFields<TTable>>(fields: TSelection): PgInsertSelectBuilder<TTable, TSelection, TQueryResult>;
+	selectDistinct(fields: PgInsertSelectedFields<TTable>): PgInsertSelectBuilder<TTable, PgInsertSelectedFields<TTable>, TQueryResult> {
+		return new PgInsertSelectBuilder({
+			fields,
+			session: this.session,
+			dialect: this.dialect,
+			insertTable: this.table,
+			distinct: true,
+		});
+	}
+
+	selectDistinctOn<TSelection extends PgInsertSelectedFields<TTable>>(
+		on: (PgColumn | SQLWrapper)[],
+		fields: TSelection,
+	): PgInsertSelectBuilder<TTable, TSelection, TQueryResult>;
+	selectDistinctOn(
+		on: (PgColumn | SQLWrapper)[],
+		fields: PgInsertSelectedFields<TTable>,
+	): PgInsertSelectBuilder<TTable, PgInsertSelectedFields<TTable>, TQueryResult> {
+		return new PgInsertSelectBuilder({
+			fields,
+			session: this.session,
+			dialect: this.dialect,
+			insertTable: this.table,
+			distinct: { on },
+		});
 	}
 }
 
@@ -155,17 +200,23 @@ export class PgInsertBase<
 {
 	static readonly [entityKind]: string = 'PgInsert';
 
-	private config: PgInsertConfig<TTable>;
+	protected config: PgInsertConfig<TTable>;
+	protected session: PgSession;
+	protected dialect: PgDialect;
 
-	constructor(
+	constructor(config: {
 		table: TTable,
 		values: PgInsertConfig['values'],
-		private session: PgSession,
-		private dialect: PgDialect,
-		withList?: Subquery[],
-	) {
+		session: PgSession,
+		dialect: PgDialect,
+	}) {
 		super();
-		this.config = { table, values, withList };
+		this.session = config.session;
+		this.dialect = config.dialect;
+		this.config = {
+			table: config.table,
+			values: config.values
+		};
 	}
 
 	/**

@@ -1,4 +1,5 @@
 export * from './delete.ts';
+export * from './insert-select.ts';
 export * from './insert.ts';
 export * from './query-builder.ts';
 export * from './refresh-materialized-view.ts';
