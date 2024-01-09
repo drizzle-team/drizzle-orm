@@ -9,6 +9,7 @@ import {
 	type DBQueryConfig,
 	getOperators,
 	getOrderByOperators,
+	getTableOrViewName,
 	Many,
 	normalizeRelation,
 	One,
@@ -16,9 +17,9 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
+import type { Name } from '~/sql/index.ts';
+import { and, eq, View } from '~/sql/index.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
-import type { Name} from '~/sql/index.ts';
-import { and, eq } from '~/sql/index.ts'
 import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders/index.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
@@ -33,6 +34,7 @@ import type {
 } from './query-builders/select.types.ts';
 import type { SQLiteSession } from './session.ts';
 import { SQLiteViewBase } from './view-base.ts';
+import { SQLiteView } from './view.ts';
 
 export abstract class SQLiteDialect {
 	static readonly [entityKind]: string = 'SQLiteDialect';
@@ -217,6 +219,8 @@ export abstract class SQLiteDialect {
 		const tableSql = (() => {
 			if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
 				return sql`${sql.identifier(table[Table.Symbol.OriginalName])} ${sql.identifier(table[Table.Symbol.Name])}`;
+			} else if (is(table, View) && table[ViewBaseConfig].originalName !== table[ViewBaseConfig].name) {
+				return sql`${sql.identifier(table[ViewBaseConfig].originalName)} ${sql.identifier(table[ViewBaseConfig].name)}`;
 			}
 
 			return table;
@@ -431,7 +435,7 @@ export abstract class SQLiteDialect {
 		fullSchema: Record<string, unknown>;
 		schema: TablesRelationalConfig;
 		tableNamesMap: Record<string, string>;
-		table: SQLiteTable;
+		table: SQLiteTable | SQLiteView;
 		tableConfig: TableRelationalConfig;
 		queryConfig: true | DBQueryConfig<'many', true>;
 		tableAlias: string;
@@ -567,7 +571,7 @@ export abstract class SQLiteDialect {
 				} of selectedRelations
 			) {
 				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
-				const relationTableName = relation.referencedTable[Table.Symbol.Name];
+				const relationTableName = getTableOrViewName(relation.referencedTable);
 				const relationTableTsName = tableNamesMap[relationTableName]!;
 				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
 				// const relationTable = schema[relationTableTsName]!;
@@ -666,7 +670,7 @@ export abstract class SQLiteDialect {
 			}
 
 			result = this.buildSelectQuery({
-				table: is(result, SQLiteTable) ? result : new Subquery(result, {}, tableAlias),
+				table: is(result, SQLiteTable) || is(result, SQLiteView) ? result : new Subquery(result, {}, tableAlias),
 				fields: {},
 				fieldsFlat: nestedSelection.map(({ field }) => ({
 					path: [],
