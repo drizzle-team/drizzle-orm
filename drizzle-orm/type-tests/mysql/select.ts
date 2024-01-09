@@ -81,45 +81,6 @@ Expect<
 	>
 >;
 
-const join2 = await db
-	.select({
-		userId: users.id,
-		cityId: cities.id,
-	})
-	.from(users)
-	.fullJoin(cities, eq(users.id, cities.id));
-
-Expect<
-	Equal<
-		{
-			userId: number | null;
-			cityId: number | null;
-		}[],
-		typeof join2
-	>
->;
-
-const join3 = await db
-	.select({
-		userId: users.id,
-		cityId: cities.id,
-		classId: classes.id,
-	})
-	.from(users)
-	.fullJoin(cities, eq(users.id, cities.id))
-	.rightJoin(classes, eq(users.id, classes.id));
-
-Expect<
-	Equal<
-		{
-			userId: number | null;
-			cityId: number | null;
-			classId: number;
-		}[],
-		typeof join3
-	>
->;
-
 db
 	.select()
 	.from(users)

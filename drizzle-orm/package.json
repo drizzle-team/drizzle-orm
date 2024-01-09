@@ -59,6 +59,7 @@
     "expo-sqlite": ">=13.2.0",
     "knex": "*",
     "kysely": "*",
+    "mariadb": ">=3",
     "mysql2": ">=2",
     "pg": ">=8",
     "postgres": ">=3",
@@ -132,6 +133,9 @@
     },
     "@types/react": {
       "optional": true
+    },
+    "mariadb": {
+      "optional": true
     }
   },
   "devDependencies": {
@@ -154,6 +158,7 @@
     "expo-sqlite": "^13.2.0",
     "knex": "^2.4.2",
     "kysely": "^0.25.0",
+    "mariadb": "^3.2.3",
     "mysql2": "^3.3.3",
     "pg": "^8.11.0",
     "postgres": "^3.3.5",

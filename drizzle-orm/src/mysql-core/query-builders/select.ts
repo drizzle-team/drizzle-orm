@@ -347,35 +347,6 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * ```
 	 */
 	innerJoin = this.createJoin('inner');
-	
-	/**
-	 * Executes a `full join` operation by combining rows from two tables into a new table.
-	 * 
-	 * Calling this method retrieves all rows from both main and joined tables, merging rows with matching values and filling in `null` for non-matching columns.
-	 * 
-	 * See docs: {@link https://orm.drizzle.team/docs/joins#full-join}
-	 * 
-	 * @param table the table to join.
-	 * @param on the `on` clause.
-	 * 
-	 * @example
-	 * 
-	 * ```ts
-	 * // Select all users and their pets
-	 * const usersWithPets: { user: User | null; pets: Pet | null }[] = await db.select()
-	 *   .from(users)
-	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
-	 * 
-	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number | null; petId: number | null }[] = await db.select({
-	 *   userId: users.id,
-	 *   petId: pets.id,
-	 * })
-	 *   .from(users)
-	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
-	 * ```
-	 */
-	fullJoin = this.createJoin('full');
 
 	private createSetOperator(
 		type: SetOperator,
