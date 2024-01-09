@@ -7,6 +7,7 @@ import {
 	type QueryResult,
 	type QueryResultRow,
 } from '@neondatabase/serverless';
+import type { Span } from '@opentelemetry/api';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -16,6 +17,7 @@ import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.type
 import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
 import { PgSession, PreparedQuery } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { SelectAsyncGenerator } from '~/select-iterator';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
@@ -63,6 +65,11 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PreparedQu
 		return customResultMapper
 			? customResultMapper(result.rows)
 			: result.rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+	}
+
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	override iterator(span?: Span | undefined): SelectAsyncGenerator<T['iterator']> {
+		throw new Error('Iterator Not implemented');
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {

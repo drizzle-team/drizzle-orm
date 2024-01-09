@@ -11,6 +11,8 @@ import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 import type { RemoteCallback } from './driver.ts';
+import type { Span } from '@opentelemetry/api';
+import type { SelectAsyncGenerator } from '~/select-iterator.ts';
 
 export interface PgRemoteSessionOptions {
 	logger?: Logger;
@@ -117,7 +119,12 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 		});
 	}
 
-	async all() {}
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	override iterator(span?: Span | undefined): SelectAsyncGenerator<T['iterator']> {
+		throw new Error('Iterator Not implemented');
+	}
+
+	async all() { }
 }
 
 export interface PgRemoteQueryResultHKT extends QueryResultHKT {

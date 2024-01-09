@@ -166,5 +166,9 @@
     "vitest": "^0.31.4",
     "zod": "^3.20.2",
     "zx": "^7.2.2"
+  },
+  "dependencies": {
+    "@types/pg-cursor": "^2.7.2",
+    "pg-cursor": "^2.10.3"
   }
 }

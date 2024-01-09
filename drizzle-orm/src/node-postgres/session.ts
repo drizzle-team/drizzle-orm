@@ -1,5 +1,7 @@
+import type { Span } from '@opentelemetry/api';
 import type { Client, PoolClient, QueryArrayConfig, QueryConfig, QueryResult, QueryResultRow } from 'pg';
 import pg from 'pg';
+import Cursor from 'pg-cursor';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -8,6 +10,7 @@ import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.type
 import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
 import { PgSession, PreparedQuery } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { SelectAsyncGenerator, TypeFromSelection } from '~/select-iterator';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
@@ -78,6 +81,17 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 		});
 	}
 
+	override iterator(span?: Span): SelectAsyncGenerator<T['iterator']> {
+		const params = fillPlaceholders(this.params, {});
+		this.logger.logQuery(this.rawQuery.text, params);
+		if (!this.fields && !this.customResultMapper) {
+			throw new Error('no fields or customResultMapper')
+		}
+		type my = TypeFromSelection<T['iterator']>
+		return new NodePgSelectIterator<my>(span, this.client, this.query, params, this.fields,
+			this.customResultMapper as () => my[], this.joinsNotNullableMap);
+	}
+
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
 		return tracer.startActiveSpan('drizzle.execute', () => {
 			const params = fillPlaceholders(this.params, placeholderValues);
@@ -91,6 +105,94 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 				return this.client.query(this.rawQuery, params).then((result) => result.rows);
 			});
 		});
+	}
+}
+
+
+// eslint-disable-next-line drizzle/require-entity-kind
+class NodePgSelectIterator<T> implements AsyncGenerator<T> {
+	needConnect = true
+	// the 100 has to be configurable
+	readonly chunkSize = 100
+	rows: unknown[][] = []
+	pclient?: PoolClient
+	cursor?: Cursor
+	pClient?: PoolClient
+	readonly span?: Span
+	readonly params: unknown[]
+	readonly query: QueryArrayConfig
+	readonly client: NodePgClient
+
+	readonly customResultMapper: (rows: unknown[][]) => T[] | undefined
+	readonly fields?: SelectedFieldsOrdered
+	readonly joinsNotNullableMap?: Record<string, boolean>
+
+	constructor(
+		span: Span|undefined,
+		client: NodePgClient,
+		query: QueryArrayConfig,
+		params: unknown[],
+		fields: SelectedFieldsOrdered | undefined,
+		customResultMapper: (rows: unknown[][]) => T[] | undefined,
+		joinsNotNullableMap: Record<string, boolean> | undefined) {
+		this.span = span
+		this.client = client
+		this.params = params
+		this.query = query
+		this.fields = fields
+		this.customResultMapper = customResultMapper
+		this.joinsNotNullableMap = joinsNotNullableMap
+	}
+	async next(): Promise<IteratorResult<T>>  {
+		if (this.needConnect) {
+			await tracer.startActiveSpan('drizzle.driver.iterator', async (span) => {
+				span?.setAttributes({
+					'drizzle.query.name': this.query.name,
+					'drizzle.query.text': this.query.text,
+					'drizzle.query.params': JSON.stringify(this.params),
+				});
+				this.pClient = this.client as PoolClient
+				const qcursor = new Cursor(this.query.text, this.params, this.query)
+				this.cursor = this.pClient.query(qcursor);
+				this.needConnect = false
+			})
+		}
+
+		if (this.rows.length === 0) {
+			const dbRows = await this.cursor!.read(this.chunkSize)
+			if (dbRows.length === 0) {
+				await this.cursor!.close()
+				// this.pClient!.release()
+				this.span?.end()
+				return { done: true, value: undefined }
+			}
+			this.rows = tracer.startActiveSpan('drizzle.mapResponse', () => {
+				return (this.customResultMapper ?
+					this.customResultMapper(dbRows) :
+					dbRows.map((row) => mapResultRow<T>(this.fields!, row, this.joinsNotNullableMap))
+				) as unknown as unknown[][];
+			})
+		}
+		// eslint-disable-next-line unicorn/consistent-destructuring
+		const row = this.rows.shift()
+		if (!row) {
+			throw new Error('row is undefined')
+		}
+		return { done: false, value: row as unknown as T }
+	}
+	async return(): Promise<IteratorResult<T>> {
+		await this.cursor!.close()
+		this.span?.end()
+		return { done: true, value: undefined }
+	}
+	async throw(): Promise<IteratorResult<T>> {
+		await this.cursor!.close()
+		this.span?.end()
+		return { done: true, value: undefined }
+	}
+
+	[Symbol.asyncIterator]()  {
+		return this
 	}
 }
 

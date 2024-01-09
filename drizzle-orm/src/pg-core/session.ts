@@ -6,9 +6,12 @@ import { tracer } from '~/tracing.ts';
 import { PgDatabase } from './db.ts';
 import type { PgDialect } from './dialect.ts';
 import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
+import type { Span } from '@opentelemetry/api';
+import type { SelectAsyncGenerator } from '~/select-iterator.ts';
 
 export interface PreparedQueryConfig {
 	execute: unknown;
+	iterator: Record<string, unknown>;
 	all: unknown;
 	values: unknown;
 }
@@ -20,6 +23,8 @@ export abstract class PreparedQuery<T extends PreparedQueryConfig> {
 	joinsNotNullableMap?: Record<string, boolean>;
 
 	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
+
+	abstract iterator(span?: Span): SelectAsyncGenerator<T['iterator']>;
 
 	/** @internal */
 	abstract all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;

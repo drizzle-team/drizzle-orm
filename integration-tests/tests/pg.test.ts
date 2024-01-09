@@ -29,6 +29,7 @@ import {
 	sum,
 	sumDistinct,
 	TransactionRollbackError,
+	type InferSelectModel,
 } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -237,7 +238,7 @@ test.beforeEach(async (t) => {
 			create table users (
 				id serial primary key,
 				name text not null,
-				verified boolean not null default false, 
+				verified boolean not null default false,
 				jsonb jsonb,
 				created_at timestamptz not null default now()
 			)
@@ -683,7 +684,7 @@ test.serial('delete with returning partial', async (t) => {
 	t.deepEqual(users, [{ id: 1, name: 'John' }]);
 });
 
-test.serial('insert + select', async (t) => {
+test.serial('insert + select promise', async (t) => {
 	const { db } = t.context;
 
 	await db.insert(usersTable).values({ name: 'John' });
@@ -699,6 +700,110 @@ test.serial('insert + select', async (t) => {
 		{ id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
 	]);
 });
+
+async function iterator2Array<T>(iter: AsyncGenerator<T, T>): Promise<T[]> {
+	const ret: T[] = [];
+	for await (const item of iter) {
+		ret.push(item);
+	}
+	return ret;
+}
+
+test.serial('insert + select iterator', async (t) => {
+	const { db } = t.context;
+
+	const result0 = await iterator2Array(db.select().from(usersTable).iterator());
+	t.deepEqual(result0, [])
+
+	await db.insert(usersTable).values({ name: 'John' });
+	const result1 = await iterator2Array(db.select().from(usersTable).iterator());
+	t.deepEqual(result1, [
+		{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result1[0]!.createdAt },
+	]);
+
+
+	await db.insert(usersTable).values({ name: 'Jane' });
+	const result2 = await iterator2Array(db.select().from(usersTable).iterator());
+	t.deepEqual(result2, [
+		{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result2[0]!.createdAt },
+		{ id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
+	]);
+
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	for await (const item of db.select().from(usersTable).iterator()) {
+		break
+	}
+
+	const result3 = await iterator2Array(db.select().from(usersTable).iterator());
+	t.deepEqual(result3, [
+		{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result2[0]!.createdAt },
+		{ id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
+	]);
+
+	try {
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		for await (const item of db.select().from(usersTable).iterator()) {
+			throw new Error('test')
+		}
+		// eslint-disable-next-line unicorn/prefer-optional-catch-binding
+	} catch (e) {
+		// ignore
+	}
+
+	const result4 = await iterator2Array(db.select().from(usersTable).iterator());
+	t.deepEqual(result4, [
+		{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result2[0]!.createdAt },
+		{ id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
+	]);
+
+});
+
+
+test.serial('select iterator', async (t) => {
+	const { db } = t.context;
+
+	const usersTable = pgTable('users_iterator', {
+		id: serial('id').primaryKey(),
+	});
+
+	await db.execute(sql`drop table if exists ${usersTable}`);
+	await db.execute(sql`create table ${usersTable} (id serial not null primary key)`);
+
+	await db.insert(usersTable).values([ {}, {}, {} ]);
+
+	const iter = db.select().from(usersTable).iterator();
+	const result: InferSelectModel<typeof usersTable>[] = [];
+
+	for await (const row of iter) {
+		result.push(row);
+	}
+
+	t.deepEqual(result, [{ id: 1 }, { id: 2 }, { id: 3 }]);
+});
+
+test.serial('select iterator w/ prepared statement', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users_iterator', {
+		id: serial('id').primaryKey(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`create table ${users} (id serial not null primary key)`);
+
+	await db.insert(users).values([{}, {}, {}]);
+
+	const prepared = db.select().from(users).prepare("jojo");
+	const iter = prepared.iterator();
+	const result: InferSelectModel<typeof users>[] = [];
+
+	for await (const row of iter) {
+		result.push(row);
+	}
+
+	t.deepEqual(result, [{ id: 1 }, { id: 2 }, { id: 3 }]);
+});
+
 
 test.serial('json insert', async (t) => {
 	const { db } = t.context;
@@ -1174,11 +1279,10 @@ test.serial('insert via db.execute + returning', async (t) => {
 	const { db } = t.context;
 
 	const inserted = await db.execute<{ id: number; name: string }>(
-		sql`insert into ${usersTable} (${
-			name(
-				usersTable.name.name,
-			)
-		}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
+		sql`insert into ${usersTable} (${name(
+			usersTable.name.name,
+		)
+			}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
 	);
 	t.deepEqual(inserted.rows, [{ id: 1, name: 'John' }]);
 });
@@ -2315,17 +2419,15 @@ test.serial('select from enum', async (t) => {
 	await db.execute(sql`drop type if exists ${name(categoryEnum.enumName)}`);
 
 	await db.execute(
-		sql`create type ${
-			name(muscleEnum.enumName)
-		} as enum ('abdominals', 'hamstrings', 'adductors', 'quadriceps', 'biceps', 'shoulders', 'chest', 'middle_back', 'calves', 'glutes', 'lower_back', 'lats', 'triceps', 'traps', 'forearms', 'neck', 'abductors')`,
+		sql`create type ${name(muscleEnum.enumName)
+			} as enum ('abdominals', 'hamstrings', 'adductors', 'quadriceps', 'biceps', 'shoulders', 'chest', 'middle_back', 'calves', 'glutes', 'lower_back', 'lats', 'triceps', 'traps', 'forearms', 'neck', 'abductors')`,
 	);
 	await db.execute(sql`create type ${name(forceEnum.enumName)} as enum ('isometric', 'isotonic', 'isokinetic')`);
 	await db.execute(sql`create type ${name(levelEnum.enumName)} as enum ('beginner', 'intermediate', 'advanced')`);
 	await db.execute(sql`create type ${name(mechanicEnum.enumName)} as enum ('compound', 'isolation')`);
 	await db.execute(
-		sql`create type ${
-			name(equipmentEnum.enumName)
-		} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,
+		sql`create type ${name(equipmentEnum.enumName)
+			} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,
 	);
 	await db.execute(sql`create type ${name(categoryEnum.enumName)} as enum ('upper_body', 'lower_body', 'full_body')`);
 	await db.execute(sql`

@@ -244,6 +244,7 @@ export type PgSelectWithout<
 export type PgSelectPrepare<T extends AnyPgSelect> = PreparedQuery<
 	PreparedQueryConfig & {
 		execute: T['_']['result'];
+		iterator: T['_']['result'][number];
 	}
 >;
 

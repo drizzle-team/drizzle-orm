@@ -87,6 +87,13 @@ importers:
         version: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
 
   drizzle-orm:
+    dependencies:
+      '@types/pg-cursor':
+        specifier: ^2.7.2
+        version: 2.7.2
+      pg-cursor:
+        specifier: ^2.10.3
+        version: 2.10.3(pg@8.11.0)
     devDependencies:
       '@aws-sdk/client-rds-data':
         specifier: ^3.344.0
@@ -376,6 +383,9 @@ importers:
       pg:
         specifier: ^8.11.0
         version: 8.11.0
+      pg-cursor:
+        specifier: ^2.10.3
+        version: 2.10.3(pg@8.11.0)
       postgres:
         specifier: ^3.3.5
         version: 3.3.5
@@ -425,6 +435,9 @@ importers:
       '@types/pg':
         specifier: ^8.10.1
         version: 8.10.1
+      '@types/pg-cursor':
+        specifier: ^2.7.2
+        version: 2.7.2
       '@types/sql.js':
         specifier: ^1.4.4
         version: 1.4.4
@@ -4558,6 +4571,12 @@ packages:
   /@types/normalize-package-data@2.4.1:
     resolution: {integrity: sha512-Gj7cI7z+98M282Tqmp2K5EIsoouUEzbBJhQQzDE3jSIRk6r9gsz0oUokqIUR4u1R3dMHo0pDHM7sNOHyhulypw==}
     dev: true
+
+  /@types/pg-cursor@2.7.2:
+    resolution: {integrity: sha512-m3xT8bVFCvx98LuzbvXyuCdT/Hjdd/v8ml4jL4K1QF70Y8clOfCFdgoaEB1FWdcSwcpoFYZTJQaMD9/GQ27efQ==}
+    dependencies:
+      '@types/node': 20.8.7
+      '@types/pg': 8.10.1
 
   /@types/pg@8.10.1:
     resolution: {integrity: sha512-AmEHA/XxMxemQom5iDwP62FYNkv+gDDnetRG7v2N2dPtju7UKI7FknUimcZo7SodKTHtckYPzaTqUEvUKbVJEA==}
@@ -10420,6 +10439,14 @@ packages:
 
   /pg-connection-string@2.6.0:
     resolution: {integrity: sha512-x14ibktcwlHKoHxx9X3uTVW9zIGR41ZB6QNhHb21OPNdCCO3NaRnpJuwKIQSR4u+Yqjx4HCvy7Hh7VSy1U4dGg==}
+
+  /pg-cursor@2.10.3(pg@8.11.0):
+    resolution: {integrity: sha512-rDyBVoqPVnx/PTmnwQAYgusSeAKlTL++gmpf5klVK+mYMFEqsOc6VHHZnPKc/4lOvr4r6fiMuoxSFuBF1dx4FQ==}
+    peerDependencies:
+      pg: ^8
+    dependencies:
+      pg: 8.11.0
+    dev: false
 
   /pg-int8@1.0.1:
     resolution: {integrity: sha512-WCtabS6t3c8SkpDBUlb1kjOs7l66xsGdKpIPZsg4wR+B3+u9UAum2odSsF9tnvxg80h4ZxLWMy4pRjOsFIqQpw==}
