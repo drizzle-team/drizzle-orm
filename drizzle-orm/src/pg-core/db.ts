@@ -1,9 +1,11 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import {
 	PgDeleteBase,
 	PgInsertBuilder,
+	PgSelectBase,
 	PgSelectBuilder,
+	PgSelectQueryBuilderBase,
 	PgUpdateBuilder,
 	QueryBuilder,
 } from '~/pg-core/query-builders/index.ts';
@@ -122,6 +124,49 @@ export class PgDatabase<
 	}
 
 	/**
+	 * Creates a subquery that defines a temporary named result set as a recursive CTE.
+	 *
+	 * It is useful for breaking down complex queries into simpler parts and for reusing the result set in subsequent parts of the query.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/select#with-clause}
+	 *
+	 * @param alias The alias for the subquery.
+	 *
+	 * Failure to provide an alias will result in a DrizzleTypeError, preventing the subquery from being referenced in other queries.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Define a subquery 'sq' as a CTE using $with
+	 * const sq = db.$withRecursive('sq').as(db.select({ series: 1 }).unionAll(db.select({ series: sql`sq.series + 1` }).from('sq').where(lt('sq.series', 10))));
+	 *
+	 * // Incorporate the CTE 'sq' into the main query and select from it
+	 * const result = await db.withRecursive(sq).select().from(sq);
+	 * ```
+	 */
+	$withRecursive<TAlias extends string>(alias: TAlias) {
+		return {
+			as<TSelection extends ColumnsSelection>(
+				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
+			): WithSubqueryWithSelection<TSelection, TAlias> {
+				if (typeof qb === 'function') {
+					qb = qb(new QueryBuilder());
+				}
+
+				// Have to use the PgSelectQueryBuilderBase because the query is built with a new QueryBuilder (see 3 lines above)
+				if (is(qb, PgSelectQueryBuilderBase)) {
+					qb.setSelfReferenceName(alias);
+				}
+
+				return new Proxy(
+					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
+					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+				) as WithSubqueryWithSelection<TSelection, TAlias>;
+			},
+		};
+	}
+
+	/**
 	 * Incorporates a previously defined CTE (using `$with`) into the main query.
 	 *
 	 * This method allows the main query to reference a temporary named result set.
@@ -179,15 +224,27 @@ export class PgDatabase<
 		 *   .from(cars);
 		 * ```
 		 */
-		function select(): PgSelectBuilder<undefined>;
-		function select<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
-		function select(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
-			return new PgSelectBuilder({
-				fields: fields ?? undefined,
-				session: self.session,
-				dialect: self.dialect,
-				withList: queries,
-			});
+		function select(): PgSelectBuilder;
+		function select<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): PgSelectBase<undefined, TSelection, 'partial'>;
+		function select<TSelection extends SelectedFields>(
+			fields?: TSelection,
+		): PgSelectBuilder | PgSelectBase<undefined, TSelection, 'partial'> {
+			return fields
+				? new PgSelectBase({
+					table: undefined,
+					fields,
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					isPartialSelect: true,
+				})
+				: new PgSelectBuilder({
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+				});
 		}
 
 		/**
@@ -214,16 +271,29 @@ export class PgDatabase<
 		 *   .orderBy(cars.brand);
 		 * ```
 		 */
-		function selectDistinct(): PgSelectBuilder<undefined>;
-		function selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
-		function selectDistinct(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
-			return new PgSelectBuilder({
-				fields: fields ?? undefined,
-				session: self.session,
-				dialect: self.dialect,
-				withList: queries,
-				distinct: true,
-			});
+		function selectDistinct(): PgSelectBuilder;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): PgSelectBase<undefined, TSelection, 'partial'>;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields?: TSelection,
+		): PgSelectBuilder | PgSelectBase<undefined, TSelection, 'partial'> {
+			return fields
+				? new PgSelectBase({
+					table: undefined,
+					fields,
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					isPartialSelect: true,
+					distinct: true,
+				})
+				: new PgSelectBuilder({
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					distinct: true,
+				});
 		}
 
 		/**
@@ -251,22 +321,31 @@ export class PgDatabase<
 		 *   .orderBy(cars.brand, cars.color);
 		 * ```
 		 */
-		function selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgSelectBuilder<undefined>;
+		function selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgSelectBuilder;
 		function selectDistinctOn<TSelection extends SelectedFields>(
 			on: (PgColumn | SQLWrapper)[],
 			fields: TSelection,
-		): PgSelectBuilder<TSelection>;
-		function selectDistinctOn(
+		): PgSelectBase<undefined, TSelection, 'partial'>;
+		function selectDistinctOn<TSelection extends SelectedFields>(
 			on: (PgColumn | SQLWrapper)[],
 			fields?: SelectedFields,
-		): PgSelectBuilder<SelectedFields | undefined> {
-			return new PgSelectBuilder({
-				fields: fields ?? undefined,
-				session: self.session,
-				dialect: self.dialect,
-				withList: queries,
-				distinct: { on },
-			});
+		): PgSelectBuilder | PgSelectBase<undefined, TSelection, 'partial'> {
+			return fields
+				? new PgSelectBase({
+					table: undefined,
+					fields,
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					isPartialSelect: true,
+					distinct: { on },
+				})
+				: new PgSelectBuilder({
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					distinct: { on },
+				});
 		}
 
 		/**
@@ -360,6 +439,112 @@ export class PgDatabase<
 	}
 
 	/**
+	 * Incorporates a previously defined recursive CTE (using `$withRecursive`) into the main query.
+	 *
+	 * This method allows the main query to reference a temporary named result set.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/select#with-clause}
+	 *
+	 * @param queries The CTEs to incorporate into the main query.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Define a subquery 'sq' as a CTE using $with
+	 * const sq = db.$withRecursive('sq').as(db.select({ series: 1 }).unionAll(db.select({ series: sql`sq.series + 1` }).from('sq').where(lt('sq.series', 10))));
+	 *
+	 * // Incorporate the CTE 'sq' into the main query and select from it
+	 * const result = await db.withRecursive(sq).select().from(sq);
+	 * ```
+	 */
+	withRecursive(...queries: WithSubquery[]) {
+		const self = this;
+
+		function select(): PgSelectBuilder;
+		function select<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): PgSelectBase<undefined, TSelection, 'partial'>;
+		function select<TSelection extends SelectedFields>(
+			fields?: TSelection,
+		): PgSelectBuilder | PgSelectBase<undefined, TSelection, 'partial'> {
+			return fields
+				? new PgSelectBase({
+					table: undefined,
+					fields,
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					isPartialSelect: true,
+					recursive: true,
+				})
+				: new PgSelectBuilder({
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					recursive: true,
+				});
+		}
+
+		function selectDistinct(): PgSelectBuilder;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): PgSelectBase<undefined, TSelection, 'partial'>;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields?: TSelection,
+		): PgSelectBuilder | PgSelectBase<undefined, TSelection, 'partial'> {
+			return fields
+				? new PgSelectBase({
+					table: undefined,
+					fields,
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					isPartialSelect: true,
+					distinct: true,
+					recursive: true,
+				})
+				: new PgSelectBuilder({
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					distinct: true,
+					recursive: true,
+				});
+		}
+
+		function selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgSelectBuilder;
+		function selectDistinctOn<TSelection extends SelectedFields>(
+			on: (PgColumn | SQLWrapper)[],
+			fields: TSelection,
+		): PgSelectBase<undefined, TSelection, 'partial'>;
+		function selectDistinctOn<TSelection extends SelectedFields>(
+			on: (PgColumn | SQLWrapper)[],
+			fields?: SelectedFields,
+		): PgSelectBuilder | PgSelectBase<undefined, TSelection, 'partial'> {
+			return fields
+				? new PgSelectBase({
+					table: undefined,
+					fields,
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					isPartialSelect: true,
+					distinct: { on },
+					recursive: true,
+				})
+				: new PgSelectBuilder({
+					session: self.session,
+					dialect: self.dialect,
+					withList: queries,
+					distinct: { on },
+					recursive: true,
+				});
+		}
+
+		return { select, selectDistinct, selectDistinctOn };
+	}
+
+	/**
 	 * Creates a select query.
 	 *
 	 * Calling this method with no arguments will select all columns from the table. Pass a selection object to specify the columns you want to select.
@@ -395,14 +580,25 @@ export class PgDatabase<
 	 *   .from(cars);
 	 * ```
 	 */
-	select(): PgSelectBuilder<undefined>;
-	select<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
-	select(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
-		return new PgSelectBuilder({
-			fields: fields ?? undefined,
-			session: this.session,
-			dialect: this.dialect,
-		});
+	select(): PgSelectBuilder;
+	select<TSelection extends SelectedFields>(
+		fields: TSelection,
+	): PgSelectBase<undefined, TSelection, 'partial'>;
+	select<TSelection extends SelectedFields>(
+		fields?: TSelection,
+	): PgSelectBuilder | PgSelectBase<undefined, TSelection, 'partial'> {
+		return fields
+			? new PgSelectBase({
+				table: undefined,
+				fields,
+				session: this.session,
+				dialect: this.dialect,
+				isPartialSelect: true,
+			})
+			: new PgSelectBuilder({
+				session: this.session,
+				dialect: this.dialect,
+			});
 	}
 
 	/**
@@ -429,15 +625,27 @@ export class PgDatabase<
 	 *   .orderBy(cars.brand);
 	 * ```
 	 */
-	selectDistinct(): PgSelectBuilder<undefined>;
-	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
-	selectDistinct(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
-		return new PgSelectBuilder({
-			fields: fields ?? undefined,
-			session: this.session,
-			dialect: this.dialect,
-			distinct: true,
-		});
+	selectDistinct(): PgSelectBuilder;
+	selectDistinct<TSelection extends SelectedFields>(
+		fields: TSelection,
+	): PgSelectBase<undefined, TSelection, 'partial'>;
+	selectDistinct<TSelection extends SelectedFields>(
+		fields?: TSelection,
+	): PgSelectBuilder | PgSelectBase<undefined, TSelection, 'partial'> {
+		return fields
+			? new PgSelectBase({
+				table: undefined,
+				fields,
+				session: this.session,
+				dialect: this.dialect,
+				isPartialSelect: true,
+				distinct: true,
+			})
+			: new PgSelectBuilder({
+				session: this.session,
+				dialect: this.dialect,
+				distinct: true,
+			});
 	}
 
 	/**
@@ -465,21 +673,29 @@ export class PgDatabase<
 	 *   .orderBy(cars.brand, cars.color);
 	 * ```
 	 */
-	selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgSelectBuilder<undefined>;
+	selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgSelectBuilder;
 	selectDistinctOn<TSelection extends SelectedFields>(
 		on: (PgColumn | SQLWrapper)[],
 		fields: TSelection,
-	): PgSelectBuilder<TSelection>;
-	selectDistinctOn(
+	): PgSelectBase<undefined, TSelection, 'partial'>;
+	selectDistinctOn<TSelection extends SelectedFields>(
 		on: (PgColumn | SQLWrapper)[],
 		fields?: SelectedFields,
-	): PgSelectBuilder<SelectedFields | undefined> {
-		return new PgSelectBuilder({
-			fields: fields ?? undefined,
-			session: this.session,
-			dialect: this.dialect,
-			distinct: { on },
-		});
+	): PgSelectBuilder | PgSelectBase<undefined, TSelection, 'partial'> {
+		return fields
+			? new PgSelectBase({
+				table: undefined,
+				fields,
+				session: this.session,
+				dialect: this.dialect,
+				isPartialSelect: true,
+				distinct: { on },
+			})
+			: new PgSelectBuilder({
+				session: this.session,
+				dialect: this.dialect,
+				distinct: { on },
+			});
 	}
 
 	/**
@@ -599,10 +815,12 @@ export const withReplicas = <
 	replicas: [Q, ...Q[]],
 	getReplica: (replicas: Q[]) => Q = () => replicas[Math.floor(Math.random() * replicas.length)]!,
 ): PgWithReplicas<Q> => {
-	const select: Q['select'] = (...args: []) => getReplica(replicas).select(...args);
-	const selectDistinct: Q['selectDistinct'] = (...args: []) => getReplica(replicas).selectDistinct(...args);
-	const selectDistinctOn: Q['selectDistinctOn'] = (...args: [any]) => getReplica(replicas).selectDistinctOn(...args);
+	const select: Q['select'] = (...args: []) => getReplica(replicas).select(...args) as any;
+	const selectDistinct: Q['selectDistinct'] = (...args: []) => getReplica(replicas).selectDistinct(...args) as any;
+	const selectDistinctOn: Q['selectDistinctOn'] = (...args: [any]) =>
+		getReplica(replicas).selectDistinctOn(...args) as any;
 	const $with: Q['with'] = (...args: any) => getReplica(replicas).with(...args);
+	const $withRecursive: Q['withRecursive'] = (...args: any) => getReplica(replicas).withRecursive(...args);
 
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
 	const insert: Q['insert'] = (...args: [any]) => primary.insert(...args);
@@ -625,6 +843,7 @@ export const withReplicas = <
 		selectDistinct,
 		selectDistinctOn,
 		with: $with,
+		withRecursive: $withRecursive,
 		get query() {
 			return getReplica(replicas).query;
 		},

@@ -30,6 +30,56 @@ import { type MySqlSelect, type MySqlSelectQueryBuilder, QueryBuilder } from '~/
 import { db } from './db.ts';
 import { cities, classes, newYorkers, users } from './tables.ts';
 
+const withoutFrom = await db.select({
+	hello1: sql<string>`"Hello World"`, // string
+	hello2: sql`"Hello World"`.mapWith(String), // string
+	hello3: sql`"Hello World"`, // unknown
+	number1: sql<number>`1`, // should be inferred as number but it will depend on the driver
+	number2: sql`1`.mapWith(Number), // number
+	number3: sql`1`, // unknown
+});
+
+Expect<
+	Equal<
+		typeof withoutFrom,
+		{ hello1: string; hello2: string; hello3: unknown; number1: number; number2: number; number3: unknown }[]
+	>
+>;
+
+const withoutFrom2 = await db.select({
+	hello1: sql<string>`"Hello World"`.as('hello'), // string
+	hello2: sql`"Hello World"`.mapWith(String).as('hello2'), // string
+	hello3: sql`"Hello World"`, // unknown
+	number1: sql<number>`1`, // should be inferred as number but it will depend on the driver
+	number2: sql`1`.mapWith(Number), // number
+	number3: sql`1`, // unknown
+}).where(sql``).limit(1).offset(1).for('update');
+
+Expect<
+	Equal<
+		typeof withoutFrom2,
+		{ hello1: string; hello2: string; hello3: unknown; number1: number; number2: number; number3: unknown }[]
+	>
+>;
+
+await db.select({
+	hello1: sql<string>`"Hello World"`,
+})
+	.where(sql``)
+	// @ts-expect-error - from is not allowed after any other methods, just like in SQL
+	.from(users);
+
+await db.select({
+	id: users.id,
+})
+	.where(sql``)
+	.$dynamic()
+	.from(users); // From is allowed if you call $dynamic
+
+await db.select()
+	// @ts-expect-error - only the from method is available if nothing is passed to select
+	.where(sql``);
+
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
 

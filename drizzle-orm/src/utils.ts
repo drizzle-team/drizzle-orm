@@ -190,12 +190,12 @@ export function getTableColumns<T extends Table>(table: T): T['_']['columns'] {
 }
 
 /** @internal */
-export function getTableLikeName(table: TableLike): string | undefined {
+export function getTableLikeName(table?: TableLike | undefined): string | undefined {
 	return is(table, Subquery)
 		? table[SubqueryConfig].alias
 		: is(table, View)
 		? table[ViewBaseConfig].name
-		: is(table, SQL)
+		: is(table, SQL) || !table
 		? undefined
 		: table[Table.Symbol.IsAlias]
 		? table[Table.Symbol.Name]

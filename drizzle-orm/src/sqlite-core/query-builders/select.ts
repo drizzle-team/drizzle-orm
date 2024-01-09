@@ -1,4 +1,5 @@
 import { entityKind, is } from '~/entity.ts';
+import { LazyTableAliasProxyHandler } from '~/index.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	BuildSubquerySelection,
@@ -12,14 +13,16 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { SQL, View } from '~/sql/sql.ts';
 import type { ColumnsSelection, Placeholder, Query } from '~/sql/sql.ts';
-import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
+import { customType, type SQLiteColumn, type SQLiteColumnBuilderBase } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import type { SubqueryWithSelection } from '~/sqlite-core/subquery.ts';
-import type { SQLiteTable } from '~/sqlite-core/table.ts';
-import { Table } from '~/table.ts';
+import { type SQLiteSelfReferenceTable, type SQLiteTable, sqliteTable } from '~/sqlite-core/table.ts';
+import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { IsLazilyNamedTable, Table } from '~/table.ts';
 import {
 	applyMixins,
 	getTableColumns,
@@ -29,6 +32,7 @@ import {
 	type ValueOrArray,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { SQLiteViewBase } from '../view-base.ts';
 import type {
 	AnySQLiteSelect,
 	CreateSQLiteSelectFromBuilderMode,
@@ -40,6 +44,7 @@ import type {
 	SQLiteSelectConfig,
 	SQLiteSelectDynamic,
 	SQLiteSelectExecute,
+	SQLiteSelectFrom,
 	SQLiteSelectHKT,
 	SQLiteSelectHKTBase,
 	SQLiteSelectPrepare,
@@ -47,38 +52,34 @@ import type {
 	SQLiteSetOperatorExcludedMethods,
 	SQLiteSetOperatorWithResult,
 } from './select.types.ts';
-import { Subquery, SubqueryConfig } from '~/subquery.ts';
-import { SQLiteViewBase } from '../view-base.ts';
-import { SelectionProxyHandler } from '~/selection-proxy.ts';
 
 export class SQLiteSelectBuilder<
-	TSelection extends SelectedFields | undefined,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TBuilderMode extends 'db' | 'qb' = 'db',
 > {
 	static readonly [entityKind]: string = 'SQLiteSelectBuilder';
 
-	private fields: TSelection;
 	private session: SQLiteSession<any, any, any, any> | undefined;
 	private dialect: SQLiteDialect;
 	private withList: Subquery[] | undefined;
 	private distinct: boolean | undefined;
+	private recursive: boolean | undefined;
 
 	constructor(
 		config: {
-			fields: TSelection;
 			session: SQLiteSession<any, any, any, any> | undefined;
 			dialect: SQLiteDialect;
 			withList?: Subquery[];
 			distinct?: boolean;
+			recursive?: boolean;
 		},
 	) {
-		this.fields = config.fields;
 		this.session = config.session;
 		this.dialect = config.dialect;
 		this.withList = config.withList;
 		this.distinct = config.distinct;
+		this.recursive = config.recursive;
 	}
 
 	from<TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL>(
@@ -88,15 +89,12 @@ export class SQLiteSelectBuilder<
 		GetSelectTableName<TFrom>,
 		TResultType,
 		TRunResult,
-		TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection,
-		TSelection extends undefined ? 'single' : 'partial'
+		GetSelectTableSelection<TFrom>,
+		'single'
 	> {
-		const isPartialSelect = !!this.fields;
-
 		let fields: SelectedFields;
-		if (this.fields) {
-			fields = this.fields;
-		} else if (is(source, Subquery)) {
+
+		if (is(source, Subquery)) {
 			// This is required to use the proxy handler to get the correct field values from the subquery
 			fields = Object.fromEntries(
 				Object.keys(source[SubqueryConfig].selection).map((
@@ -114,16 +112,17 @@ export class SQLiteSelectBuilder<
 		return new SQLiteSelectBase({
 			table: source,
 			fields,
-			isPartialSelect,
+			isPartialSelect: false,
 			session: this.session,
 			dialect: this.dialect,
 			withList: this.withList,
 			distinct: this.distinct,
+			recursive: this.recursive,
 		}) as any;
 	}
 }
 
-export abstract class SQLiteSelectQueryBuilderBase<
+export class SQLiteSelectQueryBuilderBase<
 	THKT extends SQLiteSelectHKTBase,
 	TTableName extends string | undefined,
 	TResultType extends 'sync' | 'async',
@@ -163,14 +162,15 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	protected dialect: SQLiteDialect;
 
 	constructor(
-		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
+		{ table, fields, isPartialSelect, session, dialect, withList, distinct, recursive }: {
 			table: SQLiteSelectConfig['table'];
 			fields: SQLiteSelectConfig['fields'];
 			isPartialSelect: boolean;
 			session: SQLiteSession<any, any, any, any> | undefined;
 			dialect: SQLiteDialect;
-			withList: Subquery[] | undefined;
-			distinct: boolean | undefined;
+			withList?: Subquery[] | undefined;
+			distinct?: boolean | undefined;
+			recursive?: boolean;
 		},
 	) {
 		super();
@@ -180,6 +180,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 			fields: { ...fields },
 			distinct,
 			setOperators: [],
+			recursive,
 		};
 		this.isPartialSelect = isPartialSelect;
 		this.session = session;
@@ -189,6 +190,27 @@ export abstract class SQLiteSelectQueryBuilderBase<
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
+	}
+
+	from<TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL>(
+		source: TFrom,
+	): SQLiteSelectFrom<this, TFrom, TDynamic> {
+		this.config.table = source;
+
+		this.tableName = getTableLikeName(source);
+		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
+
+		return this as any;
+	}
+
+	/** @internal */
+	getTable() {
+		return this.config.table;
+	}
+
+	/** @internal */
+	setSelfReferenceName(name: string) {
+		this.config.selfReferenceName = name;
 	}
 
 	private createJoin<TJoinType extends JoinType>(
@@ -388,7 +410,10 @@ export abstract class SQLiteSelectQueryBuilderBase<
 		isAll: boolean,
 	): <TValue extends SQLiteSetOperatorWithResult<TResult>>(
 		rightSelection:
-			| ((setOperators: GetSQLiteSetOperators) => SetOperatorRightSelect<TValue, TResult>)
+			| ((
+				setOperators: GetSQLiteSetOperators,
+				selfReferenceTable: SQLiteSelfReferenceTable<TSelection>,
+			) => SetOperatorRightSelect<TValue, TResult>)
 			| SetOperatorRightSelect<TValue, TResult>,
 	) => SQLiteSelectWithout<
 		this,
@@ -397,8 +422,23 @@ export abstract class SQLiteSelectQueryBuilderBase<
 		true
 	> {
 		return (rightSelection) => {
+			const columns = {} as Record<keyof TSelection, SQLiteColumnBuilderBase>;
+			for (const key of Object.keys(this.config.fields)) {
+				columns[key as keyof TSelection] = customType<
+					{ data: TSelection[typeof key] }
+				>({
+					dataType() {
+						return '';
+					},
+				})(key);
+			}
+
+			const ttable = sqliteTable('', columns);
+
+			ttable[IsLazilyNamedTable] = true;
+			const aliased = new Proxy(ttable, new LazyTableAliasProxyHandler());
 			const rightSelect = (typeof rightSelection === 'function'
-				? rightSelection(getSQLiteSetOperators())
+				? rightSelection(getSQLiteSetOperators(), aliased as any)
 				: rightSelection) as TypedQueryBuilder<
 					any,
 					TResult

@@ -1,12 +1,12 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
+import type { ColumnsSelection } from '~/sql/sql.ts';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import type { WithSubqueryWithSelection } from '~/sqlite-core/subquery.ts';
-import { SQLiteSelectBuilder } from './select.ts';
-import type { SelectedFields } from './select.types.ts';
-import type { ColumnsSelection } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
-import { SelectionProxyHandler } from '~/selection-proxy.ts';
+import { SQLiteSelectBuilder, SQLiteSelectQueryBuilderBase } from './select.ts';
+import type { SelectedFields, SQLiteSelectQueryBuilderHKT } from './select.types.ts';
 
 export class QueryBuilder {
 	static readonly [entityKind]: string = 'SQLiteQueryBuilder';
@@ -32,66 +32,201 @@ export class QueryBuilder {
 		};
 	}
 
+	$withRecursive<TAlias extends string>(alias: TAlias) {
+		const queryBuilder = this;
+
+		return {
+			as<TSelection extends ColumnsSelection>(
+				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
+			): WithSubqueryWithSelection<TSelection, TAlias> {
+				if (typeof qb === 'function') {
+					qb = qb(queryBuilder);
+				}
+
+				if (is(qb, SQLiteSelectQueryBuilderBase)) {
+					qb.setSelfReferenceName(alias);
+				}
+
+				return new Proxy(
+					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
+					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+				) as WithSubqueryWithSelection<TSelection, TAlias>;
+			},
+		};
+	}
+
 	with(...queries: WithSubquery[]) {
 		const self = this;
 
-		function select(): SQLiteSelectBuilder<undefined, 'sync', void, 'qb'>;
+		function select(): SQLiteSelectBuilder<'sync', void, 'qb'>;
 		function select<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): SQLiteSelectBuilder<TSelection, 'sync', void, 'qb'>;
+		): SQLiteSelectQueryBuilderBase<SQLiteSelectQueryBuilderHKT, undefined, 'sync', void, TSelection, 'partial'>;
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): SQLiteSelectBuilder<TSelection | undefined, 'sync', void, 'qb'> {
-			return new SQLiteSelectBuilder({
-				fields: fields ?? undefined,
-				session: undefined,
-				dialect: self.getDialect(),
-				withList: queries,
-			});
+		):
+			| SQLiteSelectBuilder<'sync', void, 'qb'>
+			| SQLiteSelectQueryBuilderBase<SQLiteSelectQueryBuilderHKT, undefined, 'sync', void, TSelection, 'partial'>
+		{
+			return fields
+				? new SQLiteSelectQueryBuilderBase({
+					table: undefined,
+					fields,
+					session: undefined,
+					dialect: self.getDialect(),
+					withList: queries,
+					isPartialSelect: true,
+				})
+				: new SQLiteSelectBuilder({
+					session: undefined,
+					dialect: self.getDialect(),
+					withList: queries,
+				});
 		}
 
-		function selectDistinct(): SQLiteSelectBuilder<undefined, 'sync', void, 'qb'>;
+		function selectDistinct(): SQLiteSelectBuilder<'sync', void, 'qb'>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): SQLiteSelectBuilder<TSelection, 'sync', void, 'qb'>;
+		): SQLiteSelectQueryBuilderBase<SQLiteSelectQueryBuilderHKT, undefined, 'sync', void, TSelection, 'partial'>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): SQLiteSelectBuilder<TSelection | undefined, 'sync', void, 'qb'> {
-			return new SQLiteSelectBuilder({
-				fields: fields ?? undefined,
-				session: undefined,
-				dialect: self.getDialect(),
-				withList: queries,
-				distinct: true,
-			});
+		):
+			| SQLiteSelectBuilder<'sync', void, 'qb'>
+			| SQLiteSelectQueryBuilderBase<SQLiteSelectQueryBuilderHKT, undefined, 'sync', void, TSelection, 'partial'>
+		{
+			return fields
+				? new SQLiteSelectQueryBuilderBase({
+					table: undefined,
+					fields,
+					session: undefined,
+					dialect: self.getDialect(),
+					withList: queries,
+					isPartialSelect: true,
+					distinct: true,
+				})
+				: new SQLiteSelectBuilder({
+					session: undefined,
+					dialect: self.getDialect(),
+					withList: queries,
+					distinct: true,
+				});
 		}
 
 		return { select, selectDistinct };
 	}
 
-	select(): SQLiteSelectBuilder<undefined, 'sync', void, 'qb'>;
-	select<TSelection extends SelectedFields>(
-		fields: TSelection,
-	): SQLiteSelectBuilder<TSelection, 'sync', void, 'qb'>;
-	select<TSelection extends SelectedFields>(
-		fields?: TSelection,
-	): SQLiteSelectBuilder<TSelection | undefined, 'sync', void, 'qb'> {
-		return new SQLiteSelectBuilder({ fields: fields ?? undefined, session: undefined, dialect: this.getDialect() });
+	withRecursive(...queries: WithSubquery[]) {
+		const self = this;
+
+		function select(): SQLiteSelectBuilder<'sync', void, 'qb'>;
+		function select<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): SQLiteSelectQueryBuilderBase<SQLiteSelectQueryBuilderHKT, undefined, 'sync', void, TSelection, 'partial'>;
+		function select<TSelection extends SelectedFields>(
+			fields?: TSelection,
+		):
+			| SQLiteSelectBuilder<'sync', void, 'qb'>
+			| SQLiteSelectQueryBuilderBase<SQLiteSelectQueryBuilderHKT, undefined, 'sync', void, TSelection, 'partial'>
+		{
+			return fields
+				? new SQLiteSelectQueryBuilderBase({
+					table: undefined,
+					fields,
+					session: undefined,
+					dialect: self.getDialect(),
+					withList: queries,
+					isPartialSelect: true,
+					recursive: true,
+				})
+				: new SQLiteSelectBuilder({
+					session: undefined,
+					dialect: self.getDialect(),
+					withList: queries,
+					recursive: true,
+				});
+		}
+
+		function selectDistinct(): SQLiteSelectBuilder<'sync', void, 'qb'>;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): SQLiteSelectQueryBuilderBase<SQLiteSelectQueryBuilderHKT, undefined, 'sync', void, TSelection, 'partial'>;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields?: TSelection,
+		):
+			| SQLiteSelectBuilder<'sync', void, 'qb'>
+			| SQLiteSelectQueryBuilderBase<SQLiteSelectQueryBuilderHKT, undefined, 'sync', void, TSelection, 'partial'>
+		{
+			return fields
+				? new SQLiteSelectQueryBuilderBase({
+					table: undefined,
+					fields,
+					session: undefined,
+					dialect: self.getDialect(),
+					withList: queries,
+					isPartialSelect: true,
+					distinct: true,
+					recursive: true,
+				})
+				: new SQLiteSelectBuilder({
+					session: undefined,
+					dialect: self.getDialect(),
+					withList: queries,
+					distinct: true,
+					recursive: true,
+				});
+		}
+
+		return { select, selectDistinct };
 	}
 
-	selectDistinct(): SQLiteSelectBuilder<undefined, 'sync', void, 'qb'>;
+	select(): SQLiteSelectBuilder<'sync', void, 'qb'>;
+	select<TSelection extends SelectedFields>(
+		fields: TSelection,
+	): SQLiteSelectQueryBuilderBase<SQLiteSelectQueryBuilderHKT, undefined, 'sync', void, TSelection, 'partial'>;
+	select<TSelection extends SelectedFields>(
+		fields?: TSelection,
+	):
+		| SQLiteSelectBuilder<'sync', void, 'qb'>
+		| SQLiteSelectQueryBuilderBase<SQLiteSelectQueryBuilderHKT, undefined, 'sync', void, TSelection, 'partial'>
+	{
+		return fields
+			? new SQLiteSelectQueryBuilderBase({
+				table: undefined,
+				fields,
+				session: undefined,
+				dialect: this.getDialect(),
+				isPartialSelect: true,
+			})
+			: new SQLiteSelectBuilder({
+				session: undefined,
+				dialect: this.getDialect(),
+			});
+	}
+
+	selectDistinct(): SQLiteSelectBuilder<'sync', void, 'qb'>;
 	selectDistinct<TSelection extends SelectedFields>(
 		fields: TSelection,
-	): SQLiteSelectBuilder<TSelection, 'sync', void, 'qb'>;
+	): SQLiteSelectQueryBuilderBase<SQLiteSelectQueryBuilderHKT, undefined, 'sync', void, TSelection, 'partial'>;
 	selectDistinct<TSelection extends SelectedFields>(
 		fields?: TSelection,
-	): SQLiteSelectBuilder<TSelection | undefined, 'sync', void, 'qb'> {
-		return new SQLiteSelectBuilder({
-			fields: fields ?? undefined,
-			session: undefined,
-			dialect: this.getDialect(),
-			distinct: true,
-		});
+	):
+		| SQLiteSelectBuilder<'sync', void, 'qb'>
+		| SQLiteSelectQueryBuilderBase<SQLiteSelectQueryBuilderHKT, undefined, 'sync', void, TSelection, 'partial'>
+	{
+		return fields
+			? new SQLiteSelectQueryBuilderBase({
+				table: undefined,
+				fields,
+				session: undefined,
+				dialect: this.getDialect(),
+				isPartialSelect: true,
+				distinct: true,
+			})
+			: new SQLiteSelectBuilder({
+				session: undefined,
+				dialect: this.getDialect(),
+				distinct: true,
+			});
 	}
 
 	// Lazy load dialect to avoid circular dependency

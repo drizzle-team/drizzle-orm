@@ -1,9 +1,10 @@
+import { LazyTableAliasProxyHandler } from '~/alias.ts';
 import { entityKind, is } from '~/entity.ts';
-import type { PgColumn } from '~/pg-core/columns/index.ts';
+import { customType, type PgColumn, type PgColumnBuilderBase } from '~/pg-core/columns/index.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgSession, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { SubqueryWithSelection } from '~/pg-core/subquery.ts';
-import type { PgTable } from '~/pg-core/table.ts';
+import { type PgSelfReferenceTable, type PgTable, pgTable } from '~/pg-core/table.ts';
 import { PgViewBase } from '~/pg-core/view-base.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
@@ -21,7 +22,7 @@ import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { SQL, View } from '~/sql/sql.ts';
 import type { ColumnsSelection, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
-import { Table } from '~/table.ts';
+import { IsLazilyNamedTable, Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, type ValueOrArray } from '~/utils.ts';
 import { orderSelectedFields } from '~/utils.ts';
@@ -36,6 +37,7 @@ import type {
 	PgJoinFn,
 	PgSelectConfig,
 	PgSelectDynamic,
+	PgSelectFrom,
 	PgSelectHKT,
 	PgSelectHKTBase,
 	PgSelectPrepare,
@@ -47,37 +49,36 @@ import type {
 } from './select.types.ts';
 
 export class PgSelectBuilder<
-	TSelection extends SelectedFields | undefined,
 	TBuilderMode extends 'db' | 'qb' = 'db',
 > {
 	static readonly [entityKind]: string = 'PgSelectBuilder';
 
-	private fields: TSelection;
 	private session: PgSession | undefined;
 	private dialect: PgDialect;
 	private withList: Subquery[] = [];
 	private distinct: boolean | {
 		on: (PgColumn | SQLWrapper)[];
 	} | undefined;
+	private recursive: boolean | undefined;
 
 	constructor(
 		config: {
-			fields: TSelection;
 			session: PgSession | undefined;
 			dialect: PgDialect;
 			withList?: Subquery[];
 			distinct?: boolean | {
 				on: (PgColumn | SQLWrapper)[];
 			};
+			recursive?: boolean;
 		},
 	) {
-		this.fields = config.fields;
 		this.session = config.session;
 		this.dialect = config.dialect;
 		if (config.withList) {
 			this.withList = config.withList;
 		}
 		this.distinct = config.distinct;
+		this.recursive = config.recursive;
 	}
 
 	/**
@@ -91,15 +92,12 @@ export class PgSelectBuilder<
 	): CreatePgSelectFromBuilderMode<
 		TBuilderMode,
 		GetSelectTableName<TFrom>,
-		TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection,
-		TSelection extends undefined ? 'single' : 'partial'
+		GetSelectTableSelection<TFrom>,
+		'single'
 	> {
-		const isPartialSelect = !!this.fields;
-
 		let fields: SelectedFields;
-		if (this.fields) {
-			fields = this.fields;
-		} else if (is(source, Subquery)) {
+
+		if (is(source, Subquery)) {
 			// This is required to use the proxy handler to get the correct field values from the subquery
 			fields = Object.fromEntries(
 				Object.keys(source[SubqueryConfig].selection).map((
@@ -117,16 +115,17 @@ export class PgSelectBuilder<
 		return new PgSelectBase({
 			table: source,
 			fields,
-			isPartialSelect,
+			isPartialSelect: false,
 			session: this.session,
 			dialect: this.dialect,
 			withList: this.withList,
 			distinct: this.distinct,
+			recursive: this.recursive,
 		}) as any;
 	}
 }
 
-export abstract class PgSelectQueryBuilderBase<
+export class PgSelectQueryBuilderBase<
 	THKT extends PgSelectHKTBase,
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
@@ -160,16 +159,17 @@ export abstract class PgSelectQueryBuilderBase<
 	protected dialect: PgDialect;
 
 	constructor(
-		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
+		{ table, fields, isPartialSelect, session, dialect, withList, distinct, recursive }: {
 			table: PgSelectConfig['table'];
 			fields: PgSelectConfig['fields'];
 			isPartialSelect: boolean;
 			session: PgSession | undefined;
 			dialect: PgDialect;
-			withList: Subquery[];
-			distinct: boolean | {
+			withList?: Subquery[];
+			distinct?: boolean | {
 				on: (PgColumn | SQLWrapper)[];
 			} | undefined;
+			recursive?: boolean;
 		},
 	) {
 		super();
@@ -179,6 +179,7 @@ export abstract class PgSelectQueryBuilderBase<
 			fields: { ...fields },
 			distinct,
 			setOperators: [],
+			recursive,
 		};
 		this.isPartialSelect = isPartialSelect;
 		this.session = session;
@@ -188,6 +189,27 @@ export abstract class PgSelectQueryBuilderBase<
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
+	}
+
+	from<TFrom extends PgTable | Subquery | PgViewBase | SQL>(
+		source: TFrom,
+	): PgSelectFrom<this, TFrom, TDynamic> {
+		this.config.table = source;
+
+		this.tableName = getTableLikeName(source);
+		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
+
+		return this as any;
+	}
+
+	/** @internal */
+	getTable() {
+		return this.config.table;
+	}
+
+	/** @internal */
+	setSelfReferenceName(name: string) {
+		this.config.selfReferenceName = name;
 	}
 
 	private createJoin<TJoinType extends JoinType>(
@@ -388,7 +410,10 @@ export abstract class PgSelectQueryBuilderBase<
 		isAll: boolean,
 	): <TValue extends PgSetOperatorWithResult<TResult>>(
 		rightSelection:
-			| ((setOperators: GetPgSetOperators) => SetOperatorRightSelect<TValue, TResult>)
+			| ((
+				setOperators: GetPgSetOperators,
+				selfReferenceTable: PgSelfReferenceTable<TSelection>,
+			) => SetOperatorRightSelect<TValue, TResult>)
 			| SetOperatorRightSelect<TValue, TResult>,
 	) => PgSelectWithout<
 		this,
@@ -397,12 +422,26 @@ export abstract class PgSelectQueryBuilderBase<
 		true
 	> {
 		return (rightSelection) => {
-			const rightSelect = (typeof rightSelection === 'function'
-				? rightSelection(getPgSetOperators())
-				: rightSelection) as TypedQueryBuilder<
-					any,
-					TResult
-				>;
+			const columns = {} as Record<keyof TSelection, PgColumnBuilderBase>;
+			for (const key of Object.keys(this.config.fields)) {
+				columns[key as keyof TSelection] = customType<
+					{ data: TSelection[typeof key] }
+				>({
+					dataType() {
+						return '';
+					},
+				})(key);
+			}
+
+			const table = pgTable('', columns);
+
+			table[IsLazilyNamedTable] = true;
+			const aliased = new Proxy(table, new LazyTableAliasProxyHandler());
+			const rightSelect = (
+				typeof rightSelection === 'function'
+					? rightSelection(getPgSetOperators(), aliased as any)
+					: rightSelection
+			) as TypedQueryBuilder<any, TResult>;
 
 			if (!haveSameKeys(this.getSelectedFields(), rightSelect.getSelectedFields())) {
 				throw new Error(

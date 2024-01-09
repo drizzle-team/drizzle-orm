@@ -17,6 +17,26 @@ export type SQLiteTableExtraConfig = Record<
 	| UniqueConstraintBuilder
 >;
 
+export type SQLiteSelfReferenceTable<T extends Record<string, unknown>> =
+	& SQLiteTableWithColumns<{
+		columns: {
+			[key in keyof T]: SQLiteColumn;
+		};
+		name: '';
+		schema: undefined;
+		dialect: 'mysql';
+	}>
+	& {
+		as: (alias: string) => SQLiteTableWithColumns<{
+			columns: {
+				[key in keyof T]: SQLiteColumn;
+			};
+			name: '';
+			schema: undefined;
+			dialect: 'mysql';
+		}>;
+	};
+
 export type TableConfig = TableConfigBase<SQLiteColumn<any>>;
 
 /** @internal */
