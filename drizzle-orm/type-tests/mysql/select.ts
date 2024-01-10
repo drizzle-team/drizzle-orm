@@ -26,6 +26,7 @@ import { param, sql } from '~/sql/sql.ts';
 
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
+import { max } from '~/index.ts';
 import { type MySqlSelect, type MySqlSelectQueryBuilder, QueryBuilder } from '~/mysql-core/index.ts';
 import { db } from './db.ts';
 import { cities, classes, newYorkers, users } from './tables.ts';
@@ -80,6 +81,18 @@ Expect<
 		typeof join
 	>
 >;
+
+const sq = db.select({ id: users.id, maxId: max(users.id).mapWith(users.id).as('maxId') }).from(users).as('sq');
+
+const joinWithSqSql = await db
+	.select({
+		userId: users.id,
+		maxId: sq.maxId,
+	})
+	.from(users)
+	.leftJoin(sq, eq(users.id, sq.id));
+
+Expect<Equal<typeof joinWithSqSql, { userId: number; maxId: number | null }[]>>;
 
 const join2 = await db
 	.select({
