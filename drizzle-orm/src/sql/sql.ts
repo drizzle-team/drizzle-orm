@@ -526,24 +526,25 @@ export namespace sql {
 }
 
 export namespace SQL {
-	export class Aliased<T = unknown> implements SQLWrapper {
+	export class Aliased<T = unknown, TQualifier extends string | undefined = string | undefined> implements SQLWrapper {
 		static readonly [entityKind]: string = 'SQL.Aliased';
 
 		declare _: {
 			brand: 'SQL.Aliased';
 			type: T;
+			qualifier: TQualifier;
 		};
 
 		/** @internal */
 		isSelectionField = false;
 
 		/** @internal */
-		qualifier?: string;
+		qualifier?: TQualifier;
 
 		constructor(
 			readonly sql: SQL,
 			readonly fieldAlias: string,
-			qualifier?: string,
+			qualifier?: TQualifier,
 		) {
 			this.qualifier = qualifier;
 		}
