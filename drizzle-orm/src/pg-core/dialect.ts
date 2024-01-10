@@ -268,11 +268,13 @@ export class PgDialect {
 				}
 				return sql`${fullName} ${sql.identifier(table[Table.Symbol.Name])}`;
 			} else if (is(table, View) && table[ViewBaseConfig].originalName !== table[ViewBaseConfig].name) {
-				let fullName = sql`${sql.identifier(table[ViewBaseConfig].originalName)}`;
+				let fullName = sql`${sql.identifier(table[ViewBaseConfig].originalName)} ${
+					sql.identifier(table[ViewBaseConfig].name)
+				}`;
 				if (table[ViewBaseConfig].schema) {
 					fullName = sql`${sql.identifier(table[ViewBaseConfig].schema)}.${fullName}`;
 				}
-				return sql`${fullName} ${sql.identifier(table[ViewBaseConfig].name)}`;
+				return fullName;
 			}
 
 			return table;
