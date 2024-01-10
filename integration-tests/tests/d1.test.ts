@@ -1327,7 +1327,12 @@ test.serial('join on aliased sql from with clause', async (t) => {
 		.leftJoin(cities, (cols) => eq(cols.cityId, cols.userId))
 		.all();
 
-	Expect<Equal<{ userId: number; name: string; userCity: string; cityId: number; cityName: string }[], typeof result>>;
+	Expect<
+		Equal<
+			{ userId: number; name: string; userCity: string; cityId: number | null; cityName: string | null }[],
+			typeof result
+		>
+	>;
 
 	t.deepEqual(result, [
 		{ userId: 1, name: 'John', userCity: 'New York', cityId: 1, cityName: 'Paris' },
