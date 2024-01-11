@@ -270,7 +270,13 @@ export class MsSqlDialect {
 
 		const tableSql = (() => {
 			if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
-				return sql`${sql.identifier(table[Table.Symbol.OriginalName])} ${sql.identifier(table[Table.Symbol.Name])}`;
+				let fullName = sql`${sql.identifier(table[Table.Symbol.OriginalName])} ${
+					sql.identifier(table[Table.Symbol.Name])
+				}`;
+				if (table[Table.Symbol.Schema]) {
+					fullName = sql`${sql.identifier(table[Table.Symbol.Schema]!)}.${fullName}`;
+				}
+				return fullName;
 			}
 
 			return table;
