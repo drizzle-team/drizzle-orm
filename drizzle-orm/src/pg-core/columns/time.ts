@@ -6,14 +6,17 @@ import { PgColumn } from './common.ts';
 import { PgDateColumnBaseBuilder } from './date.common.ts';
 import type { Precision } from './timestamp.ts';
 
-export type PgTimeBuilderInitial<TName extends string> = PgTimeBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'PgTime';
-	data: string;
-	driverParam: string;
-	enumValues: undefined;
-}>;
+export type PgTimeBuilderInitial<TName extends string> = PgTimeBuilder<
+	{
+		name: TName;
+		dataType: 'string';
+		columnType: 'PgTime';
+		data: string;
+		driverParam: string;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class PgTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgTime'>> extends PgDateColumnBaseBuilder<
 	T,

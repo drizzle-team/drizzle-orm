@@ -5,14 +5,17 @@ import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn } from './common.ts';
 import { PgDateColumnBaseBuilder } from './date.common.ts';
 
-export type PgDateBuilderInitial<TName extends string> = PgDateBuilder<{
-	name: TName;
-	dataType: 'date';
-	columnType: 'PgDate';
-	data: Date;
-	driverParam: string;
-	enumValues: undefined;
-}>;
+export type PgDateBuilderInitial<TName extends string> = PgDateBuilder<
+	{
+		name: TName;
+		dataType: 'date';
+		columnType: 'PgDate';
+		data: Date;
+		driverParam: string;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class PgDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'PgDate'>> extends PgDateColumnBaseBuilder<T> {
 	static readonly [entityKind]: string = 'PgDateBuilder';
@@ -45,14 +48,17 @@ export class PgDate<T extends ColumnBaseConfig<'date', 'PgDate'>> extends PgColu
 	}
 }
 
-export type PgDateStringBuilderInitial<TName extends string> = PgDateStringBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'PgDateString';
-	data: string;
-	driverParam: string;
-	enumValues: undefined;
-}>;
+export type PgDateStringBuilderInitial<TName extends string> = PgDateStringBuilder<
+	{
+		name: TName;
+		dataType: 'string';
+		columnType: 'PgDateString';
+		data: string;
+		driverParam: string;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class PgDateStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgDateString'>>
 	extends PgDateColumnBaseBuilder<T>

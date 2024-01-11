@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnySQLiteTable } from '../table.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
-export type SQLiteRealBuilderInitial<TName extends string> = SQLiteRealBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'SQLiteReal';
-	data: number;
-	driverParam: number;
-	enumValues: undefined;
-}>;
+export type SQLiteRealBuilderInitial<TName extends string> = SQLiteRealBuilder<
+	{
+		name: TName;
+		dataType: 'number';
+		columnType: 'SQLiteReal';
+		data: number;
+		driverParam: number;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class SQLiteRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'SQLiteReal'>>
 	extends SQLiteColumnBuilder<T>

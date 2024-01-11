@@ -135,6 +135,7 @@ Expect<
 				tableName: 'new_yorkers';
 				enumValues: undefined;
 				baseColumn: never;
+				generated: undefined;
 			}>;
 			cityId: MySqlColumn<{
 				name: 'id';
@@ -147,6 +148,7 @@ Expect<
 				tableName: 'new_yorkers';
 				enumValues: undefined;
 				baseColumn: never;
+				generated: undefined;
 			}>;
 		}>,
 		typeof newYorkers
@@ -184,6 +186,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'id';
@@ -196,6 +199,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -231,6 +235,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -243,6 +248,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -278,6 +284,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -290,6 +297,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -317,6 +325,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -329,6 +338,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -356,6 +366,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -368,6 +379,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -397,6 +409,7 @@ Expect<
 				hasDefault: false;
 				enumValues: undefined;
 				baseColumn: never;
+				generated: undefined;
 				dialect: 'mysql';
 			},
 			Simplify<BuildColumn<'table', typeof t, 'mysql'>['_']>

@@ -5,14 +5,17 @@ import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import type { Equal } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
-export type MySqlDateBuilderInitial<TName extends string> = MySqlDateBuilder<{
-	name: TName;
-	dataType: 'date';
-	columnType: 'MySqlDate';
-	data: Date;
-	driverParam: string | number;
-	enumValues: undefined;
-}>;
+export type MySqlDateBuilderInitial<TName extends string> = MySqlDateBuilder<
+	{
+		name: TName;
+		dataType: 'date';
+		columnType: 'MySqlDate';
+		data: Date;
+		driverParam: string | number;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MySqlDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'MySqlDate'>> extends MySqlColumnBuilder<T> {
 	static readonly [entityKind]: string = 'MySqlDateBuilder';
@@ -48,14 +51,17 @@ export class MySqlDate<T extends ColumnBaseConfig<'date', 'MySqlDate'>> extends 
 	}
 }
 
-export type MySqlDateStringBuilderInitial<TName extends string> = MySqlDateStringBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'MySqlDateString';
-	data: string;
-	driverParam: string | number;
-	enumValues: undefined;
-}>;
+export type MySqlDateStringBuilderInitial<TName extends string> = MySqlDateStringBuilder<
+	{
+		name: TName;
+		dataType: 'string';
+		columnType: 'MySqlDateString';
+		data: string;
+		driverParam: string | number;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MySqlDateStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlDateString'>>
 	extends MySqlColumnBuilder<T>

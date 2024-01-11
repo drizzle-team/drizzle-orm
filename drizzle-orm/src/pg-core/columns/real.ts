@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgRealBuilderInitial<TName extends string> = PgRealBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'PgReal';
-	data: number;
-	driverParam: string | number;
-	enumValues: undefined;
-}>;
+export type PgRealBuilderInitial<TName extends string> = PgRealBuilder<
+	{
+		name: TName;
+		dataType: 'number';
+		columnType: 'PgReal';
+		data: number;
+		driverParam: string | number;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class PgRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgReal'>> extends PgColumnBuilder<
 	T,

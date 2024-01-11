@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlBigInt53BuilderInitial<TName extends string> = MySqlBigInt53Builder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'MySqlBigInt53';
-	data: number;
-	driverParam: number | string;
-	enumValues: undefined;
-}>;
+export type MySqlBigInt53BuilderInitial<TName extends string> = MySqlBigInt53Builder<
+	{
+		name: TName;
+		dataType: 'number';
+		columnType: 'MySqlBigInt53';
+		data: number;
+		driverParam: number | string;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MySqlBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'MySqlBigInt53'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T, { unsigned: boolean }>
@@ -51,14 +54,17 @@ export class MySqlBigInt53<T extends ColumnBaseConfig<'number', 'MySqlBigInt53'>
 	}
 }
 
-export type MySqlBigInt64BuilderInitial<TName extends string> = MySqlBigInt64Builder<{
-	name: TName;
-	dataType: 'bigint';
-	columnType: 'MySqlBigInt64';
-	data: bigint;
-	driverParam: string;
-	enumValues: undefined;
-}>;
+export type MySqlBigInt64BuilderInitial<TName extends string> = MySqlBigInt64Builder<
+	{
+		name: TName;
+		dataType: 'bigint';
+		columnType: 'MySqlBigInt64';
+		data: bigint;
+		driverParam: string;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MySqlBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'MySqlBigInt64'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T, { unsigned: boolean }>

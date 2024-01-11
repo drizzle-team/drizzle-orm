@@ -12,6 +12,7 @@ export type PgVarcharBuilderInitial<TName extends string, TEnum extends [string,
 	data: TEnum[number];
 	driverParam: string;
 	enumValues: TEnum;
+	generated: undefined;
 }>;
 
 export class PgVarcharBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgVarchar'>> extends PgColumnBuilder<

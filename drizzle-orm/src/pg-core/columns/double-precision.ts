@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgDoublePrecisionBuilderInitial<TName extends string> = PgDoublePrecisionBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'PgDoublePrecision';
-	data: number;
-	driverParam: string | number;
-	enumValues: undefined;
-}>;
+export type PgDoublePrecisionBuilderInitial<TName extends string> = PgDoublePrecisionBuilder<
+	{
+		name: TName;
+		dataType: 'number';
+		columnType: 'PgDoublePrecision';
+		data: number;
+		driverParam: string | number;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class PgDoublePrecisionBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgDoublePrecision'>>
 	extends PgColumnBuilder<T>

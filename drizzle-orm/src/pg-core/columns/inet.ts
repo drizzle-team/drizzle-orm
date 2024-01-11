@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '../table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgInetBuilderInitial<TName extends string> = PgInetBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'PgInet';
-	data: string;
-	driverParam: string;
-	enumValues: undefined;
-}>;
+export type PgInetBuilderInitial<TName extends string> = PgInetBuilder<
+	{
+		name: TName;
+		dataType: 'string';
+		columnType: 'PgInet';
+		data: string;
+		driverParam: string;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class PgInetBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgInet'>> extends PgColumnBuilder<T> {
 	static readonly [entityKind]: string = 'PgInetBuilder';

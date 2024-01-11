@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
-export type MySqlJsonBuilderInitial<TName extends string> = MySqlJsonBuilder<{
-	name: TName;
-	dataType: 'json';
-	columnType: 'MySqlJson';
-	data: unknown;
-	driverParam: string;
-	enumValues: undefined;
-}>;
+export type MySqlJsonBuilderInitial<TName extends string> = MySqlJsonBuilder<
+	{
+		name: TName;
+		dataType: 'json';
+		columnType: 'MySqlJson';
+		data: unknown;
+		driverParam: string;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MySqlJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'MySqlJson'>> extends MySqlColumnBuilder<T> {
 	static readonly [entityKind]: string = 'MySqlJsonBuilder';

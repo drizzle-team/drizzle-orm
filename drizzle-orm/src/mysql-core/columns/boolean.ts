@@ -4,14 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
-export type MySqlBooleanBuilderInitial<TName extends string> = MySqlBooleanBuilder<{
-	name: TName;
-	dataType: 'boolean';
-	columnType: 'MySqlBoolean';
-	data: boolean;
-	driverParam: number | boolean;
-	enumValues: undefined;
-}>;
+export type MySqlBooleanBuilderInitial<TName extends string> = MySqlBooleanBuilder<
+	{
+		name: TName;
+		dataType: 'boolean';
+		columnType: 'MySqlBoolean';
+		data: boolean;
+		driverParam: number | boolean;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
 
 export class MySqlBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'MySqlBoolean'>>
 	extends MySqlColumnBuilder<T>
