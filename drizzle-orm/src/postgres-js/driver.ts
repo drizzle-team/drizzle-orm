@@ -23,7 +23,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	const transparentParser = (val: any) => val;
 
 	// Override postgres.js default date parsers: https://github.com/porsager/postgres/discussions/761
-	for (const type of ['1184', '1082', '1083', '1114']) {
+	for (const type of ['1184', '1082', '1083', '1114', '114', '3802']) {
 		client.options.parsers[type as any] = transparentParser;
 		client.options.serializers[type as any] = transparentParser;
 	}
