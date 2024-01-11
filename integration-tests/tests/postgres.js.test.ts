@@ -31,6 +31,7 @@ import {
 	getViewConfig,
 	integer,
 	interval,
+	json,
 	jsonb,
 	type PgColumn,
 	pgEnum,
@@ -1810,6 +1811,42 @@ test.serial('select from enum', async (t) => {
 	await db.execute(sql`drop type ${name(mechanicEnum.enumName)}`);
 	await db.execute(sql`drop type ${name(equipmentEnum.enumName)}`);
 	await db.execute(sql`drop type ${name(categoryEnum.enumName)}`);
+});
+
+test.serial('proper json and jsonb handling', async (t) => {
+	const { db } = t.context;
+
+	const jsonTable = pgTable('json_table', {
+		json: json('json').$type<{ name: string; age: number }>(),
+		jsonb: jsonb('jsonb').$type<{ name: string; age: number }>(),
+	});
+
+	await db.execute(sql`drop table if exists ${jsonTable}`);
+
+	db.execute(sql`create table ${jsonTable} (json json, jsonb jsonb)`);
+
+	await db.insert(jsonTable).values({ json: { name: 'Tom', age: 75 }, jsonb: { name: 'Pete', age: 23 } });
+
+	const result = await db.select().from(jsonTable);
+
+	const justNames = await db.select({
+		name1: sql<string>`${jsonTable.json}->>'name'`.as('name1'),
+		name2: sql<string>`${jsonTable.jsonb}->>'name'`.as('name2'),
+	}).from(jsonTable);
+
+	t.deepEqual(result, [
+		{
+			json: { name: 'Tom', age: 75 },
+			jsonb: { name: 'Pete', age: 23 },
+		},
+	]);
+
+	t.deepEqual(justNames, [
+		{
+			name1: 'Tom',
+			name2: 'Pete',
+		},
+	]);
 });
 
 test.serial('orderBy with aliased column', (t) => {
