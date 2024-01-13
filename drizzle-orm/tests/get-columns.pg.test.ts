@@ -1,9 +1,9 @@
 import { expect, test } from 'vitest';
 import {
-	AnyPgColumn,
+	type AnyPgColumn,
 	bigint,
 	boolean,
-	PgColumn,
+	type PgColumn,
 	pgTable,
 	pgView,
 	primaryKey,
@@ -14,7 +14,7 @@ import {
 import { drizzle } from '~/postgres-js';
 import { type SQL, sql } from '~/sql';
 import { TableName } from '~/table';
-import { getColumns, getTableColumns } from '~/utils';
+import { getColumns } from '~/utils';
 import { type Equal, Expect } from '../type-tests/utils';
 
 export const usersTable = pgTable('users', {

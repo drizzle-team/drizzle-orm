@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { drizzle } from '~/libsql';
 import { type SQL, sql } from '~/sql';
-import { AnySQLiteColumn, int, primaryKey, SQLiteColumn, sqliteTable, sqliteView, text } from '~/sqlite-core';
+import { type AnySQLiteColumn, int, primaryKey, type SQLiteColumn, sqliteTable, sqliteView, text } from '~/sqlite-core';
 import { TableName } from '~/table';
 import { getColumns } from '~/utils';
 import { type Equal, Expect } from '../type-tests/utils';
