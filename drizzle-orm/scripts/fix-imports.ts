@@ -52,6 +52,8 @@ await Promise.all(cjsFiles.map(async (file) => {
 		},
 		visitTSImportType(path) {
 			path.value.argument.value = resolvePathAlias(path.value.argument.value, file);
+			path.value.argument.value = fixImportPath(path.value.argument.value, file, '.d.cts');
+
 			this.traverse(path);
 		},
 	});
