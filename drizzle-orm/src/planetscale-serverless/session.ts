@@ -1,4 +1,4 @@
-import type { Connection, ExecutedQuery, Transaction } from '@planetscale/database';
+import type { Connection, Client, ExecutedQuery, Transaction } from '@planetscale/database';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -16,7 +16,7 @@ import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
-export type PlanetScaleConnection = Connection;
+export type PlanetScaleConnection = Connection | Client;
 
 export class PlanetScalePreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
 	static readonly [entityKind]: string = 'PlanetScalePreparedQuery';
