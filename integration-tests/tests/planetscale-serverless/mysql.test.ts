@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-import { connect } from '@planetscale/database';
+import { Client } from '@planetscale/database';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import { and, asc, eq, name, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
@@ -70,7 +70,7 @@ test.before(async (t) => {
 	const ctx = t.context;
 
 	ctx.db = drizzle(
-		connect({ url: process.env['PLANETSCALE_CONNECTION_STRING']! }),
+		new Client({ url: process.env['PLANETSCALE_CONNECTION_STRING']! }),
 		{ logger: ENABLE_LOGGING },
 	);
 });
