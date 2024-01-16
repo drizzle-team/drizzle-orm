@@ -30,6 +30,8 @@ import {
 	type ObjectSchema,
 	type OptionalSchema,
 	type StringSchema,
+	type InstanceSchema,
+	type UnionSchema,
 	any,
 	array,
 	bigint,
@@ -117,6 +119,8 @@ type GetValibotType<TColumn extends Column> =
 			? BooleanSchema
 			: TDataType extends 'date'
 			? DateSchema
+			: TDataType extends 'buffer'
+			? UnionSchema<[InstanceSchema<BufferConstructor>, StringSchema]>
 			: AnySchema
 		: never;
 
