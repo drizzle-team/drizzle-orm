@@ -97,7 +97,7 @@ const usersMigratorTable = mysqlTable('users12', {
 
 // eslint-disable-next-line drizzle/require-entity-kind
 class ServerSimulator {
-	constructor(private db: mysql.Connection) {}
+	constructor(private db: mysql.Connection) { }
 
 	async query(sql: string, params: any[], method: 'all' | 'execute') {
 		if (method === 'all') {
@@ -106,7 +106,7 @@ class ServerSimulator {
 					sql,
 					values: params,
 					rowsAsArray: true,
-					typeCast: function(field: any, next: any) {
+					typeCast: function (field: any, next: any) {
 						if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
 							return field.string();
 						}
@@ -123,7 +123,7 @@ class ServerSimulator {
 				const result = await this.db.query({
 					sql,
 					values: params,
-					typeCast: function(field: any, next: any) {
+					typeCast: function (field: any, next: any) {
 						if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
 							return field.string();
 						}
@@ -141,14 +141,15 @@ class ServerSimulator {
 	}
 
 	async migrations(queries: string[]) {
-		await this.db.query('BEGIN');
+		await this.db.query('START TRANSACTION');
 		try {
 			for (const query of queries) {
 				await this.db.query(query);
 			}
 			await this.db.query('COMMIT');
-		} catch {
+		} catch (e) {
 			await this.db.query('ROLLBACK');
+			throw e;
 		}
 
 		return {};
@@ -253,11 +254,11 @@ test.beforeEach(async (t) => {
 		await ctx.db.execute(
 			sql`
 				create table \`userstest\` (
-					\`id\` serial primary key,
-					\`name\` text not null,
-					\`verified\` boolean not null default false,
-					\`jsonb\` json,
-					\`created_at\` timestamp not null default now()
+				    \`id\` serial primary key,
+				    \`name\` text not null,
+				    \`verified\` boolean not null default false,
+				    \`jsonb\` json,
+				    \`created_at\` timestamp not null default now()
 				)
 			`,
 		);
@@ -265,9 +266,9 @@ test.beforeEach(async (t) => {
 		await ctx.db.execute(
 			sql`
 				create table \`users2\` (
-					\`id\` serial primary key,
-					\`name\` text not null,
-					\`city_id\` int references \`cities\`(\`id\`)
+				    \`id\` serial primary key,
+				    \`name\` text not null,
+				    \`city_id\` int references \`cities\`(\`id\`)
 				)
 			`,
 		);
@@ -275,8 +276,8 @@ test.beforeEach(async (t) => {
 		await ctx.db.execute(
 			sql`
 				create table \`cities\` (
-					\`id\` serial primary key,
-					\`name\` text not null
+				    \`id\` serial primary key,
+				    \`name\` text not null
 				)
 			`,
 		);
@@ -994,8 +995,7 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 test.serial('migrator', async (t) => {
 	const { db, serverSimulator } = t.context;
 
-	await db.execute(sql`drop table if exists cities_migration`);
-	await db.execute(sql`drop table if exists users_migration`);
+	await db.execute(sql`drop table if exists userstest`);
 	await db.execute(sql`drop table if exists users12`);
 	await db.execute(sql`drop table if exists __drizzle_migrations`);
 
@@ -1006,16 +1006,36 @@ test.serial('migrator', async (t) => {
 			console.error(e);
 			throw new Error('Proxy server cannot run migrations');
 		}
-	}, { migrationsFolder: './drizzle2/mysql' });
+	}, { migrationsFolder: './drizzle2/mysql-proxy/first' });
 
-	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	await t.notThrowsAsync(async () => {
+		await db.insert(usersTable).values({ name: 'John' });
+	});
 
-	const result = await db.select().from(usersMigratorTable);
+	await t.throwsAsync(async () => {
+		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	}, {
+		message: 'Table \'drizzle.users12\' doesn\'t exist'
+	});
 
-	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+	await migrate(db, async (queries) => {
+		try {
+			await serverSimulator.migrations(queries);
+		} catch (e) {
+			console.error(e);
+			throw new Error('Proxy server cannot run migrations');
+		}
+	}, { migrationsFolder: './drizzle2/mysql-proxy/second' });
 
-	await db.execute(sql`drop table cities_migration`);
-	await db.execute(sql`drop table users_migration`);
+	await t.notThrowsAsync(async () => {
+		await db.insert(usersTable).values({ name: 'John' });
+	});
+
+	await t.notThrowsAsync(async () => {
+		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	});
+
+	await db.execute(sql`drop table userstest`);
 	await db.execute(sql`drop table users12`);
 	await db.execute(sql`drop table __drizzle_migrations`);
 });

@@ -105,7 +105,7 @@ export class MySqlRelationalQuery<
 		) as PreparedQueryKind<TPreparedQueryHKT, PreparedQueryConfig & { execute: TResult }, true>;
 	}
 
-	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+	private _getQuery() {
 		const query = this.mode === 'planetscale'
 			? this.dialect.buildRelationalQueryWithoutLateralSubqueries({
 				fullSchema: this.fullSchema,
@@ -125,10 +125,20 @@ export class MySqlRelationalQuery<
 				queryConfig: this.config,
 				tableAlias: this.tableConfig.tsName,
 			});
+		return query;
+	}
+
+	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+		const query = this._getQuery();
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
 
 		return { builtQuery, query };
+	}
+
+	/** @internal */
+	getSQL(): SQL {
+		return this._getQuery().sql as SQL;
 	}
 
 	toSQL(): Query {
