@@ -1,4 +1,4 @@
-import type { Connection, Client } from '@planetscale/database';
+import type { Client, Connection } from '@planetscale/database';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
@@ -22,7 +22,7 @@ export type PlanetScaleDatabase<
 > = MySqlDatabase<PlanetscaleQueryResultHKT, PlanetScalePreparedQueryHKT, TSchema>;
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
-	client: Connection | Client,
+	client: Client | Connection,
 	config: DrizzleConfig<TSchema> = {},
 ): PlanetScaleDatabase<TSchema> {
 	const dialect = new MySqlDialect();

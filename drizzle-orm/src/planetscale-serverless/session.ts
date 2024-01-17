@@ -1,4 +1,4 @@
-import type { Connection, Client, ExecutedQuery, Transaction } from '@planetscale/database';
+import type { Client, Connection, ExecutedQuery, Transaction } from '@planetscale/database';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -16,7 +16,7 @@ import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
-export type PlanetScaleConnection = Connection | Client;
+export type PlanetScaleConnection = Connection;
 
 export class PlanetScalePreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
 	static readonly [entityKind]: string = 'PlanetScalePreparedQuery';
@@ -25,7 +25,7 @@ export class PlanetScalePreparedQuery<T extends PreparedQueryConfig> extends Pre
 	private query = { as: 'array' } as const;
 
 	constructor(
-		private client: PlanetScaleConnection | Transaction,
+		private client: Client | Connection | Transaction,
 		private queryString: string,
 		private params: unknown[],
 		private logger: Logger,
@@ -70,10 +70,10 @@ export class PlanetscaleSession<
 	static readonly [entityKind]: string = 'PlanetscaleSession';
 
 	private logger: Logger;
-	private client: PlanetScaleConnection | Transaction;
+	private client: Client | Connection | Transaction;
 
 	constructor(
-		private baseClient: PlanetScaleConnection,
+		private baseClient: Client | Connection,
 		dialect: MySqlDialect,
 		tx: Transaction | undefined,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
