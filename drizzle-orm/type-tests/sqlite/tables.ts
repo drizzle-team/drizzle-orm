@@ -157,28 +157,30 @@ Expect<
 		SQLiteViewWithSelection<'new_yorkers', false, {
 			userId: SQLiteColumn<{
 				name: 'id';
+				tableName: 'new_yorkers';
+				schemaName: undefined;
 				dataType: 'number';
 				columnType: 'SQLiteInteger';
 				data: number;
 				driverParam: number;
 				notNull: true;
 				hasDefault: true;
-				tableName: 'new_yorkers';
 				enumValues: undefined;
 				baseColumn: never;
-			}>;
+			}, object>;
 			cityId: SQLiteColumn<{
 				name: 'id';
+				tableName: 'new_yorkers';
+				schemaName: undefined;
 				dataType: 'number';
 				columnType: 'SQLiteInteger';
 				data: number;
 				driverParam: number;
 				notNull: false;
 				hasDefault: true;
-				tableName: 'new_yorkers';
 				enumValues: undefined;
 				baseColumn: never;
-			}>;
+			}, object>;
 		}>,
 		typeof newYorkers
 	>
@@ -200,28 +202,30 @@ Expect<
 			SQLiteViewWithSelection<'new_yorkers', false, {
 				userId: SQLiteColumn<{
 					name: 'user_id';
+					tableName: 'new_yorkers';
+					schemaName: undefined;
 					dataType: 'number';
 					columnType: 'SQLiteInteger';
 					data: number;
 					driverParam: number;
-					hasDefault: false;
 					notNull: true;
-					tableName: 'new_yorkers';
+					hasDefault: false;
 					enumValues: undefined;
 					baseColumn: never;
-				}>;
+				}, object>;
 				cityId: SQLiteColumn<{
 					name: 'city_id';
-					notNull: false;
-					hasDefault: false;
+					tableName: 'new_yorkers';
+					schemaName: undefined;
 					dataType: 'number';
 					columnType: 'SQLiteInteger';
 					data: number;
 					driverParam: number;
-					tableName: 'new_yorkers';
+					notNull: false;
+					hasDefault: false;
 					enumValues: undefined;
 					baseColumn: never;
-				}>;
+				}, object>;
 			}>,
 			typeof newYorkers
 		>
@@ -239,28 +243,30 @@ Expect<
 			SQLiteViewWithSelection<'new_yorkers', true, {
 				userId: SQLiteColumn<{
 					name: 'user_id';
+					tableName: 'new_yorkers';
+					schemaName: undefined;
 					dataType: 'number';
 					columnType: 'SQLiteInteger';
 					data: number;
 					driverParam: number;
-					hasDefault: false;
 					notNull: true;
-					tableName: 'new_yorkers';
+					hasDefault: false;
 					enumValues: undefined;
 					baseColumn: never;
-				}>;
+				}, object>;
 				cityId: SQLiteColumn<{
 					name: 'city_id';
-					notNull: false;
-					hasDefault: false;
+					tableName: 'new_yorkers';
+					schemaName: undefined;
 					dataType: 'number';
 					columnType: 'SQLiteInteger';
 					data: number;
 					driverParam: number;
-					tableName: 'new_yorkers';
+					notNull: false;
+					hasDefault: false;
 					enumValues: undefined;
 					baseColumn: never;
-				}>;
+				}, object>;
 			}>,
 			typeof newYorkers
 		>

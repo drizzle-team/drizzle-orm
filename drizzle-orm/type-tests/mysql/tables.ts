@@ -91,7 +91,8 @@ export const citiesCustom = customSchema.table('cities_table', {
 	citiesNameIdx: index('citiesNameIdx').on(cities.id),
 }));
 
-Expect<Equal<typeof cities._.columns, typeof citiesCustom._.columns>>;
+// This test is not valid anymore because the schema is now part of the column type
+// Expect<Equal<typeof cities._.columns, typeof citiesCustom._.columns>>;
 
 export const classes = mysqlTable('classes_table', {
 	id: serial('id').primaryKey(),
@@ -126,28 +127,30 @@ Expect<
 		MySqlViewWithSelection<'new_yorkers', false, {
 			userId: MySqlColumn<{
 				name: 'id';
+				tableName: 'new_yorkers';
+				schemaName: undefined;
 				dataType: 'number';
 				columnType: 'MySqlSerial';
 				data: number;
 				driverParam: number;
 				notNull: true;
 				hasDefault: true;
-				tableName: 'new_yorkers';
 				enumValues: undefined;
 				baseColumn: never;
-			}>;
+			}, object>;
 			cityId: MySqlColumn<{
 				name: 'id';
+				tableName: 'new_yorkers';
+				schemaName: undefined;
 				dataType: 'number';
 				columnType: 'MySqlSerial';
 				data: number;
 				driverParam: number;
 				notNull: false;
 				hasDefault: true;
-				tableName: 'new_yorkers';
 				enumValues: undefined;
 				baseColumn: never;
-			}>;
+			}, object>;
 		}>,
 		typeof newYorkers
 	>
@@ -175,28 +178,30 @@ Expect<
 			MySqlViewWithSelection<'new_yorkers', false, {
 				userId: MySqlColumn<{
 					name: 'id';
+					tableName: 'new_yorkers';
+					schemaName: undefined;
 					dataType: 'number';
 					columnType: 'MySqlSerial';
 					data: number;
 					driverParam: number;
 					notNull: true;
 					hasDefault: true;
-					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
-				}>;
+				}, object>;
 				cityId: MySqlColumn<{
 					name: 'id';
+					tableName: 'new_yorkers';
+					schemaName: undefined;
 					dataType: 'number';
 					columnType: 'MySqlSerial';
 					data: number;
 					driverParam: number;
 					notNull: false;
 					hasDefault: true;
-					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
-				}>;
+				}, object>;
 			}>,
 			typeof newYorkers
 		>
@@ -222,28 +227,30 @@ Expect<
 			MySqlViewWithSelection<'new_yorkers', false, {
 				userId: MySqlColumn<{
 					name: 'user_id';
+					tableName: 'new_yorkers';
+					schemaName: undefined;
 					dataType: 'number';
 					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
-					hasDefault: false;
 					notNull: true;
-					tableName: 'new_yorkers';
+					hasDefault: false;
 					enumValues: undefined;
 					baseColumn: never;
-				}>;
+				}, object>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
-					notNull: false;
-					hasDefault: false;
+					tableName: 'new_yorkers';
+					schemaName: undefined;
 					dataType: 'number';
 					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
-					tableName: 'new_yorkers';
+					notNull: false;
+					hasDefault: false;
 					enumValues: undefined;
 					baseColumn: never;
-				}>;
+				}, object>;
 			}>,
 			typeof newYorkers
 		>
@@ -269,28 +276,30 @@ Expect<
 			MySqlViewWithSelection<'new_yorkers', false, {
 				userId: MySqlColumn<{
 					name: 'user_id';
+					tableName: 'new_yorkers';
+					schemaName: undefined;
 					dataType: 'number';
 					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
-					hasDefault: false;
 					notNull: true;
-					tableName: 'new_yorkers';
+					hasDefault: false;
 					enumValues: undefined;
 					baseColumn: never;
-				}>;
+				}, object>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
-					notNull: false;
-					hasDefault: false;
+					tableName: 'new_yorkers';
+					schemaName: undefined;
 					dataType: 'number';
 					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
-					tableName: 'new_yorkers';
+					notNull: false;
+					hasDefault: false;
 					enumValues: undefined;
 					baseColumn: never;
-				}>;
+				}, object>;
 			}>,
 			typeof newYorkers
 		>
@@ -308,28 +317,30 @@ Expect<
 			MySqlViewWithSelection<'new_yorkers', true, {
 				userId: MySqlColumn<{
 					name: 'user_id';
+					tableName: 'new_yorkers';
+					schemaName: undefined;
 					dataType: 'number';
 					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
-					hasDefault: false;
 					notNull: true;
-					tableName: 'new_yorkers';
+					hasDefault: false;
 					enumValues: undefined;
 					baseColumn: never;
-				}>;
+				}, object>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
-					notNull: false;
-					hasDefault: false;
+					tableName: 'new_yorkers';
+					schemaName: undefined;
 					dataType: 'number';
 					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
-					tableName: 'new_yorkers';
+					notNull: false;
+					hasDefault: false;
 					enumValues: undefined;
 					baseColumn: never;
-				}>;
+				}, object>;
 			}>,
 			typeof newYorkers
 		>
@@ -347,28 +358,30 @@ Expect<
 			MySqlViewWithSelection<'new_yorkers', true, {
 				userId: MySqlColumn<{
 					name: 'user_id';
+					tableName: 'new_yorkers';
+					schemaName: undefined;
 					dataType: 'number';
 					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
-					hasDefault: false;
 					notNull: true;
-					tableName: 'new_yorkers';
+					hasDefault: false;
 					enumValues: undefined;
 					baseColumn: never;
-				}>;
+				}, object>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
-					notNull: false;
-					hasDefault: false;
+					tableName: 'new_yorkers';
+					schemaName: undefined;
 					dataType: 'number';
 					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
-					tableName: 'new_yorkers';
+					notNull: false;
+					hasDefault: false;
 					enumValues: undefined;
 					baseColumn: never;
-				}>;
+				}, object>;
 			}>,
 			typeof newYorkers
 		>
@@ -389,6 +402,7 @@ Expect<
 				brand: 'Column';
 				name: 'name';
 				tableName: 'table';
+				schemaName: undefined;
 				dataType: 'custom';
 				columnType: 'MySqlCustomColumn';
 				data: string;
