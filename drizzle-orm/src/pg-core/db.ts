@@ -67,7 +67,7 @@ export class PgDatabase<
 					columns,
 					dialect,
 					session,
-				);
+				) as any;
 			}
 		}
 	}

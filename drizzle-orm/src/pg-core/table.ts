@@ -60,13 +60,13 @@ export function pgTableWithSchema<
 ): PgTableWithColumns<{
 	name: TTableName;
 	schema: TSchemaName;
-	columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
+	columns: BuildColumns<TTableName, TColumnsMap, 'pg', TSchemaName>;
 	dialect: 'pg';
 }> {
 	const rawTable = new PgTable<{
 		name: TTableName;
 		schema: TSchemaName;
-		columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
+		columns: BuildColumns<TTableName, TColumnsMap, 'pg', TSchemaName>;
 		dialect: 'pg';
 	}>(name, schema, baseName);
 
@@ -77,7 +77,7 @@ export function pgTableWithSchema<
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
 		}),
-	) as unknown as BuildColumns<TTableName, TColumnsMap, 'pg'>;
+	) as unknown as BuildColumns<TTableName, TColumnsMap, 'pg', TSchemaName>;
 
 	const table = Object.assign(rawTable, builtColumns);
 
@@ -101,7 +101,7 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 	): PgTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
-		columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
+		columns: BuildColumns<TTableName, TColumnsMap, 'pg', TSchema>;
 		dialect: 'pg';
 	}>;
 }
