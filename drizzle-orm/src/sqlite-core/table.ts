@@ -59,11 +59,11 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'sqlite'>) => SQLiteTableExtraConfig,
+		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'sqlite', TSchema>) => SQLiteTableExtraConfig,
 	): SQLiteTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
-		columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
+		columns: BuildColumns<TTableName, TColumnsMap, 'sqlite', TSchema>;
 		dialect: 'sqlite';
 	}>;
 }
@@ -75,19 +75,19 @@ function sqliteTableBase<
 >(
 	name: TTableName,
 	columns: TColumnsMap,
-	extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'sqlite'>) => SQLiteTableExtraConfig,
+	extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'sqlite', TSchema>) => SQLiteTableExtraConfig,
 	schema?: TSchema,
 	baseName = name,
 ): SQLiteTableWithColumns<{
 	name: TTableName;
 	schema: TSchema;
-	columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
+	columns: BuildColumns<TTableName, TColumnsMap, 'sqlite', TSchema>;
 	dialect: 'sqlite';
 }> {
 	const rawTable = new SQLiteTable<{
 		name: TTableName;
 		schema: TSchema;
-		columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
+		columns: BuildColumns<TTableName, TColumnsMap, 'sqlite', TSchema>;
 		dialect: 'sqlite';
 	}>(name, schema, baseName);
 
@@ -98,7 +98,7 @@ function sqliteTableBase<
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
 		}),
-	) as unknown as BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
+	) as unknown as BuildColumns<TTableName, TColumnsMap, 'sqlite', TSchema>;
 
 	const table = Object.assign(rawTable, builtColumns);
 
