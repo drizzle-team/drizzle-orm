@@ -31,9 +31,11 @@ export interface ColumnBuilderBaseConfig<TDataType extends ColumnDataType, TColu
 export type MakeColumnConfig<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TTableName extends string,
+	TSchemaName extends string | undefined = undefined,
 > = {
 	name: T['name'];
 	tableName: TTableName;
+	schemaName: TSchemaName;
 	dataType: T['dataType'];
 	columnType: T['columnType'];
 	data: T extends { $type: infer U } ? U : T['data'];
@@ -41,7 +43,8 @@ export type MakeColumnConfig<
 	notNull: T extends { notNull: true } ? true : false;
 	hasDefault: T extends { hasDefault: true } ? true : false;
 	enumValues: T['enumValues'];
-	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase } ? BuildColumn<TTableName, U, 'common'>
+	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase }
+		? BuildColumn<TTableName, U, 'common', TSchemaName>
 		: never;
 } & {};
 
@@ -208,19 +211,21 @@ export type BuildColumn<
 	TTableName extends string,
 	TBuilder extends ColumnBuilderBase,
 	TDialect extends Dialect,
-> = TDialect extends 'pg' ? PgColumn<MakeColumnConfig<TBuilder['_'], TTableName>>
-	: TDialect extends 'mysql' ? MySqlColumn<MakeColumnConfig<TBuilder['_'], TTableName>>
-	: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TBuilder['_'], TTableName>>
-	: TDialect extends 'common' ? Column<MakeColumnConfig<TBuilder['_'], TTableName>>
+	TSchemaName extends string | undefined = undefined,
+> = TDialect extends 'pg' ? PgColumn<MakeColumnConfig<TBuilder['_'], TTableName, TSchemaName>>
+	: TDialect extends 'mysql' ? MySqlColumn<MakeColumnConfig<TBuilder['_'], TTableName, TSchemaName>>
+	: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TBuilder['_'], TTableName, TSchemaName>>
+	: TDialect extends 'common' ? Column<MakeColumnConfig<TBuilder['_'], TTableName, TSchemaName>>
 	: never;
 
 export type BuildColumns<
 	TTableName extends string,
 	TConfigMap extends Record<string, ColumnBuilderBase>,
 	TDialect extends Dialect,
+	TSchemaName extends string | undefined = undefined,
 > =
 	& {
-		[Key in keyof TConfigMap]: BuildColumn<TTableName, TConfigMap[Key], TDialect>;
+		[Key in keyof TConfigMap]: BuildColumn<TTableName, TConfigMap[Key], TDialect, TSchemaName>;
 	}
 	& {};
 
