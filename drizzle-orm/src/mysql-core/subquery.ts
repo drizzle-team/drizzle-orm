@@ -1,20 +1,17 @@
-import { type Dialect } from '~/column-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
+import type { ColumnsSelection } from '~/sql/sql.ts';
 import type { Subquery, WithSubquery } from '~/subquery.ts';
-import { type ColumnsSelection } from '~/view.ts';
 
 export type SubqueryWithSelection<
 	TSelection extends ColumnsSelection,
 	TAlias extends string,
-	TDialect extends Dialect,
 > =
-	& Subquery<TAlias, AddAliasToSelection<TSelection, TAlias, TDialect>>
-	& AddAliasToSelection<TSelection, TAlias, TDialect>;
+	& Subquery<TAlias, AddAliasToSelection<TSelection, TAlias, 'mysql'>>
+	& AddAliasToSelection<TSelection, TAlias, 'mysql'>;
 
 export type WithSubqueryWithSelection<
 	TSelection extends ColumnsSelection,
 	TAlias extends string,
-	TDialect extends Dialect,
 > =
-	& WithSubquery<TAlias, AddAliasToSelection<TSelection, TAlias, TDialect>>
-	& AddAliasToSelection<TSelection, TAlias, TDialect>;
+	& WithSubquery<TAlias, AddAliasToSelection<TSelection, TAlias, 'mysql'>>
+	& AddAliasToSelection<TSelection, TAlias, 'mysql'>;

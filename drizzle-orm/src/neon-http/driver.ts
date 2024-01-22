@@ -10,7 +10,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { type DrizzleConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import { type NeonHttpClient, type NeonHttpQueryResultHKT, NeonHttpSession } from './session.ts';
 
 export interface NeonDriverOptions {

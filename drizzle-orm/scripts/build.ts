@@ -2,10 +2,10 @@
 import 'zx/globals';
 import cpy from 'cpy';
 
-import { entries } from '../rollup.common';
+async function updateAndCopyPackageJson() {
+	const pkg = await fs.readJSON('package.json');
 
-function updateAndCopyPackageJson() {
-	const pkg = fs.readJSONSync('package.json');
+	const entries = await glob('src/**/*.ts');
 
 	pkg.exports = entries.reduce<
 		Record<string, {
@@ -21,13 +21,14 @@ function updateAndCopyPackageJson() {
 			types: string;
 		}>
 	>(
-		(acc, entry) => {
+		(acc, rawEntry) => {
+			const entry = rawEntry.match(/src\/(.*)\.ts/)![1]!;
 			const exportsEntry = entry === 'index' ? '.' : './' + entry.replace(/\/index$/, '');
-			const importEntry = `./${entry}.mjs`;
+			const importEntry = `./${entry}.js`;
 			const requireEntry = `./${entry}.cjs`;
 			acc[exportsEntry] = {
 				import: {
-					types: `./${entry}.d.mts`,
+					types: `./${entry}.d.ts`,
 					default: importEntry,
 				},
 				require: {
@@ -42,21 +43,34 @@ function updateAndCopyPackageJson() {
 		{},
 	);
 
-	fs.writeJSONSync('dist.new/package.json', pkg, { spaces: 2 });
+	await fs.writeJSON('dist.new/package.json', pkg, { spaces: 2 });
 }
 
-await $`rollup --config rollup.cjs.config.ts --configPlugin typescript`;
-await $`rollup --config rollup.esm.config.ts --configPlugin typescript`;
-await $`rimraf dist-dts && tsc -p tsconfig.dts.json && resolve-tspaths -p tsconfig.dts.json --out dist-dts`;
-await cpy('dist-dts/**/*.d.ts', 'dist.new', {
-	rename: (basename) => basename.replace(/\.d\.ts$/, '.d.mts'),
-});
-await cpy('dist-dts/**/*.d.ts', 'dist.new', {
-	rename: (basename) => basename.replace(/\.d\.ts$/, '.d.cts'),
-});
-await cpy('dist-dts/**/*.d.ts', 'dist.new');
-fs.removeSync('dist-dts');
-fs.copySync('../README.md', 'dist.new/README.md');
-updateAndCopyPackageJson();
-fs.removeSync('dist');
-fs.renameSync('dist.new', 'dist');
+await fs.remove('dist.new');
+
+await Promise.all([
+	(async () => {
+		await $`tsup`;
+	})(),
+	(async () => {
+		await $`tsc -p tsconfig.dts.json`;
+		await cpy('dist-dts/**/*.d.ts', 'dist.new', {
+			rename: (basename) => basename.replace(/\.d\.ts$/, '.d.cts'),
+		});
+		await cpy('dist-dts/**/*.d.ts', 'dist.new', {
+			rename: (basename) => basename.replace(/\.d\.ts$/, '.d.ts'),
+		});
+	})(),
+]);
+
+await Promise.all([
+	$`tsup src/version.ts --no-config --dts --format esm --outDir dist.new`,
+	$`tsup src/version.ts --no-config --dts --format cjs --outDir dist.new`,
+]);
+
+await $`scripts/fix-imports.ts`;
+
+await fs.copy('../README.md', 'dist.new/README.md');
+await updateAndCopyPackageJson();
+await fs.remove('dist');
+await fs.rename('dist.new', 'dist');

@@ -5,21 +5,30 @@ import anyTest from 'ava';
 import Docker from 'dockerode';
 import {
 	and,
+	arrayContained,
+	arrayContains,
+	arrayOverlaps,
 	asc,
+	avg,
+	avgDistinct,
+	count,
+	countDistinct,
 	eq,
+	exists,
 	gt,
 	gte,
 	inArray,
 	lt,
+	max,
+	min,
 	name,
 	placeholder,
 	type SQL,
 	sql,
 	type SQLWrapper,
+	sum,
+	sumDistinct,
 	TransactionRollbackError,
-	arrayContains,
-	arrayContained,
-	arrayOverlaps
 } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -28,23 +37,35 @@ import {
 	boolean,
 	char,
 	cidr,
+	date,
+	except,
+	exceptAll,
+	foreignKey,
 	getMaterializedViewConfig,
 	getTableConfig,
 	getViewConfig,
 	inet,
 	integer,
+	intersect,
+	intersectAll,
+	interval,
 	jsonb,
 	macaddr,
 	macaddr8,
+	numeric,
 	type PgColumn,
 	pgEnum,
 	pgMaterializedView,
 	pgTable,
 	pgTableCreator,
 	pgView,
+	primaryKey,
 	serial,
 	text,
+	time,
 	timestamp,
+	union,
+	unionAll,
 	unique,
 	uniqueKeyName,
 	uuid as pgUuid,
@@ -71,6 +92,11 @@ const citiesTable = pgTable('cities', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	state: char('state', { length: 2 }),
+});
+
+const cities2Table = pgTable('cities', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
 });
 
 const users2Table = pgTable('users2', {
@@ -119,6 +145,16 @@ const usersMigratorTable = pgTable('users12', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
+});
+
+// To test aggregate functions
+const aggregateTable = pgTable('aggregate_table', {
+	id: serial('id').notNull(),
+	name: text('name').notNull(),
+	a: integer('a'),
+	b: integer('b'),
+	c: integer('c'),
+	nullOnly: integer('null_only'),
 });
 
 interface Context {
@@ -281,6 +317,70 @@ test.beforeEach(async (t) => {
 	);
 });
 
+async function setupSetOperationTest(db: NodePgDatabase) {
+	await db.execute(sql`drop table if exists users2`);
+	await db.execute(sql`drop table if exists cities`);
+	await db.execute(
+		sql`
+			create table cities (
+				id serial primary key,
+				name text not null
+			)
+		`,
+	);
+	await db.execute(
+		sql`
+			create table users2 (
+				id serial primary key,
+				name text not null,
+				city_id integer references cities(id)
+			)
+		`,
+	);
+
+	await db.insert(cities2Table).values([
+		{ id: 1, name: 'New York' },
+		{ id: 2, name: 'London' },
+		{ id: 3, name: 'Tampa' },
+	]);
+
+	await db.insert(users2Table).values([
+		{ id: 1, name: 'John', cityId: 1 },
+		{ id: 2, name: 'Jane', cityId: 2 },
+		{ id: 3, name: 'Jack', cityId: 3 },
+		{ id: 4, name: 'Peter', cityId: 3 },
+		{ id: 5, name: 'Ben', cityId: 2 },
+		{ id: 6, name: 'Jill', cityId: 1 },
+		{ id: 7, name: 'Mary', cityId: 2 },
+		{ id: 8, name: 'Sally', cityId: 1 },
+	]);
+}
+
+async function setupAggregateFunctionsTest(db: NodePgDatabase) {
+	await db.execute(sql`drop table if exists "aggregate_table"`);
+	await db.execute(
+		sql`
+			create table "aggregate_table" (
+				"id" serial not null,
+				"name" text not null,
+				"a" integer,
+				"b" integer,
+				"c" integer,
+				"null_only" integer
+			);
+		`,
+	);
+	await db.insert(aggregateTable).values([
+		{ name: 'value 1', a: 5, b: 10, c: 20 },
+		{ name: 'value 1', a: 5, b: 20, c: 30 },
+		{ name: 'value 2', a: 10, b: 50, c: 60 },
+		{ name: 'value 3', a: 20, b: 20, c: null },
+		{ name: 'value 4', a: null, b: 90, c: 120 },
+		{ name: 'value 5', a: 80, b: 10, c: null },
+		{ name: 'value 6', a: null, b: null, c: 150 },
+	]);
+}
+
 test.serial('table configs: unique third param', async (t) => {
 	const cities1Table = pgTable('cities1', {
 		id: serial('id').primaryKey(),
@@ -326,6 +426,36 @@ test.serial('table configs: unique in column', async (t) => {
 	t.assert(columnField?.uniqueName === 'custom_field');
 	t.assert(columnField?.isUnique);
 	t.assert(columnField?.uniqueType === 'not distinct');
+});
+
+test.serial('table config: foreign keys name', async (t) => {
+	const table = pgTable('cities', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		state: text('state'),
+	}, (t) => ({
+		f: foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' }),
+	}));
+
+	const tableConfig = getTableConfig(table);
+
+	t.is(tableConfig.foreignKeys.length, 1);
+	t.is(tableConfig.foreignKeys[0]!.getName(), 'custom_fk');
+});
+
+test.serial('table config: primary keys name', async (t) => {
+	const table = pgTable('cities', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		state: text('state'),
+	}, (t) => ({
+		f: primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
+	}));
+
+	const tableConfig = getTableConfig(table);
+
+	t.is(tableConfig.primaryKeys.length, 1);
+	t.is(tableConfig.primaryKeys[0]!.getName(), 'custom_pk');
 });
 
 test.serial('select all fields', async (t) => {
@@ -398,16 +528,18 @@ test.serial('select distinct', async (t) => {
 	const usersDistinctTable = pgTable('users_distinct', {
 		id: integer('id').notNull(),
 		name: text('name').notNull(),
+		age: integer('age').notNull(),
 	});
 
 	await db.execute(sql`drop table if exists ${usersDistinctTable}`);
-	await db.execute(sql`create table ${usersDistinctTable} (id integer, name text)`);
+	await db.execute(sql`create table ${usersDistinctTable} (id integer, name text, age integer)`);
 
 	await db.insert(usersDistinctTable).values([
-		{ id: 1, name: 'John' },
-		{ id: 1, name: 'John' },
-		{ id: 2, name: 'John' },
-		{ id: 1, name: 'Jane' },
+		{ id: 1, name: 'John', age: 24 },
+		{ id: 1, name: 'John', age: 24 },
+		{ id: 2, name: 'John', age: 25 },
+		{ id: 1, name: 'Jane', age: 24 },
+		{ id: 1, name: 'Jane', age: 26 },
 	]);
 	const users1 = await db.selectDistinct().from(usersDistinctTable).orderBy(
 		usersDistinctTable.id,
@@ -419,10 +551,18 @@ test.serial('select distinct', async (t) => {
 	const users3 = await db.selectDistinctOn([usersDistinctTable.name], { name: usersDistinctTable.name }).from(
 		usersDistinctTable,
 	).orderBy(usersDistinctTable.name);
+	const users4 = await db.selectDistinctOn([usersDistinctTable.id, usersDistinctTable.age]).from(
+		usersDistinctTable,
+	).orderBy(usersDistinctTable.id, usersDistinctTable.age);
 
 	await db.execute(sql`drop table ${usersDistinctTable}`);
 
-	t.deepEqual(users1, [{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
+	t.deepEqual(users1, [
+		{ id: 1, name: 'Jane', age: 24 },
+		{ id: 1, name: 'Jane', age: 26 },
+		{ id: 1, name: 'John', age: 24 },
+		{ id: 2, name: 'John', age: 25 },
+	]);
 
 	t.deepEqual(users2.length, 2);
 	t.deepEqual(users2[0]?.id, 1);
@@ -431,6 +571,12 @@ test.serial('select distinct', async (t) => {
 	t.deepEqual(users3.length, 2);
 	t.deepEqual(users3[0]?.name, 'Jane');
 	t.deepEqual(users3[1]?.name, 'John');
+
+	t.deepEqual(users4, [
+		{ id: 1, name: 'John', age: 24 },
+		{ id: 1, name: 'Jane', age: 26 },
+		{ id: 2, name: 'John', age: 25 },
+	]);
 });
 
 test.serial('insert returning sql', async (t) => {
@@ -680,6 +826,19 @@ test.serial('select with group by as field', async (t) => {
 		.groupBy(usersTable.name);
 
 	t.deepEqual(result, [{ name: 'Jane' }, { name: 'John' }]);
+});
+
+test.serial('select with exists', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+
+	const user = alias(usersTable, 'user');
+	const result = await db.select({ name: usersTable.name }).from(usersTable).where(
+		exists(db.select({ one: sql`1` }).from(user).where(and(eq(usersTable.name, 'John'), eq(user.id, usersTable.id)))),
+	);
+
+	t.deepEqual(result, [{ name: 'John' }]);
 });
 
 test.serial('select with group by as sql', async (t) => {
@@ -1433,7 +1592,7 @@ test.serial('with ... select', async (t) => {
 				),
 		);
 
-	const result = await db
+	const result1 = await db
 		.with(regionalSales, topRegions)
 		.select({
 			region: orders.region,
@@ -1445,8 +1604,31 @@ test.serial('with ... select', async (t) => {
 		.where(inArray(orders.region, db.select({ region: topRegions.region }).from(topRegions)))
 		.groupBy(orders.region, orders.product)
 		.orderBy(orders.region, orders.product);
+	const result2 = await db
+		.with(regionalSales, topRegions)
+		.selectDistinct({
+			region: orders.region,
+			product: orders.product,
+			productUnits: sql<number>`sum(${orders.quantity})::int`,
+			productSales: sql<number>`sum(${orders.amount})::int`,
+		})
+		.from(orders)
+		.where(inArray(orders.region, db.select({ region: topRegions.region }).from(topRegions)))
+		.groupBy(orders.region, orders.product)
+		.orderBy(orders.region, orders.product);
+	const result3 = await db
+		.with(regionalSales, topRegions)
+		.selectDistinctOn([orders.region], {
+			region: orders.region,
+			productUnits: sql<number>`sum(${orders.quantity})::int`,
+			productSales: sql<number>`sum(${orders.amount})::int`,
+		})
+		.from(orders)
+		.where(inArray(orders.region, db.select({ region: topRegions.region }).from(topRegions)))
+		.groupBy(orders.region)
+		.orderBy(orders.region);
 
-	t.deepEqual(result, [
+	t.deepEqual(result1, [
 		{
 			region: 'Europe',
 			product: 'A',
@@ -1471,6 +1653,146 @@ test.serial('with ... select', async (t) => {
 			productUnits: 9,
 			productSales: 90,
 		},
+	]);
+	t.deepEqual(result2, result1);
+	t.deepEqual(result3, [
+		{
+			region: 'Europe',
+			productUnits: 8,
+			productSales: 80,
+		},
+		{
+			region: 'US',
+			productUnits: 16,
+			productSales: 160,
+		},
+	]);
+});
+
+test.serial('with ... update', async (t) => {
+	const { db } = t.context;
+
+	const products = pgTable('products', {
+		id: serial('id').primaryKey(),
+		price: numeric('price').notNull(),
+		cheap: boolean('cheap').notNull().default(false),
+	});
+
+	await db.execute(sql`drop table if exists ${products}`);
+	await db.execute(sql`
+		create table ${products} (
+			id serial primary key,
+			price numeric not null,
+			cheap boolean not null default false
+		)
+	`);
+
+	await db.insert(products).values([
+		{ price: '10.99' },
+		{ price: '25.85' },
+		{ price: '32.99' },
+		{ price: '2.50' },
+		{ price: '4.59' },
+	]);
+
+	const averagePrice = db
+		.$with('average_price')
+		.as(
+			db
+				.select({
+					value: sql`avg(${products.price})`.as('value'),
+				})
+				.from(products),
+		);
+
+	const result = await db
+		.with(averagePrice)
+		.update(products)
+		.set({
+			cheap: true,
+		})
+		.where(lt(products.price, sql`(select * from ${averagePrice})`))
+		.returning({
+			id: products.id,
+		});
+
+	t.deepEqual(result, [
+		{ id: 1 },
+		{ id: 4 },
+		{ id: 5 },
+	]);
+});
+
+test.serial('with ... insert', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users', {
+		username: text('username').notNull(),
+		admin: boolean('admin').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`create table ${users} (username text not null, admin boolean not null default false)`);
+
+	const userCount = db
+		.$with('user_count')
+		.as(
+			db
+				.select({
+					value: sql`count(*)`.as('value'),
+				})
+				.from(users),
+		);
+
+	const result = await db
+		.with(userCount)
+		.insert(users)
+		.values([
+			{ username: 'user1', admin: sql`((select * from ${userCount}) = 0)` },
+		])
+		.returning({
+			admin: users.admin,
+		});
+
+	t.deepEqual(result, [{ admin: true }]);
+});
+
+test.serial('with ... delete', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(orders).values([
+		{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
+		{ region: 'Europe', product: 'A', amount: 20, quantity: 2 },
+		{ region: 'Europe', product: 'B', amount: 20, quantity: 2 },
+		{ region: 'Europe', product: 'B', amount: 30, quantity: 3 },
+		{ region: 'US', product: 'A', amount: 30, quantity: 3 },
+		{ region: 'US', product: 'A', amount: 40, quantity: 4 },
+		{ region: 'US', product: 'B', amount: 40, quantity: 4 },
+		{ region: 'US', product: 'B', amount: 50, quantity: 5 },
+	]);
+
+	const averageAmount = db
+		.$with('average_amount')
+		.as(
+			db
+				.select({
+					value: sql`avg(${orders.amount})`.as('value'),
+				})
+				.from(orders),
+		);
+
+	const result = await db
+		.with(averageAmount)
+		.delete(orders)
+		.where(gt(orders.amount, sql`(select * from ${averageAmount})`))
+		.returning({
+			id: orders.id,
+		});
+
+	t.deepEqual(result, [
+		{ id: 6 },
+		{ id: 7 },
+		{ id: 8 },
 	]);
 });
 
@@ -1576,20 +1898,71 @@ test.serial('array types', async (t) => {
 test.serial('select for ...', (t) => {
 	const { db } = t.context;
 
-	const query = db
-		.select()
-		.from(users2Table)
-		.for('update')
-		.for('no key update', { of: users2Table })
-		.for('no key update', { of: users2Table, skipLocked: true })
-		.for('share', { of: users2Table, noWait: true })
-		.toSQL();
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('update')
+			.toSQL();
 
-	t.regex(
-		query.sql,
-		// eslint-disable-next-line unicorn/better-regex
-		/ for update for no key update of "users2" for no key update of "users2" skip locked for share of "users2" no wait$/,
-	);
+		t.regex(
+			query.sql,
+			/ for update$/,
+		);
+	}
+
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('update', { of: [users2Table, coursesTable] })
+			.toSQL();
+
+		t.regex(
+			query.sql,
+			/ for update of "users2", "courses"$/,
+		);
+	}
+
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('no key update', { of: users2Table })
+			.toSQL();
+
+		t.regex(
+			query.sql,
+			/for no key update of "users2"$/,
+		);
+	}
+
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('no key update', { of: users2Table, skipLocked: true })
+			.toSQL();
+
+		t.regex(
+			query.sql,
+			/ for no key update of "users2" skip locked$/,
+		);
+	}
+
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('share', { of: users2Table, noWait: true })
+			.toSQL();
+
+		t.regex(
+			query.sql,
+			// eslint-disable-next-line unicorn/better-regex
+			/for share of "users2" no wait$/,
+		);
+	}
 });
 
 test.serial('having', async (t) => {
@@ -2014,6 +2387,458 @@ test.serial('select from enum', async (t) => {
 	await db.execute(sql`drop type ${name(categoryEnum.enumName)}`);
 });
 
+test.serial('all date and time columns', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		dateString: date('date_string', { mode: 'string' }).notNull(),
+		time: time('time', { precision: 3 }).notNull(),
+		datetime: timestamp('datetime').notNull(),
+		datetimeWTZ: timestamp('datetime_wtz', { withTimezone: true }).notNull(),
+		datetimeString: timestamp('datetime_string', { mode: 'string' }).notNull(),
+		datetimeFullPrecision: timestamp('datetime_full_precision', { precision: 6, mode: 'string' }).notNull(),
+		datetimeWTZString: timestamp('datetime_wtz_string', { withTimezone: true, mode: 'string' }).notNull(),
+		interval: interval('interval').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					date_string date not null,
+					time time(3) not null,
+					datetime timestamp not null,
+					datetime_wtz timestamp with time zone not null,
+					datetime_string timestamp not null,
+					datetime_full_precision timestamp(6) not null,
+					datetime_wtz_string timestamp with time zone not null,
+					interval interval not null
+			)
+	`);
+
+	const someDatetime = new Date('2022-01-01T00:00:00.123Z');
+	const fullPrecision = '2022-01-01T00:00:00.123456Z';
+	const someTime = '23:23:12.432';
+
+	await db.insert(table).values({
+		dateString: '2022-01-01',
+		time: someTime,
+		datetime: someDatetime,
+		datetimeWTZ: someDatetime,
+		datetimeString: '2022-01-01T00:00:00.123Z',
+		datetimeFullPrecision: fullPrecision,
+		datetimeWTZString: '2022-01-01T00:00:00.123Z',
+		interval: '1 day',
+	});
+
+	const result = await db.select().from(table);
+
+	Expect<
+		Equal<{
+			id: number;
+			dateString: string;
+			time: string;
+			datetime: Date;
+			datetimeWTZ: Date;
+			datetimeString: string;
+			datetimeFullPrecision: string;
+			datetimeWTZString: string;
+			interval: string;
+		}[], typeof result>
+	>;
+
+	Expect<
+		Equal<{
+			dateString: string;
+			time: string;
+			datetime: Date;
+			datetimeWTZ: Date;
+			datetimeString: string;
+			datetimeFullPrecision: string;
+			datetimeWTZString: string;
+			interval: string;
+			id?: number | undefined;
+		}, typeof table.$inferInsert>
+	>;
+
+	t.deepEqual(result, [
+		{
+			id: 1,
+			dateString: '2022-01-01',
+			time: someTime,
+			datetime: someDatetime,
+			datetimeWTZ: someDatetime,
+			datetimeString: '2022-01-01 00:00:00.123',
+			datetimeFullPrecision: fullPrecision.replace('T', ' ').replace('Z', ''),
+			datetimeWTZString: '2022-01-01 00:00:00.123+00',
+			interval: '1 day',
+		},
+	]);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('all date and time columns with timezone second case mode date', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp_string', { mode: 'date', withTimezone: true, precision: 3 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(3) with time zone not null
+			)
+	`);
+
+	const insertedDate = new Date();
+
+	// 1. Insert date as new date
+	await db.insert(table).values([
+		{ timestamp: insertedDate },
+	]);
+
+	// 2, Select as date and check that timezones are the same
+	// There is no way to check timezone in Date object, as it is always represented internally in UTC
+	const result = await db.select().from(table);
+
+	t.deepEqual(result, [{ id: 1, timestamp: insertedDate }]);
+
+	// 3. Compare both dates
+	t.deepEqual(insertedDate.getTime(), result[0]?.timestamp.getTime());
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('all date and time columns with timezone third case mode date', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp_string', { mode: 'date', withTimezone: true, precision: 3 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(3) with time zone not null
+			)
+	`);
+
+	const insertedDate = new Date('2022-01-01 20:00:00.123-04'); // used different time zones, internally is still UTC
+	const insertedDate2 = new Date('2022-01-02 04:00:00.123+04'); // They are both the same date in different time zones
+
+	// 1. Insert date as new dates with different time zones
+	await db.insert(table).values([
+		{ timestamp: insertedDate },
+		{ timestamp: insertedDate2 },
+	]);
+
+	// 2, Select and compare both dates
+	const result = await db.select().from(table);
+
+	t.deepEqual(result[0]?.timestamp.getTime(), result[1]?.timestamp.getTime());
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('all date and time columns without timezone first case mode string', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(6) not null
+			)
+	`);
+
+	// 1. Insert date in string format without timezone in it
+	await db.insert(table).values([
+		{ timestamp: '2022-01-01 02:00:00.123456' },
+	]);
+
+	// 2, Select in string format and check that values are the same
+	const result = await db.select().from(table);
+
+	t.deepEqual(result, [{ id: 1, timestamp: '2022-01-01 02:00:00.123456' }]);
+
+	// 3. Select as raw query and check that values are the same
+	const result2 = await db.execute<{
+		id: number;
+		timestamp_string: string;
+	}>(sql`select * from ${table}`);
+
+	t.deepEqual(result2.rows, [{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('all date and time columns without timezone second case mode string', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(6) not null
+			)
+	`);
+
+	// 1. Insert date in string format with timezone in it
+	await db.insert(table).values([
+		{ timestamp: '2022-01-01T02:00:00.123456-02' },
+	]);
+
+	// 2, Select as raw query and check that values are the same
+	const result = await db.execute<{
+		id: number;
+		timestamp_string: string;
+	}>(sql`select * from ${table}`);
+
+	t.deepEqual(result.rows, [{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('all date and time columns without timezone third case mode date', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp_string', { mode: 'date', precision: 3 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(3) not null
+			)
+	`);
+
+	const insertedDate = new Date('2022-01-01 20:00:00.123+04');
+
+	// 1. Insert date as new date
+	await db.insert(table).values([
+		{ timestamp: insertedDate },
+	]);
+
+	// 2, Select as raw query as string
+	const result = await db.execute<{
+		id: number;
+		timestamp_string: string;
+	}>(sql`select * from ${table}`);
+
+	// 3. Compare both dates using orm mapping - Need to add 'Z' to tell JS that it is UTC
+	t.deepEqual(new Date(result.rows[0]!.timestamp_string + 'Z').getTime(), insertedDate.getTime());
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('test mode string for timestamp with timezone', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp_string', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(6) with time zone not null
+			)
+	`);
+
+	const timestampString = '2022-01-01 00:00:00.123456-0200';
+
+	// 1. Insert date in string format with timezone in it
+	await db.insert(table).values([
+		{ timestamp: timestampString },
+	]);
+
+	// 2. Select date in string format and check that the values are the same
+	const result = await db.select().from(table);
+
+	// 2.1 Notice that postgres will return the date in UTC, but it is exactly the same
+	t.deepEqual(result, [{ id: 1, timestamp: '2022-01-01 02:00:00.123456+00' }]);
+
+	// 3. Select as raw query and checke that values are the same
+	const result2 = await db.execute<{
+		id: number;
+		timestamp_string: string;
+	}>(sql`select * from ${table}`);
+
+	// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
+	t.deepEqual(result2.rows, [{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('test mode date for timestamp with timezone', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp_string', { mode: 'date', withTimezone: true, precision: 3 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(3) with time zone not null
+			)
+	`);
+
+	const timestampString = new Date('2022-01-01 00:00:00.456-0200');
+
+	// 1. Insert date in string format with timezone in it
+	await db.insert(table).values([
+		{ timestamp: timestampString },
+	]);
+
+	// 2. Select date in string format and check that the values are the same
+	const result = await db.select().from(table);
+
+	// 2.1 Notice that postgres will return the date in UTC, but it is exactly the same
+	t.deepEqual(result, [{ id: 1, timestamp: timestampString }]);
+
+	// 3. Select as raw query and checke that values are the same
+	const result2 = await db.execute<{
+		id: number;
+		timestamp_string: string;
+	}>(sql`select * from ${table}`);
+
+	// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
+	t.deepEqual(result2.rows, [{ id: 1, timestamp_string: '2022-01-01 02:00:00.456+00' }]);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('test mode string for timestamp with timezone in UTC timezone', async (t) => {
+	const { db } = t.context;
+
+	// get current timezone from db
+	const timezone = await db.execute<{ TimeZone: string }>(sql`show timezone`);
+
+	// set timezone to UTC
+	await db.execute(sql`set time zone 'UTC'`);
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp_string', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(6) with time zone not null
+			)
+	`);
+
+	const timestampString = '2022-01-01 00:00:00.123456-0200';
+
+	// 1. Insert date in string format with timezone in it
+	await db.insert(table).values([
+		{ timestamp: timestampString },
+	]);
+
+	// 2. Select date in string format and check that the values are the same
+	const result = await db.select().from(table);
+
+	// 2.1 Notice that postgres will return the date in UTC, but it is exactly the same
+	t.deepEqual(result, [{ id: 1, timestamp: '2022-01-01 02:00:00.123456+00' }]);
+
+	// 3. Select as raw query and checke that values are the same
+	const result2 = await db.execute<{
+		id: number;
+		timestamp_string: string;
+	}>(sql`select * from ${table}`);
+
+	// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
+	t.deepEqual(result2.rows, [{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
+
+	await db.execute(sql`set time zone '${sql.raw(timezone.rows[0]!.TimeZone)}'`);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('test mode string for timestamp with timezone in different timezone', async (t) => {
+	const { db } = t.context;
+
+	// get current timezone from db
+	const timezone = await db.execute<{ TimeZone: string }>(sql`show timezone`);
+
+	// set timezone to HST (UTC - 10)
+	await db.execute(sql`set time zone 'HST'`);
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp_string', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(6) with time zone not null
+			)
+	`);
+
+	const timestampString = '2022-01-01 00:00:00.123456-1000';
+
+	// 1. Insert date in string format with timezone in it
+	await db.insert(table).values([
+		{ timestamp: timestampString },
+	]);
+
+	// 2. Select date in string format and check that the values are the same
+	const result = await db.select().from(table);
+
+	t.deepEqual(result, [{ id: 1, timestamp: '2022-01-01 00:00:00.123456-10' }]);
+
+	// 3. Select as raw query and checke that values are the same
+	const result2 = await db.execute<{
+		id: number;
+		timestamp_string: string;
+	}>(sql`select * from ${table}`);
+
+	t.deepEqual(result2.rows, [{ id: 1, timestamp_string: '2022-01-01 00:00:00.123456-10' }]);
+
+	await db.execute(sql`set time zone '${sql.raw(timezone.rows[0]!.TimeZone)}'`);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
 test.serial('orderBy with aliased column', (t) => {
 	const { db } = t.context;
 
@@ -2165,7 +2990,7 @@ test.serial('transaction rollback', async (t) => {
 		await db.transaction(async (tx) => {
 			await tx.insert(users).values({ balance: 100 });
 			tx.rollback();
-		}), new TransactionRollbackError());
+		}), { instanceOf: TransactionRollbackError });
 
 	const result = await db.select().from(users);
 
@@ -2224,7 +3049,7 @@ test.serial('nested transaction rollback', async (t) => {
 			await tx.transaction(async (tx) => {
 				await tx.update(users).set({ balance: 200 });
 				tx.rollback();
-			}), new TransactionRollbackError());
+			}), { instanceOf: TransactionRollbackError });
 	});
 
 	const result = await db.select().from(users);
@@ -2465,7 +3290,7 @@ test.serial('array operators', async (t) => {
 
 	const posts = pgTable('posts', {
 		id: serial('id').primaryKey(),
-		tags: text('tags').array()
+		tags: text('tags').array(),
 	});
 
 	await db.execute(sql`drop table if exists ${posts}`);
@@ -2475,17 +3300,17 @@ test.serial('array operators', async (t) => {
 	);
 
 	await db.insert(posts).values([{
-		tags: ['ORM']
+		tags: ['ORM'],
 	}, {
-		tags: ['Typescript']
+		tags: ['Typescript'],
 	}, {
-		tags: ['Typescript', 'ORM']
+		tags: ['Typescript', 'ORM'],
 	}, {
-		tags: ['Typescript', 'Frontend', 'React']
+		tags: ['Typescript', 'Frontend', 'React'],
 	}, {
-		tags: ['Typescript', 'ORM', 'Database', 'Postgres']
+		tags: ['Typescript', 'ORM', 'Database', 'Postgres'],
 	}, {
-		tags: ['Java', 'Spring', 'OOP']
+		tags: ['Java', 'Spring', 'OOP'],
 	}]);
 
 	const contains = await db.select({ id: posts.id }).from(posts)
@@ -2497,11 +3322,628 @@ test.serial('array operators', async (t) => {
 	const withSubQuery = await db.select({ id: posts.id }).from(posts)
 		.where(arrayContains(
 			posts.tags,
-			db.select({ tags: posts.tags  }).from(posts).where(eq(posts.id, 1))
+			db.select({ tags: posts.tags }).from(posts).where(eq(posts.id, 1)),
 		));
 
 	t.deepEqual(contains, [{ id: 3 }, { id: 5 }]);
 	t.deepEqual(contained, [{ id: 1 }, { id: 2 }, { id: 3 }]);
 	t.deepEqual(overlaps, [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
-	t.deepEqual(withSubQuery, [{ id: 1 }, { id: 3 }, { id: 5 }])
+	t.deepEqual(withSubQuery, [{ id: 1 }, { id: 3 }, { id: 5 }]);
+});
+
+test.serial('set operations (union) from query builder with subquery', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const sq = db
+		.select({ id: users2Table.id, name: users2Table.name })
+		.from(users2Table).as('sq');
+
+	const result = await db
+		.select({ id: cities2Table.id, name: citiesTable.name })
+		.from(cities2Table).union(
+			db.select().from(sq),
+		).orderBy(asc(sql`name`)).limit(2).offset(1);
+
+	t.assert(result.length === 2);
+
+	t.deepEqual(result, [
+		{ id: 3, name: 'Jack' },
+		{ id: 2, name: 'Jane' },
+	]);
+
+	t.throws(() => {
+		db
+			.select({ id: cities2Table.id, name: citiesTable.name, name2: users2Table.name })
+			.from(cities2Table).union(
+				// @ts-expect-error
+				db
+					.select({ id: users2Table.id, name: users2Table.name })
+					.from(users2Table),
+			).orderBy(asc(sql`name`));
+	});
+});
+
+test.serial('set operations (union) as function', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await union(
+		db
+			.select({ id: cities2Table.id, name: citiesTable.name })
+			.from(cities2Table).where(eq(citiesTable.id, 1)),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+	).orderBy(asc(sql`name`)).limit(1).offset(1);
+
+	t.assert(result.length === 1);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'New York' },
+	]);
+
+	t.throws(() => {
+		union(
+			db
+				.select({ name: citiesTable.name, id: cities2Table.id })
+				.from(cities2Table).where(eq(citiesTable.id, 1)),
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+		).orderBy(asc(sql`name`));
+	});
+});
+
+test.serial('set operations (union all) from query builder', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await db
+		.select({ id: cities2Table.id, name: citiesTable.name })
+		.from(cities2Table).limit(2).unionAll(
+			db
+				.select({ id: cities2Table.id, name: citiesTable.name })
+				.from(cities2Table).limit(2),
+		).orderBy(asc(sql`id`));
+
+	t.assert(result.length === 4);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'New York' },
+		{ id: 1, name: 'New York' },
+		{ id: 2, name: 'London' },
+		{ id: 2, name: 'London' },
+	]);
+
+	t.throws(() => {
+		db
+			.select({ id: cities2Table.id, name: citiesTable.name })
+			.from(cities2Table).limit(2).unionAll(
+				db
+					.select({ name: citiesTable.name, id: cities2Table.id })
+					.from(cities2Table).limit(2),
+			).orderBy(asc(sql`id`));
+	});
+});
+
+test.serial('set operations (union all) as function', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await unionAll(
+		db
+			.select({ id: cities2Table.id, name: citiesTable.name })
+			.from(cities2Table).where(eq(citiesTable.id, 1)),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+	);
+
+	t.assert(result.length === 3);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'New York' },
+		{ id: 1, name: 'John' },
+		{ id: 1, name: 'John' },
+	]);
+
+	t.throws(() => {
+		unionAll(
+			db
+				.select({ id: cities2Table.id, name: citiesTable.name })
+				.from(cities2Table).where(eq(citiesTable.id, 1)),
+			db
+				.select({ name: users2Table.name, id: users2Table.id })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+		);
+	});
+});
+
+test.serial('set operations (intersect) from query builder', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await db
+		.select({ id: cities2Table.id, name: citiesTable.name })
+		.from(cities2Table).intersect(
+			db
+				.select({ id: cities2Table.id, name: citiesTable.name })
+				.from(cities2Table).where(gt(citiesTable.id, 1)),
+		).orderBy(asc(sql`name`));
+
+	t.assert(result.length === 2);
+
+	t.deepEqual(result, [
+		{ id: 2, name: 'London' },
+		{ id: 3, name: 'Tampa' },
+	]);
+
+	t.throws(() => {
+		db
+			.select({ id: cities2Table.id, name: citiesTable.name })
+			.from(cities2Table).intersect(
+				// @ts-expect-error
+				db
+					.select({ id: cities2Table.id, name: citiesTable.name, id2: cities2Table.id })
+					.from(cities2Table).where(gt(citiesTable.id, 1)),
+			).orderBy(asc(sql`name`));
+	});
+});
+
+test.serial('set operations (intersect) as function', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await intersect(
+		db
+			.select({ id: cities2Table.id, name: citiesTable.name })
+			.from(cities2Table).where(eq(citiesTable.id, 1)),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+	);
+
+	t.assert(result.length === 0);
+
+	t.deepEqual(result, []);
+
+	t.throws(() => {
+		intersect(
+			db
+				.select({ id: cities2Table.id, name: citiesTable.name })
+				.from(cities2Table).where(eq(citiesTable.id, 1)),
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+			db
+				.select({ name: users2Table.name, id: users2Table.id })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+		);
+	});
+});
+
+test.serial('set operations (intersect all) from query builder', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await db
+		.select({ id: cities2Table.id, name: citiesTable.name })
+		.from(cities2Table).limit(2).intersectAll(
+			db
+				.select({ id: cities2Table.id, name: citiesTable.name })
+				.from(cities2Table).limit(2),
+		).orderBy(asc(sql`id`));
+
+	t.assert(result.length === 2);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'New York' },
+		{ id: 2, name: 'London' },
+	]);
+
+	t.throws(() => {
+		db
+			.select({ id: cities2Table.id, name: citiesTable.name })
+			.from(cities2Table).limit(2).intersectAll(
+				db
+					.select({ name: users2Table.name, id: users2Table.id })
+					.from(cities2Table).limit(2),
+			).orderBy(asc(sql`id`));
+	});
+});
+
+test.serial('set operations (intersect all) as function', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await intersectAll(
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+	);
+
+	t.assert(result.length === 1);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'John' },
+	]);
+
+	t.throws(() => {
+		intersectAll(
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+			db
+				.select({ name: users2Table.name, id: users2Table.id })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+		);
+	});
+});
+
+test.serial('set operations (except) from query builder', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await db
+		.select()
+		.from(cities2Table).except(
+			db
+				.select()
+				.from(cities2Table).where(gt(citiesTable.id, 1)),
+		);
+
+	t.assert(result.length === 1);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'New York' },
+	]);
+
+	t.throws(() => {
+		db
+			.select()
+			.from(cities2Table).except(
+				db
+					.select({ name: users2Table.name, id: users2Table.id })
+					.from(cities2Table).where(gt(citiesTable.id, 1)),
+			);
+	});
+});
+
+test.serial('set operations (except) as function', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await except(
+		db
+			.select({ id: cities2Table.id, name: citiesTable.name })
+			.from(cities2Table),
+		db
+			.select({ id: cities2Table.id, name: citiesTable.name })
+			.from(cities2Table).where(eq(citiesTable.id, 1)),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+	).orderBy(asc(sql`id`));
+
+	t.assert(result.length === 2);
+
+	t.deepEqual(result, [
+		{ id: 2, name: 'London' },
+		{ id: 3, name: 'Tampa' },
+	]);
+
+	t.throws(() => {
+		except(
+			db
+				.select({ id: cities2Table.id, name: citiesTable.name })
+				.from(cities2Table),
+			db
+				.select({ name: users2Table.name, id: users2Table.id })
+				.from(cities2Table).where(eq(citiesTable.id, 1)),
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+		).orderBy(asc(sql`id`));
+	});
+});
+
+test.serial('set operations (except all) from query builder', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await db
+		.select()
+		.from(cities2Table).exceptAll(
+			db
+				.select({ id: cities2Table.id, name: citiesTable.name })
+				.from(cities2Table).where(eq(citiesTable.id, 1)),
+		).orderBy(asc(sql`id`));
+
+	t.assert(result.length === 2);
+
+	t.deepEqual(result, [
+		{ id: 2, name: 'London' },
+		{ id: 3, name: 'Tampa' },
+	]);
+
+	t.throws(() => {
+		db
+			.select({ name: cities2Table.name, id: cities2Table.id })
+			.from(cities2Table).exceptAll(
+				db
+					.select({ id: cities2Table.id, name: citiesTable.name })
+					.from(cities2Table).where(eq(citiesTable.id, 1)),
+			).orderBy(asc(sql`id`));
+	});
+});
+
+test.serial('set operations (except all) as function', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await exceptAll(
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(gt(users2Table.id, 7)),
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+	).orderBy(asc(sql`id`)).limit(5).offset(2);
+
+	t.assert(result.length === 4);
+
+	t.deepEqual(result, [
+		{ id: 4, name: 'Peter' },
+		{ id: 5, name: 'Ben' },
+		{ id: 6, name: 'Jill' },
+		{ id: 7, name: 'Mary' },
+	]);
+
+	t.throws(() => {
+		exceptAll(
+			db
+				.select({ name: users2Table.name, id: users2Table.id })
+				.from(users2Table),
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(gt(users2Table.id, 7)),
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+		).orderBy(asc(sql`id`));
+	});
+});
+
+test.serial('set operations (mixed) from query builder with subquery', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+	const sq = db
+		.select()
+		.from(cities2Table).where(gt(citiesTable.id, 1)).as('sq');
+
+	const result = await db
+		.select()
+		.from(cities2Table).except(
+			({ unionAll }) =>
+				unionAll(
+					db.select().from(sq),
+					db.select().from(cities2Table).where(eq(citiesTable.id, 2)),
+				),
+		);
+
+	t.assert(result.length === 1);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'New York' },
+	]);
+
+	t.throws(() => {
+		db
+			.select()
+			.from(cities2Table).except(
+				({ unionAll }) =>
+					unionAll(
+						db
+							.select({ name: cities2Table.name, id: cities2Table.id })
+							.from(cities2Table).where(gt(citiesTable.id, 1)),
+						db.select().from(cities2Table).where(eq(citiesTable.id, 2)),
+					),
+			);
+	});
+});
+
+test.serial('set operations (mixed all) as function', async (t) => {
+	const { db } = t.context;
+
+	await setupSetOperationTest(db);
+
+	const result = await union(
+		db
+			.select({ id: users2Table.id, name: users2Table.name })
+			.from(users2Table).where(eq(users2Table.id, 1)),
+		except(
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(gte(users2Table.id, 5)),
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 7)),
+		),
+		db
+			.select().from(cities2Table).where(gt(citiesTable.id, 1)),
+	).orderBy(asc(sql`id`));
+
+	t.assert(result.length === 6);
+
+	t.deepEqual(result, [
+		{ id: 1, name: 'John' },
+		{ id: 2, name: 'London' },
+		{ id: 3, name: 'Tampa' },
+		{ id: 5, name: 'Ben' },
+		{ id: 6, name: 'Jill' },
+		{ id: 8, name: 'Sally' },
+	]);
+
+	t.throws(() => {
+		union(
+			db
+				.select({ id: users2Table.id, name: users2Table.name })
+				.from(users2Table).where(eq(users2Table.id, 1)),
+			except(
+				db
+					.select({ id: users2Table.id, name: users2Table.name })
+					.from(users2Table).where(gte(users2Table.id, 5)),
+				db
+					.select({ name: users2Table.name, id: users2Table.id })
+					.from(users2Table).where(eq(users2Table.id, 7)),
+			),
+			db
+				.select().from(cities2Table).where(gt(citiesTable.id, 1)),
+		).orderBy(asc(sql`id`));
+	});
+});
+
+test.serial('aggregate function: count', async (t) => {
+	const { db } = t.context;
+	const table = aggregateTable;
+	await setupAggregateFunctionsTest(db);
+
+	const result1 = await db.select({ value: count() }).from(table);
+	const result2 = await db.select({ value: count(table.a) }).from(table);
+	const result3 = await db.select({ value: countDistinct(table.name) }).from(table);
+
+	t.deepEqual(result1[0]?.value, 7);
+	t.deepEqual(result2[0]?.value, 5);
+	t.deepEqual(result3[0]?.value, 6);
+});
+
+test.serial('aggregate function: avg', async (t) => {
+	const { db } = t.context;
+	const table = aggregateTable;
+	await setupAggregateFunctionsTest(db);
+
+	const result1 = await db.select({ value: avg(table.b) }).from(table);
+	const result2 = await db.select({ value: avg(table.nullOnly) }).from(table);
+	const result3 = await db.select({ value: avgDistinct(table.b) }).from(table);
+
+	t.deepEqual(result1[0]?.value, '33.3333333333333333');
+	t.deepEqual(result2[0]?.value, null);
+	t.deepEqual(result3[0]?.value, '42.5000000000000000');
+});
+
+test.serial('aggregate function: sum', async (t) => {
+	const { db } = t.context;
+	const table = aggregateTable;
+	await setupAggregateFunctionsTest(db);
+
+	const result1 = await db.select({ value: sum(table.b) }).from(table);
+	const result2 = await db.select({ value: sum(table.nullOnly) }).from(table);
+	const result3 = await db.select({ value: sumDistinct(table.b) }).from(table);
+
+	t.deepEqual(result1[0]?.value, '200');
+	t.deepEqual(result2[0]?.value, null);
+	t.deepEqual(result3[0]?.value, '170');
+});
+
+test.serial('aggregate function: max', async (t) => {
+	const { db } = t.context;
+	const table = aggregateTable;
+	await setupAggregateFunctionsTest(db);
+
+	const result1 = await db.select({ value: max(table.b) }).from(table);
+	const result2 = await db.select({ value: max(table.nullOnly) }).from(table);
+
+	t.deepEqual(result1[0]?.value, 90);
+	t.deepEqual(result2[0]?.value, null);
+});
+
+test.serial('aggregate function: min', async (t) => {
+	const { db } = t.context;
+	const table = aggregateTable;
+	await setupAggregateFunctionsTest(db);
+
+	const result1 = await db.select({ value: min(table.b) }).from(table);
+	const result2 = await db.select({ value: min(table.nullOnly) }).from(table);
+
+	t.deepEqual(result1[0]?.value, 10);
+	t.deepEqual(result2[0]?.value, null);
+});
+
+test.serial('array mapping and parsing', async (t) => {
+	const { db } = t.context;
+
+	const arrays = pgTable('arrays_tests', {
+		id: serial('id').primaryKey(),
+		tags: text('tags').array(),
+		nested: text('nested').array().array(),
+		numbers: integer('numbers').notNull().array(),
+	});
+
+	db.execute(sql`drop table if exists ${arrays}`);
+	db.execute(sql`
+		 create table ${arrays} (
+		 id serial primary key,
+		 tags text[],
+		 nested text[][],
+		 numbers integer[]
+		)
+	`);
+
+	await db.insert(arrays).values({
+		tags: ['', 'b', 'c'],
+		nested: [['1', ''], ['3', '\\a']],
+		numbers: [1, 2, 3],
+	});
+
+	const result = await db.select().from(arrays);
+
+	t.deepEqual(result, [{
+		id: 1,
+		tags: ['', 'b', 'c'],
+		nested: [['1', ''], ['3', '\\a']],
+		numbers: [1, 2, 3],
+	}]);
+
+	await db.execute(sql`drop table ${arrays}`);
 });

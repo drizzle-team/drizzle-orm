@@ -6,6 +6,9 @@ import anyTest from 'ava';
 import Docker from 'dockerode';
 import {
 	and,
+	arrayContained,
+	arrayContains,
+	arrayOverlaps,
 	asc,
 	eq,
 	gt,
@@ -18,9 +21,6 @@ import {
 	sql,
 	type SQLWrapper,
 	TransactionRollbackError,
-	arrayContains,
-	arrayContained,
-	arrayOverlaps
 } from 'drizzle-orm';
 import { drizzle, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { migrate } from 'drizzle-orm/neon-http/migrator';
@@ -29,10 +29,12 @@ import {
 	boolean,
 	char,
 	cidr,
+	date,
 	getMaterializedViewConfig,
 	getViewConfig,
 	inet,
 	integer,
+	interval,
 	jsonb,
 	macaddr,
 	macaddr8,
@@ -44,6 +46,7 @@ import {
 	pgView,
 	serial,
 	text,
+	time,
 	timestamp,
 	uuid as pgUuid,
 	varchar,
@@ -1426,20 +1429,71 @@ test.serial('array types', async (t) => {
 test.serial('select for ...', (t) => {
 	const { db } = t.context;
 
-	const query = db
-		.select()
-		.from(users2Table)
-		.for('update')
-		.for('no key update', { of: users2Table })
-		.for('no key update', { of: users2Table, skipLocked: true })
-		.for('share', { of: users2Table, noWait: true })
-		.toSQL();
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('update')
+			.toSQL();
 
-	t.regex(
-		query.sql,
-		// eslint-disable-next-line unicorn/better-regex
-		/ for update for no key update of "users2" for no key update of "users2" skip locked for share of "users2" no wait$/,
-	);
+		t.regex(
+			query.sql,
+			/ for update$/,
+		);
+	}
+
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('update', { of: [users2Table, coursesTable] })
+			.toSQL();
+
+		t.regex(
+			query.sql,
+			/ for update of "users2", "courses"$/,
+		);
+	}
+
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('no key update', { of: users2Table })
+			.toSQL();
+
+		t.regex(
+			query.sql,
+			/for no key update of "users2"$/,
+		);
+	}
+
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('no key update', { of: users2Table, skipLocked: true })
+			.toSQL();
+
+		t.regex(
+			query.sql,
+			/ for no key update of "users2" skip locked$/,
+		);
+	}
+
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('share', { of: users2Table, noWait: true })
+			.toSQL();
+
+		t.regex(
+			query.sql,
+			// eslint-disable-next-line unicorn/better-regex
+			/for share of "users2" no wait$/,
+		);
+	}
 });
 
 test.serial('having', async (t) => {
@@ -1960,6 +2014,262 @@ test.serial('timestamp timezone', async (t) => {
 	t.assert(Math.abs(users[1]!.createdAt.getTime() - date.getTime()) < 2000);
 });
 
+test.serial('all date and time columns', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		dateString: date('date_string', { mode: 'string' }).notNull(),
+		time: time('time', { precision: 3 }).notNull(),
+		datetime: timestamp('datetime').notNull(),
+		datetimeWTZ: timestamp('datetime_wtz', { withTimezone: true }).notNull(),
+		datetimeString: timestamp('datetime_string', { mode: 'string' }).notNull(),
+		datetimeFullPrecision: timestamp('datetime_full_precision', { precision: 6, mode: 'string' }).notNull(),
+		datetimeWTZString: timestamp('datetime_wtz_string', { withTimezone: true, mode: 'string' }).notNull(),
+		interval: interval('interval').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					date_string date not null,
+					time time(3) not null,
+					datetime timestamp not null,
+					datetime_wtz timestamp with time zone not null,
+					datetime_string timestamp not null,
+					datetime_full_precision timestamp(6) not null,
+					datetime_wtz_string timestamp with time zone not null,
+					interval interval not null
+			)
+	`);
+
+	const someDatetime = new Date('2022-01-01T00:00:00.123Z');
+	const fullPrecision = '2022-01-01T00:00:00.123456';
+	const someTime = '23:23:12.432';
+
+	await db.insert(table).values({
+		dateString: '2022-01-01',
+		time: someTime,
+		datetime: someDatetime,
+		datetimeWTZ: someDatetime,
+		datetimeString: '2022-01-01T00:00:00.123Z',
+		datetimeFullPrecision: fullPrecision.replace('T', ' ').replace('Z', ''),
+		datetimeWTZString: '2022-01-01T00:00:00.123Z',
+		interval: '1 day',
+	});
+
+	const result = await db.select().from(table);
+
+	Expect<
+		Equal<{
+			id: number;
+			dateString: string;
+			time: string;
+			datetime: Date;
+			datetimeWTZ: Date;
+			datetimeString: string;
+			datetimeFullPrecision: string;
+			datetimeWTZString: string;
+			interval: string;
+		}[], typeof result>
+	>;
+
+	Expect<
+		Equal<{
+			dateString: string;
+			time: string;
+			datetime: Date;
+			datetimeWTZ: Date;
+			datetimeString: string;
+			datetimeFullPrecision: string;
+			datetimeWTZString: string;
+			interval: string;
+			id?: number | undefined;
+		}, typeof table.$inferInsert>
+	>;
+
+	t.deepEqual(result, [
+		{
+			id: 1,
+			dateString: '2022-01-01',
+			time: someTime,
+			datetime: someDatetime,
+			datetimeWTZ: someDatetime,
+			datetimeString: '2022-01-01 00:00:00.123',
+			datetimeFullPrecision: fullPrecision.replace('T', ' '),
+			datetimeWTZString: '2022-01-01 00:00:00.123+00',
+			interval: '1 day',
+		},
+	]);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('all date and time columns with timezone', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp_string', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
+		timestampAsDate: timestamp('timestamp_date', { withTimezone: true, precision: 3 }).notNull(),
+		timestampTimeZones: timestamp('timestamp_date_2', { withTimezone: true, precision: 3 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(6) with time zone not null,
+					timestamp_date timestamp(3) with time zone not null,
+					timestamp_date_2 timestamp(3) with time zone not null
+			)
+	`);
+
+	const timestampString = '2022-01-01 00:00:00.123456-0200';
+	const timestampDate = new Date();
+	const timestampDateWTZ = new Date('2022-01-01 00:00:00.123 +0500');
+
+	const timestampString2 = '2022-01-01 00:00:00.123456-0400';
+	const timestampDate2 = new Date();
+	const timestampDateWTZ2 = new Date('2022-01-01 00:00:00.123 +0200');
+
+	await db.insert(table).values([
+		{ timestamp: timestampString, timestampAsDate: timestampDate, timestampTimeZones: timestampDateWTZ },
+		{ timestamp: timestampString2, timestampAsDate: timestampDate2, timestampTimeZones: timestampDateWTZ2 },
+	]);
+
+	const result = await db.select().from(table);
+	const result2 = await db.execute<{
+		id: number;
+		timestamp_string: string;
+		timestamp_date: string;
+		timestamp_date_2: string;
+	}>(sql`select * from ${table}`);
+
+	// Whatever you put in, you get back when you're using the date mode
+	// But when using the string mode, postgres returns a string transformed into UTC
+	t.deepEqual(result, [
+		{
+			id: 1,
+			timestamp: '2022-01-01 02:00:00.123456+00',
+			timestampAsDate: timestampDate,
+			timestampTimeZones: timestampDateWTZ,
+		},
+		{
+			id: 2,
+			timestamp: '2022-01-01 04:00:00.123456+00',
+			timestampAsDate: timestampDate2,
+			timestampTimeZones: timestampDateWTZ2,
+		},
+	]);
+
+	t.deepEqual(result2.rows, [
+		{
+			id: 1,
+			timestamp_string: '2022-01-01 02:00:00.123456+00',
+			timestamp_date: timestampDate.toISOString().replace('T', ' ').replace('Z', '') + '+00',
+			timestamp_date_2: timestampDateWTZ.toISOString().replace('T', ' ').replace('Z', '') + '+00',
+		},
+		{
+			id: 2,
+			timestamp_string: '2022-01-01 04:00:00.123456+00',
+			timestamp_date: timestampDate2.toISOString().replace('T', ' ').replace('Z', '') + '+00',
+			timestamp_date_2: timestampDateWTZ2.toISOString().replace('T', ' ').replace('Z', '') + '+00',
+		},
+	]);
+
+	t.deepEqual(
+		result[0]?.timestampTimeZones.getTime(),
+		new Date((result2.rows[0] as any).timestamp_date_2 as any).getTime(),
+	);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('all date and time columns without timezone', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestampString: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
+		timestampString2: timestamp('timestamp_string2', { precision: 3, mode: 'string' }).notNull(),
+		timestampDate: timestamp('timestamp_date', { precision: 3 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(6) not null,
+					timestamp_string2 timestamp(3) not null,
+					timestamp_date timestamp(3) not null
+			)
+	`);
+
+	const timestampString = '2022-01-01 00:00:00.123456';
+	const timestampString2 = '2022-01-02 00:00:00.123 -0300';
+	const timestampDate = new Date('2022-01-01 00:00:00.123Z');
+
+	const timestampString_2 = '2022-01-01 00:00:00.123456';
+	const timestampString2_2 = '2022-01-01 00:00:00.123 -0300';
+	const timestampDate2 = new Date('2022-01-01 00:00:00.123 +0200');
+
+	await db.insert(table).values([
+		{ timestampString, timestampString2, timestampDate },
+		{ timestampString: timestampString_2, timestampString2: timestampString2_2, timestampDate: timestampDate2 },
+	]);
+
+	const result = await db.select().from(table);
+	const result2 = await db.execute<{
+		id: number;
+		timestamp_string: string;
+		timestamp_string2: string;
+		timestamp_date: string;
+	}>(sql`select * from ${table}`);
+
+	// Whatever you put in, you get back when you're using the date mode
+	// But when using the string mode, postgres returns a string transformed into UTC
+	t.deepEqual(result, [
+		{
+			id: 1,
+			timestampString: timestampString,
+			timestampString2: '2022-01-02 00:00:00.123',
+			timestampDate: timestampDate,
+		},
+		{
+			id: 2,
+			timestampString: timestampString_2,
+			timestampString2: '2022-01-01 00:00:00.123',
+			timestampDate: timestampDate2,
+		},
+	]);
+
+	t.deepEqual(result2.rows, [
+		{
+			id: 1,
+			timestamp_string: timestampString,
+			timestamp_string2: '2022-01-02 00:00:00.123',
+			timestamp_date: timestampDate.toISOString().replace('T', ' ').replace('Z', ''),
+		},
+		{
+			id: 2,
+			timestamp_string: timestampString_2,
+			timestamp_string2: '2022-01-01 00:00:00.123',
+			timestamp_date: timestampDate2.toISOString().replace('T', ' ').replace('Z', ''),
+		},
+	]);
+
+	t.deepEqual((result2.rows[0] as any).timestamp_string, '2022-01-01 00:00:00.123456');
+	// need to add the 'Z', otherwise javascript assumes it's in local time
+	t.deepEqual(new Date((result2.rows[0] as any).timestamp_date + 'Z' as any).getTime(), timestampDate.getTime());
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
 test.serial('transaction', async (t) => {
 	const { db } = t.context;
 
@@ -2019,7 +2329,7 @@ test.serial.skip('transaction rollback', async (t) => {
 		await db.transaction(async (tx) => {
 			await tx.insert(users).values({ balance: 100 });
 			tx.rollback();
-		}), new TransactionRollbackError());
+		}), { instanceOf: TransactionRollbackError });
 
 	const result = await db.select().from(users);
 
@@ -2082,7 +2392,7 @@ test.serial.skip('nested transaction rollback', async (t) => {
 			await tx.transaction(async (tx) => {
 				await tx.update(users).set({ balance: 200 });
 				tx.rollback();
-			}), new TransactionRollbackError());
+			}), { instanceOf: TransactionRollbackError });
 	});
 
 	const result = await db.select().from(users);
@@ -2323,7 +2633,7 @@ test.serial('array operators', async (t) => {
 
 	const posts = pgTable('posts', {
 		id: serial('id').primaryKey(),
-		tags: text('tags').array()
+		tags: text('tags').array(),
 	});
 
 	await db.execute(sql`drop table if exists ${posts}`);
@@ -2333,17 +2643,17 @@ test.serial('array operators', async (t) => {
 	);
 
 	await db.insert(posts).values([{
-		tags: ['ORM']
+		tags: ['ORM'],
 	}, {
-		tags: ['Typescript']
+		tags: ['Typescript'],
 	}, {
-		tags: ['Typescript', 'ORM']
+		tags: ['Typescript', 'ORM'],
 	}, {
-		tags: ['Typescript', 'Frontend', 'React']
+		tags: ['Typescript', 'Frontend', 'React'],
 	}, {
-		tags: ['Typescript', 'ORM', 'Database', 'Postgres']
+		tags: ['Typescript', 'ORM', 'Database', 'Postgres'],
 	}, {
-		tags: ['Java', 'Spring', 'OOP']
+		tags: ['Java', 'Spring', 'OOP'],
 	}]);
 
 	const contains = await db.select({ id: posts.id }).from(posts)
@@ -2355,11 +2665,11 @@ test.serial('array operators', async (t) => {
 	const withSubQuery = await db.select({ id: posts.id }).from(posts)
 		.where(arrayContains(
 			posts.tags,
-			db.select({ tags: posts.tags  }).from(posts).where(eq(posts.id, 1))
+			db.select({ tags: posts.tags }).from(posts).where(eq(posts.id, 1)),
 		));
 
 	t.deepEqual(contains, [{ id: 3 }, { id: 5 }]);
 	t.deepEqual(contained, [{ id: 1 }, { id: 2 }, { id: 3 }]);
 	t.deepEqual(overlaps, [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
-	t.deepEqual(withSubQuery, [{ id: 1 }, { id: 3 }, { id: 5 }])
+	t.deepEqual(withSubQuery, [{ id: 1 }, { id: 3 }, { id: 5 }]);
 });

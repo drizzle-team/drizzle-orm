@@ -3,7 +3,9 @@ import { eq } from '~/expressions.ts';
 
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-import { type DrizzleTypeError } from '~/utils.ts';
+import { sql } from '~/sql/sql.ts';
+import type { SQLiteDelete } from '~/sqlite-core/index.ts';
+import type { DrizzleTypeError } from '~/utils.ts';
 import { bunDb, db } from './db.ts';
 import { users } from './tables.ts';
 
@@ -114,3 +116,39 @@ const deleteValuesBunReturningPartial = bunDb.delete(users).returning({
 	myHomeCity: users.homeCity,
 }).values();
 Expect<Equal<any[][], typeof deleteValuesBunReturningPartial>>;
+
+{
+	function dynamic<T extends SQLiteDelete>(qb: T) {
+		return qb.where(sql``).returning();
+	}
+
+	const qbBase = db.delete(users).$dynamic();
+	const qb = dynamic(qbBase);
+	const result = await qb;
+	Expect<Equal<typeof users.$inferSelect[], typeof result>>;
+}
+
+{
+	function withReturning<T extends SQLiteDelete>(qb: T) {
+		return qb.returning();
+	}
+
+	const qbBase = db.delete(users).$dynamic();
+	const qb = withReturning(qbBase);
+	const result = await qb;
+	Expect<Equal<typeof users.$inferSelect[], typeof result>>;
+}
+
+{
+	db
+		.delete(users)
+		.where(sql``)
+		// @ts-expect-error method was already called
+		.where(sql``);
+
+	db
+		.delete(users)
+		.returning()
+		// @ts-expect-error method was already called
+		.returning();
+}
