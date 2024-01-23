@@ -1,6 +1,6 @@
 {
   "name": "drizzle-orm",
-  "version": "0.29.2",
+  "version": "0.29.3",
   "description": "Drizzle ORM package for SQL databases",
   "type": "module",
   "scripts": {
@@ -122,6 +122,15 @@
       "optional": true
     },
     "@opentelemetry/api": {
+      "optional": true
+    },
+    "expo-sqlite": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "@types/react": {
       "optional": true
     }
   },
