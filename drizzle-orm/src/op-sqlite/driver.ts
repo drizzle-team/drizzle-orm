@@ -7,19 +7,19 @@ import {
     type TablesRelationalConfig,
 } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
-import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
+import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { OPSQLiteSession } from './session.ts';
 
 export type OPSQLiteDatabase<
     TSchema extends Record<string, unknown> = Record<string, never>,
-> = BaseSQLiteDatabase<'sync', QueryResult, TSchema>;
+> = BaseSQLiteDatabase<'async', QueryResult, TSchema>;
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
     client: OPSQLiteConnection,
     config: DrizzleConfig<TSchema> = {},
 ): OPSQLiteDatabase<TSchema> {
-    const dialect = new SQLiteSyncDialect();
+    const dialect = new SQLiteAsyncDialect();
     let logger;
     if (config.logger === true) {
         logger = new DefaultLogger();
@@ -41,5 +41,5 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
     }
 
     const session = new OPSQLiteSession(client, dialect, schema, { logger });
-    return new BaseSQLiteDatabase('sync', dialect, session, schema) as OPSQLiteDatabase<TSchema>;
+    return new BaseSQLiteDatabase('async', dialect, session, schema) as OPSQLiteDatabase<TSchema>;
 }

@@ -101,8 +101,8 @@ importers:
         specifier: ^0.4.24
         version: 0.4.24
       '@op-engineering/op-sqlite':
-        specifier: ^2.0.7
-        version: 2.0.7(react-native@0.73.1)(react@18.2.0)
+        specifier: ^2.0.16
+        version: 2.0.16(react-native@0.73.1)(react@18.2.0)
       '@opentelemetry/api':
         specifier: ^1.4.1
         version: 1.4.1
@@ -174,10 +174,10 @@ importers:
         version: 3.12.7
       vite-tsconfig-paths:
         specifier: ^4.2.0
-        version: 4.2.0
+        version: 4.2.0(typescript@5.2.2)(vite@4.3.9)
       vitest:
         specifier: ^0.31.4
-        version: 0.31.4
+        version: 0.31.4(@vitest/ui@0.31.4)
       zod:
         specifier: ^3.20.2
         version: 3.21.4
@@ -451,7 +451,7 @@ importers:
         version: 4.3.9(@types/node@20.2.5)
       vite-tsconfig-paths:
         specifier: ^4.2.0
-        version: 4.2.0(vite@4.3.9)
+        version: 4.2.0(typescript@5.2.2)(vite@4.3.9)
       zx:
         specifier: ^7.2.2
         version: 7.2.2
@@ -4325,8 +4325,8 @@ packages:
       mkdirp: 1.0.4
       rimraf: 3.0.2
 
-  /@op-engineering/op-sqlite@2.0.7(react-native@0.73.1)(react@18.2.0):
-    resolution: {integrity: sha512-/ys3kE5aDLoa4TPndXHspqK9o6AgkOZBzYzR8cC8bBFc/oXFYweaySLvzsP41lWZYbsOcRSMTGwHOtbQEeK32A==}
+  /@op-engineering/op-sqlite@2.0.16(react-native@0.73.1)(react@18.2.0):
+    resolution: {integrity: sha512-tQuDhkPO6Ryp52PuzMm6wVhsY4ppg1VDHOZpY8pmRjTyZLY1pQasBjhgpL/7ks9fSZa4sUlgCQOtfbrN95gXtA==}
     peerDependencies:
       react: '*'
       react-native: '*'
@@ -4446,7 +4446,7 @@ packages:
       '@react-native-community/cli-tools': 12.3.0
       chalk: 4.1.2
       execa: 5.1.1
-      fast-xml-parser: 4.1.2
+      fast-xml-parser: 4.3.2
       glob: 7.2.3
       ora: 5.4.1
     transitivePeerDependencies:
@@ -9029,6 +9029,7 @@ packages:
 
   /glob@6.0.4:
     resolution: {integrity: sha512-MKZeRNyYZAVVVG1oZeLaWie1uweH40m9AZwIwxyPbTSX4hHrVYSzLg0Ro5Z5R7XKkIX+Cc6oD1rqeDJnwsB8/A==}
+    requiresBuild: true
     dependencies:
       inflight: 1.0.6
       inherits: 2.0.4
@@ -11097,6 +11098,7 @@ packages:
   /ncp@2.0.0:
     resolution: {integrity: sha512-zIdGUrPRFTUELUvr3Gmc7KZ2Sw/h1PiVM0Af/oHB6zgnV1ikqSfRk+TOufi79aHYCW3NiOXmr1BP5nWbzojLaA==}
     hasBin: true
+    requiresBuild: true
     dev: true
     optional: true
 
@@ -12567,6 +12569,7 @@ packages:
   /rimraf@2.4.5:
     resolution: {integrity: sha512-J5xnxTyqaiw06JjMftq7L9ouA448dw/E7dKghkP9WpKNuwmARNNg+Gk8/u5ryb9N/Yo2+z3MCwuqFK/+qPOPfQ==}
     hasBin: true
+    requiresBuild: true
     dependencies:
       glob: 6.0.4
     dev: true
@@ -13548,7 +13551,7 @@ packages:
     resolution: {integrity: sha512-Y/arvbn+rrz3JCKl9C4kVNfTfSm2/mEp5FSz5EsZSANGPSlQrpRI5M4PKF+mJnE52jOO90PnPSc3Ur3bTQw0gA==}
     dev: true
 
-  /tsconfck@2.1.1:
+  /tsconfck@2.1.1(typescript@5.2.2):
     resolution: {integrity: sha512-ZPCkJBKASZBmBUNqGHmRhdhM8pJYDdOXp4nRgj/O0JwUwsMq50lCDRQP/M5GBNAA0elPrq4gAeu4dkaVCuKWww==}
     engines: {node: ^14.13.1 || ^16 || >=18}
     hasBin: true
@@ -13557,6 +13560,8 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
+    dependencies:
+      typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
     dev: true
 
   /tsconfig-paths@3.14.2:
@@ -14108,7 +14113,7 @@ packages:
       - terser
     dev: true
 
-  /vite-tsconfig-paths@4.2.0:
+  /vite-tsconfig-paths@4.2.0(typescript@5.2.2)(vite@4.3.9):
     resolution: {integrity: sha512-jGpus0eUy5qbbMVGiTxCL1iB9ZGN6Bd37VGLJU39kTDD6ZfULTTb1bcc5IeTWqWJKiWV5YihCaibeASPiGi8kw==}
     peerDependencies:
       vite: '*'
@@ -14118,23 +14123,7 @@ packages:
     dependencies:
       debug: 4.3.4
       globrex: 0.1.2
-      tsconfck: 2.1.1
-    transitivePeerDependencies:
-      - supports-color
-      - typescript
-    dev: true
-
-  /vite-tsconfig-paths@4.2.0(vite@4.3.9):
-    resolution: {integrity: sha512-jGpus0eUy5qbbMVGiTxCL1iB9ZGN6Bd37VGLJU39kTDD6ZfULTTb1bcc5IeTWqWJKiWV5YihCaibeASPiGi8kw==}
-    peerDependencies:
-      vite: '*'
-    peerDependenciesMeta:
-      vite:
-        optional: true
-    dependencies:
-      debug: 4.3.4
-      globrex: 0.1.2
-      tsconfck: 2.1.1
+      tsconfck: 2.1.1(typescript@5.2.2)
       vite: 4.3.9(@types/node@20.2.5)
     transitivePeerDependencies:
       - supports-color
@@ -14238,71 +14227,6 @@ packages:
       rollup: 3.27.2
     optionalDependencies:
       fsevents: 2.3.3
-
-  /vitest@0.31.4:
-    resolution: {integrity: sha512-GoV0VQPmWrUFOZSg3RpQAPN+LPmHg2/gxlMNJlyxJihkz6qReHDV6b0pPDcqFLNEPya4tWJ1pgwUNP9MLmUfvQ==}
-    engines: {node: '>=v14.18.0'}
-    hasBin: true
-    peerDependencies:
-      '@edge-runtime/vm': '*'
-      '@vitest/browser': '*'
-      '@vitest/ui': '*'
-      happy-dom: '*'
-      jsdom: '*'
-      playwright: '*'
-      safaridriver: '*'
-      webdriverio: '*'
-    peerDependenciesMeta:
-      '@edge-runtime/vm':
-        optional: true
-      '@vitest/browser':
-        optional: true
-      '@vitest/ui':
-        optional: true
-      happy-dom:
-        optional: true
-      jsdom:
-        optional: true
-      playwright:
-        optional: true
-      safaridriver:
-        optional: true
-      webdriverio:
-        optional: true
-    dependencies:
-      '@types/chai': 4.3.5
-      '@types/chai-subset': 1.3.3
-      '@types/node': 20.8.7
-      '@vitest/expect': 0.31.4
-      '@vitest/runner': 0.31.4
-      '@vitest/snapshot': 0.31.4
-      '@vitest/spy': 0.31.4
-      '@vitest/utils': 0.31.4
-      acorn: 8.8.2
-      acorn-walk: 8.2.0
-      cac: 6.7.14
-      chai: 4.3.7
-      concordance: 5.0.4
-      debug: 4.3.4
-      local-pkg: 0.4.3
-      magic-string: 0.30.0
-      pathe: 1.1.1
-      picocolors: 1.0.0
-      std-env: 3.3.3
-      strip-literal: 1.0.1
-      tinybench: 2.5.0
-      tinypool: 0.5.0
-      vite: 4.3.9(@types/node@20.8.7)
-      vite-node: 0.31.4(@types/node@20.8.7)
-      why-is-node-running: 2.2.2
-    transitivePeerDependencies:
-      - less
-      - sass
-      - stylus
-      - sugarss
-      - supports-color
-      - terser
-    dev: true
 
   /vitest@0.31.4(@vitest/ui@0.31.4):
     resolution: {integrity: sha512-GoV0VQPmWrUFOZSg3RpQAPN+LPmHg2/gxlMNJlyxJihkz6qReHDV6b0pPDcqFLNEPya4tWJ1pgwUNP9MLmUfvQ==}

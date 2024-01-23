@@ -1,4 +1,3 @@
-import { digestStringAsync, CryptoDigestAlgorithm } from 'expo-crypto';
 import { useEffect, useReducer } from "react";
 import type { MigrationMeta } from '~/migrator.ts';
 import type { OPSQLiteDatabase } from './driver.ts';
@@ -29,7 +28,7 @@ async function readMigrationFiles({ journal, migrations }: MigrationConfig): Pro
                 sql: result,
                 bps: journalEntry.breakpoints,
                 folderMillis: journalEntry.when,
-                hash: await digestStringAsync(CryptoDigestAlgorithm.SHA256, query),
+                hash: '',
             });
         } catch {
             throw new Error(`Failed to parse migration: ${journalEntry.tag}`);
