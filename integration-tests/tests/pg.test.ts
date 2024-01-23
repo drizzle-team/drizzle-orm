@@ -157,6 +157,19 @@ const aggregateTable = pgTable('aggregate_table', {
 	nullOnly: integer('null_only'),
 });
 
+const orgTable = pgTable('org_table', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	slug: text('slug').notNull(),
+  });
+  
+const orgBrandingTable = pgTable('org_branding_table', {
+	id: serial('id').primaryKey(),
+	orgId: integer('org_id').notNull().references(() => orgTable.id),
+	logo: text('logo'),
+	panelBackground: text('panel_background'),
+  });
+
 interface Context {
 	docker: Docker;
 	pgContainer: Docker.Container;
@@ -315,6 +328,25 @@ test.beforeEach(async (t) => {
 			)
 		`,
 	);
+	await ctx.db.execute(
+		sql`
+			create table org_table (
+				id serial primary key,
+				name text not null,
+				slug text not null
+			)
+		`,
+	);
+	await ctx.db.execute(
+		sql`
+			create table org_branding_table (
+				id serial primary key,
+				org_id integer not null references org_table(id),
+				logo text,
+				panel_background text
+			)
+		`,
+	);
 });
 
 async function setupSetOperationTest(db: NodePgDatabase) {
@@ -380,6 +412,74 @@ async function setupAggregateFunctionsTest(db: NodePgDatabase) {
 		{ name: 'value 6', a: null, b: null, c: 150 },
 	]);
 }
+
+test.serial('nested select: returns object on left join even if first column value is null', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(orgTable).values([
+		{
+		name: 'test org 1',
+		slug: 'test-org-1',
+		},
+	])
+
+	await db.insert(orgBrandingTable).values([
+		{
+		orgId: 1,
+		logo: null,
+		panelBackground: '#123456'
+		},
+	])
+
+	const org = await db
+    .select({
+      name: orgTable.name,
+      slug: orgTable.slug,
+      branding: {
+        logo: orgBrandingTable.logo, // this is null 
+        panelBackground: orgBrandingTable.panelBackground,
+      },
+    })
+    .from(orgTable)
+    .leftJoin(orgBrandingTable, eq(orgTable.id, orgBrandingTable.orgId))
+    .where(eq(orgTable.id, 1));
+
+	t.deepEqual(org[0]?.branding, { logo: null, panelBackground: '#123456' })
+});
+
+test.serial('nested select: returns object on left join if last column value is null', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(orgTable).values([
+		{
+		name: 'test org 1',
+		slug: 'test-org-1',
+		},
+	])
+
+	await db.insert(orgBrandingTable).values([
+		{
+		orgId: 1,
+		logo: null,
+		panelBackground: '#123456'
+		},
+	])
+
+	const org = await db
+    .select({
+      name: orgTable.name,
+      slug: orgTable.slug,
+      branding: {
+        panelBackground: orgBrandingTable.panelBackground,
+		logo: orgBrandingTable.logo, // this is null 
+      },
+    })
+    .from(orgTable)
+    .leftJoin(orgBrandingTable, eq(orgTable.id, orgBrandingTable.orgId))
+    .where(eq(orgTable.id, 1));
+
+	t.deepEqual(org[0]?.branding, { logo: null, panelBackground: '#123456' })
+});
 
 test.serial('table configs: unique third param', async (t) => {
 	const cities1Table = pgTable('cities1', {
