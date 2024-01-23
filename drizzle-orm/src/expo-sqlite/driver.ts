@@ -1,4 +1,4 @@
-import type { SQLiteDatabase, ResultSet } from 'expo-sqlite';
+import type { SQLiteDatabase, SQLiteRunResult } from 'expo-sqlite/next';
 import { DefaultLogger } from '~/logger.ts';
 import {
     createTableRelationsHelpers,
@@ -7,19 +7,19 @@ import {
     type TablesRelationalConfig,
 } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
-import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
+import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { ExpoSQLiteSession } from './session.ts';
 
 export type ExpoSQLiteDatabase<
     TSchema extends Record<string, unknown> = Record<string, never>,
-> = BaseSQLiteDatabase<'async', ResultSet, TSchema>;
+> = BaseSQLiteDatabase<'sync', SQLiteRunResult, TSchema>;
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
     client: SQLiteDatabase,
     config: DrizzleConfig<TSchema> = {},
 ): ExpoSQLiteDatabase<TSchema> {
-    const dialect = new SQLiteAsyncDialect();
+    const dialect = new SQLiteSyncDialect();
     let logger;
     if (config.logger === true) {
         logger = new DefaultLogger();
@@ -41,5 +41,5 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
     }
 
     const session = new ExpoSQLiteSession(client, dialect, schema, { logger });
-    return new BaseSQLiteDatabase('async', dialect, session, schema) as ExpoSQLiteDatabase<TSchema>;
+    return new BaseSQLiteDatabase('sync', dialect, session, schema) as ExpoSQLiteDatabase<TSchema>;
 }

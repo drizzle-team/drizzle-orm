@@ -58,12 +58,12 @@ export class PgTimestamp<T extends ColumnBaseConfig<'date', 'PgTimestamp'>> exte
 		return `timestamp${precision}${this.withTimezone ? ' with time zone' : ''}`;
 	}
 
-	override mapFromDriverValue = (value: string): Date => {
+	override mapFromDriverValue = (value: string): Date | null => {
 		return new Date(this.withTimezone ? value : value + '+0000');
 	};
 
 	override mapToDriverValue = (value: Date): string => {
-		return this.withTimezone ? value.toUTCString() : value.toISOString();
+		return value.toISOString();
 	};
 }
 
