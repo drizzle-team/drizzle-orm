@@ -1109,6 +1109,41 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 });
 
+test.serial('prepared statement in update', async (t) => {
+	const { db } = t.context;
+
+	const enumValues = ['a', 'b', 'c'] as const;
+
+	const anEnum = mysqlEnum('an_enum', enumValues).notNull().default('a');
+
+	const testTable = mysqlTable('prepared_test_table', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		anEnum: anEnum,
+	});
+
+	await db.execute(sql`
+		create table ${testTable} (
+			\`id\` serial primary key,
+			\`name\` text not null,
+			\`an_enum\` ENUM('a', 'b', 'c') not null default 'a'
+		)
+	`);
+
+	await db.insert(testTable).values({ name: 'John', anEnum: 'c' });
+
+	const preparedUpdate = db.update(testTable).set({ anEnum: sql.placeholder('anEnum') }).where(eq(testTable.id, 1))
+		.prepare();
+
+	await preparedUpdate.execute({ anEnum: 'b' });
+
+	const result = await db.select().from(testTable);
+
+	t.deepEqual(result, [{ id: 1, name: 'John', anEnum: 'b' }]);
+
+	db.execute(sql`drop table ${testTable}`);
+});
+
 test.serial('migrator', async (t) => {
 	const { db } = t.context;
 

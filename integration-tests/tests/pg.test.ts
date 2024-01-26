@@ -1132,6 +1132,44 @@ test.serial('prepared statement with placeholder in .offset', async (t) => {
 	t.deepEqual(result, [{ id: 2, name: 'John1' }]);
 });
 
+test.serial('prepared statement in update', async (t) => {
+	const { db } = t.context;
+
+	const enumValues = ['a', 'b', 'c'] as const;
+
+	const anEnum = pgEnum('an_enum', enumValues);
+
+	const testTable = pgTable('prepared_test_table', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		anEnum: anEnum('enum_column').notNull().default('a'),
+	});
+
+	await db.execute(sql`create type ${sql.identifier(anEnum.enumName)} as enum ('a', 'b', 'c')`);
+
+	await db.execute(sql`
+		create table ${testTable} (
+			id serial primary key,
+			name text not null,
+			enum_column ${sql.identifier(anEnum.enumName)} not null default 'a'
+		)
+	`);
+
+	await db.insert(testTable).values({ name: 'John', anEnum: 'c' });
+
+	const preparedUpdate = db.update(testTable).set({ anEnum: sql.placeholder('anEnum') }).where(eq(testTable.id, 1))
+		.prepare('preparedUpdate');
+
+	await preparedUpdate.execute({ anEnum: 'b' });
+
+	const result = await db.select().from(testTable);
+
+	t.deepEqual(result, [{ id: 1, name: 'John', anEnum: 'b' }]);
+
+	db.execute(sql`drop table ${testTable}`);
+	await db.execute(sql`drop type ${sql.identifier(anEnum.enumName)}`);
+});
+
 // TODO change tests to new structure
 test.serial('migrator', async (t) => {
 	const { db } = t.context;
