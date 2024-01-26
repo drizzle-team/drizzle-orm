@@ -82,6 +82,8 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 				return value.sql;
 			}
 
+			if (value.qualifier !== this.config.alias) value.qualifier = this.config.alias;
+
 			const newValue = value.clone();
 			newValue.isSelectionField = true;
 			return newValue;

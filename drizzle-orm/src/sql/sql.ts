@@ -1,4 +1,5 @@
 import { entityKind, is } from '~/entity.ts';
+import type { SelectedFields } from '~/operations.ts';
 import { Relation } from '~/relations.ts';
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { tracer } from '~/tracing.ts';
@@ -6,7 +7,6 @@ import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
 import { Table } from '../table.ts';
-import type { SelectedFields } from '~/operations.ts';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.
@@ -222,7 +222,12 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (is(chunk, SQL.Aliased) && chunk.fieldAlias !== undefined) {
-				return { sql: escapeName(chunk.fieldAlias), params: [] };
+				return {
+					sql: chunk.qualifier
+						? escapeName(chunk.qualifier) + '.' + escapeName(chunk.fieldAlias)
+						: escapeName(chunk.fieldAlias),
+					params: [],
+				};
 			}
 
 			if (is(chunk, Subquery)) {
@@ -532,10 +537,16 @@ export namespace SQL {
 		/** @internal */
 		isSelectionField = false;
 
+		/** @internal */
+		qualifier?: string;
+
 		constructor(
 			readonly sql: SQL,
 			readonly fieldAlias: string,
-		) {}
+			qualifier?: string,
+		) {
+			this.qualifier = qualifier;
+		}
 
 		getSQL(): SQL {
 			return this.sql;
@@ -543,7 +554,7 @@ export namespace SQL {
 
 		/** @internal */
 		clone() {
-			return new Aliased(this.sql, this.fieldAlias);
+			return new Aliased(this.sql, this.fieldAlias, this.qualifier);
 		}
 	}
 }

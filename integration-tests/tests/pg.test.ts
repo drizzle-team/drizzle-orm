@@ -18,6 +18,7 @@ import {
 	gt,
 	gte,
 	inArray,
+	isNotNull,
 	lt,
 	max,
 	min,
@@ -1656,6 +1657,104 @@ test.serial('select all fields from subquery without alias', (t) => {
 	const sq = db.$with('sq').as(db.select({ name: sql<string>`upper(${users2Table.name})` }).from(users2Table));
 
 	t.throws(() => db.select().from(sq).prepare('query'));
+});
+
+test.serial('select from subquery and qualify aliased fields', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists "books_subjects"`);
+	await db.execute(sql`drop table if exists "books"`);
+	await db.execute(sql`drop table if exists "subjects"`);
+
+	await db.execute(
+		sql`
+			create table "subjects" (
+				"id" serial primary key,
+				"name" text not null
+			)
+		`,
+	);
+
+	await db.execute(
+		sql`
+			create table "books" (
+				"id" serial primary key,
+				"name" text not null
+			)
+		`,
+	);
+
+	await db.execute(
+		sql`
+			create table "books_subjects" (
+				"book" int references "books"("id"),
+				"subject" int references "subjects"("id")
+			)
+		`,
+	);
+
+	const booksTable = pgTable('books', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	const subjectsTable = pgTable('subjects', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	const booksSubjects = pgTable('books_subjects', {
+		book: integer('book').references(() => booksTable.id),
+		subject: integer('subject').references(() => subjectsTable.id),
+	});
+
+	await db.insert(subjectsTable).values([
+		{ name: 'Subject 1' },
+		{ name: 'Subject 2' },
+	]);
+
+	await db.insert(booksTable).values([
+		{ name: 'Book 1' },
+		{ name: 'Book 2' },
+	]);
+
+	await db.insert(booksSubjects).values([
+		{ book: 1, subject: 1 },
+		{ book: 1, subject: 2 },
+		{ book: 2, subject: 2 },
+	]);
+
+	const aggQuery = db
+		.select({
+			book: booksSubjects.book,
+			subjects: sql<number[]>`array_agg(${booksSubjects.subject})`.as('subjects'),
+		})
+		.from(booksSubjects)
+		.innerJoin(subjectsTable, eq(booksSubjects.subject, subjectsTable.id))
+		.groupBy(booksSubjects.book)
+		.as('agg');
+
+	const query = db
+		.select({ count: count(), subjects: aggQuery.subjects, book: aggQuery.book })
+		.from(booksTable)
+		.innerJoin(aggQuery, eq(booksTable.id, aggQuery.book))
+		.where(eq(booksTable.id, 1))
+		.groupBy(aggQuery.subjects, aggQuery.book)
+		.having(isNotNull(aggQuery.subjects));
+
+	t.deepEqual(query.toSQL().sql.slice(0, 52), 'select count(*), "agg"."subjects", "agg"."book" from');
+
+	const res = await query;
+
+	t.deepEqual(res, [{
+		count: 1,
+		book: 1,
+		subjects: [1, 2],
+	}]);
+
+	await db.execute(sql`drop table if exists "books_subjects"`);
+	await db.execute(sql`drop table if exists "books"`);
+	await db.execute(sql`drop table if exists "subjects"`);
 });
 
 test.serial('select count()', async (t) => {
