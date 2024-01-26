@@ -58,7 +58,7 @@ import { Expect } from './utils.ts';
 
 // eslint-disable-next-line drizzle/require-entity-kind
 class ServerSimulator {
-	constructor(private db: pg.Client) { }
+	constructor(private db: pg.Client) {}
 
 	async query(sql: string, params: any[], method: 'all' | 'execute') {
 		if (method === 'all') {
@@ -1066,7 +1066,7 @@ test.serial('migrator', async (t) => {
 	await t.throwsAsync(async () => {
 		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 	}, {
-		message: 'relation "users12" does not exist'
+		message: 'relation "users12" does not exist',
 	});
 
 	await migrate(db, async (queries) => {
@@ -1109,10 +1109,11 @@ test.serial('insert via db.execute + returning', async (t) => {
 	const { db } = t.context;
 
 	const inserted = await db.execute<{ id: number; name: string }>(
-		sql`insert into ${usersTable} (${name(
-			usersTable.name.name,
-		)
-			}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
+		sql`insert into ${usersTable} (${
+			name(
+				usersTable.name.name,
+			)
+		}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
 	);
 	t.deepEqual(inserted, [{ id: 1, name: 'John' }]);
 });
@@ -1997,7 +1998,12 @@ test.serial('join on aliased sql from with clause', async (t) => {
 		.from(users)
 		.leftJoin(cities, (cols) => eq(cols.cityId, cols.userId));
 
-	Expect<Equal<{ userId: number; name: string; userCity: string; cityId: number; cityName: string }[], typeof result>>;
+	Expect<
+		Equal<
+			{ userId: number; name: string; userCity: string; cityId: number | null; cityName: string | null }[],
+			typeof result
+		>
+	>;
 
 	t.deepEqual(result, [
 		{ userId: 1, name: 'John', userCity: 'New York', cityId: 1, cityName: 'Paris' },
@@ -2085,11 +2091,19 @@ test.serial('select from enum', async (t) => {
 	await db.execute(sql`drop type if exists ${name(equipmentEnum.enumName)}`);
 	await db.execute(sql`drop type if exists ${name(categoryEnum.enumName)}`);
 
-	await db.execute(sql`create type ${name(muscleEnum.enumName)} as enum ('abdominals', 'hamstrings', 'adductors', 'quadriceps', 'biceps', 'shoulders', 'chest', 'middle_back', 'calves', 'glutes', 'lower_back', 'lats', 'triceps', 'traps', 'forearms', 'neck', 'abductors')`,);
+	await db.execute(
+		sql`create type ${
+			name(muscleEnum.enumName)
+		} as enum ('abdominals', 'hamstrings', 'adductors', 'quadriceps', 'biceps', 'shoulders', 'chest', 'middle_back', 'calves', 'glutes', 'lower_back', 'lats', 'triceps', 'traps', 'forearms', 'neck', 'abductors')`,
+	);
 	await db.execute(sql`create type ${name(forceEnum.enumName)} as enum ('isometric', 'isotonic', 'isokinetic')`);
 	await db.execute(sql`create type ${name(levelEnum.enumName)} as enum ('beginner', 'intermediate', 'advanced')`);
 	await db.execute(sql`create type ${name(mechanicEnum.enumName)} as enum ('compound', 'isolation')`);
-	await db.execute(sql`create type ${name(equipmentEnum.enumName)} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,);
+	await db.execute(
+		sql`create type ${
+			name(equipmentEnum.enumName)
+		} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,
+	);
 	await db.execute(sql`create type ${name(categoryEnum.enumName)} as enum ('upper_body', 'lower_body', 'full_body')`);
 	await db.execute(sql`
 		create table ${exercises} (

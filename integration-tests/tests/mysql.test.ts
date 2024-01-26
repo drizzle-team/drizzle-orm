@@ -17,6 +17,7 @@ import {
 	gte,
 	inArray,
 	type InferModel,
+	isNotNull,
 	max,
 	min,
 	Name,
@@ -1527,6 +1528,104 @@ test.serial('select all fields from subquery without alias', (t) => {
 	t.throws(() => db.select().from(sq).prepare());
 });
 
+test.serial('select from subquery and qualify aliased fields', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists \`books\``);
+	await db.execute(sql`drop table if exists \`subjects\``);
+	await db.execute(sql`drop table if exists \`books_subjects\``);
+
+	await db.execute(
+		sql`
+			create table \`subjects\` (
+				\`id\` serial primary key,
+				\`name\` text not null
+			)
+		`,
+	);
+
+	await db.execute(
+		sql`
+			create table \`books\` (
+				\`id\` serial primary key,
+				\`name\` text not null
+			)
+		`,
+	);
+
+	await db.execute(
+		sql`
+			create table \`books_subjects\` (
+				\`book\` int references \`books\`(\`id\`),
+				\`subject\` int references \`subjects\`(\`id\`)
+			)
+		`,
+	);
+
+	const booksTable = mysqlTable('books', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	const subjectsTable = mysqlTable('subjects', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	const booksSubjects = mysqlTable('books_subjects', {
+		book: int('book').references(() => booksTable.id),
+		subject: int('subject').references(() => subjectsTable.id),
+	});
+
+	await db.insert(subjectsTable).values([
+		{ name: 'Subject 1' },
+		{ name: 'Subject 2' },
+	]);
+
+	await db.insert(booksTable).values([
+		{ name: 'Book 1' },
+		{ name: 'Book 2' },
+	]);
+
+	await db.insert(booksSubjects).values([
+		{ book: 1, subject: 1 },
+		{ book: 1, subject: 2 },
+		{ book: 2, subject: 2 },
+	]);
+
+	const aggQuery = db
+		.select({
+			book: booksSubjects.book,
+			subjects: sql<number[]>`JSON_ARRAYAGG(${booksSubjects.subject})`.as('subjects'),
+		})
+		.from(booksSubjects)
+		.innerJoin(subjectsTable, eq(booksSubjects.subject, subjectsTable.id))
+		.groupBy(booksSubjects.book)
+		.as('agg');
+
+	const query = db
+		.select({ count: count(), subjects: aggQuery.subjects, book: aggQuery.book })
+		.from(booksTable)
+		.innerJoin(aggQuery, eq(booksTable.id, aggQuery.book))
+		.where(eq(booksTable.id, 1))
+		.groupBy(aggQuery.subjects)
+		.having(isNotNull(aggQuery.subjects));
+
+	t.deepEqual(query.toSQL().sql.slice(0, 52), 'select count(*), `agg`.`subjects`, `agg`.`book` from');
+
+	const res = await query;
+
+	t.deepEqual(res, [{
+		count: 1,
+		book: 1,
+		subjects: [1, 2],
+	}]);
+
+	await db.execute(sql`drop table if exists \`books\``);
+	await db.execute(sql`drop table if exists \`subjects\``);
+	await db.execute(sql`drop table if exists \`books_subjects\``);
+});
+
 test.serial('select count()', async (t) => {
 	const { db } = t.context;
 
@@ -1744,7 +1843,12 @@ test.serial('join on aliased sql from with clause', async (t) => {
 		.from(users)
 		.leftJoin(cities, (cols) => eq(cols.cityId, cols.userId));
 
-	Expect<Equal<{ userId: number; name: string; userCity: string; cityId: number; cityName: string }[], typeof result>>;
+	Expect<
+		Equal<
+			{ userId: number; name: string; userCity: string; cityId: number | null; cityName: string | null }[],
+			typeof result
+		>
+	>;
 
 	t.deepEqual(result, [
 		{ userId: 1, name: 'John', userCity: 'New York', cityId: 1, cityName: 'Paris' },

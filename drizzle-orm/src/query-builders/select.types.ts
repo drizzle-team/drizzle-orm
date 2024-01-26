@@ -57,7 +57,11 @@ type SelectPartialResult<TFields, TNullability extends Record<string, JoinNullab
 				? TField['_']['tableName'] extends keyof TNullability
 					? ApplyNullability<SelectResultField<TField>, TNullability[TField['_']['tableName']]>
 				: never
-			: TField extends SQL | SQL.Aliased ? SelectResultField<TField>
+			: TField extends SQL ? SelectResultField<TField>
+			: TField extends SQL.Aliased
+				? TField['_']['qualifier'] extends keyof TNullability
+					? ApplyNullability<SelectResultField<TField>, TNullability[TField['_']['qualifier']]>
+				: SelectResultField<TField>
 			: TField extends Record<string, any>
 				? TField[keyof TField] extends AnyColumn<{ tableName: infer TTableName extends string }> | SQL | SQL.Aliased
 					? Not<IsUnion<TTableName>> extends true
@@ -90,10 +94,16 @@ export type AddAliasToSelection<
 		: {
 			[Key in keyof TSelection]: TSelection[Key] extends Column
 				? ChangeColumnTableName<TSelection[Key], TAlias, TDialect>
-				: TSelection[Key] extends SQL | SQL.Aliased ? TSelection[Key]
+				: TSelection[Key] extends SQL ? TSelection[Key]
+				: TSelection[Key] extends SQL.Aliased ? AppendQualifier<TSelection[Key], TAlias>
 				: TSelection[Key] extends ColumnsSelection ? MapColumnsToTableAlias<TSelection[Key], TAlias, TDialect>
 				: never;
 		}
+>;
+
+export type AppendQualifier<TValue extends SQL.Aliased<any, any>, TQualifier extends string> = SQL.Aliased<
+	TValue['_']['type'],
+	TQualifier
 >;
 
 export type AppendToResult<

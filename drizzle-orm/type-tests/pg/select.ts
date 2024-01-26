@@ -39,6 +39,7 @@ import {
 } from '~/pg-core/index.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
 
+import { max } from '~/index.ts';
 import { db } from './db.ts';
 import { cities, classes, newYorkers, newYorkers2, users } from './tables.ts';
 
@@ -96,6 +97,18 @@ Expect<
 		typeof fullJoinFull
 	>
 >;
+
+const sq = db.select({ id: users.id, maxId: max(users.id).mapWith(users.id).as('maxId') }).from(users).as('sq');
+
+const joinWithSqSql = await db
+	.select({
+		userId: users.id,
+		maxId: sq.maxId,
+	})
+	.from(users)
+	.leftJoin(sq, eq(users.id, sq.id));
+
+Expect<Equal<typeof joinWithSqSql, { userId: number; maxId: number | null }[]>>;
 
 const leftJoinFlat = await db
 	.select({
