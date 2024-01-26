@@ -16,10 +16,10 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
+import type { Name } from '~/sql/index.ts';
+import { and, eq } from '~/sql/index.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
-import type { Name} from '~/sql/index.ts';
-import { and, eq } from '~/sql/index.ts'
-import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
+import { SQLiteColumn, SQLiteCustomColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders/index.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
@@ -119,6 +119,9 @@ export abstract class SQLiteDialect {
 							new SQL(
 								query.queryChunks.map((c) => {
 									if (is(c, Column)) {
+										if (is(c, SQLiteCustomColumn) && c.customSelect) {
+											return c.customSelect(sql.identifier(c.name));
+										}
 										return sql.identifier(c.name);
 									}
 									return c;
@@ -136,9 +139,17 @@ export abstract class SQLiteDialect {
 					const tableName = field.table[Table.Symbol.Name];
 					const columnName = field.name;
 					if (isSingleTable) {
-						chunk.push(sql.identifier(columnName));
+						if (is(field, SQLiteCustomColumn) && field.customSelect) {
+							chunk.push(field.customSelect(sql.identifier(field.name)), sql` as ${sql.identifier(field.name)}`);
+						} else {
+							chunk.push(sql.identifier(field.name));
+						}
 					} else {
-						chunk.push(sql`${sql.identifier(tableName)}.${sql.identifier(columnName)}`);
+						if (is(field, SQLiteCustomColumn) && field.customSelect) {
+							chunk.push(field, sql` as ${sql.identifier(field.name)}`);
+						} else {
+							chunk.push(sql`${sql.identifier(tableName)}.${sql.identifier(columnName)}`);
+						}
 					}
 				}
 

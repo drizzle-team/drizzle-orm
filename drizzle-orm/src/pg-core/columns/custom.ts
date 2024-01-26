@@ -57,12 +57,15 @@ export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', '
 	}
 }
 
+export type AnyPgCustomColumn = PgCustomColumn<any>;
+
 export class PgCustomColumn<T extends ColumnBaseConfig<'custom', 'PgCustomColumn'>> extends PgColumn<T> {
 	static readonly [entityKind]: string = 'PgCustomColumn';
 
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
+	customSelect?: (value: any) => SQL;
 
 	constructor(
 		table: AnyPgTable<{ name: T['tableName'] }>,
@@ -72,6 +75,7 @@ export class PgCustomColumn<T extends ColumnBaseConfig<'custom', 'PgCustomColumn
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
+		this.customSelect = config.customTypeParams.customSelect;
 	}
 
 	getSQLType(): string {
@@ -195,6 +199,18 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	fromDriver?: (value: T['driverData']) => T['data'];
+
+	/**
+	 * Optional custom sql when performing a select. This sql will automatically get aliased to the provided name.
+	 * @example
+	 * For example, when you want to always select a text value in lowercase:
+	 * ```
+	 * customSelect(value: PgColumn): SQL {
+	 * 	 return sql`LOWER(${value})`;  // <-- will be mapped to `LOWER(column) as "column_name"`
+	 * },
+	 * ```
+	 */
+	customSelect?: (value: PgColumn) => SQL;
 }
 
 /**

@@ -405,6 +405,38 @@ Expect<
 }
 
 {
+	const customText = customType<{ data: string }>({
+		dataType() {
+			return 'text';
+		},
+		customSelect(value) {
+			return sql`lower(${value})`;
+		},
+	});
+
+	const t = customText('name').notNull();
+	Expect<
+		Equal<
+			{
+				brand: 'Column';
+				name: 'name';
+				tableName: 'table';
+				dataType: 'custom';
+				columnType: 'MySqlCustomColumn';
+				data: string;
+				driverParam: unknown;
+				notNull: true;
+				hasDefault: false;
+				enumValues: undefined;
+				baseColumn: never;
+				dialect: 'mysql';
+			},
+			Simplify<BuildColumn<'table', typeof t, 'mysql'>['_']>
+		>
+	>;
+}
+
+{
 	mysqlTable('test', {
 		bigint: bigint('bigint', { mode: 'bigint' }),
 		number: bigint('number', { mode: 'number' }),

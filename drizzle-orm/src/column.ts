@@ -32,6 +32,10 @@ export type ColumnRuntimeConfig<TData, TRuntimeConfig extends object> = ColumnBu
 	TRuntimeConfig
 >;
 
+export type AnyCustomColumn = AnyColumn & {
+	customSelect?: (value: any) => SQL;
+};
+
 export interface Column<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars

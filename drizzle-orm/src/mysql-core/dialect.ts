@@ -2,6 +2,7 @@ import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapCol
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
+import { MySqlColumn, MySqlCustomColumn } from '~/mysql-core/columns/index.ts';
 import {
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
@@ -18,8 +19,7 @@ import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/s
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
-import { DrizzleError, type Name, ViewBaseConfig, and, eq } from '../index.ts';
-import { MySqlColumn } from './columns/common.ts';
+import { and, DrizzleError, eq, type Name, ViewBaseConfig } from '../index.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
 import type { MySqlSelectConfig, MySqlSelectJoinConfig, SelectedFieldsOrdered } from './query-builders/select.types.ts';
@@ -149,6 +149,9 @@ export class MySqlDialect {
 							new SQL(
 								query.queryChunks.map((c) => {
 									if (is(c, MySqlColumn)) {
+										if (is(c, MySqlCustomColumn) && c.customSelect) {
+											return c.customSelect(sql.identifier(c.name));
+										}
 										return sql.identifier(c.name);
 									}
 									return c;
@@ -164,9 +167,17 @@ export class MySqlDialect {
 					}
 				} else if (is(field, Column)) {
 					if (isSingleTable) {
-						chunk.push(sql.identifier(field.name));
+						if (is(field, MySqlCustomColumn) && field.customSelect) {
+							chunk.push(field.customSelect(sql.identifier(field.name)), sql` as ${sql.identifier(field.name)}`);
+						} else {
+							chunk.push(sql.identifier(field.name));
+						}
 					} else {
-						chunk.push(field);
+						if (is(field, MySqlCustomColumn) && field.customSelect) {
+							chunk.push(field, sql` as ${sql.identifier(field.name)}`);
+						} else {
+							chunk.push(field);
+						}
 					}
 				}
 
