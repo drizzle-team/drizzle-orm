@@ -38,6 +38,9 @@ export class RelationalQueryBuilder<
 		protected session: SQLiteSession<'async', unknown, TFullSchema, TSchema>,
 	) {}
 
+	declare $inferFindManyArgs: DBQueryConfig<'many', true, TSchema, TFields>;
+	declare $inferFindFirstArgs: Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>;
+
 	findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', true, TSchema, TFields>>,
 	): SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig>[]> {
@@ -116,7 +119,7 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 		private table: SQLiteTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: SQLiteDialect,
-		private session: SQLiteSession<'sync' | 'async', unknown, Record<string, unknown>, TablesRelationalConfig>,
+		private session: SQLiteSession<'sync' | 'async', unknown, Record<string, unknown>, any>,
 		private config: DBQueryConfig<'many', true> | true,
 		mode: 'many' | 'first',
 	) {

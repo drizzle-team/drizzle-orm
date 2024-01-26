@@ -1,12 +1,12 @@
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import {
-	type BuildQueryResult,
-	type BuildRelationalQueryResult,
-	type DBQueryConfig,
-	mapRelationalRow,
-	type TableRelationalConfig,
-	type TablesRelationalConfig,
+import { mapRelationalRow } from '~/relations.ts';
+import type {
+	BuildQueryResult,
+	BuildRelationalQueryResult,
+	DBQueryConfig,
+	TableRelationalConfig,
+	TablesRelationalConfig,
 } from '~/relations.ts';
 import type { Query, QueryWithTypings, SQL } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
@@ -27,6 +27,9 @@ export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFie
 		private dialect: PgDialect,
 		private session: PgSession,
 	) {}
+
+	declare $inferFindManyArgs: DBQueryConfig<'many', true, TSchema, TFields>;
+	declare $inferFindFirstArgs: Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>;
 
 	findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', true, TSchema, TFields>>,

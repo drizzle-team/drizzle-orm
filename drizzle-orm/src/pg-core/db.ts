@@ -59,7 +59,7 @@ export class PgDatabase<
 		this.query = {} as typeof this['query'];
 		if (this._.schema) {
 			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				(this.query as PgDatabase<TQueryResult, Record<string, any>>['query'])[tableName] = new RelationalQueryBuilder(
+				this.query[tableName as keyof TSchema] = new RelationalQueryBuilder(
 					schema!.fullSchema,
 					this._.schema,
 					this._.tableNamesMap,
@@ -67,7 +67,7 @@ export class PgDatabase<
 					columns,
 					dialect,
 					session,
-				);
+				) as this['query'][keyof TSchema];
 			}
 		}
 	}
@@ -390,8 +390,8 @@ export type PgWithReplicas<Q> = Q & { $primary: Q };
 export const withReplicas = <
 	HKT extends QueryResultHKT,
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-	Q extends PgDatabase<HKT, TFullSchema, TSchema>,
+	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
+	Q extends PgDatabase<HKT, TFullSchema, TSchema> = PgDatabase<HKT, TFullSchema, TSchema>,
 >(
 	primary: Q,
 	replicas: [Q, ...Q[]],
