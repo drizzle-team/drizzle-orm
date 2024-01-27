@@ -1,0 +1,29 @@
+{
+  "name": "planetscale-demo",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test:types": "tsc --noEmit",
+    "dev": "tsc --watch",
+    "build": "tsc",
+    "seed": "tsx ./src/seed.ts",
+    "push": "drizzle-kit push:mysql",
+    "studio": "drizzle-kit studio --port 3001"
+  },
+  "dependencies": {
+    "@faker-js/faker": "^8.3.1",
+    "@planetscale/database": "1.13.0",
+    "dotenv": "^16.3.1",
+    "drizzle-orm": "workspace:../../drizzle-orm/dist",
+    "mysql2": "^3.6.5",
+    "nanoid": "^5.0.4",
+    "tsx": "^3.12.1"
+  },
+  "devDependencies": {
+    "dotenv": "^16.0.3",
+    "drizzle-kit": "^0.20.6",
+    "postgres": "^3.3.3",
+    "typescript": "^4.9.4"
+  }
+}
