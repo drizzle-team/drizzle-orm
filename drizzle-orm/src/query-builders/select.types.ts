@@ -4,7 +4,7 @@ import type { SelectedFields } from '~/operations.ts';
 import type { ColumnsSelection, SQL, View } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table } from '~/table.ts';
-import type { Assume, DrizzleTypeError, Equal, IsAny, Simplify } from '~/utils.ts';
+import type { Assume, DrizzleTypeError, Equal, FromSingleKeyObject, IsAny, IsUnion, Not, Simplify } from '~/utils.ts';
 
 export type JoinType = 'inner' | 'left' | 'right' | 'full';
 
@@ -41,10 +41,6 @@ export type SelectResult<
 	: TSelectMode extends 'single' ? SelectResultFields<TResult>
 	: ApplyNotNullMapToJoins<SelectResultFields<TResult>, TNullabilityMap>;
 
-type IsUnion<T, U extends T = T> = (T extends any ? (U extends T ? false : true) : never) extends false ? false : true;
-
-type Not<T extends boolean> = T extends true ? false : true;
-
 type SelectPartialResult<TFields, TNullability extends Record<string, JoinNullability>> = TNullability extends
 	TNullability ? {
 		[Key in keyof TFields]: TFields[Key] extends infer TField
@@ -58,6 +54,11 @@ type SelectPartialResult<TFields, TNullability extends Record<string, JoinNullab
 					? ApplyNullability<SelectResultField<TField>, TNullability[TField['_']['tableName']]>
 				: never
 			: TField extends SQL | SQL.Aliased ? SelectResultField<TField>
+			: TField extends Subquery ? FromSingleKeyObject<
+					TField['_']['selectedFields'],
+					TField['_']['selectedFields'] extends { [key: string]: infer TValue } ? SelectResultField<TValue> : never,
+					'You can only select one column in the subquery'
+				>
 			: TField extends Record<string, any>
 				? TField[keyof TField] extends AnyColumn<{ tableName: infer TTableName extends string }> | SQL | SQL.Aliased
 					? Not<IsUnion<TTableName>> extends true

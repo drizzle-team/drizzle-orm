@@ -16,9 +16,9 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
+import type { Name } from '~/sql/index.ts';
+import { and, eq } from '~/sql/index.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
-import type { Name} from '~/sql/index.ts';
-import { and, eq } from '~/sql/index.ts'
 import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders/index.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
@@ -140,6 +140,23 @@ export abstract class SQLiteDialect {
 					} else {
 						chunk.push(sql`${sql.identifier(tableName)}.${sql.identifier(columnName)}`);
 					}
+				} else if (is(field, Subquery)) {
+					const entries = Object.entries(field[SubqueryConfig].selection) as [string, SQL.Aliased | Column | SQL][];
+
+					if (entries.length === 1) {
+						const entry = entries[0]![1];
+
+						const fieldDecoder = is(entry, SQL)
+							? entry.decoder
+							: is(entry, Column)
+							? { mapFromDriverValue: entry.mapFromDriverValue }
+							: entry.sql.decoder;
+
+						if (fieldDecoder) {
+							field[SubqueryConfig].sql.decoder = fieldDecoder;
+						}
+					}
+					chunk.push(field);
 				}
 
 				if (i < columnsLen - 1) {
