@@ -1054,6 +1054,63 @@ test('[Find Many] Get only custom fields', async (t) => {
 	});
 });
 
+test('[Find Many] Get custom fields with mapWith', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ id: 1, ownerId: 1, content: 'Post1' },
+		{ id: 2, ownerId: 1, content: 'Post1.2' },
+		{ id: 4, ownerId: 2, content: 'Post2' },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findMany({
+		columns: {},
+		with: {
+			posts: {
+				columns: {},
+				extras: ({ content }) => ({
+					lowerName: sql<string>`lower(${content})`.mapWith((val: unknown) => `${val}-extra`).as('content_lower'),
+				}),
+			},
+		},
+		extras: ({ name }) => ({
+			lowerName: sql<string>`lower(${name})`.mapWith((val: unknown) => `${val}-user`).as('name_lower'),
+		}),
+	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		lowerName: string;
+		posts: {
+			lowerName: string;
+		}[];
+	}[]>();
+
+	expect(usersWithPosts.length).toEqual(3);
+	expect(usersWithPosts[0]?.posts.length).toEqual(2);
+	expect(usersWithPosts[1]?.posts.length).toEqual(1);
+	expect(usersWithPosts[2]?.posts.length).toEqual(0);
+
+	expect(usersWithPosts[0]?.lowerName).toEqual('dan-user');
+	expect(usersWithPosts[1]?.lowerName).toEqual('andrew-user');
+	expect(usersWithPosts[2]?.lowerName).toEqual('alex-user');
+
+	expect(usersWithPosts[0]?.posts).toContainEqual({
+		lowerName: 'post1-extra',
+	});
+
+	expect(usersWithPosts[0]?.posts).toContainEqual({
+		lowerName: 'post1.2-extra',
+	});
+
+	expect(usersWithPosts[1]?.posts).toContainEqual({
+		lowerName: 'post2-extra',
+	});
+});
+
 test('[Find Many] Get only custom fields + where', async (t) => {
 	const { pgjsDb: db } = t;
 
