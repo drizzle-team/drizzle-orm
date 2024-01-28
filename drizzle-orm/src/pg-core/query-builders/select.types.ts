@@ -59,6 +59,7 @@ export interface PgSelectConfig {
 	table: PgTable | Subquery | PgViewBase | SQL;
 	limit?: number | Placeholder;
 	offset?: number | Placeholder;
+	comment?: string;
 	joins?: PgSelectJoinConfig[];
 	orderBy?: (PgColumn | SQL | SQL.Aliased)[];
 	groupBy?: (PgColumn | SQL | SQL.Aliased)[];
@@ -76,6 +77,7 @@ export interface PgSelectConfig {
 		orderBy?: (PgColumn | SQL | SQL.Aliased)[];
 		limit?: number | Placeholder;
 		offset?: number | Placeholder;
+		comment?: string;
 	}[];
 }
 

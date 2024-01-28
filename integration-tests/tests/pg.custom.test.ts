@@ -428,6 +428,34 @@ test.serial('build query', async (t) => {
 	});
 });
 
+test.serial('build select query with comment', async (t) => {
+	const { db } = t.context;
+
+	const query = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable)
+		.groupBy(usersTable.id, usersTable.name)
+		.comment('test-comment')
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: '/* test-comment */select "id", "name" from "users" group by "users"."id", "users"."name"',
+		params: [],
+	});
+});
+
+test.serial('build select query with comment and replace */ occurences', async (t) => {
+	const { db } = t.context;
+
+	const query = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable)
+		.comment('*/test-*/comment')
+		.groupBy(usersTable.id, usersTable.name)
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: '/* test-comment */select "id", "name" from "users" group by "users"."id", "users"."name"',
+		params: [],
+	});
+});
+
 test.serial('insert sql', async (t) => {
 	const { db } = t.context;
 
