@@ -1,4 +1,5 @@
 import { entityKind, is } from '~/entity.ts';
+import type { SelectedFields } from '~/operations.ts';
 import { Relation } from '~/relations.ts';
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { tracer } from '~/tracing.ts';
@@ -6,7 +7,6 @@ import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
 import { Table } from '../table.ts';
-import type { SelectedFields } from '~/operations.ts';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.
@@ -199,7 +199,11 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (is(chunk, Param)) {
-				const mappedValue = (chunk.value === null) ? null : chunk.encoder.mapToDriverValue(chunk.value);
+				const mappedValue = (chunk.value === null)
+					? null
+					: is(chunk.value, Placeholder)
+					? chunk.value
+					: chunk.encoder.mapToDriverValue(chunk.value);
 
 				if (is(mappedValue, SQL)) {
 					return this.buildQueryFromSourceParams([mappedValue], config);

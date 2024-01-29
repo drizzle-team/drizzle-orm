@@ -2316,6 +2316,49 @@ test.serial('timestamp timezone', async (t) => {
 	t.assert(Math.abs(users[1]!.createdAt.getTime() - date.getTime()) < 2000);
 });
 
+test.serial('timestamp in placeholders on insert', async (t) => {
+	const { db } = t.context;
+
+	const datesTable = pgTable('dates', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp', { precision: 3 }).notNull(),
+		timestampString: timestamp('timestamp_string', { precision: 3, mode: 'string' }).notNull(),
+	});
+
+	db.execute(sql`drop table if exists ${datesTable}`);
+
+	db.execute(sql`
+		create table ${datesTable} (
+		id serial primary key,
+		timestamp timestamp(3) not null,
+		timestamp_string timestamp(3) not null
+		)
+	`);
+
+	const date = new Date();
+	const prepared = db.insert(datesTable).values({
+		timestamp: sql.placeholder('date'),
+		timestampString: sql.placeholder('date2'),
+	}).prepare('prepared');
+
+	await prepared.execute({
+		date: datesTable.timestamp.mapToDriverValue(date),
+		date2: date.toISOString(),
+	});
+
+	const result = await db.select().from(datesTable);
+
+	t.deepEqual(result, [
+		{
+			id: 1,
+			timestamp: date,
+			timestampString: date.toISOString().replace('T', ' ').replace('Z', ''),
+		},
+	]);
+
+	db.execute(sql`drop table if exists ${datesTable}`);
+});
+
 test.serial('transaction', async (t) => {
 	const { db } = t.context;
 
