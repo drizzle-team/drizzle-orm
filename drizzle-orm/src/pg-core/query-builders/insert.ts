@@ -16,15 +16,16 @@ import { Param, SQL, sql } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { mapUpdateSet, orderSelectedFields } from '~/utils.ts';
+import type { PgColumn } from '../columns/common.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { PgUpdateSetSource } from './update.ts';
-import type { PgColumn } from '../columns/common.ts';
 
 export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[];
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
+	comment?: string;
 }
 
 export type PgInsertValue<TTable extends PgTable> =
@@ -166,18 +167,18 @@ export class PgInsertBase<
 
 	/**
 	 * Adds a `returning` clause to the query.
-	 * 
+	 *
 	 * Calling this method will return the specified fields of the inserted rows. If no fields are specified, all fields will be returned.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/insert#insert-returning}
-	 * 
+	 *
 	 * @example
 	 * ```ts
 	 * // Insert one row and return all fields
 	 * const insertedCar: Car[] = await db.insert(cars)
 	 *   .values({ brand: 'BMW' })
 	 *   .returning();
-	 * 
+	 *
 	 * // Insert one row and return only the id
 	 * const insertedCarId: { id: number }[] = await db.insert(cars)
 	 *   .values({ brand: 'BMW' })
@@ -197,20 +198,20 @@ export class PgInsertBase<
 
 	/**
 	 * Adds an `on conflict do nothing` clause to the query.
-	 * 
+	 *
 	 * Calling this method simply avoids inserting a row as its alternative action.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/insert#on-conflict-do-nothing}
-	 * 
+	 *
 	 * @param config The `target` and `where` clauses.
-	 * 
+	 *
 	 * @example
 	 * ```ts
 	 * // Insert one row and cancel the insert if there's a conflict
 	 * await db.insert(cars)
 	 *   .values({ id: 1, brand: 'BMW' })
 	 *   .onConflictDoNothing();
-	 * 
+	 *
 	 * // Explicitly specify conflict target
 	 * await db.insert(cars)
 	 *   .values({ id: 1, brand: 'BMW' })
@@ -234,26 +235,25 @@ export class PgInsertBase<
 		return this as any;
 	}
 
-
 	/**
 	 * Adds an `on conflict do update` clause to the query.
-	 * 
+	 *
 	 * Calling this method will update the existing row that conflicts with the row proposed for insertion as its alternative action.
-	 * 
-	 * See docs: {@link https://orm.drizzle.team/docs/insert#upserts-and-conflicts} 
-	 * 
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/insert#upserts-and-conflicts}
+	 *
 	 * @param config The `target`, `set` and `where` clauses.
-	 * 
+	 *
 	 * @example
 	 * ```ts
 	 * // Update the row if there's a conflict
 	 * await db.insert(cars)
 	 *   .values({ id: 1, brand: 'BMW' })
-	 *   .onConflictDoUpdate({ 
-	 *     target: cars.id, 
-	 *     set: { brand: 'Porsche' } 
+	 *   .onConflictDoUpdate({
+	 *     target: cars.id,
+	 *     set: { brand: 'Porsche' }
 	 *   });
-	 * 
+	 *
 	 * // Upsert with 'where' clause
 	 * await db.insert(cars)
 	 *   .values({ id: 1, brand: 'BMW' })
@@ -274,6 +274,27 @@ export class PgInsertBase<
 			? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
 			: this.dialect.escapeName(config.target.name);
 		this.config.onConflict = sql`(${sql.raw(targetColumn)}) do update set ${setSql}${whereSql}`;
+		return this as any;
+	}
+
+	/**
+	 * Adds a `comment` to the query.
+	 *
+	 * Calling this method will add a comment to the query.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/insert#comment}
+	 *
+	 * @param comment the `comment` to be added.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // add a comment "action=insert-car"
+	 * await db.insert(cars).values({ id: 1, brand: 'BMW' }).comment("action=insert-car");
+	 * ```
+	 */
+	comment(comment: string): PgInsertWithout<this, TDynamic, 'comment'> {
+		this.config.comment = comment;
 		return this as any;
 	}
 

@@ -332,7 +332,7 @@ export class PgDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		const commentSql = comment ? sql`${sql.raw(`/* ${comment.replace(/\*\//g, '')} */`)}` : undefined;
+		const commentSql = comment ? sql`${sql.raw(`/* ${comment.replace(/\/\*|\*\//g, '')} */`)}` : undefined;
 
 		const lockingClauseSql = sql.empty();
 		if (lockingClause) {
@@ -425,7 +425,7 @@ export class PgDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {
+	buildInsertQuery({ table, values, onConflict, returning, comment }: PgInsertConfig): SQL {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
 
@@ -465,7 +465,9 @@ export class PgDialect {
 
 		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
 
-		return sql`insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
+		const commentSql = comment ? sql`${sql.raw(`/* ${comment.replace(/\/\*|\*\//g, '')} */`)}` : undefined;
+
+		return sql`${commentSql}insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
 	buildRefreshMaterializedViewQuery(

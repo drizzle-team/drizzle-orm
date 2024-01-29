@@ -442,11 +442,11 @@ test.serial('build select query with comment', async (t) => {
 	});
 });
 
-test.serial('build select query with comment and replace */ occurences', async (t) => {
+test.serial('build select query with comment and replace /* and */ occurences', async (t) => {
 	const { db } = t.context;
 
 	const query = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable)
-		.comment('*/test-*/comment')
+		.comment('/*/*/**/test-*/comment')
 		.groupBy(usersTable.id, usersTable.name)
 		.toSQL();
 
@@ -456,12 +456,28 @@ test.serial('build select query with comment and replace */ occurences', async (
 	});
 });
 
-test.serial('insert sql', async (t) => {
+test.serial('build insert query with comment', async (t) => {
 	const { db } = t.context;
 
-	await db.insert(usersTable).values({ name: sql`${'John'}` });
-	const result = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable);
-	t.deepEqual(result, [{ id: 1, name: 'John' }]);
+	const query = db.insert(usersTable).values({ name: sql`${'John'}` }).comment('/*/*/**/test-*/comment').toSQL();
+
+	t.deepEqual(query, {
+		sql:
+			'/* test-comment */insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, default, default)',
+		params: ['John'],
+	});
+});
+
+test.serial('build insert query with comment and replace /* and */ occurences', async (t) => {
+	const { db } = t.context;
+
+	const query = db.insert(usersTable).values({ name: sql`${'John'}` }).comment('/*/*/**/test-*/comment').toSQL();
+
+	t.deepEqual(query, {
+		sql:
+			'/* test-comment */insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, default, default)',
+		params: ['John'],
+	});
 });
 
 test.serial('partial join with alias', async (t) => {
