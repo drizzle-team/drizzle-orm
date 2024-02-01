@@ -48,7 +48,7 @@
     "@libsql/client": "*",
     "@neondatabase/serverless": ">=0.1",
     "@opentelemetry/api": "^1.4.1",
-    "@planetscale/database": ">=1",
+    "@planetscale/database": ">=1.13",
     "@types/better-sqlite3": "*",
     "@types/pg": "*",
     "@types/react": ">=18",
