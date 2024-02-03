@@ -1,7 +1,8 @@
 import type { QueryResult } from 'pg';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-import { sql } from '~/sql/index.ts';
+import type { PgInsert } from '~/pg-core/query-builders/insert.ts';
+import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
 import { users } from './tables.ts';
 
@@ -172,3 +173,34 @@ Expect<
 		classLower: string;
 	}[], typeof insertReturningSqlPrepared>
 >;
+
+{
+	function dynamic<T extends PgInsert>(qb: T) {
+		return qb.returning().onConflictDoNothing().onConflictDoUpdate({ set: {}, target: users.id, where: sql`` });
+	}
+
+	const qbBase = db.insert(users).values({ age1: 0, class: 'A', enumCol: 'a', homeCity: 0, arrayCol: [] }).$dynamic();
+	const qb = dynamic(qbBase);
+	const result = await qb;
+	Expect<Equal<typeof users.$inferSelect[], typeof result>>;
+}
+
+{
+	function withReturning<T extends PgInsert>(qb: T) {
+		return qb.returning();
+	}
+
+	const qbBase = db.insert(users).values({ age1: 0, class: 'A', enumCol: 'a', homeCity: 0, arrayCol: [] }).$dynamic();
+	const qb = withReturning(qbBase);
+	const result = await qb;
+	Expect<Equal<typeof users.$inferSelect[], typeof result>>;
+}
+
+{
+	db
+		.insert(users)
+		.values({ age1: 0, class: 'A', enumCol: 'a', homeCity: 0, arrayCol: [] })
+		.returning()
+		// @ts-expect-error method was already called
+		.returning();
+}

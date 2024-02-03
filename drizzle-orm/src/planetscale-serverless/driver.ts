@@ -9,7 +9,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { type DrizzleConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import type { PlanetScalePreparedQueryHKT, PlanetscaleQueryResultHKT } from './session.ts';
 import { PlanetscaleSession } from './session.ts';
 

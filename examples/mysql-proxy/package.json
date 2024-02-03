@@ -1,0 +1,26 @@
+{
+  "name": "mysql-proxy",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test:types": "tsc --noEmit",
+    "start:script": "tsx src/index.ts",
+    "start:proxy-server": "tsx src/server.ts",
+    "generate": "drizzle-kit generate:mysql --schema src/schema.ts"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.5.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.0.2",
+    "mysql2": "^3.6.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.18",
+    "drizzle-kit": "^0.19.13",
+    "tsx": "^3.13.0",
+    "typescript": "^5.2.2"
+  }
+}

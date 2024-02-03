@@ -41,7 +41,7 @@ import { migrate } from 'drizzle-orm/mysql2/migrator';
 import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
-import { type Equal, Expect } from './utils.ts';
+import { type Equal, Expect, toLocalDate } from './utils.ts';
 
 const ENABLE_LOGGING = false;
 
@@ -793,7 +793,7 @@ test.serial('insert + select all possible dates', async (t) => {
 	t.assert(typeof res[0]?.datetimeAsString === 'string');
 
 	t.deepEqual(res, [{
-		date: new Date('2022-11-11'),
+		date: toLocalDate(new Date('2022-11-11')),
 		dateAsString: '2022-11-11',
 		time: '12:12:12',
 		datetime: new Date('2022-11-11'),
@@ -1484,7 +1484,7 @@ test.serial('transaction rollback', async (t) => {
 		await db.transaction(async (tx) => {
 			await tx.insert(users).values({ balance: 100 });
 			tx.rollback();
-		}), new TransactionRollbackError());
+		}), { instanceOf: TransactionRollbackError });
 
 	const result = await db.select().from(users);
 
@@ -1543,7 +1543,7 @@ test.serial('nested transaction rollback', async (t) => {
 			await tx.transaction(async (tx) => {
 				await tx.update(users).set({ balance: 200 });
 				tx.rollback();
-			}), new TransactionRollbackError());
+			}), { instanceOf: TransactionRollbackError });
 	});
 
 	const result = await db.select().from(users);

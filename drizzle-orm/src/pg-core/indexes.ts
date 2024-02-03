@@ -1,4 +1,4 @@
-import type { SQL } from '~/sql/index.ts';
+import type { SQL } from '~/sql/sql.ts';
 
 import { entityKind } from '~/entity.ts';
 import type { PgColumn } from './columns/index.ts';

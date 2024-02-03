@@ -1,13 +1,13 @@
 import { entityKind } from '~/entity.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import { type SQLWrapper } from '~/sql/index.ts';
-import { SelectionProxyHandler, WithSubquery } from '~/subquery.ts';
-import { type ColumnsSelection } from '~/view.ts';
-import { type PgColumn } from '../columns/index.ts';
+import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
+import type { PgColumn } from '../columns/index.ts';
 import type { WithSubqueryWithSelection } from '../subquery.ts';
 import { PgSelectBuilder } from './select.ts';
 import type { SelectedFields } from './select.types.ts';
+import { WithSubquery } from '~/subquery.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
 
 export class QueryBuilder {
 	static readonly [entityKind]: string = 'PgQueryBuilder';

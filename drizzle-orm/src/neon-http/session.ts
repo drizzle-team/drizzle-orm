@@ -1,4 +1,4 @@
-import { type FullQueryResults, type QueryRows } from '@neondatabase/serverless';
+import type { FullQueryResults, QueryRows } from '@neondatabase/serverless';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -7,8 +7,8 @@ import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
 import { PgSession, PreparedQuery } from '~/pg-core/session.ts';
-import { type RelationalSchemaConfig, type TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query } from '~/sql/index.ts';
+import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 export type NeonHttpClient = {
