@@ -1,4 +1,4 @@
-import type { Client, Connection } from '@planetscale/database';
+import type { Client } from '@planetscale/database';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
@@ -22,9 +22,26 @@ export type PlanetScaleDatabase<
 > = MySqlDatabase<PlanetscaleQueryResultHKT, PlanetScalePreparedQueryHKT, TSchema>;
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
-	client: Client | Connection,
+	client: Client,
 	config: DrizzleConfig<TSchema> = {},
 ): PlanetScaleDatabase<TSchema> {
+	if (!(client instanceof Client)) {
+		throw new DrizzleError({
+			message: `You need to pass an instance of Client:
+
+import { Client } from "@planetscale/database";
+
+const client = new Client({
+  host: process.env["DATABASE_HOST"],
+  username: process.env["DATABASE_USERNAME"],
+  password: process.env["DATABASE_PASSWORD"],
+});
+
+const db = drizzle(client);
+`,
+		});
+	}
+
 	const dialect = new MySqlDialect();
 	let logger;
 	if (config.logger === true) {

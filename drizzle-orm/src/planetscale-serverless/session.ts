@@ -16,8 +16,6 @@ import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
-export type PlanetScaleConnection = Connection;
-
 export class PlanetScalePreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
 	static readonly [entityKind]: string = 'PlanetScalePreparedQuery';
 
@@ -73,7 +71,7 @@ export class PlanetscaleSession<
 	private client: Client | Connection | Transaction;
 
 	constructor(
-		private baseClient: Client | Connection,
+		private baseClient: Client,
 		dialect: MySqlDialect,
 		tx: Transaction | undefined,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
