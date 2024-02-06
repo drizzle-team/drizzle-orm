@@ -1,4 +1,4 @@
-import type { Client } from '@planetscale/database';
+import { Client } from '@planetscale/database';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
