@@ -39,6 +39,6 @@ Check out the full documentation on [the website](https://orm.drizzle.team/docs/
 ### Our sponsors ❤️
 <p align="center">
 <a href="https://drizzle.team" target="_blank">
-<img src='https://api.drizzle.team/github/sponsors/svg'/>
+<img src='https://api.drizzle.team/v2/sponsors/svg'/>
 </a>
 </p>
