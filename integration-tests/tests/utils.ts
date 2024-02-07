@@ -9,3 +9,5 @@ export function toLocalDate(date: Date) {
 	localTime.setUTCHours(0);
 	return localTime;
 }
+
+export const randomString = () => Array.from({length: 10}, () => 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]).join('');
