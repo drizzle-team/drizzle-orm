@@ -31,7 +31,7 @@ import { MySqlViewBase } from './view-base.ts';
 export class MySqlDialect {
 	static readonly [entityKind]: string = 'MySqlDialect';
 
-	async migrate(migrations: MigrationMeta[], session: MySqlSession, config: MigrationConfig): Promise<void> {
+	async migrate(migrations: MigrationMeta[], session: MySqlSession, config: Omit<MigrationConfig, 'migrationsSchema'>): Promise<void> {
 		const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 		const migrationTableCreate = sql`
 			create table if not exists ${sql.identifier(migrationsTable)} (
