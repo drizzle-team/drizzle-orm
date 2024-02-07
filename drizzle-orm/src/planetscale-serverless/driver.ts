@@ -1,4 +1,6 @@
 import { Client } from '@planetscale/database';
+import { is } from '~/entity.ts';
+import { DrizzleError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
@@ -10,7 +12,6 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
-import { DrizzleError } from '../index.ts';
 import type { PlanetScalePreparedQueryHKT, PlanetscaleQueryResultHKT } from './session.ts';
 import { PlanetscaleSession } from './session.ts';
 
@@ -26,7 +27,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	client: Client,
 	config: DrizzleConfig<TSchema> = {},
 ): PlanetScaleDatabase<TSchema> {
-	if (!(client instanceof Client)) {
+	if (!is(client, Client)) {
 		throw new DrizzleError({
 			message: `You need to pass an instance of Client:
 
