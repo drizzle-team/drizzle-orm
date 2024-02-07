@@ -15,9 +15,11 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 	db: NeonHttpDatabase<TSchema>,
 	config: string | MigrationConfig,
 ) {
+	const migrationsTable = typeof config === "string"  ? '__drizzle_migrations' : config.migrationsTable ?? '__drizzle_migrations';
+	const migrationsSchema = typeof config === "string"  ? 'drizzle' :  config.migrationsSchema ?? 'drizzle';
 	const migrations = readMigrationFiles(config);
 	const migrationTableCreate = sql`
-		CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (
+		CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
 			id SERIAL PRIMARY KEY,
 			hash text NOT NULL,
 			created_at bigint
@@ -27,7 +29,7 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 	await db.session.execute(migrationTableCreate);
 
 	const dbMigrations = await db.session.all<{ id: number; hash: string; created_at: string }>(
-		sql`select id, hash, created_at from "drizzle"."__drizzle_migrations" order by created_at desc limit 1`,
+		sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} order by created_at desc limit 1`,
 	);
 
 	const lastDbMigration = dbMigrations[0];
@@ -42,7 +44,7 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 			}
 
 			rowsToInsert.push(
-				sql`insert into "drizzle"."__drizzle_migrations" ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+				sql`insert into ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
 			);
 		}
 	}
