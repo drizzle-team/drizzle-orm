@@ -476,7 +476,7 @@ export class MySqlDialect {
 		joinOn?: SQL;
 	}): BuildRelationalQueryResult<MySqlTable, MySqlColumn> {
 		let selection: BuildRelationalQueryResult<MySqlTable, MySqlColumn>['selection'] = [];
-		let limit, offset, orderBy: MySqlSelectConfig['orderBy'], where;
+		let limit, offset, orderBy: MySqlSelectConfig['orderBy'], where, comment;
 		const joins: MySqlSelectJoinConfig[] = [];
 
 		if (config === true) {
@@ -564,6 +564,10 @@ export class MySqlDialect {
 						value: mapColumnsInAliasedSQLToAlias(value, tableAlias),
 					});
 				}
+			}
+
+			if (config.comment) {
+				comment = config.comment;
 			}
 
 			// Transform `fieldsSelection` into `selection`
@@ -726,6 +730,7 @@ export class MySqlDialect {
 				limit,
 				offset,
 				orderBy,
+				comment,
 				setOperators: [],
 			});
 		} else {
@@ -741,6 +746,7 @@ export class MySqlDialect {
 				limit,
 				offset,
 				orderBy,
+				comment,
 				setOperators: [],
 			});
 		}
