@@ -194,7 +194,7 @@ export class PgDialect {
 		return sql.join(chunks);
 	}
 
-	// Builds a SQL comment and removess /* and */ occurences
+	// Builds a SQL comment and removes /* and */ occurences
 	private buildSqlComment(comment?: string) {
 		return comment ? sql.raw(`/* ${comment.replace(/\/\*|\*\//g, '')} */`) : undefined;
 	}

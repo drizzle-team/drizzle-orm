@@ -90,7 +90,7 @@ export abstract class SQLiteDialect {
 		return sql`${commentSql}update ${table} set ${setSql}${whereSql}${returningSql}`;
 	}
 
-	// Builds a SQL comment and removess /* and */ occurences
+	// Builds a SQL comment and removes /* and */ occurences
 	private buildSqlComment(comment?: string) {
 		return comment ? sql.raw(`/* ${comment.replace(/\/\*|\*\//g, '')} */`) : undefined;
 	}
