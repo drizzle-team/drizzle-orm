@@ -5855,7 +5855,7 @@ test('Get users with groups + custom', async () => {
 	});
 });
 
-test('[Find One] build query with comment and replace /* and */ occurences', async (t) => {
+test('[Find One] build query with comment and replace /* and */ occurences', () => {
 	const query = db.query.usersTable.findFirst({
 		columns: { name: true },
 		with: {
@@ -5870,7 +5870,7 @@ test('[Find One] build query with comment and replace /* and */ occurences', asy
 	expect(query.sql.startsWith('/* test-comment */')).toEqual(true);
 });
 
-test('[Find Many] build query with comment and replace /* and */ occurences', async (t) => {
+test('[Find Many] build query with comment and replace /* and */ occurences', () => {
 	const query = db.query.usersTable.findFirst({
 		columns: { name: true },
 		with: {

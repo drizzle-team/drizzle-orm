@@ -1778,3 +1778,56 @@ test.serial('update undefined', async (t) => {
 
 	await db.execute(sql`drop table ${users}`);
 });
+
+test.serial('build select query with comment and replace /* and */ occurences', async (t) => {
+	const { db } = t.context;
+
+	const query = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable)
+		.comment('/*/*/**/test-*/comment')
+		.groupBy(usersTable.id, usersTable.name)
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql:
+			'/* test-comment */select `id`, `name` from `drizzle_tests_userstest` group by `drizzle_tests_userstest`.`id`, `drizzle_tests_userstest`.`name`',
+		params: [],
+	});
+});
+
+test.serial('build insert query with comment and replace /* and */ occurences', async (t) => {
+	const { db } = t.context;
+
+	const query = db.insert(usersTable).values({ name: sql`${'John'}` }).comment('/*/*/**/test-*/comment').toSQL();
+
+	t.deepEqual(query, {
+		sql:
+			'/* test-comment */insert into `drizzle_tests_userstest` (`id`, `name`, `verified`, `jsonb`, `created_at`) values (default, ?, default, default, default)',
+		params: ['John'],
+	});
+});
+
+test.serial('build update query with comment and replace /* and */ occurences', async (t) => {
+	const { db } = t.context;
+
+	const query = db.update(usersTable).set({ name: 'John' }).where(eq(usersTable.id, 1)).comment(
+		'/*/*/**/test-*/comment',
+	).toSQL();
+
+	t.deepEqual(query, {
+		sql: '/* test-comment */update `drizzle_tests_userstest` set `name` = ? where `drizzle_tests_userstest`.`id` = ?',
+		params: ['John', 1],
+	});
+});
+
+test.serial('build delete query with comment and replace /* and */ occurences', async (t) => {
+	const { db } = t.context;
+
+	const query = db.delete(usersTable).where(eq(usersTable.id, 1)).comment(
+		'/*/*/**/test-*/comment',
+	).toSQL();
+
+	t.deepEqual(query, {
+		sql: '/* test-comment */delete from `drizzle_tests_userstest` where `drizzle_tests_userstest`.`id` = ?',
+		params: [1],
+	});
+});

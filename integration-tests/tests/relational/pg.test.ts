@@ -5924,10 +5924,10 @@ test('[Find One] Get users with groups + orderBy + limit', async (t) => {
 	});
 });
 
-test('[Find One] build query with comment and replace /* and */ occurences', async (t) => {
+test('[Find One] build query with comment and replace /* and */ occurences', (t) => {
 	const { pgDb: db } = t;
 
-	const query = await db.query.usersTable.findFirst({
+	const query = db.query.usersTable.findFirst({
 		columns: { name: true },
 		with: {
 			posts: {
@@ -5941,10 +5941,10 @@ test('[Find One] build query with comment and replace /* and */ occurences', asy
 	expect(query.sql.startsWith('/* test-comment */')).toEqual(true);
 });
 
-test('[Find Many] build query with comment and replace /* and */ occurences', async (t) => {
+test('[Find Many] build query with comment and replace /* and */ occurences', (t) => {
 	const { pgDb: db } = t;
 
-	const query = await db.query.usersTable.findFirst({
+	const query = db.query.usersTable.findFirst({
 		columns: { name: true },
 		with: {
 			posts: {
