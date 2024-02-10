@@ -1067,7 +1067,8 @@ export class PgDialect {
 		joinOn?: SQL;
 	}): BuildRelationalQueryResult<PgTable, PgColumn> {
 		let selection: BuildRelationalQueryResult<PgTable, PgColumn>['selection'] = [];
-		let limit, offset, orderBy: NonNullable<PgSelectConfig['orderBy']> = [], where;
+		let limit, offset, orderBy: NonNullable<PgSelectConfig['orderBy']> = [], where, comment;
+
 		const joins: PgSelectJoinConfig[] = [];
 
 		if (config === true) {
@@ -1155,6 +1156,10 @@ export class PgDialect {
 						value: mapColumnsInAliasedSQLToAlias(value, tableAlias),
 					});
 				}
+			}
+
+			if (config.comment) {
+				comment = config.comment;
 			}
 
 			// Transform `fieldsSelection` into `selection`
@@ -1313,6 +1318,7 @@ export class PgDialect {
 				limit,
 				offset,
 				orderBy,
+				comment,
 				setOperators: [],
 			});
 		} else {
@@ -1328,6 +1334,7 @@ export class PgDialect {
 				limit,
 				offset,
 				orderBy,
+				comment,
 				setOperators: [],
 			});
 		}

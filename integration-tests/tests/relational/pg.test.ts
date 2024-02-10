@@ -5924,6 +5924,40 @@ test('[Find One] Get users with groups + orderBy + limit', async (t) => {
 	});
 });
 
+test('[Find One] build query with comment and replace /* and */ occurences', async (t) => {
+	const { pgDb: db } = t;
+
+	const query = await db.query.usersTable.findFirst({
+		columns: { name: true },
+		with: {
+			posts: {
+				columns: { content: true },
+			},
+		},
+		where: eq(usersTable.id, 1),
+		comment: '/*/*/**/test-*/comment',
+	}).toSQL();
+
+	expect(query.sql.startsWith('/* test-comment */')).toEqual(true);
+});
+
+test('[Find Many] build query with comment and replace /* and */ occurences', async (t) => {
+	const { pgDb: db } = t;
+
+	const query = await db.query.usersTable.findFirst({
+		columns: { name: true },
+		with: {
+			posts: {
+				columns: { content: true },
+			},
+		},
+		where: eq(usersTable.id, 1),
+		comment: '/*/*/**/test-*/comment',
+	}).toSQL();
+
+	expect(query.sql.startsWith('/* test-comment */')).toEqual(true);
+});
+
 test('Get groups with users + orderBy + limit', async (t) => {
 	const { pgDb: db } = t;
 
