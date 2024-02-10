@@ -403,7 +403,7 @@ export class MySqlDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	buildInsertQuery({ table, values, ignore, onConflict }: MySqlInsertConfig): SQL {
+	buildInsertQuery({ table, values, ignore, onConflict, comment }: MySqlInsertConfig): SQL {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, MySqlColumn> = table[Table.Symbol.Columns];
@@ -440,7 +440,9 @@ export class MySqlDialect {
 
 		const onConflictSql = onConflict ? sql` on duplicate key ${onConflict}` : undefined;
 
-		return sql`insert${ignoreSql} into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}`;
+		const commentSql = this.buildSqlComment(comment);
+
+		return sql`${commentSql}insert${ignoreSql} into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}`;
 	}
 
 	sqlToQuery(sql: SQL): QueryWithTypings {
