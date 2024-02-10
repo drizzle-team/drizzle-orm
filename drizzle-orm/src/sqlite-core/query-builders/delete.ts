@@ -215,7 +215,7 @@ export class SQLiteDeleteBase<
 	 *
 	 * Calling this method will add a comment to the query.
 	 *
-	 * See docs: {@link https://orm.drizzle.team/docs/update#comment}
+	 * See docs: {@link https://orm.drizzle.team/docs/delete#comment}
 	 *
 	 * @param comment the `comment` to be added.
 	 *
