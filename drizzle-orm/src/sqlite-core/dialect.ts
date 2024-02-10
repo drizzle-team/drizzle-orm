@@ -370,7 +370,7 @@ export abstract class SQLiteDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	buildInsertQuery({ table, values, onConflict, returning }: SQLiteInsertConfig): SQL {
+	buildInsertQuery({ table, values, onConflict, returning, comment }: SQLiteInsertConfig): SQL {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, SQLiteColumn> = table[Table.Symbol.Columns];
@@ -409,6 +409,7 @@ export abstract class SQLiteDialect {
 		const returningSql = returning
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
+		const commentSql = this.buildSqlComment(comment);
 
 		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
 
@@ -416,7 +417,7 @@ export abstract class SQLiteDialect {
 		// 	return sql`insert into ${table} default values ${onConflictSql}${returningSql}`;
 		// }
 
-		return sql`insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
+		return sql`${commentSql}insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
 	sqlToQuery(sql: SQL): QueryWithTypings {
