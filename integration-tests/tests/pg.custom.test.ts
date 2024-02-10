@@ -467,6 +467,19 @@ test.serial('build update query with comment and replace /* and */ occurences', 
 	});
 });
 
+test.serial('build delete query with comment and replace /* and */ occurences', async (t) => {
+	const { db } = t.context;
+
+	const query = db.delete(usersTable).where(eq(usersTable.id, 1)).comment(
+		'/*/*/**/test-*/comment',
+	).toSQL();
+
+	t.deepEqual(query, {
+		sql: '/* test-comment */delete from "users" where "users"."id" = $1',
+		params: [1],
+	});
+});
+
 test.serial('partial join with alias', async (t) => {
 	const { db } = t.context;
 	const customerAlias = alias(usersTable, 'customer');
