@@ -107,7 +107,7 @@ export class MySqlDialect {
 		);
 	}
 
-	buildUpdateQuery({ table, set, where, returning }: MySqlUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, returning, comment }: MySqlUpdateConfig): SQL {
 		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
@@ -115,8 +115,9 @@ export class MySqlDialect {
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
+		const commentSql = this.buildSqlComment(comment);
 
-		return sql`update ${table} set ${setSql}${whereSql}${returningSql}`;
+		return sql`${commentSql}update ${table} set ${setSql}${whereSql}${returningSql}`;
 	}
 
 	// Builds a SQL comment and removess /* and */ occurences
