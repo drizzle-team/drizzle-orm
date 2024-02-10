@@ -428,20 +428,6 @@ test.serial('build query', async (t) => {
 	});
 });
 
-test.serial('build select query with comment', async (t) => {
-	const { db } = t.context;
-
-	const query = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable)
-		.groupBy(usersTable.id, usersTable.name)
-		.comment('test-comment')
-		.toSQL();
-
-	t.deepEqual(query, {
-		sql: '/* test-comment */select "id", "name" from "users" group by "users"."id", "users"."name"',
-		params: [],
-	});
-});
-
 test.serial('build select query with comment and replace /* and */ occurences', async (t) => {
 	const { db } = t.context;
 
@@ -456,7 +442,7 @@ test.serial('build select query with comment and replace /* and */ occurences', 
 	});
 });
 
-test.serial('build insert query with comment', async (t) => {
+test.serial('build insert query with comment and replace /* and */ occurences', async (t) => {
 	const { db } = t.context;
 
 	const query = db.insert(usersTable).values({ name: sql`${'John'}` }).comment('/*/*/**/test-*/comment').toSQL();
@@ -468,15 +454,16 @@ test.serial('build insert query with comment', async (t) => {
 	});
 });
 
-test.serial('build insert query with comment and replace /* and */ occurences', async (t) => {
+test.serial('build update query with comment and replace /* and */ occurences', async (t) => {
 	const { db } = t.context;
 
-	const query = db.insert(usersTable).values({ name: sql`${'John'}` }).comment('/*/*/**/test-*/comment').toSQL();
+	const query = db.update(usersTable).set({ name: 'John' }).where(eq(usersTable.id, 1)).comment(
+		'/*/*/**/test-*/comment',
+	).toSQL();
 
 	t.deepEqual(query, {
-		sql:
-			'/* test-comment */insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, default, default)',
-		params: ['John'],
+		sql: '/* test-comment */update "users" set "name" = $1 where "users"."id" = $2',
+		params: ['John', 1],
 	});
 });
 

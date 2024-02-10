@@ -118,7 +118,7 @@ export class PgDialect {
 		);
 	}
 
-	buildUpdateQuery({ table, set, where, returning }: PgUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, returning, comment }: PgUpdateConfig): SQL {
 		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
@@ -126,8 +126,9 @@ export class PgDialect {
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
+		const commentSql = this.buildSqlComment(comment);
 
-		return sql`update ${table} set ${setSql}${whereSql}${returningSql}`;
+		return sql`${commentSql}update ${table} set ${setSql}${whereSql}${returningSql}`;
 	}
 
 	/**
@@ -190,6 +191,11 @@ export class PgDialect {
 			});
 
 		return sql.join(chunks);
+	}
+
+	// Builds a SQL comment and removess /* and */ occurences
+	private buildSqlComment(comment?: string) {
+		return comment ? sql.raw(`/* ${comment.replace(/\/\*|\*\//g, '')} */`) : undefined;
 	}
 
 	buildSelectQuery(
@@ -332,7 +338,7 @@ export class PgDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		const commentSql = comment ? sql`${sql.raw(`/* ${comment.replace(/\/\*|\*\//g, '')} */`)}` : undefined;
+		const commentSql = this.buildSqlComment(comment);
 
 		const lockingClauseSql = sql.empty();
 		if (lockingClause) {
@@ -465,7 +471,7 @@ export class PgDialect {
 
 		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
 
-		const commentSql = comment ? sql`${sql.raw(`/* ${comment.replace(/\/\*|\*\//g, '')} */`)}` : undefined;
+		const commentSql = this.buildSqlComment(comment);
 
 		return sql`${commentSql}insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
 	}
