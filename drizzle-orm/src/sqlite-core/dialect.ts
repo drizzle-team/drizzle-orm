@@ -450,7 +450,7 @@ export abstract class SQLiteDialect {
 		joinOn?: SQL;
 	}): BuildRelationalQueryResult<SQLiteTable, SQLiteColumn> {
 		let selection: BuildRelationalQueryResult<SQLiteTable, SQLiteColumn>['selection'] = [];
-		let limit, offset, orderBy: SQLiteSelectConfig['orderBy'] = [], where;
+		let limit, offset, orderBy: SQLiteSelectConfig['orderBy'] = [], where, comment;
 		const joins: SQLiteSelectJoinConfig[] = [];
 
 		if (config === true) {
@@ -538,6 +538,10 @@ export abstract class SQLiteDialect {
 						value: mapColumnsInAliasedSQLToAlias(value, tableAlias),
 					});
 				}
+			}
+
+			if (config.comment) {
+				comment = config.comment;
 			}
 
 			// Transform `fieldsSelection` into `selection`
@@ -688,6 +692,7 @@ export abstract class SQLiteDialect {
 				limit,
 				offset,
 				orderBy,
+				comment,
 				setOperators: [],
 			});
 		} else {
@@ -703,6 +708,7 @@ export abstract class SQLiteDialect {
 				limit,
 				offset,
 				orderBy,
+				comment,
 				setOperators: [],
 			});
 		}
