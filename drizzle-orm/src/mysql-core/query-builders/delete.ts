@@ -132,6 +132,27 @@ export class MySqlDeleteBase<
 		return this as any;
 	}
 
+	/**
+	 * Adds a `comment` to the query.
+	 *
+	 * Calling this method will add a comment to the query.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/update#comment}
+	 *
+	 * @param comment the `comment` to be added.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // add a comment "action=delete-car"
+	 * await db.delete(cars).where(eq(cars.color, 'green')).comment("action=delete-car");
+	 * ```
+	 */
+	comment(comment: string): MySqlDeleteWithout<this, TDynamic, 'comment'> {
+		this.config.comment = comment;
+		return this as any;
+	}
+
 	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildDeleteQuery(this.config);
