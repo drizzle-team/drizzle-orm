@@ -76,7 +76,7 @@ export abstract class SQLiteDialect {
 		);
 	}
 
-	buildUpdateQuery({ table, set, where, returning }: SQLiteUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, returning, comment }: SQLiteUpdateConfig): SQL {
 		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
@@ -84,8 +84,9 @@ export abstract class SQLiteDialect {
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
+		const commentSql = this.buildSqlComment(comment);
 
-		return sql`update ${table} set ${setSql}${whereSql}${returningSql}`;
+		return sql`${commentSql}update ${table} set ${setSql}${whereSql}${returningSql}`;
 	}
 
 	// Builds a SQL comment and removess /* and */ occurences

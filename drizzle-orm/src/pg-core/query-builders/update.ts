@@ -245,7 +245,7 @@ export class PgUpdateBase<
 	 *
 	 * ```ts
 	 * // add a comment "action=update-car"
-	 * await db.update(cars).set({ color: 'red' }).where(eq(cars.color, 'green')).comment("action=insert-car");
+	 * await db.update(cars).set({ color: 'red' }).where(eq(cars.color, 'green')).comment("action=update-car");
 	 * ```
 	 */
 	comment(comment: string): PgUpdateWithout<this, TDynamic, 'comment'> {
