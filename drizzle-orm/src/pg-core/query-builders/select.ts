@@ -883,11 +883,7 @@ export abstract class PgSelectQueryBuilderBase<
 	 * ```
 	 */
 	comment(comment: string): PgSelectWithout<this, TDynamic, 'comment'> {
-		if (this.config.setOperators.length > 0) {
-			this.config.setOperators.at(-1)!.comment = comment;
-		} else {
-			this.config.comment = comment;
-		}
+		this.config.comment = comment;
 		return this as any;
 	}
 

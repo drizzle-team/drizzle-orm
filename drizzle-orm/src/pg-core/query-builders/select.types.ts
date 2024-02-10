@@ -77,7 +77,6 @@ export interface PgSelectConfig {
 		orderBy?: (PgColumn | SQL | SQL.Aliased)[];
 		limit?: number | Placeholder;
 		offset?: number | Placeholder;
-		comment?: string;
 	}[];
 }
 
