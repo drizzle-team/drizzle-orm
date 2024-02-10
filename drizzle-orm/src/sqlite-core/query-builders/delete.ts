@@ -7,8 +7,8 @@ import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { type DrizzleTypeError, orderSelectedFields } from '~/utils.ts';
-import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { SQLiteColumn } from '../columns/common.ts';
+import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
 export type SQLiteDeleteWithout<
 	T extends AnySQLiteDeleteBase,
@@ -38,6 +38,7 @@ export interface SQLiteDeleteConfig {
 	where?: SQL | undefined;
 	table: SQLiteTable;
 	returning?: SelectedFieldsOrdered;
+	comment?: string;
 }
 
 export type SQLiteDeleteReturningAll<
@@ -144,35 +145,35 @@ export class SQLiteDeleteBase<
 		this.config = { table };
 	}
 
-	/** 
+	/**
 	 * Adds a `where` clause to the query.
-	 * 
+	 *
 	 * Calling this method will delete only those rows that fulfill a specified condition.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/delete}
-	 * 
+	 *
 	 * @param where the `where` clause.
-	 * 
+	 *
 	 * @example
 	 * You can use conditional operators and `sql function` to filter the rows to be deleted.
-	 * 
+	 *
 	 * ```ts
 	 * // Delete all cars with green color
 	 * db.delete(cars).where(eq(cars.color, 'green'));
 	 * // or
 	 * db.delete(cars).where(sql`${cars.color} = 'green'`)
 	 * ```
-	 * 
+	 *
 	 * You can logically combine conditional operators with `and()` and `or()` operators:
-	 * 
+	 *
 	 * ```ts
 	 * // Delete all BMW cars with a green color
 	 * db.delete(cars).where(and(eq(cars.color, 'green'), eq(cars.brand, 'BMW')));
-	 * 
+	 *
 	 * // Delete all cars with the green or blue color
 	 * db.delete(cars).where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
 	 * ```
-	*/
+	 */
 	where(where: SQL | undefined): SQLiteDeleteWithout<this, TDynamic, 'where'> {
 		this.config.where = where;
 		return this as any;
@@ -180,18 +181,18 @@ export class SQLiteDeleteBase<
 
 	/**
 	 * Adds a `returning` clause to the query.
-	 * 
+	 *
 	 * Calling this method will return the specified fields of the deleted rows. If no fields are specified, all fields will be returned.
-	 * 
-	 * See docs: {@link https://orm.drizzle.team/docs/delete#delete-with-return} 
-	 * 
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/delete#delete-with-return}
+	 *
 	 * @example
 	 * ```ts
 	 * // Delete all cars with the green color and return all fields
 	 * const deletedCars: Car[] = await db.delete(cars)
 	 *   .where(eq(cars.color, 'green'))
 	 *   .returning();
-	 * 
+	 *
 	 * // Delete all cars with the green color and return only their id and brand fields
 	 * const deletedCarsIdsAndBrands: { id: number, brand: string }[] = await db.delete(cars)
 	 *   .where(eq(cars.color, 'green'))
@@ -206,6 +207,27 @@ export class SQLiteDeleteBase<
 		fields: SelectedFieldsFlat = this.table[SQLiteTable.Symbol.Columns],
 	): SQLiteDeleteReturning<this, TDynamic, any> {
 		this.config.returning = orderSelectedFields<SQLiteColumn>(fields);
+		return this as any;
+	}
+
+	/**
+	 * Adds a `comment` to the query.
+	 *
+	 * Calling this method will add a comment to the query.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/update#comment}
+	 *
+	 * @param comment the `comment` to be added.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // add a comment "action=delete-car"
+	 * await db.delete(cars).where(eq(cars.color, 'green')).comment("action=delete-car");
+	 * ```
+	 */
+	comment(comment: string): SQLiteDeleteWithout<this, TDynamic, 'comment'> {
+		this.config.comment = comment;
 		return this as any;
 	}
 

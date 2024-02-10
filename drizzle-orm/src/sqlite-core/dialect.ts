@@ -49,14 +49,15 @@ export abstract class SQLiteDialect {
 		return `'${str.replace(/'/g, "''")}'`;
 	}
 
-	buildDeleteQuery({ table, where, returning }: SQLiteDeleteConfig): SQL {
+	buildDeleteQuery({ table, where, returning, comment }: SQLiteDeleteConfig): SQL {
 		const returningSql = returning
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
+		const commentSql = this.buildSqlComment(comment);
 
-		return sql`delete from ${table}${whereSql}${returningSql}`;
+		return sql`${commentSql}delete from ${table}${whereSql}${returningSql}`;
 	}
 
 	buildUpdateSet(table: SQLiteTable, set: UpdateSet): SQL {
