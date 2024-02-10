@@ -18,7 +18,7 @@ import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/s
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
-import { DrizzleError, type Name, ViewBaseConfig, and, eq } from '../index.ts';
+import { and, DrizzleError, eq, type Name, ViewBaseConfig } from '../index.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
@@ -118,6 +118,11 @@ export class MySqlDialect {
 		return sql`update ${table} set ${setSql}${whereSql}${returningSql}`;
 	}
 
+	// Builds a SQL comment and removess /* and */ occurences
+	private buildSqlComment(comment?: string) {
+		return comment ? sql.raw(`/* ${comment.replace(/\/\*|\*\//g, '')} */`) : undefined;
+	}
+
 	/**
 	 * Builds selection SQL with provided fields/expressions
 	 *
@@ -195,6 +200,7 @@ export class MySqlDialect {
 			offset,
 			lockingClause,
 			distinct,
+			comment,
 			setOperators,
 		}: MySqlSelectConfig,
 	): SQL {
@@ -323,8 +329,10 @@ export class MySqlDialect {
 			}
 		}
 
+		const commentSql = this.buildSqlComment(comment);
+
 		const finalQuery =
-			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+			sql`${commentSql}${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
 
 		if (setOperators.length > 0) {
 			return this.buildSetOperations(finalQuery, setOperators);
