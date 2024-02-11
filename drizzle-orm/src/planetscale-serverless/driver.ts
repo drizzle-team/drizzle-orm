@@ -1,5 +1,4 @@
 import { Client } from '@planetscale/database';
-import { is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -27,7 +26,9 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	client: Client,
 	config: DrizzleConfig<TSchema> = {},
 ): PlanetScaleDatabase<TSchema> {
-	if (!is(client, Client)) {
+	// Client is not Drizzle Object, so we can ignore this rule here
+	// eslint-disable-next-line no-instanceof/no-instanceof
+	if (client instanceof Client) {
 		throw new DrizzleError({
 			message: `You need to pass an instance of Client:
 
