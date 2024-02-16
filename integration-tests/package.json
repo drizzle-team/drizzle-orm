@@ -23,6 +23,7 @@
       "!tests/relational/**/*",
       "!tests/libsql-batch.test.ts",
       "!tests/d1-batch.test.ts",
+      "!tests/neon-http-batch.test.ts",
       "!tests/replicas/**/*",
       "!tests/imports/**/*"
     ],
@@ -38,7 +39,7 @@
   "license": "Apache-2.0",
   "private": true,
   "devDependencies": {
-    "@neondatabase/serverless": "0.4.24",
+    "@neondatabase/serverless": "0.8.1",
     "@originjs/vite-plugin-commonjs": "^1.0.3",
     "@types/axios": "^0.14.0",
     "@types/better-sqlite3": "^7.6.4",

@@ -1,4 +1,5 @@
 import type { FullQueryResults, QueryRows } from '@neondatabase/serverless';
+import type { BatchItem } from '~/batch';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -6,71 +7,91 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
-import { PgSession, PreparedQuery } from '~/pg-core/session.ts';
+import { PgPreparedQuery as PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { PreparedQuery } from '~/session';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { mapResultRow } from '~/utils.ts';
 
 export type NeonHttpClient = {
 	<A extends boolean = false, F extends boolean = true>(
 		strings: string,
 		params?: any[],
-		mode?: { arrayMode?: A; fullResults?: F },
+		config?: { arrayMode?: A; fullResults?: F },
 	): Promise<
 		F extends true ? FullQueryResults<A> : QueryRows<A>
 	>;
+
+	transaction<A extends boolean = false, F extends boolean = true>(
+		queries: Promise<FullQueryResults<boolean> | QueryRows<boolean>>[],
+		config?: { arrayMode?: A; fullResults?: F },
+	): Promise<
+		F extends true ? FullQueryResults<A>[] : QueryRows<A>[]
+	>;
 };
 
-export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
-	static readonly [entityKind]: string = 'NeonHttpPreparedQuery';
+const rawQueryConfig = {
+	arrayMode: false,
+	fullResults: true,
+} as const;
+const queryConfig = {
+	arrayMode: true,
+	fullResults: true,
+} as const;
 
-	private rawQuery: { arrayMode?: false; fullResults?: true };
-	private query: { arrayMode?: true; fullResults?: true };
+export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
+	static readonly [entityKind]: string = 'NeonHttpPreparedQuery';
 
 	constructor(
 		private client: NeonHttpClient,
-		private queryString: string,
-		private params: unknown[],
+		query: Query,
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
-		private name: string | undefined,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super();
-		this.rawQuery = {
-			arrayMode: false,
-			fullResults: true,
-		};
-		this.query = { arrayMode: true, fullResults: true };
+		super(query);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
 
-		this.logger.logQuery(this.queryString, params);
+		this.logger.logQuery(this.query.sql, params);
 
-		const { fields, client, queryString, query, rawQuery, joinsNotNullableMap, customResultMapper } = this;
+		const { fields, client, query, customResultMapper } = this;
+
 		if (!fields && !customResultMapper) {
-			return client(queryString, params, rawQuery);
+			return client(query.sql, params, rawQueryConfig);
 		}
 
-		const result = await client(queryString, params, query);
+		const result = await client(query.sql, params, queryConfig);
 
-		return customResultMapper
-			? customResultMapper(result.rows as unknown[][])
-			: result.rows.map((row) => mapResultRow<T['execute']>(fields!, row as unknown[], joinsNotNullableMap));
+		return this.mapResult(result);
+	}
+
+	override mapResult(result: unknown): unknown {
+		if (!this.fields && !this.customResultMapper) {
+			return result;
+		}
+
+		const rows = (result as FullQueryResults<true>).rows;
+
+		if (this.customResultMapper) {
+			return this.customResultMapper(rows);
+		}
+
+		return rows.map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-		this.logger.logQuery(this.queryString, params);
-		return this.client(this.queryString, params, this.rawQuery).then((result) => result.rows);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
+		this.logger.logQuery(this.query.sql, params);
+		return this.client(this.query.sql, params, rawQueryConfig).then((result) => result.rows);
 	}
 
 	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['values']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-		this.logger.logQuery(this.queryString, params);
-		return this.client(this.queryString, params).then((result) => result.rows);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
+		this.logger.logQuery(this.query.sql, params);
+		return this.client(this.query.sql, params).then((result) => result.rows);
 	}
 }
 
@@ -101,16 +122,30 @@ export class NeonHttpSession<
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
-	): PreparedQuery<T> {
+	): PgPreparedQuery<T> {
 		return new NeonHttpPreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			fields,
-			name,
 			customResultMapper,
 		);
+	}
+
+	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(queries: T) {
+		const preparedQueries: PreparedQuery[] = [];
+		const builtQueries: Promise<FullQueryResults<true> | QueryRows<true>>[] = [];
+
+		for (const query of queries) {
+			const preparedQuery = query._prepare();
+			const builtQuery = preparedQuery.getQuery();
+			preparedQueries.push(preparedQuery);
+			builtQueries.push(this.client(builtQuery.sql, builtQuery.params));
+		}
+
+		const batchResults = await this.client.transaction(builtQueries, queryConfig);
+
+		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
 	}
 
 	// change return type to QueryRows<true>
@@ -159,6 +194,8 @@ export class NeonTransaction<
 	}
 }
 
+export type NeonHttpQueryResult<T> = Omit<FullQueryResults<false>, 'rows'> & { rows: T[] };
+
 export interface NeonHttpQueryResultHKT extends QueryResultHKT {
-	type: FullQueryResults<Assume<this['row'], boolean>>;
+	type: NeonHttpQueryResult<this['row']>;
 }
