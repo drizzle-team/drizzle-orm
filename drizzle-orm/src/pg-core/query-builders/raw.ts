@@ -1,8 +1,8 @@
-import { entityKind } from '~/entity';
-import { QueryPromise } from '~/query-promise';
-import type { RunnableQuery } from '~/runnable-query';
-import type { PreparedQuery } from '~/session';
-import type { Query, SQL, SQLWrapper } from '~/sql/sql';
+import { entityKind } from '~/entity.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import type { RunnableQuery } from '~/runnable-query.ts';
+import type { PreparedQuery } from '~/session.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 
 export class PgRaw<TResult> extends QueryPromise<TResult>
 	implements RunnableQuery<TResult, 'pg'>, SQLWrapper, PreparedQuery
