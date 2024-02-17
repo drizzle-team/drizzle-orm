@@ -872,7 +872,7 @@ export class SQLiteSelectBase<
 	}
 
 	prepare(): SQLiteSelectPrepare<this> {
-		return this._prepare();
+		return this._prepare(false);
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
