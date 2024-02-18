@@ -26,7 +26,7 @@ const client = postgres(connectionString);
 const db = drizzle(client);
 ```
 
-See [main docs](/drizzle-orm/src/pg-core/README.md#sql-schema-declaration) for further usage.
+See [main docs](https://orm.drizzle.team/docs/sql-schema-declaration) for further usage.
 
 ## Running migrations
 
@@ -43,4 +43,4 @@ const db = drizzle(migrationsClient);
 await migrate(db, { migrationsFolder: '...' });
 ```
 
-See [main migrations docs](/drizzle-orm/src/pg-core/README.md#migrations) for further info.
+See [main migrations docs](https://orm.drizzle.team/docs/migrations) for further info.
