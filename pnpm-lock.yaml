@@ -127,6 +127,9 @@ importers:
       '@vercel/postgres':
         specifier: ^0.3.0
         version: 0.3.0
+      '@xata.io/client':
+        specifier: ^0.29.1
+        version: 0.29.1(typescript@5.2.2)
       better-sqlite3:
         specifier: ^8.4.0
         version: 8.4.0
@@ -5309,6 +5312,14 @@ packages:
       diff-sequences: 29.6.3
       loupe: 2.3.6
       pretty-format: 29.7.0
+    dev: true
+
+  /@xata.io/client@0.29.1(typescript@5.2.2):
+    resolution: {integrity: sha512-JuxRxk28tDFQUOgxcSB0VRWvK+t1c307tSgESZmwzu1Uj0NxvD+YH4vW2Ob5A4o/daK0wgaITO22vsdTidwakQ==}
+    peerDependencies:
+      typescript: '>=4.5'
+    dependencies:
+      typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
     dev: true
 
   /@xmldom/xmldom@0.7.13:
