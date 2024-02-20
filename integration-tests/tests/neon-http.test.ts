@@ -132,28 +132,9 @@ test.before(async (t) => {
 		throw new Error('NEON_CONNECTION_STRING is not defined');
 	}
 
-	const sleep = 250;
-	let timeLeft = 5000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			ctx.client = neon(connectionString);
-			ctx.ddlRunner = new Client(connectionString);
-			await ctx.ddlRunner.connect();
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to Postgres');
-		await ctx.ddlRunner?.end().catch(console.error);
-		throw lastError;
-	}
+	ctx.client = neon(connectionString);
+	ctx.ddlRunner = new Client(connectionString);
+	await ctx.ddlRunner.connect();
 	ctx.db = drizzle(ctx.client, { logger: ENABLE_LOGGING });
 });
 

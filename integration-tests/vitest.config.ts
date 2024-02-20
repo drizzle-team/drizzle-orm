@@ -7,7 +7,6 @@ export default defineConfig({
 	test: {
 		include: [
 			'tests/relational/**/*.test.ts',
-			'!tests/relational/mysql.planetscale.test.ts',
 			'tests/libsql-batch.test.ts',
 			'tests/d1-batch.test.ts',
 			'tests/neon-http-batch.test.ts',

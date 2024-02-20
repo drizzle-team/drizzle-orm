@@ -4,6 +4,10 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 
+export interface PgRaw<TResult>
+	extends QueryPromise<TResult>, RunnableQuery<TResult, 'pg'>, SQLWrapper, PreparedQuery
+{}
+
 export class PgRaw<TResult> extends QueryPromise<TResult>
 	implements RunnableQuery<TResult, 'pg'>, SQLWrapper, PreparedQuery
 {

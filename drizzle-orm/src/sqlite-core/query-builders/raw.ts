@@ -10,6 +10,10 @@ export interface SQLiteRawConfig {
 	action: SQLiteRawAction;
 }
 
+export interface SQLiteRaw<TResult>
+	extends QueryPromise<TResult>, RunnableQuery<TResult, 'sqlite'>, SQLWrapper, PreparedQuery
+{}
+
 export class SQLiteRaw<TResult> extends QueryPromise<TResult>
 	implements RunnableQuery<TResult, 'sqlite'>, SQLWrapper, PreparedQuery
 {
