@@ -1,4 +1,4 @@
-import type { Client, ExecutedQuery, Transaction } from '@planetscale/database';
+import type { Client, Connection, ExecutedQuery, Transaction } from '@planetscale/database';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -23,7 +23,7 @@ export class PlanetScalePreparedQuery<T extends PreparedQueryConfig> extends Pre
 	private query = { as: 'array' } as const;
 
 	constructor(
-		private client: Client | Transaction,
+		private client: Client | Transaction | Connection,
 		private queryString: string,
 		private params: unknown[],
 		private logger: Logger,
@@ -68,10 +68,10 @@ export class PlanetscaleSession<
 	static readonly [entityKind]: string = 'PlanetscaleSession';
 
 	private logger: Logger;
-	private client: Client | Transaction;
+	private client: Client | Transaction | Connection;
 
 	constructor(
-		private baseClient: Client,
+		private baseClient: Client | Connection,
 		dialect: MySqlDialect,
 		tx: Transaction | undefined,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,

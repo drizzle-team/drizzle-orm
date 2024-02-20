@@ -407,7 +407,7 @@ test.serial('build query insert with onDuplicate', async (t) => {
 	t.deepEqual(query, {
 		sql: `insert into \`${
 			getTableConfig(usersTable).name
-		}\` (\`name\`, \`jsonb\`) values (?, ?) on duplicate key update \`name\` = ?`,
+		}\` (\`id\`, \`name\`, \`verified\`, \`jsonb\`, \`created_at\`) values (default, ?, default, ?, default) on duplicate key update \`name\` = ?`,
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
