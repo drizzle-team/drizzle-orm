@@ -18,6 +18,7 @@ const usersTable = pgTable('users', {
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
 	jsonb: jsonb('jsonb').$type<string[]>(),
+	bestTexts: text('text').array().default(sql`{}`),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -856,6 +857,30 @@ test.serial('select from raw sql with mapped values', async (t) => {
 	t.deepEqual(result, [
 		{ id: 1, name: 'John' },
 	]);
+});
+
+test.serial('insert with array values works', async (t) => {
+	const { db } = t.context;
+
+	const bestTexts = ['text1', 'text2', 'text3']
+	const [insertResult] = await db.insert(usersTable).values({
+		name: 'John',
+		bestTexts
+	}).returning()
+
+	t.deepEqual(insertResult?.bestTexts , bestTexts);
+});
+
+test.serial('update with array values works', async (t) => {
+	const { db } = t.context;
+	const [newUser] = await db.insert(usersTable).values({ name: 'John' }).returning()
+	
+	const bestTexts = ['text4', 'text5', 'text6']
+	const [insertResult] = await db.update(usersTable).set({
+		bestTexts
+	}).where(eq(usersTable.id, newUser!.id)).returning()
+
+	t.deepEqual(insertResult?.bestTexts , bestTexts);
 });
 
 test.after.always(async (t) => {
