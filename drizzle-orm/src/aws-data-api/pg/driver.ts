@@ -9,7 +9,7 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import type { DrizzleConfig, UpdateSet } from '~/utils.ts';
 import type { AwsDataApiClient, AwsDataApiPgQueryResultHKT } from './session.ts';
 import { AwsDataApiSession } from './session.ts';
 import { PgArray, PgColumn, PgInsertConfig, PgTable, TableConfig } from '~/pg-core/index.ts';
@@ -54,6 +54,16 @@ export class AwsPgDialect extends PgDialect {
 		}
 
 		return super.buildInsertQuery({table, values, onConflict, returning})
+	}
+
+	override buildUpdateSet(table: PgTable<TableConfig>, set: UpdateSet): SQL<unknown> {
+		Object.entries(set)
+			.forEach(([colName, colValue]) => {
+				if (is(colValue, Param) && colValue.value !== undefined && is(colValue.encoder, PgArray) &&  Array.isArray(colValue.value)) {
+					set[colName] = sql`cast(${`{ ${colValue.value.join(', ')} }`} as ${sql.raw(colValue.encoder.getSQLType())})`
+				}
+			})
+		return super.buildUpdateSet(table, set)
 	}
 }
 
