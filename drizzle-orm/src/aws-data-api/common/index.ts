@@ -20,15 +20,19 @@ export function getValueFromDataApi(field: Field) {
 		if (field.arrayValue.stringValues !== undefined) {
 			return field.arrayValue.stringValues;
 		}
-    if (field.arrayValue.longValues !== undefined) {
-      return field.arrayValue.longValues;
-    }
-    if (field.arrayValue.doubleValues !== undefined) {
-      return field.arrayValue.doubleValues;
-    }
-    if (field.arrayValue.booleanValues !== undefined) {
-      return field.arrayValue.booleanValues;
-    }
+		if (field.arrayValue.longValues !== undefined) {
+			return field.arrayValue.longValues;
+		}
+		if (field.arrayValue.doubleValues !== undefined) {
+			return field.arrayValue.doubleValues;
+		}
+		if (field.arrayValue.booleanValues !== undefined) {
+			return field.arrayValue.booleanValues;
+		}
+		if (field.arrayValue.arrayValues !== undefined) {
+			return field.arrayValue.arrayValues
+		}
+
 		throw new Error('Unknown array type');
 	} else {
 		throw new Error('Unknown type');
