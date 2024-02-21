@@ -81,7 +81,7 @@ test.serial('select all fields', async (t) => {
 
 	t.assert(result[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	// t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 100);
-	t.deepEqual(result, [{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+	t.deepEqual(result, [{ bestTexts: [], id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 });
 
 test.serial('select sql', async (t) => {
@@ -187,7 +187,7 @@ test.serial('update with returning all fields', async (t) => {
 
 	t.assert(users[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	// t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 100);
-	t.deepEqual(users, [{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
+	t.deepEqual(users, [{ id: 1, bestTexts: [], name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
 });
 
 test.serial('update with returning partial', async (t) => {
@@ -210,7 +210,7 @@ test.serial('delete with returning all fields', async (t) => {
 
 	t.assert(users[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	// t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 100);
-	t.deepEqual(users, [{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
+	t.deepEqual(users, [{ bestTexts: [], id: 1, name: 'John', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
 });
 
 test.serial('delete with returning partial', async (t) => {
@@ -230,13 +230,13 @@ test.serial('insert + select', async (t) => {
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const result = await db.select().from(usersTable);
-	t.deepEqual(result, [{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+	t.deepEqual(result, [{ bestTexts: [], id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 
 	await db.insert(usersTable).values({ name: 'Jane' });
 	const result2 = await db.select().from(usersTable);
 	t.deepEqual(result2, [
-		{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result2[0]!.createdAt },
-		{ id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
+		{ bestTexts: [], id: 1, name: 'John', verified: false, jsonb: null, createdAt: result2[0]!.createdAt },
+		{ bestTexts: [], id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
 	]);
 });
 
