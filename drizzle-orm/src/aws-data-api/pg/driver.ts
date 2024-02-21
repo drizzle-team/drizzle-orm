@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
@@ -12,6 +12,8 @@ import {
 import type { DrizzleConfig } from '~/utils.ts';
 import type { AwsDataApiClient, AwsDataApiPgQueryResultHKT } from './session.ts';
 import { AwsDataApiSession } from './session.ts';
+import { PgArray, PgColumn, PgInsertConfig, PgTable, TableConfig } from '~/pg-core/index.ts';
+import { Param, SQL, Table, sql } from '~/index.ts';
 
 export interface PgDriverOptions {
 	logger?: Logger;
@@ -37,6 +39,21 @@ export class AwsPgDialect extends PgDialect {
 
 	override escapeParam(num: number): string {
 		return `:${num + 1}`;
+	}
+
+	override buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig<PgTable<TableConfig>>): SQL<unknown> {
+		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
+		const colEntries: [string, PgColumn][] = Object.entries(columns);
+		for (let value of values) {
+			for (const [fieldName, col] of colEntries) {
+				const colValue = value[fieldName];
+				if (is(colValue, Param) && colValue.value !== undefined && is(colValue.encoder, PgArray) &&  Array.isArray(colValue.value)) {
+					value[fieldName] = sql`cast(${`{ ${colValue.value.join(', ')} }`} as ${sql.raw(colValue.encoder.getSQLType())})`
+				}
+			}
+		}
+
+		return super.buildInsertQuery({table, values, onConflict, returning})
 	}
 }
 
