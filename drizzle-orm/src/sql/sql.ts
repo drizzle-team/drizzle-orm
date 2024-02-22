@@ -1,12 +1,11 @@
 import { entityKind, is } from '~/entity.ts';
-import { Relation } from '~/relations.ts';
+import type { SelectedFields } from '~/operations.ts';
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { tracer } from '~/tracing.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
 import { Table } from '../table.ts';
-import type { SelectedFields } from '~/operations.ts';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.
@@ -237,22 +236,11 @@ export class SQL<T = unknown> implements SQLWrapper {
 				], config);
 			}
 
-			// if (is(chunk, Placeholder)) {
-			// 	return {sql: escapeParam}
-
 			if (isSQLWrapper(chunk)) {
 				return this.buildQueryFromSourceParams([
 					new StringChunk('('),
 					chunk.getSQL(),
 					new StringChunk(')'),
-				], config);
-			}
-
-			if (is(chunk, Relation)) {
-				return this.buildQueryFromSourceParams([
-					chunk.sourceTable,
-					new StringChunk('.'),
-					sql.identifier(chunk.fieldName),
 				], config);
 			}
 

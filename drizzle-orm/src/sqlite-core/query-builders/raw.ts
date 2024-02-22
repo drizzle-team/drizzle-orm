@@ -10,7 +10,13 @@ export interface SQLiteRawConfig {
 	action: SQLiteRawAction;
 }
 
-export class SQLiteRaw<TResult> extends QueryPromise<TResult> implements RunnableQuery<TResult, 'sqlite'>, SQLWrapper {
+export interface SQLiteRaw<TResult>
+	extends QueryPromise<TResult>, RunnableQuery<TResult, 'sqlite'>, SQLWrapper, PreparedQuery
+{}
+
+export class SQLiteRaw<TResult> extends QueryPromise<TResult>
+	implements RunnableQuery<TResult, 'sqlite'>, SQLWrapper, PreparedQuery
+{
 	static readonly [entityKind]: string = 'SQLiteRaw';
 
 	declare readonly _: {
@@ -22,8 +28,9 @@ export class SQLiteRaw<TResult> extends QueryPromise<TResult> implements Runnabl
 	config: SQLiteRawConfig;
 
 	constructor(
-		private cb: () => Promise<TResult>,
-		private getSQLCb: () => SQL,
+		public execute: () => Promise<TResult>,
+		/** @internal */
+		public getSQL: () => SQL,
 		action: SQLiteRawAction,
 		private dialect: SQLiteAsyncDialect,
 		private mapBatchResult: (result: unknown) => unknown,
@@ -32,23 +39,15 @@ export class SQLiteRaw<TResult> extends QueryPromise<TResult> implements Runnabl
 		this.config = { action };
 	}
 
-	/** @internal */
-	getSQL(): SQL {
-		return this.getSQLCb();
+	getQuery() {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
-	override async execute(): Promise<TResult> {
-		return this.cb();
+	mapResult(result: unknown, isFromBatch?: boolean) {
+		return isFromBatch ? this.mapBatchResult(result) : result;
 	}
 
-	prepare(): PreparedQuery {
-		return {
-			getQuery: () => {
-				return this.dialect.sqlToQuery(this.getSQL());
-			},
-			mapResult: (result: unknown, isFromBatch?: boolean) => {
-				return isFromBatch ? this.mapBatchResult(result) : result;
-			},
-		};
+	_prepare(): PreparedQuery {
+		return this;
 	}
 }
