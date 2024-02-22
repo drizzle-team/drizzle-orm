@@ -14,6 +14,7 @@ import type { KnownKeysOnly } from '~/utils.ts';
 import type { SQLiteDialect } from '../dialect.ts';
 import type { PreparedQueryConfig, SQLitePreparedQuery, SQLiteSession } from '../session.ts';
 import type { SQLiteTable } from '../table.ts';
+import type { SQLiteView } from '../view.ts';
 
 export type SQLiteRelationalQueryKind<TMode extends 'sync' | 'async', TResult> = TMode extends 'async'
 	? SQLiteRelationalQuery<TMode, TResult>
@@ -32,7 +33,7 @@ export class RelationalQueryBuilder<
 		protected fullSchema: Record<string, unknown>,
 		protected schema: TSchema,
 		protected tableNamesMap: Record<string, string>,
-		protected table: SQLiteTable,
+		protected table: SQLiteTable | SQLiteView,
 		protected tableConfig: TableRelationalConfig,
 		protected dialect: SQLiteDialect,
 		protected session: SQLiteSession<'async', unknown, TFullSchema, TSchema>,
@@ -113,7 +114,7 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 		private fullSchema: Record<string, unknown>,
 		private schema: TablesRelationalConfig,
 		private tableNamesMap: Record<string, string>,
-		private table: SQLiteTable,
+		private table: SQLiteTable | SQLiteView,
 		private tableConfig: TableRelationalConfig,
 		private dialect: SQLiteDialect,
 		private session: SQLiteSession<'sync' | 'async', unknown, Record<string, unknown>, TablesRelationalConfig>,

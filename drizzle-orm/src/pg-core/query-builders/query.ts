@@ -15,6 +15,7 @@ import type { KnownKeysOnly } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
 import type { PgPreparedQuery, PgSession, PreparedQueryConfig } from '../session.ts';
 import type { PgTable } from '../table.ts';
+import type { PgView } from '../view.ts';
 
 export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields extends TableRelationalConfig> {
 	static readonly [entityKind]: string = 'PgRelationalQueryBuilder';
@@ -23,7 +24,7 @@ export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFie
 		private fullSchema: Record<string, unknown>,
 		private schema: TSchema,
 		private tableNamesMap: Record<string, string>,
-		private table: PgTable,
+		private table: PgTable | PgView,
 		private tableConfig: TableRelationalConfig,
 		private dialect: PgDialect,
 		private session: PgSession,
@@ -76,7 +77,7 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 		private fullSchema: Record<string, unknown>,
 		private schema: TablesRelationalConfig,
 		private tableNamesMap: Record<string, string>,
-		private table: PgTable,
+		private table: PgTable | PgView,
 		private tableConfig: TableRelationalConfig,
 		private dialect: PgDialect,
 		private session: PgSession,

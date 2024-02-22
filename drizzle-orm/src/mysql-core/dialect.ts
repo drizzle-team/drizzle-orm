@@ -7,6 +7,7 @@ import {
 	type DBQueryConfig,
 	getOperators,
 	getOrderByOperators,
+	getTableOrViewName,
 	Many,
 	normalizeRelation,
 	One,
@@ -18,7 +19,7 @@ import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/s
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
-import { DrizzleError, type Name, ViewBaseConfig, and, eq } from '../index.ts';
+import { and, DrizzleError, eq, type Name, ViewBaseConfig } from '../index.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
@@ -27,6 +28,7 @@ import type { MySqlUpdateConfig } from './query-builders/update.ts';
 import type { MySqlSession } from './session.ts';
 import { MySqlTable } from './table.ts';
 import { MySqlViewBase } from './view-base.ts';
+import { MySqlView } from './view.ts';
 
 export class MySqlDialect {
 	static readonly [entityKind]: string = 'MySqlDialect';
@@ -246,6 +248,8 @@ export class MySqlDialect {
 		const tableSql = (() => {
 			if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
 				return sql`${sql.identifier(table[Table.Symbol.OriginalName])} ${sql.identifier(table[Table.Symbol.Name])}`;
+			} else if (is(table, View) && table[ViewBaseConfig].originalName !== table[ViewBaseConfig].name) {
+				return sql`${sql.identifier(table[ViewBaseConfig].originalName)} ${sql.identifier(table[ViewBaseConfig].name)}`;
 			}
 
 			return table;
@@ -456,7 +460,7 @@ export class MySqlDialect {
 		fullSchema: Record<string, unknown>;
 		schema: TablesRelationalConfig;
 		tableNamesMap: Record<string, string>;
-		table: MySqlTable;
+		table: MySqlTable | MySqlView;
 		tableConfig: TableRelationalConfig;
 		queryConfig: true | DBQueryConfig<'many', true>;
 		tableAlias: string;
@@ -592,7 +596,7 @@ export class MySqlDialect {
 				} of selectedRelations
 			) {
 				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
-				const relationTableName = relation.referencedTable[Table.Symbol.Name];
+				const relationTableName = getTableOrViewName(relation.referencedTable);
 				const relationTableTsName = tableNamesMap[relationTableName]!;
 				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
 				const joinOn = and(
@@ -703,7 +707,7 @@ export class MySqlDialect {
 			}
 
 			result = this.buildSelectQuery({
-				table: is(result, MySqlTable) ? result : new Subquery(result, {}, tableAlias),
+				table: is(result, MySqlTable) || is(result, MySqlView) ? result : new Subquery(result, {}, tableAlias),
 				fields: {},
 				fieldsFlat: nestedSelection.map(({ field }) => ({
 					path: [],
@@ -754,7 +758,7 @@ export class MySqlDialect {
 		fullSchema: Record<string, unknown>;
 		schema: TablesRelationalConfig;
 		tableNamesMap: Record<string, string>;
-		table: MySqlTable;
+		table: MySqlTable | MySqlView;
 		tableConfig: TableRelationalConfig;
 		queryConfig: true | DBQueryConfig<'many', true>;
 		tableAlias: string;
@@ -889,7 +893,7 @@ export class MySqlDialect {
 				} of selectedRelations
 			) {
 				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
-				const relationTableName = relation.referencedTable[Table.Symbol.Name];
+				const relationTableName = getTableOrViewName(relation.referencedTable);
 				const relationTableTsName = tableNamesMap[relationTableName]!;
 				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
 				const joinOn = and(
@@ -996,7 +1000,7 @@ export class MySqlDialect {
 			}
 
 			result = this.buildSelectQuery({
-				table: is(result, MySqlTable) ? result : new Subquery(result, {}, tableAlias),
+				table: is(result, MySqlTable) || is(result, MySqlView) ? result : new Subquery(result, {}, tableAlias),
 				fields: {},
 				fieldsFlat: nestedSelection.map(({ field }) => ({
 					path: [],

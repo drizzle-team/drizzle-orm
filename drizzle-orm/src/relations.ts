@@ -27,8 +27,10 @@ import {
 	notLike,
 	or,
 } from './sql/expressions/index.ts';
-import { type Placeholder, SQL, sql } from './sql/sql.ts';
+import { SQL, sql, View } from './sql/sql.ts';
+import type { Placeholder } from './sql/sql.ts';
 import type { Assume, ColumnsWithTable, Equal, Simplify, ValueOrArray } from './utils.ts';
+import { ViewBaseConfig } from './view-common.ts';
 
 export abstract class Relation<TTableName extends string = string> {
 	static readonly [entityKind]: string = 'Relation';
@@ -38,11 +40,13 @@ export abstract class Relation<TTableName extends string = string> {
 	fieldName!: string;
 
 	constructor(
-		readonly sourceTable: Table,
-		readonly referencedTable: AnyTable<{ name: TTableName }>,
+		readonly sourceTable: Table | View,
+		readonly referencedTable: AnyTable<{ name: TTableName }> | View<TTableName>,
 		readonly relationName: string | undefined,
 	) {
-		this.referencedTableName = referencedTable[Table.Symbol.Name] as TTableName;
+		this.referencedTableName = (is(referencedTable, Table)
+			? referencedTable[Table.Symbol.Name]
+			: referencedTable[ViewBaseConfig].name) as TTableName;
 	}
 
 	abstract withFieldName(fieldName: string): Relation<TTableName>;
@@ -57,7 +61,7 @@ export class Relations<
 	declare readonly $brand: 'Relations';
 
 	constructor(
-		readonly table: AnyTable<{ name: TTableName }>,
+		readonly table: AnyTable<{ name: TTableName }> | View<TTableName>,
 		readonly config: (helpers: TableRelationsHelpers<TTableName>) => TConfig,
 	) {}
 }
@@ -71,8 +75,8 @@ export class One<
 	declare protected $relationBrand: 'One';
 
 	constructor(
-		sourceTable: Table,
-		referencedTable: AnyTable<{ name: TTableName }>,
+		sourceTable: Table | View,
+		referencedTable: AnyTable<{ name: TTableName }> | View<TTableName>,
 		readonly config:
 			| RelationConfig<
 				TTableName,
@@ -103,8 +107,8 @@ export class Many<TTableName extends string> extends Relation<TTableName> {
 	declare protected $relationBrand: 'Many';
 
 	constructor(
-		sourceTable: Table,
-		referencedTable: AnyTable<{ name: TTableName }>,
+		sourceTable: Table | View,
+		referencedTable: AnyTable<{ name: TTableName }> | View<TTableName>,
 		readonly config: { relationName: string } | undefined,
 	) {
 		super(sourceTable, referencedTable, config?.relationName);
@@ -293,6 +297,7 @@ export type ExtractTablesWithRelations<
 > = {
 	[
 		K in keyof TSchema as TSchema[K] extends Table ? K
+			: TSchema[K] extends View ? K
 			: never
 	]: TSchema[K] extends Table ? {
 			tsName: K & string;
@@ -304,6 +309,16 @@ export type ExtractTablesWithRelations<
 			>;
 			primaryKey: AnyColumn[];
 		}
+		: TSchema[K] extends View ? {
+				tsName: K & string;
+				dbName: TSchema[K]['_']['name'];
+				columns: Assume<TSchema[K]['_']['selectedFields'], Record<string, Column>>;
+				relations: ExtractTableRelationsFromSchema<
+					TSchema,
+					TSchema[K]['_']['name']
+				>;
+				primaryKey: AnyColumn[];
+			}
 		: never;
 };
 
@@ -410,7 +425,7 @@ export function extractTablesRelationalConfig<
 	TTables extends TablesRelationalConfig,
 >(
 	schema: Record<string, unknown>,
-	configHelpers: (table: Table) => any,
+	configHelpers: (table: Table | View) => any,
 ): { tables: TTables; tableNamesMap: Record<string, string> } {
 	if (
 		Object.keys(schema).length === 1
@@ -429,15 +444,20 @@ export function extractTablesRelationalConfig<
 	> = {};
 	const tablesConfig: TablesRelationalConfig = {};
 	for (const [key, value] of Object.entries(schema)) {
-		if (isTable(value)) {
-			const dbName = value[Table.Symbol.Name];
+		const isView = is(value, View);
+		if (isTable(value) || isView) {
+			const dbName = getTableOrViewName(value);
 			const bufferedRelations = relationsBuffer[dbName];
 			tableNamesMap[dbName] = key;
 			tablesConfig[key] = {
 				tsName: key,
-				dbName: value[Table.Symbol.Name],
-				schema: value[Table.Symbol.Schema],
-				columns: value[Table.Symbol.Columns],
+				dbName,
+				schema: isView ? value[ViewBaseConfig].schema : value[Table.Symbol.Schema],
+				columns: (isView
+					? isTable(value[ViewBaseConfig].selectedFields)
+						? value[ViewBaseConfig].selectedFields[Table.Symbol.Columns]
+						: value[ViewBaseConfig].selectedFields
+					: value[Table.Symbol.Columns]) as Record<string, Column>,
 				relations: bufferedRelations?.relations ?? {},
 				primaryKey: bufferedRelations?.primaryKey ?? [],
 			};
@@ -445,7 +465,7 @@ export function extractTablesRelationalConfig<
 			// Fill in primary keys
 			for (
 				const column of Object.values(
-					(value as Table)[Table.Symbol.Columns],
+					(value as Table)[Table.Symbol.Columns] ?? {},
 				)
 			) {
 				if (column.primary) {
@@ -453,7 +473,7 @@ export function extractTablesRelationalConfig<
 				}
 			}
 
-			const extraConfig = value[Table.Symbol.ExtraConfigBuilder]?.(value);
+			const extraConfig = isView ? undefined : value[Table.Symbol.ExtraConfigBuilder]?.(value);
 			if (extraConfig) {
 				for (const configEntry of Object.values(extraConfig)) {
 					if (is(configEntry, PrimaryKeyBuilder)) {
@@ -462,7 +482,7 @@ export function extractTablesRelationalConfig<
 				}
 			}
 		} else if (is(value, Relations)) {
-			const dbName: string = value.table[Table.Symbol.Name];
+			const dbName: string = isTable(value.table) ? value.table[Table.Symbol.Name] : value.table[ViewBaseConfig].name;
 			const tableName = tableNamesMap[dbName];
 			const relations: Record<string, Relation> = value.config(
 				configHelpers(value.table),
@@ -496,7 +516,7 @@ export function relations<
 	TTableName extends string,
 	TRelations extends Record<string, Relation<any>>,
 >(
-	table: AnyTable<{ name: TTableName }>,
+	table: AnyTable<{ name: TTableName }> | View<TTableName>,
 	relations: (helpers: TableRelationsHelpers<TTableName>) => TRelations,
 ): Relations<TTableName, TRelations> {
 	return new Relations<TTableName, TRelations>(
@@ -511,9 +531,9 @@ export function relations<
 	);
 }
 
-export function createOne<TTableName extends string>(sourceTable: Table) {
+export function createOne<TTableName extends string>(sourceTable: Table | View) {
 	return function one<
-		TForeignTable extends Table,
+		TForeignTable extends Table | View,
 		TColumns extends [
 			AnyColumn<{ tableName: TTableName }>,
 			...AnyColumn<{ tableName: TTableName }>[],
@@ -535,8 +555,8 @@ export function createOne<TTableName extends string>(sourceTable: Table) {
 	};
 }
 
-export function createMany(sourceTable: Table) {
-	return function many<TForeignTable extends Table>(
+export function createMany(sourceTable: Table | View) {
+	return function many<TForeignTable extends Table | View>(
 		referencedTable: TForeignTable,
 		config?: { relationName: string },
 	): Many<TForeignTable['_']['name']> {
@@ -547,6 +567,11 @@ export function createMany(sourceTable: Table) {
 export interface NormalizedRelation {
 	fields: AnyColumn[];
 	references: AnyColumn[];
+}
+
+/* @internal */
+export function getTableOrViewName(table: Table | View): string {
+	return isTable(table) ? table[Table.Symbol.Name] : table[ViewBaseConfig].name;
 }
 
 export function normalizeRelation(
@@ -561,23 +586,24 @@ export function normalizeRelation(
 		};
 	}
 
-	const referencedTableTsName = tableNamesMap[relation.referencedTable[Table.Symbol.Name]];
+	const referencedTableName = getTableOrViewName(relation.referencedTable);
+	const referencedTableTsName = tableNamesMap[referencedTableName];
 	if (!referencedTableTsName) {
 		throw new Error(
-			`Table "${relation.referencedTable[Table.Symbol.Name]}" not found in schema`,
+			`Table or View "${referencedTableName}" not found in schema`,
 		);
 	}
 
 	const referencedTableConfig = schema[referencedTableTsName];
 	if (!referencedTableConfig) {
-		throw new Error(`Table "${referencedTableTsName}" not found in schema`);
+		throw new Error(`Table or View "${referencedTableTsName}" not found in schema`);
 	}
 
-	const sourceTable = relation.sourceTable;
-	const sourceTableTsName = tableNamesMap[sourceTable[Table.Symbol.Name]];
+	const sourceTableName = getTableOrViewName(relation.sourceTable);
+	const sourceTableTsName = tableNamesMap[sourceTableName];
 	if (!sourceTableTsName) {
 		throw new Error(
-			`Table "${sourceTable[Table.Symbol.Name]}" not found in schema`,
+			`Table "${sourceTableName}" not found in schema`,
 		);
 	}
 
@@ -604,9 +630,7 @@ export function normalizeRelation(
 				`There are multiple relations with name "${relation.relationName}" in table "${referencedTableTsName}"`,
 			)
 			: new Error(
-				`There are multiple relations between "${referencedTableTsName}" and "${
-					relation.sourceTable[Table.Symbol.Name]
-				}". Please specify relation name`,
+				`There are multiple relations between "${referencedTableTsName}" and "${sourceTableName}". Please specify relation name`,
 			);
 	}
 
@@ -627,7 +651,7 @@ export function normalizeRelation(
 }
 
 export function createTableRelationsHelpers<TTableName extends string>(
-	sourceTable: AnyTable<{ name: TTableName }>,
+	sourceTable: AnyTable<{ name: TTableName }> | View<TTableName>,
 ) {
 	return {
 		one: createOne<TTableName>(sourceTable),
