@@ -107,8 +107,8 @@ importers:
         specifier: ^1.0.3
         version: 1.0.3
       '@planetscale/database':
-        specifier: ^1.7.0
-        version: 1.7.0
+        specifier: ^1.16.0
+        version: 1.16.0
       '@types/better-sqlite3':
         specifier: ^7.6.4
         version: 7.6.4
@@ -338,8 +338,8 @@ importers:
         specifier: ^2.14.0
         version: 2.14.0
       '@planetscale/database':
-        specifier: ^1.7.0
-        version: 1.7.0
+        specifier: ^1.16.0
+        version: 1.16.0
       '@typescript/analyze-trace':
         specifier: ^0.10.0
         version: 0.10.0
@@ -4376,8 +4376,8 @@ packages:
     dev: true
     optional: true
 
-  /@planetscale/database@1.7.0:
-    resolution: {integrity: sha512-lWR6biXChUyQnxsT4RT1CIeR3ZJvwTQXiQ+158MnY3VjLwjHEGakDzdH9kwUGPk6CHvu6UeqRXp1DgUOVHJFTw==}
+  /@planetscale/database@1.16.0:
+    resolution: {integrity: sha512-HNUrTqrd8aTRZYMDcsoZ62s36sIWkMMmKZBOehoCWR2WrfNPKq+Q1yQef5okl3pSVlldFnu2h/dbHjOsDTHXug==}
     engines: {node: '>=16'}
 
   /@polka/url@1.0.0-next.21:

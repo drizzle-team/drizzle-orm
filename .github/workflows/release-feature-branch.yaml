@@ -117,7 +117,7 @@ jobs:
           LIBSQL_URL: file:local.db
         run: |
           if [[ ${{ github.event_name }} != "push" && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
-            export SKIP_PLANETSCALE_TESTS=1
+            export SKIP_EXTERNAL_DB_TESTS=1
           fi
           if [[ "${{ matrix.package }}" == "drizzle-orm" ]]; then
             pnpm test --filter ${{ matrix.package }} --filter integration-tests

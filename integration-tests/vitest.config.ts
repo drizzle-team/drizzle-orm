@@ -14,7 +14,9 @@ export default defineConfig({
 			'tests/imports/**/*',
 		],
 		exclude: [
-			...(process.env.SKIP_PLANETSCALE_TESTS ? ['tests/relational/mysql.planetscale.test.ts'] : []),
+			...(process.env.SKIP_EXTERNAL_DB_TESTS
+				? ['tests/relational/mysql.planetscale.test.ts', 'tests/neon-http-batch.test.ts']
+				: []),
 			'tests/relational/vercel.test.ts',
 		],
 		typecheck: {
