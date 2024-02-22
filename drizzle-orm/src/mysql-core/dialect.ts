@@ -18,7 +18,7 @@ import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/s
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
-import { DrizzleError, type Name, ViewBaseConfig, and, eq } from '../index.ts';
+import { and, DrizzleError, eq, type Name, ViewBaseConfig } from '../index.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
@@ -79,14 +79,15 @@ export class MySqlDialect {
 		return `'${str.replace(/'/g, "''")}'`;
 	}
 
-	buildDeleteQuery({ table, where, returning }: MySqlDeleteConfig): SQL {
+	buildDeleteQuery({ table, where, returning, comment }: MySqlDeleteConfig): SQL {
 		const returningSql = returning
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
+		const commentSql = this.buildSqlComment(comment);
 
-		return sql`delete from ${table}${whereSql}${returningSql}`;
+		return sql`${commentSql}delete from ${table}${whereSql}${returningSql}`;
 	}
 
 	buildUpdateSet(table: MySqlTable, set: UpdateSet): SQL {
@@ -106,7 +107,7 @@ export class MySqlDialect {
 		);
 	}
 
-	buildUpdateQuery({ table, set, where, returning }: MySqlUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, returning, comment }: MySqlUpdateConfig): SQL {
 		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
@@ -114,8 +115,14 @@ export class MySqlDialect {
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
+		const commentSql = this.buildSqlComment(comment);
 
-		return sql`update ${table} set ${setSql}${whereSql}${returningSql}`;
+		return sql`${commentSql}update ${table} set ${setSql}${whereSql}${returningSql}`;
+	}
+
+	// Builds a SQL comment and removes /* and */ occurences
+	private buildSqlComment(comment?: string) {
+		return comment ? sql.raw(`/* ${comment.replace(/\/\*|\*\//g, '')} */`) : undefined;
 	}
 
 	/**
@@ -195,6 +202,7 @@ export class MySqlDialect {
 			offset,
 			lockingClause,
 			distinct,
+			comment,
 			setOperators,
 		}: MySqlSelectConfig,
 	): SQL {
@@ -323,8 +331,10 @@ export class MySqlDialect {
 			}
 		}
 
+		const commentSql = this.buildSqlComment(comment);
+
 		const finalQuery =
-			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+			sql`${commentSql}${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
 
 		if (setOperators.length > 0) {
 			return this.buildSetOperations(finalQuery, setOperators);
@@ -394,7 +404,7 @@ export class MySqlDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	buildInsertQuery({ table, values, ignore, onConflict }: MySqlInsertConfig): SQL {
+	buildInsertQuery({ table, values, ignore, onConflict, comment }: MySqlInsertConfig): SQL {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, MySqlColumn> = table[Table.Symbol.Columns];
@@ -431,7 +441,9 @@ export class MySqlDialect {
 
 		const onConflictSql = onConflict ? sql` on duplicate key ${onConflict}` : undefined;
 
-		return sql`insert${ignoreSql} into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}`;
+		const commentSql = this.buildSqlComment(comment);
+
+		return sql`${commentSql}insert${ignoreSql} into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}`;
 	}
 
 	sqlToQuery(sql: SQL): QueryWithTypings {
@@ -464,7 +476,7 @@ export class MySqlDialect {
 		joinOn?: SQL;
 	}): BuildRelationalQueryResult<MySqlTable, MySqlColumn> {
 		let selection: BuildRelationalQueryResult<MySqlTable, MySqlColumn>['selection'] = [];
-		let limit, offset, orderBy: MySqlSelectConfig['orderBy'], where;
+		let limit, offset, orderBy: MySqlSelectConfig['orderBy'], where, comment;
 		const joins: MySqlSelectJoinConfig[] = [];
 
 		if (config === true) {
@@ -552,6 +564,10 @@ export class MySqlDialect {
 						value: mapColumnsInAliasedSQLToAlias(value, tableAlias),
 					});
 				}
+			}
+
+			if (config.comment) {
+				comment = config.comment;
 			}
 
 			// Transform `fieldsSelection` into `selection`
@@ -714,6 +730,7 @@ export class MySqlDialect {
 				limit,
 				offset,
 				orderBy,
+				comment,
 				setOperators: [],
 			});
 		} else {
@@ -729,6 +746,7 @@ export class MySqlDialect {
 				limit,
 				offset,
 				orderBy,
+				comment,
 				setOperators: [],
 			});
 		}
@@ -762,7 +780,7 @@ export class MySqlDialect {
 		joinOn?: SQL;
 	}): BuildRelationalQueryResult<MySqlTable, MySqlColumn> {
 		let selection: BuildRelationalQueryResult<MySqlTable, MySqlColumn>['selection'] = [];
-		let limit, offset, orderBy: MySqlSelectConfig['orderBy'] = [], where;
+		let limit, offset, orderBy: MySqlSelectConfig['orderBy'] = [], where, comment;
 
 		if (config === true) {
 			const selectionEntries = Object.entries(tableConfig.columns);
@@ -849,6 +867,10 @@ export class MySqlDialect {
 						value: mapColumnsInAliasedSQLToAlias(value, tableAlias),
 					});
 				}
+			}
+
+			if (config.comment) {
+				comment = config.comment;
 			}
 
 			// Transform `fieldsSelection` into `selection`
@@ -1006,6 +1028,7 @@ export class MySqlDialect {
 				limit,
 				offset,
 				orderBy,
+				comment,
 				setOperators: [],
 			});
 		} else {
@@ -1020,6 +1043,7 @@ export class MySqlDialect {
 				limit,
 				offset,
 				orderBy,
+				comment,
 				setOperators: [],
 			});
 		}

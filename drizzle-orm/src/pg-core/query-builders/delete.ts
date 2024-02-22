@@ -44,6 +44,7 @@ export interface PgDeleteConfig {
 	where?: SQL | undefined;
 	table: PgTable;
 	returning?: SelectedFieldsOrdered;
+	comment?: string;
 }
 
 export type PgDeleteReturningAll<
@@ -201,6 +202,27 @@ export class PgDeleteBase<
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
 	): PgDeleteReturning<this, TDynamic, any> {
 		this.config.returning = orderSelectedFields<PgColumn>(fields);
+		return this as any;
+	}
+
+	/**
+	 * Adds a `comment` to the query.
+	 *
+	 * Calling this method will add a comment to the query.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/delete#comment}
+	 *
+	 * @param comment the `comment` to be added.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // add a comment "action=delete-car"
+	 * await db.delete(cars).where(eq(cars.color, 'green')).comment("action=delete-car");
+	 * ```
+	 */
+	comment(comment: string): PgDeleteWithout<this, TDynamic, 'comment'> {
+		this.config.comment = comment;
 		return this as any;
 	}
 

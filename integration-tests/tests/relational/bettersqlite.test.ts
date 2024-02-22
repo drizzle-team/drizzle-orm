@@ -5923,6 +5923,36 @@ test('Get users with groups + custom', () => {
 	});
 });
 
+test('[Find One] build query with comment and replace /* and */ occurences', async (t) => {
+	const query = db.query.usersTable.findFirst({
+		columns: { name: true },
+		with: {
+			posts: {
+				columns: { content: true },
+			},
+		},
+		where: eq(usersTable.id, 1),
+		comment: '/*/*/**/test-*/comment',
+	}).toSQL();
+
+	expect(query.sql.startsWith('/* test-comment */')).toEqual(true);
+});
+
+test('[Find Many] build query with comment and replace /* and */ occurences', async (t) => {
+	const query = db.query.usersTable.findFirst({
+		columns: { name: true },
+		with: {
+			posts: {
+				columns: { content: true },
+			},
+		},
+		where: eq(usersTable.id, 1),
+		comment: '/*/*/**/test-*/comment',
+	}).toSQL();
+
+	expect(query.sql.startsWith('/* test-comment */')).toEqual(true);
+});
+
 test('Get groups with users + custom', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },

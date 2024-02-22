@@ -868,6 +868,27 @@ export abstract class PgSelectQueryBuilderBase<
 		return this as any;
 	}
 
+	/**
+	 * Adds a `comment` to the query.
+	 *
+	 * Calling this method will add a comment to the query.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/select#comment}
+	 *
+	 * @param comment the `comment` to be added.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // add a comment "action=user-select"
+	 * await db.select().from(user).comment("action=user-select");
+	 * ```
+	 */
+	comment(comment: string): PgSelectWithout<this, TDynamic, 'comment'> {
+		this.config.comment = comment;
+		return this as any;
+	}
+
 	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildSelectQuery(this.config);

@@ -58,7 +58,7 @@ import { Expect } from './utils.ts';
 
 // eslint-disable-next-line drizzle/require-entity-kind
 class ServerSimulator {
-	constructor(private db: pg.Client) { }
+	constructor(private db: pg.Client) {}
 
 	async query(sql: string, params: any[], method: 'all' | 'execute') {
 		if (method === 'all') {
@@ -1066,7 +1066,7 @@ test.serial('migrator', async (t) => {
 	await t.throwsAsync(async () => {
 		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 	}, {
-		message: 'relation "users12" does not exist'
+		message: 'relation "users12" does not exist',
 	});
 
 	await migrate(db, async (queries) => {
@@ -1109,10 +1109,11 @@ test.serial('insert via db.execute + returning', async (t) => {
 	const { db } = t.context;
 
 	const inserted = await db.execute<{ id: number; name: string }>(
-		sql`insert into ${usersTable} (${name(
-			usersTable.name.name,
-		)
-			}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
+		sql`insert into ${usersTable} (${
+			name(
+				usersTable.name.name,
+			)
+		}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
 	);
 	t.deepEqual(inserted, [{ id: 1, name: 'John' }]);
 });
@@ -2085,11 +2086,19 @@ test.serial('select from enum', async (t) => {
 	await db.execute(sql`drop type if exists ${name(equipmentEnum.enumName)}`);
 	await db.execute(sql`drop type if exists ${name(categoryEnum.enumName)}`);
 
-	await db.execute(sql`create type ${name(muscleEnum.enumName)} as enum ('abdominals', 'hamstrings', 'adductors', 'quadriceps', 'biceps', 'shoulders', 'chest', 'middle_back', 'calves', 'glutes', 'lower_back', 'lats', 'triceps', 'traps', 'forearms', 'neck', 'abductors')`,);
+	await db.execute(
+		sql`create type ${
+			name(muscleEnum.enumName)
+		} as enum ('abdominals', 'hamstrings', 'adductors', 'quadriceps', 'biceps', 'shoulders', 'chest', 'middle_back', 'calves', 'glutes', 'lower_back', 'lats', 'triceps', 'traps', 'forearms', 'neck', 'abductors')`,
+	);
 	await db.execute(sql`create type ${name(forceEnum.enumName)} as enum ('isometric', 'isotonic', 'isokinetic')`);
 	await db.execute(sql`create type ${name(levelEnum.enumName)} as enum ('beginner', 'intermediate', 'advanced')`);
 	await db.execute(sql`create type ${name(mechanicEnum.enumName)} as enum ('compound', 'isolation')`);
-	await db.execute(sql`create type ${name(equipmentEnum.enumName)} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,);
+	await db.execute(
+		sql`create type ${
+			name(equipmentEnum.enumName)
+		} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,
+	);
 	await db.execute(sql`create type ${name(categoryEnum.enumName)} as enum ('upper_body', 'lower_body', 'full_body')`);
 	await db.execute(sql`
 		create table ${exercises} (
@@ -2645,4 +2654,56 @@ test.serial('array operators', async (t) => {
 	t.deepEqual(contained, [{ id: 1 }, { id: 2 }, { id: 3 }]);
 	t.deepEqual(overlaps, [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
 	t.deepEqual(withSubQuery, [{ id: 1 }, { id: 3 }, { id: 5 }]);
+});
+
+test.serial('build select query with comment and replace /* and */ occurences', async (t) => {
+	const { db } = t.context;
+
+	const query = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable)
+		.comment('/*/*/**/test-*/comment')
+		.groupBy(usersTable.id, usersTable.name)
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: '/* test-comment */select "id", "name" from "users" group by "users"."id", "users"."name"',
+		params: [],
+	});
+});
+
+test.serial('build insert query with comment and replace /* and */ occurences', async (t) => {
+	const { db } = t.context;
+
+	const query = db.insert(usersTable).values({ name: sql`${'John'}` }).comment('/*/*/**/test-*/comment').toSQL();
+
+	t.deepEqual(query, {
+		sql:
+			'/* test-comment */insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, default, default)',
+		params: ['John'],
+	});
+});
+
+test.serial('build update query with comment and replace /* and */ occurences', async (t) => {
+	const { db } = t.context;
+
+	const query = db.update(usersTable).set({ name: 'John' }).where(eq(usersTable.id, 1)).comment(
+		'/*/*/**/test-*/comment',
+	).toSQL();
+
+	t.deepEqual(query, {
+		sql: '/* test-comment */update "users" set "name" = $1 where "users"."id" = $2',
+		params: ['John', 1],
+	});
+});
+
+test.serial('build delete query with comment and replace /* and */ occurences', async (t) => {
+	const { db } = t.context;
+
+	const query = db.delete(usersTable).where(eq(usersTable.id, 1)).comment(
+		'/*/*/**/test-*/comment',
+	).toSQL();
+
+	t.deepEqual(query, {
+		sql: '/* test-comment */delete from "users" where "users"."id" = $1',
+		params: [1],
+	});
 });

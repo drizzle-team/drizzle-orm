@@ -19,6 +19,7 @@ export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 	values: Record<string, Param | SQL>[];
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
+	comment?: string;
 }
 
 export type SQLiteInsertValue<TTable extends SQLiteTable> = Simplify<
@@ -269,6 +270,27 @@ export class SQLiteInsertBase<
 			this.config.onConflict = sql`${targetSql} do nothing${whereSql}`;
 		}
 		return this;
+	}
+
+	/**
+	 * Adds a `comment` to the query.
+	 *
+	 * Calling this method will add a comment to the query.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/insert#comment}
+	 *
+	 * @param comment the `comment` to be added.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // add a comment "action=insert-car"
+	 * await db.insert(cars).values({ id: 1, brand: 'BMW' }).comment("action=insert-car");
+	 * ```
+	 */
+	comment(comment: string): SQLiteInsertWithout<this, TDynamic, 'comment'> {
+		this.config.comment = comment;
+		return this as any;
 	}
 
 	/**

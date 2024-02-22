@@ -23,6 +23,7 @@ export interface PgUpdateConfig {
 	set: UpdateSet;
 	table: PgTable;
 	returning?: SelectedFieldsOrdered;
+	comment?: string;
 }
 
 export type PgUpdateSetSource<TTable extends PgTable> =
@@ -237,6 +238,27 @@ export class PgUpdateBase<
 		fields: SelectedFields = this.config.table[Table.Symbol.Columns],
 	): PgUpdateWithout<AnyPgUpdate, TDynamic, 'returning'> {
 		this.config.returning = orderSelectedFields<PgColumn>(fields);
+		return this as any;
+	}
+
+	/**
+	 * Adds a `comment` to the query.
+	 *
+	 * Calling this method will add a comment to the query.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/update#comment}
+	 *
+	 * @param comment the `comment` to be added.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // add a comment "action=update-car"
+	 * await db.update(cars).set({ color: 'red' }).where(eq(cars.color, 'green')).comment("action=update-car");
+	 * ```
+	 */
+	comment(comment: string): PgUpdateWithout<this, TDynamic, 'comment'> {
+		this.config.comment = comment;
 		return this as any;
 	}
 

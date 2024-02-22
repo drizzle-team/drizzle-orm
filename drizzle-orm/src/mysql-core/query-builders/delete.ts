@@ -40,6 +40,7 @@ export interface MySqlDeleteConfig {
 	where?: SQL | undefined;
 	table: MySqlTable;
 	returning?: SelectedFieldsOrdered;
+	comment?: string;
 }
 
 export type MySqlDeletePrepare<T extends AnyMySqlDeleteBase> = PreparedQueryKind<
@@ -97,37 +98,58 @@ export class MySqlDeleteBase<
 		this.config = { table };
 	}
 
-	/** 
+	/**
 	 * Adds a `where` clause to the query.
-	 * 
+	 *
 	 * Calling this method will delete only those rows that fulfill a specified condition.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/delete}
-	 * 
+	 *
 	 * @param where the `where` clause.
-	 * 
+	 *
 	 * @example
 	 * You can use conditional operators and `sql function` to filter the rows to be deleted.
-	 * 
+	 *
 	 * ```ts
 	 * // Delete all cars with green color
 	 * db.delete(cars).where(eq(cars.color, 'green'));
 	 * // or
 	 * db.delete(cars).where(sql`${cars.color} = 'green'`)
 	 * ```
-	 * 
+	 *
 	 * You can logically combine conditional operators with `and()` and `or()` operators:
-	 * 
+	 *
 	 * ```ts
 	 * // Delete all BMW cars with a green color
 	 * db.delete(cars).where(and(eq(cars.color, 'green'), eq(cars.brand, 'BMW')));
-	 * 
+	 *
 	 * // Delete all cars with the green or blue color
 	 * db.delete(cars).where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
 	 * ```
-	*/
+	 */
 	where(where: SQL | undefined): MySqlDeleteWithout<this, TDynamic, 'where'> {
 		this.config.where = where;
+		return this as any;
+	}
+
+	/**
+	 * Adds a `comment` to the query.
+	 *
+	 * Calling this method will add a comment to the query.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/delete#comment}
+	 *
+	 * @param comment the `comment` to be added.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // add a comment "action=delete-car"
+	 * await db.delete(cars).where(eq(cars.color, 'green')).comment("action=delete-car");
+	 * ```
+	 */
+	comment(comment: string): MySqlDeleteWithout<this, TDynamic, 'comment'> {
+		this.config.comment = comment;
 		return this as any;
 	}
 

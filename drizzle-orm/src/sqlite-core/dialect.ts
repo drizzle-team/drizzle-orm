@@ -16,9 +16,9 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
+import type { Name } from '~/sql/index.ts';
+import { and, eq } from '~/sql/index.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
-import type { Name} from '~/sql/index.ts';
-import { and, eq } from '~/sql/index.ts'
 import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders/index.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
@@ -49,14 +49,15 @@ export abstract class SQLiteDialect {
 		return `'${str.replace(/'/g, "''")}'`;
 	}
 
-	buildDeleteQuery({ table, where, returning }: SQLiteDeleteConfig): SQL {
+	buildDeleteQuery({ table, where, returning, comment }: SQLiteDeleteConfig): SQL {
 		const returningSql = returning
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
+		const commentSql = this.buildSqlComment(comment);
 
-		return sql`delete from ${table}${whereSql}${returningSql}`;
+		return sql`${commentSql}delete from ${table}${whereSql}${returningSql}`;
 	}
 
 	buildUpdateSet(table: SQLiteTable, set: UpdateSet): SQL {
@@ -76,7 +77,7 @@ export abstract class SQLiteDialect {
 		);
 	}
 
-	buildUpdateQuery({ table, set, where, returning }: SQLiteUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, returning, comment }: SQLiteUpdateConfig): SQL {
 		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
@@ -84,8 +85,14 @@ export abstract class SQLiteDialect {
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
+		const commentSql = this.buildSqlComment(comment);
 
-		return sql`update ${table} set ${setSql}${whereSql}${returningSql}`;
+		return sql`${commentSql}update ${table} set ${setSql}${whereSql}${returningSql}`;
+	}
+
+	// Builds a SQL comment and removes /* and */ occurences
+	private buildSqlComment(comment?: string) {
+		return comment ? sql.raw(`/* ${comment.replace(/\/\*|\*\//g, '')} */`) : undefined;
 	}
 
 	/**
@@ -166,6 +173,7 @@ export abstract class SQLiteDialect {
 			limit,
 			offset,
 			distinct,
+			comment,
 			setOperators,
 		}: SQLiteSelectConfig,
 	): SQL {
@@ -288,8 +296,10 @@ export abstract class SQLiteDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
+		const commentSql = this.buildSqlComment(comment);
+
 		const finalQuery =
-			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}`;
+			sql`${commentSql}${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}`;
 
 		if (setOperators.length > 0) {
 			return this.buildSetOperations(finalQuery, setOperators);
@@ -360,7 +370,7 @@ export abstract class SQLiteDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	buildInsertQuery({ table, values, onConflict, returning }: SQLiteInsertConfig): SQL {
+	buildInsertQuery({ table, values, onConflict, returning, comment }: SQLiteInsertConfig): SQL {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, SQLiteColumn> = table[Table.Symbol.Columns];
@@ -399,6 +409,7 @@ export abstract class SQLiteDialect {
 		const returningSql = returning
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
+		const commentSql = this.buildSqlComment(comment);
 
 		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
 
@@ -406,7 +417,7 @@ export abstract class SQLiteDialect {
 		// 	return sql`insert into ${table} default values ${onConflictSql}${returningSql}`;
 		// }
 
-		return sql`insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
+		return sql`${commentSql}insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
 	sqlToQuery(sql: SQL): QueryWithTypings {
@@ -439,7 +450,7 @@ export abstract class SQLiteDialect {
 		joinOn?: SQL;
 	}): BuildRelationalQueryResult<SQLiteTable, SQLiteColumn> {
 		let selection: BuildRelationalQueryResult<SQLiteTable, SQLiteColumn>['selection'] = [];
-		let limit, offset, orderBy: SQLiteSelectConfig['orderBy'] = [], where;
+		let limit, offset, orderBy: SQLiteSelectConfig['orderBy'] = [], where, comment;
 		const joins: SQLiteSelectJoinConfig[] = [];
 
 		if (config === true) {
@@ -527,6 +538,10 @@ export abstract class SQLiteDialect {
 						value: mapColumnsInAliasedSQLToAlias(value, tableAlias),
 					});
 				}
+			}
+
+			if (config.comment) {
+				comment = config.comment;
 			}
 
 			// Transform `fieldsSelection` into `selection`
@@ -677,6 +692,7 @@ export abstract class SQLiteDialect {
 				limit,
 				offset,
 				orderBy,
+				comment,
 				setOperators: [],
 			});
 		} else {
@@ -692,6 +708,7 @@ export abstract class SQLiteDialect {
 				limit,
 				offset,
 				orderBy,
+				comment,
 				setOperators: [],
 			});
 		}

@@ -22,6 +22,7 @@ export interface MySqlInsertConfig<TTable extends MySqlTable = MySqlTable> {
 	values: Record<string, Param | SQL>[];
 	ignore: boolean;
 	onConflict?: SQL;
+	comment?: string;
 }
 
 export type AnyMySqlInsertConfig = MySqlInsertConfig<MySqlTable>;
@@ -160,25 +161,25 @@ export class MySqlInsertBase<
 
 	/**
 	 * Adds an `on duplicate key update` clause to the query.
-	 * 
+	 *
 	 * Calling this method will update update the row if any unique index conflicts. MySQL will automatically determine the conflict target based on the primary key and unique indexes.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/insert#on-duplicate-key-update}
-	 * 
+	 *
 	 * @param config The `set` clause
-	 * 
+	 *
 	 * @example
 	 * ```ts
 	 * await db.insert(cars)
 	 *   .values({ id: 1, brand: 'BMW'})
 	 *   .onDuplicateKeyUpdate({ set: { brand: 'Porsche' }});
 	 * ```
-	 * 
+	 *
 	 * While MySQL does not directly support doing nothing on conflict, you can perform a no-op by setting any column's value to itself and achieve the same effect:
-	 * 
+	 *
 	 * ```ts
 	 * import { sql } from 'drizzle-orm';
-	 * 
+	 *
 	 * await db.insert(cars)
 	 *   .values({ id: 1, brand: 'BMW' })
 	 *   .onDuplicateKeyUpdate({ set: { id: sql`id` } });
@@ -189,6 +190,27 @@ export class MySqlInsertBase<
 	): MySqlInsertWithout<this, TDynamic, 'onDuplicateKeyUpdate'> {
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
 		this.config.onConflict = sql`update ${setSql}`;
+		return this as any;
+	}
+
+	/**
+	 * Adds a `comment` to the query.
+	 *
+	 * Calling this method will add a comment to the query.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/insert#comment}
+	 *
+	 * @param comment the `comment` to be added.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // add a comment "action=insert-car"
+	 * await db.insert(cars).values({ id: 1, brand: 'BMW' }).comment("action=insert-car");
+	 * ```
+	 */
+	comment(comment: string): MySqlInsertWithout<this, TDynamic, 'comment'> {
+		this.config.comment = comment;
 		return this as any;
 	}
 

@@ -97,7 +97,7 @@ const usersMigratorTable = mysqlTable('users12', {
 
 // eslint-disable-next-line drizzle/require-entity-kind
 class ServerSimulator {
-	constructor(private db: mysql.Connection) { }
+	constructor(private db: mysql.Connection) {}
 
 	async query(sql: string, params: any[], method: 'all' | 'execute') {
 		if (method === 'all') {
@@ -106,7 +106,7 @@ class ServerSimulator {
 					sql,
 					values: params,
 					rowsAsArray: true,
-					typeCast: function (field: any, next: any) {
+					typeCast: function(field: any, next: any) {
 						if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
 							return field.string();
 						}
@@ -123,7 +123,7 @@ class ServerSimulator {
 				const result = await this.db.query({
 					sql,
 					values: params,
-					typeCast: function (field: any, next: any) {
+					typeCast: function(field: any, next: any) {
 						if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
 							return field.string();
 						}
@@ -1015,7 +1015,7 @@ test.serial('migrator', async (t) => {
 	await t.throwsAsync(async () => {
 		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 	}, {
-		message: 'Table \'drizzle.users12\' doesn\'t exist'
+		message: "Table 'drizzle.users12' doesn't exist",
 	});
 
 	await migrate(db, async (queries) => {
@@ -2119,4 +2119,56 @@ test.serial('utc config for datetime', async (t) => {
 	}]);
 
 	await db.execute(sql`drop table if exists \`datestable\``);
+});
+
+test.serial('build select query with comment and replace /* and */ occurences', async (t) => {
+	const { db } = t.context;
+
+	const query = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable)
+		.comment('/*/*/**/test-*/comment')
+		.groupBy(usersTable.id, usersTable.name)
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: '/* test-comment */select `id`, `name` from `userstest` group by `userstest`.`id`, `userstest`.`name`',
+		params: [],
+	});
+});
+
+test.serial('build insert query with comment and replace /* and */ occurences', async (t) => {
+	const { db } = t.context;
+
+	const query = db.insert(usersTable).values({ name: sql`${'John'}` }).comment('/*/*/**/test-*/comment').toSQL();
+
+	t.deepEqual(query, {
+		sql:
+			'/* test-comment */insert into `userstest` (`id`, `name`, `verified`, `jsonb`, `created_at`) values (default, ?, default, default, default)',
+		params: ['John'],
+	});
+});
+
+test.serial('build update query with comment and replace /* and */ occurences', async (t) => {
+	const { db } = t.context;
+
+	const query = db.update(usersTable).set({ name: 'John' }).where(eq(usersTable.id, 1)).comment(
+		'/*/*/**/test-*/comment',
+	).toSQL();
+
+	t.deepEqual(query, {
+		sql: '/* test-comment */update `userstest` set `name` = ? where `userstest`.`id` = ?',
+		params: ['John', 1],
+	});
+});
+
+test.serial('build delete query with comment and replace /* and */ occurences', async (t) => {
+	const { db } = t.context;
+
+	const query = db.delete(usersTable).where(eq(usersTable.id, 1)).comment(
+		'/*/*/**/test-*/comment',
+	).toSQL();
+
+	t.deepEqual(query, {
+		sql: '/* test-comment */delete from `userstest` where `userstest`.`id` = ?',
+		params: [1],
+	});
 });

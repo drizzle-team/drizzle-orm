@@ -767,6 +767,27 @@ export abstract class SQLiteSelectQueryBuilderBase<
 		return this as any;
 	}
 
+	/**
+	 * Adds a `comment` to the query.
+	 *
+	 * Calling this method will add a comment to the query.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/select#comment}
+	 *
+	 * @param comment the `comment` to be added.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // add a comment "action=people-select"
+	 * await db.select().from(people).comment("action=people-select");
+	 * ```
+	 */
+	comment(comment: string): SQLiteSelectWithout<this, TDynamic, 'comment'> {
+		this.config.comment = comment;
+		return this as any;
+	}
+
 	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildSelectQuery(this.config);

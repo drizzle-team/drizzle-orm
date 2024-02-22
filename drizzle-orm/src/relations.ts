@@ -265,6 +265,7 @@ export type DBQueryConfig<
 			}
 			& (TIsRoot extends true ? {
 					offset?: number | Placeholder;
+					comment?: string;
 				}
 				: {})
 		: {});

@@ -24,6 +24,7 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
+import { and, eq, View } from '~/sql/index.ts';
 import {
 	type DriverValueEncoder,
 	type Name,
@@ -39,9 +40,8 @@ import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgSession } from './session.ts';
-import type { PgMaterializedView } from './view.ts';
-import { View, and, eq } from '~/sql/index.ts';
 import { PgViewBase } from './view-base.ts';
+import type { PgMaterializedView } from './view.ts';
 
 export class PgDialect {
 	static readonly [entityKind]: string = 'PgDialect';
@@ -91,14 +91,15 @@ export class PgDialect {
 		return `'${str.replace(/'/g, "''")}'`;
 	}
 
-	buildDeleteQuery({ table, where, returning }: PgDeleteConfig): SQL {
+	buildDeleteQuery({ table, where, returning, comment }: PgDeleteConfig): SQL {
 		const returningSql = returning
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
+		const commentSql = this.buildSqlComment(comment);
 
-		return sql`delete from ${table}${whereSql}${returningSql}`;
+		return sql`${commentSql}delete from ${table}${whereSql}${returningSql}`;
 	}
 
 	buildUpdateSet(table: PgTable, set: UpdateSet): SQL {
@@ -118,7 +119,7 @@ export class PgDialect {
 		);
 	}
 
-	buildUpdateQuery({ table, set, where, returning }: PgUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, returning, comment }: PgUpdateConfig): SQL {
 		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
@@ -126,8 +127,9 @@ export class PgDialect {
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
+		const commentSql = this.buildSqlComment(comment);
 
-		return sql`update ${table} set ${setSql}${whereSql}${returningSql}`;
+		return sql`${commentSql}update ${table} set ${setSql}${whereSql}${returningSql}`;
 	}
 
 	/**
@@ -192,6 +194,11 @@ export class PgDialect {
 		return sql.join(chunks);
 	}
 
+	// Builds a SQL comment and removes /* and */ occurences
+	private buildSqlComment(comment?: string) {
+		return comment ? sql.raw(`/* ${comment.replace(/\/\*|\*\//g, '')} */`) : undefined;
+	}
+
 	buildSelectQuery(
 		{
 			withList,
@@ -205,6 +212,7 @@ export class PgDialect {
 			groupBy,
 			limit,
 			offset,
+			comment,
 			lockingClause,
 			distinct,
 			setOperators,
@@ -331,6 +339,8 @@ export class PgDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
+		const commentSql = this.buildSqlComment(comment);
+
 		const lockingClauseSql = sql.empty();
 		if (lockingClause) {
 			const clauseSql = sql` for ${sql.raw(lockingClause.strength)}`;
@@ -352,7 +362,7 @@ export class PgDialect {
 			lockingClauseSql.append(clauseSql);
 		}
 		const finalQuery =
-			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClauseSql}`;
+			sql`${commentSql}${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClauseSql}`;
 
 		if (setOperators.length > 0) {
 			return this.buildSetOperations(finalQuery, setOperators);
@@ -422,7 +432,7 @@ export class PgDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig): SQL {
+	buildInsertQuery({ table, values, onConflict, returning, comment }: PgInsertConfig): SQL {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
 
@@ -462,7 +472,9 @@ export class PgDialect {
 
 		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
 
-		return sql`insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
+		const commentSql = this.buildSqlComment(comment);
+
+		return sql`${commentSql}insert into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
 	buildRefreshMaterializedViewQuery(
@@ -1055,7 +1067,8 @@ export class PgDialect {
 		joinOn?: SQL;
 	}): BuildRelationalQueryResult<PgTable, PgColumn> {
 		let selection: BuildRelationalQueryResult<PgTable, PgColumn>['selection'] = [];
-		let limit, offset, orderBy: NonNullable<PgSelectConfig['orderBy']> = [], where;
+		let limit, offset, orderBy: NonNullable<PgSelectConfig['orderBy']> = [], where, comment;
+
 		const joins: PgSelectJoinConfig[] = [];
 
 		if (config === true) {
@@ -1143,6 +1156,10 @@ export class PgDialect {
 						value: mapColumnsInAliasedSQLToAlias(value, tableAlias),
 					});
 				}
+			}
+
+			if (config.comment) {
+				comment = config.comment;
 			}
 
 			// Transform `fieldsSelection` into `selection`
@@ -1301,6 +1318,7 @@ export class PgDialect {
 				limit,
 				offset,
 				orderBy,
+				comment,
 				setOperators: [],
 			});
 		} else {
@@ -1316,6 +1334,7 @@ export class PgDialect {
 				limit,
 				offset,
 				orderBy,
+				comment,
 				setOperators: [],
 			});
 		}
