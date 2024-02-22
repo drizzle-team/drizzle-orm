@@ -3,7 +3,6 @@ import 'dotenv/config';
 import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
-import Docker from 'dockerode';
 import {
 	and,
 	arrayContained,
@@ -48,7 +47,6 @@ import {
 	uuid as pgUuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
-import getPort from 'get-port';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
 import { type Equal, Expect } from './utils.ts';
@@ -120,8 +118,6 @@ const usersMigratorTable = pgTable('users12', {
 });
 
 interface Context {
-	docker: Docker;
-	pgContainer: Docker.Container;
 	db: NeonHttpDatabase;
 	ddlRunner: pg.Client;
 	client: NeonQueryFunction<false, true>;
@@ -129,67 +125,22 @@ interface Context {
 
 const test = anyTest as TestFn<Context>;
 
-async function createDockerDB(ctx: Context): Promise<string> {
-	const docker = (ctx.docker = new Docker());
-	const port = await getPort({ port: 5432 });
-	const image = 'postgres:14';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
-
-	ctx.pgContainer = await docker.createContainer({
-		Image: image,
-		Env: ['POSTGRES_PASSWORD=postgres', 'POSTGRES_USER=postgres', 'POSTGRES_DB=postgres'],
-		name: `drizzle-integration-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'5432/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await ctx.pgContainer.start();
-
-	return `postgres://postgres:postgres@localhost:${port}/postgres`;
-}
-
 test.before(async (t) => {
 	const ctx = t.context;
-	const connectionString = process.env['PG_CONNECTION_STRING'] ?? (await createDockerDB(ctx));
-
-	const sleep = 250;
-	let timeLeft = 5000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			ctx.client = neon(connectionString);
-			ctx.ddlRunner = new Client(connectionString);
-			await ctx.ddlRunner.connect();
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to Postgres');
-		await ctx.ddlRunner?.end().catch(console.error);
-		await ctx.pgContainer?.stop().catch(console.error);
-		throw lastError;
+	const connectionString = process.env['NEON_CONNECTION_STRING'];
+	if (!connectionString) {
+		throw new Error('NEON_CONNECTION_STRING is not defined');
 	}
+
+	ctx.client = neon(connectionString);
+	ctx.ddlRunner = new Client(connectionString);
+	await ctx.ddlRunner.connect();
 	ctx.db = drizzle(ctx.client, { logger: ENABLE_LOGGING });
 });
 
 test.after.always(async (t) => {
 	const ctx = t.context;
 	await ctx.ddlRunner?.end().catch(console.error);
-	await ctx.pgContainer?.stop().catch(console.error);
 });
 
 test.beforeEach(async (t) => {
