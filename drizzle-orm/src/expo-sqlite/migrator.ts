@@ -88,13 +88,11 @@ export const useMigrations = (db: ExpoSQLiteDatabase<any>, migrations: {
 
 	useEffect(() => {
 		dispatch({ type: 'migrating' })
-		try {
-			migrate(db, migrations as any).then(() => {
-				dispatch({ type: 'migrated', payload: true })
-			})
-		} catch (error) {
+		migrate(db, migrations as any).then(() => {
+			dispatch({ type: 'migrated', payload: true })
+		}).catch((error) => {
 			dispatch({ type: 'error', payload: error as Error })
-		}
+		});
 	}, []);
 
 	return state;
