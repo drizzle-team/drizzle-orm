@@ -1,6 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
 import type { TablesRelationalConfig } from '~/relations.ts';
+import type { PreparedQuery } from '~/session.ts';
 import { type Query, type SQL, sql } from '~/sql/index.ts';
 import { tracer } from '~/tracing.ts';
 import { PgDatabase } from './db.ts';
@@ -13,7 +14,17 @@ export interface PreparedQueryConfig {
 	values: unknown;
 }
 
-export abstract class PreparedQuery<T extends PreparedQueryConfig> {
+export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements PreparedQuery {
+	constructor(protected query: Query) {}
+
+	getQuery(): Query {
+		return this.query;
+	}
+
+	mapResult(response: unknown, _isFromBatch?: boolean): unknown {
+		return response;
+	}
+
 	static readonly [entityKind]: string = 'PgPreparedQuery';
 
 	/** @internal */
@@ -45,7 +56,7 @@ export abstract class PgSession<
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
-	): PreparedQuery<T>;
+	): PgPreparedQuery<T>;
 
 	execute<T>(query: SQL): Promise<T> {
 		return tracer.startActiveSpan('drizzle.operation', () => {
