@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
@@ -12,6 +12,8 @@ import {
 import type { DrizzleConfig } from '~/utils.ts';
 import type { AwsDataApiClient, AwsDataApiPgQueryResultHKT } from './session.ts';
 import { AwsDataApiSession } from './session.ts';
+import { PgSelectConfig, PgTimestampString } from '~/pg-core/index.ts';
+import { Param, SQL, sql } from '~/index.ts';
 
 export interface PgDriverOptions {
 	logger?: Logger;
@@ -37,6 +39,27 @@ export class AwsPgDialect extends PgDialect {
 
 	override escapeParam(num: number): string {
 		return `:${num + 1}`;
+	}
+
+	override buildSelectQuery(config: PgSelectConfig): SQL<unknown> {
+		if (config.where) {
+			config.where = this.castTimestampStringParamAsTimestamp(config.where)
+		}
+
+		return super.buildSelectQuery(config)
+	}
+
+	castTimestampStringParamAsTimestamp(existingSql: SQL<unknown>): SQL<unknown> {
+		return sql.join(existingSql.queryChunks.map((chunk) => {
+			if (is(chunk, Param) && is(chunk.encoder, PgTimestampString)) {
+				return sql`cast(${chunk.value} as timestamp)`
+			}
+			if (is(chunk, SQL)) {
+				return this.castTimestampStringParamAsTimestamp(chunk)
+			}
+
+			return chunk
+		}))
 	}
 }
 
