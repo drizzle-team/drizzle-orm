@@ -822,9 +822,9 @@ test.serial('nested transaction rollback', async (t) => {
 		await tx.insert(users).values({ balance: 100 });
 
 		await t.throwsAsync(async () =>
-			await tx.transaction(async (tx) => {
-				await tx.update(users).set({ balance: 200 });
-				tx.rollback();
+			await tx.transaction(async (tx2) => {
+				await tx2.update(users).set({ balance: 200 });
+				tx2.rollback();
 			}), { instanceOf: TransactionRollbackError });
 	});
 
@@ -860,8 +860,8 @@ test.serial('select from raw sql with mapped values', async (t) => {
 
 test.after.always(async (t) => {
 	const ctx = t.context;
-	await ctx.db.execute(sql`drop table "users"`);
-	await ctx.db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
+	await ctx.db.execute(sql`drop table if exists "users"`);
+	await ctx.db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 	// await ctx.client?.end().catch(console.error);
 	// await ctx.pgContainer?.stop().catch(console.error);
 });
