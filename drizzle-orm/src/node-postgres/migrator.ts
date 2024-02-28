@@ -7,5 +7,5 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 	config: string | MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
-	await db.dialect.migrate(migrations, db.session);
+	await (typeof config === 'string' ? db.dialect.migrate(migrations, db.session) : db.dialect.migrate(migrations, db.session, config));
 }
