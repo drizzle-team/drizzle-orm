@@ -149,8 +149,9 @@ export class AwsDataApiSession<
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: QueryWithTypings,
 		fields: SelectedFieldsOrdered | undefined,
-		transactionId?: string,
+		name: string | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		transactionId?: string,
 	): PgPreparedQuery<T> {
 		return new AwsDataApiPreparedQuery(
 			this.client,
@@ -167,6 +168,8 @@ export class AwsDataApiSession<
 	override execute<T>(query: SQL): Promise<T> {
 		return this.prepareQuery<PreparedQueryConfig & { execute: T }>(
 			this.dialect.sqlToQuery(query),
+			undefined,
+			undefined,
 			undefined,
 			this.transactionId,
 		).execute();
