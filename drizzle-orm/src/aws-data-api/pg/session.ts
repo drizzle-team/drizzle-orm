@@ -204,7 +204,7 @@ export class AwsDataApiTransaction<
 		const tx = new AwsDataApiTransaction(this.dialect, this.session, this.schema, this.nestedIndex + 1);
 		await this.session.execute(sql.raw(`savepoint ${savepointName}`));
 		try {
-			const result = transaction(tx);
+			const result = await transaction(tx);
 			await this.session.execute(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (e) {
