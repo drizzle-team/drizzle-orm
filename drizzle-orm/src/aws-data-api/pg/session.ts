@@ -202,13 +202,13 @@ export class AwsDataApiTransaction<
 	override transaction<T>(transaction: (tx: AwsDataApiTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new AwsDataApiTransaction(this.dialect, this.session, this.schema, this.nestedIndex + 1);
-		this.session.execute(sql`savepoint ${savepointName}`);
+		this.session.execute(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = transaction(tx);
-			this.session.execute(sql`release savepoint ${savepointName}`);
+			this.session.execute(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (e) {
-			this.session.execute(sql`rollback to savepoint ${savepointName}`);
+			this.session.execute(sql.raw(`rollback to savepoint ${savepointName}`));
 			throw e;
 		}
 	}
