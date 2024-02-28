@@ -159,7 +159,7 @@ export class AwsDataApiSession<
 			query.typings ?? [],
 			this.options,
 			fields,
-			transactionId,
+			transactionId ?? this.transactionId,
 			customResultMapper,
 		);
 	}
