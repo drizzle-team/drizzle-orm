@@ -22,7 +22,7 @@
     "type": "git",
     "url": "git+https://github.com/drizzle-team/drizzle-orm.git"
   },
-  "homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
+  "homepage": "https://orm.drizzle.team",
   "keywords": [
     "drizzle",
     "orm",
