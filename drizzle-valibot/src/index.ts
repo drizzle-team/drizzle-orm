@@ -313,7 +313,9 @@ function mapColumnToSchema(column: Column): BaseSchema<any, any> {
 	}
 
 	if (!type) {
-		if (column.dataType === 'custom') {
+		if (is(column, PgUUID)) {
+			type = string([uuid()]);
+		} else if (column.dataType === 'custom') {
 			type = any();
 		} else if (column.dataType === 'json') {
 			type = jsonSchema;
@@ -345,8 +347,6 @@ function mapColumnToSchema(column: Column): BaseSchema<any, any> {
 			}
 
 			type = sType;
-		} else if (is(column, PgUUID)) {
-			type = string([uuid()]);
 		}
 	}
 

@@ -1,5 +1,5 @@
 import test from 'ava';
-import { char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar, uuid } from 'drizzle-orm/pg-core';
 import {
 	array,
 	date as valiDate,
@@ -14,6 +14,7 @@ import {
 	optional,
 	parse,
 	string,
+	uuid as valibotUuid,
 } from 'valibot';
 import { createInsertSchema, createSelectSchema } from '../src';
 import { expectSchemaShape } from './utils';
@@ -35,6 +36,7 @@ const users = pgTable('users', {
 		.default('user'),
 	profession: varchar('profession', { length: 20 }).notNull(),
 	initials: char('initials', { length: 2 }).notNull(),
+	externalId: uuid('external_id').notNull(),
 });
 
 const testUser = {
@@ -50,6 +52,7 @@ const testUser = {
 	roleText2: 'admin' as const,
 	profession: 'Software Engineer',
 	initials: 'JD',
+	externalId: '00000000-0000-0000-0000-000000000000',
 };
 
 test('users insert valid user', (t) => {
@@ -75,6 +78,12 @@ test('users insert invalid char', (t) => {
 	const schema = createInsertSchema(users);
 
 	t.throws(() => parse(schema, { ...testUser, initials: 'JoDo' }), undefined);
+});
+
+test('users insert invalid uuid', (t) => {
+	const schema = createInsertSchema(users);
+
+	t.throws(() => parse(schema, { ...testUser, externalId: 'not a uuid' }), undefined);
 });
 
 test('users insert schema', (t) => {
@@ -113,6 +122,7 @@ test('users insert schema', (t) => {
 		roleText2: optional(enumType(['admin', 'user'])),
 		profession: string([maxLength(20), minLength(1)]),
 		initials: string([maxLength(2), minLength(1)]),
+		externalId: string([valibotUuid()]),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -134,6 +144,7 @@ test('users insert schema w/ defaults', (t) => {
 		roleText2: optional(enumType(['admin', 'user'])),
 		profession: string([maxLength(20), minLength(1)]),
 		initials: string([maxLength(2), minLength(1)]),
+		externalId: string([valibotUuid()]),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -159,6 +170,7 @@ test('users select schema', (t) => {
 		roleText2: enumType(['admin', 'user']),
 		profession: string([maxLength(20), minLength(1)]),
 		initials: string([maxLength(2), minLength(1)]),
+		externalId: string([valibotUuid()]),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -180,6 +192,7 @@ test('users select schema w/ defaults', (t) => {
 		roleText2: enumType(['admin', 'user']),
 		profession: string([maxLength(20), minLength(1)]),
 		initials: string([maxLength(2), minLength(1)]),
+		externalId: string([valibotUuid()]),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
