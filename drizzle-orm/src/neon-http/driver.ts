@@ -54,8 +54,8 @@ export class NeonHttpDatabase<
 	}
 }
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
-	client: NeonQueryFunction<boolean, boolean>,
+export function drizzle<ArrayMode extends boolean, FullResults extends boolean, TSchema extends Record<string, unknown> = Record<string, never>>(
+	client: NeonQueryFunction<ArrayMode, FullResults>,
 	config: DrizzleConfig<TSchema> = {},
 ): NeonHttpDatabase<TSchema> {
 	const dialect = new PgDialect();

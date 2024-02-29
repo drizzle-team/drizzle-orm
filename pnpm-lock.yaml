@@ -98,8 +98,8 @@ importers:
         specifier: ^0.1.6
         version: 0.1.6
       '@neondatabase/serverless':
-        specifier: ^0.4.24
-        version: 0.4.24
+        specifier: ^0.9.0
+        version: 0.9.0
       '@opentelemetry/api':
         specifier: ^1.4.1
         version: 1.4.1
@@ -189,7 +189,7 @@ importers:
         version: 0.4.1(rollup@3.27.2)
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.1(rollup@3.27.2)(typescript@5.3.3)
+        version: 11.1.1(rollup@3.27.2)(typescript@5.2.2)
       '@sinclair/typebox':
         specifier: ^0.29.6
         version: 0.29.6
@@ -225,7 +225,7 @@ importers:
         version: 0.4.1(rollup@3.27.2)
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.1(rollup@3.27.2)(typescript@5.3.3)
+        version: 11.1.1(rollup@3.27.2)(typescript@5.2.2)
       '@sinclair/typebox':
         specifier: ^0.29.6
         version: 0.29.6
@@ -264,7 +264,7 @@ importers:
         version: 0.4.1(rollup@3.20.7)
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.0(rollup@3.20.7)(typescript@5.3.3)
+        version: 11.1.0(rollup@3.20.7)(typescript@5.2.2)
       '@types/node':
         specifier: ^18.15.10
         version: 18.15.10
@@ -3970,7 +3970,7 @@ packages:
     resolution: {integrity: sha512-bOhuFnlRaS7CU33+rFFIWdcET/Vkyn1vsN8BYFwCDEF5P1fVVvYN7bFOsQLTMD3nvi35C1AGmtqUr/Wfv8Xaow==}
     engines: {node: '>=12'}
     dependencies:
-      '@expo/spawn-async': 1.5.0
+      '@expo/spawn-async': 1.7.2
       exec-async: 2.2.0
     dev: true
 
@@ -3978,7 +3978,7 @@ packages:
     resolution: {integrity: sha512-LKdo/6y4W7llZ6ghsg1kdx2CeH/qR/c6QI/JI8oPUvppsZoeIYjSkdflce978fAMfR8IXoi0wt0jA2w0kWpwbg==}
     dependencies:
       '@expo/json-file': 8.3.0
-      '@expo/spawn-async': 1.5.0
+      '@expo/spawn-async': 1.7.2
       ansi-regex: 5.0.1
       chalk: 4.1.2
       find-up: 5.0.0
@@ -4307,12 +4307,6 @@ packages:
       '@miniflare/shared': 2.14.0
     dev: false
 
-  /@neondatabase/serverless@0.4.24:
-    resolution: {integrity: sha512-RhWOk//vv6pHtzuAGuwHPYWa3mO1IMu8FYxtmf7ovUO2OwKuaOxbZrmjM+OqbUnis8U6e9W+GTGUe6rGXTbikA==}
-    dependencies:
-      '@types/pg': 8.6.6
-    dev: true
-
   /@neondatabase/serverless@0.4.3:
     resolution: {integrity: sha512-U8tpuF5f0R5WRsciR7iaJ5S2h54DWa6Z6CEW+J4KgwyvRN3q3qDz0MibdfFXU0WqnRoi/9RSf/2XN4TfeaOCbQ==}
     dependencies:
@@ -4320,6 +4314,12 @@ packages:
 
   /@neondatabase/serverless@0.8.1:
     resolution: {integrity: sha512-nxZfTLbGqvDrw0W9WnQxzoPn4KC6SLjkvK4grdf6eWVMQSc24X+8udz9inZWOGu8f0O3wJAq586fCZ32r22lwg==}
+    dependencies:
+      '@types/pg': 8.6.6
+    dev: true
+
+  /@neondatabase/serverless@0.9.0:
+    resolution: {integrity: sha512-mmJnUAzlzvxNSZuuhI6kgJjH+JgFdBMYUWxihtq/nj0Tjt+Y5UU3W+SvRFoucnd5NObYkuLYQzk+zV5DGFKGJg==}
     dependencies:
       '@types/pg': 8.6.6
     dev: true
@@ -4527,7 +4527,7 @@ packages:
       terser: 5.17.1
     dev: true
 
-  /@rollup/plugin-typescript@11.1.0(rollup@3.20.7)(typescript@5.3.3):
+  /@rollup/plugin-typescript@11.1.0(rollup@3.20.7)(typescript@5.2.2):
     resolution: {integrity: sha512-86flrfE+bSHB69znnTV6kVjkncs2LBMhcTCyxWgRxLyfXfQrxg4UwlAqENnjrrxnSNS/XKCDJCl8EkdFJVHOxw==}
     engines: {node: '>=14.0.0'}
     peerDependencies:
@@ -4543,10 +4543,10 @@ packages:
       '@rollup/pluginutils': 5.0.2(rollup@3.20.7)
       resolve: 1.22.1
       rollup: 3.20.7
-      typescript: 5.3.3
+      typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
     dev: true
 
-  /@rollup/plugin-typescript@11.1.1(rollup@3.27.2)(typescript@5.3.3):
+  /@rollup/plugin-typescript@11.1.1(rollup@3.27.2)(typescript@5.2.2):
     resolution: {integrity: sha512-Ioir+x5Bejv72Lx2Zbz3/qGg7tvGbxQZALCLoJaGrkNXak/19+vKgKYJYM3i/fJxvsb23I9FuFQ8CUBEfsmBRg==}
     engines: {node: '>=14.0.0'}
     peerDependencies:
@@ -4562,7 +4562,7 @@ packages:
       '@rollup/pluginutils': 5.0.2(rollup@3.27.2)
       resolve: 1.22.2
       rollup: 3.27.2
-      typescript: 5.3.3
+      typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
     dev: true
 
   /@rollup/pluginutils@5.0.2(rollup@3.20.7):
@@ -4801,7 +4801,7 @@ packages:
   /@types/pg@8.6.6:
     resolution: {integrity: sha512-O2xNmXebtwVekJDD+02udOncjVcMZQuTEQEMpKJ0ZRf5E7/9JJX3izhKUcUifBkyKpljyUM6BTgy2trmviKlpw==}
     dependencies:
-      '@types/node': 20.2.5
+      '@types/node': 20.11.16
       pg-protocol: 1.6.0
       pg-types: 2.2.0
     dev: true
@@ -11885,9 +11885,6 @@ packages:
   /sqlite3@5.1.6:
     resolution: {integrity: sha512-olYkWoKFVNSSSQNvxVUfjiVbz3YtBwTJj+mfV5zpHmqW3sELx2Cf4QCdirMelhM5Zh+KDVaKgQHqCxrqiWHybw==}
     requiresBuild: true
-    peerDependenciesMeta:
-      node-gyp:
-        optional: true
     dependencies:
       '@mapbox/node-pre-gyp': 1.0.10
       node-addon-api: 4.3.0
@@ -12685,12 +12682,6 @@ packages:
     hasBin: true
     dev: true
     patched: true
-
-  /typescript@5.3.3:
-    resolution: {integrity: sha512-pXWcraxM0uxAS+tN0AG/BF2TyqmHO014Z070UsJ+pFvYuRSq8KH8DmWpnbXe0pEPDHXZV3FcAbJkijJ5oNEnWw==}
-    engines: {node: '>=14.17'}
-    hasBin: true
-    dev: true
 
   /ua-parser-js@1.0.37:
     resolution: {integrity: sha512-bhTyI94tZofjo+Dn8SN6Zv8nBDvyXTymAdM3LDI/0IboIUwTu1rEhW7v2TfiVsoYWgkQ4kOVqnI8APUFbIQIFQ==}
