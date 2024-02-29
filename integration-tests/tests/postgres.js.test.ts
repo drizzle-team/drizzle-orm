@@ -2260,8 +2260,8 @@ test.serial('array mapping and parsing', async (t) => {
 		numbers: integer('numbers').notNull().array(),
 	});
 
-	db.execute(sql`drop table if exists ${arrays}`);
-	db.execute(sql`
+	await db.execute(sql`drop table if exists ${arrays}`);
+	await db.execute(sql`
 		 create table ${arrays} (
 		 id serial primary key,
 		 tags text[],
