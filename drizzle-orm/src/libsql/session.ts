@@ -64,7 +64,7 @@ export class LibSQLSession<
 		const builtQueries: InStatement[] = [];
 
 		for (const query of queries) {
-			const preparedQuery = query.prepare();
+			const preparedQuery = query._prepare();
 			const builtQuery = preparedQuery.getQuery();
 			preparedQueries.push(preparedQuery);
 			builtQueries.push({ sql: builtQuery.sql, args: builtQuery.params as InArgs });

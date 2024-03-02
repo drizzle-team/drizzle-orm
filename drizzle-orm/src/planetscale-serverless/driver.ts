@@ -1,4 +1,5 @@
 import type { Connection } from '@planetscale/database';
+import { Client } from '@planetscale/database';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
@@ -22,9 +23,43 @@ export type PlanetScaleDatabase<
 > = MySqlDatabase<PlanetscaleQueryResultHKT, PlanetScalePreparedQueryHKT, TSchema>;
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
-	client: Connection,
+	client: Client | Connection,
 	config: DrizzleConfig<TSchema> = {},
 ): PlanetScaleDatabase<TSchema> {
+	// Client is not Drizzle Object, so we can ignore this rule here
+	// eslint-disable-next-line no-instanceof/no-instanceof
+	if (!(client instanceof Client)) {
+		// Should use error on 0.30.0 release
+		// 		throw new DrizzleError({
+		// 			message: `You need to pass an instance of Client:
+
+		// import { Client } from "@planetscale/database";
+
+		// const client = new Client({
+		//   host: process.env["DATABASE_HOST"],
+		//   username: process.env["DATABASE_USERNAME"],
+		//   password: process.env["DATABASE_PASSWORD"],
+		// });
+
+		// const db = drizzle(client);
+		// `,
+		// 		});
+		console.log(`Warning: You need to pass an instance of Client:
+
+import { Client } from "@planetscale/database";
+
+const client = new Client({
+  host: process.env["DATABASE_HOST"],
+  username: process.env["DATABASE_USERNAME"],
+  password: process.env["DATABASE_PASSWORD"],
+});
+
+const db = drizzle(client);
+		
+Starting from version 0.30.0, you will encounter an error if you attempt to use anything other than a Client instance.\nPlease make the necessary changes now to prevent any runtime errors in the future
+		`);
+	}
+
 	const dialect = new MySqlDialect();
 	let logger;
 	if (config.logger === true) {
