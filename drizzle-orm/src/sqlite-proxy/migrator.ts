@@ -40,9 +40,7 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 		) {
 			queriesToRun.push(
 				...migration.sql,
-				`INSERT INTO ${
-					sql.identifier(migrationsTable)
-				} ("hash", "created_at") VALUES('${migration.hash}', '${migration.folderMillis}')`,
+				`INSERT INTO \`${migrationsTable}\` ("hash", "created_at") VALUES('${migration.hash}', '${migration.folderMillis}')`,
 			);
 		}
 	}
