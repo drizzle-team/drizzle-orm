@@ -169,3 +169,21 @@ const db = drizzle(...)
 // ---> Will be triggered by ESLint Rule
 db.update()
 ```
+
+
+**enforce-prepare-has-unique-name**: Enforce using a unique name for the `.prepare()` statement. This is useful when you have multiple `.prepare()` statements in your codebase and want to avoid accidental runtime errors.
+
+```json
+"rules": {
+  "drizzle/enforce-prepare-has-unique-name": ["error"]
+}
+```
+
+```ts
+const db = drizzle(...)
+
+db.select().from(table).prepare('query1');
+
+// ---> Will be triggered by ESLint Rule
+db.select().from(table).prepare('query1');
+```
