@@ -267,7 +267,7 @@ export class BaseSQLiteDatabase<
 		 * ```
 		 */
 		function update<TTable extends SQLiteTable>(table: TTable): SQLiteUpdateBuilder<TTable, TResultKind, TRunResult> {
-			return new SQLiteUpdateBuilder(table, self.session, self.dialect);
+			return new SQLiteUpdateBuilder(table, self.session, self.dialect, queries);
 		}
 
 		/**
@@ -295,7 +295,7 @@ export class BaseSQLiteDatabase<
 		 * ```
 		 */
 		function insert<TTable extends SQLiteTable>(into: TTable): SQLiteInsertBuilder<TTable, TResultKind, TRunResult> {
-			return new SQLiteInsertBuilder(into, self.session, self.dialect);
+			return new SQLiteInsertBuilder(into, self.session, self.dialect, queries);
 		}
 
 		/**
@@ -323,7 +323,7 @@ export class BaseSQLiteDatabase<
 		 * ```
 		 */
 		function delete_<TTable extends SQLiteTable>(from: TTable): SQLiteDeleteBase<TTable, TResultKind, TRunResult> {
-			return new SQLiteDeleteBase(from, self.session, self.dialect);
+			return new SQLiteDeleteBase(from, self.session, self.dialect, queries);
 		}
 
 		return { select, selectDistinct, update, insert, delete: delete_ };
