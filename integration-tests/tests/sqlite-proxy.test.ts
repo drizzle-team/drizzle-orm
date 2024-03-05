@@ -14,6 +14,39 @@ import { migrate } from 'drizzle-orm/sqlite-proxy/migrator';
 class ServerSimulator {
 	constructor(private db: BetterSqlite3.Database) {}
 
+	async batch(queries: { sql: string; params: any[]; method: string }[]) {
+		const results: { rows: any }[] = [];
+		for (const query of queries) {
+			const { method, sql, params } = query;
+
+			if (method === 'run') {
+				try {
+					const result = this.db.prepare(sql).run(params);
+					results.push({ rows: result as any });
+				} catch (e: any) {
+					return { error: e.message };
+				}
+			} else if (method === 'all' || method === 'values') {
+				try {
+					const rows = this.db.prepare(sql).raw().all(params);
+					results.push({ rows: rows });
+				} catch (e: any) {
+					return { error: e.message };
+				}
+			} else if (method === 'get') {
+				try {
+					const row = this.db.prepare(sql).raw().get(params);
+					results.push({ rows: row });
+				} catch (e: any) {
+					return { error: e.message };
+				}
+			} else {
+				return { error: 'Unknown method value' };
+			}
+		}
+		return results;
+	}
+
 	async query(sql: string, params: any[], method: string) {
 		if (method === 'run') {
 			try {

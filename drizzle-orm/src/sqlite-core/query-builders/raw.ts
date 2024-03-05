@@ -40,7 +40,7 @@ export class SQLiteRaw<TResult> extends QueryPromise<TResult>
 	}
 
 	getQuery() {
-		return this.dialect.sqlToQuery(this.getSQL());
+		return { ...this.dialect.sqlToQuery(this.getSQL()), method: this.config.action };
 	}
 
 	mapResult(result: unknown, isFromBatch?: boolean) {
