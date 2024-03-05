@@ -430,7 +430,7 @@ export function extractTablesRelationalConfig<
 	const tablesConfig: TablesRelationalConfig = {};
 	for (const [key, value] of Object.entries(schema)) {
 		if (isTable(value)) {
-			const dbName = value[Table.Symbol.Name];
+      const dbName = value[Table.Symbol.Schema] ? `${value[Table.Symbol.Schema]}_${value[Table.Symbol.Name]}` : value[Table.Symbol.Name];
 			const bufferedRelations = relationsBuffer[dbName];
 			tableNamesMap[dbName] = key;
 			tablesConfig[key] = {
@@ -462,7 +462,7 @@ export function extractTablesRelationalConfig<
 				}
 			}
 		} else if (is(value, Relations)) {
-			const dbName: string = value.table[Table.Symbol.Name];
+      const dbName: string = value.table[Table.Symbol.Schema] ? `${value.table[Table.Symbol.Schema]}_${value.table[Table.Symbol.Name]}` : value.table[Table.Symbol.Name];
 			const tableName = tableNamesMap[dbName];
 			const relations: Record<string, Relation> = value.config(
 				configHelpers(value.table),
@@ -561,10 +561,11 @@ export function normalizeRelation(
 		};
 	}
 
-	const referencedTableTsName = tableNamesMap[relation.referencedTable[Table.Symbol.Name]];
+	const referencedTableDbName = relation.referencedTable[Table.Symbol.Schema] ? `${relation.referencedTable[Table.Symbol.Schema]}_${relation.referencedTable[Table.Symbol.Name]}` : relation.referencedTable[Table.Symbol.Name];
+	const referencedTableTsName = tableNamesMap[referencedTableDbName];
 	if (!referencedTableTsName) {
 		throw new Error(
-			`Table "${relation.referencedTable[Table.Symbol.Name]}" not found in schema`,
+			`Table "${referencedTableDbName}" not found in schema`,
 		);
 	}
 
@@ -574,10 +575,11 @@ export function normalizeRelation(
 	}
 
 	const sourceTable = relation.sourceTable;
-	const sourceTableTsName = tableNamesMap[sourceTable[Table.Symbol.Name]];
+	const sourceTableDbName = sourceTable[Table.Symbol.Schema] ? `${sourceTable[Table.Symbol.Schema]}_${sourceTable[Table.Symbol.Name]}` : sourceTable[Table.Symbol.Name];
+	const sourceTableTsName = tableNamesMap[sourceTableDbName];
 	if (!sourceTableTsName) {
 		throw new Error(
-			`Table "${sourceTable[Table.Symbol.Name]}" not found in schema`,
+			`Table "${sourceTableDbName}" not found in schema`,
 		);
 	}
 
@@ -605,7 +607,7 @@ export function normalizeRelation(
 			)
 			: new Error(
 				`There are multiple relations between "${referencedTableTsName}" and "${
-					relation.sourceTable[Table.Symbol.Name]
+					sourceTableDbName
 				}". Please specify relation name`,
 			);
 	}
