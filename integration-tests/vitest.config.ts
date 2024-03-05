@@ -6,14 +6,13 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: [
+			'tests/relational/**/*.test.ts',
+			'tests/libsql-batch.test.ts',
+			'tests/d1-batch.test.ts',
 			'tests/sqlite-proxy-batch.test.ts',
-			// 'tests/relational/**/*.test.ts',
-			// 'tests/libsql-batch.test.ts',
-			// 'tests/d1-batch.test.ts',
-			// 'tests/sqlite-proxy-batch.test.ts',
-			// 'tests/neon-http-batch.test.ts',
-			// 'tests/replicas/**/*',
-			// 'tests/imports/**/*',
+			'tests/neon-http-batch.test.ts',
+			'tests/replicas/**/*',
+			'tests/imports/**/*',
 		],
 		exclude: [
 			...(process.env.SKIP_EXTERNAL_DB_TESTS
