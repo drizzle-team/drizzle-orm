@@ -61,12 +61,12 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	let _config: DrizzleConfig<TSchema> = {};
 
 	if (batchCallback) {
-		if ('logger' in batchCallback) {
-			_batchCallback = undefined;
-			_config = batchCallback as DrizzleConfig<TSchema>;
-		} else {
+		if (typeof batchCallback === 'function') {
 			_batchCallback = batchCallback as AsyncBatchRemoteCallback;
 			_config = config ?? {};
+		} else {
+			_batchCallback = undefined;
+			_config = batchCallback as DrizzleConfig<TSchema>;
 		}
 
 		if (_config.logger === true) {
