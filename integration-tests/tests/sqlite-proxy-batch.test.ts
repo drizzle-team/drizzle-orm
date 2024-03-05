@@ -158,7 +158,7 @@ class ServerSimulator {
 			} else if (method === 'get') {
 				try {
 					const row = this.db.prepare(sql).raw().get(params);
-					results.push({ rows: [row] });
+					results.push({ rows: row });
 				} catch (e: any) {
 					return { error: e.message };
 				}
@@ -224,7 +224,10 @@ beforeAll(async () => {
 
 	db = proxyDrizzle(async (sql, params, method) => {
 		try {
+			// console.log(sql, params, method);
 			const rows = await serverSimulator.query(sql, params, method);
+
+			// console.log('rowsTest', rows);
 
 			if (rows.error !== undefined) {
 				throw new Error(rows.error);
@@ -329,6 +332,52 @@ afterAll(async () => {
 	await db.run(sql`drop table if exists \`comment_likes\``);
 
 	client.close();
+});
+
+test('findMany + findOne api example', async () => {
+	const user = await db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id });
+	const insertRes = await db.insert(usersTable).values({ id: 2, name: 'Dan' });
+	const manyUsers = await db.query.usersTable.findMany({});
+	const oneUser = await db.query.usersTable.findFirst({});
+
+	expectTypeOf(user).toEqualTypeOf<
+		{
+			id: number;
+		}[]
+	>;
+
+	expectTypeOf(insertRes).toEqualTypeOf<SqliteRemoteResult>;
+
+	expectTypeOf(manyUsers).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: number;
+		invitedBy: number | null;
+	}[]>;
+
+	expectTypeOf(oneUser).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		} | undefined
+	>;
+
+	expect(user).toEqual([{
+		id: 1,
+	}]);
+
+	expect(insertRes).toEqual({ changes: 1, lastInsertRowid: 2 });
+
+	expect(manyUsers).toEqual([
+		{ id: 1, name: 'John', verified: 0, invitedBy: null },
+		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
+	]);
+
+	expect(oneUser).toEqual(
+		{ id: 1, name: 'John', verified: 0, invitedBy: null },
+	);
 });
 
 test('batch api example', async () => {

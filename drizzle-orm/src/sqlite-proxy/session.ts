@@ -148,7 +148,9 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 	run(placeholderValues?: Record<string, unknown>): Promise<SqliteRemoteResult> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		return (this.client as AsyncRemoteCallback)(this.query.sql, params, 'run');
+		return (this.client as AsyncRemoteCallback)(this.query.sql, params, 'run').then((t) => t.rows) as Promise<
+			SqliteRemoteResult
+		>;
 	}
 
 	override mapAllResult(rows: unknown, isFromBatch?: boolean): unknown {
@@ -180,7 +182,6 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		logger.logQuery(query.sql, params);
 
 		const { rows } = await (client as AsyncRemoteCallback)(query.sql, params, 'all');
-
 		return this.mapAllResult(rows);
 	}
 
@@ -192,7 +193,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 
 		const clientResult = await (client as AsyncRemoteCallback)(query.sql, params, 'get');
 
-		return this.mapGetResult([clientResult.rows]);
+		return this.mapGetResult(clientResult.rows);
 	}
 
 	override mapGetResult(rows: unknown, isFromBatch?: boolean): unknown {
@@ -200,7 +201,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 			rows = (rows as SqliteRemoteResult).rows;
 		}
 
-		const row = (rows as unknown[][])[0];
+		const row = rows as unknown[];
 
 		if (!this.fields && !this.customResultMapper) {
 			return row;
@@ -211,7 +212,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		}
 
 		if (this.customResultMapper) {
-			return this.customResultMapper(rows as unknown[][]) as T['get'];
+			return this.customResultMapper([rows] as unknown[][]) as T['get'];
 		}
 
 		return mapResultRow(
