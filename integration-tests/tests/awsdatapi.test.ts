@@ -19,6 +19,7 @@ const usersTable = pgTable('users', {
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
 	jsonb: jsonb('jsonb').$type<string[]>(),
+	bestTexts: text('best_texts').array().default(sql`'{}'`).notNull(),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -63,6 +64,7 @@ test.beforeEach(async (t) => {
 				name text not null,
 				verified boolean not null default false, 
 				jsonb jsonb,
+				best_texts text[] not null default '{}',
 				created_at timestamptz not null default now()
 			)
 		`,
@@ -80,7 +82,7 @@ test.serial('select all fields', async (t) => {
 
 	t.assert(result[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	// t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 100);
-	t.deepEqual(result, [{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+	t.deepEqual(result, [{ bestTexts: [], id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 });
 
 test.serial('select sql', async (t) => {
@@ -186,7 +188,7 @@ test.serial('update with returning all fields', async (t) => {
 
 	t.assert(users[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	// t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 100);
-	t.deepEqual(users, [{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
+	t.deepEqual(users, [{ id: 1, bestTexts: [], name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
 });
 
 test.serial('update with returning partial', async (t) => {
@@ -209,7 +211,7 @@ test.serial('delete with returning all fields', async (t) => {
 
 	t.assert(users[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
 	// t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 100);
-	t.deepEqual(users, [{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
+	t.deepEqual(users, [{ bestTexts: [], id: 1, name: 'John', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
 });
 
 test.serial('delete with returning partial', async (t) => {
@@ -229,13 +231,13 @@ test.serial('insert + select', async (t) => {
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const result = await db.select().from(usersTable);
-	t.deepEqual(result, [{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+	t.deepEqual(result, [{ bestTexts: [], id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 
 	await db.insert(usersTable).values({ name: 'Jane' });
 	const result2 = await db.select().from(usersTable);
 	t.deepEqual(result2, [
-		{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result2[0]!.createdAt },
-		{ id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
+		{ bestTexts: [], id: 1, name: 'John', verified: false, jsonb: null, createdAt: result2[0]!.createdAt },
+		{ bestTexts: [], id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
 	]);
 });
 
@@ -258,7 +260,7 @@ test.serial('insert with overridden default values', async (t) => {
 	await db.insert(usersTable).values({ name: 'John', verified: true });
 	const result = await db.select().from(usersTable);
 
-	t.deepEqual(result, [{ id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt }]);
+	t.deepEqual(result, [{ bestTexts: [], id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt }]);
 });
 
 test.serial('insert many', async (t) => {
@@ -427,12 +429,14 @@ test.serial('full join with alias', async (t) => {
 	t.deepEqual(result, [{
 		users: {
 			id: 10,
+			bestTexts: [],
 			name: 'Ivan',
 			verified: false,
 			jsonb: null,
 			createdAt: result[0]!.users.createdAt,
 		},
 		customer: {
+			bestTexts: [],
 			id: 11,
 			name: 'Hans',
 			verified: false,
@@ -929,6 +933,30 @@ test.serial('select from raw sql with mapped values', async (t) => {
 	t.deepEqual(result, [
 		{ id: 1, name: 'John' },
 	]);
+});
+
+test.serial('insert with array values works', async (t) => {
+	const { db } = t.context;
+
+	const bestTexts = ['text1', 'text2', 'text3']
+	const [insertResult] = await db.insert(usersTable).values({
+		name: 'John',
+		bestTexts
+	}).returning()
+
+	t.deepEqual(insertResult?.bestTexts , bestTexts);
+});
+
+test.serial('update with array values works', async (t) => {
+	const { db } = t.context;
+	const [newUser] = await db.insert(usersTable).values({ name: 'John' }).returning()
+	
+	const bestTexts = ['text4', 'text5', 'text6']
+	const [insertResult] = await db.update(usersTable).set({
+		bestTexts
+	}).where(eq(usersTable.id, newUser!.id)).returning()
+
+	t.deepEqual(insertResult?.bestTexts , bestTexts);
 });
 
 test.after.always(async (t) => {
