@@ -1,49 +1,49 @@
-import { useEffect, useReducer } from "react";
+import { useEffect, useReducer } from 'react';
 import type { MigrationMeta } from '~/migrator.ts';
 import type { ExpoSQLiteDatabase } from './driver.ts';
 
 interface MigrationConfig {
-    journal: {
-        entries: { idx: number; when: number; tag: string; breakpoints: boolean }[];
-    };
-    migrations: Record<string, string>;
+	journal: {
+		entries: { idx: number; when: number; tag: string; breakpoints: boolean }[];
+	};
+	migrations: Record<string, string>;
 }
 
 async function readMigrationFiles({ journal, migrations }: MigrationConfig): Promise<MigrationMeta[]> {
-    const migrationQueries: MigrationMeta[] = [];
+	const migrationQueries: MigrationMeta[] = [];
 
-    for await (const journalEntry of journal.entries) {
-        const query = migrations[`m${journalEntry.idx.toString().padStart(4, '0')}`];
+	for await (const journalEntry of journal.entries) {
+		const query = migrations[`m${journalEntry.idx.toString().padStart(4, '0')}`];
 
-        if (!query) {
-            throw new Error(`Missing migration: ${journalEntry.tag}`);
-        }
+		if (!query) {
+			throw new Error(`Missing migration: ${journalEntry.tag}`);
+		}
 
-        try {
-            const result = query.split('--> statement-breakpoint').map((it) => {
-                return it;
-            });
+		try {
+			const result = query.split('--> statement-breakpoint').map((it) => {
+				return it;
+			});
 
-            migrationQueries.push({
-                sql: result,
-                bps: journalEntry.breakpoints,
-                folderMillis: journalEntry.when,
-                hash: '',
-            });
-        } catch {
-            throw new Error(`Failed to parse migration: ${journalEntry.tag}`);
-        }
-    }
+			migrationQueries.push({
+				sql: result,
+				bps: journalEntry.breakpoints,
+				folderMillis: journalEntry.when,
+				hash: '',
+			});
+		} catch {
+			throw new Error(`Failed to parse migration: ${journalEntry.tag}`);
+		}
+	}
 
-    return migrationQueries;
+	return migrationQueries;
 }
 
 export async function migrate<TSchema extends Record<string, unknown>>(
-    db: ExpoSQLiteDatabase<TSchema>,
-    config: MigrationConfig,
+	db: ExpoSQLiteDatabase<TSchema>,
+	config: MigrationConfig,
 ) {
-    const migrations = await readMigrationFiles(config);
-    return db.dialect.migrate(migrations, db.session);
+	const migrations = await readMigrationFiles(config);
+	return db.dialect.migrate(migrations, db.session);
 }
 
 interface State {
@@ -54,7 +54,7 @@ interface State {
 type Action =
 	| { type: 'migrating' }
 	| { type: 'migrated'; payload: true }
-	| { type: 'error'; payload: Error }
+	| { type: 'error'; payload: Error };
 
 export const useMigrations = (db: ExpoSQLiteDatabase<any>, migrations: {
 	journal: {
@@ -65,24 +65,24 @@ export const useMigrations = (db: ExpoSQLiteDatabase<any>, migrations: {
 	const initialState: State = {
 		success: false,
 		error: undefined,
-	}
+	};
 
 	const fetchReducer = (state: State, action: Action): State => {
 		switch (action.type) {
 			case 'migrating': {
-				return { ...initialState }
+				return { ...initialState };
 			}
 			case 'migrated': {
-				return { ...initialState, success: action.payload }
+				return { ...initialState, success: action.payload };
 			}
 			case 'error': {
-				return { ...initialState, error: action.payload }
+				return { ...initialState, error: action.payload };
 			}
 			default: {
-				return state
+				return state;
 			}
 		}
-	}
+	};
 
 	const [state, dispatch] = useReducer(fetchReducer, initialState);
 
@@ -96,4 +96,4 @@ export const useMigrations = (db: ExpoSQLiteDatabase<any>, migrations: {
 	}, []);
 
 	return state;
-}
+};
