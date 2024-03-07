@@ -130,6 +130,9 @@ importers:
       '@vercel/postgres':
         specifier: ^0.3.0
         version: 0.3.0
+      '@xata.io/client':
+        specifier: ^0.29.3
+        version: 0.29.3(typescript@5.2.2)
       better-sqlite3:
         specifier: ^8.4.0
         version: 8.4.0
@@ -192,7 +195,7 @@ importers:
         version: 0.4.1(rollup@3.27.2)
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.1(rollup@3.27.2)(typescript@5.4.2)
+        version: 11.1.1(rollup@3.27.2)(typescript@5.2.2)
       '@sinclair/typebox':
         specifier: ^0.29.6
         version: 0.29.6
@@ -228,7 +231,7 @@ importers:
         version: 0.4.1(rollup@3.27.2)
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.1(rollup@3.27.2)(typescript@5.4.2)
+        version: 11.1.1(rollup@3.27.2)(typescript@5.2.2)
       '@types/node':
         specifier: ^18.15.10
         version: 18.15.10
@@ -264,7 +267,7 @@ importers:
         version: 0.4.1(rollup@3.20.7)
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.0(rollup@3.20.7)(typescript@5.4.2)
+        version: 11.1.0(rollup@3.20.7)(typescript@5.2.2)
       '@types/node':
         specifier: ^18.15.10
         version: 18.15.10
@@ -1973,18 +1976,6 @@ packages:
       '@babel/core': 7.24.0
       '@babel/helper-plugin-utils': 7.24.0
       '@babel/plugin-syntax-export-default-from': 7.23.3(@babel/core@7.24.0)
-    dev: true
-
-  /@babel/plugin-proposal-logical-assignment-operators@7.20.7(@babel/core@7.24.0):
-    resolution: {integrity: sha512-y7C7cZgpMIjWlKE5T7eJwp+tnRYM89HmRvWM5EQuB5BoHEONjmQ8lSNmBUwOyy/GFRsohJED51YBF79hE1djug==}
-    engines: {node: '>=6.9.0'}
-    deprecated: This proposal has been merged to the ECMAScript standard and thus this plugin is no longer maintained. Please use @babel/plugin-transform-logical-assignment-operators instead.
-    peerDependencies:
-      '@babel/core': ^7.0.0-0
-    dependencies:
-      '@babel/core': 7.24.0
-      '@babel/helper-plugin-utils': 7.24.0
-      '@babel/plugin-syntax-logical-assignment-operators': 7.10.4(@babel/core@7.24.0)
     dev: true
 
   /@babel/plugin-proposal-nullish-coalescing-operator@7.18.6(@babel/core@7.24.0):
@@ -3756,7 +3747,7 @@ packages:
       safe-json-stringify: 1.2.0
     dev: true
 
-  /@expo/cli@0.17.8(@react-native/babel-preset@0.75.0-main)(expo-modules-autolinking@1.10.3):
+  /@expo/cli@0.17.8(@react-native/babel-preset@0.73.21)(expo-modules-autolinking@1.10.3):
     resolution: {integrity: sha512-yfkoghCltbGPDbRI71Qu3puInjXx4wO82+uhW82qbWLvosfIN7ep5Gr0Lq54liJpvlUG6M0IXM1GiGqcCyP12w==}
     hasBin: true
     dependencies:
@@ -3768,7 +3759,7 @@ packages:
       '@expo/env': 0.2.2
       '@expo/image-utils': 0.4.1
       '@expo/json-file': 8.3.0
-      '@expo/metro-config': 0.17.6(@react-native/babel-preset@0.75.0-main)
+      '@expo/metro-config': 0.17.6(@react-native/babel-preset@0.73.21)
       '@expo/osascript': 2.1.0
       '@expo/package-manager': 1.4.2
       '@expo/plist': 0.1.0
@@ -3971,7 +3962,7 @@ packages:
       write-file-atomic: 2.4.3
     dev: true
 
-  /@expo/metro-config@0.17.6(@react-native/babel-preset@0.75.0-main):
+  /@expo/metro-config@0.17.6(@react-native/babel-preset@0.73.21):
     resolution: {integrity: sha512-WaC1C+sLX/Wa7irwUigLhng3ckmXIEQefZczB8DfYmleV6uhfWWo2kz/HijFBpV7FKs2cW6u8J/aBQpFkxlcqg==}
     peerDependencies:
       '@react-native/babel-preset': '*'
@@ -3984,7 +3975,7 @@ packages:
       '@expo/env': 0.2.2
       '@expo/json-file': 8.3.0
       '@expo/spawn-async': 1.7.2
-      '@react-native/babel-preset': 0.75.0-main(@babel/core@7.24.0)(@babel/preset-env@7.24.0)
+      '@react-native/babel-preset': 0.73.21(@babel/core@7.24.0)(@babel/preset-env@7.24.0)
       babel-preset-fbjs: 3.4.0(@babel/core@7.24.0)
       chalk: 4.1.2
       debug: 4.3.4
@@ -4005,7 +3996,7 @@ packages:
     resolution: {integrity: sha512-bOhuFnlRaS7CU33+rFFIWdcET/Vkyn1vsN8BYFwCDEF5P1fVVvYN7bFOsQLTMD3nvi35C1AGmtqUr/Wfv8Xaow==}
     engines: {node: '>=12'}
     dependencies:
-      '@expo/spawn-async': 1.5.0
+      '@expo/spawn-async': 1.7.2
       exec-async: 2.2.0
     dev: true
 
@@ -4013,7 +4004,7 @@ packages:
     resolution: {integrity: sha512-LKdo/6y4W7llZ6ghsg1kdx2CeH/qR/c6QI/JI8oPUvppsZoeIYjSkdflce978fAMfR8IXoi0wt0jA2w0kWpwbg==}
     dependencies:
       '@expo/json-file': 8.3.0
-      '@expo/spawn-async': 1.5.0
+      '@expo/spawn-async': 1.7.2
       ansi-regex: 5.0.1
       chalk: 4.1.2
       find-up: 5.0.0
@@ -4747,16 +4738,6 @@ packages:
       - supports-color
     dev: true
 
-  /@react-native/babel-plugin-codegen@0.75.0-main(@babel/preset-env@7.24.0):
-    resolution: {integrity: sha512-gEl+bl+orntqNA3yGETGeHLNzDnZuQfO074BreX/l80WnZbx00/BJ57IkZ372j6I+gjki+3dYeRQOp82m/sUWQ==}
-    engines: {node: '>=18'}
-    dependencies:
-      '@react-native/codegen': 0.75.0-main(@babel/preset-env@7.24.0)
-    transitivePeerDependencies:
-      - '@babel/preset-env'
-      - supports-color
-    dev: true
-
   /@react-native/babel-preset@0.73.21(@babel/core@7.24.0)(@babel/preset-env@7.24.0):
     resolution: {integrity: sha512-WlFttNnySKQMeujN09fRmrdWqh46QyJluM5jdtDNrkl/2Hx6N4XeDUGhABvConeK95OidVO7sFFf7sNebVXogA==}
     engines: {node: '>=18'}
@@ -4810,60 +4791,6 @@ packages:
       - supports-color
     dev: true
 
-  /@react-native/babel-preset@0.75.0-main(@babel/core@7.24.0)(@babel/preset-env@7.24.0):
-    resolution: {integrity: sha512-yTyft0jSbTEfTfDUUfllJqKWLl3rNMiVMFjuWzMigikKAlSwKKUC/DxTEUfMwekFU05TjDyEOtigOTrm2yuoRQ==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      '@babel/core': '*'
-    dependencies:
-      '@babel/core': 7.24.0
-      '@babel/plugin-proposal-async-generator-functions': 7.20.7(@babel/core@7.24.0)
-      '@babel/plugin-proposal-class-properties': 7.18.6(@babel/core@7.24.0)
-      '@babel/plugin-proposal-export-default-from': 7.23.3(@babel/core@7.24.0)
-      '@babel/plugin-proposal-logical-assignment-operators': 7.20.7(@babel/core@7.24.0)
-      '@babel/plugin-proposal-nullish-coalescing-operator': 7.18.6(@babel/core@7.24.0)
-      '@babel/plugin-proposal-numeric-separator': 7.18.6(@babel/core@7.24.0)
-      '@babel/plugin-proposal-object-rest-spread': 7.20.7(@babel/core@7.24.0)
-      '@babel/plugin-proposal-optional-catch-binding': 7.18.6(@babel/core@7.24.0)
-      '@babel/plugin-proposal-optional-chaining': 7.21.0(@babel/core@7.24.0)
-      '@babel/plugin-syntax-dynamic-import': 7.8.3(@babel/core@7.24.0)
-      '@babel/plugin-syntax-export-default-from': 7.23.3(@babel/core@7.24.0)
-      '@babel/plugin-syntax-flow': 7.23.3(@babel/core@7.24.0)
-      '@babel/plugin-syntax-nullish-coalescing-operator': 7.8.3(@babel/core@7.24.0)
-      '@babel/plugin-syntax-optional-chaining': 7.8.3(@babel/core@7.24.0)
-      '@babel/plugin-transform-arrow-functions': 7.23.3(@babel/core@7.24.0)
-      '@babel/plugin-transform-async-to-generator': 7.23.3(@babel/core@7.24.0)
-      '@babel/plugin-transform-block-scoping': 7.23.4(@babel/core@7.24.0)
-      '@babel/plugin-transform-classes': 7.23.8(@babel/core@7.24.0)
-      '@babel/plugin-transform-computed-properties': 7.23.3(@babel/core@7.24.0)
-      '@babel/plugin-transform-destructuring': 7.23.3(@babel/core@7.24.0)
-      '@babel/plugin-transform-flow-strip-types': 7.23.3(@babel/core@7.24.0)
-      '@babel/plugin-transform-function-name': 7.23.3(@babel/core@7.24.0)
-      '@babel/plugin-transform-literals': 7.23.3(@babel/core@7.24.0)
-      '@babel/plugin-transform-modules-commonjs': 7.23.3(@babel/core@7.24.0)
-      '@babel/plugin-transform-named-capturing-groups-regex': 7.22.5(@babel/core@7.24.0)
-      '@babel/plugin-transform-parameters': 7.23.3(@babel/core@7.24.0)
-      '@babel/plugin-transform-private-methods': 7.23.3(@babel/core@7.24.0)
-      '@babel/plugin-transform-private-property-in-object': 7.23.4(@babel/core@7.24.0)
-      '@babel/plugin-transform-react-display-name': 7.23.3(@babel/core@7.24.0)
-      '@babel/plugin-transform-react-jsx': 7.23.4(@babel/core@7.24.0)
-      '@babel/plugin-transform-react-jsx-self': 7.23.3(@babel/core@7.24.0)
-      '@babel/plugin-transform-react-jsx-source': 7.23.3(@babel/core@7.24.0)
-      '@babel/plugin-transform-runtime': 7.24.0(@babel/core@7.24.0)
-      '@babel/plugin-transform-shorthand-properties': 7.23.3(@babel/core@7.24.0)
-      '@babel/plugin-transform-spread': 7.23.3(@babel/core@7.24.0)
-      '@babel/plugin-transform-sticky-regex': 7.23.3(@babel/core@7.24.0)
-      '@babel/plugin-transform-typescript': 7.23.6(@babel/core@7.24.0)
-      '@babel/plugin-transform-unicode-regex': 7.23.3(@babel/core@7.24.0)
-      '@babel/template': 7.24.0
-      '@react-native/babel-plugin-codegen': 0.75.0-main(@babel/preset-env@7.24.0)
-      babel-plugin-transform-flow-enums: 0.0.2(@babel/core@7.24.0)
-      react-refresh: 0.14.0
-    transitivePeerDependencies:
-      - '@babel/preset-env'
-      - supports-color
-    dev: true
-
   /@react-native/codegen@0.73.3(@babel/preset-env@7.24.0):
     resolution: {integrity: sha512-sxslCAAb8kM06vGy9Jyh4TtvjhcP36k/rvj2QE2Jdhdm61KvfafCATSIsOfc0QvnduWFcpXUPvAVyYwuv7PYDg==}
     engines: {node: '>=18'}
@@ -4874,24 +4801,6 @@ packages:
       '@babel/preset-env': 7.24.0(@babel/core@7.24.0)
       flow-parser: 0.206.0
       glob: 7.2.3
-      invariant: 2.2.4
-      jscodeshift: 0.14.0(@babel/preset-env@7.24.0)
-      mkdirp: 0.5.6
-      nullthrows: 1.1.1
-    transitivePeerDependencies:
-      - supports-color
-    dev: true
-
-  /@react-native/codegen@0.75.0-main(@babel/preset-env@7.24.0):
-    resolution: {integrity: sha512-vcIu7x7o/3xn9UQdOPqA6B/jtxDHB+xTIDlVe7nym+0ua/OIOwYoVscTb0NtHuEjGKO1G5CTWNhl34BFhIs0+g==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      '@babel/preset-env': ^7.1.6
-    dependencies:
-      '@babel/parser': 7.24.0
-      '@babel/preset-env': 7.24.0(@babel/core@7.24.0)
-      glob: 7.2.3
-      hermes-parser: 0.20.1
       invariant: 2.2.4
       jscodeshift: 0.14.0(@babel/preset-env@7.24.0)
       mkdirp: 0.5.6
@@ -5025,7 +4934,7 @@ packages:
       terser: 5.17.1
     dev: true
 
-  /@rollup/plugin-typescript@11.1.0(rollup@3.20.7)(typescript@5.4.2):
+  /@rollup/plugin-typescript@11.1.0(rollup@3.20.7)(typescript@5.2.2):
     resolution: {integrity: sha512-86flrfE+bSHB69znnTV6kVjkncs2LBMhcTCyxWgRxLyfXfQrxg4UwlAqENnjrrxnSNS/XKCDJCl8EkdFJVHOxw==}
     engines: {node: '>=14.0.0'}
     peerDependencies:
@@ -5041,10 +4950,10 @@ packages:
       '@rollup/pluginutils': 5.0.2(rollup@3.20.7)
       resolve: 1.22.1
       rollup: 3.20.7
-      typescript: 5.4.2
+      typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
     dev: true
 
-  /@rollup/plugin-typescript@11.1.1(rollup@3.27.2)(typescript@5.4.2):
+  /@rollup/plugin-typescript@11.1.1(rollup@3.27.2)(typescript@5.2.2):
     resolution: {integrity: sha512-Ioir+x5Bejv72Lx2Zbz3/qGg7tvGbxQZALCLoJaGrkNXak/19+vKgKYJYM3i/fJxvsb23I9FuFQ8CUBEfsmBRg==}
     engines: {node: '>=14.0.0'}
     peerDependencies:
@@ -5060,7 +4969,7 @@ packages:
       '@rollup/pluginutils': 5.0.2(rollup@3.27.2)
       resolve: 1.22.2
       rollup: 3.27.2
-      typescript: 5.4.2
+      typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
     dev: true
 
   /@rollup/pluginutils@5.0.2(rollup@3.20.7):
@@ -5868,6 +5777,14 @@ packages:
       diff-sequences: 29.6.3
       loupe: 2.3.6
       pretty-format: 29.7.0
+    dev: true
+
+  /@xata.io/client@0.29.3(typescript@5.2.2):
+    resolution: {integrity: sha512-GsH3RNU2P0fP+YKTFVZZ/DAkczJ6/25xyXg383GIlgLW9juy5PpMumscFIgfjWIbvnasATKNVN2127C4ONfOTg==}
+    peerDependencies:
+      typescript: '>=4.5'
+    dependencies:
+      typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
     dev: true
 
   /@xmldom/xmldom@0.7.13:
@@ -8664,7 +8581,7 @@ packages:
       expo: '*'
     dependencies:
       '@expo/config': 8.5.4
-      expo: 50.0.13(@babel/core@7.24.0)(@react-native/babel-preset@0.75.0-main)
+      expo: 50.0.13(@babel/core@7.24.0)(@react-native/babel-preset@0.73.21)
     transitivePeerDependencies:
       - supports-color
     dev: true
@@ -8674,7 +8591,7 @@ packages:
     peerDependencies:
       expo: '*'
     dependencies:
-      expo: 50.0.13(@babel/core@7.24.0)(@react-native/babel-preset@0.75.0-main)
+      expo: 50.0.13(@babel/core@7.24.0)(@react-native/babel-preset@0.73.21)
     dev: true
 
   /expo-font@11.10.3(expo@50.0.13):
@@ -8682,7 +8599,7 @@ packages:
     peerDependencies:
       expo: '*'
     dependencies:
-      expo: 50.0.13(@babel/core@7.24.0)(@react-native/babel-preset@0.75.0-main)
+      expo: 50.0.13(@babel/core@7.24.0)(@react-native/babel-preset@0.73.21)
       fontfaceobserver: 2.3.0
     dev: true
 
@@ -8691,7 +8608,7 @@ packages:
     peerDependencies:
       expo: '*'
     dependencies:
-      expo: 50.0.13(@babel/core@7.24.0)(@react-native/babel-preset@0.75.0-main)
+      expo: 50.0.13(@babel/core@7.24.0)(@react-native/babel-preset@0.73.21)
     dev: true
 
   /expo-modules-autolinking@1.10.3:
@@ -8720,18 +8637,18 @@ packages:
       expo: '*'
     dependencies:
       '@expo/websql': 1.0.1
-      expo: 50.0.13(@babel/core@7.24.0)(@react-native/babel-preset@0.75.0-main)
+      expo: 50.0.13(@babel/core@7.24.0)(@react-native/babel-preset@0.73.21)
     dev: true
 
-  /expo@50.0.13(@babel/core@7.24.0)(@react-native/babel-preset@0.75.0-main):
+  /expo@50.0.13(@babel/core@7.24.0)(@react-native/babel-preset@0.73.21):
     resolution: {integrity: sha512-p0FYrhUJZe92YOwOXx6GZ/WaxF6YtsLXtWkql9pFIIocYBN6iQ3OMGsbQCRSu0ao8rlxsk7HgQDEWK4D+y9tAg==}
     hasBin: true
     dependencies:
       '@babel/runtime': 7.24.0
-      '@expo/cli': 0.17.8(@react-native/babel-preset@0.75.0-main)(expo-modules-autolinking@1.10.3)
+      '@expo/cli': 0.17.8(@react-native/babel-preset@0.73.21)(expo-modules-autolinking@1.10.3)
       '@expo/config': 8.5.4
       '@expo/config-plugins': 7.8.4
-      '@expo/metro-config': 0.17.6(@react-native/babel-preset@0.75.0-main)
+      '@expo/metro-config': 0.17.6(@react-native/babel-preset@0.73.21)
       '@expo/vector-icons': 14.0.0
       babel-preset-expo: 10.0.1(@babel/core@7.24.0)
       expo-asset: 9.0.2(expo@50.0.13)
@@ -9544,10 +9461,6 @@ packages:
     resolution: {integrity: sha512-daLGV3Q2MKk8w4evNMKwS8zBE/rcpA800nu1Q5kM08IKijoSnPe9Uo1iIxzPKRkn95IxxsgBMPeYHt3VG4ej2g==}
     dev: true
 
-  /hermes-estree@0.20.1:
-    resolution: {integrity: sha512-SQpZK4BzR48kuOg0v4pb3EAGNclzIlqMj3Opu/mu7bbAoFw6oig6cEt/RAi0zTFW/iW6Iz9X9ggGuZTAZ/yZHg==}
-    dev: true
-
   /hermes-parser@0.15.0:
     resolution: {integrity: sha512-Q1uks5rjZlE9RjMMjSUCkGrEIPI5pKJILeCtK1VmTj7U4pf3wVPoo+cxfu+s4cBAPy2JzikIIdCZgBoR6x7U1Q==}
     dependencies:
@@ -9558,12 +9471,6 @@ packages:
     resolution: {integrity: sha512-Vp+bXzxYJWrpEuJ/vXxUsLnt0+y4q9zyi4zUlkLqD8FKv4LjIfOvP69R/9Lty3dCyKh0E2BU7Eypqr63/rKT/A==}
     dependencies:
       hermes-estree: 0.19.1
-    dev: true
-
-  /hermes-parser@0.20.1:
-    resolution: {integrity: sha512-BL5P83cwCogI8D7rrDCgsFY0tdYUtmFP9XaXtl2IQjC+2Xo+4okjfXintlTxcIwl4qeGddEl28Z11kbVIw0aNA==}
-    dependencies:
-      hermes-estree: 0.20.1
     dev: true
 
   /hermes-profile-transformer@0.0.6:
@@ -14201,12 +14108,6 @@ packages:
     hasBin: true
     dev: true
     patched: true
-
-  /typescript@5.4.2:
-    resolution: {integrity: sha512-+2/g0Fds1ERlP6JsakQQDXjZdZMM+rqpamFZJEKh4kwTIn3iDkgKtby0CeNd5ATNZ4Ry1ax15TMx0W2V+miizQ==}
-    engines: {node: '>=14.17'}
-    hasBin: true
-    dev: true
 
   /ua-parser-js@1.0.37:
     resolution: {integrity: sha512-bhTyI94tZofjo+Dn8SN6Zv8nBDvyXTymAdM3LDI/0IboIUwTu1rEhW7v2TfiVsoYWgkQ4kOVqnI8APUFbIQIFQ==}
