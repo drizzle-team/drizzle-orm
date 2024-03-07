@@ -35,20 +35,20 @@ import {
 	bigint,
 	boolean,
 	date,
-	enumType,
 	maxLength,
-	nullType,
+	null_,
 	nullable,
 	number,
 	object,
 	optional,
+	picklist,
 	record,
 	string,
 	union,
 	uuid,
 } from 'valibot';
 
-const literalSchema = union([string(), number(), boolean(), nullType()]);
+const literalSchema = union([string(), number(), boolean(), null_()]);
 
 type Json = typeof jsonSchema;
 
@@ -308,7 +308,7 @@ function mapColumnToSchema(column: Column): BaseSchema<any, any> {
 
 	if (isWithEnum(column)) {
 		type = column.enumValues?.length
-			? enumType(column.enumValues)
+			? picklist(column.enumValues)
 			: string();
 	}
 
