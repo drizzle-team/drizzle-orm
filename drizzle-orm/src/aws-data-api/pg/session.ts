@@ -9,10 +9,10 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import {
 	type PgDialect,
+	PgPreparedQuery,
 	PgSession,
 	PgTransaction,
 	type PgTransactionConfig,
-	PreparedQuery,
 	type PreparedQueryConfig,
 	type QueryResultHKT,
 } from '~/pg-core/index.ts';
@@ -24,7 +24,7 @@ import { getValueFromDataApi, toValueParam } from '../common/index.ts';
 
 export type AwsDataApiClient = RDSDataClient;
 
-export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
+export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
 	static readonly [entityKind]: string = 'AwsDataApiPreparedQuery';
 
 	private rawQuery: ExecuteStatementCommand;
@@ -40,7 +40,7 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 		readonly transactionId: string | undefined,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super();
+		super({ sql: queryString, params });
 		this.rawQuery = new ExecuteStatementCommand({
 			sql: queryString,
 			parameters: [],
@@ -151,7 +151,7 @@ export class AwsDataApiSession<
 		fields: SelectedFieldsOrdered | undefined,
 		transactionId?: string,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
-	): PreparedQuery<T> {
+	): PgPreparedQuery<T> {
 		return new AwsDataApiPreparedQuery(
 			this.client,
 			query.sql,

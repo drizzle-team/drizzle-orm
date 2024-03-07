@@ -88,7 +88,7 @@ export const useMigrations = (db: OPSQLiteDatabase<any>, migrations: {
 
 	useEffect(() => {
 		dispatch({ type: 'migrating' })
-		migrate(db, migrations as any).then(() => {
+		migrate(db, migrations).then(() => {
 			dispatch({ type: 'migrated', payload: true })
 		}).catch((error) => {
 			dispatch({ type: 'error', payload: error as Error })
