@@ -9,6 +9,7 @@ export default defineConfig({
 			'tests/relational/**/*.test.ts',
 			'tests/libsql-batch.test.ts',
 			'tests/d1-batch.test.ts',
+			'tests/sqlite-proxy-batch.test.ts',
 			'tests/neon-http-batch.test.ts',
 			'tests/replicas/**/*',
 			'tests/imports/**/*',
