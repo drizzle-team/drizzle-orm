@@ -16,6 +16,7 @@ const users = pgTable('users', {
 	birthdayDate: date('birthday_date', { mode: 'date' }).notNull(),
 	createdAt: timestamp('created_at').notNull().defaultNow(),
 	role: roleEnum('role').notNull(),
+	roles: roleEnum('roles').array().notNull(),
 	roleText: text('role1', { enum: ['admin', 'user'] }).notNull(),
 	roleText2: text('role2', { enum: ['admin', 'user'] })
 		.notNull()
@@ -33,6 +34,7 @@ const testUser = {
 	birthdayDate: new Date('1990-01-01'),
 	createdAt: new Date(),
 	role: 'admin',
+	roles: ['admin'],
 	roleText: 'admin',
 	roleText2: 'admin',
 	profession: 'Software Engineer',
@@ -99,6 +101,7 @@ test('users insert schema', (t) => {
 		birthdayDate: Type.Date(),
 		createdAt: Type.Optional(Type.Date()),
 		role: Type.Union([Type.Literal('admin'), Type.Literal('user')]),
+		roles: Type.Array(Type.Union([Type.Literal('admin'), Type.Literal('user')])),
 		roleText: Type.Union([
 			Type.Literal('user'),
 			Type.Literal('manager'),
@@ -126,6 +129,7 @@ test('users insert schema w/ defaults', (t) => {
 		birthdayDate: Type.Date(),
 		createdAt: Type.Optional(Type.Date()),
 		role: Type.Union([Type.Literal('admin'), Type.Literal('user')]),
+		roles: Type.Array(Type.Union([Type.Literal('admin'), Type.Literal('user')])),
 		roleText: Type.Union([Type.Literal('admin'), Type.Literal('user')]),
 		roleText2: Type.Optional(
 			Type.Union([Type.Literal('admin'), Type.Literal('user')]),
@@ -157,6 +161,7 @@ test('users select schema', (t) => {
 		birthdayDate: Type.Date(),
 		createdAt: Type.Date(),
 		role: Type.Union([Type.Literal('admin'), Type.Literal('user')]),
+		roles: Type.Array(Type.Union([Type.Literal('admin'), Type.Literal('user')])),
 		roleText: Type.Union([
 			Type.Literal('admin'),
 			Type.Literal('user'),
@@ -182,6 +187,7 @@ test('users select schema w/ defaults', (t) => {
 		birthdayDate: Type.Date(),
 		createdAt: Type.Date(),
 		role: Type.Union([Type.Literal('admin'), Type.Literal('user')]),
+		roles: Type.Array(Type.Union([Type.Literal('admin'), Type.Literal('user')])),
 		roleText: Type.Union([Type.Literal('admin'), Type.Literal('user')]),
 		roleText2: Type.Union([Type.Literal('admin'), Type.Literal('user')]),
 		profession: Type.String({ maxLength: 20, minLength: 1 }),

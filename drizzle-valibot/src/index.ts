@@ -94,10 +94,17 @@ type GetValibotType<TColumn extends Column> =
 			: TColumn extends { enumValues: [string, ...string[]] }
 			? Equal<TColumn['enumValues'], [string, ...string[]]> extends true
 				? StringSchema
-				: EnumSchema<
-						TColumn['enumValues'],
-						TColumn['enumValues'][number]
-					>
+				: TDataType extends 'array'
+					? ArraySchema<
+							EnumSchema<
+								TColumn['enumValues'],
+								TColumn['enumValues'][number]
+							>
+						>
+					: EnumSchema<
+							TColumn['enumValues'],
+							TColumn['enumValues'][number]
+						>
 			: TDataType extends 'array'
 			? ArraySchema<
 					GetValibotType<
