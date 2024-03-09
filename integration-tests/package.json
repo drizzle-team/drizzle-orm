@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "test:types": "tsc",
-    "test": "NODE_OPTIONS='--loader=tsx --no-warnings' ava --timeout=60s --serial && pnpm test:esm && pnpm test:rqb",
+    "test": "pnpm test:ava && pnpm test:esm && pnpm test:rqb",
+    "test:ava": "NODE_OPTIONS='--loader=tsx --no-warnings' ava tests --timeout=60s --serial",
     "test:rqb": "vitest run --no-threads",
     "test:esm": "node tests/imports.test.mjs && node tests/imports.test.cjs"
   },
@@ -23,6 +24,7 @@
       "!tests/relational/**/*",
       "!tests/libsql-batch.test.ts",
       "!tests/d1-batch.test.ts",
+      "!tests/sqlite-proxy-batch.test.ts",
       "!tests/neon-http-batch.test.ts",
       "!tests/replicas/**/*",
       "!tests/imports/**/*"

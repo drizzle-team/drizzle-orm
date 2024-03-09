@@ -14,6 +14,7 @@ import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
+import type { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { mapUpdateSet, orderSelectedFields } from '~/utils.ts';
@@ -24,6 +25,7 @@ import type { PgUpdateSetSource } from './update.ts';
 export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[];
+	withList?: Subquery[];
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
 }
@@ -41,6 +43,7 @@ export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends QueryR
 		private table: TTable,
 		private session: PgSession,
 		private dialect: PgDialect,
+		private withList?: Subquery[],
 	) {}
 
 	values(value: PgInsertValue<TTable>): PgInsertBase<TTable, TQueryResult>;
@@ -60,7 +63,7 @@ export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends QueryR
 			return result;
 		});
 
-		return new PgInsertBase(this.table, mappedValues, this.session, this.dialect);
+		return new PgInsertBase(this.table, mappedValues, this.session, this.dialect, this.withList);
 	}
 }
 
@@ -168,9 +171,10 @@ export class PgInsertBase<
 		values: PgInsertConfig['values'],
 		private session: PgSession,
 		private dialect: PgDialect,
+		withList?: Subquery[],
 	) {
 		super();
-		this.config = { table, values };
+		this.config = { table, values, withList };
 	}
 
 	/**

@@ -7,6 +7,7 @@ import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
+import type { Subquery } from '~/subquery.ts';
 import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import type { SQLiteColumn } from '../columns/common.ts';
 import type { SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
@@ -16,6 +17,7 @@ export interface SQLiteUpdateConfig {
 	set: UpdateSet;
 	table: SQLiteTable;
 	returning?: SelectedFieldsOrdered;
+	withList?: Subquery[];
 }
 
 export type SQLiteUpdateSetSource<TTable extends SQLiteTable> =
@@ -41,10 +43,17 @@ export class SQLiteUpdateBuilder<
 		protected table: TTable,
 		protected session: SQLiteSession<any, any, any, any>,
 		protected dialect: SQLiteDialect,
+		private withList?: Subquery[],
 	) {}
 
 	set(values: SQLiteUpdateSetSource<TTable>): SQLiteUpdateBase<TTable, TResultType, TRunResult> {
-		return new SQLiteUpdateBase(this.table, mapUpdateSet(this.table, values), this.session, this.dialect);
+		return new SQLiteUpdateBase(
+			this.table,
+			mapUpdateSet(this.table, values),
+			this.session,
+			this.dialect,
+			this.withList,
+		);
 	}
 }
 
@@ -170,9 +179,10 @@ export class SQLiteUpdateBase<
 		set: UpdateSet,
 		private session: SQLiteSession<any, any, any, any>,
 		private dialect: SQLiteDialect,
+		withList?: Subquery[],
 	) {
 		super();
-		this.config = { set, table };
+		this.config = { set, table, withList };
 	}
 
 	/**

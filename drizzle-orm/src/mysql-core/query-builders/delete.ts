@@ -13,6 +13,7 @@ import type { MySqlTable } from '~/mysql-core/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
+import type { Subquery } from '~/subquery.ts';
 
 export type MySqlDeleteWithout<
 	T extends AnyMySqlDeleteBase,
@@ -40,6 +41,7 @@ export interface MySqlDeleteConfig {
 	where?: SQL | undefined;
 	table: MySqlTable;
 	returning?: SelectedFieldsOrdered;
+	withList?: Subquery[];
 }
 
 export type MySqlDeletePrepare<T extends AnyMySqlDeleteBase> = PreparedQueryKind<
@@ -92,9 +94,10 @@ export class MySqlDeleteBase<
 		private table: TTable,
 		private session: MySqlSession,
 		private dialect: MySqlDialect,
+		withList?: Subquery[],
 	) {
 		super();
-		this.config = { table };
+		this.config = { table, withList };
 	}
 
 	/** 
