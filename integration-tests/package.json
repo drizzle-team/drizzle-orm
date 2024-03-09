@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "test:types": "tsc",
-    "test": "NODE_OPTIONS='--loader=tsx --no-warnings' ava --timeout=60s --serial && pnpm test:esm && pnpm test:rqb",
+    "test": "pnpm test:ava && pnpm test:esm && pnpm test:rqb",
+    "test:ava": "NODE_OPTIONS='--loader=tsx --no-warnings' ava tests --timeout=60s --serial",
     "test:rqb": "vitest run --no-threads",
     "test:esm": "node tests/imports.test.mjs && node tests/imports.test.cjs"
   },
@@ -23,6 +24,8 @@
       "!tests/relational/**/*",
       "!tests/libsql-batch.test.ts",
       "!tests/d1-batch.test.ts",
+      "!tests/sqlite-proxy-batch.test.ts",
+      "!tests/neon-http-batch.test.ts",
       "!tests/replicas/**/*",
       "!tests/imports/**/*"
     ],
@@ -38,7 +41,7 @@
   "license": "Apache-2.0",
   "private": true,
   "devDependencies": {
-    "@neondatabase/serverless": "0.4.24",
+    "@neondatabase/serverless": "0.8.1",
     "@originjs/vite-plugin-commonjs": "^1.0.3",
     "@types/axios": "^0.14.0",
     "@types/better-sqlite3": "^7.6.4",
@@ -62,7 +65,7 @@
     "@libsql/client": "^0.1.6",
     "@miniflare/d1": "^2.14.0",
     "@miniflare/shared": "^2.14.0",
-    "@planetscale/database": "^1.7.0",
+    "@planetscale/database": "^1.16.0",
     "@typescript/analyze-trace": "^0.10.0",
     "@vercel/postgres": "^0.3.0",
     "better-sqlite3": "^8.4.0",

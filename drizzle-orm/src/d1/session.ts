@@ -6,7 +6,7 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
-import { type Query, sql, fillPlaceholders } from '~/sql/sql.ts';
+import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteTransaction } from '~/sqlite-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types.ts';
@@ -57,7 +57,7 @@ export class SQLiteD1Session<
 		const builtQueries: D1PreparedStatement[] = [];
 
 		for (const query of queries) {
-			const preparedQuery = query.prepare();
+			const preparedQuery = query._prepare();
 			const builtQuery = preparedQuery.getQuery();
 			preparedQueries.push(preparedQuery);
 			if (builtQuery.params.length > 0) {
@@ -154,8 +154,8 @@ export class SQLiteD1Session<
 		// return res;
 	}
 
-	override extractRawAllValueFromBatchResult(_result: unknown): unknown {
-		return (_result as D1Result).results;
+	override extractRawAllValueFromBatchResult(result: unknown): unknown {
+		return (result as D1Result).results;
 	}
 
 	override extractRawGetValueFromBatchResult(result: unknown): unknown {

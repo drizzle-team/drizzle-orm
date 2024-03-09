@@ -7,15 +7,17 @@ import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
+import type { Subquery } from '~/subquery.ts';
 import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
-import type { SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
 import type { SQLiteColumn } from '../columns/common.ts';
+import type { SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
 
 export interface SQLiteUpdateConfig {
 	where?: SQL | undefined;
 	set: UpdateSet;
 	table: SQLiteTable;
 	returning?: SelectedFieldsOrdered;
+	withList?: Subquery[];
 }
 
 export type SQLiteUpdateSetSource<TTable extends SQLiteTable> =
@@ -41,10 +43,17 @@ export class SQLiteUpdateBuilder<
 		protected table: TTable,
 		protected session: SQLiteSession<any, any, any, any>,
 		protected dialect: SQLiteDialect,
+		private withList?: Subquery[],
 	) {}
 
 	set(values: SQLiteUpdateSetSource<TTable>): SQLiteUpdateBase<TTable, TResultType, TRunResult> {
-		return new SQLiteUpdateBase(this.table, mapUpdateSet(this.table, values), this.session, this.dialect);
+		return new SQLiteUpdateBase(
+			this.table,
+			mapUpdateSet(this.table, values),
+			this.session,
+			this.dialect,
+			this.withList,
+		);
 	}
 }
 
@@ -170,23 +179,24 @@ export class SQLiteUpdateBase<
 		set: UpdateSet,
 		private session: SQLiteSession<any, any, any, any>,
 		private dialect: SQLiteDialect,
+		withList?: Subquery[],
 	) {
 		super();
-		this.config = { set, table };
+		this.config = { set, table, withList };
 	}
 
 	/**
 	 * Adds a 'where' clause to the query.
-	 * 
+	 *
 	 * Calling this method will update only those rows that fulfill a specified condition.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/update}
-	 * 
+	 *
 	 * @param where the 'where' clause.
-	 * 
+	 *
 	 * @example
 	 * You can use conditional operators and `sql function` to filter the rows to be updated.
-	 * 
+	 *
 	 * ```ts
 	 * // Update all cars with green color
 	 * db.update(cars).set({ color: 'red' })
@@ -195,14 +205,14 @@ export class SQLiteUpdateBase<
 	 * db.update(cars).set({ color: 'red' })
 	 *   .where(sql`${cars.color} = 'green'`)
 	 * ```
-	 * 
+	 *
 	 * You can logically combine conditional operators with `and()` and `or()` operators:
-	 * 
+	 *
 	 * ```ts
 	 * // Update all BMW cars with a green color
 	 * db.update(cars).set({ color: 'red' })
 	 *   .where(and(eq(cars.color, 'green'), eq(cars.brand, 'BMW')));
-	 * 
+	 *
 	 * // Update all cars with the green or blue color
 	 * db.update(cars).set({ color: 'red' })
 	 *   .where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
@@ -215,11 +225,11 @@ export class SQLiteUpdateBase<
 
 	/**
 	 * Adds a `returning` clause to the query.
-	 * 
+	 *
 	 * Calling this method will return the specified fields of the updated rows. If no fields are specified, all fields will be returned.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/update#update-with-returning}
-	 * 
+	 *
 	 * @example
 	 * ```ts
 	 * // Update all cars with the green color and return all fields
@@ -227,7 +237,7 @@ export class SQLiteUpdateBase<
 	 *   .set({ color: 'red' })
 	 *   .where(eq(cars.color, 'green'))
 	 *   .returning();
-	 * 
+	 *
 	 * // Update all cars with the green color and return only their id and brand fields
 	 * const updatedCarsIdsAndBrands: { id: number, brand: string }[] = await db.update(cars)
 	 *   .set({ color: 'red' })
@@ -256,7 +266,8 @@ export class SQLiteUpdateBase<
 		return rest;
 	}
 
-	prepare(isOneTimeQuery?: boolean): SQLiteUpdatePrepare<this> {
+	/** @internal */
+	_prepare(isOneTimeQuery = true): SQLiteUpdatePrepare<this> {
 		return this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
@@ -264,20 +275,24 @@ export class SQLiteUpdateBase<
 		) as SQLiteUpdatePrepare<this>;
 	}
 
+	prepare(): SQLiteUpdatePrepare<this> {
+		return this._prepare(false);
+	}
+
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
-		return this.prepare(true).run(placeholderValues);
+		return this._prepare().run(placeholderValues);
 	};
 
 	all: ReturnType<this['prepare']>['all'] = (placeholderValues) => {
-		return this.prepare(true).all(placeholderValues);
+		return this._prepare().all(placeholderValues);
 	};
 
 	get: ReturnType<this['prepare']>['get'] = (placeholderValues) => {
-		return this.prepare(true).get(placeholderValues);
+		return this._prepare().get(placeholderValues);
 	};
 
 	values: ReturnType<this['prepare']>['values'] = (placeholderValues) => {
-		return this.prepare(true).values(placeholderValues);
+		return this._prepare().values(placeholderValues);
 	};
 
 	override async execute(): Promise<SQLiteUpdateExecute<this>> {
