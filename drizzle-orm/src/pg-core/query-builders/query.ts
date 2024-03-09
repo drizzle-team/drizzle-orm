@@ -8,11 +8,12 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { Query, QueryWithTypings, SQL } from '~/sql/sql.ts';
+import type { RunnableQuery } from '~/runnable-query.ts';
+import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
-import type { PgSession, PreparedQuery, PreparedQueryConfig } from '../session.ts';
+import type { PgPreparedQuery, PgSession, PreparedQueryConfig } from '../session.ts';
 import type { PgTable } from '../table.ts';
 
 export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields extends TableRelationalConfig> {
@@ -61,10 +62,15 @@ export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFie
 	}
 }
 
-export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
+export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
+	implements RunnableQuery<TResult, 'pg'>, SQLWrapper
+{
 	static readonly [entityKind]: string = 'PgRelationalQuery';
 
-	declare protected $brand: 'PgRelationalQuery';
+	declare readonly _: {
+		readonly dialect: 'pg';
+		readonly result: TResult;
+	};
 
 	constructor(
 		private fullSchema: Record<string, unknown>,
@@ -80,7 +86,8 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 		super();
 	}
 
-	private _prepare(name?: string): PreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	/** @internal */
+	_prepare(name?: string): PgPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const { query, builtQuery } = this._toSQL();
 
@@ -101,7 +108,7 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult> {
 		});
 	}
 
-	prepare(name: string): PreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	prepare(name: string): PgPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return this._prepare(name);
 	}
 
