@@ -3,7 +3,6 @@ import 'dotenv/config';
 import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
-import Docker from 'dockerode';
 import {
 	and,
 	arrayContained,
@@ -29,10 +28,12 @@ import {
 	boolean,
 	char,
 	cidr,
+	date,
 	getMaterializedViewConfig,
 	getViewConfig,
 	inet,
 	integer,
+	interval,
 	jsonb,
 	macaddr,
 	macaddr8,
@@ -44,14 +45,14 @@ import {
 	pgView,
 	serial,
 	text,
+	time,
 	timestamp,
 	uuid as pgUuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
-import getPort from 'get-port';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
-import { type Equal, Expect } from './utils.ts';
+import { type Equal, Expect, randomString } from './utils.ts';
 
 const { Client } = pg;
 
@@ -120,8 +121,6 @@ const usersMigratorTable = pgTable('users12', {
 });
 
 interface Context {
-	docker: Docker;
-	pgContainer: Docker.Container;
 	db: NeonHttpDatabase;
 	ddlRunner: pg.Client;
 	client: NeonQueryFunction<false, true>;
@@ -129,67 +128,22 @@ interface Context {
 
 const test = anyTest as TestFn<Context>;
 
-async function createDockerDB(ctx: Context): Promise<string> {
-	const docker = (ctx.docker = new Docker());
-	const port = await getPort({ port: 5432 });
-	const image = 'postgres:14';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
-
-	ctx.pgContainer = await docker.createContainer({
-		Image: image,
-		Env: ['POSTGRES_PASSWORD=postgres', 'POSTGRES_USER=postgres', 'POSTGRES_DB=postgres'],
-		name: `drizzle-integration-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'5432/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await ctx.pgContainer.start();
-
-	return `postgres://postgres:postgres@localhost:${port}/postgres`;
-}
-
 test.before(async (t) => {
 	const ctx = t.context;
-	const connectionString = process.env['PG_CONNECTION_STRING'] ?? (await createDockerDB(ctx));
-
-	const sleep = 250;
-	let timeLeft = 5000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			ctx.client = neon(connectionString);
-			ctx.ddlRunner = new Client(connectionString);
-			await ctx.ddlRunner.connect();
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to Postgres');
-		await ctx.ddlRunner?.end().catch(console.error);
-		await ctx.pgContainer?.stop().catch(console.error);
-		throw lastError;
+	const connectionString = process.env['NEON_CONNECTION_STRING'];
+	if (!connectionString) {
+		throw new Error('NEON_CONNECTION_STRING is not defined');
 	}
+
+	ctx.client = neon(connectionString);
+	ctx.ddlRunner = new Client(connectionString);
+	await ctx.ddlRunner.connect();
 	ctx.db = drizzle(ctx.client, { logger: ENABLE_LOGGING });
 });
 
 test.after.always(async (t) => {
 	const ctx = t.context;
 	await ctx.ddlRunner?.end().catch(console.error);
-	await ctx.pgContainer?.stop().catch(console.error);
 });
 
 test.beforeEach(async (t) => {
@@ -916,7 +870,7 @@ test.serial('prepared statement with placeholder in .offset', async (t) => {
 	t.deepEqual(result, [{ id: 2, name: 'John1' }]);
 });
 
-test.serial('migrator', async (t) => {
+test.serial('migrator : default migration strategy', async (t) => {
 	const { db } = t.context;
 
 	await db.execute(sql`drop table if exists all_columns`);
@@ -934,6 +888,77 @@ test.serial('migrator', async (t) => {
 	await db.execute(sql`drop table all_columns`);
 	await db.execute(sql`drop table users12`);
 	await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
+});
+
+test.serial('migrator : migrate with custom schema', async (t) => { 
+	const { db } = t.context;
+	const customSchema = randomString();
+	await db.execute(sql`drop table if exists all_columns`);
+	await db.execute(sql`drop table if exists users12`);
+	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+
+	await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsSchema: customSchema });
+
+	// test if the custom migrations table was created
+	const {rowCount} = await db.execute(sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`);
+	t.true(rowCount > 0);
+
+	// test if the migrated table are working as expected
+	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	const result = await db.select().from(usersMigratorTable);
+	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+	
+	await db.execute(sql`drop table all_columns`);
+	await db.execute(sql`drop table users12`);
+	await db.execute(sql`drop table ${sql.identifier(customSchema)}."__drizzle_migrations"`);
+});
+
+test.serial('migrator : migrate with custom table', async (t) => { 
+	const { db } = t.context;
+	const customTable = randomString();
+	await db.execute(sql`drop table if exists all_columns`);
+	await db.execute(sql`drop table if exists users12`);
+	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+
+	await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsTable: customTable});
+
+	// test if the custom migrations table was created
+	const {rowCount} = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
+	t.true(rowCount > 0);
+
+	// test if the migrated table are working as expected
+	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	const result = await db.select().from(usersMigratorTable);
+	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+	
+	await db.execute(sql`drop table all_columns`);
+	await db.execute(sql`drop table users12`);
+	await db.execute(sql`drop table "drizzle".${sql.identifier(customTable)}`);
+});
+
+
+test.serial('migrator : migrate with custom table and custom schema', async (t) => { 
+	const { db } = t.context;
+	const customTable = randomString();
+	const customSchema = randomString();
+	await db.execute(sql`drop table if exists all_columns`);
+	await db.execute(sql`drop table if exists users12`);
+	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+
+	await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsTable: customTable, migrationsSchema: customSchema});
+
+	// test if the custom migrations table was created
+	const {rowCount} = await db.execute(sql`select * from ${sql.identifier(customSchema)}.${sql.identifier(customTable)};`);
+	t.true(rowCount > 0);
+
+	// test if the migrated table are working as expected
+	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	const result = await db.select().from(usersMigratorTable);
+	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+	
+	await db.execute(sql`drop table all_columns`);
+	await db.execute(sql`drop table users12`);
+	await db.execute(sql`drop table ${sql.identifier(customSchema)}.${sql.identifier(customTable)}`);
 });
 
 test.serial('insert via db.execute + select via db.execute', async (t) => {
@@ -2009,6 +2034,262 @@ test.serial('timestamp timezone', async (t) => {
 	// check that the timestamps are set correctly for non default times
 	t.assert(Math.abs(users[1]!.updatedAt.getTime() - date.getTime()) < 2000);
 	t.assert(Math.abs(users[1]!.createdAt.getTime() - date.getTime()) < 2000);
+});
+
+test.serial('all date and time columns', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		dateString: date('date_string', { mode: 'string' }).notNull(),
+		time: time('time', { precision: 3 }).notNull(),
+		datetime: timestamp('datetime').notNull(),
+		datetimeWTZ: timestamp('datetime_wtz', { withTimezone: true }).notNull(),
+		datetimeString: timestamp('datetime_string', { mode: 'string' }).notNull(),
+		datetimeFullPrecision: timestamp('datetime_full_precision', { precision: 6, mode: 'string' }).notNull(),
+		datetimeWTZString: timestamp('datetime_wtz_string', { withTimezone: true, mode: 'string' }).notNull(),
+		interval: interval('interval').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					date_string date not null,
+					time time(3) not null,
+					datetime timestamp not null,
+					datetime_wtz timestamp with time zone not null,
+					datetime_string timestamp not null,
+					datetime_full_precision timestamp(6) not null,
+					datetime_wtz_string timestamp with time zone not null,
+					interval interval not null
+			)
+	`);
+
+	const someDatetime = new Date('2022-01-01T00:00:00.123Z');
+	const fullPrecision = '2022-01-01T00:00:00.123456';
+	const someTime = '23:23:12.432';
+
+	await db.insert(table).values({
+		dateString: '2022-01-01',
+		time: someTime,
+		datetime: someDatetime,
+		datetimeWTZ: someDatetime,
+		datetimeString: '2022-01-01T00:00:00.123Z',
+		datetimeFullPrecision: fullPrecision.replace('T', ' ').replace('Z', ''),
+		datetimeWTZString: '2022-01-01T00:00:00.123Z',
+		interval: '1 day',
+	});
+
+	const result = await db.select().from(table);
+
+	Expect<
+		Equal<{
+			id: number;
+			dateString: string;
+			time: string;
+			datetime: Date;
+			datetimeWTZ: Date;
+			datetimeString: string;
+			datetimeFullPrecision: string;
+			datetimeWTZString: string;
+			interval: string;
+		}[], typeof result>
+	>;
+
+	Expect<
+		Equal<{
+			dateString: string;
+			time: string;
+			datetime: Date;
+			datetimeWTZ: Date;
+			datetimeString: string;
+			datetimeFullPrecision: string;
+			datetimeWTZString: string;
+			interval: string;
+			id?: number | undefined;
+		}, typeof table.$inferInsert>
+	>;
+
+	t.deepEqual(result, [
+		{
+			id: 1,
+			dateString: '2022-01-01',
+			time: someTime,
+			datetime: someDatetime,
+			datetimeWTZ: someDatetime,
+			datetimeString: '2022-01-01 00:00:00.123',
+			datetimeFullPrecision: fullPrecision.replace('T', ' '),
+			datetimeWTZString: '2022-01-01 00:00:00.123+00',
+			interval: '1 day',
+		},
+	]);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('all date and time columns with timezone', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp_string', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
+		timestampAsDate: timestamp('timestamp_date', { withTimezone: true, precision: 3 }).notNull(),
+		timestampTimeZones: timestamp('timestamp_date_2', { withTimezone: true, precision: 3 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(6) with time zone not null,
+					timestamp_date timestamp(3) with time zone not null,
+					timestamp_date_2 timestamp(3) with time zone not null
+			)
+	`);
+
+	const timestampString = '2022-01-01 00:00:00.123456-0200';
+	const timestampDate = new Date();
+	const timestampDateWTZ = new Date('2022-01-01 00:00:00.123 +0500');
+
+	const timestampString2 = '2022-01-01 00:00:00.123456-0400';
+	const timestampDate2 = new Date();
+	const timestampDateWTZ2 = new Date('2022-01-01 00:00:00.123 +0200');
+
+	await db.insert(table).values([
+		{ timestamp: timestampString, timestampAsDate: timestampDate, timestampTimeZones: timestampDateWTZ },
+		{ timestamp: timestampString2, timestampAsDate: timestampDate2, timestampTimeZones: timestampDateWTZ2 },
+	]);
+
+	const result = await db.select().from(table);
+	const result2 = await db.execute<{
+		id: number;
+		timestamp_string: string;
+		timestamp_date: string;
+		timestamp_date_2: string;
+	}>(sql`select * from ${table}`);
+
+	// Whatever you put in, you get back when you're using the date mode
+	// But when using the string mode, postgres returns a string transformed into UTC
+	t.deepEqual(result, [
+		{
+			id: 1,
+			timestamp: '2022-01-01 02:00:00.123456+00',
+			timestampAsDate: timestampDate,
+			timestampTimeZones: timestampDateWTZ,
+		},
+		{
+			id: 2,
+			timestamp: '2022-01-01 04:00:00.123456+00',
+			timestampAsDate: timestampDate2,
+			timestampTimeZones: timestampDateWTZ2,
+		},
+	]);
+
+	t.deepEqual(result2.rows, [
+		{
+			id: 1,
+			timestamp_string: '2022-01-01 02:00:00.123456+00',
+			timestamp_date: timestampDate.toISOString().replace('T', ' ').replace('Z', '') + '+00',
+			timestamp_date_2: timestampDateWTZ.toISOString().replace('T', ' ').replace('Z', '') + '+00',
+		},
+		{
+			id: 2,
+			timestamp_string: '2022-01-01 04:00:00.123456+00',
+			timestamp_date: timestampDate2.toISOString().replace('T', ' ').replace('Z', '') + '+00',
+			timestamp_date_2: timestampDateWTZ2.toISOString().replace('T', ' ').replace('Z', '') + '+00',
+		},
+	]);
+
+	t.deepEqual(
+		result[0]?.timestampTimeZones.getTime(),
+		new Date((result2.rows[0] as any).timestamp_date_2 as any).getTime(),
+	);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('all date and time columns without timezone', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestampString: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
+		timestampString2: timestamp('timestamp_string2', { precision: 3, mode: 'string' }).notNull(),
+		timestampDate: timestamp('timestamp_date', { precision: 3 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(6) not null,
+					timestamp_string2 timestamp(3) not null,
+					timestamp_date timestamp(3) not null
+			)
+	`);
+
+	const timestampString = '2022-01-01 00:00:00.123456';
+	const timestampString2 = '2022-01-02 00:00:00.123 -0300';
+	const timestampDate = new Date('2022-01-01 00:00:00.123Z');
+
+	const timestampString_2 = '2022-01-01 00:00:00.123456';
+	const timestampString2_2 = '2022-01-01 00:00:00.123 -0300';
+	const timestampDate2 = new Date('2022-01-01 00:00:00.123 +0200');
+
+	await db.insert(table).values([
+		{ timestampString, timestampString2, timestampDate },
+		{ timestampString: timestampString_2, timestampString2: timestampString2_2, timestampDate: timestampDate2 },
+	]);
+
+	const result = await db.select().from(table);
+	const result2 = await db.execute<{
+		id: number;
+		timestamp_string: string;
+		timestamp_string2: string;
+		timestamp_date: string;
+	}>(sql`select * from ${table}`);
+
+	// Whatever you put in, you get back when you're using the date mode
+	// But when using the string mode, postgres returns a string transformed into UTC
+	t.deepEqual(result, [
+		{
+			id: 1,
+			timestampString: timestampString,
+			timestampString2: '2022-01-02 00:00:00.123',
+			timestampDate: timestampDate,
+		},
+		{
+			id: 2,
+			timestampString: timestampString_2,
+			timestampString2: '2022-01-01 00:00:00.123',
+			timestampDate: timestampDate2,
+		},
+	]);
+
+	t.deepEqual(result2.rows, [
+		{
+			id: 1,
+			timestamp_string: timestampString,
+			timestamp_string2: '2022-01-02 00:00:00.123',
+			timestamp_date: timestampDate.toISOString().replace('T', ' ').replace('Z', ''),
+		},
+		{
+			id: 2,
+			timestamp_string: timestampString_2,
+			timestamp_string2: '2022-01-01 00:00:00.123',
+			timestamp_date: timestampDate2.toISOString().replace('T', ' ').replace('Z', ''),
+		},
+	]);
+
+	t.deepEqual((result2.rows[0] as any).timestamp_string, '2022-01-01 00:00:00.123456');
+	// need to add the 'Z', otherwise javascript assumes it's in local time
+	t.deepEqual(new Date((result2.rows[0] as any).timestamp_date + 'Z' as any).getTime(), timestampDate.getTime());
+
+	await db.execute(sql`drop table if exists ${table}`);
 });
 
 test.serial('transaction', async (t) => {
