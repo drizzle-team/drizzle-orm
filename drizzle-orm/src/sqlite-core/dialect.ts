@@ -3,7 +3,7 @@ import type { AnyColumn } from '~/column.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import type { MigrationMeta } from '~/migrator.ts';
+import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import {
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
@@ -16,9 +16,9 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
+import type { Name } from '~/sql/index.ts';
+import { and, eq } from '~/sql/index.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
-import type { Name} from '~/sql/index.ts';
-import { and, eq } from '~/sql/index.ts'
 import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteDeleteConfig, SQLiteInsertConfig, SQLiteUpdateConfig } from '~/sqlite-core/query-builders/index.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
@@ -719,9 +719,16 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 	migrate(
 		migrations: MigrationMeta[],
 		session: SQLiteSession<'sync', unknown, Record<string, unknown>, TablesRelationalConfig>,
+		config?: string | MigrationConfig,
 	): void {
+		const migrationsTable = config === undefined
+			? '__drizzle_migrations'
+			: typeof config === 'string'
+			? '__drizzle_migrations'
+			: config.migrationsTable ?? '__drizzle_migrations';
+
 		const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
+			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
 				id SERIAL PRIMARY KEY,
 				hash text NOT NULL,
 				created_at numeric
@@ -730,7 +737,7 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 		session.run(migrationTableCreate);
 
 		const dbMigrations = session.values<[number, string, string]>(
-			sql`SELECT id, hash, created_at FROM "__drizzle_migrations" ORDER BY created_at DESC LIMIT 1`,
+			sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY created_at DESC LIMIT 1`,
 		);
 
 		const lastDbMigration = dbMigrations[0] ?? undefined;
@@ -743,7 +750,9 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 						session.run(sql.raw(stmt));
 					}
 					session.run(
-						sql`INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
+						sql`INSERT INTO ${
+							sql.identifier(migrationsTable)
+						} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
 					);
 				}
 			}
@@ -762,9 +771,16 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 	async migrate(
 		migrations: MigrationMeta[],
 		session: SQLiteSession<'async', unknown, Record<string, unknown>, TablesRelationalConfig>,
+		config?: string | MigrationConfig,
 	): Promise<void> {
+		const migrationsTable = config === undefined
+			? '__drizzle_migrations'
+			: typeof config === 'string'
+				? '__drizzle_migrations'
+				: config.migrationsTable ?? '__drizzle_migrations';
+
 		const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
+			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
 				id SERIAL PRIMARY KEY,
 				hash text NOT NULL,
 				created_at numeric
@@ -773,7 +789,7 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 		await session.run(migrationTableCreate);
 
 		const dbMigrations = await session.values<[number, string, string]>(
-			sql`SELECT id, hash, created_at FROM "__drizzle_migrations" ORDER BY created_at DESC LIMIT 1`,
+			sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY created_at DESC LIMIT 1`,
 		);
 
 		const lastDbMigration = dbMigrations[0] ?? undefined;
@@ -785,7 +801,9 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 						await tx.run(sql.raw(stmt));
 					}
 					await tx.run(
-						sql`INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
+						sql`INSERT INTO ${
+							sql.identifier(migrationsTable)
+						} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
 					);
 				}
 			}

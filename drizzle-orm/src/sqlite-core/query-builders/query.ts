@@ -137,10 +137,13 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 		}).sql as SQL;
 	}
 
-	prepare(): SQLitePreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }> {
+	/** @internal */
+	_prepare(
+		isOneTimeQuery = false,
+	): SQLitePreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }> {
 		const { query, builtQuery } = this._toSQL();
 
-		return this.session.prepareQuery(
+		return this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
 			builtQuery,
 			undefined,
 			this.mode === 'first' ? 'get' : 'all',
@@ -154,6 +157,10 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 				return rows as TResult;
 			},
 		) as SQLitePreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }>;
+	}
+
+	prepare(): SQLitePreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }> {
+		return this._prepare(false);
 	}
 
 	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
@@ -179,9 +186,9 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 	/** @internal */
 	executeRaw(): TResult {
 		if (this.mode === 'first') {
-			return this.prepare().get() as TResult;
+			return this._prepare(false).get() as TResult;
 		}
-		return this.prepare().all() as TResult;
+		return this._prepare(false).all() as TResult;
 	}
 
 	override async execute(): Promise<TResult> {

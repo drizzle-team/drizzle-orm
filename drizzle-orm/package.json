@@ -1,6 +1,6 @@
 {
   "name": "drizzle-orm",
-  "version": "0.29.3",
+  "version": "0.30.1",
   "description": "Drizzle ORM package for SQL databases",
   "type": "module",
   "scripts": {
@@ -22,6 +22,7 @@
     "type": "git",
     "url": "git+https://github.com/drizzle-team/drizzle-orm.git"
   },
+  "homepage": "https://orm.drizzle.team",
   "keywords": [
     "drizzle",
     "orm",
@@ -41,12 +42,12 @@
   "bugs": {
     "url": "https://github.com/drizzle-team/drizzle-orm/issues"
   },
-  "homepage": "https://github.com/drizzle-team/drizzle-orm#readme",
   "peerDependencies": {
     "@aws-sdk/client-rds-data": ">=3",
     "@cloudflare/workers-types": ">=3",
     "@libsql/client": "*",
     "@neondatabase/serverless": ">=0.1",
+    "@op-engineering/op-sqlite": ">=2",
     "@opentelemetry/api": "^1.4.1",
     "@planetscale/database": ">=1",
     "@types/better-sqlite3": "*",
@@ -127,6 +128,9 @@
     "expo-sqlite": {
       "optional": true
     },
+    "@op-engineering/op-sqlite": {
+      "optional": true
+    },
     "react": {
       "optional": true
     },
@@ -139,9 +143,10 @@
     "@cloudflare/workers-types": "^4.20230904.0",
     "@libsql/client": "^0.1.6",
     "@neondatabase/serverless": "^0.4.24",
+    "@op-engineering/op-sqlite": "^2.0.16",
     "@opentelemetry/api": "^1.4.1",
     "@originjs/vite-plugin-commonjs": "^1.0.3",
-    "@planetscale/database": "^1.7.0",
+    "@planetscale/database": "^1.16.0",
     "@types/better-sqlite3": "^7.6.4",
     "@types/node": "^20.2.5",
     "@types/pg": "^8.10.1",

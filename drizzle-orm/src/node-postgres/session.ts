@@ -6,7 +6,7 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
-import { PgSession, PreparedQuery } from '~/pg-core/session.ts';
+import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
@@ -17,11 +17,11 @@ const NativePool = native?.Pool;
 
 export type NodePgClient = pg.Pool | PoolClient | Client;
 
-export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
+export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
 	static readonly [entityKind]: string = 'NodePgPreparedQuery';
 
-	private rawQuery: QueryConfig;
-	private query: QueryArrayConfig;
+	private rawQueryConfig: QueryConfig;
+	private queryConfig: QueryArrayConfig;
 
 	constructor(
 		private client: NodePgClient,
@@ -32,12 +32,12 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 		name: string | undefined,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super();
-		this.rawQuery = {
+		super({ sql: queryString, params });
+		this.rawQueryConfig = {
 			name,
 			text: queryString,
 		};
-		this.query = {
+		this.queryConfig = {
 			name,
 			text: queryString,
 			rowMode: 'array',
@@ -48,9 +48,10 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 		return tracer.startActiveSpan('drizzle.execute', async () => {
 			const params = fillPlaceholders(this.params, placeholderValues);
 
-			this.logger.logQuery(this.rawQuery.text, params);
+			this.logger.logQuery(this.rawQueryConfig.text, params);
 
-			const { fields, rawQuery, client, query, joinsNotNullableMap, customResultMapper } = this;
+			const { fields, rawQueryConfig: rawQuery, client, queryConfig: query, joinsNotNullableMap, customResultMapper } =
+				this;
 			if (!fields && !customResultMapper) {
 				return tracer.startActiveSpan('drizzle.driver.execute', async (span) => {
 					span?.setAttributes({
@@ -82,14 +83,14 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends Prepared
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
 		return tracer.startActiveSpan('drizzle.execute', () => {
 			const params = fillPlaceholders(this.params, placeholderValues);
-			this.logger.logQuery(this.rawQuery.text, params);
+			this.logger.logQuery(this.rawQueryConfig.text, params);
 			return tracer.startActiveSpan('drizzle.driver.execute', (span) => {
 				span?.setAttributes({
-					'drizzle.query.name': this.rawQuery.name,
-					'drizzle.query.text': this.rawQuery.text,
+					'drizzle.query.name': this.rawQueryConfig.name,
+					'drizzle.query.text': this.rawQueryConfig.text,
 					'drizzle.query.params': JSON.stringify(params),
 				});
-				return this.client.query(this.rawQuery, params).then((result) => result.rows);
+				return this.client.query(this.rawQueryConfig, params).then((result) => result.rows);
 			});
 		});
 	}
@@ -122,7 +123,7 @@ export class NodePgSession<
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
-	): PreparedQuery<T> {
+	): PgPreparedQuery<T> {
 		return new NodePgPreparedQuery(this.client, query.sql, query.params, this.logger, fields, name, customResultMapper);
 	}
 
