@@ -12,8 +12,12 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 ) {
 	const migrations = readMigrationFiles(config);
 
+	const migrationsTable = typeof config === 'string'
+		? '__drizzle_migrations'
+		: config.migrationsTable ?? '__drizzle_migrations';
+
 	const migrationTableCreate = sql`
-		CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
+		CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
 			id SERIAL PRIMARY KEY,
 			hash text NOT NULL,
 			created_at numeric
@@ -23,7 +27,7 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 	await db.run(migrationTableCreate);
 
 	const dbMigrations = await db.values<[number, string, string]>(
-		sql`SELECT id, hash, created_at FROM "__drizzle_migrations" ORDER BY created_at DESC LIMIT 1`,
+		sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY created_at DESC LIMIT 1`,
 	);
 
 	const lastDbMigration = dbMigrations[0] ?? undefined;
@@ -36,7 +40,7 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 		) {
 			queriesToRun.push(
 				...migration.sql,
-				`INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES('${migration.hash}', '${migration.folderMillis}')`,
+				`INSERT INTO \`${migrationsTable}\` ("hash", "created_at") VALUES('${migration.hash}', '${migration.folderMillis}')`,
 			);
 		}
 	}

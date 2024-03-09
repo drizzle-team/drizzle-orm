@@ -19,7 +19,7 @@ import {
 } from 'drizzle-orm/sqlite-core';
 import type { Database } from 'sql.js';
 import initSqlJs from 'sql.js';
-import { Expect } from './utils.ts';
+import { Expect, randomString } from './utils.ts';
 
 const ENABLE_LOGGING = false;
 
@@ -727,6 +727,29 @@ test.serial('migrator', (t) => {
 	db.run(sql`drop table another_users`);
 	db.run(sql`drop table users12`);
 	db.run(sql`drop table __drizzle_migrations`);
+});
+
+test.serial('migrator : migrate with custom table', async (t) => {
+	const { db } = t.context;
+	const customTable = randomString();
+	db.run(sql`drop table if exists another_users`);
+	db.run(sql`drop table if exists users12`);
+	db.run(sql`drop table if exists ${sql.identifier(customTable)}`);
+
+	migrate(db, { migrationsFolder: './drizzle2/sqlite', migrationsTable: customTable });
+
+	// test if the custom migrations table was created
+	const res = db.all(sql`select * from ${sql.identifier(customTable)};`);
+	t.true(res.length > 0);
+
+	// test if the migrated table are working as expected
+	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	const result = await db.select().from(usersMigratorTable);
+	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+
+	db.run(sql`drop table another_users`);
+	db.run(sql`drop table users12`);
+	db.run(sql`drop table ${sql.identifier(customTable)}`);
 });
 
 test.serial('insert via db.run + select via db.all', (t) => {

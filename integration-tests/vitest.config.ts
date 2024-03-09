@@ -9,11 +9,15 @@ export default defineConfig({
 			'tests/relational/**/*.test.ts',
 			'tests/libsql-batch.test.ts',
 			'tests/d1-batch.test.ts',
+			'tests/sqlite-proxy-batch.test.ts',
+			'tests/neon-http-batch.test.ts',
 			'tests/replicas/**/*',
 			'tests/imports/**/*',
 		],
 		exclude: [
-			...(process.env.SKIP_PLANETSCALE_TESTS ? ['tests/relational/mysql.planetscale.test.ts'] : []),
+			...(process.env.SKIP_EXTERNAL_DB_TESTS
+				? ['tests/relational/mysql.planetscale.test.ts', 'tests/neon-http-batch.test.ts']
+				: []),
 			'tests/relational/vercel.test.ts',
 		],
 		typecheck: {
