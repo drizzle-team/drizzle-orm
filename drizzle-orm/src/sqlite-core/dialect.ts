@@ -771,11 +771,13 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 	async migrate(
 		migrations: MigrationMeta[],
 		session: SQLiteSession<'async', unknown, Record<string, unknown>, TablesRelationalConfig>,
-		config: string | MigrationConfig,
+		config?: string | MigrationConfig,
 	): Promise<void> {
-		const migrationsTable = typeof config === 'string'
+		const migrationsTable = config === undefined
 			? '__drizzle_migrations'
-			: config.migrationsTable ?? '__drizzle_migrations';
+			: typeof config === 'string'
+				? '__drizzle_migrations'
+				: config.migrationsTable ?? '__drizzle_migrations';
 
 		const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
