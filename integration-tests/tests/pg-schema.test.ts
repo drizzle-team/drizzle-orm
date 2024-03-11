@@ -3,7 +3,7 @@ import 'dotenv/config';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import Docker from 'dockerode';
-import { asc, eq, Name, placeholder, sql } from 'drizzle-orm';
+import { asc, eq, isNull, Name, placeholder, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import {
@@ -56,6 +56,23 @@ const publicUsersTable = pgTable('users', {
 	jsonb: jsonb('jsonb').$type<string[]>(),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+const usernamesTable = mySchema.table(
+	"usernames",
+	{
+		id: serial("id").primaryKey(),
+		username: text("username").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+		deletedAt: timestamp("deleted_at", { withTimezone: true }),
+	},
+	(usernames) => ({
+		uniqueUsername: uniqueIndex()
+			.on(usernames.username)
+			.where(sql`${usernames.deletedAt} is null`),
+	})
+);
 
 interface Context {
 	docker: Docker;
@@ -164,6 +181,21 @@ test.beforeEach(async (t) => {
 				city_id integer references "mySchema".cities(id)
 			)
 		`,
+	);
+	await ctx.db.execute(
+		sql`
+			create table "mySchema".usernames (
+				id serial primary key,
+				username text not null,
+				created_at timestamptz not null default now(),
+				deleted_at timestamptz
+			)
+		`
+	);
+	await ctx.db.execute(
+		sql`
+			create unique index "usernames_username_index" on "mySchema".usernames ("username") where "deleted_at" is null;
+		`
 	);
 });
 
@@ -715,6 +747,25 @@ test.serial('build query insert with onConflict do update / multiple columns', a
 	});
 });
 
+test.serial("build query insert with onConflictDoUpdate with targetWhere", async (t) => {
+	const { db } = t.context;
+
+	const query = db.insert(usernamesTable)
+		.values({ username: "john" })
+		.onConflictDoUpdate({
+			target: usernamesTable.username,
+			targetWhere: isNull(usernamesTable.deletedAt),
+			set: { username: "johnny" },
+		})
+		.toSQL();
+
+	t.deepEqual(query, {
+		sql: 'insert into "mySchema"."usernames" ("id", "username", "created_at", "deleted_at") values (default, $1, default, default) on conflict ("username") where "usernames"."deleted_at" is null do update set "username" = $2',
+		params: ["john", "johnny"],
+	});
+});
+
+
 test.serial('build query insert with onConflict do nothing', async (t) => {
 	const { db } = t.context;
 
@@ -760,6 +811,35 @@ test.serial('insert with onConflict do update', async (t) => {
 	);
 
 	t.deepEqual(res, [{ id: 1, name: 'John1' }]);
+});
+
+test.serial("insert with onConflictDoUpdate without and with targetWhere", async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usernamesTable).values({ username: "john" });
+
+	await t.throwsAsync(async () =>
+		await db.insert(usernamesTable)
+			.values({ username: "john" })
+			.onConflictDoUpdate({
+				target: usernamesTable.username,
+				set: { username: "johnny" },
+			})
+	);
+
+	await db.insert(usernamesTable)
+		.values({ username: "john" })
+		.onConflictDoUpdate({
+			target: usernamesTable.username,
+			targetWhere: isNull(usernamesTable.deletedAt),
+			set: { username: "johnny" },
+		});
+
+	const res = await db.select({ id: usernamesTable.id, username: usernamesTable.username })
+		.from(usernamesTable)
+		.where(eq(usernamesTable.id, 1));
+
+	t.deepEqual(res, [{ id: 1, username: "johnny" }]);
 });
 
 test.serial('insert with onConflict do nothing', async (t) => {
