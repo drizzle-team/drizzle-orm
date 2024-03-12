@@ -229,9 +229,6 @@ importers:
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
         version: 11.1.1(rollup@3.27.2)(typescript@5.2.2)
-      '@sinclair/typebox':
-        specifier: ^0.29.6
-        version: 0.29.6
       '@types/node':
         specifier: ^18.15.10
         version: 18.15.10
@@ -254,8 +251,8 @@ importers:
         specifier: ^3.12.2
         version: 3.12.7
       valibot:
-        specifier: ^0.12.0
-        version: 0.12.0
+        specifier: ^0.30.0
+        version: 0.30.0
       zx:
         specifier: ^7.2.2
         version: 7.2.2
@@ -14037,8 +14034,8 @@ packages:
       sade: 1.8.1
     dev: false
 
-  /valibot@0.12.0:
-    resolution: {integrity: sha512-EGx/uDUpRa9wB9NkD7fsktc02rvXWlJzDTC/ihbE+NybhzAsMhns2OOdNv2R4BtdGnDvaCEGi/DbgR5RvgCS8A==}
+  /valibot@0.30.0:
+    resolution: {integrity: sha512-5POBdbSkM+3nvJ6ZlyQHsggisfRtyT4tVTo1EIIShs6qCdXJnyWU5TJ68vr8iTg5zpOLjXLRiBqNx+9zwZz/rA==}
     dev: true
 
   /valid-url@1.0.9:

@@ -4,7 +4,6 @@ import {
 	bigint as valibigint,
 	boolean,
 	date as valiDate,
-	enumType,
 	minValue,
 	nullable,
 	number,
@@ -12,6 +11,7 @@ import {
 	optional,
 	type Output,
 	parse,
+	picklist,
 	string,
 } from 'valibot';
 import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
@@ -69,7 +69,7 @@ test('users insert schema', (t) => {
 	const actual = createInsertSchema(users, {
 		id: () => number([minValue(0)]),
 		blobJson: blobJsonSchema,
-		role: enumType(['admin', 'user', 'manager']),
+		role: picklist(['admin', 'user', 'manager']),
 	});
 
 	(() => {
@@ -98,7 +98,7 @@ test('users insert schema', (t) => {
 		boolean: boolean(),
 		real: number(),
 		text: optional(nullable(string())),
-		role: optional(enumType(['admin', 'user', 'manager'])),
+		role: optional(picklist(['admin', 'user', 'manager'])),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -117,7 +117,7 @@ test('users insert schema w/ defaults', (t) => {
 		boolean: boolean(),
 		real: number(),
 		text: optional(nullable(string())),
-		role: optional(enumType(['admin', 'user'])),
+		role: optional(picklist(['admin', 'user'])),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -126,7 +126,7 @@ test('users insert schema w/ defaults', (t) => {
 test('users select schema', (t) => {
 	const actual = createSelectSchema(users, {
 		blobJson: jsonSchema,
-		role: enumType(['admin', 'user', 'manager']),
+		role: picklist(['admin', 'user', 'manager']),
 	});
 
 	(() => {
@@ -155,7 +155,7 @@ test('users select schema', (t) => {
 		boolean: boolean(),
 		real: number(),
 		text: nullable(string()),
-		role: enumType(['admin', 'user', 'manager']),
+		role: picklist(['admin', 'user', 'manager']),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -174,7 +174,7 @@ test('users select schema w/ defaults', (t) => {
 		boolean: boolean(),
 		real: number(),
 		text: nullable(string()),
-		role: enumType(['admin', 'user']),
+		role: picklist(['admin', 'user']),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
