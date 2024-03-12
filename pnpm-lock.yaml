@@ -229,9 +229,6 @@ importers:
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
         version: 11.1.1(rollup@3.27.2)(typescript@5.2.2)
-      '@sinclair/typebox':
-        specifier: ^0.29.6
-        version: 0.29.6
       '@types/node':
         specifier: ^18.15.10
         version: 18.15.10
