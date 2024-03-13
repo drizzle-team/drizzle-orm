@@ -77,6 +77,14 @@ test('select all fields', (ctx) => {
 	);
 });
 
+test('returning get', (ctx) => {
+  const { db } = ctx;
+
+  const user = db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id }).get();
+
+  assert.equal(user, { id: 1 })
+})
+
 test.run();
 
 // test.serial('select partial', (t) => {
