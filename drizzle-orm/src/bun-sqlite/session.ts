@@ -133,7 +133,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	get(placeholderValues?: Record<string, unknown>): T['get'] {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		const row = this.stmt.get(...params);
+		const row = this.stmt.values(...params)[0];
 
 		if (!row) {
 			return undefined;
