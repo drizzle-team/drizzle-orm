@@ -52,7 +52,7 @@ export class SQLiteD1Session<
 		return new D1PreparedQuery(stmt, query, this.logger, fields, executeMethod, customResultMapper);
 	}
 
-	/*override */ async batch<U extends BatchItem, T extends Readonly<[U, ...U[]]>>(queries: T) {
+	/*override */ async batch<U extends BatchItem<'sqlite'>, T extends U[] | Readonly<[U, ...U[]]>>(queries: T) {
 		const preparedQueries: PreparedQuery[] = [];
 		const builtQueries: D1PreparedStatement[] = [];
 

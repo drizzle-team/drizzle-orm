@@ -132,7 +132,7 @@ export class NeonHttpSession<
 		);
 	}
 
-	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(queries: T) {
+	async batch<U extends BatchItem<'pg'>, T extends U[] | Readonly<[U, ...U[]]>>(queries: T) {
 		const preparedQueries: PreparedQuery[] = [];
 		const builtQueries: Promise<FullQueryResults<true> | QueryRows<true>>[] = [];
 

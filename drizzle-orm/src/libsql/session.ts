@@ -59,7 +59,7 @@ export class LibSQLSession<
 		);
 	}
 
-	async batch<T extends BatchItem<'sqlite'>[] | readonly BatchItem<'sqlite'>[]>(queries: T) {
+	async batch<U extends BatchItem<'sqlite'>, T extends U[] | Readonly<[U, ...U[]]>>(queries: T) {
 		const preparedQueries: PreparedQuery[] = [];
 		const builtQueries: InStatement[] = [];
 

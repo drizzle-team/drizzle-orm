@@ -35,7 +35,7 @@ export class SQLiteRemoteSession<
 		private client: RemoteCallback,
 		dialect: SQLiteAsyncDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
-		private batchCLient?: AsyncBatchRemoteCallback,
+		private batchClient?: AsyncBatchRemoteCallback,
 		options: SQLiteRemoteSessionOptions = {},
 	) {
 		super(dialect);
@@ -51,7 +51,7 @@ export class SQLiteRemoteSession<
 		return new RemotePreparedQuery(this.client, query, this.logger, fields, executeMethod, customResultMapper);
 	}
 
-	async batch<T extends BatchItem<'sqlite'>[] | readonly BatchItem<'sqlite'>[]>(queries: T) {
+	async batch<U extends BatchItem<'sqlite'>, T extends U[] | Readonly<[U, ...U[]]>>(queries: T) {
 		const preparedQueries: PreparedQuery[] = [];
 		const builtQueries: { sql: string; params: any[]; method: 'run' | 'all' | 'values' | 'get' }[] = [];
 
@@ -62,7 +62,7 @@ export class SQLiteRemoteSession<
 			builtQueries.push({ sql: builtQuery.sql, params: builtQuery.params, method: builtQuery.method });
 		}
 
-		const batchResults = await (this.batchCLient as AsyncBatchRemoteCallback)(builtQueries);
+		const batchResults = await (this.batchClient as AsyncBatchRemoteCallback)(builtQueries);
 		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
 	}
 
