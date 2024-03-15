@@ -131,8 +131,8 @@ importers:
         specifier: ^0.3.0
         version: 0.3.0
       '@xata.io/client':
-        specifier: ^0.29.1
-        version: 0.29.1(typescript@5.2.2)
+        specifier: ^0.29.3
+        version: 0.29.3(typescript@5.2.2)
       better-sqlite3:
         specifier: ^8.4.0
         version: 8.4.0
@@ -5643,8 +5643,8 @@ packages:
       pretty-format: 29.7.0
     dev: true
 
-  /@xata.io/client@0.29.1(typescript@5.2.2):
-    resolution: {integrity: sha512-JuxRxk28tDFQUOgxcSB0VRWvK+t1c307tSgESZmwzu1Uj0NxvD+YH4vW2Ob5A4o/daK0wgaITO22vsdTidwakQ==}
+  /@xata.io/client@0.29.3(typescript@5.2.2):
+    resolution: {integrity: sha512-GsH3RNU2P0fP+YKTFVZZ/DAkczJ6/25xyXg383GIlgLW9juy5PpMumscFIgfjWIbvnasATKNVN2127C4ONfOTg==}
     peerDependencies:
       typescript: '>=4.5'
     dependencies:
