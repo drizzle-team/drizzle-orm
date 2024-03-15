@@ -157,7 +157,7 @@
     "@types/react": "^18.2.45",
     "@types/sql.js": "^1.4.4",
     "@vercel/postgres": "^0.3.0",
-    "@xata.io/client": "^0.29.1",
+    "@xata.io/client": "^0.29.3",
     "better-sqlite3": "^8.4.0",
     "bun-types": "^0.6.6",
     "cpy": "^10.1.0",
