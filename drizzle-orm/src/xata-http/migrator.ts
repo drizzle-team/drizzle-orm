@@ -1,6 +1,6 @@
 import type { MigrationConfig } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
-import { type SQL, sql } from '~/sql/sql.ts';
+import { sql } from '~/sql/sql.ts';
 import type { XataHttpDatabase } from './driver.ts';
 
 /**
@@ -32,18 +32,18 @@ export async function migrate<TSchema extends Record<string, unknown>>(db: XataH
   }>(sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} order by created_at desc limit 1`);
 
   const lastDbMigration = dbMigrations[0];
-  const rowsToInsert: SQL[] = [];
+
   for await (const migration of migrations) {
     if (!lastDbMigration || Number(lastDbMigration.created_at) < migration.folderMillis) {
       for (const stmt of migration.sql) {
         await db.session.execute(sql.raw(stmt));
       }
 
-      rowsToInsert.push(sql`insert into ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`);
+      await db.session.execute(
+        sql`insert into ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} ("hash", "created_at") values(${migration.hash}, ${
+          migration.folderMillis
+        })`
+      );
     }
-  }
-
-  for await (const rowToInsert of rowsToInsert) {
-    await db.session.execute(rowToInsert);
   }
 }
