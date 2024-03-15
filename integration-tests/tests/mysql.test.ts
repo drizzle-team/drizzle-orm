@@ -17,6 +17,7 @@ import {
 	gte,
 	inArray,
 	type InferModel,
+	match,
 	max,
 	min,
 	Name,
@@ -2831,6 +2832,181 @@ test.serial('set operations (mixed all) as function with subquery', async (t) =>
 				.select().from(citiesTable).where(gt(citiesTable.id, 1)),
 		);
 	});
+});
+
+test.serial('select with match against', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		bio: text('bio').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial not null primary key, name text, bio text, fulltext full_text (name, bio))`,
+	);
+
+	const user1 = {
+		id: 1,
+		name: 'Drizzle',
+		bio: 'Drizzle is a great ORM',
+	};
+	const user2 = {
+		id: 2,
+		name: 'Prisma',
+		bio: 'Prisma is an awful ORM',
+	};
+
+	await db.insert(users).values([user1, user2]);
+
+	const query = await db.select()
+		.from(users)
+		.where(match(users.name, users.bio).against('%orm%'));
+
+	t.deepEqual(query, [user1, user2]);
+});
+
+test.serial('select with match against in natural language mode', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		bio: text('bio').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial not null primary key, name text, bio text, fulltext full_text (name, bio))`,
+	);
+
+	const user1 = {
+		id: 1,
+		name: 'Drizzle',
+		bio: 'Drizzle is a great ORM',
+	};
+	const user2 = {
+		id: 2,
+		name: 'Prisma',
+		bio: 'Prisma is an awful ORM',
+	};
+
+	await db.insert(users).values([user1, user2]);
+
+	const query = await db.select()
+		.from(users)
+		.where(match(users.name, users.bio).against('great', { mode: 'natural' }));
+
+	t.deepEqual(query, [user1]);
+});
+
+test.serial('select with match against in boolean mode', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		bio: text('bio').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial not null primary key, name text, bio text, fulltext full_text (name, bio))`,
+	);
+
+	const user1 = {
+		id: 1,
+		name: 'Drizzle',
+		bio: 'Drizzle is a great ORM',
+	};
+	const user2 = {
+		id: 2,
+		name: 'Prisma',
+		bio: 'Prisma is an awful ORM',
+	};
+
+	await db.insert(users).values([user1, user2]);
+
+	const query = await db.select()
+		.from(users)
+		.where(match(users.name, users.bio).against('Drizzle*', { mode: 'boolean' }));
+
+	t.deepEqual(query, [user1]);
+});
+
+test.serial('select with match against with query expansion', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		bio: text('bio').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial not null primary key, name text, bio text, fulltext full_text (name, bio))`,
+	);
+
+	const user1 = {
+		id: 1,
+		name: 'Drizzle',
+		bio: 'Drizzle is a great ORM',
+	};
+	const user2 = {
+		id: 2,
+		name: 'Prisma',
+		bio: 'Prisma is an awful ORM',
+	};
+
+	await db.insert(users).values([user1, user2]);
+
+	const query = await db.select()
+		.from(users)
+		.where(match(users.name, users.bio).against('Drizzle*', { mode: 'with exp' }));
+
+	t.deepEqual(query, [user1, user2]);
+});
+
+test.serial('select with match against in natural language with query expansion', async (t) => {
+	const { db } = t.context;
+
+	const users = mysqlTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		bio: text('bio').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(
+		sql`create table ${users} (id serial not null primary key, name text, bio text, fulltext full_text (name, bio))`,
+	);
+
+	const user1 = {
+		id: 1,
+		name: 'Drizzle',
+		bio: 'Drizzle is a great ORM',
+	};
+	const user2 = {
+		id: 2,
+		name: 'Prisma',
+		bio: 'Prisma is an awful ORM',
+	};
+
+	await db.insert(users).values([user1, user2]);
+
+	const query = await db.select()
+		.from(users)
+		.where(match(users.name, users.bio).against('Drizzle*', { mode: 'natural with exp' }));
+
+	t.deepEqual(query, [user1, user2]);
 });
 
 test.serial('aggregate function: count', async (t) => {
