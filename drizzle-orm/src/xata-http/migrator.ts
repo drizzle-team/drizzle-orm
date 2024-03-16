@@ -1,7 +1,11 @@
-import type { MigrationConfig } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import { sql } from '~/sql/sql.ts';
 import type { XataHttpDatabase } from './driver.ts';
+
+export interface MigrationConfig {
+	migrationsFolder: string;
+	migrationsTable?: string;
+}
 
 /**
  * This function reads migrationFolder and execute each unapplied migration and mark it as executed in database
@@ -19,15 +23,15 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 	const migrationsTable = typeof config === 'string'
 		? '__drizzle_migrations'
 		: config.migrationsTable ?? '__drizzle_migrations';
-	const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
+	// const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
 	const migrationTableCreate = sql`
-		CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
+		CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
 			id SERIAL PRIMARY KEY,
 			hash text NOT NULL,
 			created_at bigint
 		)
 	`;
-	await db.session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
+	// await db.session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
 	await db.session.execute(migrationTableCreate);
 
 	const dbMigrations = await db.session.all<{
@@ -35,9 +39,7 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 		hash: string;
 		created_at: string;
 	}>(
-		sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${
-			sql.identifier(migrationsTable)
-		} order by created_at desc limit 1`,
+		sql`select id, hash, created_at from ${sql.identifier(migrationsTable)} order by created_at desc limit 1`,
 	);
 
 	const lastDbMigration = dbMigrations[0];
@@ -49,7 +51,7 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 			}
 
 			await db.session.execute(
-				sql`insert into ${sql.identifier(migrationsSchema)}.${
+				sql`insert into ${
 					sql.identifier(migrationsTable)
 				} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
 			);

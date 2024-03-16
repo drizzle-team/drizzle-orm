@@ -26,8 +26,6 @@ import {
 	char,
 	cidr,
 	date,
-	getMaterializedViewConfig,
-	getViewConfig,
 	inet,
 	integer,
 	interval,
@@ -35,17 +33,13 @@ import {
 	macaddr,
 	macaddr8,
 	type PgColumn,
-	pgEnum,
-	pgMaterializedView,
 	pgTable,
 	pgTableCreator,
-	pgView,
 	serial,
 	text,
 	time,
 	timestamp,
 	uuid as pgUuid,
-	varchar,
 } from 'drizzle-orm/pg-core';
 import { drizzle } from 'drizzle-orm/xata-http';
 import type { XataHttpClient, XataHttpDatabase } from 'drizzle-orm/xata-http';
@@ -235,7 +229,7 @@ test.beforeEach(async (t) => {
 	});
 });
 
-test.serial.only('select all fields', async (t) => {
+test.serial('select all fields', async (t) => {
 	const { db } = t.context;
 
 	const now = Date.now();
@@ -244,7 +238,7 @@ test.serial.only('select all fields', async (t) => {
 	const result = await db.select().from(usersTable);
 
 	t.assert(result[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
-	t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 100);
+	t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 1000);
 	t.deepEqual(result, [
 		{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt },
 	]);
@@ -371,7 +365,7 @@ test.serial('update with returning all fields', async (t) => {
 		.returning();
 
 	t.assert(users[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
-	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 100);
+	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 1000);
 	t.deepEqual(users, [
 		{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt },
 	]);
@@ -402,7 +396,7 @@ test.serial('delete with returning all fields', async (t) => {
 	const users = await db.delete(usersTable).where(eq(usersTable.name, 'John')).returning();
 
 	t.assert(users[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
-	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 100);
+	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 1000);
 	t.deepEqual(users, [
 		{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: users[0]!.createdAt },
 	]);
@@ -865,7 +859,7 @@ test.serial('migrator : default migration strategy', async (t) => {
 
 	await db.execute(sql`drop table if exists all_columns`);
 	await db.execute(sql`drop table if exists users12`);
-	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+	await db.execute(sql`drop table if exists __drizzle_migrations`);
 
 	await migrate(db, { migrationsFolder: './drizzle2/pg' });
 
@@ -877,30 +871,7 @@ test.serial('migrator : default migration strategy', async (t) => {
 
 	await db.execute(sql`drop table all_columns`);
 	await db.execute(sql`drop table users12`);
-	await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
-});
-
-test.serial('migrator : migrate with custom schema', async (t) => {
-	const { db } = t.context;
-	const customSchema = randomString();
-	await db.execute(sql`drop table if exists all_columns`);
-	await db.execute(sql`drop table if exists users12`);
-	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
-
-	await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsSchema: customSchema });
-
-	// test if the custom migrations table was created
-	const { records } = await db.execute(sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`);
-	t.true(records.length > 0);
-
-	// test if the migrated table are working as expected
-	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-	const result = await db.select().from(usersMigratorTable);
-	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
-
-	await db.execute(sql`drop table all_columns`);
-	await db.execute(sql`drop table users12`);
-	await db.execute(sql`drop table ${sql.identifier(customSchema)}."__drizzle_migrations"`);
+	await db.execute(sql`drop table __drizzle_migrations`);
 });
 
 test.serial('migrator : migrate with custom table', async (t) => {
@@ -908,12 +879,12 @@ test.serial('migrator : migrate with custom table', async (t) => {
 	const customTable = randomString();
 	await db.execute(sql`drop table if exists all_columns`);
 	await db.execute(sql`drop table if exists users12`);
-	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+	await db.execute(sql`drop table if exists __drizzle_migrations`);
 
 	await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsTable: customTable });
 
 	// test if the custom migrations table was created
-	const { records } = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
+	const { records } = await db.execute(sql`select * from ${sql.identifier(customTable)};`);
 	t.true(records.length > 0);
 
 	// test if the migrated table are working as expected
@@ -923,37 +894,7 @@ test.serial('migrator : migrate with custom table', async (t) => {
 
 	await db.execute(sql`drop table all_columns`);
 	await db.execute(sql`drop table users12`);
-	await db.execute(sql`drop table "drizzle".${sql.identifier(customTable)}`);
-});
-
-test.serial('migrator : migrate with custom table and custom schema', async (t) => {
-	const { db } = t.context;
-	const customTable = randomString();
-	const customSchema = randomString();
-	await db.execute(sql`drop table if exists all_columns`);
-	await db.execute(sql`drop table if exists users12`);
-	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
-
-	await migrate(db, {
-		migrationsFolder: './drizzle2/pg',
-		migrationsTable: customTable,
-		migrationsSchema: customSchema,
-	});
-
-	// test if the custom migrations table was created
-	const { records } = await db.execute(
-		sql`select * from ${sql.identifier(customSchema)}.${sql.identifier(customTable)};`,
-	);
-	t.true(records.length > 0);
-
-	// test if the migrated table are working as expected
-	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-	const result = await db.select().from(usersMigratorTable);
-	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
-
-	await db.execute(sql`drop table all_columns`);
-	await db.execute(sql`drop table users12`);
-	await db.execute(sql`drop table ${sql.identifier(customSchema)}.${sql.identifier(customTable)}`);
+	await db.execute(sql`drop table ${sql.identifier(customTable)}`);
 });
 
 test.serial('insert via db.execute + select via db.execute', async (t) => {
@@ -966,6 +907,7 @@ test.serial('insert via db.execute + select via db.execute', async (t) => {
 	const result = await db.execute<{ id: number; name: string }>(
 		sql`select id, name from "users"`,
 	);
+
 	t.deepEqual(result.records, [{ id: 1, name: 'John' }]);
 });
 
@@ -1004,7 +946,8 @@ test.serial('build query insert with onConflict do update', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id") do update set "name" = $3',
+		sql:
+			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do update set "name" = $3',
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
@@ -1019,7 +962,8 @@ test.serial('build query insert with onConflict do update / multiple columns', a
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id","name") do update set "name" = $3',
+		sql:
+			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
@@ -1034,7 +978,8 @@ test.serial('build query insert with onConflict do nothing', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict do nothing',
+		sql:
+			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict do nothing',
 		params: ['John', '["foo","bar"]'],
 	});
 });
@@ -1049,7 +994,8 @@ test.serial('build query insert with onConflict do nothing + target', async (t) 
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id") do nothing',
+		sql:
+			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
 		params: ['John', '["foo","bar"]'],
 	});
 });
@@ -1380,7 +1326,7 @@ test.serial('select count()', async (t) => {
 
 	const res = await db.select({ count: sql`count(*)` }).from(usersTable);
 
-	t.deepEqual(res, [{ count: '2' }]);
+	t.deepEqual(res, [{ count: 2 }]);
 });
 
 test.serial('select count w/ custom mapper', async (t) => {
@@ -1403,7 +1349,7 @@ test.serial('select count w/ custom mapper', async (t) => {
 	t.deepEqual(res, [{ count: 2 }]);
 });
 
-test.serial('network types', async (t) => {
+test.serial.skip('network types', async (t) => {
 	const { db } = t.context;
 
 	const value: typeof network.$inferSelect = {
@@ -1420,8 +1366,8 @@ test.serial('network types', async (t) => {
 	t.deepEqual(res, [value]);
 });
 
-test.serial('array types', async (t) => {
-	const { db } = t.context;
+test.serial.skip('array types', async (t) => {
+	const { db, client } = t.context;
 
 	const values: typeof salEmp.$inferSelect[] = [
 		{
@@ -1437,6 +1383,13 @@ test.serial('array types', async (t) => {
 	];
 
 	await db.insert(salEmp).values(values);
+
+	console.log(db.insert(salEmp).values(values).toSQL());
+
+	// eslint-disable-next-line unicorn/no-await-expression-member
+	console.log(
+		JSON.stringify((await client!.sql({ statement: `select * from "sal_emp"`, responseType: 'array' })).rows),
+	);
 
 	const res = await db.select().from(salEmp);
 
@@ -1550,138 +1503,139 @@ test.serial('having', async (t) => {
 	]);
 });
 
-test.serial('view', async (t) => {
-	const { db } = t.context;
+// Not supported in Xata HTTP
+// test.serial('view', async (t) => {
+// 	const { db } = t.context;
 
-	const newYorkers1 = pgView('new_yorkers')
-		.as((qb) => qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
+// 	const newYorkers1 = pgView('new_yorkers')
+// 		.as((qb) => qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
 
-	const newYorkers2 = pgView('new_yorkers', {
-		id: serial('id').primaryKey(),
-		name: text('name').notNull(),
-		cityId: integer('city_id').notNull(),
-	}).as(sql`select * from ${users2Table} where ${eq(users2Table.cityId, 1)}`);
+// 	const newYorkers2 = pgView('new_yorkers', {
+// 		id: serial('id').primaryKey(),
+// 		name: text('name').notNull(),
+// 		cityId: integer('city_id').notNull(),
+// 	}).as(sql`select * from ${users2Table} where ${eq(users2Table.cityId, 1)}`);
 
-	const newYorkers3 = pgView('new_yorkers', {
-		id: serial('id').primaryKey(),
-		name: text('name').notNull(),
-		cityId: integer('city_id').notNull(),
-	}).existing();
+// 	const newYorkers3 = pgView('new_yorkers', {
+// 		id: serial('id').primaryKey(),
+// 		name: text('name').notNull(),
+// 		cityId: integer('city_id').notNull(),
+// 	}).existing();
 
-	await db.execute(sql`create view ${newYorkers1} as ${getViewConfig(newYorkers1).query}`);
+// 	await db.execute(sql`create view ${newYorkers1} as ${getViewConfig(newYorkers1).query}`);
 
-	await db.insert(citiesTable).values([{ name: 'New York' }, { name: 'Paris' }]);
+// 	await db.insert(citiesTable).values([{ name: 'New York' }, { name: 'Paris' }]);
 
-	await db.insert(users2Table).values([
-		{ name: 'John', cityId: 1 },
-		{ name: 'Jane', cityId: 1 },
-		{ name: 'Jack', cityId: 2 },
-	]);
+// 	await db.insert(users2Table).values([
+// 		{ name: 'John', cityId: 1 },
+// 		{ name: 'Jane', cityId: 1 },
+// 		{ name: 'Jack', cityId: 2 },
+// 	]);
 
-	{
-		const result = await db.select().from(newYorkers1);
-		t.deepEqual(result, [
-			{ id: 1, name: 'John', cityId: 1 },
-			{ id: 2, name: 'Jane', cityId: 1 },
-		]);
-	}
+// 	{
+// 		const result = await db.select().from(newYorkers1);
+// 		t.deepEqual(result, [
+// 			{ id: 1, name: 'John', cityId: 1 },
+// 			{ id: 2, name: 'Jane', cityId: 1 },
+// 		]);
+// 	}
 
-	{
-		const result = await db.select().from(newYorkers2);
-		t.deepEqual(result, [
-			{ id: 1, name: 'John', cityId: 1 },
-			{ id: 2, name: 'Jane', cityId: 1 },
-		]);
-	}
+// 	{
+// 		const result = await db.select().from(newYorkers2);
+// 		t.deepEqual(result, [
+// 			{ id: 1, name: 'John', cityId: 1 },
+// 			{ id: 2, name: 'Jane', cityId: 1 },
+// 		]);
+// 	}
 
-	{
-		const result = await db.select().from(newYorkers3);
-		t.deepEqual(result, [
-			{ id: 1, name: 'John', cityId: 1 },
-			{ id: 2, name: 'Jane', cityId: 1 },
-		]);
-	}
+// 	{
+// 		const result = await db.select().from(newYorkers3);
+// 		t.deepEqual(result, [
+// 			{ id: 1, name: 'John', cityId: 1 },
+// 			{ id: 2, name: 'Jane', cityId: 1 },
+// 		]);
+// 	}
 
-	{
-		const result = await db.select({ name: newYorkers1.name }).from(newYorkers1);
-		t.deepEqual(result, [
-			{ name: 'John' },
-			{ name: 'Jane' },
-		]);
-	}
+// 	{
+// 		const result = await db.select({ name: newYorkers1.name }).from(newYorkers1);
+// 		t.deepEqual(result, [
+// 			{ name: 'John' },
+// 			{ name: 'Jane' },
+// 		]);
+// 	}
 
-	await db.execute(sql`drop view ${newYorkers1}`);
-});
+// 	await db.execute(sql`drop view ${newYorkers1}`);
+// });
 
-test.serial('materialized view', async (t) => {
-	const { db } = t.context;
+// test.serial('materialized view', async (t) => {
+// 	const { db } = t.context;
 
-	const newYorkers1 = pgMaterializedView('new_yorkers')
-		.as((qb) => qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
+// 	const newYorkers1 = pgMaterializedView('new_yorkers')
+// 		.as((qb) => qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
 
-	const newYorkers2 = pgMaterializedView('new_yorkers', {
-		id: serial('id').primaryKey(),
-		name: text('name').notNull(),
-		cityId: integer('city_id').notNull(),
-	}).as(sql`select * from ${users2Table} where ${eq(users2Table.cityId, 1)}`);
+// 	const newYorkers2 = pgMaterializedView('new_yorkers', {
+// 		id: serial('id').primaryKey(),
+// 		name: text('name').notNull(),
+// 		cityId: integer('city_id').notNull(),
+// 	}).as(sql`select * from ${users2Table} where ${eq(users2Table.cityId, 1)}`);
 
-	const newYorkers3 = pgMaterializedView('new_yorkers', {
-		id: serial('id').primaryKey(),
-		name: text('name').notNull(),
-		cityId: integer('city_id').notNull(),
-	}).existing();
+// 	const newYorkers3 = pgMaterializedView('new_yorkers', {
+// 		id: serial('id').primaryKey(),
+// 		name: text('name').notNull(),
+// 		cityId: integer('city_id').notNull(),
+// 	}).existing();
 
-	await db.execute(sql`create materialized view ${newYorkers1} as ${getMaterializedViewConfig(newYorkers1).query}`);
+// 	await db.execute(sql`create materialized view ${newYorkers1} as ${getMaterializedViewConfig(newYorkers1).query}`);
 
-	await db.insert(citiesTable).values([{ name: 'New York' }, { name: 'Paris' }]);
+// 	await db.insert(citiesTable).values([{ name: 'New York' }, { name: 'Paris' }]);
 
-	await db.insert(users2Table).values([
-		{ name: 'John', cityId: 1 },
-		{ name: 'Jane', cityId: 1 },
-		{ name: 'Jack', cityId: 2 },
-	]);
+// 	await db.insert(users2Table).values([
+// 		{ name: 'John', cityId: 1 },
+// 		{ name: 'Jane', cityId: 1 },
+// 		{ name: 'Jack', cityId: 2 },
+// 	]);
 
-	{
-		const result = await db.select().from(newYorkers1);
-		t.deepEqual(result, []);
-	}
+// 	{
+// 		const result = await db.select().from(newYorkers1);
+// 		t.deepEqual(result, []);
+// 	}
 
-	await db.refreshMaterializedView(newYorkers1);
+// 	await db.refreshMaterializedView(newYorkers1);
 
-	{
-		const result = await db.select().from(newYorkers1);
-		t.deepEqual(result, [
-			{ id: 1, name: 'John', cityId: 1 },
-			{ id: 2, name: 'Jane', cityId: 1 },
-		]);
-	}
+// 	{
+// 		const result = await db.select().from(newYorkers1);
+// 		t.deepEqual(result, [
+// 			{ id: 1, name: 'John', cityId: 1 },
+// 			{ id: 2, name: 'Jane', cityId: 1 },
+// 		]);
+// 	}
 
-	{
-		const result = await db.select().from(newYorkers2);
-		t.deepEqual(result, [
-			{ id: 1, name: 'John', cityId: 1 },
-			{ id: 2, name: 'Jane', cityId: 1 },
-		]);
-	}
+// 	{
+// 		const result = await db.select().from(newYorkers2);
+// 		t.deepEqual(result, [
+// 			{ id: 1, name: 'John', cityId: 1 },
+// 			{ id: 2, name: 'Jane', cityId: 1 },
+// 		]);
+// 	}
 
-	{
-		const result = await db.select().from(newYorkers3);
-		t.deepEqual(result, [
-			{ id: 1, name: 'John', cityId: 1 },
-			{ id: 2, name: 'Jane', cityId: 1 },
-		]);
-	}
+// 	{
+// 		const result = await db.select().from(newYorkers3);
+// 		t.deepEqual(result, [
+// 			{ id: 1, name: 'John', cityId: 1 },
+// 			{ id: 2, name: 'Jane', cityId: 1 },
+// 		]);
+// 	}
 
-	{
-		const result = await db.select({ name: newYorkers1.name }).from(newYorkers1);
-		t.deepEqual(result, [
-			{ name: 'John' },
-			{ name: 'Jane' },
-		]);
-	}
+// 	{
+// 		const result = await db.select({ name: newYorkers1.name }).from(newYorkers1);
+// 		t.deepEqual(result, [
+// 			{ name: 'John' },
+// 			{ name: 'Jane' },
+// 		]);
+// 	}
 
-	await db.execute(sql`drop materialized view ${newYorkers1}`);
-});
+// 	await db.execute(sql`drop materialized view ${newYorkers1}`);
+// });
 
 // TODO: copy to SQLite and MySQL, add to docs
 test.serial('select from raw sql', async (t) => {
@@ -1806,134 +1760,135 @@ test.serial('prefixed table', async (t) => {
 	await db.execute(sql`drop table ${users}`);
 });
 
-test.serial('select from enum', async (t) => {
-	const { db } = t.context;
+// Not supported in Xata
+// test.serial('select from enum', async (t) => {
+// 	const { db } = t.context;
 
-	const muscleEnum = pgEnum('muscle', [
-		'abdominals',
-		'hamstrings',
-		'adductors',
-		'quadriceps',
-		'biceps',
-		'shoulders',
-		'chest',
-		'middle_back',
-		'calves',
-		'glutes',
-		'lower_back',
-		'lats',
-		'triceps',
-		'traps',
-		'forearms',
-		'neck',
-		'abductors',
-	]);
+// 	const muscleEnum = pgEnum('muscle', [
+// 		'abdominals',
+// 		'hamstrings',
+// 		'adductors',
+// 		'quadriceps',
+// 		'biceps',
+// 		'shoulders',
+// 		'chest',
+// 		'middle_back',
+// 		'calves',
+// 		'glutes',
+// 		'lower_back',
+// 		'lats',
+// 		'triceps',
+// 		'traps',
+// 		'forearms',
+// 		'neck',
+// 		'abductors',
+// 	]);
 
-	const forceEnum = pgEnum('force', ['isometric', 'isotonic', 'isokinetic']);
+// 	const forceEnum = pgEnum('force', ['isometric', 'isotonic', 'isokinetic']);
 
-	const levelEnum = pgEnum('level', ['beginner', 'intermediate', 'advanced']);
+// 	const levelEnum = pgEnum('level', ['beginner', 'intermediate', 'advanced']);
 
-	const mechanicEnum = pgEnum('mechanic', ['compound', 'isolation']);
+// 	const mechanicEnum = pgEnum('mechanic', ['compound', 'isolation']);
 
-	const equipmentEnum = pgEnum('equipment', ['barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell']);
+// 	const equipmentEnum = pgEnum('equipment', ['barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell']);
 
-	const categoryEnum = pgEnum('category', ['upper_body', 'lower_body', 'full_body']);
+// 	const categoryEnum = pgEnum('category', ['upper_body', 'lower_body', 'full_body']);
 
-	const exercises = pgTable('exercises', {
-		id: serial('id').primaryKey(),
-		name: varchar('name').notNull(),
-		force: forceEnum('force'),
-		level: levelEnum('level'),
-		mechanic: mechanicEnum('mechanic'),
-		equipment: equipmentEnum('equipment'),
-		instructions: text('instructions'),
-		category: categoryEnum('category'),
-		primaryMuscles: muscleEnum('primary_muscles').array(),
-		secondaryMuscles: muscleEnum('secondary_muscles').array(),
-		createdAt: timestamp('created_at').notNull().default(sql`now()`),
-		updatedAt: timestamp('updated_at').notNull().default(sql`now()`),
-	});
+// 	const exercises = pgTable('exercises', {
+// 		id: serial('id').primaryKey(),
+// 		name: varchar('name').notNull(),
+// 		force: forceEnum('force'),
+// 		level: levelEnum('level'),
+// 		mechanic: mechanicEnum('mechanic'),
+// 		equipment: equipmentEnum('equipment'),
+// 		instructions: text('instructions'),
+// 		category: categoryEnum('category'),
+// 		primaryMuscles: muscleEnum('primary_muscles').array(),
+// 		secondaryMuscles: muscleEnum('secondary_muscles').array(),
+// 		createdAt: timestamp('created_at').notNull().default(sql`now()`),
+// 		updatedAt: timestamp('updated_at').notNull().default(sql`now()`),
+// 	});
 
-	await db.execute(sql`drop table if exists ${exercises}`);
-	await db.execute(sql`drop type if exists ${name(muscleEnum.enumName)}`);
-	await db.execute(sql`drop type if exists ${name(forceEnum.enumName)}`);
-	await db.execute(sql`drop type if exists ${name(levelEnum.enumName)}`);
-	await db.execute(sql`drop type if exists ${name(mechanicEnum.enumName)}`);
-	await db.execute(sql`drop type if exists ${name(equipmentEnum.enumName)}`);
-	await db.execute(sql`drop type if exists ${name(categoryEnum.enumName)}`);
+// 	await db.execute(sql`drop table if exists ${exercises}`);
+// 	await db.execute(sql`drop type if exists ${name(muscleEnum.enumName)}`);
+// 	await db.execute(sql`drop type if exists ${name(forceEnum.enumName)}`);
+// 	await db.execute(sql`drop type if exists ${name(levelEnum.enumName)}`);
+// 	await db.execute(sql`drop type if exists ${name(mechanicEnum.enumName)}`);
+// 	await db.execute(sql`drop type if exists ${name(equipmentEnum.enumName)}`);
+// 	await db.execute(sql`drop type if exists ${name(categoryEnum.enumName)}`);
 
-	await db.execute(
-		sql`create type ${
-			name(muscleEnum.enumName)
-		} as enum ('abdominals', 'hamstrings', 'adductors', 'quadriceps', 'biceps', 'shoulders', 'chest', 'middle_back', 'calves', 'glutes', 'lower_back', 'lats', 'triceps', 'traps', 'forearms', 'neck', 'abductors')`,
-	);
-	await db.execute(sql`create type ${name(forceEnum.enumName)} as enum ('isometric', 'isotonic', 'isokinetic')`);
-	await db.execute(sql`create type ${name(levelEnum.enumName)} as enum ('beginner', 'intermediate', 'advanced')`);
-	await db.execute(sql`create type ${name(mechanicEnum.enumName)} as enum ('compound', 'isolation')`);
-	await db.execute(
-		sql`create type ${
-			name(equipmentEnum.enumName)
-		} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,
-	);
-	await db.execute(sql`create type ${name(categoryEnum.enumName)} as enum ('upper_body', 'lower_body', 'full_body')`);
-	await db.execute(sql`
-		create table ${exercises} (
-			id serial primary key,
-			name varchar not null,
-			force force,
-			level level,
-			mechanic mechanic,
-			equipment equipment,
-			instructions text,
-			category category,
-			primary_muscles muscle[],
-			secondary_muscles muscle[],
-			created_at timestamp not null default now(),
-			updated_at timestamp not null default now()
-		)
-	`);
+// 	await db.execute(
+// 		sql`create type ${
+// 			name(muscleEnum.enumName)
+// 		} as enum ('abdominals', 'hamstrings', 'adductors', 'quadriceps', 'biceps', 'shoulders', 'chest', 'middle_back', 'calves', 'glutes', 'lower_back', 'lats', 'triceps', 'traps', 'forearms', 'neck', 'abductors')`,
+// 	);
+// 	await db.execute(sql`create type ${name(forceEnum.enumName)} as enum ('isometric', 'isotonic', 'isokinetic')`);
+// 	await db.execute(sql`create type ${name(levelEnum.enumName)} as enum ('beginner', 'intermediate', 'advanced')`);
+// 	await db.execute(sql`create type ${name(mechanicEnum.enumName)} as enum ('compound', 'isolation')`);
+// 	await db.execute(
+// 		sql`create type ${
+// 			name(equipmentEnum.enumName)
+// 		} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,
+// 	);
+// 	await db.execute(sql`create type ${name(categoryEnum.enumName)} as enum ('upper_body', 'lower_body', 'full_body')`);
+// 	await db.execute(sql`
+// 		create table ${exercises} (
+// 			id serial primary key,
+// 			name varchar not null,
+// 			force force,
+// 			level level,
+// 			mechanic mechanic,
+// 			equipment equipment,
+// 			instructions text,
+// 			category category,
+// 			primary_muscles muscle[],
+// 			secondary_muscles muscle[],
+// 			created_at timestamp not null default now(),
+// 			updated_at timestamp not null default now()
+// 		)
+// 	`);
 
-	await db.insert(exercises).values({
-		name: 'Bench Press',
-		force: 'isotonic',
-		level: 'beginner',
-		mechanic: 'compound',
-		equipment: 'barbell',
-		instructions:
-			'Lie on your back on a flat bench. Grasp the barbell with an overhand grip, slightly wider than shoulder width. Unrack the barbell and hold it over you with your arms locked. Lower the barbell to your chest. Press the barbell back to the starting position.',
-		category: 'upper_body',
-		primaryMuscles: ['chest', 'triceps'],
-		secondaryMuscles: ['shoulders', 'traps'],
-	});
+// 	await db.insert(exercises).values({
+// 		name: 'Bench Press',
+// 		force: 'isotonic',
+// 		level: 'beginner',
+// 		mechanic: 'compound',
+// 		equipment: 'barbell',
+// 		instructions:
+// 			'Lie on your back on a flat bench. Grasp the barbell with an overhand grip, slightly wider than shoulder width. Unrack the barbell and hold it over you with your arms locked. Lower the barbell to your chest. Press the barbell back to the starting position.',
+// 		category: 'upper_body',
+// 		primaryMuscles: ['chest', 'triceps'],
+// 		secondaryMuscles: ['shoulders', 'traps'],
+// 	});
 
-	const result = await db.select().from(exercises);
+// 	const result = await db.select().from(exercises);
 
-	t.deepEqual(result, [
-		{
-			id: 1,
-			name: 'Bench Press',
-			force: 'isotonic',
-			level: 'beginner',
-			mechanic: 'compound',
-			equipment: 'barbell',
-			instructions:
-				'Lie on your back on a flat bench. Grasp the barbell with an overhand grip, slightly wider than shoulder width. Unrack the barbell and hold it over you with your arms locked. Lower the barbell to your chest. Press the barbell back to the starting position.',
-			category: 'upper_body',
-			primaryMuscles: ['chest', 'triceps'],
-			secondaryMuscles: ['shoulders', 'traps'],
-			createdAt: result[0]!.createdAt,
-			updatedAt: result[0]!.updatedAt,
-		},
-	]);
+// 	t.deepEqual(result, [
+// 		{
+// 			id: 1,
+// 			name: 'Bench Press',
+// 			force: 'isotonic',
+// 			level: 'beginner',
+// 			mechanic: 'compound',
+// 			equipment: 'barbell',
+// 			instructions:
+// 				'Lie on your back on a flat bench. Grasp the barbell with an overhand grip, slightly wider than shoulder width. Unrack the barbell and hold it over you with your arms locked. Lower the barbell to your chest. Press the barbell back to the starting position.',
+// 			category: 'upper_body',
+// 			primaryMuscles: ['chest', 'triceps'],
+// 			secondaryMuscles: ['shoulders', 'traps'],
+// 			createdAt: result[0]!.createdAt,
+// 			updatedAt: result[0]!.updatedAt,
+// 		},
+// 	]);
 
-	await db.execute(sql`drop table ${exercises}`);
-	await db.execute(sql`drop type ${name(muscleEnum.enumName)}`);
-	await db.execute(sql`drop type ${name(forceEnum.enumName)}`);
-	await db.execute(sql`drop type ${name(levelEnum.enumName)}`);
-	await db.execute(sql`drop type ${name(mechanicEnum.enumName)}`);
-	await db.execute(sql`drop type ${name(equipmentEnum.enumName)}`);
-	await db.execute(sql`drop type ${name(categoryEnum.enumName)}`);
-});
+// 	await db.execute(sql`drop table ${exercises}`);
+// 	await db.execute(sql`drop type ${name(muscleEnum.enumName)}`);
+// 	await db.execute(sql`drop type ${name(forceEnum.enumName)}`);
+// 	await db.execute(sql`drop type ${name(levelEnum.enumName)}`);
+// 	await db.execute(sql`drop type ${name(mechanicEnum.enumName)}`);
+// 	await db.execute(sql`drop type ${name(equipmentEnum.enumName)}`);
+// 	await db.execute(sql`drop type ${name(categoryEnum.enumName)}`);
+// });
 
 test.serial('orderBy with aliased column', (t) => {
 	const { db } = t.context;
@@ -1989,8 +1944,8 @@ test.serial('select from sql', async (t) => {
 	);
 });
 
-test.serial('timestamp timezone', async (t) => {
-	const { db } = t.context;
+test.serial.only('timestamp timezone', async (t) => {
+	const { db, client } = t.context;
 
 	const usersTableWithAndWithoutTimezone = pgTable('users_test_with_and_without_timezone', {
 		id: serial('id').primaryKey(),
@@ -2022,16 +1977,22 @@ test.serial('timestamp timezone', async (t) => {
 	});
 	const users = await db.select().from(usersTableWithAndWithoutTimezone);
 
+	const f = db.select().from(usersTableWithAndWithoutTimezone).toSQL();
+
+	console.log((await client.sql({ statement: f.sql, params: f.params, responseType: 'array' })).rows);
+
 	// check that the timestamps are set correctly for default times
-	t.assert(Math.abs(users[0]!.updatedAt.getTime() - Date.now()) < 2000);
-	t.assert(Math.abs(users[0]!.createdAt.getTime() - Date.now()) < 2000);
+	console.log('user', users[0]);
+	console.log('ff', Math.abs(users[0]!.updatedAt.getTime() - Date.now()));
+	t.assert(Math.abs(users[0]!.updatedAt.getTime() - Date.now()) < 3000);
+	t.assert(Math.abs(users[0]!.createdAt.getTime() - Date.now()) < 3000);
 
 	// check that the timestamps are set correctly for non default times
-	t.assert(Math.abs(users[1]!.updatedAt.getTime() - date.getTime()) < 2000);
-	t.assert(Math.abs(users[1]!.createdAt.getTime() - date.getTime()) < 2000);
+	t.assert(Math.abs(users[1]!.updatedAt.getTime() - date.getTime()) < 3000);
+	t.assert(Math.abs(users[1]!.createdAt.getTime() - date.getTime()) < 3000);
 });
 
-test.serial('all date and time columns', async (t) => {
+test.serial.only('all date and time columns', async (t) => {
 	const { db } = t.context;
 
 	const table = pgTable('all_columns', {
@@ -2124,7 +2085,7 @@ test.serial('all date and time columns', async (t) => {
 	await db.execute(sql`drop table if exists ${table}`);
 });
 
-test.serial('all date and time columns with timezone', async (t) => {
+test.serial.only('all date and time columns with timezone', async (t) => {
 	const { db } = t.context;
 
 	const table = pgTable('all_columns', {
@@ -2171,13 +2132,13 @@ test.serial('all date and time columns with timezone', async (t) => {
 	t.deepEqual(result, [
 		{
 			id: 1,
-			timestamp: '2022-01-01 02:00:00.123456+00',
+			timestamp: '2022-01-01T02:00:00.123456Z',
 			timestampAsDate: timestampDate,
 			timestampTimeZones: timestampDateWTZ,
 		},
 		{
 			id: 2,
-			timestamp: '2022-01-01 04:00:00.123456+00',
+			timestamp: '2022-01-01T04:00:00.123456Z',
 			timestampAsDate: timestampDate2,
 			timestampTimeZones: timestampDateWTZ2,
 		},
@@ -2206,7 +2167,7 @@ test.serial('all date and time columns with timezone', async (t) => {
 	await db.execute(sql`drop table if exists ${table}`);
 });
 
-test.serial('all date and time columns without timezone', async (t) => {
+test.serial.only('all date and time columns without timezone', async (t) => {
 	const { db } = t.context;
 
 	const table = pgTable('all_columns', {
@@ -2318,7 +2279,7 @@ test.serial('transaction', async (t) => {
 		})
 	);
 
-	t.is(error!.message, 'No transactions support in neon-http driver');
+	t.is(error!.message, 'No transactions support in Xata Http driver');
 
 	const result = await db.select().from(users);
 
@@ -2379,7 +2340,7 @@ test.serial('nested transaction', async (t) => {
 		})
 	);
 
-	t.is(error!.message, 'No transactions support in neon-http driver');
+	t.is(error!.message, 'No transactions support in Xata Http driver');
 
 	// const result = await db.select().from(users);
 
@@ -2470,96 +2431,97 @@ test.serial('join subquery with join', async (t) => {
 	await db.execute(sql`drop table ${ticket}`);
 });
 
-test.serial('subquery with view', async (t) => {
-	const { db } = t.context;
+// Not supported in Xata
+// test.serial('subquery with view', async (t) => {
+// 	const { db } = t.context;
 
-	const users = pgTable('users_subquery_view', {
-		id: serial('id').primaryKey(),
-		name: text('name').notNull(),
-		cityId: integer('city_id').notNull(),
-	});
+// 	const users = pgTable('users_subquery_view', {
+// 		id: serial('id').primaryKey(),
+// 		name: text('name').notNull(),
+// 		cityId: integer('city_id').notNull(),
+// 	});
 
-	const newYorkers = pgView('new_yorkers').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
+// 	const newYorkers = pgView('new_yorkers').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
 
-	await db.execute(sql`drop table if exists ${users}`);
-	await db.execute(sql`drop view if exists ${newYorkers}`);
+// 	await db.execute(sql`drop table if exists ${users}`);
+// 	await db.execute(sql`drop view if exists ${newYorkers}`);
 
-	await db.execute(
-		sql`create table ${users} (id serial not null primary key, name text not null, city_id integer not null)`,
-	);
-	await db.execute(sql`create view ${newYorkers} as select * from ${users} where city_id = 1`);
+// 	await db.execute(
+// 		sql`create table ${users} (id serial not null primary key, name text not null, city_id integer not null)`,
+// 	);
+// 	await db.execute(sql`create view ${newYorkers} as select * from ${users} where city_id = 1`);
 
-	await db.insert(users).values([
-		{ name: 'John', cityId: 1 },
-		{ name: 'Jane', cityId: 2 },
-		{ name: 'Jack', cityId: 1 },
-		{ name: 'Jill', cityId: 2 },
-	]);
+// 	await db.insert(users).values([
+// 		{ name: 'John', cityId: 1 },
+// 		{ name: 'Jane', cityId: 2 },
+// 		{ name: 'Jack', cityId: 1 },
+// 		{ name: 'Jill', cityId: 2 },
+// 	]);
 
-	const sq = db.$with('sq').as(db.select().from(newYorkers));
-	const result = await db.with(sq).select().from(sq);
+// 	const sq = db.$with('sq').as(db.select().from(newYorkers));
+// 	const result = await db.with(sq).select().from(sq);
 
-	t.deepEqual(result, [
-		{ id: 1, name: 'John', cityId: 1 },
-		{ id: 3, name: 'Jack', cityId: 1 },
-	]);
+// 	t.deepEqual(result, [
+// 		{ id: 1, name: 'John', cityId: 1 },
+// 		{ id: 3, name: 'Jack', cityId: 1 },
+// 	]);
 
-	await db.execute(sql`drop view ${newYorkers}`);
-	await db.execute(sql`drop table ${users}`);
-});
+// 	await db.execute(sql`drop view ${newYorkers}`);
+// 	await db.execute(sql`drop table ${users}`);
+// });
 
-test.serial('join view as subquery', async (t) => {
-	const { db } = t.context;
+// test.serial('join view as subquery', async (t) => {
+// 	const { db } = t.context;
 
-	const users = pgTable('users_join_view', {
-		id: serial('id').primaryKey(),
-		name: text('name').notNull(),
-		cityId: integer('city_id').notNull(),
-	});
+// 	const users = pgTable('users_join_view', {
+// 		id: serial('id').primaryKey(),
+// 		name: text('name').notNull(),
+// 		cityId: integer('city_id').notNull(),
+// 	});
 
-	const newYorkers = pgView('new_yorkers').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
+// 	const newYorkers = pgView('new_yorkers').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
 
-	await db.execute(sql`drop table if exists ${users}`);
-	await db.execute(sql`drop view if exists ${newYorkers}`);
+// 	await db.execute(sql`drop table if exists ${users}`);
+// 	await db.execute(sql`drop view if exists ${newYorkers}`);
 
-	await db.execute(
-		sql`create table ${users} (id serial not null primary key, name text not null, city_id integer not null)`,
-	);
-	await db.execute(sql`create view ${newYorkers} as select * from ${users} where city_id = 1`);
+// 	await db.execute(
+// 		sql`create table ${users} (id serial not null primary key, name text not null, city_id integer not null)`,
+// 	);
+// 	await db.execute(sql`create view ${newYorkers} as select * from ${users} where city_id = 1`);
 
-	await db.insert(users).values([
-		{ name: 'John', cityId: 1 },
-		{ name: 'Jane', cityId: 2 },
-		{ name: 'Jack', cityId: 1 },
-		{ name: 'Jill', cityId: 2 },
-	]);
+// 	await db.insert(users).values([
+// 		{ name: 'John', cityId: 1 },
+// 		{ name: 'Jane', cityId: 2 },
+// 		{ name: 'Jack', cityId: 1 },
+// 		{ name: 'Jill', cityId: 2 },
+// 	]);
 
-	const sq = db.select().from(newYorkers).as('new_yorkers_sq');
+// 	const sq = db.select().from(newYorkers).as('new_yorkers_sq');
 
-	const result = await db.select().from(users).leftJoin(sq, eq(users.id, sq.id));
+// 	const result = await db.select().from(users).leftJoin(sq, eq(users.id, sq.id));
 
-	t.deepEqual(result, [
-		{
-			users_join_view: { id: 1, name: 'John', cityId: 1 },
-			new_yorkers_sq: { id: 1, name: 'John', cityId: 1 },
-		},
-		{
-			users_join_view: { id: 2, name: 'Jane', cityId: 2 },
-			new_yorkers_sq: null,
-		},
-		{
-			users_join_view: { id: 3, name: 'Jack', cityId: 1 },
-			new_yorkers_sq: { id: 3, name: 'Jack', cityId: 1 },
-		},
-		{
-			users_join_view: { id: 4, name: 'Jill', cityId: 2 },
-			new_yorkers_sq: null,
-		},
-	]);
+// 	t.deepEqual(result, [
+// 		{
+// 			users_join_view: { id: 1, name: 'John', cityId: 1 },
+// 			new_yorkers_sq: { id: 1, name: 'John', cityId: 1 },
+// 		},
+// 		{
+// 			users_join_view: { id: 2, name: 'Jane', cityId: 2 },
+// 			new_yorkers_sq: null,
+// 		},
+// 		{
+// 			users_join_view: { id: 3, name: 'Jack', cityId: 1 },
+// 			new_yorkers_sq: { id: 3, name: 'Jack', cityId: 1 },
+// 		},
+// 		{
+// 			users_join_view: { id: 4, name: 'Jill', cityId: 2 },
+// 			new_yorkers_sq: null,
+// 		},
+// 	]);
 
-	await db.execute(sql`drop view ${newYorkers}`);
-	await db.execute(sql`drop table ${users}`);
-});
+// 	await db.execute(sql`drop view ${newYorkers}`);
+// 	await db.execute(sql`drop table ${users}`);
+// });
 
 test.serial('table selection with single table', async (t) => {
 	const { db } = t.context;

@@ -42,8 +42,8 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		const { fields, client, query, customResultMapper, joinsNotNullableMap } = this;
 
 		if (!fields && !customResultMapper) {
-			const result = await client.sql<Record<string, any>>({ statement: query.sql, params });
-			return { rowCount: result.records.length, rows: result.records, rowAsArray: false };
+			return await client.sql<Record<string, any>>({ statement: query.sql, params });
+			// return { rowCount: result.records.length, rows: result.records, rowAsArray: false };
 		}
 
 		const { rows, warning } = await client.sql({ statement: query.sql, params, responseType: 'array' });
