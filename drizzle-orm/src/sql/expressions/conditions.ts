@@ -264,12 +264,9 @@ export const lte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  *   .where(leneq(cars.name, 10))
  * ```
  */
-export const leneq: BinaryOperator = (
-  left: SQLWrapper,
-  right: unknown
-): SQL => {
-  return sql`length(${left}) = ${bindIfParam(right, left)}`;
-};
+export function leneq(left: SQLWrapper, right: number): SQL {
+  return sql`length(${left}) = ${right}`;
+}
 
 /**
  * Test that the length of the first expression passed is greater than
@@ -283,12 +280,9 @@ export const leneq: BinaryOperator = (
  *   .where(lengt(cars.name, 10))
  * ```
  */
-export const lengt: BinaryOperator = (
-  left: SQLWrapper,
-  right: unknown
-): SQL => {
-  return sql`length(${left}) > ${bindIfParam(right, left)}`;
-};
+export function lengt(left: SQLWrapper, right: number): SQL {
+  return sql`length(${left}) > ${right}`;
+}
 
 /**
  * Test that the length of the first expression passed is greater than
@@ -302,12 +296,9 @@ export const lengt: BinaryOperator = (
  *   .where(lengte(cars.name, 10))
  * ```
  */
-export const lengte: BinaryOperator = (
-  left: SQLWrapper,
-  right: unknown
-): SQL => {
-  return sql`length(${left}) >= ${bindIfParam(right, left)}`;
-};
+export function lengte(left: SQLWrapper, right: number): SQL {
+  return sql`length(${left}) >= ${right}`;
+}
 
 /**
  * Test that the length of the first expression passed is less than
@@ -321,12 +312,9 @@ export const lengte: BinaryOperator = (
  *   .where(lenlt(cars.name, 10))
  * ```
  */
-export const lenlt: BinaryOperator = (
-  left: SQLWrapper,
-  right: unknown
-): SQL => {
-  return sql`length(${left}) < ${bindIfParam(right, left)}`;
-};
+export function lenlt(left: SQLWrapper, right: number): SQL {
+  return sql`length(${left}) < ${right}`;
+}
 
 /**
  * Test that the length of the first expression passed is less than
@@ -340,12 +328,9 @@ export const lenlt: BinaryOperator = (
  *   .where(lenlte(cars.name, 10))
  * ```
  */
-export const lenlte: BinaryOperator = (
-  left: SQLWrapper,
-  right: unknown
-): SQL => {
-  return sql`length(${left}) <= ${bindIfParam(right, left)}`;
-};
+export function lenlte(left: SQLWrapper, right: number): SQL {
+  return sql`length(${left}) <= ${right}`;
+}
 
 /**
  * Test whether the first parameter, a column or expression,
