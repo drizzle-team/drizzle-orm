@@ -26,6 +26,11 @@ import {
 	sum,
 	sumDistinct,
 	TransactionRollbackError,
+	leneq,
+	lengt,
+	lengte,
+	lenlt,
+	lenlte,
 } from 'drizzle-orm';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
@@ -131,6 +136,12 @@ const aggregateTable = sqliteTable('aggregate_table', {
 	b: integer('b'),
 	c: integer('c'),
 	nullOnly: integer('null_only'),
+});
+
+// To test length conditions
+const lengthTable = sqliteTable('length_table', {
+  id: integer('id').primaryKey({ autoIncrement: true }).notNull(),
+  name: text('name').notNull(),
 });
 
 test.before(async (t) => {
@@ -300,6 +311,26 @@ async function setupAggregateFunctionsTest(db: LibSQLDatabase<Record<string, nev
 		{ name: 'value 5', a: 80, b: 10, c: null },
 		{ name: 'value 6', a: null, b: null, c: 150 },
 	]);
+}
+
+async function setupLengthConditionsTest(db: LibSQLDatabase<Record<string, never>>) {
+  await db.run(sql`drop table if exists length_table`);
+  await db.run(
+    sql`
+      create table length_table (
+        id integer primary key autoincrement not null,
+        name text not null
+      );
+    `
+  );
+  await db
+    .insert(lengthTable)
+    .values([
+      { name: 'Hello World' },
+      { name: '10 letters' },
+      { name: 'Test value 1' },
+      { name: 'Value 1' },
+    ]);
 }
 
 test.serial('table config: foreign keys name', async (t) => {
@@ -2698,4 +2729,28 @@ test.serial('aggregate function: min', async (t) => {
 
 	t.deepEqual(result1[0]?.value, 10);
 	t.deepEqual(result2[0]?.value, null);
+});
+
+test.serial('length conditions', async (t) => {
+  const { db } = t.context;
+  const table = lengthTable;
+  await setupLengthConditionsTest(db);
+
+  const result1 = await db.select().from(table).where(leneq(table.name, 10));
+  const result2 = await db.select().from(table).where(lengt(table.name, 11));
+  const result3 = await db.select().from(table).where(lengte(table.name, 11));
+  const result4 = await db.select().from(table).where(lenlt(table.name, 10));
+  const result5 = await db.select().from(table).where(lenlte(table.name, 10));
+
+  t.deepEqual(result1, [{ id: 2, name: '10 letters' }]);
+  t.deepEqual(result2, [{ id: 3, name: 'Test value 1' }]);
+  t.deepEqual(result3, [
+    { id: 1, name: 'Hello World' },
+    { id: 3, name: 'Test value 1' },
+  ]);
+  t.deepEqual(result4, [{ id: 4, name: 'Value 1' }]);
+  t.deepEqual(result5, [
+    { id: 2, name: '10 letters' },
+    { id: 4, name: 'Value 1' },
+  ]);
 });

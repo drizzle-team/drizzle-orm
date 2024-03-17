@@ -29,6 +29,11 @@ import {
 	sum,
 	sumDistinct,
 	TransactionRollbackError,
+  lenlt,
+	lengte,
+	lenlte,
+	leneq,
+	lengt,
 } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -155,6 +160,12 @@ const aggregateTable = pgTable('aggregate_table', {
 	b: integer('b'),
 	c: integer('c'),
 	nullOnly: integer('null_only'),
+});
+
+// To test length conditions
+const lengthTable = pgTable('length_table', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
 });
 
 interface Context {
@@ -379,6 +390,26 @@ async function setupAggregateFunctionsTest(db: NodePgDatabase) {
 		{ name: 'value 5', a: 80, b: 10, c: null },
 		{ name: 'value 6', a: null, b: null, c: 150 },
 	]);
+}
+
+async function setupLengthConditionsTest(db: NodePgDatabase) {
+  await db.execute(sql`drop table if exists length_table`);
+  await db.execute(
+    sql`
+      create table length_table (
+        id serial primary key,
+        name text not null
+      );
+    `
+  );
+  await db
+    .insert(lengthTable)
+    .values([
+      { name: 'Hello World' },
+      { name: '10 letters' },
+      { name: 'Test value 1' },
+      { name: 'Value 1' },
+    ]);
 }
 
 test.serial('table configs: unique third param', async (t) => {
@@ -4017,4 +4048,28 @@ test.serial('array mapping and parsing', async (t) => {
 	}]);
 
 	await db.execute(sql`drop table ${arrays}`);
+});
+
+test.serial('length conditions', async (t) => {
+  const { db } = t.context;
+  const table = lengthTable;
+  await setupLengthConditionsTest(db);
+
+  const result1 = await db.select().from(table).where(leneq(table.name, 10));
+  const result2 = await db.select().from(table).where(lengt(table.name, 11));
+  const result3 = await db.select().from(table).where(lengte(table.name, 11));
+  const result4 = await db.select().from(table).where(lenlt(table.name, 10));
+  const result5 = await db.select().from(table).where(lenlte(table.name, 10));
+
+  t.deepEqual(result1, [{ id: 2, name: '10 letters' }]);
+  t.deepEqual(result2, [{ id: 3, name: 'Test value 1' }]);
+  t.deepEqual(result3, [
+    { id: 1, name: 'Hello World' },
+    { id: 3, name: 'Test value 1' },
+  ]);
+  t.deepEqual(result4, [{ id: 4, name: 'Value 1' }]);
+  t.deepEqual(result5, [
+    { id: 2, name: '10 letters' },
+    { id: 4, name: 'Value 1' },
+  ]);
 });
