@@ -253,6 +253,25 @@ export const lte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
 };
 
 /**
+ * Test that the length of the first expression passed is equal to
+ * the second expression.
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // Select cars whose names have exactly 10 characters.
+ * db.select().from(cars)
+ *   .where(leneq(cars.name, 10))
+ * ```
+ */
+export const leneq: BinaryOperator = (
+  left: SQLWrapper,
+  right: unknown
+): SQL => {
+  return sql`length(${left}) = ${bindIfParam(right, left)}`;
+};
+
+/**
  * Test that the length of the first expression passed is greater than
  * the second expression.
  *
