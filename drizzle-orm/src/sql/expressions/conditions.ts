@@ -2,43 +2,43 @@ import { type AnyColumn, Column, type GetColumnData } from '~/column.ts';
 import { is } from '~/entity.ts';
 import { Table } from '~/table.ts';
 import {
-	isDriverValueEncoder,
-	isSQLWrapper,
-	Param,
-	Placeholder,
-	SQL,
-	sql,
-	type SQLChunk,
-	type SQLWrapper,
-	StringChunk,
-	View,
+  isDriverValueEncoder,
+  isSQLWrapper,
+  Param,
+  Placeholder,
+  SQL,
+  sql,
+  type SQLChunk,
+  type SQLWrapper,
+  StringChunk,
+  View,
 } from '../sql.ts';
 
 export function bindIfParam(value: unknown, column: SQLWrapper): SQLChunk {
-	if (
-		isDriverValueEncoder(column)
-		&& !isSQLWrapper(value)
-		&& !is(value, Param)
-		&& !is(value, Placeholder)
-		&& !is(value, Column)
-		&& !is(value, Table)
-		&& !is(value, View)
-	) {
-		return new Param(value, column);
-	}
-	return value as SQLChunk;
+  if (
+    isDriverValueEncoder(column) &&
+    !isSQLWrapper(value) &&
+    !is(value, Param) &&
+    !is(value, Placeholder) &&
+    !is(value, Column) &&
+    !is(value, Table) &&
+    !is(value, View)
+  ) {
+    return new Param(value, column);
+  }
+  return value as SQLChunk;
 }
 
 export interface BinaryOperator {
-	<TColumn extends Column>(
-		left: TColumn,
-		right: GetColumnData<TColumn, 'raw'> | SQLWrapper,
-	): SQL;
-	<T>(left: SQL.Aliased<T>, right: T | SQLWrapper): SQL;
-	<T extends SQLWrapper>(
-		left: Exclude<T, SQL.Aliased | Column>,
-		right: unknown,
-	): SQL;
+  <TColumn extends Column>(
+    left: TColumn,
+    right: GetColumnData<TColumn, 'raw'> | SQLWrapper
+  ): SQL;
+  <T>(left: SQL.Aliased<T>, right: T | SQLWrapper): SQL;
+  <T extends SQLWrapper>(
+    left: Exclude<T, SQL.Aliased | Column>,
+    right: unknown
+  ): SQL;
 }
 
 /**
@@ -60,7 +60,7 @@ export interface BinaryOperator {
  * @see isNull for a way to test equality to NULL.
  */
 export const eq: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
-	return sql`${left} = ${bindIfParam(right, left)}`;
+  return sql`${left} = ${bindIfParam(right, left)}`;
 };
 
 /**
@@ -82,7 +82,7 @@ export const eq: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  * @see isNotNull for a way to test whether a value is not null.
  */
 export const ne: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
-	return sql`${left} <> ${bindIfParam(right, left)}`;
+  return sql`${left} <> ${bindIfParam(right, left)}`;
 };
 
 /**
@@ -103,25 +103,25 @@ export const ne: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  */
 export function and(...conditions: (SQLWrapper | undefined)[]): SQL | undefined;
 export function and(
-	...unfilteredConditions: (SQLWrapper | undefined)[]
+  ...unfilteredConditions: (SQLWrapper | undefined)[]
 ): SQL | undefined {
-	const conditions = unfilteredConditions.filter(
-		(c): c is Exclude<typeof c, undefined> => c !== undefined,
-	);
+  const conditions = unfilteredConditions.filter(
+    (c): c is Exclude<typeof c, undefined> => c !== undefined
+  );
 
-	if (conditions.length === 0) {
-		return undefined;
-	}
+  if (conditions.length === 0) {
+    return undefined;
+  }
 
-	if (conditions.length === 1) {
-		return new SQL(conditions);
-	}
+  if (conditions.length === 1) {
+    return new SQL(conditions);
+  }
 
-	return new SQL([
-		new StringChunk('('),
-		sql.join(conditions, new StringChunk(' and ')),
-		new StringChunk(')'),
-	]);
+  return new SQL([
+    new StringChunk('('),
+    sql.join(conditions, new StringChunk(' and ')),
+    new StringChunk(')'),
+  ]);
 }
 
 /**
@@ -142,25 +142,25 @@ export function and(
  */
 export function or(...conditions: (SQLWrapper | undefined)[]): SQL | undefined;
 export function or(
-	...unfilteredConditions: (SQLWrapper | undefined)[]
+  ...unfilteredConditions: (SQLWrapper | undefined)[]
 ): SQL | undefined {
-	const conditions = unfilteredConditions.filter(
-		(c): c is Exclude<typeof c, undefined> => c !== undefined,
-	);
+  const conditions = unfilteredConditions.filter(
+    (c): c is Exclude<typeof c, undefined> => c !== undefined
+  );
 
-	if (conditions.length === 0) {
-		return undefined;
-	}
+  if (conditions.length === 0) {
+    return undefined;
+  }
 
-	if (conditions.length === 1) {
-		return new SQL(conditions);
-	}
+  if (conditions.length === 1) {
+    return new SQL(conditions);
+  }
 
-	return new SQL([
-		new StringChunk('('),
-		sql.join(conditions, new StringChunk(' or ')),
-		new StringChunk(')'),
-	]);
+  return new SQL([
+    new StringChunk('('),
+    sql.join(conditions, new StringChunk(' or ')),
+    new StringChunk(')'),
+  ]);
 }
 
 /**
@@ -175,7 +175,7 @@ export function or(
  * ```
  */
 export function not(condition: SQLWrapper): SQL {
-	return sql`not ${condition}`;
+  return sql`not ${condition}`;
 }
 
 /**
@@ -193,7 +193,7 @@ export function not(condition: SQLWrapper): SQL {
  * @see gte for greater-than-or-equal
  */
 export const gt: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
-	return sql`${left} > ${bindIfParam(right, left)}`;
+  return sql`${left} > ${bindIfParam(right, left)}`;
 };
 
 /**
@@ -213,7 +213,7 @@ export const gt: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  * @see gt for a strictly greater-than condition
  */
 export const gte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
-	return sql`${left} >= ${bindIfParam(right, left)}`;
+  return sql`${left} >= ${bindIfParam(right, left)}`;
 };
 
 /**
@@ -231,7 +231,7 @@ export const gte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  * @see lte for greater-than-or-equal
  */
 export const lt: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
-	return sql`${left} < ${bindIfParam(right, left)}`;
+  return sql`${left} < ${bindIfParam(right, left)}`;
 };
 
 /**
@@ -249,7 +249,83 @@ export const lt: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  * @see lt for a strictly less-than condition
  */
 export const lte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
-	return sql`${left} <= ${bindIfParam(right, left)}`;
+  return sql`${left} <= ${bindIfParam(right, left)}`;
+};
+
+/**
+ * Test that the length of the first expression passed is greater than
+ * the second expression.
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // Select cars whose names have more than 10 characters.
+ * db.select().from(cars)
+ *   .where(lengt(cars.name, 10))
+ * ```
+ */
+export const lengt: BinaryOperator = (
+  left: SQLWrapper,
+  right: unknown
+): SQL => {
+  return sql`length(${left}) > ${bindIfParam(right, left)}`;
+};
+
+/**
+ * Test that the length of the first expression passed is greater than
+ * or equal to the second expression.
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // Select cars whose names have 10 or more characters.
+ * db.select().from(cars)
+ *   .where(lengte(cars.name, 10))
+ * ```
+ */
+export const lengte: BinaryOperator = (
+  left: SQLWrapper,
+  right: unknown
+): SQL => {
+  return sql`length(${left}) >= ${bindIfParam(right, left)}`;
+};
+
+/**
+ * Test that the length of the first expression passed is less than
+ * the second expression.
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // Select cars whose names have less than 10 characters.
+ * db.select().from(cars)
+ *   .where(lenlt(cars.name, 10))
+ * ```
+ */
+export const lenlt: BinaryOperator = (
+  left: SQLWrapper,
+  right: unknown
+): SQL => {
+  return sql`length(${left}) < ${bindIfParam(right, left)}`;
+};
+
+/**
+ * Test that the length of the first expression passed is less than
+ * or equal to the second expression.
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // Select cars whose names have 10 or fewer characters.
+ * db.select().from(cars)
+ *   .where(lenlte(cars.name, 10))
+ * ```
+ */
+export const lenlte: BinaryOperator = (
+  left: SQLWrapper,
+  right: unknown
+): SQL => {
+  return sql`length(${left}) <= ${bindIfParam(right, left)}`;
 };
 
 /**
@@ -272,29 +348,29 @@ export const lte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  * @see notInArray for the inverse of this test
  */
 export function inArray<T>(
-	column: SQL.Aliased<T>,
-	values: (T | Placeholder)[] | SQLWrapper,
+  column: SQL.Aliased<T>,
+  values: (T | Placeholder)[] | SQLWrapper
 ): SQL;
 export function inArray<TColumn extends Column>(
-	column: TColumn,
-	values: (GetColumnData<TColumn, 'raw'> | Placeholder)[] | SQLWrapper,
+  column: TColumn,
+  values: (GetColumnData<TColumn, 'raw'> | Placeholder)[] | SQLWrapper
 ): SQL;
 export function inArray<T extends SQLWrapper>(
-	column: Exclude<T, SQL.Aliased | Column>,
-	values: (unknown | Placeholder)[] | SQLWrapper,
+  column: Exclude<T, SQL.Aliased | Column>,
+  values: (unknown | Placeholder)[] | SQLWrapper
 ): SQL;
 export function inArray(
-	column: SQLWrapper,
-	values: (unknown | Placeholder)[] | SQLWrapper,
+  column: SQLWrapper,
+  values: (unknown | Placeholder)[] | SQLWrapper
 ): SQL {
-	if (Array.isArray(values)) {
-		if (values.length === 0) {
-			throw new Error('inArray requires at least one value');
-		}
-		return sql`${column} in ${values.map((v) => bindIfParam(v, column))}`;
-	}
+  if (Array.isArray(values)) {
+    if (values.length === 0) {
+      throw new Error('inArray requires at least one value');
+    }
+    return sql`${column} in ${values.map((v) => bindIfParam(v, column))}`;
+  }
 
-	return sql`${column} in ${bindIfParam(values, column)}`;
+  return sql`${column} in ${bindIfParam(values, column)}`;
 }
 
 /**
@@ -318,29 +394,29 @@ export function inArray(
  * @see inArray for the inverse of this test
  */
 export function notInArray<T>(
-	column: SQL.Aliased<T>,
-	values: (T | Placeholder)[] | SQLWrapper,
+  column: SQL.Aliased<T>,
+  values: (T | Placeholder)[] | SQLWrapper
 ): SQL;
 export function notInArray<TColumn extends Column>(
-	column: TColumn,
-	values: (GetColumnData<TColumn, 'raw'> | Placeholder)[] | SQLWrapper,
+  column: TColumn,
+  values: (GetColumnData<TColumn, 'raw'> | Placeholder)[] | SQLWrapper
 ): SQL;
 export function notInArray<T extends SQLWrapper>(
-	column: Exclude<T, SQL.Aliased | Column>,
-	values: (unknown | Placeholder)[] | SQLWrapper,
+  column: Exclude<T, SQL.Aliased | Column>,
+  values: (unknown | Placeholder)[] | SQLWrapper
 ): SQL;
 export function notInArray(
-	column: SQLWrapper,
-	values: (unknown | Placeholder)[] | SQLWrapper,
+  column: SQLWrapper,
+  values: (unknown | Placeholder)[] | SQLWrapper
 ): SQL {
-	if (Array.isArray(values)) {
-		if (values.length === 0) {
-			throw new Error('notInArray requires at least one value');
-		}
-		return sql`${column} not in ${values.map((v) => bindIfParam(v, column))}`;
-	}
+  if (Array.isArray(values)) {
+    if (values.length === 0) {
+      throw new Error('notInArray requires at least one value');
+    }
+    return sql`${column} not in ${values.map((v) => bindIfParam(v, column))}`;
+  }
 
-	return sql`${column} not in ${bindIfParam(values, column)}`;
+  return sql`${column} not in ${bindIfParam(values, column)}`;
 }
 
 /**
@@ -360,7 +436,7 @@ export function notInArray(
  * @see isNotNull for the inverse of this test
  */
 export function isNull(value: SQLWrapper): SQL {
-	return sql`${value} is null`;
+  return sql`${value} is null`;
 }
 
 /**
@@ -380,7 +456,7 @@ export function isNull(value: SQLWrapper): SQL {
  * @see isNull for the inverse of this test
  */
 export function isNotNull(value: SQLWrapper): SQL {
-	return sql`${value} is not null`;
+  return sql`${value} is not null`;
 }
 
 /**
@@ -404,7 +480,7 @@ export function isNotNull(value: SQLWrapper): SQL {
  * @see notExists for the inverse of this test
  */
 export function exists(subquery: SQLWrapper): SQL {
-	return sql`exists ${subquery}`;
+  return sql`exists ${subquery}`;
 }
 
 /**
@@ -429,7 +505,7 @@ export function exists(subquery: SQLWrapper): SQL {
  * @see exists for the inverse of this test
  */
 export function notExists(subquery: SQLWrapper): SQL {
-	return sql`not exists ${subquery}`;
+  return sql`not exists ${subquery}`;
 }
 
 /**
@@ -452,27 +528,25 @@ export function notExists(subquery: SQLWrapper): SQL {
  * @see notBetween for the inverse of this test
  */
 export function between<T>(
-	column: SQL.Aliased,
-	min: T | SQLWrapper,
-	max: T | SQLWrapper,
+  column: SQL.Aliased,
+  min: T | SQLWrapper,
+  max: T | SQLWrapper
 ): SQL;
 export function between<TColumn extends AnyColumn>(
-	column: TColumn,
-	min: GetColumnData<TColumn, 'raw'> | SQLWrapper,
-	max: GetColumnData<TColumn, 'raw'> | SQLWrapper,
+  column: TColumn,
+  min: GetColumnData<TColumn, 'raw'> | SQLWrapper,
+  max: GetColumnData<TColumn, 'raw'> | SQLWrapper
 ): SQL;
 export function between<T extends SQLWrapper>(
-	column: Exclude<T, SQL.Aliased | Column>,
-	min: unknown,
-	max: unknown,
+  column: Exclude<T, SQL.Aliased | Column>,
+  min: unknown,
+  max: unknown
 ): SQL;
 export function between(column: SQLWrapper, min: unknown, max: unknown): SQL {
-	return sql`${column} between ${bindIfParam(min, column)} and ${
-		bindIfParam(
-			max,
-			column,
-		)
-	}`;
+  return sql`${column} between ${bindIfParam(min, column)} and ${bindIfParam(
+    max,
+    column
+  )}`;
 }
 
 /**
@@ -493,31 +567,29 @@ export function between(column: SQLWrapper, min: unknown, max: unknown): SQL {
  * @see between for the inverse of this test
  */
 export function notBetween<T>(
-	column: SQL.Aliased,
-	min: T | SQLWrapper,
-	max: T | SQLWrapper,
+  column: SQL.Aliased,
+  min: T | SQLWrapper,
+  max: T | SQLWrapper
 ): SQL;
 export function notBetween<TColumn extends AnyColumn>(
-	column: TColumn,
-	min: GetColumnData<TColumn, 'raw'> | SQLWrapper,
-	max: GetColumnData<TColumn, 'raw'> | SQLWrapper,
+  column: TColumn,
+  min: GetColumnData<TColumn, 'raw'> | SQLWrapper,
+  max: GetColumnData<TColumn, 'raw'> | SQLWrapper
 ): SQL;
 export function notBetween<T extends SQLWrapper>(
-	column: Exclude<T, SQL.Aliased | Column>,
-	min: unknown,
-	max: unknown,
+  column: Exclude<T, SQL.Aliased | Column>,
+  min: unknown,
+  max: unknown
 ): SQL;
 export function notBetween(
-	column: SQLWrapper,
-	min: unknown,
-	max: unknown,
+  column: SQLWrapper,
+  min: unknown,
+  max: unknown
 ): SQL {
-	return sql`${column} not between ${
-		bindIfParam(
-			min,
-			column,
-		)
-	} and ${bindIfParam(max, column)}`;
+  return sql`${column} not between ${bindIfParam(
+    min,
+    column
+  )} and ${bindIfParam(max, column)}`;
 }
 
 /**
@@ -537,7 +609,7 @@ export function notBetween(
  * @see ilike for a case-insensitive version of this condition
  */
 export function like(column: Column, value: string | SQLWrapper): SQL {
-	return sql`${column} like ${value}`;
+  return sql`${column} like ${value}`;
 }
 
 /**
@@ -559,7 +631,7 @@ export function like(column: Column, value: string | SQLWrapper): SQL {
  * @see notIlike for a case-insensitive version of this condition
  */
 export function notLike(column: Column, value: string | SQLWrapper): SQL {
-	return sql`${column} not like ${value}`;
+  return sql`${column} not like ${value}`;
 }
 
 /**
@@ -582,7 +654,7 @@ export function notLike(column: Column, value: string | SQLWrapper): SQL {
  * @see like for a case-sensitive version of this condition
  */
 export function ilike(column: Column, value: string | SQLWrapper): SQL {
-	return sql`${column} ilike ${value}`;
+  return sql`${column} ilike ${value}`;
 }
 
 /**
@@ -604,7 +676,7 @@ export function ilike(column: Column, value: string | SQLWrapper): SQL {
  * @see notLike for a case-sensitive version of this condition
  */
 export function notIlike(column: Column, value: string | SQLWrapper): SQL {
-	return sql`${column} not ilike ${value}`;
+  return sql`${column} not ilike ${value}`;
 }
 
 /**
@@ -628,30 +700,30 @@ export function notIlike(column: Column, value: string | SQLWrapper): SQL {
  * @see arrayOverlaps to find if a column or expression contains any elements of an array
  */
 export function arrayContains<T>(
-	column: SQL.Aliased<T>,
-	values: (T | Placeholder) | SQLWrapper,
+  column: SQL.Aliased<T>,
+  values: (T | Placeholder) | SQLWrapper
 ): SQL;
 export function arrayContains<TColumn extends Column>(
-	column: TColumn,
-	values: (GetColumnData<TColumn, 'raw'> | Placeholder) | SQLWrapper,
+  column: TColumn,
+  values: (GetColumnData<TColumn, 'raw'> | Placeholder) | SQLWrapper
 ): SQL;
 export function arrayContains<T extends SQLWrapper>(
-	column: Exclude<T, SQL.Aliased | Column>,
-	values: (unknown | Placeholder)[] | SQLWrapper,
+  column: Exclude<T, SQL.Aliased | Column>,
+  values: (unknown | Placeholder)[] | SQLWrapper
 ): SQL;
 export function arrayContains(
-	column: SQLWrapper,
-	values: (unknown | Placeholder)[] | SQLWrapper,
+  column: SQLWrapper,
+  values: (unknown | Placeholder)[] | SQLWrapper
 ): SQL {
-	if (Array.isArray(values)) {
-		if (values.length === 0) {
-			throw new Error('arrayContains requires at least one value');
-		}
-		const array = sql`${bindIfParam(values, column)}`;
-		return sql`${column} @> ${array}`;
-	}
+  if (Array.isArray(values)) {
+    if (values.length === 0) {
+      throw new Error('arrayContains requires at least one value');
+    }
+    const array = sql`${bindIfParam(values, column)}`;
+    return sql`${column} @> ${array}`;
+  }
 
-	return sql`${column} @> ${bindIfParam(values, column)}`;
+  return sql`${column} @> ${bindIfParam(values, column)}`;
 }
 
 /**
@@ -676,30 +748,30 @@ export function arrayContains(
  * @see arrayOverlaps to find if a column or expression contains any elements of an array
  */
 export function arrayContained<T>(
-	column: SQL.Aliased<T>,
-	values: (T | Placeholder) | SQLWrapper,
+  column: SQL.Aliased<T>,
+  values: (T | Placeholder) | SQLWrapper
 ): SQL;
 export function arrayContained<TColumn extends Column>(
-	column: TColumn,
-	values: (GetColumnData<TColumn, 'raw'> | Placeholder) | SQLWrapper,
+  column: TColumn,
+  values: (GetColumnData<TColumn, 'raw'> | Placeholder) | SQLWrapper
 ): SQL;
 export function arrayContained<T extends SQLWrapper>(
-	column: Exclude<T, SQL.Aliased | Column>,
-	values: (unknown | Placeholder)[] | SQLWrapper,
+  column: Exclude<T, SQL.Aliased | Column>,
+  values: (unknown | Placeholder)[] | SQLWrapper
 ): SQL;
 export function arrayContained(
-	column: SQLWrapper,
-	values: (unknown | Placeholder)[] | SQLWrapper,
+  column: SQLWrapper,
+  values: (unknown | Placeholder)[] | SQLWrapper
 ): SQL {
-	if (Array.isArray(values)) {
-		if (values.length === 0) {
-			throw new Error('arrayContained requires at least one value');
-		}
-		const array = sql`${bindIfParam(values, column)}`;
-		return sql`${column} <@ ${array}`;
-	}
+  if (Array.isArray(values)) {
+    if (values.length === 0) {
+      throw new Error('arrayContained requires at least one value');
+    }
+    const array = sql`${bindIfParam(values, column)}`;
+    return sql`${column} <@ ${array}`;
+  }
 
-	return sql`${column} <@ ${bindIfParam(values, column)}`;
+  return sql`${column} <@ ${bindIfParam(values, column)}`;
 }
 
 /**
@@ -723,28 +795,28 @@ export function arrayContained(
  * @see arrayContained to find if an array contains all elements of a column or expression
  */
 export function arrayOverlaps<T>(
-	column: SQL.Aliased<T>,
-	values: (T | Placeholder) | SQLWrapper,
+  column: SQL.Aliased<T>,
+  values: (T | Placeholder) | SQLWrapper
 ): SQL;
 export function arrayOverlaps<TColumn extends Column>(
-	column: TColumn,
-	values: (GetColumnData<TColumn, 'raw'> | Placeholder) | SQLWrapper,
+  column: TColumn,
+  values: (GetColumnData<TColumn, 'raw'> | Placeholder) | SQLWrapper
 ): SQL;
 export function arrayOverlaps<T extends SQLWrapper>(
-	column: Exclude<T, SQL.Aliased | Column>,
-	values: (unknown | Placeholder)[] | SQLWrapper,
+  column: Exclude<T, SQL.Aliased | Column>,
+  values: (unknown | Placeholder)[] | SQLWrapper
 ): SQL;
 export function arrayOverlaps(
-	column: SQLWrapper,
-	values: (unknown | Placeholder)[] | SQLWrapper,
+  column: SQLWrapper,
+  values: (unknown | Placeholder)[] | SQLWrapper
 ): SQL {
-	if (Array.isArray(values)) {
-		if (values.length === 0) {
-			throw new Error('arrayOverlaps requires at least one value');
-		}
-		const array = sql`${bindIfParam(values, column)}`;
-		return sql`${column} && ${array}`;
-	}
+  if (Array.isArray(values)) {
+    if (values.length === 0) {
+      throw new Error('arrayOverlaps requires at least one value');
+    }
+    const array = sql`${bindIfParam(values, column)}`;
+    return sql`${column} && ${array}`;
+  }
 
-	return sql`${column} && ${bindIfParam(values, column)}`;
+  return sql`${column} && ${bindIfParam(values, column)}`;
 }
