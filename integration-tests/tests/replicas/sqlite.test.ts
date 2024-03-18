@@ -799,4 +799,3 @@ describe('[findMany] read replicas sqlite', () => {
 		expect(query2.toSQL().sql).toEqual('select "id", "name", "verified" from "users" "usersTable"');
 	});
 });
-

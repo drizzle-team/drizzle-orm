@@ -8,8 +8,7 @@ module.exports = {
 			meta: {
 				type: 'problem',
 				docs: {
-					description:
-						'Enforce the usage of a static readonly [entityKind] property on Drizzle classes',
+					description: 'Enforce the usage of a static readonly [entityKind] property on Drizzle classes',
 					recommended: 'error',
 				},
 				messages: {
@@ -26,8 +25,7 @@ module.exports = {
 
 				return {
 					ClassDeclaration(node) {
-						const tsNode =
-							parserServices.esTreeNodeToTSNodeMap.get(node);
+						const tsNode = parserServices.esTreeNodeToTSNodeMap.get(node);
 						const className = tsNode.name
 							? tsNode.name.text
 							: undefined;
@@ -36,22 +34,21 @@ module.exports = {
 
 						for (const prop of tsNode.members) {
 							if (
-								prop.kind ===
-									ts.SyntaxKind.PropertyDeclaration &&
-								prop.modifiers?.some(
+								prop.kind
+									=== ts.SyntaxKind.PropertyDeclaration
+								&& prop.modifiers?.some(
+									(m) => m.kind === ts.SyntaxKind.StaticKeyword,
+								)
+								&& prop.modifiers?.some(
 									(m) =>
-										m.kind === ts.SyntaxKind.StaticKeyword,
-								) &&
-								prop.modifiers?.some(
-									(m) =>
-										m.kind ===
-										ts.SyntaxKind.ReadonlyKeyword,
-								) &&
-								ts.isComputedPropertyName(prop.name) &&
-								ts.isIdentifier(prop.name.expression) &&
-								prop.name.expression.escapedText ===
-									'entityKind' &&
-								checker
+										m.kind
+											=== ts.SyntaxKind.ReadonlyKeyword,
+								)
+								&& ts.isComputedPropertyName(prop.name)
+								&& ts.isIdentifier(prop.name.expression)
+								&& prop.name.expression.escapedText
+									=== 'entityKind'
+								&& checker
 									.getTypeAtLocation(prop.initializer)
 									.isStringLiteral()
 							) {
@@ -69,8 +66,7 @@ module.exports = {
 								const classBodyOpeningCurlyToken = context
 									.getSourceCode()
 									.getFirstToken(node.body);
-								const insertionPoint =
-									classBodyOpeningCurlyToken.range[1];
+								const insertionPoint = classBodyOpeningCurlyToken.range[1];
 								return fixer.insertTextAfterRange(
 									[insertionPoint, insertionPoint],
 									`\n\tstatic readonly [entityKind]: string = '${className}';\n`,

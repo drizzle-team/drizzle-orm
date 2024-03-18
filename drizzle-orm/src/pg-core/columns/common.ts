@@ -15,9 +15,9 @@ import type { Update } from '~/utils.ts';
 import type { ForeignKey, UpdateDeleteAction } from '~/pg-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/pg-core/foreign-keys.ts';
 import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
+import { iife } from '~/tracing-utils.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
 import { makePgArray, parsePgArray } from '../utils/array.ts';
-import { iife } from '~/tracing-utils.ts';
 
 export interface ReferenceConfig {
 	ref: () => PgColumn;
