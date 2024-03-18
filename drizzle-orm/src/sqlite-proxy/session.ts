@@ -158,7 +158,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 	run(placeholderValues?: Record<string, unknown>): Promise<SqliteRemoteResult> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		return (this.client as AsyncRemoteCallback)(this.query.sql, params, 'run').then((t) => t.rows) as Promise<
+		return (this.client as AsyncRemoteCallback)(this.query.sql, params, 'run') as Promise<
 			SqliteRemoteResult
 		>;
 	}
