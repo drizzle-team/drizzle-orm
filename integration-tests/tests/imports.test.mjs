@@ -33,8 +33,8 @@ import 'drizzle-orm/pg-proxy/migrator';
 import 'drizzle-orm/mysql-proxy';
 import 'drizzle-orm/mysql-proxy/migrator';
 import 'drizzle-orm/migrator';
-import { createInsertSchema } from 'drizzle-zod';
 import { compatibilityVersion, npmVersion } from 'drizzle-orm/version';
+import { createInsertSchema } from 'drizzle-zod';
 import { strict as assert } from 'node:assert';
 
 assert.equal(typeof compatibilityVersion, 'number');

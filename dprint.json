@@ -1,18 +1,18 @@
 {
-	"typescript": {
-		"useTabs": true,
-		"quoteStyle": "preferSingle",
-		"quoteProps": "asNeeded",
-		"arrowFunction.useParentheses": "force",
-		"jsx.quoteStyle": "preferSingle"
-	},
-	"json": {},
-	"markdown": {},
-	"includes": ["**/*.{ts,tsx,js,jsx,cjs,mjs,json,md}"],
-	"excludes": ["**/node_modules", "**/*-lock.json"],
-	"plugins": [
-		"https://plugins.dprint.dev/typescript-0.83.0.wasm",
-		"https://plugins.dprint.dev/json-0.17.0.wasm",
-		"https://plugins.dprint.dev/markdown-0.15.2.wasm"
-	]
+  "typescript": {
+    "useTabs": true,
+    "quoteStyle": "preferSingle",
+    "quoteProps": "asNeeded",
+    "arrowFunction.useParentheses": "force",
+    "jsx.quoteStyle": "preferSingle"
+  },
+  "json": {},
+  "markdown": {},
+  "includes": ["**/*.{ts,tsx,js,jsx,cjs,mjs}"],
+  "excludes": ["**/node_modules", "**/*-lock.json", "dist", "dist-dts", "dist.new"],
+  "plugins": [
+    "https://plugins.dprint.dev/typescript-0.83.0.wasm",
+    "https://plugins.dprint.dev/json-0.17.0.wasm",
+    "https://plugins.dprint.dev/markdown-0.15.2.wasm"
+  ]
 }

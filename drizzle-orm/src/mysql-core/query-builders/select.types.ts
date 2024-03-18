@@ -23,9 +23,9 @@ import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, ValidateShape } from '~/utils.ts';
 import type { PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
-import type { MySqlSelectBase, MySqlSelectQueryBuilderBase } from './select.ts';
 import type { MySqlViewBase } from '../view-base.ts';
 import type { MySqlViewWithSelection } from '../view.ts';
+import type { MySqlSelectBase, MySqlSelectQueryBuilderBase } from './select.ts';
 
 export interface MySqlSelectJoinConfig {
 	on: SQL | undefined;

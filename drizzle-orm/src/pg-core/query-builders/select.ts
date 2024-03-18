@@ -959,7 +959,7 @@ export class PgSelectBase<
 			const fieldsList = orderSelectedFields<PgColumn>(config.fields);
 			const query = session.prepareQuery<
 				PreparedQueryConfig & { execute: TResult }
-			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name);
+			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name, true);
 			query.joinsNotNullableMap = joinsNotNullableMap;
 			return query;
 		});

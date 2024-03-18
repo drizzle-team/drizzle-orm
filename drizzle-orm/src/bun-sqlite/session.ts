@@ -50,10 +50,19 @@ export class SQLiteBunSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): PreparedQuery<T> {
 		const stmt = this.client.prepare(query.sql);
-		return new PreparedQuery(stmt, query, this.logger, fields, executeMethod, customResultMapper);
+		return new PreparedQuery(
+			stmt,
+			query,
+			this.logger,
+			fields,
+			executeMethod,
+			isResponseInArrayMode,
+			customResultMapper,
+		);
 	}
 
 	override transaction<T>(
@@ -102,6 +111,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => unknown,
 	) {
 		super('sync', executeMethod, query);
@@ -155,5 +165,10 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return this.stmt.values(...params);
+	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
 	}
 }

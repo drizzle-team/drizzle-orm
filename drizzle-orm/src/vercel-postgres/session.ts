@@ -32,6 +32,7 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super({ sql: queryString, params });
@@ -76,6 +77,11 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		this.logger.logQuery(this.rawQuery.text, params);
 		return this.client.query(this.queryConfig, params).then((result) => result.rows);
 	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
+	}
 }
 
 export interface VercelPgSessionOptions {
@@ -104,6 +110,7 @@ export class VercelPgSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PgPreparedQuery<T> {
 		return new VercelPgPreparedQuery(
@@ -113,6 +120,7 @@ export class VercelPgSession<
 			this.logger,
 			fields,
 			name,
+			isResponseInArrayMode,
 			customResultMapper,
 		);
 	}
