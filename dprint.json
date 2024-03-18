@@ -19,7 +19,8 @@
 		"**/drizzle/**/meta",
 		"**/drizzle2/**/meta",
 		"**/*snapshot.json",
-		"**/_journal.json"
+		"**/_journal.json",
+		"**/tsup.config*.mjs"
 	],
 	"plugins": [
 		"https://plugins.dprint.dev/typescript-0.83.0.wasm",
