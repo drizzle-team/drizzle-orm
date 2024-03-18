@@ -272,6 +272,7 @@ export class SQLiteUpdateBase<
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
 			this.config.returning ? 'all' : 'run',
+			true,
 		) as SQLiteUpdatePrepare<this>;
 	}
 

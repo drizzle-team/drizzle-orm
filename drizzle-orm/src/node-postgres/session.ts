@@ -29,6 +29,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super({ sql: queryString, params });
@@ -93,6 +94,11 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 			});
 		});
 	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
+	}
 }
 
 export interface NodePgSessionOptions {
@@ -121,9 +127,19 @@ export class NodePgSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PgPreparedQuery<T> {
-		return new NodePgPreparedQuery(this.client, query.sql, query.params, this.logger, fields, name, customResultMapper);
+		return new NodePgPreparedQuery(
+			this.client,
+			query.sql,
+			query.params,
+			this.logger,
+			fields,
+			name,
+			isResponseInArrayMode,
+			customResultMapper,
+		);
 	}
 
 	override async transaction<T>(
