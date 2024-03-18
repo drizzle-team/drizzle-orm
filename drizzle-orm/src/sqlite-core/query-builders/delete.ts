@@ -232,6 +232,7 @@ export class SQLiteDeleteBase<
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
 			this.config.returning ? 'all' : 'run',
+			true,
 		) as SQLiteDeletePrepare<this>;
 	}
 

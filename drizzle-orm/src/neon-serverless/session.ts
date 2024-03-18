@@ -34,6 +34,7 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PgPrepared
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super({ sql: queryString, params });
@@ -77,6 +78,11 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PgPrepared
 		this.logger.logQuery(this.rawQueryConfig.text, params);
 		return this.client.query(this.queryConfig, params).then((result) => result.rows);
 	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
+	}
 }
 
 export interface NeonSessionOptions {
@@ -105,9 +111,19 @@ export class NeonSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PgPreparedQuery<T> {
-		return new NeonPreparedQuery(this.client, query.sql, query.params, this.logger, fields, name, customResultMapper);
+		return new NeonPreparedQuery(
+			this.client,
+			query.sql,
+			query.params,
+			this.logger,
+			fields,
+			name,
+			isResponseInArrayMode,
+			customResultMapper,
+		);
 	}
 
 	async query(query: string, params: unknown[]): Promise<QueryResult> {

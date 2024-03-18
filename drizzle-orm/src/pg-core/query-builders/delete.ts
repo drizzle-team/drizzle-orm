@@ -224,7 +224,7 @@ export class PgDeleteBase<
 				PreparedQueryConfig & {
 					execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
 				}
-			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
+			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true);
 		});
 	}
 
