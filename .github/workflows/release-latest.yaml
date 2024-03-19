@@ -117,6 +117,8 @@ jobs:
           MYSQL_CONNECTION_STRING: mysql://root:root@localhost:3306/drizzle
           PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
           NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+          XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
+          XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
           LIBSQL_URL: file:local.db
         run: |
           if [[ "${{ matrix.package }}" == "drizzle-orm" ]]; then

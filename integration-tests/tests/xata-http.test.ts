@@ -2322,7 +2322,7 @@ test('insert undefined', async () => {
 	await db.execute(sql`drop table ${users}`);
 });
 
-test.only('update undefined', async () => {
+test('update undefined', async () => {
 	const users = pgTable('users', {
 		id: serial('id').primaryKey(),
 		name: text('name'),
