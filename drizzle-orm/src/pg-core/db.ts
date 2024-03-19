@@ -577,19 +577,20 @@ export class PgDatabase<
 
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
 		query: SQLWrapper,
-	): /* PgRaw<QueryResultKind<TQueryResult, TRow>> */ Promise<QueryResultKind<TQueryResult, TRow>> {
+	): PgRaw<QueryResultKind<TQueryResult, TRow>> {
 		const sql = query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sql);
 		const prepared = this.session.prepareQuery<PreparedQueryConfig & { execute: QueryResultKind<TQueryResult, TRow> }>(
 			builtQuery,
 			undefined,
 			undefined,
+			false,
 		);
 		return new PgRaw(
 			() => prepared.execute(),
 			sql,
 			builtQuery,
-			(result) => prepared.mapResult(result, false),
+			(result) => prepared.mapResult(result, true),
 		);
 	}
 

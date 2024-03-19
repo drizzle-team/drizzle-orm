@@ -257,7 +257,7 @@ export class PgUpdateBase<
 
 	/** @internal */
 	_prepare(name?: string): PgUpdatePrepare<this> {
-		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
+		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true);
 	}
 
 	prepare(name: string): PgUpdatePrepare<this> {

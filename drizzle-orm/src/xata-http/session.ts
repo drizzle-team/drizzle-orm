@@ -29,6 +29,7 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		query: Query,
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
+		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super(query);
@@ -65,6 +66,11 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		this.logger.logQuery(this.query.sql, params);
 		return this.client.sql({ statement: this.query.sql, params }).then((result) => result.records);
 	}
+
+	/** @internal */
+	isResponseInArrayMode() {
+		return this._isResponseInArrayMode;
+	}
 }
 
 export interface XataHttpSessionOptions {
@@ -96,9 +102,17 @@ export class XataHttpSession<TFullSchema extends Record<string, unknown>, TSchem
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PgPreparedQuery<T> {
-		return new XataHttpPreparedQuery(this.client, query, this.logger, fields, customResultMapper);
+		return new XataHttpPreparedQuery(
+			this.client,
+			query,
+			this.logger,
+			fields,
+			isResponseInArrayMode,
+			customResultMapper,
+		);
 	}
 
 	async query(query: string, params: unknown[]): Promise<QueryResults<'array'>> {

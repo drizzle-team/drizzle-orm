@@ -97,7 +97,7 @@ const usersMigratorTable = mysqlTable('users12', {
 
 // eslint-disable-next-line drizzle/require-entity-kind
 class ServerSimulator {
-	constructor(private db: mysql.Connection) { }
+	constructor(private db: mysql.Connection) {}
 
 	async query(sql: string, params: any[], method: 'all' | 'execute') {
 		if (method === 'all') {
@@ -106,7 +106,7 @@ class ServerSimulator {
 					sql,
 					values: params,
 					rowsAsArray: true,
-					typeCast: function (field: any, next: any) {
+					typeCast: function(field: any, next: any) {
 						if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
 							return field.string();
 						}
@@ -123,7 +123,7 @@ class ServerSimulator {
 				const result = await this.db.query({
 					sql,
 					values: params,
-					typeCast: function (field: any, next: any) {
+					typeCast: function(field: any, next: any) {
 						if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
 							return field.string();
 						}
@@ -1015,7 +1015,7 @@ test.serial('migrator', async (t) => {
 	await t.throwsAsync(async () => {
 		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 	}, {
-		message: 'Table \'drizzle.users12\' doesn\'t exist'
+		message: "Table 'drizzle.users12' doesn't exist",
 	});
 
 	await migrate(db, async (queries) => {

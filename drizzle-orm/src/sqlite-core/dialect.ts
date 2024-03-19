@@ -776,8 +776,8 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 		const migrationsTable = config === undefined
 			? '__drizzle_migrations'
 			: typeof config === 'string'
-				? '__drizzle_migrations'
-				: config.migrationsTable ?? '__drizzle_migrations';
+			? '__drizzle_migrations'
+			: config.migrationsTable ?? '__drizzle_migrations';
 
 		const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (

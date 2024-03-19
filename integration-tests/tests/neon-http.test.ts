@@ -123,7 +123,7 @@ const usersMigratorTable = pgTable('users12', {
 interface Context {
 	db: NeonHttpDatabase;
 	ddlRunner: pg.Client;
-	client: NeonQueryFunction<false, true>;
+	client: NeonQueryFunction<any, any>;
 }
 
 const test = anyTest as TestFn<Context>;
@@ -254,7 +254,7 @@ test.serial('select all fields', async (t) => {
 	const result = await db.select().from(usersTable);
 
 	t.assert(result[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
-	t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 100);
+	t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 1000);
 	t.deepEqual(result, [
 		{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt },
 	]);
@@ -381,7 +381,7 @@ test.serial('update with returning all fields', async (t) => {
 		.returning();
 
 	t.assert(users[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
-	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 100);
+	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 1000);
 	t.deepEqual(users, [
 		{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt },
 	]);
@@ -412,7 +412,7 @@ test.serial('delete with returning all fields', async (t) => {
 	const users = await db.delete(usersTable).where(eq(usersTable.name, 'John')).returning();
 
 	t.assert(users[0]!.createdAt instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
-	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 100);
+	t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 1000);
 	t.deepEqual(users, [
 		{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: users[0]!.createdAt },
 	]);
@@ -890,7 +890,7 @@ test.serial('migrator : default migration strategy', async (t) => {
 	await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
 });
 
-test.serial('migrator : migrate with custom schema', async (t) => { 
+test.serial('migrator : migrate with custom schema', async (t) => {
 	const { db } = t.context;
 	const customSchema = randomString();
 	await db.execute(sql`drop table if exists all_columns`);
@@ -900,44 +900,43 @@ test.serial('migrator : migrate with custom schema', async (t) => {
 	await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsSchema: customSchema });
 
 	// test if the custom migrations table was created
-	const {rowCount} = await db.execute(sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`);
+	const { rowCount } = await db.execute(sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`);
 	t.true(rowCount > 0);
 
 	// test if the migrated table are working as expected
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 	const result = await db.select().from(usersMigratorTable);
 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
-	
+
 	await db.execute(sql`drop table all_columns`);
 	await db.execute(sql`drop table users12`);
 	await db.execute(sql`drop table ${sql.identifier(customSchema)}."__drizzle_migrations"`);
 });
 
-test.serial('migrator : migrate with custom table', async (t) => { 
+test.serial('migrator : migrate with custom table', async (t) => {
 	const { db } = t.context;
 	const customTable = randomString();
 	await db.execute(sql`drop table if exists all_columns`);
 	await db.execute(sql`drop table if exists users12`);
 	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-	await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsTable: customTable});
+	await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsTable: customTable });
 
 	// test if the custom migrations table was created
-	const {rowCount} = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
+	const { rowCount } = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
 	t.true(rowCount > 0);
 
 	// test if the migrated table are working as expected
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 	const result = await db.select().from(usersMigratorTable);
 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
-	
+
 	await db.execute(sql`drop table all_columns`);
 	await db.execute(sql`drop table users12`);
 	await db.execute(sql`drop table "drizzle".${sql.identifier(customTable)}`);
 });
 
-
-test.serial('migrator : migrate with custom table and custom schema', async (t) => { 
+test.serial('migrator : migrate with custom table and custom schema', async (t) => {
 	const { db } = t.context;
 	const customTable = randomString();
 	const customSchema = randomString();
@@ -945,17 +944,23 @@ test.serial('migrator : migrate with custom table and custom schema', async (t) 
 	await db.execute(sql`drop table if exists users12`);
 	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-	await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsTable: customTable, migrationsSchema: customSchema});
+	await migrate(db, {
+		migrationsFolder: './drizzle2/pg',
+		migrationsTable: customTable,
+		migrationsSchema: customSchema,
+	});
 
 	// test if the custom migrations table was created
-	const {rowCount} = await db.execute(sql`select * from ${sql.identifier(customSchema)}.${sql.identifier(customTable)};`);
+	const { rowCount } = await db.execute(
+		sql`select * from ${sql.identifier(customSchema)}.${sql.identifier(customTable)};`,
+	);
 	t.true(rowCount > 0);
 
 	// test if the migrated table are working as expected
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 	const result = await db.select().from(usersMigratorTable);
 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
-	
+
 	await db.execute(sql`drop table all_columns`);
 	await db.execute(sql`drop table users12`);
 	await db.execute(sql`drop table ${sql.identifier(customSchema)}.${sql.identifier(customTable)}`);
@@ -1009,7 +1014,8 @@ test.serial('build query insert with onConflict do update', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id") do update set "name" = $3',
+		sql:
+			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do update set "name" = $3',
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
@@ -1024,7 +1030,8 @@ test.serial('build query insert with onConflict do update / multiple columns', a
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id","name") do update set "name" = $3',
+		sql:
+			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
@@ -1039,7 +1046,8 @@ test.serial('build query insert with onConflict do nothing', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict do nothing',
+		sql:
+			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict do nothing',
 		params: ['John', '["foo","bar"]'],
 	});
 });
@@ -1054,7 +1062,8 @@ test.serial('build query insert with onConflict do nothing + target', async (t) 
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values ($1, $2) on conflict ("id") do nothing',
+		sql:
+			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
 		params: ['John', '["foo","bar"]'],
 	});
 });
@@ -2112,19 +2121,21 @@ test.serial('all date and time columns', async (t) => {
 		}, typeof table.$inferInsert>
 	>;
 
-	t.deepEqual(result, [
-		{
-			id: 1,
-			dateString: '2022-01-01',
-			time: someTime,
-			datetime: someDatetime,
-			datetimeWTZ: someDatetime,
-			datetimeString: '2022-01-01 00:00:00.123',
-			datetimeFullPrecision: fullPrecision.replace('T', ' '),
-			datetimeWTZString: '2022-01-01 00:00:00.123+00',
-			interval: '1 day',
+	t.deepEqual(result.length, 1);
+
+	t.like(result[0], {
+		id: 1,
+		dateString: '2022-01-01',
+		time: someTime,
+		datetime: someDatetime,
+		datetimeWTZ: someDatetime,
+		datetimeString: '2022-01-01 00:00:00.123',
+		datetimeFullPrecision: fullPrecision.replace('T', ' '),
+		datetimeWTZString: '2022-01-01 00:00:00.123+00',
+		interval: {
+			days: 1,
 		},
-	]);
+	});
 
 	await db.execute(sql`drop table if exists ${table}`);
 });

@@ -38,9 +38,18 @@ export class PgRemoteSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PreparedQuery<T> {
-		return new PreparedQuery(this.client, query.sql, query.params, this.logger, fields, customResultMapper);
+		return new PreparedQuery(
+			this.client,
+			query.sql,
+			query.params,
+			this.logger,
+			fields,
+			isResponseInArrayMode,
+			customResultMapper,
+		);
 	}
 
 	override async transaction<T>(
@@ -73,6 +82,7 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
+		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super({ sql: queryString, params });
@@ -118,6 +128,11 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 	}
 
 	async all() {}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
+	}
 }
 
 export interface PgRemoteQueryResultHKT extends QueryResultHKT {
