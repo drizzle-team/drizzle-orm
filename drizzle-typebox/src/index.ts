@@ -17,27 +17,22 @@ import { Type } from '@sinclair/typebox';
 import {
 	type AnyColumn,
 	type Assume,
+	type Column,
 	type DrizzleTypeError,
 	type Equal,
 	getTableColumns,
 	is,
 	type Simplify,
 	type Table,
-	type Column,
 } from 'drizzle-orm';
-import {
-	MySqlChar,
-	MySqlVarBinary,
-	MySqlVarChar,
-} from 'drizzle-orm/mysql-core';
+import { MySqlChar, MySqlVarBinary, MySqlVarChar } from 'drizzle-orm/mysql-core';
 import { type PgArray, PgChar, PgUUID, PgVarchar } from 'drizzle-orm/pg-core';
 import { SQLiteText } from 'drizzle-orm/sqlite-core';
 
 type TUnionLiterals<T extends string[]> = T extends readonly [
 	infer U extends string,
-	...infer Rest extends string[]
-]
-	? [TLiteral<U>, ...TUnionLiterals<Rest>]
+	...infer Rest extends string[],
+] ? [TLiteral<U>, ...TUnionLiterals<Rest>]
 	: [];
 
 const literalSchema = Type.Union([
@@ -59,78 +54,62 @@ type TNullable<TType extends TSchema> = TUnion<[TType, TNull]>;
 
 type MapInsertColumnToTypebox<
 	TColumn extends Column,
-	TType extends TSchema
-> = TColumn['_']['notNull'] extends false
-	? TOptional<TNullable<TType>>
-	: TColumn['_']['hasDefault'] extends true
-	? TOptional<TType>
+	TType extends TSchema,
+> = TColumn['_']['notNull'] extends false ? TOptional<TNullable<TType>>
+	: TColumn['_']['hasDefault'] extends true ? TOptional<TType>
 	: TType;
 
 type MapSelectColumnToTypebox<
 	TColumn extends Column,
-	TType extends TSchema
+	TType extends TSchema,
 > = TColumn['_']['notNull'] extends false ? TNullable<TType> : TType;
 
 type MapColumnToTypebox<
 	TColumn extends Column,
 	TType extends TSchema,
-	TMode extends 'insert' | 'select'
-> = TMode extends 'insert'
-	? MapInsertColumnToTypebox<TColumn, TType>
+	TMode extends 'insert' | 'select',
+> = TMode extends 'insert' ? MapInsertColumnToTypebox<TColumn, TType>
 	: MapSelectColumnToTypebox<TColumn, TType>;
 
 type MaybeOptional<
 	TColumn extends Column,
 	TType extends TSchema,
 	TMode extends 'insert' | 'select',
-	TNoOptional extends boolean
-> = TNoOptional extends true
-	? TType
+	TNoOptional extends boolean,
+> = TNoOptional extends true ? TType
 	: MapColumnToTypebox<TColumn, TType, TMode>;
 
-type GetTypeboxType<TColumn extends Column> =
-	TColumn['_']['dataType'] extends infer TDataType
-		? TDataType extends 'custom'
-			? TAny
-			: TDataType extends 'json'
-			? Json
-			: TColumn extends { enumValues: [string, ...string[]] }
-			? Equal<TColumn['enumValues'], [string, ...string[]]> extends true
-				? TString
-				: TUnion<TUnionLiterals<TColumn['enumValues']>>
-			: TDataType extends 'array'
-			? TArray<
-					GetTypeboxType<
-						Assume<
-							TColumn['_'],
-							{ baseColumn: Column }
-						>['baseColumn']
-					>
-				>
-			: TDataType extends 'bigint'
-			? TBigInt
-			: TDataType extends 'number'
-			? TNumber
-			: TDataType extends 'string'
-			? TString
-			: TDataType extends 'boolean'
-			? TBoolean
-			: TDataType extends 'date'
-			? TDate
-			: TAny
-		: never;
+type GetTypeboxType<TColumn extends Column> = TColumn['_']['dataType'] extends infer TDataType
+	? TDataType extends 'custom' ? TAny
+	: TDataType extends 'json' ? Json
+	: TColumn extends { enumValues: [string, ...string[]] }
+		? Equal<TColumn['enumValues'], [string, ...string[]]> extends true ? TString
+		: TUnion<TUnionLiterals<TColumn['enumValues']>>
+	: TDataType extends 'array' ? TArray<
+			GetTypeboxType<
+				Assume<
+					TColumn['_'],
+					{ baseColumn: Column }
+				>['baseColumn']
+			>
+		>
+	: TDataType extends 'bigint' ? TBigInt
+	: TDataType extends 'number' ? TNumber
+	: TDataType extends 'string' ? TString
+	: TDataType extends 'boolean' ? TBoolean
+	: TDataType extends 'date' ? TDate
+	: TAny
+	: never;
 
 type ValueOrUpdater<T, TUpdaterArg> = T | ((arg: TUpdaterArg) => T);
 
-type UnwrapValueOrUpdater<T> = T extends ValueOrUpdater<infer U, any>
-	? U
+type UnwrapValueOrUpdater<T> = T extends ValueOrUpdater<infer U, any> ? U
 	: never;
 
 export type Refine<TTable extends Table, TMode extends 'select' | 'insert'> = {
 	[K in keyof TTable['_']['columns']]?: ValueOrUpdater<
 		TSchema,
-		TMode extends 'select'
-			? BuildSelectSchema<TTable, {}, true>
+		TMode extends 'select' ? BuildSelectSchema<TTable, {}, true>
 			: BuildInsertSchema<TTable, {}, true>
 	>;
 };
@@ -138,55 +117,55 @@ export type Refine<TTable extends Table, TMode extends 'select' | 'insert'> = {
 export type BuildInsertSchema<
 	TTable extends Table,
 	TRefine extends Refine<TTable, 'insert'> | {},
-	TNoOptional extends boolean = false
+	TNoOptional extends boolean = false,
 > = TTable['_']['columns'] extends infer TColumns extends Record<
 	string,
 	Column<any>
->
-	? {
-			[K in keyof TColumns & string]: MaybeOptional<
-				TColumns[K],
-				K extends keyof TRefine
-					? Assume<UnwrapValueOrUpdater<TRefine[K]>, TSchema>
-					: GetTypeboxType<TColumns[K]>,
-				'insert',
-				TNoOptional
-			>;
-		}
+> ? {
+		[K in keyof TColumns & string]: MaybeOptional<
+			TColumns[K],
+			K extends keyof TRefine ? Assume<UnwrapValueOrUpdater<TRefine[K]>, TSchema>
+				: GetTypeboxType<TColumns[K]>,
+			'insert',
+			TNoOptional
+		>;
+	}
 	: never;
 
 export type BuildSelectSchema<
 	TTable extends Table,
 	TRefine extends Refine<TTable, 'select'>,
-	TNoOptional extends boolean = false
-> = Simplify<{
-	[K in keyof TTable['_']['columns']]: MaybeOptional<
-		TTable['_']['columns'][K],
-		K extends keyof TRefine
-			? Assume<UnwrapValueOrUpdater<TRefine[K]>, TSchema>
-			: GetTypeboxType<TTable['_']['columns'][K]>,
-		'select',
-		TNoOptional
-	>;
-}>;
+	TNoOptional extends boolean = false,
+> = Simplify<
+	{
+		[K in keyof TTable['_']['columns']]: MaybeOptional<
+			TTable['_']['columns'][K],
+			K extends keyof TRefine ? Assume<UnwrapValueOrUpdater<TRefine[K]>, TSchema>
+				: GetTypeboxType<TTable['_']['columns'][K]>,
+			'select',
+			TNoOptional
+		>;
+	}
+>;
 
-export const Nullable = <T extends TSchema>(schema: T) =>
-	Type.Union([schema, Type.Null()]);
+export const Nullable = <T extends TSchema>(schema: T) => Type.Union([schema, Type.Null()]);
 
 export function createInsertSchema<
 	TTable extends Table,
-	TRefine extends Refine<TTable, 'insert'> = Refine<TTable, 'insert'>
+	TRefine extends Refine<TTable, 'insert'> = Refine<TTable, 'insert'>,
 >(
 	table: TTable,
 	/**
 	 * @param refine Refine schema fields
 	 */
 	refine?: {
-		[K in keyof TRefine]: K extends keyof TTable['_']['columns']
-			? TRefine[K]
-			: DrizzleTypeError<`Column '${K &
-					string}' does not exist in table '${TTable['_']['name']}'`>;
-	}
+		[K in keyof TRefine]: K extends keyof TTable['_']['columns'] ? TRefine[K]
+			: DrizzleTypeError<
+				`Column '${
+					& K
+					& string}' does not exist in table '${TTable['_']['name']}'`
+			>;
+	},
 	//
 ): TObject<
 	BuildInsertSchema<
@@ -200,7 +179,7 @@ export function createInsertSchema<
 	let schemaEntries = Object.fromEntries(
 		columnEntries.map(([name, column]) => {
 			return [name, mapColumnToSchema(column)];
-		})
+		}),
 	);
 
 	if (refine) {
@@ -212,16 +191,16 @@ export function createInsertSchema<
 						name,
 						typeof refineColumn === 'function'
 							? refineColumn(
-									schemaEntries as BuildInsertSchema<
-										TTable,
-										{},
-										true
-									>
-								)
+								schemaEntries as BuildInsertSchema<
+									TTable,
+									{},
+									true
+								>,
+							)
 							: refineColumn,
 					];
-				})
-			)
+				}),
+			),
 		);
 	}
 
@@ -238,18 +217,20 @@ export function createInsertSchema<
 
 export function createSelectSchema<
 	TTable extends Table,
-	TRefine extends Refine<TTable, 'select'> = Refine<TTable, 'select'>
+	TRefine extends Refine<TTable, 'select'> = Refine<TTable, 'select'>,
 >(
 	table: TTable,
 	/**
 	 * @param refine Refine schema fields
 	 */
 	refine?: {
-		[K in keyof TRefine]: K extends keyof TTable['_']['columns']
-			? TRefine[K]
-			: DrizzleTypeError<`Column '${K &
-					string}' does not exist in table '${TTable['_']['name']}'`>;
-	}
+		[K in keyof TRefine]: K extends keyof TTable['_']['columns'] ? TRefine[K]
+			: DrizzleTypeError<
+				`Column '${
+					& K
+					& string}' does not exist in table '${TTable['_']['name']}'`
+			>;
+	},
 ): TObject<
 	BuildSelectSchema<
 		TTable,
@@ -262,7 +243,7 @@ export function createSelectSchema<
 	let schemaEntries = Object.fromEntries(
 		columnEntries.map(([name, column]) => {
 			return [name, mapColumnToSchema(column)];
-		})
+		}),
 	);
 
 	if (refine) {
@@ -274,16 +255,16 @@ export function createSelectSchema<
 						name,
 						typeof refineColumn === 'function'
 							? refineColumn(
-									schemaEntries as BuildSelectSchema<
-										TTable,
-										{},
-										true
-									>
-								)
+								schemaEntries as BuildSelectSchema<
+									TTable,
+									{},
+									true
+								>,
+							)
 							: refineColumn,
 					];
-				})
-			)
+				}),
+			),
 		);
 	}
 
@@ -297,12 +278,12 @@ export function createSelectSchema<
 }
 
 function isWithEnum(
-	column: AnyColumn
+	column: AnyColumn,
 ): column is typeof column & { enumValues: [string, ...string[]] } {
 	return (
-		'enumValues' in column &&
-		Array.isArray(column.enumValues) &&
-		column.enumValues.length > 0
+		'enumValues' in column
+		&& Array.isArray(column.enumValues)
+		&& column.enumValues.length > 0
 	);
 }
 
@@ -324,7 +305,7 @@ function mapColumnToSchema(column: Column): TSchema {
 			type = jsonSchema;
 		} else if (column.dataType === 'array') {
 			type = Type.Array(
-				mapColumnToSchema((column as PgArray<any, any>).baseColumn)
+				mapColumnToSchema((column as PgArray<any, any>).baseColumn),
 			);
 		} else if (column.dataType === 'number') {
 			type = Type.Number();
@@ -338,13 +319,13 @@ function mapColumnToSchema(column: Column): TSchema {
 			const sType = Type.String();
 
 			if (
-				(is(column, PgChar) ||
-					is(column, PgVarchar) ||
-					is(column, MySqlVarChar) ||
-					is(column, MySqlVarBinary) ||
-					is(column, MySqlChar) ||
-					is(column, SQLiteText)) &&
-				typeof column.length === 'number'
+				(is(column, PgChar)
+					|| is(column, PgVarchar)
+					|| is(column, MySqlVarChar)
+					|| is(column, MySqlVarBinary)
+					|| is(column, MySqlChar)
+					|| is(column, SQLiteText))
+				&& typeof column.length === 'number'
 			) {
 				sType.maxLength = column.length;
 			}

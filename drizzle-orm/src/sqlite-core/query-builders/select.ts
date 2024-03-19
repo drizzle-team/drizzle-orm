@@ -866,6 +866,7 @@ export class SQLiteSelectBase<
 			this.dialect.sqlToQuery(this.getSQL()),
 			fieldsList,
 			'all',
+			true,
 		);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
 		return query as ReturnType<this['prepare']>;
