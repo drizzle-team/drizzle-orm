@@ -2317,7 +2317,7 @@ test('insert undefined', async () => {
 		sql`create table ${users} (id serial not null primary key, name text)`,
 	);
 
-	await expect(async () => await db.insert(users).values({ name: undefined })).rejects.not.toThrowError();
+	expect(async () => await db.insert(users).values({ name: undefined })).not.toThrowError();
 
 	await db.execute(sql`drop table ${users}`);
 });
