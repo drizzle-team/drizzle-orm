@@ -18,7 +18,7 @@ import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/s
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
-import { DrizzleError, type Name, ViewBaseConfig, and, eq } from '../index.ts';
+import { and, DrizzleError, eq, type Name, ViewBaseConfig } from '../index.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
@@ -30,8 +30,12 @@ import { MySqlViewBase } from './view-base.ts';
 
 export class MySqlDialect {
 	static readonly [entityKind]: string = 'MySqlDialect';
-	
-	async migrate(migrations: MigrationMeta[], session: MySqlSession, config: Omit<MigrationConfig, 'migrationsSchema'>): Promise<void> {
+
+	async migrate(
+		migrations: MigrationMeta[],
+		session: MySqlSession,
+		config: Omit<MigrationConfig, 'migrationsSchema'>,
+	): Promise<void> {
 		const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 		const migrationTableCreate = sql`
 			create table if not exists ${sql.identifier(migrationsTable)} (

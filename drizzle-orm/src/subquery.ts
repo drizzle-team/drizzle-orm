@@ -1,5 +1,5 @@
 import { entityKind } from './entity.ts';
-import type { SQL, SQLWrapper, ColumnsSelection } from './sql/sql.ts';
+import type { ColumnsSelection, SQL, SQLWrapper } from './sql/sql.ts';
 
 export const SubqueryConfig = Symbol.for('drizzle:SubqueryConfig');
 

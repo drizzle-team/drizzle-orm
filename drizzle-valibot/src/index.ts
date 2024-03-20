@@ -83,7 +83,8 @@ type GetValibotType<TColumn extends Column> = TColumn['_']['dataType'] extends i
 	: TColumn extends { enumValues: [string, ...string[]] }
 		? Equal<TColumn['enumValues'], [string, ...string[]]> extends true ? StringSchema
 		: PicklistSchema<TColumn['enumValues']>
-	: TDataType extends 'array' ? ArraySchema<GetValibotType<Assume<TColumn['_']['baseColumn'], Column>>>
+	: TDataType extends 'array'
+		? TColumn['_']['baseColumn'] extends Column ? ArraySchema<GetValibotType<TColumn['_']['baseColumn']>> : never
 	: TDataType extends 'bigint' ? BigintSchema
 	: TDataType extends 'number' ? NumberSchema
 	: TDataType extends 'string' ? StringSchema

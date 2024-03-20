@@ -1,5 +1,6 @@
 import { entityKind, is } from '~/entity.ts';
 import type { SelectedFields } from '~/operations.ts';
+import { isPgEnum } from '~/pg-core/columns/enum.ts';
 import { Subquery, SubqueryConfig } from '~/subquery.ts';
 import { tracer } from '~/tracing.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
@@ -62,8 +63,7 @@ export interface SQLWrapper {
 }
 
 export function isSQLWrapper(value: unknown): value is SQLWrapper {
-	return typeof value === 'object' && value !== null && 'getSQL' in value
-		&& typeof (value as any).getSQL === 'function';
+	return value !== null && value !== undefined && typeof (value as any).getSQL === 'function';
 }
 
 function mergeQueries(queries: QueryWithTypings[]): QueryWithTypings {
@@ -234,6 +234,13 @@ export class SQL<T = unknown> implements SQLWrapper {
 					new StringChunk(') '),
 					new Name(chunk[SubqueryConfig].alias),
 				], config);
+			}
+
+			if (isPgEnum(chunk)) {
+				if (chunk.schema) {
+					return { sql: escapeName(chunk.schema) + '.' + escapeName(chunk.enumName), params: [] };
+				}
+				return { sql: escapeName(chunk.enumName), params: [] };
 			}
 
 			if (isSQLWrapper(chunk)) {

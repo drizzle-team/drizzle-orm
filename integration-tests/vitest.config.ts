@@ -13,10 +13,11 @@ export default defineConfig({
 			'tests/neon-http-batch.test.ts',
 			'tests/replicas/**/*',
 			'tests/imports/**/*',
+			'tests/xata-http.test.ts',
 		],
 		exclude: [
 			...(process.env.SKIP_EXTERNAL_DB_TESTS
-				? ['tests/relational/mysql.planetscale.test.ts', 'tests/neon-http-batch.test.ts']
+				? ['tests/relational/mysql.planetscale.test.ts', 'tests/neon-http-batch.test.ts', 'tests/xata-http.test.ts']
 				: []),
 			'tests/relational/vercel.test.ts',
 		],
