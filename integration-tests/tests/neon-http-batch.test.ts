@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { neon } from '@neondatabase/serverless';
-import type { NeonQueryFunction } from '@neondatabase/serverless';
+import type { FullQueryResults, NeonQueryFunction } from '@neondatabase/serverless';
+import type { InferSelectModel } from 'drizzle-orm';
 import { eq, relations, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/neon-http';
 import type { NeonHttpDatabase, NeonHttpQueryResult } from 'drizzle-orm/neon-http';
@@ -341,74 +342,76 @@ test('insert + findMany + findFirst', async () => {
 	);
 });
 
-// test('insert + db.execute', async () => {
-// 	const batchResponse = await db.batch([
-// 		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
-// 		db.execute(sql`insert into users (id, name) values (2, 'Dan')`),
-// 	]);
+test('insert + db.execute', async () => {
+	const batchResponse = await db.batch([
+		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
+		db.execute(sql`insert into users (id, name) values (2, 'Dan')`),
+	]);
 
-// 	expectTypeOf(batchResponse).toEqualTypeOf<[
-// 		{
-// 			id: number;
-// 		}[],
-// 		FullQueryResults<false>,
-// 	]>();
+	expectTypeOf(batchResponse).toEqualTypeOf<[
+		{
+			id: number;
+		}[],
+		FullQueryResults<false>,
+	]>();
 
-// 	expect(batchResponse.length).eq(2);
+	expect(batchResponse.length).eq(2);
 
-// 	expect(batchResponse[0]).toEqual([{
-// 		id: 1,
-// 	}]);
+	expect(batchResponse[0]).toEqual([{
+		id: 1,
+	}]);
 
-// 	expect(batchResponse[1]).toMatchObject({ rowAsArray: false, rows: [], rowCount: 1 });
-// });
+	expect(batchResponse[1]).toMatchObject({ rowAsArray: false, rows: [], rowCount: 1 });
+});
 
 // batch api combined rqb + raw call
-// test('insert + findManyWith + db.all', async () => {
-// 	const batchResponse = await db.batch([
-// 		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
-// 		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
-// 		db.query.usersTable.findMany({}),
-// 		db.execute<typeof usersTable.$inferSelect>(sql`select * from users`),
-// 	]);
+test('insert + findManyWith + db.all', async () => {
+	const batchResponse = await db.batch([
+		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
+		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
+		db.query.usersTable.findMany({}),
+		db.execute<typeof usersTable.$inferSelect>(sql`select * from users`),
+	]);
 
-// 	expectTypeOf(batchResponse).toEqualTypeOf<[
-// 		{
-// 			id: number;
-// 		}[],
-// 		NeonHttpQueryResult<never>,
-// 		{
-// 			id: number;
-// 			name: string;
-// 			verified: number;
-// 			invitedBy: number | null;
-// 		}[],
-// 		NeonHttpQueryResult<{
-// 			id: number;
-// 			name: string;
-// 			verified: number;
-// 			invitedBy: number | null;
-// 		}>,
-// 	]>();
+	expectTypeOf(batchResponse).toEqualTypeOf<[
+		{
+			id: number;
+		}[],
+		NeonHttpQueryResult<never>,
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		}[],
+		NeonHttpQueryResult<{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		}>,
+	]>();
 
-// 	expect(batchResponse.length).eq(4);
+	expect(batchResponse.length).eq(4);
 
-// 	expect(batchResponse[0]).toEqual([{
-// 		id: 1,
-// 	}]);
+	expect(batchResponse[0]).toEqual([{
+		id: 1,
+	}]);
 
-// 	expect(batchResponse[1]).toMatchObject({ rowAsArray: false, rows: [], rowCount: 1 });
+	expect(batchResponse[1]).toMatchObject({ rowAsArray: true, rows: [], rowCount: 1 });
 
-// 	expect(batchResponse[2]).toEqual([
-// 		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-// 		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
-// 	]);
+	expect(batchResponse[2]).toEqual([
+		{ id: 1, name: 'John', verified: 0, invitedBy: null },
+		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
+	]);
 
-// 	expect(batchResponse[3]).toEqual([
-// 		{ id: 1, name: 'John', verified: 0, invited_by: null },
-// 		{ id: 2, name: 'Dan', verified: 0, invited_by: null },
-// 	]);
-// });
+	expect(batchResponse[3]).toMatchObject({
+		rows: [
+			{ id: 1, name: 'John', verified: 0, invited_by: null },
+			{ id: 2, name: 'Dan', verified: 0, invited_by: null },
+		],
+	});
+});
 
 // batch api for insert + update + select
 test('insert + update + select + select partial', async () => {
@@ -510,6 +513,44 @@ test('insert + delete + select + select partial', async () => {
 	);
 });
 
+test('select raw', async () => {
+	await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Dan' }]);
+	const batchResponse = await db.batch([
+		db.execute<InferSelectModel<typeof usersTable, { dbColumnNames: true }>>(sql`select * from users`),
+		db.execute<InferSelectModel<typeof usersTable, { dbColumnNames: true }>>(sql`select * from users where id = 1`),
+	]);
+
+	expectTypeOf(batchResponse).toEqualTypeOf<[
+		NeonHttpQueryResult<{
+			id: number;
+			name: string;
+			verified: number;
+			invited_by: number | null;
+		}>,
+		NeonHttpQueryResult<{
+			id: number;
+			name: string;
+			verified: number;
+			invited_by: number | null;
+		}>,
+	]>();
+
+	expect(batchResponse.length).eq(2);
+
+	expect(batchResponse[0]).toMatchObject({
+		rows: [
+			{ id: 1, name: 'John', verified: 0, invited_by: null },
+			{ id: 2, name: 'Dan', verified: 0, invited_by: null },
+		],
+	});
+
+	expect(batchResponse[1]).toMatchObject({
+		rows: [
+			{ id: 1, name: 'John', verified: 0, invited_by: null },
+		],
+	});
+});
+
 test('dynamic array select', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'John' },
@@ -562,40 +603,6 @@ test('dynamic array insert + select', async () => {
 
 	expect(batchResponse[1]).toEqual([{ id: 1 }, { id: 2 }]);
 });
-
-// test('select raw', async () => {
-// 	await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Dan' }]);
-// 	const batchResponse = await db.batch([
-// 		db.execute<typeof usersTable.$inferSelect>(sql`select * from users`),
-// 		db.execute<typeof usersTable.$inferSelect>(sql`select * from users where id = 1`),
-// 	]);
-
-// 	expectTypeOf(batchResponse).toEqualTypeOf<[
-// 		NeonHttpQueryResult<{
-// 			id: number;
-// 			name: string;
-// 			verified: number;
-// 			invitedBy: number | null;
-// 		}>,
-// 		NeonHttpQueryResult<{
-// 			id: number;
-// 			name: string;
-// 			verified: number;
-// 			invitedBy: number | null;
-// 		}>,
-// 	]>();
-
-// 	expect(batchResponse.length).eq(2);
-
-// 	expect(batchResponse[0]).toEqual([
-// 		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-// 		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
-// 	]);
-
-// 	expect(batchResponse[1]).toEqual([
-// 		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-// 	]);
-// });
 
 // * additionally
 // batch for all neon cases, just replace simple calls with batch calls

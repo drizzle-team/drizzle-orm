@@ -46,6 +46,7 @@ export class LibSQLSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): LibSQLPreparedQuery<T> {
 		return new LibSQLPreparedQuery(
@@ -55,6 +56,7 @@ export class LibSQLSession<
 			fields,
 			this.tx,
 			executeMethod,
+			isResponseInArrayMode,
 			customResultMapper,
 		);
 	}
@@ -138,6 +140,7 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		/** @internal */ public fields: SelectedFieldsOrdered | undefined,
 		private tx: Transaction | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		private _isResponseInArrayMode: boolean,
 		/** @internal */ public customResultMapper?: (
 			rows: unknown[][],
 			mapColumnValue?: (value: unknown) => unknown,
@@ -238,6 +241,11 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		return (this.tx ? this.tx.execute(stmt) : this.client.execute(stmt)).then(({ rows }) => rows) as Promise<
 			T['values']
 		>;
+	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
 	}
 }
 

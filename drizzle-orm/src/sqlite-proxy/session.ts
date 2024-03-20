@@ -46,9 +46,18 @@ export class SQLiteRemoteSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): RemotePreparedQuery<T> {
-		return new RemotePreparedQuery(this.client, query, this.logger, fields, executeMethod, customResultMapper);
+		return new RemotePreparedQuery(
+			this.client,
+			query,
+			this.logger,
+			fields,
+			executeMethod,
+			isResponseInArrayMode,
+			customResultMapper,
+		);
 	}
 
 	async batch<U extends BatchItem<'sqlite'>, T extends U[] | Readonly<[U, ...U[]]>>(queries: T) {
@@ -131,6 +140,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		private _isResponseInArrayMode: boolean,
 		/** @internal */ public customResultMapper?: (
 			rows: unknown[][],
 			mapColumnValue?: (value: unknown) => unknown,
@@ -148,7 +158,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 	run(placeholderValues?: Record<string, unknown>): Promise<SqliteRemoteResult> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		return (this.client as AsyncRemoteCallback)(this.query.sql, params, 'run').then((t) => t.rows) as Promise<
+		return (this.client as AsyncRemoteCallback)(this.query.sql, params, 'run') as Promise<
 			SqliteRemoteResult
 		>;
 	}
@@ -227,5 +237,10 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		this.logger.logQuery(this.query.sql, params);
 		const clientResult = await (this.client as AsyncRemoteCallback)(this.query.sql, params, 'values');
 		return clientResult.rows as T[];
+	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
 	}
 }

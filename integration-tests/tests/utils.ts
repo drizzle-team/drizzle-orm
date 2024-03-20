@@ -11,4 +11,5 @@ export function toLocalDate(date: Date) {
 	return localTime;
 }
 
-export const randomString = () => Array.from({length: 10}, () => 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]).join('');
+export const randomString = () =>
+	Array.from({ length: 10 }, () => 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]).join('');

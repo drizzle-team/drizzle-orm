@@ -368,7 +368,7 @@ test('findMany + findOne api example', async () => {
 		id: 1,
 	}]);
 
-	expect(insertRes).toEqual({ changes: 1, lastInsertRowid: 2 });
+	expect(insertRes).toEqual({ rows: { changes: 1, lastInsertRowid: 2 } });
 
 	expect(manyUsers).toEqual([
 		{ id: 1, name: 'John', verified: 0, invitedBy: null },

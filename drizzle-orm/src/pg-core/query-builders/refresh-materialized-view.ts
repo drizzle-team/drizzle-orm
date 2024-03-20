@@ -80,7 +80,7 @@ export class PgRefreshMaterializedView<TQueryResult extends QueryResultHKT>
 		}
 	> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), undefined, name);
+			return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), undefined, name, true);
 		});
 	}
 

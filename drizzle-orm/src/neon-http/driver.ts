@@ -55,7 +55,7 @@ export class NeonHttpDatabase<
 }
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
-	client: NeonQueryFunction<boolean, boolean>,
+	client: NeonQueryFunction<any, any>,
 	config: DrizzleConfig<TSchema> = {},
 ): NeonHttpDatabase<TSchema> {
 	const dialect = new PgDialect();
@@ -79,7 +79,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const driver = new NeonHttpDriver(client as unknown as NeonHttpClient, dialect, { logger });
+	const driver = new NeonHttpDriver(client, dialect, { logger });
 	const session = driver.createSession(schema);
 
 	return new NeonHttpDatabase(

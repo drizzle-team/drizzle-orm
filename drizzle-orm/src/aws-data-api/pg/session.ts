@@ -38,6 +38,7 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 		private fields: SelectedFieldsOrdered | undefined,
 		/** @internal */
 		readonly transactionId: string | undefined,
+		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super({ sql: queryString, params });
@@ -105,6 +106,11 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 			return row;
 		});
 	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
+	}
 }
 
 export interface AwsDataApiSessionOptions {
@@ -149,7 +155,8 @@ export class AwsDataApiSession<
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: QueryWithTypings,
 		fields: SelectedFieldsOrdered | undefined,
-		transactionId?: string,
+		transactionId: string | undefined,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PgPreparedQuery<T> {
 		return new AwsDataApiPreparedQuery(
@@ -160,6 +167,7 @@ export class AwsDataApiSession<
 			this.options,
 			fields,
 			transactionId,
+			isResponseInArrayMode,
 			customResultMapper,
 		);
 	}
@@ -169,6 +177,7 @@ export class AwsDataApiSession<
 			this.dialect.sqlToQuery(query),
 			undefined,
 			this.transactionId,
+			false,
 		).execute();
 	}
 
