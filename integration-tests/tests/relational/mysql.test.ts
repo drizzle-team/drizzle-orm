@@ -6280,6 +6280,58 @@ test('Get groups with users + custom', async (t) => {
 	});
 });
 
+test('Make sure RQB is not using window function if not necessary', async () => {
+	const query1 = db.query.usersTable.findMany({
+		orderBy: (users, { desc }) => [desc(users.id)],
+		limit: 2,
+		with: {
+			usersToGroups: {
+				limit: 1,
+				orderBy: [desc(usersToGroupsTable.groupId)],
+				columns: {},
+				with: {
+					group: true,
+				},
+			},
+		},
+	});
+
+	// No use of window function if the query has groupBy and limit (mysql will order the query properly)
+	expect(query1.toSQL().sql.search('row_number')).toEqual(-1);
+
+	const query2 = db.query.usersTable.findMany({
+		limit: 2,
+		with: {
+			usersToGroups: {
+				limit: 1,
+				columns: {},
+				with: {
+					group: true,
+				},
+			},
+		},
+	});
+
+	// No use of window function if the query doesn't have an orderBy
+	expect(query2.toSQL().sql.search('row_number')).toEqual(-1);
+
+	const query3 = db.query.usersTable.findMany({
+		orderBy: (users, { desc }) => [desc(users.id)],
+		with: {
+			usersToGroups: {
+				orderBy: [desc(usersToGroupsTable.groupId)],
+				columns: {},
+				with: {
+					group: true,
+				},
+			},
+		},
+	});
+
+	// the window function is necessary when the query has orderBy but no limit
+	expect(query3.toSQL().sql.search('row_number')).toBeGreaterThan(0);
+});
+
 test('.toSQL()', () => {
 	const query = db.query.usersTable.findFirst().toSQL();
 
