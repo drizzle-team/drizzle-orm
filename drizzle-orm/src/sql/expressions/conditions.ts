@@ -253,6 +253,86 @@ export const lte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
 };
 
 /**
+ * Test that the length of the first expression passed is equal to
+ * the second expression.
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // Select cars whose names have exactly 10 characters.
+ * db.select().from(cars)
+ *   .where(leneq(cars.name, 10))
+ * ```
+ */
+export function leneq(left: SQLWrapper, right: number): SQL {
+  return sql`length(${left}) = ${right}`;
+}
+
+/**
+ * Test that the length of the first expression passed is greater than
+ * the second expression.
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // Select cars whose names have more than 10 characters.
+ * db.select().from(cars)
+ *   .where(lengt(cars.name, 10))
+ * ```
+ */
+export function lengt(left: SQLWrapper, right: number): SQL {
+  return sql`length(${left}) > ${right}`;
+}
+
+/**
+ * Test that the length of the first expression passed is greater than
+ * or equal to the second expression.
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // Select cars whose names have 10 or more characters.
+ * db.select().from(cars)
+ *   .where(lengte(cars.name, 10))
+ * ```
+ */
+export function lengte(left: SQLWrapper, right: number): SQL {
+  return sql`length(${left}) >= ${right}`;
+}
+
+/**
+ * Test that the length of the first expression passed is less than
+ * the second expression.
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // Select cars whose names have less than 10 characters.
+ * db.select().from(cars)
+ *   .where(lenlt(cars.name, 10))
+ * ```
+ */
+export function lenlt(left: SQLWrapper, right: number): SQL {
+  return sql`length(${left}) < ${right}`;
+}
+
+/**
+ * Test that the length of the first expression passed is less than
+ * or equal to the second expression.
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // Select cars whose names have 10 or fewer characters.
+ * db.select().from(cars)
+ *   .where(lenlte(cars.name, 10))
+ * ```
+ */
+export function lenlte(left: SQLWrapper, right: number): SQL {
+  return sql`length(${left}) <= ${right}`;
+}
+
+/**
  * Test whether the first parameter, a column or expression,
  * has a value from a list passed as the second argument.
  *
