@@ -13,11 +13,12 @@ import { ViewBaseConfig } from './view-common.ts';
 /** @internal */
 export function mapResultRow<TResult>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
-	row: unknown[],
+	row: unknown[] | Record<string, unknown>,
 	joinsNotNullableMap: Record<string, boolean> | undefined,
 ): TResult {
 	// Key -> nested object key, value -> table name if all fields in the nested object are from the same table, false otherwise
 	const nullifyMap: Record<string, string | false> = {};
+	const rowIsArray = Array.isArray(row);
 
 	const result = columns.reduce<Record<string, any>>(
 		(result, { path, field }, columnIndex) => {
@@ -37,7 +38,7 @@ export function mapResultRow<TResult>(
 					}
 					node = node[pathChunk];
 				} else {
-					const rawValue = row[columnIndex]!;
+					const rawValue = rowIsArray ? row[columnIndex] : row[pathChunk];
 					const value = node[pathChunk] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
 
 					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
