@@ -2,6 +2,7 @@ import {
 	type AnyMySqlColumn,
 	bigint,
 	boolean,
+	decimal,
 	mysqlTable,
 	primaryKey,
 	serial,
@@ -27,6 +28,20 @@ export const usersConfig = relations(usersTable, ({ one, many }) => ({
 	usersToGroups: many(usersToGroupsTable),
 	posts: many(postsTable),
 	comments: many(commentsTable),
+	accounts: many(accountsTable),
+}));
+
+export const accountsTable = mysqlTable('accounts', {
+	id: serial('id').primaryKey(),
+	userId: bigint('user_id', { mode: 'number' }).notNull(),
+	balance: decimal('balance', { precision: 20, scale: 18 }).notNull(),
+});
+
+export const accountsConfig = relations(accountsTable, ({ one }) => ({
+	user: one(usersTable, {
+		fields: [accountsTable.userId],
+		references: [usersTable.id],
+	}),
 }));
 
 export const groupsTable = mysqlTable('groups', {
