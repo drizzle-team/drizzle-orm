@@ -5,7 +5,7 @@ import { type BetterSQLite3Database, drizzle } from 'drizzle-orm/better-sqlite3'
 import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 import * as schema from './sqlite.schema.ts';
 
-const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
+const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable, notes } = schema;
 
 const ENABLE_LOGGING = false;
 
@@ -29,6 +29,7 @@ beforeEach(() => {
 	db.run(sql`drop table if exists \`posts\``);
 	db.run(sql`drop table if exists \`comments\``);
 	db.run(sql`drop table if exists \`comment_likes\``);
+	db.run(sql`drop table if exists \`notes\``);
 
 	db.run(
 		sql`
@@ -86,6 +87,16 @@ beforeEach(() => {
 			    \`creator\` integer,
 			    \`comment_id\` integer,
 			    \`created_at\` integer DEFAULT current_timestamp NOT NULL
+			);
+		`,
+	);
+	db.run(
+		sql`
+			CREATE TABLE \`notes\` (
+				\`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+				\`content\` text NOT NULL,
+				\`notable_id\` integer,
+				\`notable_type\` text not null
 			);
 		`,
 	);
@@ -4986,6 +4997,261 @@ test('[Find Many] Get users with groups + orderBy + limit', () => {
 	});
 });
 
+test('[Find Many] Get users with posts + polymorphic associated notes', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 3, content: 'Post3' },
+	]);
+
+	await db.insert(notes).values([
+		{ content: 'Note1', notableId: 1, notableType: 'user' },
+		{ content: 'Note1.1', notableId: 1, notableType: 'user' },
+		{ content: 'Note2', notableId: 1, notableType: 'post' },
+		{ content: 'Note3', notableId: 2, notableType: 'user' },
+		{ content: 'Note4', notableId: 3, notableType: 'post' },
+		{ content: 'Note5', notableId: 3, notableType: 'user' },
+		{ content: 'Note6', notableId: 2, notableType: 'post' },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findMany({
+		where: (({ id }, { eq }) => eq(id, 1)),
+		with: {
+			posts: {
+				with: { notes: true },
+			},
+			notes: true,
+		},
+	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: number;
+		invitedBy: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+			notes: {
+				id: number;
+				content: string;
+				notableId: number;
+				notableType: 'user' | 'post' | 'comment';
+			}[];
+		}[];
+		notes: {
+			id: number;
+			content: string;
+			notableId: number;
+			notableType: 'user' | 'post' | 'comment';
+		}[];
+	}[]>();
+
+	expect(usersWithPosts.length).eq(1);
+	expect(usersWithPosts[0]?.posts.length).eq(2);
+	expect(usersWithPosts[0]?.posts[0]?.notes.length).eq(1);
+	expect(usersWithPosts[0]?.notes.length).eq(2);
+
+	expect(usersWithPosts[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: 0,
+		invitedBy: null,
+		posts: [{
+			id: 1,
+			ownerId: 1,
+			content: 'Post1',
+			createdAt: usersWithPosts[0]?.posts[0]?.createdAt,
+			notes: [
+				{ id: 3, content: 'Note2', notableId: 1, notableType: 'post' },
+			],
+		}, {
+			id: 2,
+			ownerId: 1,
+			content: 'Post1.1',
+			createdAt: usersWithPosts[0]?.posts[0]?.createdAt,
+			notes: [
+				{ id: 7, content: 'Note6', notableId: 2, notableType: 'post' },
+			],
+		}],
+		notes: [
+			{ id: 1, content: 'Note1', notableId: 1, notableType: 'user' },
+			{ id: 2, content: 'Note1.1', notableId: 1, notableType: 'user' },
+		],
+	});
+});
+
+test('[Find Many] Get users with posts + where + polymorphic associated notes', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 3, content: 'Post3' },
+	]);
+
+	await db.insert(notes).values([
+		{ content: 'Note1', notableId: 1, notableType: 'user' },
+		{ content: 'Note1.1', notableId: 1, notableType: 'user' },
+		{ content: 'Note2', notableId: 1, notableType: 'post' },
+		{ content: 'Note3', notableId: 2, notableType: 'user' },
+		{ content: 'Note4', notableId: 3, notableType: 'post' },
+		{ content: 'Note5', notableId: 3, notableType: 'user' },
+		{ content: 'Note6', notableId: 2, notableType: 'post' },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findMany({
+		where: (({ id }, { eq }) => eq(id, 1)),
+		with: {
+			posts: {
+				where: (({ id }, { eq }) => eq(id, 1)),
+				with: { notes: true },
+			},
+			notes: true,
+		},
+	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: number;
+		invitedBy: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+			notes: {
+				id: number;
+				content: string;
+				notableId: number;
+				notableType: 'user' | 'post' | 'comment';
+			}[];
+		}[];
+		notes: {
+			id: number;
+			content: string;
+			notableId: number;
+			notableType: 'user' | 'post' | 'comment';
+		}[];
+	}[]>();
+
+	expect(usersWithPosts.length).eq(1);
+	expect(usersWithPosts[0]?.posts.length).eq(1);
+	expect(usersWithPosts[0]?.posts[0]?.notes.length).eq(1);
+	expect(usersWithPosts[0]?.notes.length).eq(2);
+
+	expect(usersWithPosts[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: 0,
+		invitedBy: null,
+		posts: [{
+			id: 1,
+			ownerId: 1,
+			content: 'Post1',
+			createdAt: usersWithPosts[0]?.posts[0]?.createdAt,
+			notes: [
+				{ id: 3, content: 'Note2', notableId: 1, notableType: 'post' },
+			],
+		}],
+		notes: [
+			{ id: 1, content: 'Note1', notableId: 1, notableType: 'user' },
+			{ id: 2, content: 'Note1.1', notableId: 1, notableType: 'user' },
+		],
+	});
+});
+
+test('[Find Many] Get notes with comments', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 3, content: 'Post3' },
+	]);
+
+	await db.insert(commentsTable).values([
+		{ content: 'Comments1', creator: 1, postId: 1 },
+		{ content: 'Comments1.1', creator: 1, postId: 1 },
+		{ content: 'comment', creator: 1, postId: 1 }, // only this should work
+	]);
+
+	await db.insert(notes).values([
+		{ content: 'Note1', notableId: 1, notableType: 'comment' },
+		{ content: 'Note2', notableId: 1, notableType: 'comment' },
+		{ content: 'Note3', notableId: 3, notableType: 'comment' },
+	]);
+
+	const notesWithComments = await db.query.notes.findMany({
+		with: {
+			comment: true,
+		},
+	});
+
+	expectTypeOf(notesWithComments).toEqualTypeOf<
+		{
+			id: number;
+			content: string;
+			notableId: number;
+			notableType: 'user' | 'post' | 'comment';
+			comment: {
+				id: number;
+				content: string;
+				createdAt: Date;
+				creator: number | null;
+				postId: number | null;
+			} | null;
+		}[]
+	>();
+
+	expect(notesWithComments.length).eq(3);
+	expect(notesWithComments[2]?.comment).not.toBeNull();
+
+	expect(notesWithComments).toEqual([
+		{
+			id: 1,
+			content: 'Note1',
+			notableId: 1,
+			notableType: 'comment',
+			comment: null,
+		},
+		{ id: 2, content: 'Note2', notableId: 1, notableType: 'comment', comment: null },
+		{
+			id: 3,
+			content: 'Note3',
+			notableId: 3,
+			notableType: 'comment',
+			comment: {
+				id: 3,
+				content: 'comment',
+				createdAt: notesWithComments[2]?.comment?.createdAt,
+				creator: 1,
+				postId: 1,
+			},
+		},
+	]);
+});
+
 /*
 	[Find One] Many-to-many cases
 
@@ -5712,6 +5978,255 @@ test('[Find One] Get users with groups + orderBy + limit', () => {
 			},
 		}],
 	});
+});
+
+test('[Find One] Get user with posts + polymorphic associated notes', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 3, content: 'Post3' },
+	]);
+
+	await db.insert(notes).values([
+		{ content: 'Note1', notableId: 1, notableType: 'user' },
+		{ content: 'Note1.1', notableId: 1, notableType: 'user' },
+		{ content: 'Note2', notableId: 1, notableType: 'post' },
+		{ content: 'Note3', notableId: 2, notableType: 'user' },
+		{ content: 'Note4', notableId: 3, notableType: 'post' },
+		{ content: 'Note5', notableId: 3, notableType: 'user' },
+		{ content: 'Note6', notableId: 2, notableType: 'post' },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findFirst({
+		where: (({ id }, { eq }) => eq(id, 1)),
+		with: {
+			posts: {
+				with: { notes: true },
+			},
+			notes: true,
+		},
+	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+			posts: {
+				id: number;
+				content: string;
+				ownerId: number | null;
+				createdAt: Date;
+				notes: {
+					id: number;
+					content: string;
+					notableId: number;
+					notableType: 'user' | 'post' | 'comment';
+				}[];
+			}[];
+			notes: {
+				id: number;
+				content: string;
+				notableId: number;
+				notableType: 'user' | 'post' | 'comment';
+			}[];
+		} | undefined
+	>();
+
+	expect(usersWithPosts?.posts.length).eq(2);
+	expect(usersWithPosts?.posts[0]?.notes.length).eq(1);
+	expect(usersWithPosts?.notes.length).eq(2);
+
+	expect(usersWithPosts).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: 0,
+		invitedBy: null,
+		posts: [{
+			id: 1,
+			ownerId: 1,
+			content: 'Post1',
+			createdAt: usersWithPosts?.posts[0]?.createdAt,
+			notes: [
+				{ id: 3, content: 'Note2', notableId: 1, notableType: 'post' },
+			],
+		}, {
+			id: 2,
+			ownerId: 1,
+			content: 'Post1.1',
+			createdAt: usersWithPosts?.posts[0]?.createdAt,
+			notes: [
+				{ id: 7, content: 'Note6', notableId: 2, notableType: 'post' },
+			],
+		}],
+		notes: [
+			{ id: 1, content: 'Note1', notableId: 1, notableType: 'user' },
+			{ id: 2, content: 'Note1.1', notableId: 1, notableType: 'user' },
+		],
+	});
+});
+
+test('[Find One] Get users with posts + where + polymorphic associated notes', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 3, content: 'Post3' },
+	]);
+
+	await db.insert(notes).values([
+		{ content: 'Note1', notableId: 1, notableType: 'user' },
+		{ content: 'Note1.1', notableId: 1, notableType: 'user' },
+		{ content: 'Note2', notableId: 1, notableType: 'post' },
+		{ content: 'Note3', notableId: 2, notableType: 'user' },
+		{ content: 'Note4', notableId: 3, notableType: 'post' },
+		{ content: 'Note5', notableId: 3, notableType: 'user' },
+		{ content: 'Note6', notableId: 2, notableType: 'post' },
+	]);
+
+	const userWithPosts = await db.query.usersTable.findFirst({
+		where: (({ id }, { eq }) => eq(id, 1)),
+		with: {
+			posts: {
+				where: (({ id }, { eq }) => eq(id, 1)),
+				with: { notes: true },
+			},
+			notes: true,
+		},
+	});
+
+	expectTypeOf(userWithPosts).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+			posts: {
+				id: number;
+				content: string;
+				ownerId: number | null;
+				createdAt: Date;
+				notes: {
+					id: number;
+					content: string;
+					notableId: number;
+					notableType: 'user' | 'post' | 'comment';
+				}[];
+			}[];
+			notes: {
+				id: number;
+				content: string;
+				notableId: number;
+				notableType: 'user' | 'post' | 'comment';
+			}[];
+		} | undefined
+	>();
+
+	expect(userWithPosts?.posts.length).eq(1);
+	expect(userWithPosts?.posts[0]?.notes.length).eq(1);
+	expect(userWithPosts?.notes.length).eq(2);
+
+	expect(userWithPosts).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: 0,
+		invitedBy: null,
+		posts: [{
+			id: 1,
+			ownerId: 1,
+			content: 'Post1',
+			createdAt: userWithPosts?.posts[0]?.createdAt,
+			notes: [
+				{ id: 3, content: 'Note2', notableId: 1, notableType: 'post' },
+			],
+		}],
+		notes: [
+			{ id: 1, content: 'Note1', notableId: 1, notableType: 'user' },
+			{ id: 2, content: 'Note1.1', notableId: 1, notableType: 'user' },
+		],
+	});
+});
+
+test('[Find One] Get notes with comments', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1' },
+		{ ownerId: 1, content: 'Post1.1' },
+		{ ownerId: 2, content: 'Post2' },
+		{ ownerId: 3, content: 'Post3' },
+	]);
+
+	await db.insert(commentsTable).values([
+		{ content: 'Comments1', creator: 1, postId: 1 },
+		{ content: 'Comments1.1', creator: 1, postId: 1 },
+		{ content: 'comment', creator: 1, postId: 1 }, // only this should work
+	]);
+
+	await db.insert(notes).values([
+		{ content: 'Note1', notableId: 1, notableType: 'comment' },
+		{ content: 'Note2', notableId: 1, notableType: 'comment' },
+		{ content: 'Note3', notableId: 3, notableType: 'comment' },
+	]);
+
+	const notesWithComments = await db.query.notes.findFirst({
+		where: (({ id }, { eq }) => eq(id, 3)),
+		with: {
+			comment: true,
+		},
+	});
+
+	expectTypeOf(notesWithComments).toEqualTypeOf<
+		{
+			id: number;
+			content: string;
+			notableId: number;
+			notableType: 'user' | 'post' | 'comment';
+			comment: {
+				id: number;
+				content: string;
+				createdAt: Date;
+				creator: number | null;
+				postId: number | null;
+			} | null;
+		} | undefined
+	>();
+
+	expect(notesWithComments?.comment).not.toBeNull();
+
+	expect(notesWithComments).toEqual(
+		{
+			id: 3,
+			content: 'Note3',
+			notableId: 3,
+			notableType: 'comment',
+			comment: {
+				id: 3,
+				content: 'comment',
+				createdAt: notesWithComments?.comment?.createdAt,
+				creator: 1,
+				postId: 1,
+			},
+		},
+	);
 });
 
 test('Get groups with users + orderBy + limit', () => {
