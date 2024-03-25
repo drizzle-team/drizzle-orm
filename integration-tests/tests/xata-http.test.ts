@@ -2106,11 +2106,11 @@ test('transaction', async () => {
 	const user = await db.insert(users).values({ balance: 100 }).returning().then((rows) => rows[0]!);
 	const product = await db.insert(products).values({ price: 10, stock: 10 }).returning().then((rows) => rows[0]!);
 
-	await expect(async () =>
+	await expect(
 		db.transaction(async (tx) => {
 			await tx.update(users).set({ balance: user.balance - product.price }).where(eq(users.id, user.id));
 			await tx.update(products).set({ stock: product.stock - 1 }).where(eq(products.id, product.id));
-		})
+		}),
 	).rejects.toThrowError('No transactions support in Xata Http driver');
 
 	// t.is(error!.message, 'No transactions support in Xata Http driver');
@@ -2317,7 +2317,7 @@ test('insert undefined', async () => {
 		sql`create table ${users} (id serial not null primary key, name text)`,
 	);
 
-	await expect(async () => await db.insert(users).values({ name: undefined })).resolves.not.toThrowError();
+	await expect(db.insert(users).values({ name: undefined })).resolves.not.toThrowError();
 
 	await db.execute(sql`drop table ${users}`);
 });
@@ -2334,8 +2334,8 @@ test('update undefined', async () => {
 		sql`create table ${users} (id serial not null primary key, name text)`,
 	);
 
-	await expect(async () => await db.update(users).set({ name: undefined })).rejects.toThrowError();
-	await expect(async () => await db.update(users).set({ id: 1, name: undefined })).resolves.not.toThrowError();
+	await expect(await db.update(users).set({ name: undefined })).rejects.toThrowError();
+	await expect(await db.update(users).set({ id: 1, name: undefined })).resolves.not.toThrowError();
 
 	await db.execute(sql`drop table ${users}`);
 });
