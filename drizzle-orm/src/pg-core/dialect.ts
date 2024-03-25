@@ -35,7 +35,7 @@ import {
 	sql,
 	type SQLChunk,
 } from '~/sql/sql.ts';
-import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { Subquery } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
@@ -104,7 +104,7 @@ export class PgDialect {
 
 		const withSqlChunks = [sql`with `];
 		for (const [i, w] of queries.entries()) {
-			withSqlChunks.push(sql`${sql.identifier(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
+			withSqlChunks.push(sql`${sql.identifier(w._.alias)} as (${w._.sql})`);
 			if (i < queries.length - 1) {
 				withSqlChunks.push(sql`, `);
 			}
@@ -242,7 +242,7 @@ export class PgDialect {
 				is(f.field, Column)
 				&& getTableName(f.field.table)
 					!== (is(table, Subquery)
-						? table[SubqueryConfig].alias
+						? table._.alias
 						: is(table, PgViewBase)
 						? table[ViewBaseConfig].name
 						: is(table, SQL)

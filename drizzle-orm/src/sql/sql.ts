@@ -1,7 +1,7 @@
 import { entityKind, is } from '~/entity.ts';
 import type { SelectedFields } from '~/operations.ts';
 import { isPgEnum } from '~/pg-core/columns/enum.ts';
-import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { Subquery } from '~/subquery.ts';
 import { tracer } from '~/tracing.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
@@ -225,14 +225,14 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (is(chunk, Subquery)) {
-				if (chunk[SubqueryConfig].isWith) {
-					return { sql: escapeName(chunk[SubqueryConfig].alias), params: [] };
+				if (chunk._.isWith) {
+					return { sql: escapeName(chunk._.alias), params: [] };
 				}
 				return this.buildQueryFromSourceParams([
 					new StringChunk('('),
-					chunk[SubqueryConfig].sql,
+					chunk._.sql,
 					new StringChunk(') '),
-					new Name(chunk[SubqueryConfig].alias),
+					new Name(chunk._.alias),
 				], config);
 			}
 
