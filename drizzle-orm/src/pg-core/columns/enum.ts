@@ -22,6 +22,7 @@ export interface PgEnum<TValues extends [string, ...string[]]> {
 
 	readonly enumName: string;
 	readonly enumValues: TValues;
+	readonly schema: string | undefined;
 	/** @internal */
 	[isPgEnumSym]: true;
 }
@@ -77,12 +78,22 @@ export function pgEnum<U extends string, T extends Readonly<[U, ...U[]]>>(
 	enumName: string,
 	values: T | Writable<T>,
 ): PgEnum<Writable<T>> {
-	const enumInstance = Object.assign(
+	return pgEnumWithSchema(enumName, values, undefined);
+}
+
+/** @internal */
+export function pgEnumWithSchema<U extends string, T extends Readonly<[U, ...U[]]>>(
+	enumName: string,
+	values: T | Writable<T>,
+	schema?: string,
+): PgEnum<Writable<T>> {
+	const enumInstance: PgEnum<Writable<T>> = Object.assign(
 		<TName extends string>(name: TName): PgEnumColumnBuilderInitial<TName, Writable<T>> =>
 			new PgEnumColumnBuilder(name, enumInstance),
 		{
 			enumName,
 			enumValues: values,
+			schema,
 			[isPgEnumSym]: true,
 		} as const,
 	);

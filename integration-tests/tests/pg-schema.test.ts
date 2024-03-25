@@ -14,6 +14,7 @@ import {
 	getViewConfig,
 	integer,
 	jsonb,
+	PgDialect,
 	pgSchema,
 	pgTable,
 	pgTableCreator,
@@ -26,6 +27,8 @@ import pg from 'pg';
 import { v4 as uuid } from 'uuid';
 
 const { Client } = pg;
+
+const ENABLE_LOGGING = false;
 
 const mySchema = pgSchema('mySchema');
 
@@ -119,7 +122,7 @@ test.before(async (t) => {
 		await ctx.pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	ctx.db = drizzle(ctx.client /* , { logger: new DefaultLogger() } */);
+	ctx.db = drizzle(ctx.client, { logger: ENABLE_LOGGING });
 });
 
 test.after.always(async (t) => {
@@ -970,4 +973,22 @@ test.serial('materialized view', async (t) => {
 	}
 
 	await db.execute(sql`drop materialized view ${newYorkers1}`);
+});
+
+test.serial('enum', async (t) => {
+	const { db } = t.context;
+
+	const colors = mySchema.enum('colors', ['red', 'green', 'blue']);
+
+	t.deepEqual(colors.schema, 'mySchema');
+
+	const { sql: query } = new PgDialect().sqlToQuery(sql`${colors}`);
+	t.deepEqual(query, '"mySchema"."colors"');
+
+	await db.execute(sql`create type ${colors} as enum ('red', 'green', 'blue')`);
+
+	const result = await db.execute<{ enum_range: string }>(sql`select enum_range(null::${colors})`);
+	t.deepEqual(result.rows, [{ enum_range: '{red,green,blue}' }]);
+
+	await db.execute(sql`drop type ${colors}`);
 });

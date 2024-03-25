@@ -1,12 +1,12 @@
 import { entityKind, is } from '~/entity.ts';
-import { Relation } from '~/relations.ts';
-import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import type { SelectedFields } from '~/operations.ts';
+import { isPgEnum } from '~/pg-core/columns/enum.ts';
+import { Subquery } from '~/subquery.ts';
 import { tracer } from '~/tracing.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
 import { Table } from '../table.ts';
-import type { SelectedFields } from '~/operations.ts';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.
@@ -63,8 +63,7 @@ export interface SQLWrapper {
 }
 
 export function isSQLWrapper(value: unknown): value is SQLWrapper {
-	return typeof value === 'object' && value !== null && 'getSQL' in value
-		&& typeof (value as any).getSQL === 'function';
+	return value !== null && value !== undefined && typeof (value as any).getSQL === 'function';
 }
 
 function mergeQueries(queries: QueryWithTypings[]): QueryWithTypings {
@@ -226,33 +225,29 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (is(chunk, Subquery)) {
-				if (chunk[SubqueryConfig].isWith) {
-					return { sql: escapeName(chunk[SubqueryConfig].alias), params: [] };
+				if (chunk._.isWith) {
+					return { sql: escapeName(chunk._.alias), params: [] };
 				}
 				return this.buildQueryFromSourceParams([
 					new StringChunk('('),
-					chunk[SubqueryConfig].sql,
+					chunk._.sql,
 					new StringChunk(') '),
-					new Name(chunk[SubqueryConfig].alias),
+					new Name(chunk._.alias),
 				], config);
 			}
 
-			// if (is(chunk, Placeholder)) {
-			// 	return {sql: escapeParam}
+			if (isPgEnum(chunk)) {
+				if (chunk.schema) {
+					return { sql: escapeName(chunk.schema) + '.' + escapeName(chunk.enumName), params: [] };
+				}
+				return { sql: escapeName(chunk.enumName), params: [] };
+			}
 
 			if (isSQLWrapper(chunk)) {
 				return this.buildQueryFromSourceParams([
 					new StringChunk('('),
 					chunk.getSQL(),
 					new StringChunk(')'),
-				], config);
-			}
-
-			if (is(chunk, Relation)) {
-				return this.buildQueryFromSourceParams([
-					chunk.sourceTable,
-					new StringChunk('.'),
-					sql.identifier(chunk.fieldName),
 				], config);
 			}
 

@@ -11,6 +11,7 @@ import type {
 	PgSession,
 	PgTransaction,
 	PgTransactionConfig,
+	PreparedQueryConfig,
 	QueryResultHKT,
 	QueryResultKind,
 } from '~/pg-core/session.ts';
@@ -23,6 +24,7 @@ import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 import type { PgColumn } from './columns/index.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
+import { PgRaw } from './query-builders/raw.ts';
 import { PgRefreshMaterializedView } from './query-builders/refresh-materialized-view.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import type { WithSubqueryWithSelection } from './subquery.ts';
@@ -575,8 +577,21 @@ export class PgDatabase<
 
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
 		query: SQLWrapper,
-	): Promise<QueryResultKind<TQueryResult, TRow>> {
-		return this.session.execute(query.getSQL());
+	): PgRaw<QueryResultKind<TQueryResult, TRow>> {
+		const sql = query.getSQL();
+		const builtQuery = this.dialect.sqlToQuery(sql);
+		const prepared = this.session.prepareQuery<PreparedQueryConfig & { execute: QueryResultKind<TQueryResult, TRow> }>(
+			builtQuery,
+			undefined,
+			undefined,
+			false,
+		);
+		return new PgRaw(
+			() => prepared.execute(),
+			sql,
+			builtQuery,
+			(result) => prepared.mapResult(result, true),
+		);
 	}
 
 	transaction<T>(

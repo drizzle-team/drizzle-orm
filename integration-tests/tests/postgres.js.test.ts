@@ -26,9 +26,11 @@ import {
 import {
 	alias,
 	boolean,
+	date,
 	getMaterializedViewConfig,
 	getViewConfig,
 	integer,
+	interval,
 	jsonb,
 	type PgColumn,
 	pgEnum,
@@ -38,6 +40,7 @@ import {
 	pgView,
 	serial,
 	text,
+	time,
 	timestamp,
 	uuid as pgUuid,
 	varchar,
@@ -48,7 +51,7 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import getPort from 'get-port';
 import postgres, { type Sql } from 'postgres';
 import { v4 as uuid } from 'uuid';
-import { type Equal, Expect } from './utils.ts';
+import { type Equal, Expect, randomString } from './utils.ts';
 
 const QUERY_LOGGING = false;
 
@@ -772,10 +775,11 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 });
 
 // TODO change tests to new structure
-test.serial('migrator', async (t) => {
+test.serial('migrator : default migration strategy', async (t) => {
 	const { db } = t.context;
 
-	await db.execute(sql`drop table if exists ${usersMigratorTable}`);
+	await db.execute(sql`drop table if exists all_columns`);
+	await db.execute(sql`drop table if exists users12`);
 	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
 	await migrate(db, { migrationsFolder: './drizzle2/pg' });
@@ -786,8 +790,85 @@ test.serial('migrator', async (t) => {
 
 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
 
-	await db.execute(sql`drop table ${usersMigratorTable}`);
+	await db.execute(sql`drop table all_columns`);
+	await db.execute(sql`drop table users12`);
 	await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
+});
+
+test.serial('migrator : migrate with custom schema', async (t) => {
+	const { db } = t.context;
+	const customSchema = randomString();
+	await db.execute(sql`drop table if exists all_columns`);
+	await db.execute(sql`drop table if exists users12`);
+	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+
+	await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsSchema: customSchema });
+
+	// test if the custom migrations table was created
+	const { count } = await db.execute(sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`);
+	t.true(count > 0);
+
+	// test if the migrated table are working as expected
+	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	const result = await db.select().from(usersMigratorTable);
+	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+
+	await db.execute(sql`drop table all_columns`);
+	await db.execute(sql`drop table users12`);
+	await db.execute(sql`drop table ${sql.identifier(customSchema)}."__drizzle_migrations"`);
+});
+
+test.serial('migrator : migrate with custom table', async (t) => {
+	const { db } = t.context;
+	const customTable = randomString();
+	await db.execute(sql`drop table if exists all_columns`);
+	await db.execute(sql`drop table if exists users12`);
+	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+
+	await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsTable: customTable });
+
+	// test if the custom migrations table was created
+	const { count } = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
+	t.true(count > 0);
+
+	// test if the migrated table are working as expected
+	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	const result = await db.select().from(usersMigratorTable);
+	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+
+	await db.execute(sql`drop table all_columns`);
+	await db.execute(sql`drop table users12`);
+	await db.execute(sql`drop table "drizzle".${sql.identifier(customTable)}`);
+});
+
+test.serial('migrator : migrate with custom table and custom schema', async (t) => {
+	const { db } = t.context;
+	const customTable = randomString();
+	const customSchema = randomString();
+	await db.execute(sql`drop table if exists all_columns`);
+	await db.execute(sql`drop table if exists users12`);
+	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+
+	await migrate(db, {
+		migrationsFolder: './drizzle2/pg',
+		migrationsTable: customTable,
+		migrationsSchema: customSchema,
+	});
+
+	// test if the custom migrations table was created
+	const { count } = await db.execute(
+		sql`select * from ${sql.identifier(customSchema)}.${sql.identifier(customTable)};`,
+	);
+	t.true(count > 0);
+
+	// test if the migrated table are working as expected
+	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	const result = await db.select().from(usersMigratorTable);
+	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+
+	await db.execute(sql`drop table all_columns`);
+	await db.execute(sql`drop table users12`);
+	await db.execute(sql`drop table ${sql.identifier(customSchema)}.${sql.identifier(customTable)}`);
 });
 
 test.serial('insert via db.execute + select via db.execute', async (t) => {
@@ -1864,6 +1945,500 @@ test.serial('select from sql', async (t) => {
 	// beta
 });
 
+test.serial('timestamp timezone', async (t) => {
+	const { db } = t.context;
+
+	const usersTableWithAndWithoutTimezone = pgTable('users_test_with_and_without_timezone', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+		updatedAt: timestamp('updated_at', { withTimezone: false }).notNull().defaultNow(),
+	});
+
+	await db.execute(sql`drop table if exists ${usersTableWithAndWithoutTimezone}`);
+
+	await db.execute(
+		sql`
+			create table users_test_with_and_without_timezone (
+				id serial not null primary key,
+				name text not null,
+				created_at timestamptz not null default now(),
+				updated_at timestamp not null default now()
+			)
+		`,
+	);
+
+	const date = new Date(Date.parse('2020-01-01T00:00:00+04:00'));
+
+	await db.insert(usersTableWithAndWithoutTimezone).values({ name: 'With default times' });
+	await db.insert(usersTableWithAndWithoutTimezone).values({
+		name: 'Without default times',
+		createdAt: date,
+		updatedAt: date,
+	});
+	const users = await db.select().from(usersTableWithAndWithoutTimezone);
+
+	// check that the timestamps are set correctly for default times
+	t.assert(Math.abs(users[0]!.updatedAt.getTime() - Date.now()) < 2000);
+	t.assert(Math.abs(users[0]!.createdAt.getTime() - Date.now()) < 2000);
+
+	// check that the timestamps are set correctly for non default times
+	t.assert(Math.abs(users[1]!.updatedAt.getTime() - date.getTime()) < 2000);
+	t.assert(Math.abs(users[1]!.createdAt.getTime() - date.getTime()) < 2000);
+});
+
+test.serial('all date and time columns', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		dateString: date('date_string', { mode: 'string' }).notNull(),
+		time: time('time', { precision: 3 }).notNull(),
+		datetime: timestamp('datetime').notNull(),
+		datetimeWTZ: timestamp('datetime_wtz', { withTimezone: true }).notNull(),
+		datetimeString: timestamp('datetime_string', { mode: 'string' }).notNull(),
+		datetimeFullPrecision: timestamp('datetime_full_precision', { precision: 6, mode: 'string' }).notNull(),
+		datetimeWTZString: timestamp('datetime_wtz_string', { withTimezone: true, mode: 'string' }).notNull(),
+		interval: interval('interval').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					date_string date not null,
+					time time(3) not null,
+					datetime timestamp not null,
+					datetime_wtz timestamp with time zone not null,
+					datetime_string timestamp not null,
+					datetime_full_precision timestamp(6) not null,
+					datetime_wtz_string timestamp with time zone not null,
+					interval interval not null
+			)
+	`);
+
+	const someDatetime = new Date('2022-01-01T00:00:00.123Z');
+	const fullPrecision = '2022-01-01T00:00:00.123456Z';
+	const someTime = '23:23:12.432';
+
+	await db.insert(table).values({
+		dateString: '2022-01-01',
+		time: someTime,
+		datetime: someDatetime,
+		datetimeWTZ: someDatetime,
+		datetimeString: '2022-01-01T00:00:00.123Z',
+		datetimeFullPrecision: fullPrecision,
+		datetimeWTZString: '2022-01-01T00:00:00.123Z',
+		interval: '1 day',
+	});
+
+	const result = await db.select().from(table);
+
+	Expect<
+		Equal<{
+			id: number;
+			dateString: string;
+			time: string;
+			datetime: Date;
+			datetimeWTZ: Date;
+			datetimeString: string;
+			datetimeFullPrecision: string;
+			datetimeWTZString: string;
+			interval: string;
+		}[], typeof result>
+	>;
+
+	Expect<
+		Equal<{
+			dateString: string;
+			time: string;
+			datetime: Date;
+			datetimeWTZ: Date;
+			datetimeString: string;
+			datetimeFullPrecision: string;
+			datetimeWTZString: string;
+			interval: string;
+			id?: number | undefined;
+		}, typeof table.$inferInsert>
+	>;
+
+	t.deepEqual(result, [
+		{
+			id: 1,
+			dateString: '2022-01-01',
+			time: someTime,
+			datetime: someDatetime,
+			datetimeWTZ: someDatetime,
+			datetimeString: '2022-01-01 00:00:00.123',
+			datetimeFullPrecision: fullPrecision.replace('T', ' ').replace('Z', ''),
+			datetimeWTZString: '2022-01-01 00:00:00.123+00',
+			interval: '1 day',
+		},
+	]);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('all date and time columns with timezone second case mode date', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp_string', { mode: 'date', withTimezone: true, precision: 3 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(3) with time zone not null
+			)
+	`);
+
+	const insertedDate = new Date();
+
+	// 1. Insert date as new date
+	await db.insert(table).values([
+		{ timestamp: insertedDate },
+	]);
+
+	// 2, Select as date and check that timezones are the same
+	// There is no way to check timezone in Date object, as it is always represented internally in UTC
+	const result = await db.select().from(table);
+
+	t.deepEqual(result, [{ id: 1, timestamp: insertedDate }]);
+
+	// 3. Compare both dates
+	t.deepEqual(insertedDate.getTime(), result[0]?.timestamp.getTime());
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('all date and time columns with timezone third case mode date', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp_string', { mode: 'date', withTimezone: true, precision: 3 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(3) with time zone not null
+			)
+	`);
+
+	const insertedDate = new Date('2022-01-01 20:00:00.123-04'); // used different time zones, internally is still UTC
+	const insertedDate2 = new Date('2022-01-02 04:00:00.123+04'); // They are both the same date in different time zones
+
+	// 1. Insert date as new dates with different time zones
+	await db.insert(table).values([
+		{ timestamp: insertedDate },
+		{ timestamp: insertedDate2 },
+	]);
+
+	// 2, Select and compare both dates
+	const result = await db.select().from(table);
+
+	t.deepEqual(result[0]?.timestamp.getTime(), result[1]?.timestamp.getTime());
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('all date and time columns without timezone first case mode string', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(6) not null
+			)
+	`);
+
+	// 1. Insert date in string format without timezone in it
+	await db.insert(table).values([
+		{ timestamp: '2022-01-01 02:00:00.123456' },
+	]);
+
+	// 2, Select in string format and check that values are the same
+	const result = await db.select().from(table);
+
+	t.deepEqual(result, [{ id: 1, timestamp: '2022-01-01 02:00:00.123456' }]);
+
+	// 3. Select as raw query and check that values are the same
+	const result2 = await db.execute<{
+		id: number;
+		timestamp_string: string;
+	}>(sql`select * from ${table}`);
+
+	t.deepEqual([...result2], [{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('all date and time columns without timezone second case mode string', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(6) not null
+			)
+	`);
+
+	// 1. Insert date in string format with timezone in it
+	await db.insert(table).values([
+		{ timestamp: '2022-01-01T02:00:00.123456-02' },
+	]);
+
+	// 2, Select as raw query and check that values are the same
+	const result = await db.execute<{
+		id: number;
+		timestamp_string: string;
+	}>(sql`select * from ${table}`);
+
+	t.deepEqual([...result], [{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('all date and time columns without timezone third case mode date', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp_string', { mode: 'date', precision: 3 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(3) not null
+			)
+	`);
+
+	const insertedDate = new Date('2022-01-01 20:00:00.123+04');
+
+	// 1. Insert date as new date
+	await db.insert(table).values([
+		{ timestamp: insertedDate },
+	]);
+
+	// 2, Select as raw query as string
+	const result = await db.execute<{
+		id: number;
+		timestamp_string: string;
+	}>(sql`select * from ${table}`);
+
+	// 3. Compare both dates using orm mapping - Need to add 'Z' to tell JS that it is UTC
+	t.deepEqual(new Date(result[0]!.timestamp_string + 'Z').getTime(), insertedDate.getTime());
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('test mode string for timestamp with timezone', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp_string', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(6) with time zone not null
+			)
+	`);
+
+	const timestampString = '2022-01-01 00:00:00.123456-0200';
+
+	// 1. Insert date in string format with timezone in it
+	await db.insert(table).values([
+		{ timestamp: timestampString },
+	]);
+
+	// 2. Select date in string format and check that the values are the same
+	const result = await db.select().from(table);
+
+	// 2.1 Notice that postgres will return the date in UTC, but it is exactly the same
+	t.deepEqual(result, [{ id: 1, timestamp: '2022-01-01 02:00:00.123456+00' }]);
+
+	// 3. Select as raw query and checke that values are the same
+	const result2 = await db.execute<{
+		id: number;
+		timestamp_string: string;
+	}>(sql`select * from ${table}`);
+
+	// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
+	t.deepEqual([...result2], [{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('test mode date for timestamp with timezone', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp_string', { mode: 'date', withTimezone: true, precision: 3 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(3) with time zone not null
+			)
+	`);
+
+	const timestampString = new Date('2022-01-01 00:00:00.456-0200');
+
+	// 1. Insert date in string format with timezone in it
+	await db.insert(table).values([
+		{ timestamp: timestampString },
+	]);
+
+	// 2. Select date in string format and check that the values are the same
+	const result = await db.select().from(table);
+
+	// 2.1 Notice that postgres will return the date in UTC, but it is exactly the same
+	t.deepEqual(result, [{ id: 1, timestamp: timestampString }]);
+
+	// 3. Select as raw query and checke that values are the same
+	const result2 = await db.execute<{
+		id: number;
+		timestamp_string: string;
+	}>(sql`select * from ${table}`);
+
+	// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
+	t.deepEqual([...result2], [{ id: 1, timestamp_string: '2022-01-01 02:00:00.456+00' }]);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('test mode string for timestamp with timezone in UTC timezone', async (t) => {
+	const { db } = t.context;
+
+	// get current timezone from db
+	const [timezone] = await db.execute<{ TimeZone: string }>(sql`show timezone`);
+
+	// set timezone to UTC
+	await db.execute(sql`set time zone 'UTC'`);
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp_string', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(6) with time zone not null
+			)
+	`);
+
+	const timestampString = '2022-01-01 00:00:00.123456-0200';
+
+	// 1. Insert date in string format with timezone in it
+	await db.insert(table).values([
+		{ timestamp: timestampString },
+	]);
+
+	// 2. Select date in string format and check that the values are the same
+	const result = await db.select().from(table);
+
+	// 2.1 Notice that postgres will return the date in UTC, but it is exactly the same
+	t.deepEqual(result, [{ id: 1, timestamp: '2022-01-01 02:00:00.123456+00' }]);
+
+	// 3. Select as raw query and checke that values are the same
+	const result2 = await db.execute<{
+		id: number;
+		timestamp_string: string;
+	}>(sql`select * from ${table}`);
+
+	// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
+	t.deepEqual([...result2], [{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
+
+	await db.execute(sql`set time zone '${sql.raw(timezone!.TimeZone)}'`);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
+test.serial('test mode string for timestamp with timezone in different timezone', async (t) => {
+	const { db } = t.context;
+
+	// get current timezone from db
+	const [timezone] = await db.execute<{ TimeZone: string }>(sql`show timezone`);
+
+	// set timezone to HST (UTC - 10)
+	await db.execute(sql`set time zone 'HST'`);
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp_string', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(6) with time zone not null
+			)
+	`);
+
+	const timestampString = '2022-01-01 00:00:00.123456-1000';
+
+	// 1. Insert date in string format with timezone in it
+	await db.insert(table).values([
+		{ timestamp: timestampString },
+	]);
+
+	// 2. Select date in string format and check that the values are the same
+	const result = await db.select().from(table);
+
+	t.deepEqual(result, [{ id: 1, timestamp: '2022-01-01 00:00:00.123456-10' }]);
+
+	// 3. Select as raw query and checke that values are the same
+	const result2 = await db.execute<{
+		id: number;
+		timestamp_string: string;
+	}>(sql`select * from ${table}`);
+
+	t.deepEqual([...result2], [{ id: 1, timestamp_string: '2022-01-01 00:00:00.123456-10' }]);
+
+	await db.execute(sql`set time zone '${sql.raw(timezone!.TimeZone)}'`);
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
 test.serial('transaction', async (t) => {
 	const { db } = t.context;
 
@@ -2187,8 +2762,8 @@ test.serial('array mapping and parsing', async (t) => {
 		numbers: integer('numbers').notNull().array(),
 	});
 
-	db.execute(sql`drop table if exists ${arrays}`);
-	db.execute(sql`
+	await db.execute(sql`drop table if exists ${arrays}`);
+	await db.execute(sql`
 		 create table ${arrays} (
 		 id serial primary key,
 		 tags text[],
