@@ -192,11 +192,12 @@ export abstract class PgSelectQueryBuilderBase<
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
 	}
 
-	private createJoin<TJoinType extends JoinType>(
+	private createJoin<TJoinType extends JoinType, TIsLateral extends (TJoinType extends 'left' | 'inner' ? boolean : false)>(
 		joinType: TJoinType,
-	): PgJoinFn<this, TDynamic, TJoinType> {
+		lateral: TIsLateral,
+	): PgJoinFn<this, TDynamic, TJoinType, TIsLateral> {
 		return (
-			table: PgTable | Subquery | PgViewBase | SQL,
+			table: TIsLateral extends true ? Subquery | SQL : PgTable | Subquery | PgViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
@@ -236,7 +237,7 @@ export abstract class PgSelectQueryBuilderBase<
 				this.config.joins = [];
 			}
 
-			this.config.joins.push({ on, table, joinType, alias: tableName });
+			this.config.joins.push({ on, table, joinType, alias: tableName, lateral });
 
 			if (typeof tableName === 'string') {
 				switch (joinType) {
@@ -296,7 +297,17 @@ export abstract class PgSelectQueryBuilderBase<
 	 *   .leftJoin(pets, eq(users.id, pets.ownerId))
 	 * ```
 	 */
-	leftJoin = this.createJoin('left');
+	leftJoin = this.createJoin('left', false);
+
+	/**
+	 * For each row of the table, include
+	 * values from a matching row of the joined
+	 * subquery, if there is a matching row. If not,
+	 * all of the columns of the joined subquery
+	 * will be set to null. The lateral keyword allows
+	 * access to columns after the FROM statement.
+	 */
+	leftJoinLateral = this.createJoin('left', true);
 
 	/**
 	 * Executes a `right join` operation by adding another table to the current query.
@@ -325,7 +336,7 @@ export abstract class PgSelectQueryBuilderBase<
 	 *   .rightJoin(pets, eq(users.id, pets.ownerId))
 	 * ```
 	 */
-	rightJoin = this.createJoin('right');
+	rightJoin = this.createJoin('right', false);
 
 	/**
 	 * Executes an `inner join` operation, creating a new table by combining rows from two tables that have matching values.
@@ -354,7 +365,15 @@ export abstract class PgSelectQueryBuilderBase<
 	 *   .innerJoin(pets, eq(users.id, pets.ownerId))
 	 * ```
 	 */
-	innerJoin = this.createJoin('inner');
+	innerJoin = this.createJoin('inner', false);
+
+	/**
+	 * For each row of the table, the joined subquery
+	 * needs to have a matching row, or it will
+	 * be excluded from results. The lateral keyword allows
+	 * access to columns after the FROM statement.
+	 */
+	innerJoinLateral = this.createJoin('inner', true);
 
 	/**
 	 * Executes a `full join` operation by combining rows from two tables into a new table.
@@ -383,7 +402,7 @@ export abstract class PgSelectQueryBuilderBase<
 	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
 	 * ```
 	 */
-	fullJoin = this.createJoin('full');
+	fullJoin = this.createJoin('full', false);
 
 	private createSetOperator(
 		type: SetOperator,
