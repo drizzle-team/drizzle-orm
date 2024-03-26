@@ -91,6 +91,34 @@ const insertReturningSqlStmt = db.insert(users).values({
 const insertReturningSqlPrepared = await insertReturningSqlStmt.execute();
 Expect<Equal<MySqlRawQueryResult, typeof insertReturningSqlPrepared>>;
 
+const userWithExtraKeys = {
+	homeCity: 45,
+	class: 'A' as const,
+	age1: 777,
+	enumCol: 'a' as const,
+	extraKey: 123,
+};
+
+const usersWithExtraKeys = [{
+	homeCity: 45,
+	class: 'A' as const,
+	age1: 777,
+	enumCol: 'a' as const,
+	extraKey2: 123,
+}, {
+	homeCity: 45,
+	class: 'A' as const,
+	age1: 777,
+	enumCol: 'a' as const,
+	extraKey: 123,
+}];
+
+// @ts-expect-error
+db.insert(users).values(userWithExtraKeys);
+
+// @ts-expect-error
+db.insert(users).values(usersWithExtraKeys);
+
 {
 	const users = mysqlTable('users', {
 		id: int('id').autoincrement().primaryKey(),
