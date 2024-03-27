@@ -122,6 +122,8 @@ export function foreignKey<
 		name?: string;
 		columns: TColumns;
 		foreignColumns: ColumnsWithTable<TForeignTableName, TColumns>;
+		onUpdate?: UpdateDeleteAction;
+		onDelete?: UpdateDeleteAction;
 	},
 ): ForeignKeyBuilder;
 export function foreignKey(
@@ -139,5 +141,8 @@ export function foreignKey(
 		return config;
 	}
 
-	return new ForeignKeyBuilder(mappedConfig);
+	return new ForeignKeyBuilder(mappedConfig, {
+		onUpdate: config.onUpdate,
+		onDelete: config.onDelete,
+	});
 }
