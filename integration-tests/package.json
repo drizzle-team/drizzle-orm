@@ -12,7 +12,8 @@
 	},
 	"ava": {
 		"files": [
-			"tests/**/*.test.{ts,cts,mts,js,cjs,mjs}",
+			"!tests/**/*.test.{ts,cts,mts,js,cjs,mjs}",
+			"tests/pglite.test.ts",
 			"!tests/imports.test.mjs",
 			"!tests/imports.test.cjs",
 			"!tests/awsdatapi.alltypes.test.ts",
@@ -63,6 +64,7 @@
 	"dependencies": {
 		"@aws-sdk/client-rds-data": "^3.345.0",
 		"@aws-sdk/credential-providers": "^3.345.0",
+		"@electric-sql/pglite": "^0.1.0",
 		"@libsql/client": "^0.5.6",
 		"@miniflare/d1": "^2.14.0",
 		"@miniflare/shared": "^2.14.0",
