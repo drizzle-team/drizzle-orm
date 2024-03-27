@@ -2,11 +2,11 @@ import { entityKind } from '~/entity.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { WithSubqueryWithSelection } from '~/mysql-core/subquery.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import { MySqlSelectBuilder } from './select.ts';
-import type { SelectedFields } from './select.types.ts';
-import { WithSubquery } from '~/subquery.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
+import { WithSubquery } from '~/subquery.ts';
+import { MySqlSelectBuilder } from './select.ts';
+import type { SelectedFields } from './select.types.ts';
 
 export class QueryBuilder {
 	static readonly [entityKind]: string = 'MySqlQueryBuilder';

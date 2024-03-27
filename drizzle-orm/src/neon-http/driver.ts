@@ -1,15 +1,13 @@
+import type { NeonQueryFunction } from '@neondatabase/serverless';
 import { types } from '@neondatabase/serverless';
+import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
+import { createTableRelationsHelpers, extractTablesRelationalConfig } from '~/relations.ts';
+import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { type NeonHttpClient, type NeonHttpQueryResultHKT, NeonHttpSession } from './session.ts';
 
@@ -41,12 +39,23 @@ export class NeonHttpDriver {
 	}
 }
 
-export type NeonHttpDatabase<
+export class NeonHttpDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = PgDatabase<NeonHttpQueryResultHKT, TSchema>;
+> extends PgDatabase<NeonHttpQueryResultHKT, TSchema> {
+	static readonly [entityKind]: string = 'NeonHttpDatabase';
+
+	/** @internal */
+	declare readonly session: NeonHttpSession<TSchema, ExtractTablesWithRelations<TSchema>>;
+
+	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
+		batch: T,
+	): Promise<BatchResponse<T>> {
+		return this.session.batch(batch) as Promise<BatchResponse<T>>;
+	}
+}
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
-	client: NeonHttpClient,
+	client: NeonQueryFunction<any, any>,
 	config: DrizzleConfig<TSchema> = {},
 ): NeonHttpDatabase<TSchema> {
 	const dialect = new PgDialect();
@@ -73,5 +82,9 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	const driver = new NeonHttpDriver(client, dialect, { logger });
 	const session = driver.createSession(schema);
 
-	return new PgDatabase(dialect, session, schema) as NeonHttpDatabase<TSchema>;
+	return new NeonHttpDatabase(
+		dialect,
+		session,
+		schema as RelationalSchemaConfig<ExtractTablesWithRelations<TSchema>> | undefined,
+	);
 }

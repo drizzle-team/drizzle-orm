@@ -9,10 +9,10 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import {
 	type PgDialect,
+	PgPreparedQuery,
 	PgSession,
 	PgTransaction,
 	type PgTransactionConfig,
-	PreparedQuery,
 	type PreparedQueryConfig,
 	type QueryResultHKT,
 } from '~/pg-core/index.ts';
@@ -24,7 +24,7 @@ import { getValueFromDataApi, toValueParam } from '../common/index.ts';
 
 export type AwsDataApiClient = RDSDataClient;
 
-export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
+export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
 	static readonly [entityKind]: string = 'AwsDataApiPreparedQuery';
 
 	private rawQuery: ExecuteStatementCommand;
@@ -38,9 +38,10 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 		private fields: SelectedFieldsOrdered | undefined,
 		/** @internal */
 		readonly transactionId: string | undefined,
+		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super();
+		super({ sql: queryString, params });
 		this.rawQuery = new ExecuteStatementCommand({
 			sql: queryString,
 			parameters: [],
@@ -105,6 +106,11 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends Prep
 			return row;
 		});
 	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
+	}
 }
 
 export interface AwsDataApiSessionOptions {
@@ -149,9 +155,10 @@ export class AwsDataApiSession<
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: QueryWithTypings,
 		fields: SelectedFieldsOrdered | undefined,
-		transactionId?: string,
+		transactionId: string | undefined,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
-	): PreparedQuery<T> {
+	): PgPreparedQuery<T> {
 		return new AwsDataApiPreparedQuery(
 			this.client,
 			query.sql,
@@ -160,6 +167,7 @@ export class AwsDataApiSession<
 			this.options,
 			fields,
 			transactionId,
+			isResponseInArrayMode,
 			customResultMapper,
 		);
 	}
@@ -169,6 +177,7 @@ export class AwsDataApiSession<
 			this.dialect.sqlToQuery(query),
 			undefined,
 			this.transactionId,
+			false,
 		).execute();
 	}
 

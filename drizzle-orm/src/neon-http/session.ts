@@ -1,4 +1,5 @@
-import type { FullQueryResults, QueryRows } from '@neondatabase/serverless';
+import type { FullQueryResults, NeonQueryFunction, NeonQueryPromise } from '@neondatabase/serverless';
+import type { BatchItem } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -6,71 +7,82 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
-import { PgSession, PreparedQuery } from '~/pg-core/session.ts';
+import { PgPreparedQuery as PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { PreparedQuery } from '~/session.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { mapResultRow } from '~/utils.ts';
 
-export type NeonHttpClient = {
-	<A extends boolean = false, F extends boolean = true>(
-		strings: string,
-		params?: any[],
-		mode?: { arrayMode?: A; fullResults?: F },
-	): Promise<
-		F extends true ? FullQueryResults<A> : QueryRows<A>
-	>;
-};
+export type NeonHttpClient = NeonQueryFunction<any, any>;
 
-export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
+const rawQueryConfig = {
+	arrayMode: false,
+	fullResults: true,
+} as const;
+const queryConfig = {
+	arrayMode: true,
+	fullResults: true,
+} as const;
+
+export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
 	static readonly [entityKind]: string = 'NeonHttpPreparedQuery';
-
-	private rawQuery: { arrayMode?: false; fullResults?: true };
-	private query: { arrayMode?: true; fullResults?: true };
 
 	constructor(
 		private client: NeonHttpClient,
-		private queryString: string,
-		private params: unknown[],
+		query: Query,
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
-		private name: string | undefined,
+		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super();
-		this.rawQuery = {
-			arrayMode: false,
-			fullResults: true,
-		};
-		this.query = { arrayMode: true, fullResults: true };
+		super(query);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
 
-		this.logger.logQuery(this.queryString, params);
+		this.logger.logQuery(this.query.sql, params);
 
-		const { fields, client, queryString, query, rawQuery, joinsNotNullableMap, customResultMapper } = this;
+		const { fields, client, query, customResultMapper } = this;
+
 		if (!fields && !customResultMapper) {
-			return client(queryString, params, rawQuery);
+			return client(query.sql, params, rawQueryConfig);
 		}
 
-		const result = await client(queryString, params, query);
+		const result = await client(query.sql, params, queryConfig);
 
-		return customResultMapper
-			? customResultMapper(result.rows as unknown[][])
-			: result.rows.map((row) => mapResultRow<T['execute']>(fields!, row as unknown[], joinsNotNullableMap));
+		return this.mapResult(result);
+	}
+
+	override mapResult(result: unknown): unknown {
+		if (!this.fields && !this.customResultMapper) {
+			return result;
+		}
+
+		const rows = (result as FullQueryResults<true>).rows;
+
+		if (this.customResultMapper) {
+			return this.customResultMapper(rows);
+		}
+
+		return rows.map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-		this.logger.logQuery(this.queryString, params);
-		return this.client(this.queryString, params, this.rawQuery).then((result) => result.rows);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
+		this.logger.logQuery(this.query.sql, params);
+		return this.client(this.query.sql, params, rawQueryConfig).then((result) => result.rows);
 	}
 
 	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['values']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-		this.logger.logQuery(this.queryString, params);
-		return this.client(this.queryString, params).then((result) => result.rows);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
+		this.logger.logQuery(this.query.sql, params);
+		return this.client(this.query.sql, params, { arrayMode: true, fullResults: true }).then((result) => result.rows);
+	}
+
+	/** @internal */
+	isResponseInArrayMode() {
+		return this._isResponseInArrayMode;
 	}
 }
 
@@ -100,23 +112,44 @@ export class NeonHttpSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
-	): PreparedQuery<T> {
+	): PgPreparedQuery<T> {
 		return new NeonHttpPreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			fields,
-			name,
+			isResponseInArrayMode,
 			customResultMapper,
 		);
+	}
+
+	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(queries: T) {
+		const preparedQueries: PreparedQuery[] = [];
+		const builtQueries: NeonQueryPromise<any, true>[] = [];
+
+		for (const query of queries) {
+			const preparedQuery = query._prepare();
+			const builtQuery = preparedQuery.getQuery();
+			preparedQueries.push(preparedQuery);
+			builtQueries.push(
+				this.client(builtQuery.sql, builtQuery.params, {
+					fullResults: true,
+					arrayMode: preparedQuery.isResponseInArrayMode(),
+				}),
+			);
+		}
+
+		const batchResults = await this.client.transaction(builtQueries, queryConfig);
+
+		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
 	}
 
 	// change return type to QueryRows<true>
 	async query(query: string, params: unknown[]): Promise<FullQueryResults<true>> {
 		this.logger.logQuery(query, params);
-		const result = await this.client(query, params, { arrayMode: true });
+		const result = await this.client(query, params, { arrayMode: true, fullResults: true });
 		return result;
 	}
 
@@ -125,7 +158,7 @@ export class NeonHttpSession<
 		query: string,
 		params: unknown[],
 	): Promise<FullQueryResults<false>> {
-		return this.client(query, params);
+		return this.client(query, params, { arrayMode: false, fullResults: true });
 	}
 
 	override async transaction<T>(
@@ -159,6 +192,8 @@ export class NeonTransaction<
 	}
 }
 
+export type NeonHttpQueryResult<T> = Omit<FullQueryResults<false>, 'rows'> & { rows: T[] };
+
 export interface NeonHttpQueryResultHKT extends QueryResultHKT {
-	type: FullQueryResults<Assume<this['row'], boolean>>;
+	type: NeonHttpQueryResult<this['row']>;
 }

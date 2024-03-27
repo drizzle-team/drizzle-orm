@@ -2,8 +2,8 @@ import type { GetColumnData } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type {
+	PgPreparedQuery,
 	PgSession,
-	PreparedQuery,
 	PreparedQueryConfig,
 	QueryResultHKT,
 	QueryResultKind,
@@ -11,17 +11,20 @@ import type {
 import type { PgTable } from '~/pg-core/table.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
+import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
-import type { SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
 import type { PgColumn } from '../columns/common.ts';
+import type { SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
 
 export interface PgUpdateConfig {
 	where?: SQL | undefined;
 	set: UpdateSet;
 	table: PgTable;
 	returning?: SelectedFieldsOrdered;
+	withList?: Subquery[];
 }
 
 export type PgUpdateSetSource<TTable extends PgTable> =
@@ -43,6 +46,7 @@ export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends QueryR
 		private table: TTable,
 		private session: PgSession,
 		private dialect: PgDialect,
+		private withList?: Subquery[],
 	) {}
 
 	set(values: PgUpdateSetSource<TTable>): PgUpdateBase<TTable, TQueryResult> {
@@ -51,6 +55,7 @@ export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends QueryR
 			mapUpdateSet(this.table, values),
 			this.session,
 			this.dialect,
+			this.withList,
 		);
 	}
 }
@@ -98,7 +103,7 @@ export type PgUpdateReturning<
 	'returning'
 >;
 
-export type PgUpdatePrepare<T extends AnyPgUpdate> = PreparedQuery<
+export type PgUpdatePrepare<T extends AnyPgUpdate> = PgPreparedQuery<
 	PreparedQueryConfig & {
 		execute: T['_']['returning'] extends undefined ? QueryResultKind<T['_']['queryResult'], never>
 			: T['_']['returning'][];
@@ -125,13 +130,19 @@ export interface PgUpdateBase<
 	TReturning extends Record<string, unknown> | undefined = undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-> extends QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>, SQLWrapper {
+> extends
+	QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>,
+	RunnableQuery<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
+	SQLWrapper
+{
 	readonly _: {
+		readonly dialect: 'pg';
 		readonly table: TTable;
 		readonly queryResult: TQueryResult;
 		readonly returning: TReturning;
 		readonly dynamic: TDynamic;
 		readonly excludedMethods: TExcludedMethods;
+		readonly result: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
 	};
 }
 
@@ -144,7 +155,9 @@ export class PgUpdateBase<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
 > extends QueryPromise<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[]>
-	implements SQLWrapper
+	implements
+		RunnableQuery<TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
+		SQLWrapper
 {
 	static readonly [entityKind]: string = 'PgUpdate';
 
@@ -155,23 +168,24 @@ export class PgUpdateBase<
 		set: UpdateSet,
 		private session: PgSession,
 		private dialect: PgDialect,
+		withList?: Subquery[],
 	) {
 		super();
-		this.config = { set, table };
+		this.config = { set, table, withList };
 	}
 
 	/**
 	 * Adds a 'where' clause to the query.
-	 * 
+	 *
 	 * Calling this method will update only those rows that fulfill a specified condition.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/update}
-	 * 
+	 *
 	 * @param where the 'where' clause.
-	 * 
+	 *
 	 * @example
 	 * You can use conditional operators and `sql function` to filter the rows to be updated.
-	 * 
+	 *
 	 * ```ts
 	 * // Update all cars with green color
 	 * await db.update(cars).set({ color: 'red' })
@@ -180,14 +194,14 @@ export class PgUpdateBase<
 	 * await db.update(cars).set({ color: 'red' })
 	 *   .where(sql`${cars.color} = 'green'`)
 	 * ```
-	 * 
+	 *
 	 * You can logically combine conditional operators with `and()` and `or()` operators:
-	 * 
+	 *
 	 * ```ts
 	 * // Update all BMW cars with a green color
 	 * await db.update(cars).set({ color: 'red' })
 	 *   .where(and(eq(cars.color, 'green'), eq(cars.brand, 'BMW')));
-	 * 
+	 *
 	 * // Update all cars with the green or blue color
 	 * await db.update(cars).set({ color: 'red' })
 	 *   .where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
@@ -200,11 +214,11 @@ export class PgUpdateBase<
 
 	/**
 	 * Adds a `returning` clause to the query.
-	 * 
+	 *
 	 * Calling this method will return the specified fields of the updated rows. If no fields are specified, all fields will be returned.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/update#update-with-returning}
-	 * 
+	 *
 	 * @example
 	 * ```ts
 	 * // Update all cars with the green color and return all fields
@@ -212,7 +226,7 @@ export class PgUpdateBase<
 	 *   .set({ color: 'red' })
 	 *   .where(eq(cars.color, 'green'))
 	 *   .returning();
-	 * 
+	 *
 	 * // Update all cars with the green color and return only their id and brand fields
 	 * const updatedCarsIdsAndBrands: { id: number, brand: string }[] = await db.update(cars)
 	 *   .set({ color: 'red' })
@@ -241,8 +255,9 @@ export class PgUpdateBase<
 		return rest;
 	}
 
-	private _prepare(name?: string): PgUpdatePrepare<this> {
-		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
+	/** @internal */
+	_prepare(name?: string): PgUpdatePrepare<this> {
+		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true);
 	}
 
 	prepare(name: string): PgUpdatePrepare<this> {

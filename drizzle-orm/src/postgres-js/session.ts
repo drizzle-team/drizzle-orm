@@ -6,24 +6,25 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
-import { PgSession, PreparedQuery } from '~/pg-core/session.ts';
+import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
-export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
+export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
 	static readonly [entityKind]: string = 'PostgresJsPreparedQuery';
 
 	constructor(
 		private client: Sql,
-		private query: string,
+		private queryString: string,
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
+		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super();
+		super({ sql: queryString, params });
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
@@ -31,13 +32,13 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends Prep
 			const params = fillPlaceholders(this.params, placeholderValues);
 
 			span?.setAttributes({
-				'drizzle.query.text': this.query,
+				'drizzle.query.text': this.queryString,
 				'drizzle.query.params': JSON.stringify(params),
 			});
 
-			this.logger.logQuery(this.query, params);
+			this.logger.logQuery(this.queryString, params);
 
-			const { fields, query, client, joinsNotNullableMap, customResultMapper } = this;
+			const { fields, queryString: query, client, joinsNotNullableMap, customResultMapper } = this;
 			if (!fields && !customResultMapper) {
 				return tracer.startActiveSpan('drizzle.driver.execute', () => {
 					return client.unsafe(query, params as any[]);
@@ -65,18 +66,23 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends Prep
 		return tracer.startActiveSpan('drizzle.execute', async (span) => {
 			const params = fillPlaceholders(this.params, placeholderValues);
 			span?.setAttributes({
-				'drizzle.query.text': this.query,
+				'drizzle.query.text': this.queryString,
 				'drizzle.query.params': JSON.stringify(params),
 			});
-			this.logger.logQuery(this.query, params);
+			this.logger.logQuery(this.queryString, params);
 			return tracer.startActiveSpan('drizzle.driver.execute', () => {
 				span?.setAttributes({
-					'drizzle.query.text': this.query,
+					'drizzle.query.text': this.queryString,
 					'drizzle.query.params': JSON.stringify(params),
 				});
-				return this.client.unsafe(this.query, params as any[]);
+				return this.client.unsafe(this.queryString, params as any[]);
 			});
 		});
+	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
 	}
 }
 
@@ -108,9 +114,18 @@ export class PostgresJsSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
-	): PreparedQuery<T> {
-		return new PostgresJsPreparedQuery(this.client, query.sql, query.params, this.logger, fields, customResultMapper);
+	): PgPreparedQuery<T> {
+		return new PostgresJsPreparedQuery(
+			this.client,
+			query.sql,
+			query.params,
+			this.logger,
+			fields,
+			isResponseInArrayMode,
+			customResultMapper,
+		);
 	}
 
 	query(query: string, params: unknown[]): Promise<RowList<Row[]>> {
