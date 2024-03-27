@@ -665,7 +665,7 @@ test.serial('insert via db.execute + select via db.execute', async (t) => {
 	await db.execute(sql`insert into ${usersTable} (${name(usersTable.name.name)}) values (${'John'})`);
 
 	const result = await db.execute(sql`select id, name from "users"`);
-	t.deepEqual(result.records![0], [{ longValue: 1 }, { stringValue: 'John' }]);
+	t.deepEqual(result, [{ id: 1, name: 'John' }]);
 });
 
 test.serial('insert via db.execute + returning', async (t) => {
@@ -676,7 +676,7 @@ test.serial('insert via db.execute + returning', async (t) => {
 			name(usersTable.name.name)
 		}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
 	);
-	t.deepEqual(inserted.records![0], [{ longValue: 1 }, { stringValue: 'John' }]);
+	t.deepEqual(inserted, [{ id: 1, name: 'John' }]);
 });
 
 test.serial('insert via db.execute w/ query builder', async (t) => {
@@ -685,7 +685,7 @@ test.serial('insert via db.execute w/ query builder', async (t) => {
 	const inserted = await db.execute(
 		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 	);
-	t.deepEqual(inserted.records![0], [{ longValue: 1 }, { stringValue: 'John' }]);
+	t.deepEqual(inserted, [{ id: 1, name: 'John' }]);
 });
 
 test.serial('build query insert with onConflict do update', async (t) => {
@@ -697,7 +697,7 @@ test.serial('build query insert with onConflict do update', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values (:1, :2) on conflict ("id") do update set "name" = :3',
+		sql: 'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, :1, default, :2, default) on conflict ("id") do update set "name" = :3',
 		params: ['John', '["foo","bar"]', 'John1'],
 		// typings: ['none', 'json', 'none']
 	});
@@ -712,7 +712,7 @@ test.serial('build query insert with onConflict do update / multiple columns', a
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values (:1, :2) on conflict ("id","name") do update set "name" = :3',
+		sql: 'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, :1, default, :2, default) on conflict ("id","name") do update set "name" = :3',
 		params: ['John', '["foo","bar"]', 'John1'],
 		// typings: ['none', 'json', 'none']
 	});
@@ -727,7 +727,7 @@ test.serial('build query insert with onConflict do nothing', async (t) => {
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values (:1, :2) on conflict do nothing',
+		sql: 'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, :1, default, :2, default) on conflict do nothing',
 		params: ['John', '["foo","bar"]'],
 		// typings: ['none', 'json']
 	});
@@ -742,7 +742,7 @@ test.serial('build query insert with onConflict do nothing + target', async (t) 
 		.toSQL();
 
 	t.deepEqual(query, {
-		sql: 'insert into "users" ("name", "jsonb") values (:1, :2) on conflict ("id") do nothing',
+		sql: 'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, :1, default, :2, default) on conflict ("id") do nothing',
 		params: ['John', '["foo","bar"]'],
 		// typings: ['none', 'json']
 	});
@@ -910,9 +910,9 @@ test.serial('nested transaction rollback', async (t) => {
 		await tx.insert(users).values({ balance: 100 });
 
 		await t.throwsAsync(async () =>
-			await tx.transaction(async (tx) => {
-				await tx.update(users).set({ balance: 200 });
-				tx.rollback();
+			await tx.transaction(async (tx2) => {
+				await tx2.update(users).set({ balance: 200 });
+				tx2.rollback();
 			}), { instanceOf: TransactionRollbackError });
 	});
 
@@ -1204,8 +1204,8 @@ test.serial('all date and time columns without timezone', async (t) => {
 
 test.after.always(async (t) => {
 	const ctx = t.context;
-	await ctx.db.execute(sql`drop table "users"`);
-	await ctx.db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
+	await ctx.db.execute(sql`drop table if exists "users"`);
+	await ctx.db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 	// await ctx.client?.end().catch(console.error);
 	// await ctx.pgContainer?.stop().catch(console.error);
 });

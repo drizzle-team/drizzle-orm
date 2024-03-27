@@ -155,9 +155,10 @@ export class AwsDataApiSession<
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: QueryWithTypings,
 		fields: SelectedFieldsOrdered | undefined,
-		transactionId: string | undefined,
+		name: string | undefined,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		transactionId?: string,
 	): PgPreparedQuery<T> {
 		return new AwsDataApiPreparedQuery(
 			this.client,
@@ -166,7 +167,7 @@ export class AwsDataApiSession<
 			query.typings ?? [],
 			this.options,
 			fields,
-			transactionId,
+			transactionId ?? this.transactionId,
 			isResponseInArrayMode,
 			customResultMapper,
 		);
@@ -175,6 +176,8 @@ export class AwsDataApiSession<
 	override execute<T>(query: SQL): Promise<T> {
 		return this.prepareQuery<PreparedQueryConfig & { execute: T }>(
 			this.dialect.sqlToQuery(query),
+			undefined,
+			undefined,
 			undefined,
 			this.transactionId,
 			false,
@@ -208,16 +211,16 @@ export class AwsDataApiTransaction<
 > extends PgTransaction<AwsDataApiPgQueryResultHKT, TFullSchema, TSchema> {
 	static readonly [entityKind]: string = 'AwsDataApiTransaction';
 
-	override transaction<T>(transaction: (tx: AwsDataApiTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
+	override async transaction<T>(transaction: (tx: AwsDataApiTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new AwsDataApiTransaction(this.dialect, this.session, this.schema, this.nestedIndex + 1);
-		this.session.execute(sql`savepoint ${savepointName}`);
+		await this.session.execute(sql.raw(`savepoint ${savepointName}`));
 		try {
-			const result = transaction(tx);
-			this.session.execute(sql`release savepoint ${savepointName}`);
+			const result = await transaction(tx);
+			await this.session.execute(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (e) {
-			this.session.execute(sql`rollback to savepoint ${savepointName}`);
+			await this.session.execute(sql.raw(`rollback to savepoint ${savepointName}`));
 			throw e;
 		}
 	}
