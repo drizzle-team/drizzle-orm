@@ -7,10 +7,9 @@ import type { ForeignKey } from './foreign-keys.ts';
 import { ForeignKeyBuilder } from './foreign-keys.ts';
 import type { Index } from './indexes.ts';
 import { IndexBuilder } from './indexes.ts';
-import type { PrimaryKey } from './primary-keys.ts';
-import { PrimaryKeyBuilder } from './primary-keys.ts';
+import { PrimaryKey, PrimaryKeyBuilder } from './primary-keys.ts';
 import { SQLiteTable } from './table.ts';
-import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
+import { UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
 import { SQLiteViewConfig } from './view-common.ts';
 import type { SQLiteView } from './view.ts';
 
@@ -22,6 +21,15 @@ export function getTableConfig<TTable extends SQLiteTable>(table: TTable) {
 	const uniqueConstraints: UniqueConstraint[] = [];
 	const foreignKeys: ForeignKey[] = Object.values(table[SQLiteTable.Symbol.InlineForeignKeys]);
 	const name = table[Table.Symbol.Name];
+
+	for (const column of columns) {
+		if (column.primary) {
+			primaryKeys.push(new PrimaryKey(table, [column]));
+		}
+		if (column.isUnique) {
+			uniqueConstraints.push(new UniqueConstraint(table, [column]));
+		}
+	}
 
 	const extraConfigBuilder = table[SQLiteTable.Symbol.ExtraConfigBuilder];
 

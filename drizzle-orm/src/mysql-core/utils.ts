@@ -7,10 +7,9 @@ import type { ForeignKey } from './foreign-keys.ts';
 import { ForeignKeyBuilder } from './foreign-keys.ts';
 import type { Index } from './indexes.ts';
 import { IndexBuilder } from './indexes.ts';
-import type { PrimaryKey } from './primary-keys.ts';
-import { PrimaryKeyBuilder } from './primary-keys.ts';
+import { PrimaryKey, PrimaryKeyBuilder } from './primary-keys.ts';
 import { MySqlTable } from './table.ts';
-import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
+import { UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
 import { MySqlViewConfig } from './view-common.ts';
 import type { MySqlView } from './view.ts';
 
@@ -24,6 +23,15 @@ export function getTableConfig(table: MySqlTable) {
 	const name = table[Table.Symbol.Name];
 	const schema = table[Table.Symbol.Schema];
 	const baseName = table[Table.Symbol.BaseName];
+
+	for (const column of columns) {
+		if (column.primary) {
+			primaryKeys.push(new PrimaryKey(table, [column]));
+		}
+		if (column.isUnique) {
+			uniqueConstraints.push(new UniqueConstraint(table, [column]));
+		}
+	}
 
 	const extraConfigBuilder = table[MySqlTable.Symbol.ExtraConfigBuilder];
 

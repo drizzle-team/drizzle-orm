@@ -331,9 +331,21 @@ test.serial('table config: foreign keys name', async (t) => {
 	t.is(tableConfig.foreignKeys[1]!.getName(), 'custom_fk_deprecated');
 });
 
+test.serial('table config: primary key', async (t) => {
+	const table = sqliteTable('cities', {
+		id: int('id').primaryKey({ autoIncrement: true }),
+		name: text('name').notNull(),
+		state: text('state'),
+	});
+
+	const tableConfig = getTableConfig(table);
+
+	t.is(tableConfig.primaryKeys.length, 1);
+});
+
 test.serial('table config: primary keys name', async (t) => {
 	const table = sqliteTable('cities', {
-		id: int('id').primaryKey(),
+		id: int('id'),
 		name: text('name').notNull(),
 		state: text('state'),
 	}, (t) => ({
