@@ -61,19 +61,21 @@ export function mysqlTableWithSchema<
 >(
 	name: TTableName,
 	columns: TColumnsMap,
-	extraConfig: ((self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig) | undefined,
+	extraConfig:
+		| ((self: BuildColumns<TTableName, TColumnsMap, 'mysql', TSchemaName>) => MySqlTableExtraConfig)
+		| undefined,
 	schema: TSchemaName,
 	baseName = name,
 ): MySqlTableWithColumns<{
 	name: TTableName;
 	schema: TSchemaName;
-	columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+	columns: BuildColumns<TTableName, TColumnsMap, 'mysql', TSchemaName>;
 	dialect: 'mysql';
 }> {
 	const rawTable = new MySqlTable<{
 		name: TTableName;
 		schema: TSchemaName;
-		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+		columns: BuildColumns<TTableName, TColumnsMap, 'mysql', TSchemaName>;
 		dialect: 'mysql';
 	}>(name, schema, baseName);
 
@@ -84,7 +86,7 @@ export function mysqlTableWithSchema<
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
 		}),
-	) as unknown as BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+	) as unknown as BuildColumns<TTableName, TColumnsMap, 'mysql', TSchemaName>;
 
 	const table = Object.assign(rawTable, builtColumns);
 
@@ -106,11 +108,11 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfig,
+		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'mysql', TSchemaName>) => MySqlTableExtraConfig,
 	): MySqlTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;
-		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+		columns: BuildColumns<TTableName, TColumnsMap, 'mysql', TSchemaName>;
 		dialect: 'mysql';
 	}>;
 }

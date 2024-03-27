@@ -12,6 +12,7 @@ import { integer, pgTable } from '~/pg-core/index.ts';
 				{
 					name: 'a';
 					tableName: 'table';
+					schemaName: undefined;
 					dataType: 'number';
 					columnType: 'PgInteger';
 					data: number;

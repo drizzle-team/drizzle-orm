@@ -1209,7 +1209,10 @@ export class PgDialect {
 				} of selectedRelations
 			) {
 				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
-				const relationTableName = relation.referencedTable[Table.Symbol.Name];
+				const relationTableName = relation.referencedTable[Table.Symbol.Schema]
+					? `${relation.referencedTable[Table.Symbol.Schema]}.${relation.referencedTable[Table.Symbol.Name]}`
+					: relation.referencedTable[Table.Symbol.Name];
+
 				const relationTableTsName = tableNamesMap[relationTableName]!;
 				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
 				const joinOn = and(
