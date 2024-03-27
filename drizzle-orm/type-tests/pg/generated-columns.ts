@@ -1,7 +1,7 @@
 import { type Equal, Expect } from 'type-tests/utils';
 import { type InferInsertModel, type InferSelectModel, sql } from '~/index';
 import { drizzle } from '~/node-postgres';
-import { integer, pgTable, serial, text, varchar } from '~/pg-core';
+import { integer, pgSchema, pgSequence, pgTable, serial, text, varchar } from '~/pg-core';
 import { db } from './db';
 
 const users = pgTable(
@@ -11,10 +11,10 @@ const users = pgTable(
 		firstName: varchar('first_name', { length: 255 }),
 		lastName: varchar('last_name', { length: 255 }),
 		email: text('email').notNull(),
-		fullName: text('full_name').generatedAlwaysAs(sql`concat_ws(first_name, ' ', last_name)`),
+		fullName: text('full_name').generatedAlwaysAs(sql`concat_ws(first_name, ' ', last_name)`).notNull(),
 		upperName: text('upper_name').generatedAlwaysAs(
 			sql` case when first_name is null then null else upper(first_name) end `,
-		).$type<string | null>(), // There is no way for drizzle to detect nullability in these cases. This is how the user can work around it
+		),
 	},
 );
 {
@@ -160,14 +160,56 @@ const users = pgTable(
 const users2 = pgTable(
 	'users',
 	{
-		id: integer('id').generatedAsIdentity({ type: 'byDefault' }),
-		id2: integer('id').generatedAsIdentity({ type: 'always' }),
+		id: integer('id').generatedByDefaultAsIdentity(),
+		id2: integer('id').generatedAlwaysAsIdentity(),
 	},
 );
 
 {
 	type User = typeof users2.$inferSelect;
 	type NewUser = typeof users2.$inferInsert;
+
+	Expect<
+		Equal<
+			{
+				id: number;
+				id2: number;
+			},
+			User
+		>
+	>();
+
+	Expect<
+		Equal<
+			{
+				id?: number | undefined;
+			},
+			NewUser
+		>
+	>();
+}
+
+const customSequence = pgSequence('custom_seq', {
+	minValue: 100000,
+	increment: 1,
+});
+
+const customSequenceSchema = pgSchema('test').sequence('custom_seq', {
+	minValue: 100000,
+	increment: 1,
+});
+
+const usersSeq = pgTable(
+	'users',
+	{
+		id: integer('id').generatedByDefaultAsIdentity(customSequence),
+		id2: integer('id').generatedAlwaysAsIdentity(customSequenceSchema),
+	},
+);
+
+{
+	type User = typeof usersSeq.$inferSelect;
+	type NewUser = typeof usersSeq.$inferInsert;
 
 	Expect<
 		Equal<

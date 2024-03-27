@@ -24,7 +24,7 @@ export type GeneratedStorageMode = 'virtual' | 'stored';
 export type GeneratedType = 'always' | 'byDefault';
 
 export type GeneratedColumnConfig<TDataType> = {
-	as: TDataType | SQL;
+	as: TDataType | SQL | (() => SQL);
 	type?: GeneratedType;
 	mode?: GeneratedStorageMode;
 };
@@ -117,7 +117,6 @@ export type $Type<T extends ColumnBuilderBase, TType> = T & {
 
 export type HasGenerated<T extends ColumnBuilderBase, TGenerated extends {} = {}> = T & {
 	_: {
-		notNull: true;
 		hasDefault: true;
 		generated: TGenerated;
 	};
@@ -139,10 +138,6 @@ export interface ColumnBuilderBase<
 	TTypeConfig extends object = object,
 > {
 	_: ColumnBuilderTypeConfig<T, TTypeConfig>;
-	generatedAlwaysAs(
-		as: SQL | T['data'],
-		config?: Partial<GeneratedColumnConfig<unknown>>,
-	): HasGenerated<this>;
 }
 
 // To understand how to use `ColumnBuilder` and `AnyColumnBuilder`, see `Column` and `AnyColumn` documentation.
@@ -243,7 +238,7 @@ export abstract class ColumnBuilder<
 	}
 
 	abstract generatedAlwaysAs(
-		as: SQL | T['data'],
+		as: SQL | T['data'] | (() => SQL),
 		config?: Partial<GeneratedColumnConfig<unknown>>,
 	): HasGenerated<this>;
 }

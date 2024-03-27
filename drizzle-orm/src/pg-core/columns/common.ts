@@ -35,10 +35,6 @@ export interface PgColumnBuilderBase<
 	TTypeConfig extends object = object,
 > extends ColumnBuilderBase<T, TTypeConfig & { dialect: 'pg' }> {}
 
-export interface PgGeneratedColumnConfig<TType extends 'always' | 'byDefault' = 'always'> {
-	type?: TType;
-}
-
 export abstract class PgColumnBuilder<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
@@ -86,7 +82,7 @@ export abstract class PgColumnBuilder<
 		return this;
 	}
 
-	generatedAlwaysAs(as: SQL | T['data']): HasGenerated<this> {
+	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL)): HasGenerated<this> {
 		this.config.generated = {
 			as,
 			type: 'always',

@@ -1,15 +1,10 @@
-import type {
-	ColumnBuilderBaseConfig,
-	ColumnBuilderRuntimeConfig,
-	IsIdentityByDefault,
-	MakeColumnConfig,
-} from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 
-import { type SQL, sql } from '~/sql/sql.ts';
-import { PgColumn, PgColumnBuilder, type PgGeneratedColumnConfig } from './common.ts';
+import { PgColumn } from './common.ts';
+import { PgIntColumnBaseBuilder } from './int.common.ts';
 
 export type PgBigInt53BuilderInitial<TName extends string> = PgBigInt53Builder<{
 	name: TName;
@@ -21,21 +16,13 @@ export type PgBigInt53BuilderInitial<TName extends string> = PgBigInt53Builder<{
 	generated: undefined;
 }>;
 
-export class PgBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'PgBigInt53'>> extends PgColumnBuilder<T> {
+export class PgBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'PgBigInt53'>>
+	extends PgIntColumnBaseBuilder<T>
+{
 	static readonly [entityKind]: string = 'PgBigInt53Builder';
 
 	constructor(name: T['name']) {
 		super(name, 'number', 'PgBigInt53');
-	}
-
-	generatedAsIdentity<TType extends 'always' | 'byDefault'>(
-		config?: PgGeneratedColumnConfig<TType> & { sequenceOpts?: SQL },
-	): IsIdentityByDefault<this, TType> {
-		this.config.generated = {
-			as: sql`identity${config?.sequenceOpts ? ` ${config.sequenceOpts}` : ''}`,
-			type: config?.type ?? 'always',
-		};
-		return this as any;
 	}
 
 	/** @internal */
@@ -71,7 +58,9 @@ export type PgBigInt64BuilderInitial<TName extends string> = PgBigInt64Builder<{
 	generated: undefined;
 }>;
 
-export class PgBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'PgBigInt64'>> extends PgColumnBuilder<T> {
+export class PgBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'PgBigInt64'>>
+	extends PgIntColumnBaseBuilder<T>
+{
 	static readonly [entityKind]: string = 'PgBigInt64Builder';
 
 	constructor(name: T['name']) {
