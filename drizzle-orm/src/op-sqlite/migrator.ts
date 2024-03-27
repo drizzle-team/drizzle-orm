@@ -9,10 +9,8 @@ interface MigrationConfig {
 	migrations: Record<string, string>;
 }
 
-async function readMigrationFiles({ journal, migrations }: MigrationConfig): Promise<MigrationMeta[]> {
-	const migrationQueries: MigrationMeta[] = [];
-
-	for await (const journalEntry of journal.entries) {
+async function* readMigrationFiles({ journal, migrations }: MigrationConfig): AsyncIterableIterator<MigrationMeta> {
+	for (const journalEntry of journal.entries) {
 		const query = migrations[`m${journalEntry.idx.toString().padStart(4, '0')}`];
 
 		if (!query) {
@@ -24,18 +22,16 @@ async function readMigrationFiles({ journal, migrations }: MigrationConfig): Pro
 				return it;
 			});
 
-			migrationQueries.push({
+			yield {
 				sql: result,
 				bps: journalEntry.breakpoints,
 				folderMillis: journalEntry.when,
 				hash: '',
-			});
+			};
 		} catch {
 			throw new Error(`Failed to parse migration: ${journalEntry.tag}`);
 		}
 	}
-
-	return migrationQueries;
 }
 
 export async function migrate<TSchema extends Record<string, unknown>>(

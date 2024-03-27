@@ -46,7 +46,7 @@ import type { PgMaterializedView } from './view.ts';
 export class PgDialect {
 	static readonly [entityKind]: string = 'PgDialect';
 
-	async migrate(migrations: MigrationMeta[], session: PgSession, config: string | MigrationConfig): Promise<void> {
+	async migrate(migrations: AsyncIterableIterator<MigrationMeta>, session: PgSession, config: string | MigrationConfig): Promise<void> {
 		const migrationsTable = typeof config === 'string'
 			? '__drizzle_migrations'
 			: config.migrationsTable ?? '__drizzle_migrations';
