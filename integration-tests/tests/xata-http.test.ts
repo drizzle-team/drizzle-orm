@@ -2334,8 +2334,8 @@ test('update undefined', async () => {
 		sql`create table ${users} (id serial not null primary key, name text)`,
 	);
 
-	await expect(async () => await db.update(users).set({ name: undefined })).rejects.toThrowError();
-	expect(async () => await db.update(users).set({ id: 1, name: undefined })).not.toThrowError();
+	expect(() => db.update(users).set({ name: undefined })).toThrowError();
+	await expect(db.update(users).set({ id: 1, name: undefined })).resolves.not.toThrowError();
 
 	await db.execute(sql`drop table ${users}`);
 });
