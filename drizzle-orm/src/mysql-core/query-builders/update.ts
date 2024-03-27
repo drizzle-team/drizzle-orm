@@ -13,9 +13,9 @@ import type {
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { Subquery } from '~/subquery.ts';
 import { mapUpdateSet, type UpdateSet } from '~/utils.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
-import type { Subquery } from '~/subquery.ts';
 
 export interface MySqlUpdateConfig {
 	where?: SQL | undefined;
@@ -137,16 +137,16 @@ export class MySqlUpdateBase<
 
 	/**
 	 * Adds a 'where' clause to the query.
-	 * 
+	 *
 	 * Calling this method will update only those rows that fulfill a specified condition.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/update}
-	 * 
+	 *
 	 * @param where the 'where' clause.
-	 * 
+	 *
 	 * @example
 	 * You can use conditional operators and `sql function` to filter the rows to be updated.
-	 * 
+	 *
 	 * ```ts
 	 * // Update all cars with green color
 	 * db.update(cars).set({ color: 'red' })
@@ -155,14 +155,14 @@ export class MySqlUpdateBase<
 	 * db.update(cars).set({ color: 'red' })
 	 *   .where(sql`${cars.color} = 'green'`)
 	 * ```
-	 * 
+	 *
 	 * You can logically combine conditional operators with `and()` and `or()` operators:
-	 * 
+	 *
 	 * ```ts
 	 * // Update all BMW cars with a green color
 	 * db.update(cars).set({ color: 'red' })
 	 *   .where(and(eq(cars.color, 'green'), eq(cars.brand, 'BMW')));
-	 * 
+	 *
 	 * // Update all cars with the green or blue color
 	 * db.update(cars).set({ color: 'red' })
 	 *   .where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));

@@ -2,15 +2,15 @@ import type { BuildColumns } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
-import type { SQL, ColumnsSelection } from '~/sql/sql.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
+import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
 import type { PgColumn, PgColumnBuilderBase } from './columns/common.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import { pgTable } from './table.ts';
-import { PgViewConfig } from './view-common.ts';
 import { PgViewBase } from './view-base.ts';
-import { SelectionProxyHandler } from '~/selection-proxy.ts';
+import { PgViewConfig } from './view-common.ts';
 
 export interface ViewWithConfig {
 	checkOption: 'local' | 'cascaded';

@@ -69,6 +69,7 @@ export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = ob
 	notNull: boolean;
 	default: TData | SQL | undefined;
 	defaultFn: (() => TData | SQL) | undefined;
+	onUpdateFn: (() => TData | SQL) | undefined;
 	hasDefault: boolean;
 	primaryKey: boolean;
 	isUnique: boolean;
@@ -191,6 +192,26 @@ export abstract class ColumnBuilder<
 	 * Alias for {@link $defaultFn}.
 	 */
 	$default = this.$defaultFn;
+
+	/**
+	 * Adds a dynamic update value to the column.
+	 * The function will be called when the row is updated, and the returned value will be used as the column value if none is provided.
+	 * If no `default` (or `$defaultFn`) value is provided, the function will be called when the row is inserted as well, and the returned value will be used as the column value.
+	 *
+	 * **Note:** This value does not affect the `drizzle-kit` behavior, it is only used at runtime in `drizzle-orm`.
+	 */
+	$onUpdateFn(
+		fn: () => (this['_'] extends { $type: infer U } ? U : this['_']['data']) | SQL,
+	): HasDefault<this> {
+		this.config.onUpdateFn = fn;
+		this.config.hasDefault = true;
+		return this as HasDefault<this>;
+	}
+
+	/**
+	 * Alias for {@link $defaultFn}.
+	 */
+	$onUpdate = this.$onUpdateFn;
 
 	/**
 	 * Adds a `primary key` clause to the column definition. This implicitly makes the column `not null`.

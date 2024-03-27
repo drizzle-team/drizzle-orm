@@ -1,6 +1,6 @@
-import { Client } from 'pg';
 import express from 'express';
 import RateLimit from 'express-rate-limit';
+import { Client } from 'pg';
 
 const app = express();
 
@@ -23,21 +23,21 @@ app.post('/query', async (req, res) => {
 
 	if (method === 'all') {
 		try {
-            const result = await client.query({
-                text: sqlBody,
-                values: params,
-                rowMode: 'array',
-            });
+			const result = await client.query({
+				text: sqlBody,
+				values: params,
+				rowMode: 'array',
+			});
 			res.send(result.rows);
 		} catch (e: any) {
 			res.status(500).json({ error: e });
 		}
 	} else if (method === 'execute') {
 		try {
-            const result = await client.query({
-                text: sqlBody,
-                values: params,
-            });
+			const result = await client.query({
+				text: sqlBody,
+				values: params,
+			});
 
 			res.send(result.rows);
 		} catch (e: any) {
@@ -51,15 +51,15 @@ app.post('/query', async (req, res) => {
 app.post('/migrate', async (req, res) => {
 	const { queries } = req.body;
 
-    await client.query('BEGIN');
-    try {
-        for (const query of queries) {
-            await client.query(query);
-        }
-        await client.query('COMMIT');
-    } catch {
-        await client.query('ROLLBACK');
-    }
+	await client.query('BEGIN');
+	try {
+		for (const query of queries) {
+			await client.query(query);
+		}
+		await client.query('COMMIT');
+	} catch {
+		await client.query('ROLLBACK');
+	}
 
 	res.send({});
 });
