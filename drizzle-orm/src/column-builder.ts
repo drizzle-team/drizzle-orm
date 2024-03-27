@@ -209,7 +209,7 @@ export abstract class ColumnBuilder<
 	}
 
 	/**
-	 * Alias for {@link $defaultFn}.
+	 * Alias for {@link $onUpdateFn}.
 	 */
 	$onUpdate = this.$onUpdateFn;
 
