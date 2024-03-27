@@ -564,6 +564,59 @@ test('insert + delete + select + select partial', async () => {
 	);
 });
 
+test('dynamic array select', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'John' },
+		{ id: 2, name: 'Dan' },
+	]);
+
+	const batchResponse = await db.batch(
+		[1, 2].map((id) => db.query.usersTable.findFirst({
+			where: eq(usersTable.id, id),
+		})),
+	);
+
+	expectTypeOf(batchResponse).toEqualTypeOf<({
+		id: number;
+		name: string;
+		verified: number;
+		invitedBy: number | null;
+	} | undefined)[]>();
+
+	expect(batchResponse.length).eq(2);
+
+	expect(batchResponse[0]).toEqual([{ id: 1 }]);
+
+	expect(batchResponse[1]).toEqual([{ id: 2 }]);
+});
+
+test('dynamic array insert + select', async () => {
+	const queries = [];
+
+	queries.push(db.insert(usersTable).values([
+		{ id: 1, name: 'John' },
+		{ id: 2, name: 'Dan' },
+	]));
+	queries.push(db.query.usersTable.findMany({}));
+
+	const batchResponse = await db.batch(queries);
+
+	expectTypeOf(batchResponse).toEqualTypeOf<(
+		ResultSet | {
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		}[]
+	)[]>();
+
+	expect(batchResponse.length).eq(2);
+
+	expect(batchResponse[0]).toEqual({ changes: 2, lastInsertRowid: 2 });
+
+	expect(batchResponse[1]).toEqual([{ id: 1 }, { id: 2 }]);
+});
+
 // * additionally
 // batch for all libsql cases, just replace simple calls with batch calls
 // batch for all rqb cases, just replace simple calls with batch calls
