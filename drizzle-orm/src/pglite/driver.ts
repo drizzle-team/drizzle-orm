@@ -10,8 +10,8 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
-import type { PgliteClient, PgliteQueryResultHKT } from './session';
-import { PgliteSession } from './session';
+import type { PgliteClient, PgliteQueryResultHKT } from './session.ts';
+import { PgliteSession } from './session.ts';
 
 export interface PgDriverOptions {
 	logger?: Logger;
