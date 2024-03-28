@@ -95,8 +95,8 @@ importers:
         specifier: ^4.20230904.0
         version: 4.20230904.0
       '@electric-sql/pglite':
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.1.1
+        version: 0.1.1
       '@libsql/client':
         specifier: ^0.5.6
         version: 0.5.6
@@ -335,8 +335,8 @@ importers:
         specifier: ^3.345.0
         version: 3.345.0
       '@electric-sql/pglite':
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.1.1
+        version: 0.1.1
       '@libsql/client':
         specifier: ^0.5.6
         version: 0.5.6
@@ -3205,8 +3205,8 @@ packages:
     resolution: {integrity: sha512-ps5qF0tMxWRVu+V5gvCRrQNqlY92aTnIKdq27gm9LZMSdaKYZt6AVvSK1dlUMzs6Rt0Jm80b+eWct6xShBKhIw==}
     dev: true
 
-  /@electric-sql/pglite@0.1.0:
-    resolution: {integrity: sha512-OlHFYuSAQICEMaeYf27Y/r4vXRaDFDa8P9U96U0Fy7HOmjMY9PbEWLKaFCkD5ryqnat8ukRHFNZWXOHTpGITRA==}
+  /@electric-sql/pglite@0.1.1:
+    resolution: {integrity: sha512-7tJNIJBXuiuVl6Y9ehwv9mTlQlPeQbQ7wIKn49eorToPlNnkYnBzVWpOOTkNqv6Xu4dz75vl3S/9BmlfqCqM1w==}
 
   /@esbuild-kit/cjs-loader@2.4.2:
     resolution: {integrity: sha512-BDXFbYOJzT/NBEtp71cvsrGPwGAMGRB/349rwKuoxNSiKjPraNNnlK6MIIabViCjqZugu6j+xeMDlEkWdHHJSg==}
