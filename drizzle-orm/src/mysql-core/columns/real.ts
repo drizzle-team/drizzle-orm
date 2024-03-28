@@ -11,6 +11,7 @@ export type MySqlRealBuilderInitial<TName extends string> = MySqlRealBuilder<{
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class MySqlRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlReal'>>

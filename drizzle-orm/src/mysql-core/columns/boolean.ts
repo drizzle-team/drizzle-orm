@@ -11,6 +11,7 @@ export type MySqlBooleanBuilderInitial<TName extends string> = MySqlBooleanBuild
 	data: boolean;
 	driverParam: number | boolean;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class MySqlBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'MySqlBoolean'>>

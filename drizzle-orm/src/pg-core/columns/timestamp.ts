@@ -13,6 +13,7 @@ export type PgTimestampBuilderInitial<TName extends string> = PgTimestampBuilder
 	data: Date;
 	driverParam: string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class PgTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'PgTimestamp'>>
@@ -74,6 +75,7 @@ export type PgTimestampStringBuilderInitial<TName extends string> = PgTimestampS
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class PgTimestampStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgTimestampString'>>

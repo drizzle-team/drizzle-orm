@@ -11,6 +11,7 @@ export type MySqlYearBuilderInitial<TName extends string> = MySqlYearBuilder<{
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class MySqlYearBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlYear'>> extends MySqlColumnBuilder<T> {

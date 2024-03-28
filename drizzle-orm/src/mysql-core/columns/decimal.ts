@@ -11,6 +11,7 @@ export type MySqlDecimalBuilderInitial<TName extends string> = MySqlDecimalBuild
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
 export class MySqlDecimalBuilder<

@@ -29,7 +29,7 @@ export interface PgUpdateConfig {
 
 export type PgUpdateSetSource<TTable extends PgTable> =
 	& {
-		[Key in keyof TTable['_']['columns']]?:
+		[Key in keyof TTable['$inferInsert']]?:
 			| GetColumnData<TTable['_']['columns'][Key]>
 			| SQL;
 	}

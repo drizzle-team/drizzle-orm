@@ -2,7 +2,8 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
-import { PgColumn, PgColumnBuilder } from './common.ts';
+import { PgColumn } from './common.ts';
+import { PgIntColumnBaseBuilder } from './int.common.ts';
 
 export type PgSmallIntBuilderInitial<TName extends string> = PgSmallIntBuilder<{
 	name: TName;
@@ -11,9 +12,12 @@ export type PgSmallIntBuilderInitial<TName extends string> = PgSmallIntBuilder<{
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
+	generated: undefined;
 }>;
 
-export class PgSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSmallInt'>> extends PgColumnBuilder<T> {
+export class PgSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSmallInt'>>
+	extends PgIntColumnBaseBuilder<T>
+{
 	static readonly [entityKind]: string = 'PgSmallIntBuilder';
 
 	constructor(name: T['name']) {

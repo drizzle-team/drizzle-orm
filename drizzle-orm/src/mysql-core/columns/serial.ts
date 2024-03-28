@@ -19,6 +19,7 @@ export type MySqlSerialBuilderInitial<TName extends string> = NotNull<
 			data: number;
 			driverParam: number;
 			enumValues: undefined;
+			generated: undefined;
 		}>
 	>
 >;
