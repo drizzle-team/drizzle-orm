@@ -1116,8 +1116,8 @@ test.serial('migrator : migrate with custom schema', async (t) => {
 	await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsSchema: customSchema });
 
 	// test if the custom migrations table was created
-	const { affectedRows } = await db.execute(sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`);
-	t.true(affectedRows! > 0);
+	const { rows } = await db.execute(sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`);
+	t.true(rows.length! > 0);
 
 	// test if the migrated table are working as expected
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
@@ -1139,8 +1139,8 @@ test.serial('migrator : migrate with custom table', async (t) => {
 	await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsTable: customTable });
 
 	// test if the custom migrations table was created
-	const { affectedRows } = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
-	t.true(affectedRows! > 0);
+	const { rows } = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
+	t.true(rows.length! > 0);
 
 	// test if the migrated table are working as expected
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
@@ -1167,10 +1167,10 @@ test.serial('migrator : migrate with custom table and custom schema', async (t) 
 	});
 
 	// test if the custom migrations table was created
-	const { affectedRows } = await db.execute(
+	const { rows } = await db.execute(
 		sql`select * from ${sql.identifier(customSchema)}.${sql.identifier(customTable)};`,
 	);
-	t.true(affectedRows! > 0);
+	t.true(rows.length! > 0);
 
 	// test if the migrated table are working as expected
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
@@ -1857,7 +1857,7 @@ test.serial('select count()', async (t) => {
 
 	const res = await db.select({ count: sql`count(*)` }).from(usersTable);
 
-	t.deepEqual(res, [{ count: '2' }]);
+	t.deepEqual(res, [{ count: 2 }]);
 });
 
 test.serial('select count w/ custom mapper', async (t) => {
@@ -2090,7 +2090,9 @@ test.serial('view', async (t) => {
 	await db.execute(sql`drop view ${newYorkers1}`);
 });
 
-test.serial('materialized view', async (t) => {
+test.serial.skip('materialized view', async (t) => {
+	// Disabled due to bug in PGlite:
+	// https://github.com/electric-sql/pglite/issues/63
 	const { db } = t.context;
 
 	const newYorkers1 = pgMaterializedView('new_yorkers')
@@ -2766,7 +2768,9 @@ test.serial('test mode date for timestamp with timezone', async (t) => {
 	await db.execute(sql`drop table if exists ${table}`);
 });
 
-test.serial('test mode string for timestamp with timezone in UTC timezone', async (t) => {
+test.serial.skip('test mode string for timestamp with timezone in UTC timezone', async (t) => {
+	// Disabled due to bug in PGlite:
+	// https://github.com/electric-sql/pglite/issues/62
 	const { db } = t.context;
 
 	// get current timezone from db
@@ -2816,7 +2820,9 @@ test.serial('test mode string for timestamp with timezone in UTC timezone', asyn
 	await db.execute(sql`drop table if exists ${table}`);
 });
 
-test.serial('test mode string for timestamp with timezone in different timezone', async (t) => {
+test.serial.skip('test mode string for timestamp with timezone in different timezone', async (t) => {
+	// Disabled due to bug in PGlite:
+	// https://github.com/electric-sql/pglite/issues/62
 	const { db } = t.context;
 
 	// get current timezone from db
