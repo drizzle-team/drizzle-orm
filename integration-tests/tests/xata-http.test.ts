@@ -1227,7 +1227,7 @@ test('select count w/ custom mapper', async () => {
 	expect(res).toEqual([{ count: 2 }]);
 });
 
-test.skip('network types', async () => {
+test('network types', async () => {
 	const value: typeof network.$inferSelect = {
 		inet: '127.0.0.1',
 		cidr: '192.168.100.128/25',
@@ -1242,7 +1242,7 @@ test.skip('network types', async () => {
 	expect(res).toEqual([value]);
 });
 
-test.skip('array types', async () => {
+test('array types', async () => {
 	const values: typeof salEmp.$inferSelect[] = [
 		{
 			name: 'John',
@@ -1793,7 +1793,7 @@ test('select from sql', async () => {
 	).not.toThrowError();
 });
 
-test.skip('timestamp timezone', async () => {
+test('timestamp timezone', async () => {
 	const usersTableWithAndWithoutTimezone = pgTable('users_test_with_and_without_timezone', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
@@ -1833,7 +1833,7 @@ test.skip('timestamp timezone', async () => {
 	expect(Math.abs(users[1]!.createdAt.getTime() - date.getTime()) < 3000).toBeTruthy();
 });
 
-test.skip('all date and time columns', async () => {
+test('all date and time columns', async () => {
 	const table = pgTable('all_columns', {
 		id: serial('id').primaryKey(),
 		dateString: date('date_string', { mode: 'string' }).notNull(),
@@ -1924,7 +1924,7 @@ test.skip('all date and time columns', async () => {
 	await db.execute(sql`drop table if exists ${table}`);
 });
 
-test.skip('all date and time columns with timezone', async () => {
+test('all date and time columns with timezone', async () => {
 	const table = pgTable('all_columns', {
 		id: serial('id').primaryKey(),
 		timestamp: timestamp('timestamp_string', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
@@ -1969,13 +1969,13 @@ test.skip('all date and time columns with timezone', async () => {
 	expect(result).toEqual([
 		{
 			id: 1,
-			timestamp: '2022-01-01T02:00:00.123456Z',
+			timestamp: '2022-01-01 02:00:00.123456+00',
 			timestampAsDate: timestampDate,
 			timestampTimeZones: timestampDateWTZ,
 		},
 		{
 			id: 2,
-			timestamp: '2022-01-01T04:00:00.123456Z',
+			timestamp: '2022-01-01 04:00:00.123456+00',
 			timestampAsDate: timestampDate2,
 			timestampTimeZones: timestampDateWTZ2,
 		},
@@ -2005,7 +2005,7 @@ test.skip('all date and time columns with timezone', async () => {
 	await db.execute(sql`drop table if exists ${table}`);
 });
 
-test.skip('all date and time columns without timezone', async () => {
+test('all date and time columns without timezone', async () => {
 	const table = pgTable('all_columns', {
 		id: serial('id').primaryKey(),
 		timestampString: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
