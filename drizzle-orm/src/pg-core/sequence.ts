@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity';
+import { entityKind } from '~/entity.ts';
 
 export type PgSequenceOptions = {
 	increment?: number;
