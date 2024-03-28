@@ -6,20 +6,20 @@ import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } fro
 
 export type MySqlDecimalBuilderInitial<TName extends string> = MySqlDecimalBuilder<{
 	name: TName;
-	dataType: 'string';
+	dataType: 'number';
 	columnType: 'MySqlDecimal';
-	data: string;
-	driverParam: string;
+	data: number;
+	driverParam: number | string;
 	enumValues: undefined;
 }>;
 
 export class MySqlDecimalBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'MySqlDecimal'>,
+	T extends ColumnBuilderBaseConfig<'number', 'MySqlDecimal'>,
 > extends MySqlColumnBuilderWithAutoIncrement<T, MySqlDecimalConfig> {
 	static readonly [entityKind]: string = 'MySqlDecimalBuilder';
 
 	constructor(name: T['name'], precision?: number, scale?: number) {
-		super(name, 'string', 'MySqlDecimal');
+		super(name, 'number', 'MySqlDecimal');
 		this.config.precision = precision;
 		this.config.scale = scale;
 	}
@@ -35,7 +35,7 @@ export class MySqlDecimalBuilder<
 	}
 }
 
-export class MySqlDecimal<T extends ColumnBaseConfig<'string', 'MySqlDecimal'>>
+export class MySqlDecimal<T extends ColumnBaseConfig<'number', 'MySqlDecimal'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlDecimalConfig>
 {
 	static readonly [entityKind]: string = 'MySqlDecimal';

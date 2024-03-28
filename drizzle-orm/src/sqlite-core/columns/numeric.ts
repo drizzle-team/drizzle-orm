@@ -6,20 +6,20 @@ import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 export type SQLiteNumericBuilderInitial<TName extends string> = SQLiteNumericBuilder<{
 	name: TName;
-	dataType: 'string';
+	dataType: 'number';
 	columnType: 'SQLiteNumeric';
-	data: string;
-	driverParam: string;
+	data: number;
+	driverParam: number;
 	enumValues: undefined;
 }>;
 
-export class SQLiteNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'SQLiteNumeric'>>
+export class SQLiteNumericBuilder<T extends ColumnBuilderBaseConfig<'number', 'SQLiteNumeric'>>
 	extends SQLiteColumnBuilder<T>
 {
 	static readonly [entityKind]: string = 'SQLiteNumericBuilder';
 
 	constructor(name: T['name']) {
-		super(name, 'string', 'SQLiteNumeric');
+		super(name, 'number', 'SQLiteNumeric');
 	}
 
 	/** @internal */
@@ -33,7 +33,7 @@ export class SQLiteNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'S
 	}
 }
 
-export class SQLiteNumeric<T extends ColumnBaseConfig<'string', 'SQLiteNumeric'>> extends SQLiteColumn<T> {
+export class SQLiteNumeric<T extends ColumnBaseConfig<'number', 'SQLiteNumeric'>> extends SQLiteColumn<T> {
 	static readonly [entityKind]: string = 'SQLiteNumeric';
 
 	getSQLType(): string {

@@ -6,14 +6,14 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgNumericBuilderInitial<TName extends string> = PgNumericBuilder<{
 	name: TName;
-	dataType: 'string';
+	dataType: 'number';
 	columnType: 'PgNumeric';
-	data: string;
-	driverParam: string;
+	data: number;
+	driverParam: string | number;
 	enumValues: undefined;
 }>;
 
-export class PgNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgNumeric'>> extends PgColumnBuilder<
+export class PgNumericBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgNumeric'>> extends PgColumnBuilder<
 	T,
 	{
 		precision: number | undefined;
@@ -23,7 +23,7 @@ export class PgNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgNum
 	static readonly [entityKind]: string = 'PgNumericBuilder';
 
 	constructor(name: string, precision?: number, scale?: number) {
-		super(name, 'string', 'PgNumeric');
+		super(name, 'number', 'PgNumeric');
 		this.config.precision = precision;
 		this.config.scale = scale;
 	}
@@ -36,7 +36,7 @@ export class PgNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgNum
 	}
 }
 
-export class PgNumeric<T extends ColumnBaseConfig<'string', 'PgNumeric'>> extends PgColumn<T> {
+export class PgNumeric<T extends ColumnBaseConfig<'number', 'PgNumeric'>> extends PgColumn<T> {
 	static readonly [entityKind]: string = 'PgNumeric';
 
 	readonly precision: number | undefined;
