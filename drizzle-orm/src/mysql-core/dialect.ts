@@ -260,7 +260,10 @@ export class MySqlDialect {
 
 		const tableSql = (() => {
 			if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
-				return sql`${sql.identifier(table[Table.Symbol.OriginalName])} ${sql.identifier(table[Table.Symbol.Name])}`;
+				const tableSchema = table[Table.Symbol.Schema]
+						const originalName = sql.identifier(table[Table.Symbol.OriginalName])
+						return tableSchema ? sql`${tableSchema}.${originalName} ${sql.identifier(table[Table.Symbol.Name])}` :
+							sql`${originalName} ${sql.identifier(table[Table.Symbol.Name])}`;
 			}
 
 			return table;
