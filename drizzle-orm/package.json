@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.30.5",
+	"version": "0.30.6",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
@@ -66,7 +66,8 @@
 		"postgres": ">=3",
 		"react": ">=18",
 		"sql.js": ">=1",
-		"sqlite3": ">=5"
+		"sqlite3": ">=5",
+		"@electric-sql/pglite": ">=0.1.1"
 	},
 	"peerDependenciesMeta": {
 		"mysql2": {
@@ -139,6 +140,9 @@
 			"optional": true
 		},
 		"@types/react": {
+			"optional": true
+		},
+		"@electric-sql/pglite": {
 			"optional": true
 		}
 	},
