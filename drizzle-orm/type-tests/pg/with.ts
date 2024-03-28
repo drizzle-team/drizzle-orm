@@ -74,7 +74,7 @@ const orders = pgTable('orders', {
 			product: string;
 			amount: number;
 			quantity: number;
-			generated: string;
+			generated: string | null;
 		}[], typeof allFromWith>
 	>;
 }

@@ -74,7 +74,7 @@ const orders = mysqlTable('orders', {
 			product: string;
 			amount: number;
 			quantity: number;
-			generated: string;
+			generated: string | null;
 		}[], typeof allFromWith>
 	>;
 }

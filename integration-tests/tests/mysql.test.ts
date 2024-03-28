@@ -2869,9 +2869,9 @@ test.serial('select from a table with generated columns', async (t) => {
 			id: number;
 			firstName: string | null;
 			lastName: string | null;
-			fullName: string;
-			fullName2: string;
-			upper: string;
+			fullName: string | null;
+			fullName2: string | null;
+			upper: string | null;
 		}[], typeof result>
 	>;
 

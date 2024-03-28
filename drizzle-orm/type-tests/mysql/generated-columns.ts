@@ -28,7 +28,7 @@ const users = mysqlTable(
 				firstName: string | null;
 				lastName: string | null;
 				email: string;
-				fullName: string;
+				fullName: string | null;
 				upperName: string | null;
 			},
 			User
@@ -59,7 +59,7 @@ const users = mysqlTable(
 				firstName: string | null;
 				lastName: string | null;
 				email: string;
-				fullName: string;
+				fullName: string | null;
 				upperName: string | null;
 			},
 			User
@@ -89,7 +89,7 @@ const users = mysqlTable(
 				firstName: string | null;
 				lastName: string | null;
 				email: string;
-				fullName: string;
+				fullName: string | null;
 				upperName: string | null;
 			}[],
 			typeof dbUsers
@@ -109,7 +109,7 @@ const users = mysqlTable(
 				firstName: string | null;
 				lastName: string | null;
 				email: string;
-				fullName: string;
+				fullName: string | null;
 				upperName: string | null;
 			} | undefined,
 			typeof dbUser
@@ -129,7 +129,7 @@ const users = mysqlTable(
 				firstName: string | null;
 				lastName: string | null;
 				email: string;
-				fullName: string;
+				fullName: string | null;
 				upperName: string | null;
 			}[],
 			typeof dbUser

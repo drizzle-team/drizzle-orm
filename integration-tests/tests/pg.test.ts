@@ -3958,8 +3958,8 @@ test.serial('select from a table with generated columns', async (t) => {
 			id: number;
 			firstName: string | null;
 			lastName: string | null;
-			fullName: string;
-			upper: string;
+			fullName: string | null;
+			upper: string | null;
 		}[], typeof result>
 	>;
 
@@ -4020,9 +4020,9 @@ test.serial('select from a table with generated columns as identity', async (t) 
 	const { db } = t.context;
 
 	const usersTable = pgTable('users', {
-		id: integer('id').generatedAsIdentity(),
-		id2: integer('id2').generatedAsIdentity({ type: 'byDefault' }),
-		id3: integer('id3').generatedAsIdentity({ type: 'always' }),
+		id: integer('id').generatedAlwaysAsIdentity(),
+		id2: integer('id2').generatedByDefaultAsIdentity(),
+		id3: integer('id3').generatedAlwaysAsIdentity(),
 	});
 
 	await db.execute(sql`drop table if exists ${usersTable}`);
