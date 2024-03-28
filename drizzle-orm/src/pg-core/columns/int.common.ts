@@ -1,33 +1,59 @@
 import type { ColumnBuilderBaseConfig, ColumnDataType, IsIdentityByDefault } from '~/column-builder.ts';
-import { entityKind } from '~/entity.ts';
-import type { PgSequence } from '../sequence.ts';
+import { entityKind, is } from '~/entity.ts';
+import { PgSequence, type PgSequenceOptions } from '../sequence.ts';
 import { PgColumnBuilder } from './common.ts';
 
 export abstract class PgIntColumnBaseBuilder<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
 > extends PgColumnBuilder<
 	T,
-	{ generatedIdentity: { sequence?: PgSequence; type: 'always' | 'byDefault' } }
+	{ generatedIdentity: { sequenceName?: string; sequenceOptions?: PgSequenceOptions; type: 'always' | 'byDefault' } }
 > {
 	static readonly [entityKind]: string = 'PgIntColumnBaseBuilder';
 
 	generatedAlwaysAsIdentity(
-		sequence?: PgSequence,
+		sequence?: PgSequenceOptions & { name?: string } | PgSequence,
 	): IsIdentityByDefault<this, 'always'> {
-		this.config.generatedIdentity = {
-			type: 'always',
-			sequence,
-		};
+		if (sequence) {
+			if (is(sequence, PgSequence)) {
+				this.config.generatedIdentity = {
+					type: 'always',
+					sequenceName: sequence.seqName,
+					sequenceOptions: sequence.seqOptions,
+				};
+			} else {
+				const { name, ...options } = sequence;
+				this.config.generatedIdentity = {
+					type: 'always',
+					sequenceName: name,
+					sequenceOptions: options,
+				};
+			}
+		}
+
 		return this as any;
 	}
 
 	generatedByDefaultAsIdentity(
-		sequence?: PgSequence,
+		sequence?: PgSequenceOptions & { name?: string } | PgSequence,
 	): IsIdentityByDefault<this, 'byDefault'> {
-		this.config.generatedIdentity = {
-			type: 'byDefault',
-			sequence,
-		};
+		if (sequence) {
+			if (is(sequence, PgSequence)) {
+				this.config.generatedIdentity = {
+					type: 'byDefault',
+					sequenceName: sequence.seqName,
+					sequenceOptions: sequence.seqOptions,
+				};
+			} else {
+				const { name, ...options } = sequence;
+				this.config.generatedIdentity = {
+					type: 'byDefault',
+					sequenceName: name,
+					sequenceOptions: options,
+				};
+			}
+		}
+
 		return this as any;
 	}
 }
