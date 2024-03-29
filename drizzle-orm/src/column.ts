@@ -66,6 +66,7 @@ export abstract class Column<
 	readonly notNull: boolean;
 	readonly default: T['data'] | SQL | undefined;
 	readonly defaultFn: (() => T['data'] | SQL) | undefined;
+	readonly onUpdateFn: (() => T['data'] | SQL) | undefined;
 	readonly hasDefault: boolean;
 	readonly isUnique: boolean;
 	readonly uniqueName: string | undefined;
@@ -86,6 +87,7 @@ export abstract class Column<
 		this.notNull = config.notNull;
 		this.default = config.default;
 		this.defaultFn = config.defaultFn;
+		this.onUpdateFn = config.onUpdateFn;
 		this.hasDefault = config.hasDefault;
 		this.primary = config.primaryKey;
 		this.isUnique = config.isUnique;

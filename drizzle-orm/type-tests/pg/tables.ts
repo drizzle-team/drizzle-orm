@@ -31,6 +31,7 @@ import {
 	real,
 	serial,
 	smallint,
+	smallserial,
 	text,
 	time,
 	timestamp,
@@ -104,6 +105,22 @@ export const cities = pgTable('cities_table', {
 }, (cities) => ({
 	citiesNameIdx: index().on(cities.id),
 }));
+
+export const smallSerialTest = pgTable('cities_table', {
+	id: smallserial('id').primaryKey(),
+	name: text('name').notNull(),
+	population: integer('population').default(0),
+}, (cities) => ({
+	citiesNameIdx: index().on(cities.id),
+}));
+
+Expect<
+	Equal<{
+		id?: number;
+		name: string;
+		population?: number | null;
+	}, typeof smallSerialTest.$inferInsert>
+>;
 
 export const classes = pgTable('classes_table', {
 	id: serial('id').primaryKey(),
