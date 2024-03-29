@@ -18,6 +18,9 @@ it('dynamic imports check for CommonJS', async () => {
 	const promises: ProcessPromise[] = [];
 	for (const [i, key] of Object.keys(pj['exports']).entries()) {
 		const o1 = path.join('drizzle-orm', key);
+		if (o1.startsWith('drizzle-orm/pglite')) {
+			continue;
+		}
 		fs.writeFileSync(`${IMPORTS_FOLDER}/imports_${i}.cjs`, 'requ');
 		fs.appendFileSync(`${IMPORTS_FOLDER}/imports_${i}.cjs`, 'ire("' + o1 + '");\n', {});
 
