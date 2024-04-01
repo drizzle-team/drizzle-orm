@@ -76,20 +76,24 @@ export abstract class SQLiteDialect {
 	}
 
 	buildUpdateSet(table: SQLiteTable, set: UpdateSet): SQL {
-		const setEntries = Object.entries(set);
+		const tableColumns = table[Table.Symbol.Columns];
 
-		const setSize = setEntries.length;
-		return sql.join(
-			setEntries
-				.flatMap(([colName, value], i): SQL[] => {
-					const col: SQLiteColumn = table[Table.Symbol.Columns][colName]!;
-					const res = sql`${sql.identifier(col.name)} = ${value}`;
-					if (i < setSize - 1) {
-						return [res, sql.raw(', ')];
-					}
-					return [res];
-				}),
+		const columnNames = Object.keys(tableColumns).filter((colName) =>
+			set[colName] !== undefined || tableColumns[colName]?.onUpdateFn !== undefined
 		);
+
+		const setSize = columnNames.length;
+		return sql.join(columnNames.flatMap((colName, i) => {
+			const col = tableColumns[colName]!;
+
+			const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
+			const res = sql`${sql.identifier(col.name)} = ${value}`;
+
+			if (i < setSize - 1) {
+				return [res, sql.raw(', ')];
+			}
+			return [res];
+		}));
 	}
 
 	buildUpdateQuery({ table, set, where, returning, withList }: SQLiteUpdateConfig): SQL {
@@ -387,6 +391,10 @@ export abstract class SQLiteDialect {
 					} else if (col.defaultFn !== undefined) {
 						const defaultFnResult = col.defaultFn();
 						defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
+						// eslint-disable-next-line unicorn/no-negated-condition
+					} else if (!col.default && col.onUpdateFn !== undefined) {
+						const onUpdateFnResult = col.onUpdateFn();
+						defaultValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
 					} else {
 						defaultValue = sql`null`;
 					}

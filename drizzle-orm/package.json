@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.30.3",
+	"version": "0.30.6",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
@@ -55,6 +55,7 @@
 		"@types/react": ">=18",
 		"@types/sql.js": "*",
 		"@vercel/postgres": "*",
+		"@xata.io/client": "*",
 		"better-sqlite3": ">=7",
 		"bun-types": "*",
 		"expo-sqlite": ">=13.2.0",
@@ -65,13 +66,17 @@
 		"postgres": ">=3",
 		"react": ">=18",
 		"sql.js": ">=1",
-		"sqlite3": ">=5"
+		"sqlite3": ">=5",
+		"@electric-sql/pglite": ">=0.1.1"
 	},
 	"peerDependenciesMeta": {
 		"mysql2": {
 			"optional": true
 		},
 		"@vercel/postgres": {
+			"optional": true
+		},
+		"@xata.io/client": {
 			"optional": true
 		},
 		"better-sqlite3": {
@@ -136,11 +141,15 @@
 		},
 		"@types/react": {
 			"optional": true
+		},
+		"@electric-sql/pglite": {
+			"optional": true
 		}
 	},
 	"devDependencies": {
 		"@aws-sdk/client-rds-data": "^3.344.0",
 		"@cloudflare/workers-types": "^4.20230904.0",
+		"@electric-sql/pglite": "^0.1.1",
 		"@libsql/client": "^0.5.6",
 		"@neondatabase/serverless": "^0.9.0",
 		"@op-engineering/op-sqlite": "^2.0.16",
@@ -153,6 +162,7 @@
 		"@types/react": "^18.2.45",
 		"@types/sql.js": "^1.4.4",
 		"@vercel/postgres": "^0.3.0",
+		"@xata.io/client": "^0.29.3",
 		"better-sqlite3": "^8.4.0",
 		"bun-types": "^0.6.6",
 		"cpy": "^10.1.0",

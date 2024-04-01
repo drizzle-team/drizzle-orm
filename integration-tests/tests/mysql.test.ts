@@ -13,6 +13,7 @@ import {
 	DefaultLogger,
 	eq,
 	exists,
+	getTableColumns,
 	gt,
 	gte,
 	inArray,
@@ -94,6 +95,15 @@ const users2Table = mysqlTable('users2', {
 const citiesTable = mysqlTable('cities', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
+});
+
+const usersOnUpdate = mysqlTable('users_on_update', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	updateCounter: int('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
+	updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).$onUpdate(() => new Date()),
+	uppercaseName: text('uppercase_name').$onUpdateFn(() => sql`upper(name)`),
+	alwaysNull: text('always_null').$type<string | null>().$onUpdateFn(() => null), // need to add $type because $onUpdate add a default value
 });
 
 const datesTable = mysqlTable('datestable', {
@@ -2952,4 +2962,94 @@ test.serial('length conditions', async (t) => {
     { id: 2, name: '10 letters' },
     { id: 4, name: 'Value 1' },
   ]);
+
+test.serial('test $onUpdateFn and $onUpdate works as $default', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists ${usersOnUpdate}`);
+
+	await db.execute(
+		sql`
+			create table ${usersOnUpdate} (
+			id serial not null primary key,
+			name text not null,
+			update_counter integer default 1 not null,
+			updated_at datetime(3),
+			uppercase_name text,
+			always_null text
+			)
+		`,
+	);
+
+	await db.insert(usersOnUpdate).values([
+		{ name: 'John' },
+		{ name: 'Jane' },
+		{ name: 'Jack' },
+		{ name: 'Jill' },
+	]);
+	const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
+
+	const justDates = await db.select({ updatedAt }).from(usersOnUpdate);
+
+	const response = await db.select({ ...rest }).from(usersOnUpdate);
+
+	t.deepEqual(response, [
+		{ name: 'John', id: 1, updateCounter: 1, uppercaseName: 'JOHN', alwaysNull: null },
+		{ name: 'Jane', id: 2, updateCounter: 1, uppercaseName: 'JANE', alwaysNull: null },
+		{ name: 'Jack', id: 3, updateCounter: 1, uppercaseName: 'JACK', alwaysNull: null },
+		{ name: 'Jill', id: 4, updateCounter: 1, uppercaseName: 'JILL', alwaysNull: null },
+	]);
+	const msDelay = 250;
+
+	for (const eachUser of justDates) {
+		t.assert(eachUser.updatedAt!.valueOf() > Date.now() - msDelay);
+	}
+});
+
+test.serial('test $onUpdateFn and $onUpdate works updating', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists ${usersOnUpdate}`);
+
+	await db.execute(
+		sql`
+			create table ${usersOnUpdate} (
+			id serial not null primary key,
+			name text not null,
+			update_counter integer default 1 not null,
+			updated_at datetime(3),
+			uppercase_name text,
+			always_null text
+			)
+		`,
+	);
+
+	await db.insert(usersOnUpdate).values([
+		{ name: 'John', alwaysNull: 'this will will be null after updating' },
+		{ name: 'Jane' },
+		{ name: 'Jack' },
+		{ name: 'Jill' },
+	]);
+	const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
+	const initial = await db.select({ updatedAt }).from(usersOnUpdate);
+
+	await db.update(usersOnUpdate).set({ name: 'Angel', uppercaseName: null }).where(eq(usersOnUpdate.id, 1));
+
+	const justDates = await db.select({ updatedAt }).from(usersOnUpdate);
+
+	const response = await db.select({ ...rest }).from(usersOnUpdate);
+
+	t.deepEqual(response, [
+		{ name: 'Angel', id: 1, updateCounter: 2, uppercaseName: null, alwaysNull: null },
+		{ name: 'Jane', id: 2, updateCounter: 1, uppercaseName: 'JANE', alwaysNull: null },
+		{ name: 'Jack', id: 3, updateCounter: 1, uppercaseName: 'JACK', alwaysNull: null },
+		{ name: 'Jill', id: 4, updateCounter: 1, uppercaseName: 'JILL', alwaysNull: null },
+	]);
+	const msDelay = 250;
+
+	t.assert(initial[0]?.updatedAt?.valueOf() !== justDates[0]?.updatedAt?.valueOf());
+
+	for (const eachUser of justDates) {
+		t.assert(eachUser.updatedAt!.valueOf() > Date.now() - msDelay);
+	}
 });
