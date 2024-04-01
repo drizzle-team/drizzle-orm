@@ -3,6 +3,7 @@ import type {
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
 	GeneratedColumnConfig,
+	GeneratedIdentityConfig,
 } from './column-builder.ts';
 import { entityKind } from './entity.ts';
 import type { DriverValueMapper, SQL, SQLWrapper } from './sql/sql.ts';
@@ -75,6 +76,7 @@ export abstract class Column<
 	readonly columnType: T['columnType'];
 	readonly enumValues: T['enumValues'] = undefined;
 	readonly generated: GeneratedColumnConfig<T['data']> | undefined = undefined;
+	readonly generatedIdentity: GeneratedIdentityConfig | undefined = undefined;
 
 	protected config: ColumnRuntimeConfig<T['data'], TRuntimeConfig>;
 
@@ -96,6 +98,7 @@ export abstract class Column<
 		this.dataType = config.dataType as T['dataType'];
 		this.columnType = config.columnType;
 		this.generated = config.generated;
+		this.generatedIdentity = config.generatedIdentity;
 	}
 
 	abstract getSQLType(): string;

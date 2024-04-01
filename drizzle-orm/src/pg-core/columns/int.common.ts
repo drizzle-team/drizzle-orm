@@ -1,4 +1,9 @@
-import type { ColumnBuilderBaseConfig, ColumnDataType, IsIdentityByDefault } from '~/column-builder.ts';
+import type {
+	ColumnBuilderBaseConfig,
+	ColumnDataType,
+	GeneratedIdentityConfig,
+	IsIdentityByDefault,
+} from '~/column-builder.ts';
 import { entityKind, is } from '~/entity.ts';
 import { PgSequence, type PgSequenceOptions } from '../sequence.ts';
 import { PgColumnBuilder } from './common.ts';
@@ -7,7 +12,7 @@ export abstract class PgIntColumnBaseBuilder<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
 > extends PgColumnBuilder<
 	T,
-	{ generatedIdentity: { sequenceName?: string; sequenceOptions?: PgSequenceOptions; type: 'always' | 'byDefault' } }
+	{ generatedIdentity: GeneratedIdentityConfig }
 > {
 	static readonly [entityKind]: string = 'PgIntColumnBaseBuilder';
 
