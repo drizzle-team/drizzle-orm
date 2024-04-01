@@ -1,7 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import type { Column } from './column.ts';
 import type { MySqlColumn } from './mysql-core/index.ts';
-import type { PgColumn } from './pg-core/index.ts';
+import type { PgColumn, PgSequenceOptions } from './pg-core/index.ts';
 import type { SQL } from './sql/sql.ts';
 import type { SQLiteColumn } from './sqlite-core/index.ts';
 import type { Simplify } from './utils.ts';
@@ -27,6 +27,12 @@ export type GeneratedColumnConfig<TDataType> = {
 	as: TDataType | SQL | (() => SQL);
 	type?: GeneratedType;
 	mode?: GeneratedStorageMode;
+};
+
+export type GeneratedIdentityConfig = {
+	sequenceName?: string;
+	sequenceOptions?: PgSequenceOptions;
+	type: 'always' | 'byDefault';
 };
 
 export interface ColumnBuilderBaseConfig<TDataType extends ColumnDataType, TColumnType extends string> {
@@ -92,6 +98,7 @@ export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = ob
 	dataType: string;
 	columnType: string;
 	generated: GeneratedColumnConfig<TData> | undefined;
+	generatedIdentity: GeneratedIdentityConfig | undefined;
 } & TRuntimeConfig;
 
 export interface ColumnBuilderExtraConfig {
