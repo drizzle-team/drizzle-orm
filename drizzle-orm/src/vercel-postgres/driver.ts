@@ -1,3 +1,4 @@
+import { types } from '@vercel/postgres';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -34,9 +35,10 @@ export class VercelPgDriver {
 	}
 
 	initMappers() {
-		// types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
-		// types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
-		// types.setTypeParser(types.builtins.DATE, (val) => val);
+		types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
+		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
+		types.setTypeParser(types.builtins.DATE, (val) => val);
+		types.setTypeParser(types.builtins.INTERVAL, (val) => val);
 	}
 }
 

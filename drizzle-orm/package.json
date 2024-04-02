@@ -45,6 +45,7 @@
 	"peerDependencies": {
 		"@aws-sdk/client-rds-data": ">=3",
 		"@cloudflare/workers-types": ">=3",
+		"@electric-sql/pglite": ">=0.1.1",
 		"@libsql/client": "*",
 		"@neondatabase/serverless": ">=0.1",
 		"@op-engineering/op-sqlite": ">=2",
@@ -54,7 +55,7 @@
 		"@types/pg": "*",
 		"@types/react": ">=18",
 		"@types/sql.js": "*",
-		"@vercel/postgres": "*",
+		"@vercel/postgres": ">=0.8.0",
 		"@xata.io/client": "*",
 		"better-sqlite3": ">=7",
 		"bun-types": "*",
@@ -66,8 +67,7 @@
 		"postgres": ">=3",
 		"react": ">=18",
 		"sql.js": ">=1",
-		"sqlite3": ">=5",
-		"@electric-sql/pglite": ">=0.1.1"
+		"sqlite3": ">=5"
 	},
 	"peerDependenciesMeta": {
 		"mysql2": {
@@ -161,7 +161,7 @@
 		"@types/pg": "^8.10.1",
 		"@types/react": "^18.2.45",
 		"@types/sql.js": "^1.4.4",
-		"@vercel/postgres": "^0.3.0",
+		"@vercel/postgres": "^0.8.0",
 		"@xata.io/client": "^0.29.3",
 		"better-sqlite3": "^8.4.0",
 		"bun-types": "^0.6.6",
