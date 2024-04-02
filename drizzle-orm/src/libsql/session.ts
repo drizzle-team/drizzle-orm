@@ -264,16 +264,7 @@ function normalizeRow(obj: any) {
 
 function normalizeFieldValue(value: unknown) {
 	if (typeof ArrayBuffer !== 'undefined' && value instanceof ArrayBuffer) { // eslint-disable-line no-instanceof/no-instanceof
-		if (typeof Buffer !== 'undefined') {
-			if (!(value instanceof Buffer)) { // eslint-disable-line no-instanceof/no-instanceof
-				return Buffer.from(value);
-			}
-			return value;
-		}
-		if (typeof TextDecoder !== 'undefined') {
-			return new TextDecoder().decode(value);
-		}
-		throw new Error('TextDecoder is not available. Please provide either Buffer or TextDecoder polyfill.');
+		return new Uint8Array(value)
 	}
 	return value;
 }
