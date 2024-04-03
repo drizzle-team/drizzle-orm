@@ -725,7 +725,7 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 	static readonly [entityKind]: string = 'SQLiteSyncDialect';
 
 	migrate(
-		migrations: MigrationMeta[],
+		migrations: IterableIterator<MigrationMeta>,
 		session: SQLiteSession<'sync', unknown, Record<string, unknown>, TablesRelationalConfig>,
 		config?: string | MigrationConfig,
 	): void {
@@ -777,7 +777,7 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 	static readonly [entityKind]: string = 'SQLiteAsyncDialect';
 
 	async migrate(
-		migrations: MigrationMeta[],
+		migrations: AsyncIterableIterator<MigrationMeta>,
 		session: SQLiteSession<'async', unknown, Record<string, unknown>, TablesRelationalConfig>,
 		config?: string | MigrationConfig,
 	): Promise<void> {
@@ -803,7 +803,7 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 		const lastDbMigration = dbMigrations[0] ?? undefined;
 
 		await session.transaction(async (tx) => {
-			for (const migration of migrations) {
+			for await (const migration of migrations) {
 				if (!lastDbMigration || Number(lastDbMigration[2])! < migration.folderMillis) {
 					for (const stmt of migration.sql) {
 						await tx.run(sql.raw(stmt));

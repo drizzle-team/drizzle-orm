@@ -32,7 +32,7 @@ export class MySqlDialect {
 	static readonly [entityKind]: string = 'MySqlDialect';
 
 	async migrate(
-		migrations: MigrationMeta[],
+		migrations: AsyncIterableIterator<MigrationMeta>,
 		session: MySqlSession,
 		config: Omit<MigrationConfig, 'migrationsSchema'>,
 	): Promise<void> {
@@ -53,7 +53,7 @@ export class MySqlDialect {
 		const lastDbMigration = dbMigrations[0];
 
 		await session.transaction(async (tx) => {
-			for (const migration of migrations) {
+			for await (const migration of migrations) {
 				if (
 					!lastDbMigration
 					|| Number(lastDbMigration.created_at) < migration.folderMillis

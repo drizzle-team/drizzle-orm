@@ -35,7 +35,7 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 
 	const queriesToRun: string[] = [];
 
-	for (const migration of migrations) {
+	for await (const migration of migrations) {
 		if (
 			!lastDbMigration
 			|| Number(lastDbMigration.created_at)! < migration.folderMillis

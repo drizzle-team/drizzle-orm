@@ -31,7 +31,7 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 
 	const statementToBatch = [];
 
-	for (const migration of migrations) {
+	for await (const migration of migrations) {
 		if (!lastDbMigration || Number(lastDbMigration[2])! < migration.folderMillis) {
 			for (const stmt of migration.sql) {
 				statementToBatch.push(db.run(sql.raw(stmt)));
