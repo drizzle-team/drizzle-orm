@@ -15,10 +15,10 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
-import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { Subquery } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
-import { DrizzleError, type Name, ViewBaseConfig, and, eq } from '../index.ts';
+import { and, DrizzleError, eq, type Name, ViewBaseConfig } from '../index.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
@@ -31,7 +31,11 @@ import { MySqlViewBase } from './view-base.ts';
 export class MySqlDialect {
 	static readonly [entityKind]: string = 'MySqlDialect';
 
-	async migrate(migrations: MigrationMeta[], session: MySqlSession, config: MigrationConfig): Promise<void> {
+	async migrate(
+		migrations: MigrationMeta[],
+		session: MySqlSession,
+		config: Omit<MigrationConfig, 'migrationsSchema'>,
+	): Promise<void> {
 		const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 		const migrationTableCreate = sql`
 			create table if not exists ${sql.identifier(migrationsTable)} (
@@ -84,7 +88,7 @@ export class MySqlDialect {
 
 		const withSqlChunks = [sql`with `];
 		for (const [i, w] of queries.entries()) {
-			withSqlChunks.push(sql`${sql.identifier(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
+			withSqlChunks.push(sql`${sql.identifier(w._.alias)} as (${w._.sql})`);
 			if (i < queries.length - 1) {
 				withSqlChunks.push(sql`, `);
 			}
@@ -222,7 +226,7 @@ export class MySqlDialect {
 				is(f.field, Column)
 				&& getTableName(f.field.table)
 					!== (is(table, Subquery)
-						? table[SubqueryConfig].alias
+						? table._.alias
 						: is(table, MySqlViewBase)
 						? table[ViewBaseConfig].name
 						: is(table, SQL)

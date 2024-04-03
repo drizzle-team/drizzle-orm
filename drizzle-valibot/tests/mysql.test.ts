@@ -34,7 +34,6 @@ import {
 	bigint as valibigint,
 	boolean as valiboolean,
 	date as valiDate,
-	enumType,
 	maxLength,
 	minLength,
 	minValue,
@@ -42,6 +41,7 @@ import {
 	object,
 	optional,
 	parse,
+	picklist,
 	string,
 	instance,
 	union,
@@ -191,7 +191,7 @@ test('insert schema', (t) => {
 		binaryStr: union([instance(Buffer), string()]),
 		boolean: valiboolean(),
 		char: string([minLength(4), maxLength(4)]),
-		charEnum: enumType([
+		charEnum: picklist([
 			'a',
 			'b',
 			'c',
@@ -203,7 +203,7 @@ test('insert schema', (t) => {
 		datetimeString: string(),
 		decimal: string(),
 		double: number(),
-		enum: enumType([
+		enum: picklist([
 			'a',
 			'b',
 			'c',
@@ -216,25 +216,25 @@ test('insert schema', (t) => {
 		serial: optional(number()),
 		smallint: number(),
 		text: string(),
-		textEnum: enumType([
+		textEnum: picklist([
 			'a',
 			'b',
 			'c',
 		]),
 		tinytext: string(),
-		tinytextEnum: enumType([
+		tinytextEnum: picklist([
 			'a',
 			'b',
 			'c',
 		]),
 		mediumtext: string(),
-		mediumtextEnum: enumType([
+		mediumtextEnum: picklist([
 			'a',
 			'b',
 			'c',
 		]),
 		longtext: string(),
-		longtextEnum: enumType([
+		longtextEnum: picklist([
 			'a',
 			'b',
 			'c',
@@ -246,7 +246,7 @@ test('insert schema', (t) => {
 		varbinary: union([instance(Buffer), string()]),
 		varbinaryStr: union([instance(Buffer), string()]),
 		varchar: string([maxLength(200)]),
-		varcharEnum: enumType([
+		varcharEnum: picklist([
 			'a',
 			'b',
 			'c',
@@ -268,7 +268,7 @@ test('select schema', (t) => {
 		binaryStr: union([instance(Buffer), string()]),
 		boolean: valiboolean(),
 		char: string([minLength(4), maxLength(4)]),
-		charEnum: enumType([
+		charEnum: picklist([
 			'a',
 			'b',
 			'c',
@@ -280,7 +280,7 @@ test('select schema', (t) => {
 		datetimeString: string(),
 		decimal: string(),
 		double: number(),
-		enum: enumType([
+		enum: picklist([
 			'a',
 			'b',
 			'c',
@@ -294,25 +294,25 @@ test('select schema', (t) => {
 		serial: number(),
 		smallint: number(),
 		text: string(),
-		textEnum: enumType([
+		textEnum: picklist([
 			'a',
 			'b',
 			'c',
 		]),
 		tinytext: string(),
-		tinytextEnum: enumType([
+		tinytextEnum: picklist([
 			'a',
 			'b',
 			'c',
 		]),
 		mediumtext: string(),
-		mediumtextEnum: enumType([
+		mediumtextEnum: picklist([
 			'a',
 			'b',
 			'c',
 		]),
 		longtext: string(),
-		longtextEnum: enumType([
+		longtextEnum: picklist([
 			'a',
 			'b',
 			'c',
@@ -324,7 +324,7 @@ test('select schema', (t) => {
 		varbinary: union([instance(Buffer), string()]),
 		varbinaryStr: union([instance(Buffer), string()]),
 		varchar: string([maxLength(200)]),
-		varcharEnum: enumType([
+		varcharEnum: picklist([
 			'a',
 			'b',
 			'c',
@@ -348,7 +348,7 @@ test('select schema w/ refine', (t) => {
 		binaryStr: union([instance(Buffer), string()]),
 		boolean: valiboolean(),
 		char: string([minLength(5), maxLength(5)]),
-		charEnum: enumType([
+		charEnum: picklist([
 			'a',
 			'b',
 			'c',
@@ -360,7 +360,7 @@ test('select schema w/ refine', (t) => {
 		datetimeString: string(),
 		decimal: string(),
 		double: number(),
-		enum: enumType([
+		enum: picklist([
 			'a',
 			'b',
 			'c',
@@ -373,25 +373,25 @@ test('select schema w/ refine', (t) => {
 		serial: number(),
 		smallint: number(),
 		text: string(),
-		textEnum: enumType([
+		textEnum: picklist([
 			'a',
 			'b',
 			'c',
 		]),
 		tinytext: string(),
-		tinytextEnum: enumType([
+		tinytextEnum: picklist([
 			'a',
 			'b',
 			'c',
 		]),
 		mediumtext: string(),
-		mediumtextEnum: enumType([
+		mediumtextEnum: picklist([
 			'a',
 			'b',
 			'c',
 		]),
 		longtext: string(),
-		longtextEnum: enumType([
+		longtextEnum: picklist([
 			'a',
 			'b',
 			'c',
@@ -403,7 +403,7 @@ test('select schema w/ refine', (t) => {
 		varbinaryStr: union([instance(Buffer), string()]),
 		varbinary: union([instance(Buffer), string()]),
 		varchar: string([maxLength(200)]),
-		varcharEnum: enumType([
+		varcharEnum: picklist([
 			'a',
 			'b',
 			'c',

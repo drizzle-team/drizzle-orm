@@ -12,18 +12,18 @@ import { type Logger, NoopLogger } from '~/logger.ts';
 import { type PgDialect, PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
-import { PgSession, PreparedQuery } from '~/pg-core/session.ts';
+import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 export type VercelPgClient = VercelPool | VercelClient | VercelPoolClient;
 
-export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
+export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
 	static readonly [entityKind]: string = 'VercelPgPreparedQuery';
 
 	private rawQuery: QueryConfig;
-	private query: QueryArrayConfig;
+	private queryConfig: QueryArrayConfig;
 
 	constructor(
 		private client: VercelPgClient,
@@ -32,14 +32,15 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends Prepar
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super();
+		super({ sql: queryString, params });
 		this.rawQuery = {
 			name,
 			text: queryString,
 		};
-		this.query = {
+		this.queryConfig = {
 			name,
 			text: queryString,
 			rowMode: 'array',
@@ -51,7 +52,7 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends Prepar
 
 		this.logger.logQuery(this.rawQuery.text, params);
 
-		const { fields, rawQuery, client, query, joinsNotNullableMap, customResultMapper } = this;
+		const { fields, rawQuery, client, queryConfig: query, joinsNotNullableMap, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
 			return client.query(rawQuery, params);
 		}
@@ -74,7 +75,12 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends Prepar
 	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['values']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 		this.logger.logQuery(this.rawQuery.text, params);
-		return this.client.query(this.query, params).then((result) => result.rows);
+		return this.client.query(this.queryConfig, params).then((result) => result.rows);
+	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
 	}
 }
 
@@ -104,8 +110,9 @@ export class VercelPgSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
-	): PreparedQuery<T> {
+	): PgPreparedQuery<T> {
 		return new VercelPgPreparedQuery(
 			this.client,
 			query.sql,
@@ -113,6 +120,7 @@ export class VercelPgSession<
 			this.logger,
 			fields,
 			name,
+			isResponseInArrayMode,
 			customResultMapper,
 		);
 	}

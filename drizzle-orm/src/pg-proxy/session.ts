@@ -5,7 +5,7 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
-import { PgSession, PreparedQuery as PreparedQueryBase } from '~/pg-core/session.ts';
+import { PgPreparedQuery as PreparedQueryBase, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
@@ -38,9 +38,18 @@ export class PgRemoteSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PreparedQuery<T> {
-		return new PreparedQuery(this.client, query.sql, query.params, this.logger, fields, customResultMapper);
+		return new PreparedQuery(
+			this.client,
+			query.sql,
+			query.params,
+			this.logger,
+			fields,
+			isResponseInArrayMode,
+			customResultMapper,
+		);
 	}
 
 	override async transaction<T>(
@@ -73,9 +82,10 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
+		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super();
+		super({ sql: queryString, params });
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
@@ -118,6 +128,11 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 	}
 
 	async all() {}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
+	}
 }
 
 export interface PgRemoteQueryResultHKT extends QueryResultHKT {

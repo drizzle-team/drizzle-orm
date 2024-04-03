@@ -14,18 +14,18 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
-import { PgSession, PreparedQuery } from '~/pg-core/session.ts';
+import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 export type NeonClient = Pool | PoolClient | Client;
 
-export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
+export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
 	static readonly [entityKind]: string = 'NeonPreparedQuery';
 
-	private rawQuery: QueryConfig;
-	private query: QueryArrayConfig;
+	private rawQueryConfig: QueryConfig;
+	private queryConfig: QueryArrayConfig;
 
 	constructor(
 		private client: NeonClient,
@@ -34,14 +34,15 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PreparedQu
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super();
-		this.rawQuery = {
+		super({ sql: queryString, params });
+		this.rawQueryConfig = {
 			name,
 			text: queryString,
 		};
-		this.query = {
+		this.queryConfig = {
 			name,
 			text: queryString,
 			rowMode: 'array',
@@ -51,9 +52,10 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PreparedQu
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 
-		this.logger.logQuery(this.rawQuery.text, params);
+		this.logger.logQuery(this.rawQueryConfig.text, params);
 
-		const { fields, client, rawQuery, query, joinsNotNullableMap, customResultMapper } = this;
+		const { fields, client, rawQueryConfig: rawQuery, queryConfig: query, joinsNotNullableMap, customResultMapper } =
+			this;
 		if (!fields && !customResultMapper) {
 			return client.query(rawQuery, params);
 		}
@@ -67,14 +69,19 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PreparedQu
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
-		this.logger.logQuery(this.rawQuery.text, params);
-		return this.client.query(this.rawQuery, params).then((result) => result.rows);
+		this.logger.logQuery(this.rawQueryConfig.text, params);
+		return this.client.query(this.rawQueryConfig, params).then((result) => result.rows);
 	}
 
 	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['values']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
-		this.logger.logQuery(this.rawQuery.text, params);
-		return this.client.query(this.query, params).then((result) => result.rows);
+		this.logger.logQuery(this.rawQueryConfig.text, params);
+		return this.client.query(this.queryConfig, params).then((result) => result.rows);
+	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
 	}
 }
 
@@ -104,9 +111,19 @@ export class NeonSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
-	): PreparedQuery<T> {
-		return new NeonPreparedQuery(this.client, query.sql, query.params, this.logger, fields, name, customResultMapper);
+	): PgPreparedQuery<T> {
+		return new NeonPreparedQuery(
+			this.client,
+			query.sql,
+			query.params,
+			this.logger,
+			fields,
+			name,
+			isResponseInArrayMode,
+			customResultMapper,
+		);
 	}
 
 	async query(query: string, params: unknown[]): Promise<QueryResult> {

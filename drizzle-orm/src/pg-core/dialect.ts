@@ -2,7 +2,7 @@ import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapCol
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import type { MigrationMeta } from '~/migrator.ts';
+import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import { PgColumn, PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core/columns/index.ts';
 import type {
 	PgDeleteConfig,
@@ -24,6 +24,7 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
+import { and, eq, View } from '~/sql/index.ts';
 import {
 	type DriverValueEncoder,
 	type Name,
@@ -34,31 +35,36 @@ import {
 	sql,
 	type SQLChunk,
 } from '~/sql/sql.ts';
-import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { Subquery } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgSession } from './session.ts';
-import type { PgMaterializedView } from './view.ts';
-import { View, and, eq } from '~/sql/index.ts';
 import { PgViewBase } from './view-base.ts';
+import type { PgMaterializedView } from './view.ts';
 
 export class PgDialect {
 	static readonly [entityKind]: string = 'PgDialect';
 
-	async migrate(migrations: MigrationMeta[], session: PgSession): Promise<void> {
+	async migrate(migrations: MigrationMeta[], session: PgSession, config: string | MigrationConfig): Promise<void> {
+		const migrationsTable = typeof config === 'string'
+			? '__drizzle_migrations'
+			: config.migrationsTable ?? '__drizzle_migrations';
+		const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
 		const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (
+			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
 				id SERIAL PRIMARY KEY,
 				hash text NOT NULL,
 				created_at bigint
 			)
 		`;
-		await session.execute(sql`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
+		await session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
 		await session.execute(migrationTableCreate);
 
 		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
-			sql`select id, hash, created_at from "drizzle"."__drizzle_migrations" order by created_at desc limit 1`,
+			sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${
+				sql.identifier(migrationsTable)
+			} order by created_at desc limit 1`,
 		);
 
 		const lastDbMigration = dbMigrations[0];
@@ -72,7 +78,9 @@ export class PgDialect {
 						await tx.execute(sql.raw(stmt));
 					}
 					await tx.execute(
-						sql`insert into "drizzle"."__drizzle_migrations" ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+						sql`insert into ${sql.identifier(migrationsSchema)}.${
+							sql.identifier(migrationsTable)
+						} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
 					);
 				}
 			}
@@ -96,7 +104,7 @@ export class PgDialect {
 
 		const withSqlChunks = [sql`with `];
 		for (const [i, w] of queries.entries()) {
-			withSqlChunks.push(sql`${sql.identifier(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
+			withSqlChunks.push(sql`${sql.identifier(w._.alias)} as (${w._.sql})`);
 			if (i < queries.length - 1) {
 				withSqlChunks.push(sql`, `);
 			}
@@ -234,7 +242,7 @@ export class PgDialect {
 				is(f.field, Column)
 				&& getTableName(f.field.table)
 					!== (is(table, Subquery)
-						? table[SubqueryConfig].alias
+						? table._.alias
 						: is(table, PgViewBase)
 						? table[ViewBaseConfig].name
 						: is(table, SQL)
