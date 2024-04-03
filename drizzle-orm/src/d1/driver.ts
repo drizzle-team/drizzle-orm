@@ -22,7 +22,7 @@ export class DrizzleD1Database<
 	/** @internal */
 	declare readonly session: SQLiteD1Session<TSchema, ExtractTablesWithRelations<TSchema>>;
 
-	async batch<U extends BatchItem<'sqlite'>, T extends Readonly<[U, ...U[]]>>(
+	async batch<U extends BatchItem<'sqlite'>, T extends U[] | Readonly<[U, ...U[]]>>(
 		batch: T,
 	): Promise<BatchResponse<T>> {
 		return this.session.batch(batch) as Promise<BatchResponse<T>>;
