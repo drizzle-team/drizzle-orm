@@ -6,21 +6,21 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlBinaryBuilderInitial<TName extends string> = MySqlBinaryBuilder<{
 	name: TName;
-	dataType: 'string';
+	dataType: 'buffer';
 	columnType: 'MySqlBinary';
-	data: string;
+	data: Buffer | string;
 	driverParam: string;
 	enumValues: undefined;
 }>;
 
-export class MySqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlBinary'>> extends MySqlColumnBuilder<
+export class MySqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'MySqlBinary'>> extends MySqlColumnBuilder<
 	T,
 	MySqlBinaryConfig
 > {
 	static readonly [entityKind]: string = 'MySqlBinaryBuilder';
 
 	constructor(name: T['name'], length: number | undefined) {
-		super(name, 'string', 'MySqlBinary');
+		super(name, 'buffer', 'MySqlBinary');
 		this.config.length = length;
 	}
 
@@ -32,7 +32,7 @@ export class MySqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MyS
 	}
 }
 
-export class MySqlBinary<T extends ColumnBaseConfig<'string', 'MySqlBinary'>> extends MySqlColumn<
+export class MySqlBinary<T extends ColumnBaseConfig<'buffer', 'MySqlBinary'>> extends MySqlColumn<
 	T,
 	MySqlBinaryConfig
 > {
@@ -42,6 +42,19 @@ export class MySqlBinary<T extends ColumnBaseConfig<'string', 'MySqlBinary'>> ex
 
 	getSQLType(): string {
 		return this.length === undefined ? `binary` : `binary(${this.length})`;
+	}
+
+	override mapFromDriverValue(value: Buffer | string): Buffer {
+		if (typeof value === 'string') {
+			return Buffer.from(value);
+		}
+
+		return value;
+	}
+
+	override mapToDriverValue(value: Buffer | string): string {
+		// enforcing toString here because PlanetScale needs it to be a string
+		return value.toString();
 	}
 }
 

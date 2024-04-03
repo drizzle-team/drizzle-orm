@@ -43,6 +43,8 @@ import {
 	optional,
 	parse,
 	string,
+	instance,
+	union,
 } from 'valibot';
 import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
 import { expectSchemaShape } from './utils';
@@ -57,6 +59,7 @@ const testTable = mysqlTable('test', {
 	bigint: bigint('bigint', { mode: 'bigint' }).notNull(),
 	bigintNumber: bigint('bigintNumber', { mode: 'number' }).notNull(),
 	binary: binary('binary').notNull(),
+	binaryStr: binary('binaryStr').notNull(),
 	boolean: boolean('boolean').notNull(),
 	char: char('char', { length: 4 }).notNull(),
 	charEnum: char('char', { enum: ['a', 'b', 'c'] }).notNull(),
@@ -89,6 +92,7 @@ const testTable = mysqlTable('test', {
 	timestamp: timestamp('timestamp').notNull(),
 	timestampString: timestamp('timestampString', { mode: 'string' }).notNull(),
 	tinyint: tinyint('tinyint').notNull(),
+	varbinaryStr: varbinary('varbinaryStr', { length: 200 }).notNull(),
 	varbinary: varbinary('varbinary', { length: 200 }).notNull(),
 	varchar: varchar('varchar', { length: 200 }).notNull(),
 	varcharEnum: varchar('varcharEnum', {
@@ -102,7 +106,8 @@ const testTable = mysqlTable('test', {
 const testTableRow = {
 	bigint: BigInt(1),
 	bigintNumber: 1,
-	binary: 'binary',
+	binary: Buffer.from('binary'),
+	binaryStr: 'binary',
 	boolean: true,
 	char: 'char',
 	charEnum: 'a' as const,
@@ -133,7 +138,8 @@ const testTableRow = {
 	timestamp: new Date(),
 	timestampString: new Date().toISOString(),
 	tinyint: 1,
-	varbinary: 'A'.repeat(200),
+	varbinaryStr: 'A'.repeat(200),
+	varbinary: Buffer.from('A'.repeat(200)),
 	varchar: 'A'.repeat(200),
 	varcharEnum: 'a' as const,
 	year: 2021,
@@ -181,7 +187,8 @@ test('insert schema', (t) => {
 	const expected = object({
 		bigint: valibigint(),
 		bigintNumber: number(),
-		binary: string(),
+		binary: union([instance(Buffer), string()]),
+		binaryStr: union([instance(Buffer), string()]),
 		boolean: valiboolean(),
 		char: string([minLength(4), maxLength(4)]),
 		charEnum: enumType([
@@ -236,7 +243,8 @@ test('insert schema', (t) => {
 		timestamp: valiDate(),
 		timestampString: string(),
 		tinyint: number(),
-		varbinary: string([maxLength(200)]),
+		varbinary: union([instance(Buffer), string()]),
+		varbinaryStr: union([instance(Buffer), string()]),
 		varchar: string([maxLength(200)]),
 		varcharEnum: enumType([
 			'a',
@@ -256,7 +264,8 @@ test('select schema', (t) => {
 	const expected = object({
 		bigint: valibigint(),
 		bigintNumber: number(),
-		binary: string(),
+		binary: union([instance(Buffer), string()]),
+		binaryStr: union([instance(Buffer), string()]),
 		boolean: valiboolean(),
 		char: string([minLength(4), maxLength(4)]),
 		charEnum: enumType([
@@ -312,7 +321,8 @@ test('select schema', (t) => {
 		timestamp: valiDate(),
 		timestampString: string(),
 		tinyint: number(),
-		varbinary: string([maxLength(200)]),
+		varbinary: union([instance(Buffer), string()]),
+		varbinaryStr: union([instance(Buffer), string()]),
 		varchar: string([maxLength(200)]),
 		varcharEnum: enumType([
 			'a',
@@ -334,7 +344,8 @@ test('select schema w/ refine', (t) => {
 	const expected = object({
 		bigint: valibigint([minValue(0n)]),
 		bigintNumber: number(),
-		binary: string(),
+		binary: union([instance(Buffer), string()]),
+		binaryStr: union([instance(Buffer), string()]),
 		boolean: valiboolean(),
 		char: string([minLength(5), maxLength(5)]),
 		charEnum: enumType([
@@ -389,7 +400,8 @@ test('select schema w/ refine', (t) => {
 		timestamp: valiDate(),
 		timestampString: string(),
 		tinyint: number(),
-		varbinary: string([maxLength(200)]),
+		varbinaryStr: union([instance(Buffer), string()]),
+		varbinary: union([instance(Buffer), string()]),
 		varchar: string([maxLength(200)]),
 		varcharEnum: enumType([
 			'a',

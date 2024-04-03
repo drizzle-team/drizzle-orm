@@ -6,6 +6,7 @@ import anyTest from 'ava';
 import { and, asc, eq, name, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import {
 	alias,
+	binary,
 	boolean,
 	date,
 	datetime,
@@ -20,6 +21,7 @@ import {
 	time,
 	timestamp,
 	uniqueIndex,
+	varbinary,
 	varchar,
 	year,
 } from 'drizzle-orm/mysql-core';
@@ -931,6 +933,52 @@ test.serial.skip('subquery with view', async (t) => {
 
 	await db.execute(sql`drop view ${newYorkers}`);
 	await db.execute(sql`drop table ${users}`);
+});
+
+test.serial('create binary and varbinary as buffer', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists buffer_table`);
+	await db.execute(sql`create table buffer_table (id serial not null primary key, binary_field binary(16) not null, varbinary_field varbinary(16) not null)`);
+
+	const table = mysqlTable('buffer_table', {
+		id: serial('id').primaryKey(),
+		binaryField: binary('binary_field', { length: 16 }).notNull(),
+		varbinaryField: varbinary('varbinary_field', { length: 16 }).notNull(),
+	});
+
+	const buffer = Buffer.from('test');
+
+	await db.insert(table).values({ binaryField: buffer, varbinaryField: buffer });
+
+	const result = await db.select().from(table);
+
+	t.deepEqual(result, [{ id: 1, binaryField: buffer, varbinaryField: buffer }]);
+
+	await db.execute(sql`drop table buffer_table`);
+});
+
+test.serial('create binary and varbinary as string', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists buffer_table`);
+	await db.execute(sql`create table buffer_table (id serial not null primary key, binary_field binary(16) not null, varbinary_field varbinary(16) not null)`);
+
+	const table = mysqlTable('buffer_table', {
+		id: serial('id').primaryKey(),
+		binaryField: binary('binary_field', { length: 16 }).notNull(),
+		varbinaryField: varbinary('varbinary_field', { length: 16 }).notNull(),
+	});
+
+	const value = 'test';
+
+	await db.insert(table).values({ binaryField: value, varbinaryField: value });
+
+	const result = await db.select().from(table);
+
+	t.deepEqual(result, [{ id: 1, binaryField: value, varbinaryField: value }]);
+
+	await db.execute(sql`drop table buffer_table`);
 });
 
 test.serial('join view as subquery', async (t) => {

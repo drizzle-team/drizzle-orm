@@ -29,6 +29,7 @@ import {
 } from 'drizzle-orm';
 import {
 	alias,
+	binary,
 	bigint,
 	boolean,
 	date,
@@ -60,6 +61,7 @@ import {
 	unique,
 	uniqueIndex,
 	uniqueKeyName,
+	varbinary,
 	year,
 } from 'drizzle-orm/mysql-core';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
@@ -2276,6 +2278,114 @@ test.serial('update undefined', async (t) => {
 
 	await db.execute(sql`drop table ${users}`);
 });
+
+test.serial('binary column should accept buffer', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists \`binary_table\``);
+	await db.execute(
+		sql`
+			create table \`binary_table\` (
+				\`binary\` binary(11) not null
+			)
+		`
+	);
+
+	const binaryTable = mysqlTable('binary_table', {
+		binary: binary('binary').notNull(),
+	});
+
+	const data = { binary: Buffer.from('hello world') }
+
+	await db.insert(binaryTable).values(data);
+
+	const res = await db.select().from(binaryTable);
+
+	t.deepEqual(res, [data]);
+
+	await db.execute(sql`drop table if exists \`binary_table\``);
+});
+
+test.serial('binary column should accept string', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists \`binary_table\``);
+	await db.execute(
+		sql`
+			create table \`binary_table\` (
+				\`binary\` binary(11) not null
+			)
+		`
+	);
+
+	const binaryTable = mysqlTable('binary_table', {
+		binary: binary('binary').notNull(),
+	});
+
+	const data = { binary: 'hello world' }
+
+	await db.insert(binaryTable).values(data);
+
+	const res = await db.select().from(binaryTable);
+
+	t.deepEqual(res, [{ binary: Buffer.from(data.binary) }]);
+
+	await db.execute(sql`drop table if exists \`binary_table\``);
+})
+
+test.serial('varbinary column should accept buffer', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists \`varbinary_table\``);
+	await db.execute(
+		sql`
+			create table \`varbinary_table\` (
+				\`varbinary\` varbinary(11) not null
+			)
+		`
+	);
+
+	const varbinaryTable = mysqlTable('varbinary_table', {
+		varbinary: varbinary('varbinary', { length: 11 }).notNull(),
+	});
+
+	const data = { varbinary: Buffer.from('hello world') }
+
+	await db.insert(varbinaryTable).values(data);
+
+	const res = await db.select().from(varbinaryTable);
+
+	t.deepEqual(res, [data]);
+
+	await db.execute(sql`drop table if exists \`varbinary_table\``);
+});
+
+test.serial('varbinary column should accept string', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists \`varbinary_table\``);
+	await db.execute(
+		sql`
+			create table \`varbinary_table\` (
+				\`varbinary\` varbinary(11) not null
+			)
+		`
+	);
+
+	const varbinaryTable = mysqlTable('varbinary_table', {
+		varbinary: varbinary('varbinary', { length: 11 }).notNull(),
+	});
+
+	const data = { varbinary: 'hello world' }
+
+	await db.insert(varbinaryTable).values(data);
+
+	const res = await db.select().from(varbinaryTable);
+
+	t.deepEqual(res, [{ varbinary: Buffer.from(data.varbinary) }]);
+
+	await db.execute(sql`drop table if exists \`varbinary_table\``);
+})
 
 test.serial('utc config for datetime', async (t) => {
 	const { db } = t.context;

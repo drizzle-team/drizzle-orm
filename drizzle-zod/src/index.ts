@@ -51,6 +51,7 @@ type GetZodType<TColumn extends Column> = TColumn['_']['dataType'] extends infer
 	: TDataType extends 'string' ? z.ZodString
 	: TDataType extends 'boolean' ? z.ZodBoolean
 	: TDataType extends 'date' ? z.ZodDate
+	: TDataType extends 'buffer' ? z.ZodUnion<[z.ZodType<Buffer, z.ZodTypeDef, Buffer>, z.ZodString]>
 	: z.ZodAny
 	: never;
 
@@ -228,6 +229,8 @@ function mapColumnToSchema(column: Column): z.ZodTypeAny {
 			}
 
 			type = sType;
+		} else if (column.dataType === 'buffer') {
+			type = z.instanceof(Buffer).or(z.string());
 		}
 	}
 
