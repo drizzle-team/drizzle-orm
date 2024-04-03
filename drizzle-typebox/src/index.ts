@@ -80,7 +80,7 @@ type MaybeOptional<
 > = TNoOptional extends true ? TType
 	: MapColumnToTypebox<TColumn, TType, TMode>;
 
-	type GetTypeboxType<TColumn extends Column> = TColumn['_']['dataType'] extends infer TDataType
+type GetTypeboxType<TColumn extends Column> = TColumn['_']['dataType'] extends infer TDataType
 	? TDataType extends 'custom' ? TAny
 	: TDataType extends 'json' ? Json
 	: TColumn extends { enumValues: [string, ...string[]] }
