@@ -47,5 +47,7 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 		}
 	}
 
-	await db.session.batch(statementToBatch);
+	if (statementToBatch.length > 0) {
+		await db.session.batch(statementToBatch);
+	}
 }
