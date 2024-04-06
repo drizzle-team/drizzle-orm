@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.30.6",
+	"version": "0.30.7",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
@@ -55,7 +55,7 @@
 		"@types/pg": "*",
 		"@types/react": ">=18",
 		"@types/sql.js": "*",
-		"@vercel/postgres": "*",
+		"@vercel/postgres": ">=0.8.0",
 		"@xata.io/client": "*",
 		"better-sqlite3": ">=7",
 		"bun-types": "*",
@@ -161,7 +161,7 @@
 		"@types/pg": "^8.10.1",
 		"@types/react": "^18.2.45",
 		"@types/sql.js": "^1.4.4",
-		"@vercel/postgres": "^0.3.0",
+		"@vercel/postgres": "^0.8.0",
 		"@xata.io/client": "^0.29.3",
 		"better-sqlite3": "^8.4.0",
 		"bun-types": "^0.6.6",
