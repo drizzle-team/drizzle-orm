@@ -1,8 +1,10 @@
 import { entityKind } from '~/entity.ts';
+import type { SQLWrapper } from '~/index.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
+import type { PgRaw } from '~/pg-core/query-builders/raw.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
@@ -10,7 +12,7 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
-import type { AwsDataApiClient, AwsDataApiPgQueryResultHKT } from './session.ts';
+import type { AwsDataApiClient, AwsDataApiPgQueryResult, AwsDataApiPgQueryResultHKT } from './session.ts';
 import { AwsDataApiSession } from './session.ts';
 
 export interface PgDriverOptions {
@@ -28,9 +30,17 @@ export interface DrizzleAwsDataApiPgConfig<
 	secretArn: string;
 }
 
-export type AwsDataApiPgDatabase<
+export class AwsDataApiPgDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = PgDatabase<AwsDataApiPgQueryResultHKT, TSchema>;
+> extends PgDatabase<AwsDataApiPgQueryResultHKT, TSchema> {
+	static readonly [entityKind]: string = 'AwsDataApiPgDatabase';
+
+	override execute<
+		TRow extends Record<string, unknown> = Record<string, unknown>,
+	>(query: SQLWrapper): PgRaw<AwsDataApiPgQueryResult<TRow>> {
+		return super.execute(query);
+	}
+}
 
 export class AwsPgDialect extends PgDialect {
 	static readonly [entityKind]: string = 'AwsPgDialect';

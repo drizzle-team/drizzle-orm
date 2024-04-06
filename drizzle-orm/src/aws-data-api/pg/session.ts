@@ -56,13 +56,13 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		const { fields, joinsNotNullableMap, customResultMapper } = this;
 
-		const rows = await this.values(placeholderValues) as unknown[][];
+		const result = await this.values(placeholderValues) as AwsDataApiPgQueryResult<unknown[]>;
 		if (!fields && !customResultMapper) {
-			return rows as T['execute'];
+			return result as T['execute'];
 		}
 		return customResultMapper
-			? customResultMapper(rows)
-			: rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+			? customResultMapper(result.rows!)
+			: result.rows!.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
 	}
 
 	all(placeholderValues?: Record<string, unknown> | undefined): Promise<T['all']> {
@@ -83,16 +83,24 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 		if (!fields && !customResultMapper) {
 			const result = await client.send(rawQuery);
 			if (result.columnMetadata && result.columnMetadata.length > 0) {
-				return this.mapResultRows(result.records ?? [], result.columnMetadata);
+				const rows = this.mapResultRows(result.records ?? [], result.columnMetadata);
+				return {
+					...result,
+					rows,
+				};
 			}
-			return result.records ?? [];
+			return result;
 		}
 
 		const result = await client.send(rawQuery);
+		const rows = result.records?.map((row) => {
+			return row.map((field) => getValueFromDataApi(field));
+		}) ?? [];
 
-		return result.records?.map((row: any) => {
-			return row.map((field: Field) => getValueFromDataApi(field));
-		});
+		return {
+			...result,
+			rows,
+		};
 	}
 
 	/** @internal */
@@ -178,9 +186,9 @@ export class AwsDataApiSession<
 			this.dialect.sqlToQuery(query),
 			undefined,
 			undefined,
+			false,
 			undefined,
 			this.transactionId,
-			false,
 		).execute();
 	}
 
@@ -211,7 +219,9 @@ export class AwsDataApiTransaction<
 > extends PgTransaction<AwsDataApiPgQueryResultHKT, TFullSchema, TSchema> {
 	static readonly [entityKind]: string = 'AwsDataApiTransaction';
 
-	override async transaction<T>(transaction: (tx: AwsDataApiTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
+	override async transaction<T>(
+		transaction: (tx: AwsDataApiTransaction<TFullSchema, TSchema>) => Promise<T>,
+	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new AwsDataApiTransaction(this.dialect, this.session, this.schema, this.nestedIndex + 1);
 		await this.session.execute(sql.raw(`savepoint ${savepointName}`));
@@ -226,6 +236,8 @@ export class AwsDataApiTransaction<
 	}
 }
 
+export type AwsDataApiPgQueryResult<T> = ExecuteStatementCommandOutput & { rows: T[] };
+
 export interface AwsDataApiPgQueryResultHKT extends QueryResultHKT {
-	type: ExecuteStatementCommandOutput;
+	type: AwsDataApiPgQueryResult<any>;
 }

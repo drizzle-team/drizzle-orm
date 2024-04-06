@@ -3,7 +3,18 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
-import { PgColumn, PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core/columns/index.ts';
+import {
+	PgColumn,
+	PgDate,
+	PgDateString,
+	PgJson,
+	PgJsonb,
+	PgNumeric,
+	PgTime,
+	PgTimestamp,
+	PgTimestampString,
+	PgUUID,
+} from '~/pg-core/columns/index.ts';
 import type {
 	PgDeleteConfig,
 	PgInsertConfig,
@@ -501,17 +512,15 @@ export class PgDialect {
 	}
 
 	prepareTyping(encoder: DriverValueEncoder<unknown, unknown>): QueryTypingsValue {
-		if (
-			is(encoder, PgJsonb) || is(encoder, PgJson)
-		) {
+		if (is(encoder, PgJsonb) || is(encoder, PgJson)) {
 			return 'json';
 		} else if (is(encoder, PgNumeric)) {
 			return 'decimal';
 		} else if (is(encoder, PgTime)) {
 			return 'time';
-		} else if (is(encoder, PgTimestamp)) {
+		} else if (is(encoder, PgTimestamp) || is(encoder, PgTimestampString)) {
 			return 'timestamp';
-		} else if (is(encoder, PgDate)) {
+		} else if (is(encoder, PgDate) || is(encoder, PgDateString)) {
 			return 'date';
 		} else if (is(encoder, PgUUID)) {
 			return 'uuid';

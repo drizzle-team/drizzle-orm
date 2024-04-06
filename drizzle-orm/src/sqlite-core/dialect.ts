@@ -778,7 +778,7 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 
 	async migrate(
 		migrations: MigrationMeta[],
-		session: SQLiteSession<'async', unknown, Record<string, unknown>, TablesRelationalConfig>,
+		session: SQLiteSession<'async', unknown, any, TablesRelationalConfig>,
 		config?: string | MigrationConfig,
 	): Promise<void> {
 		const migrationsTable = config === undefined
