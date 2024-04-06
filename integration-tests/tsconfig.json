@@ -6,6 +6,6 @@
 			"~/*": ["./tests/*"]
 		}
 	},
-	"include": ["tests", "type-tests", "sst.config.ts", "sst-env.d.ts"],
-	"exclude": ["**/playground"]
+	"include": ["tests", "type-tests"],
+	"exclude": ["**/playground", "**/.sst"]
 }

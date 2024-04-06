@@ -49,8 +49,11 @@ beforeAll(async () => {
 	const rdsClient = new RDSDataClient();
 
 	db = drizzle(rdsClient, {
+		// @ts-ignore
 		database: Resource.Postgres.database,
+		// @ts-ignore
 		secretArn: Resource.Postgres.secretArn,
+		// @ts-ignore
 		resourceArn: Resource.Postgres.clusterArn,
 		logger: ENABLE_LOGGING,
 	});
