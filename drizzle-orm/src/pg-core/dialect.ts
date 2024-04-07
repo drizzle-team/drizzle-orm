@@ -3,7 +3,18 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
-import { PgColumn, PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core/columns/index.ts';
+import {
+	PgColumn,
+	PgDate,
+	PgDateString,
+	PgJson,
+	PgJsonb,
+	PgNumeric,
+	PgTime,
+	PgTimestamp,
+	PgTimestampString,
+	PgUUID,
+} from '~/pg-core/columns/index.ts';
 import type {
 	PgDeleteConfig,
 	PgInsertConfig,
@@ -126,20 +137,24 @@ export class PgDialect {
 	}
 
 	buildUpdateSet(table: PgTable, set: UpdateSet): SQL {
-		const setEntries = Object.entries(set);
+		const tableColumns = table[Table.Symbol.Columns];
 
-		const setSize = setEntries.length;
-		return sql.join(
-			setEntries
-				.flatMap(([colName, value], i): SQL[] => {
-					const col: PgColumn = table[Table.Symbol.Columns][colName]!;
-					const res = sql`${sql.identifier(col.name)} = ${value}`;
-					if (i < setSize - 1) {
-						return [res, sql.raw(', ')];
-					}
-					return [res];
-				}),
+		const columnNames = Object.keys(tableColumns).filter((colName) =>
+			set[colName] !== undefined || tableColumns[colName]?.onUpdateFn !== undefined
 		);
+
+		const setSize = columnNames.length;
+		return sql.join(columnNames.flatMap((colName, i) => {
+			const col = tableColumns[colName]!;
+
+			const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
+			const res = sql`${sql.identifier(col.name)} = ${value}`;
+
+			if (i < setSize - 1) {
+				return [res, sql.raw(', ')];
+			}
+			return [res];
+		}));
 	}
 
 	buildUpdateQuery({ table, set, where, returning, withList }: PgUpdateConfig): SQL {
@@ -455,6 +470,11 @@ export class PgDialect {
 						const defaultFnResult = col.defaultFn();
 						const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
 						valueList.push(defaultValue);
+						// eslint-disable-next-line unicorn/no-negated-condition
+					} else if (!col.default && col.onUpdateFn !== undefined) {
+						const onUpdateFnResult = col.onUpdateFn();
+						const newValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
+						valueList.push(newValue);
 					} else {
 						valueList.push(sql`default`);
 					}
@@ -492,17 +512,15 @@ export class PgDialect {
 	}
 
 	prepareTyping(encoder: DriverValueEncoder<unknown, unknown>): QueryTypingsValue {
-		if (
-			is(encoder, PgJsonb) || is(encoder, PgJson)
-		) {
+		if (is(encoder, PgJsonb) || is(encoder, PgJson)) {
 			return 'json';
 		} else if (is(encoder, PgNumeric)) {
 			return 'decimal';
 		} else if (is(encoder, PgTime)) {
 			return 'time';
-		} else if (is(encoder, PgTimestamp)) {
+		} else if (is(encoder, PgTimestamp) || is(encoder, PgTimestampString)) {
 			return 'timestamp';
-		} else if (is(encoder, PgDate)) {
+		} else if (is(encoder, PgDate) || is(encoder, PgDateString)) {
 			return 'date';
 		} else if (is(encoder, PgUUID)) {
 			return 'uuid';
