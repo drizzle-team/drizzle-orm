@@ -1,4 +1,4 @@
-import type { BuildColumns } from '~/column-builder.ts';
+import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
@@ -54,7 +54,7 @@ export function pgTableWithSchema<
 >(
 	name: TTableName,
 	columns: TColumnsMap,
-	extraConfig: ((self: BuildColumns<TTableName, TColumnsMap, 'pg'>) => PgTableExtraConfig) | undefined,
+	extraConfig: ((self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'pg'>) => PgTableExtraConfig) | undefined,
 	schema: TSchemaName,
 	baseName = name,
 ): PgTableWithColumns<{
@@ -97,7 +97,7 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'pg'>) => PgTableExtraConfig,
+		extraConfig?: (self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'pg'>) => PgTableExtraConfig,
 	): PgTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
