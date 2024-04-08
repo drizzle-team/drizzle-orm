@@ -1,5 +1,5 @@
 import { AnyColumn } from "~/index";
-import { SQL, SQLWrapper, sql } from "../sql.ts";
+import { type SQL, type SQLWrapper, sql } from "../sql.ts";
 
 function toSql(value: number[]): string {
     return JSON.stringify(value);
