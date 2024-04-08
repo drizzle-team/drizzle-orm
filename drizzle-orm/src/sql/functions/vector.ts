@@ -7,9 +7,11 @@ function toSql(value: number[]): string {
 
 
 /**
- * Used in sorting, this specifies that the given
- * column or expression should be sorted in an order 
- * that is most similar to the given value in terms of L2 distance.
+ * Used in sorting and in querying, if used in sorting,
+ * this specifies that the given column or expression should be sorted in an order
+ * that minimizes the L2 distance to the given value.
+ * If used in querying, this specifies that it should return the L2 distance
+ * between the given column or expression and the given value.
  *
  * ## Examples
  *
@@ -20,16 +22,24 @@ function toSql(value: number[]): string {
  *   .orderBy(l2Distance(cars.embedding, embedding));
  * ```
  * 
+ * ```ts
+ * // Select distance of cars and embedding
+ * // to the given embedding
+ * db.select({distance: l2Distance(cars.embedding, embedding)}).from(cars)
+ * ```
+ * 
  */
 export function l2Distance(column: SQLWrapper | AnyColumn, value: number[]): SQL {
-    return sql`${column} <-> ${toSql(value)}`;
+    return sql`${column} <-> ${toSql(value)}`.mapWith(Number);
 }
 
 
 /**
- * Used in sorting, this specifies that the given
- * column or expression should be sorted in an order 
- * that maximizes the inner product with the given value.
+ * Used in sorting and in querying, if used in sorting,
+ * this specifies that the given column or expression should be sorted in an order
+ * that minimizes the inner product distance to the given value.
+ * If used in querying, this specifies that it should return the inner product distance
+ * between the given column or expression and the given value.
  *
  * ## Examples
  *
@@ -40,18 +50,26 @@ export function l2Distance(column: SQLWrapper | AnyColumn, value: number[]): SQL
  *   .orderBy(maxInnerProduct(cars.embedding, embedding));
  * ```
  * 
+ * ```ts
+ * // Select distance of cars and embedding
+ * // to the given embedding
+ * db.select({distance: maxInnerProduct(cars.embedding, embedding)}).from(cars)
+ * ```
+ * 
  */
 export function maxInnerProduct(
     column: SQLWrapper | AnyColumn,
     value: number[]
 ): SQL {
-    return sql`${column} <#> ${toSql(value)}`;
+    return sql`${column} <#> ${toSql(value)}`.mapWith(Number);
 }
 
 /**
- * Used in sorting, this specifies that the given
- * column or expression should be sorted in an order 
- * that is most similar to the given value in terms of cosine distance.
+ * Used in sorting and in querying, if used in sorting,
+ * this specifies that the given column or expression should be sorted in an order
+ * that minimizes the cosine distance to the given value.
+ * If used in querying, this specifies that it should return the cosine distance
+ * between the given column or expression and the given value.
  *
  * ## Examples
  *
@@ -62,10 +80,17 @@ export function maxInnerProduct(
  *   .orderBy(cosineDistance(cars.embedding, embedding));
  * ```
  * 
+ * ```ts
+ * // Select distance of cars and embedding
+ * // to the given embedding
+ * db.select({distance: cosineDistance(cars.embedding, embedding)}).from(cars)
+ * ```
+ * 
+ * 
  */
 export function cosineDistance(
     column: SQLWrapper | AnyColumn,
     value: number[]
 ): SQL {
-    return sql`${column} <=> ${toSql(value)}`;
+    return sql`${column} <=> ${toSql(value)}`.mapWith(Number);
 }
