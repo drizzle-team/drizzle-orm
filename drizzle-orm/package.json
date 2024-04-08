@@ -147,7 +147,7 @@
 		}
 	},
 	"devDependencies": {
-		"@aws-sdk/client-rds-data": "^3.344.0",
+		"@aws-sdk/client-rds-data": "^3.549.0",
 		"@cloudflare/workers-types": "^4.20230904.0",
 		"@electric-sql/pglite": "^0.1.1",
 		"@libsql/client": "^0.5.6",

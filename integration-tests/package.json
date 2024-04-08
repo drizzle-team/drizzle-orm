@@ -8,7 +8,8 @@
 		"test": "pnpm test:ava && pnpm test:esm && pnpm test:rqb",
 		"test:ava": "NODE_OPTIONS='--loader=tsx --no-warnings' ava tests --timeout=60s --serial",
 		"test:rqb": "vitest run --no-threads",
-		"test:esm": "node tests/imports.test.mjs && node tests/imports.test.cjs"
+		"test:esm": "node tests/imports.test.mjs && node tests/imports.test.cjs",
+		"test:data-api": "sst shell vitest run tests/awsdatapi.test.ts"
 	},
 	"ava": {
 		"files": [
@@ -61,8 +62,8 @@
 		"zx": "^7.2.2"
 	},
 	"dependencies": {
-		"@aws-sdk/client-rds-data": "^3.345.0",
-		"@aws-sdk/credential-providers": "^3.345.0",
+		"@aws-sdk/client-rds-data": "^3.549.0",
+		"@aws-sdk/credential-providers": "^3.549.0",
 		"@electric-sql/pglite": "^0.1.1",
 		"@libsql/client": "^0.5.6",
 		"@miniflare/d1": "^2.14.2",
@@ -85,6 +86,7 @@
 		"source-map-support": "^0.5.21",
 		"sql.js": "^1.8.0",
 		"sqlite3": "^5.1.4",
+		"sst": "^3.0.4",
 		"uuid": "^9.0.0",
 		"uvu": "^0.5.6",
 		"vitest": "^0.31.4",
