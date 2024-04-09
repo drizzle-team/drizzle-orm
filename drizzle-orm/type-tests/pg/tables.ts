@@ -72,13 +72,11 @@ export const users = pgTable(
 		arrayCol: text('array_col').array().notNull(),
 	},
 	(users) => ({
-		usersAge1Idx: uniqueIndex('usersAge1Idx').on(users.class),
+		usersAge1Idx: uniqueIndex('usersAge1Idx').on(users.class.asc().nullsFirst()),
 		usersAge2Idx: index('usersAge2Idx').on(users.class),
 		uniqueClass: uniqueIndex('uniqueClass')
-			.on(users.class, users.subClass)
+			.on(users.class.desc(), users.subClass.nullsLast())
 			.where(sql`${users.class} is not null`)
-			.desc()
-			.nullsLast()
 			.concurrently()
 			.using(sql`btree`),
 		legalAge: check('legalAge', sql`${users.age1} > 18`),

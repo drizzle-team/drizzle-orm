@@ -45,6 +45,7 @@ import {
 	getMaterializedViewConfig,
 	getTableConfig,
 	getViewConfig,
+	index,
 	inet,
 	integer,
 	intersect,
@@ -165,7 +166,11 @@ const aggregateTable = pgTable('aggregate_table', {
 	b: integer('b'),
 	c: integer('c'),
 	nullOnly: integer('null_only'),
-});
+}, (t) => ({
+	f: index().on(t.a.nullsFirst().asc(), t.b.nullsFirst().asc()).concurrently().using(sql``),
+	f1: index().on(t.a.nullsFirst().asc()).concurrently().using(sql``),
+	// f2: index().on(sql``),
+}));
 
 interface Context {
 	docker: Docker;

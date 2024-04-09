@@ -1,7 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import type { Column } from './column.ts';
 import type { MySqlColumn } from './mysql-core/index.ts';
-import type { PgColumn } from './pg-core/index.ts';
+import type { IndexedColumn, PgColumn } from './pg-core/index.ts';
 import type { SQL } from './sql/sql.ts';
 import type { SQLiteColumn } from './sqlite-core/index.ts';
 import type { Simplify } from './utils.ts';
@@ -235,6 +235,19 @@ export type BuildColumn<
 	: TDialect extends 'common' ? Column<MakeColumnConfig<TBuilder['_'], TTableName>>
 	: never;
 
+export type BuildIndexColumn<
+	TTableName extends string,
+	TBuilder extends ColumnBuilderBase,
+	TDialect extends Dialect,
+> = TDialect extends 'pg' ? IndexedColumn<MakeColumnConfig<TBuilder['_'], TTableName>> : never;
+
+// TODO
+// try to make sql as well + indexRaw
+
+// optional after everything will be working as expected
+// also try to leave only needed methods for extraConfig
+// make an error if I pass .asc() to fk and so on
+
 export type BuildColumns<
 	TTableName extends string,
 	TConfigMap extends Record<string, ColumnBuilderBase>,
@@ -242,6 +255,16 @@ export type BuildColumns<
 > =
 	& {
 		[Key in keyof TConfigMap]: BuildColumn<TTableName, TConfigMap[Key], TDialect>;
+	}
+	& {};
+
+export type BuildExtraConfigColumns<
+	TTableName extends string,
+	TConfigMap extends Record<string, ColumnBuilderBase>,
+	TDialect extends Dialect,
+> =
+	& {
+		[Key in keyof TConfigMap]: BuildIndexColumn<TTableName, TConfigMap[Key], TDialect>;
 	}
 	& {};
 

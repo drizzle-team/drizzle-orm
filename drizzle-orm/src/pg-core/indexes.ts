@@ -1,13 +1,15 @@
 import type { SQL } from '~/sql/sql.ts';
 
+import type { ColumnDataType } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { PgColumn } from './columns/index.ts';
+import { PgColumn } from './columns/index.ts';
 import type { PgTable } from './table.ts';
 
 interface IndexConfig {
 	name?: string;
 
-	columns: IndexColumn[];
+	columns: Partial<IndexedColumn>[] | SQL[];
 
 	/**
 	 * If true, the index will be created as `create unique index` instead of `create index`.
@@ -30,67 +32,18 @@ interface IndexConfig {
 	using?: SQL;
 
 	/**
-	 * If set, the index will be created as `create index ... asc | desc`.
-	 */
-	order?: 'asc' | 'desc';
-
-	/**
-	 * If set, adds `nulls first` or `nulls last` to the index.
-	 */
-	nulls?: 'first' | 'last';
-
-	/**
 	 * Condition for partial index.
 	 */
 	where?: SQL;
 }
 
-export type IndexColumn = PgColumn;
+export class IndexedColumn<
+	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
+> extends PgColumn<T, { order?: 'asc' | 'desc'; nulls?: 'first' | 'last' }> {
+	static readonly [entityKind]: string = 'IndexColumn';
 
-export class IndexBuilderOn {
-	static readonly [entityKind]: string = 'PgIndexBuilderOn';
-
-	constructor(private unique: boolean, private name?: string) {}
-
-	on(...columns: [IndexColumn, ...IndexColumn[]]): IndexBuilder {
-		return new IndexBuilder(columns, this.unique, false, this.name);
-	}
-
-	onOnly(...columns: [IndexColumn, ...IndexColumn[]]): IndexBuilder {
-		return new IndexBuilder(columns, this.unique, true, this.name);
-	}
-}
-
-export interface AnyIndexBuilder {
-	build(table: PgTable): Index;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface IndexBuilder extends AnyIndexBuilder {}
-
-export class IndexBuilder implements AnyIndexBuilder {
-	static readonly [entityKind]: string = 'PgIndexBuilder';
-
-	/** @internal */
-	config: IndexConfig;
-
-	constructor(columns: IndexColumn[], unique: boolean, only: boolean, name?: string) {
-		this.config = {
-			name,
-			columns,
-			unique,
-			only,
-		};
-	}
-
-	concurrently(): this {
-		this.config.concurrently = true;
-		return this;
-	}
-
-	using(method: SQL): this {
-		this.config.using = method;
-		return this;
+	override getSQLType(): string {
+		return this.getSQLType();
 	}
 
 	asc(): Omit<this, 'asc' | 'desc'> {
@@ -110,6 +63,55 @@ export class IndexBuilder implements AnyIndexBuilder {
 
 	nullsLast(): Omit<this, 'nullsFirst' | 'nullsLast'> {
 		this.config.nulls = 'last';
+		return this;
+	}
+}
+
+export type IndexColumn = PgColumn;
+
+export class IndexBuilderOn {
+	static readonly [entityKind]: string = 'PgIndexBuilderOn';
+
+	constructor(private unique: boolean, private name?: string) {}
+
+	on(...columns: [Partial<IndexedColumn>, ...Partial<IndexedColumn>[]]): IndexBuilder {
+		return new IndexBuilder(columns, this.unique, false, this.name);
+	}
+
+	onOnly(...columns: [Partial<IndexedColumn>, ...Partial<IndexedColumn>[]]): IndexBuilder {
+		return new IndexBuilder(columns, this.unique, true, this.name);
+	}
+}
+
+export interface AnyIndexBuilder {
+	build(table: PgTable): Index;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+export interface IndexBuilder extends AnyIndexBuilder {}
+
+export class IndexBuilder implements AnyIndexBuilder {
+	static readonly [entityKind]: string = 'PgIndexBuilder';
+
+	/** @internal */
+	config: IndexConfig;
+
+	constructor(columns: Partial<IndexedColumn>[], unique: boolean, only: boolean, name?: string) {
+		this.config = {
+			name,
+			columns,
+			unique,
+			only,
+		};
+	}
+
+	concurrently(): this {
+		this.config.concurrently = true;
+		return this;
+	}
+
+	using(method: SQL): this {
+		this.config.using = method;
 		return this;
 	}
 
