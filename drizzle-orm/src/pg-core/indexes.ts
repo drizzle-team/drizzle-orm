@@ -1,15 +1,13 @@
 import type { SQL } from '~/sql/sql.ts';
 
-import type { ColumnDataType } from '~/column-builder.ts';
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import { PgColumn } from './columns/index.ts';
+import type { IndexedColumn, PgColumn } from './columns/index.ts';
 import type { PgTable } from './table.ts';
 
 interface IndexConfig {
 	name?: string;
 
-	columns: Partial<IndexedColumn>[] | SQL[];
+	columns: Partial<IndexedColumn | SQL>[];
 
 	/**
 	 * If true, the index will be created as `create unique index` instead of `create index`.
@@ -27,44 +25,19 @@ interface IndexConfig {
 	only: boolean;
 
 	/**
-	 * If set, the index will be created as `create index ... using <method>`.
-	 */
-	using?: SQL;
-
-	/**
 	 * Condition for partial index.
 	 */
 	where?: SQL;
-}
 
-export class IndexedColumn<
-	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
-> extends PgColumn<T, { order?: 'asc' | 'desc'; nulls?: 'first' | 'last' }> {
-	static readonly [entityKind]: string = 'IndexColumn';
+	/**
+	 * The optional WITH clause specifies storage parameters for the index
+	 */
+	with?: Record<string, any>;
 
-	override getSQLType(): string {
-		return this.getSQLType();
-	}
-
-	asc(): Omit<this, 'asc' | 'desc'> {
-		this.config.order = 'asc';
-		return this;
-	}
-
-	desc(): Omit<this, 'asc' | 'desc'> {
-		this.config.order = 'desc';
-		return this;
-	}
-
-	nullsFirst(): Omit<this, 'nullsFirst' | 'nullsLast'> {
-		this.config.nulls = 'first';
-		return this;
-	}
-
-	nullsLast(): Omit<this, 'nullsFirst' | 'nullsLast'> {
-		this.config.nulls = 'last';
-		return this;
-	}
+	/**
+	 * The optional WITH clause method for the index
+	 */
+	method?: 'btree' | string;
 }
 
 export type IndexColumn = PgColumn;
@@ -74,12 +47,16 @@ export class IndexBuilderOn {
 
 	constructor(private unique: boolean, private name?: string) {}
 
-	on(...columns: [Partial<IndexedColumn>, ...Partial<IndexedColumn>[]]): IndexBuilder {
+	on(...columns: [Partial<IndexedColumn> | SQL, ...Partial<IndexedColumn>[] | SQL[]]): IndexBuilder {
 		return new IndexBuilder(columns, this.unique, false, this.name);
 	}
 
-	onOnly(...columns: [Partial<IndexedColumn>, ...Partial<IndexedColumn>[]]): IndexBuilder {
+	onOnly(...columns: [Partial<IndexedColumn | SQL>, ...Partial<IndexedColumn>[] | SQL[]]): IndexBuilder {
 		return new IndexBuilder(columns, this.unique, true, this.name);
+	}
+
+	using(method: string, ...columns: [Partial<IndexedColumn | SQL>, ...Partial<IndexedColumn>[] | SQL[]]): IndexBuilder {
+		return new IndexBuilder(columns, this.unique, true, this.name, method);
 	}
 }
 
@@ -96,12 +73,19 @@ export class IndexBuilder implements AnyIndexBuilder {
 	/** @internal */
 	config: IndexConfig;
 
-	constructor(columns: Partial<IndexedColumn>[], unique: boolean, only: boolean, name?: string) {
+	constructor(
+		columns: Partial<IndexedColumn | SQL>[],
+		unique: boolean,
+		only: boolean,
+		name?: string,
+		method: string = 'btree',
+	) {
 		this.config = {
 			name,
 			columns,
 			unique,
 			only,
+			method,
 		};
 	}
 
@@ -110,12 +94,12 @@ export class IndexBuilder implements AnyIndexBuilder {
 		return this;
 	}
 
-	using(method: SQL): this {
-		this.config.using = method;
+	with(obj: Record<string, any>): this {
+		this.config.with = obj;
 		return this;
 	}
 
-	where(condition: SQL): Omit<this, 'where'> {
+	where(condition: SQL): this {
 		this.config.where = condition;
 		return this;
 	}

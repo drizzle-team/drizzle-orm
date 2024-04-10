@@ -166,11 +166,7 @@ const aggregateTable = pgTable('aggregate_table', {
 	b: integer('b'),
 	c: integer('c'),
 	nullOnly: integer('null_only'),
-}, (t) => ({
-	f: index().on(t.a.nullsFirst().asc(), t.b.nullsFirst().asc()).concurrently().using(sql``),
-	f1: index().on(t.a.nullsFirst().asc()).concurrently().using(sql``),
-	// f2: index().on(sql``),
-}));
+});
 
 interface Context {
 	docker: Docker;
@@ -471,6 +467,23 @@ test.serial('table config: primary keys name', async (t) => {
 
 	t.is(tableConfig.primaryKeys.length, 1);
 	t.is(tableConfig.primaryKeys[0]!.getName(), 'custom_pk');
+});
+
+test.serial.only('table configs: all possible index properties', async () => {
+	const cities1Table = pgTable('cities1', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		state: char('state', { length: 2 }),
+	}, (t) => ({
+		f: index('custom_name').using('hnsw', sql`${t.name} vector_ip_ops`, t.state.desc()),
+		f4: index('custom_name').on(sql`${t.name} vector_ip_ops`, t.state.desc().nullsLast()).where(sql``).with({
+			length: 12,
+		}),
+	}));
+
+	const tableConfig = getTableConfig(cities1Table);
+
+	console.log(tableConfig.indexes[0]?.config.columns);
 });
 
 test.serial('select all fields', async (t) => {

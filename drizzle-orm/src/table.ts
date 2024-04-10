@@ -1,6 +1,7 @@
 import type { Column, GetColumnData } from './column.ts';
 import { entityKind } from './entity.ts';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations.ts';
+import type { IndexedColumn } from './pg-core/index.ts';
 import type { SQLWrapper } from './sql/sql.ts';
 import type { Simplify, Update } from './utils.ts';
 
@@ -23,6 +24,9 @@ export const Schema = Symbol.for('drizzle:Schema');
 
 /** @internal */
 export const Columns = Symbol.for('drizzle:Columns');
+
+/** @internal */
+export const ExtraConfigColumns = Symbol.for('drizzle:ExtraConfigColumns');
 
 /** @internal */
 export const OriginalName = Symbol.for('drizzle:OriginalName');
@@ -67,6 +71,7 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 		Schema: Schema as typeof Schema,
 		OriginalName: OriginalName as typeof OriginalName,
 		Columns: Columns as typeof Columns,
+		ExtraConfigColumns: ExtraConfigColumns as typeof ExtraConfigColumns,
 		BaseName: BaseName as typeof BaseName,
 		IsAlias: IsAlias as typeof IsAlias,
 		ExtraConfigBuilder: ExtraConfigBuilder as typeof ExtraConfigBuilder,
@@ -89,6 +94,9 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 
 	/** @internal */
 	[Columns]!: T['columns'];
+
+	/** @internal */
+	[ExtraConfigColumns]!: Record<string, IndexedColumn>;
 
 	/**
 	 *  @internal

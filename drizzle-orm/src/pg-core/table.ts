@@ -79,9 +79,18 @@ export function pgTableWithSchema<
 		}),
 	) as unknown as BuildColumns<TTableName, TColumnsMap, 'pg'>;
 
+	const builtColumnsForExtraConfig = Object.fromEntries(
+		Object.entries(columns).map(([name, colBuilderBase]) => {
+			const colBuilder = colBuilderBase as PgColumnBuilder;
+			const column = colBuilder.buildExtraConfigColumn(rawTable);
+			return [name, column];
+		}),
+	) as unknown as BuildExtraConfigColumns<TTableName, TColumnsMap, 'pg'>;
+
 	const table = Object.assign(rawTable, builtColumns);
 
 	table[Table.Symbol.Columns] = builtColumns;
+	table[Table.Symbol.ExtraConfigColumns] = builtColumnsForExtraConfig;
 
 	if (extraConfig) {
 		table[PgTable.Symbol.ExtraConfigBuilder] = extraConfig as any;

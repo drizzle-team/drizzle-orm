@@ -12,7 +12,8 @@
 	},
 	"ava": {
 		"files": [
-			"tests/**/*.test.{ts,cts,mts,js,cjs,mjs}",
+			"!tests/**/*.test.{ts,cts,mts,js,cjs,mjs}",
+			"tests/pg.test.ts",
 			"!tests/imports.test.mjs",
 			"!tests/imports.test.cjs",
 			"!tests/awsdatapi.alltypes.test.ts",

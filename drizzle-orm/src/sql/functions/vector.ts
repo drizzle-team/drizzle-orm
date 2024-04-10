@@ -1,10 +1,9 @@
-import { AnyColumn } from "~/index";
-import { type SQL, type SQLWrapper, sql } from "../sql.ts";
+import type { AnyColumn } from '~/index';
+import { type SQL, sql, type SQLWrapper } from '../sql.ts';
 
 function toSql(value: number[]): string {
-    return JSON.stringify(value);
+	return JSON.stringify(value);
 }
-
 
 /**
  * Used in sorting and in querying, if used in sorting,
@@ -21,18 +20,16 @@ function toSql(value: number[]): string {
  * db.select().from(cars)
  *   .orderBy(l2Distance(cars.embedding, embedding));
  * ```
- * 
+ *
  * ```ts
  * // Select distance of cars and embedding
  * // to the given embedding
  * db.select({distance: l2Distance(cars.embedding, embedding)}).from(cars)
  * ```
- * 
  */
 export function l2Distance(column: SQLWrapper | AnyColumn, value: number[]): SQL {
-    return sql`${column} <-> ${toSql(value)}`.mapWith(Number);
+	return sql`${column} <-> ${toSql(value)}`.mapWith(Number);
 }
-
 
 /**
  * Used in sorting and in querying, if used in sorting,
@@ -49,19 +46,18 @@ export function l2Distance(column: SQLWrapper | AnyColumn, value: number[]): SQL
  * db.select().from(cars)
  *   .orderBy(maxInnerProduct(cars.embedding, embedding));
  * ```
- * 
+ *
  * ```ts
  * // Select distance of cars and embedding
  * // to the given embedding
  * db.select({distance: maxInnerProduct(cars.embedding, embedding)}).from(cars)
  * ```
- * 
  */
 export function maxInnerProduct(
-    column: SQLWrapper | AnyColumn,
-    value: number[]
+	column: SQLWrapper | AnyColumn,
+	value: number[],
 ): SQL {
-    return sql`${column} <#> ${toSql(value)}`.mapWith(Number);
+	return sql`${column} <#> ${toSql(value)}`.mapWith(Number);
 }
 
 /**
@@ -79,18 +75,16 @@ export function maxInnerProduct(
  * db.select().from(cars)
  *   .orderBy(cosineDistance(cars.embedding, embedding));
  * ```
- * 
+ *
  * ```ts
  * // Select distance of cars and embedding
  * // to the given embedding
  * db.select({distance: cosineDistance(cars.embedding, embedding)}).from(cars)
  * ```
- * 
- * 
  */
 export function cosineDistance(
-    column: SQLWrapper | AnyColumn,
-    value: number[]
+	column: SQLWrapper | AnyColumn,
+	value: number[],
 ): SQL {
-    return sql`${column} <=> ${toSql(value)}`.mapWith(Number);
+	return sql`${column} <=> ${toSql(value)}`.mapWith(Number);
 }

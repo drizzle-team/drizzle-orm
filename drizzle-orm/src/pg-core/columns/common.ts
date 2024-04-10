@@ -105,6 +105,13 @@ export abstract class PgColumnBuilder<
 	abstract build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgColumn<MakeColumnConfig<T, TTableName>>;
+
+	/** @internal */
+	buildExtraConfigColumn<TTableName extends string>(
+		table: AnyPgTable<{ name: TTableName }>,
+	): IndexedColumn {
+		return new IndexedColumn(table, this.config);
+	}
 }
 
 // To understand how to use `PgColumn` and `PgColumn`, see `Column` and `AnyColumn` documentation.
@@ -123,6 +130,36 @@ export abstract class PgColumn<
 			config.uniqueName = uniqueKeyName(table, [config.name]);
 		}
 		super(table, config);
+	}
+}
+
+export class IndexedColumn<
+	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
+> extends PgColumn<T, { order?: 'asc' | 'desc'; nulls?: 'first' | 'last' }> {
+	static readonly [entityKind]: string = 'IndexColumn';
+
+	override getSQLType(): string {
+		return this.getSQLType();
+	}
+
+	asc(): Omit<this, 'asc' | 'desc'> {
+		this.config.order = 'asc';
+		return this;
+	}
+
+	desc(): Omit<this, 'asc' | 'desc'> {
+		this.config.order = 'desc';
+		return this;
+	}
+
+	nullsFirst(): Omit<this, 'nullsFirst' | 'nullsLast'> {
+		this.config.nulls = 'first';
+		return this;
+	}
+
+	nullsLast(): Omit<this, 'nullsFirst' | 'nullsLast'> {
+		this.config.nulls = 'last';
+		return this;
 	}
 }
 
