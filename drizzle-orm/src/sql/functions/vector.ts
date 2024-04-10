@@ -1,4 +1,4 @@
-import type { AnyColumn } from '~/index';
+import type { AnyColumn } from '~/index.ts';
 import { type SQL, sql, type SQLWrapper } from '../sql.ts';
 
 function toSql(value: number[]): string {
