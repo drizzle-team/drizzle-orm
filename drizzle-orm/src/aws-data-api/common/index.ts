@@ -30,7 +30,7 @@ export function getValueFromDataApi(field: Field) {
 			return field.arrayValue.booleanValues;
 		}
 		if (field.arrayValue.arrayValues !== undefined) {
-			return field.arrayValue.arrayValues
+			return field.arrayValue.arrayValues;
 		}
 
 		throw new Error('Unknown array type');
