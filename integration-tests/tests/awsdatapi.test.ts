@@ -34,6 +34,7 @@ const usersTable = pgTable('users', {
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
 	jsonb: jsonb('jsonb').$type<string[]>(),
+	bestTexts: text('best_texts').array().default(sql`'{}'`).notNull(),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -69,6 +70,7 @@ beforeEach(async () => {
 				name text not null,
 				verified boolean not null default false, 
 				jsonb jsonb,
+				best_texts text[] not null default '{}',
 				created_at timestamptz not null default now()
 			)
 		`,
@@ -84,7 +86,14 @@ test('select all fields', async () => {
 
 	expect(result[0]!.createdAt).toBeInstanceOf(Date);
 	// t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 100);
-	expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+	expect(result).toEqual([{
+		bestTexts: [],
+		id: 1,
+		name: 'John',
+		verified: false,
+		jsonb: null,
+		createdAt: result[0]!.createdAt,
+	}]);
 });
 
 test('select sql', async () => {
@@ -176,7 +185,14 @@ test('update with returning all fields', async () => {
 
 	expect(users[0]!.createdAt).toBeInstanceOf(Date);
 	// t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 100);
-	expect(users).toEqual([{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
+	expect(users).toEqual([{
+		id: 1,
+		bestTexts: [],
+		name: 'Jane',
+		verified: false,
+		jsonb: null,
+		createdAt: users[0]!.createdAt,
+	}]);
 });
 
 test('update with returning partial', async () => {
@@ -195,7 +211,14 @@ test('delete with returning all fields', async () => {
 
 	expect(users[0]!.createdAt).toBeInstanceOf(Date);
 	// t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 100);
-	expect(users).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
+	expect(users).toEqual([{
+		bestTexts: [],
+		id: 1,
+		name: 'John',
+		verified: false,
+		jsonb: null,
+		createdAt: users[0]!.createdAt,
+	}]);
 });
 
 test('delete with returning partial', async () => {
@@ -211,13 +234,20 @@ test('delete with returning partial', async () => {
 test('insert + select', async () => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const result = await db.select().from(usersTable);
-	expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+	expect(result).toEqual([{
+		bestTexts: [],
+		id: 1,
+		name: 'John',
+		verified: false,
+		jsonb: null,
+		createdAt: result[0]!.createdAt,
+	}]);
 
 	await db.insert(usersTable).values({ name: 'Jane' });
 	const result2 = await db.select().from(usersTable);
 	expect(result2).toEqual([
-		{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result2[0]!.createdAt },
-		{ id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
+		{ bestTexts: [], id: 1, name: 'John', verified: false, jsonb: null, createdAt: result2[0]!.createdAt },
+		{ bestTexts: [], id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
 	]);
 });
 
@@ -236,7 +266,14 @@ test('insert with overridden default values', async () => {
 	await db.insert(usersTable).values({ name: 'John', verified: true });
 	const result = await db.select().from(usersTable);
 
-	expect(result).toEqual([{ id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt }]);
+	expect(result).toEqual([{
+		bestTexts: [],
+		id: 1,
+		name: 'John',
+		verified: true,
+		jsonb: null,
+		createdAt: result[0]!.createdAt,
+	}]);
 });
 
 test('insert many', async () => {
@@ -385,12 +422,14 @@ test('full join with alias', async () => {
 	expect(result).toEqual([{
 		users: {
 			id: 10,
+			bestTexts: [],
 			name: 'Ivan',
 			verified: false,
 			jsonb: null,
 			createdAt: result[0]!.users.createdAt,
 		},
 		customer: {
+			bestTexts: [],
 			id: 11,
 			name: 'Hans',
 			verified: false,
@@ -627,7 +666,7 @@ test('build query insert with onConflict do update', async () => {
 
 	expect(query).toEqual({
 		sql:
-			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, :1, default, :2, default) on conflict ("id") do update set "name" = :3',
+			'insert into "users" ("id", "name", "verified", "jsonb", "best_texts", "created_at") values (default, :1, default, :2, default, default) on conflict ("id") do update set "name" = :3',
 		params: ['John', '["foo","bar"]', 'John1'],
 		// typings: ['none', 'json', 'none']
 	});
@@ -641,7 +680,7 @@ test('build query insert with onConflict do update / multiple columns', async ()
 
 	expect(query).toEqual({
 		sql:
-			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, :1, default, :2, default) on conflict ("id","name") do update set "name" = :3',
+			'insert into "users" ("id", "name", "verified", "jsonb", "best_texts", "created_at") values (default, :1, default, :2, default, default) on conflict ("id","name") do update set "name" = :3',
 		params: ['John', '["foo","bar"]', 'John1'],
 		// typings: ['none', 'json', 'none']
 	});
@@ -655,7 +694,7 @@ test('build query insert with onConflict do nothing', async () => {
 
 	expect(query).toEqual({
 		sql:
-			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, :1, default, :2, default) on conflict do nothing',
+			'insert into "users" ("id", "name", "verified", "jsonb", "best_texts", "created_at") values (default, :1, default, :2, default, default) on conflict do nothing',
 		params: ['John', '["foo","bar"]'],
 		// typings: ['none', 'json']
 	});
@@ -669,7 +708,7 @@ test('build query insert with onConflict do nothing + target', async () => {
 
 	expect(query).toEqual({
 		sql:
-			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, :1, default, :2, default) on conflict ("id") do nothing',
+			'insert into "users" ("id", "name", "verified", "jsonb", "best_texts", "created_at") values (default, :1, default, :2, default, default) on conflict ("id") do nothing',
 		params: ['John', '["foo","bar"]'],
 		// typings: ['none', 'json']
 	});
@@ -855,6 +894,69 @@ test('select from raw sql with mapped values', async () => {
 	expect(result).toEqual([
 		{ id: 1, name: 'John' },
 	]);
+});
+
+test('insert with array values works', async () => {
+	const bestTexts = ['text1', 'text2', 'text3'];
+	const [insertResult] = await db.insert(usersTable).values({
+		name: 'John',
+		bestTexts,
+	}).returning();
+
+	expect(insertResult?.bestTexts).toEqual(bestTexts);
+});
+
+test('update with array values works', async () => {
+	const [newUser] = await db.insert(usersTable).values({ name: 'John' }).returning();
+
+	const bestTexts = ['text4', 'text5', 'text6'];
+	const [insertResult] = await db.update(usersTable).set({
+		bestTexts,
+	}).where(eq(usersTable.id, newUser!.id)).returning();
+
+	expect(insertResult?.bestTexts).toEqual(bestTexts);
+});
+
+test('insert with array values works', async () => {
+	const bestTexts = ['text1', 'text2', 'text3'];
+	const [insertResult] = await db.insert(usersTable).values({
+		name: 'John',
+		bestTexts,
+	}).returning();
+
+	expect(insertResult?.bestTexts).toEqual(bestTexts);
+});
+
+test('update with array values works', async () => {
+	const [newUser] = await db.insert(usersTable).values({ name: 'John' }).returning();
+
+	const bestTexts = ['text4', 'text5', 'text6'];
+	const [insertResult] = await db.update(usersTable).set({
+		bestTexts,
+	}).where(eq(usersTable.id, newUser!.id)).returning();
+
+	expect(insertResult?.bestTexts).toEqual(bestTexts);
+});
+
+test('insert with array values works', async () => {
+	const bestTexts = ['text1', 'text2', 'text3'];
+	const [insertResult] = await db.insert(usersTable).values({
+		name: 'John',
+		bestTexts,
+	}).returning();
+
+	expect(insertResult?.bestTexts).toEqual(bestTexts);
+});
+
+test('update with array values works', async () => {
+	const [newUser] = await db.insert(usersTable).values({ name: 'John' }).returning();
+
+	const bestTexts = ['text4', 'text5', 'text6'];
+	const [insertResult] = await db.update(usersTable).set({
+		bestTexts,
+	}).where(eq(usersTable.id, newUser!.id)).returning();
+
+	expect(insertResult?.bestTexts).toEqual(bestTexts);
 });
 
 test('all date and time columns', async () => {
