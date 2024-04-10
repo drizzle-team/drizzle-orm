@@ -10,9 +10,7 @@ export interface SQLiteRawConfig {
 	action: SQLiteRawAction;
 }
 
-export interface SQLiteRaw<TResult>
-	extends QueryPromise<TResult>, RunnableQuery<TResult, 'sqlite'>, SQLWrapper, PreparedQuery
-{}
+export interface SQLiteRaw<TResult> extends QueryPromise<TResult>, RunnableQuery<TResult, 'sqlite'>, SQLWrapper {}
 
 export class SQLiteRaw<TResult> extends QueryPromise<TResult>
 	implements RunnableQuery<TResult, 'sqlite'>, SQLWrapper, PreparedQuery
@@ -40,7 +38,7 @@ export class SQLiteRaw<TResult> extends QueryPromise<TResult>
 	}
 
 	getQuery() {
-		return this.dialect.sqlToQuery(this.getSQL());
+		return { ...this.dialect.sqlToQuery(this.getSQL()), method: this.config.action };
 	}
 
 	mapResult(result: unknown, isFromBatch?: boolean) {
@@ -49,5 +47,10 @@ export class SQLiteRaw<TResult> extends QueryPromise<TResult>
 
 	_prepare(): PreparedQuery {
 		return this;
+	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return false;
 	}
 }

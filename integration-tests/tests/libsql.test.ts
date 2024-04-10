@@ -12,10 +12,12 @@ import {
 	countDistinct,
 	eq,
 	exists,
+	getTableColumns,
 	gt,
 	gte,
 	inArray,
 	type InferModel,
+	lt,
 	max,
 	min,
 	Name,
@@ -38,6 +40,7 @@ import {
 	int,
 	integer,
 	intersect,
+	numeric,
 	primaryKey,
 	sqliteTable,
 	sqliteTableCreator,
@@ -46,7 +49,7 @@ import {
 	union,
 	unionAll,
 } from 'drizzle-orm/sqlite-core';
-import { type Equal, Expect } from './utils.ts';
+import { type Equal, Expect, randomString } from './utils.ts';
 
 const ENABLE_LOGGING = false;
 
@@ -63,6 +66,17 @@ const usersTable = sqliteTable('users', {
 	verified: integer('verified', { mode: 'boolean' }).notNull().default(false),
 	json: blob('json', { mode: 'json' }).$type<string[]>(),
 	createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`strftime('%s', 'now')`),
+});
+
+const usersOnUpdate = sqliteTable('users_on_update', {
+	id: integer('id').primaryKey({ autoIncrement: true }),
+	name: text('name').notNull(),
+	updateCounter: integer('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
+	updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).$onUpdate(() => new Date()),
+	alwaysNull: text('always_null').$type<string | null>().$onUpdate(() => null),
+	// uppercaseName: text('uppercase_name').$onUpdateFn(() =>
+	// 	sql`upper(s.name)`
+	// ),  This doesn't seem to be supported in sqlite
 });
 
 const users2Table = sqliteTable('users2', {
@@ -992,6 +1006,29 @@ test.serial('migrator', async (t) => {
 	await db.run(sql`drop table __drizzle_migrations`);
 });
 
+test.serial('migrator : migrate with custom table', async (t) => {
+	const { db } = t.context;
+	const customTable = randomString();
+	await db.run(sql`drop table if exists another_users`);
+	await db.run(sql`drop table if exists users12`);
+	await db.run(sql`drop table if exists ${sql.identifier(customTable)}`);
+
+	await migrate(db, { migrationsFolder: './drizzle2/sqlite', migrationsTable: customTable });
+
+	// test if the custom migrations table was created
+	const res = await db.all(sql`select * from ${sql.identifier(customTable)};`);
+	t.true(res.length > 0);
+
+	// test if the migrated table are working as expected
+	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	const result = await db.select().from(usersMigratorTable);
+	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+
+	await db.run(sql`drop table another_users`);
+	await db.run(sql`drop table users12`);
+	await db.run(sql`drop table ${sql.identifier(customTable)}`);
+});
+
 test.serial('insert via db.run + select via db.all', async (t) => {
 	const { db } = t.context;
 
@@ -1255,6 +1292,133 @@ test.serial('with ... select', async (t) => {
 			productUnits: 9,
 			productSales: 90,
 		},
+	]);
+});
+
+test.serial('with ... update', async (t) => {
+	const { db } = t.context;
+
+	const products = sqliteTable('products', {
+		id: integer('id').primaryKey(),
+		price: numeric('price').notNull(),
+		cheap: integer('cheap', { mode: 'boolean' }).notNull().default(false),
+	});
+
+	await db.run(sql`drop table if exists ${products}`);
+	await db.run(sql`
+		create table ${products} (
+			id integer primary key,
+			price numeric not null,
+			cheap integer not null default 0
+		)
+	`);
+
+	await db.insert(products).values([
+		{ price: '10.99' },
+		{ price: '25.85' },
+		{ price: '32.99' },
+		{ price: '2.50' },
+		{ price: '4.59' },
+	]);
+
+	const averagePrice = db
+		.$with('average_price')
+		.as(
+			db
+				.select({
+					value: sql`avg(${products.price})`.as('value'),
+				})
+				.from(products),
+		);
+
+	const result = await db
+		.with(averagePrice)
+		.update(products)
+		.set({
+			cheap: true,
+		})
+		.where(lt(products.price, sql`(select * from ${averagePrice})`))
+		.returning({
+			id: products.id,
+		});
+
+	t.deepEqual(result, [
+		{ id: 1 },
+		{ id: 4 },
+		{ id: 5 },
+	]);
+});
+
+test.serial('with ... insert', async (t) => {
+	const { db } = t.context;
+
+	const users = sqliteTable('users', {
+		username: text('username').notNull(),
+		admin: integer('admin', { mode: 'boolean' }).notNull(),
+	});
+
+	await db.run(sql`drop table if exists ${users}`);
+	await db.run(sql`create table ${users} (username text not null, admin integer not null default 0)`);
+
+	const userCount = db
+		.$with('user_count')
+		.as(
+			db
+				.select({
+					value: sql`count(*)`.as('value'),
+				})
+				.from(users),
+		);
+
+	const result = await db
+		.with(userCount)
+		.insert(users)
+		.values([
+			{ username: 'user1', admin: sql`((select * from ${userCount}) = 0)` },
+		])
+		.returning({
+			admin: users.admin,
+		});
+
+	t.deepEqual(result, [{ admin: true }]);
+});
+
+test.serial('with ... delete', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(orders).values([
+		{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
+		{ region: 'Europe', product: 'A', amount: 20, quantity: 2 },
+		{ region: 'Europe', product: 'B', amount: 20, quantity: 2 },
+		{ region: 'Europe', product: 'B', amount: 30, quantity: 3 },
+		{ region: 'US', product: 'A', amount: 30, quantity: 3 },
+		{ region: 'US', product: 'A', amount: 40, quantity: 4 },
+		{ region: 'US', product: 'B', amount: 40, quantity: 4 },
+		{ region: 'US', product: 'B', amount: 50, quantity: 5 },
+	]);
+
+	const averageAmount = db
+		.$with('average_amount')
+		.as(
+			db
+				.select({
+					value: sql`avg(${orders.amount})`.as('value'),
+				})
+				.from(orders),
+		);
+
+	const result = await db
+		.with(averageAmount)
+		.delete(orders)
+		.where(gt(orders.amount, sql`(select * from ${averageAmount})`))
+		.returning({
+			id: orders.id,
+		});
+
+	t.deepEqual(result, [
+		{ id: 6 },
+		{ id: 7 },
+		{ id: 8 },
 	]);
 });
 
@@ -2546,4 +2710,91 @@ test.serial('aggregate function: min', async (t) => {
 
 	t.deepEqual(result1[0]?.value, 10);
 	t.deepEqual(result2[0]?.value, null);
+});
+
+test.serial('test $onUpdateFn and $onUpdate works as $default', async (t) => {
+	const { db } = t.context;
+
+	await db.run(sql`drop table if exists ${usersOnUpdate}`);
+
+	await db.run(
+		sql`
+			create table ${usersOnUpdate} (
+			id integer primary key autoincrement,
+			name text not null,
+			update_counter integer default 1 not null,
+			updated_at integer,
+			always_null text
+			)
+		`,
+	);
+
+	await db.insert(usersOnUpdate).values([
+		{ name: 'John' },
+		{ name: 'Jane' },
+		{ name: 'Jack' },
+		{ name: 'Jill' },
+	]);
+	const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
+
+	const justDates = await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
+
+	const response = await db.select({ ...rest }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
+
+	t.deepEqual(response, [
+		{ name: 'John', id: 1, updateCounter: 1, alwaysNull: null },
+		{ name: 'Jane', id: 2, updateCounter: 1, alwaysNull: null },
+		{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
+		{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
+	]);
+	const msDelay = 250;
+
+	for (const eachUser of justDates) {
+		t.assert(eachUser.updatedAt!.valueOf() > Date.now() - msDelay);
+	}
+});
+
+test.serial('test $onUpdateFn and $onUpdate works updating', async (t) => {
+	const { db } = t.context;
+
+	await db.run(sql`drop table if exists ${usersOnUpdate}`);
+
+	await db.run(
+		sql`
+			create table ${usersOnUpdate} (
+			id integer primary key autoincrement,
+			name text not null,
+			update_counter integer default 1,
+			updated_at integer,
+			always_null text
+			)
+		`,
+	);
+
+	await db.insert(usersOnUpdate).values([
+		{ name: 'John', alwaysNull: 'this will be null after updating' },
+		{ name: 'Jane' },
+		{ name: 'Jack' },
+		{ name: 'Jill' },
+	]);
+	const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
+
+	await db.update(usersOnUpdate).set({ name: 'Angel' }).where(eq(usersOnUpdate.id, 1));
+	await db.update(usersOnUpdate).set({ updateCounter: null }).where(eq(usersOnUpdate.id, 2));
+
+	const justDates = await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
+
+	const response = await db.select({ ...rest }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
+
+	t.deepEqual(response, [
+		{ name: 'Angel', id: 1, updateCounter: 2, alwaysNull: null },
+		{ name: 'Jane', id: 2, updateCounter: null, alwaysNull: null },
+		{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
+		{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
+	]);
+	const msDelay = 250;
+
+	for (const eachUser of justDates) {
+		t.assert(eachUser.updatedAt!.valueOf() > Date.now() - msDelay);
+	}
 });

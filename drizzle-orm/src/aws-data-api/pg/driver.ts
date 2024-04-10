@@ -1,8 +1,12 @@
 import { entityKind, is } from '~/entity.ts';
+import type { SQLWrapper } from '~/index.ts';
+import { Param, SQL, sql, Table } from '~/index.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
+import { PgArray, PgColumn, PgInsertConfig, PgTable, TableConfig } from '~/pg-core/index.ts';
+import type { PgRaw } from '~/pg-core/query-builders/raw.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
@@ -10,10 +14,8 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import type { DrizzleConfig, UpdateSet } from '~/utils.ts';
-import type { AwsDataApiClient, AwsDataApiPgQueryResultHKT } from './session.ts';
+import type { AwsDataApiClient, AwsDataApiPgQueryResult, AwsDataApiPgQueryResultHKT } from './session.ts';
 import { AwsDataApiSession } from './session.ts';
-import { PgArray, PgColumn, PgInsertConfig, PgTable, TableConfig } from '~/pg-core/index.ts';
-import { Param, SQL, Table, sql } from '~/index.ts';
 
 export interface PgDriverOptions {
 	logger?: Logger;
@@ -30,9 +32,17 @@ export interface DrizzleAwsDataApiPgConfig<
 	secretArn: string;
 }
 
-export type AwsDataApiPgDatabase<
+export class AwsDataApiPgDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = PgDatabase<AwsDataApiPgQueryResultHKT, TSchema>;
+> extends PgDatabase<AwsDataApiPgQueryResultHKT, TSchema> {
+	static readonly [entityKind]: string = 'AwsDataApiPgDatabase';
+
+	override execute<
+		TRow extends Record<string, unknown> = Record<string, unknown>,
+	>(query: SQLWrapper): PgRaw<AwsDataApiPgQueryResult<TRow>> {
+		return super.execute(query);
+	}
+}
 
 export class AwsPgDialect extends PgDialect {
 	static readonly [entityKind]: string = 'AwsPgDialect';
@@ -41,32 +51,44 @@ export class AwsPgDialect extends PgDialect {
 		return `:${num + 1}`;
 	}
 
-	override buildInsertQuery({ table, values, onConflict, returning }: PgInsertConfig<PgTable<TableConfig>>): SQL<unknown> {
+	override buildInsertQuery(
+		{ table, values, onConflict, returning }: PgInsertConfig<PgTable<TableConfig>>,
+	): SQL<unknown> {
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
 		const colEntries: [string, PgColumn][] = Object.entries(columns);
 		for (let value of values) {
 			for (const [fieldName, col] of colEntries) {
 				const colValue = value[fieldName];
-				if (is(colValue, Param) && colValue.value !== undefined && is(colValue.encoder, PgArray) &&  Array.isArray(colValue.value)) {
-					value[fieldName] = sql`cast(${col.mapToDriverValue(colValue.value)} as ${sql.raw(colValue.encoder.getSQLType())})`
+				if (
+					is(colValue, Param) && colValue.value !== undefined && is(colValue.encoder, PgArray)
+					&& Array.isArray(colValue.value)
+				) {
+					value[fieldName] = sql`cast(${col.mapToDriverValue(colValue.value)} as ${
+						sql.raw(colValue.encoder.getSQLType())
+					})`;
 				}
 			}
 		}
 
-		return super.buildInsertQuery({table, values, onConflict, returning})
+		return super.buildInsertQuery({ table, values, onConflict, returning });
 	}
 
 	override buildUpdateSet(table: PgTable<TableConfig>, set: UpdateSet): SQL<unknown> {
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
-		
+
 		Object.entries(set)
 			.forEach(([colName, colValue]) => {
 				const currentColumn = columns[colName];
-				if (currentColumn && is(colValue, Param) && colValue.value !== undefined && is(colValue.encoder, PgArray) &&  Array.isArray(colValue.value)) {
-					set[colName] = sql`cast(${currentColumn?.mapToDriverValue(colValue.value)} as ${sql.raw(colValue.encoder.getSQLType())})`
+				if (
+					currentColumn && is(colValue, Param) && colValue.value !== undefined && is(colValue.encoder, PgArray)
+					&& Array.isArray(colValue.value)
+				) {
+					set[colName] = sql`cast(${currentColumn?.mapToDriverValue(colValue.value)} as ${
+						sql.raw(colValue.encoder.getSQLType())
+					})`;
 				}
-			})
-		return super.buildUpdateSet(table, set)
+			});
+		return super.buildUpdateSet(table, set);
 	}
 }
 

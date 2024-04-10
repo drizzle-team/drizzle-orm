@@ -6,6 +6,7 @@ import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
+import type { Subquery } from '~/subquery.ts';
 import { type DrizzleTypeError, orderSelectedFields } from '~/utils.ts';
 import type { SQLiteColumn } from '../columns/common.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
@@ -38,6 +39,7 @@ export interface SQLiteDeleteConfig {
 	where?: SQL | undefined;
 	table: SQLiteTable;
 	returning?: SelectedFieldsOrdered;
+	withList?: Subquery[];
 }
 
 export type SQLiteDeleteReturningAll<
@@ -143,9 +145,10 @@ export class SQLiteDeleteBase<
 		private table: TTable,
 		private session: SQLiteSession<any, any, any, any>,
 		private dialect: SQLiteDialect,
+		withList?: Subquery[],
 	) {
 		super();
-		this.config = { table };
+		this.config = { table, withList };
 	}
 
 	/**
@@ -229,6 +232,7 @@ export class SQLiteDeleteBase<
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
 			this.config.returning ? 'all' : 'run',
+			true,
 		) as SQLiteDeletePrepare<this>;
 	}
 

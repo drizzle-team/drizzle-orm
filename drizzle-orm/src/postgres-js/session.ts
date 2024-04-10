@@ -21,6 +21,7 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
+		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super({ sql: queryString, params });
@@ -78,6 +79,11 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 			});
 		});
 	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
+	}
 }
 
 export interface PostgresJsSessionOptions {
@@ -108,9 +114,18 @@ export class PostgresJsSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PgPreparedQuery<T> {
-		return new PostgresJsPreparedQuery(this.client, query.sql, query.params, this.logger, fields, customResultMapper);
+		return new PostgresJsPreparedQuery(
+			this.client,
+			query.sql,
+			query.params,
+			this.logger,
+			fields,
+			isResponseInArrayMode,
+			customResultMapper,
+		);
 	}
 
 	query(query: string, params: unknown[]): Promise<RowList<Row[]>> {

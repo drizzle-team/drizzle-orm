@@ -14,6 +14,7 @@ import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
+import type { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { mapUpdateSet, orderSelectedFields } from '~/utils.ts';
@@ -24,6 +25,7 @@ import type { PgUpdateSetSource } from './update.ts';
 export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[];
+	withList?: Subquery[];
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
 }
@@ -41,6 +43,7 @@ export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends QueryR
 		private table: TTable,
 		private session: PgSession,
 		private dialect: PgDialect,
+		private withList?: Subquery[],
 	) {}
 
 	values(value: PgInsertValue<TTable>): PgInsertBase<TTable, TQueryResult>;
@@ -60,7 +63,7 @@ export class PgInsertBuilder<TTable extends PgTable, TQueryResult extends QueryR
 			return result;
 		});
 
-		return new PgInsertBase(this.table, mappedValues, this.session, this.dialect);
+		return new PgInsertBase(this.table, mappedValues, this.session, this.dialect, this.withList);
 	}
 }
 
@@ -99,7 +102,11 @@ export type PgInsertReturningAll<T extends AnyPgInsert, TDynamic extends boolean
 
 export interface PgInsertOnConflictDoUpdateConfig<T extends AnyPgInsert> {
 	target: IndexColumn | IndexColumn[];
+	/** @deprecated use either `targetWhere` or `setWhere` */
 	where?: SQL;
+	// TODO: add tests for targetWhere and setWhere
+	targetWhere?: SQL;
+	setWhere?: SQL;
 	set: PgUpdateSetSource<T['_']['table']>;
 }
 
@@ -168,9 +175,10 @@ export class PgInsertBase<
 		values: PgInsertConfig['values'],
 		private session: PgSession,
 		private dialect: PgDialect,
+		withList?: Subquery[],
 	) {
 		super();
-		this.config = { table, values };
+		this.config = { table, values, withList };
 	}
 
 	/**
@@ -238,7 +246,7 @@ export class PgInsertBase<
 				: this.dialect.escapeName(config.target.name);
 
 			const whereSql = config.where ? sql` where ${config.where}` : undefined;
-			this.config.onConflict = sql`(${sql.raw(targetColumn)}) do nothing${whereSql}`;
+			this.config.onConflict = sql`(${sql.raw(targetColumn)})${whereSql} do nothing`;
 		}
 		return this as any;
 	}
@@ -268,20 +276,29 @@ export class PgInsertBase<
 	 *   .onConflictDoUpdate({
 	 *     target: cars.id,
 	 *     set: { brand: 'newBMW' },
-	 *     where: sql`${cars.createdAt} > '2023-01-01'::date`,
+	 *     targetWhere: sql`${cars.createdAt} > '2023-01-01'::date`,
 	 *   });
 	 * ```
 	 */
 	onConflictDoUpdate(
 		config: PgInsertOnConflictDoUpdateConfig<this>,
 	): PgInsertWithout<this, TDynamic, 'onConflictDoNothing' | 'onConflictDoUpdate'> {
+		if (config.where && (config.targetWhere || config.setWhere)) {
+			throw new Error(
+				'You cannot use both "where" and "targetWhere"/"setWhere" at the same time - "where" is deprecated, use "targetWhere" or "setWhere" instead.',
+			);
+		}
 		const whereSql = config.where ? sql` where ${config.where}` : undefined;
+		const targetWhereSql = config.targetWhere ? sql` where ${config.targetWhere}` : undefined;
+		const setWhereSql = config.setWhere ? sql` where ${config.setWhere}` : undefined;
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
 		let targetColumn = '';
 		targetColumn = Array.isArray(config.target)
 			? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
 			: this.dialect.escapeName(config.target.name);
-		this.config.onConflict = sql`(${sql.raw(targetColumn)}) do update set ${setSql}${whereSql}`;
+		this.config.onConflict = sql`(${
+			sql.raw(targetColumn)
+		})${targetWhereSql} do update set ${setSql}${whereSql}${setWhereSql}`;
 		return this as any;
 	}
 
@@ -302,7 +319,7 @@ export class PgInsertBase<
 				PreparedQueryConfig & {
 					execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
 				}
-			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
+			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true);
 		});
 	}
 

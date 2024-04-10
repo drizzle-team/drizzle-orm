@@ -8,6 +8,7 @@ import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { IndexColumn } from '~/sqlite-core/indexes.ts';
 import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
+import type { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils.ts';
 import type { SQLiteColumn } from '../columns/common.ts';
@@ -17,6 +18,7 @@ import type { SQLiteUpdateSetSource } from './update.ts';
 export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[];
+	withList?: Subquery[];
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
 }
@@ -38,6 +40,7 @@ export class SQLiteInsertBuilder<
 		protected table: TTable,
 		protected session: SQLiteSession<any, any, any, any>,
 		protected dialect: SQLiteDialect,
+		private withList?: Subquery[],
 	) {}
 
 	values(value: SQLiteInsertValue<TTable>): SQLiteInsertBase<TTable, TResultType, TRunResult>;
@@ -65,7 +68,7 @@ export class SQLiteInsertBuilder<
 		// 	);
 		// }
 
-		return new SQLiteInsertBase(this.table, mappedValues, this.session, this.dialect);
+		return new SQLiteInsertBase(this.table, mappedValues, this.session, this.dialect, this.withList);
 	}
 }
 
@@ -202,9 +205,10 @@ export class SQLiteInsertBase<
 		values: SQLiteInsertConfig['values'],
 		private session: SQLiteSession<any, any, any, any>,
 		private dialect: SQLiteDialect,
+		withList?: Subquery[],
 	) {
 		super();
-		this.config = { table, values };
+		this.config = { table, values, withList };
 	}
 
 	/**
@@ -324,6 +328,7 @@ export class SQLiteInsertBase<
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
 			this.config.returning ? 'all' : 'run',
+			true,
 		) as SQLiteInsertPrepare<this>;
 	}
 

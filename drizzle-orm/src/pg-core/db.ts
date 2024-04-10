@@ -145,6 +145,42 @@ export class PgDatabase<
 	with(...queries: WithSubquery[]) {
 		const self = this;
 
+		/**
+		 * Creates a select query.
+		 *
+		 * Calling this method with no arguments will select all columns from the table. Pass a selection object to specify the columns you want to select.
+		 *
+		 * Use `.from()` method to specify which table to select from.
+		 *
+		 * See docs: {@link https://orm.drizzle.team/docs/select}
+		 *
+		 * @param fields The selection object.
+		 *
+		 * @example
+		 *
+		 * ```ts
+		 * // Select all columns and all rows from the 'cars' table
+		 * const allCars: Car[] = await db.select().from(cars);
+		 *
+		 * // Select specific columns and all rows from the 'cars' table
+		 * const carsIdsAndBrands: { id: number; brand: string }[] = await db.select({
+		 *   id: cars.id,
+		 *   brand: cars.brand
+		 * })
+		 *   .from(cars);
+		 * ```
+		 *
+		 * Like in SQL, you can use arbitrary expressions as selection fields, not just table columns:
+		 *
+		 * ```ts
+		 * // Select specific columns along with expression and all rows from the 'cars' table
+		 * const carsIdsAndLowerNames: { id: number; lowerBrand: string }[] = await db.select({
+		 *   id: cars.id,
+		 *   lowerBrand: sql<string>`lower(${cars.brand})`,
+		 * })
+		 *   .from(cars);
+		 * ```
+		 */
 		function select(): PgSelectBuilder<undefined>;
 		function select<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
 		function select(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
@@ -156,7 +192,173 @@ export class PgDatabase<
 			});
 		}
 
-		return { select };
+		/**
+		 * Adds `distinct` expression to the select query.
+		 *
+		 * Calling this method will return only unique values. When multiple columns are selected, it returns rows with unique combinations of values in these columns.
+		 *
+		 * Use `.from()` method to specify which table to select from.
+		 *
+		 * See docs: {@link https://orm.drizzle.team/docs/select#distinct}
+		 *
+		 * @param fields The selection object.
+		 *
+		 * @example
+		 * ```ts
+		 * // Select all unique rows from the 'cars' table
+		 * await db.selectDistinct()
+		 *   .from(cars)
+		 *   .orderBy(cars.id, cars.brand, cars.color);
+		 *
+		 * // Select all unique brands from the 'cars' table
+		 * await db.selectDistinct({ brand: cars.brand })
+		 *   .from(cars)
+		 *   .orderBy(cars.brand);
+		 * ```
+		 */
+		function selectDistinct(): PgSelectBuilder<undefined>;
+		function selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
+		function selectDistinct(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
+			return new PgSelectBuilder({
+				fields: fields ?? undefined,
+				session: self.session,
+				dialect: self.dialect,
+				withList: queries,
+				distinct: true,
+			});
+		}
+
+		/**
+		 * Adds `distinct on` expression to the select query.
+		 *
+		 * Calling this method will specify how the unique rows are determined.
+		 *
+		 * Use `.from()` method to specify which table to select from.
+		 *
+		 * See docs: {@link https://orm.drizzle.team/docs/select#distinct}
+		 *
+		 * @param on The expression defining uniqueness.
+		 * @param fields The selection object.
+		 *
+		 * @example
+		 * ```ts
+		 * // Select the first row for each unique brand from the 'cars' table
+		 * await db.selectDistinctOn([cars.brand])
+		 *   .from(cars)
+		 *   .orderBy(cars.brand);
+		 *
+		 * // Selects the first occurrence of each unique car brand along with its color from the 'cars' table
+		 * await db.selectDistinctOn([cars.brand], { brand: cars.brand, color: cars.color })
+		 *   .from(cars)
+		 *   .orderBy(cars.brand, cars.color);
+		 * ```
+		 */
+		function selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgSelectBuilder<undefined>;
+		function selectDistinctOn<TSelection extends SelectedFields>(
+			on: (PgColumn | SQLWrapper)[],
+			fields: TSelection,
+		): PgSelectBuilder<TSelection>;
+		function selectDistinctOn(
+			on: (PgColumn | SQLWrapper)[],
+			fields?: SelectedFields,
+		): PgSelectBuilder<SelectedFields | undefined> {
+			return new PgSelectBuilder({
+				fields: fields ?? undefined,
+				session: self.session,
+				dialect: self.dialect,
+				withList: queries,
+				distinct: { on },
+			});
+		}
+
+		/**
+		 * Creates an update query.
+		 *
+		 * Calling this method without `.where()` clause will update all rows in a table. The `.where()` clause specifies which rows should be updated.
+		 *
+		 * Use `.set()` method to specify which values to update.
+		 *
+		 * See docs: {@link https://orm.drizzle.team/docs/update}
+		 *
+		 * @param table The table to update.
+		 *
+		 * @example
+		 *
+		 * ```ts
+		 * // Update all rows in the 'cars' table
+		 * await db.update(cars).set({ color: 'red' });
+		 *
+		 * // Update rows with filters and conditions
+		 * await db.update(cars).set({ color: 'red' }).where(eq(cars.brand, 'BMW'));
+		 *
+		 * // Update with returning clause
+		 * const updatedCar: Car[] = await db.update(cars)
+		 *   .set({ color: 'red' })
+		 *   .where(eq(cars.id, 1))
+		 *   .returning();
+		 * ```
+		 */
+		function update<TTable extends PgTable>(table: TTable): PgUpdateBuilder<TTable, TQueryResult> {
+			return new PgUpdateBuilder(table, self.session, self.dialect, queries);
+		}
+
+		/**
+		 * Creates an insert query.
+		 *
+		 * Calling this method will create new rows in a table. Use `.values()` method to specify which values to insert.
+		 *
+		 * See docs: {@link https://orm.drizzle.team/docs/insert}
+		 *
+		 * @param table The table to insert into.
+		 *
+		 * @example
+		 *
+		 * ```ts
+		 * // Insert one row
+		 * await db.insert(cars).values({ brand: 'BMW' });
+		 *
+		 * // Insert multiple rows
+		 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
+		 *
+		 * // Insert with returning clause
+		 * const insertedCar: Car[] = await db.insert(cars)
+		 *   .values({ brand: 'BMW' })
+		 *   .returning();
+		 * ```
+		 */
+		function insert<TTable extends PgTable>(table: TTable): PgInsertBuilder<TTable, TQueryResult> {
+			return new PgInsertBuilder(table, self.session, self.dialect, queries);
+		}
+
+		/**
+		 * Creates a delete query.
+		 *
+		 * Calling this method without `.where()` clause will delete all rows in a table. The `.where()` clause specifies which rows should be deleted.
+		 *
+		 * See docs: {@link https://orm.drizzle.team/docs/delete}
+		 *
+		 * @param table The table to delete from.
+		 *
+		 * @example
+		 *
+		 * ```ts
+		 * // Delete all rows in the 'cars' table
+		 * await db.delete(cars);
+		 *
+		 * // Delete rows with filters and conditions
+		 * await db.delete(cars).where(eq(cars.color, 'green'));
+		 *
+		 * // Delete with returning clause
+		 * const deletedCar: Car[] = await db.delete(cars)
+		 *   .where(eq(cars.id, 1))
+		 *   .returning();
+		 * ```
+		 */
+		function delete_<TTable extends PgTable>(table: TTable): PgDeleteBase<TTable, TQueryResult> {
+			return new PgDeleteBase(table, self.session, self.dialect, queries);
+		}
+
+		return { select, selectDistinct, selectDistinctOn, update, insert, delete: delete_ };
 	}
 
 	/**
@@ -375,19 +577,20 @@ export class PgDatabase<
 
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
 		query: SQLWrapper,
-	): /* PgRaw<QueryResultKind<TQueryResult, TRow>> */ Promise<QueryResultKind<TQueryResult, TRow>> {
+	): PgRaw<QueryResultKind<TQueryResult, TRow>> {
 		const sql = query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sql);
 		const prepared = this.session.prepareQuery<PreparedQueryConfig & { execute: QueryResultKind<TQueryResult, TRow> }>(
 			builtQuery,
 			undefined,
 			undefined,
+			false,
 		);
 		return new PgRaw(
 			() => prepared.execute(),
 			sql,
 			builtQuery,
-			(result) => prepared.mapResult(result, false),
+			(result) => prepared.mapResult(result, true),
 		);
 	}
 

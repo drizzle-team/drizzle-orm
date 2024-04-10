@@ -13,10 +13,12 @@ import {
 	DefaultLogger,
 	eq,
 	exists,
+	getTableColumns,
 	gt,
 	gte,
 	inArray,
 	type InferModel,
+	lt,
 	max,
 	min,
 	Name,
@@ -32,6 +34,7 @@ import {
 	boolean,
 	date,
 	datetime,
+	decimal,
 	except,
 	exceptAll,
 	foreignKey,
@@ -87,6 +90,15 @@ const users2Table = mysqlTable('users2', {
 const citiesTable = mysqlTable('cities', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
+});
+
+const usersOnUpdate = mysqlTable('users_on_update', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	updateCounter: int('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
+	updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).$onUpdate(() => new Date()),
+	uppercaseName: text('uppercase_name').$onUpdateFn(() => sql`upper(name)`),
+	alwaysNull: text('always_null').$type<string | null>().$onUpdateFn(() => null), // need to add $type because $onUpdate add a default value
 });
 
 const datesTable = mysqlTable('datestable', {
@@ -1498,6 +1510,124 @@ test.serial('with ... select', async (t) => {
 	]);
 });
 
+test.serial('with ... update', async (t) => {
+	const { db } = t.context;
+
+	const products = mysqlTable('products', {
+		id: serial('id').primaryKey(),
+		price: decimal('price', {
+			precision: 15,
+			scale: 2,
+		}).notNull(),
+		cheap: boolean('cheap').notNull().default(false),
+	});
+
+	await db.execute(sql`drop table if exists ${products}`);
+	await db.execute(sql`
+		create table ${products} (
+			id serial primary key,
+			price decimal(15, 2) not null,
+			cheap boolean not null default false
+		)
+	`);
+
+	await db.insert(products).values([
+		{ price: '10.99' },
+		{ price: '25.85' },
+		{ price: '32.99' },
+		{ price: '2.50' },
+		{ price: '4.59' },
+	]);
+
+	const averagePrice = db
+		.$with('average_price')
+		.as(
+			db
+				.select({
+					value: sql`avg(${products.price})`.as('value'),
+				})
+				.from(products),
+		);
+
+	await db
+		.with(averagePrice)
+		.update(products)
+		.set({
+			cheap: true,
+		})
+		.where(lt(products.price, sql`(select * from ${averagePrice})`));
+
+	const result = await db
+		.select({
+			id: products.id,
+		})
+		.from(products)
+		.where(eq(products.cheap, true));
+
+	t.deepEqual(result, [
+		{ id: 1 },
+		{ id: 4 },
+		{ id: 5 },
+	]);
+});
+
+test.serial('with ... delete', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists \`orders\``);
+	await db.execute(
+		sql`
+			create table \`orders\` (
+				\`id\` serial primary key,
+				\`region\` text not null,
+				\`product\` text not null,
+				\`amount\` int not null,
+				\`quantity\` int not null
+			)
+		`,
+	);
+
+	await db.insert(orders).values([
+		{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
+		{ region: 'Europe', product: 'A', amount: 20, quantity: 2 },
+		{ region: 'Europe', product: 'B', amount: 20, quantity: 2 },
+		{ region: 'Europe', product: 'B', amount: 30, quantity: 3 },
+		{ region: 'US', product: 'A', amount: 30, quantity: 3 },
+		{ region: 'US', product: 'A', amount: 40, quantity: 4 },
+		{ region: 'US', product: 'B', amount: 40, quantity: 4 },
+		{ region: 'US', product: 'B', amount: 50, quantity: 5 },
+	]);
+
+	const averageAmount = db
+		.$with('average_amount')
+		.as(
+			db
+				.select({
+					value: sql`avg(${orders.amount})`.as('value'),
+				})
+				.from(orders),
+		);
+
+	await db
+		.with(averageAmount)
+		.delete(orders)
+		.where(gt(orders.amount, sql`(select * from ${averageAmount})`));
+
+	const result = await db
+		.select({
+			id: orders.id,
+		})
+		.from(orders);
+
+	t.deepEqual(result, [
+		{ id: 1 },
+		{ id: 2 },
+		{ id: 3 },
+		{ id: 4 },
+		{ id: 5 },
+	]);
+});
+
 test.serial('select from subquery sql', async (t) => {
 	const { db } = t.context;
 
@@ -2777,4 +2907,95 @@ test.serial('aggregate function: min', async (t) => {
 
 	t.deepEqual(result1[0]?.value, 10);
 	t.deepEqual(result2[0]?.value, null);
+});
+
+test.serial('test $onUpdateFn and $onUpdate works as $default', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists ${usersOnUpdate}`);
+
+	await db.execute(
+		sql`
+			create table ${usersOnUpdate} (
+			id serial not null primary key,
+			name text not null,
+			update_counter integer default 1 not null,
+			updated_at datetime(3),
+			uppercase_name text,
+			always_null text
+			)
+		`,
+	);
+
+	await db.insert(usersOnUpdate).values([
+		{ name: 'John' },
+		{ name: 'Jane' },
+		{ name: 'Jack' },
+		{ name: 'Jill' },
+	]);
+	const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
+
+	const justDates = await db.select({ updatedAt }).from(usersOnUpdate);
+
+	const response = await db.select({ ...rest }).from(usersOnUpdate);
+
+	t.deepEqual(response, [
+		{ name: 'John', id: 1, updateCounter: 1, uppercaseName: 'JOHN', alwaysNull: null },
+		{ name: 'Jane', id: 2, updateCounter: 1, uppercaseName: 'JANE', alwaysNull: null },
+		{ name: 'Jack', id: 3, updateCounter: 1, uppercaseName: 'JACK', alwaysNull: null },
+		{ name: 'Jill', id: 4, updateCounter: 1, uppercaseName: 'JILL', alwaysNull: null },
+	]);
+	const msDelay = 250;
+
+	for (const eachUser of justDates) {
+		t.assert(eachUser.updatedAt!.valueOf() > Date.now() - msDelay);
+	}
+});
+
+test.serial('test $onUpdateFn and $onUpdate works updating', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists ${usersOnUpdate}`);
+
+	await db.execute(
+		sql`
+			create table ${usersOnUpdate} (
+			id serial not null primary key,
+			name text not null,
+			update_counter integer default 1 not null,
+			updated_at datetime(3),
+			uppercase_name text,
+			always_null text
+			)
+		`,
+	);
+
+	await db.insert(usersOnUpdate).values([
+		{ name: 'John', alwaysNull: 'this will will be null after updating' },
+		{ name: 'Jane' },
+		{ name: 'Jack' },
+		{ name: 'Jill' },
+	]);
+	const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
+	const initial = await db.select({ updatedAt }).from(usersOnUpdate);
+
+	await db.update(usersOnUpdate).set({ name: 'Angel', uppercaseName: null }).where(eq(usersOnUpdate.id, 1));
+
+	const justDates = await db.select({ updatedAt }).from(usersOnUpdate);
+
+	const response = await db.select({ ...rest }).from(usersOnUpdate);
+
+	t.deepEqual(response, [
+		{ name: 'Angel', id: 1, updateCounter: 2, uppercaseName: null, alwaysNull: null },
+		{ name: 'Jane', id: 2, updateCounter: 1, uppercaseName: 'JANE', alwaysNull: null },
+		{ name: 'Jack', id: 3, updateCounter: 1, uppercaseName: 'JACK', alwaysNull: null },
+		{ name: 'Jill', id: 4, updateCounter: 1, uppercaseName: 'JILL', alwaysNull: null },
+	]);
+	const msDelay = 250;
+
+	t.assert(initial[0]?.updatedAt?.valueOf() !== justDates[0]?.updatedAt?.valueOf());
+
+	for (const eachUser of justDates) {
+		t.assert(eachUser.updatedAt!.valueOf() > Date.now() - msDelay);
+	}
 });

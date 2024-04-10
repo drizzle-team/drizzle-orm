@@ -12,6 +12,7 @@ import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { orderSelectedFields } from '~/utils.ts';
@@ -44,6 +45,7 @@ export interface PgDeleteConfig {
 	where?: SQL | undefined;
 	table: PgTable;
 	returning?: SelectedFieldsOrdered;
+	withList?: Subquery[];
 }
 
 export type PgDeleteReturningAll<
@@ -134,9 +136,10 @@ export class PgDeleteBase<
 		table: TTable,
 		private session: PgSession,
 		private dialect: PgDialect,
+		withList?: Subquery[],
 	) {
 		super();
-		this.config = { table };
+		this.config = { table, withList };
 	}
 
 	/**
@@ -221,7 +224,7 @@ export class PgDeleteBase<
 				PreparedQueryConfig & {
 					execute: TReturning extends undefined ? QueryResultKind<TQueryResult, never> : TReturning[];
 				}
-			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name);
+			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true);
 		});
 	}
 
