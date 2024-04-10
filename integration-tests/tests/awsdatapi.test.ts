@@ -666,7 +666,7 @@ test('build query insert with onConflict do update', async () => {
 
 	expect(query).toEqual({
 		sql:
-			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, :1, default, :2, default) on conflict ("id") do update set "name" = :3',
+			'insert into "users" ("id", "name", "verified", "jsonb", "best_texts", "created_at") values (default, :1, default, :2, default, default) on conflict ("id") do update set "name" = :3',
 		params: ['John', '["foo","bar"]', 'John1'],
 		// typings: ['none', 'json', 'none']
 	});
@@ -680,7 +680,7 @@ test('build query insert with onConflict do update / multiple columns', async ()
 
 	expect(query).toEqual({
 		sql:
-			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, :1, default, :2, default) on conflict ("id","name") do update set "name" = :3',
+			'insert into "users" ("id", "name", "verified", "jsonb", "best_texts", "created_at") values (default, :1, default, :2, default, default) on conflict ("id","name") do update set "name" = :3',
 		params: ['John', '["foo","bar"]', 'John1'],
 		// typings: ['none', 'json', 'none']
 	});
@@ -694,7 +694,7 @@ test('build query insert with onConflict do nothing', async () => {
 
 	expect(query).toEqual({
 		sql:
-			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, :1, default, :2, default) on conflict do nothing',
+			'insert into "users" ("id", "name", "verified", "jsonb", "best_texts", "created_at") values (default, :1, default, :2, default, default) on conflict do nothing',
 		params: ['John', '["foo","bar"]'],
 		// typings: ['none', 'json']
 	});
@@ -708,7 +708,7 @@ test('build query insert with onConflict do nothing + target', async () => {
 
 	expect(query).toEqual({
 		sql:
-			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, :1, default, :2, default) on conflict ("id") do nothing',
+			'insert into "users" ("id", "name", "verified", "jsonb", "best_texts", "created_at") values (default, :1, default, :2, default, default) on conflict ("id") do nothing',
 		params: ['John', '["foo","bar"]'],
 		// typings: ['none', 'json']
 	});
@@ -896,20 +896,17 @@ test('select from raw sql with mapped values', async () => {
 	]);
 });
 
-test.serial('insert with array values works', async (t) => {
-	const { db } = t.context;
-
+test('insert with array values works', async () => {
 	const bestTexts = ['text1', 'text2', 'text3'];
 	const [insertResult] = await db.insert(usersTable).values({
 		name: 'John',
 		bestTexts,
 	}).returning();
 
-	t.deepEqual(insertResult?.bestTexts, bestTexts);
+	expect(insertResult?.bestTexts).toEqual(bestTexts);
 });
 
-test.serial('update with array values works', async (t) => {
-	const { db } = t.context;
+test('update with array values works', async () => {
 	const [newUser] = await db.insert(usersTable).values({ name: 'John' }).returning();
 
 	const bestTexts = ['text4', 'text5', 'text6'];
@@ -917,7 +914,7 @@ test.serial('update with array values works', async (t) => {
 		bestTexts,
 	}).where(eq(usersTable.id, newUser!.id)).returning();
 
-	t.deepEqual(insertResult?.bestTexts, bestTexts);
+	expect(insertResult?.bestTexts).toEqual(bestTexts);
 });
 
 test('insert with array values works', async () => {

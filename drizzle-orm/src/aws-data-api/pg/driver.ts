@@ -1,11 +1,12 @@
 import { entityKind, is } from '~/entity.ts';
-import type { SQLWrapper } from '~/index.ts';
-import { Param, SQL, sql, Table } from '~/index.ts';
+import type { SQL, SQLWrapper } from '~/index.ts';
+import { Param, sql, Table } from '~/index.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
-import { PgArray, PgColumn, PgInsertConfig, PgTable, TableConfig } from '~/pg-core/index.ts';
+import type { PgColumn, PgInsertConfig, PgTable, TableConfig } from '~/pg-core/index.ts';
+import { PgArray } from '~/pg-core/index.ts';
 import type { PgRaw } from '~/pg-core/query-builders/raw.ts';
 import {
 	createTableRelationsHelpers,
@@ -56,7 +57,7 @@ export class AwsPgDialect extends PgDialect {
 	): SQL<unknown> {
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
 		const colEntries: [string, PgColumn][] = Object.entries(columns);
-		for (let value of values) {
+		for (const value of values) {
 			for (const [fieldName, col] of colEntries) {
 				const colValue = value[fieldName];
 				if (
@@ -76,18 +77,17 @@ export class AwsPgDialect extends PgDialect {
 	override buildUpdateSet(table: PgTable<TableConfig>, set: UpdateSet): SQL<unknown> {
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
 
-		Object.entries(set)
-			.forEach(([colName, colValue]) => {
-				const currentColumn = columns[colName];
-				if (
-					currentColumn && is(colValue, Param) && colValue.value !== undefined && is(colValue.encoder, PgArray)
-					&& Array.isArray(colValue.value)
-				) {
-					set[colName] = sql`cast(${currentColumn?.mapToDriverValue(colValue.value)} as ${
-						sql.raw(colValue.encoder.getSQLType())
-					})`;
-				}
-			});
+		for (const [colName, colValue] of Object.entries(set)) {
+			const currentColumn = columns[colName];
+			if (
+				currentColumn && is(colValue, Param) && colValue.value !== undefined && is(colValue.encoder, PgArray)
+				&& Array.isArray(colValue.value)
+			) {
+				set[colName] = sql`cast(${currentColumn?.mapToDriverValue(colValue.value)} as ${
+					sql.raw(colValue.encoder.getSQLType())
+				})`;
+			}
+		}
 		return super.buildUpdateSet(table, set);
 	}
 }
