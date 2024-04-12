@@ -768,6 +768,8 @@ test.serial('migrator', async (t) => {
 	await db.insert(anotherUsersMigratorTable).values({ name: 'John', email: 'email' }).run();
 	const result2 = await db.select().from(usersMigratorTable).all();
 
+	await migrate(db, { migrationsFolder: './drizzle2/sqlite' });
+
 	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
 	t.deepEqual(result2, [{ id: 1, name: 'John', email: 'email' }]);
 
