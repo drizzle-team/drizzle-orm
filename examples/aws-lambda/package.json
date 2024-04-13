@@ -12,7 +12,6 @@
 	"author": "",
 	"license": "ISC",
 	"dependencies": {
-		"aws-lambda": "^1.0.7",
 		"drizzle-orm": "^0.27.0",
 		"pg": "^8.11.1",
 		"postgres": "^3.3.5"
