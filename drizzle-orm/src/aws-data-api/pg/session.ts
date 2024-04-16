@@ -65,8 +65,9 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 			: result.rows!.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
 	}
 
-	all(placeholderValues?: Record<string, unknown> | undefined): Promise<T['all']> {
-		return this.execute(placeholderValues);
+	async all(placeholderValues?: Record<string, unknown> | undefined): Promise<T['all']> {
+		const result = await this.execute(placeholderValues) as AwsDataApiPgQueryResult<unknown>;
+		return result.rows;
 	}
 
 	async values(placeholderValues: Record<string, unknown> = {}): Promise<T['values']> {
