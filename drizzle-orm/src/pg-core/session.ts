@@ -34,6 +34,9 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 
 	/** @internal */
 	abstract all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;
+
+	/** @internal */
+	abstract isResponseInArrayMode(): boolean;
 }
 
 export interface PgTransactionConfig {
@@ -55,6 +58,7 @@ export abstract class PgSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
 	): PgPreparedQuery<T>;
 
@@ -65,6 +69,7 @@ export abstract class PgSession<
 					this.dialect.sqlToQuery(query),
 					undefined,
 					undefined,
+					false,
 				);
 			});
 
@@ -77,6 +82,7 @@ export abstract class PgSession<
 			this.dialect.sqlToQuery(query),
 			undefined,
 			undefined,
+			false,
 		).all();
 	}
 

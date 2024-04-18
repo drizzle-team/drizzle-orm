@@ -95,6 +95,7 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 				builtQuery,
 				undefined,
 				name,
+				true,
 				(rawRows, mapColumnValue) => {
 					const rows = rawRows.map((row) =>
 						mapRelationalRow(this.schema, this.tableConfig, row, query.selection, mapColumnValue)

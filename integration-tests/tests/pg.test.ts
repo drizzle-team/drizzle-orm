@@ -15,6 +15,7 @@ import {
 	countDistinct,
 	eq,
 	exists,
+	getTableColumns,
 	gt,
 	gte,
 	inArray,
@@ -74,7 +75,7 @@ import {
 import getPort from 'get-port';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
-import { type Equal, Expect } from './utils.ts';
+import { type Equal, Expect, randomString } from './utils.ts';
 
 const { Client } = pg;
 
@@ -101,6 +102,15 @@ const usersTable = pgTable('users', {
 	verified: boolean('verified').notNull().default(false),
 	jsonb: jsonb('jsonb').$type<string[]>(),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+const usersOnUpdate = pgTable('users_on_update', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	updateCounter: integer('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
+	updatedAt: timestamp('updated_at', { mode: 'date', precision: 3 }).$onUpdate(() => new Date()),
+	alwaysNull: text('always_null').$type<string | null>().$onUpdate(() => null),
+	// uppercaseName: text('uppercase_name').$onUpdateFn(() => sql`upper(name)`), looks like this is not supported in pg
 });
 
 const citiesTable = pgTable('cities', {
@@ -1176,7 +1186,7 @@ test.serial('prepared statement with placeholder in .offset', async (t) => {
 });
 
 // TODO change tests to new structure
-test.serial('migrator', async (t) => {
+test.serial('migrator : default migration strategy', async (t) => {
 	const { db } = t.context;
 
 	await db.execute(sql`drop table if exists all_columns`);
@@ -1194,6 +1204,82 @@ test.serial('migrator', async (t) => {
 	await db.execute(sql`drop table all_columns`);
 	await db.execute(sql`drop table users12`);
 	await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
+});
+
+test.serial('migrator : migrate with custom schema', async (t) => {
+	const { db } = t.context;
+	const customSchema = randomString();
+	await db.execute(sql`drop table if exists all_columns`);
+	await db.execute(sql`drop table if exists users12`);
+	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+
+	await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsSchema: customSchema });
+
+	// test if the custom migrations table was created
+	const { rowCount } = await db.execute(sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`);
+	t.true(rowCount > 0);
+
+	// test if the migrated table are working as expected
+	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	const result = await db.select().from(usersMigratorTable);
+	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+
+	await db.execute(sql`drop table all_columns`);
+	await db.execute(sql`drop table users12`);
+	await db.execute(sql`drop table ${sql.identifier(customSchema)}."__drizzle_migrations"`);
+});
+
+test.serial('migrator : migrate with custom table', async (t) => {
+	const { db } = t.context;
+	const customTable = randomString();
+	await db.execute(sql`drop table if exists all_columns`);
+	await db.execute(sql`drop table if exists users12`);
+	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+
+	await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsTable: customTable });
+
+	// test if the custom migrations table was created
+	const { rowCount } = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
+	t.true(rowCount > 0);
+
+	// test if the migrated table are working as expected
+	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	const result = await db.select().from(usersMigratorTable);
+	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+
+	await db.execute(sql`drop table all_columns`);
+	await db.execute(sql`drop table users12`);
+	await db.execute(sql`drop table "drizzle".${sql.identifier(customTable)}`);
+});
+
+test.serial('migrator : migrate with custom table and custom schema', async (t) => {
+	const { db } = t.context;
+	const customTable = randomString();
+	const customSchema = randomString();
+	await db.execute(sql`drop table if exists all_columns`);
+	await db.execute(sql`drop table if exists users12`);
+	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+
+	await migrate(db, {
+		migrationsFolder: './drizzle2/pg',
+		migrationsTable: customTable,
+		migrationsSchema: customSchema,
+	});
+
+	// test if the custom migrations table was created
+	const { rowCount } = await db.execute(
+		sql`select * from ${sql.identifier(customSchema)}.${sql.identifier(customTable)};`,
+	);
+	t.true(rowCount > 0);
+
+	// test if the migrated table are working as expected
+	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+	const result = await db.select().from(usersMigratorTable);
+	t.deepEqual(result, [{ id: 1, name: 'John', email: 'email' }]);
+
+	await db.execute(sql`drop table all_columns`);
+	await db.execute(sql`drop table users12`);
+	await db.execute(sql`drop table ${sql.identifier(customSchema)}.${sql.identifier(customTable)}`);
 });
 
 test.serial('insert via db.execute + select via db.execute', async (t) => {
@@ -3949,7 +4035,7 @@ test.serial('aggregate function: min', async (t) => {
 	t.deepEqual(result2[0]?.value, null);
 });
 
-test.serial('nested select: returns null on left join if first column value is null', async (t) => {
+test.serial('nested select: returns the whole object on left join if first column value is null', async (t) => {
 	const { db } = t.context;
 
 	await db.insert(orgTable).values([
@@ -4018,4 +4104,96 @@ test.serial('array mapping and parsing', async (t) => {
 	}]);
 
 	await db.execute(sql`drop table ${arrays}`);
+});
+
+test.serial('test $onUpdateFn and $onUpdate works as $default', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists ${usersOnUpdate}`);
+
+	await db.execute(
+		sql`
+			create table ${usersOnUpdate} (
+			id serial primary key,
+			name text not null,
+			update_counter integer default 1 not null,
+			updated_at timestamp(3),
+			always_null text
+			)
+		`,
+	);
+
+	await db.insert(usersOnUpdate).values([
+		{ name: 'John' },
+		{ name: 'Jane' },
+		{ name: 'Jack' },
+		{ name: 'Jill' },
+	]);
+
+	const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
+
+	const justDates = await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
+
+	const response = await db.select({ ...rest }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
+
+	t.deepEqual(response, [
+		{ name: 'John', id: 1, updateCounter: 1, alwaysNull: null },
+		{ name: 'Jane', id: 2, updateCounter: 1, alwaysNull: null },
+		{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
+		{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
+	]);
+	const msDelay = 250;
+
+	for (const eachUser of justDates) {
+		t.assert(eachUser.updatedAt!.valueOf() > Date.now() - msDelay);
+	}
+});
+
+test.serial('test $onUpdateFn and $onUpdate works updating', async (t) => {
+	const { db } = t.context;
+
+	await db.execute(sql`drop table if exists ${usersOnUpdate}`);
+
+	await db.execute(
+		sql`
+			create table ${usersOnUpdate} (
+			id serial primary key,
+			name text not null,
+			update_counter integer default 1,
+			updated_at timestamp(3),
+			always_null text
+			)
+		`,
+	);
+
+	await db.insert(usersOnUpdate).values([
+		{ name: 'John', alwaysNull: 'this will be null after updating' },
+		{ name: 'Jane' },
+		{ name: 'Jack' },
+		{ name: 'Jill' },
+	]);
+
+	const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
+	const initial = await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
+
+	await db.update(usersOnUpdate).set({ name: 'Angel' }).where(eq(usersOnUpdate.id, 1));
+	await db.update(usersOnUpdate).set({ updateCounter: null }).where(eq(usersOnUpdate.id, 2));
+
+	const justDates = await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
+
+	const response = await db.select({ ...rest }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
+
+	t.deepEqual(response, [
+		{ name: 'Angel', id: 1, updateCounter: 2, alwaysNull: null },
+		{ name: 'Jane', id: 2, updateCounter: null, alwaysNull: null },
+		{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
+		{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
+	]);
+	const msDelay = 250;
+
+	t.assert(initial[0]?.updatedAt?.valueOf() !== justDates[0]?.updatedAt?.valueOf());
+
+	for (const eachUser of justDates) {
+		t.assert(eachUser.updatedAt!.valueOf() > Date.now() - msDelay);
+	}
 });

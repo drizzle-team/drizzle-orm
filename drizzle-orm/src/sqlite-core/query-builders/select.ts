@@ -20,7 +20,7 @@ import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import type { SubqueryWithSelection } from '~/sqlite-core/subquery.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
-import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import {
 	applyMixins,
@@ -99,7 +99,7 @@ export class SQLiteSelectBuilder<
 		} else if (is(source, Subquery)) {
 			// This is required to use the proxy handler to get the correct field values from the subquery
 			fields = Object.fromEntries(
-				Object.keys(source[SubqueryConfig].selection).map((
+				Object.keys(source._.selectedFields).map((
 					key,
 				) => [key, source[key as unknown as keyof typeof source] as unknown as SelectedFields[string]]),
 			);
@@ -214,7 +214,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 				}
 				if (typeof tableName === 'string' && !is(table, SQL)) {
 					const selection = is(table, Subquery)
-						? table[SubqueryConfig].selection
+						? table._.selectedFields
 						: is(table, View)
 						? table[ViewBaseConfig].selectedFields
 						: table[Table.Symbol.Columns];
@@ -866,6 +866,7 @@ export class SQLiteSelectBase<
 			this.dialect.sqlToQuery(this.getSQL()),
 			fieldsList,
 			'all',
+			true,
 		);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
 		return query as ReturnType<this['prepare']>;

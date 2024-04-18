@@ -3,3 +3,4 @@
 trace
 tests/imports/imports.cjs
 tests/imports/imports.mjs
+.sst

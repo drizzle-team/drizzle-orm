@@ -21,7 +21,7 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { SQL, View } from '~/sql/sql.ts';
 import type { ColumnsSelection, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
-import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, type ValueOrArray } from '~/utils.ts';
@@ -103,7 +103,7 @@ export class PgSelectBuilder<
 		} else if (is(source, Subquery)) {
 			// This is required to use the proxy handler to get the correct field values from the subquery
 			fields = Object.fromEntries(
-				Object.keys(source[SubqueryConfig].selection).map((
+				Object.keys(source._.selectedFields).map((
 					key,
 				) => [key, source[key as unknown as keyof typeof source] as unknown as SelectedFields[string]]),
 			);
@@ -215,7 +215,7 @@ export abstract class PgSelectQueryBuilderBase<
 				}
 				if (typeof tableName === 'string' && !is(table, SQL)) {
 					const selection = is(table, Subquery)
-						? table[SubqueryConfig].selection
+						? table._.selectedFields
 						: is(table, View)
 						? table[ViewBaseConfig].selectedFields
 						: table[Table.Symbol.Columns];
@@ -959,7 +959,7 @@ export class PgSelectBase<
 			const fieldsList = orderSelectedFields<PgColumn>(config.fields);
 			const query = session.prepareQuery<
 				PreparedQueryConfig & { execute: TResult }
-			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name);
+			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name, true);
 			query.joinsNotNullableMap = joinsNotNullableMap;
 			return query;
 		});

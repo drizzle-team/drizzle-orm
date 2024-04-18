@@ -1,7 +1,7 @@
 import type { ColumnsSelection, Placeholder, SQL, View } from '~/sql/sql.ts';
-import type { Assume, ValidateShape } from '~/utils.ts';
 import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteTable, SQLiteTableWithColumns } from '~/sqlite-core/table.ts';
+import type { Assume, ValidateShape } from '~/utils.ts';
 
 import type {
 	SelectedFields as SelectFieldsBase,
@@ -24,9 +24,9 @@ import type {
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { SQLitePreparedQuery } from '../session.ts';
-import type { SQLiteSelectBase, SQLiteSelectQueryBuilderBase } from './select.ts';
 import type { SQLiteViewBase } from '../view-base.ts';
 import type { SQLiteViewWithSelection } from '../view.ts';
+import type { SQLiteSelectBase, SQLiteSelectQueryBuilderBase } from './select.ts';
 
 export interface SQLiteSelectJoinConfig {
 	on: SQL | undefined;
