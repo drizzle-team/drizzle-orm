@@ -55,6 +55,53 @@ export class SQLiteText<T extends ColumnBaseConfig<'string', 'SQLiteText'>>
 	}
 }
 
+export type SQLiteTextDateBuilderInitial<TName extends string> = SQLiteTextDateBuilder<{
+	name: TName;
+	dataType: 'date';
+	columnType: 'SQLiteTextDate';
+	data: Date;
+	driverParam: string;
+	enumValues: undefined;
+}>;
+
+export class SQLiteTextDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'SQLiteTextDate'>>
+extends SQLiteColumnBuilder<T>
+{
+static readonly [entityKind]: string = 'SQLiteTextDateBuilder';
+
+constructor(name: T['name']) {
+	super(name, 'date', 'SQLiteTextDate');
+}
+
+/** @internal */
+override build<TTableName extends string>(
+	table: AnySQLiteTable<{ name: TTableName }>,
+): SQLiteTextDate<MakeColumnConfig<T, TTableName>> {
+	return new SQLiteTextDate<MakeColumnConfig<T, TTableName>>(
+		table,
+		this.config as ColumnBuilderRuntimeConfig<any, any>,
+	);
+}
+}
+
+export class SQLiteTextDate<T extends ColumnBaseConfig<'date', 'SQLiteTextDate'>> 
+	extends SQLiteColumn<T, { length: number | undefined; enumValues: T['enumValues'] }> 
+{
+	static readonly [entityKind]: string = 'SQLiteTextDate';
+
+	getSQLType(): string {
+		return 'text';
+	}
+
+	override mapFromDriverValue(value: string): Date {
+		return new Date(value);
+	}
+
+	override mapToDriverValue(value: Date): string {
+		return value.toISOString();
+	}
+}
+
 export type SQLiteTextJsonBuilderInitial<TName extends string> = SQLiteTextJsonBuilder<{
 	name: TName;
 	dataType: 'json';
@@ -103,7 +150,7 @@ export class SQLiteTextJson<T extends ColumnBaseConfig<'json', 'SQLiteTextJson'>
 }
 
 export type SQLiteTextConfig<
-	TMode extends 'text' | 'json',
+	TMode extends 'text' | 'json' | 'date',
 	TEnum extends readonly string[] | string[] | undefined,
 > = TMode extends 'text' ? {
 		mode?: TMode;
@@ -118,16 +165,21 @@ export function text<
 	TName extends string,
 	U extends string,
 	T extends Readonly<[U, ...U[]]>,
-	TMode extends 'text' | 'json' = 'text' | 'json',
+	TMode extends 'text' | 'json' | 'date' = 'text' | 'json' | 'date',
 >(
 	name: TName,
 	config: SQLiteTextConfig<TMode, T | Writable<T>> = {} as SQLiteTextConfig<TMode, T | Writable<T>>,
 ): Equal<TMode, 'json'> extends true ? SQLiteTextJsonBuilderInitial<TName>
+	: Equal<TMode, 'date'> extends true ? SQLiteTextDateBuilderInitial<TName>
 	: SQLiteTextBuilderInitial<TName, Writable<T>>
 {
 	return (config.mode === 'json'
 		? new SQLiteTextJsonBuilder(name)
+		: config.mode === 'date'
+		? new SQLiteTextDateBuilder(name)
 		: new SQLiteTextBuilder(name, config as SQLiteTextConfig<'text', Writable<T>>)) as Equal<TMode, 'json'> extends true
 			? SQLiteTextJsonBuilderInitial<TName>
+			: Equal<TMode, 'date'> extends true
+			? SQLiteTextDateBuilderInitial<TName>
 			: SQLiteTextBuilderInitial<TName, Writable<T>>;
 }
