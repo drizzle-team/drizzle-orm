@@ -219,9 +219,14 @@ export class MySql2Session<
 		config?: MySqlTransactionConfig,
 	): Promise<T> {
 		const session = isPool(this.client)
-			? new MySql2Session(await this.client.getConnection(), this.dialect, this.schema, this.options)
+			? new MySql2Session(
+				await this.client.getConnection(),
+				this.dialect,
+				this.schema,
+				this.options,
+			)
 			: this;
-		const tx = new MySql2Transaction(
+		const tx = new MySql2Transaction<TFullSchema, TSchema>(
 			this.dialect,
 			session as MySqlSession<any, any, any, any>,
 			this.schema,
@@ -261,7 +266,7 @@ export class MySql2Transaction<
 
 	override async transaction<T>(transaction: (tx: MySql2Transaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new MySql2Transaction(
+		const tx = new MySql2Transaction<TFullSchema, TSchema>(
 			this.dialect,
 			this.session,
 			this.schema,

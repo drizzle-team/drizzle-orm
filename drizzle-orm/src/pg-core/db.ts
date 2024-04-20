@@ -39,6 +39,7 @@ export class PgDatabase<
 
 	declare readonly _: {
 		readonly schema: TSchema | undefined;
+		readonly fullSchema: TFullSchema;
 		readonly tableNamesMap: Record<string, string>;
 		readonly session: PgSession<TQueryResult, TFullSchema, TSchema>;
 	};
@@ -59,11 +60,13 @@ export class PgDatabase<
 		this._ = schema
 			? {
 				schema: schema.schema,
+				fullSchema: schema.fullSchema as TFullSchema,
 				tableNamesMap: schema.tableNamesMap,
 				session,
 			}
 			: {
 				schema: undefined,
+				fullSchema: {} as TFullSchema,
 				tableNamesMap: {},
 				session,
 			};
