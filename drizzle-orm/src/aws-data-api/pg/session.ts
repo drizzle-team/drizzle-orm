@@ -65,8 +65,9 @@ export class AwsDataApiPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 			: result.rows!.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
 	}
 
-	all(placeholderValues?: Record<string, unknown> | undefined): Promise<T['all']> {
-		return this.execute(placeholderValues);
+	async all(placeholderValues?: Record<string, unknown> | undefined): Promise<T['all']> {
+		const result = await this.execute(placeholderValues) as AwsDataApiPgQueryResult<unknown>;
+		return result.rows;
 	}
 
 	async values(placeholderValues: Record<string, unknown> = {}): Promise<T['values']> {
@@ -198,7 +199,7 @@ export class AwsDataApiSession<
 	): Promise<T> {
 		const { transactionId } = await this.client.send(new BeginTransactionCommand(this.rawQuery));
 		const session = new AwsDataApiSession(this.client, this.dialect, this.schema, this.options, transactionId);
-		const tx = new AwsDataApiTransaction(this.dialect, session, this.schema);
+		const tx = new AwsDataApiTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
 		if (config) {
 			await tx.setTransaction(config);
 		}
@@ -223,7 +224,12 @@ export class AwsDataApiTransaction<
 		transaction: (tx: AwsDataApiTransaction<TFullSchema, TSchema>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new AwsDataApiTransaction(this.dialect, this.session, this.schema, this.nestedIndex + 1);
+		const tx = new AwsDataApiTransaction<TFullSchema, TSchema>(
+			this.dialect,
+			this.session,
+			this.schema,
+			this.nestedIndex + 1,
+		);
 		await this.session.execute(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);
