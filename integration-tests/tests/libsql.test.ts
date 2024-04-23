@@ -2798,3 +2798,33 @@ test.serial('test $onUpdateFn and $onUpdate works updating', async (t) => {
 		t.assert(eachUser.updatedAt!.valueOf() > Date.now() - msDelay);
 	}
 });
+
+test.serial('test date mode for text data type', async (t) => {
+	const { db } = t.context;
+
+	const test = sqliteTable('test', {
+		t1: text('t1', { mode: 'date' }),
+		t2: text('t2', { mode: 'date' }),
+	});
+
+	await db.run(sql`create table ${test} (t1 text, t2 text)`);
+
+	const now = new Date();
+	const now2 = new Date('2024-04-19 23:01:30');
+
+	await db.insert(test).values({ t1: now, t2: now2 }).run();
+	const res = await db.select().from(test).all();
+
+	t.deepEqual(res, [{ t1: now, t2: now2 }]);
+
+	const res2 = await db.all<
+		Array<{
+			t1: string;
+			t2: string;
+		}>
+	>(sql`select * from ${test}`);
+
+	t.deepEqual(res2, [{ t1: now.toISOString(), t2: now2.toISOString() }]);
+
+	await db.run(sql`drop table ${test}`);
+});
