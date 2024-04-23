@@ -65,27 +65,27 @@ export type SQLiteTextDateBuilderInitial<TName extends string> = SQLiteTextDateB
 }>;
 
 export class SQLiteTextDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'SQLiteTextDate'>>
-extends SQLiteColumnBuilder<T>
+	extends SQLiteColumnBuilder<T>
 {
-static readonly [entityKind]: string = 'SQLiteTextDateBuilder';
+	static readonly [entityKind]: string = 'SQLiteTextDateBuilder';
 
-constructor(name: T['name']) {
-	super(name, 'date', 'SQLiteTextDate');
+	constructor(name: T['name']) {
+		super(name, 'date', 'SQLiteTextDate');
+	}
+
+	/** @internal */
+	override build<TTableName extends string>(
+		table: AnySQLiteTable<{ name: TTableName }>,
+	): SQLiteTextDate<MakeColumnConfig<T, TTableName>> {
+		return new SQLiteTextDate<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
+	}
 }
 
-/** @internal */
-override build<TTableName extends string>(
-	table: AnySQLiteTable<{ name: TTableName }>,
-): SQLiteTextDate<MakeColumnConfig<T, TTableName>> {
-	return new SQLiteTextDate<MakeColumnConfig<T, TTableName>>(
-		table,
-		this.config as ColumnBuilderRuntimeConfig<any, any>,
-	);
-}
-}
-
-export class SQLiteTextDate<T extends ColumnBaseConfig<'date', 'SQLiteTextDate'>> 
-	extends SQLiteColumn<T, { length: number | undefined; enumValues: T['enumValues'] }> 
+export class SQLiteTextDate<T extends ColumnBaseConfig<'date', 'SQLiteTextDate'>>
+	extends SQLiteColumn<T, { length: number | undefined; enumValues: T['enumValues'] }>
 {
 	static readonly [entityKind]: string = 'SQLiteTextDate';
 
@@ -179,7 +179,6 @@ export function text<
 		? new SQLiteTextDateBuilder(name)
 		: new SQLiteTextBuilder(name, config as SQLiteTextConfig<'text', Writable<T>>)) as Equal<TMode, 'json'> extends true
 			? SQLiteTextJsonBuilderInitial<TName>
-			: Equal<TMode, 'date'> extends true
-			? SQLiteTextDateBuilderInitial<TName>
+			: Equal<TMode, 'date'> extends true ? SQLiteTextDateBuilderInitial<TName>
 			: SQLiteTextBuilderInitial<TName, Writable<T>>;
 }
