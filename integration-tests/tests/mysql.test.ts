@@ -22,6 +22,7 @@ import {
 	max,
 	min,
 	Name,
+	notInArray,
 	placeholder,
 	sql,
 	sum,
@@ -768,6 +769,28 @@ test.serial('select with group by as column + sql', async (t) => {
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.id, sql`${usersTable.name}`);
+
+	t.deepEqual(result, [{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+});
+
+test.serial('select with empty array in inArray', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+
+	const result = await db.select({ name: usersTable.name }).from(usersTable)
+		.where(inArray(usersTable.id, []));
+
+	t.deepEqual(result, []);
+});
+
+test.serial('select with empty array in notInArray', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+
+	const result = await db.select({ name: usersTable.name }).from(usersTable)
+		.where(notInArray(usersTable.id, []));
 
 	t.deepEqual(result, [{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 });
