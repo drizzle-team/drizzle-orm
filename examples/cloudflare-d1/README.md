@@ -40,7 +40,7 @@ npm install drizzle-kit
 ## package.json
 {
   ...
-  scripts: {
+  "scripts": {
     "generate": "drizzle-kit generate:sqlite --schema=src/schema.ts",
     "up": "drizzle-kit up:sqlite --schema=src/schema.ts"
   }
