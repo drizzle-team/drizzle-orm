@@ -18,6 +18,7 @@ export type RemoteCallback = (
 	sql: string,
 	params: any[],
 	method: 'all' | 'execute',
+	typings?: any[],
 ) => Promise<{ rows: any[] }>;
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
