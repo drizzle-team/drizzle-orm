@@ -80,11 +80,12 @@ type MaybeOptional<
 type GetValibotType<TColumn extends Column> = TColumn['_']['dataType'] extends infer TDataType
 	? TDataType extends 'custom' ? AnySchema
 	: TDataType extends 'json' ? Json
+	: TDataType extends 'array'
+		? TColumn['_']['baseColumn'] extends Column ? ArraySchema<GetValibotType<TColumn['_']['baseColumn']>>
+		: never
 	: TColumn extends { enumValues: [string, ...string[]] }
 		? Equal<TColumn['enumValues'], [string, ...string[]]> extends true ? StringSchema
 		: PicklistSchema<TColumn['enumValues']>
-	: TDataType extends 'array'
-		? TColumn['_']['baseColumn'] extends Column ? ArraySchema<GetValibotType<TColumn['_']['baseColumn']>> : never
 	: TDataType extends 'bigint' ? BigintSchema
 	: TDataType extends 'number' ? NumberSchema
 	: TDataType extends 'string' ? StringSchema
@@ -156,8 +157,8 @@ export function createInsertSchema<
 					& string}' does not exist in table '${TTable['_']['name']}'`
 			>;
 	},
-	//
-): ObjectSchema<
+): // @ts-ignore - following error does not break types during usage in any way
+ObjectSchema<
 	BuildInsertSchema<
 		TTable,
 		Equal<TRefine, Refine<TTable, 'insert'>> extends true ? {} : TRefine
@@ -271,8 +272,7 @@ function isWithEnum(
 	column: AnyColumn,
 ): column is typeof column & { enumValues: [string, ...string[]] } {
 	return (
-		'enumValues' in column
-		&& Array.isArray(column.enumValues)
+		Array.isArray(column.enumValues)
 		&& column.enumValues.length > 0
 	);
 }
@@ -281,47 +281,41 @@ function mapColumnToSchema(column: Column): BaseSchema<any, any> {
 	let type: BaseSchema<any, any> | undefined;
 
 	if (isWithEnum(column)) {
-		type = column.enumValues?.length
-			? picklist(column.enumValues)
-			: string();
-	}
+		type = picklist(column.enumValues);
+	} else if (column.dataType === 'custom') {
+		type = any();
+	} else if (column.dataType === 'json') {
+		type = jsonSchema;
+	} else if (column.dataType === 'array') {
+		type = array(
+			mapColumnToSchema((column as PgArray<any, any>).baseColumn),
+		);
+	} else if (column.dataType === 'number') {
+		type = number();
+	} else if (column.dataType === 'bigint') {
+		type = bigint();
+	} else if (column.dataType === 'boolean') {
+		type = boolean();
+	} else if (column.dataType === 'date') {
+		type = date();
+	} else if (column.dataType === 'string') {
+		let sType = string();
 
-	if (!type) {
-		if (column.dataType === 'custom') {
-			type = any();
-		} else if (column.dataType === 'json') {
-			type = jsonSchema;
-		} else if (column.dataType === 'array') {
-			type = array(
-				mapColumnToSchema((column as PgArray<any, any>).baseColumn),
-			);
-		} else if (column.dataType === 'number') {
-			type = number();
-		} else if (column.dataType === 'bigint') {
-			type = bigint();
-		} else if (column.dataType === 'boolean') {
-			type = boolean();
-		} else if (column.dataType === 'date') {
-			type = date();
-		} else if (column.dataType === 'string') {
-			let sType = string();
-
-			if (
-				(is(column, PgChar)
-					|| is(column, PgVarchar)
-					|| is(column, MySqlVarChar)
-					|| is(column, MySqlVarBinary)
-					|| is(column, MySqlChar)
-					|| is(column, SQLiteText))
-				&& typeof column.length === 'number'
-			) {
-				sType = string([maxLength(column.length)]);
-			}
-
-			type = sType;
-		} else if (is(column, PgUUID)) {
-			type = string([uuid()]);
+		if (
+			(is(column, PgChar)
+				|| is(column, PgVarchar)
+				|| is(column, MySqlVarChar)
+				|| is(column, MySqlVarBinary)
+				|| is(column, MySqlChar)
+				|| is(column, SQLiteText))
+			&& typeof column.length === 'number'
+		) {
+			sType = string([maxLength(column.length)]);
 		}
+
+		type = sType;
+	} else if (is(column, PgUUID)) {
+		type = string([uuid()]);
 	}
 
 	if (!type) {
