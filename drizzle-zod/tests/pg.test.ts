@@ -8,6 +8,7 @@ export const roleEnum = pgEnum('role', ['admin', 'user']);
 
 const users = pgTable('users', {
 	a: integer('a').array(),
+	strArr: text('str_arr').array(),
 	id: serial('id').primaryKey(),
 	name: text('name'),
 	email: text('email').notNull(),
@@ -23,6 +24,7 @@ const users = pgTable('users', {
 
 const testUser = {
 	a: [1, 2, 3],
+	strArr: ['one', 'two', 'three'],
 	id: 1,
 	name: 'John Doe',
 	email: 'john.doe@example.com',
@@ -79,6 +81,7 @@ test('users insert schema', (t) => {
 
 	const expected = z.object({
 		a: z.array(z.number()).nullable().optional(),
+		strArr: z.array(z.string()).nullable().optional(),
 		id: z.number().positive().optional(),
 		name: z.string().nullable().optional(),
 		email: z.string().email(),
@@ -100,6 +103,7 @@ test('users insert schema w/ defaults', (t) => {
 
 	const expected = z.object({
 		a: z.array(z.number()).nullable().optional(),
+		strArr: z.array(z.string()).nullable().optional(),
 		id: z.number().optional(),
 		name: z.string().nullable().optional(),
 		email: z.string(),
@@ -125,6 +129,7 @@ test('users select schema', (t) => {
 
 	const expected = z.object({
 		a: z.array(z.number()).nullable(),
+		strArr: z.array(z.string()).nullable(),
 		id: z.number().positive(),
 		name: z.string().nullable(),
 		email: z.string().email(),
@@ -146,6 +151,7 @@ test('users select schema w/ defaults', (t) => {
 
 	const expected = z.object({
 		a: z.array(z.number()).nullable(),
+		strArr: z.array(z.string()).nullable(),
 		id: z.number(),
 		name: z.string().nullable(),
 		email: z.string(),
