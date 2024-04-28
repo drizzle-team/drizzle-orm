@@ -319,6 +319,16 @@ export class SQL<T = unknown> implements SQLWrapper {
 		this.shouldInlineParams = true;
 		return this;
 	}
+
+	/**
+	 * This method is used to conditionally include a part of the query.
+	 *
+	 * @param condition - Condition to check
+	 * @returns SQL if the condition is true, otherwise undefined
+	 */
+	if(condition: any): this | undefined {
+		return condition ? this : undefined;
+	}
 }
 
 export type GetDecoderResult<T> = T extends Column ? T['_']['data'] : T extends
