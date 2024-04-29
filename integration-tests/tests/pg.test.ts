@@ -4125,3 +4125,49 @@ test.serial('test $onUpdateFn and $onUpdate works updating', async (t) => {
 		t.assert(eachUser.updatedAt!.valueOf() > Date.now() - msDelay);
 	}
 });
+
+test.serial('test if method with sql operators', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		age: integer('age').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(sql`
+		create table ${users} (
+		id serial primary key,
+		name text not null,
+		age integer not null
+		)
+	`);
+
+	await db.insert(users).values([
+		{ id: 1, name: 'John', age: 20 },
+		{ id: 2, name: 'Alice', age: 21 },
+		{ id: 3, name: 'Nick', age: 22 },
+		{ id: 4, name: 'Lina', age: 23 },
+	]);
+
+	const condition1 = true;
+
+	const [result1] = await db.select().from(users).where(eq(users.id, 1).if(condition1));
+
+	t.deepEqual(result1, { id: 1, name: 'John', age: 20 });
+
+	const condition2 = false;
+
+	const result2 = await db.select().from(users).where(eq(users.id, 1).if(condition2));
+
+	t.deepEqual(result2, [
+		{ id: 1, name: 'John', age: 20 },
+		{ id: 2, name: 'Alice', age: 21 },
+		{ id: 3, name: 'Nick', age: 22 },
+		{ id: 4, name: 'Lina', age: 23 },
+	]);
+
+	await db.execute(sql`drop table ${users}`);
+});
