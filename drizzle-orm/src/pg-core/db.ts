@@ -39,7 +39,9 @@ export class PgDatabase<
 
 	declare readonly _: {
 		readonly schema: TSchema | undefined;
+		readonly fullSchema: TFullSchema;
 		readonly tableNamesMap: Record<string, string>;
+		readonly session: PgSession<TQueryResult, TFullSchema, TSchema>;
 	};
 
 	query: TFullSchema extends Record<string, never>
@@ -56,8 +58,18 @@ export class PgDatabase<
 		schema: RelationalSchemaConfig<TSchema> | undefined,
 	) {
 		this._ = schema
-			? { schema: schema.schema, tableNamesMap: schema.tableNamesMap }
-			: { schema: undefined, tableNamesMap: {} };
+			? {
+				schema: schema.schema,
+				fullSchema: schema.fullSchema as TFullSchema,
+				tableNamesMap: schema.tableNamesMap,
+				session,
+			}
+			: {
+				schema: undefined,
+				fullSchema: {} as TFullSchema,
+				tableNamesMap: {},
+				session,
+			};
 		this.query = {} as typeof this['query'];
 		if (this._.schema) {
 			for (const [tableName, columns] of Object.entries(this._.schema)) {

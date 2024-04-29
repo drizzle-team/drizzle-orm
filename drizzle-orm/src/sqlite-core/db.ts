@@ -36,6 +36,7 @@ export class BaseSQLiteDatabase<
 
 	declare readonly _: {
 		readonly schema: TSchema | undefined;
+		readonly fullSchema: TFullSchema;
 		readonly tableNamesMap: Record<string, string>;
 	};
 
@@ -54,8 +55,16 @@ export class BaseSQLiteDatabase<
 		schema: RelationalSchemaConfig<TSchema> | undefined,
 	) {
 		this._ = schema
-			? { schema: schema.schema, tableNamesMap: schema.tableNamesMap }
-			: { schema: undefined, tableNamesMap: {} };
+			? {
+				schema: schema.schema,
+				fullSchema: schema.fullSchema as TFullSchema,
+				tableNamesMap: schema.tableNamesMap,
+			}
+			: {
+				schema: undefined,
+				fullSchema: {} as TFullSchema,
+				tableNamesMap: {},
+			};
 		this.query = {} as typeof this['query'];
 		const query = this.query as {
 			[K in keyof TSchema]: RelationalQueryBuilder<TResultKind, TFullSchema, TSchema, TSchema[K]>;
