@@ -135,12 +135,14 @@ export abstract class PgColumn<
 
 export class IndexedColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
-> extends PgColumn<T, { order?: 'asc' | 'desc'; nulls?: 'first' | 'last' }> {
+> extends PgColumn<T, { order?: 'asc' | 'desc'; nulls?: 'first' | 'last'; opClass?: string }> {
 	static readonly [entityKind]: string = 'IndexColumn';
 
 	override getSQLType(): string {
 		return this.getSQLType();
 	}
+
+	indexConfig = { order: this.config.order, nulls: this.config.nulls, op: this.config.opClass };
 
 	asc(): Omit<this, 'asc' | 'desc'> {
 		this.config.order = 'asc';
@@ -159,6 +161,11 @@ export class IndexedColumn<
 
 	nullsLast(): Omit<this, 'nullsFirst' | 'nullsLast'> {
 		this.config.nulls = 'last';
+		return this;
+	}
+
+	op(opClass: string): Omit<this, 'op'> {
+		this.config.opClass = opClass;
 		return this;
 	}
 }
