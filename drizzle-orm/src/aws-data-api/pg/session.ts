@@ -61,10 +61,8 @@ export class AwsDataApiPreparedQuery<
 		const result = await this.values(placeholderValues);
 		if (!fields && !customResultMapper) {
 			const { columnMetadata, rows } = result;
-			if (!columnMetadata?.length) {
-				throw new Error(
-					'Unexpected state: no column metadata found in the Data API response. Please report this issue on GitHub: https://github.com/drizzle-team/drizzle-orm/issues/new/choose',
-				);
+			if (!columnMetadata) {
+				return result;
 			}
 			const mappedRows = rows.map((sourceRow) => {
 				const row: Record<string, unknown> = {};
