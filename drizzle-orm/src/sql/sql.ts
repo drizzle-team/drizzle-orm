@@ -324,9 +324,9 @@ export class SQL<T = unknown> implements SQLWrapper {
 	 * This method is used to conditionally include a part of the query.
 	 *
 	 * @param condition - Condition to check
-	 * @returns SQL if the condition is true, otherwise undefined
+	 * @returns itself if the condition is `true`, otherwise `undefined`
 	 */
-	if(condition: any): this | undefined {
+	if(condition: any | undefined): this | undefined {
 		return condition ? this : undefined;
 	}
 }
