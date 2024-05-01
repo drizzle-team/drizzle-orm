@@ -4,7 +4,6 @@ import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import Docker from 'dockerode';
 import {
-	TransactionRollbackError,
 	and,
 	arrayContained,
 	arrayContains,
@@ -27,11 +26,12 @@ import {
 	name,
 	or,
 	placeholder,
+	type SQL,
 	sql,
+	type SQLWrapper,
 	sum,
 	sumDistinct,
-	type SQL,
-	type SQLWrapper,
+	TransactionRollbackError,
 } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -56,11 +56,11 @@ import {
 	macaddr,
 	macaddr8,
 	numeric,
+	type PgColumn,
 	pgEnum,
 	pgMaterializedView,
 	pgTable,
 	pgTableCreator,
-	uuid as pgUuid,
 	pgView,
 	primaryKey,
 	serial,
@@ -71,13 +71,13 @@ import {
 	unionAll,
 	unique,
 	uniqueKeyName,
+	uuid as pgUuid,
 	varchar,
-	type PgColumn,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
-import { Expect, randomString, type Equal } from './utils.ts';
+import { type Equal, Expect, randomString } from './utils.ts';
 
 const { Client } = pg;
 
