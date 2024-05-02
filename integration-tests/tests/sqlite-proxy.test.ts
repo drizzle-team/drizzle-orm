@@ -5,7 +5,7 @@ import anyTest from 'ava';
 import type BetterSqlite3 from 'better-sqlite3';
 import Database from 'better-sqlite3';
 import { asc, eq, Name, placeholder, sql } from 'drizzle-orm';
-import { alias, blob, integer, primaryKey, sqliteTable, sqliteTableCreator, text } from 'drizzle-orm/sqlite-core';
+import { alias, blob, foreignKey, getTableConfig, integer, primaryKey, sqliteTable, sqliteTableCreator, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 import { drizzle as proxyDrizzle } from 'drizzle-orm/sqlite-proxy';
 import { migrate } from 'drizzle-orm/sqlite-proxy/migrator';
@@ -1111,4 +1111,46 @@ test.serial('select + .get() for empty result', async (t) => {
 	t.is(res, undefined);
 
 	await db.run(sql`drop table ${users}`);
+});
+
+test.serial("table config: multi-column foreign keys", async (t) => {
+	const peopleTable = sqliteTable(
+		"people",
+		{
+			firstName: text("first_name"),
+			lastName: text("last_name"),
+		},
+		(table) => ({
+			// Has to be unique for foreign key to work
+			uniqueIndex: uniqueIndex("first_name_last_name_uq").on(table.firstName, table.lastName),
+		}),
+	);
+
+	const homesTable = sqliteTable(
+		"homes",
+		{
+			firstName: text("first_name"),
+			lastName: text("last_name"),
+			// Just some example data:
+			address: text("address"),
+		},
+		(table) => ({
+			fk: foreignKey({
+				columns: [table.firstName, table.lastName],
+				foreignColumns: [peopleTable.firstName, peopleTable.lastName],
+				onDelete: "cascade",
+				onUpdate: "restrict",
+			}),
+		})
+	);
+
+	const homesConfig = getTableConfig(homesTable);
+
+	t.is(homesConfig.foreignKeys.length, 1);
+	const key = homesConfig.foreignKeys[0]!;
+	t.is(key.reference().foreignTable, peopleTable);
+	t.deepEqual(key.reference().columns, [homesTable.firstName, homesTable.lastName]);
+	t.deepEqual(key.reference().foreignColumns, [peopleTable.firstName, peopleTable.lastName]);
+	t.is(key.onDelete, "cascade");
+	t.is(key.onUpdate, "restrict");
 });

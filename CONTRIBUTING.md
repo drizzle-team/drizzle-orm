@@ -129,6 +129,29 @@ If you have added additional logic to core package - make sure that all tests we
 > If you have added data types or feature for query building, you need to create additional test cases with this data type/syntax changes, syntax addition
 
 - `"cd integration-tests && pnpm test"` -> will run all tests in integration test folder
+- `"cd integration-tests && pnpm ava tests/{name}.test.ts"` -> run single integration test file
+
+#### <a name="testing-schema-api"></a> Testing the schema API
+
+Since we don't run drizzle-kit in these tests, the best way to test schema-API changes is by using [getTableConfig](https://orm.drizzle.team/docs/goodies/#get-table-information). This function returns all information of a table used by drizzle-kit, meaning we can reasonably assume the change also works there.
+
+Example:
+
+```ts
+test.serial('table config: foreign keys name', async (t) => {
+  const table = pgTable('cities', {
+    // ...data
+  }, (t) => ({
+    f: foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' }),
+  }));
+
+  const tableConfig = getTableConfig(table);
+
+  // Checks that the table has exactly one foreign key and that that foreign key also has the name "custom_fk"
+  t.is(tableConfig.foreignKeys.length, 1);
+  t.is(tableConfig.foreignKeys[0]!.getName(), 'custom_fk');
+});
+```
 
 ## <a name="commits-pr"></a> Commits and PRs
 
