@@ -673,6 +673,8 @@ export class MySqlDialect {
 							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
 							: is(field, SQL.Aliased)
 							? field.sql
+							: is(field, Column) && field.columnType === 'MySqlDecimal'
+							? sql`cast(${sql.identifier(tableAlias)}.${sql.identifier(tsKey)} as char)`
 							: field
 					),
 					sql`, `,
@@ -966,7 +968,13 @@ export class MySqlDialect {
 			let field = sql`json_array(${
 				sql.join(
 					selection.map(({ field }) =>
-						is(field, MySqlColumn) ? sql.identifier(field.name) : is(field, SQL.Aliased) ? field.sql : field
+						is(field, MySqlColumn)
+							? field.columnType === 'MySqlDecimal'
+								? sql`cast(${sql.identifier(field.name)} as char)`
+								: sql.identifier(field.name)
+							: is(field, SQL.Aliased)
+							? field.sql
+							: field
 					),
 					sql`, `,
 				)
