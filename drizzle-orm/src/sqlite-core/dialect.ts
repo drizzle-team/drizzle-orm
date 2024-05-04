@@ -295,7 +295,10 @@ export abstract class SQLiteDialect {
 
 		const orderBySql = orderByList.length > 0 ? sql` order by ${sql.join(orderByList)}` : undefined;
 
-		const limitSql = limit ? sql` limit ${limit}` : undefined;
+		const limitSql = 
+			typeof limit === "object" || (typeof limit === "number" && limit >= 0) 
+			? sql` limit ${limit}` 
+			: undefined;
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
@@ -362,7 +365,10 @@ export abstract class SQLiteDialect {
 			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)}`;
 		}
 
-		const limitSql = limit ? sql` limit ${limit}` : undefined;
+		const limitSql = 
+			typeof limit === "object" || (typeof limit === "number" && limit >= 0) 
+			? sql` limit ${limit}` 
+			: undefined;
 
 		const operatorChunk = sql.raw(`${type} ${isAll ? 'all ' : ''}`);
 
