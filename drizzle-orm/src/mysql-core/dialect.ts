@@ -260,7 +260,11 @@ export class MySqlDialect {
 
 		const tableSql = (() => {
 			if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
-				return sql`${sql.identifier(table[Table.Symbol.OriginalName])} ${sql.identifier(table[Table.Symbol.Name])}`;
+				let fullName = sql`${sql.identifier(table[Table.Symbol.OriginalName])}`;
+				if (table[Table.Symbol.Schema]) {
+					fullName = sql`${sql.identifier(table[Table.Symbol.Schema]!)}.${fullName}`;
+				}
+				return sql`${fullName} ${sql.identifier(table[Table.Symbol.Name])}`;
 			}
 
 			return table;
@@ -612,7 +616,10 @@ export class MySqlDialect {
 				} of selectedRelations
 			) {
 				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
-				const relationTableName = relation.referencedTable[Table.Symbol.Name];
+				const relationTableName = relation.referencedTable[Table.Symbol.Schema]
+					? `${relation.referencedTable[Table.Symbol.Schema]}.${relation.referencedTable[Table.Symbol.Name]}`
+					: relation.referencedTable[Table.Symbol.Name];
+
 				const relationTableTsName = tableNamesMap[relationTableName]!;
 				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
 				const joinOn = and(
@@ -909,7 +916,10 @@ export class MySqlDialect {
 				} of selectedRelations
 			) {
 				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
-				const relationTableName = relation.referencedTable[Table.Symbol.Name];
+				const relationTableName = relation.referencedTable[Table.Symbol.Schema]
+					? `${relation.referencedTable[Table.Symbol.Schema]}.${relation.referencedTable[Table.Symbol.Name]}`
+					: relation.referencedTable[Table.Symbol.Name];
+
 				const relationTableTsName = tableNamesMap[relationTableName]!;
 				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
 				const joinOn = and(

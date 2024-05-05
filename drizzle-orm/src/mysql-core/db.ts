@@ -80,7 +80,7 @@ export class MySqlDatabase<
 						dialect,
 						session,
 						this.mode,
-					);
+					) as any;
 			}
 		}
 	}
