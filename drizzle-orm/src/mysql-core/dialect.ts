@@ -701,7 +701,7 @@ export class MySqlDialect {
 							path: [],
 							field: sql.raw('*'),
 						},
-						...(((orderBy?.length ?? 0) > 0)
+						...(((orderBy?.length ?? 0) > 0 && !limit)
 							? [{
 								path: [],
 								field: sql`row_number() over (order by ${sql.join(orderBy!, sql`, `)})`,
@@ -710,6 +710,7 @@ export class MySqlDialect {
 					],
 					where,
 					limit,
+					orderBy: (orderBy?.length ?? 0) > 0 && !limit ? undefined : orderBy,
 					offset,
 					setOperators: [],
 				});
@@ -994,7 +995,7 @@ export class MySqlDialect {
 							path: [],
 							field: sql.raw('*'),
 						},
-						...(orderBy.length > 0)
+						...(orderBy.length > 0 && !limit)
 							? [{
 								path: [],
 								field: sql`row_number() over (order by ${sql.join(orderBy, sql`, `)})`,
@@ -1003,6 +1004,7 @@ export class MySqlDialect {
 					],
 					where,
 					limit,
+					orderBy: orderBy.length > 0 && !limit ? undefined : orderBy,
 					offset,
 					setOperators: [],
 				});
