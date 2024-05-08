@@ -6,8 +6,8 @@ import { type Check, CheckBuilder } from './checks.ts';
 import type { AnyPgColumn } from './columns/index.ts';
 import { type ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import { type Index, IndexBuilder } from './indexes.ts';
-import { type PrimaryKey, PrimaryKeyBuilder } from './primary-keys.ts';
-import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
+import { PrimaryKey, PrimaryKeyBuilder } from './primary-keys.ts';
+import { UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
 import { PgViewConfig } from './view-common.ts';
 import { type PgMaterializedView, PgMaterializedViewConfig, type PgView } from './view.ts';
 
@@ -20,6 +20,17 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 	const uniqueConstraints: UniqueConstraint[] = [];
 	const name = table[Table.Symbol.Name];
 	const schema = table[Table.Symbol.Schema];
+
+	for (const column of columns) {
+		if (column.primary) {
+			primaryKeys.push(new PrimaryKey(table, [column]));
+		}
+		if (column.isUnique) {
+			uniqueConstraints.push(
+				new UniqueConstraint(table, [column], column.uniqueType === 'not distict', column.uniqueName),
+			);
+		}
+	}
 
 	const extraConfigBuilder = table[PgTable.Symbol.ExtraConfigBuilder];
 

@@ -388,9 +388,21 @@ test.serial('table config: foreign keys name', async (t) => {
 	t.is(tableConfig.foreignKeys[0]!.getName(), 'custom_fk');
 });
 
-test.serial('table config: primary keys name', async (t) => {
+test.serial('table config: primary key', async (t) => {
 	const table = mysqlTable('cities', {
 		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		state: text('state'),
+	});
+
+	const tableConfig = getTableConfig(table);
+
+	t.is(tableConfig.primaryKeys.length, 1);
+});
+
+test.serial('table config: primary keys name', async (t) => {
+	const table = mysqlTable('cities', {
+		id: serial('id'),
 		name: text('name').notNull(),
 		state: text('state'),
 	}, (t) => ({
