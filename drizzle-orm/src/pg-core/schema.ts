@@ -1,4 +1,6 @@
 import { entityKind, is } from '~/entity.ts';
+import type { pgEnum } from './columns/enum.ts';
+import { pgEnumWithSchema } from './columns/enum.ts';
 import { type PgTableFn, pgTableWithSchema } from './table.ts';
 import { type pgMaterializedView, pgMaterializedViewWithSchema, type pgView, pgViewWithSchema } from './view.ts';
 
@@ -19,6 +21,10 @@ export class PgSchema<TName extends string = string> {
 	materializedView = ((name, columns) => {
 		return pgMaterializedViewWithSchema(name, columns, this.schemaName);
 	}) as typeof pgMaterializedView;
+
+	enum: typeof pgEnum = ((name, values) => {
+		return pgEnumWithSchema(name, values, this.schemaName);
+	});
 }
 
 export function isPgSchema(obj: unknown): obj is PgSchema {

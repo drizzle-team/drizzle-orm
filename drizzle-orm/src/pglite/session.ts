@@ -133,7 +133,7 @@ export class PgliteSession<
 				this.schema,
 				this.options,
 			);
-			const tx = new PgliteTransaction(this.dialect, session, this.schema);
+			const tx = new PgliteTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
 			if (config) {
 				await tx.setTransaction(config);
 			}
@@ -150,7 +150,12 @@ export class PgliteTransaction<
 
 	override async transaction<T>(transaction: (tx: PgliteTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new PgliteTransaction(this.dialect, this.session, this.schema, this.nestedIndex + 1);
+		const tx = new PgliteTransaction<TFullSchema, TSchema>(
+			this.dialect,
+			this.session,
+			this.schema,
+			this.nestedIndex + 1,
+		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);

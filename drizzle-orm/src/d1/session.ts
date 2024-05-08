@@ -61,7 +61,7 @@ export class SQLiteD1Session<
 		);
 	}
 
-	async batch<U extends BatchItem, T extends Readonly<[U, ...U[]]>>(queries: T) {
+	async batch<T extends BatchItem<'sqlite'>[] | readonly BatchItem<'sqlite'>[]>(queries: T) {
 		const preparedQueries: PreparedQuery[] = [];
 		const builtQueries: D1PreparedStatement[] = [];
 
