@@ -37,8 +37,4 @@ And we have a [**Drizzle Studio**](https://orm.drizzle.team/drizzle-studio/overv
 Check out the full documentation on [the website](https://orm.drizzle.team/docs/overview)
 
 ### Our sponsors ❤️
-<p align="center">
-<a href="https://drizzle.team" target="_blank">
-<img src='https://api.drizzle.team/v2/sponsors/svg'/>
-</a>
-</p>
+[![sponsors](https://api.drizzle.team/v2/sponsors/svg?raw=true)](https://drizzle.team)
