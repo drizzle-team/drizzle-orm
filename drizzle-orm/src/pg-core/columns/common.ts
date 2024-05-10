@@ -145,27 +145,27 @@ export class IndexedColumn<
 	indexConfig = { order: this.config.order, nulls: this.config.nulls, op: this.config.opClass };
 
 	asc(): Omit<this, 'asc' | 'desc'> {
-		this.config.order = 'asc';
+		this.indexConfig.order = 'asc';
 		return this;
 	}
 
 	desc(): Omit<this, 'asc' | 'desc'> {
-		this.config.order = 'desc';
+		this.indexConfig.order = 'desc';
 		return this;
 	}
 
 	nullsFirst(): Omit<this, 'nullsFirst' | 'nullsLast'> {
-		this.config.nulls = 'first';
+		this.indexConfig.nulls = 'first';
 		return this;
 	}
 
 	nullsLast(): Omit<this, 'nullsFirst' | 'nullsLast'> {
-		this.config.nulls = 'last';
+		this.indexConfig.nulls = 'last';
 		return this;
 	}
 
 	op(opClass: string): Omit<this, 'op'> {
-		this.config.opClass = opClass;
+		this.indexConfig.op = opClass;
 		return this;
 	}
 }
