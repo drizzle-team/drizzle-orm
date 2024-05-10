@@ -1,9 +1,8 @@
-import { types } from '@vercel/postgres';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
-import { PgDialect } from '~/pg-core/index.ts';
+import { PgDialect } from '~/pg-core/dialect.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
@@ -11,45 +10,38 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
-import { type VercelPgClient, type VercelPgQueryResultHKT, VercelPgSession } from './session.ts';
+import type { PgliteClient, PgliteQueryResultHKT } from './session.ts';
+import { PgliteSession } from './session.ts';
 
-export interface VercelPgDriverOptions {
+export interface PgDriverOptions {
 	logger?: Logger;
 }
 
-export class VercelPgDriver {
-	static readonly [entityKind]: string = 'VercelPgDriver';
+export class PgliteDriver {
+	static readonly [entityKind]: string = 'PgliteDriver';
 
 	constructor(
-		private client: VercelPgClient,
+		private client: PgliteClient,
 		private dialect: PgDialect,
-		private options: VercelPgDriverOptions = {},
+		private options: PgDriverOptions = {},
 	) {
-		this.initMappers();
 	}
 
 	createSession(
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
-	): VercelPgSession<Record<string, unknown>, TablesRelationalConfig> {
-		return new VercelPgSession(this.client, this.dialect, schema, { logger: this.options.logger });
-	}
-
-	initMappers() {
-		types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
-		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
-		types.setTypeParser(types.builtins.DATE, (val) => val);
-		types.setTypeParser(types.builtins.INTERVAL, (val) => val);
+	): PgliteSession<Record<string, unknown>, TablesRelationalConfig> {
+		return new PgliteSession(this.client, this.dialect, schema, { logger: this.options.logger });
 	}
 }
 
-export type VercelPgDatabase<
+export type PgliteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = PgDatabase<VercelPgQueryResultHKT, TSchema>;
+> = PgDatabase<PgliteQueryResultHKT, TSchema>;
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
-	client: VercelPgClient,
+	client: PgliteClient,
 	config: DrizzleConfig<TSchema> = {},
-): VercelPgDatabase<TSchema> {
+): PgliteDatabase<TSchema> {
 	const dialect = new PgDialect();
 	let logger;
 	if (config.logger === true) {
@@ -71,7 +63,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const driver = new VercelPgDriver(client, dialect, { logger });
+	const driver = new PgliteDriver(client, dialect, { logger });
 	const session = driver.createSession(schema);
-	return new PgDatabase(dialect, session, schema) as VercelPgDatabase<TSchema>;
+	return new PgDatabase(dialect, session, schema) as PgliteDatabase<TSchema>;
 }

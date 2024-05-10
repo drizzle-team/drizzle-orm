@@ -82,8 +82,14 @@ export class LibSQLSession<
 	): Promise<T> {
 		// TODO: support transaction behavior
 		const libsqlTx = await this.client.transaction();
-		const session = new LibSQLSession(this.client, this.dialect, this.schema, this.options, libsqlTx);
-		const tx = new LibSQLTransaction('async', this.dialect, session, this.schema);
+		const session = new LibSQLSession<TFullSchema, TSchema>(
+			this.client,
+			this.dialect,
+			this.schema,
+			this.options,
+			libsqlTx,
+		);
+		const tx = new LibSQLTransaction<TFullSchema, TSchema>('async', this.dialect, session, this.schema);
 		try {
 			const result = await transaction(tx);
 			await libsqlTx.commit();

@@ -1,6 +1,7 @@
 import { entityKind, is } from '~/entity.ts';
 import type { SelectedFields } from '~/operations.ts';
-import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { isPgEnum } from '~/pg-core/columns/enum.ts';
+import { Subquery } from '~/subquery.ts';
 import { tracer } from '~/tracing.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
@@ -62,8 +63,7 @@ export interface SQLWrapper {
 }
 
 export function isSQLWrapper(value: unknown): value is SQLWrapper {
-	return typeof value === 'object' && value !== null && 'getSQL' in value
-		&& typeof (value as any).getSQL === 'function';
+	return value !== null && value !== undefined && typeof (value as any).getSQL === 'function';
 }
 
 function mergeQueries(queries: QueryWithTypings[]): QueryWithTypings {
@@ -225,15 +225,22 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (is(chunk, Subquery)) {
-				if (chunk[SubqueryConfig].isWith) {
-					return { sql: escapeName(chunk[SubqueryConfig].alias), params: [] };
+				if (chunk._.isWith) {
+					return { sql: escapeName(chunk._.alias), params: [] };
 				}
 				return this.buildQueryFromSourceParams([
 					new StringChunk('('),
-					chunk[SubqueryConfig].sql,
+					chunk._.sql,
 					new StringChunk(') '),
-					new Name(chunk[SubqueryConfig].alias),
+					new Name(chunk._.alias),
 				], config);
+			}
+
+			if (isPgEnum(chunk)) {
+				if (chunk.schema) {
+					return { sql: escapeName(chunk.schema) + '.' + escapeName(chunk.enumName), params: [] };
+				}
+				return { sql: escapeName(chunk.enumName), params: [] };
 			}
 
 			if (isSQLWrapper(chunk)) {
@@ -311,6 +318,16 @@ export class SQL<T = unknown> implements SQLWrapper {
 	inlineParams(): this {
 		this.shouldInlineParams = true;
 		return this;
+	}
+
+	/**
+	 * This method is used to conditionally include a part of the query.
+	 *
+	 * @param condition - Condition to check
+	 * @returns itself if the condition is `true`, otherwise `undefined`
+	 */
+	if(condition: any | undefined): this | undefined {
+		return condition ? this : undefined;
 	}
 }
 

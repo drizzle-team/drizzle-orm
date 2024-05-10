@@ -3,7 +3,18 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
-import { PgColumn, PgDate, PgJson, PgJsonb, PgNumeric, PgTime, PgTimestamp, PgUUID } from '~/pg-core/columns/index.ts';
+import {
+	PgColumn,
+	PgDate,
+	PgDateString,
+	PgJson,
+	PgJsonb,
+	PgNumeric,
+	PgTime,
+	PgTimestamp,
+	PgTimestampString,
+	PgUUID,
+} from '~/pg-core/columns/index.ts';
 import type {
 	PgDeleteConfig,
 	PgInsertConfig,
@@ -35,7 +46,7 @@ import {
 	sql,
 	type SQLChunk,
 } from '~/sql/sql.ts';
-import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { Subquery } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
@@ -104,7 +115,7 @@ export class PgDialect {
 
 		const withSqlChunks = [sql`with `];
 		for (const [i, w] of queries.entries()) {
-			withSqlChunks.push(sql`${sql.identifier(w[SubqueryConfig].alias)} as (${w[SubqueryConfig].sql})`);
+			withSqlChunks.push(sql`${sql.identifier(w._.alias)} as (${w._.sql})`);
 			if (i < queries.length - 1) {
 				withSqlChunks.push(sql`, `);
 			}
@@ -246,7 +257,7 @@ export class PgDialect {
 				is(f.field, Column)
 				&& getTableName(f.field.table)
 					!== (is(table, Subquery)
-						? table[SubqueryConfig].alias
+						? table._.alias
 						: is(table, PgViewBase)
 						? table[ViewBaseConfig].name
 						: is(table, SQL)
@@ -501,17 +512,15 @@ export class PgDialect {
 	}
 
 	prepareTyping(encoder: DriverValueEncoder<unknown, unknown>): QueryTypingsValue {
-		if (
-			is(encoder, PgJsonb) || is(encoder, PgJson)
-		) {
+		if (is(encoder, PgJsonb) || is(encoder, PgJson)) {
 			return 'json';
 		} else if (is(encoder, PgNumeric)) {
 			return 'decimal';
 		} else if (is(encoder, PgTime)) {
 			return 'time';
-		} else if (is(encoder, PgTimestamp)) {
+		} else if (is(encoder, PgTimestamp) || is(encoder, PgTimestampString)) {
 			return 'timestamp';
-		} else if (is(encoder, PgDate)) {
+		} else if (is(encoder, PgDate) || is(encoder, PgDateString)) {
 			return 'date';
 		} else if (is(encoder, PgUUID)) {
 			return 'uuid';
