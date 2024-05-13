@@ -28,6 +28,13 @@ export class PgUUIDBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgUUID'>
 		return this.default(sql`gen_random_uuid()`) as ReturnType<this['default']>;
 	}
 
+	/**
+	 * Adds `default uuidv7()` to the column definition.
+	 */
+	defaultV7(): ReturnType<this['default']> {
+		return this.default(sql`uuidv7()`) as ReturnType<this['default']>;
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
