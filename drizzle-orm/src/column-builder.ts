@@ -1,7 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import type { Column } from './column.ts';
 import type { MySqlColumn } from './mysql-core/index.ts';
-import type { IndexedColumn, PgColumn } from './pg-core/index.ts';
+import type { ExtraConfigColumn, PgColumn } from './pg-core/index.ts';
 import type { SQL } from './sql/sql.ts';
 import type { SQLiteColumn } from './sqlite-core/index.ts';
 import type { Simplify } from './utils.ts';
@@ -236,10 +236,8 @@ export type BuildColumn<
 	: never;
 
 export type BuildIndexColumn<
-	TTableName extends string,
-	TBuilder extends ColumnBuilderBase,
 	TDialect extends Dialect,
-> = TDialect extends 'pg' ? IndexedColumn<MakeColumnConfig<TBuilder['_'], TTableName>> : never;
+> = TDialect extends 'pg' ? ExtraConfigColumn : never;
 
 // TODO
 // try to make sql as well + indexRaw
@@ -259,12 +257,12 @@ export type BuildColumns<
 	& {};
 
 export type BuildExtraConfigColumns<
-	TTableName extends string,
+	_TTableName extends string,
 	TConfigMap extends Record<string, ColumnBuilderBase>,
 	TDialect extends Dialect,
 > =
 	& {
-		[Key in keyof TConfigMap]: BuildIndexColumn<TTableName, TConfigMap[Key], TDialect>;
+		[Key in keyof TConfigMap]: BuildIndexColumn<TDialect>;
 	}
 	& {};
 

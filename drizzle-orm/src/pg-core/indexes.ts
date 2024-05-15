@@ -1,7 +1,8 @@
-import type { SQL } from '~/sql/sql.ts';
+import { SQL } from '~/sql/sql.ts';
 
-import { entityKind } from '~/entity.ts';
-import type { IndexedColumn, PgColumn } from './columns/index.ts';
+import { entityKind, is } from '~/entity.ts';
+import type { ExtraConfigColumn, PgColumn } from './columns/index.ts';
+import { IndexedColumn } from './columns/index.ts';
 import type { PgTable } from './table.ts';
 
 interface IndexConfig {
@@ -47,16 +48,59 @@ export class IndexBuilderOn {
 
 	constructor(private unique: boolean, private name?: string) {}
 
-	on(...columns: [Partial<IndexedColumn> | SQL, ...Partial<IndexedColumn>[] | SQL[]]): IndexBuilder {
-		return new IndexBuilder(columns, this.unique, false, this.name);
+	on(...columns: [Partial<ExtraConfigColumn> | SQL, ...Partial<ExtraConfigColumn>[] | SQL[]]): IndexBuilder {
+		return new IndexBuilder(
+			columns.map((it) => {
+				if (is(it, SQL)) {
+					return it;
+				}
+				it = it as ExtraConfigColumn;
+				const clonedIndexedColumn = new IndexedColumn(it.name, it.indexConfig!);
+				it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
+				return clonedIndexedColumn;
+			}),
+			this.unique,
+			false,
+			this.name,
+		);
 	}
 
-	onOnly(...columns: [Partial<IndexedColumn | SQL>, ...Partial<IndexedColumn>[] | SQL[]]): IndexBuilder {
-		return new IndexBuilder(columns, this.unique, true, this.name);
+	onOnly(...columns: [Partial<ExtraConfigColumn | SQL>, ...Partial<ExtraConfigColumn>[] | SQL[]]): IndexBuilder {
+		return new IndexBuilder(
+			columns.map((it) => {
+				if (is(it, SQL)) {
+					return it;
+				}
+				it = it as ExtraConfigColumn;
+				const clonedIndexedColumn = new IndexedColumn(it.name, it.indexConfig!);
+				it.indexConfig = it.defaultConfig;
+				return clonedIndexedColumn;
+			}),
+			this.unique,
+			true,
+			this.name,
+		);
 	}
 
-	using(method: string, ...columns: [Partial<IndexedColumn | SQL>, ...Partial<IndexedColumn>[] | SQL[]]): IndexBuilder {
-		return new IndexBuilder(columns, this.unique, true, this.name, method);
+	using(
+		method: string,
+		...columns: [Partial<ExtraConfigColumn | SQL>, ...Partial<ExtraConfigColumn>[] | SQL[]]
+	): IndexBuilder {
+		return new IndexBuilder(
+			columns.map((it) => {
+				if (is(it, SQL)) {
+					return it;
+				}
+				it = it as ExtraConfigColumn;
+				const clonedIndexedColumn = new IndexedColumn(it.name, it.indexConfig!);
+				it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
+				return clonedIndexedColumn;
+			}),
+			this.unique,
+			true,
+			this.name,
+			method,
+		);
 	}
 }
 

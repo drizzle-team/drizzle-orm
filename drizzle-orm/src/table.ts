@@ -1,7 +1,7 @@
 import type { Column, GetColumnData } from './column.ts';
 import { entityKind } from './entity.ts';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations.ts';
-import type { IndexedColumn } from './pg-core/index.ts';
+import type { ExtraConfigColumn } from './pg-core/index.ts';
 import type { SQLWrapper } from './sql/sql.ts';
 import type { Simplify, Update } from './utils.ts';
 
@@ -96,7 +96,7 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 	[Columns]!: T['columns'];
 
 	/** @internal */
-	[ExtraConfigColumns]!: Record<string, IndexedColumn>;
+	[ExtraConfigColumns]!: Record<string, ExtraConfigColumn>;
 
 	/**
 	 *  @internal

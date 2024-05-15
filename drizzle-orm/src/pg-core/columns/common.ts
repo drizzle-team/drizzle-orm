@@ -109,8 +109,8 @@ export abstract class PgColumnBuilder<
 	/** @internal */
 	buildExtraConfigColumn<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
-	): IndexedColumn {
-		return new IndexedColumn(table, this.config);
+	): ExtraConfigColumn {
+		return new ExtraConfigColumn(table, this.config);
 	}
 }
 
@@ -133,16 +133,27 @@ export abstract class PgColumn<
 	}
 }
 
-export class IndexedColumn<
+export type IndexedExtraConfigType = { order?: 'asc' | 'desc'; nulls?: 'first' | 'last'; opClass?: string };
+
+export class ExtraConfigColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
-> extends PgColumn<T, { order?: 'asc' | 'desc'; nulls?: 'first' | 'last'; opClass?: string }> {
-	static readonly [entityKind]: string = 'IndexColumn';
+> extends PgColumn<T, IndexedExtraConfigType> {
+	static readonly [entityKind]: string = 'ExtraConfigColumn';
 
 	override getSQLType(): string {
 		return this.getSQLType();
 	}
 
-	indexConfig = { order: this.config.order, nulls: this.config.nulls, op: this.config.opClass };
+	indexConfig: IndexedExtraConfigType = {
+		order: this.config.order ?? 'asc',
+		nulls: this.config.nulls ?? 'last',
+		opClass: this.config.opClass,
+	};
+	defaultConfig: IndexedExtraConfigType = {
+		order: 'asc',
+		nulls: 'last',
+		opClass: undefined,
+	};
 
 	asc(): Omit<this, 'asc' | 'desc'> {
 		this.indexConfig.order = 'asc';
@@ -165,9 +176,23 @@ export class IndexedColumn<
 	}
 
 	op(opClass: string): Omit<this, 'op'> {
-		this.indexConfig.op = opClass;
+		this.indexConfig.opClass = opClass;
 		return this;
 	}
+}
+
+export class IndexedColumn {
+	static readonly [entityKind]: string = 'IndexedColumn';
+	constructor(
+		name: string | undefined,
+		indexConfig: IndexedExtraConfigType,
+	) {
+		this.name = name;
+		this.indexConfig = indexConfig;
+	}
+
+	name: string | undefined;
+	indexConfig: IndexedExtraConfigType;
 }
 
 export type AnyPgColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> = PgColumn<
