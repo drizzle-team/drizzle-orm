@@ -210,6 +210,10 @@ function mapColumnToSchema(column: Column): z.ZodTypeAny {
 			type = z.array(mapColumnToSchema((column as PgArray<any, any>).baseColumn));
 		} else if (column.dataType === 'number') {
 			type = z.number();
+		} else if (column.dataType === 'real') {
+			type = z.number();
+		} else if (column.dataType === 'integer') {
+			type = z.number().int();
 		} else if (column.dataType === 'bigint') {
 			type = z.bigint();
 		} else if (column.dataType === 'boolean') {
