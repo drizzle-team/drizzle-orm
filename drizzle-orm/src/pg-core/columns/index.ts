@@ -25,3 +25,4 @@ export * from './time.ts';
 export * from './timestamp.ts';
 export * from './uuid.ts';
 export * from './varchar.ts';
+export * from './vector.ts';
