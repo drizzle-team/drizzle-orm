@@ -208,10 +208,10 @@ function mapColumnToSchema(column: Column): z.ZodTypeAny {
 			type = jsonSchema;
 		} else if (column.dataType === 'array') {
 			type = z.array(mapColumnToSchema((column as PgArray<any, any>).baseColumn));
-		} else if (column.dataType === 'number') {
-			type = z.number();
 		} else if (is(column, PgInteger)) {
 			type = z.number().int();
+		} else if (column.dataType === 'number') {
+			type = z.number();
 		} else if (column.dataType === 'bigint') {
 			type = z.bigint();
 		} else if (column.dataType === 'boolean') {
