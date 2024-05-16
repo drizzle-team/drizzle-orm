@@ -9,7 +9,7 @@ import {
 	type Table,
 } from 'drizzle-orm';
 import { MySqlChar, MySqlVarBinary, MySqlVarChar } from 'drizzle-orm/mysql-core';
-import { type PgArray, PgChar, PgUUID, PgVarchar } from 'drizzle-orm/pg-core';
+import {type PgArray, PgChar, PgInteger, PgUUID, PgVarchar} from 'drizzle-orm/pg-core';
 import { SQLiteText } from 'drizzle-orm/sqlite-core';
 import { z } from 'zod';
 
@@ -210,9 +210,7 @@ function mapColumnToSchema(column: Column): z.ZodTypeAny {
 			type = z.array(mapColumnToSchema((column as PgArray<any, any>).baseColumn));
 		} else if (column.dataType === 'number') {
 			type = z.number();
-		} else if (column.dataType === 'real') {
-			type = z.number();
-		} else if (column.dataType === 'integer') {
+		} else if (is(column, PgInteger)) {
 			type = z.number().int();
 		} else if (column.dataType === 'bigint') {
 			type = z.bigint();
