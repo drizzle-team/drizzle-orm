@@ -43,6 +43,69 @@ interface IndexConfig {
 
 export type IndexColumn = PgColumn;
 
+export type PgIndexMethod = 'btree' | 'hash' | 'gist' | 'spgist' | 'gin' | 'brin' | 'hnsw' | 'ivfflat' | (string & {});
+
+export type PgIndexOpClass =
+	| 'abstime_ops'
+	| 'access_method'
+	| 'anyarray_eq'
+	| 'anyarray_ge'
+	| 'anyarray_gt'
+	| 'anyarray_le'
+	| 'anyarray_lt'
+	| 'anyarray_ne'
+	| 'bigint_ops'
+	| 'bit_ops'
+	| 'bool_ops'
+	| 'box_ops'
+	| 'bpchar_ops'
+	| 'char_ops'
+	| 'cidr_ops'
+	| 'cstring_ops'
+	| 'date_ops'
+	| 'float_ops'
+	| 'int2_ops'
+	| 'int4_ops'
+	| 'int8_ops'
+	| 'interval_ops'
+	| 'jsonb_ops'
+	| 'macaddr_ops'
+	| 'name_ops'
+	| 'numeric_ops'
+	| 'oid_ops'
+	| 'oidint4_ops'
+	| 'oidint8_ops'
+	| 'oidname_ops'
+	| 'oidvector_ops'
+	| 'point_ops'
+	| 'polygon_ops'
+	| 'range_ops'
+	| 'record_eq'
+	| 'record_ge'
+	| 'record_gt'
+	| 'record_le'
+	| 'record_lt'
+	| 'record_ne'
+	| 'text_ops'
+	| 'time_ops'
+	| 'timestamp_ops'
+	| 'timestamptz_ops'
+	| 'timetz_ops'
+	| 'uuid_ops'
+	| 'varbit_ops'
+	| 'varchar_ops'
+	// pg_vector types
+	| 'xml_ops'
+	| 'vector_l2_ops'
+	| 'vector_ip_ops'
+	| 'vector_cosine_ops'
+	| 'vector_l1_ops'
+	| 'bit_hamming_ops'
+	| 'bit_jaccard_ops'
+	| 'halfvec_l2_ops'
+	| 'sparsevec_l2_op'
+	| (string & {});
+
 export class IndexBuilderOn {
 	static readonly [entityKind]: string = 'PgIndexBuilderOn';
 
@@ -82,8 +145,19 @@ export class IndexBuilderOn {
 		);
 	}
 
+	/**
+	 * Specify what index method to use. Choices are `btree`, `hash`, `gist`, `spgist`, `gin`, `brin`, or user-installed access methods like `bloom`. The default method is `btree.
+	 *
+	 * If you have the `pg_vector` extension installed in your database, you can use the `hnsw` and `ivfflat` options, which are predefined types.
+	 *
+	 * **You can always specify any string you want in the method, in case Drizzle doesn't have it natively in its types**
+	 *
+	 * @param method The name of the index method to be used
+	 * @param columns
+	 * @returns
+	 */
 	using(
-		method: string,
+		method: PgIndexMethod,
 		...columns: [Partial<ExtraConfigColumn | SQL>, ...Partial<ExtraConfigColumn>[] | SQL[]]
 	): IndexBuilder {
 		return new IndexBuilder(

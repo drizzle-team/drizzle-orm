@@ -75,7 +75,7 @@ export const users = pgTable(
 		usersAge1Idx: uniqueIndex('usersAge1Idx').on(users.class.asc().nullsFirst(), sql``),
 		usersAge2Idx: index('usersAge2Idx').on(sql``),
 		uniqueClass: uniqueIndex('uniqueClass')
-			.using('btree', users.class.desc(), users.subClass.nullsLast())
+			.using('btree', users.class.desc().op('text_ops'), users.subClass.nullsLast())
 			.where(sql`${users.class} is not null`)
 			.concurrently(),
 		legalAge: check('legalAge', sql`${users.age1} > 18`),
