@@ -185,13 +185,16 @@ export class IndexedColumn {
 	static readonly [entityKind]: string = 'IndexedColumn';
 	constructor(
 		name: string | undefined,
+		type: string,
 		indexConfig: IndexedExtraConfigType,
 	) {
 		this.name = name;
+		this.type = type;
 		this.indexConfig = indexConfig;
 	}
 
 	name: string | undefined;
+	type: string;
 	indexConfig: IndexedExtraConfigType;
 }
 
