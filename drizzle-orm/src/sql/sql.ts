@@ -34,6 +34,7 @@ export interface BuildQueryConfig {
 	prepareTyping?: (encoder: DriverValueEncoder<unknown, unknown>) => QueryTypingsValue;
 	paramStartIndex?: { value: number };
 	inlineParams?: boolean;
+	invokeSource?: 'indexes' | undefined;
 }
 
 export type QueryTypingsValue = 'json' | 'decimal' | 'time' | 'timestamp' | 'uuid' | 'date' | 'none';
@@ -183,6 +184,9 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (is(chunk, Column)) {
+				if (_config.invokeSource === 'indexes') {
+					return { sql: escapeName(chunk.name), params: [] };
+				}
 				return { sql: escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(chunk.name), params: [] };
 			}
 
