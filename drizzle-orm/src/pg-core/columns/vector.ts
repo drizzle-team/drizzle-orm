@@ -36,7 +36,7 @@ export class PgVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgVecto
 export class PgVector<T extends ColumnBaseConfig<'array', 'PgVector'>>
 	extends PgColumn<T, { dimensions: number | undefined }>
 {
-	static readonly [entityKind]: string = 'PgVarchar';
+	static readonly [entityKind]: string = 'PgVector';
 
 	readonly dimensions = this.config.dimensions;
 
