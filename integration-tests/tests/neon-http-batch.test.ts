@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { neon } from '@neondatabase/serverless';
-import type { FullQueryResults, NeonQueryFunction } from '@neondatabase/serverless';
+import type { NeonQueryFunction } from '@neondatabase/serverless';
 import type { InferSelectModel } from 'drizzle-orm';
 import { eq, relations, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/neon-http';
@@ -352,7 +352,7 @@ test('insert + db.execute', async () => {
 		{
 			id: number;
 		}[],
-		FullQueryResults<false>,
+		NeonHttpQueryResult<Record<string, unknown>>,
 	]>();
 
 	expect(batchResponse.length).eq(2);

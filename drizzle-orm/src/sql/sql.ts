@@ -60,6 +60,7 @@ export interface QueryWithTypings extends Query {
  */
 export interface SQLWrapper {
 	getSQL(): SQL;
+	shouldOmitSQLParens?(): boolean;
 }
 
 export function isSQLWrapper(value: unknown): value is SQLWrapper {
@@ -209,7 +210,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 				}
 
 				let typings: QueryTypingsValue[] | undefined;
-				if (prepareTyping !== undefined) {
+				if (prepareTyping) {
 					typings = [prepareTyping(chunk.encoder)];
 				}
 
@@ -217,7 +218,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (is(chunk, Placeholder)) {
-				return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk] };
+				return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
 			}
 
 			if (is(chunk, SQL.Aliased) && chunk.fieldAlias !== undefined) {
@@ -244,6 +245,9 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (isSQLWrapper(chunk)) {
+				if (chunk.shouldOmitSQLParens?.()) {
+					return this.buildQueryFromSourceParams([chunk.getSQL()], config);
+				}
 				return this.buildQueryFromSourceParams([
 					new StringChunk('('),
 					chunk.getSQL(),
@@ -437,11 +441,10 @@ export type SQLChunk =
 
 export function sql<T>(strings: TemplateStringsArray, ...params: any[]): SQL<T>;
 /*
-	The type of `params` is specified as `SQLSourceParam[]`, but that's slightly incorrect -
+	The type of `params` is specified as `SQLChunk[]`, but that's slightly incorrect -
 	in runtime, users won't pass `FakePrimitiveParam` instances as `params` - they will pass primitive values
-	which will be wrapped in `Param` using `buildChunksFromParam(...)`. That's why the overload
-	specify `params` as `any[]` and not as `SQLSourceParam[]`. This type is used to make our lives easier and
-	the type checker happy.
+	which will be wrapped in `Param`. That's why the overload specifies `params` as `any[]` and not as `SQLSourceParam[]`.
+	This type is used to make our lives easier and the type checker happy.
 */
 export function sql(strings: TemplateStringsArray, ...params: SQLChunk[]): SQL {
 	const queryChunks: SQLChunk[] = [];
