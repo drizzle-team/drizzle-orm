@@ -9,7 +9,7 @@
 		"test:types": "cd tests && tsc",
 		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"publish": "npm publish package.tgz",
-		"test": "NODE_OPTIONS='--loader=tsx --no-warnings' ava"
+		"test": "NODE_OPTIONS='--import=tsx --no-warnings' ava"
 	},
 	"exports": {
 		".": {
@@ -44,7 +44,7 @@
 			"ts": "module"
 		},
 		"nodeArguments": [
-			"--loader=tsx"
+			"--import=tsx"
 		]
 	},
 	"keywords": [
