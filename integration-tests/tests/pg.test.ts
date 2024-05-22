@@ -2224,7 +2224,7 @@ test.serial('materialized view', async (t) => {
 	await db.execute(sql`drop materialized view ${newYorkers1}`);
 });
 
-test.serial.only('select from existing view', async (t) => {
+test.serial('select from existing view', async (t) => {
 	const { db } = t.context;
 
 	const schema = pgSchema('test_schema');
