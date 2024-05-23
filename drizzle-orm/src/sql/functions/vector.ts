@@ -1,7 +1,8 @@
-import type { AnyColumn } from '~/index.ts';
+import { type AnyColumn, is, Subquery } from '~/index.ts';
+import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { type SQL, sql, type SQLWrapper } from '../sql.ts';
 
-function toSql(value: number[]): string {
+function toSql(value: number[] | string[]): string {
 	return JSON.stringify(value);
 }
 
@@ -27,8 +28,44 @@ function toSql(value: number[]): string {
  * db.select({distance: l2Distance(cars.embedding, embedding)}).from(cars)
  * ```
  */
-export function l2Distance(column: SQLWrapper | AnyColumn, value: number[]): SQL {
-	return sql`${column} <-> ${toSql(value)}`.mapWith(Number);
+export function l2Distance(
+	column: SQLWrapper | AnyColumn,
+	value: number[] | string[] | TypedQueryBuilder<any> | string,
+): SQL {
+	if (is(value, TypedQueryBuilder<any>) || typeof value === 'string') {
+		return sql`${column} <-> ${value}`;
+	}
+	return sql`${column} <-> ${toSql(value)}`;
+}
+
+/**
+ * L1 distance is one of the possible distance measures between two probability distribution vectors and it is
+ * calculated as the sum of the absolute differences.
+ * The smaller the distance between the observed probability vectors, the higher the accuracy of the synthetic data
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // Sort cars by embedding similarity
+ * // to the given embedding
+ * db.select().from(cars)
+ *   .orderBy(l1Distance(cars.embedding, embedding));
+ * ```
+ *
+ * ```ts
+ * // Select distance of cars and embedding
+ * // to the given embedding
+ * db.select({distance: l1Distance(cars.embedding, embedding)}).from(cars)
+ * ```
+ */
+export function l1Distance(
+	column: SQLWrapper | AnyColumn,
+	value: number[] | string[] | TypedQueryBuilder<any> | string,
+): SQL {
+	if (is(value, TypedQueryBuilder<any>) || typeof value === 'string') {
+		return sql`${column} <+> ${value}`;
+	}
+	return sql`${column} <+> ${toSql(value)}`;
 }
 
 /**
@@ -44,20 +81,23 @@ export function l2Distance(column: SQLWrapper | AnyColumn, value: number[]): SQL
  * // Sort cars by embedding similarity
  * // to the given embedding
  * db.select().from(cars)
- *   .orderBy(maxInnerProduct(cars.embedding, embedding));
+ *   .orderBy(innerProduct(cars.embedding, embedding));
  * ```
  *
  * ```ts
  * // Select distance of cars and embedding
  * // to the given embedding
- * db.select({distance: maxInnerProduct(cars.embedding, embedding)}).from(cars)
+ * db.select({ distance: innerProduct(cars.embedding, embedding) }).from(cars)
  * ```
  */
-export function maxInnerProduct(
+export function innerProduct(
 	column: SQLWrapper | AnyColumn,
-	value: number[],
+	value: number[] | string[] | TypedQueryBuilder<any> | string,
 ): SQL {
-	return sql`${column} <#> ${toSql(value)}`.mapWith(Number);
+	if (is(value, TypedQueryBuilder<any>) || typeof value === 'string') {
+		return sql`${column} <#> ${value}`;
+	}
+	return sql`${column} <#> ${toSql(value)}`;
 }
 
 /**
@@ -84,7 +124,55 @@ export function maxInnerProduct(
  */
 export function cosineDistance(
 	column: SQLWrapper | AnyColumn,
-	value: number[],
+	value: number[] | string[] | TypedQueryBuilder<any> | string,
 ): SQL {
-	return sql`${column} <=> ${toSql(value)}`.mapWith(Number);
+	if (is(value, TypedQueryBuilder<any>) || typeof value === 'string') {
+		return sql`${column} <=> ${value}`;
+	}
+	return sql`${column} <=> ${toSql(value)}`;
+}
+
+/**
+ * Hamming distance between two strings or vectors of equal length is the number of positions at which the
+ * corresponding symbols are different. In other words, it measures the minimum number of
+ * substitutions required to change one string into the other, or equivalently,
+ * the minimum number of errors that could have transformed one string into the other
+ *
+ * ## Examples
+ *
+ * ```ts
+ * // Sort cars by embedding similarity
+ * // to the given embedding
+ * db.select().from(cars)
+ *   .orderBy(hammingDistance(cars.embedding, embedding));
+ * ```
+ */
+export function hammingDistance(
+	column: SQLWrapper | AnyColumn,
+	value: number[] | string[] | TypedQueryBuilder<any> | string,
+): SQL {
+	if (is(value, TypedQueryBuilder<any>) || typeof value === 'string') {
+		return sql`${column} <~> ${value}`;
+	}
+	return sql`${column} <~> ${toSql(value)}`;
+}
+
+/**
+ * ## Examples
+ *
+ * ```ts
+ * // Sort cars by embedding similarity
+ * // to the given embedding
+ * db.select().from(cars)
+ *   .orderBy(jaccardDistance(cars.embedding, embedding));
+ * ```
+ */
+export function jaccardDistance(
+	column: SQLWrapper | AnyColumn,
+	value: number[] | string[] | Subquery | string,
+): SQL {
+	if (is(value, Subquery) || typeof value === 'string') {
+		return sql`${column} <%> ${value}`;
+	}
+	return sql`${column} <%> ${toSql(value)}`;
 }

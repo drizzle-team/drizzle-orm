@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
-import { PgColumn, PgColumnBuilder } from './common.ts';
+import { PgColumn, PgColumnBuilder } from '../common.ts';
 
 export type PgVectorBuilderInitial<TName extends string> = PgVectorBuilder<{
 	name: TName;
@@ -32,7 +32,6 @@ export class PgVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgVecto
 	}
 }
 
-// TODO: adding mappers
 export class PgVector<T extends ColumnBaseConfig<'array', 'PgVector'>>
 	extends PgColumn<T, { dimensions: number | undefined }>
 {
@@ -42,6 +41,17 @@ export class PgVector<T extends ColumnBaseConfig<'array', 'PgVector'>>
 
 	getSQLType(): string {
 		return `vector(${this.dimensions})`;
+	}
+
+	override mapToDriverValue(value: unknown): unknown {
+		return JSON.stringify(value);
+	}
+
+	override mapFromDriverValue(value: string): unknown {
+		return value
+			.slice(1, -1)
+			.split(',')
+			.map((v) => Number.parseFloat(v));
 	}
 }
 

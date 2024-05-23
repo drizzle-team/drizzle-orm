@@ -25,4 +25,7 @@ export * from './time.ts';
 export * from './timestamp.ts';
 export * from './uuid.ts';
 export * from './varchar.ts';
-export * from './vector.ts';
+export * from './vector_extension/bit.ts';
+export * from './vector_extension/halfvec.ts';
+export * from './vector_extension/sparsevec.ts';
+export * from './vector_extension/vector.ts';
