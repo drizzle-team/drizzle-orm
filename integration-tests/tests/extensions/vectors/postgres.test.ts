@@ -1,10 +1,9 @@
 import Docker from 'dockerode';
 import { eq, hammingDistance, jaccardDistance, l2Distance, not, sql } from 'drizzle-orm';
 import { bigserial, bit, halfvec, pgTable, sparsevec, vector } from 'drizzle-orm/pg-core';
-import { drizzle } from 'drizzle-orm/postgres-js';
-import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import getPort from 'get-port';
-import postgres, { Sql } from 'postgres';
+import postgres, { type Sql } from 'postgres';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 
