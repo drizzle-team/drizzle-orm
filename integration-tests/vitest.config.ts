@@ -14,6 +14,8 @@ export default defineConfig({
 			'tests/replicas/**/*',
 			'tests/imports/**/*',
 			'tests/xata-http.test.ts',
+			'tests/extension/vectors/**/*',
+			// 'tests/awsdatapi.test.ts',
 		],
 		exclude: [
 			...(process.env.SKIP_EXTERNAL_DB_TESTS

@@ -31,6 +31,7 @@ import {
 	real,
 	serial,
 	smallint,
+	smallserial,
 	text,
 	time,
 	timestamp,
@@ -71,15 +72,12 @@ export const users = pgTable(
 		arrayCol: text('array_col').array().notNull(),
 	},
 	(users) => ({
-		usersAge1Idx: uniqueIndex('usersAge1Idx').on(users.class),
-		usersAge2Idx: index('usersAge2Idx').on(users.class),
+		usersAge1Idx: uniqueIndex('usersAge1Idx').on(users.class.asc().nullsFirst(), sql``),
+		usersAge2Idx: index('usersAge2Idx').on(sql``),
 		uniqueClass: uniqueIndex('uniqueClass')
-			.on(users.class, users.subClass)
+			.using('btree', users.class.desc().op('text_ops'), users.subClass.nullsLast())
 			.where(sql`${users.class} is not null`)
-			.desc()
-			.nullsLast()
-			.concurrently()
-			.using(sql`btree`),
+			.concurrently(),
 		legalAge: check('legalAge', sql`${users.age1} > 18`),
 		usersClassFK: foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] })
 			.onUpdate('cascade')
@@ -104,6 +102,22 @@ export const cities = pgTable('cities_table', {
 }, (cities) => ({
 	citiesNameIdx: index().on(cities.id),
 }));
+
+export const smallSerialTest = pgTable('cities_table', {
+	id: smallserial('id').primaryKey(),
+	name: text('name').notNull(),
+	population: integer('population').default(0),
+}, (cities) => ({
+	citiesNameIdx: index().on(cities.id),
+}));
+
+Expect<
+	Equal<{
+		id?: number;
+		name: string;
+		population?: number | null;
+	}, typeof smallSerialTest.$inferInsert>
+>;
 
 export const classes = pgTable('classes_table', {
 	id: serial('id').primaryKey(),

@@ -1,7 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import type { Column } from './column.ts';
 import type { MySqlColumn } from './mysql-core/index.ts';
-import type { PgColumn } from './pg-core/index.ts';
+import type { ExtraConfigColumn, PgColumn } from './pg-core/index.ts';
 import type { SQL } from './sql/sql.ts';
 import type { SQLiteColumn } from './sqlite-core/index.ts';
 import type { Simplify } from './utils.ts';
@@ -69,6 +69,7 @@ export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = ob
 	notNull: boolean;
 	default: TData | SQL | undefined;
 	defaultFn: (() => TData | SQL) | undefined;
+	onUpdateFn: (() => TData | SQL) | undefined;
 	hasDefault: boolean;
 	primaryKey: boolean;
 	isUnique: boolean;
@@ -193,6 +194,26 @@ export abstract class ColumnBuilder<
 	$default = this.$defaultFn;
 
 	/**
+	 * Adds a dynamic update value to the column.
+	 * The function will be called when the row is updated, and the returned value will be used as the column value if none is provided.
+	 * If no `default` (or `$defaultFn`) value is provided, the function will be called when the row is inserted as well, and the returned value will be used as the column value.
+	 *
+	 * **Note:** This value does not affect the `drizzle-kit` behavior, it is only used at runtime in `drizzle-orm`.
+	 */
+	$onUpdateFn(
+		fn: () => (this['_'] extends { $type: infer U } ? U : this['_']['data']) | SQL,
+	): HasDefault<this> {
+		this.config.onUpdateFn = fn;
+		this.config.hasDefault = true;
+		return this as HasDefault<this>;
+	}
+
+	/**
+	 * Alias for {@link $onUpdateFn}.
+	 */
+	$onUpdate = this.$onUpdateFn;
+
+	/**
 	 * Adds a `primary key` clause to the column definition. This implicitly makes the column `not null`.
 	 *
 	 * In SQLite, `integer primary key` implicitly makes the column auto-incrementing.
@@ -214,6 +235,17 @@ export type BuildColumn<
 	: TDialect extends 'common' ? Column<MakeColumnConfig<TBuilder['_'], TTableName>>
 	: never;
 
+export type BuildIndexColumn<
+	TDialect extends Dialect,
+> = TDialect extends 'pg' ? ExtraConfigColumn : never;
+
+// TODO
+// try to make sql as well + indexRaw
+
+// optional after everything will be working as expected
+// also try to leave only needed methods for extraConfig
+// make an error if I pass .asc() to fk and so on
+
 export type BuildColumns<
 	TTableName extends string,
 	TConfigMap extends Record<string, ColumnBuilderBase>,
@@ -221,6 +253,16 @@ export type BuildColumns<
 > =
 	& {
 		[Key in keyof TConfigMap]: BuildColumn<TTableName, TConfigMap[Key], TDialect>;
+	}
+	& {};
+
+export type BuildExtraConfigColumns<
+	_TTableName extends string,
+	TConfigMap extends Record<string, ColumnBuilderBase>,
+	TDialect extends Dialect,
+> =
+	& {
+		[Key in keyof TConfigMap]: BuildIndexColumn<TDialect>;
 	}
 	& {};
 
