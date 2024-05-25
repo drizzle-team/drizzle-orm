@@ -164,6 +164,7 @@ export class MySqlDialect {
 		const chunks = fields
 			.flatMap(({ field }, i) => {
 				const chunk: SQLChunk[] = [];
+        chunk.push(sql`(`);
 
 				if (is(field, SQL.Aliased) && field.isSelectionField) {
 					chunk.push(sql.identifier(field.fieldAlias));
@@ -196,6 +197,7 @@ export class MySqlDialect {
 					}
 				}
 
+        chunk.push(sql`)`);
 				if (i < columnsLen - 1) {
 					chunk.push(sql`, `);
 				}

@@ -191,7 +191,8 @@ export class PgDialect {
 		const chunks = fields
 			.flatMap(({ field }, i) => {
 				const chunk: SQLChunk[] = [];
-
+        
+        chunk.push(sql`(`);
 				if (is(field, SQL.Aliased) && field.isSelectionField) {
 					chunk.push(sql.identifier(field.fieldAlias));
 				} else if (is(field, SQL.Aliased) || is(field, SQL)) {
@@ -223,6 +224,7 @@ export class PgDialect {
 					}
 				}
 
+        chunk.push(sql`)`);
 				if (i < columnsLen - 1) {
 					chunk.push(sql`, `);
 				}
