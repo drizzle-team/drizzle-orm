@@ -14,7 +14,7 @@ export default defineConfig({
 			'tests/replicas/**/*',
 			'tests/imports/**/*',
 			'tests/xata-http.test.ts',
-			'tests/extension/vectors/**/*',
+			'tests/extensions/vectors/**/*',
 			// 'tests/awsdatapi.test.ts',
 		],
 		exclude: [

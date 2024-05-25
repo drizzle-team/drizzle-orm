@@ -1,5 +1,5 @@
-import { type AnyColumn, is, Subquery } from '~/index.ts';
-import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import type { AnyColumn } from '~/index.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { type SQL, sql, type SQLWrapper } from '../sql.ts';
 
 function toSql(value: number[] | string[]): string {
@@ -32,10 +32,10 @@ export function l2Distance(
 	column: SQLWrapper | AnyColumn,
 	value: number[] | string[] | TypedQueryBuilder<any> | string,
 ): SQL {
-	if (is(value, TypedQueryBuilder<any>) || typeof value === 'string') {
-		return sql`${column} <-> ${value}`;
+	if (Array.isArray(value)) {
+		return sql`${column} <-> ${toSql(value)}`;
 	}
-	return sql`${column} <-> ${toSql(value)}`;
+	return sql`${column} <-> ${value}`;
 }
 
 /**
@@ -62,10 +62,10 @@ export function l1Distance(
 	column: SQLWrapper | AnyColumn,
 	value: number[] | string[] | TypedQueryBuilder<any> | string,
 ): SQL {
-	if (is(value, TypedQueryBuilder<any>) || typeof value === 'string') {
-		return sql`${column} <+> ${value}`;
+	if (Array.isArray(value)) {
+		return sql`${column} <+> ${toSql(value)}`;
 	}
-	return sql`${column} <+> ${toSql(value)}`;
+	return sql`${column} <+> ${value}`;
 }
 
 /**
@@ -94,10 +94,10 @@ export function innerProduct(
 	column: SQLWrapper | AnyColumn,
 	value: number[] | string[] | TypedQueryBuilder<any> | string,
 ): SQL {
-	if (is(value, TypedQueryBuilder<any>) || typeof value === 'string') {
-		return sql`${column} <#> ${value}`;
+	if (Array.isArray(value)) {
+		return sql`${column} <#> ${toSql(value)}`;
 	}
-	return sql`${column} <#> ${toSql(value)}`;
+	return sql`${column} <#> ${value}`;
 }
 
 /**
@@ -126,10 +126,10 @@ export function cosineDistance(
 	column: SQLWrapper | AnyColumn,
 	value: number[] | string[] | TypedQueryBuilder<any> | string,
 ): SQL {
-	if (is(value, TypedQueryBuilder<any>) || typeof value === 'string') {
-		return sql`${column} <=> ${value}`;
+	if (Array.isArray(value)) {
+		return sql`${column} <=> ${toSql(value)}`;
 	}
-	return sql`${column} <=> ${toSql(value)}`;
+	return sql`${column} <=> ${value}`;
 }
 
 /**
@@ -151,10 +151,10 @@ export function hammingDistance(
 	column: SQLWrapper | AnyColumn,
 	value: number[] | string[] | TypedQueryBuilder<any> | string,
 ): SQL {
-	if (is(value, TypedQueryBuilder<any>) || typeof value === 'string') {
-		return sql`${column} <~> ${value}`;
+	if (Array.isArray(value)) {
+		return sql`${column} <~> ${toSql(value)}`;
 	}
-	return sql`${column} <~> ${toSql(value)}`;
+	return sql`${column} <~> ${value}`;
 }
 
 /**
@@ -169,10 +169,10 @@ export function hammingDistance(
  */
 export function jaccardDistance(
 	column: SQLWrapper | AnyColumn,
-	value: number[] | string[] | Subquery | string,
+	value: number[] | string[] | TypedQueryBuilder<any> | string,
 ): SQL {
-	if (is(value, Subquery) || typeof value === 'string') {
-		return sql`${column} <%> ${value}`;
+	if (Array.isArray(value)) {
+		return sql`${column} <%> ${toSql(value)}`;
 	}
-	return sql`${column} <%> ${toSql(value)}`;
+	return sql`${column} <%> ${value}`;
 }
