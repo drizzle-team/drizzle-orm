@@ -13,7 +13,7 @@ jobs:
           - drizzle-typebox
           - drizzle-valibot
           - eslint-plugin-drizzle
-    runs-on: ubuntu-20.04
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
 
