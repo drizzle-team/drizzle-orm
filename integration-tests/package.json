@@ -7,7 +7,7 @@
 		"test:types": "tsc",
 		"test": "pnpm test:ava && pnpm test:esm && pnpm test:rqb",
 		"test:ava": "NODE_OPTIONS='--loader=tsx --no-warnings --max-old-space-size=8192' ava tests --timeout=60s --serial",
-		"test:rqb": "vitest run --no-threads",
+		"test:rqb": "vitest run --poolOptions.threads.singleThread",
 		"test:esm": "node tests/imports.test.mjs && node tests/imports.test.cjs",
 		"test:data-api": "sst shell vitest run tests/awsdatapi.test.ts"
 	},
