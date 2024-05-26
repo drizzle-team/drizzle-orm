@@ -80,7 +80,7 @@
 		"drizzle-zod": "workspace:../drizzle-zod/dist",
 		"express": "^4.19.2",
 		"get-port": "^7.1.0",
-		"mysql2": "^3.9.7",
+		"mysql2": "^3.3.3",
 		"pg": "^8.11.5",
 		"postgres": "^3.4.4",
 		"source-map-support": "^0.5.21",
