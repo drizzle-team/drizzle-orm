@@ -1,6 +1,5 @@
 import { entityKind, is } from '~/entity.ts';
-import type { SQLWrapper } from '~/index.ts';
-import { SQL, sql } from '~/index.ts';
+import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { pgEnum } from './columns/enum.ts';
 import { pgEnumWithSchema } from './columns/enum.ts';
 import { type PgTableFn, pgTableWithSchema } from './table.ts';

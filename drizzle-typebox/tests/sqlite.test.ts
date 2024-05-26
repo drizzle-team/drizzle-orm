@@ -3,7 +3,7 @@ import { Value } from '@sinclair/typebox/value';
 import test from 'ava';
 import { blob, integer, numeric, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { createInsertSchema, createSelectSchema, jsonSchema, Nullable } from '../src';
-import { expectSchemaShape } from './utils';
+import { expectSchemaShape } from './utils.ts';
 
 const blobJsonSchema = Type.Object({
 	foo: Type.String(),

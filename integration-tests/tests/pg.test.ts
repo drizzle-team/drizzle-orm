@@ -83,7 +83,7 @@ import { type Equal, Expect, randomString } from './utils.ts';
 
 const { Client } = pg;
 
-const ENABLE_LOGGING = true;
+const ENABLE_LOGGING = false;
 
 const usersTable = pgTable('users', {
 	id: serial('id' as string).primaryKey(),

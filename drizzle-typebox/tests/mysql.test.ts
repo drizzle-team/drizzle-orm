@@ -32,7 +32,7 @@ import {
 	year,
 } from 'drizzle-orm/mysql-core';
 import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
-import { expectSchemaShape } from './utils';
+import { expectSchemaShape } from './utils.ts';
 
 const customInt = customType<{ data: number }>({
 	dataType() {
