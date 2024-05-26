@@ -14,7 +14,7 @@ jobs:
           - drizzle-typebox
           - drizzle-valibot
           - eslint-plugin-drizzle
-    runs-on: self-hosted
+    runs-on: ubuntu-20.04
     services:
       postgres-vector:
         image: pgvector/pgvector:pg16
