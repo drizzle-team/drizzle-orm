@@ -96,7 +96,50 @@ export class MySqlBigInt64<T extends ColumnBaseConfig<'bigint', 'MySqlBigInt64'>
 	}
 }
 
-interface MySqlBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
+export type MySqlBigIntStringBuilderInitial<TName extends string> = MySqlBigIntStringBuilder<{
+	name: TName;
+	dataType: 'string';
+	columnType: 'MySqlBigIntString';
+	data: string;
+	driverParam: string;
+	enumValues: undefined;
+}>;
+
+export class MySqlBigIntStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlBigIntString'>> extends MySqlColumnBuilderWithAutoIncrement<T, { unsigned: boolean }> {
+	static readonly [entityKind]: string = 'MySqlBigIntStringBuilder';
+
+	constructor(name: T['name'], unsigned: boolean = false) {
+		super(name, 'string', 'MySqlBigIntString');
+		this.config.unsigned = unsigned;
+	}
+
+	/** @internal */
+	override build<TTableName extends string>(
+		table: AnyMySqlTable<{ name: TTableName }>,
+	): MySqlBigIntString<MakeColumnConfig<T, TTableName>> {
+		return new MySqlBigIntString<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
+	}
+}
+
+export class MySqlBigIntString<T extends ColumnBaseConfig<'string', 'MySqlBigIntString'>> extends MySqlColumnWithAutoIncrement<T, { unsigned: boolean }> {
+	static readonly [entityKind]: string = 'MySqlBigIntString';
+
+	getSQLType(): string {
+		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;
+	}
+
+	override mapFromDriverValue(value: number | string): string {
+		if (typeof value === 'number') {
+			return String(value);
+		}
+		return value;
+	}
+}
+
+interface MySqlBigIntConfig<T extends 'number' | 'string' | 'bigint' = 'number' | 'string' | 'bigint'> {
 	mode: T;
 	unsigned?: boolean;
 }
@@ -104,10 +147,13 @@ interface MySqlBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'>
 export function bigint<TName extends string, TMode extends MySqlBigIntConfig['mode']>(
 	name: TName,
 	config: MySqlBigIntConfig<TMode>,
-): TMode extends 'number' ? MySqlBigInt53BuilderInitial<TName> : MySqlBigInt64BuilderInitial<TName>;
+): TMode extends 'number' ? MySqlBigInt53BuilderInitial<TName> : TMode extends 'string' ? MySqlBigIntStringBuilderInitial<TName> : MySqlBigInt64BuilderInitial<TName>;
 export function bigint(name: string, config: MySqlBigIntConfig) {
 	if (config.mode === 'number') {
 		return new MySqlBigInt53Builder(name, config.unsigned);
+	}
+	if (config.mode === 'string') {
+		return new MySqlBigIntStringBuilder(name, config.unsigned);
 	}
 	return new MySqlBigInt64Builder(name, config.unsigned);
 }
