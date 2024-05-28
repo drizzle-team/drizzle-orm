@@ -6,6 +6,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: [
+			'tests/extensions/postgis/**/*',
 			'tests/relational/**/*.test.ts',
 			'tests/libsql-batch.test.ts',
 			'tests/d1-batch.test.ts',
@@ -15,7 +16,7 @@ export default defineConfig({
 			'tests/imports/**/*',
 			'tests/xata-http.test.ts',
 			'tests/extensions/vectors/**/*',
-			// 'tests/awsdatapi.test.ts',
+			'tests/awsdatapi.test.ts',
 		],
 		exclude: [
 			...(process.env.SKIP_EXTERNAL_DB_TESTS
