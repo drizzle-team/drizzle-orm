@@ -15,7 +15,7 @@ import {
 	string,
 } from 'valibot';
 import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
-import { expectSchemaShape } from './utils';
+import { expectSchemaShape } from './utils.ts';
 
 const blobJsonSchema = object({
 	foo: string(),

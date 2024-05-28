@@ -25,7 +25,8 @@ import { migrate } from 'drizzle-orm/mysql2/migrator';
 import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
-import { toLocalDate } from './utils';
+
+import { toLocalDate } from './utils.ts';
 
 const customSerial = customType<{ data: number; notNull: true; default: true }>({
 	dataType() {

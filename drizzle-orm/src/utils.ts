@@ -132,12 +132,11 @@ export type UpdateSet = Record<string, SQL | Param | null | undefined>;
 
 export type OneOrMany<T> = T | T[];
 
-export type Update<T, TUpdate> = Simplify<
+export type Update<T, TUpdate> =
 	& {
 		[K in Exclude<keyof T, keyof TUpdate>]: T[K];
 	}
-	& TUpdate
->;
+	& TUpdate;
 
 export type Simplify<T> =
 	& {

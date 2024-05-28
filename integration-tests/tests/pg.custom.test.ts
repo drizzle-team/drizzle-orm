@@ -11,7 +11,7 @@ import { alias, customType, pgTable, pgTableCreator, serial, text } from 'drizzl
 import getPort from 'get-port';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
-import { randomString } from './utils';
+import { randomString } from './utils.ts';
 
 const { Client } = pg;
 
@@ -636,7 +636,7 @@ test.serial('migrator : migrate with custom schema', async (t) => {
 
 	// test if the custom migrations table was created
 	const { rowCount } = await db.execute(sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`);
-	t.true(rowCount > 0);
+	t.true(rowCount! > 0);
 
 	// test if the migrated table are working as expected
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
@@ -659,7 +659,7 @@ test.serial('migrator : migrate with custom table', async (t) => {
 
 	// test if the custom migrations table was created
 	const { rowCount } = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
-	t.true(rowCount > 0);
+	t.true(rowCount! > 0);
 
 	// test if the migrated table are working as expected
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
@@ -689,7 +689,7 @@ test.serial('migrator : migrate with custom table and custom schema', async (t) 
 	const { rowCount } = await db.execute(
 		sql`select * from ${sql.identifier(customSchema)}.${sql.identifier(customTable)};`,
 	);
-	t.true(rowCount > 0);
+	t.true(rowCount! > 0);
 
 	// test if the migrated table are working as expected
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });

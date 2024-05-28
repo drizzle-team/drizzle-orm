@@ -1,8 +1,8 @@
 diff --git a/lib/tsserver.js b/lib/tsserver.js
-index 382e1e2937fd02bed4c84b52f366049f2060ef1f..3ac8abaa9b30f0bcfb504220775ef8f3ee63eac3 100644
+index 3f1ce62663e3c32aa487f0fc7dcb3dd940e7cd24..559f2f70531180c5d54d98b18ae54a67eab54e1d 100644
 --- a/lib/tsserver.js
 +++ b/lib/tsserver.js
-@@ -15053,7 +15053,7 @@ function isRestParameter(node) {
+@@ -15203,7 +15203,7 @@ function isInternalDeclaration(node, sourceFile) {
  // src/compiler/utilities.ts
  var resolvingEmptyArray = [];
  var externalHelpersModuleNameText = "tslib";

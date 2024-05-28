@@ -3,7 +3,7 @@ import { Value } from '@sinclair/typebox/value';
 import test from 'ava';
 import { char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema, Nullable } from '../src';
-import { expectSchemaShape } from './utils';
+import { expectSchemaShape } from './utils.ts';
 
 export const roleEnum = pgEnum('role', ['admin', 'user']);
 

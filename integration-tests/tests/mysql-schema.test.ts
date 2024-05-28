@@ -3,7 +3,7 @@ import 'dotenv/config';
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import Docker from 'dockerode';
-import { asc, eq, Name, placeholder, sql } from 'drizzle-orm';
+import { asc, eq, Name, sql } from 'drizzle-orm';
 import {
 	alias,
 	boolean,
@@ -27,7 +27,8 @@ import { drizzle } from 'drizzle-orm/mysql2';
 import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
-import { toLocalDate } from './utils';
+
+import { toLocalDate } from './utils.ts';
 
 const mySchema = mysqlSchema('mySchema');
 
@@ -660,7 +661,7 @@ test.serial('prepared statement reuse', async (t) => {
 
 	const stmt = db.insert(usersTable).values({
 		verified: true,
-		name: placeholder('name'),
+		name: sql.placeholder('name'),
 	}).prepare();
 
 	for (let i = 0; i < 10; i++) {
@@ -695,7 +696,7 @@ test.serial('prepared statement with placeholder in .where', async (t) => {
 		id: usersTable.id,
 		name: usersTable.name,
 	}).from(usersTable)
-		.where(eq(usersTable.id, placeholder('id')))
+		.where(eq(usersTable.id, sql.placeholder('id')))
 		.prepare();
 	const result = await stmt.execute({ id: 1 });
 

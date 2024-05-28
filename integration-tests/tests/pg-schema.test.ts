@@ -134,14 +134,14 @@ test.after.always(async (t) => {
 test.beforeEach(async (t) => {
 	const ctx = t.context;
 	await ctx.db.execute(sql`drop schema if exists public cascade`);
-	await ctx.db.execute(sql`drop schema if exists "mySchema" cascade`);
+	await ctx.db.execute(sql`drop schema if exists ${mySchema} cascade`);
 	await ctx.db.execute(sql`create schema public`);
 	await ctx.db.execute(
-		sql`create schema "mySchema"`,
+		sql`create schema ${mySchema}`,
 	);
 	await ctx.db.execute(
 		sql`
-			create table "mySchema".users (
+			create table ${usersTable} (
 				id serial primary key,
 				name text not null,
 				verified boolean not null default false, 
@@ -152,7 +152,7 @@ test.beforeEach(async (t) => {
 	);
 	await ctx.db.execute(
 		sql`
-			create table "mySchema".cities (
+			create table ${citiesTable} (
 				id serial primary key,
 				name text not null,
 				state char(2)
@@ -161,7 +161,7 @@ test.beforeEach(async (t) => {
 	);
 	await ctx.db.execute(
 		sql`
-			create table "mySchema".users2 (
+			create table ${users2Table} (
 				id serial primary key,
 				name text not null,
 				city_id integer references "mySchema".cities(id)

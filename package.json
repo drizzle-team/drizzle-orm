@@ -33,12 +33,13 @@
 		"recast": "^0.23.4",
 		"resolve-tspaths": "^0.8.16",
 		"tsup": "^7.2.0",
+		"tsx": "^4.10.5",
 		"turbo": "^1.10.14",
-		"typescript": "5.2.2"
+		"typescript": "5.4.5"
 	},
 	"pnpm": {
 		"patchedDependencies": {
-			"typescript@5.2.2": "patches/typescript@5.2.2.patch"
+			"typescript@5.4.5": "patches/typescript@5.4.5.patch"
 		}
 	}
 }

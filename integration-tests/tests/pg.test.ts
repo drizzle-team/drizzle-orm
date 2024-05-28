@@ -60,6 +60,7 @@ import {
 	type PgColumn,
 	pgEnum,
 	pgMaterializedView,
+	pgSchema,
 	pgTable,
 	pgTableCreator,
 	pgView,
@@ -1198,7 +1199,7 @@ test.serial('migrator : migrate with custom schema', async (t) => {
 
 	// test if the custom migrations table was created
 	const { rowCount } = await db.execute(sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`);
-	t.true(rowCount > 0);
+	t.true(rowCount && rowCount > 0);
 
 	// test if the migrated table are working as expected
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
@@ -1221,7 +1222,7 @@ test.serial('migrator : migrate with custom table', async (t) => {
 
 	// test if the custom migrations table was created
 	const { rowCount } = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
-	t.true(rowCount > 0);
+	t.true(rowCount && rowCount > 0);
 
 	// test if the migrated table are working as expected
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
@@ -1251,7 +1252,7 @@ test.serial('migrator : migrate with custom table and custom schema', async (t) 
 	const { rowCount } = await db.execute(
 		sql`select * from ${sql.identifier(customSchema)}.${sql.identifier(customTable)};`,
 	);
-	t.true(rowCount > 0);
+	t.true(rowCount && rowCount > 0);
 
 	// test if the migrated table are working as expected
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
@@ -2239,6 +2240,28 @@ test.serial('materialized view', async (t) => {
 	}
 
 	await db.execute(sql`drop materialized view ${newYorkers1}`);
+});
+
+test.serial('select from existing view', async (t) => {
+	const { db } = t.context;
+
+	const schema = pgSchema('test_schema');
+
+	const newYorkers = schema.view('new_yorkers', {
+		id: integer('id').notNull(),
+	}).existing();
+
+	await db.execute(sql`drop schema if exists ${schema} cascade`);
+	await db.execute(sql`create schema ${schema}`);
+	await db.execute(sql`create view ${newYorkers} as select id from ${usersTable}`);
+
+	await db.insert(usersTable).values({ id: 100, name: 'John' });
+
+	const result = await db.select({
+		id: usersTable.id,
+	}).from(usersTable).innerJoin(newYorkers, eq(newYorkers.id, usersTable.id));
+
+	t.deepEqual(result, [{ id: 100 }]);
 });
 
 // TODO: copy to SQLite and MySQL, add to docs

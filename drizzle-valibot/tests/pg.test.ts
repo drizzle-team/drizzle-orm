@@ -16,7 +16,7 @@ import {
 	string,
 } from 'valibot';
 import { createInsertSchema, createSelectSchema } from '../src';
-import { expectSchemaShape } from './utils';
+import { expectSchemaShape } from './utils.ts';
 
 export const roleEnum = pgEnum('role', ['admin', 'user']);
 
