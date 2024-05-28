@@ -43,8 +43,8 @@ import type { XataHttpClient, XataHttpDatabase } from 'drizzle-orm/xata-http';
 import { migrate } from 'drizzle-orm/xata-http/migrator';
 import { v4 as uuid } from 'uuid';
 import { beforeAll, beforeEach, expect, test } from 'vitest';
+import { getXataClient } from '../xata/xata.ts';
 import { type Equal, Expect, randomString } from './utils.ts';
-import { getXataClient } from './xata/xata.ts';
 
 const ENABLE_LOGGING = false;
 
@@ -1544,7 +1544,9 @@ test('join on aliased sql from select', async () => {
 		.from(sql`(select 1 as id, 'John' as name, 'New York' as city) as users`)
 		.leftJoin(sql`(select 1 as id, 'Paris' as name) as cities`, (cols) => eq(cols.cityId, cols.userId));
 
-	Expect<Equal<{ userId: number; name: string; userCity: string; cityId: number; cityName: string }[], typeof result>>;
+	Expect<
+		Equal<{ userId: number; name: string; userCity: string; cityId: number; cityName: string }[], typeof result>
+	>;
 
 	expect(result).toEqual([
 		{ userId: 1, name: 'John', userCity: 'New York', cityId: 1, cityName: 'Paris' },
@@ -1583,7 +1585,9 @@ test('join on aliased sql from with clause', async () => {
 		.from(users)
 		.leftJoin(cities, (cols) => eq(cols.cityId, cols.userId));
 
-	Expect<Equal<{ userId: number; name: string; userCity: string; cityId: number; cityName: string }[], typeof result>>;
+	Expect<
+		Equal<{ userId: number; name: string; userCity: string; cityId: number; cityName: string }[], typeof result>
+	>;
 
 	expect(result).toEqual([
 		{ userId: 1, name: 'John', userCity: 'New York', cityId: 1, cityName: 'Paris' },
@@ -2079,7 +2083,9 @@ test.skip('all date and time columns without timezone', async () => {
 
 	expect((result2.records[0] as any).timestamp_string).toEqual('2022-01-01 00:00:00.123456');
 	// need to add the 'Z', otherwise javascript assumes it's in local time
-	expect(new Date((result2.records[0] as any).timestamp_date + 'Z' as any).getTime()).toEqual(timestampDate.getTime());
+	expect(new Date((result2.records[0] as any).timestamp_date + 'Z' as any).getTime()).toEqual(
+		timestampDate.getTime(),
+	);
 
 	await db.execute(sql`drop table if exists ${table}`);
 });
