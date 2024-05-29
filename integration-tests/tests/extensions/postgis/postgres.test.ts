@@ -42,7 +42,7 @@ async function createDockerDB(): Promise<string> {
 }
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_VECTOR_CONNECTION_STRING'] ?? (await createDockerDB());
+	const connectionString = process.env['PG_POSTGIS_CONNECTION_STRING'] ?? (await createDockerDB());
 
 	const sleep = 1000;
 	let timeLeft = 20000;
