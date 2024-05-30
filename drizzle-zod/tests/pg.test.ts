@@ -1,5 +1,5 @@
 import test from 'ava';
-import { char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { bigint, char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { createInsertSchema, createSelectSchema } from '../src';
 import { expectSchemaShape } from './utils';
@@ -11,6 +11,9 @@ const users = pgTable('users', {
 	id: serial('id').primaryKey(),
 	name: text('name'),
 	email: text('email').notNull(),
+	bigint: bigint('bigint', { mode: 'bigint' }).notNull(),
+	bigintNumber: bigint('bigint_number', { mode: 'number' }).notNull(),
+	bigintString: bigint('bigint_string', { mode: 'string' }).notNull(),
 	birthdayString: date('birthday_string').notNull(),
 	birthdayDate: date('birthday_date', { mode: 'date' }).notNull(),
 	createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -26,6 +29,9 @@ const testUser = {
 	id: 1,
 	name: 'John Doe',
 	email: 'john.doe@example.com',
+	bigint: 100n,
+	bigintNumber: 100,
+	bigintString: '100',
 	birthdayString: '1990-01-01',
 	birthdayDate: new Date('1990-01-01'),
 	createdAt: new Date(),
@@ -82,6 +88,9 @@ test('users insert schema', (t) => {
 		id: z.number().positive().optional(),
 		name: z.string().nullable().optional(),
 		email: z.string().email(),
+		bigint: z.bigint(),
+		bigintNumber: z.number(),
+		bigintString: z.string(),
 		birthdayString: z.string(),
 		birthdayDate: z.date(),
 		createdAt: z.date().optional(),
@@ -103,6 +112,9 @@ test('users insert schema w/ defaults', (t) => {
 		id: z.number().optional(),
 		name: z.string().nullable().optional(),
 		email: z.string(),
+		bigint: z.bigint(),
+		bigintNumber: z.number(),
+		bigintString: z.string(),
 		birthdayString: z.string(),
 		birthdayDate: z.date(),
 		createdAt: z.date().optional(),
@@ -128,6 +140,9 @@ test('users select schema', (t) => {
 		id: z.number().positive(),
 		name: z.string().nullable(),
 		email: z.string().email(),
+		bigint: z.bigint(),
+		bigintNumber: z.number(),
+		bigintString: z.string(),
 		birthdayString: z.string(),
 		birthdayDate: z.date(),
 		createdAt: z.date(),
@@ -149,6 +164,9 @@ test('users select schema w/ defaults', (t) => {
 		id: z.number(),
 		name: z.string().nullable(),
 		email: z.string(),
+		bigint: z.bigint(),
+		bigintNumber: z.number(),
+		bigintString: z.string(),
 		birthdayString: z.string(),
 		birthdayDate: z.date(),
 		createdAt: z.date(),
