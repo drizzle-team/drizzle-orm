@@ -406,8 +406,9 @@ Expect<
 
 {
 	mysqlTable('test', {
-		bigint: bigint('bigint', { mode: 'bigint' }),
-		number: bigint('number', { mode: 'number' }),
+		bigint: bigint('bigint', { mode: 'bigint' }).default(100n),
+		bigintNumber: bigint('bigint_number', { mode: 'number' }).default(100),
+		bigintString: bigint('bigint_string', { mode: 'string' }).default('100'),
 		date: date('date').default(new Date()),
 		date2: date('date2', { mode: 'date' }).default(new Date()),
 		date3: date('date3', { mode: 'string' }).default('2020-01-01'),

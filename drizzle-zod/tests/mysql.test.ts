@@ -41,7 +41,8 @@ const customInt = customType<{ data: number }>({
 
 const testTable = mysqlTable('test', {
 	bigint: bigint('bigint', { mode: 'bigint' }).notNull(),
-	bigintNumber: bigint('bigintNumber', { mode: 'number' }).notNull(),
+	bigintNumber: bigint('bigint_number', { mode: 'number' }).notNull(),
+	bigintString: bigint('bigint_string', { mode: 'string' }).notNull(),
 	binary: binary('binary').notNull(),
 	boolean: boolean('boolean').notNull(),
 	char: char('char', { length: 4 }).notNull(),
@@ -83,6 +84,7 @@ const testTable = mysqlTable('test', {
 const testTableRow = {
 	bigint: BigInt(1),
 	bigintNumber: 1,
+	bigintString: '1',
 	binary: 'binary',
 	boolean: true,
 	char: 'char',
@@ -151,6 +153,7 @@ test('insert schema', (t) => {
 	const expected = z.object({
 		bigint: z.bigint(),
 		bigintNumber: z.number(),
+		bigintString: z.string(),
 		binary: z.string(),
 		boolean: z.boolean(),
 		char: z.string().length(4),
@@ -198,6 +201,7 @@ test('select schema', (t) => {
 	const expected = z.object({
 		bigint: z.bigint(),
 		bigintNumber: z.number(),
+		bigintString: z.string(),
 		binary: z.string(),
 		boolean: z.boolean(),
 		char: z.string().length(4),
@@ -247,6 +251,7 @@ test('select schema w/ refine', (t) => {
 	const expected = z.object({
 		bigint: z.bigint().positive(),
 		bigintNumber: z.number(),
+		bigintString: z.string(),
 		binary: z.string(),
 		boolean: z.boolean(),
 		char: z.string().length(5),

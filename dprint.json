@@ -21,7 +21,8 @@
 		"**/*snapshot.json",
 		"**/_journal.json",
 		"**/tsup.config*.mjs",
-		"**/.sst"
+		"**/.sst",
+		"rollup.config-*.mjs"
 	],
 	"plugins": [
 		"https://plugins.dprint.dev/typescript-0.83.0.wasm",

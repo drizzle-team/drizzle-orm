@@ -37,6 +37,7 @@ import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import {
 	alias,
+	bigint,
 	boolean,
 	char,
 	cidr,
@@ -2491,6 +2492,117 @@ test.serial('select from enum', async (t) => {
 	await db.execute(sql`drop type ${name(mechanicEnum.enumName)}`);
 	await db.execute(sql`drop type ${name(equipmentEnum.enumName)}`);
 	await db.execute(sql`drop type ${name(categoryEnum.enumName)}`);
+});
+
+test.serial('all bigint types', async (t) => {
+	const { db } = t.context;
+
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		bigint: bigint('bigint', { mode: 'bigint' }).notNull(),
+		bigintNumber: bigint('bigint_number', { mode: 'number' }).notNull(),
+		bigintString: bigint('bigint_string', { mode: 'string' }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					"id" serial primary key,
+					"bigint" bigint not null,
+					"bigint_number" bigint not null,
+					"bigint_string" bigint not null
+			)
+	`);
+
+	await db.insert(table).values({
+		bigint: 100n,
+		bigintNumber: 100,
+		bigintString: '100',
+	});
+
+	// min value
+	await db.insert(table).values({
+		bigint: BigInt(Number.MIN_SAFE_INTEGER),
+		bigintNumber: Number.MIN_SAFE_INTEGER,
+		bigintString: Number.MIN_SAFE_INTEGER.toString(),
+	});
+
+	// max value
+	await db.insert(table).values({
+		bigint: BigInt(Number.MAX_SAFE_INTEGER),
+		bigintNumber: Number.MAX_SAFE_INTEGER,
+		bigintString: Number.MAX_SAFE_INTEGER.toString(),
+	});
+
+	// max value + 1
+	await db.insert(table).values({
+		bigint: BigInt(Number.MAX_SAFE_INTEGER) + BigInt(1),
+		bigintNumber: Number.MAX_SAFE_INTEGER + 1,
+		bigintString: (Number.MAX_SAFE_INTEGER + 1).toString(),
+	});
+
+	// min value - 1
+	await db.insert(table).values({
+		bigint: BigInt(Number.MIN_SAFE_INTEGER) - BigInt(1),
+		bigintNumber: Number.MIN_SAFE_INTEGER - 1,
+		bigintString: (Number.MIN_SAFE_INTEGER - 1).toString(),
+	});
+
+	const result = await db.select().from(table);
+
+	Expect<
+		Equal<{
+			id: number;
+			bigint: bigint;
+			bigintNumber: number;
+			bigintString: string;
+		}[], typeof result>
+	>;
+
+	Expect<
+		Equal<{
+			bigint: bigint;
+			bigintNumber: number;
+			bigintString: string;
+			id?: number | undefined;
+		}, typeof table.$inferInsert>
+	>;
+
+	t.deepEqual(result, [
+		{
+			id: 1,
+			bigint: 100n,
+			bigintNumber: 100,
+			bigintString: '100',
+		},
+		{
+			id: 2,
+			bigint: BigInt(Number.MIN_SAFE_INTEGER),
+			bigintNumber: Number.MIN_SAFE_INTEGER,
+			bigintString: Number.MIN_SAFE_INTEGER.toString(),
+		},
+		{
+			id: 3,
+			bigint: BigInt(Number.MAX_SAFE_INTEGER),
+			bigintNumber: Number.MAX_SAFE_INTEGER,
+			bigintString: Number.MAX_SAFE_INTEGER.toString(),
+		},
+		{
+			id: 4,
+			bigint: BigInt(Number.MAX_SAFE_INTEGER) + BigInt(1),
+			bigintNumber: Number.MAX_SAFE_INTEGER + 1,
+			bigintString: (Number.MAX_SAFE_INTEGER + 1).toString(),
+		},
+		{
+			id: 5,
+			bigint: BigInt(Number.MIN_SAFE_INTEGER) - BigInt(1),
+			bigintNumber: Number.MIN_SAFE_INTEGER - 1,
+			bigintString: (Number.MIN_SAFE_INTEGER - 1).toString(),
+		},
+	]);
+
+	await db.execute(sql`drop table if exists ${table}`);
 });
 
 test.serial('all date and time columns', async (t) => {
