@@ -93,7 +93,9 @@ export type PgBigIntStringBuilderInitial<TName extends string> = PgBigIntStringB
 	enumValues: undefined;
 }>;
 
-export class PgBigIntStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgBigIntString'>> extends PgColumnBuilder<T> {
+export class PgBigIntStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgBigIntString'>>
+	extends PgColumnBuilder<T>
+{
 	static readonly [entityKind]: string = 'PgBigIntStringBuilder';
 
 	constructor(name: T['name']) {
@@ -104,7 +106,10 @@ export class PgBigIntStringBuilder<T extends ColumnBuilderBaseConfig<'string', '
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgBigIntString<MakeColumnConfig<T, TTableName>> {
-		return new PgBigIntString<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new PgBigIntString<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
 	}
 }
 
@@ -130,7 +135,9 @@ interface PgBigIntConfig<T extends 'number' | 'string' | 'bigint' = 'number' | '
 export function bigint<TName extends string, TMode extends PgBigIntConfig['mode']>(
 	name: TName,
 	config: PgBigIntConfig<TMode>,
-): TMode extends 'number' ? PgBigInt53BuilderInitial<TName> : TMode extends 'string' ? PgBigIntStringBuilderInitial<TName> : PgBigInt64BuilderInitial<TName>;
+): TMode extends 'number' ? PgBigInt53BuilderInitial<TName>
+	: TMode extends 'string' ? PgBigIntStringBuilderInitial<TName>
+	: PgBigInt64BuilderInitial<TName>;
 export function bigint(name: string, config: PgBigIntConfig) {
 	if (config.mode === 'number') {
 		return new PgBigInt53Builder(name);

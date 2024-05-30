@@ -105,7 +105,9 @@ export type MySqlBigIntStringBuilderInitial<TName extends string> = MySqlBigIntS
 	enumValues: undefined;
 }>;
 
-export class MySqlBigIntStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlBigIntString'>> extends MySqlColumnBuilderWithAutoIncrement<T, { unsigned: boolean }> {
+export class MySqlBigIntStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlBigIntString'>>
+	extends MySqlColumnBuilderWithAutoIncrement<T, { unsigned: boolean }>
+{
 	static readonly [entityKind]: string = 'MySqlBigIntStringBuilder';
 
 	constructor(name: T['name'], unsigned: boolean = false) {
@@ -124,7 +126,9 @@ export class MySqlBigIntStringBuilder<T extends ColumnBuilderBaseConfig<'string'
 	}
 }
 
-export class MySqlBigIntString<T extends ColumnBaseConfig<'string', 'MySqlBigIntString'>> extends MySqlColumnWithAutoIncrement<T, { unsigned: boolean }> {
+export class MySqlBigIntString<T extends ColumnBaseConfig<'string', 'MySqlBigIntString'>>
+	extends MySqlColumnWithAutoIncrement<T, { unsigned: boolean }>
+{
 	static readonly [entityKind]: string = 'MySqlBigIntString';
 
 	getSQLType(): string {
@@ -147,7 +151,9 @@ interface MySqlBigIntConfig<T extends 'number' | 'string' | 'bigint' = 'number' 
 export function bigint<TName extends string, TMode extends MySqlBigIntConfig['mode']>(
 	name: TName,
 	config: MySqlBigIntConfig<TMode>,
-): TMode extends 'number' ? MySqlBigInt53BuilderInitial<TName> : TMode extends 'string' ? MySqlBigIntStringBuilderInitial<TName> : MySqlBigInt64BuilderInitial<TName>;
+): TMode extends 'number' ? MySqlBigInt53BuilderInitial<TName>
+	: TMode extends 'string' ? MySqlBigIntStringBuilderInitial<TName>
+	: MySqlBigInt64BuilderInitial<TName>;
 export function bigint(name: string, config: MySqlBigIntConfig) {
 	if (config.mode === 'number') {
 		return new MySqlBigInt53Builder(name, config.unsigned);
