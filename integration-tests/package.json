@@ -30,7 +30,7 @@
 			"!tests/neon-http.test.ts",
 			"!tests/replicas/**/*",
 			"!tests/imports/**/*",
-			"!tests/extensions/vectors/**/*"
+			"!tests/extensions/**/*"
 		],
 		"extensions": {
 			"ts": "module"

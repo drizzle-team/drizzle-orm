@@ -6,6 +6,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: [
+			'tests/extensions/postgis/**/*',
 			'tests/relational/**/*.test.ts',
 			'tests/libsql-batch.test.ts',
 			'tests/d1-batch.test.ts',
