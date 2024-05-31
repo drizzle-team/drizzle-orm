@@ -531,12 +531,13 @@ export class PgDialect {
 		}
 	}
 
-	sqlToQuery(sql: SQL): QueryWithTypings {
+	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
 			prepareTyping: this.prepareTyping,
+			invokeSource,
 		});
 	}
 
