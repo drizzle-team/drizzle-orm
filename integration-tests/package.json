@@ -29,7 +29,8 @@
 			"!tests/neon-http-batch.test.ts",
 			"!tests/neon-http.test.ts",
 			"!tests/replicas/**/*",
-			"!tests/imports/**/*"
+			"!tests/imports/**/*",
+			"!tests/extensions/**/*"
 		],
 		"extensions": {
 			"ts": "module"
