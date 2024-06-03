@@ -74,7 +74,7 @@ export class PgEnumColumn<T extends ColumnBaseConfig<'string', 'PgEnumColumn'> &
 }
 
 // Gratitude to zod for the enum function types
-export function pgEnum<U extends string, T extends Readonly<[U, ...U[]]>>(
+export function pgEnum<U extends string, T extends ReadonlyArray<U>>(
 	enumName: string,
 	values: T | Writable<T>,
 ): PgEnum<Writable<T>> {
