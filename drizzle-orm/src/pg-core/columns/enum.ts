@@ -78,6 +78,10 @@ export function pgEnum<U extends string, T extends ReadonlyArray<U>>(
 	enumName: string,
 	values: T | Writable<T>,
 ): PgEnum<Writable<T>> {
+	if (values.length === 0) {
+		throw new Error(`You have an empty array for "${name}" enum values`);
+	}
+	
 	return pgEnumWithSchema(enumName, values, undefined);
 }
 
