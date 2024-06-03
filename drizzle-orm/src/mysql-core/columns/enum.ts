@@ -49,7 +49,7 @@ export class MySqlEnumColumn<T extends ColumnBaseConfig<'string', 'MySqlEnumColu
 	}
 }
 
-export function mysqlEnum<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
+export function mysqlEnum<TName extends string, U extends string, T extends ReadonlyArray<U>>(
 	name: TName,
 	values: T | Writable<T>,
 ): MySqlEnumColumnBuilderInitial<TName, Writable<T>> {
