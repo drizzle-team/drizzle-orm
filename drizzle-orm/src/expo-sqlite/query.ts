@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { is, SQL, Subquery } from '~/index.ts';
 import type { AnySQLiteSelect } from '~/sqlite-core/index.ts';
 import { getTableConfig, getViewConfig, SQLiteTable, SQLiteView } from '~/sqlite-core/index.ts';
-import { SQLiteRelationalQuery } from '~/sqlite-core/query-builders/query';
+import { SQLiteRelationalQuery } from '~/sqlite-core/query-builders/query.ts';
 
 export const useLiveQuery = <T extends Pick<AnySQLiteSelect, '_' | 'then'> | SQLiteRelationalQuery<'sync', unknown>>(
 	query: T,
