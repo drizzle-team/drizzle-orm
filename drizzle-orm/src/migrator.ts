@@ -11,6 +11,8 @@ export interface MigrationConfig {
 	migrationsFolder: string;
 	migrationsTable?: string;
 	migrationsSchema?: string;
+
+	skipSchemaCreation?: boolean;
 }
 
 export interface MigrationMeta {
