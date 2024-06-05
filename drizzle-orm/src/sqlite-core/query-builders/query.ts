@@ -113,7 +113,8 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 		private fullSchema: Record<string, unknown>,
 		private schema: TablesRelationalConfig,
 		private tableNamesMap: Record<string, string>,
-		private table: SQLiteTable,
+		/** @internal */
+		public table: SQLiteTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: SQLiteDialect,
 		private session: SQLiteSession<'sync' | 'async', unknown, Record<string, unknown>, TablesRelationalConfig>,
