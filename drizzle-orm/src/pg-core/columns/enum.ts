@@ -5,7 +5,7 @@ import type { AnyPgTable } from '~/pg-core/table.ts';
 import type { Writable } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgEnumColumnBuilderInitial<TName extends string, TValues extends [string, ...string[]]> =
+export type PgEnumColumnBuilderInitial<TName extends string, TValues extends string[]> =
 	PgEnumColumnBuilder<{
 		name: TName;
 		dataType: 'string';
@@ -17,7 +17,7 @@ export type PgEnumColumnBuilderInitial<TName extends string, TValues extends [st
 	}>;
 
 const isPgEnumSym = Symbol.for('drizzle:isPgEnum');
-export interface PgEnum<TValues extends [string, ...string[]]> {
+export interface PgEnum<TValues extends string[]> {
 	<TName extends string>(name: TName): PgEnumColumnBuilderInitial<TName, TValues>;
 
 	readonly enumName: string;
@@ -32,7 +32,7 @@ export function isPgEnum(obj: unknown): obj is PgEnum<[string, ...string[]]> {
 }
 
 export class PgEnumColumnBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'PgEnumColumn'> & { enumValues: [string, ...string[]] },
+	T extends ColumnBuilderBaseConfig<'string', 'PgEnumColumn'> & { enumValues: string[] },
 > extends PgColumnBuilder<T, { enum: PgEnum<T['enumValues']> }> {
 	static readonly [entityKind]: string = 'PgEnumColumnBuilder';
 
@@ -52,7 +52,7 @@ export class PgEnumColumnBuilder<
 	}
 }
 
-export class PgEnumColumn<T extends ColumnBaseConfig<'string', 'PgEnumColumn'> & { enumValues: [string, ...string[]] }>
+export class PgEnumColumn<T extends ColumnBaseConfig<'string', 'PgEnumColumn'> & { enumValues: string[] }>
 	extends PgColumn<T, { enum: PgEnum<T['enumValues']> }>
 {
 	static readonly [entityKind]: string = 'PgEnumColumn';
@@ -79,14 +79,14 @@ export function pgEnum<U extends string, T extends ReadonlyArray<U>>(
 	values: T | Writable<T>,
 ): PgEnum<Writable<T>> {
 	if (values.length === 0) {
-		throw new Error(`You have an empty array for "${name}" enum values`);
+		throw new Error(`You have an empty array for "${enumName}" enum values`);
 	}
 	
 	return pgEnumWithSchema(enumName, values, undefined);
 }
 
 /** @internal */
-export function pgEnumWithSchema<U extends string, T extends Readonly<[U, ...U[]]>>(
+export function pgEnumWithSchema<U extends string, T extends ReadonlyArray<U>>(
 	enumName: string,
 	values: T | Writable<T>,
 	schema?: string,

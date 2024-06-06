@@ -5,7 +5,7 @@ import type { AnyMySqlTable } from '~/mysql-core/table.ts';
 import type { Writable } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
-export type MySqlEnumColumnBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> =
+export type MySqlEnumColumnBuilderInitial<TName extends string, TEnum extends string[]> =
 	MySqlEnumColumnBuilder<{
 		name: TName;
 		dataType: 'string';
