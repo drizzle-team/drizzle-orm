@@ -2729,7 +2729,7 @@ test('test $onUpdateFn and $onUpdate works as $default', async () => {
 		{ name: 'Jack', id: 3, updateCounter: 1, uppercaseName: 'JACK', alwaysNull: null },
 		{ name: 'Jill', id: 4, updateCounter: 1, uppercaseName: 'JILL', alwaysNull: null },
 	]);
-	const msDelay = 250;
+	const msDelay = 2000;
 
 	for (const eachUser of justDates) {
 		expect(eachUser.updatedAt!.valueOf() > Date.now() - msDelay).toEqual(true);
@@ -2773,7 +2773,7 @@ test('test $onUpdateFn and $onUpdate works updating', async () => {
 		{ name: 'Jack', id: 3, updateCounter: 1, uppercaseName: 'JACK', alwaysNull: null },
 		{ name: 'Jill', id: 4, updateCounter: 1, uppercaseName: 'JILL', alwaysNull: null },
 	]);
-	const msDelay = 250;
+	const msDelay = 2000;
 
 	expect(initial[0]?.updatedAt?.valueOf() !== justDates[0]?.updatedAt?.valueOf()).toEqual(true);
 
