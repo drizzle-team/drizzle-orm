@@ -1869,7 +1869,7 @@ test('transaction rollback', async () => {
 	await db.execute(sql`drop table ${users}`);
 });
 
-test.skip('nested transaction', async () => {
+test.only('nested transaction', async () => {
 	const users = mysqlTable('users_nested_transactions', {
 		id: serial('id').primaryKey(),
 		balance: int('balance').notNull(),
@@ -1896,7 +1896,7 @@ test.skip('nested transaction', async () => {
 	await db.execute(sql`drop table ${users}`);
 });
 
-test.skip('nested transaction rollback', async () => {
+test.only('nested transaction rollback', async () => {
 	const users = mysqlTable('users_nested_transactions_rollback', {
 		id: serial('id').primaryKey(),
 		balance: int('balance').notNull(),
