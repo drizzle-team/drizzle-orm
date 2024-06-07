@@ -82,9 +82,6 @@ type MaybeOptional<
 type GetTypeboxType<TColumn extends Column> = TColumn['_']['dataType'] extends infer TDataType
 	? TDataType extends 'custom' ? TAny
 	: TDataType extends 'json' ? Json
-	: TColumn extends { enumValues: [string, ...string[]] }
-		? Equal<TColumn['enumValues'], [string, ...string[]]> extends true ? TString
-		: TUnion<TUnionLiterals<TColumn['enumValues']>>
 	: TDataType extends 'array' ? TArray<
 			GetTypeboxType<
 				Assume<
@@ -93,6 +90,9 @@ type GetTypeboxType<TColumn extends Column> = TColumn['_']['dataType'] extends i
 				>['baseColumn']
 			>
 		>
+	: TColumn extends { enumValues: [string, ...string[]] }
+		? Equal<TColumn['enumValues'], [string, ...string[]]> extends true ? TString
+		: TUnion<TUnionLiterals<TColumn['enumValues']>>
 	: TDataType extends 'bigint' ? TBigInt
 	: TDataType extends 'number' ? TNumber
 	: TDataType extends 'string' ? TString
@@ -166,7 +166,7 @@ export function createInsertSchema<
 					& string}' does not exist in table '${TTable['_']['name']}'`
 			>;
 	},
-	//
+	// @ts-ignore - following error does not break types during usage in any way
 ): TObject<
 	BuildInsertSchema<
 		TTable,
@@ -281,8 +281,7 @@ function isWithEnum(
 	column: AnyColumn,
 ): column is typeof column & { enumValues: [string, ...string[]] } {
 	return (
-		'enumValues' in column
-		&& Array.isArray(column.enumValues)
+		Array.isArray(column.enumValues)
 		&& column.enumValues.length > 0
 	);
 }
@@ -293,47 +292,41 @@ function mapColumnToSchema(column: Column): TSchema {
 	let type: TSchema | undefined;
 
 	if (isWithEnum(column)) {
-		type = column.enumValues?.length
-			? Type.Union(column.enumValues.map((value) => Type.Literal(value)))
-			: Type.String();
-	}
+		type = Type.Union(column.enumValues.map((value) => Type.Literal(value)));
+	} else if (column.dataType === 'custom') {
+		type = Type.Any();
+	} else if (column.dataType === 'json') {
+		type = jsonSchema;
+	} else if (column.dataType === 'array') {
+		type = Type.Array(
+			mapColumnToSchema((column as PgArray<any, any>).baseColumn),
+		);
+	} else if (column.dataType === 'number') {
+		type = Type.Number();
+	} else if (column.dataType === 'bigint') {
+		type = Type.BigInt();
+	} else if (column.dataType === 'boolean') {
+		type = Type.Boolean();
+	} else if (column.dataType === 'date') {
+		type = Type.Date();
+	} else if (column.dataType === 'string') {
+		const sType = Type.String();
 
-	if (!type) {
-		if (column.dataType === 'custom') {
-			type = Type.Any();
-		} else if (column.dataType === 'json') {
-			type = jsonSchema;
-		} else if (column.dataType === 'array') {
-			type = Type.Array(
-				mapColumnToSchema((column as PgArray<any, any>).baseColumn),
-			);
-		} else if (column.dataType === 'number') {
-			type = Type.Number();
-		} else if (column.dataType === 'bigint') {
-			type = Type.BigInt();
-		} else if (column.dataType === 'boolean') {
-			type = Type.Boolean();
-		} else if (column.dataType === 'date') {
-			type = Type.Date();
-		} else if (column.dataType === 'string') {
-			const sType = Type.String();
-
-			if (
-				(is(column, PgChar)
-					|| is(column, PgVarchar)
-					|| is(column, MySqlVarChar)
-					|| is(column, MySqlVarBinary)
-					|| is(column, MySqlChar)
-					|| is(column, SQLiteText))
-				&& typeof column.length === 'number'
-			) {
-				sType.maxLength = column.length;
-			}
-
-			type = sType;
-		} else if (is(column, PgUUID)) {
-			type = Type.RegEx(uuidPattern);
+		if (
+			(is(column, PgChar)
+				|| is(column, PgVarchar)
+				|| is(column, MySqlVarChar)
+				|| is(column, MySqlVarBinary)
+				|| is(column, MySqlChar)
+				|| is(column, SQLiteText))
+			&& typeof column.length === 'number'
+		) {
+			sType.maxLength = column.length;
 		}
+
+		type = sType;
+	} else if (is(column, PgUUID)) {
+		type = Type.RegEx(uuidPattern);
 	}
 
 	if (!type) {

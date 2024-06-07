@@ -22,6 +22,7 @@ export const roleEnum = pgEnum('role', ['admin', 'user']);
 
 const users = pgTable('users', {
 	a: integer('a').array(),
+	strArr: text('str_arr').array(),
 	id: serial('id').primaryKey(),
 	name: text('name'),
 	email: text('email').notNull(),
@@ -39,6 +40,7 @@ const users = pgTable('users', {
 
 const testUser = {
 	a: [1, 2, 3],
+	strArr: ['one', 'two', 'three'],
 	id: 1,
 	name: 'John Doe',
 	email: 'john.doe@example.com',
@@ -102,6 +104,7 @@ test('users insert schema', (t) => {
 
 	const expected = object({
 		a: optional(nullable(array(number()))),
+		strArr: optional(nullable(array(string()))),
 		id: optional(number([minValue(0)])),
 		name: optional(nullable(string())),
 		email: string(),
@@ -123,6 +126,7 @@ test('users insert schema w/ defaults', (t) => {
 
 	const expected = object({
 		a: optional(nullable(array(number()))),
+		strArr: optional(nullable(array(string()))),
 		id: optional(number()),
 		name: optional(nullable(string())),
 		email: string(),
@@ -148,6 +152,7 @@ test('users select schema', (t) => {
 
 	const expected = object({
 		a: nullable(array(number())),
+		strArr: nullable(array(string())),
 		id: number([minValue(0)]),
 		name: nullable(string()),
 		email: string(),
@@ -169,6 +174,7 @@ test('users select schema w/ defaults', (t) => {
 
 	const expected = object({
 		a: nullable(array(number())),
+		strArr: nullable(array(string())),
 		id: number(),
 		name: nullable(string()),
 		email: string(),

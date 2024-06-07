@@ -9,6 +9,7 @@ export const roleEnum = pgEnum('role', ['admin', 'user']);
 
 const users = pgTable('users', {
 	a: integer('a').array(),
+	strArr: text('str_arr').array(),
 	id: serial('id').primaryKey(),
 	name: text('name'),
 	email: text('email').notNull(),
@@ -26,6 +27,7 @@ const users = pgTable('users', {
 
 const testUser = {
 	a: [1, 2, 3],
+	strArr: ['one', 'two', 'three'],
 	id: 1,
 	name: 'John Doe',
 	email: 'john.doe@example.com',
@@ -92,6 +94,7 @@ test('users insert schema', (t) => {
 
 	const expected = Type.Object({
 		a: Type.Optional(Nullable(Type.Array(Type.Number()))),
+		strArr: Type.Optional(Nullable(Type.Array(Type.String()))),
 		id: Type.Optional(Type.Number({ minimum: 0 })),
 		name: Type.Optional(Nullable(Type.String())),
 		email: Type.String(),
@@ -119,6 +122,7 @@ test('users insert schema w/ defaults', (t) => {
 
 	const expected = Type.Object({
 		a: Type.Optional(Nullable(Type.Array(Type.Number()))),
+		strArr: Type.Optional(Nullable(Type.Array(Type.String()))),
 		id: Type.Optional(Type.Number()),
 		name: Type.Optional(Nullable(Type.String())),
 		email: Type.String(),
@@ -150,6 +154,7 @@ test('users select schema', (t) => {
 
 	const expected = Type.Object({
 		a: Nullable(Type.Array(Type.Number())),
+		strArr: Nullable(Type.Array(Type.String())),
 		id: Type.Number({ minimum: 0 }),
 		name: Nullable(Type.String()),
 		email: Type.String(),
@@ -175,6 +180,7 @@ test('users select schema w/ defaults', (t) => {
 
 	const expected = Type.Object({
 		a: Nullable(Type.Array(Type.Number())),
+		strArr: Nullable(Type.Array(Type.String())),
 		id: Type.Number(),
 		name: Nullable(Type.String()),
 		email: Type.String(),
