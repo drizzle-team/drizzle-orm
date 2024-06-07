@@ -1,5 +1,5 @@
-import type { ChangeColumnTableName, Dialect } from '~/column-builder.ts';
-import type { AnyColumn, Column, GetColumnData, UpdateColConfig } from '~/column.ts';
+import type { ChangeColumnTableName, ColumnDataType, Dialect } from '~/column-builder.ts';
+import type { AnyColumn, Column, ColumnBaseConfig, GetColumnData, UpdateColConfig } from '~/column.ts';
 import type { SelectedFields } from '~/operations.ts';
 import type { ColumnsSelection, SQL, View } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
@@ -17,9 +17,12 @@ export type ApplyNullability<T, TNullability extends JoinNullability> = TNullabi
 export type ApplyNullabilityToColumn<TColumn extends Column, TNullability extends JoinNullability> =
 	TNullability extends 'not-null' ? TColumn
 		: Column<
-			UpdateColConfig<TColumn['_'], {
-				notNull: TNullability extends 'nullable' ? false : TColumn['_']['notNull'];
-			}>
+			Assume<
+				UpdateColConfig<TColumn['_'], {
+					notNull: TNullability extends 'nullable' ? false : TColumn['_']['notNull'];
+				}>,
+				ColumnBaseConfig<ColumnDataType, string>
+			>
 		>;
 
 export type ApplyNotNullMapToJoins<TResult, TNullabilityMap extends Record<string, JoinNullability>> =

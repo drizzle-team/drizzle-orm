@@ -453,7 +453,7 @@ export function extractTablesRelationalConfig<
 				}
 			}
 
-			const extraConfig = value[Table.Symbol.ExtraConfigBuilder]?.(value);
+			const extraConfig = value[Table.Symbol.ExtraConfigBuilder]?.((value as Table)[Table.Symbol.ExtraConfigColumns]);
 			if (extraConfig) {
 				for (const configEntry of Object.values(extraConfig)) {
 					if (is(configEntry, PrimaryKeyBuilder)) {

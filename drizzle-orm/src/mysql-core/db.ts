@@ -38,6 +38,7 @@ export class MySqlDatabase<
 
 	declare readonly _: {
 		readonly schema: TSchema | undefined;
+		readonly fullSchema: TFullSchema;
 		readonly tableNamesMap: Record<string, string>;
 	};
 
@@ -56,8 +57,16 @@ export class MySqlDatabase<
 		protected readonly mode: Mode,
 	) {
 		this._ = schema
-			? { schema: schema.schema, tableNamesMap: schema.tableNamesMap }
-			: { schema: undefined, tableNamesMap: {} };
+			? {
+				schema: schema.schema,
+				fullSchema: schema.fullSchema as TFullSchema,
+				tableNamesMap: schema.tableNamesMap,
+			}
+			: {
+				schema: undefined,
+				fullSchema: {} as TFullSchema,
+				tableNamesMap: {},
+			};
 		this.query = {} as typeof this['query'];
 		if (this._.schema) {
 			for (const [tableName, columns] of Object.entries(this._.schema)) {

@@ -150,7 +150,7 @@ export class NeonSession<
 		const session = this.client instanceof Pool // eslint-disable-line no-instanceof/no-instanceof
 			? new NeonSession(await this.client.connect(), this.dialect, this.schema, this.options)
 			: this;
-		const tx = new NeonTransaction(this.dialect, session, this.schema);
+		const tx = new NeonTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
 		await tx.execute(sql`begin ${tx.getTransactionConfigSQL(config)}`);
 		try {
 			const result = await transaction(tx);
@@ -175,7 +175,7 @@ export class NeonTransaction<
 
 	override async transaction<T>(transaction: (tx: NeonTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new NeonTransaction(this.dialect, this.session, this.schema, this.nestedIndex + 1);
+		const tx = new NeonTransaction<TFullSchema, TSchema>(this.dialect, this.session, this.schema, this.nestedIndex + 1);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);
