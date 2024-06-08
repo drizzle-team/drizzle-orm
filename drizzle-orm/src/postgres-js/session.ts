@@ -180,8 +180,13 @@ export class PostgresJsTransaction<
 		transaction: (tx: PostgresJsTransaction<TFullSchema, TSchema>) => Promise<T>,
 	): Promise<T> {
 		return this.session.client.savepoint((client) => {
-			const session = new PostgresJsSession(client, this.dialect, this.schema, this.session.options);
-			const tx = new PostgresJsTransaction(this.dialect, session, this.schema);
+			const session = new PostgresJsSession<TransactionSql, TFullSchema, TSchema>(
+				client,
+				this.dialect,
+				this.schema,
+				this.session.options,
+			);
+			const tx = new PostgresJsTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
 			return transaction(tx);
 		}) as Promise<T>;
 	}

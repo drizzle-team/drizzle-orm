@@ -121,7 +121,11 @@ export type SQLiteInsertReturningAll<
 
 export type SQLiteInsertOnConflictDoUpdateConfig<T extends AnySQLiteInsert> = {
 	target: IndexColumn | IndexColumn[];
+	/** @deprecated - use either `targetWhere` or `setWhere` */
 	where?: SQL;
+	// TODO: add tests for targetWhere and setWhere
+	targetWhere?: SQL;
+	setWhere?: SQL;
 	set: SQLiteUpdateSetSource<T['_']['table']>;
 };
 
@@ -305,10 +309,17 @@ export class SQLiteInsertBase<
 	 * ```
 	 */
 	onConflictDoUpdate(config: SQLiteInsertOnConflictDoUpdateConfig<this>): this {
+		if (config.where && (config.targetWhere || config.setWhere)) {
+			throw new Error(
+				'You cannot use both "where" and "targetWhere"/"setWhere" at the same time - "where" is deprecated, use "targetWhere" or "setWhere" instead.',
+			);
+		}
+		const whereSql = config.where ? sql` where ${config.where}` : undefined;
+		const targetWhereSql = config.targetWhere ? sql` where ${config.targetWhere}` : undefined;
+		const setWhereSql = config.setWhere ? sql` where ${config.setWhere}` : undefined;
 		const targetSql = Array.isArray(config.target) ? sql`${config.target}` : sql`${[config.target]}`;
-		const whereSql = config.where ? sql` where ${config.where}` : sql``;
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
-		this.config.onConflict = sql`${targetSql} do update set ${setSql}${whereSql}`;
+		this.config.onConflict = sql`${targetSql}${targetWhereSql} do update set ${setSql}${whereSql}${setWhereSql}`;
 		return this;
 	}
 
