@@ -9,10 +9,11 @@ import {
 	number,
 	object,
 	optional,
-	type Output,
+	type InferOutput,
 	parse,
 	picklist,
 	string,
+    pipe,
 } from 'valibot';
 import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
 import { expectSchemaShape } from './utils';
@@ -24,7 +25,7 @@ const blobJsonSchema = object({
 const users = sqliteTable('users', {
 	id: integer('id').primaryKey(),
 	blobJson: blob('blob', { mode: 'json' })
-		.$type<Output<typeof blobJsonSchema>>()
+		.$type<InferOutput<typeof blobJsonSchema>>()
 		.notNull(),
 	blobBigInt: blob('blob', { mode: 'bigint' }).notNull(),
 	numeric: numeric('numeric').notNull(),
@@ -67,7 +68,7 @@ test('users insert invalid text length', (t) => {
 
 test('users insert schema', (t) => {
 	const actual = createInsertSchema(users, {
-		id: () => number([minValue(0)]),
+		id: () => pipe(number(), minValue(0)),
 		blobJson: blobJsonSchema,
 		role: picklist(['admin', 'user', 'manager']),
 	});
@@ -89,7 +90,7 @@ test('users insert schema', (t) => {
 	});
 
 	const expected = object({
-		id: optional(number([minValue(0)])),
+		id: optional(pipe(number(), minValue(0))),
 		blobJson: blobJsonSchema,
 		blobBigInt: valibigint(),
 		numeric: string(),

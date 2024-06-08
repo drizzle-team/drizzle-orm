@@ -18,7 +18,7 @@ import {
 	type AnySchema,
 	array,
 	type ArraySchema,
-	type BaseSchema,
+	type GenericSchema,
 	bigint,
 	type BigintSchema,
 	boolean,
@@ -42,36 +42,37 @@ import {
 	type StringSchema,
 	union,
 	uuid,
+    pipe,
 } from 'valibot';
 
 const literalSchema = union([string(), number(), boolean(), null_()]);
 
 type Json = typeof jsonSchema;
 
-export const jsonSchema = union([literalSchema, array(any()), record(any())]);
+export const jsonSchema = union([literalSchema, array(any()), record(any(), any())]);
 
 type MapInsertColumnToValibot<
 	TColumn extends Column,
-	TType extends BaseSchema<any, any>,
-> = TColumn['_']['notNull'] extends false ? OptionalSchema<NullableSchema<TType>>
-	: TColumn['_']['hasDefault'] extends true ? OptionalSchema<TType>
+	TType extends GenericSchema,
+> = TColumn['_']['notNull'] extends false ? OptionalSchema<NullableSchema<TType, undefined>, undefined>
+	: TColumn['_']['hasDefault'] extends true ? OptionalSchema<TType, undefined>
 	: TType;
 
 type MapSelectColumnToValibot<
 	TColumn extends Column,
-	TType extends BaseSchema<any, any>,
-> = TColumn['_']['notNull'] extends false ? NullableSchema<TType> : TType;
+	TType extends GenericSchema,
+> = TColumn['_']['notNull'] extends false ? NullableSchema<TType, undefined> : TType;
 
 type MapColumnToValibot<
 	TColumn extends Column,
-	TType extends BaseSchema<any, any>,
+	TType extends GenericSchema,
 	TMode extends 'insert' | 'select',
 > = TMode extends 'insert' ? MapInsertColumnToValibot<TColumn, TType>
 	: MapSelectColumnToValibot<TColumn, TType>;
 
 type MaybeOptional<
 	TColumn extends Column,
-	TType extends BaseSchema<any, any>,
+	TType extends GenericSchema,
 	TMode extends 'insert' | 'select',
 	TNoOptional extends boolean,
 > = TNoOptional extends true ? TType
@@ -81,15 +82,15 @@ type GetValibotType<TColumn extends Column> = TColumn['_']['dataType'] extends i
 	? TDataType extends 'custom' ? AnySchema
 	: TDataType extends 'json' ? Json
 	: TColumn extends { enumValues: [string, ...string[]] }
-		? Equal<TColumn['enumValues'], [string, ...string[]]> extends true ? StringSchema
-		: PicklistSchema<TColumn['enumValues']>
+		? Equal<TColumn['enumValues'], [string, ...string[]]> extends true ? StringSchema<undefined>
+		: PicklistSchema<TColumn['enumValues'], undefined>
 	: TDataType extends 'array'
-		? TColumn['_']['baseColumn'] extends Column ? ArraySchema<GetValibotType<TColumn['_']['baseColumn']>> : never
-	: TDataType extends 'bigint' ? BigintSchema
-	: TDataType extends 'number' ? NumberSchema
-	: TDataType extends 'string' ? StringSchema
-	: TDataType extends 'boolean' ? BooleanSchema
-	: TDataType extends 'date' ? DateSchema
+		? TColumn['_']['baseColumn'] extends Column ? ArraySchema<GetValibotType<TColumn['_']['baseColumn']>, undefined> : never
+	: TDataType extends 'bigint' ? BigintSchema<undefined>
+	: TDataType extends 'number' ? NumberSchema<undefined>
+	: TDataType extends 'string' ? StringSchema<undefined>
+	: TDataType extends 'boolean' ? BooleanSchema<undefined>
+	: TDataType extends 'date' ? DateSchema<undefined>
 	: AnySchema
 	: never;
 
@@ -100,7 +101,7 @@ type UnwrapValueOrUpdater<T> = T extends ValueOrUpdater<infer U, any> ? U
 
 export type Refine<TTable extends Table, TMode extends 'select' | 'insert'> = {
 	[K in keyof TTable['_']['columns']]?: ValueOrUpdater<
-		BaseSchema<any, any>,
+		GenericSchema,
 		TMode extends 'select' ? BuildSelectSchema<TTable, {}, true>
 			: BuildInsertSchema<TTable, {}, true>
 	>;
@@ -116,7 +117,7 @@ export type BuildInsertSchema<
 > ? {
 		[K in keyof TColumns & string]: MaybeOptional<
 			TColumns[K],
-			K extends keyof TRefine ? Assume<UnwrapValueOrUpdater<TRefine[K]>, BaseSchema<any>>
+			K extends keyof TRefine ? Assume<UnwrapValueOrUpdater<TRefine[K]>, GenericSchema>
 				: GetValibotType<TColumns[K]>,
 			'insert',
 			TNoOptional
@@ -132,7 +133,7 @@ export type BuildSelectSchema<
 	{
 		[K in keyof TTable['_']['columns']]: MaybeOptional<
 			TTable['_']['columns'][K],
-			K extends keyof TRefine ? Assume<UnwrapValueOrUpdater<TRefine[K]>, BaseSchema<any, any>>
+			K extends keyof TRefine ? Assume<UnwrapValueOrUpdater<TRefine[K]>, GenericSchema>
 				: GetValibotType<TTable['_']['columns'][K]>,
 			'select',
 			TNoOptional
@@ -161,7 +162,8 @@ export function createInsertSchema<
 	BuildInsertSchema<
 		TTable,
 		Equal<TRefine, Refine<TTable, 'insert'>> extends true ? {} : TRefine
-	>
+	>,
+    undefined
 > {
 	const columns = getTableColumns(table);
 	const columnEntries = Object.entries(columns);
@@ -225,7 +227,8 @@ export function createSelectSchema<
 	BuildSelectSchema<
 		TTable,
 		Equal<TRefine, Refine<TTable, 'select'>> extends true ? {} : TRefine
-	>
+	>,
+    undefined
 > {
 	const columns = getTableColumns(table);
 	const columnEntries = Object.entries(columns);
@@ -277,12 +280,12 @@ function isWithEnum(
 	);
 }
 
-function mapColumnToSchema(column: Column): BaseSchema<any, any> {
-	let type: BaseSchema<any, any> | undefined;
+function mapColumnToSchema(column: Column): GenericSchema {
+	let type: GenericSchema | undefined;
 
 	if (isWithEnum(column)) {
 		type = column.enumValues?.length
-			? picklist(column.enumValues)
+			? picklist(column.enumValues )
 			: string();
 	}
 
@@ -315,12 +318,12 @@ function mapColumnToSchema(column: Column): BaseSchema<any, any> {
 					|| is(column, SQLiteText))
 				&& typeof column.length === 'number'
 			) {
-				sType = string([maxLength(column.length)]);
+				sType = pipe(string(), maxLength(column.length)) as StringSchema<undefined>;
 			}
 
 			type = sType;
 		} else if (is(column, PgUUID)) {
-			type = string([uuid()]);
+			type = pipe(string(), uuid());
 		}
 	}
 

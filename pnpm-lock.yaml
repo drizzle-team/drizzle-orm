@@ -260,8 +260,8 @@ importers:
         specifier: ^3.12.2
         version: 3.12.7
       valibot:
-        specifier: ^0.30.0
-        version: 0.30.0
+        specifier: ^0.31.0
+        version: 0.31.0
       zx:
         specifier: ^7.2.2
         version: 7.2.2
@@ -7657,8 +7657,8 @@ packages:
     engines: {node: '>=8'}
     hasBin: true
 
-  valibot@0.30.0:
-    resolution: {integrity: sha512-5POBdbSkM+3nvJ6ZlyQHsggisfRtyT4tVTo1EIIShs6qCdXJnyWU5TJ68vr8iTg5zpOLjXLRiBqNx+9zwZz/rA==}
+  valibot@0.31.0:
+    resolution: {integrity: sha512-bleS8aVFpRGTUgbMoXzsRJhpxJGiZ3MG1nuNSORuDvio+sI1EyT1+lQHg+77Pfnlxz+25Uj5HiwdaklcDcYdiQ==}
 
   valid-url@1.0.9:
     resolution: {integrity: sha512-QQDsV8OnSf5Uc30CKSwG9lnhMPe6exHtTXLRYX8uMwKENy640pU+2BgBL0LRbDh/eYRahNCS7aewCx0wf3NYVA==}
@@ -10629,7 +10629,7 @@ snapshots:
   '@libsql/isomorphic-ws@0.1.5':
     dependencies:
       '@types/ws': 8.5.4
-      ws: 8.14.2
+      ws: 8.14.2(bufferutil@4.0.7)(utf-8-validate@6.0.3)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -17152,7 +17152,7 @@ snapshots:
       kleur: 4.1.5
       sade: 1.8.1
 
-  valibot@0.30.0: {}
+  valibot@0.31.0: {}
 
   valid-url@1.0.9: {}
 
@@ -17459,9 +17459,6 @@ snapshots:
     optionalDependencies:
       bufferutil: 4.0.7
       utf-8-validate: 6.0.3
-
-  ws@8.14.2:
-    optional: true
 
   ws@8.14.2(bufferutil@4.0.7)(utf-8-validate@6.0.3):
     optionalDependencies:

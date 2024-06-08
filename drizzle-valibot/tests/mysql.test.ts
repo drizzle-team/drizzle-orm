@@ -43,6 +43,7 @@ import {
 	parse,
 	picklist,
 	string,
+    pipe,
 } from 'valibot';
 import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
 import { expectSchemaShape } from './utils';
@@ -183,7 +184,7 @@ test('insert schema', (t) => {
 		bigintNumber: number(),
 		binary: string(),
 		boolean: valiboolean(),
-		char: string([minLength(4), maxLength(4)]),
+		char: pipe(string(), minLength(4), maxLength(4)),
 		charEnum: picklist([
 			'a',
 			'b',
@@ -236,8 +237,8 @@ test('insert schema', (t) => {
 		timestamp: valiDate(),
 		timestampString: string(),
 		tinyint: number(),
-		varbinary: string([maxLength(200)]),
-		varchar: string([maxLength(200)]),
+		varbinary: pipe(string(), maxLength(200)),
+		varchar: pipe(string(), maxLength(200)),
 		varcharEnum: picklist([
 			'a',
 			'b',
@@ -258,7 +259,7 @@ test('select schema', (t) => {
 		bigintNumber: number(),
 		binary: string(),
 		boolean: valiboolean(),
-		char: string([minLength(4), maxLength(4)]),
+		char: pipe(string(), minLength(4), maxLength(4)),
 		charEnum: picklist([
 			'a',
 			'b',
@@ -312,8 +313,8 @@ test('select schema', (t) => {
 		timestamp: valiDate(),
 		timestampString: string(),
 		tinyint: number(),
-		varbinary: string([maxLength(200)]),
-		varchar: string([maxLength(200)]),
+		varbinary: pipe(string(), maxLength(200)),
+		varchar: pipe(string(), maxLength(200)),
 		varcharEnum: picklist([
 			'a',
 			'b',
@@ -328,15 +329,15 @@ test('select schema', (t) => {
 
 test('select schema w/ refine', (t) => {
 	const actual = createSelectSchema(testTable, {
-		bigint: (_) => valibigint([minValue(0n)]),
+		bigint: (_) => pipe(valibigint(), minValue(0n)),
 	});
 
 	const expected = object({
-		bigint: valibigint([minValue(0n)]),
+		bigint: pipe(valibigint(), minValue(0n)),
 		bigintNumber: number(),
 		binary: string(),
 		boolean: valiboolean(),
-		char: string([minLength(5), maxLength(5)]),
+		char: pipe(string(), minLength(5), maxLength(5)),
 		charEnum: picklist([
 			'a',
 			'b',
@@ -389,8 +390,8 @@ test('select schema w/ refine', (t) => {
 		timestamp: valiDate(),
 		timestampString: string(),
 		tinyint: number(),
-		varbinary: string([maxLength(200)]),
-		varchar: string([maxLength(200)]),
+		varbinary: pipe(string(), maxLength(200)),
+		varchar: pipe(string(), maxLength(200)),
 		varcharEnum: picklist([
 			'a',
 			'b',
