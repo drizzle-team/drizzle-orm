@@ -150,6 +150,12 @@ jobs:
           XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
           LIBSQL_URL: file:local.db
         run: |
+          (
+            cd integration-tests
+            pnpm prisma generate --schema tests/prisma/pg/schema.prisma
+            pnpm prisma generate --schema tests/prisma/mysql/schema.prisma
+            pnpm prisma generate --schema tests/prisma/sqlite/schema.prisma
+          )
           if [[ "${{ matrix.package }}" == "drizzle-orm" ]]; then
             pnpm test --filter ${{ matrix.package }} --filter integration-tests
           else

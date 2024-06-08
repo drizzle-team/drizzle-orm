@@ -150,6 +150,12 @@ jobs:
           if [[ ${{ github.event_name }} != "push" && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
             export SKIP_EXTERNAL_DB_TESTS=1
           fi
+          (
+            cd integration-tests
+            pnpm prisma generate --schema tests/prisma/pg/schema.prisma
+            pnpm prisma generate --schema tests/prisma/mysql/schema.prisma
+            pnpm prisma generate --schema tests/prisma/sqlite/schema.prisma
+          )
           if [[ "${{ matrix.package }}" == "drizzle-orm" ]]; then
             pnpm test --filter ${{ matrix.package }} --filter integration-tests
           else
