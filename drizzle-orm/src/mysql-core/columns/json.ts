@@ -38,6 +38,17 @@ export class MySqlJson<T extends ColumnBaseConfig<'json', 'MySqlJson'>> extends 
 	override mapToDriverValue(value: T['data']): string {
 		return JSON.stringify(value);
 	}
+
+	override mapFromDriverValue(value: T['data'] | string): T['data'] {
+		if (typeof value === 'string') {
+			try {
+				return JSON.parse(value);
+			} catch {
+				return value as T['data'];
+			}
+		}
+		return value;
+	}
 }
 
 export function json<TName extends string>(name: TName): MySqlJsonBuilderInitial<TName> {
