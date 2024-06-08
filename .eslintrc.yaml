@@ -10,7 +10,7 @@ plugins:
   - import
   - unused-imports
   - no-instanceof
-  - drizzle
+  - drizzle-internal
 rules:
   '@typescript-eslint/consistent-type-imports':
     - error
@@ -61,7 +61,7 @@ rules:
   'unicorn/relative-url-style': 'off'
   'eqeqeq': 'error'
   'no-instanceof/no-instanceof': 'error'
-  'drizzle/require-entity-kind': 'error'
+  'drizzle-internal/require-entity-kind': 'error'
   'unicorn/prefer-string-replace-all': 'off'
   'unicorn/no-process-exit': 'off'
   '@typescript-eslint/ban-ts-comment': 'off'

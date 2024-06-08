@@ -28,20 +28,21 @@ export interface PreparedQueryConfig {
 	iterator: unknown;
 }
 
-export interface PreparedQueryHKT {
+export interface MySqlPreparedQueryHKT {
 	readonly $brand: 'MySqlPreparedQueryHKT';
 	readonly config: unknown;
 	readonly type: unknown;
 }
 
 export type PreparedQueryKind<
-	TKind extends PreparedQueryHKT,
+	TKind extends MySqlPreparedQueryHKT,
 	TConfig extends PreparedQueryConfig,
 	TAssume extends boolean = false,
-> = Equal<TAssume, true> extends true ? Assume<(TKind & { readonly config: TConfig })['type'], PreparedQuery<TConfig>>
+> = Equal<TAssume, true> extends true
+	? Assume<(TKind & { readonly config: TConfig })['type'], MySqlPreparedQuery<TConfig>>
 	: (TKind & { readonly config: TConfig })['type'];
 
-export abstract class PreparedQuery<T extends PreparedQueryConfig> {
+export abstract class MySqlPreparedQuery<T extends PreparedQueryConfig> {
 	static readonly [entityKind]: string = 'MySqlPreparedQuery';
 
 	/** @internal */
@@ -68,7 +69,7 @@ export abstract class MySqlSession<
 
 	constructor(protected dialect: MySqlDialect) {}
 
-	abstract prepareQuery<T extends PreparedQueryConfig, TPreparedQueryHKT extends PreparedQueryHKT>(
+	abstract prepareQuery<T extends PreparedQueryConfig, TPreparedQueryHKT extends MySqlPreparedQueryHKT>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
@@ -141,6 +142,6 @@ export abstract class MySqlTransaction<
 	): Promise<T>;
 }
 
-export interface PreparedQueryHKTBase extends PreparedQueryHKT {
-	type: PreparedQuery<Assume<this['config'], PreparedQueryConfig>>;
+export interface PreparedQueryHKTBase extends MySqlPreparedQueryHKT {
+	type: MySqlPreparedQuery<Assume<this['config'], PreparedQueryConfig>>;
 }

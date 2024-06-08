@@ -10,7 +10,7 @@ import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 import { drizzle as proxyDrizzle } from 'drizzle-orm/sqlite-proxy';
 import { migrate } from 'drizzle-orm/sqlite-proxy/migrator';
 
-// eslint-disable-next-line drizzle/require-entity-kind
+// eslint-disable-next-line drizzle-internal/require-entity-kind
 class ServerSimulator {
 	constructor(private db: BetterSqlite3.Database) {}
 

@@ -17,12 +17,12 @@ import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types.ts';
 import {
 	type Mode,
+	MySqlPreparedQuery,
+	type MySqlPreparedQueryHKT,
 	MySqlSession,
 	MySqlTransaction,
 	type MySqlTransactionConfig,
-	PreparedQuery,
 	type PreparedQueryConfig,
-	type PreparedQueryHKT,
 	type PreparedQueryKind,
 	type QueryResultHKT,
 } from '~/mysql-core/session.ts';
@@ -38,7 +38,7 @@ export type MySqlQueryResult<
 	T = any,
 > = [T extends ResultSetHeader ? T : T[], FieldPacket[]];
 
-export class MySql2PreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
+export class MySql2PreparedQuery<T extends PreparedQueryConfig> extends MySqlPreparedQuery<T> {
 	static readonly [entityKind]: string = 'MySql2PreparedQuery';
 
 	private rawQuery: QueryOptions;
@@ -293,6 +293,6 @@ export interface MySql2QueryResultHKT extends QueryResultHKT {
 	type: MySqlRawQueryResult;
 }
 
-export interface MySql2PreparedQueryHKT extends PreparedQueryHKT {
+export interface MySql2PreparedQueryHKT extends MySqlPreparedQueryHKT {
 	type: MySql2PreparedQuery<Assume<this['config'], PreparedQueryConfig>>;
 }

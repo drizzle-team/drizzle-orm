@@ -21,7 +21,9 @@
 		"**/*snapshot.json",
 		"**/_journal.json",
 		"**/tsup.config*.mjs",
-		"**/.sst"
+		"**/.sst",
+		"integration-tests/tests/prisma/*/client",
+		"integration-tests/tests/prisma/*/drizzle"
 	],
 	"plugins": [
 		"https://plugins.dprint.dev/typescript-0.83.0.wasm",

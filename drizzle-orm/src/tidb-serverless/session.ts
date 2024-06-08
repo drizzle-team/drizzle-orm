@@ -6,11 +6,11 @@ import { NoopLogger } from '~/logger.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types.ts';
 import {
+	MySqlPreparedQuery,
+	type MySqlPreparedQueryHKT,
 	MySqlSession,
 	MySqlTransaction,
-	PreparedQuery,
 	type PreparedQueryConfig,
-	type PreparedQueryHKT,
 	type QueryResultHKT,
 } from '~/mysql-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -20,7 +20,7 @@ import { type Assume, mapResultRow } from '~/utils.ts';
 const executeRawConfig = { fullResult: true } satisfies ExecuteOptions;
 const queryConfig = { arrayMode: true } satisfies ExecuteOptions;
 
-export class TiDBServerlessPreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
+export class TiDBServerlessPreparedQuery<T extends PreparedQueryConfig> extends MySqlPreparedQuery<T> {
 	static readonly [entityKind]: string = 'TiDBPreparedQuery';
 
 	constructor(
@@ -87,7 +87,7 @@ export class TiDBServerlessSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
-	): PreparedQuery<T> {
+	): MySqlPreparedQuery<T> {
 		return new TiDBServerlessPreparedQuery(
 			this.client,
 			query.sql,
@@ -166,6 +166,6 @@ export interface TiDBServerlessQueryResultHKT extends QueryResultHKT {
 	type: FullResult;
 }
 
-export interface TiDBServerlessPreparedQueryHKT extends PreparedQueryHKT {
+export interface TiDBServerlessPreparedQueryHKT extends MySqlPreparedQueryHKT {
 	type: TiDBServerlessPreparedQuery<Assume<this['config'], PreparedQueryConfig>>;
 }

@@ -5,18 +5,18 @@ import { NoopLogger } from '~/logger.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types.ts';
 import {
+	MySqlPreparedQuery,
+	type MySqlPreparedQueryHKT,
 	MySqlSession,
 	MySqlTransaction,
-	PreparedQuery,
 	type PreparedQueryConfig,
-	type PreparedQueryHKT,
 	type QueryResultHKT,
 } from '~/mysql-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
-export class PlanetScalePreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
+export class PlanetScalePreparedQuery<T extends PreparedQueryConfig> extends MySqlPreparedQuery<T> {
 	static readonly [entityKind]: string = 'PlanetScalePreparedQuery';
 
 	private rawQuery = { as: 'object' } as const;
@@ -86,7 +86,7 @@ export class PlanetscaleSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
-	): PreparedQuery<T> {
+	): MySqlPreparedQuery<T> {
 		return new PlanetScalePreparedQuery(this.client, query.sql, query.params, this.logger, fields, customResultMapper);
 	}
 
@@ -165,6 +165,6 @@ export interface PlanetscaleQueryResultHKT extends QueryResultHKT {
 	type: ExecutedQuery;
 }
 
-export interface PlanetScalePreparedQueryHKT extends PreparedQueryHKT {
+export interface PlanetScalePreparedQueryHKT extends MySqlPreparedQueryHKT {
 	type: PlanetScalePreparedQuery<Assume<this['config'], PreparedQueryConfig>>;
 }

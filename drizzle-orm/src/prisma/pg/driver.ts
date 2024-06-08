@@ -1,0 +1,40 @@
+import type { PrismaClient } from '@prisma/client/extension';
+
+import { Prisma } from '@prisma/client';
+
+import { entityKind } from '~/entity';
+import type { Logger } from '~/logger.ts';
+import { DefaultLogger } from '~/logger.ts';
+import type { QueryResultHKT } from '~/pg-core';
+import { PgDatabase, PgDialect } from '~/pg-core';
+import type { DrizzleConfig } from '~/utils.ts';
+import { PrismaPgSession } from './session';
+
+export class PrismaPgDatabase extends PgDatabase<QueryResultHKT, Record<string, never>> {
+	static readonly [entityKind]: string = 'PrismaPgDatabase';
+
+	constructor(client: PrismaClient, logger: Logger | undefined) {
+		const dialect = new PgDialect();
+		super(dialect, new PrismaPgSession(dialect, client, { logger }), undefined);
+	}
+}
+
+export type PrismaPgConfig = Omit<DrizzleConfig, 'schema'>;
+
+export function drizzle(config: PrismaPgConfig = {}) {
+	let logger: Logger | undefined;
+	if (config.logger === true) {
+		logger = new DefaultLogger();
+	} else if (config.logger !== false) {
+		logger = config.logger;
+	}
+
+	return Prisma.defineExtension((client) => {
+		return client.$extends({
+			name: 'drizzle',
+			client: {
+				$drizzle: new PrismaPgDatabase(client, logger),
+			},
+		});
+	});
+}

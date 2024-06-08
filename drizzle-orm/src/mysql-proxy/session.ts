@@ -6,13 +6,13 @@ import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import { MySqlTransaction } from '~/mysql-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types.ts';
 import type {
+	MySqlPreparedQueryHKT,
 	MySqlTransactionConfig,
 	PreparedQueryConfig,
-	PreparedQueryHKT,
 	PreparedQueryKind,
 	QueryResultHKT,
 } from '~/mysql-core/session.ts';
-import { MySqlSession, PreparedQuery as PreparedQueryBase } from '~/mysql-core/session.ts';
+import { MySqlPreparedQuery as PreparedQueryBase, MySqlSession } from '~/mysql-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
@@ -132,6 +132,6 @@ export interface MySqlRemoteQueryResultHKT extends QueryResultHKT {
 	type: MySqlRawQueryResult;
 }
 
-export interface MySqlRemotePreparedQueryHKT extends PreparedQueryHKT {
+export interface MySqlRemotePreparedQueryHKT extends MySqlPreparedQueryHKT {
 	type: PreparedQuery<Assume<this['config'], PreparedQueryConfig>>;
 }
