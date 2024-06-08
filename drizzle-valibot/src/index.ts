@@ -54,14 +54,14 @@ export const jsonSchema = union([literalSchema, array(any()), record(any(), any(
 type MapInsertColumnToValibot<
 	TColumn extends Column,
 	TType extends GenericSchema,
-> = TColumn['_']['notNull'] extends false ? OptionalSchema<NullableSchema<TType, undefined>, undefined>
-	: TColumn['_']['hasDefault'] extends true ? OptionalSchema<TType, undefined>
+> = TColumn['_']['notNull'] extends false ? OptionalSchema<NullableSchema<TType, never>, never>
+	: TColumn['_']['hasDefault'] extends true ? OptionalSchema<TType, never>
 	: TType;
 
 type MapSelectColumnToValibot<
 	TColumn extends Column,
 	TType extends GenericSchema,
-> = TColumn['_']['notNull'] extends false ? NullableSchema<TType, undefined> : TType;
+> = TColumn['_']['notNull'] extends false ? NullableSchema<TType, never> : TType;
 
 type MapColumnToValibot<
 	TColumn extends Column,
@@ -83,7 +83,7 @@ type GetValibotType<TColumn extends Column> = TColumn['_']['dataType'] extends i
 	: TDataType extends 'json' ? Json
 	: TColumn extends { enumValues: [string, ...string[]] }
 		? Equal<TColumn['enumValues'], [string, ...string[]]> extends true ? StringSchema<undefined>
-		: PicklistSchema<TColumn['enumValues'], undefined>
+		: PicklistSchema<Readonly<TColumn['enumValues']>, undefined>
 	: TDataType extends 'array'
 		? TColumn['_']['baseColumn'] extends Column ? ArraySchema<GetValibotType<TColumn['_']['baseColumn']>, undefined> : never
 	: TDataType extends 'bigint' ? BigintSchema<undefined>
@@ -115,7 +115,7 @@ export type BuildInsertSchema<
 	string,
 	Column<any>
 > ? {
-		[K in keyof TColumns & string]: MaybeOptional<
+		readonly [K in keyof TColumns & string]: MaybeOptional<
 			TColumns[K],
 			K extends keyof TRefine ? Assume<UnwrapValueOrUpdater<TRefine[K]>, GenericSchema>
 				: GetValibotType<TColumns[K]>,
@@ -131,7 +131,7 @@ export type BuildSelectSchema<
 	TNoOptional extends boolean = false,
 > = Simplify<
 	{
-		[K in keyof TTable['_']['columns']]: MaybeOptional<
+		readonly [K in keyof TTable['_']['columns']]: MaybeOptional<
 			TTable['_']['columns'][K],
 			K extends keyof TRefine ? Assume<UnwrapValueOrUpdater<TRefine[K]>, GenericSchema>
 				: GetValibotType<TTable['_']['columns'][K]>,
