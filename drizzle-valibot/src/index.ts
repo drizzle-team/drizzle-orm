@@ -18,13 +18,13 @@ import {
 	type AnySchema,
 	array,
 	type ArraySchema,
-	type GenericSchema,
 	bigint,
 	type BigintSchema,
 	boolean,
 	type BooleanSchema,
 	date,
 	type DateSchema,
+	type GenericSchema,
 	maxLength,
 	null_,
 	nullable,
@@ -37,12 +37,12 @@ import {
 	type OptionalSchema,
 	picklist,
 	type PicklistSchema,
+	pipe,
 	record,
 	string,
 	type StringSchema,
 	union,
 	uuid,
-    pipe,
 } from 'valibot';
 
 const literalSchema = union([string(), number(), boolean(), null_()]);
@@ -85,7 +85,8 @@ type GetValibotType<TColumn extends Column> = TColumn['_']['dataType'] extends i
 		? Equal<TColumn['enumValues'], [string, ...string[]]> extends true ? StringSchema<undefined>
 		: PicklistSchema<Readonly<TColumn['enumValues']>, undefined>
 	: TDataType extends 'array'
-		? TColumn['_']['baseColumn'] extends Column ? ArraySchema<GetValibotType<TColumn['_']['baseColumn']>, undefined> : never
+		? TColumn['_']['baseColumn'] extends Column ? ArraySchema<GetValibotType<TColumn['_']['baseColumn']>, undefined>
+		: never
 	: TDataType extends 'bigint' ? BigintSchema<undefined>
 	: TDataType extends 'number' ? NumberSchema<undefined>
 	: TDataType extends 'string' ? StringSchema<undefined>
@@ -163,7 +164,7 @@ export function createInsertSchema<
 		TTable,
 		Equal<TRefine, Refine<TTable, 'insert'>> extends true ? {} : TRefine
 	>,
-    undefined
+	undefined
 > {
 	const columns = getTableColumns(table);
 	const columnEntries = Object.entries(columns);
@@ -228,7 +229,7 @@ export function createSelectSchema<
 		TTable,
 		Equal<TRefine, Refine<TTable, 'select'>> extends true ? {} : TRefine
 	>,
-    undefined
+	undefined
 > {
 	const columns = getTableColumns(table);
 	const columnEntries = Object.entries(columns);
@@ -285,7 +286,7 @@ function mapColumnToSchema(column: Column): GenericSchema {
 
 	if (isWithEnum(column)) {
 		type = column.enumValues?.length
-			? picklist(column.enumValues )
+			? picklist(column.enumValues)
 			: string();
 	}
 

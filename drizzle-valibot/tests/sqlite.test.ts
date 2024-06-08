@@ -4,16 +4,16 @@ import {
 	bigint as valibigint,
 	boolean,
 	date as valiDate,
+	type InferOutput,
 	minValue,
 	nullable,
 	number,
 	object,
 	optional,
-	type InferOutput,
 	parse,
 	picklist,
+	pipe,
 	string,
-    pipe,
 } from 'valibot';
 import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
 import { expectSchemaShape } from './utils';

@@ -13,8 +13,8 @@ import {
 	optional,
 	parse,
 	picklist,
+	pipe,
 	string,
-    pipe,
 } from 'valibot';
 import { createInsertSchema, createSelectSchema } from '../src';
 import { expectSchemaShape } from './utils';
