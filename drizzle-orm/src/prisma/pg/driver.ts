@@ -5,7 +5,7 @@ import { Prisma } from '@prisma/client';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import type { QueryResultHKT } from '~/pg-core';
+import type { QueryResultHKT } from '~/pg-core/index.ts';
 import { PgDatabase, PgDialect } from '~/pg-core/index.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { PrismaPgSession } from './session.ts';

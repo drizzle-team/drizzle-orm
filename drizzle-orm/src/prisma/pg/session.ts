@@ -2,9 +2,15 @@ import type { PrismaClient } from '@prisma/client/extension';
 
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
-import type { PgDialect, PgTransaction, PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core';
+import type {
+	PgDialect,
+	PgTransaction,
+	PgTransactionConfig,
+	PreparedQueryConfig,
+	QueryResultHKT,
+} from '~/pg-core/index.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/index.ts';
-import type { Query, SQL } from '~/sql';
+import type { Query, SQL } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 
 export class PrismaPgPreparedQuery<T> extends PgPreparedQuery<PreparedQueryConfig & { execute: T }> {

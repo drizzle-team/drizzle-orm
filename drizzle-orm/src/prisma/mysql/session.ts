@@ -9,11 +9,11 @@ import type {
 	MySqlTransactionConfig,
 	PreparedQueryConfig,
 	QueryResultHKT,
-} from '~/mysql-core';
+} from '~/mysql-core/index.ts';
 import { MySqlPreparedQuery, MySqlSession } from '~/mysql-core/index.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
-import type { Assume } from '~/utils';
+import type { Assume } from '~/utils.ts';
 
 export class PrismaMySqlPreparedQuery<T> extends MySqlPreparedQuery<PreparedQueryConfig & { execute: T }> {
 	override iterator(_placeholderValues?: Record<string, unknown> | undefined): AsyncGenerator<unknown, any, unknown> {

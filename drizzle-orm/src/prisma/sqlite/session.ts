@@ -2,7 +2,7 @@ import type { PrismaClient } from '@prisma/client/extension';
 
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
-import type { Query } from '~/sql';
+import type { Query } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import type {
 	PreparedQueryConfig as PreparedQueryConfigBase,
