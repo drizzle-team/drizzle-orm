@@ -1,5 +1,4 @@
 import 'dotenv/config';
-import { viteCommonjs } from '@originjs/vite-plugin-commonjs';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig } from 'vitest/config';
 
@@ -17,10 +16,11 @@ export default defineConfig({
 			'tests/xata-http.test.ts',
 			'tests/extensions/vectors/**/*',
 			'tests/tidb-serverless.test.ts',
+			'tests/prisma/**/*.test.ts',
 			// 'tests/awsdatapi.test.ts',
 		],
 		exclude: [
-			...(process.env.SKIP_EXTERNAL_DB_TESTS
+			...(process.env['SKIP_EXTERNAL_DB_TESTS']
 				? [
 					'tests/relational/mysql.planetscale.test.ts',
 					'tests/neon-http-batch.test.ts',
@@ -36,6 +36,11 @@ export default defineConfig({
 		testTimeout: 100000,
 		hookTimeout: 100000,
 		isolate: false,
+		poolOptions: {
+			threads: {
+				singleThread: true,
+			},
+		},
 	},
-	plugins: [viteCommonjs(), tsconfigPaths()],
+	plugins: [tsconfigPaths()],
 });

@@ -132,7 +132,7 @@ const schema = {
 	usersConfig,
 };
 
-// eslint-disable-next-line drizzle/require-entity-kind
+// eslint-disable-next-line drizzle-internal/require-entity-kind
 class ServerSimulator {
 	constructor(private db: BetterSqlite3.Database) {}
 

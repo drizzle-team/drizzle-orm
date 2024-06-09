@@ -17,14 +17,14 @@ import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types.ts';
 import {
 	type Mode,
+	MySqlPreparedQuery,
+	type MySqlPreparedQueryConfig,
+	type MySqlPreparedQueryHKT,
+	type MySqlQueryResultHKT,
 	MySqlSession,
 	MySqlTransaction,
 	type MySqlTransactionConfig,
-	PreparedQuery,
-	type PreparedQueryConfig,
-	type PreparedQueryHKT,
 	type PreparedQueryKind,
-	type QueryResultHKT,
 } from '~/mysql-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
@@ -38,7 +38,7 @@ export type MySqlQueryResult<
 	T = any,
 > = [T extends ResultSetHeader ? T : T[], FieldPacket[]];
 
-export class MySql2PreparedQuery<T extends PreparedQueryConfig> extends PreparedQuery<T> {
+export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MySqlPreparedQuery<T> {
 	static readonly [entityKind]: string = 'MySql2PreparedQuery';
 
 	private rawQuery: QueryOptions;
@@ -156,7 +156,7 @@ export interface MySql2SessionOptions {
 export class MySql2Session<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends MySqlSession<MySql2QueryResultHKT, MySql2PreparedQueryHKT, TFullSchema, TSchema> {
+> extends MySqlSession<MySqlQueryResultHKT, MySql2PreparedQueryHKT, TFullSchema, TSchema> {
 	static readonly [entityKind]: string = 'MySql2Session';
 
 	private logger: Logger;
@@ -173,7 +173,7 @@ export class MySql2Session<
 		this.mode = options.mode;
 	}
 
-	prepareQuery<T extends PreparedQueryConfig>(
+	prepareQuery<T extends MySqlPreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
@@ -289,10 +289,10 @@ function isPool(client: MySql2Client): client is Pool {
 	return 'getConnection' in client;
 }
 
-export interface MySql2QueryResultHKT extends QueryResultHKT {
+export interface MySql2QueryResultHKT extends MySqlQueryResultHKT {
 	type: MySqlRawQueryResult;
 }
 
-export interface MySql2PreparedQueryHKT extends PreparedQueryHKT {
-	type: MySql2PreparedQuery<Assume<this['config'], PreparedQueryConfig>>;
+export interface MySql2PreparedQueryHKT extends MySqlPreparedQueryHKT {
+	type: MySql2PreparedQuery<Assume<this['config'], MySqlPreparedQueryConfig>>;
 }

@@ -5,7 +5,7 @@ import { type Logger, NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
-import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
@@ -192,6 +192,6 @@ export class NodePgTransaction<
 	}
 }
 
-export interface NodePgQueryResultHKT extends QueryResultHKT {
+export interface NodePgQueryResultHKT extends PgQueryResultHKT {
 	type: QueryResult<Assume<this['row'], QueryResultRow>>;
 }
