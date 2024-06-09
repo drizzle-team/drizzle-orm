@@ -1,30 +1,17 @@
 import test from 'ava';
 import { blob, integer, numeric, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import {
-	bigint as valibigint,
-	boolean,
-	date as valiDate,
-	minValue,
-	nullable,
-	number,
-	object,
-	optional,
-	type Output,
-	parse,
-	picklist,
-	string,
-} from 'valibot';
+import * as v from "valibot";
 import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
 import { expectSchemaShape } from './utils';
 
-const blobJsonSchema = object({
-	foo: string(),
+const blobJsonSchema = v.object({
+	foo: v.string(),
 });
 
 const users = sqliteTable('users', {
 	id: integer('id').primaryKey(),
 	blobJson: blob('blob', { mode: 'json' })
-		.$type<Output<typeof blobJsonSchema>>()
+		.$type<v.InferOutput<typeof blobJsonSchema>>()
 		.notNull(),
 	blobBigInt: blob('blob', { mode: 'bigint' }).notNull(),
 	numeric: numeric('numeric').notNull(),
@@ -54,22 +41,22 @@ const testUser = {
 test('users insert valid user', (t) => {
 	const schema = createInsertSchema(users);
 	//
-	t.deepEqual(parse(schema, testUser), testUser);
+	t.deepEqual(v.parse(schema, testUser), testUser);
 });
 
 test('users insert invalid text length', (t) => {
 	const schema = createInsertSchema(users);
 	t.throws(
-		() => parse(schema, { ...testUser, text: 'a'.repeat(256) }),
+		() => v.parse(schema, { ...testUser, text: 'a'.repeat(256) }),
 		undefined,
 	);
 });
 
 test('users insert schema', (t) => {
 	const actual = createInsertSchema(users, {
-		id: () => number([minValue(0)]),
+		id: () => v.pipe(v.number(), v.minValue(0)),
 		blobJson: blobJsonSchema,
-		role: picklist(['admin', 'user', 'manager']),
+		role: v.picklist(['admin', 'user', 'manager']),
 	});
 
 	(() => {
@@ -88,17 +75,17 @@ test('users insert schema', (t) => {
 		}
 	});
 
-	const expected = object({
-		id: optional(number([minValue(0)])),
+	const expected = v.object({
+		id: v.optional(v.pipe(v.number(), v.minValue(0))),
 		blobJson: blobJsonSchema,
-		blobBigInt: valibigint(),
-		numeric: string(),
-		createdAt: valiDate(),
-		createdAtMs: valiDate(),
-		boolean: boolean(),
-		real: number(),
-		text: optional(nullable(string())),
-		role: optional(picklist(['admin', 'user', 'manager'])),
+		blobBigInt: v.bigint(),
+		numeric: v.string(),
+		createdAt: v.date(),
+		createdAtMs: v.date(),
+		boolean: v.boolean(),
+		real: v.number(),
+		text: v.optional(v.nullable(v.string())),
+		role: v.optional(v.picklist(['admin', 'user', 'manager'])),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -107,17 +94,17 @@ test('users insert schema', (t) => {
 test('users insert schema w/ defaults', (t) => {
 	const actual = createInsertSchema(users);
 
-	const expected = object({
-		id: optional(number()),
+	const expected = v.object({
+		id: v.optional(v.number()),
 		blobJson: jsonSchema,
-		blobBigInt: valibigint(),
-		numeric: string(),
-		createdAt: valiDate(),
-		createdAtMs: valiDate(),
-		boolean: boolean(),
-		real: number(),
-		text: optional(nullable(string())),
-		role: optional(picklist(['admin', 'user'])),
+		blobBigInt: v.bigint(),
+		numeric: v.string(),
+		createdAt: v.date(),
+		createdAtMs: v.date(),
+		boolean: v.boolean(),
+		real: v.number(),
+		text: v.optional(v.nullable(v.string())),
+		role: v.optional(v.picklist(['admin', 'user'])),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -126,7 +113,7 @@ test('users insert schema w/ defaults', (t) => {
 test('users select schema', (t) => {
 	const actual = createSelectSchema(users, {
 		blobJson: jsonSchema,
-		role: picklist(['admin', 'user', 'manager']),
+		role: v.picklist(['admin', 'user', 'manager']),
 	});
 
 	(() => {
@@ -145,17 +132,17 @@ test('users select schema', (t) => {
 		}
 	});
 
-	const expected = object({
-		id: number(),
+	const expected = v.object({
+		id: v.number(),
 		blobJson: jsonSchema,
-		blobBigInt: valibigint(),
-		numeric: string(),
-		createdAt: valiDate(),
-		createdAtMs: valiDate(),
-		boolean: boolean(),
-		real: number(),
-		text: nullable(string()),
-		role: picklist(['admin', 'user', 'manager']),
+		blobBigInt: v.bigint(),
+		numeric: v.string(),
+		createdAt: v.date(),
+		createdAtMs: v.date(),
+		boolean: v.boolean(),
+		real: v.number(),
+		text: v.nullable(v.string()),
+		role: v.picklist(['admin', 'user', 'manager']),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -164,17 +151,17 @@ test('users select schema', (t) => {
 test('users select schema w/ defaults', (t) => {
 	const actual = createSelectSchema(users);
 
-	const expected = object({
-		id: number(),
+	const expected = v.object({
+		id: v.number(),
 		blobJson: jsonSchema,
-		blobBigInt: valibigint(),
-		numeric: string(),
-		createdAt: valiDate(),
-		createdAtMs: valiDate(),
-		boolean: boolean(),
-		real: number(),
-		text: nullable(string()),
-		role: picklist(['admin', 'user']),
+		blobBigInt: v.bigint(),
+		numeric: v.string(),
+		createdAt: v.date(),
+		createdAtMs: v.date(),
+		boolean: v.boolean(),
+		real: v.number(),
+		text: v.nullable(v.string()),
+		role: v.picklist(['admin', 'user']),
 	});
 
 	expectSchemaShape(t, expected).from(actual);

@@ -1,20 +1,6 @@
 import test from 'ava';
 import { char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
-import {
-	array,
-	date as valiDate,
-	email,
-	maxLength,
-	minLength,
-	minValue,
-	nullable,
-	number,
-	object,
-	optional,
-	parse,
-	picklist,
-	string,
-} from 'valibot';
+import * as v from "valibot";
 import { createInsertSchema, createSelectSchema } from '../src';
 import { expectSchemaShape } from './utils';
 
@@ -55,7 +41,7 @@ const testUser = {
 test('users insert valid user', (t) => {
 	const schema = createInsertSchema(users);
 
-	t.deepEqual(parse(schema, testUser), testUser);
+	t.deepEqual(v.parse(schema, testUser), testUser);
 });
 
 test('users insert invalid varchar', (t) => {
@@ -63,7 +49,7 @@ test('users insert invalid varchar', (t) => {
 
 	t.throws(
 		() =>
-			parse(schema, {
+			v.parse(schema, {
 				...testUser,
 				profession: 'Chief Executive Officer',
 			}),
@@ -74,14 +60,14 @@ test('users insert invalid varchar', (t) => {
 test('users insert invalid char', (t) => {
 	const schema = createInsertSchema(users);
 
-	t.throws(() => parse(schema, { ...testUser, initials: 'JoDo' }), undefined);
+	t.throws(() => v.parse(schema, { ...testUser, initials: 'JoDo' }), undefined);
 });
 
 test('users insert schema', (t) => {
 	const actual = createInsertSchema(users, {
-		id: () => number([minValue(0)]),
-		email: () => string([email()]),
-		roleText: picklist(['user', 'manager', 'admin']),
+		id: () => v.pipe(v.number(), v.minValue(0)),
+		email: () => v.pipe(v.string(), v.email()),
+		roleText: v.picklist(['user', 'manager', 'admin']),
 	});
 
 	(() => {
@@ -100,19 +86,19 @@ test('users insert schema', (t) => {
 		}
 	});
 
-	const expected = object({
-		a: optional(nullable(array(number()))),
-		id: optional(number([minValue(0)])),
-		name: optional(nullable(string())),
-		email: string(),
-		birthdayString: string(),
-		birthdayDate: valiDate(),
-		createdAt: optional(valiDate()),
-		role: picklist(['admin', 'user']),
-		roleText: picklist(['user', 'manager', 'admin']),
-		roleText2: optional(picklist(['admin', 'user'])),
-		profession: string([maxLength(20), minLength(1)]),
-		initials: string([maxLength(2), minLength(1)]),
+	const expected = v.object({
+		a: v.optional(v.nullable(v.array(v.number()))),
+		id: v.optional(v.pipe(v.number(), v.minValue(0))),
+		name: v.optional(v.nullable(v.string())),
+		email: v.string(),
+		birthdayString: v.string(),
+		birthdayDate: v.date(),
+		createdAt: v.optional(v.date()),
+		role: v.picklist(['admin', 'user']),
+		roleText: v.picklist(['user', 'manager', 'admin']),
+		roleText2: v.optional(v.picklist(['admin', 'user'])),
+		profession: v.pipe(v.string(), v.maxLength(20)),
+		initials: v.pipe(v.string(), v.maxLength(2)),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -121,19 +107,19 @@ test('users insert schema', (t) => {
 test('users insert schema w/ defaults', (t) => {
 	const actual = createInsertSchema(users);
 
-	const expected = object({
-		a: optional(nullable(array(number()))),
-		id: optional(number()),
-		name: optional(nullable(string())),
-		email: string(),
-		birthdayString: string(),
-		birthdayDate: valiDate(),
-		createdAt: optional(valiDate()),
-		role: picklist(['admin', 'user']),
-		roleText: picklist(['admin', 'user']),
-		roleText2: optional(picklist(['admin', 'user'])),
-		profession: string([maxLength(20), minLength(1)]),
-		initials: string([maxLength(2), minLength(1)]),
+	const expected = v.object({
+		a: v.optional(v.nullable(v.array(v.number()))),
+		id: v.optional(v.number()),
+		name: v.optional(v.nullable(v.string())),
+		email: v.string(),
+		birthdayString: v.string(),
+		birthdayDate: v.date(),
+		createdAt: v.optional(v.date()),
+		role: v.picklist(['admin', 'user']),
+		roleText: v.picklist(['admin', 'user']),
+		roleText2: v.optional(v.picklist(['admin', 'user'])),
+		profession: v.pipe(v.string(), v.maxLength(20)),
+		initials: v.pipe(v.string(), v.maxLength(2)),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -141,24 +127,24 @@ test('users insert schema w/ defaults', (t) => {
 
 test('users select schema', (t) => {
 	const actual = createSelectSchema(users, {
-		id: () => number([minValue(0)]),
-		email: () => string(),
-		roleText: picklist(['user', 'manager', 'admin']),
+		id: () => v.pipe(v.number(), v.minValue(0)),
+		email: () => v.string(),
+		roleText: v.picklist(['user', 'manager', 'admin']),
 	});
 
-	const expected = object({
-		a: nullable(array(number())),
-		id: number([minValue(0)]),
-		name: nullable(string()),
-		email: string(),
-		birthdayString: string(),
-		birthdayDate: valiDate(),
-		createdAt: valiDate(),
-		role: picklist(['admin', 'user']),
-		roleText: picklist(['user', 'manager', 'admin']),
-		roleText2: picklist(['admin', 'user']),
-		profession: string([maxLength(20), minLength(1)]),
-		initials: string([maxLength(2), minLength(1)]),
+	const expected = v.object({
+		a: v.nullable(v.array(v.number())),
+		id: v.pipe(v.number(), v.minValue(0)),
+		name: v.nullable(v.string()),
+		email: v.string(),
+		birthdayString: v.string(),
+		birthdayDate: v.date(),
+		createdAt: v.date(),
+		role: v.picklist(['admin', 'user']),
+		roleText: v.picklist(['user', 'manager', 'admin']),
+		roleText2: v.picklist(['admin', 'user']),
+		profession: v.pipe(v.string(), v.maxLength(20)),
+		initials: v.pipe(v.string(), v.maxLength(2)),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -167,19 +153,19 @@ test('users select schema', (t) => {
 test('users select schema w/ defaults', (t) => {
 	const actual = createSelectSchema(users);
 
-	const expected = object({
-		a: nullable(array(number())),
-		id: number(),
-		name: nullable(string()),
-		email: string(),
-		birthdayString: string(),
-		birthdayDate: valiDate(),
-		createdAt: valiDate(),
-		role: picklist(['admin', 'user']),
-		roleText: picklist(['admin', 'user']),
-		roleText2: picklist(['admin', 'user']),
-		profession: string([maxLength(20), minLength(1)]),
-		initials: string([maxLength(2), minLength(1)]),
+	const expected = v.object({
+		a: v.nullable(v.array(v.number())),
+		id: v.number(),
+		name: v.nullable(v.string()),
+		email: v.string(),
+		birthdayString: v.string(),
+		birthdayDate: v.date(),
+		createdAt: v.date(),
+		role: v.picklist(['admin', 'user']),
+		roleText: v.picklist(['admin', 'user']),
+		roleText2: v.picklist(['admin', 'user']),
+		profession: v.pipe(v.string(), v.maxLength(20)),
+		initials: v.pipe(v.string(), v.maxLength(2)),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
