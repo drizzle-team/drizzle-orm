@@ -5,7 +5,7 @@
 ```ts
 import { pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema } from 'drizzle-valibot';
-import { string, parse, number } from 'valibot';
+import { string, parse, number, minValue } from 'valibot';
 
 const users = pgTable('users', {
 	id: serial('id').primaryKey(),
