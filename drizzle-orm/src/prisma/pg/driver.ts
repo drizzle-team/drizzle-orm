@@ -5,12 +5,12 @@ import { Prisma } from '@prisma/client';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import type { QueryResultHKT } from '~/pg-core/index.ts';
 import { PgDatabase, PgDialect } from '~/pg-core/index.ts';
 import type { DrizzleConfig } from '~/utils.ts';
+import type { PrismaPgQueryResultHKT } from './session.ts';
 import { PrismaPgSession } from './session.ts';
 
-export class PrismaPgDatabase extends PgDatabase<QueryResultHKT, Record<string, never>> {
+export class PrismaPgDatabase extends PgDatabase<PrismaPgQueryResultHKT, Record<string, never>> {
 	static readonly [entityKind]: string = 'PrismaPgDatabase';
 
 	constructor(client: PrismaClient, logger: Logger | undefined) {

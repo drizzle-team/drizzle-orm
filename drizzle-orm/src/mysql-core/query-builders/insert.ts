@@ -1,13 +1,13 @@
 import { entityKind, is } from '~/entity.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type {
-	AnyQueryResultHKT,
+	AnyMySqlQueryResultHKT,
+	MySqlPreparedQueryConfig,
+	MySqlQueryResultHKT,
+	MySqlQueryResultKind,
 	MySqlSession,
-	PreparedQueryConfig,
 	PreparedQueryHKTBase,
 	PreparedQueryKind,
-	QueryResultHKT,
-	QueryResultKind,
 } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
@@ -34,7 +34,7 @@ export type MySqlInsertValue<TTable extends MySqlTable> =
 
 export class MySqlInsertBuilder<
 	TTable extends MySqlTable,
-	TQueryResult extends QueryResultHKT,
+	TQueryResult extends MySqlQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > {
 	static readonly [entityKind]: string = 'MySqlInsertBuilder';
@@ -96,8 +96,8 @@ export type MySqlInsertDynamic<T extends AnyMySqlInsert> = MySqlInsert<
 
 export type MySqlInsertPrepare<T extends AnyMySqlInsert> = PreparedQueryKind<
 	T['_']['preparedQueryHKT'],
-	PreparedQueryConfig & {
-		execute: QueryResultKind<T['_']['queryResult'], never>;
+	MySqlPreparedQueryConfig & {
+		execute: MySqlQueryResultKind<T['_']['queryResult'], never>;
 		iterator: never;
 	},
 	true
@@ -109,7 +109,7 @@ export type MySqlInsertOnDuplicateKeyUpdateConfig<T extends AnyMySqlInsert> = {
 
 export type MySqlInsert<
 	TTable extends MySqlTable = MySqlTable,
-	TQueryResult extends QueryResultHKT = AnyQueryResultHKT,
+	TQueryResult extends MySqlQueryResultHKT = AnyMySqlQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
 > = MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, true, never>;
 
@@ -117,11 +117,11 @@ export type AnyMySqlInsert = MySqlInsertBase<any, any, any, any, any>;
 
 export interface MySqlInsertBase<
 	TTable extends MySqlTable,
-	TQueryResult extends QueryResultHKT,
+	TQueryResult extends MySqlQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-> extends QueryPromise<QueryResultKind<TQueryResult, never>>, SQLWrapper {
+> extends QueryPromise<MySqlQueryResultKind<TQueryResult, never>>, SQLWrapper {
 	readonly _: {
 		readonly table: TTable;
 		readonly queryResult: TQueryResult;
@@ -133,14 +133,14 @@ export interface MySqlInsertBase<
 
 export class MySqlInsertBase<
 	TTable extends MySqlTable,
-	TQueryResult extends QueryResultHKT,
+	TQueryResult extends MySqlQueryResultHKT,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<QueryResultKind<TQueryResult, never>> implements SQLWrapper {
+> extends QueryPromise<MySqlQueryResultKind<TQueryResult, never>> implements SQLWrapper {
 	static readonly [entityKind]: string = 'MySqlInsert';
 
 	declare protected $table: TTable;

@@ -6,7 +6,7 @@ import { BaseSQLiteDatabase, SQLiteAsyncDialect } from '~/sqlite-core/index.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { PrismaSQLiteSession } from './session.ts';
 
-export type PrismaSQLiteDatabase = BaseSQLiteDatabase<'async', unknown>;
+export type PrismaSQLiteDatabase = BaseSQLiteDatabase<'async', []>;
 
 export type PrismaSQLiteConfig = Omit<DrizzleConfig, 'schema'>;
 
@@ -25,7 +25,7 @@ export function drizzle(config: PrismaSQLiteConfig = {}) {
 		return client.$extends({
 			name: 'drizzle',
 			client: {
-				$drizzle: new BaseSQLiteDatabase('async', dialect, session, undefined),
+				$drizzle: new BaseSQLiteDatabase('async', dialect, session, undefined) as PrismaSQLiteDatabase,
 			},
 		});
 	});

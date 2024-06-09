@@ -6,17 +6,17 @@ import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types.ts';
 import {
 	MySqlPreparedQuery,
+	type MySqlPreparedQueryConfig,
 	type MySqlPreparedQueryHKT,
+	type MySqlQueryResultHKT,
 	MySqlSession,
 	MySqlTransaction,
-	type PreparedQueryConfig,
-	type QueryResultHKT,
 } from '~/mysql-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
-export class PlanetScalePreparedQuery<T extends PreparedQueryConfig> extends MySqlPreparedQuery<T> {
+export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig> extends MySqlPreparedQuery<T> {
 	static readonly [entityKind]: string = 'PlanetScalePreparedQuery';
 
 	private rawQuery = { as: 'object' } as const;
@@ -64,7 +64,7 @@ export interface PlanetscaleSessionOptions {
 export class PlanetscaleSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends MySqlSession<PlanetscaleQueryResultHKT, PlanetScalePreparedQueryHKT, TFullSchema, TSchema> {
+> extends MySqlSession<MySqlQueryResultHKT, PlanetScalePreparedQueryHKT, TFullSchema, TSchema> {
 	static readonly [entityKind]: string = 'PlanetscaleSession';
 
 	private logger: Logger;
@@ -82,7 +82,7 @@ export class PlanetscaleSession<
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
-	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
+	prepareQuery<T extends MySqlPreparedQueryConfig = MySqlPreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
@@ -161,10 +161,10 @@ export class PlanetScaleTransaction<
 	}
 }
 
-export interface PlanetscaleQueryResultHKT extends QueryResultHKT {
+export interface PlanetscaleQueryResultHKT extends MySqlQueryResultHKT {
 	type: ExecutedQuery;
 }
 
 export interface PlanetScalePreparedQueryHKT extends MySqlPreparedQueryHKT {
-	type: PlanetScalePreparedQuery<Assume<this['config'], PreparedQueryConfig>>;
+	type: PlanetScalePreparedQuery<Assume<this['config'], MySqlPreparedQueryConfig>>;
 }

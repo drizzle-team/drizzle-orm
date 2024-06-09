@@ -9,21 +9,21 @@ import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
 
 export type Mode = 'default' | 'planetscale';
 
-export interface QueryResultHKT {
-	readonly $brand: 'MySqlQueryRowHKT';
+export interface MySqlQueryResultHKT {
+	readonly $brand: 'MySqlQueryResultHKT';
 	readonly row: unknown;
 	readonly type: unknown;
 }
 
-export interface AnyQueryResultHKT extends QueryResultHKT {
+export interface AnyMySqlQueryResultHKT extends MySqlQueryResultHKT {
 	readonly type: any;
 }
 
-export type QueryResultKind<TKind extends QueryResultHKT, TRow> = (TKind & {
+export type MySqlQueryResultKind<TKind extends MySqlQueryResultHKT, TRow> = (TKind & {
 	readonly row: TRow;
 })['type'];
 
-export interface PreparedQueryConfig {
+export interface MySqlPreparedQueryConfig {
 	execute: unknown;
 	iterator: unknown;
 }
@@ -36,13 +36,13 @@ export interface MySqlPreparedQueryHKT {
 
 export type PreparedQueryKind<
 	TKind extends MySqlPreparedQueryHKT,
-	TConfig extends PreparedQueryConfig,
+	TConfig extends MySqlPreparedQueryConfig,
 	TAssume extends boolean = false,
 > = Equal<TAssume, true> extends true
 	? Assume<(TKind & { readonly config: TConfig })['type'], MySqlPreparedQuery<TConfig>>
 	: (TKind & { readonly config: TConfig })['type'];
 
-export abstract class MySqlPreparedQuery<T extends PreparedQueryConfig> {
+export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 	static readonly [entityKind]: string = 'MySqlPreparedQuery';
 
 	/** @internal */
@@ -60,7 +60,7 @@ export interface MySqlTransactionConfig {
 }
 
 export abstract class MySqlSession<
-	TQueryResult extends QueryResultHKT = QueryResultHKT,
+	TQueryResult extends MySqlQueryResultHKT = MySqlQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = Record<string, never>,
@@ -69,14 +69,14 @@ export abstract class MySqlSession<
 
 	constructor(protected dialect: MySqlDialect) {}
 
-	abstract prepareQuery<T extends PreparedQueryConfig, TPreparedQueryHKT extends MySqlPreparedQueryHKT>(
+	abstract prepareQuery<T extends MySqlPreparedQueryConfig, TPreparedQueryHKT extends MySqlPreparedQueryHKT>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PreparedQueryKind<TPreparedQueryHKT, T>;
 
 	execute<T>(query: SQL): Promise<T> {
-		return this.prepareQuery<PreparedQueryConfig & { execute: T }, PreparedQueryHKTBase>(
+		return this.prepareQuery<MySqlPreparedQueryConfig & { execute: T }, PreparedQueryHKTBase>(
 			this.dialect.sqlToQuery(query),
 			undefined,
 		).execute();
@@ -115,7 +115,7 @@ export abstract class MySqlSession<
 }
 
 export abstract class MySqlTransaction<
-	TQueryResult extends QueryResultHKT,
+	TQueryResult extends MySqlQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = Record<string, never>,
@@ -143,5 +143,5 @@ export abstract class MySqlTransaction<
 }
 
 export interface PreparedQueryHKTBase extends MySqlPreparedQueryHKT {
-	type: MySqlPreparedQuery<Assume<this['config'], PreparedQueryConfig>>;
+	type: MySqlPreparedQuery<Assume<this['config'], MySqlPreparedQueryConfig>>;
 }

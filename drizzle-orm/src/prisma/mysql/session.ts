@@ -4,18 +4,18 @@ import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type {
 	MySqlDialect,
+	MySqlPreparedQueryConfig,
 	MySqlPreparedQueryHKT,
+	MySqlQueryResultHKT,
 	MySqlTransaction,
 	MySqlTransactionConfig,
-	PreparedQueryConfig,
-	QueryResultHKT,
 } from '~/mysql-core/index.ts';
 import { MySqlPreparedQuery, MySqlSession } from '~/mysql-core/index.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
 
-export class PrismaMySqlPreparedQuery<T> extends MySqlPreparedQuery<PreparedQueryConfig & { execute: T }> {
+export class PrismaMySqlPreparedQuery<T> extends MySqlPreparedQuery<MySqlPreparedQueryConfig & { execute: T }> {
 	override iterator(_placeholderValues?: Record<string, unknown> | undefined): AsyncGenerator<unknown, any, unknown> {
 		throw new Error('Method not implemented.');
 	}
@@ -55,20 +55,27 @@ export class PrismaMySqlSession extends MySqlSession {
 	}
 
 	override execute<T>(query: SQL): Promise<T> {
-		return this.prepareQuery<PreparedQueryConfig & { execute: T }>(this.dialect.sqlToQuery(query)).execute();
+		return this.prepareQuery<MySqlPreparedQueryConfig & { execute: T }>(this.dialect.sqlToQuery(query)).execute();
 	}
 
 	override all<T = unknown>(_query: SQL): Promise<T[]> {
 		throw new Error('Method not implemented.');
 	}
 
-	override prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(query: Query): MySqlPreparedQuery<T> {
+	override prepareQuery<T extends MySqlPreparedQueryConfig = MySqlPreparedQueryConfig>(
+		query: Query,
+	): MySqlPreparedQuery<T> {
 		return new PrismaMySqlPreparedQuery(this.prisma, query, this.logger);
 	}
 
 	override transaction<T>(
 		_transaction: (
-			tx: MySqlTransaction<QueryResultHKT, PrismaMySqlPreparedQueryHKT, Record<string, never>, Record<string, never>>,
+			tx: MySqlTransaction<
+				PrismaMySqlQueryResultHKT,
+				PrismaMySqlPreparedQueryHKT,
+				Record<string, never>,
+				Record<string, never>
+			>,
 		) => Promise<T>,
 		_config?: MySqlTransactionConfig,
 	): Promise<T> {
@@ -76,6 +83,10 @@ export class PrismaMySqlSession extends MySqlSession {
 	}
 }
 
+export interface PrismaMySqlQueryResultHKT extends MySqlQueryResultHKT {
+	type: [];
+}
+
 export interface PrismaMySqlPreparedQueryHKT extends MySqlPreparedQueryHKT {
-	type: PrismaMySqlPreparedQuery<Assume<this['config'], PreparedQueryConfig>>;
+	type: PrismaMySqlPreparedQuery<Assume<this['config'], MySqlPreparedQueryConfig>>;
 }

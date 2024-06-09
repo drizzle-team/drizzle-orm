@@ -6,11 +6,11 @@ import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import { MySqlTransaction } from '~/mysql-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types.ts';
 import type {
+	MySqlPreparedQueryConfig,
 	MySqlPreparedQueryHKT,
+	MySqlQueryResultHKT,
 	MySqlTransactionConfig,
-	PreparedQueryConfig,
 	PreparedQueryKind,
-	QueryResultHKT,
 } from '~/mysql-core/session.ts';
 import { MySqlPreparedQuery as PreparedQueryBase, MySqlSession } from '~/mysql-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -43,7 +43,7 @@ export class MySqlRemoteSession<
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
-	prepareQuery<T extends PreparedQueryConfig>(
+	prepareQuery<T extends MySqlPreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
@@ -85,7 +85,7 @@ export class MySqlProxyTransaction<
 	}
 }
 
-export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryBase<T> {
+export class PreparedQuery<T extends MySqlPreparedQueryConfig> extends PreparedQueryBase<T> {
 	static readonly [entityKind]: string = 'MySqlProxyPreparedQuery';
 
 	constructor(
@@ -128,10 +128,10 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 	}
 }
 
-export interface MySqlRemoteQueryResultHKT extends QueryResultHKT {
+export interface MySqlRemoteQueryResultHKT extends MySqlQueryResultHKT {
 	type: MySqlRawQueryResult;
 }
 
 export interface MySqlRemotePreparedQueryHKT extends MySqlPreparedQueryHKT {
-	type: PreparedQuery<Assume<this['config'], PreparedQueryConfig>>;
+	type: PreparedQuery<Assume<this['config'], MySqlPreparedQueryConfig>>;
 }

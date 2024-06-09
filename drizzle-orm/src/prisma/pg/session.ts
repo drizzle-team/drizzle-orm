@@ -4,10 +4,10 @@ import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type {
 	PgDialect,
+	PgQueryResultHKT,
 	PgTransaction,
 	PgTransactionConfig,
 	PreparedQueryConfig,
-	QueryResultHKT,
 } from '~/pg-core/index.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/index.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
@@ -66,9 +66,13 @@ export class PrismaPgSession extends PgSession {
 	}
 
 	override transaction<T>(
-		_transaction: (tx: PgTransaction<QueryResultHKT, Record<string, never>, Record<string, never>>) => Promise<T>,
+		_transaction: (tx: PgTransaction<PgQueryResultHKT, Record<string, never>, Record<string, never>>) => Promise<T>,
 		_config?: PgTransactionConfig,
 	): Promise<T> {
 		throw new Error('Method not implemented.');
 	}
+}
+
+export interface PrismaPgQueryResultHKT extends PgQueryResultHKT {
+	type: [];
 }

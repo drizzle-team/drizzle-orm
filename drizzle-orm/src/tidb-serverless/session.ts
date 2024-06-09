@@ -7,11 +7,11 @@ import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types.ts';
 import {
 	MySqlPreparedQuery,
+	type MySqlPreparedQueryConfig,
 	type MySqlPreparedQueryHKT,
+	type MySqlQueryResultHKT,
 	MySqlSession,
 	MySqlTransaction,
-	type PreparedQueryConfig,
-	type QueryResultHKT,
 } from '~/mysql-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
@@ -20,7 +20,7 @@ import { type Assume, mapResultRow } from '~/utils.ts';
 const executeRawConfig = { fullResult: true } satisfies ExecuteOptions;
 const queryConfig = { arrayMode: true } satisfies ExecuteOptions;
 
-export class TiDBServerlessPreparedQuery<T extends PreparedQueryConfig> extends MySqlPreparedQuery<T> {
+export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig> extends MySqlPreparedQuery<T> {
 	static readonly [entityKind]: string = 'TiDBPreparedQuery';
 
 	constructor(
@@ -83,7 +83,7 @@ export class TiDBServerlessSession<
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
-	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
+	prepareQuery<T extends MySqlPreparedQueryConfig = MySqlPreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
@@ -162,10 +162,10 @@ export class TiDBServerlessTransaction<
 	}
 }
 
-export interface TiDBServerlessQueryResultHKT extends QueryResultHKT {
+export interface TiDBServerlessQueryResultHKT extends MySqlQueryResultHKT {
 	type: FullResult;
 }
 
 export interface TiDBServerlessPreparedQueryHKT extends MySqlPreparedQueryHKT {
-	type: TiDBServerlessPreparedQuery<Assume<this['config'], PreparedQueryConfig>>;
+	type: TiDBServerlessPreparedQuery<Assume<this['config'], MySqlPreparedQueryConfig>>;
 }

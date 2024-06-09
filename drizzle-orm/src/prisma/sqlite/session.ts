@@ -11,7 +11,7 @@ import type {
 	SQLiteExecuteMethod,
 	SQLiteTransaction,
 	SQLiteTransactionConfig,
-} from '~/sqlite-core';
+} from '~/sqlite-core/index.ts';
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/index.ts';
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
