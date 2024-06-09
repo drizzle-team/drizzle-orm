@@ -1,9 +1,9 @@
 import type { PrismaClient } from '@prisma/client/extension';
 
-import { entityKind } from '~/entity';
-import { type Logger, NoopLogger } from '~/logger';
-import { fillPlaceholders } from '~/sql';
+import { entityKind } from '~/entity.ts';
+import { type Logger, NoopLogger } from '~/logger.ts';
 import type { Query } from '~/sql';
+import { fillPlaceholders } from '~/sql/sql.ts';
 import type {
 	PreparedQueryConfig as PreparedQueryConfigBase,
 	SelectedFieldsOrdered,
@@ -12,7 +12,7 @@ import type {
 	SQLiteTransaction,
 	SQLiteTransactionConfig,
 } from '~/sqlite-core';
-import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core';
+import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/index.ts';
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 

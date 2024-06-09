@@ -11,6 +11,16 @@ plugins:
   - unused-imports
   - no-instanceof
   - drizzle-internal
+overrides:
+  - files:
+      - '**/tests/**/*.ts'
+      - '**/type-tests/**/*.ts'
+    rules:
+      import/extensions: 'off'
+      no-instanceof: 'off'
+  - files: 'eslint-plugin-drizzle/**/*'
+    rules:
+      import/extensions: 'off'
 rules:
   '@typescript-eslint/consistent-type-imports':
     - error
@@ -24,6 +34,10 @@ rules:
   import/no-useless-path-segments: error
   import/newline-after-import: error
   import/no-duplicates: error
+  import/extensions:
+    - error
+    - always
+    - ignorePackages: true
   '@typescript-eslint/no-explicit-any': 'off'
   '@typescript-eslint/no-non-null-assertion': 'off'
   '@typescript-eslint/no-namespace': 'off'

@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@prisma/client/extension';
 
-import { entityKind } from '~/entity';
-import { type Logger, NoopLogger } from '~/logger';
+import { entityKind } from '~/entity.ts';
+import { type Logger, NoopLogger } from '~/logger.ts';
 import type {
 	MySqlDialect,
 	MySqlPreparedQueryHKT,
@@ -10,9 +10,9 @@ import type {
 	PreparedQueryConfig,
 	QueryResultHKT,
 } from '~/mysql-core';
-import { MySqlPreparedQuery, MySqlSession } from '~/mysql-core';
-import { fillPlaceholders } from '~/sql';
-import type { Query, SQL } from '~/sql';
+import { MySqlPreparedQuery, MySqlSession } from '~/mysql-core/index.ts';
+import { fillPlaceholders } from '~/sql/sql.ts';
+import type { Query, SQL } from '~/sql/sql.ts';
 import type { Assume } from '~/utils';
 
 export class PrismaMySqlPreparedQuery<T> extends MySqlPreparedQuery<PreparedQueryConfig & { execute: T }> {

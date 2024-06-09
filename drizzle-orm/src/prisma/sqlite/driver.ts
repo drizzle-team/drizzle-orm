@@ -2,9 +2,9 @@ import { Prisma } from '@prisma/client';
 
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { BaseSQLiteDatabase, SQLiteAsyncDialect } from '~/sqlite-core';
+import { BaseSQLiteDatabase, SQLiteAsyncDialect } from '~/sqlite-core/index.ts';
 import type { DrizzleConfig } from '~/utils.ts';
-import { PrismaSQLiteSession } from '.';
+import { PrismaSQLiteSession } from './session.ts';
 
 export type PrismaSQLiteDatabase = BaseSQLiteDatabase<'async', unknown>;
 

@@ -2,14 +2,14 @@ import type { PrismaClient } from '@prisma/client/extension';
 
 import { Prisma } from '@prisma/client';
 
-import { entityKind } from '~/entity';
-import type { Logger } from '~/logger.ts';
+import { entityKind } from '~/entity.ts';
+import type { Logger } from '~/logger';
 import { DefaultLogger } from '~/logger.ts';
 import type { QueryResultHKT } from '~/mysql-core';
-import { MySqlDatabase, MySqlDialect } from '~/mysql-core';
-import type { DrizzleConfig } from '~/utils.ts';
+import { MySqlDatabase, MySqlDialect } from '~/mysql-core/index.ts';
+import type { DrizzleConfig } from '~/utils';
 import type { PrismaMySqlPreparedQueryHKT } from './session';
-import { PrismaMySqlSession } from './session';
+import { PrismaMySqlSession } from './session.ts';
 
 export class PrismaMySqlDatabase
 	extends MySqlDatabase<QueryResultHKT, PrismaMySqlPreparedQueryHKT, Record<string, never>>

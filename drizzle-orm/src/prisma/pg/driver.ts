@@ -2,13 +2,13 @@ import type { PrismaClient } from '@prisma/client/extension';
 
 import { Prisma } from '@prisma/client';
 
-import { entityKind } from '~/entity';
+import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { QueryResultHKT } from '~/pg-core';
-import { PgDatabase, PgDialect } from '~/pg-core';
+import { PgDatabase, PgDialect } from '~/pg-core/index.ts';
 import type { DrizzleConfig } from '~/utils.ts';
-import { PrismaPgSession } from './session';
+import { PrismaPgSession } from './session.ts';
 
 export class PrismaPgDatabase extends PgDatabase<QueryResultHKT, Record<string, never>> {
 	static readonly [entityKind]: string = 'PrismaPgDatabase';
