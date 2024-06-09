@@ -17,7 +17,7 @@ import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/index.ts';
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
 export class PrismaSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLitePreparedQuery<
-	{ type: 'async'; run: unknown; all: T['all']; get: never; values: never; execute: T['execute'] }
+	{ type: 'async'; run: []; all: T['all']; get: T['get']; values: never; execute: T['execute'] }
 > {
 	static readonly [entityKind]: string = 'PrismaSQLitePreparedQuery';
 
@@ -36,12 +36,14 @@ export class PrismaSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQ
 		return this.prisma.$queryRawUnsafe(this.query.sql, ...params);
 	}
 
-	override run(placeholderValues?: Record<string, unknown> | undefined): Promise<unknown> {
-		return this.all(placeholderValues);
+	override async run(placeholderValues?: Record<string, unknown> | undefined): Promise<[]> {
+		await this.all(placeholderValues);
+		return [];
 	}
 
-	override get(_placeholderValues?: Record<string, unknown> | undefined): Promise<never> {
-		throw new Error('Method not implemented.');
+	override async get(placeholderValues?: Record<string, unknown> | undefined): Promise<T['get']> {
+		const all = await this.all(placeholderValues) as unknown[];
+		return all[0];
 	}
 
 	override values(_placeholderValues?: Record<string, unknown> | undefined): Promise<never> {

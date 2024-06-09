@@ -26,4 +26,16 @@ test('extension works', async () => {
 	const result = await db.select().from(User);
 	expectTypeOf(result).toEqualTypeOf<typeof User.$inferSelect[]>();
 	expect(result).toEqual([{ id: 1, email: 'test@test.com', name: null }]);
+
+	const all = await db.select().from(User).all();
+	expectTypeOf(all).toEqualTypeOf<typeof User.$inferSelect[]>();
+	expect(all).toEqual([{ id: 1, email: 'test@test.com', name: null }]);
+
+	const get = await db.select().from(User).get();
+	expectTypeOf(get).toEqualTypeOf<typeof User.$inferSelect | undefined>();
+	expect(get).toEqual({ id: 1, email: 'test@test.com', name: null });
+
+	const run = await db.insert(User).values({ email: 'test2@test.com' }).run();
+	expectTypeOf(run).toEqualTypeOf<[]>();
+	expect(run).toEqual([]);
 });
