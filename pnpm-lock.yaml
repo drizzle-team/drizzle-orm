@@ -260,8 +260,8 @@ importers:
         specifier: ^3.12.2
         version: 3.12.7
       valibot:
-        specifier: ^0.30.0
-        version: 0.30.0
+        specifier: 0.31.1
+        version: 0.31.1
       zx:
         specifier: ^7.2.2
         version: 7.2.2
@@ -7657,8 +7657,8 @@ packages:
     engines: {node: '>=8'}
     hasBin: true
 
-  valibot@0.30.0:
-    resolution: {integrity: sha512-5POBdbSkM+3nvJ6ZlyQHsggisfRtyT4tVTo1EIIShs6qCdXJnyWU5TJ68vr8iTg5zpOLjXLRiBqNx+9zwZz/rA==}
+  valibot@0.31.1:
+    resolution: {integrity: sha512-2YYIhPrnVSz/gfT2/iXVTrSj92HwchCt9Cga/6hX4B26iCz9zkIsGTS0HjDYTZfTi1Un0X6aRvhBi1cfqs/i0Q==}
 
   valid-url@1.0.9:
     resolution: {integrity: sha512-QQDsV8OnSf5Uc30CKSwG9lnhMPe6exHtTXLRYX8uMwKENy640pU+2BgBL0LRbDh/eYRahNCS7aewCx0wf3NYVA==}
@@ -17152,7 +17152,7 @@ snapshots:
       kleur: 4.1.5
       sade: 1.8.1
 
-  valibot@0.30.0: {}
+  valibot@0.31.1: {}
 
   valid-url@1.0.9: {}
 
