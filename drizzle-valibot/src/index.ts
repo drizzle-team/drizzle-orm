@@ -17,19 +17,26 @@ import {
 	any,
 	type AnySchema,
 	array,
+	type ArrayIssue,
 	type ArraySchema,
+	type BaseIssue,
 	type BaseSchema,
 	bigint,
 	type BigintSchema,
 	boolean,
+	type BooleanIssue,
 	type BooleanSchema,
 	date,
 	type DateSchema,
+	lazy,
 	maxLength,
+	type MaxLengthAction,
 	null_,
 	nullable,
 	type NullableSchema,
+	type NullIssue,
 	number,
+	type NumberIssue,
 	type NumberSchema,
 	object,
 	type ObjectSchema,
@@ -38,40 +45,49 @@ import {
 	picklist,
 	type PicklistSchema,
 	record,
+	type RecordIssue,
+	pipe,
+	type SchemaWithPipe,
 	string,
+	type StringIssue,
 	type StringSchema,
 	union,
+	type UnionIssue,
 	uuid,
 } from 'valibot';
 
-const literalSchema = union([string(), number(), boolean(), null_()]);
+// TODO: I think types test would be great for this file to make sure types are inferred correctly
 
-type Json = typeof jsonSchema;
-
-export const jsonSchema = union([literalSchema, array(any()), record(any())]);
+type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
+type LiteralIssue = StringIssue | NumberIssue | BooleanIssue | NullIssue;
+type JsonIssue = LiteralIssue | ArrayIssue | RecordIssue;
+type JsonSchema = BaseSchema<Json, Json, UnionIssue<JsonIssue> | JsonIssue>;
+export const jsonSchema = lazy(() =>
+	union([string(), number(), boolean(), null_(), array(jsonSchema), record(string(), jsonSchema)])
+) as JsonSchema;
 
 type MapInsertColumnToValibot<
 	TColumn extends Column,
-	TType extends BaseSchema<any, any>,
-> = TColumn['_']['notNull'] extends false ? OptionalSchema<NullableSchema<TType>>
-	: TColumn['_']['hasDefault'] extends true ? OptionalSchema<TType>
+	TType extends BaseSchema<unknown, unknown, BaseIssue<unknown>>,
+> = TColumn['_']['notNull'] extends false ? OptionalSchema<NullableSchema<TType, never>, never>
+	: TColumn['_']['hasDefault'] extends true ? OptionalSchema<TType, never>
 	: TType;
 
 type MapSelectColumnToValibot<
 	TColumn extends Column,
-	TType extends BaseSchema<any, any>,
-> = TColumn['_']['notNull'] extends false ? NullableSchema<TType> : TType;
+	TType extends BaseSchema<unknown, unknown, BaseIssue<unknown>>,
+> = TColumn['_']['notNull'] extends false ? NullableSchema<TType, never> : TType;
 
 type MapColumnToValibot<
 	TColumn extends Column,
-	TType extends BaseSchema<any, any>,
+	TType extends BaseSchema<unknown, unknown, BaseIssue<unknown>>,
 	TMode extends 'insert' | 'select',
 > = TMode extends 'insert' ? MapInsertColumnToValibot<TColumn, TType>
 	: MapSelectColumnToValibot<TColumn, TType>;
 
 type MaybeOptional<
 	TColumn extends Column,
-	TType extends BaseSchema<any, any>,
+	TType extends BaseSchema<unknown, unknown, BaseIssue<unknown>>,
 	TMode extends 'insert' | 'select',
 	TNoOptional extends boolean,
 > = TNoOptional extends true ? TType
@@ -79,17 +95,19 @@ type MaybeOptional<
 
 type GetValibotType<TColumn extends Column> = TColumn['_']['dataType'] extends infer TDataType
 	? TDataType extends 'custom' ? AnySchema
-	: TDataType extends 'json' ? Json
+	: TDataType extends 'json' ? JsonSchema
 	: TColumn extends { enumValues: [string, ...string[]] }
-		? Equal<TColumn['enumValues'], [string, ...string[]]> extends true ? StringSchema
-		: PicklistSchema<TColumn['enumValues']>
+		// TODO: Can we somehow check `.length` to know if it's a string schema with or without a max length check?
+		? Equal<TColumn['enumValues'], [string, ...string[]]> extends true ? StringSchema<undefined> | SchemaWithPipe<[StringSchema<undefined>, MaxLengthAction<string, number, undefined>]>
+		: PicklistSchema<TColumn['enumValues'], undefined>
 	: TDataType extends 'array'
-		? TColumn['_']['baseColumn'] extends Column ? ArraySchema<GetValibotType<TColumn['_']['baseColumn']>> : never
-	: TDataType extends 'bigint' ? BigintSchema
-	: TDataType extends 'number' ? NumberSchema
-	: TDataType extends 'string' ? StringSchema
-	: TDataType extends 'boolean' ? BooleanSchema
-	: TDataType extends 'date' ? DateSchema
+		? TColumn['_']['baseColumn'] extends Column ? ArraySchema<GetValibotType<TColumn['_']['baseColumn']>, undefined> : never
+	: TDataType extends 'bigint' ? BigintSchema<undefined>
+	: TDataType extends 'number' ? NumberSchema<undefined>
+	// TODO: I think Drizzle's MySQL `varbinary` returns the wrong type
+	: TDataType extends 'string' ? StringSchema<undefined>
+	: TDataType extends 'boolean' ? BooleanSchema<undefined>
+	: TDataType extends 'date' ? DateSchema<undefined>
 	: AnySchema
 	: never;
 
@@ -100,7 +118,7 @@ type UnwrapValueOrUpdater<T> = T extends ValueOrUpdater<infer U, any> ? U
 
 export type Refine<TTable extends Table, TMode extends 'select' | 'insert'> = {
 	[K in keyof TTable['_']['columns']]?: ValueOrUpdater<
-		BaseSchema<any, any>,
+		BaseSchema<unknown, unknown, BaseIssue<unknown>>,
 		TMode extends 'select' ? BuildSelectSchema<TTable, {}, true>
 			: BuildInsertSchema<TTable, {}, true>
 	>;
@@ -114,9 +132,9 @@ export type BuildInsertSchema<
 	string,
 	Column<any>
 > ? {
-		[K in keyof TColumns & string]: MaybeOptional<
+	[K in keyof TColumns & string]: MaybeOptional<
 			TColumns[K],
-			K extends keyof TRefine ? Assume<UnwrapValueOrUpdater<TRefine[K]>, BaseSchema<any>>
+			K extends keyof TRefine ? Assume<UnwrapValueOrUpdater<TRefine[K]>, BaseSchema<unknown, unknown, BaseIssue<unknown>>>
 				: GetValibotType<TColumns[K]>,
 			'insert',
 			TNoOptional
@@ -132,7 +150,7 @@ export type BuildSelectSchema<
 	{
 		[K in keyof TTable['_']['columns']]: MaybeOptional<
 			TTable['_']['columns'][K],
-			K extends keyof TRefine ? Assume<UnwrapValueOrUpdater<TRefine[K]>, BaseSchema<any, any>>
+			K extends keyof TRefine ? Assume<UnwrapValueOrUpdater<TRefine[K]>, BaseSchema<unknown, unknown, BaseIssue<unknown>>>
 				: GetValibotType<TTable['_']['columns'][K]>,
 			'select',
 			TNoOptional
@@ -161,7 +179,8 @@ export function createInsertSchema<
 	BuildInsertSchema<
 		TTable,
 		Equal<TRefine, Refine<TTable, 'insert'>> extends true ? {} : TRefine
-	>
+	>,
+	undefined
 > {
 	const columns = getTableColumns(table);
 	const columnEntries = Object.entries(columns);
@@ -225,7 +244,8 @@ export function createSelectSchema<
 	BuildSelectSchema<
 		TTable,
 		Equal<TRefine, Refine<TTable, 'select'>> extends true ? {} : TRefine
-	>
+	>,
+	undefined
 > {
 	const columns = getTableColumns(table);
 	const columnEntries = Object.entries(columns);
@@ -277,10 +297,12 @@ function isWithEnum(
 	);
 }
 
-function mapColumnToSchema(column: Column): BaseSchema<any, any> {
-	let type: BaseSchema<any, any> | undefined;
+// TODO: This function could be rewritten into a single return statement
+function mapColumnToSchema(column: Column): BaseSchema<unknown, unknown, BaseIssue<unknown>> {
+	let type: BaseSchema<unknown, unknown, BaseIssue<unknown>> | undefined;
 
 	if (isWithEnum(column)) {
+		// TODO: This is unnecessary because `isWithEnum` already checks for `column.enumValues.length`
 		type = column.enumValues?.length
 			? picklist(column.enumValues)
 			: string();
@@ -304,23 +326,15 @@ function mapColumnToSchema(column: Column): BaseSchema<any, any> {
 		} else if (column.dataType === 'date') {
 			type = date();
 		} else if (column.dataType === 'string') {
-			let sType = string();
-
-			if (
-				(is(column, PgChar)
+			type = (is(column, PgChar)
 					|| is(column, PgVarchar)
 					|| is(column, MySqlVarChar)
 					|| is(column, MySqlVarBinary)
 					|| is(column, MySqlChar)
 					|| is(column, SQLiteText))
-				&& typeof column.length === 'number'
-			) {
-				sType = string([maxLength(column.length)]);
-			}
-
-			type = sType;
+				&& typeof column.length === 'number' ? pipe(string(), maxLength(column.length)) : string();
 		} else if (is(column, PgUUID)) {
-			type = string([uuid()]);
+			type = pipe(string(), uuid());
 		}
 	}
 
