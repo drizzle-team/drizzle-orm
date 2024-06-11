@@ -31,6 +31,7 @@ import {
 	getViewConfig,
 	integer,
 	interval,
+	json,
 	jsonb,
 	type PgColumn,
 	pgEnum,
@@ -91,6 +92,12 @@ const orders = pgTable('orders', {
 	product: text('product').notNull().$default(() => 'random_string'),
 	amount: integer('amount').notNull(),
 	quantity: integer('quantity').notNull(),
+});
+
+const jsonTestTable = pgTable('jsontest', {
+	id: serial('id').primaryKey(),
+	json: json('json').$type<{ string: string; number: number }>(),
+	jsonb: jsonb('jsonb').$type<{ string: string; number: number }>(),
 });
 
 const usersMigratorTable = pgTable('users12', {
@@ -230,6 +237,15 @@ test.beforeEach(async (t) => {
 				product text not null,
 				amount integer not null,
 				quantity integer not null
+			)
+		`,
+	);
+	await ctx.db.execute(
+		sql`
+			create table jsontest (
+				id serial primary key,
+				json json,
+				jsonb jsonb
 			)
 		`,
 	);
@@ -419,6 +435,118 @@ test.serial('json insert', async (t) => {
 	}).from(usersTable);
 
 	t.deepEqual(result, [{ id: 1, name: 'John', jsonb: ['foo', 'bar'] }]);
+});
+
+test.serial('set json/jsonb fields with objects and retrieve with the ->> operator', async (t) => {
+	const { db } = t.context;
+
+	const obj = { string: 'test', number: 123 };
+	const { string: testString, number: testNumber } = obj;
+
+	await db.insert(jsonTestTable).values({
+		json: obj,
+		jsonb: obj,
+	});
+
+	const result = await db.select({
+		jsonStringField: sql<string>`${jsonTestTable.json}->>'string'`,
+		jsonNumberField: sql<string>`${jsonTestTable.json}->>'number'`,
+		jsonbStringField: sql<string>`${jsonTestTable.jsonb}->>'string'`,
+		jsonbNumberField: sql<string>`${jsonTestTable.jsonb}->>'number'`,
+	}).from(jsonTestTable);
+
+	t.deepEqual(result, [{
+		jsonStringField: testString,
+		jsonNumberField: String(testNumber),
+		jsonbStringField: testString,
+		jsonbNumberField: String(testNumber),
+	}]);
+
+	await db.execute(sql`drop table ${jsonTestTable}`);
+});
+
+test.serial('set json/jsonb fields with strings and retrieve with the ->> operator', async (t) => {
+	const { db } = t.context;
+
+	const obj = { string: 'test', number: 123 };
+	const { string: testString, number: testNumber } = obj;
+
+	await db.insert(jsonTestTable).values({
+		json: sql`${JSON.stringify(obj)}`,
+		jsonb: sql`${JSON.stringify(obj)}`,
+	});
+
+	const result = await db.select({
+		jsonStringField: sql<string>`${jsonTestTable.json}->>'string'`,
+		jsonNumberField: sql<string>`${jsonTestTable.json}->>'number'`,
+		jsonbStringField: sql<string>`${jsonTestTable.jsonb}->>'string'`,
+		jsonbNumberField: sql<string>`${jsonTestTable.jsonb}->>'number'`,
+	}).from(jsonTestTable);
+
+	t.deepEqual(result, [{
+		jsonStringField: testString,
+		jsonNumberField: String(testNumber),
+		jsonbStringField: testString,
+		jsonbNumberField: String(testNumber),
+	}]);
+
+	await db.execute(sql`drop table ${jsonTestTable}`);
+});
+
+test.serial('set json/jsonb fields with objects and retrieve with the -> operator', async (t) => {
+	const { db } = t.context;
+
+	const obj = { string: 'test', number: 123 };
+	const { string: testString, number: testNumber } = obj;
+
+	await db.insert(jsonTestTable).values({
+		json: obj,
+		jsonb: obj,
+	});
+
+	const result = await db.select({
+		jsonStringField: sql<string>`${jsonTestTable.json}->'string'`,
+		jsonNumberField: sql<number>`${jsonTestTable.json}->'number'`,
+		jsonbStringField: sql<string>`${jsonTestTable.jsonb}->'string'`,
+		jsonbNumberField: sql<number>`${jsonTestTable.jsonb}->'number'`,
+	}).from(jsonTestTable);
+
+	t.deepEqual(result, [{
+		jsonStringField: testString,
+		jsonNumberField: testNumber,
+		jsonbStringField: testString,
+		jsonbNumberField: testNumber,
+	}]);
+
+	await db.execute(sql`drop table ${jsonTestTable}`);
+});
+
+test.serial('set json/jsonb fields with strings and retrieve with the -> operator', async (t) => {
+	const { db } = t.context;
+
+	const obj = { string: 'test', number: 123 };
+	const { string: testString, number: testNumber } = obj;
+
+	await db.insert(jsonTestTable).values({
+		json: sql`${JSON.stringify(obj)}`,
+		jsonb: sql`${JSON.stringify(obj)}`,
+	});
+
+	const result = await db.select({
+		jsonStringField: sql<string>`${jsonTestTable.json}->'string'`,
+		jsonNumberField: sql<number>`${jsonTestTable.json}->'number'`,
+		jsonbStringField: sql<string>`${jsonTestTable.jsonb}->'string'`,
+		jsonbNumberField: sql<number>`${jsonTestTable.jsonb}->'number'`,
+	}).from(jsonTestTable);
+
+	t.deepEqual(result, [{
+		jsonStringField: testString,
+		jsonNumberField: testNumber,
+		jsonbStringField: testString,
+		jsonbNumberField: testNumber,
+	}]);
+
+	await db.execute(sql`drop table ${jsonTestTable}`);
 });
 
 test.serial('insert with overridden default values', async (t) => {
@@ -1888,6 +2016,42 @@ test.serial('select from enum', async (t) => {
 	await db.execute(sql`drop type ${name(mechanicEnum.enumName)}`);
 	await db.execute(sql`drop type ${name(equipmentEnum.enumName)}`);
 	await db.execute(sql`drop type ${name(categoryEnum.enumName)}`);
+});
+
+test.serial('proper json and jsonb handling', async (t) => {
+	const { db } = t.context;
+
+	const jsonTable = pgTable('json_table', {
+		json: json('json').$type<{ name: string; age: number }>(),
+		jsonb: jsonb('jsonb').$type<{ name: string; age: number }>(),
+	});
+
+	await db.execute(sql`drop table if exists ${jsonTable}`);
+
+	db.execute(sql`create table ${jsonTable} (json json, jsonb jsonb)`);
+
+	await db.insert(jsonTable).values({ json: { name: 'Tom', age: 75 }, jsonb: { name: 'Pete', age: 23 } });
+
+	const result = await db.select().from(jsonTable);
+
+	const justNames = await db.select({
+		name1: sql<string>`${jsonTable.json}->>'name'`.as('name1'),
+		name2: sql<string>`${jsonTable.jsonb}->>'name'`.as('name2'),
+	}).from(jsonTable);
+
+	t.deepEqual(result, [
+		{
+			json: { name: 'Tom', age: 75 },
+			jsonb: { name: 'Pete', age: 23 },
+		},
+	]);
+
+	t.deepEqual(justNames, [
+		{
+			name1: 'Tom',
+			name2: 'Pete',
+		},
+	]);
 });
 
 test.serial('orderBy with aliased column', (t) => {
