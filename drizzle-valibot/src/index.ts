@@ -25,6 +25,7 @@ import {
 	type BooleanSchema,
 	date,
 	type DateSchema,
+	type InstanceSchema,
 	maxLength,
 	null_,
 	nullable,
@@ -40,6 +41,7 @@ import {
 	record,
 	string,
 	type StringSchema,
+	type UnionSchema,
 	union,
 	uuid,
 } from 'valibot';
@@ -90,6 +92,7 @@ type GetValibotType<TColumn extends Column> = TColumn['_']['dataType'] extends i
 	: TDataType extends 'string' ? StringSchema
 	: TDataType extends 'boolean' ? BooleanSchema
 	: TDataType extends 'date' ? DateSchema
+	: TDataType extends 'buffer' ? UnionSchema<[InstanceSchema<BufferConstructor>, StringSchema]>
 	: AnySchema
 	: never;
 
