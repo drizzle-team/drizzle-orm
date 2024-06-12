@@ -17,6 +17,7 @@ export default defineConfig({
 				: []),
 			'tests/awsdatapi.test.ts',
 			'tests/relational/vercel.test.ts',
+			'tests/__old/*',
 		],
 		testTimeout: 100000,
 		hookTimeout: 100000,

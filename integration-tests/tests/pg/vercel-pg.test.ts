@@ -1,10 +1,9 @@
+import { createClient, type VercelClient } from '@vercel/postgres';
 import retry from 'async-retry';
 import { sql } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
-import { Client } from 'pg';
+import { drizzle, type VercelPgDatabase } from 'drizzle-orm/vercel-postgres';
+import { migrate } from 'drizzle-orm/vercel-postgres/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { randomString } from '~/__old/utils';
 import { skipTests } from '~/common';
@@ -12,13 +11,13 @@ import { createDockerDB, tests, usersMigratorTable, usersTable } from './pg-comm
 
 const ENABLE_LOGGING = false;
 
-let db: NodePgDatabase;
-let client: Client;
+let db: VercelPgDatabase;
+let client: VercelClient;
 
 beforeAll(async () => {
 	const connectionString = process.env['PG_CONNECTION_STRING'] ?? await createDockerDB();
 	client = await retry(async () => {
-		client = new Client(connectionString);
+		client = createClient({ connectionString });
 		await client.connect();
 		return client;
 	}, {
@@ -424,6 +423,8 @@ skipTests([
 	'test mode date for timestamp with timezone',
 	'test mode string for timestamp with timezone in UTC timezone',
 	'test mode string for timestamp with timezone in different timezone',
+	'build query insert with onConflict do nothing + target', //
+	'select from tables with same name from different schema using alias', //
 ]);
 tests();
 

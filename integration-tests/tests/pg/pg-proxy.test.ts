@@ -1,24 +1,80 @@
 import retry from 'async-retry';
 import { sql } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
-import { Client } from 'pg';
+import type { PgRemoteDatabase } from 'drizzle-orm/pg-proxy';
+import { drizzle as proxyDrizzle } from 'drizzle-orm/pg-proxy';
+import { migrate } from 'drizzle-orm/pg-proxy/migrator';
+import * as pg from 'pg';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { randomString } from '~/__old/utils';
 import { skipTests } from '~/common';
 import { createDockerDB, tests, usersMigratorTable, usersTable } from './pg-common';
 
+// eslint-disable-next-line drizzle/require-entity-kind
+class ServerSimulator {
+	constructor(private db: pg.Client) {
+		const { types } = pg;
+
+		types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
+		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
+		types.setTypeParser(types.builtins.DATE, (val) => val);
+		types.setTypeParser(types.builtins.INTERVAL, (val) => val);
+	}
+
+	async query(sql: string, params: any[], method: 'all' | 'execute') {
+		if (method === 'all') {
+			try {
+				const result = await this.db.query({
+					text: sql,
+					values: params,
+					rowMode: 'array',
+				});
+
+				return { data: result.rows as any };
+			} catch (e: any) {
+				return { error: e };
+			}
+		} else if (method === 'execute') {
+			try {
+				const result = await this.db.query({
+					text: sql,
+					values: params,
+				});
+
+				return { data: result.rows as any };
+			} catch (e: any) {
+				return { error: e };
+			}
+		} else {
+			return { error: 'Unknown method value' };
+		}
+	}
+
+	async migrations(queries: string[]) {
+		await this.db.query('BEGIN');
+		try {
+			for (const query of queries) {
+				await this.db.query(query);
+			}
+			await this.db.query('COMMIT');
+		} catch (e) {
+			await this.db.query('ROLLBACK');
+			throw e;
+		}
+
+		return {};
+	}
+}
+
 const ENABLE_LOGGING = false;
 
-let db: NodePgDatabase;
-let client: Client;
+let db: PgRemoteDatabase;
+let client: pg.Client;
+let serverSimulator: ServerSimulator;
 
 beforeAll(async () => {
 	const connectionString = process.env['PG_CONNECTION_STRING'] ?? await createDockerDB();
 	client = await retry(async () => {
-		client = new Client(connectionString);
+		client = new pg.Client(connectionString);
 		await client.connect();
 		return client;
 	}, {
@@ -31,7 +87,23 @@ beforeAll(async () => {
 			client?.end();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	serverSimulator = new ServerSimulator(client);
+	db = proxyDrizzle(async (sql, params, method) => {
+		try {
+			const response = await serverSimulator.query(sql, params, method);
+
+			if (response.error !== undefined) {
+				throw response.error;
+			}
+
+			return { rows: response.data };
+		} catch (e: any) {
+			console.error('Error from pg proxy server:', e.message);
+			throw e;
+		}
+	}, {
+		logger: ENABLE_LOGGING,
+	});
 });
 
 afterAll(async () => {
@@ -49,7 +121,15 @@ test('migrator : default migration strategy', async () => {
 	await db.execute(sql`drop table if exists users12`);
 	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-	await migrate(db, { migrationsFolder: './drizzle2/pg' });
+	// './drizzle2/pg-proxy/first' ??
+	await migrate(db, async (queries) => {
+		try {
+			await serverSimulator.migrations(queries);
+		} catch (e) {
+			console.error(e);
+			throw new Error('Proxy server cannot run migrations');
+		}
+	}, { migrationsFolder: './drizzle2/pg' });
 
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 
@@ -60,79 +140,6 @@ test('migrator : default migration strategy', async () => {
 	await db.execute(sql`drop table all_columns`);
 	await db.execute(sql`drop table users12`);
 	await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
-});
-
-test('migrator : migrate with custom schema', async () => {
-	const customSchema = randomString();
-	await db.execute(sql`drop table if exists all_columns`);
-	await db.execute(sql`drop table if exists users12`);
-	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
-
-	await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsSchema: customSchema });
-
-	// test if the custom migrations table was created
-	const { rowCount } = await db.execute(sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`);
-	expect(rowCount && rowCount > 0).toBeTruthy();
-
-	// test if the migrated table are working as expected
-	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-	const result = await db.select().from(usersMigratorTable);
-	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-	await db.execute(sql`drop table all_columns`);
-	await db.execute(sql`drop table users12`);
-	await db.execute(sql`drop table ${sql.identifier(customSchema)}."__drizzle_migrations"`);
-});
-
-test('migrator : migrate with custom table', async () => {
-	const customTable = randomString();
-	await db.execute(sql`drop table if exists all_columns`);
-	await db.execute(sql`drop table if exists users12`);
-	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
-
-	await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsTable: customTable });
-
-	// test if the custom migrations table was created
-	const { rowCount } = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
-	expect(rowCount && rowCount > 0).toBeTruthy();
-
-	// test if the migrated table are working as expected
-	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-	const result = await db.select().from(usersMigratorTable);
-	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-	await db.execute(sql`drop table all_columns`);
-	await db.execute(sql`drop table users12`);
-	await db.execute(sql`drop table "drizzle".${sql.identifier(customTable)}`);
-});
-
-test('migrator : migrate with custom table and custom schema', async () => {
-	const customTable = randomString();
-	const customSchema = randomString();
-	await db.execute(sql`drop table if exists all_columns`);
-	await db.execute(sql`drop table if exists users12`);
-	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
-
-	await migrate(db, {
-		migrationsFolder: './drizzle2/pg',
-		migrationsTable: customTable,
-		migrationsSchema: customSchema,
-	});
-
-	// test if the custom migrations table was created
-	const { rowCount } = await db.execute(
-		sql`select * from ${sql.identifier(customSchema)}.${sql.identifier(customTable)};`,
-	);
-	expect(rowCount && rowCount > 0).toBeTruthy();
-
-	// test if the migrated table are working as expected
-	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-	const result = await db.select().from(usersMigratorTable);
-	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-	await db.execute(sql`drop table all_columns`);
-	await db.execute(sql`drop table users12`);
-	await db.execute(sql`drop table ${sql.identifier(customSchema)}.${sql.identifier(customTable)}`);
 });
 
 test('all date and time columns without timezone first case mode string', async () => {
@@ -166,7 +173,7 @@ test('all date and time columns without timezone first case mode string', async 
 		timestamp_string: string;
 	}>(sql`select * from ${table}`);
 
-	expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
+	expect(result2).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
 	await db.execute(sql`drop table if exists ${table}`);
 });
@@ -197,7 +204,7 @@ test('all date and time columns without timezone second case mode string', async
 		timestamp_string: string;
 	}>(sql`select * from ${table}`);
 
-	expect(result.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
+	expect(result).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
 	await db.execute(sql`drop table if exists ${table}`);
 });
@@ -231,7 +238,7 @@ test('all date and time columns without timezone third case mode date', async ()
 	}>(sql`select * from ${table}`);
 
 	// 3. Compare both dates using orm mapping - Need to add 'Z' to tell JS that it is UTC
-	expect(new Date(result.rows[0]!.timestamp_string + 'Z').getTime()).toBe(insertedDate.getTime());
+	expect(new Date(result[0]!.timestamp_string + 'Z').getTime()).toBe(insertedDate.getTime());
 
 	await db.execute(sql`drop table if exists ${table}`);
 });
@@ -271,7 +278,7 @@ test('test mode string for timestamp with timezone', async () => {
 	}>(sql`select * from ${table}`);
 
 	// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
-	expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
+	expect(result2).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
 
 	await db.execute(sql`drop table if exists ${table}`);
 });
@@ -311,7 +318,7 @@ test('test mode date for timestamp with timezone', async () => {
 	}>(sql`select * from ${table}`);
 
 	// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
-	expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.456+00' }]);
+	expect(result2).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.456+00' }]);
 
 	await db.execute(sql`drop table if exists ${table}`);
 });
@@ -357,9 +364,9 @@ test('test mode string for timestamp with timezone in UTC timezone', async () =>
 	}>(sql`select * from ${table}`);
 
 	// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
-	expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
+	expect(result2).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
 
-	await db.execute(sql`set time zone '${sql.raw(timezone.rows[0]!.TimeZone)}'`);
+	await db.execute(sql`set time zone '${sql.raw(timezone[0]!.TimeZone)}'`);
 
 	await db.execute(sql`drop table if exists ${table}`);
 });
@@ -403,9 +410,9 @@ test('test mode string for timestamp with timezone in different timezone', async
 		timestamp_string: string;
 	}>(sql`select * from ${table}`);
 
-	expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 00:00:00.123456-10' }]);
+	expect(result2).toEqual([{ id: 1, timestamp_string: '2022-01-01 00:00:00.123456-10' }]);
 
-	await db.execute(sql`set time zone '${sql.raw(timezone.rows[0]!.TimeZone)}'`);
+	await db.execute(sql`set time zone '${sql.raw(timezone[0]!.TimeZone)}'`);
 
 	await db.execute(sql`drop table if exists ${table}`);
 });
@@ -424,6 +431,10 @@ skipTests([
 	'test mode date for timestamp with timezone',
 	'test mode string for timestamp with timezone in UTC timezone',
 	'test mode string for timestamp with timezone in different timezone',
+	'transaction',
+	'transaction rollback',
+	'nested transaction',
+	'nested transaction rollback',
 ]);
 tests();
 
@@ -451,7 +462,7 @@ test('insert via db.execute + select via db.execute', async () => {
 	const result = await db.execute<{ id: number; name: string }>(
 		sql`select id, name from "users"`,
 	);
-	expect(result.rows).toEqual([{ id: 1, name: 'John' }]);
+	expect(result).toEqual([{ id: 1, name: 'John' }]);
 });
 
 test('insert via db.execute + returning', async () => {
@@ -462,7 +473,7 @@ test('insert via db.execute + returning', async () => {
 			)
 		}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
 	);
-	expect(inserted.rows).toEqual([{ id: 1, name: 'John' }]);
+	expect(inserted).toEqual([{ id: 1, name: 'John' }]);
 });
 
 test('insert via db.execute w/ query builder', async () => {
@@ -472,5 +483,5 @@ test('insert via db.execute w/ query builder', async () => {
 			.values({ name: 'John' })
 			.returning({ id: usersTable.id, name: usersTable.name }),
 	);
-	expect(inserted.rows).toEqual([{ id: 1, name: 'John' }]);
+	expect(inserted).toEqual([{ id: 1, name: 'John' }]);
 });

@@ -1,26 +1,31 @@
+import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
 import retry from 'async-retry';
 import { sql } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import { drizzle, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import { migrate } from 'drizzle-orm/neon-http/migrator';
 import { pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
 import { Client } from 'pg';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { randomString } from '~/__old/utils';
 import { skipTests } from '~/common';
-import { createDockerDB, tests, usersMigratorTable, usersTable } from './pg-common';
+import { tests, usersMigratorTable, usersTable } from './pg-common';
 
 const ENABLE_LOGGING = false;
 
-let db: NodePgDatabase;
-let client: Client;
+let db: NeonHttpDatabase;
+let ddlRunner: Client;
+let client: NeonQueryFunction<any, any>;
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_CONNECTION_STRING'] ?? await createDockerDB();
-	client = await retry(async () => {
-		client = new Client(connectionString);
-		await client.connect();
-		return client;
+	const connectionString = process.env['NEON_CONNECTION_STRING'];
+	if (!connectionString) {
+		throw new Error('NEON_CONNECTION_STRING is not defined');
+	}
+	client = neon(connectionString);
+	ddlRunner = await retry(async () => {
+		ddlRunner = new Client(connectionString);
+		await ddlRunner.connect();
+		return ddlRunner;
 	}, {
 		retries: 20,
 		factor: 1,
@@ -28,14 +33,14 @@ beforeAll(async () => {
 		maxTimeout: 250,
 		randomize: false,
 		onRetry() {
-			client?.end();
+			ddlRunner?.end();
 		},
 	});
 	db = drizzle(client, { logger: ENABLE_LOGGING });
 });
 
 afterAll(async () => {
-	await client?.end();
+	await ddlRunner?.end();
 });
 
 beforeEach((ctx) => {
