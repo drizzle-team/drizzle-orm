@@ -1,3 +1,5 @@
+import { entityKind, is } from '~/entity';
+
 export type PgSequenceOptions = {
 	increment?: number;
 	minValue?: number;
@@ -7,14 +9,12 @@ export type PgSequenceOptions = {
 	cycle?: boolean;
 };
 
-const isPgSequenceSym = Symbol.for('drizzle:isPgSequence');
-export interface PgSequence {
+export class PgSequence {
+	static readonly [entityKind]: string = 'PgSequence';
+
 	readonly seqName: string | undefined;
 	readonly seqOptions: PgSequenceOptions | undefined;
 	readonly schema: string | undefined;
-
-	/** @internal */
-	[isPgSequenceSym]: true;
 }
 
 export function pgSequence(
@@ -42,5 +42,5 @@ export function pgSequenceWithSchema(
 }
 
 export function isPgSequence(obj: unknown): obj is PgSequence {
-	return !!obj && typeof obj === 'function' && isPgSequenceSym in obj && obj[isPgSequenceSym] === true;
+	return is(obj, PgSequence);
 }
