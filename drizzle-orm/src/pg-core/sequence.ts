@@ -12,9 +12,12 @@ export type PgSequenceOptions = {
 export class PgSequence {
 	static readonly [entityKind]: string = 'PgSequence';
 
-	readonly seqName: string | undefined;
-	readonly seqOptions: PgSequenceOptions | undefined;
-	readonly schema: string | undefined;
+	constructor(
+		public readonly seqName: string | undefined,
+		public readonly seqOptions: PgSequenceOptions | undefined,
+		public readonly schema: string | undefined,
+	) {
+	}
 }
 
 export function pgSequence(
@@ -30,15 +33,7 @@ export function pgSequenceWithSchema(
 	options: PgSequenceOptions,
 	schema?: string,
 ): PgSequence {
-	const sequenceInstance: PgSequence = Object.assign(
-		{
-			name,
-			seqOptions: options,
-			schema,
-		} as const,
-	);
-
-	return sequenceInstance;
+	return new PgSequence(name, options, schema);
 }
 
 export function isPgSequence(obj: unknown): obj is PgSequence {
