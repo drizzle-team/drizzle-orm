@@ -178,7 +178,7 @@ import Database from 'better-sqlite3';
 const sqlite = new Database('sqlite.db');
 const db: BetterSQLite3Database = drizzle(sqlite);
 
-const result: User[] = db.select().from(users).all();
+const result: User[] = await db.select().from(users).all();
 
 const insertUser = (user: InsertUser) => {
   return db.insert(users).values(user).run()
