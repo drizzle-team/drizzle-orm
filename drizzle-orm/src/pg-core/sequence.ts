@@ -1,11 +1,11 @@
 import { entityKind, is } from '~/entity.ts';
 
 export type PgSequenceOptions = {
-	increment?: number;
-	minValue?: number;
-	maxValue?: number;
-	startWith?: number;
-	cache?: number;
+	increment?: number | string;
+	minValue?: number | string;
+	maxValue?: number | string;
+	startWith?: number | string;
+	cache?: number | string;
 	cycle?: boolean;
 };
 
