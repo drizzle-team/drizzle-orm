@@ -18,11 +18,13 @@ import {
 	getTableColumns,
 	gt,
 	gte,
+	ilike,
 	inArray,
 	lt,
 	max,
 	min,
 	name,
+	or,
 	placeholder,
 	type SQL,
 	sql,
@@ -45,6 +47,7 @@ import {
 	getMaterializedViewConfig,
 	getTableConfig,
 	getViewConfig,
+	// index,
 	inet,
 	integer,
 	intersect,
@@ -467,6 +470,23 @@ test.serial('table config: primary keys name', async (t) => {
 	t.is(tableConfig.primaryKeys.length, 1);
 	t.is(tableConfig.primaryKeys[0]!.getName(), 'custom_pk');
 });
+
+// test.serial('table configs: all possible index properties', async () => {
+// 	const cities1Table = pgTable('cities1', {
+// 		id: serial('id').primaryKey(),
+// 		name: text('name').notNull(),
+// 		state: char('state', { length: 2 }),
+// 	}, (t) => ({
+// 		f: index('custom_name').using('hnsw', sql`${t.name} vector_ip_ops`, t.state.desc()),
+// 		f4: index('custom_name').on(sql`${t.name} vector_ip_ops`, t.state.desc().nullsLast()).where(sql``).with({
+// 			length: 12,
+// 		}),
+// 	}));
+
+// 	const tableConfig = getTableConfig(cities1Table);
+
+// 	console.log(tableConfig.indexes[0]?.config.columns);
+// });
 
 test.serial('select all fields', async (t) => {
 	const { db } = t.context;
@@ -4124,4 +4144,202 @@ test.serial('test $onUpdateFn and $onUpdate works updating', async (t) => {
 	for (const eachUser of justDates) {
 		t.assert(eachUser.updatedAt!.valueOf() > Date.now() - msDelay);
 	}
+});
+
+test.serial('test if method with sql operators', async (t) => {
+	const { db } = t.context;
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		age: integer('age').notNull(),
+		city: text('city').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+
+	await db.execute(sql`
+		create table ${users} (
+		id serial primary key,
+		name text not null,
+		age integer not null,
+		city text not null
+		)
+	`);
+
+	await db.insert(users).values([
+		{ id: 1, name: 'John', age: 20, city: 'New York' },
+		{ id: 2, name: 'Alice', age: 21, city: 'New York' },
+		{ id: 3, name: 'Nick', age: 22, city: 'London' },
+		{ id: 4, name: 'Lina', age: 23, city: 'London' },
+	]);
+
+	const condition1 = true;
+
+	const [result1] = await db.select().from(users).where(eq(users.id, 1).if(condition1));
+
+	t.deepEqual(result1, { id: 1, name: 'John', age: 20, city: 'New York' });
+
+	const condition2 = 1;
+
+	const [result2] = await db.select().from(users).where(sql`${users.id} = 1`.if(condition2));
+
+	t.deepEqual(result2, { id: 1, name: 'John', age: 20, city: 'New York' });
+
+	const condition3 = 'non-empty string';
+
+	const result3 = await db.select().from(users).where(
+		or(eq(users.id, 1).if(condition3), eq(users.id, 2).if(condition3)),
+	);
+
+	t.deepEqual(result3, [{ id: 1, name: 'John', age: 20, city: 'New York' }, {
+		id: 2,
+		name: 'Alice',
+		age: 21,
+		city: 'New York',
+	}]);
+
+	const condtition4 = false;
+
+	const result4 = await db.select().from(users).where(eq(users.id, 1).if(condtition4));
+
+	t.deepEqual(result4, [
+		{ id: 1, name: 'John', age: 20, city: 'New York' },
+		{ id: 2, name: 'Alice', age: 21, city: 'New York' },
+		{ id: 3, name: 'Nick', age: 22, city: 'London' },
+		{ id: 4, name: 'Lina', age: 23, city: 'London' },
+	]);
+
+	const condition5 = undefined;
+
+	const result5 = await db.select().from(users).where(sql`${users.id} = 1`.if(condition5));
+
+	t.deepEqual(result5, [
+		{ id: 1, name: 'John', age: 20, city: 'New York' },
+		{ id: 2, name: 'Alice', age: 21, city: 'New York' },
+		{ id: 3, name: 'Nick', age: 22, city: 'London' },
+		{ id: 4, name: 'Lina', age: 23, city: 'London' },
+	]);
+
+	const condition6 = null;
+
+	const result6 = await db.select().from(users).where(
+		or(eq(users.id, 1).if(condition6), eq(users.id, 2).if(condition6)),
+	);
+
+	t.deepEqual(result6, [
+		{ id: 1, name: 'John', age: 20, city: 'New York' },
+		{ id: 2, name: 'Alice', age: 21, city: 'New York' },
+		{ id: 3, name: 'Nick', age: 22, city: 'London' },
+		{ id: 4, name: 'Lina', age: 23, city: 'London' },
+	]);
+
+	const condition7 = {
+		term1: 0,
+		term2: 1,
+	};
+
+	const result7 = await db.select().from(users).where(
+		and(gt(users.age, 20).if(condition7.term1), eq(users.city, 'New York').if(condition7.term2)),
+	);
+
+	t.deepEqual(result7, [
+		{ id: 1, name: 'John', age: 20, city: 'New York' },
+		{ id: 2, name: 'Alice', age: 21, city: 'New York' },
+	]);
+
+	const condition8 = {
+		term1: '',
+		term2: 'non-empty string',
+	};
+
+	const result8 = await db.select().from(users).where(
+		or(lt(users.age, 21).if(condition8.term1), eq(users.city, 'London').if(condition8.term2)),
+	);
+
+	t.deepEqual(result8, [
+		{ id: 3, name: 'Nick', age: 22, city: 'London' },
+		{ id: 4, name: 'Lina', age: 23, city: 'London' },
+	]);
+
+	const condition9 = {
+		term1: 1,
+		term2: true,
+	};
+
+	const result9 = await db.select().from(users).where(
+		and(inArray(users.city, ['New York', 'London']).if(condition9.term1), ilike(users.name, 'a%').if(condition9.term2)),
+	);
+
+	t.deepEqual(result9, [
+		{ id: 2, name: 'Alice', age: 21, city: 'New York' },
+	]);
+
+	const condition10 = {
+		term1: 4,
+		term2: 19,
+	};
+
+	const result10 = await db.select().from(users).where(
+		and(
+			sql`length(${users.name}) <= ${condition10.term1}`.if(condition10.term1),
+			gt(users.age, condition10.term2).if(condition10.term2 > 20),
+		),
+	);
+
+	t.deepEqual(result10, [
+		{ id: 1, name: 'John', age: 20, city: 'New York' },
+		{ id: 3, name: 'Nick', age: 22, city: 'London' },
+		{ id: 4, name: 'Lina', age: 23, city: 'London' },
+	]);
+
+	const condition11 = true;
+
+	const result11 = await db.select().from(users).where(
+		or(eq(users.city, 'New York'), gte(users.age, 22))!.if(condition11),
+	);
+
+	t.deepEqual(result11, [
+		{ id: 1, name: 'John', age: 20, city: 'New York' },
+		{ id: 2, name: 'Alice', age: 21, city: 'New York' },
+		{ id: 3, name: 'Nick', age: 22, city: 'London' },
+		{ id: 4, name: 'Lina', age: 23, city: 'London' },
+	]);
+
+	const condition12 = false;
+
+	const result12 = await db.select().from(users).where(
+		and(eq(users.city, 'London'), gte(users.age, 23))!.if(condition12),
+	);
+
+	t.deepEqual(result12, [
+		{ id: 1, name: 'John', age: 20, city: 'New York' },
+		{ id: 2, name: 'Alice', age: 21, city: 'New York' },
+		{ id: 3, name: 'Nick', age: 22, city: 'London' },
+		{ id: 4, name: 'Lina', age: 23, city: 'London' },
+	]);
+
+	const condition13 = true;
+
+	const result13 = await db.select().from(users).where(sql`(city = 'New York' or age >= 22)`.if(condition13));
+
+	t.deepEqual(result13, [
+		{ id: 1, name: 'John', age: 20, city: 'New York' },
+		{ id: 2, name: 'Alice', age: 21, city: 'New York' },
+		{ id: 3, name: 'Nick', age: 22, city: 'London' },
+		{ id: 4, name: 'Lina', age: 23, city: 'London' },
+	]);
+
+	const condition14 = false;
+
+	const result14 = await db.select().from(users).where(sql`(city = 'London' and age >= 23)`.if(condition14));
+
+	t.deepEqual(result14, [
+		{ id: 1, name: 'John', age: 20, city: 'New York' },
+		{ id: 2, name: 'Alice', age: 21, city: 'New York' },
+		{ id: 3, name: 'Nick', age: 22, city: 'London' },
+		{ id: 4, name: 'Lina', age: 23, city: 'London' },
+	]);
+
+	await db.execute(sql`drop table ${users}`);
 });

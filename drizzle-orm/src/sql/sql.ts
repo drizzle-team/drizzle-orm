@@ -34,6 +34,7 @@ export interface BuildQueryConfig {
 	prepareTyping?: (encoder: DriverValueEncoder<unknown, unknown>) => QueryTypingsValue;
 	paramStartIndex?: { value: number };
 	inlineParams?: boolean;
+	invokeSource?: 'indexes' | undefined;
 }
 
 export type QueryTypingsValue = 'json' | 'decimal' | 'time' | 'timestamp' | 'uuid' | 'date' | 'none';
@@ -183,6 +184,9 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (is(chunk, Column)) {
+				if (_config.invokeSource === 'indexes') {
+					return { sql: escapeName(chunk.name), params: [] };
+				}
 				return { sql: escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(chunk.name), params: [] };
 			}
 
@@ -318,6 +322,16 @@ export class SQL<T = unknown> implements SQLWrapper {
 	inlineParams(): this {
 		this.shouldInlineParams = true;
 		return this;
+	}
+
+	/**
+	 * This method is used to conditionally include a part of the query.
+	 *
+	 * @param condition - Condition to check
+	 * @returns itself if the condition is `true`, otherwise `undefined`
+	 */
+	if(condition: any | undefined): this | undefined {
+		return condition ? this : undefined;
 	}
 }
 

@@ -28,8 +28,10 @@
 			"!tests/sqlite-proxy-batch.test.ts",
 			"!tests/neon-http-batch.test.ts",
 			"!tests/neon-http.test.ts",
+			"!tests/tidb-serverless.test.ts",
 			"!tests/replicas/**/*",
-			"!tests/imports/**/*"
+			"!tests/imports/**/*",
+			"!tests/extensions/**/*"
 		],
 		"extensions": {
 			"ts": "module"
@@ -69,6 +71,7 @@
 		"@miniflare/d1": "^2.14.2",
 		"@miniflare/shared": "^2.14.2",
 		"@planetscale/database": "^1.16.0",
+		"@tidbcloud/serverless": "^0.1.1",
 		"@typescript/analyze-trace": "^0.10.0",
 		"@vercel/postgres": "^0.3.0",
 		"@xata.io/client": "^0.29.3",
