@@ -29,7 +29,7 @@ While you can use Drizzle as a JavaScript library, it shines in the TypeScript. 
 ### Ecosystem
 While Drizzle ORM remains a thin typed layer on top of SQL, we made a set of tools for people to have best possible developer experience.  
   
-Drizzle comes with a powerful [**Drizzle Kit**](https://orm.drizzle.team/kit-docs/overview) CLI companion for you to have hasstle-free migrations. It can generate SQL migration files for you or apply schema changes directly to the database.  
+Drizzle comes with a powerful [**Drizzle Kit**](https://orm.drizzle.team/kit-docs/overview) CLI companion for you to have hassle-free migrations. It can generate SQL migration files for you or apply schema changes directly to the database.  
   
 And we have a [**Drizzle Studio**](https://orm.drizzle.team/drizzle-studio/overview) for you to effortlessly browse and manipulate data in your database of choice.
 
