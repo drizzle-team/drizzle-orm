@@ -4,7 +4,7 @@ import type { TestFn } from 'ava';
 import anyTest from 'ava';
 import type BetterSqlite3 from 'better-sqlite3';
 import Database from 'better-sqlite3';
-import { asc, eq, Name, placeholder, sql } from 'drizzle-orm';
+import {asc, eq, inArray, Name, notInArray, placeholder, sql} from 'drizzle-orm';
 import { alias, blob, integer, primaryKey, sqliteTable, sqliteTableCreator, text } from 'drizzle-orm/sqlite-core';
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 import { drizzle as proxyDrizzle } from 'drizzle-orm/sqlite-proxy';
@@ -204,6 +204,28 @@ test.serial('select sql', async (t) => {
 	}).from(usersTable).all();
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
+});
+
+test.serial('select with empty array in inArray', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
+	const users = await db.select({
+		name: sql`upper(${usersTable.name})`,
+	}).from(usersTable).where(inArray(usersTable.id, [])).all();
+
+	t.deepEqual(users, []);
+});
+
+test.serial('select with empty array in notInArray', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
+	const users = await db.select({
+		name: sql`upper(${usersTable.name})`,
+	}).from(usersTable).where(notInArray(usersTable.id, [])).all();
+
+	t.deepEqual(users, [{ name: 'JOHN' }, { name: 'JANE' }, { name: 'JANE' }]);
 });
 
 test.serial('select typed sql', async (t) => {

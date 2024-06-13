@@ -14,6 +14,7 @@ import {
 	gt,
 	gte,
 	inArray,
+	notInArray,
 	lt,
 	name,
 	placeholder,
@@ -302,6 +303,34 @@ test.serial('select sql', async (t) => {
 		.from(usersTable);
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
+});
+
+test.serial('select with empty array in inArray', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+	const users = await db
+		.select({
+			name: sql`upper(${usersTable.name})`,
+		})
+		.from(usersTable)
+		.where(inArray(usersTable.id, []));
+
+	t.deepEqual(users, []);
+});
+
+test.serial('select with empty array in notInArray', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+	const users = await db
+		.select({
+			name: sql`upper(${usersTable.name})`,
+		})
+		.from(usersTable)
+		.where(notInArray(usersTable.id, []));
+
+	t.deepEqual(users, [{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 });
 
 test.serial('select typed sql', async (t) => {

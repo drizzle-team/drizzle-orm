@@ -10,6 +10,7 @@ import {
 	gt,
 	gte,
 	inArray,
+	notInArray,
 	lt,
 	name,
 	placeholder,
@@ -496,6 +497,28 @@ test('insert many with returning', async () => {
 		{ id: 3, name: 'Jane', jsonb: null, verified: false },
 		{ id: 4, name: 'Austin', jsonb: null, verified: true },
 	]);
+});
+
+test('select with empty array in inArray', async () => {
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+
+	const result = await db
+		.select({ name: usersTable.name })
+		.from(usersTable)
+		.where(inArray(usersTable.name, []));
+
+	expect(result).toEqual([]);
+});
+
+test('select with empty array in notInArray', async () => {
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+
+	const result = await db
+		.select({ name: usersTable.name })
+		.from(usersTable)
+		.where(notInArray(usersTable.name, []));
+
+	expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 });
 
 test('select with group by as field', async () => {

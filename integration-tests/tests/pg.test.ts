@@ -20,6 +20,7 @@ import {
 	gte,
 	ilike,
 	inArray,
+	notInArray,
 	lt,
 	max,
 	min,
@@ -1999,6 +2000,28 @@ test.serial('array types', async (t) => {
 	const res = await db.select().from(salEmp);
 
 	t.deepEqual(res, values);
+});
+
+test.serial('select with empty array in inArray', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+
+	const result = await db.select({ name: usersTable.name }).from(usersTable)
+		.where(inArray(usersTable.id, []));
+
+	t.deepEqual(result, []);
+});
+
+test.serial('select with empty array in notInArray', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+
+	const result = await db.select({ name: usersTable.name }).from(usersTable)
+		.where(notInArray(usersTable.id, []));
+
+	t.deepEqual(result, [{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 });
 
 test.serial('select for ...', (t) => {
