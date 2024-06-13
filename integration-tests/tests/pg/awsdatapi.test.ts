@@ -2,7 +2,7 @@ import 'dotenv/config';
 
 import { RDSDataClient } from '@aws-sdk/client-rds-data';
 import * as dotenv from 'dotenv';
-import { asc, eq, sql, TransactionRollbackError } from 'drizzle-orm';
+import {asc, eq, inArray, notInArray, sql, TransactionRollbackError} from 'drizzle-orm';
 import type { AwsDataApiPgDatabase } from 'drizzle-orm/aws-data-api/pg';
 import { drizzle } from 'drizzle-orm/aws-data-api/pg';
 import { migrate } from 'drizzle-orm/aws-data-api/pg/migrator';
@@ -103,6 +103,24 @@ test('select sql', async () => {
 	}).from(usersTable);
 
 	expect(users).toEqual([{ name: 'JOHN' }]);
+});
+
+test('select with empty array in inArray', async () => {
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+	const users = await db.select({
+		name: sql`upper(${usersTable.name})`,
+	}).from(usersTable).where(inArray(usersTable.id, []));
+
+	expect(users).toEqual([]);
+});
+
+test('select with empty array in notInArray', async () => {
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+	const result = await db.select({
+		name: sql`upper(${usersTable.name})`,
+	}).from(usersTable).where(notInArray(usersTable.id, []));
+
+	expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 });
 
 test('select typed sql', async () => {

@@ -14,6 +14,7 @@ import {
 	gt,
 	gte,
 	inArray,
+	notInArray,
 	lt,
 	max,
 	min,
@@ -532,6 +533,34 @@ export function tests(driver?: string) {
 			}).from(usersTable);
 
 			expect(users).toEqual([{ name: 'JOHN' }]);
+		});
+
+		test('select with empty array in inArray', async (t) => {
+			const { db } = ctx.mysql;
+
+			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+			const result = await db
+				.select({
+					name: sql`upper(${usersTable.name})`,
+				})
+				.from(usersTable)
+				.where(inArray(usersTable.id, []));
+
+			expect(result).toEqual([]);
+		});
+
+		test('select with empty array in notInArray', async (t) => {
+			const { db } = ctx.mysql;
+
+			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+			const result = await db
+				.select({
+					name: sql`upper(${usersTable.name})`,
+				})
+				.from(usersTable)
+				.where(notInArray(usersTable.id, []));
+
+			expect(result).toEqual([{ name: 'JOHN' }, { name: 'JANE' }, { name: 'JANE' }]);
 		});
 
 		test('select distinct', async (ctx) => {
