@@ -2,7 +2,7 @@ import 'dotenv/config';
 
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
-import { asc, eq, type Equal, gt, inArray, Name, name, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
+import { asc, eq, type Equal, gt, inArray, notInArray, Name, name, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import type { SQLJsDatabase } from 'drizzle-orm/sql-js';
 import { drizzle } from 'drizzle-orm/sql-js';
 import { migrate } from 'drizzle-orm/sql-js/migrator';
@@ -230,6 +230,28 @@ test.serial('select sql', (t) => {
 	}).from(usersTable).all();
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
+});
+
+test.serial('select with empty array in inArray', (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values([{ name: 'John' },  { name: 'Jane' },  { name: 'Jane' }]).run();
+	const users = db.select({
+		name: sql`upper(${usersTable.name})`,
+	}).from(usersTable).where(inArray(usersTable.id, [])).all();
+
+	t.deepEqual(users, []);
+});
+
+test.serial('select with empty array in notInArray', (t) => {
+	const { db } = t.context;
+
+	db.insert(usersTable).values([{ name: 'John' },  { name: 'Jane' },  { name: 'Jane' }]).run();
+	const users = db.select({
+		name: sql`upper(${usersTable.name})`,
+	}).from(usersTable).where(notInArray(usersTable.id, [])).all();
+
+	t.deepEqual(users, [{ name: 'JOHN' },  { name: 'JANE' },  { name: 'JANE' }]);
 });
 
 test.serial('select typed sql', (t) => {

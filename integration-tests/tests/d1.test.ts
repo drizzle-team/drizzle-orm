@@ -2,7 +2,7 @@ import { D1Database, D1DatabaseAPI } from '@miniflare/d1';
 import { createSQLiteDB } from '@miniflare/shared';
 import anyTest from 'ava';
 import type { TestFn } from 'ava';
-import { asc, eq, type Equal, gt, inArray, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
+import { asc, eq, type Equal, gt, inArray, notInArray, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
 import { drizzle } from 'drizzle-orm/d1';
 import { migrate } from 'drizzle-orm/d1/migrator';
@@ -196,6 +196,36 @@ test.serial('select sql', async (t) => {
 		.all();
 
 	t.deepEqual(users, [{ name: 'JOHN' }]);
+});
+
+test.serial('select with empty array in inArray', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
+	const users = await db
+		.select({
+			name: sql`upper(${usersTable.name})`,
+		})
+		.from(usersTable)
+		.where(inArray(usersTable.id, []))
+		.all();
+
+	t.deepEqual(users, []);
+});
+
+test.serial('select with empty array in notInArray', async (t) => {
+	const { db } = t.context;
+
+	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
+	const users = await db
+		.select({
+			name: sql`upper(${usersTable.name})`,
+		})
+		.from(usersTable)
+		.where(notInArray(usersTable.id, []))
+		.all();
+
+	t.deepEqual(users, [{ name: 'JOHN' }, { name: 'JANE' }, { name: 'JANE' }]);
 });
 
 test.serial('select typed sql', async (t) => {
