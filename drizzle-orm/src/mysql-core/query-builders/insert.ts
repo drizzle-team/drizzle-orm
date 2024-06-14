@@ -14,7 +14,7 @@ import { QueryPromise } from '~/query-promise.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
-import { mapUpdateSet } from '~/utils.ts';
+import { mapUpdateSet, type ValidateShape } from '~/utils.ts';
 import type { MySqlUpdateSetSource } from './update.ts';
 
 export interface MySqlInsertConfig<TTable extends MySqlTable = MySqlTable> {
@@ -52,10 +52,14 @@ export class MySqlInsertBuilder<
 		return this;
 	}
 
-	values(value: MySqlInsertValue<TTable>): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
-	values(values: MySqlInsertValue<TTable>[]): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
-	values(
-		values: MySqlInsertValue<TTable> | MySqlInsertValue<TTable>[],
+	values<TValue extends MySqlInsertValue<TTable>>(
+		value: ValidateShape<TValue, MySqlInsertValue<TTable>>,
+	): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
+	values<TValue extends MySqlInsertValue<TTable>>(
+		values: ValidateShape<TValue, MySqlInsertValue<TTable>>[],
+	): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
+	values<TValue extends MySqlInsertValue<TTable>>(
+		values: ValidateShape<TValue, MySqlInsertValue<TTable>> | ValidateShape<TValue, MySqlInsertValue<TTable>>[],
 	): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT> {
 		values = Array.isArray(values) ? values : [values];
 		if (values.length === 0) {
