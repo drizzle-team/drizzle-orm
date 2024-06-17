@@ -63,7 +63,7 @@ export abstract class SQLiteColumnBuilder<
 		return this;
 	}
 
-	generatedAlwaysAs(as: SQL | T['data'], config?: SQLiteGeneratedColumnConfig): HasGenerated<this> {
+	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL), config?: SQLiteGeneratedColumnConfig): HasGenerated<this> {
 		this.config.generated = {
 			as,
 			type: 'always',
