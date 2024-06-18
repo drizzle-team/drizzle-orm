@@ -185,8 +185,26 @@ export type Writable<T> = {
 	-readonly [P in keyof T]: T[P];
 };
 
+/**
+ * @deprecated
+ * Use `getColumns` instead
+ */
 export function getTableColumns<T extends Table>(table: T): T['_']['columns'] {
 	return table[Table.Symbol.Columns];
+}
+
+export function getColumns<T extends Table | View | Subquery>(
+	table: T,
+): T extends Table ? T['_']['columns']
+	: T extends View ? T['_']['selectedFields']
+	: T extends Subquery ? T['_']['selectedFields']
+	: never
+{
+	return is(table, Table)
+		? table[Table.Symbol.Columns]
+		: is(table, View)
+		? table[ViewBaseConfig].selectedFields
+		: (table[SubqueryConfig].selection as any);
 }
 
 /** @internal */
