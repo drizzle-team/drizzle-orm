@@ -35,6 +35,10 @@ export abstract class PgIntColumnBaseBuilder<
 					sequenceOptions: options,
 				};
 			}
+		} else {
+			this.config.generatedIdentity = {
+				type: 'always',
+			};
 		}
 
 		return this as any;
@@ -58,6 +62,10 @@ export abstract class PgIntColumnBaseBuilder<
 					sequenceOptions: options,
 				};
 			}
+		} else {
+			this.config.generatedIdentity = {
+				type: 'byDefault',
+			};
 		}
 
 		return this as any;
