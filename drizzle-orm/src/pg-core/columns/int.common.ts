@@ -33,6 +33,7 @@ export abstract class PgIntColumnBaseBuilder<
 		}
 
 		this.config.hasDefault = true;
+		this.config.notNull = true;
 
 		return this as any;
 	}
@@ -54,6 +55,7 @@ export abstract class PgIntColumnBaseBuilder<
 		}
 
 		this.config.hasDefault = true;
+		this.config.notNull = true;
 
 		return this as any;
 	}
