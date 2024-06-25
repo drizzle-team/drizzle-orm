@@ -11,16 +11,16 @@ import {
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
-import { SQLiteBunSession } from './session.ts';
+import { SQLiteTxikiSession } from './session.ts';
 
-export type BunSQLiteDatabase<
+export type TxikiSQLiteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > = BaseSQLiteDatabase<'sync', void, TSchema>;
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: Database,
 	config: DrizzleConfig<TSchema> = {},
-): BunSQLiteDatabase<TSchema> {
+): TxikiSQLiteDatabase<TSchema> {
 	const dialect = new SQLiteSyncDialect();
 	let logger;
 	if (config.logger === true) {
@@ -42,6 +42,6 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const session = new SQLiteBunSession(client, dialect, schema, { logger });
-	return new BaseSQLiteDatabase('sync', dialect, session, schema) as BunSQLiteDatabase<TSchema>;
+	const session = new SQLiteTxikiSession(client, dialect, schema, { logger });
+	return new BaseSQLiteDatabase('sync', dialect, session, schema) as TxikiSQLiteDatabase<TSchema>;
 }
