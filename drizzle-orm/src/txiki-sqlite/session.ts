@@ -164,7 +164,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 	values(placeholderValues?: Record<string, unknown>): T['values'] {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		return Object.values(this.stmt.all(...params));
+		return this.stmt.all(...params).map(x=>Object.values(x));
 	}
 
 	/** @internal */
