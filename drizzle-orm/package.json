@@ -68,7 +68,8 @@
 		"react": ">=18",
 		"sql.js": ">=1",
 		"sqlite3": ">=5",
-		"@tidbcloud/serverless": "*"
+		"@tidbcloud/serverless": "*",
+		"@txikijs/types": "*"
 	},
 	"peerDependenciesMeta": {
 		"mysql2": {
@@ -148,6 +149,9 @@
 		},
 		"@tidbcloud/serverless": {
 			"optional": true
+		},
+		"@txikijs/types": {
+			"optional": true
 		}
 	},
 	"devDependencies": {
@@ -185,6 +189,7 @@
 		"vite-tsconfig-paths": "^4.2.0",
 		"vitest": "^0.31.4",
 		"zod": "^3.20.2",
-		"zx": "^7.2.2"
+		"zx": "^7.2.2",
+		"@txikijs/types": "^24.6.0"
 	}
 }

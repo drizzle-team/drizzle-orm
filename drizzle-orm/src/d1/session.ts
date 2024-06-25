@@ -180,7 +180,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 	run(placeholderValues?: Record<string, unknown>): Promise<D1Result> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		return this.stmt.bind(...params).run();
+		return this.stmt.bind(...params).run() as any;
 	}
 
 	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
