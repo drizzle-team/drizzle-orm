@@ -1,4 +1,4 @@
-import type { BuildColumns } from '~/column-builder.ts';
+import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
@@ -103,6 +103,11 @@ function sqliteTableBase<
 	const table = Object.assign(rawTable, builtColumns);
 
 	table[Table.Symbol.Columns] = builtColumns;
+	table[Table.Symbol.ExtraConfigColumns] = builtColumns as unknown as BuildExtraConfigColumns<
+		TTableName,
+		TColumnsMap,
+		'sqlite'
+	>;
 
 	if (extraConfig) {
 		table[SQLiteTable.Symbol.ExtraConfigBuilder] = extraConfig as (

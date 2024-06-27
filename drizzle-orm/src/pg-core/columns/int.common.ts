@@ -4,8 +4,8 @@ import type {
 	GeneratedIdentityConfig,
 	IsIdentityByDefault,
 } from '~/column-builder.ts';
-import { entityKind, is } from '~/entity.ts';
-import { PgSequence, type PgSequenceOptions } from '../sequence.ts';
+import { entityKind } from '~/entity.ts';
+import type { PgSequenceOptions } from '../sequence.ts';
 import { PgColumnBuilder } from './common.ts';
 
 export abstract class PgIntColumnBaseBuilder<
@@ -17,47 +17,45 @@ export abstract class PgIntColumnBaseBuilder<
 	static readonly [entityKind]: string = 'PgIntColumnBaseBuilder';
 
 	generatedAlwaysAsIdentity(
-		sequence?: PgSequenceOptions & { name?: string } | PgSequence,
+		sequence?: PgSequenceOptions & { name?: string },
 	): IsIdentityByDefault<this, 'always'> {
 		if (sequence) {
-			if (is(sequence, PgSequence)) {
-				this.config.generatedIdentity = {
-					type: 'always',
-					sequenceName: sequence.seqName,
-					sequenceOptions: sequence.seqOptions,
-				};
-			} else {
-				const { name, ...options } = sequence;
-				this.config.generatedIdentity = {
-					type: 'always',
-					sequenceName: name,
-					sequenceOptions: options,
-				};
-			}
+			const { name, ...options } = sequence;
+			this.config.generatedIdentity = {
+				type: 'always',
+				sequenceName: name,
+				sequenceOptions: options,
+			};
+		} else {
+			this.config.generatedIdentity = {
+				type: 'always',
+			};
 		}
+
+		this.config.hasDefault = true;
+		this.config.notNull = true;
 
 		return this as any;
 	}
 
 	generatedByDefaultAsIdentity(
-		sequence?: PgSequenceOptions & { name?: string } | PgSequence,
+		sequence?: PgSequenceOptions & { name?: string },
 	): IsIdentityByDefault<this, 'byDefault'> {
 		if (sequence) {
-			if (is(sequence, PgSequence)) {
-				this.config.generatedIdentity = {
-					type: 'byDefault',
-					sequenceName: sequence.seqName,
-					sequenceOptions: sequence.seqOptions,
-				};
-			} else {
-				const { name, ...options } = sequence;
-				this.config.generatedIdentity = {
-					type: 'byDefault',
-					sequenceName: name,
-					sequenceOptions: options,
-				};
-			}
+			const { name, ...options } = sequence;
+			this.config.generatedIdentity = {
+				type: 'byDefault',
+				sequenceName: name,
+				sequenceOptions: options,
+			};
+		} else {
+			this.config.generatedIdentity = {
+				type: 'byDefault',
+			};
 		}
+
+		this.config.hasDefault = true;
+		this.config.notNull = true;
 
 		return this as any;
 	}

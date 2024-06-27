@@ -61,7 +61,7 @@ export abstract class MySqlColumnBuilder<
 		return this;
 	}
 
-	generatedAlwaysAs(as: SQL | T['data'], config?: MySqlGeneratedColumnConfig): HasGenerated<this> {
+	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL), config?: MySqlGeneratedColumnConfig): HasGenerated<this> {
 		this.config.generated = {
 			as,
 			type: 'always',

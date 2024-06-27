@@ -1,7 +1,7 @@
 import { type Equal, Expect } from 'type-tests/utils';
 import { type InferInsertModel, type InferSelectModel, sql } from '~/index';
 import { drizzle } from '~/node-postgres';
-import { integer, pgSchema, pgSequence, pgTable, serial, text, varchar } from '~/pg-core';
+import { integer, pgTable, serial, text, varchar } from '~/pg-core';
 import { db } from './db';
 
 const users = pgTable(
@@ -189,21 +189,11 @@ const users2 = pgTable(
 	>();
 }
 
-const customSequence = pgSequence('custom_seq', {
-	minValue: 100000,
-	increment: 1,
-});
-
-const customSequenceSchema = pgSchema('test').sequence('custom_seq', {
-	minValue: 100000,
-	increment: 1,
-});
-
 const usersSeq = pgTable(
 	'users',
 	{
-		id: integer('id').generatedByDefaultAsIdentity(customSequence),
-		id2: integer('id').generatedAlwaysAsIdentity(customSequenceSchema),
+		id: integer('id').generatedByDefaultAsIdentity(),
+		id2: integer('id').generatedAlwaysAsIdentity(),
 	},
 );
 

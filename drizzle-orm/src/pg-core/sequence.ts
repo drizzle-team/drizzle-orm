@@ -1,20 +1,23 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 
 export type PgSequenceOptions = {
-	increment?: number;
-	minValue?: number;
-	maxValue?: number;
-	startWith?: number;
-	cache?: number;
+	increment?: number | string;
+	minValue?: number | string;
+	maxValue?: number | string;
+	startWith?: number | string;
+	cache?: number | string;
 	cycle?: boolean;
 };
 
 export class PgSequence {
 	static readonly [entityKind]: string = 'PgSequence';
 
-	readonly seqName: string | undefined;
-	readonly seqOptions: PgSequenceOptions | undefined;
-	readonly schema: string | undefined;
+	constructor(
+		public readonly seqName: string | undefined,
+		public readonly seqOptions: PgSequenceOptions | undefined,
+		public readonly schema: string | undefined,
+	) {
+	}
 }
 
 export function pgSequence(
@@ -30,13 +33,9 @@ export function pgSequenceWithSchema(
 	options: PgSequenceOptions,
 	schema?: string,
 ): PgSequence {
-	const sequenceInstance: PgSequence = Object.assign(
-		{
-			name,
-			seqOptions: options,
-			schema,
-		} as const,
-	);
+	return new PgSequence(name, options, schema);
+}
 
-	return sequenceInstance;
+export function isPgSequence(obj: unknown): obj is PgSequence {
+	return is(obj, PgSequence);
 }
