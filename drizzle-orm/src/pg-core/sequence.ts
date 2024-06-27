@@ -22,7 +22,7 @@ export class PgSequence {
 
 export function pgSequence(
 	name: string,
-	options: PgSequenceOptions,
+	options?: PgSequenceOptions,
 ): PgSequence {
 	return pgSequenceWithSchema(name, options, undefined);
 }
@@ -30,7 +30,7 @@ export function pgSequence(
 /** @internal */
 export function pgSequenceWithSchema(
 	name: string,
-	options: PgSequenceOptions,
+	options?: PgSequenceOptions,
 	schema?: string,
 ): PgSequence {
 	return new PgSequence(name, options, schema);
