@@ -1570,7 +1570,7 @@ test.serial('insert null timestamp', async (t) => {
 		t: integer('t', { mode: 'timestamp' }),
 	});
 
-	await db.run(sql`create table ${test} (t timestamp)`);
+	await db.run(sql`create table if not exists ${test} (t timestamp)`);
 
 	await db.insert(test).values({ t: null }).run();
 	const res = await db.select().from(test).all();
@@ -2644,6 +2644,102 @@ test.serial('set operations (mixed all) as function with subquery', async (t) =>
 				.from(citiesTable).where(gt(citiesTable.id, 1)),
 		).orderBy(asc(sql`id`));
 	});
+});
+
+test.serial('select from a table with generated columns', async (t) => {
+	const { db } = t.context;
+
+	const usersTable = sqliteTable('users', {
+		id: int('id').primaryKey({ autoIncrement: true }),
+		firstName: text('first_name'),
+		lastName: text('last_name'),
+		fullName: text('full_name').generatedAlwaysAs(sql`first_name || ' ' || last_name`, { mode: 'virtual' }),
+		fullName2: text('full_name2').generatedAlwaysAs(sql`first_name || ' ' || last_name`, { mode: 'stored' }),
+		upper: text('upper').generatedAlwaysAs(sql`upper(full_name)`, { mode: 'virtual' }),
+	});
+
+	await db.run(sql`drop table if exists ${usersTable}`);
+	await db.run(sql`
+		create table ${usersTable} (
+		  id integer primary key autoincrement,
+		  first_name text,
+		  last_name text,
+		  full_name text generated always as (first_name || ' ' || last_name) virtual,
+		  full_name2 text generated always as (first_name || ' ' || last_name) stored,
+		  upper text generated always as (upper(full_name)) virtual
+		)
+	`);
+
+	await db.insert(usersTable).values([
+		{ firstName: 'John', lastName: 'Doe' },
+		{ firstName: 'Jane', lastName: 'Doe' },
+	]);
+
+	const result = await db.select().from(usersTable);
+
+	Expect<
+		Equal<{
+			id: number;
+			firstName: string | null;
+			lastName: string | null;
+			fullName: string | null;
+			fullName2: string | null;
+			upper: string | null;
+		}[], typeof result>
+	>;
+
+	t.deepEqual(result, [
+		{ id: 1, firstName: 'John', lastName: 'Doe', fullName: 'John Doe', fullName2: 'John Doe', upper: 'JOHN DOE' },
+		{ id: 2, firstName: 'Jane', lastName: 'Doe', fullName: 'Jane Doe', fullName2: 'Jane Doe', upper: 'JANE DOE' },
+	]);
+});
+
+test.serial('select from a table with generated columns with null', async (t) => {
+	const { db } = t.context;
+
+	const usersTable = sqliteTable('users', {
+		id: int('id').primaryKey({ autoIncrement: true }),
+		firstName: text('first_name'),
+		lastName: text('last_name'),
+		fullName: text('full_name').generatedAlwaysAs(sql`first_name || ' ' || last_name`, { mode: 'virtual' }).$type<
+			string | null
+		>(),
+		fullName2: text('full_name2').generatedAlwaysAs(sql`first_name || ' ' || last_name`, { mode: 'stored' }).$type<
+			string | null
+		>(),
+		upper: text('upper').generatedAlwaysAs(sql`upper(full_name)`, { mode: 'virtual' }).$type<string | null>(),
+	});
+
+	await db.run(sql`drop table if exists ${usersTable}`);
+	await db.run(sql`
+		create table ${usersTable} (
+		  id integer primary key autoincrement,
+		  first_name text,
+		  last_name text,
+		  full_name text generated always as (first_name || ' ' || last_name) virtual,
+		  full_name2 text generated always as (first_name || ' ' || last_name) stored,
+		  upper text generated always as (upper(full_name)) virtual
+		)
+	`);
+
+	await db.insert(usersTable).values({});
+
+	const result = await db.select().from(usersTable);
+
+	Expect<
+		Equal<{
+			id: number;
+			firstName: string | null;
+			lastName: string | null;
+			fullName: string | null;
+			fullName2: string | null;
+			upper: string | null;
+		}[], typeof result>
+	>;
+
+	t.deepEqual(result, [
+		{ id: 1, firstName: null, lastName: null, fullName: null, fullName2: null, upper: null },
+	]);
 });
 
 test.serial('aggregate function: count', async (t) => {

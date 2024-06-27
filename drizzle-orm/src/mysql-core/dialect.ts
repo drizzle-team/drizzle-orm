@@ -416,7 +416,9 @@ export class MySqlDialect {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, MySqlColumn> = table[Table.Symbol.Columns];
-		const colEntries: [string, MySqlColumn][] = Object.entries(columns);
+		const colEntries: [string, MySqlColumn][] = Object.entries(columns).filter(([_, col]) =>
+			!col.shouldDisableInsert()
+		);
 
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 

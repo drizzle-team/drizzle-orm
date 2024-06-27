@@ -135,6 +135,7 @@ Expect<
 				tableName: 'new_yorkers';
 				enumValues: undefined;
 				baseColumn: never;
+				generated: undefined;
 			}>;
 			cityId: MySqlColumn<{
 				name: 'id';
@@ -147,6 +148,7 @@ Expect<
 				tableName: 'new_yorkers';
 				enumValues: undefined;
 				baseColumn: never;
+				generated: undefined;
 			}>;
 		}>,
 		typeof newYorkers
@@ -184,6 +186,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'id';
@@ -196,6 +199,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -231,6 +235,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -243,6 +248,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -278,6 +284,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -290,6 +297,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -317,6 +325,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -329,6 +338,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -356,6 +366,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -368,6 +379,7 @@ Expect<
 					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -398,6 +410,7 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				dialect: 'mysql';
+				generated: undefined;
 			},
 			Simplify<BuildColumn<'table', typeof t, 'mysql'>['_']>
 		>
@@ -446,6 +459,41 @@ Expect<
 		test13: char('test', { enum: ['a', 'b', 'c'] as const }).notNull(),
 		test14: char('test', { enum: ['a', 'b', 'c'] }).notNull(),
 		test15: text('test').notNull(),
+	});
+	Expect<Equal<['a', 'b', 'c'], typeof test.test1.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test2.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test3.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test4.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test5.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test6.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test7.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test8.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test9.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test10.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test11.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test12.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test13.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.test14.enumValues>>;
+	Expect<Equal<[string, ...string[]], typeof test.test15.enumValues>>;
+}
+
+{ // All types with generated columns
+	const test = mysqlTable('test', {
+		test1: mysqlEnum('test', ['a', 'b', 'c'] as const).generatedAlwaysAs(sql``),
+		test2: mysqlEnum('test', ['a', 'b', 'c']).generatedAlwaysAs(sql``),
+		test3: varchar('test', { length: 255, enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		test4: varchar('test', { length: 255, enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		test5: text('test', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		test6: text('test', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		test7: tinytext('test', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		test8: tinytext('test', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		test9: mediumtext('test', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		test10: mediumtext('test', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		test11: longtext('test', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		test12: longtext('test', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		test13: char('test', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		test14: char('test', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		test15: text('test').generatedAlwaysAs(sql``),
 	});
 	Expect<Equal<['a', 'b', 'c'], typeof test.test1.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.test2.enumValues>>;

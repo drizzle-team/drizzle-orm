@@ -6,6 +6,7 @@ import type {
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
 	HasDefault,
+	HasGenerated,
 	MakeColumnConfig,
 } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
@@ -14,6 +15,7 @@ import { entityKind } from '~/entity.ts';
 import type { ForeignKey, UpdateDeleteAction } from '~/mysql-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/mysql-core/foreign-keys.ts';
 import type { AnyMySqlTable, MySqlTable } from '~/mysql-core/table.ts';
+import type { SQL } from '~/sql/sql.ts';
 import type { Update } from '~/utils.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
 
@@ -29,6 +31,10 @@ export interface MySqlColumnBuilderBase<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TTypeConfig extends object = object,
 > extends ColumnBuilderBase<T, TTypeConfig & { dialect: 'mysql' }> {}
+
+export interface MySqlGeneratedColumnConfig {
+	mode?: 'virtual' | 'stored';
+}
 
 export abstract class MySqlColumnBuilder<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string> & {
@@ -53,6 +59,15 @@ export abstract class MySqlColumnBuilder<
 		this.config.isUnique = true;
 		this.config.uniqueName = name;
 		return this;
+	}
+
+	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL), config?: MySqlGeneratedColumnConfig): HasGenerated<this> {
+		this.config.generated = {
+			as,
+			type: 'always',
+			mode: config?.mode ?? 'virtual',
+		};
+		return this as any;
 	}
 
 	/** @internal */

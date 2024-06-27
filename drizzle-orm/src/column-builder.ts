@@ -1,7 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import type { Column } from './column.ts';
 import type { MySqlColumn } from './mysql-core/index.ts';
-import type { ExtraConfigColumn, PgColumn } from './pg-core/index.ts';
+import type { ExtraConfigColumn, PgColumn, PgSequenceOptions } from './pg-core/index.ts';
 import type { SQL } from './sql/sql.ts';
 import type { SQLiteColumn } from './sqlite-core/index.ts';
 import type { Simplify } from './utils.ts';
@@ -19,6 +19,22 @@ export type ColumnDataType =
 
 export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'common';
 
+export type GeneratedStorageMode = 'virtual' | 'stored';
+
+export type GeneratedType = 'always' | 'byDefault';
+
+export type GeneratedColumnConfig<TDataType> = {
+	as: TDataType | SQL | (() => SQL);
+	type?: GeneratedType;
+	mode?: GeneratedStorageMode;
+};
+
+export type GeneratedIdentityConfig = {
+	sequenceName?: string;
+	sequenceOptions?: PgSequenceOptions;
+	type: 'always' | 'byDefault';
+};
+
 export interface ColumnBuilderBaseConfig<TDataType extends ColumnDataType, TColumnType extends string> {
 	name: string;
 	dataType: TDataType;
@@ -26,23 +42,26 @@ export interface ColumnBuilderBaseConfig<TDataType extends ColumnDataType, TColu
 	data: unknown;
 	driverParam: unknown;
 	enumValues: string[] | undefined;
+	generated: GeneratedColumnConfig<unknown> | undefined;
 }
 
 export type MakeColumnConfig<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TTableName extends string,
+	TData = T extends { $type: infer U } ? U : T['data'],
 > = {
 	name: T['name'];
 	tableName: TTableName;
 	dataType: T['dataType'];
 	columnType: T['columnType'];
-	data: T extends { $type: infer U } ? U : T['data'];
+	data: TData;
 	driverParam: T['driverParam'];
 	notNull: T extends { notNull: true } ? true : false;
 	hasDefault: T extends { hasDefault: true } ? true : false;
 	enumValues: T['enumValues'];
 	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase } ? BuildColumn<TTableName, U, 'common'>
 		: never;
+	generated: T['generated'] extends object ? T['generated'] : undefined;
 } & {};
 
 export type ColumnBuilderTypeConfig<
@@ -60,6 +79,7 @@ export type ColumnBuilderTypeConfig<
 		notNull: T extends { notNull: infer U } ? U : boolean;
 		hasDefault: T extends { hasDefault: infer U } ? U : boolean;
 		enumValues: T['enumValues'];
+		generated: GeneratedColumnConfig<T['data']> | undefined;
 	}
 	& TTypeConfig
 >;
@@ -77,6 +97,8 @@ export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = ob
 	uniqueType: string | undefined;
 	dataType: string;
 	columnType: string;
+	generated: GeneratedColumnConfig<TData> | undefined;
+	generatedIdentity: GeneratedIdentityConfig | undefined;
 } & TRuntimeConfig;
 
 export interface ColumnBuilderExtraConfig {
@@ -98,6 +120,24 @@ export type HasDefault<T extends ColumnBuilderBase> = T & {
 export type $Type<T extends ColumnBuilderBase, TType> = T & {
 	_: {
 		$type: TType;
+	};
+};
+
+export type HasGenerated<T extends ColumnBuilderBase, TGenerated extends {} = {}> = T & {
+	_: {
+		hasDefault: true;
+		generated: TGenerated;
+	};
+};
+
+export type IsIdentityByDefault<
+	T extends ColumnBuilderBase,
+	TType extends 'always' | 'byDefault',
+> = T & {
+	_: {
+		notNull: true;
+		hasDefault: true;
+		generated: { as: any; type: TType };
 	};
 };
 
@@ -133,6 +173,7 @@ export abstract class ColumnBuilder<
 			uniqueType: undefined,
 			dataType,
 			columnType,
+			generated: undefined,
 		} as ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>;
 	}
 
@@ -223,6 +264,11 @@ export abstract class ColumnBuilder<
 		this.config.notNull = true;
 		return this as TExtraConfig['primaryKeyHasDefault'] extends true ? HasDefault<NotNull<this>> : NotNull<this>;
 	}
+
+	abstract generatedAlwaysAs(
+		as: SQL | T['data'] | (() => SQL),
+		config?: Partial<GeneratedColumnConfig<unknown>>,
+	): HasGenerated<this>;
 }
 
 export type BuildColumn<

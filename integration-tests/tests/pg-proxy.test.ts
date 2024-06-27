@@ -269,7 +269,7 @@ test.after.always(async (t) => {
 
 test.beforeEach(async (t) => {
 	const ctx = t.context;
-	await ctx.db.execute(sql`drop schema public cascade`);
+	await ctx.db.execute(sql`drop schema if exists public cascade`);
 	await ctx.db.execute(sql`create schema public`);
 	await ctx.db.execute(
 		sql`

@@ -27,7 +27,7 @@ export interface MySqlUpdateConfig {
 
 export type MySqlUpdateSetSource<TTable extends MySqlTable> =
 	& {
-		[Key in keyof TTable['_']['columns']]?:
+		[Key in keyof TTable['$inferInsert']]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
 			| SQL;
 	}

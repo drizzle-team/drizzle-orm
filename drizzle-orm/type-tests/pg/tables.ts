@@ -193,6 +193,7 @@ Expect<
 				hasDefault: true;
 				enumValues: undefined;
 				baseColumn: never;
+				generated: undefined;
 			}>;
 			cityId: PgColumn<{
 				tableName: 'new_yorkers';
@@ -205,6 +206,7 @@ Expect<
 				hasDefault: true;
 				enumValues: undefined;
 				baseColumn: never;
+				generated: undefined;
 			}>;
 		}>,
 		typeof newYorkers
@@ -244,6 +246,7 @@ Expect<
 					hasDefault: true;
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -256,6 +259,7 @@ Expect<
 					hasDefault: true;
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -293,6 +297,7 @@ Expect<
 					notNull: true;
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -305,6 +310,7 @@ Expect<
 					driverParam: string | number;
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -342,6 +348,7 @@ Expect<
 					notNull: true;
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -354,6 +361,7 @@ Expect<
 					driverParam: string | number;
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -381,6 +389,7 @@ Expect<
 					notNull: true;
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -393,6 +402,7 @@ Expect<
 					driverParam: string | number;
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -420,6 +430,7 @@ Expect<
 					notNull: true;
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -432,6 +443,7 @@ Expect<
 					driverParam: string | number;
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -474,6 +486,7 @@ Expect<
 				hasDefault: true;
 				enumValues: undefined;
 				baseColumn: never;
+				generated: undefined;
 			}>;
 			cityId: PgColumn<{
 				tableName: 'new_yorkers';
@@ -486,6 +499,7 @@ Expect<
 				hasDefault: true;
 				enumValues: undefined;
 				baseColumn: never;
+				generated: undefined;
 			}>;
 		}>,
 		typeof newYorkers2
@@ -528,6 +542,7 @@ Expect<
 					hasDefault: true;
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -540,6 +555,7 @@ Expect<
 					hasDefault: true;
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers2
@@ -580,6 +596,7 @@ Expect<
 					notNull: true;
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -592,6 +609,7 @@ Expect<
 					driverParam: string | number;
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers2
@@ -632,6 +650,7 @@ Expect<
 					notNull: true;
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -644,6 +663,7 @@ Expect<
 					driverParam: string | number;
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers2
@@ -671,6 +691,7 @@ Expect<
 					notNull: true;
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -683,6 +704,7 @@ Expect<
 					driverParam: string | number;
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers2
@@ -710,6 +732,7 @@ Expect<
 					notNull: true;
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -722,6 +745,7 @@ Expect<
 					driverParam: string | number;
 					enumValues: undefined;
 					baseColumn: never;
+					generated: undefined;
 				}>;
 			}>,
 			typeof newYorkers2
@@ -824,6 +848,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 						notNull: true;
 						enumValues: undefined;
 						baseColumn: never;
+						generated: undefined;
 					}>;
 					name: PgColumn<{
 						tableName: 'cities_table';
@@ -836,6 +861,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 						enumValues: [string, ...string[]];
 						notNull: true;
 						baseColumn: never;
+						generated: undefined;
 					}>;
 					role: PgColumn<{
 						tableName: 'cities_table';
@@ -848,6 +874,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 						enumValues: ['admin', 'user'];
 						notNull: true;
 						baseColumn: never;
+						generated: undefined;
 					}>;
 					population: PgColumn<{
 						tableName: 'cities_table';
@@ -860,6 +887,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 						hasDefault: true;
 						enumValues: undefined;
 						baseColumn: never;
+						generated: undefined;
 					}>;
 				};
 			}>,
@@ -990,6 +1018,37 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		col9: varchar('col9', { enum: ['a', 'b', 'c'] as const }),
 		col10: varchar('col10', { enum: ['a', 'b', 'c'] }),
 		col11: varchar('col11'),
+	});
+
+	Expect<Equal<['a', 'b', 'c'], typeof test.col1.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.col2.enumValues>>;
+	Expect<Equal<[string, ...string[]], typeof test.col3.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.col4.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.col5.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.col6.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.col7.enumValues>>;
+	Expect<Equal<[string, ...string[]], typeof test.col8.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.col9.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.col10.enumValues>>;
+	Expect<Equal<[string, ...string[]], typeof test.col11.enumValues>>;
+}
+
+{
+	const e1 = pgEnum('test', ['a', 'b', 'c']);
+	const e2 = pgEnum('test', ['a', 'b', 'c'] as const);
+
+	const test = pgTable('test', {
+		col1: char('col1', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		col2: char('col2', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		col3: char('col3').generatedAlwaysAs(sql``),
+		col4: e1('col4').generatedAlwaysAs(sql``),
+		col5: e2('col5').generatedAlwaysAs(sql``),
+		col6: text('col6', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		col7: text('col7', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		col8: text('col8').generatedAlwaysAs(sql``),
+		col9: varchar('col9', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
+		col10: varchar('col10', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
+		col11: varchar('col11').generatedAlwaysAs(sql``),
 	});
 
 	Expect<Equal<['a', 'b', 'c'], typeof test.col1.enumValues>>;
