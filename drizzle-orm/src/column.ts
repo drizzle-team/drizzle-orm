@@ -113,7 +113,7 @@ export abstract class Column<
 
 	// ** @internal */
 	shouldDisableInsert(): boolean {
-		return this.config.generatedIdentity !== undefined && this.config.generatedIdentity.type !== 'byDefault';
+		return this.config.generated !== undefined && this.config.generated.type !== 'byDefault';
 	}
 }
 
