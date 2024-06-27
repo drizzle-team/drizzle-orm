@@ -228,7 +228,7 @@ export const gte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  *   .where(lt(cars.year, 2000))
  * ```
  *
- * @see lte for greater-than-or-equal
+ * @see lte for less-than-or-equal
  */
 export const lt: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
 	return sql`${left} < ${bindIfParam(right, left)}`;
