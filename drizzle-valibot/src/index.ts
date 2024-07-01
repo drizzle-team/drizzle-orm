@@ -314,8 +314,7 @@ function isWithEnum(
 function mapColumnToSchema(
 	column: Column,
 ): BaseSchema<unknown, unknown, BaseIssue<unknown>> {
-	// TODO: This is unnecessary because `isWithEnum` already checks for `column.enumValues.length`
-	if (isWithEnum(column)) return column.enumValues?.length ? picklist(column.enumValues) : string();
+	if (isWithEnum(column)) return picklist(column.enumValues);
 
 	if (column.dataType === 'custom') return any();
 
