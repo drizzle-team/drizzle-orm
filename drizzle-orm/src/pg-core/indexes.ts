@@ -111,7 +111,7 @@ export class IndexBuilderOn {
 
 	constructor(private unique: boolean, private name?: string) {}
 
-	on(...columns: [Partial<ExtraConfigColumn> | SQL, ...Partial<ExtraConfigColumn>[] | SQL[]]): IndexBuilder {
+	on(...columns: [Partial<ExtraConfigColumn> | SQL, ...Partial<ExtraConfigColumn | SQL>[]]): IndexBuilder {
 		return new IndexBuilder(
 			columns.map((it) => {
 				if (is(it, SQL)) {
@@ -128,7 +128,7 @@ export class IndexBuilderOn {
 		);
 	}
 
-	onOnly(...columns: [Partial<ExtraConfigColumn | SQL>, ...Partial<ExtraConfigColumn>[] | SQL[]]): IndexBuilder {
+	onOnly(...columns: [Partial<ExtraConfigColumn | SQL>, ...Partial<ExtraConfigColumn | SQL>[]]): IndexBuilder {
 		return new IndexBuilder(
 			columns.map((it) => {
 				if (is(it, SQL)) {
@@ -158,7 +158,7 @@ export class IndexBuilderOn {
 	 */
 	using(
 		method: PgIndexMethod,
-		...columns: [Partial<ExtraConfigColumn | SQL>, ...Partial<ExtraConfigColumn>[] | SQL[]]
+		...columns: [Partial<ExtraConfigColumn | SQL>, ...Partial<ExtraConfigColumn | SQL>[]]
 	): IndexBuilder {
 		return new IndexBuilder(
 			columns.map((it) => {
