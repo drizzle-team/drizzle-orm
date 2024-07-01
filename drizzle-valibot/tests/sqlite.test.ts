@@ -1,6 +1,6 @@
 import test from 'ava';
 import { blob, integer, numeric, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import * as v from "valibot";
+import * as v from 'valibot';
 import { createInsertSchema, createSelectSchema, jsonSchema } from '../src';
 import { expectSchemaShape } from './utils';
 

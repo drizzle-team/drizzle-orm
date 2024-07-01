@@ -1,6 +1,6 @@
 import test from 'ava';
 import { char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
-import * as v from "valibot";
+import * as v from 'valibot';
 import { createInsertSchema, createSelectSchema } from '../src';
 import { expectSchemaShape } from './utils';
 
