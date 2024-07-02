@@ -132,7 +132,8 @@ const pkExampleTable = sqliteTable('pk_example', {
 const bigIntExample = sqliteTable('big_int_example', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
-	bigInt: blob('big_int', { mode: 'bigint' }).notNull(),
+	blobBigInt: blob('blob_big_int', { mode: 'bigint' }).notNull(),
+	integerBigInt: integer('integer_big_int', { mode: 'bigint' }).notNull(),
 });
 
 // To test aggregate functions
@@ -187,7 +188,6 @@ test.beforeEach(async (t) => {
 	await ctx.db.run(sql`drop table if exists ${coursesTable}`);
 	await ctx.db.run(sql`drop table if exists ${courseCategoriesTable}`);
 	await ctx.db.run(sql`drop table if exists ${orders}`);
-	await ctx.db.run(sql`drop table if exists ${bigIntExample}`);
 	await ctx.db.run(sql`drop table if exists ${pkExampleTable}`);
 
 	await ctx.db.run(sql`
@@ -242,13 +242,6 @@ test.beforeEach(async (t) => {
 			name text not null,
 			email text not null,
 			primary key (id, name)
-		)
-	`);
-	await ctx.db.run(sql`
-		create table ${bigIntExample} (
-		  id integer primary key,
-		  name text not null,
-		  big_int blob not null
 		)
 	`);
 });
@@ -347,21 +340,73 @@ test.serial('table config: primary keys name', async (t) => {
 });
 
 test.serial('insert bigint values', async (t) => {
-	const { db } = t.context;
+	const url = process.env['LIBSQL_URL'];
+	const authToken = process.env['LIBSQL_AUTH_TOKEN'];
+	if (!url) {
+		throw new Error('LIBSQL_URL is not set');
+	}
+	const sleep = 250;
+	let client: Client | undefined;
+	let timeLeft = 5000;
+	let connected = false;
+	let lastError: unknown | undefined;
+	do {
+		try {
+			client = createClient({ url, authToken, intMode: 'bigint' });
+			connected = true;
+			break;
+		} catch (e) {
+			lastError = e;
+			await new Promise((resolve) => setTimeout(resolve, sleep));
+			timeLeft -= sleep;
+		}
+	} while (timeLeft > 0);
+	if (!connected || !client) {
+		console.error('Cannot connect to libsql');
+		throw lastError;
+	}
 
-	await db.insert(bigIntExample).values({ name: 'one', bigInt: BigInt('0') }).run();
-	await db.insert(bigIntExample).values({ name: 'two', bigInt: BigInt('127') }).run();
-	await db.insert(bigIntExample).values({ name: 'three', bigInt: BigInt('32767') }).run();
-	await db.insert(bigIntExample).values({ name: 'four', bigInt: BigInt('1234567890') }).run();
-	await db.insert(bigIntExample).values({ name: 'five', bigInt: BigInt('12345678900987654321') }).run();
+	const db = drizzle(client, { logger: ENABLE_LOGGING });
+
+	await db.run(sql`drop table if exists ${bigIntExample}`);
+	await db.run(sql`
+		create table ${bigIntExample} (
+		  id integer primary key,
+		  name text not null,
+		  blob_big_int blob not null,
+		  integer_big_int integer not null
+		)
+	`);
+
+	await db.insert(bigIntExample).values({ name: 'one', blobBigInt: BigInt('0'), integerBigInt: BigInt('0') }).run();
+	await db.insert(bigIntExample).values({ name: 'two', blobBigInt: BigInt('127'), integerBigInt: BigInt('127') }).run();
+	await db.insert(bigIntExample).values({ name: 'three', blobBigInt: BigInt('32767'), integerBigInt: BigInt('32767') })
+		.run();
+	await db.insert(bigIntExample).values({
+		name: 'four',
+		blobBigInt: BigInt('1234567890'),
+		integerBigInt: BigInt('1234567890'),
+	})
+		.run();
+	await db.insert(bigIntExample).values({
+		name: 'five',
+		blobBigInt: BigInt('12345678900987654321'),
+		integerBigInt: BigInt('9223372036854775807'),
+	}).run();
+	await db.insert(bigIntExample).values({
+		name: 'six',
+		blobBigInt: BigInt('-9223372036854775807'),
+		integerBigInt: BigInt('-9223372036854775807'),
+	}).run();
 
 	const result = await db.select().from(bigIntExample).all();
 	t.deepEqual(result, [
-		{ id: 1, name: 'one', bigInt: BigInt('0') },
-		{ id: 2, name: 'two', bigInt: BigInt('127') },
-		{ id: 3, name: 'three', bigInt: BigInt('32767') },
-		{ id: 4, name: 'four', bigInt: BigInt('1234567890') },
-		{ id: 5, name: 'five', bigInt: BigInt('12345678900987654321') },
+		{ id: 1, name: 'one', blobBigInt: BigInt('0'), integerBigInt: BigInt('0') },
+		{ id: 2, name: 'two', blobBigInt: BigInt('127'), integerBigInt: BigInt('127') },
+		{ id: 3, name: 'three', blobBigInt: BigInt('32767'), integerBigInt: BigInt('32767') },
+		{ id: 4, name: 'four', blobBigInt: BigInt('1234567890'), integerBigInt: BigInt('1234567890') },
+		{ id: 5, name: 'five', blobBigInt: BigInt('12345678900987654321'), integerBigInt: BigInt('9223372036854775807') },
+		{ id: 6, name: 'six', blobBigInt: BigInt('-9223372036854775807'), integerBigInt: BigInt('-9223372036854775807') },
 	]);
 });
 
