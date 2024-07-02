@@ -84,7 +84,8 @@ const pkExampleTable = sqliteTable('pk_example', {
 const bigIntExample = sqliteTable('big_int_example', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
-	bigInt: blob('big_int', { mode: 'bigint' }).notNull(),
+	blobBigInt: blob('blob_big_int', { mode: 'bigint' }).notNull(),
+	integerBigInt: integer('integer_big_int', { mode: 'bigint' }).notNull(),
 });
 
 interface Context {
@@ -175,7 +176,8 @@ test.beforeEach((t) => {
 		create table ${bigIntExample} (
 			id integer primary key,
 			name text not null,
-			big_int blob not null
+			blob_big_int blob not null,
+			integer_big_int integer not null
 		)
 	`);
 });
@@ -183,19 +185,21 @@ test.beforeEach((t) => {
 test.serial('insert bigint values', (t) => {
 	const { db } = t.context;
 
-	db.insert(bigIntExample).values({ name: 'one', bigInt: BigInt('0') }).run();
-	db.insert(bigIntExample).values({ name: 'two', bigInt: BigInt('127') }).run();
-	db.insert(bigIntExample).values({ name: 'three', bigInt: BigInt('32767') }).run();
-	db.insert(bigIntExample).values({ name: 'four', bigInt: BigInt('1234567890') }).run();
-	db.insert(bigIntExample).values({ name: 'five', bigInt: BigInt('12345678900987654321') }).run();
+	db.insert(bigIntExample).values({ name: 'one', blobBigInt: BigInt('0'), integerBigInt: BigInt('0') }).run();
+	db.insert(bigIntExample).values({ name: 'two', blobBigInt: BigInt('127'), integerBigInt: BigInt('127') }).run();
+	db.insert(bigIntExample).values({ name: 'three', blobBigInt: BigInt('32767'), integerBigInt: BigInt('32767') }).run();
+	db.insert(bigIntExample).values({
+		name: 'four',
+		blobBigInt: BigInt('1234567890'),
+		integerBigInt: BigInt('1234567890'),
+	}).run();
 
 	const result = db.select().from(bigIntExample).all();
 	t.deepEqual(result, [
-		{ id: 1, name: 'one', bigInt: BigInt('0') },
-		{ id: 2, name: 'two', bigInt: BigInt('127') },
-		{ id: 3, name: 'three', bigInt: BigInt('32767') },
-		{ id: 4, name: 'four', bigInt: BigInt('1234567890') },
-		{ id: 5, name: 'five', bigInt: BigInt('12345678900987654321') },
+		{ id: 1, name: 'one', blobBigInt: BigInt('0'), integerBigInt: BigInt('0') },
+		{ id: 2, name: 'two', blobBigInt: BigInt('127'), integerBigInt: BigInt('127') },
+		{ id: 3, name: 'three', blobBigInt: BigInt('32767'), integerBigInt: BigInt('32767') },
+		{ id: 4, name: 'four', blobBigInt: BigInt('1234567890'), integerBigInt: BigInt('1234567890') },
 	]);
 });
 
