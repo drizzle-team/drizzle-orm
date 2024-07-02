@@ -125,6 +125,14 @@ export const classes = pgTable('classes_table', {
 	subClass: text('sub_class', { enum: ['B', 'D'] }).notNull(),
 });
 
+Expect<
+	Equal<{
+		id?: number;
+		class?: 'A' | 'C' | null;
+		subClass: 'B' | 'D';
+	}, typeof classes.$inferInsert>
+>;
+
 export const network = pgTable('network_table', {
 	inet: inet('inet').notNull(),
 	cidr: cidr('cidr').notNull(),

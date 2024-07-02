@@ -81,6 +81,14 @@ Expect<
 	}, InferSelectModel<typeof cities, { dbColumnNames: true }>>
 >;
 
+Expect<
+	Equal<{
+		id?: number;
+		name: string;
+		population?: number | null;
+	}, typeof cities.$inferInsert>
+>;
+
 export const customSchema = mysqlSchema('custom_schema');
 
 export const citiesCustom = customSchema.table('cities_table', {
