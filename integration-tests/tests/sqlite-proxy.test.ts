@@ -87,7 +87,8 @@ const pkExampleTable = sqliteTable('pk_example', {
 const bigIntExample = sqliteTable('big_int_example', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
-	bigInt: blob('big_int', { mode: 'bigint' }).notNull(),
+	blobBigInt: blob('blob_big_int', { mode: 'bigint' }).notNull(),
+	integerBigInt: integer('integer_big_int', { mode: 'bigint' }).notNull(),
 });
 
 interface Context {
@@ -126,7 +127,6 @@ test.beforeEach(async (t) => {
 	const ctx = t.context;
 	await ctx.db.run(sql`drop table if exists ${usersTable}`);
 	await ctx.db.run(sql`drop table if exists ${pkExampleTable}`);
-	await ctx.db.run(sql`drop table if exists ${bigIntExample}`);
 
 	await ctx.db.run(sql`
 		create table ${usersTable} (
@@ -145,31 +145,67 @@ test.beforeEach(async (t) => {
 			primary key (id, name)
 		)
 	`);
-	await ctx.db.run(sql`
-		create table ${bigIntExample} (
-			id integer primary key,
-			name text not null,
-			big_int blob not null
-		 )
-	`);
 });
 
 test.serial('insert bigint values', async (t) => {
-	const { db } = t.context;
+	const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
 
-	await db.insert(bigIntExample).values({ name: 'one', bigInt: BigInt('0') }).run();
-	await db.insert(bigIntExample).values({ name: 'two', bigInt: BigInt('127') }).run();
-	await db.insert(bigIntExample).values({ name: 'three', bigInt: BigInt('32767') }).run();
-	await db.insert(bigIntExample).values({ name: 'four', bigInt: BigInt('1234567890') }).run();
-	await db.insert(bigIntExample).values({ name: 'five', bigInt: BigInt('12345678900987654321') }).run();
+	const client = new Database(dbPath);
+	client.defaultSafeIntegers(true);
+	const serverSimulator = new ServerSimulator(client);
+
+	const db = proxyDrizzle(async (sql, params, method) => {
+		try {
+			const rows = await serverSimulator.query(sql, params, method);
+
+			if (rows.error !== undefined) {
+				throw new Error(rows.error);
+			}
+
+			return { rows: rows.data };
+		} catch (e: any) {
+			console.error('Error from sqlite proxy server:', e.response.data);
+			throw e;
+		}
+	});
+
+	await db.run(sql`drop table if exists ${bigIntExample}`);
+	await db.run(sql`
+		create table ${bigIntExample} (
+			id integer primary key,
+			name text not null,
+			blob_big_int blob not null,
+			integer_big_int integer not null
+		 )
+	`);
+
+	db.insert(bigIntExample).values({ name: 'one', blobBigInt: BigInt('0'), integerBigInt: BigInt('0') }).run();
+	db.insert(bigIntExample).values({ name: 'two', blobBigInt: BigInt('127'), integerBigInt: BigInt('127') }).run();
+	db.insert(bigIntExample).values({ name: 'three', blobBigInt: BigInt('32767'), integerBigInt: BigInt('32767') }).run();
+	db.insert(bigIntExample).values({
+		name: 'four',
+		blobBigInt: BigInt('1234567890'),
+		integerBigInt: BigInt('1234567890'),
+	}).run();
+	db.insert(bigIntExample).values({
+		name: 'five',
+		blobBigInt: BigInt('12345678900987654321'),
+		integerBigInt: BigInt('9223372036854775807'),
+	}).run();
+	db.insert(bigIntExample).values({
+		name: 'six',
+		blobBigInt: BigInt('-9223372036854775807'),
+		integerBigInt: BigInt('-9223372036854775807'),
+	}).run();
 
 	const result = await db.select().from(bigIntExample).all();
 	t.deepEqual(result, [
-		{ id: 1, name: 'one', bigInt: BigInt('0') },
-		{ id: 2, name: 'two', bigInt: BigInt('127') },
-		{ id: 3, name: 'three', bigInt: BigInt('32767') },
-		{ id: 4, name: 'four', bigInt: BigInt('1234567890') },
-		{ id: 5, name: 'five', bigInt: BigInt('12345678900987654321') },
+		{ id: 1, name: 'one', blobBigInt: BigInt('0'), integerBigInt: BigInt('0') },
+		{ id: 2, name: 'two', blobBigInt: BigInt('127'), integerBigInt: BigInt('127') },
+		{ id: 3, name: 'three', blobBigInt: BigInt('32767'), integerBigInt: BigInt('32767') },
+		{ id: 4, name: 'four', blobBigInt: BigInt('1234567890'), integerBigInt: BigInt('1234567890') },
+		{ id: 5, name: 'five', blobBigInt: BigInt('12345678900987654321'), integerBigInt: BigInt('9223372036854775807') },
+		{ id: 6, name: 'six', blobBigInt: BigInt('-9223372036854775807'), integerBigInt: BigInt('-9223372036854775807') },
 	]);
 });
 
