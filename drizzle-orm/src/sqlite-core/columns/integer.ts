@@ -214,12 +214,58 @@ export class SQLiteBoolean<T extends ColumnBaseConfig<'boolean', 'SQLiteBoolean'
 	}
 }
 
+export type SQLiteBigInt64BuilderInitial<TName extends string> = SQLiteBigInt64Builder<{
+	name: TName;
+	dataType: 'bigint';
+	columnType: 'SQLiteBigInt64';
+	data: bigint;
+	driverParam: bigint;
+	enumValues: undefined;
+}>;
+
+export class SQLiteBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'SQLiteBigInt64'>>
+	extends SQLiteBaseIntegerBuilder<T, { mode: 'bigint' }>
+{
+	static readonly [entityKind]: string = 'SQLiteBigInt64Builder';
+
+	constructor(name: T['name'], mode: 'bigint') {
+		super(name, 'bigint', 'SQLiteBigInt64');
+		this.config.mode = mode;
+	}
+
+	build<TTableName extends string>(
+		table: AnySQLiteTable<{ name: TTableName }>,
+	): SQLiteBigInt64<MakeColumnConfig<T, TTableName>> {
+		return new SQLiteBigInt64<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
+	}
+}
+
+export class SQLiteBigInt64<T extends ColumnBaseConfig<'bigint', 'SQLiteBigInt64'>>
+	extends SQLiteBaseInteger<T, { mode: 'bigint' }>
+{
+	static readonly [entityKind]: string = 'SQLiteBigInt64';
+
+	readonly mode: 'bigint' = this.config.mode;
+
+	// eslint-disable-next-line unicorn/prefer-native-coercion-functions
+	override mapFromDriverValue(value: bigint): bigint {
+		if (typeof value === 'number') {
+			return BigInt(value);
+		}
+		return value;
+	}
+}
+
 export interface IntegerConfig<
-	TMode extends 'number' | 'timestamp' | 'timestamp_ms' | 'boolean' =
+	TMode extends 'number' | 'timestamp' | 'timestamp_ms' | 'boolean' | 'bigint' =
 		| 'number'
 		| 'timestamp'
 		| 'timestamp_ms'
-		| 'boolean',
+		| 'boolean'
+		| 'bigint',
 > {
 	mode: TMode;
 }
@@ -229,6 +275,7 @@ export function integer<TName extends string, TMode extends IntegerConfig['mode'
 	config?: IntegerConfig<TMode>,
 ): Or<Equal<TMode, 'timestamp'>, Equal<TMode, 'timestamp_ms'>> extends true ? SQLiteTimestampBuilderInitial<TName>
 	: Equal<TMode, 'boolean'> extends true ? SQLiteBooleanBuilderInitial<TName>
+	: Equal<TMode, 'bigint'> extends true ? SQLiteBigInt64BuilderInitial<TName>
 	: SQLiteIntegerBuilderInitial<TName>;
 export function integer(name: string, config?: IntegerConfig) {
 	if (config?.mode === 'timestamp' || config?.mode === 'timestamp_ms') {
@@ -236,6 +283,9 @@ export function integer(name: string, config?: IntegerConfig) {
 	}
 	if (config?.mode === 'boolean') {
 		return new SQLiteBooleanBuilder(name, config.mode);
+	}
+	if (config?.mode === 'bigint') {
+		return new SQLiteBigInt64Builder(name, config.mode);
 	}
 	return new SQLiteIntegerBuilder(name);
 }
