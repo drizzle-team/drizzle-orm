@@ -92,6 +92,13 @@ export class SQLiteIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'S
 
 export class SQLiteInteger<T extends ColumnBaseConfig<'number', 'SQLiteInteger'>> extends SQLiteBaseInteger<T> {
 	static readonly [entityKind]: string = 'SQLiteInteger';
+
+	override mapFromDriverValue(value: number): number {
+		if (typeof value === 'bigint') {
+			return Number(value);
+		}
+		return value;
+	}
 }
 
 export type SQLiteTimestampBuilderInitial<TName extends string> = SQLiteTimestampBuilder<{
@@ -140,6 +147,10 @@ export class SQLiteTimestamp<T extends ColumnBaseConfig<'date', 'SQLiteTimestamp
 	readonly mode: 'timestamp' | 'timestamp_ms' = this.config.mode;
 
 	override mapFromDriverValue(value: number): Date {
+		if (typeof value === 'bigint') {
+			value = Number(value);
+		}
+
 		if (this.config.mode === 'timestamp') {
 			return new Date(value * 1000);
 		}
@@ -192,6 +203,9 @@ export class SQLiteBoolean<T extends ColumnBaseConfig<'boolean', 'SQLiteBoolean'
 	readonly mode: 'boolean' = this.config.mode;
 
 	override mapFromDriverValue(value: number): boolean {
+		if (typeof value === 'bigint') {
+			return value === 1n;
+		}
 		return Number(value) === 1;
 	}
 
