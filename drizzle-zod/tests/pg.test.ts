@@ -1,5 +1,17 @@
 import test from 'ava';
-import { char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import {
+	char,
+	date,
+	geometry,
+	integer,
+	pgEnum,
+	pgTable,
+	serial,
+	text,
+	timestamp,
+	varchar,
+	vector,
+} from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { createInsertSchema, createSelectSchema } from '../src';
 import { expectSchemaShape } from './utils';
@@ -20,6 +32,13 @@ const users = pgTable('users', {
 	roleText2: text('role2', { enum: ['admin', 'user'] }).notNull().default('user'),
 	profession: varchar('profession', { length: 20 }).notNull(),
 	initials: char('initials', { length: 2 }).notNull(),
+	vector: vector('vector', { dimensions: 2 }),
+	geoXy: geometry('geometry_xy', {
+		mode: 'xy',
+	}),
+	geoTuple: geometry('geometry_tuple', {
+		mode: 'tuple',
+	}),
 });
 
 const testUser = {
@@ -36,6 +55,12 @@ const testUser = {
 	roleText2: 'admin',
 	profession: 'Software Engineer',
 	initials: 'JD',
+	vector: [1, 2],
+	geoXy: {
+		x: 10,
+		y: 20.3,
+	},
+	geoTuple: [10, 20.3],
 };
 
 test('users insert valid user', (t) => {
@@ -93,6 +118,12 @@ test('users insert schema', (t) => {
 		roleText2: z.enum(['admin', 'user']).optional(),
 		profession: z.string().max(20).min(1),
 		initials: z.string().max(2).min(1),
+		vector: z.array(z.number()).nullable().optional(),
+		geoXy: z.object({
+			x: z.number(),
+			y: z.number(),
+		}).nullable().optional(),
+		geoTuple: z.tuple([z.number(), z.number()]).nullable().optional(),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -115,6 +146,12 @@ test('users insert schema w/ defaults', (t) => {
 		roleText2: z.enum(['admin', 'user']).optional(),
 		profession: z.string().max(20).min(1),
 		initials: z.string().max(2).min(1),
+		vector: z.array(z.number()).nullable().optional(),
+		geoXy: z.object({
+			x: z.number(),
+			y: z.number(),
+		}).nullable().optional(),
+		geoTuple: z.tuple([z.number(), z.number()]).nullable().optional(),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -141,6 +178,12 @@ test('users select schema', (t) => {
 		roleText2: z.enum(['admin', 'user']),
 		profession: z.string().max(20).min(1),
 		initials: z.string().max(2).min(1),
+		vector: z.array(z.number()).nullable(),
+		geoXy: z.object({
+			x: z.number(),
+			y: z.number(),
+		}).nullable(),
+		geoTuple: z.tuple([z.number(), z.number()]).nullable(),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -163,6 +206,12 @@ test('users select schema w/ defaults', (t) => {
 		roleText2: z.enum(['admin', 'user']),
 		profession: z.string().max(20).min(1),
 		initials: z.string().max(2).min(1),
+		vector: z.array(z.number()).nullable(),
+		geoXy: z.object({
+			x: z.number(),
+			y: z.number(),
+		}).nullable(),
+		geoTuple: z.tuple([z.number(), z.number()]).nullable(),
 	});
 
 	expectSchemaShape(t, expected).from(actual);

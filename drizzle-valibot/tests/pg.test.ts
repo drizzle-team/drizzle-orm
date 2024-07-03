@@ -1,5 +1,17 @@
 import test from 'ava';
-import { char, date, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import {
+	char,
+	date,
+	geometry,
+	integer,
+	pgEnum,
+	pgTable,
+	serial,
+	text,
+	timestamp,
+	varchar,
+	vector,
+} from 'drizzle-orm/pg-core';
 import {
 	array,
 	date as valiDate,
@@ -14,6 +26,7 @@ import {
 	parse,
 	picklist,
 	string,
+	tuple,
 } from 'valibot';
 import { createInsertSchema, createSelectSchema } from '../src';
 import { expectSchemaShape } from './utils';
@@ -36,6 +49,13 @@ const users = pgTable('users', {
 		.default('user'),
 	profession: varchar('profession', { length: 20 }).notNull(),
 	initials: char('initials', { length: 2 }).notNull(),
+	vector: vector('vector', { dimensions: 2 }),
+	geoXy: geometry('geometry_xy', {
+		mode: 'xy',
+	}),
+	geoTuple: geometry('geometry_tuple', {
+		mode: 'tuple',
+	}),
 });
 
 const testUser = {
@@ -52,6 +72,12 @@ const testUser = {
 	roleText2: 'admin' as const,
 	profession: 'Software Engineer',
 	initials: 'JD',
+	vector: [1, 2],
+	geoXy: {
+		x: 10,
+		y: 20.3,
+	},
+	geoTuple: [10, 20.3],
 };
 
 test('users insert valid user', (t) => {
@@ -116,6 +142,12 @@ test('users insert schema', (t) => {
 		roleText2: optional(picklist(['admin', 'user'])),
 		profession: string([maxLength(20), minLength(1)]),
 		initials: string([maxLength(2), minLength(1)]),
+		vector: optional(nullable(array(number()))),
+		geoXy: optional(nullable(object({
+			x: number(),
+			y: number(),
+		}))),
+		geoTuple: optional(nullable(tuple([number(), number()]))),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -138,6 +170,12 @@ test('users insert schema w/ defaults', (t) => {
 		roleText2: optional(picklist(['admin', 'user'])),
 		profession: string([maxLength(20), minLength(1)]),
 		initials: string([maxLength(2), minLength(1)]),
+		vector: optional(nullable(array(number()))),
+		geoXy: optional(nullable(object({
+			x: number(),
+			y: number(),
+		}))),
+		geoTuple: optional(nullable(tuple([number(), number()]))),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -164,6 +202,12 @@ test('users select schema', (t) => {
 		roleText2: picklist(['admin', 'user']),
 		profession: string([maxLength(20), minLength(1)]),
 		initials: string([maxLength(2), minLength(1)]),
+		vector: nullable(array(number())),
+		geoXy: nullable(object({
+			x: number(),
+			y: number(),
+		})),
+		geoTuple: nullable(tuple([number(), number()])),
 	});
 
 	expectSchemaShape(t, expected).from(actual);
@@ -186,6 +230,12 @@ test('users select schema w/ defaults', (t) => {
 		roleText2: picklist(['admin', 'user']),
 		profession: string([maxLength(20), minLength(1)]),
 		initials: string([maxLength(2), minLength(1)]),
+		vector: nullable(array(number())),
+		geoXy: nullable(object({
+			x: number(),
+			y: number(),
+		})),
+		geoTuple: nullable(tuple([number(), number()])),
 	});
 
 	expectSchemaShape(t, expected).from(actual);

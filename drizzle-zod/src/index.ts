@@ -42,8 +42,14 @@ type MaybeOptional<
 
 type GetZodType<TColumn extends Column> = TColumn['_']['dataType'] extends infer TDataType
 	? TDataType extends 'custom' ? z.ZodAny
-	: TDataType extends 'json' ? z.ZodType<Json>
-	: TDataType extends 'array' ? z.ZodArray<GetZodType<Assume<TColumn['_'], { baseColumn: Column }>['baseColumn']>>
+	: TDataType extends 'json' ? TColumn['_']['columnType'] extends 'PgGeometryObject' ? z.ZodObject<{
+				x: z.ZodNumber;
+				y: z.ZodNumber;
+			}, 'strip'>
+		: z.ZodType<Json>
+	: TDataType extends 'array' ? TColumn['_']['columnType'] extends 'PgVector' ? z.ZodArray<z.ZodNumber>
+		: TColumn['_']['columnType'] extends 'PgGeometry' ? z.ZodTuple<[z.ZodNumber, z.ZodNumber]>
+		: z.ZodArray<GetZodType<Assume<TColumn['_'], { baseColumn: Column }>['baseColumn']>>
 	: TColumn extends { enumValues: [string, ...string[]] }
 		? Equal<TColumn['enumValues'], [string, ...string[]]> extends true ? z.ZodString : z.ZodEnum<TColumn['enumValues']>
 	: TDataType extends 'bigint' ? z.ZodBigInt
@@ -202,9 +208,13 @@ function mapColumnToSchema(column: Column): z.ZodTypeAny {
 	} else if (column.dataType === 'custom') {
 		type = z.any();
 	} else if (column.dataType === 'json') {
-		type = jsonSchema;
+		type = column.columnType === 'PgGeometryObject' ? z.object({ x: z.number(), y: z.number() }) : jsonSchema;
 	} else if (column.dataType === 'array') {
-		type = z.array(mapColumnToSchema((column as PgArray<any, any>).baseColumn));
+		type = column.columnType === 'PgVector'
+			? z.array(z.number())
+			: column.columnType === 'PgGeometry'
+			? z.tuple([z.number(), z.number()])
+			: z.array(mapColumnToSchema((column as PgArray<any, any>).baseColumn));
 	} else if (column.dataType === 'number') {
 		type = z.number();
 	} else if (column.dataType === 'bigint') {

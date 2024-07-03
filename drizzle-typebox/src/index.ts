@@ -11,6 +11,7 @@ import type {
 	TOptional,
 	TSchema,
 	TString,
+	TTuple,
 	TUnion,
 } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
@@ -81,8 +82,14 @@ type MaybeOptional<
 
 type GetTypeboxType<TColumn extends Column> = TColumn['_']['dataType'] extends infer TDataType
 	? TDataType extends 'custom' ? TAny
-	: TDataType extends 'json' ? Json
-	: TDataType extends 'array' ? TArray<
+	: TDataType extends 'json' ? TColumn['_']['columnType'] extends 'PgGeometryObject' ? TObject<{
+				x: TNumber;
+				y: TNumber;
+			}>
+		: Json
+	: TDataType extends 'array' ? TColumn['_']['columnType'] extends 'PgVector' ? TArray<TNumber>
+		: TColumn['_']['columnType'] extends 'PgGeometry' ? TTuple<[TNumber, TNumber]>
+		: TArray<
 			GetTypeboxType<
 				Assume<
 					TColumn['_'],
@@ -296,11 +303,15 @@ function mapColumnToSchema(column: Column): TSchema {
 	} else if (column.dataType === 'custom') {
 		type = Type.Any();
 	} else if (column.dataType === 'json') {
-		type = jsonSchema;
+		type = column.columnType === 'PgGeometryObject' ? Type.Object({ x: Type.Number(), y: Type.Number() }) : jsonSchema;
 	} else if (column.dataType === 'array') {
-		type = Type.Array(
-			mapColumnToSchema((column as PgArray<any, any>).baseColumn),
-		);
+		type = column.columnType === 'PgVector'
+			? Type.Array(Type.Number())
+			: column.columnType === 'PgGeometry'
+			? Type.Tuple([Type.Number(), Type.Number()])
+			: Type.Array(
+				mapColumnToSchema((column as PgArray<any, any>).baseColumn),
+			);
 	} else if (column.dataType === 'number') {
 		type = Type.Number();
 	} else if (column.dataType === 'bigint') {

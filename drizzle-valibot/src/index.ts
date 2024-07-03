@@ -40,6 +40,8 @@ import {
 	record,
 	string,
 	type StringSchema,
+	tuple,
+	TupleSchema,
 	union,
 	uuid,
 } from 'valibot';
@@ -79,9 +81,14 @@ type MaybeOptional<
 
 type GetValibotType<TColumn extends Column> = TColumn['_']['dataType'] extends infer TDataType
 	? TDataType extends 'custom' ? AnySchema
-	: TDataType extends 'json' ? Json
+	: TDataType extends 'json' ? TColumn['_']['columnType'] extends 'PgGeometryObject' ? ObjectSchema<{
+				x: NumberSchema;
+				y: NumberSchema;
+			}>
+		: Json
 	: TDataType extends 'array'
-		? TColumn['_']['baseColumn'] extends Column ? ArraySchema<GetValibotType<TColumn['_']['baseColumn']>>
+		? TColumn['_']['columnType'] extends 'PgGeometry' ? TupleSchema<[NumberSchema, NumberSchema]>
+		: TColumn['_']['columnType'] extends 'PgVector' ? ArraySchema<NumberSchema>
 		: never
 	: TColumn extends { enumValues: [string, ...string[]] }
 		? Equal<TColumn['enumValues'], [string, ...string[]]> extends true ? StringSchema
@@ -285,11 +292,13 @@ function mapColumnToSchema(column: Column): BaseSchema<any, any> {
 	} else if (column.dataType === 'custom') {
 		type = any();
 	} else if (column.dataType === 'json') {
-		type = jsonSchema;
+		type = column.columnType === 'PgGeometryObject' ? object({ x: number(), y: number() }) : jsonSchema;
 	} else if (column.dataType === 'array') {
-		type = array(
-			mapColumnToSchema((column as PgArray<any, any>).baseColumn),
-		);
+		type = column.columnType === 'PgVector'
+			? array(number())
+			: column.columnType === 'PgGeometry'
+			? tuple([number(), number()])
+			: array(mapColumnToSchema((column as PgArray<any, any>).baseColumn));
 	} else if (column.dataType === 'number') {
 		type = number();
 	} else if (column.dataType === 'bigint') {
