@@ -16,11 +16,17 @@ export default defineConfig({
 			'tests/imports/**/*',
 			'tests/xata-http.test.ts',
 			'tests/extensions/vectors/**/*',
+			'tests/tidb-serverless.test.ts',
 			// 'tests/awsdatapi.test.ts',
 		],
 		exclude: [
 			...(process.env.SKIP_EXTERNAL_DB_TESTS
-				? ['tests/relational/mysql.planetscale.test.ts', 'tests/neon-http-batch.test.ts', 'tests/xata-http.test.ts']
+				? [
+					'tests/relational/mysql.planetscale.test.ts',
+					'tests/neon-http-batch.test.ts',
+					'tests/xata-http.test.ts',
+					'tests/tidb-serverless.test.ts',
+				]
 				: []),
 			'tests/relational/vercel.test.ts',
 		],
@@ -29,9 +35,7 @@ export default defineConfig({
 		},
 		testTimeout: 100000,
 		hookTimeout: 100000,
-		// deps: {
-		// 	inline: true,
-		// },
+		isolate: false,
 	},
 	plugins: [viteCommonjs(), tsconfigPaths()],
 });
