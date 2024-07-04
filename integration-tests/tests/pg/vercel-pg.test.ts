@@ -1,5 +1,4 @@
 import { createClient, type VercelClient } from '@vercel/postgres';
-import retry from 'async-retry';
 import { sql } from 'drizzle-orm';
 import { pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
 import { drizzle, type VercelPgDatabase } from 'drizzle-orm/vercel-postgres';
@@ -15,21 +14,31 @@ let db: VercelPgDatabase;
 let client: VercelClient;
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_CONNECTION_STRING'] ?? await createDockerDB();
-	client = await retry(async () => {
-		client = createClient({ connectionString });
-		await client.connect();
-		return client;
-	}, {
-		retries: 20,
-		factor: 1,
-		minTimeout: 250,
-		maxTimeout: 250,
-		randomize: false,
-		onRetry() {
-			client?.end();
-		},
-	});
+	const connectionString = process.env['PG_CONNECTION_STRING'] ?? (await createDockerDB());
+
+	const sleep = 250;
+	let timeLeft = 5000;
+	let connected = false;
+	let lastError: unknown | undefined;
+	do {
+		try {
+			client = createClient({ connectionString });
+			await client.connect();
+			connected = true;
+			break;
+		} catch (e) {
+			lastError = e;
+			await new Promise((resolve) => setTimeout(resolve, sleep));
+			timeLeft -= sleep;
+		}
+	} while (timeLeft > 0);
+	if (!connected) {
+		console.log(connectionString);
+		console.error('Cannot connect to Postgres');
+		await client?.end().catch(console.error);
+		// await pgContainer?.stop().catch(console.error);
+		throw lastError;
+	}
 	db = drizzle(client, { logger: ENABLE_LOGGING });
 });
 

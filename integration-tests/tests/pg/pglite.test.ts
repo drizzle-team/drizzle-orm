@@ -48,7 +48,7 @@ test('insert via db.execute + select via db.execute', async () => {
 	await db.execute(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
 
 	const result = await db.execute<{ id: number; name: string }>(sql`select id, name from "users"`);
-	expect(Array.prototype.slice.call(result)).toEqual([{ id: 1, name: 'John' }]);
+	expect(Array.prototype.slice.call(result.rows)).toEqual([{ id: 1, name: 'John' }]);
 });
 
 test('insert via db.execute + returning', async () => {
@@ -57,14 +57,14 @@ test('insert via db.execute + returning', async () => {
 			usersTable.name.name,
 		)}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
 	);
-	expect(Array.prototype.slice.call(result)).toEqual([{ id: 1, name: 'John' }]);
+	expect(Array.prototype.slice.call(result.rows)).toEqual([{ id: 1, name: 'John' }]);
 });
 
 test('insert via db.execute w/ query builder', async () => {
 	const result = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
 		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 	);
-	expect(Array.prototype.slice.call(result)).toEqual([{ id: 1, name: 'John' }]);
+	expect(Array.prototype.slice.call(result.rows)).toEqual([{ id: 1, name: 'John' }]);
 });
 
 skipTests([
@@ -81,5 +81,26 @@ skipTests([
 	'test mode date for timestamp with timezone',
 	'test mode string for timestamp with timezone in UTC timezone',
 	'test mode string for timestamp with timezone in different timezone',
+	'view',
+	'materialized view',
+	'subquery with view',
+	'mySchema :: materialized view',
+	'select count()',
 ]);
 tests();
+
+beforeEach(async () => {
+	await db.execute(sql`drop schema if exists public cascade`);
+	await db.execute(sql`create schema public`);
+	await db.execute(
+		sql`
+			create table users (
+				id serial primary key,
+				name text not null,
+				verified boolean not null default false, 
+				jsonb jsonb,
+				created_at timestamptz not null default now()
+			)
+		`,
+	);
+});

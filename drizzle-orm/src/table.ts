@@ -40,6 +40,8 @@ export const IsAlias = Symbol.for('drizzle:IsAlias');
 /** @internal */
 export const ExtraConfigBuilder = Symbol.for('drizzle:ExtraConfigBuilder');
 
+const IsDrizzleTable = Symbol.for('drizzle:IsDrizzleTable');
+
 export interface Table<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	T extends TableConfig = TableConfig,
@@ -113,6 +115,10 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 		this[Schema] = schema;
 		this[BaseName] = baseName;
 	}
+}
+
+export function isTable(table: unknown): table is Table {
+	return typeof table === 'object' && table !== null && IsDrizzleTable in table;
 }
 
 /**
