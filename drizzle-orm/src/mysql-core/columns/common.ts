@@ -7,6 +7,7 @@ import type {
 	ColumnDataType,
 	HasDefault,
 	HasGenerated,
+	IsAutoincrement,
 	MakeColumnConfig,
 } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
@@ -133,10 +134,10 @@ export abstract class MySqlColumnBuilderWithAutoIncrement<
 		this.config.autoIncrement = false;
 	}
 
-	autoincrement(): HasDefault<this> {
+	autoincrement(): IsAutoincrement<HasDefault<this>> {
 		this.config.autoIncrement = true;
 		this.config.hasDefault = true;
-		return this as HasDefault<this>;
+		return this as IsAutoincrement<HasDefault<this>>;
 	}
 }
 

@@ -10,7 +10,8 @@ import type {
 	RowDataPacket,
 } from 'mysql2/promise';
 import { once } from 'node:events';
-import { entityKind } from '~/entity.ts';
+import { Column } from '~/column';
+import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
@@ -27,7 +28,8 @@ import {
 	type QueryResultHKT,
 } from '~/mysql-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
+import { fillPlaceholders, sql } from '~/sql/sql.ts';
+import type { Query, SQL } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 export type MySql2Client = Pool | Connection;
@@ -51,6 +53,10 @@ export class MySql2PreparedQuery<T extends PreparedQueryConfig> extends Prepared
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
+		// Keys that were used in $default and the value that was generated for them
+		private generatedIds?: Record<string, unknown>[],
+		// Keys that should be returned, it has the column with all properries + key from object
+		private returningIds?: SelectedFieldsOrdered,
 	) {
 		super();
 		this.rawQuery = {
@@ -80,9 +86,36 @@ export class MySql2PreparedQuery<T extends PreparedQueryConfig> extends Prepared
 
 		this.logger.logQuery(this.rawQuery.sql, params);
 
-		const { fields, client, rawQuery, query, joinsNotNullableMap, customResultMapper } = this;
+		const { fields, client, rawQuery, query, joinsNotNullableMap, customResultMapper, returningIds, generatedIds } =
+			this;
 		if (!fields && !customResultMapper) {
-			return client.query(rawQuery, params);
+			const res = await client.query<any>(rawQuery, params);
+			const insertId = res[0].insertId;
+			const affectedRows = res[0].affectedRows;
+			// for each row, I need to check keys from
+			if (returningIds) {
+				const returningResponse = [];
+				let j = 0;
+				for (let i = insertId; i < insertId + affectedRows; i++) {
+					for (const column of returningIds) {
+						const key = returningIds[0]!.path[0]!;
+						if (is(column.field, Column)) {
+							// @ts-ignore
+							if (column.field.primary && column.field.autoIncrement) {
+								returningResponse.push({ [key]: i });
+							}
+							if (column.field.defaultFn && generatedIds) {
+								// generatedIds[rowIdx][key]
+								returningResponse.push({ [key]: generatedIds[j]![key] });
+							}
+						}
+					}
+					j++;
+				}
+
+				return returningResponse;
+			}
+			return res;
 		}
 
 		const result = await client.query<any[]>(query, params);
@@ -177,7 +210,11 @@ export class MySql2Session<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		generatedIds?: Record<string, unknown>[],
+		returningIds?: SelectedFieldsOrdered,
 	): PreparedQueryKind<MySql2PreparedQueryHKT, T> {
+		// Add returningId fields
+		// Each driver gets them from response from database
 		return new MySql2PreparedQuery(
 			this.client,
 			query.sql,
@@ -185,6 +222,8 @@ export class MySql2Session<
 			this.logger,
 			fields,
 			customResultMapper,
+			generatedIds,
+			returningIds,
 		) as PreparedQueryKind<MySql2PreparedQueryHKT, T>;
 	}
 

@@ -167,6 +167,9 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
+				isPrimaryKey: true;
 			}>;
 			cityId: SQLiteColumn<{
 				name: 'id';
@@ -180,6 +183,9 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
+				isPrimaryKey: true;
 			}>;
 		}>,
 		typeof newYorkers
@@ -212,6 +218,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+					isPrimaryKey: false;
 				}>;
 				cityId: SQLiteColumn<{
 					name: 'city_id';
@@ -225,6 +234,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+					isPrimaryKey: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -253,6 +265,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+					isPrimaryKey: false;
 				}>;
 				cityId: SQLiteColumn<{
 					name: 'city_id';
@@ -266,6 +281,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+					isPrimaryKey: false;
 				}>;
 			}>,
 			typeof newYorkers

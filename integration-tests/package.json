@@ -13,7 +13,8 @@
 	},
 	"ava": {
 		"files": [
-			"tests/**/*.test.{ts,cts,mts,js,cjs,mjs}",
+			"!tests/**/*.test.{ts,cts,mts,js,cjs,mjs}",
+			"tests/mysql-returning.test.ts",
 			"!tests/imports.test.mjs",
 			"!tests/imports.test.cjs",
 			"!tests/awsdatapi.alltypes.test.ts",
@@ -47,6 +48,7 @@
 	"devDependencies": {
 		"@neondatabase/serverless": "0.9.0",
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
+		"@paralleldrive/cuid2": "^2.2.2",
 		"@types/axios": "^0.14.0",
 		"@types/better-sqlite3": "^7.6.4",
 		"@types/dockerode": "^3.3.18",

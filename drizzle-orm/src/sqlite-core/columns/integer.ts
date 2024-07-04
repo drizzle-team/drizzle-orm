@@ -3,6 +3,7 @@ import type {
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
 	HasDefault,
+	IsPrimaryKey,
 	MakeColumnConfig,
 	NotNull,
 } from '~/column-builder.ts';
@@ -35,12 +36,12 @@ export abstract class SQLiteBaseIntegerBuilder<
 		this.config.autoIncrement = false;
 	}
 
-	override primaryKey(config?: PrimaryKeyConfig): HasDefault<NotNull<this>> {
+	override primaryKey(config?: PrimaryKeyConfig): IsPrimaryKey<HasDefault<NotNull<this>>> {
 		if (config?.autoIncrement) {
 			this.config.autoIncrement = true;
 		}
 		this.config.hasDefault = true;
-		return super.primaryKey() as HasDefault<NotNull<this>>;
+		return super.primaryKey() as IsPrimaryKey<HasDefault<NotNull<this>>>;
 	}
 
 	/** @internal */

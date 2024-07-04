@@ -58,6 +58,9 @@ export type MakeColumnConfig<
 	driverParam: T['driverParam'];
 	notNull: T extends { notNull: true } ? true : false;
 	hasDefault: T extends { hasDefault: true } ? true : false;
+	isPrimaryKey: T extends { isPrimaryKey: true } ? true : false;
+	isAutoincrement: T extends { isAutoincrement: true } ? true : false;
+	hasRuntimeDefault: T extends { hasRuntimeDefault: true } ? true : false;
 	enumValues: T['enumValues'];
 	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase } ? BuildColumn<TTableName, U, 'common'>
 		: never;
@@ -114,6 +117,24 @@ export type NotNull<T extends ColumnBuilderBase> = T & {
 export type HasDefault<T extends ColumnBuilderBase> = T & {
 	_: {
 		hasDefault: true;
+	};
+};
+
+export type IsPrimaryKey<T extends ColumnBuilderBase> = T & {
+	_: {
+		isPrimaryKey: true;
+	};
+};
+
+export type IsAutoincrement<T extends ColumnBuilderBase> = T & {
+	_: {
+		isAutoincrement: true;
+	};
+};
+
+export type HasRuntimeDefault<T extends ColumnBuilderBase> = T & {
+	_: {
+		hasRuntimeDefault: true;
 	};
 };
 
@@ -223,10 +244,10 @@ export abstract class ColumnBuilder<
 	 */
 	$defaultFn(
 		fn: () => (this['_'] extends { $type: infer U } ? U : this['_']['data']) | SQL,
-	): HasDefault<this> {
+	): HasRuntimeDefault<HasDefault<this>> {
 		this.config.defaultFn = fn;
 		this.config.hasDefault = true;
-		return this as HasDefault<this>;
+		return this as HasRuntimeDefault<HasDefault<this>>;
 	}
 
 	/**
@@ -259,10 +280,13 @@ export abstract class ColumnBuilder<
 	 *
 	 * In SQLite, `integer primary key` implicitly makes the column auto-incrementing.
 	 */
-	primaryKey(): TExtraConfig['primaryKeyHasDefault'] extends true ? HasDefault<NotNull<this>> : NotNull<this> {
+	primaryKey(): TExtraConfig['primaryKeyHasDefault'] extends true ? IsPrimaryKey<HasDefault<NotNull<this>>>
+		: IsPrimaryKey<NotNull<this>>
+	{
 		this.config.primaryKey = true;
 		this.config.notNull = true;
-		return this as TExtraConfig['primaryKeyHasDefault'] extends true ? HasDefault<NotNull<this>> : NotNull<this>;
+		return this as TExtraConfig['primaryKeyHasDefault'] extends true ? IsPrimaryKey<HasDefault<NotNull<this>>>
+			: IsPrimaryKey<NotNull<this>>;
 	}
 
 	abstract generatedAlwaysAs(

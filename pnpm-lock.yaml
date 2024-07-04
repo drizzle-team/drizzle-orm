@@ -15,19 +15,19 @@ importers:
     devDependencies:
       '@arethetypeswrong/cli':
         specifier: ^0.12.1
-        version: 0.12.1
+        version: 0.12.1(encoding@0.1.13)
       '@trivago/prettier-plugin-sort-imports':
         specifier: ^4.2.0
         version: 4.2.0(prettier@3.0.3)
       '@typescript-eslint/eslint-plugin':
         specifier: ^6.7.3
-        version: 6.7.3(@typescript-eslint/parser@6.7.3)(eslint@8.50.0)(typescript@5.2.2)
+        version: 6.7.3(@typescript-eslint/parser@6.7.3(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)))(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       '@typescript-eslint/experimental-utils':
         specifier: ^5.62.0
-        version: 5.62.0(eslint@8.50.0)(typescript@5.2.2)
+        version: 5.62.0(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       '@typescript-eslint/parser':
         specifier: ^6.7.3
-        version: 6.7.3(eslint@8.50.0)(typescript@5.2.2)
+        version: 6.7.3(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       bun-types:
         specifier: ^1.0.3
         version: 1.0.3
@@ -45,7 +45,7 @@ importers:
         version: link:drizzle-orm/dist
       drizzle-orm-old:
         specifier: npm:drizzle-orm@^0.27.2
-        version: drizzle-orm@0.27.2(bun-types@1.0.3)
+        version: drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.549.0)(@cloudflare/workers-types@4.20230904.0)(@libsql/client@0.5.6(encoding@0.1.13))(@neondatabase/serverless@0.9.0)(@opentelemetry/api@1.4.1)(@planetscale/database@1.16.0)(@types/better-sqlite3@7.6.4)(@types/pg@8.10.1)(@types/sql.js@1.4.4)(@vercel/postgres@0.8.0)(better-sqlite3@8.4.0)(bun-types@1.0.3)(knex@2.4.2(better-sqlite3@8.4.0)(mysql2@3.3.3)(pg@8.11.0)(sqlite3@5.1.6(encoding@0.1.13)))(kysely@0.25.0)(mysql2@3.3.3)(pg@8.11.0)(postgres@3.3.5)(sql.js@1.8.0)(sqlite3@5.1.6(encoding@0.1.13))
       eslint:
         specifier: ^8.50.0
         version: 8.50.0
@@ -54,7 +54,7 @@ importers:
         version: link:eslint/eslint-plugin-drizzle
       eslint-plugin-import:
         specifier: ^2.28.1
-        version: 2.28.1(@typescript-eslint/parser@6.7.3)(eslint@8.50.0)
+        version: 2.28.1(@typescript-eslint/parser@6.7.3(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)))(eslint@8.50.0)
       eslint-plugin-no-instanceof:
         specifier: ^1.0.1
         version: 1.0.1
@@ -63,7 +63,7 @@ importers:
         version: 48.0.1(eslint@8.50.0)
       eslint-plugin-unused-imports:
         specifier: ^3.0.0
-        version: 3.0.0(@typescript-eslint/eslint-plugin@6.7.3)(eslint@8.50.0)
+        version: 3.0.0(@typescript-eslint/eslint-plugin@6.7.3(@typescript-eslint/parser@6.7.3(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)))(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)))(eslint@8.50.0)
       glob:
         specifier: ^10.3.10
         version: 10.3.10
@@ -75,10 +75,10 @@ importers:
         version: 0.23.4
       resolve-tspaths:
         specifier: ^0.8.16
-        version: 0.8.16(typescript@5.2.2)
+        version: 0.8.16(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       tsup:
         specifier: ^7.2.0
-        version: 7.2.0(typescript@5.2.2)
+        version: 7.2.0(postcss@8.4.38)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       turbo:
         specifier: ^1.10.14
         version: 1.10.14
@@ -99,13 +99,13 @@ importers:
         version: 0.1.1
       '@libsql/client':
         specifier: ^0.5.6
-        version: 0.5.6
+        version: 0.5.6(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)
       '@neondatabase/serverless':
         specifier: ^0.9.0
         version: 0.9.0
       '@op-engineering/op-sqlite':
         specifier: ^2.0.16
-        version: 2.0.16(react-native@0.73.6)(react@18.2.0)
+        version: 2.0.16(react-native@0.73.6(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4))(bufferutil@4.0.8)(encoding@0.1.13)(react@18.2.0)(utf-8-validate@6.0.3))(react@18.2.0)
       '@opentelemetry/api':
         specifier: ^1.4.1
         version: 1.4.1
@@ -138,7 +138,7 @@ importers:
         version: 0.8.0
       '@xata.io/client':
         specifier: ^0.29.3
-        version: 0.29.3(typescript@5.2.2)
+        version: 0.29.3(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       better-sqlite3:
         specifier: ^8.4.0
         version: 8.4.0
@@ -150,10 +150,10 @@ importers:
         version: 10.1.0
       expo-sqlite:
         specifier: ^13.2.0
-        version: 13.2.0(expo@50.0.14)
+        version: 13.2.0(expo@50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3))
       knex:
         specifier: ^2.4.2
-        version: 2.4.2(better-sqlite3@8.4.0)(mysql2@3.3.3)(pg@8.11.0)(sqlite3@5.1.6)
+        version: 2.4.2(better-sqlite3@8.4.0)(mysql2@3.3.3)(pg@8.11.0)(sqlite3@5.1.6(encoding@0.1.13))
       kysely:
         specifier: ^0.25.0
         version: 0.25.0
@@ -174,7 +174,7 @@ importers:
         version: 1.8.0
       sqlite3:
         specifier: ^5.1.2
-        version: 5.1.6
+        version: 5.1.6(encoding@0.1.13)
       tslib:
         specifier: ^2.5.2
         version: 2.5.2
@@ -183,10 +183,10 @@ importers:
         version: 3.12.7
       vite-tsconfig-paths:
         specifier: ^4.2.0
-        version: 4.2.0(typescript@5.2.2)(vite@4.3.9)
+        version: 4.2.0(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))(vite@4.3.9(@types/node@20.2.5)(terser@5.30.3))
       vitest:
         specifier: ^0.31.4
-        version: 0.31.4(@vitest/ui@0.31.4)
+        version: 0.31.4(@vitest/ui@0.31.4)(terser@5.30.3)
       zod:
         specifier: ^3.20.2
         version: 3.21.4
@@ -201,7 +201,7 @@ importers:
         version: 0.4.1(rollup@3.27.2)
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.1(rollup@3.27.2)(typescript@5.2.2)
+        version: 11.1.1(rollup@3.27.2)(tslib@2.6.2)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       '@sinclair/typebox':
         specifier: ^0.29.6
         version: 0.29.6
@@ -237,7 +237,7 @@ importers:
         version: 0.4.1(rollup@3.27.2)
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.1(rollup@3.27.2)(typescript@5.2.2)
+        version: 11.1.1(rollup@3.27.2)(tslib@2.6.2)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       '@types/node':
         specifier: ^18.15.10
         version: 18.15.10
@@ -273,7 +273,7 @@ importers:
         version: 0.4.1(rollup@3.20.7)
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.0(rollup@3.20.7)(typescript@5.2.2)
+        version: 11.1.0(rollup@3.20.7)(tslib@2.6.2)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       '@types/node':
         specifier: ^18.15.10
         version: 18.15.10
@@ -309,13 +309,13 @@ importers:
         version: 20.10.1
       '@typescript-eslint/parser':
         specifier: ^6.10.0
-        version: 6.10.0(eslint@8.53.0)(typescript@5.2.2)
+        version: 6.10.0(eslint@8.53.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       '@typescript-eslint/rule-tester':
         specifier: ^6.10.0
-        version: 6.10.0(@eslint/eslintrc@3.0.2)(eslint@8.53.0)(typescript@5.2.2)
+        version: 6.10.0(@eslint/eslintrc@3.0.2)(eslint@8.53.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       '@typescript-eslint/utils':
         specifier: ^6.10.0
-        version: 6.10.0(eslint@8.53.0)(typescript@5.2.2)
+        version: 6.10.0(eslint@8.53.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       cpy-cli:
         specifier: ^5.0.0
         version: 5.0.0
@@ -327,7 +327,7 @@ importers:
         version: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
       vitest:
         specifier: ^0.34.6
-        version: 0.34.6
+        version: 0.34.6(@vitest/ui@0.31.4)(terser@5.30.3)
 
   integration-tests:
     dependencies:
@@ -342,7 +342,7 @@ importers:
         version: 0.1.1
       '@libsql/client':
         specifier: ^0.5.6
-        version: 0.5.6
+        version: 0.5.6(bufferutil@4.0.7)(encoding@0.1.13)(utf-8-validate@6.0.3)
       '@miniflare/d1':
         specifier: ^2.14.2
         version: 2.14.2
@@ -363,7 +363,7 @@ importers:
         version: 0.3.0
       '@xata.io/client':
         specifier: ^0.29.3
-        version: 0.29.3(typescript@5.2.2)
+        version: 0.29.3(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       better-sqlite3:
         specifier: ^8.4.0
         version: 8.4.0
@@ -405,7 +405,7 @@ importers:
         version: 1.8.0
       sqlite3:
         specifier: ^5.1.4
-        version: 5.1.6
+        version: 5.1.6(encoding@0.1.13)
       sst:
         specifier: ^3.0.4
         version: 3.0.4
@@ -417,7 +417,7 @@ importers:
         version: 0.5.6
       vitest:
         specifier: ^0.31.4
-        version: 0.31.4(@vitest/ui@0.31.4)
+        version: 0.31.4(@vitest/ui@0.31.4)(terser@5.30.3)
       zod:
         specifier: ^3.20.2
         version: 3.21.4
@@ -428,6 +428,9 @@ importers:
       '@originjs/vite-plugin-commonjs':
         specifier: ^1.0.3
         version: 1.0.3
+      '@paralleldrive/cuid2':
+        specifier: ^2.2.2
+        version: 2.2.2
       '@types/axios':
         specifier: ^0.14.0
         version: 0.14.0
@@ -466,10 +469,10 @@ importers:
         version: 3.12.7
       vite:
         specifier: ^4.3.9
-        version: 4.3.9(@types/node@20.2.5)
+        version: 4.3.9(@types/node@20.2.5)(terser@5.30.3)
       vite-tsconfig-paths:
         specifier: ^4.2.0
-        version: 4.2.0(typescript@5.2.2)(vite@4.3.9)
+        version: 4.2.0(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))(vite@4.3.9(@types/node@20.2.5)(terser@5.30.3))
       zx:
         specifier: ^7.2.2
         version: 7.2.2
@@ -2176,6 +2179,10 @@ packages:
   '@neondatabase/serverless@0.9.0':
     resolution: {integrity: sha512-mmJnUAzlzvxNSZuuhI6kgJjH+JgFdBMYUWxihtq/nj0Tjt+Y5UU3W+SvRFoucnd5NObYkuLYQzk+zV5DGFKGJg==}
 
+  '@noble/hashes@1.4.0':
+    resolution: {integrity: sha512-V1JJ1WTRUqHHrOSh597hURcMqVKVGL/ea3kv0gSnEdsEZ0/+VyPghM1lMNGc00z7CIQorSvbKpuJkxvuHbvdbg==}
+    engines: {node: '>= 16'}
+
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
     engines: {node: '>= 8'}
@@ -2208,6 +2215,9 @@ packages:
 
   '@originjs/vite-plugin-commonjs@1.0.3':
     resolution: {integrity: sha512-KuEXeGPptM2lyxdIEJ4R11+5ztipHoE7hy8ClZt3PYaOVQ/pyngd2alaSrPnwyFeOW1UagRBaQ752aA1dTMdOQ==}
+
+  '@paralleldrive/cuid2@2.2.2':
+    resolution: {integrity: sha512-ZOBkgDwEdoYVlSeRbYYXs0S9MejQofiVYoTbKzy/6GQa39/q5tQU2IX46+shYnUkpEl3wc+J6wRlar7r2EK2xA==}
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -5401,7 +5411,6 @@ packages:
 
   libsql@0.3.10:
     resolution: {integrity: sha512-/8YMTbwWFPmrDWY+YFK3kYqVPFkMgQre0DGmBaOmjogMdSe+7GHm1/q9AZ61AWkEub/vHmi+bA4tqIzVhKnqzg==}
-    cpu: [x64, arm64, wasm32]
     os: [darwin, linux, win32]
 
   lighthouse-logger@1.4.2:
@@ -7039,9 +7048,6 @@ packages:
 
   sqlite3@5.1.6:
     resolution: {integrity: sha512-olYkWoKFVNSSSQNvxVUfjiVbz3YtBwTJj+mfV5zpHmqW3sELx2Cf4QCdirMelhM5Zh+KDVaKgQHqCxrqiWHybw==}
-    peerDependenciesMeta:
-      node-gyp:
-        optional: true
 
   sqlstring@2.3.3:
     resolution: {integrity: sha512-qC9iz2FlN7DQl3+wjwn3802RTyjCx7sDvfQEXchwa6CWOx07/WVfh91gBmQ9fahw8snwGEWU3xGzOt4tFyHLxg==}
@@ -8049,23 +8055,23 @@ snapshots:
 
   '@andrewbranch/untar.js@1.0.2': {}
 
-  '@arethetypeswrong/cli@0.12.1':
+  '@arethetypeswrong/cli@0.12.1(encoding@0.1.13)':
     dependencies:
-      '@arethetypeswrong/core': 0.12.1
+      '@arethetypeswrong/core': 0.12.1(encoding@0.1.13)
       chalk: 4.1.2
       cli-table3: 0.6.3
       commander: 10.0.1
       marked: 5.1.2
       marked-terminal: 5.2.0(marked@5.1.2)
-      node-fetch: 2.6.11
+      node-fetch: 2.6.11(encoding@0.1.13)
       semver: 7.5.4
     transitivePeerDependencies:
       - encoding
 
-  '@arethetypeswrong/core@0.12.1':
+  '@arethetypeswrong/core@0.12.1(encoding@0.1.13)':
     dependencies:
       '@andrewbranch/untar.js': 1.0.2
-      fetch-ponyfill: 7.1.0
+      fetch-ponyfill: 7.1.0(encoding@0.1.13)
       fflate: 0.7.4
       semver: 7.5.4
       typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
@@ -10098,7 +10104,7 @@ snapshots:
       mv: 2.1.1
       safe-json-stringify: 1.2.0
 
-  '@expo/cli@0.17.8(@react-native/babel-preset@0.73.21)(expo-modules-autolinking@1.10.3)':
+  '@expo/cli@0.17.8(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))(bufferutil@4.0.8)(encoding@0.1.13)(expo-modules-autolinking@1.10.3)(utf-8-validate@6.0.3)':
     dependencies:
       '@babel/runtime': 7.24.4
       '@expo/code-signing-certificates': 0.0.5
@@ -10106,17 +10112,17 @@ snapshots:
       '@expo/config-plugins': 7.8.4
       '@expo/devcert': 1.1.0
       '@expo/env': 0.2.2
-      '@expo/image-utils': 0.4.1
+      '@expo/image-utils': 0.4.1(encoding@0.1.13)
       '@expo/json-file': 8.3.0
-      '@expo/metro-config': 0.17.6(@react-native/babel-preset@0.73.21)
+      '@expo/metro-config': 0.17.6(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))
       '@expo/osascript': 2.1.0
       '@expo/package-manager': 1.4.2
       '@expo/plist': 0.1.0
-      '@expo/prebuild-config': 6.7.4(expo-modules-autolinking@1.10.3)
-      '@expo/rudder-sdk-node': 1.1.1
+      '@expo/prebuild-config': 6.7.4(encoding@0.1.13)(expo-modules-autolinking@1.10.3)
+      '@expo/rudder-sdk-node': 1.1.1(encoding@0.1.13)
       '@expo/spawn-async': 1.5.0
       '@expo/xcpretty': 4.3.1
-      '@react-native/dev-middleware': 0.73.8
+      '@react-native/dev-middleware': 0.73.8(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)
       '@urql/core': 2.3.6(graphql@15.8.0)
       '@urql/exchange-retry': 0.3.0(graphql@15.8.0)
       accepts: 1.3.8
@@ -10147,7 +10153,7 @@ snapshots:
       md5hex: 1.0.0
       minimatch: 3.1.2
       minipass: 3.3.6
-      node-fetch: 2.7.0
+      node-fetch: 2.7.0(encoding@0.1.13)
       node-forge: 1.3.1
       npm-package-arg: 7.0.0
       open: 8.4.2
@@ -10270,14 +10276,14 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@expo/image-utils@0.4.1':
+  '@expo/image-utils@0.4.1(encoding@0.1.13)':
     dependencies:
       '@expo/spawn-async': 1.5.0
       chalk: 4.1.2
       fs-extra: 9.0.0
       getenv: 1.0.0
       jimp-compact: 0.16.1
-      node-fetch: 2.7.0
+      node-fetch: 2.7.0(encoding@0.1.13)
       parse-png: 2.1.0
       resolve-from: 5.0.0
       semver: 7.3.2
@@ -10291,7 +10297,7 @@ snapshots:
       json5: 2.2.3
       write-file-atomic: 2.4.3
 
-  '@expo/metro-config@0.17.6(@react-native/babel-preset@0.73.21)':
+  '@expo/metro-config@0.17.6(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))':
     dependencies:
       '@babel/core': 7.24.4
       '@babel/generator': 7.24.4
@@ -10301,7 +10307,7 @@ snapshots:
       '@expo/env': 0.2.2
       '@expo/json-file': 8.3.0
       '@expo/spawn-async': 1.7.2
-      '@react-native/babel-preset': 0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4)
+      '@react-native/babel-preset': 0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4))
       babel-preset-fbjs: 3.4.0(@babel/core@7.24.4)
       chalk: 4.1.2
       debug: 4.3.4
@@ -10343,12 +10349,12 @@ snapshots:
       base64-js: 1.5.1
       xmlbuilder: 14.0.0
 
-  '@expo/prebuild-config@6.7.4(expo-modules-autolinking@1.10.3)':
+  '@expo/prebuild-config@6.7.4(encoding@0.1.13)(expo-modules-autolinking@1.10.3)':
     dependencies:
       '@expo/config': 8.5.4
       '@expo/config-plugins': 7.8.4
       '@expo/config-types': 50.0.0
-      '@expo/image-utils': 0.4.1
+      '@expo/image-utils': 0.4.1(encoding@0.1.13)
       '@expo/json-file': 8.3.0
       debug: 4.3.4
       expo-modules-autolinking: 1.10.3
@@ -10360,13 +10366,13 @@ snapshots:
       - encoding
       - supports-color
 
-  '@expo/rudder-sdk-node@1.1.1':
+  '@expo/rudder-sdk-node@1.1.1(encoding@0.1.13)':
     dependencies:
       '@expo/bunyan': 4.0.0
       '@segment/loosely-validate-event': 2.0.0
       fetch-retry: 4.1.1
       md5: 2.3.0
-      node-fetch: 2.7.0
+      node-fetch: 2.7.0(encoding@0.1.13)
       remove-trailing-slash: 0.1.1
       uuid: 8.3.2
     transitivePeerDependencies:
@@ -10533,16 +10539,39 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.4.15
 
-  '@libsql/client@0.5.6':
+  '@libsql/client@0.5.6(bufferutil@4.0.7)(encoding@0.1.13)(utf-8-validate@6.0.3)':
     dependencies:
       '@libsql/core': 0.5.6
-      '@libsql/hrana-client': 0.5.6
+      '@libsql/hrana-client': 0.5.6(bufferutil@4.0.7)(encoding@0.1.13)(utf-8-validate@6.0.3)
       js-base64: 3.7.5
       libsql: 0.3.10
     transitivePeerDependencies:
       - bufferutil
       - encoding
       - utf-8-validate
+
+  '@libsql/client@0.5.6(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)':
+    dependencies:
+      '@libsql/core': 0.5.6
+      '@libsql/hrana-client': 0.5.6(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)
+      js-base64: 3.7.5
+      libsql: 0.3.10
+    transitivePeerDependencies:
+      - bufferutil
+      - encoding
+      - utf-8-validate
+
+  '@libsql/client@0.5.6(encoding@0.1.13)':
+    dependencies:
+      '@libsql/core': 0.5.6
+      '@libsql/hrana-client': 0.5.6(encoding@0.1.13)
+      js-base64: 3.7.5
+      libsql: 0.3.10
+    transitivePeerDependencies:
+      - bufferutil
+      - encoding
+      - utf-8-validate
+    optional: true
 
   '@libsql/core@0.5.6':
     dependencies:
@@ -10554,10 +10583,10 @@ snapshots:
   '@libsql/darwin-x64@0.3.10':
     optional: true
 
-  '@libsql/hrana-client@0.5.6':
+  '@libsql/hrana-client@0.5.6(bufferutil@4.0.7)(encoding@0.1.13)(utf-8-validate@6.0.3)':
     dependencies:
-      '@libsql/isomorphic-fetch': 0.1.12
-      '@libsql/isomorphic-ws': 0.1.5
+      '@libsql/isomorphic-fetch': 0.1.12(encoding@0.1.13)
+      '@libsql/isomorphic-ws': 0.1.5(bufferutil@4.0.7)(utf-8-validate@6.0.3)
       js-base64: 3.7.5
       node-fetch: 3.3.2
     transitivePeerDependencies:
@@ -10565,14 +10594,54 @@ snapshots:
       - encoding
       - utf-8-validate
 
-  '@libsql/isomorphic-fetch@0.1.12':
+  '@libsql/hrana-client@0.5.6(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)':
+    dependencies:
+      '@libsql/isomorphic-fetch': 0.1.12(encoding@0.1.13)
+      '@libsql/isomorphic-ws': 0.1.5(bufferutil@4.0.8)(utf-8-validate@6.0.3)
+      js-base64: 3.7.5
+      node-fetch: 3.3.2
+    transitivePeerDependencies:
+      - bufferutil
+      - encoding
+      - utf-8-validate
+
+  '@libsql/hrana-client@0.5.6(encoding@0.1.13)':
+    dependencies:
+      '@libsql/isomorphic-fetch': 0.1.12(encoding@0.1.13)
+      '@libsql/isomorphic-ws': 0.1.5
+      js-base64: 3.7.5
+      node-fetch: 3.3.2
+    transitivePeerDependencies:
+      - bufferutil
+      - encoding
+      - utf-8-validate
+    optional: true
+
+  '@libsql/isomorphic-fetch@0.1.12(encoding@0.1.13)':
     dependencies:
       '@types/node-fetch': 2.6.11
-      node-fetch: 2.7.0
+      node-fetch: 2.7.0(encoding@0.1.13)
     transitivePeerDependencies:
       - encoding
 
   '@libsql/isomorphic-ws@0.1.5':
+    dependencies:
+      '@types/ws': 8.5.4
+      ws: 8.14.2
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+    optional: true
+
+  '@libsql/isomorphic-ws@0.1.5(bufferutil@4.0.7)(utf-8-validate@6.0.3)':
+    dependencies:
+      '@types/ws': 8.5.4
+      ws: 8.14.2(bufferutil@4.0.7)(utf-8-validate@6.0.3)
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
+  '@libsql/isomorphic-ws@0.1.5(bufferutil@4.0.8)(utf-8-validate@6.0.3)':
     dependencies:
       '@types/ws': 8.5.4
       ws: 8.14.2(bufferutil@4.0.8)(utf-8-validate@6.0.3)
@@ -10595,12 +10664,12 @@ snapshots:
   '@libsql/win32-x64-msvc@0.3.10':
     optional: true
 
-  '@mapbox/node-pre-gyp@1.0.10':
+  '@mapbox/node-pre-gyp@1.0.10(encoding@0.1.13)':
     dependencies:
       detect-libc: 2.0.1
       https-proxy-agent: 5.0.1
       make-dir: 3.1.0
-      node-fetch: 2.6.9
+      node-fetch: 2.6.9(encoding@0.1.13)
       nopt: 5.0.0
       npmlog: 5.0.1
       rimraf: 3.0.2
@@ -10657,6 +10726,8 @@ snapshots:
     dependencies:
       '@types/pg': 8.6.6
 
+  '@noble/hashes@1.4.0': {}
+
   '@nodelib/fs.scandir@2.1.5':
     dependencies:
       '@nodelib/fs.stat': 2.0.5
@@ -10679,16 +10750,20 @@ snapshots:
       mkdirp: 1.0.4
       rimraf: 3.0.2
 
-  '@op-engineering/op-sqlite@2.0.16(react-native@0.73.6)(react@18.2.0)':
+  '@op-engineering/op-sqlite@2.0.16(react-native@0.73.6(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4))(bufferutil@4.0.8)(encoding@0.1.13)(react@18.2.0)(utf-8-validate@6.0.3))(react@18.2.0)':
     dependencies:
       react: 18.2.0
-      react-native: 0.73.6(@babel/core@7.24.4)(@babel/preset-env@7.24.4)(react@18.2.0)
+      react-native: 0.73.6(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4))(bufferutil@4.0.8)(encoding@0.1.13)(react@18.2.0)(utf-8-validate@6.0.3)
 
   '@opentelemetry/api@1.4.1': {}
 
   '@originjs/vite-plugin-commonjs@1.0.3':
     dependencies:
       esbuild: 0.14.54
+
+  '@paralleldrive/cuid2@2.2.2':
+    dependencies:
+      '@noble/hashes': 1.4.0
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
@@ -10697,17 +10772,17 @@ snapshots:
 
   '@polka/url@1.0.0-next.21': {}
 
-  '@react-native-community/cli-clean@12.3.6':
+  '@react-native-community/cli-clean@12.3.6(encoding@0.1.13)':
     dependencies:
-      '@react-native-community/cli-tools': 12.3.6
+      '@react-native-community/cli-tools': 12.3.6(encoding@0.1.13)
       chalk: 4.1.2
       execa: 5.1.1
     transitivePeerDependencies:
       - encoding
 
-  '@react-native-community/cli-config@12.3.6':
+  '@react-native-community/cli-config@12.3.6(encoding@0.1.13)':
     dependencies:
-      '@react-native-community/cli-tools': 12.3.6
+      '@react-native-community/cli-tools': 12.3.6(encoding@0.1.13)
       chalk: 4.1.2
       cosmiconfig: 5.2.1
       deepmerge: 4.3.1
@@ -10722,12 +10797,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@react-native-community/cli-doctor@12.3.6':
+  '@react-native-community/cli-doctor@12.3.6(encoding@0.1.13)':
     dependencies:
-      '@react-native-community/cli-config': 12.3.6
-      '@react-native-community/cli-platform-android': 12.3.6
-      '@react-native-community/cli-platform-ios': 12.3.6
-      '@react-native-community/cli-tools': 12.3.6
+      '@react-native-community/cli-config': 12.3.6(encoding@0.1.13)
+      '@react-native-community/cli-platform-android': 12.3.6(encoding@0.1.13)
+      '@react-native-community/cli-platform-ios': 12.3.6(encoding@0.1.13)
+      '@react-native-community/cli-tools': 12.3.6(encoding@0.1.13)
       chalk: 4.1.2
       command-exists: 1.2.9
       deepmerge: 4.3.1
@@ -10743,18 +10818,18 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  '@react-native-community/cli-hermes@12.3.6':
+  '@react-native-community/cli-hermes@12.3.6(encoding@0.1.13)':
     dependencies:
-      '@react-native-community/cli-platform-android': 12.3.6
-      '@react-native-community/cli-tools': 12.3.6
+      '@react-native-community/cli-platform-android': 12.3.6(encoding@0.1.13)
+      '@react-native-community/cli-tools': 12.3.6(encoding@0.1.13)
       chalk: 4.1.2
       hermes-profile-transformer: 0.0.6
     transitivePeerDependencies:
       - encoding
 
-  '@react-native-community/cli-platform-android@12.3.6':
+  '@react-native-community/cli-platform-android@12.3.6(encoding@0.1.13)':
     dependencies:
-      '@react-native-community/cli-tools': 12.3.6
+      '@react-native-community/cli-tools': 12.3.6(encoding@0.1.13)
       chalk: 4.1.2
       execa: 5.1.1
       fast-xml-parser: 4.3.6
@@ -10763,9 +10838,9 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  '@react-native-community/cli-platform-ios@12.3.6':
+  '@react-native-community/cli-platform-ios@12.3.6(encoding@0.1.13)':
     dependencies:
-      '@react-native-community/cli-tools': 12.3.6
+      '@react-native-community/cli-tools': 12.3.6(encoding@0.1.13)
       chalk: 4.1.2
       execa: 5.1.1
       fast-xml-parser: 4.3.6
@@ -10776,30 +10851,30 @@ snapshots:
 
   '@react-native-community/cli-plugin-metro@12.3.6': {}
 
-  '@react-native-community/cli-server-api@12.3.6':
+  '@react-native-community/cli-server-api@12.3.6(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)':
     dependencies:
       '@react-native-community/cli-debugger-ui': 12.3.6
-      '@react-native-community/cli-tools': 12.3.6
+      '@react-native-community/cli-tools': 12.3.6(encoding@0.1.13)
       compression: 1.7.4
       connect: 3.7.0
       errorhandler: 1.5.1
       nocache: 3.0.4
       pretty-format: 26.6.2
       serve-static: 1.15.0
-      ws: 7.5.9
+      ws: 7.5.9(bufferutil@4.0.8)(utf-8-validate@6.0.3)
     transitivePeerDependencies:
       - bufferutil
       - encoding
       - supports-color
       - utf-8-validate
 
-  '@react-native-community/cli-tools@12.3.6':
+  '@react-native-community/cli-tools@12.3.6(encoding@0.1.13)':
     dependencies:
       appdirsjs: 1.2.7
       chalk: 4.1.2
       find-up: 5.0.0
       mime: 2.6.0
-      node-fetch: 2.7.0
+      node-fetch: 2.7.0(encoding@0.1.13)
       open: 6.4.0
       ora: 5.4.1
       semver: 7.6.0
@@ -10812,16 +10887,16 @@ snapshots:
     dependencies:
       joi: 17.12.3
 
-  '@react-native-community/cli@12.3.6':
+  '@react-native-community/cli@12.3.6(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)':
     dependencies:
-      '@react-native-community/cli-clean': 12.3.6
-      '@react-native-community/cli-config': 12.3.6
+      '@react-native-community/cli-clean': 12.3.6(encoding@0.1.13)
+      '@react-native-community/cli-config': 12.3.6(encoding@0.1.13)
       '@react-native-community/cli-debugger-ui': 12.3.6
-      '@react-native-community/cli-doctor': 12.3.6
-      '@react-native-community/cli-hermes': 12.3.6
+      '@react-native-community/cli-doctor': 12.3.6(encoding@0.1.13)
+      '@react-native-community/cli-hermes': 12.3.6(encoding@0.1.13)
       '@react-native-community/cli-plugin-metro': 12.3.6
-      '@react-native-community/cli-server-api': 12.3.6
-      '@react-native-community/cli-tools': 12.3.6
+      '@react-native-community/cli-server-api': 12.3.6(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)
+      '@react-native-community/cli-tools': 12.3.6(encoding@0.1.13)
       '@react-native-community/cli-types': 12.3.6
       chalk: 4.1.2
       commander: 9.5.0
@@ -10840,14 +10915,14 @@ snapshots:
 
   '@react-native/assets-registry@0.73.1': {}
 
-  '@react-native/babel-plugin-codegen@0.73.4(@babel/preset-env@7.24.4)':
+  '@react-native/babel-plugin-codegen@0.73.4(@babel/preset-env@7.24.4(@babel/core@7.24.4))':
     dependencies:
-      '@react-native/codegen': 0.73.3(@babel/preset-env@7.24.4)
+      '@react-native/codegen': 0.73.3(@babel/preset-env@7.24.4(@babel/core@7.24.4))
     transitivePeerDependencies:
       - '@babel/preset-env'
       - supports-color
 
-  '@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4)':
+  '@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4))':
     dependencies:
       '@babel/core': 7.24.4
       '@babel/plugin-proposal-async-generator-functions': 7.20.7(@babel/core@7.24.4)
@@ -10888,38 +10963,38 @@ snapshots:
       '@babel/plugin-transform-typescript': 7.24.4(@babel/core@7.24.4)
       '@babel/plugin-transform-unicode-regex': 7.24.1(@babel/core@7.24.4)
       '@babel/template': 7.24.0
-      '@react-native/babel-plugin-codegen': 0.73.4(@babel/preset-env@7.24.4)
+      '@react-native/babel-plugin-codegen': 0.73.4(@babel/preset-env@7.24.4(@babel/core@7.24.4))
       babel-plugin-transform-flow-enums: 0.0.2(@babel/core@7.24.4)
       react-refresh: 0.14.0
     transitivePeerDependencies:
       - '@babel/preset-env'
       - supports-color
 
-  '@react-native/codegen@0.73.3(@babel/preset-env@7.24.4)':
+  '@react-native/codegen@0.73.3(@babel/preset-env@7.24.4(@babel/core@7.24.4))':
     dependencies:
       '@babel/parser': 7.24.4
       '@babel/preset-env': 7.24.4(@babel/core@7.24.4)
       flow-parser: 0.206.0
       glob: 7.2.3
       invariant: 2.2.4
-      jscodeshift: 0.14.0(@babel/preset-env@7.24.4)
+      jscodeshift: 0.14.0(@babel/preset-env@7.24.4(@babel/core@7.24.4))
       mkdirp: 0.5.6
       nullthrows: 1.1.1
     transitivePeerDependencies:
       - supports-color
 
-  '@react-native/community-cli-plugin@0.73.17(@babel/core@7.24.4)(@babel/preset-env@7.24.4)':
+  '@react-native/community-cli-plugin@0.73.17(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4))(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)':
     dependencies:
-      '@react-native-community/cli-server-api': 12.3.6
-      '@react-native-community/cli-tools': 12.3.6
-      '@react-native/dev-middleware': 0.73.8
-      '@react-native/metro-babel-transformer': 0.73.15(@babel/core@7.24.4)(@babel/preset-env@7.24.4)
+      '@react-native-community/cli-server-api': 12.3.6(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)
+      '@react-native-community/cli-tools': 12.3.6(encoding@0.1.13)
+      '@react-native/dev-middleware': 0.73.8(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)
+      '@react-native/metro-babel-transformer': 0.73.15(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4))
       chalk: 4.1.2
       execa: 5.1.1
-      metro: 0.80.8
-      metro-config: 0.80.8
+      metro: 0.80.8(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)
+      metro-config: 0.80.8(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)
       metro-core: 0.80.8
-      node-fetch: 2.7.0
+      node-fetch: 2.7.0(encoding@0.1.13)
       readline: 1.3.0
     transitivePeerDependencies:
       - '@babel/core'
@@ -10931,7 +11006,7 @@ snapshots:
 
   '@react-native/debugger-frontend@0.73.3': {}
 
-  '@react-native/dev-middleware@0.73.8':
+  '@react-native/dev-middleware@0.73.8(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)':
     dependencies:
       '@isaacs/ttlcache': 1.4.1
       '@react-native/debugger-frontend': 0.73.3
@@ -10939,11 +11014,11 @@ snapshots:
       chromium-edge-launcher: 1.0.0
       connect: 3.7.0
       debug: 2.6.9
-      node-fetch: 2.7.0
+      node-fetch: 2.7.0(encoding@0.1.13)
       open: 7.4.2
       serve-static: 1.15.0
       temp-dir: 2.0.0
-      ws: 6.2.2
+      ws: 6.2.2(bufferutil@4.0.8)(utf-8-validate@6.0.3)
     transitivePeerDependencies:
       - bufferutil
       - encoding
@@ -10954,10 +11029,10 @@ snapshots:
 
   '@react-native/js-polyfills@0.73.1': {}
 
-  '@react-native/metro-babel-transformer@0.73.15(@babel/core@7.24.4)(@babel/preset-env@7.24.4)':
+  '@react-native/metro-babel-transformer@0.73.15(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4))':
     dependencies:
       '@babel/core': 7.24.4
-      '@react-native/babel-preset': 0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4)
+      '@react-native/babel-preset': 0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4))
       hermes-parser: 0.15.0
       nullthrows: 1.1.1
     transitivePeerDependencies:
@@ -10968,45 +11043,52 @@ snapshots:
 
   '@react-native/normalize-colors@0.73.2': {}
 
-  '@react-native/virtualized-lists@0.73.4(react-native@0.73.6)':
+  '@react-native/virtualized-lists@0.73.4(react-native@0.73.6(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4))(bufferutil@4.0.8)(encoding@0.1.13)(react@18.2.0)(utf-8-validate@6.0.3))':
     dependencies:
       invariant: 2.2.4
       nullthrows: 1.1.1
-      react-native: 0.73.6(@babel/core@7.24.4)(@babel/preset-env@7.24.4)(react@18.2.0)
+      react-native: 0.73.6(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4))(bufferutil@4.0.8)(encoding@0.1.13)(react@18.2.0)(utf-8-validate@6.0.3)
 
   '@rollup/plugin-terser@0.4.1(rollup@3.20.7)':
     dependencies:
-      rollup: 3.20.7
       serialize-javascript: 6.0.1
       smob: 0.0.6
       terser: 5.17.1
+    optionalDependencies:
+      rollup: 3.20.7
 
   '@rollup/plugin-terser@0.4.1(rollup@3.27.2)':
     dependencies:
-      rollup: 3.27.2
       serialize-javascript: 6.0.1
       smob: 0.0.6
       terser: 5.17.1
+    optionalDependencies:
+      rollup: 3.27.2
 
-  '@rollup/plugin-typescript@11.1.0(rollup@3.20.7)(typescript@5.2.2)':
+  '@rollup/plugin-typescript@11.1.0(rollup@3.20.7)(tslib@2.6.2)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))':
     dependencies:
       '@rollup/pluginutils': 5.0.2(rollup@3.20.7)
       resolve: 1.22.1
-      rollup: 3.20.7
       typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
+    optionalDependencies:
+      rollup: 3.20.7
+      tslib: 2.6.2
 
-  '@rollup/plugin-typescript@11.1.1(rollup@3.27.2)(typescript@5.2.2)':
+  '@rollup/plugin-typescript@11.1.1(rollup@3.27.2)(tslib@2.6.2)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))':
     dependencies:
       '@rollup/pluginutils': 5.0.2(rollup@3.27.2)
       resolve: 1.22.2
-      rollup: 3.27.2
       typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
+    optionalDependencies:
+      rollup: 3.27.2
+      tslib: 2.6.2
 
   '@rollup/pluginutils@5.0.2(rollup@3.20.7)':
     dependencies:
       '@types/estree': 1.0.1
       estree-walker: 2.0.2
       picomatch: 2.3.1
+    optionalDependencies:
       rollup: 3.20.7
 
   '@rollup/pluginutils@5.0.2(rollup@3.27.2)':
@@ -11014,6 +11096,7 @@ snapshots:
       '@types/estree': 1.0.1
       estree-walker: 2.0.2
       picomatch: 2.3.1
+    optionalDependencies:
       rollup: 3.27.2
 
   '@segment/loosely-validate-event@2.0.0':
@@ -11512,13 +11595,13 @@ snapshots:
     dependencies:
       '@types/yargs-parser': 21.0.3
 
-  '@typescript-eslint/eslint-plugin@6.7.3(@typescript-eslint/parser@6.7.3)(eslint@8.50.0)(typescript@5.2.2)':
+  '@typescript-eslint/eslint-plugin@6.7.3(@typescript-eslint/parser@6.7.3(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)))(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))':
     dependencies:
       '@eslint-community/regexpp': 4.9.0
-      '@typescript-eslint/parser': 6.7.3(eslint@8.50.0)(typescript@5.2.2)
+      '@typescript-eslint/parser': 6.7.3(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       '@typescript-eslint/scope-manager': 6.7.3
-      '@typescript-eslint/type-utils': 6.7.3(eslint@8.50.0)(typescript@5.2.2)
-      '@typescript-eslint/utils': 6.7.3(eslint@8.50.0)(typescript@5.2.2)
+      '@typescript-eslint/type-utils': 6.7.3(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
+      '@typescript-eslint/utils': 6.7.3(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       '@typescript-eslint/visitor-keys': 6.7.3
       debug: 4.3.4
       eslint: 8.50.0
@@ -11526,48 +11609,51 @@ snapshots:
       ignore: 5.2.4
       natural-compare: 1.4.0
       semver: 7.5.4
-      ts-api-utils: 1.0.3(typescript@5.2.2)
+      ts-api-utils: 1.0.3(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
+    optionalDependencies:
       typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/experimental-utils@5.62.0(eslint@8.50.0)(typescript@5.2.2)':
+  '@typescript-eslint/experimental-utils@5.62.0(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))':
     dependencies:
-      '@typescript-eslint/utils': 5.62.0(eslint@8.50.0)(typescript@5.2.2)
+      '@typescript-eslint/utils': 5.62.0(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       eslint: 8.50.0
     transitivePeerDependencies:
       - supports-color
       - typescript
 
-  '@typescript-eslint/parser@6.10.0(eslint@8.53.0)(typescript@5.2.2)':
+  '@typescript-eslint/parser@6.10.0(eslint@8.53.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))':
     dependencies:
       '@typescript-eslint/scope-manager': 6.10.0
       '@typescript-eslint/types': 6.10.0
-      '@typescript-eslint/typescript-estree': 6.10.0(typescript@5.2.2)
+      '@typescript-eslint/typescript-estree': 6.10.0(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       '@typescript-eslint/visitor-keys': 6.10.0
       debug: 4.3.4
       eslint: 8.53.0
+    optionalDependencies:
       typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/parser@6.7.3(eslint@8.50.0)(typescript@5.2.2)':
+  '@typescript-eslint/parser@6.7.3(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))':
     dependencies:
       '@typescript-eslint/scope-manager': 6.7.3
       '@typescript-eslint/types': 6.7.3
-      '@typescript-eslint/typescript-estree': 6.7.3(typescript@5.2.2)
+      '@typescript-eslint/typescript-estree': 6.7.3(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       '@typescript-eslint/visitor-keys': 6.7.3
       debug: 4.3.4
       eslint: 8.50.0
+    optionalDependencies:
       typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/rule-tester@6.10.0(@eslint/eslintrc@3.0.2)(eslint@8.53.0)(typescript@5.2.2)':
+  '@typescript-eslint/rule-tester@6.10.0(@eslint/eslintrc@3.0.2)(eslint@8.53.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))':
     dependencies:
       '@eslint/eslintrc': 3.0.2
-      '@typescript-eslint/typescript-estree': 6.10.0(typescript@5.2.2)
-      '@typescript-eslint/utils': 6.10.0(eslint@8.53.0)(typescript@5.2.2)
+      '@typescript-eslint/typescript-estree': 6.10.0(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
+      '@typescript-eslint/utils': 6.10.0(eslint@8.53.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       ajv: 6.12.6
       eslint: 8.53.0
       lodash.merge: 4.6.2
@@ -11591,13 +11677,14 @@ snapshots:
       '@typescript-eslint/types': 6.7.3
       '@typescript-eslint/visitor-keys': 6.7.3
 
-  '@typescript-eslint/type-utils@6.7.3(eslint@8.50.0)(typescript@5.2.2)':
+  '@typescript-eslint/type-utils@6.7.3(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))':
     dependencies:
-      '@typescript-eslint/typescript-estree': 6.7.3(typescript@5.2.2)
-      '@typescript-eslint/utils': 6.7.3(eslint@8.50.0)(typescript@5.2.2)
+      '@typescript-eslint/typescript-estree': 6.7.3(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
+      '@typescript-eslint/utils': 6.7.3(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       debug: 4.3.4
       eslint: 8.50.0
-      ts-api-utils: 1.0.3(typescript@5.2.2)
+      ts-api-utils: 1.0.3(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
+    optionalDependencies:
       typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
     transitivePeerDependencies:
       - supports-color
@@ -11608,7 +11695,7 @@ snapshots:
 
   '@typescript-eslint/types@6.7.3': {}
 
-  '@typescript-eslint/typescript-estree@5.62.0(typescript@5.2.2)':
+  '@typescript-eslint/typescript-estree@5.62.0(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))':
     dependencies:
       '@typescript-eslint/types': 5.62.0
       '@typescript-eslint/visitor-keys': 5.62.0
@@ -11616,12 +11703,13 @@ snapshots:
       globby: 11.1.0
       is-glob: 4.0.3
       semver: 7.5.4
-      tsutils: 3.21.0(typescript@5.2.2)
+      tsutils: 3.21.0(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
+    optionalDependencies:
       typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/typescript-estree@6.10.0(typescript@5.2.2)':
+  '@typescript-eslint/typescript-estree@6.10.0(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))':
     dependencies:
       '@typescript-eslint/types': 6.10.0
       '@typescript-eslint/visitor-keys': 6.10.0
@@ -11629,12 +11717,13 @@ snapshots:
       globby: 11.1.0
       is-glob: 4.0.3
       semver: 7.5.4
-      ts-api-utils: 1.0.3(typescript@5.2.2)
+      ts-api-utils: 1.0.3(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
+    optionalDependencies:
       typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/typescript-estree@6.7.3(typescript@5.2.2)':
+  '@typescript-eslint/typescript-estree@6.7.3(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))':
     dependencies:
       '@typescript-eslint/types': 6.7.3
       '@typescript-eslint/visitor-keys': 6.7.3
@@ -11642,19 +11731,20 @@ snapshots:
       globby: 11.1.0
       is-glob: 4.0.3
       semver: 7.5.4
-      ts-api-utils: 1.0.3(typescript@5.2.2)
+      ts-api-utils: 1.0.3(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
+    optionalDependencies:
       typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/utils@5.62.0(eslint@8.50.0)(typescript@5.2.2)':
+  '@typescript-eslint/utils@5.62.0(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))':
     dependencies:
       '@eslint-community/eslint-utils': 4.4.0(eslint@8.50.0)
       '@types/json-schema': 7.0.13
       '@types/semver': 7.5.3
       '@typescript-eslint/scope-manager': 5.62.0
       '@typescript-eslint/types': 5.62.0
-      '@typescript-eslint/typescript-estree': 5.62.0(typescript@5.2.2)
+      '@typescript-eslint/typescript-estree': 5.62.0(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       eslint: 8.50.0
       eslint-scope: 5.1.1
       semver: 7.5.4
@@ -11662,28 +11752,28 @@ snapshots:
       - supports-color
       - typescript
 
-  '@typescript-eslint/utils@6.10.0(eslint@8.53.0)(typescript@5.2.2)':
+  '@typescript-eslint/utils@6.10.0(eslint@8.53.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))':
     dependencies:
       '@eslint-community/eslint-utils': 4.4.0(eslint@8.53.0)
       '@types/json-schema': 7.0.13
       '@types/semver': 7.5.3
       '@typescript-eslint/scope-manager': 6.10.0
       '@typescript-eslint/types': 6.10.0
-      '@typescript-eslint/typescript-estree': 6.10.0(typescript@5.2.2)
+      '@typescript-eslint/typescript-estree': 6.10.0(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       eslint: 8.53.0
       semver: 7.5.4
     transitivePeerDependencies:
       - supports-color
       - typescript
 
-  '@typescript-eslint/utils@6.7.3(eslint@8.50.0)(typescript@5.2.2)':
+  '@typescript-eslint/utils@6.7.3(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))':
     dependencies:
       '@eslint-community/eslint-utils': 4.4.0(eslint@8.50.0)
       '@types/json-schema': 7.0.13
       '@types/semver': 7.5.3
       '@typescript-eslint/scope-manager': 6.7.3
       '@typescript-eslint/types': 6.7.3
-      '@typescript-eslint/typescript-estree': 6.7.3(typescript@5.2.2)
+      '@typescript-eslint/typescript-estree': 6.7.3(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       eslint: 8.50.0
       semver: 7.5.4
     transitivePeerDependencies:
@@ -11798,7 +11888,19 @@ snapshots:
       pathe: 1.1.1
       picocolors: 1.0.0
       sirv: 2.0.3
-      vitest: 0.31.4(@vitest/ui@0.31.4)
+      vitest: 0.31.4(@vitest/ui@0.31.4)(terser@5.30.3)
+
+  '@vitest/ui@0.31.4(vitest@0.34.6)':
+    dependencies:
+      '@vitest/utils': 0.31.4
+      fast-glob: 3.2.12
+      fflate: 0.7.4
+      flatted: 3.2.7
+      pathe: 1.1.1
+      picocolors: 1.0.0
+      sirv: 2.0.3
+      vitest: 0.34.6(@vitest/ui@0.31.4)(terser@5.30.3)
+    optional: true
 
   '@vitest/utils@0.31.4':
     dependencies:
@@ -11812,7 +11914,7 @@ snapshots:
       loupe: 2.3.6
       pretty-format: 29.7.0
 
-  '@xata.io/client@0.29.3(typescript@5.2.2)':
+  '@xata.io/client@0.29.3(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))':
     dependencies:
       typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
 
@@ -12191,7 +12293,7 @@ snapshots:
       '@babel/plugin-transform-parameters': 7.24.1(@babel/core@7.24.4)
       '@babel/preset-env': 7.24.4(@babel/core@7.24.4)
       '@babel/preset-react': 7.24.1(@babel/core@7.24.4)
-      '@react-native/babel-preset': 0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4)
+      '@react-native/babel-preset': 0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4))
       babel-plugin-react-native-web: 0.18.12
       react-refresh: 0.14.0
     transitivePeerDependencies:
@@ -12743,9 +12845,9 @@ snapshots:
       p-filter: 3.0.0
       p-map: 6.0.0
 
-  cross-fetch@3.1.8:
+  cross-fetch@3.1.8(encoding@0.1.13):
     dependencies:
-      node-fetch: 2.7.0
+      node-fetch: 2.7.0(encoding@0.1.13)
     transitivePeerDependencies:
       - encoding
 
@@ -12962,9 +13064,27 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.27.2(bun-types@1.0.3):
-    dependencies:
+  drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.549.0)(@cloudflare/workers-types@4.20230904.0)(@libsql/client@0.5.6(encoding@0.1.13))(@neondatabase/serverless@0.9.0)(@opentelemetry/api@1.4.1)(@planetscale/database@1.16.0)(@types/better-sqlite3@7.6.4)(@types/pg@8.10.1)(@types/sql.js@1.4.4)(@vercel/postgres@0.8.0)(better-sqlite3@8.4.0)(bun-types@1.0.3)(knex@2.4.2(better-sqlite3@8.4.0)(mysql2@3.3.3)(pg@8.11.0)(sqlite3@5.1.6(encoding@0.1.13)))(kysely@0.25.0)(mysql2@3.3.3)(pg@8.11.0)(postgres@3.3.5)(sql.js@1.8.0)(sqlite3@5.1.6(encoding@0.1.13)):
+    optionalDependencies:
+      '@aws-sdk/client-rds-data': 3.549.0
+      '@cloudflare/workers-types': 4.20230904.0
+      '@libsql/client': 0.5.6(encoding@0.1.13)
+      '@neondatabase/serverless': 0.9.0
+      '@opentelemetry/api': 1.4.1
+      '@planetscale/database': 1.16.0
+      '@types/better-sqlite3': 7.6.4
+      '@types/pg': 8.10.1
+      '@types/sql.js': 1.4.4
+      '@vercel/postgres': 0.8.0
+      better-sqlite3: 8.4.0
       bun-types: 1.0.3
+      knex: 2.4.2(better-sqlite3@8.4.0)(mysql2@3.3.3)(pg@8.11.0)(sqlite3@5.1.6(encoding@0.1.13))
+      kysely: 0.25.0
+      mysql2: 3.3.3
+      pg: 8.11.0
+      postgres: 3.3.5
+      sql.js: 1.8.0
+      sqlite3: 5.1.6(encoding@0.1.13)
 
   duplexer@0.1.2: {}
 
@@ -13261,18 +13381,18 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-module-utils@2.8.0(@typescript-eslint/parser@6.7.3)(eslint-import-resolver-node@0.3.9)(eslint@8.50.0):
+  eslint-module-utils@2.8.0(@typescript-eslint/parser@6.7.3(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)))(eslint-import-resolver-node@0.3.9)(eslint@8.50.0):
     dependencies:
-      '@typescript-eslint/parser': 6.7.3(eslint@8.50.0)(typescript@5.2.2)
       debug: 3.2.7
+    optionalDependencies:
+      '@typescript-eslint/parser': 6.7.3(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
       eslint: 8.50.0
       eslint-import-resolver-node: 0.3.9
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-import@2.28.1(@typescript-eslint/parser@6.7.3)(eslint@8.50.0):
+  eslint-plugin-import@2.28.1(@typescript-eslint/parser@6.7.3(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)))(eslint@8.50.0):
     dependencies:
-      '@typescript-eslint/parser': 6.7.3(eslint@8.50.0)(typescript@5.2.2)
       array-includes: 3.1.6
       array.prototype.findlastindex: 1.2.2
       array.prototype.flat: 1.3.1
@@ -13281,7 +13401,7 @@ snapshots:
       doctrine: 2.1.0
       eslint: 8.50.0
       eslint-import-resolver-node: 0.3.9
-      eslint-module-utils: 2.8.0(@typescript-eslint/parser@6.7.3)(eslint-import-resolver-node@0.3.9)(eslint@8.50.0)
+      eslint-module-utils: 2.8.0(@typescript-eslint/parser@6.7.3(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)))(eslint-import-resolver-node@0.3.9)(eslint@8.50.0)
       has: 1.0.3
       is-core-module: 2.13.0
       is-glob: 4.0.3
@@ -13291,6 +13411,8 @@ snapshots:
       object.values: 1.1.6
       semver: 6.3.1
       tsconfig-paths: 3.14.2
+    optionalDependencies:
+      '@typescript-eslint/parser': 6.7.3(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
     transitivePeerDependencies:
       - eslint-import-resolver-typescript
       - eslint-import-resolver-webpack
@@ -13317,11 +13439,12 @@ snapshots:
       semver: 7.5.4
       strip-indent: 3.0.0
 
-  eslint-plugin-unused-imports@3.0.0(@typescript-eslint/eslint-plugin@6.7.3)(eslint@8.50.0):
+  eslint-plugin-unused-imports@3.0.0(@typescript-eslint/eslint-plugin@6.7.3(@typescript-eslint/parser@6.7.3(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)))(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)))(eslint@8.50.0):
     dependencies:
-      '@typescript-eslint/eslint-plugin': 6.7.3(@typescript-eslint/parser@6.7.3)(eslint@8.50.0)(typescript@5.2.2)
       eslint: 8.50.0
       eslint-rule-composer: 0.3.0
+    optionalDependencies:
+      '@typescript-eslint/eslint-plugin': 6.7.3(@typescript-eslint/parser@6.7.3(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)))(eslint@8.50.0)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
 
   eslint-rule-composer@0.3.0: {}
 
@@ -13515,37 +13638,37 @@ snapshots:
 
   expand-template@2.0.3: {}
 
-  expo-asset@9.0.2(expo@50.0.14):
+  expo-asset@9.0.2(expo@50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)):
     dependencies:
       '@react-native/assets-registry': 0.73.1
       blueimp-md5: 2.19.0
-      expo-constants: 15.4.5(expo@50.0.14)
-      expo-file-system: 16.0.8(expo@50.0.14)
+      expo-constants: 15.4.5(expo@50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3))
+      expo-file-system: 16.0.8(expo@50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3))
       invariant: 2.2.4
       md5-file: 3.2.3
     transitivePeerDependencies:
       - expo
       - supports-color
 
-  expo-constants@15.4.5(expo@50.0.14):
+  expo-constants@15.4.5(expo@50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)):
     dependencies:
       '@expo/config': 8.5.4
-      expo: 50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21)
+      expo: 50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)
     transitivePeerDependencies:
       - supports-color
 
-  expo-file-system@16.0.8(expo@50.0.14):
+  expo-file-system@16.0.8(expo@50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)):
     dependencies:
-      expo: 50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21)
+      expo: 50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)
 
-  expo-font@11.10.3(expo@50.0.14):
+  expo-font@11.10.3(expo@50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)):
     dependencies:
-      expo: 50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21)
+      expo: 50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)
       fontfaceobserver: 2.3.0
 
-  expo-keep-awake@12.8.2(expo@50.0.14):
+  expo-keep-awake@12.8.2(expo@50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)):
     dependencies:
-      expo: 50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21)
+      expo: 50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)
 
   expo-modules-autolinking@1.10.3:
     dependencies:
@@ -13562,27 +13685,27 @@ snapshots:
     dependencies:
       invariant: 2.2.4
 
-  expo-sqlite@13.2.0(expo@50.0.14):
+  expo-sqlite@13.2.0(expo@50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)):
     dependencies:
       '@expo/websql': 1.0.1
-      expo: 50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21)
+      expo: 50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)
 
-  expo@50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21):
+  expo@50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3):
     dependencies:
       '@babel/runtime': 7.24.4
-      '@expo/cli': 0.17.8(@react-native/babel-preset@0.73.21)(expo-modules-autolinking@1.10.3)
+      '@expo/cli': 0.17.8(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))(bufferutil@4.0.8)(encoding@0.1.13)(expo-modules-autolinking@1.10.3)(utf-8-validate@6.0.3)
       '@expo/config': 8.5.4
       '@expo/config-plugins': 7.8.4
-      '@expo/metro-config': 0.17.6(@react-native/babel-preset@0.73.21)
+      '@expo/metro-config': 0.17.6(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))
       '@expo/vector-icons': 14.0.0
       babel-preset-expo: 10.0.1(@babel/core@7.24.4)
-      expo-asset: 9.0.2(expo@50.0.14)
-      expo-file-system: 16.0.8(expo@50.0.14)
-      expo-font: 11.10.3(expo@50.0.14)
-      expo-keep-awake: 12.8.2(expo@50.0.14)
+      expo-asset: 9.0.2(expo@50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3))
+      expo-file-system: 16.0.8(expo@50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3))
+      expo-font: 11.10.3(expo@50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3))
+      expo-keep-awake: 12.8.2(expo@50.0.14(@babel/core@7.24.4)(@react-native/babel-preset@0.73.21(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4)))(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3))
       expo-modules-autolinking: 1.10.3
       expo-modules-core: 1.11.12
-      fbemitter: 3.0.0
+      fbemitter: 3.0.0(encoding@0.1.13)
       whatwg-url-without-unicode: 8.0.0-3
     transitivePeerDependencies:
       - '@babel/core'
@@ -13681,17 +13804,17 @@ snapshots:
     dependencies:
       bser: 2.1.1
 
-  fbemitter@3.0.0:
+  fbemitter@3.0.0(encoding@0.1.13):
     dependencies:
-      fbjs: 3.0.5
+      fbjs: 3.0.5(encoding@0.1.13)
     transitivePeerDependencies:
       - encoding
 
   fbjs-css-vars@1.0.2: {}
 
-  fbjs@3.0.5:
+  fbjs@3.0.5(encoding@0.1.13):
     dependencies:
-      cross-fetch: 3.1.8
+      cross-fetch: 3.1.8(encoding@0.1.13)
       fbjs-css-vars: 1.0.2
       loose-envify: 1.4.0
       object-assign: 4.1.1
@@ -13706,9 +13829,9 @@ snapshots:
       node-domexception: 1.0.0
       web-streams-polyfill: 3.2.1
 
-  fetch-ponyfill@7.1.0:
+  fetch-ponyfill@7.1.0(encoding@0.1.13):
     dependencies:
-      node-fetch: 2.6.11
+      node-fetch: 2.6.11(encoding@0.1.13)
     transitivePeerDependencies:
       - encoding
 
@@ -14520,7 +14643,7 @@ snapshots:
 
   jsc-safe-url@0.2.4: {}
 
-  jscodeshift@0.14.0(@babel/preset-env@7.24.4):
+  jscodeshift@0.14.0(@babel/preset-env@7.24.4(@babel/core@7.24.4)):
     dependencies:
       '@babel/core': 7.24.4
       '@babel/parser': 7.24.4
@@ -14615,9 +14738,8 @@ snapshots:
 
   kleur@4.1.5: {}
 
-  knex@2.4.2(better-sqlite3@8.4.0)(mysql2@3.3.3)(pg@8.11.0)(sqlite3@5.1.6):
+  knex@2.4.2(better-sqlite3@8.4.0)(mysql2@3.3.3)(pg@8.11.0)(sqlite3@5.1.6(encoding@0.1.13)):
     dependencies:
-      better-sqlite3: 8.4.0
       colorette: 2.0.19
       commander: 9.5.0
       debug: 4.3.4
@@ -14627,14 +14749,16 @@ snapshots:
       getopts: 2.3.0
       interpret: 2.2.0
       lodash: 4.17.21
-      mysql2: 3.3.3
-      pg: 8.11.0
       pg-connection-string: 2.5.0
       rechoir: 0.8.0
       resolve-from: 5.0.0
-      sqlite3: 5.1.6
       tarn: 3.0.2
       tildify: 2.0.0
+    optionalDependencies:
+      better-sqlite3: 8.4.0
+      mysql2: 3.3.3
+      pg: 8.11.0
+      sqlite3: 5.1.6(encoding@0.1.13)
     transitivePeerDependencies:
       - supports-color
 
@@ -14921,12 +15045,12 @@ snapshots:
       metro-core: 0.80.8
       rimraf: 3.0.2
 
-  metro-config@0.80.8:
+  metro-config@0.80.8(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3):
     dependencies:
       connect: 3.7.0
       cosmiconfig: 5.2.1
       jest-validate: 29.7.0
-      metro: 0.80.8
+      metro: 0.80.8(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)
       metro-cache: 0.80.8
       metro-core: 0.80.8
       metro-runtime: 0.80.8
@@ -15002,13 +15126,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  metro-transform-worker@0.80.8:
+  metro-transform-worker@0.80.8(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3):
     dependencies:
       '@babel/core': 7.24.4
       '@babel/generator': 7.24.4
       '@babel/parser': 7.24.4
       '@babel/types': 7.24.0
-      metro: 0.80.8
+      metro: 0.80.8(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)
       metro-babel-transformer: 0.80.8
       metro-cache: 0.80.8
       metro-cache-key: 0.80.8
@@ -15022,7 +15146,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  metro@0.80.8:
+  metro@0.80.8(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3):
     dependencies:
       '@babel/code-frame': 7.24.2
       '@babel/core': 7.24.4
@@ -15048,7 +15172,7 @@ snapshots:
       metro-babel-transformer: 0.80.8
       metro-cache: 0.80.8
       metro-cache-key: 0.80.8
-      metro-config: 0.80.8
+      metro-config: 0.80.8(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)
       metro-core: 0.80.8
       metro-file-map: 0.80.8
       metro-resolver: 0.80.8
@@ -15056,16 +15180,16 @@ snapshots:
       metro-source-map: 0.80.8
       metro-symbolicate: 0.80.8
       metro-transform-plugins: 0.80.8
-      metro-transform-worker: 0.80.8
+      metro-transform-worker: 0.80.8(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)
       mime-types: 2.1.35
-      node-fetch: 2.7.0
+      node-fetch: 2.7.0(encoding@0.1.13)
       nullthrows: 1.1.1
       rimraf: 3.0.2
       serialize-error: 2.1.0
       source-map: 0.5.7
       strip-ansi: 6.0.1
       throat: 5.0.0
-      ws: 7.5.9
+      ws: 7.5.9(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       yargs: 17.7.2
     transitivePeerDependencies:
       - bufferutil
@@ -15261,17 +15385,23 @@ snapshots:
     dependencies:
       lodash: 4.17.21
 
-  node-fetch@2.6.11:
+  node-fetch@2.6.11(encoding@0.1.13):
     dependencies:
       whatwg-url: 5.0.0
+    optionalDependencies:
+      encoding: 0.1.13
 
-  node-fetch@2.6.9:
+  node-fetch@2.6.9(encoding@0.1.13):
     dependencies:
       whatwg-url: 5.0.0
+    optionalDependencies:
+      encoding: 0.1.13
 
-  node-fetch@2.7.0:
+  node-fetch@2.7.0(encoding@0.1.13):
     dependencies:
       whatwg-url: 5.0.0
+    optionalDependencies:
+      encoding: 0.1.13
 
   node-fetch@3.3.1:
     dependencies:
@@ -15719,10 +15849,12 @@ snapshots:
 
   pngjs@3.4.0: {}
 
-  postcss-load-config@4.0.1:
+  postcss-load-config@4.0.1(postcss@8.4.38):
     dependencies:
       lilconfig: 2.1.0
       yaml: 2.3.1
+    optionalDependencies:
+      postcss: 8.4.38
 
   postcss@8.4.24:
     dependencies:
@@ -15889,10 +16021,10 @@ snapshots:
       minimist: 1.2.8
       strip-json-comments: 2.0.1
 
-  react-devtools-core@4.28.5:
+  react-devtools-core@4.28.5(bufferutil@4.0.8)(utf-8-validate@6.0.3):
     dependencies:
       shell-quote: 1.8.1
-      ws: 7.5.9
+      ws: 7.5.9(bufferutil@4.0.8)(utf-8-validate@6.0.3)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -15903,19 +16035,19 @@ snapshots:
 
   react-is@18.2.0: {}
 
-  react-native@0.73.6(@babel/core@7.24.4)(@babel/preset-env@7.24.4)(react@18.2.0):
+  react-native@0.73.6(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4))(bufferutil@4.0.8)(encoding@0.1.13)(react@18.2.0)(utf-8-validate@6.0.3):
     dependencies:
       '@jest/create-cache-key-function': 29.7.0
-      '@react-native-community/cli': 12.3.6
-      '@react-native-community/cli-platform-android': 12.3.6
-      '@react-native-community/cli-platform-ios': 12.3.6
+      '@react-native-community/cli': 12.3.6(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)
+      '@react-native-community/cli-platform-android': 12.3.6(encoding@0.1.13)
+      '@react-native-community/cli-platform-ios': 12.3.6(encoding@0.1.13)
       '@react-native/assets-registry': 0.73.1
-      '@react-native/codegen': 0.73.3(@babel/preset-env@7.24.4)
-      '@react-native/community-cli-plugin': 0.73.17(@babel/core@7.24.4)(@babel/preset-env@7.24.4)
+      '@react-native/codegen': 0.73.3(@babel/preset-env@7.24.4(@babel/core@7.24.4))
+      '@react-native/community-cli-plugin': 0.73.17(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4))(bufferutil@4.0.8)(encoding@0.1.13)(utf-8-validate@6.0.3)
       '@react-native/gradle-plugin': 0.73.4
       '@react-native/js-polyfills': 0.73.1
       '@react-native/normalize-colors': 0.73.2
-      '@react-native/virtualized-lists': 0.73.4(react-native@0.73.6)
+      '@react-native/virtualized-lists': 0.73.4(react-native@0.73.6(@babel/core@7.24.4)(@babel/preset-env@7.24.4(@babel/core@7.24.4))(bufferutil@4.0.8)(encoding@0.1.13)(react@18.2.0)(utf-8-validate@6.0.3))
       abort-controller: 3.0.0
       anser: 1.4.10
       ansi-regex: 5.0.1
@@ -15935,14 +16067,14 @@ snapshots:
       pretty-format: 26.6.2
       promise: 8.3.0
       react: 18.2.0
-      react-devtools-core: 4.28.5
+      react-devtools-core: 4.28.5(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       react-refresh: 0.14.0
       react-shallow-renderer: 16.15.0(react@18.2.0)
       regenerator-runtime: 0.13.11
       scheduler: 0.24.0-canary-efb381bbf-20230505
       stacktrace-parser: 0.1.10
       whatwg-fetch: 3.6.20
-      ws: 6.2.2
+      ws: 6.2.2(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       yargs: 17.7.2
     transitivePeerDependencies:
       - '@babel/core'
@@ -16087,7 +16219,7 @@ snapshots:
 
   resolve-from@5.0.0: {}
 
-  resolve-tspaths@0.8.16(typescript@5.2.2):
+  resolve-tspaths@0.8.16(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)):
     dependencies:
       ansi-colors: 4.1.3
       commander: 11.0.0
@@ -16421,9 +16553,9 @@ snapshots:
 
   sql.js@1.8.0: {}
 
-  sqlite3@5.1.6:
+  sqlite3@5.1.6(encoding@0.1.13):
     dependencies:
-      '@mapbox/node-pre-gyp': 1.0.10
+      '@mapbox/node-pre-gyp': 1.0.10(encoding@0.1.13)
       node-addon-api: 4.3.0
       tar: 6.1.13
     optionalDependencies:
@@ -16757,14 +16889,14 @@ snapshots:
 
   treeify@1.1.0: {}
 
-  ts-api-utils@1.0.3(typescript@5.2.2):
+  ts-api-utils@1.0.3(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)):
     dependencies:
       typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
 
   ts-interface-checker@0.1.13: {}
 
-  tsconfck@2.1.1(typescript@5.2.2):
-    dependencies:
+  tsconfck@2.1.1(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)):
+    optionalDependencies:
       typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
 
   tsconfig-paths@3.14.2:
@@ -16782,7 +16914,7 @@ snapshots:
 
   tslib@2.6.2: {}
 
-  tsup@7.2.0(typescript@5.2.2):
+  tsup@7.2.0(postcss@8.4.38)(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)):
     dependencies:
       bundle-require: 4.0.2(esbuild@0.18.20)
       cac: 6.7.14
@@ -16792,18 +16924,20 @@ snapshots:
       execa: 5.1.1
       globby: 11.1.0
       joycon: 3.1.1
-      postcss-load-config: 4.0.1
+      postcss-load-config: 4.0.1(postcss@8.4.38)
       resolve-from: 5.0.0
       rollup: 3.27.2
       source-map: 0.8.0-beta.0
       sucrase: 3.34.0
       tree-kill: 1.2.2
+    optionalDependencies:
+      postcss: 8.4.38
       typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
     transitivePeerDependencies:
       - supports-color
       - ts-node
 
-  tsutils@3.21.0(typescript@5.2.2):
+  tsutils@3.21.0(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)):
     dependencies:
       tslib: 1.14.1
       typescript: 5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq)
@@ -17045,14 +17179,14 @@ snapshots:
 
   vary@1.1.2: {}
 
-  vite-node@0.31.4(@types/node@20.8.7):
+  vite-node@0.31.4(@types/node@20.8.7)(terser@5.30.3):
     dependencies:
       cac: 6.7.14
       debug: 4.3.4
       mlly: 1.3.0
       pathe: 1.1.1
       picocolors: 1.0.0
-      vite: 4.3.9(@types/node@20.8.7)
+      vite: 4.3.9(@types/node@20.8.7)(terser@5.30.3)
     transitivePeerDependencies:
       - '@types/node'
       - less
@@ -17062,14 +17196,14 @@ snapshots:
       - supports-color
       - terser
 
-  vite-node@0.34.6(@types/node@20.10.1):
+  vite-node@0.34.6(@types/node@20.10.1)(terser@5.30.3):
     dependencies:
       cac: 6.7.14
       debug: 4.3.4
       mlly: 1.4.2
       pathe: 1.1.1
       picocolors: 1.0.0
-      vite: 4.3.9(@types/node@20.10.1)
+      vite: 4.3.9(@types/node@20.10.1)(terser@5.30.3)
     transitivePeerDependencies:
       - '@types/node'
       - less
@@ -17079,44 +17213,48 @@ snapshots:
       - supports-color
       - terser
 
-  vite-tsconfig-paths@4.2.0(typescript@5.2.2)(vite@4.3.9):
+  vite-tsconfig-paths@4.2.0(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))(vite@4.3.9(@types/node@20.2.5)(terser@5.30.3)):
     dependencies:
       debug: 4.3.4
       globrex: 0.1.2
-      tsconfck: 2.1.1(typescript@5.2.2)
-      vite: 4.3.9(@types/node@20.2.5)
+      tsconfck: 2.1.1(typescript@5.2.2(patch_hash=wmhs4olj6eveeldp6si4l46ssq))
+    optionalDependencies:
+      vite: 4.3.9(@types/node@20.2.5)(terser@5.30.3)
     transitivePeerDependencies:
       - supports-color
       - typescript
 
-  vite@4.3.9(@types/node@20.10.1):
+  vite@4.3.9(@types/node@20.10.1)(terser@5.30.3):
     dependencies:
+      esbuild: 0.17.19
+      postcss: 8.4.24
+      rollup: 3.27.2
+    optionalDependencies:
       '@types/node': 20.10.1
+      fsevents: 2.3.3
+      terser: 5.30.3
+
+  vite@4.3.9(@types/node@20.2.5)(terser@5.30.3):
+    dependencies:
       esbuild: 0.17.19
       postcss: 8.4.24
       rollup: 3.27.2
     optionalDependencies:
-      fsevents: 2.3.3
-
-  vite@4.3.9(@types/node@20.2.5):
-    dependencies:
       '@types/node': 20.2.5
-      esbuild: 0.17.19
-      postcss: 8.4.24
-      rollup: 3.27.2
-    optionalDependencies:
       fsevents: 2.3.3
+      terser: 5.30.3
 
-  vite@4.3.9(@types/node@20.8.7):
+  vite@4.3.9(@types/node@20.8.7)(terser@5.30.3):
     dependencies:
-      '@types/node': 20.8.7
       esbuild: 0.17.19
       postcss: 8.4.24
       rollup: 3.27.2
     optionalDependencies:
+      '@types/node': 20.8.7
       fsevents: 2.3.3
+      terser: 5.30.3
 
-  vitest@0.31.4(@vitest/ui@0.31.4):
+  vitest@0.31.4(@vitest/ui@0.31.4)(terser@5.30.3):
     dependencies:
       '@types/chai': 4.3.5
       '@types/chai-subset': 1.3.3
@@ -17125,7 +17263,6 @@ snapshots:
       '@vitest/runner': 0.31.4
       '@vitest/snapshot': 0.31.4
       '@vitest/spy': 0.31.4
-      '@vitest/ui': 0.31.4(vitest@0.31.4)
       '@vitest/utils': 0.31.4
       acorn: 8.8.2
       acorn-walk: 8.2.0
@@ -17141,9 +17278,11 @@ snapshots:
       strip-literal: 1.0.1
       tinybench: 2.5.0
       tinypool: 0.5.0
-      vite: 4.3.9(@types/node@20.8.7)
-      vite-node: 0.31.4(@types/node@20.8.7)
+      vite: 4.3.9(@types/node@20.8.7)(terser@5.30.3)
+      vite-node: 0.31.4(@types/node@20.8.7)(terser@5.30.3)
       why-is-node-running: 2.2.2
+    optionalDependencies:
+      '@vitest/ui': 0.31.4(vitest@0.31.4)
     transitivePeerDependencies:
       - less
       - sass
@@ -17152,7 +17291,7 @@ snapshots:
       - supports-color
       - terser
 
-  vitest@0.34.6:
+  vitest@0.34.6(@vitest/ui@0.31.4)(terser@5.30.3):
     dependencies:
       '@types/chai': 4.3.5
       '@types/chai-subset': 1.3.3
@@ -17175,9 +17314,11 @@ snapshots:
       strip-literal: 1.0.1
       tinybench: 2.5.0
       tinypool: 0.7.0
-      vite: 4.3.9(@types/node@20.10.1)
-      vite-node: 0.34.6(@types/node@20.10.1)
+      vite: 4.3.9(@types/node@20.10.1)(terser@5.30.3)
+      vite-node: 0.34.6(@types/node@20.10.1)(terser@5.30.3)
       why-is-node-running: 2.2.2
+    optionalDependencies:
+      '@vitest/ui': 0.31.4(vitest@0.34.6)
     transitivePeerDependencies:
       - less
       - sass
@@ -17306,19 +17447,33 @@ snapshots:
       imurmurhash: 0.1.4
       signal-exit: 4.0.2
 
-  ws@6.2.2:
+  ws@6.2.2(bufferutil@4.0.8)(utf-8-validate@6.0.3):
     dependencies:
       async-limiter: 1.0.1
+    optionalDependencies:
+      bufferutil: 4.0.8
+      utf-8-validate: 6.0.3
 
-  ws@7.5.9: {}
+  ws@7.5.9(bufferutil@4.0.8)(utf-8-validate@6.0.3):
+    optionalDependencies:
+      bufferutil: 4.0.8
+      utf-8-validate: 6.0.3
 
   ws@8.13.0(bufferutil@4.0.7)(utf-8-validate@6.0.3):
-    dependencies:
+    optionalDependencies:
+      bufferutil: 4.0.7
+      utf-8-validate: 6.0.3
+
+  ws@8.14.2:
+    optional: true
+
+  ws@8.14.2(bufferutil@4.0.7)(utf-8-validate@6.0.3):
+    optionalDependencies:
       bufferutil: 4.0.7
       utf-8-validate: 6.0.3
 
   ws@8.14.2(bufferutil@4.0.8)(utf-8-validate@6.0.3):
-    dependencies:
+    optionalDependencies:
       bufferutil: 4.0.8
       utf-8-validate: 6.0.3
 

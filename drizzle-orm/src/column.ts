@@ -17,6 +17,9 @@ export interface ColumnBaseConfig<
 	tableName: string;
 	notNull: boolean;
 	hasDefault: boolean;
+	isPrimaryKey: boolean;
+	isAutoincrement: boolean;
+	hasRuntimeDefault: boolean;
 }
 
 export type ColumnTypeConfig<T extends ColumnBaseConfig<ColumnDataType, string>, TTypeConfig extends object> = T & {
@@ -29,6 +32,9 @@ export type ColumnTypeConfig<T extends ColumnBaseConfig<ColumnDataType, string>,
 	driverParam: T['driverParam'];
 	notNull: T['notNull'];
 	hasDefault: T['hasDefault'];
+	isPrimaryKey: T['isPrimaryKey'];
+	isAutoincrement: T['isAutoincrement'];
+	hasRuntimeDefault: T['hasRuntimeDefault'];
 	enumValues: T['enumValues'];
 	baseColumn: T extends { baseColumn: infer U } ? U : unknown;
 	generated: GeneratedColumnConfig<T['data']> | undefined;

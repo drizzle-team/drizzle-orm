@@ -412,7 +412,9 @@ export class MySqlDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	buildInsertQuery({ table, values, ignore, onConflict }: MySqlInsertConfig): SQL {
+	buildInsertQuery(
+		{ table, values, ignore, onConflict }: MySqlInsertConfig,
+	): { sql: SQL; generatedIds: Record<string, unknown>[] } {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, MySqlColumn> = table[Table.Symbol.Columns];
@@ -421,8 +423,11 @@ export class MySqlDialect {
 		);
 
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
+		const generatedIdsResponse: Record<string, unknown>[] = [];
 
 		for (const [valueIndex, value] of values.entries()) {
+			const generatedIds: Record<string, unknown> = {};
+
 			const valueList: (SQLChunk | SQL)[] = [];
 			for (const [fieldName, col] of colEntries) {
 				const colValue = value[fieldName];
@@ -430,6 +435,7 @@ export class MySqlDialect {
 					// eslint-disable-next-line unicorn/no-negated-condition
 					if (col.defaultFn !== undefined) {
 						const defaultFnResult = col.defaultFn();
+						generatedIds[fieldName] = defaultFnResult;
 						const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
 						valueList.push(defaultValue);
 						// eslint-disable-next-line unicorn/no-negated-condition
@@ -441,9 +447,14 @@ export class MySqlDialect {
 						valueList.push(sql`default`);
 					}
 				} else {
+					if (col.defaultFn && is(colValue, Param)) {
+						generatedIds[fieldName] = colValue.value;
+					}
 					valueList.push(colValue);
 				}
 			}
+
+			generatedIdsResponse.push(generatedIds);
 			valuesSqlList.push(valueList);
 			if (valueIndex < values.length - 1) {
 				valuesSqlList.push(sql`, `);
@@ -456,7 +467,10 @@ export class MySqlDialect {
 
 		const onConflictSql = onConflict ? sql` on duplicate key ${onConflict}` : undefined;
 
-		return sql`insert${ignoreSql} into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}`;
+		return {
+			sql: sql`insert${ignoreSql} into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}`,
+			generatedIds: generatedIdsResponse,
+		};
 	}
 
 	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {

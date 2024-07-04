@@ -202,6 +202,9 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				isPrimaryKey: true;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
 			}>;
 			cityId: PgColumn<{
 				tableName: 'new_yorkers';
@@ -215,6 +218,9 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				isPrimaryKey: true;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
 			}>;
 		}>,
 		typeof newYorkers
@@ -255,6 +261,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: true;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -268,6 +277,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: true;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -306,6 +318,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -319,6 +334,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -357,6 +375,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -370,6 +391,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -398,6 +422,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -411,6 +438,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -439,6 +469,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -452,6 +485,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -495,6 +531,9 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				isPrimaryKey: true;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
 			}>;
 			cityId: PgColumn<{
 				tableName: 'new_yorkers';
@@ -508,6 +547,9 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				isPrimaryKey: true;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
 			}>;
 		}>,
 		typeof newYorkers2
@@ -551,6 +593,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: true;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -564,6 +609,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: true;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers2
@@ -605,6 +653,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -618,6 +669,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers2
@@ -659,6 +713,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -672,6 +729,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers2
@@ -700,6 +760,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -713,6 +776,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers2
@@ -741,6 +807,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -754,6 +823,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers2
@@ -857,6 +929,9 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 						enumValues: undefined;
 						baseColumn: never;
 						generated: undefined;
+						isPrimaryKey: true;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
 					}>;
 					name: PgColumn<{
 						tableName: 'cities_table';
@@ -870,6 +945,9 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 						notNull: true;
 						baseColumn: never;
 						generated: undefined;
+						isPrimaryKey: true;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
 					}>;
 					role: PgColumn<{
 						tableName: 'cities_table';
@@ -883,6 +961,9 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 						notNull: true;
 						baseColumn: never;
 						generated: undefined;
+						isPrimaryKey: false;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
 					}>;
 					population: PgColumn<{
 						tableName: 'cities_table';
@@ -896,6 +977,9 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 						enumValues: undefined;
 						baseColumn: never;
 						generated: undefined;
+						isPrimaryKey: false;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
 					}>;
 				};
 			}>,

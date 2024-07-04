@@ -74,6 +74,62 @@ export const cities = mysqlTable('cities_table', {
 }));
 
 Expect<
+	Equal<
+		{
+			id: MySqlColumn<{
+				name: 'id';
+				tableName: 'cities_table';
+				dataType: 'number';
+				columnType: 'MySqlSerial';
+				data: number;
+				driverParam: number;
+				notNull: true;
+				hasDefault: true;
+				isPrimaryKey: true;
+				enumValues: undefined;
+				baseColumn: never;
+				generated: undefined;
+				isAutoincrement: true;
+				hasRuntimeDefault: false;
+			}, object>;
+			name: MySqlColumn<{
+				name: 'name_db';
+				tableName: 'cities_table';
+				dataType: 'string';
+				columnType: 'MySqlText';
+				data: string;
+				driverParam: string;
+				notNull: true;
+				hasDefault: false;
+				isPrimaryKey: false;
+				enumValues: [string, ...string[]];
+				baseColumn: never;
+				generated: undefined;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
+			}, object>;
+			population: MySqlColumn<{
+				name: 'population';
+				tableName: 'cities_table';
+				dataType: 'number';
+				columnType: 'MySqlInt';
+				data: number;
+				driverParam: string | number;
+				notNull: false;
+				hasDefault: true;
+				isPrimaryKey: false;
+				enumValues: undefined;
+				baseColumn: never;
+				generated: undefined;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
+			}, object>;
+		},
+		typeof cities._.columns
+	>
+>;
+
+Expect<
 	Equal<{
 		id: number;
 		name_db: string;
@@ -144,6 +200,9 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				isPrimaryKey: true;
+				isAutoincrement: true;
+				hasRuntimeDefault: false;
 			}>;
 			cityId: MySqlColumn<{
 				name: 'id';
@@ -157,6 +216,9 @@ Expect<
 				enumValues: undefined;
 				baseColumn: never;
 				generated: undefined;
+				isPrimaryKey: true;
+				isAutoincrement: true;
+				hasRuntimeDefault: false;
 			}>;
 		}>,
 		typeof newYorkers
@@ -195,6 +257,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: true;
+					isAutoincrement: true;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'id';
@@ -208,6 +273,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: true;
+					isAutoincrement: true;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -244,6 +312,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -257,6 +328,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -293,6 +367,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -306,6 +383,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -334,6 +414,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -347,6 +430,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -375,6 +461,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -388,6 +477,9 @@ Expect<
 					enumValues: undefined;
 					baseColumn: never;
 					generated: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
 				}>;
 			}>,
 			typeof newYorkers
@@ -419,6 +511,9 @@ Expect<
 				baseColumn: never;
 				dialect: 'mysql';
 				generated: undefined;
+				isPrimaryKey: false;
+				isAutoincrement: false;
+				hasRuntimeDefault: false;
 			},
 			Simplify<BuildColumn<'table', typeof t, 'mysql'>['_']>
 		>
