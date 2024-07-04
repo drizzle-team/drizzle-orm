@@ -40,8 +40,6 @@ export const IsAlias = Symbol.for('drizzle:IsAlias');
 /** @internal */
 export const ExtraConfigBuilder = Symbol.for('drizzle:ExtraConfigBuilder');
 
-const IsDrizzleTable = Symbol.for('drizzle:IsDrizzleTable');
-
 export interface Table<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	T extends TableConfig = TableConfig,
@@ -110,17 +108,11 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 	/** @internal */
 	[ExtraConfigBuilder]: ((self: any) => Record<string, unknown>) | undefined = undefined;
 
-	[IsDrizzleTable] = true;
-
 	constructor(name: string, schema: string | undefined, baseName: string) {
 		this[TableName] = this[OriginalName] = name;
 		this[Schema] = schema;
 		this[BaseName] = baseName;
 	}
-}
-
-export function isTable(table: unknown): table is Table {
-	return typeof table === 'object' && table !== null && IsDrizzleTable in table;
 }
 
 /**
@@ -159,7 +151,7 @@ export type InferModelFromColumns<
 	TInferMode extends 'select' | 'insert' = 'select',
 	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
 > = Simplify<
-	TInferMode extends 'insert' ? 
+	TInferMode extends 'insert' ?
 			& {
 				[
 					Key in keyof TColumns & string as RequiredKeyOnly<

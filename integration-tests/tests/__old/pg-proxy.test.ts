@@ -59,7 +59,7 @@ import { v4 as uuid } from 'uuid';
 import type { Equal } from './utils.ts';
 import { Expect } from './utils.ts';
 
-// eslint-disable-next-line drizzle/require-entity-kind
+// eslint-disable-next-line drizzle-internal/require-entity-kind
 class ServerSimulator {
 	constructor(private db: pg.Client) {
 		const { types } = pg;

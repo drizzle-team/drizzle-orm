@@ -8,5 +8,5 @@
 		}
 	},
 	"include": ["tests", "type-tests"],
-	"exclude": ["**/playground", "**/.sst"]
+	"exclude": ["**/playground", "**/.sst", "tests/prisma/*/client/**/*.js"]
 }

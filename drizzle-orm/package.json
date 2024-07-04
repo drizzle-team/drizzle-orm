@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.31.0",
+	"version": "0.31.2",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
@@ -51,6 +51,8 @@
 		"@op-engineering/op-sqlite": ">=2",
 		"@opentelemetry/api": "^1.4.1",
 		"@planetscale/database": ">=1",
+		"@prisma/client": "*",
+		"@tidbcloud/serverless": "*",
 		"@types/better-sqlite3": "*",
 		"@types/pg": "*",
 		"@types/react": ">=18",
@@ -144,6 +146,9 @@
 		},
 		"@electric-sql/pglite": {
 			"optional": true
+		},
+		"@tidbcloud/serverless": {
+			"optional": true
 		}
 	},
 	"devDependencies": {
@@ -156,6 +161,8 @@
 		"@opentelemetry/api": "^1.4.1",
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
 		"@planetscale/database": "^1.16.0",
+		"@prisma/client": "5.14.0",
+		"@tidbcloud/serverless": "^0.1.1",
 		"@types/better-sqlite3": "^7.6.4",
 		"@types/node": "^20.2.5",
 		"@types/pg": "^8.10.1",
@@ -172,12 +179,13 @@
 		"mysql2": "^3.3.3",
 		"pg": "^8.11.0",
 		"postgres": "^3.3.5",
+		"prisma": "5.14.0",
 		"react": "^18.2.0",
 		"sql.js": "^1.8.0",
 		"sqlite3": "^5.1.2",
 		"tslib": "^2.5.2",
 		"tsx": "^3.12.7",
-		"vite-tsconfig-paths": "^4.2.0",
+		"vite-tsconfig-paths": "^4.3.2",
 		"vitest": "^1.6.0",
 		"zod": "^3.20.2",
 		"zx": "^7.2.2"
