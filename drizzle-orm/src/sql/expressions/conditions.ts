@@ -277,15 +277,15 @@ export function inArray<T>(
 ): SQL;
 export function inArray<TColumn extends Column>(
 	column: TColumn,
-	values: (GetColumnData<TColumn, 'raw'> | Placeholder)[] | SQLWrapper,
+	values: ReadonlyArray<GetColumnData<TColumn, 'raw'> | Placeholder> | SQLWrapper,
 ): SQL;
 export function inArray<T extends SQLWrapper>(
 	column: Exclude<T, SQL.Aliased | Column>,
-	values: (unknown | Placeholder)[] | SQLWrapper,
+	values: ReadonlyArray<unknown | Placeholder> | SQLWrapper,
 ): SQL;
 export function inArray(
 	column: SQLWrapper,
-	values: (unknown | Placeholder)[] | SQLWrapper,
+	values: ReadonlyArray<unknown | Placeholder> | SQLWrapper,
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
