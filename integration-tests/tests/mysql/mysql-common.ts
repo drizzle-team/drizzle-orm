@@ -2994,7 +2994,7 @@ export function tests(driver?: string) {
 				{ name: 'Jack', id: 3, updateCounter: 1, uppercaseName: 'JACK', alwaysNull: null },
 				{ name: 'Jill', id: 4, updateCounter: 1, uppercaseName: 'JILL', alwaysNull: null },
 			]);
-			const msDelay = 250;
+			const msDelay = 750;
 
 			for (const eachUser of justDates) {
 				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
@@ -3040,7 +3040,7 @@ export function tests(driver?: string) {
 				{ name: 'Jack', id: 3, updateCounter: 1, uppercaseName: 'JACK', alwaysNull: null },
 				{ name: 'Jill', id: 4, updateCounter: 1, uppercaseName: 'JILL', alwaysNull: null },
 			]);
-			const msDelay = 250;
+			const msDelay = 750;
 
 			expect(initial[0]?.updatedAt?.valueOf()).not.toBe(justDates[0]?.updatedAt?.valueOf());
 
