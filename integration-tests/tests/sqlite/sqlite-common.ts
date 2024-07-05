@@ -39,6 +39,8 @@ import {
 	text,
 	union,
 	unionAll,
+	unique,
+	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
 import { beforeEach, describe, expect, test } from 'vitest';
 import { Equal, Expect } from '~/__old/utils';
@@ -46,12 +48,12 @@ import { Equal, Expect } from '~/__old/utils';
 declare module 'vitest' {
 	interface TestContext {
 		sqlite: {
-			db: BaseSQLiteDatabase<'async', any, Record<string, never>>;
+			db: BaseSQLiteDatabase<'async' | 'sync', any, Record<string, never>>;
 		};
 	}
 }
 
-const usersTable = sqliteTable('users', {
+export const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: integer('verified', { mode: 'boolean' }).notNull().default(false),
@@ -70,13 +72,13 @@ const usersOnUpdate = sqliteTable('users_on_update', {
 	// ),  This doesn't seem to be supported in sqlite
 });
 
-const users2Table = sqliteTable('users2', {
+export const users2Table = sqliteTable('users2', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
 	cityId: integer('city_id').references(() => citiesTable.id),
 });
 
-const citiesTable = sqliteTable('cities', {
+export const citiesTable = sqliteTable('cities', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
 });
@@ -986,103 +988,6 @@ export function tests() {
 				db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 			);
 			expect(inserted).toEqual({ id: 1, name: 'John' });
-		});
-
-		test('left join (flat object fields)', async (ctx) => {
-			const { db } = ctx.sqlite;
-
-			const { id: cityId } = await db.insert(citiesTable)
-				.values([{ name: 'Paris' }, { name: 'London' }])
-				.returning({ id: citiesTable.id }).all().then((res) => res[0]!);
-
-			await db.insert(users2Table).values([{ name: 'John', cityId }, { name: 'Jane' }]).run();
-
-			const res = await db.select({
-				userId: users2Table.id,
-				userName: users2Table.name,
-				cityId: citiesTable.id,
-				cityName: citiesTable.name,
-			}).from(users2Table)
-				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
-				.all();
-
-			expect(res).toEqual([
-				{ userId: 1, userName: 'John', cityId, cityName: 'Paris' },
-				{ userId: 2, userName: 'Jane', cityId: null, cityName: null },
-			]);
-		});
-
-		test('left join (grouped fields)', async (ctx) => {
-			const { db } = ctx.sqlite;
-
-			const { id: cityId } = await db.insert(citiesTable)
-				.values([{ name: 'Paris' }, { name: 'London' }])
-				.returning({ id: citiesTable.id }).all().then((res) => res[0]!);
-
-			await db.insert(users2Table).values([{ name: 'John', cityId }, { name: 'Jane' }]).run();
-
-			const res = await db.select({
-				id: users2Table.id,
-				user: {
-					name: users2Table.name,
-					nameUpper: sql<string>`upper(${users2Table.name})`,
-				},
-				city: {
-					id: citiesTable.id,
-					name: citiesTable.name,
-					nameUpper: sql<string>`upper(${citiesTable.name})`,
-				},
-			}).from(users2Table)
-				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
-				.all();
-
-			expect(res).toEqual([
-				{
-					id: 1,
-					user: { name: 'John', nameUpper: 'JOHN' },
-					city: { id: cityId, name: 'Paris', nameUpper: 'PARIS' },
-				},
-				{
-					id: 2,
-					user: { name: 'Jane', nameUpper: 'JANE' },
-					city: null,
-				},
-			]);
-		});
-
-		test('left join (all fields)', async (ctx) => {
-			const { db } = ctx.sqlite;
-
-			const { id: cityId } = await db.insert(citiesTable)
-				.values([{ name: 'Paris' }, { name: 'London' }])
-				.returning({ id: citiesTable.id }).all().then((res) => res[0]!);
-
-			await db.insert(users2Table).values([{ name: 'John', cityId }, { name: 'Jane' }]).run();
-
-			const res = await db.select().from(users2Table)
-				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id)).all();
-
-			expect(res).toEqual([
-				{
-					users2: {
-						id: 1,
-						name: 'John',
-						cityId,
-					},
-					cities: {
-						id: cityId,
-						name: 'Paris',
-					},
-				},
-				{
-					users2: {
-						id: 2,
-						name: 'Jane',
-						cityId: null,
-					},
-					cities: null,
-				},
-			]);
 		});
 
 		test('join subquery', async (ctx) => {
@@ -2034,9 +1939,9 @@ export function tests() {
 				sql`create table ${users} (id integer primary key, name text)`,
 			);
 
-			await expect(async () => {
+			await expect((async () => {
 				await db.insert(users).values({ name: undefined }).run();
-			}).resolves.not.toThrowError();
+			})()).resolves.not.toThrowError();
 
 			await db.run(sql`drop table ${users}`);
 		});
@@ -2055,12 +1960,12 @@ export function tests() {
 				sql`create table ${users} (id integer primary key, name text)`,
 			);
 
-			await expect(async () => {
+			await expect((async () => {
 				await db.update(users).set({ name: undefined }).run();
-			}).rejects.toThrowError();
-			await expect(async () => {
+			})()).rejects.toThrowError();
+			await expect((async () => {
 				await db.update(users).set({ id: 1, name: undefined }).run();
-			}).rejects.toThrowError();
+			})()).resolves.not.toThrowError();
 
 			await db.run(sql`drop table ${users}`);
 		});
@@ -2728,5 +2633,53 @@ export function tests() {
 				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
 			}
 		});
+	});
+
+	test('table configs: unique third param', () => {
+		const cities1Table = sqliteTable('cities1', {
+			id: int('id').primaryKey(),
+			name: text('name').notNull(),
+			state: text('state'),
+		}, (t) => ({
+			f: unique().on(t.name, t.state),
+			f1: unique('custom').on(t.name, t.state),
+		}));
+
+		const tableConfig = getTableConfig(cities1Table);
+
+		expect(tableConfig.uniqueConstraints).toHaveLength(2);
+
+		expect(tableConfig.uniqueConstraints[0]?.columns.map((t) => t.name)).toEqual(['name', 'state']);
+		expect(
+			tableConfig.uniqueConstraints[0]?.name,
+		).toEqual(
+			uniqueKeyName(cities1Table, tableConfig.uniqueConstraints[0]?.columns?.map((column) => column.name) ?? []),
+		);
+
+		expect(tableConfig.uniqueConstraints[1]?.columns.map((t) => t.name)).toEqual(['name', 'state']);
+		expect(tableConfig.uniqueConstraints[1]?.name).toBe('custom');
+	});
+
+	test('table configs: unique in column', () => {
+		const cities1Table = sqliteTable('cities1', {
+			id: int('id').primaryKey(),
+			name: text('name').notNull().unique(),
+			state: text('state').unique('custom'),
+			field: text('field').unique(),
+		});
+
+		const tableConfig = getTableConfig(cities1Table);
+
+		const columnName = tableConfig.columns.find((it) => it.name === 'name');
+		expect(columnName?.isUnique).toBeTruthy();
+		expect(columnName?.uniqueName).toBe(uniqueKeyName(cities1Table, [columnName!.name]));
+
+		const columnState = tableConfig.columns.find((it) => it.name === 'state');
+		expect(columnState?.isUnique).toBeTruthy();
+		expect(columnState?.uniqueName).toBe('custom');
+
+		const columnField = tableConfig.columns.find((it) => it.name === 'field');
+		expect(columnField?.isUnique).toBeTruthy();
+		expect(columnField?.uniqueName).toBe(uniqueKeyName(cities1Table, [columnField!.name]));
 	});
 }
